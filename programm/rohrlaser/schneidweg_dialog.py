@@ -12,9 +12,10 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
                                QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
-from . import stil
+from . import einblendung, stil
 from . import (biegerohr, dfm, dreid, durchdringung as dd, hilfe, knickrahmen, naht, profil_neu, rechnen,
-               schneidweg as sw, skizze as sk)
+               schneidweg as sw, skizze as sk, tabellen_eingabe)
+from .fenster import liste_fuellen
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
@@ -468,7 +469,7 @@ class SchneidwegDialog(QDialog):
         self.k_profil = QComboBox()
         self.k_profil.setEditable(True)
         self.k_profil.setInsertPolicy(QComboBox.NoInsert)
-        self.k_profil.addItems(profil_neu.profile_der_form(self.k.profile, self.k_form.currentText()))
+        self._profile_fuellen()
         self.k_profil.setCurrentText(self.p.get("profil_id") or "")
         self.k_profil.completer().setFilterMode(Qt.MatchContains)
         self.k_profil.completer().setCompletionMode(QCompleter.PopupCompletion)
@@ -483,7 +484,8 @@ class SchneidwegDialog(QDialog):
         pl.addWidget(self.k_profil, 1)
         pl.addWidget(self.k_profil_neu)
         self.k_werkstoff = QComboBox()
-        self.k_werkstoff.addItems([""] + sorted(self.k.werkstoffe, key=str.lower))
+        liste_fuellen(self.k_werkstoff, self.k, "werkstoff")     # zuletzt benutzte oben, Kategorien (B7)
+        tabellen_eingabe.teilwort(self.k_werkstoff)
         self.k_werkstoff.setCurrentText(self.p.get("werkstoff_id") or "")
         self.k_werkstoff.currentTextChanged.connect(self._kopf_geaendert)
         self.k_laenge = QDoubleSpinBox()
@@ -512,13 +514,22 @@ class SchneidwegDialog(QDialog):
     def _form_gewaehlt(self, form):
         """Profilliste auf die Form beschränken; das gewählte Profil bleibt, wenn es passt, sonst das erste."""
         alt = self.k_profil.currentText()
-        liste = profil_neu.profile_der_form(self.k.profile, form)
         self.k_profil.blockSignals(True)
-        self.k_profil.clear()
-        self.k_profil.addItems(liste)
+        liste = self._profile_fuellen(form)
         self.k_profil.setCurrentText(alt if alt in liste else (liste[0] if liste else ""))
         self.k_profil.blockSignals(False)
         self._profil_gewaehlt(self.k_profil.currentText())
+
+    def _profile_fuellen(self, form=None):
+        """Profilliste der Form; oben die zuletzt benutzten Profile dieser Form (Plan Bedienung B7). Ergebnis: Profile
+        der Form (ohne Überschriften)."""
+        from . import fenster
+        liste = profil_neu.profile_der_form(self.k.profile, form or self.k_form.currentText())
+        self.k_profil.clear()
+        if fenster.zuletzt_einfuegen(self.k_profil, "profil", set(liste)):
+            fenster.ueberschrift(self.k_profil, "— Alle —")
+        self.k_profil.addItems(liste)
+        return liste
 
     def profil_neu(self, werte=None, dialog=None):
         """Fehlendes Profil anlegen (ProfilNeuDialog; werte = fertige Zeile ohne Dialog, dialog(d) bedient ihn in
@@ -548,7 +559,7 @@ class SchneidwegDialog(QDialog):
         self.k_profil.setCurrentText(werte["profil_id"])
         self._profil_gewaehlt(werte["profil_id"])
         if interaktiv:
-            QMessageBox.information(self, "Neues Profil", f"Profil {werte['profil_id']} angelegt. Den Materialpreis "
+            einblendung.melden(self, f"Profil {werte['profil_id']} angelegt. Den Materialpreis "
                                     "bitte unter Einstellungen eintragen oder im Angebot als Meterpreis.")
         return werte["profil_id"]
 
@@ -783,7 +794,7 @@ class SchneidwegDialog(QDialog):
         teile = [m for m in messwerte or () if m.get("profilform") and float(m.get("laenge") or 0) > 0
                  and m.get("konturen_liste")]
         if not teile:
-            QMessageBox.information(self, "STEP neu einlesen", "In der Datei wurde kein Rohrteil mit Konturliste "
+            einblendung.melden(self, "In der Datei wurde kein Rohrteil mit Konturliste "
                                     "gemessen.")
             return False
         teile.sort(key=lambda m: str(m.get("artikel")) != str(self.p.get("artikel")))
@@ -796,13 +807,13 @@ class SchneidwegDialog(QDialog):
             m = teile[namen.index(text)]
         e = step_eingaben(m, self.profil)
         if not e:
-            QMessageBox.information(self, "STEP neu einlesen", "Die Messung enthält keine Konturen und Enden.")
+            einblendung.melden(self, "Die Messung enthält keine Konturen und Enden.")
             return False
         self.aus_position = False
         self.eingaben_setzen(e, mit_messung=True)
         laenge = float(m.get("laenge") or 0)
         if isinstance(self.p.get("laenge"), (int, float)) and abs(laenge - self.p["laenge"]) > 0.5:
-            QMessageBox.information(self, "STEP neu einlesen", f"Hinweis: Die Datei misst {rechnen.zahl(laenge, 1)} mm, "
+            einblendung.melden(self, f"Hinweis: Die Datei misst {rechnen.zahl(laenge, 1)} mm, "
                                     f"die Position hat {rechnen.zahl(self.p['laenge'], 1)} mm Teilelänge.")
         return True
 
@@ -832,7 +843,7 @@ class SchneidwegDialog(QDialog):
         Konturen, Nasen und Gravuren wie im 3D-Modell. Ohne pfad: Dateidialog im Ordner des Angebots."""
         from . import step_export
         if getattr(self, "biegerohr", None):
-            QMessageBox.information(self, "STEP speichern", "Ein Biegerohr kommt aus der STEP-Datei des Kunden: "
+            einblendung.melden(self, "Ein Biegerohr kommt aus der STEP-Datei des Kunden: "
                                     "bitte diese weitergeben, der STEP-Export baut nur gerade Rohre.")
             return None
         self.rechnen()
@@ -850,15 +861,16 @@ class SchneidwegDialog(QDialog):
         name = f"Pos {self.p.get('pos') or ''} {self.p.get('artikel') or ''}".strip()
         return step_export.speichern_dialog(self, plan, name, pfad)
 
-    def dxf_importieren(self, pfad=None):
+    def dxf_importieren(self, pfad=None, zuordnung=None):
         """Rohrteil aus einer DXF-Zeichnung mit Ansichten übernehmen (Plan 3E-12, dxf_rohr): Enden, Konturen und
         Teilelänge; bei einer neuen Position auch Profil (wenn in den Stammdaten), Werkstoff, Artikel und Bezeichnung.
+        Unsichere Zeichnung (3E-15): erst das Zuordnungsfenster; zuordnung(d) bedient es statt exec (Tests).
         Ohne pfad: Dateidialog. Ergebnis: True = übernommen."""
         from pathlib import Path
 
         from PySide6.QtWidgets import QFileDialog
 
-        from . import dxf_import as di, dxf_rohr
+        from . import dxf_rohr_dialog
         if pfad is None:
             ordner = (self.db.einstellung("dxf_ordner") if self.db else None) or ""
             pfad, _ = QFileDialog.getOpenFileName(self, "DXF importieren", str(ordner), "DXF-Dateien (*.dxf *.DXF)")
@@ -867,12 +879,14 @@ class SchneidwegDialog(QDialog):
             if self.db and not self.db.nur_lesen:
                 self.db.einstellung_setzen("dxf_ordner", str(Path(pfad).parent))
         try:
-            erg = dxf_rohr.erkennen(di.datei_lesen(pfad), Path(pfad).name)
+            erg = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung, auch_fehler=True)
         except (OSError, ValueError) as x:
             QMessageBox.warning(self, "DXF importieren", str(x))
             return False
+        if erg.get("abgebrochen"):
+            return False
         if not erg["ok"]:
-            QMessageBox.information(self, "DXF importieren", "Keine Rohrzeichnung erkannt. " +
+            einblendung.melden(self, "Keine Rohrzeichnung erkannt. " +
                                     " ".join(erg["warnungen"]))
             return False
         self.dxf_uebernehmen(erg, Path(pfad).name)
@@ -1315,7 +1329,7 @@ class SchneidwegDialog(QDialog):
     def _kopieren_waehlen(self):
         liste = self.kopierbare()
         if not liste:
-            QMessageBox.information(self, "Konturen kopieren", "Keine andere Position dieses Angebots hat Konturen im "
+            einblendung.melden(self, "Keine andere Position dieses Angebots hat Konturen im "
                                     "Schneidweg-Rechner.")
             return
         from . import konturvorlagen, vorschau

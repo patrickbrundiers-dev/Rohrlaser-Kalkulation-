@@ -212,8 +212,8 @@ f.updater.ausstehend = None
 assert any((v3 / "Daten" / "Sicherung").glob("rohrlaser_*_vor_update.db")), "Datendatei vor dem Update gesichert"
 assert update.lokale_liste(v3)["stand"] == 2
 f.updater.lokal = update.lokale_liste(v3)
-f.updater._gefunden(online, None, still=False)              # jetzt aktuell
-assert "aktuell" in meldungen[-1], meldungen
+f.updater._gefunden(online, None, still=False)              # jetzt aktuell: ruhige Meldung statt Fenster (B2)
+assert "aktuell" in f.verlauf.eintraege[0][1], f.verlauf.eintraege
 f.updater._gefunden(None, "keine Verbindung", still=True)   # still: keine Meldung
 f.updater._gefunden(None, "keine Verbindung", still=False)
 assert meldungen[-1].startswith("WARNUNG"), meldungen

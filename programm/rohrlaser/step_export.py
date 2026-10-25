@@ -13,6 +13,9 @@ eigenen Prozess (STEP-Import.exe --export, step_messung/step_schreiben.py):
 - Gravuren (Text-Gravur, Artikelnummer, Gravur mit Umriss) als Rille GRAVUR_TIEFE tief und GRAVUR_BREITE breit,
   mindestens GRAVUR_ABSTAND von Enden, Außenkontur und Konturen (Patrick 24.10.2026, sonst gekürzt mit Hinweis).
 - Blech: eben (auch aus dem DXF-Import), Außenkontur und Innenkonturen mit echten Bögen.
+- Gekantetes Blech (3E-13, Patrick 25.10.2026 „Alle a“): die Abwicklung wie oben, dazu die Biegungen; gefaltet wird
+  beim Schreiben (Innenradius wie eingegeben, neutrale Faser so, dass die Abwicklung stimmt). Konturen in einer
+  Biegezone werden mitgebogen.
 """
 import json
 import math
@@ -635,13 +638,37 @@ def _blech_loch(z, cx, cy):
     return None
 
 
+def biegungen(e, zs, s):
+    """Biegungen für den Bauplan (Abwicklung wie blech3d): [dict(o, d, n, ba, phi [rad, + = nach oben], t, abstand,
+    ri)]. Kantteil: Bogenlänge aus dem Ausgleichswert des Zuschnitts (damit die Außenmaße stimmen, auch mit K-Faktor
+    aus der Tabelle); Biegelinien aus der STEP-Messung: Bogenlänge der Messung, Innenradius daraus."""
+    out = []
+    if e.get("art") == blech.KANTTEIL:
+        for lage, winkel, r, v in zs.get("biegungen") or ():
+            phi = math.radians(abs(winkel))
+            if phi <= 0:
+                continue
+            gerade = 2 * (r + s) * (math.tan(phi / 2) if abs(winkel) <= 90 else 1.0)
+            ba = gerade - v
+            out.append(dict(o=[0.0, round(lage - ba / 2, 9)], d=[1.0, 0.0], n=[0.0, 1.0], ba=round(ba, 9),
+                            phi=round(math.copysign(phi, winkel), 12), t=[-1e9, 1e9], abstand=lage, ri=r))
+        return out
+    for b in blech3d.biegungen(e, zs, blech3d.aussenkontur(e, zs)):
+        phi = abs(b["phi"])
+        if phi <= 0:
+            continue
+        ri = max(b["ba"] / phi - blech.K_FAKTOR * s, 0.0)
+        t = [b["t"][0] + 1, b["t"][1] - 1]          # blech3d verlängert die Biegelinie um je 1 mm
+        out.append(dict(o=list(b["o"]), d=list(b["d"]), n=list(b["n"]), ba=b["ba"], phi=b["phi"], t=t,
+                        abstand=b["abstand"], ri=round(ri, 9)))
+    return out
+
+
 def blech_teil(e, zs, name="Teil"):
-    """Bauplan eines ebenen Blechs aus den Eingaben des Blech-Editors und dem Zuschnitt (blech.zuschnitt).
-    ValueError bei gekanteten Blechen (noch nicht) oder ohne Maße."""
+    """Bauplan eines Blechs aus den Eingaben des Blech-Editors und dem Zuschnitt (blech.zuschnitt): eben oder
+    gekantet (Abwicklung + Biegungen). ValueError ohne Maße."""
     if not zs:
         raise ValueError("Blech: Maße fehlen.")
-    if zs.get("biegungen") or e.get("biegelinien") or e.get("art") == blech.KANTTEIL:
-        raise ValueError("Gekantete Bleche kann der STEP-Export noch nicht, nur ebene Bleche.")
     s = _z(e.get("dicke"))
     if s <= 0:
         raise ValueError("Blech: Dicke fehlt.")
@@ -667,7 +694,7 @@ def blech_teil(e, zs, name="Teil"):
         if k:
             loecher.append(k)
         elif z.get("art") not in (sw.FLOWDRILL, sw.SONSTIGE):
-            meldungen.append(f"Kontur {z.get('art')}: nicht im STEP (nur ebene Innenkonturen)")
+            meldungen.append(f"Kontur {z.get('art')}: nicht im STEP")
     for z, zug in blech3d.konturzuege(e, zs):
         if z.get("art") not in GRAVUREN and len(zug) >= 3:
             belegt.append(_ohne_doppelte(zug))
@@ -679,8 +706,11 @@ def blech_teil(e, zs, name="Teil"):
     gravur, gekuerzt = rillen(zuege, lambda p, n: _frei(p[:2], belegt, aussen))
     if gekuerzt:
         meldungen.append(f"Gravur an {gekuerzt} Stellen gekürzt (mindestens 0,5 mm Abstand zu Rand und Konturen)")
-    return dict(name=str(name or "Teil"), koerper=dict(art="platte", dicke=s, aussen=aussen_k, loecher=loecher),
-                werkzeuge=[], rillen=gravur, meldungen=meldungen)
+    koerper = dict(art="platte", dicke=s, aussen=aussen_k, loecher=loecher)
+    bg = biegungen(e, zs, s) if (zs.get("biegungen") or e.get("biegelinien")) else []
+    if bg:
+        koerper["biegungen"] = bg
+    return dict(name=str(name or "Teil"), koerper=koerper, werkzeuge=[], rillen=gravur, meldungen=meldungen)
 
 
 def teilname(p):
@@ -702,8 +732,11 @@ def befehl(programmordner):
 
 
 def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=ZEITLIMIT):
-    """Teile (Baupläne) als STEP-Datei ziel schreiben -> Ergebnis dict(ok, teile, fehler, meldungen).
-    Die Meldungen der Baupläne (gekürzte Gravur, …) stehen mit im Ergebnis."""
+    """Teile (Baupläne, oder ein ganzer Bauplan mit 'baugruppe', baugruppe_step) als STEP-Datei ziel schreiben ->
+    Ergebnis dict(ok, teile, fehler, meldungen). Die Meldungen der Baupläne (gekürzte Gravur, …) stehen mit im
+    Ergebnis."""
+    bauplan = teile if isinstance(teile, dict) else dict(name=name, teile=teile)
+    teile = bauplan["teile"]
     b = befehl(programmordner)
     if b is None:
         return dict(ok=False, fehler="Der STEP-Export braucht STEP-Import.exe im Programmordner.", teile=[],
@@ -711,7 +744,7 @@ def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=ZEITLIMIT):
     meldungen = [m for t in teile for m in t.get("meldungen") or ()]
     with tempfile.TemporaryDirectory() as tmp:
         plan, erg = Path(tmp) / "bauplan.json", Path(tmp) / "ergebnis.json"
-        plan.write_text(json.dumps(dict(name=name, teile=teile)), encoding="utf-8")
+        plan.write_text(json.dumps(bauplan), encoding="utf-8")
         if b[0].lower().endswith(".exe"):
             cmd = b + ["--export", str(plan), "--step", str(ziel), "--ergebnis", str(erg)]
         else:

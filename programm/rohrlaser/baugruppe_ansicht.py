@@ -15,7 +15,8 @@ Gleiche Netzform wie ansicht3d (p, t, l); Koordinaten der Baugruppe = Dateilage 
 import bisect
 import math
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMenu, QSlider, QToolButton, QVBoxLayout, QWidget
 
 from . import rohr3d, schneidweg, steckverbindung as stv
 from .ansicht3d import DARSTELLUNGEN, MESS_WINKEL, Ansicht3D, Ansicht3DMitKnoepfen
@@ -122,7 +123,7 @@ def eingaben_stecken(positionen, verbindungen, profil_von):
             continue
         try:
             out[a][0], out[s_][0], plus = stv.anwenden(v, out[a][0], out[s_][0], profil_von(a) or {},
-                                                       profil_von(s_) or {})
+                                                       profil_von(s_) or {}, (out[a][1], out[s_][1]))
         except ValueError:
             continue
         if out[s_][1] is not None:
@@ -531,10 +532,11 @@ class BaugruppenAnsicht(QWidget):
         knopf("Maße löschen", "Alle stehenden Maße entfernen", wenn=lambda: self._masse_loeschen())
         self.mass = QLabel()
         ll.addWidget(self.mass, 1)
-        lay = QVBoxLayout(self)
+        self._lay = lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(leiste)
         lay.addWidget(self.d3, 1)
+        self.montage = None             # Leiste Montagefolge (montage_leiste), sonst None
         self.wuerfel = self.d3.wuerfel
         self.ansicht.gemessen.connect(lambda _: self._mass_zeigen())
 
@@ -550,6 +552,62 @@ class BaugruppenAnsicht(QWidget):
         mass = getattr(self, "mass", None)
         self._leiste.insertWidget(self._leiste.indexOf(mass) if mass is not None else self._leiste.count(), k)
         return k
+
+    def montage_leiste(self):
+        """Knopf „Montage“ und darunter die Leiste Montagefolge (A6): Schieber Schritt (1 … alle) und Explosion
+        (0 … 100 %). Der Besitzer liest montage_zustand() und setzt mit montage_schritte(n) die Zahl der Schritte."""
+        self.montage_knopf = self.knopf(
+            "Montage", "Montagefolge der Steckverbindungen: Schritt für Schritt aufbauen und Explosionsansicht (jedes "
+            "Teil rückt gegen seine Steckrichtung heraus)", True, lambda an: self._montage_an(an))
+        w = QWidget()
+        h = QHBoxLayout(w)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.addWidget(QLabel("Schritt"))
+        self.montage_schritt = QSlider(Qt.Horizontal)
+        self.montage_schritt.setRange(1, 1)
+        self.montage_schritt.setMaximumWidth(220)
+        self.montage_schritt.setToolTip("Bis zu diesem Schritt aufgebaut, der aktuelle Schritt blau; ganz rechts = alles")
+        h.addWidget(self.montage_schritt)
+        h.addWidget(QLabel("Explosion"))
+        self.montage_explosion = QSlider(Qt.Horizontal)
+        self.montage_explosion.setRange(0, 100)
+        self.montage_explosion.setMaximumWidth(160)
+        self.montage_explosion.setToolTip("0 = zusammengesteckt, 100 % = jedes Teil um die halbe größte Teillänge "
+                                          "gegen seine Steckrichtung herausgerückt")
+        h.addWidget(self.montage_explosion)
+        self.montage_text = QLabel()
+        self.montage_text.setWordWrap(True)
+        h.addWidget(self.montage_text, 1)
+        for sch in (self.montage_schritt, self.montage_explosion):
+            sch.valueChanged.connect(lambda _: self.geaendert() if self.geaendert is not None else None)
+        w.hide()
+        self._lay.insertWidget(1, w)
+        self.montage = w
+        return w
+
+    def _montage_an(self, an):
+        if self.montage is not None:
+            self.montage.setVisible(bool(an))
+        if self.geaendert is not None:
+            self.geaendert()
+
+    def montage_zustand(self):
+        """(Schritt, Explosion 0 … 1) bei eingeschalteter Montage, sonst None; Schritt = Maximum heißt alles."""
+        if self.montage is None or not self.montage_knopf.isChecked():
+            return None
+        return self.montage_schritt.value(), self.montage_explosion.value() / 100.0
+
+    def montage_schritte(self, n):
+        """Zahl der Schritte setzen (ohne neu zu zeichnen); neu eingeschaltet steht der Schieber auf alles."""
+        sch = self.montage_schritt
+        n = max(int(n), 1)
+        if sch.maximum() != n:
+            alle = sch.value() >= sch.maximum()
+            sch.blockSignals(True)
+            sch.setMaximum(n)
+            if alle:
+                sch.setValue(n)
+            sch.blockSignals(False)
 
     def setzen(self, netz, titel="", info=""):
         """Netz zeigen; die Blickrichtung bleibt, wenn schon eins da war (Auswahl im Baum, Nähte ein/aus)."""

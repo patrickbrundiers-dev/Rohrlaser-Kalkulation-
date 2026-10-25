@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.109", "<b>Offen gezeichnete Rohre aus dem Rohr</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
+    ["0.9.117", "<b>Offen gezeichnete Rohre aus dem Rohr</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
                 "gekantetes Blech mit einer offenen Seite gezeichnet hat (U offen, C mit Schlitz, U mit Lasche), und "
                 "Halbschalen eines Rundrohrs erkennt der STEP-Import und rechnet sie aus dem geschlossenen Rohr: an "
                 "Ende A und B bleibt je ein Ring 2 mm des ganzen Rohrs stehen (Radius aus der STEP, an allen Ecken "
@@ -35,6 +35,58 @@ NEUERUNGEN = [
                 "U/C immer zur Auswahl. Die Ringe sind im 3D rot und laufen wie die Nachbarwände (auch Gehrungen). Ein "
                 "Spalt bis 2 mm wird ganz geschlossen ([[offene_rohre]]).",
      "Offen gezeichnete Rohre und Halbschalen im STEP: aus dem Rohr mit Ringen 2 mm an den Enden"],
+    ["0.9.116", "<b>Bedienung schneller</b>: Neues Angebot aus STEP in einem Fenster: Kunde oben im Prüfdialog, "
+                "fehlende Profile und doppelte Artikel als Häkchen statt Rückfragen, Knopf <b>Übernehmen und Angebot "
+                "(PDF)</b> ([[angebot_aus_step]]). Hinweise als Einblendung ohne OK-Klick, Löschen im Angebot ohne "
+                "Rückfrage mit <b>Rückgängig</b> in der Einblendung, Bericht im Meldungsverlauf ([[meldungen]]). "
+                "Rechtsklick zeigt nur die passenden Einträge, <b>Für markierte setzen …</b> ändert Werkstoff und "
+                "Oberfläche mehrerer Positionen ([[rechtsklick]]). <b>◀ Vorige / Nächste ▶</b> in Schneidweg-Rechner, "
+                "Blech-Editor und Baugruppe ([[blaettern]]). Fenstergröße und Teiler gemerkt, offene Angebote nach "
+                "dem Neustart wieder offen, zuletzt benutzte Profile und Werkstoffe oben in den Listen "
+                "([[fenster_merken]]). <b>Schnellzeile</b> über der Positionsliste: „QR 40x3 S235 1250 20“ + Eingabe "
+                "legt die Position an, auch mehrere Zeilen aus E-Mail oder Excel ([[schnellzeile]]). Der "
+                "Prüfdialog <b>lernt</b>: Korrekturen per Häkchen ins Importprofil des Kunden ([[importprofile]]).",
+     "STEP-Anfrage in einem Fenster, Rückgängig statt Rückfragen, Blättern, Schnellzeile, Prüfdialog lernt"],
+    ["0.9.115", "<b>Rahmen-Assistent</b>: Neue Position → Rahmen-Assistent legt einen Rechteckrahmen oder Quader aus "
+                "Quadrat-, Rechteck- oder Rundrohr ohne STEP-Datei an. Aus Außenmaß, Profil und Ecken (Gehrung, stumpf, "
+                "stumpf mit Steckverbindungen) entstehen die Rohre als Positionen eines Satzes mit Einbaulage und Stößen, "
+                "so dass Satz in 3D, Vorschläge, Steckverbindungen und Montagefolge wie bei einer STEP-Datei arbeiten "
+                "([[rahmen_assistent]]).",
+     "Rahmen-Assistent: Rechteckrahmen und Quader aus Rohr ohne STEP"],
+    ["0.9.114", "<b>Montagefolge und Montageblatt</b>: Knopf Montage über dem 3D (Schweißbaugruppe, Satz in 3D) baut "
+                "die gesteckten Teile Schritt für Schritt auf, mit Text je Schritt (Teil, Marke, Steckrichtung), und "
+                "zieht sie als Explosionsansicht auseinander. Die Werkstattpapiere haben je Baugruppe bzw. Satz mit "
+                "Steckverbindungen ein Montageblatt mit Skizze und Schritten zum Abhaken ([[montagefolge]]).",
+     "Montagefolge im 3D mit Explosion, Montageblatt in den Werkstattpapieren"],
+    ["0.9.113", "<b>Montagemarken und Steckbarkeit</b>: Steckverbindungen bekommen auf Wunsch eine Zahl, die neben "
+                "die Schlitze der Aufnahme und auf das Ende des Steckers graviert wird (Knopf Marken nummerieren, "
+                "Einstellung für neue Verbindungen, Vorgabe aus). Steckbarkeit prüfen sucht eine Reihenfolge, in der "
+                "sich alle Teile stecken lassen, und meldet Schlitze über Konturen und feste Längsnähte auf Schlitzen "
+                "oder Nasen ([[montagemarken]]).",
+     "Montagemarken an Schlitz und Nase, Steckbarkeit prüfen"],
+    ["0.9.112", "<b>DXF-Import für verschiedene Zeichnungen</b>: Rohrzeichnungen nach USA (Drittwinkel), senkrecht "
+                "gezeichnete Rohre, Blattrahmen, mehrere Teile auf einem Blatt und Profiltexte wie Ø42,4x2 werden "
+                "erkannt. Ist das Programm unsicher, zeigt ein Zuordnungsfenster die Ansichten zum Zuordnen; die "
+                "Projektion merkt es sich je Zeichnungsstil ([[dxf_rohr]]). Außerdem bleibt eine Gravur über einer Biegung "
+                "im STEP des Kantteils erhalten.",
+     "DXF-Import robust: USA-Projektion, gedreht, mehrere Teile, Zuordnungsfenster"],
+    ["0.9.111", "<b>Vorschläge mit Ersparnis</b>: Im Fenster Satz in 3D und im Editor der Schweißbaugruppe findet "
+                "das Programm Knickrahmen, Steckverbindungen aus den Stößen der STEP-Datei und eine günstige Lage der "
+                "Längsnaht (frei von Konturen, Schlitzen und Nasen, bevorzugt innen) selbst. Je Vorschlag steht, was "
+                "er spart oder kostet (Ecknähte, Positionieren, Knicken, Laserzeit), nur aus vorhandenen Werten; "
+                "anhaken und übernehmen ([[vorschlaege]]). Nahtgruppen aus den STEP-Vorschlägen verlieren die Ecken "
+                "eines neuen Knickrahmens.",
+     "Vorschläge Knickrahmen, Steckverbindung, Längsnaht mit Ersparnis"],
+    ["0.9.110", "<b>Baugruppe und Satz als STEP</b>: STEP speichern im Editor der Schweißbaugruppe und im Fenster "
+                "Satz in 3D schreibt alle Teile als STEP-Baugruppe mit echten Volumenkörpern in der Einbaulage, "
+                "gleiche Teile einmal definiert, Unterbaugruppen wie im Strukturbaum. Rohre mit Schlitzen und Nasen, "
+                "Bleche eben oder gekantet ([[step_baugruppe]]).",
+     "Baugruppe und Satz als STEP-Baugruppe speichern"],
+    ["0.9.109", "<b>Gekantete Bleche als STEP</b>: STEP speichern im Blech-Editor schreibt jetzt auch Kantteile und "
+                "mehrachsig gekantete Bleche aus dem STEP-Import (Schale, Kasten) als echten Volumenkörper. "
+                "Innenradius wie eingegeben, Außenmaße wie die Schenkel; Bohrungen und Konturen werden mitgebogen, "
+                "auch in der Biegezone ([[step_export]]).",
+     "STEP speichern auch für gekantete Bleche"],
     ["0.9.108", "<b>Rohrteil aus einer DXF-Zeichnung</b>: Zeichnungen mit Vorderansicht, Draufsicht und Schnitt werden "
                 "ein Rohrteil im Rohr-Editor (<i>Neue Position → Aus DXF</i>, DXF aufs Angebot ziehen oder im "
                 "Rohr-Editor <i>DXF importieren</i>). Maßstab je Ansicht aus der Bemaßung, Profil aus dem Schnitt, "

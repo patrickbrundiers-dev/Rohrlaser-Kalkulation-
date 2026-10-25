@@ -3,10 +3,13 @@ echtem Volumenkörper.
 - X1 Bauplan Rohr: Querschnitt mit echtem Außenradius (Bulge), ebenes Ende = Halbraum, Sattel = Netz, Bohrung =
   Zylinder, Langloch auf ebener Wand exakt, Nasen der Steckverbindung bleiben stehen, Gravur als Rille mit 0,5 mm
   Abstand (zu nah am Ende gekürzt), Artikelnummer-Gravur.
-- X2 Bauplan Blech: Außenkontur und Innenkonturen mit echten Bögen, Text-Gravur, gekantet = Hinweis.
+- X2 Bauplan Blech: Außenkontur und Innenkonturen mit echten Bögen, Text-Gravur; Kantteil mit Biegungen (3E-13).
 - X3 STEP schreiben (OpenCascade wie die Messung): gültiger Volumenkörper, Volumen wie gerechnet, Messung der eigenen
   STEP-Datei findet Profil, Länge, Bohrung und Gravur wieder.
-- X4 Rohr- und Blech-Editor: Knopf STEP speichern im Reiter Ausgabe schreibt die Datei.
+- X4 Rohr- und Blech-Editor: Knopf STEP speichern im Reiter Ausgabe schreibt die Datei (auch Kantteil).
+- X5 Gekantete Bleche (3E-13): U 40/60/40 mit Außenmaßen 40 × 60, Volumen = Abwicklung × Dicke + Bogenanteil,
+  Loch und Gravur in der Biegezone mitgebogen; Winkel, Z, U mit Ausklinkungen und Schale aus der STEP-Messung: neu
+  geschrieben gleiches Volumen und gleiche Außenmaße, die eigene Messung erkennt das Kantteil wieder.
 
 Aufruf: python tests/test_step_export.py
 """
@@ -106,14 +109,16 @@ assert any(nah(p[2], 0.5) for p in kb["loecher"][4]["punkte"])          # Bogen 
 assert bp["rillen"] and all(nah(r["p"][2], 3 - se.GRAVUR_TIEFE) for r in bp["rillen"])
 ep = dict(art=blech.ZUSCHNITT, form=blech.POLYGON, punkte="0,0; 100,0,1; 100,50; 0,50", dicke=2, konturen=[])
 assert se.blech_teil(ep, blech.zuschnitt(ep))["koerper"]["aussen"]["punkte"][1][2] == 1.0
-kant = dict(art=blech.KANTTEIL, form=blech.RECHTECK, dicke=2, kantlaenge=300,
-            schenkel=[dict(laenge=40, winkel=90), dict(laenge=60)])
-try:
-    se.blech_teil(kant, blech.zuschnitt(kant))
-    raise AssertionError("Kantteil")
-except ValueError as x:
-    assert "Gekantete" in str(x)
-ok("X2 Bauplan Blech: Rundungen, Langloch quer, Rechteck gedreht, Polygon mit Bogen, Gravur 0,1 mm, Kantteil nicht")
+kant = dict(art=blech.KANTTEIL, form=blech.RECHTECK, dicke=2, kantlaenge=300, konturen=[],
+            schenkel=[dict(laenge=40, winkel=90), dict(laenge=60, winkel=90), dict(laenge=40)])
+kzs = blech.zuschnitt(kant)
+kp = se.blech_teil(kant, kzs, "U")
+bg = kp["koerper"]["biegungen"]
+assert len(bg) == 2 and all(nah(b["ri"], 2) and nah(b["phi"], math.pi / 2, 1e-9) for b in bg)
+lage, _, _, v = kzs["biegungen"][0]
+assert nah(bg[0]["ba"], 2 * 4 - v, 1e-6) and nah(bg[0]["o"][1], lage - bg[0]["ba"] / 2, 1e-6)
+ok("X2 Bauplan Blech: Rundungen, Langloch quer, Rechteck gedreht, Polygon mit Bogen, Gravur 0,1 mm, Kantteil mit "
+   "Biegungen")
 
 # ------------------------------------------------------------------ X3 STEP schreiben und nachmessen
 if find_spec("OCP") is None:
@@ -174,9 +179,75 @@ assert bd.editor.band.knopf("STEP speichern") is not None
 assert bd.step_speichern(str(tmp / "blech_editor.step")) and bd.step_ergebnis["ok"]
 bd.art.setCurrentText("Kantteil")
 bd._vorlage(bd.vorlage.findText("U-Profil"))
-assert bd.step_speichern(str(tmp / "kant.step")) is None and not (tmp / "kant.step").exists()
+assert bd.step_speichern(str(tmp / "kant.step")) and bd.step_ergebnis["ok"] and (tmp / "kant.step").is_file()
+assert bd.step_ergebnis["teile"][0]["koerper"] == 1
 for w in (d, bd):
     w.close()
 db.con.close()
-ok("X4 Rohr- und Blech-Editor: STEP speichern im Reiter Ausgabe, Name = Artikelnummer, Kantteil mit Hinweis")
+ok("X4 Rohr- und Blech-Editor: STEP speichern im Reiter Ausgabe, Name = Artikelnummer, auch Kantteil")
+
+# ------------------------------------------------------------------ X5 gekantete Bleche (3E-13)
+eu = se.schreiben([kp], tmp / "u.step", PROGRAMM)["teile"][0]
+k_eff = (bg[0]["ba"] / (math.pi / 2) - 2) / 2
+usoll = 300 * kzs["breite"] * 2 + 2 * (math.pi / 2) * 2 * 2 * (0.5 - k_eff) * 300
+assert eu["gueltig"] and eu["koerper"] == 1 and abs(eu["volumen"] - usoll) < 0.5, (eu, usoll)
+assert [round(eu["box"][i + 3] - eu["box"][i], 3) for i in range(3)] == [300, 40, 60], eu["box"]
+loch = dict(kant, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=8, x=50, y=lage)])
+el = se.schreiben([se.blech_teil(loch, blech.zuschnitt(loch))], tmp / "u_loch.step", PROGRAMM)["teile"][0]
+assert el["gueltig"] and el["koerper"] == 1 and el["flaechen"] < 40 and 90 < usoll - el["volumen"] < 130, el
+# Gravur über die Biegung: die Rille wird in der Biegezone mitgefaltet (innen gestaucht, nicht weg)
+hh = [dict(art=sw.TEXT_GRAVUR, anzahl=1, text="HH", hoehe=8, x=150, y=lage)]
+flach_hh = dict(art=blech.ZUSCHNITT, form=blech.RECHTECK, dicke=2, laenge=300, breite=kzs["breite"], konturen=hh)
+v_flach = 300 * kzs["breite"] * 2 - se.schreiben([se.blech_teil(flach_hh, blech.zuschnitt(flach_hh))],
+                                                  tmp / "flach_hh.step", PROGRAMM)["teile"][0]["volumen"]
+kant_hh = dict(kant, konturen=hh)
+eg = se.schreiben([se.blech_teil(kant_hh, blech.zuschnitt(kant_hh))], tmp / "u_hh.step", PROGRAMM)
+v_kant = usoll - eg["teile"][0]["volumen"]
+assert eg["ok"] and eg["teile"][0]["koerper"] == 1 and 0.75 * v_flach < v_kant < v_flach, (v_kant, v_flach, eg)
+sys.path[:0] = [str(PROGRAMM / "step_messung"), str(HIER)]
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse  # noqa: E402
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox  # noqa: E402
+from OCP.gp import gp_Pnt  # noqa: E402
+import erzeuge_testteile as et  # noqa: E402
+from step_geometrie import analysiere_datei  # noqa: E402
+
+
+def quader(x, y, z, dx, dy, dz):
+    return BRepPrimAPI_MakeBox(gp_Pnt(x, y, z), dx, dy, dz).Shape()
+
+
+wk = et.profil([(0, 0), (100, 0), (100, 3), (3, 3), (3, 50), (0, 50)], 300, {(0, 0): 6, (3, 3): 3})
+for z in (50, 250):
+    wk = et.cut(et.cut(wk, et.zylinder((30, -1, z), (0, 1, 0), 9, 5)), et.zylinder((-1, 30, z), (1, 0, 0), 9, 5))
+et.schreibe(wk, "W_Winkel", tmp)
+et.schreibe(et.profil([(0, 0), (40, 0), (40, 2), (2, 2), (2, 60), (-38, 60), (-38, 58), (0, 58)], 400,
+                      {(0, 0): 4, (2, 2): 2, (0, 58): 2, (2, 60): 4}), "W_Z", tmp)
+uk = et.profil([(0, 0), (100, 0), (100, 30), (97, 30), (97, 3), (3, 3), (3, 30), (0, 30)], 600,
+               {(0, 0): 6, (3, 3): 3, (100, 0): 6, (97, 3): 3})
+uk = et.cut(et.cut(et.cut(uk, quader(-1, 10, -1, 5, 25, 41)), quader(96, 10, -1, 5, 25, 41)),
+            quader(30, -1, 250, 40, 5, 100))
+et.schreibe(uk, "W_U_Ausklinkung", tmp)
+schale = quader(0, 0, 0, 200, 150, 2)
+for q in (quader(0, 0, 0, 200, 2, 20), quader(0, 148, 0, 200, 2, 20), quader(0, 2, 0, 2, 146, 20),
+          quader(198, 2, 0, 2, 146, 20)):
+    schale = BRepAlgoAPI_Fuse(schale, q).Shape()
+et.schreibe(schale, "W_Schale", tmp)
+for name in ("W_Winkel", "W_Z", "W_U_Ausklinkung", "W_Schale"):
+    (t,) = analysiere_datei(tmp / f"{name}.step")
+    m = t if t.profilform == "Blech gekantet" else t.alternative
+    b = json.loads(json.dumps(m.blech))
+    e = blech.aus_step(b, "S235JR")
+    neu = se.schreiben([se.blech_teil(e, blech.zuschnitt(e), name)], tmp / f"{name}_neu.step", PROGRAMM)
+    tn = neu["teile"][0]
+    assert neu["ok"] and tn["koerper"] == 1 and not neu["meldungen"], (name, neu)
+    mass = sorted(tn["box"][i + 3] - tn["box"][i] for i in range(3))
+    assert all(abs(x - y) < 0.01 for x, y in zip(mass, sorted((b["laenge"], b["breite"], b["hoehe"])))), (name, mass)
+    if name != "W_Schale":              # Schale: Messung nimmt Radius = Dicke an, Original ist scharfkantig
+        assert abs(tn["volumen"] - m.volumen) < 0.001 * m.volumen, (name, tn["volumen"], m.volumen)
+        (t2,) = analysiere_datei(tmp / f"{name}_neu.step")
+        m2 = t2 if t2.profilform == "Blech gekantet" else t2.alternative
+        a1, a2 = b["abwicklung"], m2.blech["abwicklung"]
+        assert [round(abs(x["laenge"])) for x in a1["schenkel"]] == [round(abs(x["laenge"])) for x in a2["schenkel"]]
+ok("X5 Kantteile: U 40 × 60 außen, Volumen mit Bogenanteil, Loch und Gravur in der Biegung; Winkel, Z, U, Schale aus der "
+   "STEP-Messung gleich groß und schwer, Messung erkennt die Schenkel wieder")
 print("Alle Tests STEP-Export bestanden.")

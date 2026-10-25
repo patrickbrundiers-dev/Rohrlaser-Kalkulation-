@@ -14,14 +14,16 @@ import json
 import math
 import re
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QItemSelectionModel, Qt, QTimer
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
                                QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, blech, hilfe, naht, schneidweg, skizze, steckverbindung, stil, vorkalk
+from . import baugruppe, baugruppe_vorschlaege as bv, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
+    vorkalk
+from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
@@ -342,7 +344,86 @@ class SteckEditor:
             v.pop(k, None)
             if z.get("_" + k) is False:
                 v[k] = False
+        if str(v.get("marke") or "").strip():       # Montagemarke: Höhe wie die Artikelnummer-Gravur
+            v["marke"] = str(v["marke"]).strip()
+            v.setdefault("marke_h", self._marke_hoehe())
+        else:
+            v.pop("marke", None)
+            v.pop("marke_h", None)
         return v
+
+    def _marke_hoehe(self):
+        try:
+            return float(self.einstellungen.get("gravur_schrifthoehe") or steckverbindung.MARKE_HOEHE)
+        except (TypeError, ValueError):
+            return steckverbindung.MARKE_HOEHE
+
+    def _steck_marke_neu(self, z):
+        """Neue Verbindung: Montagemarke, wenn die Einstellung steck_marke an ist (Vorgabe aus). Dasselbe Ende
+        desselben Steckers (gleiche Teile, Nasen nur einmal geschnitten) behält seine Zahl, sonst die nächste."""
+        if str(self.einstellungen.get("steck_marke") or "nein") == "ja" and not str(z.get("marke") or "").strip():
+            gleich = next((y.get("marke") for y in self.bg["steckverbindungen"] if str(y.get("marke") or "").strip()
+                           and (y.get("_st"), y.get("_ende")) == (z.get("_st"), z.get("_ende"))), None)
+            z["marke"] = gleich or steckverbindung.marke_naechste(self.bg["steckverbindungen"])
+        return z
+
+    def steck_pruefen(self, melden=True):
+        """„Steckbarkeit prüfen“ (A5): Reihenfolge, in der sich alle Teile stecken lassen (steck_montage), dazu
+        Schlitze über anderen Konturen und feste Längsnähte auf Schlitzen oder Nasen. Ergebnis dict(ok, schritte,
+        offen, texte) mit Körpernummern; ohne Stöße aus der STEP-Datei nur die örtlichen Prüfungen."""
+        from . import steck_montage as sm
+        koerper, name = {}, {}
+        for t in self.teile:
+            if not t.get("drin"):
+                continue
+            netz = self._netz(t["_id"])
+            for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
+                nummern = netz.get("koerper") or []
+                if j < len(nummern):
+                    koerper[str(nummern[j])] = (t["_id"], lage)
+                    name[str(nummern[j])] = f"Pos. {t['_q'].get('pos') or ''}"
+        verb = [(z.get("_auf"), z.get("_st"), z.get("_ende") or "a") for z in self.bg["steckverbindungen"]]
+        kanten = sm.kanten(koerper, self.bg.get("stoesse"), verb)
+        erg = sm.reihenfolge(kanten)
+        texte = [f"{name.get(k, k)} (Körper {k}): {sm.konflikt(k, erg['schritte'], kanten)}" for k in erg["offen"]]
+        eing, _ = self._rohr_eingaben()
+        fest = dict(getattr(self, "laengsnaehte", {}) or {})
+        for t in self.teile:
+            q = t["_q"]
+            if t["_id"] not in fest and q.get("naht_vorgabe") == "feste Position" and \
+                    isinstance(q.get("naht_winkel"), (int, float)):
+                fest[t["_id"]] = q["naht_winkel"]
+        for t in self.teile:
+            if not t.get("drin") or t["_id"] not in eing:
+                continue
+            e, lg = eing[t["_id"]]
+            profil = self._steck_profil(t["_id"]) or {}
+            pos = f"Pos. {t['_q'].get('pos') or ''}"
+            texte += [f"{pos}: {x}" for x in sm.schlitz_ueberschneidungen(profil, e, lg)]
+            if sm.naht_auf_schlitz(profil, e, lg, fest.get(t["_id"])):
+                texte.append(f"{pos}: feste Längsnaht liegt auf einem Schlitz oder einer Nase")
+        erg = dict(erg, texte=texte, ok=erg["ok"] and not texte, kanten=len(kanten), name=name)
+        if melden:
+            if not kanten and not texte:
+                kopf = ("Keine Stöße aus der STEP-Datei zu den Steckverbindungen: die Reihenfolge lässt sich nicht "
+                        "prüfen; Schlitze und Längsnähte sind in Ordnung.")
+            elif erg["ok"]:
+                folge = " → ".join(name.get(k, k) for k, _ in erg["schritte"])
+                kopf = f"Alle {len(erg['schritte'])} Teile lassen sich stecken. Reihenfolge: {folge}"
+            else:
+                kopf = "Achtung, so nicht steckbar bzw. nicht sauber:\n" + "\n".join(texte or ["?"])
+            QMessageBox.information(self, "Steckbarkeit prüfen", kopf)
+        return erg
+
+    def marken_nummerieren(self):
+        """„Marken nummerieren“: 1, 2, 3 … je Ende eines Steckers (gleiche Zahl auf Schlitz und Nase; Verbindungen
+        an demselben Ende gleicher Teile teilen sich die Zahl). Ergebnis: Anzahl der Zahlen."""
+        zahl = {}
+        for z in self.bg["steckverbindungen"]:
+            z["marke"] = zahl.setdefault((z.get("_st"), z.get("_ende")), str(len(zahl) + 1))
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        return len(zahl)
 
     def _steck_profil(self, pid):
         t = next((t for t in self.teile if t["_id"] == pid), None)
@@ -399,6 +480,9 @@ class SteckEditor:
                    tipp="Aus: gleiches Teil, die Schlitze schneidet schon eine andere Verbindung"),
             Spalte("_nasen", "Nasen\nschneiden", "haken", 65,
                    tipp="Aus: dieses Ende des Steckers hat die Nasen schon aus einer anderen Verbindung"),
+            Spalte("marke", "Montage-\nmarke", "text", 60,
+                   tipp="Zahl, die als Gravur neben die Schlitze und auf die Nasenwand des Steckers kommt (leer = keine); "
+                        "Höhe wie die Artikelnummer (Einstellung Gravur: Schrifthöhe)"),
             Spalte("_text", "Schlitz und Nasen", "anzeige", 260, anzeige=self._steck_text)],
             self.bg["steckverbindungen"], self.aktualisieren)
         lay.addWidget(self.steck_tab, 1)
@@ -416,9 +500,18 @@ class SteckEditor:
         weg = QPushButton("Markierte entfernen")
         weg.setToolTip("Schlitze und Nasen fallen beim Speichern in beiden Teilen weg")
         weg.clicked.connect(lambda: self.steck_entfernen())
-        for b in (neu, alle, tausch, weg):
+        marken = QPushButton("Marken nummerieren")
+        marken.setToolTip("Montagemarken 1, 2, 3 … für alle Verbindungen: dieselbe Zahl wird neben die Schlitze der "
+                          "Aufnahme und auf die Nasenwand des Steckers graviert")
+        marken.clicked.connect(lambda: self.marken_nummerieren())
+        pruef = QPushButton("Steckbarkeit prüfen")
+        pruef.setToolTip("Lassen sich alle Teile nacheinander stecken (jedes Teil in eine Richtung)? Dazu Schlitze "
+                         "über anderen Konturen und feste Längsnähte auf Schlitzen oder Nasen")
+        pruef.clicked.connect(lambda: self.steck_pruefen())
+        for b in (neu, alle, tausch, marken, weg):
             b.setEnabled(not self.nur_lesen if hasattr(self, "nur_lesen") else True)
             leiste.addWidget(b)
+        leiste.addWidget(pruef)             # Prüfen geht auch nur lesend
         leiste.addStretch(1)
         lay.addLayout(leiste)
         lay.addWidget(hilfe.Hinweis(
@@ -437,7 +530,7 @@ class SteckEditor:
             mark = [self.teile[r] for r in self.teile_tab.markierte() if r < len(self.teile)]
             wahl = [t for t in mark if t in rohre] if len(mark) == 2 else rohre[:2]
             if len(wahl) < 2:
-                QMessageBox.information(self, "Steckverbindung", f"Die {self.STECK_WAS} braucht zwei Rohre (Quadrat-, "
+                einblendung.melden(self, f"Die {self.STECK_WAS} braucht zwei Rohre (Quadrat-, "
                                         f"Rechteck- oder Rundrohr); {self.STECK_MARKIEREN} zwei markieren.")
                 return None
             auf, st = wahl[0]["_id"], wahl[1]["_id"]
@@ -446,22 +539,20 @@ class SteckEditor:
                                 **werte) if (self._steck_profil(st) or {}).get("form") in steckverbindung.FORMEN \
             else dict(id=baugruppe.neue_id(), aufnahme=dict(id=auf), stecker=dict(id=st, ende=werte.get("ende") or "a"),
                       anzahl=2, c=0.1, **{k: w for k, w in werte.items() if k in ("x", "seite") and w is not None})
-        self.bg["steckverbindungen"].append(self._steck_flach(v))
+        self.bg["steckverbindungen"].append(self._steck_marke_neu(self._steck_flach(v)))
         self.steck_tab.aufbauen()
         self.aktualisieren()
         return v["id"]
 
-    def steck_alle(self, melden=True):
-        """„Alle Stöße stecken“: je Stoß der STEP-Messung (bg['stoesse']: Rohrende an Rohrwand, Körpernummern) eine
-        Verbindung mit Lage, Seite und Achswinkel aus der Datei. Gleiche Teile: Schlitze nur am ersten Körper der
-        Aufnahme, Nasen je Ende des Steckers nur einmal; schon vorhandene Verbindungen bleiben. Ergebnis: (neu,
-        übersprungen)."""
+    def steck_plan(self):
+        """Steckverbindungen aus den Stößen der STEP-Messung (bg['stoesse']: Rohrende an Rohrwand, Körpernummern), wie
+        „Alle Stöße stecken“ sie anlegt: [dict(auf, st, ende, x, seite, winkel, schlitze, nasen)] und die Zahl der
+        Stöße, die keinem Rohr zugeordnet werden können. Gleiche Teile: Schlitze nur am ersten Körper der Aufnahme,
+        Nasen je Ende des Steckers nur einmal; schon vorhandene Verbindungen bleiben (nicht im Plan). None ohne
+        Stöße."""
         stoesse = [s_ for s_ in self.bg.get("stoesse") or () if isinstance(s_, dict)]
         if not stoesse:
-            if melden:
-                QMessageBox.information(self, "Alle Stöße stecken", f"Keine Stöße aus der STEP-Datei: "
-                                        f"{self.STECK_OHNE_STOESSE} Sonst mit „Steckverbindung hinzufügen“ anlegen.")
-            return 0, 0
+            return None, 0
         besitzer = {}
         for t in self.teile:
             if t.get("drin") and (self._steck_profil(t["_id"]) or {}).get("form") in steckverbindung.FORMEN:
@@ -476,7 +567,7 @@ class SteckEditor:
         schlitze = {(z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
                     for z in vorhanden if z.get("_schlitze") is not False}
         nasen = {(z.get("_st"), z.get("_ende")) for z in vorhanden if z.get("_nasen") is not False}
-        neu = weg = 0
+        plan, weg = [], 0
         for s_ in stoesse:
             auf_, st_ = besitzer.get(str(s_.get("aufnahme"))) or (), besitzer.get(str(s_.get("stecker"))) or ()
             ende = s_.get("ende") if s_.get("ende") in ("a", "b") else None
@@ -489,23 +580,65 @@ class SteckEditor:
             else:
                 seite = steckverbindung.SEITE_STEP.get(s_.get("seite"))
             x = round(float(s_["z"]), 1)
-            mit_schlitz = erster.get(auf) == str(s_.get("aufnahme")) and (auf, round(x), str(seite or "")) not in schlitze
+            ort = erster.get(auf) == str(s_.get("aufnahme"))
+            mit_schlitz = ort and (auf, round(x), str(seite or "")) not in schlitze
             mit_nasen = (st, ende) not in nasen
             if not (mit_schlitz or mit_nasen):
                 continue
-            vid = self.steck_neu(auf, st, ende=ende, x=x, seite=seite)
-            z = vorhanden[-1]
             w = s_.get("achswinkel")
-            if isinstance(w, (int, float)) and steckverbindung.WINKEL_MIN <= w < 89.5:
-                z["winkel"] = round(w, 1)
-            z["_schlitze"], z["_nasen"] = mit_schlitz, mit_nasen
+            plan.append(dict(auf=auf, st=st, ende=ende, x=x, seite=seite, schlitze=mit_schlitz, nasen=mit_nasen,
+                             schlitz_ort=ort,
+                             winkel=round(w, 1) if isinstance(w, (int, float))
+                             and steckverbindung.WINKEL_MIN <= w < 89.5 else None))
             schlitze.add((auf, round(x), str(seite or "")))
             nasen.add((st, ende))
-            neu += 1 if vid else 0
+        return plan, weg
+
+    def steck_schnitte(self, e):
+        """Schlitze/Nasen eines Plan-Eintrags gegen die jetzt vorhandenen Verbindungen neu bestimmen (wer nur einen
+        späteren Vorschlag übernimmt, braucht dessen Schlitze und Nasen selbst). None: beides gibt es schon."""
+        vorhanden = self.bg["steckverbindungen"]
+        mit_schlitz = e.get("schlitz_ort", e["schlitze"]) and not any(
+            z.get("_schlitze") is not False and (z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
+            == (e["auf"], round(e["x"]), str(e["seite"] or "")) for z in vorhanden)
+        mit_nasen = not any(z.get("_nasen") is not False and (z.get("_st"), z.get("_ende")) == (e["st"], e["ende"])
+                            for z in vorhanden)
+        if not (mit_schlitz or mit_nasen):
+            return None
+        return dict(e, schlitze=bool(mit_schlitz), nasen=mit_nasen)
+
+    def steck_zeile(self, e):
+        """Zeile der Tabelle Steckverbindungen für einen Eintrag von steck_plan (noch nicht angelegt)."""
+        teile = {t["_id"]: t["_q"] for t in self.teile}
+        profil = self._steck_profil(e["st"]) or {}
+        if profil.get("form") in steckverbindung.FORMEN:
+            v = steckverbindung.neu(teile[e["auf"]], teile[e["st"]], profil, self._steck_einst(), ende=e["ende"],
+                                    x=e["x"], seite=e["seite"])
+        else:
+            v = dict(id=baugruppe.neue_id(), aufnahme=dict(id=e["auf"]), stecker=dict(id=e["st"], ende=e["ende"]),
+                     anzahl=2, c=0.1, x=e["x"], seite=e["seite"])
+        z = self._steck_flach(v)
+        if e.get("winkel") is not None:
+            z["winkel"] = e["winkel"]
+        z["_schlitze"], z["_nasen"] = e["schlitze"], e["nasen"]
+        return self._steck_marke_neu(z)
+
+    def steck_alle(self, melden=True):
+        """„Alle Stöße stecken“: je Stoß der STEP-Messung eine Verbindung mit Lage, Seite und Achswinkel aus der Datei
+        (steck_plan). Ergebnis: (neu, übersprungen)."""
+        plan, weg = self.steck_plan()
+        if plan is None:
+            if melden:
+                einblendung.melden(self, f"Keine Stöße aus der STEP-Datei: "
+                                        f"{self.STECK_OHNE_STOESSE} Sonst mit „Steckverbindung hinzufügen“ anlegen.")
+            return 0, 0
+        for e in plan:
+            self.bg["steckverbindungen"].append(self.steck_zeile(e))
+        neu = len(plan)
         self.steck_tab.aufbauen()
         self.aktualisieren()
         if melden:
-            QMessageBox.information(self, "Alle Stöße stecken", f"{neu} Steckverbindung(en) angelegt"
+            einblendung.melden(self, f"{neu} Steckverbindung(en) angelegt"
                                     + (f", {weg} Stoß/Stöße nicht zuordenbar (Teil fehlt in der {self.STECK_WAS} oder ist "
                                        "kein Rohr)" if weg else "") + ". Lage und Seite bitte prüfen.")
         return neu, weg
@@ -532,10 +665,10 @@ class SteckEditor:
             self._netz_cache[pid] = entpacken(self.netze.get(pid)) or {}
         return self._netz_cache[pid]
 
-    def _rohr_modelle(self):
-        """Rohre aus den Eingaben (B2): {Positions-ID: Netz im Rohrsystem} mit den Steckverbindungen des Editors;
-        Teile ohne Eingaben, Biegerohr, Knickrahmen oder mit Anbauteilen fehlen (dort bleibt das STEP-Netz)."""
-        from .baugruppe_ansicht import eigenes_modell, eingaben_stecken, nasen_winkel, rohr_netz
+    def _rohr_eingaben(self):
+        """Eingaben und Länge der Rohre mit den Steckverbindungen des Editors {Positions-ID: (Eingaben, Länge)} und
+        die Winkel der Nasen {Positions-ID: {Ende: Winkel}} (für 3D und STEP-Export)."""
+        from .baugruppe_ansicht import eingaben_stecken, nasen_winkel
         drin = {t["_id"]: t["_q"] for t in self.teile if t.get("drin") and self._steck_profil(t["_id"])}
         verbindungen = [self._steck_daten(z) for z in self.bg.get("steckverbindungen") or ()
                         if z.get("_auf") in drin and z.get("_st") in drin]
@@ -550,6 +683,13 @@ class SteckEditor:
             w = nasen_winkel(v, la, ls, (self._steck_profil(v["stecker"]["id"]) or {}).get("form"))
             if w is not None:
                 winkel.setdefault(v["stecker"]["id"], {})[v["stecker"]["ende"]] = w
+        return eing, winkel
+
+    def _rohr_modelle(self):
+        """Rohre aus den Eingaben (B2): {Positions-ID: Netz im Rohrsystem} mit den Steckverbindungen des Editors;
+        Teile ohne Eingaben, Biegerohr, Knickrahmen oder mit Anbauteilen fehlen (dort bleibt das STEP-Netz)."""
+        from .baugruppe_ansicht import eigenes_modell, rohr_netz
+        eing, winkel = self._rohr_eingaben()
         cache = self.__dict__.setdefault("_rohr_cache", {})
         out = {}
         for pid, (e, laenge) in eing.items():
@@ -616,12 +756,17 @@ class KnickEditor:
         for k in (self.knick_knopf, self.knick_weg_knopf):
             k.setEnabled(not self.nur_lesen)
             zeile.addWidget(k)
+        if hasattr(self, "vorschlag_knopf"):        # Vorschläge (P1) in derselben Leiste
+            zeile.addWidget(self.vorschlag_knopf())
+            self.vorschlag_info = QLabel()
+            self.vorschlag_info.setStyleSheet(f"color: {GRAU};")
+            zeile.addWidget(self.vorschlag_info, 1)
         zeile.addStretch(1)
         return zeile
 
     def _knick_melden(self, text, melden):
         if melden:
-            QMessageBox.information(self, "Knickrahmen", text)
+            einblendung.melden(self, text)
         return text
 
     def knick_erstellen(self, dialog=None, melden=True):
@@ -673,17 +818,7 @@ class KnickEditor:
                 else:
                     start = next((i for i in gruppe if mw[i]["pid"] == start_pid), None)
                     k = kv.kette(mw, gruppe, start, d.umkehren.isChecked())
-                leit = kv.erstellen(mw, k, **werte)
-                m = mw[leit]
-                profil = dict(self._steck_profil(m["pid"]) or {})
-                je_teil = {t["i"]: schneidweg.lesen(self._teil_q(mw[t["i"]]["pid"]).get("technik")) for t in k["teile"]}
-                eing, _ = kv.eingaben(m, je_teil, profil)
-                nrs = [mw[t["i"]].get("koerper") for t in k["teile"]]
-                neu.append(dict(koerper=[(mw[t["i"]]["pid"], mw[t["i"]]["lage_nr"]) for t in k["teile"]],
-                                leit=m["pid"], eingaben=eing, netz=kv.netz_gefaltet(mw, m), text=kv.text(m),
-                                nummern=[str(x) for x in nrs if x not in (None, "")],
-                                ecken=[sorted((str(a), str(b))) for a, b in zip(nrs, nrs[1:])
-                                       if a not in (None, "") and b not in (None, "")]))
+                neu.append(self.knick_bauen(mw, k, werte))
         except ValueError as f:
             return self._knick_melden(str(f), melden)
         self.knicke += neu
@@ -691,29 +826,101 @@ class KnickEditor:
         self.aktualisieren()
         return len(neu)
 
+    def knick_vorgaben(self):
+        """Werte des Knickrahmens aus den Einstellungen (wie die Vorbelegung des Dialogs)."""
+        from . import knickrahmen as kn
+        z, fs, kf = (self.einstellungen.get(f"knick_{n}") for n in ("z", "freistich", "k"))
+        return dict(freistich=fs or None, z=z or None, kf=kf if isinstance(kf, (int, float)) and kf > 0 else kn.K_FAKTOR,
+                    schraeg=False)
+
+    def knick_bauen(self, mw, k, werte):
+        """Knickrahmen aus der Kette k der Messwerte mw (knick_messwerte; erstellen ändert sie): dict(koerper, leit,
+        eingaben, laenge, knicke, netz, text, nummern, ecken). ValueError, wenn der Rahmen nicht geht."""
+        from . import knickverbindung as kv
+        leit = kv.erstellen(mw, k, **werte)
+        m = mw[leit]
+        profil = dict(self._steck_profil(m["pid"]) or {})
+        je_teil = {t["i"]: schneidweg.lesen(self._teil_q(mw[t["i"]]["pid"]).get("technik")) for t in k["teile"]}
+        eing, _ = kv.eingaben(m, je_teil, profil)
+        nrs = [mw[t["i"]].get("koerper") for t in k["teile"]]
+        return dict(koerper=[(mw[t["i"]]["pid"], mw[t["i"]]["lage_nr"]) for t in k["teile"]],
+                    leit=m["pid"], eingaben=eing, laenge=m.get("_knick_laenge"), knicke=len(k["teile"]) - 1,
+                    netz=kv.netz_gefaltet(mw, m), text=kv.text(m), nummern=[str(x) for x in nrs if x not in (None, "")],
+                    ecken=[sorted((str(a), str(b))) for a, b in zip(nrs, nrs[1:])
+                           if a not in (None, "") and b not in (None, "")])
+
+    def knick_kandidaten(self):
+        """Mögliche Knickrahmen aus allen Rohren (ohne Knickrahmen, Steckverbindung und schon neu verbundene Körper):
+        (Messwerte, [Kette]) für knick_bauen."""
+        from . import knickverbindung as kv
+        steck = {z.get(r) for z in self.bg["steckverbindungen"] for r in ("_auf", "_st")}
+        teile = [t for t in self.teile if t.get("drin") and not knick_grund(t["_q"]) and t["_id"] not in steck
+                 and (self._steck_profil(t["_id"]) or {}).get("form") in ("Quadratrohr", "Rechteckrohr")]
+        belegt = {kp for k in self.knicke for kp in k["koerper"]}
+        mw = [m for m in knick_messwerte([(t["_id"], t["_q"]) for t in teile], self._netz, self._steck_profil)
+              if (m["pid"], m["lage_nr"]) not in belegt]
+        ketten = []
+        for gruppe in kv.vorschlaege(mw):
+            try:
+                ketten.append(kv.kette(mw, gruppe))
+            except ValueError:
+                continue
+        return mw, ketten
+
     def _knick_vorschlaege(self):
         """Nahtvorschläge aus der STEP-Datei an den Ecken neuer Knickrahmen fallen weg (dort wird geknickt, nicht
         geschweißt); der Stoß eines geschlossenen Rahmens bleibt. Die Vorschläge vor dem ersten Knickrahmen merkt
         sich der Editor, damit Lösen sie zurückholt."""
-        if "vorschlaege" not in self.bg:
-            return
-        if not hasattr(self, "_vorschlaege_vor_knick"):
-            self._vorschlaege_vor_knick = copy.deepcopy(self.bg["vorschlaege"])
         ecken = {tuple(e) for k in self.knicke for e in k.get("ecken") or ()}
-        out = []
-        for v in copy.deepcopy(self._vorschlaege_vor_knick):
-            paare = v.get("teile") or []
+
+        def ohne_ecken(v, feld):
+            """Kopie ohne die Ecken (None: alle Paare sind Ecken, fällt weg)."""
+            v = copy.deepcopy(v)
+            paare = v.get(feld) or []
             rest = [p for p in paare if not (isinstance(p, (list, tuple)) and len(p) == 2
                                              and tuple(sorted(map(str, p))) in ecken)]
             if paare and not rest:
-                continue
+                return None
             if len(rest) != len(paare):
                 je = max(1, len(paare) // max(1, v.get("anzahl") or 1))
-                v.update(teile=rest, anzahl=max(1, len(rest) // je))
-            out.append(v)
-        self.bg["vorschlaege"] = out
-        if hasattr(self, "_vorschlaege_zeigen"):
-            self._vorschlaege_zeigen()
+                v.update({feld: rest, "anzahl": max(1, len(rest) // je)})
+            return v
+        if "vorschlaege" in self.bg:
+            if not hasattr(self, "_vorschlaege_vor_knick"):
+                self._vorschlaege_vor_knick = copy.deepcopy(self.bg["vorschlaege"])
+            self.bg["vorschlaege"] = [v for v in (ohne_ecken(x, "teile") for x in self._vorschlaege_vor_knick) if v]
+            if hasattr(self, "_vorschlaege_zeigen"):
+                self._vorschlaege_zeigen()
+        # Nahtgruppen aus den STEP-Vorschlägen (Vorkalkulation automatisch, mit Paaren): die Ecken fallen ebenso weg,
+        # Lösen holt sie zurück; Gruppen ohne Ecke bleiben, wie sie sind
+        if "naehte" not in self.bg:
+            return
+        vor = self.__dict__.setdefault("_naehte_vor_knick", {})
+        weg = self.__dict__.setdefault("_naehte_weg", set())
+        for n in self.bg["naehte"]:
+            if n.get("paare") and n.get("id") not in vor:
+                vor[n["id"]] = copy.deepcopy(n)
+        aktuell = {n.get("id"): n for n in self.bg["naehte"]}
+        out, geaendert = list(self.bg["naehte"]), False
+        for nid, orig in vor.items():
+            neu, da = ohne_ecken(orig, "paare"), aktuell.get(nid)
+            if neu is None:
+                if da is not None:
+                    out.remove(da)
+                    weg.add(nid)
+                    geaendert = True
+            elif da is not None:
+                if da.get("paare") != neu.get("paare"):
+                    da.update(paare=neu.get("paare"), anzahl=neu.get("anzahl"))
+                    geaendert = True
+            elif nid in weg:
+                out.append(neu)
+                weg.discard(nid)
+                geaendert = True
+        if geaendert:
+            self.bg["naehte"][:] = out
+            if hasattr(self, "naht_tab"):
+                self.naht_tab.aufbauen()
 
     def _teil_q(self, pid):
         return next(t["_q"] for t in self.teile if t["_id"] == pid)
@@ -735,6 +942,340 @@ class KnickEditor:
             if {z.get("_auf"), z.get("_st")} & im_knick:
                 return f"Steckverbindung {n}: Teil ist in einem neuen Knickrahmen (erst Knickrahmen lösen)."
         return None
+
+
+class VorschlaegeDialog(QDialog):
+    """Fenster „Vorschläge“ (Plan Baugruppen automatisch, P1): je Vorschlag Haken, Art, Text, Ersparnis und
+    Rechenweg; Klick auf eine Zeile zeigt die Teile im 3D. „Übernehmen“ schließt mit Accepted, die Haken stehen in
+    den Vorschlägen (an)."""
+
+    def __init__(self, besitzer, liste):
+        super().__init__(besitzer)
+        self.besitzer, self.liste = besitzer, liste
+        self.setWindowTitle("Vorschläge")
+        self.resize(1100, 480)
+        lay = QVBoxLayout(self)
+        kopf = QLabel("Das Programm schlägt vor, was sich hier knicken, stecken oder günstiger legen lässt, und rechnet "
+                      "mit den Werten aus den Einstellungen, was es spart (+) oder kostet (−). Nichts ändert sich von "
+                      "selbst: anhaken und „Übernehmen“.")
+        kopf.setWordWrap(True)
+        lay.addWidget(kopf)
+        self.tab = QTableWidget(len(liste), 5)
+        self.tab.setHorizontalHeaderLabels(["", "Art", "Vorschlag", "Ersparnis", "Rechnung"])
+        self.tab.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tab.verticalHeader().setVisible(False)
+        self.tab.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        for c, b in enumerate((28, 110, 330, 80)):
+            self.tab.setColumnWidth(c, b)
+        for r, v in enumerate(liste):
+            haken = QTableWidgetItem()
+            haken.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            haken.setCheckState(Qt.Checked if v["an"] else Qt.Unchecked)
+            self.tab.setItem(r, 0, haken)
+            rechnung = bv.rechnung_text(v)
+            for c, text in enumerate((v["art"], v["titel"], bv.euro(v["saldo"]), rechnung), 1):
+                it = QTableWidgetItem(text)
+                it.setToolTip(rechnung)
+                if c == 3 and v["saldo"] is not None:
+                    it.setForeground(QBrush(stil.farbe_fest("#1E7B34" if v["saldo"] >= 0 else FEHLER_FARBE)))
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.tab.setItem(r, c, it)
+        self.tab.itemChanged.connect(self._haken)
+        self.tab.currentCellChanged.connect(lambda r, *_: self._zeigen(r))
+        lay.addWidget(self.tab, 1)
+        self.summe = QLabel()
+        lay.addWidget(self.summe)
+        leiste = QHBoxLayout()
+        for text, wahl in (("Alle mit Ersparnis anhaken", lambda v: (v["saldo"] or 0) > 0),
+                           ("Alle anhaken", lambda v: True), ("Keine", lambda v: False)):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, w=wahl: self.anhaken(w))
+            leiste.addWidget(b)
+        leiste.addStretch(1)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Close)
+        self.ok_knopf = knoepfe.button(QDialogButtonBox.Ok)
+        self.ok_knopf.setText("Übernehmen")
+        knoepfe.accepted.connect(self.accept)
+        knoepfe.rejected.connect(self.reject)
+        leiste.addWidget(knoepfe)
+        lay.addLayout(leiste)
+        self._summe()
+
+    def anhaken(self, wahl):
+        self.tab.blockSignals(True)
+        for r, v in enumerate(self.liste):
+            v["an"] = bool(wahl(v))
+            self.tab.item(r, 0).setCheckState(Qt.Checked if v["an"] else Qt.Unchecked)
+        self.tab.blockSignals(False)
+        self._summe()
+
+    def _haken(self, it):
+        if it.column() == 0:
+            self.liste[it.row()]["an"] = it.checkState() == Qt.Checked
+            self._summe()
+
+    def _summe(self):
+        an = [v for v in self.liste if v["an"]]
+        self.summe.setText(f"{len(an)} von {len(self.liste)} angehakt" + (
+            f", zusammen {'+' if bv.summe(an) >= 0 else '−'}{bv.euro(abs(bv.summe(an)))} je Baugruppe bzw. Satz"
+            if any(v["saldo"] is not None for v in an) else ""))
+        self.ok_knopf.setEnabled(bool(an))
+
+    def _zeigen(self, r):
+        if 0 <= r < len(self.liste):
+            self.besitzer.vorschlag_zeigen(self.liste[r])
+
+
+class VorschlagEditor:
+    """Vorschläge Knickrahmen, Steckverbindung und Längsnaht (Plan Baugruppen automatisch, P1), gemeinsam für den
+    Editor der Schweißbaugruppe und das Fenster „Satz in 3D“. Rechnen: baugruppe_vorschlaege; erwartet SteckEditor,
+    KnickEditor und LaengsnahtEditor. Schweißposten nur mit self.saetze (Editor der Schweißbaugruppe)."""
+
+    def vorschlag_knopf(self):
+        self.vorschlag_k = QPushButton("Vorschläge …")
+        self.vorschlag_k.setToolTip("Knickrahmen, Steckverbindungen und Lage der Längsnaht vorschlagen, mit Ersparnis in €; "
+                                    "nichts ändert sich ohne „Übernehmen“")
+        self.vorschlag_k.clicked.connect(lambda: self.vorschlaege_zeigen())
+        self.vorschlag_k.setEnabled(not self.nur_lesen)
+        return self.vorschlag_k
+
+    def _vorschlag_preise(self, laser=True):
+        eltern = self.parent()
+        lz = getattr(eltern, "laser_teil_eur", None) if laser else None
+        if hasattr(self, "saetze"):
+            return bv.Preise(self.tabellen, self.saetze, self.einstellungen, lz)
+        saetze = eltern._saetze() if hasattr(eltern, "_saetze") else {}
+        return bv.Preise(getattr(eltern, "tabellen", None), saetze, self.einstellungen, lz, schweissen=False)
+
+    def _vorschlag_hilfen(self):
+        vk = getattr(self, "hilfe_vk", {}) or {}
+        return {t["_id"]: t.get("hilfe") or (vk.get(t["_id"]) or (None,))[0] for t in self.teile if t.get("drin")}
+
+    def _vorschlag_eingaben(self, extra=(), nur=None):
+        """{pid: (Eingaben, Länge)} der Rohre mit den Steckverbindungen des Editors (und extra)."""
+        from .baugruppe_ansicht import eingaben_stecken
+        drin = {t["_id"]: t["_q"] for t in self.teile if t.get("drin") and self._steck_profil(t["_id"])
+                and (nur is None or t["_id"] in nur)}
+        verb = [self._steck_daten(z) for z in self.bg["steckverbindungen"]] + list(extra)
+        return eingaben_stecken(drin, verb, self._steck_profil)
+
+    def _baugruppe_mitte(self):
+        """Schwerpunkt der Körpermitten in Dateilage oder None."""
+        from .baugruppe_ansicht import _spannen, in_lage
+        punkte = []
+        for t in self.teile:
+            if not t.get("drin"):
+                continue
+            netz = self._netz(t["_id"])
+            for lage in netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else []):
+                if netz.get("p") and lage and len(lage) == 9:
+                    _, _, z0, z1 = _spannen(netz)
+                    punkte.append(in_lage((0.0, 0.0, (z0 + z1) / 2), lage))
+        return bv.mitte(punkte) if len(punkte) > 1 else None
+
+    def _naht_vorschlaege(self, eingaben, ausser=()):
+        mitte, out = self._baugruppe_mitte(), []
+        for t in self.teile:
+            pid, q = t["_id"], t["_q"]
+            if not t.get("drin") or pid in ausser or pid not in eingaben or self.laengsnaht(pid) is not None \
+                    or naht.vorgabe(q) != naht.KEINE:
+                continue
+            profil = self._steck_profil(pid) or {}
+            netz = self._netz(pid)
+            lage = (netz.get("lagen") or [netz.get("lage")])[0]
+            innen = bv.winkel_innen(mitte, lage, netz, profil.get("form"))
+            e, lg = eingaben[pid]
+            v = bv.naht_vorschlag(pid, q, profil, e, lg, innen)
+            if v:
+                out.append(v)
+        return out
+
+    def vorschlaege_sammeln(self, laser=True):
+        """Alle Vorschläge, größte Ersparnis zuerst. laser=False: ohne Laserzeit (schnell, für den Hinweis)."""
+        preise, hilfen = self._vorschlag_preise(laser), self._vorschlag_hilfen()
+        teile_q = {t["_id"]: t["_q"] for t in self.teile if t.get("drin")}
+        regel = self._regel_faktor() if hasattr(self, "_regel_faktor") else None
+        out = []
+        mw, ketten = self.knick_kandidaten()
+        for k in ketten:
+            try:
+                r = self.knick_bauen([dict(m) for m in mw], k, self.knick_vorgaben())
+            except ValueError:
+                continue
+            out.append(bv.knick_bewerten(preise, r, teile_q, hilfen, self.bg.get("vorschlaege"), self.bg.get("naehte"),
+                                         regel))
+        im_knick = {pid for k in self.knicke for pid, _ in k["koerper"]}
+        plan, _ = self.steck_plan()
+        vorher = self._vorschlag_eingaben()
+        for e in plan or ():
+            if {e["auf"], e["st"]} & im_knick:
+                continue
+            z = self.steck_zeile(e)
+            v = self._steck_daten(z)
+            nachher = self._vorschlag_eingaben([v], {e["auf"], e["st"]})
+            m = steckverbindung.masse(v, self._steck_profil(e["auf"]), self._steck_profil(e["st"])) \
+                if (self._steck_profil(e["st"]) or {}).get("form") in steckverbindung.FORMEN else None
+            out.append(bv.steck_bewerten(preise, e, teile_q, hilfen, vorher, nachher, steckverbindung.text(v, m)))
+        out += self._naht_vorschlaege(vorher, im_knick)
+        return bv.sortieren(out)
+
+    def vorschlaege_info_neu(self):
+        """Hinweis neben dem Knopf: wie viele Vorschläge es gibt (ohne Laserzeit gezählt)."""
+        lab = getattr(self, "vorschlag_info", None)
+        if lab is None or self.nur_lesen:
+            return None
+        try:
+            liste = self.vorschlaege_sammeln(laser=False)
+        except (ValueError, TypeError, KeyError, ZeroDivisionError):
+            liste = []
+        je = {a: sum(1 for v in liste if v["art"] == a) for a in bv.ARTEN}
+        mehr = {bv.KNICK: "Knickrahmen", bv.STECK: "Steckverbindungen", bv.NAHT: "Längsnähte"}
+        teile = [f"{n} {a if n == 1 else mehr[a]}" for a, n in je.items() if n]
+        lab.setText(("Vorschläge: " + ", ".join(teile) + " – „Vorschläge …“ zeigt sie mit Ersparnis") if teile else "")
+        return liste
+
+    def vorschlag_zeigen(self, v):
+        """Teile eines Vorschlags markieren und im 3D zeigen."""
+        ids = set(v["teile"])
+        tab = self.teile_tab
+        tab.blockSignals(True)
+        tab.clearSelection()
+        for r, t in enumerate(self.teile):
+            if t["_id"] in ids:
+                tab.selectionModel().select(tab.model().index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        tab.blockSignals(False)
+        if hasattr(self, "zeige_3d"):
+            if self.ansicht3d is not None:
+                self.zeige_3d(hervor=ids, text=v["titel"])
+        else:
+            self.zeigen()
+
+    def vorschlaege_zeigen(self, dialog=None):
+        """Fenster Vorschläge; dialog(d) bedient es statt exec (Tests). Ergebnis: (übernommen, nicht übernommen)."""
+        liste = self.vorschlaege_sammeln()
+        if not liste:
+            einblendung.melden(self, "Keine Vorschläge: kein Knickrahmen, keine Steckverbindung aus "
+                                    "den Stößen der STEP-Datei und keine Längsnaht, die sich günstiger legen lässt.")
+            return 0, []
+        d = VorschlaegeDialog(self, liste)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+            return 0, []
+        n, nicht = self.vorschlaege_anwenden(liste)
+        if nicht:
+            einblendung.melden(self, f"{n} übernommen, {len(nicht)} nicht übernommen.", bericht=("Vorschläge", "Nicht übernommen:\n" + "\n".join(nicht)))
+        return n, nicht
+
+    def vorschlaege_anwenden(self, liste):
+        """Angehakte Vorschläge umsetzen: erst Knickrahmen, dann Steckverbindungen, dann Längsnähte (neu gerechnet mit
+        den neuen Schlitzen und Nasen). Ergebnis: (Anzahl, [Text, warum nicht])."""
+        n, nicht = 0, []
+        an = [v for v in liste if v["an"]]
+        knick = [v for v in an if v["art"] == bv.KNICK]
+        for v in knick:
+            mw, ketten = self.knick_kandidaten()
+            ziel = {tuple(x) for x in v["daten"]["koerper"]}
+            k = next((k for k in ketten if {(mw[t["i"]]["pid"], mw[t["i"]]["lage_nr"]) for t in k["teile"]} == ziel),
+                     None)
+            try:
+                if k is None:
+                    raise ValueError("geht nicht mehr (Teile geändert)")
+                self.knicke.append(self.knick_bauen(mw, k, self.knick_vorgaben()))
+                n += 1
+            except ValueError as f:
+                nicht.append(f"{v['titel']}: {f}")
+        if knick:
+            self._knick_vorschlaege()
+        im_knick = {pid for k in self.knicke for pid, _ in k["koerper"]}
+        steck = [v for v in an if v["art"] == bv.STECK]
+        for v in steck:
+            if {v["daten"]["auf"], v["daten"]["st"]} & im_knick:
+                nicht.append(f"{v['titel']}: Teil ist jetzt in einem Knickrahmen")
+                continue
+            e = self.steck_schnitte(v["daten"])
+            if e is None:
+                nicht.append(f"{v['titel']}: Schlitze und Nasen gibt es schon")
+                continue
+            self.bg["steckverbindungen"].append(self.steck_zeile(e))
+            n += 1
+        if steck:
+            self.steck_tab.aufbauen()
+        naehte = {v["daten"]["pid"]: v for v in an if v["art"] == bv.NAHT}
+        if naehte:
+            neu = {x["daten"]["pid"]: x for x in self._naht_vorschlaege(self._vorschlag_eingaben(), im_knick)}
+            for pid, v in naehte.items():
+                if pid not in neu:
+                    nicht.append(f"{v['titel']}: keine freie Stelle mehr (neue Schlitze oder Nasen)")
+                    continue
+                self.__dict__.setdefault("laengsnaehte", {})[pid] = neu[pid]["daten"]["winkel"]
+                n += 1
+        self.aktualisieren()
+        self.vorschlaege_info_neu()
+        return n, nicht
+
+
+class MontageEditor:
+    """Montagefolge im 3D (Plan „Baugruppen automatisch“ A6): Knopf „Montage“ in der Leiste über dem 3D, Schieber
+    Schritt (bis dahin aufgebaut, aktueller Schritt blau) und Explosion (jedes gesteckte Teil rückt gegen seine
+    Steckrichtung heraus). Reihenfolge aus steck_montage wie „Steckbarkeit prüfen“. Gemeinsam für den Editor der
+    Schweißbaugruppe und das Fenster „Satz in 3D“; erwartet self.ansicht3d (BaugruppenAnsicht), self.teile,
+    self._netz und self.bg['steckverbindungen'] / ['stoesse']."""
+
+    def montage_knopf_anlegen(self):
+        self._montage = None
+        return self.ansicht3d.montage_leiste()
+
+    def montage_berechnen(self):
+        """Steckfolge, Versatz und Texte für die eingeschaltete Montage, sonst None (in self._montage)."""
+        from . import steck_montage as sm
+        zustand = self.ansicht3d.montage_zustand() if getattr(self, "ansicht3d", None) is not None and \
+            getattr(self.ansicht3d, "montage", None) is not None else None
+        self._montage = None
+        if zustand is None:
+            return None
+        netze = {t["_id"]: self._netz(t["_id"]) for t in self.teile if t.get("drin")}
+        koerper, enden = sm.koerper_aus_netzen(netze)
+        verb = [(z.get("_auf"), z.get("_st"), z.get("_ende") or "a") for z in self.bg["steckverbindungen"]]
+        kanten = sm.kanten(koerper, self.bg.get("stoesse"), verb)
+        erg = sm.reihenfolge(kanten)
+        name = {t["_id"]: f"Pos. {t['_q'].get('pos') or ''}" for t in self.teile}
+        marken = {}
+        for st in self.bg.get("stoesse") or ():
+            if isinstance(st, dict) and str(st.get("aufnahme")) in koerper and str(st.get("stecker")) in koerper:
+                ka, ks = str(st["aufnahme"]), str(st["stecker"])
+                z = next((z for z in self.bg["steckverbindungen"] if (z.get("_auf"), z.get("_st"), z.get("_ende")) ==
+                          (koerper[ka][0], koerper[ks][0], st.get("ende")) and str(z.get("marke") or "").strip()), None)
+                if z:
+                    marken[(ka, ks)] = str(z["marke"]).strip()
+        texte = sm.schritt_texte(erg["schritte"], kanten, koerper, name, marken)
+        n = len(erg["schritte"])
+        self.ansicht3d.montage_schritte(n)
+        schritt, faktor = self.ansicht3d.montage_zustand()
+        self._montage = dict(nummer={k: i for i, (k, _) in enumerate(erg["schritte"], 1)}, schritt=min(schritt, n),
+                             n=n, versatz=sm.explosion(erg["schritte"], kanten, enden, faktor), texte=texte,
+                             offen=erg["offen"])
+        if not n:
+            self.ansicht3d.montage_text.setText("Keine Steckverbindung mit Stoß aus der STEP-Datei: keine Montagefolge.")
+        else:
+            t = texte[self._montage["schritt"] - 1]
+            self.ansicht3d.montage_text.setText(
+                f"Schritt {t['nr']}/{n}: {t['teil']} {t['text']}" + (f", Richtung {t['richtung']}" if t["richtung"]
+                                                                     else "")
+                + (f". Nicht steckbar: {len(erg['offen'])} Teil(e)" if erg["offen"] else ""))
+        return self._montage
+
+    def montage_lage(self, kn, lage):
+        """(Einbaulage mit Versatz oder None = in diesem Schritt noch nicht da, aktueller Schritt ja/nein)."""
+        m = getattr(self, "_montage", None)
+        if not m or kn is None or not lage:
+            return lage, False
+        nr = m["nummer"].get(str(kn))
+        if nr is not None and nr > m["schritt"] and m["schritt"] < m["n"]:
+            return None, False
+        v = m["versatz"].get(str(kn))
+        if v and any(v):
+            lage = [lage[0] + v[0], lage[1] + v[1], lage[2] + v[2]] + list(lage[3:])
+        return lage, nr is not None and nr == m["schritt"] and m["schritt"] < m["n"]
 
 
 class LaengsnahtEditor:
@@ -815,7 +1356,8 @@ class LaengsnahtEditor:
         return out
 
 
-class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
+class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, StepBaugruppe,
+                      QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
@@ -918,12 +1460,14 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
             merken.clicked.connect(lambda: self.vorlage_merken())
             unten.addWidget(einsetzen)
             unten.addWidget(merken)
+        unten.addWidget(self.step_knopf())
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
         self.aktualisieren()
         if self.vk_auto.isChecked() and not nur_lesen:
             self.vorkalkulation()
+        self.vorschlaege_info_neu()
 
     # -------------------------------------------------------------- Struktur und Teile
     def _teile_aufbauen(self, vorwahl):
@@ -1808,6 +2352,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
             from .baugruppe_ansicht import BaugruppenAnsicht
             self.ansicht3d = BaugruppenAnsicht(geaendert=self.baum_gewaehlt, vor_messen=self._vor_messen)
             self.laengsnaht_knopf_anlegen(self.nur_lesen)
+            self.montage_knopf_anlegen()
             self.ansicht3d.ansicht.angeklickt.connect(self._3d_geklickt)
             self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
             self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
@@ -1888,16 +2433,25 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
         nur = bool(hervor) and getattr(self.ansicht3d, "nur_gewaehlt", False)
         rohre = self._rohr_modelle() if self.ansicht3d is not None else {}
         netze, besitzer, farbe, koerper, koerper_netz, lagen = [], [], [], [], {}, []
+        montage = self.montage_berechnen() if self.ansicht3d is not None else None
+        aktuell = set()
         for n, t in enumerate(x for x in self.teile if x.get("drin")):
             netz = self._netz(t["_id"])
             nummern = netz.get("koerper") or []
             modell = rohre.get(t["_id"])
             for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
                 kn = nummern[j] if j < len(nummern) else None
+                akt = False
+                if montage:
+                    lage, akt = self.montage_lage(kn, lage)
+                    if lage is None:
+                        continue
                 if kn is not None:
                     koerper_netz[str(kn)] = (modell or netz, lage)
                 if nur and t["_id"] not in hervor:
                     continue
+                if akt:             # erst nach dem Filter „Nur Gewähltes“: Index des gezeigten Netzes
+                    aktuell.add(len(netze))
                 netze.append(dict(modell or netz, lage=lage))
                 besitzer.append(t["_id"])
                 farbe.append(n)
@@ -1912,7 +2466,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
         from .ansicht3d import baugruppe as zusammen
         from .baugruppe_ansicht import Flaechen, naehte_einsetzen, teil_kennung
         bereiche = []
-        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur}, farbe,
+        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur} | aktuell, farbe,
                            bereiche=bereiche)
         self._koerper_lage = lagen
         if netz:                    # Klick auf eine Fläche findet ihr Teil (Längsnaht wählen)
@@ -2149,7 +2703,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
     def vorlage_waehlen(self):
         liste = self.vorlagen()
         if not liste:
-            QMessageBox.information(self, "Vorlagen", "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
+            einblendung.melden(self, "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
                                                       "„Als Vorlage speichern …“ merken.")
             return False
         texte = [f"{z['name']} ({z.get('inhalt') or ''})" for z in liste]
@@ -2182,6 +2736,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
                     if isinstance(v, (int, float)) and not isinstance(v, bool) and v < 0:
                         return "Negative Werte sind nicht erlaubt."
         return None
+
+    def step_name(self):
+        return self.bezeichnung.text().strip() or self.artikel.text().strip() or "Baugruppe"
 
     def _ok(self):
         if self.nur_lesen:

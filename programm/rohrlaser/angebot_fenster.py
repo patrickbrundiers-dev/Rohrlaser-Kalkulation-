@@ -1,6 +1,7 @@
 """Angebote: Übersicht, Angebotsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
 import copy
 import datetime
+import functools
 import json
 import tempfile
 import threading
@@ -1478,6 +1479,46 @@ class AngebotReiter(QTabWidget):
                                                                for j in range(g.count())]
 
 
+class SchnellFeld(QLineEdit):
+    """Eingabefeld der Schnellzeile: Einfügen mehrerer Zeilen meldet sie (mehrzeilig) statt sie zu verbinden."""
+    mehrzeilig = Signal(str)
+
+    def keyPressEvent(self, e):
+        if e.matches(QKeySequence.Paste):
+            text = QApplication.clipboard().text()
+            if "\n" in text.strip():
+                self.mehrzeilig.emit(text)
+                return
+        super().keyPressEvent(e)
+
+
+def blaetterbar(liste=False):
+    """Editor-Methode der Angebotsseite mit Blättern (Plan Bedienung B3): ◀ ▶ im Editor schließt ihn (Änderungen
+    übernommen, Freigabe F3a) und öffnet gleich die vorige bzw. nächste Position derselben Art. liste: die Methode
+    erwartet eine Liste von Zeilen (Baugruppe)."""
+    def deko(methode):
+        @functools.wraps(methode)
+        def huelle(self, *a, **kw):
+            if getattr(self, "_blaettern_laeuft", False):
+                return methode(self, *a, **kw)
+            self._blaettern_laeuft = True
+            try:
+                self._blaettern_ziel = None
+                erg = methode(self, *a, **kw)
+                while self._blaettern_ziel is not None:
+                    ziel, self._blaettern_ziel = self._blaettern_ziel, None
+                    if not 0 <= ziel < len(self.positionen):
+                        break
+                    self.pos_ansicht.selectRow(ziel)
+                    weiter = {n: v for n, v in kw.items() if n == "dialog"}
+                    erg = methode(self, [ziel] if liste else ziel, **weiter)
+            finally:
+                self._blaettern_laeuft = False
+            return erg
+        return huelle
+    return deko
+
+
 class AngebotSeite(QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
@@ -1601,22 +1642,32 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
             self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld",) + EIGENE else (240 if art == "status" else 85))
-        # Rechtsklick auf eine Position: Bearbeiten-Aktionen ohne weitere Knöpfe in der Leiste
+        # Rechtsklick auf eine Position: Bearbeiten-Aktionen ohne weitere Knöpfe in der Leiste. Plan Bedienung B5: nur
+        # die Einträge, die zur Art der markierten Positionen passen (MENUE_ARTEN), mit Tastenkürzel; bei mehreren
+        # markierten Zeilen zusätzlich „Für markierte setzen …“ (Werkstoff, Oberfläche).
         self.pos_ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.pos_menue = QMenu(self.pos_ansicht)
-        for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
-                           ("Schweißnaht …", lambda: self.schweissnaht()),
-                           ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
-                           ("Material …", lambda: self.material_einstellen()),
-                           ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen()),
-                           ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen()),
-                           ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
-                           ("Satz in 3D …", lambda: self.satz_3d()),
-                           ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren()),
-                           ("Blech-Editor …", lambda: self.blech_bearbeiten()),
-                           ("Stückzahl ändern …", lambda: self.stueck_aendern()),
-                           ("Positionen löschen", self.positionen_loeschen)):
-            self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
+        self.pos_aktionen = {}
+        for text, ziel, tasten in (
+                ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen(), ""),
+                ("Blech-Editor …", lambda: self.blech_bearbeiten(), ""),
+                ("Baugruppe bearbeiten …", lambda: self.baugruppe_bearbeiten(self._markierte_zeilen()), ""),
+                ("Schweißnaht …", lambda: self.schweissnaht(), ""),
+                ("Zusatzarbeiten …", lambda: self.zusatzarbeiten(), ""),
+                ("Material …", lambda: self.material_einstellen(), ""),
+                ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
+                ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
+                ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
+                ("Satz in 3D …", lambda: self.satz_3d(), ""),
+                ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
+                ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
+                ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
+                ("Positionen löschen", self.positionen_loeschen, "Entf")):
+            # Kürzel nur als Text rechts (Tabulator), die Kürzel selbst hängen am Menü Bearbeiten
+            a = self.pos_menue.addAction(text + (f"\t{tasten}" if tasten else ""), lambda ziel=ziel: ziel())
+            self.pos_aktionen[text] = a
+        self.pos_menue.insertSeparator(self.pos_aktionen["Für markierte setzen …"])
+        self.pos_menue.aboutToShow.connect(self._pos_menue_anpassen)
         self.pos_ansicht.customContextMenuRequested.connect(
             lambda punkt: self.fremd() or self._menue_zeile(punkt) or
             self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
@@ -1742,6 +1793,23 @@ class AngebotSeite(QWidget):
         pl.setContentsMargins(0, 4, 0, 0)
         pl.setSpacing(4)
         pl.addLayout(self.pos_leiste)
+        # Schnellzeile (Plan Bedienung B6): „QR 40x3 S235 1250 20“ + Eingabe legt die Position an
+        self.schnell = SchnellFeld()
+        self.schnell.setPlaceholderText("Schnellzeile: z. B. QR 40x3 S235 1250 20 (Profil, Werkstoff, Länge, Stück) – "
+                                        "Eingabe legt die Position an, mehrere Zeilen einfügen geht auch")
+        self.schnell.setToolTip("Profil, Werkstoff, Länge [mm] und Stückzahl in einer Zeile. Eindeutig mit L=1250, "
+                                "1250mm, 20 Stk, x20; Artikelnummer mit #. Mehrere Zeilen (z. B. aus einer E-Mail "
+                                "oder Excel) mit Strg+V einfügen: je Zeile eine Position.")
+        self.schnell_vorschau = QLabel()
+        self.schnell_vorschau.setStyleSheet("color: #5F6B7A;")
+        self.schnell.textChanged.connect(self._schnell_vorschau)
+        self.schnell.returnPressed.connect(lambda: self.schnellzeile())
+        self.schnell.mehrzeilig.connect(lambda text: self.schnellzeile(text))
+        sz = QHBoxLayout()
+        sz.setContentsMargins(0, 0, 0, 0)
+        sz.addWidget(self.schnell, 3)
+        sz.addWidget(self.schnell_vorschau, 2)
+        pl.addLayout(sz)
         pl.addWidget(self.pos_ansicht, 1)
         # leeres Angebot: großes Ablagefeld statt der leeren Positionsliste
         self.ablage_gross = AblageFeld(gross=True)
@@ -1865,6 +1933,7 @@ class AngebotSeite(QWidget):
         lesen = bool(self.db.nur_lesen)            # Lizenz: Lesemodus wie ein fremdes Angebot, nur ansehen
         self.fremd_leiste.setVisible(bool(k) or lesen)
         self.kopf_bereich.setEnabled(not k and not lesen)
+        self.schnell.setEnabled(not k and not lesen)
         self.leiste.links.setEnabled(not k)          # Lesemodus: Knöpfe einzeln (3D-Ansicht bleibt)
         self.setAcceptDrops(not k and not lesen)
         if lesen and not k:
@@ -2105,15 +2174,14 @@ class AngebotSeite(QWidget):
             return False
         liste = [f"{f.titel.split('[')[0].strip()}: {zahl_als_text(w, f.stellen)} → {zahl_als_text(std, f.stellen)}"
                  for f, w, std in kalk] + zeiten
-        if not self.f.stumm and QMessageBox.question(
-                self, "Kalkulation", "Diese Werte des Angebots auf die Einstellungen bzw. Stammdaten setzen?\n\n"
-                + "\n".join(liste) + "\n\nVon Hand eingetragene Werte an den Positionen (Meterpreis, Schneidzeit, "
-                "Zukaufteile) bleiben.") != QMessageBox.Yes:
-            return False
+        # ohne Rückfrage, mit „Rückgängig“; die Liste der Werte steht im Bericht (Plan Bedienung B2)
         vorher = self._verkauf()
         self.db.kalkulation_zuruecksetzen(self.id)
         self.neu_laden()
-        self.f.meldung(f"{len(liste)} Werte aus den Einstellungen übernommen. {preis_aenderung(vorher, self._verkauf())}")
+        self.rueckgaengig_anbieten(
+            f"{len(liste)} Werte aus den Einstellungen übernommen. {preis_aenderung(vorher, self._verkauf())}",
+            bericht=("Kalkulation", "\n".join(liste) + "\n\nVon Hand eingetragene Werte an den Positionen "
+                     "(Meterpreis, Schneidzeit, Zukaufteile) bleiben."))
         return True
 
     def fracht_berechnen(self):
@@ -2464,7 +2532,7 @@ class AngebotSeite(QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, DXF, LEER, ROHR, SCHWEISS, ZUKAUF, TypDialog
+        from .neue_position import BLECH, DXF, LEER, RAHMEN, ROHR, SCHWEISS, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -2483,6 +2551,8 @@ class AngebotSeite(QWidget):
             return typ if self.rohr_neu(dialog=dialog) else None
         if typ == SCHWEISS:
             return typ if self.baugruppe_neu(dialog=dialog) else None
+        if typ == RAHMEN:
+            return typ if self.rahmen_assistent(dialog=dialog) else None
         self.db.position_neu(self.id, {"pos": self._naechste_pos()})
         self.neu_laden()
         r = len(self.positionen) - 1
@@ -2507,9 +2577,122 @@ class AngebotSeite(QWidget):
         self.f.meldung("Neue Position angelegt.")
         return True
 
+    def _schnell_vorschau(self, text):
+        from . import schnellzeile
+        zeilen = schnellzeile.lesen(text, self.k.profile, self.k.werkstoffe) if text.strip() else []
+        self.schnell_vorschau.setText(schnellzeile.vorschau(zeilen[0], lambda z: rechnen.zahl(z, 1)) if zeilen else "")
+
+    def schnellzeile(self, text=None):
+        """Positionen aus der Schnellzeile (B6) anlegen; text = mehrere Zeilen (Einfügen), sonst das Feld. Werkstoff
+        ohne Angabe: der der letzten Position bzw. die Vorgabe der Einstellungen. Zeilen mit Fehler bleiben im Feld.
+        Ergebnis: Anzahl angelegter Positionen."""
+        from . import schnellzeile
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        quelle = self.schnell.text() if text is None else text
+        zeilen = schnellzeile.lesen(quelle, self.k.profile, self.k.werkstoffe)
+        if not zeilen:
+            return 0
+        letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
+        vorgabe = letzter or self.db.einstellung("step_werkstoff") or None
+        vorgabe = vorgabe if vorgabe in self.k.werkstoffe else None
+        gut, schlecht = [], []
+        self.verlauf.pause += 1
+        try:
+            for z in zeilen:
+                if z["fehler"]:
+                    schlecht.append(z)
+                    continue
+                werte = dict(pos=self._naechste_pos(), profil_id=z["profil_id"], laenge=z["laenge"],
+                             stueck=z.get("stueck") or 1, werkstoff_id=z.get("werkstoff_id") or vorgabe)
+                if z.get("artikel"):
+                    werte["artikel"] = z["artikel"]
+                self.db.position_neu(self.id, werte)
+                self.positionen.append(dict(werte))         # für die nächste Pos.-Nummer
+                gut.append(z)
+        finally:
+            self.verlauf.pause -= 1
+        # nicht erkannte Zeilen: die erste ins Feld, die übrigen folgen nacheinander nach Eingabe (nichts geht verloren)
+        rest = [z["text"] for z in schlecht] + getattr(self, "schnell_rest", [])
+        self.schnell_rest = rest[1:]
+        self.schnell.setText(rest[0] if rest else "")
+        bericht = ("Schnellzeile – nicht erkannt", "\n".join(f"{z['text']}  ({', '.join(z['fehler'])})"
+                                                             for z in schlecht)) if len(schlecht) > 1 else None
+        if gut:
+            self.neu_laden()
+            text_ = f"{len(gut)} Position(en) aus der Schnellzeile angelegt."
+            if schlecht:
+                text_ += f" {len(schlecht)} Zeile(n) nicht erkannt: " + "; ".join(
+                    f"„{z['text']}“ ({', '.join(z['fehler'])})" for z in schlecht[:3])
+            self.rueckgaengig_anbieten(text_, bericht=bericht)
+        else:
+            self.f.meldung("Schnellzeile: " + "; ".join(f"„{z['text']}“: {', '.join(z['fehler'])}"
+                                                        for z in schlecht[:3]), fehler=True, bericht=bericht)
+        return len(gut)
+
     def _naechste_pos(self):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
         return int(max(vorher, default=0)) + 10
+
+    def rahmen_assistent(self, dialog=None, satz_dialog=None):
+        """Rahmen-Assistent (A8): Rechteckrahmen oder Quader aus Rohr ohne STEP-Datei als Satz. Die Rohre werden
+        Positionen (Länge, Enden, Schneidweg) mit Netz, Einbaulage und Stößen; danach öffnet Satz in 3D (mit
+        „stumpf mit Steckverbindungen“ sind die Verbindungen dort schon angelegt). dialog(d) bzw. satz_dialog(d)
+        bedienen die Fenster (Tests). Ergebnis: Name des Satzes oder None."""
+        from . import rahmen
+        from .ansicht3d import packen
+        from .rahmen_dialog import RahmenDialog
+        from .satz3d import saetze
+        letzte = next((p for p in reversed(self.positionen) if p.get("werkstoff_id")), {})
+        d = RahmenDialog(self, self.k.profile, self.k.werkstoffe,
+                         letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff"))
+        if not d.profile:
+            self.f.meldung("Rahmen-Assistent: In den Profilen gibt es kein Quadrat-, Rechteck- oder Rundrohr.",
+                           fehler=True)
+            return None
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return None
+        w = d.ergebnis
+        profil = self.k.profile[w["profil_id"]]
+        name, n = w["name"], 2
+        while name in saetze(self.positionen):
+            name, n = f"{w['name']} {n}", n + 1
+        hinweise = []
+        for t in w["erg"]["teile"]:
+            je = len(t["lagen"])
+            pid = self.db.position_neu(self.id, dict(
+                pos=self._naechste_pos(), profil_id=w["profil_id"], werkstoff_id=w["werkstoff_id"],
+                laenge=t["laenge"], stueck=w["saetze"] * je, satz=name, je_satz=je,
+                bezeichnung=f"{name} {t['name']}", technik=schneidweg.speichern(t["eingaben"])))
+            netz = rahmen.netz(t, profil)
+            if netz:
+                self.db.netz_speichern(pid, packen(netz))
+            self.neu_laden()
+            zeile = next(r for r, q in enumerate(self.positionen) if q["id"] == pid)
+            alt_stumm, self.f.stumm = self.f.stumm, True
+            try:
+                if not self.schneidweg_berechnen(zeile, t["eingaben"], ueberschreiben=True):
+                    hinweise.append(f"{t['name']}: Schneidweg nicht gerechnet")
+            finally:
+                self.f.stumm = alt_stumm
+        self.db.satz_daten_speichern(self.id, name, dict(stoesse=w["erg"]["stoesse"]))
+        self.neu_laden()
+        self.f.meldung(f"Rahmen-Assistent: Satz {name} mit {sum(len(t['lagen']) for t in w['erg']['teile'])} Rohren "
+                       "angelegt." + "".join(f" {h}" for h in hinweise))
+        stecken = w["erg"]["stecken"]
+        if satz_dialog is not None or not self.f.stumm or stecken:
+            def bedienen(sd):
+                if stecken:
+                    sd.steck_alle(melden=False)
+                if satz_dialog is not None:
+                    return satz_dialog(sd)
+                if self.f.stumm:
+                    sd._ok()
+                    return sd.result()
+                return sd.exec()
+            self.satz_3d(satz=name, dialog=bedienen)
+        return name
 
     def rohr_neu(self, dialog=None, dxf=None):
         """Neue Rohr-/Profilposition im Schneidweg-Rechner mit Kopfzeile anlegen. Vorbelegt: Profil und Werkstoff der
@@ -2595,12 +2778,13 @@ class AngebotSeite(QWidget):
                        "je Stück als EK (Zukaufteil).")
         return True
 
-    def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None):
+    def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None, zuordnung=None):
         """Bleche aus DXF-Dateien (3E-9): je Datei das Importfenster (alle Teile mit Haken), je angehaktem Teil eine
         Position wie aus dem Blech-Editor. Zeigt die Datei ein Rohrlaserteil in Ansichten (Rohrschnitt, 3E-12), öffnet
         stattdessen der Rohr-Editor mit Profil, Länge, Enden und Konturen aus der Zeichnung. dialog(d) bzw.
-        rohr_dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Anzahl."""
-        from . import dxf_import as di, dxf_rohr
+        rohr_dialog(d) bedient das Fenster statt exec (Tests). Ist die Rohrzeichnung unsicher (3E-15), kommt erst das
+        Zuordnungsfenster (zuordnung(d) statt exec). Ergebnis: Anzahl."""
+        from . import dxf_rohr_dialog
         from .dxf_import_dialog import DxfImportDialog
         if self.fremd():
             return 0
@@ -2617,9 +2801,11 @@ class AngebotSeite(QWidget):
         for pfad in pfade:
             # Rohrzeichnung (Ansichten eines Rohrlaserteils, 3E-12): Rohr-Editor mit allem aus der Zeichnung
             try:
-                rohr = dxf_rohr.erkennen(di.datei_lesen(pfad), Path(pfad).name)
+                rohr = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung)
             except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
                 rohr = None
+            if rohr and rohr.get("abgebrochen"):
+                continue
             if rohr and rohr["ok"]:
                 n += bool(self.rohr_neu(dialog=rohr_dialog, dxf=(Path(pfad).name, rohr)))
                 continue
@@ -2643,6 +2829,7 @@ class AngebotSeite(QWidget):
             self.f.meldung(f"{n} Positionen aus DXF angelegt.")
         return n
 
+    @blaetterbar()
     def blech_bearbeiten(self, zeile=None, dialog=None):
         """Blech-Editor einer Position aus dem Blech-Editor wieder öffnen; der neue Richtpreis wird als EK ab der
         Stückzahl der Position im Artikel eingetragen. Ergebnis: True = übernommen."""
@@ -2662,6 +2849,7 @@ class AngebotSeite(QWidget):
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
                         dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
                              stueck=p.get("stueck")), neu=False)
+        self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.kopf_werte()))
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
@@ -2787,6 +2975,140 @@ class AngebotSeite(QWidget):
         """Datenbank für Baugruppen-Vorlagen im Editor; im Lesemodus keine (Speichern schreibt)."""
         return None if self.db.nur_lesen else self.db
 
+    # Rechtsklick (B5): Eintrag -> Arten, für die er erscheint (rohr, blech, zukauf, baugruppe); fehlt = immer
+    MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
+                   "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
+                   "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"}}
+
+    def _markierte_zeilen(self):
+        return sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()
+                       if i.row() < len(self.positionen)})
+
+    def position_art(self, p):
+        """Art einer Position für Rechtsklick und Editoren: rohr, blech, zukauf oder baugruppe."""
+        if ist_baugruppe(p):
+            return "baugruppe"
+        if ist_zukaufteil(p):
+            return "blech" if blech.lesen(p.get("technik")) else "zukauf"
+        return "rohr"
+
+    def editor_art(self, p):
+        """Welcher Editor eine Position bearbeitet (Blättern, B3): rohr (mit Profil), blech, baugruppe oder None."""
+        art = self.position_art(p)
+        if art == "rohr":
+            return "rohr" if p.get("profil_id") in self.k.profile else None
+        if art == "blech":
+            return "blech" if zukauf.json_liste(p.get("zukauf")) else None
+        return "baugruppe" if art == "baugruppe" else None
+
+    def _blaettern_einbauen(self, d, zeile, zustand=None):
+        """Knöpfe ◀ Vorige / Nächste ▶ (Alt+← / Alt+→) im Editor der Position in zeile (B3). Beim Wechsel werden
+        Änderungen übernommen (F3a); ohne Änderung (zustand() wie beim Öffnen) schließt der Editor ohne Speichern.
+        Der Titel zeigt Pos. und „n von m“ der Positionen dieser Art."""
+        p = self.positionen[zeile] if 0 <= zeile < len(self.positionen) else None
+        art = self.editor_art(p) if p else None
+        reihe = [r for r, q in enumerate(self.positionen) if art and self.editor_art(q) == art]
+        if zeile not in reihe or len(reihe) < 2:
+            return None
+        i = reihe.index(zeile)
+        start = zustand() if zustand else None
+        d.blaettern_knoepfe = {}
+
+        def gehen(schritt):
+            if not 0 <= i + schritt < len(reihe):
+                return
+            self._blaettern_ziel = reihe[i + schritt]
+            if zustand is not None and zustand() == start:
+                d.reject()                  # nichts geändert: nicht speichern (keine Rückfrage zu STEP-Werten)
+            else:
+                getattr(d, "_ok", d.accept)()           # wie OK: prüfen und Ergebnis setzen (Baugruppe, Schneidweg)
+                if d.result() != QDialog.Accepted:      # Eingaben unvollständig: Editor bleibt offen
+                    self._blaettern_ziel = None
+        boxen = d.findChildren(QDialogButtonBox)
+        for text, schritt, taste in (("◀ Vorige", -1, "Alt+Left"), ("Nächste ▶", 1, "Alt+Right")):
+            b = QPushButton(text)
+            b.setToolTip(f"{'Vorige' if schritt < 0 else 'Nächste'} Position dieser Art öffnen ({taste.replace('Left', '←').replace('Right', '→')}); "
+                         "Änderungen werden übernommen")
+            b.setEnabled(0 <= i + schritt < len(reihe))
+            b.clicked.connect(lambda _=False, s=schritt: gehen(s))
+            QShortcut(QKeySequence(taste), d, activated=lambda s=schritt: gehen(s))
+            if boxen:
+                boxen[0].addButton(b, QDialogButtonBox.ResetRole)
+            d.blaettern_knoepfe[schritt] = b
+        d.setWindowTitle(f"{d.windowTitle()} – Pos. {p.get('pos') or ''} ({i + 1} von {len(reihe)})")
+        return reihe
+
+    def _pos_menue_anpassen(self):
+        """Rechtsklick-Menü passend zu den markierten Positionen (B5)."""
+        zeilen = self._markierte_zeilen()
+        arten = {self.position_art(self.positionen[r]) for r in zeilen}
+        mit_bg = any(ist_baugruppe(self.positionen[r]) or baugruppe.zuordnung(self.positionen[r])[0] for r in zeilen)
+        mit_satz = any(self.positionen[r].get("satz") for r in zeilen)
+        for text, a in self.pos_aktionen.items():
+            noetig = self.MENUE_ARTEN.get(text)
+            sichtbar = not zeilen or noetig is None or bool(arten & noetig)
+            if text == "Satz in 3D …":
+                sichtbar = mit_satz
+            elif text == "Baugruppe in anderes Angebot kopieren …":
+                sichtbar = mit_bg
+            elif text == "Für markierte setzen …":
+                sichtbar = len(zeilen) > 1 and "rohr" in arten
+            a.setVisible(sichtbar)
+        return [t for t, a in self.pos_aktionen.items() if a.isVisible()]
+
+    def fuer_markierte_setzen(self, zeilen=None, werkstoff=None, oberflaeche=None, dialog=None):
+        """Werkstoff und/oder Oberfläche für alle markierten Rohrlaserteile auf einmal setzen (B5), ein Schritt für
+        Rückgängig. Ohne Werte fragt ein kleiner Dialog; dialog(d) bedient ihn statt exec (Tests). Ergebnis: Anzahl
+        geänderter Positionen oder None (abgebrochen)."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return None
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen())
+                  if self.position_art(self.positionen[r]) == "rohr"]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst Rohrlaserteile markieren.", fehler=True)
+            return None
+        if werkstoff is None and oberflaeche is None:
+            from .fenster import liste_fuellen
+            d = QDialog(self)
+            d.setWindowTitle(f"Für {len(zeilen)} markierte Positionen setzen")
+            form = QFormLayout(d)
+            ws, ob = QComboBox(), QComboBox()
+            liste_fuellen(ws, self.k, "werkstoff", "(nicht ändern)")
+            liste_fuellen(ob, self.k, "oberflaeche", "(nicht ändern)")
+            ob.insertItem(1, "(ohne Oberfläche)")
+            form.addRow("Werkstoff-ID", ws)
+            form.addRow("Oberfläche", ob)
+            knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            knoepfe.accepted.connect(d.accept)
+            knoepfe.rejected.connect(d.reject)
+            form.addRow(knoepfe)
+            d.ws, d.ob = ws, ob
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return None
+            werkstoff = ws.currentText() if ws.currentIndex() > 0 else None
+            oberflaeche = ("" if ob.currentIndex() == 1 else ob.currentText()) if ob.currentIndex() > 0 else None
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            neu = False
+            if werkstoff is not None and p.get("werkstoff_id") != werkstoff:
+                self.db.position_aendern(p["id"], "werkstoff_id", werkstoff)
+                neu = True
+            if oberflaeche is not None and (p.get("oberflaeche") or "") != oberflaeche:
+                self.db.position_aendern(p["id"], "oberflaeche", oberflaeche or None)
+                neu = True
+            n += neu
+        if n:
+            self.neu_laden()
+            self.rueckgaengig_anbieten(f"{n} Position(en) geändert"
+                                       + (f": Werkstoff {werkstoff}" if werkstoff is not None else "")
+                                       + (f", Oberfläche {oberflaeche or 'ohne'}" if oberflaeche is not None else "")
+                                       + ".")
+        else:
+            self.f.meldung("Nichts geändert: die markierten Positionen haben diese Werte schon.")
+        return n
+
     def _menue_zeile(self, punkt):
         """Rechtsklick auf eine nicht markierte Zeile: diese Zeile markieren, damit das Menü für sie gilt."""
         i = self.pos_ansicht.indexAt(punkt)
@@ -2865,6 +3187,7 @@ class AngebotSeite(QWidget):
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
         return True
 
+    @blaetterbar(liste=True)
     def baugruppe_bearbeiten(self, zeilen, dialog=None, fokus=None):
         """Editor der Schweißbaugruppe in der Zeile; bei einem Einzelteil der Editor seiner Baugruppe.
         fokus: Status, dessen Zeile der Editor zeigt (Doppelklick auf den Status). Ergebnis: True = gespeichert."""
@@ -2884,6 +3207,7 @@ class AngebotSeite(QWidget):
                             netze=self.db.netze(self.id), profile=self.k.profile)
         if fokus:
             d.fokus(fokus)
+        self._blaettern_einbauen(d, next(r for r, q in enumerate(self.positionen) if q["id"] == p["id"]))
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
@@ -2921,7 +3245,7 @@ class AngebotSeite(QWidget):
                                                     "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
                                                     "steck_anzahl", "steck_nase_min", "knick_z", "knick_freistich",
                                                     "knick_k",
-                                                    "steck_spiel", "steck_ueberstand")}
+                                                    "steck_spiel", "steck_ueberstand", "steck_marke")}
 
     def naehte_schreiben(self, naehte):
         """Längsnähte aus dem 3D (Längsnaht per Klick) in die Positionen: {Positions-ID: Nahtfelder}."""
@@ -2958,7 +3282,10 @@ class AngebotSeite(QWidget):
                 continue
             pa, ps = (self.k.profile.get(nach_id[x].get("profil_id")) or {} for x in (a, s_))
             try:
-                eing[a], eing[s_], plus = sv.anwenden(v, eingaben(a), eingaben(s_), pa, ps)
+                ea, es = eingaben(a), eingaben(s_)
+                lg = [nach_id[x].get("laenge") for x in (a, s_)]
+                lg = [g + laenge[x] if isinstance(g, (int, float)) else None for g, x in zip(lg, (a, s_))]
+                eing[a], eing[s_], plus = sv.anwenden(v, ea, es, pa, ps, lg, hinweise)
             except ValueError as f:
                 hinweise.append(f"Steckverbindung Pos. {nach_id[a].get('pos') or ''}/{nach_id[s_].get('pos') or ''}: {f}")
                 continue
@@ -3110,6 +3437,35 @@ class AngebotSeite(QWidget):
 
     def _saetze(self):
         return rechnen.zeitbasis(self.kopf, self.k, self.tabellen)["saetze"]
+
+    def laser_teil_eur(self, q, eingaben=None, laenge=None):
+        """Laserkosten je Teil für den €-Vergleich der Vorschläge (Plan Baugruppen automatisch, P1): Schneidweg-Rechner
+        mit den Eingaben (ohne: die der Position), Schneidzeit mit den Schneiddaten des Angebots × Stundensatz
+        Maschine. Ergebnis (€ oder None, Grund)."""
+        profil = self.k.profile.get(q.get("profil_id"))
+        if not profil:
+            return None, "Profil fehlt in den Stammdaten"
+        if eingaben is None:
+            try:
+                eingaben = schneidweg.aus_position(schneidweg.lesen(q.get("technik")), q, profil)[0]
+            except (ValueError, TypeError, KeyError) as f:
+                return None, str(f)
+        profil = rechnen.profil_im_angebot(profil, self.kopf, q.get("profil_id"), q.get("werkstoff_id"), self.k)
+        m = rechnen.maschine(self.kopf, self.k)
+        erg = schneidweg.rechnen(eingaben, profil, rechnen.kontur_regel(m, rechnen.wand_schneiden(profil)),
+                                 gewinde_liste(self.tabellen), m)
+        if erg["fehler"]:
+            return None, " ".join(erg["fehler"])
+        p = dict(q, **erg["felder"])
+        if laenge:
+            p["laenge"] = laenge
+        _, _, zeit = rechnen.schneidzeit(p, self.kopf, rechnen.wand_position(p, self.k), self.tabellen, self.k)
+        satz = (rechnen.zeitbasis(self.kopf, self.k, self.tabellen).get("maschine") or {}).get("stundensatz")
+        if zeit is None:
+            return None, "keine Schneiddaten für Maschine und Werkstoff"
+        if not isinstance(satz, (int, float)) or satz <= 0:
+            return None, "Stundensatz Maschine fehlt"
+        return zeit / 3600 * satz, None
 
     def _auf_bild(self, i, auf_bild=None):
         """Doppelklick auf das kleine Bild der Zelle i (auf_bild vorgegeben: Tests), sonst aus der Mausposition."""
@@ -3299,6 +3655,7 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
+    @blaetterbar()
     def schneidweg_berechnen(self, zeile=None, eingaben=None, dialog=None, ueberschreiben=None):
         """Schneidweg-Rechner für die markierte Position (Dialog): Enden, Konturen und Gravur eingeben, Werte in die
         Position übernehmen. eingaben = dict setzt sie ohne Dialog, dialog(d) bedient den Dialog statt exec,
@@ -3318,6 +3675,7 @@ class AngebotSeite(QWidget):
         if eingaben is None:
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
                                  step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
+            self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert()))
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
@@ -3549,6 +3907,22 @@ class AngebotSeite(QWidget):
         return len(paare)
 
     # -------------------------------------------------------------- Rückgängig, Einfügen (Tastenkürzel)
+    def rueckgaengig_anbieten(self, text, bericht=None):
+        """Meldung nach einer Änderung ohne Rückfrage (Plan Bedienung B2) mit Knopf „Rückgängig“. Der Knopf nimmt
+        nur genau diese Änderung zurück: kam inzwischen eine weitere dazu, verweist er auf Strg+Z."""
+        self.verlauf.merken()
+        stand = self.verlauf.stand
+
+        def zurueck():
+            self.verlauf.merken()
+            if self.verlauf.stand is not stand or not self.verlauf.zurueck:
+                self.f.meldung("Inzwischen wurde weiter geändert: bitte Bearbeiten → Rückgängig (Strg+Z) nutzen.",
+                               fehler=True)
+                return None
+            return self.rueckgaengig()
+        self.f.meldung(text, aktion=("Rückgängig", zurueck), bericht=bericht)
+        return zurueck
+
     def rueckgaengig(self):
         return self._verlauf_schritt(self.verlauf.rueckgaengig, "Rückgängig", "Nichts mehr rückgängig zu machen.")
 
@@ -3632,9 +4006,10 @@ class AngebotSeite(QWidget):
         if not zeilen:
             self.f.meldung("Bitte zuerst die Positionen markieren, die gelöscht werden sollen.", fehler=True)
             return
-        if self.f.stumm or QMessageBox.question(self, "Löschen", f"{len(zeilen)} Position(en) löschen?") == QMessageBox.Yes:
-            self.db.positionen_loeschen([self.positionen[r]["id"] for r in zeilen])
-            self.neu_laden()
+        # ohne Rückfrage, dafür „Rückgängig“ in der Einblendung (Plan Bedienung B2, Freigabe F1a)
+        self.db.positionen_loeschen([self.positionen[r]["id"] for r in zeilen])
+        self.neu_laden()
+        self.rueckgaengig_anbieten(f"{len(zeilen)} Position(en) gelöscht.")
 
     # ab so vielen Teilen rechnet die Optimierung im Hintergrund mit Fortschritt und Abbruch (Prüfbericht B-6)
     HINTERGRUND_AB_TEILEN = 150
@@ -3872,7 +4247,7 @@ class AngebotSeite(QWidget):
         if not self.nummer_endgueltig("Angebots-PDF"):
             return None
         if not any(position_aktiv(p) for p in self.positionen):
-            QMessageBox.warning(self, "Angebot", "Das Angebot hat keine Positionen.")
+            self.f.meldung("Das Angebot hat keine Positionen.", fehler=True)
             return None
         # Angebots-Check (Plan A2/W7): eine Sammelrückfrage, nur wenn FEHLER oder WARNUNG offen sind
         if not self._vor_ausgabe(pruefen=not self.fremd(), weiter="Angebot erstellen"):
@@ -3910,19 +4285,17 @@ class AngebotSeite(QWidget):
         self.neu_laden()
 
     def preise_aktualisieren(self):
-        """Festgeschriebene Preise auf die aktuellen Stammdaten setzen (nach Rückfrage)."""
+        """Festgeschriebene Preise auf die aktuellen Stammdaten setzen: ohne Rückfrage, mit „Rückgängig“ und der
+        Liste der Abweichungen im Bericht (Plan Bedienung B2)."""
         abw = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
-        if not self.f.stumm and QMessageBox.question(
-                self, "Aktuelle Preise übernehmen",
-                "Festgeschriebene Preisgrundlagen dieses Angebots (Materialpreise, Schneiddaten, Gewinde, Einstellungen, "
-                "Profile, Maschine) auf die aktuellen Stammdaten setzen?\n\n"
-                + "\n".join(abw[:15]) + ("\n…" if len(abw) > 15 else "")
-                + "\n\nDer Preis des Angebots ändert sich dadurch. Ein bereits verschicktes Angebots-PDF bleibt "
-                "unverändert; erst das nächste Angebots-PDF schreibt die neuen Preise wieder fest.") != QMessageBox.Yes:
-            return False
+        vorher = self._verkauf()
         self.db.preisbasis_speichern(self.id, None)
-        self.f.meldung("Aktuelle Materialpreise und Schneiddaten übernommen.")
         self.neu_laden()
+        self.rueckgaengig_anbieten(
+            f"Aktuelle Materialpreise und Schneiddaten übernommen. {preis_aenderung(vorher, self._verkauf())}",
+            bericht=("Aktuelle Preise übernehmen", "Geänderte Preisgrundlagen:\n" + "\n".join(abw) + "\n\nEin bereits "
+                     "verschicktes Angebots-PDF bleibt unverändert; erst das nächste Angebots-PDF schreibt die neuen "
+                     "Preise wieder fest."))
         return True
 
     def werkstatt_pdf(self, gruppe=None):
@@ -3933,7 +4306,7 @@ class AngebotSeite(QWidget):
         nur_bg = not (self.ergebnis and self.ergebnis["stangen"]) and baugruppe.baugruppen(self.positionen) and \
             not any(not kein_laserteil(p) for p in self.positionen)        # nur Baugruppen und Zukaufteile
         if not nur_bg and (not self.ergebnis or not self.ergebnis["stangen"]):
-            QMessageBox.warning(self, "Werkstattpapiere", "Der Schnittplan ist leer. Bitte zuerst optimieren.")
+            self.f.meldung("Der Schnittplan ist leer. Bitte zuerst optimieren.", fehler=True)
             return None
         erg = self.ergebnis if self.ergebnis else rechnen.optimieren(self.kopf, self.positionen, self.k, self.tabellen,
                                                                      self.einst)
@@ -3949,9 +4322,43 @@ class AngebotSeite(QWidget):
             from . import palettenschein        # Palettenscheine hinten anhängen (Plan Palettenbegleitschein F8a)
             z = palettenschein.zusammenstellen(self.db, self.id)
             wp = dict(wp, palettenscheine=palettenschein.seiten(z["kopf"], z["schein"], z["packliste"], z["gruppen"]))
+        if gruppe is None:              # Montageblätter der Sätze und Baugruppen mit Steckverbindungen (A7)
+            wp = dict(wp, montage=self.montageblaetter())
         aktuell = self.stand_optimierung() == "aktuell"
         return self._schreiben("Werkstattpapiere", self._ziel(name, ".pdf"),
                                lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
+
+    def montageblaetter(self):
+        """Montageblätter der Werkstattpapiere (A7): je Schweißbaugruppe und je Satz mit Steckverbindungen und Stößen
+        aus der STEP-Datei die Montagefolge (steck_montage.montage_folge) mit Titel."""
+        from . import satz3d, steck_montage as sm
+        from .ansicht3d import entpacken
+        roh = self.db.netze(self.id)
+        netze = {}
+
+        def netz(pid):
+            if pid not in netze:
+                netze[pid] = entpacken(roh.get(pid)) or {}
+            return netze[pid]
+        out = []
+
+        def blatt(titel, idx, daten, stoesse):
+            verb = satz3d.verbindungen_laden(daten, self.positionen, idx)
+            if not verb or not stoesse:
+                return
+            pos = {self.positionen[i]["id"]: self.positionen[i] for i in idx}
+            f = sm.montage_folge(pos, verb, stoesse, {pid: netz(pid) for pid in pos if pid in roh})
+            if f:
+                out.append(dict(f, titel=titel))
+        for bg_id, (i, bg) in baugruppe.baugruppen(self.positionen).items():
+            p = self.positionen[i]
+            blatt(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, bg)}",
+                  baugruppe.teile(self.positionen, bg_id), bg, bg.get("stoesse"))
+        satz_daten = self.db.satz_daten(self.id)
+        for satz in satz3d.saetze(self.positionen):
+            daten = satz_daten.get(satz) or {}
+            blatt(f"Satz {satz}", satz3d.satz_teile(self.positionen, satz), daten, daten.get("stoesse"))
+        return out
 
     def kalkulation_pdf(self):
         if not self._vor_ausgabe():
@@ -4200,12 +4607,14 @@ class AngebotSeite(QWidget):
         from . import importprofil
         return importprofil.fuer_kunde(self.db, (self.kopf or {}).get("kundennr"))
 
-    def flach_bis(self):
+    def flach_bis(self, kundennr=None):
         """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
-        Vorgabe, oder Importprofil des Kunden), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
+        Vorgabe, oder Importprofil des Kunden; kundennr = anderer Kunde als im Angebot), Flachstahl bleibt im
+        Prüfdialog als andere Art wählbar."""
         from .stammdaten import FLACH_ALS
         from . import importprofil
-        profil = importprofil.fuer_kunde(self.db, (getattr(self, "kopf", None) or {}).get("kundennr"))
+        kundennr = kundennr if kundennr is not None else (getattr(self, "kopf", None) or {}).get("kundennr")
+        profil = importprofil.fuer_kunde(self.db, kundennr)
         flach_als = (profil or {}).get("flach_als") or self.db.einstellung("flach_als") or FLACH_ALS[0]
         if flach_als == FLACH_ALS[0]:
             return 0
@@ -4243,19 +4652,23 @@ class AngebotSeite(QWidget):
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage else None
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
-    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
+    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False):
         """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
-        Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
+        Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja). kunde_waehlen: Kunde oben im Prüfdialog wählen
+        (neues Angebot aus STEP, Plan Bedienung B1). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
+        doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF."""
         from . import importprofil
         profil = self.importprofil()
         vorgaben = importprofil.vorgaben(profil)
         if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
             werkstoff = vorgaben.get("werkstoff") or self.db.einstellung("step_werkstoff") or None
             werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
+        flach_gemessen = self.flach_bis()
         gemessen = self.step_messen(dateien, mit_ablage=True)
         if gemessen is None:
             return None
         messwerte, json_ablage = gemessen
+        dateien = list(getattr(self, "step_dateien_zuletzt", None) or dateien or [])
         # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
@@ -4269,6 +4682,9 @@ class AngebotSeite(QWidget):
                            laserdaten=self.db.zeilen("blechlaser"),
                            einst=self.db.blech_einstellungen())
         kopieren = self.db.einstellung("step_kopieren") == "ja"    # STEP-Dateien in den Angebotsordner
+        fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
+        neue_profile, erneut, pdf_danach = True, False, False   # ohne Dialog: Profile anlegen, Doppelte überspringen
+        gelernt = None
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
@@ -4276,20 +4692,28 @@ class AngebotSeite(QWidget):
             dlg = StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
                                   zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren,
                                   maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)),
-                                  maschine=rechnen.maschine(self.kopf, self.k))
+                                  kunden=self.db.zeilen("kunden") if kunde_waehlen else None,
+                                  kundennr=self.kopf.get("kundennr"), kunde_gewechselt=lambda nr: self._step_kunde_gewechselt(nr, messwerte),
+                                  vorpruefung=lambda: step.vorpruefung(messwerte, self.positionen, self.k),
+                                  lernen=True, maschine=rechnen.maschine(self.kopf, self.k))
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
             kopieren = dlg.kopieren_haken.isChecked()
-        fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
-        neue_profile = erneut = False
-        if fehlend:
-            neue_profile = self.f.stumm or QMessageBox.question(
-                self, "STEP-Import", "Diese Profile fehlen in den Stammdaten:\n" + "\n".join(fehlend)
-                + "\n\nSollen sie aus den Messwerten angelegt werden? (Bitte danach prüfen.)") == QMessageBox.Yes
-        if doppelt and not self.f.stumm:
-            erneut = QMessageBox.question(self, "STEP-Import", f"{doppelt} Artikel stehen schon im Angebot.\n\n"
-                                          "Trotzdem noch einmal eintragen?") == QMessageBox.Yes
+            fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
+            neue_profile, erneut, pdf_danach = dlg.neue_profile_anlegen(), dlg.doppelte_eintragen(), dlg.pdf_danach
+            werkstoff = dlg.werkstoff
+            if kunde_waehlen and str(dlg.kundennr or "") != str(self.kopf.get("kundennr") or ""):
+                self.kunde_waehlen(str(dlg.kundennr or ""))
+                self.f.angebote.neu_laden()
+                if self.flach_bis() != flach_gemessen:      # flache Teile gibt der Kunde anders vor: neu messen
+                    self.f.meldung("Der gewählte Kunde gibt flache Teile anders vor (Importprofil) – die STEP-Dateien "
+                                   "werden dafür neu gemessen.")
+                    return self.step_importieren(dateien, None, stueck, als_satz)
+            if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
+                gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
+        neue_profile = bool(fehlend) and neue_profile
+        erneut = bool(doppelt) and erneut
         mehr = step.mehrteilig(messwerte, mit_blechen=True)
         if als_satz is None:        # Prüfdialog: Feld „Sätze“ je Datei (leer = Einzelpositionen); ohne Dialog als Satz
             als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
@@ -4329,15 +4753,26 @@ class AngebotSeite(QWidget):
             self._vorkalkulieren({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if json_ablage:
             erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
+        if gelernt:
+            erg["bericht"].append(gelernt)
         if kopieren:
             erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
-        self.f.meldung(text)
-        if not self.f.stumm:
-            box = QMessageBox(QMessageBox.Information, "STEP-Import", text, parent=self)
-            box.setDetailedText("\n".join(erg["bericht"]))
-            box.exec()
+        # ruhige Meldung statt Fenster (B1/B2); Einzelheiten hinter „Bericht …“ und im Meldungsverlauf
+        self.f.meldung(text, bericht=("STEP-Import", "\n".join(erg["bericht"])))
+        if pdf_danach:
+            self.angebot_pdf()
         return erg
+
+    def _step_kunde_gewechselt(self, kundennr, messwerte):
+        """Prüfdialog (B1): Kunde gewechselt. Importprofil des neuen Kunden auf die Messwerte anwenden (Benennung,
+        Normteile) und dessen Werkstoff-Vorgabe liefern. Der Angebotskopf folgt erst beim Übernehmen."""
+        from . import importprofil
+        profil = importprofil.fuer_kunde(self.db, kundennr)
+        importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
+                                                                                     "step_normteile")})
+        ws = importprofil.vorgaben(profil).get("werkstoff") or self.db.einstellung("step_werkstoff") or None
+        return ws if ws in self.k.werkstoffe else None
 
     def _step_kopieren(self, dateien):
         """STEP-Dateien in den Unterordner STEP des Angebotsordners kopieren. Ergebnis: Zeile für den Bericht."""

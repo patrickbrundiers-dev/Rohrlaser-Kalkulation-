@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QPushButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import hilfe, stil
+from . import einblendung, hilfe, stil
 from . import blech, blech3d, blech_zeichnen as bz, dfm, dxf, gravur_text, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
@@ -464,7 +464,7 @@ class BlechSkizze(QWidget):
         try:
             pk = fn(sw.punkte(self.eingaben.get("punkte")), *args)
         except ValueError as x:
-            QMessageBox.information(self, "Außenkontur", str(x))
+            einblendung.melden(self, str(x))
             return False
         self._melden(dict(self.eingaben, form=blech.POLYGON, punkte=bz.text(pk)))
         return True
@@ -1029,7 +1029,7 @@ class BlechDialog(QDialog):
         # Fehler der Konturen sperren die Datei (sonst andere Geometrie als im Editor); fehlende Preisdaten nicht
         sperre = [f for f in erg["fehler"] if f.startswith("Kontur ")] if erg.get("zuschnitt") else erg["fehler"]
         if sperre:
-            QMessageBox.warning(self, "DXF speichern", "Erst die Eingaben korrigieren: " + "; ".join(sperre))
+            einblendung.melden(self, "Erst die Eingaben korrigieren: " + "; ".join(sperre), fehler=True)
             return None
         e = self.eingaben()
         kopf = self.kopf_werte()
@@ -1048,17 +1048,18 @@ class BlechDialog(QDialog):
             QMessageBox.warning(self, "DXF speichern", f"Datei nicht gespeichert: {x}")
             return None
         if hinweise and not getattr(self, "stumm", False):
-            QMessageBox.information(self, "DXF gespeichert", "Gespeichert. Bitte prüfen:\n– " + "\n– ".join(hinweise))
+            einblendung.melden(self, "Gespeichert. Bitte prüfen:\n– " + "\n– ".join(hinweise))
         return hinweise
 
     def step_speichern(self, pfad=None):
-        """Ebenes Blech als STEP mit echtem Volumenkörper (step_export, Plan 3D-Editor 3E-8): Außen- und Innenkonturen
-        mit echten Bögen, Gravuren als Rille. Ohne pfad: Dateidialog im Ordner des Angebots."""
+        """Blech als STEP mit echtem Volumenkörper (step_export, Plan 3D-Editor 3E-8, gekantet 3E-13): Außen- und
+        Innenkonturen mit echten Bögen, Gravuren als Rille, Kantteile gefaltet. Ohne pfad: Dateidialog im Ordner des
+        Angebots."""
         from . import step_export
         erg = self.rechnen()
         sperre = [f for f in erg["fehler"] if f.startswith("Kontur ")] if erg.get("zuschnitt") else erg["fehler"]
         if sperre:
-            QMessageBox.warning(self, "STEP speichern", "Erst die Eingaben korrigieren: " + "; ".join(sperre))
+            einblendung.melden(self, "Erst die Eingaben korrigieren: " + "; ".join(sperre), fehler=True)
             return None
         kopf = self.kopf_werte()
         name = kopf["artikelnr"] or kopf["bezeichnung"] or "Blech"
@@ -1067,7 +1068,7 @@ class BlechDialog(QDialog):
         except ValueError as x:
             self.step_ergebnis = dict(ok=False, fehler=str(x), teile=[])
             if not getattr(self, "stumm", False):
-                QMessageBox.information(self, "STEP speichern", str(x))
+                einblendung.melden(self, str(x))
             return None
         return step_export.speichern_dialog(self, plan, name, pfad)
 
@@ -1077,7 +1078,7 @@ class BlechDialog(QDialog):
         from . import zeichnung
         erg = self.rechnen()
         if not erg.get("zuschnitt"):
-            QMessageBox.warning(self, "Zeichnung als PDF", "Erst die Maße eingeben: " + "; ".join(erg["fehler"]))
+            einblendung.melden(self, "Erst die Maße eingeben: " + "; ".join(erg["fehler"]), fehler=True)
             return None
         seite = self.parent()
         einst = dict(getattr(seite, "einst", None) or {})

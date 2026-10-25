@@ -568,8 +568,8 @@ def kapitel_ueberblick(i):
     i.text("Das Programm öffnet sich maximiert im Reiter <i>Angebote</i>. Die Einstellungen enthalten die Vorgaben "
            "und die übrigen Stammdaten als Seiten in der Navigation links. Zahlen mit Komma eingeben (1385,5). Jede Änderung wird sofort "
            "gespeichert, einen Speichern-Knopf gibt es nicht. Strg+C/Strg+V kopieren und fügen Zellen ein (auch Blöcke "
-           "aus Excel), Entf löscht markierte Zeilen nach Rückfrage, Strg+Z nimmt im Angebot die letzte Änderung "
-           "zurück ([[tastenkuerzel]]).")
+           "aus Excel), Entf löscht markierte Zeilen (im Angebot ohne Rückfrage, die Einblendung bietet <b>Rückgängig</b> "
+           "an), Strg+Z nimmt im Angebot die letzte Änderung zurück ([[tastenkuerzel]], [[meldungen]]).")
     i.abschnitt("Farben in den Tabellen")
     i.tabelle(["Farbe", "Bedeutung"], [
         ["hellgelb", "<b>Eingabefeld</b>: lostippen, F2 oder Doppelklick ([[doppelklick]])."],
@@ -827,13 +827,19 @@ def kapitel_angebote(i):
            "ansehen lässt sie sich weiter. Angebote der Kollegen bekommen keine Fassung, dort hilft <b>Kopieren</b>.")
     i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
     i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <i>Datei → Neues "
-           "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): Kunde bestätigen, das Programm legt das Angebot an und "
-           "startet gleich den STEP-Import.", kurz=True)
+           "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): das Programm legt das Angebot an und startet gleich "
+           "den STEP-Import. Den Kunden wählt man oben im Prüfdialog, alles Weitere auch dort; <b>Übernehmen und "
+           "Angebot (PDF)</b> schreibt danach sofort das Angebot.", kurz=True)
     i.genauer()
     i.text("Den Kunden schlägt das Programm aus dem Ordnernamen vor: Steht der Kundenname (ab 3 Zeichen) oder die "
            "Kundennummer im Ordner der Dateien oder bis zu drei Ordnern darüber, z. B. <i>Anfragen\\Müller GmbH\\"
            "2026-10</i>, ist dieser Kunde gewählt. Sonst steht der Kunde des zuletzt geänderten eigenen Angebots mit "
-           "Importprofil ([[importprofile]]) vorne; <i>(ohne Kunde)</i> geht auch. Das neue Angebot bekommt die "
+           "Importprofil ([[importprofile]]) vorne; <i>(ohne Kunde)</i> geht auch. Gewählt wird im Feld <b>Kunde</b> "
+           "oben im Prüfdialog (Tippen sucht in Nummer und Name); ein anderer Kunde wendet sofort dessen Importprofil "
+           "an (Benennung, Normteile, Werkstoff-Vorgabe), selbst gesetzte Häkchen und Eingaben bleiben. Gibt der neue "
+           "Kunde flache Teile anders vor (Blech oder Flachstahl), misst das Programm die Dateien nach dem Übernehmen "
+           "noch einmal und zeigt den Prüfdialog erneut. <b>Abbrechen</b> entfernt das eben "
+           "angelegte leere Angebot wieder. Das neue Angebot bekommt die "
            "Kundenvorgaben ([[kundenvorgaben]]) und öffnet sich; danach läuft der Import wie mit <b>STEP "
            "importieren</b> mit allen STEP-Dateien des Ordners samt Unterordnern ([[step]]). Andere Dateien (z. B. "
            "PDF) bleiben unbeachtet; sind keine STEP-Dateien dabei, legt das Programm kein Angebot an.")
@@ -894,6 +900,8 @@ def kapitel_angebot(i):
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
                ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
                 "vorgewählt ([[schweissbaugruppe]])"],
+               ["<b>Rahmen-Assistent</b>", "Rechteckrahmen oder Quader aus Rohr ohne STEP-Datei als Satz "
+                "([[rahmen_assistent]])"],
                ["<b>Leere Zeile</b>", "eine leere Zeile, alle Werte von Hand"]], [38, 132], kurz=True)
     i.genauer()
     i.tabelle(["Typ", "Was passiert"], [
@@ -959,7 +967,8 @@ def kapitel_angebot(i):
             "(z. B. „Verkaufspreis netto 1.234,00 € → 1.290,50 €.“). Ändert jemand die Einstellungen, bleiben "
             "bestehende Angebote unverändert; nur neue Angebote übernehmen die neuen Werte. "
             "<b>Vorgaben aus Einstellungen</b> setzt Kalkulationswerte, Stundensätze und Zeitvorgaben wieder auf die "
-            "Einstellungen bzw. Stammdaten; die Rückfrage nennt jede Änderung (alt → neu). Von Hand eingetragene "
+            "Einstellungen bzw. Stammdaten, ohne Rückfrage; <b>Bericht …</b> in der Einblendung nennt jede Änderung (alt → "
+            "neu), <b>Rückgängig</b> nimmt alles zurück ([[meldungen]]). Von Hand eingetragene "
             "Werte an den Positionen (Meterpreis, Schneidzeit, Zukaufteile) bleiben. "
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
             "Beim Kopieren gehen die Werte mit.",
@@ -1319,7 +1328,7 @@ def kapitel_angebot(i):
     i.tabelle(["Taste", "Wirkung im Angebot"], [
         ["Strg+Z / Strg+Y", "letzte Änderung zurücknehmen / wiederherstellen (bis 100 Schritte)"],
         ["Strg+C / Strg+V", "Zellen kopieren / einfügen, auch Blöcke aus Excel"],
-        ["Entf", "markierte Positionen löschen (mit Rückfrage)"],
+        ["Entf", "markierte Positionen löschen (ohne Rückfrage, Rückgängig in der Einblendung)"],
         ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
@@ -1343,12 +1352,61 @@ def kapitel_angebot(i):
             "mindestens 1) oder <b>Stückzahl =</b> Wert. Positionen ohne Stückzahl bleiben beim Faktor leer. Ein Schritt für "
             "Strg+Z.",
             "<b>Strg+X</b> kopiert und leert die markierten Eingabezellen.",
-            "<b>Entf</b> in der Positionsliste löscht die markierten Positionen nach Rückfrage, <b>Strg+N</b> legt "
+            "<b>Entf</b> in der Positionsliste löscht die markierten Positionen ohne Rückfrage; die Einblendung unten "
+            "rechts bietet <b>Rückgängig</b> an ([[meldungen]]). <b>Strg+N</b> legt "
             "eine neue Position an, <b>Strg+I</b> startet den STEP-Import, <b>F9</b> optimiert und <b>Strg+P</b> "
             "erzeugt das Angebots-PDF.")
     i.text("In Textfeldern (Kopf, Suchfelder, eine Zelle in Bearbeitung) wirken Strg+Z, Strg+C, Strg+V und Entf wie "
            "gewohnt nur im Text. Alle Kürzel stehen im Anhang ([[tastenkuerzel]]) und im Programm unter "
            "<i>Hilfe → Tastenkürzel …</i>.")
+    i.abschnitt("Meldungen ohne OK-Klick", marke="meldungen")
+    i.text("Hinweise und Erfolge erscheinen als kleine <b>Einblendung</b> unten rechts und verschwinden von selbst; "
+           "nichts muss mit OK bestätigt werden. Nach dem Löschen oder einer Sammeländerung steht in der Einblendung "
+           "<b>Rückgängig</b>, nach einem STEP-Import <b>Bericht …</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Rückgängig</b> in der Einblendung nimmt genau diese Änderung zurück (etwa 9 Sekunden lang). Kam "
+            "inzwischen eine weitere Änderung dazu, verweist es auf <i>Bearbeiten → Rückgängig</i> (Strg+Z).",
+            "Ohne Rückfrage, dafür mit Rückgängig: Positionen und Staffel-Stufen löschen, Ist-Werte der "
+            "Nachkalkulation löschen, <i>Vorgaben aus Einstellungen</i>, Stundensätze aus den Einstellungen und "
+            "<i>Aktuelle Preise übernehmen</i>. Ganze Angebote und Stammdaten fragen weiter vorher, weil es dort "
+            "kein Rückgängig gibt.",
+            "In Editoren und Dialogen erscheint die Einblendung im Fenster selbst, damit sie nicht dahinter liegt.",
+            "<b>Meldungen (n)</b> in der Statusleiste zeigt die letzten 20 Meldungen mit Uhrzeit; Einträge mit "
+            "<i>(Bericht …)</i> öffnen den Bericht noch einmal.",
+            "Fehler, bei denen Daten verloren gehen könnten, und echte Entscheidungen bleiben Fenster.")
+    i.abschnitt("Das Programm merkt sich Fenster und Auswahl", marke="fenster_merken")
+    i.text("Jedes Fenster öffnet in der Größe und an der Stelle, wo man es zuletzt geschlossen hat, Teiler "
+           "eingeschlossen. Angebote, die beim Beenden offen waren, sind beim nächsten Start wieder offen, mit dem "
+           "zuletzt gewählten Unterreiter.", kurz=True)
+    i.liste("Auswahllisten für Profil, Werkstoff und Oberfläche zeigen oben unter <i>Zuletzt benutzt</i> die "
+            "Werte der letzten Positionen, darunter die ganze Liste. Tippen findet auch Teilwörter, z. B. "
+            "<i>4301</i> oder <i>40x3</i>.",
+            "Gemerkt wird in der eigenen Datendatei, nicht im gemeinsamen Ordner; jeder Arbeitsplatz hat seine "
+            "eigenen Fenstergrößen. Lag ein Fenster auf einem Bildschirm, den es nicht mehr gibt, öffnet es in der "
+            "Mitte. Die Teile-Editoren öffnen weiter maximiert.",
+            "Gelöschte oder fremde Angebote öffnen beim Start nicht.")
+    i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
+    i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
+           "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "
+           "<i>Baugruppe bearbeiten</i>; Zusatzarbeiten, Zukaufteile, Stückzahl und Löschen immer. Tastenkürzel "
+           "stehen rechts daneben.", kurz=True)
+    i.text("Sind mehrere Rohrlaserteile markiert, setzt <b>Für markierte setzen …</b> Werkstoff und/oder Oberfläche "
+           "für alle auf einmal (<i>(nicht ändern)</i> lässt den Wert, wie er ist), ein Schritt für Rückgängig. "
+           "<i>Satz in 3D</i> erscheint nur bei Positionen eines Satzes, <i>Baugruppe in anderes Angebot "
+           "kopieren</i> nur bei Schweißbaugruppen und ihren Teilen.")
+    i.abschnitt("Schnellzeile: Position in einer Zeile", marke="schnellzeile")
+    i.text("Über der Positionsliste steht die <b>Schnellzeile</b>: z. B. <i>QR 40x3 S235 1250 20</i> tippen und "
+           "Eingabe, schon steht die Position da (Profil, Werkstoff, Länge in mm, Stückzahl). Daneben zeigt eine "
+           "Vorschau, was erkannt wurde.", kurz=True)
+    i.liste("Das Profil wird gesucht wie in der Profilspalte: <i>40x3</i> findet <i>QR 40x40x3</i>.",
+            "Werkstoff: die ID oder ein eindeutiger Teil davon (<i>S235</i>, <i>4301</i> für 1.4301). Ohne Angabe "
+            "gilt der Werkstoff der letzten Position bzw. die Vorgabe des STEP-Imports.",
+            "Die erste Zahl ist die Länge, die zweite die Stückzahl; eindeutig mit <i>L=1250</i>, <i>1250mm</i>, "
+            "<i>20 Stk</i> oder <i>x20</i>. Eine Artikelnummer steht mit <i>#</i> davor (<i>#4711-01</i>).",
+            "Mehrere Zeilen, z. B. aus einer E-Mail oder aus Excel (Tabulator oder ; getrennt), mit Strg+V in die "
+            "Schnellzeile einfügen: je Zeile eine Position. Nicht erkannte Zeilen nennt die Einblendung (alle unter "
+            "<b>Bericht …</b>); die erste steht danach zum Korrigieren in der Schnellzeile, die übrigen folgen nach "
+            "jeder Eingabe. Alles zusammen ist ein Schritt für <b>Rückgängig</b>.")
     i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
     i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
         ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],
@@ -1415,10 +1473,14 @@ def kapitel_step(i):
             "Enthält eine STEP mehrere Teile, steht sie als <b>Baugruppe</b> in der Liste und die 3D-Ansicht zeigt "
             "sie zusammengebaut. Oben steht das Feld <b>Sätze</b>, vorbelegt mit 1: die Baugruppe wird ein Satz; "
             "leer = jedes Teil als Einzelposition (siehe Baugruppen als Satz).",
-            "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
-            "(danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im Angebot, fragt es vor dem doppelten "
-            "Eintragen.",
-            "Am Ende meldet es, wie viele Positionen übernommen wurden; <i>Details</i> zeigt den Bericht je Datei.",
+            "Fehlen Profile in den Stammdaten, steht unter der Liste ein Häkchen <b>Fehlende Profile aus den "
+            "Messwerten anlegen</b> (vorbelegt; danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im "
+            "Angebot, steht dort <b>… trotzdem noch einmal eintragen</b> (Vorgabe aus = überspringen). Nach dem "
+            "Übernehmen fragt das Programm nichts mehr.",
+            "<b>Übernehmen und Angebot (PDF)</b> (Strg+Eingabe) übernimmt, optimiert, prüft ([[angebots_check]]) und "
+            "schreibt gleich das Angebots-PDF.",
+            "Am Ende meldet eine Einblendung, wie viele Positionen übernommen wurden; <b>Bericht …</b> zeigt den "
+            "Bericht je Datei, auch später noch über <i>Meldungen</i> in der Statusleiste ([[meldungen]]).",
             nummeriert=True)
     i.abschnitt("Rohrliste prüfen")
     i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
@@ -1791,6 +1853,11 @@ def kapitel_step(i):
     i.abschnitt("Bauteilnamen, Normteile und Importprofile", marke="importprofile")
     i.text("Hat die Konstruktion Namen, wird der <b>Bauteilname</b> die Artikelnummer. <b>Normteile</b> (Schrauben, "
            "Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest.", kurz=True)
+    i.text("<b>Der Prüfdialog lernt</b>: Wählt man für alle Rohre einen anderen Werkstoff, wählt Teile ab oder "
+           "schaltet die Anbauteile um, steht unter der Liste <b>Für Kunde … merken (Importprofil)</b> mit den "
+           "Korrekturen. Angehakt, schreibt <i>Übernehmen</i> sie ins Importprofil des Kunden (legt es an, wenn es "
+           "fehlt): der Werkstoff wird Vorgabe, abgewählte Teile kommen mit ihrem Bauteilnamen zu den Normteilen. "
+           "Die nächste Anfrage dieses Kunden ist dann gleich so vorbelegt; der Bericht nennt, was gemerkt wurde.")
     i.genauer()
     i.liste("Die Messung liest die Baugruppenstruktur und die Namen der Bauteile aus der STEP-Datei. Wie die "
             "Artikelnummer entsteht, steht in der Einstellung <i>Artikelnummer aus (Bauteilname, Dateiname oder "
@@ -2456,6 +2523,68 @@ def kapitel_optimieren(i):
             "des Steckers geht zurück.",
             "Ohne Lage x oder mit zu kleinem Winkel lässt sich die Baugruppe nicht speichern; die Spalte "
             "<i>Schlitz und Nasen</i> nennt, was fehlt.")
+    i.abschnitt("Montagemarken und Steckbarkeit", marke="montagemarken")
+    i.text("Eine <b>Montagemarke</b> ist eine Zahl, die das Programm neben die Schlitze der Aufnahme und auf das "
+           "Ende des Steckers graviert: Teile mit derselben Zahl gehören zusammen. <b>Steckbarkeit prüfen</b> sagt, "
+           "ob sich alle Teile nacheinander stecken lassen. Beides im Reiter <i>Steckverbindungen</i> der "
+           "Schweißbaugruppe und im Fenster Satz in 3D.", kurz=True)
+    i.genauer()
+    i.liste("<b>Spalte Montagemarke</b>: leer = keine Marke. <b>Marken nummerieren</b> vergibt 1, 2, 3 … je Ende "
+            "eines Steckers; Verbindungen am selben Ende gleicher Teile teilen sich die Zahl. Mit der Einstellung "
+            "<i>Steckverbindung: neue Verbindungen bekommen eine Montagemarke</i> (Vorgabe nein) bekommt jede neue "
+            "Verbindung gleich ihre Zahl, auch über <i>Alle Stöße stecken</i> und die Vorschläge ([[vorschlaege]]).",
+            "<b>Lage</b>: auf der Aufnahme auf der Seite der Schlitze, längs neben dem Stecker (zuerst Richtung "
+            "Ende E, sonst Richtung Ende A); auf dem Stecker auf der Wand der ersten Nase, direkt hinter dem Schnitt "
+            "des Endes. Abstand zu Enden, Nasen und Konturen mindestens 0,5 mm, Schrifthöhe wie die Artikelnummer "
+            "(Einstellung <i>Gravur: Schrifthöhe</i>). Passt sie nicht, wird nicht graviert und die Meldung nach OK "
+            "nennt es.",
+            "Die Marke ist eine Text-Gravur der Teile (im Teile-Editor sichtbar, im STEP-Export als Gravur). Entfernt "
+            "man die Verbindung oder die Zahl, fällt sie beim Speichern wieder weg.",
+            "<b>Steckbarkeit prüfen</b>: Jeder Stecker schiebt sich längs seiner Achse in die Schlitze, eine Aufnahme "
+            "kommt umgekehrt auf schon liegende Stecker. Ein Teil geht nur, wenn alle seine Verbindungen zu schon "
+            "liegenden Teilen dieselbe Richtung verlangen. Das Programm sucht dafür eine Reihenfolge und nennt sie; "
+            "gibt es keine (z. B. ein Ring, in dem jedes Rohr ins nächste steckt), steht da, welches Teil in "
+            "verschiedene Richtungen müsste. Die Reihenfolge braucht die Stöße aus dem STEP-Import.",
+            "Außerdem meldet die Prüfung Schlitze, die eine andere Kontur überschneiden, und feste Längsnähte, die auf "
+            "einem Schlitz oder einer Nase liegen.")
+    i.abschnitt("Rahmen-Assistent", marke="rahmen_assistent")
+    i.text("<b>Neue Position → Rahmen-Assistent</b> baut einen <b>Rechteckrahmen</b> oder <b>Quader</b> aus Quadrat-, "
+           "Rechteck- oder Rundrohr ohne STEP-Datei: Profil, Werkstoff, Außenmaße und Ecken eingeben, die Vorschau "
+           "nennt die Rohre. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
+           "([[satz_3d]]).", kurz=True)
+    i.genauer()
+    i.liste("<b>Gehrung</b> (nur Rechteckrahmen): vier Rohre mit 45°-Gehrung, Länge außen B bzw. H. Satz in 3D "
+            "schlägt dann den Knickrahmen vor ([[vorschlaege]]).",
+            "<b>stumpf</b>: die Waagrechten laufen durch (Länge B), die Senkrechten stehen dazwischen (H − 2 × "
+            "Profilhöhe; Rundrohr mit Sattel, Länge Mitte zu Mitte H − Ø).",
+            "<b>stumpf mit Steckverbindungen</b>: wie stumpf, dazu an jedem Stoß eine Steckverbindung (wie <i>Alle "
+            "Stöße stecken</i>, [[steckverbindung_anlegen]]); mit OK in Satz in 3D bekommen die Teile Schlitze und "
+            "Nasen.",
+            "<b>Quader</b>: zwei stumpfe Rahmen vorne und hinten (Tiefe T außen), dazu vier Querrohre an den Ecken, "
+            "außen bündig, stumpf an die Waagrechten. Gehrung geht hier nicht (drei Rohre je Ecke). Ein Quader mit "
+            "Steckverbindungen an allen Stößen ist nicht ganz steckbar; <i>Steckbarkeit prüfen</i> sagt, welches "
+            "Teil ([[montagemarken]]).",
+            "<b>Rechteckrohr</b>: Maß b liegt in der Rahmenebene, mit <i>Rechteckrohr hochkant (Maß a in der Rahmenebene)</i> "
+            "Maß a. Gleiche Rohre werden eine "
+            "Position mit <i>je Satz</i>; Stück = Sätze × je Satz. Der Name des Satzes ist änderbar (leer = Rahmen "
+            "B×H), ein vorhandener Name bekommt eine Nummer dazu.",
+            "Die Rohre haben Einbaulage und Stöße wie aus dem STEP-Import: Längsnaht, Steckverbindungen, Vorschläge, "
+            "Montagefolge, Montageblatt und STEP speichern gehen wie dort.")
+    i.abschnitt("Montagefolge und Montageblatt", marke="montagefolge")
+    i.text("Der Knopf <b>Montage</b> über dem 3D (Schweißbaugruppe und Satz in 3D) baut die gesteckten Teile in der "
+           "Reihenfolge von <i>Steckbarkeit prüfen</i> Schritt für Schritt auf und zieht sie auf Wunsch auseinander "
+           "(Explosionsansicht). Die Werkstattpapiere bekommen dazu je Baugruppe bzw. Satz ein <b>Montageblatt</b>.",
+           kurz=True)
+    i.genauer()
+    i.liste("<b>Schritt</b>: Schieber nach links zeigt nur die Teile bis zu diesem Schritt, das Teil des Schritts "
+            "blau; ganz rechts ist alles da. Darunter steht, was zu tun ist (z. B. <i>in Pos. 10 stecken (Marke 1), "
+            "Richtung −Y</i>). Teile ohne Steckverbindung bleiben immer sichtbar.",
+            "<b>Explosion</b>: 0 = zusammengesteckt, 100 % = jedes gesteckte Teil rückt gegen seine Steckrichtung um "
+            "die halbe größte Teillänge heraus und nimmt mit, was an ihm steckt.",
+            "<b>Montageblatt</b> (Werkstattpapiere, eigene Seite je Schweißbaugruppe bzw. Satz mit Steckverbindungen "
+            "und Stößen aus der STEP-Datei): Explosionsskizze mit den Schrittnummern, darunter die Schritte zum "
+            "Abhaken mit Teil, Arbeitsschritt, Montagemarke ([[montagemarken]]) und Steckrichtung in Achsen der "
+            "STEP-Datei. Ist die Baugruppe nicht vollständig steckbar, steht oben eine Warnung.")
     i.abschnitt("Satz in 3D", marke="satz_3d")
     i.text("Ein <b>Satz</b> aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen, den der Kunde als "
            "Stecksystem möchte), lässt sich im Fenster <b>Satz in 3D</b> bearbeiten: Rechtsklick auf eine Position des "
@@ -2476,6 +2605,8 @@ def kapitel_optimieren(i):
             "[[schweissnaht]]) und im 3D rot. Messen schaltet die Auswahl aus.",
             "Die Rohre stehen im 3D so, wie sie gerechnet werden: mit den Schlitzen und Nasen, auch der noch nicht "
             "gespeicherten.",
+            "<b>STEP speichern …</b> (Reiter Teile) schreibt den ganzen Satz als STEP-Baugruppe wie im Editor der "
+            "Schweißbaugruppe ([[step_baugruppe]]).",
             "<b>OK</b> schreibt Schlitze, Nasen, Länge, Schneidweg und Längsnähte in die Teile; die Verbindungen "
             "speichert das Angebot je Satz (sie bleiben beim Kopieren des Angebots erhalten). Ist der Satz eine "
             "Schweißbaugruppe, öffnet der Knopf ihren Editor.",
@@ -2489,6 +2620,34 @@ def kapitel_optimieren(i):
             "Schneidweg und Zusatzarbeit Knicken, im 3D gefaltet. Gleiche Rahmen werden eine Position mit "
             "<i>je Satz</i> = Anzahl. Die Rohre zählen je Satz entsprechend weniger; bleibt von einer Position kein "
             "Rohr übrig, wird sie gelöscht. Rohre mit Steckverbindung oder schon als Knickrahmen gehen nicht.")
+    i.abschnitt("Vorschläge: knicken, stecken, Längsnaht", marke="vorschlaege")
+    i.text("Im Fenster Satz in 3D und im Editor der Schweißbaugruppe sucht das Programm selbst, was sich "
+           "<b>knicken</b>, <b>stecken</b> oder bei der <b>Längsnaht</b> günstiger legen lässt, und rechnet je Vorschlag, "
+           "was er spart oder kostet. Neben <i>Knickrahmen lösen</i> steht, wie viele Vorschläge es gibt; "
+           "<b>Vorschläge …</b> zeigt sie. Nichts ändert sich von selbst: anhaken und <b>Übernehmen</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Knickrahmen</b>: Rohre mit Gehrung, die einen Rahmen bilden (wie <i>Knickrahmen erstellen …</i>, "
+            "[[satz_3d]]), mit den Werten aus den Einstellungen (Freistich, Knickzugabe, K-Faktor, Innenwand gerade).",
+            "<b>Steckverbindung</b>: je Stoß aus der STEP-Datei, der noch nicht gesteckt ist (wie <i>Alle Stöße "
+            "stecken</i>, [[steckverbindung_anlegen]]).",
+            "<b>Längsnaht</b>: für Rohre ohne feste Naht eine Stelle, an der keine Kontur, kein Schlitz, keine Gravur "
+            "und keine Nase liegt; bevorzugt die Wand, die zur Mitte der Baugruppe zeigt (innen, später verdeckt). "
+            "Quadrat- und Rechteckrohr: Mitte einer Wand, Rundrohr: alle 15°. Gibt es nichts zu meiden und keine "
+            "Mitte, kommt kein Vorschlag; das Rohr bleibt frei drehbar.",
+            "<b>Ersparnis</b>: + spart, − kostet, je Baugruppe bzw. Satz. Gerechnet wird nur mit vorhandenen Werten: "
+            "wegfallende Ecknähte (Nahtgruppe bzw. Nahtvorschlag, Kosten ÷ Anzahl), weniger bzw. leichter zu "
+            "positionierende Teile (Regeln der Schweiß-Vorkalkulation × Stundensatz), Zusatzarbeit Knicken je Knick und "
+            "die Laserzeit vorher und nachher (Schneidweg-Rechner, Schneiddaten und Stundensatz der Maschine). Im "
+            "Satz zählt nur der Laser. Was fehlt (z. B. Regel, a-Maß, Stundensatz), steht in der Spalte "
+            "<i>Rechnung</i> als <i>offen</i>.",
+            "Ein Klick auf eine Zeile zeigt die Teile im 3D. <i>Alle mit Ersparnis anhaken</i>, <i>Alle anhaken</i> "
+            "und <i>Keine</i> setzen die Haken; unten steht die Summe der angehakten.",
+            "<b>Übernehmen</b> setzt erst die Knickrahmen, dann die Steckverbindungen, dann die Längsnähte (neu "
+            "gerechnet mit den neuen Schlitzen und Nasen) – wie von Hand, gespeichert wird mit OK. Was nicht mehr "
+            "geht, nennt eine Meldung.",
+            "Im Editor der Schweißbaugruppe verlieren auch die Nahtgruppen, die aus den Nahtvorschlägen der "
+            "STEP-Datei entstanden sind, die Ecken eines neuen Knickrahmens; <i>Knickrahmen lösen</i> holt sie "
+            "zurück.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
@@ -2584,6 +2743,13 @@ def kapitel_optimieren(i):
             "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s), damit "
             "beim Tippen nichts hängt. Gerechnet wird wie bisher im Schneidweg-Rechner bzw. Blech-Editor; der "
             "Rahmen rechnet nichts eigenes.")
+    i.abschnitt("Von Position zu Position blättern", marke="blaettern")
+    i.text("Im Schneidweg-Rechner, im Blech-Editor und im Editor der Schweißbaugruppe stehen unten <b>◀ Vorige</b> "
+           "und <b>Nächste ▶</b> (Alt+← / Alt+→): der Editor springt zur vorigen bzw. nächsten Position derselben "
+           "Art, ohne dass man ihn schließt. Der Fenstertitel zeigt z. B. <i>Pos. 30 (3 von 12)</i>.", kurz=True)
+    i.text("Geänderte Eingaben werden beim Blättern übernommen wie mit OK; ohne Änderung wird nichts gespeichert "
+           "(auch keine Rückfrage zu STEP-Werten). Sind die Eingaben unvollständig, bleibt der Editor offen. Die "
+           "zuletzt geöffnete Position ist danach in der Positionsliste markiert.")
     i.abschnitt("Am 3D-Modell bearbeiten: Griffe, Maße, Schnittebenen", marke="editor_griffe")
     i.text("Beim Rohr lässt sich das Teil direkt im 3D-Modell ändern, wie in einem CAM-Programm: die gewählte Kontur "
            "an den Pfeilen ziehen, ein Maß doppelt anklicken und eintippen, die Gehrung an der Schnittebene "
@@ -2665,7 +2831,8 @@ def kapitel_optimieren(i):
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
-    i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor) schreibt das Teil als "
+    i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
+           "Sätze: [[step_baugruppe]]) schreibt das Teil als "
            "STEP-Datei mit echtem Volumenkörper, so wie es im 3D-Modell aus den Eingaben zu sehen ist. Damit geht ein "
            "im Editor gebautes Teil an den Kunden oder ins CAD. Vorschlag für den Ort ist der Ordner des Angebots, "
            "Name der Artikelnummer.", kurz=True)
@@ -2676,8 +2843,11 @@ def kapitel_optimieren(i):
             "<b>Gravur</b> (Text-Gravur, Artikelnummer, Gravur mit Umriss): Rille 0,1 mm tief und 0,2 mm breit, "
             "mindestens 0,5 mm von Enden, Rand und Konturen. Wo das nicht passt, wird die Gravur gekürzt und das "
             "Programm sagt es nach dem Speichern.",
-            "<b>Blech</b>: ebene Bleche, auch aus dem DXF-Import, mit Außen- und Innenkonturen als echte Bögen. "
-            "Gekantete Bleche kann der Export noch nicht.",
+            "<b>Blech</b>: ebene Bleche, auch aus dem DXF-Import, mit Außen- und Innenkonturen als echte Bögen.",
+            "<b>Gekantetes Blech</b> (Kantteil oder mehrachsig gekantet aus dem STEP-Import, z. B. Schale): die "
+            "Abwicklung wird gefaltet, mit dem eingegebenen Innenradius und den Außenmaßen der Schenkel. Bohrungen, "
+            "Konturen und Gravuren werden mitgebogen, auch wenn sie in einer Biegezone liegen. Reicht ein ebenes "
+            "Stück ohne Freischnitt über eine Biegung, sagt das Programm es nach dem Speichern.",
             "Biegerohre aus dem STEP-Import: dafür die Original-STEP weitergeben.",
             "Nach dem Speichern zeigt eine Meldung Volumen und Flächenzahl. Das Programm prüft den Körper mit "
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
@@ -2695,8 +2865,22 @@ def kapitel_optimieren(i):
             "40x40x3</i>); steht beides da und passt nicht, gilt der Schnitt mit Hinweis. Das Profil der Stammdaten "
             "sucht das Programm wie beim STEP-Import; fehlt es, steht das im Editor (<i>Neu …</i> legt es an).",
             "<b>Ansichten</b> nach DIN (Projektionsmethode 1): oben die Vorderansicht (Seite vorne), darunter die "
-            "Draufsicht (Seite oben), Ende A links. Beim Rechteckrohr ist die Ansicht mit der Breitseite die "
-            "Draufsicht. Die Isometrie wird nicht ausgewertet.",
+            "Draufsicht (Seite oben), Ende A links. Steht auf der Zeichnung <i>Third angle</i>, <i>Projektionsmethode "
+            "3</i> oder <i>ISO-A</i> (USA), ist es umgekehrt. Ein deutsches Schriftfeld (Benennung, Werkstoff, "
+            "Maßstab) zählt als DIN. Beim Rechteckrohr ist die Ansicht mit der Breitseite die Draufsicht. Die "
+            "Isometrie wird nicht ausgewertet.",
+            "<b>Andere Zeichnungen</b>: Ein senkrecht gezeichnetes Rohr wird gedreht (das obere Ende ist Ende A). "
+            "Blattrahmen und Schriftfeldrahmen fallen weg. Das Profil darf auch als <i>Ø42,4x2</i> dastehen. Maße "
+            "dürfen echte DXF-Bemaßung sein oder Linien und Text, auf beliebigen Layern. Ohne Bemaßung und ohne "
+            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste.",
+            "<b>Zuordnungsfenster</b>: Ist sich das Programm nicht sicher (keine Projektionsmethode auf der "
+            "Zeichnung, mehrere Teile, Maßstab nur angenommen), erscheint vor dem Editor ein Fenster mit der "
+            "Zeichnung und den gefundenen Ansichten (Nummern). Je Ansicht wählst du <i>Vorderansicht</i>, "
+            "<i>Draufsicht</i>, <i>Schnitt</i> oder <i>nicht verwenden</i>, dazu Projektion (Europa/USA), Lage "
+            "(waagrecht/senkrecht) und welches Teil; <b>Neu erkennen</b> rechnet neu, <b>Übernehmen</b> öffnet den "
+            "Editor. Die gewählte Projektion merkt sich das Programm je Zeichnungsstil (gleiche Layernamen), "
+            "beim nächsten Mal fragt es nicht mehr. Im Rohr-Editor erscheint das Fenster auch, wenn keine "
+            "Längsansicht zum Profil passt. Ist alles eindeutig, gibt es kein Fenster.",
             "<b>Länge</b> von Spitze zu Spitze aus den Ansichten. Steht eine andere Länge im Text (z. B. <i>L = "
             "1000</i> in der Mitte einer Gehrung), zeigt der Editor beides.",
             "<b>Enden</b>: die Endkante je Ansicht; schräg in einer Ansicht = Gehrung mit der längsten Seite, schräg "
@@ -3589,7 +3773,8 @@ def kapitel_baugruppen(i):
     i.text("<b>Knickrahmen erstellen …</b> (unter den Einzelteilen): Rohre mit Gehrung markieren, die einen Rahmen "
            "bilden; es geht wie im Fenster Satz in 3D ([[satz_3d]]). Die Nahtvorschläge an den Ecken fallen weg (dort "
            "wird geknickt), der Stoß bleibt. Mit OK wird der Rahmen eine Position der Baugruppe, die Rohre fallen "
-           "weg bzw. zählen weniger.")
+           "weg bzw. zählen weniger. <b>Vorschläge …</b> daneben findet Knickrahmen, Steckverbindungen und eine "
+           "günstige Längsnaht selbst und rechnet die Ersparnis ([[vorschlaege]]).")
     i.abschnitt("Artikelnummer gravieren", marke="positionsgravur")
     i.text("Als Hilfe beim Schweißen kann das Programm die <b>Artikelnummer</b> auf jedes Rohr und jedes Blech der "
            "Baugruppe gravieren. Im Reiter <i>Struktur und Teile</i>: Haken <b>Artikelnr. gravieren</b> je Teil, "
@@ -3823,6 +4008,20 @@ def kapitel_baugruppen(i):
            "Angeboten mit Baugruppen zusätzlich <i>&lt;Nr&gt; Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
            "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
            "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
+    i.abschnitt("Baugruppe als STEP speichern", marke="step_baugruppe")
+    i.text("<b>STEP speichern …</b> unten im Editor der Schweißbaugruppe (und im Fenster Satz in 3D) schreibt alle "
+           "Teile als <b>STEP-Baugruppe</b> mit echten Volumenkörpern, so wie sie im 3D stehen. Gleiche Teile sind nur "
+           "einmal definiert und so oft eingesetzt, wie sie in der STEP-Datei vorkommen; die Unterbaugruppen und Namen "
+           "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei.", kurz=True)
+    i.liste("<b>Rohre</b> aus den Eingaben des Rohr-Editors mit Schlitzen und Nasen der Steckverbindungen und der "
+            "Artikelnummer-Gravur, in der Einbaulage der STEP-Datei ([[step_export]]).",
+            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet. Ihre Lage sucht das Programm am 3D-Netz der "
+            "STEP-Messung (Hauptachsen und Vergleich der Oberfläche); passt es nicht genau, steht ein Hinweis in der "
+            "Meldung.",
+            "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
+            "kommen als facettierter Körper hinein, mit Hinweis.",
+            "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "
+            "mit Hinweis.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
     i.text("Wiederkehrende Baugruppen nicht jedes Mal neu erfassen: <b>Als Vorlage speichern …</b> unten im Editor "
            "merkt Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) unter einem Namen; "
@@ -3984,8 +4183,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Stammdaten; das nächste Angebots-PDF nimmt sie dazu, schon festgeschriebene Werte bleiben.",
             "Wird eine andere Maschine gewählt, gelten deren aktuelle Schneiddaten.",
             "<b>Aktuelle Preise übernehmen …</b> in der Übersicht (nur sichtbar, wenn die Stammdaten abweichen) "
-            "zeigt die Änderungen und setzt das Angebot nach Rückfrage auf die aktuellen Stammdaten; der Preis "
-            "ändert sich dann. Das nächste Angebots-PDF schreibt die neuen Werte wieder fest.",
+            "setzt das Angebot auf die aktuellen Stammdaten; der Preis ändert sich dann. <b>Bericht …</b> in der "
+            "Einblendung nennt alle Änderungen, <b>Rückgängig</b> nimmt sie zurück. Das nächste Angebots-PDF schreibt die neuen Werte wieder fest.",
             "Eine <b>Kopie</b> eines Angebots rechnet mit den aktuellen Stammdaten.",
             "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert ("
             "[[zeiten]]), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")

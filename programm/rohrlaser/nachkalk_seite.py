@@ -4,7 +4,7 @@ import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
+                               QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
 from . import baugruppe, stil
@@ -352,18 +352,17 @@ class NachkalkulationSeite(QWidget):
     def loeschen(self):
         if not self.ist:
             return
-        if self.s.f.stumm or QMessageBox.question(self, "Nachkalkulation", "Alle Ist-Werte dieses Angebots löschen?") \
-                == QMessageBox.Yes:
-            self.ist = {}
-            self.s.db.nachkalkulation_speichern(self.s.id, None)
-            self.s.kopf["nachkalkulation"] = None
-            self.neu_laden()
+        self.ist = {}           # ohne Rückfrage, mit „Rückgängig“ (Plan Bedienung B2)
+        self.s.db.nachkalkulation_speichern(self.s.id, None)
+        self.s.kopf["nachkalkulation"] = None
+        self.neu_laden()
+        self.s.rueckgaengig_anbieten("Alle Ist-Werte der Nachkalkulation gelöscht.")
 
     def pdf(self):
         from . import pdf
         s = self.s
         if not s.ergebnis or not s.ergebnis.get("stangen"):
-            QMessageBox.warning(self, "Nachkalkulation", "Bitte zuerst optimieren.")
+            self.s.f.meldung("Nachkalkulation: bitte zuerst optimieren.", fehler=True)
             return None
         v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
         aktuell = s.stand_optimierung() == "aktuell"

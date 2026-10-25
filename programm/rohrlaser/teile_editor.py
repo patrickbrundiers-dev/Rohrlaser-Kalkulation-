@@ -22,7 +22,8 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QMessageBox,
                                QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import ansicht3d_leiste, biegerohr, dfm, editor_griffe, naht, rechnen, rohr3d, schneidweg as sw, stil, symbole
+from . import ansicht3d_leiste, biegerohr, dfm, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole
+from . import schneidweg as sw
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
@@ -808,7 +809,7 @@ class EditorRahmen(QObject):
         from PySide6.QtWidgets import QInputDialog
         d = self.d
         if r is None or not 0 <= r < d.tabelle.rowCount() or d.tabelle.cellWidget(r, 0).currentText() not in sw.MIT_FASE:
-            QMessageBox.information(d, "Ecken", "Erst eine Ausklinkung oder ein Rechteck wählen.")
+            einblendung.melden(d, "Erst eine Ausklinkung oder ein Rechteck wählen.")
             return
         mass, ok = QInputDialog.getDouble(d, "Ecken " + art, "Eckradius [mm]" if art == "runden" else
                                           "Fase je Kante [mm]", 3.0, 0.1, 500, 1)
@@ -931,7 +932,7 @@ class EditorRahmen(QObject):
                     self.d, "Kontur-Vorlage", f"{x} Ersetzen?") == QMessageBox.Yes:
                 return self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked(), ueberschreiben=True)
             if "gibt es schon" not in str(x):
-                QMessageBox.information(self.d, "Kontur-Vorlage", str(x))
+                einblendung.melden(self.d, str(x))
         return None
 
     def _vorlage_loeschen_fragen(self, vorlage_id, name):
