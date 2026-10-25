@@ -84,7 +84,7 @@ def _tabelle(modell, sortieren=True):
     return v
 
 
-LISTE_ROLLEN = frozenset((Qt.DisplayRole, Qt.ToolTipRole, Qt.UserRole, Qt.TextAlignmentRole, Qt.BackgroundRole))
+LISTE_ROLLEN = frozenset((Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.UserRole, Qt.ItemDataRole.TextAlignmentRole, Qt.ItemDataRole.BackgroundRole))
 
 
 class Liste(QAbstractTableModel):
@@ -106,8 +106,8 @@ class Liste(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.spalten)
 
-    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
-        if rolle == Qt.DisplayRole:
+    def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
+        if rolle == Qt.ItemDataRole.DisplayRole:
             return self.spalten[abschnitt][0] if richtung == Qt.Horizontal else str(abschnitt + 1)
         return None
 
@@ -116,22 +116,22 @@ class Liste(QAbstractTableModel):
         z = self.zeilen[r]
         return schl(z) if callable(schl) else z.get(schl)
 
-    def data(self, index, rolle=Qt.DisplayRole):
+    def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or rolle not in LISTE_ROLLEN:     # andere Rollen fragt Qt oft ab, Antwort immer None
             return None
         w = self.wert(index.row(), index.column())
         stellen = self.spalten[index.column()][2]
-        if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
+        if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             if isinstance(w, datetime.datetime):
                 return w.strftime("%d.%m.%Y %H:%M")
-            if stellen is not None and self.max_stellen is not None and rolle == Qt.DisplayRole:
+            if stellen is not None and self.max_stellen is not None and rolle == Qt.ItemDataRole.DisplayRole:
                 stellen = min(stellen, self.max_stellen)
             return _z(w, stellen) if stellen is not None else ("" if w is None else str(w))
-        if rolle == Qt.UserRole:
+        if rolle == Qt.ItemDataRole.UserRole:
             return w
-        if rolle == Qt.TextAlignmentRole and isinstance(w, (int, float)) and not isinstance(w, bool):
+        if rolle == Qt.ItemDataRole.TextAlignmentRole and isinstance(w, (int, float)) and not isinstance(w, bool):
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole and isinstance(w, str):
+        if rolle == Qt.ItemDataRole.BackgroundRole and isinstance(w, str):
             f = _farbe_status(w) or ({"ÜBERBELEGT": FARBE_STATUS["FEHLER"]}.get(w))
             if f is not None:
                 return QBrush(f)
@@ -229,22 +229,22 @@ def angebot_status(z):
 
 
 class AngeboteListe(Liste):
-    EIGENE_ROLLEN = frozenset((Qt.ForegroundRole, Qt.FontRole, Qt.BackgroundRole, Qt.ToolTipRole))
+    EIGENE_ROLLEN = frozenset((Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.FontRole, Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole))
 
-    def data(self, index, rolle=Qt.DisplayRole):
+    def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if rolle not in self.EIGENE_ROLLEN:        # schneller Weg für die übrigen Rollen (Liste.data)
             return super().data(index, rolle)
-        if rolle == Qt.ForegroundRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
+        if rolle == Qt.ItemDataRole.ForegroundRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
             return QBrush(stil.farbe(FREMD_FARBE))          # Angebote anderer Mitarbeiter: grau, nur zum Ansehen
-        if rolle == Qt.FontRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
+        if rolle == Qt.ItemDataRole.FontRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
             f = QFont()
             f.setItalic(True)
             return f
-        if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] in ("Status", "Vorgang"):
+        if rolle == Qt.ItemDataRole.BackgroundRole and index.isValid() and self.spalten[index.column()][0] in ("Status", "Vorgang"):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
             return QBrush(stil.farbe(farbe)) if farbe else None
-        if rolle == Qt.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
+        if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
             am = self.zeilen[index.row()].get("vk_am")
             return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
                     "Wird beim Öffnen des Angebots gerechnet")
@@ -706,6 +706,29 @@ def schneidweg_abweichung(p):
     return d if abs(d) > ABWEICHUNG_MM else None
 
 
+# Vorschaubilder aus dem 3D-Netz, solange das Programm läuft (Performance-Plan P3, Frage 3a): gleiches Netz = gleiches
+# Bild, auch nach Schließen und erneutem Öffnen des Angebots. Ein großes Netz (Rohr mit 1.000 Bohrungen) braucht sonst
+# bei jedem Öffnen Sekunden.
+VORSCHAU_MERKEN = 2000
+_vorschau_merker = {}
+
+
+def netz_vorschau(daten):
+    """Vorschaubild (64 × 18) aus gepackten Netz-Bytes (Datenbank) oder None; gemerkt nach dem Inhalt."""
+    if not daten:
+        return None
+    import hashlib
+    schl = hashlib.blake2b(daten, digest_size=16).digest()
+    if schl in _vorschau_merker:
+        _vorschau_merker[schl] = _vorschau_merker.pop(schl)       # zuletzt benutzt nach hinten
+        return _vorschau_merker[schl]
+    from .ansicht3d import entpacken, vorschaubild
+    bild = vorschaubild(entpacken(daten), 64, 18)
+    _vorschau_merker[schl] = bild
+    while len(_vorschau_merker) > VORSCHAU_MERKEN:
+        _vorschau_merker.pop(next(iter(_vorschau_merker)))
+    return bild
+
 class PositionenModell(QAbstractTableModel):
     geaendert = Signal()
 
@@ -735,8 +758,7 @@ class PositionenModell(QAbstractTableModel):
         if alt is None or alt[0] != schluessel:
             try:
                 if pid in self.mit_netz:
-                    from .ansicht3d import entpacken, vorschaubild
-                    neu = vorschaubild(entpacken(self.s.db.netz(pid)), 64, 18)
+                    neu = netz_vorschau(self.s.db.netz(pid))
                 elif blech.lesen(p.get("technik")):
                     neu = vorschau.bild(p, None)
                 elif not kein_laserteil(p):
@@ -785,8 +807,8 @@ class PositionenModell(QAbstractTableModel):
     def k(self):
         return self.s.k
 
-    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
-        if rolle != Qt.DisplayRole:
+    def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
+        if rolle != Qt.ItemDataRole.DisplayRole:
             return None
         if richtung == Qt.Vertical:
             return self.kopf_text.get(abschnitt) or str(abschnitt + 1)
@@ -818,42 +840,58 @@ class PositionenModell(QAbstractTableModel):
         w = self.werte[r].get(x[1])
         return {True: "ja", False: "nein"}.get(w, w) if isinstance(w, bool) else w
 
-    def data(self, index, rolle=Qt.DisplayRole):
+    # Während die Tabelle ihre Spalten und Zeilen einpasst (spaltenbreite.AutoGroesse), fragt Qt jede Zelle mehrfach
+    # und mit vielen Rollen ab; das Modell ändert sich dabei nicht. Dann einmal je Zelle und Rolle rechnen
+    # (Performance-Plan P6, Frage 6a: Breiten exakt wie bisher).
+    _merk = None
+
+    def merken_an(self, an):
+        self._merk = {} if an else None
+
+    def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
+        if self._merk is None:
+            return self._data(index, rolle)
+        schl = (index.row(), index.column(), int(rolle))
+        if schl not in self._merk:
+            self._merk[schl] = self._data(index, rolle)
+        return self._merk[schl]
+
+    def _data(self, index, rolle):
         art, x = self.spalten[index.column()]
         w = self.roh(index.row(), index.column())
         if art == "feld" and x.name == "zeit_manuell":      # Schneidzeit: berechnet, von Hand überschreibbar
             berechnet = self.zeiten[index.row()]
-            if rolle == Qt.DisplayRole and w is None:
+            if rolle == Qt.ItemDataRole.DisplayRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
-            if rolle == Qt.ToolTipRole:
+            if rolle == Qt.ItemDataRole.ToolTipRole:
                 return (f"Berechnet: {_z(berechnet, 1)} s je Teil (ohne Einsparung gemeinsamer Schnitte). "
                         if berechnet is not None else "Keine Schneiddaten: Zeit von Hand eintragen. ") + \
                     ("Von Hand eingetragen; leeren = wieder berechnet." if w is not None
                      else "Doppelklick zum Anpassen.")
-            if rolle == Qt.EditRole and w is None:
+            if rolle == Qt.ItemDataRole.EditRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
-            if rolle == Qt.ForegroundRole:
+            if rolle == Qt.ItemDataRole.ForegroundRole:
                 return QBrush(stil.farbe("#000000" if w is not None else "#5F6B7A"))
-            if rolle == Qt.FontRole and w is not None:
+            if rolle == Qt.ItemDataRole.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
                 return f
         if art == "feld" and x.name == "prog_zeit":         # Programmierzeit: berechnet, von Hand überschreibbar
             berechnet = self.prog_zeiten[index.row()] if index.row() < len(self.prog_zeiten) else None
-            if rolle in (Qt.DisplayRole, Qt.EditRole) and w is None:
+            if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole) and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
-            if rolle == Qt.ToolTipRole:
+            if rolle == Qt.ItemDataRole.ToolTipRole:
                 n = rechnen.konturen_anzahl(self.daten[index.row()])
                 return ((f"Berechnet: {_z(berechnet, 1)} min = Grundzeit je Position + Zeit je Innenkontur × {n} "
                          "Innenkontur(en) (Kalkulation des Angebots). " if berechnet is not None
                          else "Verschicktes Angebot: Betrag je Position festgeschrieben. ")
                         + ("Von Hand eingetragen; leeren = wieder berechnet." if w is not None
                            else "Doppelklick zum Anpassen."))
-            if rolle == Qt.ForegroundRole:
+            if rolle == Qt.ItemDataRole.ForegroundRole:
                 return QBrush(stil.farbe("#000000" if w is not None else "#5F6B7A"))
-            if rolle == Qt.FontRole and w is not None:
+            if rolle == Qt.ItemDataRole.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
                 return f
@@ -863,9 +901,9 @@ class PositionenModell(QAbstractTableModel):
             # Preis von Hand einer anderen Position derselben Stangengruppe gilt für alle Stangen der Gruppe
             fremd = not eigen and wirksam is not None and berechnet is not None and abs(wirksam - berechnet) > 0.005
             anzeige = wirksam if fremd else berechnet
-            if rolle in (Qt.DisplayRole, Qt.EditRole) and not eigen:
+            if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole) and not eigen:
                 return _z(anzeige, 2) if anzeige is not None else ""
-            if rolle == Qt.ToolTipRole:
+            if rolle == Qt.ItemDataRole.ToolTipRole:
                 if kein_laserteil(self.daten[index.row()]):
                     return "Zukaufteil bzw. Schweißbaugruppe: kein Materialpreis je m."
                 t = (f"Berechnet: {_z(berechnet, 2)} €/m (Lieferlänge, Preise bzw. Tonnenpreis, mit Aufpreis der "
@@ -883,16 +921,16 @@ class PositionenModell(QAbstractTableModel):
                     return t + (f"Es gilt {_z(wirksam, 2)} €/m, von Hand bei einer anderen Position mit gleichem "
                                 "Profil, Werkstoff, Oberfläche und Stangenlänge eingetragen.")
                 return t + "Doppelklick zum Anpassen (günstiger oder teurer)."
-            if rolle == Qt.ForegroundRole:
+            if rolle == Qt.ItemDataRole.ForegroundRole:
                 return QBrush(stil.farbe("#000000" if eigen else "#5F6B7A"))
-            if rolle == Qt.FontRole and (eigen or fremd):
+            if rolle == Qt.ItemDataRole.FontRole and (eigen or fremd):
                 f = QFont()
                 f.setBold(eigen)
                 f.setItalic(fremd)
                 return f
-        if rolle == Qt.ToolTipRole and art == "status" and status_ziel(w):
+        if rolle == Qt.ItemDataRole.ToolTipRole and art == "status" and status_ziel(w):
             return f"{w}\nDoppelklick: {status_ziel(w)[1]}"
-        if rolle == Qt.ToolTipRole and art == "feld" and (x.name in RECHNER_SPALTEN or x.name == "artikel"):
+        if rolle == Qt.ItemDataRole.ToolTipRole and art == "feld" and (x.name in RECHNER_SPALTEN or x.name == "artikel"):
             p = self.daten[index.row()]
             text = wert_als_text(x, w)
             if x.name == "artikel" and p.get("id") in self.mit_netz:
@@ -905,8 +943,8 @@ class PositionenModell(QAbstractTableModel):
                     " · Tippen oder F2: Artikelnummer ändern"
             if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
-        if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
-            if art == "bohrbild" and rolle == Qt.ToolTipRole:
+        if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
+            if art == "bohrbild" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (wert_als_text(x, w) + "\n" if w not in (None, "") else "") + \
                     "Doppelklick: Bohrungen prüfen (Gewinde, Senkungen, Flowdrill bestätigen oder ablehnen)"
             if art in ("feld", "bohrbild"):
@@ -914,38 +952,38 @@ class PositionenModell(QAbstractTableModel):
             if art == "berechnet":
                 return _z(w, x[2]) if x[2] is not None else ("" if w is None else str(w))
             if art == "abweichung":
-                if rolle == Qt.ToolTipRole:
+                if rolle == Qt.ItemDataRole.ToolTipRole:
                     return ("Schneidweg von Hand geändert: eingetragen minus Summe aus Anfangsschnitt, Endschnitt und "
                             "Innenkonturen laut STEP." if w is not None else "Schneidweg wie aus STEP gemessen.")
                 return _z(w, 1) if w is not None else ""
-            if art == "zusatz" and rolle == Qt.ToolTipRole:
+            if art == "zusatz" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
-            if art == "zukauf" and rolle == Qt.ToolTipRole:
+            if art == "zukauf" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Zukaufteile wählen"
-            if art == "anbau" and rolle == Qt.ToolTipRole:
+            if art == "anbau" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Anbauteile prüfen (aufgeschweißte Teile, nur Gravur)"
-            if art == "naht" and rolle == Qt.ToolTipRole:
+            if art == "naht" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (w + "\n" if w else "Keine Vorgabe: frei drehbar\n") + \
                     "Doppelklick: Schweißnaht am Querschnitt wählen (Blick von Ende A, 0° oben, 90° rechts)"
             return w
-        if rolle == Qt.EditRole and art == "feld":
+        if rolle == Qt.ItemDataRole.EditRole and art == "feld":
             return wert_als_text(x, w, bearbeiten=True)
-        if rolle == Qt.DecorationRole and art == "status":
+        if rolle == Qt.ItemDataRole.DecorationRole and art == "status":
             return stil.status_symbol(w)
-        if rolle == Qt.DecorationRole and art == "feld" and x.name == "artikel":
+        if rolle == Qt.ItemDataRole.DecorationRole and art == "feld" and x.name == "artikel":
             return self.vorschau(index.row())
-        if rolle == Qt.UserRole:
+        if rolle == Qt.ItemDataRole.UserRole:
             return w
-        if rolle == Qt.TextAlignmentRole and (art == "berechnet" and x[2] is not None or art == "abweichung"
+        if rolle == Qt.ItemDataRole.TextAlignmentRole and (art == "berechnet" and x[2] is not None or art == "abweichung"
                                               or art == "feld" and x.art in ("zahl", "ganz")):
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole:
+        if rolle == Qt.ItemDataRole.BackgroundRole:
             if art == "status":
                 return QBrush(_farbe_status(w) or (stil.farbe("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
             if art == "abweichung" and w is not None:
                 return QBrush(stil.farbe("#FFF2CC"))
             return QBrush(FARBE_EINGABE if art in ("feld",) + EIGENE else FARBE_BERECHNET)
-        if rolle == Qt.ForegroundRole and art == "status":
+        if rolle == Qt.ItemDataRole.ForegroundRole and art == "status":
             return QBrush(stil.farbe({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
         return None
 
@@ -955,8 +993,8 @@ class PositionenModell(QAbstractTableModel):
             f |= Qt.ItemIsEditable
         return f
 
-    def setData(self, index, text, rolle=Qt.EditRole):
-        if rolle != Qt.EditRole or not index.isValid():
+    def setData(self, index, text, rolle=Qt.ItemDataRole.EditRole):
+        if rolle != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
         art, f = self.spalten[index.column()]
         if art != "feld":
@@ -2415,7 +2453,8 @@ class AngebotSeite(QWidget):
     def _abwicklung_funktion(self):
         """Abwicklung einer Stange für Stangen-Detail (stangen_abwicklung.stange) mit den Positionen dieses Stands."""
         positionen, profil_von = list(self.positionen), stangen_abwicklung.profil_funktion(self.kopf, self.k)
-        return lambda s: stangen_abwicklung.stange(s, positionen, profil_von)
+        merker = {}         # gleiche Teile auf mehreren Stangen einmal (Performance-Plan P7)
+        return lambda s: stangen_abwicklung.stange(s, positionen, profil_von, merker)
 
     def _vorschau_netz(self, zeile):
         """3D-Modell einer Position für die Vorschau im Teilebaum: (Netz oder None, Titel). Netz aus dem STEP-Import,

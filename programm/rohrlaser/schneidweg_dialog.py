@@ -1176,11 +1176,8 @@ class SchneidwegDialog(QDialog):
         self.r_aussen = float(r) if isinstance(r, (int, float)) and r >= 0 else None
         self.rechnen()
 
-    def _rechnen(self):
-        eingaben = self.eingaben()
-        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
-        self.ergebnis = erg
-        t = self.ergebnis_tabelle
+    @staticmethod
+    def _ergebnis_fuellen(t, erg):
         t.setRowCount(len(erg["schritte"]))
         for r, s in enumerate(erg["schritte"]):
             werte = (s["text"] + (" (Schätzung)" if s["schaetzung"] else ""), str(s["anzahl"]),
@@ -1193,6 +1190,22 @@ class SchneidwegDialog(QDialog):
                 else:
                     it.setToolTip(v)        # schmale Spalte: ganzer Text beim Zeigen
                 t.setItem(r, c, it)
+
+    def _rechnen(self):
+        eingaben = self.eingaben()
+        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
+        self.ergebnis = erg
+        t = self.ergebnis_tabelle
+        kopf = t.horizontalHeader()
+        # ResizeToContents misst sonst bei jedem setItem alle Zeilen neu (viele Konturen: Sekunden)
+        kopf.setSectionResizeMode(QHeaderView.Fixed)
+        t.setUpdatesEnabled(False)
+        try:
+            self._ergebnis_fuellen(t, erg)
+        finally:
+            kopf.setSectionResizeMode(QHeaderView.ResizeToContents)
+            kopf.setSectionResizeMode(0, QHeaderView.Stretch)
+            t.setUpdatesEnabled(True)
         f = erg["felder"]
         zeit = self.schneidzeit()
         teile = [f"<b>Schneidweg {rechnen.zahl(f['schneidweg'], 1)} mm</b>, {f['einstiche']} Einstiche "
