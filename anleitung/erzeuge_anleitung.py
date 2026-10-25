@@ -1670,7 +1670,8 @@ def kapitel_step(i):
     i.abschnitt("Bleche erkennen", marke="bleche")
     i.text("Bleche erkennt der Import selbst. Sie werden nicht gelasert, sondern <b>Zukaufteil-Positionen</b> mit "
            "einem Blechartikel; im Prüfdialog stehen sie in der grünen Gruppe <b>Bleche (Zukaufteile, nicht "
-           "lasern)</b>. Werkstoff wählen, dann gibt es einen Richtpreis.")
+           "lasern)</b>. Werkstoff wählen, dann gibt es einen Richtpreis. Rund- und Vierkantstahl werden ebenso "
+           "Zukaufteile (Gruppe <b>Vollmaterial (Zukaufteile, gesägt)</b>).")
     i.genauer()
     i.text("Vor der Profilmessung prüft der STEP-Import, ob ein Körper ein <b>Blech</b> ist. Ein Blech hat zwei "
            "parallele Hauptflächen, ist überall gleich dick (das Volumen entspricht Hauptfläche × Dicke) und ist "
@@ -1743,7 +1744,15 @@ def kapitel_step(i):
             "(alle Blechmaße). Im JSON-Messergebnis (ab Version 1.1) steht je Blech der Block <i>blech</i>; die "
             "Profilwerte (Querschnitt, Wandstärke) sind dort <i>null</i>. Ab Version 1.2 steht bei Grenzfällen der "
             "Block <i>alternative</i> (das Teil in der anderen Art) und <i>ersatzwerte</i> (true = abgeleitet, "
-            "nicht gemessen).")
+            "nicht gemessen).",
+            "<b>Rund- und Vierkantstahl</b> (Vollmaterial, z. B. Bolzen, Stifte, Achsen) werden nicht gelasert, "
+            "sondern <b>Zukaufteil-Positionen</b> mit einem Artikel vom Typ Rundstahl bzw. Vierkantstahl "
+            "([[vollmaterial]]). Im Prüfdialog stehen sie in der grünen Gruppe <b>Vollmaterial (Zukaufteile, "
+            "gesägt)</b>; der Werkstoff ist die Vorgabe der Rohre und in der Zeile änderbar. Bei Profil-ID steht der "
+            "Zukaufartikel: <i>automatisch</i> nimmt einen gleichen vorhandenen Artikel (Form, Abmessung, Länge, "
+            "Werkstoff) oder legt einen neuen an (EK = Gewicht × Tonnenpreis des Werkstoffs). Die Position bekommt "
+            "Werkstoff, Länge, Gewicht und die Zusatzarbeit <b>Sägen</b>. Ein Bolzen, der als Anbauteil an einem "
+            "Rohr erkannt ist, bleibt bei <i>Anbauteile nicht übernehmen</i> weiter außen vor.")
     i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
     i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech mit einer offenen Seite</b>: "
            "U offen, C mit Längsschlitz, U mit nur einer Lasche oder eine <b>Halbschale</b> eines Rundrohrs. "
@@ -3455,9 +3464,13 @@ def kapitel_zukauf_angebot(i):
     i.text("Eine Position der Art <b>Zukaufteil</b> ist ein eingekauftes Teil, das mit dem Auftrag geliefert wird, "
            "z. B. ein Blech, das der STEP-Import erkannt hat. Sie braucht kein Profil und keinen Werkstoff, nur "
            "Stückzahl und einen Zukaufartikel (Spalte <i>Zukaufteile</i>, Menge 1 je Teil).")
-    i.liste("<b>Preis je Teil</b> = Einstand + Aufschlag des Zukaufartikels ([[zukauf]]) + Frachtanteil, mit "
-            "Skonto. Material, Laser, Rüsten, Zuschläge, Gewinn, Pauschalen, Programmierkosten und Angebotsaufschlag "
-            "gibt es für Zukaufteile nicht; sie verteilen sich weiter nur auf die Rohrlaserteile.",
+    i.liste("<b>Preis je Teil</b> = Einstand + Aufschlag des Zukaufartikels ([[zukauf]]) + Zusatzarbeiten (mit "
+            "Zuschlag Fertigung bzw. Fremdleistung), darauf der Gewinn, + Frachtanteil, mit Skonto. Material, Laser, "
+            "Rüsten, Pauschalen, Programmierkosten und Angebotsaufschlag gibt es für Zukaufteile nicht; sie verteilen "
+            "sich weiter nur auf die Rohrlaserteile.",
+            "<b>Zusatzarbeiten</b> an einer Zukaufteil-Position zählen mit, z. B. <i>Sägen</i> bei "
+            "Rund- und Vierkantstahl ([[vollmaterial]]). Nach Gewicht (€/kg) rechnen sie mit dem <i>Gewicht je "
+            "Teil</i> der Position.",
             "Zukaufteile kommen nicht in den Schnittplan. Die Kennzahl <i>Teile</i> zählt nur Rohrlaserteile.",
             "<b>Fracht</b>: Zukaufteile tragen ihren Anteil wie die anderen Teile, je Stück oder nach Gewicht (Spalte "
             "<i>Gewicht je Teil</i>; fehlt es, wird je Stück verteilt und die Kalkulation nennt die Position).",
@@ -5619,8 +5632,9 @@ def kapitel_zukauf(i):
         ["", "Artikelbezeichnung", "Pflichtfeld"],
         ["", "Kategorie", "aus den Kategorien ([[zukauf_kategorien]]); bestimmt den vorgeschlagenen Aufschlag"],
         ["", "Mengeneinheit", "Stück, Meter, Kilogramm, Satz oder frei eingeben"],
-        ["", "Artikeltyp", "<i>normaler Zukaufartikel</i> oder <i>Blech</i>; bei Blech zusätzlich Länge × Breite × "
-                           "Dicke in mm und Werkstoff ([[blechartikel]])"],
+        ["", "Artikeltyp", "<i>normaler Zukaufartikel</i>, <i>Blech</i>, <i>Rundstahl</i> oder <i>Vierkantstahl</i>; "
+                           "bei Blech zusätzlich Länge × Breite × Dicke in mm und Werkstoff ([[blechartikel]]), bei "
+                           "Rund-/Vierkantstahl Ø bzw. Kante, Länge, Werkstoff und Preis je kg ([[vollmaterial]])"],
         ["", "archiviert", "im Angebot nicht mehr wählbar"],
         ["B Einkaufspreis", "Lieferanten", "Liste der Lieferanten des Artikels; ★ = bevorzugt. <b>+ Lieferant</b> "
                                            "fügt einen hinzu, <b>Entfernen</b> löscht den markierten, <b>Als "
@@ -5790,6 +5804,33 @@ def kapitel_zukauf(i):
             "schlägt er den Artikel zur Auswahl vor. Archivierte Artikel zählen nicht.",
             "<b>Duplizieren</b> übernimmt Maße und Werkstoff, aber nicht STEP-Datei und Kennung: die Kopie gilt als "
             "von Hand angelegt.")
+    i.abschnitt("Vollmaterial: Rund- und Vierkantstahl", marke="vollmaterial")
+    i.text("Rund- und Vierkantstahl sind Zukaufartikel vom Typ <b>Rundstahl</b> bzw. <b>Vierkantstahl</b>: Ø bzw. "
+           "Kante, Länge und Werkstoff; der EK je Stück ist Gewicht × Preis je kg. Gesägt wird über die "
+           "Zusatzarbeit <b>Sägen</b>.", kurz=True)
+    i.genauer()
+    i.text("Vollmaterial schneidet der Rohrlaser nicht; es wird als Zuschnitt eingekauft (bzw. gesägt) und mit dem "
+           "Auftrag geliefert. Ein Artikel ist genau ein Zuschnitt: Form, Ø bzw. Kantenlänge, Länge und Werkstoff, "
+           "z. B. <i>Rundstahl Ø20 × 150 mm S235-10219</i> (Kategorie <i>Vollmaterial</i>, Einheit Stück).")
+    i.liste("<b>Gewicht je Stück</b> = Querschnitt × Länge × Dichte des Werkstoffs (Stammdaten Werkstoffe): "
+            "Rundstahl π/4 × Ø², Vierkantstahl Kante². Ø20 × 150 mm in Stahl (7,85 kg/dm³) wiegt 0,370 kg.",
+            "<b>Preis je kg</b>: im Formular unter <i>Preis je kg</i>; leer = Tonnenpreis des Werkstoffs "
+            "(1.000 €/t = 1,00 €/kg).",
+            "<b>EK je Stück</b> = Gewicht × Preis je kg. Er wird beim Speichern beim bevorzugten Lieferanten als "
+            "Einkaufspreis ab 1 Stück eingetragen; Aufschlag, Bezugskosten und Staffeln rechnen danach wie bei jedem "
+            "Zukaufartikel ([[zukauf]]). Ändert sich Länge, Werkstoff oder Preis je kg, rechnet das Programm Gewicht "
+            "und EK neu.",
+            "<b>Sägen</b>: Zusatzarbeit <i>Sägen</i> (€ je Schnitt, Beispielpreis 1,00 €, Stammdaten "
+            "Zusatzarbeiten, [[zusatzarbeiten_verwalten]]) mit Menge 1 je Teil. STEP-Import und Schnellanlage tragen sie an "
+            "der Position ein; sie bekommt Zuschlag Fertigung und Gewinn wie an einem Rohrlaserteil.",
+            "<b>Dubletten</b>: gleich sind Artikel mit gleicher Form, Ø bzw. Kante (± 0,05 mm), Länge (± 0,5 mm) und "
+            "Werkstoff; ein gleicher Artikel wird wiederverwendet statt neu angelegt.",
+            "<b>Von Hand</b>: im Angebot <b>Neue Position → Zukaufteil</b> bzw. <b>Zukaufteile … → Neuer "
+            "Zukaufartikel …</b>, Art <i>Rundstahl</i> oder <i>Vierkantstahl</i> wählen, Ø bzw. Kante, Länge und "
+            "Werkstoff eintragen (Preis je kg optional). Die Bezeichnung entsteht von selbst; die Position bekommt "
+            "Werkstoff, Länge, Gewicht (für die Fracht) und die Zusatzarbeit Sägen.",
+            "<b>Aus STEP</b>: der Import erkennt Rund- und Vierkantstahl selbst ([[bleche]]) und legt eine "
+            "Zukaufteil-Position an.")
 
 
 def kapitel_frachtkosten(i):

@@ -29,7 +29,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import kennwerte, nummern, passwort, teilen, zukauf
+from . import kennwerte, nummern, passwort, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -40,10 +40,10 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
-                         schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
+                         schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 60     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 61     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -111,6 +111,8 @@ SCHEMA_VERSION = 60     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     leer; palettenschein.py)
                         # 60: Steckverbindungen und Stöße je Satz (angebote.satz_daten, JSON, leer; Fenster
                         #     „Satz in 3D“, satz3d.py)
+                        # 61: Vollmaterial als Zukaufartikel (zukauf_artikel.abmessung, gewicht, preis_kg, leer;
+                        #     vollmaterial.py)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -134,6 +136,7 @@ SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stunden
 BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
+VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -215,6 +218,7 @@ class Datenbank:
             self.einstellung_setzen("knick_stand", KNICK_STAND)
             self.einstellung_setzen("steck_stand", STECK_STAND)
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
+            self.einstellung_setzen("voll_stand", VOLL_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -401,6 +405,8 @@ class Datenbank:
                 self._steck_ergaenzen()
             if version > 0 and self.einstellung("werkstoffe_stand") != WERKSTOFFE_STAND:
                 self._werkstoffe_rohrlaser()
+            if version > 0 and self.einstellung("voll_stand") != VOLL_STAND:
+                self._voll_ergaenzen()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
@@ -507,6 +513,14 @@ class Datenbank:
         self._einfuegen("schneiddaten", [z for z in neu["schneiddaten"] if z["kategorie"] == "Buntmetall"
                                          and z["maschinen_id"] in maschinen], ergaenzen=True)
         self._einstellung_schreiben("werkstoffe_stand", WERKSTOFFE_STAND)
+
+    def _voll_ergaenzen(self):
+        """Einmalig: Zusatzarbeit 'Sägen' (€ je Schnitt) und die Zukauf-Kategorie 'Vollmaterial' anlegen, wenn es sie
+        (dem Namen nach) noch nicht gibt (Plan Vollmaterial, Patrick 25.10.2026)."""
+        self._einfuegen("zusatzarbeiten", saege_zusatzarbeiten(), ergaenzen=True)
+        self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
+                         (vollmaterial.KATEGORIE,))
+        self._einstellung_schreiben("voll_stand", VOLL_STAND)
 
     def _knick_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem
@@ -983,6 +997,8 @@ class Datenbank:
         for b in bezuege:
             if isinstance(b.get("lieferant"), str):
                 b["lieferant"] = b["lieferant"].strip() or None
+        if vollmaterial.ist_voll(werte):     # Gewicht, Preis je kg und EK je Stück (vollmaterial.py)
+            werte, bezuege = vollmaterial.vorbereiten(werte, bezuege, {z["werkstoff_id"]: z for z in self.zeilen("werkstoffe")})
         fehler = zukauf.artikel_fehler(werte, bezuege)
         if fehler:
             raise ValueError("; ".join(fehler))
