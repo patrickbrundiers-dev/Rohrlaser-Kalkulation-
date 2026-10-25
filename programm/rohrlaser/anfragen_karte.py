@@ -111,6 +111,36 @@ class AnfragenKarte:
         if self.ordner():
             self.f.datei_oeffnen(self.ordner())
 
+    def _formulare(self, gesperrt):
+        """Anfrageformulare (PDF mit Text) lesen (Plan W6b): Anfragenummer ins Feld „Ihre Anfrage“ und in den
+        Ordnernamen 'Kunde – Nummer' (daraus schlägt der Import den Kunden vor), Text für die Stückzahlen. Ändert
+        gesperrt (neue Pfade). Ergebnis: weitere Werte für neu_aus_step (kopf, formular_text)."""
+        from . import formular
+        alle = [d for a in gesperrt for d in a.formulare]
+        if not alle:
+            return {}
+        kunden = self.f.db.zeilen("kunden")
+        eigene = [self.f.db.einstellung("briefkopf_1") or ""]
+        texte = [formular.pdf_text(d) for d in alle if d.suffix.lower() == ".pdf"]
+        text = "\n".join(t for t in texte if t.strip())
+        if not text:
+            return {}
+        e = formular.auswerten(text, kunden, eigene=eigene)
+        kunde = e["kunde"] or next((a.kunde for a in gesperrt if a.kunde), None)
+        if e["nummer"] and len(gesperrt) == 1:
+            try:
+                gesperrt[0] = anfragen.umbenennen(gesperrt[0], anfragen.ordner_name(
+                    anfragen.kunde_text(kunden, kunde) if kunde else "", e["nummer"]))
+            except OSError:
+                pass            # Ordner offen (Explorer): Name bleibt
+        if kunde:
+            for a in gesperrt:
+                a.kunde = a.kunde or kunde
+        weitere = dict(formular_text=text)
+        if e["nummer"]:
+            weitere["kopf"] = dict(kundenreferenz=e["nummer"])
+        return weitere
+
     def oeffnen(self, auswahl, zusammen=False, kundennr=None):
         """Anfragen als ein neues Angebot aus STEP öffnen (ohne Auswahl: die älteste offene). Sperren, importieren,
         danach die Dateien in den Angebotsordner verschieben; bei Abbruch Sperre aufheben. kundennr: ohne Kundenwahl
@@ -135,8 +165,9 @@ class AnfragenKarte:
                 anfragen.freigeben(a)
             self.f.meldung(f"Anfrage lässt sich nicht öffnen: {e}", fehler=True)
             return None
+        weitere = self._formulare(gesperrt)                         # kann den Ordner umbenennen
         dateien = [str(d) for a in gesperrt for d in a.step]
-        seite = self.f.angebote.neu_aus_step(dateien, kundennr)
+        seite = self.f.angebote.neu_aus_step(dateien, kundennr, **weitere)
         if seite is None:
             for a in gesperrt:
                 anfragen.freigeben(a)

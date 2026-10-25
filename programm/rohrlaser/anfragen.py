@@ -167,6 +167,18 @@ def sperren(anfrage, wurzel, kuerzel, jetzt=None):
     return anfrage
 
 
+def umbenennen(anfrage, name):
+    """Unterordner der (gesperrten) Anfrage umbenennen, z. B. 'Kunde – Anfragenummer' aus dem Formular (W6b).
+    Gleicher Name schon da: 'Name (2)'. Ergebnis: die Anfrage mit neuen Pfaden. OSError: nicht möglich."""
+    if not anfrage.ordner or not name or anfrage.ordner.name == name:
+        return anfrage
+    neu = _frei(anfrage.ordner.with_name(name))
+    alt = anfrage.ordner
+    alt.rename(neu)
+    a = Anfrage(neu.name, neu, [neu / d.relative_to(alt) for d in anfrage.dateien], anfrage.kunde, anfrage.gesperrt)
+    return a
+
+
 def freigeben(anfrage):
     """Sperre aufheben (Import abgebrochen); die Dateien bleiben liegen."""
     if anfrage.ordner:
