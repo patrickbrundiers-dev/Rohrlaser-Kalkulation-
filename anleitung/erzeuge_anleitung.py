@@ -881,8 +881,8 @@ def kapitel_angebote(i):
             "Unterordner im Anfrage-Ordner entfällt. <b>Abbrechen</b> lässt alles liegen und hebt die Sperre auf.",
             "Bei mehreren Arbeitsplätzen einen gemeinsamen Ordner wählen (z. B. auf dem Server); der Pfad gilt je "
             "Arbeitsplatz.")
-    i.text("<b>Anfrageformular</b>: Liegt ein PDF mit Text bei (aus einem ERP oder Word erzeugt, kein Scan), liest "
-           "das Programm beim Öffnen daraus:")
+    i.text("<b>Anfrageformular</b>: Liegt ein PDF mit Text bei (aus einem ERP oder Word erzeugt), liest das "
+           "Programm beim Öffnen daraus:")
     i.liste("die <b>Anfragenummer</b> (nach Wörtern wie <i>Anfrage-Nr.</i>, <i>Anfragenummer</i>, <i>Bestell-Nr.</i>, "
             "<i>Projekt-Nr.</i>, <i>RFQ</i>): sie steht danach im Feld <b>Ihre Anfrage / Zeichen</b>, und der "
             "Unterordner heißt <i>Kunde – Anfragenummer</i>;",
@@ -893,6 +893,16 @@ def kapitel_angebote(i):
             "Formular geht der STEP vor. Eine Zahl ohne <i>Stk</i> ist unsicher erkannt: das Feld Stückzahl im "
             "Prüfdialog ist dann gelb. Teile ohne Treffer behalten die Vorgabe; der Bericht nach dem Import nennt "
             "die Anzahl.")
+    i.text("<b>Scans und Fotos</b>: Ein gescanntes PDF (ohne Text), ein Fax oder ein Handyfoto (JPG, PNG, TIFF) "
+           "liest das Programm mit der mitgelieferten Texterkennung <i>Tesseract</i> (Deutsch und Englisch). Das "
+           "geschieht schon im Hintergrund, sobald die Anfrage in der Liste steht; solange zeigt die Liste "
+           "<i>liest Formular …</i> (etwa 1 bis 3 Sekunden je Seite). Danach gilt alles wie oben, mit zwei "
+           "Unterschieden:")
+    i.liste("Leicht verwechselbare Zeichen (0 und O, 1 und l, 4 und A …) gelten im Artikel als gleich; bei langen "
+            "Artikelnummern darf je 10 Zeichen eines falsch gelesen sein. Eine so gefundene Stückzahl ist immer gelb.",
+            "Zahlen, bei denen sich die Texterkennung selbst unsicher ist, sind ebenfalls gelb.")
+    i.hinweis("Gelbe Stückzahlen im Prüfdialog kurz mit dem Formular vergleichen. Am besten liest die Erkennung "
+              "Scans mit 300 dpi in Schwarzweiß oder Graustufen; schräge Fotos mit Schatten gehen schlechter.")
 
 
 def kapitel_angebot(i):

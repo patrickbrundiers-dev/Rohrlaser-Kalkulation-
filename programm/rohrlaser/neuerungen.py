@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.136", "<b>Scans und Fotos als Anfrageformular</b>: Gescannte PDFs, Faxe und Handyfotos (JPG, PNG, TIFF) "
+                "liest die mitgelieferte Texterkennung Tesseract (Deutsch/Englisch) schon im Hintergrund, die Liste "
+                "zeigt <i>liest Formular …</i>. Anfragenummer, Kunde und Stückzahlen wie beim PDF mit Text; leicht "
+                "verwechselbare Zeichen (0/O, 4/A …) gleichen sich aus, unsichere Mengen sind gelb ([[anfragen]]).",
+     "Scans, Faxe und Fotos als Anfrageformular (Texterkennung Tesseract)."],
     ["0.9.135", "<b>Große STEP-Dateien viel schneller eingelesen</b>: Ab 20 MB lässt der STEP-Import beim Einlesen zwei "
                 "Prüfungen auf sich kreuzende Kanten weg, die mit der Zahl der Bohrungen quadratisch wachsen. Ein Rundrohr "
                 "mit 7.000 Bohrungen wird so in etwa 13 min statt über 80 min eingelesen; "
