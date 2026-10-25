@@ -937,6 +937,28 @@ def main(ziel):
     bereit()
     foto.foto("step_3d", d3, [(d3.ansicht.knoepfe, 1)])
     d3.close()
+    # 3D-Ansichten (3E-11): Leiste, Würfel, Messen mit Kernwerten (Bohrungsmitte zur Kante) und Mess-Tafel
+    from rohrlaser import ansicht3d as a3d, rohr3d, schneidweg as sw_
+    w3 = a3d.Ansicht3DMitKnoepfen()
+    w3.resize(1000, 560)
+    w3.setzen(rohr3d.netz(dict(a={"winkel": 30}, b={}, konturen=[
+        dict(art=sw_.BOHRUNG, anzahl=1, d=10, x=100), dict(art=sw_.LANGLOCH, anzahl=1, l=30, b=10, x=200,
+                                                         seite="vorne")]),
+        dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3"), 300), "QR 40×40×3, 300 mm")
+    w3.show()
+    bereit()
+    a3 = w3.ansicht
+    a3.messen_setzen(True)
+    geo, bp = a3.geometrie(), a3.bildpunkt()
+    kante = max(geo.geraden, key=lambda g: g["laenge"] if abs(g["r"][2]) > 0.99 and g["a"][1] > 15 else 0)
+    for v in (geo.kreise[0]["m"], kante["mitte"]):
+        x, y, _ = bp(v)
+        a3.klicken(x, y)
+    w3.leiste.stand()
+    bereit()
+    foto.foto("ansicht_3d_messen", w3, [(w3.leiste.blick_knopf, 1), (w3.leiste.darstellung, 2),
+                                        (w3.leiste.perspektive, 3), (a3.tafel, 4), (w3.wuerfel, 5)])
+    w3.close()
     reiter_waehlen(s2, "STEP-Protokoll")
     foto.foto("step_protokoll", f, ausschnitt=reiterflaeche(s2))
     s2.optimieren()

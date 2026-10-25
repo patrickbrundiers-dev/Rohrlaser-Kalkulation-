@@ -261,13 +261,26 @@ def netz(e, zs):
         linien.setdefault("B", []).append([c for v, _ in pk for c in _ansicht(v)])
         normalen.setdefault("B", []).append([round(c, 3) for c in _ansicht(pk[4][1])])
         kennung.setdefault("B", []).append(f"biegung:{nr}")
+    # exakte Geometrie für das Messen (Plan 3D-Ansicht 3E-11, M4): Bohrungen mit Mitte, Achse und Ø auf beiden Häuten
+    geo = dict(kreise=[], mitten=[], merkmale={}, rohr={})
+    for z, cx, cy in kontur_mitten(e, zs):
+        kid = f"kontur:{zeile.get(id(z))}"
+        for seite in (1, -1):
+            v, n = haut((cx, cy), seite)
+            m, achse = [round(c, 6) for c in _ansicht(v)], [round(c, 6) for c in _ansicht(n)]
+            if z.get("art") in (sw.BOHRUNG, sw.SENKUNG) and _z(z.get("d")) > 0:
+                geo["kreise"].append(dict(m=m, n=achse, d=_z(z.get("d")), id=kid))
+            elif z.get("art") != sw.TEXT_GRAVUR:
+                geo["mitten"].append(dict(p=m, n=achse, id=kid))
+        geo["merkmale"][kid] = {k: z[k] for k in ("art", "d", "D", "l", "b", "h", "r", "winkel", "x", "y")
+                                if z.get(k) not in (None, "")}
     return dict(p=punkte, t={"BL": dreiecke}, ti={"BL": ["teil"] * (len(dreiecke) // 3)},
                 l={a: [[round(c, 3) for c in zug] for zug in z] for a, z in linien.items()}, ln=normalen,
-                li=kennung, flach=True)
+                li=kennung, flach=True, geo=geo)
 
 
-def konturzuege(e, zs):
-    """Innenkonturen als Linienzüge [(Kontur, [(x, y)])] in der Abwicklung (Lage wie in der Skizze)."""
+def kontur_mitten(e, zs):
+    """Mitte je Innenkontur in der Abwicklung [(Kontur, cx, cy)] (ohne Lage gleichmäßig verteilt wie die Skizze)."""
     lg, br = zs["laenge"], zs["breite"]
     konturen = [z for z in e.get("konturen") or [] if z.get("art")]
     frei = [z for z in konturen if z.get("x") is None or z.get("y") is None]
@@ -275,9 +288,16 @@ def konturzuege(e, zs):
     for z in konturen:
         if z in frei:
             i = frei.index(z)
-            cx, cy = lg * (i + 1) / (len(frei) + 1), br / 2
+            out.append((z, lg * (i + 1) / (len(frei) + 1), br / 2))
         else:
-            cx, cy = _z(z["x"]), _z(z["y"])
+            out.append((z, _z(z["x"]), _z(z["y"])))
+    return out
+
+
+def konturzuege(e, zs):
+    """Innenkonturen als Linienzüge [(Kontur, [(x, y)])] in der Abwicklung (Lage wie in der Skizze)."""
+    out = []
+    for z, cx, cy in kontur_mitten(e, zs):
         art = z.get("art")
         if art in (sw.BOHRUNG, sw.SENKUNG):
             r = _z(z.get("d")) / 2

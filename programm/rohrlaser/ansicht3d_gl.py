@@ -6,6 +6,7 @@ Läuft nur, wenn ein OpenGL-Kontext ab Version 2.0 entsteht und die Shader über
 bei jedem Fehler während des Zeichnens zeichnet die Ansicht wieder mit QPainter (ansicht3d.Ansicht3D). Ohne numpy:
 die Puffer werden mit array('f') gefüllt.
 """
+import math
 from array import array
 
 from PySide6.QtGui import QOffscreenSurface, QOpenGLContext, QPainter, QSurfaceFormat
@@ -14,7 +15,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import Qt
 
 GL_LINES, GL_TRIANGLES, GL_FLOAT = 0x0001, 0x0004, 0x1406
-GL_DEPTH_TEST, GL_LEQUAL, GL_SCISSOR_TEST = 0x0B71, 0x0203, 0x0C11
+GL_DEPTH_TEST, GL_LEQUAL, GL_SCISSOR_TEST, GL_GREATER = 0x0B71, 0x0203, 0x0C11, 0x0204
 GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT = 0x4000, 0x0100
 GL_BLEND, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA = 0x0BE2, 0x0302, 0x0303
 GL_VERSION, GL_RENDERER = 0x1F02, 0x1F01
@@ -38,6 +39,9 @@ uniform float tiefe;
 uniform float linie;
 uniform float blass;    // „nur Gewähltes hervorheben“: Anteil Weiß
 uniform float hg;
+uniform float persp;    // 1 / Kameraabstand (0 = orthogonal)
+uniform float kante;    // Körperkanten: Farbe kfarbe, col.x = Weg längs der Kante [mm] (Strichelung)
+uniform vec3 kfarbe;
 uniform vec3 licht;
 uniform vec3 licht2;
 uniform float grund;
@@ -47,7 +51,9 @@ uniform float glanz;
 uniform float glanz_exp;
 varying vec3 farbe;
 varying float nz;
+varying float weg;
 void main() {
+    weg = col.x;
     if (hg > 0.5) {
         farbe = col;
         nz = 1.0;
@@ -57,29 +63,33 @@ void main() {
     vec3 d = pos - mitte;
     vec3 q = vec3(dot(r0, d), dot(r1, d), dot(r2, d));
     vec3 n = vec3(dot(r0, nrm), dot(r1, nrm), dot(r2, nrm));
-    nz = n.z;
-    vec3 c = mix(col, vec3(1.0, 1.0, 1.0), blass);
+    float w = 1.0 - q.z * persp;   // Tiefe: z / w = -q.z * tiefe / w ist im Bild linear wie bei den Dreiecken
+    nz = dot(n, vec3(-q.x * persp, -q.y * persp, w));      // zum Betrachter (perspektivisch: zur Kamera)
+    vec3 c = mix(mix(col, kfarbe, kante), vec3(1.0, 1.0, 1.0), blass);
     if (linie > 0.5) {
         farbe = c;
     } else {
-        if (n.z < 0.0) n = -n;
+        if (nz < 0.0) n = -n;
         float diff = grund + neigung * n.y + (1.0 - grund) * max(0.0, dot(n, licht))
                      + fuell * max(0.0, dot(n, licht2));
         vec3 h = normalize(licht + vec3(0.0, 0.0, 1.0));
         float spec = glanz * pow(max(0.0, dot(n, h)), glanz_exp);
         farbe = min(c * diff + vec3(spec, spec, spec), vec3(1.0, 1.0, 1.0));
     }
-    gl_Position = vec4(abb.x * q.x + abb.y, abb.z * q.y + abb.w, -q.z * tiefe - linie * 0.002, 1.0);
+    gl_Position = vec4(abb.x * q.x + abb.y * w, abb.z * q.y + abb.w * w, -q.z * tiefe - linie * 0.002 * w, w);
 }
 """
 FRAGMENT = """
 #version 120
 varying vec3 farbe;
 varying float nz;
+varying float weg;
 uniform float linie;
 uniform float alle;     // Durchsichtig: Rückseiten und verdeckte Linien nicht verwerfen
 uniform float alpha;
+uniform float strich;   // > 0: gestrichelt, Striche je mm Weg (Verdeckt gestrichelt)
 void main() {
+    if (strich > 0.0 && mod(weg * strich, 1.0) > 0.55) discard;
     if (alle < 0.5 && (nz < 0.0 || (linie < 0.5 && nz <= 0.0))) discard;     // Rückseiten wie in ansicht3d.zeichnen
     gl_FragColor = vec4(farbe, alpha);
 }
@@ -144,25 +154,27 @@ def puffer_daten(modell, farben, linien_farben, kanten=False):
             linien.extend(n)
             linien.extend(c)
     kante = array("f")
-    if kanten:
-        from .ansicht3d import KANTE
-        c = _farbe(KANTE)
+    if kanten:                  # Farbe aus dem Programm (kfarbe), hier der Weg längs der Kante für die Strichelung
         for a, b, n in modell.kanten():
-            for q in (a, b):
+            lg = math.dist(a, b)
+            for q, w in ((a, 0.0), (b, lg)):
                 kante.extend(q)
                 kante.extend(n)
-                kante.extend(c)
+                kante.extend((w, 0.0, 0.0))
     return dreiecke, linien, kante
 
 
-def abbildung(modell, breite, hoehe, m, zoom, verschiebung):
+def abbildung(modell, breite, hoehe, m, zoom, verschiebung, persp=0.0):
     """Maßstab und Mitte des Bildes wie ansicht3d.zeichnen, aus den 8 Ecken des Hüllquaders (schnell; das
-    QPainter-Bild nimmt alle Punkte, das Bild ist hier höchstens etwas kleiner)."""
+    QPainter-Bild nimmt alle Punkte, das Bild ist hier höchstens etwas kleiner). persp: 1 / Kameraabstand."""
     cx, cy, cz = modell.mitte
     ecken = [(x - cx, y - cy, z - cz) for x in (modell.min[0], modell.max[0]) for y in (modell.min[1], modell.max[1])
              for z in (modell.min[2], modell.max[2])]
-    bx = max(abs(m[0][0] * x + m[0][1] * y + m[0][2] * z) for x, y, z in ecken) * 2 or 1
-    by = max(abs(m[1][0] * x + m[1][1] * y + m[1][2] * z) for x, y, z in ecken) * 2 or 1
+
+    def f(x, y, z):
+        return 1.0 / (1.0 - (m[2][0] * x + m[2][1] * y + m[2][2] * z) * persp) if persp else 1.0
+    bx = max(abs(m[0][0] * x + m[0][1] * y + m[0][2] * z) * f(x, y, z) for x, y, z in ecken) * 2 or 1
+    by = max(abs(m[1][0] * x + m[1][1] * y + m[1][2] * z) * f(x, y, z) for x, y, z in ecken) * 2 or 1
     massstab = zoom * 0.9 * min(breite / bx, hoehe / by)
     return massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
 
@@ -181,6 +193,7 @@ class GLFlaeche(QOpenGLWidget):
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.prog, self.puffer, self._modell, self.fehler = None, {}, None, None
         self.puffer_hg = None
+        self.puffer_umriss = None
         self._kanten = False
 
     def initializeGL(self):
@@ -281,42 +294,94 @@ class GLFlaeche(QOpenGLWidget):
         modell = a.modell
         if modell is None:
             return
-        kanten = a.darstellung == ansicht3d.MIT_KANTEN
+        dar = a.darstellung
+        kanten = dar in ansicht3d.MIT_KOERPERKANTEN
         if modell is not self._modell or kanten != self._kanten:
             self._hochladen(modell, kanten)
-        roentgen = a.darstellung == ansicht3d.DURCHSICHTIG
+        roentgen = dar == ansicht3d.DURCHSICHTIG
+        draht = dar == ansicht3d.DRAHTGITTER
+        strich = dar == ansicht3d.VERDECKT
         m = ansicht3d._drehung(a.gier, a.nick)
         w, hh = max(1, self.width()), max(1, self.height())
-        s, ox, oy = abbildung(modell, w, hh, m, a.zoom, a.versatz)
+        pz = ansicht3d.persp_faktor(modell, a.perspektive)
+        s, ox, oy = abbildung(modell, w, hh, m, a.zoom, a.versatz, pz)
         fn.glEnable(GL_DEPTH_TEST)
         fn.glDepthFunc(GL_LEQUAL)
         pr = self.prog
         pr.bind()
+
+        def wert1(name, v):
+            # einzelne Zahlen ausdrücklich als float (setUniformValue nimmt sonst glUniform1i: GL-Fehler, Wert bleibt 0)
+            pr.setUniformValue1f(pr.uniformLocation(name), float(v))
         for name, wert in (("r0", m[0]), ("r1", m[1]), ("r2", m[2]), ("mitte", modell.mitte),
-                           ("licht", ansicht3d.LICHT), ("licht2", ansicht3d.LICHT2)):
+                           ("licht", ansicht3d.LICHT), ("licht2", ansicht3d.LICHT2),
+                           ("kfarbe", _farbe(ansicht3d.KANTE))):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
         for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp"), ansicht3d.LICHT_WERTE):
-            pr.setUniformValue1f(pr.uniformLocation(name), float(wert))
+            wert1(name, wert)
         pr.setUniformValue(pr.uniformLocation("abb"), 2 * s / w, 2 * ox / w - 1, 2 * s / hh, 1 - 2 * oy / hh)
-        # einzelne Zahlen ausdrücklich als float (setUniformValue nimmt sonst glUniform1i: GL-Fehler, Wert bleibt 0)
-        pr.setUniformValue1f(pr.uniformLocation("tiefe"), 1.0 / max(1e-6, modell.groesse))
-        pr.setUniformValue1f(pr.uniformLocation("blass"), ansicht3d.BLASS if a.blass() else 0.0)
-        pr.setUniformValue1f(pr.uniformLocation("alle"), 1.0 if roentgen else 0.0)
+        wert1("tiefe", 1.0 / max(1e-6, modell.groesse))
+        wert1("persp", pz)
+        blass = ansicht3d.BLASS if a.blass() else 0.0
+        wert1("alle", 1.0 if roentgen or draht else 0.0)
+        wert1("strich", 0.0)
+        wert1("kante", 0.0)
         if roentgen:            # Röntgen: Flächen halb durchsichtig ohne Tiefenpuffer, Linien darüber
             fn.glEnable(GL_BLEND)
             fn.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
             fn.glDepthMask(False)
+        if draht:               # Drahtgitter: alle Kanten und Konturen, ohne Verdeckung
+            fn.glDisable(GL_DEPTH_TEST)
+        naht = set(modell.arten) & set(ansicht3d.NAEHTE)
         for name, art, ist_linie in (("dreiecke", GL_TRIANGLES, 0.0), ("kanten", GL_LINES, 1.0),
                                      ("linien", GL_LINES, 1.0)):
-            if name not in self.puffer:
+            if name not in self.puffer or (draht and name == "dreiecke"):
                 continue
             b, n = self.puffer[name]
-            pr.setUniformValue1f(pr.uniformLocation("linie"), ist_linie)
-            pr.setUniformValue1f(pr.uniformLocation("alpha"), ansicht3d.ALPHA if roentgen and not ist_linie else 1.0)
+            wert1("linie", ist_linie)
+            wert1("kante", 1.0 if name == "kanten" else 0.0)
+            wert1("blass", max(blass, ansicht3d.VERDECKT_HELL) if strich and name == "dreiecke" else blass)
+            wert1("alpha", ansicht3d.ALPHA if roentgen and not ist_linie else 1.0)
             if ist_linie:
-                fn.glLineWidth(1.1 if name == "kanten" else
-                               ansicht3d.NAHT_BREITE if set(modell.arten) & set(ansicht3d.NAEHTE) else 2.2)
+                fn.glLineWidth(1.1 if name == "kanten" else ansicht3d.NAHT_BREITE if naht else 2.2)
             self._puffer_zeichnen(pr, b, art, n, fn)
+        if draht or strich:     # Umriss der Rundungen hängt von der Blickrichtung ab: je Bild neu
+            daten = array("f")
+            for p0, p1, _ in ansicht3d.umriss(modell, m, pz):
+                for q in (p0, p1):
+                    daten.extend(q)
+                    daten.extend((0.0, 0.0, 1.0))
+                    daten.extend((0.0, 0.0, 0.0))
+            if daten:
+                if self.puffer_umriss is None:
+                    self.puffer_umriss = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
+                    self.puffer_umriss.create()
+                b = self.puffer_umriss
+                b.bind()
+                roh = daten.tobytes()
+                b.allocate(roh, len(roh))
+                b.release()
+                wert1("linie", 1.0)
+                wert1("kante", 1.0)
+                wert1("alle", 1.0)
+                wert1("blass", blass)
+                fn.glLineWidth(1.1)
+                self._puffer_zeichnen(pr, b, GL_LINES, len(daten) // 9, fn)
+        if strich and "kanten" in self.puffer:      # verdeckte Kanten: hinter den Flächen, hell und gestrichelt
+            b, n = self.puffer["kanten"]
+            fn.glDepthFunc(GL_GREATER)
+            fn.glDepthMask(False)
+            pr.setUniformValue(pr.uniformLocation("kfarbe"), *_farbe(ansicht3d.VERDECKT_FARBE))
+            wert1("alle", 1.0)
+            wert1("kante", 1.0)
+            wert1("linie", 1.0)
+            wert1("blass", blass)
+            wert1("strich", s / 7.0)            # ein Strich je 7 px
+            fn.glLineWidth(1.0)
+            self._puffer_zeichnen(pr, b, GL_LINES, n, fn)
+            wert1("strich", 0.0)
+            fn.glDepthMask(True)
+            fn.glDepthFunc(GL_LEQUAL)
         pr.release()
         if roentgen:
             fn.glDepthMask(True)

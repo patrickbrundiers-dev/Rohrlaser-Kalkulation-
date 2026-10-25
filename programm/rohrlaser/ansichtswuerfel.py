@@ -9,30 +9,17 @@ Normale genau zum Betrachter dreht.
 import itertools
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 from . import stil
-from .ansicht3d import _drehung
+from .ansicht3d import NICK_MAX, _drehung, blick_auf  # noqa: F401 (blick_auf für Aufrufer)
 
 GROESSE = 96
 # Flächen: (Name, Normale im Modell)
 FLAECHEN = (("A", (0, 0, -1)), ("B", (0, 0, 1)), ("oben", (0, 1, 0)), ("unten", (0, -1, 0)),
             ("vorne", (-1, 0, 0)), ("hinten", (1, 0, 0)))
-NICK_MAX = 1.5          # wie der Knopf „Oben“: nie ganz senkrecht (Drehung um die Blickachse bliebe unbestimmt)
-
-
-def blick_auf(normale):
-    """(gier, nick), damit die Modellrichtung normale zum Betrachter zeigt."""
-    nx, ny, nz = normale
-    betrag = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-    nx, ny, nz = nx / betrag, ny / betrag, nz / betrag
-    a, b = nz, -nx                 # Grundstellung (x, y, z) -> (z, y, -x)
-    r = math.hypot(a, b)
-    gier = math.atan2(-a, b) if r > 1e-9 else 0.0
-    nick = max(-NICK_MAX, min(NICK_MAX, math.atan2(ny, r)))
-    return gier, nick
 
 
 def flaechen_bild(gier, nick, groesse=GROESSE):
@@ -161,3 +148,22 @@ class Ansichtswuerfel(QWidget):
         n = treffer(*self._lage(), x, y)
         if n is not None:
             self.blick.emit(*blick_auf(n))
+
+
+class _Groesse(QObject):
+    """Würfel bei jeder Größenänderung der 3D-Ansicht in die Ecke setzen."""
+
+    def __init__(self, wuerfel):
+        super().__init__(wuerfel)
+        self.wuerfel = wuerfel
+
+    def eventFilter(self, obj, ereignis):
+        if ereignis.type() in (QEvent.Resize, QEvent.Show):
+            self.wuerfel.anordnen()
+        return False
+
+
+def an_ecke(wuerfel):
+    """Würfel oben rechts in seiner Ansicht halten."""
+    wuerfel.ansicht.installEventFilter(_Groesse(wuerfel))
+    wuerfel.anordnen()
