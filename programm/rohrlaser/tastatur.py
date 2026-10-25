@@ -5,7 +5,7 @@ Seite sie ausführt, richtet sich nach der Stelle mit dem Eingabefokus: Seiten n
 KUERZEL = {Name: Methodenname oder (Methodenname, Attribut der Tabelle, in der der Fokus stehen muss)}.
 In Textfeldern behalten Strg+Z, Strg+C, Strg+V, Strg+X, Entf usw. ihre gewohnte Wirkung im Text.
 """
-from PySide6.QtCore import QSortFilterProxyModel, Qt
+from PySide6.QtCore import QEvent, QObject, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import QAbstractItemView
 
@@ -43,6 +43,9 @@ UEBERSICHT = [
                "übrigen)", "Positionsliste"),
     ("Eingabe", "Markiertes Angebot öffnen", "Angebote"),
     ("Esc", "Eingabe abbrechen; im Suchfeld: Suche leeren", "Tabellen, Suchfelder"),
+    ("Esc", "Fenster Abwicklung bzw. Querschnitt schließen, der Editor bleibt offen", "Teile-Editor"),
+    ("Enter", "Eingabe im Feld bestätigen (schließt den Editor nicht; übernehmen mit dem Knopf unten)",
+     "Teile-Editor, Baugruppe, Satz in 3D"),
     ("Strg+W", "Geöffnetes Angebot schließen (auch Strg+F4)", "geöffnetes Angebot"),
     ("Strg+Tab", "Nächster Hauptreiter, z. B. zum nächsten offenen Angebot (Strg+Umschalt+Tab: vorheriger)",
      "überall"),
@@ -147,3 +150,24 @@ def suche_esc(feld):
     k = QShortcut(QKeySequence(Qt.Key_Escape), feld, feld.clear)
     k.setContext(Qt.WidgetShortcut)
     return k
+
+
+class _EnterSperre(QObject):
+    def eventFilter(self, obj, e):
+        if obj is self.parent() and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Return, Qt.Key_Enter):
+            e.accept()
+            return True         # Eingabe bestätigt nur das Feld, nicht den Dialog
+        return False
+
+
+def enter_sperren(dialog):
+    """Editor-Fenster (Rohr, Blech, Baugruppe, Satz): Enter nach einer Eingabe schließt das Fenster nicht mehr
+    (Patrick 25.10.2026). Qt drückt sonst den Standardknopf (OK); geschlossen wird nur noch per Knopf.
+    Enter in Tabellen, Listen und beim Zeichnen wirkt weiter, weil diese Felder die Taste selbst verbrauchen."""
+    from PySide6.QtWidgets import QPushButton
+    for b in dialog.findChildren(QPushButton):
+        b.setAutoDefault(False)
+        b.setDefault(False)
+    sperre = _EnterSperre(dialog)
+    dialog.installEventFilter(sperre)
+    return sperre

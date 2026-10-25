@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import baugruppe, baugruppe_vorschlaege as bv, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
-    vorkalk
+    tastatur, vorkalk
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
@@ -1727,6 +1727,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
+        tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
         if self.vk_auto.isChecked() and not nur_lesen:
             self.vorkalkulation()

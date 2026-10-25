@@ -2726,9 +2726,16 @@ def kapitel_optimieren(i):
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
            "<b>Eigenschaften</b> des gewählten Merkmals, unten Kennzahlen und <b>Prüfmeldungen</b>. Das Fenster öffnet "
            "immer im Vollbild (maximiert). Ein Klick auf "
-           "ein Merkmal, eine Meldung oder eine Kontur im 3D zeigt die Stelle überall.", kurz=True)
+           "ein Merkmal, eine Meldung oder eine Kontur im 3D zeigt die Stelle überall. Der Knopf <b>Abwicklung</b> "
+           "oben rechts im Menüband zeigt die Abwicklung groß in einem eigenen Fenster; <b>Esc</b> schließt nur "
+           "dieses Fenster, der Editor bleibt offen. <b>Enter</b> bestätigt eine Eingabe und schließt den Editor "
+           "nicht; übernommen wird nur mit dem Knopf unten.", kurz=True)
     i.genauer()
-    i.liste("<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
+    i.liste("<b>Abwicklung</b> (oben rechts, auf jedem Reiter sichtbar): beim Rohr der aufgerollte Umfang mit allen "
+            "Konturen (ausgeschnitten), beim Blech der Zuschnitt mit Biegelinien. Das Fenster folgt jeder Eingabe, "
+            "Klick wählt eine Kontur, Ziehen verschiebt sie, Mausrad zoomt, Doppelklick passt ein. Größe und Lage "
+            "merkt sich das Programm. Enter schließt auch die Fenster Baugruppe und Satz in 3D nicht mehr.",
+            "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
             "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen, DXF importieren "
