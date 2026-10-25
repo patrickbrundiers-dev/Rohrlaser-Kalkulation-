@@ -46,7 +46,7 @@ class DxfImportDialog(QDialog):
         self.einst = db.blech_einstellungen() if db else {}
         try:
             self.text = text if text is not None else di.datei_lesen(pfad)
-            self.erg = di.importieren(self.text, self.dateiname, self._namen())
+            self.erg = di.importieren(self.text, self.dateiname, self._namen(), **self._optionen())
         except (OSError, ValueError) as x:
             self.fehler = str(x)
             return
@@ -59,8 +59,8 @@ class DxfImportDialog(QDialog):
             self.werkstoff_vorschlag = next(iter(sorted(self.werkstoffe)), None)
         self.dicke_vorschlag = (self.erg["dicke"] or vorgabe.get("dicke")
                                 or (db.einstellung("dxf_import_dicke") if db else None) or 3.0)
-        self.quelle = ("aus Dateiname/DXF" if gefunden or self.erg["dicke"]
-                       else "wie zuletzt")
+        self.quelle = ("aus Seitenansicht" if self.erg.get("dicke_quelle") == "Seitenansicht" and not gefunden
+                       else "aus Dateiname/DXF" if gefunden or self.erg["dicke"] else "wie zuletzt")
         self.setWindowTitle(f"DXF importieren – {self.dateiname}")
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
@@ -147,6 +147,14 @@ class DxfImportDialog(QDialog):
     def _namen(self):
         return dxf.layer_namen(self.db.einstellung("blech_dxf_layer") if self.db else None)
 
+    def _optionen(self):
+        """Weitere Layer ohne Schnitt und Grenze für Splitter aus den Einstellungen."""
+        if not self.db:
+            return {}
+        s_ = self.db.einstellung("dxf_splitter")
+        return dict(weg=di.weg_worte(self.db.einstellung("dxf_weg_layer")),
+                    splitter=di.SPLITTER if s_ in (None, "") else sw._z(s_))
+
     # -------------------------------------------------------------- Teile
     def _teile_setzen(self):
         self.zustand = []
@@ -168,9 +176,12 @@ class DxfImportDialog(QDialog):
         self.liste.blockSignals(False)
         teile = len(self.erg["teile"])
         quelle = self.erg.get("massstab_quelle")
+        rohr = bool(self.erg.get("rohr"))
         self.info.setText(f"<b>{teile} Teil{'e' if teile != 1 else ''}</b> in {self.dateiname}"
                           + (f" · Maßstab aus {quelle}" if quelle else "")
-                          + "".join(f"<br><span style='color:#595959'>{w}</span>" for w in self.erg["warnungen"]))
+                          + "".join(f"<br><b style='color:#B26A00'>{w}</b>" if rohr and i == 0 else
+                                    f"<br><span style='color:#595959'>{w}</span>"
+                                    for i, w in enumerate(self.erg["warnungen"])))
         self._aktuell = None
         if teile:
             self.liste.setCurrentRow(0)
@@ -182,7 +193,7 @@ class DxfImportDialog(QDialog):
         if not f or abs(f - self.erg["massstab"]) < 1e-9:
             return
         try:
-            self.erg = di.importieren(self.text, self.dateiname, self._namen(), massstab=f)
+            self.erg = di.importieren(self.text, self.dateiname, self._namen(), massstab=f, **self._optionen())
         except ValueError:
             return
         self._teile_setzen()

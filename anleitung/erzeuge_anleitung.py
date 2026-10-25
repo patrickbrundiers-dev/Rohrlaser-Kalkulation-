@@ -3338,13 +3338,23 @@ def kapitel_zukauf_angebot(i):
             "genau diese Form hat; sonst bleibt sie die Originalkontur (Polygon). Schnittlänge, Fläche, Skizze, 3D "
             "und DXF-Export rechnen mit den Bögen.",
             "<b>Was erkannt wird</b>: Linien, Bögen, Kreise, Polylinien, Ellipsen, Splines und Blöcke; Einheit (mm, "
-            "Zoll) aus der Datei. Ausgeblendete Layer, Bemaßung, Mittel- und Hilfslinien fallen weg. Layer mit GRAV "
+            "Zoll) aus der Datei. Ausgeblendete Layer, Bemaßung (auch Layer MASSE), verdeckte Kanten, Schraffur, "
+            "Mittel- und Hilfslinien fallen weg; weitere Layer ohne Schnitt stehen in der Einstellung <i>DXF-Import: "
+            "weitere Layer ohne Schnitt</i>. Layer mit GRAV "
             "oder MARK im Namen (bzw. der Layer Gravur aus der Einstellung DXF-Layer) werden graviert, Texte darauf "
             "werden Text-Gravur. Offene Schnittlinien kommen als sonstige Kontur mit ihrer Länge und einem Hinweis.",
             "<b>Zeichenblatt</b>: Rahmen und Schriftfeld werden erkannt und nicht übernommen. Liegen mehrere Bleche "
             "auf einer Zeichnung, zeigt das Fenster jedes mit Vorschaubild und Haken; ein Kästchen mit Text (z. B. "
             "aus dem Schriftfeld) ist nicht angehakt. Den <b>Maßstab</b> schlägt das Programm aus der Bemaßung oder "
             "dem Schriftfeld vor (z. B. M 1:2); ändern liest die Datei neu.",
+            "<b>Ansichten</b>: Zeigt die Zeichnung ein Blech in mehreren Ansichten, wird nur die Abwicklung "
+            "angehakt. Die <b>Seitenansicht</b> (schmaler Streifen so lang wie das Blech) liefert die Dicke, die "
+            "<b>Isometrie</b> (Kanten unter 30°) ist nicht angehakt. Teile kleiner als 5 mm (Maßpfeile, Splitter; "
+            "Grenze in der Einstellung <i>DXF-Import: Teile kleiner als</i>) und Konturen mit offenen Linien sind "
+            "ebenfalls nicht angehakt; der Grund steht unter dem Namen, und man kann sie wieder anhaken.",
+            "<b>Rohrzeichnung</b>: Ist auf der Zeichnung ein Rohr (Schnitt mit gleichmäßiger Wand und eine Ansicht "
+            "gleicher Breite), meldet das Fenster das Rohr mit Profil und Länge (z. B. <i>QR 40 × 40 × 3, Länge "
+            "150 mm</i>) und übernimmt nichts als Blech.",
             "<b>Werkstoff und Dicke</b> stehen meist nicht als Wert in der DXF: Vorschlag aus dem Dateinamen (z. B. "
             "Halter_3mm_1.4301.dxf), sonst aus Texten der Zeichnung (t=3, 3 mm, S235, V2A), sonst wie beim letzten "
             "Import. Je Teil sind Bezeichnung, Werkstoff, Dicke und Stückzahl änderbar.",
@@ -4333,6 +4343,11 @@ def kapitel_einstellungen(i):
          "Layer der DXF-Datei aus dem Blech-Editor in dieser Reihenfolge, mit ; getrennt (leer = Vorgabe "
          "AUSSENKONTUR, INNENKONTUR, BIEGUNG_HOCH, BIEGUNG_RUNTER, GRAVUR, BESCHRIFTUNG); Biegelinien ausgeben "
          "Vorgabe ja ([[blech_dxf]])."],
+        ["Blech-Richtpreis", "DXF-Import: weitere Layer ohne Schnitt, DXF-Import: Teile kleiner als [mm] nicht "
+                             "anhaken",
+         "Layernamen oder Wortteile mit ; getrennt, deren Linien beim DXF-Import nicht geschnitten werden (MASSE, "
+         "VERDECKT, SCHRAFFUR, RAHMEN, TEXT und Bemaßung sind immer dabei); Teile unter der Grenze (Vorgabe 5 mm, "
+         "0 = aus) sind nicht angehakt ([[dxf_import]])."],
         ["Blech-Richtpreis", "Kantbarkeit: V-Öffnung = Faktor × Blechdicke, Kantbarkeit: kleinstes "
                              "Schenkel-Außenmaß = Faktor × V-Öffnung, Kantbarkeit: Abstand Innenkontur–Biegelinie "
                              "mindestens Innenradius + Faktor × Dicke, Kantbarkeit: kleinster Innenradius = Faktor × "

@@ -15,7 +15,7 @@ Hier nur die Rechnung (ohne Oberfläche); das Fenster ist dxf_import_dialog.DxfI
 import math
 import re
 
-from . import blech, dxf, schneidweg as sw
+from . import blech, dxf, dxf_ansichten as da, schneidweg as sw
 
 TOL = 0.05              # mm: Lücke, die beim Verketten noch als geschlossen gilt
 FORM_TOL = 0.01         # mm: so genau muss eine Kontur Kreis, Langloch oder Rechteck sein
@@ -24,7 +24,10 @@ EINHEITEN = {0: 1.0, 1: 25.4, 2: 304.8, 4: 1.0, 5: 10.0, 6: 1000.0, 8: 0.0000254
 GRAVUR_WORTE = ("GRAV", "MARK", "ETCH", "SIGN", "BESCHRIFTUNG_LASER")
 BIEGE_WORTE = ("BIEG", "BEND", "KANT", "FOLD")
 RUNTER_WORTE = ("RUNTER", "DOWN", "UNTEN", "NEG")
-WEG_WORTE = ("BEMA", "DIM", "HILF", "MITTEL", "CENTER", "ACHS", "RAHMEN", "SCHRIFTFELD", "TITLE", "DEFPOINTS")
+WEG_WORTE = ("BEMA", "DIM", "HILF", "MITTEL", "CENTER", "ACHS", "RAHMEN", "SCHRIFTFELD", "TITLE", "DEFPOINTS",
+             "MASSE", "MASS_", "MASSLIN", "MASSHILF", "MASZ", "VERDECK", "HIDDEN", "SCHRAFF", "HATCH", "BORDER",
+             "FRAME", "TEXT")      # Maße, verdeckte Kanten, Schraffur, Rahmen, Texte (Patrick 25.10.2026, B3)
+SPLITTER = 5.0          # mm: kleinere Teile (Maßpfeile, Splitter) nicht anhaken (Einstellung dxf_splitter)
 STRICH_LINIEN = ("CENTER", "DASH", "HIDDEN", "PHANTOM", "STRICH", "DIVIDE", "DOT")
 
 
@@ -664,10 +667,16 @@ def _hat(name, worte):
     return any(w in n for w in worte)
 
 
-def layer_art(name, namen=None):
-    """'gravur', 'biegung', 'runter' (Biegung nach unten), 'text', 'weg' oder 'schnitt'."""
+def weg_worte(text):
+    """Weitere Layernamen bzw. Wortteile aus der Einstellung dxf_weg_layer (mit ; oder , getrennt)."""
+    return tuple(w.strip().upper() for w in str(text or "").replace(",", ";").split(";") if w.strip())
+
+
+def layer_art(name, namen=None, weg=()):
+    """'gravur', 'biegung', 'runter' (Biegung nach unten), 'text', 'weg' oder 'schnitt'. weg: weitere Wortteile von
+    Layern, die nicht geschnitten werden (Einstellung dxf_weg_layer)."""
     namen = namen or dxf.layer_namen()
-    n = (name or "").upper()
+    n = (name or "").upper()                   # „Maße“ -> „MASSE“
     if n == namen[dxf.GRAVUR] or _hat(n, GRAVUR_WORTE):
         return "gravur"
     if n == namen[dxf.RUNTER] or (_hat(n, BIEGE_WORTE) and _hat(n, RUNTER_WORTE)):
@@ -676,7 +685,7 @@ def layer_art(name, namen=None):
         return "biegung"
     if n == namen[dxf.TEXT]:
         return "text"
-    if _hat(n, WEG_WORTE):
+    if _hat(n, WEG_WORTE) or _hat(n, weg):
         return "weg"
     return "schnitt"
 
@@ -831,10 +840,13 @@ def _teile(konturen, texte, offene):
 
 
 # ------------------------------------------------------------------ Gesamt
-def importieren(text, dateiname="", namen=None, massstab=None):
+def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=SPLITTER):
     """DXF-Text -> dict(teile [dict(e, name, zusammenfassung, warnungen, biegelinien, aktiv, grund)], texte (alle
-    Texte), warnungen, dicke (Vorschlag), massstab, massstab_quelle, rahmen (Anzahl)). massstab None: Vorschlag aus
-    Bemaßung bzw. Schriftfeld."""
+    Texte), warnungen, dicke (Vorschlag), dicke_quelle, massstab, massstab_quelle, rahmen (Anzahl), rohr (dict aus
+    dxf_ansichten.rohr_erkennen oder None)). massstab None: Vorschlag aus Bemaßung bzw. Schriftfeld. weg: weitere
+    Layer, die nicht geschnitten werden; splitter: kleinere Teile [mm] nicht anhaken.
+    Ansichten (dxf_ansichten): Teile in einer Isometrie oder Seitenansicht und Teile einer Rohrzeichnung sind nicht
+    angehakt (mit Grund), die Dicke kommt sonst aus der Seitenansicht."""
     roh = roh_lesen(text)
     roh["entitaeten"] = _polylinien_zusammen(roh["entitaeten"])
     roh["bloecke"] = {n: (b, _polylinien_zusammen(ents)) for n, (b, ents) in roh["bloecke"].items()}
@@ -849,7 +861,7 @@ def importieren(text, dateiname="", namen=None, massstab=None):
     texte = [el for el in els if el[0] == "T"]
     schnitt, gravur, biegung, kreise, gravtexte = [], [], [], [], []
     for el in els:
-        art = layer_art(el[1], namen)
+        art = layer_art(el[1], namen, weg)
         if art == "weg":
             continue
         if el[0] == "T":
@@ -868,14 +880,17 @@ def importieren(text, dateiname="", namen=None, massstab=None):
             (kreise if art == "schnitt" else gravur).append(("K", el[2], el[3]))
         elif math.dist(el[2], el[3]) > 1e-9:
             (schnitt if art == "schnitt" else gravur).append((el[2], el[3], el[4], el[1]))
+    schnitt = _ohne_doppelte(schnitt)
     zuege = verketten(schnitt)
     offen = [z for z in zuege if not z.geschlossen and z.laenge() > TOL]
-    konturen = [_Kontur(z) for z in zuege if z.geschlossen] + \
+    # geschlossene Züge ohne Fläche (Linie hin und zurück, z. B. aus Ansichten anderer CAD-Programme) fallen weg
+    konturen = [_Kontur(z) for z in zuege if z.geschlossen and abs(z.flaeche) > 1e-6] + \
         [_Kontur(Zug("K", [(c[0] + r, c[1]), (c[0] - r, c[1])], [1.0, 1.0], True)) for _, c, r in kreise]
     if not konturen:
         raise DxfFehler("In der DXF wurde keine geschlossene Außenkontur gefunden.")
-    text_punkte = [t[2] for t in texte if layer_art(t[1], namen) != "gravur"]
+    text_punkte = [t[2] for t in texte if layer_art(t[1], namen, weg) != "gravur"]
     gefunden, n_rahmen = _teile(konturen, text_punkte, offen)
+    ansichten, rohr = _ansichten(schnitt, kreise, gefunden)
     stamm = re.sub(r"\.dxf$", "", str(dateiname or "").replace("\\", "/").split("/")[-1], flags=re.IGNORECASE)
     teile = []
     for nr, (k, innen, grund) in enumerate(gefunden, 1):
@@ -886,7 +901,8 @@ def importieren(text, dateiname="", namen=None, massstab=None):
                   [g for g in gravtexte if drin(g[2])], [b for b in biegung if k.enthaelt(b[0]) or k.enthaelt(b[1])
                                                           or k.enthaelt(((b[0][0] + b[1][0]) / 2,
                                                                          (b[0][1] + b[1][1]) / 2))])
-        beschr = [x[5] for x in texte if layer_art(x[1], namen) != "gravur" and k.enthaelt(x[2])]
+        beschr = [x[5] for x in texte if layer_art(x[1], namen, weg) != "gravur" and k.enthaelt(x[2])]
+        grund = grund or _grund(k, ansichten, rohr, t, splitter)
         t.update(name=(beschr[0] if len(beschr) == 1 and len(beschr[0]) <= 40 else
                        (stamm or "DXF") + (f" Teil {nr}" if len(gefunden) > 1 else "")),
                  aktiv=grund is None, grund=grund)
@@ -898,8 +914,81 @@ def importieren(text, dateiname="", namen=None, massstab=None):
     if rest:
         warn.append(f"{rest} offene Linie{'n' if rest > 1 else ''} außerhalb der Teile (Schriftfeld, Hilfslinien) "
                     "nicht übernommen.")
-    return dict(teile=teile, texte=texte0, warnungen=warn, dicke=dicke_aus([dateiname] + texte0),
-                massstab=massstab, massstab_quelle=quelle, rahmen=n_rahmen)
+    if rohr:
+        warn.insert(0, f"Die Zeichnung zeigt ein Rohr ({rohr['text']}), kein Blech: als Blech wird nichts "
+                       "übernommen. Den Import von Rohrzeichnungen bringt Schritt 3E-12.")
+    n_iso = sum(1 for a in ansichten if a.iso)
+    if n_iso and not rohr:
+        warn.append(f"Isometrische Ansicht erkannt ({n_iso}×): ihre Konturen sind nicht angehakt.")
+    dicke, d_quelle = dicke_aus([dateiname] + texte0), "Text"
+    seiten = sorted({a.seitenansicht for a in ansichten if a.seitenansicht})
+    if dicke is None and len(seiten) == 1 and not rohr:
+        dicke, d_quelle = seiten[0], "Seitenansicht"
+    return dict(teile=teile, texte=texte0, warnungen=warn, dicke=dicke, dicke_quelle=d_quelle if dicke else None,
+                massstab=massstab, massstab_quelle=quelle, rahmen=n_rahmen, rohr=rohr)
+
+
+def _ohne_doppelte(schnitt):
+    """Gleiche Strecke doppelt (auch umgekehrt, auf 0,001 mm) nur einmal."""
+    gesehen, out = set(), []
+    for el in schnitt:
+        p, q, b = (round(el[0][0], 3), round(el[0][1], 3)), (round(el[1][0], 3), round(el[1][1], 3)), round(el[2], 6)
+        k = (p, q, b) if (p, q) <= (q, p) else (q, p, -b)
+        if k not in gesehen:
+            gesehen.add(k)
+            out.append(el)
+    return out
+
+
+def _ansichten(schnitt, kreise, gefunden):
+    """Ansichten der Zeichnung (dxf_ansichten) aus allen Schnittlinien und Kreisen und die Rohrerkennung aus den
+    gefundenen Teilen mit genau einer Innenkontur."""
+    strecken = []
+    for p, q, b, _l in schnitt:
+        if b:
+            zug = [p] + sw.bogen_punkte(p, q, b)
+            strecken += list(zip(zug, zug[1:]))
+        else:
+            strecken.append((p, q))
+    ansichten = da.seitenansichten(da.gruppen(strecken, [(c, r) for _, c, r in kreise]))
+    querschnitte = []
+    for k, innen, grund in gefunden:
+        if grund is None and len(innen) == 1:
+            qs = da.rohr_querschnitt(dict(bb=k.bb, rund=_rund_kontur(k)), dict(bb=innen[0].bb, rund=_rund_kontur(innen[0])))
+            ans = _ansicht_von(k, ansichten)
+            if qs and ans is not None and not ans.iso:
+                querschnitte.append((ans, qs))
+    return ansichten, da.rohr_erkennen(querschnitte, ansichten)
+
+
+def _rund_kontur(k):
+    """Kreis (Kreis-Element oder alle Punkte gleich weit von der Mitte)?"""
+    if k.zug.layer == "K":
+        return True
+    cx, cy = (k.bb[0] + k.bb[2]) / 2, (k.bb[1] + k.bb[3]) / 2
+    r = [math.hypot(x - cx, y - cy) for x, y in k.dicht]
+    return bool(r) and max(r) - min(r) <= max(0.05, 0.01 * max(r))
+
+
+def _ansicht_von(k, ansichten):
+    p = ((k.bb[0] + k.bb[2]) / 2, (k.bb[1] + k.bb[3]) / 2)
+    return next((a for a in ansichten if a.enthaelt(p)), None)
+
+
+def _grund(k, ansichten, rohr, t, splitter):
+    """Warum ein gefundenes Teil nicht angehakt wird (Patrick 25.10.2026 B1, B2, B4) oder None."""
+    if rohr:
+        return "Rohrzeichnung, kein Blech"
+    ans = _ansicht_von(k, ansichten)
+    if ans is not None and ans.iso:
+        return "Isometrie, keine Abwicklung"
+    if ans is not None and ans.seitenansicht:
+        return f"Seitenansicht (Dicke {_zahl(ans.seitenansicht, 2)} mm)"
+    if splitter and max(k.bb[2] - k.bb[0], k.bb[3] - k.bb[1]) < splitter:
+        return f"kleiner als {_zahl(splitter, 1)} mm (Maßpfeil, Splitter?)"
+    if any(x["art"] == sw.SONSTIGE and x.get("linien") for x in t["e"]["konturen"]):
+        return "offene Linien in der Kontur, bitte prüfen"
+    return None
 
 
 def _teil(aussen, innen, offen, gravur, gravtexte, biegung):
