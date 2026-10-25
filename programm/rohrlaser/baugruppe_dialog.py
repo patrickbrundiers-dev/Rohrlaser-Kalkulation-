@@ -344,7 +344,86 @@ class SteckEditor:
             v.pop(k, None)
             if z.get("_" + k) is False:
                 v[k] = False
+        if str(v.get("marke") or "").strip():       # Montagemarke: Höhe wie die Artikelnummer-Gravur
+            v["marke"] = str(v["marke"]).strip()
+            v.setdefault("marke_h", self._marke_hoehe())
+        else:
+            v.pop("marke", None)
+            v.pop("marke_h", None)
         return v
+
+    def _marke_hoehe(self):
+        try:
+            return float(self.einstellungen.get("gravur_schrifthoehe") or steckverbindung.MARKE_HOEHE)
+        except (TypeError, ValueError):
+            return steckverbindung.MARKE_HOEHE
+
+    def _steck_marke_neu(self, z):
+        """Neue Verbindung: Montagemarke, wenn die Einstellung steck_marke an ist (Vorgabe aus). Dasselbe Ende
+        desselben Steckers (gleiche Teile, Nasen nur einmal geschnitten) behält seine Zahl, sonst die nächste."""
+        if str(self.einstellungen.get("steck_marke") or "nein") == "ja" and not str(z.get("marke") or "").strip():
+            gleich = next((y.get("marke") for y in self.bg["steckverbindungen"] if str(y.get("marke") or "").strip()
+                           and (y.get("_st"), y.get("_ende")) == (z.get("_st"), z.get("_ende"))), None)
+            z["marke"] = gleich or steckverbindung.marke_naechste(self.bg["steckverbindungen"])
+        return z
+
+    def steck_pruefen(self, melden=True):
+        """„Steckbarkeit prüfen“ (A5): Reihenfolge, in der sich alle Teile stecken lassen (steck_montage), dazu
+        Schlitze über anderen Konturen und feste Längsnähte auf Schlitzen oder Nasen. Ergebnis dict(ok, schritte,
+        offen, texte) mit Körpernummern; ohne Stöße aus der STEP-Datei nur die örtlichen Prüfungen."""
+        from . import steck_montage as sm
+        koerper, name = {}, {}
+        for t in self.teile:
+            if not t.get("drin"):
+                continue
+            netz = self._netz(t["_id"])
+            for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
+                nummern = netz.get("koerper") or []
+                if j < len(nummern):
+                    koerper[str(nummern[j])] = (t["_id"], lage)
+                    name[str(nummern[j])] = f"Pos. {t['_q'].get('pos') or ''}"
+        verb = [(z.get("_auf"), z.get("_st"), z.get("_ende") or "a") for z in self.bg["steckverbindungen"]]
+        kanten = sm.kanten(koerper, self.bg.get("stoesse"), verb)
+        erg = sm.reihenfolge(kanten)
+        texte = [f"{name.get(k, k)} (Körper {k}): {sm.konflikt(k, erg['schritte'], kanten)}" for k in erg["offen"]]
+        eing, _ = self._rohr_eingaben()
+        fest = dict(getattr(self, "laengsnaehte", {}) or {})
+        for t in self.teile:
+            q = t["_q"]
+            if t["_id"] not in fest and q.get("naht_vorgabe") == "feste Position" and \
+                    isinstance(q.get("naht_winkel"), (int, float)):
+                fest[t["_id"]] = q["naht_winkel"]
+        for t in self.teile:
+            if not t.get("drin") or t["_id"] not in eing:
+                continue
+            e, lg = eing[t["_id"]]
+            profil = self._steck_profil(t["_id"]) or {}
+            pos = f"Pos. {t['_q'].get('pos') or ''}"
+            texte += [f"{pos}: {x}" for x in sm.schlitz_ueberschneidungen(profil, e, lg)]
+            if sm.naht_auf_schlitz(profil, e, lg, fest.get(t["_id"])):
+                texte.append(f"{pos}: feste Längsnaht liegt auf einem Schlitz oder einer Nase")
+        erg = dict(erg, texte=texte, ok=erg["ok"] and not texte, kanten=len(kanten), name=name)
+        if melden:
+            if not kanten and not texte:
+                kopf = ("Keine Stöße aus der STEP-Datei zu den Steckverbindungen: die Reihenfolge lässt sich nicht "
+                        "prüfen; Schlitze und Längsnähte sind in Ordnung.")
+            elif erg["ok"]:
+                folge = " → ".join(name.get(k, k) for k, _ in erg["schritte"])
+                kopf = f"Alle {len(erg['schritte'])} Teile lassen sich stecken. Reihenfolge: {folge}"
+            else:
+                kopf = "Achtung, so nicht steckbar bzw. nicht sauber:\n" + "\n".join(texte or ["?"])
+            QMessageBox.information(self, "Steckbarkeit prüfen", kopf)
+        return erg
+
+    def marken_nummerieren(self):
+        """„Marken nummerieren“: 1, 2, 3 … je Ende eines Steckers (gleiche Zahl auf Schlitz und Nase; Verbindungen
+        an demselben Ende gleicher Teile teilen sich die Zahl). Ergebnis: Anzahl der Zahlen."""
+        zahl = {}
+        for z in self.bg["steckverbindungen"]:
+            z["marke"] = zahl.setdefault((z.get("_st"), z.get("_ende")), str(len(zahl) + 1))
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        return len(zahl)
 
     def _steck_profil(self, pid):
         t = next((t for t in self.teile if t["_id"] == pid), None)
@@ -401,6 +480,9 @@ class SteckEditor:
                    tipp="Aus: gleiches Teil, die Schlitze schneidet schon eine andere Verbindung"),
             Spalte("_nasen", "Nasen\nschneiden", "haken", 65,
                    tipp="Aus: dieses Ende des Steckers hat die Nasen schon aus einer anderen Verbindung"),
+            Spalte("marke", "Montage-\nmarke", "text", 60,
+                   tipp="Zahl, die als Gravur neben die Schlitze und auf die Nasenwand des Steckers kommt (leer = keine); "
+                        "Höhe wie die Artikelnummer (Einstellung Gravur: Schrifthöhe)"),
             Spalte("_text", "Schlitz und Nasen", "anzeige", 260, anzeige=self._steck_text)],
             self.bg["steckverbindungen"], self.aktualisieren)
         lay.addWidget(self.steck_tab, 1)
@@ -418,9 +500,18 @@ class SteckEditor:
         weg = QPushButton("Markierte entfernen")
         weg.setToolTip("Schlitze und Nasen fallen beim Speichern in beiden Teilen weg")
         weg.clicked.connect(lambda: self.steck_entfernen())
-        for b in (neu, alle, tausch, weg):
+        marken = QPushButton("Marken nummerieren")
+        marken.setToolTip("Montagemarken 1, 2, 3 … für alle Verbindungen: dieselbe Zahl wird neben die Schlitze der "
+                          "Aufnahme und auf die Nasenwand des Steckers graviert")
+        marken.clicked.connect(lambda: self.marken_nummerieren())
+        pruef = QPushButton("Steckbarkeit prüfen")
+        pruef.setToolTip("Lassen sich alle Teile nacheinander stecken (jedes Teil in eine Richtung)? Dazu Schlitze "
+                         "über anderen Konturen und feste Längsnähte auf Schlitzen oder Nasen")
+        pruef.clicked.connect(lambda: self.steck_pruefen())
+        for b in (neu, alle, tausch, marken, weg):
             b.setEnabled(not self.nur_lesen if hasattr(self, "nur_lesen") else True)
             leiste.addWidget(b)
+        leiste.addWidget(pruef)             # Prüfen geht auch nur lesend
         leiste.addStretch(1)
         lay.addLayout(leiste)
         lay.addWidget(hilfe.Hinweis(
@@ -448,7 +539,7 @@ class SteckEditor:
                                 **werte) if (self._steck_profil(st) or {}).get("form") in steckverbindung.FORMEN \
             else dict(id=baugruppe.neue_id(), aufnahme=dict(id=auf), stecker=dict(id=st, ende=werte.get("ende") or "a"),
                       anzahl=2, c=0.1, **{k: w for k, w in werte.items() if k in ("x", "seite") and w is not None})
-        self.bg["steckverbindungen"].append(self._steck_flach(v))
+        self.bg["steckverbindungen"].append(self._steck_marke_neu(self._steck_flach(v)))
         self.steck_tab.aufbauen()
         self.aktualisieren()
         return v["id"]
@@ -530,7 +621,7 @@ class SteckEditor:
         if e.get("winkel") is not None:
             z["winkel"] = e["winkel"]
         z["_schlitze"], z["_nasen"] = e["schlitze"], e["nasen"]
-        return z
+        return self._steck_marke_neu(z)
 
     def steck_alle(self, melden=True):
         """„Alle Stöße stecken“: je Stoß der STEP-Messung eine Verbindung mit Lage, Seite und Achswinkel aus der Datei

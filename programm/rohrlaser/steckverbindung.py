@@ -180,19 +180,32 @@ def nasen(e):
 def entfernen(eingaben, vid):
     """Eingaben ohne die Schlitze und Nasen der Verbindung vid (Kopie). Ergebnis (Eingaben, Rohlänge weniger um)."""
     neu = dict(eingaben)
-    neu["konturen"] = [z for z in eingaben.get("konturen") or () if z.get("quelle") != quelle(vid)]
+    weg = (quelle(vid), marke_quelle(vid))
+    neu["konturen"] = [z for z in eingaben.get("konturen") or () if z.get("quelle") not in weg]
     weniger = 0.0
     for s in ("a", "b"):
         x = nasen(eingaben.get(s))
         if x and x["id"] == vid:
             neu[s] = {k: w for k, w in eingaben[s].items() if k != "nasen"}
             weniger += _z(x.get("laenge_plus"))
+            if s == "a":
+                _marken_schieben(neu, -_z(x.get("laenge_plus")))
     return neu, weniger
 
 
-def anwenden(v, eingaben_a, eingaben_s, profil_a, profil_s):
+def _marken_schieben(e, dx):
+    """Montagemarken am Ende E um dx verschieben, wenn das Teil an Ende A länger bzw. kürzer wird (Nasen), damit sie
+    hinter dem Schnitt des Endes E bleiben."""
+    if dx:
+        e["konturen"] = [dict(z, x=round(_z(z.get("x")) + dx, 3)) if z.get("marke_ende") == "b" and
+                         str(z.get("quelle") or "").startswith(MARKE + " ") else z for z in e.get("konturen") or ()]
+
+
+def anwenden(v, eingaben_a, eingaben_s, profil_a, profil_s, laengen=None, hinweise=None):
     """Verbindung v auf die Eingaben der Aufnahme und des Steckers (beide Kopien, frühere Konturen derselben Verbindung
-    fallen weg). Ergebnis (Eingaben Aufnahme, Eingaben Stecker, Änderung der Rohlänge des Steckers [mm])."""
+    fallen weg). Ergebnis (Eingaben Aufnahme, Eingaben Stecker, Änderung der Rohlänge des Steckers [mm]).
+    Mit Montagemarke (v['marke'], P2) und laengen = (Rohlänge Aufnahme, Rohlänge Stecker vorher) kommt die Marke als
+    Text-Gravur an beide Teile; passt sie nicht, steht der Grund in der Liste hinweise."""
     ende = (v.get("stecker") or {}).get("ende")
     if ende not in ("a", "b"):
         raise ValueError("Steckverbindung: Ende des Steckers (A oder E) fehlt.")
@@ -200,11 +213,125 @@ def anwenden(v, eingaben_a, eingaben_s, profil_a, profil_s):
     s, weniger = entfernen(eingaben_s, v["id"])
     if v.get("schlitze") is not False:      # False: gleiches Teil, die Schlitze schneidet eine andere Verbindung
         a["konturen"] = list(a["konturen"]) + schlitz_zeilen(v, profil_a, profil_s)
-    if v.get("nasen") is False:             # False: dieses Ende hat die Nasen schon aus einer anderen Verbindung
-        return a, s, round(-weniger, 3)
-    blk = nasen_block(v, profil_a, profil_s)
-    s[ende] = dict(s.get(ende) or {}, nasen=blk)
-    return a, s, round(blk["laenge_plus"] - weniger, 3)
+    plus = -weniger
+    if v.get("nasen") is not False:         # False: dieses Ende hat die Nasen schon aus einer anderen Verbindung
+        blk = nasen_block(v, profil_a, profil_s)
+        s[ende] = dict(s.get(ende) or {}, nasen=blk)
+        plus += blk["laenge_plus"]
+        if ende == "a":
+            _marken_schieben(s, blk["laenge_plus"])
+    if str(v.get("marke") or "").strip() and laengen:
+        la, ls = laengen
+        za, zs, h = marken_zeilen(v, a, s, profil_a, profil_s, la, None if ls is None else ls + plus)
+        a["konturen"] = list(a["konturen"]) + za
+        s["konturen"] = list(s.get("konturen") or []) + zs
+        if hinweise is not None:
+            hinweise.extend(h)
+    return a, s, round(plus, 3)
+
+
+# ------------------------------------------------------------------ Montagemarken (P2, A4)
+MARKE = "Montagemarke"
+MARKE_ABSTAND = 0.5             # zu Enden und Konturen wie die Gravur im STEP-Export (step_export.GRAVUR_ABSTAND)
+MARKE_HOEHE = 10.0              # Vorgabe wie die Einstellung gravur_schrifthoehe
+
+
+def marke_quelle(vid):
+    """Quelle der Gravurzeilen einer Montagemarke (zählt nicht als Schlitz der Verbindung, siehe rollen)."""
+    return f"{MARKE} {vid}"
+
+
+def _marke_frei(qs, e, laenge, x, s, b, h):
+    """True, wenn ein Text b × h (Mitte x längs, s am Umfang) mit Abstand zu Enden, Nasen und Konturen passt."""
+    from . import skizze as sk
+    if laenge is None or laenge <= 0:
+        return False
+    d = MARKE_ABSTAND
+    za = (_z(((e.get("a") or {}).get("nasen") or {}).get("laenge_plus")) if nasen(e.get("a")) else 0.0)
+    zb = (_z(((e.get("b") or {}).get("nasen") or {}).get("laenge_plus")) if nasen(e.get("b")) else 0.0)
+    for ds in (-h / 2, 0.0, h / 2):
+        (u, w), _ = qs.s_zu_uv((s + ds) % qs.umfang)
+        if x - b / 2 - d < sk.schnitt_x(qs, e.get("a"), u, w) + za:
+            return False
+        if x + b / 2 + d > laenge - sk.schnitt_x(qs, e.get("b"), u, w) - zb:
+            return False
+    for k in sk.lagen(e.get("konturen") or (), laenge, qs):
+        ein = k["eingabe"]             # alle Konturen, auch Gravuren und Marken anderer Verbindungen
+        pts = sk.umriss_kontur(ein) or [(0.0, 0.0)]
+        x0, x1 = k["x"] + min(p[0] for p in pts), k["x"] + max(p[0] for p in pts)
+        m = sk.s_lage(qs, ein)
+        s0, s1 = m + min(p[1] for p in pts), m + max(p[1] for p in pts)
+        ds = (s - (s0 + s1) / 2 + qs.umfang / 2) % qs.umfang - qs.umfang / 2
+        if x0 - d < x + b / 2 and x - b / 2 < x1 + d and abs(ds) < (s1 - s0) / 2 + h / 2 + d:
+            return False
+    return True
+
+
+def marken_zeilen(v, e_a, e_s, profil_a, profil_s, laenge_a, laenge_s):
+    """Montagemarke einer Verbindung: gleiche Zahl als Text-Gravur neben die Schlitze der Aufnahme (außerhalb des
+    Steckers) und auf die Nasenwand des Steckers hinter dem Schnitt. Ergebnis (Zeilen Aufnahme, Zeilen Stecker,
+    Hinweise). Höhe v['marke_h'] (Einstellung gravur_schrifthoehe)."""
+    from . import gravur_text, rohr3d, skizze as sk
+    from .schneidweg import TEXT_GRAVUR, mit_radius
+    text_ = str(v.get("marke") or "").strip()
+    h = _z(v.get("marke_h")) or MARKE_HOEHE
+    b = gravur_text.masse(text_, h)[0]
+    if not text_ or b <= 0:
+        return [], [], []
+
+    def zeile(x, seite, q=0.0):
+        z = {"art": TEXT_GRAVUR, "text": text_, "hoehe": h, "x": round(x, 3), "seite": seite, "winkel": 0, "anzahl": 1,
+             "quelle": marke_quelle(v["id"])}
+        if q:
+            z["q"] = round(q, 3)
+        return z
+    za, zs, hinweise = [], [], []
+    # Aufnahme: neben dem Stecker, zuerst Richtung Ende E
+    if v.get("schlitze") is not False and v.get("x") is not None:
+        qs = sk.Querschnitt(mit_radius(profil_a, e_a))
+        waende = v.get("waende") if v.get("waende") in WAENDE else WAENDE[0]
+        bw, ab, _ = querschnitt(profil_s, waende)
+        bw, ab = _z(v.get("wandbreite")) or bw, _z(v.get("abstand")) or ab
+        sin = math.sin(math.radians(_z(v.get("winkel")) or 90.0))
+        m = masse(v, profil_a, profil_s)
+        halb = max([(ab if waende == "quer" else bw) / 2 / sin]
+                   + [abs(dx) + sl / 2 for (dx, _), (sl, _) in zip(m["nasen"], m["schlitze"])])
+        seite = v.get("seite") or qs.seiten()[0]
+        s = sk.s_lage(qs, dict(seite=seite))
+        x0 = _z(v["x"])
+        for vz in (1, -1):
+            x = x0 + vz * (halb + MARKE_ABSTAND + b / 2 + 0.05)
+            if _marke_frei(qs, e_a, laenge_a, x, s, b, h):
+                za.append(zeile(x, seite))
+                break
+        else:
+            hinweise.append(f"Montagemarke {text_}: kein Platz neben dem Stecker auf der Aufnahme, nicht graviert")
+    # Stecker: Nasenwand, direkt hinter dem Schnitt des Endes
+    ende = (v.get("stecker") or {}).get("ende")
+    qs = sk.Querschnitt(mit_radius(profil_s, e_s))
+    lage = rohr3d.nasen_lage(e_s.get(ende), qs) if nasen(e_s.get(ende)) else None
+    w = lage[1][0] if lage else 0.0
+    s = sk.naht_s(qs, w) or 0.0
+    seite, q = sk.s_zu_seite(qs, s)
+    plat = None
+    if laenge_s:
+        tiefe = max(sk.schnitt_x(qs, e_s.get(ende), *qs.s_zu_uv((s + ds) % qs.umfang)[0]) for ds in (-h / 2, 0, h / 2))
+        tiefe += lage[0] if lage else 0.0
+        x = tiefe + MARKE_ABSTAND + b / 2 + 0.05
+        x = x if ende == "a" else laenge_s - x
+        if _marke_frei(qs, e_s, laenge_s, x, s, b, h):
+            plat = x
+    if plat is None:
+        hinweise.append(f"Montagemarke {text_}: kein Platz am Ende des Steckers, nicht graviert")
+    else:
+        zs.append(dict(zeile(plat, seite, q), marke_ende=ende))
+    return za, zs, hinweise
+
+
+def marke_naechste(verbindungen):
+    """Nächste freie Zahl für eine neue Montagemarke (größte Zahl + 1)."""
+    zahlen = [int(t) for t in (str(v.get("marke") or "").strip() for v in verbindungen or ()) if t.isdigit()]
+    return str(max(zahlen, default=0) + 1)
 
 
 # ------------------------------------------------------------------ Baugruppe
