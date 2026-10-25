@@ -3,10 +3,11 @@ Schlüssel prüfen, mit Begründung freigeben, frühere Freigaben zurücknehmen.
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout)
+                               QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from . import VERSION, kennwerte, stil
 from .stil import GELB_FLAECHE, TEXT_GRAU
+from .eingabe import RechenSpinGanz
 
 SPALTEN = ("Quelle", "Schlüssel", "Faktor Ist ÷ Soll", "Fälle", "Streuung", "Ausreißer", "Status")
 H_SPALTEN = ("Freigegeben am", "Quelle", "Schlüssel", "Faktor", "Fälle", "Begründung", "Version", "Zurückgenommen")
@@ -31,7 +32,7 @@ class KennwerteDialog(QDialog):
         lay.addWidget(info)
         zeile = QHBoxLayout()
         zeile.addWidget(QLabel("Mindestens Fälle:"))
-        self.mindest = QSpinBox()
+        self.mindest = RechenSpinGanz()
         self.mindest.setRange(1, 100)
         self.mindest.setValue(5)
         self.mindest.valueChanged.connect(self.neu_laden)

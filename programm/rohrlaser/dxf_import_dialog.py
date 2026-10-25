@@ -6,12 +6,13 @@ from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
-                               QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QSpinBox, QSplitter,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
+                               QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QSplitter,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import blech, dxf, dxf_import as di, schneidweg as sw, vorschau
 from .blech_dialog import BlechSkizze
+from .eingabe import RechenSpin, RechenSpinGanz
 
 MASSSTAB_TEXTE = ("1:1", "1:2", "1:2,5", "1:4", "1:5", "1:10", "1:20", "2:1", "5:1", "10:1")
 
@@ -100,12 +101,12 @@ class DxfImportDialog(QDialog):
                 self.werkstoff.addItem(n)
         for n in sorted(x for x in self.werkstoffe if self.werkstoff.findText(x) < 0):
             self.werkstoff.addItem(n)
-        self.dicke = QDoubleSpinBox()
+        self.dicke = RechenSpin()
         self.dicke.setRange(0.1, 100)
         self.dicke.setDecimals(2)
         self.dicke.setSingleStep(0.5)
         self.dicke.setSuffix(" mm")
-        self.stueck = QSpinBox()
+        self.stueck = RechenSpinGanz()
         self.stueck.setRange(1, 10 ** 7)
         self.kant = QCheckBox("Als Kantteil (Biegelinien aus der DXF)")
         felder = ((0, 0, 2, "Bezeichnung", self.bezeichnung), (0, 2, 1, "Stückzahl", self.stueck),

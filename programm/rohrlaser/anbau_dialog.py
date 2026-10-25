@@ -1,12 +1,12 @@
 """Dialog 'Anbauteile prüfen': aufgeschweißte Bolzen, Muttern, Laschen, Bleche und Kopfplatten eines Rohrteils aus
 dem STEP-Import prüfen (Doppelklick auf die Spalte Anbauteile im STEP-Prüfdialog). Rechnet nichts selbst: anbau.py."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
-                               QHBoxLayout, QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
+from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
 from . import anbau
 from .stammdaten import zahl_als_text
+from .eingabe import RechenSpin
 
 OHNE_TRENNUNG = "ohne Trennung"
 
@@ -67,7 +67,7 @@ class AnbauDialog(QDialog):
             be.currentTextChanged.connect(lambda t, r=r: self._bearbeitung(r, t))
             self.tabelle.setCellWidget(r, 5, be)
             self.bearbeitung.append(be)
-            lg = QDoubleSpinBox()
+            lg = RechenSpin()
             lg.setRange(0, 100000)
             lg.setDecimals(2)
             lg.setValue(float(a.get("gravur_laenge") or 0))

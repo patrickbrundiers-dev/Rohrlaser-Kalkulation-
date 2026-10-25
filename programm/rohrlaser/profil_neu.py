@@ -1,11 +1,12 @@
 """Profilwahl nach Profilform und kleines Fenster 'Neues Profil' (Form, Abmessungen, Wandstärke): Profil-ID wie beim
 STEP-Import (z. B. 'QR 40x40x3', 'RE 60x40x3', 'RR 48,3x2,6'), Querschnitt, Hüllkreis und Metergewicht rechnet das
 Programm aus den Maßen. Genutzt im Schneidweg-Rechner (neue Position)."""
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit,
                                QVBoxLayout)
 
 from . import normprofile
 from .stammdaten import MIT_B, PROFILFORMEN, TRAEGER, flaeche_berechnet, huellkreis, zahl_als_text
+from .eingabe import RechenSpin
 
 ALLE = "alle Profilformen"
 KUERZEL = {"Rundrohr": "RR", "Quadratrohr": "QR", "Rechteckrohr": "RE", "U-Profil": "U", "C-Profil": "C",
@@ -94,7 +95,7 @@ class ProfilNeuDialog(QDialog):
 
     @staticmethod
     def _spin(von, bis):
-        s = QDoubleSpinBox()
+        s = RechenSpin()
         s.setRange(von, bis)
         s.setDecimals(2)
         s.setSuffix(" mm")

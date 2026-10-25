@@ -4,7 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
-                               QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
+                               QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import einblendung, stil
@@ -12,6 +12,7 @@ from . import hilfe
 from .ansicht3d import ARTEN, TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
 from .stammdaten import zahl_als_text
+from .eingabe import RechenSpinGanz
 
 FARBE_FEHLT = next(f for a, _, f, _ in ARTEN if a == "N")     # nicht übernehmbare Teile in der 3D-Ansicht
 
@@ -187,7 +188,7 @@ class StepPruefDialog(QDialog):
         sl = QHBoxLayout(self.satz_feld)
         sl.setContentsMargins(0, 0, 0, 0)
         sl.addWidget(QLabel("Sätze:"))
-        self.satz_spin = QSpinBox()
+        self.satz_spin = RechenSpinGanz()
         self.satz_spin.setRange(0, 100000)
         self.satz_spin.setSpecialValueText("leer")
         self.satz_spin.setToolTip("Anzahl Sätze dieser Baugruppe (Vorgabe 1). Leer = jedes Teil als Einzelposition "
@@ -263,7 +264,7 @@ class StepPruefDialog(QDialog):
         alle.addWidget(QLabel("Werte setzen:"))
         self.alle_ws = QComboBox()
         liste_fuellen(self.alle_ws, k, "werkstoff", "(Werkstoff)")
-        self.alle_stk = QSpinBox()
+        self.alle_stk = RechenSpinGanz()
         self.alle_stk.setRange(0, 100000)
         self.alle_stk.setSpecialValueText("(Stückzahl)")
         alle.addWidget(self.alle_ws)
@@ -552,7 +553,7 @@ class StepPruefDialog(QDialog):
                 pr.currentTextChanged.connect(lambda t, it=it, m=m, h="; ".join(hinweis), v=vorschlag:
                                               self._profil_warnung(it, m, t, h, v))
                 self._profil_warnung(it, m, pr.currentText(), "; ".join(hinweis), vorschlag)
-            sp = QSpinBox()
+            sp = RechenSpinGanz()
             sp.setRange(0, 100000)
             sp.setSpecialValueText("leer")
             for c, w in ((self.SP_PROFIL, pr), (self.SP_WERKSTOFF, ws), (self.SP_STUECK, sp)):

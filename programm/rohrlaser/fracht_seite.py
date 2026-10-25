@@ -13,9 +13,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
+    QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget,
+    QScrollArea, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget,
     QTextBrowser, QVBoxLayout, QWidget)
 
 from . import fracht, hilfe
@@ -25,6 +25,7 @@ from .fenster import EinstellungenSeite, StammdatenSeite
 from .fracht_daten import (DIENSTLEISTER, DIESELPREISE, DIESELSTAFFEL, LAENDER, LHT, LIEFERBEDINGUNGEN, PLZ, PREISE,
                            TARIFE, WAEHRUNGEN, ZONEN, ZUSCHLAEGE, liste, plz_csv, plz_csv_lesen)
 from .stammdaten import zahl_als_text, zahl_aus_text
+from .eingabe import RechenSpin, RechenSpinGanz
 
 SCHMAL = 1100          # darunter steht das Ergebnis unter der Eingabe
 FARBE = {"ok": "#1E6B34", "warnung": "#7A5A00", "fehler": "#B42318", "auswahl": "#7A5A00"}
@@ -230,7 +231,7 @@ class RechnerSeite(QWidget):
         # Gewicht
         g = QGroupBox("Gewicht")
         fg = QFormLayout(g)
-        self.netto = QDoubleSpinBox()
+        self.netto = RechenSpin()
         self.netto.setRange(0, 1000000)
         self.netto.setDecimals(1)
         self.netto.setSuffix(" kg")
@@ -392,7 +393,7 @@ class RechnerSeite(QWidget):
             c.toggled.connect(self.geaendert)
             s = None
             if z.get("berechnung") == "€ je Stunde":
-                s = QDoubleSpinBox()
+                s = RechenSpin()
                 s.setRange(0, 1000)
                 s.setDecimals(2)
                 s.setSuffix(" h")
@@ -431,7 +432,7 @@ class RechnerSeite(QWidget):
         if lht_id:
             cb.setCurrentText(lht_id)
         cb.currentTextChanged.connect(self.geaendert)
-        sp = QSpinBox()
+        sp = RechenSpinGanz()
         sp.setRange(0, 10000)
         sp.setValue(int(anzahl or 0))
         sp.valueChanged.connect(self.geaendert)

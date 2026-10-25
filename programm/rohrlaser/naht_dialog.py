@@ -8,11 +8,12 @@ import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QFont, QPainter, QPen
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel,
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
                                QVBoxLayout, QWidget)
 
 from . import hilfe, naht, stil
 from .stil import TEXT_GRAU as GRAU  # noqa: E402
+from .eingabe import RechenSpin
 NAHT_FARBE = "#C0392B"
 
 
@@ -135,7 +136,7 @@ class NahtDialog(QDialog):
         self.lage.setCurrentText(p.get("querschnitt_lage") or naht.BREIT_OBEN)
         self.lage_zeile = QLabel("Querschnittslage")
         form.addRow(self.lage_zeile, self.lage)
-        self.winkel = QDoubleSpinBox()
+        self.winkel = RechenSpin()
         self.winkel.setRange(-1, 360)       # -1/360 erlauben das Weiterdrehen über 0° hinweg (wird normiert)
         self.winkel.setDecimals(1)
         self.winkel.setSuffix(" °")
