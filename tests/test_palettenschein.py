@@ -274,4 +274,34 @@ db.nur_lesen = None
 assert db.palettenschein(aid)["hinweis"] == "Kanten schützen"
 ok("Lesemodus ändert nichts")
 
+# Versand ausschalten (Patrick 25.10.): Reiter, Menüeinträge, Befehlspalette, Fenster und Werkstatt-Anhang weg
+from rohrlaser import befehlspalette  # noqa: E402
+
+i_versand = fenster.reiter.indexOf(fenster.versand)
+assert fenster.versand_an() and fenster.reiter.isTabVisible(i_versand)
+fenster.reiter.setCurrentWidget(fenster.versand)
+db.einstellung_setzen("versand_aktiv", "nein")
+fenster.versand_anwenden()
+assert not fenster.reiter.isTabVisible(i_versand) and fenster.reiter.currentWidget() is not fenster.versand
+assert not fenster.reiter.oben.isTabVisible(fenster.reiter.fest.index(fenster.versand))
+assert "Versand" not in [e.titel for e in befehlspalette.eintraege(fenster) if e.art == "Reiter"]
+liste_menue = fenster.angebote.vorgang_knopf.menu()
+liste_menue.aboutToShow.emit()
+assert not any(a.isVisible() for a in fenster.angebote.palettenschein_aktionen)
+s.weitere.menu().aboutToShow.emit()
+assert not s.palettenschein_aktion.isVisible()
+assert fenster.palettenschein(aid) is None
+db.einstellung_setzen("palettenschein_werkstatt", "ja")
+w3 = s.werkstatt_pdf()
+assert text is None or "PALETTENBEGLEITSCHEIN" not in subprocess.run(["pdftotext", str(w3), "-"], capture_output=True,
+                                                                     text=True).stdout.upper()
+assert db.palettenschein(aid)["hinweis"] == "Kanten schützen"          # Daten bleiben
+db.einstellung_setzen("versand_aktiv", "ja")
+fenster.versand_anwenden()
+assert fenster.reiter.isTabVisible(i_versand)
+liste_menue.aboutToShow.emit()
+s.weitere.menu().aboutToShow.emit()
+assert all(a.isVisible() for a in fenster.angebote.palettenschein_aktionen) and s.palettenschein_aktion.isVisible()
+ok("Versand aus: Reiter, Menüeinträge, Befehlspalette, Fenster und Anhang ausgeblendet; wieder ein: alles zurück")
+
 print("Alle Prüfungen bestanden.")

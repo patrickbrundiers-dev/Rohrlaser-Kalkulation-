@@ -4051,6 +4051,9 @@ def kapitel_versand(i):
     i.genauer()
     i.text("Die Werte stehen in den Einstellungen, Gruppe <b>Versand</b>:")
     i.tabelle(["Einstellung", "Vorgabe und Wirkung"], [
+        ["Reiter Versand und Palettenbegleitschein verwenden", "ja; <i>nein</i> blendet den Reiter Versand, die "
+         "Menüeinträge <i>Palettenbegleitschein …</i> (Vorgang ▾, Ausgaben), den Hinweis bei <i>Beauftragt</i> und "
+         "die Palettenscheine in den Werkstattpapieren aus; gespeicherte Versanddaten bleiben erhalten"],
         ["Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "1.200; begrenzt die Zahl der Lagen"],
         ["Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "1.500; zusätzlich gilt die Nutzlast "
          "des Ladungsträgers (Frachtkosten)"],

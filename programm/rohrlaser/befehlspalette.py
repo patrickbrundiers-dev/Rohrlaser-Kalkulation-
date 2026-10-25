@@ -43,6 +43,8 @@ def eintraege(f):
     aus = []
     for i in range(f.reiter.count()):
         seite = f.reiter.widget(i)
+        if not f.reiter.isTabVisible(i):        # z. B. Versand ausgeschaltet
+            continue
         aus.append(Eintrag("Reiter", f.reiter.tabText(i), "Reiter öffnen",
                            lambda seite=seite: f.reiter.setCurrentWidget(seite)))
     for name, a in _menue_befehle(f):
