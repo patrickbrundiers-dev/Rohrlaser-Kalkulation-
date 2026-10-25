@@ -2285,11 +2285,10 @@ def kapitel_optimieren(i):
             "Stoß und der Zusatzarbeit Knicken. Bohrungen und Konturen aller Rohre stehen an ihrer Stelle auf dem "
             "gestreckten Rohr. Die übrigen Rohre werden nicht einzeln übernommen (Bericht: <i>Schenkel des "
             "Knickrahmens …</i>). Die 3D-Ansicht zeigt den gefalteten Rahmen.",
-            "<b>Schweißbaugruppe</b>: Nahtkandidaten an den Knicken fallen weg, der Stoß bleibt als Vorschlag. Im "
-            "Baugruppen-Editor gibt es die Knickverbindung nicht (dort sind gleiche Rohre schon eine Position und ihre "
-            "Lage fehlt); er erinnert bei Rohren mit Gehrung daran, die STEP-Datei neu einzulesen.",
-            "<b>Später</b>: Wurde der Rahmen als Satz ohne Knickverbindung übernommen, geht es auch im Fenster Satz "
-            "in 3D ([[satz_3d]]): Rohre markieren → <i>Knickrahmen erstellen …</i>.",
+            "<b>Schweißbaugruppe</b>: Nahtkandidaten an den Knicken fallen weg, der Stoß bleibt als Vorschlag. Auch "
+            "im Editor der Schweißbaugruppe geht es nachträglich: Rohre markieren → <i>Knickrahmen erstellen …</i>.",
+            "<b>Später</b>: Wurde der Rahmen ohne Knickverbindung übernommen, geht es auch im Fenster Satz in 3D "
+            "([[satz_3d]]) bzw. im Editor der Schweißbaugruppe: Rohre markieren → <i>Knickrahmen erstellen …</i>.",
             "<b>Lösen</b>: Rechtsklick auf die Zeile → <b>Knickverbindung lösen</b>; die Rohre stehen wieder einzeln "
             "in der Liste.")
     i.abschnitt("Knickrahmen aus einem Körper (STEP)", marke="knickrahmen_koerper")
@@ -2297,7 +2296,8 @@ def kapitel_optimieren(i):
            "erkennt ihn der Import selbst, ebenso ein gestreckt gezeichnetes Rohr mit V-Ausschnitten. Die Rohrliste zeigt eine Zeile <b>Knickrahmen (n Knicke) aus einem "
            "Körper</b> mit der gestreckten Länge; übernommen wird sie wie eine Knickverbindung "
            "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>. Bohrungen oder Ausschnitte nur in einer Wand "
-           "(z. B. eine Lochreihe oben) stören die Erkennung seit 0.9.98 nicht mehr.", kurz=True)
+           "(z. B. eine Lochreihe oben) stören die Erkennung seit 0.9.98 nicht mehr, eine gerundete Außenkante am "
+           "Knick seit 0.9.101.", kurz=True)
     i.bild("knickrahmen_koerper", "Knickrahmen aus einem Körper bearbeiten (Rechtsklick auf die Zeile)",
            hoehe=70 * mm,
            legende=[(1, "<b>Erster Schenkel</b>: dort liegt beim geschlossenen Rahmen der Stoß (Vorgabe: der erste "
@@ -3459,6 +3459,10 @@ def kapitel_baugruppen(i):
     i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
            "Position</i> an die Zeile der Baugruppe ([[zukauf_angebot]]); eigene Zukaufteil-Positionen können auch "
            "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
+    i.text("<b>Knickrahmen erstellen …</b> (unter den Einzelteilen): Rohre mit Gehrung markieren, die einen Rahmen "
+           "bilden; es geht wie im Fenster Satz in 3D ([[satz_3d]]). Die Nahtvorschläge an den Ecken fallen weg (dort "
+           "wird geknickt), der Stoß bleibt. Mit OK wird der Rahmen eine Position der Baugruppe, die Rohre fallen "
+           "weg bzw. zählen weniger.")
     i.abschnitt("Artikelnummer gravieren", marke="positionsgravur")
     i.text("Als Hilfe beim Schweißen kann das Programm die <b>Artikelnummer</b> auf jedes Rohr und jedes Blech der "
            "Baugruppe gravieren. Im Reiter <i>Struktur und Teile</i>: Haken <b>Artikelnr. gravieren</b> je Teil, "

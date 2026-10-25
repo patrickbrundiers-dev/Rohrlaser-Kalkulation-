@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.100", "<b>3D-Ansichten: Blick, Perspektive, Darstellung, exaktes Messen</b> – in allen 3D-Fenstern gleich "
+    ["0.9.102", "<b>3D-Ansichten: Blick, Perspektive, Darstellung, exaktes Messen</b> – in allen 3D-Fenstern gleich "
                "(Teile-Editor, Positionen, STEP-Prüfdialog, Teilebaum, Schweißbaugruppe, Satz in 3D) mit Leiste und "
                "Ansichtswürfel. <i>Blick</i>: Isometrie, Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um "
                "90° drehen (Strg + Pfeiltasten). <i>Perspektivisch</i> umschaltbar (Vorgabe orthogonal, je Benutzer "
@@ -30,6 +30,14 @@ NEUERUNGEN = [
                "der echten Geometrie (Bohrung Ø 8 = 8,000), Abstand mit Δ längs/quer/hoch, Fläche–Fläche, "
                "Kante–Kante, Punkt–Fläche und Winkel in der kopierbaren Mess-Tafel. [[ansicht_3d_bedienung]]",
      "3D-Ansichten: sechs Seiten, Perspektive, Drahtgitter, verdeckte Kanten, Messen mit exakten Kernwerten."],
+    ["0.9.101", "<b>Knickrahmen mit gerundeter Ecke</b>: Ist die Außenkante am Knick gerundet (Knick mit Radius statt "
+               "scharfer Kante), hielt der STEP-Import die Gehrungen der Schenkel für eine Fase, und der Knickrahmen "
+               "war „nicht verbindbar“. Die Eckenden kommen jetzt aus der Eckgeometrie ([[knickrahmen_koerper]]).",
+     "Knickrahmen aus einem Körper auch mit gerundeter Außenkante am Knick verbindbar."],
+    ["0.9.100", "<b>Knickrahmen im Editor der Schweißbaugruppe</b>: wie im Fenster Satz in 3D Rohre mit Gehrung "
+                "markieren und <i>Knickrahmen erstellen …</i>. Die Nahtvorschläge an den Ecken fallen weg, der Stoß "
+                "bleibt; mit OK wird der Rahmen eine Position der Baugruppe. [[knickverbindung]]",
+     "Knickrahmen auch im Editor der Schweißbaugruppe erstellen."],
     ["0.9.99", "<b>Knickrahmen im Fenster Satz in 3D</b>: Rohre mit Gehrung markieren und <i>Knickrahmen erstellen "
                "…</i> – wie im STEP-Prüfdialog, auch wenn der Satz schon im Angebot steht. Mit OK wird der Rahmen "
                "eine Position (gestreckt, V-Ausschnitte, Zusatzarbeit Knicken, gefaltet im 3D); die Rohre fallen weg "

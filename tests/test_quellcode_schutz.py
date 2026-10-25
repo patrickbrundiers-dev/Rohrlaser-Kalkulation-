@@ -139,7 +139,13 @@ for datei in ("Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalk
 hoch = schritt[schritt.index("foreach"):]
 for nie in ("Lizenz-Werkzeug", "Release-Zusammenfassung", "Update.json"):
     assert nie not in hoch, nie
-ok("Workflow: übersetzen vor PyInstaller, Prüfung --kompiliert, Download-Release nur mit Kundendateien")
+# PowerShell (Standard-Shell unter Windows) nimmt „ “ ” ‘ ’ ‚ als Anführungszeichen: im Skript beenden sie eine
+# Zeichenkette (Release 789: ParserError im Download-Schritt). In Kommentaren und Release-Texten (with:) sind sie erlaubt.
+for teil in wf.split("\n      - ")[1:]:
+    if "\n        run: " in teil:
+        skript = teil[teil.index("\n        run: "):]
+        assert not any(z in skript for z in "„“”‘’‚"), teil.split("\n")[0]
+ok("Workflow: übersetzen vor PyInstaller, Prüfung --kompiliert, Download-Release nur mit Kundendateien, Skripte ohne typografische Anführungszeichen")
 
 # ------------------------------------------------------------------ Q4 Lizenzbedingungen
 text = rohrlaser.lizenzbedingungen()

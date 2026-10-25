@@ -247,3 +247,26 @@ assert abs(_ebene(L_RAHMEN).Direction().Z()) > 1 - 1e-9
 mk, _ = messen(speichern([L_RAHMEN], "einseitig"))
 assert mk[0].get("knick_schenkel") and "2 Schenkel 1200,0 / 800,0 mm" in mk[0]["hinweise"], mk[0]["hinweise"]
 ok("R7 Bohrungen nur in der Oberwand: Rahmenebene aus der Wand, L-Rahmen 1200/800 erkannt")
+
+# ------------------------------------------------------------------ R8 Außenkante der Ecke gerundet (Fehler 25.10.)
+# Knick mit Radius an der Außenkante: die Gehrungsenden der Stücke sahen aus wie eine Fase („komplex“), die
+# Knickverbindung fand keine Ecke („nicht verbindbar“). Die Eckenden kommen jetzt aus der Eckgeometrie.
+from OCP.BRep import BRep_Tool  # noqa: E402
+from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet  # noqa: E402
+from OCP.TopAbs import TopAbs_EDGE  # noqa: E402
+from OCP.TopExp import TopExp, TopExp_Explorer  # noqa: E402
+from OCP.TopoDS import TopoDS  # noqa: E402
+L2 = koerper([lage(schenkel(800), 0, 0, 0), lage(schenkel(600), 90, 800, 0)])
+fil = BRepFilletAPI_MakeFillet(L2)
+ex = TopExp_Explorer(L2, TopAbs_EDGE)
+while ex.More():        # senkrechte Außenkante der Ecke bei (800, 0)
+    kante = TopoDS.Edge(ex.Current())
+    p0, p1 = (BRep_Tool.Pnt_s(v) for v in (TopExp.FirstVertex_s(kante), TopExp.LastVertex_s(kante)))
+    if all(abs(p.X() - 800) < 1e-6 and abs(p.Y()) < 1e-6 for p in (p0, p1)):
+        fil.Add(1.5, kante)
+    ex.Next()
+mr, _ = messen(speichern([fil.Shape()], "radius"))
+assert mr[0].get("knick_schenkel") and "Fase" not in mr[0]["hinweise"], mr[0]["hinweise"]
+assert kv.koerper_vorbereiten(mr[0], dict(k=0.5)), mr[0].get("_knick_fehler")
+assert mr[0]["_knickrahmen"]["beta"] == 90.0 and not mr[0]["_knickrahmen"]["geschlossen"]
+ok("R8 Außenkante der Ecke gerundet: Gehrung 45° an beiden Stücken, als Knickrahmen verbindbar")
