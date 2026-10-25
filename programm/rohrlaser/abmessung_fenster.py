@@ -233,7 +233,7 @@ class AbmessungFenster(QDialog):
 
     def _teile_fuellen(self):
         for r, t in enumerate(self.teile):
-            fehlt = t["eingeplant"] < (t["stueck"] or 0) and not self.material.ohne_plan
+            fehlt = t["eingeplant"] < (t.get("rohrstuecke", t["stueck"]) or 0) and not self.material.ohne_plan
             for c, (_, _, schl, stellen) in enumerate(TEILE_SPALTEN):
                 w = t[schl]
                 if schl == "stangen":

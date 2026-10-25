@@ -189,7 +189,7 @@ blech_zeile = next(z for z in d.zeilen if z.blech)
 assert blech_zeile.it.checkState(0) == Qt.Checked and "Anbauteil von" not in blech_zeile.it.text(d.SP_HINWEIS)
 d.werte_schreiben()
 erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, neue_profile=True, zukauf_liste=[])
-# Rohr, Bolzen (Rundstahl, seit 0.9.117 Zukaufteil wie das Blech) und Blech
+# Rohr, Bolzen (Rundstahl, seit 0.9.119 Zukaufteil wie das Blech) und Blech
 assert len(erg["positionen"]) == 3 and "Rundstahl Ø8" in erg["bericht"][1], erg["bericht"]
 d.anbau_weg.setChecked(True)
 d.werte_schreiben()

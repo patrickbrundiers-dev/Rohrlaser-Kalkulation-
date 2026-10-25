@@ -540,6 +540,8 @@ def _rohr_gravur_zuege(qs, e, L):
                 linie.append(linie[0])
             if len(linie) > 1:
                 out.append(linie)
+    # Gravur der Anbauteile (anbau.gravur_zuege): Punkte und Normalen schon im Rohrsystem
+    out += [[(tuple(p), _norm(n)) for p, n in zug] for zug in e.get("anbau_gravur") or () if len(zug) > 1]
     return out
 
 

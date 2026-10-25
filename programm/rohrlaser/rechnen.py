@@ -138,8 +138,10 @@ def position_werte(p, kopf, k, tabellen):
     w["wand_schneiden"] = wand_schneiden(pr) if pr else None     # größte Wandstärke: Schneiddaten
     kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if w["querschnitt"] is not None else None
     w["kg_m"] = kgm
-    w["gewicht"] = kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
-    w["laenge_gesamt"] = (p["laenge"] * p["stueck"] if not _leer(p.get("laenge")) and not _leer(p.get("stueck"))
+    je = p.get("je_umfang") if isinstance(p.get("je_umfang"), (int, float)) and p["je_umfang"] > 1 else 1
+    w["gewicht"] = kgm * p["laenge"] / 1000 / je if kgm is not None and not _leer(p.get("laenge")) else None
+    # Material: Rohrstücke (Halbschalen: mehrere Teile aus einem Rohrumfang)
+    w["laenge_gesamt"] = (p["laenge"] * rohrstuecke(p) if not _leer(p.get("laenge")) and not _leer(p.get("stueck"))
                           else None)
     w["gewicht_position"] = (w["gewicht"] * p["stueck"] if w["gewicht"] is not None and not _leer(p.get("stueck"))
                              else None)
@@ -429,7 +431,7 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     stufe = {b.stufe for b in befunde}
     if dfm.FEHLER in stufe:
         return dfm.status(befunde)
-    if eingeplant is not None and _n(p.get("stueck")) - eingeplant > 0:
+    if eingeplant is not None and rohrstuecke(p) - eingeplant > 0:
         return "WARNUNG: nicht vollständig eingeplant"
     if w["preis_hinterlegt"] is False:
         return "WARNUNG: kein gültiger Materialpreis"
@@ -514,6 +516,17 @@ def profil_im_angebot(profil, kopf, profil_id, werkstoff_id, k=None):
             return profil
         r = 0.0
     return dict(profil, r_aussen=r)
+
+
+def rohrstuecke(p):
+    """Rohrstücke einer Position: Stückzahl, bei mehreren Teilen aus einem Rohrumfang (Halbschalen, Feld je_umfang)
+    Stückzahl ÷ je Umfang aufgerundet (Patrick 25.10.2026, „Rundrohr alle a“)."""
+    stk = p.get("stueck")
+    if not isinstance(stk, (int, float)) or stk < 1:
+        return 0
+    je = p.get("je_umfang")
+    je = int(je) if isinstance(je, (int, float)) and je >= 1 else 1
+    return -(-int(stk) // je)
 
 
 def gruppen_bilden(kopf, positionen, k):
@@ -606,7 +619,7 @@ def gruppen_bilden(kopf, positionen, k):
                     ann = gehrung_ohne_richtung(p.get("technik"), seite, pr)
                     if ann:
                         geh[seite + "_gehrung"], geh["angenommen"] = ann, True
-        for n in range(1, stk_n + 1):
+        for n in range(1, (rohrstuecke(p) if stk_n else 0) + 1):     # Halbschalen: je Umfang aus einem Rohrstück
             g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, rest=rest, **geh))
     return list(gruppen.values()), fehler, neue_profile
 
@@ -2629,7 +2642,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         meter_gr.setdefault(g, []).append(s["stange"] / 1000)
     for x in positionen:
         if not _leer(x.get("laenge")) and not _leer(x.get("stueck")):
-            laenge_gr.setdefault(gruppe_von(x, kopf), []).append(_n(x.get("laenge")) * _n(x.get("stueck")))
+            laenge_gr.setdefault(gruppe_von(x, kopf), []).append(_n(x.get("laenge")) * rohrstuecke(x))
     zeilen = [None] * len(positionen)
     for i in aktiv:
         p = positionen[i]
@@ -2711,7 +2724,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             gw = s_ * gew
             ohne = s_ * (1 + gew) + uz + zk_einst + zk_auf
         t_ = ohne / (1 - skonto)
-        nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
+        nicht = rohrstuecke(p) - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
         pr = pruefungen(p, w, positionen, tabellen.get("zusatzarbeiten") or (), tabellen["gewinde"])
         if _n(nicht) > 0:
             hinweis = "nicht vollständig eingeplant"
