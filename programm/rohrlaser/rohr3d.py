@@ -481,6 +481,11 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
         if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+    # Gravur der Anbauteile (STEP-Import, anbau.gravur_zuege): Lage aus der Messung, im selben Rohrsystem
+    for zug in e.get("anbau_gravur") or ():
+        if len(zug) >= 2:
+            linie("GA", [tuple(p[i] + n[i] * ABSTAND for i in range(3)) for p, n in zug], zug[len(zug) // 2][1],
+                  "teil")
     # Nasen der Steckverbindung: Lasche der Wand (Breite am Umfang 2 h) vom Schnitt bis zum Teilende
     stuecke = []
     for s_, z, art in (("a", za, "EA"), ("b", zb, "EB")):

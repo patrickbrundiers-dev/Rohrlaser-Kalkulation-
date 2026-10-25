@@ -2840,7 +2840,8 @@ def kapitel_optimieren(i):
             "im 3D, Bohrungen als echte Zylinder, Langloch, Rechteck und Schlitz auf einer ebenen Wand mit echten "
             "Bögen, alle anderen Konturen (Ausklinkung, Polygon, über Kanten) entlang der Wand.",
             "<b>Steckverbindung</b>: Schlitze sind Konturen, die Nasen stehen über den Schnitt hinaus wie im 3D.",
-            "<b>Gravur</b> (Text-Gravur, Artikelnummer, Gravur mit Umriss): Rille 0,1 mm tief und 0,2 mm breit, "
+            "<b>Gravur</b> (Text-Gravur, Artikelnummer, Gravur mit Umriss, Gravur der Anbauteile aus dem "
+            "STEP-Import): Rille 0,1 mm tief und 0,2 mm breit, "
             "mindestens 0,5 mm von Enden, Rand und Konturen. Wo das nicht passt, wird die Gravur gekürzt und das "
             "Programm sagt es nach dem Speichern.",
             "<b>Blech</b>: ebene Bleche, auch aus dem DXF-Import, mit Außen- und Innenkonturen als echte Bögen.",
@@ -6254,7 +6255,11 @@ def kapitel_step_messung(i):
             "der Art <i>Sonstiges</i>, Anbau über (fast) die ganze Länge (das Rohr wird dann aus Innenkontur und "
             "Wandstärke angenommen), Anbauteile schwerer als das Rohr. Zum Vergleich steht im Prüfdialog, was ohne "
             "Trennung gemessen worden wäre.",
-            "In der 3D-Ansicht sind Anbauteile sandfarben, ihre Gravur türkis.",
+            "In der 3D-Ansicht sind Anbauteile sandfarben, ihre Gravur türkis. Auch das 3D aus den Eingaben "
+            "(Rohr-Editor, 3D der Position) zeigt die Gravur der Anbauteile an ihrer Stelle, so wie sie im Dialog "
+            "<i>Anbauteile prüfen</i> gewählt ist (Umriss, Positionsmarke, Punktmarke; ausgeschlossen = keine). "
+            "<b>STEP speichern</b> schneidet sie als Rille 0,1 mm tief ins Rohr ([[step_export]]). Das geht bei "
+            "Teilen, die ab Version 0.9.118 eingelesen wurden; ältere Teile bitte neu einlesen.",
             "Grenzen: Teile <b>im</b> Rohr (eingeschweißte Mutter innen, Stopfen) werden nicht abgetrennt, sondern "
             "wie bisher als Innenmerkmal gemeldet. Eine Kopfplatte genau so groß wie das Rohr ist vom Rohr nicht "
             "zu unterscheiden.")

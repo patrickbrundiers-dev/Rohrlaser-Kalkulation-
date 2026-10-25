@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.118", "<b>Gravur der Anbauteile im 3D und im STEP</b>: Das 3D aus den Eingaben (Rohr-Editor, 3D der "
+                "Position) zeigt die Gravur aufgeschweißter Bolzen, Laschen und Bleche an ihrer Stelle, wie sie unter "
+                "Anbauteile prüfen gewählt ist. STEP speichern schneidet sie als Rille 0,1 mm ins Rohr. Gilt für Teile, "
+                "die ab dieser Version eingelesen werden ([[anbauteile]]).",
+     "Gravur der Anbauteile im 3D aus den Eingaben und als Rille im STEP"],
     ["0.9.117", "<b>Offen gezeichnete Rohre aus dem Rohr</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
                 "gekantetes Blech mit einer offenen Seite gezeichnet hat (U offen, C mit Schlitz, U mit Lasche), und "
                 "Halbschalen eines Rundrohrs erkennt der STEP-Import und rechnet sie aus dem geschlossenen Rohr: an "

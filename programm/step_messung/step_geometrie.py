@@ -3205,6 +3205,15 @@ def _anbau_beschreiben(t, teile, quelle, netz=False, mit_flaechen=True):
             tx, ty, h = (bx_ - ax_) / tl, (by_ - ay_) / tl, MARKE_KREUZ / 2
             gravur_linien = [[round(v, 2) for v in (px, py, vc - h, px, py, vc + h)],
                              [round(v, 2) for v in (px - h * tx, py - h * ty, vc, px + h * tx, py + h * ty, vc)]]
+            # Lage der Gravur fürs 3D aus den Eingaben und den STEP-Export (Mitte, Richtung quer, Normale nach außen)
+            nx_, ny_ = ty, -tx
+            if nx_ * (px - abw.cx) + ny_ * (py - abw.cy) < 0:
+                nx_, ny_ = -nx_, -ny_
+            d["marke"] = dict(m=[round(px, 3), round(py, 3), round(vc, 3)], t=[round(tx, 6), round(ty, 6)],
+                              n=[round(nx_, 6), round(ny_, 6)], c=[round(abw.cx, 3), round(abw.cy, 3)],
+                              rund=t.profilform == "Rundrohr")
+            if rand:
+                d["umriss_linien"] = [_linienzug(e) for e in rand]
         art_ = d["art"]
         if art_ == "Sonstiges" or d["seite"] == "Ecke" or (t.trennung or {}).get("laengsanbau"):
             d["vertrauen"] = "prüfen"

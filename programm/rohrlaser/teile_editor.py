@@ -962,7 +962,8 @@ class EditorRahmen(QObject):
             laenge = d.k_laenge.value() if getattr(d, "neu", False) and hasattr(d, "k_laenge") else d.p.get("laenge")
             try:
                 nw = d.naht_werte() if hasattr(d, "naht_werte") else {}
-                netz = rohr3d.netz(e, d.profil, laenge,
+                from .anbau import eingaben_mit_gravur
+                netz = rohr3d.netz(eingaben_mit_gravur(e, getattr(d, "p", None)), d.profil, laenge,
                                    nw.get("naht_winkel") if nw.get("naht_vorgabe") == naht.FEST else None,
                                    d.schwenk_grenze() if hasattr(d, "schwenk_grenze") else None)
             except (ValueError, TypeError, ZeroDivisionError):
