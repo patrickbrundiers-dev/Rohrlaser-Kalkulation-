@@ -15,12 +15,11 @@ Gleiche Netzform wie ansicht3d (p, t, l); Koordinaten der Baugruppe = Dateilage 
 import bisect
 import math
 
-from PySide6.QtCore import QEvent, QObject
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
 
 from . import rohr3d, schneidweg, steckverbindung as stv
 from .ansicht3d import DARSTELLUNGEN, MESS_WINKEL, Ansicht3D, Ansicht3DMitKnoepfen
-from .ansichtswuerfel import Ansichtswuerfel
+from .ansicht3d_leiste import blick_menue
 from .schneidweg import V_AUSSCHNITT
 
 ZELLE = 10.0            # Raster für die Suche der Flächen an der Naht [mm]
@@ -490,19 +489,6 @@ def laengsnaht_linie(lage, netz, winkel, form):
 
 
 # ------------------------------------------------------------------ B1 Bedienung
-class _Groesse(QObject):
-    """Würfel bei jeder Größenänderung der 3D-Ansicht in die Ecke setzen."""
-
-    def __init__(self, wuerfel):
-        super().__init__(wuerfel)
-        self.wuerfel = wuerfel
-
-    def eventFilter(self, obj, ereignis):
-        if ereignis.type() in (QEvent.Resize, QEvent.Show):
-            self.wuerfel.anordnen()
-        return False
-
-
 class BaugruppenAnsicht(QWidget):
     """3D-Ansicht der Baugruppe mit Leiste wie im Teile-Editor. Wie Ansicht3DMitKnoepfen: .ansicht, .info,
     setzen(netz, titel, info). geaendert() ruft der Besitzer nach „Nur Gewähltes“ und „Nähte“ neu auf (zeichnet
@@ -521,12 +507,10 @@ class BaugruppenAnsicht(QWidget):
         self._leiste = ll = QHBoxLayout(leiste)
         ll.setContentsMargins(0, 0, 0, 0)
         knopf = self.knopf
-        blick = QMenu(self)
-        for text, (g, n) in (("Schräg", Ansicht3D.GRUND), ("Vorn", (0.0, 0.0)), ("Oben", (0.0, 1.5)),
-                             ("Seite", (-1.5708, 0.0))):
-            blick.addAction(text, lambda g=g, n=n: self.ansicht.ansicht(g, n))
-        self.blick_knopf = knopf("Blick", "Ausgangsansicht schräg; Pfeil: Vorn, Oben, Seite (oder den Ansichtswürfel "
-                                 "anklicken)", wenn=lambda: self.ansicht.ansicht(*Ansicht3D.GRUND))
+        blick = blick_menue(QMenu(self), self.ansicht)        # dasselbe Menü wie in allen 3D-Fenstern (3E-11)
+        self.blick_knopf = knopf("Blick", "Isometrie; Pfeil: Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, "
+                                 "um 90° drehen, Perspektivisch (oder den Ansichtswürfel anklicken)",
+                                 wenn=lambda: self.ansicht.ansicht(*Ansicht3D.GRUND))
         self.blick_knopf.setMenu(blick)
         self.blick_knopf.setPopupMode(QToolButton.MenuButtonPopup)
         self.darstellung = QComboBox()
@@ -540,8 +524,8 @@ class BaugruppenAnsicht(QWidget):
         self.naehte_knopf = knopf("Nähte", "Schweißnähte als Raupe zeigen (schwarz, Vorschläge magenta, gewählte rot)",
                                   True, lambda an: self._umschalten("naehte", an))
         self.naehte_knopf.setChecked(True)
-        self.messen_knopf = knopf("Messen", "Zwei Punkte am Modell anklicken (fängt die nächste Ecke): Abstand in mm; "
-                                  "das Maß bleibt stehen", True, lambda an: self._messen(an))
+        self.messen_knopf = knopf("Messen", "Zwei Punkte am Modell anklicken (fängt Kreismitte, Kantenmitte, Ecke "
+                                  "oder Fläche): Ergebnis mit Kernwerten in der Mess-Tafel; das Maß bleibt stehen", True, lambda an: self._messen(an))
         self.winkel_knopf = knopf("Winkel", "Drei Punkte anklicken, der mittlere ist der Scheitel: Winkel in Grad",
                                   True, lambda an: self._messen(an, MESS_WINKEL))
         knopf("Maße löschen", "Alle stehenden Maße entfernen", wenn=lambda: self._masse_loeschen())
@@ -551,8 +535,7 @@ class BaugruppenAnsicht(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(leiste)
         lay.addWidget(self.d3, 1)
-        self.wuerfel = Ansichtswuerfel(self.ansicht)
-        self.ansicht.installEventFilter(_Groesse(self.wuerfel))
+        self.wuerfel = self.d3.wuerfel
         self.ansicht.gemessen.connect(lambda _: self._mass_zeigen())
 
     def knopf(self, text, tipp, umschalter=False, wenn=None):

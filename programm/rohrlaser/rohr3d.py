@@ -22,8 +22,8 @@ import math
 
 from . import durchdringung as dd, schnittflaeche as sf, skizze as sk, steckverbindung as stv
 from .blech3d import _flaeche2, _ohrschnitt
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON, RECHTECK,
-                         SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, V_AUSSCHNITT, _z, mit_radius)
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
+                         RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, V_AUSSCHNITT, _z, mit_radius)
 
 SCHRITT = 4.0           # Kanten des Querschnitts höchstens so lang [mm] (Ausklinkung, Sattel folgen der Kurve)
 TEILE_MAX = 24          # je Kante höchstens so viele Stücke
@@ -529,10 +529,48 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None):
         schritte = max(1, int(abs(x1 - x0) // 50))
         zug = [_xyz(x0 + (x1 - x0) * i / schritte, u, v) for i in range(schritte + 1)]
         linie("NL", zug, _xyz(0, pt[0] / r, pt[1] / r), "naht")
-    out = dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True)
+    out = dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True,
+               geo=geometrie(e, qs, L))
     if stuecke:
         out["nasen"] = stuecke
     return out
+
+
+KREIS_ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL)
+
+
+def merkmal_werte(ein):
+    """Eingaben einer Kontur für die Kernwerte beim Messen (messen3d.MERKMAL_WERTE)."""
+    out = {k: ein[k] for k in ("art", "d", "D", "l", "lang", "b", "h", "r", "t", "winkel", "x", "q", "seite")
+           if ein.get(k) not in (None, "")}
+    return out
+
+
+def geometrie(e, qs, L):
+    """Exakte Geometrie für das Messen (Plan 3D-Ansicht 3E-11, M4): Kreise (Mitte auf der Außenwand, Achse = Normale
+    der Wand, Ø aus der Eingabe), Mitten der übrigen Konturen, Werte je Merkmal und das Rohr (Ø bzw. B × H, Wand)."""
+    geo = dict(kreise=[], mitten=[], merkmale={},
+               rohr=dict(d=round(2 * qs.r, 6) if qs.r else None, b=qs.B, h=qs.H, t=qs.wand, laenge=L))
+    for d in sk.lagen(e.get("konturen") or [], L, qs):
+        ein = d["eingabe"]
+        art = ein.get("art")
+        kid = f"kontur:{d['zeile']}"
+        try:
+            pts, n = sk.platzieren(qs, d, [(_z(ein.get("_dx")), _z(ein.get("_dq")))])
+        except (ValueError, TypeError, ZeroDivisionError, AttributeError):
+            continue
+        x, u, v = pts[0]
+        if qs.r:
+            r = math.hypot(u, v) or 1.0
+            n = (u / r, v / r)
+        m, achse = [round(c, 6) for c in _xyz(x, u, v)], [round(c, 6) for c in _xyz(0, *n)]
+        dm = _z(ein.get("d"))
+        if dm > 0 and (art in KREIS_ARTEN or (art == LOCHFELD and not _z(ein.get("lang")))):
+            geo["kreise"].append(dict(m=m, n=achse, d=dm, id=kid))
+        elif art not in GRAVUREN or ein.get("umriss"):
+            geo["mitten"].append(dict(p=m, n=achse, id=kid))
+        geo["merkmale"].setdefault(kid, merkmal_werte(ein))
+    return geo
 
 
 def durchbruch_koerper(qs, d, n=40):

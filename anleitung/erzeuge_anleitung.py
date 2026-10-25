@@ -1549,7 +1549,8 @@ def kapitel_step(i):
            "Baugruppen zeigt die Ansicht beim Drehen und Zoomen vereinfacht (ohne kleine Rundungen, Bohrungen und "
            "Linien), damit sie flüssig bleibt; beim Loslassen wieder vollständig.", kurz=True)
     i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
-        (1, "Feste Blickrichtungen: <b>Schräg</b>, <b>Vorn</b>, <b>Oben</b> und <b>Stirnseite</b>.")])
+        (1, "Leiste wie in jedem 3D-Fenster: <b>Blick</b>, Darstellung, <b>Perspektivisch</b>, <b>Messen</b>, "
+            "<b>Winkel</b> und <b>Maße löschen</b>; oben rechts der Ansichtswürfel ([[ansicht_3d_bedienung]]).")])
     i.text("<b>Im Editor öffnen</b> (oder Doppelklick auf das Teil in der Ansicht bzw. auf die Zeile der Liste) "
            "schließt das Fenster und öffnet die gewählte Position im passenden Editor: Rohr im Schneidweg-Rechner, "
            "Blech im Blech-Editor, Schweißbaugruppe im Baugruppen-Fenster.", kurz=True)
@@ -2433,7 +2434,8 @@ def kapitel_optimieren(i):
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
             "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen und "
             "Kontur-Vorlagen, beim Blech Kontur-Vorlagen und Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
-            "<b>Blick</b> (Klick: schräg, Pfeil: Vorn, Oben, Stirnseite); beim Rohr STEP-Modell, Skizzenart und "
+            "<b>Blick</b> (Klick: Isometrie, Pfeil: sechs Seiten, Auf Auswahl, Um 90° drehen, Perspektivisch, "
+            "[[ansicht_3d_bedienung]]); beim Rohr STEP-Modell, Skizzenart und "
             "Querschnitt; Messen, Winkel, Maße löschen) und <i>Ausgabe</i> (Zeichnung als PDF, "
             "STEP neu einlesen bzw. beim Blech Zeichnung als PDF und DXF speichern). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
@@ -2497,9 +2499,9 @@ def kapitel_optimieren(i):
             "Stirnfläche = Ende, Rohrwand = Profil und Teil. Im Modell aus den Eingaben ist die "
             "gewählte Kontur bzw. das Ende selbst hervorgehoben, im STEP-Modell der Bereich längs der Rohrachse. "
             "Beim Blech ist es die Kontur bzw. Biegelinie.",
-            "<b>Messen</b> (<i>Ansicht → Messen</i>): Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt die "
-            "nächste Ecke des Modells oder die <b>Mitte einer Kontur</b> (z. B. Bohrungsmitte) und zeigt den Abstand "
-            "in mm mit Δx, Δy und Δz. <b>Winkel</b>: drei Punkte anklicken, der mittlere ist der Scheitel. Jedes "
+            "<b>Messen</b> (<i>Ansicht → Messen</i>): Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt "
+            "Kreismitte, Kantenmitte, Ecke oder Fläche mit den <b>exakten Werten</b> und zeigt das Ergebnis in der "
+            "Mess-Tafel ([[ansicht_3d_bedienung]]). <b>Winkel</b>: drei Punkte anklicken, der mittlere ist der Scheitel. Jedes "
             "fertige Maß <b>bleibt im 3D stehen</b>, bis <i>Maße löschen</i> gedrückt wird; noch einmal auf "
             "<i>Messen</i> bzw. <i>Winkel</i> drücken beendet das Messen.",
             "<b>Querschnitt</b> (<i>Ansicht → Skizze → Querschnitt</i>, Rohr): ein kleines Fenster zeigt das Rohr an einer "
@@ -2544,11 +2546,55 @@ def kapitel_optimieren(i):
             "Messpunkt). Auf einem Ende: gerade schneiden oder Gehrung 45°.",
             "<b>Darstellung</b> (<i>Ansicht → 3D-Darstellung</i> oder Rechtsklick): <i>Schattiert</i> = Flächen und "
             "Schnittkonturen, <i>Mit Kanten</i> = dazu die Körperkanten dunkel, <i>Durchsichtig</i> = wie ein "
-            "Röntgenbild, Konturen auf der Rückseite sind gestrichelt zu sehen. <i>Nur Gewähltes hervorheben</i> (Knopf <i>Nur Gewähltes</i>) zeigt alles "
+            "Röntgenbild, Konturen auf der Rückseite sind gestrichelt zu sehen, <i>Drahtgitter</i> = nur Kanten "
+            "und Konturen, <i>Verdeckt gestrichelt</i> = helle Flächen, verdeckte Kanten gestrichelt "
+            "([[ansicht_3d_bedienung]]). <i>Nur Gewähltes hervorheben</i> (Knopf <i>Nur Gewähltes</i>) zeigt alles "
             "außer dem gewählten Merkmal blass. Gewähltes ist grün umrandet.",
             "Griffe und Maße gibt es im Modell aus den Eingaben (nicht im STEP-Modell und nicht beim Biegerohr). "
             "Darstellung, Schnittebenen, Maße und Raster merkt sich das Programm je Benutzer. Beim Blech gibt es "
             "Darstellung und Rechtsklick-Menü; Griffe für das Blech kommen später.")
+    i.abschnitt("3D-Ansichten: Blick, Perspektive, Darstellung, Messen", marke="ansicht_3d_bedienung")
+    i.text("Alle 3D-Fenster bedienen sich gleich: Teile-Editor (Rohr und Blech), 3D-Ansicht der Positionen, "
+           "STEP-Prüfdialog, Teilebaum, Schneidweg-Rechner, Schweißbaugruppe und Satz in 3D. Unter dem Bild steht "
+           "die Leiste mit <b>Blick</b>, Darstellung, <b>Perspektivisch</b>, <b>Messen</b>, <b>Winkel</b> und "
+           "<b>Maße löschen</b> (im Teile-Editor im Menüband), oben rechts der Ansichtswürfel.", kurz=True)
+    i.bild("ansicht_3d_messen", "Messen von der Bohrungsmitte zur Kante: Ergebnis mit exakten Kernwerten in der "
+           "Mess-Tafel", hoehe=85 * mm, legende=[
+               (1, "<b>Blick</b>: Isometrie, sechs Seiten, Auf Auswahl, um 90° drehen."),
+               (2, "Darstellung, auch <i>Drahtgitter</i> und <i>Verdeckt gestrichelt</i>."),
+               (3, "<b>Perspektivisch</b> ein/aus (Vorgabe orthogonal)."),
+               (4, "<b>Mess-Tafel</b> mit drei Nachkommastellen, <i>Kopieren</i>."),
+               (5, "Ansichtswürfel.")])
+    i.genauer()
+    i.liste("<b>Blick</b>: Klick = <i>Isometrie</i> (schräg von vorn oben). Der Pfeil daneben: <i>Vorn</i>, "
+            "<i>Hinten</i>, <i>Oben</i>, <i>Unten</i>, <i>Ende A</i>, <i>Ende B</i>, <i>Auf Auswahl</i> (senkrecht auf "
+            "das gewählte Merkmal schauen und es groß in die Mitte holen; ohne Auswahl auf die letzte Messung) und "
+            "<i>Um 90° drehen</i>. <b>Strg + Pfeiltasten</b> drehen um 90° (links/rechts um die Hochachse, hoch/runter "
+            "kippen). Der <b>Ansichtswürfel</b> dreht mit einem Klick auf eine Fläche, Kante oder Ecke dorthin.",
+            "<b>Perspektivisch</b> (Knopf bzw. Haken im Blick-Menü): Nahes erscheint größer, die Tiefe ist besser zu "
+            "sehen. Ohne Haken zeichnet die Ansicht orthogonal (Vorgabe), dann sind gleiche Maße gleich lang. Die "
+            "Wahl merkt sich das Programm je Benutzer.",
+            "<b>Darstellung</b>: <i>Schattiert</i>, <i>Mit Kanten</i> (Körperkanten dunkel, an Rundungen die "
+            "Tangentenkanten), <i>Durchsichtig</i> (Röntgen), <i>Drahtgitter</i> (nur Kanten, Umriss der Rundungen "
+            "und Konturen, auch die hinteren) und <i>Verdeckt gestrichelt</i> (helle Flächen, sichtbare Kanten "
+            "durchgezogen, verdeckte gestrichelt wie in einer technischen Zeichnung).",
+            "<b>Messen</b>: zwei Punkte anklicken. Das Programm fängt in dieser Reihenfolge: <b>Kreismitte</b> (auch "
+            "die Mitte einer Kontur oder eines Bogens), <b>Kantenmitte</b>, <b>Ecke</b>, Punkt auf einer Linie, "
+            "<b>Fläche</b>. Was gefangen wird, ist schon beim Darüberfahren blau hervorgehoben (Kreis als Ring, Kante "
+            "dick, Ecke als Quadrat) und beschriftet.",
+            "<b>Exakte Kernwerte</b>: Die Messung nimmt die echte Geometrie, nicht das Dreiecksnetz. Eine Bohrung Ø 8 "
+            "misst 8,000, ihre Mitte liegt genau auf der Wand, der Rohrmantel hat den Ø des Profils. Bei Teilen aus "
+            "den Eingaben (Rohr- und Blech-Editor) kommen die Werte aus den Eingaben; im STEP-Modell passt das Programm "
+            "den Kreis in die gemessene Kontur ein und zeigt dann nur so viele Stellen, wie die Messung hergibt "
+            "(Hinweis „aus dem Netz eingepasst“).",
+            "<b>Mess-Tafel</b> unten links: Nach dem ersten Klick die Kernwerte des Gefangenen (Kreis Ø und Mitte, "
+            "Kante mit Länge und Richtung, Fläche mit Normale, Rohrmantel Ø, dazu Art und Maße der Kontur), nach dem "
+            "zweiten das Ergebnis mit drei Nachkommastellen: Abstand mit Δ längs, quer und hoch; zwischen zwei "
+            "Flächen der senkrechte Abstand (parallel) oder ihr Winkel; zwischen zwei Kanten Abstand oder Winkel; "
+            "Punkt zu Fläche senkrecht; dazu der Winkel zwischen Achsen. <i>Kopieren</i> legt den Text in die "
+            "Zwischenablage, × schließt die Tafel. Die Maße bleiben im 3D stehen wie bisher.",
+            "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
+            "Datei.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),
@@ -3467,12 +3513,14 @@ def kapitel_baugruppen(i):
            "STEP-Datei Körper dafür hat (Menge von Hand erhöht, Unterbaugruppe aus einer eigenen Datei mit mehreren "
            "Sätzen), zeigt die Ansicht nur die vorhandenen Körper und nennt die Teile mit „1 von 4 Stück“; die Lage "
            "der übrigen ist unbekannt und wird nicht erfunden.")
-    i.text("<b>Bedienung wie im Teile-Editor</b> ([[teile_editor]]): <i>Blick</i> stellt die Ausgangsansicht ein, "
-           "der Pfeil daneben Vorn, Oben und Seite; ein Klick auf den <b>Ansichtswürfel</b> oben rechts dreht auf "
+    i.text("<b>Bedienung wie im Teile-Editor</b> ([[teile_editor]], [[ansicht_3d_bedienung]]): <i>Blick</i> stellt die "
+           "Isometrie ein, der Pfeil daneben die sechs Seiten, Auf Auswahl, Um 90° drehen und Perspektivisch; ein "
+           "Klick auf den <b>Ansichtswürfel</b> oben rechts dreht auf "
            "diese Seite. <i>Schattiert</i>, <i>Mit Kanten</i> oder <i>Durchsichtig</i> (Röntgen: Nasen in den "
            "Schlitzen und verdeckte Teile sichtbar). <i>Nur Gewähltes</i> blendet alle Teile außer den gewählten "
            "(blau) aus, samt ihrer Nähte. <i>Nähte</i> blendet die Schweißnähte ein und aus. <i>Messen</i> (zwei "
-           "Punkte, Abstand) und <i>Winkel</i> (drei Punkte) fangen die nächste Ecke; die Maße bleiben stehen, bis "
+           "Punkte, Abstand) und <i>Winkel</i> (drei Punkte) fangen Kreismitte, Kantenmitte, Ecke oder Fläche; die "
+           "Maße bleiben stehen, bis "
            "<i>Maße löschen</i>. Messen und Naht zeichnen schalten sich gegenseitig aus. <i>Längsnaht wählen</i>: "
            "die Fläche eines Rohrs anklicken, die Längsnaht liegt dann dort (wie im Fenster Satz in 3D, "
            "[[satz_3d]]); sie ist im 3D rot.")
