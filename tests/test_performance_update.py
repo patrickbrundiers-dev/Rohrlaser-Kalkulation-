@@ -101,6 +101,15 @@ pruefe(step.grosse_dateien([klein]) is None, "P5a kleine Datei ohne Hinweis")
 t = step.grosse_dateien([klein, gross])
 pruefe(t and "gross.step (225 MB)" in t and "etwa 9 min" in t and "etwa 9 GB" in t, f"P5a Hinweis {t!r}")
 ok("P5a große STEP-Datei: Hinweis mit Dauer und Arbeitsspeicher")
+try:
+    import step_geometrie as sg  # noqa: E402
+    from OCP.STEPControl import STEPControl_Reader  # noqa: E402
+except ImportError:
+    sg = None
+if sg is not None:
+    pruefe(not sg._grosse_datei_einstellen(STEPControl_Reader(), klein), "P5 kleine Datei: Einlesen wie bisher")
+    pruefe(sg._grosse_datei_einstellen(STEPControl_Reader(), gross), "P5 große Datei: Kantenprüfungen aus")
+    ok("P5 Einlesen großer Dateien ab 20 MB ohne die quadratischen Kantenprüfungen")
 
 # P10 Systemprüfung
 zeilen = sp.pruefen(tempfile.gettempdir(), gl=(False, "Test"), bildschirm=(1280, 720))
