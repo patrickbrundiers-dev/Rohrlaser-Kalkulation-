@@ -20,6 +20,18 @@ Programme sie ableiten. Erkannt wird:
   Hinweis die Wand, auf die man blickt.
 - Texte: Profil, Länge („L = 1000“), Werkstoff, Benennung und Zeichnungsnummer aus dem Schriftfeld.
 
+Verschiedene Zeichnungen (3E-15, Patrick 25.10.2026 „Alle a“: „nicht jede Zeichnung ist gleich“):
+- Projektionsmethode aus dem Zeichen bzw. Text (Projektionsmethode 1/3, first/third angle, ISO-E/ISO-A), sonst
+  deutsches Schriftfeld = DIN (Methode 1). Methode 1: die obere von zwei übereinander liegenden Längsansichten ist
+  die Vorderansicht, die untere die Draufsicht; Methode 3 umgekehrt (Draufsicht oben).
+- Senkrecht gezeichnete Rohre: die Zeichnung wird um 90° gedreht (Ende A = oberes Ende).
+- Rahmen und Schriftfeld (eine Gruppe, die andere Ansichten umschließt) zählen nicht als Ansicht.
+- Bemaßung auch auf Layern anderer CAD-Programme (Inventor, AutoCAD Mechanical AM_5, Dimension …).
+- Mehrere Teile auf einem Blatt: Längsansichten gleicher Länge bilden ein Teil; vorgaben['teil'] wählt.
+- Unsicher (unsicher = Gründe): Projektionsmethode unbekannt und wichtig, mehrere Teile, Maßstab nur angenommen. Dann
+  zeigt der Import das Zuordnungsfenster (dxf_rohr_dialog), vorgaben = {projektion, drehung, teil, rollen {Nr. der
+  Ansicht: 'vorne' | 'oben' | 'schnitt' | 'weg'}}.
+
 Nur Rechnung ohne Oberfläche. Ergebnis von erkennen(): dict, siehe dort.
 """
 import math
@@ -27,9 +39,13 @@ import re
 
 from . import dxf_ansichten as da, dxf_import as di, schneidweg as sw
 
-VERDECKT_WORTE = ("VERDECK", "HIDDEN", "UNSICHT")
-MITTEL_WORTE = ("MITTEL", "CENTER", "ACHS")
-MASS_WORTE = ("BEMA", "DIM", "MASSE", "MASS_", "MASSLIN", "MASSHILF", "MASZ")
+VERDECKT_WORTE = ("VERDECK", "HIDDEN", "UNSICHT", "AM_3")
+MITTEL_WORTE = ("MITTEL", "CENTER", "ACHS", "AM_7")
+MASS_WORTE = ("BEMA", "DIM", "MASSE", "MASS_", "MASSLIN", "MASSHILF", "MASZ", "MAßE", "AM_5", "COTE")
+PROJEKTION_1 = r"FIRST\s*ANGLE|1ST\s*ANGLE|PROJEKTIONSMETHODE\s*1|ISO[\s-]*E\b|METHODE\s*E\b|EUROP"
+PROJEKTION_3 = r"THIRD\s*ANGLE|3RD\s*ANGLE|PROJEKTIONSMETHODE\s*3|ISO[\s-]*A\b|METHODE\s*A\b|AMERIK"
+DEUTSCH_WORTE = ("benennung", "werkstoff", "maßstab", "massstab", "zeichnungsnummer", "gezeichnet", "geprüft")
+ROLLEN = {"vorne": "Vorderansicht", "oben": "Draufsicht", "schnitt": "Schnitt", "weg": "nicht verwenden"}
 PROFIL_WORTE = {"Quadratrohr": "Quadratrohr", "QR": "Quadratrohr", "VKR": "Quadratrohr", "Vierkantrohr": "Quadratrohr",
                 "Rechteckrohr": "Rechteckrohr", "RE": "Rechteckrohr", "RR": "Rundrohr", "Rundrohr": "Rundrohr",
                 "Rohr": None}
@@ -91,6 +107,22 @@ class _Linien:
             ziel = self.mass if mass else self.verdeckt if verdeckt else self.sicht
             ziel += [(a, c) for a, c in zip(zug, zug[1:]) if math.dist(a, c) > 1e-9]
         self.dims = _dimensionen(roh)
+        self.layer = sorted({str(el[1]).upper() for el in di.elemente(roh)})
+
+    def gedreht(self):
+        """Dieselben Linien um 90° gegen den Uhrzeigersinn gedreht (senkrecht gezeichnetes Rohr liegt dann waagrecht,
+        das obere Ende links)."""
+        def d(p):
+            return (-p[1], p[0])
+        neu = _Linien.__new__(_Linien)
+        neu.sicht = [(d(p), d(q)) for p, q in self.sicht]
+        neu.verdeckt = [(d(p), d(q)) for p, q in self.verdeckt]
+        neu.mass = [(d(p), d(q)) for p, q in self.mass]
+        neu.kreise = [(d(c), r) for c, r in self.kreise]
+        neu.texte = [(layer, d(p), h, (w or 0.0) + 90.0, t) for layer, p, h, w, t in self.texte]
+        neu.dims = [dict(m, a=d(m["a"]), b=d(m["b"])) for m in self.dims]
+        neu.layer = self.layer
+        return neu
 
 
 def _dimensionen(roh):
@@ -261,9 +293,15 @@ def querschnitt(ansicht, strecken, kreise):
 
 
 def profil_aus_text(texte):
-    """Profil aus Texten wie 'Quadratrohr 40x40x3', 'RR 33,7x2', 'QR 40 x 3': dict(form, a, b, wand) oder None."""
+    """Profil aus Texten wie 'Quadratrohr 40x40x3', 'RR 33,7x2', 'QR 40 x 3', 'Ø42,4x2': dict(form, a, b, wand) oder
+    None."""
     for t in texte:
         s = str(t)
+        m = re.match(r"^\s*(?:Ø|⌀|%%[cC])\s*(\d+(?:[.,]\d+)?)\s*[xX×*]\s*(\d+(?:[.,]\d+)?)\s*$", s)
+        if m:
+            a, t_ = (float(g.replace(",", ".")) for g in m.groups())
+            if 0 < t_ < a / 2:
+                return dict(form="Rundrohr", a=a, b=a, wand=t_)
         m = re.search(r"\b(Quadratrohr|Vierkantrohr|Rechteckrohr|Rundrohr|VKR|QR|RE|RR|Rohr)\b\.?\s*(?:Ø|%%c)?\s*"
                       r"(\d+(?:[.,]\d+)?)\s*[xX×*]\s*(\d+(?:[.,]\d+)?)(?:\s*[xX×*]\s*(\d+(?:[.,]\d+)?))?", s,
                       re.IGNORECASE)
@@ -307,6 +345,36 @@ def schriftfeld(texte, worte):
         if beste:
             return beste[1]
     return None
+
+
+def projektion(texte):
+    """Projektionsmethode (1 = Europa/DIN, 3 = USA) und Quelle aus den Texten, sonst (None, None)."""
+    alles = " ".join(str(t) for t in texte).upper()
+    if re.search(PROJEKTION_3, alles):
+        return 3, "Zeichnung (Projektionsmethode 3)"
+    if re.search(PROJEKTION_1, alles):
+        return 1, "Zeichnung (Projektionsmethode 1)"
+    if sum(1 for t in texte if str(t).strip().lower().startswith(DEUTSCH_WORTE)) >= 2:
+        return 1, "deutsches Schriftfeld (DIN)"
+    return None, None
+
+
+def fingerabdruck(text):
+    """Kennung des Zeichnungsstils (Layernamen), unter der sich das Programm die Projektionsmethode merkt."""
+    try:
+        roh = di.roh_lesen(text)
+    except ValueError:
+        return ""
+    return "|".join(sorted({str(el[1]).upper() for el in di.elemente(roh)}))
+
+
+def ohne_rahmen(ansichten):
+    """Gruppen, die zwei oder mehr andere größere Gruppen umschließen (Blattrahmen, Schriftfeld), fallen weg; Löcher
+    in einer Ansicht (kleine eigene Gruppen) zählen nicht."""
+    def drin(a, b):
+        return a.bb[0] <= b.bb[0] and a.bb[1] <= b.bb[1] and a.bb[2] >= b.bb[2] and a.bb[3] >= b.bb[3]
+    return [a for a in ansichten
+            if sum(1 for b in ansichten if b is not a and drin(a, b) and b.lang >= 0.15 * a.lang) < 2]
 
 
 # ------------------------------------------------------------------ Längsansichten
@@ -535,23 +603,47 @@ def gehrung(tu, tv, ende_b, profil):
     return dict(achse=sw.ACHSE_ZWEI, winkel_h=stufe(wh), winkel_b=stufe(wb), winkel=stufe(w), richtung=round(richtung, 1))
 
 
-def erkennen(text, dateiname="", namen=None, weg=()):
+def erkennen(text, dateiname="", namen=None, weg=(), vorgaben=None):
     """DXF-Text einer Rohrzeichnung -> dict(ok, profil (form, a, b, wand), profil_quelle, profil_text, laenge,
-    laenge_text, eingaben (Rohr-Editor), werkstoff_text, name, artikel, ansichten [dict(rolle, bb, massstab,
-    quelle)], warnungen, hinweise). ok False: keine Rohrzeichnung (warnungen sagt warum)."""
+    laenge_text, eingaben (Rohr-Editor), werkstoff_text, name, artikel, ansichten [dict(nr, rolle, bb, massstab,
+    quelle)], warnungen, hinweise, unsicher (Gründe für das Zuordnungsfenster), rohrartig (Schnitt oder Profiltext),
+    projektion, drehung, teile (Anzahl Teile), linien (Strecken für die Vorschau)). ok False: keine Rohrzeichnung
+    (warnungen sagt warum). vorgaben: siehe Kopf (Zuordnungsfenster)."""
+    vorgaben = dict(vorgaben or {})
     roh = di.roh_lesen(text)
     roh["entitaeten"] = di._polylinien_zusammen(roh["entitaeten"])
     roh["bloecke"] = {n: (b, di._polylinien_zusammen(ents)) for n, (b, ents) in roh["bloecke"].items()}
-    li = _Linien(roh, namen, weg)
+    li0 = _Linien(roh, namen, weg)
+    if vorgaben.get("drehung") is not None:
+        return _erkennen(roh, li0.gedreht() if vorgaben["drehung"] else li0, dateiname, vorgaben)
+    erg = _erkennen(roh, li0, dateiname, dict(vorgaben, drehung=0))
+    if not erg["ok"] and erg.get("senkrecht"):
+        erg90 = _erkennen(roh, li0.gedreht(), dateiname, dict(vorgaben, drehung=90))
+        if erg90["ok"]:
+            return erg90
+    return erg
+
+
+def _erkennen(roh, li, dateiname, vorgaben):
     texte = [t[4] for t in li.texte]
-    warn, hinweise = [], []
-    erg = dict(ok=False, warnungen=warn, hinweise=hinweise, ansichten=[], profil=None, eingaben=None,
+    warn, hinweise, unsicher = [], [], []
+    rollen = {int(k): v for k, v in (vorgaben.get("rollen") or {}).items()}
+    erg = dict(ok=False, warnungen=warn, hinweise=hinweise, unsicher=unsicher, ansichten=[], profil=None,
+               eingaben=None, drehung=vorgaben.get("drehung") or 0, teile=1, rohrartig=False,
+               linien=[[round(c, 2) for c in (*p, *q)] for p, q in li.sicht],
                werkstoff_text=schriftfeld(li.texte, ("werkstoff", "material")),
                name=schriftfeld(li.texte, ("benennung", "bezeichnung", "titel")),
                artikel=schriftfeld(li.texte, ("zeichnungsnummer", "zeichnungs-nr", "zeichn.-nr", "artikelnummer",
                                               "artikel-nr", "teilenummer", "sachnummer")),
                laenge_text=laenge_aus_text(texte), profil_text=profil_aus_text([dateiname] + texte))
-    ansichten = da.gruppen(li.sicht, li.kreise)
+    ansichten = ohne_rahmen(da.gruppen(li.sicht, li.kreise))
+    proj, proj_quelle = (vorgaben["projektion"], "Vorgabe") if vorgaben.get("projektion") in (1, 3) \
+        else projektion(texte)
+    erg["projektion"], erg["projektion_quelle"] = proj or 1, proj_quelle
+
+    def ansichten_liste(rolle_von, f_je):
+        return [dict(nr=i, rolle=rolle_von(a), bb=a.bb, massstab=f, quelle=quelle, vorgabe=rollen.get(i))
+                for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je))]
     if not ansichten:
         warn.append("In der DXF sind keine sichtbaren Kanten.")
         return erg
@@ -563,14 +655,19 @@ def erkennen(text, dateiname="", namen=None, weg=()):
             vorgabe = (float(m.group(2).replace(",", ".")) / float(m.group(1).replace(",", ".")), "Schriftfeld")
     masse = masse_aufgeloest(li.mass, li.texte) + li.dims
     f_je = massstab_je_ansicht(ansichten, masse, (vorgabe[0], vorgabe[1] or "Vorgabe 1:1"))
-    # Schnitt
-    qs = None
-    for a, (f, quelle) in zip(ansichten, f_je):
+    # Schnitt (Zuordnung von Hand: nur die Ansicht mit Rolle Schnitt)
+    qs, schnitte = None, 0
+    for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je)):
+        if rollen.get(i) in ("weg", "vorne", "oben") or ("schnitt" in rollen.values() and rollen.get(i) != "schnitt"):
+            continue
         q = querschnitt(a, li.sicht, li.kreise)
         if q:
-            qs = (a, q, f, quelle)
-            break
+            schnitte += 1
+            qs = qs or (a, q, f, quelle)
     pt = erg["profil_text"]
+    erg["rohrartig"] = bool(qs or pt)
+    erg["ansichten"] = ansichten_liste(lambda a: "Schnitt" if qs and a is qs[0] else "Isometrie" if a.iso else
+                                       "nicht verwendet", f_je)
     if qs and qs[3] != "Bemaßung" and pt:      # Schnitt ohne eigenes Maß: Maßstab aus dem Profiltext
         f = pt["a"] / max(qs[1]["B"], qs[1]["H"])
         best = min(di.MASSSTAEBE, key=lambda s_: abs(s_ - f) / s_)
@@ -595,31 +692,67 @@ def erkennen(text, dateiname="", namen=None, weg=()):
     seiten_echt = (profil["a"], profil["b"])
     # Längsansichten: die schmale Seite ist so groß wie eine Profilseite (Ansicht ohne eigenes Maß: auch mit einem
     # anderen Normmaßstab, wenn der passt)
-    laengs = []
-    for a, (f, quelle) in zip(ansichten, f_je):
-        if a.iso or (qs and a is qs[0]) or a.breite < a.hoehe:
+    laengs, senkrecht = [], False
+    for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je)):
+        if a.iso or (qs and a is qs[0]) or rollen.get(i) in ("weg", "schnitt"):
             continue
-        if not any(da.gleich(a.hoehe * f, s_) for s_ in seiten_echt) and quelle != "Bemaßung":
-            f = next((m for m in di.MASSSTAEBE if any(da.gleich(a.hoehe * m, s_) for s_ in seiten_echt)), f)
-        if any(da.gleich(a.hoehe * f, s_) for s_ in seiten_echt) and a.breite > a.hoehe * 1.05:
-            laengs.append((a, f, quelle))
+        hoch = a.hoehe if a.breite >= a.hoehe else a.breite
+        if not any(da.gleich(hoch * f, s_) for s_ in seiten_echt) and quelle != "Bemaßung":
+            f = next((m for m in di.MASSSTAEBE if any(da.gleich(hoch * m, s_) for s_ in seiten_echt)), f)
+        passt = any(da.gleich(hoch * f, s_) for s_ in seiten_echt)
+        if a.breite < a.hoehe:
+            senkrecht |= passt and a.hoehe > a.breite * 1.05
+            continue
+        if (passt and a.breite > a.hoehe * 1.05) or rollen.get(i) in ("vorne", "oben"):
+            laengs.append((a, f, quelle, i))
     if not laengs:
+        erg["senkrecht"] = senkrecht
         warn.append(f"Keine Längsansicht passt zum Profil {_profil_text(profil)} (waagrecht liegend, Ende A links).")
         return erg
+    # mehrere Teile auf dem Blatt: Längsansichten gleicher Länge gehören zusammen
+    teile = []
+    for x in sorted(laengs, key=lambda x: -x[0].breite * x[1]):
+        lg = x[0].breite * x[1]
+        gruppe = next((g for g in teile if abs(g[0][0].breite * g[0][1] - lg) <= 0.5), None)
+        if gruppe is None:
+            teile.append([x])
+        else:
+            gruppe.append(x)
+    erg["teile"] = len(teile)
+    if len(teile) > 1 or schnitte > 1:
+        nr = min(max(int(vorgaben.get("teil") or 0), 0), len(teile) - 1)
+        laengs = teile[nr]
+        if not vorgaben.get("teil_gewaehlt"):
+            unsicher.append(f"{max(len(teile), schnitte)} Teile auf dem Blatt: Teil {nr + 1} übernommen "
+                            f"({_z(_rund(laengs[0][0].breite * laengs[0][1], 1))} mm lang).")
     erg["profil"] = profil
-    # Rollen der Längsansichten: Rechteckrohr nach Breite, sonst oben = Vorderansicht, darunter Draufsicht
-    lvs = [Laengsansicht(a, f, li.sicht, li.kreise, li.verdeckt) for a, f, *_ in laengs]
+    # Rollen der Längsansichten: von Hand; sonst Rechteckrohr nach Breite; sonst nach der Projektionsmethode (1: die
+    # obere ist die Vorderansicht, die untere die Draufsicht; 3: umgekehrt)
+    lvs = []
+    for a, f, _q, i in laengs:
+        lv = Laengsansicht(a, f, li.sicht, li.kreise, li.verdeckt)
+        lv.nr = i
+        lvs.append(lv)
     lvs.sort(key=lambda lv: -lv.bb[3])
-    if profil["form"] == "Rechteckrohr":
+    von_hand = [lv for lv in lvs if rollen.get(lv.nr) in ("vorne", "oben")]
+    if von_hand:
+        for lv in lvs:
+            lv.seite = rollen.get(lv.nr) if lv in von_hand else None
+    elif profil["form"] == "Rechteckrohr":
         for lv in lvs:
             lv.seite = "oben" if da.gleich(lv.hoehe * lv.f, profil["a"]) else "vorne"
     elif len(lvs) == 1:
         lvs[0].seite = "oben"
     else:
-        lvs[0].seite, lvs[1].seite = "vorne", "oben"
+        lvs[0].seite, lvs[1].seite = ("oben", "vorne") if proj == 3 else ("vorne", "oben")
+        if proj is None:
+            unsicher.append("Projektionsmethode nicht in der Zeichnung: Europa/DIN angenommen (obere Längsansicht = "
+                            "Vorderansicht).")
     lvs = [lv for lv in lvs if lv.seite][:2]
     if len({lv.seite for lv in lvs}) < len(lvs):
         lvs = lvs[:1]
+    if all(quelle.startswith("Vorgabe") for _a, _f, quelle, _i in laengs) and not masse:
+        unsicher.append("Keine Bemaßung und kein Maßstab im Schriftfeld: Maßstab 1:1 angenommen.")
     # Länge
     laengen = [lv.a.breite * lv.f for lv in lvs]
     L = max(laengen)
@@ -678,11 +811,13 @@ def erkennen(text, dateiname="", namen=None, weg=()):
                             "Sonderkontur mit der Hülle übernommen, bitte prüfen.")
     eing["konturen"] = muster(eing["konturen"])
     erg["eingaben"] = eing
-    erg["ansichten"] = [dict(rolle=("Schnitt" if qs and a is qs[0] else "Isometrie" if a.iso else
-                                    next((_ansicht_name(lv) for lv in lvs if lv.a is a), "nicht verwendet")),
-                             bb=a.bb, massstab=f, quelle=quelle) for a, (f, quelle) in zip(ansichten, f_je)]
-    hinweise.insert(0, "Ansichten nach DIN (Projektionsmethode 1): " +
-                    ", ".join(f"{_ansicht_name(lv)} = Seite {lv.seite}" for lv in lvs) + ", Ende A links.")
+    erg["ansichten"] = ansichten_liste(lambda a: "Schnitt" if qs and a is qs[0] else "Isometrie" if a.iso else
+                                       next((_ansicht_name(lv) for lv in lvs if lv.a is a), "nicht verwendet"), f_je)
+    methode = "von Hand zugeordnet" if von_hand else \
+        f"Projektionsmethode {proj or 1} ({proj_quelle or 'angenommen'})"
+    hinweise.insert(0, f"Ansichten {methode}: " + ", ".join(f"{_ansicht_name(lv)} = Seite {lv.seite}" for lv in lvs)
+                    + (", Zeichnung um 90° gedreht (oberes Ende = Ende A)" if vorgaben.get("drehung") else
+                       ", Ende A links") + ".")
     erg["ok"] = True
     return erg
 

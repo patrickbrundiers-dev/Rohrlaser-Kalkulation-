@@ -2686,8 +2686,22 @@ def kapitel_optimieren(i):
             "40x40x3</i>); steht beides da und passt nicht, gilt der Schnitt mit Hinweis. Das Profil der Stammdaten "
             "sucht das Programm wie beim STEP-Import; fehlt es, steht das im Editor (<i>Neu …</i> legt es an).",
             "<b>Ansichten</b> nach DIN (Projektionsmethode 1): oben die Vorderansicht (Seite vorne), darunter die "
-            "Draufsicht (Seite oben), Ende A links. Beim Rechteckrohr ist die Ansicht mit der Breitseite die "
-            "Draufsicht. Die Isometrie wird nicht ausgewertet.",
+            "Draufsicht (Seite oben), Ende A links. Steht auf der Zeichnung <i>Third angle</i>, <i>Projektionsmethode "
+            "3</i> oder <i>ISO-A</i> (USA), ist es umgekehrt. Ein deutsches Schriftfeld (Benennung, Werkstoff, "
+            "Maßstab) zählt als DIN. Beim Rechteckrohr ist die Ansicht mit der Breitseite die Draufsicht. Die "
+            "Isometrie wird nicht ausgewertet.",
+            "<b>Andere Zeichnungen</b>: Ein senkrecht gezeichnetes Rohr wird gedreht (das obere Ende ist Ende A). "
+            "Blattrahmen und Schriftfeldrahmen fallen weg. Das Profil darf auch als <i>Ø42,4x2</i> dastehen. Maße "
+            "dürfen echte DXF-Bemaßung sein oder Linien und Text, auf beliebigen Layern. Ohne Bemaßung und ohne "
+            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste.",
+            "<b>Zuordnungsfenster</b>: Ist sich das Programm nicht sicher (keine Projektionsmethode auf der "
+            "Zeichnung, mehrere Teile, Maßstab nur angenommen), erscheint vor dem Editor ein Fenster mit der "
+            "Zeichnung und den gefundenen Ansichten (Nummern). Je Ansicht wählst du <i>Vorderansicht</i>, "
+            "<i>Draufsicht</i>, <i>Schnitt</i> oder <i>nicht verwenden</i>, dazu Projektion (Europa/USA), Lage "
+            "(waagrecht/senkrecht) und welches Teil; <b>Neu erkennen</b> rechnet neu, <b>Übernehmen</b> öffnet den "
+            "Editor. Die gewählte Projektion merkt sich das Programm je Zeichnungsstil (gleiche Layernamen), "
+            "beim nächsten Mal fragt es nicht mehr. Im Rohr-Editor erscheint das Fenster auch, wenn keine "
+            "Längsansicht zum Profil passt. Ist alles eindeutig, gibt es kein Fenster.",
             "<b>Länge</b> von Spitze zu Spitze aus den Ansichten. Steht eine andere Länge im Text (z. B. <i>L = "
             "1000</i> in der Mitte einer Gehrung), zeigt der Editor beides.",
             "<b>Enden</b>: die Endkante je Ansicht; schräg in einer Ansicht = Gehrung mit der längsten Seite, schräg "
