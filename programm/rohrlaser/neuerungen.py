@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.127", "<b>Abwicklung als Fenster</b>: Rohr- und Blech-Editor haben oben rechts im Menüband den Knopf "
+                "<b>Abwicklung</b>; er zeigt die Abwicklung groß in einem eigenen Fenster, das jeder Eingabe folgt. "
+                "<b>Esc</b> schließt nur dieses Fenster, der Editor bleibt offen ([[teile_editor]]). Fehler behoben: "
+                "<b>Enter</b> nach einer Eingabe schloss den Editor (auch Baugruppe und Satz in 3D); jetzt bestätigt "
+                "Enter nur die Eingabe.",
+     "Abwicklung im eigenen Fenster (Esc schließt nur das Fenster); Enter schließt den Editor nicht mehr"],
     ["0.9.126", "<b>3D drehen um den Mauszeiger</b>: In allen 3D-Ansichten (Teile-Editor Rohr und Blech, "
                 "Schweißbaugruppe, Satz in 3D, STEP-Prüfdialog, 3D-Ansicht der Positionen) dreht die linke Maustaste "
                 "jetzt um den Punkt des Modells unter dem Mauszeiger; ein kleiner Kreis zeigt ihn beim Drehen. Neben "
