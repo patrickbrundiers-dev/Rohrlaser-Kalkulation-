@@ -82,7 +82,9 @@ def bauen(profil, form, b, h, t=None, ecken=GEHRUNG, hochkant=False):
     richtung = 90.0 if hochkant and not rund else 0.0
     koerper = []                # (Name, Länge, Eingaben, Lage)
 
-    def rohr(name, laenge, enden, o, z, aussen):
+    def rohr(name, laenge, enden, o, z, aussen, stecker=False):
+        if stecker:     # gleiche Stecker gleich gedreht (Nasenwinkel gilt je Teil); 180° ändert den Querschnitt nicht
+            aussen = tuple(abs(c) for c in aussen)
         x = _achsen(z, aussen, rund, hochkant)
         e = dict(a=dict(enden[0]), b=dict(enden[1]), konturen=[])
         koerper.append((name, round(laenge, 1), e, _lage(o, z, x)))
@@ -118,7 +120,7 @@ def bauen(profil, form, b, h, t=None, ecken=GEHRUNG, hochkant=False):
         k["oben"] = rohr("Rahmen waagrecht", b, gerade, (0, yc, h - d / 2), (1, 0, 0), (0, 0, 1))
         for seite, x in (("links", d / 2), ("rechts", b - d / 2)):
             k[seite] = rohr("Rahmen senkrecht", senk_l, sattel, (x, yc, senk_z0), (0, 0, 1),
-                            (-1 if seite == "links" else 1, 0, 0))
+                            (-1 if seite == "links" else 1, 0, 0), stecker=True)
             stoss(k["unten"], k[seite], "a", (x, yc, d / 2))
             stoss(k["oben"], k[seite], "b", (x, yc, h - d / 2))
         return k
@@ -132,7 +134,8 @@ def bauen(profil, form, b, h, t=None, ecken=GEHRUNG, hochkant=False):
         for unten in (True, False):
             for x in (tief / 2, b - tief / 2):      # außen bündig mit dem Rahmen
                 zc = d / 2 if unten else h - d / 2
-                n = rohr("Querrohr", quer_l, sattel, (x, y0, zc), (0, 1, 0), (0, 0, -1 if unten else 1))
+                n = rohr("Querrohr", quer_l, sattel, (x, y0, zc), (0, 1, 0), (0, 0, -1 if unten else 1),
+                         stecker=True)
                 stoss(v["unten" if unten else "oben"], n, "a", (x, tief / 2, zc))
                 stoss(hi["unten" if unten else "oben"], n, "b", (x, t - tief / 2, zc))
     teile, schluessel = [], {}

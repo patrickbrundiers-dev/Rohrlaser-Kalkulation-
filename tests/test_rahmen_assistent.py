@@ -73,6 +73,11 @@ for falsch in (lambda: rahmen.bauen(QR, rahmen.QUADER, 1000, 600, 400, ecken=rah
         raise AssertionError("ValueError erwartet")
     except ValueError:
         pass
+# gleiche Stecker gleich gedreht: der Nasenwinkel (aus der ersten Lage) gilt für alle Körper des Teils
+for erg in (s, q, rahmen.bauen(QR, rahmen.QUADER, 1000, 600, 400, ecken=rahmen.STECKEN)):
+    for t in erg["teile"][1:]:
+        assert len({tuple(lg[3:9]) for lg in t["lagen"]}) == 1, (t["name"], t["lagen"])
+assert huelle(s, QR) == ([0.0, -20.0, 0.0], [1000.0, 20.0, 600.0])
 ok("Geometrie: Gehrung außen B × H, stumpf mit Stößen, Rundrohr mit Sattel, Quader hochkant, Fehler gemeldet")
 
 # ------------------------------------------------------------------ im Angebot
