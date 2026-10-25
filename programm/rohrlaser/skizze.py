@@ -409,17 +409,43 @@ def kanten(qs, ansicht):
 
 def ende_abwicklung(qs, e, n=120):
     """Schnittlinie eines Endes in der Abwicklung: [(s, Abstand von der Spitze)]. Mit umriss (komplexes Ende aus dem
-    STEP-Import: [[s, Abstand vom Ende]]) der gemessene Verlauf."""
-    out = []
+    STEP-Import: [[s, Abstand vom Ende]]) der gemessene Verlauf. Nasen einer Steckverbindung (wie rohr3d.netz): der
+    Schnitt liegt um ihre Länge weiter innen, die Nasen (Breite am Umfang) ragen bis zum Teilende."""
     um = _ende_umriss(qs, (e or {}).get("umriss"))
-    for i in range(n + 1):
-        s = qs.umfang * i / n
+
+    def basis(s):
         if um:
-            out.append((s, um(s)))
-            continue
+            return um(s)
         (u, v), _ = qs.s_zu_uv(s)
-        out.append((s, schnitt_x(qs, e, u, v)))
-    return out
+        return schnitt_x(qs, e, u, v)
+    stellen = [qs.umfang * i / n for i in range(n + 1)]
+    nasen = _nasen_abwicklung(qs, e)
+    if not nasen:
+        return [(s, basis(s)) for s in stellen]
+    lg, bereiche = nasen
+
+    def in_nase(s):
+        return any(min(abs(s - m), qs.umfang - abs(s - m)) < h - 1e-9 for m, h in bereiche)
+    for m, h in bereiche:               # Kanten der Nasen als Stufe
+        for k in (m - h, m + h):
+            k %= qs.umfang
+            stellen += [max(k - 1e-6, 0.0), min(k + 1e-6, qs.umfang)]
+    return [(s, basis(s) + (0.0 if in_nase(s) else lg)) for s in sorted(set(stellen))]
+
+
+def _nasen_abwicklung(qs, e):
+    """(Nasenlänge, [(Mitte s, halbe Breite am Umfang)]) der Nasen am Ende e oder None."""
+    from .rohr3d import nasen_lage
+    try:
+        n = nasen_lage(e or {}, qs)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+    if not n:
+        return None
+    lg, winkel, h = n
+    mitten = [naht_s(qs, w) for w in winkel]
+    bereiche = [(m, h) for m in mitten if m is not None]
+    return (lg, bereiche) if bereiche and lg > 0 else None
 
 
 def _ende_umriss(qs, umriss):

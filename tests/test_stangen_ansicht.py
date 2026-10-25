@@ -65,6 +65,18 @@ assert sa.stange(dict(stange, teile=[dict(teil, ref="ix9", index=9)]), [p], lamb
 assert sa.stange(stange, [p], lambda _: None) is None
 leer = dict(p, technik=None)
 assert sa.stange(stange, [leer], lambda _: QR)["teile"][0]["konturen"] == []
+# Nasen einer Steckverbindung (Patrick 25.10.2026: auf der Stange nicht zu sehen): Schnitt um die Nasenlänge innen,
+# die Nasen (Breite am Umfang) bis zum Teilende, scharfe Stufe an ihren Kanten
+from rohrlaser import steckverbindung as stv  # noqa: E402
+_, mit_nasen, plus = stv.anwenden(stv.neu(dict(id=1), dict(id=2), QR, {}, ende="a", x=200, seite="oben"),
+                                  dict(a={}, b={}, konturen=[]), dict(a={}, b={}, konturen=[]), QR, QR)
+pn = dict(p, technik=json.dumps(dict(mit_nasen, quelle=sw.QUELLE)))
+tn = sa.stange(stange, [pn], lambda _: QR)["teile"][0]
+vorne = [(x, s_) for x, s_ in tn["umriss"] if x < 10 + plus / 2]          # Spitzen der Nasen am Teilende
+breite = stv.nasen(mit_nasen["a"])["bN"]
+assert plus > 0 and vorne and {round(x, 6) for x, _ in vorne} == {10.0}, vorne
+assert abs(max(s_ for x, s_ in vorne if s_ < 80) - min(s_ for x, s_ in vorne if s_ < 80) - breite) < 0.01, vorne
+assert any(abs(x - (10 + plus)) < 1e-6 for x, _ in tn["umriss"])          # dazwischen der Schnitt
 ok("Abwicklung der Stange: Gehrung an der Spitze, Konturen an ihrer Stelle, Drehung verschiebt Teil und Naht, "
    "Konturen über die Abwicklungsnaht doppelt, ohne Position/Profil keine Abwicklung")
 
