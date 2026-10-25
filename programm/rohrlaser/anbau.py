@@ -88,7 +88,7 @@ def gravur_zuege(liste):
     """Gravur der Anbauteile als Linienzüge fürs 3D aus den Eingaben und den STEP-Export (Rille 0,1 mm):
     [[(Punkt, Normale nach außen)]] im Rohrsystem der STEP-Messung (z = Rohrachse ab Ende A). Je Anbauteil nach seiner
     Bearbeitung: Umriss der Aufstandsfläche, Kreuz 2 × 10 mm (Positionsmarke) bzw. 2 × 2 mm (Punktmarke); keine bzw.
-    ausgeschlossen: nichts. Braucht die Lage aus der STEP-Messung (ab Version 0.9.117: marke, umriss_linien)."""
+    ausgeschlossen: nichts. Braucht die Lage aus der STEP-Messung (ab Version 0.9.118: marke, umriss_linien)."""
     import math
     out = []
     for a in liste:

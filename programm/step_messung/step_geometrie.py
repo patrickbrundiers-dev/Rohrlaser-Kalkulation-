@@ -145,6 +145,8 @@ class Teil:
     verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
     biegerohr: dict = None      # Biegerohr (step_biegerohr): Mittellinie, Elemente, LRA, XYZ; sonst None
     knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
+    offene_seite: dict = None   # offenes Rohr geschlossen (step_offenes_rohr): Seite, Lücken, Länge; sonst None
+    geschlossen: object = None  # offen gezeichnetes Rohr: Messung mit ergänzter Wand (Teil); sonst None
 
     @property
     def pruefstatus(self):
@@ -1778,11 +1780,14 @@ def _rp_erkennen(t, bx, by):
     return treffer[0]
 
 
-def _profil_messen(solid, datei="", koerper=1, netz=False):
-    """Messung als gerades Profil (Rohr, offenes Profil, Flachstahl) mit konstantem Querschnitt."""
+def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
+    """Messung als gerades Profil (Rohr, offenes Profil, Flachstahl) mit konstantem Querschnitt. quer: Körper, aus dem
+    Lage und Querschnitt kommen (gleiche Lage wie solid, z. B. das geschlossene Rohr zu einem Rohr mit großem
+    Fenster, step_offenes_rohr); Konturen und Enden immer aus solid."""
     t = Teil(datei=datei, koerper=koerper)
-    ax3, regel = _lage(solid)
+    ax3, regel = _lage(quer if quer is not None else solid)
     lok = _transformiere(solid, ax3)
+    lok_q = _transformiere(quer, ax3) if quer is not None else lok
 
     zmin, zmax = _z_bereich(lok)
     t.laenge = zmax - zmin
@@ -1801,7 +1806,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         best, passend = None, []
         for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
             z = zmin + anteil * t.laenge
-            ws = _schnitt(lok, z)
+            ws = _schnitt(lok_q, z)
             if len(ws) != n_konturen or n_konturen >= 2 and not all(_innen_liegend(w[1], ws[0][1]) for w in ws[1:]):
                 continue
             netto = ws[0][0] - sum(w[0] for w in ws[1:])
@@ -2704,6 +2709,19 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
 
 
 def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
+    """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
+    Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
+    step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
+    t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    try:
+        from step_offenes_rohr import schliessen
+        schliessen(solid, t, datei, koerper, netz)
+    except Exception:  # Schließen darf die Messung nie verhindern
+        t.geschlossen = None
+    return t
+
+
+def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Ein Körper: zuerst die Blechprüfung (ebene Bleche, die kein Flachstahl sind, werden als Blech gemessen), sonst
     die Profilmessung. Gekantete Bleche gelten nur dann als Blech, wenn die Profilmessung keinen gleichbleibenden
     Querschnitt findet (ein Kantprofil mit konstantem Querschnitt bleibt L/U/C-Profil)."""
