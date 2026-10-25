@@ -140,6 +140,8 @@ def masse(v, profil_a, profil_s):
     for i in range(n):
         art = waende if i < 2 else WAENDE[1 - WAENDE.index(waende)]
         lage.append((art, 1 if i % 2 == 0 else -1))
+    if n == 1 and _z(v.get("nase_seite")) < 0:      # eine Nase auf der Gegenseite (nasen_wahl)
+        lage = [(waende, -1)]
     nasen, schlitze, laengen = [], [], []
     for art, vz in lage:
         abst = (ab if art == waende else bw) - s_b         # Mitte zu Mitte der beiden Nasenwände
@@ -155,8 +157,9 @@ def masse(v, profil_a, profil_s):
         nasen.append((dx, dq))
         schlitze.append((sl, sb))
         laengen.append(2 * (sl + sb))
+    gesamt = n + len(versatz_liste(v))      # mit den Nasen der Ecke (andere Aufnahme, nasen_wahl_ecke)
     return dict(lN=l_n, flanke=flanke, schlitze=schlitze, nasen=nasen, schlitz_l=schlitze[0][0],
-                schlitz_b=schlitze[0][1], schlitz=laengen[0], ende_plus=2 * n * flanke, laenge_plus=flanke,
+                schlitz_b=schlitze[0][1], schlitz=laengen[0], ende_plus=2 * gesamt * flanke, laenge_plus=flanke,
                 aufnahme_plus=sum(laengen), einstiche_plus=n, bN=b_n, anzahl=n, staerke=staerke,
                 gekuerzt=round(grenze, 2) if gekuerzt else None)
 
@@ -188,8 +191,20 @@ def schlitz_zeilen(v, profil_a, profil_s):
 def nasen_block(v, profil_a, profil_s):
     """Block 'nasen' für das Ende des Steckers."""
     m = masse(v, profil_a, profil_s)
-    return dict(id=v["id"], anzahl=m["anzahl"], bN=m["bN"], lN=round(m["lN"], 3), flanke=round(m["flanke"], 3),
-                plus=round(m["ende_plus"], 3), laenge_plus=round(m["laenge_plus"], 3), waende=v.get("waende") or "quer")
+    out = dict(id=v["id"], anzahl=m["anzahl"], bN=m["bN"], lN=round(m["lN"], 3), flanke=round(m["flanke"], 3),
+               plus=round(m["ende_plus"], 3), laenge_plus=round(m["laenge_plus"], 3), waende=v.get("waende") or "quer")
+    if m["anzahl"] == 1 and _z(v.get("nase_seite")) < 0:
+        out["seite"] = -1
+    if versatz_liste(v):        # Ecke: weitere Nasen am selben Ende (in die anderen Aufnahmen), Winkel zur ersten
+        out["versatz"] = versatz_liste(v)
+        out["anzahl"] = m["anzahl"] + len(out["versatz"])
+    return out
+
+
+def versatz_liste(v):
+    """Winkel [°] der weiteren Nasen einer Ecke zur ersten (Feld 'versatz' der Verbindung bzw. des Blocks)."""
+    x = (v or {}).get("versatz")
+    return [round(_z(w), 1) for w in x] if isinstance(x, (list, tuple)) else []
 
 
 def nasen(e):
@@ -424,6 +439,276 @@ def text(v, m=None):
     if ohne:
         t += f"; {' und '.join(ohne)} schon aus einer gleichen Verbindung"
     return t
+
+
+# ------------------------------------------------------------------ Nasen nur in die Stoßwand
+WINKEL_RUND = 45.0      # Rundrohr als Aufnahme: Nase höchstens so weit (Grad am Umfang) neben der Mitte des Stoßes
+
+
+def _nasen_passen(x, profil_s, k):
+    """Passen die Nasen der Verbindung x an der Stelle k (Kontakt, siehe nasen_wahl)? Ergebnis: größte Nasenbreite,
+    die passt (≤ bN), oder None."""
+    from .optimierung import aussenradius
+    profil_a = k["profil_a"]
+    form_a, a_a, b_a, s_a = _profil(profil_a, "Aufnahme")
+    c = _z(x.get("c"))
+    rand = _z(x.get("rand")) if x.get("rand") not in (None, "") else NASE_RAND
+    w, q, laenge, halb = (_z(k.get(n)) for n in ("w", "q", "laenge", "halb"))
+    if form_a == "Rundrohr":
+        grenze_q = halb * math.sin(math.radians(WINKEL_RUND))
+    else:
+        grenze_q = halb - aussenradius(form_a, a_a, b_a, s_a, r=profil_a.get("r_aussen")) - rand
+    try:
+        m = masse(x, profil_a, profil_s)
+    except ValueError:
+        return None
+    b_n = m["bN"]
+    waende = x.get("waende") if x.get("waende") in WAENDE else WAENDE[0]
+    for i, (dx, dq) in enumerate(m["nasen"]):
+        art = waende if i < 2 else WAENDE[1 - WAENDE.index(waende)]
+        if art == "quer":           # Nasenbreite quer zur Achse der Aufnahme
+            frei = 2 * (grenze_q - abs(q + dq) - c)
+            if frei < 1e-9:
+                return None
+            b_n = min(b_n, frei)
+            halb_l = m["staerke"] / 2 + c
+        else:
+            if abs(q) + abs(dq) + m["staerke"] / 2 + c > grenze_q + 1e-9:
+                return None
+            halb_l = b_n / 2 + c
+        if w + dx - halb_l < s_a - 1e-9 or w + dx + halb_l > laenge - s_a + 1e-9:
+            return None                 # über das Ende der Aufnahme hinaus
+    return b_n
+
+
+def nasen_wahl(v, profil_s, kontakte, nase_min=None):
+    """Patrick 25.10.2026: Stecknasen nie in die Außenwand der Aufnahme, dann um 90° versetzt oder nur eine Nase.
+    kontakte: alle Stöße desselben Steckerendes (gleiche Teile tragen dieselben Nasen), je dict(profil_a, w = Mitte
+    längs ab Ende A der Aufnahme, q = Versatz quer auf der Stoßwand, laenge der Aufnahme, halb = halbe Breite der
+    Stoßwand außen (Rundrohr: Radius), quer = (Wandbreite, Abstand) des Steckers für 'quer' aus seiner Einbaulage,
+    phi = Richtung der Achse der Aufnahme am Stecker [°], 0 oben, wie baugruppe_ansicht.nasen_winkel). Jede Nase muss
+    mit Breite und Spiel auf dem geraden Teil der Stoßwand liegen (Kastenprofil ohne Eckradius und Rand, Rundrohr
+    höchstens WINKEL_RUND neben der Mitte) und innerhalb der Länge der Aufnahme. Reihenfolge: Vorgabe; um 90°
+    versetzt; nur eine Nase (Wand quer zur Aufnahme, an allen Stößen dieselbe Wand des Steckers); die Nasenbreite
+    dafür notfalls schmaler, nicht unter nase_min. Ergebnis (Werte für die Verbindung {waende, anzahl, bN,
+    wandbreite, abstand}, Seite je Kontakt (1/−1, für nase_seite), Hinweis oder None) bzw. (None, None, Hinweis)."""
+    if not kontakte:
+        return dict(), [1], None
+    form_s = _profil(profil_s, "Stecker")[0]
+    mind = _z(nase_min) or NASE_MIN
+    vorgabe = v.get("waende") if v.get("waende") in WAENDE else WAENDE[0]
+    andere = WAENDE[1 - WAENDE.index(vorgabe)]
+    n0 = int(_z(v.get("anzahl")) or ANZAHL)
+    quer = kontakte[0].get("quer") or querschnitt(profil_s, "quer")[:2]
+
+    def werte(waende, n):
+        bw, ab = quer if waende == "quer" or form_s == "Rundrohr" else (quer[1], quer[0])
+        return dict(waende=waende, anzahl=n, wandbreite=round(bw, 3), abstand=round(ab, 3))
+
+    def breite(w_, seiten):
+        b_n = _z(v.get("bN"))
+        for k, sz in zip(kontakte, seiten):
+            x = dict(v, **w_)
+            x.pop("nase_seite", None)
+            if w_["anzahl"] == 1 and sz < 0:
+                x["nase_seite"] = -1
+            b = _nasen_passen(x, profil_s, k)
+            if b is None or b < min(_z(v.get("bN")), mind) - 1e-9:
+                return None
+            b_n = min(b_n, b)
+        return b_n
+
+    def ergebnis(w_, seiten, b_n, text):
+        geaendert = [text] if text else []
+        if b_n < _z(v.get("bN")) - 1e-9:
+            w_["bN"] = round(math.floor(b_n * 10) / 10, 1)
+            geaendert.append(f"Nase {w_['bN']:g} mm breit")
+        return w_, seiten, ("Nasen nur in die Stoßwand: " + ", ".join(geaendert)) if geaendert else None
+
+    eins = [1] * len(kontakte)
+    for waende, n, text in ((vorgabe, n0, None), (andere, n0, f"Nasen um 90° versetzt ({andere})"),
+                            (vorgabe, 2, "2 Nasen"), (andere, 2, f"2 Nasen um 90° versetzt ({andere})")):
+        if n == 4 and waende == andere:
+            continue
+        w_ = werte(waende, n)
+        b_n = breite(w_, eins)
+        if b_n is not None:
+            return ergebnis(w_, eins, b_n, text)
+    # nur eine Nase auf der Wand quer zur Aufnahme: an jedem Stoß die passende Seite, am Stecker dieselbe Wand
+    w_ = werte("quer", 1)
+    raster = 90.0 if form_s != "Rundrohr" else 1.0
+    moeglich = None
+    for k in kontakte:
+        hier = set()
+        for sz in (1, -1):
+            if _breite_einzeln(v, w_, profil_s, k, sz, mind) is None:
+                continue
+            hier.add(round(((_z(k.get("phi")) + (0 if sz > 0 else 180)) % 360) / raster) * raster % 360)
+        moeglich = hier if moeglich is None else moeglich & hier
+    if moeglich:
+        winkel = min(moeglich)
+        seiten = [1 if round((_z(k.get("phi")) % 360) / raster) * raster % 360 == winkel else -1 for k in kontakte]
+        b_n = breite(w_, seiten)
+        if b_n is not None:
+            return ergebnis(w_, seiten, b_n, "nur eine Nase")
+    if len(kontakte) > 1:
+        return None, None, ("keine Nasen: an gleichen Teilen passt keine gemeinsame Nasenlage in die Stoßwand "
+                            "(Position teilen, dann neu stecken)")
+    return None, None, "keine Nasen: keine Nase passt in die Stoßwand der Aufnahme"
+
+
+def nasen_winkel_menge(werte, phi, form_s):
+    """Winkel der Nasen am Stecker [°] (0 oben, wie baugruppe_ansicht.nasen_winkel) aus den Werten einer Verbindung
+    und der Richtung phi der Aufnahme: für den Vergleich gleicher Teile (gleiche Menge = gleiche Nasen)."""
+    raster = 90.0 if form_s != "Rundrohr" else 1.0
+    w0 = _z(phi) + (90.0 if werte.get("waende") == WAENDE[1] else 0.0)
+    n = int(_z(werte.get("anzahl")) or ANZAHL)
+    if n == 1 and _z(werte.get("nase_seite")) < 0:
+        w0 += 180.0
+    schritt = {1: (0,), 2: (0, 180), 4: (0, 180, 90, 270)}.get(n, (0, 180)) + tuple(versatz_liste(werte))
+    return tuple(sorted({round(((w0 + d) % 360) / raster) * raster % 360 for d in schritt}))
+
+
+def _seite_grad(seite):
+    """Seite einer Schlitzzeile als Winkel [°] (oben 0, vorne 90, …; Rundrohr aus dem Text) oder None."""
+    from . import skizze as sk
+    if seite in SEITEN_KASTEN:
+        return SEITEN_KASTEN.index(seite) * 90.0
+    try:
+        return float(sk.winkel_aus_text(seite)) % 360 if seite else None
+    except (TypeError, ValueError):
+        return None
+
+
+def gleich_lagen(muster_a, muster_b, schlitze, laenge, form, quadrat=False):
+    """Gleiche Teile, die nur gedreht oder gewendet eingebaut sind (Rohr ohne eigene Konturen, gerade Enden): je
+    Drehung d [°] um die Rohrachse und Wenden (Ende A <-> B) die Kennung der Nasen (muster_a/_b = (Winkelmenge, bN)
+    oder None) und Schlitze (Zeilen mit x, seite) im so gedrehten Rohrsystem. Ergebnis [(Kennung, d, gewendet)],
+    zuerst ohne Änderung; ohne sichere Umrechnung (Querversatz, schräge Schlitze) nur dieser Eintrag."""
+    import json
+    def kennung(d, wenden):
+        def w_(w):
+            w = (-w if wenden else w) - d
+            return round(w % 360, 1) % 360
+        ma, mb = (muster_b, muster_a) if wenden else (muster_a, muster_b)
+        m = [None if x is None else [sorted(w_(w) for w in x[0]), x[1]] for x in (ma, mb)]
+        zeilen = []
+        for z in schlitze:
+            g = _seite_grad(z.get("seite"))
+            x = _z(z.get("x"))
+            zeilen.append(json.dumps(dict({n: w for n, w in z.items() if n not in ("x", "seite")},
+                                          x=round((laenge - x) if wenden else x, 1),
+                                          seite=None if g is None else w_(g)), sort_keys=True))
+        return json.dumps([m, sorted(zeilen)])
+    out = [(kennung(0.0, False), 0.0, False)]
+    if any(_z(z.get("q")) or z.get("winkel") not in (None, 0) or (z.get("seite") and
+           _seite_grad(z.get("seite")) is None) for z in schlitze) or not laenge:
+        return out
+    if form == "Rundrohr":
+        drehungen = {0.0} | {round(w_ % 360, 1) for x in (muster_a, muster_b) if x for w_ in x[0]} | {
+            round(_seite_grad(z.get("seite")) or 0.0, 1) for z in schlitze}
+        drehungen |= {round(-w % 360, 1) for w in drehungen}
+    else:
+        drehungen = [0.0, 90.0, 180.0, 270.0] if quadrat else [0.0, 180.0]
+    for wenden in (False, True):
+        for d in sorted(drehungen):
+            if d or wenden:
+                out.append((kennung(d, wenden), d, wenden))
+    return out
+
+
+def seite_drehen(seite, d, wenden):
+    """Seite (Name oder Winkeltext) im mit lage_drehen geänderten Rohrsystem."""
+    from . import skizze as sk
+    g = _seite_grad(seite)
+    if g is None:
+        return seite
+    g = round(((-g if wenden else g) - d) % 360, 1) % 360
+    if seite in SEITEN_KASTEN:
+        return SEITEN_KASTEN[int(round(g / 90.0)) % 4]
+    return sk.winkel_text(g)
+
+
+def lage_drehen(lage, d, wenden, laenge):
+    """Einbaulage [Ende A, Achse, X] so ändern, dass ein Merkmal bei Winkel w des alten Rohrsystems im neuen bei
+    (±w) − d liegt (gleich_lagen): erst Wenden (Drehung 180° um Y, Ende A an das alte Ende B), dann Drehung um d
+    um die Achse."""
+    o, z, x = list(lage[0:3]), list(lage[3:6]), list(lage[6:9])
+    if wenden:
+        o = [o[i] + laenge * z[i] for i in range(3)]
+        z, x = [-v for v in z], [-v for v in x]
+    y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]]
+    c, s = math.cos(math.radians(d)), math.sin(math.radians(d))
+    x = [c * x[i] + s * y[i] for i in range(3)]
+    return [round(v, 9) for v in o + z + x]
+
+
+def nasen_wahl_ecke(v, profil_s, kontakte, nase_min=None):
+    """Ecke (Patrick 25.10.2026 „je Träger eine Nase, um 90° versetzt“): ein Steckerende stößt an mehrere Aufnahmen
+    (z. B. Stütze unter zwei Trägern). Je Aufnahme genau eine Nase auf der Wand quer zu ihr, auf der Seite, die in
+    die Stoßwand passt; zwei Nasen nie auf derselben Wand des Steckers. Die erste passende Verbindung trägt alle
+    Nasen des Endes ('versatz' = Winkel der übrigen zur ersten), die anderen nur ihren Schlitz. kontakte wie bei
+    nasen_wahl. Ergebnis (je Kontakt Werte {waende, anzahl 1, nase_seite, bN, wandbreite, abstand[, versatz],
+    traegt} oder None, Hinweis)."""
+    form_s = _profil(profil_s, "Stecker")[0]
+    mind = _z(nase_min) or NASE_MIN
+    raster = 90.0 if form_s != "Rundrohr" else 1.0
+    standard = querschnitt(profil_s, "quer")[:2]
+
+    def werte_von(k):           # je Aufnahme ihre Wand des Steckers (Rechteckrohr: Breite und Abstand je Richtung)
+        quer = k.get("quer") or standard
+        return dict(waende="quer", anzahl=1, wandbreite=round(quer[0], 3), abstand=round(quer[1], 3))
+    w0 = werte_von(kontakte[0]) if kontakte else werte_von({})
+    # das Modell zeichnet die versetzten Nasen mit dem Querschnitt der ersten: um 90° nur bei gleichen Wänden
+    quadrat = abs(w0["wandbreite"] - w0["abstand"]) < 1e-6 or form_s == "Rundrohr"
+    wahl, belegt = [], set()
+    for k in kontakte:
+        gefunden = None
+        w_ = werte_von(k)
+        for sz in (1, -1):
+            b = _breite_einzeln(v, w_, profil_s, k, sz, mind)
+            winkel = round(((_z(k.get("phi")) + (0 if sz > 0 else 180)) % 360) / raster) * raster % 360
+            if not quadrat and belegt and any(round((winkel - w) % 180, 1) != 0 for w in belegt):
+                continue
+            if b is not None and winkel not in belegt:
+                gefunden = (sz, b, winkel)
+                break
+        wahl.append(gefunden)
+        if gefunden:
+            belegt.add(gefunden[2])
+    da = [g for g in wahl if g]
+    if not da:
+        return [None] * len(kontakte), "keine Nasen: an der Ecke passt keine Nase in die Stoßwände"
+    b_n = min(g[1] for g in da)
+    b_n = min(_z(v.get("bN")), round(math.floor(b_n * 10) / 10, 1))
+    erste = next(i for i, g in enumerate(wahl) if g)
+    out = []
+    for i, g in enumerate(wahl):
+        if not g:
+            out.append(None)
+            continue
+        x = dict(werte_von(kontakte[i]), bN=b_n, traegt=i == erste)
+        if g[0] < 0:
+            x["nase_seite"] = -1
+        if i == erste:
+            rest = [round((h[2] - g[2]) % 360, 1) for j, h in enumerate(wahl) if h and j != erste]
+            if rest:
+                x["versatz"] = rest
+        out.append(x)
+    gedreht = any(round((g[2] - da[0][2]) % 180, 1) for g in da)
+    text = "je Aufnahme eine Nase" + (", um 90° versetzt" if gedreht else ", gegenüber" if len(da) > 1 else "")
+    if len(da) < len(kontakte):
+        text += f", {len(kontakte) - len(da)} Aufnahme(n) ohne Nase"
+    return out, "Nasen nur in die Stoßwand: " + text
+
+
+def _breite_einzeln(v, w_, profil_s, k, seite, mind):
+    x = dict(v, **w_)
+    x.pop("nase_seite", None)
+    if seite < 0:
+        x["nase_seite"] = -1
+    b = _nasen_passen(x, profil_s, k)
+    return None if b is None or b < min(_z(v.get("bN")), mind) - 1e-9 else b
 
 
 # ------------------------------------------------------------------ Editor der Baugruppe

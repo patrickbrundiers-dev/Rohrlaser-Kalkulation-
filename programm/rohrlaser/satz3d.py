@@ -270,6 +270,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         verbindungen = [self._steck_daten(z) for z in self.bg["steckverbindungen"]]
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, verbindungen)
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
+                    teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
                     daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]))
 
     def _ok(self):
