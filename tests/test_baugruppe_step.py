@@ -118,7 +118,8 @@ s01 = HIER / "step_struktur" / "S01_Gestell_verschachtelt.step"
 d3, *_ = editor(s01, tmp / "s01.step")
 text = (tmp / "s01.step").read_text(encoding="utf-8", errors="replace")
 assert "Rahmenseite" in text and text.count("NEXT_ASSEMBLY_USAGE_OCCURRENCE") == 1 + d3.step_ergebnis["einsaetze"]
-assert d3.step_ergebnis["einsaetze"] == 8 and len(d3.step_ergebnis["teile"]) == 3, d3.step_ergebnis
+# 3 Rohrteile (8 Einsätze) und seit 0.9.117 der Rundstahl-Bolzen Ø8 als Zukaufteil (4 Einsätze)
+assert d3.step_ergebnis["einsaetze"] == 12 and len(d3.step_ergebnis["teile"]) == 4, d3.step_ergebnis
 ok("G3 Unterbaugruppe Rahmenseite als eigene Baugruppe in der STEP-Datei, gleiche Teile nur einmal definiert")
 
 # ------------------------------------------------------------------ G4 ohne Lage, nur Netz

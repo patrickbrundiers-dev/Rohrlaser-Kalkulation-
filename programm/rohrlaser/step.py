@@ -1239,6 +1239,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             from . import vollmaterial
             from .angebot import ZUKAUFTEIL
             form, abm, lg = m["profilform"], round(_z(m, "abm_a"), 2), round(_z(m, "laenge"), 1)
+            alt_hinweis = f"{form}: wird noch nicht kalkuliert, Konturen nicht ausgewertet"   # aus der Messung
+            hinweise[:] = [x for x in (h.replace(alt_hinweis, "").strip("; ,") for h in hinweise) if x]
             wst = m.get("_werkstoff", werkstoff) or None
             stk = m.get("_stueck", stueck)
             verweis, text = _voll_position(m, form, abm, lg, wst, zukauf_liste, neue_artikel)
