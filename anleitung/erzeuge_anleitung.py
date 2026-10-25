@@ -4022,7 +4022,9 @@ def kapitel_baugruppen(i):
            "an den beiden Teilen entlang), Stumpf- und Ecknaht eine flache Raupe so breit wie die Dicke. Ohne a-Maß "
            "zeichnet das Programm die Raupe nur für das Bild mit 0,7 × Dicke bzw. 3 mm; gerechnet wird damit nicht. "
            "Lage und Richtung kommen aus den Flächen der Teile an der Naht. Die Linie der Naht bleibt dazu immer "
-           "sichtbar, auch wenn ein Teil davor liegt (von weitem ist die Raupe klein).")
+           "sichtbar, auch wenn ein Teil davor liegt (von weitem ist die Raupe klein). Die Raupen rechnet das Programm "
+           "einmal beim ersten Zeigen und merkt sie sich: Ein Klick im Strukturbaum, <i>Nur Gewähltes</i> und das "
+           "nächste Öffnen derselben Baugruppe gehen danach ohne neue Rechnung.")
     i.text("Den Nahtverlauf liefert der STEP-Import ab Version 0.9.56 (die Schnittkante der sich berührenden "
            "Körper). Hat eine Nahtgruppe keinen Verlauf, aber ihre zwei Teile stoßen mit einem Rohrende aneinander "
            "(Stoß aus der STEP-Datei), nimmt das Programm die Schnittkante dieses Rohrendes als Verlauf. Von Hand "

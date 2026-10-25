@@ -192,7 +192,7 @@ class Flaechen:
 
     def __init__(self, netz, ohne=("SN", "SV", "SH")):
         p = netz.get("p") or []
-        self.dreiecke, self.raster = [], {}
+        self.dreiecke, self.raster, self.huellen, self.raupen = [], {}, [], {}
         for art, idx in (netz.get("t") or {}).items():
             if art in ohne:
                 continue
@@ -204,8 +204,10 @@ class Flaechen:
                     continue
                 nr = len(self.dreiecke)
                 self.dreiecke.append((a, b, c, n, math.sqrt(_dot(kreuz, kreuz)) / 2))
-                lo = [math.floor(min(a[k], b[k], c[k]) / ZELLE) for k in range(3)]
-                hi = [math.floor(max(a[k], b[k], c[k]) / ZELLE) for k in range(3)]
+                mn, mx = [min(a[k], b[k], c[k]) for k in range(3)], [max(a[k], b[k], c[k]) for k in range(3)]
+                self.huellen.append((mn[0], mn[1], mn[2], mx[0], mx[1], mx[2]))
+                lo = [math.floor(mn[k] / ZELLE) for k in range(3)]
+                hi = [math.floor(mx[k] / ZELLE) for k in range(3)]
                 for x in range(lo[0], hi[0] + 1):
                     for y in range(lo[1], hi[1] + 1):
                         for z in range(lo[2], hi[2] + 1):
@@ -216,6 +218,7 @@ class Flaechen:
         c = [math.floor(q[k] / ZELLE) for k in range(3)]
         r = max(1, math.ceil(weite / ZELLE))
         gesehen, out = set(), []
+        qx, qy, qz = q
         for x in range(c[0] - r, c[0] + r + 1):
             for y in range(c[1] - r, c[1] + r + 1):
                 for z in range(c[2] - r, c[2] + r + 1):
@@ -223,11 +226,31 @@ class Flaechen:
                         if nr in gesehen:
                             continue
                         gesehen.add(nr)
+                        h = self.huellen[nr]            # Hüllquader + weite: weiter weg kann das Dreieck nicht sein
+                        if qx < h[0] - weite or qx > h[3] + weite or qy < h[1] - weite or qy > h[4] + weite or \
+                                qz < h[2] - weite or qz > h[5] + weite:
+                            continue
                         a, b, c_, n, fl = self.dreiecke[nr]
                         d = abstand_dreieck(q, a, b, c_)
                         if d <= weite:
                             out.append((d, n, fl))
         return out
+
+
+_FLAECHEN_MERKER = {}       # {(Schlüssel, Punktzahl, Prüfsumme der Punkte): Flaechen} über Editor-Fenster hinweg
+FLAECHEN_MERKEN = 4
+
+
+def flaechen_merken(netz, schluessel=None):
+    """Flaechen des Netzes, gemerkt (mit den Raupen darin): das nächste Öffnen derselben Baugruppe sucht die Flächen
+    an den Nähten nicht neu. Schlüssel = Inhalt der Punkte (plus schluessel des Aufrufers)."""
+    p = netz.get("p") or []
+    k = (schluessel, len(p), hash(tuple(p)))
+    f = _FLAECHEN_MERKER.pop(k, None) or Flaechen(netz)
+    _FLAECHEN_MERKER[k] = f
+    while len(_FLAECHEN_MERKER) > FLAECHEN_MERKEN:
+        _FLAECHEN_MERKER.pop(next(iter(_FLAECHEN_MERKER)))
+    return f
 
 
 def flaechen_an_naht(flaechen, q):
@@ -328,7 +351,18 @@ def _abschnitte(pts, knick=ECKE):
 
 def raupe(zug, nahtart, groesse, flaechen):
     """Raupe entlang eines Linienzugs (flach [x, y, z, …] in Dateilage): (Punkte, Dreiecke als Punktnummern) oder
-    None, wenn an keinem Punkt Flächen der Teile liegen. An Ecken des Zugs beginnt ein neues Stück."""
+    None, wenn an keinem Punkt Flächen der Teile liegen. An Ecken des Zugs beginnt ein neues Stück. Je Flaechen
+    gemerkt (Klick im Baum, Nur Gewähltes: dieselben Raupen ohne neue Flächensuche); Ergebnis nur lesen."""
+    merker = getattr(flaechen, "raupen", None)
+    if merker is None:
+        return _raupe(zug, nahtart, groesse, flaechen)
+    schluessel = (tuple(zug), nahtart, groesse)
+    if schluessel not in merker:
+        merker[schluessel] = _raupe(zug, nahtart, groesse, flaechen)
+    return merker[schluessel]
+
+
+def _raupe(zug, nahtart, groesse, flaechen):
     pts = _punkte(zug)
     if len(pts) < 2:
         return None
@@ -528,7 +562,9 @@ class BaugruppenAnsicht(QWidget):
                                True, lambda an: self._umschalten("nur_gewaehlt", an))
         self.naehte_knopf = knopf("Nähte", "Schweißnähte als Raupe zeigen (schwarz, Vorschläge magenta, gewählte rot)",
                                   True, lambda an: self._umschalten("naehte", an))
+        self.naehte_knopf.blockSignals(True)        # Vorgabe an, ohne geaendert() (zeichnet der Besitzer selbst)
         self.naehte_knopf.setChecked(True)
+        self.naehte_knopf.blockSignals(False)
         self.messen_knopf = knopf("Messen", "Zwei Punkte am Modell anklicken (fängt Kreismitte, Kantenmitte, Ecke "
                                   "oder Fläche): Ergebnis mit Kernwerten in der Mess-Tafel; das Maß bleibt stehen", True, lambda an: self._messen(an))
         self.winkel_knopf = knopf("Winkel", "Drei Punkte anklicken, der mittlere ist der Scheitel: Winkel in Grad",

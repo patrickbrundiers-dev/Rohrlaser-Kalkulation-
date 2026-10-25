@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.136", "<b>Schweißbaugruppen-Editor schneller</b>: Der Reiter <i>Strukturbaum und 3D</i> rechnete die "
+                "Schweißnaht-Raupen bei jedem Klick im Baum neu und beim Öffnen doppelt; das Programm stand dabei je "
+                "Klick mehrere Sekunden. Jetzt werden die Raupen einmal gerechnet und gemerkt, auch für das nächste "
+                "Öffnen derselben Baugruppe, und die Suche der Flächen an der Naht prüft nur noch Dreiecke in der Nähe. "
+                "Bei einem Satz mit 15 Teilen dauern sechs Klicks im Baum 5 s statt 33 s, der 3D-Reiter öffnet beim "
+                "zweiten Mal in 2 s statt 9 s. Das Bild bleibt genau gleich ([[baugruppe_baum]]).",
+     "Schweißbaugruppen-Editor: 3D und Klicks im Strukturbaum viel schneller"],
     ["0.9.135", "<b>Große STEP-Dateien viel schneller eingelesen</b>: Ab 20 MB lässt der STEP-Import beim Einlesen zwei "
                 "Prüfungen auf sich kreuzende Kanten weg, die mit der Zahl der Bohrungen quadratisch wachsen. Ein Rundrohr "
                 "mit 7.000 Bohrungen wird so in etwa 13 min statt über 80 min eingelesen; "
