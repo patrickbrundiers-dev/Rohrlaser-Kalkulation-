@@ -1478,6 +1478,19 @@ class AngebotReiter(QTabWidget):
                                                                for j in range(g.count())]
 
 
+class SchnellFeld(QLineEdit):
+    """Eingabefeld der Schnellzeile: Einfügen mehrerer Zeilen meldet sie (mehrzeilig) statt sie zu verbinden."""
+    mehrzeilig = Signal(str)
+
+    def keyPressEvent(self, e):
+        if e.matches(QKeySequence.Paste):
+            text = QApplication.clipboard().text()
+            if "\n" in text.strip():
+                self.mehrzeilig.emit(text)
+                return
+        super().keyPressEvent(e)
+
+
 def blaetterbar(liste=False):
     """Editor-Methode der Angebotsseite mit Blättern (Plan Bedienung B3): ◀ ▶ im Editor schließt ihn (Änderungen
     übernommen, Freigabe F3a) und öffnet gleich die vorige bzw. nächste Position derselben Art. liste: die Methode
@@ -1779,6 +1792,23 @@ class AngebotSeite(QWidget):
         pl.setContentsMargins(0, 4, 0, 0)
         pl.setSpacing(4)
         pl.addLayout(self.pos_leiste)
+        # Schnellzeile (Plan Bedienung B6): „QR 40x3 S235 1250 20“ + Eingabe legt die Position an
+        self.schnell = SchnellFeld()
+        self.schnell.setPlaceholderText("Schnellzeile: z. B. QR 40x3 S235 1250 20 (Profil, Werkstoff, Länge, Stück) – "
+                                        "Eingabe legt die Position an, mehrere Zeilen einfügen geht auch")
+        self.schnell.setToolTip("Profil, Werkstoff, Länge [mm] und Stückzahl in einer Zeile. Eindeutig mit L=1250, "
+                                "1250mm, 20 Stk, x20; Artikelnummer mit #. Mehrere Zeilen (z. B. aus einer E-Mail "
+                                "oder Excel) mit Strg+V einfügen: je Zeile eine Position.")
+        self.schnell_vorschau = QLabel()
+        self.schnell_vorschau.setStyleSheet("color: #5F6B7A;")
+        self.schnell.textChanged.connect(self._schnell_vorschau)
+        self.schnell.returnPressed.connect(lambda: self.schnellzeile())
+        self.schnell.mehrzeilig.connect(lambda text: self.schnellzeile(text))
+        sz = QHBoxLayout()
+        sz.setContentsMargins(0, 0, 0, 0)
+        sz.addWidget(self.schnell, 3)
+        sz.addWidget(self.schnell_vorschau, 2)
+        pl.addLayout(sz)
         pl.addWidget(self.pos_ansicht, 1)
         # leeres Angebot: großes Ablagefeld statt der leeren Positionsliste
         self.ablage_gross = AblageFeld(gross=True)
@@ -1902,6 +1932,7 @@ class AngebotSeite(QWidget):
         lesen = bool(self.db.nur_lesen)            # Lizenz: Lesemodus wie ein fremdes Angebot, nur ansehen
         self.fremd_leiste.setVisible(bool(k) or lesen)
         self.kopf_bereich.setEnabled(not k and not lesen)
+        self.schnell.setEnabled(not k and not lesen)
         self.leiste.links.setEnabled(not k)          # Lesemodus: Knöpfe einzeln (3D-Ansicht bleibt)
         self.setAcceptDrops(not k and not lesen)
         if lesen and not k:
@@ -2542,6 +2573,55 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         self.f.meldung("Neue Position angelegt.")
         return True
+
+    def _schnell_vorschau(self, text):
+        from . import schnellzeile
+        zeilen = schnellzeile.lesen(text, self.k.profile, self.k.werkstoffe) if text.strip() else []
+        self.schnell_vorschau.setText(schnellzeile.vorschau(zeilen[0], lambda z: rechnen.zahl(z, 1)) if zeilen else "")
+
+    def schnellzeile(self, text=None):
+        """Positionen aus der Schnellzeile (B6) anlegen; text = mehrere Zeilen (Einfügen), sonst das Feld. Werkstoff
+        ohne Angabe: der der letzten Position bzw. die Vorgabe der Einstellungen. Zeilen mit Fehler bleiben im Feld.
+        Ergebnis: Anzahl angelegter Positionen."""
+        from . import schnellzeile
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        quelle = self.schnell.text() if text is None else text
+        zeilen = schnellzeile.lesen(quelle, self.k.profile, self.k.werkstoffe)
+        if not zeilen:
+            return 0
+        letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
+        vorgabe = letzter or self.db.einstellung("step_werkstoff") or None
+        vorgabe = vorgabe if vorgabe in self.k.werkstoffe else None
+        gut, schlecht = [], []
+        self.verlauf.pause += 1
+        try:
+            for z in zeilen:
+                if z["fehler"]:
+                    schlecht.append(z)
+                    continue
+                werte = dict(pos=self._naechste_pos(), profil_id=z["profil_id"], laenge=z["laenge"],
+                             stueck=z.get("stueck") or 1, werkstoff_id=z.get("werkstoff_id") or vorgabe)
+                if z.get("artikel"):
+                    werte["artikel"] = z["artikel"]
+                self.db.position_neu(self.id, werte)
+                self.positionen.append(dict(werte))         # für die nächste Pos.-Nummer
+                gut.append(z)
+        finally:
+            self.verlauf.pause -= 1
+        self.schnell.setText(" ".join(z["text"] for z in schlecht) if len(schlecht) == 1 else "")
+        if gut:
+            self.neu_laden()
+            text_ = f"{len(gut)} Position(en) aus der Schnellzeile angelegt."
+            if schlecht:
+                text_ += f" {len(schlecht)} Zeile(n) nicht erkannt: " + "; ".join(
+                    f"„{z['text']}“ ({', '.join(z['fehler'])})" for z in schlecht[:3])
+            self.rueckgaengig_anbieten(text_)
+        else:
+            self.f.meldung("Schnellzeile: " + "; ".join(f"„{z['text']}“: {', '.join(z['fehler'])}"
+                                                        for z in schlecht[:3]), fehler=True)
+        return len(gut)
 
     def _naechste_pos(self):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
@@ -4464,6 +4544,7 @@ class AngebotSeite(QWidget):
         kopieren = self.db.einstellung("step_kopieren") == "ja"    # STEP-Dateien in den Angebotsordner
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
         neue_profile, erneut, pdf_danach = True, False, False   # ohne Dialog: Profile anlegen, Doppelte überspringen
+        gelernt = None
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
@@ -4473,7 +4554,8 @@ class AngebotSeite(QWidget):
                                   maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)),
                                   kunden=self.db.zeilen("kunden") if kunde_waehlen else None,
                                   kundennr=self.kopf.get("kundennr"), kunde_gewechselt=lambda nr: self._step_kunde_gewechselt(nr, messwerte),
-                                  vorpruefung=lambda: step.vorpruefung(messwerte, self.positionen, self.k))
+                                  vorpruefung=lambda: step.vorpruefung(messwerte, self.positionen, self.k),
+                                  lernen=True)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
@@ -4484,6 +4566,8 @@ class AngebotSeite(QWidget):
             if kunde_waehlen and str(dlg.kundennr or "") != str(self.kopf.get("kundennr") or ""):
                 self.kunde_waehlen(str(dlg.kundennr or ""))
                 self.f.angebote.neu_laden()
+            if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
+                gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
         erneut = bool(doppelt) and erneut
         mehr = step.mehrteilig(messwerte, mit_blechen=True)
@@ -4525,6 +4609,8 @@ class AngebotSeite(QWidget):
             self._vorkalkulieren({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if json_ablage:
             erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
+        if gelernt:
+            erg["bericht"].append(gelernt)
         if kopieren:
             erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."

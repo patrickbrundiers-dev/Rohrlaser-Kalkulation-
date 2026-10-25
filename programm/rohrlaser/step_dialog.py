@@ -131,16 +131,18 @@ class StepPruefDialog(QDialog):
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
-                 kunde_gewechselt=None, vorpruefung=None):
+                 kunde_gewechselt=None, vorpruefung=None, lernen=False):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
         Anzahl schon vorhandener Artikel) wie step.vorpruefung – statt zweier Rückfragen nach dem Übernehmen stehen
-        sie als Häkchen unter der Liste."""
+        sie als Häkchen unter der Liste. lernen (B8): Korrekturen (Werkstoff aller Rohre, abgewählte Teile,
+        Anbauteile) per Häkchen als Importprofil des Kunden merken; Ergebnis nach OK in self.lernen_werte."""
         from . import step
         super().__init__(parent)
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
         self.pdf_danach = False         # Knopf „Übernehmen und Angebot (PDF)“
+        self.lernen, self.lernen_werte = lernen, None
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
         from . import knickverbindung
@@ -339,7 +341,11 @@ class StepPruefDialog(QDialog):
         self.doppelt_haken = QCheckBox()
         self.doppelt_haken.setToolTip("Artikelnummern, die schon im Angebot stehen, trotzdem noch einmal eintragen. "
                                       "Aus = diese Teile werden übersprungen.")
-        for w in (self.profile_haken, self.doppelt_haken):
+        self.lernen_haken = QCheckBox()     # B8: Korrekturen fürs nächste Mal merken
+        self.lernen_haken.setToolTip("Was hier korrigiert wurde, beim nächsten STEP-Import dieses Kunden gleich so "
+                                     "vorbelegen (Einstellungen → Importprofile). Abgewählte Teile kommen als "
+                                     "Normteil-Begriffe dazu.")
+        for w in (self.profile_haken, self.doppelt_haken, self.lernen_haken):
             w.setStyleSheet("color: #7A5A00;")
             vz.addWidget(w)
         ll.addWidget(self.vor_zeile)
@@ -390,6 +396,11 @@ class StepPruefDialog(QDialog):
         self._vor_uhr.timeout.connect(self.vorpruefung_zeigen)
         self.baum.itemChanged.connect(lambda *_: self._vor_uhr.start())
         self.baum.currentItemChanged.connect(lambda *_: self._vor_uhr.start())
+        self.anbau_weg.toggled.connect(lambda *_: self._vor_uhr.start())
+        self.alle_ws.currentIndexChanged.connect(lambda *_: self._vor_uhr.start())
+        self.werte_schreiben()
+        self._start = [m.get("_uebernehmen") for m in self.messwerte]       # Stand beim Öffnen (B8)
+        self._ws_start, self._anbau_start = self.werkstoff, self.anbau_weg.isChecked()
         self.vorpruefung_zeigen()
 
     def _baum_fuellen(self):
@@ -1106,7 +1117,17 @@ class StepPruefDialog(QDialog):
 
     def accept(self):
         self.werte_schreiben()
+        k = self.korrekturen()
+        self.lernen_werte = k if k and self.lernen_haken.isChecked() else None
         super().accept()
+
+    def korrekturen(self):
+        """Korrekturen, die sich als Importprofil des Kunden merken lassen (B8), oder {}."""
+        if not self.lernen or not self.kundennr or not hasattr(self, "_start"):
+            return {}
+        from . import importprofil
+        return importprofil.korrekturen(self.messwerte, self._start, self.werkstoff, self._anbau_start
+                                        if self.anbau_von else None, self.anbau_weg.isChecked())
 
     def mit_pdf(self):
         """Übernehmen und danach gleich das Angebots-PDF (B1)."""
@@ -1121,21 +1142,25 @@ class StepPruefDialog(QDialog):
 
     def vorpruefung_zeigen(self):
         """Häkchen für fehlende Profile und schon vorhandene Artikel nach dem aktuellen Stand der Auswahl."""
-        if self.vorpruefung is None or getattr(self, "_vor_laeuft", False):
-            self.vor_zeile.setVisible(False)
+        if getattr(self, "_vor_laeuft", False):
             return
         self._vor_laeuft = True
         try:
             self.werte_schreiben()
-            fehlend, doppelt = self.vorpruefung()
+            fehlend, doppelt = self.vorpruefung() if self.vorpruefung is not None else ([], 0)
+            korr = self.korrekturen()
         finally:
             self._vor_laeuft = False
+        from . import importprofil
+        self.lernen_haken.setText(f"Für Kunde {self.kundennr} merken (Importprofil): "
+                                  + importprofil.korrekturen_text(korr))
+        self.lernen_haken.setVisible(bool(korr))
         self.profile_haken.setText("Fehlende Profile aus den Messwerten anlegen (bitte danach prüfen): "
                                    + ", ".join(fehlend[:8]) + (" …" if len(fehlend) > 8 else ""))
         self.profile_haken.setVisible(bool(fehlend))
         self.doppelt_haken.setText(f"{doppelt} Artikel stehen schon im Angebot – trotzdem noch einmal eintragen")
         self.doppelt_haken.setVisible(bool(doppelt))
-        self.vor_zeile.setVisible(bool(fehlend or doppelt))
+        self.vor_zeile.setVisible(bool(fehlend or doppelt or korr))
         return fehlend, doppelt
 
     def _kunde_setzen(self):

@@ -1390,6 +1390,18 @@ def kapitel_angebot(i):
            "für alle auf einmal (<i>(nicht ändern)</i> lässt den Wert, wie er ist), ein Schritt für Rückgängig. "
            "<i>Satz in 3D</i> erscheint nur bei Positionen eines Satzes, <i>Baugruppe in anderes Angebot "
            "kopieren</i> nur bei Schweißbaugruppen und ihren Teilen.")
+    i.abschnitt("Schnellzeile: Position in einer Zeile", marke="schnellzeile")
+    i.text("Über der Positionsliste steht die <b>Schnellzeile</b>: z. B. <i>QR 40x3 S235 1250 20</i> tippen und "
+           "Eingabe, schon steht die Position da (Profil, Werkstoff, Länge in mm, Stückzahl). Daneben zeigt eine "
+           "Vorschau, was erkannt wurde.", kurz=True)
+    i.liste("Das Profil wird gesucht wie in der Profilspalte: <i>40x3</i> findet <i>QR 40x40x3</i>.",
+            "Werkstoff: die ID oder ein eindeutiger Teil davon (<i>S235</i>, <i>4301</i> für 1.4301). Ohne Angabe "
+            "gilt der Werkstoff der letzten Position bzw. die Vorgabe des STEP-Imports.",
+            "Die erste Zahl ist die Länge, die zweite die Stückzahl; eindeutig mit <i>L=1250</i>, <i>1250mm</i>, "
+            "<i>20 Stk</i> oder <i>x20</i>. Eine Artikelnummer steht mit <i>#</i> davor (<i>#4711-01</i>).",
+            "Mehrere Zeilen, z. B. aus einer E-Mail oder aus Excel (Tabulator oder ; getrennt), mit Strg+V in die "
+            "Schnellzeile einfügen: je Zeile eine Position. Nicht erkannte Zeilen nennt die Einblendung; alles "
+            "zusammen ist ein Schritt für <b>Rückgängig</b>.")
     i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
     i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
         ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],
@@ -1769,6 +1781,11 @@ def kapitel_step(i):
     i.abschnitt("Bauteilnamen, Normteile und Importprofile", marke="importprofile")
     i.text("Hat die Konstruktion Namen, wird der <b>Bauteilname</b> die Artikelnummer. <b>Normteile</b> (Schrauben, "
            "Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest.", kurz=True)
+    i.text("<b>Der Prüfdialog lernt</b>: Wählt man für alle Rohre einen anderen Werkstoff, wählt Teile ab oder "
+           "schaltet die Anbauteile um, steht unter der Liste <b>Für Kunde … merken (Importprofil)</b> mit den "
+           "Korrekturen. Angehakt, schreibt <i>Übernehmen</i> sie ins Importprofil des Kunden (legt es an, wenn es "
+           "fehlt): der Werkstoff wird Vorgabe, abgewählte Teile kommen mit ihrem Bauteilnamen zu den Normteilen. "
+           "Die nächste Anfrage dieses Kunden ist dann gleich so vorbelegt; der Bericht nennt, was gemerkt wurde.")
     i.genauer()
     i.liste("Die Messung liest die Baugruppenstruktur und die Namen der Bauteile aus der STEP-Datei. Wie die "
             "Artikelnummer entsteht, steht in der Einstellung <i>Artikelnummer aus (Bauteilname, Dateiname oder "

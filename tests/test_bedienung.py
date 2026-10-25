@@ -1,4 +1,4 @@
-"""Plan „Bedienung schneller und einfacher“ (Pakete 1 und 2):
+"""Plan „Bedienung schneller und einfacher“ (Pakete 1 bis 3):
 - B2: Einblendung mit Knopf (Rückgängig, Bericht), Bericht im Meldungsverlauf, Löschen im Angebot ohne Rückfrage mit
   „Rückgängig“ (nimmt nur genau diese Änderung zurück), Hinweise aus Dialogen als Einblendung im Dialog.
 - B1: STEP-Prüfdialog mit Kundenwahl, Vorprüfung (fehlende Profile, doppelte Artikel) als Häkchen und Knopf
@@ -7,6 +7,8 @@
 - B3: ◀ ▶ im Rohr-Editor blättert durch die Positionen derselben Art (ohne Änderung nichts gespeichert).
 - B4: Größe, Lage und Teiler der Dialoge gemerkt, offene Angebote beim nächsten Start wieder offen.
 - B7: zuletzt benutzte Profile/Werkstoffe oben in Auswahllisten, Tippen findet Teilwörter.
+- B6: Schnellzeile „QR 40x3 S235 1250 20“ legt Positionen an, auch mehrere Zeilen.
+- B8: Korrekturen im Prüfdialog lassen sich als Importprofil des Kunden merken.
 
 Aufruf: python tests/test_bedienung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -253,6 +255,54 @@ c.setCompletionPrefix(teil)
 treffer = [c.completionModel().index(i, 0).data() for i in range(c.completionModel().rowCount())]
 assert werkstoffe[0] in treffer and all(teil.lower() in x.lower() for x in treffer), (teil, treffer[:5])
 ok("Zuletzt benutzte Werte oben in der Auswahl, Tippen findet Teilwörter")
+
+# ------------------------------------------------------------------ B6 Schnellzeile
+from rohrlaser import importprofil, schnellzeile  # noqa: E402
+
+P = ["QR 40x40x3", "QR 40x40x4", "RR 42,4x2", "RE 60x40x3"]
+W = ["S235JR", "1.4301", "S355J2H"]
+z = schnellzeile.zeile_lesen("QR 40x3 S235 1250 20", P, W)
+assert (z["profil_id"], z["werkstoff_id"], z["laenge"], z["stueck"], z["fehler"]) == \
+    ("QR 40x40x3", "S235JR", 1250, 20, []), z
+z = schnellzeile.zeile_lesen("#A-1 RR 42,4x2 4301 L=800 x5", P, W)
+assert (z["artikel"], z["profil_id"], z["werkstoff_id"], z["laenge"], z["stueck"]) == \
+    ("A-1", "RR 42,4x2", "1.4301", 800, 5), z
+assert schnellzeile.zeile_lesen("QR 40x3 S235", P, W)["fehler"] == ["Länge fehlt"]
+assert len(schnellzeile.lesen("QR 40x3\t1250\t3\nRE 60x40x3;500;2\n\n", P, W)) == 2
+vorher = len(db.positionen(aid))
+lang = next(p for p in k.profile if " " in p)
+s.schnell.setText(f"{lang} 777 3")
+assert "L = 777" in s.schnell_vorschau.text(), s.schnell_vorschau.text()
+assert s.schnellzeile() == 1 and s.schnell.text() == ""
+neu = db.positionen(aid)[-1]
+assert (neu["profil_id"], neu["laenge"], neu["stueck"]) == (lang, 777, 3) and neu["werkstoff_id"], neu
+assert neu["pos"] > max(p["pos"] for p in db.positionen(aid)[:-1])
+assert s.schnellzeile(f"{lang} 100 1\nunbekannt\n{lang} 200 2") == 2
+assert len(db.positionen(aid)) == vorher + 3 and f.letzte_aktion[0] == "Rückgängig"
+f.letzte_aktion[1]()
+assert len(db.positionen(aid)) == vorher + 1, "Rückgängig nimmt alle Zeilen eines Einfügens zurück"
+ok("Schnellzeile: Profil, Werkstoff, Länge, Stück erkannt; mehrere Zeilen; Rückgängig")
+
+# ------------------------------------------------------------------ B8 Prüfdialog lernt pro Kunde
+nr = kunden[0]["kundennr"]
+basis = dict(datei="y.step", profilform="Rundrohr", profil_id_vorschlag=profil, pruefstatus="plausibel", schneidweg=100)
+mw = [dict(basis, artikel="T1", bauteil="Rohr A", laenge=500), dict(basis, artikel="T2", bauteil="Schraube M8", laenge=80)]
+dlg = StepPruefDialog(None, mw, k, werkstoffe[0], 1, kundennr=nr, lernen=True)
+assert dlg.lernen_haken.isHidden(), "ohne Korrektur nichts zu merken"
+dlg.zeile_setzen("T2", uebernehmen=False)
+dlg.alle_setzen(werkstoff=werkstoffe[1])
+dlg.vorpruefung_zeigen()
+assert not dlg.lernen_haken.isHidden() and "Schraube M8" in dlg.lernen_haken.text(), dlg.lernen_haken.text()
+assert werkstoffe[1] in dlg.lernen_haken.text()
+dlg.lernen_haken.setChecked(True)
+dlg.accept()
+assert dlg.lernen_werte == dict(werkstoff_id=werkstoffe[1], normteile=["Schraube M8"]), dlg.lernen_werte
+assert "ergänzt" in importprofil.merken(db, nr, dlg.lernen_werte)
+pr = importprofil.fuer_kunde(db, nr)
+assert pr["werkstoff_id"] == werkstoffe[1] and importprofil.begriffe(pr["normteile"]) == ["Schraube M8"]
+importprofil.merken(db, nr, dict(normteile=["schraube m8", "Mutter"]))
+assert importprofil.begriffe(importprofil.fuer_kunde(db, nr)["normteile"]) == ["Schraube M8", "Mutter"]
+ok("Prüfdialog lernt: Werkstoff und abgewählte Teile als Importprofil des Kunden")
 
 f.close()
 db.schliessen()

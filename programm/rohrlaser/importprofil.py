@@ -89,3 +89,59 @@ def vorgaben(profil):
     if p.get("anbau_weglassen") in ("ja", "nein"):
         out["anbau_weglassen"] = p["anbau_weglassen"] == "ja"
     return out
+
+
+def korrekturen(messwerte, start, werkstoff_vorgabe, anbau_start=None, anbau_jetzt=None):
+    """Was im Prüfdialog korrigiert wurde und sich als Importprofil des Kunden merken lässt (Plan Bedienung B8).
+    start: _uebernehmen je Messwert beim Öffnen. Ergebnis: dict mit werkstoff_id (alle gewählten Rohre/Profile haben
+    denselben anderen Werkstoff als die Vorgabe), normteile (Bauteilnamen, die beim Öffnen gewählt waren und
+    abgewählt wurden) und anbau_weglassen ('ja'/'nein', wenn umgeschaltet); leer = nichts zu merken."""
+    out = {}
+    gewaehlt = [m for m in messwerte if m.get("_uebernehmen") and not m.get("fehler") and not m.get("_blech_artikel")
+                and m.get("profilform")]
+    ws = {m.get("_werkstoff") for m in gewaehlt}
+    if len(ws) == 1:
+        w = next(iter(ws))
+        if w and w != werkstoff_vorgabe:
+            out["werkstoff_id"] = w
+    namen = []
+    for m, vorher in zip(messwerte, start):
+        name = (m.get("bauteil") or "").strip()
+        if vorher and not m.get("_uebernehmen") and name and name not in namen and m.get("_knick_von") is None:
+            namen.append(name)
+    if namen:
+        out["normteile"] = namen
+    if anbau_start is not None and anbau_jetzt is not None and bool(anbau_start) != bool(anbau_jetzt):
+        out["anbau_weglassen"] = "ja" if anbau_jetzt else "nein"
+    return out
+
+
+def korrekturen_text(k):
+    teile = []
+    if k.get("werkstoff_id"):
+        teile.append(f"Werkstoff {k['werkstoff_id']}")
+    if k.get("normteile"):
+        teile.append("Normteile " + ", ".join(k["normteile"][:4]) + (" …" if len(k["normteile"]) > 4 else ""))
+    if k.get("anbau_weglassen"):
+        teile.append("Anbauteile " + ("weglassen" if k["anbau_weglassen"] == "ja" else "übernehmen"))
+    return "; ".join(teile)
+
+
+def merken(db, kundennr, k):
+    """Korrekturen ins Importprofil des Kunden schreiben (anlegen, falls es fehlt); Normteile kommen zu den
+    vorhandenen Begriffen dazu. Ergebnis: Text für den Bericht oder None."""
+    if not kundennr or not k:
+        return None
+    profil = fuer_kunde(db, kundennr)
+    if profil is None:
+        db.neu("importprofile", dict(kundennr=kundennr, bemerkung="aus dem STEP-Prüfdialog gelernt"))
+        profil = fuer_kunde(db, kundennr)
+    if k.get("werkstoff_id"):
+        db.aendern("importprofile", profil["id"], "werkstoff_id", k["werkstoff_id"])
+    if k.get("normteile"):
+        alt = begriffe(profil.get("normteile"))
+        neu = alt + [n for n in k["normteile"] if n.lower() not in {a.lower() for a in alt}]
+        db.aendern("importprofile", profil["id"], "normteile", "; ".join(neu))
+    if k.get("anbau_weglassen"):
+        db.aendern("importprofile", profil["id"], "anbau_weglassen", k["anbau_weglassen"])
+    return f"Importprofil des Kunden {kundennr} ergänzt: {korrekturen_text(k)}"
