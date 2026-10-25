@@ -274,9 +274,14 @@ def netz(e, zs):
                 geo["mitten"].append(dict(p=m, n=achse, id=kid))
         geo["merkmale"][kid] = {k: z[k] for k in ("art", "d", "D", "l", "b", "h", "r", "winkel", "x", "y")
                                 if z.get(k) not in (None, "")}
-    return dict(p=punkte, t={"BL": dreiecke}, ti={"BL": ["teil"] * (len(dreiecke) // 3)},
-                l={a: [[round(c, 3) for c in zug] for zug in z] for a, z in linien.items()}, ln=normalen,
-                li=kennung, flach=True, geo=geo)
+    from . import schnittkoerper
+    out = dict(p=punkte, t={"BL": dreiecke}, ti={"BL": ["teil"] * (len(dreiecke) // 3)},
+               l={a: [[round(c, 3) for c in zug] for zug in z] for a, z in linien.items()}, ln=normalen,
+               li=kennung, flach=True, geo=geo)
+    wk = schnittkoerper.blech(e, zs, haut, _ansicht, s)     # Schnittkörper durch die Dicke
+    if wk:
+        out["wk"] = wk
+    return out
 
 
 def kontur_mitten(e, zs):

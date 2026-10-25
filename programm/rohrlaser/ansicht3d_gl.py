@@ -164,6 +164,29 @@ def puffer_daten(modell, farben, linien_farben, kanten=False):
     return dreiecke, linien, kante
 
 
+def koerper_daten(koerper, gewaehlt, farben, linien_farben):
+    """Schnittkörper -> {Name: array('f')} wie puffer_daten: 'wk'/'wk_g' Dreiecke (nicht gewählt/gewählt),
+    'wkl'/'wkl_g' Umrisslinien der beiden Ringe."""
+    out = {n: array("f") for n in ("wk", "wk_g", "wkl", "wkl_g")}
+    for k in koerper:
+        g = "_g" if k["id"] in gewaehlt else ""
+        c, cl = farben.get(k["art"]) or farben["K"], linien_farben.get(k["art"]) or linien_farben["K"]
+        d = out["wk" + g]
+        for a, b, cc, n in k["dreiecke"]:
+            for q in (a, b, cc):
+                d.extend(q)
+                d.extend(n)
+                d.extend(c)
+        li = out["wkl" + g]
+        for ring in k["ringe"]:
+            for a, b in zip(ring, ring[1:]):
+                for q in (a, b):
+                    li.extend(q)
+                    li.extend((0.0, 0.0, 1.0))
+                    li.extend(cl)
+    return out
+
+
 def abbildung(modell, breite, hoehe, m, zoom, verschiebung, persp=0.0):
     """Maßstab und Mitte des Bildes wie ansicht3d.zeichnen, aus den 8 Ecken des Hüllquaders (schnell; das
     QPainter-Bild nimmt alle Punkte, das Bild ist hier höchstens etwas kleiner). persp: 1 / Kameraabstand."""
@@ -195,6 +218,7 @@ class GLFlaeche(QOpenGLWidget):
         self.puffer_hg = None
         self.puffer_umriss = None
         self._kanten = False
+        self.puffer_wk, self._wk_schl = {}, None       # Schnittkörper (je Auswahl neu)
 
     def initializeGL(self):
         try:
@@ -277,6 +301,56 @@ class GLFlaeche(QOpenGLWidget):
             pr.disableAttributeArray(pr.attributeLocation(attr))
         b.release()
 
+    def _koerper_zeichnen(self, fn, pr, wert1, modell, blass, draht, roentgen):
+        """Schnittkörper halb durchsichtig über den Flächen: Tiefentest an (verdeckt bleibt verdeckt), ohne in den
+        Tiefenpuffer zu schreiben; die gewählte Kontur kräftiger."""
+        from . import ansicht3d
+        a = self.ansicht
+        ks = a.koerper()
+        if not ks:
+            return
+        gewaehlt = {k["id"] for k in ks} & set(a.markiert)
+        schl = (modell, tuple(sorted(gewaehlt)))
+        if schl != self._wk_schl:
+            for b in self.puffer_wk.values():
+                b[0].destroy()
+            self.puffer_wk = {}
+            farben = {x: _farbe(c) for x, c in ansicht3d.FARBE.items()}
+            linien = {x: _farbe(c) for x, c in ansicht3d.LINIE.items()}
+            for name, daten in koerper_daten(ks, gewaehlt, farben, linien).items():
+                if not daten:
+                    continue
+                b = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
+                b.create()
+                b.bind()
+                roh = daten.tobytes()
+                b.allocate(roh, len(roh))
+                b.release()
+                self.puffer_wk[name] = (b, len(daten) // 9)
+            self._wk_schl = schl
+        fn.glEnable(GL_BLEND)
+        fn.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        fn.glDepthMask(False)
+        wert1("alle", 1.0)
+        wert1("kante", 0.0)
+        wert1("strich", 0.0)
+        for name, art, ist_linie, alpha, breite in (
+                ("wk", GL_TRIANGLES, 0.0, ansicht3d.WK_ALPHA, 0), ("wkl", GL_LINES, 1.0, 0.55, 1.0),
+                ("wk_g", GL_TRIANGLES, 0.0, ansicht3d.WK_ALPHA_GEWAEHLT, 0), ("wkl_g", GL_LINES, 1.0, 0.9, 2.0)):
+            if name not in self.puffer_wk or (draht and not ist_linie):
+                continue
+            b, n = self.puffer_wk[name]
+            wert1("linie", ist_linie)
+            wert1("alpha", alpha)
+            wert1("blass", 0.0 if name.endswith("_g") else blass)
+            if ist_linie:
+                fn.glLineWidth(breite)
+            self._puffer_zeichnen(pr, b, art, n, fn)
+        wert1("alle", 1.0 if roentgen or draht else 0.0)
+        if not roentgen:
+            fn.glDepthMask(True)
+            fn.glDisable(GL_BLEND)
+
     def _zeichnen(self):
         from . import ansicht3d
         a = self.ansicht
@@ -345,6 +419,7 @@ class GLFlaeche(QOpenGLWidget):
             if ist_linie:
                 fn.glLineWidth(1.1 if name == "kanten" else ansicht3d.NAHT_BREITE if naht else 2.2)
             self._puffer_zeichnen(pr, b, art, n, fn)
+        self._koerper_zeichnen(fn, pr, wert1, modell, blass, draht, roentgen)
         if draht or strich:     # Umriss der Rundungen hängt von der Blickrichtung ab: je Bild neu
             daten = array("f")
             for p0, p1, _ in ansicht3d.umriss(modell, m, pz):

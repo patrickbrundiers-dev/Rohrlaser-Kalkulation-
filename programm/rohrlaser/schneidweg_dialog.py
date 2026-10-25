@@ -106,6 +106,7 @@ class SchneidwegDialog(QDialog):
         profil = rechnen.profil_im_angebot(profil, kopf, p.get("profil_id"), p.get("werkstoff_id"), k)
         self.p, self.profil, self.kopf, self.k, self.tabellen = p, profil, kopf, k, tabellen
         self.r_aussen = self.radius_angebot()       # Außenradius des Angebots für Profil + Werkstoff (oder None)
+        self.r_step = None                          # gemessener Eckradius der STEP-Datei (geht vor)
         self.db, self.positionen = db, [x for x in (positionen or ()) if x.get("id") != p.get("id")]
         self.step_lesen = step_lesen    # Funktion: STEP-Datei wählen und messen -> [Messwerte] oder None
         m = rechnen.maschine(kopf, k)
@@ -633,6 +634,7 @@ class SchneidwegDialog(QDialog):
         self.profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, self.p.get("werkstoff_id"), self.k)
         e.pop("r_aussen", None)                     # Radius gehört zu Profil + Werkstoff: der des neuen Profils
         self.r_aussen = self.radius_angebot()
+        self.r_step = None
         self.grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(self.profil))
         self.qs = sk.Querschnitt(self.profil)
         form = self.profil.get("form")
@@ -1146,6 +1148,10 @@ class SchneidwegDialog(QDialog):
         out = dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
         if isinstance(getattr(self, "r_aussen", None), (int, float)):      # Außenradius je Teil (sonst Stammdaten/Norm)
             out["r_aussen"] = self.r_aussen
+        if isinstance(getattr(self, "r_step", None), (int, float)):        # Eckradius der STEP-Datei
+            out["r_step"] = self.r_step
+            if getattr(self, "r_step_profil", None):
+                out["r_step_profil"] = self.r_step_profil
         if self.d3.isChecked():
             out["d3"] = True
         elif dreid.kann_3d(rechnen.maschine(self.kopf or {}, self.k)):
@@ -1174,6 +1180,7 @@ class SchneidwegDialog(QDialog):
         """Außenradius (Quadrat-/Rechteckrohr) setzen; gilt beim Übernehmen für alle Positionen des Angebots mit
         gleichem Profil und Werkstoff. None = Stammdaten bzw. Norm."""
         self.r_aussen = float(r) if isinstance(r, (int, float)) and r >= 0 else None
+        self.r_step = None              # eigener Radius statt des gemessenen der STEP-Datei
         self.rechnen()
 
     @staticmethod
@@ -1266,6 +1273,9 @@ class SchneidwegDialog(QDialog):
             r = e.get("r_aussen")       # Rückgängig: Wert des Rechners, sonst der Radius des Angebots
             self.r_aussen = float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 else \
                 self.radius_angebot()
+            r = e.get("r_step")
+            self.r_step = float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 else None
+            self.r_step_profil = e.get("r_step_profil")
             self._step_enden(e)
             self.tabelle.setRowCount(0)
         for z in e.get("konturen") or ():

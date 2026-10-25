@@ -105,6 +105,7 @@ class Teil:
     achse_global: tuple = ()    # Richtung der Rohrachse (Ende A -> B) in der Datei, Einheitsvektor
     ende_a_global: tuple = ()   # Mitte von Ende A (Schwerlinie, z = 0) in der Datei [mm]
     x_global: tuple = ()        # lokale X-Richtung (Breite) in der Datei: mit Achse und Ende A die Einbaulage
+    bezug: float = 0.0          # 0°-Richtung des Umfangswinkels im Messsystem (_bezug), für nach_bezug_drehen
     konturen_liste: list = field(default_factory=list)  # je Kontur ein dict: Art, Lage (z, Winkel, Seite), Maße
     # Import (je Datei bzw. je Körper)
     einheit: str = ""           # Längeneinheit laut Datei (mm, cm, m, inch, ft); gemessen wird immer in mm
@@ -2290,7 +2291,46 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
                 art_flaeche[f] = m.get("art", "K")
         t.netz = dreiecksnetz(lok, faces, art_flaeche, [(m.get("art", "K"), m["kanten"]) for m in merkmale.values()],
                               zmin, max(t.abm_a, t.abm_b))
+    t.bezug = ref
     return t
+
+
+def nach_bezug_drehen(t):
+    """Netz und Einbaulage (x_global) um die Rohrachse so drehen, dass +Y des Netzes die 0°-Richtung des
+    Umfangswinkels ist (wie das Modell des Programms aus den Eingaben: Winkel w bei (−r sin w, r cos w)). Ohne das
+    lagen Netz und Modell bei Rundrohren um die Bezugsrichtung (oberste Stelle in der Datei) und bei Kastenprofilen
+    mit der Breitseite nach unten um 180° gegeneinander verdreht; die Lage in der Datei bleibt gleich. Erst ganz am
+    Ende (step_messen), wenn Anbauteile, Gravur und Nähte im Messsystem fertig sind; danach bezug = 0."""
+    w = math.radians(t.bezug or 0.0)
+    t.bezug = 0.0
+    if abs(math.sin(w)) < 1e-9 and math.cos(w) > 0:
+        return
+    c, s = math.cos(w), math.sin(w)
+    if t.x_global and t.achse_global:
+        x, z = gp_Vec(*t.x_global), gp_Vec(*t.achse_global)
+        y = z.Crossed(x)
+        n = x.Multiplied(c).Added(y.Multiplied(s))
+        t.x_global = (n.X(), n.Y(), n.Z())
+
+    def drehen(liste, schritt=3, stellen=2):
+        for i in range(0, len(liste) - 1, schritt):
+            x, y = liste[i], liste[i + 1]
+            liste[i], liste[i + 1] = round(x * c + y * s, stellen), round(-x * s + y * c, stellen)
+    for a in t.anbauteile or ():            # Gravur der Anbauteile (anbau.gravur_zuege) im selben System wie das Netz
+        m = a.get("marke")
+        if m:
+            drehen(m["m"], 3, 3)
+            drehen(m["c"], 2, 3)
+            drehen(m["t"], 2, 6)
+            drehen(m["n"], 2, 6)
+        for zug in a.get("umriss_linien") or ():
+            drehen(zug)
+    if not t.netz:
+        return
+    drehen(t.netz.get("p") or [])
+    for zuege in (t.netz.get("l") or {}).values():
+        for zug in zuege:
+            drehen(zug)
 
 
 # ------------------------------------------------------------------ Bleche

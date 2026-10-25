@@ -439,11 +439,13 @@ class Eigenschaften(QWidget):
         """Außenradius (gilt im Angebot je Profil + Werkstoff): leer = Stammdaten bzw. Vorgabe nach Norm (als Platzhalter
         angezeigt)."""
         d = self.d
-        eigen = getattr(d, "r_aussen", None)
+        step_r = getattr(d, "r_step", None)
+        eigen = step_r if isinstance(step_r, (int, float)) else getattr(d, "r_aussen", None)
         f = self._rechen("Außenradius", eigen, d.radius_setzen, "mm",
                          "Radius der Außenecken für Schnittlänge, Skizze und 3D. Gilt beim Übernehmen für alle "
                          "Positionen des Angebots mit gleichem Profil und Werkstoff. Leer = Wert der Stammdaten, bei "
-                         "Aluminium 0, sonst Vorgabe nach EN 10219; 0 = scharfkantig.")
+                         "Aluminium 0, sonst Vorgabe nach EN 10219; 0 = scharfkantig. Teile aus einer STEP-Datei "
+                         "zeigen den dort gemessenen Radius, damit Skizze und 3D genau zur STEP passen.")
         alu = d.profil.get("r_aussen") == 0 and (d.k.profile.get(d.p.get("profil_id")) or {}).get("r_aussen") in (None, "")
         f.setPlaceholderText(f"{rf.zahl_text(sw.radius(d.profil))} ({'Aluminium' if alu else 'Stammdaten'})")
         return f
