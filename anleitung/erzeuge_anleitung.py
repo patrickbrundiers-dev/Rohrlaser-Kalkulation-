@@ -889,8 +889,8 @@ def kapitel_angebot(i):
                ["<b>Rohr / Profil</b>", "den Schneidweg-Rechner mit Profil, Werkstoff, Länge, Stückzahl "
                 "([[schneidweg_rechner]])"],
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
-               ["<b>Bleche aus DXF</b>", "eine oder mehrere DXF-Dateien; jedes Blech wird eine Position wie aus dem "
-                "Blech-Editor ([[dxf_import]])"],
+               ["<b>Aus DXF (Blech oder Rohr)</b>", "eine oder mehrere DXF-Dateien; jedes Blech wird eine Position "
+                "wie aus dem Blech-Editor ([[dxf_import]]), eine Rohrzeichnung öffnet den Rohr-Editor ([[dxf_rohr]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
                ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
                 "vorgewählt ([[schweissbaugruppe]])"],
@@ -2461,7 +2461,8 @@ def kapitel_optimieren(i):
     i.liste("<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
-            "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen und "
+            "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen, DXF importieren "
+            "([[dxf_rohr]]) und "
             "Kontur-Vorlagen, beim Blech Kontur-Vorlagen und Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
             "<b>Blick</b> (Klick: Isometrie, Pfeil: sechs Seiten, Auf Auswahl, Um 90° drehen, Perspektivisch, "
             "[[ansicht_3d_bedienung]]); beim Rohr STEP-Modell, Skizzenart und "
@@ -2643,6 +2644,33 @@ def kapitel_optimieren(i):
             "Nach dem Speichern zeigt eine Meldung Volumen und Flächenzahl. Das Programm prüft den Körper mit "
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
             "Länge und Konturen wie im Editor da.")
+    i.abschnitt("Rohrteil aus einer DXF-Zeichnung", marke="dxf_rohr")
+    i.text("Eine DXF-Zeichnung eines Rohrlaserteils mit Ansichten (Vorderansicht, Draufsicht, Schnitt, wie das CAD "
+           "sie ableitet) wird ein Rohrteil im Rohr-Editor: im Angebot <i>Neue Position → Aus DXF</i> oder die DXF "
+           "aufs Angebot ziehen, im Rohr-Editor <i>Konstruktion → Übernehmen → DXF importieren</i>. Mit <b>STEP "
+           "speichern</b> ([[step_export]]) wird daraus eine maßhaltige STEP-Datei.", kurz=True)
+    i.genauer()
+    i.liste("<b>Maßstab je Ansicht</b>: aus der Bemaßung (Maßzahl ÷ Abstand der Maßhilfslinien, auch aufgelöste "
+            "Maße aus Linien und Text), sonst aus dem Schriftfeld (<i>Maßstab 1:5</i>). Der Schnitt darf größer "
+            "gezeichnet sein als die Ansichten.",
+            "<b>Profil</b> aus dem Schnitt (Außenmaß und Wand), sonst aus dem Text (z. B. <i>Quadratrohr "
+            "40x40x3</i>); steht beides da und passt nicht, gilt der Schnitt mit Hinweis. Das Profil der Stammdaten "
+            "sucht das Programm wie beim STEP-Import; fehlt es, steht das im Editor (<i>Neu …</i> legt es an).",
+            "<b>Ansichten</b> nach DIN (Projektionsmethode 1): oben die Vorderansicht (Seite vorne), darunter die "
+            "Draufsicht (Seite oben), Ende A links. Beim Rechteckrohr ist die Ansicht mit der Breitseite die "
+            "Draufsicht. Die Isometrie wird nicht ausgewertet.",
+            "<b>Länge</b> von Spitze zu Spitze aus den Ansichten. Steht eine andere Länge im Text (z. B. <i>L = "
+            "1000</i> in der Mitte einer Gehrung), zeigt der Editor beides.",
+            "<b>Enden</b>: die Endkante je Ansicht; schräg in einer Ansicht = Gehrung mit der längsten Seite, schräg "
+            "in beiden = Schrägschnitt zweiachsig.",
+            "<b>Konturen</b>: Kreise werden Bohrungen, geschlossene Formen Langloch oder Rechteck (mit Eckradius), "
+            "zum Ende offene Ausschnitte Ausklinkungen, alles andere Sonderkontur mit Umriss. Die Wand erkennt das "
+            "Programm an den Kanten in der anderen Ansicht (auch verdeckt): oben, unten oder durchgehend (Wände: "
+            "beide). Gleiche Konturen in gleichem Abstand werden eine Zeile mit Anzahl und Abstand.",
+            "<b>Aus dem Schriftfeld</b>: Benennung wird Bezeichnung, Zeichnungsnummer wird Artikel, der Werkstoff "
+            "wird vorgeschlagen.",
+            "Oben im Editor steht, was erkannt wurde, mit allen Hinweisen. Im 3D und in der Skizze ist alles sofort "
+            "zu sehen und wie gewohnt änderbar; erst <b>OK</b> legt die Position an.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),
@@ -3377,7 +3405,7 @@ def kapitel_zukauf_angebot(i):
             "Jede Änderung lässt sich mit Strg+Z zurücknehmen.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
-           "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Bleche aus DXF</i> oder DXF-Dateien auf "
+           "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
            "das Angebot ziehen (dann wird jedes Blech eine eigene Position).", kurz=True)
     i.genauer()
     i.liste("<b>Genaue Kontur</b>: Außenkontur und Innenkonturen kommen so, wie sie gezeichnet sind; Bögen bleiben "
@@ -3401,8 +3429,9 @@ def kapitel_zukauf_angebot(i):
             "Grenze in der Einstellung <i>DXF-Import: Teile kleiner als</i>) und Konturen mit offenen Linien sind "
             "ebenfalls nicht angehakt; der Grund steht unter dem Namen, und man kann sie wieder anhaken.",
             "<b>Rohrzeichnung</b>: Ist auf der Zeichnung ein Rohr (Schnitt mit gleichmäßiger Wand und eine Ansicht "
-            "gleicher Breite), meldet das Fenster das Rohr mit Profil und Länge (z. B. <i>QR 40 × 40 × 3, Länge "
-            "150 mm</i>) und übernimmt nichts als Blech.",
+            "gleicher Breite), öffnet im Angebot statt des Fensters der Rohr-Editor mit allem aus der Zeichnung "
+            "([[dxf_rohr]]). Im Blech-Editor meldet das Fenster das Rohr mit Profil und Länge (z. B. <i>QR 40 × 40 "
+            "× 3, Länge 150 mm</i>) und übernimmt nichts als Blech.",
             "<b>Werkstoff und Dicke</b> stehen meist nicht als Wert in der DXF: Vorschlag aus dem Dateinamen (z. B. "
             "Halter_3mm_1.4301.dxf), sonst aus Texten der Zeichnung (t=3, 3 mm, S235, V2A), sonst wie beim letzten "
             "Import. Je Teil sind Bezeichnung, Werkstoff, Dicke und Stückzahl änderbar.",

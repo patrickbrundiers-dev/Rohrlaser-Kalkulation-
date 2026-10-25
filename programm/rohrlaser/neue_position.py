@@ -1,20 +1,21 @@
 """Fenster 'Neue Position': zuerst der Typ (Patrick 22.10.2026), danach öffnet das Angebot das passende Fenster:
 Rohr / Profil = Schneidweg-Rechner mit Kopfzeile (Artikel, Profil, Werkstoff, Länge, Stückzahl), Blech / Kantteil =
-Schnellanlage eines Zukaufartikels (Kategorie Blechteile), Bleche aus DXF = DXF-Import (dxf_import_dialog), Zukaufteil = dieselbe Schnellanlage ohne Kategorie,
+Schnellanlage eines Zukaufartikels (Kategorie Blechteile), Aus DXF = DXF-Import (Bleche: dxf_import_dialog, Rohrzeichnung: Rohr-Editor), Zukaufteil = dieselbe Schnellanlage ohne Kategorie,
 Schweißbaugruppe = Editor der Baugruppe (baugruppe_dialog), leere
 Zeile = wie bisher alles in der Positionsliste eintragen."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QPushButton, QVBoxLayout
 
 ROHR, BLECH, ZUKAUF, LEER = "Rohr / Profil", "Blech / Kantteil", "Zukaufteil", "Leere Zeile"
-DXF = "Bleche aus DXF"
+DXF = "Aus DXF (Blech oder Rohr)"
 SCHWEISS = "Schweißbaugruppe"
 TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und Stückzahl, dazu Enden, Bohrungen und "
                "Konturen im Schneidweg-Rechner mit Skizze.",
          BLECH: "Blech- oder Kantteil (vom Blechlaser, als Zukaufteil): Bezeichnung, Lieferant (Technik "
                 "vorbelegt), Einkaufspreis und Menge.",
          DXF: "Eine oder mehrere DXF-Dateien einlesen: jedes Blech der Zeichnung wird eine Position wie aus dem "
-              "Blech-Editor (Werkstoff und Dicke vorgeschlagen, Rahmen und Schriftfeld fallen weg).",
+              "Blech-Editor (Werkstoff und Dicke vorgeschlagen, Rahmen und Schriftfeld fallen weg). Zeigt die Datei "
+              "ein Rohrteil in Ansichten mit Schnitt, öffnet der Rohr-Editor mit Profil, Länge, Enden und Konturen.",
          ZUKAUF: "Anderes Zukaufteil (Normteil, Schrauben, Handelsware …): Bezeichnung, Kategorie, Lieferant, "
                  "Einkaufspreis und Menge.",
          SCHWEISS: "Baugruppe aus Einzelteilen dieses Angebots: Unterbaugruppen, Nahtgruppen, Arbeitsgänge und "
