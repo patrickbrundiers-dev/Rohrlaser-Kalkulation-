@@ -152,14 +152,22 @@ def ebene_griff(qs, e):
     return (-math.sin(th) * ext, -math.cos(th) * ext), 2 * ext
 
 
+def nasen_plus(e):
+    """Nasen einer Steckverbindung am Ende e: um ihre Länge liegt der Schnitt weiter innen (wie rohr3d.netz)."""
+    from . import steckverbindung as stv
+    n = stv.nasen(e)
+    return sw._z(n.get("laenge_plus")) if n else 0.0
+
+
 def ebene_ecken(qs, e, L, seite, rand=8.0):
-    """4 Ecken (x, u, v) der Schnittebene eines Endes, etwas größer als der Querschnitt."""
+    """4 Ecken (x, u, v) der Schnittebene eines Endes, etwas größer als der Querschnitt; mit Nasen am Ende um ihre
+    Länge nach innen (dort liegt der Schnitt, die Nasen ragen bis zum Teilende)."""
     us = [p[0] for p in qs.umriss[0]] if qs.umriss else [-qs.B / 2, qs.B / 2]
     vs = [p[1] for p in qs.umriss[0]] if qs.umriss else [-qs.H / 2, qs.H / 2]
     u0, u1, v0, v1 = min(us) - rand, max(us) + rand, min(vs) - rand, max(vs) + rand
     out = []
     for u, v in ((u0, v0), (u1, v0), (u1, v1), (u0, v1)):
-        z = sk.schnitt_x(qs, e, u, v) if not dd.gegen_lesen(e) else 0.0
+        z = (sk.schnitt_x(qs, e, u, v) if not dd.gegen_lesen(e) else 0.0) + nasen_plus(e)
         out.append((z if seite == "a" else L - z, u, v))
     return out
 
@@ -300,7 +308,7 @@ class Werkzeug:
             if griff is None:
                 continue
             (u, v), _ = griff
-            z = sk.schnitt_x(qs, ee, u, v)
+            z = sk.schnitt_x(qs, ee, u, v) + nasen_plus(ee)
             pg = self._punkt(bild, z if s == "a" else L - z, u, v)
             p.setPen(QPen(stil.farbe(EBENE), 2.0))
             p.setBrush(QBrush(stil.farbe("#FFFFFF")))
