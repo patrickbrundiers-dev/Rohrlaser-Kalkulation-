@@ -3245,7 +3245,7 @@ class AngebotSeite(QWidget):
     def _vk_einstellungen(self):
         return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit", "gravur_artikel",
                                                     "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
-                                                    "steck_anzahl", "steck_nase_min", "knick_z", "knick_freistich",
+                                                    "steck_anzahl", "steck_nase_min", "steck_nase_rand", "knick_z", "knick_freistich",
                                                     "knick_k",
                                                     "steck_spiel", "steck_ueberstand", "steck_marke")}
 

@@ -28,6 +28,7 @@ import math
 
 HERKUNFT = "Steckverbindung"
 ANZAHL, SPIEL, UEBERSTAND, NASE_MIN = 2, 0.1, 0.0, 10.0     # Vorgaben (Einstellungen steck_…)
+NASE_RAND = 2.0     # mm Abstand der Nase zum Eckradius je Seite (Einstellung steck_nase_rand, Patrick 25.10.2026 „c“)
 WAENDE = ("quer", "längs")
 ANZAHLEN = (1, 2, 4)            # 1 Nase, 2 gegenüber, 4 = alle Wände
 FORMEN = ("Quadratrohr", "Rechteckrohr", "Rundrohr")
@@ -67,6 +68,20 @@ def querschnitt(profil_s, waende="quer"):
     return b, a, s
 
 
+def nase_max(profil_s, waende="quer", rand=None, wandbreite=None):
+    """Größte Nasenbreite [mm] (Patrick 25.10.2026 „c: Gerade Wandfläche − 2 × x“): Quadrat-/Rechteckrohr = Wandbreite
+    − 2 × Außenradius der Ecken − 2 × Randabstand, höchstens die Wand innen; Rundrohr = Außen-Ø − 2 × Randabstand.
+    rand leer = NASE_RAND."""
+    from .optimierung import aussenradius
+    form, a, b, s = _profil(profil_s, "Stecker")
+    bw = _z(wandbreite) or querschnitt(profil_s, waende)[0]
+    x = _z(rand) if rand not in (None, "") else NASE_RAND
+    if form == "Rundrohr":
+        return bw - 2 * x
+    r = aussenradius(form, a, b, s, r=(profil_s or {}).get("r_aussen"))
+    return min(bw - 2 * r - 2 * x, bw - 2 * s)
+
+
 def vorgaben(profil_s, einst=None, waende="quer"):
     """Vorgabewerte einer neuen Verbindung aus den Einstellungen (einst = {Name ohne 'steck_': Wert}, leer =
     Programmvorgabe): Anzahl, Nasenbreite = halbe Wandbreite des Steckers (mindestens steck_nase_min), Spiel,
@@ -75,7 +90,9 @@ def vorgaben(profil_s, einst=None, waende="quer"):
     bw, _, _ = querschnitt(profil_s, waende)
     n = int(_z(einst.get("anzahl")) or ANZAHL)
     mind = _z(einst.get("nase_min")) if einst.get("nase_min") not in (None, "") else NASE_MIN
-    return dict(anzahl=n if n in ANZAHLEN else ANZAHL, bN=round(max(mind, bw / 2), 2),
+    rand = _z(einst.get("nase_rand")) if einst.get("nase_rand") not in (None, "") else NASE_RAND
+    grenze = nase_max(profil_s, waende, rand)
+    return dict(anzahl=n if n in ANZAHLEN else ANZAHL, bN=round(min(max(mind, bw / 2), grenze), 2), rand=rand,
                 c=_z(einst.get("spiel")) if einst.get("spiel") not in (None, "") else SPIEL,
                 ueberstand=_z(einst.get("ueberstand")) if einst.get("ueberstand") not in (None, "") else UEBERSTAND,
                 waende=waende if waende in WAENDE else WAENDE[0], winkel=90.0)
@@ -105,8 +122,11 @@ def masse(v, profil_a, profil_s):
     b_n, c = _z(v.get("bN")), _z(v.get("c"))
     if b_n <= 0 or c < 0:
         raise ValueError("Steckverbindung: Nasenbreite > 0 und Spiel ≥ 0 eingeben.")
-    if b_n > bw - (0 if form_s == "Rundrohr" else 2 * s_b) + 1e-9:
-        raise ValueError(f"Steckverbindung: Nase {b_n:g} mm breiter als die Wand des Steckers innen.")
+    grenze = nase_max(profil_s, waende, v.get("rand"), bw)
+    if grenze <= 0:
+        raise ValueError("Steckverbindung: Wand des Steckers zu schmal für eine Nase (gerade Wandfläche − Rand).")
+    gekuerzt = b_n > grenze + 1e-9          # zu breit: auf die gerade Wandfläche gekürzt
+    b_n = min(b_n, grenze)
     alpha = _z(v.get("winkel")) or 90.0
     if not WINKEL_MIN - 1e-9 <= alpha <= 90 + 1e-9:
         raise ValueError(f"Steckverbindung: Winkel zwischen den Achsen {WINKEL_MIN:g}° bis 90° eingeben.")
@@ -137,7 +157,8 @@ def masse(v, profil_a, profil_s):
         laengen.append(2 * (sl + sb))
     return dict(lN=l_n, flanke=flanke, schlitze=schlitze, nasen=nasen, schlitz_l=schlitze[0][0],
                 schlitz_b=schlitze[0][1], schlitz=laengen[0], ende_plus=2 * n * flanke, laenge_plus=flanke,
-                aufnahme_plus=sum(laengen), einstiche_plus=n, bN=b_n, anzahl=n, staerke=staerke)
+                aufnahme_plus=sum(laengen), einstiche_plus=n, bN=b_n, anzahl=n, staerke=staerke,
+                gekuerzt=round(grenze, 2) if gekuerzt else None)
 
 
 def schlitz_zeilen(v, profil_a, profil_s):
@@ -391,9 +412,11 @@ def text(v, m=None):
     """Kurztext, z. B. '2 Nasen 20 × 2 mm, Spiel 0,1 mm, Schlitz 2,2 × 20,2 mm'."""
     from .rechnen import zahl
     n = int(_z(v.get("anzahl")))
-    t = f"{n} Nase{'n' if n != 1 else ''} {zahl(_z(v.get('bN')), 1)}"
+    t = f"{n} Nase{'n' if n != 1 else ''} {zahl(_z(m['bN'] if m else v.get('bN')), 1)}"
     if m:
         t += f" × {zahl(m['lN'], 1)} mm, Schlitz {zahl(m['schlitz_l'], 2)} × {zahl(m['schlitz_b'], 2)} mm"
+        if m.get("gekuerzt"):
+            t += f" (Nase auf {zahl(m['gekuerzt'], 1)} mm gekürzt: gerade Wandfläche − 2 × Rand)"
     t += f", Spiel {zahl(_z(v.get('c')), 2)} mm"
     if _z(v.get("winkel")) and _z(v["winkel"]) < 90 - 1e-6:
         t += f", schräg {zahl(_z(v['winkel']), 1)}°"
@@ -406,7 +429,7 @@ def text(v, m=None):
 # ------------------------------------------------------------------ Editor der Baugruppe
 SEITEN_KASTEN = ("oben", "vorne", "unten", "hinten")
 SEITE_STEP = dict(zip(("0°", "90°", "180°", "270°"), SEITEN_KASTEN))     # Seite der STEP-Messung (wie step.SEITE_KASTEN)
-FELDER = ("x", "seite", "anzahl", "bN", "c", "ueberstand", "waende", "winkel", "wandbreite", "abstand", "schlitze",
+FELDER = ("x", "seite", "anzahl", "bN", "rand", "c", "ueberstand", "waende", "winkel", "wandbreite", "abstand", "schlitze",
           "nasen")
 
 
