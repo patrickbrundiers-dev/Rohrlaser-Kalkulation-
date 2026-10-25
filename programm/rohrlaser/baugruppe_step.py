@@ -24,6 +24,13 @@ def lage_matrix(lage, versatz_z=0.0):
     return [round(float(c), 9) for i in range(3) for c in (x[i], y[i], z[i], o[i])]
 
 
+def lage_achsen(lage):
+    """Achsen [X, Y, Z] einer Einbaulage (Kandidat beim Ausrichten der Bleche)."""
+    z, x = lage[3:6], lage[6:9]
+    y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
+    return [list(x), list(y), list(z)]
+
+
 def _lagen(netz):
     lagen = (netz or {}).get("lagen") or ([netz["lage"]] if (netz or {}).get("lage") else [])
     return [lg for lg in lagen if lg and len(lg) == 9]
@@ -86,7 +93,8 @@ def bauplan(name, eintraege, knoten=()):
             if art[0] == "lage":
                 liste.append(dict(teil=nr, lage=lage_matrix(lage, art[1])))
             elif netz.get("p") and _dreiecke(netz):
-                liste.append(dict(teil=nr, ausrichten=dict(p=netz_in_lage(netz, lage), t=_dreiecke(netz))))
+                liste.append(dict(teil=nr, ausrichten=dict(p=netz_in_lage(netz, lage), t=_dreiecke(netz),
+                                                           achsen=lage_achsen(lage))))
             else:
                 liste.append(dict(teil=nr, daneben=True))
     ids = {k.get("id") for k in knoten}
@@ -150,8 +158,7 @@ class StepBaugruppe:
     def step_speichern(self, pfad=None):
         """Dateidialog (Ordner des Angebots), Bauplan, Schreiben, Meldung. Ergebnis: Pfad oder None;
         self.step_ergebnis = Ergebnis des Exports (für Tests)."""
-        from PySide6.QtCore import Qt
-        from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
         name = self.step_name()
         plan, hinweise = bauplan(name, self.step_eintraege(), getattr(self, "bg", {}).get("knoten") or ())
         if not plan["teile"]:
@@ -162,12 +169,8 @@ class StepBaugruppe:
                                                   "STEP-Datei (*.step *.stp)")
             if not pfad:
                 return None
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            erg = step_export.schreiben(plan, pfad, step_export.programmordner_von(self), name=name,
-                                        zeitlimit=step_export.ZEITLIMIT * 3)
-        finally:
-            QApplication.restoreOverrideCursor()
+        erg = step_export.mit_anzeige(self, plan, pfad, name=name,
+                                      zeitlimit=step_export.zeitlimit_fuer(plan, step_export.ZEITLIMIT * 3))
         erg["hinweise"] = list(hinweise) + list(erg.get("hinweise") or ())
         self.step_ergebnis = erg
         gut = bool(erg.get("teile")) and not erg.get("fehler")

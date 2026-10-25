@@ -33,12 +33,22 @@ def position_zum_teil(t, positionen):
     return next((p for j, p in enumerate(positionen) if rechnen.schluessel(p, j) == t.get("ref")), None)
 
 
-def teil(qs, t, e):
+def grundform(qs, e, L):
+    """Lage des Teils ohne Platz auf der Stange: (Schnittlinie A, Schnittlinie B, [(Kontur-Eingabe, x, s, Umriss)]).
+    Hängt nur von Querschnitt, Eingaben und Länge ab: gleiche Teile auf mehreren Stangen rechnen sie einmal."""
+    la, lb = sk.ende_abwicklung(qs, e.get("a"), PUNKTE_ENDE), sk.ende_abwicklung(qs, e.get("b"), PUNKTE_ENDE)
+    konturen = [(d, sk.s_lage(qs, d["eingabe"]), sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)])
+                for d in sk.lagen(e.get("konturen"), L)]
+    return la, lb, konturen
+
+
+def teil(qs, t, e, form=None):
     """Ein Teil auf der Stange: dict(ref, pos, von, bis, umriss=[(x, s)] (geschlossen, s im Bereich 0 … Umfang),
-    konturen=[dict(art, gravur, punkte=[(x, s)])]); e = Eingaben des Schneidweg-Rechners (aus_position)."""
+    konturen=[dict(art, gravur, punkte=[(x, s)])]); e = Eingaben des Schneidweg-Rechners (aus_position).
+    form: schon gerechnete grundform(qs, e, Länge)."""
     U, L, von = qs.umfang, t["laenge"], t["von"]
     ds = verschiebung(qs, t.get("drehung"))
-    la, lb = sk.ende_abwicklung(qs, e.get("a"), PUNKTE_ENDE), sk.ende_abwicklung(qs, e.get("b"), PUNKTE_ENDE)
+    la, lb, lagen = form or grundform(qs, e, L)
     stellen = [U * i / PUNKTE_ENDE for i in range(PUNKTE_ENDE + 1)]
 
     def mit_stufen(linie):              # Stützstellen der Schnittlinie dazu (Kanten der Nasen bleiben Stufen)
@@ -47,19 +57,19 @@ def teil(qs, t, e):
     oben = [(von + _linie_bei(la, (s - ds) % U), s) for s in mit_stufen(la)]
     unten = [(von + L - _linie_bei(lb, (s - ds) % U), s) for s in reversed(mit_stufen(lb))]
     konturen = []
-    for d in sk.lagen(e.get("konturen"), L):
-        umr = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
-        s0 = (sk.s_lage(qs, d["eingabe"]) + ds) % U
+    for d, s_lage, umr in lagen:
+        s0 = (s_lage + ds) % U
         konturen.append(dict(art=d["art"], gravur=d["art"] in sw.GRAVUREN, verteilt=bool(d.get("verteilt")),
                              punkte=[(von + d["x"] + dx, s0 + dq) for dx, dq in umr]))
     return dict(ref=t["ref"], pos=t.get("pos"), artikel=t.get("artikel"), von=von, bis=t["bis"],
                 umriss=oben + unten, konturen=konturen)
 
 
-def stange(s, positionen, profil_von):
+def stange(s, positionen, profil_von, merker=None):
     """Abwicklung der Stange s (Schnittplan bzw. rechnen.anzeige_stangen): dict(laenge, umfang, streifen
     [(Name, s0, s1)], naht (s der Schweißnaht oder None), teile=[teil(...)], fehlt=[Pos. ohne Daten]) oder None ohne
-    Querschnitt. profil_von(p) = Profil der Position (rechnen.profil_im_angebot)."""
+    Querschnitt. profil_von(p) = Profil der Position (rechnen.profil_im_angebot). merker: dict, das für mehrere
+    Stangen derselben Rechnung die Grundform je Position und Länge behält (Werkstattpapiere: alle Stangen)."""
     qs, teile, fehlt = None, [], []
     for t in s.get("teile") or ():
         p = position_zum_teil(t, positionen)
@@ -69,8 +79,15 @@ def stange(s, positionen, profil_von):
                 qs = sk.Querschnitt(profil)
             if qs is None or qs.umfang <= 0:
                 raise ValueError
-            e = sw.aus_position(sw.lesen(p.get("technik")), p, profil)[0]
-            teile.append(teil(qs, t, e))
+            schl = (id(p), repr(profil), t["laenge"])
+            if merker is not None and schl in merker and merker[schl][0] is p:
+                e, form = merker[schl][1:]
+            else:
+                e = sw.aus_position(sw.lesen(p.get("technik")), p, profil)[0]
+                form = grundform(qs, e, t["laenge"])
+                if merker is not None:
+                    merker[schl] = (p, e, form)
+            teile.append(teil(qs, t, e, form))
         except (ValueError, KeyError, TypeError, ZeroDivisionError, AttributeError):
             fehlt.append(t.get("pos") if t.get("pos") is not None else t.get("artikel"))
     if qs is None or qs.umfang <= 0:

@@ -39,7 +39,10 @@ FERN = 10.0                 # Werkzeug eines Endes reicht so weit über das Teil
 EBEN_TOL = 1e-3             # Ende gilt als eben bis zu dieser Abweichung [mm]
 STREIFEN_UEBER = 0.02       # Werkzeuge benachbarter Flächen überlappen so viel [mm]
 BULGE_90 = math.tan(math.radians(22.5))
-ZEITLIMIT = 300             # Sekunden für das Schreiben
+ZEITLIMIT = 300             # Sekunden für das Schreiben, dazu ZEIT_JE_WERKZEUG je Werkzeug (Performance-Update 4a)
+ZEIT_JE_WERKZEUG = 0.1
+SCHAETZ_GRUND, SCHAETZ_JE_WERKZEUG = 2.0, 0.03      # erwartete Dauer [s] (gemessen 25.10.: 1.000 Bohrungen 18 s)
+ANZEIGE_AB = 15             # ab so viel erwarteten Sekunden Fenster mit Dauer und Abbrechen
 
 
 # ------------------------------------------------------------------ kleine Vektorrechnung
@@ -733,12 +736,60 @@ def befehl(programmordner):
     return None
 
 
-def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=ZEITLIMIT):
+def werkzeug_zahl(teile):
+    """Anzahl der Werkzeuge (Bohrungen, Konturen, Enden, Rillen) aller Baupläne."""
+    plan = teile if isinstance(teile, dict) else dict(teile=teile)
+
+    def zahl(ws):
+        return sum(1 + zahl(w.get("ohne") or ()) for w in ws or ())
+    return sum(zahl(t.get("werkzeuge")) + zahl(t.get("rillen")) for t in plan.get("teile") or ())
+
+
+def zeitlimit_fuer(teile, grund=ZEITLIMIT):
+    """Zeitlimit [s]: grund + ZEIT_JE_WERKZEUG je Werkzeug."""
+    return grund + ZEIT_JE_WERKZEUG * werkzeug_zahl(teile)
+
+
+def dauer_schaetzen(teile):
+    """Erwartete Dauer des Schreibens [s]."""
+    plan = teile if isinstance(teile, dict) else dict(teile=teile)
+    return SCHAETZ_GRUND * max(len(plan.get("teile") or ()), 1) + SCHAETZ_JE_WERKZEUG * werkzeug_zahl(plan)
+
+
+def dauer_text(sekunden):
+    """„etwa 3 min“ bzw. „etwa 40 s“."""
+    return f"etwa {max(1, round(sekunden / 60))} min" if sekunden >= 90 else f"etwa {max(5, round(sekunden / 5) * 5)} s"
+
+
+def _ausfuehren(cmd, zeitlimit, warten):
+    """Prozess starten; warten(Sekunden seit Start) wird alle 0,2 s gerufen und gibt False zum Abbrechen.
+    Ergebnis: None = fertig, sonst Fehlertext."""
+    import time
+    pr = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    start = time.monotonic()
+    while True:
+        try:
+            pr.wait(timeout=0.2)
+            return None
+        except subprocess.TimeoutExpired:
+            pass
+        lauf = time.monotonic() - start
+        if lauf > zeitlimit or not warten(lauf):
+            pr.kill()
+            pr.wait()
+            return f"STEP-Export nach {zeitlimit:.0f} s abgebrochen." if lauf > zeitlimit else "STEP-Export abgebrochen."
+
+
+def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=None, warten=None):
     """Teile (Baupläne, oder ein ganzer Bauplan mit 'baugruppe', baugruppe_step) als STEP-Datei ziel schreiben ->
     Ergebnis dict(ok, teile, fehler, meldungen). Die Meldungen der Baupläne (gekürzte Gravur, …) stehen mit im
-    Ergebnis."""
+    Ergebnis. zeitlimit [s], None = zeitlimit_fuer (300 s + 0,1 s je Werkzeug); warten(Sekunden) wie _ausfuehren
+    (Fenster mit Abbrechen), None = ohne."""
     bauplan = teile if isinstance(teile, dict) else dict(name=name, teile=teile)
     teile = bauplan["teile"]
+    if zeitlimit is None:
+        zeitlimit = zeitlimit_fuer(bauplan)
     b = befehl(programmordner)
     if b is None:
         return dict(ok=False, fehler="Der STEP-Export braucht STEP-Import.exe im Programmordner.", teile=[],
@@ -752,10 +803,16 @@ def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=ZEITLIMIT):
         else:
             cmd = b + [str(plan), str(ziel), str(erg)]
         try:
-            subprocess.run(cmd, capture_output=True, timeout=zeitlimit,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if warten is not None:
+                fehler = _ausfuehren(cmd, zeitlimit, warten)
+                if fehler:
+                    return dict(ok=False, fehler=fehler, teile=[], meldungen=meldungen)
+            else:
+                subprocess.run(cmd, capture_output=True, timeout=zeitlimit,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except subprocess.TimeoutExpired:
-            return dict(ok=False, fehler=f"STEP-Export nach {zeitlimit} s abgebrochen.", teile=[], meldungen=meldungen)
+            return dict(ok=False, fehler=f"STEP-Export nach {zeitlimit:.0f} s abgebrochen.", teile=[],
+                        meldungen=meldungen)
         except OSError as ex:
             return dict(ok=False, fehler=f"STEP-Export nicht gestartet: {ex}", teile=[], meldungen=meldungen)
         try:
@@ -803,21 +860,47 @@ def vorschlag(widget, name):
     return "".join(c if c.isalnum() or c in " -_,." else "_" for c in name).strip() + ".step"
 
 
+def mit_anzeige(widget, plan, pfad, name=None, zeitlimit=None):
+    """schreiben mit Wartecursor; dauert es voraussichtlich länger als ANZEIGE_AB, mit Fenster (erwartete Dauer,
+    vergangene Zeit, Abbrechen)."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QProgressDialog
+    dauer = dauer_schaetzen(plan)
+    fenster = None
+    if dauer >= ANZEIGE_AB and not getattr(widget, "stumm", False):
+        fenster = QProgressDialog(f"STEP wird geschrieben ({werkzeug_zahl(plan)} Bohrungen/Konturen), "
+                                  f"{dauer_text(dauer)} …", "Abbrechen", 0, 0, widget)
+        fenster.setWindowTitle("STEP speichern")
+        fenster.setWindowModality(Qt.WindowModal)
+        fenster.setMinimumDuration(0)
+        fenster.show()
+
+    def warten(lauf):
+        fenster.setLabelText(f"STEP wird geschrieben ({werkzeug_zahl(plan)} Bohrungen/Konturen), "
+                             f"{dauer_text(dauer)}; bisher {dauer_text(lauf)[6:]} …")
+        QApplication.processEvents()
+        return not fenster.wasCanceled()
+
+    QApplication.setOverrideCursor(Qt.WaitCursor)
+    try:
+        return schreiben(plan, pfad, programmordner_von(widget), name=name, zeitlimit=zeitlimit,
+                         warten=warten if fenster is not None else None)
+    finally:
+        QApplication.restoreOverrideCursor()
+        if fenster is not None:
+            fenster.close()
+
+
 def speichern_dialog(widget, bauplan, name, pfad=None):
     """Ziel wählen (Dateidialog mit Vorschlag), Bauplan als STEP schreiben und das Ergebnis melden. Ergebnis: Pfad
     oder None. widget.step_ergebnis = Ergebnis des Exports (für Tests)."""
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
     if pfad is None:
         pfad, _ = QFileDialog.getSaveFileName(widget, "STEP speichern", vorschlag(widget, name),
                                               "STEP-Datei (*.step *.stp)")
         if not pfad:
             return None
-    QApplication.setOverrideCursor(Qt.WaitCursor)
-    try:
-        erg = schreiben([bauplan], pfad, programmordner_von(widget), name=bauplan.get("name"))
-    finally:
-        QApplication.restoreOverrideCursor()
+    erg = mit_anzeige(widget, [bauplan], pfad, name=bauplan.get("name"))
     widget.step_ergebnis = erg
     gut = bool(erg.get("teile")) and not erg.get("fehler")
     if not getattr(widget, "stumm", False):

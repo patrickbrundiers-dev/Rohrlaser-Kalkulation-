@@ -1046,6 +1046,20 @@ def zahl_aus_text(text):
     return float(t)
 
 
+def rechnung_aus_text(text):
+    """Wert einer Rechnung wie „6000/4“ oder „1.250 − 2×3“ (Punkt vor drei Ziffern = Tausender); keine Rechnung
+    oder nicht auswertbar = None."""
+    t = str(text).strip()
+    if not re.fullmatch(r"[\d\s.,+\-−*/×÷:()xX]+", t) or not re.search(r"(?<=[\d)\s])[+\-−*/×÷:xX]|[()]", t):
+        return None
+    t = re.sub(r"(?<=\d)\.(?=\d{3}(?!\d))", "", t)
+    from .rechenfeld import auswerten
+    try:
+        return auswerten(t)
+    except ValueError:
+        return None
+
+
 def wert_aus_text(f, text):
     """Eingabe im Programm in den gespeicherten Wert umwandeln. ValueError mit Meldung bei ungültiger
     Eingabe. Leere Eingabe = None."""
@@ -1056,7 +1070,9 @@ def wert_aus_text(f, text):
         try:
             w = zahl_aus_text(t)
         except ValueError:
-            raise ValueError(f"{f.titel}: '{t}' ist keine Zahl.")
+            w = rechnung_aus_text(t)        # Rechnen im Feld, z. B. „6000/4“ (Plan Eingabefelder E4)
+            if w is None:
+                raise ValueError(f"{f.titel}: '{t}' ist keine Zahl.")
         if f.art == "ganz":
             if w != int(w):
                 raise ValueError(f"{f.titel}: bitte eine ganze Zahl eingeben.")

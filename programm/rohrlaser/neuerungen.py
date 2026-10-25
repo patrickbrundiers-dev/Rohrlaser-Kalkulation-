@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.122", "<b>Fehlersuche</b>: Die <b>Schnellzeile</b> liest Profilmaße mit Leerzeichen (<i>RR 42,4 x 2</i>, "
+    ["0.9.129", "<b>Fehlersuche</b>: Die <b>Schnellzeile</b> liest Profilmaße mit Leerzeichen (<i>RR 42,4 x 2</i>, "
                 "<i>QR 40 x 40 x 3</i>) und <i>1250 x 20</i> als Länge × Stück; ein mehrdeutiger Werkstoff (<i>S235</i>) "
                 "nimmt den der letzten Position, die Vorgabe bzw. den zuletzt benutzten, sonst Hinweis "
                 "<i>mehrdeutig</i> ([[schnellzeile]]). Halbschalen (Teile je Rohrumfang): Meterpreise und Fenster "
@@ -30,6 +30,62 @@ NEUERUNGEN = [
                 "([[lizenz_laden]]). Vollmaterial aus STEP: Hinweis <i>Bohrungen/Gewinde nicht ausgewertet, bitte "
                 "prüfen</i> ([[vollmaterial]]).",
      "Fehlersuche: Schnellzeile (Leerzeichen, Länge × Stück, S235), Halbschalen-Meter, Notfallcode, Vollmaterial-Hinweis"],
+    ["0.9.128", "<b>Eingaben intuitiver</b>: Ja/Nein-Einstellungen sind Schalter, Ja/Nein-Spalten der Tabellen "
+                "Häkchen in der Zelle (ein Klick, Leertaste, J/N). Wenige Möglichkeiten (Thema, Dichte, "
+                "Eingaberichtung …) stehen als Knopfreihe da; feste Auswahllisten der Einstellungen nehmen keine "
+                "Tippfehler mehr an. In allen Zahlenfeldern und Zahlenspalten darf man rechnen (<i>6000/4</i>), der "
+                "alte Wert ist beim Hineinklicken markiert, eine unfertige Rechnung rot umrandet ([[eingaben]]). "
+                "Fenster passen auf den Bildschirm (auch gemerkte Größen am Laptop), das offene Fenster bleibt vor dem "
+                "Hauptfenster ([[fenster_merken]]).",
+     "Schalter, Knopfreihen, Rechnen im Feld, Fenster passen und bleiben vorne"],
+    ["0.9.127", "<b>Abwicklung als Fenster</b>: Rohr- und Blech-Editor haben oben rechts im Menüband den Knopf "
+                "<b>Abwicklung</b>; er zeigt die Abwicklung groß in einem eigenen Fenster, das jeder Eingabe folgt. "
+                "<b>Esc</b> schließt nur dieses Fenster, der Editor bleibt offen ([[teile_editor]]). Fehler behoben: "
+                "<b>Enter</b> nach einer Eingabe schloss den Editor (auch Baugruppe und Satz in 3D); jetzt bestätigt "
+                "Enter nur die Eingabe.",
+     "Abwicklung im eigenen Fenster (Esc schließt nur das Fenster); Enter schließt den Editor nicht mehr"],
+    ["0.9.126", "<b>3D drehen um den Mauszeiger</b>: In allen 3D-Ansichten (Teile-Editor Rohr und Blech, "
+                "Schweißbaugruppe, Satz in 3D, STEP-Prüfdialog, 3D-Ansicht der Positionen) dreht die linke Maustaste "
+                "jetzt um den Punkt des Modells unter dem Mauszeiger; ein kleiner Kreis zeigt ihn beim Drehen. Neben "
+                "dem Modell gedrückt, dreht die Ansicht wie bisher um die Modellmitte. Das Mausrad zoomt zur "
+                "Mausposition ([[step_3d_ansicht]]).",
+     "3D: Drehpunkt unter dem Mauszeiger, Zoom zur Mausposition"],
+    ["0.9.125", "<b>STEP-Baugruppe: Teile genau an ihrer Stelle</b>: Beim STEP speichern einer Baugruppe oder eines "
+                "Satzes lagen quadratische Bleche verdreht und versetzt, Flachstahl als Blech teils 40 mm daneben. Das "
+                "Ausrichten am 3D-Netz der STEP-Messung prüft jetzt die Achsen der Einbaulage, der Datei und der Kanten, "
+                "rechnet mit dem genauen Flächenschwerpunkt und führt nach; Umlaute in den Teilenamen stimmen "
+                "([[step_baugruppe]]). <b>Nasen nie in die Außenwand</b>: <i>Alle Stöße stecken</i> prüft jede Nase "
+                "auf der Wand der Aufnahme; passt sie nicht, werden die Nasen um 90° gedreht oder es bleibt eine Nase, "
+                "an Ecken je Träger eine Nase, um 90° versetzt; Lage x = Mitte des Steckers. Gleiche Teile, die andere "
+                "Nasen oder Schlitze brauchen, werden in eigene Positionen geteilt; nur gedreht eingebaute gleiche "
+                "Rohre bleiben eine Position ([[steckverbindung]]).",
+     "STEP-Baugruppe: Bleche genau an ihrer Stelle; Stecknasen nie in die Außenwand, Ecken je Träger eine Nase."],
+    ["0.9.124", "<b>DXF-Import Rohr mit Patricks Bauteil 1 verbessert</b>: Die Striche des Schnittverlaufs (A–A) "
+                "machten die Draufsicht zu lang; deshalb wurde die Vorderansicht verworfen und die Gehrung als "
+                "Ausklinkung gelesen, Bohrungen lagen 12 mm daneben. Jetzt: Gehrung 30° richtig, Fenster mit Eckradius, "
+                "Ø 50 durch beide Wände an der richtigen Stelle, schräge Bohrung als Bohrung mit Neigung "
+                "([[dxf_rohr]]).",
+     "DXF-Import Rohr: Schnittverlauf, Gehrung, schräge Bohrung"],
+    ["0.9.123", "<b>Performance-Update</b> (Belastungstest Rundrohr 84 × 2 mit 200, 1.000 und 7.000 Bohrungen): Das "
+                "3D-Modell aus den Eingaben rechnet bei vielen Bohrungen ein Mehrfaches schneller und wird gemerkt "
+                "(1.000 Bohrungen: 24 s → 5 s); der Rohr-Editor öffnet dreimal so schnell, eine Änderung braucht keine "
+                "18 s mehr für die Ergebnistabelle. Satz in 3D und Baugruppe: ein Klick rechnet die Teile nicht neu. "
+                "<b>STEP speichern</b> zieht nicht überlappende Bohrungen in einem Durchgang ab (1.000 Bohrungen: über "
+                "5 min → 20 s), zeigt bei langen Exporten Dauer und Abbrechen, das Zeitlimit wächst mit den Bohrungen "
+                "([[step_export]]). Positionsliste, Vorschaubilder, Werkstattpapiere und Stangenbild schneller; "
+                "Staffeln und Nachkalkulation füllen sich erst beim Öffnen des Reiters. Behoben: Angebots-PDF mit "
+                "einem Satz, der nicht auf eine Seite passt (Fehler beim Erzeugen); der Satz bricht jetzt um, die "
+                "Spaltenköpfe stehen auf jeder Seite. Neu: <b>Systemvoraussetzungen</b> in der Anleitung und "
+                "<b>Hilfe → Systemprüfung …</b>, einmal nach Installation bzw. Update mit Hinweis, wenn der Rechner "
+                "unter dem Minimum liegt ([[systemvoraussetzungen]]). Alle Preise, Zeiten und Messwerte bleiben gleich.",
+     "Performance-Update: 3D, Rohr-Editor, STEP speichern viel schneller; Systemvoraussetzungen und Systemprüfung"],
+    ["0.9.122", "<b>Abwicklung mit ausgeschnittenen Konturen</b>: In der Abwicklung der Skizze (Schneidweg-Rechner, "
+                "Teile-Editor, Zeichnung) sind Bohrungen, Rechtecke, Langlöcher und andere Konturen jetzt als Loch im "
+                "Material zu sehen; das Material ist etwas kräftiger hinterlegt, Gravuren bleiben Linien. Eine "
+                "Text-Gravur steht in Skizze und Abwicklung als echte Schrift statt als Rechteck. Im Blech-Editor sind "
+                "die Konturen ebenso ausgeschnitten "
+                "([[schneidweg_rechner]]).",
+     "Abwicklung: Konturen als ausgeschnitten dargestellt"],
     ["0.9.121", "<b>Vollmaterial als Zukaufartikel</b>: neue Artikeltypen <b>Rundstahl</b> und <b>Vierkantstahl</b> "
                 "(Ø bzw. Kante, Länge, Werkstoff); Gewicht aus der Dichte, EK je Stück = Gewicht × Preis je kg "
                 "(Vorgabe Tonnenpreis des Werkstoffs), Kategorie <i>Vollmaterial</i> ([[vollmaterial]]). Der "

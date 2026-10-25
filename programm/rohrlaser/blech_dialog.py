@@ -8,10 +8,10 @@ from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
                                QMessageBox,
-                               QPushButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
+                               QPushButton, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
 from . import einblendung, hilfe, stil
@@ -20,6 +20,7 @@ from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .teile_editor import EditorRahmen
 from .stammdaten import zahl_als_text, zahl_aus_text
+from .eingabe import RechenSpin, RechenSpinGanz
 
 FARBE_BLECH, FARBE_LINIE, FARBE_KONTUR, FARBE_BIEGUNG = "#EAF1F8", "#1F4E78", "#B42318", "#2E7D32"
 FARBE_MARKIERT = "#2E75B6"      # gewähltes Merkmal (Teile-Editor), wie in der 3D-Ansicht
@@ -175,6 +176,8 @@ class BlechSkizze(QWidget):
                 cx, cy = z["x"] - minx, z["y"] - miny
             p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 3.0) if self.markiert == f"kontur:{zeile[id(z)]}" else
                      QPen(stil.farbe(FARBE_KONTUR), 1.2))
+            # ausgeschnitten wie in der Abwicklung des Rohrs (Patrick 25.10.2026): Grund scheint durch, Gravur nicht
+            p.setBrush(Qt.NoBrush if z.get("art") in sw.GRAVUREN or z.get("linien") else stil.farbe("#FFFFFF"))
             self._kontur(p, z, pkt(cx, cy), m)
         if self.mini:
             return
@@ -578,7 +581,7 @@ class BlechDialog(QDialog):
         self.lieferant.setEditable(True)
         self.lieferant.addItems(sorted(z["name"] for z in db.zeilen("zukauf_lieferanten") if z.get("name")))
         self.lieferant.setCurrentText(kopf.get("lieferant") or zukauf.lieferant_vorgabe("Blechteile"))
-        self.stueck = QSpinBox()
+        self.stueck = RechenSpinGanz()
         self.stueck.setRange(1, 10 ** 7)
         self.stueck.setValue(int(sw._z(kopf.get("stueck") or e.get("stueck")) or 1))
         self.stueck.setToolTip("Stückzahl der Position; Rüsten wird auf diese Menge umgelegt")
@@ -613,7 +616,7 @@ class BlechDialog(QDialog):
         self.laenge = self._spin(e.get("laenge"), 0, 100000, 10, " mm", 1)
         self.breite = self._spin(e.get("breite"), 0, 100000, 10, " mm", 1)
         self.eckradius = self._spin(e.get("eckradius"), 0, 10000, 1, " mm", 1)
-        self.kantungen = QSpinBox()
+        self.kantungen = RechenSpinGanz()
         self.kantungen.setRange(0, 99)
         self.kantungen.setValue(int(sw._z(e.get("kantungen"))))
         self.kantungen.setToolTip("Mehrachsig gekantetes Teil (z. B. Schale aus dem STEP-Import): Anzahl Kantungen "
@@ -763,7 +766,7 @@ class BlechDialog(QDialog):
 
     @staticmethod
     def _spin(wert, von, bis, schritt, suffix, stellen):
-        w = QDoubleSpinBox()
+        w = RechenSpin()
         w.setRange(von, bis)
         w.setSingleStep(schritt)
         w.setDecimals(stellen)

@@ -7,11 +7,12 @@ import datetime
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
-                               QPlainTextEdit, QPushButton, QRadioButton, QScrollArea, QSpinBox, QTableWidget,
+                               QPlainTextEdit, QPushButton, QRadioButton, QScrollArea, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import ausgabe, einblendung, feiertage, paletten, palettenschein, pdf
 from .stammdaten import zahl_als_text
+from .eingabe import RechenSpinGanz
 
 HINWEIS_TEXT = {"leer": "", "normal": "passt in normaler Schrift", "klein": "wird etwas kleiner gedruckt",
                 "sehr klein": "wird deutlich kleiner gedruckt", "zu lang": "zu lang – das Ende wird abgeschnitten"}
@@ -118,7 +119,7 @@ class PalettenscheinDialog(QDialog):
         lp = QVBoxLayout(pal)
         self.auto = QRadioButton("Automatisch berechnen (Lagen je Palette, Höhe und Gewicht)")
         self.hand = QRadioButton("Von Hand:")
-        self.anzahl = QSpinBox()
+        self.anzahl = RechenSpinGanz()
         self.anzahl.setRange(1, 999)
         self.unbekannt = QCheckBox("Anzahl noch nicht bekannt")
         self.ergebnis = QLabel()
@@ -228,7 +229,7 @@ class PalettenscheinDialog(QDialog):
         self.druck_knopf = unten.addButton("Palettenscheine drucken (PDF)", QDialogButtonBox.ActionRole)
         self.druck_knopf.setObjectName("primaer")
         self.druck_knopf.clicked.connect(self.drucken)
-        self.nachdruck_nr = QSpinBox()
+        self.nachdruck_nr = RechenSpinGanz()
         self.nachdruck_nr.setRange(1, 999)
         self.nachdruck_nr.setPrefix("Palette ")
         nach = unten.addButton("Nachdruck", QDialogButtonBox.ActionRole)
@@ -306,7 +307,7 @@ class PalettenscheinDialog(QDialog):
                 if c == 6 and s.get("plan_text"):
                     it.setToolTip(s["plan_text"])
                 self.teile.setItem(r, c, it)
-            sb = QSpinBox()
+            sb = RechenSpinGanz()
             sb.setRange(0, 100000)
             sb.setSpecialValueText("automatisch")
             sb.setValue(int((self.d.get("max_je") or {}).get(str(s.get("id"))) or 0))

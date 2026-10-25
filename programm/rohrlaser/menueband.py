@@ -192,11 +192,21 @@ class Menueband(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        lay.addWidget(self.leiste)
+        kopf = QHBoxLayout()           # Reiter links, rechts daneben Knöpfe, die auf jedem Reiter sichtbar sind
+        kopf.setContentsMargins(0, 0, 4, 0)
+        kopf.addWidget(self.leiste)
+        kopf.addStretch(1)
+        self._ecke = kopf
+        lay.addLayout(kopf)
         lay.addWidget(self.stapel)
         self.leiste.currentChanged.connect(self._gewechselt)
         self.leiste.tabBarDoubleClicked.connect(lambda _: self.einklappen(not self.eingeklappt))
         self.leiste.tabBarClicked.connect(lambda _: self.eingeklappt and self.einklappen(False))
+
+    def ecke(self, w):
+        """Widget rechts neben den Reitern (immer sichtbar, auch eingeklappt)."""
+        self._ecke.addWidget(w)
+        return w
 
     def reiter(self, name):
         if name not in self.seiten:

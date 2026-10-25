@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
                                QLabel, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QVBoxLayout, QWidget)
 
-from . import schneidweg as sw, steckverbindung
+from . import schneidweg as sw, steckverbindung, tastatur
 from .angebot import ist_baugruppe
 from .baugruppe_dialog import (FEHLER_FARBE, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
                                _text)
@@ -126,6 +126,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         knoepfe.rejected.connect(self.reject)
         knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
         lay.addWidget(knoepfe)
+        tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
         self.vorschlaege_info_neu()
 
@@ -269,6 +270,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         verbindungen = [self._steck_daten(z) for z in self.bg["steckverbindungen"]]
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, verbindungen)
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
+                    teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
                     daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]))
 
     def _ok(self):

@@ -54,6 +54,7 @@ RENDERER = ("Automatisch", "Software", "OpenGL")
 _renderer = RENDERER[0]
 _gl_fehler = None       # OpenGL ist in diesem Programmlauf schon einmal gescheitert: Grund
 GROB_DREIECKE = 10000   # beim Drehen/Zoomen höchstens so viele Dreiecke zeichnen (grobe Stufe, Modell.grob)
+DREHPUNKT_FEIN = 80000  # Drehpunkt bis zu so vielen Dreiecken im vollen Modell suchen, darüber in der groben Stufe
 # Baugruppen-Ansicht: je Teil (Zeile gleicher Teile) eine Farbe, ohne Eintrag in der Legende
 TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
               "#BAB0AC", "#2F4B7C", "#A05195")
@@ -125,6 +126,34 @@ def entpacken(daten):
         return None
 
 
+_lage_merker = {}        # (id(p), Lage) -> (p, Punkte in Einbaulage): Klicks im Satz/Baugruppe ohne Neurechnen
+LAGE_MERKEN = 4_000_000  # so viele Zahlen höchstens merken
+
+
+def _in_lage(p, lage):
+    """Punkte p (x, y, z flach) in die Einbaulage (Ursprung, z-Achse, x-Achse), auf 0,01 mm gerundet."""
+    schl = (id(p), tuple(lage))
+    alt = _lage_merker.get(schl)
+    if alt is not None and alt[0] is p:
+        return alt[1]
+    o, z, x = lage[0:3], lage[3:6], lage[6:9]
+    y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
+    o0, o1, o2 = o
+    x0, x1, x2 = x
+    y0, y1, y2 = y
+    z0, z1, z2 = z
+    aus = []
+    neu = aus.extend
+    for i in range(0, len(p) - 2, 3):
+        a, b, c = p[i], p[i + 1], p[i + 2]
+        neu((round(o0 + a * x0 + b * y0 + c * z0, 2), round(o1 + a * x1 + b * y1 + c * z1, 2),
+             round(o2 + a * x2 + b * y2 + c * z2, 2)))
+    if sum(len(v[1]) for v in _lage_merker.values()) + len(aus) > LAGE_MERKEN:
+        _lage_merker.clear()
+    _lage_merker[schl] = (p, aus)
+    return aus
+
+
 def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
@@ -141,13 +170,9 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
         if not netz or not netz.get("p") or not lage or len(lage) != 9:
             ohne += 1
             continue
-        o, z, x = lage[0:3], lage[3:6], lage[6:9]
-        y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
         p = netz["p"]
         basis = len(punkte) // 3
-        for i in range(0, len(p) - 2, 3):
-            a, b, c = p[i], p[i + 1], p[i + 2]
-            punkte += [round(o[k] + a * x[k] + b * y[k] + c * z[k], 2) for k in range(3)]
+        punkte += _in_lage(p, lage)
         if bereiche is not None:
             bereiche.append((nr, basis, len(punkte) // 3, [basis + i for a, idx in (netz.get("t") or {}).items()
                                                             if a != "I" for i in idx]))
@@ -473,7 +498,16 @@ def persp_faktor(modell, perspektive):
     return 1.0 / (PERSPEKTIVE_ABSTAND * modell.groesse) if perspektive else 0.0
 
 
+_letzte_projektion = [None, None]      # (Schlüssel, Ergebnis) der letzten Projektion: Drehen um den Mauszeiger
+#                                        rechnet sie vor dem Zeichnen, das Zeichnen nimmt sie dann aus dem Speicher
+
+
 def _projektion_roh(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), perspektive=False):
+    schluessel = (modell, breite, hoehe, gier, nick, zoom, bool(perspektive))
+    if _letzte_projektion[0] is not None and _letzte_projektion[0][0] is modell and \
+            _letzte_projektion[0][1:] == schluessel[1:]:
+        m, proj, roh, massstab = _letzte_projektion[1]
+        return m, proj, roh, massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
     m = _drehung(gier, nick)
     cx, cy, cz = modell.mitte
     pz = persp_faktor(modell, perspektive)
@@ -492,6 +526,7 @@ def _projektion_roh(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0
         bx = max(abs(q[0]) for q in proj) * 2 or 1
         by = max(abs(q[1]) for q in proj) * 2 or 1
         massstab = zoom * 0.9 * min(breite / bx, hoehe / by)
+    _letzte_projektion[:] = [schluessel, (m, proj, roh, massstab)]
     return m, proj, roh, massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
 
 
@@ -667,8 +702,8 @@ def vorschaubild(netz, breite=96, hoehe=30, dpr=1.0):
 
 
 class Ansicht3D(QWidget):
-    """Drehbare Ansicht: linke Maustaste drehen, rechte oder mittlere verschieben, Mausrad zoomen,
-    Doppelklick = Ausgangsansicht."""
+    """Drehbare Ansicht: linke Maustaste drehen (um den Punkt des Modells unter dem Mauszeiger, daneben um die
+    Modellmitte), rechte oder mittlere verschieben, Mausrad zoomen (zur Mausposition), Doppelklick = Ausgangsansicht."""
     GRUND = (-0.45, 0.45)
     gedreht = Signal()
     angeklickt = Signal(object)     # Klick ohne Ziehen auf eine Linie: dict(id=Merkmal oder None, punkt=(x, y, z))
@@ -692,6 +727,7 @@ class Ansicht3D(QWidget):
         self.masse_fest = []                    # fertige Messungen [(Punkte, Text)]: bleiben stehen bis gelöscht
         self.schnitt_linie = []                 # Querschnitt (editor_schnitt): Ring an der Stelle x
         self._druck = self._rechts = None
+        self._drehpunkt = None                  # (Modellpunkt, Pixel) beim Drücken: dreht um diesen Punkt
         self.darstellung, self.nur_gewaehlt = SCHATTIERT, False       # Darstellungsarten (A4)
         self.perspektive = perspektive_vorgabe()                        # 3E-11 M2: Vorgabe orthogonal
         # Werkzeug des Teile-Editors (editor_griffe): zeichnet Griffe/Maße über das Bild und bekommt Maus und Tasten
@@ -841,9 +877,10 @@ class Ansicht3D(QWidget):
         self.update()
         self.gemessen.emit(self.abstand())
 
-    def bildpunkt(self):
-        """Funktion Modellpunkt (x, y, z) -> (Pixel x, Pixel y, Tiefe) für die aktuelle Ansicht (wie gezeichnet)."""
-        modell = self.modell
+    def bildpunkt(self, modell=None):
+        """Funktion Modellpunkt (x, y, z) -> (Pixel x, Pixel y, Tiefe) für die aktuelle Ansicht (wie gezeichnet).
+        modell: Stufe, deren Maßstab gilt (beim Drehen die grobe), sonst das Modell."""
+        modell = modell or self.modell
         if self._gl is not None:
             from .ansicht3d_gl import abbildung
             m = _drehung(self.gier, self.nick)
@@ -1084,7 +1121,17 @@ class Ansicht3D(QWidget):
                     if self.mess_max else
                     "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
                    hinweis or
-                   "Linke Maustaste drehen · rechte verschieben · Mausrad zoomen · Doppelklick Ausgangsansicht")
+                   "Linke Maustaste drehen (um den Punkt unter der Maus) · rechte verschieben · Mausrad zoomen · "
+                   "Doppelklick Ausgangsansicht")
+        if self._drehpunkt is not None and self._maus is not None and self._maus[1] == Qt.LeftButton:
+            x, y = self._drehpunkt[1]           # Drehpunkt beim Drehen zeigen
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(stil.farbe("#FFFFFF"), 3))
+            p.drawEllipse(QPointF(x, y), 5, 5)
+            p.setPen(QPen(stil.farbe("#E07000"), 1.5))
+            p.drawEllipse(QPointF(x, y), 5, 5)
+            p.drawPoint(QPointF(x, y))
 
     def _markierung_zeichnen(self, p):
         """Hervorgehobene Linien (Teile-Editor), Messung und Werkzeug (Griffe, Maße) über dem Bild."""
@@ -1132,11 +1179,64 @@ class Ansicht3D(QWidget):
                 m = pk[1] if len(pk) == 3 else ((pk[0][0] + pk[1][0]) / 2, (pk[0][1] + pk[1][1]) / 2)
                 p.drawText(QRectF(m[0] + 8, m[1] - 20, 360, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
 
+    def punkt_unter(self, x, y):
+        """Vorderster Punkt des Modells unter dem Pixel (x, y) oder None (daneben). Projiziert jeden Punkt nur einmal,
+        prüft dann die Dreiecke über ihr Rechteck (schnell auch bei großen Baugruppen)."""
+        mo = self.modell
+        if mo is None:
+            return None
+        if len(mo.dreiecke) > DREHPUNKT_FEIN:
+            mo = mo.grob()                      # sehr große Netze: die Stufe, die beim Drehen zu sehen ist
+        bild = self.bildpunkt(mo)
+        px = list(map(bild, mo.punkte))
+        pz = persp_faktor(mo, self.perspektive)     # perspektivisch: Gewichte je Ecke mit ihrem Faktor (exakt)
+        beste = None
+        for i, j, k, _, _ in mo.dreiecke:
+            a, b, c = px[i], px[j], px[k]
+            if (a[0] > x and b[0] > x and c[0] > x) or (a[0] < x and b[0] < x and c[0] < x) or \
+                    (a[1] > y and b[1] > y and c[1] > y) or (a[1] < y and b[1] < y and c[1] < y):
+                continue
+            det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+            if abs(det) < 1e-9:
+                continue
+            l1 = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / det
+            l2 = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / det
+            l3 = 1 - l1 - l2
+            if min(l1, l2, l3) < -1e-6:
+                continue
+            if pz:
+                l1, l2, l3 = l1 / (1.0 - a[2] * pz), l2 / (1.0 - b[2] * pz), l3 / (1.0 - c[2] * pz)
+                summe = (l1 + l2 + l3) or 1.0
+                l1, l2, l3 = l1 / summe, l2 / summe, l3 / summe
+            tiefe = l1 * a[2] + l2 * b[2] + l3 * c[2]           # größer = näher am Betrachter
+            if beste is None or tiefe > beste[0]:
+                beste = (tiefe, (i, j, k, l1, l2, l3))
+        if beste is None:
+            return None
+        i, j, k, l1, l2, l3 = beste[1]
+        pa, pb, pc = mo.punkte[i], mo.punkte[j], mo.punkte[k]
+        return tuple(l1 * pa[m] + l2 * pb[m] + l3 * pc[m] for m in range(3))
+
+    def _um_drehpunkt(self, modell=None):
+        """Nach dem Drehen verschieben, sodass der Drehpunkt an seinem Pixel bleibt (Bild dreht um ihn). modell:
+        Stufe, die als Nächstes gezeichnet wird (beim Drehen die grobe, nach dem Loslassen das volle Modell)."""
+        if self._drehpunkt is None or self.modell is None:
+            return
+        punkt, (x0, y0) = self._drehpunkt
+        x, y, _ = self.bildpunkt(modell or self.modell.grob())(punkt)
+        self.versatz = (self.versatz[0] + x0 - x, self.versatz[1] + y0 - y)
+
     def mousePressEvent(self, e):
         w = self.werkzeug
         if w is not None and self.modell is not None and not self.messen and w.druck(e.position(), e.button()):
             self._werkzeug_zieht = True
             return
+        self._drehpunkt = None
+        if e.button() == Qt.LeftButton and self.modell is not None:
+            x, y = e.position().x(), e.position().y()
+            punkt = self.punkt_unter(x, y)
+            if punkt is not None:
+                self._drehpunkt = (punkt, (x, y))
         self._maus = (e.position(), e.button())
         self._druck = e.position() if e.button() == Qt.LeftButton else None
         self._rechts = e.position() if e.button() == Qt.RightButton else None
@@ -1160,6 +1260,7 @@ class Ansicht3D(QWidget):
         if knopf == Qt.LeftButton:
             self.gier += d.x() * 0.012
             self.nick = max(-1.55, min(1.55, self.nick + d.y() * 0.012))
+            self._um_drehpunkt()
         else:
             self.versatz = (self.versatz[0] + d.x(), self.versatz[1] + d.y())
         self._maus = (e.position(), knopf)
@@ -1172,7 +1273,9 @@ class Ansicht3D(QWidget):
             self.werkzeug.loslassen(e.position() if e is not None else None)
             self.update()
             return
-        self._maus = None
+        if self._maus is not None and self._maus[1] == Qt.LeftButton and self._maus[0] != self._druck:
+            self._um_drehpunkt(self.modell)     # volles Modell kann einen anderen Maßstab haben: Punkt bleibt stehen
+        self._maus, self._drehpunkt = None, None
         druck, self._druck = self._druck, None
         rechts, self._rechts = self._rechts, None
         if druck is not None and e is not None and (e.position() - druck).manhattanLength() < 4:
@@ -1274,7 +1377,16 @@ class Ansicht3D(QWidget):
         super().keyPressEvent(e)
 
     def wheelEvent(self, e):
-        self.zoom = max(0.2, min(40.0, self.zoom * (1.15 ** (e.angleDelta().y() / 120))))
+        self.zoomen(1.15 ** (e.angleDelta().y() / 120), e.position().x(), e.position().y())
+
+    def zoomen(self, faktor, x=None, y=None):
+        """Zoom um faktor; mit Pixel (x, y) bleibt der Punkt unter der Maus stehen (Zoom zur Mausposition)."""
+        alt = self.zoom
+        self.zoom = max(0.2, min(40.0, alt * faktor))
+        if x is not None:
+            k = self.zoom / alt                 # Maßstab wächst mit dem Zoom, die Bildmitte liegt bei Mitte + Versatz
+            vx, vy = self.versatz
+            self.versatz = (vx + (1 - k) * (x - self.width() / 2 - vx), vy + (1 - k) * (y - self.height() / 2 - vy))
         self._eilig = True
         self._ruhe.start()
         self.update()

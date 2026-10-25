@@ -1,14 +1,15 @@
 """Fenster „Rahmen-Assistent“ (Plan „Baugruppen automatisch“ A8): Profil, Werkstoff, Form, Ecken und Außenmaße
 eingeben, die Vorschau nennt die Rohre; nach OK steht in self.ergebnis dict(erg = rahmen.bauen(...), profil_id,
 werkstoff_id, saetze, name)."""
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel,
-                               QLineEdit, QSpinBox, QVBoxLayout)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
+                               QLineEdit, QVBoxLayout)
 
 from . import rahmen
+from .eingabe import RechenSpin, RechenSpinGanz
 
 
 def _zahl(von, bis, wert, schritt=10.0):
-    f = QDoubleSpinBox()
+    f = RechenSpin()
     f.setRange(von, bis)
     f.setDecimals(1)
     f.setSingleStep(schritt)
@@ -41,7 +42,7 @@ class RahmenDialog(QDialog):
         self.ecken.addItems(rahmen.ECKEN)
         self.b, self.h, self.t = _zahl(10, 20000, 1000), _zahl(10, 20000, 600), _zahl(10, 20000, 400)
         self.hochkant = QCheckBox("Rechteckrohr hochkant (Maß a in der Rahmenebene)")
-        self.saetze = QSpinBox()
+        self.saetze = RechenSpinGanz()
         self.saetze.setRange(1, 100000)
         self.name = QLineEdit()
         self.name.setPlaceholderText("leer = Rahmen B×H")

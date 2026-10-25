@@ -34,6 +34,7 @@ HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 from rohrlaser import NAME, VERSION  # noqa: E402
 from rohrlaser.neuerungen import IN_ANLEITUNG, NEUERUNGEN  # noqa: E402
+from rohrlaser.systempruefung import VORAUSSETZUNGEN  # noqa: E402
 from rohrlaser.tastatur import UEBERSICHT as TASTENKUERZEL  # noqa: E402
 
 SEITE = landscape(A4)
@@ -582,6 +583,19 @@ def kapitel_ueberblick(i):
 
 def kapitel_start(i):
     i.kapitel("Installation und erster Start", marke="start")
+    i.abschnitt("Systemvoraussetzungen", marke="systemvoraussetzungen")
+    i.text("Das Programm läuft auf jedem Windows-Rechner der letzten Jahre. Die Empfehlung gilt für große "
+           "STEP-Dateien (1.000 Bohrungen und mehr) und große Schweißbaugruppen im 3D.", kurz=True)
+    i.tabelle(["Bereich", "Mindestens", "Empfohlen"], [[b, m, e] for b, m, e in VORAUSSETZUNGEN], [30, 85, 149])
+    i.genauer()
+    i.text("<b>Hilfe → Systemprüfung …</b> vergleicht den eigenen Rechner mit der Tabelle: Windows-Version, "
+           "Prozessorkerne, Arbeitsspeicher, OpenGL der Grafik, freier Speicher am Datenort und Bildschirmgröße, je "
+           "mit ✓ oder <i>unter Minimum</i>. Einmal nach der Installation und nach jedem Update prüft das Programm "
+           "das beim Start selbst und zeigt das Fenster nur, wenn etwas unter dem Minimum liegt.",
+           "Gemessen mit einem Rundrohr 84 × 2 voller Bohrungen: 1.000 Bohrungen brauchen bei der STEP-Messung "
+           "etwa 1,2 GB Arbeitsspeicher und rund eine Minute, Rohr-Editor und STEP speichern je etwa 20 Sekunden. "
+           "Ohne OpenGL (alte Grafik, Fernwartung) zeichnet die 3D-Ansicht in Software, große Baugruppen drehen "
+           "sich dann zäh ([[step_3d_ansicht]]).")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -1384,7 +1398,30 @@ def kapitel_angebot(i):
             "Gemerkt wird in der eigenen Datendatei, nicht im gemeinsamen Ordner; jeder Arbeitsplatz hat seine "
             "eigenen Fenstergrößen. Lag ein Fenster auf einem Bildschirm, den es nicht mehr gibt, öffnet es in der "
             "Mitte. Die Teile-Editoren öffnen weiter maximiert.",
+            "Jedes Fenster passt auf den Bildschirm: Ist es (oder die gemerkte Größe vom großen Monitor) größer als "
+            "der freie Platz, z. B. am Laptop mit 1366 Punkten Breite, wird es beim Öffnen gekürzt und ganz auf den "
+            "Bildschirm geschoben.",
+            "Das gerade geöffnete Fenster kommt nach vorn und bleibt vor dem Hauptfenster, auch wenn man ins "
+            "Hauptfenster klickt (z. B. Palettenschein, Editoren).",
             "Gelöschte oder fremde Angebote öffnen beim Start nicht.")
+    i.abschnitt("Eingaben: Schalter, Knopfreihen, Rechnen im Feld", marke="eingaben")
+    i.text("Ja/Nein-Fragen sind <b>Schalter</b> (Einstellungen) bzw. <b>Häkchen</b> in der Tabellenzelle: ein "
+           "Klick schaltet um. Wenige Möglichkeiten stehen als <b>Knopfreihe</b> nebeneinander. In jedem Zahlenfeld "
+           "darf man <b>rechnen</b>, z. B. <i>6000/4</i> oder <i>1250-2*3</i>.", kurz=True)
+    i.genauer()
+    i.liste("Schalter in den Einstellungen: Klick oder Leertaste; rechts daneben steht Ja oder Nein.",
+            "Häkchen in Tabellen (z. B. Aktiv, 3D, Fremdleistung, Anfangsschnitt gerade): Klick aufs Häkchen, "
+            "Leertaste, <b>J</b> für ja oder <b>N</b> für nein. Ein Klick neben das Häkchen markiert nur die Zelle. "
+            "Ein Kästchen mit Strich heißt: noch nichts eingetragen.",
+            "Knopfreihe (z. B. Thema, Dichte, Eingaberichtung): Klick auf die Möglichkeit oder Pfeiltasten links/"
+            "rechts. Längere Listen bleiben Auswahllisten; feste Listen nehmen nur ihre Werte an, Tippfehler wie "
+            "<i>jaa</i> gehen nicht mehr. Listen aus den Stammdaten (Maschine, Werkstoff) finden beim Tippen auch "
+            "Teilwörter.",
+            "Rechnen: + − × ÷ (auch * / x :) und Klammern, Komma oder Punkt; das Ergebnis steht nach Eingabe oder "
+            "Tab im Feld. Eine unfertige Rechnung ist rot umrandet; der Tooltip sagt, was fehlt. Ergebnisse über "
+            "dem Höchstwert werden auf den Höchstwert begrenzt. Geht in Zahlenfeldern der Dialoge und Einstellungen "
+            "und in den Zahlenspalten der Tabellen; im Teile-Editor zusätzlich mit Größen wie <i>L/2</i>.",
+            "Klickt man in ein Zahlenfeld, ist der alte Wert markiert und wird beim Tippen gleich ersetzt.")
     i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
     i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
            "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "
@@ -1460,6 +1497,9 @@ def kapitel_step(i):
             "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
             "Der Explorer ist gleich nach dem Loslassen wieder frei; das Programm kommt nach vorne und misst. "
             "Während ein Import läuft, nimmt es keine weiteren Dateien an (Hinweis unten im Fenster).",
+            "Eine STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) kündigt das Programm vorher an: "
+            "Dauer und Arbeitsspeicher der Messung, aus der Dateigröße geschätzt (gemessen: 32 MB mit 1.000 "
+            "Bohrungen etwa 1 min und 1,2 GB). <i>Nein</i> misst nicht ([[systemvoraussetzungen]]).",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
             "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
             "Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
@@ -1611,7 +1651,8 @@ def kapitel_step(i):
            "Schneidzeit kommen aus der Messung", hoehe=110 * mm, kurz=False)
     i.abschnitt("3D-Ansicht", marke="step_3d_ansicht")
     i.text("<b>3D-Ansicht …</b> zeigt die STEP-Teile drehbar: Anfangsschnitt orange, Endschnitt violett, "
-           "Innenkonturen rot, Gravur grün. Linke Maustaste drehen, Mausrad zoomen, Doppelklick zurück. Große "
+           "Innenkonturen rot, Gravur grün. Linke Maustaste drehen (um den Punkt unter der Maus), Mausrad zoomen "
+           "(zur Mausposition), Doppelklick zurück. Große "
            "Baugruppen zeigt die Ansicht beim Drehen und Zoomen vereinfacht (ohne kleine Rundungen, Bohrungen und "
            "Linien), damit sie flüssig bleibt; beim Loslassen wieder vollständig.", kurz=True)
     i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
@@ -1629,8 +1670,13 @@ def kapitel_step(i):
            "aufs Bild öffnet den passenden Editor ([[schneidweg_rechner]], [[blech_editor]]). <b>3D-Ansicht …</b> in der Knopfleiste des Angebots "
            "öffnet alle Positionen mit großer Ansicht, beginnend mit der markierten Zeile. Beim Kopieren eines "
            "Angebots gehen die 3D-Modelle mit.")
-    i.liste("Linke Maustaste ziehen: drehen. Rechte oder mittlere Maustaste ziehen: verschieben. Mausrad: zoomen. "
-            "Doppelklick: zurück zur Ausgangsansicht.",
+    i.liste("Linke Maustaste ziehen: drehen. <b>Drehpunkt ist der Punkt unter dem Mauszeiger</b>: wer auf eine "
+            "Bohrung oder ein Rohrende drückt und zieht, dreht genau um diese Stelle, sie bleibt unter der Maus "
+            "(ein kleiner orangefarbener Kreis zeigt sie beim Drehen). Drückt man neben das Modell, dreht die Ansicht "
+            "um die Modellmitte. Rechte oder mittlere Maustaste ziehen: verschieben. <b>Mausrad: zoomen zur "
+            "Mausposition</b> (die Stelle unter der Maus bleibt stehen). Doppelklick: zurück zur Ausgangsansicht. "
+            "Das gilt in allen 3D-Fenstern: Teile-Editor (Rohr und Blech), Schweißbaugruppe, Satz in 3D, "
+            "STEP-Prüfdialog und 3D-Ansicht der Positionen.",
             "Farben: Außenwand grau, Innenwand dunkelgrau, <b>Anfangsschnitt orange</b>, <b>Endschnitt violett</b>, "
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
@@ -2179,7 +2225,7 @@ def kapitel_optimieren(i):
            "Eigenschaften, Merkmale, Prüfmeldungen, Rückgängig und Messen sind im Teile-Editor ([[teile_editor]]) "
            "beschrieben.")
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
-           "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
+           "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle ausgeschnitten", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
             "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
             "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
@@ -2308,7 +2354,8 @@ def kapitel_optimieren(i):
             "Zeilen <i>3D</i> haben. Zeit und Greifmaß: [[kalkulation]], [[optimieren]].",
             "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
             "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
-            "Rundrohr der Umfang in Vierteln). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
+            "Rundrohr der Umfang in Vierteln; die Konturen sind darin ausgeschnitten, man sieht den Grund durch das "
+            "Material, Gravuren bleiben Linien, eine Text-Gravur steht als Schrift da). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
             "hellblau; verdeckte Kanten und Konturen auf der Rückseite sind gestrichelt, verteilte Konturen ohne "
             "Lage blasser. Oben stehen die Lagen ab Anfang, unten die Länge; rechts oben die <i>Ansicht von A</i> "
             "mit den Flächennamen. <b>Mausrad</b> = Zoom an der Mausposition, Ziehen auf freier Fläche verschiebt "
@@ -2531,8 +2578,22 @@ def kapitel_optimieren(i):
             "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
             "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
             "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
+            "<b>Nasen nie in die Außenwand</b>: Jede Nase muss mit Breite und Spiel auf dem geraden Teil der Wand "
+            "liegen, auf die der Stecker stößt (ohne Eckradius und Rand; Rundrohr höchstens 45° neben der Mitte), und "
+            "innerhalb der Länge der Aufnahme. Passt die Vorgabe nicht (Stecker bündig mit der Außenkante, breiter als "
+            "die Aufnahme oder am Ende eines Trägers), dreht <i>Alle Stöße stecken</i> die Nasen um 90°, sonst bleibt "
+            "nur die eine Nase, die passt (notfalls schmaler, nicht unter der kleinsten Nasenbreite). Gleiche Teile "
+            "stoßen an einer <b>Ecke</b> zwei Träger auf ein Steckerende (Stütze unter zwei Trägern), bekommt es je "
+            "Träger eine Nase, um 90° versetzt, nie zwei auf derselben Wand. Lage x ist die Mitte des Steckers, auch "
+            "an Ecken, wo er nur teilweise auf der Aufnahme sitzt.",
+            "<b>Gleiche Teile mit anderen Nasen oder Schlitzen werden geteilt</b>: Brauchen Körper derselben Position "
+            "eine andere Lage der Nasen oder Schlitze (z. B. Pfosten in der Ecke, am Ende und in der Mitte eines "
+            "Trägers), legt <i>Alle Stöße stecken</i> für jede Lage eine eigene Position an (Stück je Satz aufgeteilt, "
+            "nächste freie Pos.-Nr.); mit OK wird das gespeichert, die Meldung nennt die neuen Positionen. Rohre ohne "
+            "eigene Konturen mit geraden Enden, die nur gedreht oder gewendet eingebaut sind, bleiben eine Position: "
+            "ihre Einbaulage wird passend gedreht.",
             "<b>Gleiche Teile</b> (eine Position, mehrere Körper): Die Aufnahme bekommt die Schlitze nur vom ersten "
-            "Körper, jedes Ende des Steckers die Nasen nur einmal. Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
+            "Körper, jedes Ende des Steckers die Nasen nur einmal (alle Körper der Position haben dieselben). Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
             "schneiden</i> zeigen das; eine Verbindung ohne Haken liefert nur die Lage. Zwei Verbindungen mit Nasen am "
             "selben Ende meldet die Spalte <i>Schlitz und Nasen</i> als Fehler.",
             "<b>Aufnahme und Stecker tauschen</b> dreht die markierte Verbindung um (Vorgaben neu nach dem neuen "
@@ -2671,9 +2732,16 @@ def kapitel_optimieren(i):
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
            "<b>Eigenschaften</b> des gewählten Merkmals, unten Kennzahlen und <b>Prüfmeldungen</b>. Das Fenster öffnet "
            "immer im Vollbild (maximiert). Ein Klick auf "
-           "ein Merkmal, eine Meldung oder eine Kontur im 3D zeigt die Stelle überall.", kurz=True)
+           "ein Merkmal, eine Meldung oder eine Kontur im 3D zeigt die Stelle überall. Der Knopf <b>Abwicklung</b> "
+           "oben rechts im Menüband zeigt die Abwicklung groß in einem eigenen Fenster; <b>Esc</b> schließt nur "
+           "dieses Fenster, der Editor bleibt offen. <b>Enter</b> bestätigt eine Eingabe und schließt den Editor "
+           "nicht; übernommen wird nur mit dem Knopf unten.", kurz=True)
     i.genauer()
-    i.liste("<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
+    i.liste("<b>Abwicklung</b> (oben rechts, auf jedem Reiter sichtbar): beim Rohr der aufgerollte Umfang mit allen "
+            "Konturen (ausgeschnitten), beim Blech der Zuschnitt mit Biegelinien. Das Fenster folgt jeder Eingabe, "
+            "Klick wählt eine Kontur, Ziehen verschiebt sie, Mausrad zoomt, Doppelklick passt ein. Größe und Lage "
+            "merkt sich das Programm. Enter schließt auch die Fenster Baugruppe und Satz in 3D nicht mehr.",
+            "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
             "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen, DXF importieren "
@@ -2868,6 +2936,10 @@ def kapitel_optimieren(i):
             "Konturen und Gravuren werden mitgebogen, auch wenn sie in einer Biegezone liegen. Reicht ein ebenes "
             "Stück ohne Freischnitt über eine Biegung, sagt das Programm es nach dem Speichern.",
             "Biegerohre aus dem STEP-Import: dafür die Original-STEP weitergeben.",
+            "Viele Bohrungen und Konturen: dauert das Schreiben voraussichtlich länger als 15 Sekunden, zeigt ein "
+            "Fenster die erwartete Dauer (<i>etwa 2 min</i>) und die bisherige Zeit, <b>Abbrechen</b> beendet es. Das "
+            "Zeitlimit wächst mit der Zahl der Bohrungen und Konturen (300 s + 0,1 s je Stück). Gemessen: 1.000 "
+            "Bohrungen etwa 20 Sekunden.",
             "Nach dem Speichern zeigt eine Meldung Volumen und Flächenzahl. Das Programm prüft den Körper mit "
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
             "Länge und Konturen wie im Editor da.")
@@ -2891,7 +2963,10 @@ def kapitel_optimieren(i):
             "<b>Andere Zeichnungen</b>: Ein senkrecht gezeichnetes Rohr wird gedreht (das obere Ende ist Ende A). "
             "Blattrahmen und Schriftfeldrahmen fallen weg. Das Profil darf auch als <i>Ø42,4x2</i> dastehen. Maße "
             "dürfen echte DXF-Bemaßung sein oder Linien und Text, auf beliebigen Layern. Ohne Bemaßung und ohne "
-            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste.",
+            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste. "
+            "Die kurzen Striche des Schnittverlaufs (<i>A–A</i>) neben einer Ansicht zählen nicht zur Ansicht, "
+            "auch wenn sie auf dem Kontur-Layer liegen; Bohrungen und Ausschnitte in einer Ansicht sind keine "
+            "eigenen Ansichten.",
             "<b>Zuordnungsfenster</b>: Ist sich das Programm nicht sicher (keine Projektionsmethode auf der "
             "Zeichnung, mehrere Teile, Maßstab nur angenommen), erscheint vor dem Editor ein Fenster mit der "
             "Zeichnung und den gefundenen Ansichten (Nummern). Je Ansicht wählst du <i>Vorderansicht</i>, "
@@ -2905,7 +2980,11 @@ def kapitel_optimieren(i):
             "<b>Enden</b>: die Endkante je Ansicht; schräg in einer Ansicht = Gehrung mit der längsten Seite, schräg "
             "in beiden = Schrägschnitt zweiachsig.",
             "<b>Konturen</b>: Kreise werden Bohrungen, geschlossene Formen Langloch oder Rechteck (mit Eckradius), "
-            "zum Ende offene Ausschnitte Ausklinkungen, alles andere Sonderkontur mit Umriss. Die Wand erkennt das "
+            "zum Ende offene Ausschnitte Ausklinkungen, alles andere Sonderkontur mit Umriss. Auch kleine Eckradien "
+            "(z. B. R 2 an einem Fenster) werden übernommen. Eine <b>schräge Bohrung</b> (Umriss eine Ellipse, die "
+            "Austrittskante innen um Wand × tan Winkel versetzt) wird eine Bohrung mit Ø und Neigung längs bzw. "
+            "quer; ob sie in 3D geschnitten wird, entscheidet wie immer die Maschine (Häkchen 3D-Schnittbearbeitung). "
+            "Die Wand erkennt das "
             "Programm an den Kanten in der anderen Ansicht (auch verdeckt): oben, unten oder durchgehend (Wände: "
             "beide). Gleiche Konturen in gleichem Abstand werden eine Zeile mit Anzahl und Abstand.",
             "<b>Aus dem Schriftfeld</b>: Benennung wird Bezeichnung, Zeichnungsnummer wird Artikel, der Werkstoff "
@@ -4038,9 +4117,12 @@ def kapitel_baugruppen(i):
            "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei.", kurz=True)
     i.liste("<b>Rohre</b> aus den Eingaben des Rohr-Editors mit Schlitzen und Nasen der Steckverbindungen und der "
             "Artikelnummer-Gravur, in der Einbaulage der STEP-Datei ([[step_export]]).",
-            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet. Ihre Lage sucht das Programm am 3D-Netz der "
-            "STEP-Messung (Hauptachsen und Vergleich der Oberfläche); passt es nicht genau, steht ein Hinweis in der "
-            "Meldung.",
+            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet (auch Flachstahl als Blech). Ihre Lage sucht "
+            "das Programm am 3D-Netz der STEP-Messung: Es probiert die Achsen der Einbaulage, der Datei, der Kanten "
+            "(größte Fläche und Seitenkanten) und die Hauptachsen, setzt den Flächenschwerpunkt aufeinander und "
+            "führt nach, bis die Oberflächen deckungsgleich sind. So sitzen auch quadratische Platten und "
+            "symmetrische Teile genau an ihrer Stelle; passt es nicht genau, steht ein Hinweis in der Meldung.",
+            "Namen mit Umlauten (Fußplatte, Geländer) stehen richtig in der STEP-Datei.",
             "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
             "kommen als facettierter Körper hinein, mit Hinweis.",
             "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "

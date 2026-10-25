@@ -20,15 +20,18 @@ from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QShortcut, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu,
                                QMessageBox,
-                               QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QScrollArea, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                               QWidget)
 
-from . import ansicht3d_leiste, biegerohr, dfm, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole
+from . import (ansicht3d_leiste, biegerohr, dfm, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole,
+               tastatur)
 from . import schneidweg as sw
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
 from .menueband import Menueband
+from .eingabe import RechenSpin
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
@@ -247,6 +250,7 @@ class EditorRahmen(QObject):
         self.zeitgeber.setInterval(VERZOEGERUNG)
         self.zeitgeber.timeout.connect(self.aktualisieren)
         self._bauen()
+        self.enter_sperre = tastatur.enter_sperren(dialog)
         self.start = self.d.eingaben() if art == "blech" and getattr(dialog, "neu", False) else None
         self._letzter = self.zustand()
         dialog.editor = self
@@ -388,6 +392,7 @@ class EditorRahmen(QObject):
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:
             d.tabelle.itemSelectionChanged.connect(self._tabelle_gewaehlt)
+            d.tabelle.itemSelectionChanged.connect(self._abwicklung_auffrischen)
         else:
             d.tabelle.itemSelectionChanged.connect(lambda: self._tabelle_gewaehlt())
             d.schenkel.itemSelectionChanged.connect(self._schenkel_gewaehlt)
@@ -542,13 +547,13 @@ class EditorRahmen(QObject):
             self.fangen_knopf = g.knopf("Fangen", None, lambda an: self.anzeige_setzen("fangen_an", an), gross=False,
                                         umschalter=True, tipp="Beim Ziehen der Griffe auf das Raster, die Teilmitte "
                                                               "und die Flächenmitte fangen (Alt beim Ziehen = frei)")
-            self.raster_feld = QDoubleSpinBox()
+            self.raster_feld = RechenSpin()
             self.raster_feld.setRange(0.1, 500)
             self.raster_feld.setDecimals(1)
             self.raster_feld.setSuffix(" mm")
             self.raster_feld.setToolTip("Raster für Griffe und Pfeiltasten (Umschalt = ×10)")
             self.raster_feld.valueChanged.connect(lambda v: self.anzeige_setzen("raster", v))
-            self.raster_winkel_feld = QDoubleSpinBox()
+            self.raster_winkel_feld = RechenSpin()
             self.raster_winkel_feld.setRange(0.5, 90)
             self.raster_winkel_feld.setDecimals(1)
             self.raster_winkel_feld.setSuffix(" °")
@@ -596,6 +601,17 @@ class EditorRahmen(QObject):
             tipp="Das Teil als STEP-Datei mit echtem Volumenkörper speichern (für CAD und Kunden): " +
                  ("Gehrungen, Ausklinkungen, Konturen, Nasen und Gravuren wie im 3D-Modell" if rohr else
                   "Außen- und Innenkonturen mit echten Bögen, Gravuren als Rille 0,1 mm tief; nur ebene Bleche"))
+        # oben rechts, auf jedem Reiter: Abwicklung im eigenen Fenster (Esc schließt nur das Fenster)
+        self.abwicklung_knopf = QToolButton()
+        self.abwicklung_knopf.setText("Abwicklung")
+        self.abwicklung_knopf.setIcon(symbole.symbol("abwicklung"))
+        self.abwicklung_knopf.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.abwicklung_knopf.setCheckable(True)
+        self.abwicklung_knopf.setAutoRaise(True)
+        self.abwicklung_knopf.setToolTip("Abwicklung des Teils groß in einem eigenen Fenster zeigen (folgt jeder "
+                                         "Eingabe); Esc schließt das Fenster, der Editor bleibt offen")
+        self.abwicklung_knopf.toggled.connect(self._abwicklung)
+        self.band.ecke(self.abwicklung_knopf)
         self.band.eingeklappt_geaendert.connect(lambda an: self._merken("editor_band_zu", an))
         if self._einstellung("editor_band_zu", False) is True:
             self.band.einklappen(True)
@@ -969,7 +985,7 @@ class EditorRahmen(QObject):
             except (ValueError, TypeError, ZeroDivisionError):
                 netz = None
             netz, titel = netz or self.step_netz, "3D-Modell (aus den Eingaben)"
-        if netz is a.netz:
+        if netz is a.netz or (netz is not None and netz == a.netz):     # gleiches Netz: nicht neu aufbauen
             return
         alt = a.netz is not None
         blick = (a.gier, a.nick, a.zoom, a.versatz)
@@ -1043,6 +1059,25 @@ class EditorRahmen(QObject):
         if a is not None:
             a.masse_loeschen()
         self.mass.setText("")
+
+    def _abwicklung(self, an):
+        """Abwicklungs-Fenster (editor_abwicklung) ein/aus."""
+        from . import editor_abwicklung
+        f = getattr(self, "abwicklung_fenster", None)
+        if an:
+            if f is None:
+                f = self.abwicklung_fenster = editor_abwicklung.AbwicklungFenster(self)
+                f.geschlossen.connect(lambda: self.abwicklung_knopf.setChecked(False))
+            f.show()
+            f.raise_()
+            f.activateWindow()
+        elif f is not None and f.isVisible():
+            f.hide()
+
+    def _abwicklung_auffrischen(self):
+        f = getattr(self, "abwicklung_fenster", None)
+        if f is not None and f.isVisible():
+            f.auffrischen()
 
     def _schnitt(self, an):
         """Querschnitt-Fenster (editor_schnitt) ein/aus; die Stelle markiert das 3D."""
@@ -1135,6 +1170,7 @@ class EditorRahmen(QObject):
 
     def geaendert(self):
         """Das Fenster hat neu gerechnet: Baum, Prüfmeldungen und Rückgängig nach kurzer Ruhe."""
+        self._abwicklung_auffrischen()
         if not self._still:
             self.zeitgeber.start()
 
@@ -1310,6 +1346,7 @@ class EditorRahmen(QObject):
             d.knick_knopf.setFocus()
         if self.art == "blech":
             d.skizze.markieren(mid)
+        self._abwicklung_auffrischen()
         self._3d_markieren([mid])
         if self.eigenschaften.mid != mid:
             self.eigenschaften.zeigen(mid)

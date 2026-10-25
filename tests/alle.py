@@ -65,17 +65,18 @@ TESTS = [
     "test_fracht_richtwerte.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
     "test_angebot_vorgaben.py", "test_angebot_einstellungen.py", "test_kundenmaterial.py", "test_schneidweg.py",
     "test_blech_editor.py", "test_blech_dxf.py", "test_blech_kfaktor.py", "test_blech_kantbarkeit.py", "test_blech_tafel.py",
-    "test_dfm.py", "test_teile_editor.py", "test_editor_ausbau.py", "test_editor_messen.py", "test_3d_ansicht.py", "test_blech_zeichnen.py",
+    "test_dfm.py", "test_teile_editor.py", "test_editor_ausbau.py", "test_editor_messen.py", "test_editor_abwicklung.py", "test_3d_ansicht.py", "test_drehpunkt.py", "test_blech_zeichnen.py",
     "test_konturvorlagen.py", "test_dxf_import.py", "test_dxf_ansichten.py", "test_dxf_rohr.py", "test_dxf_varianten.py", "test_schnittflaeche.py", "test_gegenrohr.py", "test_editor_griffe.py", "test_biegerohr.py", "test_knickrahmen.py",
     "test_knickverbindung.py", "test_knickrahmen_koerper.py", "test_steckverbindung.py", "test_naht.py",
     "test_stangenwechsel_sn.py", "test_3d.py", "test_3d_greifmass.py", "test_3d_editor.py", "test_programmierung.py",
     "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_satz3d.py", "test_satz_knick.py", "test_baugruppe_vorschlaege.py", "test_steck_montage.py", "test_montagefolge.py", "test_rahmen_assistent.py", "test_gravur.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py",
-    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_nachfassen.py", "test_bedienung.py", "test_anleitung.py",
+    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_nachfassen.py", "test_bedienung.py", "test_eingabefelder.py", "test_anleitung.py",
+    "test_performance_update.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
-LANGSAM = [("test_gehrung.py", QT)]
+LANGSAM = [("test_gehrung.py", QT), ("test_belastung.py", QT)]
 # laufen mit eigenen Argumenten als eigener Schritt im Workflow (Testbericht) bzw. von Hand
 EIGEN = {"test_step_referenz.py", "test_abnahme.py"}
 

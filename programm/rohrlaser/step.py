@@ -48,6 +48,31 @@ def step_dateien(pfade):
     return out
 
 
+GROSS_AB_MB = 100          # Performance-Update 5a: ab dieser Dateigröße vor der Messung Dauer und Speicher nennen
+SEK_JE_MB, SPEICHER_JE_MB = 2.5, 40     # gemessen 25.10.2026: 32 MB (1.000 Bohrungen) 60–78 s, 1,1–1,2 GB
+
+
+def grosse_dateien(dateien):
+    """Hinweistext für STEP-Dateien ab GROSS_AB_MB (Dauer und Arbeitsspeicher der Messung geschätzt) oder None."""
+    gross = []
+    for d in dateien or ():
+        try:
+            mb = Path(d).stat().st_size / 1e6
+        except OSError:
+            continue
+        if mb >= GROSS_AB_MB:
+            gross.append((Path(d).name, mb))
+    if not gross:
+        return None
+    mb = max(m for _, m in gross)
+    minuten = max(1, round(sum(m for _, m in gross) * SEK_JE_MB / 60))
+    gb = mb * SPEICHER_JE_MB / 1000
+    namen = ", ".join(f"{n} ({m:.0f} MB)" for n, m in gross[:3]) + (" …" if len(gross) > 3 else "")
+    return (f"Große STEP-Datei: {namen}.\n\nDie Messung dauert voraussichtlich etwa {minuten} min und braucht etwa "
+            f"{gb:.0f} GB Arbeitsspeicher (geschätzt aus der Dateigröße). Reicht der Arbeitsspeicher nicht, wird "
+            "der Rechner sehr langsam. Während der Messung lässt sie sich abbrechen.\n\nJetzt messen?")
+
+
 def step_kandidaten(pfade):
     """Schnelle Vorprüfung beim Darüberziehen (ohne Suche in Ordnern): True, wenn eine STEP-Datei oder ein Ordner
     dabei ist. Ob ein Ordner STEP-Dateien enthält, zeigt erst step_dateien() nach dem Ablegen."""

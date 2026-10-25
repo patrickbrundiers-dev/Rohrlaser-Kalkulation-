@@ -7,9 +7,8 @@ OK schreibt die Werte in die Position (Angebotsseite.schneidweg_berechnen), Zeic
 import json
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QCompleter, QDialog, QDialogButtonBox, QDoubleSpinBox,
-                               QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
-                               QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QCompleter, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
+                               QMessageBox, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
 from . import einblendung, stil
@@ -22,6 +21,7 @@ from .skizze_widget import MODI, Skizze
 from .teile_editor import EditorRahmen
 from .stammdaten import zahl_aus_text
 from .step import KERNLOCH
+from .eingabe import RechenSpin, RechenSpinGanz
 
 KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", "Lage ab Ende A [mm]",
                   "Abstand Muster [mm]", "Seite", "Versatz quer [mm]", "3D", "Neigung längs [°]", "Neigung quer [°]",
@@ -187,7 +187,7 @@ class SchneidwegDialog(QDialog):
             kopf_.setToolTip(tipp)
             enden.addWidget(kopf_, 0, c)
         for r, (seite, titel) in enumerate((("a", "Anfangsschnitt (Ende A)"), ("b", "Endschnitt (Ende B)")), start=1):
-            w = QDoubleSpinBox()
+            w = RechenSpin()
             w.setRange(0, 79.9)
             w.setDecimals(1)
             w.setSuffix(" °")
@@ -197,7 +197,7 @@ class SchneidwegDialog(QDialog):
             w.setToolTip("Gehrung: Abweichung vom rechtwinkligen Schnitt (0° = gerader Schnitt); beim Schrägschnitt "
                          "zweiachsig die Neigung über Höhe")
             w.valueChanged.connect(self.rechnen)
-            wb = QDoubleSpinBox()
+            wb = RechenSpin()
             wb.setRange(0, 79.9)
             wb.setDecimals(1)
             wb.setSuffix(" °")
@@ -214,7 +214,7 @@ class SchneidwegDialog(QDialog):
                          "und Breite“ = Schrägschnitt zweiachsig mit zwei Winkeln")
             a.currentTextChanged.connect(lambda t, wb=wb: wb.setEnabled(t == sw.ACHSE_ZWEI))
             a.currentTextChanged.connect(self.rechnen)
-            sa = QDoubleSpinBox()
+            sa = RechenSpin()
             sa.setRange(0, 2000)
             sa.setDecimals(1)
             sa.setSuffix(" mm")
@@ -259,7 +259,7 @@ class SchneidwegDialog(QDialog):
             enden.addWidget(gk, r, 8)
             self._gegen_text(seite)
         self._step_enden(e)
-        self.gravur = QDoubleSpinBox()
+        self.gravur = RechenSpin()
         self.gravur.setRange(0, 100000)
         self.gravur.setDecimals(1)
         self.gravur.setSuffix(" mm")
@@ -488,7 +488,7 @@ class SchneidwegDialog(QDialog):
         tabellen_eingabe.teilwort(self.k_werkstoff)
         self.k_werkstoff.setCurrentText(self.p.get("werkstoff_id") or "")
         self.k_werkstoff.currentTextChanged.connect(self._kopf_geaendert)
-        self.k_laenge = QDoubleSpinBox()
+        self.k_laenge = RechenSpin()
         self.k_laenge.setRange(0, 100000)
         self.k_laenge.setDecimals(1)
         self.k_laenge.setSuffix(" mm")
@@ -496,7 +496,7 @@ class SchneidwegDialog(QDialog):
         self.k_laenge.setValue(sw._z(self.p.get("laenge")))
         self.k_laenge.setToolTip("Teilelänge in mm (Spitze zu Spitze)")
         self.k_laenge.valueChanged.connect(self._kopf_geaendert)
-        self.k_stueck = QSpinBox()
+        self.k_stueck = RechenSpinGanz()
         self.k_stueck.setRange(0, 10 ** 7)
         self.k_stueck.setSpecialValueText("fehlt")
         self.k_stueck.setValue(int(sw._z(self.p.get("stueck"))))
@@ -682,7 +682,7 @@ class SchneidwegDialog(QDialog):
                 w.setCurrentText(next(t for t, v in NAHT_WAHL.items() if v == n90))
             w.currentTextChanged.connect(self.rechnen)
         else:
-            w = QDoubleSpinBox()
+            w = RechenSpin()
             w.setRange(0, 359.9)
             w.setDecimals(1)
             w.setSuffix(" °")
@@ -1176,11 +1176,8 @@ class SchneidwegDialog(QDialog):
         self.r_aussen = float(r) if isinstance(r, (int, float)) and r >= 0 else None
         self.rechnen()
 
-    def _rechnen(self):
-        eingaben = self.eingaben()
-        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
-        self.ergebnis = erg
-        t = self.ergebnis_tabelle
+    @staticmethod
+    def _ergebnis_fuellen(t, erg):
         t.setRowCount(len(erg["schritte"]))
         for r, s in enumerate(erg["schritte"]):
             werte = (s["text"] + (" (Schätzung)" if s["schaetzung"] else ""), str(s["anzahl"]),
@@ -1193,6 +1190,22 @@ class SchneidwegDialog(QDialog):
                 else:
                     it.setToolTip(v)        # schmale Spalte: ganzer Text beim Zeigen
                 t.setItem(r, c, it)
+
+    def _rechnen(self):
+        eingaben = self.eingaben()
+        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
+        self.ergebnis = erg
+        t = self.ergebnis_tabelle
+        kopf = t.horizontalHeader()
+        # ResizeToContents misst sonst bei jedem setItem alle Zeilen neu (viele Konturen: Sekunden)
+        kopf.setSectionResizeMode(QHeaderView.Fixed)
+        t.setUpdatesEnabled(False)
+        try:
+            self._ergebnis_fuellen(t, erg)
+        finally:
+            kopf.setSectionResizeMode(QHeaderView.ResizeToContents)
+            kopf.setSectionResizeMode(0, QHeaderView.Stretch)
+            t.setUpdatesEnabled(True)
         f = erg["felder"]
         zeit = self.schneidzeit()
         teile = [f"<b>Schneidweg {rechnen.zahl(f['schneidweg'], 1)} mm</b>, {f['einstiche']} Einstiche "

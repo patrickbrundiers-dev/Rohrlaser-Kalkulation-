@@ -368,6 +368,41 @@ def fingerabdruck(text):
     return "|".join(sorted({str(el[1]).upper() for el in di.elemente(roh)}))
 
 
+def ohne_striche(ansichten, sicht):
+    """Kurze freie Striche am Rand einer Ansicht (Schnittverlauf „A–A“, oft auf dem Kontur-Layer) zählen nicht zur
+    Ansicht: Strecken, deren beide Enden nichts berühren, kürzer als ein Zehntel der Ansicht und ganz außerhalb des
+    Hüllrechtecks der übrigen Kanten -> Hüllrechteck ohne sie (Patricks Bauteil 1: sonst 12 mm zu lang)."""
+    enden = {}
+    for p, q in sicht:
+        for e in (p, q):
+            k = (round(e[0], 3), round(e[1], 3))
+            enden[k] = enden.get(k, 0) + 1
+
+    def frei(i):
+        return all(enden.get((round(e[0], 3), round(e[1], 3)), 0) <= 1 for e in sicht[i])
+    for a in ansichten:
+        striche = {i for i in a.strecken if frei(i) and math.dist(*sicht[i]) < 0.1 * a.lang}
+        kern = [da._bb_strecke(*sicht[i]) for i in a.strecken if i not in striche]
+        if not striche or not kern:
+            continue
+        bb = [min(b[0] for b in kern), min(b[1] for b in kern), max(b[2] for b in kern), max(b[3] for b in kern)]
+        for i in striche:
+            b = da._bb_strecke(*sicht[i])
+            if b[2] < bb[0] or b[0] > bb[2] or b[3] < bb[1] or b[1] > bb[3]:
+                continue                # außerhalb: Strich des Schnittverlaufs
+            bb = [min(bb[0], b[0]), min(bb[1], b[1]), max(bb[2], b[2]), max(bb[3], b[3])]
+        a.bb = tuple(bb)
+    return ansichten
+
+
+def ohne_innere(ansichten):
+    """Gruppen ganz im Hüllrechteck einer anderen (Bohrungen, Ausschnitte einer Ansicht) sind keine eigenen
+    Ansichten."""
+    def drin(a, b):
+        return b.bb[0] <= a.bb[0] and b.bb[1] <= a.bb[1] and b.bb[2] >= a.bb[2] and b.bb[3] >= a.bb[3]
+    return [a for a in ansichten if not any(b is not a and not b.iso and drin(a, b) for b in ansichten)]
+
+
 def ohne_rahmen(ansichten):
     """Gruppen, die zwei oder mehr andere größere Gruppen umschließen (Blattrahmen, Schriftfeld), fallen weg; Löcher
     in einer Ansicht (kleine eigene Gruppen) zählen nicht."""
@@ -473,17 +508,44 @@ def _form(pk, l_, w_):
     if lang > kurz * 1.05 and abs(A - stadion) <= 0.02 * A:
         return sw.LANGLOCH, dict(l=lang, b=kurz, quer=w_ > l_)
     rest = l_ * w_ - A
+    r = math.sqrt(max(rest, 0.0) / (4 - math.pi))       # auch kleine Eckradien (Bauteil 1: R 2 bei 100 × 80)
     if rest <= 0.01 * l_ * w_:
-        return sw.RECHTECK, dict(b=l_, h=w_, r=0.0)
-    r = math.sqrt(max(rest, 0.0) / (4 - math.pi))
+        return sw.RECHTECK, dict(b=l_, h=w_, r=r)
     if r < kurz / 2 * 0.98:
         return sw.RECHTECK, dict(b=l_, h=w_, r=r)
     return None
 
 
-def konturen(lv, zone_a, zone_b):
+def _schraeg(pk, k, st, lv, wand):
+    """Schräge Bohrung (Patricks Bauteil 1: Ø 20 unter 30°): der Umriss ist eine Ellipse (kurze Achse = Ø, lange =
+    Ø / cos γ), die Austrittskante innen dieselbe Ellipse um Wand × tan γ längs der langen Achse versetzt (sichtbar
+    oder verdeckt). -> dict(d, neigung (Grad, + = innen Richtung +x bzw. −y), laengs) in Zeichnungsmaß, sonst None."""
+    cx, cy = k["cx"], k["cy"]
+    ha, hb = (k["x1"] - k["x0"]) / 2, (k["y1"] - k["y0"]) / 2
+    if not wand or min(ha, hb) <= 0 or max(ha, hb) < 1.02 * min(ha, hb):
+        return None
+    if any(abs(((x - cx) / ha) ** 2 + ((y - cy) / hb) ** 2 - 1) > 0.04 for x, y in pk):
+        return None
+    laengs = ha > hb
+    g = math.acos(min(ha, hb) / max(ha, hb))
+    soll = wand / lv.f * math.tan(g)            # Versatz innen in Zeichnungsmaß
+    rand = max(ha, hb) - min(ha, hb) + soll * 1.5
+    pkt = [p for s in st for p in s if abs(((p[0] - cx) / ha) ** 2 + ((p[1] - cy) / hb) ** 2 - 1) > 0.04]
+    pkt += [p for s in lv.verdeckt for p in s if all(k["x0"] - rand <= q[0] <= k["x1"] + rand and
+                                                       k["y0"] - rand <= q[1] <= k["y1"] + rand for q in s)]
+    if not pkt:
+        return None
+    i, lo, hi = (0, k["x0"], k["x1"]) if laengs else (1, k["y0"], k["y1"])
+    for v in (min(p[i] for p in pkt) - lo, max(p[i] for p in pkt) - hi):
+        if abs(abs(v) - soll) <= 0.3 * soll + 0.05 / lv.f:
+            return dict(d=2 * min(ha, hb), neigung=math.copysign(math.degrees(g), v if laengs else -v), laengs=laengs)
+    return None
+
+
+def konturen(lv, zone_a, zone_b, wand=None):
     """Konturen in der Längsansicht lv: [dict(art, x0, x1, y0, y1, cx, cy, maße, ende, umriss)] in Zeichnungsmaß.
-    zone_a/zone_b = x-Bereich der Enden (Schnittflächen), was ganz darin liegt, gehört zum Ende."""
+    zone_a/zone_b = x-Bereich der Enden (Schnittflächen), was ganz darin liegt, gehört zum Ende. wand [mm]: für
+    schräge Bohrungen (art Bohrung mit schraeg = dict aus _schraeg)."""
     x0, y0, x1, y1 = lv.bb
     h = lv.hoehe
     tol = max(0.01 * h, 1e-3)
@@ -540,6 +602,8 @@ def konturen(lv, zone_a, zone_b):
             abs(math.dist(p, (k["cx"], k["cy"])) - (gx1 - gx0) / 2) <= 0.03 * (gx1 - gx0) for p in pk)
         if ist_kreis:
             k.update(art=sw.BOHRUNG, d=gx1 - gx0)
+        elif pk and (sr := _schraeg(pk, k, st, lv, wand)):
+            k.update(art=sw.BOHRUNG, schraeg=sr)
         elif pk and (f := _form(pk, gx1 - gx0, gy1 - gy0)):
             k.update(art=f[0], **f[1])
         else:
@@ -636,7 +700,7 @@ def _erkennen(roh, li, dateiname, vorgaben):
                artikel=schriftfeld(li.texte, ("zeichnungsnummer", "zeichnungs-nr", "zeichn.-nr", "artikelnummer",
                                               "artikel-nr", "teilenummer", "sachnummer")),
                laenge_text=laenge_aus_text(texte), profil_text=profil_aus_text([dateiname] + texte))
-    ansichten = ohne_rahmen(da.gruppen(li.sicht, li.kreise))
+    ansichten = ohne_innere(ohne_striche(ohne_rahmen(da.gruppen(li.sicht, li.kreise)), li.sicht))
     proj, proj_quelle = (vorgaben["projektion"], "Vorgabe") if vorgaben.get("projektion") in (1, 3) \
         else projektion(texte)
     erg["projektion"], erg["projektion_quelle"] = proj or 1, proj_quelle
@@ -798,7 +862,7 @@ def _erkennen(roh, li, dateiname, vorgaben):
         andere = next((x for x in lvs if x is not lv), None)
         wand_z = profil["wand"] / andere.f if andere and profil["wand"] else 0.0
         x_ref = lv.bb[0]
-        for k in konturen(lv, zonen["a"], zonen["b"]):
+        for k in konturen(lv, zonen["a"], zonen["b"], profil.get("wand")):
             ob, un = wand_hinweis(k, andere, wand_z)
             fern = un if lv.seite == "oben" else ob         # Hinweis auf die gegenüberliegende Wand
             nah = ob if lv.seite == "oben" else un
@@ -854,7 +918,10 @@ def _kontur_zeile(k, lv, wand, x_ref, profil, zonen):
                  x=_rund(((xa + xb) / 2 - x_ref) * f, 1))
     else:
         z["x"] = _rund((k["cx"] - x_ref) * f, 1)
-        if k["art"] == sw.BOHRUNG:
+        if k["art"] == sw.BOHRUNG and k.get("schraeg"):
+            sr = k["schraeg"]           # 3D wählt der Rohr-Editor je Maschine (dreid.vorschlag)
+            z.update(d=_rund(sr["d"] * f, 2), **{"neigung_l" if sr["laengs"] else "neigung_q": _rund(sr["neigung"], 1)})
+        elif k["art"] == sw.BOHRUNG:
             z["d"] = _rund((k["x1"] - k["x0"]) * f, 2)
         elif k["art"] == sw.LANGLOCH:
             z.update(l=_rund(k["l"] * f, 2), b=_rund(k["b"] * f, 2))

@@ -225,6 +225,73 @@ def abziehen(k, werkzeuge):
     return cut.Shape()
 
 
+GRUPPE_SPALT = 0.05     # Hüllquader so weit vergrößert prüfen: Werkzeuge mit kleinerem Abstand gelten als überlappend [mm]
+GRUPPE_ZELLEN = 4000    # Werkzeuge über so viele Rasterzellen allein abziehen
+GRUPPE_GROSS = 1.0e4    # Werkzeuge mit größerem Hüllquader (Halbraum der Enden) immer einzeln abziehen [mm]
+
+
+def _huelle(w):
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    b = Bnd_Box()
+    BRepBndLib.Add_s(w, b)
+    if b.IsVoid():
+        return None
+    a, c = b.CornerMin(), b.CornerMax()
+    x0, y0, z0, x1, y1, z1 = a.X(), a.Y(), a.Z(), c.X(), c.Y(), c.Z()
+    if max(x1 - x0, y1 - y0, z1 - z0) > GRUPPE_GROSS:
+        return None
+    s = GRUPPE_SPALT
+    return (x0 - s, y0 - s, z0 - s, x1 + s, y1 + s, z1 + s)
+
+
+def werkzeug_gruppen(werkzeuge, huelle=_huelle):
+    """Werkzeuge in Gruppen, deren Hüllquader sich nicht berühren: eine Gruppe wird in einer Operation abgezogen
+    (Performance-Update P4: 1.000 Bohrungen in wenigen Durchgängen statt 1.000 einzelnen). Werkzeuge, deren
+    Hüllquader sich berühren, und sehr große (Halbraum) kommen in verschiedene Gruppen bzw. allein; die Reihenfolge
+    im Ergebnis ist egal, Abziehen ist vertauschbar."""
+    gruppen, raster, zelle = [], [], None
+    allein = []
+    boxen = []
+    for w in werkzeuge:
+        b = huelle(w)
+        if b is None:
+            allein.append([w])
+        else:
+            boxen.append((w, b))
+    if boxen:
+        groessen = sorted(max(b[3] - b[0], b[4] - b[1], b[5] - b[2]) for _, b in boxen)
+        zelle = max(groessen[len(groessen) // 2], 1.0)
+
+    def zellen(b):
+        return [(i, j, k) for i in range(int(b[0] // zelle), int(b[3] // zelle) + 1)
+                for j in range(int(b[1] // zelle), int(b[4] // zelle) + 1)
+                for k in range(int(b[2] // zelle), int(b[5] // zelle) + 1)]
+
+    def beruehrt(a, b):
+        return a[0] <= b[3] and b[0] <= a[3] and a[1] <= b[4] and b[1] <= a[4] and a[2] <= b[5] and b[2] <= a[5]
+
+    for w, b in boxen:
+        n = 1
+        for a in range(3):
+            n *= int(b[a + 3] // zelle) - int(b[a] // zelle) + 1
+        if n > GRUPPE_ZELLEN:           # viel größer als die übrigen (Ende, lange Kontur): allein
+            allein.append([w])
+            continue
+        z = zellen(b)
+        for g, r in zip(gruppen, raster):
+            if not any(beruehrt(b, a) for c in z for a in r.get(c, ())):
+                break
+        else:
+            g, r = [], {}
+            gruppen.append(g)
+            raster.append(r)
+        g.append(w)
+        for c in z:
+            r.setdefault(c, []).append(b)
+    return allein + gruppen
+
+
 def vereinfachen(k):
     """Gleiche Flächen zusammenlegen (ebene Dreiecke eines Werkzeugs werden eine Fläche)."""
     from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
@@ -565,8 +632,8 @@ def teil_bauen(teil):
             wz.append(werkzeug(w))
         except Exception as ex:             # ein Werkzeug fehlt: Teil trotzdem schreiben, mit Meldung
             meldungen.append(f"{w.get('name') or w['art']}: nicht erzeugt ({ex})")
-    for w in wz:                    # einzeln: überlappende Werkzeuge (Stücke einer Kontur, Enden) sicher
-        k = abziehen(k, [w])
+    for gruppe in werkzeug_gruppen(wz):     # überlappende Werkzeuge (Stücke einer Kontur, Enden) nie zusammen
+        k = abziehen(k, gruppe)
     rillen = []
     for w in teil.get("rillen") or ():
         try:
@@ -693,40 +760,162 @@ class _Raster:
                             best = d
         return math.sqrt(best) if best is not None else self.z * (weit + 1)
 
+    def naechster(self, p, weit=2):
+        """Nächster Punkt (oder p selbst, wenn im Umkreis keiner liegt)."""
+        k = tuple(int(math.floor(c / self.z)) for c in p)
+        best, nah = None, p
+        for dx in range(-weit, weit + 1):
+            for dy in range(-weit, weit + 1):
+                for dz in range(-weit, weit + 1):
+                    for q in self.zellen.get((k[0] + dx, k[1] + dy, k[2] + dz), ()):
+                        d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2
+                        if best is None or d < best:
+                            best, nah = d, q
+        return nah
 
-def ausrichten(k, p, t):
-    """Lage des gebauten Teils k in der Datei aus dem Netz der STEP-Messung (Punkte p flach, Dreiecke t, in der
-    Datei): Hauptachsen beider Oberflächen aufeinander, von den 24 Drehungen die mit der kleinsten mittleren
-    Abweichung der Oberflächen. Ergebnis (3 × 4 Matrix, mittlere Abweichung [mm])."""
-    pts = [tuple(p[i:i + 3]) for i in range(0, len(p), 3)]
-    netz = _flaechen_punkte([(pts[t[i]], pts[t[i + 1]], pts[t[i + 2]]) for i in range(0, len(t), 3)])
-    eigen = _flaechen_punkte(_dreiecke(k))
-    if len(netz) < 4 or len(eigen) < 4:
-        raise ValueError("zu wenig Punkte zum Ausrichten")
-    c_n, a_n = _traegheit(netz)
-    c_e, a_e = _traegheit(eigen)
-    groesse = max(max(q[i] for q in netz) - min(q[i] for q in netz) for i in range(3))
-    zelle = max(groesse / 30, 0.5)
-    r_netz, best = _Raster(netz, zelle), None
-    stich_e, stich_n = eigen[::max(1, len(eigen) // 400)], netz[::max(1, len(netz) // 400)]
+
+def _flaechen_schwerpunkt(dreiecke):
+    """Flächenschwerpunkt einer Oberfläche aus Dreiecken (exakt, unabhängig von der Vernetzung)."""
+    summe, c = 0.0, [0.0, 0.0, 0.0]
+    for a, b, d in dreiecke:
+        f = 0.5 * math.sqrt(sum(x * x for x in _kreuz3(_sub3(b, a), _sub3(d, a))))
+        summe += f
+        for i in range(3):
+            c[i] += f * (a[i] + b[i] + d[i]) / 3
+    return [x / summe for x in c] if summe > 1e-12 else None
+
+
+def _einheit3(v):
+    n = math.sqrt(sum(x * x for x in v))
+    return tuple(x / n for x in v) if n > 1e-12 else None
+
+
+def _kanten_rahmen(dreiecke):
+    """Achsen aus der Geometrie selbst (Bleche, Flachstahl): Normale der größten ebenen Fläche und die häufigste
+    Richtung der Kanten quer dazu (Seitenflächen), gewichtet nach Länge. Bei quadratischen oder symmetrischen
+    Teilen eindeutig, wo die Hauptachsen der Streuung beliebig in der Ebene liegen. None, wenn es keine gibt."""
+    normalen = {}
+    for a, b, d in dreiecke:
+        n = _kreuz3(_sub3(b, a), _sub3(d, a))
+        f = math.sqrt(sum(x * x for x in n))
+        if f < 1e-9:
+            continue
+        n = tuple(x / f for x in n)
+        if n[0] < -1e-9 or (abs(n[0]) <= 1e-9 and (n[1] < -1e-9 or (abs(n[1]) <= 1e-9 and n[2] < 0))):
+            n = tuple(-x for x in n)
+        k = tuple(round(x, 3) for x in n)
+        alt = normalen.get(k)
+        normalen[k] = (alt[0] + f, alt[1]) if alt else (f, n)
+    if not normalen:
+        return None
+    n1 = max(normalen.values())[1]
+    hilf = (1.0, 0.0, 0.0) if abs(n1[0]) < 0.9 else (0.0, 1.0, 0.0)
+    u = _einheit3(_kreuz3(n1, hilf))
+    w = _kreuz3(n1, u)
+    winkel = {}
+    for a, b, d in dreiecke:
+        n = _einheit3(_kreuz3(_sub3(b, a), _sub3(d, a)))
+        if n is None or abs(sum(n[i] * n1[i] for i in range(3))) > 0.05:
+            continue                                # nur Seitenflächen (senkrecht zur großen Fläche)
+        for p, q in ((a, b), (b, d), (d, a)):
+            v = _sub3(q, p)
+            x, y = sum(v[i] * u[i] for i in range(3)), sum(v[i] * w[i] for i in range(3))
+            lang = math.hypot(x, y)
+            if lang < 1e-6:
+                continue
+            g = round(math.degrees(math.atan2(y, x)) % 90.0, 1) % 90.0
+            winkel[g] = winkel.get(g, 0.0) + lang
+    if not winkel:
+        return None
+    g = math.radians(max(winkel, key=winkel.get))
+    e1 = tuple(math.cos(g) * u[i] + math.sin(g) * w[i] for i in range(3))
+    return [list(e1), list(_kreuz3(n1, e1)), list(n1)]
+
+
+def _drehungen(a_n, a_e):
+    """Die 24 Drehungen, die die Achsen a_e (des gebauten Teils) auf die Achsen a_n (des Netzes) legen."""
     for perm in ((0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0)):
         for vz in ((1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1), (-1, -1, -1), (-1, 1, 1), (1, -1, 1),
                    (1, 1, -1)):
             r = [[sum(vz[i] * a_n[perm[i]][z] * a_e[i][s_] for i in range(3)) for s_ in range(3)] for z in range(3)]
             det = (r[0][0] * (r[1][1] * r[2][2] - r[1][2] * r[2][1]) - r[0][1] * (r[1][0] * r[2][2] - r[1][2] * r[2][0])
                    + r[0][2] * (r[1][0] * r[2][1] - r[1][1] * r[2][0]))
-            if det < 0:
-                continue
+            if det > 0:
+                yield r
+
+
+def _glatt(r):
+    """Drehmatrix, die fast achsparallel ist (Rundung der Messung), auf 0 und ±1 setzen."""
+    if all(min(abs(x), abs(abs(x) - 1)) < 2e-3 for zeile in r for x in zeile):
+        return [[float(round(x)) for x in zeile] for zeile in r]
+    return r
+
+
+def ausrichten(k, p, t, achsen=None):
+    """Lage des gebauten Teils k in der Datei aus dem Netz der STEP-Messung (Punkte p flach, Dreiecke t, in der
+    Datei). Kandidaten: je 24 Drehungen auf die Achsen der Einbaulage (achsen = [X, Y, Z] der Messung), der Datei,
+    der Kanten (größte Fläche + Seitenkanten) und der Hauptachsen der Streuung; Verschiebung aus dem exakten
+    Flächenschwerpunkt, danach nachgeführt (nächste Punkte). Gewählt wird die kleinste mittlere Abweichung der
+    Oberflächen (beidseitig). Ergebnis (3 × 4 Matrix, mittlere Abweichung [mm])."""
+    pts = [tuple(p[i:i + 3]) for i in range(0, len(p), 3)]
+    d_netz = [(pts[t[i]], pts[t[i + 1]], pts[t[i + 2]]) for i in range(0, len(t), 3)]
+    d_eigen = _dreiecke(k)
+    netz, eigen = _flaechen_punkte(d_netz), _flaechen_punkte(d_eigen)
+    if len(netz) < 4 or len(eigen) < 4:
+        raise ValueError("zu wenig Punkte zum Ausrichten")
+    c_n, a_n = _traegheit(netz)
+    c_e, a_e = _traegheit(eigen)
+    c_n, c_e = _flaechen_schwerpunkt(d_netz) or c_n, _flaechen_schwerpunkt(d_eigen) or c_e
+    welt = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    rahmen = [(welt, welt)]
+    if achsen and len(achsen) == 3:
+        rahmen.append(([list(a) for a in achsen], welt))
+    k_n, k_e = _kanten_rahmen(d_netz), _kanten_rahmen(d_eigen)
+    if k_n and k_e:
+        rahmen.append((k_n, k_e))
+    rahmen.append((a_n, a_e))
+    groesse = max(max(q[i] for q in netz) - min(q[i] for q in netz) for i in range(3))
+    zelle = max(groesse / 30, 0.5)
+    r_netz = _Raster(netz, zelle)
+    stich_e, stich_n = eigen[::max(1, len(eigen) // 400)], netz[::max(1, len(netz) // 400)]
+
+    def bewegen(r, tr, punkte):
+        return [tuple(sum(r[z][s_] * q[s_] for s_ in range(3)) + tr[z] for z in range(3)) for q in punkte]
+
+    def fehler_von(r, tr):
+        bewegt = bewegen(r, tr, stich_e)
+        hin = sum(r_netz.abstand(q) for q in bewegt) / len(bewegt)
+        r_eigen = _Raster(bewegt, zelle)
+        return (hin + sum(r_eigen.abstand(q) for q in stich_n) / len(stich_n)) / 2
+
+    kandidaten = []
+    for a_ziel, a_quelle in rahmen:
+        for r in _drehungen(a_ziel, a_quelle):
+            r = _glatt(r)
             tr = [c_n[z] - sum(r[z][s_] * c_e[s_] for s_ in range(3)) for z in range(3)]
-            bewegt = [tuple(sum(r[z][s_] * q[s_] for s_ in range(3)) + tr[z] for z in range(3)) for q in stich_e]
-            fehler = sum(r_netz.abstand(q) for q in bewegt) / len(bewegt)
-            if best is not None and fehler >= best[0]:
-                continue
-            r_eigen = _Raster(bewegt, zelle)
-            fehler = (fehler + sum(r_eigen.abstand(q) for q in stich_n) / len(stich_n)) / 2
-            if best is None or fehler < best[0]:
-                best = (fehler, [r[0][0], r[0][1], r[0][2], tr[0], r[1][0], r[1][1], r[1][2], tr[1],
-                                 r[2][0], r[2][1], r[2][2], tr[2]])
+            bewegt = bewegen(r, tr, stich_e)
+            kandidaten.append((sum(r_netz.abstand(q) for q in bewegt) / len(bewegt), r, tr))
+    kandidaten.sort(key=lambda x: x[0])
+    best = None
+    for _, r, tr in kandidaten[:6]:
+        fehler = fehler_von(r, tr)
+        for _ in range(4):                  # Verschiebung nachführen: mittlerer Abstand zum nächsten Punkt
+            bewegt = bewegen(r, tr, stich_e)
+            schub = [0.0, 0.0, 0.0]
+            for q in bewegt:
+                z = r_netz.naechster(q)
+                for i in range(3):
+                    schub[i] += (z[i] - q[i]) / len(bewegt)
+            if math.sqrt(sum(x * x for x in schub)) < 1e-3:
+                break
+            tr2 = [tr[i] + schub[i] for i in range(3)]
+            f2 = fehler_von(r, tr2)
+            if f2 >= fehler:
+                break
+            tr, fehler = tr2, f2
+        if best is None or fehler < best[0] - 1e-6:
+            best = (fehler, [r[0][0], r[0][1], r[0][2], tr[0], r[1][0], r[1][1], r[1][2], tr[1],
+                             r[2][0], r[2][1], r[2][2], tr[2]])
     return best[1], best[0]
 
 
@@ -766,13 +955,13 @@ def baugruppe_schreiben(bauplan, ziel):
             teile.append(dict(name=teil.get("name"), meldungen=meldungen, gueltig=False))
             continue
         lab = st.AddShape(k, False)
-        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(teil.get("name") or "Teil")))
+        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(teil.get("name") or "Teil"), True))
         labels.append(lab)
         teile.append(dict(name=teil.get("name"), meldungen=meldungen, **_kennwerte(k)))
     gesetzt, daneben = [], []          # (Knoten-Label, Teil-Nr., Trsf) bzw. ohne Lage
 
     def name(lab, text):
-        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(text or "Baugruppe")))
+        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(text or "Baugruppe"), True))
 
     def knoten(spec, eltern):
         lab = st.NewShape()
@@ -785,7 +974,8 @@ def baugruppe_schreiben(bauplan, ziel):
                 gesetzt.append((lab, nr, _trsf(e["lage"])))
             elif e.get("ausrichten"):
                 try:
-                    m, fehler = ausrichten(formen[nr], e["ausrichten"]["p"], e["ausrichten"]["t"])
+                    m, fehler = ausrichten(formen[nr], e["ausrichten"]["p"], e["ausrichten"]["t"],
+                                           e["ausrichten"].get("achsen"))
                 except Exception as ex:
                     hinweise.append(f"{teile[nr]['name']}: Lage nicht bestimmt ({ex}), neben die Baugruppe gelegt")
                     daneben.append((lab, nr))
@@ -857,7 +1047,7 @@ def schreiben(bauplan, ziel):
     for teil in bauplan.get("teile") or ():
         k, meldungen = teil_bauen(teil)
         lab = werkzeug_formen.AddShape(k, False)
-        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(teil.get("name") or "Teil")))
+        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(teil.get("name") or "Teil"), True))
         teile.append(dict(name=teil.get("name"), meldungen=meldungen, **_kennwerte(k)))
     if not teile:
         raise ValueError("keine Teile im Bauplan")

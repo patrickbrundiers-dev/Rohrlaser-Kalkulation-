@@ -16,13 +16,13 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QApplication, QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QApplication, QSpinBox, QSplitter, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, hilfe, lizenzbedingungen, pdf, tabellen_eingabe, tastatur, teilen, update
@@ -31,7 +31,8 @@ from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
-from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
+from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, Kontext, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
+from .eingabe import RechenSpin, RechenSpinGanz, Schalter, Segment, segment_passt
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 ANLEITUNG_KOPIE = "Anleitung"     # Unterordner im Datenordner (anleitung_kopie)
@@ -86,8 +87,8 @@ class StammdatenModell(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.spalten)
 
-    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
-        if rolle != Qt.DisplayRole:
+    def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
+        if rolle != Qt.ItemDataRole.DisplayRole:
             return None
         if richtung == Qt.Vertical:
             return str(abschnitt + 1)
@@ -104,25 +105,25 @@ class StammdatenModell(QAbstractTableModel):
             return s[1](z, self.k)
         return pruefen(self.t, z, self.k)
 
-    def data(self, index, rolle=Qt.DisplayRole):
+    def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
         art, s = self.spalten[index.column()]
         w = self.roh(index.row(), index.column())
-        if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
+        if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             if art == "feld":
                 return wert_als_text(s, w)
             if art == "berechnet":
                 return zahl_als_text(w, s[2]) if w is not None else ""
             return w
-        if rolle == Qt.EditRole and art == "feld":
+        if rolle == Qt.ItemDataRole.EditRole and art == "feld":
             return wert_als_text(s, w, bearbeiten=True)
-        if rolle == Qt.UserRole:
+        if rolle == Qt.ItemDataRole.UserRole:
             return w
-        if rolle == Qt.TextAlignmentRole:
+        if rolle == Qt.ItemDataRole.TextAlignmentRole:
             if art == "berechnet" or (art == "feld" and s.art in ("zahl", "ganz")):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole:
+        if rolle == Qt.ItemDataRole.BackgroundRole:
             if art == "pruefung":
                 return QBrush(FARBE_STATUS.get(str(w).split(":")[0], FARBE_BERECHNET))
             return QBrush(FARBE_EINGABE if art == "feld" else FARBE_BERECHNET)
@@ -134,8 +135,8 @@ class StammdatenModell(QAbstractTableModel):
             f |= Qt.ItemIsEditable
         return f
 
-    def setData(self, index, text, rolle=Qt.EditRole):
-        if rolle != Qt.EditRole or not index.isValid():
+    def setData(self, index, text, rolle=Qt.ItemDataRole.EditRole):
+        if rolle != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
         art, f = self.spalten[index.column()]
         if art != "feld":
@@ -181,7 +182,7 @@ class Sortierung(QSortFilterProxyModel):
         return super().filterAcceptsRow(zeile, eltern)
 
     def lessThan(self, links, rechts):
-        a, b = links.data(Qt.UserRole), rechts.data(Qt.UserRole)
+        a, b = links.data(Qt.ItemDataRole.UserRole), rechts.data(Qt.ItemDataRole.UserRole)
         if a is None or b is None:
             return a is not None and b is None
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
@@ -238,7 +239,7 @@ def liste_fuellen(cb, k, quelle, erster=""):
             for i in range(cb.count() - len(werte), cb.count()):
                 info = werkstoff_info(k.werkstoffe.get(cb.itemText(i)))
                 if info:
-                    cb.setItemData(i, info, Qt.ToolTipRole)
+                    cb.setItemData(i, info, Qt.ItemDataRole.ToolTipRole)
 
 
 class Auswahl(QStyledItemDelegate):
@@ -248,7 +249,67 @@ class Auswahl(QStyledItemDelegate):
         super().__init__(parent)
         self.modell = modell
 
+    def _feld(self, index):
+        quelle = self.modell.mapToSource(index) if hasattr(self.modell, "mapToSource") else index
+        art, f = quelle.model().spalten[quelle.column()]
+        return f if art == "feld" else None
+
+    def _janein(self, index):
+        """Spalte ja/nein: Häkchen in der Zelle statt Auswahlliste (Plan Eingabefelder E1)."""
+        f = self._feld(index) if index.isValid() else None
+        return f is not None and f.art == "auswahl" and f.auswahl == "janein"
+
+    def _haken_rechteck(self, option):
+        st = option.widget.style() if option.widget else QApplication.style()
+        o = QStyleOptionButton()
+        r = st.subElementRect(QStyle.SE_CheckBoxIndicator, o, option.widget)
+        r.moveCenter(option.rect.center())
+        return r
+
+    def paint(self, painter, option, index):
+        if not self._janein(index):
+            return super().paint(painter, option, index)
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        wert = str(index.data(Qt.ItemDataRole.EditRole) or "").strip().lower()
+        opt.text = ""
+        st = opt.widget.style() if opt.widget else QApplication.style()
+        st.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+        haken = QStyleOptionButton()
+        haken.rect = self._haken_rechteck(option)
+        haken.state = QStyle.State_Enabled | (QStyle.State_On if wert == "ja" else
+                                              QStyle.State_NoChange if wert not in ("ja", "nein") else QStyle.State_Off)
+        if not (index.flags() & Qt.ItemIsEditable):
+            haken.state &= ~QStyle.State_Enabled
+        st.drawPrimitive(QStyle.PE_IndicatorCheckBox, haken, painter, opt.widget)
+
+    def editorEvent(self, ereignis, modell, option, index):
+        if not self._janein(index) or not (index.flags() & Qt.ItemIsEditable):
+            return super().editorEvent(ereignis, modell, option, index)
+        t = ereignis.type()
+        if t == QEvent.MouseButtonDblClick:
+            return True                     # kein Editor, das Umschalten macht der Klick
+        if t == QEvent.MouseButtonRelease and ereignis.button() == Qt.LeftButton:
+            if not self._haken_rechteck(option).adjusted(-6, -6, 6, 6).contains(ereignis.position().toPoint()):
+                return False                # Klick neben das Häkchen: nur auswählen
+            return self._umschalten(modell, index)
+        if t == QEvent.KeyPress:
+            taste = ereignis.key()
+            if taste in (Qt.Key_Space, Qt.Key_Select):
+                return self._umschalten(modell, index)
+            if taste in (Qt.Key_J, Qt.Key_N):
+                return modell.setData(index, "ja" if taste == Qt.Key_J else "nein", Qt.ItemDataRole.EditRole)
+        return False
+
+    @staticmethod
+    def _umschalten(modell, index):
+        alt = str(index.data(Qt.ItemDataRole.EditRole) or "").strip().lower()
+        modell.setData(index, "nein" if alt == "ja" else "ja", Qt.ItemDataRole.EditRole)
+        return True
+
     def createEditor(self, parent, option, index):
+        if self._janein(index):
+            return None
         quelle = self.modell.mapToSource(index) if hasattr(self.modell, "mapToSource") else index
         art, f = quelle.model().spalten[quelle.column()]
         if art == "feld" and f.art == "auswahl":
@@ -265,7 +326,7 @@ class Auswahl(QStyledItemDelegate):
 
     def setEditorData(self, editor, index):
         if isinstance(editor, QComboBox):
-            editor.setCurrentText(index.data(Qt.EditRole) or "")
+            editor.setCurrentText(index.data(Qt.ItemDataRole.EditRole) or "")
         else:
             super().setEditorData(editor, index)
 
@@ -274,7 +335,7 @@ class Auswahl(QStyledItemDelegate):
             text = editor.currentText()
             if editor.property("profil_namen") is not None:
                 text = tabellen_eingabe.profil_aufloesen(text, editor.property("profil_namen"))
-            modell.setData(index, text, Qt.EditRole)
+            modell.setData(index, text, Qt.ItemDataRole.EditRole)
         else:
             super().setModelData(editor, modell, index)
 
@@ -786,13 +847,13 @@ class EinstellungenSeite(QScrollArea):
 
     def _eingabe(self, e):
         if e.art == "anteil":
-            w = QDoubleSpinBox()
+            w = RechenSpin()
             w.setRange(e.von * 100, e.bis * 100)
             w.setDecimals(1)
             w.setSuffix(" %")
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, round(w.value() / 100, 6)))
         elif e.art == "zahl":
-            w = QDoubleSpinBox()
+            w = RechenSpin()
             w.setRange(e.von, e.bis)
             w.setDecimals(2)
             w.setGroupSeparatorShown(True)
@@ -803,7 +864,7 @@ class EinstellungenSeite(QScrollArea):
             w.setMaximumWidth(160)
             w.editingFinished.connect(lambda e=e, w=w: self._zahl_leer(e, w))
         elif e.art == "ganz":
-            w = QSpinBox()
+            w = RechenSpinGanz()
             w.setRange(int(e.von), int(e.bis))
             w.setGroupSeparatorShown(True)
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.value()))
@@ -812,8 +873,16 @@ class EinstellungenSeite(QScrollArea):
             w.setFixedHeight(80)
             w.fertig.connect(lambda e=e, w=w: self._speichern(e, w.toPlainText().strip()))
         elif e.art == "auswahl":
-            w = QComboBox()
-            w.setEditable(e.auswahl != "hilfeart")
+            # Plan Eingabefelder E1/E2: ja/nein als Schalter, wenige kurze Möglichkeiten als Knopfreihe, feste
+            # Listen nur mit ihren Werten; Listen aus den Stammdaten (Maschine, Werkstoff …) mit Teilwortsuche
+            fest = Kontext().auswahl(e.auswahl)
+            if e.auswahl == "janein":
+                w = Schalter()
+            elif segment_passt(fest):
+                w = Segment(fest)
+            else:
+                w = QComboBox()
+                w.setEditable(not fest)
             w.currentTextChanged.connect(lambda text, e=e: self._speichern(e, text.strip()))
         elif e.art == "passwort":
             w = PasswortEingabe()
@@ -837,7 +906,9 @@ class EinstellungenSeite(QScrollArea):
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
         if e.art in ("anteil", "zahl", "zahl_leer", "ganz"):
             w.setMaximumWidth(self.BREITE_ZAHL)
-        elif e.art in ("text", "auswahl"):
+        elif e.art == "auswahl" and not isinstance(w, Schalter):
+            w.setMaximumWidth(self.BREITE_TEXT)
+        elif e.art == "text":
             w.setMaximumWidth(self.BREITE_TEXT)
         elif e.art == "passwort":
             w.setMaximumWidth(self.BREITE_TEXT + 100)
@@ -937,8 +1008,16 @@ class EinstellungenSeite(QScrollArea):
             elif e.art == "mehrzeilig":
                 w.setPlainText(v or "")
             elif e.art == "auswahl":
-                w.clear()
-                w.addItems(k.auswahl(e.auswahl))
+                werte = k.auswahl(e.auswahl)
+                if isinstance(w, QComboBox):
+                    w.clear()
+                    w.addItems(werte)
+                    if w.isEditable():
+                        tabellen_eingabe.teilwort(w)    # Tippen findet Teilwörter (B7)
+                    elif v and v not in werte:
+                        w.addItem(v)         # alter Wert, den es in der Liste nicht mehr gibt: sichtbar lassen
+                else:
+                    w.addItems(werte)
                 w.setCurrentText(v or "")
             elif e.art in ("bild", "ordner"):
                 w.anzeigen(v or "")
@@ -1126,7 +1205,7 @@ class StartSeite(QWidget):
         self.wiedervorlage.setToolTip("Angebote zum Nachfassen: verschickt und seit einigen Tagen ohne Antwort, "
                                       "Gültigkeit endet bald, oder Wiedervorlage erreicht (Doppelklick öffnet)")
         self.wiedervorlage.itemActivated.connect(
-            lambda it: fenster.angebot_oeffnen(it.data(Qt.UserRole)))
+            lambda it: fenster.angebot_oeffnen(it.data(Qt.ItemDataRole.UserRole)))
         hl.addWidget(self.wiedervorlage)
         self.wv_knoepfe = QWidget()          # Plan A9: für das markierte Angebot
         wk = QHBoxLayout(self.wv_knoepfe)
@@ -1254,7 +1333,7 @@ class StartSeite(QWidget):
                     else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
             it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
                                  f"({wann})")
-            it.setData(Qt.UserRole, z["id"])
+            it.setData(Qt.ItemDataRole.UserRole, z["id"])
             if rest < 0:
                 it.setForeground(QBrush(stil.farbe("#B42318")))
             self.wiedervorlage.addItem(it)
@@ -1278,7 +1357,7 @@ class StartSeite(QWidget):
         it = self.wiedervorlage.currentItem() or (self.wiedervorlage.item(0) if self.wiedervorlage.count() else None)
         if it is None:
             return None
-        return ziel(it.data(Qt.UserRole))
+        return ziel(it.data(Qt.ItemDataRole.UserRole))
 
     def nachfassen(self, angebot_id):
         from .nachfassen_dialog import nachfassen_dialog
@@ -1384,6 +1463,8 @@ class Hauptfenster(QMainWindow):
             self.updater.beim_start()
             global zuletzt_quelle                       # zuletzt benutzte Werte oben in Auswahllisten (B7)
             zuletzt_quelle = db.zuletzt_benutzt
+            from . import fenster_platz     # Fenster passen auf den Bildschirm, offenes Fenster bleibt vorne (E3/E6)
+            self.fenster_platz = fenster_platz.einrichten(self)
             from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
             self.fenster_merker = FensterMerker(db, self)
             QApplication.instance().installEventFilter(self.fenster_merker)
@@ -1398,6 +1479,7 @@ class Hauptfenster(QMainWindow):
             from . import fenster_merken            # zuletzt offene Angebote wieder öffnen (B4, Freigabe F2a)
             fenster_merken.sitzung_wiederherstellen(self)
             QTimer.singleShot(200, self._start_teilen)
+            QTimer.singleShot(800, self._start_systempruefung)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
@@ -1512,6 +1594,9 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         a = QAction("Tastenkürzel …", self)
         a.triggered.connect(self.kuerzel_zeigen)
+        hilfe.addAction(a)
+        a = QAction("Systemprüfung …", self)
+        a.triggered.connect(lambda: self.systempruefung_zeigen())
         hilfe.addAction(a)
         a = QAction("Lizenz …", self)
         a.triggered.connect(lambda: self.lizenz_zeigen())
@@ -1677,6 +1762,49 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def systempruefung_zeigen(self, zeilen=None):
+        """Hilfe → Systemprüfung …: dieser Rechner gegen die Systemvoraussetzungen (systempruefung.py)."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser
+        from . import systempruefung
+        if zeilen is None:
+            zeilen = systempruefung.pruefen(self.db.pfad.parent)
+        d = QDialog(self)
+        d.setWindowTitle("Systemprüfung")
+        d.resize(980, 380)
+        text = QTextBrowser()
+        text.setHtml(systempruefung.html(zeilen))
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        zu_wenig = systempruefung.unter_minimum(zeilen)
+        info = QLabel(("<b style='color:#B42318'>Unter dem Minimum: " + ", ".join(z[0] for z in zu_wenig) +
+                       ".</b> Das Programm läuft, große Angebote, STEP-Dateien und 3D-Ansichten können aber sehr "
+                       "langsam werden.") if zu_wenig else
+                      "Dieser Rechner erfüllt die Mindestvoraussetzungen. „Empfohlen“ gilt für große STEP-Dateien "
+                      "(1.000 Bohrungen und mehr) und große Baugruppen.")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        lay.addWidget(text)
+        lay.addWidget(knoepfe)
+        self.systempruefung_ergebnis = zeilen
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def _start_systempruefung(self):
+        """7a: einmal nach Installation bzw. Update prüfen und nur warnen, wenn etwas unter dem Minimum liegt."""
+        from . import systempruefung
+        try:
+            if not systempruefung.start_pruefung_noetig(self.db, VERSION):
+                return None
+            zeilen = systempruefung.pruefen(self.db.pfad.parent)
+        except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            return None
+        systempruefung.start_gepruft(self.db, VERSION)
+        if systempruefung.unter_minimum(zeilen):
+            return self.systempruefung_zeigen(zeilen)
+        return None
 
     def neuerungen_zeigen(self):
         """Hilfe → Was ist neu …: alle Versionen ausführlich (die Bedienungsanleitung zeigt nur die letzten)."""
