@@ -1714,8 +1714,12 @@ def kapitel_step(i):
             "Schenkelenden an den Rohrecken), nimmt das Programm das nächstgrößere Rohr quer zur offenen Seite, bei "
             "dem der Radius erst nach den Schenkelenden beginnt (z. B. U 60×40 → RE 60×50); die Seitenwände bleiben "
             "auf dem Rohr, das Fenster läuft an den Schenkelenden. Hinweis im Prüfdialog.",
-            "<b>Winkel, U oder C aus dem Rohr</b>: gibt es das Profil nicht (z. B. Winkel 33×30×6 nur aus RE 60×40×6), "
-            "in der Spalte Art die Rohrform und bei Profil-ID das Rohr wählen. Beim Übernehmen: Enden = Rohrumfang, "
+            "<b>Winkel, U oder C aus einem größeren Profil</b>: gibt es den Winkel nur größer (z. B. L 33×30×6 nur als "
+            "L 60×40×6), bei Profil-ID das größere Profil gleicher Form wählen. Beim Übernehmen wird jeder zu lange "
+            "Schenkel gekürzt: ein Längsschnitt zwischen zwei Stegen 2 mm an den Enden, dazu je Steg der Querschnitt "
+            "über die weggeschnittene Breite. Bei U und C muss die Steghöhe gleich sein, sonst kommt ein Hinweis.",
+            "<b>Winkel, U oder C aus dem Rohr</b>: gibt es das Profil gar nicht, in der Spalte Art die Rohrform und "
+            "bei Profil-ID das Rohr wählen. Beim Übernehmen: Enden = Rohrumfang, "
             "dazu das Fenster zwischen den Ringen 2 mm (zwei Längsschnitte an den Schenkelenden + je Ring der Umfang, "
             "den das Profil nicht belegt).",
             "<b>Halbschalen je Umfang</b>: passen mehrere Schalen in einen Rohrumfang (mindestens 5 mm Luft am "

@@ -30,8 +30,8 @@ NEUERUNGEN = [
                 "Rohrecken, wird das nächstgrößere Rohr genommen, bei dem der Radius erst danach beginnt. Halbschalen: "
                 "passen mehrere in einen Umfang (5 mm Luft), werden sie einzeln freigeschnitten, Rohrstücke = Stück ÷ "
                 "je Umfang (neues Feld Teile je Rohrumfang). Ein anderes Rohr in der Profil-ID rechnet Enden und "
-                "Fenster um; auch ein Winkel, U oder C, für das von Hand ein Rohr gewählt wird, bekommt Ringe und "
-                "Fenster. Immer Rohr; ohne Normmaß oder über der Maschinengrenze automatisch Kantteil, Kantteil und "
+                "Fenster um; ein Winkel, U oder C aus einem größeren Profil gleicher Form (z. B. L 33×30×6 aus L "
+                "60×40×6) bekommt gekürzte Schenkel mit Stegen 2 mm an den Enden, aus einem Rohr Ringe und Fenster. Immer Rohr; ohne Normmaß oder über der Maschinengrenze automatisch Kantteil, Kantteil und "
                 "U/C immer zur Auswahl. Die Ringe sind im 3D rot und laufen wie die Nachbarwände (auch Gehrungen). Ein "
                 "Spalt bis 2 mm wird ganz geschlossen ([[offene_rohre]]).",
      "Offen gezeichnete Rohre und Halbschalen im STEP: aus dem Rohr mit Ringen 2 mm an den Enden"],

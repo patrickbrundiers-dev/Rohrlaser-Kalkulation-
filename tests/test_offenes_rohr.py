@@ -413,30 +413,37 @@ def schalen_programm():
 fall("Halbschalen im Programm: Art umschaltbar, je Umfang in der Position, Rohrstücke = Stück ÷ je Umfang", schalen_programm)
 
 
-def winkel_aus_rohr():
-    # Winkel gibt es nur als Rohr (Patrick: „Winkel 33x30x6 gab es nur als 60x40x6“): von Hand das Rohr gewählt ->
-    # Enden = Rohrumfang, Fenster = 2 Längsschnitte zwischen den Ringen + je Ring der freie Umfang
-    from rohrlaser import optimierung as opt
+def winkel_aus_groesserem():
+    # Winkel gibt es nur größer (Patrick: „Winkel 33x30x6 gab es nur als 60x40x6“, ein Winkelprofil): von Hand das
+    # größere Profil gewählt -> je Schenkel ein Längsschnitt zwischen den Stegen 2 mm + zwei Querschnitte um die Stege
     from rohrlaser.datenbank import Datenbank
     db = Datenbank(tmp / "rohrlaser3.db")
     k = db.kontext()
-    k.profile["RE 60x50x3"] = dict(form="Rechteckrohr", a=60, b=50, wand=3)
+    k.profile["L 60x50x3"] = dict(profil_id="L 60x50x3", form="L-Profil", a=60, b=50, wand=3)
     w = dict(mw[2])
-    assert w["profilform"] == "L-Profil", w["profilform"]
-    pr = dict(k.profile["RE 60x50x3"], profil_id="RE 60x50x3")
-    diff, text = step.fenster_neu(w, pr)
+    assert w["profilform"] == "L-Profil" and round(float(w["abm_a"])) == 50 and round(float(w["abm_b"])) == 40, w
+    diff, text = step.fenster_neu(w, dict(k.profile["L 60x50x3"], profil_id="L 60x50x3"))
+    assert abs(diff - 2 * (300 - 4 + 2 * 10)) < 0.01 and "2 Schenkel gekürzt" in text, (diff, text)
+    ohne = step.uebernehmen([dict(w, _uebernehmen=True)], [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
+    mit = step.uebernehmen([dict(w, _uebernehmen=True, _profil="L 60x50x3")], [], k, db.zeilen("gewinde"), None,
+                           "S235-10219", 1)
+    p0, p1 = ohne["positionen"][0], mit["positionen"][0]
+    assert p1["innen"] >= p0["innen"] + diff - 0.1 and p1["schneidweg"] > p0["schneidweg"] + diff, \
+        ({x: p0.get(x) for x in ("profil_id", "schneidweg", "innen")}, {x: p1.get(x) for x in ("profil_id", "schneidweg", "innen")}, mit["bericht"])
+    assert any("L-Profil aus L 60x50x3" in b for b in mit["bericht"]), mit["bericht"]
+    # U: Steg gleich, beide Schenkel kürzer; Steghöhe anders -> Hinweis
+    u = dict(w, profilform="U-Profil", abm_a="60", abm_b="30")
+    assert abs(step.fenster_neu(u, dict(form="U-Profil", a=60, b=40, profil_id="U 60x40"))[0] - 2 * (296 + 20)) < 0.01
+    assert step.fenster_neu(u, dict(form="U-Profil", a=80, b=40, profil_id="U 80x40"))[0] == 0.0
+    # gibt es das Profil gar nicht: Rohr gewählt -> 2 Längsschnitte zwischen den Ringen + je Ring der freie Umfang
+    from rohrlaser import optimierung as opt
+    diff, text = step.fenster_neu(w, dict(form="Rechteckrohr", a=60, b=50, wand=3, profil_id="RE 60x50x3"))
     soll = 2 * (300 - 4) + 2 * (opt.schnittlaenge("Rechteckrohr", 60, 50, 3) -
                                 opt.schnittlaenge("L-Profil", float(w["abm_a"]), float(w["abm_b"]), 3))
     assert abs(diff - soll) < 0.01 and "Ring 2 mm" in text, (diff, soll, text)
-    ohne = step.uebernehmen([dict(w, _uebernehmen=True)], [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
-    mit = step.uebernehmen([dict(w, _uebernehmen=True, _profil="RE 60x50x3")], [], k, db.zeilen("gewinde"), None,
-                           "S235-10219", 1)
-    p0, p1 = ohne["positionen"][0], mit["positionen"][0]
-    assert p1["schneidweg"] > p0["schneidweg"] + diff - 1 and p1["innen"] >= p0["innen"] + diff - 0.1, (p0, p1)
-    assert any("aus dem Rohr RE 60x50x3" in b for b in mit["bericht"]), mit["bericht"]
 
 
-fall("Winkel/U/C von Hand als Rohr: Enden Rohrumfang, Fenster zwischen den Ringen", winkel_aus_rohr)
+fall("Winkel/U/C aus größerem Profil (Schenkel gekürzt, Stege 2 mm) oder aus dem Rohr (Ringe + Fenster)", winkel_aus_groesserem)
 
 print("Alle Tests OK" if not fehler else f"{fehler} Test(s) fehlgeschlagen")
 sys.exit(1 if fehler else 0)

@@ -572,6 +572,26 @@ def fenster_neu(m, pr):
     Profil gehört – Fenster = zwei Längsschnitte an den Schenkelenden + je Ring der freie Umfang (Rohrumfang −
     belegter Umfang des Profils)."""
     gemessen = m.get("_form_gemessen") or m.get("profilform")      # Art im Prüfdialog evtl. auf das Rohr gestellt
+    if pr and gemessen in ("L-Profil", "U-Profil", "C-Profil") and pr.get("form") == gemessen:
+        # aus einem größeren Profil derselben Form (Patrick 25.10.2026: „Winkel 33x30x6 gab es nur als 60x40x6“): die
+        # Schenkel werden gekürzt, an den Enden bleibt je ein Steg RING mm stehen – je gekürztem Schenkel ein
+        # Längsschnitt zwischen den Stegen und zwei Querschnitte um die Stege (Breite, um die er kürzer wird)
+        laenge, a, b = _z(m, "laenge"), _z(m, "abm_a"), _z(m, "abm_b")
+        pa, pb = float(pr.get("a") or 0), float(pr.get("b") or 0)
+        if gemessen == "L-Profil":
+            if (pa >= pb) != (a >= b):
+                pa, pb = pb, pa
+            kuerzer = [pa - a, pb - b]
+        else:                   # U/C: Steg (a) bleibt, beide Schenkel (b) kürzer
+            if abs(pa - a) > TOL_MASS:
+                return 0.0, f"{gemessen} aus {pr.get('profil_id') or ''}: Steghöhe anders, Schneidweg bitte prüfen"
+            kuerzer = [pb - b, pb - b]
+        kuerzer = [x for x in kuerzer if x > TOL_MASS]
+        if not kuerzer or laenge <= 4 * RING or any(x < -TOL_MASS for x in (pa - a, pb - b)):
+            return None
+        diff = sum(laenge - 2 * RING + 2 * x for x in kuerzer)
+        return diff, (f"{gemessen} aus {pr.get('profil_id') or ''}: {len(kuerzer)} Schenkel gekürzt, je ein Steg "
+                      f"{dez(RING)} mm an den Enden (Schnitt {dez(round(diff, 1))} mm)").replace("  ", " ")
     if pr and gemessen in ("L-Profil", "U-Profil", "C-Profil") and not rohr_geschlossen(m) and \
             pr.get("form") in ("Quadratrohr", "Rechteckrohr", "Rundrohr"):
         from .optimierung import schnittlaenge
