@@ -40,9 +40,12 @@ def teil(qs, t, e):
     ds = verschiebung(qs, t.get("drehung"))
     la, lb = sk.ende_abwicklung(qs, e.get("a"), PUNKTE_ENDE), sk.ende_abwicklung(qs, e.get("b"), PUNKTE_ENDE)
     stellen = [U * i / PUNKTE_ENDE for i in range(PUNKTE_ENDE + 1)]
+
+    def mit_stufen(linie):              # Stützstellen der Schnittlinie dazu (Kanten der Nasen bleiben Stufen)
+        return sorted(set(stellen) | {(q + ds) % U for q, _ in linie})
     # auf der Stange an der Stelle s liegt die Stelle s − ds des Teils
-    oben = [(von + _linie_bei(la, (s - ds) % U), s) for s in stellen]
-    unten = [(von + L - _linie_bei(lb, (s - ds) % U), s) for s in reversed(stellen)]
+    oben = [(von + _linie_bei(la, (s - ds) % U), s) for s in mit_stufen(la)]
+    unten = [(von + L - _linie_bei(lb, (s - ds) % U), s) for s in reversed(mit_stufen(lb))]
     konturen = []
     for d in sk.lagen(e.get("konturen"), L):
         umr = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]

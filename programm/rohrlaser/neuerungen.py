@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.103", "<b>Nasen der Steckverbindung in der Abwicklung</b>: In der Abwicklung der Stange (Stangen-Detail und "
+                "Werkstattpapiere) und in der Abwicklung des Rohr-Editors stehen die Nasen jetzt als Laschen über "
+                "den Schnitt hinaus; vorher war das Ende gerade gezeichnet (Stangenbild).",
+     "Nasen der Steckverbindung in der Abwicklung der Stange sichtbar."],
     ["0.9.102", "<b>Nasen der Steckverbindung im Rohr-Editor</b>: Die Schnittebene an einem Ende mit Nasen stand "
                 "an der Spitze der Nasen und verdeckte sie, als wären sie abgeschnitten. Sie steht jetzt am Schnitt, "
                 "die Nasen ragen sichtbar darüber hinaus. [[editor_griffe]]",
