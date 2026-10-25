@@ -9,13 +9,17 @@ Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
   schluessel-erzeugen [--id K1]          Schlüsselpaar erzeugen, öffentlichen Schlüssel für lizenz_schluessel.py ausgeben
   erstellen --inhaber … --firma … [--art benutzer|test] [--bis JJJJ-MM-TT] [--rechner RL-…]… [--beliebig]
                                          Benutzer- (Vorgabe 3 Monate) oder Testlizenz (30 Tage, Aufdruck TESTVERSION)
-  admin --rechner RL-… [--rechner RL-…]  unbefristete Admin-Lizenz (bis 3 Rechner)
+  admin --rechner RL-… [--rechner RL-…]  unbefristete Admin-Lizenz (bis 3 Rechner) mit Admin-Passwort (wird abgefragt,
+                                         mindestens 10 Zeichen; in der Lizenz steht nur der Hash)
+  notfallcode --rechner RL-…             Admin-Passwort vergessen: Code für heute und morgen, schaltet am Rechner einmal
+                                         die Admin-Rechte frei (danach neue Admin-Lizenz mit neuem Passwort ausstellen)
   pruefen DATEI [--rechner RL-…]         Inhalt und Prüfergebnis einer Lizenzdatei
   sperren L-JJJJ-NNNN …                  neue Sperrliste Sperrliste.json (Stand + 1) für den Release update-dateien
   liste                                  alle ausgestellten Lizenzen nach Ablaufdatum, mit Status
   faellig [--tage 30]                    Erinnerung: Lizenzen, die bald ablaufen oder abgelaufen sind (ohne Nachfolger)
   kunden                                 Übersicht je Firma: aktive Lizenzen, Rechner, nächster Ablauf, gesperrte
-  verlaengern L-JJJJ-NNNN [--bis …]      neue Lizenz mit denselben Angaben im Anschluss (Vorgabe 3 Monate bzw. 30 Tage)
+  verlaengern L-JJJJ-NNNN [--bis …]      neue Lizenz mit denselben Angaben im Anschluss (Vorgabe 3 Monate bzw. 30 Tage);
+                                         bei einer Admin-Lizenz: neu ausstellen mit neuem Admin-Passwort
   sperrliste-hochladen                   Sperrliste.json in den Release update-dateien von Rohrlaser-Updates hochladen
                                          und anonym nachprüfen (GitHub-Token: ROHRLASER_GITHUB_TOKEN oder Abfrage;
                                          Fine-grained, nur Rohrlaser-Updates, Contents: Read and write)
@@ -24,7 +28,8 @@ Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
                                          Wert für das GitHub-Secret UPDATE_SIGNATUR
   update-secret [--id U1]                Wert für UPDATE_SIGNATUR noch einmal ausgeben (aus privat_U1.pem)
   (ohne Befehl)                          Fenster mit allem oben (lizenz_werkzeug_fenster.py, Lizenz-Werkzeug.exe)
-Passwort: wird abgefragt (oder Umgebungsvariable ROHRLASER_LIZENZ_PASSWORT, z. B. für Tests).
+Passwort: wird abgefragt (oder Umgebungsvariable ROHRLASER_LIZENZ_PASSWORT, z. B. für Tests). Admin-Passwort für das
+Programm: Abfrage oder ROHRLASER_ADMIN_PASSWORT.
 """
 import argparse
 import csv
@@ -38,6 +43,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
 from rohrlaser import lizenz  # noqa: E402
+from rohrlaser.passwort import hash_bilden  # noqa: E402
 
 REGISTER = "lizenzen.csv"
 SPALTEN = ("lizenz_id", "art", "inhaber", "firma", "rechner", "ausgestellt", "gueltig_bis", "gesperrt", "datei")
@@ -46,6 +52,7 @@ ERINNERUNG_TAGE = 30        # so viele Tage vor Ablauf erinnert das Werkzeug
 NACHLAUF_TAGE = 60          # abgelaufene Lizenzen ohne Nachfolger so lange in der Erinnerung
 UPDATE_REPO = "patrickbrundiers-dev/Rohrlaser-Updates"     # wie rohrlaser.update.UPDATE_REPO
 SPERR_RELEASE = "update-dateien"
+ADMIN_PASSWORT_MIN = 10     # Mindestlänge des Admin-Passworts (der Hash steht lesbar in der Lizenzdatei)
 
 
 def lizenzordner(wert=None):
@@ -62,6 +69,25 @@ def passwort(neu=False):
     if neu and len(pw) < 8:
         raise SystemExit("Bitte ein Passwort mit mindestens 8 Zeichen.")
     return pw.encode("utf-8")
+
+
+def admin_passwort_pruefen(text):
+    """Admin-Passwort für eine Admin-Lizenz: Fehlertext oder '' (in Ordnung)."""
+    if len(text or "") < ADMIN_PASSWORT_MIN:
+        return f"Das Admin-Passwort braucht mindestens {ADMIN_PASSWORT_MIN} Zeichen."
+    return ""
+
+
+def admin_passwort_abfragen():
+    pw = os.environ.get("ROHRLASER_ADMIN_PASSWORT")
+    if not pw:
+        pw = getpass.getpass("Admin-Passwort für das Programm: ")
+        if getpass.getpass("Admin-Passwort wiederholen: ") != pw:
+            raise SystemExit("Die Admin-Passwörter stimmen nicht überein.")
+    fehler = admin_passwort_pruefen(pw)
+    if fehler:
+        raise SystemExit(fehler)
+    return pw
 
 
 def schluessel_pfad(ordner, sid):
@@ -164,8 +190,16 @@ def dateiname(inhalt):
     return f"{inhalt['lizenz_id']}_{name}.lizenz"
 
 
-def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None, ziel=None, pw=None):
+def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None, ziel=None, pw=None,
+               admin_passwort=""):
+    """Lizenz signieren und speichern. admin_passwort (nur Admin, Pflicht): kommt als Hash in die Lizenz."""
     ordner = Path(ordner)
+    if art == "admin":
+        fehler = admin_passwort_pruefen(admin_passwort)
+        if fehler:
+            raise SystemExit(fehler)
+    elif admin_passwort:
+        raise SystemExit("Nur eine Admin-Lizenz enthält ein Admin-Passwort.")
     heute = heute or datetime.date.today()
     sid = aktueller_schluessel(ordner)
     privat = privat_laden(ordner, sid, pw)
@@ -174,6 +208,8 @@ def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None
                   ausgestellt=heute.isoformat(), gueltig_ab=heute.isoformat(),
                   gueltig_bis=bis.isoformat() if bis else None, rechner=[lizenz.id_normal(r) for r in rechner],
                   funktionen=["alle"], test=art == "test", schluessel_id=sid, hinweis=hinweis or "")
+    if art == "admin":
+        inhalt["admin_passwort"] = hash_bilden(admin_passwort)
     daten = dict(format=lizenz.FORMAT, inhalt=inhalt, signatur=lizenz.signieren(inhalt, privat))
     lizenz.pruefen(daten, {sid: lizenz.oeffentlich_text(privat)})      # nur gültige Lizenzen verlassen das Werkzeug
     ziel = Path(ziel) if ziel else ordner / "Lizenzen"
@@ -332,18 +368,20 @@ def verlaengerung_bis(z, heute=None):
     return monate_spaeter(start, lizenz.STANDARD_MONATE)
 
 
-def verlaengern(ordner, lizenz_id, bis=None, pw=None, heute=None, ziel=None):
+def verlaengern(ordner, lizenz_id, bis=None, pw=None, heute=None, ziel=None, admin_passwort=""):
     """Neue Lizenz mit Art, Inhaber, Firma und Rechnern der Lizenz lizenz_id (Hinweis „Verlängerung von …“). Die alte
-    bleibt bis zu ihrem Ablauf gültig. Ergebnis: Pfad der neuen Lizenzdatei."""
+    bleibt bis zu ihrem Ablauf gültig. Admin-Lizenz: neu ausstellen mit neuem Admin-Passwort (Hinweis „Ersatz für …“).
+    Ergebnis: Pfad der neuen Lizenzdatei."""
     zeilen = register_lesen(ordner)
     z = next((z for z in zeilen if z["lizenz_id"] == lizenz_id), None)
     if z is None:
         raise SystemExit(f"Lizenz {lizenz_id} steht nicht im Register.")
     if z.get("gesperrt"):
         raise SystemExit(f"Lizenz {lizenz_id} ist gesperrt und wird nicht verlängert.")
-    if z["art"] == "admin":
-        raise SystemExit("Admin-Lizenzen sind unbefristet, eine Verlängerung ist nicht nötig.")
     rechner = [r for r in (z.get("rechner") or "").split() if r != "beliebig"]
+    if z["art"] == "admin":
+        return ausstellen(ordner, "admin", z["inhaber"], z["firma"], None, rechner, f"Ersatz für {lizenz_id}",
+                          heute=heute, ziel=ziel, pw=pw, admin_passwort=admin_passwort)
     return ausstellen(ordner, z["art"], z["inhaber"], z["firma"], bis or verlaengerung_bis(z, heute), rechner,
                       f"Verlängerung von {lizenz_id}", heute=heute, ziel=ziel, pw=pw)
 
@@ -413,6 +451,16 @@ def sperrliste_hochladen(ordner, token, repo=UPDATE_REPO, tag=SPERR_RELEASE, oef
     return lokal["stand"]
 
 
+def notfallcode(ordner, rechner, pw=None, heute=None):
+    """Notfallcode für einen Rechner (Admin-Passwort vergessen), gültig heute und morgen. Ergebnis: Code (Text)."""
+    ordner = Path(ordner)
+    rechner = lizenz.id_normal(rechner)
+    if not rechner.startswith("RL-"):
+        raise SystemExit("Bitte die Rechner-ID RL-… angeben (Hilfe → Lizenz … am Rechner).")
+    sid = aktueller_schluessel(ordner)
+    return lizenz.notfallcode(rechner, heute or datetime.date.today(), privat_laden(ordner, sid, pw), sid)
+
+
 def liste(ordner, heute=None):
     zeilen = sorted(register_lesen(ordner), key=lambda z: z["gueltig_bis"])
     if not zeilen:
@@ -443,6 +491,8 @@ def main(argv=None):
     a_.add_argument("--rechner", action="append", required=True)
     a_.add_argument("--inhaber", default="Patrick")
     a_.add_argument("--ziel")
+    n_ = sub.add_parser("notfallcode")
+    n_.add_argument("--rechner", required=True)
     p = sub.add_parser("pruefen")
     p.add_argument("datei")
     p.add_argument("--rechner")
@@ -478,7 +528,11 @@ def main(argv=None):
     elif a.befehl == "admin":
         if len(a.rechner) > lizenz.ADMIN_RECHNER_MAX:
             raise SystemExit(f"Höchstens {lizenz.ADMIN_RECHNER_MAX} Rechner.")
-        ausstellen(ordner, "admin", a.inhaber, "", None, a.rechner, ziel=a.ziel)
+        ausstellen(ordner, "admin", a.inhaber, "", None, a.rechner, ziel=a.ziel, admin_passwort=admin_passwort_abfragen())
+    elif a.befehl == "notfallcode":
+        print(f"Notfallcode für {lizenz.id_normal(a.rechner)} (heute und morgen gültig, am Rechner statt des "
+              f"Admin-Passworts eingeben):\n\n    {notfallcode(ordner, a.rechner)}\n\n"
+              "Danach eine neue Admin-Lizenz mit neuem Passwort ausstellen (verlaengern L-…).")
     elif a.befehl == "pruefen":
         return pruefen(a.datei, a.rechner, ordner)
     elif a.befehl == "sperren":
@@ -496,7 +550,9 @@ def main(argv=None):
             print(f"{k['kunde']}: {k['aktiv']} aktiv, {k['rechner']} Rechner, nächster Ablauf "
                   f"{k['naechster_ablauf'] or '–'}, {k['gesperrt']} gesperrt, {k['gesamt']} insgesamt")
     elif a.befehl == "verlaengern":
-        verlaengern(ordner, a.lizenz_id, datetime.date.fromisoformat(a.bis) if a.bis else None, ziel=a.ziel)
+        admin = any(z["lizenz_id"] == a.lizenz_id and z["art"] == "admin" for z in register_lesen(ordner))
+        verlaengern(ordner, a.lizenz_id, datetime.date.fromisoformat(a.bis) if a.bis else None, ziel=a.ziel,
+                    admin_passwort=admin_passwort_abfragen() if admin else "")
     elif a.befehl == "sperrliste-hochladen":
         token = os.environ.get("ROHRLASER_GITHUB_TOKEN") or getpass.getpass("GitHub-Token (Rohrlaser-Updates): ")
         sperrliste_hochladen(ordner, token.strip())

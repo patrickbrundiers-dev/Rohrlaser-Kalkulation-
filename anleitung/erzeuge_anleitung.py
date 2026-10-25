@@ -4474,7 +4474,8 @@ def kapitel_einstellungen(i):
            "Programm beendet wird. Das Passwort steht unter Vorgaben, Gruppe Zugang (<i>Passwort für die "
            "Einstellungen</i>). Das Feld bleibt leer, auch wenn ein Passwort vergeben ist: Das Programm speichert das "
            "Passwort nur verschlüsselt (als Prüfwert, nicht lesbar). Zum Ändern das neue Passwort eintippen und das "
-           "Feld verlassen; <b>Entfernen</b> = Einstellungen ohne Passwort. Ein Passwort aus einer älteren Version gilt "
+           "Feld verlassen; <b>Entfernen</b> = Einstellungen ohne Passwort. Setzen, Ändern und Entfernen geht nur mit "
+           "Admin-Rechten ([[lizenz_laden]]), sonst ist das Feld gesperrt. Ein Passwort aus einer älteren Version gilt "
            "unverändert weiter. Das Passwort bitte beim Verantwortlichen erfragen.")
     i.abschnitt("Vorgaben", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
@@ -4710,8 +4711,9 @@ def kapitel_einstellungen(i):
         ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",
          "Tage bis zur automatischen Wiedervorlage eines verschickten Angebots ([[nachfassen]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
-                                                    "Frachtkosten, zugleich Admin-Passwort beim Start; verschlüsselt gespeichert, Feld bleibt "
-                                                    "leer; <b>Entfernen</b> = ohne Passwort"]],
+                                                    "Frachtkosten (Admin-Passwort beim Start nur bei älterer Admin-Lizenz ohne eigenes); "
+                                                    "verschlüsselt gespeichert, Feld bleibt leer; <b>Entfernen</b> = "
+                                                    "ohne Passwort; ändern nur mit Admin-Rechten"]],
         [28, 80, 157])
     i.abschnitt("Stundensätze und Zeitvorgaben", marke="stundensaetze")
     i.bild("stamm_arbeitsschritte", "Einstellungen, Stundensätze und Zeitvorgaben (Beispielwerte)", hoehe=95 * mm)
@@ -6450,7 +6452,12 @@ def kapitel_lizenz(i):
             "auf einem USB-Stick an mehreren PCs gibt es Lizenzen für mehrere oder beliebige Rechner.",
             "Eine <b>Testlizenz</b> gilt kurz (meist 30 Tage). Alle PDFs tragen dann den Aufdruck <i>TESTVERSION</i>.",
             "Die <b>Admin-Lizenz</b> ist unbefristet. Beim Start fragt das Programm dann das <b>Admin-Passwort</b> "
-            "ab, das ist das Passwort der Einstellungen ([[passwort]]); ist keins vergeben, entfällt die Frage. Mit "
+            "ab. Es steht verschlüsselt in der Admin-Lizenz und wird im Lizenz-Werkzeug beim Ausstellen festgelegt "
+            "(mindestens 10 Zeichen); ändern = Admin-Lizenz neu ausstellen (<b>Verlängern …</b>) und laden. Bei einer "
+            "älteren Admin-Lizenz ohne Admin-Passwort gilt das Passwort der Einstellungen ([[passwort]]); ist keins "
+            "vergeben, entfällt die Frage. Passwort vergessen: Patrick erzeugt im Lizenz-Werkzeug einen "
+            "<b>Notfallcode</b> für die Rechner-ID (gilt heute und morgen); ihn statt des Passworts eingeben, danach "
+            "eine neue Admin-Lizenz mit neuem Passwort laden. Mit "
             "richtigem Passwort öffnen sich die Einstellungen ohne weitere Abfrage. Nach <b>Abbrechen</b> oder dreimal "
             "falsch startet das Programm ohne Admin-Rechte, wie mit einer Benutzerlizenz: Einstellungen nur mit "
             "Passwort, gelber Hinweis unten rechts. <i>Hilfe → Lizenz …</i>, <b>Admin freischalten …</b> holt die "

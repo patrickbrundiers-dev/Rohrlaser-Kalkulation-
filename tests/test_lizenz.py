@@ -1,4 +1,4 @@
-"""Lizenz (programm/rohrlaser/lizenz.py) und Lizenz-Werkzeug (werkzeuge/lizenz_werkzeug.py): Fälle L1–L15, S7.
+"""Lizenz (programm/rohrlaser/lizenz.py) und Lizenz-Werkzeug (werkzeuge/lizenz_werkzeug.py): Fälle L1–L17, S7.
 
 Jeder Lauf erzeugt ein eigenes Testschlüsselpaar; der echte Schlüssel kommt in keinem Test vor.
 Aufruf: python tests/test_lizenz.py
@@ -294,6 +294,49 @@ pruefe(admin_beim_start(st, abfrage([])) and not eingaben and st.zustand.admin,
        "L16 ohne Passwort in den Einstellungen: keine Abfrage, Admin-Rechte")
 pruefe(not admin_beim_start(None), "L16 ohne Lizenzstelle: keine Abfrage")
 pruefe(not admin_stelle().zustand.admin, "L16 ohne Passworteingabe (z. B. Abfrage abgestürzt): keine Admin-Rechte")
+# ------------------------------------------------------------------ L17 Admin-Passwort in der Admin-Lizenz
+from rohrlaser import passwort  # noqa: E402
+
+LPW = passwort.hash_bilden("lizenz-pw-123")
+o3 = tmp / "adminpw"
+o3.mkdir()
+(o3 / lizenz.AKTIV).write_text(json.dumps(lizenzdatei("admin", bis=None, rechner=[RECHNER], admin_passwort=LPW,
+                                                      gueltig_ab=datetime.date.today().isoformat())), encoding="utf-8")
+st = lizenz.LizenzStelle(o3, _Db("geheim"), SCHL, RECHNER, durchsetzung=True)
+st.pruefen()
+pruefe(st.admin_passwort_in_lizenz() and st.admin_passwort_noetig(), "L17 Admin-Lizenz mit Passwort: Abfrage nötig")
+pruefe(not st.admin_freigeben("geheim") and not st.zustand.admin, "L17 Passwort der Einstellungen gilt nicht mehr")
+pruefe(st.admin_freigeben("lizenz-pw-123") and st.zustand.admin and not st.notfall, "L17 Passwort der Lizenz gilt")
+st = lizenz.LizenzStelle(o3, _Db(""), SCHL, RECHNER, durchsetzung=True)
+st.pruefen()
+pruefe(st.admin_passwort_noetig() and not st.zustand.admin,
+       "L17 Einstellungen ohne Passwort: Abfrage trotzdem (Passwort steht in der Lizenz)")
+pruefe(not lizenz.LizenzStelle(o, _Db("geheim"), SCHL, RECHNER, durchsetzung=True).admin_passwort_in_lizenz(),
+       "L17 ältere Admin-Lizenz ohne Passwort: Passwort der Einstellungen gilt weiter (3a)")
+for daten, text in ((lizenzdatei(admin_passwort=LPW), "Nur eine Admin-Lizenz"),
+                    (lizenzdatei("admin", bis=None, admin_passwort="klartext"), "kein gültiger Hash")):
+    try:
+        lizenz.pruefen(daten, SCHL)
+        pruefe(False, f"L17 abgelehnt: {text}")
+    except lizenz.LizenzFehler as e:
+        pruefe(text in str(e), f"L17 abgelehnt: {e}")
+geaendert = lizenzdatei("admin", bis=None, admin_passwort=LPW)
+geaendert["inhalt"]["admin_passwort"] = passwort.hash_bilden("eigenes")
+pruefe(zustand(geaendert).stufe == "lesemodus", "L17 Passwort-Hash in der Lizenz getauscht: Signatur ungültig")
+code = lizenz.notfallcode(RECHNER, datetime.date.today(), PRIVAT, "T1")
+st = lizenz.LizenzStelle(o3, _Db(""), SCHL, RECHNER, durchsetzung=True)
+st.pruefen()
+pruefe(not st.admin_freigeben(lizenz.notfallcode(RECHNER, datetime.date.today(), FREMD, "T1")),
+       "L17 Notfallcode mit fremdem Schlüssel: abgelehnt")
+pruefe(not st.admin_freigeben(lizenz.notfallcode(lizenz.rechner_id("anders"), datetime.date.today(), PRIVAT, "T1")),
+       "L17 Notfallcode für einen anderen Rechner: abgelehnt")
+pruefe(st.admin_freigeben(" " + code + "\n") and st.zustand.admin and st.notfall, "L17 Notfallcode schaltet frei")
+pruefe(lizenz.notfallcode_gueltig(code, RECHNER, datetime.date.today() + datetime.timedelta(days=1), SCHL)
+       and not lizenz.notfallcode_gueltig(code, RECHNER, datetime.date.today() + datetime.timedelta(days=2), SCHL)
+       and not lizenz.notfallcode_gueltig(code, RECHNER, datetime.date.today() - datetime.timedelta(days=1), SCHL)
+       and not lizenz.notfallcode_gueltig("NF-T1-kaputt", RECHNER, schluessel=SCHL),
+       "L17 Notfallcode gilt heute und morgen, sonst nicht")
+
 o2 = tmp / "adminladen"
 o2.mkdir()
 (o2 / lizenz.AKTIV).write_text(json.dumps(lizenzdatei(bis=datetime.date.today() + datetime.timedelta(days=90),
@@ -308,7 +351,8 @@ pruefe(z.stufe == "admin" and not z.admin and z.admin_aus, "L16 Admin-Lizenz im 
 pruefe(lizenz.STANDARD_MONATE == 3, "Vorgabe-Laufzeit Benutzerlizenz 3 Monate")
 
 # ------------------------------------------------------------------ Lizenz-Werkzeug
-umg = dict(os.environ, ROHRLASER_LIZENZ_PASSWORT="test-passwort-123", ROHRLASER_LIZENZ_ORDNER=str(tmp / "werkzeug"))
+umg = dict(os.environ, ROHRLASER_LIZENZ_PASSWORT="test-passwort-123", ROHRLASER_LIZENZ_ORDNER=str(tmp / "werkzeug"),
+           ROHRLASER_ADMIN_PASSWORT="admin-test-123")
 WZ = [sys.executable, str(WURZEL / "werkzeuge" / "lizenz_werkzeug.py")]
 
 
@@ -339,6 +383,11 @@ for d in dateien:
     inh = lizenz.pruefen(d, s)
     arten[inh["art"]] = (inh, lizenz.ermitteln(d, heute, RECHNER, s, durchsetzung=True))
 b_inh, b_z = arten["benutzer"]
+pruefe(passwort.pruefen("admin-test-123", arten["admin"][0].get("admin_passwort")),
+       "Werkzeug: Admin-Lizenz enthält das Admin-Passwort als Hash")
+code5, aus5 = wz("notfallcode", "--rechner", RECHNER)
+nf = next((w for w in aus5.split() if w.startswith("NF-K1-")), "")
+pruefe(code5 == 0 and lizenz.notfallcode_gueltig(nf, RECHNER, heute, s), "Werkzeug: Notfallcode für den Rechner")
 import lizenz_werkzeug  # noqa: E402
 erwartet = lizenz_werkzeug.monate_spaeter(heute, 3)
 pruefe(b_z.stufe == "gueltig" and b_inh["gueltig_bis"] == erwartet.isoformat(),

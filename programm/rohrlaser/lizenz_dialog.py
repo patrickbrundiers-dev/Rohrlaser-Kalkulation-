@@ -78,7 +78,8 @@ class LizenzDialog(QDialog):
         laden.setObjectName("primaer")
         laden.clicked.connect(lambda: self.laden())
         self.admin = knoepfe.addButton("Admin freischalten …", QDialogButtonBox.ActionRole)
-        self.admin.setToolTip("Admin-Rechte mit dem Admin-Passwort (= Passwort der Einstellungen) einschalten")
+        self.admin.setToolTip("Admin-Rechte mit dem Admin-Passwort der Admin-Lizenz (ältere Admin-Lizenz: Passwort "
+                              "der Einstellungen) oder einem Notfallcode einschalten")
         self.admin.clicked.connect(lambda: self.admin_freischalten())
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
@@ -161,6 +162,9 @@ class LizenzDialog(QDialog):
             if not self.stumm:
                 QMessageBox.warning(self, "Lizenz", "Das Admin-Passwort ist falsch.")
             return False
+        if self.stelle.notfall and not self.stumm:
+            QMessageBox.information(self, "Lizenz", "Mit Notfallcode freigeschaltet (nur für diese Sitzung). Bitte "
+                                    "eine neue Admin-Lizenz mit neuem Admin-Passwort ausstellen und hier laden.")
         self.anzeigen()
         if hasattr(self.f, "lizenz_anwenden"):
             self.f.lizenz_anwenden()
@@ -179,7 +183,8 @@ class LizenzDialog(QDialog):
 
 def admin_passwort_abfragen(eltern=None, versuch=0):
     """Eingabefeld für das Admin-Passwort. Ergebnis: Text oder None (abgebrochen)."""
-    text = "Admin-Passwort eingeben:" if not versuch else "Passwort falsch. Bitte noch einmal:"
+    text = ("Admin-Passwort (oder Notfallcode) eingeben:" if not versuch
+            else "Passwort falsch. Bitte noch einmal:")
     wert, ok = QInputDialog.getText(eltern, f"{NAME} – Admin-Lizenz", text, QLineEdit.Password)
     return wert if ok else None
 

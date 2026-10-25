@@ -4,7 +4,8 @@ P1 Hash bilden/prüfen: richtig, falsch, leer, Klartext (alt) gilt weiter, kaput
 P2 in der Datendatei steht nie der Klartext (einstellung_setzen, stammdaten_ersetzen);
 P3 alte Datendatei mit Klartext-Passwort wird beim Öffnen umgestellt, das Passwort gilt weiter;
 P4 Oberfläche: Reiter Einstellungen öffnet mit dem Passwort, Feld zeigt keinen Hash, Entfernen = ohne Passwort;
-P5 Admin-Passwort beim Start (Lizenz) prüft gegen den Hash.
+P5 Admin-Passwort beim Start (Lizenz) prüft gegen den Hash;
+P6 ohne Admin-Rechte lässt sich das Passwort der Einstellungen nicht setzen, ändern oder entfernen.
 Aufruf: python tests/test_passwort.py
 """
 import json
@@ -78,7 +79,13 @@ from rohrlaser.fenster import EinstellungenSeite, PasswortEingabe  # noqa: E402
 
 seite = EinstellungenSeite(db, lambda *a, **k: None, gruppen=("Zugang",))
 w = seite.felder["passwort"]
-pruefe(isinstance(w, PasswortEingabe) and w.feld.text() == "" and w.weg.isEnabled(), "P4 Feld leer, kein Hash sichtbar")
+pruefe(not w.feld.isEnabled() and not w.weg.isEnabled(), "P6 ohne Admin-Rechte: Passwortfeld gesperrt")
+w.feld.setText("fremd")
+w.feld.editingFinished.emit()
+pruefe(db.passwort_pruefen("alt123") and not db.passwort_pruefen("fremd"), "P6 ohne Admin-Rechte: nichts gespeichert")
+seite.admin_setzen(True)
+pruefe(isinstance(w, PasswortEingabe) and w.feld.text() == "" and w.weg.isEnabled() and w.feld.isEnabled(),
+       "P4 mit Admin-Rechten: Feld leer, kein Hash sichtbar")
 w.feld.setText("neu789")
 w.feld.editingFinished.emit()
 pruefe(db.passwort_pruefen("neu789") and not db.passwort_pruefen("alt123") and w.feld.text() == "",

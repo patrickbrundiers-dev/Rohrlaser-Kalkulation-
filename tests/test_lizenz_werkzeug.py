@@ -38,7 +38,21 @@ b = wz.ausstellen(ordner, "benutzer", "Ben", "Muster GmbH", H + T(days=200), ["R
 c = wz.ausstellen(ordner, "test", "Carla", "Probe AG", H - T(days=5), [], heute=H - T(days=40), pw=PW)
 d = wz.ausstellen(ordner, "benutzer", "Dora", "Alt KG", H - T(days=90), ["RL-DDDD-DDDD-DDDD-DDDD"], heute=H - T(days=200),
                   pw=PW)
-wz.ausstellen(ordner, "admin", "Patrick", "", None, ["RL-PPPP-PPPP-PPPP-PPPP"], heute=H, pw=PW)
+ADMIN_PW = "admin-geheim-1"
+for art, apw, text in (("admin", "", "mindestens"), ("admin", "kurz", "mindestens"), ("benutzer", ADMIN_PW, "Nur")):
+    try:
+        wz.ausstellen(ordner, art, "X", "", None if art == "admin" else H + T(days=5), ["RL-PPPP-PPPP-PPPP-PPPP"],
+                      heute=H, pw=PW, admin_passwort=apw)
+        raise AssertionError("Fehler erwartet")
+    except SystemExit as e:
+        assert text in str(e), e
+adm = wz.ausstellen(ordner, "admin", "Patrick", "", None, ["RL-PPPP-PPPP-PPPP-PPPP"], heute=H, pw=PW,
+                    admin_passwort=ADMIN_PW)
+ai = lizenz.pruefen(lizenz.lesen(adm), SCHLUESSEL)
+from rohrlaser import passwort  # noqa: E402
+assert passwort.ist_hash(ai["admin_passwort"]) and passwort.pruefen(ADMIN_PW, ai["admin_passwort"])
+assert ADMIN_PW not in adm.read_text(encoding="utf-8")
+ok("Admin-Lizenz: Admin-Passwort Pflicht (mind. 10 Zeichen), nur als Hash in der Lizenz, nicht bei Benutzerlizenz")
 zeilen = wz.register_lesen(ordner)
 nach_id = {z["inhaber"]: z for z in zeilen}
 
@@ -80,14 +94,33 @@ zeilen = wz.register_lesen(ordner)
 assert [z["inhaber"] for z, _, _ in wz.faellig(zeilen, H)] == ["Carla"]
 neu_c = wz.verlaengern(ordner, nach_id["Carla"]["lizenz_id"], heute=H, pw=PW)
 assert lizenz.pruefen(lizenz.lesen(neu_c), SCHLUESSEL)["rechner"] == []          # beliebiger Rechner bleibt
-for lid, text in ((next(z["lizenz_id"] for z in zeilen if z["art"] == "admin"), "unbefristet"),
-                  ("L-1999-0001", "nicht im Register")):
+admin_id = next(z["lizenz_id"] for z in zeilen if z["art"] == "admin")
+for lid, text in ((admin_id, "mindestens"), ("L-1999-0001", "nicht im Register")):
     try:
         wz.verlaengern(ordner, lid, heute=H, pw=PW)
         raise AssertionError("Fehler erwartet")
     except SystemExit as e:
         assert text in str(e), e
-ok("Verlängern: neue Lizenz im Anschluss mit denselben Angaben, Erinnerung erledigt, Admin/unbekannt abgelehnt")
+ersatz = lizenz.pruefen(lizenz.lesen(wz.verlaengern(ordner, admin_id, heute=H, pw=PW, admin_passwort="ganz-neu-2026")),
+                        SCHLUESSEL)
+assert ersatz["art"] == "admin" and ersatz["gueltig_bis"] is None and ersatz["rechner"] == ["RL-PPPP-PPPP-PPPP-PPPP"]
+assert ersatz["hinweis"] == f"Ersatz für {admin_id}" and passwort.pruefen("ganz-neu-2026", ersatz["admin_passwort"])
+assert not passwort.pruefen(ADMIN_PW, ersatz["admin_passwort"])
+ok("Verlängern: neue Lizenz im Anschluss mit denselben Angaben, Erinnerung erledigt, unbekannt abgelehnt, "
+   "Admin = neu ausstellen mit neuem Passwort")
+
+# Notfallcode (Admin-Passwort vergessen)
+code = wz.notfallcode(ordner, "rl-pppp-pppp-pppp-pppp", PW, heute=H)
+assert lizenz.notfallcode_gueltig(code, "RL-PPPP-PPPP-PPPP-PPPP", H, SCHLUESSEL)
+assert lizenz.notfallcode_gueltig(code, "RL-PPPP-PPPP-PPPP-PPPP", H + T(days=1), SCHLUESSEL)
+assert not lizenz.notfallcode_gueltig(code, "RL-PPPP-PPPP-PPPP-PPPP", H + T(days=2), SCHLUESSEL)
+assert not lizenz.notfallcode_gueltig(code, "RL-AAAA-AAAA-AAAA-AAAA", H, SCHLUESSEL)
+try:
+    wz.notfallcode(ordner, "keine-id", PW)
+    raise AssertionError("Fehler erwartet")
+except SystemExit:
+    pass
+ok("Notfallcode: gilt für den Rechner heute und morgen, nicht übermorgen, nicht für andere Rechner")
 
 # Sperren + Sperrliste hochladen (GitHub nachgebaut)
 wz.sperren(ordner, [nach_id["Dora"]["lizenz_id"]], PW)
