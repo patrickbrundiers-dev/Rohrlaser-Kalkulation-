@@ -225,6 +225,73 @@ def abziehen(k, werkzeuge):
     return cut.Shape()
 
 
+GRUPPE_SPALT = 0.05     # Hüllquader so weit vergrößert prüfen: Werkzeuge mit kleinerem Abstand gelten als überlappend [mm]
+GRUPPE_ZELLEN = 4000    # Werkzeuge über so viele Rasterzellen allein abziehen
+GRUPPE_GROSS = 1.0e4    # Werkzeuge mit größerem Hüllquader (Halbraum der Enden) immer einzeln abziehen [mm]
+
+
+def _huelle(w):
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    b = Bnd_Box()
+    BRepBndLib.Add_s(w, b)
+    if b.IsVoid():
+        return None
+    a, c = b.CornerMin(), b.CornerMax()
+    x0, y0, z0, x1, y1, z1 = a.X(), a.Y(), a.Z(), c.X(), c.Y(), c.Z()
+    if max(x1 - x0, y1 - y0, z1 - z0) > GRUPPE_GROSS:
+        return None
+    s = GRUPPE_SPALT
+    return (x0 - s, y0 - s, z0 - s, x1 + s, y1 + s, z1 + s)
+
+
+def werkzeug_gruppen(werkzeuge, huelle=_huelle):
+    """Werkzeuge in Gruppen, deren Hüllquader sich nicht berühren: eine Gruppe wird in einer Operation abgezogen
+    (Performance-Update P4: 1.000 Bohrungen in wenigen Durchgängen statt 1.000 einzelnen). Werkzeuge, deren
+    Hüllquader sich berühren, und sehr große (Halbraum) kommen in verschiedene Gruppen bzw. allein; die Reihenfolge
+    im Ergebnis ist egal, Abziehen ist vertauschbar."""
+    gruppen, raster, zelle = [], [], None
+    allein = []
+    boxen = []
+    for w in werkzeuge:
+        b = huelle(w)
+        if b is None:
+            allein.append([w])
+        else:
+            boxen.append((w, b))
+    if boxen:
+        groessen = sorted(max(b[3] - b[0], b[4] - b[1], b[5] - b[2]) for _, b in boxen)
+        zelle = max(groessen[len(groessen) // 2], 1.0)
+
+    def zellen(b):
+        return [(i, j, k) for i in range(int(b[0] // zelle), int(b[3] // zelle) + 1)
+                for j in range(int(b[1] // zelle), int(b[4] // zelle) + 1)
+                for k in range(int(b[2] // zelle), int(b[5] // zelle) + 1)]
+
+    def beruehrt(a, b):
+        return a[0] <= b[3] and b[0] <= a[3] and a[1] <= b[4] and b[1] <= a[4] and a[2] <= b[5] and b[2] <= a[5]
+
+    for w, b in boxen:
+        n = 1
+        for a in range(3):
+            n *= int(b[a + 3] // zelle) - int(b[a] // zelle) + 1
+        if n > GRUPPE_ZELLEN:           # viel größer als die übrigen (Ende, lange Kontur): allein
+            allein.append([w])
+            continue
+        z = zellen(b)
+        for g, r in zip(gruppen, raster):
+            if not any(beruehrt(b, a) for c in z for a in r.get(c, ())):
+                break
+        else:
+            g, r = [], {}
+            gruppen.append(g)
+            raster.append(r)
+        g.append(w)
+        for c in z:
+            r.setdefault(c, []).append(b)
+    return allein + gruppen
+
+
 def vereinfachen(k):
     """Gleiche Flächen zusammenlegen (ebene Dreiecke eines Werkzeugs werden eine Fläche)."""
     from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
@@ -565,8 +632,8 @@ def teil_bauen(teil):
             wz.append(werkzeug(w))
         except Exception as ex:             # ein Werkzeug fehlt: Teil trotzdem schreiben, mit Meldung
             meldungen.append(f"{w.get('name') or w['art']}: nicht erzeugt ({ex})")
-    for w in wz:                    # einzeln: überlappende Werkzeuge (Stücke einer Kontur, Enden) sicher
-        k = abziehen(k, [w])
+    for gruppe in werkzeug_gruppen(wz):     # überlappende Werkzeuge (Stücke einer Kontur, Enden) nie zusammen
+        k = abziehen(k, gruppe)
     rillen = []
     for w in teil.get("rillen") or ():
         try:

@@ -660,6 +660,8 @@ class StangenSeite(QWidget):
         for b in self.knoepfe.buttons():
             b.setChecked(b.text() == name)
         self.stapel.setCurrentWidget(self.rollen[name])
+        if name == DETAIL and getattr(self, "_abw_offen", False):
+            self.stange_zeigen(self.nr)
         if name == UEBERSICHT and self.nr is not None:
             self._hinscrollen()
         if melden and self.merken:
@@ -670,8 +672,11 @@ class StangenSeite(QWidget):
         self.nr = nr
         s = self.stange(nr)
         self.uebersicht.waehlen(nr if s else None)
+        # Abwicklung erst rechnen, wenn das Stangen-Detail zu sehen ist (Performance-Plan P9: bei einem Rohr mit
+        # 1.000 Bohrungen kostete sie bei jedem Öffnen des Angebots 2,4 s, auch wenn niemand ins Detail schaute)
+        self._abw_offen = self.ansicht != DETAIL
         self.detail.setzen(s, self.werte.get(nr), self.farben, [x["nr"] for x in self.stangen],
-                           self.gleiche(s) if s else (), self.abwicklung(s))
+                           self.gleiche(s) if s else (), None if self._abw_offen else self.abwicklung(s))
         self.detail.markieren(self.markiert)
         if ansicht:
             self.ansicht_setzen(ansicht)

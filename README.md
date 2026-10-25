@@ -5,6 +5,19 @@ Angebote erfassen (von Hand oder per STEP-Import), Teile auf möglichst wenige S
 Kosten je Kostenart kalkulieren, Staffelpreise rechnen und Angebot, Werkstattpapiere und Kalkulation
 als PDF ausgeben. Zum Installieren (ohne Administratorrechte) oder portabel ohne Installation.
 
+## Systemvoraussetzungen
+
+| | Mindestens | Empfohlen |
+|---|---|---|
+| Windows | 10 (22H2) oder 11, 64 Bit | 11, 64 Bit |
+| Prozessor | 4 Kerne, 2 GHz | 6–8 Kerne, 3 GHz (Optimieren und STEP-Messung nutzen bis zu 4 Hilfsprozesse) |
+| Arbeitsspeicher | 8 GB | 16 GB (große STEP-Dateien: etwa 1,2 GB je 1.000 Bohrungen) |
+| Grafik | beliebig (3D ohne OpenGL langsamer) | OpenGL 2.0 oder höher (3D flüssig auch bei großen Baugruppen) |
+| Speicherplatz | 1 GB frei (Programm etwa 400 MB, Daten, Sicherungen) | 5 GB frei (Angebotsordner mit STEP-Kopien) |
+| Bildschirm | 1366 × 768 | 1920 × 1080 oder größer |
+
+Im Programm: **Hilfe → Systemprüfung …** (`programm/rohrlaser/systempruefung.py`, einmal nach Installation bzw. Update mit Hinweis, wenn etwas unter dem Minimum liegt).
+
 ## Installation oder portabel
 
 Beide Formen kommen aus demselben Build und enthalten dieselben Programmdateien (der Build prüft die Prüfsummen und vergleicht die Rechenergebnisse); sie unterscheiden sich nur im Datenort (`programm/rohrlaser/orte.py`):

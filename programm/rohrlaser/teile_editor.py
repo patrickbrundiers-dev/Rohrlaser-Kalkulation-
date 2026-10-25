@@ -969,7 +969,7 @@ class EditorRahmen(QObject):
             except (ValueError, TypeError, ZeroDivisionError):
                 netz = None
             netz, titel = netz or self.step_netz, "3D-Modell (aus den Eingaben)"
-        if netz is a.netz:
+        if netz is a.netz or (netz is not None and netz == a.netz):     # gleiches Netz: nicht neu aufbauen
             return
         alt = a.netz is not None
         blick = (a.gier, a.nick, a.zoom, a.versatz)

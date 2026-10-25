@@ -76,8 +76,8 @@ class StufenModell(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(STUFEN_SPALTEN)
 
-    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
-        if rolle == Qt.DisplayRole:
+    def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
+        if rolle == Qt.ItemDataRole.DisplayRole:
             return STUFEN_SPALTEN[abschnitt] if richtung == Qt.Horizontal else str(abschnitt + 1)
         return None
 
@@ -113,18 +113,18 @@ class StufenModell(QAbstractTableModel):
         return next((h for h in hinweise if h.startswith("VERALTET")), "") or \
             ("gemeinsamer Auftrag" if len(mz) > 1 else "eine Position")
 
-    def data(self, index, rolle=Qt.DisplayRole):
+    def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
         r, c = index.row(), index.column()
-        if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
+        if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             t = self.text(r, c)
-            if rolle == Qt.ToolTipRole and c in (0, 1, 2, 3):
+            if rolle == Qt.ItemDataRole.ToolTipRole and c in (0, 1, 2, 3):
                 return "Doppelklick: Stufe bearbeiten (Einstellungen, Materialpreise, Mengen)"
             return t
-        if rolle == Qt.TextAlignmentRole and c == 4:
+        if rolle == Qt.ItemDataRole.TextAlignmentRole and c == 4:
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole and c == PRUEFUNG:
+        if rolle == Qt.ItemDataRole.BackgroundRole and c == PRUEFUNG:
             t = self.text(r, c)
             return QBrush(FARBE_STATUS["FEHLER"] if t.startswith("FEHLER") else FARBE_STATUS["WARNUNG"]
                           if t.startswith("VERALTET") else FARBE_BERECHNET)
@@ -390,7 +390,7 @@ class StufeDialog(QDialog):
         elif it.column() == 0:
             self.mengen.blockSignals(True)
             for c in (2, 3):
-                self.mengen.item(r, c).setData(Qt.ForegroundRole, None if self.drin(r) else QBrush(GRAU))
+                self.mengen.item(r, c).setData(Qt.ItemDataRole.ForegroundRole, None if self.drin(r) else QBrush(GRAU))
             self.mengen.blockSignals(False)
 
     def werte(self):
@@ -507,8 +507,8 @@ class ErgebnisBaum(QTreeWidget):
         angebot: {Schlüssel: Preis je Einheit im Angebot} (angebotspreise) für die Zeile 'Δ zum Angebotspreis'."""
         for i in range(self.topLevelItemCount()):
             it = self.topLevelItem(i)
-            if it.data(0, Qt.UserRole):
-                (self.offen.add if it.isExpanded() else self.offen.discard)(it.data(0, Qt.UserRole))
+            if it.data(0, Qt.ItemDataRole.UserRole):
+                (self.offen.add if it.isExpanded() else self.offen.discard)(it.data(0, Qt.ItemDataRole.UserRole))
         self.clear()
         titel = ["Kostenposition"]
         for z in zeilen:
@@ -544,7 +544,7 @@ class ErgebnisBaum(QTreeWidget):
             it.setSizeHint(0, QSize(-1, ZEILENHOEHE))       # sonst stoßen die Zeilen aneinander
             (eltern.addChild if eltern is not None else self.addTopLevelItem)(it)
             if schl:
-                it.setData(0, Qt.UserRole, schl)
+                it.setData(0, Qt.ItemDataRole.UserRole, schl)
             if art.startswith("summe"):
                 f = it.font(0)
                 f.setBold(True)
@@ -617,16 +617,16 @@ class ErgebnisBaum(QTreeWidget):
                                                    else FARBE_STATUS["WARNUNG"]))
         for i in range(self.topLevelItemCount()):
             t = self.topLevelItem(i)
-            t.setExpanded(t.data(0, Qt.UserRole) in self.offen)
+            t.setExpanded(t.data(0, Qt.ItemDataRole.UserRole) in self.offen)
 
     def zeile(self, schl):
         """Eintrag einer Kostenposition (für Tests und Bildschirmfotos)."""
         for i in range(self.topLevelItemCount()):
             t = self.topLevelItem(i)
-            if t.data(0, Qt.UserRole) == schl:
+            if t.data(0, Qt.ItemDataRole.UserRole) == schl:
                 return t
             for c in range(t.childCount()):
-                if t.child(c).data(0, Qt.UserRole) == schl:
+                if t.child(c).data(0, Qt.ItemDataRole.UserRole) == schl:
                     return t.child(c)
         return None
 
