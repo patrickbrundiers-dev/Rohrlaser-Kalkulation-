@@ -487,17 +487,32 @@ class SteckEditor:
             else:
                 seite = steckverbindung.SEITE_STEP.get(s_.get("seite"))
             x = round(float(s_["z"]), 1)
-            mit_schlitz = erster.get(auf) == str(s_.get("aufnahme")) and (auf, round(x), str(seite or "")) not in schlitze
+            ort = erster.get(auf) == str(s_.get("aufnahme"))
+            mit_schlitz = ort and (auf, round(x), str(seite or "")) not in schlitze
             mit_nasen = (st, ende) not in nasen
             if not (mit_schlitz or mit_nasen):
                 continue
             w = s_.get("achswinkel")
             plan.append(dict(auf=auf, st=st, ende=ende, x=x, seite=seite, schlitze=mit_schlitz, nasen=mit_nasen,
+                             schlitz_ort=ort,
                              winkel=round(w, 1) if isinstance(w, (int, float))
                              and steckverbindung.WINKEL_MIN <= w < 89.5 else None))
             schlitze.add((auf, round(x), str(seite or "")))
             nasen.add((st, ende))
         return plan, weg
+
+    def steck_schnitte(self, e):
+        """Schlitze/Nasen eines Plan-Eintrags gegen die jetzt vorhandenen Verbindungen neu bestimmen (wer nur einen
+        späteren Vorschlag übernimmt, braucht dessen Schlitze und Nasen selbst). None: beides gibt es schon."""
+        vorhanden = self.bg["steckverbindungen"]
+        mit_schlitz = e.get("schlitz_ort", e["schlitze"]) and not any(
+            z.get("_schlitze") is not False and (z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
+            == (e["auf"], round(e["x"]), str(e["seite"] or "")) for z in vorhanden)
+        mit_nasen = not any(z.get("_nasen") is not False and (z.get("_st"), z.get("_ende")) == (e["st"], e["ende"])
+                            for z in vorhanden)
+        if not (mit_schlitz or mit_nasen):
+            return None
+        return dict(e, schlitze=bool(mit_schlitz), nasen=mit_nasen)
 
     def steck_zeile(self, e):
         """Zeile der Tabelle Steckverbindungen für einen Eintrag von steck_plan (noch nicht angelegt)."""
@@ -1077,7 +1092,11 @@ class VorschlagEditor:
             if {v["daten"]["auf"], v["daten"]["st"]} & im_knick:
                 nicht.append(f"{v['titel']}: Teil ist jetzt in einem Knickrahmen")
                 continue
-            self.bg["steckverbindungen"].append(self.steck_zeile(v["daten"]))
+            e = self.steck_schnitte(v["daten"])
+            if e is None:
+                nicht.append(f"{v['titel']}: Schlitze und Nasen gibt es schon")
+                continue
+            self.bg["steckverbindungen"].append(self.steck_zeile(e))
             n += 1
         if steck:
             self.steck_tab.aufbauen()

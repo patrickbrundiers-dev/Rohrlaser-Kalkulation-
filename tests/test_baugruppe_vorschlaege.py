@@ -225,5 +225,19 @@ assert baugruppe.vorschlag_naht(dict(teile=[[1, 2], [2, 3]], anzahl=2))["paare"]
 assert entpacken(db.netz(next(q for q in db.positionen(a3) if q.get("art") != BAUGRUPPE)["id"]))
 ok("Schweißbaugruppe: Nahtgruppen verlieren mit dem Knickrahmen 3 Ecken, Lösen holt sie zurück; Vorschlag rechnet "
    "Ecknähte und Positionieren")
+# Nur einen späteren Vorschlag übernehmen: Schlitze/Nasen gegen das Vorhandene neu bestimmen
+from types import SimpleNamespace  # noqa: E402
+
+from rohrlaser.baugruppe_dialog import SteckEditor  # noqa: E402
+
+ed = SimpleNamespace(bg=dict(steckverbindungen=[]))
+spaet = dict(auf="1", st="2", ende="a", x=100.0, seite="oben", schlitze=False, nasen=False, schlitz_ort=True)
+e = SteckEditor.steck_schnitte(ed, spaet)
+assert e and e["schlitze"] and e["nasen"], e
+ed.bg["steckverbindungen"].append(dict(_auf="1", _st="2", _ende="a", x=100.0, seite="oben"))
+assert SteckEditor.steck_schnitte(ed, spaet) is None
+assert not SteckEditor.steck_schnitte(ed, dict(spaet, ende="b"))["schlitze"]
+assert SteckEditor.steck_schnitte(ed, dict(spaet, ende="b", schlitz_ort=False, x=300.0))["schlitze"] is False
+ok("Einzelner späterer Vorschlag bekommt seine Schlitze und Nasen selbst, doppelte entfallen")
 db.schliessen()
 print("Vorschläge je Baugruppe: alle Tests bestanden.")
