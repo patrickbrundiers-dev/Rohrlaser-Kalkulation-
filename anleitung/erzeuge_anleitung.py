@@ -990,12 +990,20 @@ def kapitel_angebot(i):
             "Werte an den Positionen (Meterpreis, Schneidzeit, Zukaufteile) bleiben. "
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
             "Beim Kopieren gehen die Werte mit.",
-            "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
+            "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschlag Fremdleistung, "
+            "Aufschlag Bleche, Aufschlag Zukaufteile, Handling Kundenmaterial), <b>Zeit und "
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel SN und Stundensatz der Maschine zur Information, "
             "Rüstzeit je Maschine nur, wenn sie nicht 0 min ist; Stangenwechsel je Stange, Rüstzeit je Abmessung, "
             "Programmierzeit je Position und je Innenkontur änderbar), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
+            "<b>Aufschlag Bleche [%]</b> und <b>Aufschlag Zukaufteile [%]</b> (Vorgabe je 10 % aus den Einstellungen) "
+            "gelten für alle Bleche bzw. alle übrigen Zukaufteile dieses Angebots, als % auf den Einstand; sie "
+            "ersetzen dort den Aufschlag von Artikel, Kategorie und Standard ([[zukauf_kategorien]]). Ein "
+            "Positionsaufschlag im Fenster Zukaufteile geht weiter vor. Als Blech zählt ein Artikel vom Typ Blech oder "
+            "der Kategorie Blechteile. Die Zeilen stehen nur da, wenn das Angebot Bleche bzw. Zukaufteile hat. "
+            "Angebote aus älteren Programmversionen rechnen mit den bisherigen Regeln, bis hier ein Wert eingetragen "
+            "wird (unter Erweiterte Einstellungen).",
             "<b>Stangenwechsel je Stange [s]</b> gilt für Stangen ohne feste Schweißnaht-Lage und nur für dieses "
             "Angebot (Vorgabe aus den Stammdaten Maschinen, gespeichert mit den Zeitvorgaben des Angebots). Ein "
             "abweichender Wert ist gelb und steht in der Liste der Abweichungen; <b>Vorgaben aus Einstellungen</b> "
@@ -4643,6 +4651,9 @@ def kapitel_einstellungen(i):
          "([[zukauf_kategorien]]); "
          "leer = kein Standardaufschlag, das Programm weist dann darauf hin. Neue Werte gelten nur für Zukaufteile, "
          "die danach ins Angebot kommen."],
+        ["Kalkulation", "Aufschlag Bleche im Angebot, Aufschlag Zukaufteile im Angebot",
+         "Vorgabe neuer Angebote (je 10 %): % auf den Einstand aller Bleche bzw. aller übrigen Zukaufteile; ersetzt "
+         "im Angebot Artikel-, Kategorie- und Standardaufschlag, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
         ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
@@ -5816,7 +5827,9 @@ def kapitel_zukauf(i):
     i.bild("zukauf_kategorien", "Zukaufartikel, Unterreiter Kategorien (Beispiel: 30 % für Schrauben und Muttern)",
            hoehe=80 * mm, legende=[(1, "Unterreiter <b>Kategorien</b>")])
     i.text("Je Kategorie ein Standardaufschlag. Vorrang: Aufschlag der Position vor dem des Artikels vor dem der "
-           "Kategorie vor dem Standard der Einstellungen.", kurz=True)
+           "Kategorie vor dem Standard der Einstellungen. In Angeboten ab 0.9.132 ersetzen <i>Aufschlag Bleche</i> "
+           "und <i>Aufschlag Zukaufteile</i> der Karte Kalkulation die Regeln von Artikel, Kategorie und Standard "
+           "([[angebotskopf]]).", kurz=True)
     i.genauer()
     i.text("Unter <b>Kategorien</b> steht je Kategorie ein Standardaufschlag: Kategorie, Standard-Aufschlagsmethode "
            "(% auf Einstand, € je Einheit, € je Bestellung oder Zielmarge %), Standardaufschlag [% bzw. €], Aktiv "
