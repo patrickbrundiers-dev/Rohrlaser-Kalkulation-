@@ -6,7 +6,8 @@ Zeichnung (rohr_gehrung_QR40_patrick.dxf) wird im Test umgebaut und muss dasselb
 - V3 Blattrahmen und Schriftfeldrahmen: fallen weg, Ansichten bleiben
 - V4 zwei Teile auf einem Blatt: das längste mit Hinweis (unsicher), das andere über die Vorgabe Teil
 - V5 ohne Projektionsangabe (englisches Schriftfeld): unsicher; Zuordnungsfenster mit Projektion USA rechnet richtig,
-  das Programm merkt sich die Projektion je Zeichnungsstil und fragt beim nächsten Mal nicht
+  das Programm merkt sich die Projektion je Zeichnungsstil und fragt beim nächsten Mal nicht; eine Angabe in der
+  Zeichnung geht dem Gemerkten vor
 - V6 Zuordnungsfenster: Rolle je Ansicht von Hand; Rohr-Editor und Angebot „Aus DXF“ zeigen das Fenster nur bei
   Unsicherheit, Abbrechen übernimmt nichts
 - V7 Profiltext mit Ø, Projektionsmethode aus Text, Fingerabdruck
@@ -157,6 +158,12 @@ assert e4b["ok"] and e4b["laenge"] == 150 and not e4b["unsicher"]
 assert [z["x"] for z in e4b["eingaben"]["konturen"]] == [18.6, 46.8, 79.2, 120.6]
 ok("V4 zwei Teile auf einem Blatt: das längste mit Hinweis, das andere über die Vorgabe Teil")
 
+def _datei(name, text):
+    p = tmp / name
+    p.write_text(text, encoding="utf-8")
+    return p
+
+
 # ------------------------------------------------------------------ V5 ohne Projektionsangabe, Zuordnungsfenster
 ENGLISCH = {"Werkstoff": "Material", "Massstab": "Scale", "Benennung": "Title", "Gezeichnet": "Drawn",
             "Zeichnungsnummer": "Drawing No.", "Datum": "Date", "Blatt": "Sheet"}
@@ -185,6 +192,8 @@ assert len(gezeigt) == 1 and kern(e5b) == K0
 assert db.einstellung(drd.EINSTELLUNG) == {dr.fingerabdruck(englisch): 3}
 e5c = drd.rohr_erkennen(None, db, pfad, dialog=lambda d: 1 / 0)          # gemerkt: kein Fenster
 assert kern(e5c) == K0 and e5c["projektion"] == 3
+db.einstellung_setzen(drd.EINSTELLUNG, {dr.fingerabdruck(usa): 1})       # gemerkt E1, Zeichnung sagt USA
+assert kern(drd.rohr_erkennen(None, db, _datei("usa_text.dxf", usa), dialog=lambda d: 1 / 0)) == K0
 ok("V5 ohne Projektionsangabe: Zuordnungsfenster, USA gewählt = richtig; gemerkt je Zeichnungsstil, keine Rückfrage")
 
 # ------------------------------------------------------------------ V6 Rollen von Hand, Oberfläche

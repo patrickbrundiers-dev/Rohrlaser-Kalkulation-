@@ -639,7 +639,7 @@ def _erkennen(roh, li, dateiname, vorgaben):
     ansichten = ohne_rahmen(da.gruppen(li.sicht, li.kreise))
     proj, proj_quelle = (vorgaben["projektion"], "Vorgabe") if vorgaben.get("projektion") in (1, 3) \
         else projektion(texte)
-    erg["projektion"] = proj or 1
+    erg["projektion"], erg["projektion_quelle"] = proj or 1, proj_quelle
 
     def ansichten_liste(rolle_von, f_je):
         return [dict(nr=i, rolle=rolle_von(a), bb=a.bb, massstab=f, quelle=quelle, vorgabe=rollen.get(i))

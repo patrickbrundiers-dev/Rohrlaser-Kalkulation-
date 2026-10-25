@@ -46,9 +46,11 @@ def rohr_erkennen(fenster, db, pfad, dialog=None, auch_fehler=False):
     ValueError beim Lesen gehen an den Aufrufer."""
     text = di.datei_lesen(pfad)
     name = Path(pfad).name
+    erg, vorgaben = dxf_rohr.erkennen(text, name), {}
     proj = gemerkt(db, text)
-    vorgaben = dict(projektion=proj) if proj else {}
-    erg = dxf_rohr.erkennen(text, name, vorgaben=vorgaben)
+    if proj and erg.get("projektion_quelle") is None:      # Angabe in der Zeichnung geht vor
+        vorgaben = dict(projektion=proj)
+        erg = dxf_rohr.erkennen(text, name, vorgaben=vorgaben)
     if not ((erg["ok"] and erg["unsicher"]) or (auch_fehler and not erg["ok"] and erg["rohrartig"])):
         return erg
     d = DxfZuordnungDialog(fenster, text, name, erg, vorgaben)
