@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.129", "<b>Angebotskopf und Kalkulation kompakter</b>: Bearbeiter neben der Bemerkung, der Satz „Im Angebot: "
+    ["0.9.130", "<b>Angebotskopf und Kalkulation kompakter</b>: Bearbeiter neben der Bemerkung, der Satz „Im Angebot: "
                 "Lieferzeit …“ nur noch ohne Lieferzeit (sonst als Tooltip); die Fracht steht auf breiten Bildschirmen "
                 "rechts neben der Kalkulation, der Haken Mindestauftragswert unter Verkauf und Gewinn. <i>Rüstzeit je "
                 "Maschine</i> fällt bei 0 min weg, <b>Stangenwechsel je Stange</b> ist je Angebot änderbar (gelb bei "
@@ -29,6 +29,20 @@ NEUERUNGEN = [
                 "Position</i> nimmt <b>STEP und DXF</b> per Ziehen oder Klick an, auch gemischt; <i>STEP importieren "
                 "…</i> steht nur noch im Menü (Strg+I) ([[step]]).",
      "Kopf und Kalkulation kompakter, Stangenwechsel je Angebot, Ablagefeld für STEP und DXF."],
+    ["0.9.129", "<b>Schnittkörper im 3D</b>: Jede Kontur ist zusätzlich ein halb durchsichtiger Körper, so tief wie "
+                "sie schneidet – eine Wand, beide Wände (durchgehend bis unter die Gegenwand), je Kopie bei allen "
+                "Seiten, eine schräge Bohrung entlang ihrer Neigung, eine Gravur so tief wie angegeben, beim Blech "
+                "durch die Dicke. Farbe je Konturart, die Maus darüber zeigt Kontur und Tiefe, die gewählte Kontur ist "
+                "kräftiger, ein Klick ins Loch wählt sie. Vorgabe an, abschaltbar mit <b>Schnittkörper</b> (Leiste "
+                "unter dem 3D, Blick-Menü, Rechtsklick → Darstellung); gilt für Rohr- und Blech-Editor, "
+                "Schweißbaugruppe und Satz in 3D ([[ansicht_3d_bedienung]]). Unbekannte Konturen (Sonderkontur) "
+                "sind pink und haben die Form aus der importierten STEP-Datei, V-Ausschnitte der Knickrahmen braun; "
+                "die Körper stehen außen und innen je 2 mm über. <b>Konturen genau wie die STEP</b>: Konturen über "
+                "gerundete Ecken und Bohrungen auf den Seiten vorne/unten/hinten lagen bis zu einigen mm neben der "
+                "STEP, jetzt auf Hundertstel genau; der Eckradius kommt aus der STEP-Datei, komplexe Enden haben im 3D "
+                "ihren gemessenen Verlauf, Rundrohre stehen im 3D wie die STEP. Schon importierte Teile mit <b>STEP "
+                "neu einlesen …</b> korrigieren.",
+     "Schnittkörper im 3D; Konturen und Enden aus der STEP auf Hundertstel genau"],
     ["0.9.128", "<b>Eingaben intuitiver</b>: Ja/Nein-Einstellungen sind Schalter, Ja/Nein-Spalten der Tabellen "
                 "Häkchen in der Zelle (ein Klick, Leertaste, J/N). Wenige Möglichkeiten (Thema, Dichte, "
                 "Eingaberichtung …) stehen als Knopfreihe da; feste Auswahllisten der Einstellungen nehmen keine "

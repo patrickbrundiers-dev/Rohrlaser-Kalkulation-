@@ -129,9 +129,14 @@ def radius(profil):
 
 
 def mit_radius(profil, eingaben):
-    """Profil mit dem Außenradius aus den Eingaben des Rechners (eingaben['r_aussen'], Zahl; beim Speichern wird er
-    zum Radius des Angebots für Profil + Werkstoff), sonst unverändert."""
-    r = (eingaben or {}).get("r_aussen")
+    """Profil mit dem Außenradius aus den Eingaben des Rechners: zuerst der gemessene Eckradius der STEP-Datei
+    (eingaben['r_step'], Skizze und 3D wie die STEP; nur solange das Profil das gemessene ist), sonst eingaben['r_aussen'] (Zahl; beim Speichern wird er zum
+    Radius des Angebots für Profil + Werkstoff), sonst unverändert."""
+    e = eingaben or {}
+    r = e.get("r_aussen")
+    if isinstance(e.get("r_step"), (int, float)) and not isinstance(e.get("r_step"), bool) and \
+            not anderes_profil(dict(messprofil=e.get("r_step_profil")), profil):
+        r = e["r_step"]             # nur für das gemessene Profil (nach einem Profilwechsel der des neuen Profils)
     if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 and profil.get("form") in opt.RADIUS_FORMEN:
         return dict(profil, r_aussen=float(r))
     return profil

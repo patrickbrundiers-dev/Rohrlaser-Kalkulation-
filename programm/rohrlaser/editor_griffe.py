@@ -660,6 +660,10 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
         x.setCheckable(True)
         x.setChecked(a3.nur_gewaehlt)
         x.triggered.connect(lambda an: rahmen.darstellung_setzen(nur_gewaehlt=an))
+        x = dm.addAction("Schnittkörper")
+        x.setCheckable(True)
+        x.setChecked(a3.koerper_an)
+        x.triggered.connect(lambda an: rahmen.koerper_setzen(an))
         if rohr and w is not None:
             for text, attr in (("Schnittebenen", "ebenen"), ("Maße am Modell", "masse")):
                 x = dm.addAction(text)
