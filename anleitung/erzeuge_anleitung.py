@@ -2437,7 +2437,8 @@ def kapitel_optimieren(i):
             "<b>Blick</b> (Klick: Isometrie, Pfeil: sechs Seiten, Auf Auswahl, Um 90° drehen, Perspektivisch, "
             "[[ansicht_3d_bedienung]]); beim Rohr STEP-Modell, Skizzenart und "
             "Querschnitt; Messen, Winkel, Maße löschen) und <i>Ausgabe</i> (Zeichnung als PDF, "
-            "STEP neu einlesen bzw. beim Blech Zeichnung als PDF und DXF speichern). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
+            "STEP neu einlesen, STEP speichern bzw. beim Blech Zeichnung als PDF, DXF speichern und STEP speichern "
+            "[[step_export]]). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
             "<b>Eigenschaften</b> rechts: alle Werte des gewählten Merkmals untereinander, bei Konturen mit einem "
             "<b>Maßbild</b>, das zeigt, welches Maß wohin gehört. Änderungen wirken sofort in Tabelle, Skizze und 3D. "
@@ -2595,6 +2596,24 @@ def kapitel_optimieren(i):
             "Zwischenablage, × schließt die Tafel. Die Maße bleiben im 3D stehen wie bisher.",
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
+    i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
+    i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor) schreibt das Teil als "
+           "STEP-Datei mit echtem Volumenkörper, so wie es im 3D-Modell aus den Eingaben zu sehen ist. Damit geht ein "
+           "im Editor gebautes Teil an den Kunden oder ins CAD. Vorschlag für den Ort ist der Ordner des Angebots, "
+           "Name der Artikelnummer.", kurz=True)
+    i.liste("<b>Rohr</b>: Profil mit echtem Außenradius, Enden gerade, Gehrung, 3D-Schnitt, Sattel und Gegenrohr wie "
+            "im 3D, Bohrungen als echte Zylinder, Langloch, Rechteck und Schlitz auf einer ebenen Wand mit echten "
+            "Bögen, alle anderen Konturen (Ausklinkung, Polygon, über Kanten) entlang der Wand.",
+            "<b>Steckverbindung</b>: Schlitze sind Konturen, die Nasen stehen über den Schnitt hinaus wie im 3D.",
+            "<b>Gravur</b> (Text-Gravur, Artikelnummer, Gravur mit Umriss): Rille 0,1 mm tief und 0,2 mm breit, "
+            "mindestens 0,5 mm von Enden, Rand und Konturen. Wo das nicht passt, wird die Gravur gekürzt und das "
+            "Programm sagt es nach dem Speichern.",
+            "<b>Blech</b>: ebene Bleche, auch aus dem DXF-Import, mit Außen- und Innenkonturen als echte Bögen. "
+            "Gekantete Bleche kann der Export noch nicht.",
+            "Biegerohre aus dem STEP-Import: dafür die Original-STEP weitergeben.",
+            "Nach dem Speichern zeigt eine Meldung Volumen und Flächenzahl. Das Programm prüft den Körper mit "
+            "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
+            "Länge und Konturen wie im Editor da.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),

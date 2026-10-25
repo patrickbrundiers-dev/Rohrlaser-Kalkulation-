@@ -15,6 +15,7 @@ from versionsinfo import versionsinfo  # noqa: E402
 datas, binaries, hiddenimports = collect_all("OCP")
 hiddenimports = [m for m in hiddenimports if "Vtk" not in m and "vtk" not in m]
 hiddenimports += ["step_abwicklung"]      # Kantteil-Abwicklung, wird erst bei Bedarf importiert
+hiddenimports += ["step_schreiben"]       # STEP-Export (--export), wird erst bei Bedarf importiert
 # RP-Bibliothek (rohrlaser/rp_profile.json) für die Erkennung der RP-Profile per Fingerabdruck
 datas += [(os.path.join(os.path.dirname(SPECPATH), "rohrlaser", "rp_profile.json"), "rohrlaser")]
 # Von delvewheel/auditwheel ausgelagerte DLLs (cadquery_ocp.libs) neben die .exe legen

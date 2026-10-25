@@ -170,6 +170,12 @@ jobs:
           python tests/vergleiche_messung.py referenz.txt exe.txt
           $n = (Get-ChildItem netze_exe -Filter *.json).Count
           if ($n -ne (Get-ChildItem netze_py -Filter *.json).Count -or $n -lt 8) { throw "STEP-Import.exe: $n 3D-Netze" }
+          # STEP-Export (Plan 3D-Editor 3E-8): dieselbe .exe baut aus einem Bauplan einen Volumenkörper
+          python -c "import json, sys; sys.path.insert(0, 'programm'); from rohrlaser import step_export as se; json.dump({'teile': [se.rohr_teil({'a': {'winkel': 45}, 'b': {}, 'konturen': [{'art': 'Bohrung', 'anzahl': 1, 'd': 10, 'x': 100}]}, {'form': 'Quadratrohr', 'a': 40, 'b': 40, 'wand': 3}, 300, 'Probe')]}, open('bauplan.json', 'w'))"
+          & "dist/STEP-Import/STEP-Import.exe" --export bauplan.json --step export.step --ergebnis export.json
+          if ($LASTEXITCODE -ne 0) { throw "STEP-Export Rückgabewert $LASTEXITCODE" }
+          $ex = Get-Content export.json -Raw -Encoding utf8 | ConvertFrom-Json
+          if (-not $ex.ok -or $ex.teile[0].koerper -ne 1) { throw "STEP-Export: $(Get-Content export.json -Raw)" }
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
       - name: Lizenz-Werkzeug.exe bauen und prüfen (nur für Patrick; eigener Ordner, nicht im Programm und im Update)
