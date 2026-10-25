@@ -58,9 +58,13 @@ def _laengen(poly):
 
 
 def _t_von(poly, cum, u, v):
-    """Bogenlänge des nächsten Punkts auf dem Polygon zu (u, v)."""
+    """Bogenlänge des nächsten Punkts auf dem Polygon zu (u, v). Bei vielen Aufrufen für dasselbe Polygon (je
+    Lochpunkt einer, Belastungstest 7.000 Bohrungen) sucht ein Raster nur die Kanten in der Nähe: gleiche Kanten
+    in gleicher Reihenfolge geprüft wie ohne Raster, daher dasselbe Ergebnis (Performance-Plan P1)."""
+    kandidaten = _kanten_raster(poly).nahe(u, v) if len(poly) > RASTER_AB else range(len(poly))
     beste = None
-    for i, a in enumerate(poly):
+    for i in kandidaten:
+        a = poly[i]
         b = poly[(i + 1) % len(poly)]
         du, dv = b[0] - a[0], b[1] - a[1]
         lg = du * du + dv * dv
@@ -69,6 +73,69 @@ def _t_von(poly, cum, u, v):
         if beste is None or d < beste[0]:
             beste = (d, cum[i] + f * (cum[i + 1] - cum[i]))
     return beste[1]
+
+
+RASTER_AB = 24          # Kanten: ab so vielen Kanten sucht _t_von über das Raster
+_raster_merker = {}
+
+
+class _KantenRaster:
+    """Kanten eines geschlossenen Polygons in quadratischen Zellen (Kantenlänge der größten Kante). nahe(u, v) =
+    Nummern aller Kanten, die näher liegen können als die nächste gefundene, aufsteigend sortiert."""
+
+    def __init__(self, poly):
+        n = len(poly)
+        self.h = max(max(math.dist(poly[i], poly[(i + 1) % n]) for i in range(n)), 1e-6)
+        self.poly, self.zellen = poly, {}
+        for i in range(n):
+            a, b = poly[i], poly[(i + 1) % n]
+            for cx in range(self._z(min(a[0], b[0])), self._z(max(a[0], b[0])) + 1):
+                for cy in range(self._z(min(a[1], b[1])), self._z(max(a[1], b[1])) + 1):
+                    self.zellen.setdefault((cx, cy), []).append(i)
+        xs = [k[0] for k in self.zellen]
+        ys = [k[1] for k in self.zellen]
+        self.rand = (min(xs), max(xs), min(ys), max(ys))
+
+    def _z(self, w):
+        return math.floor(w / self.h)
+
+    def _d2(self, i, u, v):
+        a, b = self.poly[i], self.poly[(i + 1) % len(self.poly)]
+        du, dv = b[0] - a[0], b[1] - a[1]
+        lg = du * du + dv * dv
+        f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
+        return (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
+
+    def nahe(self, u, v):
+        if not (math.isfinite(u) and math.isfinite(v)):
+            return range(len(self.poly))
+        cx, cy = self._z(u), self._z(v)
+        x0, x1, y0, y1 = self.rand
+        weit = max(abs(cx - x0), abs(cx - x1), abs(cy - y0), abs(cy - y1)) + 1
+        gefunden, beste = set(), None
+        for r in range(weit + 1):
+            for x in range(cx - r, cx + r + 1):
+                for y in ((cy - r, cy + r) if r and x not in (cx - r, cx + r) else range(cy - r, cy + r + 1)):
+                    for i in self.zellen.get((x, y), ()):
+                        if i not in gefunden:
+                            gefunden.add(i)
+                            d = self._d2(i, u, v)
+                            beste = d if beste is None or d < beste else beste
+            # Kanten in Ring r + 1 und weiter liegen mindestens r · h entfernt: strikt weiter weg als die beste
+            if beste is not None and (r * self.h) ** 2 > beste + 1e-6:
+                break
+        else:
+            return range(len(self.poly))
+        return sorted(gefunden)
+
+
+def _kanten_raster(poly):
+    r = _raster_merker.get(id(poly))
+    if r is None or r.poly is not poly:
+        if len(_raster_merker) > 32:
+            _raster_merker.clear()
+        r = _raster_merker[id(poly)] = _KantenRaster(poly)
+    return r
 
 
 def _innen(pt, poly):
@@ -165,16 +232,26 @@ def zelle_frei(feld, loch_liste):
     hoehen = sorted(hoehen)
     x_min, x_max = min(p[1] for p in feld), max(p[1] for p in feld)
     out = []
+    # Streifen aufsteigend: nur Löcher, die die Höhe des Streifens überdecken, in der Reihenfolge von loch_liste
+    # (die übrigen schneiden die Waagerechte nicht; Belastungstest: Hunderte Löcher je Spalte)
+    folge = sorted(range(len(loch_liste)), key=lambda k: min(p[1] for p in loch_liste[k]))
+    hoch = [max(p[1] for p in poly) for poly in loch_liste]
+    tief = [min(p[1] for p in poly) for poly in loch_liste]
+    naechst, aktiv = 0, set()
     for xa, xb in zip(hoehen, hoehen[1:]):
         if xb - xa < 1e-7 or xb <= x_min or xa >= x_max:
             continue
         xm = (xa + xb) / 2
+        while naechst < len(folge) and tief[folge[naechst]] <= xm:
+            aktiv.add(folge[naechst])
+            naechst += 1
+        aktiv = {k for k in aktiv if hoch[k] >= xm}
         q = _schnitte(feld, xm)
         if len(q) < 2:
             continue
         frei = [(q[0][0], q[0][1], q[-1][0], q[-1][1])]       # (t links, Kante, t rechts, Kante)
-        for poly in loch_liste:
-            s = _schnitte(poly, xm)
+        for nr in sorted(aktiv):
+            s = _schnitte(loch_liste[nr], xm)
             for k in range(0, len(s) - 1, 2):
                 (la, ka), (ra, kb) = s[k], s[k + 1]
                 neu = []
@@ -218,7 +295,55 @@ def nasen_stuecke(e, profil, laenge, nasen_winkel=None):
     return (n or {}).get("nasen") or []
 
 
+# Fertige Netze merken (Performance-Plan P1): Rohr-Editor, Satz in 3D, Baugruppe und Vorschau bauen dasselbe Rohr
+# sonst bei jeder Anzeige neu. Schlüssel = alle Eingaben; zurück kommt eine Kopie (Aufrufer verschieben Punkte).
+NETZ_MERKEN_ZAHLEN = 6_000_000      # höchstens so viele Zahlen (Punkte, Indizes) in allen gemerkten Netzen
+_netz_merker = {}
+
+
+def _kopie(o):
+    if isinstance(o, dict):
+        return {k: _kopie(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_kopie(x) for x in o] if o and isinstance(o[0], (list, dict, tuple)) else o[:]
+    if isinstance(o, tuple):
+        return tuple(_kopie(x) for x in o)
+    return o
+
+
+def _zahlen(n):
+    return len(n.get("p") or ()) + sum(len(t) for t in (n.get("t") or {}).values()) + \
+        sum(len(z) for zs in (n.get("l") or {}).values() for z in zs)
+
+
+def netz_merker_leeren():
+    _netz_merker.clear()
+
+
 def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, bau=None):
+    """Wie netz_rechnen, gleiche Eingaben liefern das gemerkte Netz (als Kopie). Mit bau (STEP-Export) immer neu."""
+    if bau is not None:
+        return netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel, bau)
+    import json
+    try:
+        schl = json.dumps([e, profil, laenge, naht_winkel, grenze, nasen_winkel], sort_keys=True, default=repr)
+    except (TypeError, ValueError):
+        return netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel)
+    if schl in _netz_merker:
+        _netz_merker[schl] = _netz_merker.pop(schl)
+        return _kopie(_netz_merker[schl])
+    n = netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel)
+    if n is None:
+        return None
+    _netz_merker[schl] = _kopie(n)
+    gesamt = sum(_zahlen(x) for x in _netz_merker.values())
+    while len(_netz_merker) > 1 and gesamt > NETZ_MERKEN_ZAHLEN:
+        alt = _netz_merker.pop(next(iter(_netz_merker)))
+        gesamt -= _zahlen(alt)
+    return n
+
+
+def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, bau=None):
     """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt.
     naht_winkel: Lage der Längsschweißnaht (naht.py, von Ende A gesehen 0° oben, 90° rechts) als rote Linie 'NL'
     über die ganze Länge (Patrick 24.10.2026), None = keine feste Naht. grenze: Kopfschwenk der Maschine [°] für
@@ -237,16 +362,16 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
     punkte, dreiecke, linien, normalen, kennung, flaeche_id = [], {}, {}, {}, {}, {}
 
     def punkt(v):
-        punkte.extend(round(c, 3) for c in v)
+        punkte.extend(v)            # gerundet wird einmal am Ende (schneller als je Punkt, gleiche Werte)
         return len(punkte) // 3 - 1
 
     def dreieck(art, a, b, c, soll, merkmal="teil"):
-        u = [b[i] - a[i] for i in range(3)]
-        w = [c[i] - a[i] for i in range(3)]
+        u = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        w = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
         n = (u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0])
         if n[0] ** 2 + n[1] ** 2 + n[2] ** 2 < 1e-12:
             return
-        if sum(n[i] * soll[i] for i in range(3)) < 0:
+        if sum((n[0] * soll[0], n[1] * soll[1], n[2] * soll[2])) < 0:        # sum wie bisher (gleiche Rundung)
             b, c = c, b
         dreiecke.setdefault(art, []).extend((punkt(a), punkt(b), punkt(c)))
         flaeche_id.setdefault(art, []).append(merkmal)       # Klick auf die Fläche wählt das Merkmal
@@ -306,6 +431,7 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
     T = cum[-1]
     loch_zeile = loecher(e, qs, aussen, cum, L) if innen and T > 0 else []
     loch = [q for q, _ in loch_zeile]
+    loch_rahmen = [(min(p[0] for p in q), max(p[0] for p in q), min(p[1] for p in q), max(p[1] for p in q)) for q in loch]
     zeilen = e.get("konturen") or []
     parallel = {i for i, z in enumerate(zeilen) if z.get("schnitt") == "parallel"} \
         if qs.r and e.get("d3") is True and innen else set()
@@ -351,9 +477,18 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
         Eckpunkte beider Nachbarn (sonst T-Stöße: feine Risse, die als Längslinien über das ganze Rohr laufen)."""
         n = len(poly)
         spalten = []
+        # Löcher je Spalte vorab einsortieren (statt je Spalte alle Löcher zu prüfen): Reihenfolge wie in loch
+        bereich = [(min(p[0] for p in q), max(p[0] for p in q)) for q in loch]
+        je_spalte = [[] for _ in range(n)]
+        for k, (lo, hi) in enumerate(bereich):
+            von = max(0, bisect.bisect_left(cum, lo) - 1)
+            bis = min(n - 1, bisect.bisect_right(cum, hi))
+            for i in range(von, bis + 1):
+                if lo < cum[i + 1] and hi > cum[i]:
+                    je_spalte[i].append(k)
         for i in range(n):
             t0, t1 = cum[i], cum[i + 1]
-            hier = [q for q in loch if min(p[0] for p in q) < t1 and max(p[0] for p in q) > t0]
+            hier = [loch[k] for k in je_spalte[i]]
             (u0, v0), (u1, v1) = poly[i], poly[(i + 1) % n]
             feld = [(t0, za(u0, v0)), (t1, za(u1, v1)), (t1, zb(u1, v1)), (t0, zb(u0, v0))]
             zellen = zelle_frei(feld, hier)
@@ -362,7 +497,11 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
             rechts = {x for _, tr0, x0, _, tr1, x1 in zellen if abs(tr0 - t1) < 1e-9 and abs(tr1 - t1) < 1e-9
                       for x in (x0, x1)}
             spalten.append((t0, t1, zellen, links, rechts))
-        grenze = [spalten[i][4] | spalten[(i + 1) % n][3] for i in range(n)]     # rechts von Spalte i
+        grenze = [sorted(spalten[i][4] | spalten[(i + 1) % n][3]) for i in range(n)]     # rechts von Spalte i
+
+        def zwischen(liste, x0, x1):
+            """Einträge der sortierten Liste strikt zwischen x0 + 1e-7 und x1 − 1e-7 (aufsteigend)."""
+            return liste[bisect.bisect_right(liste, x0 + 1e-7):bisect.bisect_left(liste, x1 - 1e-7)]
         for i, (t0, t1, zellen, _, _) in enumerate(spalten):
             (u0, v0), (u1, v1) = poly[i], poly[(i + 1) % n]
             du, dv = u1 - u0, v1 - v0
@@ -372,9 +511,8 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
                 f = 0.0 if t1 - t0 < 1e-12 else (t - t0) / (t1 - t0)
                 return _xyz(x, u0 + f * du, v0 + f * dv)
             for tl0, tr0, x0, tl1, tr1, x1 in zellen:
-                rechts = sorted(x for x in grenze[i] if x0 + 1e-7 < x < x1 - 1e-7) \
-                    if abs(tr0 - t1) < 1e-9 and abs(tr1 - t1) < 1e-9 else []
-                links = sorted((x for x in grenze[i - 1] if x0 + 1e-7 < x < x1 - 1e-7), reverse=True) \
+                rechts = zwischen(grenze[i], x0, x1) if abs(tr0 - t1) < 1e-9 and abs(tr1 - t1) < 1e-9 else []
+                links = zwischen(grenze[i - 1], x0, x1)[::-1] \
                     if abs(tl0 - t0) < 1e-9 and abs(tl1 - t0) < 1e-9 else []
                 if not rechts and not links:
                     a, b, c, d = p3(tl0, x0), p3(tr0, x0), p3(tr1, x1), p3(tl1, x1)
@@ -425,7 +563,8 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
                     tm = (cum[i] + cum[i + 1]) / 2
                     xm = (z(*p0) + z(*p1)) / 2
                     xm += 1e-3 if art == "EA" else -1e-3
-                    if any(_innen((tm, xm), q) for q in loch):
+                    if any(r[0] <= tm <= r[1] and r[2] <= xm <= r[3] and _innen((tm, xm), q)
+                           for q, r in zip(loch, loch_rahmen)):
                         continue
                 a0, a1 = _xyz(z(*p0), *p0), _xyz(z(*p1), *p1)
                 b0, b1 = _xyz(z(*q0), *q0), _xyz(z(*q1), *q1)
@@ -540,6 +679,7 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
     if bau is not None:
         bau.update(qs=qs, umriss=umriss, aussen=aussen, innen=innen, cum=cum, T=T, za=za, zb=zb, ort=ort, L=L,
                    loch_zeile=loch_zeile, nasen=nasen, plus=plus)
+    punkte[:] = [round(c, 3) for c in punkte]
     out = dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True,
                geo=geometrie(e, qs, L))
     if stuecke:

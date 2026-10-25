@@ -158,8 +158,7 @@ class StepBaugruppe:
     def step_speichern(self, pfad=None):
         """Dateidialog (Ordner des Angebots), Bauplan, Schreiben, Meldung. Ergebnis: Pfad oder None;
         self.step_ergebnis = Ergebnis des Exports (für Tests)."""
-        from PySide6.QtCore import Qt
-        from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
         name = self.step_name()
         plan, hinweise = bauplan(name, self.step_eintraege(), getattr(self, "bg", {}).get("knoten") or ())
         if not plan["teile"]:
@@ -170,12 +169,8 @@ class StepBaugruppe:
                                                   "STEP-Datei (*.step *.stp)")
             if not pfad:
                 return None
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            erg = step_export.schreiben(plan, pfad, step_export.programmordner_von(self), name=name,
-                                        zeitlimit=step_export.ZEITLIMIT * 3)
-        finally:
-            QApplication.restoreOverrideCursor()
+        erg = step_export.mit_anzeige(self, plan, pfad, name=name,
+                                      zeitlimit=step_export.zeitlimit_fuer(plan, step_export.ZEITLIMIT * 3))
         erg["hinweise"] = list(hinweise) + list(erg.get("hinweise") or ())
         self.step_ergebnis = erg
         gut = bool(erg.get("teile")) and not erg.get("fehler")

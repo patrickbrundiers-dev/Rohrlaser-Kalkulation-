@@ -457,6 +457,10 @@ jobs:
             Anmeldung aus dem öffentlichen Repository Rohrlaser-Updates und lädt nur geänderte Dateien. Ältere
             Versionen einmal mit diesem Setup bzw. ZIP ersetzen.
             Lizenz-Werkzeug.exe: nur für Patrick zum Ausstellen der Lizenzen; ohne den privaten Schlüssel wertlos.
+            Systemvoraussetzungen (mindestens / empfohlen; im Programm: Hilfe → Systemprüfung):
+            Windows 10 (22H2) oder 11, 64 Bit / 11; Prozessor 4 Kerne, 2 GHz / 6–8 Kerne, 3 GHz;
+            Arbeitsspeicher 8 GB / 16 GB (große STEP-Dateien etwa 1,2 GB je 1.000 Bohrungen); Grafik beliebig / OpenGL 2.0;
+            Speicherplatz 1 GB frei / 5 GB frei; Bildschirm 1366 × 768 / 1920 × 1080.
           files: |
             Rohrlaser-Angebotskalkulation-Setup.exe
             Rohrlaser-Angebotskalkulation-Setup.exe.sha256
@@ -569,7 +573,14 @@ jobs:
                   "Rohrlaser-Angebotskalkulation-Setup.exe: Installation für den angemeldeten Benutzer (keine Adminrechte).`n" +
                   "Rohrlaser-Angebotskalkulation.zip: dieselbe Version portabel ohne Installation.`n" +
                   "Vorher: Rechtsklick → Eigenschaften → Zulassen, oder Windows-Vertrauen-einrichten.cmd in denselben Ordner laden und doppelklicken.`n" +
-                  "Danach kommen Updates automatisch (Hilfe → Nach Updates suchen). Nutzung nur mit Lizenz, siehe Lizenzbedingungen.txt.`n" +
+                  "Danach kommen Updates automatisch (Hilfe → Nach Updates suchen). Nutzung nur mit Lizenz, siehe Lizenzbedingungen.txt.`n`n" +
+                  "Systemvoraussetzungen (mindestens / empfohlen; im Programm: Hilfe → Systemprüfung):`n" +
+                  "- Windows: 10 (22H2) oder 11, 64 Bit / 11, 64 Bit`n" +
+                  "- Prozessor: 4 Kerne, 2 GHz / 6–8 Kerne, 3 GHz`n" +
+                  "- Arbeitsspeicher: 8 GB / 16 GB (große STEP-Dateien: etwa 1,2 GB je 1.000 Bohrungen)`n" +
+                  "- Grafik: beliebig / OpenGL 2.0 oder höher`n" +
+                  "- Speicherplatz: 1 GB frei / 5 GB frei`n" +
+                  "- Bildschirm: 1366 × 768 / 1920 × 1080 oder größer`n`n" +
                   "SHA256-Prüfsummen: *.sha256"
           gh release view download --repo $repo *> $null
           if ($LASTEXITCODE -ne 0) {

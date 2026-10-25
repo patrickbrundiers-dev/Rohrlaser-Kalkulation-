@@ -34,6 +34,7 @@ HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 from rohrlaser import NAME, VERSION  # noqa: E402
 from rohrlaser.neuerungen import IN_ANLEITUNG, NEUERUNGEN  # noqa: E402
+from rohrlaser.systempruefung import VORAUSSETZUNGEN  # noqa: E402
 from rohrlaser.tastatur import UEBERSICHT as TASTENKUERZEL  # noqa: E402
 
 SEITE = landscape(A4)
@@ -582,6 +583,19 @@ def kapitel_ueberblick(i):
 
 def kapitel_start(i):
     i.kapitel("Installation und erster Start", marke="start")
+    i.abschnitt("Systemvoraussetzungen", marke="systemvoraussetzungen")
+    i.text("Das Programm läuft auf jedem Windows-Rechner der letzten Jahre. Die Empfehlung gilt für große "
+           "STEP-Dateien (1.000 Bohrungen und mehr) und große Schweißbaugruppen im 3D.", kurz=True)
+    i.tabelle(["Bereich", "Mindestens", "Empfohlen"], [[b, m, e] for b, m, e in VORAUSSETZUNGEN], [30, 85, 149])
+    i.genauer()
+    i.text("<b>Hilfe → Systemprüfung …</b> vergleicht den eigenen Rechner mit der Tabelle: Windows-Version, "
+           "Prozessorkerne, Arbeitsspeicher, OpenGL der Grafik, freier Speicher am Datenort und Bildschirmgröße, je "
+           "mit ✓ oder <i>unter Minimum</i>. Einmal nach der Installation und nach jedem Update prüft das Programm "
+           "das beim Start selbst und zeigt das Fenster nur, wenn etwas unter dem Minimum liegt.",
+           "Gemessen mit einem Rundrohr 84 × 2 voller Bohrungen: 1.000 Bohrungen brauchen bei der STEP-Messung "
+           "etwa 1,2 GB Arbeitsspeicher und rund eine Minute, Rohr-Editor und STEP speichern je etwa 20 Sekunden. "
+           "Ohne OpenGL (alte Grafik, Fernwartung) zeichnet die 3D-Ansicht in Software, große Baugruppen drehen "
+           "sich dann zäh ([[step_3d_ansicht]]).")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -1456,6 +1470,9 @@ def kapitel_step(i):
             "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
             "Der Explorer ist gleich nach dem Loslassen wieder frei; das Programm kommt nach vorne und misst. "
             "Während ein Import läuft, nimmt es keine weiteren Dateien an (Hinweis unten im Fenster).",
+            "Eine STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) kündigt das Programm vorher an: "
+            "Dauer und Arbeitsspeicher der Messung, aus der Dateigröße geschätzt (gemessen: 32 MB mit 1.000 "
+            "Bohrungen etwa 1 min und 1,2 GB). <i>Nein</i> misst nicht ([[systemvoraussetzungen]]).",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
             "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
             "Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
@@ -2173,7 +2190,7 @@ def kapitel_optimieren(i):
            "Eigenschaften, Merkmale, Prüfmeldungen, Rückgängig und Messen sind im Teile-Editor ([[teile_editor]]) "
            "beschrieben.")
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
-           "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
+           "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle ausgeschnitten", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
             "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
             "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
@@ -2302,7 +2319,8 @@ def kapitel_optimieren(i):
             "Zeilen <i>3D</i> haben. Zeit und Greifmaß: [[kalkulation]], [[optimieren]].",
             "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
             "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
-            "Rundrohr der Umfang in Vierteln). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
+            "Rundrohr der Umfang in Vierteln; die Konturen sind darin ausgeschnitten, man sieht den Grund durch das "
+            "Material, Gravuren bleiben Linien, eine Text-Gravur steht als Schrift da). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
             "hellblau; verdeckte Kanten und Konturen auf der Rückseite sind gestrichelt, verteilte Konturen ohne "
             "Lage blasser. Oben stehen die Lagen ab Anfang, unten die Länge; rechts oben die <i>Ansicht von A</i> "
             "mit den Flächennamen. <b>Mausrad</b> = Zoom an der Mausposition, Ziehen auf freier Fläche verschiebt "
@@ -2876,6 +2894,10 @@ def kapitel_optimieren(i):
             "Konturen und Gravuren werden mitgebogen, auch wenn sie in einer Biegezone liegen. Reicht ein ebenes "
             "Stück ohne Freischnitt über eine Biegung, sagt das Programm es nach dem Speichern.",
             "Biegerohre aus dem STEP-Import: dafür die Original-STEP weitergeben.",
+            "Viele Bohrungen und Konturen: dauert das Schreiben voraussichtlich länger als 15 Sekunden, zeigt ein "
+            "Fenster die erwartete Dauer (<i>etwa 2 min</i>) und die bisherige Zeit, <b>Abbrechen</b> beendet es. Das "
+            "Zeitlimit wächst mit der Zahl der Bohrungen und Konturen (300 s + 0,1 s je Stück). Gemessen: 1.000 "
+            "Bohrungen etwa 20 Sekunden.",
             "Nach dem Speichern zeigt eine Meldung Volumen und Flächenzahl. Das Programm prüft den Körper mit "
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
             "Länge und Konturen wie im Editor da.")
@@ -2899,7 +2921,10 @@ def kapitel_optimieren(i):
             "<b>Andere Zeichnungen</b>: Ein senkrecht gezeichnetes Rohr wird gedreht (das obere Ende ist Ende A). "
             "Blattrahmen und Schriftfeldrahmen fallen weg. Das Profil darf auch als <i>Ø42,4x2</i> dastehen. Maße "
             "dürfen echte DXF-Bemaßung sein oder Linien und Text, auf beliebigen Layern. Ohne Bemaßung und ohne "
-            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste.",
+            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste. "
+            "Die kurzen Striche des Schnittverlaufs (<i>A–A</i>) neben einer Ansicht zählen nicht zur Ansicht, "
+            "auch wenn sie auf dem Kontur-Layer liegen; Bohrungen und Ausschnitte in einer Ansicht sind keine "
+            "eigenen Ansichten.",
             "<b>Zuordnungsfenster</b>: Ist sich das Programm nicht sicher (keine Projektionsmethode auf der "
             "Zeichnung, mehrere Teile, Maßstab nur angenommen), erscheint vor dem Editor ein Fenster mit der "
             "Zeichnung und den gefundenen Ansichten (Nummern). Je Ansicht wählst du <i>Vorderansicht</i>, "
@@ -2913,7 +2938,11 @@ def kapitel_optimieren(i):
             "<b>Enden</b>: die Endkante je Ansicht; schräg in einer Ansicht = Gehrung mit der längsten Seite, schräg "
             "in beiden = Schrägschnitt zweiachsig.",
             "<b>Konturen</b>: Kreise werden Bohrungen, geschlossene Formen Langloch oder Rechteck (mit Eckradius), "
-            "zum Ende offene Ausschnitte Ausklinkungen, alles andere Sonderkontur mit Umriss. Die Wand erkennt das "
+            "zum Ende offene Ausschnitte Ausklinkungen, alles andere Sonderkontur mit Umriss. Auch kleine Eckradien "
+            "(z. B. R 2 an einem Fenster) werden übernommen. Eine <b>schräge Bohrung</b> (Umriss eine Ellipse, die "
+            "Austrittskante innen um Wand × tan Winkel versetzt) wird eine Bohrung mit Ø und Neigung längs bzw. "
+            "quer; ob sie in 3D geschnitten wird, entscheidet wie immer die Maschine (Häkchen 3D-Schnittbearbeitung). "
+            "Die Wand erkennt das "
             "Programm an den Kanten in der anderen Ansicht (auch verdeckt): oben, unten oder durchgehend (Wände: "
             "beide). Gleiche Konturen in gleichem Abstand werden eine Zeile mit Anzahl und Abstand.",
             "<b>Aus dem Schriftfeld</b>: Benennung wird Bezeichnung, Zeichnungsnummer wird Artikel, der Werkstoff "

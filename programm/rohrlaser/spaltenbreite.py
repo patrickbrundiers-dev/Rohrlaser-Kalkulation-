@@ -207,10 +207,21 @@ class AutoGroesse(QObject):
         self.eingepasst = False
         self.anpassen()
 
+    def _modell_merkt(self, an):
+        """Modelle mit merken_an (z. B. die Positionsliste) rechnen während des Einpassens jede Zelle nur einmal."""
+        m = self.ansicht.model()
+        quelle = m.sourceModel() if hasattr(m, "sourceModel") and m.sourceModel() is not None else m
+        if hasattr(quelle, "merken_an"):
+            quelle.merken_an(an)
+
     def einpassen(self, spalten):
         """Nur diese Spalten neu einpassen (auch schmaler), z. B. gerade eingeblendete."""
-        self._breiten(set(spalten), wachsen=False)
-        self._zeilen()
+        self._modell_merkt(True)
+        try:
+            self._breiten(set(spalten), wachsen=False)
+            self._zeilen()
+        finally:
+            self._modell_merkt(False)
 
     def anpassen(self):
         self._timer.stop()
@@ -223,11 +234,15 @@ class AutoGroesse(QObject):
         if self.ansicht.model().rowCount() == 0:      # leere Tabelle: wenigstens die Spaltenköpfe ganz zeigen
             self._koepfe()
             return
-        if not self.eingepasst:
-            self._gemerkte_anwenden()
-        self._breiten(None, wachsen=self.eingepasst)
-        self.eingepasst = True
-        self._zeilen()
+        self._modell_merkt(True)
+        try:
+            if not self.eingepasst:
+                self._gemerkte_anwenden()
+            self._breiten(None, wachsen=self.eingepasst)
+            self.eingepasst = True
+            self._zeilen()
+        finally:
+            self._modell_merkt(False)
 
     def _breiten(self, nur, wachsen):
         a, m = self.ansicht, self.ansicht.model()
