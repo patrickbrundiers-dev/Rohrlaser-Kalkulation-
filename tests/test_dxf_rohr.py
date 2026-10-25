@@ -5,11 +5,16 @@
 - R2 Patricks test.dxf (QR 40, 150 lang, 1:1): vier Bohrungen Ø 5 durch beide Wände an den bemaßten Stellen.
 - R3 Hilfsfunktionen: Maßzahlen, Profiltext, Muster, kein Rohr bei einem Blech, Werkstoff mit Norm.
 - R4 3D aus den Eingaben: Länge Spitze zu Spitze, Querschnitt 40 × 40.
+- R6 Patricks Bauteil 1 (rohr_bauteil1_patrick.dxf, QR 150 × 150 × 5, 1:2, Schriftfeld fälschlich 1:5): Striche
+  des Schnittverlaufs A–A verlängern die Draufsicht nicht (Länge 543,3, ein Teil), Vorder- und Draufsicht, Ende B
+  Gehrung 30° (unten länger) statt Ausklinkung, Fenster 100 × 80 R 2 vorne bei 100, Ø 50 durch oben und unten bei
+  250, schräge Bohrung Ø 20 unter 30° (innen Richtung Ende B) oben bei 400; 3D: oben 456,7, unten 543,3 lang.
 - R5 Oberfläche: Angebot Aus DXF öffnet den Rohr-Editor mit allem vorbelegt und legt die Position an; im Rohr-Editor
   DXF importieren.
 
 Aufruf: python tests/test_dxf_rohr.py
 """
+import math
 import os
 import sys
 import tempfile
@@ -99,6 +104,27 @@ p = [n["p"][i:i + 3] for i in range(0, len(n["p"]), 3)]
 for i, (lo, hi) in enumerate(((-20, 20), (-20, 20), (0, 1018.8))):
     assert nah(min(q[i] for q in p), lo, 0.01) and nah(max(q[i] for q in p), hi, 0.01)
 ok("R4 3D aus den Eingaben: 40 × 40, Länge Spitze zu Spitze 1018,8")
+
+# ------------------------------------------------------------------ R6 Patricks Bauteil 1
+B1 = HIER / "dxf" / "rohr_bauteil1_patrick.dxf"
+erg6 = dr.erkennen(di.datei_lesen(B1), B1.name)
+assert erg6["ok"] and not erg6["warnungen"] and not erg6["unsicher"], erg6
+assert erg6["profil"] == dict(form="Quadratrohr", a=150.0, b=150.0, wand=5.0) and erg6["laenge"] == 543.3
+assert erg6["teile"] == 1 and not any("Länge gemessen" in h for h in erg6["hinweise"])
+rollen = [a["rolle"] for a in erg6["ansichten"]]
+assert rollen.count("Vorderansicht") == rollen.count("Draufsicht") == 1 and len(rollen) == 4, rollen   # + Iso, Schnitt
+e6 = erg6["eingaben"]
+assert e6["a"] == {} and e6["b"] == dict(winkel=30.0, richtung=180, achse=sw.ACHSEN[0]), e6["b"]
+assert e6["konturen"] == [
+    dict(art=sw.RECHTECK, anzahl=1, x=100.0, b=100.0, h=80.0, r=2.0, seite="vorne"),
+    dict(art=sw.BOHRUNG, anzahl=1, x=250.0, d=50.0, wand="beide"),
+    dict(art=sw.BOHRUNG, anzahl=1, x=400.0, d=20.0, neigung_l=30.0)], e6["konturen"]
+n = rohr3d.netz(e6, erg6["profil"], erg6["laenge"])
+p = [n["p"][i:i + 3] for i in range(0, len(n["p"]), 3)]
+oben, unten = [max(q[2] for q in p if nah(q[1], v, 0.01)) for v in (75, -75)]
+assert nah(oben, 543.3 - 150 * math.tan(math.radians(30)), 0.2) and nah(unten, 543.3, 0.01), (oben, unten)
+ok("R6 Bauteil 1: Schnittverlauf-Striche nicht in der Ansicht, Gehrung 30° statt Ausklinkung, Fenster R 2, Ø 50 "
+   "durchgehend, schräge Bohrung Ø 20 / 30°; 3D oben 456,7, unten 543,3")
 
 # ------------------------------------------------------------------ R5 Oberfläche
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
