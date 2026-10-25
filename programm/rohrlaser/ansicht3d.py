@@ -1127,9 +1127,9 @@ class Ansicht3D(QWidget):
             x, y = self._drehpunkt[1]           # Drehpunkt beim Drehen zeigen
             p.setRenderHint(QPainter.Antialiasing, True)
             p.setBrush(Qt.NoBrush)
-            p.setPen(QPen(QColor("#FFFFFF"), 3))
+            p.setPen(QPen(stil.farbe("#FFFFFF"), 3))
             p.drawEllipse(QPointF(x, y), 5, 5)
-            p.setPen(QPen(QColor("#E07000"), 1.5))
+            p.setPen(QPen(stil.farbe("#E07000"), 1.5))
             p.drawEllipse(QPointF(x, y), 5, 5)
             p.drawPoint(QPointF(x, y))
 
