@@ -1104,11 +1104,45 @@ def gleiche_bleche(messwerte):
     return gruppen
 
 
+VOLL = ("Rundstahl", "Vierkantstahl")      # Vollmaterial: Zukaufteil wie Bleche (vollmaterial.py, Schema 61)
+
+
+def ist_voll(m):
+    """Gemessenes Vollmaterial (Rund- oder Vierkantstahl) mit Abmessung und Länge, das ein Zukaufteil werden kann."""
+    return (not m.get("fehler") and m.get("profilform") in VOLL and _z(m, "abm_a") > 0 and _z(m, "laenge") > 0
+            and m.get("_knick_von") is None)
+
+
+def voll_text(m):
+    """Kurztext, z. B. 'Rundstahl Ø20 × 150 mm'."""
+    from . import vollmaterial
+    return f"{m.get('profilform')} {vollmaterial.masse_text(m.get('profilform'), _z(m, 'abm_a'), _z(m, 'laenge'))}"
+
+
+def gleiche_voll(messwerte):
+    """Gruppen gleicher Vollmaterial-Teile je Datei (Form, Abmessung, Länge ± TOL_GLEICH)."""
+    gruppen = {}
+    for i, m in enumerate(messwerte):
+        if not ist_voll(m):
+            continue
+        for erster, liste in gruppen.items():
+            e = messwerte[erster]
+            if e.get("datei") == m.get("datei") and e.get("profilform") == m.get("profilform") and all(
+                    abs(_z(e, n) - _z(m, n)) <= TOL_GLEICH for n in ("abm_a", "laenge")):
+                liste.append(i)
+                break
+        else:
+            gruppen[i] = [i]
+    return gruppen
+
+
 def teile_gruppen(messwerte, mit_blechen=True):
-    """Rohrteile (gleiche_teile) und, mit_blechen, Bleche (gleiche_bleche) zusammen, nach erstem Index sortiert."""
+    """Rohrteile (gleiche_teile) und, mit_blechen, Bleche (gleiche_bleche) und Vollmaterial (gleiche_voll) zusammen,
+    nach erstem Index sortiert."""
     g = dict(gleiche_teile(messwerte))
     if mit_blechen:
         g.update(gleiche_bleche(messwerte))
+        g.update(gleiche_voll(messwerte))
     return dict(sorted(g.items()))
 
 
@@ -1212,6 +1246,36 @@ def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k, blech_daten=None, 
         bezuege[0]["preise"] = [dict(ab=1, preis=preis)]
     text = f"neuer Zukaufartikel {werte['bezeichnung']}, " + (
         f"EK = Richtpreis {preis:.2f} €".replace(".", ",") if preis else "EK fehlt")
+    if aehnlich:
+        text += f" (ähnlich: {', '.join(a.get('bezeichnung') or '' for a in aehnlich[:3])})"
+    return dict(neu=schl), text
+
+
+def _voll_position(m, form, abm, laenge, wst, zukauf_liste, neue_artikel):
+    """Zukaufartikel für Vollmaterial: im Prüfdialog gewählter Artikel (_blech_artikel, gleiche Spalte wie bei
+    Blechen), sonst ein gleicher vorhandener bzw. in diesem Import neu angelegter Artikel, sonst ein neuer (EK aus
+    Gewicht × €/kg beim Speichern). Ergebnis: (Verweis {artikel_id} bzw. {neu: Schlüssel}, Hinweistext)."""
+    from . import vollmaterial, zukauf
+    gewaehlt_id = m.get("_blech_artikel")
+    if isinstance(gewaehlt_id, int):
+        a = next((x for x in zukauf_liste if x.get("id") == gewaehlt_id), None)
+        if a is not None:
+            return dict(artikel_id=gewaehlt_id), f"Zukaufartikel {a.get('bezeichnung')} (im Prüfdialog gewählt)" + (
+                ", EK fehlt" if zukauf.ek_fehlt(a) else "")
+    gleich, aehnlich = vollmaterial.dubletten(form, abm, laenge, wst, [x for x in zukauf_liste if x.get("id") is not None])
+    if gleich:
+        a = gleich[0]
+        return dict(artikel_id=a["id"]), f"vorhandener Zukaufartikel {a.get('bezeichnung')}" + (
+            ", EK fehlt" if zukauf.ek_fehlt(a) else "")
+    neu_gleich, _ = vollmaterial.dubletten(form, abm, laenge, wst,
+                                           [dict(x[0], status="aktiv", _schl=s_) for s_, x in neue_artikel.items()])
+    if neu_gleich:
+        return dict(neu=neu_gleich[0]["_schl"]), f"Zukaufartikel {neu_gleich[0].get('bezeichnung')} (neu)"
+    werte, bezuege = vollmaterial.artikel(form, abm, laenge, wst, m.get("datei"))
+    schl = f"neu{len(neue_artikel) + 1}"
+    neue_artikel[schl] = (werte, bezuege)
+    text = f"neuer Zukaufartikel {werte['bezeichnung']}, EK = Gewicht × €/kg" if wst else \
+        f"neuer Zukaufartikel {werte['bezeichnung']}, EK fehlt (Werkstoff offen)"
     if aehnlich:
         text += f" (ähnlich: {', '.join(a.get('bezeichnung') or '' for a in aehnlich[:3])})"
     return dict(neu=schl), text
@@ -1355,6 +1419,46 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
+            if not wst:
+                hinweise.append("Werkstoff offen")
+            if satz:
+                anzahl = int(m.get("_je_satz") or len(gruppen[i]))
+                p["satz"], p["je_satz"] = satz, anzahl
+                p["stueck"] = stk * anzahl if stk else None
+                hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
+                satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            neu.append(p)
+            ziel = naechste
+            vorhanden.add(art)
+            naechste += 10
+        elif mit_blechen and ist_voll(m) and m.get("_uebernehmen") is False:
+            hinweise.append(f"nicht übernommen: {voll_text(m)} im Prüfdialog abgewählt")
+        elif mit_blechen and ist_voll(m) and art in vorhanden and not erneut:
+            hinweise.append("übersprungen: Artikel steht schon im Angebot")
+        elif mit_blechen and ist_voll(m):       # Vollmaterial: Zukaufteil mit Zusatzarbeit Sägen (Plan Vollmaterial)
+            from . import vollmaterial
+            from .angebot import ZUKAUFTEIL
+            form, abm, lg = m["profilform"], round(_z(m, "abm_a"), 2), round(_z(m, "laenge"), 1)
+            alt_hinweis = f"{form}: wird noch nicht kalkuliert, Konturen nicht ausgewertet"   # aus der Messung
+            hinweise[:] = [x for x in (h.replace(alt_hinweis, "").strip("; ,") for h in hinweise) if x]
+            wst = m.get("_werkstoff", werkstoff) or None
+            stk = m.get("_stueck", stueck)
+            verweis, text = _voll_position(m, form, abm, lg, wst, zukauf_liste, neue_artikel)
+            dichte = (k.werkstoffe.get(wst) or {}).get("dichte") if wst else None
+            p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art, bezeichnung=vollmaterial.bezeichnung(form, abm, lg, wst),
+                     werkstoff_id=wst if wst in k.werkstoffe else None, laenge=lg, stueck=stk or None,
+                     gewicht_teil=vollmaterial.gewicht(form, abm, lg, dichte), _zukauf=verweis)
+            saegen = vollmaterial.saegen_zusatz(zusatz_katalog, quelle="STEP-Import") \
+                if zusatz_katalog is not None else None
+            if saegen:
+                p["zusatz"] = saegen
+            elif zusatz_katalog is not None:
+                hinweise.append(f"Zusatzarbeit '{vollmaterial.ZUSATZ_SAEGEN}' fehlt in den Stammdaten")
+            if m.get("_netz"):
+                p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
+            hinweise.append(f"Zukaufteil: {text}")
+            if m.get("biegerohr"):
+                hinweise.append("gebogen: Länge = gestreckte Länge, Biegen von Hand ergänzen")
             if not wst:
                 hinweise.append("Werkstoff offen")
             if satz:

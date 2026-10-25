@@ -6,7 +6,9 @@ liegt nur bei Patrick im Lizenz-Werkzeug (werkzeuge/lizenz_werkzeug.py), die öf
 lizenz_schluessel.py. Wer am Inhalt etwas ändert (z. B. das Ablaufdatum), macht die Signatur ungültig.
 
 Lizenzarten: admin (unbefristet, Rechner Pflicht), benutzer und test (Ablaufdatum Pflicht). Zustände siehe
-ermitteln(). Eine abgelaufene oder fehlende Lizenz sperrt nie die Daten, sondern schaltet in den Lesemodus –
+ermitteln(). Eine Admin-Lizenz kann das Admin-Passwort als Hash enthalten (Feld admin_passwort, passwort.py): Dann gilt
+nur dieses (ändern = neue Admin-Lizenz), sonst wie bisher das Passwort der Einstellungen. Passwort vergessen: ein
+Notfallcode aus dem Lizenz-Werkzeug (signiert, nur für einen Rechner, Ausstelltag und Folgetag) schaltet einmal frei. Eine abgelaufene oder fehlende Lizenz sperrt nie die Daten, sondern schaltet in den Lesemodus –
 und das auch erst, wenn DURCHSETZUNG eingeschaltet ist (Einführung in zwei Stufen, Plan Abschnitt 13).
 
 Gegen eine zurückgestellte Uhr merkt sich das Programm das späteste gesehene Datum (Lizenz/zeit.json und die
@@ -25,6 +27,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .passwort import ist_hash
 from .passwort import pruefen as pruefen_passwort
 
 FORMAT = 1
@@ -46,8 +49,10 @@ ORDNER = "Lizenz"
 AKTIV = "aktiv.lizenz"
 SPERRLISTE = "sperrliste.json"
 ZEIT = "zeit.json"
+ERSETZT = "ersetzt.json"   # Lizenz-IDs, die eine geladene Lizenz ersetzt hat (Feld ersetzt): nie wieder laden
 ALT = "alt"
 EINSTELLUNG_ZULETZT = "lizenz_zuletzt"
+NOTFALL = "NF"            # Notfallcode NF-<Schlüssel>-<JJJJMMTT>-<Signatur>, gilt am Ausstelltag und am Folgetag
 EMAIL = "patrick.brundiers@gmail.com"    # Empfänger der E-Mail „Lizenz anfragen“ im Lizenzdialog
 
 
@@ -190,7 +195,11 @@ def pruefen(quelle, schluessel=None):
             raise LizenzFehler(f"Eine Admin-Lizenz gilt für höchstens {ADMIN_RECHNER_MAX} Rechner.")
         if bis:
             _datum(bis, "gueltig_bis")
+        if inhalt.get("admin_passwort") and not ist_hash(inhalt["admin_passwort"]):
+            raise LizenzFehler("Admin-Passwort in der Lizenz ist kein gültiger Hash.")
     else:
+        if inhalt.get("admin_passwort"):
+            raise LizenzFehler("Nur eine Admin-Lizenz darf ein Admin-Passwort enthalten.")
         if not bis:
             raise LizenzFehler("Eine Benutzer- oder Testlizenz braucht ein Ablaufdatum.")
         _datum(bis, "gueltig_bis")
@@ -199,6 +208,36 @@ def pruefen(quelle, schluessel=None):
 
 def ist_test(inhalt):
     return bool(inhalt) and (inhalt.get("art") == "test" or bool(inhalt.get("test")))
+
+
+# ------------------------------------------------------------------ Notfallcode
+def _notfall_inhalt(rechner, datum, sid):
+    return dict(art="notfall", rechner=id_normal(rechner), datum=datum.isoformat(), schluessel_id=sid)
+
+
+def notfallcode(rechner, datum, privat, sid):
+    """Notfallcode (Lizenz-Werkzeug): Admin-Passwort vergessen. Signatur über Rechner-ID und Datum, Base64url."""
+    sig = privat.sign(kanonisch(_notfall_inhalt(rechner, datum, sid)))
+    return f"{NOTFALL}-{sid}-{datum:%Y%m%d}-" + base64.urlsafe_b64encode(sig).decode("ascii").rstrip("=")
+
+
+def notfallcode_gueltig(text, rechner, heute=None, schluessel=None):
+    """True, wenn text ein gültiger Notfallcode für diesen Rechner ist (Ausstelltag oder Folgetag)."""
+    teile = "".join(str(text or "").split()).split("-", 3)
+    if len(teile) != 4 or teile[0].upper() != NOTFALL or not rechner:
+        return False
+    _, sid, tag, sig = teile
+    try:
+        datum = datetime.datetime.strptime(tag, "%Y%m%d").date()
+        roh = base64.urlsafe_b64decode(sig + "=" * (-len(sig) % 4))
+    except ValueError:
+        return False
+    heute = heute or datetime.date.today()
+    if not 0 <= (heute - datum).days <= 1:
+        return False
+    schluessel = standard_schluessel() if schluessel is None else schluessel
+    return signatur_gueltig(_notfall_inhalt(rechner, datum, sid), base64.b64encode(roh).decode("ascii"), sid,
+                            schluessel)
 
 
 # ------------------------------------------------------------------ Sperrliste
@@ -385,6 +424,14 @@ def _schreiben(pfad, text):
     os.replace(tmp, pfad)
 
 
+def ersetzte(ordner_):
+    """Lizenz-IDs, die an diesem Rechner durch eine neuere Lizenz ersetzt wurden (Menge)."""
+    try:
+        return set(json.loads((Path(ordner_) / ERSETZT).read_text(encoding="utf-8")))
+    except (OSError, ValueError, TypeError):
+        return set()
+
+
 def aktive_lizenz(ordner_):
     """Pfad der geladenen Lizenz oder None."""
     p = Path(ordner_) / AKTIV
@@ -407,6 +454,12 @@ def lizenz_laden(ordner_, quelle, heute=None, rechner=None, schluessel=None):
         if (heute or datetime.date.today()) > bis + datetime.timedelta(days=KULANZ_TAGE):
             raise LizenzFehler(f"Diese Lizenz ist schon am {_datum_text(bis)} abgelaufen.")
     o = Path(ordner_)
+    ersetzt = ersetzte(o)
+    if inhalt["lizenz_id"] in ersetzt:
+        raise LizenzFehler(f"Lizenz {inhalt['lizenz_id']} wurde durch eine neuere ersetzt (z. B. neues "
+                           "Admin-Passwort) und lässt sich nicht mehr laden.")
+    if inhalt.get("ersetzt") and inhalt["ersetzt"] not in ersetzt:
+        _schreiben(o / ERSETZT, json.dumps(sorted(ersetzt | {inhalt["ersetzt"]})))
     vorher = aktive_lizenz(o)
     if vorher:
         (o / ALT).mkdir(parents=True, exist_ok=True)
@@ -424,8 +477,11 @@ def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zul
     o = Path(ordner_)
     spaet = spaetestes_datum(o, db_zuletzt)
     aktiv = aktive_lizenz(o)
-    z = ermitteln(aktiv, heute, rechner, schluessel, sperrliste_pruefen(o / SPERRLISTE, schluessel), spaet,
-                  durchsetzung)
+    sperr = sperrliste_pruefen(o / SPERRLISTE, schluessel)
+    ers = ersetzte(o)
+    if ers:                         # ersetzte Lizenzen (neues Admin-Passwort) gelten wie gesperrt
+        sperr = dict(sperr or {}, gesperrt=sorted(set((sperr or {}).get("gesperrt") or []) | ers))
+    z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung)
     neu = None
     if merken and not uhr_zurueck(heute, spaet):
         neu = zeit_merken(o, heute, spaet)
@@ -444,6 +500,7 @@ class LizenzStelle:
         self.durchsetzung = durchsetzung
         self.zustand = None
         self.admin_ok = False           # Admin-Passwort in dieser Sitzung eingegeben (ohne: keine Admin-Rechte)
+        self.notfall = False            # mit Notfallcode freigeschaltet (Hinweis: neue Admin-Lizenz ausstellen)
 
     ADMIN_HINWEIS = "Ohne Admin-Rechte gestartet (Admin-Passwort nicht eingegeben) – Hilfe → Lizenz …"
 
@@ -456,15 +513,24 @@ class LizenzStelle:
             if neu and neu != db_wert:
                 self.db.einstellung_setzen(EINSTELLUNG_ZULETZT, neu)
             self.db.lesemodus(z.nur_lesen)
-        if z.stufe == "admin" and not self.admin_ok and self.admin_passwort():
+        if z.stufe == "admin" and not self.admin_ok and self.admin_passwort(z):
             z.admin_aus, z.hinweis, z.farbe = True, self.ADMIN_HINWEIS, "gelb"
         self.zustand = z
         return z
 
-    def admin_passwort(self):
-        """Admin-Passwort = Passwort der Einstellungen (Einstellung 'passwort', gespeichert als Hash, passwort.py);
-        leer: keine Abfrage beim Start. Prüfen nur mit passwort.pruefen (Hash oder alter Klartext)."""
+    def admin_passwort(self, z=None):
+        """Admin-Passwort (Hash): aus der Admin-Lizenz (Feld admin_passwort), sonst – ältere Admin-Lizenz ohne
+        Passwort – das Passwort der Einstellungen (Einstellung 'passwort', passwort.py); leer: keine Abfrage beim
+        Start. Prüfen nur mit passwort.pruefen (Hash oder alter Klartext)."""
+        z = z or self.zustand
+        if z is not None and z.stufe == "admin" and z.inhalt.get("admin_passwort"):
+            return z.inhalt["admin_passwort"]
         return (self.db.einstellung("passwort") or "") if self.db is not None else ""
+
+    def admin_passwort_in_lizenz(self):
+        """True, wenn die geladene Admin-Lizenz das Admin-Passwort enthält (dann nicht in den Einstellungen)."""
+        z = self.zustand or self.pruefen()
+        return z.stufe == "admin" and bool(z.inhalt.get("admin_passwort"))
 
     def admin_passwort_noetig(self):
         """True, wenn eine Admin-Lizenz geladen ist und beim Start das Admin-Passwort abgefragt werden muss."""
@@ -472,8 +538,12 @@ class LizenzStelle:
         return z.admin_aus
 
     def admin_freigeben(self, passwort):
-        """Admin-Rechte mit dem Passwort freischalten. Ergebnis: True = richtig (Admin-Rechte an)."""
-        if not pruefen_passwort(passwort, self.admin_passwort()):
+        """Admin-Rechte mit dem Passwort (oder einem Notfallcode) freischalten. Ergebnis: True = Admin-Rechte an."""
+        if pruefen_passwort(passwort, self.admin_passwort()):
+            self.notfall = False
+        elif notfallcode_gueltig(passwort, getattr(self, "rechner", ""), schluessel=getattr(self, "schluessel", None)):
+            self.notfall = True
+        else:
             return False
         self.admin_ok = True
         self.pruefen()

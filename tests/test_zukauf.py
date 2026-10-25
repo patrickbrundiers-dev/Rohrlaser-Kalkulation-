@@ -211,7 +211,7 @@ con.commit()
 con.close()
 db2 = Datenbank(alt)
 gleich(db2.con.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION, "Schema aktuell")
-gleich(len(db2.zukauf_kategorien()), 7, "Kategorien ergänzt")
+gleich(len(db2.zukauf_kategorien()), 8, "Kategorien ergänzt")
 assert "zukauf" in {r[1] for r in db2.con.execute("PRAGMA table_info(positionen)")}
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}"), "Sicherung vor der Umstellung"
 db2.schliessen()

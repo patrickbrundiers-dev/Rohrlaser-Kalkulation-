@@ -21,13 +21,29 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.120", "<b>Abwicklung mit ausgeschnittenen Konturen</b>: In der Abwicklung der Skizze (Schneidweg-Rechner, "
+    ["0.9.122", "<b>Abwicklung mit ausgeschnittenen Konturen</b>: In der Abwicklung der Skizze (Schneidweg-Rechner, "
                 "Teile-Editor, Zeichnung) sind Bohrungen, Rechtecke, Langlöcher und andere Konturen jetzt als Loch im "
                 "Material zu sehen; das Material ist etwas kräftiger hinterlegt, Gravuren bleiben Linien. Eine "
                 "Text-Gravur steht in Skizze und Abwicklung als echte Schrift statt als Rechteck. Im Blech-Editor sind "
                 "die Konturen ebenso ausgeschnitten "
                 "([[schneidweg_rechner]]).",
      "Abwicklung: Konturen als ausgeschnitten dargestellt"],
+    ["0.9.121", "<b>Vollmaterial als Zukaufartikel</b>: neue Artikeltypen <b>Rundstahl</b> und <b>Vierkantstahl</b> "
+                "(Ø bzw. Kante, Länge, Werkstoff); Gewicht aus der Dichte, EK je Stück = Gewicht × Preis je kg "
+                "(Vorgabe Tonnenpreis des Werkstoffs), Kategorie <i>Vollmaterial</i> ([[vollmaterial]]). Der "
+                "STEP-Import übernimmt Rund- und Vierkantstahl als Zukaufteil-Positionen (Gruppe <i>Vollmaterial</i> im "
+                "Prüfdialog, [[bleche]]), von Hand über <b>Neue Position → Zukaufteil</b> mit Art Rundstahl bzw. "
+                "Vierkantstahl. Gesägt wird über die neue Zusatzarbeit <b>Sägen</b> (€ je Schnitt); Zusatzarbeiten an "
+                "Zukaufteil-Positionen werden jetzt mitgerechnet ([[zukauf_positionen]]).",
+     "Rund- und Vierkantstahl als Zukaufartikel (EK aus €/kg, STEP-Import, Zusatzarbeit Sägen)."],
+    ["0.9.120", "<b>Admin-Passwort in der Admin-Lizenz</b>: Das Lizenz-Werkzeug fragt beim Ausstellen einer Admin-Lizenz "
+                "das Admin-Passwort ab (mindestens 10 Zeichen) und legt es verschlüsselt in die signierte Lizenz; nur "
+                "dieses gilt dann beim Start. Ändern = Admin-Lizenz neu ausstellen (Verlängern …); nach dem Laden nimmt der "
+                "Rechner die alte Admin-Lizenz nicht mehr an. Ältere Admin-Lizenzen "
+                "ohne Passwort nutzen weiter das Passwort der Einstellungen. Das Passwort der Einstellungen lässt sich "
+                "nur noch mit Admin-Rechten setzen, ändern oder entfernen. Passwort vergessen: Notfallcode aus dem "
+                "Lizenz-Werkzeug für die Rechner-ID, gilt heute und morgen ([[lizenz_laden]]).",
+     "Admin-Passwort in der Admin-Lizenz, Einstellungs-Passwort nur mit Admin-Rechten, Notfallcode"],
     ["0.9.119", "<b>Größte Nasenbreite der Steckverbindung</b>: Die Nase bleibt auf der geraden Wandfläche des "
                 "Steckers (Wandbreite − 2 × Eckradius) mit einem Rand je Seite (neue Einstellung, Vorgabe 2 mm); ein "
                 "breiterer Wert wird automatisch gekürzt und im Text der Verbindung genannt ([[steckverbindung]]).",
