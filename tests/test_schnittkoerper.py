@@ -92,16 +92,16 @@ arten = [k["art"] for k in wk]
 assert arten[:4] == ["WB", "WB", "WA", "WL"] and arten[-1] == "WG", arten
 o, u = ringe(wk[0])
 assert len(o) == len(u) == 36 and len(wk[0]["d"]) == 3 * 34
-assert all(math.isclose(a[1] - b[1], 3 + 2 * sk3.UEBERSTAND, abs_tol=1e-6) for a, b in zip(o, u))   # Wand + Überstand
+assert all(math.isclose(a[1] - b[1], 3 + sk3.UEBERSTAND + sk3.UEBERSTAND_INNEN, abs_tol=1e-6) for a, b in zip(o, u))   # Wand + Überstand
 assert all(math.isclose(a[1], 40 + sk3.UEBERSTAND) for a in o)
 assert wk[0]["t"] == "Ø 50\n1 Wand · 3 mm", wk[0]["t"]
 o, u = ringe(wk[1])                                 # beide Wände: bis unter die Gegenwand
-assert all(math.isclose(b[1], -40 - sk3.UEBERSTAND, abs_tol=1e-6) for b in u), u[:2]
+assert all(math.isclose(b[1], -40 - sk3.UEBERSTAND_INNEN, abs_tol=1e-6) for b in u), u[:2]
 assert "durch 2 Wände · 80 mm" in wk[1]["t"], wk[1]["t"]
 seiten = sorted((round(ringe(k)[0][0][0]), round(ringe(k)[0][0][1])) for k in wk[3:7])
 assert len(set(seiten)) == 4 and "alle 4 Seiten" in wk[3]["t"]
 o, u = ringe(wk[-1])
-assert all(math.isclose(a[1] - b[1], 0.3 + 2 * sk3.UEBERSTAND, abs_tol=1e-6) for a, b in zip(o, u))
+assert all(math.isclose(a[1] - b[1], 0.3 + sk3.UEBERSTAND + sk3.UEBERSTAND_INNEN, abs_tol=1e-6) for a, b in zip(o, u))
 assert "Gravur 0,3 mm tief" in wk[-1]["t"], wk[-1]["t"]
 # schräge Bohrung: Ring innen um Wand × tan(längs) (+ Überstand) Richtung Ende B versetzt
 e3 = dict(d3=True, konturen=[dict(art="Bohrung", anzahl=1, d=20, x=300, seite="0", d3=True, neigung_l=30)])
@@ -109,7 +109,7 @@ k = rohr3d.netz(e3, dict(form="Rundrohr", a=60, wand=2), 1000)["wk"][0]
 o, u = ringe(k)
 dx = sum(b[2] for b in u) / len(u) - sum(a[2] for a in o) / len(o)
 w30 = math.radians(30)
-assert math.isclose(dx, 2 * math.tan(w30) + 2 * sk3.UEBERSTAND * math.sin(w30), abs_tol=0.05), dx
+assert math.isclose(dx, 2 * math.tan(w30) + (sk3.UEBERSTAND + sk3.UEBERSTAND_INNEN) * math.sin(w30), abs_tol=0.05), dx
 assert "Neigung längs 30°" in k["t"], k["t"]
 viele = dict(konturen=[dict(art="Bohrung", anzahl=1, d=5, x=10 + i * 2, seite="oben")
                        for i in range(sk3.MAX_KOERPER + 1)])

@@ -2896,7 +2896,7 @@ def kapitel_optimieren(i):
             "<i>beide Wände (durchgehend)</i> durch das ganze Profil bis unter die Gegenwand (im Loch sieht man den "
             "Körper nach unten laufen), <i>alle Seiten</i> und <i>am Umfang verteilt</i> je Kopie durch ihre Wand, "
             "eine schräge Bohrung entlang ihrer Neigung, eine Gravur mit Umriss so tief wie angegeben, beim Blech "
-            "durch die Dicke. Die Farbe zeigt die Konturart (Bohrung blau, Langloch/Schlitz türkis, Rechteck und "
+            "durch die Dicke. Damit er gut zu sehen ist, steht der Körper außen und innen je 2 mm über. Die Farbe zeigt die Konturart (Bohrung blau, Langloch/Schlitz türkis, Rechteck und "
             "übrige Konturen violett, Ausklinkung orange, Gravur grün, siehe Legende). Die Maus über dem Körper "
             "zeigt Kontur und Tiefe, z. B. „Ø 50 – 1 Wand · 3 mm“ oder „durch 2 Wände · 80 mm“. Die gewählte "
             "Kontur ist kräftiger, ein Klick in den Körper (auch ins Loch) wählt sie. Vorgabe ist an, die Wahl "

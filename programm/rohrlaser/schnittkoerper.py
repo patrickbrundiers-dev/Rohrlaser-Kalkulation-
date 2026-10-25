@@ -1,6 +1,8 @@
 """Schnittkörper im 3D (Patrick 25.10.2026, Freigabe „A b b a a“): jede Kontur zusätzlich als halb durchsichtiger
 Körper, so tief wie sie schneidet – das Volumen, das der Laser herausnimmt.
 
+Die Körper ragen außen und innen je 2 mm über die Wand (UEBERSTAND, UEBERSTAND_INNEN).
+
 - eine Wand: von der Außenwand durch die Wandstärke (schräge Bohrung entlang ihrer Neigung, Schnitt parallel zur
   Konturachse parallel zur Mitte, sonst senkrecht zur Wand bzw. zur Rohrachse)
 - beide Wände (durchgehend): ein Körper durch das ganze Profil bis zur Gegenwand (die Kopie dort bekommt keinen
@@ -22,10 +24,11 @@ from . import skizze as sk
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, _z)
 
-# Farbe je Konturart: Schlüssel = Art in ansicht3d.ARTEN
+# Farbe je Konturart, in allen 3D-Fenstern gleich (Patrick 25.10.2026): Schlüssel = Art in ansicht3d.ARTEN
 FARBE_ART = {BOHRUNG: "WB", SENKUNG: "WB", FLOWDRILL: "WB", LOCHFELD: "WB", LANGLOCH: "WL", SCHLITZ: "WL",
              RECHTECK: "WR", POLYGON: "WR", SONDERKONTUR: "WR", DURCHBRUCH: "WR", AUSKLINKUNG: "WA", GRAVUR: "WG"}
-UEBERSTAND = 0.5        # Körper ragen so weit über die Wand hinaus [mm] (sichtbar, auch bei Wand bündig)
+UEBERSTAND = 2.0        # Körper ragen außen so weit über die Wand hinaus [mm] (Patrick: außen etwas überstehen)
+UEBERSTAND_INNEN = 2.0  # innen ebenso (Patrick: je 2 mm)
 GRAVUR_TIEFE = 0.1      # Gravur ohne Tiefe [mm]
 MAX_KOERPER = 400       # mehr Konturen (Lochfelder, Belastungstest): keine Körper, sonst wird das 3D zäh
 SCHRITT = 3.0           # Umriss so dicht [mm] (auf dem Rundrohr folgt der Körper der Krümmung)
@@ -167,7 +170,7 @@ def rohr(e, qs, L, xyz):
         o, u_ = [], []
         for (x, u, v), (ru, rv, rx), tf in zip(orte, richt, tiefen):
             a = (x - rx * UEBERSTAND, u - ru * UEBERSTAND, v - rv * UEBERSTAND)
-            b = (x + rx * (tf + UEBERSTAND), u + ru * (tf + UEBERSTAND), v + rv * (tf + UEBERSTAND))
+            b = (x + rx * (tf + UEBERSTAND_INNEN), u + ru * (tf + UEBERSTAND_INNEN), v + rv * (tf + UEBERSTAND_INNEN))
             o += [round(c, 3) for c in xyz(*a)]
             u_ += [round(c, 3) for c in xyz(*b)]
         text = f"{sk.kurz(ein)}\n{tiefe_text(ein, qs, durch, t_wand)}"
@@ -189,7 +192,7 @@ def blech(e, zs, haut, ansicht, dicke):
     from . import blech as bl
     arten = (BOHRUNG, SENKUNG) + tuple(bl.DREH_ARTEN)
     s = max(dicke, 0.1)
-    seite = 1.0 + 2 * UEBERSTAND / s        # haut: Abstand s/2 × seite von der Mitte
+    seite = 1.0 + 2 * UEBERSTAND / s        # haut: Abstand s/2 × seite von der Mitte; beide Seiten außen
     out = []
     for z, zug in zuege:
         if z.get("art") not in arten or z.get("linien"):
