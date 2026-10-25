@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.102", "<b>Nasen der Steckverbindung im Rohr-Editor</b>: Die Schnittebene an einem Ende mit Nasen stand "
+                "an der Spitze der Nasen und verdeckte sie, als wären sie abgeschnitten. Sie steht jetzt am Schnitt, "
+                "die Nasen ragen sichtbar darüber hinaus. [[editor_griffe]]",
+     "Nasen der Steckverbindung nicht mehr von der Schnittebene verdeckt."],
     ["0.9.101", "<b>Knickrahmen mit gerundeter Ecke</b>: Ist die Außenkante am Knick gerundet (Knick mit Radius statt "
                "scharfer Kante), hielt der STEP-Import die Gehrungen der Schenkel für eine Fase, und der Knickrahmen "
                "war „nicht verbindbar“. Die Eckenden kommen jetzt aus der Eckgeometrie ([[knickrahmen_koerper]]).",

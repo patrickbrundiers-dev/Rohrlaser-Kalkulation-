@@ -51,6 +51,12 @@ assert eg.gegenseite(qs, dict(seite="vorne", q=5)) == dict(seite="hinten", q=5)
 assert eg.gegenseite(rund, dict(seite=270)) == dict(seite=90, q=None)
 ecken = eg.ebene_ecken(qs, dict(winkel=45, achse="über Höhe"), 500, "a")
 assert max(e[0] for e in ecken) - min(e[0] for e in ecken) > 40          # Ebene schräg
+from rohrlaser import steckverbindung as stv  # noqa: E402
+qr = dict(profil_id="QR 40x40x2", form="Quadratrohr", a=40, b=40, wand=2, r_aussen=0)
+_, mit_nasen, plus = stv.anwenden(stv.neu(dict(id=1), dict(id=2), qr, {}, ende="b", x=200, seite="oben"),
+                                  dict(a={}, b={}, konturen=[]), dict(a={}, b={}, konturen=[]), qr, qr)
+assert plus > 0 and eg.nasen_plus(mit_nasen["b"]) == plus
+assert {round(e[0], 3) for e in eg.ebene_ecken(qs, mit_nasen["b"], 500, "b")} == {500 - plus}   # Schnitt, nicht Spitze
 assert eg.ebene_griff(qs, dict(sattel=50)) is None and eg.ebene_griff(qs, dict(achse=sw.ACHSE_ZWEI)) is None
 ok("G1 Fangen (Raster, Marken, Winkel), Mitte/Richtung quer, über die Kante, Muster, Spiegeln, Gegenseite, Ebene")
 
