@@ -175,6 +175,8 @@ class BlechSkizze(QWidget):
                 cx, cy = z["x"] - minx, z["y"] - miny
             p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 3.0) if self.markiert == f"kontur:{zeile[id(z)]}" else
                      QPen(stil.farbe(FARBE_KONTUR), 1.2))
+            # ausgeschnitten wie in der Abwicklung des Rohrs (Patrick 25.10.2026): Grund scheint durch, Gravur nicht
+            p.setBrush(Qt.NoBrush if z.get("art") in sw.GRAVUREN or z.get("linien") else stil.farbe("#FFFFFF"))
             self._kontur(p, z, pkt(cx, cy), m)
         if self.mini:
             return

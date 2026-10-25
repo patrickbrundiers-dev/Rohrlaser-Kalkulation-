@@ -28,6 +28,7 @@ FARBE_NAHT = stil.farbe_fest("#C0392B")
 FARBE_BEGRENZT = stil.farbe_fest("#F2C200")     # 3D über der Schwenkgrenze (gelb wie im 3D)
 FARBE_GRAVUR = stil.farbe_fest("#2E7D32")       # Gravur grün wie in der 3D-Ansicht
 FARBE_BIEGUNG = stil.farbe_fest("#7F6000")      # Biegezone (Biegerohr)
+NUR_MARKE = GRAVUREN + (sw.FLOWDRILL,)           # in der Abwicklung nicht ausgeschnitten (nur Laser-Marke)
 
 
 class Skizze(QWidget):
@@ -209,7 +210,7 @@ class Skizze(QWidget):
         la, lb = sk.ende_abwicklung(qs, e_a), sk.ende_abwicklung(qs, e_b)
         umriss = [self._bild(a, d, s) for s, d in la] + [self._bild(a, self.L - d, s) for s, d in reversed(lb)]
         g.setPen(QPen(FARBE_TEIL, 1.4))
-        g.setBrush(QBrush(FARBE_FLAECHE))
+        g.setBrush(QBrush(FARBE_SCHNITT))       # Material kräftiger, damit die Ausschnitte (Grund) hervortreten
         g.drawPolygon(QPolygonF(umriss))
         g.setBrush(Qt.NoBrush)
         # Enden in 3D: Stücke über der Schwenkgrenze gelb (Plan 3E-10, wie im 3D)
@@ -261,6 +262,30 @@ class Skizze(QWidget):
     def _d_bei(linie, s):
         return min(linie, key=lambda z: abs(z[0] - s))[1]
 
+    def _text_zeichnen(self, g, a, d):
+        """Text-Gravur als Schrift (Striche der Einstrich-Schrift, Patrick 25.10.2026) statt als Hüllrechteck; False,
+        wenn es nichts zu zeichnen gibt (dann das Rechteck)."""
+        from . import gravur_text
+        e = d["eingabe"]
+        zuege = gravur_text.linien(e.get("text"), _z(e.get("hoehe")))
+        if not zuege:
+            return False
+        if _z(e.get("winkel")):
+            zuege = gravur_text.gedreht(zuege, _z(e["winkel"]))
+        zuege = [[(x, -y) for x, y in z] for z in zuege]       # Schrift aufrecht: y nach oben = quer nach oben
+        qs = self.qs
+        for z in zuege:
+            if a[0] == "abw":
+                s0 = sk.s_lage(qs, e)
+                if s0 > qs.umfang:
+                    s0 -= qs.umfang
+                pts = [self._bild(a, d["x"] + dx, s0 + dq) for dx, dq in z]
+            else:
+                idx = 1 if a[0] == "oben" else 2
+                pts = [self._bild(a, p[0], p[idx]) for p in sk.platzieren(qs, d, pts=z)[0]]
+            g.drawPolyline(QPolygonF(pts))
+        return True
+
     def _konturen(self, g, a, lagen):
         qs = self.qs
         for d in lagen:
@@ -281,7 +306,7 @@ class Skizze(QWidget):
                     g.setClipRect(QRectF(0, oben_.y(), self.width(), unten_.y() - oben_.y()))
                     farbe = FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
                     g.setPen(QPen(farbe, 1.3))
-                    g.setBrush(Qt.NoBrush)
+                    g.setBrush(QBrush(stil.farbe("#FFFFFF")) if d["art"] not in NUR_MARKE else Qt.NoBrush)
                     for k_ in (-1, 1):
                         g.drawPolygon(QPolygonF([self._bild(a, d["x"] + dx, s0 + dq + k_ * qs.umfang)
                                                  for dx, dq in umr]))
@@ -316,12 +341,15 @@ class Skizze(QWidget):
                 farbe = QColor(farbe).lighter(135)
             stift = QPen(farbe, 2.2 if wahl else 1.3, Qt.SolidLine if sicht > 0 else Qt.DashLine)
             g.setPen(stift)
-            g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 and
-                       d["art"] not in GRAVUREN else Qt.NoBrush)
+            if a[0] == "abw" and d["art"] not in NUR_MARKE:
+                g.setBrush(QBrush(stil.farbe("#FFFFFF")))     # Abwicklung: Kontur ausgeschnitten (Patrick 25.10.2026), Grund scheint durch
+            else:
+                g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 and
+                           d["art"] not in GRAVUREN else Qt.NoBrush)
             r = poly.boundingRect()
             if r.width() < 3 and r.height() < 3:
                 g.drawEllipse(r.center(), 2.5, 2.5)
-            else:
+            elif not (d["art"] == sw.TEXT_GRAVUR and self._text_zeichnen(g, a, d)):
                 g.drawPolygon(poly)
             if begrenzt:
                 g.restore()
