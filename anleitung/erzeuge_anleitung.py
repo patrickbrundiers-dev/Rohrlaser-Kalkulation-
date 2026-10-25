@@ -836,7 +836,9 @@ def kapitel_angebote(i):
            "2026-10</i>, ist dieser Kunde gewählt. Sonst steht der Kunde des zuletzt geänderten eigenen Angebots mit "
            "Importprofil ([[importprofile]]) vorne; <i>(ohne Kunde)</i> geht auch. Gewählt wird im Feld <b>Kunde</b> "
            "oben im Prüfdialog (Tippen sucht in Nummer und Name); ein anderer Kunde wendet sofort dessen Importprofil "
-           "an (Benennung, Normteile, Werkstoff-Vorgabe), eigene Eingaben bleiben. <b>Abbrechen</b> entfernt das eben "
+           "an (Benennung, Normteile, Werkstoff-Vorgabe), selbst gesetzte Häkchen und Eingaben bleiben. Gibt der neue "
+           "Kunde flache Teile anders vor (Blech oder Flachstahl), misst das Programm die Dateien nach dem Übernehmen "
+           "noch einmal und zeigt den Prüfdialog erneut. <b>Abbrechen</b> entfernt das eben "
            "angelegte leere Angebot wieder. Das neue Angebot bekommt die "
            "Kundenvorgaben ([[kundenvorgaben]]) und öffnet sich; danach läuft der Import wie mit <b>STEP "
            "importieren</b> mit allen STEP-Dateien des Ordners samt Unterordnern ([[step]]). Andere Dateien (z. B. "
@@ -1400,8 +1402,9 @@ def kapitel_angebot(i):
             "Die erste Zahl ist die Länge, die zweite die Stückzahl; eindeutig mit <i>L=1250</i>, <i>1250mm</i>, "
             "<i>20 Stk</i> oder <i>x20</i>. Eine Artikelnummer steht mit <i>#</i> davor (<i>#4711-01</i>).",
             "Mehrere Zeilen, z. B. aus einer E-Mail oder aus Excel (Tabulator oder ; getrennt), mit Strg+V in die "
-            "Schnellzeile einfügen: je Zeile eine Position. Nicht erkannte Zeilen nennt die Einblendung; alles "
-            "zusammen ist ein Schritt für <b>Rückgängig</b>.")
+            "Schnellzeile einfügen: je Zeile eine Position. Nicht erkannte Zeilen nennt die Einblendung (alle unter "
+            "<b>Bericht …</b>); die erste steht danach zum Korrigieren in der Schnellzeile, die übrigen folgen nach "
+            "jeder Eingabe. Alles zusammen ist ein Schritt für <b>Rückgängig</b>.")
     i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
     i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
         ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],

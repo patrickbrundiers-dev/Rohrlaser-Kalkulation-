@@ -1172,7 +1172,12 @@ class StepPruefDialog(QDialog):
         self.kundennr = neu
         if self.kunde_gewechselt is None:
             return
+        # Häkchen wie beim Öffnen (Vorgabe: Normteile, unsichere Teile) folgen dem neuen Importprofil; nur selbst
+        # geänderte bleiben
         self.werte_schreiben()
+        for m, v in zip(self.messwerte, self._start):
+            if m.get("_uebernehmen") == v:
+                m.pop("_uebernehmen", None)
         alt_ws = self.werkstoff
         ws = self.kunde_gewechselt(neu)
         if ws != alt_ws:
@@ -1182,6 +1187,9 @@ class StepPruefDialog(QDialog):
             self.werkstoff = ws
         self._baum_fuellen()
         self.datei_waehlen(self.datei_nr)
+        self.werte_schreiben()
+        self._start = [m.get("_uebernehmen") for m in self.messwerte]   # Vorgabe des neuen Kunden (B8 lernt dazu)
+        self._ws_start = self.werkstoff
         self.vorpruefung_zeigen()
 
 

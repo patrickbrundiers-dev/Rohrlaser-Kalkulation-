@@ -21,7 +21,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QItemSelectionModel  # noqa: E402
-from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
+from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QVBoxLayout  # noqa: E402
 
 from rohrlaser import einblendung  # noqa: E402
 from rohrlaser.angebot import ZUKAUFTEIL  # noqa: E402
@@ -163,6 +163,22 @@ ohne = StepPruefDialog(None, [dict(messwerte[0])], k, werkstoffe[0], 1, vorpruef
 assert ohne.kunde_wahl is None and ohne.vor_zeile.isHidden() and not ohne.pdf_danach
 ok("Prüfdialog: Kunde wählen (Importprofil per Rückruf), Vorprüfung als Häkchen, Übernehmen und Angebot (PDF)")
 
+# Kundenwechsel: Häkchen nach Vorgabe folgen dem neuen Importprofil, selbst gesetzte bleiben
+mw = [dict(messwerte[0], artikel=f"T{i}", bauteil=f"T{i}", laenge=500 + i) for i in range(3)]
+
+
+def profil_b(nr):
+    mw[1]["_normteil"] = "T1"           # Importprofil des neuen Kunden: T1 ist Normteil
+    return werkstoffe[0]
+
+
+dlg = StepPruefDialog(None, mw, k, werkstoffe[0], 1, kunden=kunden, kundennr=kunden[0]["kundennr"],
+                      kunde_gewechselt=profil_b, vorpruefung=lambda: ([], 0))
+dlg.zeile_setzen("T2", uebernehmen=False)
+dlg.kunde_wahl.setCurrentIndex(dlg.kunde_wahl.findData(str(kunden[1]["kundennr"])))
+assert [m["_uebernehmen"] for m in dlg.werte_schreiben()] == [True, False, False]
+ok("Prüfdialog: beim Kundenwechsel folgen unveränderte Häkchen dem neuen Importprofil")
+
 # ------------------------------------------------------------------ B3 Blättern im Editor
 s.neu_laden()
 rohre = [r for r, p in enumerate(s.positionen) if s.editor_art(p) == "rohr"]
@@ -185,8 +201,28 @@ assert [dict(p) for p in db.positionen(aid)] == stand, "ohne Änderung wird beim
 assert s.pos_ansicht.currentIndex().row() == rohre[2], "die zuletzt geöffnete Position ist markiert"
 ok("Blättern im Rohr-Editor: n von m im Titel, ohne Änderung nichts gespeichert")
 
+
+class EditorMitOk(QDialog):
+    """Editor wie Baugruppe/Schneidweg: OK prüft und setzt das Ergebnis in _ok."""
+    def __init__(self):
+        super().__init__()
+        self.ergebnis = None
+        QVBoxLayout(self).addWidget(QDialogButtonBox(QDialogButtonBox.Ok))
+
+    def _ok(self):
+        self.ergebnis = "gespeichert"
+        self.accept()
+
+
+ed, geaendert = EditorMitOk(), [0]
+s._blaettern_einbauen(ed, rohre[0], zustand=lambda: geaendert[0])
+geaendert[0] = 1                        # Eingabe im Editor geändert
+ed.blaettern_knoepfe[1].click()
+assert ed.ergebnis == "gespeichert" and ed.result() == QDialog.Accepted, "Blättern übernimmt über den OK-Weg"
+ok("Blättern mit Änderung übernimmt über den OK-Weg des Editors (Prüfung, Ergebnis)")
+
 # ------------------------------------------------------------------ B4 Fenster merken, offene Angebote
-from PySide6.QtWidgets import QSplitter, QVBoxLayout  # noqa: E402
+from PySide6.QtWidgets import QSplitter  # noqa: E402
 
 from rohrlaser import fenster_merken  # noqa: E402
 
@@ -281,6 +317,11 @@ assert s.schnellzeile(f"{lang} 100 1\nunbekannt\n{lang} 200 2") == 2
 assert len(db.positionen(aid)) == vorher + 3 and f.letzte_aktion[0] == "Rückgängig"
 f.letzte_aktion[1]()
 assert len(db.positionen(aid)) == vorher + 1, "Rückgängig nimmt alle Zeilen eines Einfügens zurück"
+assert s.schnellzeile("unbekannt eins\nunbekannt zwei") == 0
+assert s.schnell.text() == "unbekannt eins" and s.schnell_rest == ["unbekannt zwei"]
+s.schnell.setText(f"{lang} 300 1")
+assert s.schnellzeile() == 1 and s.schnell.text() == "unbekannt zwei" and not s.schnell_rest
+s.schnell.clear()
 ok("Schnellzeile: Profil, Werkstoff, Länge, Stück erkannt; mehrere Zeilen; Rückgängig")
 
 # ------------------------------------------------------------------ B8 Prüfdialog lernt pro Kunde

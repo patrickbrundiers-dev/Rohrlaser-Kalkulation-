@@ -2610,17 +2610,22 @@ class AngebotSeite(QWidget):
                 gut.append(z)
         finally:
             self.verlauf.pause -= 1
-        self.schnell.setText(" ".join(z["text"] for z in schlecht) if len(schlecht) == 1 else "")
+        # nicht erkannte Zeilen: die erste ins Feld, die übrigen folgen nacheinander nach Eingabe (nichts geht verloren)
+        rest = [z["text"] for z in schlecht] + getattr(self, "schnell_rest", [])
+        self.schnell_rest = rest[1:]
+        self.schnell.setText(rest[0] if rest else "")
+        bericht = ("Schnellzeile – nicht erkannt", "\n".join(f"{z['text']}  ({', '.join(z['fehler'])})"
+                                                             for z in schlecht)) if len(schlecht) > 1 else None
         if gut:
             self.neu_laden()
             text_ = f"{len(gut)} Position(en) aus der Schnellzeile angelegt."
             if schlecht:
                 text_ += f" {len(schlecht)} Zeile(n) nicht erkannt: " + "; ".join(
                     f"„{z['text']}“ ({', '.join(z['fehler'])})" for z in schlecht[:3])
-            self.rueckgaengig_anbieten(text_)
+            self.rueckgaengig_anbieten(text_, bericht=bericht)
         else:
             self.f.meldung("Schnellzeile: " + "; ".join(f"„{z['text']}“: {', '.join(z['fehler'])}"
-                                                        for z in schlecht[:3]), fehler=True)
+                                                        for z in schlecht[:3]), fehler=True, bericht=bericht)
         return len(gut)
 
     def _naechste_pos(self):
@@ -2954,7 +2959,7 @@ class AngebotSeite(QWidget):
             if zustand is not None and zustand() == start:
                 d.reject()                  # nichts geändert: nicht speichern (keine Rückfrage zu STEP-Werten)
             else:
-                d.accept()
+                getattr(d, "_ok", d.accept)()           # wie OK: prüfen und Ergebnis setzen (Baugruppe, Schneidweg)
                 if d.result() != QDialog.Accepted:      # Eingaben unvollständig: Editor bleibt offen
                     self._blaettern_ziel = None
         boxen = d.findChildren(QDialogButtonBox)
@@ -4506,12 +4511,14 @@ class AngebotSeite(QWidget):
         from . import importprofil
         return importprofil.fuer_kunde(self.db, (self.kopf or {}).get("kundennr"))
 
-    def flach_bis(self):
+    def flach_bis(self, kundennr=None):
         """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
-        Vorgabe, oder Importprofil des Kunden), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
+        Vorgabe, oder Importprofil des Kunden; kundennr = anderer Kunde als im Angebot), Flachstahl bleibt im
+        Prüfdialog als andere Art wählbar."""
         from .stammdaten import FLACH_ALS
         from . import importprofil
-        profil = importprofil.fuer_kunde(self.db, (getattr(self, "kopf", None) or {}).get("kundennr"))
+        kundennr = kundennr if kundennr is not None else (getattr(self, "kopf", None) or {}).get("kundennr")
+        profil = importprofil.fuer_kunde(self.db, kundennr)
         flach_als = (profil or {}).get("flach_als") or self.db.einstellung("flach_als") or FLACH_ALS[0]
         if flach_als == FLACH_ALS[0]:
             return 0
@@ -4560,10 +4567,12 @@ class AngebotSeite(QWidget):
         if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
             werkstoff = vorgaben.get("werkstoff") or self.db.einstellung("step_werkstoff") or None
             werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
+        flach_gemessen = self.flach_bis()
         gemessen = self.step_messen(dateien, mit_ablage=True)
         if gemessen is None:
             return None
         messwerte, json_ablage = gemessen
+        dateien = list(getattr(self, "step_dateien_zuletzt", None) or dateien or [])
         # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
@@ -4601,6 +4610,10 @@ class AngebotSeite(QWidget):
             if kunde_waehlen and str(dlg.kundennr or "") != str(self.kopf.get("kundennr") or ""):
                 self.kunde_waehlen(str(dlg.kundennr or ""))
                 self.f.angebote.neu_laden()
+                if self.flach_bis() != flach_gemessen:      # flache Teile gibt der Kunde anders vor: neu messen
+                    self.f.meldung("Der gewählte Kunde gibt flache Teile anders vor (Importprofil) – die STEP-Dateien "
+                                   "werden dafür neu gemessen.")
+                    return self.step_importieren(dateien, None, stueck, als_satz)
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
