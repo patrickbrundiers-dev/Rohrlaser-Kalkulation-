@@ -22,7 +22,7 @@ from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequenc
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QApplication, QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, hilfe, lizenzbedingungen, pdf, tabellen_eingabe, tastatur, teilen, update
@@ -189,19 +189,50 @@ class Sortierung(QSortFilterProxyModel):
         return str(a).lower() < str(b).lower()
 
 
+# Plan Bedienung B7: Funktion(quelle) -> zuletzt benutzte Werte (neueste zuerst); setzt das Hauptfenster
+# (Datenbank.zuletzt_benutzt), im stummen Betrieb (Tests) bleibt sie leer
+zuletzt_quelle = None
+ZULETZT_ANZAHL = 5
+ZULETZT_TITEL = "— Zuletzt benutzt —"
+
+
+def ueberschrift(cb, titel):
+    """Nicht wählbare, fette Zwischenzeile in einer Auswahlliste."""
+    cb.addItem(titel)
+    it = cb.model().item(cb.count() - 1)
+    it.setEnabled(False)
+    f = it.font()
+    f.setBold(True)
+    it.setFont(f)
+
+
+def zuletzt_einfuegen(cb, quelle, erlaubt):
+    """Die zuletzt benutzten Werte (nur solche aus erlaubt) als eigene Gruppe oben in die Liste (B7)."""
+    if zuletzt_quelle is None:
+        return []
+    try:
+        werte = [w for w in zuletzt_quelle(quelle) if w in erlaubt][:ZULETZT_ANZAHL]
+    except Exception:       # noqa: BLE001 – Datendatei geschlossen o. Ä.: ohne Gruppe
+        return []
+    if werte:
+        ueberschrift(cb, ZULETZT_TITEL)
+        cb.addItems(werte)
+    return werte
+
+
 def liste_fuellen(cb, k, quelle, erster=""):
-    """Auswahlliste füllen; Werkstoffe und Oberflächen mit Überschriften je Kategorie (nicht wählbar).
-    erster: Eintrag vor der Liste (None = keiner)."""
+    """Auswahlliste füllen; Werkstoffe und Oberflächen mit Überschriften je Kategorie (nicht wählbar), oben die
+    zuletzt benutzten (B7). erster: Eintrag vor der Liste (None = keiner)."""
     if erster is not None:
         cb.addItem(erster)
-    for titel, werte in k.gruppiert(quelle):
+    gruppen = list(k.gruppiert(quelle))
+    if quelle in ("profil", "werkstoff", "oberflaeche"):
+        zuletzt = zuletzt_einfuegen(cb, quelle, {w for _, werte in gruppen for w in werte})
+        if zuletzt and gruppen and not gruppen[0][0]:
+            gruppen[0] = ("Alle", gruppen[0][1])     # Trennung der Gruppe „zuletzt“ von der vollen Liste
+    for titel, werte in gruppen:
         if titel:
-            cb.addItem(f"— {titel} —")
-            it = cb.model().item(cb.count() - 1)
-            it.setEnabled(False)
-            f = it.font()
-            f.setBold(True)
-            it.setFont(f)
+            ueberschrift(cb, f"— {titel} —")
         cb.addItems(werte)
         if quelle == "werkstoff":      # Norm, Rohrlaser-Eigenschaften und Laser-Hinweis als Tooltip (24.10.2026)
             for i in range(cb.count() - len(werte), cb.count()):
@@ -227,6 +258,8 @@ class Auswahl(QStyledItemDelegate):
             liste_fuellen(cb, quelle.model().k, f.auswahl)
             if f.auswahl == "profil":           # „40x3“ findet „QR 40x40x3“ (Plan Arbeitsabläufe W5)
                 tabellen_eingabe.profil_vervollstaendigen(cb)
+            elif cb.isEditable():               # Tippen findet auch Teilwörter, z. B. „4301“ (B7)
+                tabellen_eingabe.teilwort(cb)
             return cb
         return super().createEditor(parent, option, index)
 
@@ -1321,8 +1354,14 @@ class Hauptfenster(QMainWindow):
         from . import symbole
         symbole.versehen(self)          # Symbole an Hauptaktionen und Menüpunkten (Layout-Plan L19)
         self.lizenz_anwenden()
+        self.fenster_merker = None
         if not stumm:
             self.updater.beim_start()
+            global zuletzt_quelle                       # zuletzt benutzte Werte oben in Auswahllisten (B7)
+            zuletzt_quelle = db.zuletzt_benutzt
+            from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
+            self.fenster_merker = FensterMerker(db, self)
+            QApplication.instance().installEventFilter(self.fenster_merker)
 
     def starten(self):
         """Programmstart: Fenster maximiert (mit Taskleiste) und gleich im Reiter Angebote; danach Benutzer (beim
@@ -1331,6 +1370,8 @@ class Hauptfenster(QMainWindow):
         self.showMaximized()
         self.lose_dateien_verschieben()
         if not self.stumm:
+            from . import fenster_merken            # zuletzt offene Angebote wieder öffnen (B4, Freigabe F2a)
+            fenster_merken.sitzung_wiederherstellen(self)
             QTimer.singleShot(200, self._start_teilen)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
@@ -1898,6 +1939,8 @@ class Hauptfenster(QMainWindow):
                 ereignis.ignore()
                 return
         if not self.stumm:
+            from . import fenster_merken
+            fenster_merken.sitzung_merken(self)     # offene Angebote für den nächsten Start (B4)
             try:
                 _, fehler = self.db.sicherungen(zusatz="beenden")
             except OSError as e:

@@ -96,6 +96,22 @@ def profil_vervollstaendigen(cb):
     return c
 
 
+def teilwort(cb):
+    """Bearbeitbare Auswahlliste: Tippen zeigt alle Einträge, die den Text irgendwo enthalten (Plan Bedienung B7),
+    ohne Zwischenüberschriften."""
+    if not cb.isEditable():
+        cb.setEditable(True)
+        cb.setInsertPolicy(cb.InsertPolicy.NoInsert)
+    namen = list(dict.fromkeys(cb.itemText(i) for i in range(cb.count())
+                               if cb.itemText(i) and not cb.itemText(i).startswith("— ")))
+    c = QCompleter(namen, cb)
+    c.setFilterMode(Qt.MatchContains)
+    c.setCaseSensitivity(Qt.CaseInsensitive)
+    c.setCompletionMode(QCompleter.PopupCompletion)
+    cb.setCompleter(c)
+    return c
+
+
 # ------------------------------------------------------------------ Eingabe, ↓, Strg+D
 def von_oben(ansicht):
     """Strg+D: markierte Zellen mit dem Wert der Zeile darüber füllen (je Spalte; mehrere markierte Zeilen: die

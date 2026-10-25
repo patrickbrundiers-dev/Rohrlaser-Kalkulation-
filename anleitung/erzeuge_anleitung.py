@@ -1370,6 +1370,17 @@ def kapitel_angebot(i):
             "<b>Meldungen (n)</b> in der Statusleiste zeigt die letzten 20 Meldungen mit Uhrzeit; Einträge mit "
             "<i>(Bericht …)</i> öffnen den Bericht noch einmal.",
             "Fehler, bei denen Daten verloren gehen könnten, und echte Entscheidungen bleiben Fenster.")
+    i.abschnitt("Das Programm merkt sich Fenster und Auswahl", marke="fenster_merken")
+    i.text("Jedes Fenster öffnet in der Größe und an der Stelle, wo man es zuletzt geschlossen hat, Teiler "
+           "eingeschlossen. Angebote, die beim Beenden offen waren, sind beim nächsten Start wieder offen, mit dem "
+           "zuletzt gewählten Unterreiter.", kurz=True)
+    i.liste("Auswahllisten für Profil, Werkstoff und Oberfläche zeigen oben unter <i>Zuletzt benutzt</i> die "
+            "Werte der letzten Positionen, darunter die ganze Liste. Tippen findet auch Teilwörter, z. B. "
+            "<i>4301</i> oder <i>40x3</i>.",
+            "Gemerkt wird in der eigenen Datendatei, nicht im gemeinsamen Ordner; jeder Arbeitsplatz hat seine "
+            "eigenen Fenstergrößen. Lag ein Fenster auf einem Bildschirm, den es nicht mehr gibt, öffnet es in der "
+            "Mitte. Die Teile-Editoren öffnen weiter maximiert.",
+            "Gelöschte oder fremde Angebote öffnen beim Start nicht.")
     i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
     i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
            "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "
@@ -2553,6 +2564,13 @@ def kapitel_optimieren(i):
             "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s), damit "
             "beim Tippen nichts hängt. Gerechnet wird wie bisher im Schneidweg-Rechner bzw. Blech-Editor; der "
             "Rahmen rechnet nichts eigenes.")
+    i.abschnitt("Von Position zu Position blättern", marke="blaettern")
+    i.text("Im Schneidweg-Rechner, im Blech-Editor und im Editor der Schweißbaugruppe stehen unten <b>◀ Vorige</b> "
+           "und <b>Nächste ▶</b> (Alt+← / Alt+→): der Editor springt zur vorigen bzw. nächsten Position derselben "
+           "Art, ohne dass man ihn schließt. Der Fenstertitel zeigt z. B. <i>Pos. 30 (3 von 12)</i>.", kurz=True)
+    i.text("Geänderte Eingaben werden beim Blättern übernommen wie mit OK; ohne Änderung wird nichts gespeichert "
+           "(auch keine Rückfrage zu STEP-Werten). Sind die Eingaben unvollständig, bleibt der Editor offen. Die "
+           "zuletzt geöffnete Position ist danach in der Positionsliste markiert.")
     i.abschnitt("Am 3D-Modell bearbeiten: Griffe, Maße, Schnittebenen", marke="editor_griffe")
     i.text("Beim Rohr lässt sich das Teil direkt im 3D-Modell ändern, wie in einem CAM-Programm: die gewählte Kontur "
            "an den Pfeilen ziehen, ein Maß doppelt anklicken und eintippen, die Gehrung an der Schnittebene "

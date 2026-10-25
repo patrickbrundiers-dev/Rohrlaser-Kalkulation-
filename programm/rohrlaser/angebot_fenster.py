@@ -1,6 +1,7 @@
 """Angebote: Übersicht, Angebotsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
 import copy
 import datetime
+import functools
 import json
 import tempfile
 import threading
@@ -1477,6 +1478,33 @@ class AngebotReiter(QTabWidget):
                                                                for j in range(g.count())]
 
 
+def blaetterbar(liste=False):
+    """Editor-Methode der Angebotsseite mit Blättern (Plan Bedienung B3): ◀ ▶ im Editor schließt ihn (Änderungen
+    übernommen, Freigabe F3a) und öffnet gleich die vorige bzw. nächste Position derselben Art. liste: die Methode
+    erwartet eine Liste von Zeilen (Baugruppe)."""
+    def deko(methode):
+        @functools.wraps(methode)
+        def huelle(self, *a, **kw):
+            if getattr(self, "_blaettern_laeuft", False):
+                return methode(self, *a, **kw)
+            self._blaettern_laeuft = True
+            try:
+                self._blaettern_ziel = None
+                erg = methode(self, *a, **kw)
+                while self._blaettern_ziel is not None:
+                    ziel, self._blaettern_ziel = self._blaettern_ziel, None
+                    if not 0 <= ziel < len(self.positionen):
+                        break
+                    self.pos_ansicht.selectRow(ziel)
+                    weiter = {n: v for n, v in kw.items() if n == "dialog"}
+                    erg = methode(self, [ziel] if liste else ziel, **weiter)
+            finally:
+                self._blaettern_laeuft = False
+            return erg
+        return huelle
+    return deko
+
+
 class AngebotSeite(QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
@@ -1619,13 +1647,10 @@ class AngebotSeite(QWidget):
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
-                ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Ctrl+Shift+S"),
-                ("Positionen löschen", self.positionen_loeschen, "Del")):
-            a = self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
-            if tasten:          # nur zur Anzeige: die Kürzel selbst hängen am Menü Bearbeiten
-                a.setShortcut(QKeySequence(tasten))
-                a.setShortcutContext(Qt.WidgetShortcut)
-                a.setShortcutVisibleInContextMenu(True)
+                ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
+                ("Positionen löschen", self.positionen_loeschen, "Entf")):
+            # Kürzel nur als Text rechts (Tabulator), die Kürzel selbst hängen am Menü Bearbeiten
+            a = self.pos_menue.addAction(text + (f"\t{tasten}" if tasten else ""), lambda ziel=ziel: ziel())
             self.pos_aktionen[text] = a
         self.pos_menue.insertSeparator(self.pos_aktionen["Für markierte setzen …"])
         self.pos_menue.aboutToShow.connect(self._pos_menue_anpassen)
@@ -2654,6 +2679,7 @@ class AngebotSeite(QWidget):
             self.f.meldung(f"{n} Positionen aus DXF angelegt.")
         return n
 
+    @blaetterbar()
     def blech_bearbeiten(self, zeile=None, dialog=None):
         """Blech-Editor einer Position aus dem Blech-Editor wieder öffnen; der neue Richtpreis wird als EK ab der
         Stückzahl der Position im Artikel eingetragen. Ergebnis: True = übernommen."""
@@ -2673,6 +2699,7 @@ class AngebotSeite(QWidget):
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
                         dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
                              stueck=p.get("stueck")), neu=False)
+        self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.kopf_werte()))
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
@@ -2814,6 +2841,52 @@ class AngebotSeite(QWidget):
         if ist_zukaufteil(p):
             return "blech" if blech.lesen(p.get("technik")) else "zukauf"
         return "rohr"
+
+    def editor_art(self, p):
+        """Welcher Editor eine Position bearbeitet (Blättern, B3): rohr (mit Profil), blech, baugruppe oder None."""
+        art = self.position_art(p)
+        if art == "rohr":
+            return "rohr" if p.get("profil_id") in self.k.profile else None
+        if art == "blech":
+            return "blech" if zukauf.json_liste(p.get("zukauf")) else None
+        return "baugruppe" if art == "baugruppe" else None
+
+    def _blaettern_einbauen(self, d, zeile, zustand=None):
+        """Knöpfe ◀ Vorige / Nächste ▶ (Alt+← / Alt+→) im Editor der Position in zeile (B3). Beim Wechsel werden
+        Änderungen übernommen (F3a); ohne Änderung (zustand() wie beim Öffnen) schließt der Editor ohne Speichern.
+        Der Titel zeigt Pos. und „n von m“ der Positionen dieser Art."""
+        p = self.positionen[zeile] if 0 <= zeile < len(self.positionen) else None
+        art = self.editor_art(p) if p else None
+        reihe = [r for r, q in enumerate(self.positionen) if art and self.editor_art(q) == art]
+        if zeile not in reihe or len(reihe) < 2:
+            return None
+        i = reihe.index(zeile)
+        start = zustand() if zustand else None
+        d.blaettern_knoepfe = {}
+
+        def gehen(schritt):
+            if not 0 <= i + schritt < len(reihe):
+                return
+            self._blaettern_ziel = reihe[i + schritt]
+            if zustand is not None and zustand() == start:
+                d.reject()                  # nichts geändert: nicht speichern (keine Rückfrage zu STEP-Werten)
+            else:
+                d.accept()
+                if d.result() != QDialog.Accepted:      # Eingaben unvollständig: Editor bleibt offen
+                    self._blaettern_ziel = None
+        boxen = d.findChildren(QDialogButtonBox)
+        for text, schritt, taste in (("◀ Vorige", -1, "Alt+Left"), ("Nächste ▶", 1, "Alt+Right")):
+            b = QPushButton(text)
+            b.setToolTip(f"{'Vorige' if schritt < 0 else 'Nächste'} Position dieser Art öffnen ({taste.replace('Left', '←').replace('Right', '→')}); "
+                         "Änderungen werden übernommen")
+            b.setEnabled(0 <= i + schritt < len(reihe))
+            b.clicked.connect(lambda _=False, s=schritt: gehen(s))
+            QShortcut(QKeySequence(taste), d, activated=lambda s=schritt: gehen(s))
+            if boxen:
+                boxen[0].addButton(b, QDialogButtonBox.ResetRole)
+            d.blaettern_knoepfe[schritt] = b
+        d.setWindowTitle(f"{d.windowTitle()} – Pos. {p.get('pos') or ''} ({i + 1} von {len(reihe)})")
+        return reihe
 
     def _pos_menue_anpassen(self):
         """Rechtsklick-Menü passend zu den markierten Positionen (B5)."""
@@ -2964,6 +3037,7 @@ class AngebotSeite(QWidget):
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
         return True
 
+    @blaetterbar(liste=True)
     def baugruppe_bearbeiten(self, zeilen, dialog=None, fokus=None):
         """Editor der Schweißbaugruppe in der Zeile; bei einem Einzelteil der Editor seiner Baugruppe.
         fokus: Status, dessen Zeile der Editor zeigt (Doppelklick auf den Status). Ergebnis: True = gespeichert."""
@@ -2983,6 +3057,7 @@ class AngebotSeite(QWidget):
                             netze=self.db.netze(self.id), profile=self.k.profile)
         if fokus:
             d.fokus(fokus)
+        self._blaettern_einbauen(d, next(r for r, q in enumerate(self.positionen) if q["id"] == p["id"]))
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
@@ -3398,6 +3473,7 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
+    @blaetterbar()
     def schneidweg_berechnen(self, zeile=None, eingaben=None, dialog=None, ueberschreiben=None):
         """Schneidweg-Rechner für die markierte Position (Dialog): Enden, Konturen und Gravur eingeben, Werte in die
         Position übernehmen. eingaben = dict setzt sie ohne Dialog, dialog(d) bedient den Dialog statt exec,
@@ -3417,6 +3493,7 @@ class AngebotSeite(QWidget):
         if eingaben is None:
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
                                  step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
+            self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert()))
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
