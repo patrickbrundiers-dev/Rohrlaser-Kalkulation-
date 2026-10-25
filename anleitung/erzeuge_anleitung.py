@@ -1470,6 +1470,9 @@ def kapitel_step(i):
             "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
             "Der Explorer ist gleich nach dem Loslassen wieder frei; das Programm kommt nach vorne und misst. "
             "Während ein Import läuft, nimmt es keine weiteren Dateien an (Hinweis unten im Fenster).",
+            "Eine STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) kündigt das Programm vorher an: "
+            "Dauer und Arbeitsspeicher der Messung, aus der Dateigröße geschätzt (gemessen: 32 MB mit 1.000 "
+            "Bohrungen etwa 1 min und 1,2 GB). <i>Nein</i> misst nicht ([[systemvoraussetzungen]]).",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
             "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
             "Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "

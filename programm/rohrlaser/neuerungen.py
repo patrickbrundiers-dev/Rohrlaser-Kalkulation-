@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.122", "<b>Performance-Update</b> (Belastungstest Rundrohr 84 × 2 mit 200, 1.000 und 7.000 Bohrungen): Das "
+                "3D-Modell aus den Eingaben rechnet bei vielen Bohrungen ein Mehrfaches schneller und wird gemerkt "
+                "(1.000 Bohrungen: 24 s → 5 s); der Rohr-Editor öffnet dreimal so schnell, eine Änderung braucht keine "
+                "18 s mehr für die Ergebnistabelle. Satz in 3D und Baugruppe: ein Klick rechnet die Teile nicht neu. "
+                "<b>STEP speichern</b> zieht nicht überlappende Bohrungen in einem Durchgang ab (1.000 Bohrungen: über "
+                "5 min → 20 s), zeigt bei langen Exporten Dauer und Abbrechen, das Zeitlimit wächst mit den Bohrungen "
+                "([[step_export]]). Positionsliste, Vorschaubilder, Werkstattpapiere und Stangenbild schneller; "
+                "Staffeln und Nachkalkulation füllen sich erst beim Öffnen des Reiters. Behoben: Angebots-PDF mit "
+                "einem Satz, der nicht auf eine Seite passt (Fehler beim Erzeugen); der Satz bricht jetzt um, die "
+                "Spaltenköpfe stehen auf jeder Seite. Neu: <b>Systemvoraussetzungen</b> in der Anleitung und "
+                "<b>Hilfe → Systemprüfung …</b>, einmal nach Installation bzw. Update mit Hinweis, wenn der Rechner "
+                "unter dem Minimum liegt ([[systemvoraussetzungen]]). Alle Preise, Zeiten und Messwerte bleiben gleich.",
+     "Performance-Update: 3D, Rohr-Editor, STEP speichern viel schneller; Systemvoraussetzungen und Systemprüfung"],
     ["0.9.121", "<b>Vollmaterial als Zukaufartikel</b>: neue Artikeltypen <b>Rundstahl</b> und <b>Vierkantstahl</b> "
                 "(Ø bzw. Kante, Länge, Werkstoff); Gewicht aus der Dichte, EK je Stück = Gewicht × Preis je kg "
                 "(Vorgabe Tonnenpreis des Werkstoffs), Kategorie <i>Vollmaterial</i> ([[vollmaterial]]). Der "

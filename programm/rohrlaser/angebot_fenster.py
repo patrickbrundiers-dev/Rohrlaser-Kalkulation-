@@ -4701,6 +4701,10 @@ class AngebotSeite(QWidget):
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
+        gross = step.grosse_dateien(step.step_dateien(dateien))
+        if gross and not getattr(self.f, "stumm", False) and QMessageBox.question(
+                self, "STEP-Import", gross, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes) != QMessageBox.Yes:
+            return None
         step_einstellungen.anwenden(self.db)
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"

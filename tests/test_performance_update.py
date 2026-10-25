@@ -90,6 +90,18 @@ pruefe(se.dauer_text(30) == "etwa 30 s" and se.dauer_text(150) == "etwa 2 min" a
        "P4 Dauer als Text")
 ok("P4 Zeitlimit wächst mit den Werkzeugen, Dauer „etwa x min“")
 
+# P5a Hinweis vor großen STEP-Dateien
+from rohrlaser import step  # noqa: E402
+ordner = Path(tempfile.mkdtemp())
+klein, gross = ordner / "klein.step", ordner / "gross.step"
+klein.write_text("ISO-10303-21;")
+with open(gross, "wb") as d:
+    d.truncate(int(225e6))         # leer, nur groß
+pruefe(step.grosse_dateien([klein]) is None, "P5a kleine Datei ohne Hinweis")
+t = step.grosse_dateien([klein, gross])
+pruefe(t and "gross.step (225 MB)" in t and "etwa 9 min" in t and "etwa 9 GB" in t, f"P5a Hinweis {t!r}")
+ok("P5a große STEP-Datei: Hinweis mit Dauer und Arbeitsspeicher")
+
 # P10 Systemprüfung
 zeilen = sp.pruefen(tempfile.gettempdir(), gl=(False, "Test"), bildschirm=(1280, 720))
 bereiche = [z[0] for z in zeilen]
@@ -101,6 +113,12 @@ z2 = dict((z[0], z[4]) for z in sp.pruefen(tempfile.gettempdir(), gl=(True, "GL"
 pruefe(z2["Bildschirm"] == sp.OK and z2["Grafik"] == sp.OK, "P10 Full HD und OpenGL = empfohlen")
 pruefe("Arbeitsspeicher: 8 GB / 16 GB" in sp.text() and "Windows" in sp.text(), "P10 Text für Release")
 pruefe("<table" in sp.html(zeilen), "P10 Tabelle")
+yml = (HIER.parent / ".github" / "workflows" / "paket.yml").read_text(encoding="utf-8")
+readme = (HIER.parent / "README.md").read_text(encoding="utf-8")
+for b, m, e in sp.VORAUSSETZUNGEN:
+    pruefe(f"| {b} | {m} | {e} |" in readme, f"P10 README nennt {b} wie systempruefung.py")
+    pruefe(m.split(" (")[0] in yml, f"P10 Release-Text nennt {b}: {m}")
+pruefe(yml.count("Hilfe → Systemprüfung") >= 2, "P10 Release- und Download-Text verweisen auf die Systemprüfung")
 ok("P10 Systemprüfung bewertet je Bereich (Minimum, Empfehlung)")
 
 from rohrlaser import VERSION  # noqa: E402
