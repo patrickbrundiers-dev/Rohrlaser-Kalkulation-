@@ -1,13 +1,13 @@
 """Dialoge mit 3D-Ansicht: Prüfen der STEP-Messung vor dem Übernehmen und Ansehen der Positionen eines Angebots."""
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
                                QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import stil
+from . import einblendung, stil
 from . import hilfe
 from .ansicht3d import ARTEN, TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
@@ -130,9 +130,17 @@ class StepPruefDialog(QDialog):
     SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
-                 knick_vorgaben=None, step_kopieren=None, maschine_3d=False):
+                 knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
+                 kunde_gewechselt=None, vorpruefung=None):
+        """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
+        STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
+        neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
+        Anzahl schon vorhandener Artikel) wie step.vorpruefung – statt zweier Rückfragen nach dem Übernehmen stehen
+        sie als Häkchen unter der Liste."""
         from . import step
         super().__init__(parent)
+        self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
+        self.pdf_danach = False         # Knopf „Übernehmen und Angebot (PDF)“
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
         from . import knickverbindung
@@ -200,6 +208,27 @@ class StepPruefDialog(QDialog):
         self.ziel_wahl.currentIndexChanged.connect(lambda i: self._ziel_setzen(self.ziel_wahl.itemData(i)))
         sl.addWidget(self.ziel_wahl)
         self.satz_info = QLabel()
+        self.kunde_wahl = None
+        if kunden is not None:          # B1: Kunde direkt hier wählen (Vorschlag aus Ordnername/letztem Angebot)
+            from .step_neu import OHNE_KUNDE
+            self.kunde_wahl = QComboBox()
+            self.kunde_wahl.setEditable(True)           # Tippen sucht (Nummer oder Name)
+            self.kunde_wahl.setInsertPolicy(QComboBox.NoInsert)
+            self.kunde_wahl.completer().setFilterMode(Qt.MatchContains)
+            self.kunde_wahl.completer().setCompletionMode(self.kunde_wahl.completer().CompletionMode.PopupCompletion)
+            self.kunde_wahl.setMinimumWidth(260)
+            self.kunde_wahl.setToolTip("Kunde des neuen Angebots. Vorschlag aus dem Ordnernamen der STEP-Dateien bzw. "
+                                       "dem letzten Angebot mit Importprofil; ein Wechsel wendet das Importprofil des "
+                                       "Kunden an.")
+            self.kunde_wahl.addItem(OHNE_KUNDE, "")
+            for kd in sorted(kunden, key=lambda z: str(z.get("name") or "").lower()):
+                self.kunde_wahl.addItem(f"{kd['kundennr']} – {kd.get('name') or ''}", str(kd["kundennr"]))
+            i = self.kunde_wahl.findData(str(kundennr or ""))
+            self.kunde_wahl.setCurrentIndex(max(i, 0))
+            self.kunde_wahl.currentIndexChanged.connect(lambda _i: self._kunde_setzen())
+            kl.addWidget(QLabel("Kunde:"))
+            kl.addWidget(self.kunde_wahl)
+            kl.addSpacing(18)
         kl.addWidget(self.zurueck)
         kl.addWidget(self.vor)
         kl.addSpacing(6)
@@ -298,6 +327,22 @@ class StepPruefDialog(QDialog):
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
         ll.addLayout(zeile_3d)
+        # B1: fehlende Profile und doppelte Artikel als Häkchen statt Rückfragen nach dem Übernehmen
+        self.vor_zeile = QWidget()
+        vz = QVBoxLayout(self.vor_zeile)
+        vz.setContentsMargins(0, 0, 0, 0)
+        self.profile_haken = QCheckBox()
+        self.profile_haken.setChecked(True)
+        self.profile_haken.setToolTip("Profile, die in den Stammdaten fehlen, beim Übernehmen aus den Messwerten "
+                                      "anlegen (danach unter Einstellungen → Profile prüfen). Aus = die Teile kommen "
+                                      "ohne Profil ins Angebot.")
+        self.doppelt_haken = QCheckBox()
+        self.doppelt_haken.setToolTip("Artikelnummern, die schon im Angebot stehen, trotzdem noch einmal eintragen. "
+                                      "Aus = diese Teile werden übersprungen.")
+        for w in (self.profile_haken, self.doppelt_haken):
+            w.setStyleSheet("color: #7A5A00;")
+            vz.addWidget(w)
+        ll.addWidget(self.vor_zeile)
         self.ansicht = Ansicht3DMitKnoepfen()
         teil = QSplitter(Qt.Horizontal)
         teil.addWidget(links)
@@ -318,7 +363,12 @@ class StepPruefDialog(QDialog):
         lay.addWidget(hinweis)
         knoepfe = QDialogButtonBox()
         knoepfe.addButton("Übernehmen", QDialogButtonBox.AcceptRole)
+        self.pdf_knopf = knoepfe.addButton("Übernehmen und Angebot (PDF)", QDialogButtonBox.ActionRole)
+        self.pdf_knopf.setToolTip("Übernehmen, optimieren, prüfen und gleich das Angebots-PDF schreiben (Strg+Eingabe)")
+        self.pdf_knopf.clicked.connect(self.mit_pdf)
         knoepfe.addButton("Abbrechen", QDialogButtonBox.RejectRole)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence("Ctrl+Return"), self, activated=self.mit_pdf)
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
         # Ordner je Angebot (B3): STEP-Dateien in den Unterordner STEP kopieren, Vorgabe aus den Einstellungen
@@ -333,6 +383,14 @@ class StepPruefDialog(QDialog):
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
         self.datei_waehlen(0)
+        # Häkchen der Vorprüfung nach Änderungen auffrischen, gesammelt (nicht während die Liste aufgebaut wird)
+        self._vor_uhr = QTimer(self)
+        self._vor_uhr.setSingleShot(True)
+        self._vor_uhr.setInterval(150)
+        self._vor_uhr.timeout.connect(self.vorpruefung_zeigen)
+        self.baum.itemChanged.connect(lambda *_: self._vor_uhr.start())
+        self.baum.currentItemChanged.connect(lambda *_: self._vor_uhr.start())
+        self.vorpruefung_zeigen()
 
     def _baum_fuellen(self):
         """Rohrliste aufbauen (auch nach einem Wechsel der Art): je Datei und Profil eine Gruppe, je Gruppe gleicher
@@ -577,7 +635,6 @@ class StepPruefDialog(QDialog):
     def knick_erstellen(self, indizes=None, dialog=None):
         """Knickverbindung aus den Rohren indizes (Vorgabe: der Vorschlag der Datei) im Dialog erstellen; dialog(d)
         bedient ihn statt exec (Tests, Bildschirmfotos). Ergebnis: Index des Leitteils oder None."""
-        from PySide6.QtWidgets import QMessageBox
         from . import knickverbindung
         from .knickrahmen_dialog import KnickverbindungDialog
         indizes = indizes or getattr(self, "knick_vorschlag", None)
@@ -587,14 +644,14 @@ class StepPruefDialog(QDialog):
         try:
             d = KnickverbindungDialog(self, self.messwerte, indizes, self.knick_vorgaben)
         except ValueError as f:
-            QMessageBox.information(self, "Knickverbindung", str(f))
+            einblendung.melden(self, str(f))
             return None
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
             return None
         try:
             leit = knickverbindung.erstellen(self.messwerte, d.kette, **d.werte())
         except ValueError as f:
-            QMessageBox.information(self, "Knickverbindung", str(f))
+            einblendung.melden(self, str(f))
             return None
         self._neu_aufbauen(leit)
         return leit
@@ -602,7 +659,6 @@ class StepPruefDialog(QDialog):
     def knick_bearbeiten(self, i, dialog=None):
         """Knickrahmen aus einem Körper (Teil i): Anfang, Laufrichtung, Freistich, Zugabe, K-Faktor und Innenwand im
         Dialog ändern; dialog(d) wie bei knick_erstellen. Ergebnis: True, wenn geändert."""
-        from PySide6.QtWidgets import QMessageBox
         from . import knickverbindung
         from .knickrahmen_dialog import KnickverbindungDialog
         m = self.messwerte[i]
@@ -614,14 +670,14 @@ class StepPruefDialog(QDialog):
         try:
             d = KnickverbindungDialog(self, teile, list(range(len(teile))), vorgaben, koerper=True)
         except ValueError as f:
-            QMessageBox.information(self, "Knickrahmen", str(f))
+            einblendung.melden(self, str(f))
             return False
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
             return False
         try:
             knickverbindung.erstellen(teile, d.kette, **d.werte(), ziel=m)
         except ValueError as f:
-            QMessageBox.information(self, "Knickrahmen", str(f))
+            einblendung.melden(self, str(f))
             return False
         self._neu_aufbauen(i)
         return True
@@ -1051,6 +1107,57 @@ class StepPruefDialog(QDialog):
     def accept(self):
         self.werte_schreiben()
         super().accept()
+
+    def mit_pdf(self):
+        """Übernehmen und danach gleich das Angebots-PDF (B1)."""
+        self.pdf_danach = True
+        self.accept()
+
+    def neue_profile_anlegen(self):
+        return self.profile_haken.isChecked()
+
+    def doppelte_eintragen(self):
+        return self.doppelt_haken.isChecked()
+
+    def vorpruefung_zeigen(self):
+        """Häkchen für fehlende Profile und schon vorhandene Artikel nach dem aktuellen Stand der Auswahl."""
+        if self.vorpruefung is None or getattr(self, "_vor_laeuft", False):
+            self.vor_zeile.setVisible(False)
+            return
+        self._vor_laeuft = True
+        try:
+            self.werte_schreiben()
+            fehlend, doppelt = self.vorpruefung()
+        finally:
+            self._vor_laeuft = False
+        self.profile_haken.setText("Fehlende Profile aus den Messwerten anlegen (bitte danach prüfen): "
+                                   + ", ".join(fehlend[:8]) + (" …" if len(fehlend) > 8 else ""))
+        self.profile_haken.setVisible(bool(fehlend))
+        self.doppelt_haken.setText(f"{doppelt} Artikel stehen schon im Angebot – trotzdem noch einmal eintragen")
+        self.doppelt_haken.setVisible(bool(doppelt))
+        self.vor_zeile.setVisible(bool(fehlend or doppelt))
+        return fehlend, doppelt
+
+    def _kunde_setzen(self):
+        """Kunde gewechselt: Importprofil des Kunden anwenden (Benennung, Normteile, Werkstoff-Vorgabe) und die Liste
+        neu aufbauen; eigene Eingaben bleiben, nur der Werkstoff der alten Vorgabe wird ersetzt."""
+        neu = self.kunde_wahl.currentData()
+        if neu is None or str(neu) == str(self.kundennr or ""):
+            return
+        self.kundennr = neu
+        if self.kunde_gewechselt is None:
+            return
+        self.werte_schreiben()
+        alt_ws = self.werkstoff
+        ws = self.kunde_gewechselt(neu)
+        if ws != alt_ws:
+            for m in self.messwerte:
+                if m.get("_werkstoff", alt_ws) == alt_ws and not m.get("_blech_artikel"):
+                    m["_werkstoff"] = ws
+            self.werkstoff = ws
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        self.vorpruefung_zeigen()
 
 
 class Positionen3DDialog(_Mit3D):

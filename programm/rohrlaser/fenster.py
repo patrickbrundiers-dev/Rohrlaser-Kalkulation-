@@ -1778,14 +1778,20 @@ class Hauptfenster(QMainWindow):
         self.angebote.suchen(such)
         return self.angebote.filter.rowCount()
 
-    def meldung(self, text, fehler=False):
+    def meldung(self, text, fehler=False, aktion=None, bericht=None):
+        """Ruhige Meldung in Statusleiste, Verlauf und Einblendung. aktion = (Knopftext, Funktion), z. B. Rückgängig;
+        bericht = (Titel, Einzelheiten): Knopf „Bericht“ (wenn keine andere Aktion) und Eintrag im Verlauf."""
         self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
         self.statusBar().showMessage(text, 8000)
+        self.letzte_aktion = aktion                 # Tests: die angebotene Aktion
         if getattr(self, "verlauf", None) is None:  # noch beim Aufbau des Fensters
             return
-        self.verlauf.merken(text, fehler)
+        self.verlauf.merken(text, fehler, bericht)
+        if aktion is None and bericht:
+            from .einblendung import bericht_zeigen
+            aktion = ("Bericht …", lambda: bericht_zeigen(self, bericht[0], text, bericht[1]))
         if not self.stumm:                          # Selbsttest und Bildschirmfotos ohne Einblendung
-            self.einblendung.zeigen(text, fehler)
+            self.einblendung.zeigen(text, fehler, aktion)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)

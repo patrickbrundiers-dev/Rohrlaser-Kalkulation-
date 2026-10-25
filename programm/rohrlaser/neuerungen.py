@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.111", "<b>Bedienung schneller</b>: Neues Angebot aus STEP in einem Fenster: Kunde oben im Prüfdialog, "
+                "fehlende Profile und doppelte Artikel als Häkchen statt Rückfragen, Knopf <b>Übernehmen und Angebot "
+                "(PDF)</b> ([[angebot_aus_step]]). Hinweise als Einblendung ohne OK-Klick, Löschen im Angebot ohne "
+                "Rückfrage mit <b>Rückgängig</b> in der Einblendung, Bericht im Meldungsverlauf ([[meldungen]]). "
+                "Rechtsklick zeigt nur die passenden Einträge, <b>Für markierte setzen …</b> ändert Werkstoff und "
+                "Oberfläche mehrerer Positionen ([[rechtsklick]]).",
+     "STEP-Anfrage in einem Fenster, Einblendungen mit Rückgängig, Rechtsklick passend"],
     ["0.9.110", "<b>Baugruppe und Satz als STEP</b>: STEP speichern im Editor der Schweißbaugruppe und im Fenster "
                 "Satz in 3D schreibt alle Teile als STEP-Baugruppe mit echten Volumenkörpern in der Einbaulage, "
                 "gleiche Teile einmal definiert, Unterbaugruppen wie im Strukturbaum. Rohre mit Schlitzen und Nasen, "

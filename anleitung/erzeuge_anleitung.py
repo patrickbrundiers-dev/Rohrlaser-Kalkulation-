@@ -568,8 +568,8 @@ def kapitel_ueberblick(i):
     i.text("Das Programm öffnet sich maximiert im Reiter <i>Angebote</i>. Die Einstellungen enthalten die Vorgaben "
            "und die übrigen Stammdaten als Seiten in der Navigation links. Zahlen mit Komma eingeben (1385,5). Jede Änderung wird sofort "
            "gespeichert, einen Speichern-Knopf gibt es nicht. Strg+C/Strg+V kopieren und fügen Zellen ein (auch Blöcke "
-           "aus Excel), Entf löscht markierte Zeilen nach Rückfrage, Strg+Z nimmt im Angebot die letzte Änderung "
-           "zurück ([[tastenkuerzel]]).")
+           "aus Excel), Entf löscht markierte Zeilen (im Angebot ohne Rückfrage, die Einblendung bietet <b>Rückgängig</b> "
+           "an), Strg+Z nimmt im Angebot die letzte Änderung zurück ([[tastenkuerzel]], [[meldungen]]).")
     i.abschnitt("Farben in den Tabellen")
     i.tabelle(["Farbe", "Bedeutung"], [
         ["hellgelb", "<b>Eingabefeld</b>: lostippen, F2 oder Doppelklick ([[doppelklick]])."],
@@ -827,13 +827,17 @@ def kapitel_angebote(i):
            "ansehen lässt sie sich weiter. Angebote der Kollegen bekommen keine Fassung, dort hilft <b>Kopieren</b>.")
     i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
     i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <i>Datei → Neues "
-           "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): Kunde bestätigen, das Programm legt das Angebot an und "
-           "startet gleich den STEP-Import.", kurz=True)
+           "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): das Programm legt das Angebot an und startet gleich "
+           "den STEP-Import. Den Kunden wählt man oben im Prüfdialog, alles Weitere auch dort; <b>Übernehmen und "
+           "Angebot (PDF)</b> schreibt danach sofort das Angebot.", kurz=True)
     i.genauer()
     i.text("Den Kunden schlägt das Programm aus dem Ordnernamen vor: Steht der Kundenname (ab 3 Zeichen) oder die "
            "Kundennummer im Ordner der Dateien oder bis zu drei Ordnern darüber, z. B. <i>Anfragen\\Müller GmbH\\"
            "2026-10</i>, ist dieser Kunde gewählt. Sonst steht der Kunde des zuletzt geänderten eigenen Angebots mit "
-           "Importprofil ([[importprofile]]) vorne; <i>(ohne Kunde)</i> geht auch. Das neue Angebot bekommt die "
+           "Importprofil ([[importprofile]]) vorne; <i>(ohne Kunde)</i> geht auch. Gewählt wird im Feld <b>Kunde</b> "
+           "oben im Prüfdialog (Tippen sucht in Nummer und Name); ein anderer Kunde wendet sofort dessen Importprofil "
+           "an (Benennung, Normteile, Werkstoff-Vorgabe), eigene Eingaben bleiben. <b>Abbrechen</b> entfernt das eben "
+           "angelegte leere Angebot wieder. Das neue Angebot bekommt die "
            "Kundenvorgaben ([[kundenvorgaben]]) und öffnet sich; danach läuft der Import wie mit <b>STEP "
            "importieren</b> mit allen STEP-Dateien des Ordners samt Unterordnern ([[step]]). Andere Dateien (z. B. "
            "PDF) bleiben unbeachtet; sind keine STEP-Dateien dabei, legt das Programm kein Angebot an.")
@@ -959,7 +963,8 @@ def kapitel_angebot(i):
             "(z. B. „Verkaufspreis netto 1.234,00 € → 1.290,50 €.“). Ändert jemand die Einstellungen, bleiben "
             "bestehende Angebote unverändert; nur neue Angebote übernehmen die neuen Werte. "
             "<b>Vorgaben aus Einstellungen</b> setzt Kalkulationswerte, Stundensätze und Zeitvorgaben wieder auf die "
-            "Einstellungen bzw. Stammdaten; die Rückfrage nennt jede Änderung (alt → neu). Von Hand eingetragene "
+            "Einstellungen bzw. Stammdaten, ohne Rückfrage; <b>Bericht …</b> in der Einblendung nennt jede Änderung (alt → "
+            "neu), <b>Rückgängig</b> nimmt alles zurück ([[meldungen]]). Von Hand eingetragene "
             "Werte an den Positionen (Meterpreis, Schneidzeit, Zukaufteile) bleiben. "
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
             "Beim Kopieren gehen die Werte mit.",
@@ -1319,7 +1324,7 @@ def kapitel_angebot(i):
     i.tabelle(["Taste", "Wirkung im Angebot"], [
         ["Strg+Z / Strg+Y", "letzte Änderung zurücknehmen / wiederherstellen (bis 100 Schritte)"],
         ["Strg+C / Strg+V", "Zellen kopieren / einfügen, auch Blöcke aus Excel"],
-        ["Entf", "markierte Positionen löschen (mit Rückfrage)"],
+        ["Entf", "markierte Positionen löschen (ohne Rückfrage, Rückgängig in der Einblendung)"],
         ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
@@ -1343,12 +1348,37 @@ def kapitel_angebot(i):
             "mindestens 1) oder <b>Stückzahl =</b> Wert. Positionen ohne Stückzahl bleiben beim Faktor leer. Ein Schritt für "
             "Strg+Z.",
             "<b>Strg+X</b> kopiert und leert die markierten Eingabezellen.",
-            "<b>Entf</b> in der Positionsliste löscht die markierten Positionen nach Rückfrage, <b>Strg+N</b> legt "
+            "<b>Entf</b> in der Positionsliste löscht die markierten Positionen ohne Rückfrage; die Einblendung unten "
+            "rechts bietet <b>Rückgängig</b> an ([[meldungen]]). <b>Strg+N</b> legt "
             "eine neue Position an, <b>Strg+I</b> startet den STEP-Import, <b>F9</b> optimiert und <b>Strg+P</b> "
             "erzeugt das Angebots-PDF.")
     i.text("In Textfeldern (Kopf, Suchfelder, eine Zelle in Bearbeitung) wirken Strg+Z, Strg+C, Strg+V und Entf wie "
            "gewohnt nur im Text. Alle Kürzel stehen im Anhang ([[tastenkuerzel]]) und im Programm unter "
            "<i>Hilfe → Tastenkürzel …</i>.")
+    i.abschnitt("Meldungen ohne OK-Klick", marke="meldungen")
+    i.text("Hinweise und Erfolge erscheinen als kleine <b>Einblendung</b> unten rechts und verschwinden von selbst; "
+           "nichts muss mit OK bestätigt werden. Nach dem Löschen oder einer Sammeländerung steht in der Einblendung "
+           "<b>Rückgängig</b>, nach einem STEP-Import <b>Bericht …</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Rückgängig</b> in der Einblendung nimmt genau diese Änderung zurück (etwa 9 Sekunden lang). Kam "
+            "inzwischen eine weitere Änderung dazu, verweist es auf <i>Bearbeiten → Rückgängig</i> (Strg+Z).",
+            "Ohne Rückfrage, dafür mit Rückgängig: Positionen und Staffel-Stufen löschen, Ist-Werte der "
+            "Nachkalkulation löschen, <i>Vorgaben aus Einstellungen</i>, Stundensätze aus den Einstellungen und "
+            "<i>Aktuelle Preise übernehmen</i>. Ganze Angebote und Stammdaten fragen weiter vorher, weil es dort "
+            "kein Rückgängig gibt.",
+            "In Editoren und Dialogen erscheint die Einblendung im Fenster selbst, damit sie nicht dahinter liegt.",
+            "<b>Meldungen (n)</b> in der Statusleiste zeigt die letzten 20 Meldungen mit Uhrzeit; Einträge mit "
+            "<i>(Bericht …)</i> öffnen den Bericht noch einmal.",
+            "Fehler, bei denen Daten verloren gehen könnten, und echte Entscheidungen bleiben Fenster.")
+    i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
+    i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
+           "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "
+           "<i>Baugruppe bearbeiten</i>; Zusatzarbeiten, Zukaufteile, Stückzahl und Löschen immer. Tastenkürzel "
+           "stehen rechts daneben.", kurz=True)
+    i.text("Sind mehrere Rohrlaserteile markiert, setzt <b>Für markierte setzen …</b> Werkstoff und/oder Oberfläche "
+           "für alle auf einmal (<i>(nicht ändern)</i> lässt den Wert, wie er ist), ein Schritt für Rückgängig. "
+           "<i>Satz in 3D</i> erscheint nur bei Positionen eines Satzes, <i>Baugruppe in anderes Angebot "
+           "kopieren</i> nur bei Schweißbaugruppen und ihren Teilen.")
     i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
     i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
         ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],
@@ -1415,10 +1445,14 @@ def kapitel_step(i):
             "Enthält eine STEP mehrere Teile, steht sie als <b>Baugruppe</b> in der Liste und die 3D-Ansicht zeigt "
             "sie zusammengebaut. Oben steht das Feld <b>Sätze</b>, vorbelegt mit 1: die Baugruppe wird ein Satz; "
             "leer = jedes Teil als Einzelposition (siehe Baugruppen als Satz).",
-            "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
-            "(danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im Angebot, fragt es vor dem doppelten "
-            "Eintragen.",
-            "Am Ende meldet es, wie viele Positionen übernommen wurden; <i>Details</i> zeigt den Bericht je Datei.",
+            "Fehlen Profile in den Stammdaten, steht unter der Liste ein Häkchen <b>Fehlende Profile aus den "
+            "Messwerten anlegen</b> (vorbelegt; danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im "
+            "Angebot, steht dort <b>… trotzdem noch einmal eintragen</b> (Vorgabe aus = überspringen). Nach dem "
+            "Übernehmen fragt das Programm nichts mehr.",
+            "<b>Übernehmen und Angebot (PDF)</b> (Strg+Eingabe) übernimmt, optimiert, prüft ([[angebots_check]]) und "
+            "schreibt gleich das Angebots-PDF.",
+            "Am Ende meldet eine Einblendung, wie viele Positionen übernommen wurden; <b>Bericht …</b> zeigt den "
+            "Bericht je Datei, auch später noch über <i>Meldungen</i> in der Statusleiste ([[meldungen]]).",
             nummeriert=True)
     i.abschnitt("Rohrliste prüfen")
     i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
@@ -3937,8 +3971,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Stammdaten; das nächste Angebots-PDF nimmt sie dazu, schon festgeschriebene Werte bleiben.",
             "Wird eine andere Maschine gewählt, gelten deren aktuelle Schneiddaten.",
             "<b>Aktuelle Preise übernehmen …</b> in der Übersicht (nur sichtbar, wenn die Stammdaten abweichen) "
-            "zeigt die Änderungen und setzt das Angebot nach Rückfrage auf die aktuellen Stammdaten; der Preis "
-            "ändert sich dann. Das nächste Angebots-PDF schreibt die neuen Werte wieder fest.",
+            "setzt das Angebot auf die aktuellen Stammdaten; der Preis ändert sich dann. <b>Bericht …</b> in der "
+            "Einblendung nennt alle Änderungen, <b>Rückgängig</b> nimmt sie zurück. Das nächste Angebots-PDF schreibt die neuen Werte wieder fest.",
             "Eine <b>Kopie</b> eines Angebots rechnet mit den aktuellen Stammdaten.",
             "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert ("
             "[[zeiten]]), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")

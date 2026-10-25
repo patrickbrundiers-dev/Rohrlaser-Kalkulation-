@@ -8,7 +8,7 @@ import copy
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QBrush
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFrame, QHBoxLayout, QLabel, QMessageBox, QPushButton,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFrame, QHBoxLayout, QLabel, QPushButton,
                                QScrollArea, QSplitter, QTableView, QVBoxLayout, QWidget)
 
 from . import stil
@@ -240,11 +240,7 @@ class ZeitenSeite(QWidget):
 
     def aus_einstellungen(self):
         s = self.s
-        if not s.f.stumm and QMessageBox.question(
-                self, "Stundensätze", "Stundensätze und Zeitvorgaben dieses Angebots auf die aktuellen Einstellungen "
-                "setzen? Eigene Werte dieses Angebots gehen dabei verloren.") != QMessageBox.Yes:
-            return False
         s.db.zeitbasis_speichern(s.id, s.db.zeitbasis_vorgabe(s.kopf.get("maschine")))
-        s.f.meldung("Stundensätze und Zeitvorgaben aus den Einstellungen übernommen.")
-        s.neu_laden()
+        s.neu_laden()           # ohne Rückfrage, mit „Rückgängig“ (Plan Bedienung B2)
+        s.rueckgaengig_anbieten("Stundensätze und Zeitvorgaben aus den Einstellungen übernommen.")
         return True

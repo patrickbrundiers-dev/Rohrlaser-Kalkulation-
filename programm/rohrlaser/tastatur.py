@@ -17,7 +17,8 @@ UEBERSICHT = [
     ("Strg+X", "Ausschneiden: markierte Zellen kopieren und leeren", "Tabellen"),
     ("Strg+C", "Kopieren: markierte Zellen (auch mehrere) für Excel oder eine andere Tabelle", "alle Tabellen"),
     ("Strg+V", "Einfügen ab der aktuellen Zelle, auch Blöcke aus Excel", "Tabellen"),
-    ("Entf", "Markierte Positionen, Zeilen, Staffeln oder Angebote löschen (mit Rückfrage)", "Tabellen"),
+    ("Entf", "Markierte Positionen, Zeilen, Staffeln oder Angebote löschen (im Angebot ohne Rückfrage, mit "
+             "Rückgängig in der Einblendung; Angebote und Stammdaten mit Rückfrage)", "Tabellen"),
     ("Strg+A", "Alles markieren", "Tabellen"),
     ("Strg+N", "Neu: Angebot, Position, Zeile, Staffel oder Artikel – je nach Seite", "überall"),
     ("Strg+F", "Suchfeld der Seite", "Angebote, Kunden, Stammdaten, Zukauf"),

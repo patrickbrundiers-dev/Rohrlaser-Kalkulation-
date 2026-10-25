@@ -3,9 +3,9 @@
 Die Rechnung steckt in rp_profile.py; hier nur Dateiauswahl, Meldungen und die Zeichnung."""
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QLabel, QVBoxLayout, QWidget
 
-from . import rp_profile, stil
+from . import einblendung, rp_profile, stil
 
 
 def _z(x, stellen=1):
@@ -69,8 +69,7 @@ def querschnitt_zeigen(parent, profil_id, stumm=False):
     e = rp_profile.daten(profil_id)
     if not e:
         if not stumm:
-            QMessageBox.information(parent, "RP-Querschnitt",
-                                    f"Zu '{profil_id}' gibt es keine RP-Kontur. Bitte ein RP-Profil wählen (Profil-ID "
+            einblendung.melden(parent, f"Zu '{profil_id}' gibt es keine RP-Kontur. Bitte ein RP-Profil wählen (Profil-ID "
                                     "'RP …') oder das MegaCAD-Makro mit 'RP-Profile aus MegaCAD laden …' einlesen.")
         return None
     d = QDialog(parent)
