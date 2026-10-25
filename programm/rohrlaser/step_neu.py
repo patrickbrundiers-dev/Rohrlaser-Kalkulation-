@@ -56,9 +56,11 @@ def kunde_vorschlag(db, dateien):
     return None
 
 
-def neues_angebot(fenster, dateien=None, kundennr=None):
+def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formular_text=None):
     """Angebot anlegen und die STEP-Dateien importieren. dateien: Dateien/Ordner (ohne: Dateiauswahl); kundennr:
-    ohne Dialog (Tests, '' = ohne Kunde). Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
+    ohne Dialog (Tests, '' = ohne Kunde); kopf: weitere Kopffelder (z. B. kundenreferenz aus dem Anfrageformular);
+    formular_text: Text des Anfrageformulars (Stückzahlen je Artikelnummer, W6b). Ergebnis: Angebotsseite oder None
+    (abgebrochen, nichts angelegt)."""
     db = fenster.db
     if db.nur_lesen:
         fenster.meldung("Lesemodus: es lassen sich keine Angebote anlegen.", fehler=True)
@@ -78,10 +80,11 @@ def neues_angebot(fenster, dateien=None, kundennr=None):
     waehlen = kundennr is None and not fenster.stumm     # Plan Bedienung B1: Kunde oben im Prüfdialog
     if kundennr is None:
         kundennr = kunde_vorschlag(db, dateien) or ""
-    i = db.angebot_neu(dict(kundennr=kundennr or None))
+    i = db.angebot_neu(dict(kopf or {}, kundennr=kundennr or None))
     fenster.angebote.neu_laden()
     seite = fenster.angebot_oeffnen(i)
-    if seite.step_importieren(gefunden, kunde_waehlen=waehlen) is None and not seite.positionen:
+    extra = dict(formular_text=formular_text) if formular_text else {}
+    if seite.step_importieren(gefunden, kunde_waehlen=waehlen, **extra) is None and not seite.positionen:
         # abgebrochen: das eben angelegte leere Angebot wieder entfernen (wie vorher beim Abbruch der Kundenwahl)
         fenster.angebot_schliessen(i)
         db.angebot_loeschen(i)

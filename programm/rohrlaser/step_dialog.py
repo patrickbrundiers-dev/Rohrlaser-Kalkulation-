@@ -591,6 +591,12 @@ class StepPruefDialog(QDialog):
                        m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
                        m.get("_je_satz") or len(liste), ist_zk)
             sp.setValue(z.werte[self._modus(datei)])
+            if "_stueck_formular" in m and not m.get("_saetze"):     # Stückzahl aus dem Anfrageformular (W6b)
+                sicher = m["_stueck_formular"]
+                sp.setToolTip("Stückzahl aus dem Anfrageformular" + ("" if sicher else
+                              " – unsicher erkannt, bitte prüfen"))
+                if not sicher:
+                    sp.setStyleSheet(f"background: {stil.farbe(stil.GELB_FLAECHE).name()};")
             sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
             if datei in self.baugruppen:       # Farbe des Teils in der Baugruppen-Ansicht
                 punkt = QPixmap(12, 12)

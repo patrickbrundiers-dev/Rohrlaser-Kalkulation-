@@ -881,6 +881,18 @@ def kapitel_angebote(i):
             "Unterordner im Anfrage-Ordner entfällt. <b>Abbrechen</b> lässt alles liegen und hebt die Sperre auf.",
             "Bei mehreren Arbeitsplätzen einen gemeinsamen Ordner wählen (z. B. auf dem Server); der Pfad gilt je "
             "Arbeitsplatz.")
+    i.text("<b>Anfrageformular</b>: Liegt ein PDF mit Text bei (aus einem ERP oder Word erzeugt, kein Scan), liest "
+           "das Programm beim Öffnen daraus:")
+    i.liste("die <b>Anfragenummer</b> (nach Wörtern wie <i>Anfrage-Nr.</i>, <i>Anfragenummer</i>, <i>Bestell-Nr.</i>, "
+            "<i>Projekt-Nr.</i>, <i>RFQ</i>): sie steht danach im Feld <b>Ihre Anfrage / Zeichen</b>, und der "
+            "Unterordner heißt <i>Kunde – Anfragenummer</i>;",
+            "den <b>Kunden</b> (ein Name aus der Kundenliste im Text, nie die eigene Firma aus Briefkopf Zeile 1); "
+            "er steht im Prüfdialog oben als Vorschlag;",
+            "die <b>Stückzahlen</b>: Steht in einer Zeile des Formulars die Artikelnummer (Bauteilname in der STEP) "
+            "oder der Dateiname, gilt die Menge dahinter (<i>20 Stk</i>, <i>25 Stück</i>) für dieses Teil – das "
+            "Formular geht der STEP vor. Eine Zahl ohne <i>Stk</i> ist unsicher erkannt: das Feld Stückzahl im "
+            "Prüfdialog ist dann gelb. Teile ohne Treffer behalten die Vorgabe; der Bericht nach dem Import nennt "
+            "die Anzahl.")
 
 
 def kapitel_angebot(i):

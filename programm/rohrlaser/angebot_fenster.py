@@ -507,10 +507,10 @@ class AngeboteSeite(QWidget):
         self.neu_laden()
         self.oeffnen.emit(i)
 
-    def neu_aus_step(self, dateien=None, kundennr=None):
-        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py)."""
+    def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
+        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formular_text."""
         from . import step_neu
-        return step_neu.neues_angebot(self.f, dateien, kundennr)
+        return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
     # STEP-Dateien oder Ordner auf die Liste ziehen: neues Angebot (W11)
     def dragEnterEvent(self, ereignis):
@@ -4871,8 +4871,10 @@ class AngebotSeite(QWidget):
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage else None
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
-    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False):
-        """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
+    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
+                         formular_text=None):
+        """STEP-Dateien messen und übernehmen. formular_text: Text des Anfrageformulars (W6b): Stückzahlen je
+        Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja). kunde_waehlen: Kunde oben im Prüfdialog wählen
         (neues Angebot aus STEP, Plan Bedienung B1). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
         doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF."""
@@ -4894,6 +4896,16 @@ class AngebotSeite(QWidget):
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
+        formular_bericht = None
+        if formular_text:               # Stückzahlen aus dem Anfrageformular (Plan W6b, Formular gilt)
+            from . import formular
+            namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
+            st = formular.stueckzahlen(formular_text, namen)
+            n = formular.stueck_setzen(messwerte, st)
+            unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
+            formular_bericht = (f"Stückzahlen aus dem Anfrageformular: {n} Teil(e)"
+                                + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
+                                + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else ""))
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
@@ -4928,7 +4940,7 @@ class AngebotSeite(QWidget):
                 if self.flach_bis() != flach_gemessen:      # flache Teile gibt der Kunde anders vor: neu messen
                     self.f.meldung("Der gewählte Kunde gibt flache Teile anders vor (Importprofil) – die STEP-Dateien "
                                    "werden dafür neu gemessen.")
-                    return self.step_importieren(dateien, None, stueck, als_satz)
+                    return self.step_importieren(dateien, None, stueck, als_satz, formular_text=formular_text)
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
@@ -4979,6 +4991,8 @@ class AngebotSeite(QWidget):
             erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
         if gelernt:
             erg["bericht"].append(gelernt)
+        if formular_bericht:
+            erg["bericht"].append(formular_bericht)
         if kopieren:
             erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
