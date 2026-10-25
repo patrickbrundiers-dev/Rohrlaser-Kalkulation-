@@ -363,6 +363,12 @@ assert [x["anzahl"] for x in wahl] == [1, 1] and wahl[0]["traegt"] and not wahl[
 assert sv.versatz_liste(wahl[0]) and "90°" in hinweis, (wahl, hinweis)
 menge = sv.nasen_winkel_menge(wahl[0], 0, "Quadratrohr")
 assert len(menge) == 2 and (menge[1] - menge[0]) % 180 == 90, menge
+# Rechteckrohr an der Ecke: je Aufnahme ihr eigener Querschnitt, keine Nase um 90° (andere Wandbreite)
+re_1 = dict(traeger1, quer=(80, 40))
+re_2 = dict(traeger2, quer=(40, 80))
+wahl, _ = sv.nasen_wahl_ecke(sv.vorgaben(RE80), RE80, [re_1, re_2])
+assert wahl[0] and (wahl[0]["wandbreite"], wahl[0]["abstand"]) == (80, 40), wahl
+assert wahl[1] is None and not sv.versatz_liste(wahl[0]), wahl
 # gleiche Rohre gedreht/gewendet eingebaut: Kennung im gedrehten Rohrsystem gleich, Einbaulage passend gedreht
 z1 = [dict(art="Rechteck", b=3, h=20, x=200.0, seite="oben"), dict(art="Rechteck", b=3, h=20, x=800.0, seite="oben")]
 z2 = [dict(z, seite="unten") for z in z1]

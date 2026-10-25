@@ -653,14 +653,23 @@ def nasen_wahl_ecke(v, profil_s, kontakte, nase_min=None):
     form_s = _profil(profil_s, "Stecker")[0]
     mind = _z(nase_min) or NASE_MIN
     raster = 90.0 if form_s != "Rundrohr" else 1.0
-    quer = (kontakte[0].get("quer") if kontakte else None) or querschnitt(profil_s, "quer")[:2]
-    w_ = dict(waende="quer", anzahl=1, wandbreite=round(quer[0], 3), abstand=round(quer[1], 3))
+    standard = querschnitt(profil_s, "quer")[:2]
+
+    def werte_von(k):           # je Aufnahme ihre Wand des Steckers (Rechteckrohr: Breite und Abstand je Richtung)
+        quer = k.get("quer") or standard
+        return dict(waende="quer", anzahl=1, wandbreite=round(quer[0], 3), abstand=round(quer[1], 3))
+    w0 = werte_von(kontakte[0]) if kontakte else werte_von({})
+    # das Modell zeichnet die versetzten Nasen mit dem Querschnitt der ersten: um 90° nur bei gleichen Wänden
+    quadrat = abs(w0["wandbreite"] - w0["abstand"]) < 1e-6 or form_s == "Rundrohr"
     wahl, belegt = [], set()
     for k in kontakte:
         gefunden = None
+        w_ = werte_von(k)
         for sz in (1, -1):
             b = _breite_einzeln(v, w_, profil_s, k, sz, mind)
             winkel = round(((_z(k.get("phi")) + (0 if sz > 0 else 180)) % 360) / raster) * raster % 360
+            if not quadrat and belegt and any(round((winkel - w) % 180, 1) != 0 for w in belegt):
+                continue
             if b is not None and winkel not in belegt:
                 gefunden = (sz, b, winkel)
                 break
@@ -678,7 +687,7 @@ def nasen_wahl_ecke(v, profil_s, kontakte, nase_min=None):
         if not g:
             out.append(None)
             continue
-        x = dict(w_, bN=b_n, traegt=i == erste)
+        x = dict(werte_von(kontakte[i]), bN=b_n, traegt=i == erste)
         if g[0] < 0:
             x["nase_seite"] = -1
         if i == erste:
@@ -686,7 +695,8 @@ def nasen_wahl_ecke(v, profil_s, kontakte, nase_min=None):
             if rest:
                 x["versatz"] = rest
         out.append(x)
-    text = "je Aufnahme eine Nase" + (", um 90° versetzt" if len(da) > 1 else "")
+    gedreht = any(round((g[2] - da[0][2]) % 180, 1) for g in da)
+    text = "je Aufnahme eine Nase" + (", um 90° versetzt" if gedreht else ", gegenüber" if len(da) > 1 else "")
     if len(da) < len(kontakte):
         text += f", {len(kontakte) - len(da)} Aufnahme(n) ohne Nase"
     return out, "Nasen nur in die Stoßwand: " + text
