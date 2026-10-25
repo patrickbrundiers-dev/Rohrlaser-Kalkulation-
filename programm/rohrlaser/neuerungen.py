@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.115", "<b>Bedienung schneller</b>: Neues Angebot aus STEP in einem Fenster: Kunde oben im Prüfdialog, "
+    ["0.9.116", "<b>Bedienung schneller</b>: Neues Angebot aus STEP in einem Fenster: Kunde oben im Prüfdialog, "
                 "fehlende Profile und doppelte Artikel als Häkchen statt Rückfragen, Knopf <b>Übernehmen und Angebot "
                 "(PDF)</b> ([[angebot_aus_step]]). Hinweise als Einblendung ohne OK-Klick, Löschen im Angebot ohne "
                 "Rückfrage mit <b>Rückgängig</b> in der Einblendung, Bericht im Meldungsverlauf ([[meldungen]]). "
@@ -33,6 +33,12 @@ NEUERUNGEN = [
                 "legt die Position an, auch mehrere Zeilen aus E-Mail oder Excel ([[schnellzeile]]). Der "
                 "Prüfdialog <b>lernt</b>: Korrekturen per Häkchen ins Importprofil des Kunden ([[importprofile]]).",
      "STEP-Anfrage in einem Fenster, Rückgängig statt Rückfragen, Blättern, Schnellzeile, Prüfdialog lernt"],
+    ["0.9.115", "<b>Rahmen-Assistent</b>: Neue Position → Rahmen-Assistent legt einen Rechteckrahmen oder Quader aus "
+                "Quadrat-, Rechteck- oder Rundrohr ohne STEP-Datei an. Aus Außenmaß, Profil und Ecken (Gehrung, stumpf, "
+                "stumpf mit Steckverbindungen) entstehen die Rohre als Positionen eines Satzes mit Einbaulage und Stößen, "
+                "so dass Satz in 3D, Vorschläge, Steckverbindungen und Montagefolge wie bei einer STEP-Datei arbeiten "
+                "([[rahmen_assistent]]).",
+     "Rahmen-Assistent: Rechteckrahmen und Quader aus Rohr ohne STEP"],
     ["0.9.114", "<b>Montagefolge und Montageblatt</b>: Knopf Montage über dem 3D (Schweißbaugruppe, Satz in 3D) baut "
                 "die gesteckten Teile Schritt für Schritt auf, mit Text je Schritt (Teil, Marke, Steckrichtung), und "
                 "zieht sie als Explosionsansicht auseinander. Die Werkstattpapiere haben je Baugruppe bzw. Satz mit "

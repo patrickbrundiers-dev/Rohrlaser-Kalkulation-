@@ -900,6 +900,8 @@ def kapitel_angebot(i):
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
                ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
                 "vorgewählt ([[schweissbaugruppe]])"],
+               ["<b>Rahmen-Assistent</b>", "Rechteckrahmen oder Quader aus Rohr ohne STEP-Datei als Satz "
+                "([[rahmen_assistent]])"],
                ["<b>Leere Zeile</b>", "eine leere Zeile, alle Werte von Hand"]], [38, 132], kurz=True)
     i.genauer()
     i.tabelle(["Typ", "Was passiert"], [
@@ -2478,6 +2480,29 @@ def kapitel_optimieren(i):
             "verschiedene Richtungen müsste. Die Reihenfolge braucht die Stöße aus dem STEP-Import.",
             "Außerdem meldet die Prüfung Schlitze, die eine andere Kontur überschneiden, und feste Längsnähte, die auf "
             "einem Schlitz oder einer Nase liegen.")
+    i.abschnitt("Rahmen-Assistent", marke="rahmen_assistent")
+    i.text("<b>Neue Position → Rahmen-Assistent</b> baut einen <b>Rechteckrahmen</b> oder <b>Quader</b> aus Quadrat-, "
+           "Rechteck- oder Rundrohr ohne STEP-Datei: Profil, Werkstoff, Außenmaße und Ecken eingeben, die Vorschau "
+           "nennt die Rohre. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
+           "([[satz_3d]]).", kurz=True)
+    i.genauer()
+    i.liste("<b>Gehrung</b> (nur Rechteckrahmen): vier Rohre mit 45°-Gehrung, Länge außen B bzw. H. Satz in 3D "
+            "schlägt dann den Knickrahmen vor ([[vorschlaege]]).",
+            "<b>stumpf</b>: die Waagrechten laufen durch (Länge B), die Senkrechten stehen dazwischen (H − 2 × "
+            "Profilhöhe; Rundrohr mit Sattel, Länge Mitte zu Mitte H − Ø).",
+            "<b>stumpf mit Steckverbindungen</b>: wie stumpf, dazu an jedem Stoß eine Steckverbindung (wie <i>Alle "
+            "Stöße stecken</i>, [[steckverbindung_anlegen]]); mit OK in Satz in 3D bekommen die Teile Schlitze und "
+            "Nasen.",
+            "<b>Quader</b>: zwei stumpfe Rahmen vorne und hinten (Tiefe T außen), dazu vier Querrohre an den Ecken, "
+            "außen bündig, stumpf an die Waagrechten. Gehrung geht hier nicht (drei Rohre je Ecke). Ein Quader mit "
+            "Steckverbindungen an allen Stößen ist nicht ganz steckbar; <i>Steckbarkeit prüfen</i> sagt, welches "
+            "Teil ([[montagemarken]]).",
+            "<b>Rechteckrohr</b>: Maß b liegt in der Rahmenebene, mit <i>Rechteckrohr hochkant (Maß a in der Rahmenebene)</i> "
+            "Maß a. Gleiche Rohre werden eine "
+            "Position mit <i>je Satz</i>; Stück = Sätze × je Satz. Der Name des Satzes ist änderbar (leer = Rahmen "
+            "B×H), ein vorhandener Name bekommt eine Nummer dazu.",
+            "Die Rohre haben Einbaulage und Stöße wie aus dem STEP-Import: Längsnaht, Steckverbindungen, Vorschläge, "
+            "Montagefolge, Montageblatt und STEP speichern gehen wie dort.")
     i.abschnitt("Montagefolge und Montageblatt", marke="montagefolge")
     i.text("Der Knopf <b>Montage</b> über dem 3D (Schweißbaugruppe und Satz in 3D) baut die gesteckten Teile in der "
            "Reihenfolge von <i>Steckbarkeit prüfen</i> Schritt für Schritt auf und zieht sie auf Wunsch auseinander "

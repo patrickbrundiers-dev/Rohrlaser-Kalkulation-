@@ -2531,7 +2531,7 @@ class AngebotSeite(QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, DXF, LEER, ROHR, SCHWEISS, ZUKAUF, TypDialog
+        from .neue_position import BLECH, DXF, LEER, RAHMEN, ROHR, SCHWEISS, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -2550,6 +2550,8 @@ class AngebotSeite(QWidget):
             return typ if self.rohr_neu(dialog=dialog) else None
         if typ == SCHWEISS:
             return typ if self.baugruppe_neu(dialog=dialog) else None
+        if typ == RAHMEN:
+            return typ if self.rahmen_assistent(dialog=dialog) else None
         self.db.position_neu(self.id, {"pos": self._naechste_pos()})
         self.neu_laden()
         r = len(self.positionen) - 1
@@ -2631,6 +2633,65 @@ class AngebotSeite(QWidget):
     def _naechste_pos(self):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
         return int(max(vorher, default=0)) + 10
+
+    def rahmen_assistent(self, dialog=None, satz_dialog=None):
+        """Rahmen-Assistent (A8): Rechteckrahmen oder Quader aus Rohr ohne STEP-Datei als Satz. Die Rohre werden
+        Positionen (Länge, Enden, Schneidweg) mit Netz, Einbaulage und Stößen; danach öffnet Satz in 3D (mit
+        „stumpf mit Steckverbindungen“ sind die Verbindungen dort schon angelegt). dialog(d) bzw. satz_dialog(d)
+        bedienen die Fenster (Tests). Ergebnis: Name des Satzes oder None."""
+        from . import rahmen
+        from .ansicht3d import packen
+        from .rahmen_dialog import RahmenDialog
+        from .satz3d import saetze
+        letzte = next((p for p in reversed(self.positionen) if p.get("werkstoff_id")), {})
+        d = RahmenDialog(self, self.k.profile, self.k.werkstoffe,
+                         letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff"))
+        if not d.profile:
+            self.f.meldung("Rahmen-Assistent: In den Profilen gibt es kein Quadrat-, Rechteck- oder Rundrohr.",
+                           fehler=True)
+            return None
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return None
+        w = d.ergebnis
+        profil = self.k.profile[w["profil_id"]]
+        name, n = w["name"], 2
+        while name in saetze(self.positionen):
+            name, n = f"{w['name']} {n}", n + 1
+        hinweise = []
+        for t in w["erg"]["teile"]:
+            je = len(t["lagen"])
+            pid = self.db.position_neu(self.id, dict(
+                pos=self._naechste_pos(), profil_id=w["profil_id"], werkstoff_id=w["werkstoff_id"],
+                laenge=t["laenge"], stueck=w["saetze"] * je, satz=name, je_satz=je,
+                bezeichnung=f"{name} {t['name']}", technik=schneidweg.speichern(t["eingaben"])))
+            netz = rahmen.netz(t, profil)
+            if netz:
+                self.db.netz_speichern(pid, packen(netz))
+            self.neu_laden()
+            zeile = next(r for r, q in enumerate(self.positionen) if q["id"] == pid)
+            alt_stumm, self.f.stumm = self.f.stumm, True
+            try:
+                if not self.schneidweg_berechnen(zeile, t["eingaben"], ueberschreiben=True):
+                    hinweise.append(f"{t['name']}: Schneidweg nicht gerechnet")
+            finally:
+                self.f.stumm = alt_stumm
+        self.db.satz_daten_speichern(self.id, name, dict(stoesse=w["erg"]["stoesse"]))
+        self.neu_laden()
+        self.f.meldung(f"Rahmen-Assistent: Satz {name} mit {sum(len(t['lagen']) for t in w['erg']['teile'])} Rohren "
+                       "angelegt." + "".join(f" {h}" for h in hinweise))
+        stecken = w["erg"]["stecken"]
+        if satz_dialog is not None or not self.f.stumm or stecken:
+            def bedienen(sd):
+                if stecken:
+                    sd.steck_alle(melden=False)
+                if satz_dialog is not None:
+                    return satz_dialog(sd)
+                if self.f.stumm:
+                    sd._ok()
+                    return sd.result()
+                return sd.exec()
+            self.satz_3d(satz=name, dialog=bedienen)
+        return name
 
     def rohr_neu(self, dialog=None, dxf=None):
         """Neue Rohr-/Profilposition im Schneidweg-Rechner mit Kopfzeile anlegen. Vorbelegt: Profil und Werkstoff der
