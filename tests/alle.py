@@ -73,9 +73,10 @@ TESTS = [
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py",
     "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_nachfassen.py", "test_bedienung.py", "test_anleitung.py",
+    "test_performance_update.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
-LANGSAM = [("test_gehrung.py", QT)]
+LANGSAM = [("test_gehrung.py", QT), ("test_belastung.py", QT)]
 # laufen mit eigenen Argumenten als eigener Schritt im Workflow (Testbericht) bzw. von Hand
 EIGEN = {"test_step_referenz.py", "test_abnahme.py"}
 

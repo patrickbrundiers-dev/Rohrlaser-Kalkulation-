@@ -125,6 +125,34 @@ def entpacken(daten):
         return None
 
 
+_lage_merker = {}        # (id(p), Lage) -> (p, Punkte in Einbaulage): Klicks im Satz/Baugruppe ohne Neurechnen
+LAGE_MERKEN = 4_000_000  # so viele Zahlen höchstens merken
+
+
+def _in_lage(p, lage):
+    """Punkte p (x, y, z flach) in die Einbaulage (Ursprung, z-Achse, x-Achse), auf 0,01 mm gerundet."""
+    schl = (id(p), tuple(lage))
+    alt = _lage_merker.get(schl)
+    if alt is not None and alt[0] is p:
+        return alt[1]
+    o, z, x = lage[0:3], lage[3:6], lage[6:9]
+    y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
+    o0, o1, o2 = o
+    x0, x1, x2 = x
+    y0, y1, y2 = y
+    z0, z1, z2 = z
+    aus = []
+    neu = aus.extend
+    for i in range(0, len(p) - 2, 3):
+        a, b, c = p[i], p[i + 1], p[i + 2]
+        neu((round(o0 + a * x0 + b * y0 + c * z0, 2), round(o1 + a * x1 + b * y1 + c * z1, 2),
+             round(o2 + a * x2 + b * y2 + c * z2, 2)))
+    if sum(len(v[1]) for v in _lage_merker.values()) + len(aus) > LAGE_MERKEN:
+        _lage_merker.clear()
+    _lage_merker[schl] = (p, aus)
+    return aus
+
+
 def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
@@ -141,13 +169,9 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
         if not netz or not netz.get("p") or not lage or len(lage) != 9:
             ohne += 1
             continue
-        o, z, x = lage[0:3], lage[3:6], lage[6:9]
-        y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
         p = netz["p"]
         basis = len(punkte) // 3
-        for i in range(0, len(p) - 2, 3):
-            a, b, c = p[i], p[i + 1], p[i + 2]
-            punkte += [round(o[k] + a * x[k] + b * y[k] + c * z[k], 2) for k in range(3)]
+        punkte += _in_lage(p, lage)
         if bereiche is not None:
             bereiche.append((nr, basis, len(punkte) // 3, [basis + i for a, idx in (netz.get("t") or {}).items()
                                                             if a != "I" for i in idx]))

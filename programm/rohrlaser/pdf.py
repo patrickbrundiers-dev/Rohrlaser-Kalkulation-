@@ -357,14 +357,43 @@ def _angebot_positionen(ang):
     if start is not None:
         gruppen.append((start, len(daten) - 1))
     for i, (von, bis) in enumerate(gruppen):
-        stil += [("NOSPLIT", (0, von), (-1, bis)), ("TOPPADDING", (0, von), (-1, von), 5),
-                 ("BOTTOMPADDING", (0, bis), (-1, bis), 5)]
+        stil += [("TOPPADDING", (0, von), (-1, von), 5), ("BOTTOMPADDING", (0, bis), (-1, bis), 5)]
         if i < len(gruppen) - 1:
             stil.append(("LINEBELOW", (0, bis), (-1, bis), 0.5, LINIE))
     stil.append(("LINEBELOW", (0, -1), (-1, -1), 1, BLAU))
-    t = LongTable(daten, colWidths=[11 * mm, 25 * mm, 74 * mm, 16 * mm, 12 * mm, 24 * mm, 24 * mm], repeatRows=1)
+    breiten = [11 * mm, 25 * mm, 74 * mm, 16 * mm, 12 * mm, 24 * mm, 24 * mm]
+    t = LongTable(daten, colWidths=breiten, repeatRows=1)
     t.setStyle(TableStyle(stil))
+    # Eine Position (Satz mit seinen Teilen) bleibt auf einer Seite zusammen, solange sie auf eine Seite passt. Ein
+    # größerer Satz darf umbrechen (sonst bricht reportlab mit LayoutError ab, Performance-Plan 25.10.2026 P8).
+    hoehen = _zeilen_hoehen(daten, breiten, stil)
+    t.setStyle(TableStyle([("NOSPLIT", (0, von), (-1, bis)) for von, bis in gruppen
+                           if sum(hoehen[von:bis + 1]) <= GRUPPE_MAX_HOEHE]))
     return t
+
+
+def _zeilen_hoehen(daten, breiten, stil, rand=3, oben_unten=7):
+    """Höhe jeder Tabellenzeile [pt], geschätzt aus den Absätzen (verbundene Zellen über ihre ganze Breite), ohne die
+    Tabelle selbst umzubrechen. Großzügig gerechnet (Abstände wie bei der ersten und letzten Zeile einer Gruppe)."""
+    spannen = {}
+    for befehl, (c0, r0), (c1, _), *_ in stil:
+        if befehl == "SPAN":
+            spannen[(r0, c0)] = c1
+    out = []
+    for r, zeile in enumerate(daten):
+        h, ueber = 0.0, -1
+        for c, zelle in enumerate(zeile):
+            if c <= ueber:
+                continue
+            ende = spannen.get((r, c), c)
+            ueber = ende
+            if hasattr(zelle, "wrap"):
+                h = max(h, zelle.wrap(sum(breiten[c:ende + 1]) - 2 * rand, 1e6)[1])
+        out.append(h + oben_unten)
+    return out
+
+
+GRUPPE_MAX_HOEHE = 600      # pt: kleiner als der Textbereich einer A4-Seite (765 pt) abzüglich Tabellenkopf
 
 
 def angebot_pdf(pfad, kopf, ang, einst):
