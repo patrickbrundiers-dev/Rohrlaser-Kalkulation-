@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.119", "<b>Größte Nasenbreite der Steckverbindung</b>: Die Nase bleibt auf der geraden Wandfläche des "
+                "Steckers (Wandbreite − 2 × Eckradius) mit einem Rand je Seite (neue Einstellung, Vorgabe 2 mm); ein "
+                "breiterer Wert wird automatisch gekürzt und im Text der Verbindung genannt ([[steckverbindung]]).",
+     "Steckverbindung: Nase höchstens gerade Wandfläche − 2 × Rand"],
     ["0.9.118", "<b>Gravur der Anbauteile im 3D und im STEP</b>: Das 3D aus den Eingaben (Rohr-Editor, 3D der "
                 "Position) zeigt die Gravur aufgeschweißter Bolzen, Laschen und Bleche an ihrer Stelle, wie sie unter "
                 "Anbauteile prüfen gewählt ist. STEP speichern schneidet sie als Rille 0,1 mm ins Rohr. Gilt für Teile, "

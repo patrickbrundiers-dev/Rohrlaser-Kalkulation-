@@ -2477,14 +2477,17 @@ def kapitel_optimieren(i):
             "länger.",
             "<b>Nasen</b>: 2 auf gegenüberliegenden Wänden (Vorgabe: die Wände quer zur Achse der Aufnahme, die Nasen "
             "liegen dann hintereinander längs der Aufnahme), 1 oder 4 sind auch möglich. Vorgabe der Nasenbreite: "
-            "halbe Wandbreite des Steckers, mindestens 10 mm.",
+            "halbe Wandbreite des Steckers, mindestens 10 mm. <b>Größte Nasenbreite</b>: die gerade Wandfläche des "
+            "Steckers (Wandbreite − 2 × Eckradius) − 2 × Rand (Vorgabe 2 mm je Seite), z. B. QR 40×40×2 mit R 4: "
+            "40 − 8 − 4 = 28 mm; beim Rundrohr Außen-Ø − 2 × Rand. Ein breiterer Wert wird automatisch gekürzt, der "
+            "Text der Verbindung sagt das.",
             "<b>Rundrohr</b>: Als Stecker ist die Nase ein Bogenstück, der Schlitz wird um die Bogenhöhe breiter; als "
             "Aufnahme ist das Ende des Steckers ein Sattel ([[schneidweg_rechner]]) mit den Nasen darauf.",
             "<b>Schräger Stoß</b> (30° bis 90° zwischen den Achsen): Flanken der Nasen = l<sub>N</sub> / sin α, der "
             "Schlitz wird längs der Aufnahme um s<sub>A</sub> / tan α länger, damit die schräge Nase durch die Wand "
             "passt.",
             "Einstellungen unter <b>Steckverbindung</b> ([[einstellungen]]): Nasen je Verbindung, Nasenbreite "
-            "mindestens, Spiel je Seite und Überstand.",
+            "mindestens, Abstand der Nase zum Eckradius, Spiel je Seite und Überstand.",
             "<b>Prüfregeln</b> ([[pruefregeln]]): <i>Nase zu schmal</i>; für die Schlitze gilt <i>Kontur zu nah am "
             "Rand</i>. Fehlt ein Teil der Verbindung in der Baugruppe, zeigt die Baugruppe den FEHLER "
             "<i>Steckverbindung ohne Gegenstück</i>.",
@@ -4639,10 +4642,12 @@ def kapitel_einstellungen(i):
          "Vorgaben im Fenster Knickrahmen des Schneidweg-Rechners: Zugabe je Knick (Vorgabe 0), Freistich (Vorgabe "
          "ohne) und Lage der neutralen Faser für den Ausgleichswert nach DIN 6935 (Vorgabe 0,5, [[knickrahmen]])."],
         ["Steckverbindung", "Steckverbindung: Nasen je Verbindung (1, 2 oder 4), Steckverbindung: Nasenbreite "
-                            "mindestens [mm], Steckverbindung: Spiel je Seite im Schlitz [mm], Steckverbindung: "
+                            "mindestens [mm], Steckverbindung: Abstand der Nase zum Eckradius je Seite [mm], "
+                            "Steckverbindung: Spiel je Seite im Schlitz [mm], Steckverbindung: "
                             "Überstand der Nase über die Aufnahme [mm]",
          "Vorgaben einer neuen Steckverbindung: 2 Nasen, Nasenbreite halbe Wandbreite des Steckers und mindestens "
-         "10 mm, Spiel 0,1 mm, Überstand 0 ([[steckverbindung]])."],
+         "10 mm, höchstens gerade Wandfläche − 2 × Abstand (Vorgabe 2 mm), Spiel 0,1 mm, Überstand 0 "
+         "([[steckverbindung]])."],
         ["STEP-Import", "Experte: Flachstahl ab Länge × Breite, Experte: gekantetes Blech statt Profil, wenn Volumen "
                         "unter Anteil von Querschnitt × Länge",
          "Grenzwerte der Erkennung, nur nach Rücksprache ändern: ein flaches Teil ist erst ab dieser Länge "
