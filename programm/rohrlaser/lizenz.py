@@ -49,6 +49,7 @@ ORDNER = "Lizenz"
 AKTIV = "aktiv.lizenz"
 SPERRLISTE = "sperrliste.json"
 ZEIT = "zeit.json"
+ERSETZT = "ersetzt.json"   # Lizenz-IDs, die eine geladene Lizenz ersetzt hat (Feld ersetzt): nie wieder laden
 ALT = "alt"
 EINSTELLUNG_ZULETZT = "lizenz_zuletzt"
 NOTFALL = "NF"            # Notfallcode NF-<Schlüssel>-<JJJJMMTT>-<Signatur>, gilt am Ausstelltag und am Folgetag
@@ -423,6 +424,14 @@ def _schreiben(pfad, text):
     os.replace(tmp, pfad)
 
 
+def ersetzte(ordner_):
+    """Lizenz-IDs, die an diesem Rechner durch eine neuere Lizenz ersetzt wurden (Menge)."""
+    try:
+        return set(json.loads((Path(ordner_) / ERSETZT).read_text(encoding="utf-8")))
+    except (OSError, ValueError, TypeError):
+        return set()
+
+
 def aktive_lizenz(ordner_):
     """Pfad der geladenen Lizenz oder None."""
     p = Path(ordner_) / AKTIV
@@ -445,6 +454,12 @@ def lizenz_laden(ordner_, quelle, heute=None, rechner=None, schluessel=None):
         if (heute or datetime.date.today()) > bis + datetime.timedelta(days=KULANZ_TAGE):
             raise LizenzFehler(f"Diese Lizenz ist schon am {_datum_text(bis)} abgelaufen.")
     o = Path(ordner_)
+    ersetzt = ersetzte(o)
+    if inhalt["lizenz_id"] in ersetzt:
+        raise LizenzFehler(f"Lizenz {inhalt['lizenz_id']} wurde durch eine neuere ersetzt (z. B. neues "
+                           "Admin-Passwort) und lässt sich nicht mehr laden.")
+    if inhalt.get("ersetzt") and inhalt["ersetzt"] not in ersetzt:
+        _schreiben(o / ERSETZT, json.dumps(sorted(ersetzt | {inhalt["ersetzt"]})))
     vorher = aktive_lizenz(o)
     if vorher:
         (o / ALT).mkdir(parents=True, exist_ok=True)
@@ -462,8 +477,11 @@ def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zul
     o = Path(ordner_)
     spaet = spaetestes_datum(o, db_zuletzt)
     aktiv = aktive_lizenz(o)
-    z = ermitteln(aktiv, heute, rechner, schluessel, sperrliste_pruefen(o / SPERRLISTE, schluessel), spaet,
-                  durchsetzung)
+    sperr = sperrliste_pruefen(o / SPERRLISTE, schluessel)
+    ers = ersetzte(o)
+    if ers:                         # ersetzte Lizenzen (neues Admin-Passwort) gelten wie gesperrt
+        sperr = dict(sperr or {}, gesperrt=sorted(set((sperr or {}).get("gesperrt") or []) | ers))
+    z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung)
     neu = None
     if merken and not uhr_zurueck(heute, spaet):
         neu = zeit_merken(o, heute, spaet)

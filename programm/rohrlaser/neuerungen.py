@@ -23,7 +23,8 @@ def als_html(neuerungen=None):
 NEUERUNGEN = [
     ["0.9.119", "<b>Admin-Passwort in der Admin-Lizenz</b>: Das Lizenz-Werkzeug fragt beim Ausstellen einer Admin-Lizenz "
                 "das Admin-Passwort ab (mindestens 10 Zeichen) und legt es verschlüsselt in die signierte Lizenz; nur "
-                "dieses gilt dann beim Start. Ändern = Admin-Lizenz neu ausstellen (Verlängern …). Ältere Admin-Lizenzen "
+                "dieses gilt dann beim Start. Ändern = Admin-Lizenz neu ausstellen (Verlängern …); nach dem Laden nimmt der "
+                "Rechner die alte Admin-Lizenz nicht mehr an. Ältere Admin-Lizenzen "
                 "ohne Passwort nutzen weiter das Passwort der Einstellungen. Das Passwort der Einstellungen lässt sich "
                 "nur noch mit Admin-Rechten setzen, ändern oder entfernen. Passwort vergessen: Notfallcode aus dem "
                 "Lizenz-Werkzeug für die Rechner-ID, gilt heute und morgen ([[lizenz_laden]]).",

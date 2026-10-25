@@ -1,4 +1,4 @@
-"""Lizenz (programm/rohrlaser/lizenz.py) und Lizenz-Werkzeug (werkzeuge/lizenz_werkzeug.py): Fälle L1–L17, S7.
+"""Lizenz (programm/rohrlaser/lizenz.py) und Lizenz-Werkzeug (werkzeuge/lizenz_werkzeug.py): Fälle L1–L18, S7.
 
 Jeder Lauf erzeugt ein eigenes Testschlüsselpaar; der echte Schlüssel kommt in keinem Test vor.
 Aufruf: python tests/test_lizenz.py
@@ -336,6 +336,24 @@ pruefe(lizenz.notfallcode_gueltig(code, RECHNER, datetime.date.today() + datetim
        and not lizenz.notfallcode_gueltig(code, RECHNER, datetime.date.today() - datetime.timedelta(days=1), SCHL)
        and not lizenz.notfallcode_gueltig("NF-T1-kaputt", RECHNER, schluessel=SCHL),
        "L17 Notfallcode gilt heute und morgen, sonst nicht")
+
+# ------------------------------------------------------------------ L18 ersetzte Admin-Lizenz (neues Passwort)
+o4 = tmp / "ersetzt"
+o4.mkdir()
+alt_l = lizenzdatei("admin", bis=None, lizenz_id="L-2026-0010", admin_passwort=LPW)
+neu_l = lizenzdatei("admin", bis=None, lizenz_id="L-2026-0011", admin_passwort=passwort.hash_bilden("neu-pw-12345"),
+                    ersetzt="L-2026-0010")
+lizenz.lizenz_laden(o4, alt_l, HEUTE, RECHNER, SCHL)
+lizenz.lizenz_laden(o4, neu_l, HEUTE, RECHNER, SCHL)
+try:
+    lizenz.lizenz_laden(o4, alt_l, HEUTE, RECHNER, SCHL)
+    pruefe(False, "L18 ersetzte Lizenz lässt sich nicht mehr laden")
+except lizenz.LizenzFehler as e:
+    pruefe("ersetzt" in str(e) and lizenz.pruefen(o4 / lizenz.AKTIV, SCHL)["lizenz_id"] == "L-2026-0011",
+           "L18 ersetzte Lizenz lässt sich nicht mehr laden, neue bleibt aktiv")
+(o4 / lizenz.AKTIV).write_text(json.dumps(alt_l), encoding="utf-8")       # von Hand zurückkopiert
+z, _ = lizenz.zustand_im_ordner(o4, HEUTE, RECHNER, SCHL, durchsetzung=True, merken=False)
+pruefe(z.stufe == "lesemodus" and "gesperrt" in z.grund, "L18 von Hand zurückkopierte alte Lizenz gilt nicht")
 
 o2 = tmp / "adminladen"
 o2.mkdir()

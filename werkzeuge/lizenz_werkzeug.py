@@ -191,8 +191,9 @@ def dateiname(inhalt):
 
 
 def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None, ziel=None, pw=None,
-               admin_passwort=""):
-    """Lizenz signieren und speichern. admin_passwort (nur Admin, Pflicht): kommt als Hash in die Lizenz."""
+               admin_passwort="", ersetzt=""):
+    """Lizenz signieren und speichern. admin_passwort (nur Admin, Pflicht): kommt als Hash in die Lizenz. ersetzt:
+    Lizenz-ID, die das Programm nach dem Laden dieser Lizenz nicht mehr annimmt (Admin-Passwort geändert)."""
     ordner = Path(ordner)
     if art == "admin":
         fehler = admin_passwort_pruefen(admin_passwort)
@@ -210,6 +211,8 @@ def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None
                   funktionen=["alle"], test=art == "test", schluessel_id=sid, hinweis=hinweis or "")
     if art == "admin":
         inhalt["admin_passwort"] = hash_bilden(admin_passwort)
+    if ersetzt:
+        inhalt["ersetzt"] = ersetzt
     daten = dict(format=lizenz.FORMAT, inhalt=inhalt, signatur=lizenz.signieren(inhalt, privat))
     lizenz.pruefen(daten, {sid: lizenz.oeffentlich_text(privat)})      # nur gültige Lizenzen verlassen das Werkzeug
     ziel = Path(ziel) if ziel else ordner / "Lizenzen"
@@ -381,7 +384,7 @@ def verlaengern(ordner, lizenz_id, bis=None, pw=None, heute=None, ziel=None, adm
     rechner = [r for r in (z.get("rechner") or "").split() if r != "beliebig"]
     if z["art"] == "admin":
         return ausstellen(ordner, "admin", z["inhaber"], z["firma"], None, rechner, f"Ersatz für {lizenz_id}",
-                          heute=heute, ziel=ziel, pw=pw, admin_passwort=admin_passwort)
+                          heute=heute, ziel=ziel, pw=pw, admin_passwort=admin_passwort, ersetzt=lizenz_id)
     return ausstellen(ordner, z["art"], z["inhaber"], z["firma"], bis or verlaengerung_bis(z, heute), rechner,
                       f"Verlängerung von {lizenz_id}", heute=heute, ziel=ziel, pw=pw)
 

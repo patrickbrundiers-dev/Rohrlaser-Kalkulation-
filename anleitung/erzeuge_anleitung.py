@@ -6453,7 +6453,8 @@ def kapitel_lizenz(i):
             "Eine <b>Testlizenz</b> gilt kurz (meist 30 Tage). Alle PDFs tragen dann den Aufdruck <i>TESTVERSION</i>.",
             "Die <b>Admin-Lizenz</b> ist unbefristet. Beim Start fragt das Programm dann das <b>Admin-Passwort</b> "
             "ab. Es steht verschlüsselt in der Admin-Lizenz und wird im Lizenz-Werkzeug beim Ausstellen festgelegt "
-            "(mindestens 10 Zeichen); ändern = Admin-Lizenz neu ausstellen (<b>Verlängern …</b>) und laden. Bei einer "
+            "(mindestens 10 Zeichen); ändern = Admin-Lizenz neu ausstellen (<b>Verlängern …</b>) und laden, danach nimmt "
+            "der Rechner die alte Admin-Lizenz nicht mehr an. Bei einer "
             "älteren Admin-Lizenz ohne Admin-Passwort gilt das Passwort der Einstellungen ([[passwort]]); ist keins "
             "vergeben, entfällt die Frage. Passwort vergessen: Patrick erzeugt im Lizenz-Werkzeug einen "
             "<b>Notfallcode</b> für die Rechner-ID (gilt heute und morgen); ihn statt des Passworts eingeben, danach "

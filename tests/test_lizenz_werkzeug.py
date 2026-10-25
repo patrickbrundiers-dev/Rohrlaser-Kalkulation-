@@ -106,6 +106,7 @@ ersatz = lizenz.pruefen(lizenz.lesen(wz.verlaengern(ordner, admin_id, heute=H, p
 assert ersatz["art"] == "admin" and ersatz["gueltig_bis"] is None and ersatz["rechner"] == ["RL-PPPP-PPPP-PPPP-PPPP"]
 assert ersatz["hinweis"] == f"Ersatz für {admin_id}" and passwort.pruefen("ganz-neu-2026", ersatz["admin_passwort"])
 assert not passwort.pruefen(ADMIN_PW, ersatz["admin_passwort"])
+assert ersatz["ersetzt"] == admin_id
 ok("Verlängern: neue Lizenz im Anschluss mit denselben Angaben, Erinnerung erledigt, unbekannt abgelehnt, "
    "Admin = neu ausstellen mit neuem Passwort")
 
