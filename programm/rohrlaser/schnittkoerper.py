@@ -134,7 +134,7 @@ def rohr(e, qs, L, xyz):
             continue
         pts = _ring(pts)
         if qs.r or (ein.get("umriss") and qs.flaechen):
-            pts = _ring(sk._dicht(pts + pts[:1], SCHRITT))
+            pts = _ring(sk._dicht(pts + pts[:1], 1.0 if qs.radius and ein.get("umriss") else SCHRITT))
         try:
             orte, n_mitte = sk.platzieren(qs, d, pts)
         except (ValueError, TypeError, ZeroDivisionError, AttributeError):
@@ -152,6 +152,13 @@ def rohr(e, qs, L, xyz):
                 richt.append((-nu, -nv, 0.0))
         else:
             richt = [(-nm[0], -nm[1], 0.0)] * len(orte)
+        if qs.radius and not qs.r and not ein.get("wand") == "beide":   # Eckradius: auf dem Bogen wie im STEP
+            neu_o, neu_r = [], []
+            for (x, u, v), rr in zip(orte, richt):
+                u, v, n_ = sk.rund_ort(qs, u, v)
+                neu_o.append((x, u, v))
+                neu_r.append((-n_[0], -n_[1], 0.0) if n_ else rr)
+            orte, richt = neu_o, neu_r
         neig = sk.neigung_3d(ein) if art == BOHRUNG and d3 else None
         tief = t_wand
         if art in GRAVUREN:

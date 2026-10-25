@@ -268,11 +268,56 @@ OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Pr
 
 def _umfang_versatz(form, breit, schmal, a_):
     """Abwicklung der Skizze (skizze.Querschnitt) gegen die Umfangsposition u der Messung: s = u + Versatz;
-    Umfang der Skizze. Rundrohr ab 315°, Kastenprofil ab der linken Kante der Breitseite oben."""
+    Umfang der Skizze. Rundrohr ab 315°, Kastenprofil ab der linken Kante der Breitseite oben (ohne Eckradien,
+    gerundete Rohre über umfang_skizze)."""
     if form == "Rundrohr":
         u = math.pi * a_
         return u / 8, u
     return breit / 2, 2 * (breit + schmal)
+
+
+def kasten_radius(m, breit, schmal):
+    """Außenradius der Ecken eines Quadrat-/Rechteckrohrs aus dem gemessenen Umfang der Außenkontur
+    (kontur_umfang = 2 (B + H) − (8 − 2π) r), oder None ohne Messung."""
+    u = _z(m, "kontur_umfang")
+    if u <= 0 or breit <= 0:
+        return None
+    r = (2 * (breit + schmal) - u) / (8 - 2 * math.pi)
+    return round(min(max(r, 0.0), min(breit, schmal) / 2), 2)
+
+
+def umfang_skizze(form, breit, schmal, a_, r=0.0):
+    """(Abbildung u -> s, Umfang der Skizze): Umfangsposition u der Messung (auf der Außenkontur, Kastenprofil mit
+    den Bögen der Eckradien r, ab der Mitte der Breitseite oben) als Stelle s der scharfkantigen Abwicklung der
+    Skizze. Genau die Umkehrung der 3D-Ansicht (rohr3d: Punkt der Skizze -> nächster Punkt der gerundeten
+    Außenkontur): gerade Stücke 1:1, ein Bogen mit Winkel ψ ab seinem Anfang liegt r · tan ψ hinter dem Anfang
+    des Eckbereichs (r vor der Ecke der Skizze), ab 45° symmetrisch von der anderen Seite."""
+    versatz, umfang = _umfang_versatz(form, breit, schmal, a_)
+    if form == "Rundrohr" or not r or r <= 0:
+        return (lambda u: (float(u) + versatz) % umfang), umfang
+    bogen = math.pi * r / 2
+    # gerade Stücke der Messung ab der Mitte oben, nach jedem (außer dem letzten) der Bogen einer Ecke
+    gerade = [breit / 2 - r, schmal - 2 * r, breit - 2 * r, schmal - 2 * r, breit / 2 - r]
+    ecken_s = [breit, breit + schmal, 2 * breit + schmal, umfang]       # Ecken der Skizze ab der linken Kante oben
+    u_umfang = sum(gerade) + 4 * bogen
+
+    def s_von(u):
+        u = float(u) % u_umfang
+        s = versatz                 # Mitte oben
+        for i, g in enumerate(gerade):
+            if u <= g or i == 4:
+                return (s + min(u, g)) % umfang
+            u -= g
+            s += g
+            if u <= bogen:          # im Bogen der Ecke i
+                psi = u / r
+                ecke = ecken_s[i]
+                return (ecke - r + r * math.tan(psi) if psi < math.pi / 4
+                        else ecke + r - r * math.tan(math.pi / 2 - psi)) % umfang
+            u -= bogen
+            s = ecken_s[i] + r
+        return s % umfang
+    return s_von, umfang
 
 
 def _kasten_seite(s, breit, schmal):
@@ -280,33 +325,75 @@ def _kasten_seite(s, breit, schmal):
     s0 = 0.0
     for seite, w in (("oben", breit), ("vorne", schmal), ("unten", breit), ("hinten", schmal)):
         if s < s0 + w or seite == "hinten":
-            return seite, round(min(max(s - s0, 0.0), w) - w / 2, 1)
+            return seite, round(min(max(s - s0, 0.0), w) - w / 2, 2)
         s0 += w
     return "oben", 0.0
 
 
-def _umriss_relativ(d):
-    """Umriss der Messung [[u, z]] als [[dx längs, ds am Umfang]] um die Mitte (z, u) der Kontur, oder None."""
+def _dicht_rund(um, rund):
+    """Umriss [[u, z]] an schrägen Kanten fein unterteilt (je 0,5 mm), damit sie nach der Abbildung auf die
+    scharfkantige Skizze auch über den Bögen der Ecken der Messung folgen."""
+    if not rund:
+        return [[float(u), float(z)] for u, z in um]
+    out = []
+    for i, (u, z) in enumerate(um):
+        u1, z1 = um[(i + 1) % len(um)]
+        u, z, u1, z1 = float(u), float(z), float(u1), float(z1)
+        out.append([u, z])
+        if abs(u1 - u) > 0.01 and abs(z1 - z) > 0.01:
+            n = min(400, int(math.hypot(u1 - u, z1 - z) / 0.5))
+            out += [[u + (u1 - u) * k / n, z + (z1 - z) * k / n] for k in range(1, n)]
+    return out
+
+
+def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
+    """Umriss der Messung [[u, z]] als [[dx längs, ds am Umfang]] um die Mitte (z, u) der Kontur, oder None.
+    s_von (umfang_skizze): ds in der scharfkantigen Abwicklung der Skizze (Kastenprofil mit Eckradien)."""
     um = d.get("umriss")
     if not um or d.get("u") is None or d.get("z") is None or len(um) < 3:
         return None
     u0, z0 = float(d["u"]), float(d["z"])
-    return [[round(float(z) - z0, 2), round(float(u) - u0, 2)] for u, z in um]
+    if s_von is None:
+        return [[round(float(z) - z0, 2), round(float(u) - u0, 2)] for u, z in um]
+    s0 = s_von(u0)
+    return [[round(z - z0, 2), round((s_von(u) - s0 + umfang / 2) % umfang - umfang / 2, 2)]
+            for u, z in _dicht_rund(um, rund)]
 
 
-def _ende_umriss(d, ende_b, laenge, versatz, umfang, n=90):
-    """Umriss eines komplexen Endes der Messung als [[s, Abstand vom Ende]] (n Stellen, je Stelle der größte
-    Abstand), für die Abwicklung der Skizze; None ohne Umriss."""
+def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05):
+    """Umriss eines komplexen Endes der Messung als [[s, Abstand vom Ende]] für die Abwicklung der Skizze und das 3D:
+    Kanten des gemessenen Umrisses fein abgetastet, je Stelle s (Raster schritt mm) der größte Abstand, gerade
+    Stücke zusammengefasst (Abweichung unter 0,01 mm); None ohne Umriss. s_von: umfang_skizze."""
     um = d.get("umriss")
     if not um or len(um) < 3 or umfang <= 0:
         return None
-    feld = [None] * n
-    for u, z in um:
-        abst = (laenge - float(z)) if ende_b else float(z)
-        i = int(((float(u) + versatz) % umfang) / umfang * n) % n
-        feld[i] = max(feld[i] if feld[i] is not None else 0.0, max(abst, 0.0))
-    pk = [[round((i + 0.5) * umfang / n, 1), round(v, 2)] for i, v in enumerate(feld) if v is not None]
-    return pk if len(pk) >= 3 else None
+    n = max(1, int(round(umfang / schritt)))
+    feld = {}
+    pts = [(float(u), float(z)) for u, z in um]
+    for i, (u0, z0) in enumerate(pts):
+        u1, z1 = pts[(i + 1) % len(pts)]
+        k_n = max(1, min(40000, int(abs(u1 - u0) / schritt * 2) + 1))
+        for k in range(k_n + 1):
+            u, z = u0 + (u1 - u0) * k / k_n, z0 + (z1 - z0) * k / k_n
+            abst = max((laenge - z) if ende_b else z, 0.0)
+            j = int(round(s_von(u) / umfang * n)) % n
+            feld[j] = max(feld.get(j, 0.0), abst)
+    pk = [(j * umfang / n, feld[j]) for j in sorted(feld)]
+    if len(pk) < 3:
+        return None
+    behalten, stapel = {0, len(pk) - 1}, [(0, len(pk) - 1)]
+    while stapel:                           # Douglas-Peucker: gerade Stücke (unter 0,01 mm) zusammenfassen
+        i0, i1 = stapel.pop()
+        (s0, a0), (s1, a1) = pk[i0], pk[i1]
+        weit, k = 0.01, None
+        for j in range(i0 + 1, i1):
+            d = abs(a0 + (a1 - a0) * (pk[j][0] - s0) / (s1 - s0) - pk[j][1])
+            if d > weit:
+                weit, k = d, j
+        if k is not None:
+            behalten.add(k)
+            stapel += [(i0, k), (k, i1)]
+    return [[round(pk[i][0], 2), round(pk[i][1], 2)] for i in sorted(behalten)]
 
 
 def offen_lage(querschnitt, profil):
@@ -377,6 +464,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     ma = _z(m, "abm_a") or a_
     mb = _z(m, "abm_b") or ma
     mbreit, mschmal, mkasten = max(ma, mb), min(ma, mb), mform in ("Quadratrohr", "Rechteckrohr")
+    # Umfangsposition der Messung (Außenkontur mit gemessenem Eckradius) -> Stelle der Skizze
+    r_mess = kasten_radius(m, mbreit, mschmal) if mkasten else None
+    s_von, s_umfang = umfang_skizze(mform, mbreit, mschmal, ma, r_mess or 0.0)
     offen = None
     if form in OFFEN:
         kopf = next((d for d in liste if isinstance(d, dict) and d.get("art") == "Ende A"), {})
@@ -389,6 +479,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         if m.get("profilform") and _z(m, "abm_a") > 0 else None       # gemessener Querschnitt (Profilwechsel)
     if d3:
         eing["d3"] = True
+    if r_mess is not None and kasten and mp:    # Eckradius der STEP-Datei: Skizze und 3D wie die STEP
+        eing.update(r_step=r_mess, r_step_profil=mp)
     for d in liste:
         if not isinstance(d, dict):
             continue
@@ -422,7 +514,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
                 e.update(flaechen=d["flaechen"], huelle=d["huelle"])
             if d.get("form") == "komplex" and (mform == "Rundrohr" or mkasten):     # Umriss für die Abwicklung
-                um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), *_umfang_versatz(mform, mbreit, mschmal, ma))
+                um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), s_von, s_umfang)
                 if um:
                     e["umriss"] = um
             if e["gemessen"] > 0:
@@ -441,7 +533,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["huelle_gemessen"] = round(float(d["huellmass"]), 2)
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
-        umriss = _umriss_relativ(d) if mform == "Rundrohr" or mkasten else None
+        umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess)) if mform == "Rundrohr" or mkasten else None
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -474,8 +566,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         if umriss and mform == "Rundrohr" and d.get("winkel") is not None:
             k["seite"] = round(float(d["winkel"]) % 360, 1)
         elif umriss and mkasten and d.get("u") is not None:      # über Ecken: Mitte aus der Umfangsposition
-            versatz, umfang = _umfang_versatz(mform, mbreit, mschmal, ma)
-            seite, q = _kasten_seite((float(d["u"]) + versatz) % umfang, mbreit, mschmal)
+            seite, q = _kasten_seite(s_von(d["u"]), mbreit, mschmal)
             if abs(q) > 0.05:
                 k["q"] = q
             if seite != "oben":

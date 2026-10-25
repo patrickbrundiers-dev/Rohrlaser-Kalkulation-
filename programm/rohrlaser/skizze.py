@@ -11,6 +11,7 @@ Draufsicht = Blick von oben (vorne unten im Bild), Seitenansicht = Blick auf vor
 Eine Kontur steht auf einer Fläche (Seite): Rundrohr mit dem Winkel (0° oben, 90° vorne …), alle anderen Profile
 mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Seite liegt sie auf der ersten Fläche.
 """
+import bisect
 import math
 
 from . import durchdringung as dd, normprofile, optimierung as opt, rp_profile
@@ -307,6 +308,9 @@ def schnitt_x(qs, e, u, v):
         except (ValueError, ZeroDivisionError):
             return 0.0
     w = abs(_z(e.get("winkel")))
+    if not w and e.get("umriss"):           # komplexes Ende aus dem STEP-Import: gemessener Verlauf
+        um = _ende_umriss_merken(qs, e["umriss"])
+        return um(uv_zu_s(qs, u, v)) if um else 0.0
     if not w or w >= 80:
         return 0.0
     th = _richtung(qs, e)
@@ -419,6 +423,8 @@ def ende_abwicklung(qs, e, n=120):
         (u, v), _ = qs.s_zu_uv(s)
         return schnitt_x(qs, e, u, v)
     stellen = [qs.umfang * i / n for i in range(n + 1)]
+    if um:                              # Knicke des gemessenen Verlaufs genau treffen
+        stellen = sorted(set(stellen + [x for x in um.stellen if 0 <= x <= qs.umfang]))
     nasen = _nasen_abwicklung(qs, e)
     if not nasen:
         return [(s, basis(s)) for s in stellen]
@@ -448,6 +454,46 @@ def _nasen_abwicklung(qs, e):
     return (lg, bereiche) if bereiche and lg > 0 else None
 
 
+_umriss_merker = {}
+
+
+def _ende_umriss_merken(qs, umriss):
+    """_ende_umriss für viele Punkte desselben Endes (3D: je Punkt des Umrisses einer) nur einmal aufbauen."""
+    k = (id(umriss), round(qs.umfang, 6))
+    m = _umriss_merker.get(k)
+    if m is None or m[0] is not umriss:
+        if len(_umriss_merker) > 64:
+            _umriss_merker.clear()
+        m = _umriss_merker[k] = (umriss, _ende_umriss(qs, umriss))
+    return m[1]
+
+
+def uv_zu_s(qs, u, v):
+    """Stelle s der Abwicklung zum Punkt (u, v) des Außenumrisses (Umkehrung von s_zu_uv). Ein Punkt auf dem Bogen
+    einer Ecke mit Radius geht radial auf die scharfkantige Ecke (Umkehrung von rund_ort)."""
+    if qs.r:
+        return (math.degrees(math.atan2(u, v)) + 45) % 360 / 360 * qs.umfang
+    if not qs.flaechen:
+        return 0.0
+    r = qs.radius if qs.form in opt.RADIUS_FORMEN else 0.0
+    if r:
+        cu, cv = qs.B / 2 - r, qs.H / 2 - r
+        if abs(u) > cu + 1e-9 and abs(v) > cv + 1e-9:
+            mu, mv = math.copysign(cu, u), math.copysign(cv, v)
+            lg = math.hypot(u - mu, v - mv) or 1.0
+            nu, nv = (u - mu) / lg, (v - mv) / lg
+            f = r / max(abs(nu), abs(nv))
+            u, v = mu + f * nu, mv + f * nv
+    beste, s0 = None, 0.0
+    for f in qs.flaechen:
+        t = min(max((u - f.p0[0]) * f.dir[0] + (v - f.p0[1]) * f.dir[1], 0.0), f.breite)
+        d = math.hypot(f.p0[0] + t * f.dir[0] - u, f.p0[1] + t * f.dir[1] - v)
+        if beste is None or d < beste[0] - 1e-9:
+            beste = (d, s0 + t)
+        s0 += f.breite
+    return beste[1] % qs.umfang
+
+
 def _ende_umriss(qs, umriss):
     """Funktion s -> Abstand vom Ende aus dem gemessenen Umriss eines Endes (linear, über die Naht 0/Umfang
     hinweg), oder None."""
@@ -458,12 +504,14 @@ def _ende_umriss(qs, umriss):
     if len(pk) < 2:
         return None
     pk = [(pk[-1][0] - qs.umfang, pk[-1][1])] + pk + [(pk[0][0] + qs.umfang, pk[0][1])]
+    ss = [p[0] for p in pk]
 
     def d(s):
-        for (s0, d0), (s1, d1) in zip(pk, pk[1:]):
-            if s0 <= s <= s1:
-                return d0 + (d1 - d0) * ((s - s0) / (s1 - s0) if s1 > s0 else 0)
-        return 0.0
+        s %= qs.umfang
+        i = min(max(bisect.bisect_right(ss, s), 1), len(pk) - 1)
+        (s0, d0), (s1, d1) = pk[i - 1], pk[i]
+        return d0 + (d1 - d0) * ((s - s0) / (s1 - s0) if s1 > s0 else 0)
+    d.stellen = [p[0] for p in pk[1:-1]]
     return d
 
 
@@ -642,6 +690,22 @@ def platzieren(qs, d, pts=None):
         u, v = f.punkt(q + dq)
         out.append((d["x"] + dx, u, v))
     return out, f.n
+
+
+def rund_ort(qs, u, v):
+    """Punkt (u, v) der scharfkantigen Skizze auf der Außenkontur mit Eckradius (Quadrat-/Rechteckrohr, wie die
+    3D-Ansicht und die STEP-Datei): im Eckbereich der nächste Punkt auf dem Bogen, sonst unverändert. Ergebnis
+    (u, v, Normale nach außen oder None = Normale der Fläche)."""
+    r = qs.radius if not qs.r and qs.form in opt.RADIUS_FORMEN else 0.0
+    if not r:
+        return u, v, None
+    cu, cv = qs.B / 2 - r, qs.H / 2 - r
+    if abs(u) <= cu + 1e-9 or abs(v) <= cv + 1e-9:
+        return u, v, None
+    mu, mv = math.copysign(cu, u), math.copysign(cv, v)
+    lg = math.hypot(u - mu, v - mv) or 1.0
+    nu, nv = (u - mu) / lg, (v - mv) / lg
+    return mu + r * nu, mv + r * nv, (nu, nv)
 
 
 def _um_kante(qs, s):

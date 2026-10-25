@@ -34,15 +34,43 @@ def _xyz(x, u, v):
     return (-u, v, x)
 
 
-def _unterteilen(poly, teile=None):
-    """Geschlossenes Polygon an den Kanten unterteilen; teile = Anzahl je Kante (für gleiche Teilung innen/außen)."""
+def _unterteilen(poly, teile=None, extra=None):
+    """Geschlossenes Polygon an den Kanten unterteilen; teile = Anzahl je Kante (für gleiche Teilung innen/außen),
+    extra = {Kante: [Anteile 0..1]} zusätzliche Punkte (Knicke eines gemessenen Endes, innen wie außen)."""
     out, anzahl = [], []
     for i, a in enumerate(poly):
         b = poly[(i + 1) % len(poly)]
         n = teile[i] if teile else max(1, min(TEILE_MAX, math.ceil(math.dist(a, b) / SCHRITT)))
         anzahl.append(n)
-        out += [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n)]
+        fs = [k / n for k in range(n)]
+        if extra and extra.get(i):
+            fs = sorted(set(fs) | {f for f in extra[i] if 1e-6 < f < 1 - 1e-6})
+        out += [(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f) for f in fs]
     return out, anzahl
+
+
+def _knick_anteile(qs, poly, enden):
+    """Knicke der gemessenen Enden (Umriss eines komplexen Endes, Stellen s) als {Kante von poly: [Anteile]}: dort
+    braucht der Umriss einen Punkt, sonst schneidet die Schnittkante die Ecke ab."""
+    out = {}
+    for es in enden:
+        if not es.get("umriss") or _z(es.get("winkel")):
+            continue
+        um = sk._ende_umriss_merken(qs, es["umriss"])
+        for s in getattr(um, "stellen", ()) if um else ():
+            (u, v), _ = qs.s_zu_uv(s % qs.umfang)
+            u, v, _ = sk.rund_ort(qs, u, v)
+            beste = None
+            for i, a in enumerate(poly):
+                b = poly[(i + 1) % len(poly)]
+                du, dv = b[0] - a[0], b[1] - a[1]
+                lg = du * du + dv * dv
+                f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
+                d = (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
+                if beste is None or d < beste[0]:
+                    beste = (d, i, f)
+            out.setdefault(beste[1], []).append(beste[2])
+    return out
 
 
 # ausgeschnittene Konturarten (Gravur, Flowdrill, Sonstige und künftige Gravurarten bleiben Linien)
@@ -398,13 +426,14 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         return L - (sk.schnitt_x(qs, eb, u, v) if x is None else x) - plus["b"]
 
     roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
-    aussen, teile = _unterteilen(roh_a)
+    knicke = _knick_anteile(qs, roh_a, (ea, eb))
+    aussen, teile = _unterteilen(roh_a, extra=knicke)
     innen = None
     if len(umriss) > 1 and len(umriss[1]) == len(umriss[0]):
         roh_i = list(umriss[1]) if _flaeche2(umriss[1]) > 0 else list(umriss[1])[::-1]
         # gleiche Ecke zuerst wie außen (nächster Punkt), damit Stirnfläche innen/außen zusammenpasst
         k = min(range(len(roh_i)), key=lambda i: math.dist(roh_i[i], roh_a[0]))
-        innen, _ = _unterteilen(roh_i[k:] + roh_i[:k], teile)
+        innen, _ = _unterteilen(roh_i[k:] + roh_i[:k], teile, knicke)
         g = sf.GRENZE if grenze is None else abs(float(grenze))
         for s_, es in (("a", ea), ("b", eb)):
             d3 = e.get("d3") is True and bool(es.get("d3"))
@@ -594,6 +623,7 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
             for zug in durchbruch_koerper(qs, d):
                 linie("HK", [_xyz(*p) for p in zug], (0, 1, 0), f"kontur:{d['zeile']}")
     # Konturen auf der Außenwand
+    rund = bool(qs.radius) and not qs.r
     for d in sk.lagen(e.get("konturen") or [], L, qs):
         ein = d["eingabe"]
         if ein.get("art") == TEXT_GRAVUR and not ein.get("umriss"):     # Schrift: je Strich ein Linienzug
@@ -612,12 +642,26 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                 linie("G", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
             continue
         try:
-            pts, n_mitte = sk.platzieren(qs, d)
-            ns = sk.normalen(qs, d)
+            geschlossen = not (ein.get("art") == GRAVUR and not ein.get("umriss"))
+            if geschlossen and (qs.r or (rund and ein.get("umriss"))):
+                # fein, damit die Linie dem Rohr bzw. dem Bogen der Ecke folgt (nicht als Sehne quer durch)
+                fein = sk._dicht(sk.umriss_kontur(ein) or [(0.0, 0.0)], 1.0)
+                pts, n_mitte = sk.platzieren(qs, d, fein)
+                ns = [(u / (math.hypot(u, v) or 1.0), v / (math.hypot(u, v) or 1.0)) for _, u, v in pts] if qs.r \
+                    else [qs.s_zu_uv(sk.s_lage(qs, ein, dq) % qs.umfang)[1] for _, dq in fein]
+            else:
+                pts, n_mitte = sk.platzieren(qs, d)
+                ns = sk.normalen(qs, d)
         except (ValueError, TypeError, ZeroDivisionError):
             continue
         if len(pts) < 2:
             continue
+        if rund:                # Eckradius: auf der gerundeten Außenkontur wie Netz und STEP
+            neu = []
+            for (x, u, v), n_ in zip(pts, ns + ns[-1:] * len(pts)):
+                u, v, nr = sk.rund_ort(qs, u, v)
+                neu.append(((x, u, v), nr or n_))
+            pts, ns = [p_ for p_, _ in neu], [n_ for _, n_ in neu]
         zug = [_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND) for (x, u, v), (nu, nv) in zip(pts, ns + ns[-1:] * len(pts))]
         if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])

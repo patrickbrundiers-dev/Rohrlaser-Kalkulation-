@@ -29,6 +29,7 @@ TESTS = [
     ("test_step_import.py", {}),
     ("test_step_drop.py", QT),
     ("test_step_regression.py", {}),
+    ("test_step_wie_modell.py", {}),
     ("test_step_einlesen.py", {}),
     ("test_step_profile.py", QT),
     ("test_step_konturen.py", {}),

@@ -2384,6 +2384,14 @@ def kapitel_optimieren(i):
             "spiegelverkehrt liegt, erscheint wie in der Skizze (Fläche und Abstand von der Ecke stimmen). Bei Quadrat- und Rechteckrohren mit Eckradius wird der <i>Versatz quer</i> aus dem "
             "Umfangswinkel gemessen und sitzt genau; vor 0.8.23 importierte Teile lagen bis zu einigen mm daneben "
             "und werden mit <b>STEP neu einlesen …</b> korrigiert.",
+            "<b>Genau wie die STEP</b>: Skizze, Abwicklung und 3D zeigen die Konturen und Enden so, wie sie in der "
+            "STEP-Datei liegen (geprüft an Testteilen auf wenige Hundertstel mm). Der Import übernimmt dafür den "
+            "<i>Eckradius</i> der STEP-Datei (Eigenschaften → Außenradius zeigt ihn; ein eigener Wert ersetzt ihn), "
+            "rechnet Konturen über die gerundeten Ecken (z. B. Sonderkontur über zwei oder drei Wände, Bohrungen auf "
+            "den Seiten vorne, unten, hinten) genau auf die Abwicklung um, zeigt ein komplexes Ende auch im 3D mit "
+            "seinem gemessenen Verlauf und richtet bei Rundrohren das STEP-Netz auf die 0°-Richtung aus. Teile, die "
+            "vor 0.9.129 importiert wurden, lagen an den Ecken bis zu einigen mm daneben: <b>STEP neu einlesen …</b> "
+            "korrigiert sie.",
             "<b>Ältere STEP-Positionen</b> (vor 0.6.29 importiert): Der Rechner zeigt die gespeicherten Werte der "
             "Position: Enden mit gemessener Länge und Gehrung, Gravur, Bohrungen (Länge = π × Ø) und übrige Konturen "
             "mit Größe und Schnittlänge. Ihre Lage ist nicht gespeichert, sie stehen in der Skizze verteilt, ein "

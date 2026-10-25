@@ -124,6 +124,7 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
         return _fehler_ergebnis(datei, _text(e) or type(e).__name__)
     out = []
     for t in teile:
+        step_geometrie.nach_bezug_drehen(t)     # Netz und Lage wie das Modell des Programms (0° = +Y)
         artikel = t.datei if len(teile) == 1 else f"{t.datei}-K{t.koerper}"
         netz = ""
         if netze is not None and t.netz:
