@@ -475,8 +475,14 @@ class StepPruefDialog(QDialog):
             zu = step.geschlossen(m)
             if alt and not step.rohr_geschlossen(m):     # die andere Messung gehört zum offenen Teil
                 art.addItem(step.art_text(alt, m), "alt")
+            if step.schalen(m):     # Halbschalen: mehrere je Rohrumfang ↔ eine je Rohr mit Ringen
+                art.addItem(step.art_text(dict(m, _schalen=not step.schalen_gewaehlt(m))), "schalen")
             if zu:              # offen gezeichnetes Rohr: mit ergänzter Wand bzw. wieder offen (Patrick 25.10.2026)
-                art.addItem(step.art_text(zu, m), "zu")
+                stamm = step.rohr_geschlossen(m) and zu.get("profilform") in ("U-Profil", "C-Profil") and \
+                    step.finde_profil(zu, k.profile)
+                art.addItem(step.art_text(zu, m) + (f" – Stammdaten {stamm}" if stamm else ""), "zu")
+            if zu and step.rohr_geschlossen(m) and alt:     # Kantteil bzw. Profil immer als Auswahl (Patrick)
+                art.addItem(step.art_text(alt), "offen_alt")
             if m.get("_original"):
                 art.addItem("Nachtrag zurücknehmen (nicht übernehmbar)", "zurueck")
             if not ist_blech:
@@ -862,17 +868,33 @@ class StepPruefDialog(QDialog):
 
     def art_gewaehlt(self, index, wahl):
         """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zu' = offenes Rohr schließen bzw. wieder offen,
-        'zurueck' = Nachtrag zurücknehmen, andere
+        'schalen' = Halbschalen mehrere je Rohrumfang bzw. eine je Rohr, 'offen_alt' = offenes Rohr als Kantteil bzw.
+        die andere Art des offenen Teils, 'zurueck' = Nachtrag zurücknehmen, andere
         Profilform 'form:F' (Profil-ID zeigt die Profile dieser Form)."""
         if wahl == "alt":
             return self.art_wechseln(index)
         if wahl == "zu":
             return self.art_wechseln(index, rohr=True)
+        if wahl == "schalen":
+            return self.schalen_wechseln(index)
+        if wahl == "offen_alt":     # offenes Rohr als Kantteil (bzw. die andere Art des offenen Teils)
+            self.art_wechseln(index, rohr=True)
+            return self.art_wechseln(index)
         if wahl == "zurueck":
             return self.von_hand_zuruecknehmen(index)
         if isinstance(wahl, str) and wahl.startswith("form:"):
             return self.form_setzen(index, wahl[5:])
         return None
+
+    def schalen_wechseln(self, index):
+        """Halbschalen der Zeile mit dem Teil Nr. index: mehrere je Rohrumfang (ganz freigeschnitten) ↔ eine je Rohr mit
+        Ringen an den Enden (Patrick 25.10.2026, „Rundrohr alle a“). Die Eingaben der Zeile bleiben."""
+        from . import step
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            self.messwerte[i]["_schalen"] = not step.schalen_gewaehlt(self.messwerte[i])
+        return self._neu_aufbauen(index)
 
     def _profile_der_form(self, cb, form):
         """Profil-ID-Auswahl auf die Profile einer Form beschränken (leer = alle)."""

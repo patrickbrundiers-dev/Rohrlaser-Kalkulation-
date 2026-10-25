@@ -268,35 +268,45 @@ def ring(e, d, steg, anzeige=False):
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon
     from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
     lok, quer, uv_zu_xyz, a, b, v_aussen, innen, v_lo, v_hi, v_gm, versatz = _rahmen(e, d)
-    x0, y0, x1, y1 = e["huelle"]
-    # nächstgrößeres Normrohr (step_normrohre) als Profil; gemessen wird in der Hülle des Teils (die Wände liegen auf
-    # dem Rohr, bis ABWEICHUNG Unterschied; die Enden rechnet das Programm für das Profil nach). Datei unverändert
-    norm = step_normrohre.naechstes_kasten(x1 - x0, y1 - y0)
-    if norm:
-        na, nb = (norm[1], norm[2]) if x1 - x0 >= y1 - y0 else (norm[2], norm[1])
-        if max(na - (x1 - x0), nb - (y1 - y0)) > step_normrohre.ABWEICHUNG:
-            norm = None         # Teil deutlich kleiner als das Normrohr: Sondermaß = Hülle (Wände passen sonst nicht)
-    e["norm"] = norm
-    # Radius aus der STEP (Patrick 25.10.2026: „den Radius aus der STEP übernehmen, nicht dass verschiedene Radien am
-    # Rohr sind“), an allen vier Ecken gleich; ohne Biegeradius in der Zeichnung nach EN 10219
-    ra = eckradius(lok, d) or (2 * d if d <= 6 else 2.5 * d if d <= 10 else 3 * d)
-    ra = min(ra, min(x1 - x0, y1 - y0) / 2)
-    e["ra"] = ra
+    if "rohr_masse" in e:           # schon bestimmt (Anzeige nach der Messung)
+        x0, y0, x1, y1 = e["rohr_masse"]
+        ra = e["ra"]
+    else:
+        x0, y0, x1, y1 = e["huelle"]
+        # nächstgrößeres Normrohr (step_normrohre) als Profil; gemessen wird in der Hülle des Teils (die Wände liegen
+        # auf dem Rohr, bis ABWEICHUNG Unterschied; die Enden rechnet das Programm für das Profil nach). Datei
+        # unverändert
+        norm = step_normrohre.naechstes_kasten(x1 - x0, y1 - y0)
+        if norm:
+            na, nb = (norm[1], norm[2]) if x1 - x0 >= y1 - y0 else (norm[2], norm[1])
+            if max(na - (x1 - x0), nb - (y1 - y0)) > step_normrohre.ABWEICHUNG:
+                norm = None     # Teil deutlich kleiner als das Normrohr: Sondermaß = Hülle (Wände passen sonst nicht)
+        e["norm"] = norm
+        # Radius aus der STEP (Patrick 25.10.2026: „den Radius aus der STEP übernehmen, nicht dass verschiedene Radien
+        # am Rohr sind“), an allen vier Ecken gleich; ohne Biegeradius in der Zeichnung nach EN 10219
+        ra = eckradius(lok, d) or (2 * d if d <= 6 else 2.5 * d if d <= 10 else 3 * d)
+        ra = min(ra, min(x1 - x0, y1 - y0) / 2)
+        # nichts fällt weg (Patrick: „ab dem Punkt, wo das Rohr aufhört, weg zum nächstmöglichen Radiusanfang beim
+        # nächstmöglichen größeren Rohr“): ragt das Teil über das Rohr (scharf gezeichnete Schenkelenden an den
+        # Rohrecken), wird das Rohr quer zur offenen Seite so weit größer, bis der Radius erst nach den Enden beginnt
+        if _ueberstand(lok, (x0, y0, x1, y1), ra, e) > 0.5:
+            groesser = _groesseres_rohr(lok, e, (x0, y0, x1, y1), ra, d)
+            if groesser:
+                (x0, y0, x1, y1), e["norm"] = groesser
+                e["vergroessert"] = True
+        e["ra"], e["rohr_masse"] = ra, (x0, y0, x1, y1)
     profil = _rundrechteck(x0, y0, x1, y1, ra, e["z"][0] - 1, e["z"][1] - e["z"][0] + 2)
     if not anzeige and profil is not None:
-        # was aus dem Rohr herausragt (z. B. scharf gezeichnete Schenkelenden an den Rohrecken), als Fläche je mm
-        from OCP.BRepGProp import BRepGProp
-        from OCP.GProp import GProp_GProps
-        rest, gp = _bool("minus", lok, profil), GProp_GProps()
-        if rest is not None:
-            BRepGProp.VolumeProperties_s(rest, gp)
-        e["ueberstand"] = gp.Mass() / max(e["z"][1] - e["z"][0], 1.0) if rest is not None else 0.0
-        e["rest"] = rest
+        # was dann noch aus dem Rohr ragt (kein größeres Rohr gefunden), als Fläche je mm
+        e["ueberstand"] = _ueberstand(lok, (x0, y0, x1, y1), ra, e)
+        # das ganze Rohr über die Länge (Messung des Querschnitts, wenn das Rohr größer ist als das Teil)
+        e["rohr"] = _bool("minus", profil, _rundrechteck(x0 + d, y0 + d, x1 - d, y1 - d, max(ra - d, 0.0),
+                                                         e["z"][0] - 2, e["z"][1] - e["z"][0] + 4))
     # innen Radius außen − Wand; für die Messung an den zwei Ecken der offenen Seite scharf wie die ergänzte Wand
     # (sonst ragte der Ring dort in das Fenster und verbände dessen Schnitt mit den Enden; Unterschied im Schneidweg
-    # unter 1 mm), für die Anzeige wie das Rohr an allen Ecken gleich
+    # unter 1 mm), für die Anzeige und im größeren Rohr (Querschnitt = ganzes Rohr) wie das Rohr an allen Ecken gleich
     ri = max(ra - d, 0.0)
-    offen = () if anzeige else {"unten": (0, 3), "rechts": (0, 1), "oben": (1, 2), "links": (2, 3)}[e["seite"]]
+    offen = () if anzeige or e.get("vergroessert") else {"unten": (0, 3), "rechts": (0, 1), "oben": (1, 2), "links": (2, 3)}[e["seite"]]
     profil = _bool("minus", profil, _rundrechteck(x0 + d, y0 + d, x1 - d, y1 - d,
                                                   tuple(0.0 if k in offen else ri for k in range(4)), e["z"][0] - 2,
                                                   e["z"][1] - e["z"][0] + 4)) if profil else None
@@ -313,7 +323,7 @@ def ring(e, d, steg, anzeige=False):
     for k, richtung in ((0, 1.0), (1, -1.0)):
         ende = _knicke([(u, z[k]) for u, z in zip(us, gegen)])
         drahte = []
-        for v in (v_aussen - innen * 1.0, v_weit):
+        for v in (v_aussen - innen * (1.0 + _wachs(e, x0, y0, x1, y1)), v_weit):
             # Versatz quer zur Wand: in der Wandschicht gemessen, linear über die Hülle verlängert
             def vs(u_s):
                 lo, hi = versatz[u_s, v_lo][k], versatz[u_s, v_hi][k]
@@ -341,6 +351,54 @@ def ring(e, d, steg, anzeige=False):
                  _rundrechteck(x0 + d / 2, y0 + d / 2, x1 - d / 2, y1 - d / 2, max(ra - d / 2, 0.0), e["z"][0] - 2,
                                e["z"][1] - e["z"][0] + 4))
     return (ringe, haut) if haut is not None else None
+
+
+def _ueberstand(lok, masse, ra, e, d=None):
+    """Was vom Teil (lokales System) über das Rohr mit den Außenmaßen masse (x0, y0, x1, y1) und Radius ra ragt
+    (mit Wand d: was nicht in der Rohrwand liegt): Fläche im Querschnitt [mm²] (Volumen ÷ Länge); das Stück selbst in
+    e['rest']."""
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+    x0, y0, x1, y1 = masse
+    aussen = _rundrechteck(x0, y0, x1, y1, ra, e["z"][0] - 1, e["z"][1] - e["z"][0] + 2)
+    if aussen is not None and d:
+        aussen = _bool("minus", aussen, _rundrechteck(x0 + d, y0 + d, x1 - d, y1 - d, max(ra - d, 0.0),
+                                                      e["z"][0] - 2, e["z"][1] - e["z"][0] + 4))
+    rest = _bool("minus", lok, aussen) if aussen is not None else None
+    e["rest"] = rest
+    if rest is None:
+        return 0.0
+    gp = GProp_GProps()
+    BRepGProp.VolumeProperties_s(rest, gp)
+    return gp.Mass() / max(e["z"][1] - e["z"][0], 1.0)
+
+
+def _wachs(e, x0, y0, x1, y1):
+    """Um so viel ist das Rohr quer zur offenen Seite größer als die Hülle des Teils (0 = nicht vergrößert)."""
+    hx0, hy0, hx1, hy1 = e["huelle"]
+    return max(0.0, (y1 - y0) - (hy1 - hy0)) if e["seite"] in ("oben", "unten") else max(0.0, (x1 - x0) - (hx1 - hx0))
+
+
+def _groesseres_rohr(lok, e, masse, ra, d):
+    """Nächstgrößeres Rohr, in dessen Wänden das Teil ganz liegt: Breite der offenen Seite bleibt (die Seitenwände
+    bleiben auf dem Rohr), das Maß quer dazu wächst auf der offenen Seite – erst die Normreihe, sonst Sondermaß (Hülle
+    + Radius). Liegt dann etwas nicht in der Wand (z. B. eine Lasche der offenen Seite), gibt es kein solches Rohr.
+    Ergebnis ((x0, y0, x1, y1), Norm (Form, A, B) oder None) oder None."""
+    x0, y0, x1, y1 = masse
+    quer = e["seite"] in ("oben", "unten")
+    fest, alt = (x1 - x0, y1 - y0) if quer else (y1 - y0, x1 - x0)
+    passt = lambda f_: fest - step_normrohre.TOL <= f_ <= fest + step_normrohre.ABWEICHUNG     # noqa: E731
+    kandidaten = sorted({(s_, ("Quadratrohr", s_, s_)) for s_ in step_normrohre.QUADRAT
+                         if passt(s_) and s_ > alt + 0.05} |
+                        {(h, ("Rechteckrohr", a_, b_)) for a_, b_ in step_normrohre.RECHTECK
+                         for f_, h in ((a_, b_), (b_, a_)) if passt(f_) and h > alt + 0.05})
+    sonder = math.ceil(alt + ra)
+    for h, norm in [k for k in kandidaten if k[0] <= sonder + 20] + [(sonder, None)]:
+        neu = {"oben": (x0, y0, x1, y0 + h), "unten": (x0, y1 - h, x1, y1), "rechts": (x0, y0, x0 + h, y1),
+               "links": (x1 - h, y0, x1, y1)}[e["seite"]]
+        if _ueberstand(lok, neu, ra, e) <= 0.5:
+            return (neu, norm) if _ueberstand(lok, neu, ra, e, d) <= 0.5 else None
+    return None
 
 
 def eckradius(lok, d):
@@ -634,8 +692,14 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
         # scharf gezeichnete Schenkelenden an den Rohrecken), fällt weg (Anzeige UW, Hinweis). Gemessen wird wie
         # gezeichnet: abgeschnitten wäre die Schnittfläche des Fensters an den Schenkeln nicht mehr von der Innenwand
         # zu unterscheiden; der Schneidweg ändert sich dadurch um weniger als 1 mm je Ecke
-        mit_ringen = _vereinen(_vereinen(solid, teile, e["ax3"]), ringe, e["ax3"], False) if ringe and f else None
-        zu = _ausschneiden(mit_ringen, f[0], e["ax3"]) if mit_ringen is not None else None
+        if e.get("vergroessert") and ringe and e.get("rohr") is not None:
+            # größeres Rohr: das Teil liegt darin, gefertigt wird Teil + Ringe; die Schnitte des Fensters laufen an den
+            # Schenkelenden (eigene Flächen), der Querschnitt ist das ganze Rohr
+            zu = _vereinen(solid, ringe, e["ax3"], False)
+            quer_k = _vereinen(solid, [e["rohr"]], e["ax3"], False)
+        else:
+            mit_ringen = _vereinen(_vereinen(solid, teile, e["ax3"]), ringe, e["ax3"], False) if ringe and f else None
+            zu = _ausschneiden(mit_ringen, f[0], e["ax3"]) if mit_ringen is not None else None
         if zu is None or quer_k is None:
             return False
     r = g._profil_messen(zu, datei, koerper, False, quer=quer_k if steg else None)
@@ -654,6 +718,12 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
                           f"{t.profilform}) – Profil prüfen")
     if steg:
         r.offene_seite["radius"] = round(e["ra"], 2)
+    if steg and e.get("vergroessert"):
+        x0, y0, x1, y1 = e["rohr_masse"]
+        r.offene_seite["vergroessert"] = round(_wachs(e, x0, y0, x1, y1), 2)
+        r.hinweise.append(f"{HINWEIS}: Rohr {max(x1 - x0, y1 - y0):g} × {min(x1 - x0, y1 - y0):g} mm, quer zur offenen "
+                          f"Seite {_wachs(e, x0, y0, x1, y1):g} mm größer als das Teil, damit nichts wegfällt (der "
+                          f"Radius R{e['ra']:g} beginnt erst nach den Schenkelenden)")
     if steg and e.get("ueberstand", 0.0) > 0.5:
         r.offene_seite["ueberstand"] = round(e["ueberstand"], 1)
         r.hinweise.append(f"{HINWEIS}: Teil ragt über den Querschnitt des Rohrs (ca. {e['ueberstand']:.1f} mm², z. B. "
@@ -674,7 +744,7 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
                 zeigen = ring(e, d, steg, anzeige=True)
                 _netz_koerper(t, _bool("plus", *(zeigen[0] if zeigen else ringe)), e["ax3"], 0.05)
                 if e.get("ueberstand", 0.0) > 0.5 and e.get("rest") is not None:
-                    _netz_koerper(t, e["rest"], e["ax3"], 0.05, art="UO")     # fällt weg: über dem Rohr
+                    _netz_koerper(t, e["rest"], e["ax3"], 0.2, art="UO")     # fällt weg: über dem Rohr
             else:
                 _netz_wand(t, e, d)
         except Exception:  # ohne Anzeige der Stege bzw. der Wand bleibt alles andere gültig
@@ -689,6 +759,7 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
 # sein (gerade oder Gehrung): der Steg läuft in der Ebene des Endes weiter.
 
 GRAD = 0.25             # Grad, Abtastung des Umfangs
+LUFT = 5.0          # mm am Außendurchmesser zwischen zwei Schalen aus einem Rohrumfang (Patrick 25.10.2026)
 
 
 def _zylinder(solid):
@@ -926,6 +997,25 @@ def _netz_koerper(t, koerper, ax3, abheben=0.0, art="EO"):
     _verfeinern(t.netz, max(10.0, t.laenge / 20))
 
 
+def _schalen(e, m):
+    """Mehrere Schalen aus einem Rohrumfang (Patrick 25.10.2026, „Rundrohr alle a“): Schalen je Umfang =
+    ⌊360° ÷ (Schalenwinkel + Luft)⌋ mit mindestens LUFT mm am Außendurchmesser zwischen zwei Schalen. Jede Schale wird
+    dann ganz freigeschnitten (zwei Längskanten, die Bögen an den Enden, ihre Bohrungen; keine Ringe). Ergebnis
+    dict(je_umfang, schale_grad, luft, schale_schnitt [mm]); je_umfang 1 = nur eine Schale je Rohr (mit Ringen)."""
+    R, rm = e["R"], (e["R"] + e["r"]) / 2
+    w0, w1 = e["luecke"]
+    grad = 360.0 - (w1 - w0)
+    luft = math.degrees(LUFT / R)
+    je = max(1, int(360.0 // (grad + luft)))
+    kanten = 0.0
+    for w in (w0 - 0.5, w1 + 0.5):          # knapp im Material neben der Lücke
+        zg = _z_grenzen(e["lok"], rm * math.cos(math.radians(w)), rm * math.sin(math.radians(w)))
+        kanten += (zg[1] - zg[0]) if zg else e["z"][1] - e["z"][0]
+    fenster = max((lg for _, lg in m.innen_liste), default=0.0)
+    schnitt = kanten + (m.ende_a + m.ende_b) * grad / 360.0 + max(m.innen - fenster, 0.0)
+    return dict(je_umfang=je, schale_grad=round(grad, 2), luft=LUFT, schale_schnitt=round(schnitt, 1))
+
+
 def _rund_schliessen(solid, t, datei, koerper, netz):
     """Halbschale bzw. offenes Rundrohr als Rundrohr: t.geschlossen mit Ring-Stegen an den Enden und Fenster (Spalt bis
     SPALT_MAX: ganz geschlossen). False, wenn nicht erkannt."""
@@ -963,9 +1053,15 @@ def _rund_schliessen(solid, t, datei, koerper, netz):
                           laenge=round(laenge, 2), vorher=t.profilform, steg=steg or None)
     m.sicherheit["offene_seite"] = "stege" if steg else "ergänzt"
     if steg:
+        m.offene_seite.update(_schalen(e, m))
+    if steg:
         m.hinweise.append(f"{HINWEIS}: aus dem Rundrohr gelasert, offener Umfang ({w1 - w0:.0f}°, {breite:.1f} mm) bis "
                           f"auf je einen Ring {steg:g} mm an Ende A und B ausgeschnitten (vorher {t.profilform}) – "
                           "Profil prüfen")
+        if m.offene_seite["je_umfang"] > 1:
+            m.hinweise.append(f"{HINWEIS}: {m.offene_seite['je_umfang']} Schalen je Rohrumfang möglich "
+                              f"({m.offene_seite['schale_grad']:g}°, {LUFT:g} mm Luft), je Schale ganz freigeschnitten "
+                              f"{m.offene_seite['schale_schnitt']:g} mm")
     else:
         m.hinweise.append(f"{HINWEIS}: Spalt {breite:.1f} mm über {laenge:.1f} mm Länge geschlossen (vorher "
                           f"{t.profilform}) – Profil prüfen")

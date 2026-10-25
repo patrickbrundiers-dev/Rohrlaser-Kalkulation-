@@ -85,6 +85,8 @@ TEILE = {
     "R_spalt": cut(rundrohr(40, 2, L), box(-1, 0, -1, 2, 30, L + 2)),
     "R_halb_schraeg": schraeg_ende(cut(rundrohr(40, 2, L), box(-30, 0, -1, 60, 30, L + 2)), L, 30, 0),
     "R_halb_39": cut(rundrohr(39.6, 2, L), box(-30, 0, -1, 60, 30, L + 2)),
+    # Schale 162° (mit Bohrung): zwei je Rohrumfang mit 5 mm Luft
+    "R_schale_162": bohrung_quer(cut(rundrohr(40, 2, L), box(-30, -3, -1, 60, 33, L + 2)), 8, 200, (0, -1, 0)),
 }
 REF = {"F_spalt_gehrung": gehrung(rohr, L, 45), "I_spalt_schraeg_x": schraeg_ende(rohr, L, 30, 0),
        "J_spalt_schraeg_y": schraeg_ende(rohr, L, 0, 30), "A_spalt_2": rohr,
@@ -121,7 +123,8 @@ def erkennung():
         t = ERG[name]
         z = t.geschlossen
         assert t.profilform == vorher and z is not None, (name, t.profilform, z)
-        assert z.profilform == "Rechteckrohr" and abs(z.abm_a - 60) < 0.01 and abs(z.abm_b - 40) < 0.01, name
+        assert z.profilform == "Rechteckrohr" and abs(z.abm_a - 60) < 0.01 and abs(z.abm_b - 40) < 0.01, \
+            (name, z.abm_a, z.abm_b)
         assert abs(z.wandstaerke - 2) < 0.01 and abs(z.laenge - 300) < 0.01 and z.pruefstatus == "prüfen", name
         assert z.offene_seite["vorher"] == vorher and abs(z.offene_seite["breite"] - luecke) < 0.01, \
             (name, z.offene_seite)
@@ -157,22 +160,31 @@ def enden():
 
 
 def stege():
-    for name, vorher, luecke, fenster in (("K_U_offen", "U-Profil", 56.0, 704.0), ("M_C_schlitz_20", "C-Profil", 20.0, 632.0),
-                                          ("N_spalt_25", "C-Profil", 2.5, 597.0),
-                                          ("O_eine_lasche", "Blech gekantet", 38.0, 668.0)):
+    # U mit scharfen Schenkelenden: nichts fällt weg, das Rohr wird quer zur offenen Seite größer (60 × 50, der Radius
+    # beginnt erst nach den Schenkelenden); eine Lasche auf der offenen Seite läge dann nicht in der Wand: 60 × 40 mit
+    # Überstand (wird Kantteil, siehe vorbelegen)
+    for name, vorher, luecke, fenster, b in (("K_U_offen", "U-Profil", 56.0, 745.13, 50),
+                                             ("M_C_schlitz_20", "C-Profil", 20.0, 632.0, 40),
+                                             ("N_spalt_25", "C-Profil", 2.5, 597.0, 40),
+                                             ("O_eine_lasche", "Blech gekantet", 38.0, 668.0, 40)):
         t = ERG[name]
         z = t.geschlossen
         assert t.profilform == vorher and z is not None, (name, t.profilform, z)
-        assert z.profilform == "Rechteckrohr" and abs(z.abm_a - 60) < 0.01 and abs(z.abm_b - 40) < 0.01, name
+        assert z.profilform == "Rechteckrohr" and abs(z.abm_a - 60) < 0.01 and abs(z.abm_b - b) < 0.01, \
+            (name, z.abm_a, z.abm_b)
         assert abs(z.wandstaerke - 2) < 0.01 and abs(z.laenge - 300) < 0.01 and z.pruefstatus == "prüfen", name
         assert z.offene_seite["steg"] == 2.0 and abs(z.offene_seite["breite"] - luecke) < 0.01, (name, z.offene_seite)
         assert abs(z.innen - fenster) < 0.05 and z.innen_konturen == 1, (name, z.innen, z.innen_konturen)
         assert any("Ring 2 mm an Ende A und B" in h for h in z.hinweise), z.hinweise
         assert "EO" in t.netz["t"] and len(t.netz["t"]["EO"]) >= 12, (name, list(t.netz["t"]))
-    # Enden: Umfang des Rohrs (oben scharfkantig wie das U, unten R4)
-    umfang = 2 * (60 + 40) - 2 * (2 - math.pi / 2) * 4
+    # Enden: Umfang des Rohrs 60 × 50, Radius aus der STEP (R4) an allen Ecken
+    umfang = 2 * (60 + 50) - 4 * (2 - math.pi / 2) * 4
     z = ERG["K_U_offen"].geschlossen
     assert abs(z.ende_a - umfang) < 0.05 and abs(z.ende_b - umfang) < 0.05, (z.ende_a, z.ende_b, umfang)
+    assert z.offene_seite["vergroessert"] == 10.0 and z.offene_seite["radius"] == 4.0, z.offene_seite
+    assert any("damit nichts wegfällt" in h for h in z.hinweise), z.hinweise
+    o = ERG["O_eine_lasche"].geschlossen
+    assert o.offene_seite["ueberstand"] > 1 and "vergroessert" not in o.offene_seite, o.offene_seite
     p = ERG["P_U_gehrung"].geschlossen
     assert p is not None and p.profilform == "Rechteckrohr" and p.offene_seite["steg"] == 2.0, p
     assert abs(p.ende_b - p.ende_a) > 20 and p.innen_konturen == 1, (p.ende_a, p.ende_b, p.innen_konturen)
@@ -188,8 +200,8 @@ def ringe():
     dazu = g._volumen(zu) - g._volumen(s)
     assert abs(dazu - 2 * 2 * 20 * 2) < 0.5, dazu
     s59, s58 = ERG["S_U_59"].geschlossen, ERG["T_U_58"].geschlossen
-    assert s59 is not None and (s59.abm_a, s59.abm_b) == (60.0, 40.0) and s59.offene_seite["normrohr"], s59
-    assert s59.profil_id_vorschlag == "RE 60x40x2", s59.profil_id_vorschlag
+    assert s59 is not None and (s59.abm_a, s59.abm_b) == (60.0, 50.0) and s59.offene_seite["normrohr"], s59
+    assert s59.profil_id_vorschlag == "RE 60x50x2", s59.profil_id_vorschlag
     assert s58 is not None and abs(s58.abm_a - 58) < 0.01 and not s58.offene_seite["normrohr"], s58
     assert any("kein Normrohr" in h for h in s58.hinweise), s58.hinweise
 
@@ -225,6 +237,22 @@ fall("Enden folgen den Nachbarwänden (Gehrung, schräg quer/längs); Körper wi
 fall("Breiter als 2 mm: aus dem Rohr, je ein Steg 2 mm an den Enden, Fenster als Innenkontur (auch Gehrung, Laschen)", stege)
 fall("Ringe des ganzen Rohrs mit Außenradius, nächstes Normrohr bzw. Sondermaß", ringe)
 fall("Rundrohr: Halbschale, Drittel, Spalt, schräges Ende, nächstes Normrohr", rund)
+
+
+def schalen():
+    # Halbschale genau 180°: zwei passen mit 5 mm Luft nicht -> eine je Rohr (mit Ringen)
+    assert ERG["R_halb"].geschlossen.offene_seite["je_umfang"] == 1, ERG["R_halb"].geschlossen.offene_seite
+    z = ERG["R_schale_162"].geschlossen
+    os_ = z.offene_seite
+    grad = os_["schale_grad"]
+    assert 150 < grad < 170 and os_["je_umfang"] == 2 and os_["luft"] == 5.0, os_
+    # ganz freigeschnitten: zwei Längskanten + Bögen an den Enden + Bohrung
+    soll = 2 * L + 2 * 40 * math.pi * grad / 360 + 8 * math.pi
+    assert abs(os_["schale_schnitt"] - soll) < 3, (os_["schale_schnitt"], soll)
+    assert any("2 Schalen je Rohrumfang" in h for h in z.hinweise), z.hinweise
+
+
+fall("Halbschalen: mehrere je Rohrumfang mit 5 mm Luft, je Schale ganz freigeschnitten", schalen)
 fall("nicht geschlossen: Fenster über einen Teil der Länge, L-Profil", nicht_geschlossen)
 
 # Spalten und JSON
@@ -235,11 +263,12 @@ def spalten():
     netze = tmp / "netze"
     aus = tmp / "m.txt"
     step_messen.main(["--ausgabe", str(aus), "--netze", str(netze), "--json", str(tmp / "m.json"),
-                      str(tmp / "A_spalt_2.step"), str(tmp / "K_U_offen.step"), str(tmp / "H_L_profil.step")])
+                      str(tmp / "A_spalt_2.step"), str(tmp / "K_U_offen.step"), str(tmp / "H_L_profil.step"),
+                      str(tmp / "R_schale_162.step")])
     mw.extend(step.lade_netze(step.lies_messwerte(aus), netze))
-    a, c, h = mw
+    a, c, h, _ = mw
     assert a["profilform"] == "C-Profil" and step.geschlossen(a)["profil_id_vorschlag"] == "RE 60x40x2"
-    assert c["profilform"] == "U-Profil" and step.geschlossen(c)["profil_id_vorschlag"] == "RE 60x40x2"
+    assert c["profilform"] == "U-Profil" and step.geschlossen(c)["profil_id_vorschlag"] == "RE 60x50x2"
     assert not h["geschlossen"] and step._stege(step.geschlossen(c)) and not step._stege(step.geschlossen(a))
     js = json.loads((tmp / "m.json").read_text(encoding="utf-8"))
     k = js["dateien"][0]["koerper"][0]
@@ -267,6 +296,15 @@ def vorbelegen():
     n = step.offene_rohre_vorbelegen([a], RE, dict(max_huellkreis=50))
     assert n == 0 and a["profilform"] == "Blech gekantet", (n, a["profilform"])
     assert "größer als Maschine zulässt, bleibt Kantteil" in a["hinweise"], a["hinweise"]
+    # kein Rohrmaß (Sondermaß) bzw. liegt nicht ganz im Rohr: automatisch Kantteil (Patrick)
+    for schluessel, text in (("normrohr", "kein Rohrmaß"), ("ueberstand", "nicht ganz im Rohr")):
+        u = dict(mw[1])
+        zu = step.geschlossen(u)
+        os_ = json.loads(zu["offene_seite"])
+        os_.update(normrohr=False) if schluessel == "normrohr" else os_.update(ueberstand=3.0)
+        u["geschlossen"] = json.dumps(dict(zu, offene_seite=json.dumps(os_)))
+        n = step.offene_rohre_vorbelegen([u], RE)
+        assert n == 0 and u["profilform"] == "Blech gekantet" and text in u["hinweise"], (n, u["profilform"])
     a = dict(mw[0])
     assert step.offene_rohre_vorbelegen([a], RE) == 1 and a["profilform"] == "Rechteckrohr" and step.rohr_geschlossen(a)
     assert step.offene_rohre_vorbelegen([a], {}) == 0 and a["profilform"] == "Rechteckrohr"    # nur einmal
@@ -313,6 +351,8 @@ def dialog():
     texte = [cb.itemText(n) for n in range(cb.count())]
     assert texte[0].startswith("Rechteckrohr – Spalt geschlossen") and cb.findData("zu") > 0, texte
     assert cb.findData("alt") < 0, texte           # die Kantteil-/Profil-Alternative gehört zum offenen Teil
+    # Kantteil immer als Auswahl (Patrick): das offene Teil in der anderen Art
+    assert texte[cb.findData("offen_alt")] == "Kantteil (Blech gekantet)", texte
     d._zeigen(z.it)
     assert "EW" in d.ansicht.ansicht.netz["t"], list(d.ansicht.ansicht.netz["t"])
     d.ansicht.ansicht.grab()
@@ -320,12 +360,83 @@ def dialog():
     assert neu is not None and d.messwerte[0]["profilform"] == "C-Profil"
     d.art_gewaehlt(0, "zu")
     assert d.messwerte[0]["profilform"] == "Rechteckrohr"
+    d.art_gewaehlt(0, "offen_alt")
+    assert d.messwerte[0]["profilform"] == "Blech gekantet", d.messwerte[0]["profilform"]
+    # ohne Blechliste steht das Kantteil nicht als Zeile im Dialog: zurück über die Messwerte
+    assert step.art_wechseln(d.messwerte[0]) and step.rohr_wechseln(d.messwerte[0])
+    assert d.messwerte[0]["profilform"] == "Rechteckrohr", d.messwerte[0]["profilform"]
     erg = step.uebernehmen(d.messwerte, [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
     p = erg["positionen"][0]
     assert p["profil_id"] == "RE 60x40x2" and abs(p["laenge"] - 300) < 0.01, p
 
 
 fall("Prüfdialog: Rohr vorbelegt, Art umschaltbar (Spalt offen ↔ geschlossen), 3D rot, Übernahme als RE 60x40x2", dialog)
+
+
+def schalen_programm():
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser import rechnen
+    from rohrlaser.datenbank import Datenbank
+    from rohrlaser.step_dialog import StepPruefDialog
+    QApplication.instance() or QApplication([])
+    db = Datenbank(tmp / "rohrlaser2.db")
+    k = db.kontext()
+    m = [dict(mw[3])]
+    d = StepPruefDialog(None, m, k, "S235-10219", 5)
+    assert step.schalen_gewaehlt(m[0]) and m[0]["profilform"] == "Rundrohr", m[0]["profilform"]
+    cb = d.baum.itemWidget(d.zeilen[0].it, d.SP_ART)
+    texte = [cb.itemText(n) for n in range(cb.count())]
+    assert texte[0].endswith("2 Schalen je Umfang (ganz freigeschnitten)") and cb.findData("schalen") > 0, texte
+    sch = step.schalen(m[0])
+    erg = step.uebernehmen(d.messwerte, [], k, db.zeilen("gewinde"), None, "S235-10219", 5)
+    p = erg["positionen"][0]
+    assert p["je_umfang"] == 2 and abs(p["schneidweg"] - sch["schale_schnitt"]) < 0.2, p
+    assert abs(p["a_schnitt"] + p["b_schnitt"] + p["innen"] - p["schneidweg"]) < 0.3, p
+    assert any("Halbschalen: 2 je Rohrumfang" in b for b in erg["bericht"]), erg["bericht"]
+    # Rohrstücke = Stückzahl ÷ 2 aufgerundet (2a): 5 Schalen -> 3 Rohrstücke in der Optimierung
+    p = dict(p, profil_id="RR 40x2", werkstoff_id="S235-10219", stueck=5)
+    assert rechnen.rohrstuecke(p) == 3 and rechnen.rohrstuecke(dict(p, je_umfang=None)) == 5
+    gr, fehl, _ = rechnen.gruppen_bilden(dict(maschine="T03", stange=6000), [p], k)
+    assert not fehl and sum(len(g.teile) for g in gr) == 3, (fehl, gr)
+    # eine je Rohr (mit Ringen) umgeschaltet, bzw. nur 1 Stück: keine Schalen
+    d.art_gewaehlt(0, "schalen")
+    assert not step.schalen_gewaehlt(d.messwerte[0])
+    assert step.art_text(d.messwerte[0]).endswith("Ringe an den Enden (aus dem Rohr)")
+    erg = step.uebernehmen(d.messwerte, [], k, db.zeilen("gewinde"), None, "S235-10219", 5)
+    assert not erg["positionen"][0].get("je_umfang"), erg["positionen"][0]
+    m1 = [dict(mw[3])]
+    StepPruefDialog(None, m1, k, "S235-10219", 1)
+    erg = step.uebernehmen(m1, [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
+    assert not erg["positionen"][0].get("je_umfang"), erg["positionen"][0]
+
+
+fall("Halbschalen im Programm: Art umschaltbar, je Umfang in der Position, Rohrstücke = Stück ÷ je Umfang", schalen_programm)
+
+
+def winkel_aus_rohr():
+    # Winkel gibt es nur als Rohr (Patrick: „Winkel 33x30x6 gab es nur als 60x40x6“): von Hand das Rohr gewählt ->
+    # Enden = Rohrumfang, Fenster = 2 Längsschnitte zwischen den Ringen + je Ring der freie Umfang
+    from rohrlaser import optimierung as opt
+    from rohrlaser.datenbank import Datenbank
+    db = Datenbank(tmp / "rohrlaser3.db")
+    k = db.kontext()
+    k.profile["RE 60x50x3"] = dict(form="Rechteckrohr", a=60, b=50, wand=3)
+    w = dict(mw[2])
+    assert w["profilform"] == "L-Profil", w["profilform"]
+    pr = dict(k.profile["RE 60x50x3"], profil_id="RE 60x50x3")
+    diff, text = step.fenster_neu(w, pr)
+    soll = 2 * (300 - 4) + 2 * (opt.schnittlaenge("Rechteckrohr", 60, 50, 3) -
+                                opt.schnittlaenge("L-Profil", float(w["abm_a"]), float(w["abm_b"]), 3))
+    assert abs(diff - soll) < 0.01 and "Ring 2 mm" in text, (diff, soll, text)
+    ohne = step.uebernehmen([dict(w, _uebernehmen=True)], [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
+    mit = step.uebernehmen([dict(w, _uebernehmen=True, _profil="RE 60x50x3")], [], k, db.zeilen("gewinde"), None,
+                           "S235-10219", 1)
+    p0, p1 = ohne["positionen"][0], mit["positionen"][0]
+    assert p1["schneidweg"] > p0["schneidweg"] + diff - 1 and p1["innen"] >= p0["innen"] + diff - 0.1, (p0, p1)
+    assert any("aus dem Rohr RE 60x50x3" in b for b in mit["bericht"]), mit["bericht"]
+
+
+fall("Winkel/U/C von Hand als Rohr: Enden Rohrumfang, Fenster zwischen den Ringen", winkel_aus_rohr)
 
 print("Alle Tests OK" if not fehler else f"{fehler} Test(s) fehlgeschlagen")
 sys.exit(1 if fehler else 0)

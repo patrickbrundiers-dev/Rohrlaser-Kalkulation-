@@ -79,10 +79,10 @@ def teile(gruppe, kopf, positionen, paare, zeilen, k):
                 if text and text not in lagen:
                     lagen.append(text)
         z = (zeilen[i] if zeilen and i < len(zeilen) else None) or {}
-        laenge, stueck = _n(p.get("laenge")), _n(p.get("stueck"))
+        laenge, stueck = _n(p.get("laenge")), rechnen.rohrstuecke(p)     # Halbschalen: Rohrstücke
         meter = laenge * stueck / 1000
         out.append(dict(zeile=i, ref=ref, pos=p.get("pos"), artikel=p.get("artikel"), bezeichnung=p.get("bezeichnung"),
-                        laenge=p.get("laenge"), stueck=p.get("stueck"),
+                        laenge=p.get("laenge"), stueck=p.get("stueck"), rohrstuecke=stueck,
                         enden=f"{ende_text(p, 'a')} / {ende_text(p, 'b')}", lage="; ".join(lagen),
                         eingeplant=n, stangen=nr, gemeinsam=gemeinsam, meter=meter,
                         kg=meter * kgm if kgm is not None else None,

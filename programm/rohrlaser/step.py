@@ -559,11 +559,31 @@ def enden_neu(m, pr, rechner):
     return dict(laengen=laengen, differenz=diff, hinweise=hinweise) if laengen or hinweise else None
 
 
+RING = 2.0      # mm, Ring an den Enden eines Teils aus dem Rohr (offen gezeichnete Rohre, Patrick 25.10.2026)
+
+
 def fenster_neu(m, pr):
     """Offen gezeichnetes Rohr aus dem Rohr mit Ringen (step_offenes_rohr), im Prüfdialog ein anderes Rohr gewählt
     (Patrick 25.10.2026: „einfach das Rohr ändern, z. B. von 60x30x4 auf 70x30x4“): das Fenster über der offenen Seite
     wird so viel breiter bzw. schmaler wie die Seite des Rohrs (Rundrohr: Bogen mit dem Durchmesser), sein Schnitt um
-    das Doppelte. Die Enden rechnet enden_neu. Ergebnis (Unterschied im Schneidweg mm, Hinweis) oder None."""
+    das Doppelte. Die Enden rechnet enden_neu. Ergebnis (Unterschied im Schneidweg mm, Hinweis) oder None.
+    Offenes Profil (Winkel, U, C), für das von Hand ein Rohr gewählt ist (Patrick: „Winkel 33x30x6 gab es nur als
+    60x40x6“): aus dem Rohr mit je einem Ring RING mm an den Enden, dazwischen alles ausgeschnitten, was nicht zum
+    Profil gehört – Fenster = zwei Längsschnitte an den Schenkelenden + je Ring der freie Umfang (Rohrumfang −
+    belegter Umfang des Profils)."""
+    gemessen = m.get("_form_gemessen") or m.get("profilform")      # Art im Prüfdialog evtl. auf das Rohr gestellt
+    if pr and gemessen in ("L-Profil", "U-Profil", "C-Profil") and not rohr_geschlossen(m) and \
+            pr.get("form") in ("Quadratrohr", "Rechteckrohr", "Rundrohr"):
+        from .optimierung import schnittlaenge
+        laenge = _z(m, "laenge")
+        u_rohr = schnittlaenge(pr["form"], float(pr.get("a") or 0), float(pr.get("b") or pr.get("a") or 0),
+                               pr.get("wand"))
+        belegt = schnittlaenge(gemessen, _z(m, "abm_a"), _z(m, "abm_b"), _wand(m))
+        if laenge <= 4 * RING or u_rohr <= 0:
+            return None
+        diff = 2 * (laenge - 2 * RING) + 2 * max(u_rohr - belegt, 0.0)
+        return diff, (f"{gemessen} aus dem Rohr {pr.get('profil_id') or ''}: je ein Ring {dez(RING)} mm an den "
+                      f"Enden, dazwischen ausgeschnitten (Fenster {dez(round(diff, 1))} mm)").replace("  ", " ")
     if not pr or not _stege(m):
         return None
     try:
@@ -709,7 +729,9 @@ def art_text(m, gegen=None):
     form = m.get("profilform") or ""
     zusatz = " – Anbauteile abgetrennt" if m.get("trennung") else \
         " – ohne Trennung" if gegen is not None and gegen.get("trennung") else ""
-    if rohr_geschlossen(m):
+    if rohr_geschlossen(m) and schalen_gewaehlt(m):
+        zusatz += f" – {schalen(m)['je_umfang']} Schalen je Umfang (ganz freigeschnitten)"
+    elif rohr_geschlossen(m):
         zusatz += " – Ringe an den Enden (aus dem Rohr)" if _stege(m) else " – Spalt geschlossen"
     elif gegen is not None and rohr_geschlossen(gegen):
         zusatz += " – offen (ohne Ringe)" if _stege(gegen) else " – mit Spalt (nicht geschlossen)"
@@ -784,6 +806,23 @@ def _stege(m):
     return "offene_seite=stege" in (m.get("sicherheit") or "")
 
 
+def schalen(m):
+    """Halbschale, von der mehrere aus einem Rohrumfang passen (offene_seite je_umfang > 1, step_offenes_rohr._schalen):
+    dict(je_umfang, schale_grad, luft, schale_schnitt) oder None."""
+    if not rohr_geschlossen(m) or not _stege(m):
+        return None
+    try:
+        os_ = json.loads(m.get("offene_seite") or "null") or {}
+    except ValueError:
+        return None
+    return os_ if int(os_.get("je_umfang") or 1) > 1 and os_.get("schale_schnitt") else None
+
+
+def schalen_gewaehlt(m):
+    """Mehrere Schalen je Umfang gewählt (Vorgabe ja, wenn sie passen; im Prüfdialog umschaltbar)."""
+    return bool(schalen(m)) and m.get("_schalen", True) is not False
+
+
 def geschlossen(m):
     """Offen gezeichnetes Rohr: die Messwerte der anderen Fassung (Spalte 'geschlossen', JSON {Spalte: Wert}) –
     beim offenen Teil das Rohr mit ergänzter Wand, beim geschlossenen das offene Teil – oder None."""
@@ -836,7 +875,8 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
     Patrick 25.10.2026): immer als Rohr aus dem nächstgrößeren Normrohr (Messung; Freigabe „c: immer Rohr, Kantteil
     von Hand“, auch wenn ein U/C der Stammdaten passt). Steht das Rohr nicht in den Stammdaten, gilt die Profil-ID der
     Messung (beim Rechnen wird das Profil aus der ID angelegt). Ausnahme: das Rohr geht nicht auf die Maschine
-    (max. Hüllkreis-Ø bzw. Metergewicht, Patrick: „darüber hinaus immer Kantteil“) – dann bleibt das Teil offen, als
+    (max. Hüllkreis-Ø bzw. Metergewicht, Patrick: „darüber hinaus immer Kantteil“) oder kein Normrohr passt
+    (Sondermaß, außer es steht so in den Stammdaten) – dann bleibt das Teil offen, als
     Kantteil, wenn es die Messung als Alternative hat. Im Prüfdialog umschaltbar. Nur einmal je Teil (_rohr_vorbelegt).
     Ergebnis: Anzahl umgestellter Teile."""
     from .rechnen import grenze_ueberschritten
@@ -852,6 +892,14 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
         pr = profile.get(pid) or dict(form=zu.get("profilform"), a=_z(zu, "abm_a"), b=_z(zu, "abm_b") or None)
         kgm = _z(zu, "flaeche") * 7.85 / 1000 or None          # Stahl; die Grenze ist ein Richtwert
         grund = grenze_ueberschritten(maschine, pr, kgm) if maschine else None
+        try:
+            os_ = json.loads(zu.get("offene_seite") or "null") or {}
+        except ValueError:
+            os_ = {}
+        if not grund and os_.get("normrohr") is False and not finde_profil(zu, profile):
+            grund = "kein Rohrmaß (Sondermaß)"     # Patrick: „wenn die Maße keine Rohrmaße sind, automatisch Kantteil“
+        if not grund and os_.get("ueberstand"):     # liegt in keinem Rohr ganz (Patrick: „es soll nichts wegfallen“)
+            grund = "Teil liegt nicht ganz im Rohr"
         if grund:
             text = f"Offenes Rohr: {pid} – {grund}, bleibt " + (
                 "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet" else "offen")
@@ -1353,7 +1401,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     p[f"{x}_schnitt"] = round(lg, 1)
                 p["schneidweg"] = round(p["schneidweg"] + neu_enden["differenz"], 1)
                 hinweise += neu_enden["hinweise"]
-            neu_fenster = fenster_neu(m, profile.get(pid)) if m.get("_profil") else None
+            neu_fenster = fenster_neu(m, dict(profile[pid], profil_id=pid)) if m.get("_profil") and profile.get(pid) \
+                else None
             if neu_fenster:     # offenes Rohr, anderes Rohr gewählt: Fenster über der offenen Seite umgerechnet
                 diff, text = neu_fenster
                 p["schneidweg"] = round(p["schneidweg"] + diff, 1)
@@ -1370,6 +1419,20 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     if abs(d_g) >= 0.05:
                         p["gravur"] = round(max(p["gravur"] + d_g, 0.0), 1)
                     hinweise += h_k
+            n_ges = (stk or 0) * (int(m.get("_je_satz") or len(gruppen[i])) if satz else 1)
+            sch = schalen(m) if schalen_gewaehlt(m) and n_ges >= 2 else None      # nur wenn die Stückzahl reicht
+            if sch:     # mehrere Schalen aus einem Rohrumfang (Patrick 25.10.2026, „Rundrohr alle a“), je Stück
+                anteil = float(sch["schale_grad"]) / 360.0                  # eine Schale, ganz freigeschnitten
+                a_s, b_s = _z(m, "ende_a") * anteil, _z(m, "ende_b") * anteil
+                fenster = max((lg for _, lg in _paare(m.get("innen_liste"))), default=0.0)
+                kanten = float(sch["schale_schnitt"]) - a_s - b_s - max(_z(m, "innen") - fenster, 0.0)
+                p.update(je_umfang=int(sch["je_umfang"]), schneidweg=round(float(sch["schale_schnitt"]), 1),
+                         a_schnitt=round(a_s, 1), b_schnitt=round(b_s, 1),
+                         innen=round(max(_z(m, "innen") - fenster, 0.0) + kanten, 1))
+                kl[2][1] = max(kl[2][1] - fenster + kanten, 0.0)
+                hinweise.append(f"Halbschalen: {sch['je_umfang']} je Rohrumfang ({dez(sch['schale_grad'])}°, "
+                                f"{dez(sch['luft'])} mm Luft), je Schale ganz freigeschnitten; Rohrstücke = Stückzahl "
+                                f"÷ {sch['je_umfang']}")
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if m.get("innen_liste") or enden:

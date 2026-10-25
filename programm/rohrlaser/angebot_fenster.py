@@ -768,7 +768,8 @@ class PositionenModell(QAbstractTableModel):
             w["eingeplant"] = ein if p.get("profil_id") and not kein_laserteil(p) else None
             if kein_laserteil(p):
                 ein = None              # Zukaufteile werden nicht eingeplant
-            w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
+            w["nicht_eingeplant"] = (rechnen.rohrstuecke(p) - ein) if ein is not None and p.get("stueck") is not None \
+                else None
             self.werte.append(w)
             self.status.append(rechnen.status(p, w, s.kopf, s.k, ein, self.daten))
         self.endResetModel()

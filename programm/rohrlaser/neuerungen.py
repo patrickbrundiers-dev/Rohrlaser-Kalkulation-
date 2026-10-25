@@ -26,11 +26,14 @@ NEUERUNGEN = [
                 "Halbschalen eines Rundrohrs erkennt der STEP-Import und rechnet sie aus dem geschlossenen Rohr: an "
                 "Ende A und B bleibt je ein Ring 2 mm des ganzen Rohrs stehen (Radius aus der STEP, an allen Ecken "
                 "gleich), dazwischen wird die offene Seite als Fenster ausgeschnitten. Rohrgröße = nächstgrößeres "
-                "Normrohr (bis 1 mm größer), die Datei bleibt unverändert. Das Teil liegt immer im Rohrquerschnitt: "
-                "was darüber ragt, fällt weg (3D orange). Ein anderes Rohr in der Profil-ID rechnet Enden und Fenster "
-                "um. Immer Rohr; geht das Rohr nicht auf die Maschine, bleibt es Kantteil. Die Ringe sind im 3D rot "
-                "und laufen wie die Nachbarwände (auch Gehrungen). Ein Spalt bis 2 mm wird ganz geschlossen. In der "
-                "Spalte Art umschaltbar ([[offene_rohre]]).",
+                "Normrohr, die Datei bleibt unverändert. Nichts fällt weg: ragen scharfe Schenkelenden über die "
+                "Rohrecken, wird das nächstgrößere Rohr genommen, bei dem der Radius erst danach beginnt. Halbschalen: "
+                "passen mehrere in einen Umfang (5 mm Luft), werden sie einzeln freigeschnitten, Rohrstücke = Stück ÷ "
+                "je Umfang (neues Feld Teile je Rohrumfang). Ein anderes Rohr in der Profil-ID rechnet Enden und "
+                "Fenster um; auch ein Winkel, U oder C, für das von Hand ein Rohr gewählt wird, bekommt Ringe und "
+                "Fenster. Immer Rohr; ohne Normmaß oder über der Maschinengrenze automatisch Kantteil, Kantteil und "
+                "U/C immer zur Auswahl. Die Ringe sind im 3D rot und laufen wie die Nachbarwände (auch Gehrungen). Ein "
+                "Spalt bis 2 mm wird ganz geschlossen ([[offene_rohre]]).",
      "Offen gezeichnete Rohre und Halbschalen im STEP: aus dem Rohr mit Ringen 2 mm an den Enden"],
     ["0.9.108", "<b>Rohrteil aus einer DXF-Zeichnung</b>: Zeichnungen mit Vorderansicht, Draufsicht und Schnitt werden "
                 "ein Rohrteil im Rohr-Editor (<i>Neue Position → Aus DXF</i>, DXF aufs Angebot ziehen oder im "

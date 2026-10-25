@@ -1691,13 +1691,14 @@ def kapitel_step(i):
            "dazukommt, ist im 3D <b>rot</b>.", kurz=True)
     i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: aus RE 60×40×3 mit Ringen an den Enden",
            hoehe=95 * mm, legende=[
-               (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Ringe an den Enden (aus dem Rohr)</i>; umschalten auf "
-                   "<i>… – offen (ohne Ringe)</i>, wenn das Teil offen bleiben soll (z. B. als Kantteil)."),
+               (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Ringe an den Enden (aus dem Rohr)</i>; zur Auswahl stehen "
+                   "immer auch das offene Teil (<i>… – offen (ohne Ringe)</i>, mit passendem U/C der Stammdaten) und "
+                   "das <b>Kantteil</b>."),
                (2, "Profil (hier RE 60×40×3). Ein anderes Rohr wählen, wenn das vorgeschlagene nicht passt: Enden "
                    "und Fenster werden für das gewählte Rohr umgerechnet."),
                (3, "3D: die Ringe rot; bleibt das Teil offen, sind sie blassrot (werden nicht gefertigt). "
                    "<b>Orange</b>: was über den Rohrquerschnitt ragt (z. B. scharf gezeichnete Schenkelenden), "
-                   "fällt weg.")])
+                   "bleibt nur, wenn kein größeres Rohr passt.")])
     i.genauer()
     i.liste("<b>Erkennung</b>: überall gleich dicke Wände (Blechdicke), ein Querschnitt in einem Rechteck, drei "
             "Seiten mit Material und eine Seite, die <b>über die ganze Länge</b> offen ist. Stellen, an denen die "
@@ -1709,9 +1710,20 @@ def kapitel_step(i):
             "Zeichnung nach EN 10219: 2 × Wand bis 6 mm, 2,5 × bis 10 mm, darüber 3 × Wand). Sie laufen wie die "
             "Nachbarwände: ein gerades Ende bleibt gerade, eine Gehrung eine Gehrung. Die Schnittlänge der Enden "
             "ist die des Rohrs.",
-            "<b>Im Rohrquerschnitt</b>: das Teil liegt immer im Querschnitt des ganzen Rohrs. Was darüber ragt (z. B. "
-            "scharf gezeichnete Schenkelenden an den Rohrecken), fällt weg und bekommt den Rohrradius; im 3D orange, "
-            "mit Hinweis.",
+            "<b>Im Rohrquerschnitt, nichts fällt weg</b>: ragt das Teil über das Rohr (z. B. scharf gezeichnete "
+            "Schenkelenden an den Rohrecken), nimmt das Programm das nächstgrößere Rohr quer zur offenen Seite, bei "
+            "dem der Radius erst nach den Schenkelenden beginnt (z. B. U 60×40 → RE 60×50); die Seitenwände bleiben "
+            "auf dem Rohr, das Fenster läuft an den Schenkelenden. Hinweis im Prüfdialog.",
+            "<b>Winkel, U oder C aus dem Rohr</b>: gibt es das Profil nicht (z. B. Winkel 33×30×6 nur aus RE 60×40×6), "
+            "in der Spalte Art die Rohrform und bei Profil-ID das Rohr wählen. Beim Übernehmen: Enden = Rohrumfang, "
+            "dazu das Fenster zwischen den Ringen 2 mm (zwei Längsschnitte an den Schenkelenden + je Ring der Umfang, "
+            "den das Profil nicht belegt).",
+            "<b>Halbschalen je Umfang</b>: passen mehrere Schalen in einen Rohrumfang (mindestens 5 mm Luft am "
+            "Außendurchmesser) und ist die Stückzahl mindestens 2, wird jede Schale ganz freigeschnitten (zwei "
+            "Längskanten, Bögen an den Enden, Bohrungen; keine Ringe). Art <i>Rundrohr – 2 Schalen je Umfang</i>, "
+            "umschaltbar auf eine je Rohr mit Ringen. Die Position bekommt <b>Teile je Rohrumfang</b>: Rohrstücke = "
+            "Stückzahl ÷ je Umfang aufgerundet (5 Schalen, 2 je Umfang = 3 Rohrstücke). Eine Halbschale von genau "
+            "180° passt mit Luft nur einmal.",
             "<b>Rohrgröße</b>: das nächstgrößere Rohr einer festen Normreihe (Quadrat-, Rechteck- und Rundrohr nach "
             "EN 10219/10305), wenn es höchstens 1 mm größer ist als die Zeichnung; sonst Sondermaß mit Hinweis. Steht "
             "das Rohr in den Stammdaten, wird es genommen, sonst als Profil vorgeschlagen. Wählst du in der Spalte "
@@ -1724,14 +1736,15 @@ def kapitel_step(i):
             "<b>Spalt bis 2 mm</b>: Stoßen die Kanten mit einem schmalen Spalt aneinander, wird der Spalt ganz "
             "geschlossen (kein Fenster); Art <i>… – Spalt geschlossen</i>.",
             "<b>Vorbelegung</b>: immer als Rohr, auch wenn ein U- oder C-Profil der Stammdaten passt; als Kantteil "
-            "stellst du es von Hand in der Spalte Art um. Geht das Rohr nicht auf die Maschine des Angebots (max. "
-            "Hüllkreis-Ø bzw. Metergewicht), bleibt das Teil <b>Kantteil</b> (Hinweis). Fehlt das Rohr in den "
+            "stellst du es von Hand in der Spalte Art um. Automatisch <b>Kantteil</b> (Hinweis) wird es, wenn kein "
+            "Normrohr passt (Sondermaß) oder das Rohr nicht auf die Maschine des Angebots geht (max. Hüllkreis-Ø "
+            "bzw. Metergewicht). Fehlt das Rohr in den "
             "Stammdaten, wird es beim Rechnen aus der Profil-ID angelegt (Preis nachtragen). In "
             "der Spalte <b>Art</b> jederzeit umschaltbar. Prüfstatus immer <i>prüfen</i>, der Hinweis nennt die alte "
             "Form und die Breite der offenen Seite.",
             "Im Messergebnis steht das Rohr in der Spalte <i>geschlossen</i> bzw. im JSON (ab Version 1.19) im Block "
-            "<i>geschlossen</i> mit <i>offene_seite</i> (Seite, Lücken, Breite, Länge, Steg, Radius, Überstand, "
-            "Normrohr, vorher).")
+            "<i>geschlossen</i> mit <i>offene_seite</i> (Seite, Lücken, Breite, Länge, Steg, Radius, vergrößert, "
+            "Normrohr, Schalen je Umfang, vorher); die Spalte <i>offene_seite</i> der Messwerte enthält dasselbe.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Mehrere Teile in einer STEP-Datei = <b>Baugruppe</b>. Feld <b>Sätze</b> (Vorgabe 1): gleiche Teile werden "
            "eine Position mit <b>Stück je Satz</b>; leer = jedes Teil einzeln.", kurz=True)
