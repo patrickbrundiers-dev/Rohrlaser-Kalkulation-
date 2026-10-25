@@ -1189,6 +1189,7 @@ class Ansicht3D(QWidget):
             mo = mo.grob()                      # sehr große Netze: die Stufe, die beim Drehen zu sehen ist
         bild = self.bildpunkt(mo)
         px = list(map(bild, mo.punkte))
+        pz = persp_faktor(mo, self.perspektive)     # perspektivisch: Gewichte je Ecke mit ihrem Faktor (exakt)
         beste = None
         for i, j, k, _, _ in mo.dreiecke:
             a, b, c = px[i], px[j], px[k]
@@ -1203,24 +1204,26 @@ class Ansicht3D(QWidget):
             l3 = 1 - l1 - l2
             if min(l1, l2, l3) < -1e-6:
                 continue
+            if pz:
+                l1, l2, l3 = l1 / (1.0 - a[2] * pz), l2 / (1.0 - b[2] * pz), l3 / (1.0 - c[2] * pz)
+                summe = (l1 + l2 + l3) or 1.0
+                l1, l2, l3 = l1 / summe, l2 / summe, l3 / summe
             tiefe = l1 * a[2] + l2 * b[2] + l3 * c[2]           # größer = näher am Betrachter
             if beste is None or tiefe > beste[0]:
                 beste = (tiefe, (i, j, k, l1, l2, l3))
         if beste is None:
             return None
         i, j, k, l1, l2, l3 = beste[1]
-        pz = persp_faktor(mo, self.perspektive)     # perspektivisch: Gewichte je Ecke mit ihrem Faktor (exakt)
-        g = [lam / (1.0 - px[n][2] * pz) for lam, n in ((l1, i), (l2, j), (l3, k))]
-        summe = sum(g) or 1.0
         pa, pb, pc = mo.punkte[i], mo.punkte[j], mo.punkte[k]
-        return tuple((g[0] * pa[m] + g[1] * pb[m] + g[2] * pc[m]) / summe for m in range(3))
+        return tuple(l1 * pa[m] + l2 * pb[m] + l3 * pc[m] for m in range(3))
 
-    def _um_drehpunkt(self):
-        """Nach dem Drehen verschieben, sodass der Drehpunkt an seinem Pixel bleibt (Bild dreht um ihn)."""
-        if self._drehpunkt is None:
+    def _um_drehpunkt(self, modell=None):
+        """Nach dem Drehen verschieben, sodass der Drehpunkt an seinem Pixel bleibt (Bild dreht um ihn). modell:
+        Stufe, die als Nächstes gezeichnet wird (beim Drehen die grobe, nach dem Loslassen das volle Modell)."""
+        if self._drehpunkt is None or self.modell is None:
             return
         punkt, (x0, y0) = self._drehpunkt
-        x, y, _ = self.bildpunkt(self.modell.grob())(punkt)       # beim Drehen zeichnet die grobe Stufe
+        x, y, _ = self.bildpunkt(modell or self.modell.grob())(punkt)
         self.versatz = (self.versatz[0] + x0 - x, self.versatz[1] + y0 - y)
 
     def mousePressEvent(self, e):
@@ -1270,6 +1273,8 @@ class Ansicht3D(QWidget):
             self.werkzeug.loslassen(e.position() if e is not None else None)
             self.update()
             return
+        if self._maus is not None and self._maus[1] == Qt.LeftButton and self._maus[0] != self._druck:
+            self._um_drehpunkt(self.modell)     # volles Modell kann einen anderen Maßstab haben: Punkt bleibt stehen
         self._maus, self._drehpunkt = None, None
         druck, self._druck = self._druck, None
         rechts, self._rechts = self._rechts, None

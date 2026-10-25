@@ -57,6 +57,21 @@ for persp in (False, True):
     assert a._drehpunkt is None
     print("OK     Drehpunkt unter der Maus bleibt stehen", "(perspektivisch)" if persp else "(orthogonal)")
 
+# große Netze: beim Drehen grobe Stufe, nach dem Loslassen das volle Modell mit eigenem Maßstab -> Punkt bleibt
+alt = ansicht3d.GROB_DREIECKE
+a = ansicht(False)
+ansicht3d.GROB_DREIECKE = len(a.modell.dreiecke) // 4
+assert a.modell.grob() is not a.modell
+x0, y0 = next((x, 210.0) for x in range(800, 450, -10) if a.punkt_unter(x, 210.0) is not None)
+punkt = a.punkt_unter(x0, y0)
+a.mousePressEvent(maus(QEvent.MouseButtonPress, x0, y0))
+a.mouseMoveEvent(maus(QEvent.MouseMove, x0 + 80, y0 + 30))
+a.mouseReleaseEvent(maus(QEvent.MouseButtonRelease, x0 + 80, y0 + 30))
+px, py, _ = a.bildpunkt()(punkt)
+assert math.hypot(px - x0, py - y0) < 0.5, (px, py, x0, y0)
+ansicht3d.GROB_DREIECKE = alt
+print("OK     nach dem Loslassen (volles Modell) bleibt der Drehpunkt an seinem Pixel")
+
 # daneben: um die Modellmitte (Versatz bleibt)
 a = ansicht(False)
 assert a.punkt_unter(5, 5) is None
