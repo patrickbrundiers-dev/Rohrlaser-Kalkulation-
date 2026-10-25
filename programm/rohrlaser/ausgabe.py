@@ -312,6 +312,33 @@ def _staffeln_zuordnen(zeilen, staffeln):
         z["staffeln"].sort(key=lambda st: _wert(st["menge"]))
 
 
+def staffel_widersprueche(ang, toleranz=0.005):
+    """Staffelpreise, die im Angebots-PDF dem Preis der Zeile widersprechen (Design-Prüfung D4): eine Stufe mit genau
+    der angebotenen Menge nennt einen anderen Preis je Einheit, oder eine größere Menge kostet je Einheit mehr als die
+    angebotene (kleinere Mengen dürfen teurer sein). Das passiert, wenn Stufen eigene Werte haben (z. B.
+    Materialzuschlag). ang = angebot(...). Ergebnis: [Text] je betroffener Zeile."""
+    out = []
+    for z in ang.get("zeilen") or ():
+        menge, preis, st = _wert(z.get("menge")), z.get("preis"), z.get("staffeln") or []
+        if not st or not menge or not isinstance(preis, (int, float)):
+            continue
+        tol = max(0.01, toleranz * preis)
+        name = z.get("text") if z.get("art") == "satz" else f"Pos. {z.get('pos')}"
+        einheit = "Satz" if z.get("art") == "satz" else "Stk"
+        gleich = [s for s in st if abs(_wert(s["menge"]) - menge) < 1e-9]
+        if gleich and abs(gleich[0]["preis"] - preis) > tol:
+            s = gleich[0]
+            out.append(f"{name}: {zahl_kurz(menge)} {einheit} je {euro_text(preis)} €, die Staffel „{s['bereich']}“ nennt "
+                       f"{euro_text(s['preis'])} €")
+            continue
+        teurer = [s for s in st if _wert(s["menge"]) > menge and s["preis"] > preis + tol]
+        if teurer:
+            s = teurer[0]
+            out.append(f"{name}: {zahl_kurz(menge)} {einheit} je {euro_text(preis)} €, die größere Menge „{s['bereich']}“ "
+                       f"kostet je Einheit mehr ({euro_text(s['preis'])} €)")
+    return out
+
+
 def _prozent(w):
     return f"{w:.2f}".rstrip("0").rstrip(".").replace(".", ",")
 
