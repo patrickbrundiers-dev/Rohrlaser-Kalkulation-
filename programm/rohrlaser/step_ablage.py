@@ -28,21 +28,22 @@ def ordner_merken(db, dateien):
 
 
 class AblageFeld(QLabel):
-    """Gestrichelt umrandetes Feld „STEP-Dateien hierher ziehen“. Klick = Dateidialog (Signal geklickt). Das
+    """Gestrichelt umrandetes Feld „STEP / DXF ziehen oder klicken“. Klick = Dateidialog für STEP und DXF (Signal
+    geklickt, ersetzt den Knopf „STEP importieren …“, der nur noch im Menü steht). Das
     Ziehen selbst nimmt die Angebotsseite an (das Feld leitet es an sie weiter); hervorheben() färbt das Feld,
     solange Dateien darüber gezogen werden. gross: großes Feld statt der leeren Positionsliste."""
     geklickt = Signal()
-    KLEIN = "⇩ STEP-Dateien\nhierher ziehen"     # zweizeilig: schmal genug für 1366 px
-    GROSS = ("STEP-Dateien oder Ordner hierher ziehen\n\n"
-             "oder klicken, um STEP-Dateien zu wählen (wie „STEP importieren …“)")
+    KLEIN = "⇩ STEP / DXF hierher\nziehen oder klicken"     # zweizeilig: schmal genug für 1366 px
+    GROSS = ("STEP- und DXF-Dateien oder Ordner hierher ziehen\n\n"
+             "oder klicken, um Dateien zu wählen (STEP und DXF auch gemischt)")
 
     def __init__(self, gross=False):
         super().__init__(self.GROSS if gross else self.KLEIN)
         self.gross = gross
         self.setAlignment(Qt.AlignCenter)
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("STEP-Dateien oder ganze Ordner aus dem Explorer hierher (oder irgendwo ins Angebot) ziehen; "
-                        "Klick öffnet den Dateidialog")
+        self.setToolTip("STEP- und DXF-Dateien oder ganze Ordner aus dem Explorer hierher (oder irgendwo ins Angebot) "
+                        "ziehen; Klick öffnet den Dateidialog für STEP und DXF (beides zugleich wählbar)")
         if gross:
             self.setMinimumHeight(160)
         self.hervorheben(False)

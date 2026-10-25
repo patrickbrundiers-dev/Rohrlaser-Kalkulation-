@@ -10,7 +10,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 
 from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl  # noqa: E402
 from PySide6.QtGui import QDragEnterEvent, QDropEvent  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
 from rohrlaser import step_ablage  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
@@ -47,16 +47,28 @@ w._setzen("")
 assert db.einstellung("step_ordner") == "" and w.pfad.text() == ""
 print("OK: Einstellung STEP-Import: Standardordner (Ordner wählen …, Leeren)")
 
-# 3. Ablagefeld: klein neben 'STEP importieren …', groß bei leerer Positionsliste, färbt sich beim Ziehen
+# 3. Ablagefeld (STEP und DXF): klein neben 'Neue Position', groß bei leerer Positionsliste, färbt sich beim Ziehen
 seite = fenster.angebot_oeffnen(db.angebot_neu())
 fenster.show()
 app.processEvents()
 assert seite.ablage_klein.isVisible() and seite.ablage_gross.isVisible() and not seite.pos_ansicht.isVisible()
-geoeffnet = []
-seite.step_importieren = lambda dateien=None, **_: geoeffnet.append(dateien)
+geoeffnet, gewaehlt, dxf = [], [], []
+dateien_waehlen = seite.dateien_waehlen
+seite.dateien_waehlen = lambda dateien=None: gewaehlt.append(dateien)
 seite.ablage_gross.geklickt.emit()
 seite.ablage_klein.geklickt.emit()
-assert geoeffnet == [None, None], "Klick aufs Feld öffnet den Dateidialog"
+assert gewaehlt == [None, None], "Klick aufs Feld öffnet den Dateidialog (STEP und DXF)"
+assert "STEP importieren …" not in {b.text() for b in seite.findChildren(QPushButton)}, "Knopf nur noch im Menü"
+assert "DXF" in seite.ablage_klein.text() and "DXF" in seite.ablage_gross.text()
+seite.step_importieren = lambda dateien=None, **_: geoeffnet.append(dateien)
+seite.blech_aus_dxf = lambda pfade=None, **_: dxf.append(pfade)
+# Dateidialog mit STEP und DXF zugleich: STEP in den STEP-Import, DXF ins DXF-Importfenster
+assert dateien_waehlen([str(tmp / "a.step"), str(tmp / "b.DXF"), str(tmp / "c.stp")]) == \
+    ([str(tmp / "a.step"), str(tmp / "c.stp")], [str(tmp / "b.DXF")])
+assert geoeffnet == [[str(tmp / "a.step"), str(tmp / "c.stp")]] and dxf == [[str(tmp / "b.DXF")]]
+assert db.einstellung("dxf_ordner") == str(tmp)
+dateien_waehlen([str(tmp / "nur.dxf")])
+assert len(geoeffnet) == 1 and dxf[-1] == [str(tmp / "nur.dxf")]
 
 datei = tmp / "teil.step"
 datei.write_text("ISO-10303-21;", encoding="utf-8")

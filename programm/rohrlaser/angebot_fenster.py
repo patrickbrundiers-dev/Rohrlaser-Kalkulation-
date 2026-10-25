@@ -1613,12 +1613,12 @@ class AngebotSeite(QWidget):
         # (Bearbeiten → Löschen …).
         self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
         leiste = self.leiste.links_layout
-        for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren())):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            leiste.addWidget(b)
-        self.ablage_klein = AblageFeld()       # sichtbares Ziel für Drag & Drop direkt neben dem Knopf
-        self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
+        # „STEP importieren …“ steht nur noch im Menü (Strg+I): das Ablagefeld lädt STEP und DXF per Ziehen oder Klick
+        b = QPushButton("Neue Position")
+        b.clicked.connect(lambda: self.position_neu())
+        leiste.addWidget(b)
+        self.ablage_klein = AblageFeld()       # sichtbares Ziel für Drag & Drop direkt neben „Neue Position“
+        self.ablage_klein.geklickt.connect(lambda: self.dateien_waehlen())
         leiste.addWidget(self.ablage_klein)
         leiste.addSpacing(16)
         optimieren = QPushButton("Optimieren")
@@ -1864,7 +1864,7 @@ class AngebotSeite(QWidget):
         pl.addWidget(self.pos_ansicht, 1)
         # leeres Angebot: großes Ablagefeld statt der leeren Positionsliste
         self.ablage_gross = AblageFeld(gross=True)
-        self.ablage_gross.geklickt.connect(lambda: self.step_importieren())
+        self.ablage_gross.geklickt.connect(lambda: self.dateien_waehlen())
         pl.addWidget(self.ablage_gross, 1)
         self.reiter.addTab(self.pos_seite, "Positionen")
         self.kalk_seite = kalk_seite
@@ -2234,6 +2234,29 @@ class AngebotSeite(QWidget):
             f"{len(liste)} Werte aus den Einstellungen übernommen. {preis_aenderung(vorher, self._verkauf())}",
             bericht=("Kalkulation", "\n".join(liste) + "\n\nVon Hand eingetragene Werte an den Positionen "
                      "(Meterpreis, Schneidzeit, Zukaufteile) bleiben."))
+        return True
+
+    def stangenwechsel_setzen(self, sekunden):
+        """Stangenwechsel je Stange (ohne feste Schweißnaht) nur für dieses Angebot ändern: im Snapshot der
+        Zeitvorgaben (kopf['zeitbasis']); der Stangenwechsel SN bleibt. Ergebnis: True, wenn geändert."""
+        if self._laden:
+            return False
+        zb = self.kopf.get("zeitbasis")
+        zb = copy.deepcopy(zb) if isinstance(zb, dict) else self.db.zeitbasis_vorgabe(self.kopf.get("maschine"))
+        m = zb.get("maschine") or {}
+        if m.get("maschinen_id") != self.kopf.get("maschine"):
+            m = self.db.zeitbasis_vorgabe(self.kopf.get("maschine"))["maschine"]
+        if rechnen._n(m.get("stangenwechsel")) == sekunden:
+            return False
+        if m.get("stangenwechsel_sn") is None:      # Snapshot vor 0.8.10: SN behält den bisherigen Wert
+            m["stangenwechsel_sn"] = m.get("stangenwechsel")
+        m["stangenwechsel"] = sekunden
+        zb["maschine"] = m
+        vorher = self._verkauf()
+        self.db.zeitbasis_speichern(self.id, zb)
+        self.neu_laden()
+        self.f.meldung(f"Stangenwechsel je Stange {sekunden} s für dieses Angebot gespeichert. "
+                       f"{preis_aenderung(vorher, self._verkauf())}")
         return True
 
     def fracht_berechnen(self):
@@ -4762,6 +4785,29 @@ class AngebotSeite(QWidget):
         elif step.step_kandidaten(rest) and not self.fremd():
             step_drop(self.f, ereignis, self, lambda: (self._drop_importieren(rest),
                                                        self.blech_aus_dxf(dxf_pfade) if dxf_pfade else 0))
+
+    def dateien_waehlen(self, dateien=None):
+        """Klick aufs Ablagefeld: STEP- und DXF-Dateien in einem Dateidialog wählen (auch beides zugleich); STEP geht
+        in den STEP-Import, DXF ins DXF-Importfenster (Bleche bzw. Rohr aus Ansichten). dateien = statt des Dialogs
+        (Tests). Ergebnis: (STEP-Dateien, DXF-Dateien) oder None (abgebrochen)."""
+        if self.fremd():
+            return None
+        if dateien is None:
+            dateien, _ = QFileDialog.getOpenFileNames(
+                self, "STEP- und DXF-Dateien wählen", str(step_ablage.start_ordner(self.db)),
+                "STEP und DXF (*.step *.stp *.STEP *.STP *.dxf *.DXF);;STEP-Dateien (*.step *.stp *.STEP *.STP);;"
+                "DXF-Dateien (*.dxf *.DXF)")
+            if not dateien:
+                return None
+        dxf_pfade = self._dxf_pfade(dateien)
+        step_pfade = [p for p in dateien if p not in dxf_pfade]
+        if step_pfade:
+            step_ablage.ordner_merken(self.db, step_pfade)
+            self.step_importieren(step_pfade)
+        if dxf_pfade:
+            self.db.einstellung_setzen("dxf_ordner", str(Path(dxf_pfade[0]).parent))
+            self.blech_aus_dxf(dxf_pfade)
+        return step_pfade, dxf_pfade
 
     def _drop_importieren(self, pfade):
         """Nach dem Drop (step_drop): Ordner durchsuchen und importieren."""
