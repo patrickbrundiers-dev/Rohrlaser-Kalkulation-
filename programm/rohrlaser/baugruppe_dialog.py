@@ -455,8 +455,8 @@ class SteckEditor:
         if f:
             return (f, True)
         v = self._steck_daten(z)
-        return steckverbindung.text(v, steckverbindung.masse(v, self._steck_profil(z["_auf"]),
-                                                              self._steck_profil(z["_st"])))
+        t = steckverbindung.text(v, steckverbindung.masse(v, self._steck_profil(z["_auf"]), self._steck_profil(z["_st"])))
+        return t + (f"; {z['_hinweis']}" if z.get("_hinweis") else "")
 
     def _seite_stecken(self):
         w = QWidget()
@@ -568,7 +568,7 @@ class SteckEditor:
         schlitze = {(z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
                     for z in vorhanden if z.get("_schlitze") is not False}
         nasen = {(z.get("_st"), z.get("_ende")) for z in vorhanden if z.get("_nasen") is not False}
-        plan, weg = [], 0
+        plan, weg, self.steck_ohne_nase = [], 0, 0
         for s_ in stoesse:
             auf_, st_ = besitzer.get(str(s_.get("aufnahme"))) or (), besitzer.get(str(s_.get("stecker"))) or ()
             ende = s_.get("ende") if s_.get("ende") in ("a", "b") else None
@@ -581,19 +581,102 @@ class SteckEditor:
             else:
                 seite = steckverbindung.SEITE_STEP.get(s_.get("seite"))
             x = round(float(s_["z"]), 1)
+            w = s_.get("achswinkel")
+            winkel = round(w, 1) if isinstance(w, (int, float)) and steckverbindung.WINKEL_MIN <= w < 89.5 else None
+            kontakt = self._steck_kontakt(auf, s_.get("aufnahme"), st, s_.get("stecker"), ende)
+            if kontakt and winkel is None and 0 <= kontakt["w"] <= kontakt["laenge"]:
+                x = round(kontakt["w"], 1)      # Mitte des Steckers (der Kontakt ist an Ecken nur ein Teil davon)
             ort = erster.get(auf) == str(s_.get("aufnahme"))
             mit_schlitz = ort and (auf, round(x), str(seite or "")) not in schlitze
             mit_nasen = (st, ende) not in nasen
             if not (mit_schlitz or mit_nasen):
                 continue
-            w = s_.get("achswinkel")
             plan.append(dict(auf=auf, st=st, ende=ende, x=x, seite=seite, schlitze=mit_schlitz, nasen=mit_nasen,
-                             schlitz_ort=ort,
-                             winkel=round(w, 1) if isinstance(w, (int, float))
-                             and steckverbindung.WINKEL_MIN <= w < 89.5 else None))
+                             schlitz_ort=ort, kontakt=kontakt, winkel=winkel))
             schlitze.add((auf, round(x), str(seite or "")))
             nasen.add((st, ende))
-        return plan, weg
+        return self._steck_nasen_wahl(plan), weg
+
+    def _steck_nasen_wahl(self, plan):
+        """Nasen nie in die Außenwand (steckverbindung.nasen_wahl): je Steckerende eine gemeinsame Nasenlage für alle
+        seine Stöße (gleiche Teile tragen dieselben Nasen); passt keine, fällt die Verbindung weg (nur Kehlnaht).
+        self.steck_ohne_nase = Zahl der weggefallenen Stöße."""
+        gruppen = {}
+        for e in plan:
+            gruppen.setdefault((e["st"], e["ende"]), []).append(e)
+        self.steck_ohne_nase, out = 0, []
+        for (st, _), liste in gruppen.items():
+            profil_s = self._steck_profil(st) or {}
+            mit = [e for e in liste if e.get("kontakt") and (self._steck_profil(e["auf"]) or {}).get("form")
+                   in steckverbindung.FORMEN]
+            if profil_s.get("form") not in steckverbindung.FORMEN or not mit:
+                continue
+            v = steckverbindung.vorgaben(profil_s, self._steck_einst())
+            try:
+                werte, seiten, hinweis = steckverbindung.nasen_wahl(
+                    v, profil_s, [dict(e["kontakt"], profil_a=self._steck_profil(e["auf"])) for e in mit],
+                    self._steck_einst().get("nase_min"))
+            except ValueError:
+                continue
+            if werte is None:
+                for e in liste:
+                    e["_weg"] = True
+                self.steck_ohne_nase += len(liste)
+                continue
+            for e, sz in zip(mit, seiten):
+                e["nasen_werte"] = dict(werte, **({"nase_seite": -1} if werte.get("anzahl") == 1 and sz < 0 else {}))
+                e["hinweis"] = hinweis
+        for e in plan:
+            if not e.pop("_weg", False):
+                out.append(e)
+        return out
+
+    def _steck_kontakt(self, auf, k_auf, st, k_st, ende):
+        """Lage des Steckerendes auf der Aufnahme aus den Einbaulagen der STEP-Messung (für steckverbindung.nasen_wahl):
+        dict(w, q, laenge, halb, quer, phi) oder None."""
+        from .baugruppe_ansicht import _lage_achsen
+
+        def lage(pid, k):
+            n = self._netz(pid)
+            lagen = n.get("lagen") or ([n["lage"]] if n.get("lage") else [])
+            nummern = [str(x) for x in n.get("koerper") or ()]
+            j = nummern.index(str(k)) if str(k) in nummern else 0
+            return (lagen[j] if j < len(lagen) else None), n
+
+        def dot(a, b):
+            return sum(x * y for x, y in zip(a, b))
+        try:
+            (la, na), (ls, ns) = lage(auf, k_auf), lage(st, k_st)
+            if not la or not ls or len(la) != 9 or len(ls) != 9 or not na.get("p") or not ns.get("p"):
+                return None
+            oa, xa, ya, za = _lage_achsen(la)
+            os_, xs, ys, zs = _lage_achsen(ls)
+            pa, ps = na["p"], ns["p"]
+            laenge_s = max(ps[2::3])
+            ende_p = os_ if ende == "a" else tuple(os_[i] + zs[i] * laenge_s for i in range(3))
+            d = [ende_p[i] - oa[i] for i in range(3)]
+            w = dot(d, za)
+            ein = list(zs) if ende == "b" else [-x for x in zs]         # vom Ende in die Aufnahme
+            n_k = [ein[i] - dot(ein, za) * za[i] for i in range(3)]
+            hx, hy = max(abs(v) for v in pa[0::3]), max(abs(v) for v in pa[1::3])
+            if abs(dot(n_k, xa)) / hx >= abs(dot(n_k, ya)) / hy:        # Stoßwand: Normale X, Breite längs Y
+                t, halb = ya, hy
+            else:
+                t, halb = xa, hx
+            if (self._steck_profil(auf) or {}).get("form") == "Rundrohr":
+                laenge_n = math.sqrt(dot(n_k, n_k)) or 1.0
+                n1 = [x / laenge_n for x in n_k]
+                t = [za[1] * n1[2] - za[2] * n1[1], za[2] * n1[0] - za[0] * n1[2], za[0] * n1[1] - za[1] * n1[0]]
+                halb = max(hx, hy)
+            q = dot(d, t)
+            # Querschnitt des Steckers: Ausdehnung längs der Aufnahme (Abstand der 'quer'-Wände) und quer dazu
+            sx, sy = max(abs(v) for v in ps[0::3]) * 2, max(abs(v) for v in ps[1::3]) * 2
+            ax = abs(dot(xs, za)) >= abs(dot(ys, za))
+            abstand, breite = (sx, sy) if ax else (sy, sx)
+            phi = math.degrees(math.atan2(-dot(za, xs), dot(za, ys)))     # wie baugruppe_ansicht.nasen_winkel
+            return dict(w=w, q=q, laenge=max(pa[2::3]), halb=halb, quer=(breite, abstand), phi=phi)
+        except (ValueError, TypeError, KeyError, IndexError, ZeroDivisionError):
+            return None
 
     def steck_schnitte(self, e):
         """Schlitze/Nasen eines Plan-Eintrags gegen die jetzt vorhandenen Verbindungen neu bestimmen (wer nur einen
@@ -618,10 +701,14 @@ class SteckEditor:
         else:
             v = dict(id=baugruppe.neue_id(), aufnahme=dict(id=e["auf"]), stecker=dict(id=e["st"], ende=e["ende"]),
                      anzahl=2, c=0.1, x=e["x"], seite=e["seite"])
-        z = self._steck_flach(v)
         if e.get("winkel") is not None:
-            z["winkel"] = e["winkel"]
+            v["winkel"] = e["winkel"]
+        if e.get("nasen_werte"):
+            v.update(e["nasen_werte"])
+        z = self._steck_flach(v)
         z["_schlitze"], z["_nasen"] = e["schlitze"], e["nasen"]
+        if e.get("hinweis"):
+            z["_hinweis"] = e["hinweis"]
         return self._steck_marke_neu(z)
 
     def steck_alle(self, melden=True):
@@ -639,9 +726,15 @@ class SteckEditor:
         self.steck_tab.aufbauen()
         self.aktualisieren()
         if melden:
+            ohne = getattr(self, "steck_ohne_nase", 0)
+            geaendert = sum(1 for z in self.bg["steckverbindungen"][-neu:] if z.get("_hinweis")) if neu else 0
             einblendung.melden(self, f"{neu} Steckverbindung(en) angelegt"
                                     + (f", {weg} Stoß/Stöße nicht zuordenbar (Teil fehlt in der {self.STECK_WAS} oder ist "
-                                       "kein Rohr)" if weg else "") + ". Lage und Seite bitte prüfen.")
+                                       "kein Rohr)" if weg else "")
+                                    + (f", {geaendert} mit Nasen um 90° versetzt bzw. nur einer Nase (sonst in der "
+                                       "Außenwand)" if geaendert else "")
+                                    + (f", {ohne} ohne Steckverbindung (keine Nase passt in die Stoßwand)" if ohne else "")
+                                    + ". Lage und Seite bitte prüfen.")
         return neu, weg
 
     def steck_entfernen(self):

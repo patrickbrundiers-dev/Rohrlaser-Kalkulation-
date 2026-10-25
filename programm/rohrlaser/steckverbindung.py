@@ -140,6 +140,8 @@ def masse(v, profil_a, profil_s):
     for i in range(n):
         art = waende if i < 2 else WAENDE[1 - WAENDE.index(waende)]
         lage.append((art, 1 if i % 2 == 0 else -1))
+    if n == 1 and _z(v.get("nase_seite")) < 0:      # eine Nase auf der Gegenseite (nasen_wahl)
+        lage = [(waende, -1)]
     nasen, schlitze, laengen = [], [], []
     for art, vz in lage:
         abst = (ab if art == waende else bw) - s_b         # Mitte zu Mitte der beiden Nasenwände
@@ -188,8 +190,11 @@ def schlitz_zeilen(v, profil_a, profil_s):
 def nasen_block(v, profil_a, profil_s):
     """Block 'nasen' für das Ende des Steckers."""
     m = masse(v, profil_a, profil_s)
-    return dict(id=v["id"], anzahl=m["anzahl"], bN=m["bN"], lN=round(m["lN"], 3), flanke=round(m["flanke"], 3),
-                plus=round(m["ende_plus"], 3), laenge_plus=round(m["laenge_plus"], 3), waende=v.get("waende") or "quer")
+    out = dict(id=v["id"], anzahl=m["anzahl"], bN=m["bN"], lN=round(m["lN"], 3), flanke=round(m["flanke"], 3),
+               plus=round(m["ende_plus"], 3), laenge_plus=round(m["laenge_plus"], 3), waende=v.get("waende") or "quer")
+    if m["anzahl"] == 1 and _z(v.get("nase_seite")) < 0:
+        out["seite"] = -1
+    return out
 
 
 def nasen(e):
@@ -424,6 +429,131 @@ def text(v, m=None):
     if ohne:
         t += f"; {' und '.join(ohne)} schon aus einer gleichen Verbindung"
     return t
+
+
+# ------------------------------------------------------------------ Nasen nur in die Stoßwand
+WINKEL_RUND = 45.0      # Rundrohr als Aufnahme: Nase höchstens so weit (Grad am Umfang) neben der Mitte des Stoßes
+
+
+def _nasen_passen(x, profil_s, k):
+    """Passen die Nasen der Verbindung x an der Stelle k (Kontakt, siehe nasen_wahl)? Ergebnis: größte Nasenbreite,
+    die passt (≤ bN), oder None."""
+    from .optimierung import aussenradius
+    profil_a = k["profil_a"]
+    form_a, a_a, b_a, s_a = _profil(profil_a, "Aufnahme")
+    c = _z(x.get("c"))
+    rand = _z(x.get("rand")) if x.get("rand") not in (None, "") else NASE_RAND
+    w, q, laenge, halb = (_z(k.get(n)) for n in ("w", "q", "laenge", "halb"))
+    if form_a == "Rundrohr":
+        grenze_q = halb * math.sin(math.radians(WINKEL_RUND))
+    else:
+        grenze_q = halb - aussenradius(form_a, a_a, b_a, s_a, r=profil_a.get("r_aussen")) - rand
+    try:
+        m = masse(x, profil_a, profil_s)
+    except ValueError:
+        return None
+    b_n = m["bN"]
+    waende = x.get("waende") if x.get("waende") in WAENDE else WAENDE[0]
+    for i, (dx, dq) in enumerate(m["nasen"]):
+        art = waende if i < 2 else WAENDE[1 - WAENDE.index(waende)]
+        if art == "quer":           # Nasenbreite quer zur Achse der Aufnahme
+            frei = 2 * (grenze_q - abs(q + dq) - c)
+            if frei < 1e-9:
+                return None
+            b_n = min(b_n, frei)
+            halb_l = m["staerke"] / 2 + c
+        else:
+            if abs(q) + abs(dq) + m["staerke"] / 2 + c > grenze_q + 1e-9:
+                return None
+            halb_l = b_n / 2 + c
+        if w + dx - halb_l < s_a - 1e-9 or w + dx + halb_l > laenge - s_a + 1e-9:
+            return None                 # über das Ende der Aufnahme hinaus
+    return b_n
+
+
+def nasen_wahl(v, profil_s, kontakte, nase_min=None):
+    """Patrick 25.10.2026: Stecknasen nie in die Außenwand der Aufnahme, dann um 90° versetzt oder nur eine Nase.
+    kontakte: alle Stöße desselben Steckerendes (gleiche Teile tragen dieselben Nasen), je dict(profil_a, w = Mitte
+    längs ab Ende A der Aufnahme, q = Versatz quer auf der Stoßwand, laenge der Aufnahme, halb = halbe Breite der
+    Stoßwand außen (Rundrohr: Radius), quer = (Wandbreite, Abstand) des Steckers für 'quer' aus seiner Einbaulage,
+    phi = Richtung der Achse der Aufnahme am Stecker [°], 0 oben, wie baugruppe_ansicht.nasen_winkel). Jede Nase muss
+    mit Breite und Spiel auf dem geraden Teil der Stoßwand liegen (Kastenprofil ohne Eckradius und Rand, Rundrohr
+    höchstens WINKEL_RUND neben der Mitte) und innerhalb der Länge der Aufnahme. Reihenfolge: Vorgabe; um 90°
+    versetzt; nur eine Nase (Wand quer zur Aufnahme, an allen Stößen dieselbe Wand des Steckers); die Nasenbreite
+    dafür notfalls schmaler, nicht unter nase_min. Ergebnis (Werte für die Verbindung {waende, anzahl, bN,
+    wandbreite, abstand}, Seite je Kontakt (1/−1, für nase_seite), Hinweis oder None) bzw. (None, None, Hinweis)."""
+    if not kontakte:
+        return dict(), [1], None
+    form_s = _profil(profil_s, "Stecker")[0]
+    mind = _z(nase_min) or NASE_MIN
+    vorgabe = v.get("waende") if v.get("waende") in WAENDE else WAENDE[0]
+    andere = WAENDE[1 - WAENDE.index(vorgabe)]
+    n0 = int(_z(v.get("anzahl")) or ANZAHL)
+    quer = kontakte[0].get("quer") or querschnitt(profil_s, "quer")[:2]
+
+    def werte(waende, n):
+        bw, ab = quer if waende == "quer" or form_s == "Rundrohr" else (quer[1], quer[0])
+        return dict(waende=waende, anzahl=n, wandbreite=round(bw, 3), abstand=round(ab, 3))
+
+    def breite(w_, seiten):
+        b_n = _z(v.get("bN"))
+        for k, sz in zip(kontakte, seiten):
+            x = dict(v, **w_)
+            x.pop("nase_seite", None)
+            if w_["anzahl"] == 1 and sz < 0:
+                x["nase_seite"] = -1
+            b = _nasen_passen(x, profil_s, k)
+            if b is None or b < min(_z(v.get("bN")), mind) - 1e-9:
+                return None
+            b_n = min(b_n, b)
+        return b_n
+
+    def ergebnis(w_, seiten, b_n, text):
+        geaendert = [text] if text else []
+        if b_n < _z(v.get("bN")) - 1e-9:
+            w_["bN"] = round(math.floor(b_n * 10) / 10, 1)
+            geaendert.append(f"Nase {w_['bN']:g} mm breit")
+        return w_, seiten, ("Nasen nur in die Stoßwand: " + ", ".join(geaendert)) if geaendert else None
+
+    eins = [1] * len(kontakte)
+    for waende, n, text in ((vorgabe, n0, None), (andere, n0, f"Nasen um 90° versetzt ({andere})"),
+                            (vorgabe, 2, "2 Nasen"), (andere, 2, f"2 Nasen um 90° versetzt ({andere})")):
+        if n == 4 and waende == andere:
+            continue
+        w_ = werte(waende, n)
+        b_n = breite(w_, eins)
+        if b_n is not None:
+            return ergebnis(w_, eins, b_n, text)
+    # nur eine Nase auf der Wand quer zur Aufnahme: an jedem Stoß die passende Seite, am Stecker dieselbe Wand
+    w_ = werte("quer", 1)
+    raster = 90.0 if form_s != "Rundrohr" else 1.0
+    moeglich = None
+    for k in kontakte:
+        hier = set()
+        for sz in (1, -1):
+            if _breite_einzeln(v, w_, profil_s, k, sz, mind) is None:
+                continue
+            hier.add(round(((_z(k.get("phi")) + (0 if sz > 0 else 180)) % 360) / raster) * raster % 360)
+        moeglich = hier if moeglich is None else moeglich & hier
+    if moeglich:
+        winkel = min(moeglich)
+        seiten = [1 if round((_z(k.get("phi")) % 360) / raster) * raster % 360 == winkel else -1 for k in kontakte]
+        b_n = breite(w_, seiten)
+        if b_n is not None:
+            return ergebnis(w_, seiten, b_n, "nur eine Nase")
+    if len(kontakte) > 1:
+        return None, None, ("keine Nasen: an gleichen Teilen passt keine gemeinsame Nasenlage in die Stoßwand "
+                            "(Position teilen, dann neu stecken)")
+    return None, None, "keine Nasen: keine Nase passt in die Stoßwand der Aufnahme"
+
+
+def _breite_einzeln(v, w_, profil_s, k, seite, mind):
+    x = dict(v, **w_)
+    x.pop("nase_seite", None)
+    if seite < 0:
+        x["nase_seite"] = -1
+    b = _nasen_passen(x, profil_s, k)
+    return None if b is None or b < min(_z(v.get("bN")), mind) - 1e-9 else b
 
 
 # ------------------------------------------------------------------ Editor der Baugruppe

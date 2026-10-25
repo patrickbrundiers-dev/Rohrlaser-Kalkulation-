@@ -8,6 +8,9 @@
   Nasen in beide Teile (Schneidweg, Länge), Entfernen nimmt sie wieder heraus.
 - S7 Alle Stöße stecken: der STEP-Import (JSON 1.18) kennt je Rohrende an Rohrwand die Lage („stoss“); der Knopf
   legt daraus die Verbindungen an, bei gleichen Teilen Schlitze nur einmal je Aufnahme und Nasen nur einmal je Ende.
+- S8 Nasen nie in die Außenwand (Patrick 25.10.2026): bündig oben auf dem Träger passen die Nasen; am Ende eines
+  Trägers nur die innere Nase (schmaler, wenn nötig); gleiche Teile an beiden Enden ohne gemeinsame Lage: keine Nasen;
+  Quadratrohr auf Rundrohr: Nasen längs der Achse, nicht seitlich am Bogen.
 - S5 Prüfung: Nase zu schmal (abschaltbar, ältere Datei bekommt die Regel), Steckverbindung ohne Gegenstück (FEHLER
   im Status der Baugruppe), Daten der Baugruppe.
 
@@ -323,4 +326,30 @@ assert pos[holm]["einstiche"] == vorher[holm]["einstiche"] + 4
 assert "Steckverbindung" not in bgm.status(next(q for q in pos.values() if ist_baugruppe(q)), {}, list(pos.values()))
 db.schliessen()
 ok("S7 Alle Stöße stecken: 4 Stöße aus STEP (JSON 1.18), 3 Verbindungen, Holm 4 Schlitze oben, Strebe Nasen an A und E")
+
+# ------------------------------------------------------------------ S8 Nasen nur in die Stoßwand
+RE140 = dict(form="Rechteckrohr", a=140, b=80, wand=5, profil_id="RE 140x80x5")
+RE80 = dict(form="Rechteckrohr", a=80, b=40, wand=3, profil_id="RE 80x40x3")
+QR100 = dict(form="Quadratrohr", a=100, b=100, wand=5, profil_id="QR 100x100x5")
+QR40 = dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3")
+RR42 = dict(form="Rundrohr", a=42.4, wand=2.6, profil_id="RR 42,4x2,6")
+bündig = dict(profil_a=RE140, w=648, q=30, laenge=3000, halb=70, quer=(80, 40), phi=0)
+w_, seiten, hinweis = sv.nasen_wahl(sv.vorgaben(RE80), RE80, [bündig])
+assert w_["waende"] == "quer" and w_["anzahl"] == 2 and hinweis is None, (w_, hinweis)
+assert sv.nasen_wahl(dict(sv.vorgaben(RE80), waende="längs"), RE80, [bündig])[0]["waende"] == "quer"    # längs: oben raus
+ecke = dict(profil_a=RE140, w=50, q=10, laenge=3000, halb=40, quer=(100, 100), phi=-90)
+w_, seiten, hinweis = sv.nasen_wahl(sv.vorgaben(QR100), QR100, [ecke])
+assert w_["anzahl"] == 1 and seiten == [1] and w_["bN"] <= 2 * (40 - 10 - 2 - 10 - 0.1) and "nur eine Nase" in hinweis
+v1 = dict(sv.vorgaben(QR100), id="e", **w_, nase_seite=-1 if seiten[0] < 0 else 1)
+assert sv.masse(v1, RE140, QR100)["nasen"][0][0] > 0            # die Nase zur Mitte des Trägers
+andere_ecke = dict(ecke, w=2950)
+w_, seiten, hinweis = sv.nasen_wahl(sv.vorgaben(QR100), QR100, [andere_ecke])
+assert w_["anzahl"] == 1 and seiten == [-1]
+assert sv.masse(dict(sv.vorgaben(QR100), id="e", **w_, nase_seite=-1), RE140, QR100)["nasen"][0][0] < 0
+assert sv.nasen_wahl(sv.vorgaben(QR100), QR100, [ecke, andere_ecke])[0] is None      # gleiche Teile, beide Enden
+rund = dict(profil_a=RR42, w=702.5, q=0, laenge=1426, halb=21.2, quer=(40, 40), phi=0)
+w_, _, hinweis = sv.nasen_wahl(dict(sv.vorgaben(QR40), waende="längs"), QR40, [rund])
+assert w_["waende"] == "quer" and w_["anzahl"] == 2 and "90°" in hinweis, (w_, hinweis)
+ok("S8 Nasen nur in die Stoßwand: bündig quer, Ecke nur die innere Nase, gleiche Teile ohne gemeinsame Lage ohne "
+   "Nasen, auf Rundrohr längs der Achse")
 print("Alle Steckverbindungs-Tests bestanden.")
