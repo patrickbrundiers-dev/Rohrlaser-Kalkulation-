@@ -698,6 +698,11 @@ class Vergleich(QWidget):
             p.drawLine(int(li), int(y1), int(rechts), int(y1))
             p.setPen(grau)
             p.drawText(QRectF(0, y1 - 9, li - 6, 18), Qt.AlignRight | Qt.AlignVCenter, "0")
+            y_max = y1 - (y1 - y0) / 1.15            # Höhe des größten Preises: feine Hilfslinie mit Wert
+            p.setPen(QPen(linie, 1, Qt.DotLine))
+            p.drawLine(int(li), int(y_max), int(rechts), int(y_max))
+            p.setPen(grau)
+            p.drawText(QRectF(0, y_max - 9, li - 6, 18), Qt.AlignRight | Qt.AlignVCenter, _z(maxp, 0))
             for px, _, m, _ in pk:
                 p.drawText(QRectF(px - 30, y1 + 2, 60, 14), Qt.AlignHCenter, _z(m, 0))
             p.setPen(QPen(farbe, 2))
@@ -707,9 +712,19 @@ class Vergleich(QWidget):
             p.setPen(Qt.NoPen)
             for px, py, _, _ in pk:
                 p.drawEllipse(QRectF(px - 3, py - 3, 6, 6))
-            p.setPen(text)
-            for px, py, _, w in pk:                     # Preis über jedem Punkt
-                p.drawText(QRectF(px - 40, py - 17, 80, 14), Qt.AlignHCenter, f"{_z(w)} €")
+            fm = p.fontMetrics()
+            for j, (px, py, _, w) in enumerate(pk):     # Preis über jedem Punkt, auf hellem Grund über der Linie
+                t = f"{_z(w)} €"
+                b = fm.horizontalAdvance(t) + 6
+                # nach rechts fallende Linie: Schild rechts oberhalb des Punkts, sonst mittig darüber
+                x = px + 4 if j + 1 < len(pk) and pk[j + 1][1] > py else px - b / 2
+                x = min(max(x, 2), self.width() - b - 2)
+                r = QRectF(x, py - 19, b, 15)
+                p.setPen(Qt.NoPen)
+                p.setBrush(stil.farbe("#FFFFFF"))
+                p.drawRoundedRect(r, 3, 3)
+                p.setPen(text)
+                p.drawText(r, Qt.AlignCenter, t)
         p.setPen(grau)
         p.drawText(QRectF(li, self.height() - 14, rechts - li, 14), Qt.AlignRight, "Menge")
 

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.131", "<b>Design-Prüfung</b>: Die Fußzeile der PDFs wird bei langen Firmendaten kleiner bzw. zweizeilig und "
+                "läuft nicht mehr in „Seite x von y“. In den Werkstattpapieren steht die Spalte <i>Lage</i> mittig "
+                "und breiter. Die <b>Übersicht</b> rechts wird so breit wie ihr Inhalt und schneidet keine Beträge "
+                "mehr ab; die <b>Staffelkurve</b> zeigt die Preise auf hellem Grund neben der Linie und den größten "
+                "Preis an der Achse. Der <b>Angebots-Check</b> warnt, wenn ein Staffelpreis dem Angebotspreis "
+                "widerspricht ([[angebots_check]]).",
+     "Design-Prüfung: PDF-Fußzeile, Spalte Lage, Übersicht nicht abgeschnitten, Staffelkurve, Check Staffel gegen Angebotspreis"],
     ["0.9.130", "<b>Fehlersuche</b>: Die <b>Schnellzeile</b> liest Profilmaße mit Leerzeichen (<i>RR 42,4 x 2</i>, "
                 "<i>QR 40 x 40 x 3</i>) und <i>1250 x 20</i> als Länge × Stück; ein mehrdeutiger Werkstoff (<i>S235</i>) "
                 "nimmt den der letzten Position, die Vorgabe bzw. den zuletzt benutzten, sonst Hinweis "

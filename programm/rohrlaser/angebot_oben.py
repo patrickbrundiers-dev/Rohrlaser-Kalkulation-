@@ -4,11 +4,11 @@ Welche Felder und Kennzahlen sichtbar sind, entscheidet sichtbarkeit.py: optiona
 nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer änderbar). Pflichtfelder,
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
-from PySide6.QtCore import QDate, QEvent, QObject, Qt
+from PySide6.QtCore import QDate, QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 from . import fracht_angebot, hilfe, rechnen, teilen
 from .ausgabe import datum_text
@@ -837,6 +837,36 @@ def _kundennr(text):
     return str(text or "").split(" – ")[0].strip()
 
 
+class UebersichtRahmen(QScrollArea):
+    """Rollbereich der Übersicht rechts: rollt nur senkrecht; die Mindestbreite folgt dem Inhalt (z. B. lange Zeilen
+    im Preisaufbau oder breite Beträge), damit rechts nichts abgeschnitten wird (Design-Prüfung D3)."""
+    HOECHSTENS = 560        # px: breiter wird die Spalte auch bei sehr langen Zeilen nicht
+
+    def __init__(self, inhalt, minimum):
+        super().__init__()
+        self._minimum = minimum
+        self.setWidgetResizable(True)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidget(inhalt)
+        self.setMinimumWidth(minimum)
+        inhalt.installEventFilter(self)
+
+    def noetige_breite(self):
+        w = self.widget()
+        return max(self._minimum, min(self.HOECHSTENS, w.minimumSizeHint().width()
+                                      + self.verticalScrollBar().sizeHint().width() + 2))
+
+    def eventFilter(self, obj, ereignis):
+        if obj is self.widget() and ereignis.type() == QEvent.LayoutRequest:
+            QTimer.singleShot(0, self._breite_anpassen)
+        return False
+
+    def _breite_anpassen(self):
+        if self.widget() is not None and self.minimumWidth() != (b := self.noetige_breite()):
+            self.setMinimumWidth(b)
+
+
 class UebersichtBereich(QWidget):
     """Rechte Seite: Stand der Optimierung, Meldungen, Kennzahlen und Kostenübersicht."""
 
@@ -931,6 +961,7 @@ class UebersichtBereich(QWidget):
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar
         self.uebersicht = QLabel()          # Preisaufbau: Material → … → Herstellkosten → … → Verkaufspreis
+        self.uebersicht.setWordWrap(True)   # lange Zeilen umbrechen statt die Spalte zu verbreitern (D3)
         self.uebersicht.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
         self.uebersicht.setToolTip("Preisaufbau: Gruppen mit ▸ per Klick aufklappen")
         self.uebersicht.linkActivated.connect(self._gruppe_umschalten)
@@ -947,6 +978,7 @@ class UebersichtBereich(QWidget):
         kl.addWidget(self.wasserfall_bereich)
         # Zeiten je Arbeitsschritt (Reiter 'Zeiten & Arbeitskosten'), Zeilen mit 0 ausgeblendet
         self.zeiten = QLabel()
+        self.zeiten.setWordWrap(True)
         self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
         self.zeiten.setToolTip("Maschine und Personal mit ▸ per Klick aufklappen; Einzelheiten je Arbeitsschritt im "
                                "Reiter „Zeiten & Arbeitskosten“. Durchlaufzeit = Maschinenzeit + Personalzeit, die "

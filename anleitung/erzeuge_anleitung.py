@@ -4338,6 +4338,9 @@ def kapitel_ausgabe(i, seiten, ablage):
          "Anbauteile, Hinweis in der Kalkulation (z. B. kein Preis, nicht eingeplant), Zukaufteil ohne "
          "Einkaufspreis", "WARNUNG", "erste betroffene Position"],
         ["kein Kunde; Schnittplan nicht aktuell; Fracht nicht berechnet", "WARNUNG", "Kunde, Optimieren, Fracht"],
+        ["Staffelpreis widerspricht dem Angebotspreis: eine Stufe mit genau der angebotenen Menge nennt einen anderen "
+         "Preis je Einheit, oder eine größere Menge kostet je Einheit mehr (passiert, wenn Stufen eigene Werte wie "
+         "einen Materialzuschlag haben; der Kunde sähe beide Preise untereinander)", "WARNUNG", "Reiter Staffeln"],
         ["Marge unter der Mindestmarge (Einstellung, 0 = aus; Zahlen nur im Admin-Bereich)", "WARNUNG",
          "Reiter Kalkulation"],
         ["Staffelstufen veraltet; Mindestauftragswert greift (Preis angehoben); Stammdaten seit dem Festschreiben "

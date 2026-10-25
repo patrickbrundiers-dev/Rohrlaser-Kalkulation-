@@ -31,7 +31,7 @@ from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_zukaufteil, kein_laserteil
-from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
+from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
@@ -1606,12 +1606,7 @@ class AngebotSeite(QWidget):
         oben_rahmen.setFrameShape(QFrame.NoFrame)
         oben_rahmen.setWidget(self.kopf_bereich)
         # Übersicht als rechte Spalte über die ganze Höhe: Preise immer im Blick, die Reiter bekommen mehr Höhe
-        self.uebersicht_rahmen = QScrollArea()
-        self.uebersicht_rahmen.setWidgetResizable(True)
-        self.uebersicht_rahmen.setFrameShape(QFrame.NoFrame)
-        self.uebersicht_rahmen.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.uebersicht_rahmen.setWidget(self.uebersicht_bereich)
-        self.uebersicht_rahmen.setMinimumWidth(UEBERSICHT_MIN)
+        self.uebersicht_rahmen = UebersichtRahmen(self.uebersicht_bereich, UEBERSICHT_MIN)
 
         # Aktionen in drei Gruppen (Layout-Plan L9): Erfassen · Rechnen · Ausgeben. Rechts nur Angebot (PDF) als
         # Knopf, alle weiteren Ausgaben im Menü „Ausgaben“; Positionen löschen über Rechtsklick oder Entf
@@ -2338,7 +2333,20 @@ class AngebotSeite(QWidget):
             kunde=(self.db.kunde(kundennr) or {}) if kundennr else None, preis_abweichung=preis_abweichung,
             mindestmarge=self.db.einstellung("mindestmarge") or 0,
             admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin),
-            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k))
+            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k),
+            staffel_widersprueche=self._staffel_widersprueche(zeilen))
+
+    def _staffel_widersprueche(self, kalk_zeilen):
+        """Staffelpreise (letzter gespeicherter Stand), die im Angebots-PDF dem Preis der Zeile widersprechen
+        (ausgabe.staffel_widersprueche); ohne Stufen nichts."""
+        sp = (self.kopf.get("staffelpreise") or {}).get("zeilen")
+        if not self.stufen or not sp:
+            return []
+        try:
+            return ausgabe.staffel_widersprueche(ausgabe.angebot(self.kopf, self.positionen, kalk_zeilen, self.k,
+                                                                 self.einst, sp, ergebnis=self.ergebnis))
+        except (ValueError, TypeError, KeyError, ZeroDivisionError):     # unvollständiges Angebot: ohne Prüfung
+            return []
 
     def check_link(self, ziel):
         """„Hinspringen“ aus dem Angebots-Check (Übersicht oder Fenster); ziel wie angebot_check (ohne 'check:')."""
