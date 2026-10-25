@@ -85,9 +85,8 @@ def vorbereiten(werte, bezuege, werkstoffe):
     werte, bezuege = dict(werte), [dict(b) for b in bezuege or ()]
     form = werte.get("artikeltyp")
     w = (werkstoffe or {}).get(werte.get("werkstoff")) or {}
-    g = gewicht(form, werte.get("abmessung"), werte.get("laenge"), w.get("dichte"))
-    if g is not None:
-        werte["gewicht"] = g
+    # immer neu: ohne Werkstoff (bzw. Dichte) kein Gewicht, auch kein altes eines anderen Werkstoffs
+    werte["gewicht"] = gewicht(form, werte.get("abmessung"), werte.get("laenge"), w.get("dichte"))
     if _zahl(werte.get("preis_kg")) is None:
         werte["preis_kg"] = kg_preis(w)
     if not werte.get("bezeichnung"):

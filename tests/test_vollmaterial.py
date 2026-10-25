@@ -60,6 +60,9 @@ w, b = vm.vorbereiten(dict(artikeltyp="Rundstahl", abmessung=20, laenge=150, wer
                       {"S": dict(dichte=7.85, tonnenpreis=1000)})
 assert w["bezeichnung"] == "Rundstahl Ø20 × 150 mm S" and w["preis_kg"] == 1.0
 assert b and b[0]["preise"] == [dict(ab=1, preis=round(round(G_RUND, 4) * 1.0, 4))], b
+w, _ = vm.vorbereiten(dict(artikeltyp="Rundstahl", abmessung=20, laenge=150, werkstoff=None, gewicht=0.37,
+                           preis_kg=1.0), [], {})
+assert w["gewicht"] is None, "ohne Werkstoff kein altes Gewicht"
 ok("V1 Gewicht, Bezeichnung, EK aus €/kg, Dubletten (Länge ± 0,5, Abmessung ± 0,05, archiviert zählt nicht)")
 
 # ------------------------------------------------------------------ V2 Datenbank
