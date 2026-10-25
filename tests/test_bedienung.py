@@ -305,6 +305,17 @@ assert (z["artikel"], z["profil_id"], z["werkstoff_id"], z["laenge"], z["stueck"
     ("A-1", "RR 42,4x2", "1.4301", 800, 5), z
 assert schnellzeile.zeile_lesen("QR 40x3 S235", P, W)["fehler"] == ["Länge fehlt"]
 assert len(schnellzeile.lesen("QR 40x3\t1250\t3\nRE 60x40x3;500;2\n\n", P, W)) == 2
+# Fehlersuche 25.10.2026: Profilmaße mit Leerzeichen, „Länge x Stück“, mehrdeutiger Werkstoff
+for text, soll in (("RR 42,4 x 2 S235 1000 5", ("RR 42,4x2", 1000, 5)), ("QR 40 x 40 x 3 1250 20", ("QR 40x40x3", 1250, 20)),
+                   ("40 x 40 x 4 600 2", ("QR 40x40x4", 600, 2)), ("QR 40x40x3 1250 x 20", ("QR 40x40x3", 1250, 20)),
+                   ("RE 60 x 40 x 3 L=800 x 4", ("RE 60x40x3", 800, 4))):
+    z = schnellzeile.zeile_lesen(text, P, W)
+    assert (z.get("profil_id"), z.get("laenge"), z.get("stueck")) == soll and not z["fehler"], (text, z)
+W2 = ["S235-10219", "S235-10210", "1.4301"]
+z = schnellzeile.zeile_lesen("QR 40x3 S235 1250 20", P, W2)
+assert z["profil_id"] == "QR 40x40x3" and not z.get("werkstoff_id") and "mehrdeutig" in z["fehler"][0], z
+z = schnellzeile.zeile_lesen("QR 40x3 S235 1250 20", P, W2, ["1.4301", "S235-10210"])
+assert (z["profil_id"], z["werkstoff_id"], z["fehler"]) == ("QR 40x40x3", "S235-10210", []), z
 vorher = len(db.positionen(aid))
 lang = next(p for p in k.profile if " " in p)
 s.schnell.setText(f"{lang} 777 3")
