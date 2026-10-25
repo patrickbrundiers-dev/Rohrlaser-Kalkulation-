@@ -117,5 +117,7 @@ mitte = {d["art"]: poly.boundingRect().center() for poly, d, an in s.treffer if 
 loch, grav = mitte["Rechteck"], mitte["Text-Gravur"]
 assert bild.pixelColor(int(loch.x()), int(loch.y())).name() == "#ffffff", bild.pixelColor(int(loch.x()), int(loch.y())).name()
 assert bild.pixelColor(int(grav.x()) + 30, int(grav.y()) + 25).name() == "#dce6f2"
-ok("F6 Abwicklung: Konturen ausgeschnitten (Grund scheint durch), Material kräftiger, Gravur nicht ausgeschnitten")
+gruen = sum(1 for x in range(bild.width()) for y in range(bild.height()) if bild.pixelColor(x, y).name() == "#2e7d32")
+assert gruen > 10, gruen        # Text-Gravur als Schrift (Striche) statt Hüllrechteck
+ok("F6 Abwicklung: Konturen ausgeschnitten (Grund scheint durch), Material kräftiger, Gravur nicht ausgeschnitten, Text-Gravur als Schrift")
 print("Alle Tests Schnittfläche 2D/3D bestanden.")

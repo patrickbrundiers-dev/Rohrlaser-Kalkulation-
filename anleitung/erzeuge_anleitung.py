@@ -2294,7 +2294,7 @@ def kapitel_optimieren(i):
             "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
             "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
             "Rundrohr der Umfang in Vierteln; die Konturen sind darin ausgeschnitten, man sieht den Grund durch das "
-            "Material, Gravuren bleiben Linien). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
+            "Material, Gravuren bleiben Linien, eine Text-Gravur steht als Schrift da). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
             "hellblau; verdeckte Kanten und Konturen auf der Rückseite sind gestrichelt, verteilte Konturen ohne "
             "Lage blasser. Oben stehen die Lagen ab Anfang, unten die Länge; rechts oben die <i>Ansicht von A</i> "
             "mit den Flächennamen. <b>Mausrad</b> = Zoom an der Mausposition, Ziehen auf freier Fläche verschiebt "

@@ -261,6 +261,30 @@ class Skizze(QWidget):
     def _d_bei(linie, s):
         return min(linie, key=lambda z: abs(z[0] - s))[1]
 
+    def _text_zeichnen(self, g, a, d):
+        """Text-Gravur als Schrift (Striche der Einstrich-Schrift, Patrick 25.10.2026) statt als Hüllrechteck; False,
+        wenn es nichts zu zeichnen gibt (dann das Rechteck)."""
+        from . import gravur_text
+        e = d["eingabe"]
+        zuege = gravur_text.linien(e.get("text"), _z(e.get("hoehe")))
+        if not zuege:
+            return False
+        if _z(e.get("winkel")):
+            zuege = gravur_text.gedreht(zuege, _z(e["winkel"]))
+        zuege = [[(x, -y) for x, y in z] for z in zuege]       # Schrift aufrecht: y nach oben = quer nach oben
+        qs = self.qs
+        for z in zuege:
+            if a[0] == "abw":
+                s0 = sk.s_lage(qs, e)
+                if s0 > qs.umfang:
+                    s0 -= qs.umfang
+                pts = [self._bild(a, d["x"] + dx, s0 + dq) for dx, dq in z]
+            else:
+                idx = 1 if a[0] == "oben" else 2
+                pts = [self._bild(a, p[0], p[idx]) for p in sk.platzieren(qs, d, pts=z)[0]]
+            g.drawPolyline(QPolygonF(pts))
+        return True
+
     def _konturen(self, g, a, lagen):
         qs = self.qs
         for d in lagen:
@@ -324,7 +348,7 @@ class Skizze(QWidget):
             r = poly.boundingRect()
             if r.width() < 3 and r.height() < 3:
                 g.drawEllipse(r.center(), 2.5, 2.5)
-            else:
+            elif not (d["art"] == sw.TEXT_GRAVUR and self._text_zeichnen(g, a, d)):
                 g.drawPolygon(poly)
             if begrenzt:
                 g.restore()
