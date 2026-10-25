@@ -62,6 +62,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          # Scans lesen (Plan W6c, tests/test_formular.py); im Windows-Paket wird Tesseract mitgeliefert
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
           # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py
           sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
@@ -178,6 +180,27 @@ jobs:
           if (-not $ex.ok -or $ex.teile[0].koerper -ne 1) { throw "STEP-Export: $(Get-Content export.json -Raw)" }
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
+      - name: Tesseract mitliefern (Scans lesen, Plan W6c; Apache-2.0, Ordner Tesseract-OCR neben der .exe)
+        # Feste Version (Prüfbericht D-3): Windows-Build von UB Mannheim; Sprachdaten deu+eng aus tessdata_fast 4.1.0
+        shell: pwsh
+        run: |
+          $setup = "$env:RUNNER_TEMP\tesseract-setup.exe"
+          $quelle = "$env:RUNNER_TEMP\Tesseract-OCR"
+          Invoke-WebRequest "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" -OutFile $setup
+          $p = Start-Process -Wait -PassThru -FilePath $setup -ArgumentList @("/S", "/D=$quelle")
+          if ($p.ExitCode -ne 0 -or -not (Test-Path "$quelle\tesseract.exe")) { throw "Tesseract-Setup Rückgabewert $($p.ExitCode)" }
+          $ziel = "dist/Rohrlaser-Angebotskalkulation/Tesseract-OCR"
+          New-Item -ItemType Directory -Force "$ziel/tessdata" | Out-Null
+          Copy-Item "$quelle\tesseract.exe", "$quelle\*.dll" $ziel
+          Get-ChildItem $quelle -Filter "*LICENSE*" | Copy-Item -Destination $ziel
+          foreach ($s in @("deu", "eng")) {
+            Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$s.traineddata" -OutFile "$ziel/tessdata/$s.traineddata"
+          }
+          & "$ziel/tesseract.exe" --version
+          $sprachen = & "$ziel/tesseract.exe" --list-langs
+          if (-not ($sprachen -contains "deu") -or -not ($sprachen -contains "eng")) { throw "Tesseract ohne deu/eng: $sprachen" }
+          python -c "import sys; sys.path.insert(0, 'programm'); from PIL import Image, ImageDraw, ImageFont; from rohrlaser import ocr; b = Image.new('L', (1600, 300), 255); ImageDraw.Draw(b).text((40, 100), 'Anfrage-Nr. AN-4711  MG-01  20 Stk', fill=0, font=ImageFont.load_default(48)); b.save('ocr_probe.png'); e = ocr.lesen('ocr_probe.png', 'dist/Rohrlaser-Angebotskalkulation'); print(e); assert e and 'AN-4711' in e['text'], e"
+          "{0:N0} MB Tesseract" -f ((Get-ChildItem -Recurse $ziel | Measure-Object Length -Sum).Sum / 1MB)
       - name: Lizenz-Werkzeug.exe bauen und prüfen (nur für Patrick; eigener Ordner, nicht im Programm und im Update)
         shell: pwsh
         run: |
