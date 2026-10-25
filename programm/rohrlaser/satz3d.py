@@ -24,7 +24,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
 
 from . import schneidweg as sw, steckverbindung
 from .angebot import ist_baugruppe
-from .baugruppe_dialog import FEHLER_FARBE, KnickEditor, LaengsnahtEditor, SteckEditor, VorschlagEditor, _text
+from .baugruppe_dialog import (FEHLER_FARBE, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
+                               _text)
 from .baugruppe_step import StepBaugruppe
 
 TEIL = "teil:"              # Kennung der Dreiecke im 3D: teil:<Nummer des Körpers>
@@ -65,7 +66,7 @@ class _Teile(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
-class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, StepBaugruppe, QDialog):
+class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, StepBaugruppe, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -111,6 +112,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.ansicht3d = BaugruppenAnsicht(geaendert=self.zeigen, vor_messen=self.laengsnaht_aus)
         self.ansicht3d.naehte_knopf.hide()          # im Satz keine Nahtgruppen
         self.laengsnaht_knopf_anlegen(nur_lesen)
+        self.montage_knopf_anlegen()
         self.ansicht3d.ansicht.angeklickt.connect(self.geklickt)
         teilung.addWidget(self.ansicht3d)
         teilung.setSizes([560, 840])
@@ -190,18 +192,26 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         netze, farbe, self._koerper = [], [], []
         reihe = {t["_id"]: n for n, t in enumerate(self.teile)}
         im_knick = {kp: reihe.get(k["leit"], 0) for k in self.knicke for kp in k["koerper"]}   # Rahmen in einer Farbe
+        montage, aktuell = self.montage_berechnen(), set()
         for n, t in enumerate(self.teile):
             netz = self._netz(t["_id"])
+            nummern = netz.get("koerper") or []
             for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
                 if nur and t["_id"] not in hervor:
                     continue
+                if montage:
+                    lage, akt = self.montage_lage(nummern[j] if j < len(nummern) else None, lage)
+                    if lage is None:
+                        continue
+                    if akt:
+                        aktuell.add(len(netze))
                 modell = rohre.get(t["_id"]) or netz
                 netze.append(dict(modell, lage=lage))
                 farbe.append(im_knick.get((t["_id"], j), n))
                 self._koerper.append((t["_id"], lage, modell))
         bereiche = []
-        netz, _ = zusammen(netze, {i for i, k in enumerate(self._koerper) if k[0] in hervor and not nur}, farbe,
-                           bereiche=bereiche)
+        netz, _ = zusammen(netze, {i for i, k in enumerate(self._koerper) if k[0] in hervor and not nur} | aktuell,
+                           farbe, bereiche=bereiche)
         ohne = len(self.teile) - len({k[0] for k in self._koerper}) if not nur else 0
         info = f"{len(netze)} Körper in Einbaulage" + (", blau = markiert" if hervor else "") + "."
         if netz:

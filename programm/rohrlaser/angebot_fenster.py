@@ -4260,9 +4260,43 @@ class AngebotSeite(QWidget):
             from . import palettenschein        # Palettenscheine hinten anhängen (Plan Palettenbegleitschein F8a)
             z = palettenschein.zusammenstellen(self.db, self.id)
             wp = dict(wp, palettenscheine=palettenschein.seiten(z["kopf"], z["schein"], z["packliste"], z["gruppen"]))
+        if gruppe is None:              # Montageblätter der Sätze und Baugruppen mit Steckverbindungen (A7)
+            wp = dict(wp, montage=self.montageblaetter())
         aktuell = self.stand_optimierung() == "aktuell"
         return self._schreiben("Werkstattpapiere", self._ziel(name, ".pdf"),
                                lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
+
+    def montageblaetter(self):
+        """Montageblätter der Werkstattpapiere (A7): je Schweißbaugruppe und je Satz mit Steckverbindungen und Stößen
+        aus der STEP-Datei die Montagefolge (steck_montage.montage_folge) mit Titel."""
+        from . import satz3d, steck_montage as sm
+        from .ansicht3d import entpacken
+        roh = self.db.netze(self.id)
+        netze = {}
+
+        def netz(pid):
+            if pid not in netze:
+                netze[pid] = entpacken(roh.get(pid)) or {}
+            return netze[pid]
+        out = []
+
+        def blatt(titel, idx, daten, stoesse):
+            verb = satz3d.verbindungen_laden(daten, self.positionen, idx)
+            if not verb or not stoesse:
+                return
+            pos = {self.positionen[i]["id"]: self.positionen[i] for i in idx}
+            f = sm.montage_folge(pos, verb, stoesse, {pid: netz(pid) for pid in pos if pid in roh})
+            if f:
+                out.append(dict(f, titel=titel))
+        for bg_id, (i, bg) in baugruppe.baugruppen(self.positionen).items():
+            p = self.positionen[i]
+            blatt(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, bg)}",
+                  baugruppe.teile(self.positionen, bg_id), bg, bg.get("stoesse"))
+        satz_daten = self.db.satz_daten(self.id)
+        for satz in satz3d.saetze(self.positionen):
+            daten = satz_daten.get(satz) or {}
+            blatt(f"Satz {satz}", satz3d.satz_teile(self.positionen, satz), daten, daten.get("stoesse"))
+        return out
 
     def kalkulation_pdf(self):
         if not self._vor_ausgabe():
