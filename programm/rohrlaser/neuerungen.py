@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.129", "<b>Schnittkörper im 3D</b>: Jede Kontur ist zusätzlich ein halb durchsichtiger Körper, so tief wie "
+                "sie schneidet – eine Wand, beide Wände (durchgehend bis unter die Gegenwand), je Kopie bei allen "
+                "Seiten, eine schräge Bohrung entlang ihrer Neigung, eine Gravur so tief wie angegeben, beim Blech "
+                "durch die Dicke. Farbe je Konturart, die Maus darüber zeigt Kontur und Tiefe, die gewählte Kontur ist "
+                "kräftiger, ein Klick ins Loch wählt sie. Vorgabe an, abschaltbar mit <b>Schnittkörper</b> (Leiste "
+                "unter dem 3D, Blick-Menü, Rechtsklick → Darstellung); gilt für Rohr- und Blech-Editor, "
+                "Schweißbaugruppe und Satz in 3D ([[ansicht_3d_bedienung]]).",
+     "Schnittkörper: Konturen als durchsichtiges Volumen mit Tiefe (Maus darüber), Farbe je Konturart"],
     ["0.9.128", "<b>Eingaben intuitiver</b>: Ja/Nein-Einstellungen sind Schalter, Ja/Nein-Spalten der Tabellen "
                 "Häkchen in der Zelle (ein Klick, Leertaste, J/N). Wenige Möglichkeiten (Thema, Dichte, "
                 "Eingaberichtung …) stehen als Knopfreihe da; feste Auswahllisten der Einstellungen nehmen keine "
