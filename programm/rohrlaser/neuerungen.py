@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.101", "<b>Knickrahmen mit gerundeter Ecke</b>: Ist die Außenkante am Knick gerundet (Knick mit Radius statt "
+               "scharfer Kante), hielt der STEP-Import die Gehrungen der Schenkel für eine Fase, und der Knickrahmen "
+               "war „nicht verbindbar“. Die Eckenden kommen jetzt aus der Eckgeometrie ([[knickrahmen_koerper]]).",
+     "Knickrahmen aus einem Körper auch mit gerundeter Außenkante am Knick verbindbar."],
     ["0.9.100", "<b>Knickrahmen im Editor der Schweißbaugruppe</b>: wie im Fenster Satz in 3D Rohre mit Gehrung "
                 "markieren und <i>Knickrahmen erstellen …</i>. Die Nahtvorschläge an den Ecken fallen weg, der Stoß "
                 "bleibt; mit OK wird der Rahmen eine Position der Baugruppe. [[knickverbindung]]",
