@@ -2609,8 +2609,11 @@ def kapitel_optimieren(i):
             "<b>Gravur</b> (Text-Gravur, Artikelnummer, Gravur mit Umriss): Rille 0,1 mm tief und 0,2 mm breit, "
             "mindestens 0,5 mm von Enden, Rand und Konturen. Wo das nicht passt, wird die Gravur gekürzt und das "
             "Programm sagt es nach dem Speichern.",
-            "<b>Blech</b>: ebene Bleche, auch aus dem DXF-Import, mit Außen- und Innenkonturen als echte Bögen. "
-            "Gekantete Bleche kann der Export noch nicht.",
+            "<b>Blech</b>: ebene Bleche, auch aus dem DXF-Import, mit Außen- und Innenkonturen als echte Bögen.",
+            "<b>Gekantetes Blech</b> (Kantteil oder mehrachsig gekantet aus dem STEP-Import, z. B. Schale): die "
+            "Abwicklung wird gefaltet, mit dem eingegebenen Innenradius und den Außenmaßen der Schenkel. Bohrungen, "
+            "Konturen und Gravuren werden mitgebogen, auch wenn sie in einer Biegezone liegen. Reicht ein ebenes "
+            "Stück ohne Freischnitt über eine Biegung, sagt das Programm es nach dem Speichern.",
             "Biegerohre aus dem STEP-Import: dafür die Original-STEP weitergeben.",
             "Nach dem Speichern zeigt eine Meldung Volumen und Flächenzahl. Das Programm prüft den Körper mit "
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "

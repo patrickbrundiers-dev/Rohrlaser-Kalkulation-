@@ -7,6 +7,10 @@ abgezogen werden:
 
 - Grundkörper 'rohr': Querschnitt (Kreis oder Eckpunkte mit Bulge = Bogen zum nächsten Punkt) außen und innen,
   entlang Z von 0 bis laenge. 'platte': Außenkontur mit Löchern, entlang Z um die Dicke.
+- Gekantete Platte (3E-13): 'platte' mit 'biegungen' (Abwicklung, wie die 3D-Ansicht blech3d): die ebene Platte samt
+  Löchern und Gravur wird gefaltet. Ebene Stücke zwischen den Biegezonen werden starr gedreht, jede Biegezone ist ein
+  Drehkörper um die Biegeachse (Innenradius ri, neutrale Faser = Bogenlänge ba). Was in einer Biegezone fehlt (Loch,
+  Außenkontur), wird als gefaltetes Netz abgezogen; danach werden alle Stücke vereinigt.
 - Werkzeuge: 'ebene' (Halbraum auf der Seite der Normalen), 'zylinder' (Bohrung), 'quader' (Gravurrille),
   'prisma' (Vieleck in XY entlang Z), 'flach' (Kontur mit Bögen auf einer ebenen Wand, senkrecht hindurch), 'netz' (geschlossenes Dreiecksnetz, z. B. Schnitt eines Endes, Ausklinkung).
   Jedes Werkzeug kann 'ohne': [Werkzeuge] haben, die vorher von ihm abgezogen werden (Nasen einer Steckverbindung
@@ -236,8 +240,276 @@ def _kennwerte(k):
             n += 1
             ex.Next()
         return n
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    box = Bnd_Box()
+    BRepBndLib.AddOptimal_s(k, box, False, False)
     return dict(gueltig=bool(BRepCheck_Analyzer(k).IsValid()), volumen=round(g.Mass(), 3),
-                flaechen=anzahl(TopAbs_FACE), koerper=anzahl(TopAbs_SOLID))
+                flaechen=anzahl(TopAbs_FACE), koerper=anzahl(TopAbs_SOLID),
+                box=[round(c, 4) for c in (box.CornerMin().X(), box.CornerMin().Y(), box.CornerMin().Z(),
+                                           box.CornerMax().X(), box.CornerMax().Y(), box.CornerMax().Z())])
+
+
+# ------------------------------------------------------------------ gekantete Platte (3E-13)
+
+
+def _biegung(b, s):
+    """Biegung des Bauplans mit Rechengrößen: Achse (Punkt, Richtung), Winkel."""
+    phi = float(b["phi"])
+    oben = 1.0 if phi > 0 else -1.0
+    o, n, d = [float(c) for c in b["o"]], [float(c) for c in b["n"]], [float(c) for c in b["d"]]
+    return dict(b, o=o, n=n, d=d, ba=float(b["ba"]), winkel=abs(phi), t=[float(c) for c in b["t"]],
+                achse_p=(o[0], o[1], oben * (s / 2 + float(b["ri"]))), achse_d=(n[1] * oben, -n[0] * oben, 0.0))
+
+
+def _w_t(b, x, y):
+    return (x - b["o"][0]) * b["n"][0] + (y - b["o"][1]) * b["n"][1], x * b["d"][0] + y * b["d"][1]
+
+
+def _wirksam(bg, x, y, ohne=None, tol=1e-6):
+    """Biegungen, hinter denen (bzw. in deren Zone) der Punkt der Abwicklung liegt, die äußerste zuerst."""
+    out = []
+    for b in bg:
+        if b is ohne:
+            continue
+        w, t = _w_t(b, x, y)
+        if w > tol and b["t"][0] + tol - 1e-6 <= t <= b["t"][1] - tol + 1e-6:
+            out.append((b["abstand"], b, min(w, b["ba"])))
+    return [(b, w) for _, b, w in sorted(out, key=lambda z: -z[0])]
+
+
+def _trsf_biegung(b, w):
+    """Starre Lage nach w mm der Biegung b: um −n·w schieben, dann um die Achse um winkel·w/ba drehen."""
+    from OCP.gp import gp_Ax1, gp_Trsf, gp_Vec
+    sch, dreh = gp_Trsf(), gp_Trsf()
+    sch.SetTranslation(gp_Vec(-b["n"][0] * w, -b["n"][1] * w, 0.0))
+    dreh.SetRotation(gp_Ax1(_pnt(b["achse_p"]), _dir(b["achse_d"])), b["winkel"] * w / b["ba"])
+    return dreh.Multiplied(sch)
+
+
+def _trsf_kette(kette):
+    from OCP.gp import gp_Trsf
+    t = gp_Trsf()
+    for b, w in kette:                      # äußerste zuerst: jede weitere wirkt danach
+        t = _trsf_biegung(b, w).Multiplied(t)
+    return t
+
+
+def _bewegt(k, trsf):
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+    return BRepBuilderAPI_Transform(k, trsf, True).Shape()
+
+
+def _zone_prisma(b, lo, hi, z0, z1, rand=0.0):
+    """Quader der Biegezone (Abwicklung) von z0 bis z1, längs der Biegelinie lo … hi."""
+    o, n, d = b["o"], b["n"], b["d"]
+    ecken = []
+    for w, t in ((-rand, lo), (b["ba"] + rand, lo), (b["ba"] + rand, hi), (-rand, hi)):
+        ecken.append([o[0] + n[0] * w + d[0] * (t - (o[0] * d[0] + o[1] * d[1])),
+                      o[1] + n[1] * w + d[1] * (t - (o[0] * d[0] + o[1] * d[1])), 0.0])
+    if (ecken[1][0] - ecken[0][0]) * (ecken[2][1] - ecken[0][1]) - (ecken[1][1] - ecken[0][1]) * \
+            (ecken[2][0] - ecken[0][0]) < 0:
+        ecken.reverse()
+    return werkzeug(dict(art="prisma", punkte=ecken, z0=z0, z1=z1))
+
+
+def _feste_koerper(k):
+    from OCP.TopAbs import TopAbs_SOLID
+    from OCP.TopExp import TopExp_Explorer
+    out, ex = [], TopExp_Explorer(k, TopAbs_SOLID)
+    while ex.More():
+        out.append(ex.Current())
+        ex.Next()
+    return out
+
+
+def _schwerpunkt(k):
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+    g = GProp_GProps()
+    BRepGProp.VolumeProperties_s(k, g)
+    c = g.CentreOfMass()
+    return c.X(), c.Y(), c.Z(), g.Mass()
+
+
+def _ecken(k):
+    from OCP.BRep import BRep_Tool
+    from OCP.TopAbs import TopAbs_VERTEX
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
+    out, ex = [], TopExp_Explorer(k, TopAbs_VERTEX)
+    while ex.More():
+        p = BRep_Tool.Pnt_s(TopoDS.Vertex(ex.Current()))
+        out.append((p.X(), p.Y()))
+        ex.Next()
+    return out
+
+
+def _boden_zuege(k, z0):
+    """Je Kante des Umrisses von k in der Ebene z0 die Punkte [(x, y)] (Kanten der Reihe nach, Bögen fein)."""
+    from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
+    from OCP.BRepTools import BRepTools, BRepTools_WireExplorer
+    from OCP.GeomAbs import GeomAbs_Line, GeomAbs_Plane
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
+    ex = TopExp_Explorer(k, TopAbs_FACE)
+    while ex.More():
+        f = TopoDS.Face(ex.Current())
+        ex.Next()
+        fl = BRepAdaptor_Surface(f)
+        if fl.GetType() != GeomAbs_Plane:
+            continue
+        pl = fl.Plane()
+        if abs(abs(pl.Axis().Direction().Z()) - 1) > 1e-9 or abs(pl.Location().Z() - z0) > 1e-6:
+            continue
+        zuege = []
+        we = BRepTools_WireExplorer(BRepTools.OuterWire_s(f))
+        while we.More():
+            e = we.Current()
+            c = BRepAdaptor_Curve(e)
+            u0, u1 = c.FirstParameter(), c.LastParameter()
+            n = 2 if c.GetType() == GeomAbs_Line else 33
+            pk = [c.Value(u0 + (u1 - u0) * i / (n - 1)) for i in range(n)]
+            pk = [(p.X(), p.Y()) for p in pk]
+            if e.Orientation() == TopAbs_REVERSED:
+                pk.reverse()
+            zuege.append(pk)
+            we.Next()
+        return zuege
+    return []
+
+
+def _gefaltetes_werkzeug(f, b, z0, z1):
+    """Fehlendes Stück f (Prisma z0 … z1 in der Abwicklung) in der Zone von b gefaltet: Regelfläche je Kante
+    zwischen Unter- und Oberseite (B-Spline durch die gefalteten Punkte), als Volumenkörper."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeWire
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+    from OCP.GeomAbs import GeomAbs_C2
+    from OCP.GeomAPI import GeomAPI_PointsToBSpline
+    try:  # OCP >= 7.8
+        from OCP.collections import Array1_gp_Pnt as TColgp_Array1OfPnt
+    except ImportError:
+        from OCP.TColgp import TColgp_Array1OfPnt
+    zuege = _boden_zuege(f, z0)
+    if not zuege:
+        raise ValueError("Umriss nicht gefunden")
+
+    def gefaltet(x, y, z):
+        w = min(max(_w_t(b, x, y)[0], 0.0), b["ba"])
+        return _pnt((x, y, z)).Transformed(_trsf_biegung(b, w))
+
+    draehte = []
+    for z in (z0, z1):
+        mw = BRepBuilderAPI_MakeWire()
+        for pk in zuege:
+            dw = abs(_w_t(b, *pk[-1])[0] - _w_t(b, *pk[0])[0])
+            if len(pk) == 2 and dw > 1e-6:          # Gerade quer zur Biegelinie: folgt dem Bogen
+                pk = [(pk[0][0] + (pk[1][0] - pk[0][0]) * i / 24, pk[0][1] + (pk[1][1] - pk[0][1]) * i / 24)
+                      for i in range(25)]
+            pts = [gefaltet(x, y, z) for x, y in pk]
+            if len(pts) == 2:
+                mw.Add(BRepBuilderAPI_MakeEdge(pts[0], pts[1]).Edge())
+                continue
+            arr = TColgp_Array1OfPnt(1, len(pts))
+            for i, p in enumerate(pts):
+                arr.SetValue(i + 1, p)
+            mw.Add(BRepBuilderAPI_MakeEdge(GeomAPI_PointsToBSpline(arr, 3, 8, GeomAbs_C2, 1e-5).Curve()).Edge())
+        if not mw.IsDone():
+            raise ValueError("Umriss nicht geschlossen")
+        draehte.append(mw.Wire())
+    ts = BRepOffsetAPI_ThruSections(True, True, 1e-6)
+    for d in draehte:
+        ts.AddWire(d)
+    ts.CheckCompatibility(False)
+    ts.Build()
+    if not ts.IsDone():
+        raise ValueError("Regelfläche nicht erzeugt")
+    from OCP.TopoDS import TopoDS
+    k = TopoDS.Solid(ts.Shape())
+    return TopoDS.Solid(k.Reversed()) if _volumen(k) < 0 else k
+
+
+def platte_falten(k, koerper, meldungen):
+    """Ebene Platte k (z von 0 bis s, mit Löchern und Gravur) an den Biegungen falten -> ein Körper."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeRevol
+    from OCP.gp import gp_Ax1, gp_Trsf, gp_Vec
+    try:  # OCP >= 7.8
+        from OCP.collections import List_TopoDS_Shape as TopTools_ListOfShape
+    except ImportError:
+        from OCP.TopTools import TopTools_ListOfShape
+    s = float(koerper["dicke"])
+    halb = gp_Trsf()
+    halb.SetTranslation(gp_Vec(0, 0, -s / 2))
+    k = _bewegt(k, halb)                                # Mittelfläche z = 0
+    bg = [_biegung(b, s) for b in koerper["biegungen"]]
+    umriss = flaeche(koerper["aussen"], koerper.get("loecher") or [])       # Abwicklung in z = 0
+    xs = [p[0] for p in _ecken(k)]
+    ys = [p[1] for p in _ecken(k)]
+    stuecke, zonen = [], []
+    for b in bg:
+        ts = [x * b["d"][0] + y * b["d"][1] for x in (min(xs), max(xs)) for y in (min(ys), max(ys))]
+        lo, hi = max(b["t"][0], min(ts)), min(b["t"][1], max(ts))
+        zonen.append((b, lo, hi))
+    flach = abziehen(k, [_zone_prisma(b, lo, hi, -s, s) for b, lo, hi in zonen])
+    ohne_freischnitt = 0
+    for f in _feste_koerper(flach):
+        x, y, _, vol = _schwerpunkt(f)
+        if vol < 1e-6:
+            continue
+        kette = _wirksam(bg, x, y)
+        satz = {id(b) for b, _ in kette}
+        for px, py in _ecken(f):
+            andere = {id(b) for b, _ in _wirksam(bg, px, py, tol=1e-3)}
+            if andere - satz:
+                ohne_freischnitt += 1
+                break
+        stuecke.append(_bewegt(f, _trsf_kette([(b, b["ba"]) for b, _ in kette])) if kette else f)
+    if ohne_freischnitt:
+        meldungen.append(f"{ohne_freischnitt} ebene Stücke reichen über eine Biegung ohne Freischnitt: Lage prüfen")
+    for b, lo, hi in zonen:
+        o, d = b["o"], b["d"]
+        t0 = o[0] * d[0] + o[1] * d[1]
+        a0 = (o[0] + d[0] * (lo - t0), o[1] + d[1] * (lo - t0))
+        a1 = (o[0] + d[0] * (hi - t0), o[1] + d[1] * (hi - t0))
+        poly = BRepBuilderAPI_MakePolygon(_pnt((a0[0], a0[1], -s / 2)), _pnt((a1[0], a1[1], -s / 2)),
+                                          _pnt((a1[0], a1[1], s / 2)), _pnt((a0[0], a0[1], s / 2)), True)
+        start = BRepBuilderAPI_MakeFace(poly.Wire(), True).Face()
+        bogen = BRepPrimAPI_MakeRevol(start, gp_Ax1(_pnt(b["achse_p"]), _dir(b["achse_d"])), b["winkel"]).Shape()
+        ri = float(b["ri"])
+        innen = min(1.0, 0.5 * ri) if ri > 0.02 else 0.01
+        oben = 1.0 if b["phi"] > 0 else -1.0
+        z0, z1 = (-s / 2 - 1.0, s / 2 + innen) if oben > 0 else (-s / 2 - innen, s / 2 + 1.0)
+        hoch = gp_Trsf()
+        hoch.SetTranslation(gp_Vec(0, 0, z0))
+        fehlt = abziehen(_zone_prisma(b, lo, hi, z0, z1), [_bewegt(_prisma(umriss, z1 - z0), hoch)])
+        mx, my = o[0] + b["n"][0] * b["ba"] / 2, o[1] + b["n"][1] * b["ba"] / 2
+        kette = [(c, c["ba"]) for c, _ in _wirksam(bg, mx, my, ohne=b)]
+        teile = [f for f in _feste_koerper(fehlt) if _schwerpunkt(f)[3] > 1e-6]
+        if teile:
+            try:
+                bogen = abziehen(bogen, [_gefaltetes_werkzeug(f, b, z0, z1) for f in teile])
+            except Exception as ex:
+                meldungen.append(f"Kontur in einer Biegezone nicht erzeugt ({ex})")
+        stuecke.append(_bewegt(bogen, _trsf_kette(kette)) if kette else bogen)
+    zurueck = gp_Trsf()
+    zurueck.SetTranslation(gp_Vec(0, 0, s / 2))
+    if len(stuecke) == 1:
+        return _bewegt(stuecke[0], zurueck)
+    arg, wz = TopTools_ListOfShape(), TopTools_ListOfShape()
+    arg.Append(stuecke[0])
+    for x in stuecke[1:]:
+        wz.Append(x)
+    fuse = BRepAlgoAPI_Fuse()
+    fuse.SetArguments(arg)
+    fuse.SetTools(wz)
+    fuse.SetFuzzyValue(1e-5)
+    fuse.Build()
+    if not fuse.IsDone():
+        raise ValueError("Stücke der Kantung nicht vereinigt")
+    return _bewegt(fuse.Shape(), zurueck)
 
 
 def teil_bauen(teil):
@@ -260,6 +532,8 @@ def teil_bauen(teil):
             pass
     if rillen:
         k = abziehen(k, rillen)
+    if teil["koerper"].get("biegungen"):
+        k = platte_falten(k, teil["koerper"], meldungen)
     try:
         k = vereinfachen(k)
     except Exception as ex:
