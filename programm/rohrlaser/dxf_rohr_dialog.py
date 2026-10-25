@@ -93,7 +93,7 @@ class Vorschau(QWidget):
 
         def pkt(x, y):
             return QPointF(ox + (x - x0) * m, self.height() - oy - (y - y0) * m)
-        p.setPen(QPen(stil.farbe("#1F2933"), 1.0))
+        p.setPen(QPen(stil.farbe("#1F2937"), 1.0))
         for z in self.linien:
             p.drawLine(pkt(z[0], z[1]), pkt(z[2], z[3]))
         p.setFont(QFont(self.font().family(), 9, QFont.Bold))
