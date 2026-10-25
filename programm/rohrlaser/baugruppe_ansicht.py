@@ -122,7 +122,7 @@ def eingaben_stecken(positionen, verbindungen, profil_von):
             continue
         try:
             out[a][0], out[s_][0], plus = stv.anwenden(v, out[a][0], out[s_][0], profil_von(a) or {},
-                                                       profil_von(s_) or {})
+                                                       profil_von(s_) or {}, (out[a][1], out[s_][1]))
         except ValueError:
             continue
         if out[s_][1] is not None:

@@ -2920,7 +2920,7 @@ class AngebotSeite(QWidget):
                                                     "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
                                                     "steck_anzahl", "steck_nase_min", "knick_z", "knick_freistich",
                                                     "knick_k",
-                                                    "steck_spiel", "steck_ueberstand")}
+                                                    "steck_spiel", "steck_ueberstand", "steck_marke")}
 
     def naehte_schreiben(self, naehte):
         """Längsnähte aus dem 3D (Längsnaht per Klick) in die Positionen: {Positions-ID: Nahtfelder}."""
@@ -2957,7 +2957,10 @@ class AngebotSeite(QWidget):
                 continue
             pa, ps = (self.k.profile.get(nach_id[x].get("profil_id")) or {} for x in (a, s_))
             try:
-                eing[a], eing[s_], plus = sv.anwenden(v, eingaben(a), eingaben(s_), pa, ps)
+                ea, es = eingaben(a), eingaben(s_)
+                lg = [nach_id[x].get("laenge") for x in (a, s_)]
+                lg = [g + laenge[x] if isinstance(g, (int, float)) else None for g, x in zip(lg, (a, s_))]
+                eing[a], eing[s_], plus = sv.anwenden(v, ea, es, pa, ps, lg, hinweise)
             except ValueError as f:
                 hinweise.append(f"Steckverbindung Pos. {nach_id[a].get('pos') or ''}/{nach_id[s_].get('pos') or ''}: {f}")
                 continue

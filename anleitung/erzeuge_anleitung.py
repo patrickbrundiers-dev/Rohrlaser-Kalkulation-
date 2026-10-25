@@ -2389,6 +2389,30 @@ def kapitel_optimieren(i):
             "des Steckers geht zurück.",
             "Ohne Lage x oder mit zu kleinem Winkel lässt sich die Baugruppe nicht speichern; die Spalte "
             "<i>Schlitz und Nasen</i> nennt, was fehlt.")
+    i.abschnitt("Montagemarken und Steckbarkeit", marke="montagemarken")
+    i.text("Eine <b>Montagemarke</b> ist eine Zahl, die das Programm neben die Schlitze der Aufnahme und auf das "
+           "Ende des Steckers graviert: Teile mit derselben Zahl gehören zusammen. <b>Steckbarkeit prüfen</b> sagt, "
+           "ob sich alle Teile nacheinander stecken lassen. Beides im Reiter <i>Steckverbindungen</i> der "
+           "Schweißbaugruppe und im Fenster Satz in 3D.", kurz=True)
+    i.genauer()
+    i.liste("<b>Spalte Montagemarke</b>: leer = keine Marke. <b>Marken nummerieren</b> vergibt 1, 2, 3 … je Ende "
+            "eines Steckers; Verbindungen am selben Ende gleicher Teile teilen sich die Zahl. Mit der Einstellung "
+            "<i>Steckverbindung: neue Verbindungen bekommen eine Montagemarke</i> (Vorgabe nein) bekommt jede neue "
+            "Verbindung gleich ihre Zahl, auch über <i>Alle Stöße stecken</i> und die Vorschläge ([[vorschlaege]]).",
+            "<b>Lage</b>: auf der Aufnahme auf der Seite der Schlitze, längs neben dem Stecker (zuerst Richtung "
+            "Ende E, sonst Richtung Ende A); auf dem Stecker auf der Wand der ersten Nase, direkt hinter dem Schnitt "
+            "des Endes. Abstand zu Enden, Nasen und Konturen mindestens 0,5 mm, Schrifthöhe wie die Artikelnummer "
+            "(Einstellung <i>Gravur: Schrifthöhe</i>). Passt sie nicht, wird nicht graviert und die Meldung nach OK "
+            "nennt es.",
+            "Die Marke ist eine Text-Gravur der Teile (im Teile-Editor sichtbar, im STEP-Export als Gravur). Entfernt "
+            "man die Verbindung oder die Zahl, fällt sie beim Speichern wieder weg.",
+            "<b>Steckbarkeit prüfen</b>: Jeder Stecker schiebt sich längs seiner Achse in die Schlitze, eine Aufnahme "
+            "kommt umgekehrt auf schon liegende Stecker. Ein Teil geht nur, wenn alle seine Verbindungen zu schon "
+            "liegenden Teilen dieselbe Richtung verlangen. Das Programm sucht dafür eine Reihenfolge und nennt sie; "
+            "gibt es keine (z. B. ein Ring, in dem jedes Rohr ins nächste steckt), steht da, welches Teil in "
+            "verschiedene Richtungen müsste. Die Reihenfolge braucht die Stöße aus dem STEP-Import.",
+            "Außerdem meldet die Prüfung Schlitze, die eine andere Kontur überschneiden, und feste Längsnähte, die auf "
+            "einem Schlitz oder einer Nase liegen.")
     i.abschnitt("Satz in 3D", marke="satz_3d")
     i.text("Ein <b>Satz</b> aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen, den der Kunde als "
            "Stecksystem möchte), lässt sich im Fenster <b>Satz in 3D</b> bearbeiten: Rechtsklick auf eine Position des "
