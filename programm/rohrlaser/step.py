@@ -673,9 +673,9 @@ def art_text(m, gegen=None):
     zusatz = " – Anbauteile abgetrennt" if m.get("trennung") else \
         " – ohne Trennung" if gegen is not None and gegen.get("trennung") else ""
     if rohr_geschlossen(m):
-        zusatz += " – Spalt geschlossen"
+        zusatz += " – Stege an den Enden (aus dem Rohr)" if _stege(m) else " – Spalt geschlossen"
     elif gegen is not None and rohr_geschlossen(gegen):
-        zusatz += " – mit Spalt (nicht geschlossen)"
+        zusatz += " – offen (ohne Stege)" if _stege(gegen) else " – mit Spalt (nicht geschlossen)"
     return (("Kantteil (Blech gekantet)" if form == "Blech gekantet" else form) + zusatz
             + (" – Ersatzwerte" if m.get("ersatz") == "1" else ""))
 
@@ -736,8 +736,15 @@ def art_wechseln(m):
 
 
 def rohr_geschlossen(m):
-    """True, wenn die Messwerte das offen gezeichnete Rohr mit ergänzter Wand sind (step_offenes_rohr)."""
-    return "offene_seite=ergänzt" in (m.get("sicherheit") or "")
+    """True, wenn die Messwerte das offen gezeichnete Rohr als Rohr sind (step_offenes_rohr): Spalt geschlossen bzw.
+    aus dem Rohr mit je einem Steg an den Enden."""
+    s = m.get("sicherheit") or ""
+    return "offene_seite=ergänzt" in s or "offene_seite=stege" in s
+
+
+def _stege(m):
+    """True, wenn das Rohr die offene Seite bis auf Stege an den Enden ausgeschnitten hat (sonst Spalt geschlossen)."""
+    return "offene_seite=stege" in (m.get("sicherheit") or "")
 
 
 def geschlossen(m):
@@ -767,8 +774,8 @@ def rohr_wechseln(m):
 
 
 def _ergaenzte_wand_zeigen(m):
-    """3D-Netz eines offen gezeichneten Rohrs: die fehlende Wand rot (Art EW), wenn das Teil als Rohr mit ergänzter
-    Wand gilt, sonst blassrot (Art EO, wird nicht gefertigt)."""
+    """3D-Netz eines offen gezeichneten Rohrs: Stege bzw. geschlossener Spalt rot (Art EW), wenn das Teil als Rohr
+    gilt, sonst blassrot (Art EO, wird nicht gefertigt)."""
     if not m.get("_netz"):
         return
     import zlib

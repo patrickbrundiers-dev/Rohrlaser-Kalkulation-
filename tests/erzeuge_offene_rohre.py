@@ -1,7 +1,8 @@
-"""Erzeugt Beispielteile mit Spalt gezeichneter Rechteckrohre (tests/step_offen) für die Bedienungsanleitung: RE 60x40x3
-mit einem Spalt über die ganze Länge (2 mm oben mit Gehrung, 1,5 mm seitlich) und als Gegenbeispiel ein U offen, das
-offen bleibt (nur Spalte bis 2 mm werden geschlossen). Die Prüfung der Erkennung steht in tests/test_offenes_rohr.py
-(dort werden die Teile selbst erzeugt).
+"""Erzeugt Beispielteile offen gezeichneter Rechteckrohre (tests/step_offen) für die Bedienungsanleitung: RE 60x40x3
+als gekantetes Blech mit einer offenen Seite (U offen mit Gehrung und Bohrungen, U mit ausgeschnittenen Seitenwänden
+wie Patricks Beispiel) – gefertigt aus dem Rohr mit je einem Steg 2 mm an den Enden – und ein Rohr mit 2-mm-Spalt
+(wird ganz geschlossen). Die Prüfung der Erkennung steht in tests/test_offenes_rohr.py (dort werden die Teile selbst
+erzeugt).
 
 Aufruf: python tests/erzeuge_offene_rohre.py   (braucht OpenCascade, wie tests/erzeuge_testteile.py)
 """
@@ -25,15 +26,14 @@ def box(x0, y0, z0, dx, dy, dz):
 
 def main():
     ZIEL.mkdir(exist_ok=True)
-    rohr = kastenrohr(60, 40, 3, L, 6)
-    spalt = cut(rohr, box(-1, 15, -1, 2, 6, L + 2))
-    spalt = bohrung_quer(bohrung_quer(spalt, 10, 120, (1, 0, 0)), 13, 280, (0, 1, 0))
-    schreibe(gehrung(spalt, L, 45), "OR1_Spalt2_RE60x40x3", ZIEL)
-    seite = cut(rohr, box(26, -0.75, -1, 5, 1.5, L + 2))
-    schreibe(bohrung_quer(seite, 8.5, 200, (0, 1, 0)), "OR2_Spalt_seitlich_RE60x40x3", ZIEL)
     u = profil([(-30, -20), (30, -20), (30, 20), (27, 20), (27, -17), (-27, -17), (-27, 20), (-30, 20)], L,
                {(-30, -20): 6, (30, -20): 6, (27, -17): 3, (-27, -17): 3})
-    schreibe(u, "OR3_U_offen_bleibt", ZIEL)
+    u1 = bohrung_quer(bohrung_quer(u, 10, 120, (1, 0, 0)), 13, 280, (0, 1, 0))
+    schreibe(gehrung(u1, L, 45), "OR1_U_offen_RE60x40x3", ZIEL)
+    laschen = bohrung_quer(cut(u, box(-31, -14, 230, 62, 40, 110)), 18, 110, (1, 0, 0))
+    schreibe(laschen, "OR2_U_Laschen_RE60x40x3", ZIEL)
+    spalt = cut(kastenrohr(60, 40, 3, L, 6), box(-1, 15, -1, 2, 6, L + 2))
+    schreibe(spalt, "OR3_Spalt2_RE60x40x3", ZIEL)
 
 if __name__ == "__main__":
     main()

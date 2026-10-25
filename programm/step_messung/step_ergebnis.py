@@ -97,11 +97,13 @@ Versionen von SCHEMA_VERSION:
   wie Anbauteile, Quadrat-/Rechteckrohr) bzw. winkel (Umfangswinkel, Rundrohr), achswinkel (Winkel der Achsen, 90 =
   senkrecht)} für Steckverbindungen; sonst fehlt das Feld. Felder aus 1.17 unverändert.
 - 1.19 (25.10.2026): Offen gezeichnete Quadrat-/Rechteckrohre (U offen, C mit Längsschlitz, Kantteil mit einer
-  Lasche; eine Seite über die ganze Länge offen): je Körper "geschlossen" = das Teil mit ergänzter Wand als Rohr
-  gemessen (Aufbau wie ein Körper ohne "nr", mit "offene_seite" = {seite (links/rechts/unten/oben im Querschnitt),
-  luecken [[von, bis]] (ab der Ecke der Hülle, mm), breite (Summe der Lücken), laenge, vorher (Profilform der
-  offenen Messung)}, "erkennungssicherheit" mit "offene_seite": "ergänzt", Prüfstatus "prüfen"), sonst null. Im Netz
-  der offenen Messung ist die fehlende Wand Art "EO". Felder aus 1.18 unverändert.
+  Lasche; eine Seite über die ganze Länge offen): je Körper "geschlossen" = das Teil als Rohr gemessen, gefertigt aus
+  dem Rohr mit je einem Steg (2 mm) an Ende A und B über der offenen Seite, dazwischen ein Fenster (Innenkontur); ein
+  Spalt bis 2 mm ganz geschlossen. Aufbau wie ein Körper ohne "nr", mit "offene_seite" = {seite (links/rechts/unten/
+  oben im Querschnitt), luecken [[von, bis]] (ab der Ecke der Hülle, mm), breite (Summe der Lücken), laenge, vorher
+  (Profilform der offenen Messung), steg (mm, null = Spalt geschlossen)}, "erkennungssicherheit" mit "offene_seite":
+  "stege" bzw. "ergänzt", Prüfstatus "prüfen"; sonst null. Im Netz der offenen Messung sind die Stege bzw. der
+  geschlossene Spalt Art "EO". Felder aus 1.18 unverändert.
 """
 from datetime import datetime
 

@@ -1,21 +1,23 @@
-"""Offene Rohre schließen (Patrick 25.10.2026, Freigabe „Alle a“, danach „Nur vielleicht 2 mm die Fläche schließen
-nicht komplett“): Kunden zeichnen Quadrat- oder Rechteckrohre oft als gekantetes Blech, dessen Enden mit einem
-schmalen Spalt über die ganze Länge aneinanderstoßen. Gefertigt wird das Teil auf dem Rohrlaser aus dem geschlossenen
-Rohr, also schließt die Messung den Spalt. Nur Spalte bis SPALT_MAX (2 mm) werden geschlossen; eine breitere Öffnung
-(U offen, C mit breitem Schlitz) ist gewollt und bleibt U-/C-Profil bzw. Kantteil.
+"""Offene Rohre aus dem Rohr lasern (Patrick 25.10.2026, Freigabe „Alle a“, danach „Nur vielleicht 2 mm die Fläche
+schließen nicht komplett“ und „Je ein Steg 2 mm an beiden Enden“): Kunden zeichnen Quadrat- oder Rechteckrohre oft
+als gekantetes Blech mit einer offenen Seite (U offen, C mit Längsschlitz, U mit einer Lasche). Gefertigt wird das
+Teil auf dem Rohrlaser aus dem geschlossenen Rohr: Von der offenen Seite bleibt an Ende A und Ende B je ein Steg
+STEG (2 mm) stehen, damit das Teil ein Rohr bleibt, dazwischen wird die Wand als Fenster ausgeschnitten (Innenkontur
+im Schneidweg). Ein schmaler Spalt bis SPALT_MAX (2 mm) wird ganz geschlossen (ein Fenster wäre dort sinnlos).
 
 Erkennung: gleich dicke Wände, Querschnitt mit einer Kontur in einem Hüllrechteck, drei Seiten mit Material belegt,
 eine Seite über die ganze Länge offen (an allen Messlagen dieselbe Lücke). Öffnungen, die nicht über die ganze
-Länge gehen, sind Ausschnitte und bleiben (Frage 3 a); Laschen und Schlitzränder werden Teil der neuen Wand
-(Frage 4 a). Die neue Wand füllt je Lücke den Bereich zwischen den Rändern (Blechdicke, Hüllrechteck außen); ihre
-Enden folgen den Nachbarwänden (Frage 2 a): Verlauf der gegenüberliegenden Wand, quer dazu die Steigung der
+Länge gehen, sind Ausschnitte und bleiben (Frage 3 a); Laschen und Schlitzränder bleiben stehen, das Fenster liegt
+genau über der Lücke (Frage 4 a). Wand bzw. Stege füllen je Lücke den Bereich zwischen den Rändern (Blechdicke,
+Hüllrechteck außen); die Enden folgen den Nachbarwänden (Frage 2 a): Verlauf der gegenüberliegenden Wand, quer dazu die Steigung der
 Seitenwände, damit wird ein gerades Ende gerade und eine Gehrung eine Gehrung.
 
-Der geschlossene Körper wird wie jedes Rohr gemessen (Konturen der vorhandenen Wände bleiben). Ergebnis: Teil als
-Quadrat-/Rechteckrohr mit offene_seite (Seite, Lücken, Länge) in t.geschlossen der offenen Messung; deren Netz
-zeigt die fehlende Wand als Art „EO“ (im Programm rot „EW“, sobald das Teil als Rohr gilt). Ob das Rohr vorgeschlagen wird, entscheidet das Programm (nur, wenn es das
+Der Körper mit Stegen wird wie jedes Rohr gemessen (Querschnitt aus dem geschlossenen Rohr, Konturen der vorhandenen
+Wände bleiben, das Fenster ist eine Innenkontur). Ergebnis: Teil als Quadrat-/Rechteckrohr mit offene_seite (Seite,
+Lücken, Länge, Steg) in t.geschlossen der offenen Messung; deren Netz zeigt die Stege bzw. den geschlossenen Spalt als
+Art „EO“ (im Programm rot „EW“, sobald das Teil als Rohr gilt). Ob das Rohr vorgeschlagen wird, entscheidet das Programm (nur, wenn es das
 Rohr in den Stammdaten gibt, Frage 1 a, step.offene_rohre_vorbelegen)."""
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
 from OCP.TopAbs import TopAbs_SOLID
@@ -25,7 +27,7 @@ import math
 
 import step_geometrie as g
 
-HINWEIS = "Spalt geschlossen"
+HINWEIS = "Offenes Rohr"
 KANDIDATEN = ("U-Profil", "C-Profil", "offenes Sonderprofil", "Blech gekantet")
 ROHRE = ("Quadratrohr", "Rechteckrohr")
 LAGEN = 9               # Messlagen über die Länge (10 … 90 %)
@@ -33,7 +35,8 @@ SCHRITT = 0.25          # mm, Abtastung entlang einer Seite
 LUECKE_INNEN = 0.5      # mm, kleinste Lücke mitten in einer Seite (Schlitz)
 TOL_WAND = 0.15         # mm, Wandstärke des geschlossenen Rohrs gegen die Blechdicke
 TOL_HUELLE = 0.2        # mm, Hüllrechteck an allen Lagen gleich
-SPALT_MAX = 2.0         # mm, breitester Spalt, der geschlossen wird (Patrick 25.10.: „nur vielleicht 2 mm“)
+SPALT_MAX = 2.0         # mm, breitester Spalt, der ganz geschlossen wird (sonst Stege und Fenster)
+STEG = 2.0              # mm, Steg über der offenen Seite an Ende A und Ende B (Patrick 25.10.2026)
 SPALT_TOL = 0.05        # mm, Messtoleranz auf SPALT_MAX
 
 
@@ -96,7 +99,7 @@ def erkennen(solid, d):
     zmin, zmax = g._z_bereich(lok)
     if zmax - zmin < 3 * d:
         return None
-    huelle, offen_je_lage = None, []
+    lagen = []
     for k in range(LAGEN):
         z = zmin + (zmax - zmin) * (0.1 + 0.8 * k / (LAGEN - 1)) + 0.0137
         ws = g._schnitt(lok, z)
@@ -104,11 +107,19 @@ def erkennen(solid, d):
             continue
         st = g._strecken(ws[0][1])
         xs, ys = [s[0] for s in st] + [s[2] for s in st], [s[1] for s in st] + [s[3] for s in st]
-        h = (min(xs), min(ys), max(xs), max(ys))
-        if huelle is None:
-            huelle = h
-        elif max(abs(p - q) for p, q in zip(h, huelle)) > TOL_HUELLE:
-            return None             # Querschnitt ändert sich: kein gerades Rohr
+        lagen.append((st, (min(xs), min(ys), max(xs), max(ys))))
+    if not lagen:
+        return None
+    # Hüllrechteck: das größte; Lagen mit kleinerem Querschnitt (Seitenwand dort ausgeschnitten, wie Patricks Beispiel
+    # mit Laschen) zählen nicht, solange sie darin liegen; ein größerer oder versetzter Querschnitt: kein gerades Rohr
+    huelle = max((h for _, h in lagen), key=lambda h: (h[2] - h[0]) * (h[3] - h[1]))
+    offen_je_lage = []
+    for st, h in lagen:
+        if h[0] < huelle[0] - TOL_HUELLE or h[1] < huelle[1] - TOL_HUELLE or h[2] > huelle[2] + TOL_HUELLE or \
+                h[3] > huelle[3] + TOL_HUELLE:
+            return None
+        if max(abs(p - q) for p, q in zip(h, huelle)) > TOL_HUELLE:
+            continue
         offen = {}
         for seite in ("links", "rechts", "unten", "oben"):
             lu, a, b = _luecken(st, seite, *h, d)
@@ -134,8 +145,6 @@ def erkennen(solid, d):
             luecken[-1] = (luecken[-1][0], max(luecken[-1][1], u1))
         else:
             luecken.append((u0, u1))
-    if any(u1 - u0 > SPALT_MAX + SPALT_TOL for u0, u1 in luecken):
-        return None                 # breite Öffnung: gewollt offen, nicht schließen
     return dict(ax3=ax3, lok=lok, seite=seite, luecken=luecken, huelle=huelle, z=(zmin, zmax))
 
 
@@ -213,13 +222,15 @@ def _knicke(pts):
     return out + [pts[-1]] if len(pts) > 3 else list(pts)
 
 
-def wand(e, d, ueberlapp=True):
+def wand(e, d, ueberlapp=True, fenster=0.0):
     """Ergänzte Wand je Lücke als Körper im lokalen System: (Körper, Lückenbereiche, quer, Schichten = je Körper die
     Endlinien (Ende A, Ende B) außen und innen); ueberlapp: die Wand reicht um die Blechdicke in die Ränder (zum
     Verschmelzen), sonst genau die Lücke (3D-Ansicht).
     Enden (Frage 2 a): Verlauf der gegenüberliegenden Wand (z je u), quer dazu die Steigung der Seitenwände (z je v,
     zwischen linker und rechter Seitenwand gemittelt). Ein gerades Ende bleibt gerade, eine Gehrung oder ein Schnitt
-    nur über einen Teil der Breite wird übernommen."""
+    nur über einen Teil der Breite wird übernommen.
+    fenster > 0: statt der Wand das Fenster zwischen den Stegen (je fenster mm an Ende A und B), genau über der Lücke
+    und nach außen und innen etwas über die Wand hinaus (zum Ausschneiden aus dem geschlossenen Rohr)."""
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon
     from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
     x0, y0, x1, y1 = e["huelle"]
@@ -248,7 +259,7 @@ def wand(e, d, ueberlapp=True):
             versatz[u_s, v] = (0.0, 0.0) if z_g is None or z_v is None else (z_v[0] - z_g[0], z_v[1] - z_g[1])
     teile, felder, schichten = [], [], []
     for u0, u1 in e["luecken"]:
-        w0, w1 = (max(a, u0 - d), min(b, u1 + d)) if ueberlapp else (u0, u1)   # überlappt: wird verschmolzen
+        w0, w1 = (max(a, u0 - d), min(b, u1 + d)) if ueberlapp and not fenster else (u0, u1)   # überlappt: verschmolzen
         n = max(8, min(240, int((w1 - w0) / 0.5)))
         us = [w0 + (w1 - w0) * k / n for k in range(n + 1)]
         gegen = _profil_z(lok, uv_zu_xyz, us, v_gm)
@@ -258,9 +269,10 @@ def wand(e, d, ueberlapp=True):
         drahte, schicht = [], []
         for v in (v_lo, v_hi):
             va, vb = versatz[a + d / 2, v], versatz[b - d / 2, v]
-            unten = [uv_zu_xyz(u, v, z + va[0] * (1 - (u - a) / (b - a)) + vb[0] * (u - a) / (b - a))
+            vf = v if not fenster else v - innen * 1.0 if v == v_aussen else v + innen * 0.5   # Fenster: über die Wand
+            unten = [uv_zu_xyz(u, vf, z + fenster + va[0] * (1 - (u - a) / (b - a)) + vb[0] * (u - a) / (b - a))
                      for u, z in enden[0]]
-            oben = [uv_zu_xyz(u, v, z + va[1] * (1 - (u - a) / (b - a)) + vb[1] * (u - a) / (b - a))
+            oben = [uv_zu_xyz(u, vf, z - fenster + va[1] * (1 - (u - a) / (b - a)) + vb[1] * (u - a) / (b - a))
                     for u, z in enden[1]]
             schicht.append((unten, oben))
             poly = BRepBuilderAPI_MakePolygon()
@@ -300,6 +312,23 @@ def _vereinen(solid, teile, ax3):
     u = ShapeUpgrade_UnifySameDomain(koerper[0], True, True, True)
     u.Build()
     return u.Shape()
+
+
+def _ausschneiden(form, teile, ax3):
+    """Fenster (Körper im lokalen System) aus dem geschlossenen Rohr (Dateilage) schneiden; None bei Fehler. Ohne
+    Vereinheitlichen der Flächen: die Fensterränder liegen in der Ebene der Seitenwände innen und sollen eigene
+    Schnittflächen bleiben."""
+    tr = gp_Trsf()
+    tr.SetTransformation(ax3)
+    zurueck = tr.Inverted()
+    for k in teile:
+        c = BRepAlgoAPI_Cut(form, BRepBuilderAPI_Transform(k, zurueck, True).Shape())
+        c.SetFuzzyValue(g.FUZZY)
+        c.Build()
+        if not c.IsDone():
+            return None
+        form = c.Shape()
+    return form if len(g._liste(form, TopAbs_SOLID)) == 1 else None
 
 
 def _gitter(schicht, quer, laenge):
@@ -384,9 +413,17 @@ def _verfeinern(netz, max_kante=25.0):
         netz["t"][art] = [i for tri in fertig for i in tri]
 
 
-def _netz_wand(t, e, d):
-    """Die fehlende Wand (genau die Lücken) als Dreiecke der Art EO im Netz der offenen Messung (System wie das Netz:
-    Ende A, Achse, X-Richtung der Messung)."""
+def _stege(schicht, steg):
+    """Endlinien der Stege an Ende A und B aus den Endlinien der Wand (je Schicht außen/innen um steg nach innen)."""
+    def verschoben(linie, dz):
+        return [(p[0], p[1], p[2] + dz) for p in linie]
+    return ([(unten, verschoben(unten, steg)) for unten, _ in schicht],
+            [(verschoben(oben, -steg), oben) for _, oben in schicht])
+
+
+def _netz_wand(t, e, d, steg=0.0):
+    """Die ergänzte Wand (genau die Lücken; mit steg nur die Stege an den Enden) als Dreiecke der Art EO im Netz der
+    offenen Messung (System wie das Netz: Ende A, Achse, X-Richtung der Messung)."""
     w = wand(e, d, ueberlapp=False)
     if not w or t.netz is None or not t.achse_global:
         return
@@ -394,8 +431,10 @@ def _netz_wand(t, e, d):
     zu_datei.SetTransformation(e["ax3"])
     zu_netz.SetTransformation(g._rohr_ax3(t))
     tr = zu_netz.Multiplied(zu_datei.Inverted())
-    for schicht in w[3]:
-        punkte, dreiecke = _gitter(schicht, w[2], e["z"][1] - e["z"][0])
+    schichten = [(s_, e["z"][1] - e["z"][0]) for s_ in w[3]] if not steg else \
+        [(s_, steg) for schicht in w[3] for s_ in _stege(schicht, steg)]
+    for schicht, laenge in schichten:
+        punkte, dreiecke = _gitter(schicht, w[2], laenge)
         p = []
         for x, y, z in punkte:
             q = gp_Pnt(x, y, z).Transformed(tr)
@@ -405,8 +444,9 @@ def _netz_wand(t, e, d):
 
 
 def schliessen(solid, t, datei="", koerper=1, netz=False):
-    """Offen gezeichnetes Rohr: t.geschlossen = Messung mit ergänzter Wand (Quadrat-/Rechteckrohr), im Netz von t
-    die fehlende Wand als Art EO. False, wenn t nicht offen bzw. nicht schließbar ist."""
+    """Offen gezeichnetes Rohr: t.geschlossen = Messung als Quadrat-/Rechteckrohr mit Stegen an den Enden und Fenster
+    (Spalt bis SPALT_MAX: ganz geschlossen), im Netz von t die Stege bzw. die Wand als Art EO. False, wenn t nicht
+    offen bzw. nicht schließbar ist."""
     if t is None or t.biegerohr or t.knick_schenkel or t.trennung or \
             (t.profilform if t.bauteiltyp != "Blech gekantet" else "Blech gekantet") not in KANDIDATEN:
         return False
@@ -422,24 +462,35 @@ def schliessen(solid, t, datei="", koerper=1, netz=False):
     if w is None:
         return False
     teile, felder, quer = w[:3]
-    zu = _vereinen(solid, teile, e["ax3"])
-    if zu is None:
+    voll = _vereinen(solid, teile, e["ax3"])
+    if voll is None:
         return False
-    r = g._profil_messen(zu, datei, koerper, False)
+    breite, laenge = sum(u1 - u0 for u0, u1 in felder), e["z"][1] - e["z"][0]
+    steg = 0.0 if all(u1 - u0 <= SPALT_MAX + SPALT_TOL for u0, u1 in felder) or laenge < 4 * STEG else STEG
+    zu = voll
+    if steg:
+        f = wand(e, d, fenster=steg)
+        zu = _ausschneiden(voll, f[0], e["ax3"]) if f else None
+        if zu is None:
+            return False
+    r = g._profil_messen(zu, datei, koerper, False, quer=voll if steg else None)
     if r.profilform not in ROHRE or abs(r.wandstaerke - d) > TOL_WAND:
         return False
     r.bauteiltyp = "Profil"
-    breite, laenge = sum(u1 - u0 for u0, u1 in felder), e["z"][1] - e["z"][0]
     ecke = e["huelle"][0] if quer else e["huelle"][1]
     r.offene_seite = dict(seite=e["seite"], luecken=[[round(u0 - ecke, 2), round(u1 - ecke, 2)] for u0, u1 in felder],
-                          breite=round(breite, 2), laenge=round(laenge, 2), vorher=t.profilform)
-    r.sicherheit["offene_seite"] = "ergänzt"
-    r.hinweise.append(f"{HINWEIS}: {breite:.1f} mm über {laenge:.1f} mm Länge (vorher {t.profilform}) – Profil "
-                      "prüfen")
+                          breite=round(breite, 2), laenge=round(laenge, 2), vorher=t.profilform, steg=steg or None)
+    r.sicherheit["offene_seite"] = "stege" if steg else "ergänzt"
+    if steg:
+        r.hinweise.append(f"{HINWEIS}: aus dem Rohr gelasert, offene Seite ({breite:.1f} mm breit) bis auf je einen "
+                          f"Steg {steg:g} mm an Ende A und B ausgeschnitten (vorher {t.profilform}) – Profil prüfen")
+    else:
+        r.hinweise.append(f"{HINWEIS}: Spalt {breite:.1f} mm über {laenge:.1f} mm Länge geschlossen (vorher "
+                          f"{t.profilform}) – Profil prüfen")
     t.geschlossen = r
     if netz:
         try:
-            _netz_wand(t, e, d)
-        except Exception:  # ohne Anzeige der fehlenden Wand bleibt alles andere gültig
+            _netz_wand(t, e, d, steg)
+        except Exception:  # ohne Anzeige der Stege bzw. der Wand bleibt alles andere gültig
             pass
     return True

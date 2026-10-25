@@ -937,14 +937,14 @@ def main(ziel):
     bereit()
     foto.foto("step_3d", d3, [(d3.ansicht.knoepfe, 1)])
     d3.close()
-    # 10a) Rohr mit 2-mm-Spalt (Gehrung, tests/step_offen): Spalt geschlossen, Art umschaltbar, Spalt rot
+    # 10a) Offen gezeichnetes Rohr (U mit Gehrung, tests/step_offen): aus dem Rohr mit Stegen, Art umschaltbar, Stege rot
     sys.path.insert(0, str(WURZEL / "programm" / "step_messung"))
     import step_messen
     from rohrlaser import step as step_
     offen_tmp = tmp / "step_offen"
     offen_tmp.mkdir()
     step_messen.main(["--ausgabe", str(offen_tmp / "m.txt"), "--netze", str(offen_tmp / "netze"),
-                      str(WURZEL / "tests" / "step_offen" / "OR1_Spalt2_RE60x40x3.step")])
+                      str(WURZEL / "tests" / "step_offen" / "OR1_U_offen_RE60x40x3.step")])
     mw = step_.lade_netze(step_.lies_messwerte(offen_tmp / "m.txt"), offen_tmp / "netze")
     d = StepPruefDialog(f, mw, db.kontext(), "S235-10219", 1)
     d.resize(1300, 560)

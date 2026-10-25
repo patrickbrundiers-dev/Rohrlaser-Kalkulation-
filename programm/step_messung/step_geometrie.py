@@ -1780,11 +1780,14 @@ def _rp_erkennen(t, bx, by):
     return treffer[0]
 
 
-def _profil_messen(solid, datei="", koerper=1, netz=False):
-    """Messung als gerades Profil (Rohr, offenes Profil, Flachstahl) mit konstantem Querschnitt."""
+def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
+    """Messung als gerades Profil (Rohr, offenes Profil, Flachstahl) mit konstantem Querschnitt. quer: Körper, aus dem
+    Lage und Querschnitt kommen (gleiche Lage wie solid, z. B. das geschlossene Rohr zu einem Rohr mit großem
+    Fenster, step_offenes_rohr); Konturen und Enden immer aus solid."""
     t = Teil(datei=datei, koerper=koerper)
-    ax3, regel = _lage(solid)
+    ax3, regel = _lage(quer if quer is not None else solid)
     lok = _transformiere(solid, ax3)
+    lok_q = _transformiere(quer, ax3) if quer is not None else lok
 
     zmin, zmax = _z_bereich(lok)
     t.laenge = zmax - zmin
@@ -1803,7 +1806,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         best, passend = None, []
         for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
             z = zmin + anteil * t.laenge
-            ws = _schnitt(lok, z)
+            ws = _schnitt(lok_q, z)
             if len(ws) != n_konturen or n_konturen >= 2 and not all(_innen_liegend(w[1], ws[0][1]) for w in ws[1:]):
                 continue
             netto = ws[0][0] - sum(w[0] for w in ws[1:])
@@ -2706,8 +2709,8 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
 
 
 def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
-    """Messung eines Körpers (_analysiere); ein Quadrat-/Rechteckrohr, das mit einem Spalt bis 2 mm über die
-    ganze Länge gezeichnet ist, wird zusätzlich mit geschlossenem Spalt als Rohr gemessen (t.geschlossen,
+    """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
+    Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
     t = _analysiere(solid, datei, koerper, netz, flach_bis)
     try:

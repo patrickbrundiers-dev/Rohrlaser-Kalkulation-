@@ -1682,34 +1682,38 @@ def kapitel_step(i):
             "Profilwerte (Querschnitt, Wandstärke) sind dort <i>null</i>. Ab Version 1.2 steht bei Grenzfällen der "
             "Block <i>alternative</i> (das Teil in der anderen Art) und <i>ersatzwerte</i> (true = abgeleitet, "
             "nicht gemessen).")
-    i.abschnitt("Rohre mit Spalt", marke="offene_rohre")
-    i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech</b>, dessen Kanten mit einem "
-           "<b>schmalen Spalt</b> über die ganze Länge aneinanderstoßen. Gefertigt wird das Teil auf dem Rohrlaser aus "
-           "dem geschlossenen Rohr. Der Import <b>schließt Spalte bis 2 mm</b> und rechnet das Teil als Rohr, wenn das "
-           "Rohr in den Stammdaten steht; der geschlossene Spalt ist in der 3D-Ansicht <b>rot</b>. Breitere Öffnungen "
-           "(U offen, C mit breitem Schlitz) sind gewollt und bleiben offen.", kurz=True)
-    i.bild("step_offenes_rohr", "Rohr mit 2-mm-Spalt im Prüfdialog: als RE 60×40×3, Spalt geschlossen",
+    i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
+    i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech mit einer offenen Seite</b>: "
+           "U offen, C mit Längsschlitz oder U mit nur einer Lasche. Gefertigt wird das Teil auf dem Rohrlaser "
+           "<b>aus dem geschlossenen Rohr</b>: Von der offenen Seite bleibt an Ende A und Ende B <b>je ein Steg "
+           "2 mm</b> stehen, damit das Teil ein Rohr bleibt; dazwischen wird die Wand als Fenster ausgeschnitten. "
+           "Steht das Rohr in den Stammdaten, wird das Teil so übernommen und gerechnet; die Stege sind im 3D "
+           "<b>rot</b>.", kurz=True)
+    i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: aus RE 60×40×3 mit Stegen an den Enden",
            hoehe=95 * mm, legende=[
-               (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Spalt geschlossen</i>; umschalten auf <i>… – mit Spalt "
-                   "(nicht geschlossen)</i>, wenn das Teil offen bleiben soll (z. B. ein echtes C-Profil)."),
+               (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Stege an den Enden (aus dem Rohr)</i>; umschalten auf "
+                   "<i>… – offen (ohne Stege)</i>, wenn das Teil offen bleiben soll (z. B. ein echtes U-Profil)."),
                (2, "Profil aus den Stammdaten (hier RE 60×40×3)."),
-               (3, "3D: der geschlossene Spalt rot; bleibt das Teil offen, ist er blassrot (wird nicht gefertigt).")])
+               (3, "3D: die Stege rot; bleibt das Teil offen, sind sie blassrot (werden nicht gefertigt).")])
     i.genauer()
-    i.liste("<b>Erkennung</b>: überall gleich dicke Wände (Blechdicke), ein Querschnitt in einem Rechteck und genau "
-            "eine Seite mit einem Spalt <b>über die ganze Länge</b> (an allen Messstellen derselbe Spalt). Geschlossen "
-            "wird nur ein Spalt <b>bis 2 mm</b> Breite; ist die Öffnung breiter, bleibt das Teil U-Profil, C-Profil "
-            "oder Kantteil. Ein Fenster oder Ausschnitt, der nur über einen Teil der Länge geht, ist eine Innenkontur "
-            "und bleibt; L-Profile und Walzprofile (UPN) werden nie geschlossen.",
-            "<b>Der Spalt</b> wird in Blechdicke bis zur Außenkante gefüllt, dort wird nichts geschnitten. Außenmaß = "
-            "umschließendes Rechteck, Wandstärke = Blechdicke. Bohrungen und Ausschnitte der Wände bleiben.",
-            "<b>Enden</b>: Am Spalt läuft das Ende wie an den Nachbarwänden weiter, ein gerades Ende bleibt gerade, "
-            "eine Gehrung bleibt eine Gehrung. Die Schnittlänge der Enden ist die des geschlossenen Rohrs.",
-            "<b>Vorbelegung</b>: Rohr mit geschlossenem Spalt, wenn das Rohr (gleiche Außenmaße und Wand) in den "
-            "Stammdaten steht und das Teil nicht selbst zu einem U- oder C-Profil der Stammdaten passt; sonst bleibt "
-            "das offene Teil. In der Spalte <b>Art</b> jederzeit umschaltbar. Prüfstatus immer <i>prüfen</i>, der "
-            "Hinweis nennt die Breite des Spalts und die alte Form.",
-            "Im Messergebnis steht das geschlossene Rohr in der Spalte <i>geschlossen</i> bzw. im JSON (ab Version "
-            "1.19) im Block <i>geschlossen</i> mit <i>offene_seite</i> (Seite, Spalt, Länge, vorher).")
+    i.liste("<b>Erkennung</b>: überall gleich dicke Wände (Blechdicke), ein Querschnitt in einem Rechteck, drei "
+            "Seiten mit Material und eine Seite, die <b>über die ganze Länge</b> offen ist. Stellen, an denen die "
+            "Seitenwände ausgeschnitten sind (Laschen), stören nicht. Ein Fenster, das nur über einen Teil der Länge "
+            "geht, ist eine Innenkontur und bleibt; L-Profile (zwei offene Seiten) und Walzprofile (UPN) werden nicht "
+            "umgestellt.",
+            "<b>Stege</b>: je 2 mm an Ende A und Ende B, in Blechdicke bis zur Außenkante. Sie laufen wie die "
+            "Nachbarwände: ein gerades Ende bleibt gerade, eine Gehrung eine Gehrung. Die Schnittlänge der Enden ist "
+            "die des geschlossenen Rohrs.",
+            "<b>Fenster</b>: genau über der Lücke (Laschen und Schlitzränder bleiben stehen) zwischen den Stegen; es "
+            "zählt als Innenkontur im Schneidweg. Bohrungen und Ausschnitte der Wände bleiben.",
+            "<b>Spalt bis 2 mm</b>: Stoßen die Kanten mit einem schmalen Spalt aneinander, wird der Spalt ganz "
+            "geschlossen (kein Fenster); Art <i>… – Spalt geschlossen</i>.",
+            "<b>Vorbelegung</b>: Rohr, wenn das Rohr (gleiche Außenmaße und Wand) in den Stammdaten steht und das "
+            "offene Teil nicht selbst zu einem U- oder C-Profil der Stammdaten passt; sonst bleibt das offene Teil. In "
+            "der Spalte <b>Art</b> jederzeit umschaltbar. Prüfstatus immer <i>prüfen</i>, der Hinweis nennt die alte "
+            "Form und die Breite der offenen Seite.",
+            "Im Messergebnis steht das Rohr in der Spalte <i>geschlossen</i> bzw. im JSON (ab Version 1.19) im Block "
+            "<i>geschlossen</i> mit <i>offene_seite</i> (Seite, Lücken, Länge, Steg, vorher).")
     i.abschnitt("Baugruppen als Satz")
     i.text("Mehrere Teile in einer STEP-Datei = <b>Baugruppe</b>. Feld <b>Sätze</b> (Vorgabe 1): gleiche Teile werden "
            "eine Position mit <b>Stück je Satz</b>; leer = jedes Teil einzeln.", kurz=True)
