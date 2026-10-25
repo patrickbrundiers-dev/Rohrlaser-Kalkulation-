@@ -2693,7 +2693,8 @@ def kapitel_optimieren(i):
                    "Position."),
                (3, "<b>Abwicklung der ganzen Stange</b>: der Mantel abgewickelt (oben, vorne, unten, hinten, von Ende "
                    "A gesehen; quer gestreckt), jedes Teil mit seinen Schnittkanten, Konturen rot, Gravur grün, die "
-                   "Schweißnaht der Stange rot strichpunktiert (SN). Gedrehte Teile erscheinen gedreht."),
+                   "Schweißnaht der Stange rot strichpunktiert (SN). Gedrehte Teile erscheinen gedreht. Nasen einer "
+                   "Steckverbindung stehen als Laschen über den Schnitt hinaus (wie im Rohr-Editor)."),
                (4, "<b>◀ ▶</b> blättern zur vorigen bzw. nächsten Stange.")])
     i.genauer()
     i.text("Jede Stange als maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Positionsnummer und Länge, "

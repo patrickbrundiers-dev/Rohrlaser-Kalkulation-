@@ -21,13 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.105", "<b>DXF-Import erkennt Ansichten</b>: Zeichnungen mit mehreren Ansichten ergeben keine Scheinteile "
+    ["0.9.106", "<b>DXF-Import erkennt Ansichten</b>: Zeichnungen mit mehreren Ansichten ergeben keine Scheinteile "
                "mehr. Bemaßung auf Layer MASSE, verdeckte Kanten und Schraffur fallen weg (weitere Layer in der "
                "Einstellung). Die Isometrie ist nicht angehakt, die Seitenansicht eines Blechs liefert die Dicke, "
                "Teile unter 5 mm (Maßpfeile) und Konturen mit offenen Linien sind nicht angehakt, mit Grund. Eine "
                "<b>Rohrzeichnung</b> (Schnitt mit Wand und Ansicht) wird erkannt und mit Profil und Länge gemeldet, "
                "statt sie in Bleche zu zerlegen; der Rohr-Import folgt ([[dxf_import]]).",
      "DXF-Import: Ansichten, Isometrie, Maßpfeile und Rohrzeichnungen erkannt"],
+    ["0.9.105", "<b>Nasen der Steckverbindung in der Abwicklung</b>: In der Abwicklung der Stange (Stangen-Detail und "
+                "Werkstattpapiere) und in der Abwicklung des Rohr-Editors stehen die Nasen jetzt als Laschen über "
+                "den Schnitt hinaus; vorher war das Ende gerade gezeichnet (Stangenbild).",
+     "Nasen der Steckverbindung in der Abwicklung der Stange sichtbar."],
     ["0.9.104", "<b>Reiter Versand abschaltbar</b>: Einstellungen › Versand › <i>Reiter Versand und "
                 "Palettenbegleitschein verwenden</i> = nein blendet den Reiter Versand und alle Wege dorthin aus "
                 "(Menüeinträge <i>Palettenbegleitschein …</i>, Hinweis bei Beauftragt, Palettenscheine in den "
