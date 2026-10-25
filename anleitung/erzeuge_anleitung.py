@@ -2533,7 +2533,8 @@ def kapitel_optimieren(i):
             "<b>Schnittebenen</b>: An Ende A (orange) und B (lila) steht die Schnittfläche halb durchsichtig. Der "
             "Griff (Kreis) an der Ebene stellt den Gehrungswinkel, er springt auf ganze Grad und fängt 15°, 30°, "
             "45° …; der Winkel steht daneben. Die Richtung der Gehrung bleibt, wie sie bei <i>gekippt über</i> "
-            "eingestellt ist.",
+            "eingestellt ist. Hat das Ende Nasen einer Steckverbindung, steht die Ebene am Schnitt, die Nasen ragen "
+            "darüber hinaus bis zum Teilende.",
             "<b>Pfeiltasten</b> in der 3D-Ansicht: links/rechts verschieben längs, hoch/runter quer um einen "
             "Rasterschritt, mit Umschalt das Zehnfache. Ist ein Ende gewählt, ändern hoch/runter die Gehrung um 1° "
             "(Umschalt 10°).",
