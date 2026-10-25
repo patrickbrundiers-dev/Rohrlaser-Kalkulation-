@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
 from . import schneidweg as sw, steckverbindung
 from .angebot import ist_baugruppe
 from .baugruppe_dialog import FEHLER_FARBE, KnickEditor, LaengsnahtEditor, SteckEditor, VorschlagEditor, _text
+from .baugruppe_step import StepBaugruppe
 
 TEIL = "teil:"              # Kennung der Dreiecke im 3D: teil:<Nummer des Körpers>
 
@@ -64,7 +65,7 @@ class _Teile(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
-class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, QDialog):
+class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, StepBaugruppe, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -139,6 +140,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.teile_tab.itemSelectionChanged.connect(self.zeigen)
         lay.addWidget(self.teile_tab, 1)
         zeile = self.knick_knoepfe()
+        zeile.insertWidget(zeile.count() - 1, self.step_knopf())
         lay.addLayout(zeile)
         return w
 
@@ -243,6 +245,9 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         return pid
 
     # -------------------------------------------------------------- Speichern
+    def step_name(self):
+        return f"Satz {self.satz}"
+
     def pruefen(self):
         for n, z in enumerate(self.bg["steckverbindungen"], 1):
             f = self._steck_fehler(z)

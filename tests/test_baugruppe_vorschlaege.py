@@ -105,7 +105,7 @@ def satz_bedienen(d):
     gesehen["n"] = d.vorschlaege_zeigen(dialog=lambda dlg: (dlg.anhaken(lambda v: True), QDialog.Accepted)[1])
     gesehen["verbindungen"] = len(d.bg["steckverbindungen"])
     gesehen["naehte"] = dict(d.laengsnaehte)
-    gesehen["eingaben"] = d._rohr_eingaben()
+    gesehen["eingaben"] = d._vorschlag_eingaben()
     gesehen["profile"] = {pid: d._steck_profil(pid) for pid in d.laengsnaehte}
     gesehen["danach"] = d.vorschlaege_sammeln(laser=False)
     d._ok()

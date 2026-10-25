@@ -16,6 +16,12 @@ abgezogen werden:
   Jedes Werkzeug kann 'ohne': [Werkzeuge] haben, die vorher von ihm abgezogen werden (Nasen einer Steckverbindung
   bleiben stehen).
 
+- Baugruppe (3E-14): mit 'baugruppe' {name, kinder: [Unterbaugruppen wie oben], einsatz: [{teil: Nr. in teile,
+  lage: 3 × 4 Matrix | ausrichten: {p, t} (Netz der STEP-Messung in der Datei: Lage durch Ausrichten der
+  Hauptträgheitsachsen und Abgleich der Oberfläche) | daneben: true (ohne Lage, neben die Baugruppe)}]} wird jedes
+  Teil einmal gebaut und als Komponente eingesetzt (echte STEP-Baugruppe). Grundkörper 'netz' = Dreiecksnetz {p, t}
+  (Teil, das nur als Netz der STEP-Messung vorliegt).
+
 Aufruf:
     STEP-Import.exe --export BAUPLAN.json --step ZIEL.step [--ergebnis ERGEBNIS.json]
     python step_schreiben.py BAUPLAN.json ZIEL.step [ERGEBNIS.json]
@@ -110,6 +116,8 @@ def grundkoerper(k):
     if k["art"] == "platte":
         f = flaeche(k["aussen"], k.get("loecher") or [])
         return _prisma(f, float(k["dicke"]))
+    if k["art"] == "netz":
+        return netz_koerper(k["p"], k["t"])
     raise ValueError(f"Grundkörper {k['art']!r} unbekannt")
 
 
@@ -548,12 +556,262 @@ def teil_bauen(teil):
     return k, meldungen
 
 
-def schreiben(bauplan, ziel):
-    """Alle Teile bauen und als STEP schreiben -> Ergebnis (dict)."""
+# ------------------------------------------------------------------ Baugruppe (3E-14)
+ABSTAND_DANEBEN = 50.0  # Teile ohne Lage so weit neben die Baugruppe [mm]
+PROBE = 1500            # so viele Punkte je Oberfläche beim Ausrichten
+
+
+def _trsf(m):
+    from OCP.gp import gp_Trsf
+    t = gp_Trsf()
+    t.SetValues(*[float(x) for x in m])
+    return t
+
+
+def _dreiecke(k):
+    """Dreiecke der Oberfläche eines Körpers (BRepMesh) als [(p1, p2, p3)]."""
+    from OCP.BRep import BRep_Tool
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS
+    BRepMesh_IncrementalMesh(k, 0.2, False, 0.3, True)
+    out, ex = [], TopExp_Explorer(k, TopAbs_FACE)
+    while ex.More():
+        loc = TopLoc_Location()
+        tri = BRep_Tool.Triangulation_s(TopoDS.Face(ex.Current()), loc)
+        ex.Next()
+        if tri is None:
+            continue
+        tr = loc.Transformation()
+        pts = [tri.Node(i).Transformed(tr) for i in range(1, tri.NbNodes() + 1)]
+        for i in range(1, tri.NbTriangles() + 1):
+            out.append(tuple((q.X(), q.Y(), q.Z()) for q in (pts[j - 1] for j in tri.Triangle(i).Get())))
+    return out
+
+
+def _flaechen_punkte(dreiecke, n=PROBE):
+    """Gleichmäßig verteilte Punkte auf einer Oberfläche aus Dreiecken (nach Fläche), höchstens etwa n."""
+    flaechen = [0.5 * math.sqrt(sum(c * c for c in _kreuz3(_sub3(b, a), _sub3(c, a)))) for a, b, c in dreiecke]
+    gesamt = sum(flaechen) or 1.0
+    out = []
+    for (a, b, c), f in zip(dreiecke, flaechen):
+        k = max(1, round(math.sqrt(f / gesamt * n * 2)))
+        for i in range(k):
+            for j in range(k - i):
+                u, v = (i + 1 / 3) / k, (j + 1 / 3) / k
+                out.append(tuple(a[q] + (b[q] - a[q]) * u + (c[q] - a[q]) * v for q in range(3)))
+    return out
+
+
+def _sub3(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _kreuz3(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def _traegheit(punkte):
+    """Schwerpunkt und Hauptachsen (Spalten, nach Größe der Streuung) einer Punktwolke (Jacobi-Verfahren)."""
+    n = len(punkte)
+    c = [sum(p[i] for p in punkte) / n for i in range(3)]
+    m = [[sum((p[i] - c[i]) * (p[j] - c[j]) for p in punkte) / n for j in range(3)] for i in range(3)]
+    v = [[1.0 if i == j else 0.0 for j in range(3)] for i in range(3)]
+    for _ in range(50):
+        i, j = max(((0, 1), (0, 2), (1, 2)), key=lambda q: abs(m[q[0]][q[1]]))
+        if abs(m[i][j]) < 1e-12:
+            break
+        th = 0.5 * math.atan2(2 * m[i][j], m[j][j] - m[i][i])
+        co, si = math.cos(th), math.sin(th)
+        for k in range(3):
+            a_, b_ = m[k][i], m[k][j]
+            m[k][i], m[k][j] = co * a_ - si * b_, si * a_ + co * b_
+        for k in range(3):
+            a_, b_ = m[i][k], m[j][k]
+            m[i][k], m[j][k] = co * a_ - si * b_, si * a_ + co * b_
+        for k in range(3):
+            a_, b_ = v[k][i], v[k][j]
+            v[k][i], v[k][j] = co * a_ - si * b_, si * a_ + co * b_
+    ordnung = sorted(range(3), key=lambda k: -m[k][k])
+    return c, [[v[r][k] for r in range(3)] for k in ordnung]
+
+
+class _Raster:
+    """Punkte im Würfelraster für die Suche des nächsten Punkts."""
+
+    def __init__(self, punkte, zelle):
+        self.z, self.zellen = zelle, {}
+        for p in punkte:
+            self.zellen.setdefault(tuple(int(math.floor(c / zelle)) for c in p), []).append(p)
+
+    def abstand(self, p, weit=2):
+        k = tuple(int(math.floor(c / self.z)) for c in p)
+        best = None
+        for dx in range(-weit, weit + 1):
+            for dy in range(-weit, weit + 1):
+                for dz in range(-weit, weit + 1):
+                    for q in self.zellen.get((k[0] + dx, k[1] + dy, k[2] + dz), ()):
+                        d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2
+                        if best is None or d < best:
+                            best = d
+        return math.sqrt(best) if best is not None else self.z * (weit + 1)
+
+
+def ausrichten(k, p, t):
+    """Lage des gebauten Teils k in der Datei aus dem Netz der STEP-Messung (Punkte p flach, Dreiecke t, in der
+    Datei): Hauptachsen beider Oberflächen aufeinander, von den 24 Drehungen die mit der kleinsten mittleren
+    Abweichung der Oberflächen. Ergebnis (3 × 4 Matrix, mittlere Abweichung [mm])."""
+    pts = [tuple(p[i:i + 3]) for i in range(0, len(p), 3)]
+    netz = _flaechen_punkte([(pts[t[i]], pts[t[i + 1]], pts[t[i + 2]]) for i in range(0, len(t), 3)])
+    eigen = _flaechen_punkte(_dreiecke(k))
+    if len(netz) < 4 or len(eigen) < 4:
+        raise ValueError("zu wenig Punkte zum Ausrichten")
+    c_n, a_n = _traegheit(netz)
+    c_e, a_e = _traegheit(eigen)
+    groesse = max(max(q[i] for q in netz) - min(q[i] for q in netz) for i in range(3))
+    zelle = max(groesse / 30, 0.5)
+    r_netz, best = _Raster(netz, zelle), None
+    stich_e, stich_n = eigen[::max(1, len(eigen) // 400)], netz[::max(1, len(netz) // 400)]
+    for perm in ((0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0)):
+        for vz in ((1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1), (-1, -1, -1), (-1, 1, 1), (1, -1, 1),
+                   (1, 1, -1)):
+            r = [[sum(vz[i] * a_n[perm[i]][z] * a_e[i][s_] for i in range(3)) for s_ in range(3)] for z in range(3)]
+            det = (r[0][0] * (r[1][1] * r[2][2] - r[1][2] * r[2][1]) - r[0][1] * (r[1][0] * r[2][2] - r[1][2] * r[2][0])
+                   + r[0][2] * (r[1][0] * r[2][1] - r[1][1] * r[2][0]))
+            if det < 0:
+                continue
+            tr = [c_n[z] - sum(r[z][s_] * c_e[s_] for s_ in range(3)) for z in range(3)]
+            bewegt = [tuple(sum(r[z][s_] * q[s_] for s_ in range(3)) + tr[z] for z in range(3)) for q in stich_e]
+            fehler = sum(r_netz.abstand(q) for q in bewegt) / len(bewegt)
+            if best is not None and fehler >= best[0]:
+                continue
+            r_eigen = _Raster(bewegt, zelle)
+            fehler = (fehler + sum(r_eigen.abstand(q) for q in stich_n) / len(stich_n)) / 2
+            if best is None or fehler < best[0]:
+                best = (fehler, [r[0][0], r[0][1], r[0][2], tr[0], r[1][0], r[1][1], r[1][2], tr[1],
+                                 r[2][0], r[2][1], r[2][2], tr[2]])
+    return best[1], best[0]
+
+
+def _box(formen):
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    box = Bnd_Box()
+    for f in formen:
+        BRepBndLib.Add_s(f, box)
+    if box.IsVoid():
+        return None
+    a, b = box.CornerMin(), box.CornerMax()
+    return [a.X(), a.Y(), a.Z(), b.X(), b.Y(), b.Z()]
+
+
+def baugruppe_schreiben(bauplan, ziel):
+    """Baugruppe: jedes Teil einmal bauen, als Komponenten in ihrer Lage einsetzen, Unterbaugruppen wie im Bauplan;
+    als STEP schreiben -> Ergebnis (dict) mit teile (je Teil), einsaetze, hinweise, box (alles in der Datei)."""
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDataStd import TDataStd_Name
+    from OCP.TDocStd import TDocStd_Document
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.XCAFDoc import XCAFDoc_DocumentTool
+    from OCP.gp import gp_Trsf, gp_Vec
+    doc = TDocStd_Document(TCollection_ExtendedString("XmlOcaf"))
+    st = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
+    teile, formen, labels, hinweise = [], [], [], []
+    for teil in bauplan.get("teile") or ():
+        try:
+            k, meldungen = teil_bauen(teil)
+        except Exception as ex:
+            k, meldungen = None, [f"nicht gebaut ({ex})"]
+            hinweise.append(f"{teil.get('name') or 'Teil'}: nicht gebaut ({ex})")
+        formen.append(k)
+        if k is None:
+            labels.append(None)
+            teile.append(dict(name=teil.get("name"), meldungen=meldungen, gueltig=False))
+            continue
+        lab = st.AddShape(k, False)
+        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(teil.get("name") or "Teil")))
+        labels.append(lab)
+        teile.append(dict(name=teil.get("name"), meldungen=meldungen, **_kennwerte(k)))
+    gesetzt, daneben = [], []          # (Knoten-Label, Teil-Nr., Trsf) bzw. ohne Lage
+
+    def name(lab, text):
+        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(text or "Baugruppe")))
+
+    def knoten(spec, eltern):
+        lab = st.NewShape()
+        name(lab, spec.get("name"))
+        for e in spec.get("einsatz") or ():
+            nr = int(e["teil"])
+            if formen[nr] is None:
+                continue
+            if e.get("lage"):
+                gesetzt.append((lab, nr, _trsf(e["lage"])))
+            elif e.get("ausrichten"):
+                try:
+                    m, fehler = ausrichten(formen[nr], e["ausrichten"]["p"], e["ausrichten"]["t"])
+                except Exception as ex:
+                    hinweise.append(f"{teile[nr]['name']}: Lage nicht bestimmt ({ex}), neben die Baugruppe gelegt")
+                    daneben.append((lab, nr))
+                    continue
+                grenze = max(1.0, 0.02 * max(teile[nr]["box"][i + 3] - teile[nr]["box"][i] for i in range(3)))
+                if fehler > grenze:
+                    hinweise.append(f"{teile[nr]['name']}: Lage aus der STEP-Messung geschätzt (Abweichung "
+                                    f"{fehler:.1f} mm), bitte prüfen")
+                gesetzt.append((lab, nr, _trsf(m)))
+            else:
+                daneben.append((lab, nr))
+        for kind in spec.get("kinder") or ():
+            knoten(kind, lab)
+        if eltern is not None:
+            st.AddComponent(eltern, lab, TopLoc_Location())
+        return lab
+
+    knoten(bauplan["baugruppe"], None)
+    platziert = []
+    for lab, nr, tr in gesetzt:
+        st.AddComponent(lab, labels[nr], TopLoc_Location(tr))
+        platziert.append(formen[nr].Moved(TopLoc_Location(tr)))
+    box = _box(platziert) or [0.0] * 6
+    x = box[3] + ABSTAND_DANEBEN if platziert else 0.0
+    for lab, nr in daneben:
+        b = teile[nr]["box"]
+        tr = gp_Trsf()
+        tr.SetTranslation(gp_Vec(x - b[0], box[1] - b[1], box[2] - b[2]))
+        st.AddComponent(lab, labels[nr], TopLoc_Location(tr))
+        platziert.append(formen[nr].Moved(TopLoc_Location(tr)))
+        x += b[3] - b[0] + ABSTAND_DANEBEN
+    if daneben:
+        hinweise.append(f"{len(daneben)} Teil(e) ohne Lage aus der STEP-Datei neben die Baugruppe gelegt")
+    if not platziert:
+        raise ValueError("keine Teile in der Baugruppe")
+    st.UpdateAssemblies()
+    _step_schreiben(doc, ziel, bauplan["baugruppe"].get("name"))
+    return dict(ok=all(t.get("gueltig") for t in teile), teile=teile, einsaetze=len(platziert), hinweise=hinweise,
+                box=[round(c, 3) for c in _box(platziert)], volumen=round(sum(_volumen(f) for f in platziert), 3))
+
+
+def _step_schreiben(doc, ziel, produkt):
     from OCP.IFSelect import IFSelect_RetDone
     from OCP.Interface import Interface_Static
     from OCP.STEPCAFControl import STEPCAFControl_Writer
     from OCP.STEPControl import STEPControl_AsIs
+    Interface_Static.SetCVal_s("write.step.schema", "AP214IS")
+    Interface_Static.SetCVal_s("write.step.unit", "MM")
+    Interface_Static.SetCVal_s("write.step.product.name", str(produkt or "Teil"))
+    w = STEPCAFControl_Writer()
+    w.SetNameMode(True)
+    if not w.Transfer(doc, STEPControl_AsIs):
+        raise ValueError("Übertragung nach STEP fehlgeschlagen")
+    if w.Write(str(ziel)) != IFSelect_RetDone:
+        raise ValueError(f"STEP-Datei nicht geschrieben: {ziel}")
+
+
+def schreiben(bauplan, ziel):
+    """Alle Teile bauen und als STEP schreiben -> Ergebnis (dict)."""
+    if bauplan.get("baugruppe"):
+        return baugruppe_schreiben(bauplan, ziel)
     from OCP.TCollection import TCollection_ExtendedString
     from OCP.TDataStd import TDataStd_Name
     from OCP.TDocStd import TDocStd_Document
@@ -568,15 +826,7 @@ def schreiben(bauplan, ziel):
         teile.append(dict(name=teil.get("name"), meldungen=meldungen, **_kennwerte(k)))
     if not teile:
         raise ValueError("keine Teile im Bauplan")
-    Interface_Static.SetCVal_s("write.step.schema", "AP214IS")
-    Interface_Static.SetCVal_s("write.step.unit", "MM")
-    Interface_Static.SetCVal_s("write.step.product.name", str(bauplan.get("name") or teile[0]["name"] or "Teil"))
-    w = STEPCAFControl_Writer()
-    w.SetNameMode(True)
-    if not w.Transfer(doc, STEPControl_AsIs):
-        raise ValueError("Übertragung nach STEP fehlgeschlagen")
-    if w.Write(str(ziel)) != IFSelect_RetDone:
-        raise ValueError(f"STEP-Datei nicht geschrieben: {ziel}")
+    _step_schreiben(doc, ziel, bauplan.get("name") or teile[0]["name"])
     return dict(ok=all(t["gueltig"] for t in teile), teile=teile)
 
 
