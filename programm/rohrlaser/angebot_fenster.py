@@ -41,7 +41,7 @@ from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimie
 from .schritte import Schrittanzeige
 from .stangen_ansicht import MUSTER as STANGEN_MUSTER, StangenSeite
 from .teile_baum import TeileBaum
-from . import stangen_abwicklung
+from . import stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -3853,7 +3853,7 @@ class AngebotSeite(QWidget):
             menge = int(x["menge"])
             p = dict(pos=nr, art=ZUKAUFTEIL, artikel=x["artikelnr"] or x["bezeichnung"], bezeichnung=x["bezeichnung"],
                      zukauf=json.dumps([dict(artikel_id=x["artikel_id"], menge=1, stand=self.db.zukauf_stand(
-                         x["artikel_id"]))], ensure_ascii=False))
+                         x["artikel_id"]))], ensure_ascii=False), **(x.get("position") or {}))
             if bezug is None:
                 p["stueck"] = menge
             elif x["je"] == zukauf.JE_SATZ and satz:
@@ -4725,9 +4725,14 @@ class AngebotSeite(QWidget):
         self.db.profile_anlegen(erg["profile"])
         neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
                     for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
-        ohne_ek = sum(not any(b.get("preise") for b in bezuege) for _, bezuege in erg["zukauf_neu"].values())
-        if neue_ids:
-            erg["bericht"].append(f"{len(neue_ids)} Zukaufartikel (Blech) neu angelegt" + (
+        bleche_neu = [b for w, b in erg["zukauf_neu"].values() if not vollmaterial.ist_voll(w)]
+        voll_neu = len(erg["zukauf_neu"]) - len(bleche_neu)
+        ohne_ek = sum(not any(b.get("preise") for b in bezuege) for bezuege in bleche_neu)
+        if voll_neu:
+            erg["bericht"].append(f"{voll_neu} Zukaufartikel (Vollmaterial) neu angelegt, EK = Gewicht × €/kg "
+                                  "(Vorgabe Tonnenpreis des Werkstoffs, bitte prüfen); Sägen als Zusatzarbeit.")
+        if bleche_neu:
+            erg["bericht"].append(f"{len(bleche_neu)} Zukaufartikel (Blech) neu angelegt" + (
                 f", {ohne_ek} ohne EK (Blech-Werkstoff offen): bitte unter Zukaufartikel mit 'EK eintragen …' "
                 "nachtragen." if ohne_ek else ", EK = Blech-Richtpreis (bitte durch das Angebot des Lieferanten "
                                               "ersetzen)."))

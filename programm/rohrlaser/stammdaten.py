@@ -70,7 +70,7 @@ SCHRITT_SATZ = {"Programmierung": "Programmierung"}
 ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
 ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
 ZUKAUF_STATUS = ("aktiv", "archiviert")
-ZUKAUF_TYPEN = ("Blech",)              # besondere Artikeltypen (leer = normaler Zukaufartikel)
+ZUKAUF_TYPEN = ("Blech", "Rundstahl", "Vierkantstahl")   # besondere Artikeltypen (leer = normaler Zukaufartikel)
 ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot",
                   "€/h": "s"}
 
@@ -1673,7 +1673,8 @@ def beispiel_zusatzarbeiten():
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
-        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten()
+        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
+        + saege_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1705,6 +1706,16 @@ def biege_zusatzarbeiten():
     return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_BIEGEN, art="€/Stück", preis=BIEGEN_PREIS,
                  fremd="nein", angebotstext="gebogen",
                  bemerkung="Preis je Biegung; Menge = Zahl der Biegungen je Teil (STEP-Import Biegerohr)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
+
+
+def saege_zusatzarbeiten():
+    """Vorbelegung Sägen (Vollmaterial als Zukaufteil, Patrick 25.10.2026 F4 b): € je Schnitt, Menge 1 je Teil
+    (STEP-Import und Schnellanlage tragen sie ein). Beispielpreis, bitte anpassen."""
+    from .vollmaterial import SAEGEN_PREIS, ZUSATZ_SAEGEN
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_SAEGEN, art="€/Stück",
+                 preis=SAEGEN_PREIS, fremd="nein", angebotstext="gesägt",
+                 bemerkung="Preis je Schnitt; Menge = Schnitte je Teil (Vollmaterial Rund-/Vierkantstahl)",
                  kategorie="Nachbearbeitung", aktiv="ja")]
 
 

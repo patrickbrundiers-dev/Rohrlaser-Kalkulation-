@@ -1711,6 +1711,9 @@ def zusatz_menge_auto(art, p, k):
     von Hand bzw. Vorgabezeit, zusatz_vorgabe_s), sonst 1 Stück."""
     if art == "€/h":
         return None
+    if art == "€/kg" and ist_zukaufteil(p):          # Zukaufteil: Gewicht je Teil der Position
+        g = p.get("gewicht_teil")
+        return float(g) if isinstance(g, (int, float)) and g > 0 else None
     if art == "€/kg":
         kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k)
         return kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
@@ -2602,7 +2605,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
     pruefzeit_anbau = _n(einstellungen.get("pruefzeit_anbau"))      # min je Teil mit unsicher erkannten Anbauteilen
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
-    zus = _zusatz_umlegen(positionen, aktiv, laser, k, tabellen)
+    zus = _zusatz_umlegen(positionen, aktiv, laser + zk_pos, k, tabellen)   # Zukaufteile: z. B. Sägen
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
@@ -2635,7 +2638,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if i in zk_pos:
             zeilen[i] = _zukaufteil_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
                                           fracht_je[i] if c else 0, skonto,
-                                          satz_abweichung(p, positionen), gew=gew if selbst_basis else 0.0)
+                                          satz_abweichung(p, positionen), gew=gew if selbst_basis else 0.0,
+                                          zus=zus[i], zuschlaege=(zf, zfl))
             continue
         if i in bg_pos:
             zeilen[i] = _baugruppe_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
@@ -2836,14 +2840,20 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     return zeilen, summen
 
 
-def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0):
+def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zuschlaege=(0.0, 0.0)):
     """Kalkulationszeile einer Zukaufteil-Position: alle Fertigungswerte 0, Preis je Teil = (Einstand + Aufschlag der
-    Zukaufteile) × (1 + Gewinn) + Frachtanteil, mit Skonto (gew = 0: ohne Gewinn, festgeschrieben vor dem 23.10.2026). Fehlt
-    der Einkaufspreis, rechnet sie ohne ihn und meldet es."""
+    Zukaufteile + Zusatzarbeiten mit Zuschlag Fertigung bzw. Fremdleistung) × (1 + Gewinn) + Frachtanteil, mit Skonto
+    (gew = 0: ohne Gewinn, festgeschrieben vor dem 23.10.2026). Zusatzarbeiten (zus, Einträge aus _zusatz_umlegen,
+    z. B. Sägen von Vollmaterial) zählen seit 25.10.2026; ohne sie bleibt alles wie bisher. Fehlt der Einkaufspreis,
+    rechnet sie ohne ihn und meldet es."""
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
-    sk_ = zk_einst + zk_auf
-    ohne = fr + zk_einst + zk_auf if not gew else sk_ * (1 + gew) + fr
+    zf, zfl = zuschlaege
+    ze = sum(e["teil"] for e in zus if not e["fremd"])
+    zfr = sum(e["teil"] for e in zus if e["fremd"])
+    herstell = ze * (1 + zf) + zfr * (1 + zfl)
+    sk_ = zk_einst + zk_auf + herstell
+    ohne = fr + sk_ if not gew else sk_ * (1 + gew) + fr
     t_ = ohne / (1 - skonto)
     if not zk:
         hinweis = "Zukaufteil: kein Zukaufartikel"
@@ -2870,6 +2880,14 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0):
              pauschalen_teil=fr, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, hinweis=hinweis,
              gewinn_teil=sk_ * gew, selbst_teil=sk_, selbst_position=sk_ * c,
              eingeplant=None, nicht_eingeplant=None, zukaufteil=True, kundenmaterial="")
+    if zus:
+        z.update(zusatz_eigen_teil=ze, zusatz_fremd_teil=zfr, zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c,
+                 zusatzarbeiten=list(zus),
+                 zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus),
+                 zusatz_arbeit_s=sum(e.get("arbeit_s", 0.0) for e in zus),
+                 zusatz_arbeit_teil=sum(e["teil"] for e in zus if e.get("arbeit_s")),
+                 zuschlag_fertigung_teil=ze * zf, zuschlag_fremdleistung_teil=zfr * zfl,
+                 herstell_teil=herstell, herstell_position=herstell * c)
     return z
 
 

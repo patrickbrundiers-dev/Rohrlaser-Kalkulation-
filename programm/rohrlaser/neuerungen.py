@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.117", "<b>Vollmaterial als Zukaufartikel</b>: neue Artikeltypen <b>Rundstahl</b> und <b>Vierkantstahl</b> "
+                "(Ø bzw. Kante, Länge, Werkstoff); Gewicht aus der Dichte, EK je Stück = Gewicht × Preis je kg "
+                "(Vorgabe Tonnenpreis des Werkstoffs), Kategorie <i>Vollmaterial</i> ([[vollmaterial]]). Der "
+                "STEP-Import übernimmt Rund- und Vierkantstahl als Zukaufteil-Positionen (Gruppe <i>Vollmaterial</i> im "
+                "Prüfdialog, [[bleche]]), von Hand über <b>Neue Position → Zukaufteil</b> mit Art Rundstahl bzw. "
+                "Vierkantstahl. Gesägt wird über die neue Zusatzarbeit <b>Sägen</b> (€ je Schnitt); Zusatzarbeiten an "
+                "Zukaufteil-Positionen werden jetzt mitgerechnet ([[zukauf_positionen]]).",
+     "Rund- und Vierkantstahl als Zukaufartikel (EK aus €/kg, STEP-Import, Zusatzarbeit Sägen)."],
     ["0.9.116", "<b>Bedienung schneller</b>: Neues Angebot aus STEP in einem Fenster: Kunde oben im Prüfdialog, "
                 "fehlende Profile und doppelte Artikel als Häkchen statt Rückfragen, Knopf <b>Übernehmen und Angebot "
                 "(PDF)</b> ([[angebot_aus_step]]). Hinweise als Einblendung ohne OK-Klick, Löschen im Angebot ohne "

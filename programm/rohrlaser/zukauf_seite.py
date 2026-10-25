@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QListWidgetItem, QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from . import hilfe, stil, tastatur, zukauf
+from . import hilfe, stil, tastatur, vollmaterial, zukauf
 from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
 TITEL = "Zukaufartikel"
@@ -184,6 +184,14 @@ class ZukaufFormular(QWidget):
         self.blech_info.setWordWrap(True)
         self.blech_info.setStyleSheet(f"color: {GRAU};")
         self._blech_extra = {}
+        # Vollmaterial (Rund-, Vierkantstahl; vollmaterial.py): Ø bzw. Kante, Zuschnittlänge, Preis je kg -> EK je Stück
+        self.v_abm, self.v_laenge = self._zahl("Ø bzw. Kante"), self._zahl("Länge")
+        self.v_preis_kg = self._zahl("Tonnenpreis")
+        self.v_preis_kg.setToolTip("Preis je kg; leer = Tonnenpreis des Werkstoffs (Stammdaten Werkstoffe)")
+        self.voll_info = QLabel()
+        self.voll_info.setWordWrap(True)
+        self.voll_info.setStyleSheet(f"color: {GRAU};")
+        self._werkstoffe = {}
         # B Einkauf
         self.lieferanten = QListWidget()
         self.lieferanten.setMaximumHeight(62)
@@ -261,7 +269,12 @@ class ZukaufFormular(QWidget):
         self.zeile_masse = self._zeile(self.b_laenge, QLabel("×"), self.b_breite, QLabel("×"), self.b_dicke,
                                        QLabel("mm"))
         fa.addRow("Blech L × B × D", self.zeile_masse)
+        self.zeile_voll = self._zeile(self.v_abm, QLabel("mm, Länge"), self.v_laenge, QLabel("mm"))
+        fa.addRow("Ø bzw. Kante", self.zeile_voll)
         fa.addRow("Werkstoff", self.werkstoff)
+        self.zeile_kg = self._zeile(self.v_preis_kg, QLabel("€/kg"))
+        fa.addRow("Preis je kg", self.zeile_kg)
+        fa.addRow("", self.voll_info)
         fa.addRow("", self.blech_info)
         fa.addRow("", self.archiv)
         self.fa = fa
@@ -328,7 +341,8 @@ class ZukaufFormular(QWidget):
         self.setMinimumWidth(460)
 
         for w in (self.artikelnr, self.bezeichnung, self.beschreibung, self.ean, self.bemerkung, self.wert,
-                  self.verbrauch, self.b_laenge, self.b_breite, self.b_dicke):
+                  self.verbrauch, self.b_laenge, self.b_breite, self.b_dicke, self.v_abm, self.v_laenge,
+                  self.v_preis_kg):
             w.textEdited.connect(self._geaendert)
         for w in self._bezug_eingaben():
             w.textEdited.connect(self._bezug_geaendert)
@@ -474,12 +488,13 @@ class ZukaufFormular(QWidget):
             getattr(self, n).setText(a.get(n) or "")
         self.einheit.setCurrentText(a.get("einheit") or "Stück")
         self.artikeltyp.setCurrentIndex(max(self.artikeltyp.findData(a.get("artikeltyp") or ""), 0))
-        for n, w in (("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke)):
+        for n, w in (("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke),
+                     ("laenge", self.v_laenge), ("abmessung", self.v_abm), ("preis_kg", self.v_preis_kg)):
             x = a.get(n)
             w.setText(zahl_als_text(x, None, tausender=False) if isinstance(x, (int, float)) else "")
+        self._werkstoffe = {z["werkstoff_id"]: z for z in self.db.zeilen("werkstoffe") if z.get("werkstoff_id")}
         self.werkstoff.clear()
-        self.werkstoff.addItems([""] + sorted(z["werkstoff_id"] for z in self.db.zeilen("werkstoffe")
-                                              if z.get("werkstoff_id")))
+        self.werkstoff.addItems([""] + sorted(self._werkstoffe))
         self.werkstoff.setCurrentText(a.get("werkstoff") or "")
         self._blech_extra = {n: a.get(n) for n in ("herkunft", "step_datei", "fingerabdruck")}
         info = [f"angelegt aus {a['herkunft']}" if a.get("herkunft") else "",
@@ -628,9 +643,13 @@ class ZukaufFormular(QWidget):
                      aufschlag_quelle=self.quelle.currentData(), aufschlag_methode=None, aufschlag_wert=None,
                      aufschlag_staffel=None, kombiniert="nein", artikeltyp=self.artikeltyp.currentData() or None,
                      werkstoff=self.werkstoff.currentText().strip() or None, **self._blech_extra)
-        for n, w in (("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke)):
-            werte[n] = _zahl_oder_none(w.text(), zukauf.ARTIKEL.feld(n).titel, fehler, n, groesser_null=True) \
-                if werte["artikeltyp"] else None
+        voll = vollmaterial.ist_voll(werte)
+        for n, w in (("laenge", self.v_laenge if voll else self.b_laenge), ("breite", self.b_breite),
+                     ("dicke", self.b_dicke), ("abmessung", self.v_abm), ("preis_kg", self.v_preis_kg)):
+            mit = werte["artikeltyp"] == zukauf.BLECH and n in ("laenge", "breite", "dicke") or voll and n in (
+                "laenge", "abmessung", "preis_kg")
+            werte[n] = _zahl_oder_none(w.text(), zukauf.ARTIKEL.feld(n).titel, fehler,
+                                       "v_" + n if voll else n, groesser_null=True) if mit else None
         if werte["aufschlag_quelle"] == zukauf.INDIVIDUELL:
             m = self.methode.currentData()
             werte["aufschlag_methode"] = m
@@ -659,8 +678,22 @@ class ZukaufFormular(QWidget):
         self.fc.setRowVisible(self.auf_staffel, individuell and m == zukauf.STAFFEL)
         self.fc.setRowVisible(self.kombiniert, individuell)
         blech = werte["artikeltyp"] == zukauf.BLECH
-        for w in (self.zeile_masse, self.werkstoff, self.blech_info):
+        voll = vollmaterial.ist_voll(werte)
+        for w in (self.zeile_masse, self.blech_info):
             self.fa.setRowVisible(w, blech)
+        self.fa.setRowVisible(self.werkstoff, blech or voll)
+        for w in (self.zeile_voll, self.zeile_kg, self.voll_info):
+            self.fa.setRowVisible(w, voll)
+        if voll:
+            werte_v, bez_v = vollmaterial.vorbereiten(werte, self.bezuege, self._werkstoffe)
+            preis = vollmaterial.ek(werte_v.get("gewicht"), werte_v.get("preis_kg"))
+            self.voll_info.setText(
+                f"Gewicht {zahl_als_text(werte_v['gewicht'], 3)} kg je Stück" if werte_v.get("gewicht") else
+                "Gewicht: Ø bzw. Kante, Länge und Werkstoff (mit Dichte) eintragen")
+            if preis is not None:
+                self.voll_info.setText(self.voll_info.text() + f", {zahl_als_text(werte_v['preis_kg'], 2)} €/kg"
+                                       f" → EK {zahl_als_text(preis, 2)} € je Stück (wird beim Speichern beim "
+                                       "bevorzugten Lieferanten eingetragen; Sägen ist eine Zusatzarbeit im Angebot)")
         self.wert_einheit.setText("€" if m in (zukauf.JE_EINHEIT, zukauf.JE_BESTELLUNG) else "%")
         kat = self.kategorien.get(werte["kategorie"]) or {}
         r_kat = zukauf.aufschlagsregeln(dict(kategorie=werte["kategorie"]), self.kategorien, None)
@@ -678,13 +711,16 @@ class ZukaufFormular(QWidget):
             ". Achtung: Aufschlag ist nicht Marge (20 % Aufschlag auf 10,00 € = 12,00 €, 20 % Marge = 12,50 €)."
             if m in (zukauf.PROZENT, zukauf.MARGE, zukauf.STAFFEL) else "") if individuell else "")
         for n, w in (("wert", self.wert), ("preise", self.preise), ("auf_staffel", self.auf_staffel),
-                     ("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke)) + tuple(
+                     ("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke),
+                     ("v_laenge", self.v_laenge), ("v_abmessung", self.v_abm), ("v_preis_kg", self.v_preis_kg)) + tuple(
                 (n, getattr(self, n)) for n in self.BEZUG_ZAHLEN + ("gueltig_von", "gueltig_bis")):
             w.setStyleSheet(ROTER_RAHMEN if n in fehler else "")
         verbrauch = _zahl_oder_none(self.verbrauch.text(), "Verbrauch", fehler, "verbrauch", groesser_null=True) or 1
         self.verbrauch.setStyleSheet(ROTER_RAHMEN if "verbrauch" in fehler else "")
         b = self.bezuege[self.b_nr] if 0 <= self.b_nr < len(self.bezuege) else None
         meldungen = list(fehler.values())
+        if voll and b is not None:          # Vorschau mit dem EK aus Gewicht × €/kg wie nach dem Speichern
+            b = bez_v[self.b_nr] if 0 <= self.b_nr < len(bez_v) else b
         try:
             v = zukauf.vorschau(dict(werte, id=self.zeilen_id), b, self.kategorien, self.standard, verbrauch)
         except ValueError as e:
@@ -1107,6 +1143,8 @@ class ArtikelSeite(QWidget):
         extra = [x for x in (a.get("kategorie"), a.get("beschreibung")) if x]
         if a.get("ean"):
             extra.append(f"EAN {a['ean']}")
+        if vollmaterial.ist_voll(a):
+            extra.append(vollmaterial.text(a) + (f", aus {a['herkunft']}" if a.get("herkunft") else ""))
         if a.get("artikeltyp") == zukauf.BLECH:
             extra.append(zukauf.blech_bezeichnung(a.get("laenge"), a.get("breite"), a.get("dicke"), a.get("werkstoff"))
                          + (f", aus {a['herkunft']}" if a.get("herkunft") else "")
