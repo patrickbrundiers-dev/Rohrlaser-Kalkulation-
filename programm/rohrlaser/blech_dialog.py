@@ -1052,8 +1052,9 @@ class BlechDialog(QDialog):
         return hinweise
 
     def step_speichern(self, pfad=None):
-        """Ebenes Blech als STEP mit echtem Volumenkörper (step_export, Plan 3D-Editor 3E-8): Außen- und Innenkonturen
-        mit echten Bögen, Gravuren als Rille. Ohne pfad: Dateidialog im Ordner des Angebots."""
+        """Blech als STEP mit echtem Volumenkörper (step_export, Plan 3D-Editor 3E-8, gekantet 3E-13): Außen- und
+        Innenkonturen mit echten Bögen, Gravuren als Rille, Kantteile gefaltet. Ohne pfad: Dateidialog im Ordner des
+        Angebots."""
         from . import step_export
         erg = self.rechnen()
         sperre = [f for f in erg["fehler"] if f.startswith("Kontur ")] if erg.get("zuschnitt") else erg["fehler"]
