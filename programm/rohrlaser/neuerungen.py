@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.104", "<b>DXF-Import erkennt Ansichten</b>: Zeichnungen mit mehreren Ansichten ergeben keine Scheinteile "
+               "mehr. Bemaßung auf Layer MASSE, verdeckte Kanten und Schraffur fallen weg (weitere Layer in der "
+               "Einstellung). Die Isometrie ist nicht angehakt, die Seitenansicht eines Blechs liefert die Dicke, "
+               "Teile unter 5 mm (Maßpfeile) und Konturen mit offenen Linien sind nicht angehakt, mit Grund. Eine "
+               "<b>Rohrzeichnung</b> (Schnitt mit Wand und Ansicht) wird erkannt und mit Profil und Länge gemeldet, "
+               "statt sie in Bleche zu zerlegen; der Rohr-Import folgt ([[dxf_import]]).",
+     "DXF-Import: Ansichten, Isometrie, Maßpfeile und Rohrzeichnungen erkannt"],
     ["0.9.103", "<b>3D-Ansichten: Blick, Perspektive, Darstellung, exaktes Messen</b> – in allen 3D-Fenstern gleich "
                "(Teile-Editor, Positionen, STEP-Prüfdialog, Teilebaum, Schweißbaugruppe, Satz in 3D) mit Leiste und "
                "Ansichtswürfel. <i>Blick</i>: Isometrie, Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um "

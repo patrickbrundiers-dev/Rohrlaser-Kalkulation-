@@ -837,6 +837,11 @@ EINSTELLUNGEN = (
                 "AUSSENKONTUR; INNENKONTUR; BIEGUNG_HOCH; BIEGUNG_RUNTER; GRAVUR; BESCHRIFTUNG"),
     Einstellung("blech_dxf_biegelinien", "DXF: Biegelinien ausgeben", "Blech-Richtpreis", "auswahl", "ja",
                 auswahl="janein"),
+    # DXF-Import (Plan DXF-Import verbessern, Patrick 25.10.2026): Layer MASSE, VERDECKT, SCHRAFFUR, RAHMEN … sind fest
+    Einstellung("dxf_weg_layer", "DXF-Import: weitere Layer ohne Schnitt (Namen oder Wortteile, mit ; getrennt)",
+                "Blech-Richtpreis", "text", ""),
+    Einstellung("dxf_splitter", "DXF-Import: Teile kleiner als [mm] nicht anhaken (Maßpfeile, Splitter)",
+                "Blech-Richtpreis", "zahl", 5.0, 0, 100),
     Einstellung("standard_maschine", "Standard-Maschine", "Angebot", "auswahl", "T03",
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
