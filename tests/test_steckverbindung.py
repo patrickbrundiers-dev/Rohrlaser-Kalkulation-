@@ -79,11 +79,22 @@ assert {(round(dx, 1), round(dq, 1)) for dx, dq in m4["nasen"]} == {(19, 0), (-1
 m = sv.masse(dict(V, ueberstand=1), QR2, QR2)
 assert nah(m["lN"], 3) and nah(m["ende_plus"], 12) and nah(m["schlitz_l"], 2.2)    # Überstand ändert den Schlitz nicht
 assert "1, 2 oder 4" in fehler(lambda: sv.masse(dict(V, anzahl=3), QR2, QR2))
-assert "breiter als die Wand" in fehler(lambda: sv.masse(dict(V, bN=37), QR2, QR2))
+# größte Nase (Patrick 25.10.2026 „c“): gerade Wandfläche − 2 × Rand; QR 40 × 2 mit R 4 (EN): 40 − 8 − 4 = 28 mm
+Q = dict(QR2, r_aussen=None)
+assert nah(sv.nase_max(Q), 28) and nah(sv.nase_max(Q, rand=0), 32) and nah(sv.nase_max(dict(Q, r_aussen=2)), 32)
+assert nah(sv.nase_max(QR2), 36)            # scharfkantig: höchstens die Wand innen (40 − 2 × 2)
+m = sv.masse(dict(V, bN=37), QR2, Q)
+assert nah(m["bN"], 28) and m["gekuerzt"] == 28 and nah(m["schlitz_b"], 28.2) and "gekürzt" in sv.text(dict(V, bN=37), m)
+assert sv.masse(dict(V, bN=20), QR2, Q)["gekuerzt"] is None
+assert nah(sv.masse(dict(V, bN=37, rand=5), QR2, Q)["bN"], 22)
+assert nah(sv.vorgaben(Q, dict(nase_min=35))["bN"], 28) and sv.vorgaben(Q)["rand"] == 2.0
+assert nah(sv.vorgaben(Q, dict(nase_min=35, nase_rand=1))["bN"], 30)
+assert nah(sv.nase_max(RR), 56)
+assert "zu schmal" in fehler(lambda: sv.masse(dict(V, rand=20), QR2, Q))
 assert "30° bis 90°" in fehler(lambda: sv.masse(dict(V, winkel=20), QR2, QR2))
 assert "Rundrohr sein" in fehler(lambda: sv.masse(V, dict(form="Flachstahl", a=40, wand=5), QR2))
 assert "Ende des Steckers" in fehler(lambda: sv.anwenden(dict(V, stecker={}), LEER, LEER, QR2, QR2))
-ok("S2 Vorgaben (halbe Wand, min. 10 mm, Einstellungen), Wände längs, 4 Nasen, Fehler")
+ok("S2 Vorgaben (halbe Wand, min. 10 mm, Einstellungen), Wände längs, 4 Nasen, größte Nase gekürzt, Fehler")
 
 # ------------------------------------------------------------------ S3 Rundrohr und schräg
 m = sv.masse(dict(V, bN=30), RR, RR)               # Stecker RR 60 × 3: Bogenhöhe der Nase über der Sehne 30

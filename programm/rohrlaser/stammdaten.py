@@ -908,6 +908,8 @@ EINSTELLUNGEN = (
                 1, 4),
     Einstellung("steck_nase_min", "Steckverbindung: Nasenbreite mindestens [mm] (Vorgabe halbe Wandbreite)",
                 "Steckverbindung", "zahl", 10.0, 1, 100),
+    Einstellung("steck_nase_rand", "Steckverbindung: Abstand der Nase zum Eckradius je Seite [mm] (größte Nase = "
+                "gerade Wandfläche − 2 × Wert)", "Steckverbindung", "zahl", 2.0, 0, 50),
     Einstellung("steck_spiel", "Steckverbindung: Spiel je Seite im Schlitz [mm]", "Steckverbindung", "zahl", 0.1, 0,
                 2),
     Einstellung("steck_ueberstand", "Steckverbindung: Überstand der Nase über die Aufnahme [mm]", "Steckverbindung",
