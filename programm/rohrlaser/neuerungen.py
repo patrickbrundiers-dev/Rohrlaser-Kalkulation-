@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.107", "<b>STEP speichern</b> im Rohr- und Blech-Editor (Menüband <i>Ausgabe</i>): das Teil als STEP-Datei "
+                "mit echtem Volumenkörper, wie im 3D-Modell. Rohr mit echtem Außenradius, Gehrung, 3D-Schnitt, "
+                "Sattel, Bohrungen als Zylinder, Langlöcher und Rechtecke mit echten Bögen, Ausklinkungen, Nasen der "
+                "Steckverbindung und Gravuren als Rille 0,1 mm tief mit 0,5 mm Abstand; ebene Bleche (auch aus dem "
+                "DXF-Import) mit echten Bögen ([[step_export]]).",
+     "STEP speichern: Rohr und ebenes Blech als Volumenkörper"],
     ["0.9.106", "<b>DXF-Import erkennt Ansichten</b>: Zeichnungen mit mehreren Ansichten ergeben keine Scheinteile "
                "mehr. Bemaßung auf Layer MASSE, verdeckte Kanten und Schraffur fallen weg (weitere Layer in der "
                "Einstellung). Die Isometrie ist nicht angehakt, die Seitenansicht eines Blechs liefert die Dicke, "

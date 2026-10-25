@@ -587,6 +587,11 @@ class EditorRahmen(QObject):
         else:
             g.knopf("Zeichnung als PDF", "pdf", lambda: d.zeichnung_pdf(), tipp=d.zeichnung_knopf.toolTip())
             g.knopf("DXF speichern", "dxf", lambda: d.dxf_speichern(), tipp=d.dxf_knopf.toolTip())
+        self.step_export_knopf = g.knopf(
+            "STEP speichern", "step", lambda: d.step_speichern(),
+            tipp="Das Teil als STEP-Datei mit echtem Volumenkörper speichern (für CAD und Kunden): " +
+                 ("Gehrungen, Ausklinkungen, Konturen, Nasen und Gravuren wie im 3D-Modell" if rohr else
+                  "Außen- und Innenkonturen mit echten Bögen, Gravuren als Rille 0,1 mm tief; nur ebene Bleche"))
         self.band.eingeklappt_geaendert.connect(lambda an: self._merken("editor_band_zu", an))
         if self._einstellung("editor_band_zu", False) is True:
             self.band.einklappen(True)

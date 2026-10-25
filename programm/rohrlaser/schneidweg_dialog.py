@@ -821,6 +821,29 @@ class SchneidwegDialog(QDialog):
         ziel = seite._ziel(f"Zeichnung Pos {self.p.get('pos') or ''} {self.p.get('artikel') or ''}".strip(), ".pdf")
         return seite._schreiben("Zeichnung", ziel, schreiben)
 
+    def step_speichern(self, pfad=None):
+        """Teil als STEP mit echtem Volumenkörper (step_export, Plan 3D-Editor 3E-8): Gehrungen, Ausklinkungen,
+        Konturen, Nasen und Gravuren wie im 3D-Modell. Ohne pfad: Dateidialog im Ordner des Angebots."""
+        from . import step_export
+        if getattr(self, "biegerohr", None):
+            QMessageBox.information(self, "STEP speichern", "Ein Biegerohr kommt aus der STEP-Datei des Kunden: "
+                                    "bitte diese weitergeben, der STEP-Export baut nur gerade Rohre.")
+            return None
+        self.rechnen()
+        laenge = self.k_laenge.value() if getattr(self, "neu", False) and hasattr(self, "k_laenge") \
+            else self.p.get("laenge")
+        try:
+            plan = step_export.rohr_teil(self.eingaben(), self.profil, laenge, step_export.teilname(self.p),
+                                         grenze=self.schwenk_grenze(), artikel=self.p.get("artikel"),
+                                         gravur_h=self.p.get("bg_gravur"))
+        except (ValueError, TypeError, ZeroDivisionError) as x:
+            QMessageBox.warning(self, "STEP speichern", f"Kein 3D-Modell aus den Eingaben: {x}")
+            return None
+        if self.knick:
+            plan["meldungen"].append("Knickrahmen: als gestrecktes Rohr mit V-Ausschnitten (vor dem Knicken)")
+        name = f"Pos {self.p.get('pos') or ''} {self.p.get('artikel') or ''}".strip()
+        return step_export.speichern_dialog(self, plan, name, pfad)
+
     # ------------------------------------------------------------------ Eingaben
     def zeile_neu(self, z, rechnen_=True):
         self.tabelle.blockSignals(True)

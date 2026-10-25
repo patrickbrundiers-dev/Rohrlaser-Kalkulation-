@@ -32,6 +32,9 @@ Fortschritt auf stdout: "[n/m] Datei" je fertiger Datei und JSON-Zeilen {"datei"
   "koerper": k, "koerper_n": K} je Körper (mit Zeitlimit). Die Messwerte stehen schon während der Messung je fertiger
   Datei in der Ausgabe (Teilergebnis bei Abbruch); am Ende wird sie in der Reihenfolge der Dateien neu geschrieben.
 
+STEP-Export (Plan 3D-Editor 3E-8): STEP-Import.exe --export BAUPLAN.json --step ZIEL.step --ergebnis ERGEBNIS.json
+  baut Volumenkörper aus einem Bauplan des Programms (step_schreiben.py).
+
 DATEILISTE.txt: ein Pfad je Zeile (UTF-8). Rückgabewert 0 = alle Dateien gelesen,
 1 = mindestens eine Datei mit Fehler (steht in der Spalte "fehler"), 2 = Aufruf falsch.
 """
@@ -458,6 +461,10 @@ def _teil_schreiben(pfad, zs):
 
 
 def main(argv=None):
+    rest = list(sys.argv[1:] if argv is None else argv)
+    if rest[:1] == ["--export"]:            # STEP-Export (3E-8): dieselbe .exe baut und schreibt Volumenkörper
+        import step_schreiben
+        return step_schreiben.main(rest)
     ap = argparse.ArgumentParser(description="STEP-Dateien messen (für den STEP-Import der Angebotskalkulation)")
     ap.add_argument("--ausgabe", required=True, help="Textdatei für die Messwerte")
     ap.add_argument("--liste", help="Textdatei mit einem STEP-Pfad je Zeile")

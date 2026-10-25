@@ -1051,6 +1051,26 @@ class BlechDialog(QDialog):
             QMessageBox.information(self, "DXF gespeichert", "Gespeichert. Bitte prüfen:\n– " + "\n– ".join(hinweise))
         return hinweise
 
+    def step_speichern(self, pfad=None):
+        """Ebenes Blech als STEP mit echtem Volumenkörper (step_export, Plan 3D-Editor 3E-8): Außen- und Innenkonturen
+        mit echten Bögen, Gravuren als Rille. Ohne pfad: Dateidialog im Ordner des Angebots."""
+        from . import step_export
+        erg = self.rechnen()
+        sperre = [f for f in erg["fehler"] if f.startswith("Kontur ")] if erg.get("zuschnitt") else erg["fehler"]
+        if sperre:
+            QMessageBox.warning(self, "STEP speichern", "Erst die Eingaben korrigieren: " + "; ".join(sperre))
+            return None
+        kopf = self.kopf_werte()
+        name = kopf["artikelnr"] or kopf["bezeichnung"] or "Blech"
+        try:
+            plan = step_export.blech_teil(self.eingaben(), erg["zuschnitt"], name)
+        except ValueError as x:
+            self.step_ergebnis = dict(ok=False, fehler=str(x), teile=[])
+            if not getattr(self, "stumm", False):
+                QMessageBox.information(self, "STEP speichern", str(x))
+            return None
+        return step_export.speichern_dialog(self, plan, name, pfad)
+
     def zeichnung_pdf(self, pfad=None):
         """Zeichnung als PDF (zeichnung.blech_pdf). Ohne pfad: in die Ablage des Angebots schreiben und öffnen (ohne
         Angebot: Dateidialog). Ergebnis: Pfad oder None."""

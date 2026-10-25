@@ -216,13 +216,14 @@ def nasen_stuecke(e, profil, laenge, nasen_winkel=None):
     return (n or {}).get("nasen") or []
 
 
-def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None):
+def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, bau=None):
     """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt.
     naht_winkel: Lage der Längsschweißnaht (naht.py, von Ende A gesehen 0° oben, 90° rechts) als rote Linie 'NL'
     über die ganze Länge (Patrick 24.10.2026), None = keine feste Naht. grenze: Kopfschwenk der Maschine [°] für
     Enden in 3D (schnittflaeche.py: 2D Strahl senkrecht zum Mantel, 3D bis zur Grenze, darüber gelb 'GB').
     Nasen einer Steckverbindung (Block 'nasen' an Ende a/b) sind als Laschen der Wand über den Schnitt hinaus
-    modelliert (nasen_stuecke); nasen_winkel = {Ende: Winkel der ersten Nase} statt der Vorgabe (nasen_lage)."""
+    modelliert (nasen_stuecke); nasen_winkel = {Ende: Winkel der ersten Nase} statt der Vorgabe (nasen_lage).
+    bau: dict, das die Rechengrößen aufnimmt (STEP-Export step_export.py: Querschnitt, Umrisse, Enden za/zb, Löcher)."""
     L = _z(laenge)
     if L <= 0:
         return None
@@ -529,6 +530,9 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None):
         schritte = max(1, int(abs(x1 - x0) // 50))
         zug = [_xyz(x0 + (x1 - x0) * i / schritte, u, v) for i in range(schritte + 1)]
         linie("NL", zug, _xyz(0, pt[0] / r, pt[1] / r), "naht")
+    if bau is not None:
+        bau.update(qs=qs, umriss=umriss, aussen=aussen, innen=innen, cum=cum, T=T, za=za, zb=zb, ort=ort, L=L,
+                   loch_zeile=loch_zeile, nasen=nasen, plus=plus)
     out = dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True,
                geo=geometrie(e, qs, L))
     if stuecke:
