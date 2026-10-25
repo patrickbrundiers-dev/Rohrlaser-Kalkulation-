@@ -188,7 +188,17 @@ def entfernen(eingaben, vid):
         if x and x["id"] == vid:
             neu[s] = {k: w for k, w in eingaben[s].items() if k != "nasen"}
             weniger += _z(x.get("laenge_plus"))
+            if s == "a":
+                _marken_schieben(neu, -_z(x.get("laenge_plus")))
     return neu, weniger
+
+
+def _marken_schieben(e, dx):
+    """Montagemarken am Ende E um dx verschieben, wenn das Teil an Ende A länger bzw. kürzer wird (Nasen), damit sie
+    hinter dem Schnitt des Endes E bleiben."""
+    if dx:
+        e["konturen"] = [dict(z, x=round(_z(z.get("x")) + dx, 3)) if z.get("marke_ende") == "b" and
+                         str(z.get("quelle") or "").startswith(MARKE + " ") else z for z in e.get("konturen") or ()]
 
 
 def anwenden(v, eingaben_a, eingaben_s, profil_a, profil_s, laengen=None, hinweise=None):
@@ -208,6 +218,8 @@ def anwenden(v, eingaben_a, eingaben_s, profil_a, profil_s, laengen=None, hinwei
         blk = nasen_block(v, profil_a, profil_s)
         s[ende] = dict(s.get(ende) or {}, nasen=blk)
         plus += blk["laenge_plus"]
+        if ende == "a":
+            _marken_schieben(s, blk["laenge_plus"])
     if str(v.get("marke") or "").strip() and laengen:
         la, ls = laengen
         za, zs, h = marken_zeilen(v, a, s, profil_a, profil_s, la, None if ls is None else ls + plus)
@@ -312,7 +324,7 @@ def marken_zeilen(v, e_a, e_s, profil_a, profil_s, laenge_a, laenge_s):
     if plat is None:
         hinweise.append(f"Montagemarke {text_}: kein Platz am Ende des Steckers, nicht graviert")
     else:
-        zs.append(zeile(plat, seite, q))
+        zs.append(dict(zeile(plat, seite, q), marke_ende=ende))
     return za, zs, hinweise
 
 

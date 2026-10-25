@@ -64,6 +64,16 @@ _, st2, plus2 = sv.anwenden(v2, LEER, gehr, QR, QR, (500.0, 300.0), h)
 qs = sk.Querschnitt(QR)
 tiefe = max(sk.schnitt_x(qs, gehr["b"], *qs.s_zu_uv(sk.naht_s(qs, 90.0) + d)[0]) for d in (-5, 0, 5))
 assert ms2["seite"] == "vorne" and ms2["x"] + b / 2 <= 300.0 + plus2 - tiefe - plus2 - 0.5 + 1e-6, (ms2, tiefe)
+# erst Ende E, dann Ende A: die Marke am Ende E wandert mit der längeren Rohlänge mit (und zurück beim Entfernen)
+vb = dict(sv.neu(dict(id=1), dict(id=2), QR, {}, ende="b", x=300, seite="oben"), marke="8", marke_h=10.0)
+va = dict(sv.neu(dict(id=3), dict(id=2), QR, {}, ende="a", x=300, seite="oben"), marke="9", marke_h=10.0)
+_, sb, pb = sv.anwenden(vb, LEER, LEER, QR, QR, (500.0, 300.0), h)
+xb = marken(sb)[0]["x"]
+_, sab, pa = sv.anwenden(va, LEER, sb, QR, QR, (500.0, 300.0 + pb), h)
+m8 = next(z for z in marken(sab) if z["text"] == "8")
+assert abs(m8["x"] - (xb + pa)) < 1e-6 and 300.0 + pb + pa - m8["x"] == 300.0 + pb - xb, (m8, xb, pa)
+zur, _ = sv.entfernen(sab, va["id"])
+assert abs(marken(zur)[0]["x"] - xb) < 1e-6
 # Rundrohr als Aufnahme: Seite als Winkel
 auf3, _, _ = sv.anwenden(dict(v, seite="90°"), LEER, LEER, RR, QR, (500.0, 300.0), h)
 assert marken(auf3)[0]["seite"] == "90°"
