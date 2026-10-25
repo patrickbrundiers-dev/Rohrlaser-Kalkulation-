@@ -4274,7 +4274,8 @@ class AngebotSeite(QWidget):
             knick = {n: self.db.einstellung(f"knick_{n}") for n in ("z", "freistich", "k")}
             dlg = StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
                                   zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren,
-                                  maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)))
+                                  maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)),
+                                  maschine=rechnen.maschine(self.kopf, self.k))
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None

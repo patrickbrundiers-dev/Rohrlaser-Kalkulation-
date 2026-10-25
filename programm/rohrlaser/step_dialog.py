@@ -130,12 +130,12 @@ class StepPruefDialog(QDialog):
     SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
-                 knick_vorgaben=None, step_kopieren=None, maschine_3d=False):
+                 knick_vorgaben=None, step_kopieren=None, maschine_3d=False, maschine=None):
         from . import step
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
-        step.offene_rohre_vorbelegen(messwerte, k.profile)     # offenes Rohr: geschlossen nur aus den Stammdaten
+        step.offene_rohre_vorbelegen(messwerte, k.profile, maschine)    # offenes Rohr: immer Rohr, außer zu groß
         from . import knickverbindung
         for m in messwerte:     # Knickrahmen aus einem Körper (K1-3), geknickt oder gestreckt gezeichnet
             if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:

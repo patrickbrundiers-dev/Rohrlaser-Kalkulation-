@@ -1,22 +1,26 @@
 """Offene Rohre aus dem Rohr lasern (Patrick 25.10.2026, Freigabe „Alle a“, danach „Nur vielleicht 2 mm die Fläche
-schließen nicht komplett“ und „Je ein Steg 2 mm an beiden Enden“): Kunden zeichnen Quadrat- oder Rechteckrohre oft
-als gekantetes Blech mit einer offenen Seite (U offen, C mit Längsschlitz, U mit einer Lasche). Gefertigt wird das
-Teil auf dem Rohrlaser aus dem geschlossenen Rohr: Von der offenen Seite bleibt an Ende A und Ende B je ein Steg
-STEG (2 mm) stehen, damit das Teil ein Rohr bleibt, dazwischen wird die Wand als Fenster ausgeschnitten (Innenkontur
-im Schneidweg). Ein schmaler Spalt bis SPALT_MAX (2 mm) wird ganz geschlossen (ein Fenster wäre dort sinnlos).
+schließen nicht komplett“, „Je ein Steg 2 mm an beiden Enden“, „die Rohre auch Außenradius etc haben … an der
+importierten Datei nichts ändern, errechnen welches nächstgrößere Rohr es ist“): Kunden zeichnen Quadrat- oder
+Rechteckrohre oft als gekantetes Blech mit einer offenen Seite (U offen, C mit Längsschlitz, U mit einer Lasche) und
+Rundrohre als Halbschale. Gefertigt wird das Teil auf dem Rohrlaser aus dem geschlossenen Rohr: an Ende A und Ende B
+bleibt je ein Ring STEG (2 mm) des ganzen Rohrs stehen (Querschnitt des nächstgrößeren Normrohrs, step_normrohre, mit
+Außenradius nach EN 10219), dazwischen wird die offene Seite als Fenster ausgeschnitten (Innenkontur im Schneidweg).
+Ein schmaler Spalt bis SPALT_MAX (2 mm) wird ganz geschlossen (ein Fenster wäre dort sinnlos). Die Datei selbst bleibt
+unverändert.
 
-Erkennung: gleich dicke Wände, Querschnitt mit einer Kontur in einem Hüllrechteck, drei Seiten mit Material belegt,
-eine Seite über die ganze Länge offen (an allen Messlagen dieselbe Lücke). Öffnungen, die nicht über die ganze
-Länge gehen, sind Ausschnitte und bleiben (Frage 3 a); Laschen und Schlitzränder bleiben stehen, das Fenster liegt
-genau über der Lücke (Frage 4 a). Wand bzw. Stege füllen je Lücke den Bereich zwischen den Rändern (Blechdicke,
-Hüllrechteck außen); die Enden folgen den Nachbarwänden (Frage 2 a): Verlauf der gegenüberliegenden Wand, quer dazu die Steigung der
-Seitenwände, damit wird ein gerades Ende gerade und eine Gehrung eine Gehrung.
+Erkennung (Kastenrohr): gleich dicke Wände, Querschnitt mit einer Kontur in einem Hüllrechteck, drei Seiten mit
+Material belegt, eine Seite über die ganze Länge offen (an allen Messlagen mit vollem Querschnitt dieselbe Lücke;
+Lagen, an denen die Seitenwände ausgeschnitten sind, zählen nicht). Öffnungen, die nicht über die ganze Länge gehen,
+sind Ausschnitte und bleiben (Frage 3 a); Laschen und Schlitzränder bleiben stehen, das Fenster liegt genau über der
+Lücke (Frage 4 a). Die Enden der Ringe und der Wand folgen den Nachbarwänden (Frage 2 a): Verlauf der
+gegenüberliegenden Wand, quer dazu die Steigung der Seitenwände, damit wird ein gerades Ende gerade und eine Gehrung
+eine Gehrung.
 
-Der Körper mit Stegen wird wie jedes Rohr gemessen (Querschnitt aus dem geschlossenen Rohr, Konturen der vorhandenen
-Wände bleiben, das Fenster ist eine Innenkontur). Ergebnis: Teil als Quadrat-/Rechteckrohr mit offene_seite (Seite,
-Lücken, Länge, Steg) in t.geschlossen der offenen Messung; deren Netz zeigt die Stege bzw. den geschlossenen Spalt als
-Art „EO“ (im Programm rot „EW“, sobald das Teil als Rohr gilt). Ob das Rohr vorgeschlagen wird, entscheidet das Programm (nur, wenn es das
-Rohr in den Stammdaten gibt, Frage 1 a, step.offene_rohre_vorbelegen)."""
+Der Körper mit Ringen wird wie jedes Rohr gemessen (Querschnitt aus dem geschlossenen Rohr, Konturen der vorhandenen
+Wände bleiben, das Fenster ist eine Innenkontur). Ergebnis: Teil als Quadrat-/Rechteck-/Rundrohr mit offene_seite
+(Seite, Lücken, Länge, Steg) in t.geschlossen der offenen Messung; deren Netz zeigt die Ringe bzw. den geschlossenen
+Spalt als Art „EO“ (im Programm rot „EW“, sobald das Teil als Rohr gilt). Ob das Rohr vorgeschlagen wird, entscheidet
+das Programm (nur, wenn es das Rohr in den Stammdaten gibt, Frage 1 a, step.offene_rohre_vorbelegen)."""
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
@@ -26,6 +30,7 @@ from OCP.gp import gp_Dir, gp_Lin, gp_Pnt, gp_Trsf
 import math
 
 import step_geometrie as g
+import step_normrohre
 
 HINWEIS = "Offenes Rohr"
 KANDIDATEN = ("U-Profil", "C-Profil", "offenes Sonderprofil", "Blech gekantet")
@@ -222,17 +227,9 @@ def _knicke(pts):
     return out + [pts[-1]] if len(pts) > 3 else list(pts)
 
 
-def wand(e, d, ueberlapp=True, fenster=0.0):
-    """Ergänzte Wand je Lücke als Körper im lokalen System: (Körper, Lückenbereiche, quer, Schichten = je Körper die
-    Endlinien (Ende A, Ende B) außen und innen); ueberlapp: die Wand reicht um die Blechdicke in die Ränder (zum
-    Verschmelzen), sonst genau die Lücke (3D-Ansicht).
-    Enden (Frage 2 a): Verlauf der gegenüberliegenden Wand (z je u), quer dazu die Steigung der Seitenwände (z je v,
-    zwischen linker und rechter Seitenwand gemittelt). Ein gerades Ende bleibt gerade, eine Gehrung oder ein Schnitt
-    nur über einen Teil der Breite wird übernommen.
-    fenster > 0: statt der Wand das Fenster zwischen den Stegen (je fenster mm an Ende A und B), genau über der Lücke
-    und nach außen und innen etwas über die Wand hinaus (zum Ausschneiden aus dem geschlossenen Rohr)."""
-    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon
-    from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+def _rahmen(e, d):
+    """Lage der offenen Seite im lokalen System: (lok, quer, uv_zu_xyz, a, b (Seite von, bis), v_aussen, innen
+    (Richtung nach innen, ±1), v_lo, v_hi (Wandschicht), v_gm (Mitte der gegenüberliegenden Wand), versatz)."""
     x0, y0, x1, y1 = e["huelle"]
     seite, lok = e["seite"], e["lok"]
     quer = seite in ("unten", "oben")
@@ -257,6 +254,155 @@ def wand(e, d, ueberlapp=True, fenster=0.0):
         for v in (v_lo, v_hi):
             z_v = _seite_z(lok, uv_zu_xyz, u_s, min(max(v, v_lo + 0.05), v_hi - 0.05), mitte)
             versatz[u_s, v] = (0.0, 0.0) if z_g is None or z_v is None else (z_v[0] - z_g[0], z_v[1] - z_g[1])
+    return lok, quer, uv_zu_xyz, a, b, v_aussen, innen, v_lo, v_hi, v_gm, versatz
+
+
+def ring(e, d, steg, anzeige=False):
+    """Je ein Ring des ganzen Rohrquerschnitts (Patrick 25.10.2026: „die Rohre auch Außenradius etc haben … nicht nur
+    einen Steg dazwischen“) an Ende A und B, steg mm breit, als Körper im lokalen System, und die Außenhaut des Rohrs
+    über die ganze Länge (für die Messung des Querschnitts); None bei Fehler.
+    Querschnitt: Rohr in der Hülle des Teils bzw. das nächstgrößere Normrohr darum (Patrick: „errechnen welches
+    nächstgrößere Rohr es ist und dann darauf die Stege anpassen“), Außenradius nach EN 10219 (2 × Wand bis 6 mm, 2,5 × bis 10 mm, darüber
+    3 × Wand; wie optimierung.aussenradius), innen Außenradius − Wand. Der Ring folgt den Enden wie die Wand (wand):
+    Verlauf der gegenüberliegenden Wand, quer dazu die Steigung der Seitenwände, über die ganze Hülle verlängert."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+    lok, quer, uv_zu_xyz, a, b, v_aussen, innen, v_lo, v_hi, v_gm, versatz = _rahmen(e, d)
+    x0, y0, x1, y1 = e["huelle"]
+    # nächstgrößeres Normrohr (step_normrohre) als Profil; gemessen wird in der Hülle des Teils (die Wände liegen auf
+    # dem Rohr, bis ABWEICHUNG Unterschied; die Enden rechnet das Programm für das Profil nach). Datei unverändert
+    norm = step_normrohre.naechstes_kasten(x1 - x0, y1 - y0)
+    if norm:
+        na, nb = (norm[1], norm[2]) if x1 - x0 >= y1 - y0 else (norm[2], norm[1])
+        if max(na - (x1 - x0), nb - (y1 - y0)) > step_normrohre.ABWEICHUNG:
+            norm = None         # Teil deutlich kleiner als das Normrohr: Sondermaß = Hülle (Wände passen sonst nicht)
+    e["norm"] = norm
+    # Radius aus der STEP (Patrick 25.10.2026: „den Radius aus der STEP übernehmen, nicht dass verschiedene Radien am
+    # Rohr sind“), an allen vier Ecken gleich; ohne Biegeradius in der Zeichnung nach EN 10219
+    ra = eckradius(lok, d) or (2 * d if d <= 6 else 2.5 * d if d <= 10 else 3 * d)
+    ra = min(ra, min(x1 - x0, y1 - y0) / 2)
+    e["ra"] = ra
+    profil = _rundrechteck(x0, y0, x1, y1, ra, e["z"][0] - 1, e["z"][1] - e["z"][0] + 2)
+    if not anzeige and profil is not None:
+        # was aus dem Rohr herausragt (z. B. scharf gezeichnete Schenkelenden an den Rohrecken), als Fläche je mm
+        from OCP.BRepGProp import BRepGProp
+        from OCP.GProp import GProp_GProps
+        rest, gp = _bool("minus", lok, profil), GProp_GProps()
+        if rest is not None:
+            BRepGProp.VolumeProperties_s(rest, gp)
+        e["ueberstand"] = gp.Mass() / max(e["z"][1] - e["z"][0], 1.0) if rest is not None else 0.0
+        e["rest"] = rest
+    # innen Radius außen − Wand; für die Messung an den zwei Ecken der offenen Seite scharf wie die ergänzte Wand
+    # (sonst ragte der Ring dort in das Fenster und verbände dessen Schnitt mit den Enden; Unterschied im Schneidweg
+    # unter 1 mm), für die Anzeige wie das Rohr an allen Ecken gleich
+    ri = max(ra - d, 0.0)
+    offen = () if anzeige else {"unten": (0, 3), "rechts": (0, 1), "oben": (1, 2), "links": (2, 3)}[e["seite"]]
+    profil = _bool("minus", profil, _rundrechteck(x0 + d, y0 + d, x1 - d, y1 - d,
+                                                  tuple(0.0 if k in offen else ri for k in range(4)), e["z"][0] - 2,
+                                                  e["z"][1] - e["z"][0] + 4)) if profil else None
+    if profil is None:
+        return None
+    w0, w1 = a - 1.0, b + 1.0
+    n = max(8, min(240, int((w1 - w0) / 0.5)))
+    us = [w0 + (w1 - w0) * k / n for k in range(n + 1)]
+    gegen = _profil_z(lok, uv_zu_xyz, us, v_gm)
+    if gegen is None:
+        return None
+    v_weit = v_aussen + innen * (abs(x1 - x0 if not quer else y1 - y0) + 1.0)   # über die gegenüberliegende Wand
+    ringe = []
+    for k, richtung in ((0, 1.0), (1, -1.0)):
+        ende = _knicke([(u, z[k]) for u, z in zip(us, gegen)])
+        drahte = []
+        for v in (v_aussen - innen * 1.0, v_weit):
+            # Versatz quer zur Wand: in der Wandschicht gemessen, linear über die Hülle verlängert
+            def vs(u_s):
+                lo, hi = versatz[u_s, v_lo][k], versatz[u_s, v_hi][k]
+                return lo + (hi - lo) * (v - v_lo) / (v_hi - v_lo)
+            va, vb = vs(a + d / 2), vs(b - d / 2)
+            linie = [(u, z + va * (1 - (u - a) / (b - a)) + vb * (u - a) / (b - a)) for u, z in ende]
+            poly = BRepBuilderAPI_MakePolygon()
+            for u, z in linie + [(u, z + richtung * steg) for u, z in linie[::-1]]:
+                poly.Add(gp_Pnt(*uv_zu_xyz(u, v, z)))
+            poly.Close()
+            drahte.append(poly.Wire())
+        ts = BRepOffsetAPI_ThruSections(True, True)
+        for w in drahte:
+            ts.AddWire(w)
+        ts.Build()
+        if not ts.IsDone():
+            return None
+        r = _bool("und", profil, ts.Shape())
+        if r is None:
+            return None
+        ringe.append(r)
+    # für die Messung des Querschnitts nur eine dünne Außenhaut des Rohrs über die ganze Länge: sie bringt ein größeres
+    # Normrohr in die Hülle, lässt die Innenkontur aber wie gezeichnet (sonst zählten die Innenwände als Schnitt)
+    haut = _bool("minus", _rundrechteck(x0, y0, x1, y1, ra, e["z"][0] - 1, e["z"][1] - e["z"][0] + 2),
+                 _rundrechteck(x0 + d / 2, y0 + d / 2, x1 - d / 2, y1 - d / 2, max(ra - d / 2, 0.0), e["z"][0] - 2,
+                               e["z"][1] - e["z"][0] + 4))
+    return (ringe, haut) if haut is not None else None
+
+
+def eckradius(lok, d):
+    """Außenradius der Rohrecken aus der Zeichnung: größter Zylinder längs der Achse (z), zu dem es den Innenradius
+    (außen − Wand) gibt; sonst der größte Radius über der Wand; None ohne Biegeradius (scharf gezeichnet)."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.GeomAbs import GeomAbs_Cylinder
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopoDS import TopoDS
+    radien = set()
+    for f in g._liste(lok, TopAbs_FACE):
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        if s.GetType() == GeomAbs_Cylinder and abs(abs(s.Cylinder().Axis().Direction().Z()) - 1) < 1e-4:
+            radien.add(round(s.Cylinder().Radius(), 3))
+    paare = [r for r in radien if r > d and any(abs(r - d - q) < 0.1 for q in radien)]
+    if paare:
+        return max(paare)
+    ueber = [r for r in radien if r > d * 0.5]
+    return max(ueber) if ueber else None
+
+
+def _rundrechteck(x0, y0, x1, y1, r, z, h):
+    """Prisma über dem Rechteck mit Eckradius r (Zahl oder je Ecke rechts unten, rechts oben, links oben, links unten),
+    von z über die Höhe h (lokales System)."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakeWire
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism
+    from OCP.GC import GC_MakeArcOfCircle
+    from OCP.gp import gp_Vec
+    if x1 - x0 <= 0 or y1 - y0 <= 0:
+        return None
+    rs = [max(0.0, min(r_, (x1 - x0) / 2 - 1e-6, (y1 - y0) / 2 - 1e-6))
+          for r_ in (r if isinstance(r, (tuple, list)) else (r,) * 4)]
+    ecken = ((x1, y0, -1, 1, -90), (x1, y1, -1, -1, 0), (x0, y1, 1, -1, 90), (x0, y0, 1, 1, 180))
+    stuecke = []        # je Ecke Anfang, (Mitte), Ende des Bogens bzw. nur der Eckpunkt
+    for (x, y, sx, sy, w0), r_ in zip(ecken, rs):
+        if r_ < 1e-6:
+            stuecke.append([gp_Pnt(x, y, z)])
+        else:
+            mx, my = x + sx * r_, y + sy * r_
+            stuecke.append([gp_Pnt(mx + r_ * math.cos(math.radians(t_)), my + r_ * math.sin(math.radians(t_)), z)
+                            for t_ in (w0, w0 + 45, w0 + 90)])
+    w = BRepBuilderAPI_MakeWire()
+    for i, p in enumerate(stuecke):
+        if len(p) == 3:
+            w.Add(BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(*p).Value()).Edge())
+        w.Add(BRepBuilderAPI_MakeEdge(p[-1], stuecke[(i + 1) % 4][0]).Edge())
+    f = BRepBuilderAPI_MakeFace(w.Wire()).Face()
+    return BRepPrimAPI_MakePrism(f, gp_Vec(0, 0, h)).Shape()
+
+
+def wand(e, d, ueberlapp=True, fenster=0.0):
+    """Ergänzte Wand je Lücke als Körper im lokalen System: (Körper, Lückenbereiche, quer, Schichten = je Körper die
+    Endlinien (Ende A, Ende B) außen und innen); ueberlapp: die Wand reicht um die Blechdicke in die Ränder (zum
+    Verschmelzen), sonst genau die Lücke (3D-Ansicht).
+    Enden (Frage 2 a): Verlauf der gegenüberliegenden Wand (z je u), quer dazu die Steigung der Seitenwände (z je v,
+    zwischen linker und rechter Seitenwand gemittelt). Ein gerades Ende bleibt gerade, eine Gehrung oder ein Schnitt
+    nur über einen Teil der Breite wird übernommen.
+    fenster > 0: statt der Wand das Fenster zwischen den Stegen (je fenster mm an Ende A und B), genau über der Lücke
+    und nach außen und innen etwas über die Wand hinaus (zum Ausschneiden aus dem geschlossenen Rohr)."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+    lok, quer, uv_zu_xyz, a, b, v_aussen, innen, v_lo, v_hi, v_gm, versatz = _rahmen(e, d)
     teile, felder, schichten = [], [], []
     for u0, u1 in e["luecken"]:
         w0, w1 = (max(a, u0 - d), min(b, u1 + d)) if ueberlapp and not fenster else (u0, u1)   # überlappt: verschmolzen
@@ -292,7 +438,7 @@ def wand(e, d, ueberlapp=True, fenster=0.0):
     return teile, felder, quer, schichten
 
 
-def _vereinen(solid, teile, ax3):
+def _vereinen(solid, teile, ax3, einheitlich=True):
     """Körper ∪ ergänzte Wände (in Dateilage); None, wenn nicht genau ein Körper entsteht."""
     tr = gp_Trsf()
     tr.SetTransformation(ax3)
@@ -308,10 +454,15 @@ def _vereinen(solid, teile, ax3):
     koerper = g._liste(form, TopAbs_SOLID)
     if len(koerper) != 1:
         return None
+    if not einheitlich:
+        return koerper[0]
     from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
-    u = ShapeUpgrade_UnifySameDomain(koerper[0], True, True, True)
-    u.Build()
-    return u.Shape()
+    try:
+        u = ShapeUpgrade_UnifySameDomain(koerper[0], True, True, True)
+        u.Build()
+        return u.Shape()
+    except Exception:       # OpenCascade kann nicht vereinheitlichen: Körper wie verschmolzen
+        return koerper[0]
 
 
 def _ausschneiden(form, teile, ax3):
@@ -452,6 +603,11 @@ def schliessen(solid, t, datei="", koerper=1, netz=False):
         return False
     if t.bauteiltyp == "Blech gekantet" and ((t.blech or {}).get("abwicklung") or {}).get("mehrachsig"):
         return False
+    return _kasten_schliessen(solid, t, datei, koerper, netz) or _rund_schliessen(solid, t, datei, koerper, netz)
+
+
+def _kasten_schliessen(solid, t, datei, koerper, netz):
+    """Quadrat-/Rechteckrohr (siehe schliessen)."""
     d = _dicke(t)
     if d <= 0:
         return False
@@ -467,13 +623,22 @@ def schliessen(solid, t, datei="", koerper=1, netz=False):
         return False
     breite, laenge = sum(u1 - u0 for u0, u1 in felder), e["z"][1] - e["z"][0]
     steg = 0.0 if all(u1 - u0 <= SPALT_MAX + SPALT_TOL for u0, u1 in felder) or laenge < 4 * STEG else STEG
-    zu = voll
+    zu, ringe = voll, None
     if steg:
+        # Ringe des ganzen Rohrquerschnitts an den Enden, dazwischen über der Lücke das Fenster ausgeschnitten
+        rg = ring(e, d, steg)
+        ringe = rg[0] if rg else None
         f = wand(e, d, fenster=steg)
-        zu = _ausschneiden(voll, f[0], e["ax3"]) if f else None
-        if zu is None:
+        quer_k = _vereinen(voll, [rg[1]], e["ax3"], False) if rg else None
+        # Regel (Patrick 25.10.2026): das Teil liegt immer im Querschnitt des ganzen Rohrs – was darüber ragt (z. B.
+        # scharf gezeichnete Schenkelenden an den Rohrecken), fällt weg (Anzeige UW, Hinweis). Gemessen wird wie
+        # gezeichnet: abgeschnitten wäre die Schnittfläche des Fensters an den Schenkeln nicht mehr von der Innenwand
+        # zu unterscheiden; der Schneidweg ändert sich dadurch um weniger als 1 mm je Ecke
+        mit_ringen = _vereinen(_vereinen(solid, teile, e["ax3"]), ringe, e["ax3"], False) if ringe and f else None
+        zu = _ausschneiden(mit_ringen, f[0], e["ax3"]) if mit_ringen is not None else None
+        if zu is None or quer_k is None:
             return False
-    r = g._profil_messen(zu, datei, koerper, False, quer=voll if steg else None)
+    r = g._profil_messen(zu, datei, koerper, False, quer=quer_k if steg else None)
     if r.profilform not in ROHRE or abs(r.wandstaerke - d) > TOL_WAND:
         return False
     r.bauteiltyp = "Profil"
@@ -483,14 +648,335 @@ def schliessen(solid, t, datei="", koerper=1, netz=False):
     r.sicherheit["offene_seite"] = "stege" if steg else "ergänzt"
     if steg:
         r.hinweise.append(f"{HINWEIS}: aus dem Rohr gelasert, offene Seite ({breite:.1f} mm breit) bis auf je einen "
-                          f"Steg {steg:g} mm an Ende A und B ausgeschnitten (vorher {t.profilform}) – Profil prüfen")
+                          f"Ring {steg:g} mm an Ende A und B ausgeschnitten (vorher {t.profilform}) – Profil prüfen")
     else:
         r.hinweise.append(f"{HINWEIS}: Spalt {breite:.1f} mm über {laenge:.1f} mm Länge geschlossen (vorher "
                           f"{t.profilform}) – Profil prüfen")
+    if steg:
+        r.offene_seite["radius"] = round(e["ra"], 2)
+    if steg and e.get("ueberstand", 0.0) > 0.5:
+        r.offene_seite["ueberstand"] = round(e["ueberstand"], 1)
+        r.hinweise.append(f"{HINWEIS}: Teil ragt über den Querschnitt des Rohrs (ca. {e['ueberstand']:.1f} mm², z. B. "
+                          f"scharfe Schenkelenden an den Rohrecken) – fällt weg, die Ecken bekommen den Rohrradius "
+                          f"R{e['ra']:g}")
+    if steg and e.get("norm"):
+        _, na, nb = e["norm"]
+        r.abm_a, r.abm_b = float(na), float(nb)
+        r.offene_seite["normrohr"] = True
+    elif steg:
+        r.offene_seite["normrohr"] = False
+        r.hinweise.append(f"{HINWEIS}: kein Normrohr passt (Hülle {r.abm_a:g} × {r.abm_b:g} mm), Sondermaß prüfen")
     t.geschlossen = r
     if netz:
         try:
-            _netz_wand(t, e, d, steg)
+            if ringe:       # sichtbar nur, was zum Teil dazukommt
+                # der ganze Ring, auf der Wand (Patrick: „der Steg muss auf die Rohrwandung gesetzt werden“)
+                zeigen = ring(e, d, steg, anzeige=True)
+                _netz_koerper(t, _bool("plus", *(zeigen[0] if zeigen else ringe)), e["ax3"], 0.05)
+                if e.get("ueberstand", 0.0) > 0.5 and e.get("rest") is not None:
+                    _netz_koerper(t, e["rest"], e["ax3"], 0.05, art="UO")     # fällt weg: über dem Rohr
+            else:
+                _netz_wand(t, e, d)
         except Exception:  # ohne Anzeige der Stege bzw. der Wand bleibt alles andere gültig
+            pass
+    return True
+
+
+# ---- Rundrohr: Halbschale und offenes Rundrohr (Patrick 25.10.2026: „Funktioniert das dann auch mit Rundrohr? Dass
+# er die Halbschale zu einem geschlossenen Rohr macht?“) – Mantel aus zwei gleichachsigen Zylindern, über die ganze
+# Länge ein Stück des Umfangs offen. Gefertigt aus dem Rundrohr mit je einem Ring-Steg STEG an Ende A und B, das offene
+# Stück dazwischen als Fenster; ein Spalt bis SPALT_MAX (Bogen außen) wird ganz geschlossen. Die Enden müssen eben
+# sein (gerade oder Gehrung): der Steg läuft in der Ebene des Endes weiter.
+
+GRAD = 0.25             # Grad, Abtastung des Umfangs
+
+
+def _zylinder(solid):
+    """Mantel: (Achse gp_Ax1, R außen, r innen) aus den Zylinderflächen des Körpers (die größte Fläche gibt die
+    Achse; außen und innen gleichachsig) oder None."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.GeomAbs import GeomAbs_Cylinder
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopoDS import TopoDS
+    zyl = []
+    for f in g._liste(solid, TopAbs_FACE):
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        if s.GetType() == GeomAbs_Cylinder:
+            zyl.append((_flaeche(f), s.Cylinder()))
+    if len(zyl) < 2:
+        return None
+    zyl.sort(key=lambda x: -x[0])
+    achse = zyl[0][1].Axis()
+    radien = set()
+    for _, c in zyl:
+        a = c.Axis()
+        if a.Direction().IsParallel(achse.Direction(), 1e-4) and \
+                gp_Lin(achse).Distance(a.Location()) < 0.01:
+            radien.add(round(c.Radius(), 4))
+    if len(radien) != 2:
+        return None
+    r, R = sorted(radien)
+    return achse, R, r
+
+
+def _flaeche(f):
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+    p = GProp_GProps()
+    BRepGProp.SurfaceProperties_s(f, p)
+    return p.Mass()
+
+
+def _rund_erkennen(solid):
+    """Offenes Rundrohr: dict(ax3, lok, R, r, luecke (Winkel von, bis in Grad, im lokalen System), z) oder None."""
+    from OCP.gp import gp_Ax3
+    z_ = _zylinder(solid)
+    if z_ is None:
+        return None
+    achse, R, r = z_
+    ax3 = gp_Ax3(achse.Location(), achse.Direction())
+    lok = g._transformiere(solid, ax3)
+    zmin, zmax = g._z_bereich(lok)
+    if zmax - zmin < 3 * (R - r):
+        return None
+    lagen = []
+    for k in range(LAGEN):
+        z = zmin + (zmax - zmin) * (0.1 + 0.8 * k / (LAGEN - 1)) + 0.0137
+        ws = g._schnitt(lok, z)
+        if len(ws) == 1:
+            st = g._strecken(ws[0][1], 0.1)
+            if max(math.hypot(x, y) for s_ in st for x, y in (s_[:2], s_[2:])) > R + 0.05:
+                return None         # Material außerhalb des Mantels: kein Rohrstück (z. B. Biegung eines U)
+            lagen.append(st)
+    if len(lagen) < 3:
+        return None
+    rm = (R + r) / 2
+
+    def frei(w):           # an allen Lagen kein Material auf dem Mittelkreis der Wand
+        x, y = rm * math.cos(math.radians(w)), rm * math.sin(math.radians(w))
+        return not any(g._im_material(x, y, st) for st in lagen)
+    n = int(360 / GRAD)
+    f = [frei(k * GRAD) for k in range(n)]
+    if all(f) or not any(f):
+        return None
+    start = f.index(False)          # bei Material beginnen: die Lücke liegt am Stück zwischen 0 und 360
+    luecken, von = [], None
+    for k in range(start, start + n + 1):
+        if f[k % n] and von is None:
+            von = k
+        elif not f[k % n] and von is not None:
+            luecken.append((von, k))
+            von = None
+    luecken = [(a, b) for a, b in luecken if (b - a) * GRAD * math.pi / 180 * R >= LUECKE_INNEN]
+    if len(luecken) != 1:
+        return None                 # mehrere Schlitze: kein offenes Rohr
+
+    def kante(w_frei, w_voll):
+        for _ in range(20):
+            m = (w_frei + w_voll) / 2
+            w_frei, w_voll = (m, w_voll) if frei(m) else (w_frei, m)
+        return (w_frei + w_voll) / 2
+    a, b = luecken[0]
+    w0, w1 = kante(a * GRAD, (a - 1) * GRAD), kante((b - 1) * GRAD, b * GRAD)
+    return dict(ax3=ax3, lok=lok, R=R, r=r, luecke=(w0, w1), z=(zmin, zmax))
+
+
+def _enden_eben(lok, zmin, zmax):
+    """Ebene je Ende (gp_Pln) aus den Endflächen des Körpers (Normale mit Anteil längs der Achse, nahe zmin bzw.
+    zmax); None, wenn ein Ende nicht in einer Ebene liegt."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.GeomAbs import GeomAbs_Plane
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopoDS import TopoDS
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    enden = {0: [], 1: []}
+    mitte = (zmin + zmax) / 2
+    for f in g._liste(lok, TopAbs_FACE):
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        if s.GetType() != GeomAbs_Plane:
+            continue
+        pl = s.Plane()
+        if abs(pl.Axis().Direction().Z()) < 0.2:
+            continue                # Längsfläche (Rand der Lücke)
+        bb = Bnd_Box()
+        BRepBndLib.Add_s(f, bb, False)
+        enden[0 if (bb.CornerMin().Z() + bb.CornerMax().Z()) / 2 < mitte else 1].append(pl)
+    out = []
+    for k in (0, 1):
+        if not enden[k]:
+            return None
+        p0 = enden[k][0]
+        for p in enden[k][1:]:
+            if not p.Axis().Direction().IsParallel(p0.Axis().Direction(), 1e-4) or \
+                    p0.Distance(p.Location()) > 0.01:
+                return None
+        out.append(p0)
+    return out
+
+
+def _halbraum(pl, verschiebung, ref):
+    """Halbraum der Ebene pl (längs der Achse um verschiebung versetzt) auf der Seite des Punkts ref."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeHalfSpace
+    from OCP.gp import gp_Pln, gp_Vec
+    q = gp_Pln(pl.Position())
+    q.Translate(gp_Vec(0, 0, verschiebung))
+    return BRepPrimAPI_MakeHalfSpace(BRepBuilderAPI_MakeFace(q).Face(), gp_Pnt(*ref)).Solid()
+
+
+def _bool(art, a, b):
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+    op = {"und": BRepAlgoAPI_Common, "plus": BRepAlgoAPI_Fuse, "minus": BRepAlgoAPI_Cut}[art](a, b)
+    op.SetFuzzyValue(g.FUZZY)
+    op.Build()
+    return op.Shape() if op.IsDone() else None
+
+
+def _rund_stuecke(e, steg, ganz=False):
+    """Fehlendes Stück des Mantels (steg = 0) bzw. die zwei Ring-Stege an den Enden, im lokalen System; None, wenn
+    die Enden nicht eben sind. ganz: der ganze Mantel statt nur über der Lücke (Ringe des ganzen Rohrs, Patrick
+    25.10.2026: „die Rohre auch Außenradius etc haben … nicht nur einen Steg dazwischen“), mit den Radien der Zeichnung."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakePrism
+    from OCP.gp import gp_Ax2, gp_Vec
+    R, r, (zmin, zmax) = e["R"], e["r"], e["z"]
+    L = zmax - zmin
+    ebenen = _enden_eben(e["lok"], zmin, zmax)
+    if ebenen is None:
+        return None
+    z0 = zmin - 2 * L - 4 * R
+    h = 5 * L + 8 * R
+    mantel = _bool("minus", BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, z0), gp_Dir(0, 0, 1)), R, h).Shape(),
+                   BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, z0 - 1), gp_Dir(0, 0, 1)), r, h + 2).Shape())
+    w0, w1 = e["luecke"]
+    # etwas in die Ränder: ist die Lücke nicht radial begrenzt (Schnitt in einer Ebene), bliebe sonst ein Spalt
+    rand = math.degrees((R - r) / r) * 2 + 0.5 if steg is not None else 0.0
+    w0, w1 = w0 - rand, w1 + rand
+    poly = BRepBuilderAPI_MakePolygon()
+    poly.Add(gp_Pnt(0, 0, z0))
+    n = max(2, int((w1 - w0) / 5) + 1)
+    for k in range(n + 1):
+        w = math.radians(w0 + (w1 - w0) * k / n)
+        poly.Add(gp_Pnt(3 * R * math.cos(w), 3 * R * math.sin(w), z0))     # Sehnen weit außerhalb des Mantels
+    poly.Close()
+    keil = BRepPrimAPI_MakePrism(BRepBuilderAPI_MakeFace(poly.Wire()).Face(), gp_Vec(0, 0, h)).Shape()
+    stueck = mantel if ganz else _bool("und", mantel, keil)
+    innen = (0.0, 0.0, (zmin + zmax) / 2)
+    for pl in ebenen:
+        stueck = stueck and _bool("und", stueck, _halbraum(pl, 0.0, innen))
+    if not steg or stueck is None:
+        return stueck
+    (pa, pb) = ebenen
+    stege = []
+    for pl, d_, ref in ((pa, steg, (0, 0, z0)), (pb, -steg, (0, 0, z0 + h))):
+        s = _bool("und", stueck, _halbraum(pl, d_, ref))
+        if s is None:
+            return None
+        stege.append(s)
+    return _bool("plus", stege[0], stege[1])
+
+
+def _netz_koerper(t, koerper, ax3, abheben=0.0, art="EO"):
+    """Körper (lokales System ax3) als Dreiecke der Art art (Vorgabe EO) ins Netz der offenen Messung t. abheben (mm): jede Fläche
+    so weit nach außen versetzt gezeichnet, damit ein Ring, der auf der Wand des Teils sitzt, vor der Wand liegt
+    (gleiche Fläche: die 3D-Ansicht zeigte sonst mal die eine, mal die andere)."""
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS
+    from OCP.BRep import BRep_Tool
+    if t.netz is None or not t.achse_global:
+        return
+    zu_datei, zu_netz = gp_Trsf(), gp_Trsf()
+    zu_datei.SetTransformation(ax3)
+    zu_netz.SetTransformation(g._rohr_ax3(t))
+    tr = zu_netz.Multiplied(zu_datei.Inverted())
+    BRepMesh_IncrementalMesh(koerper, 0.05, False, 0.3, True)
+    p, idx = [], []
+    for f in g._liste(koerper, TopAbs_FACE):
+        ort = TopLoc_Location()
+        tri = BRep_Tool.Triangulation_s(TopoDS.Face(f), ort)
+        if tri is None:
+            continue
+        basis = len(p) // 3
+        m = tr.Multiplied(ort.Transformation())
+        q = [tri.Node(j).Transformed(m) for j in range(1, tri.NbNodes() + 1)]
+        umgedreht = f.Orientation() == 1           # TopAbs_REVERSED: Dreiecke nach außen drehen
+        dreiecke = []
+        for j in range(1, tri.NbTriangles() + 1):
+            a, b, c = tri.Triangle(j).Get()
+            dreiecke.append((a - 1, c - 1, b - 1) if umgedreht else (a - 1, b - 1, c - 1))
+        versatz = [[0.0, 0.0, 0.0] for _ in q]
+        if abheben:
+            for a, b, c in dreiecke:            # Normale je Knoten (Mittel der Dreiecke), nach außen
+                u_ = [q[b].Coord(k + 1) - q[a].Coord(k + 1) for k in range(3)]
+                v_ = [q[c].Coord(k + 1) - q[a].Coord(k + 1) for k in range(3)]
+                n = (u_[1] * v_[2] - u_[2] * v_[1], u_[2] * v_[0] - u_[0] * v_[2], u_[0] * v_[1] - u_[1] * v_[0])
+                for i in (a, b, c):
+                    for k in range(3):
+                        versatz[i][k] += n[k]
+            for v in versatz:
+                betrag = math.sqrt(sum(c * c for c in v)) or 1.0
+                v[:] = [c / betrag * abheben for c in v]
+        for pt, v in zip(q, versatz):
+            p += [round(pt.X() + v[0], 2), round(pt.Y() + v[1], 2), round(pt.Z() + v[2], 2)]
+        idx += [basis + i for tri_ in dreiecke for i in tri_]
+    g._netz_anhaengen(t.netz, dict(p=p, t={art: idx}, l={}))
+    _verfeinern(t.netz, max(10.0, t.laenge / 20))
+
+
+def _rund_schliessen(solid, t, datei, koerper, netz):
+    """Halbschale bzw. offenes Rundrohr als Rundrohr: t.geschlossen mit Ring-Stegen an den Enden und Fenster (Spalt bis
+    SPALT_MAX: ganz geschlossen). False, wenn nicht erkannt."""
+    e = _rund_erkennen(solid)
+    if e is None:
+        return False
+    R, r = e["R"], e["r"]
+    w0, w1 = e["luecke"]
+    laenge = e["z"][1] - e["z"][0]
+    breite = math.radians(w1 - w0) * R                       # Bogen außen
+    # Spalt: lichte Weite (Sehne auf dem Mittelkreis, an dem die Lücke gesucht ist), nicht der Bogen außen
+    weite = 2 * (R + r) / 2 * math.sin(math.radians(w1 - w0) / 2)
+    steg = 0.0 if weite <= SPALT_MAX + SPALT_TOL or laenge < 4 * STEG else STEG
+    norm = step_normrohre.naechstes_rund(2 * R)
+    if not (norm and norm / 2 - R <= step_normrohre.ABWEICHUNG / 2 and steg):
+        norm = None         # gemessen wird im Durchmesser des Teils, das Normrohr gilt als Profil
+    voll_stueck = _rund_stuecke(e, 0.0)
+    if voll_stueck is None:
+        return False
+    voll = _vereinen(solid, [voll_stueck], e["ax3"])
+    stuecke, zu = None, voll
+    if steg:
+        stuecke, rohr = _rund_stuecke(e, steg, ganz=True), _rund_stuecke(e, 0.0, ganz=True)
+        zu = _vereinen(solid, [stuecke], e["ax3"]) if stuecke is not None else None
+        voll = _vereinen(voll, [rohr], e["ax3"], False) if rohr is not None and voll is not None else None
+    if voll is None or zu is None:
+        return False
+    m = g._profil_messen(zu, datei, koerper, False, quer=voll if steg else None)
+    if m.profilform != "Rundrohr" or abs(m.wandstaerke - (R - r)) > TOL_WAND:
+        return False
+    if norm:
+        m.abm_a = float(norm)
+    m.bauteiltyp = "Profil"
+    m.offene_seite = dict(seite="Umfang", luecken=[[round(w0, 2), round(w1, 2)]], breite=round(breite, 2),
+                          laenge=round(laenge, 2), vorher=t.profilform, steg=steg or None)
+    m.sicherheit["offene_seite"] = "stege" if steg else "ergänzt"
+    if steg:
+        m.hinweise.append(f"{HINWEIS}: aus dem Rundrohr gelasert, offener Umfang ({w1 - w0:.0f}°, {breite:.1f} mm) bis "
+                          f"auf je einen Ring {steg:g} mm an Ende A und B ausgeschnitten (vorher {t.profilform}) – "
+                          "Profil prüfen")
+    else:
+        m.hinweise.append(f"{HINWEIS}: Spalt {breite:.1f} mm über {laenge:.1f} mm Länge geschlossen (vorher "
+                          f"{t.profilform}) – Profil prüfen")
+    t.geschlossen = m
+    if netz:
+        try:
+            # sichtbar nur das, was zum Teil kommt (ohne die Überlappung in die Ränder)
+            if steg:        # der ganze Ring, auf der Wand
+                _netz_koerper(t, stuecke, e["ax3"], 0.05)
+            else:
+                _netz_koerper(t, _bool("minus", voll_stueck, e["lok"]), e["ax3"])
+        except Exception:  # ohne Anzeige bleibt alles andere gültig
             pass
     return True

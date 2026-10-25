@@ -1,7 +1,7 @@
 """Erzeugt Beispielteile offen gezeichneter Rechteckrohre (tests/step_offen) für die Bedienungsanleitung: RE 60x40x3
 als gekantetes Blech mit einer offenen Seite (U offen mit Gehrung und Bohrungen, U mit ausgeschnittenen Seitenwänden
-wie Patricks Beispiel) – gefertigt aus dem Rohr mit je einem Steg 2 mm an den Enden – und ein Rohr mit 2-mm-Spalt
-(wird ganz geschlossen). Die Prüfung der Erkennung steht in tests/test_offenes_rohr.py (dort werden die Teile selbst
+wie Patricks Beispiel) – gefertigt aus dem Rohr mit je einem Ring 2 mm an den Enden –, ein Rohr mit 2-mm-Spalt
+(wird ganz geschlossen) und eine Halbschale Ø40 × 2 (aus dem Rundrohr). Die Prüfung der Erkennung steht in tests/test_offenes_rohr.py (dort werden die Teile selbst
 erzeugt).
 
 Aufruf: python tests/erzeuge_offene_rohre.py   (braucht OpenCascade, wie tests/erzeuge_testteile.py)
@@ -14,7 +14,7 @@ sys.path.insert(0, str(HIER))
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox  # noqa: E402
 from OCP.gp import gp_Pnt  # noqa: E402
 
-from erzeuge_testteile import bohrung_quer, cut, gehrung, kastenrohr, profil, schreibe  # noqa: E402
+from erzeuge_testteile import bohrung_quer, cut, gehrung, kastenrohr, profil, rundrohr, schreibe  # noqa: E402
 
 ZIEL = Path(sys.argv[1]) if len(sys.argv) > 1 else HIER / "step_offen"
 L = 400
@@ -34,6 +34,8 @@ def main():
     schreibe(laschen, "OR2_U_Laschen_RE60x40x3", ZIEL)
     spalt = cut(kastenrohr(60, 40, 3, L, 6), box(-1, 15, -1, 2, 6, L + 2))
     schreibe(spalt, "OR3_Spalt2_RE60x40x3", ZIEL)
+    halb = bohrung_quer(cut(rundrohr(40, 2, L), box(-30, 0, -1, 60, 30, L + 2)), 8, 200, (0, 1, 0))
+    schreibe(halb, "OR4_Halbschale_RR40x2", ZIEL)
 
 if __name__ == "__main__":
     main()

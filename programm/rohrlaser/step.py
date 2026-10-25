@@ -559,6 +559,43 @@ def enden_neu(m, pr, rechner):
     return dict(laengen=laengen, differenz=diff, hinweise=hinweise) if laengen or hinweise else None
 
 
+def fenster_neu(m, pr):
+    """Offen gezeichnetes Rohr aus dem Rohr mit Ringen (step_offenes_rohr), im Prüfdialog ein anderes Rohr gewählt
+    (Patrick 25.10.2026: „einfach das Rohr ändern, z. B. von 60x30x4 auf 70x30x4“): das Fenster über der offenen Seite
+    wird so viel breiter bzw. schmaler wie die Seite des Rohrs (Rundrohr: Bogen mit dem Durchmesser), sein Schnitt um
+    das Doppelte. Die Enden rechnet enden_neu. Ergebnis (Unterschied im Schneidweg mm, Hinweis) oder None."""
+    if not pr or not _stege(m):
+        return None
+    try:
+        os_ = json.loads(m.get("offene_seite") or "null") or {}
+    except ValueError:
+        return None
+    breite, form, d = float(os_.get("breite") or 0), m.get("profilform"), _wand(m)
+    if not os_.get("steg") or breite <= 0:
+        return None
+    if form == "Rundrohr":
+        alt, neu = _z(m, "abm_a"), float(pr.get("a") or 0)
+        if alt <= 0 or neu <= 0 or abs(neu - alt) < 0.05:
+            return None
+        diff = 2 * breite * (neu / alt - 1)
+    elif form in ("Quadratrohr", "Rechteckrohr"):
+        a, b = _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a")
+        pa = float(pr.get("a") or 0)
+        pb = float(pr.get("b") or 0) or pa
+        pa, pb = max(pa, pb), min(pa, pb)
+        if len(os_.get("luecken") or []) != 1 or min(abs(breite + 2 * d - a), abs(breite + 2 * d - b)) > 0.5:
+            return 0.0, "Offenes Rohr: Fenster für das gewählte Rohr nicht umrechenbar (Seite nur teilweise offen), " \
+                        "gemessen übernommen, bitte prüfen"
+        alt, neu = (a, pa) if abs(breite + 2 * d - a) <= abs(breite + 2 * d - b) else (b, pb)
+        if neu <= 0 or abs(neu - alt) < 0.05:
+            return None
+        diff = 2 * (neu - alt)
+    else:
+        return None
+    return diff, (f"Offenes Rohr: Fenster für Rohr {pr.get('profil_id') or ''} umgerechnet, Schneidweg "
+                  f"{dez(round(abs(diff), 1))} mm {'kürzer' if diff < 0 else 'länger'}").replace("  ", " ")
+
+
 def finde_rp(m, profile):
     """RP-Profil der Stammdaten zu einer Messung: die erkannte Profil-ID (Spalte normprofil), sonst per Fingerabdruck
     (Maße, Fläche, Außenkontur, Kammern) unter den RP-Profilen der Stammdaten mit bekannter Kontur (Bibliothek oder
@@ -673,9 +710,9 @@ def art_text(m, gegen=None):
     zusatz = " – Anbauteile abgetrennt" if m.get("trennung") else \
         " – ohne Trennung" if gegen is not None and gegen.get("trennung") else ""
     if rohr_geschlossen(m):
-        zusatz += " – Stege an den Enden (aus dem Rohr)" if _stege(m) else " – Spalt geschlossen"
+        zusatz += " – Ringe an den Enden (aus dem Rohr)" if _stege(m) else " – Spalt geschlossen"
     elif gegen is not None and rohr_geschlossen(gegen):
-        zusatz += " – offen (ohne Stege)" if _stege(gegen) else " – mit Spalt (nicht geschlossen)"
+        zusatz += " – offen (ohne Ringe)" if _stege(gegen) else " – mit Spalt (nicht geschlossen)"
     return (("Kantteil (Blech gekantet)" if form == "Blech gekantet" else form) + zusatz
             + (" – Ersatzwerte" if m.get("ersatz") == "1" else ""))
 
@@ -775,7 +812,8 @@ def rohr_wechseln(m):
 
 def _ergaenzte_wand_zeigen(m):
     """3D-Netz eines offen gezeichneten Rohrs: Stege bzw. geschlossener Spalt rot (Art EW), wenn das Teil als Rohr
-    gilt, sonst blassrot (Art EO, wird nicht gefertigt)."""
+    gilt, sonst blassrot (Art EO, wird nicht gefertigt); was über den Rohrquerschnitt ragt, orange (UW, fällt weg)
+    bzw. grau (UO, Teil bleibt offen)."""
     if not m.get("_netz"):
         return
     import zlib
@@ -784,26 +822,44 @@ def _ergaenzte_wand_zeigen(m):
     except (zlib.error, ValueError):
         return
     t = n.get("t") or {}
-    von, nach = ("EO", "EW") if rohr_geschlossen(m) else ("EW", "EO")
-    if von in t:
-        t[nach] = t.pop(von)
+    neu = False
+    for von, nach in ((("EO", "EW"), ("UO", "UW")) if rohr_geschlossen(m) else (("EW", "EO"), ("UW", "UO"))):
+        if von in t:
+            t[nach] = t.pop(von)
+            neu = True
+    if neu:
         m["_netz"] = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
 
 
-def offene_rohre_vorbelegen(messwerte, profile):
-    """Offen gezeichnete Quadrat-/Rechteckrohre (U offen, C mit Schlitz, Kantteil mit Lasche; Patrick 25.10.2026,
-    Frage 1 a): Rohr mit ergänzter Wand, wenn es das Rohr in den Stammdaten gibt – außer das offene Teil passt selbst
-    zu einem U-/C-Profil der Stammdaten (dann bleibt es ein Profil); sonst bleibt die offene Messung. Im Prüfdialog
-    umschaltbar. Nur einmal je Teil (_rohr_vorbelegt). Ergebnis: Anzahl umgestellter Teile."""
+def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
+    """Offen gezeichnete Quadrat-/Rechteck-/Rundrohre (U offen, C mit Schlitz, Kantteil mit Lasche, Halbschale;
+    Patrick 25.10.2026): immer als Rohr aus dem nächstgrößeren Normrohr (Messung; Freigabe „c: immer Rohr, Kantteil
+    von Hand“, auch wenn ein U/C der Stammdaten passt). Steht das Rohr nicht in den Stammdaten, gilt die Profil-ID der
+    Messung (beim Rechnen wird das Profil aus der ID angelegt). Ausnahme: das Rohr geht nicht auf die Maschine
+    (max. Hüllkreis-Ø bzw. Metergewicht, Patrick: „darüber hinaus immer Kantteil“) – dann bleibt das Teil offen, als
+    Kantteil, wenn es die Messung als Alternative hat. Im Prüfdialog umschaltbar. Nur einmal je Teil (_rohr_vorbelegt).
+    Ergebnis: Anzahl umgestellter Teile."""
+    from .rechnen import grenze_ueberschritten
     n = 0
     for m in messwerte:
         zu = geschlossen(m)
         if m.get("_rohr_vorbelegt") or zu is None or rohr_geschlossen(m):
             continue
         m["_rohr_vorbelegt"] = True
-        profil = m.get("profilform") in ("U-Profil", "C-Profil") and finde_profil(m, profile)
-        if finde_profil(zu, profile) and not profil:
-            n += rohr_wechseln(m)
+        pid = finde_profil(zu, profile) or zu.get("profil_id_vorschlag")
+        if not pid:
+            continue
+        pr = profile.get(pid) or dict(form=zu.get("profilform"), a=_z(zu, "abm_a"), b=_z(zu, "abm_b") or None)
+        kgm = _z(zu, "flaeche") * 7.85 / 1000 or None          # Stahl; die Grenze ist ein Richtwert
+        grund = grenze_ueberschritten(maschine, pr, kgm) if maschine else None
+        if grund:
+            text = f"Offenes Rohr: {pid} – {grund}, bleibt " + (
+                "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet" else "offen")
+            if m.get("profilform") != "Blech gekantet" and (alternative(m) or {}).get("profilform") == "Blech gekantet":
+                art_wechseln(m)
+            m["hinweise"] = "; ".join(filter(None, [m.get("hinweise"), text]))
+            continue
+        n += rohr_wechseln(m)
     return n
 
 
@@ -1297,6 +1353,13 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     p[f"{x}_schnitt"] = round(lg, 1)
                 p["schneidweg"] = round(p["schneidweg"] + neu_enden["differenz"], 1)
                 hinweise += neu_enden["hinweise"]
+            neu_fenster = fenster_neu(m, profile.get(pid)) if m.get("_profil") else None
+            if neu_fenster:     # offenes Rohr, anderes Rohr gewählt: Fenster über der offenen Seite umgerechnet
+                diff, text = neu_fenster
+                p["schneidweg"] = round(p["schneidweg"] + diff, 1)
+                p["innen"] = round(max(p["innen"] + diff, 0.0), 1)
+                kl[2][1] = max(kl[2][1] + diff, 0.0)
+                hinweise.append(text)
             if rechner and profile.get(pid):      # Konturen für das Profil der Position (Profil von Hand geändert)
                 from .schneidweg import konturen_umstellen
                 rechner_neu, h_k, d_s, d_g = konturen_umstellen(rechner, dict(profile[pid], profil_id=pid))

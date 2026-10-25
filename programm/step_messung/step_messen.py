@@ -64,13 +64,15 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
            "trennung", "gravur_anbau", "kammern", "kontur_umfang", "verbund", "bauteil", "pfad", "knoten", "ersatz",
-           "biegerohr", "knick_schenkel", "geschlossen", "alternative", "fehler"]
+           "biegerohr", "knick_schenkel", "offene_seite", "geschlossen", "alternative", "fehler"]
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
 # bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "knoten", "geschlossen", "alternative",
                     "fehler")
 # Spalte "geschlossen": offen gezeichnetes Quadrat-/Rechteckrohr (step_offenes_rohr), das Teil als Rohr mit Stegen
 # gemessen, JSON {Spalte: Wert} wie "alternative"; leer = kein offenes Rohr
+# Spalte "offene_seite": offen gezeichnetes Rohr als Rohr gemessen (in "geschlossen" bzw. nach dem Umschalten), JSON
+# {seite, luecken, breite, laenge, vorher, steg, radius, ueberstand, normrohr, …}; leer = keins
 # Spalte "knick_schenkel": Knickrahmen aus einem Körper (step_knickrahmen), die geraden Rohrstücke in Reihenfolge als
 # JSON-Liste [{Spalte: Wert, "lage": [Ende A, Achse, X-Richtung in der Datei]}] (ohne OHNE_ALTERNATIVE); leer = keiner
 
@@ -169,7 +171,9 @@ def _zeile(t, name, artikel, netz):
             str(t.kammern) if t.kammern else "", _z(t.kontur_umfang) if t.kontur_umfang else "", _text(t.verbund),
             _text(t.bauteil), _text(t.pfad), t.knoten, "1" if t.ersatz else "",
             json.dumps(t.biegerohr, ensure_ascii=False, separators=(",", ":")) if t.biegerohr else "",
-            _knick_schenkel(t), "", "", ""])
+            _knick_schenkel(t),
+            json.dumps(t.offene_seite, ensure_ascii=False, separators=(",", ":")) if t.offene_seite else "",
+            "", "", ""])
 
 
 def _knick_schenkel(t):

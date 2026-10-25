@@ -22,13 +22,16 @@ def als_html(neuerungen=None):
 
 NEUERUNGEN = [
     ["0.9.109", "<b>Offen gezeichnete Rohre aus dem Rohr</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
-                "gekantetes Blech mit einer offenen Seite gezeichnet hat (U offen, C mit Schlitz, U mit Lasche), "
-                "erkennt der STEP-Import und rechnet es aus dem geschlossenen Rohr: an Ende A und B bleibt je ein Steg "
-                "2 mm stehen, dazwischen wird die offene Seite als Fenster ausgeschnitten. Steht das Rohr in den "
-                "Stammdaten, wird das Teil so übernommen; die Stege sind im 3D rot und laufen wie die Nachbarwände "
-                "(auch Gehrungen). Ein Spalt bis 2 mm wird ganz geschlossen. In der Spalte Art umschaltbar "
-                "([[offene_rohre]]).",
-     "Offen gezeichnete Rohre im STEP: aus dem Rohr mit Stegen 2 mm an den Enden"],
+                "gekantetes Blech mit einer offenen Seite gezeichnet hat (U offen, C mit Schlitz, U mit Lasche), und "
+                "Halbschalen eines Rundrohrs erkennt der STEP-Import und rechnet sie aus dem geschlossenen Rohr: an "
+                "Ende A und B bleibt je ein Ring 2 mm des ganzen Rohrs stehen (Radius aus der STEP, an allen Ecken "
+                "gleich), dazwischen wird die offene Seite als Fenster ausgeschnitten. Rohrgröße = nächstgrößeres "
+                "Normrohr (bis 1 mm größer), die Datei bleibt unverändert. Das Teil liegt immer im Rohrquerschnitt: "
+                "was darüber ragt, fällt weg (3D orange). Ein anderes Rohr in der Profil-ID rechnet Enden und Fenster "
+                "um. Immer Rohr; geht das Rohr nicht auf die Maschine, bleibt es Kantteil. Die Ringe sind im 3D rot "
+                "und laufen wie die Nachbarwände (auch Gehrungen). Ein Spalt bis 2 mm wird ganz geschlossen. In der "
+                "Spalte Art umschaltbar ([[offene_rohre]]).",
+     "Offen gezeichnete Rohre und Halbschalen im STEP: aus dem Rohr mit Ringen 2 mm an den Enden"],
     ["0.9.108", "<b>Rohrteil aus einer DXF-Zeichnung</b>: Zeichnungen mit Vorderansicht, Draufsicht und Schnitt werden "
                 "ein Rohrteil im Rohr-Editor (<i>Neue Position → Aus DXF</i>, DXF aufs Angebot ziehen oder im "
                 "Rohr-Editor <i>DXF importieren</i>). Maßstab je Ansicht aus der Bemaßung, Profil aus dem Schnitt, "
