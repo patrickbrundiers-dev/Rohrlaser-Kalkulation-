@@ -3113,6 +3113,35 @@ class AngebotSeite(QWidget):
     def _saetze(self):
         return rechnen.zeitbasis(self.kopf, self.k, self.tabellen)["saetze"]
 
+    def laser_teil_eur(self, q, eingaben=None, laenge=None):
+        """Laserkosten je Teil für den €-Vergleich der Vorschläge (Plan Baugruppen automatisch, P1): Schneidweg-Rechner
+        mit den Eingaben (ohne: die der Position), Schneidzeit mit den Schneiddaten des Angebots × Stundensatz
+        Maschine. Ergebnis (€ oder None, Grund)."""
+        profil = self.k.profile.get(q.get("profil_id"))
+        if not profil:
+            return None, "Profil fehlt in den Stammdaten"
+        if eingaben is None:
+            try:
+                eingaben = schneidweg.aus_position(schneidweg.lesen(q.get("technik")), q, profil)[0]
+            except (ValueError, TypeError, KeyError) as f:
+                return None, str(f)
+        profil = rechnen.profil_im_angebot(profil, self.kopf, q.get("profil_id"), q.get("werkstoff_id"), self.k)
+        m = rechnen.maschine(self.kopf, self.k)
+        erg = schneidweg.rechnen(eingaben, profil, rechnen.kontur_regel(m, rechnen.wand_schneiden(profil)),
+                                 gewinde_liste(self.tabellen), m)
+        if erg["fehler"]:
+            return None, " ".join(erg["fehler"])
+        p = dict(q, **erg["felder"])
+        if laenge:
+            p["laenge"] = laenge
+        _, _, zeit = rechnen.schneidzeit(p, self.kopf, rechnen.wand_position(p, self.k), self.tabellen, self.k)
+        satz = (rechnen.zeitbasis(self.kopf, self.k, self.tabellen).get("maschine") or {}).get("stundensatz")
+        if zeit is None:
+            return None, "keine Schneiddaten für Maschine und Werkstoff"
+        if not isinstance(satz, (int, float)) or satz <= 0:
+            return None, "Stundensatz Maschine fehlt"
+        return zeit / 3600 * satz, None
+
     def _auf_bild(self, i, auf_bild=None):
         """Doppelklick auf das kleine Bild der Zelle i (auf_bild vorgegeben: Tests), sonst aus der Mausposition."""
         if auf_bild is not None:

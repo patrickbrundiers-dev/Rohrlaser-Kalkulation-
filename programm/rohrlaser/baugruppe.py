@@ -445,6 +445,7 @@ def vorschlag_naht(v, regel=None):
     koerper = sorted({str(k) for paar in v.get("teile") or () if isinstance(paar, (list, tuple)) for k in paar})
     if koerper:                                         # beteiligte Körper: 3D-Ansicht im Editor (D1)
         n["koerper"] = koerper
+        n["paare"] = [sorted(map(str, p)) for p in v.get("teile") or () if isinstance(p, (list, tuple)) and len(p) == 2]
     if v.get("linien"):                                 # Nahtverlauf in Dateilage (3D-Ansicht)
         n["linien"] = v["linien"]
     if _zahl(v.get("dicke")) and v["dicke"] > 0:          # Wanddicke für das Heften der Vorkalkulation
