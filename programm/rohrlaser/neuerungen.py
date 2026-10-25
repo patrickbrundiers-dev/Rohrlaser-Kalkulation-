@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.134", "<b>Anfrageformular lesen</b>: Liegt bei einer neuen Anfrage ein PDF mit Text, liest das Programm "
+                "die <b>Anfragenummer</b> (kommt in <i>Ihre Anfrage / Zeichen</i>, Unterordner heißt "
+                "<i>Kunde – Anfragenummer</i>), den <b>Kunden</b> aus der Kundenliste und die <b>Stückzahlen</b> je "
+                "Artikelnummer bzw. STEP-Dateiname. Unsicher erkannte Mengen sind im Prüfdialog gelb ([[anfragen]]).",
+     "Anfrageformular (PDF mit Text): Anfragenummer, Kunde und Stückzahlen werden übernommen."],
     ["0.9.133", "<b>Neue Anfragen aus dem Anfrage-Ordner</b>: STEP-Dateien und Anfrageformulare in einen Ordner "
                 "legen (Einstellungen → Ablage → <i>Anfrage-Ordner</i>); die Startseite zeigt sie unter <b>Neue "
                 "Anfragen</b>. Ein Unterordner ist eine Anfrage, lose Dateien mit weniger als 10 Minuten Abstand "
