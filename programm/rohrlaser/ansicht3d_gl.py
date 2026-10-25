@@ -179,7 +179,7 @@ def koerper_daten(koerper, gewaehlt, farben, linien_farben):
                 d.extend(c)
         li = out["wkl" + g]
         for ring in k["ringe"]:
-            for a, b in zip(ring, ring[1:] + ring[:1]):
+            for a, b in zip(ring, ring[1:]):
                 for q in (a, b):
                     li.extend(q)
                     li.extend((0.0, 0.0, 1.0))

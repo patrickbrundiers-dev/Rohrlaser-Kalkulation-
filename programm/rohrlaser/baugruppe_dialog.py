@@ -943,6 +943,7 @@ class SteckEditor:
     def _rohr_modelle(self):
         """Rohre aus den Eingaben (B2): {Positions-ID: Netz im Rohrsystem} mit den Steckverbindungen des Editors;
         Teile ohne Eingaben, Biegerohr, Knickrahmen oder mit Anbauteilen fehlen (dort bleibt das STEP-Netz)."""
+        from . import rohr3d
         from .baugruppe_ansicht import eigenes_modell, rohr_netz
         eing, winkel = self._rohr_eingaben()
         cache = self.__dict__.setdefault("_rohr_cache", {})
@@ -952,7 +953,8 @@ class SteckEditor:
                 continue
             schluessel = json.dumps([e, laenge, winkel.get(pid)], sort_keys=True, default=str)
             if (cache.get(pid) or (None,))[0] != schluessel:
-                cache[pid] = (schluessel, rohr_netz(e, self._steck_profil(pid), laenge, winkel.get(pid)))
+                n = rohr_netz(e, self._steck_profil(pid), laenge, winkel.get(pid))
+                cache[pid] = (schluessel, rohr3d.mit_step(n, self._netz(pid), e, self._steck_profil(pid), laenge))
             if cache[pid][1]:
                 out[pid] = cache[pid][1]
         return out

@@ -52,6 +52,8 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("WR", "Schnittkörper Rechteck/Kontur", "#9B51E0", "#7330B0"),
     ("WA", "Schnittkörper Ausklinkung", "#F2994A", "#C46A1C"),
     ("WG", "Schnittkörper Gravur", "#27AE60", "#1E8449"),
+    ("WU", "Schnittkörper Sonderkontur", "#FF1493", "#C2006E"),       # unbekannte Kontur, Form wie STEP
+    ("WV", "Schnittkörper V-Ausschnitt", "#8D6E63", "#5D4037"),
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -94,7 +96,7 @@ PERSPEKTIVE_EINSTELLUNG = "ansicht_perspektive"
 ALPHA = 0.32            # Deckkraft der Flächen bei „Durchsichtig“
 # Schnittkörper (schnittkoerper.py): Deckkraft, gewählte Kontur kräftiger; Vorgabe an, je Benutzer gemerkt
 WK_ALPHA, WK_ALPHA_GEWAEHLT = 0.26, 0.6
-WK_ARTEN = ("WB", "WL", "WR", "WA", "WG")
+WK_ARTEN = ("WB", "WL", "WR", "WA", "WG", "WU", "WV")
 KOERPER_EINSTELLUNG = "ansicht_schnittkoerper"
 BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Weiß gemischt
 KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (große Baugruppen: keine)
@@ -317,7 +319,8 @@ def koerper_lesen(wk):
         o, u = k.get("o") or [], k.get("u") or []
         ro = [tuple(o[i:i + 3]) for i in range(0, len(o) - 2, 3)]
         ri = [tuple(u[i:i + 3]) for i in range(0, len(u) - 2, 3)]
-        if len(ro) < 3 or len(ro) != len(ri):
+        dr = k.get("dr") or []          # Körper aus der STEP-Datei: Dreiecke direkt, Linien li
+        if (len(ro) < 3 or len(ro) != len(ri)) and not dr:
             continue
         tris = []
 
@@ -339,8 +342,16 @@ def koerper_lesen(wk):
             if max(i, j, m) < n:
                 drei(ro[i], ro[j], ro[m])
                 drei(ri[i], ri[m], ri[j])
+        for q in range(0, len(dr) - 8, 9):
+            drei(tuple(dr[q:q + 3]), tuple(dr[q + 3:q + 6]), tuple(dr[q + 6:q + 9]))
+        # Linienzüge (geschlossen: erster Punkt am Ende wiederholt)
+        zuege = [ro + ro[:1], ri + ri[:1]] if ro else []
+        zuege += [[tuple(z[i:i + 3]) for i in range(0, len(z) - 2, 3)] for z in k.get("li") or ()]
+        if not tris:
+            continue
         out.append(dict(id=k.get("id"), art=k.get("art") if k.get("art") in WK_ARTEN else "WR",
-                        text=k.get("t") or "", dreiecke=tris, ringe=(ro, ri), punkte=ro + ri, auf=bool(k.get("auf"))))
+                        text=k.get("t") or "", dreiecke=tris, ringe=[z for z in zuege if len(z) >= 2],
+                        punkte=[q for t in tris for q in t[:3]], auf=bool(k.get("auf"))))
     return out
 
 
@@ -733,7 +744,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                 liste.append((schicht, (pa[2] + pb[2] + pc[2]) / 3, (pa, pb, pc), art, licht_wert(*nr), False))
         if linien:
             for ring in k["ringe"]:
-                for a, b in zip(ring, ring[1:] + ring[:1]):
+                for a, b in zip(ring, ring[1:]):
                     (ra, _), (rb, _) = gedreht(a), gedreht(b)
                     liste.append((schicht, (ra[2] + rb[2]) / 2 + 1e-6, (ra, rb), art, 1.0, True))
     if linien and darstellung in MIT_KOERPERKANTEN:
@@ -1107,8 +1118,8 @@ class Ansicht3D(QWidget):
             treffer = self._flaeche_treffer(bild, x, y)
             kt = self.koerper_unter(x, y)        # Klick in einen Schnittkörper (z. B. ins Loch) wählt seine Kontur
             if kt is not None and (treffer is None or kt[0] >= treffer["tiefe"]):
-                ring = kt[1]["ringe"][0]
-                treffer = dict(id=kt[1]["id"], punkt=tuple(sum(q[i] for q in ring) / len(ring) for i in range(3)))
+                pk = kt[1]["punkte"]
+                treffer = dict(id=kt[1]["id"], punkt=tuple(sum(q[i] for q in pk) / len(pk) for i in range(3)))
             if treffer is None:
                 return None
             treffer.pop("tiefe", None)

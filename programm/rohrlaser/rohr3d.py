@@ -691,6 +691,22 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
     return out
 
 
+def mit_step(netz, netz_step, e, profil, laenge):
+    """Schnittkörper unbekannter Konturen in netz (aus netz()) durch ihre Form aus dem STEP-Netz ersetzen
+    (schnittkoerper.aus_step); netz wird geändert und zurückgegeben."""
+    if not netz or not netz_step or not isinstance(netz_step, dict):
+        return netz
+    from . import schnittkoerper
+    try:
+        qs = sk.Querschnitt(mit_radius(profil, e))
+        wk = schnittkoerper.aus_step(netz.get("wk"), netz_step, e, qs, _z(laenge), _xyz)
+    except (ValueError, TypeError, ZeroDivisionError, KeyError):
+        return netz
+    if wk:
+        netz["wk"] = wk
+    return netz
+
+
 KREIS_ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL)
 
 

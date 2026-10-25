@@ -9,6 +9,7 @@ tief wie sie schneidet, Farbe je Konturart, Tiefe als Tooltip, Vorgabe an, gewä
   Maus, Klick in den Körper wählt die Kontur, gewählte kräftiger
 - K4 Baugruppe: Körper in Einbaulage, Verschieben längs der Achse
 - K5 OpenGL (mit xvfb-run): Körper gezeichnet ohne Rückfall auf QPainter
+- K6 V-Ausschnitt (Knickrahmen) eigene Farbe; unbekannte Kontur (Sonderkontur) mit der Form aus dem STEP-Netz
 
 Aufruf: python tests/test_schnittkoerper.py   (ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -197,6 +198,38 @@ assert math.isclose(o1[0], 100 + o0[2]) and math.isclose(o1[2], -o0[0], abs_tol=
 sk3.verschieben(n["wk"], -5)
 assert math.isclose(ringe(n["wk"][0])[0][0][2], o0[2] - 5)
 ok("K4 Baugruppe/Satz: Körper in Einbaulage, längs verschoben")
+
+# ------------------------------------------------------------------ K6 V-Ausschnitt, unbekannte Kontur wie STEP
+from rohrlaser import knickrahmen  # noqa: E402
+pr = dict(form="Quadratrohr", a=40, b=40, wand=2)
+v = knickrahmen.zeile_ergaenzen(dict(art="V-Ausschnitt", anzahl=1, beta=90, x=300), pr)
+(kv,) = rohr3d.netz(dict(konturen=[v]), pr, 800)["wk"]
+assert kv["art"] == "WV" and kv["d"] == [] and "V-Ausschnitt β 90°" in kv["t"], kv["t"]     # über Wände: ohne Deckel
+es = dict(konturen=[dict(art="Sonderkontur", anzahl=1, x=300, seite="oben", laenge=80, huelle=20,
+                         umriss=[[-10, -10], [10, -10], [10, 10], [-10, 10]]),
+                    dict(art="Bohrung", anzahl=1, d=20, x=700, seite="oben")])
+n = rohr3d.netz(es, QR, 1000)
+assert [k["art"] for k in n["wk"]] == ["WU", "WB"]
+
+
+def quad(x0, y0, z0, b):
+    """Viereck (Wandstück) der STEP-Kontur: zwei Dreiecke, Art K."""
+    return [x0, y0, z0, x0 + b, y0, z0, x0 + b, y0 - 3, z0, x0, y0 - 3, z0]
+
+
+step_netz = dict(p=quad(-12, 40, 295, 6) + quad(-6, 40, 295, 6) + quad(-10, 40, 700, 20),
+                 t={"K": [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11]},
+                 l={"K": [[-12, 40, 295, -6, 40, 295, 0, 40, 295]]})
+n = rohr3d.mit_step(n, step_netz, es, QR, 1000)
+wu = [k for k in n["wk"] if k["art"] == "WU"]
+assert len(wu) == 1 and len(wu[0]["dr"]) == 4 * 9 and wu[0]["li"], wu      # nur die Stücke bei x 300, Linie dazu
+assert "Form wie in der STEP-Datei" in wu[0]["t"] and wu[0]["auf"]
+assert [k["art"] for k in n["wk"]] == ["WB", "WU"]                  # Bohrung bleibt aus den Eingaben
+mo = ansicht3d.Modell(n)
+assert [len(k["dreiecke"]) for k in mo.koerper if k["art"] == "WU"] == [4]
+gesamt, _ = ansicht3d.baugruppe([dict(n, lage=[0, 0, 0, 0, 0, 1, 1, 0, 0])])
+assert len([k for k in gesamt["wk"] if k["art"] == "WU"][0]["dr"]) == 36
+ok("K6 V-Ausschnitt eigene Farbe ohne Deckel; unbekannte Kontur mit der Form aus der STEP-Datei (eigene Farbe)")
 
 # ------------------------------------------------------------------ K5 OpenGL
 if sys.platform.startswith("linux") and shutil.which("xvfb-run"):

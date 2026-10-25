@@ -988,6 +988,7 @@ class EditorRahmen(QObject):
                 netz = rohr3d.netz(eingaben_mit_gravur(e, getattr(d, "p", None)), d.profil, laenge,
                                    nw.get("naht_winkel") if nw.get("naht_vorgabe") == naht.FEST else None,
                                    d.schwenk_grenze() if hasattr(d, "schwenk_grenze") else None)
+                netz = rohr3d.mit_step(netz, self.step_netz, e, d.profil, laenge)   # unbekannte Konturen wie STEP
             except (ValueError, TypeError, ZeroDivisionError):
                 netz = None
             netz, titel = netz or self.step_netz, "3D-Modell (aus den Eingaben)"

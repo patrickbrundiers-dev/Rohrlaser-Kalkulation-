@@ -22,11 +22,16 @@ import math
 
 from . import skizze as sk
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
-                         RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, _z)
+                         RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, SONSTIGE, V_AUSSCHNITT, _z)
 
 # Farbe je Konturart, in allen 3D-Fenstern gleich (Patrick 25.10.2026): Schlüssel = Art in ansicht3d.ARTEN
+# Unbekannte Konturen (Sonderkontur, Sonstige) eigene Farbe "WU", Form wie in der STEP-Datei (aus_step); V-Ausschnitte
+# der Knickrahmen eigene Farbe "WV" (Patrick 25.10.2026)
 FARBE_ART = {BOHRUNG: "WB", SENKUNG: "WB", FLOWDRILL: "WB", LOCHFELD: "WB", LANGLOCH: "WL", SCHLITZ: "WL",
-             RECHTECK: "WR", POLYGON: "WR", SONDERKONTUR: "WR", DURCHBRUCH: "WR", AUSKLINKUNG: "WA", GRAVUR: "WG"}
+             RECHTECK: "WR", POLYGON: "WR", DURCHBRUCH: "WR", AUSKLINKUNG: "WA", GRAVUR: "WG", SONDERKONTUR: "WU",
+             SONSTIGE: "WU", V_AUSSCHNITT: "WV"}
+UNBEKANNT = (SONDERKONTUR, SONSTIGE)
+STEP_NAH = 8.0          # STEP-Kontur gehört zur Zeile, wenn ihre Mitte so nah an der Hülle der Zeile liegt [mm]
 UEBERSTAND = 2.0        # Körper ragen außen so weit über die Wand hinaus [mm] (Patrick: außen etwas überstehen)
 UEBERSTAND_INNEN = 2.0  # innen ebenso (Patrick: je 2 mm)
 GRAVUR_TIEFE = 0.1      # Gravur ohne Tiefe [mm]
@@ -119,7 +124,7 @@ def rohr(e, qs, L, xyz):
         ein = d["eingabe"]
         art = ein.get("art")
         farbe = FARBE_ART.get(art)
-        if farbe is None or (art == SONDERKONTUR and not ein.get("umriss")) or (art == GRAVUR and not ein.get("umriss")):
+        if farbe is None or (art in UNBEKANNT + (GRAVUR,) and not ein.get("umriss")):
             continue
         beide = ein.get("wand") == "beide"
         if beide and d.get("kopie"):
@@ -167,14 +172,23 @@ def rohr(e, qs, L, xyz):
             durch = max(tiefen) if tiefen else 0.0
         else:
             tiefen = [tief] * len(orte)
+        # über mehrere Wände (Sonderkontur, V-Ausschnitt): ohne Deckel, eine ebene Fläche ginge quer durchs Profil
+        deckel = _deckel(pts) if len(set(richt)) == 1 or qs.r else []
         o, u_ = [], []
         for (x, u, v), (ru, rv, rx), tf in zip(orte, richt, tiefen):
             a = (x - rx * UEBERSTAND, u - ru * UEBERSTAND, v - rv * UEBERSTAND)
             b = (x + rx * (tf + UEBERSTAND_INNEN), u + ru * (tf + UEBERSTAND_INNEN), v + rv * (tf + UEBERSTAND_INNEN))
             o += [round(c, 3) for c in xyz(*a)]
             u_ += [round(c, 3) for c in xyz(*b)]
-        text = f"{sk.kurz(ein)}\n{tiefe_text(ein, qs, durch, t_wand)}"
-        k = dict(id=f"kontur:{d['zeile']}", art=farbe, o=o, u=u_, d=_deckel(pts), t=text)
+        name = sk.kurz(ein)
+        if art == V_AUSSCHNITT:
+            name = f"V-Ausschnitt β {_zahl(_z(ein.get('beta')) or 90)}° (Knickrahmen)"
+            text = f"{name}\nSeitenwände und Gegenwand, je 1 Wand · {_zahl(t_wand)} mm"
+        elif art in UNBEKANNT:
+            text = f"{name}\nunbekannte Kontur, Umriss aus den Eingaben · je 1 Wand · {_zahl(t_wand)} mm"
+        else:
+            text = f"{name}\n{tiefe_text(ein, qs, durch, t_wand)}"
+        k = dict(id=f"kontur:{d['zeile']}", art=farbe, o=o, u=u_, d=deckel, t=text)
         if art in GRAVUREN or art == FLOWDRILL:
             k["auf"] = True             # Wand dort nicht ausgeschnitten: Körper liegt auf der Fläche
         out.append(k)
@@ -213,8 +227,7 @@ def blech(e, zs, haut, ansicht, dicke):
 def verschieben(koerper, dz):
     """Körper längs der Rohrachse verschieben (baugruppe_ansicht.rohr_netz: Nasen an Ende A)."""
     for k in koerper or ():
-        for schl in ("o", "u"):
-            p = k[schl]
+        for p in [k.get("o") or [], k.get("u") or [], k.get("dr") or []] + list(k.get("li") or ()):
             for i in range(2, len(p), 3):
                 p[i] = round(p[i] + dz, 3)
 
@@ -230,5 +243,88 @@ def in_lage(koerper, lage):
             a, b, c = p[i], p[i + 1], p[i + 2]
             aus += [round(o[k] + a * x[k] + b * y[k] + c * z[k], 3) for k in range(3)]
         return aus
-    return [dict(k, o=lege(k["o"]), u=lege(k["u"])) for k in koerper or ()]
+    return [dict(k, o=lege(k.get("o") or []), u=lege(k.get("u") or []), dr=lege(k.get("dr") or []),
+                 li=[lege(z) for z in k.get("li") or ()]) for k in koerper or ()]
 
+
+
+def _gruppen(dreiecke, schl):
+    """Dreiecke [(a, b, c)] in zusammenhängende Gruppen (gemeinsame Ecken) teilen: [[Nummern]]."""
+    eltern = list(range(len(dreiecke)))
+
+    def wurzel(i):
+        while eltern[i] != i:
+            eltern[i] = eltern[eltern[i]]
+            i = eltern[i]
+        return i
+    ecke = {}
+    for nr, d in enumerate(dreiecke):
+        for q in d:
+            k = schl(q)
+            if k in ecke:
+                a, b = wurzel(nr), wurzel(ecke[k])
+                if a != b:
+                    eltern[a] = b
+            else:
+                ecke[k] = nr
+    out = {}
+    for nr in range(len(dreiecke)):
+        out.setdefault(wurzel(nr), []).append(nr)
+    return list(out.values())
+
+
+def aus_step(wk, netz_step, e, qs, L, xyz):
+    """Unbekannte Konturen (Sonderkontur, Sonstige) so wie in der STEP-Datei (Patrick 25.10.2026): die Schnittflächen
+    der Kontur aus dem Netz des STEP-Imports (Art K, gleiche Lage wie das Modell aus den Eingaben) werden ihr
+    Schnittkörper, Farbe "WU". Zugeordnet wird jede zusammenhängende Kontur der STEP-Datei der nächsten Konturzeile;
+    nur die der unbekannten Zeilen werden übernommen (ersetzen deren Körper aus dem Umriss). wk: Liste aus rohr(),
+    Ergebnis die neue Liste."""
+    wk = list(wk or ())
+    if not netz_step or not netz_step.get("p"):
+        return wk
+    zeilen = e.get("konturen") or []
+    if not any((z or {}).get("art") in UNBEKANNT for z in zeilen):
+        return wk
+    p = netz_step["p"]
+    idx = (netz_step.get("t") or {}).get("K") or []
+    tris = [tuple(tuple(p[3 * i:3 * i + 3]) for i in idx[n:n + 3]) for n in range(0, len(idx) - 2, 3)]
+    if not tris:
+        return wk
+    gruppen = _gruppen(tris, lambda q: (round(q[0], 2), round(q[1], 2), round(q[2], 2)))
+    # Mitte und halbe Hülle je Konturzeile (alle Stück und Kopien)
+    ziele = []
+    for d in sk.lagen(zeilen, L, qs):
+        try:
+            (orte, _), pts = sk.platzieren(qs, d), sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
+        except (ValueError, TypeError, ZeroDivisionError, AttributeError):
+            continue
+        m = [sum(xyz(*q)[i] for q in orte) / len(orte) for i in range(3)]
+        halb = max((math.hypot(dx, dq) for dx, dq in pts), default=0.0)
+        ziele.append((m, halb, d))
+    if not ziele:
+        return wk
+    linien = []
+    for zug in (netz_step.get("l") or {}).get("K") or []:
+        pk = [tuple(zug[i:i + 3]) for i in range(0, len(zug) - 2, 3)]
+        if len(pk) >= 2:
+            linien.append((pk, [sum(q[i] for q in pk) / len(pk) for i in range(3)]))
+    neu = {}
+    for g in gruppen:
+        pk = [q for nr in g for q in tris[nr]]
+        mitte = [(min(q[i] for q in pk) + max(q[i] for q in pk)) / 2 for i in range(3)]
+        m, halb, d = min(ziele, key=lambda z: math.dist(z[0], mitte) - z[1])
+        if math.dist(m, mitte) > halb + STEP_NAH or d["eingabe"].get("art") not in UNBEKANNT:
+            continue
+        k = neu.setdefault(d["zeile"], dict(id=f"kontur:{d['zeile']}", art="WU", o=[], u=[], d=[], dr=[], li=[], auf=True,
+                                            t=f"{sk.kurz(d['eingabe'])}\nunbekannte Kontur, Form wie in der "
+                                              f"STEP-Datei · Wand {_zahl(qs.wand or 0)} mm"))
+        k["dr"] += [round(c, 3) for nr in g for q in tris[nr] for c in q]
+        rand = (min(q[0] for q in pk) - 1, max(q[0] for q in pk) + 1, min(q[1] for q in pk) - 1,
+                max(q[1] for q in pk) + 1, min(q[2] for q in pk) - 1, max(q[2] for q in pk) + 1)
+        for zug, c in linien:
+            if rand[0] <= c[0] <= rand[1] and rand[2] <= c[1] <= rand[3] and rand[4] <= c[2] <= rand[5]:
+                k["li"].append([round(v, 3) for q in zug for v in q])
+    if not neu:
+        return wk
+    ersetzt = {k["id"] for k in neu.values()}
+    return [k for k in wk if k["id"] not in ersetzt] + list(neu.values())
