@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.126", "<b>3D drehen um den Mauszeiger</b>: In allen 3D-Ansichten (Teile-Editor Rohr und Blech, "
+                "Schweißbaugruppe, Satz in 3D, STEP-Prüfdialog, 3D-Ansicht der Positionen) dreht die linke Maustaste "
+                "jetzt um den Punkt des Modells unter dem Mauszeiger; ein kleiner Kreis zeigt ihn beim Drehen. Neben "
+                "dem Modell gedrückt, dreht die Ansicht wie bisher um die Modellmitte. Das Mausrad zoomt zur "
+                "Mausposition ([[step_3d_ansicht]]).",
+     "3D: Drehpunkt unter dem Mauszeiger, Zoom zur Mausposition"],
     ["0.9.125", "<b>STEP-Baugruppe: Teile genau an ihrer Stelle</b>: Beim STEP speichern einer Baugruppe oder eines "
                 "Satzes lagen quadratische Bleche verdreht und versetzt, Flachstahl als Blech teils 40 mm daneben. Das "
                 "Ausrichten am 3D-Netz der STEP-Messung prüft jetzt die Achsen der Einbaulage, der Datei und der Kanten, "
