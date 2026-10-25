@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.110", "<b>Baugruppe und Satz als STEP</b>: STEP speichern im Editor der Schweißbaugruppe und im Fenster "
+                "Satz in 3D schreibt alle Teile als STEP-Baugruppe mit echten Volumenkörpern in der Einbaulage, "
+                "gleiche Teile einmal definiert, Unterbaugruppen wie im Strukturbaum. Rohre mit Schlitzen und Nasen, "
+                "Bleche eben oder gekantet ([[step_baugruppe]]).",
+     "Baugruppe und Satz als STEP-Baugruppe speichern"],
     ["0.9.109", "<b>Gekantete Bleche als STEP</b>: STEP speichern im Blech-Editor schreibt jetzt auch Kantteile und "
                 "mehrachsig gekantete Bleche aus dem STEP-Import (Schale, Kasten) als echten Volumenkörper. "
                 "Innenradius wie eingegeben, Außenmaße wie die Schenkel; Bohrungen und Konturen werden mitgebogen, "
