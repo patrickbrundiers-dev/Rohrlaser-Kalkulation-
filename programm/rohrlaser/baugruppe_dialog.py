@@ -17,12 +17,12 @@ import re
 from PySide6.QtCore import QItemSelectionModel, Qt, QTimer
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
-                               QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import baugruppe, baugruppe_vorschlaege as bv, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     vorkalk
+from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
@@ -1392,7 +1392,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.bezeichnung = QLineEdit(p.get("bezeichnung") or "")
         self.bezeichnung.setPlaceholderText("z. B. Rahmen Förderband")
         self.artikel = QLineEdit(p.get("artikel") or "")
-        self.anzahl = QSpinBox()
+        self.anzahl = RechenSpinGanz()
         self.anzahl.setRange(1, 100000)
         self.anzahl.setValue(int(p.get("stueck") or 1))
         self.anzahl.setSuffix(" Stk.")
@@ -1880,7 +1880,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             leiste.addWidget(b)
         leiste.addStretch(1)
         leiste.addWidget(QLabel("Wendevorgänge je Baugruppe"))
-        self.wenden = QSpinBox()
+        self.wenden = RechenSpinGanz()
         self.wenden.setRange(0, 99)
         self.wenden.setValue(int(self.bg.get("wenden") or 0))
         self.wenden.setToolTip("Wie oft die Baugruppe beim Schweißen gewendet oder umgespannt wird (Vorkalkulation: "

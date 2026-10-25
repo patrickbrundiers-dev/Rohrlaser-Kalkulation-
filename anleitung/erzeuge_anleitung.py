@@ -1398,7 +1398,30 @@ def kapitel_angebot(i):
             "Gemerkt wird in der eigenen Datendatei, nicht im gemeinsamen Ordner; jeder Arbeitsplatz hat seine "
             "eigenen Fenstergrößen. Lag ein Fenster auf einem Bildschirm, den es nicht mehr gibt, öffnet es in der "
             "Mitte. Die Teile-Editoren öffnen weiter maximiert.",
+            "Jedes Fenster passt auf den Bildschirm: Ist es (oder die gemerkte Größe vom großen Monitor) größer als "
+            "der freie Platz, z. B. am Laptop mit 1366 Punkten Breite, wird es beim Öffnen gekürzt und ganz auf den "
+            "Bildschirm geschoben.",
+            "Das gerade geöffnete Fenster kommt nach vorn und bleibt vor dem Hauptfenster, auch wenn man ins "
+            "Hauptfenster klickt (z. B. Palettenschein, Editoren).",
             "Gelöschte oder fremde Angebote öffnen beim Start nicht.")
+    i.abschnitt("Eingaben: Schalter, Knopfreihen, Rechnen im Feld", marke="eingaben")
+    i.text("Ja/Nein-Fragen sind <b>Schalter</b> (Einstellungen) bzw. <b>Häkchen</b> in der Tabellenzelle: ein "
+           "Klick schaltet um. Wenige Möglichkeiten stehen als <b>Knopfreihe</b> nebeneinander. In jedem Zahlenfeld "
+           "darf man <b>rechnen</b>, z. B. <i>6000/4</i> oder <i>1250-2*3</i>.", kurz=True)
+    i.genauer()
+    i.liste("Schalter in den Einstellungen: Klick oder Leertaste; rechts daneben steht Ja oder Nein.",
+            "Häkchen in Tabellen (z. B. Aktiv, 3D, Fremdleistung, Anfangsschnitt gerade): Klick aufs Häkchen, "
+            "Leertaste, <b>J</b> für ja oder <b>N</b> für nein. Ein Klick neben das Häkchen markiert nur die Zelle. "
+            "Ein Kästchen mit Strich heißt: noch nichts eingetragen.",
+            "Knopfreihe (z. B. Thema, Dichte, Eingaberichtung): Klick auf die Möglichkeit oder Pfeiltasten links/"
+            "rechts. Längere Listen bleiben Auswahllisten; feste Listen nehmen nur ihre Werte an, Tippfehler wie "
+            "<i>jaa</i> gehen nicht mehr. Listen aus den Stammdaten (Maschine, Werkstoff) finden beim Tippen auch "
+            "Teilwörter.",
+            "Rechnen: + − × ÷ (auch * / x :) und Klammern, Komma oder Punkt; das Ergebnis steht nach Eingabe oder "
+            "Tab im Feld. Eine unfertige Rechnung ist rot umrandet; der Tooltip sagt, was fehlt. Ergebnisse über "
+            "dem Höchstwert werden auf den Höchstwert begrenzt. Geht in Zahlenfeldern der Dialoge und Einstellungen "
+            "und in den Zahlenspalten der Tabellen; im Teile-Editor zusätzlich mit Größen wie <i>L/2</i>.",
+            "Klickt man in ein Zahlenfeld, ist der alte Wert markiert und wird beim Tippen gleich ersetzt.")
     i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
     i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
            "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "

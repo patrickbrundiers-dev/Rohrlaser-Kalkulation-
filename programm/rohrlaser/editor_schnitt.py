@@ -6,9 +6,10 @@ Gerechnet wird aus den Eingaben (Abwicklung wie skizze.lagen/umriss_kontur/s_lag
 """
 from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QPainter, QPainterPath, QPen, QPolygonF
-from PySide6.QtWidgets import QDialog, QDoubleSpinBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from . import rechnen, skizze as sk, schneidweg as sw, stil
+from .eingabe import RechenSpin
 
 WAND = stil.farbe_fest("#9AA5B1")
 LOCH = stil.farbe_fest("#C62828")
@@ -126,7 +127,7 @@ class SchnittFenster(QDialog):
         lay = QVBoxLayout(self)
         zeile = QHBoxLayout()
         zeile.addWidget(QLabel("Stelle x ab Ende A"))
-        self.feld = QDoubleSpinBox()
+        self.feld = RechenSpin()
         self.feld.setDecimals(1)
         self.feld.setSuffix(" mm")
         self.feld.setRange(0, 100000)

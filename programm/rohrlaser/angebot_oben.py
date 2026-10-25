@@ -17,6 +17,7 @@ from .angebot import (EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, 
                       aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
 from .sichtbarkeit import MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
+from .eingabe import RechenSpin, RechenSpinGanz
 
 KOPF_FELD = {f.name: f for f in KOPF}
 KALK_NAMEN = {f.name for f in KALKULATION}
@@ -605,14 +606,14 @@ class KopfBereich(QWidget):
             w = QComboBox()
             w.currentTextChanged.connect(lambda t, fd=fd: s._kopf_speichern(fd, t or None))
         elif fd.art == "ganz":
-            w = QSpinBox()
+            w = RechenSpinGanz()
             w.setRange(int(fd.von), int(fd.bis))
             w.setGroupSeparatorShown(True)
             w.setSingleStep(100 if fd.bis > 1000 else 1)
             w.setAlignment(Qt.AlignRight)
             w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, w.value()))
         elif fd.art == "zahl":
-            w = QDoubleSpinBox()
+            w = RechenSpin()
             w.setRange(fd.von, fd.bis)
             w.setDecimals(fd.stellen or 2)
             w.setGroupSeparatorShown(True)

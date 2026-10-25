@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.125", "<b>Eingaben intuitiver</b>: Ja/Nein-Einstellungen sind Schalter, Ja/Nein-Spalten der Tabellen "
+                "Häkchen in der Zelle (ein Klick, Leertaste, J/N). Wenige Möglichkeiten (Thema, Dichte, "
+                "Eingaberichtung …) stehen als Knopfreihe da; feste Auswahllisten der Einstellungen nehmen keine "
+                "Tippfehler mehr an. In allen Zahlenfeldern und Zahlenspalten darf man rechnen (<i>6000/4</i>), der "
+                "alte Wert ist beim Hineinklicken markiert, eine unfertige Rechnung rot umrandet ([[eingaben]]). "
+                "Fenster passen auf den Bildschirm (auch gemerkte Größen am Laptop), das offene Fenster bleibt vor dem "
+                "Hauptfenster ([[fenster_merken]]).",
+     "Schalter, Knopfreihen, Rechnen im Feld, Fenster passen und bleiben vorne"],
     ["0.9.124", "<b>DXF-Import Rohr mit Patricks Bauteil 1 verbessert</b>: Die Striche des Schnittverlaufs (A–A) "
                 "machten die Draufsicht zu lang; deshalb wurde die Vorderansicht verworfen und die Gehrung als "
                 "Ausklinkung gelesen, Bohrungen lagen 12 mm daneben. Jetzt: Gehrung 30° richtig, Fenster mit Eckradius, "

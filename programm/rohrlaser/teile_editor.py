@@ -29,6 +29,7 @@ from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
 from .menueband import Menueband
+from .eingabe import RechenSpin
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
@@ -542,13 +543,13 @@ class EditorRahmen(QObject):
             self.fangen_knopf = g.knopf("Fangen", None, lambda an: self.anzeige_setzen("fangen_an", an), gross=False,
                                         umschalter=True, tipp="Beim Ziehen der Griffe auf das Raster, die Teilmitte "
                                                               "und die Flächenmitte fangen (Alt beim Ziehen = frei)")
-            self.raster_feld = QDoubleSpinBox()
+            self.raster_feld = RechenSpin()
             self.raster_feld.setRange(0.1, 500)
             self.raster_feld.setDecimals(1)
             self.raster_feld.setSuffix(" mm")
             self.raster_feld.setToolTip("Raster für Griffe und Pfeiltasten (Umschalt = ×10)")
             self.raster_feld.valueChanged.connect(lambda v: self.anzeige_setzen("raster", v))
-            self.raster_winkel_feld = QDoubleSpinBox()
+            self.raster_winkel_feld = RechenSpin()
             self.raster_winkel_feld.setRange(0.5, 90)
             self.raster_winkel_feld.setDecimals(1)
             self.raster_winkel_feld.setSuffix(" °")

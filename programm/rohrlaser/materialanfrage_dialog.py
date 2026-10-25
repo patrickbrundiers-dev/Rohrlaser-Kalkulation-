@@ -4,10 +4,11 @@ Die Materialanfrage wird nie vom Programm gesendet: 'In Outlook öffnen' zeigt d
 wird dort mit einem Klick des Benutzers. Geht das nicht (kein klassisches Outlook), entsteht eine E-Mail-Datei."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QFormLayout, QHBoxLayout, QHeaderView, QLabel,
-                               QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
+                               QLineEdit, QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem,
                                QVBoxLayout)
 
 from . import materialanfrage as ma
+from .eingabe import RechenSpinGanz
 
 
 class AnfrageDialog(QDialog):
@@ -51,7 +52,7 @@ class AnfrageDialog(QDialog):
             an.setCheckState(Qt.Checked)
             self.tabelle.setItem(r, 0, an)
             self.tabelle.setItem(r, 1, QTableWidgetItem(z["text"]))
-            m = QSpinBox()
+            m = RechenSpinGanz()
             m.setRange(1, 100000)
             m.setValue(z["stangen"])
             m.valueChanged.connect(self._neu)
