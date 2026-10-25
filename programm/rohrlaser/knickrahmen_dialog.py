@@ -1,9 +1,10 @@
 """Dialog „Knickrahmen“ im Schneidweg-Rechner (Plan K1): Schenkel des Rahmens, Knickwinkel, Stegwand, Freistich,
 Knickzugabe und K-Faktor eingeben; die Vorschau zeigt gestreckte Länge und Lage der Knicke (knickrahmen.rahmen)."""
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
                                QLineEdit, QPushButton, QVBoxLayout)
 
 from . import knickrahmen as kn, rechnen, skizze as sk
+from .eingabe import RechenSpin
 
 
 def _liste(text):
@@ -24,7 +25,7 @@ def _schraeg_haken(k):
 
 
 def _spin(wert, von, bis, suffix, leer=None, stellen=1):
-    s = QDoubleSpinBox()
+    s = RechenSpin()
     s.setRange(von, bis)
     s.setDecimals(stellen)
     s.setSuffix(suffix)

@@ -4,10 +4,11 @@ rechteckig, schräg, mit Versatz, Achse waagerecht oder senkrecht. Das Programm 
 
 Ergebnis (Eingabe des Endes 'gegen'): dict(d, t, r, winkel, versatz, lage) bzw. None (kein Gegenrohr).
 """
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel,
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
                                QPushButton, QVBoxLayout)
 
 from . import durchdringung as dd, rechnen, schneidweg as sw, skizze as sk
+from .eingabe import RechenSpin
 
 RUND, ECKIG = "rund", "rechteckig"
 LAGE_TEXT = {dd.WAAGERECHT: "waagerecht (Achse quer, Sattel von vorne sichtbar)",
@@ -15,7 +16,7 @@ LAGE_TEXT = {dd.WAAGERECHT: "waagerecht (Achse quer, Sattel von vorne sichtbar)"
 
 
 def _spin(minimum, maximum, wert, einheit, tipp, stellen=1):
-    f = QDoubleSpinBox()
+    f = RechenSpin()
     f.setRange(minimum, maximum)
     f.setDecimals(stellen)
     f.setSuffix(f" {einheit}")

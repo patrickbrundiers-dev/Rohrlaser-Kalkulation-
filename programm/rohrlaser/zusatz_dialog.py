@@ -9,11 +9,12 @@ import json
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox, QTableWidget, QVBoxLayout)
+                               QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QVBoxLayout)
 
 from . import hilfe, rechnen
 from .angebot import POSITIONEN
 from .stammdaten import ZUSATZ_EINHEIT, wert_aus_text, zahl_als_text, zahl_aus_text
+from .eingabe import RechenSpinGanz
 
 SPALTEN = ("Zusatzarbeit", "Abrechnung", "Menge bzw. Sekunden je Teil", "Preis [€], Zeit [s] bzw. Stundensatz [€/h]",
            "Text (z. B. RAL-Farbe)")
@@ -56,7 +57,7 @@ class ZusatzDialog(QDialog):
         # Gewinde aus der Liste der Stammdaten hinzufügen statt frei tippen: Anzahl × Größe
         zeile = QHBoxLayout()
         zeile.addWidget(self.gewinde, 1)
-        self.gewinde_anzahl = QSpinBox()
+        self.gewinde_anzahl = RechenSpinGanz()
         self.gewinde_anzahl.setRange(1, 999)
         self.gewinde_anzahl.setSuffix(" ×")
         self.gewinde_wahl = QComboBox()

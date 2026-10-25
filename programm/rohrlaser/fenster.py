@@ -16,13 +16,13 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QApplication, QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QApplication, QSpinBox, QSplitter, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, hilfe, lizenzbedingungen, pdf, tabellen_eingabe, tastatur, teilen, update
@@ -31,7 +31,8 @@ from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
-from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
+from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, Kontext, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
+from .eingabe import RechenSpin, RechenSpinGanz, Schalter, Segment, segment_passt
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 ANLEITUNG_KOPIE = "Anleitung"     # Unterordner im Datenordner (anleitung_kopie)
@@ -248,7 +249,67 @@ class Auswahl(QStyledItemDelegate):
         super().__init__(parent)
         self.modell = modell
 
+    def _feld(self, index):
+        quelle = self.modell.mapToSource(index) if hasattr(self.modell, "mapToSource") else index
+        art, f = quelle.model().spalten[quelle.column()]
+        return f if art == "feld" else None
+
+    def _janein(self, index):
+        """Spalte ja/nein: Häkchen in der Zelle statt Auswahlliste (Plan Eingabefelder E1)."""
+        f = self._feld(index) if index.isValid() else None
+        return f is not None and f.art == "auswahl" and f.auswahl == "janein"
+
+    def _haken_rechteck(self, option):
+        st = option.widget.style() if option.widget else QApplication.style()
+        o = QStyleOptionButton()
+        r = st.subElementRect(QStyle.SE_CheckBoxIndicator, o, option.widget)
+        r.moveCenter(option.rect.center())
+        return r
+
+    def paint(self, painter, option, index):
+        if not self._janein(index):
+            return super().paint(painter, option, index)
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        wert = str(index.data(Qt.ItemDataRole.EditRole) or "").strip().lower()
+        opt.text = ""
+        st = opt.widget.style() if opt.widget else QApplication.style()
+        st.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+        haken = QStyleOptionButton()
+        haken.rect = self._haken_rechteck(option)
+        haken.state = QStyle.State_Enabled | (QStyle.State_On if wert == "ja" else
+                                              QStyle.State_NoChange if wert not in ("ja", "nein") else QStyle.State_Off)
+        if not (index.flags() & Qt.ItemIsEditable):
+            haken.state &= ~QStyle.State_Enabled
+        st.drawPrimitive(QStyle.PE_IndicatorCheckBox, haken, painter, opt.widget)
+
+    def editorEvent(self, ereignis, modell, option, index):
+        if not self._janein(index) or not (index.flags() & Qt.ItemIsEditable):
+            return super().editorEvent(ereignis, modell, option, index)
+        t = ereignis.type()
+        if t == QEvent.MouseButtonDblClick:
+            return True                     # kein Editor, das Umschalten macht der Klick
+        if t == QEvent.MouseButtonRelease and ereignis.button() == Qt.LeftButton:
+            if not self._haken_rechteck(option).adjusted(-6, -6, 6, 6).contains(ereignis.position().toPoint()):
+                return False                # Klick neben das Häkchen: nur auswählen
+            return self._umschalten(modell, index)
+        if t == QEvent.KeyPress:
+            taste = ereignis.key()
+            if taste in (Qt.Key_Space, Qt.Key_Select):
+                return self._umschalten(modell, index)
+            if taste in (Qt.Key_J, Qt.Key_N):
+                return modell.setData(index, "ja" if taste == Qt.Key_J else "nein", Qt.ItemDataRole.EditRole)
+        return False
+
+    @staticmethod
+    def _umschalten(modell, index):
+        alt = str(index.data(Qt.ItemDataRole.EditRole) or "").strip().lower()
+        modell.setData(index, "nein" if alt == "ja" else "ja", Qt.ItemDataRole.EditRole)
+        return True
+
     def createEditor(self, parent, option, index):
+        if self._janein(index):
+            return None
         quelle = self.modell.mapToSource(index) if hasattr(self.modell, "mapToSource") else index
         art, f = quelle.model().spalten[quelle.column()]
         if art == "feld" and f.art == "auswahl":
@@ -786,13 +847,13 @@ class EinstellungenSeite(QScrollArea):
 
     def _eingabe(self, e):
         if e.art == "anteil":
-            w = QDoubleSpinBox()
+            w = RechenSpin()
             w.setRange(e.von * 100, e.bis * 100)
             w.setDecimals(1)
             w.setSuffix(" %")
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, round(w.value() / 100, 6)))
         elif e.art == "zahl":
-            w = QDoubleSpinBox()
+            w = RechenSpin()
             w.setRange(e.von, e.bis)
             w.setDecimals(2)
             w.setGroupSeparatorShown(True)
@@ -803,7 +864,7 @@ class EinstellungenSeite(QScrollArea):
             w.setMaximumWidth(160)
             w.editingFinished.connect(lambda e=e, w=w: self._zahl_leer(e, w))
         elif e.art == "ganz":
-            w = QSpinBox()
+            w = RechenSpinGanz()
             w.setRange(int(e.von), int(e.bis))
             w.setGroupSeparatorShown(True)
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.value()))
@@ -812,8 +873,16 @@ class EinstellungenSeite(QScrollArea):
             w.setFixedHeight(80)
             w.fertig.connect(lambda e=e, w=w: self._speichern(e, w.toPlainText().strip()))
         elif e.art == "auswahl":
-            w = QComboBox()
-            w.setEditable(e.auswahl != "hilfeart")
+            # Plan Eingabefelder E1/E2: ja/nein als Schalter, wenige kurze Möglichkeiten als Knopfreihe, feste
+            # Listen nur mit ihren Werten; Listen aus den Stammdaten (Maschine, Werkstoff …) mit Teilwortsuche
+            fest = Kontext().auswahl(e.auswahl)
+            if e.auswahl == "janein":
+                w = Schalter()
+            elif segment_passt(fest):
+                w = Segment(fest)
+            else:
+                w = QComboBox()
+                w.setEditable(not fest)
             w.currentTextChanged.connect(lambda text, e=e: self._speichern(e, text.strip()))
         elif e.art == "passwort":
             w = PasswortEingabe()
@@ -837,7 +906,9 @@ class EinstellungenSeite(QScrollArea):
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
         if e.art in ("anteil", "zahl", "zahl_leer", "ganz"):
             w.setMaximumWidth(self.BREITE_ZAHL)
-        elif e.art in ("text", "auswahl"):
+        elif e.art == "auswahl" and not isinstance(w, Schalter):
+            w.setMaximumWidth(self.BREITE_TEXT)
+        elif e.art == "text":
             w.setMaximumWidth(self.BREITE_TEXT)
         elif e.art == "passwort":
             w.setMaximumWidth(self.BREITE_TEXT + 100)
@@ -937,8 +1008,16 @@ class EinstellungenSeite(QScrollArea):
             elif e.art == "mehrzeilig":
                 w.setPlainText(v or "")
             elif e.art == "auswahl":
-                w.clear()
-                w.addItems(k.auswahl(e.auswahl))
+                werte = k.auswahl(e.auswahl)
+                if isinstance(w, QComboBox):
+                    w.clear()
+                    w.addItems(werte)
+                    if w.isEditable():
+                        tabellen_eingabe.teilwort(w)    # Tippen findet Teilwörter (B7)
+                    elif v and v not in werte:
+                        w.addItem(v)         # alter Wert, den es in der Liste nicht mehr gibt: sichtbar lassen
+                else:
+                    w.addItems(werte)
                 w.setCurrentText(v or "")
             elif e.art in ("bild", "ordner"):
                 w.anzeigen(v or "")
@@ -1384,6 +1463,8 @@ class Hauptfenster(QMainWindow):
             self.updater.beim_start()
             global zuletzt_quelle                       # zuletzt benutzte Werte oben in Auswahllisten (B7)
             zuletzt_quelle = db.zuletzt_benutzt
+            from . import fenster_platz     # Fenster passen auf den Bildschirm, offenes Fenster bleibt vorne (E3/E6)
+            self.fenster_platz = fenster_platz.einrichten(self)
             from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
             self.fenster_merker = FensterMerker(db, self)
             QApplication.instance().installEventFilter(self.fenster_merker)

@@ -11,10 +11,10 @@ from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QFont, QPainter, QPen
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QPushButton, QSpinBox,
-                               QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import dxf_import as di, dxf_rohr, stil
+from .eingabe import RechenSpinGanz
 
 ROLLEN = (("", "Automatisch"), ("vorne", "Vorderansicht"), ("oben", "Draufsicht"), ("schnitt", "Schnitt"),
           ("weg", "nicht verwenden"))
@@ -142,7 +142,7 @@ class DxfZuordnungDialog(QDialog):
         self.drehung = QComboBox()
         for _w, t in DREHUNGEN:
             self.drehung.addItem(t)
-        self.teil = QSpinBox()
+        self.teil = RechenSpinGanz()
         self.teil.setRange(1, 1)
         self.teil.setToolTip("Mehrere Teile auf dem Blatt: welches Teil übernommen wird (1 = das längste)")
         for titel, w in (("Projektion", self.projektion), ("Lage", self.drehung), ("Teil", self.teil)):
