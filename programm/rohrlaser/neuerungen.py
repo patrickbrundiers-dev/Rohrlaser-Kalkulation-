@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.137", "<b>Winkel aus größerem Profil: Stege 2 mm jetzt auch beim Profilwechsel</b>: Wird ein Winkel, U oder C "
+                "auf ein größeres Profil gleicher Form gestellt (z. B. L 33×30×6 → L 60×40×6), rechnet das Programm die "
+                "Längsschnitte zwischen den Stegen 2 mm an den Enden jetzt auch, wenn das Profil erst nach dem "
+                "Übernehmen in der Positionstabelle oder im Rohr-Editor geändert wird. Fehlt das größere Profil in den "
+                "Stammdaten, wird es mit den Maßen aus dem Namen angelegt statt mit den gemessenen "
+                "([[offene_rohre]]).",
+     "Winkel/U/C auf größeres Profil gestellt: Stege 2 mm auch nach dem Übernehmen, Profil mit Maßen aus dem Namen"],
     ["0.9.136", "<b>Scans und Fotos als Anfrageformular</b>: Gescannte PDFs, Faxe und Handyfotos (JPG, PNG, TIFF) "
                 "liest die mitgelieferte Texterkennung Tesseract (Deutsch/Englisch) schon im Hintergrund, die Liste "
                 "zeigt <i>liest Formular …</i>. Anfragenummer, Kunde und Stückzahlen wie beim PDF mit Text; leicht "
