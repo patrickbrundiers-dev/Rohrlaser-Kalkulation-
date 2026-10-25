@@ -2229,6 +2229,21 @@ class Datenbank:
             return e.vorgabe if e else None
         return json.loads(r[0])
 
+    @liest
+    def zuletzt_benutzt(self, quelle, anzahl=8):
+        """Zuletzt in Positionen benutzte Profile, Werkstoffe oder Oberflächen, neueste zuerst (Plan Bedienung B7)."""
+        spalte = {"profil": "profil_id", "werkstoff": "werkstoff_id", "oberflaeche": "oberflaeche"}.get(quelle)
+        if spalte is None:
+            return []
+        werte = []
+        for (w,) in self.con.execute(f'SELECT "{spalte}" FROM positionen WHERE "{spalte}" IS NOT NULL AND '
+                                     f'"{spalte}" <> \'\' ORDER BY id DESC LIMIT 300'):
+            if w not in werte:
+                werte.append(w)
+                if len(werte) >= anzahl:
+                    break
+        return werte
+
     @schreibt
     def einstellung_setzen(self, name, wert):
         with self.con:

@@ -41,7 +41,7 @@ db = Datenbank(tmp / "rohrlaser.db")
 fenster = Hauptfenster(db, tmp, stumm=True)
 k1, k2 = [k for k in db.zeilen("kunden")][:2]
 importe = []
-AngebotSeite.step_importieren = lambda self, dateien=None, *a, **kw: importe.append((self.id, dateien))
+AngebotSeite.step_importieren = lambda self, dateien=None, *a, **kw: importe.append((self.id, dateien, kw)) or {}
 
 ordner = tmp / "Eingang" / k1["name"] / "Anfrage"
 ordner.mkdir(parents=True)
@@ -52,7 +52,8 @@ s = fenster.angebote.neu_aus_step([str(ordner)])
 assert s is not None and len(db.angebote()) == vorher + 1
 assert s.kopf["kundennr"] == k1["kundennr"] and s.kopf["kunde"] == k1["name"]
 assert fenster.reiter.currentWidget() is s
-assert importe[-1] == (s.id, [str(ordner / "a.STP"), str(ordner / "b.step")]), importe
+assert importe[-1][:2] == (s.id, [str(ordner / "a.STP"), str(ordner / "b.step")]), importe
+assert importe[-1][2] == dict(kunde_waehlen=False), importe      # stumm: keine Kundenwahl im Prüfdialog
 assert db.einstellung("step_letzter_ordner") == str(ordner)
 ok("Ordner gezogen: Angebot für den Kunden aus dem Ordnernamen angelegt, geöffnet, Import mit den STEP-Dateien")
 
@@ -64,7 +65,7 @@ fremd.mkdir()
 (fremd / "c.step").write_text("x")
 assert step_neu.kunde_vorschlag(db, [str(fremd / "c.step")]) == k2["kundennr"]
 s2 = fenster.angebote.neu_aus_step([str(fremd / "c.step")])
-assert s2.kopf["kundennr"] == k2["kundennr"] and importe[-1] == (s2.id, [str(fremd / "c.step")])
+assert s2.kopf["kundennr"] == k2["kundennr"] and importe[-1][:2] == (s2.id, [str(fremd / "c.step")])
 ok("Ohne Kunde im Ordnernamen: Kunde des zuletzt geänderten Angebots mit Importprofil")
 
 # Kundenvorgaben (W2) gelten auch hier; kundennr '' = ohne Kunde
@@ -74,6 +75,14 @@ assert s3.kopf["stange"] == 12000
 s4 = fenster.angebote.neu_aus_step([str(ordner)], kundennr="")
 assert not s4.kopf.get("kundennr")
 ok("Kundenvorgaben gelten beim Anlegen; ohne Kunde möglich")
+
+# Plan Bedienung B1: Abbruch im Prüfdialog entfernt das eben angelegte leere Angebot wieder
+merk = AngebotSeite.step_importieren
+AngebotSeite.step_importieren = lambda self, *a, **kw: None
+vorher = len(db.angebote())
+assert fenster.angebote.neu_aus_step([str(ordner)]) is None and len(db.angebote()) == vorher
+AngebotSeite.step_importieren = merk
+ok("Abbruch im Prüfdialog: kein leeres Angebot bleibt zurück")
 
 # Keine STEP-Dateien, Lesemodus: nichts angelegt
 leer = tmp / "leer"

@@ -109,8 +109,7 @@ class Updater:
             return
         if self.lokal is None and not getattr(sys, "frozen", False):
             if not still:
-                QMessageBox.information(self.f, "Nach Updates suchen",
-                                        "Updates gibt es nur für das Programm aus dem ZIP (Release „aktuell“).")
+                self.f.meldung("Updates gibt es nur für das Programm aus dem ZIP (Release „aktuell“).")
             return
         self._laeuft = True
         if not still:
@@ -133,9 +132,7 @@ class Updater:
             return
         if not update.neuer(online, self.lokal):
             if not still:
-                self.f.meldung("Das Programm ist aktuell.")
-                QMessageBox.information(self.f, "Nach Updates suchen",
-                                        f"Das Programm ist aktuell: {update.stand_text(self.lokal)}.")
+                self.f.meldung(f"Das Programm ist aktuell: {update.stand_text(self.lokal)}.")
             return
         if still and QApplication.activeModalWidget() is not None:
             # gerade ist ein Dialog offen (STEP-Import, Optimieren …): nicht dazwischenfunken, später fragen

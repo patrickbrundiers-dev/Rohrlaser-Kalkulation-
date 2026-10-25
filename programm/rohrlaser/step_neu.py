@@ -7,7 +7,7 @@ und startet den STEP-Import wie in der Positionsliste.
 import re
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from . import step, step_ablage
 
@@ -56,18 +56,6 @@ def kunde_vorschlag(db, dateien):
     return None
 
 
-def kunde_waehlen(parent, db, vorschlag):
-    """Kunde im Dialog wählen (Vorschlag vorgewählt). Ergebnis: Kundennummer, '' (ohne Kunde) oder None (Abbruch)."""
-    kunden = sorted(db.zeilen("kunden"), key=lambda k: str(k.get("name") or "").lower())
-    texte = [OHNE_KUNDE] + [f"{k['kundennr']} – {k.get('name') or ''}" for k in kunden]
-    start = next((i + 1 for i, k in enumerate(kunden) if str(k["kundennr"]) == str(vorschlag)), 0)
-    text, ok = QInputDialog.getItem(parent, "Neues Angebot aus STEP", "Kunde (Vorschlag aus dem Ordnernamen bzw. "
-                                    "dem letzten Angebot mit Importprofil):", texte, start, False)
-    if not ok:
-        return None
-    return "" if text == OHNE_KUNDE else kunden[texte.index(text) - 1]["kundennr"]
-
-
 def neues_angebot(fenster, dateien=None, kundennr=None):
     """Angebot anlegen und die STEP-Dateien importieren. dateien: Dateien/Ordner (ohne: Dateiauswahl); kundennr:
     ohne Dialog (Tests, '' = ohne Kunde). Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
@@ -87,13 +75,16 @@ def neues_angebot(fenster, dateien=None, kundennr=None):
         fenster.meldung("Keine STEP-Dateien gefunden.", fehler=True)
         return None
     step_ablage.ordner_merken(db, gefunden)
+    waehlen = kundennr is None and not fenster.stumm     # Plan Bedienung B1: Kunde oben im Prüfdialog
     if kundennr is None:
-        vorschlag = kunde_vorschlag(db, dateien)
-        kundennr = (vorschlag or "") if fenster.stumm else kunde_waehlen(fenster, db, vorschlag)
-        if kundennr is None:
-            return None
+        kundennr = kunde_vorschlag(db, dateien) or ""
     i = db.angebot_neu(dict(kundennr=kundennr or None))
     fenster.angebote.neu_laden()
     seite = fenster.angebot_oeffnen(i)
-    seite.step_importieren(gefunden)
+    if seite.step_importieren(gefunden, kunde_waehlen=waehlen) is None and not seite.positionen:
+        # abgebrochen: das eben angelegte leere Angebot wieder entfernen (wie vorher beim Abbruch der Kundenwahl)
+        fenster.angebot_schliessen(i)
+        db.angebot_loeschen(i)
+        fenster.angebote.neu_laden()
+        return None
     return seite

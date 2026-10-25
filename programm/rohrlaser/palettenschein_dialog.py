@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDateEdit, QDialog,
                                QPlainTextEdit, QPushButton, QRadioButton, QScrollArea, QSpinBox, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import ausgabe, feiertage, paletten, palettenschein, pdf
+from . import ausgabe, einblendung, feiertage, paletten, palettenschein, pdf
 from .stammdaten import zahl_als_text
 
 HINWEIS_TEXT = {"leer": "", "normal": "passt in normaler Schrift", "klein": "wird etwas kleiner gedruckt",
@@ -404,7 +404,7 @@ class PalettenscheinDialog(QDialog):
             text = palettenschein.verteilen(self.z["packliste"]["gesamt_stueck"], self.anzahl.value())
         except ValueError as e:
             if not self.f.stumm:
-                QMessageBox.information(self, "Verteilen", str(e) + " Bitte „Stück pro Palette“ von Hand eintragen.")
+                einblendung.melden(self, str(e) + " Bitte „Stück pro Palette“ von Hand eintragen.")
             return
         self.stueck_text.setText(text)
 

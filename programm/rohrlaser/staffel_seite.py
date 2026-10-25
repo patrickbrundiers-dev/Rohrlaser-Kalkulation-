@@ -916,7 +916,7 @@ class StaffelSeite(QWidget):
             return
         self.s.db.staffel_stufen_loeschen([self.modell.daten[r]["id"] for r in zeilen])
         self.s.neu_laden()
-        self.s.verlauf.merken()
+        self.s.rueckgaengig_anbieten(f"{len(zeilen)} Stufe(n) gelöscht.")
         if not staffeln.gueltige(self.s.stufen):
             self._auto_aus = True
 

@@ -81,7 +81,7 @@ app.processEvents()
 f4 = max(z["id"] for z in db.angebote())
 assert db.angebot(f4)["nummer"] == alt["nummer"] + "-4" and f3 not in fenster.offen
 assert fenster.reiter.currentWidget() is fenster.offen[f4]
-assert "Neue Fassung" in fenster.statusBar().currentMessage()
+assert "Neue Fassung" in fenster.verlauf.eintraege[-1][1]     # Statuszeile läuft nach 8 s ab
 ok("Datei → Neue Fassung des Angebots: neue Fassung offen, alte geschlossen, Statuszeile")
 
 # Lesemodus und fremde Angebote: keine Fassung

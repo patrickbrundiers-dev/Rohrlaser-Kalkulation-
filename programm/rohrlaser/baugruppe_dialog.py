@@ -21,7 +21,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, baugruppe_vorschlaege as bv, blech, hilfe, naht, schneidweg, skizze, steckverbindung, stil, vorkalk
+from . import baugruppe, baugruppe_vorschlaege as bv, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
+    vorkalk
 from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
@@ -529,7 +530,7 @@ class SteckEditor:
             mark = [self.teile[r] for r in self.teile_tab.markierte() if r < len(self.teile)]
             wahl = [t for t in mark if t in rohre] if len(mark) == 2 else rohre[:2]
             if len(wahl) < 2:
-                QMessageBox.information(self, "Steckverbindung", f"Die {self.STECK_WAS} braucht zwei Rohre (Quadrat-, "
+                einblendung.melden(self, f"Die {self.STECK_WAS} braucht zwei Rohre (Quadrat-, "
                                         f"Rechteck- oder Rundrohr); {self.STECK_MARKIEREN} zwei markieren.")
                 return None
             auf, st = wahl[0]["_id"], wahl[1]["_id"]
@@ -628,7 +629,7 @@ class SteckEditor:
         plan, weg = self.steck_plan()
         if plan is None:
             if melden:
-                QMessageBox.information(self, "Alle Stöße stecken", f"Keine Stöße aus der STEP-Datei: "
+                einblendung.melden(self, f"Keine Stöße aus der STEP-Datei: "
                                         f"{self.STECK_OHNE_STOESSE} Sonst mit „Steckverbindung hinzufügen“ anlegen.")
             return 0, 0
         for e in plan:
@@ -637,7 +638,7 @@ class SteckEditor:
         self.steck_tab.aufbauen()
         self.aktualisieren()
         if melden:
-            QMessageBox.information(self, "Alle Stöße stecken", f"{neu} Steckverbindung(en) angelegt"
+            einblendung.melden(self, f"{neu} Steckverbindung(en) angelegt"
                                     + (f", {weg} Stoß/Stöße nicht zuordenbar (Teil fehlt in der {self.STECK_WAS} oder ist "
                                        "kein Rohr)" if weg else "") + ". Lage und Seite bitte prüfen.")
         return neu, weg
@@ -765,7 +766,7 @@ class KnickEditor:
 
     def _knick_melden(self, text, melden):
         if melden:
-            QMessageBox.information(self, "Knickrahmen", text)
+            einblendung.melden(self, text)
         return text
 
     def knick_erstellen(self, dialog=None, melden=True):
@@ -1154,7 +1155,7 @@ class VorschlagEditor:
         """Fenster Vorschläge; dialog(d) bedient es statt exec (Tests). Ergebnis: (übernommen, nicht übernommen)."""
         liste = self.vorschlaege_sammeln()
         if not liste:
-            QMessageBox.information(self, "Vorschläge", "Keine Vorschläge: kein Knickrahmen, keine Steckverbindung aus "
+            einblendung.melden(self, "Keine Vorschläge: kein Knickrahmen, keine Steckverbindung aus "
                                     "den Stößen der STEP-Datei und keine Längsnaht, die sich günstiger legen lässt.")
             return 0, []
         d = VorschlaegeDialog(self, liste)
@@ -1162,7 +1163,7 @@ class VorschlagEditor:
             return 0, []
         n, nicht = self.vorschlaege_anwenden(liste)
         if nicht:
-            QMessageBox.information(self, "Vorschläge", f"{n} übernommen. Nicht übernommen:\n" + "\n".join(nicht))
+            einblendung.melden(self, f"{n} übernommen, {len(nicht)} nicht übernommen.", bericht=("Vorschläge", "Nicht übernommen:\n" + "\n".join(nicht)))
         return n, nicht
 
     def vorschlaege_anwenden(self, liste):
@@ -2702,7 +2703,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
     def vorlage_waehlen(self):
         liste = self.vorlagen()
         if not liste:
-            QMessageBox.information(self, "Vorlagen", "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
+            einblendung.melden(self, "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
                                                       "„Als Vorlage speichern …“ merken.")
             return False
         texte = [f"{z['name']} ({z.get('inhalt') or ''})" for z in liste]
