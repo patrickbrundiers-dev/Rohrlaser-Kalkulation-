@@ -854,6 +854,10 @@ class EinstellungenSeite(QScrollArea):
                 haupt.ansicht_anwenden()            # sofort wirksam (Dunkelmodus verbessern, 24.10.2026)
             self.meldung(f"{e.titel} gespeichert und angewendet.")
             return
+        if e.name == "versand_aktiv":
+            haupt = self.window()
+            if hasattr(haupt, "versand_anwenden"):
+                haupt.versand_anwenden()
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
@@ -1276,6 +1280,7 @@ class Hauptfenster(QMainWindow):
         from .versand_seite import VersandSeite
         self.versand = VersandSeite(self)
         self.reiter.addTab(self.versand, "Versand")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.versand), self.versand_an())
         self.seiten = [StammdatenSeite(db, t, self.meldung) for t in TABELLEN]
         for s in self.seiten:           # Kunden als eigener Reiter, die übrigen Stammdaten unter Einstellungen
             if s.t.name == "kunden":
@@ -1803,8 +1808,20 @@ class Hauptfenster(QMainWindow):
         if hasattr(w, "neu_laden") and w is not getattr(self, "_frisch", None):
             w.neu_laden()
 
+    def versand_an(self):
+        """Reiter Versand und Palettenschein eingeschaltet (Einstellung 'versand_aktiv', Vorgabe ja)?"""
+        return self.db.einstellung("versand_aktiv") != "nein"
+
+    def versand_anwenden(self):
+        """Reiter Versand nach der Einstellung ein- oder ausblenden (Menüeinträge prüfen beim Öffnen selbst)."""
+        self.reiter.setTabVisible(self.reiter.indexOf(self.versand), self.versand_an())
+        if self.versand_an():
+            self.versand.neu_laden()
+
     def palettenschein(self, angebot_id):
         """Fenster „Palettenbegleitschein“ eines Angebots (nur beauftragte; sonst Hinweis)."""
+        if not self.versand_an():
+            return None
         a = self.db.angebot(angebot_id) or {}
         if a.get("vorgang") != "Beauftragt":
             self.meldung(f"Angebot {a.get('nummer') or ''}: Palettenschein erst nach „Beauftragt“ (Vorgang ▾).",

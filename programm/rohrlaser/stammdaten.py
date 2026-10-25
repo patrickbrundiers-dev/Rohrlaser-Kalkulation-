@@ -977,6 +977,10 @@ EINSTELLUNGEN = (
     # Richtwerte Stückgut/Palettennetz (Recherche 24.10.2026): Europalette 1200 × 800, Eigenhöhe 144 mm, Nutzlast
     # 1.500 kg; Sammelgut meist bis 2,20 m und 1.200 kg je Vollpalette, stapelbar oft nur bis 1,20 m. Vorgabe nach
     # Patrick 24.10.: 1.200 mm und 1.500 kg, Positionen einzeln packen, angefangene Paletten zusammen, wenn Platz ist
+    # Reiter Versand mit Palettenschein ein/aus (Patrick 25.10.): aus = Reiter, Menüeinträge „Palettenbegleitschein …“,
+    # Hinweis bei Beauftragt und Anhang an die Werkstattpapiere ausgeblendet; gespeicherte Versanddaten bleiben
+    Einstellung("versand_aktiv", "Reiter Versand und Palettenbegleitschein verwenden", "Versand", "auswahl", "ja",
+                auswahl="janein"),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
                 1200, 200, 3000),
     Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",

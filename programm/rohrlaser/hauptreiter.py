@@ -7,7 +7,7 @@ mindestens ein Angebot offen ist; ein Klick auf „Angebote“ kehrt zum zuletzt
 
 Nach außen verhält sich der Reiter wie ein QTabWidget mit allen Seiten in einer Liste (zuerst die festen, dann die
 Angebote): count, tabText, setTabText, widget, indexOf, currentIndex, currentWidget, setCurrentIndex,
-setCurrentWidget, addTab, removeTab, currentChanged, tabCloseRequested.
+setCurrentWidget, addTab, removeTab, setTabVisible, isTabVisible, currentChanged, tabCloseRequested.
 """
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
@@ -22,6 +22,7 @@ class HauptReiter(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.fest, self.offen, self.texte = [], [], {}
+        self.versteckt = set()          # ids ausgeblendeter fester Seiten (z. B. Versand per Einstellung)
         self.gruppe = None              # Seite, unter der die offenen Angebote stehen (Angebotsliste)
         self._letzte = None             # zuletzt gezeigte Seite der Gruppe
         self._sync = False
@@ -135,6 +136,20 @@ class HauptReiter(QWidget):
     def setCurrentWidget(self, seite):
         if self.indexOf(seite) >= 0:
             self._zeigen(seite)
+
+    def setTabVisible(self, i, an):
+        """Feste Seite ein-/ausblenden; ist die ausgeblendete gerade gewählt, wird die erste Seite gezeigt."""
+        s = self.widget(i)
+        if s is None or s not in self.fest:
+            return
+        (self.versteckt.discard if an else self.versteckt.add)(id(s))
+        self.oben.setTabVisible(self.fest.index(s), bool(an))
+        if not an and self.currentWidget() is s:
+            self._zeigen(self.fest[0])
+
+    def isTabVisible(self, i):
+        s = self.widget(i)
+        return s is not None and id(s) not in self.versteckt
 
     def eintrag_rect(self, text):
         """(Leiste, Rechteck) eines Reiters nach seinem Text (für die Bilder der Anleitung)."""
