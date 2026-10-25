@@ -2549,8 +2549,22 @@ def kapitel_optimieren(i):
             "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
             "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
             "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
+            "<b>Nasen nie in die Außenwand</b>: Jede Nase muss mit Breite und Spiel auf dem geraden Teil der Wand "
+            "liegen, auf die der Stecker stößt (ohne Eckradius und Rand; Rundrohr höchstens 45° neben der Mitte), und "
+            "innerhalb der Länge der Aufnahme. Passt die Vorgabe nicht (Stecker bündig mit der Außenkante, breiter als "
+            "die Aufnahme oder am Ende eines Trägers), dreht <i>Alle Stöße stecken</i> die Nasen um 90°, sonst bleibt "
+            "nur die eine Nase, die passt (notfalls schmaler, nicht unter der kleinsten Nasenbreite). Gleiche Teile "
+            "stoßen an einer <b>Ecke</b> zwei Träger auf ein Steckerende (Stütze unter zwei Trägern), bekommt es je "
+            "Träger eine Nase, um 90° versetzt, nie zwei auf derselben Wand. Lage x ist die Mitte des Steckers, auch "
+            "an Ecken, wo er nur teilweise auf der Aufnahme sitzt.",
+            "<b>Gleiche Teile mit anderen Nasen oder Schlitzen werden geteilt</b>: Brauchen Körper derselben Position "
+            "eine andere Lage der Nasen oder Schlitze (z. B. Pfosten in der Ecke, am Ende und in der Mitte eines "
+            "Trägers), legt <i>Alle Stöße stecken</i> für jede Lage eine eigene Position an (Stück je Satz aufgeteilt, "
+            "nächste freie Pos.-Nr.); mit OK wird das gespeichert, die Meldung nennt die neuen Positionen. Rohre ohne "
+            "eigene Konturen mit geraden Enden, die nur gedreht oder gewendet eingebaut sind, bleiben eine Position: "
+            "ihre Einbaulage wird passend gedreht.",
             "<b>Gleiche Teile</b> (eine Position, mehrere Körper): Die Aufnahme bekommt die Schlitze nur vom ersten "
-            "Körper, jedes Ende des Steckers die Nasen nur einmal. Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
+            "Körper, jedes Ende des Steckers die Nasen nur einmal (alle Körper der Position haben dieselben). Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
             "schneiden</i> zeigen das; eine Verbindung ohne Haken liefert nur die Lage. Zwei Verbindungen mit Nasen am "
             "selben Ende meldet die Spalte <i>Schlitz und Nasen</i> als Fehler.",
             "<b>Aufnahme und Stecker tauschen</b> dreht die markierte Verbindung um (Vorgaben neu nach dem neuen "
@@ -4067,9 +4081,12 @@ def kapitel_baugruppen(i):
            "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei.", kurz=True)
     i.liste("<b>Rohre</b> aus den Eingaben des Rohr-Editors mit Schlitzen und Nasen der Steckverbindungen und der "
             "Artikelnummer-Gravur, in der Einbaulage der STEP-Datei ([[step_export]]).",
-            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet. Ihre Lage sucht das Programm am 3D-Netz der "
-            "STEP-Messung (Hauptachsen und Vergleich der Oberfläche); passt es nicht genau, steht ein Hinweis in der "
-            "Meldung.",
+            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet (auch Flachstahl als Blech). Ihre Lage sucht "
+            "das Programm am 3D-Netz der STEP-Messung: Es probiert die Achsen der Einbaulage, der Datei, der Kanten "
+            "(größte Fläche und Seitenkanten) und die Hauptachsen, setzt den Flächenschwerpunkt aufeinander und "
+            "führt nach, bis die Oberflächen deckungsgleich sind. So sitzen auch quadratische Platten und "
+            "symmetrische Teile genau an ihrer Stelle; passt es nicht genau, steht ein Hinweis in der Meldung.",
+            "Namen mit Umlauten (Fußplatte, Geländer) stehen richtig in der STEP-Datei.",
             "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
             "kommen als facettierter Körper hinein, mit Hinweis.",
             "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "
