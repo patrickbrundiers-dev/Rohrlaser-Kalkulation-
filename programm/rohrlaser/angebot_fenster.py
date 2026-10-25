@@ -1870,10 +1870,11 @@ class AngebotSeite(QWidget):
         self.reiter.gruppe("Schnittplan", [(plan_seite, "Schnittplan"), (self.stangen_seite, "Stangenbild"),
                                            (ausw_seite, "Auswertung")])
         self.reiter.addTab(st_seite, "Staffeln")
-        self.nachkalk = NachkalkulationSeite(self)
-        self.reiter.addTab(self.nachkalk, "Nachkalkulation")
+        self._nachkalk = NachkalkulationSeite(self)
+        self.reiter.addTab(self._nachkalk, "Nachkalkulation")
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
-        self.st_seite = st_seite
+        self._st_seite = st_seite
+        self.reiter.currentChanged.connect(lambda _: self._verdeckte_fuellen(self.reiter.currentWidget()))
 
         # Spaltenauswahl der Positionsliste (Zeile über der Liste, Reiter behalten die volle Breite)
         el = self.pos_leiste
@@ -2307,7 +2308,7 @@ class AngebotSeite(QWidget):
         if summen is None or zeilen is None:
             zeilen, summen = self._rechnung()
         try:
-            veraltet = self.st_seite.anzahl_veraltet() if self.stufen else 0
+            veraltet = self._st_seite.anzahl_veraltet() if self.stufen else 0     # ohne Füllen (P9)
         except (ValueError, TypeError, KeyError):
             veraltet = 0
         if preis_abweichung is None:
@@ -2443,12 +2444,36 @@ class AngebotSeite(QWidget):
         self.stangen_seite.setzen(paare, self._abwicklung_funktion() if erg else None)
         self.teile_baum.setzen(abmessung.teilebaum(self.kopf, self.positionen, erg))
         self.prot.setzen(self.db.protokoll(self.id))
-        self.st_seite.setzen()
-        self.nachkalk.neu_laden()
+        self._spaeter_fuellen("st_seite", lambda: self._st_seite.setzen())
+        self._spaeter_fuellen("nachkalk", lambda: self._nachkalk.neu_laden())
         if self.stangen.zeilen:          # Teile der ersten Stange gleich zeigen, nicht erst nach einem Klick
             zeile = max(self.stangen_ansicht.currentIndex().row(), 0)
             self.stangen_ansicht.selectRow(min(zeile, len(self.stangen.zeilen) - 1))
             self._stange_gewaehlt(self.stangen_ansicht.currentIndex())
+
+    # Performance-Plan P9: Staffeln und Nachkalkulation erst füllen, wenn ihr Reiter gezeigt wird oder jemand sie
+    # braucht (Zugriff über self.st_seite bzw. self.nachkalk füllt nach). Ergebnis gleich, Neuladen schneller.
+    def _spaeter_fuellen(self, name, fuellen):
+        offen = self.__dict__.setdefault("_offen_fuellen", {})
+        if self.reiter.currentWidget() is getattr(self, "_" + name):
+            offen.pop(name, None)
+            fuellen()
+        else:
+            offen[name] = fuellen
+
+    def _verdeckte_fuellen(self, seite):
+        for name in ("st_seite", "nachkalk"):
+            if seite is getattr(self, "_" + name, None):
+                getattr(self, name)
+
+    def _gefuellt(self, name):
+        fuellen = self.__dict__.get("_offen_fuellen", {}).pop(name, None)
+        if fuellen is not None:
+            fuellen()
+        return getattr(self, "_" + name)
+
+    st_seite = property(lambda self: self._gefuellt("st_seite"))
+    nachkalk = property(lambda self: self._gefuellt("nachkalk"))
 
     def _abwicklung_funktion(self):
         """Abwicklung einer Stange für Stangen-Detail (stangen_abwicklung.stange) mit den Positionen dieses Stands."""

@@ -1398,6 +1398,7 @@ class Hauptfenster(QMainWindow):
             from . import fenster_merken            # zuletzt offene Angebote wieder öffnen (B4, Freigabe F2a)
             fenster_merken.sitzung_wiederherstellen(self)
             QTimer.singleShot(200, self._start_teilen)
+            QTimer.singleShot(800, self._start_systempruefung)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
@@ -1512,6 +1513,9 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         a = QAction("Tastenkürzel …", self)
         a.triggered.connect(self.kuerzel_zeigen)
+        hilfe.addAction(a)
+        a = QAction("Systemprüfung …", self)
+        a.triggered.connect(lambda: self.systempruefung_zeigen())
         hilfe.addAction(a)
         a = QAction("Lizenz …", self)
         a.triggered.connect(lambda: self.lizenz_zeigen())
@@ -1677,6 +1681,49 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def systempruefung_zeigen(self, zeilen=None):
+        """Hilfe → Systemprüfung …: dieser Rechner gegen die Systemvoraussetzungen (systempruefung.py)."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser
+        from . import systempruefung
+        if zeilen is None:
+            zeilen = systempruefung.pruefen(self.db.pfad.parent)
+        d = QDialog(self)
+        d.setWindowTitle("Systemprüfung")
+        d.resize(980, 380)
+        text = QTextBrowser()
+        text.setHtml(systempruefung.html(zeilen))
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        zu_wenig = systempruefung.unter_minimum(zeilen)
+        info = QLabel(("<b style='color:#B42318'>Unter dem Minimum: " + ", ".join(z[0] for z in zu_wenig) +
+                       ".</b> Das Programm läuft, große Angebote, STEP-Dateien und 3D-Ansichten können aber sehr "
+                       "langsam werden.") if zu_wenig else
+                      "Dieser Rechner erfüllt die Mindestvoraussetzungen. „Empfohlen“ gilt für große STEP-Dateien "
+                      "(1.000 Bohrungen und mehr) und große Baugruppen.")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        lay.addWidget(text)
+        lay.addWidget(knoepfe)
+        self.systempruefung_ergebnis = zeilen
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def _start_systempruefung(self):
+        """7a: einmal nach Installation bzw. Update prüfen und nur warnen, wenn etwas unter dem Minimum liegt."""
+        from . import systempruefung
+        try:
+            if not systempruefung.start_pruefung_noetig(self.db, VERSION):
+                return None
+            zeilen = systempruefung.pruefen(self.db.pfad.parent)
+        except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            return None
+        systempruefung.start_gepruft(self.db, VERSION)
+        if systempruefung.unter_minimum(zeilen):
+            return self.systempruefung_zeigen(zeilen)
+        return None
 
     def neuerungen_zeigen(self):
         """Hilfe → Was ist neu …: alle Versionen ausführlich (die Bedienungsanleitung zeigt nur die letzten)."""
