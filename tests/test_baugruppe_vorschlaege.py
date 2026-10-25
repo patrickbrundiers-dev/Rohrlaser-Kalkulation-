@@ -34,7 +34,6 @@ import step_messen  # noqa: E402
 from rohrlaser import baugruppe, baugruppe_vorschlaege as bv, schneidweg as sw, skizze as sk, step  # noqa: E402
 from rohrlaser.angebot import BAUGRUPPE  # noqa: E402
 from rohrlaser.ansicht3d import entpacken  # noqa: E402
-from rohrlaser.baugruppe_ansicht import laengsnaht_linie  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
