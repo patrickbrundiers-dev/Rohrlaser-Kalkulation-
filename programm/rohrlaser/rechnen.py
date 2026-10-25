@@ -1186,7 +1186,7 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
     """Materialeinsatz und Meterpreis je Abmessung (Stangengruppe: Profil, Werkstoff, Oberfläche, Stangenlänge, ggf.
     Kundenmaterial) für den Dialog 'Meterpreise' und das Kalkulation-PDF, in der Reihenfolge der Positionen.
     Je Gruppe dict(gruppe, profil, werkstoff, oberflaeche, stange, kunde, positionen [Pos.-Nr.], ids, teile_m
-    (Teilelängen × Stück [m]), berechnet, wirksam, fehlt (wie meterpreis), manuell (Preis von Hand €/m oder None),
+    (Teilelängen × Rohrstücke [m]), berechnet, wirksam, fehlt (wie meterpreis), manuell (Preis von Hand €/m oder None),
     kg_m) und aus dem Schnittplan (ergebnis, sonst 0): stangen, laengen {Lieferlänge: Anzahl}, meter, kg, kosten,
     nutz_m (eingeplante Teile [m]), ausnutzung (None ohne Stangen)."""
     out = {}
@@ -1206,7 +1206,7 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
                                nutz_m=0.0, ausnutzung=None)
         g["positionen"].append(p.get("pos"))
         g["ids"].append(p.get("id"))
-        g["teile_m"] += _n(p.get("laenge")) * _n(p.get("stueck")) / 1000
+        g["teile_m"] += _n(p.get("laenge")) * rohrstuecke(p) / 1000      # Halbschalen: Rohrstücke
     if ergebnis and ergebnis.get("stangen"):
         for s, w in zip(ergebnis["stangen"], stangen_werte(ergebnis, kopf, positionen, k, tabellen)):
             gr = gruppe_der_stange(s)
