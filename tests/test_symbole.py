@@ -37,7 +37,7 @@ db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 f = Hauptfenster(db, stumm=True)
 s = f.angebot_oeffnen(beispiel_angebot.anlegen(db))
 knoepfe = {b.text(): b for b in s.findChildren(QPushButton)}
-for text in ("Neue Position", "STEP importieren …", "Optimieren", "Angebot (PDF)", "Ausgaben"):
+for text in ("Neue Position", "Optimieren", "Angebot (PDF)", "Ausgaben"):
     assert not knoepfe[text].icon().isNull(), text
 start = {b.text(): b for b in f.start.findChildren(QPushButton)}
 assert not start["Neues Angebot"].icon().isNull() and not start["Datensicherung erstellen"].icon().isNull()

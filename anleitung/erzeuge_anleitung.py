@@ -875,12 +875,13 @@ def kapitel_angebot(i):
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
             "<i>EK eintragen …</i> (Einkaufspreis fehlender Zukaufteile direkt im Angebot, [[zukauf_positionen]])."),
-        (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten ([[step]])."),
+        (6, "Ablagefeld <b>STEP / DXF hierher ziehen oder klicken</b>: Positionen aus Konstruktionsdaten und "
+            "DXF-Zeichnungen ([[step]], [[dxf_import]]); <i>STEP importieren …</i> steht im Menü (Strg+I)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen ([[optimieren]])."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
             "rechts <b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b>."),
         (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist).")])
-    i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, STEP importieren, Ablagefeld), "
+    i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
            "<i>Ausgeben</i> (<b>Angebot (PDF)</b> dunkelblau, alles Weitere im Menü <b>Ausgaben</b>, [[ausgabe]]). "
            "Die Übersicht rechts bleibt in jedem Reiter sichtbar.", kurz=True)
@@ -892,7 +893,10 @@ def kapitel_angebot(i):
            "<b>Fracht</b> zeigt zugeklappt Frachtart und Betrag, <b>Fracht berechnen …</b> steht auch zugeklappt "
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
-           "Fracht und Kalkulation gilt für alle Angebote. Die Trennlinien zwischen oben und unten und zur Übersicht "
+           "Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
+           "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Im Angebotskopf "
+           "steht der Bearbeiter neben der Bemerkung; der Satz „Im Angebot: Lieferzeit …“ erscheint nur, wenn keine "
+           "Lieferzeit eingetragen ist, sonst als Tooltip über den Lieferzeit-Feldern. Die Trennlinien zwischen oben und unten und zur Übersicht "
            "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ordner öffnen</b> "
            "und der <b>CSV-Export</b> liegen im Menü <b>Ausgaben</b>.",
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
@@ -987,9 +991,16 @@ def kapitel_angebot(i):
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
             "Beim Kopieren gehen die Werte mit.",
             "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
-            "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel und Stundensatz der Maschine zur Information, Rüstzeit "
-            "je Abmessung, Programmierzeit je Position und je Innenkontur), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Pauschale je "
-            "Abmessung, Frachtkosten, Mindestpreis) und <b>Zahlungsbedingungen</b>.")
+            "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel SN und Stundensatz der Maschine zur Information, "
+            "Rüstzeit je Maschine nur, wenn sie nicht 0 min ist; Stangenwechsel je Stange, Rüstzeit je Abmessung, "
+            "Programmierzeit je Position und je Innenkontur änderbar), <b>Verkauf und Gewinn</b> (Gewinn, "
+            "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
+            "<b>Zahlungsbedingungen</b>.",
+            "<b>Stangenwechsel je Stange [s]</b> gilt für Stangen ohne feste Schweißnaht-Lage und nur für dieses "
+            "Angebot (Vorgabe aus den Stammdaten Maschinen, gespeichert mit den Zeitvorgaben des Angebots). Ein "
+            "abweichender Wert ist gelb und steht in der Liste der Abweichungen; <b>Vorgaben aus Einstellungen</b> "
+            "setzt ihn zurück. Der <i>Stangenwechsel SN</i> (Stangen mit fester Naht, [[schweissnaht]]) bleibt dabei "
+            "unverändert und wird nur angezeigt.")
     i.abschnitt("Lieferzeit im Angebot", marke="lieferzeit")
     i.text("Jedes Angebot hat seine eigene Lieferzeit, vorbelegt aus den Einstellungen ([[einstellungen]]). Sie "
            "ändert keine Preise.")
@@ -1059,8 +1070,8 @@ def kapitel_angebot(i):
             "Der Wert steht nur in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt) und gilt für "
             "alle Angebote, auch für ältere; im Angebot selbst lässt sich der Betrag nicht ändern. 0 = kein "
             "Mindestpreis.",
-            "<b>Mindestauftragswert anwenden</b> (Karte <i>Kalkulation dieses Angebots</i>, oben unter den "
-            "Hinweisen): Vorgabe an. Ohne Haken rechnet das Angebot ohne Mindestpreis, auch in den Staffelpreisen "
+            "<b>Mindestauftragswert anwenden</b> (Karte <i>Kalkulation dieses Angebots</i>, Gruppe "
+            "<i>Verkauf und Gewinn</i>; der Betrag steht in Klammern): Vorgabe an. Ohne Haken rechnet das Angebot ohne Mindestpreis, auch in den Staffelpreisen "
             "und im Angebots-PDF (kein Hinweis „Mindestauftragswert …“); die Kurzzeile der zugeklappten Karte zeigt "
             "dann „ohne Mindestauftragswert“. Die Statuszeile nennt, wie sich der Preis dadurch ändert.",
             "Die Prüfung läuft bei jeder Änderung neu (Position, Stückzahl, Zuschläge, Staffelstufe, PDF). Die "
@@ -1469,8 +1480,9 @@ def kapitel_angebot(i):
 def kapitel_step(i):
     i.kapitel("STEP-Import", marke="step")
     i.schritte([
-        ("angebot_positionen", "<b>STEP importieren …</b> (Strg+I) oder STEP-Dateien bzw. Ordner auf das Feld "
-                               "<b>STEP-Dateien hierher ziehen</b>.", (0, 0.44, 0.45, 0.52)),
+        ("angebot_positionen", "STEP-Dateien bzw. Ordner auf das Feld <b>STEP / DXF hierher ziehen oder "
+                               "klicken</b> ziehen oder darauf klicken (Menü: STEP importieren …, Strg+I).",
+         (0, 0.44, 0.45, 0.52)),
         ("step_pruefen", "Im Fenster <b>STEP-Import prüfen</b> je Teil Häkchen, Profil, Werkstoff und Stückzahl "
                          "prüfen.", (0, 0, 0.6, 0.55)),
         ("step_positionen", "<b>Übernehmen</b>: je Rohr eine Position mit Schneidweg, Einstichen und Konturen.",
@@ -1483,14 +1495,16 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
-    i.liste("Im Angebot auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
-            "Umschalt). Der Dateidialog startet im Ordner aus der Einstellung <i>STEP-Import: Standardordner</i>; "
+    i.liste("Im Angebot auf das gestrichelte Feld <b>STEP / DXF hierher ziehen oder klicken</b> klicken (oder Menü "
+            "<i>STEP importieren …</i>, Strg+I) und die Dateien wählen (Mehrfachauswahl mit Strg oder Umschalt). Im "
+            "Dialog des Felds lassen sich STEP- und DXF-Dateien zugleich wählen: die STEP-Dateien gehen in den "
+            "STEP-Import, danach öffnet für die DXF-Dateien das DXF-Importfenster ([[dxf_import]]). Der Dateidialog startet im Ordner aus der Einstellung <i>STEP-Import: Standardordner</i>; "
             "ist dort keiner eingetragen, im zuletzt benutzten STEP-Ordner.",
             "Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> auf das gestrichelte "
-            "Feld <b>STEP-Dateien hierher ziehen</b> neben dem Knopf ziehen (es geht auch irgendwo sonst ins "
+            "Feld <b>STEP / DXF hierher ziehen oder klicken</b> neben <i>Neue Position</i> ziehen (es geht auch irgendwo sonst ins "
             "Angebotsfenster; beim Ziehen färbt sich das Feld blau). Ein leeres Angebot zeigt statt der leeren "
-            "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog wie "
-            "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
+            "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog für "
+            "STEP und DXF. DXF-Dateien darf man mitziehen. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
             "Der Explorer ist gleich nach dem Loslassen wieder frei; das Programm kommt nach vorne und misst. "
             "Während ein Import läuft, nimmt es keine weiteren Dateien an (Hinweis unten im Fenster).",
             "Eine STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) kündigt das Programm vorher an: "
