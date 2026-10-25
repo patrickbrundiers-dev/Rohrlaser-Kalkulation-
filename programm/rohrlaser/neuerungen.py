@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.123", "<b>DXF-Import Rohr mit Patricks Bauteil 1 verbessert</b>: Die Striche des Schnittverlaufs (A–A) "
+                "machten die Draufsicht zu lang; deshalb wurde die Vorderansicht verworfen und die Gehrung als "
+                "Ausklinkung gelesen, Bohrungen lagen 12 mm daneben. Jetzt: Gehrung 30° richtig, Fenster mit Eckradius, "
+                "Ø 50 durch beide Wände an der richtigen Stelle, schräge Bohrung als Bohrung mit Neigung "
+                "([[dxf_rohr]]).",
+     "DXF-Import Rohr: Schnittverlauf, Gehrung, schräge Bohrung"],
     ["0.9.122", "<b>Abwicklung mit ausgeschnittenen Konturen</b>: In der Abwicklung der Skizze (Schneidweg-Rechner, "
                 "Teile-Editor, Zeichnung) sind Bohrungen, Rechtecke, Langlöcher und andere Konturen jetzt als Loch im "
                 "Material zu sehen; das Material ist etwas kräftiger hinterlegt, Gravuren bleiben Linien. Eine "
