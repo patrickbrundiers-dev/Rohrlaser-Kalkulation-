@@ -1213,6 +1213,70 @@ class VorschlagEditor:
         return n, nicht
 
 
+class MontageEditor:
+    """Montagefolge im 3D (Plan „Baugruppen automatisch“ A6): Knopf „Montage“ in der Leiste über dem 3D, Schieber
+    Schritt (bis dahin aufgebaut, aktueller Schritt blau) und Explosion (jedes gesteckte Teil rückt gegen seine
+    Steckrichtung heraus). Reihenfolge aus steck_montage wie „Steckbarkeit prüfen“. Gemeinsam für den Editor der
+    Schweißbaugruppe und das Fenster „Satz in 3D“; erwartet self.ansicht3d (BaugruppenAnsicht), self.teile,
+    self._netz und self.bg['steckverbindungen'] / ['stoesse']."""
+
+    def montage_knopf_anlegen(self):
+        self._montage = None
+        return self.ansicht3d.montage_leiste()
+
+    def montage_berechnen(self):
+        """Steckfolge, Versatz und Texte für die eingeschaltete Montage, sonst None (in self._montage)."""
+        from . import steck_montage as sm
+        zustand = self.ansicht3d.montage_zustand() if getattr(self, "ansicht3d", None) is not None and \
+            getattr(self.ansicht3d, "montage", None) is not None else None
+        self._montage = None
+        if zustand is None:
+            return None
+        netze = {t["_id"]: self._netz(t["_id"]) for t in self.teile if t.get("drin")}
+        koerper, enden = sm.koerper_aus_netzen(netze)
+        verb = [(z.get("_auf"), z.get("_st"), z.get("_ende") or "a") for z in self.bg["steckverbindungen"]]
+        kanten = sm.kanten(koerper, self.bg.get("stoesse"), verb)
+        erg = sm.reihenfolge(kanten)
+        name = {t["_id"]: f"Pos. {t['_q'].get('pos') or ''}" for t in self.teile}
+        marken = {}
+        for st in self.bg.get("stoesse") or ():
+            if isinstance(st, dict) and str(st.get("aufnahme")) in koerper and str(st.get("stecker")) in koerper:
+                ka, ks = str(st["aufnahme"]), str(st["stecker"])
+                z = next((z for z in self.bg["steckverbindungen"] if (z.get("_auf"), z.get("_st"), z.get("_ende")) ==
+                          (koerper[ka][0], koerper[ks][0], st.get("ende")) and str(z.get("marke") or "").strip()), None)
+                if z:
+                    marken[(ka, ks)] = str(z["marke"]).strip()
+        texte = sm.schritt_texte(erg["schritte"], kanten, koerper, name, marken)
+        n = len(erg["schritte"])
+        self.ansicht3d.montage_schritte(n)
+        schritt, faktor = self.ansicht3d.montage_zustand()
+        self._montage = dict(nummer={k: i for i, (k, _) in enumerate(erg["schritte"], 1)}, schritt=min(schritt, n),
+                             n=n, versatz=sm.explosion(erg["schritte"], kanten, enden, faktor), texte=texte,
+                             offen=erg["offen"])
+        if not n:
+            self.ansicht3d.montage_text.setText("Keine Steckverbindung mit Stoß aus der STEP-Datei: keine Montagefolge.")
+        else:
+            t = texte[self._montage["schritt"] - 1]
+            self.ansicht3d.montage_text.setText(
+                f"Schritt {t['nr']}/{n}: {t['teil']} {t['text']}" + (f", Richtung {t['richtung']}" if t["richtung"]
+                                                                     else "")
+                + (f". Nicht steckbar: {len(erg['offen'])} Teil(e)" if erg["offen"] else ""))
+        return self._montage
+
+    def montage_lage(self, kn, lage):
+        """(Einbaulage mit Versatz oder None = in diesem Schritt noch nicht da, aktueller Schritt ja/nein)."""
+        m = getattr(self, "_montage", None)
+        if not m or kn is None or not lage:
+            return lage, False
+        nr = m["nummer"].get(str(kn))
+        if nr is not None and nr > m["schritt"] and m["schritt"] < m["n"]:
+            return None, False
+        v = m["versatz"].get(str(kn))
+        if v and any(v):
+            lage = [lage[0] + v[0], lage[1] + v[1], lage[2] + v[2]] + list(lage[3:])
+        return lage, nr is not None and nr == m["schritt"] and m["schritt"] < m["n"]
+
+
 class LaengsnahtEditor:
     """Längsnaht per Klick im 3D (Patrick 24.10.2026): „Längsnaht wählen“ an, dann die Fläche eines Rohrs anklicken;
     Quadrat-/Rechteckrohr: Mitte der Wand, Rundrohr: genau dort. Ergebnis je Teil: feste Position, Quelle manuell
@@ -1291,7 +1355,8 @@ class LaengsnahtEditor:
         return out
 
 
-class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, StepBaugruppe, QDialog):
+class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, StepBaugruppe,
+                      QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
@@ -2286,6 +2351,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             from .baugruppe_ansicht import BaugruppenAnsicht
             self.ansicht3d = BaugruppenAnsicht(geaendert=self.baum_gewaehlt, vor_messen=self._vor_messen)
             self.laengsnaht_knopf_anlegen(self.nur_lesen)
+            self.montage_knopf_anlegen()
             self.ansicht3d.ansicht.angeklickt.connect(self._3d_geklickt)
             self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
             self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
@@ -2366,12 +2432,20 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         nur = bool(hervor) and getattr(self.ansicht3d, "nur_gewaehlt", False)
         rohre = self._rohr_modelle() if self.ansicht3d is not None else {}
         netze, besitzer, farbe, koerper, koerper_netz, lagen = [], [], [], [], {}, []
+        montage = self.montage_berechnen() if self.ansicht3d is not None else None
+        aktuell = set()
         for n, t in enumerate(x for x in self.teile if x.get("drin")):
             netz = self._netz(t["_id"])
             nummern = netz.get("koerper") or []
             modell = rohre.get(t["_id"])
             for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
                 kn = nummern[j] if j < len(nummern) else None
+                if montage:
+                    lage, akt = self.montage_lage(kn, lage)
+                    if lage is None:
+                        continue
+                    if akt:
+                        aktuell.add(len(netze))
                 if kn is not None:
                     koerper_netz[str(kn)] = (modell or netz, lage)
                 if nur and t["_id"] not in hervor:
@@ -2390,7 +2464,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         from .ansicht3d import baugruppe as zusammen
         from .baugruppe_ansicht import Flaechen, naehte_einsetzen, teil_kennung
         bereiche = []
-        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur}, farbe,
+        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur} | aktuell, farbe,
                            bereiche=bereiche)
         self._koerper_lage = lagen
         if netz:                    # Klick auf eine Fläche findet ihr Teil (Längsnaht wählen)
