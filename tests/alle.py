@@ -39,6 +39,7 @@ TESTS = [
     ("test_3d_step.py", QT),
     ("test_step_fase.py", {}),
     ("test_step_kantteile.py", {}),
+    ("test_offenes_rohr.py", QT),
     ("test_step_messung_robust.py", QT),
     ("test_step_struktur.py", {}),
     ("test_step_leistung.py", {}),

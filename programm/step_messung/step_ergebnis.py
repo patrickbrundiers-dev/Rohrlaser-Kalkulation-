@@ -96,11 +96,17 @@ Versionen von SCHEMA_VERSION:
   ende ("a"/"b"), aufnahme (Körper "nr"), z (Mitte des Kontakts auf der Aufnahme ab Ende A), seite ("0°", "90°", …
   wie Anbauteile, Quadrat-/Rechteckrohr) bzw. winkel (Umfangswinkel, Rundrohr), achswinkel (Winkel der Achsen, 90 =
   senkrecht)} für Steckverbindungen; sonst fehlt das Feld. Felder aus 1.17 unverändert.
+- 1.19 (25.10.2026): Offen gezeichnete Quadrat-/Rechteckrohre (U offen, C mit Längsschlitz, Kantteil mit einer
+  Lasche; eine Seite über die ganze Länge offen): je Körper "geschlossen" = das Teil mit ergänzter Wand als Rohr
+  gemessen (Aufbau wie ein Körper ohne "nr", mit "offene_seite" = {seite (links/rechts/unten/oben im Querschnitt),
+  luecken [[von, bis]] (ab der Ecke der Hülle, mm), breite (Summe der Lücken), laenge, vorher (Profilform der
+  offenen Messung)}, "erkennungssicherheit" mit "offene_seite": "ergänzt", Prüfstatus "prüfen"), sonst null. Im Netz
+  der offenen Messung ist die fehlende Wand Art "EO". Felder aus 1.18 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.18"
+SCHEMA_VERSION = "1.19"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -206,6 +212,8 @@ def koerper(t):
         "alternative": {k: v for k, v in koerper(t.alternative).items() if k != "nr"} if t.alternative else None,
         "knick_schenkel": [{k: v for k, v in koerper(x).items() if k != "nr"} for x in t.knick_schenkel]
         if t.knick_schenkel else None,
+        "offene_seite": dict(t.offene_seite) if t.offene_seite else None,
+        "geschlossen": {k: v for k, v in koerper(t.geschlossen).items() if k != "nr"} if t.geschlossen else None,
     }
 
 

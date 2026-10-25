@@ -41,6 +41,8 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("NL", "Schweißnaht (Längsnaht)", "#E00000", "#E00000"),     # Rohr-Editor: Lage der Naht im Rohr
     ("GB", "3D über Grenze (begrenzt)", "#F2C200", "#C79A00"),  # Schnitt braucht mehr als die Schwenkgrenze
     ("HK", "Gegenrohr (Hilfskörper)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
+    ("EW", "ergänzte Wand (offenes Rohr)", "#E00000", None),   # STEP: offen gezeichnetes Rohr, Wand ergänzt
+    ("EO", "offene Seite (nicht gefertigt)", "#E89A9A", None),  # dieselbe Wand, wenn das Teil offen bleibt
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende

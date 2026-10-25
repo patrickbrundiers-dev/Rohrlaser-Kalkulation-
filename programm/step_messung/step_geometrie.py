@@ -145,6 +145,8 @@ class Teil:
     verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
     biegerohr: dict = None      # Biegerohr (step_biegerohr): Mittellinie, Elemente, LRA, XYZ; sonst None
     knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
+    offene_seite: dict = None   # offenes Rohr geschlossen (step_offenes_rohr): Seite, Lücken, Länge; sonst None
+    geschlossen: object = None  # offen gezeichnetes Rohr: Messung mit ergänzter Wand (Teil); sonst None
 
     @property
     def pruefstatus(self):
@@ -2704,6 +2706,19 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
 
 
 def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
+    """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
+    Kantteil mit einer Lasche) wird zusätzlich mit ergänzter Wand als Rohr gemessen (t.geschlossen,
+    step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
+    t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    try:
+        from step_offenes_rohr import schliessen
+        schliessen(solid, t, datei, koerper, netz)
+    except Exception:  # Schließen darf die Messung nie verhindern
+        t.geschlossen = None
+    return t
+
+
+def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Ein Körper: zuerst die Blechprüfung (ebene Bleche, die kein Flachstahl sind, werden als Blech gemessen), sonst
     die Profilmessung. Gekantete Bleche gelten nur dann als Blech, wenn die Profilmessung keinen gleichbleibenden
     Querschnitt findet (ein Kantprofil mit konstantem Querschnitt bleibt L/U/C-Profil)."""

@@ -135,6 +135,7 @@ class StepPruefDialog(QDialog):
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
+        step.offene_rohre_vorbelegen(messwerte, k.profile)     # offenes Rohr: geschlossen nur aus den Stammdaten
         from . import knickverbindung
         for m in messwerte:     # Knickrahmen aus einem Körper (K1-3), geknickt oder gestreckt gezeichnet
             if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:
@@ -471,8 +472,11 @@ class StepPruefDialog(QDialog):
             # Kantteil, ohne Trennung), bei Rohren und Profilen jede andere Profilform, bei Nachträgen zurücknehmen
             art = QComboBox()
             art.addItem(step.art_text(m, alt) + (f" – {step.VON_HAND}" if m.get("_original") else ""), None)
-            if alt:
+            zu = step.geschlossen(m)
+            if alt and not step.rohr_geschlossen(m):     # die andere Messung gehört zum offenen Teil
                 art.addItem(step.art_text(alt, m), "alt")
+            if zu:              # offen gezeichnetes Rohr: mit ergänzter Wand bzw. wieder offen (Patrick 25.10.2026)
+                art.addItem(step.art_text(zu, m), "zu")
             if m.get("_original"):
                 art.addItem("Nachtrag zurücknehmen (nicht übernehmbar)", "zurueck")
             if not ist_blech:
@@ -839,16 +843,16 @@ class StepPruefDialog(QDialog):
                 it.setFont(f)
             cb.addItems(ids)
 
-    def art_wechseln(self, index):
-        """Art der Zeile mit dem Teil Nr. index umstellen (Flachstahl ↔ Blech, Profil ↔ Kantteil): alle gleichen
-        Teile der Zeile bekommen die Messwerte der anderen Art; die Liste wird neu aufgebaut, die Eingaben der
-        anderen Zeilen bleiben. Profil bzw. Zukaufartikel und Werkstoff werden für die neue Art neu vorbelegt
-        (Blech: Werkstoff leer), die Stückzahl bleibt."""
+    def art_wechseln(self, index, rohr=False):
+        """Art der Zeile mit dem Teil Nr. index umstellen (Flachstahl ↔ Blech, Profil ↔ Kantteil; rohr: offenes
+        Rohr ↔ geschlossenes Rohr mit ergänzter Wand): alle gleichen Teile der Zeile bekommen die Messwerte der
+        anderen Art; die Liste wird neu aufgebaut, die Eingaben der anderen Zeilen bleiben. Profil bzw. Zukaufartikel
+        und Werkstoff werden für die neue Art neu vorbelegt (Blech: Werkstoff leer), die Stückzahl bleibt."""
         from . import step
         z = next(z for z in self.zeilen if index in z.liste)
         self.werte_schreiben()
         for i in z.liste:
-            step.art_wechseln(self.messwerte[i])
+            (step.rohr_wechseln if rohr else step.art_wechseln)(self.messwerte[i])
         self._baum_fuellen()
         self.datei_waehlen(self.datei_nr)
         neu = next((x for x in self.zeilen if index in x.liste), None)
@@ -857,10 +861,13 @@ class StepPruefDialog(QDialog):
         return neu
 
     def art_gewaehlt(self, index, wahl):
-        """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zurueck' = Nachtrag zurücknehmen, andere
+        """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zu' = offenes Rohr schließen bzw. wieder offen,
+        'zurueck' = Nachtrag zurücknehmen, andere
         Profilform 'form:F' (Profil-ID zeigt die Profile dieser Form)."""
         if wahl == "alt":
             return self.art_wechseln(index)
+        if wahl == "zu":
+            return self.art_wechseln(index, rohr=True)
         if wahl == "zurueck":
             return self.von_hand_zuruecknehmen(index)
         if isinstance(wahl, str) and wahl.startswith("form:"):

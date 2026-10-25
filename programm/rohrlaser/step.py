@@ -672,6 +672,10 @@ def art_text(m, gegen=None):
     form = m.get("profilform") or ""
     zusatz = " – Anbauteile abgetrennt" if m.get("trennung") else \
         " – ohne Trennung" if gegen is not None and gegen.get("trennung") else ""
+    if rohr_geschlossen(m):
+        zusatz += " – offene Seite ergänzt"
+    elif gegen is not None and rohr_geschlossen(gegen):
+        zusatz += " – offen (Wand nicht ergänzt)"
     return (("Kantteil (Blech gekantet)" if form == "Blech gekantet" else form) + zusatz
             + (" – Ersatzwerte" if m.get("ersatz") == "1" else ""))
 
@@ -729,6 +733,71 @@ def art_wechseln(m):
     for k in ("_uebernehmen", "_profil", "_werkstoff", "_blech_artikel"):
         m.pop(k, None)
     return True
+
+
+def rohr_geschlossen(m):
+    """True, wenn die Messwerte das offen gezeichnete Rohr mit ergänzter Wand sind (step_offenes_rohr)."""
+    return "offene_seite=ergänzt" in (m.get("sicherheit") or "")
+
+
+def geschlossen(m):
+    """Offen gezeichnetes Rohr: die Messwerte der anderen Fassung (Spalte 'geschlossen', JSON {Spalte: Wert}) –
+    beim offenen Teil das Rohr mit ergänzter Wand, beim geschlossenen das offene Teil – oder None."""
+    try:
+        return json.loads(m["geschlossen"]) if m.get("geschlossen") else None
+    except ValueError:
+        return None
+
+
+def rohr_wechseln(m):
+    """Offen gezeichnetes Rohr ↔ Rohr mit ergänzter Wand (Patrick 25.10.2026): die Messwerte der Spalte
+    'geschlossen' gelten, die bisherigen kommen dorthin. Die Spalte 'alternative' (andere Art des offenen Teils,
+    z. B. Kantteil) bleibt beim offenen Teil. Eingaben aus dem Prüfdialog, die zur Art gehören, fallen weg."""
+    zu = geschlossen(m)
+    if zu is None:
+        return False
+    zu = {k: v for k, v in zu.items() if k not in ("alternative", "geschlossen")}
+    bisher = {k: m.get(k, "") for k in zu}
+    m.update(zu)
+    m["geschlossen"] = json.dumps(bisher, ensure_ascii=False, separators=(",", ":"))
+    for k in ("_uebernehmen", "_profil", "_werkstoff", "_blech_artikel"):
+        m.pop(k, None)
+    _ergaenzte_wand_zeigen(m)
+    return True
+
+
+def _ergaenzte_wand_zeigen(m):
+    """3D-Netz eines offen gezeichneten Rohrs: die fehlende Wand rot (Art EW), wenn das Teil als Rohr mit ergänzter
+    Wand gilt, sonst blassrot (Art EO, wird nicht gefertigt)."""
+    if not m.get("_netz"):
+        return
+    import zlib
+    try:
+        n = json.loads(zlib.decompress(m["_netz"]).decode("utf-8"))
+    except (zlib.error, ValueError):
+        return
+    t = n.get("t") or {}
+    von, nach = ("EO", "EW") if rohr_geschlossen(m) else ("EW", "EO")
+    if von in t:
+        t[nach] = t.pop(von)
+        m["_netz"] = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
+
+
+def offene_rohre_vorbelegen(messwerte, profile):
+    """Offen gezeichnete Quadrat-/Rechteckrohre (U offen, C mit Schlitz, Kantteil mit Lasche; Patrick 25.10.2026,
+    Frage 1 a): Rohr mit ergänzter Wand, wenn es das Rohr in den Stammdaten gibt – außer das offene Teil passt selbst
+    zu einem U-/C-Profil der Stammdaten (dann bleibt es ein Profil); sonst bleibt die offene Messung. Im Prüfdialog
+    umschaltbar. Nur einmal je Teil (_rohr_vorbelegt). Ergebnis: Anzahl umgestellter Teile."""
+    n = 0
+    for m in messwerte:
+        zu = geschlossen(m)
+        if m.get("_rohr_vorbelegt") or zu is None or rohr_geschlossen(m):
+            continue
+        m["_rohr_vorbelegt"] = True
+        profil = m.get("profilform") in ("U-Profil", "C-Profil") and finde_profil(m, profile)
+        if finde_profil(zu, profile) and not profil:
+            n += rohr_wechseln(m)
+    return n
 
 
 def kantteile_vorbelegen(messwerte, profile):
