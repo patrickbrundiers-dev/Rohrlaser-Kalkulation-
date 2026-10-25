@@ -28,6 +28,7 @@ FARBE_NAHT = stil.farbe_fest("#C0392B")
 FARBE_BEGRENZT = stil.farbe_fest("#F2C200")     # 3D über der Schwenkgrenze (gelb wie im 3D)
 FARBE_GRAVUR = stil.farbe_fest("#2E7D32")       # Gravur grün wie in der 3D-Ansicht
 FARBE_BIEGUNG = stil.farbe_fest("#7F6000")      # Biegezone (Biegerohr)
+NUR_MARKE = GRAVUREN + (sw.FLOWDRILL,)           # in der Abwicklung nicht ausgeschnitten (nur Laser-Marke)
 
 
 class Skizze(QWidget):
@@ -305,7 +306,7 @@ class Skizze(QWidget):
                     g.setClipRect(QRectF(0, oben_.y(), self.width(), unten_.y() - oben_.y()))
                     farbe = FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
                     g.setPen(QPen(farbe, 1.3))
-                    g.setBrush(QBrush(stil.farbe("#FFFFFF")) if d["art"] not in GRAVUREN else Qt.NoBrush)
+                    g.setBrush(QBrush(stil.farbe("#FFFFFF")) if d["art"] not in NUR_MARKE else Qt.NoBrush)
                     for k_ in (-1, 1):
                         g.drawPolygon(QPolygonF([self._bild(a, d["x"] + dx, s0 + dq + k_ * qs.umfang)
                                                  for dx, dq in umr]))
@@ -340,7 +341,7 @@ class Skizze(QWidget):
                 farbe = QColor(farbe).lighter(135)
             stift = QPen(farbe, 2.2 if wahl else 1.3, Qt.SolidLine if sicht > 0 else Qt.DashLine)
             g.setPen(stift)
-            if a[0] == "abw" and d["art"] not in GRAVUREN:
+            if a[0] == "abw" and d["art"] not in NUR_MARKE:
                 g.setBrush(QBrush(stil.farbe("#FFFFFF")))     # Abwicklung: Kontur ausgeschnitten (Patrick 25.10.2026), Grund scheint durch
             else:
                 g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 and
