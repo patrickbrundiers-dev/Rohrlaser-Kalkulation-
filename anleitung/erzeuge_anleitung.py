@@ -2907,7 +2907,10 @@ def kapitel_optimieren(i):
             "<b>Andere Zeichnungen</b>: Ein senkrecht gezeichnetes Rohr wird gedreht (das obere Ende ist Ende A). "
             "Blattrahmen und Schriftfeldrahmen fallen weg. Das Profil darf auch als <i>Ø42,4x2</i> dastehen. Maße "
             "dürfen echte DXF-Bemaßung sein oder Linien und Text, auf beliebigen Layern. Ohne Bemaßung und ohne "
-            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste.",
+            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste. "
+            "Die kurzen Striche des Schnittverlaufs (<i>A–A</i>) neben einer Ansicht zählen nicht zur Ansicht, "
+            "auch wenn sie auf dem Kontur-Layer liegen; Bohrungen und Ausschnitte in einer Ansicht sind keine "
+            "eigenen Ansichten.",
             "<b>Zuordnungsfenster</b>: Ist sich das Programm nicht sicher (keine Projektionsmethode auf der "
             "Zeichnung, mehrere Teile, Maßstab nur angenommen), erscheint vor dem Editor ein Fenster mit der "
             "Zeichnung und den gefundenen Ansichten (Nummern). Je Ansicht wählst du <i>Vorderansicht</i>, "
@@ -2921,7 +2924,11 @@ def kapitel_optimieren(i):
             "<b>Enden</b>: die Endkante je Ansicht; schräg in einer Ansicht = Gehrung mit der längsten Seite, schräg "
             "in beiden = Schrägschnitt zweiachsig.",
             "<b>Konturen</b>: Kreise werden Bohrungen, geschlossene Formen Langloch oder Rechteck (mit Eckradius), "
-            "zum Ende offene Ausschnitte Ausklinkungen, alles andere Sonderkontur mit Umriss. Die Wand erkennt das "
+            "zum Ende offene Ausschnitte Ausklinkungen, alles andere Sonderkontur mit Umriss. Auch kleine Eckradien "
+            "(z. B. R 2 an einem Fenster) werden übernommen. Eine <b>schräge Bohrung</b> (Umriss eine Ellipse, die "
+            "Austrittskante innen um Wand × tan Winkel versetzt) wird eine Bohrung mit Ø und Neigung längs bzw. "
+            "quer; ob sie in 3D geschnitten wird, entscheidet wie immer die Maschine (Häkchen 3D-Schnittbearbeitung). "
+            "Die Wand erkennt das "
             "Programm an den Kanten in der anderen Ansicht (auch verdeckt): oben, unten oder durchgehend (Wände: "
             "beide). Gleiche Konturen in gleichem Abstand werden eine Zeile mit Anzahl und Abstand.",
             "<b>Aus dem Schriftfeld</b>: Benennung wird Bezeichnung, Zeichnungsnummer wird Artikel, der Werkstoff "
