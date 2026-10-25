@@ -482,6 +482,9 @@ class EditorRahmen(QObject):
             k = g.knopf("Teil-Vorlagen", "vorlage", menue=d.vorlagen_knopf.menu(), gross=False,
                         tipp=d.vorlagen_knopf.toolTip())
             k.setEnabled(d.vorlagen_knopf.isEnabled())
+            g.knopf("DXF importieren", "oeffnen", lambda: d.dxf_importieren(), gross=False,
+                    tipp="Rohrteil aus einer DXF-Zeichnung mit Ansichten (Vorderansicht, Draufsicht, Schnitt) "
+                         "übernehmen: Profil, Länge, Gehrungen, Bohrungen und Ausschnitte auf der richtigen Seite")
             self._vorlagen_knopf_bauen(g)
         else:
             g = kon.gruppe("Außenkontur")

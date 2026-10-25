@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.108", "<b>Rohrteil aus einer DXF-Zeichnung</b>: Zeichnungen mit Vorderansicht, Draufsicht und Schnitt werden "
+                "ein Rohrteil im Rohr-Editor (<i>Neue Position → Aus DXF</i>, DXF aufs Angebot ziehen oder im "
+                "Rohr-Editor <i>DXF importieren</i>). Maßstab je Ansicht aus der Bemaßung, Profil aus dem Schnitt, "
+                "Länge, Gehrungen, Bohrungen, Langlöcher, Rechtecke und Ausklinkungen auf der richtigen Wand; "
+                "Bezeichnung, Artikel und Werkstoff aus dem Schriftfeld. Mit STEP speichern wird daraus eine "
+                "maßhaltige STEP-Datei ([[dxf_rohr]]).",
+     "Rohrteil aus DXF-Zeichnung (Ansichten) in den Rohr-Editor"],
     ["0.9.107", "<b>STEP speichern</b> im Rohr- und Blech-Editor (Menüband <i>Ausgabe</i>): das Teil als STEP-Datei "
                 "mit echtem Volumenkörper, wie im 3D-Modell. Rohr mit echtem Außenradius, Gehrung, 3D-Schnitt, "
                 "Sattel, Bohrungen als Zylinder, Langlöcher und Rechtecke mit echten Bögen, Ausklinkungen, Nasen der "

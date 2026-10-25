@@ -454,7 +454,8 @@ class SchneidwegDialog(QDialog):
     def _kopfzeile_bauen(self):
         """Neue Position: Artikel, Bezeichnung, Profil, Werkstoff, Teilelänge und Stückzahl."""
         raster = QGridLayout()
-        self.k_artikel, self.k_bezeichnung = QLineEdit(self.p.get("artikel") or ""), QLineEdit()
+        self.k_artikel = QLineEdit(self.p.get("artikel") or "")
+        self.k_bezeichnung = QLineEdit(self.p.get("bezeichnung") or "")
         self.k_artikel.setPlaceholderText("Artikelnummer")
         self.k_bezeichnung.setPlaceholderText("Bezeichnung (optional)")
         # Profil: erst die Form wählen (Vorauswahl), dann die Abmessung; fehlt es, „Neu …“ legt es an
@@ -712,8 +713,13 @@ class SchneidwegDialog(QDialog):
         konturen = [self.tabelle.cellWidget(r, 0) for r in range(self.tabelle.rowCount())]
         step = self._ende_step or any(getattr(c, "step", None) for c in konturen) or \
             getattr(self, "_umstell_hinweise", None)
-        if not step:
+        dxf = getattr(self, "_dxf_bericht", None)       # Import aus einer DXF-Zeichnung (dxf_uebernehmen)
+        if not step and not dxf:
             self.step_info.setVisible(False)
+            return
+        if not step:
+            self.step_info.setText(dxf)
+            self.step_info.setVisible(True)
             return
         text = ("Werte aus dem <b>STEP-Import</b> (grün): Es gelten die gemessenen Schnittlängen, solange Art und Maße "
                 "einer Zeile bzw. eines Endes unverändert bleiben.")
@@ -843,6 +849,58 @@ class SchneidwegDialog(QDialog):
             plan["meldungen"].append("Knickrahmen: als gestrecktes Rohr mit V-Ausschnitten (vor dem Knicken)")
         name = f"Pos {self.p.get('pos') or ''} {self.p.get('artikel') or ''}".strip()
         return step_export.speichern_dialog(self, plan, name, pfad)
+
+    def dxf_importieren(self, pfad=None):
+        """Rohrteil aus einer DXF-Zeichnung mit Ansichten übernehmen (Plan 3E-12, dxf_rohr): Enden, Konturen und
+        Teilelänge; bei einer neuen Position auch Profil (wenn in den Stammdaten), Werkstoff, Artikel und Bezeichnung.
+        Ohne pfad: Dateidialog. Ergebnis: True = übernommen."""
+        from pathlib import Path
+
+        from PySide6.QtWidgets import QFileDialog
+
+        from . import dxf_import as di, dxf_rohr
+        if pfad is None:
+            ordner = (self.db.einstellung("dxf_ordner") if self.db else None) or ""
+            pfad, _ = QFileDialog.getOpenFileName(self, "DXF importieren", str(ordner), "DXF-Dateien (*.dxf *.DXF)")
+            if not pfad:
+                return False
+            if self.db and not self.db.nur_lesen:
+                self.db.einstellung_setzen("dxf_ordner", str(Path(pfad).parent))
+        try:
+            erg = dxf_rohr.erkennen(di.datei_lesen(pfad), Path(pfad).name)
+        except (OSError, ValueError) as x:
+            QMessageBox.warning(self, "DXF importieren", str(x))
+            return False
+        if not erg["ok"]:
+            QMessageBox.information(self, "DXF importieren", "Keine Rohrzeichnung erkannt. " +
+                                    " ".join(erg["warnungen"]))
+            return False
+        self.dxf_uebernehmen(erg, Path(pfad).name)
+        return True
+
+    def dxf_uebernehmen(self, erg, dateiname=""):
+        """Ergebnis von dxf_rohr.erkennen in den Editor; Bericht in der Hinweiszeile."""
+        from . import dxf_rohr
+        pid = dxf_rohr.profil_id(erg["profil"], self.k.profile)
+        zeilen = dxf_rohr.bericht(erg, pid)
+        if pid and pid != self.p.get("profil_id"):
+            if self.neu:
+                self.k_profil.setCurrentText(pid)           # baut Querschnitt und Seiten neu (profil_setzen)
+            else:
+                zeilen.append(f"Die Zeichnung zeigt {pid}, die Position hat {self.p.get('profil_id')}: das Profil "
+                              "der Position ändern, wenn die Zeichnung gilt.")
+        if self.neu:
+            wst = dxf_rohr.werkstoff_id(erg, self.k.werkstoffe, dateiname)
+            if wst:
+                self.k_werkstoff.setCurrentText(wst)
+            if erg.get("artikel") and not self.k_artikel.text().strip():
+                self.k_artikel.setText(erg["artikel"])
+            if erg.get("name") and not self.k_bezeichnung.text().strip():
+                self.k_bezeichnung.setText(erg["name"])
+        self.aus_position = False
+        self._dxf_bericht = "<br>".join(zeilen)
+        self.eingaben_setzen(erg["eingaben"])
+        self.laenge_setzen(erg["laenge"])
 
     # ------------------------------------------------------------------ Eingaben
     def zeile_neu(self, z, rechnen_=True):

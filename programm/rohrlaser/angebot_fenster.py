@@ -2510,9 +2510,10 @@ class AngebotSeite(QWidget):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
         return int(max(vorher, default=0)) + 10
 
-    def rohr_neu(self, dialog=None):
+    def rohr_neu(self, dialog=None, dxf=None):
         """Neue Rohr-/Profilposition im Schneidweg-Rechner mit Kopfzeile anlegen. Vorbelegt: Profil und Werkstoff der
         letzten Rohrposition (sonst erstes Profil, Werkstoff aus der Einstellung step_werkstoff), Stückzahl 1.
+        dxf = (Dateiname, Ergebnis von dxf_rohr.erkennen): alles aus der Zeichnung vorbelegt (Plan 3E-12).
         Ergebnis: True = angelegt."""
         if not self.k.profile:
             self.f.meldung("Neue Position: Es gibt noch keine Profile in den Stammdaten.", fehler=True)
@@ -2521,10 +2522,16 @@ class AngebotSeite(QWidget):
                        and p.get("profil_id") in self.k.profile), {})
         pid = letzte.get("profil_id") or sorted(self.k.profile, key=str.lower)[0]
         wst = letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff") or None
+        if dxf:
+            from . import dxf_rohr
+            pid = dxf_rohr.profil_id(dxf[1]["profil"], self.k.profile) or \
+                dxf_rohr.ersatz_profil(dxf[1]["profil"], self.k.profile) or pid
         p = dict(pos=self._naechste_pos(), profil_id=pid, werkstoff_id=wst if wst in self.k.werkstoffe else None,
                  stueck=1)
         d = SchneidwegDialog(self, p, self.k.profile[pid], self.kopf, self.k, self.tabellen, self.db, self.positionen,
                              neu=True)
+        if dxf:
+            d.dxf_uebernehmen(dxf[1], dxf[0])
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
             return False
         eingaben = d.eingaben()
@@ -2587,14 +2594,17 @@ class AngebotSeite(QWidget):
                        "je Stück als EK (Zukaufteil).")
         return True
 
-    def blech_aus_dxf(self, pfade=None, dialog=None):
+    def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None):
         """Bleche aus DXF-Dateien (3E-9): je Datei das Importfenster (alle Teile mit Haken), je angehaktem Teil eine
-        Position wie aus dem Blech-Editor. dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Anzahl."""
+        Position wie aus dem Blech-Editor. Zeigt die Datei ein Rohrlaserteil in Ansichten (Rohrschnitt, 3E-12), öffnet
+        stattdessen der Rohr-Editor mit Profil, Länge, Enden und Konturen aus der Zeichnung. dialog(d) bzw.
+        rohr_dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Anzahl."""
+        from . import dxf_import as di, dxf_rohr
         from .dxf_import_dialog import DxfImportDialog
         if self.fremd():
             return 0
         if not pfade:
-            pfade, _ = QFileDialog.getOpenFileNames(self, "Bleche aus DXF", str(self.db.einstellung("dxf_ordner") or ""),
+            pfade, _ = QFileDialog.getOpenFileNames(self, "Aus DXF", str(self.db.einstellung("dxf_ordner") or ""),
                                                     "DXF-Dateien (*.dxf *.DXF)")
             if not pfade:
                 return 0
@@ -2604,6 +2614,14 @@ class AngebotSeite(QWidget):
         laser, einst = self.db.zeilen("blechlaser"), self.db.blech_einstellungen()
         n = 0
         for pfad in pfade:
+            # Rohrzeichnung (Ansichten eines Rohrlaserteils, 3E-12): Rohr-Editor mit allem aus der Zeichnung
+            try:
+                rohr = dxf_rohr.erkennen(di.datei_lesen(pfad), Path(pfad).name)
+            except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
+                rohr = None
+            if rohr and rohr["ok"]:
+                n += bool(self.rohr_neu(dialog=rohr_dialog, dxf=(Path(pfad).name, rohr)))
+                continue
             d = DxfImportDialog(self, self.db, pfad)
             if d.fehler:
                 self.f.meldung(f"{Path(pfad).name}: {d.fehler}", fehler=True)
@@ -2621,7 +2639,7 @@ class AngebotSeite(QWidget):
                                                     lieferant=zukauf.lieferant_vorgabe("Blechteile"))):
                     n += 1
         if n > 1:
-            self.f.meldung(f"{n} Bleche aus DXF angelegt.")
+            self.f.meldung(f"{n} Positionen aus DXF angelegt.")
         return n
 
     def blech_bearbeiten(self, zeile=None, dialog=None):
