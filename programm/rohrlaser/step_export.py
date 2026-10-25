@@ -732,8 +732,11 @@ def befehl(programmordner):
 
 
 def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=ZEITLIMIT):
-    """Teile (Baupläne) als STEP-Datei ziel schreiben -> Ergebnis dict(ok, teile, fehler, meldungen).
-    Die Meldungen der Baupläne (gekürzte Gravur, …) stehen mit im Ergebnis."""
+    """Teile (Baupläne, oder ein ganzer Bauplan mit 'baugruppe', baugruppe_step) als STEP-Datei ziel schreiben ->
+    Ergebnis dict(ok, teile, fehler, meldungen). Die Meldungen der Baupläne (gekürzte Gravur, …) stehen mit im
+    Ergebnis."""
+    bauplan = teile if isinstance(teile, dict) else dict(name=name, teile=teile)
+    teile = bauplan["teile"]
     b = befehl(programmordner)
     if b is None:
         return dict(ok=False, fehler="Der STEP-Export braucht STEP-Import.exe im Programmordner.", teile=[],
@@ -741,7 +744,7 @@ def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=ZEITLIMIT):
     meldungen = [m for t in teile for m in t.get("meldungen") or ()]
     with tempfile.TemporaryDirectory() as tmp:
         plan, erg = Path(tmp) / "bauplan.json", Path(tmp) / "ergebnis.json"
-        plan.write_text(json.dumps(dict(name=name, teile=teile)), encoding="utf-8")
+        plan.write_text(json.dumps(bauplan), encoding="utf-8")
         if b[0].lower().endswith(".exe"):
             cmd = b + ["--export", str(plan), "--step", str(ziel), "--ergebnis", str(erg)]
         else:

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import baugruppe, blech, hilfe, naht, schneidweg, skizze, steckverbindung, stil, vorkalk
+from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
@@ -532,10 +533,10 @@ class SteckEditor:
             self._netz_cache[pid] = entpacken(self.netze.get(pid)) or {}
         return self._netz_cache[pid]
 
-    def _rohr_modelle(self):
-        """Rohre aus den Eingaben (B2): {Positions-ID: Netz im Rohrsystem} mit den Steckverbindungen des Editors;
-        Teile ohne Eingaben, Biegerohr, Knickrahmen oder mit Anbauteilen fehlen (dort bleibt das STEP-Netz)."""
-        from .baugruppe_ansicht import eigenes_modell, eingaben_stecken, nasen_winkel, rohr_netz
+    def _rohr_eingaben(self):
+        """Eingaben und Länge der Rohre mit den Steckverbindungen des Editors {Positions-ID: (Eingaben, Länge)} und
+        die Winkel der Nasen {Positions-ID: {Ende: Winkel}} (für 3D und STEP-Export)."""
+        from .baugruppe_ansicht import eingaben_stecken, nasen_winkel
         drin = {t["_id"]: t["_q"] for t in self.teile if t.get("drin") and self._steck_profil(t["_id"])}
         verbindungen = [self._steck_daten(z) for z in self.bg.get("steckverbindungen") or ()
                         if z.get("_auf") in drin and z.get("_st") in drin]
@@ -550,6 +551,13 @@ class SteckEditor:
             w = nasen_winkel(v, la, ls, (self._steck_profil(v["stecker"]["id"]) or {}).get("form"))
             if w is not None:
                 winkel.setdefault(v["stecker"]["id"], {})[v["stecker"]["ende"]] = w
+        return eing, winkel
+
+    def _rohr_modelle(self):
+        """Rohre aus den Eingaben (B2): {Positions-ID: Netz im Rohrsystem} mit den Steckverbindungen des Editors;
+        Teile ohne Eingaben, Biegerohr, Knickrahmen oder mit Anbauteilen fehlen (dort bleibt das STEP-Netz)."""
+        from .baugruppe_ansicht import eigenes_modell, rohr_netz
+        eing, winkel = self._rohr_eingaben()
         cache = self.__dict__.setdefault("_rohr_cache", {})
         out = {}
         for pid, (e, laenge) in eing.items():
@@ -815,7 +823,7 @@ class LaengsnahtEditor:
         return out
 
 
-class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
+class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, StepBaugruppe, QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
@@ -918,6 +926,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
             merken.clicked.connect(lambda: self.vorlage_merken())
             unten.addWidget(einsetzen)
             unten.addWidget(merken)
+        unten.addWidget(self.step_knopf())
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
@@ -2182,6 +2191,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
                     if isinstance(v, (int, float)) and not isinstance(v, bool) and v < 0:
                         return "Negative Werte sind nicht erlaubt."
         return None
+
+    def step_name(self):
+        return self.bezeichnung.text().strip() or self.artikel.text().strip() or "Baugruppe"
 
     def _ok(self):
         if self.nur_lesen:

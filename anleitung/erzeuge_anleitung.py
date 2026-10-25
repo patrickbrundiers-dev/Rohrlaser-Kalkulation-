@@ -2409,6 +2409,8 @@ def kapitel_optimieren(i):
             "[[schweissnaht]]) und im 3D rot. Messen schaltet die Auswahl aus.",
             "Die Rohre stehen im 3D so, wie sie gerechnet werden: mit den Schlitzen und Nasen, auch der noch nicht "
             "gespeicherten.",
+            "<b>STEP speichern …</b> (Reiter Teile) schreibt den ganzen Satz als STEP-Baugruppe wie im Editor der "
+            "Schweißbaugruppe ([[step_baugruppe]]).",
             "<b>OK</b> schreibt Schlitze, Nasen, Länge, Schneidweg und Längsnähte in die Teile; die Verbindungen "
             "speichert das Angebot je Satz (sie bleiben beim Kopieren des Angebots erhalten). Ist der Satz eine "
             "Schweißbaugruppe, öffnet der Knopf ihren Editor.",
@@ -2598,7 +2600,8 @@ def kapitel_optimieren(i):
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
-    i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor) schreibt das Teil als "
+    i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
+           "Sätze: [[step_baugruppe]]) schreibt das Teil als "
            "STEP-Datei mit echtem Volumenkörper, so wie es im 3D-Modell aus den Eingaben zu sehen ist. Damit geht ein "
            "im Editor gebautes Teil an den Kunden oder ins CAD. Vorschlag für den Ort ist der Ordner des Angebots, "
            "Name der Artikelnummer.", kurz=True)
@@ -3759,6 +3762,20 @@ def kapitel_baugruppen(i):
            "Angeboten mit Baugruppen zusätzlich <i>&lt;Nr&gt; Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
            "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
            "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
+    i.abschnitt("Baugruppe als STEP speichern", marke="step_baugruppe")
+    i.text("<b>STEP speichern …</b> unten im Editor der Schweißbaugruppe (und im Fenster Satz in 3D) schreibt alle "
+           "Teile als <b>STEP-Baugruppe</b> mit echten Volumenkörpern, so wie sie im 3D stehen. Gleiche Teile sind nur "
+           "einmal definiert und so oft eingesetzt, wie sie in der STEP-Datei vorkommen; die Unterbaugruppen und Namen "
+           "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei.", kurz=True)
+    i.liste("<b>Rohre</b> aus den Eingaben des Rohr-Editors mit Schlitzen und Nasen der Steckverbindungen und der "
+            "Artikelnummer-Gravur, in der Einbaulage der STEP-Datei ([[step_export]]).",
+            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet. Ihre Lage sucht das Programm am 3D-Netz der "
+            "STEP-Messung (Hauptachsen und Vergleich der Oberfläche); passt es nicht genau, steht ein Hinweis in der "
+            "Meldung.",
+            "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
+            "kommen als facettierter Körper hinein, mit Hinweis.",
+            "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "
+            "mit Hinweis.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
     i.text("Wiederkehrende Baugruppen nicht jedes Mal neu erfassen: <b>Als Vorlage speichern …</b> unten im Editor "
            "merkt Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) unter einem Namen; "
