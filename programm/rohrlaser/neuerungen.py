@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.129", "<b>Fehlersuche</b>: Die <b>Schnellzeile</b> liest Profilmaße mit Leerzeichen (<i>RR 42,4 x 2</i>, "
+    ["0.9.130", "<b>Fehlersuche</b>: Die <b>Schnellzeile</b> liest Profilmaße mit Leerzeichen (<i>RR 42,4 x 2</i>, "
                 "<i>QR 40 x 40 x 3</i>) und <i>1250 x 20</i> als Länge × Stück; ein mehrdeutiger Werkstoff (<i>S235</i>) "
                 "nimmt den der letzten Position, die Vorgabe bzw. den zuletzt benutzten, sonst Hinweis "
                 "<i>mehrdeutig</i> ([[schnellzeile]]). Halbschalen (Teile je Rohrumfang): Meterpreise und Fenster "
@@ -30,6 +30,20 @@ NEUERUNGEN = [
                 "([[lizenz_laden]]). Vollmaterial aus STEP: Hinweis <i>Bohrungen/Gewinde nicht ausgewertet, bitte "
                 "prüfen</i> ([[vollmaterial]]).",
      "Fehlersuche: Schnellzeile (Leerzeichen, Länge × Stück, S235), Halbschalen-Meter, Notfallcode, Vollmaterial-Hinweis"],
+    ["0.9.129", "<b>Schnittkörper im 3D</b>: Jede Kontur ist zusätzlich ein halb durchsichtiger Körper, so tief wie "
+                "sie schneidet – eine Wand, beide Wände (durchgehend bis unter die Gegenwand), je Kopie bei allen "
+                "Seiten, eine schräge Bohrung entlang ihrer Neigung, eine Gravur so tief wie angegeben, beim Blech "
+                "durch die Dicke. Farbe je Konturart, die Maus darüber zeigt Kontur und Tiefe, die gewählte Kontur ist "
+                "kräftiger, ein Klick ins Loch wählt sie. Vorgabe an, abschaltbar mit <b>Schnittkörper</b> (Leiste "
+                "unter dem 3D, Blick-Menü, Rechtsklick → Darstellung); gilt für Rohr- und Blech-Editor, "
+                "Schweißbaugruppe und Satz in 3D ([[ansicht_3d_bedienung]]). Unbekannte Konturen (Sonderkontur) "
+                "sind pink und haben die Form aus der importierten STEP-Datei, V-Ausschnitte der Knickrahmen braun; "
+                "die Körper stehen außen und innen je 2 mm über. <b>Konturen genau wie die STEP</b>: Konturen über "
+                "gerundete Ecken und Bohrungen auf den Seiten vorne/unten/hinten lagen bis zu einigen mm neben der "
+                "STEP, jetzt auf Hundertstel genau; der Eckradius kommt aus der STEP-Datei, komplexe Enden haben im 3D "
+                "ihren gemessenen Verlauf, Rundrohre stehen im 3D wie die STEP. Schon importierte Teile mit <b>STEP "
+                "neu einlesen …</b> korrigieren.",
+     "Schnittkörper im 3D; Konturen und Enden aus der STEP auf Hundertstel genau"],
     ["0.9.128", "<b>Eingaben intuitiver</b>: Ja/Nein-Einstellungen sind Schalter, Ja/Nein-Spalten der Tabellen "
                 "Häkchen in der Zelle (ein Klick, Leertaste, J/N). Wenige Möglichkeiten (Thema, Dichte, "
                 "Eingaberichtung …) stehen als Knopfreihe da; feste Auswahllisten der Einstellungen nehmen keine "

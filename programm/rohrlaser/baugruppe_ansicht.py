@@ -181,6 +181,8 @@ def rohr_netz(e, profil, laenge, nasen_w=None):
             for zug in zuege:
                 for i in range(2, len(zug), 3):
                     zug[i] = round(zug[i] - plus_a, 3)
+        from .schnittkoerper import verschieben
+        verschieben(n.get("wk"), -plus_a)
     return n
 
 
