@@ -362,7 +362,7 @@ def main(ziel):
     kopf_box = s.kopf_bereich.kopf_inhalt.parentWidget()
     foto.foto("angebot_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
                                         (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
-                                        (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
+                                        (s.ablage_klein, 6), (knopf(s, "Optimieren"), 7),
                                         ((s.pos_seite, QRect(0, 0, s.pos_seite.width(), s.pos_ansicht.y() - 2)), 8),
                                         (s.schritte, 9)])
     kb = s.kopf_bereich

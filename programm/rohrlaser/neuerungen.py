@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.131", "<b>Angebotskopf und Kalkulation kompakter</b>: Bearbeiter neben der Bemerkung, der Satz „Im Angebot: "
+                "Lieferzeit …“ nur noch ohne Lieferzeit (sonst als Tooltip); die Fracht steht auf breiten Bildschirmen "
+                "rechts neben der Kalkulation, der Haken Mindestauftragswert unter Verkauf und Gewinn. <i>Rüstzeit je "
+                "Maschine</i> fällt bei 0 min weg, <b>Stangenwechsel je Stange</b> ist je Angebot änderbar (gelb bei "
+                "Abweichung, Stangenwechsel SN bleibt) ([[angebotskopf]]). Das Ablagefeld neben <i>Neue "
+                "Position</i> nimmt <b>STEP und DXF</b> per Ziehen oder Klick an, auch gemischt; <i>STEP importieren "
+                "…</i> steht nur noch im Menü (Strg+I) ([[step]]).",
+     "Kopf und Kalkulation kompakter, Stangenwechsel je Angebot, Ablagefeld für STEP und DXF."],
     ["0.9.130", "<b>Fehlersuche</b>: Die <b>Schnellzeile</b> liest Profilmaße mit Leerzeichen (<i>RR 42,4 x 2</i>, "
                 "<i>QR 40 x 40 x 3</i>) und <i>1250 x 20</i> als Länge × Stück; ein mehrdeutiger Werkstoff (<i>S235</i>) "
                 "nimmt den der letzten Position, die Vorgabe bzw. den zuletzt benutzten, sonst Hinweis "
