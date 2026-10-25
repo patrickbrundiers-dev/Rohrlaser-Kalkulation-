@@ -735,8 +735,11 @@ class SteckEditor:
         return geaendert
 
     def _steck_symmetrisch(self, t, profil):
-        """True, wenn das Rohr ohne die Steckverbindungen keine eigenen Konturen und zwei gerade Enden hat."""
+        """True, wenn das Rohr ohne die Steckverbindungen keine eigenen Konturen, zwei gerade Enden und keine
+        Vorgabe für die Schweißnaht der Lieferstange hat (die würde mitgedreht)."""
         from .baugruppe_ansicht import eingaben_stecken
+        if t["_q"].get("naht_vorgabe"):
+            return False
         e = (eingaben_stecken({t["_id"]: t["_q"]}, [], lambda _: profil).get(t["_id"]) or (None,))[0]
         if not e or e.get("konturen") or e.get("biegerohr"):
             return False
