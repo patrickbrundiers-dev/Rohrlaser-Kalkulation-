@@ -303,6 +303,7 @@ def stecken(d):
                          for z in d.bg["steckverbindungen"]]
     gesehen["fehler"] = [d._steck_fehler(z) for z in d.bg["steckverbindungen"]]
     gesehen["nochmal"] = d.steck_alle(melden=False)
+    gesehen["lagen"] = {str(k): {str(n): w for n, w in v.items()} for k, v in getattr(d, "steck_lagen", {}).items()}
     d._ok()
     return d.result()
 
@@ -312,7 +313,11 @@ assert seite.baugruppe_bearbeiten([i], dialog=stecken)
 assert gesehen["erg"] == (3, 0) and gesehen["nochmal"] == (0, 0), gesehen
 assert gesehen["zeilen"] == [(holm, strebe, "a", 200.0, "oben", True, True),
                              (holm, strebe, "a", 800.0, "oben", True, False),
-                             (holm, strebe, "b", 200.0, "unten", False, True)], gesehen["zeilen"]
+                             (holm, strebe, "b", 200.0, "oben", False, True)], gesehen["zeilen"]
+# der zweite Holm war um 180° gedreht eingebaut: seine Einbaulage wird gedreht, statt das gleiche Teil zu teilen
+from rohrlaser.ansicht3d import entpacken
+netz_h = entpacken(db.netz(holm))
+assert len(netz_h["lagen"]) == 2 and netz_h["lagen"][1] == gesehen["lagen"][str(holm)][str(netz_h["koerper"][1])], netz_h
 assert gesehen["fehler"] == [None, None, None], gesehen["fehler"]
 pos = {q["id"]: q for q in db.positionen(a)}
 eh, est = sw.lesen(pos[holm]["technik"]), sw.lesen(pos[strebe]["technik"])
@@ -350,6 +355,28 @@ assert sv.nasen_wahl(sv.vorgaben(QR100), QR100, [ecke, andere_ecke])[0] is None 
 rund = dict(profil_a=RR42, w=702.5, q=0, laenge=1426, halb=21.2, quer=(40, 40), phi=0)
 w_, _, hinweis = sv.nasen_wahl(dict(sv.vorgaben(QR40), waende="längs"), QR40, [rund])
 assert w_["waende"] == "quer" and w_["anzahl"] == 2 and "90°" in hinweis, (w_, hinweis)
+# Ecke: Stütze unter zwei Trägern -> je Träger eine Nase, um 90° versetzt, nie zwei auf derselben Wand
+traeger1 = dict(profil_a=RE140, w=50, q=10, laenge=3000, halb=40, quer=(100, 100), phi=0)
+traeger2 = dict(profil_a=RE140, w=2950, q=10, laenge=3000, halb=40, quer=(100, 100), phi=90)
+wahl, hinweis = sv.nasen_wahl_ecke(sv.vorgaben(QR100), QR100, [traeger1, traeger2])
+assert [x["anzahl"] for x in wahl] == [1, 1] and wahl[0]["traegt"] and not wahl[1]["traegt"], wahl
+assert sv.versatz_liste(wahl[0]) and "90°" in hinweis, (wahl, hinweis)
+menge = sv.nasen_winkel_menge(wahl[0], 0, "Quadratrohr")
+assert len(menge) == 2 and (menge[1] - menge[0]) % 180 == 90, menge
+# gleiche Rohre gedreht/gewendet eingebaut: Kennung im gedrehten Rohrsystem gleich, Einbaulage passend gedreht
+z1 = [dict(art="Rechteck", b=3, h=20, x=200.0, seite="oben"), dict(art="Rechteck", b=3, h=20, x=800.0, seite="oben")]
+z2 = [dict(z, seite="unten") for z in z1]
+z3 = [dict(art="Rechteck", b=3, h=20, x=300.0, seite="vorne")]
+k1 = sv.gleich_lagen(None, None, z1, 1000, "Rechteckrohr")
+assert k1[0][0] in {k for k, _, _ in sv.gleich_lagen(None, None, z2, 1000, "Rechteckrohr")}
+treffer = next((d, w) for k, d, w in sv.gleich_lagen(None, None, [dict(z3[0], seite="hinten", x=700.0)], 1000,
+                                                    "Quadratrohr", True)
+               if k == sv.gleich_lagen(None, None, z3, 1000, "Quadratrohr", True)[0][0])
+assert sv.seite_drehen("hinten", *treffer) == "vorne", treffer
+lage = [0, 0, 0, 1, 0, 0, 0, 1, 0]          # Ende A im Ursprung, Achse X, Rohr-X = Welt-Y
+assert sv.lage_drehen(lage, 0, True, 1000)[:6] == [1000, 0, 0, -1, 0, 0]
+assert [round(v, 6) for v in sv.lage_drehen(lage, 180, False, 1000)[6:]] == [0, -1, 0]
+assert len(sv.gleich_lagen(None, None, [dict(z1[0], q=5)], 1000, "Rechteckrohr")) == 1      # Querversatz: nicht drehen
 ok("S8 Nasen nur in die Stoßwand: bündig quer, Ecke nur die innere Nase, gleiche Teile ohne gemeinsame Lage ohne "
-   "Nasen, auf Rundrohr längs der Achse")
+   "Nasen, auf Rundrohr längs der Achse, Ecke je Träger eine Nase um 90° versetzt, gedreht eingebaute gleiche Rohre")
 print("Alle Steckverbindungs-Tests bestanden.")

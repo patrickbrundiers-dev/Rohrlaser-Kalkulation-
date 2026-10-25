@@ -545,13 +545,16 @@ class SteckEditor:
         self.aktualisieren()
         return v["id"]
 
-    def steck_plan(self):
+    def steck_plan(self, teilen=False, _gedreht=False):
         """Steckverbindungen aus den Stößen der STEP-Messung (bg['stoesse']: Rohrende an Rohrwand, Körpernummern), wie
-        „Alle Stöße stecken“ sie anlegt: [dict(auf, st, ende, x, seite, winkel, schlitze, nasen)] und die Zahl der
-        Stöße, die keinem Rohr zugeordnet werden können. Gleiche Teile: Schlitze nur am ersten Körper der Aufnahme,
-        Nasen je Ende des Steckers nur einmal; schon vorhandene Verbindungen bleiben (nicht im Plan). None ohne
-        Stöße."""
+        „Alle Stöße stecken“ sie anlegt: ([dict(auf, st, ende, x, seite, winkel, schlitze, nasen, nasen_werte,
+        koerper)], Zahl der Stöße ohne Rohr). Nasen nie in die Außenwand (steckverbindung.nasen_wahl, an Ecken
+        nasen_wahl_ecke). Gleiche Teile (eine Position, mehrere Körper) tragen dieselben Schlitze und Nasen: Körper
+        mit anderer Lage von Schlitzen oder Nasen kommen mit teilen=True in eigene Positionen (Patrick 25.10.2026,
+        self.steck_trennen = [(Positions-ID, [Körpergruppen])], neue IDs '<ID>~<n>'), sonst bekommen nur die Körper
+        wie der erste Verbindungen. Schon vorhandene Verbindungen bleiben (nicht im Plan). None ohne Stöße."""
         stoesse = [s_ for s_ in self.bg.get("stoesse") or () if isinstance(s_, dict)]
+        self.steck_ohne_nase, self.steck_trennen = 0, []
         if not stoesse:
             return None, 0
         besitzer = {}
@@ -559,16 +562,9 @@ class SteckEditor:
             if t.get("drin") and (self._steck_profil(t["_id"]) or {}).get("form") in steckverbindung.FORMEN:
                 for k in self._netz(t["_id"]).get("koerper") or ():
                     besitzer.setdefault(str(k), set()).add(t["_id"])
-        erster = {}                 # Aufnahme -> erster Körper (dort die Schlitze)
-        for s_ in sorted(stoesse, key=lambda x: (len(str(x.get("aufnahme"))), str(x.get("aufnahme")))):
-            ids = besitzer.get(str(s_.get("aufnahme"))) or ()
-            if len(ids) == 1:
-                erster.setdefault(next(iter(ids)), str(s_.get("aufnahme")))
-        vorhanden = self.bg["steckverbindungen"]
-        schlitze = {(z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
-                    for z in vorhanden if z.get("_schlitze") is not False}
-        nasen = {(z.get("_st"), z.get("_ende")) for z in vorhanden if z.get("_nasen") is not False}
-        plan, weg, self.steck_ohne_nase = [], 0, 0
+        einst = self._steck_einst()
+        liste, weg = [], 0
+        trafo = getattr(self, "_steck_trafo", None) or {}
         for s_ in stoesse:
             auf_, st_ = besitzer.get(str(s_.get("aufnahme"))) or (), besitzer.get(str(s_.get("stecker"))) or ()
             ende = s_.get("ende") if s_.get("ende") in ("a", "b") else None
@@ -581,55 +577,210 @@ class SteckEditor:
             else:
                 seite = steckverbindung.SEITE_STEP.get(s_.get("seite"))
             x = round(float(s_["z"]), 1)
+            dreh_a, dreh_s = trafo.get(str(s_.get("aufnahme"))), trafo.get(str(s_.get("stecker")))
+            if dreh_a:                  # Aufnahme gedreht/gewendet (_steck_drehen): Seite und x im neuen Rohrsystem
+                seite, x = steckverbindung.seite_drehen(seite, *dreh_a[:2]), round(dreh_a[2] - x, 1) if dreh_a[1] else x
+            if dreh_s and dreh_s[1]:
+                ende = "b" if ende == "a" else "a"
             w = s_.get("achswinkel")
             winkel = round(w, 1) if isinstance(w, (int, float)) and steckverbindung.WINKEL_MIN <= w < 89.5 else None
             kontakt = self._steck_kontakt(auf, s_.get("aufnahme"), st, s_.get("stecker"), ende)
             if kontakt and winkel is None and 0 <= kontakt["w"] <= kontakt["laenge"]:
                 x = round(kontakt["w"], 1)      # Mitte des Steckers (der Kontakt ist an Ecken nur ein Teil davon)
-            ort = erster.get(auf) == str(s_.get("aufnahme"))
-            mit_schlitz = ort and (auf, round(x), str(seite or "")) not in schlitze
-            mit_nasen = (st, ende) not in nasen
-            if not (mit_schlitz or mit_nasen):
-                continue
-            plan.append(dict(auf=auf, st=st, ende=ende, x=x, seite=seite, schlitze=mit_schlitz, nasen=mit_nasen,
-                             schlitz_ort=ort, kontakt=kontakt, winkel=winkel))
-            schlitze.add((auf, round(x), str(seite or "")))
-            nasen.add((st, ende))
-        return self._steck_nasen_wahl(plan), weg
-
-    def _steck_nasen_wahl(self, plan):
-        """Nasen nie in die Außenwand (steckverbindung.nasen_wahl): je Steckerende eine gemeinsame Nasenlage für alle
-        seine Stöße (gleiche Teile tragen dieselben Nasen); passt keine, fällt die Verbindung weg (nur Kehlnaht).
-        self.steck_ohne_nase = Zahl der weggefallenen Stöße."""
-        gruppen = {}
-        for e in plan:
-            gruppen.setdefault((e["st"], e["ende"]), []).append(e)
-        self.steck_ohne_nase, out = 0, []
-        for (st, _), liste in gruppen.items():
-            profil_s = self._steck_profil(st) or {}
-            mit = [e for e in liste if e.get("kontakt") and (self._steck_profil(e["auf"]) or {}).get("form")
+            liste.append(dict(auf=auf, st=st, ende=ende, x=x, seite=seite, winkel=winkel, kontakt=kontakt,
+                              k_auf=str(s_.get("aufnahme")), k_st=str(s_.get("stecker"))))
+        # Nasen je Körper und Ende des Steckers
+        enden = {}
+        for e in liste:
+            enden.setdefault((e["k_st"], e["ende"]), []).append(e)
+        muster = {}                 # (Körper, Ende) -> Nasen am Stecker (Winkelmenge, Werte)
+        for (k_st, ende), es in enden.items():
+            profil_s = self._steck_profil(es[0]["st"]) or {}
+            mit = [e for e in es if e.get("kontakt") and (self._steck_profil(e["auf"]) or {}).get("form")
                    in steckverbindung.FORMEN]
             if profil_s.get("form") not in steckverbindung.FORMEN or not mit:
+                for e in es:
+                    e["traegt"] = e is es[0]
                 continue
-            v = steckverbindung.vorgaben(profil_s, self._steck_einst())
+            v = steckverbindung.vorgaben(profil_s, einst)
+            kont = [dict(e["kontakt"], profil_a=self._steck_profil(e["auf"])) for e in mit]
             try:
-                werte, seiten, hinweis = steckverbindung.nasen_wahl(
-                    v, profil_s, [dict(e["kontakt"], profil_a=self._steck_profil(e["auf"])) for e in mit],
-                    self._steck_einst().get("nase_min"))
+                if len(mit) == 1:
+                    werte, seiten, hinweis = steckverbindung.nasen_wahl(v, profil_s, kont, einst.get("nase_min"))
+                    wahl = [dict(werte, traegt=True, **({"nase_seite": -1} if werte.get("anzahl") == 1
+                                                         and seiten[0] < 0 else {}))] if werte else [None]
+                else:
+                    wahl, hinweis = steckverbindung.nasen_wahl_ecke(v, profil_s, kont, einst.get("nase_min"))
             except ValueError:
                 continue
-            if werte is None:
-                for e in liste:
+            for e, x in zip(mit, wahl):
+                if x is None:
                     e["_weg"] = True
-                self.steck_ohne_nase += len(liste)
+                    self.steck_ohne_nase += 1
+                    continue
+                e["nasen_werte"] = {n: w for n, w in x.items() if n != "traegt"}
+                e["traegt"], e["hinweis"] = x["traegt"], hinweis
+                if x["traegt"]:
+                    muster[(k_st, ende)] = (steckverbindung.nasen_winkel_menge(x, e["kontakt"]["phi"],
+                                                                               profil_s.get("form")),
+                                            round(x.get("bN") or 0, 1))
+        liste = [e for e in liste if not e.get("_weg")]
+        # Schlitze je Körper der Aufnahme
+        schlitz = {}
+        for e in liste:
+            pa, ps = self._steck_profil(e["auf"]) or {}, self._steck_profil(e["st"]) or {}
+            if ps.get("form") not in steckverbindung.FORMEN or pa.get("form") not in steckverbindung.FORMEN:
                 continue
-            for e, sz in zip(mit, seiten):
-                e["nasen_werte"] = dict(werte, **({"nase_seite": -1} if werte.get("anzahl") == 1 and sz < 0 else {}))
-                e["hinweis"] = hinweis
-        for e in plan:
-            if not e.pop("_weg", False):
-                out.append(e)
-        return out
+            v = dict(steckverbindung.vorgaben(ps, einst), id="x", x=e["x"], seite=e["seite"],
+                     **({"winkel": e["winkel"]} if e["winkel"] is not None else {}), **(e.get("nasen_werte") or {}))
+            try:
+                zeilen = steckverbindung.schlitz_zeilen(v, pa, ps)
+            except ValueError:
+                continue
+            schlitz.setdefault(e["k_auf"], []).extend(
+                {n: w for n, w in z.items() if n not in ("quelle", "text")} for z in zeilen)
+        vorhanden = self.bg["steckverbindungen"]
+        belegt = {z.get("_auf") for z in vorhanden} | {z.get("_st") for z in vorhanden}
+        if not _gedreht and self._steck_drehen(muster, schlitz, belegt):
+            return self.steck_plan(teilen, _gedreht=True)
+        # gleiche Teile: Körper nach Schlitzen und Nasen gruppieren
+        gruppe_von, vertreter = {}, set()
+        for t in self.teile:
+            pid = t["_id"]
+            koerper = [str(k) for k in self._netz(pid).get("koerper") or ()]
+            if not t.get("drin") or not koerper:
+                continue
+            gruppen = {}
+            for k in koerper:
+                kennung = json.dumps([muster.get((k, "a")), muster.get((k, "b")),
+                                      sorted(json.dumps(z, sort_keys=True) for z in schlitz.get(k) or ())])
+                gruppen.setdefault(kennung, []).append(k)
+            reihe = list(gruppen.values())
+            if len(reihe) > 1 and teilen and pid not in belegt:
+                self.steck_trennen.append((pid, reihe))
+                for n, gr in enumerate(reihe):
+                    for k in gr:
+                        gruppe_von[k] = pid if n == 0 else f"{pid}~{n}"
+                    vertreter.add(gr[0])
+            else:
+                erste = next((gr for gr in reihe if koerper[0] in gr), reihe[0])
+                for k in koerper:
+                    gruppe_von[k] = pid
+                vertreter.add(erste[0])
+                if len(reihe) > 1:      # ohne Teilen: nur die Körper wie der erste
+                    for gr in reihe:
+                        if gr is not erste:
+                            for k in gr:
+                                gruppe_von[k] = None
+        schlitze = {(z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
+                    for z in vorhanden if z.get("_schlitze") is not False}
+        nasen = {(z.get("_st"), z.get("_ende")) for z in vorhanden if z.get("_nasen") is not False}
+        plan = []
+        for e in liste:
+            auf, st = gruppe_von.get(e["k_auf"]), gruppe_von.get(e["k_st"])
+            if auf is None or st is None:
+                continue
+            mit_schlitz = e["k_auf"] in vertreter and (auf, round(e["x"]), str(e["seite"] or "")) not in schlitze
+            mit_nasen = e["k_st"] in vertreter and e.get("traegt", True) and (st, e["ende"]) not in nasen
+            if not (mit_schlitz or mit_nasen):
+                continue
+            plan.append(dict(auf=auf, st=st, ende=e["ende"], x=e["x"], seite=e["seite"], schlitze=mit_schlitz,
+                             nasen=mit_nasen, schlitz_ort=e["k_auf"] in vertreter, winkel=e["winkel"],
+                             nasen_werte=e.get("nasen_werte"), hinweis=e.get("hinweis"),
+                             koerper=[e["k_auf"], e["k_st"]]))
+            schlitze.add((auf, round(e["x"]), str(e["seite"] or "")))
+            if mit_nasen:
+                nasen.add((st, e["ende"]))
+        return plan, weg
+
+    def _steck_drehen(self, muster, schlitz, belegt):
+        """Gleiche Rohre, die nur gedreht oder gewendet eingebaut sind (keine eigenen Konturen, gerade Enden), sind
+        keine verschiedenen Teile: ihre Einbaulage so drehen/wenden (steckverbindung.gleich_lagen/lage_drehen), dass
+        Nasen und Schlitze wie beim ersten Körper liegen; die Lage geht mit OK in das Netz (self.steck_lagen). True,
+        wenn eine Lage geändert wurde (dann steck_plan neu)."""
+        geaendert = False
+        for t in self.teile:
+            pid = t["_id"]
+            netz = self._netz(pid)
+            koerper = [str(k) for k in netz.get("koerper") or ()]
+            lagen = netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])
+            profil = self._steck_profil(pid) or {}
+            if (not t.get("drin") or len(koerper) < 2 or len(lagen) != len(koerper) or pid in belegt
+                    or profil.get("form") not in steckverbindung.FORMEN or not netz.get("p")
+                    or not self._steck_symmetrisch(t, profil)):
+                continue
+            laenge = max(netz["p"][2::3])
+            quadrat = abs(steckverbindung._z(profil.get("a")) - steckverbindung._z(profil.get("b") or profil.get("a"))) < 1e-6
+
+            def varianten(k):
+                return steckverbindung.gleich_lagen(muster.get((k, "a")), muster.get((k, "b")), schlitz.get(k) or [],
+                                                    laenge, profil.get("form"), quadrat)
+            alle = {k: varianten(k) for k in koerper}
+            if len({v[0][0] for v in alle.values()}) < 2:
+                continue                # schon alle gleich
+            ziele, neu = [], list(lagen)        # je Gruppe die Kennung ihres ersten Körpers
+            for j, k in enumerate(koerper):
+                treffer = next(((d, w) for kenn, d, w in alle[k] if kenn in ziele), None)
+                if treffer is None:
+                    ziele.append(alle[k][0][0])
+                elif treffer[0] or treffer[1]:
+                    neu[j] = steckverbindung.lage_drehen(lagen[j], treffer[0], treffer[1], laenge)
+                    self.__dict__.setdefault("_steck_trafo", {})[k] = (treffer[0], treffer[1], laenge)
+            if neu != list(lagen):
+                self._netz_cache[pid] = dict(netz, lagen=neu, lage=neu[0])
+                self.__dict__.setdefault("steck_lagen", {})[pid] = dict(zip(koerper, neu))
+                geaendert = True
+        if geaendert:
+            self.__dict__.pop("_rohr_cache", None)
+        return geaendert
+
+    def _steck_symmetrisch(self, t, profil):
+        """True, wenn das Rohr ohne die Steckverbindungen keine eigenen Konturen und zwei gerade Enden hat."""
+        from .baugruppe_ansicht import eingaben_stecken
+        e = (eingaben_stecken({t["_id"]: t["_q"]}, [], lambda _: profil).get(t["_id"]) or (None,))[0]
+        if not e or e.get("konturen") or e.get("biegerohr"):
+            return False
+        return all(not (e.get(s) or {}).get("winkel") and (e.get(s) or {}).get("form") in (None, "", "gerade")
+                   for s in ("a", "b"))
+
+    def steck_teilen(self):
+        """Die in steck_plan gefundenen Trennungen ausführen (im Speicher, mit OK in die Positionen): je weitere
+        Körpergruppe ein neues Teil '<ID>~<n>' mit diesen Körpern, das alte behält die erste Gruppe. Ergebnis: Zahl
+        der neuen Teile."""
+        neu = 0
+        for pid, gruppen in self.steck_trennen or ():
+            t = next((x for x in self.teile if x["_id"] == pid), None)
+            if t is None:
+                continue
+            netz = self._netz(pid)
+            lagen = netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])
+            koerper = [str(k) for k in netz.get("koerper") or ()]
+            gesamt = len(koerper) or 1
+            je_alt = t.get("je") or gesamt
+            stelle = self.teile.index(t)
+            for n, gr in enumerate(gruppen):
+                idx = [koerper.index(k) for k in gr if k in koerper]
+                teil_netz = dict(netz, lage=lagen[idx[0]] if idx and idx[0] < len(lagen) else netz.get("lage"),
+                                 koerper=[netz["koerper"][j] for j in idx])
+                if len(idx) > 1:
+                    teil_netz["lagen"] = [lagen[j] for j in idx if j < len(lagen)]
+                else:
+                    teil_netz.pop("lagen", None)
+                je = max(1, round(je_alt * len(idx) / gesamt))
+                if n == 0:
+                    self._netz_cache[pid] = teil_netz
+                    t["_q"] = dict(t["_q"], je_satz=len(idx))
+                    t["je"] = je
+                    continue
+                nid = f"{pid}~{n}"
+                self._netz_cache[nid] = teil_netz
+                q = dict(t["_q"], id=nid, je_satz=len(idx))
+                self.teile.insert(stelle + n, dict(t, _id=nid, _q=q, je=je))
+                self.__dict__.setdefault("steck_getrennt", []).append(dict(von=pid, neu=nid, koerper=list(gr)))
+                neu += 1
+        self.steck_trennen = []
+        self.__dict__.pop("_rohr_cache", None)
+        return neu
 
     def _steck_kontakt(self, auf, k_auf, st, k_st, ende):
         """Lage des Steckerendes auf der Aufnahme aus den Einbaulagen der STEP-Messung (für steckverbindung.nasen_wahl):
@@ -705,6 +856,8 @@ class SteckEditor:
             v["winkel"] = e["winkel"]
         if e.get("nasen_werte"):
             v.update(e["nasen_werte"])
+        if e.get("koerper"):
+            v["koerper"] = list(e["koerper"])         # Körper der Aufnahme und des Steckers (Winkel der Nasen)
         z = self._steck_flach(v)
         z["_schlitze"], z["_nasen"] = e["schlitze"], e["nasen"]
         if e.get("hinweis"):
@@ -714,7 +867,8 @@ class SteckEditor:
     def steck_alle(self, melden=True):
         """„Alle Stöße stecken“: je Stoß der STEP-Messung eine Verbindung mit Lage, Seite und Achswinkel aus der Datei
         (steck_plan). Ergebnis: (neu, übersprungen)."""
-        plan, weg = self.steck_plan()
+        plan, weg = self.steck_plan(teilen=not getattr(self, "nur_lesen", False))
+        getrennt = self.steck_teilen() if plan is not None else 0
         if plan is None:
             if melden:
                 einblendung.melden(self, f"Keine Stöße aus der STEP-Datei: "
@@ -723,6 +877,8 @@ class SteckEditor:
         for e in plan:
             self.bg["steckverbindungen"].append(self.steck_zeile(e))
         neu = len(plan)
+        if getrennt and hasattr(getattr(self, "teile_tab", None), "aufbauen"):     # Satz: aktualisieren füllt neu
+            self.teile_tab.aufbauen()
         self.steck_tab.aufbauen()
         self.aktualisieren()
         if melden:
@@ -734,6 +890,8 @@ class SteckEditor:
                                     + (f", {geaendert} mit Nasen um 90° versetzt bzw. nur einer Nase (sonst in der "
                                        "Außenwand)" if geaendert else "")
                                     + (f", {ohne} ohne Steckverbindung (keine Nase passt in die Stoßwand)" if ohne else "")
+                                    + (f", {getrennt} neue Position(en): gleiche Teile mit anderer Lage der Nasen "
+                                       "oder Schlitze geteilt (mit OK)" if getrennt else "")
                                     + ". Lage und Seite bitte prüfen.")
         return neu, weg
 
@@ -772,8 +930,8 @@ class SteckEditor:
             if v.get("nasen") is False:
                 continue
             auf, st = self._netz(v["aufnahme"]["id"]), self._netz(v["stecker"]["id"])
-            la = (auf.get("lagen") or [auf.get("lage")])[0]
-            ls = (st.get("lagen") or [st.get("lage")])[0]
+            k_auf, k_st = (list(v.get("koerper") or ()) + [None, None])[:2]
+            la, ls = _lage_des(auf, k_auf), _lage_des(st, k_st)
             w = nasen_winkel(v, la, ls, (self._steck_profil(v["stecker"]["id"]) or {}).get("form"))
             if w is not None:
                 winkel.setdefault(v["stecker"]["id"], {})[v["stecker"]["ende"]] = w
@@ -796,6 +954,14 @@ class SteckEditor:
                 out[pid] = cache[pid][1]
         return out
 
+
+
+def _lage_des(netz, koerper=None):
+    """Einbaulage des Körpers koerper eines Teils (sonst die erste)."""
+    lagen = netz.get("lagen") or [netz.get("lage")]
+    nummern = [str(k) for k in netz.get("koerper") or ()]
+    j = nummern.index(str(koerper)) if koerper is not None and str(koerper) in nummern else 0
+    return lagen[j] if j < len(lagen) else lagen[0]
 
 
 def knick_messwerte(teile, netz, profil):
@@ -2865,4 +3031,5 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
         return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
-                    knicke=list(self.knicke))
+                    knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
+                    lagen=dict(getattr(self, "steck_lagen", {})))

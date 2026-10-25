@@ -2530,11 +2530,17 @@ def kapitel_optimieren(i):
             "innerhalb der Länge der Aufnahme. Passt die Vorgabe nicht (Stecker bündig mit der Außenkante, breiter als "
             "die Aufnahme oder am Ende eines Trägers), dreht <i>Alle Stöße stecken</i> die Nasen um 90°, sonst bleibt "
             "nur die eine Nase, die passt (notfalls schmaler, nicht unter der kleinsten Nasenbreite). Gleiche Teile "
-            "tragen dieselben Nasen: Findet sich für alle ihre Stöße keine gemeinsame Lage, legt der Knopf dort keine "
-            "Steckverbindung an (nur Kehlnaht) und sagt es in der Meldung; dann die Position teilen und neu stecken. "
-            "Lage x ist die Mitte des Steckers, auch an Ecken, wo er nur teilweise auf der Aufnahme sitzt.",
+            "stoßen an einer <b>Ecke</b> zwei Träger auf ein Steckerende (Stütze unter zwei Trägern), bekommt es je "
+            "Träger eine Nase, um 90° versetzt, nie zwei auf derselben Wand. Lage x ist die Mitte des Steckers, auch "
+            "an Ecken, wo er nur teilweise auf der Aufnahme sitzt.",
+            "<b>Gleiche Teile mit anderen Nasen oder Schlitzen werden geteilt</b>: Brauchen Körper derselben Position "
+            "eine andere Lage der Nasen oder Schlitze (z. B. Pfosten in der Ecke, am Ende und in der Mitte eines "
+            "Trägers), legt <i>Alle Stöße stecken</i> für jede Lage eine eigene Position an (Stück je Satz aufgeteilt, "
+            "nächste freie Pos.-Nr.); mit OK wird das gespeichert, die Meldung nennt die neuen Positionen. Rohre ohne "
+            "eigene Konturen mit geraden Enden, die nur gedreht oder gewendet eingebaut sind, bleiben eine Position: "
+            "ihre Einbaulage wird passend gedreht.",
             "<b>Gleiche Teile</b> (eine Position, mehrere Körper): Die Aufnahme bekommt die Schlitze nur vom ersten "
-            "Körper, jedes Ende des Steckers die Nasen nur einmal. Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
+            "Körper, jedes Ende des Steckers die Nasen nur einmal (alle Körper der Position haben dieselben). Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
             "schneiden</i> zeigen das; eine Verbindung ohne Haken liefert nur die Lage. Zwei Verbindungen mit Nasen am "
             "selben Ende meldet die Spalte <i>Schlitz und Nasen</i> als Fehler.",
             "<b>Aufnahme und Stecker tauschen</b> dreht die markierte Verbindung um (Vorgaben neu nach dem neuen "

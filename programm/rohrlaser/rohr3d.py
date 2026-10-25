@@ -204,6 +204,8 @@ def nasen_lage(ende, qs, winkel=None):
         (90.0 if n.get("waende") == stv.WAENDE[1] else 0.0)
     anzahl = int(_z(n.get("anzahl")) or 2)
     schritt = {1: (0,), 2: (0, 180), 4: (0, 180, 90, 270)}.get(anzahl, (0, 180))
+    if stv.versatz_liste(n):        # Ecke: je Aufnahme eine Nase (steckverbindung.nasen_wahl_ecke)
+        schritt = (0,) + tuple(stv.versatz_liste(n))
     b_n = _z(n.get("bN"))
     h = qs.r * math.asin(min(1.0, b_n / (2 * qs.r))) if qs.r else b_n / 2
     return _z(n.get("laenge_plus")), [(w0 + d) % 360 for d in schritt], h

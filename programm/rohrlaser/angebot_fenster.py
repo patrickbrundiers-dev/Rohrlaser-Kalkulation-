@@ -1519,6 +1519,24 @@ def blaetterbar(liste=False):
     return deko
 
 
+def _ids_ersetzen(x, karte):
+    """Vorläufige Positions-IDs (karte {'<ID>~<n>': neue ID}) in einer verschachtelten Struktur ersetzen, auch in
+    Schlüsseln und in eingebetteten JSON-Texten."""
+    if isinstance(x, dict):
+        return {(karte.get(k, k) if isinstance(k, str) else k): _ids_ersetzen(w, karte) for k, w in x.items()}
+    if isinstance(x, (list, tuple)):
+        return type(x)(_ids_ersetzen(w, karte) for w in x)
+    if isinstance(x, str):
+        if x in karte:
+            return karte[x]
+        if x[:1] in "{[" and any(k in x for k in karte):
+            try:
+                return json.dumps(_ids_ersetzen(json.loads(x), karte), ensure_ascii=False)
+            except ValueError:
+                return x
+    return x
+
+
 class AngebotSeite(QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
@@ -3178,9 +3196,10 @@ class AngebotSeite(QWidget):
                             profile=self.k.profile)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
+        vorab = self.teilen_anwenden(d.ergebnis)
         werte = dict(d.ergebnis["position"], pos=p["pos"])
         pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
-        hinweise = self._baugruppe_teile(d.ergebnis["teile"], None)
+        hinweise = vorab + self._baugruppe_teile(d.ergebnis["teile"], None)
         self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
@@ -3213,10 +3232,11 @@ class AngebotSeite(QWidget):
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
+        vorab = self.teilen_anwenden(d.ergebnis)
         for feld, wert in d.ergebnis["position"].items():
             if p.get(feld) != wert:
                 self.db.position_aendern(p["id"], feld, wert)
-        hinweise = self._baugruppe_teile(d.ergebnis["teile"], alt_name)
+        hinweise = vorab + self._baugruppe_teile(d.ergebnis["teile"], alt_name)
         self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
@@ -3311,6 +3331,70 @@ class AngebotSeite(QWidget):
         n = len(stecken.get("dazu") or ())
         if n:
             hinweise.append(f"{n} Steckverbindung(en) in die Teile geschrieben (Schlitze und Nasen).")
+        return hinweise
+
+    def teilen_anwenden(self, ergebnis):
+        """Gleiche Teile mit anderer Lage der Nasen oder Schlitze in eigene Positionen (Alle Stöße stecken, Patrick
+        25.10.2026; ergebnis['teilen'] = [dict(von, neu, koerper)]): je Eintrag eine Kopie der Position mit diesen
+        Körpern (je Satz, Stück, Netz), die alte zählt sie nicht mehr. Die vorläufigen IDs '<ID>~<n>' im Ergebnis des
+        Editors werden durch die neuen ersetzt (in place). Ergebnis: Hinweise."""
+        from .ansicht3d import entpacken, packen
+        hinweise = []
+        for pid, lagen in ((ergebnis or {}).get("lagen") or {}).items():     # gedreht/gewendet eingebaute gleiche Rohre
+            netz = entpacken(self.db.netz(pid))
+            if not netz or not lagen:
+                continue
+            koerper = [str(k) for k in netz.get("koerper") or ()]
+            alt = netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])
+            if len(alt) != len(koerper):
+                continue
+            neu = [lagen.get(k, alt[j]) for j, k in enumerate(koerper)]
+            self.db.netz_speichern(pid, packen(dict(netz, lagen=neu, lage=neu[0])))
+        teilen = (ergebnis or {}).get("teilen") or []
+        if not teilen:
+            return hinweise
+        self.neu_laden()
+        karte = {}
+        nr = int(max((q["pos"] for q in self.positionen if isinstance(q.get("pos"), (int, float))), default=0))
+        for t in teilen:
+            q = next((x for x in self.positionen if x["id"] == t["von"]), None)
+            netz = entpacken(self.db.netz(t["von"])) if q else None
+            if not netz:
+                continue
+            lagen = netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])
+            koerper = [str(k) for k in netz.get("koerper") or ()]
+            idx = [koerper.index(str(k)) for k in t["koerper"] if str(k) in koerper]
+            rest = [j for j in range(len(koerper)) if j not in idx]
+            if not idx or not rest:
+                continue
+            je_alt = q.get("je_satz") or len(koerper)
+            je = len(idx)
+            saetze_ = q["stueck"] / je_alt if isinstance(q.get("stueck"), (int, float)) and je_alt else None
+            werte = {n: w for n, w in q.items() if n not in ("id", "nr", "angebot_id")}
+            nr += 10
+            werte.update(pos=nr, je_satz=je if q.get("satz") else None,
+                         stueck=round(saetze_ * je) if saetze_ else q.get("stueck"))
+            if isinstance(q.get("je_knoten"), (int, float)) and q["je_knoten"] > 0:
+                werte["je_knoten"] = max(1, round(q["je_knoten"] * je / je_alt))
+            pid = self.db.position_neu(self.id, werte)
+            for n_, liste in (("neu", idx), ("alt", rest)):
+                teil = dict(netz, lage=lagen[liste[0]], koerper=[netz["koerper"][j] for j in liste])
+                if len(liste) > 1:
+                    teil["lagen"] = [lagen[j] for j in liste]
+                else:
+                    teil.pop("lagen", None)
+                self.db.netz_speichern(pid if n_ == "neu" else t["von"], packen(teil))
+            je_rest = je_alt - je
+            self.db.position_aendern(t["von"], "je_satz", je_rest if q.get("satz") else q.get("je_satz"))
+            if saetze_:
+                self.db.position_aendern(t["von"], "stueck", round(saetze_ * je_rest))
+            if isinstance(q.get("je_knoten"), (int, float)) and q["je_knoten"] > 0:
+                self.db.position_aendern(t["von"], "je_knoten", max(1, q["je_knoten"] - werte["je_knoten"]))
+            karte[t["neu"]] = pid
+            hinweise.append(f"Pos. {q.get('pos') or ''} geteilt: {je} Stück mit anderen Nasen/Schlitzen als Pos. {nr}.")
+            self.neu_laden()
+        if karte:
+            ergebnis.update({n: _ids_ersetzen(w, karte) for n, w in ergebnis.items() if n not in ("teilen", "lagen")})
         return hinweise
 
     def knicke_anwenden(self, knicke):
@@ -4872,9 +4956,10 @@ class AngebotSeite(QWidget):
                          self.db.satz_daten(self.id).get(satz), nur_lesen=bool(self.fremd() or self.db.nur_lesen))
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
+        vorab = self.teilen_anwenden(d.ergebnis)
         self.naehte_schreiben(d.ergebnis["naehte"])
         self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
-        hinweise = self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
+        hinweise = vorab + self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()
         n = len(d.ergebnis["naehte"])
         self.f.meldung(f"Satz {satz} gespeichert." + (f" Längsnaht für {n} Teil(e) gesetzt." if n else "")

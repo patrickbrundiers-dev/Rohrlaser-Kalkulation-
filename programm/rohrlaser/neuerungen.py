@@ -27,8 +27,10 @@ NEUERUNGEN = [
                 "rechnet mit dem genauen Flächenschwerpunkt und führt nach; Umlaute in den Teilenamen stimmen "
                 "([[step_baugruppe]]). <b>Nasen nie in die Außenwand</b>: <i>Alle Stöße stecken</i> prüft jede Nase "
                 "auf der Wand der Aufnahme; passt sie nicht, werden die Nasen um 90° gedreht oder es bleibt eine Nase, "
-                "sonst keine Steckverbindung; Lage x = Mitte des Steckers ([[steckverbindung]]).",
-     "STEP-Baugruppe: Bleche genau an ihrer Stelle; Stecknasen nie in die Außenwand."],
+                "an Ecken je Träger eine Nase, um 90° versetzt; Lage x = Mitte des Steckers. Gleiche Teile, die andere "
+                "Nasen oder Schlitze brauchen, werden in eigene Positionen geteilt; nur gedreht eingebaute gleiche "
+                "Rohre bleiben eine Position ([[steckverbindung]]).",
+     "STEP-Baugruppe: Bleche genau an ihrer Stelle; Stecknasen nie in die Außenwand, Ecken je Träger eine Nase."],
     ["0.9.121", "<b>Vollmaterial als Zukaufartikel</b>: neue Artikeltypen <b>Rundstahl</b> und <b>Vierkantstahl</b> "
                 "(Ø bzw. Kante, Länge, Werkstoff); Gewicht aus der Dichte, EK je Stück = Gewicht × Preis je kg "
                 "(Vorgabe Tonnenpreis des Werkstoffs), Kategorie <i>Vollmaterial</i> ([[vollmaterial]]). Der "
