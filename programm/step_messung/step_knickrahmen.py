@@ -285,6 +285,42 @@ def _stueck(solid, r, i):
     return max(koerper, key=g._volumen) if koerper else None
 
 
+def _ecken_gehrung(t, r, i):
+    """Enden des Stücks i an einer Ecke sind Gehrungen mit β/2, längste Stelle außen. Ist die Außenkante der Ecke
+    gerundet (Knick mit Radius statt scharfer Kante), hält die Messung das Ende für eine Fase oder „komplex“; dann
+    wird es aus der bekannten Eckgeometrie gesetzt, sonst passt die Knickverbindung die Stücke nicht zusammen."""
+    sch, nr = r["schenkel"], len(r["schenkel"])
+    if not (t.ende_a_global and t.achse_global and t.x_global):
+        return
+    ax_r = r["ax3"]
+    z = gp_Vec(*t.achse_global)
+    x = gp_Vec(*t.x_global)
+    y = z.Crossed(x)
+    n = sch[i]["n"]
+    aussen = gp_Vec(-n[0], -n[1], 0.0)     # lokal in der Rahmenebene → global
+    tr = gp_Trsf()
+    tr.SetTransformation(ax_r)
+    aussen = aussen.Transformed(tr.Inverted())
+    ref = g._bezug(gp_Ax3(gp_Pnt(*t.ende_a_global), gp_Dir(z), gp_Dir(x)), t.profilform)
+    richtung = round((math.degrees(math.atan2(-aussen.Dot(x), aussen.Dot(y))) - ref) % 360, 1) % 360
+    a_glob = g._global(ax_r, sch[i]["a"][0], sch[i]["a"][1], 0.0)
+    e_glob = g._global(ax_r, sch[i]["e"][0], sch[i]["e"][1], 0.0)
+    # Ende A des Stücks liegt am Schenkelanfang a, wenn die Achse von a nach e zeigt
+    a_am_anfang = z.Dot(gp_Vec(a_glob, e_glob)) > 0
+    ecke = {"A" if a_am_anfang else "B": r["geschlossen"] or i > 0,
+            "B" if a_am_anfang else "A": r["geschlossen"] or i < nr - 1}
+    halb = round(r["beta"] / 2, 2)
+    for d in t.konturen_liste:
+        e = d.get("art", "")[-1:] if d.get("art") in ("Ende A", "Ende B") else None
+        if not e or not ecke[e] or (d.get("form") == "Gehrung" and abs((d.get("gehrung") or 0) - halb) < 1.0):
+            continue
+        d.update(form="Gehrung", gehrung=halb, um_x=halb, um_y=0.0, richtung=richtung)
+        for k in ("fase", "hinweis", "umriss"):
+            d.pop(k, None)
+        t.hinweise = [h for h in t.hinweise if not (h.startswith(f"Ende {e}:") and g.FASE_HINWEIS in h)]
+        setattr(t, "ende_a_gerade" if e == "A" else "ende_b_gerade", False)
+
+
 def messen(solid, datei="", koerper=1, netz=False):
     """Knickrahmen aus einem Körper messen: Teil mit knick_schenkel oder None (kein Knickrahmen)."""
     r = erkennen(solid)
@@ -299,6 +335,7 @@ def messen(solid, datei="", koerper=1, netz=False):
         if t.profilform not in ("Quadratrohr", "Rechteckrohr"):
             return None
         t.__dict__.pop("_rahmen", None)
+        _ecken_gehrung(t, r, i)
         stuecke.append(t)
     t0 = stuecke[0]
     if any(t.profilform != t0.profilform or abs(t.wandstaerke - t0.wandstaerke) > TOL
