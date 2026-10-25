@@ -684,6 +684,10 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                geo=geometrie(e, qs, L))
     if stuecke:
         out["nasen"] = stuecke
+    from . import schnittkoerper
+    wk = schnittkoerper.rohr(e, qs, L, _xyz)        # Schnittkörper je Kontur (halb durchsichtig, Tiefe im Tooltip)
+    if wk:
+        out["wk"] = wk
     return out
 
 

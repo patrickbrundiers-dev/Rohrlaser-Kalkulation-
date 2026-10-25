@@ -47,6 +47,7 @@ TESTS = [
     ("test_step_struktur.py", {}),
     ("test_step_leistung.py", {}),
     ("test_ansicht_gl.py", {}),
+    ("test_schnittkoerper.py", {}),
     ("test_optimierung.py", {}),
     ("test_parallel.py", {}),
     ("test_lieferlaengen.py", {}),

@@ -10,6 +10,9 @@ from .ansicht3d import BLICKE, DARSTELLUNGEN, ISOMETRIE, MESS_ABSTAND, MESS_WINK
 
 AUF_AUSWAHL = "Auf Auswahl"
 PERSPEKTIVISCH = "Perspektivisch"
+SCHNITTKOERPER = "Schnittkörper"
+SCHNITTKOERPER_TIPP = ("Jede Kontur als halb durchsichtiger Körper, so tief wie sie schneidet (eine Wand, beide Wände, "
+                       "Gravurtiefe); Maus darüber zeigt die Tiefe, Farbe je Konturart")
 DREHEN = (("90° nach links drehen", "Strg+←", (-1, 0)), ("90° nach rechts drehen", "Strg+→", (1, 0)),
           ("90° nach oben kippen", "Strg+↑", (0, 1)), ("90° nach unten kippen", "Strg+↓", (0, -1)))
 
@@ -41,10 +44,15 @@ def blick_menue(menue, ansicht, vorher=None):
     p.setToolTip("Perspektivisch zeigt die Tiefe besser; orthogonal (ohne Haken) bleiben Maße vergleichbar")
     p.triggered.connect(lambda an: (a3() or _Leer).perspektive_setzen(an))
     menue.addAction(p)
+    k = QAction(SCHNITTKOERPER, menue, checkable=True)
+    k.setToolTip(SCHNITTKOERPER_TIPP)
+    k.triggered.connect(lambda an: (a3() or _Leer).koerper_setzen(an))
+    menue.addAction(k)
 
     def vor_dem_zeigen():
         a = ansicht() if callable(ansicht) else ansicht
         p.setChecked(bool(a is not None and a.perspektive))
+        k.setChecked(bool(a is not None and a.koerper_an))
     menue.aboutToShow.connect(vor_dem_zeigen)
     return menue
 
@@ -63,9 +71,14 @@ class _Leer:
     def perspektive_setzen(*_):
         pass
 
+    @staticmethod
+    def koerper_setzen(*_):
+        pass
+
 
 class Leiste3D(QWidget):
-    """Leiste unter einer 3D-Ansicht: Blick (Menü), Darstellung, Perspektive, Messen, Winkel, Maße löschen."""
+    """Leiste unter einer 3D-Ansicht: Blick (Menü), Darstellung, Perspektive, Schnittkörper, Messen, Winkel, Maße
+    löschen."""
 
     def __init__(self, ansicht, parent=None):
         super().__init__(parent)
@@ -92,6 +105,11 @@ class Leiste3D(QWidget):
         self.perspektive.setToolTip(self.blick_menue.actions()[-1].toolTip())
         self.perspektive.toggled.connect(lambda an: ansicht.perspektive_setzen(an))
         lay.addWidget(self.perspektive)
+        self.koerper = QPushButton(SCHNITTKOERPER)
+        self.koerper.setCheckable(True)
+        self.koerper.setToolTip(SCHNITTKOERPER_TIPP)
+        self.koerper.toggled.connect(lambda an: ansicht.koerper_setzen(an))
+        lay.addWidget(self.koerper)
         self.messen = QPushButton("Messen")
         self.messen.setCheckable(True)
         self.messen.setToolTip("Zwei Punkte anklicken: fängt Kreismitte, Kantenmitte, Ecke oder Fläche; Ergebnis mit "
@@ -123,7 +141,7 @@ class Leiste3D(QWidget):
         a = self.ansicht
         for knopf, an in ((self.messen, a.messen and a.mess_max == 2 and a.mess_art == MESS_ABSTAND),
                           (self.winkel, a.messen and a.mess_art == MESS_WINKEL),
-                          (self.perspektive, a.perspektive)):
+                          (self.perspektive, a.perspektive), (self.koerper, a.koerper_an)):
             knopf.blockSignals(True)
             knopf.setChecked(bool(an))
             knopf.blockSignals(False)

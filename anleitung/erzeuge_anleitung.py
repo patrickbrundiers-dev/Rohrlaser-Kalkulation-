@@ -2848,8 +2848,9 @@ def kapitel_optimieren(i):
     i.abschnitt("3D-Ansichten: Blick, Perspektive, Darstellung, Messen", marke="ansicht_3d_bedienung")
     i.text("Alle 3D-Fenster bedienen sich gleich: Teile-Editor (Rohr und Blech), 3D-Ansicht der Positionen, "
            "STEP-Prüfdialog, Teilebaum, Schneidweg-Rechner, Schweißbaugruppe und Satz in 3D. Unter dem Bild steht "
-           "die Leiste mit <b>Blick</b>, Darstellung, <b>Perspektivisch</b>, <b>Messen</b>, <b>Winkel</b> und "
-           "<b>Maße löschen</b> (im Teile-Editor im Menüband), oben rechts der Ansichtswürfel.", kurz=True)
+           "die Leiste mit <b>Blick</b>, Darstellung, <b>Perspektivisch</b>, <b>Schnittkörper</b>, <b>Messen</b>, "
+           "<b>Winkel</b> und <b>Maße löschen</b> (im Teile-Editor im Menüband), oben rechts der Ansichtswürfel.",
+           kurz=True)
     i.bild("ansicht_3d_messen", "Messen von der Bohrungsmitte zur Kante: Ergebnis mit exakten Kernwerten in der "
            "Mess-Tafel", hoehe=85 * mm, legende=[
                (1, "<b>Blick</b>: Isometrie, sechs Seiten, Auf Auswahl, um 90° drehen."),
@@ -2866,6 +2867,18 @@ def kapitel_optimieren(i):
             "<b>Perspektivisch</b> (Knopf bzw. Haken im Blick-Menü): Nahes erscheint größer, die Tiefe ist besser zu "
             "sehen. Ohne Haken zeichnet die Ansicht orthogonal (Vorgabe), dann sind gleiche Maße gleich lang. Die "
             "Wahl merkt sich das Programm je Benutzer.",
+            "<b>Schnittkörper</b> (Knopf unter dem Bild, Haken im Blick-Menü, im Teile-Editor auch im Rechtsklick-Menü "
+            "unter <i>Darstellung</i>): Jede Kontur ist zusätzlich ein halb durchsichtiger Körper, so tief wie der "
+            "Laser schneidet – das Volumen, das herausfällt. <i>Nur diese Wand</i> geht durch die Wandstärke, "
+            "<i>beide Wände (durchgehend)</i> durch das ganze Profil bis unter die Gegenwand (im Loch sieht man den "
+            "Körper nach unten laufen), <i>alle Seiten</i> und <i>am Umfang verteilt</i> je Kopie durch ihre Wand, "
+            "eine schräge Bohrung entlang ihrer Neigung, eine Gravur mit Umriss so tief wie angegeben, beim Blech "
+            "durch die Dicke. Die Farbe zeigt die Konturart (Bohrung blau, Langloch/Schlitz türkis, Rechteck und "
+            "übrige Konturen violett, Ausklinkung orange, Gravur grün, siehe Legende). Die Maus über dem Körper "
+            "zeigt Kontur und Tiefe, z. B. „Ø 50 – 1 Wand · 3 mm“ oder „durch 2 Wände · 80 mm“. Die gewählte "
+            "Kontur ist kräftiger, ein Klick in den Körper (auch ins Loch) wählt sie. Vorgabe ist an, die Wahl "
+            "merkt sich das Programm je Benutzer; sie gilt für Rohr- und Blech-Editor, Schweißbaugruppe und Satz in "
+            "3D (Rohre aus den Eingaben). Das STEP-Modell hat keine Schnittkörper.",
             "<b>Darstellung</b>: <i>Schattiert</i>, <i>Mit Kanten</i> (Körperkanten dunkel, an Rundungen die "
             "Tangentenkanten), <i>Durchsichtig</i> (Röntgen), <i>Drahtgitter</i> (nur Kanten, Umriss der Rundungen "
             "und Konturen, auch die hinteren) und <i>Verdeckt gestrichelt</i> (helle Flächen, sichtbare Kanten "

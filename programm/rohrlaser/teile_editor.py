@@ -657,6 +657,12 @@ class EditorRahmen(QObject):
             self.raster_feld.setEnabled(w.fangen_an)
             self.raster_winkel_feld.setEnabled(w.fangen_an)
 
+    def koerper_setzen(self, an):
+        """Schnittkörper der Konturen ein/aus (Kontextmenü Darstellung, Menü Blick; je Benutzer gemerkt)."""
+        a = self.ansicht()
+        if a is not None:
+            a.koerper_setzen(an)
+
     def darstellung_setzen(self, darstellung=None, nur_gewaehlt=None):
         """Darstellungsart der 3D-Ansicht bzw. „nur Gewähltes hervorheben“ (je Benutzer gemerkt)."""
         a = self.ansicht()

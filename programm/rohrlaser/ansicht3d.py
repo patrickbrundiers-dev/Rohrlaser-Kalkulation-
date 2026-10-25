@@ -18,7 +18,8 @@ import zlib
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
+                               QWidget)
 
 from . import stil
 
@@ -45,6 +46,12 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("EO", "Ringe bzw. Spalt (nicht gefertigt)", "#E89A9A", None),  # derselbe Spalt, wenn das Teil offen bleibt
     ("UW", "über dem Rohr (fällt weg)", "#F28E2B", None),     # offenes Rohr: ragt über den Rohrquerschnitt
     ("UO", "über dem Rohr (bleibt, Teil offen)", "#AEB8C4", None),  # dasselbe, wenn das Teil offen bleibt
+    # Schnittkörper je Kontur (schnittkoerper.py): halb durchsichtig, Farbe je Konturart
+    ("WB", "Schnittkörper Bohrung", "#2F80ED", "#1F5FBF"),
+    ("WL", "Schnittkörper Langloch/Schlitz", "#00A3A3", "#007A7A"),
+    ("WR", "Schnittkörper Rechteck/Kontur", "#9B51E0", "#7330B0"),
+    ("WA", "Schnittkörper Ausklinkung", "#F2994A", "#C46A1C"),
+    ("WG", "Schnittkörper Gravur", "#27AE60", "#1E8449"),
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -85,6 +92,10 @@ VERDECKT_FARBE = stil.farbe_fest("#7A8794")      # verdeckte Kanten (gestrichelt
 PERSPEKTIVE_ABSTAND = 2.4
 PERSPEKTIVE_EINSTELLUNG = "ansicht_perspektive"
 ALPHA = 0.32            # Deckkraft der Flächen bei „Durchsichtig“
+# Schnittkörper (schnittkoerper.py): Deckkraft, gewählte Kontur kräftiger; Vorgabe an, je Benutzer gemerkt
+WK_ALPHA, WK_ALPHA_GEWAEHLT = 0.26, 0.6
+WK_ARTEN = ("WB", "WL", "WR", "WA", "WG")
+KOERPER_EINSTELLUNG = "ansicht_schnittkoerper"
 BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Weiß gemischt
 KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (große Baugruppen: keine)
 KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
@@ -162,7 +173,7 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
     Schnittlinien (bei vielen Teilen verdeckt bzw. zu unruhig). Ergebnis: (Netz oder None, Anzahl Teile ohne
     Einbaulage, z. B. aus einer älteren Messung). bereiche: Liste, bekommt je Netz (Nummer, erster Punkt, Ende,
     Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil."""
-    punkte, dreiecke, ohne = [], {}, 0
+    punkte, dreiecke, ohne, wk = [], {}, 0, []
     for nr, netz in enumerate(netze):
         if isinstance(netz, (bytes, bytearray, memoryview)):
             netz = entpacken(bytes(netz))
@@ -173,6 +184,9 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
         p = netz["p"]
         basis = len(punkte) // 3
         punkte += _in_lage(p, lage)
+        if netz.get("wk"):              # Schnittkörper der Rohre aus den Eingaben mit in die Einbaulage
+            from .schnittkoerper import in_lage
+            wk += in_lage(netz["wk"], lage)
         if bereiche is not None:
             bereiche.append((nr, basis, len(punkte) // 3, [basis + i for a, idx in (netz.get("t") or {}).items()
                                                             if a != "I" for i in idx]))
@@ -182,7 +196,10 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
             art = "S" if nr in hervor else "N" if nr in fehlend else "X" if hervor else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
-    return (dict(p=punkte, t=dreiecke, l={}, **{"global": True}) if punkte else None), ohne
+    out = dict(p=punkte, t=dreiecke, l={}, **{"global": True})
+    if wk:
+        out["wk"] = wk
+    return (out if punkte else None), ohne
 
 
 MESS_ABSTAND, MESS_WINKEL = "Abstand", "Winkel"
@@ -236,6 +253,22 @@ def perspektive_vorgabe():
         return False
 
 
+def koerper_vorgabe():
+    """Schnittkörper zeigen (Vorgabe an, je Benutzer gemerkt)."""
+    try:
+        return _speicher is None or _speicher.einstellung(KOERPER_EINSTELLUNG) is not False
+    except Exception:           # Lesemodus, alte Datei
+        return True
+
+
+def _koerper_merken(an):
+    try:
+        if _speicher is not None:
+            _speicher.einstellung_setzen(KOERPER_EINSTELLUNG, bool(an))
+    except Exception:           # Lesemodus: dann eben nicht merken
+        pass
+
+
 def _perspektive_merken(an):
     try:
         if _speicher is not None:
@@ -274,6 +307,41 @@ def renderer_waehlen():
         return "Software", f"OpenGL fehlt: {e}"
     ok, grund = gl_moeglich()
     return ("OpenGL", grund) if ok else ("Software", grund)
+
+
+def koerper_lesen(wk):
+    """Schnittkörper aus netz['wk'] (schnittkoerper.py): [dict(id, art, text, dreiecke [(a, b, c, Normale)],
+    ringe (außen, innen), punkte)]. Seitenflächen zwischen den Ringen, dazu die beiden Deckel."""
+    out = []
+    for k in wk or ():
+        o, u = k.get("o") or [], k.get("u") or []
+        ro = [tuple(o[i:i + 3]) for i in range(0, len(o) - 2, 3)]
+        ri = [tuple(u[i:i + 3]) for i in range(0, len(u) - 2, 3)]
+        if len(ro) < 3 or len(ro) != len(ri):
+            continue
+        tris = []
+
+        def drei(a, b, c):
+            v1 = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            v2 = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+            n = (v1[1] * v2[2] - v1[2] * v2[1], v1[2] * v2[0] - v1[0] * v2[2], v1[0] * v2[1] - v1[1] * v2[0])
+            betrag = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2)
+            if betrag > 1e-12:
+                tris.append((a, b, c, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
+        n = len(ro)
+        for i in range(n):
+            j = (i + 1) % n
+            drei(ro[i], ro[j], ri[j])
+            drei(ro[i], ri[j], ri[i])
+        d = k.get("d") or []
+        for q in range(0, len(d) - 2, 3):
+            i, j, m = d[q], d[q + 1], d[q + 2]
+            if max(i, j, m) < n:
+                drei(ro[i], ro[j], ro[m])
+                drei(ri[i], ri[m], ri[j])
+        out.append(dict(id=k.get("id"), art=k.get("art") if k.get("art") in WK_ARTEN else "WR",
+                        text=k.get("t") or "", dreiecke=tris, ringe=(ro, ri), punkte=ro + ri, auf=bool(k.get("auf"))))
+    return out
 
 
 class Modell:
@@ -317,8 +385,9 @@ class Modell:
                         self.linien.append((a, b, art, (m[0] / r, m[1] / r, 0.0)))
                     else:
                         self.linien.append((a, b, art, tuple(n)))
-        self.arten = sorted({d[3] for d in self.dreiecke} | {l[2] for l in self.linien},
-                            key=lambda a: REIHE.index(a) if a in REIHE else 99)
+        self.koerper = koerper_lesen(netz.get("wk"))
+        self.arten = sorted({d[3] for d in self.dreiecke} | {l[2] for l in self.linien} |
+                            {k["art"] for k in self.koerper}, key=lambda a: REIHE.index(a) if a in REIHE else 99)
         self.laenge = laenge
         self._grob = None
 
@@ -346,7 +415,7 @@ class Modell:
                         neu[x] = len(g.punkte)
                         g.punkte.append(p[x])
                 g.dreiecke.append((neu[i], neu[j], neu[k], art, n))
-            g.linien, g.linien_id, g.dreiecke_id = [], [], []
+            g.linien, g.linien_id, g.dreiecke_id, g.koerper = [], [], [], []
             g._glatt = None
             g._grob = g
             self._grob = g
@@ -594,10 +663,11 @@ def umriss(modell, m, pz=0.0):
 
 
 def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True,
-             darstellung=SCHATTIERT, blass=False, perspektive=False):
+             darstellung=SCHATTIERT, blass=False, perspektive=False, koerper=False, gewaehlt=()):
     """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller). darstellung:
     DARSTELLUNGEN; blass: alles blass (der Teile-Editor zeichnet das Gewählte kräftig darüber); perspektive: Tiefe
-    perspektivisch (sonst orthogonal)."""
+    perspektivisch (sonst orthogonal); koerper: Schnittkörper der Konturen halb durchsichtig dazu, die Merkmale in
+    gewaehlt kräftiger."""
     m, proj, roh, massstab, ox, oy = _projektion_roh(modell, breite, hoehe, gier, nick, zoom, verschiebung,
                                                      perspektive)
     cx, cy, cz = modell.mitte
@@ -648,6 +718,24 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                 continue
             liste.append((2 if vorn or roentgen else -1, (ra[2] + rb[2]) / 2, (ra, rb), art, 1.0 if vorn else 0.0,
                           True))
+    for k in (modell.koerper if koerper else ()):
+        art = k["art"] + ("!" if k["id"] in gewaehlt else "")       # ! = gewählt (kräftiger)
+        # Schicht: zwischen Innenwand und Flächen, damit die Außenwand den Körper verdeckt und er nur im Loch zu
+        # sehen ist (große Wanddreiecke sortieren sich nach ihrer Mitte sonst falsch); auf einer geschlossenen
+        # Fläche (Gravur, Blech) obenauf; Röntgen: mit den Flächen
+        schicht = 1 if roentgen else 1.4 if k["auf"] else 0.5
+        if not draht:
+            for a, b, c, n in k["dreiecke"]:
+                (pa, qa), (pb, qb), (pc, qc) = gedreht(a), gedreht(b), gedreht(c)
+                nr = tuple(m[r][0] * n[0] + m[r][1] * n[1] + m[r][2] * n[2] for r in range(3))
+                if sicht(nr, tuple((qa[r] + qb[r] + qc[r]) / 3 for r in range(3)), pz) < 0:
+                    nr = (-nr[0], -nr[1], -nr[2])           # durchsichtig: beide Seiten, Licht von vorn
+                liste.append((schicht, (pa[2] + pb[2] + pc[2]) / 3, (pa, pb, pc), art, licht_wert(*nr), False))
+        if linien:
+            for ring in k["ringe"]:
+                for a, b in zip(ring, ring[1:] + ring[:1]):
+                    (ra, _), (rb, _) = gedreht(a), gedreht(b)
+                    liste.append((schicht, (ra[2] + rb[2]) / 2 + 1e-6, (ra, rb), art, 1.0, True))
     if linien and darstellung in MIT_KOERPERKANTEN:
         for a, b, n in modell.kanten():
             (ra, qa), (rb, qb) = gedreht(a), gedreht(b)
@@ -670,6 +758,22 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                 for a, s in stift_linie.items()}
     for schicht, _, punkte, art, hell, ist_linie in liste:
         poly = [QPointF(ox + q[0] * massstab, oy - q[1] * massstab) for q in punkte]
+        if art[:2] in WK_ARTEN:             # Schnittkörper: halb durchsichtig, gewählter kräftiger
+            gew = art.endswith("!")
+            if ist_linie:
+                c = _blass(LINIE[art[:2]], blass and not gew)
+                c.setAlpha(230 if gew else 140)
+                p.setPen(QPen(c, 2.0 if gew else 1.0))
+                p.drawLine(poly[0], poly[1])
+                continue
+            f = _blass(FARBE[art[:2]], blass and not gew)
+            faktor, glanz = hell
+            farbe = QColor(*(min(255, int(c * faktor + 255 * glanz)) for c in (f.red(), f.green(), f.blue())))
+            farbe.setAlphaF(WK_ALPHA_GEWAEHLT if gew else WK_ALPHA)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(farbe))
+            p.drawPolygon(QPolygonF(poly))
+            continue
         if ist_linie:
             p.setPen((stift_linie if hell else verdeckt).get(art, stift_linie["K"]))
             p.drawLine(poly[0], poly[1])
@@ -730,6 +834,8 @@ class Ansicht3D(QWidget):
         self._drehpunkt = None                  # (Modellpunkt, Pixel) beim Drücken: dreht um diesen Punkt
         self.darstellung, self.nur_gewaehlt = SCHATTIERT, False       # Darstellungsarten (A4)
         self.perspektive = perspektive_vorgabe()                        # 3E-11 M2: Vorgabe orthogonal
+        self.koerper_an = koerper_vorgabe()                             # Schnittkörper der Konturen (Vorgabe an)
+        self._tipp = None                                               # (Ansicht, Körper je Pixel) fürs Überfahren
         # Werkzeug des Teile-Editors (editor_griffe): zeichnet Griffe/Maße über das Bild und bekommt Maus und Tasten
         # zuerst (druck/ziehen/loslassen/schweben/doppelklick/kontext/taste/zeichnen/hinweis)
         self.werkzeug, self._werkzeug_zieht = None, False
@@ -782,8 +888,68 @@ class Ansicht3D(QWidget):
         self.modell = Modell(gefiltert(self.netz, self.modus)) if self.netz else None
         self.titel = titel
         self.messpunkte, self.mess_treffer, self._schwebe, self._geo = [], [], None, None
+        self._tipp = None
         self.tafel.zeigen([])
+        self._maus_verfolgen()
         self.zuruecksetzen()
+
+    def koerper_setzen(self, an, merken=True):
+        """Schnittkörper der Konturen zeigen (an) oder nicht; merken: Wahl je Benutzer speichern."""
+        self.koerper_an = bool(an)
+        if merken:
+            _koerper_merken(self.koerper_an)
+        self._maus_verfolgen()
+        self.update()
+        self.gedreht.emit()
+
+    def koerper(self):
+        """Gezeigte Schnittkörper (leer, wenn aus oder keine da)."""
+        return self.modell.koerper if self.koerper_an and self.modell is not None else []
+
+    def _maus_verfolgen(self):
+        """Mausbewegung ohne Taste nur, wenn sie gebraucht wird (Werkzeug, Messen, Tooltip der Schnittkörper)."""
+        self.setMouseTracking(self.werkzeug is not None or self.messen or bool(self.koerper()))
+
+    def koerper_unter(self, x, y):
+        """Vorderster Schnittkörper unter dem Pixel (x, y): (Tiefe, Körper) oder None."""
+        ks = self.koerper()
+        if not ks:
+            return None
+        schl = (self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz, self.perspektive,
+                self.modell)
+        if self._tipp is None or self._tipp[0] != schl:
+            bild = self.bildpunkt()
+            liste = []
+            for k in ks:
+                tris = [tuple(bild(q) for q in d[:3]) for d in k["dreiecke"]]
+                xs = [q[0] for t in tris for q in t]
+                ys = [q[1] for t in tris for q in t]
+                liste.append(((min(xs), max(xs), min(ys), max(ys)), tris, k))
+            self._tipp = (schl, liste)
+        beste = None
+        for (x0, x1, y0, y1), tris, k in self._tipp[1]:
+            if not (x0 <= x <= x1 and y0 <= y <= y1):
+                continue
+            for a, b, c in tris:
+                det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+                if abs(det) < 1e-9:
+                    continue
+                l1 = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / det
+                l2 = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / det
+                if min(l1, l2, 1 - l1 - l2) < -1e-6:
+                    continue
+                t = l1 * a[2] + l2 * b[2] + (1 - l1 - l2) * c[2]
+                if beste is None or t > beste[0]:
+                    beste = (t, k)
+        return beste
+
+    def _koerper_tipp(self, e):
+        """Tooltip mit der Tiefe des Schnittkörpers unter der Maus."""
+        t = self.koerper_unter(e.position().x(), e.position().y())
+        if t is None:
+            QToolTip.hideText()
+            return
+        QToolTip.showText(e.globalPosition().toPoint(), t[1]["text"], self)
 
     def darstellung_setzen(self, darstellung=None, nur_gewaehlt=None):
         """Darstellungsart (DARSTELLUNGEN) und „nur Gewähltes hervorheben“ (Rest blass)."""
@@ -799,7 +965,7 @@ class Ansicht3D(QWidget):
 
     def werkzeug_setzen(self, werkzeug):
         self.werkzeug = werkzeug
-        self.setMouseTracking(werkzeug is not None or self.messen)
+        self._maus_verfolgen()
         self.update()
 
     def geometrie(self):
@@ -825,7 +991,7 @@ class Ansicht3D(QWidget):
         self.messen, self.messpunkte, self.mess_max = bool(an), [], punkte or 0
         self.mess_treffer, self._schwebe = [], None
         self.setCursor(Qt.CrossCursor if an else Qt.ArrowCursor)
-        self.setMouseTracking(self.werkzeug is not None or self.messen)
+        self._maus_verfolgen()
         if not an:
             self.tafel.zeigen([])
         self.update()
@@ -939,8 +1105,13 @@ class Ansicht3D(QWidget):
                 beste = (d, nr, tuple(a[k] + t * (b[k] - a[k]) for k in range(3)))
         if beste is None:
             treffer = self._flaeche_treffer(bild, x, y)
+            kt = self.koerper_unter(x, y)        # Klick in einen Schnittkörper (z. B. ins Loch) wählt seine Kontur
+            if kt is not None and (treffer is None or kt[0] >= treffer["tiefe"]):
+                ring = kt[1]["ringe"][0]
+                treffer = dict(id=kt[1]["id"], punkt=tuple(sum(q[i] for q in ring) / len(ring) for i in range(3)))
             if treffer is None:
                 return None
+            treffer.pop("tiefe", None)
             self.angeklickt.emit(treffer)
             return treffer
         kn = self.modell.linien_id[beste[1]] if beste[1] < len(self.modell.linien_id) else None
@@ -970,14 +1141,14 @@ class Ansicht3D(QWidget):
             if beste is None or tiefe > beste[0]:
                 pa, pb, pc = mo.punkte[i], mo.punkte[j], mo.punkte[k]
                 beste = (tiefe, kn, tuple(l1 * pa[m] + l2 * pb[m] + l3 * pc[m] for m in range(3)))
-        return None if beste is None else dict(id=beste[1], punkt=beste[2])
+        return None if beste is None else dict(id=beste[1], punkt=beste[2], tiefe=beste[0])
 
     def modus_setzen(self, modus):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
         self.modus = modus
         if self.netz:
             self.modell = Modell(gefiltert(self.netz, modus))
-            self._geo = None
+            self._geo, self._tipp = None, None
         self.update()
 
     def zuruecksetzen(self):
@@ -1077,7 +1248,8 @@ class Ansicht3D(QWidget):
         grob = self._eilig or self._maus is not None
         modell = self.modell.grob() if grob else self.modell
         schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick,
-                      self.zoom, self.versatz, self.darstellung, self.blass(), self.perspektive)
+                      self.zoom, self.versatz, self.darstellung, self.blass(), self.perspektive, self.koerper_an,
+                      tuple(sorted(self.markiert)) if modell.koerper else ())
         if self._bild is None or self._bild[0] != schluessel:
             dpr = self.devicePixelRatioF()
             bild = QPixmap(int(self.width() * dpr), int(self.height() * dpr))
@@ -1086,7 +1258,7 @@ class Ansicht3D(QWidget):
             q = QPainter(bild)
             zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
                      linien=modell is self.modell, glatt=not grob, darstellung=self.darstellung, blass=self.blass(),
-                     perspektive=self.perspektive)
+                     perspektive=self.perspektive, koerper=self.koerper_an, gewaehlt=self.markiert)
             q.end()
             self._bild = (schluessel, bild)
         p.drawPixmap(0, 0, self._bild[1])
@@ -1106,7 +1278,7 @@ class Ansicht3D(QWidget):
             p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, self.titel)
             y += 20
         for art, text, farbe, linie in ARTEN:
-            if art not in self.modell.arten:
+            if art not in self.modell.arten or (art in WK_ARTEN and not self.koerper_an):
                 continue
             p.fillRect(QRectF(10, y + 3, 12, 12), QColor(linie or farbe))
             p.setPen(stil.farbe("#202020"))
@@ -1246,6 +1418,8 @@ class Ansicht3D(QWidget):
             self.werkzeug.ziehen(e.position(), e.modifiers())
             return
         if not self._maus:
+            if self.koerper() and not self.messen:
+                self._koerper_tipp(e)
             if self.werkzeug is not None and self.modell is not None and not self.messen:
                 self.werkzeug.schweben(e.position())
             elif self.messen and self.mess_max and self.modell is not None:
