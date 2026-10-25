@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
 
 from . import schneidweg as sw, steckverbindung
 from .angebot import ist_baugruppe
-from .baugruppe_dialog import FEHLER_FARBE, KnickEditor, LaengsnahtEditor, SteckEditor, _text
+from .baugruppe_dialog import FEHLER_FARBE, KnickEditor, LaengsnahtEditor, SteckEditor, VorschlagEditor, _text
 
 TEIL = "teil:"              # Kennung der Dreiecke im 3D: teil:<Nummer des Körpers>
 
@@ -64,7 +64,7 @@ class _Teile(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
-class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
+class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -124,6 +124,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
         knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
         lay.addWidget(knoepfe)
         self.aktualisieren()
+        self.vorschlaege_info_neu()
 
     # -------------------------------------------------------------- Teile
     def _seite_teile(self):

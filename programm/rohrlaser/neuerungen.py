@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.110", "<b>Vorschläge mit Ersparnis</b>: Im Fenster Satz in 3D und im Editor der Schweißbaugruppe findet "
+                "das Programm Knickrahmen, Steckverbindungen aus den Stößen der STEP-Datei und eine günstige Lage der "
+                "Längsnaht (frei von Konturen, Schlitzen und Nasen, bevorzugt innen) selbst. Je Vorschlag steht, was "
+                "er spart oder kostet (Ecknähte, Positionieren, Knicken, Laserzeit), nur aus vorhandenen Werten; "
+                "anhaken und übernehmen ([[vorschlaege]]). Nahtgruppen aus den STEP-Vorschlägen verlieren die Ecken "
+                "eines neuen Knickrahmens.",
+     "Vorschläge Knickrahmen, Steckverbindung, Längsnaht mit Ersparnis"],
     ["0.9.108", "<b>Rohrteil aus einer DXF-Zeichnung</b>: Zeichnungen mit Vorderansicht, Draufsicht und Schnitt werden "
                 "ein Rohrteil im Rohr-Editor (<i>Neue Position → Aus DXF</i>, DXF aufs Angebot ziehen oder im "
                 "Rohr-Editor <i>DXF importieren</i>). Maßstab je Ansicht aus der Bemaßung, Profil aus dem Schnitt, "
