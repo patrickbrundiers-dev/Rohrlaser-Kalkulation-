@@ -580,7 +580,7 @@ if step.messprogramm(HIER.parent / "programm") is not None:
 from rohrlaser import neue_position as np_  # noqa: E402
 td = np_.TypDialog(s)
 assert list(np_.TYPEN) == ["Rohr / Profil", "Blech / Kantteil", "Aus DXF (Blech oder Rohr)", "Zukaufteil", "Schweißbaugruppe",
-                          "Leere Zeile"]
+                          "Rahmen-Assistent", "Leere Zeile"]
 td.waehlen(np_.BLECH)
 assert td.typ == np_.BLECH and td.result() == QDialog.Accepted
 vorher = len(db.positionen(a))
