@@ -21,12 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.130", "<b>Große STEP-Dateien viel schneller eingelesen</b>: Ab 20 MB lässt der STEP-Import beim Einlesen zwei "
+    ["0.9.131", "<b>Große STEP-Dateien viel schneller eingelesen</b>: Ab 20 MB lässt der STEP-Import beim Einlesen zwei "
                 "Prüfungen auf sich kreuzende Kanten weg, die mit der Zahl der Bohrungen quadratisch wachsen. Ein Rundrohr "
-                "mit 7.000 Bohrungen liest OpenCascade so in 1,5 min statt über 80 min, mit 1,4 GB statt über 8 GB; "
+                "mit 7.000 Bohrungen wird so in etwa 13 min statt über 80 min eingelesen; "
                 "Volumen und Messwerte bleiben gleich (geprüft mit 1.000 und 3.000 Bohrungen). Kleinere Dateien werden "
                 "unverändert eingelesen ([[step]]).",
      "Große STEP-Dateien (ab 20 MB) viel schneller eingelesen, gleiche Messwerte"],
+    ["0.9.130", "<b>Fehlersuche</b>: Die <b>Schnellzeile</b> liest Profilmaße mit Leerzeichen (<i>RR 42,4 x 2</i>, "
+                "<i>QR 40 x 40 x 3</i>) und <i>1250 x 20</i> als Länge × Stück; ein mehrdeutiger Werkstoff (<i>S235</i>) "
+                "nimmt den der letzten Position, die Vorgabe bzw. den zuletzt benutzten, sonst Hinweis "
+                "<i>mehrdeutig</i> ([[schnellzeile]]). Halbschalen (Teile je Rohrumfang): Meterpreise und Fenster "
+                "Abmessung zählen die Teilemeter nach Rohrstücken. Der <b>Notfallcode</b> gilt nach dem spätesten "
+                "gesehenen Datum, eine zurückgestellte Uhr macht einen alten Code nicht wieder gültig "
+                "([[lizenz_laden]]). Vollmaterial aus STEP: Hinweis <i>Bohrungen/Gewinde nicht ausgewertet, bitte "
+                "prüfen</i> ([[vollmaterial]]).",
+     "Fehlersuche: Schnellzeile (Leerzeichen, Länge × Stück, S235), Halbschalen-Meter, Notfallcode, Vollmaterial-Hinweis"],
     ["0.9.129", "<b>Schnittkörper im 3D</b>: Jede Kontur ist zusätzlich ein halb durchsichtiger Körper, so tief wie "
                 "sie schneidet – eine Wand, beide Wände (durchgehend bis unter die Gegenwand), je Kopie bei allen "
                 "Seiten, eine schräge Bohrung entlang ihrer Neigung, eine Gravur so tief wie angegeben, beim Blech "

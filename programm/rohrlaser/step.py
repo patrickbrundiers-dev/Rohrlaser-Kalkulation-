@@ -1557,6 +1557,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             form, abm, lg = m["profilform"], round(_z(m, "abm_a"), 2), round(_z(m, "laenge"), 1)
             alt_hinweis = f"{form}: wird noch nicht kalkuliert, Konturen nicht ausgewertet"   # aus der Messung
             hinweise[:] = [x for x in (h.replace(alt_hinweis, "").strip("; ,") for h in hinweise) if x]
+            # Konturen misst die STEP-Messung bei Vollmaterial nicht: Bohrungen/Gewinde nicht still übergehen
+            hinweise.append("Bohrungen/Gewinde nicht ausgewertet, bitte prüfen (ggf. als Zusatzarbeit)")
             wst = m.get("_werkstoff", werkstoff) or None
             stk = m.get("_stueck", stueck)
             verweis, text = _voll_position(m, form, abm, lg, wst, zukauf_liste, neue_artikel)

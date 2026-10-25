@@ -62,6 +62,11 @@ sw = rechnen.stangen_werte(s.ergebnis, s.kopf, s.positionen, s.k, s.tabellen)
 zeilen = s._rechnung()[0]
 alle = rechnen.anzeige_stangen(s.ergebnis, sw)
 assert sum(len(abmessung.stangen(s.ergebnis, g["gruppe"], sw)) for g in gruppen) == len(alle)
+# Halbschalen (Teile je Rohrumfang): Teilemeter zählen Rohrstücke, nicht Teile (Fehlersuche 25.10.2026)
+p0 = next(p for p in s.positionen if p.get("profil_id") and p.get("stueck"))
+halb = dict(p0, stueck=5, je_umfang=2)
+g0 = rechnen.material_abmessungen(s.kopf, [halb], None, s.k, s.tabellen)[0]
+assert abs(g0["teile_m"] - p0["laenge"] * 3 / 1000) < 1e-9, g0["teile_m"]
 for g in gruppen:
     paare = abmessung.stangen(s.ergebnis, g["gruppe"], sw)
     nummern = [x["nr"] for x, _ in paare]

@@ -235,7 +235,7 @@ def _konsole_mitschneiden(fn):
 
 GROSS_AB_MB = 20         # Performance-Update P5: ab dieser Dateigröße beim Einlesen ohne die Prüfung auf sich
                         # kreuzende Kanten (wächst quadratisch mit den Kanten einer Fläche: Rohr mit 7.000 Bohrungen über
-                        # 80 min, ohne 89 s und 1,4 GB). Kleinere Dateien werden wie bisher geheilt.
+                        # 80 min, ohne etwa 13 min mit Baugruppenleser). Kleinere Dateien werden wie bisher geheilt.
 SCHNELL_OHNE = ("FixShape.FixNonAdjacentIntersectingEdgesMode", "FixShape.FixSelfIntersectionMode")
 
 

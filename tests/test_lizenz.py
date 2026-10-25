@@ -336,6 +336,19 @@ pruefe(lizenz.notfallcode_gueltig(code, RECHNER, datetime.date.today() + datetim
        and not lizenz.notfallcode_gueltig(code, RECHNER, datetime.date.today() - datetime.timedelta(days=1), SCHL)
        and not lizenz.notfallcode_gueltig("NF-T1-kaputt", RECHNER, schluessel=SCHL),
        "L17 Notfallcode gilt heute und morgen, sonst nicht")
+alt_code = lizenz.notfallcode(RECHNER, datetime.date.today() - datetime.timedelta(days=5), PRIVAT, "T1")
+pruefe(lizenz.notfallcode_gueltig(alt_code, RECHNER, datetime.date.today() - datetime.timedelta(days=5), SCHL)
+       and not lizenz.notfallcode_gueltig(alt_code, RECHNER, datetime.date.today() - datetime.timedelta(days=5), SCHL,
+                                          spaetestes=datetime.date.today()),
+       "L17 Notfallcode: zurückgestellte Uhr macht einen alten Code nicht wieder gültig (spätestes Datum)")
+o5 = tmp / "notfall_uhr"
+o5.mkdir()
+(o5 / lizenz.AKTIV).write_text((o3 / lizenz.AKTIV).read_text(encoding="utf-8"), encoding="utf-8")
+(o5 / lizenz.ZEIT).write_text(json.dumps({"zuletzt": datetime.date.today().isoformat()}), encoding="utf-8")
+st = lizenz.LizenzStelle(o5, _Db(""), SCHL, RECHNER, durchsetzung=True)
+st.pruefen()
+pruefe(not st.admin_freigeben(alt_code, heute=datetime.date.today() - datetime.timedelta(days=5)),
+       "L17 Admin freischalten: alter Notfallcode mit zurückgestellter Uhr abgelehnt")
 
 # ------------------------------------------------------------------ L18 ersetzte Admin-Lizenz (neues Passwort)
 o4 = tmp / "ersetzt"

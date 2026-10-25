@@ -221,8 +221,10 @@ def notfallcode(rechner, datum, privat, sid):
     return f"{NOTFALL}-{sid}-{datum:%Y%m%d}-" + base64.urlsafe_b64encode(sig).decode("ascii").rstrip("=")
 
 
-def notfallcode_gueltig(text, rechner, heute=None, schluessel=None):
-    """True, wenn text ein gültiger Notfallcode für diesen Rechner ist (Ausstelltag oder Folgetag)."""
+def notfallcode_gueltig(text, rechner, heute=None, schluessel=None, spaetestes=None):
+    """True, wenn text ein gültiger Notfallcode für diesen Rechner ist (Ausstelltag oder Folgetag). spaetestes =
+    spätestes bisher gesehenes Datum (spaetestes_datum): gilt statt heute, wenn es später ist – eine zurückgestellte
+    Uhr macht einen alten Code nicht wieder gültig (Fehlersuche 25.10.2026)."""
     teile = "".join(str(text or "").split()).split("-", 3)
     if len(teile) != 4 or teile[0].upper() != NOTFALL or not rechner:
         return False
@@ -233,6 +235,8 @@ def notfallcode_gueltig(text, rechner, heute=None, schluessel=None):
     except ValueError:
         return False
     heute = heute or datetime.date.today()
+    if spaetestes is not None and spaetestes > heute:
+        heute = spaetestes
     if not 0 <= (heute - datum).days <= 1:
         return False
     schluessel = standard_schluessel() if schluessel is None else schluessel
@@ -537,17 +541,26 @@ class LizenzStelle:
         z = self.zustand or self.pruefen()
         return z.admin_aus
 
-    def admin_freigeben(self, passwort):
+    def admin_freigeben(self, passwort, heute=None):
         """Admin-Rechte mit dem Passwort (oder einem Notfallcode) freischalten. Ergebnis: True = Admin-Rechte an."""
         if pruefen_passwort(passwort, self.admin_passwort()):
             self.notfall = False
-        elif notfallcode_gueltig(passwort, getattr(self, "rechner", ""), schluessel=getattr(self, "schluessel", None)):
+        elif notfallcode_gueltig(passwort, getattr(self, "rechner", ""), heute, getattr(self, "schluessel", None),
+                                 self._spaetestes()):
             self.notfall = True
         else:
             return False
         self.admin_ok = True
         self.pruefen()
         return True
+
+    def _spaetestes(self):
+        """Spätestes gesehenes Datum (Lizenz/zeit.json und Einstellung lizenz_zuletzt) oder None."""
+        try:
+            return spaetestes_datum(self.ordner, self.db.einstellung(EINSTELLUNG_ZULETZT) if self.db is not None
+                                    else None)
+        except Exception:       # noqa: BLE001 – Datendatei geschlossen o. Ä.: nur die Uhr des Rechners
+            return None
 
     def admin_sperren(self):
         """Ohne Admin-Rechte weiter (Passwort abgebrochen oder falsch): Einstellungen wieder mit Passwort."""

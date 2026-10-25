@@ -113,6 +113,7 @@ nah(p1["gewicht_teil"], G_RUND, "Gewicht je Teil", 1e-4)
 z = json.loads(p1["zusatz"])
 assert z[0]["name"] == vm.ZUSATZ_SAEGEN and z[0]["menge"] == 1 and z[0]["stand"]["preis"] == vm.SAEGEN_PREIS, z
 assert "neu" in p2["_zukauf"] and len(erg["zukauf_neu"]) == 1, erg["zukauf_neu"]
+assert "Bohrungen/Gewinde nicht ausgewertet" in erg["bericht"][0], erg["bericht"]
 w2 = erg["zukauf_neu"][p2["_zukauf"]["neu"]][0]
 assert w2["artikeltyp"] == "Vierkantstahl" and w2["abmessung"] == 12 and w2["bezeichnung"] == \
     "Vierkantstahl 12 × 12 × 80 mm S235-10219", w2

@@ -2663,8 +2663,19 @@ class AngebotSeite(QWidget):
 
     def _schnell_vorschau(self, text):
         from . import schnellzeile
-        zeilen = schnellzeile.lesen(text, self.k.profile, self.k.werkstoffe) if text.strip() else []
+        zeilen = schnellzeile.lesen(text, self.k.profile, self.k.werkstoffe, self._schnell_bevorzugt()) \
+            if text.strip() else []
         self.schnell_vorschau.setText(schnellzeile.vorschau(zeilen[0], lambda z: rechnen.zahl(z, 1)) if zeilen else "")
+
+    def _schnell_bevorzugt(self):
+        """Werkstoffe für ein mehrdeutiges Wort der Schnellzeile (S235): letzte Position, Vorgabe step_werkstoff, dann
+        die zuletzt benutzten."""
+        letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
+        try:
+            zuletzt = self.db.zuletzt_benutzt("werkstoff")
+        except Exception:       # noqa: BLE001 – Datendatei geschlossen o. Ä.
+            zuletzt = []
+        return [w for w in dict.fromkeys([letzter, self.db.einstellung("step_werkstoff"), *zuletzt]) if w]
 
     def schnellzeile(self, text=None):
         """Positionen aus der Schnellzeile (B6) anlegen; text = mehrere Zeilen (Einfügen), sonst das Feld. Werkstoff
@@ -2675,7 +2686,7 @@ class AngebotSeite(QWidget):
             self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
             return 0
         quelle = self.schnell.text() if text is None else text
-        zeilen = schnellzeile.lesen(quelle, self.k.profile, self.k.werkstoffe)
+        zeilen = schnellzeile.lesen(quelle, self.k.profile, self.k.werkstoffe, self._schnell_bevorzugt())
         if not zeilen:
             return 0
         letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
