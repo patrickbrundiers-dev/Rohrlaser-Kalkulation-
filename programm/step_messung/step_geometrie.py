@@ -3193,7 +3193,7 @@ def _anbau_beschreiben(t, teile, quelle, netz=False, mit_flaechen=True):
                 nx_, ny_ = -nx_, -ny_
             d["marke"] = dict(m=[round(px, 3), round(py, 3), round(vc, 3)], t=[round(tx, 6), round(ty, 6)],
                               n=[round(nx_, 6), round(ny_, 6)], c=[round(abw.cx, 3), round(abw.cy, 3)],
-                              rund=not r["kasten"])
+                              rund=t.profilform == "Rundrohr")
             if rand:
                 d["umriss_linien"] = [_linienzug(e) for e in rand]
         art_ = d["art"]
