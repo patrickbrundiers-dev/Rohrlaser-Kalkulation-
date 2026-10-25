@@ -263,14 +263,22 @@ class _Rechnen:
             return None
         return max(self.minimum(), min(self.maximum(), w))
 
-    def _pruefen(self, text):
+    def _unfertig(self, kern):
+        return self._ist_rechnung(kern) and self._ergebnis(kern) is None
+
+    def _pruefen(self, text, verlassen=None):
+        """Rot bei unfertiger Rechnung; während des Tippens nicht direkt nach einem Rechenzeichen. verlassen = Text
+        beim Verlassen des Felds (das Feld zeigt dann wieder den alten Wert)."""
         kern = self._kern(text)
-        schlecht = self._ist_rechnung(kern) and self._ergebnis(kern) is None \
-            and not re.search(r"[+\-−*/×÷:xX(]\s*$", kern)      # gerade ein Rechenzeichen getippt: noch nicht rot
+        schlecht = self._unfertig(kern) and not re.search(r"[+\-−*/×÷:xX(]\s*$", kern)
+        if verlassen is not None:
+            schlecht = self._unfertig(self._kern(verlassen))
         if schlecht and self._tooltip is None:
             self._tooltip = self.toolTip()
             self.setStyleSheet(stil.ROTER_RAHMEN)
-            self.setToolTip("Rechnung unvollständig: erlaubt sind Zahlen, + − × ÷ und Klammern, z. B. 6000/4")
+            self.setToolTip("Rechnung unvollständig" + (f" („{self._kern(verlassen)}“), der alte Wert bleibt"
+                                                        if verlassen is not None else "")
+                            + ": erlaubt sind Zahlen, + − × ÷ und Klammern, z. B. 6000/4")
         elif not schlecht and self._tooltip is not None:
             self.setStyleSheet("")
             self.setToolTip(self._tooltip)
@@ -282,8 +290,9 @@ class _Rechnen:
             QTimer.singleShot(0, self.selectAll)        # alten Wert gleich überschreiben
 
     def focusOutEvent(self, e):
+        getippt = self.lineEdit().text()
         super().focusOutEvent(e)
-        self._pruefen(self.lineEdit().text())
+        self._pruefen(self.lineEdit().text(), verlassen=getippt)
 
 
 class RechenSpin(_Rechnen, QDoubleSpinBox):
@@ -303,6 +312,7 @@ class RechenSpin(_Rechnen, QDoubleSpinBox):
             w = self._ergebnis(kern)
             if w is not None:
                 return w
+            return self.value()         # unfertige Rechnung: alter Wert bleibt
         return super().valueFromText(text)
 
     def fixup(self, text):
@@ -311,6 +321,7 @@ class RechenSpin(_Rechnen, QDoubleSpinBox):
             w = self._ergebnis(kern)
             if w is not None:
                 return self.prefix() + self.textFromValue(w) + self.suffix()
+            return self.prefix() + self.textFromValue(self.value()) + self.suffix()
         return super().fixup(text)
 
 
@@ -331,6 +342,7 @@ class RechenSpinGanz(_Rechnen, QSpinBox):
             w = self._ergebnis(kern)
             if w is not None:
                 return int(round(w))
+            return self.value()         # unfertige Rechnung: alter Wert bleibt
         return super().valueFromText(text)
 
     def fixup(self, text):
@@ -339,6 +351,7 @@ class RechenSpinGanz(_Rechnen, QSpinBox):
             w = self._ergebnis(kern)
             if w is not None:
                 return self.prefix() + self.textFromValue(int(round(w))) + self.suffix()
+            return self.prefix() + self.textFromValue(self.value()) + self.suffix()
         return super().fixup(text)
 
 
