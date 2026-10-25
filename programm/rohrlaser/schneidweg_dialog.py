@@ -850,7 +850,9 @@ class SchneidwegDialog(QDialog):
         laenge = self.k_laenge.value() if getattr(self, "neu", False) and hasattr(self, "k_laenge") \
             else self.p.get("laenge")
         try:
-            plan = step_export.rohr_teil(self.eingaben(), self.profil, laenge, step_export.teilname(self.p),
+            from .anbau import eingaben_mit_gravur
+            plan = step_export.rohr_teil(eingaben_mit_gravur(self.eingaben(), self.p), self.profil, laenge,
+                                         step_export.teilname(self.p),
                                          grenze=self.schwenk_grenze(), artikel=self.p.get("artikel"),
                                          gravur_h=self.p.get("bg_gravur"))
         except (ValueError, TypeError, ZeroDivisionError) as x:

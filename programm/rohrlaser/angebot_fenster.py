@@ -2432,7 +2432,9 @@ class AngebotSeite(QWidget):
         try:
             from . import rohr3d
             profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
-            netz = rohr3d.netz(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], profil,
+            from .anbau import eingaben_mit_gravur
+            e = eingaben_mit_gravur(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], p)
+            netz = rohr3d.netz(e, profil,
                                p.get("laenge"), p.get("naht_winkel") if naht.vorgabe(p) == naht.FEST else None,
                                dreid.schwenk_grenze(rechnen.maschine(self.kopf, self.k)))
         except (ValueError, TypeError, KeyError, ZeroDivisionError):

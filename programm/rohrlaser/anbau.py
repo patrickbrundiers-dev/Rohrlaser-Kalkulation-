@@ -84,6 +84,46 @@ def konturen(liste):
     return sum(1 for a in liste if wirksam(a) > 0)
 
 
+def gravur_zuege(liste):
+    """Gravur der Anbauteile als Linienzüge fürs 3D aus den Eingaben und den STEP-Export (Rille 0,1 mm):
+    [[(Punkt, Normale nach außen)]] im Rohrsystem der STEP-Messung (z = Rohrachse ab Ende A). Je Anbauteil nach seiner
+    Bearbeitung: Umriss der Aufstandsfläche, Kreuz 2 × 10 mm (Positionsmarke) bzw. 2 × 2 mm (Punktmarke); keine bzw.
+    ausgeschlossen: nichts. Braucht die Lage aus der STEP-Messung (ab Version 0.9.117: marke, umriss_linien)."""
+    import math
+    out = []
+    for a in liste:
+        m = a.get("marke")
+        if a.get("status") == AUSGESCHLOSSEN or not m or wirksam(a) <= 0:
+            continue
+        (mx, my, mz), (tx, ty), (nx, ny), (cx, cy) = m["m"], m["t"], m["n"], m.get("c") or (0.0, 0.0)
+        r = math.hypot(mx - cx, my - cy)
+
+        def auf_wand(x, y, z):
+            if m.get("rund") and r > 0:         # Rundrohr: auf den Mantel, Normale radial
+                dx, dy = x - cx, y - cy
+                d = math.hypot(dx, dy) or 1.0
+                return (cx + dx * r / d, cy + dy * r / d, z), (dx / d, dy / d, 0.0)
+            return (x, y, z), (nx, ny, 0.0)
+        b = a.get("bearbeitung")
+        if b == "Umriss" and a.get("umriss_linien"):
+            zuege = [[(z[i], z[i + 1], z[i + 2]) for i in range(0, len(z) - 2, 3)] for z in a["umriss_linien"]]
+        elif b in ("Positionsmarke", "Punktmarke"):
+            h = (MARKE if b == "Positionsmarke" else PUNKT) / 4
+            zuege = [[(mx, my, mz - h), (mx, my, mz + h)],
+                     [(mx + tx * h * k / 8, my + ty * h * k / 8, mz) for k in range(-8, 9)]]
+        else:
+            continue
+        out += [[auf_wand(*q) for q in zug] for zug in zuege if len(zug) >= 2]
+    return out
+
+
+def eingaben_mit_gravur(e, p):
+    """Eingaben e des Rohr-Editors mit der Gravur der Anbauteile der Position p (Schlüssel anbau_gravur, nur fürs 3D
+    und den STEP-Export, nicht gespeichert)."""
+    zuege = gravur_zuege(lesen((p or {}).get("anbauteile")))
+    return dict(e or {}, anbau_gravur=zuege) if zuege else e
+
+
 def unsicher(a):
     return a.get("vertrauen") == "prüfen"
 
