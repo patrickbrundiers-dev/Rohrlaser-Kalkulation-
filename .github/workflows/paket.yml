@@ -562,7 +562,7 @@ jobs:
           $text = "Rohrlaser Angebotskalkulation $version (Stand $env:RL_STAND).`n`n" +
                   "Rohrlaser-Angebotskalkulation-Setup.exe: Installation für den angemeldeten Benutzer (keine Adminrechte).`n" +
                   "Rohrlaser-Angebotskalkulation.zip: dieselbe Version portabel ohne Installation.`n" +
-                  "Vorher: Rechtsklick → Eigenschaften → „Zulassen“, oder Windows-Vertrauen-einrichten.cmd in denselben Ordner laden und doppelklicken.`n" +
+                  "Vorher: Rechtsklick → Eigenschaften → Zulassen, oder Windows-Vertrauen-einrichten.cmd in denselben Ordner laden und doppelklicken.`n" +
                   "Danach kommen Updates automatisch (Hilfe → Nach Updates suchen). Nutzung nur mit Lizenz, siehe Lizenzbedingungen.txt.`n" +
                   "SHA256-Prüfsummen: *.sha256"
           gh release view download --repo $repo *> $null
