@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 61     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 62     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -113,6 +113,7 @@ SCHEMA_VERSION = 61     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     „Satz in 3D“, satz3d.py)
                         # 61: Vollmaterial als Zukaufartikel (zukauf_artikel.abmessung, gewicht, preis_kg, leer;
                         #     vollmaterial.py)
+                        # 62: Stangen von Hand vorgegeben je Abmessung (angebote.stangen_vorgabe, JSON, leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -326,6 +327,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN palettenschein TEXT")  # vor Schema 59: leer
             if "satz_daten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
+            if "stangen_vorgabe" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -1352,6 +1355,15 @@ class Datenbank:
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
     @schreibt
+    def stangen_vorgabe_speichern(self, angebot_id, vorgabe):
+        """Von Hand vorgegebene Stangen eines Angebots {Gruppenschlüssel: [[Länge, Anzahl], …]}
+        (rechnen.laengen_schluessel, rechnen.stangen_vorgabe; leer = alle Gruppen mit beliebig vielen Stangen)."""
+        vorgabe = {s: v for s, v in (vorgabe or {}).items() if v}
+        with self.con:
+            self.con.execute("UPDATE angebote SET stangen_vorgabe=?, geaendert=? WHERE id=?",
+                             (json.dumps(vorgabe, ensure_ascii=False) if vorgabe else None, self._jetzt(), angebot_id))
+
+    @schreibt
     def naht_stangen_speichern(self, angebot_id, wahl):
         """Nahtlage der Lieferstange je Stangengruppe {naht.gruppe_schluessel: 'Breitseite'/'Schmalseite'}
         (leer = aus den Teilen mit fester Naht)."""
@@ -1717,6 +1729,7 @@ class Datenbank:
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
+        a["stangen_vorgabe"] = json.loads(a["stangen_vorgabe"]) if a.get("stangen_vorgabe") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
@@ -1817,6 +1830,8 @@ class Datenbank:
         neu = self.angebot_neu(kopf, zaehler=not nummer)
         if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
             self.laengenwahl_speichern(neu, a["laengenwahl"])
+        if a.get("stangen_vorgabe"):                # von Hand vorgegebene Stangen ebenso
+            self.stangen_vorgabe_speichern(neu, a["stangen_vorgabe"])
         if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
             self.naht_stangen_speichern(neu, a["naht_stangen"])
         if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso

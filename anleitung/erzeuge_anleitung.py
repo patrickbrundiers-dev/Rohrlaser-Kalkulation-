@@ -1307,7 +1307,8 @@ def kapitel_angebot(i):
             "denselben Stangen geschnitten werden. Die anderen Positionen dieser Gruppe zeigen ihn kursiv.",
             "Die Kalkulation, der Lieferlängen-Vergleich und die Staffelpreise rechnen mit dem eingetragenen Preis; "
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
-            "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
+            "Der berechnete Preis ist nur Vorgabe: ein eigener Preis löst keine Meldung im Status aus. Feld leeren "
+            "(oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
     i.abschnitt("Material je Abmessung (Fenster Material …)", marke="material_fenster")
     i.text("<b>Material …</b> (rechts neben den Ausgaben oder Rechtsklick auf eine Position): alles zum Material je "
@@ -1325,11 +1326,30 @@ def kapitel_angebot(i):
     i.genauer()
     i.text("Abmessung = Profil, Werkstoff, Oberfläche und Stangenlänge. Der Knopf steht vor <i>Materialanfrage "
            "(E-Mail)</i>.")
-    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert; der "
-            "Status zeigt dann <b>HINWEIS: Meterpreis manuell</b>.",
+    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert (ohne "
+            "Meldung im Status).",
+            "Spalte <b>Stangen vorgegeben</b>: welche Stangen für die Abmessung da sind ([[stangen_vorgabe]]).",
             "Ohne Optimierung stehen Stangen, Meter und Gewicht auf „–“; passt der Schnittplan nicht mehr zu den "
             "Positionen, steht oben ein roter Hinweis.",
             "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
+    i.abschnitt("Stangen von Hand vorgeben", marke="stangen_vorgabe")
+    i.text("Im Fenster <b>Material …</b> öffnet der Knopf in der Spalte <b>Stangen vorgegeben</b> (oder Rechtsklick "
+           "› <i>Stangen vorgeben …</i>) eine Liste: je Zeile eine Stangenlänge und wie viele Stangen dieser Länge da "
+           "sind, z. B. 3 × 6.000 und 2 × 4.500 mm. Nach <b>Übernehmen</b> neu optimieren.", kurz=True)
+    i.genauer()
+    i.liste("Die Optimierung plant die Abmessung dann nur mit genau diesen Stangen: zuerst möglichst alle Teile, dann "
+            "möglichst wenig Stangenlänge, dann möglichst wenige Stangen. Nicht gebrauchte Stangen bleiben einfach "
+            "übrig, Reste werden nicht verwaltet.",
+            "Teile, die auf keine vorgegebene Stange mehr passen, stehen in der Auswertung unter <i>nicht "
+            "eingeplant</i> mit dem Grund <i>vorgegebene Stangen reichen nicht</i>; die Positionen zeigen das im "
+            "Status.",
+            "Ein Teil darf länger sein als die Lieferlänge der Abmessung, wenn es auf eine vorgegebene Stange passt. "
+            "Längen über der max. Stangenlänge der Maschine nimmt die Liste nicht an.",
+            "Schnittplan, Stangenbild, Werkstattpapiere, Materialkosten und Materialanfrage rechnen mit der Länge "
+            "jeder einzelnen Stange.",
+            "Die Vorgabe gilt nur für die Menge dieses Angebots: Staffelpreise rechnen ohne sie. Eine Kopie des "
+            "Angebots übernimmt sie.",
+            "<b>Vorgabe aufheben</b> (oder alle Zeilen leeren) = wieder beliebig viele Stangen der Lieferlänge.")
     i.abschnitt("Abmessung genauer ansehen (Doppelklick im Fenster Material …)", marke="abmessung_fenster")
     i.text("Im Fenster <b>Material …</b> öffnet ein <b>Doppelklick auf Stangen</b> die Abmessung in einem eigenen "
            "Fenster: Stangenbild, Schnittmuster, Bilanz und alle Teile dieser Abmessung.", kurz=True)
@@ -3217,8 +3237,8 @@ def kapitel_optimieren(i):
     i.abschnitt("Stangenbild", marke="stangenbild")
     i.bild("erg_stangenbild", "Reiter Stangenbild, Ansicht Stangenmuster", hoehe=85 * mm, legende=[
         (1, "<b>Umschalter</b>: <i>Stangenmuster</i> (gleich belegte Stangen zusammengefasst, wie "
-            "bisher), <i>Übersicht</i> (jede Stange eine Zeile) und <i>Detail</i> (eine Stange groß). Das Programm "
-            "merkt sich die zuletzt gewählte Ansicht, auch für das Abmessungs-Fenster ([[abmessung_fenster]]).")])
+            "bisher), <i>Übersicht</i> (jede Stange eine Zeile, Standard) und <i>Detail</i> (eine Stange groß). Das "
+            "Programm merkt sich die zuletzt gewählte Ansicht, auch für das Abmessungs-Fenster ([[abmessung_fenster]]).")])
     i.text("Jede Stange als Balken: Teile farbig mit Positionsnummer, Rest hellgrau, Greiferrest rot. Doppelklick "
            "auf ein Teil springt zur Position. Oben wählt man zwischen Stangenmuster, Übersicht und Detail.", kurz=True)
     i.bild("erg_stangen_uebersicht", "Ansicht Übersicht: jede Stange eine Zeile, nach Abmessung gruppiert",
@@ -3226,7 +3246,9 @@ def kapitel_optimieren(i):
                (1, "<b>Übersicht</b> wählen."),
                (2, "Je Abmessung eine Kopfzeile (Profil, Werkstoff, Lieferlänge, Anzahl Stangen, Ausnutzung), darunter "
                    "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
-                   "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern.")])
+                   "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern. Bleibt die "
+                   "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Details (Länge, Teile, Rest, "
+                   "Nutzung, Endbeschnitt, Greiferrest, Gewicht, Material, Teile je Position); <b>Esc</b> schließt es.")])
     i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
            hoehe=95 * mm, legende=[
                (1, "<b>Kennzahlen</b> der Stange: Lieferlänge, Teile, Nutzung, Rest (Verschnitt, es gibt keine "
@@ -6867,9 +6889,6 @@ def kapitel_fragen(i):
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
         ["<b>HINWEIS: Schneidzeit manuell</b>",
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
-        ["<b>HINWEIS: Meterpreis manuell</b>",
-         "Für die Position ist ein Materialpreis je m von Hand eingetragen; er ersetzt den berechneten Preis "
-         "([[meterpreis]])."],
         ["<b>WARNUNG: Konturen klein + mittel länger als Schneidweg</b>",
          "Der Schneidweg wurde von Hand kleiner eingetragen als die kleinen und mittleren Konturen zusammen. Der "
          "Anteil mit Vorschub groß wird mit 0 gerechnet. Schneidweg oder die Spalten Kontur klein/mittel [mm] "

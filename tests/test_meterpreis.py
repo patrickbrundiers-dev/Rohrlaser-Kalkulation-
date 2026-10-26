@@ -67,7 +67,7 @@ assert s.positionen[0]["preis_m"] == 8.5
 s.neu_laden()
 m = s.pos_modell
 assert m.data(m.index(0, c)) == "8,50" and m.data(m.index(0, c), Qt.FontRole).bold()
-assert m.status[0] == "HINWEIS: Meterpreis manuell"
+assert m.status[0] == "OK"      # Meterpreis von Hand: keine Meldung (Patrick 26.10.2026)
 # gleiche Stangengruppe (Pos. 30): es gilt der Preis von Hand, kursiv mit Hinweis
 assert m.data(m.index(2, c)) == "8,50" and m.data(m.index(2, c), Qt.FontRole).italic()
 assert "andere" in m.data(m.index(2, c), Qt.ToolTipRole) and s.positionen[2]["preis_m"] is None
