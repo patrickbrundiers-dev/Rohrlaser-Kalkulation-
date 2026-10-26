@@ -5,6 +5,7 @@ Zur Auswahl stehen nur aktive Zusatzarbeiten, häufig verwendete zuerst, dann na
 der Preisstand (Abrechnung, Preis je Einheit, Mindestbetrag, Fremdleistung) in der Position gespeichert; spätere
 Änderungen der Stammdaten ändern das Angebot erst nach 'Preise aus Stammdaten übernehmen'."""
 import json
+import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItem, QStandardItemModel
@@ -48,7 +49,7 @@ def gemeinsam(positionen):
 def zusammenfuehren(p, vorher, ergebnis):
     """Neue Werte (Gewinde, Zusatzarbeiten) einer Position bei Mehrfachauswahl (Plan Angebotsablauf V0): nur das
     Gemeinsame (vorher = gemeinsam(...)) wird geändert, eigene Einträge der Position bleiben. Gewinde: war es
-    überall gleich, gilt der neue Text; sonst wird ein eingegebener Text angehängt. Zusatzarbeiten: gemeinsame, die
+    überall gleich, gilt der neue Text; sonst werden eingegebene Gewinde angehängt, die die Position noch nicht hat. Zusatzarbeiten: gemeinsame, die
     im Dialog gelöscht oder geändert wurden, fallen weg; neue bzw. geänderte kommen dazu (gleicher Name ersetzt den
     eigenen Eintrag). Unveränderte behalten den Eintrag der Position (Menge, Preisstand, Herkunft)."""
     g_vorher, z_vorher = vorher
@@ -56,9 +57,9 @@ def zusammenfuehren(p, vorher, ergebnis):
     if g_vorher is not None:
         gewinde = g_neu
     else:
-        eigen = (p.get("gewinde") or "").strip().rstrip(";,").strip()
-        dazu = (g_neu or "").strip()
-        gewinde = "; ".join(x for x in (eigen, dazu) if x) or None
+        eigen = [x.strip() for x in re.split(r"[;,]", p.get("gewinde") or "") if x.strip()]
+        dazu = [x.strip() for x in re.split(r"[;,]", g_neu or "") if x.strip() and x.strip() not in eigen]
+        gewinde = "; ".join(eigen + dazu) or None
     neu = rechnen.zusatz_liste(dict(zusatz=z_json)) if z_json else []
     neu_gleich = {_gleich(e) for e in neu}
     weg = {_gleich(e) for e in z_vorher} - neu_gleich          # gemeinsam, im Dialog gelöscht oder geändert

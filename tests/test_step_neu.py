@@ -53,7 +53,7 @@ assert s is not None and len(db.angebote()) == vorher + 1
 assert s.kopf["kundennr"] == k1["kundennr"] and s.kopf["kunde"] == k1["name"]
 assert fenster.reiter.currentWidget() is s
 assert importe[-1][:2] == (s.id, [str(ordner / "a.STP"), str(ordner / "b.step")]), importe
-assert importe[-1][2] == dict(kunde_waehlen=False), importe      # stumm: keine Kundenwahl im Prüfdialog
+assert importe[-1][2] == dict(kunde_waehlen=False, referenz=None), importe      # stumm: keine Kundenwahl im Prüfdialog
 assert db.einstellung("step_letzter_ordner") == str(ordner)
 ok("Ordner gezogen: Angebot für den Kunden aus dem Ordnernamen angelegt, geöffnet, Import mit den STEP-Dateien")
 
