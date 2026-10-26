@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.139", "<b>Blech-Editor: Konturen im 3D aus dem Material geschnitten</b>: Bohrungen, Senkungen, "
+                "Langlöcher, Rechtecke und Polygone sind in der 3D-Ansicht echte Löcher mit Lochwand durch die "
+                "Blechdicke, auch im gekanteten Teil und in der Biegung; bisher waren sie nur rote Linien auf der "
+                "geschlossenen Fläche. Gravuren und Konturen, die über den Rand reichen oder sich überschneiden, "
+                "bleiben Linien ([[blech_editor]]).",
+     "Blech-Editor: Konturen im 3D als echte Löcher"],
     ["0.9.138", "<b>Schweißbaugruppen-Editor schneller</b>: Der Reiter <i>Strukturbaum und 3D</i> rechnete die "
                 "Schweißnaht-Raupen bei jedem Klick im Baum neu und beim Öffnen doppelt; das Programm stand dabei je "
                 "Klick mehrere Sekunden. Jetzt werden die Raupen einmal gerechnet und gemerkt, auch für das nächste "
