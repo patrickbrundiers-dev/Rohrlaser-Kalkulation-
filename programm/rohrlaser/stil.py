@@ -180,7 +180,32 @@ UMSETZUNG = {
     },
 }
 ZUSATZ = {      # nur in diesen Themes: deutlicher Tastaturfokus (B9)
-    "Dunkel": "QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus, QPlainTextEdit:focus, QTextEdit:focus "
+    # Hell- und Dunkelmodus optisch verbessert (26.10.2026): Fusion zeichnet Rahmen von Eingabefeldern und Häkchen-
+    # kästchen aus der Fensterfarbe (dunkler) – auf dunklem Grund fast unsichtbar; Hauptknopf weiße Schrift auf
+    # Hellblau war kaum lesbar (2,6 : 1), jetzt kräftiges Blau (5,5 : 1)
+    "Dunkel": "QLineEdit, QComboBox, QAbstractSpinBox, QPlainTextEdit, QTextEdit { border: 1px solid #56657A; "
+              "border-radius: 3px; "
+              "padding: 1px 3px; }\n"
+              "QLineEdit:disabled, QComboBox:disabled, QAbstractSpinBox:disabled { border-color: #343E4C; }\n"
+              "QComboBox::drop-down, QDateTimeEdit::drop-down { border: none; width: 18px; }\n"
+              "QComboBox::down-arrow, QDateTimeEdit::down-arrow { image: url({PFEIL}); width: 9px; height: 9px; }\n"
+              "QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { border: none; width: 14px; }\n"
+              "QAbstractSpinBox::up-arrow { image: url({PFEIL_AUF}); width: 7px; height: 7px; }\n"
+              "QAbstractSpinBox::down-arrow { image: url({PFEIL}); width: 7px; height: 7px; }\n"
+              "QCheckBox::indicator, QAbstractItemView::indicator, QGroupBox::indicator { width: 13px; height: 13px; "
+              "border: 1px solid #7A889B; border-radius: 3px; background: #1A2029; }\n"
+              "QCheckBox::indicator:checked, QAbstractItemView::indicator:checked, QGroupBox::indicator:checked "
+              "{ background: #6CA6DE; border-color: #6CA6DE; image: url({HAKEN}); }\n"
+              "QCheckBox::indicator:disabled, QAbstractItemView::indicator:disabled { border-color: #3A4555; }\n"
+              "QRadioButton::indicator { width: 13px; height: 13px; border: 1px solid #7A889B; border-radius: 7px; "
+              "background: #1A2029; }\n"
+              "QRadioButton::indicator:checked { background: #1A2029; border-color: #6CA6DE; image: url({PUNKT}); }\n"
+              "QPushButton#primaer { background: #2F6CA8; color: #FFFFFF; border-color: #5B93CB; }\n"
+              "QPushButton#primaer:hover { background: #3A7BBD; }\n"
+              "QPushButton#primaer:disabled { background: #2A3646; color: #7A8494; border-color: #3A4555; }\n"
+              "QToolTip { color: #E6EAF0; background: #2A3240; border: 1px solid #56657A; }\n"
+              "QMenu { border: 1px solid #3A4555; }\n"
+              "QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus, QPlainTextEdit:focus, QTextEdit:focus "
               "{ border: 2px solid #8BBBE8; border-radius: 3px; }\nQPushButton:focus { border: 2px solid #8BBBE8; }\n",
     "Hoher Kontrast": "QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus, QPlainTextEdit:focus, QTextEdit:focus "
                       "{ border: 2px solid #000000; border-radius: 3px; }\nQPushButton:focus { border: 2px solid #000000; }"
@@ -266,7 +291,61 @@ def farbe_fest(hell):
 def stylesheet(name="Hell", dichte="normal"):
     """Stylesheet für Theme und Dichte; Hell + normal = STIL unverändert."""
     name = thema_aufloesen(name)
-    return umsetzen(STIL, name) + ZUSATZ.get(name, "") + DICHTE_CSS.get(dichte, "")
+    zusatz = ZUSATZ.get(name, "")
+    if "{" + "HAKEN}" in zusatz or "{" + "PFEIL" in zusatz:
+        for schluessel, datei in _zeichen().items():
+            zusatz = zusatz.replace("{" + schluessel + "}", datei)
+    return umsetzen(STIL, name) + zusatz + DICHTE_CSS.get(dichte, "")
+
+
+_ZEICHEN = None
+
+
+def _zeichen():
+    """Häkchen, Punkt und Pfeile für das Dunkel-Stylesheet als kleine PNG-Dateien (Stylesheets brauchen eine Datei;
+    gezeichnet, ohne Bilddatei im Programm). Ergebnis: {Platzhalter: Pfad mit /}."""
+    global _ZEICHEN
+    if _ZEICHEN is not None:
+        return _ZEICHEN
+    import tempfile
+    from pathlib import Path
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPolygonF
+    ordner = Path(tempfile.gettempdir()) / "rohrlaser_stil"
+    ergebnis = {}
+    try:
+        ordner.mkdir(exist_ok=True)
+        for name, zeichnen in (
+                ("HAKEN", lambda p: (p.setPen(QPen(QColor("#10161F"), 3.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)),
+                                     p.drawPolyline([QPointF(6, 13.5), QPointF(11, 18.5), QPointF(20, 8)]))),
+                ("PUNKT", lambda p: (p.setPen(Qt.NoPen), p.setBrush(QColor("#6CA6DE")),
+                                     p.drawEllipse(QRectF(7, 7, 12, 12)))),
+                ("PFEIL", lambda p: (p.setPen(Qt.NoPen), p.setBrush(QColor("#C3CBD6")),
+                                     p.drawPolygon(QPolygonF([QPointF(4, 8), QPointF(22, 8), QPointF(13, 19)])))),
+                ("PFEIL_AUF", lambda p: (p.setPen(Qt.NoPen), p.setBrush(QColor("#C3CBD6")),
+                                         p.drawPolygon(QPolygonF([QPointF(4, 18), QPointF(22, 18), QPointF(13, 7)]))))):
+            bild = QImage(26, 26, QImage.Format_ARGB32)
+            bild.fill(0)
+            p = QPainter(bild)
+            p.setRenderHint(QPainter.Antialiasing)
+            zeichnen(p)
+            p.end()
+            datei = ordner / f"{name.lower()}.png"
+            bild.save(str(datei))
+            ergebnis[name] = datei.as_posix()
+    except OSError:         # Temp-Ordner nicht beschreibbar: Kästchen ohne Häkchen-Bild (gefüllt = an)
+        ergebnis = {k: "" for k in ("HAKEN", "PUNKT", "PFEIL", "PFEIL_AUF")}
+    _ZEICHEN = ergebnis
+    return ergebnis
+
+
+def schrift_auf(flaeche):
+    """Lesbare Schriftfarbe auf einer farbigen Fläche (QColor oder #RRGGBB): dunkel auf hellen Farben, weiß auf
+    dunklen – z. B. Positionsnummern im Stangenbild auf Orange, Grün oder Gelb."""
+    from PySide6.QtGui import QColor
+    c = QColor(flaeche)
+    hell_ = kontrast("#FFFFFF", c.name()) < kontrast("#111827", c.name())
+    return QColor("#111827" if hell_ else "#FFFFFF")       # fest: hängt nur von der Fläche ab, nicht vom Theme
 
 
 def kontrast(vorne, hinten):
@@ -298,6 +377,10 @@ def palette(name):
     from PySide6.QtWidgets import QApplication
     p = QPalette(QApplication.style().standardPalette())      # Fusion: immer die helle Standardpalette
     if name == "Hell":
+        # Fensterfläche im kühlen Grau der Karten und Kennzahlen statt Fusion-Grau #EFEFEF (26.10.2026): weniger
+        # Mischung aus warmem und kühlem Grau
+        p.setColor(QPalette.Window, QColor(FLAECHE))
+        p.setColor(QPalette.Button, QColor("#EEF1F5"))
         return p
     u = lambda h: QColor(umsetzen(h, name))     # noqa: E731
     rollen = {QPalette.Window: FLAECHE, QPalette.WindowText: TEXT, QPalette.Base: "#FFFFFF",
@@ -351,7 +434,7 @@ class _TexteBeimZeigen:
 
     def __new__(cls):
         from PySide6.QtCore import QEvent, QObject
-        from PySide6.QtWidgets import QLabel
+        from PySide6.QtWidgets import QAbstractSpinBox, QLabel, QLineEdit
 
         class Filter(QObject):
             def eventFilter(self, obj, ereignis):
@@ -361,6 +444,12 @@ class _TexteBeimZeigen:
                         neu = umsetzen(t)
                         if neu != t:
                             obj.setText(t)          # merkt die Hell-Fassung und setzt um
+                elif ereignis.type() == QEvent.Polish and isinstance(obj, QAbstractSpinBox):
+                    # Dunkel: Zahlenfeld mit Rahmen aus dem Stylesheet – dort wirkt padding nicht, der Text stünde
+                    # direkt am Rahmen; Abstand wie bei den Textfeldern
+                    feld = obj.findChild(QLineEdit)
+                    if feld is not None:
+                        feld.setTextMargins(3 if _thema == "Dunkel" else 0, 0, 0, 0)
                 return False
         return Filter()
 

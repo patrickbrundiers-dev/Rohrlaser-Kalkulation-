@@ -10,7 +10,7 @@ Die Werte rechnet abmessung.py. Schritte, die das Material-Fenster schließen m�
 gibt das Fenster an MeterpreisDialog.schliessen_mit weiter; ausgeführt werden sie danach im Angebot.
 """
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QHBoxLayout,
                                QHeaderView, QLabel, QMenu, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
@@ -50,7 +50,7 @@ def _zelle(text, rechts=False, farbe=None, fett=False, tipp=None):
     if rechts:
         it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
     if farbe:
-        it.setForeground(QColor(farbe))
+        it.setForeground(stil.farbe(farbe))
     if fett:
         f = QFont()
         f.setBold(True)
