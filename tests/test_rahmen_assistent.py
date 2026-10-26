@@ -101,6 +101,7 @@ def rahmen_fuellen(ecken, form=rahmen.RAHMEN, saetze=3):
         d.t.setValue(500)
         d.saetze.setValue(saetze)
         gesehen["vorschau"] = d.vorschau.text()
+        gesehen["3d"] = bool(d.ansicht.ansicht.netz)
         d._ok()
         return d.result()
     return bedienen
@@ -135,5 +136,29 @@ senk = next(p for p in neu if p["je_satz"] == 2 and "senkrecht" in p["bezeichnun
 assert senk["laenge"] > 520.0 and sw.lesen(senk["technik"])["a"].get("nasen"), senk      # Nasen, Rohr länger
 assert len({p["satz"] for p in neu}) == 1 and next(iter({p["satz"] for p in neu})) != satz
 ok("stumpf mit Steckverbindungen: 3 Verbindungen (gleiche Teile: Schlitze und Nasen je einmal) für 4 Stöße, steckbar, Nasen und Schlitze in den Teilen")
+# Ecke Knickrahmen (Patrick 26.10.2026): Satz in 3D öffnet mit Knickrahmen erstellen, OK: eine Position
+for falsch in (lambda: rahmen.bauen(QR, rahmen.QUADER, 1000, 600, 400, ecken=rahmen.KNICK),):
+    try:
+        falsch()
+        raise AssertionError("Quader als Knickrahmen")
+    except ValueError:
+        pass
+assert rahmen.bauen(QR, rahmen.RAHMEN, 1000, 600, ecken=rahmen.KNICK)["knick"]
+
+
+def knick_ansehen(d):
+    gesehen["knicke"] = len(d.knicke)
+    d._ok()
+    return d.result()
+
+
+vorher_saetze = {p["satz"] for p in db.positionen(a) if p.get("satz")}
+seite.rahmen_assistent(dialog=rahmen_fuellen(rahmen.KNICK, saetze=2), satz_dialog=knick_ansehen)
+assert gesehen["knicke"] == 1 and gesehen["3d"] and "Knickrahmen" in gesehen["vorschau"], gesehen
+neu = [p for p in db.positionen(a) if p.get("satz") and p["satz"] not in vorher_saetze]
+kr = [p for p in neu if sw.lesen(p["technik"]).get("knickrahmen")]
+assert len(kr) == 1 and kr[0]["laenge"] > 2 * (1000 + 600) - 100, [(p["bezeichnung"], p["laenge"]) for p in neu]
+assert len(neu) == 1, [(p["bezeichnung"], p["je_satz"]) for p in neu]          # die Einzelrohre fallen weg
+ok("Ecke Knickrahmen: 3D-Vorschau, Satz in 3D erstellt den Knickrahmen, OK: eine Position mit V-Ausschnitten")
 db.schliessen()
 print("Rahmen-Assistent: alle Tests bestanden.")

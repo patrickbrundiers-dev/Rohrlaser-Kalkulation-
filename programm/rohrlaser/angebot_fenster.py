@@ -2776,7 +2776,8 @@ class AngebotSeite(QWidget):
     def rahmen_assistent(self, dialog=None, satz_dialog=None):
         """Rahmen-Assistent (A8): Rechteckrahmen oder Quader aus Rohr ohne STEP-Datei als Satz. Die Rohre werden
         Positionen (Länge, Enden, Schneidweg) mit Netz, Einbaulage und Stößen; danach öffnet Satz in 3D (mit
-        „stumpf mit Steckverbindungen“ sind die Verbindungen dort schon angelegt). dialog(d) bzw. satz_dialog(d)
+        „stumpf mit Steckverbindungen“ sind die Verbindungen dort schon angelegt, mit „Knickrahmen“ öffnet
+        Knickrahmen erstellen für alle Rohre). dialog(d) bzw. satz_dialog(d)
         bedienen die Fenster (Tests). Ergebnis: Name des Satzes oder None."""
         from . import rahmen
         from .ansicht3d import packen
@@ -2818,11 +2819,15 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         self.f.meldung(f"Rahmen-Assistent: Satz {name} mit {sum(len(t['lagen']) for t in w['erg']['teile'])} Rohren "
                        "angelegt." + "".join(f" {h}" for h in hinweise))
-        stecken = w["erg"]["stecken"]
-        if satz_dialog is not None or not self.f.stumm or stecken:
+        stecken, knick = w["erg"]["stecken"], w["erg"].get("knick")
+        if satz_dialog is not None or not self.f.stumm or stecken or knick:
             def bedienen(sd):
                 if stecken:
                     sd.steck_alle(melden=False)
+                if knick:           # Ecke Knickrahmen: alle Rohre markiert, Knickrahmen-Fenster (stumm: Vorgaben)
+                    sd.teile_tab.selectAll()
+                    sd.knick_erstellen(dialog=(lambda kd: QDialog.Accepted) if self.f.stumm else None,
+                                       melden=not self.f.stumm)
                 if satz_dialog is not None:
                     return satz_dialog(sd)
                 if self.f.stumm:

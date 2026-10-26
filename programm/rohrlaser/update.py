@@ -25,11 +25,16 @@ Ohne Qt, damit der Build dieselbe Paketbildung benutzt (programm/update_paket.py
 import base64
 import datetime
 import hashlib
+import http.client
 import json
+import logging
 import os
 import re
 import shutil
+import socket
+import ssl
 import time
+import urllib.error
 import urllib.request
 import zipfile
 import zlib
@@ -50,6 +55,10 @@ PAKET_MAX = 8 << 20                 # kleine Dateien eines Ordners (3 Ebenen) bi
 # nie in der Dateiliste, nie angefasst; Portabel.ini liegt nur im ZIP (installiert fehlt sie, siehe orte.py)
 NIE = (DATEILISTE, ARBEITSORDNER, "Daten", "Angebote", "Portabel.ini")
 STUECK = 1 << 16
+# Download der Pakete (Firmennetz 26.10.2026: Abbruch nach ein paar Prozent): Wartezeiten in s zwischen neuen
+# Versuchen nach einem Verbindungsabbruch (fortgesetzt an der Abbruchstelle), Zeitlimit je Lesevorgang
+WIEDERHOLEN_S = (2, 5, 10, 20, 30)
+DOWNLOAD_TIMEOUT_S = 60
 SPERR_WARTEN_S = 30                 # so lange auf eine gesperrte Datei warten, bevor das Programm nachfragt
 KURZ_WARTEN_S = 5                   # beim Austausch selbst: kurze Sperren (Virenscanner) abwarten
 _ersetzen = os.replace              # Tests setzen hier eine Sperre ein
@@ -70,6 +79,9 @@ _PAKET = re.compile(r"[dp]-[0-9a-f]{40}\.zip")
 _RESERVIERT = {"con", "prn", "aux", "nul", "clock$", "conin$", "conout$",
                *(f"com{i}" for i in range(10)), *(f"lpt{i}" for i in range(10))}
 _VERBOTEN = set('\\:*?"<>|')
+
+
+_log = logging.getLogger("rohrlaser")    # Protokoll (protokoll.py richtet es ein)
 
 
 class UpdateFehler(Exception):
@@ -263,39 +275,161 @@ def _ist_url(quelle):
     return str(quelle).startswith(("http://", "https://"))      # http:// lehnt holen() ab
 
 
-def _oeffnen(quelle, timeout=30):
+def _oeffnen(quelle, timeout=30, ab=0):
+    """Adresse (https) oder Pfad öffnen. ab > 0: nur ab diesem Byte (HTTP Range, zum Fortsetzen eines Downloads).
+    urllib nimmt den Proxy aus den Windows-Interneteinstellungen bzw. HTTPS_PROXY (systemproxy())."""
     if _ist_url(quelle):
-        anfrage = urllib.request.Request(quelle, headers={"User-Agent": f"{NAME} {VERSION}"})
-        return urllib.request.urlopen(anfrage, timeout=timeout)
+        kopf = {"User-Agent": f"{NAME} {VERSION}"}
+        if ab:
+            kopf["Range"] = f"bytes={ab}-"
+        return urllib.request.urlopen(urllib.request.Request(quelle, headers=kopf), timeout=timeout)
     return open(quelle, "rb")
 
 
-def holen(quelle, ziel=None, fortschritt=None, timeout=30, grenze=None):
+def systemproxy():
+    """Für das Protokoll: welchen Proxy urllib benutzt (Windows-Interneteinstellungen bzw. HTTPS_PROXY), sonst
+    'kein Proxy'. Zugangsdaten in der Adresse werden nicht mitgeschrieben."""
+    try:
+        p = urllib.request.getproxies().get("https") or ""
+    except Exception:       # noqa: BLE001 – Registry nicht lesbar
+        p = ""
+    return re.sub(r"//[^/@]*@", "//", p) or "kein Proxy"
+
+
+class Netzfehler(UpdateFehler):
+    """Verbindung abgebrochen, Zeitüberschreitung oder Server kurz nicht erreichbar: neuer Versuch lohnt sich."""
+
+
+def _netzfehler(e):
+    """Lohnt nach dieser Ausnahme ein neuer Versuch (Abbruch der Leitung) oder nicht (gesperrt, Datei fehlt,
+    Zertifikat, Platte voll)?"""
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code in (408, 425, 429, 500, 502, 503, 504)
+    if isinstance(e, ssl.SSLCertVerificationError):
+        return False
+    if isinstance(e, urllib.error.URLError):
+        return not isinstance(e.reason, ssl.SSLCertVerificationError)
+    return isinstance(e, (ConnectionError, TimeoutError, socket.timeout, http.client.HTTPException, ssl.SSLError))
+
+
+def _fehlertext(quelle, e):
+    """Fehlermeldung mit der wahrscheinlichen Ursache (Firmennetz: Proxy, Webfilter, Firewall)."""
+    if isinstance(e, urllib.error.HTTPError) and e.code in (401, 403, 407, 451):
+        return (f"{quelle} lässt sich nicht laden: {e}. Der Download wird gesperrt, meist von einem Firmen-Proxy "
+                "oder Webfilter. Bitte die IT bitten, github.com und *.githubusercontent.com freizugeben, oder in "
+                "einem anderen Netz aktualisieren.")
+    if isinstance(e, ssl.SSLCertVerificationError) or (
+            isinstance(e, urllib.error.URLError) and isinstance(e.reason, ssl.SSLCertVerificationError)):
+        return (f"{quelle} lässt sich nicht laden: {e}. Das Zertifikat der Verbindung ist nicht vertrauenswürdig, "
+                "meist prüft ein Firmen-Proxy die verschlüsselte Verbindung mit eigenem Zertifikat. Bitte die IT "
+                "fragen oder in einem anderen Netz aktualisieren.")
+    return f"{quelle} lässt sich nicht laden: {e}"
+
+
+def _warten(sekunden, fortschritt, schlafen):
+    """Vor einem neuen Versuch warten; fortschritt(0) zwischendurch, damit „Abbrechen“ wirkt."""
+    ende = time.monotonic() + sekunden
+    while True:
+        if fortschritt:
+            fortschritt(0)
+        rest = ende - time.monotonic()
+        if rest <= 0:
+            return
+        schlafen(min(0.25, rest))
+
+
+def _einmal(quelle, ziel, fortschritt, timeout, grenze, gemeldet):
+    """Ein Versuch, quelle nach ziel zu schreiben; ein vorhandener Anfang von ziel wird fortgesetzt (HTTP Range).
+    gemeldet: [Bytes, die fortschritt schon bekommen hat] – nach einem Neubeginn werden sie nicht doppelt gezählt."""
+    url = _ist_url(quelle)
+    ab = ziel.stat().st_size if url and ziel.is_file() else 0
+    if grenze is not None and ab > grenze:
+        ziel.unlink()
+        ab = 0
+    with _oeffnen(quelle, timeout, ab) as r:
+        status = getattr(r, "status", 200)
+        if url and r.headers.get_content_type() == "text/html":
+            raise UpdateFehler(
+                f"{quelle} lässt sich nicht laden: statt der Datei kam eine Webseite zurück. Meist ist das die "
+                "Sperrseite eines Firmen-Proxys oder Webfilters, der den Download von Programmdateien blockiert. "
+                "Bitte die IT bitten, github.com und *.githubusercontent.com freizugeben, oder in einem anderen "
+                "Netz aktualisieren.")
+        if ab and status == 206 and str(r.headers.get("Content-Range", "")).startswith(f"bytes {ab}-"):
+            modus = "ab"
+        else:
+            ab, modus = 0, "wb"         # Server setzt nicht fort: von vorn
+        laenge = r.headers.get("Content-Length") if url else None
+        erwartet = ab + int(laenge) if laenge and laenge.isdigit() else None
+        n = ab
+        with open(ziel, modus) as f:
+            for teil in iter(lambda: r.read(STUECK), b""):
+                n += len(teil)
+                if grenze is not None and n > grenze:
+                    raise UpdateFehler(f"{quelle} ist größer als erwartet ({grenze} Byte).")
+                f.write(teil)
+                if fortschritt and n > gemeldet[0]:
+                    fortschritt(n - gemeldet[0])
+                    gemeldet[0] = n
+    if erwartet is not None and n < erwartet:
+        # urllib meldet eine vorzeitig geschlossene Verbindung nicht, die Datei wäre einfach zu kurz
+        raise Netzfehler(f"Verbindung nach {n:,} von {erwartet:,} Byte beendet".replace(",", "."))
+    return n
+
+
+def holen(quelle, ziel=None, fortschritt=None, timeout=30, grenze=None, warten=(), melden=None,
+          schlafen=time.sleep):
     """Datei von einer Adresse (https) oder einem Pfad lesen; mit ziel dorthin schreiben, sonst Bytes zurück.
     fortschritt(bytes) wird je Stück aufgerufen und kann mit Abbruch abbrechen. grenze: höchstens so viele Bytes,
-    sonst UpdateFehler (gegen endlose oder aufgeblähte Downloads)."""
+    sonst UpdateFehler (gegen endlose oder aufgeblähte Downloads).
+    warten: Wartezeiten in s für neue Versuche nach einem Abbruch der Verbindung (Netzfehler); ein Download nach ziel
+    wird dabei an der Abbruchstelle fortgesetzt. melden(text) zeigt, dass neu versucht wird."""
     if str(quelle).startswith("http://"):
         raise UpdateFehler(f"{quelle}: nur verschlüsselte Verbindungen (https) sind erlaubt.")
-    try:
-        with _oeffnen(quelle, timeout) as r:
-            if ziel is None:
-                daten = r.read() if grenze is None else r.read(grenze + 1)
+    if ziel is None:
+        for versuch in range(len(warten) + 1):
+            try:
+                with _oeffnen(quelle, timeout) as r:
+                    daten = r.read() if grenze is None else r.read(grenze + 1)
                 if grenze is not None and len(daten) > grenze:
                     raise UpdateFehler(f"{quelle} ist größer als erwartet ({grenze} Byte).")
                 return daten
-            n = 0
-            with open(ziel, "wb") as f:
-                for teil in iter(lambda: r.read(STUECK), b""):
-                    n += len(teil)
-                    if grenze is not None and n > grenze:
-                        raise UpdateFehler(f"{quelle} ist größer als erwartet ({grenze} Byte).")
-                    f.write(teil)
-                    if fortschritt:
-                        fortschritt(len(teil))
-    except (Abbruch, UpdateFehler):
-        raise
-    except Exception as e:      # Netzwerk-, HTTP- und Dateifehler einheitlich melden
-        raise UpdateFehler(f"{quelle} lässt sich nicht laden: {e}") from e
+            except (Abbruch, UpdateFehler):
+                raise
+            except Exception as e:      # Netzwerk-, HTTP- und Dateifehler einheitlich melden
+                if versuch >= len(warten) or not _netzfehler(e):
+                    raise UpdateFehler(_fehlertext(quelle, e)) from e
+                _log.info("Update: %s, neuer Versuch in %s s (%s)", e, warten[versuch], quelle)
+                _warten(warten[versuch], None, schlafen)
+    ziel = Path(ziel)
+    gemeldet = [0]
+    for versuch in range(len(warten) + 1):
+        try:
+            _einmal(quelle, ziel, fortschritt, timeout, grenze, gemeldet)
+            return ziel
+        except Abbruch:
+            raise
+        except Netzfehler as e:
+            fehler = e
+        except UpdateFehler:
+            ziel.unlink(missing_ok=True)
+            raise
+        except Exception as e:      # noqa: BLE001
+            if not _netzfehler(e):
+                raise UpdateFehler(_fehlertext(quelle, e)) from e
+            fehler = e
+        if versuch >= len(warten):
+            n = ziel.stat().st_size if ziel.is_file() else 0
+            raise Netzfehler(
+                f"{quelle} lässt sich nicht laden: Die Verbindung wurde {versuch + 1}-mal unterbrochen (zuletzt: "
+                f"{fehler}). Häufige Ursache in Firmennetzen: Firewall, Proxy oder Virenscanner brechen Downloads "
+                "von Programmdateien ab. Bereits Geladenes bleibt erhalten, „Nach Updates suchen“ setzt fort. "
+                "Sonst in einem anderen Netz aktualisieren oder die IT bitten, github.com und "
+                f"*.githubusercontent.com freizugeben. ({n:,} Byte geladen, Proxy: {systemproxy()})".replace(",", "."))
+        _log.info("Update: Download unterbrochen (%s), Versuch %d von %d in %s s, %s",
+                  fehler, versuch + 2, len(warten) + 1, warten[versuch], quelle)
+        if melden:
+            melden(f"Verbindung unterbrochen, neuer Versuch {versuch + 2} von {len(warten) + 1} …")
+        _warten(warten[versuch], fortschritt, schlafen)
     return ziel
 
 
@@ -478,12 +612,37 @@ def platz_pruefen(ordner, plan, frei=None):
                            f"{frei / 1e6:.0f} MB. Bitte Platz schaffen und noch einmal versuchen.")
 
 
-def laden(ordner, quelle, online, plan, fortschritt=None):
-    """Pakete laden und die gebrauchten Dateien nach _update/neu/<sha256> auspacken (geprüft)."""
+def schreibrecht_pruefen(ordner):
+    """Darf das Programm im Programmordner schreiben (Download nach _update, Austausch)? Sonst UpdateFehler mit
+    Hinweis (portable Version in einem schreibgeschützten Ordner, z. B. C:\\Programme oder Netzlaufwerk)."""
+    arbeit = Path(ordner) / ARBEITSORDNER
+    probe = arbeit / "schreibprobe.tmp"
+    try:
+        (arbeit / "pakete").mkdir(parents=True, exist_ok=True)
+        probe.write_bytes(b"x")
+        probe.unlink()
+    except OSError as e:
+        raise UpdateFehler(f"Im Programmordner {ordner} darf das Programm nicht schreiben ({e}). Das Update braucht "
+                           "dort Schreibrechte: die portable Version bitte in einen eigenen Ordner mit Schreibrechten "
+                           "kopieren (nicht C:\\Programme, kein schreibgeschützter Netzordner).") from e
+
+
+def _vorhanden(pfad, sha):
+    """Liegt pfad schon fertig und geprüft da (aus einem abgebrochenen Versuch)?"""
+    try:
+        return pfad.is_file() and pruefsumme(pfad) == sha
+    except OSError:
+        return False
+
+
+def laden(ordner, quelle, online, plan, fortschritt=None, melden=None, warten=WIEDERHOLEN_S, schlafen=time.sleep):
+    """Pakete laden und die gebrauchten Dateien nach _update/neu/<sha256> auspacken (geprüft).
+    Bricht die Verbindung ab, wird bis zu len(warten)-mal neu versucht und an der Abbruchstelle fortgesetzt. Was ein
+    früherer, abgebrochener Versuch schon geladen oder entpackt hat (verwerfen(..., download_behalten=True)), wird
+    nach Prüfung der Prüfsumme weiterverwendet."""
     arbeit = Path(ordner) / ARBEITSORDNER
     neu_ordner = arbeit / "neu"
-    shutil.rmtree(neu_ordner, ignore_errors=True)
-    (arbeit / "pakete").mkdir(parents=True, exist_ok=True)
+    schreibrecht_pruefen(ordner)
     neu_ordner.mkdir(parents=True, exist_ok=True)
     platz_pruefen(ordner, plan)
     gebraucht = {}
@@ -494,27 +653,52 @@ def laden(ordner, quelle, online, plan, fortschritt=None):
         gebraucht.setdefault(d["paket"], {})[d["sha256"]] = d["groesse"]
     for paket in plan["pakete"]:
         info = (online.get("pakete") or {}).get(paket) or {}
-        datei = holen(paket_adresse(quelle, online, paket), arbeit / "pakete" / paket, fortschritt,
-                      grenze=info.get("groesse", PAKET_GROESSE_MAX))
-        if info.get("sha256") and pruefsumme(datei) != info["sha256"]:
-            raise UpdateFehler(f"Prüfsumme des Pakets {paket} falsch")
+        offen = {sha: g for sha, g in gebraucht[paket].items() if not _vorhanden(neu_ordner / sha, sha)}
+        if not offen:           # schon beim letzten Versuch entpackt
+            if fortschritt:
+                fortschritt(info.get("groesse", 0))
+            continue
+        ziel = arbeit / "pakete" / paket
+        for versuch in range(2):
+            if ziel.is_file() and ziel.stat().st_size >= info.get("groesse", PAKET_GROESSE_MAX):
+                if info.get("sha256") and _vorhanden(ziel, info["sha256"]):     # schon ganz geladen
+                    if fortschritt:
+                        fortschritt(info["groesse"])
+                    datei = ziel
+                    break
+                ziel.unlink()   # ganz da, aber falsch: neu laden
+            datei = holen(paket_adresse(quelle, online, paket), ziel, fortschritt, timeout=DOWNLOAD_TIMEOUT_S,
+                          grenze=info.get("groesse", PAKET_GROESSE_MAX), warten=warten if _ist_url(quelle) else (),
+                          melden=melden, schlafen=schlafen)
+            if not info.get("sha256") or pruefsumme(datei) == info["sha256"]:
+                break
+            datei.unlink()
+            if versuch or not _ist_url(quelle):
+                raise UpdateFehler(f"Prüfsumme des Pakets {paket} falsch. Kommt das wiederholt vor, verändert "
+                                   "vermutlich ein Proxy oder Virenscanner im Netz den Download.")
+            _log.info("Update: Prüfsumme des Pakets %s falsch, wird neu geladen", paket)
         try:
             with zipfile.ZipFile(datei) as z:
-                for sha, groesse in gebraucht[paket].items():
+                for sha, groesse in offen.items():
                     eintrag = z.getinfo(sha)
                     if eintrag.file_size != groesse or eintrag.is_dir():
                         raise UpdateFehler(f"Paket {paket}: Eintrag hat nicht die erwartete Größe")
-                    ziel = neu_ordner / sha
-                    with z.open(eintrag) as quelle_datei, open(ziel, "wb") as f:
-                        kopiert = 0      # nie mehr als angekündigt entpacken (ZIP-Bombe)
-                        for teil in iter(lambda: quelle_datei.read(1 << 20), b""):
-                            kopiert += len(teil)
-                            if kopiert > groesse:
-                                raise UpdateFehler(f"Paket {paket}: Eintrag größer als angekündigt")
-                            f.write(teil)
-                    if pruefsumme(ziel) != sha:
-                        raise UpdateFehler(f"Prüfsumme falsch in {paket}")
+                    ziel_datei = neu_ordner / sha
+                    try:
+                        with z.open(eintrag) as quelle_datei, open(ziel_datei, "wb") as f:
+                            kopiert = 0      # nie mehr als angekündigt entpacken (ZIP-Bombe)
+                            for teil in iter(lambda: quelle_datei.read(1 << 20), b""):
+                                kopiert += len(teil)
+                                if kopiert > groesse:
+                                    raise UpdateFehler(f"Paket {paket}: Eintrag größer als angekündigt")
+                                f.write(teil)
+                        if pruefsumme(ziel_datei) != sha:
+                            raise UpdateFehler(f"Prüfsumme falsch in {paket}")
+                    except BaseException:
+                        ziel_datei.unlink(missing_ok=True)
+                        raise
         except (zipfile.BadZipFile, KeyError) as e:
+            datei.unlink(missing_ok=True)
             raise UpdateFehler(f"Paket {paket} ist beschädigt: {e}") from e
         datei.unlink()
     return neu_ordner
@@ -668,9 +852,10 @@ def nach_absturz(ordner):
     return fehler
 
 
-def verwerfen(ordner):
-    """Nach Abbruch oder Fehler: Download und Zwischenstand löschen (alte Dateien unter _update/alt-* bleiben)."""
-    for name in ("neu", "pakete"):
+def verwerfen(ordner, download_behalten=False):
+    """Nach Abbruch oder Fehler: Download und Zwischenstand löschen (alte Dateien unter _update/alt-* bleiben).
+    download_behalten: Geladenes bleibt für den nächsten Versuch (laden() prüft es und setzt fort)."""
+    for name in () if download_behalten else ("neu", "pakete"):
         shutil.rmtree(Path(ordner) / ARBEITSORDNER / name, ignore_errors=True)
 
 
