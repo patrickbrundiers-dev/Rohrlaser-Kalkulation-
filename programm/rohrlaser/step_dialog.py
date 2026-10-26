@@ -400,6 +400,10 @@ class StepPruefDialog(QDialog):
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
+        for d in self.mehrteilig:       # ohne Satz: Anzahl = gemeinsame Stückzahl der Teile (z. B. aus dem Formular)
+            stk = {z.werte["einzeln"] for z in self.zeilen if z.datei == d}
+            if not self.saetze.get(d) and len(stk) == 1 and stk != {0}:
+                self.anzahl[d] = int(stk.pop())
         self.datei_waehlen(0)
         # Häkchen der Vorprüfung nach Änderungen auffrischen, gesammelt (nicht während die Liste aufgebaut wird)
         self._vor_uhr = QTimer(self)

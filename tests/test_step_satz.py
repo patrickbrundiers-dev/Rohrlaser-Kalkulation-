@@ -253,6 +253,12 @@ else:
     assert sorted(db.netze(kopie).values()) == sorted(netze.values())
     db.angebot_loeschen(kopie)
     assert not db.netze(kopie) and db.con.execute("SELECT COUNT(*) FROM netze WHERE position_id NOT IN (SELECT id FROM positionen)").fetchone()[0] == 0
+    # Anzahl übernimmt die gemeinsame Stückzahl der Teile (z. B. aus dem Anfrageformular), statt sie auf 1 zu setzen
+    d = StepPruefDialog(None, [dict(koerper(1), _stueck=5), dict(koerper(5, laenge=601), _stueck=5), dict(koerper(6, bohrungen="10.0:1"), _stueck=5)], k, "S235-10219", 1)
+    assert d.satz_spin.value() == 5 and not d.satz_knopf.isChecked(), d.satz_spin.value()
+    d.satz_spin.setValue(6)
+    assert [z.sp.value() for z in d.zeilen] == [6, 6, 6] and not d.saetze["G.step"]
+    d.reject()
     fenster.close()
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)
