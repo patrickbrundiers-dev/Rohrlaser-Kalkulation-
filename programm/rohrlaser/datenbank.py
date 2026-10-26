@@ -134,6 +134,7 @@ GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
+PAUSCHALE_STAND = "2026-10-26"     # Pauschale je Abmessung einmalig auf 0, Rüsten je Abmessung deckt sie (Patrick 26.10.2026)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
 BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
@@ -216,6 +217,7 @@ class Datenbank:
             self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
             self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
@@ -400,6 +402,9 @@ class Datenbank:
                 for n in ("zuschlag_material", "zuschlag_fertigung"):
                     self._einstellung_schreiben(n, 0)
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            if version > 0 and self.einstellung("pauschale_stand") != PAUSCHALE_STAND:
+                self._einstellung_schreiben("pauschale_abmessung", 0)
+                self._einstellung_schreiben("pauschale_stand", PAUSCHALE_STAND)
             if version > 0 and self.einstellung("bohr_zusatz_stand") != BOHR_ZUSATZ_STAND:
                 self._bohr_zusatz_ergaenzen()
             if version > 0 and self.einstellung("schweissen_stand") != SCHWEISSEN_STAND:

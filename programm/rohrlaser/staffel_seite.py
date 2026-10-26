@@ -478,7 +478,7 @@ ERGEBNIS = (
     ("zukauf_aufschlag", "Aufschlag Zukaufteile", lambda z: _p(z).get("zukauf_aufschlag"), "kind"),
     ("selbst", "Selbstkosten", lambda z: _p(z).get("selbst"), "summe"),
     ("gewinn", "Gewinn", lambda z: _p(z).get("gewinn"), "gruppe"),
-    ("marge", "Gewinnmarge (vom Nettopreis)", lambda z: _p(z).get("marge"), "prozent"),
+    ("marge", "Gewinnmarge (vom Warenwert)", lambda z: _p(z).get("marge"), "prozent"),
     ("fracht", "Fracht (ohne Gewinn)", lambda z: _p(z).get("fracht"), "gruppe"),
     ("skonto", "Skonto (eingerechnet)", lambda z: _p(z).get("skonto"), "gruppe"),
     ("vk", "Verkaufspreis netto je Einheit", lambda z: z.get("preis_einheit"), "summe_einheit"),

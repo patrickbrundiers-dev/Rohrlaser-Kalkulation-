@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
 from abnahme_angebote import ANGEBOTE, programm_positionen  # noqa: E402
-from rohrlaser import ausgabe  # noqa: E402
+from rohrlaser import ausgabe, rechnen  # noqa: E402
 from rohrlaser.ausgabe import kaufm_runden  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -55,11 +55,14 @@ kalk = [dict(preis_teil=2.675, hinweis=None), dict(preis_teil=1.005, hinweis=Non
 ang = ausgabe.angebot({}, positionen, kalk, Kontext(), dict(mwst=0.19))
 teil, satz = ang["zeilen"][0], ang["zeilen"][1]
 assert (teil["preis"], teil["gesamt"]) == (2.68, 8.04), teil
-assert (satz["preis"], satz["menge"], satz["gesamt"]) == (1.14, 7, 7.98), satz
-assert cent(ang["netto"]) == 1602 and cent(ang["mwst"]) == kaufm_cent(16.02 * 0.19) == 304
-assert cent(ang["brutto"]) == 1906
-ok("R2 halber Cent im Stückpreis: 2,675 → 2,68 € × 3 = 8,04 €; Satz 1,01 + 0,13 = 1,14 € × 7 = 7,98 €; "
-   "netto 16,02 €, MwSt. 3,04 €, brutto 19,06 €")
+assert (satz["preis"], satz["menge"], satz["gesamt"]) == (1.13, 7, 7.91), satz
+assert cent(ang["netto"]) == 1595 and cent(ang["mwst"]) == kaufm_cent(15.95 * 0.19) == 303
+assert cent(ang["brutto"]) == 1898
+ok("R2 halber Cent im Stückpreis: 2,675 → 2,68 € × 3 = 8,04 €; Satz aus ungerundeten Stückpreisen 1,005 + 0,125 = "
+   "1,13 € × 7 = 7,91 € (Patrick 26.10.2026, 2a); netto 15,95 €, MwSt. 3,03 €, brutto 18,98 €")
+alt = ausgabe.angebot({}, positionen, kalk, Kontext(), dict(mwst=0.19, preisregeln=rechnen.PREISREGELN_ALT))
+assert (alt["zeilen"][1]["preis"], alt["zeilen"][1]["gesamt"], cent(alt["netto"])) == (1.14, 7.98, 1602), alt["zeilen"][1]
+ok("R2 festgeschrieben vor dem 26.10.2026: Satz aus gerundeten Stückpreisen 1,01 + 0,13 = 1,14 € (wie verschickt)")
 
 
 # ------------------------------------------------------------------ R3 alle Abnahme-Angebote und Beispiel

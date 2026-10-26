@@ -53,7 +53,8 @@ tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
 fenster = Hauptfenster(db, tmp, stumm=True)
 fenster.resize(1920, 1080)
-a = db.angebot_neu(dict(kunde="Test", kundennr="4711", zuschlag_fremdleistung=0, fracht=None))
+a = db.angebot_neu(dict(kunde="Test", kundennr="4711", zuschlag_fremdleistung=0, fracht=None,
+                         pauschale_abmessung=22.5))       # Pauschale mit Wert (Vorgabe seit 26.10.2026: 0 €)
 for i in range(3):
     db.position_neu(a, dict(pos=10 * (i + 1), artikel=f"T{i}", profil_id="QR 40x40x3", werkstoff_id="S235-10219",
                             laenge=800 + 100 * i, stueck=4, schneidweg=320, einstiche=2))

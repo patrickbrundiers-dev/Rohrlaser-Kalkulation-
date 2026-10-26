@@ -77,21 +77,21 @@ db.position_aendern(pb, "zukauf", eintrag(blech))
 KOPF, POS, EINST, ERG, (Z, S) = rechnung()
 
 
-@fall("Kalkulation: Zukaufteil = (Einstand + Aufschlag) × (1 + Gewinn) / (1 − Skonto), Rohrlaserteil unverändert")
+@fall("Kalkulation: Zukaufteil = (Einstand + Aufschlag) / (1 − Skonto) ohne Gewinn (26.10.2026), Rohrlaserteil unverändert")
 def _():
     zb = Z[1]
     assert zb is not None and zb["zukaufteil"], zb
     nah(zb["zukauf_einstand_teil"], 20, "Einstand je Teil")
     nah(zb["zukauf_aufschlag_teil"], 5, "25 % Aufschlag")
-    nah(zb["preis_teil"], 25 * (1 + EINST["gewinn"]) / 0.98, "mit Gewinn und Skonto 2 %")
-    nah(zb["skonto_teil"], 25 * (1 + EINST["gewinn"]) * (1 / 0.98 - 1), "Skonto je Teil")
+    nah(zb["preis_teil"], 25 / 0.98, "ohne Gewinn, mit Skonto 2 %")
+    nah(zb["skonto_teil"], 25 * (1 / 0.98 - 1), "Skonto je Teil")
     for n in ("material_teil", "laser_teil", "ruesten_teil", "herstell_teil", "pauschalen_teil"):
         assert zb[n] == 0, (n, zb[n])
-    nah(zb["gewinn_teil"], 25 * EINST["gewinn"], "Gewinn auf Einstand + Aufschlag")
+    nah(zb["gewinn_teil"], 0, "kein Gewinn auf Zukaufteile, nur ihr Aufschlag")
     assert zb["hinweis"] == "Satz BG: unterschiedliche Anzahl Sätze (4 / 10)", zb["hinweis"]   # 10 Rohre, 4 Bleche
     nah(Z[0]["preis_teil"], z0[0]["preis_teil"], "Rohr: Rüsten, Pauschalen und Aufschlag nur auf Rohrlaserteile")
     assert S["teile"] == s0["teile"] == 10 and S["zukaufteile"] == 4
-    nah(S["verkauf"], s0["verkauf"] + 4 * 25 * (1 + EINST["gewinn"]) / 0.98, "Summe Verkauf")
+    nah(S["verkauf"], s0["verkauf"] + 4 * 25 / 0.98, "Summe Verkauf")
     nah(S["zukauf_einstand"], s0["zukauf_einstand"] + 80, "Summe Einstand Zukaufteile")
 
 
@@ -127,7 +127,7 @@ def _():
     kopf = dict(KOPF, fracht=140, fracht_umlage="je Stück")
     zz, ss = rechnen.kalkulation(kopf, POS, ERG, k, tab, EINST)
     nah(zz[1]["fracht_teil"], 10, "140 € / 14 Teile")
-    nah(zz[1]["preis_teil"], (25 * (1 + EINST["gewinn"]) + 10) / 0.98, "Fracht (ohne Gewinn) im Preis des Zukaufteils")
+    nah(zz[1]["preis_teil"], (25 + 10) / 0.98, "Fracht (ohne Gewinn) im Preis des Zukaufteils")
     kopf = dict(kopf, fracht_umlage="nach Gewicht")
     zz, ss = rechnen.kalkulation(kopf, POS, ERG, k, tab, EINST)
     w_rohr = rechnen.position_werte(POS[0], kopf, k, tab)["gewicht"]
@@ -146,13 +146,13 @@ def _():
     assert ang["zeilen"][0]["art"] == "satz", ang["zeilen"]
     texte = [z["text"] for z in ang["zeilen"]]
     assert "   1 x Blech S235-10219 500 × 300 × 5 mm" in texte, texte
-    nah(ang["zeilen"][0]["preis"], ausgabe.kaufm_runden(Z[0]["preis_teil"], 2) + ausgabe.kaufm_runden(25 * (1 + EINST["gewinn"]) / 0.98, 2),
+    nah(ang["zeilen"][0]["preis"], ausgabe.kaufm_runden(Z[0]["preis_teil"] + 25 / 0.98, 2),       # aus ungerundeten Stückpreisen
         "Satzpreis mit Blech")
     pos = [dict(POS[0], satz=None), dict(POS[1], satz=None)]
     ang = ausgabe.angebot(KOPF, pos, Z, k, EINST)
     b = ang["zeilen"][1]
     assert b["text"] == "Blech S235-10219 500 × 300 × 5 mm" and b["menge"] == 4, b
-    nah(b["preis"], ausgabe.kaufm_runden(25 * (1 + EINST["gewinn"]) / 0.98, 2), "kaufmännisch gerundet")
+    nah(b["preis"], ausgabe.kaufm_runden(25 / 0.98, 2), "kaufmännisch gerundet")
 
 
 @fall("Staffelpreise: Satz mit Blech und Position nur Blech ohne 'Materialpreis fehlt'")
