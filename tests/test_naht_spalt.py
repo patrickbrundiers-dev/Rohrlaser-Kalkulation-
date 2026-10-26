@@ -168,3 +168,74 @@ assert baugruppe.ohne_naht(bg) == []
 bg["naehte"][0].pop("koerper")
 assert baugruppe.ohne_naht(bg) == [], "Naht von Hand: keine Meldung mehr"
 ok("N5 Programm: Vorschlag mit Spalt, Prüfregel, Teile ohne Naht, Einstellungen")
+
+# N6 Spalt in der Rechnung (S3): mehr Schweißgut, gelb bis bestätigt
+nah(baugruppe.spalt_faktor(dict(nahtart="Kehlnaht", mass=3, spalt=1.5)), 4.5 ** 2 / 9, 1e-9, "Kehlnaht a + Spalt")
+nah(baugruppe.spalt_faktor(dict(nahtart="Stumpfnaht", mass=3, spalt=1)),
+    (baugruppe.nahtquerschnitt("Stumpfnaht", 3) + 3.3) / baugruppe.nahtquerschnitt("Stumpfnaht", 3), 1e-9, "Stumpf")
+assert baugruppe.spalt_faktor(dict(nahtart="Kehlnaht", mass=3)) == 1.0
+assert baugruppe.spalt_faktor(dict(nahtart="Kehlnaht", mass=3, spalt=0)) == 1.0
+assert baugruppe.spalt_faktor(dict(nahtart="Kehlnaht", spalt=2)) == 1.0, "ohne a-Maß kein Faktor"
+tab = baugruppe.richtwerte()
+vf = next(z["verfahren"] for z in tab["schweissverfahren"])
+satz = {z.get("satz_id"): 60.0 for z in tab["schweissverfahren"]}
+ohne_s = baugruppe.naht_rechnen(dict(verfahren=vf, nahtart="Kehlnaht", mass=3, laenge=500), tab, satz)
+mit_s = baugruppe.naht_rechnen(dict(verfahren=vf, nahtart="Kehlnaht", mass=3, laenge=500, spalt=1.5), tab, satz)
+assert ohne_s["lichtbogen_min"] > 0 and ohne_s["spalt_faktor"] == 1.0, ohne_s
+nah(mit_s["lichtbogen_min"], ohne_s["lichtbogen_min"] * 2.25, 1e-9, "Lichtbogenzeit × Faktor")
+assert mit_s["kosten"] > ohne_s["kosten"]
+n = dict(id="x", nr="2", verfahren=vf, nahtart="Kehlnaht", mass=3, laenge=500, spalt=1.5)
+assert baugruppe.spalt_offen(n)
+bg = baugruppe.leer()
+bg["naehte"].append(n)
+assert baugruppe.status(dict(stueck=1, baugruppe=baugruppe.speichern(bg)), dict(bg_tabellen=tab, saetze=satz)) == \
+    "HINWEIS: Nahtgruppe 2: Spalt 1,5 mm eingerechnet (a + Spalt), bitte bestätigen", "Hinweis bis bestätigt"
+n["spalt_ok"] = True
+assert not baugruppe.spalt_offen(n)
+ok("N6 Spalt in der Rechnung: a + Spalt, Zeit und Kosten steigen, Hinweis bis bestätigt")
+
+# N7 Editor: übernommene Naht mit Spalt, bestätigen, Naht mit Spalt im 3D zeichnen
+from PySide6.QtWidgets import QApplication  # noqa: E402
+from rohrlaser.angebot import BAUGRUPPE  # noqa: E402
+from rohrlaser.baugruppe_dialog import BaugruppeDialog  # noqa: E402
+app = QApplication.instance() or QApplication([])
+d_ = tmp / "editor"
+d_.mkdir()
+step_messen.main(["--ausgabe", str(d_ / "m.txt"), "--json", str(d_ / "m.json"), "--netze", str(d_ / "n"),
+                  str(blech_datei(1.5))])
+mw = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(d_ / "m.txt"), d_ / "n"), d_ / "m.json")
+for x in mw:
+    x.update(_saetze=1, _stueck=1, _baugruppe=True, _uebernehmen=True)
+db = Datenbank(d_ / "b.db")
+k = db.kontext()
+erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True, zukauf_liste=[])
+db.profile_anlegen(erg["profile"])
+a = db.angebot_neu(dict(kunde="Test", maschine="T11"))
+for p in erg["positionen"]:
+    netz = p.pop("_netz", None)
+    p.pop("_zukauf", None)
+    pid = db.position_neu(a, p)
+    if netz:
+        db.netz_speichern(pid, netz)
+positionen = db.positionen(a)
+bgp = next(p for p in positionen if p.get("art") == BAUGRUPPE)
+d = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0}, db=db, netze=db.netze(a),
+                    einstellungen={"step_naht_spalt": 3.0})
+d.vorschlaege_uebernehmen([0])
+neu = d.bg["naehte"][-1]
+assert neu["spalt"] == 1.5 and neu["nahtart"] == "Kehlnaht" and sorted(neu["koerper"]) == ["1", "2"], neu
+neu["mass"] = 3
+assert baugruppe.spalt_offen(neu)
+d.regel_bestaetigen([len(d.bg["naehte"]) - 1])
+assert neu.get("spalt_ok") and not baugruppe.spalt_offen(neu)
+# gezeichnet auf der Rohrwand unter dem Blech (x = 30), das Blech liegt 1,5 mm daneben
+d.reiter.setCurrentIndex(d.BAUM)                          # 3D der ganzen Baugruppe
+d.zeige_3d()
+assert d._koerper_3d, "3D-Körper fehlen"
+nid = d.naht_aus_punkten([(30.0, -16.0, 600.0), (30.0, -16.0, 750.0)], nahtart="Kehlnaht")
+gez = next(x for x in d.bg["naehte"] if x["id"] == nid)
+assert sorted(gez.get("koerper") or []) == ["1", "2"] and gez.get("spalt") == 1.5, gez
+nid = d.naht_aus_punkten([(30.0, -16.0, 100.0), (30.0, -16.0, 250.0)], nahtart="Kehlnaht")
+gez = next(x for x in d.bg["naehte"] if x["id"] == nid)
+assert gez.get("koerper") == ["1"] and "spalt" not in gez, "weit weg vom Blech: nur das Rohr"
+ok("N7 Editor: Naht mit Spalt übernehmen und bestätigen, Naht mit Spalt im 3D zeichnen")

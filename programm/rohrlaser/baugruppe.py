@@ -488,6 +488,23 @@ def vk_auto(bg, vorgabe=False):
     return bool(vorgabe) if w is None else bool(w)
 
 
+def spalt_faktor(naht):
+    """Mehr Schweißgut durch einen Spalt der Teile (Patrick 26.10.2026, F2 a): Nahtquerschnitt mit Spalt ÷ ohne.
+    Kehlnaht: a-Maß + Spalt; Stumpf- und Ecknaht: zusätzlich Spalt × Dicke. 1, wenn kein Spalt oder kein Maß."""
+    s, m = naht.get("spalt"), naht.get("mass")
+    if not _zahl(s) or s <= 0 or not _zahl(m) or m <= 0:
+        return 1.0
+    art = naht.get("nahtart")
+    q0 = nahtquerschnitt(art, m)
+    q1 = nahtquerschnitt(art, m + s) if art == "Kehlnaht" else q0 + s * m * 1.1
+    return q1 / q0 if q0 > 0 else 1.0
+
+
+def spalt_offen(n):
+    """True, wenn eine Nahtgruppe einen eingerechneten Spalt hat, der noch nicht bestätigt ist (gelb)."""
+    return spalt_faktor(n) > 1.0 and not n.get("spalt_ok")
+
+
 def regel_offen(n):
     """True, wenn das a-Maß einer Nahtgruppe nach der Regel vorgeschlagen und noch nicht bestätigt ist."""
     return _zahl(n.get("mass_regel")) and n.get("mass") == n["mass_regel"]
@@ -570,8 +587,9 @@ def naht_rechnen(naht, tabellen, saetze):
     naht_m = _n(naht.get("laenge")) * anzahl * seiten / 1000
     satz_id = st.get("satz_id")
     satz = saetze.get(satz_id) if satz_id else None
+    f_spalt = spalt_faktor(naht)            # Spalt der Teile: mehr Schweißgut (Zeit und Zusatz)
     out = dict(naht_m=naht_m, lichtbogen_min=0.0, heft_min=0.0, zeit_min=0.0, satz_id=satz_id, satz=satz, kosten=0.0,
-               hand=False, richtwert=bool(st.get("richtwert")), fehlt=None)
+               hand=False, richtwert=bool(st.get("richtwert")), fehlt=None, spalt_faktor=f_spalt)
     if _zahl(naht.get("zeit_hand")):
         out.update(zeit_min=naht["zeit_hand"], hand=True, richtwert=False)
     else:
@@ -586,12 +604,12 @@ def naht_rechnen(naht, tabellen, saetze):
             out["fehlt"] = f"Lichtbogenzeitfaktor fehlt ({naht.get('verfahren')})"
         else:
             lb = naht_m * st["min_m"] * _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) \
-                * _n(st.get("f_qualitaet") or 1)
+                * _n(st.get("f_qualitaet") or 1) * f_spalt
             heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60
             out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft)
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
-    vb = verbrauch(naht, st, naht_m, out["lichtbogen_min"])
+    vb = verbrauch(naht, st, naht_m * f_spalt, out["lichtbogen_min"])
     out.update(draht_kg=vb["draht_kg"], gas_l=vb["gas_l"], material=vb["material"], verbrauch_hinweis=vb["hinweis"])
     out["kosten"] = out["zeit_min"] / 60 * _n(satz) + vb["material"]
     return out
@@ -786,6 +804,10 @@ def status(p, w, positionen=None):
     n = offen(bg)
     if n:
         return f"HINWEIS: {n} Vorschl{'ag' if n == 1 else 'äge'} der Vorkalkulation offen (prüfen und bestätigen)"
+    sp = next((n for n in bg["naehte"] if spalt_offen(n)), None)
+    if sp:
+        return (f"HINWEIS: Nahtgruppe {sp.get('nr') or ''}: Spalt {_text(sp['spalt'])} mm eingerechnet (a + Spalt), "
+                "bitte bestätigen").replace("  ", " ")
     if r["richtwert"]:
         return "HINWEIS: Schweißzeit aus ungeprüften Richtwerten"
     regel = next((n for n in bg["naehte"] if regel_offen(n)), None)

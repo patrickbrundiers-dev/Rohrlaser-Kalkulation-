@@ -2101,6 +2101,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("dicke", "Wand-\ndicke [mm]", "zahl", 70,
                    tipp="Kleinere Wanddicke der verbundenen Teile (Heftabstand der Vorkalkulation); leer bei Stumpf- "
                         "und Ecknaht = Dicke"),
+            Spalte("spalt", "Spalt\n[mm]", "zahl", 55,
+                   tipp="Spalt zwischen den Teilen (aus STEP): mehr Schweißgut, Kehlnaht rechnet mit a + Spalt, "
+                        "Stumpf- und Ecknaht mit Spalt × Dicke; leer oder 0 = ohne"),
             Spalte("laenge", "Länge je\nNaht [mm]", "zahl", 85),
             Spalte("anzahl", "Anzahl", "ganz", 55, tipp="Gleiche Nähte je Stück der Unterbaugruppe"),
             Spalte("beidseitig", "beidseitig", "haken", 65),
@@ -2131,8 +2134,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         stamm = QPushButton("Kennwerte neu aus Stammdaten")
         stamm.setToolTip("Gemerkte Kennwerte aller Nahtgruppen verwerfen und mit den aktuellen Stammdaten rechnen")
         stamm.clicked.connect(self.kennwerte_neu)
-        regel = QPushButton("a-Maß bestätigen")
-        regel.setToolTip("a-Maß nach Regel der markierten Nahtgruppen als geprüft übernehmen")
+        regel = QPushButton("a-Maß und Spalt bestätigen")
+        regel.setToolTip("a-Maß nach Regel und eingerechneten Spalt der markierten Nahtgruppen als geprüft übernehmen")
         regel.clicked.connect(lambda: self.regel_bestaetigen(self.naht_tab.markierte()))
         for b in (neu, kopie, weg, stamm, regel):
             leiste.addWidget(b)
@@ -2207,10 +2210,13 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return w if isinstance(w, (int, float)) and w > 0 else baugruppe.A_REGEL_VORGABE
 
     def regel_bestaetigen(self, zeilen=None):
-        """a-Maß nach Regel der markierten Nahtgruppen (zeilen: Indizes, sonst alle) als geprüft übernehmen."""
+        """a-Maß nach Regel und Spalt der markierten Nahtgruppen (zeilen: Indizes, sonst alle) als geprüft
+        übernehmen."""
         zeilen = range(len(self.bg["naehte"])) if zeilen is None else zeilen
         for r in zeilen:
             self.bg["naehte"][r].pop("mass_regel", None)
+            if baugruppe.spalt_faktor(self.bg["naehte"][r]) > 1:
+                self.bg["naehte"][r]["spalt_ok"] = True
         self.aktualisieren()
 
     def vorschlaege_verwerfen(self, zeilen=None):
@@ -2460,8 +2466,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 teile.append(f"Zusatz/Gas {_euro(w['material'] * r['faktor'])}")
             if w.get("verbrauch_hinweis"):
                 teile.append(w["verbrauch_hinweis"])
-            if baugruppe.regel_offen(z):
-                return (", ".join(teile + ["a-Maß nach Regel, bitte bestätigen"]), WARNUNG)
+            if w.get("spalt_faktor", 1) > 1:
+                teile.append(f"Spalt {_text(z.get('spalt'))} mm (Schweißgut ×{_text(round(w['spalt_faktor'], 2))})")
+            offen = (["a-Maß nach Regel"] if baugruppe.regel_offen(z) else []) + \
+                (["Spalt"] if baugruppe.spalt_offen(z) else [])
+            if offen:
+                return (", ".join(teile + [" und ".join(offen) + ", bitte bestätigen"]), WARNUNG)
             if self._naht_aktuell(z).get("stand"):
                 teile.append(f"Kennwerte vom {z['stand'].get('datum') or '?'}")
             return ", ".join(teile)
@@ -3041,9 +3051,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.zeichnen_text.setText(f"{n} Punkt{'e' if n != 1 else ''}, {zahl_als_text(round(a.abstand(), 1))} mm"
                                    if n > 1 else f"{n} Punkt" if n else "")
 
-    def teile_an(self, punkte, toleranz=NAHT_TOLERANZ):
+    def teile_an(self, punkte, toleranz=NAHT_TOLERANZ, mit_abstand=False):
         """Körper, die alle Punkte berühren (Abstand zur Oberfläche ≤ toleranz mm): [(Positions-ID, Körpernummer)],
-        nächste zuerst."""
+        nächste zuerst; mit_abstand: [(Positions-ID, Körpernummer, größter Abstand)]."""
         treffer = []
         for pid, kn, p, von, bis, dreiecke in getattr(self, "_koerper_3d", []):
             box = [(min(p[3 * von + k:3 * bis:3]) - toleranz, max(p[3 * von + k:3 * bis:3]) + toleranz)
@@ -3053,7 +3063,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             abstand = max(_abstand_flaeche(q, p, dreiecke) for q in punkte)
             if abstand <= toleranz:
                 treffer.append((abstand, pid, kn))
-        return [(pid, kn) for _, pid, kn in sorted(treffer, key=lambda x: x[0])]
+        return [(pid, kn, a) if mit_abstand else (pid, kn) for a, pid, kn in sorted(treffer, key=lambda x: x[0])]
+
+    def _naht_spalt(self):
+        """Spalt bis [mm], der beim Zeichnen noch als Stoß gilt (Einstellung step_naht_spalt, Vorgabe 3 mm)."""
+        w = (self.einstellungen or {}).get("step_naht_spalt")
+        return float(w) if isinstance(w, (int, float)) and w >= 0 else 3.0
 
     def _gemeinsamer_knoten(self, knoten):
         """Unterste (Unter-)Baugruppe, die alle knoten enthält ('' = Baugruppe)."""
@@ -3087,7 +3102,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if len(punkte) < 2 or self.nur_lesen:
             return None
         laenge = sum(math.dist(a, b) for a, b in zip(punkte, punkte[1:]))
-        teile = self.teile_an(punkte)
+        # Spalt (Patrick 26.10.2026): der Zug liegt auf einem Teil, das andere darf bis step_naht_spalt entfernt sein
+        mit = self.teile_an(punkte, max(NAHT_TOLERANZ, self._naht_spalt() + NAHT_TOLERANZ), mit_abstand=True)
+        nah_ = [x for x in mit if x[2] <= NAHT_TOLERANZ]
+        mit = nah_ + [x for x in mit if x[2] > NAHT_TOLERANZ][:1] if len(nah_) == 1 else nah_
+        teile = [(pid, kn) for pid, kn, _ in mit]
+        spalt = max((a for _, _, a in mit), default=0.0)
         pids = {pid for pid, _ in teile}
         knoten = self._gemeinsamer_knoten([next((t.get("knoten") or "" for t in self.teile if t["_id"] == pid), "")
                                            for pid in pids])
@@ -3095,6 +3115,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                      anzahl=1, quelle="3D", linien=[[round(v, 1) for q in punkte for v in q]])
         if teile and all(kn is not None for _, kn in teile):
             werte["koerper"] = sorted({str(kn) for _, kn in teile})
+        if len(teile) >= 2 and spalt > NAHT_TOLERANZ:
+            werte["spalt"] = round(spalt, 1)
         wand = self._wand(pids)
         if wand:
             werte["dicke"] = wand

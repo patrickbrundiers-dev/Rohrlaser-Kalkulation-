@@ -3475,7 +3475,7 @@ class AngebotSeite(QWidget):
                                                     "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
                                                     "steck_anzahl", "steck_nase_min", "steck_nase_rand", "knick_z", "knick_freistich",
                                                     "knick_k",
-                                                    "steck_spiel", "steck_ueberstand", "steck_marke")}
+                                                    "steck_spiel", "steck_ueberstand", "steck_marke", "step_naht_spalt")}
 
     def naehte_schreiben(self, naehte):
         """Längsnähte aus dem 3D (Längsnaht per Klick) in die Positionen: {Positions-ID: Nahtfelder}."""
