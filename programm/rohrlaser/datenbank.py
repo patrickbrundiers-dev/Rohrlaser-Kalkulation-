@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 62     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 63     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -114,6 +114,8 @@ SCHEMA_VERSION = 62     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 61: Vollmaterial als Zukaufartikel (zukauf_artikel.abmessung, gewicht, preis_kg, leer;
                         #     vollmaterial.py)
                         # 62: Stangen von Hand vorgegeben je Abmessung (angebote.stangen_vorgabe, JSON, leer)
+                        # 63: Aufschlag Bleche und Zukaufteile je Angebot (angebote.aufschlag_blech, aufschlag_zukauf;
+                        #     leer = Aufschlagsregeln wie bisher)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -1321,6 +1323,8 @@ class Datenbank:
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
                                            "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
+        # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
+        tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
         return tab
 
     @liest

@@ -751,6 +751,10 @@ EINSTELLUNGEN = (
     Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0, 0, 5),
     Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0, 0, 5),
     Einstellung("zuschlag_fremdleistung", "Zuschlag Fremdleistung", "Kalkulation", "anteil", 0.10, 0, 5),
+    # Vorgabe neuer Angebote: Aufschlag auf alle Bleche bzw. alle übrigen Zukaufteile (ersetzt Artikel-/Kategorie-
+    # und Standardaufschlag im Angebot; Patrick 25.10.2026)
+    Einstellung("aufschlag_blech", "Aufschlag Bleche im Angebot", "Kalkulation", "anteil", 0.10, 0, 10),
+    Einstellung("aufschlag_zukauf", "Aufschlag Zukaufteile im Angebot", "Kalkulation", "anteil", 0.10, 0, 10),
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, 0, 5),
     # Standardaufschlag der Anwendung für Zukaufteile (gilt, wenn weder Artikel noch Kategorie einen haben);
     # leer = keiner (das Programm warnt dann)

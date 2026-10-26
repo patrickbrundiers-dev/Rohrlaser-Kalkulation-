@@ -2729,7 +2729,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                                                       fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, n_lad, teile_abm,
                                sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0))
-    zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
+    blech_ids = set(tabellen.get("blech_artikel") or ())     # Aufschlag Bleche bzw. Zukaufteile des Angebots
+    zk_gruppen, zk_je = zukauf.rechnen([((i, n), zukauf.mit_angebotsaufschlag(e, kopf, blech_ids),
+                                         zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
                                         for i in aktiv for n, e in enumerate(zukauf.eintraege(positionen[i]))])
     eingespart = _eingespart(stangen)
     # Summanden je Stangengruppe einmal sammeln; summiert wird je Position wie bisher mit sum() in derselben

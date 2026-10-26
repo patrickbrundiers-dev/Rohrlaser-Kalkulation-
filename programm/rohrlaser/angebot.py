@@ -46,6 +46,11 @@ KALKULATION = (
     # Zuschlag Material und Zuschlag Fertigung gelten immer aus den Einstellungen (Vorgabe 0, Patrick 21.10.2026);
     # die Spalten älterer Dateien werden nicht mehr gelesen.
     Feld("zuschlag_fremdleistung", "Zuschlag Fremdleistung [%]", "zahl", 0, 500, stellen=1),
+    # Aufschlag auf den Einstand aller Bleche bzw. aller übrigen Zukaufteile dieses Angebots; ersetzt die Regeln von
+    # Artikel, Kategorie und Standard (Patrick 25.10.2026, Vorgabe 10 %); ein Positionsaufschlag geht vor. Leer
+    # (ältere Angebote) = Regeln wie bisher, nicht der Wert der Einstellungen (zukauf.mit_angebotsaufschlag)
+    Feld("aufschlag_blech", "Aufschlag Bleche [%]", "zahl", 0, 1000, stellen=1),
+    Feld("aufschlag_zukauf", "Aufschlag Zukaufteile [%]", "zahl", 0, 1000, stellen=1),
     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1),
     Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
     Feld("pauschale_abmessung", "Pauschale je Abmessung [€]", "zahl", 0, 100000, stellen=2),
@@ -60,7 +65,9 @@ KALKULATION = (
     # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je m der beigestellten Stangen; 0 = keins
     Feld("handling_beistellung", "Handling Kundenmaterial [€/m]", "zahl", 0, 1000, stellen=3),
 )
-KALK_PROZENT = ("zuschlag_fremdleistung", "gewinn")
+KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn")
+# Kalkulationswerte, bei denen leer nicht „wie Einstellungen“ heißt, sondern „wie vor dem Feld“ (ältere Angebote)
+KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf")
 KOPF = KOPF + KALKULATION
 
 

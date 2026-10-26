@@ -10,10 +10,10 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
-from . import fracht_angebot, hilfe, rechnen, teilen
+from . import fracht_angebot, hilfe, rechnen, teilen, zukauf
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
-from .angebot import (EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
+from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
                       aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
 from .sichtbarkeit import MASCHINE, OPTIONAL, ist_null, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
@@ -26,7 +26,7 @@ FRACHT_OFFEN_EINSTELLUNG = "ansicht_fracht_offen"        # Karte Fracht auf- ode
 # Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs); programmierung_teil (€ je Position älterer Angebote)
 # steht nicht hier: er zählt nur, solange die Programmierzeit leer ist (Kostenübersicht, Zeiten & Arbeitskosten)
 GRUPPEN = (
-    ("Material und Fertigung", ("zuschlag_fremdleistung", "handling_beistellung")),
+    ("Material und Fertigung", ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung", "programmierung_zeit", "programmierung_kontur")),
     ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
@@ -577,7 +577,7 @@ class KopfBereich(QWidget):
         for _, namen in GRUPPEN:
             for name in namen:
                 v = self.wert(name)
-                if kopf_sichtbar(name, v):
+                if kopf_sichtbar(name, v) and name not in getattr(self, "_nicht_vorhanden", ()):
                     fd = KOPF_FELD[name]
                     titel, einheit = fd.titel, ""
                     if "[" in titel:
@@ -691,7 +691,7 @@ class KopfBereich(QWidget):
     def wert(self, name):
         """Wert eines Kopffelds wie angezeigt (ältere Angebote ohne Kalkulationswert: Wert der Einstellungen)."""
         v = self.s.kopf.get(name)
-        if v is None and name in KALK_NAMEN:
+        if v is None and name in KALK_NAMEN and name not in KALK_OHNE_VORGABE:
             v = (self.s.einst.get(name) or 0) * (100 if name in KALK_PROZENT else 1)
         return v
 
@@ -854,17 +854,27 @@ class KopfBereich(QWidget):
         # Handling Kundenmaterial nur, wenn es Kundenmaterial gibt (Position oder Vorgabe) oder ein Wert eingetragen ist
         kunde = any(rechnen.beigestellt(p) for p in self.s.positionen) or \
             self.s.kopf.get("material_vorgabe") == KUNDENMATERIAL
+        # Aufschlag Bleche bzw. Zukaufteile nur, wenn das Angebot Bleche bzw. andere Zukaufteile hat (Patrick 25.10.2026)
+        blech_ids = set(self.s.tabellen.get("blech_artikel") or ())
+        arten = {zukauf.ist_blech(e, blech_ids) for p in self.s.positionen if position_aktiv(p)
+                 for e in zukauf.eintraege(p)}
+        vorhanden = {"aufschlag_blech": True in arten, "aufschlag_zukauf": False in arten}
+        self._nicht_vorhanden = {n for n, da in vorhanden.items() if not da}     # auch nicht in der Kurzfassung
+        gezeigt = set()
         for name, (b, w) in self.zeilen.items():
             zeigen = kopf_sichtbar(name, self.wert(name))
-            weg = name == "handling_beistellung" and not zeigen and not kunde
+            weg = name == "handling_beistellung" and not zeigen and not kunde or not vorhanden.get(name, True)
+            zeigen = zeigen and not weg
             b.setVisible(zeigen)
             w.setVisible(zeigen)
             be, we = self.zeilen_erweitert[name]
             be.setVisible(not zeigen and not weg)
             we.setVisible(not zeigen and not weg)
             versteckt += not zeigen and not weg
+            if zeigen:
+                gezeigt.add(name)
         for titel, (leer, namen) in self.gruppen_leer.items():
-            leer.setVisible(not any(kopf_sichtbar(n, self.wert(n)) for n in namen) and titel != "Zeit und Rüsten")
+            leer.setVisible(not gezeigt & set(namen) and titel != "Zeit und Rüsten")
         self.erweitert_leer.setVisible(versteckt == 0)
         self.erweitert_bereich.setze_titel(
             f"Erweiterte Einstellungen ({versteckt} {'Wert' if versteckt == 1 else 'Werte'} auf 0)" if versteckt

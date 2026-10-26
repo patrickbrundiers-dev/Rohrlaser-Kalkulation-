@@ -352,7 +352,8 @@ def regel_text(r, verbrauch=None):
         t = str(m or "")
     q = r.get("quelle")
     herkunft = {KATEGORIE: f"Kategorie {r.get('name') or ''}".strip(), INDIVIDUELL: "individuell",
-                STANDARD: "Standard der Anwendung", POSITION: "Positionsaufschlag"}.get(q, q or "")
+                STANDARD: "Standard der Anwendung", POSITION: "Positionsaufschlag",
+                ANGEBOT: "Aufschlag im Angebot"}.get(q, q or "")
     return f"{t} ({herkunft})" if herkunft else t
 
 
@@ -402,6 +403,26 @@ def stand(artikel, bezug, kategorien=None, standard=None, datum=None):
                 rest_lager=artikel.get("rest_lager"), angebotstext=artikel.get("angebotstext"),
                 bezug=b if bezug else None, regeln=aufschlagsregeln(artikel, kategorien, standard),
                 datum=datum or datetime.date.today().isoformat())
+
+
+ANGEBOT = "Angebot"      # Quelle des Aufschlags aus dem Angebot (Aufschlag Bleche bzw. Zukaufteile)
+BLECH_KATEGORIE = "Blechteile"
+
+
+def ist_blech(e, blech_ids=()):
+    """Eintrag eines Blechs: Artikel vom Typ Blech (blech_ids) oder, ohne Artikel, Kategorie Blechteile."""
+    return e.get("artikel_id") in blech_ids or (e.get("stand") or {}).get("kategorie") == BLECH_KATEGORIE
+
+
+def mit_angebotsaufschlag(e, kopf, blech_ids=()):
+    """Eintrag mit dem Aufschlag des Angebots (Aufschlag Bleche bzw. Zukaufteile, % auf Einstand) statt der Regeln von
+    Artikel, Kategorie und Standard im Preisstand (Patrick 25.10.2026: gilt für alle im Angebot). Ein
+    Positionsaufschlag (e['aufschlag']) geht weiter vor. Leeres Feld (ältere Angebote): Eintrag unverändert."""
+    w = (kopf or {}).get("aufschlag_blech" if ist_blech(e, blech_ids) else "aufschlag_zukauf")
+    if not isinstance(w, (int, float)) or isinstance(w, bool):
+        return e
+    st = dict(e.get("stand") or {}, regeln=[regel(PROZENT, w, quelle=ANGEBOT)])
+    return dict(e, stand=st)
 
 
 def stand_kennung(st):

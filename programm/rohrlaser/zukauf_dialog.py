@@ -58,6 +58,8 @@ class ZukaufDialog(QDialog):
         self._fuellen = False
         self.eintraege = copy.deepcopy(zukauf.eintraege(p))
         self.artikel = {a["id"]: a for a in db.zukauf_artikel_liste()}
+        self.kopf = getattr(parent, "kopf", None) or {}     # Aufschlag Bleche bzw. Zukaufteile des Angebots
+        self.blech_ids = {i for i, a in self.artikel.items() if a.get("artikeltyp") == zukauf.BLECH}
         self.setWindowTitle("Zukaufteile" + (f" für {anzahl} Positionen" if anzahl > 1 else
                                             f" Pos. {p.get('pos') or ''} {p.get('artikel') or ''}"))
         self.resize(1000, 420)
@@ -245,7 +247,8 @@ class ZukaufDialog(QDialog):
     def _vorschau(self, eintraege):
         """Beträge je Teil für die Stückzahl der Position."""
         c = self._stueck()
-        _, je = zukauf.rechnen([(n, e, zukauf.bezugsmenge(e, self.p, c)) for n, e in enumerate(eintraege)])
+        _, je = zukauf.rechnen([(n, zukauf.mit_angebotsaufschlag(e, self.kopf, self.blech_ids),
+                                 zukauf.bezugsmenge(e, self.p, c)) for n, e in enumerate(eintraege)])
         return [dict(je[n], einstand=je[n]["einstand"] / zukauf.dez(c), vk=je[n]["vk"] / zukauf.dez(c))
                 for n in range(len(eintraege))]
 

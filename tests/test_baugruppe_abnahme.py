@@ -45,6 +45,8 @@ def stufen_kurz(zeilen):
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
+db.einstellung_setzen("aufschlag_zukauf", None)
 fenster = Hauptfenster(db, tmp, stumm=True)
 a = bsp.anlegen(db)
 s = fenster.angebot_oeffnen(a)

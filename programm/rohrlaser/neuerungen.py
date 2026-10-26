@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.151", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
+                "Zuschlag Fremdleistung): Vorgabe je 10 % aus den Einstellungen, % auf den Einstand aller Bleche bzw. "
+                "aller übrigen Zukaufteile des Angebots; ersetzt dort Artikel-, Kategorie- und Standardaufschlag, ein "
+                "Positionsaufschlag geht vor. Die Zeilen stehen nur da, wenn das Angebot Bleche bzw. Zukaufteile hat; "
+                "ältere Angebote rechnen wie bisher ([[angebotskopf]]).",
+     "Aufschlag Bleche und Zukaufteile je Angebot (Vorgabe 10 %)."],
     ["0.9.150", "<b>Stangen von Hand vorgeben</b>: Im Fenster <i>Material …</i> hat jede Abmessung die Spalte "
                 "<b>Stangen vorgegeben</b>. Dort lassen sich mehrere Stangenlängen mit Stückzahl eintragen (z. B. "
                 "3 × 6.000 + 2 × 4.500 mm). Die Optimierung plant dann nur mit genau diesen Stangen, mit möglichst "
