@@ -47,6 +47,8 @@ from . import stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
+from . import unterzeilen
+from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
@@ -1465,6 +1467,10 @@ PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}  
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
 
 
+class _AuswahlUnter(UnterzeilenMixin, Auswahl):
+    """Auswahl der Positionsliste, Zelle oben, darunter die Zusatzarbeiten (unterzeilen.py)."""
+
+
 class AngebotReiter(QTabWidget):
     """Reiter eines Angebots. Zusammengehörige Seiten liegen als Unterreiter in einem Reiter (Kalkulation mit
     Zeiten, Schnittplan mit Stangenbild und Auswertung). setCurrentWidget, indexOf und waehlen finden auch
@@ -1695,7 +1701,7 @@ class AngebotSeite(QWidget):
         self.pos_modell = PositionenModell(self)
         self.pos_modell.geaendert.connect(self.neu_laden)
         self.pos_ansicht = _tabelle(self.pos_modell, sortieren=False)
-        self.pos_ansicht.setItemDelegate(Auswahl(self.pos_modell, self.pos_ansicht))
+        self.pos_ansicht.setItemDelegate(_AuswahlUnter(self.pos_modell, self.pos_ansicht))
         # Doppelklick entscheidet _doppelklick (Dialog oder Zelle bearbeiten); Tippen und F2 bearbeiten immer
         self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
@@ -1740,6 +1746,12 @@ class AngebotSeite(QWidget):
             self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
         self.bg_zu, self.bg_zeilen = set(), {}
+        # Zusatzarbeiten unter der Position (Patrick 26.10.2026): je Arbeitsschritt eine eingerückte Zeile
+        self.unter_texte = {}            # Index der Position -> [(Text, Warnung)] (unterzeilen.schritte)
+        unter_an = self.db.einstellung(unterzeilen.EINSTELLUNG) is not False
+        artikel = next(c for c in range(len(self.pos_modell.spalten)) if self.pos_modell.name(c) == "artikel")
+        self.pos_unter = Unterzeilen(self.pos_ansicht, lambda r: self.unter_texte.get(r, ()), artikel,
+                                     lambda r: r < len(self.positionen) and self.zusatzarbeiten([r]), unter_an)
         self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
         self.pos_ansicht.verticalHeader().setToolTip("Klick auf ▾/▸ einer Schweißbaugruppe: Einzelteile zu- bzw. "
                                                      "aufklappen")
@@ -1762,6 +1774,8 @@ class AngebotSeite(QWidget):
         self.kompakt = Liste(KOMPAKT_SPALTEN, max_stellen=2)
         self.kompakt_ansicht = _tabelle(self.kompakt)
         _breiten(self.kompakt_ansicht, KOMPAKT_SPALTEN)
+        self.kompakt_ansicht.setItemDelegate(UnterzeilenDelegat(self.kompakt_ansicht))
+        self.kompakt_unter = Unterzeilen(self.kompakt_ansicht, self._kompakt_unter_texte, 1, an=unter_an)
         self.kompakt_ansicht.setToolTip("Doppelklick: zur Position")
         self.kompakt_ansicht.doubleClicked.connect(self._kompakt_doppelklick)
         self.kalk_kompakt = QCheckBox("Kompakt")
@@ -1774,6 +1788,8 @@ class AngebotSeite(QWidget):
         kl.addWidget(self.summen)
         kz = QHBoxLayout()
         kz.addWidget(self.kalk_info, 1)
+        self.unter_haken_kalk = self._unter_haken(unter_an)
+        kz.addWidget(self.unter_haken_kalk)
         kz.addWidget(self.kalk_kompakt)
         kl.addLayout(kz)
         kl.addWidget(self.kompakt_ansicht, 1)
@@ -1910,6 +1926,7 @@ class AngebotSeite(QWidget):
         el = self.pos_leiste
         self.pos_info = QLabel()
         self.pos_info.setStyleSheet("color: #5F6B7A;")
+        self.pos_info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)     # schmales Fenster: Text gekürzt
         self.spalten_knopf = QPushButton("Weitere Spalten")
         self.spalten_knopf.setToolTip("Optionale Spalten der Positionsliste ein- oder ausblenden. Spalten mit Werten "
                                       "erscheinen automatisch.")
@@ -1923,7 +1940,8 @@ class AngebotSeite(QWidget):
         self.zeige_berechnet.setToolTip("Vom Programm ermittelte Werte: Profilform, Gewicht, wirksame Stangenlänge, "
                                         "Vorschub, eingeplante Teile usw.")
         el.addWidget(self.pos_info, 1)
-        for w in (self.spalten_knopf, self.zeige_step, self.zeige_berechnet):
+        self.unter_haken_pos = self._unter_haken(self.pos_unter.an)
+        for w in (self.unter_haken_pos, self.spalten_knopf, self.zeige_step, self.zeige_berechnet):
             el.addWidget(w)
         for c in (self.zeige_berechnet, self.zeige_step):
             c.toggled.connect(self._spalten_zeigen)
@@ -2482,6 +2500,11 @@ class AngebotSeite(QWidget):
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
         self.kompakt.setzen(kompakt_zeilen(self.positionen, zeilen))
+        katalog = self.tabellen.get("zusatzarbeiten") or ()
+        self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) for i, (p, z) in enumerate(zip(self.positionen,
+                                                                                                   zeilen))}
+        self.pos_unter.aktualisieren()
+        self.kompakt_unter.aktualisieren()
         leere_ausblenden(self.kompakt_ansicht, self.kompakt, KOMPAKT_IMMER)
         self._kalk_info_setzen()
         if erg:
@@ -4762,6 +4785,32 @@ class AngebotSeite(QWidget):
         if merken:
             self.db.einstellung_setzen(KOMPAKT_EINSTELLUNG, bool(an))
             self._kalk_info_setzen()
+
+    def _unter_haken(self, an):
+        """Häkchen „Zusatzarbeiten unter Position“ (Positionsliste und kompakte Kalkulation, gleiche Einstellung)."""
+        c = QCheckBox("Zusatzarbeiten unter Position")
+        c.setToolTip("Unter jeder Position je Arbeitsschritt eine Zeile: Programmieren, Gewinde, Zusatzarbeiten und "
+                     "Zukaufteile mit Menge, Preis je Einheit, € je Teil und € der Position.\nDoppelklick auf die "
+                     "Zeilen: Zusatzarbeiten der Position bearbeiten.")
+        c.setChecked(an)
+        c.toggled.connect(self._unter_umschalten)
+        return c
+
+    def _unter_umschalten(self, an):
+        for c in (getattr(self, "unter_haken_pos", None), getattr(self, "unter_haken_kalk", None)):
+            if c is not None and c.isChecked() != an:
+                c.blockSignals(True)
+                c.setChecked(an)
+                c.blockSignals(False)
+        self.pos_unter.setzen(an)
+        self.kompakt_unter.setzen(an)
+        if not self.db.nur_lesen:
+            self.db.einstellung_setzen(unterzeilen.EINSTELLUNG, bool(an))
+
+    def _kompakt_unter_texte(self, r):
+        modell = self.kompakt_ansicht.model()
+        q = modell.mapToSource(modell.index(r, 0)).row() if hasattr(modell, "mapToSource") else r
+        return self.unter_texte.get(self.kompakt.zeilen[q]["zeile"], ()) if 0 <= q < len(self.kompakt.zeilen) else ()
 
     def _kompakt_doppelklick(self, index):
         modell = self.kompakt_ansicht.model()

@@ -9,7 +9,8 @@ Regeln (für alle Tabellen gleich, damit das Layout ruhig und übersichtlich ble
   dieser Arbeitsplatz). Rechtsklick auf den Spaltenkopf → „Spaltenbreiten zurücksetzen“ passt wieder alles an.
 - Zeilen mit langem Text werden höher (Text umgebrochen), höchstens MAX_ZEILEN Textzeilen; der Rest wird mit …
   gekürzt und steht vollständig im Tooltip. Zeilen ohne langen Text bleiben einzeilig, damit wenig gescrollt wird.
-- Bei sehr vielen Zeilen (über MAX_ANZAHL) bleiben die Zeilen einzeilig (Geschwindigkeit).
+- Bei sehr vielen Zeilen (über MAX_ANZAHL) bleiben die Zeilen einzeilig (Geschwindigkeit), nur Unterzeilen
+  (Zusatzarbeiten unter der Position, unterzeilen.py) machen sie höher.
 - Die Spaltenbreite richtet sich nach den sichtbaren und höchstens PRUEF_ZEILEN Zeilen (Geschwindigkeit: die
   Angebotsliste mit 1.000 Angeboten brauchte sonst 4,6 s je Taste im Suchfeld; Performance-Audit F1, 23.10.2026).
   Ein sehr langer Eintrag weiter unten kann dann gekürzt sein, er steht vollständig im Tooltip.
@@ -281,12 +282,14 @@ class AutoGroesse(QObject):
         kopf = a.verticalHeader()
         standard = kopf.defaultSectionSize()
         n = m.rowCount()
-        if n > self.max_anzahl:
+        unter = getattr(a, "unterzeilen", None)      # Zusatzarbeiten unter der Position (unterzeilen.py)
+        if n > self.max_anzahl and unter is None:
             return
         hoechst = max(standard, self.max_zeilen * a.fontMetrics().lineSpacing() + 8)
         for r in range(n):
             if a.isRowHidden(r):
                 continue
-            h = max(standard, min(a.sizeHintForRow(r), hoechst))
+            h = standard if n > self.max_anzahl else max(standard, min(a.sizeHintForRow(r), hoechst))
+            h += unter.hoehe(r) if unter is not None else 0
             if h != a.rowHeight(r):
                 a.setRowHeight(r, h)
