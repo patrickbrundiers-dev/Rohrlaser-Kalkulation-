@@ -763,7 +763,9 @@ class ErgebnisBaum(QTreeWidget):
             return
         oben = neu(None, "Schnittschema (Stangen je Abmessung, Materialkosten inkl. Verschnitt)", "info", "schnitt")
         oben.setToolTip(0, "Doppelklick: Schnittplan der Stufe mit allen Stangen (Knopf „Schnittschema …“)")
-        namen = list(dict.fromkeys(schnitt_name(a) for sch in schemata if sch for a in sch["abmessungen"]))
+        # je Gruppe (Abmessung + Stangenlänge des Angebots): andere Stangenlänge je Position = eigene Zeile
+        namen = list(dict.fromkeys((schnitt_name(a), a["stange"]) for sch in schemata if sch for a in sch["abmessungen"]))
+        mehrfach = {n for n, _ in namen if sum(1 for x, _ in namen if x == n) > 1}
         for j, sch in enumerate(schemata):
             if not sch:
                 oben.setText(1 + 2 * j, "–")
@@ -773,10 +775,11 @@ class ErgebnisBaum(QTreeWidget):
             oben.setText(2 + 2 * j, _z(sum(a["kosten"] or 0 for a in ab)))
             for c in (1 + 2 * j, 2 + 2 * j):
                 oben.setTextAlignment(c, Qt.AlignRight | Qt.AlignVCenter)
-        for name in namen:
-            it = neu(oben, name, "kind")
+        for name, stange in namen:
+            it = neu(oben, name + (f" · {_z(stange, 0)} mm" if name in mehrfach else ""), "kind")
             for j, sch in enumerate(schemata):
-                a = next((a for a in (sch or {}).get("abmessungen", ()) if schnitt_name(a) == name), None)
+                a = next((a for a in (sch or {}).get("abmessungen", ())
+                          if (schnitt_name(a), a["stange"]) == (name, stange)), None)
                 if a is None:
                     continue
                 it.setText(1 + 2 * j, laengen_kurz(a))
