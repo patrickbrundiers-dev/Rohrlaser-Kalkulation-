@@ -197,6 +197,8 @@ jobs:
           $ziel = "dist/Rohrlaser-Angebotskalkulation/Tesseract-OCR"
           New-Item -ItemType Directory -Force "$ziel/tessdata" | Out-Null
           Copy-Item "$quelle\tesseract.exe", "$quelle\*.dll" $ziel
+          # configs (u. a. tsv = tessedit_create_tsv), sonst liefert "tesseract ... tsv" keine TSV und ocr.lesen leeren Text (Lauf 922)
+          Copy-Item -Recurse "$quelle\tessdata\configs" "$ziel/tessdata"
           Get-ChildItem $quelle, "$quelle\doc" -Filter "*LICENSE*" -ErrorAction SilentlyContinue | Copy-Item -Destination $ziel
           foreach ($s in @("deu", "eng")) {
             Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$s.traineddata" -OutFile "$ziel/tessdata/$s.traineddata"
