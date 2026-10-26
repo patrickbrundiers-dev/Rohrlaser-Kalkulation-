@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
-from . import fracht_angebot, normprofile, rechnen, stangen_abwicklung, zukauf
+from . import fracht_angebot, normprofile, rechnen, stangen_abwicklung, virtuell, zukauf
 from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
@@ -389,8 +389,9 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
     plan = schweissplan(positionen, tabellen)
     hinweise = rechnen.laser_hinweise(positionen, k)      # Laser-Hinweise der Werkstoffe (24.10.2026)
+    stege = stege_hinweise(positionen)
     if not ergebnis or not ergebnis.get("stangen"):
-        return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan, hinweise=hinweise)
+        return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan, hinweise=hinweise, stege=stege)
     # so, wie die Maschine lädt: zugeschnittene Lieferstangen als ihre Werkstücke (rechnen.anzeige_stangen)
     paare = rechnen.anzeige_stangen(ergebnis, rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen))
     werte = {s["nr"]: w for s, w in paare}
@@ -419,7 +420,20 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile,
                            gespart=rechnen.gehrung_gespart(s), abwicklung=_abwicklung(s, positionen, profil_von, merker)))
-    return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan, hinweise=hinweise)
+    return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan, hinweise=hinweise,
+                stege=stege)
+
+
+def stege_hinweise(positionen):
+    """Positionen mit virtuellem Bauteil (Stege bzw. Ringe 2 mm an den Enden): [{pos, artikel, stueck, abtrennen,
+    text}] für die Werkstattpapiere."""
+    out = []
+    for p in positionen:
+        e = virtuell.technik_lesen(p)
+        if e and _wert(p.get("stueck")) > 0:
+            out.append(dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=p.get("stueck"),
+                            abtrennen=bool(e.get("stege_abtrennen")), text=virtuell.hinweis(e, p.get("profil_id"))))
+    return out
 
 
 def _abwicklung(s, positionen, profil_von, merker=None):

@@ -41,6 +41,8 @@ def nah(a, b, text, eps=1e-6):
 
 
 db = Datenbank(tmp / "b.db")
+db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
+db.einstellung_setzen("aufschlag_zukauf", None)
 # Blech S235 500 × 300 × 5: 20,00 € je Stück bei Technik, 25 % Aufschlag individuell
 B = dict(laenge=500.0, breite=300.0, dicke=5.0, kontur="rechteckig", fingerabdruck="x")
 werte, bezuege = zukauf.blech_artikel(B, "S235-10219", "Rahmen.step")

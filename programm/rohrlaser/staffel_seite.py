@@ -564,7 +564,8 @@ class SchnittschemaFenster(QDialog):
         db = getattr(s, "db", None)
         from .angebot_fenster import STANGENBILD_EINSTELLUNG
         self.stangen_seite = StangenSeite(db.einstellung(STANGENBILD_EINSTELLUNG) if db else None,
-                                          (lambda a: db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a)) if db else None)
+                                          (lambda a: db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a)) if db else None,
+                                          (lambda: db.einstellung("stangenbild_popup")) if db else None)
         teiler.addWidget(self.stangen_seite)
         teiler.setSizes([220, 600])
         lay.addWidget(teiler, 1)

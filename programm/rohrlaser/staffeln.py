@@ -80,7 +80,7 @@ _KOPF_FELD = {f.name: f for f in ANGEBOT_KOPF}
 EINSTELLUNG_FELDER = (
     Feld("bezeichnung", "Bezeichnung", breite=160),
     STUFE_FELD["gewinn"],
-    *[f for f in KALKULATION if f.name != "gewinn"],
+    *[f for f in KALKULATION if f.name not in ("gewinn", "aufschlag_blech", "aufschlag_zukauf")],
     _KOPF_FELD["fracht"], _KOPF_FELD["skonto"],
     *(STUFE_FELD[n] for n in ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten",
                               "arbeitsgang", "arbeitsgang_min", "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit",
@@ -281,7 +281,8 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
-                     "laengenwahl")      # übernommene Lieferlängen gelten auch in den Stufen
+                     "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
+                     "aufschlag_blech", "aufschlag_zukauf")      # Aufschlag Bleche bzw. Zukaufteile des Angebots
     # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
     if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
         tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
@@ -342,6 +343,7 @@ def meterpreise(stufe):
 def stufe_kopf(kopf, stufe):
     """Angebotskopf mit den Werten der Stufe (leer = Angebot): Kalkulationswerte, Fracht (fester Betrag) und Skonto."""
     k2 = dict(kopf)
+    k2.pop("stangen_vorgabe", None)     # von Hand vorgegebene Stangen gelten nur für die Menge des Angebots
     for f in KALKULATION:
         w = (stufe or {}).get(f.name)
         if isinstance(w, (int, float)) and not isinstance(w, bool):

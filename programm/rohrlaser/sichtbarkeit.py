@@ -20,7 +20,7 @@ KOPF_ROLLEN = {
     "nummer": PFLICHT, "maschine": PFLICHT, "stange": PFLICHT,
     "kundennr": STAMM, "kunde": STAMM, "datum": STAMM, "bemerkung": STAMM,
     "fracht": OPTIONAL, "skonto": OPTIONAL, "skonto_tage": OPTIONAL, "zahlungsziel": OPTIONAL,
-    "zuschlag_fremdleistung": OPTIONAL,
+    "zuschlag_fremdleistung": OPTIONAL, "aufschlag_blech": OPTIONAL, "aufschlag_zukauf": OPTIONAL,
     "gewinn": OPTIONAL, "ruesten_abmessung": OPTIONAL, "pauschale_abmessung": OPTIONAL,
     "programmierung_zeit": OPTIONAL, "programmierung_kontur": OPTIONAL, "programmierung_teil": OPTIONAL, "angebotsaufschlag": OPTIONAL,
     "handling_beistellung": OPTIONAL, "material_vorgabe": STAMM,

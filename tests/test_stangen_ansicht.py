@@ -14,7 +14,8 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QMouseEvent  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -108,12 +109,41 @@ k = kennwerte(*paare[0])
 assert k["teile"] == len(paare[0][0]["teile"]) and abs(k["rest"] - paare[0][1]["rest"]) < 1e-9 and k["kosten"] > 0
 ok("Stangen-Übersicht: jede Stange eine Zeile (28), gruppiert nach Abmessung mit Kopfzeile, Farben wie Stangenbild")
 
-# Umschalten und merken
-assert st.ansicht == MUSTER
+# Umschalten und merken; Standard ist die Übersicht (Patrick 26.10.2026)
+assert st.ansicht == UEBERSICHT and st.stapel.currentWidget() is st.rollen[UEBERSICHT]
+st.ansicht_setzen(MUSTER)
+assert db.einstellung("ansicht_stangenbild_2") == MUSTER
 st.ansicht_setzen(UEBERSICHT)
-assert db.einstellung("ansicht_stangenbild") == UEBERSICHT and st.stapel.currentWidget() is st.rollen[UEBERSICHT]
+assert db.einstellung("ansicht_stangenbild_2") == UEBERSICHT and st.stapel.currentWidget() is st.rollen[UEBERSICHT]
 st.uebersicht.resize(1200, st.uebersicht.minimumHeight())
 st.uebersicht.grab()
+# Maus 1 Sekunde auf einer Stange: Fenster mit den Stangendetails, Esc schließt
+u = st.uebersicht
+assert u.wartezeit() == 1000 and not u.popup.isVisible()           # Vorgabe 1 s, einstellbar (0 = aus)
+db.einstellung_setzen("stangenbild_popup", 2.5)
+assert u.wartezeit() == 2500
+db.einstellung_setzen("stangenbild_popup", 0)
+assert u.wartezeit() == 0
+db.einstellung_setzen("stangenbild_popup", 1.0)
+_wo = QPointF(u.LINKS + 20, u.stangen_y[3] + 8)
+QApplication.sendEvent(u, QMouseEvent(QEvent.MouseMove, _wo, u.mapToGlobal(_wo), Qt.NoButton, Qt.NoButton,
+                                      Qt.NoModifier))
+assert u._ueber == 3 and u.uhr.isActive()
+QTest.qWait(1200)
+assert u.popup.isVisible() and u.popup.nr == 3, (u.popup.isVisible(), u.popup.nr)
+pd = u.popup.detail                                                 # Detail-Ansicht im kleinen Fenster
+assert pd.s["nr"] == 3 and "Stange 3" in pd.titel.text() and "Nutzung" in pd.werte.text(), pd.titel.text()
+assert len(pd.kacheln.teile) == len(st.stange(3)["teile"]) and pd.abwicklung.daten
+pd.k_vor.click()                                                    # Blättern im Fenster
+assert u.popup.nr == 4 and pd.s["nr"] == 4
+QTest.keyClick(u, Qt.Key_Escape)
+assert not u.popup.isVisible()
+u.popup_zeigen(5)
+assert u.popup.isVisible() and u.popup.nr == 5
+st.ansicht_setzen(DETAIL)                                           # andere Ansicht: Fenster zu
+assert not u.popup.isVisible()
+st.ansicht_setzen(UEBERSICHT)
+ok("Übersicht ist Standard; Maus 1 s auf einer Stange zeigt die Detail-Ansicht im kleinen Fenster, Esc schließt")
 y = st.uebersicht.stangen_y[13]
 QTest.mouseClick(st.uebersicht, Qt.LeftButton, Qt.NoModifier, QPoint(5, y + 8))
 assert st.ansicht == DETAIL and st.nr == 13 and st.detail.s["nr"] == 13 and "Stange 13" in st.detail.titel.text()

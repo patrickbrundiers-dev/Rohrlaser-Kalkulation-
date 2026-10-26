@@ -878,6 +878,210 @@ def untergrenze(g):
     return math.ceil(sum(mindestbedarf(g, t) for t in g.teile) / nutz - EPS) if g.teile else 0
 
 
+
+# ------------------------------------------------------------------ Stangen von Hand vorgegeben
+# Patrick 26.10.2026: „Für die Verschachtelung eine Option: manuell Stangenlänge und die Stückzahl zu der Länge, mehrere
+# Längen eintragbar“. Statt beliebig vieler Stangen der Angebotslänge gibt es genau die vorgegebenen Stangen, z. B.
+# 3 × 6.000 + 2 × 4.500 mm. Ziel der Reihe nach: möglichst viele Teile einplanen, möglichst wenig Stangenlänge,
+# möglichst wenige Stangen. Was nicht mehr auf eine vorgegebene Stange passt, bleibt nicht eingeplant. Keine
+# Restverwaltung: nicht genutzte Länge ist Verschnitt, nicht gebrauchte Stangen bleiben einfach übrig.
+def vorrat_lesen(vorgabe):
+    """[(Länge, Anzahl)] aus [[Länge, Anzahl], …], gleiche Längen zusammengefasst, längste zuerst; Zeilen ohne
+    gültige Länge oder Anzahl fallen weg."""
+    out = {}
+    for z in vorgabe or ():
+        try:
+            laenge, anzahl = float(z[0]), int(z[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if laenge > 0 and anzahl > 0:
+            laenge = int(laenge) if laenge.is_integer() else laenge
+            out[laenge] = out.get(laenge, 0) + anzahl
+    return sorted(out.items(), reverse=True)
+
+
+def _zuteilen(g, stangen, vorrat):
+    """Längen für fertig zusammengestellte Stangen (Teilelisten): größter Bedarf zuerst, je die kürzeste freie Länge,
+    auf die die Stange passt (so ist die Summe der Längen am kleinsten). Ergebnis: ([(Länge, Teile)], Teilelisten
+    ohne Stange, übrige Anzahl je Länge)."""
+    frei = dict(vorrat)
+    gs = {laenge: replace(g, stange=laenge, teile=[]) for laenge in frei}
+    out, ohne = [], []
+    for s in sorted(stangen, key=lambda s: (-belegt(g, anordnen(s, g)), min((t.zeile, t.nr) for t in s))):
+        laenge = min((x for x, n in frei.items() if n > 0 and passt(gs[x], s)), default=None)
+        if laenge is None:
+            ohne.append(s)
+            continue
+        frei[laenge] -= 1
+        out.append((laenge, s))
+    return out, ohne, frei
+
+
+def _fuellen(g, teile, frei, stangen, art="quote"):
+    """Teile auf die freien Stangen verteilen: das längste übrige Teil eröffnet eine Stange, aufgefüllt wird der Reihe
+    nach mit allem, was noch passt; genommen wird die freie Länge, die so am besten gefüllt ist (art 'quote'), bzw.
+    die längste ('lang') oder kürzeste ('kurz') freie Länge, auf die das Teil passt; 'anzahl': kürzeste Teile zuerst
+    auf die längste freie Stange (möglichst viele Teile, wenn die Stangen knapp sind). Hängt an stangen [(Länge,
+    Teile)] an und zählt frei herunter. Ergebnis: Teile ohne Stange."""
+    gs = {laenge: replace(g, stange=laenge, teile=[]) for laenge in frei}
+    teile, uebrig = sortiert(teile), []
+    if art == "anzahl":
+        teile = teile[::-1]
+    while teile:
+        t, beste = teile[0], None
+        for laenge in sorted(frei, reverse=art != "kurz"):         # 'anzahl' wie 'lang'
+            if frei[laenge] <= 0 or not passt(gs[laenge], [t]):
+                continue
+            if beste is not None and art != "quote":
+                break
+            s = [t]
+            for x in teile[1:]:
+                if passt(gs[laenge], s + [x]):
+                    s.append(x)
+            wert = sum(x.laenge for x in s) / laenge
+            if beste is None or wert > beste[0] + EPS:
+                beste = (wert, laenge, s)
+        if beste is None:
+            uebrig.append(t)
+            teile = teile[1:]
+            continue
+        _, laenge, s = beste
+        frei[laenge] -= 1
+        stangen.append((laenge, s))
+        weg = {id(x) for x in s}
+        teile = [x for x in teile if id(x) not in weg]
+    return uebrig
+
+
+def _muster_fuellen(g, teile, frei, stangen, art="quote", hoch=1.0):
+    """Wie _fuellen, aber je Stange das Schnittmuster mit der größten Teilelänge (bestes_muster): genommen wird die
+    freie Länge mit der besten Füllung (art 'quote') bzw. die längste ('lang'); das Muster wird so oft geschnitten,
+    wie Teile und Stangen reichen. hoch > 1 bevorzugt lange Teile im Muster (Wert Länge ** hoch). Passt ein Muster nicht (Gehrungen, 3D-Greifmaß), füllt First Fit. Ergebnis: Teile
+    ohne Stange."""
+    gs = {laenge: replace(g, stange=laenge, teile=[]) for laenge in frei}
+    vorrat_t = {}
+    for t in sortiert(teile):
+        vorrat_t.setdefault(typ(t), []).append(t)
+    while any(vorrat_t.values()) and any(n > 0 for n in frei.values()):
+        keys = sorted((k for k, v in vorrat_t.items() if v), key=lambda k: (-k[0], k))
+        typen = [vorrat_t[k][0] for k in keys]
+        bedarf = [len(vorrat_t[k]) for k in keys]
+        beste = None
+        for laenge in sorted(frei, reverse=True):
+            if frei[laenge] <= 0:
+                continue
+            m, _ = bestes_muster(gs[laenge], typen, bedarf, [t.laenge ** hoch for t in typen])
+            if not m or not sum(m):
+                continue
+            wert = sum(m[i] * typen[i].laenge for i in range(len(m))) / laenge
+            if beste is None or wert > beste[0] + EPS:
+                beste = (wert, laenge, m)
+            if art == "lang":
+                break
+        if beste is None:
+            break
+        _, laenge, m = beste
+        mal = min([frei[laenge]] + [bedarf[i] // m[i] for i in range(len(m)) if m[i]])
+        for _ in range(mal):
+            s = [vorrat_t[keys[i]][-1 - j] for i in range(len(m)) for j in range(m[i])]
+            if not passt(gs[laenge], s):            # Muster ohne Ineinanderlegen/3D-Greifmaß gerechnet
+                s = []
+                for t in sortiert([t for v in vorrat_t.values() for t in v]):
+                    if passt(gs[laenge], s + [t]):
+                        s.append(t)
+                if not s:
+                    break
+            weg = {id(t) for t in s}
+            for k in vorrat_t:
+                vorrat_t[k] = [t for t in vorrat_t[k] if id(t) not in weg]
+            frei[laenge] -= 1
+            stangen.append((laenge, s))
+            if any(len(vorrat_t[keys[i]]) < m[i] for i in range(len(m))):
+                break
+    return [t for v in vorrat_t.values() for t in v]
+
+
+def _verbessern(g, stangen):
+    """Schwach belegte Stangen auflösen, wenn alle ihre Teile auf die anderen Stangen (mit deren Länge) passen."""
+    stangen = [(laenge, list(s)) for laenge, s in stangen]
+    gs = {laenge: replace(g, stange=laenge, teile=[]) for laenge, _ in stangen}
+    geaendert = True
+    while geaendert and len(stangen) > 1:
+        geaendert = False
+        for i in sorted(range(len(stangen)), key=lambda i: (sum(t.laenge for t in stangen[i][1]), -stangen[i][0])):
+            andere = [(laenge, list(s)) for j, (laenge, s) in enumerate(stangen) if j != i]
+            ok = True
+            for t in sortiert(stangen[i][1]):
+                ziel = next((s for laenge, s in sorted(andere, key=lambda x: -belegt(g, anordnen(x[1], g)))
+                             if passt(gs[laenge], s + [t])), None)
+                if ziel is None:
+                    ok = False
+                    break
+                ziel.append(t)
+            if ok:
+                stangen = andere
+                geaendert = True
+                break
+    return stangen
+
+
+def vorrat_planen(g, vorrat):
+    """Schnittplan mit den vorgegebenen Stangen vorrat [(Länge, Anzahl)]. Kandidaten: die Optimierung je einzelner
+    Länge (optimiere), deren Stangen die kürzesten passenden Längen bekommen, was keine Stange bekommt, wird auf die
+    übrigen verteilt (_fuellen); dazu die Verteilung aller Teile mit _fuellen (beste Füllung, längste bzw. kürzeste
+    Stange zuerst) und mit den besten Schnittmustern (_muster_fuellen). Jeder Kandidat wird verbessert (_verbessern: schwach belegte Stangen auflösen) und bekommt am
+    Ende noch einmal die kürzesten passenden Längen (_zuteilen). Es gilt der Kandidat mit den wenigsten nicht eingeplanten
+    Teilen, dann der kleinsten Summe der Stangenlängen, dann den wenigsten Stangen.
+    Ergebnis: ([(Länge, Folge [(Teil, Drehung)])], nicht eingeplante Teile)."""
+    vorrat = [(laenge, n) for laenge, n in vorrat if n > 0]
+    kandidaten = []
+    for laenge, _ in vorrat:
+        h = replace(g, stange=laenge, teile=[t for t in g.teile if passt(replace(g, stange=laenge), [t])],
+                    bewiesen=False, schranke=0)
+        if not h.teile:
+            continue
+        drauf = {id(t) for t in h.teile}
+        st, ohne, frei = _zuteilen(g, [[t for t, _ in f] for f in optimiere(h)], vorrat)
+        rest = [t for t in g.teile if id(t) not in drauf] + [t for s in ohne for t in s]
+        kandidaten.append((st, _fuellen(g, rest, frei, st)))
+    for art in ("quote", "lang", "kurz", "anzahl"):
+        st = []
+        kandidaten.append((st, _fuellen(g, list(g.teile), dict(vorrat), st, art)))
+    for art, hoch in (("quote", 1.0), ("lang", 1.0), ("quote", 1.2), ("lang", 1.2)):
+        st, frei = [], dict(vorrat)
+        rest = _muster_fuellen(g, list(g.teile), frei, st, art, hoch)
+        kandidaten.append((st, _fuellen(g, rest, frei, st)))
+    beste = None
+    for st, uebrig in kandidaten:
+        st = _verbessern(g, st)
+        neu, ohne, _ = _zuteilen(g, [s for _, s in st], vorrat)
+        if not ohne:
+            st = neu
+        wert = (len(uebrig), sum(laenge for laenge, _ in st), len(st))
+        if beste is None or wert < beste[0]:
+            beste = (wert, st, uebrig)
+    _, st, uebrig = beste
+    folgen = [(laenge, anordnen(s, replace(g, stange=laenge))) for laenge, s in st]
+    # längste Stangen zuerst, je Länge die mit der höchsten Belegung (Reststange zuletzt)
+    folgen.sort(key=lambda x: (-x[0], -verbrauch(g, x[1]), x[1][0][0].zeile))
+    return folgen, sorted(uebrig, key=lambda t: (t.zeile, t.nr))
+
+
+def pruefe_vorrat(g, vorrat, folgen, uebrig):
+    """Unabhängige Kontrolle eines Plans mit vorgegebenen Stangen: jedes Teil genau einmal eingeplant oder übrig,
+    je Länge nicht mehr Stangen als vorgegeben, keine Stange überbelegt."""
+    ids = sorted([(t.zeile, t.nr) for _, f in folgen for t, _ in f] + [(t.zeile, t.nr) for t in uebrig])
+    if ids != sorted((t.zeile, t.nr) for t in g.teile):
+        raise AssertionError(f"{g.profil}: Teile fehlen oder doppelt (vorgegebene Stangen)")
+    frei = dict(vorrat)
+    for laenge, f in folgen:
+        if frei.get(laenge, 0) <= 0:
+            raise AssertionError(f"{g.profil}: mehr Stangen {laenge:g} mm als vorgegeben")
+        frei[laenge] -= 1
+        h = replace(g, stange=laenge, teile=[t for t, _ in f])
+        pruefe([h], [[f]])
+
+
 # ------------------------------------------------------------------ Zuschnitt langer Lieferstangen
 # Eine Lieferstange, die länger ist als die Maschine laden kann (z. B. 12.000 mm bei 6.500 mm), wird vom Lieferanten
 # in Werkstücke geschnitten, die einzeln geladen werden. Werkstück = Endbeschnitt + Teile + Trennungen + letzter

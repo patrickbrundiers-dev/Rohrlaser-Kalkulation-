@@ -3,6 +3,7 @@ import copy
 import datetime
 import functools
 import json
+import shutil
 import tempfile
 import threading
 import time
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    teilen, vorschau, zukauf, zukauf_ek, baugruppe
+    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
@@ -39,7 +40,7 @@ from .leiste import UmbruchLeiste
 from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, \
     step_einstellungen, stil, tabellen_eingabe, teile_editor, vorkalk
 from .schritte import Schrittanzeige
-from .stangen_ansicht import MUSTER as STANGEN_MUSTER, StangenSeite
+from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
 from . import stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
@@ -683,7 +684,6 @@ STATUS_ZIELE = (
     ("Stückzahl", "feld:stueck", "Stückzahl eintragen"),
     ("Stange länger", "feld:stange", "Stangenlänge eintragen"),
     ("kein gültiger Materialpreis", "feld:preis_m", "Meterpreis eintragen"),
-    ("Meterpreis manuell", "feld:preis_m", "Meterpreis ändern"),
     ("keine Schneiddaten", "feld:zeit_manuell", "Schneidzeit von Hand eintragen"),
     ("Schneidzeit manuell", "feld:zeit_manuell", "Schneidzeit ändern"),
     ("beigestellt", "feld:material_herkunft", "Material ändern"),
@@ -1450,7 +1450,9 @@ PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None,
 KALK_IMMER = {"pos", "artikel", "stueck", "material_teil", "herstell_teil", "preis_teil", "preis_position"}
 KOMPAKT_IMMER = {"pos", "artikel", "profil", "stueck", "laenge", "material", "oberflaeche", "laser_brutto", "laser_netto",
                  "preis_teil", "preis_position"}
-STANGENBILD_EINSTELLUNG = "ansicht_stangenbild"   # Reiter Stangenbild: Stangenmuster, Übersicht oder Detail
+# Reiter Stangenbild: Stangenmuster, Übersicht oder Detail; seit 0.9.146 neuer Name, damit für alle zuerst die Übersicht
+# gilt (Patrick 26.10.2026: „Übersicht als Standardansicht“), danach wird die Wahl wieder gemerkt
+STANGENBILD_EINSTELLUNG = "ansicht_stangenbild_2"
 KOMPAKT_EINSTELLUNG = "ansicht_kalk_kompakt"    # Reiter Kalkulation: kompakte Übersicht (Vorgabe) oder alle Spalten
 PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}   # einmal über dem Schnittplan
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
@@ -1715,6 +1717,8 @@ class AngebotSeite(QWidget):
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
+                ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
+                ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
                 ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
@@ -1790,8 +1794,9 @@ class AngebotSeite(QWidget):
         plan.addWidget(plan_oben)
         plan.addWidget(plan_unten)
         # Stangenbild: Umschalter Stangenmuster / Übersicht / Detail (Lantek-Ideen L1, L2, L4)
-        self.stangen_seite = StangenSeite(self.db.einstellung(STANGENBILD_EINSTELLUNG) or STANGEN_MUSTER,
-                                          lambda a: self.db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a))
+        self.stangen_seite = StangenSeite(self.db.einstellung(STANGENBILD_EINSTELLUNG) or STANGEN_UEBERSICHT,
+                                          lambda a: self.db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a),
+                                          lambda: self.db.einstellung("stangenbild_popup"))
         self.stangen_seite.doppelklick.connect(self.zur_position)
         self.bild = self.stangen_seite.bild
         teile_ansicht.setToolTip("Doppelklick auf ein Teil: zur Position")
@@ -2876,6 +2881,7 @@ class AngebotSeite(QWidget):
         if erg.get("laenge"):           # Knickrahmen: gestreckte Länge
             werte["laenge"] = erg["laenge"]
         self._knicken_eintragen(werte, werte, erg)
+        self._stege_eintragen(werte, werte)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self._radius_uebernehmen(dict(werte, id=pid_neu), eingaben)
         self.neu_laden()
@@ -3263,6 +3269,7 @@ class AngebotSeite(QWidget):
         arten = {self.position_art(self.positionen[r]) for r in zeilen}
         mit_bg = any(ist_baugruppe(self.positionen[r]) or baugruppe.zuordnung(self.positionen[r])[0] for r in zeilen)
         mit_satz = any(self.positionen[r].get("satz") for r in zeilen)
+        mit_virtuell = any(virtuell.technik_lesen(self.positionen[r]) for r in zeilen)
         for text, a in self.pos_aktionen.items():
             noetig = self.MENUE_ARTEN.get(text)
             sichtbar = not zeilen or noetig is None or bool(arten & noetig)
@@ -3270,6 +3277,8 @@ class AngebotSeite(QWidget):
                 sichtbar = mit_satz
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
+            elif text in ("Virtuelles Bauteil als STEP …", "Stege abtrennen an/aus"):
+                sichtbar = mit_virtuell
             elif text == "Für markierte setzen …":
                 sichtbar = len(zeilen) > 1 and "rohr" in arten
             a.setVisible(sichtbar)
@@ -3999,6 +4008,7 @@ class AngebotSeite(QWidget):
         if erg.get("laenge"):           # Knickrahmen: gestreckte Länge
             felder["laenge"] = erg["laenge"]
         self._knicken_eintragen(felder, dict(p, **felder), erg)
+        self._stege_eintragen(felder, dict(p, **felder))
         for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         weitere = self._radius_uebernehmen(p, eingaben)
@@ -4067,9 +4077,16 @@ class AngebotSeite(QWidget):
         if not erg["positionen"]:
             return None
         q = erg["positionen"][0]
+        t_neu = schneidweg.lesen(q.get("technik"))
+        if e.get("stege_abtrennen") and virtuell.ist_virtuell(t_neu):     # Wahl „Stege abtrennen“ bleibt
+            q["technik"] = json.dumps(dict(t_neu, stege_abtrennen=True), ensure_ascii=False)
+        zusatz = {}
+        self._stege_eintragen(zusatz, dict(p, technik=q.get("technik")))
         for name in PROFILWECHSEL_FELDER + ("technik",):
             if name in q:
                 self.db.position_aendern(p["id"], name, q[name])
+        for name, wert in zusatz.items():
+            self.db.position_aendern(p["id"], name, wert)
         if q.get("_netz"):
             self.db.netz_speichern(p["id"], q["_netz"])
         return (f"Schneidweg für {profil['profil_id']} neu gemessen: {rechnen.zahl(q['schneidweg'], 1)} mm"
@@ -4109,6 +4126,117 @@ class AngebotSeite(QWidget):
                     self.db.position_aendern(q["id"], name, erg["felder"][name])
             n += 1
         return n
+
+    def _stege_eintragen(self, felder, p):
+        """Zusatzarbeit 'Stege abtrennen' (virtuelles Bauteil) nach technik stege_abtrennen in felder['zusatz']
+        eintragen bzw. wieder herausnehmen (nur Einträge aus dem Schneidweg-Rechner)."""
+        an = bool(virtuell.technik_lesen(p).get("stege_abtrennen"))
+        alt = p.get("zusatz") or None
+        if not an and virtuell.ZUSATZ_STEGE not in str(alt or ""):
+            return
+        zu, fehlt = virtuell.zusatz_eintragen(alt, an, self.tabellen.get("zusatzarbeiten") or [], schneidweg.QUELLE)
+        if zu != alt:
+            felder["zusatz"] = zu
+        if fehlt:
+            self.f.meldung(f"Zusatzarbeit '{virtuell.ZUSATZ_STEGE}' fehlt in den Stammdaten.", fehler=True)
+
+    def stege_abtrennen(self, zeilen=None, an=None):
+        """Virtuelles Bauteil (Winkel aus größerem Profil, offenes Rohr): Stege 2 mm an den Enden abtrennen (an=True,
+        Zusatzarbeit, Gewicht wie gezeichnet) oder am Teil lassen (False); None = umschalten nach der ersten Zeile.
+        Ergebnis: Zahl geänderter Positionen."""
+        if zeilen is None:
+            zeilen = self._markierte_zeilen()
+        ziele = [(r, virtuell.technik_lesen(self.positionen[r])) for r in zeilen if r < len(self.positionen)]
+        ziele = [(r, e) for r, e in ziele if e]
+        if not ziele:
+            self.f.meldung("Keine Position mit virtuellem Bauteil (Stege 2 mm) markiert.", fehler=True)
+            return 0
+        if an is None:
+            an = not ziele[0][1].get("stege_abtrennen")
+        n = 0
+        for r, e in ziele:
+            if bool(e.get("stege_abtrennen")) == an:
+                continue
+            p = self.positionen[r]
+            e = dict(e)
+            if an:
+                e["stege_abtrennen"] = True
+            else:
+                e.pop("stege_abtrennen", None)
+            felder = dict(technik=json.dumps(e, ensure_ascii=False))
+            self._stege_eintragen(felder, dict(p, **felder))
+            for name, wert in felder.items():
+                self.db.position_aendern(p["id"], name, wert)
+            n += 1
+        if n:
+            self.neu_laden()
+            self.f.meldung(f"{n} Position(en): Stege {'werden abgetrennt (Nacharbeit)' if an else 'bleiben am Teil'}.")
+        return n
+
+    def virtuell_erzeugen(self, p, ordner):
+        """Körper des virtuellen Bauteils der Position p (Teil mit Stegen bzw. Ringen, so wird gelasert) als STEP
+        in Dateilage: die Kundendatei wird mit STEP-Import.exe --virtuell neu gemessen (je Datei und Zielprofil
+        einmal, Unterordner von ordner). Ergebnis: Pfad oder None (Datei fehlt, Messung ohne Stege)."""
+        import hashlib
+        e = virtuell.technik_lesen(p)
+        datei = e.get("step_datei")
+        if not e or not datei or not Path(datei).is_file():
+            return None
+        befehl = step.messprogramm(self.f.programmordner)
+        if befehl is None:
+            return None
+        ziel_stege = None
+        if e.get("stege_virtuell"):
+            pr = self.k.profile.get(p.get("profil_id")) or {}
+            ziel_stege = "|".join([str(pr.get("form") or ""), f"{float(pr.get('a') or 0):g}",
+                                   f"{float(pr.get('b') or pr.get('a') or 0):g}", f"{float(pr.get('wand') or 0):g}"])
+        unter = Path(ordner) / hashlib.sha1(f"{datei}|{ziel_stege}".encode("utf-8")).hexdigest()[:16]
+        if not unter.is_dir():
+            ausgabe = unter / "messwerte.txt"
+            unter.mkdir(parents=True)
+            self._messen(befehl + [str(datei), "--ausgabe", str(ausgabe), "--virtuell", str(unter / "virtuell"),
+                                   "--flachstahl-bis", str(self.flach_bis())]
+                         + (["--stege", ziel_stege] if ziel_stege else [])
+                         + step_einstellungen.mess_argumente(self.db), 1, ausgabe)
+        quelle = unter / "virtuell" / f"k{int(e.get('step_koerper') or 1)}.step"
+        return quelle if quelle.is_file() else None
+
+    def virtuell_step_speichern(self, zeile=None, pfad=None):
+        """Virtuelles Bauteil (so wird gelasert: Teil mit Stegen bzw. Ringen) als STEP: die Kundendatei wird mit
+        STEP-Import.exe --virtuell neu gemessen, der Körper unverändert in Dateilage geschrieben. Ohne pfad:
+        Dateidialog. Ergebnis: Pfad oder None."""
+        if zeile is None:           # die erste markierte virtuelle Position (das Menü zeigt den Eintrag, wenn eine es ist)
+            zeilen = self._markierte_zeilen()
+            zeile = next((z for z in zeilen if z < len(self.positionen) and virtuell.technik_lesen(self.positionen[z])),
+                         zeilen[0] if zeilen else None)
+        if zeile is None or zeile >= len(self.positionen):
+            return None
+        p = self.positionen[zeile]
+        e = virtuell.technik_lesen(p)
+        datei = e.get("step_datei")
+        if not e or not datei or not Path(datei).is_file():
+            self.f.meldung("Virtuelles Bauteil: STEP-Datei der Position nicht gefunden (nur für Teile aus dem "
+                           "STEP-Import mit Stegen).", fehler=True)
+            return None
+        if step.messprogramm(self.f.programmordner) is None:
+            self.f.meldung("STEP-Messprogramm nicht gefunden.", fehler=True)
+            return None
+        if pfad is None:
+            name = f"Pos {p.get('pos') or ''} {p.get('artikel') or ''} virtuell".strip()
+            vorschlag = self._ziel(name, ".step") if hasattr(self, "_ziel") else name + ".step"
+            pfad, _ = QFileDialog.getSaveFileName(self, "Virtuelles Bauteil als STEP", str(vorschlag),
+                                                  "STEP-Dateien (*.step *.stp)")
+            if not pfad:
+                return None
+        with tempfile.TemporaryDirectory() as tmp:
+            quelle = self.virtuell_erzeugen(p, tmp)
+            if quelle is None:
+                self.f.meldung("Virtuelles Bauteil konnte nicht erzeugt werden (Messung ohne Stege, z. B. Enden "
+                               "nicht eben).", fehler=True)
+                return None
+            shutil.copyfile(quelle, pfad)
+        self.f.meldung(f"Virtuelles Bauteil gespeichert: {pfad}")
+        return pfad
 
     def _knicken_eintragen(self, felder, p, erg):
         """Zusatzarbeit Knicken mit der Zahl der V-Ausschnitte (Knickrahmen) in felder['zusatz'] eintragen bzw. wieder
@@ -4822,7 +4950,7 @@ class AngebotSeite(QWidget):
                              ohne_plan=ohne_plan, seite=self)
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
             return 0
-        n = len(d.aenderungen) + len(d.kopf_aenderungen)
+        n = len(d.aenderungen) + len(d.kopf_aenderungen) + (d.vorgaben is not None)
         if n:
             self._material_speichern(d)
         if d.nachher:
@@ -4830,8 +4958,10 @@ class AngebotSeite(QWidget):
         return n
 
     def _material_speichern(self, d):
-        n = len(d.aenderungen) + len(d.kopf_aenderungen)
+        n = len(d.aenderungen) + len(d.kopf_aenderungen) + (d.vorgaben is not None)
         vorher = self._verkauf()
+        if d.vorgaben is not None:      # von Hand vorgegebene Stangen (Patrick 26.10.2026)
+            self.db.stangen_vorgabe_speichern(self.id, d.vorgaben)
         for g, felder in d.aenderungen:
             for pid in g["ids"]:
                 for feld, wert in felder.items():
@@ -4841,7 +4971,8 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         plan = any(set(f) & {"werkstoff_id", "oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen)
         self.f.meldung(f"Material: {n} Änderung(en) gespeichert. {preis_aenderung(vorher, self._verkauf())}"
-                       + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else ""))
+                       + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else
+                          " Vorgegebene Stangen geändert: bitte neu optimieren." if d.vorgaben is not None else ""))
 
     def _material_nachher(self, aktion, wert=None):
         """Schritt aus dem Material-Fenster, nachdem es geschlossen ist: 'position' (wert = Bezug ref), 'markieren'

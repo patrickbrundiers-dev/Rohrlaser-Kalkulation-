@@ -112,6 +112,7 @@ db.angebot_aendern(aid, "fracht_umlage", None)
 kopie = db.angebot_kopieren(aid)
 assert db.angebot(kopie)["fracht_umlage"] is None
 alt = {k: v for k, v in db.angebot(aid).items()}
+alt.update(aufschlag_blech=None, aufschlag_zukauf=None)         # ältere Angebote ohne Aufschlag im Angebot
 g = staffeln._gemeinsam(alt, pos, db.kontext(), db.tabellen(), {})
 assert set(g[0]) == {"maschine", "stange", "fracht", "skonto", "zeitbasis"}
 ok("Kopie eines älteren Angebots bleibt bei je Stück; Prüfsumme der Staffeln älterer Angebote unverändert")

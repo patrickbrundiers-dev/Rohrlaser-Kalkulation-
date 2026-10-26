@@ -35,6 +35,8 @@ def nah(a, b, text, eps=1e-6):
 
 
 db = Datenbank(tmp / "z.db")
+db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
+db.einstellung_setzen("aufschlag_zukauf", None)
 a = db.angebot_neu(dict(kunde="Test"))
 # Rahmen: 10 Sätze; Pos. 10 4 Rohre je Rahmen, Pos. 20 6 Rohre je Rahmen
 p1 = db.position_neu(a, dict(pos=10, artikel="A", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,

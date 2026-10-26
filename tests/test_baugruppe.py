@@ -52,6 +52,8 @@ def ok(text):
 
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "bg.db")
+db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
+db.einstellung_setzen("aufschlag_zukauf", None)
 
 # ------------------------------------------------------------------ B1 Schema
 assert SCHEMA_VERSION >= 46
@@ -289,6 +291,8 @@ v4 = next(z for z in rw["schweiss_kennwerte"] if (z["verfahren"], z["nahtart"], 
 nah(v4["min_m"], round((16 * math.tan(math.radians(30)) + 6) * 1.1 * 7.85 / 1000 / 3.5 * 60, 2), "MAG V4")
 assert all(z["status"] == "Richtwert" for t in rw.values() for z in t)
 db2 = Datenbank(tmp / "rw.db")
+db2.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
+db2.einstellung_setzen("aufschlag_zukauf", None)
 db2.stammdaten_ersetzen(rw, {}, "Richtwerte")
 k2 = db2.kontext()
 from rohrlaser.stammdaten import TABELLE, pruefen  # noqa: E402

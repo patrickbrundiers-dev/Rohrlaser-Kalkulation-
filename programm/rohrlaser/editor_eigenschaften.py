@@ -306,13 +306,15 @@ class Eigenschaften(QWidget):
                          lambda v: self._eig_setzen(combo, "drehung", round(v, 3) % 360 if v else None), "°",
                          "Drehung der Kontur auf der Fläche um ihre Mitte, + = gegen den Uhrzeiger (von außen gesehen); "
                          "0 = Länge längs zum Teil", schluessel="Drehwinkel")
-        if d.qs.r and art not in sw.GRAVUREN and art != sw.FLOWDRILL:
+        if (d.qs.r or d.qs.radius) and art not in sw.GRAVUREN and art != sw.FLOWDRILL:
             f = QComboBox()
             for k, text in SCHNITT.items():
                 f.addItem(text, k)
             f.setCurrentIndex(max(0, f.findData(eig.get("schnitt") or "")))
-            f.setToolTip("Senkrecht: Strahl zur Rohrmitte (2D, Standard). Parallel: Lochwand parallel zur Achse der "
-                         "Kontur wie gebohrt – braucht die 3D-Schnittbearbeitung (Häkchen am Teil)")
+            f.setToolTip("Senkrecht (2D, Standard): Strahl je Punkt senkrecht zur Oberfläche, die Innenkante der "
+                         "Kontur ist maßhaltig, außen wird sie auf Rundrohr und Eckradius breiter. Parallel (3D): "
+                         "ebene Schnittfläche parallel zur Achse der Kontur wie gebohrt – braucht die "
+                         "3D-Schnittbearbeitung (Häkchen am Teil)")
             f.activated.connect(lambda _=None: self._eig_setzen(combo, "schnitt", f.currentData()))
             self._form.addRow("Schnittrichtung", f)
             self.felder["Schnittrichtung"] = f

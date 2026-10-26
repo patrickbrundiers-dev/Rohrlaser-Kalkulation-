@@ -1042,12 +1042,20 @@ def kapitel_angebot(i):
             "Werte an den Positionen (Meterpreis, Schneidzeit, Zukaufteile) bleiben. "
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
             "Beim Kopieren gehen die Werte mit.",
-            "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
+            "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschlag Fremdleistung, "
+            "Aufschlag Bleche, Aufschlag Zukaufteile, Handling Kundenmaterial), <b>Zeit und "
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel SN und Stundensatz der Maschine zur Information, "
             "Rüstzeit je Maschine nur, wenn sie nicht 0 min ist; Stangenwechsel je Stange, Rüstzeit je Abmessung, "
             "Programmierzeit je Position und je Innenkontur änderbar), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
+            "<b>Aufschlag Bleche [%]</b> und <b>Aufschlag Zukaufteile [%]</b> (Vorgabe je 10 % aus den Einstellungen) "
+            "gelten für alle Bleche bzw. alle übrigen Zukaufteile dieses Angebots, als % auf den Einstand; sie "
+            "ersetzen dort den Aufschlag von Artikel, Kategorie und Standard ([[zukauf_kategorien]]). Ein "
+            "Positionsaufschlag im Fenster Zukaufteile geht weiter vor. Als Blech zählt ein Artikel vom Typ Blech oder "
+            "der Kategorie Blechteile. Die Zeilen stehen nur da, wenn das Angebot Bleche bzw. Zukaufteile hat. "
+            "Angebote aus älteren Programmversionen rechnen mit den bisherigen Regeln, bis hier ein Wert eingetragen "
+            "wird (unter Erweiterte Einstellungen).",
             "<b>Stangenwechsel je Stange [s]</b> gilt für Stangen ohne feste Schweißnaht-Lage und nur für dieses "
             "Angebot (Vorgabe aus den Stammdaten Maschinen, gespeichert mit den Zeitvorgaben des Angebots). Ein "
             "abweichender Wert ist gelb und steht in der Liste der Abweichungen; <b>Vorgaben aus Einstellungen</b> "
@@ -1311,7 +1319,8 @@ def kapitel_angebot(i):
             "denselben Stangen geschnitten werden. Die anderen Positionen dieser Gruppe zeigen ihn kursiv.",
             "Die Kalkulation, der Lieferlängen-Vergleich und die Staffelpreise rechnen mit dem eingetragenen Preis; "
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
-            "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
+            "Der berechnete Preis ist nur Vorgabe: ein eigener Preis löst keine Meldung im Status aus. Feld leeren "
+            "(oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
     i.abschnitt("Material je Abmessung (Fenster Material …)", marke="material_fenster")
     i.text("<b>Material …</b> (rechts neben den Ausgaben oder Rechtsklick auf eine Position): alles zum Material je "
@@ -1329,11 +1338,30 @@ def kapitel_angebot(i):
     i.genauer()
     i.text("Abmessung = Profil, Werkstoff, Oberfläche und Stangenlänge. Der Knopf steht vor <i>Materialanfrage "
            "(E-Mail)</i>.")
-    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert; der "
-            "Status zeigt dann <b>HINWEIS: Meterpreis manuell</b>.",
+    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert (ohne "
+            "Meldung im Status).",
+            "Spalte <b>Stangen vorgegeben</b>: welche Stangen für die Abmessung da sind ([[stangen_vorgabe]]).",
             "Ohne Optimierung stehen Stangen, Meter und Gewicht auf „–“; passt der Schnittplan nicht mehr zu den "
             "Positionen, steht oben ein roter Hinweis.",
             "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
+    i.abschnitt("Stangen von Hand vorgeben", marke="stangen_vorgabe")
+    i.text("Im Fenster <b>Material …</b> öffnet der Knopf in der Spalte <b>Stangen vorgegeben</b> (oder Rechtsklick "
+           "› <i>Stangen vorgeben …</i>) eine Liste: je Zeile eine Stangenlänge und wie viele Stangen dieser Länge da "
+           "sind, z. B. 3 × 6.000 und 2 × 4.500 mm. Nach <b>Übernehmen</b> neu optimieren.", kurz=True)
+    i.genauer()
+    i.liste("Die Optimierung plant die Abmessung dann nur mit genau diesen Stangen: zuerst möglichst alle Teile, dann "
+            "möglichst wenig Stangenlänge, dann möglichst wenige Stangen. Nicht gebrauchte Stangen bleiben einfach "
+            "übrig, Reste werden nicht verwaltet.",
+            "Teile, die auf keine vorgegebene Stange mehr passen, stehen in der Auswertung unter <i>nicht "
+            "eingeplant</i> mit dem Grund <i>vorgegebene Stangen reichen nicht</i>; die Positionen zeigen das im "
+            "Status.",
+            "Ein Teil darf länger sein als die Lieferlänge der Abmessung, wenn es auf eine vorgegebene Stange passt. "
+            "Längen über der max. Stangenlänge der Maschine nimmt die Liste nicht an.",
+            "Schnittplan, Stangenbild, Werkstattpapiere, Materialkosten und Materialanfrage rechnen mit der Länge "
+            "jeder einzelnen Stange.",
+            "Die Vorgabe gilt nur für die Menge dieses Angebots: Staffelpreise rechnen ohne sie. Eine Kopie des "
+            "Angebots übernimmt sie.",
+            "<b>Vorgabe aufheben</b> (oder alle Zeilen leeren) = wieder beliebig viele Stangen der Lieferlänge.")
     i.abschnitt("Abmessung genauer ansehen (Doppelklick im Fenster Material …)", marke="abmessung_fenster")
     i.text("Im Fenster <b>Material …</b> öffnet ein <b>Doppelklick auf Stangen</b> die Abmessung in einem eigenen "
            "Fenster: Stangenbild, Schnittmuster, Bilanz und alle Teile dieser Abmessung.", kurz=True)
@@ -1934,6 +1962,32 @@ def kapitel_step(i):
             "umschaltbar auf eine je Rohr mit Ringen. Die Position bekommt <b>Teile je Rohrumfang</b>: Rohrstücke = "
             "Stückzahl ÷ je Umfang aufgerundet (5 Schalen, 2 je Umfang = 3 Rohrstücke). Eine Halbschale von genau "
             "180° passt mit Luft nur einmal.",
+            "<b>Virtuelles Bauteil als STEP</b>: für Winkel/U aus einem größeren Profil und offen gezeichnete Rohre "
+            "speichert Rechtsklick → <i>Virtuelles Bauteil als STEP …</i> (oder <b>STEP speichern</b> im "
+            "Schneidweg-Rechner) den Körper, der wirklich gelasert wird: Teil plus Stege bzw. Ringe, genau in der Lage "
+            "der Kundendatei, die selbst unverändert bleibt. Damit bekommt die Programmierung am Laser die echte "
+            "Geometrie. Die STEP-Datei der Position muss noch am gleichen Ort liegen.",
+            "<b>Stege bleiben oder abtrennen</b>: Vorgabe ist, dass die Stege bzw. Ringe 2 mm am Teil bleiben. Je "
+            "Position umschaltbar (Rechtsklick → <i>Stege abtrennen an/aus</i> oder Häkchen <i>Stege abtrennen "
+            "(Nacharbeit)</i> im Schneidweg-Rechner): abgetrennt kommt die Zusatzarbeit <i>Stege abtrennen</i> "
+            "(€ je Teil, Preis in den Stammdaten Zusatzarbeiten) dazu und das Gewicht ist das des gezeichneten Teils. "
+            "Die Wahl bleibt beim Wechsel auf ein anderes größeres Profil erhalten.",
+            "<b>Zeichnung und Werkstattpapiere</b>: die Zeichnung aus dem Schneidweg-Rechner zeigt das virtuelle "
+            "Bauteil mit roten Stegen (ganzes Teil, Ende A und B vergrößert) und den Hinweis „bleibt stehen“ bzw. "
+            "„abtrennen und entgraten“; die Werkstattpapiere listen diese Positionen im Abschnitt <i>Virtuelle "
+            "Bauteile (Stege 2 mm)</i>.",
+            "<b>Gewicht</b>: das Gewicht je Teil (Spalte Gewicht, Palettenschein, Fracht) kommt beim virtuellen "
+            "Bauteil aus dem gemessenen Volumen (mit Stegen bzw. wie gezeichnet, wenn sie abgetrennt werden), nicht "
+            "aus Metergewicht × Länge des größeren Profils; der Rest des Querschnitts ist Abfall. Material und "
+            "Stangen rechnen weiter mit dem ganzen Profil. Zusatzarbeiten in €/kg (z. B. Verzinken) nehmen dieses "
+            "Gewicht, Zusatzarbeiten in €/m² (z. B. Pulvern) die Fläche anteilig (Teil zu ganzem Profil).",
+            "<b>Satz und Baugruppe als STEP</b>: STEP speichern im Fenster Satz in 3D und im Editor der "
+            "Schweißbaugruppe schreibt das virtuelle Bauteil als exakten Körper mit Stegen bzw. Ringen in die "
+            "Baugruppe (abgetrennt: wie gezeichnet), siehe [[step_baugruppe]].",
+            "<b>Plausibilitätsprüfung</b>: die Prüfregel <i>Virtuelles Bauteil prüfen</i> ([[pruefregeln]]) "
+            "vergleicht das gemessene Mehrvolumen der Stege bzw. Ringe mit dem erwarteten (2 × 2 mm × Querschnitt "
+            "des Profils minus gezeichneter Querschnitt). Fehlt es oder ist es ein Vielfaches (z. B. Aussparung am "
+            "Ende, falsches Profil), kommt eine Warnung: dann das Teil im 3D ansehen.",
             "<b>Rohrgröße</b>: das nächstgrößere Rohr einer festen Normreihe (Quadrat-, Rechteck- und Rundrohr nach "
             "EN 10219/10305), wenn es höchstens 1 mm größer ist als die Zeichnung; sonst Sondermaß mit Hinweis. Steht "
             "das Rohr in den Stammdaten, wird es genommen, sonst als Profil vorgeschlagen. Wählst du in der Spalte "
@@ -2890,10 +2944,16 @@ def kapitel_optimieren(i):
             "außen gesehen). <b>Wände</b> – <i>beide Wände (durchgehend)</i> setzt dieselbe Kontur genau gegenüber "
             "(z. B. Durchgangsbohrung), <i>alle vier Seiten</i> beim Quadrat- und Rechteckrohr, <i>am Umfang "
             "verteilt</i> beim Rundrohr mit <i>Anzahl am Umfang</i> (4 = alle 90°); jede Kopie zählt im Schneidweg "
-            "und bei den Einstichen und ist in Skizze und 3D zu sehen. <b>Schnittrichtung</b> (Rundrohr): "
-            "<i>senkrecht zur Oberfläche</i> (Strahl zur Rohrmitte, Standard) oder <i>parallel zur Konturachse</i> "
-            "wie gebohrt – das braucht die 3D-Schnittbearbeitung am Teil, die Schnittlänge ist dann die der Kontur "
-            "(Bohrung π × d).",
+            "und bei den Einstichen und ist in Skizze und 3D zu sehen. <b>Schnittrichtung</b> (Rundrohr und "
+            "Quadrat-/Rechteckrohr mit Eckradius): <i>senkrecht zur Oberfläche</i> (2D, Standard) – der Strahl steht "
+            "an jedem Punkt 90° zur Oberfläche, und es gilt immer die <b>Innenkante</b> der Kontur: innen hat sie "
+            "genau die Maße der Zeichnung bzw. der STEP, außen ist sie auf dem Rundrohr und in der Rundung der Ecke "
+            "dafür etwas breiter (in der Abwicklung, im 3D, im Schnittkörper und in der Schnittlänge so gerechnet; "
+            "auf ebenen Wänden ändert sich nichts). <i>parallel zur Konturachse</i> ist die <b>ebene "
+            "Bearbeitung</b> wie gebohrt: die Schnittfläche ist eben, außen hat die Kontur die Maße der Zeichnung, "
+            "und eine Kontur nah an der Kante wird gerade (parallel zur Wand) durch die Rundung geschnitten. Das "
+            "braucht die 3D-Schnittbearbeitung am Teil; Abwicklung, 3D und Schnittlänge stellen sich beim Umschalten "
+            "sofort um (Bohrung dann π × d).",
             "<b>Außenradius</b> (Quadrat- und Rechteckrohr, Eigenschaften des Teils): leer = Wert der Stammdaten, bei "
             "<b>Aluminium</b> 0, sonst Vorgabe nach Norm (als grauer Text angezeigt); 0 = scharfkantig. Er gilt im ganzen <b>Angebot</b> für "
             "alle Positionen mit gleichem Profil und Werkstoff: Beim Übernehmen rechnet das Programm die übrigen "
@@ -3243,8 +3303,8 @@ def kapitel_optimieren(i):
     i.abschnitt("Stangenbild", marke="stangenbild")
     i.bild("erg_stangenbild", "Reiter Stangenbild, Ansicht Stangenmuster", hoehe=85 * mm, legende=[
         (1, "<b>Umschalter</b>: <i>Stangenmuster</i> (gleich belegte Stangen zusammengefasst, wie "
-            "bisher), <i>Übersicht</i> (jede Stange eine Zeile) und <i>Detail</i> (eine Stange groß). Das Programm "
-            "merkt sich die zuletzt gewählte Ansicht, auch für das Abmessungs-Fenster ([[abmessung_fenster]]).")])
+            "bisher), <i>Übersicht</i> (jede Stange eine Zeile, Standard) und <i>Detail</i> (eine Stange groß). Das "
+            "Programm merkt sich die zuletzt gewählte Ansicht, auch für das Abmessungs-Fenster ([[abmessung_fenster]]).")])
     i.text("Jede Stange als Balken: Teile farbig mit Positionsnummer, Rest hellgrau, Greiferrest rot. Doppelklick "
            "auf ein Teil springt zur Position. Oben wählt man zwischen Stangenmuster, Übersicht und Detail.", kurz=True)
     i.bild("erg_stangen_uebersicht", "Ansicht Übersicht: jede Stange eine Zeile, nach Abmessung gruppiert",
@@ -3252,7 +3312,10 @@ def kapitel_optimieren(i):
                (1, "<b>Übersicht</b> wählen."),
                (2, "Je Abmessung eine Kopfzeile (Profil, Werkstoff, Lieferlänge, Anzahl Stangen, Ausnutzung), darunter "
                    "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
-                   "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern.")])
+                   "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern. Bleibt die "
+                   "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Detail-Ansicht (Kennzahlen, "
+                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern); <b>Esc</b> schließt es. Die Wartezeit "
+                   "steht unter Einstellungen › Ansicht (<i>Stangenbild: Detail-Fenster nach … Sekunden</i>, 0 = aus).")])
     i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
            hoehe=95 * mm, legende=[
                (1, "<b>Kennzahlen</b> der Stange: Lieferlänge, Teile, Nutzung, Rest (Verschnitt, es gibt keine "
@@ -4330,6 +4393,10 @@ def kapitel_baugruppen(i):
             "Namen mit Umlauten (Fußplatte, Geländer) stehen richtig in der STEP-Datei.",
             "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
             "kommen als facettierter Körper hinein, mit Hinweis.",
+            "<b>Virtuelle Bauteile</b> (Winkel/U aus größerem Profil, offen gezeichnete Rohre, [[offene_rohre]]): "
+            "bleiben die Stege am Teil, kommt der exakte Körper mit Stegen bzw. Ringen 2 mm hinein (so wird "
+            "gelasert, die Kundendatei wird dafür kurz neu gemessen); werden sie abgetrennt, das Teil wie gezeichnet. "
+            "Beides mit Hinweis, Lage wie in der STEP-Datei.",
             "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "
             "mit Hinweis.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
@@ -4816,6 +4883,9 @@ def kapitel_einstellungen(i):
          "([[zukauf_kategorien]]); "
          "leer = kein Standardaufschlag, das Programm weist dann darauf hin. Neue Werte gelten nur für Zukaufteile, "
          "die danach ins Angebot kommen."],
+        ["Kalkulation", "Aufschlag Bleche im Angebot, Aufschlag Zukaufteile im Angebot",
+         "Vorgabe neuer Angebote (je 10 %): % auf den Einstand aller Bleche bzw. aller übrigen Zukaufteile; ersetzt "
+         "im Angebot Artikel-, Kategorie- und Standardaufschlag, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
         ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
@@ -4870,6 +4940,9 @@ def kapitel_einstellungen(i):
         ["Ansicht", "Dichte (kompakt, normal, komfortabel)",
          "Zeilenhöhe der Tabellen und Abstand in Knöpfen und Feldern: <i>kompakt</i> zeigt mehr Zeilen, "
          "<i>komfortabel</i> mehr Luft (Vorgabe normal). Gilt sofort, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Stangenbild: Detail-Fenster nach so vielen Sekunden auf einer Stange (0 = aus)",
+         "Wie lange die Maus in der Übersicht des Stangenbilds auf einer Stange bleiben muss, bis ein kleines Fenster "
+         "ihre Detail-Ansicht zeigt ([[stangenbild]]); Vorgabe 1 Sekunde, 0 = nie. Nur an diesem Arbeitsplatz."],
         ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
          "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
          "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
@@ -5701,11 +5774,15 @@ def kapitel_stammdaten(i):
             "<b>Wand zu dick zum Knicken</b> (Knickrahmen): Wandstärke über dem Grenzwert in mm (Vorgabe 4, HINWEIS).",
             "<b>Nase zu schmal</b> (Steckverbindung): Nasenbreite unter Grenzwert × Wand des Steckers (Vorgabe 3,0, "
             "WARNUNG, [[steckverbindung]]).",
+            "<b>Virtuelles Bauteil prüfen</b> (Teil mit Stegen bzw. Ringen 2 mm, [[offene_rohre]]): gemessenes "
+            "Mehrvolumen mehr als Grenzwert × erwartet, weniger als erwartet ÷ Grenzwert oder keins (Vorgabe 3,0, "
+            "WARNUNG).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
            "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39, die drei Regeln für "
-           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.49.")
+           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.49, die Regel für virtuelle "
+           "Bauteile beim ersten Start von Version 0.9.148.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
@@ -5989,7 +6066,9 @@ def kapitel_zukauf(i):
     i.bild("zukauf_kategorien", "Zukaufartikel, Unterreiter Kategorien (Beispiel: 30 % für Schrauben und Muttern)",
            hoehe=80 * mm, legende=[(1, "Unterreiter <b>Kategorien</b>")])
     i.text("Je Kategorie ein Standardaufschlag. Vorrang: Aufschlag der Position vor dem des Artikels vor dem der "
-           "Kategorie vor dem Standard der Einstellungen.", kurz=True)
+           "Kategorie vor dem Standard der Einstellungen. In Angeboten ab 0.9.151 ersetzen <i>Aufschlag Bleche</i> "
+           "und <i>Aufschlag Zukaufteile</i> der Karte Kalkulation die Regeln von Artikel, Kategorie und Standard "
+           "([[angebotskopf]]).", kurz=True)
     i.genauer()
     i.text("Unter <b>Kategorien</b> steht je Kategorie ein Standardaufschlag: Kategorie, Standard-Aufschlagsmethode "
            "(% auf Einstand, € je Einheit, € je Bestellung oder Zielmarge %), Standardaufschlag [% bzw. €], Aktiv "
@@ -6925,9 +7004,6 @@ def kapitel_fragen(i):
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
         ["<b>HINWEIS: Schneidzeit manuell</b>",
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
-        ["<b>HINWEIS: Meterpreis manuell</b>",
-         "Für die Position ist ein Materialpreis je m von Hand eingetragen; er ersetzt den berechneten Preis "
-         "([[meterpreis]])."],
         ["<b>WARNUNG: Konturen klein + mittel länger als Schneidweg</b>",
          "Der Schneidweg wurde von Hand kleiner eingetragen als die kleinen und mittleren Konturen zusammen. Der "
          "Anteil mit Vorschub groß wird mit 0 gerechnet. Schneidweg oder die Spalten Kontur klein/mittel [mm] "

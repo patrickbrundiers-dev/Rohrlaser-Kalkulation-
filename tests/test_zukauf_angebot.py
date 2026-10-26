@@ -41,6 +41,8 @@ def bezug(preise, pe=1, **w):
 
 
 db = Datenbank(tmp / "z.db")
+db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
+db.einstellung_setzen("aufschlag_zukauf", None)
 ind = dict(aufschlag_quelle=zukauf.INDIVIDUELL, aufschlag_methode=zukauf.PROZENT)
 # Schraube: 12,00 € je 100 St, ab 500 St 9,00 € je 100 St, VPE 100, Eingangsfracht 5 € je Bestellung, 25 %
 schraube = db.zukauf_speichern(None, dict(artikelnr="Z-1", bezeichnung="Schraube M6x20", kategorie="Normteile",

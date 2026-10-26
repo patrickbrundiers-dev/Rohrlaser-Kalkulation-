@@ -751,6 +751,10 @@ EINSTELLUNGEN = (
     Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0, 0, 5),
     Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0, 0, 5),
     Einstellung("zuschlag_fremdleistung", "Zuschlag Fremdleistung", "Kalkulation", "anteil", 0.10, 0, 5),
+    # Vorgabe neuer Angebote: Aufschlag auf alle Bleche bzw. alle übrigen Zukaufteile (ersetzt Artikel-/Kategorie-
+    # und Standardaufschlag im Angebot; Patrick 25.10.2026)
+    Einstellung("aufschlag_blech", "Aufschlag Bleche im Angebot", "Kalkulation", "anteil", 0.10, 0, 10),
+    Einstellung("aufschlag_zukauf", "Aufschlag Zukaufteile im Angebot", "Kalkulation", "anteil", 0.10, 0, 10),
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, 0, 5),
     # Standardaufschlag der Anwendung für Zukaufteile (gilt, wenn weder Artikel noch Kategorie einen haben);
     # leer = keiner (das Programm warnt dann)
@@ -1028,6 +1032,10 @@ EINSTELLUNGEN = (
     # Tabellen-Eingabe wie Excel (Plan Arbeitsabläufe W5, tabellen_eingabe.py): wohin Eingabe in der Positionsliste springt
     Einstellung("eingabe_richtung", "Positionsliste: Eingabe springt (nach unten oder nach rechts)", "Ansicht",
                 "auswahl", EINGABE_RICHTUNGEN[0], auswahl="eingaberichtung"),
+    # Stangenbild, Ansicht Übersicht: Maus so lange auf einer Stange, dann ihre Detail-Ansicht im kleinen Fenster
+    # (Patrick 26.10.2026: „Zeit einstellbar machen“)
+    Einstellung("stangenbild_popup", "Stangenbild: Detail-Fenster nach so vielen Sekunden auf einer Stange (0 = aus)",
+                "Ansicht", "zahl", 1.0, 0, 10),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
     # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel zeigt den Bearbeiter (die Nummer ist
     # seit 23.10.2026 ohne Kürzel, nummern.py); über den gemeinsamen Ordner sehen alle die Angebote der anderen und
@@ -1697,7 +1705,7 @@ def beispiel_zusatzarbeiten():
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
         + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
-        + saege_zusatzarbeiten()
+        + saege_zusatzarbeiten() + stege_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1739,6 +1747,16 @@ def saege_zusatzarbeiten():
     return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_SAEGEN, art="€/Stück",
                  preis=SAEGEN_PREIS, fremd="nein", angebotstext="gesägt",
                  bemerkung="Preis je Schnitt; Menge = Schnitte je Teil (Vollmaterial Rund-/Vierkantstahl)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
+
+
+def stege_zusatzarbeiten():
+    """Vorbelegung Stege abtrennen (virtuelles Bauteil, Patrick 26.10.2026: je Position wählbar): € je Teil, Menge 1
+    (Schneidweg-Rechner bzw. Rechtsklick trägt sie ein). Beispielpreis, bitte anpassen."""
+    from .virtuell import STEGE_PREIS, ZUSATZ_STEGE
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_STEGE, art="€/Stück",
+                 preis=STEGE_PREIS, fremd="nein", angebotstext="Stege abgetrennt und entgratet",
+                 bemerkung="Preis je Teil: Stege 2 mm an Ende A und B (virtuelles Bauteil) abtrennen und entgraten",
                  kategorie="Nachbearbeitung", aktiv="ja")]
 
 

@@ -117,7 +117,8 @@ class AbmessungFenster(QDialog):
         from .stangen_ansicht import StangenSeite
         db = getattr(s, "db", None)
         self.stangen_seite = StangenSeite(db.einstellung(STANGENBILD_EINSTELLUNG) if db else None,
-                                          (lambda a: db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a)) if db else None)
+                                          (lambda a: db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a)) if db else None,
+                                          (lambda: db.einstellung("stangenbild_popup")) if db else None)
         self.stangen_seite.setzen(self.paare, s._abwicklung_funktion() if self.paare and
                                   hasattr(s, "_abwicklung_funktion") else None)
         self.bild, self.rolle = self.stangen_seite.bild, self.stangen_seite.rolle

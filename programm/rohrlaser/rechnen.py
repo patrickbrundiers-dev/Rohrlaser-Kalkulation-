@@ -17,7 +17,7 @@ from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, co2_maschine, OHNE_NAHT,
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
 from . import fracht_angebot
-from . import anbau, baugruppe, dfm, dreid, naht, parallel, rp_profile, zukauf
+from . import anbau, baugruppe, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -140,6 +140,13 @@ def position_werte(p, kopf, k, tabellen):
     w["kg_m"] = kgm
     je = p.get("je_umfang") if isinstance(p.get("je_umfang"), (int, float)) and p["je_umfang"] > 1 else 1
     w["gewicht"] = kgm * p["laenge"] / 1000 / je if kgm is not None and not _leer(p.get("laenge")) else None
+    w["abfall_kg"] = None
+    if je == 1:          # virtuelles Bauteil: Gewicht aus dem Volumen (auch ohne Metergewicht), der Rest ist Abfall
+        g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+        if g is not None:
+            if w["gewicht"] is not None:
+                w["abfall_kg"] = max(0.0, w["gewicht"] - g)
+            w["gewicht"] = g
     # Material: Rohrstücke (Halbschalen: mehrere Teile aus einem Rohrumfang)
     w["laenge_gesamt"] = (p["laenge"] * rohrstuecke(p) if not _leer(p.get("laenge")) and not _leer(p.get("stueck"))
                           else None)
@@ -485,8 +492,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return d3_status
     if manuell:
         return "HINWEIS: Schneidzeit manuell"
-    if _n(p.get("preis_m")) > 0 and not beigestellt(p):
-        return "HINWEIS: Meterpreis manuell"
+    # Meterpreis von Hand: keine Meldung, der berechnete Preis ist nur Vorgabe und wird in der Regel geändert
+    # (Patrick 26.10.2026)
     if beigestellt(p):
         return "HINWEIS: Material vom Kunden beigestellt"
     return "OK"
@@ -574,8 +581,12 @@ def gruppen_bilden(kopf, positionen, k):
         stange = p.get("stange") or std
         if not stange:
             fehl("Stangenlänge fehlt"); continue
-        if me["maxlen"] and stange > me["maxlen"]:
+        bs = "Kunde" if beigestellt(p) else ""
+        # Stangen von Hand vorgegeben: die längste vorgegebene Stange begrenzt die Teilelänge
+        vorrat = stangen_vorgabe(kopf, (pid, wst, ob, stange) + ((bs,) if bs else ()), me["maxlen"])
+        if me["maxlen"] and stange > me["maxlen"] and not vorrat:
             fehl("Stange länger als Maschine zulässt"); continue
+        lang = vorrat[0][0] if vorrat else stange
         pr = profile[pid]
         dichte = (k.werkstoffe.get(wst) or {}).get("dichte")
         grenze = grenze_ueberschritten(m, pr, pr["flaeche"] * dichte / 1000
@@ -584,12 +595,11 @@ def gruppen_bilden(kopf, positionen, k):
             fehl(grenze); continue
         end = pr["end"] if pr["end"] is not None else me["end"]
         greif = pr["greif"] if pr["greif"] is not None else me["greif"]
-        if end + laenge + me["kerf"] > stange - greif + EPS:
+        if end + laenge + me["kerf"] > lang - greif + EPS:
             fehl("Teil länger als Nutzlänge der Stange"); continue
         rest = dreid.rest_letztes(p, m)          # 3D-Greifmaß, wenn das Teil das letzte der Stange ist
-        if end + laenge + me["kerf"] > stange - max(greif, rest) + EPS:
+        if end + laenge + me["kerf"] > lang - max(greif, rest) + EPS:
             fehl("Teil zu lang für das 3D-Greifmaß der Maschine"); continue
-        bs = "Kunde" if beigestellt(p) else ""
         key = (pid, wst, ob, stange) + ((bs,) if bs else ())
         g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob,
                                                beistellung=bs, querschnitt=querschnitt_gehrung(pr)))
@@ -622,6 +632,24 @@ def gruppen_bilden(kopf, positionen, k):
         for n in range(1, (rohrstuecke(p) if stk_n else 0) + 1):     # Halbschalen: je Umfang aus einem Rohrstück
             g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, rest=rest, **geh))
     return list(gruppen.values()), fehler, neue_profile
+
+
+def gruppe_schluessel(g):
+    """Stangengruppe (wie gruppe_von) einer Optimierungsgruppe."""
+    return (g.profil, g.werkstoff, g.oberflaeche or "", g.stange) + ((g.beistellung,) if g.beistellung else ())
+
+
+def stangen_vorgabe(kopf, gr, maxlen=None):
+    """Von Hand vorgegebene Stangen der Gruppe gr (Patrick 26.10.2026): [(Länge, Anzahl)], längste zuerst, aus
+    kopf['stangen_vorgabe'] {laengen_schluessel: [[Länge, Anzahl], …]}; Längen über maxlen (max. Stangenlänge der
+    Maschine) fallen weg. [] = keine Vorgabe, die Gruppe plant mit beliebig vielen Stangen ihrer Länge."""
+    v = (kopf.get("stangen_vorgabe") or {}).get(laengen_schluessel(gr))
+    return [(laenge, n) for laenge, n in opt.vorrat_lesen(v) if not maxlen or laenge <= _n(maxlen) + EPS]
+
+
+def vorrat_text(vorrat):
+    """'3 × 6.000 + 2 × 4.500 mm'"""
+    return " + ".join(f"{n} × {mm_text(laenge)}" for laenge, n in vorrat) + " mm" if vorrat else ""
 
 
 def querschnitt_gehrung(pr):
@@ -678,6 +706,11 @@ def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
     laengen = laengen_eingaben(gruppen, kopf, k, tabellen, einst)
     if laengen:                  # nur mit Lieferlängen: ältere Angebote bleiben aktuell
         daten.append(laengen)
+    maxlen = (maschine(kopf, k) or {}).get("max_stange")
+    vorgaben = [[laengen_schluessel(gruppe_schluessel(g)), stangen_vorgabe(kopf, gruppe_schluessel(g), maxlen)]
+                for g in gruppen]
+    if any(v for _, v in vorgaben):      # nur mit vorgegebenen Stangen: ältere Angebote bleiben aktuell
+        daten.append(["Stangen vorgegeben", [x for x in vorgaben if x[1]]])
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()
 
 
@@ -853,6 +886,44 @@ def laenge_waehlen(vg, plaene, kopf, positionen, k, tabellen, einst, auto=False)
     return None
 
 
+def _vorrat_eintragen(g, vorrat, folgen, uebrig, positionen, fehler, stangen, auswertung, nr):
+    """Stangen, Auswertung und nicht eingeplante Teile einer Gruppe mit von Hand vorgegebenen Stangen (stangen_vorgabe)
+    eintragen. Jede Stange hat ihre Länge (stange) und die Stangenlänge der Gruppe (grundlaenge). Ergebnis: letzte
+    Stangennummer."""
+    for laenge, folge in folgen:
+        nr += 1
+        h = opt.replace(g, stange=laenge)
+        teile, verlust, n_gem, belegung = _folge_teile(h, folge, positionen)
+        stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
+                            stange=laenge, grundlaenge=g.stange, end=g.endbeschnitt, greif=opt.hinten(h, folge),
+                            greif_3d=_greif_3d(h, folge), verlust=round(verlust, 2), trennungen=len(folge),
+                            gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile, vorgegeben=True))
+    je_zeile = {}
+    for t in uebrig:
+        je_zeile.setdefault(t.zeile, []).append(t)
+    for zeile, ts in je_zeile.items():
+        p = positionen[zeile - ZEILE0]
+        fehler.append(dict(index=zeile - ZEILE0, pos=p.get("pos"), artikel=ts[0].artikel, anzahl=len(ts),
+                           grund=f"vorgegebene Stangen reichen nicht ({vorrat_text(vorrat)})"))
+    genutzt = {}
+    for laenge, _ in folgen:
+        genutzt[laenge] = genutzt.get(laenge, 0) + 1
+    lang = max(laenge for laenge, _ in vorrat)
+    n = len(folgen)
+    eingeplant = [t for _, f in folgen for t, _ in f]
+    meter = sum(laenge for laenge, _ in folgen)
+    auswertung.append(dict(
+        profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche, stange=lang, grundlaenge=g.stange,
+        teile=len(eingeplant), stangen=n, manuell=n,
+        untergrenze=opt.untergrenze(opt.replace(g, stange=lang, teile=eingeplant)),
+        ausnutzung_manuell=sum(t.laenge for t in eingeplant) / meter if meter else 0,
+        gemeinsam=sum(opt.gemeinsame_schnitte(f) for _, f in folgen), vorgegeben=vorrat_text(vorrat),
+        bewertung=f"Stangen von Hand vorgegeben: {vorrat_text(vorrat)}; genutzt "
+                  + (vorrat_text(sorted(genutzt.items(), reverse=True)) or "keine")
+                  + (f"; {len(uebrig)} Teil{'e' if len(uebrig) > 1 else ''} nicht eingeplant" if uebrig else "")))
+    return nr
+
+
 def _beistellung_markieren(g, zeilen):
     """Stangen und Auswertung einer Gruppe mit Kundenmaterial kennzeichnen (beistellung='Kunde')."""
     if g.beistellung:
@@ -885,15 +956,19 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
     schritte = 2 * len(gruppen)
     m = maschine(kopf, k)
     saege = _n(einstellung_wert(einst, "zuschnitt_verlust"))
+    # von Hand vorgegebene Stangen je Gruppe (stangen_vorgabe): kein Vergleich der Lieferlängen
+    vorraete = [stangen_vorgabe(kopf, gruppe_schluessel(g), (m or {}).get("max_stange")) for g in gruppen]
     # Kundenmaterial: kommt in der Stangenlänge des Angebots, kein Vergleich der Lieferlängen
-    infos = [laengen_der_gruppe(g, k, tabellen, einst) if tabellen and not g.beistellung else None for g in gruppen]
+    infos = [laengen_der_gruppe(g, k, tabellen, einst) if tabellen and not g.beistellung and not v else None
+             for g, v in zip(gruppen, vorraete)]
     # Große Angebote: alle Schnittpläne vorab auf Hilfsprozessen (parallel.py, gleiches Ergebnis)
     opt.vorgerechnet.gruppen = parallel.vorrechnen(
-        _auftraege(gruppen, infos, m, saege, einst), lambda fertig, alle: melden(fertig * len(gruppen) // alle, schritte,
-                                                                    f"Schnittpläne: {fertig} von {alle} gerechnet"))
+        _auftraege([g for g, v in zip(gruppen, vorraete) if not v], [i for i, v in zip(infos, vorraete) if not v], m,
+                   saege, einst),
+        lambda fertig, alle: melden(fertig * len(gruppen) // alle, schritte, f"Schnittpläne: {fertig} von {alle} gerechnet"))
     try:
         return _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neue_profile, melden, m, saege,
-                           infos)
+                           infos, vorraete)
     finally:
         opt.vorgerechnet.gruppen = None
 
@@ -922,18 +997,28 @@ def _auftraege(gruppen, infos, m, saege, einst):
     return out
 
 
-def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neue_profile, melden, m, saege, infos):
+def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neue_profile, melden, m, saege, infos,
+                vorraete):
     schritte = 2 * len(gruppen)
     folgen_je_gruppe = []
-    for n, (g, i) in enumerate(zip(gruppen, infos)):
+    for n, (g, i, v) in enumerate(zip(gruppen, infos, vorraete)):
         melden(n, schritte, f"Schnittplan {g.profil} / {g.werkstoff}")
+        if v:
+            plan = opt.vorrat_planen(g, v)
+            opt.pruefe_vorrat(g, v, *plan)
+            folgen_je_gruppe.append(plan)
+            continue
         folgen_je_gruppe.append(opt.optimiere(g) if i is None or i["basis_lieferbar"] else None)
-    mit = [(g, f) for g, f in zip(gruppen, folgen_je_gruppe) if f is not None]
+    mit = [(g, f) for g, f, v in zip(gruppen, folgen_je_gruppe, vorraete) if f is not None and not v]
     opt.pruefe([g for g, _ in mit], [f for _, f in mit])
     stangen, auswertung, laengen, nr = [], [], [], 0
-    for n, (g, folgen) in enumerate(zip(gruppen, folgen_je_gruppe)):
+    for n, (g, folgen, vorrat) in enumerate(zip(gruppen, folgen_je_gruppe, vorraete)):
         melden(len(gruppen) + n, schritte, f"Lieferlängen und Auswertung {g.profil} / {g.werkstoff}")
         s0, a0 = len(stangen), len(auswertung)
+        if vorrat:
+            nr = _vorrat_eintragen(g, vorrat, *folgen, positionen, fehler, stangen, auswertung, nr)
+            _beistellung_markieren(g, stangen[s0:] + auswertung[a0:])
+            continue
         vg, plaene = (laengen_vergleich_gruppe(g, k, tabellen, m, saege, folgen, einst) if tabellen and not g.beistellung
                       else (None, {}))
         gewaehlt = laenge_waehlen(vg, plaene, kopf, positionen, k, tabellen, einst, auto)
@@ -1725,13 +1810,23 @@ def zusatz_stand(z, saetze=None, datum=None):
 
 
 def oberflaeche(p, k):
-    """Außenfläche eines Teils [m²] = Umfang × Länge (ohne Stirnflächen und Innenseite)."""
+    """Außenfläche eines Teils [m²] = Umfang × Länge (ohne Stirnflächen und Innenseite); virtuelles Bauteil
+    anteilig."""
     pr = k.profile.get(p.get("profil_id"))
     if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
         return None
     u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), p.get("profil_id"),
                    profil_im_angebot(pr, None, p.get("profil_id"), p.get("werkstoff_id"), k).get("r_aussen"))
-    return u * p["laenge"] / 1e6 if u else None
+    if not u:
+        return None
+    m2 = u * p["laenge"] / 1e6
+    # virtuelles Bauteil (Winkel/U aus größerem Profil, offenes Rohr): Fläche im Verhältnis Teil zu ganzem Profil
+    # (dünne Wand: Fläche ~ Querschnitt), sonst zahlt der Kunde das Pulvern des abgeschnittenen Schenkels
+    g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+    kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if g is not None else None
+    if g is not None and kgm:
+        m2 *= min(1.0, g / (kgm * p["laenge"] / 1000))
+    return m2
 
 
 def zusatz_menge_auto(art, p, k):
@@ -1743,6 +1838,9 @@ def zusatz_menge_auto(art, p, k):
         g = p.get("gewicht_teil")
         return float(g) if isinstance(g, (int, float)) and g > 0 else None
     if art == "€/kg":
+        g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+        if g is not None:                           # virtuelles Bauteil: Gewicht aus dem Volumen (wie position_werte)
+            return g
         kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k)
         return kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
     if art == "€/m²":
@@ -2694,7 +2792,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                                                       fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, n_lad, teile_abm,
                                sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0))
-    zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
+    blech_ids = set(tabellen.get("blech_artikel") or ())     # Aufschlag Bleche bzw. Zukaufteile des Angebots
+    zk_gruppen, zk_je = zukauf.rechnen([((i, n), zukauf.mit_angebotsaufschlag(e, kopf, blech_ids),
+                                         zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
                                         for i in aktiv for n, e in enumerate(zukauf.eintraege(positionen[i]))])
     eingespart = _eingespart(stangen)
     # Summanden je Stangengruppe einmal sammeln; summiert wird je Position wie bisher mit sum() in derselben
