@@ -221,7 +221,10 @@ def _():
         assert d.anbau_weg.isChecked() and not next(z for z in d.zeilen if z.datei.startswith("B14") and z.blech
                                                     ).it.checkState(0) == Qt.Checked, "Kopfplatten: Vorgabe weglassen"
         d.anbau_weg.setChecked(False)      # Kopfplatten wie andere Bleche übernehmen
-        bg = d.baum.topLevelItem(0)        # B14 (Rohr + 2 gleiche Bleche) steht als Baugruppe, Vorgabe 1 Satz
+        bg = d.baum.topLevelItem(0)        # B14 (Rohr + 2 gleiche Bleche) steht als Baugruppe, Vorgabe Einzelteile
+        assert bg.text(0) == "Baugruppe „B14_Baugruppe_Rohr_2Bleche“ – 3 Teile, 2 verschieden – als Einzelteile", \
+            bg.text(0)
+        d.saetze_setzen(1, next(z.datei for z in d.zeilen if z.datei.startswith("B14")))     # Satz nur auf Wunsch
         assert bg.text(0) == "Baugruppe „B14_Baugruppe_Rohr_2Bleche“ – 3 Teile, 2 verschieden – 1 Satz", bg.text(0)
         gruppen = [bg.child(n).text(0) for n in range(bg.childCount())]
         assert gruppen[0] == d.BLECHGRUPPE + " – 1 Teil" and not any("Nicht übernehmbar" in g for g in gruppen), gruppen
@@ -243,7 +246,7 @@ def _():
         erg = step.uebernehmen(mw, [], db.kontext(), db.zeilen("gewinde"), None, None, 1,
                                zukauf_liste=db.zukauf_artikel_liste())
         assert erg["positionen"][-1]["_zukauf"] == {"artikel_id": i}, erg["positionen"][-1]
-        # B14 ist als Baugruppe 1 Satz vorbelegt: die 2 gleichen Bleche sind eine Position (2 Stück je Satz)
+        # B14 als 1 Satz eingetragen: die 2 gleichen Bleche sind eine Position (2 Stück je Satz)
         assert len(erg["positionen"]) == 3, [p["artikel"] for p in erg["positionen"]]
         assert erg["positionen"][1].get("je_satz") == 2, erg["positionen"][1]
         d.close()

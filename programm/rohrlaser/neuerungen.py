@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.145", "<b>Virtuelles Bauteil weiter genutzt</b>: Winkel/U aus größerem Profil und offen gezeichnete Rohre "
+    ["0.9.146", "<b>Virtuelles Bauteil weiter genutzt</b>: Winkel/U aus größerem Profil und offen gezeichnete Rohre "
                 "lassen sich als <b>STEP mit Stegen bzw. Ringen</b> speichern (Rechtsklick oder STEP speichern im "
                 "Schneidweg-Rechner, Lage wie die Kundendatei). Je Position wählbar, ob die Stege <b>bleiben</b> "
                 "(Vorgabe) oder <b>abgetrennt</b> werden (Zusatzarbeit „Stege abtrennen“ €/Stück). Zeichnung und "
@@ -30,6 +30,11 @@ NEUERUNGEN = [
                 "virtueller Winkel/U lag in Satz und Baugruppe um einige Millimeter verschoben, jetzt exakt wie in "
                 "der STEP.",
      "Virtuelles Bauteil: STEP-Export, Stege bleiben/abtrennen, Zeichnung, Gewicht aus Volumen"],
+    ["0.9.145", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen wird "
+                "eine Baugruppe jetzt als Einzelpositionen übernommen. Das Feld <i>Anzahl</i> oben erhöht nur die "
+                "Stückzahl aller Teile der Datei. Ein Satz entsteht nur mit dem Knopf <b>Als Satz</b>; dann zählt "
+                "<i>Anzahl</i> als Anzahl Sätze und die Spalte zeigt Stück je Satz ([[step]]).",
+     "STEP mit mehreren Teilen: Einzelpositionen, Anzahl erhöht Stückzahl, Satz nur mit Knopf „Als Satz“"],
     ["0.9.144", "<b>Winkel aus größerem Profil als virtuelles Bauteil</b>: Wird für einen Winkel oder ein U ein "
                 "größeres Profil gleicher Form gewählt (z. B. L 33×30×6 aus L 60×40×6), misst das Programm jetzt das "
                 "Teil plus je einen Steg 2 mm des größeren Profils an den Enden wie ein echtes Bauteil. Enden, "
