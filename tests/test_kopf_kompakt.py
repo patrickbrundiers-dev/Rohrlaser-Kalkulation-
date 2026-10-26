@@ -33,6 +33,7 @@ db = Datenbank(tmp / "rohrlaser.db")
 fenster = Hauptfenster(db, tmp, stumm=True)
 fenster.resize(1920, 1080)
 fenster.show()
+db.einstellung_setzen("mindestpreis", 0)           # kleines Angebot: Stangenwechsel soll den Preis ändern
 a = db.angebot_neu(dict(kunde="Test", maschine="T11"))
 for i in range(3):
     db.position_neu(a, dict(pos=10 * (i + 1), artikel=f"T{i}", profil_id="QR 40x40x3", werkstoff_id="S235-10219",

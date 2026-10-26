@@ -35,7 +35,7 @@ kopf = dict(kunde="Muster GmbH", kundennr="K1", kundenreferenz="Anfrage 7", lief
             lieferzeit_wert=10)
 pos = [dict(pos=10, stueck=5, profil_id="QR 40x40x3"), dict(pos=20, stueck=5, profil_id="QR 40x40x3"),
        dict(pos=30, stueck=1)]                          # Pos. 30 ohne Profil: nicht aktiv
-summen = dict(verkauf=1000.0, gewinn=100.0)
+summen = dict(verkauf=1000.0, gewinn=100.0, selbst=900.0)
 alles_gut = ac.punkte(kopf, pos, ["OK", "OK", "OK"], "aktuell", summen, kalk_zeilen=[{}, {}, {}],
                       kunde=dict(email="a@b.de"), mindestmarge=0.05)
 assert alles_gut == [], alles_gut
@@ -47,7 +47,7 @@ def finde(liste, teil):
 
 
 liste = ac.punkte(dict(), pos, ["FEHLER: Profil fehlt", "WARNUNG: Gewinde M6 ohne Preis", ""], "veraltet",
-                  dict(verkauf=1000.0, gewinn=20.0, fracht_fehler="PLZ fehlt", mindestpreis_gilt=True,
+                  dict(verkauf=1000.0, gewinn=20.0, selbst=1500.0, fracht_fehler="PLZ fehlt", mindestpreis_gilt=True,
                        mindestpreis_anhebung=50.0, zukauf_fehlt=1),
                   staffeln_veraltet=2, kalk_zeilen=[{"hinweis": "keine Schneiddaten"}, {"zukauf_fehlt": 1}, {}],
                   kunde={}, preis_abweichung=["Profil QR 40: 3,10 statt 2,90 €/m"], mindestmarge=0.05, admin=True)
@@ -58,7 +58,8 @@ erwartet = {
     "Schnittplan nicht aktuell": (ac.WARNUNG, "optimieren", ""),
     "Zukaufteil ohne Einkaufspreis": (ac.WARNUNG, "pos:1", "Pos. 20"),
     "Fracht: PLZ fehlt": (ac.WARNUNG, "fracht", None),
-    "Marge 2 % unter der Mindestmarge 5 %": (ac.WARNUNG, "kalkulation", ""),
+    "Marge 4,5": (ac.WARNUNG, "kalkulation", ""),
+    "unter der Mindestmarge 5 %": (ac.WARNUNG, "kalkulation", ""),
     "2 Staffelstufe(n) veraltet": (ac.WARNUNG, "staffeln", None),
     "Mindestauftragswert greift": (ac.HINWEIS, "kopf:mindestpreis_anwenden", ""),
     "Stammdaten seit dem Festschreiben geändert (1 Wert)": (ac.HINWEIS, "preise", "Profil QR 40: 3,10 statt 2,90 €/m"),
@@ -74,7 +75,8 @@ assert finde(liste, "Hinweis in der Kalkulation") is None          # Pos. 10 hat
 assert finde(liste, "E-Mail") is None                               # ohne Kunde keine E-Mail-Prüfung
 assert [x.art for x in liste] == sorted((x.art for x in liste), key=ac.ARTEN.index)
 assert ac.blockiert(liste) and len(ac.offen(liste)) == 8
-ohne_admin = ac.punkte(dict(kopf), pos[:1], ["OK"], "aktuell", dict(verkauf=1000.0, gewinn=20.0), mindestmarge=0.05)
+ohne_admin = ac.punkte(dict(kopf), pos[:1], ["OK"], "aktuell", dict(verkauf=1000.0, gewinn=20.0, selbst=980.0),
+                       mindestmarge=0.05)
 assert [x.text for x in ohne_admin] == ["Marge unter der Mindestmarge (Einstellungen)"], ohne_admin
 liste2 = ac.punkte(dict(kopf, kunde="X"), pos, ["OK", "OK", ""], "aktuell", dict(verkauf=1.0),
                    kalk_zeilen=[{"hinweis": "kein Schnittplan oder Preis"}, {}, {}], kunde=dict(email=""))

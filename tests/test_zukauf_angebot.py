@@ -96,13 +96,12 @@ vk_p1 = 21.25 * 40 / 60 + 1.40 + 14.40
 nah(z[0]["zukauf_teil"] * 10, vk_p1, "Zukaufteile Pos. 10 je Teil × Stück")
 nah(z[1]["zukauf_teil"] * 10, 21.25 * 20 / 60, "Zukaufteile Pos. 20")
 nah(s["zukauf_einstand"] + s["zukauf_aufschlag"], 21.25 + 1.40 + 14.40, "Summe Zukaufteile")
-# Zukaufteile in den Selbstkosten, darauf Gewinn (Plan Preisaufbau 2a), dann Skonto:
-# Preisänderung je Teil = Zukauf je Teil × (1 + Gewinn) / (1 − 2 %)
-g = einst["gewinn"]
+# Zukaufteile in den Selbstkosten, aber ohne Gewinn, nur mit ihrem Aufschlag (Patrick 26.10.2026, 8), dann Skonto:
+# Preisänderung je Teil = Zukauf je Teil / (1 − 2 %)
 for i in (0, 1):
-    nah(z[i]["preis_teil"] - vorher[i]["preis_teil"], z[i]["zukauf_teil"] * (1 + g) / 0.98, f"Pos. {i}: Gewinn + Skonto")
+    nah(z[i]["preis_teil"] - vorher[i]["preis_teil"], z[i]["zukauf_teil"] / 0.98, f"Pos. {i}: Skonto, kein Gewinn")
     nah(z[i]["herstell_teil"], vorher[i]["herstell_teil"], "Herstellkosten ohne Zukaufteile")
-nah(s["verkauf"] - s_vorher["verkauf"], (21.25 + 1.40 + 14.40) * (1 + g) / 0.98, "Verkaufspreis Angebot", 1e-4)
+nah(s["verkauf"] - s_vorher["verkauf"], (21.25 + 1.40 + 14.40) / 0.98, "Verkaufspreis Angebot", 1e-4)
 kosten = dict((n, w) for (_, w, _), (_, n, _) in zip(rechnen.kostenarten(s, einst), rechnen.KOSTENARTEN))
 nah(kosten["zukauf_einstand"], s["zukauf_einstand"], "Kostenart Einstand")
 nah(sum(w for n, w in kosten.items() if n not in ("herstell", "selbst", "verkauf", "material", "laser_schneiden", "gewinde",
@@ -114,7 +113,7 @@ assert not z[0]["hinweis"].startswith("Zukauf")
 text = ausgabe.angebotstext(pos[0], k)
 assert "\ninkl. 4 St Schraube M6x20\ninkl. 1 St Lasche" in text and "Mutter" not in text, text
 ok("9 Mehrere Positionen: 4 Schrauben + 2 Muttern + 1 Lasche je Baugruppe, gleicher Artikel zusammen bestellt, "
-   "VK mit Gewinn und Skonto, Kostenarten, Angebotstext")
+   "VK mit Aufschlag und Skonto (ohne Gewinn), Kostenarten, Angebotstext")
 
 # Positionsaufschlag ersetzt die Regel des Artikels für diese Position
 db.position_aendern(p2, "zukauf", json.dumps([eintrag(schraube, 2, aufschlag=50)]))

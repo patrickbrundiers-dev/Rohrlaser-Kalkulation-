@@ -55,6 +55,7 @@ def teile(s):
 with tempfile.TemporaryDirectory() as tmp:
     db = Datenbank(Path(tmp) / "r.db")
     db.einstellung_setzen("mindestpreis", 0)
+    db.einstellung_setzen("pauschale_abmessung", 22.5)      # Werte unten mit der Pauschale bis 25.10.2026
 
     # 1) Abnahmeangebote mit 25 % Gewinn und 2 % Skonto: neu und alt von Hand nachgerechnet
     erwartet = {"ABN-01": (475.30, 498.89), "ABN-07": (376.99, 407.60), "ABN-08": (555.61, 590.69)}     # ABN-08 bis 0.9.61 scharfkantig: 555,60 / 590,68
@@ -63,8 +64,8 @@ with tempfile.TemporaryDirectory() as tmp:
         _, s_neu = rechne(db, dict(kopf, nummer=a["nummer"] + "-n"), programm_positionen(a))
         _, s_alt = rechne(db, dict(kopf, nummer=a["nummer"] + "-a"), programm_positionen(a), rechnen.GEWINN_HERSTELL)
         h, w, zk, fr = teile(s_neu)
-        assert nah(s_neu["selbst"], h + w + zk) and nah(s_neu["gewinn"], 0.25 * (h + w + zk))
-        assert nah(s_neu["verkauf"], ((h + w + zk) * 1.25 + fr) / 0.98), a["nummer"]
+        assert nah(s_neu["selbst"], h + w + zk) and nah(s_neu["gewinn"], 0.25 * (h + w))     # Zukauf ohne Gewinn (26.10.)
+        assert nah(s_neu["verkauf"], ((h + w) * 1.25 + zk + fr) / 0.98), a["nummer"]
         assert nah(s_alt["verkauf"], (h * 1.25 + w + zk + fr) / 0.98) and nah(s_alt["gewinn"], 0.25 * h)
         assert s_neu["gewinn_basis"] == rechnen.GEWINN_SELBST and s_alt["gewinn_basis"] == rechnen.GEWINN_HERSTELL
         assert teile(s_alt) == teile(s_neu), "Kosten vor dem Gewinn ändern sich nicht"
@@ -78,7 +79,7 @@ with tempfile.TemporaryDirectory() as tmp:
     kopf = dict(beispiel_angebot.KOPF, nummer="B-fracht", skonto=2, gewinn=25, fracht=80, fracht_modus="manuell")
     zeilen, s = rechne(db, kopf, beispiel_angebot.POSITIONEN)
     h, w, zk, fr = teile(s)
-    assert fr == 80 and nah(s["verkauf"], ((h + w + zk) * 1.25 + 80) / 0.98)
+    assert fr == 80 and nah(s["verkauf"], ((h + w) * 1.25 + zk + 80) / 0.98)
     assert nah(sum(z["preis_position"] for z in zeilen if z), s["verkauf"])
     assert nah(sum(z["selbst_position"] for z in zeilen if z), s["selbst"])
     kosten = {n: w_ for (_, w_, _), (_, n, _) in zip(rechnen.kostenarten(s, {"gewinn": 0.25}), rechnen.KOSTENARTEN)}
@@ -105,12 +106,15 @@ with tempfile.TemporaryDirectory() as tmp:
              angebotsaufschlag=5.0, fracht=15.0, zukauf_einstand=40.0, zukauf_aufschlag=8.0, skonto_satz=2.0,
              satz_maschine=60.0, verkauf=None)
     basis = dict(zuschlag_material=0, zuschlag_fertigung=0, zuschlag_fremdleistung=0, gewinn=0.25, mwst=0.19)
-    p = staffeln.preise(b, 10, staffeln.wirksam({}, basis))
-    assert nah(p["herstell"], 180) and nah(p["selbst"], 263) and nah(p["gewinn"], 65.75)
-    assert nah(p["netto"], (263 * 1.25 + 15) / 0.98) and p["preis_einheit"] == round((263 * 1.25 + 15) / 0.98 / 10, 2)
+    p = staffeln.preise(b, 10, staffeln.wirksam({}, basis))       # Zukaufteile 48 € ohne Gewinn (Patrick 26.10.2026, 8)
+    assert nah(p["herstell"], 180) and nah(p["selbst"], 263) and nah(p["gewinn"], 53.75)
+    assert nah(p["netto"], (263 + 53.75 + 15) / 0.98) and p["preis_einheit"] == round((263 + 53.75 + 15) / 0.98 / 10, 2)
+    p = staffeln.preise(b, 10, staffeln.wirksam({}, dict(basis, preisregeln=rechnen.PREISREGELN_ALT)))
+    assert nah(p["gewinn"], 65.75) and nah(p["netto"], (263 * 1.25 + 15) / 0.98)
     p = staffeln.preise(b, 10, staffeln.wirksam({}, dict(basis, gewinn_basis=rechnen.GEWINN_HERSTELL)))
     assert nah(p["gewinn"], 45) and p["netto"] == (180 + 45 + (10 + 20 + 5 + 15) + 40 + 8) / 0.98
-    ok("4  Staffelpreise: Gewinn auf Selbstkosten 263 €, Fracht danach; alt: Gewinn nur auf 180 €")
+    ok("4  Staffelpreise: Gewinn auf Selbstkosten 263 € ohne Zukaufteile 48 €, Fracht danach; bis 25.10.: auf 263 €; "
+       "alt: Gewinn nur auf 180 €")
 
     # 5) Festschreiben: neue Preisbasis merkt 'Selbstkosten', alte ohne Merker rechnet nur auf Herstellkosten
     k, tab = db.kontext(), db.tabellen()
