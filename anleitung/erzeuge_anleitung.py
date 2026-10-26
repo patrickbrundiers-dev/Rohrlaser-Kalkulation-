@@ -1947,7 +1947,15 @@ def kapitel_step(i):
             "<b>Gewicht</b>: das Gewicht je Teil (Spalte Gewicht, Palettenschein, Fracht) kommt beim virtuellen "
             "Bauteil aus dem gemessenen Volumen (mit Stegen bzw. wie gezeichnet, wenn sie abgetrennt werden), nicht "
             "aus Metergewicht × Länge des größeren Profils; der Rest des Querschnitts ist Abfall. Material und "
-            "Stangen rechnen weiter mit dem ganzen Profil.",
+            "Stangen rechnen weiter mit dem ganzen Profil. Zusatzarbeiten in €/kg (z. B. Verzinken) nehmen dieses "
+            "Gewicht, Zusatzarbeiten in €/m² (z. B. Pulvern) die Fläche anteilig (Teil zu ganzem Profil).",
+            "<b>Satz und Baugruppe als STEP</b>: STEP speichern im Fenster Satz in 3D und im Editor der "
+            "Schweißbaugruppe schreibt das virtuelle Bauteil als exakten Körper mit Stegen bzw. Ringen in die "
+            "Baugruppe (abgetrennt: wie gezeichnet), siehe [[step_baugruppe]].",
+            "<b>Plausibilitätsprüfung</b>: die Prüfregel <i>Virtuelles Bauteil prüfen</i> ([[pruefregeln]]) "
+            "vergleicht das gemessene Mehrvolumen der Stege bzw. Ringe mit dem erwarteten (2 × 2 mm × Querschnitt "
+            "des Profils minus gezeichneter Querschnitt). Fehlt es oder ist es ein Vielfaches (z. B. Aussparung am "
+            "Ende, falsches Profil), kommt eine Warnung: dann das Teil im 3D ansehen.",
             "<b>Rohrgröße</b>: das nächstgrößere Rohr einer festen Normreihe (Quadrat-, Rechteck- und Rundrohr nach "
             "EN 10219/10305), wenn es höchstens 1 mm größer ist als die Zeichnung; sonst Sondermaß mit Hinweis. Steht "
             "das Rohr in den Stammdaten, wird es genommen, sonst als Profil vorgeschlagen. Wählst du in der Spalte "
@@ -4312,6 +4320,10 @@ def kapitel_baugruppen(i):
             "Namen mit Umlauten (Fußplatte, Geländer) stehen richtig in der STEP-Datei.",
             "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
             "kommen als facettierter Körper hinein, mit Hinweis.",
+            "<b>Virtuelle Bauteile</b> (Winkel/U aus größerem Profil, offen gezeichnete Rohre, [[offene_rohre]]): "
+            "bleiben die Stege am Teil, kommt der exakte Körper mit Stegen bzw. Ringen 2 mm hinein (so wird "
+            "gelasert, die Kundendatei wird dafür kurz neu gemessen); werden sie abgetrennt, das Teil wie gezeichnet. "
+            "Beides mit Hinweis, Lage wie in der STEP-Datei.",
             "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "
             "mit Hinweis.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
@@ -5679,11 +5691,15 @@ def kapitel_stammdaten(i):
             "<b>Wand zu dick zum Knicken</b> (Knickrahmen): Wandstärke über dem Grenzwert in mm (Vorgabe 4, HINWEIS).",
             "<b>Nase zu schmal</b> (Steckverbindung): Nasenbreite unter Grenzwert × Wand des Steckers (Vorgabe 3,0, "
             "WARNUNG, [[steckverbindung]]).",
+            "<b>Virtuelles Bauteil prüfen</b> (Teil mit Stegen bzw. Ringen 2 mm, [[offene_rohre]]): gemessenes "
+            "Mehrvolumen mehr als Grenzwert × erwartet, weniger als erwartet ÷ Grenzwert oder keins (Vorgabe 3,0, "
+            "WARNUNG).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
            "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39, die drei Regeln für "
-           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.49.")
+           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.49, die Regel für virtuelle "
+           "Bauteile beim ersten Start von Version 0.9.147.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "

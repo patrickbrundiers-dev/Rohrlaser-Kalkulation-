@@ -118,7 +118,24 @@ def grundkoerper(k):
         return _prisma(f, float(k["dicke"]))
     if k["art"] == "netz":
         return netz_koerper(k["p"], k["t"])
+    if k["art"] == "step":
+        return step_koerper(k["pfad"], k.get("matrix"))
     raise ValueError(f"Grundkörper {k['art']!r} unbekannt")
+
+
+def step_koerper(pfad, matrix=None):
+    """Körper aus einer STEP-Datei (virtuelles Bauteil der Messung, exakt statt facettiert), mit matrix (3 × 4
+    zeilenweise) in das System des Teils gebracht."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+    from OCP.IFSelect import IFSelect_RetDone
+    from OCP.STEPControl import STEPControl_Reader
+    r = STEPControl_Reader()
+    if r.ReadFile(str(pfad)) != IFSelect_RetDone or not r.TransferRoots():
+        raise ValueError(f"STEP nicht lesbar: {pfad}")
+    k = r.OneShape()
+    if k is None or k.IsNull():
+        raise ValueError(f"STEP ohne Körper: {pfad}")
+    return BRepBuilderAPI_Transform(k, _trsf(matrix), True).Shape() if matrix else k
 
 
 def netz_koerper(p, t):

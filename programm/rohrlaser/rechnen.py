@@ -1716,13 +1716,23 @@ def zusatz_stand(z, saetze=None, datum=None):
 
 
 def oberflaeche(p, k):
-    """Außenfläche eines Teils [m²] = Umfang × Länge (ohne Stirnflächen und Innenseite)."""
+    """Außenfläche eines Teils [m²] = Umfang × Länge (ohne Stirnflächen und Innenseite); virtuelles Bauteil
+    anteilig."""
     pr = k.profile.get(p.get("profil_id"))
     if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
         return None
     u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), p.get("profil_id"),
                    profil_im_angebot(pr, None, p.get("profil_id"), p.get("werkstoff_id"), k).get("r_aussen"))
-    return u * p["laenge"] / 1e6 if u else None
+    if not u:
+        return None
+    m2 = u * p["laenge"] / 1e6
+    # virtuelles Bauteil (Winkel/U aus größerem Profil, offenes Rohr): Fläche im Verhältnis Teil zu ganzem Profil
+    # (dünne Wand: Fläche ~ Querschnitt), sonst zahlt der Kunde das Pulvern des abgeschnittenen Schenkels
+    g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+    kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if g is not None else None
+    if g is not None and kgm:
+        m2 *= min(1.0, g / (kgm * p["laenge"] / 1000))
+    return m2
 
 
 def zusatz_menge_auto(art, p, k):
@@ -1734,6 +1744,9 @@ def zusatz_menge_auto(art, p, k):
         g = p.get("gewicht_teil")
         return float(g) if isinstance(g, (int, float)) and g > 0 else None
     if art == "€/kg":
+        g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+        if g is not None:                           # virtuelles Bauteil: Gewicht aus dem Volumen (wie position_werte)
+            return g
         kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k)
         return kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
     if art == "€/m²":

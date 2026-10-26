@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.147", "<b>Virtuelles Bauteil, Stand 2</b>: STEP speichern im Fenster <b>Satz in 3D</b> und im Editor der "
+                "Schweißbaugruppe schreibt Winkel/U aus größerem Profil und offen gezeichnete Rohre als exakten "
+                "Körper mit Stegen bzw. Ringen 2 mm (abgetrennt: wie gezeichnet) ([[step_baugruppe]]). Neue Prüfregel "
+                "<b>Virtuelles Bauteil prüfen</b> warnt, wenn das gemessene Mehrvolumen der Stege nicht zum Profil "
+                "passt ([[pruefregeln]]). Zusatzarbeiten in €/kg rechnen mit dem Gewicht aus dem Volumen, in €/m² "
+                "mit der anteiligen Fläche. Die Stecknasen sind gegen das 3D-Modell nachgemessen: der Schneidweg "
+                "stimmt auf 0,1 mm.",
+     "Virtuelles Bauteil: Satz-/Baugruppen-STEP exakt, Prüfregel, €/kg und €/m² anteilig"],
     ["0.9.146", "<b>Virtuelles Bauteil weiter genutzt</b>: Winkel/U aus größerem Profil und offen gezeichnete Rohre "
                 "lassen sich als <b>STEP mit Stegen bzw. Ringen</b> speichern (Rechtsklick oder STEP speichern im "
                 "Schneidweg-Rechner, Lage wie die Kundendatei). Je Position wählbar, ob die Stege <b>bleiben</b> "

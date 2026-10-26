@@ -137,7 +137,7 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
-STEGE_STAND = "2026-10-26"         # Zusatzarbeit Stege abtrennen (virtuelles Bauteil, _stege_ergaenzen)
+STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -527,8 +527,13 @@ class Datenbank:
         self._einstellung_schreiben("voll_stand", VOLL_STAND)
 
     def _stege_ergaenzen(self):
-        """Einmalig: Zusatzarbeit 'Stege abtrennen' (€ je Teil) anlegen, wenn es sie (dem Namen nach) noch nicht gibt."""
+        """Einmalig: Zusatzarbeit 'Stege abtrennen' (€ je Teil) und Prüfregel 'Virtuelles Bauteil prüfen' anlegen,
+        wenn es sie (dem Namen nach) noch nicht gibt."""
+        from . import dfm
         self._einfuegen("zusatzarbeiten", stege_zusatzarbeiten(), ergaenzen=True)
+        if self.anzahl("pruefregeln"):
+            neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.VIRTUELL_REGELN]
+            self._einfuegen("pruefregeln", neu, ergaenzen=True)
         self._einstellung_schreiben("stege_stand", STEGE_STAND)
 
     def _knick_ergaenzen(self):

@@ -2,10 +2,14 @@
 - V1 STEP-Export: STEP-Import.exe --virtuell schreibt den Körper mit Stegen (Winkel aus größerem Profil) bzw. Ringen
   (offenes Rohr) als k<Nr>.step; er liest sich wieder, Volumen = Teil + Stege, Lage wie die Kundendatei.
 - V2 Messwerte -> technik: volumen_teil, volumen_gezeichnet, l_step, stege_virtuell bzw. offen_virtuell.
-- V3 Gewicht je Teil aus dem Volumen (mit Stegen; abgetrennt wie gezeichnet), Rest Abfall.
+- V3 Gewicht je Teil aus dem Volumen (mit Stegen; abgetrennt wie gezeichnet), Rest Abfall; Zusatzarbeiten €/kg mit
+  diesem Gewicht, €/m² anteilig.
 - V4 Programm: Profilwechsel misst das virtuelle Bauteil, „Stege abtrennen“ (Zusatzarbeit, Gewicht, bleibt beim
   Profilwechsel), Rechtsklick nur bei virtuellen Teilen, STEP speichern, Schneidweg-Rechner behält die Messwerte,
   Zeichnung und Werkstattpapiere mit Hinweis, Netz-Ausschnitt der Enden.
+- V6 Plausibilität (Prüfregel „Virtuelles Bauteil prüfen“): Mehrvolumen gegen 2 × 2 mm × Querschnittsunterschied.
+- V5 Satz in 3D als STEP-Baugruppe: Stege bleiben -> exakter Körper des virtuellen Bauteils, abgetrennt -> wie
+  gezeichnet, Lage wie die Kundendatei.
 
 Aufruf: python tests/test_virtuell_nutzen.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -90,18 +94,59 @@ class K:
         self.maschinen = {}
 
 
+ERG = {}
+
+
 def technik():
     mw = messen("W", W60)
     e = step.rechner_eingaben(dict(mw, _pfad=str(tmp / "W.step")), "L-Profil", 60, 40)
     assert e.get("stege_virtuell") and e.get("volumen_teil") > e.get("volumen_gezeichnet") > 0, e
     assert e.get("l_step") == 500 and e.get("step_datei", "").endswith("W.step"), e
+    ERG["W"] = e
     mu = messen("U")
     assert step.rohr_wechseln(mu)
     e = step.rechner_eingaben(mu, mu["profilform"], 60, 50)
     assert e.get("offen_virtuell") and not e.get("stege_virtuell") and e.get("volumen_teil") > 0, e
+    ERG["U"] = e
 
 
 fall("V2 Messwerte -> technik: Volumen mit und ohne Stege, Länge, Datei, Art", technik)
+
+
+def plausibel():
+    from rohrlaser import dfm
+    k = K()
+
+    def befunde(e, profil_id, zeilen=None):
+        p = dict(laenge=e.get("l_step") or 500, technik=json.dumps(e))
+        return [b for b in dfm.rohr(p, k.profile[profil_id], zeilen=zeilen) if b.regel == dfm.VIRTUELL_PRUEFEN]
+    # gemessen: passt (Winkel aus größerem Profil, offenes Rohr mit Ringen)
+    assert not befunde(ERG["W"], "L 60x40x6") and not befunde(ERG["U"], "RE 60x50x2"), \
+        (befunde(ERG["W"], "L 60x40x6"), befunde(ERG["U"], "RE 60x50x2"), ERG["U"])
+    # kein Mehrvolumen bzw. ein Vielfaches: Warnung
+    e = ERG["W"]
+    ohne = befunde(dict(e, volumen_teil=e["volumen_gezeichnet"]), "L 60x40x6")
+    assert len(ohne) == 1 and "ohne Mehrvolumen" in ohne[0].text and ohne[0].stufe == dfm.WARNUNG, ohne
+    viel = befunde(dict(e, volumen_teil=e["volumen_gezeichnet"] + 10 * 888), "L 60x40x6")
+    assert len(viel) == 1 and "erwartet etwa 0,9 cm³" in viel[0].text, viel
+    assert not befunde(dict(e, volumen_teil=e["volumen_gezeichnet"] + 2 * 888), "L 60x40x6")
+    # abgeschaltet: nichts
+    assert not befunde(dict(e, volumen_teil=e["volumen_gezeichnet"]), "L 60x40x6",
+                       [dict(regel=dfm.VIRTUELL_PRUEFEN, aktiv="nein")])
+    # Datenbank: neue Regel in der Tabelle, ältere Datenbank bekommt sie einmalig dazu
+    from rohrlaser.datenbank import Datenbank
+    db = Datenbank(tmp / "regeln.db")
+    rid = next(z["id"] for z in db.zeilen("pruefregeln") if z["regel"] == dfm.VIRTUELL_PRUEFEN)
+    with db.con:
+        db.con.execute("DELETE FROM pruefregeln WHERE id=?", (rid,))
+    db.einstellung_setzen("stege_stand", "2026-10-26")
+    db.con.close()
+    db = Datenbank(tmp / "regeln.db")
+    assert sum(z["regel"] == dfm.VIRTUELL_PRUEFEN for z in db.zeilen("pruefregeln")) == 1
+    db.con.close()
+
+
+fall("V6 Plausibilität: Mehrvolumen der Stege/Ringe gegen erwartet, Regel abschaltbar, Migration", plausibel)
 
 
 T = dict(preise=[])
@@ -115,6 +160,11 @@ def gewicht():
     w = rechnen.position_werte(p, {}, k, T)
     assert abs(w["gewicht"] - 180000 * 7.85 / 1e6) < 1e-6 and abs(w["gewicht_position"] - 2 * w["gewicht"]) < 1e-9, w
     assert abs(w["abfall_kg"] - (voll * 0.5 - w["gewicht"])) < 1e-6, w["abfall_kg"]
+    # Zusatzarbeiten €/kg (Verzinken) mit dem Teilegewicht, €/m² (Pulvern) anteilig zum ganzen Profil
+    assert abs(rechnen.zusatz_menge_auto("€/kg", p, k) - w["gewicht"]) < 1e-9
+    p0 = dict(p, technik=json.dumps(dict(konturen=[])))
+    m2, m2_0 = rechnen.zusatz_menge_auto("€/m²", p, k), rechnen.zusatz_menge_auto("€/m²", p0, k)
+    assert m2_0 and abs(m2 - m2_0 * w["gewicht"] / (voll * 0.5)) < 1e-9 and m2 < m2_0, (m2, m2_0)
     p["technik"] = json.dumps(dict(e, stege_abtrennen=True))
     assert abs(rechnen.position_werte(p, {}, k, T)["gewicht"] - 171000 * 7.85 / 1e6) < 1e-6
     p["laenge"] = 250           # Länge geändert: anteilig
@@ -123,7 +173,8 @@ def gewicht():
     assert abs(rechnen.position_werte(p, {}, k, T)["gewicht"] - voll * 0.25) < 1e-9
 
 
-fall("V3 Gewicht aus dem Volumen: mit Stegen, abgetrennt wie gezeichnet, Länge anteilig, sonst Metergewicht", gewicht)
+fall("V3 Gewicht aus dem Volumen: mit Stegen, abgetrennt wie gezeichnet, Länge anteilig, sonst Metergewicht; "
+     "Zusatzarbeiten €/kg und €/m²", gewicht)
 
 
 def programm():
@@ -198,11 +249,36 @@ def programm():
     assert zs and max(zs) - min(n["p"][2::3]) <= 80.6 and "ES" in a["t"] and len(a["p"]) < len(n["p"]), \
         (max(zs), list(a["t"]))
     assert max(j for idx in a["t"].values() for j in idx) < len(a["p"]) // 3
+    # V5 Satz in 3D als STEP-Baugruppe: Stege abgetrennt -> Teil wie gezeichnet (Netz ohne Stege), Stege bleiben ->
+    # der exakte Körper des virtuellen Bauteils, beide in der Lage der Kundendatei
+    _, box0 = bbox(tmp / "W.step")
+    erg, (k, box) = satz_export(s, db, q, "satz_ab.step")
+    assert any("abgetrennt" in h for h in erg["hinweise"]) and abs(g._volumen(k) - 171000) < 1500, \
+        (erg["hinweise"], g._volumen(k))
+    assert all(abs(u - v) < 0.3 for u, v in zip(box, box0)), (box, box0)
+    s.stege_abtrennen([zeile], False)
+    q = s.positionen[zeile]
+    erg, (k, box) = satz_export(s, db, q, "satz_virtuell.step")
+    assert any("virtuelles Bauteil" in h for h in erg["hinweise"]), erg["hinweise"]
+    assert abs(g._volumen(k) - virtuell.technik_lesen(q)["volumen_teil"]) < 1, g._volumen(k)
+    _, box_v = bbox(tmp / "vw" / "k1.step")
+    assert all(abs(u - v) < 0.01 for u, v in zip(box, box_v)), (box, box_v)
     f.close()
     app.processEvents()
 
 
-fall("V4 Programm: Profilwechsel, Stege abtrennen, Rechtsklick, Rechner, Zeichnung, Werkstatt, STEP speichern", programm)
+def satz_export(s, db, q, name):
+    from rohrlaser.satz3d import Satz3dDialog
+    d = Satz3dDialog(s, "S1", [dict(q, satz="S1")], s.k.profile, s._vk_einstellungen(), db.netze(s.id))
+    d.stumm = True
+    ziel = tmp / name
+    assert d.step_speichern(str(ziel)) == str(ziel) and d.step_ergebnis["einsaetze"] == 1, d.step_ergebnis
+    d.close()
+    return d.step_ergebnis, bbox(ziel)
+
+
+fall("V4/V5 Programm: Profilwechsel, Stege abtrennen, Rechtsklick, Rechner, Zeichnung, Werkstatt, STEP speichern, "
+     "Satz-Export mit virtuellem Körper", programm)
 
 print("Alle Tests OK" if not fehler else f"{fehler} Test(s) fehlgeschlagen")
 sys.exit(1 if fehler else 0)

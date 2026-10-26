@@ -4166,6 +4166,34 @@ class AngebotSeite(QWidget):
             self.f.meldung(f"{n} Position(en): Stege {'werden abgetrennt (Nacharbeit)' if an else 'bleiben am Teil'}.")
         return n
 
+    def virtuell_erzeugen(self, p, ordner):
+        """Körper des virtuellen Bauteils der Position p (Teil mit Stegen bzw. Ringen, so wird gelasert) als STEP
+        in Dateilage: die Kundendatei wird mit STEP-Import.exe --virtuell neu gemessen (je Datei und Zielprofil
+        einmal, Unterordner von ordner). Ergebnis: Pfad oder None (Datei fehlt, Messung ohne Stege)."""
+        import hashlib
+        e = virtuell.technik_lesen(p)
+        datei = e.get("step_datei")
+        if not e or not datei or not Path(datei).is_file():
+            return None
+        befehl = step.messprogramm(self.f.programmordner)
+        if befehl is None:
+            return None
+        ziel_stege = None
+        if e.get("stege_virtuell"):
+            pr = self.k.profile.get(p.get("profil_id")) or {}
+            ziel_stege = "|".join([str(pr.get("form") or ""), f"{float(pr.get('a') or 0):g}",
+                                   f"{float(pr.get('b') or pr.get('a') or 0):g}", f"{float(pr.get('wand') or 0):g}"])
+        unter = Path(ordner) / hashlib.sha1(f"{datei}|{ziel_stege}".encode("utf-8")).hexdigest()[:16]
+        if not unter.is_dir():
+            ausgabe = unter / "messwerte.txt"
+            unter.mkdir(parents=True)
+            self._messen(befehl + [str(datei), "--ausgabe", str(ausgabe), "--virtuell", str(unter / "virtuell"),
+                                   "--flachstahl-bis", str(self.flach_bis())]
+                         + (["--stege", ziel_stege] if ziel_stege else [])
+                         + step_einstellungen.mess_argumente(self.db), 1, ausgabe)
+        quelle = unter / "virtuell" / f"k{int(e.get('step_koerper') or 1)}.step"
+        return quelle if quelle.is_file() else None
+
     def virtuell_step_speichern(self, zeile=None, pfad=None):
         """Virtuelles Bauteil (so wird gelasert: Teil mit Stegen bzw. Ringen) als STEP: die Kundendatei wird mit
         STEP-Import.exe --virtuell neu gemessen, der Körper unverändert in Dateilage geschrieben. Ohne pfad:
@@ -4182,15 +4210,9 @@ class AngebotSeite(QWidget):
             self.f.meldung("Virtuelles Bauteil: STEP-Datei der Position nicht gefunden (nur für Teile aus dem "
                            "STEP-Import mit Stegen).", fehler=True)
             return None
-        befehl = step.messprogramm(self.f.programmordner)
-        if befehl is None:
+        if step.messprogramm(self.f.programmordner) is None:
             self.f.meldung("STEP-Messprogramm nicht gefunden.", fehler=True)
             return None
-        ziel_stege = None
-        if e.get("stege_virtuell"):
-            pr = self.k.profile.get(p.get("profil_id")) or {}
-            ziel_stege = "|".join([str(pr.get("form") or ""), f"{float(pr.get('a') or 0):g}",
-                                   f"{float(pr.get('b') or pr.get('a') or 0):g}", f"{float(pr.get('wand') or 0):g}"])
         if pfad is None:
             name = f"Pos {p.get('pos') or ''} {p.get('artikel') or ''} virtuell".strip()
             vorschlag = self._ziel(name, ".step") if hasattr(self, "_ziel") else name + ".step"
@@ -4199,14 +4221,8 @@ class AngebotSeite(QWidget):
             if not pfad:
                 return None
         with tempfile.TemporaryDirectory() as tmp:
-            ordner = Path(tmp) / "virtuell"
-            ausgabe = Path(tmp) / "messwerte.txt"
-            ok = self._messen(befehl + [str(datei), "--ausgabe", str(ausgabe), "--virtuell", str(ordner),
-                                        "--flachstahl-bis", str(self.flach_bis())]
-                              + (["--stege", ziel_stege] if ziel_stege else [])
-                              + step_einstellungen.mess_argumente(self.db), 1, ausgabe)
-            quelle = ordner / f"k{int(e.get('step_koerper') or 1)}.step"
-            if not ok or not quelle.is_file():
+            quelle = self.virtuell_erzeugen(p, tmp)
+            if quelle is None:
                 self.f.meldung("Virtuelles Bauteil konnte nicht erzeugt werden (Messung ohne Stege, z. B. Enden "
                                "nicht eben).", fehler=True)
                 return None
