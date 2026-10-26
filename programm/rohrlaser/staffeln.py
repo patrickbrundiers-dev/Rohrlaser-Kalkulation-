@@ -343,6 +343,7 @@ def meterpreise(stufe):
 def stufe_kopf(kopf, stufe):
     """Angebotskopf mit den Werten der Stufe (leer = Angebot): Kalkulationswerte, Fracht (fester Betrag) und Skonto."""
     k2 = dict(kopf)
+    k2.pop("stangen_vorgabe", None)     # von Hand vorgegebene Stangen gelten nur für die Menge des Angebots
     for f in KALKULATION:
         w = (stufe or {}).get(f.name)
         if isinstance(w, (int, float)) and not isinstance(w, bool):

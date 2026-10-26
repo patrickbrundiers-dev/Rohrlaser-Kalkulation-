@@ -823,6 +823,9 @@ class Ansicht3D(QWidget):
     GRUND = (-0.45, 0.45)
     gedreht = Signal()
     angeklickt = Signal(object)     # Klick ohne Ziehen auf eine Linie: dict(id=Merkmal oder None, punkt=(x, y, z))
+    # nur mit flaeche_vor_kante (Baugruppe/Satz): Doppelklick bzw. Rechtsklick auf eine Fläche, dict(id, punkt)
+    doppelt = Signal(object)
+    kontext = Signal(object, object)    # (Treffer, globale Position fürs Menü)
     gemessen = Signal(object)       # Messen: Abstand [mm] nach dem zweiten Punkt
     messen_geaendert = Signal()     # Messen ein/aus bzw. Art gewechselt (gemeinsame Leiste stellt ihre Knöpfe)
     _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
@@ -1127,8 +1130,24 @@ class Ansicht3D(QWidget):
             self.angeklickt.emit(treffer)
             return treffer
         kn = self.modell.linien_id[beste[1]] if beste[1] < len(self.modell.linien_id) else None
+        if kn is None and getattr(self, "flaeche_vor_kante", False):
+            # Baugruppe/Satz: Klick nahe einer Körperkante (ohne Merkmal) wählt die Fläche darunter, also ihr Teil
+            treffer = self._flaeche_treffer(bild, x, y)
+            if treffer is not None:
+                treffer.pop("tiefe", None)
+                self.angeklickt.emit(treffer)
+                return treffer
         treffer = dict(id=kn, punkt=beste[2])
         self.angeklickt.emit(treffer)
+        return treffer
+
+    def flaeche_unter(self, x, y):
+        """Fläche mit Merkmal unter dem Pixel (x, y): dict(id, punkt) oder None."""
+        if self.modell is None:
+            return None
+        treffer = self._flaeche_treffer(self.bildpunkt(), x, y)
+        if treffer is not None:
+            treffer.pop("tiefe", None)
         return treffer
 
     def _flaeche_treffer(self, bild, x, y):
@@ -1469,6 +1488,11 @@ class Ansicht3D(QWidget):
         elif (rechts is not None and e is not None and self.werkzeug is not None
               and (e.position() - rechts).manhattanLength() < 4):
             self.werkzeug.kontext(e.position(), e.globalPosition().toPoint())      # Rechtsklick ohne Ziehen: Menü
+        elif (rechts is not None and e is not None and getattr(self, "flaeche_vor_kante", False) and not self.messen
+              and (e.position() - rechts).manhattanLength() < 4):
+            treffer = self.flaeche_unter(e.position().x(), e.position().y())
+            if treffer is not None:
+                self.kontext.emit(treffer, e.globalPosition().toPoint())
         self.update()
 
     def _messen_klick(self, bild, x, y):
@@ -1527,6 +1551,11 @@ class Ansicht3D(QWidget):
     def mouseDoubleClickEvent(self, e):
         if self.werkzeug is not None and e is not None and self.werkzeug.doppelklick(e.position()):
             return
+        if getattr(self, "flaeche_vor_kante", False) and e is not None and not self.messen:
+            treffer = self.flaeche_unter(e.position().x(), e.position().y())
+            if treffer is not None:
+                self.doppelt.emit(treffer)          # z. B. ganze Gehrungskette wählen
+                return
         ziel = getattr(self, "doppelklick_ziel", None)
         if ziel is not None and e is not None and self.auf_modell(e.position().x(), e.position().y()):
             ziel()                      # z. B. 3D-Ansicht der Positionen: Teil im Editor öffnen (Plan 3D-Editor F1)

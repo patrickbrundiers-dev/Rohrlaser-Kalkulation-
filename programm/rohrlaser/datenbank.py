@@ -40,10 +40,10 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
-                         schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten,
+                         schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 62     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 63     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -113,7 +113,8 @@ SCHEMA_VERSION = 62     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     „Satz in 3D“, satz3d.py)
                         # 61: Vollmaterial als Zukaufartikel (zukauf_artikel.abmessung, gewicht, preis_kg, leer;
                         #     vollmaterial.py)
-                        # 62: Aufschlag Bleche und Zukaufteile je Angebot (angebote.aufschlag_blech, aufschlag_zukauf;
+                        # 62: Stangen von Hand vorgegeben je Abmessung (angebote.stangen_vorgabe, JSON, leer)
+                        # 63: Aufschlag Bleche und Zukaufteile je Angebot (angebote.aufschlag_blech, aufschlag_zukauf;
                         #     leer = Aufschlagsregeln wie bisher)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -139,6 +140,7 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
+STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -221,6 +223,7 @@ class Datenbank:
             self.einstellung_setzen("steck_stand", STECK_STAND)
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
+            self.einstellung_setzen("stege_stand", STEGE_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -328,6 +331,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN palettenschein TEXT")  # vor Schema 59: leer
             if "satz_daten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
+            if "stangen_vorgabe" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -409,6 +414,8 @@ class Datenbank:
                 self._werkstoffe_rohrlaser()
             if version > 0 and self.einstellung("voll_stand") != VOLL_STAND:
                 self._voll_ergaenzen()
+            if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
+                self._stege_ergaenzen()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
@@ -523,6 +530,16 @@ class Datenbank:
         self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                          (vollmaterial.KATEGORIE,))
         self._einstellung_schreiben("voll_stand", VOLL_STAND)
+
+    def _stege_ergaenzen(self):
+        """Einmalig: Zusatzarbeit 'Stege abtrennen' (€ je Teil) und Prüfregel 'Virtuelles Bauteil prüfen' anlegen,
+        wenn es sie (dem Namen nach) noch nicht gibt."""
+        from . import dfm
+        self._einfuegen("zusatzarbeiten", stege_zusatzarbeiten(), ergaenzen=True)
+        if self.anzahl("pruefregeln"):
+            neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.VIRTUELL_REGELN]
+            self._einfuegen("pruefregeln", neu, ergaenzen=True)
+        self._einstellung_schreiben("stege_stand", STEGE_STAND)
 
     def _knick_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem
@@ -1356,6 +1373,15 @@ class Datenbank:
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
     @schreibt
+    def stangen_vorgabe_speichern(self, angebot_id, vorgabe):
+        """Von Hand vorgegebene Stangen eines Angebots {Gruppenschlüssel: [[Länge, Anzahl], …]}
+        (rechnen.laengen_schluessel, rechnen.stangen_vorgabe; leer = alle Gruppen mit beliebig vielen Stangen)."""
+        vorgabe = {s: v for s, v in (vorgabe or {}).items() if v}
+        with self.con:
+            self.con.execute("UPDATE angebote SET stangen_vorgabe=?, geaendert=? WHERE id=?",
+                             (json.dumps(vorgabe, ensure_ascii=False) if vorgabe else None, self._jetzt(), angebot_id))
+
+    @schreibt
     def naht_stangen_speichern(self, angebot_id, wahl):
         """Nahtlage der Lieferstange je Stangengruppe {naht.gruppe_schluessel: 'Breitseite'/'Schmalseite'}
         (leer = aus den Teilen mit fester Naht)."""
@@ -1721,6 +1747,7 @@ class Datenbank:
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
+        a["stangen_vorgabe"] = json.loads(a["stangen_vorgabe"]) if a.get("stangen_vorgabe") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
@@ -1821,6 +1848,8 @@ class Datenbank:
         neu = self.angebot_neu(kopf, zaehler=not nummer)
         if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
             self.laengenwahl_speichern(neu, a["laengenwahl"])
+        if a.get("stangen_vorgabe"):                # von Hand vorgegebene Stangen ebenso
+            self.stangen_vorgabe_speichern(neu, a["stangen_vorgabe"])
         if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
             self.naht_stangen_speichern(neu, a["naht_stangen"])
         if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso

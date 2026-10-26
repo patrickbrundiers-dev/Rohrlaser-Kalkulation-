@@ -21,12 +21,70 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.146", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
+    ["0.9.151", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
                 "Zuschlag Fremdleistung): Vorgabe je 10 % aus den Einstellungen, % auf den Einstand aller Bleche bzw. "
                 "aller übrigen Zukaufteile des Angebots; ersetzt dort Artikel-, Kategorie- und Standardaufschlag, ein "
                 "Positionsaufschlag geht vor. Die Zeilen stehen nur da, wenn das Angebot Bleche bzw. Zukaufteile hat; "
                 "ältere Angebote rechnen wie bisher ([[angebotskopf]]).",
      "Aufschlag Bleche und Zukaufteile je Angebot (Vorgabe 10 %)."],
+    ["0.9.150", "<b>Stangen von Hand vorgeben</b>: Im Fenster <i>Material …</i> hat jede Abmessung die Spalte "
+                "<b>Stangen vorgegeben</b>. Dort lassen sich mehrere Stangenlängen mit Stückzahl eintragen (z. B. "
+                "3 × 6.000 + 2 × 4.500 mm). Die Optimierung plant dann nur mit genau diesen Stangen, mit möglichst "
+                "wenig Stangenlänge; Teile, die nicht mehr passen, stehen unter <i>nicht eingeplant</i>. Staffelpreise "
+                "rechnen ohne Vorgabe ([[stangen_vorgabe]]). Außerdem meldet ein von Hand eingetragener Meterpreis "
+                "nichts mehr im Status: der berechnete Preis ist nur Vorgabe ([[meterpreis]]). Das <b>Stangenbild</b> "
+                "öffnet jetzt in der <i>Übersicht</i>; bleibt die Maus 1 Sekunde auf einer Stange, zeigt ein kleines "
+                "Fenster ihre Detail-Ansicht (Kennzahlen, Teile, Abwicklung), Esc schließt es; die Wartezeit ist unter "
+                "Einstellungen › Ansicht einstellbar ([[stangenbild]]).",
+     "Stangen von Hand vorgeben; Meterpreis von Hand ohne Meldung; Stangenbild: Übersicht als Standard, Details per "
+     "Maus"],
+    ["0.9.149", "<b>Konturen: bei 90° zur Oberfläche gilt die Innenkante</b>: Wird eine Kontur senkrecht zur Oberfläche "
+                "geschnitten (2D), hat sie innen genau die Maße der Zeichnung bzw. der STEP; der Strahl steht an jedem "
+                "Punkt 90° zur Oberfläche, außen ist die Kontur auf dem Rundrohr und in der Rundung der Ecke "
+                "(Quadrat-/Rechteckrohr, Kontur nah am Rand) deshalb breiter. 3D-Ansicht, Schnittkörper, Abwicklung, "
+                "STEP-Export und Schnittlänge rechnen so. Mit <b>Schnittrichtung parallel (3D)</b> wird daraus die "
+                "ebene Bearbeitung: ebene Schnittfläche, außen wie gezeichnet, Ansicht und Schnittlänge stellen sich "
+                "beim Umschalten sofort um. Die Schnittrichtung gibt es jetzt auch beim Quadrat- und Rechteckrohr "
+                "([[teile_editor]]).",
+     "Konturen bei 90° zur Oberfläche: Innenkante maßhaltig, außen breiter; parallel (3D) = ebene Bearbeitung, auch "
+     "am Eckradius."],
+    ["0.9.148", "<b>Virtuelles Bauteil weiter genutzt</b>: Winkel/U aus größerem Profil und offen gezeichnete Rohre "
+                "lassen sich als <b>STEP mit Stegen bzw. Ringen</b> speichern (Rechtsklick oder STEP speichern im "
+                "Schneidweg-Rechner, Lage wie die Kundendatei). Je Position wählbar, ob die Stege <b>bleiben</b> "
+                "(Vorgabe) oder <b>abgetrennt</b> werden (Zusatzarbeit „Stege abtrennen“ €/Stück). Zeichnung und "
+                "Werkstattpapiere zeigen die Stege rot mit Hinweis; das <b>Gewicht</b> je Teil kommt aus dem "
+                "gemessenen Volumen statt aus dem Metergewicht des größeren Profils ([[offene_rohre]]). Behoben: ein "
+                "virtueller Winkel/U lag in Satz und Baugruppe um einige Millimeter verschoben, jetzt exakt wie in "
+                "der STEP. "
+                "Auch STEP speichern im Fenster <b>Satz in 3D</b> und im Editor der "
+                "Schweißbaugruppe schreibt Winkel/U aus größerem Profil und offen gezeichnete Rohre als exakten "
+                "Körper mit Stegen bzw. Ringen 2 mm (abgetrennt: wie gezeichnet) ([[step_baugruppe]]). Neue Prüfregel "
+                "<b>Virtuelles Bauteil prüfen</b> warnt, wenn das gemessene Mehrvolumen der Stege nicht zum Profil "
+                "passt ([[pruefregeln]]). Zusatzarbeiten in €/kg rechnen mit dem Gewicht aus dem Volumen, in €/m² "
+                "mit der anteiligen Fläche. Die Stecknasen sind gegen das 3D-Modell nachgemessen: der Schneidweg "
+                "stimmt auf 0,1 mm.",
+     "Virtuelles Bauteil: STEP-Export (auch im Satz), Stege bleiben/abtrennen, Zeichnung, Gewicht, Prüfregel"],
+    ["0.9.147", "<b>Online-Update im Firmennetz robuster</b>: Bricht der Download ab (Firewall, Proxy, "
+                "Virenscanner), versucht das Programm es selbst bis zu sechsmal und macht an der Abbruchstelle "
+                "weiter; ein späterer Versuch setzt das schon Geladene fort. Die Meldung nennt die wahrscheinliche "
+                "Ursache (Sperrseite eines Proxys, HTTP 403, fremdes Zertifikat, fehlende Schreibrechte der portablen "
+                "Version), jeder Versuch steht mit Proxy-Angabe im Protokoll ([[updates]]). <b>Neue Kopie findet die "
+                "alten Daten</b>: Startet eine neu entpackte oder neu installierte Version ohne Daten, zeigt sie die "
+                "zuletzt benutzten Daten (frühere portable Kopie oder installierte Version) an und übernimmt sie mit "
+                "einem Klick samt Lizenz und Angebots-Ablage ([[datensicherung]]).",
+     "Update: Download setzt nach Abbruch fort; neue Kopie übernimmt die alten Daten per Klick"],
+    ["0.9.146", "<b>Teile im 3D anklicken</b>: Im Fenster Satz in 3D und im Editor der Schweißbaugruppe (Reiter "
+                "Strukturbaum und 3D) wählt ein Klick auf ein Teil es aus, auch nahe an einer Kante; Strg+Klick nimmt "
+                "weitere dazu oder weg. Liste und Baum gehen mit. Im Editor der Schweißbaugruppe stehen unter dem 3D "
+                "<b>Knickrahmen erstellen …</b> und <b>Steckverbindung hinzufügen</b> für die gewählten Rohre "
+                "([[baugruppe_baum]]). Beim Stecksystem zeigt eine Zeile im Reiter Steckverbindungen Aufnahme und "
+                "Stecker blau im 3D, ein Klick auf ein Rohr markiert seine Verbindungen ([[satz_3d]]). "
+                "<b>Doppelklick</b> wählt die ganze Gehrungskette, <b>Rechtsklick</b> öffnet ein Menü (Knickrahmen "
+                "erstellen/lösen, Steckverbindung hinzufügen/tauschen/entfernen, Nur Gewähltes). Der "
+                "<b>Rahmen-Assistent</b> zeigt den Rahmen im 3D und hat die Ecke <i>Knickrahmen</i>: der Rahmen wird "
+                "gleich ein geknicktes Rohr ([[rahmen_assistent]]). Ein Klick in ein Feld einer Tabelle markiert "
+                "jetzt auch die Zeile.",
+     "Knickrahmen und Stecksystem: Teile im 3D per Klick, Doppelklick und Rechtsklick wählen; Rahmen-Assistent mit 3D"],
     ["0.9.145", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen wird "
                 "eine Baugruppe jetzt als Einzelpositionen übernommen. Das Feld <i>Anzahl</i> oben erhöht nur die "
                 "Stückzahl aller Teile der Datei. Ein Satz entsteht nur mit dem Knopf <b>Als Satz</b>; dann zählt "

@@ -13,14 +13,15 @@ Gewicht öffnet das Abmessungs-Fenster (Stangenbild, Schnittmuster, Bilanz, Teil
 from PySide6.QtCore import QPointF, QSize, Qt
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
-                               QLabel, QLineEdit, QMenu, QTableWidget, QTableWidgetItem, QVBoxLayout)
+                               QLabel, QLineEdit, QMenu, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from . import hilfe, querschnitt, rechnen, stil
 from .stammdaten import EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, zahl_als_text, zahl_aus_text
 
 GRAU = "#5F6B7A"
 SPALTEN = ("", "Abmessung", "Werkstoff", "Oberfläche", "Lieferlänge [mm]", "Material", "Pos.", "Stangen", "Meter",
-           "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]")
+           "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]", "Stangen vorgegeben")
+VORGABE = 13        # Spalte mit dem Knopf für die von Hand vorgegebenen Stangen (stangen_vorgabe_dialog.py)
 BILD = 44
 # Doppelklick je Spalte: (Ziel, Tooltip); Ziel = Fenster ('abmessung:<Fokus>', 'preis', 'profil')
 DOPPELKLICK = {0: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Maschinen"),
@@ -89,17 +90,23 @@ class MeterpreisDialog(QDialog):
     Materialwerte aus den Einstellungen (nur Anzeige). gruppen = rechnen.material_abmessungen(...), k = Kontext
     (profile, oberflaechen), kopf = Angebotskopf, laengen(g) = Lieferlängen der Abmessung [mm], einst = Einstellungen,
     veraltet: Schnittplan passt nicht mehr zu den Positionen. Nach 'Übernehmen': self.aenderungen = [(Gruppe,
-    {Feld: Wert})] (nur geänderte Abmessungen, Felder der Positionen) und self.kopf_aenderungen = {Feld: Wert}."""
+    {Feld: Wert})] (nur geänderte Abmessungen, Felder der Positionen) und self.kopf_aenderungen = {Feld: Wert}; sind
+    die von Hand vorgegebenen Stangen geändert, self.vorgaben = {Gruppenschlüssel: [[Länge, Anzahl], …]} für das ganze
+    Angebot (sonst None)."""
 
     def __init__(self, parent, gruppen, k, kopf, laengen=None, einst=None, veraltet=False, ohne_plan=False, seite=None):
         super().__init__(parent)
         self.gruppen, self.kopf = gruppen, kopf
-        self.aenderungen, self.kopf_aenderungen = [], {}
+        self.aenderungen, self.kopf_aenderungen, self.vorgaben = [], {}, None
+        # von Hand vorgegebene Stangen je Zeile [(Länge, Anzahl)] (rechnen.stangen_vorgabe), Knöpfe in Spalte VORGABE
+        self.max_laenge = (rechnen.maschine(kopf, k) or {}).get("max_stange") if getattr(k, "maschinen", None) else None
+        self.vorrat = [rechnen.stangen_vorgabe(kopf, g["gruppe"]) for g in gruppen]
+        self.vorrat_knoepfe = []
         # seite = Angebot (AngebotSeite) für die Zusatzfenster, None = ohne; nachher = (Schritt, Wert) nach dem Schließen
         self.seite, self.veraltet, self.ohne_plan, self.nachher = seite, veraltet, ohne_plan, None
         self.zeigen = lambda fenster: fenster.exec()        # Tests ersetzen das Öffnen der Zusatzfenster
         self.setWindowTitle("Material je Abmessung")
-        self.resize(1320, 250 + 52 * min(len(gruppen), 8))
+        self.resize(1500, 250 + 52 * min(len(gruppen), 8))
         lay = QVBoxLayout(self)
         lay.addWidget(hilfe.Hinweis(
             "Alles zum Material dieses Angebots je Abmessung: Werkstoff, Oberfläche, Lieferlänge, Eigen- oder Kundenmaterial und "
@@ -185,8 +192,15 @@ class MeterpreisDialog(QDialog):
             self.tabelle.setCellWidget(r, 12, feld)
             hk.currentTextChanged.connect(lambda t, feld=feld: self._kunde(feld, t))
             self._kunde(feld, hk.currentText())
+            kv = QPushButton()
+            kv.setToolTip("Stangen von Hand vorgeben: welche Längen wie oft da sind (z. B. 3 × 6.000 + 2 × 4.500 mm); "
+                          "die Optimierung plant dann nur mit diesen Stangen")
+            kv.clicked.connect(lambda _=False, r=r: self.vorgabe_bearbeiten(r))
+            self.vorrat_knoepfe.append(kv)
+            self.tabelle.setCellWidget(r, VORGABE, kv)
+            self._vorgabe_text(r)
         kopf_z = self.tabelle.horizontalHeader()
-        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115)):
+        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115, 175)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopf_z.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -302,7 +316,57 @@ class MeterpreisDialog(QDialog):
         except ValueError as e:
             self.fehler.setText(str(e))
             return
+        self.vorgaben = self.vorgaben_neu(self.aenderungen)
         self.accept()
+
+    # -------------------------------------------------------------- Stangen von Hand vorgegeben
+    def _vorgabe_text(self, r):
+        v = self.vorrat[r]
+        k = self.vorrat_knoepfe[r]
+        k.setText(rechnen.vorrat_text(v) if v else "keine …")
+        f = k.font()
+        f.setBold(bool(v))
+        k.setFont(f)
+
+    def vorgabe_bearbeiten(self, r, dialog=None):
+        """Vorgegebene Stangen der Zeile r bearbeiten (stangen_vorgabe_dialog.VorgabeDialog); dialog(d) bedient den
+        Dialog statt exec (Tests). Gespeichert wird mit 'Übernehmen' des Material-Fensters. Ergebnis: True = geändert."""
+        from .stangen_vorgabe_dialog import VorgabeDialog
+        g = self.gruppen[r]
+        t = self.laengen[r].currentText().strip()
+        try:
+            standard = zahl_aus_text(t) if t else g["stange"]
+        except ValueError:
+            standard = g["stange"]
+        d = VorgabeDialog(self, f"{g['profil']} · {rechnen.material_text(g['werkstoff'], g['oberflaeche'])}",
+                          self.vorrat[r], self.max_laenge, standard)
+        if not (dialog(d) if dialog else d.exec() == QDialog.Accepted) or d.vorrat is None:
+            return False
+        neu = [tuple(x) for x in d.vorrat]
+        if neu == list(self.vorrat[r]):
+            return False
+        self.vorrat[r] = neu
+        self._vorgabe_text(r)
+        return True
+
+    def vorgaben_neu(self, aenderungen):
+        """Vorgegebene Stangen des ganzen Angebots nach den Eingaben {Gruppenschlüssel: [[Länge, Anzahl], …]}, mit
+        dem Schlüssel der geänderten Abmessung (anderer Werkstoff, Oberfläche, Lieferlänge oder Material wandern mit),
+        oder None, wenn sich nichts geändert hat."""
+        alt = dict(self.kopf.get("stangen_vorgabe") or {})
+        neu = {s: v for s, v in alt.items() if s not in {rechnen.laengen_schluessel(g["gruppe"]) for g in self.gruppen}}
+        felder = {id(g): f for g, f in aenderungen}
+        for g, v in zip(self.gruppen, self.vorrat):
+            if not v:
+                continue
+            f = felder.get(id(g), {})
+            ob = f.get("oberflaeche", g["oberflaeche"]) or ""
+            stange = f["stange"] or self.kopf.get("stange") if "stange" in f else g["stange"]
+            kunde = f["material_herkunft"] == KUNDENMATERIAL if "material_herkunft" in f else g["kunde"]
+            gr = (g["profil"], f.get("werkstoff_id", g["werkstoff"]), "" if ob.lower() == ROH else ob, stange) + \
+                (("Kunde",) if kunde else ())
+            neu[rechnen.laengen_schluessel(gr)] = [list(x) for x in v]
+        return neu if neu != alt else None
 
     # -------------------------------------------------------------- Zusatzfenster
     def oeffnen(self, r, c):
@@ -340,6 +404,7 @@ class MeterpreisDialog(QDialog):
         return [("Abmessung öffnen …", lambda: self.abmessung(r), True),
                 ("Preis-Aufbau …", lambda: self.preis(r), True),
                 ("Profil-Info …", lambda: self.profil(r), True),
+                ("Stangen vorgeben …", lambda: self.vorgabe_bearbeiten(r), True),
                 (None, None, None),
                 ("12-m-Lösung für diese Abmessung …",
                  lambda: self.schliessen_mit("laengen", abmessung.laengen_indizes(self.seite.ergebnis, g)),
@@ -385,6 +450,7 @@ class MeterpreisDialog(QDialog):
         except ValueError as e:
             self.fehler.setText(str(e))
             return False
+        self.vorgaben = self.vorgaben_neu(self.aenderungen)
         self.nachher = (aktion, wert)
         self.accept()
         return True

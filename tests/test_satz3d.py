@@ -100,6 +100,26 @@ def bedienen(d):
     punkt = tuple(p[3 * netz["t"][art][3 * j] + c] for c in range(3))
     gesehen["klick"] = d.geklickt(dict(id=f"{TEIL}{nr}", punkt=punkt))
     gesehen["markiert"] = [d.teile[r]["_id"] for r in d.teile_tab.markierte()]
+    # Auswahl im 3D (26.10.2026): Klick nahe einer Kante trifft die Fläche dahinter (flaeche_vor_kante)
+    gesehen["kante"] = d.ansicht3d.ansicht.flaeche_vor_kante
+    # Reiter Steckverbindungen: Klick auf ein Teil markiert seine Verbindungen, Zeile zeigt Aufnahme und Stecker
+    d.reiter.setCurrentIndex(1)
+    d.geklickt(dict(id=f"{TEIL}{nr}", punkt=punkt))
+    zeilen = d.steck_tab.markierte()
+    gesehen["steck_zeilen"] = [(d.bg["steckverbindungen"][r]["_auf"], d.bg["steckverbindungen"][r]["_st"])
+                               for r in zeilen]
+    d.steck_tab.clearSelection()
+    d.steck_tab.selectRow(0)
+    z0 = d.bg["steckverbindungen"][0]
+    gesehen["steck_teile"] = (sorted(d.teile[r]["_id"] for r in d.teile_tab.markierte()),
+                              sorted((z0["_auf"], z0["_st"])), "blau = markiert" in d.ansicht3d.info.text())
+    # Klick in ein Feld einer Zeile markiert die Zeile (Felder fangen den Klick sonst ab)
+    feld = d.steck_tab.cellWidget(1, 3)
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QFocusEvent
+    d.steck_tab.eventFilter(feld, QFocusEvent(QEvent.FocusIn))
+    gesehen["feld_zeile"] = d.steck_tab.markierte()
+    d.reiter.setCurrentIndex(0)
     # Längsnaht: Modus an, Klick auf die Oberseite des Holms (Rohrsystem Y = +halbe Höhe)
     d.laengsnaht_knopf.setChecked(True)
     nr = next(i for i, (pid, _, _) in enumerate(d._koerper) if pid == holm)
@@ -116,6 +136,9 @@ assert seite.satz_3d(i, dialog=bedienen)
 assert gesehen["erg"] == (3, 0) and gesehen["fehler"] is None, gesehen
 assert gesehen["koerper"] >= 4, gesehen          # Rohre und Bleche
 assert gesehen["klick"] == strebe and gesehen["markiert"] == [strebe], gesehen
+assert gesehen["kante"] and gesehen["steck_zeilen"] and all(strebe in z for z in gesehen["steck_zeilen"]), gesehen
+assert gesehen["steck_teile"][0] == gesehen["steck_teile"][1] and gesehen["steck_teile"][2], gesehen
+assert gesehen["feld_zeile"] == [1], gesehen
 assert gesehen["naht"] in (0.0, 180.0) and gesehen["nl"] == 2, gesehen          # beide Körper des Holms
 pos = {q["id"]: q for q in db.positionen(a)}
 eh, est = sw.lesen(pos[holm]["technik"]), sw.lesen(pos[strebe]["technik"])
@@ -126,7 +149,7 @@ assert pos[holm]["naht_vorgabe"] == naht.FEST and pos[holm]["naht_winkel"] == ge
 assert pos[holm]["naht_quelle"] == "manuell"
 gespeichert = db.satz_daten(a)[satz]
 assert len(gespeichert["steckverbindungen"]) == 3 and len(gespeichert["stoesse"]) == 4
-ok("Satz in 3D: Alle Stöße stecken, Klick markiert Teil, Längsnaht per Klick, OK schreibt Schlitze, Nasen, Naht")
+ok("Satz in 3D: Alle Stöße stecken, Klick markiert Teil (Steckverbindungen mit), Zeile zeigt Teile, Längsnaht per Klick, OK schreibt Schlitze, Nasen, Naht")
 
 # ------------------------------------------------------------------ wieder öffnen, entfernen, Kopie
 zweit = {}

@@ -1315,7 +1315,8 @@ def kapitel_angebot(i):
             "denselben Stangen geschnitten werden. Die anderen Positionen dieser Gruppe zeigen ihn kursiv.",
             "Die Kalkulation, der Lieferlängen-Vergleich und die Staffelpreise rechnen mit dem eingetragenen Preis; "
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
-            "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
+            "Der berechnete Preis ist nur Vorgabe: ein eigener Preis löst keine Meldung im Status aus. Feld leeren "
+            "(oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
     i.abschnitt("Material je Abmessung (Fenster Material …)", marke="material_fenster")
     i.text("<b>Material …</b> (rechts neben den Ausgaben oder Rechtsklick auf eine Position): alles zum Material je "
@@ -1333,11 +1334,30 @@ def kapitel_angebot(i):
     i.genauer()
     i.text("Abmessung = Profil, Werkstoff, Oberfläche und Stangenlänge. Der Knopf steht vor <i>Materialanfrage "
            "(E-Mail)</i>.")
-    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert; der "
-            "Status zeigt dann <b>HINWEIS: Meterpreis manuell</b>.",
+    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert (ohne "
+            "Meldung im Status).",
+            "Spalte <b>Stangen vorgegeben</b>: welche Stangen für die Abmessung da sind ([[stangen_vorgabe]]).",
             "Ohne Optimierung stehen Stangen, Meter und Gewicht auf „–“; passt der Schnittplan nicht mehr zu den "
             "Positionen, steht oben ein roter Hinweis.",
             "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
+    i.abschnitt("Stangen von Hand vorgeben", marke="stangen_vorgabe")
+    i.text("Im Fenster <b>Material …</b> öffnet der Knopf in der Spalte <b>Stangen vorgegeben</b> (oder Rechtsklick "
+           "› <i>Stangen vorgeben …</i>) eine Liste: je Zeile eine Stangenlänge und wie viele Stangen dieser Länge da "
+           "sind, z. B. 3 × 6.000 und 2 × 4.500 mm. Nach <b>Übernehmen</b> neu optimieren.", kurz=True)
+    i.genauer()
+    i.liste("Die Optimierung plant die Abmessung dann nur mit genau diesen Stangen: zuerst möglichst alle Teile, dann "
+            "möglichst wenig Stangenlänge, dann möglichst wenige Stangen. Nicht gebrauchte Stangen bleiben einfach "
+            "übrig, Reste werden nicht verwaltet.",
+            "Teile, die auf keine vorgegebene Stange mehr passen, stehen in der Auswertung unter <i>nicht "
+            "eingeplant</i> mit dem Grund <i>vorgegebene Stangen reichen nicht</i>; die Positionen zeigen das im "
+            "Status.",
+            "Ein Teil darf länger sein als die Lieferlänge der Abmessung, wenn es auf eine vorgegebene Stange passt. "
+            "Längen über der max. Stangenlänge der Maschine nimmt die Liste nicht an.",
+            "Schnittplan, Stangenbild, Werkstattpapiere, Materialkosten und Materialanfrage rechnen mit der Länge "
+            "jeder einzelnen Stange.",
+            "Die Vorgabe gilt nur für die Menge dieses Angebots: Staffelpreise rechnen ohne sie. Eine Kopie des "
+            "Angebots übernimmt sie.",
+            "<b>Vorgabe aufheben</b> (oder alle Zeilen leeren) = wieder beliebig viele Stangen der Lieferlänge.")
     i.abschnitt("Abmessung genauer ansehen (Doppelklick im Fenster Material …)", marke="abmessung_fenster")
     i.text("Im Fenster <b>Material …</b> öffnet ein <b>Doppelklick auf Stangen</b> die Abmessung in einem eigenen "
            "Fenster: Stangenbild, Schnittmuster, Bilanz und alle Teile dieser Abmessung.", kurz=True)
@@ -1938,6 +1958,32 @@ def kapitel_step(i):
             "umschaltbar auf eine je Rohr mit Ringen. Die Position bekommt <b>Teile je Rohrumfang</b>: Rohrstücke = "
             "Stückzahl ÷ je Umfang aufgerundet (5 Schalen, 2 je Umfang = 3 Rohrstücke). Eine Halbschale von genau "
             "180° passt mit Luft nur einmal.",
+            "<b>Virtuelles Bauteil als STEP</b>: für Winkel/U aus einem größeren Profil und offen gezeichnete Rohre "
+            "speichert Rechtsklick → <i>Virtuelles Bauteil als STEP …</i> (oder <b>STEP speichern</b> im "
+            "Schneidweg-Rechner) den Körper, der wirklich gelasert wird: Teil plus Stege bzw. Ringe, genau in der Lage "
+            "der Kundendatei, die selbst unverändert bleibt. Damit bekommt die Programmierung am Laser die echte "
+            "Geometrie. Die STEP-Datei der Position muss noch am gleichen Ort liegen.",
+            "<b>Stege bleiben oder abtrennen</b>: Vorgabe ist, dass die Stege bzw. Ringe 2 mm am Teil bleiben. Je "
+            "Position umschaltbar (Rechtsklick → <i>Stege abtrennen an/aus</i> oder Häkchen <i>Stege abtrennen "
+            "(Nacharbeit)</i> im Schneidweg-Rechner): abgetrennt kommt die Zusatzarbeit <i>Stege abtrennen</i> "
+            "(€ je Teil, Preis in den Stammdaten Zusatzarbeiten) dazu und das Gewicht ist das des gezeichneten Teils. "
+            "Die Wahl bleibt beim Wechsel auf ein anderes größeres Profil erhalten.",
+            "<b>Zeichnung und Werkstattpapiere</b>: die Zeichnung aus dem Schneidweg-Rechner zeigt das virtuelle "
+            "Bauteil mit roten Stegen (ganzes Teil, Ende A und B vergrößert) und den Hinweis „bleibt stehen“ bzw. "
+            "„abtrennen und entgraten“; die Werkstattpapiere listen diese Positionen im Abschnitt <i>Virtuelle "
+            "Bauteile (Stege 2 mm)</i>.",
+            "<b>Gewicht</b>: das Gewicht je Teil (Spalte Gewicht, Palettenschein, Fracht) kommt beim virtuellen "
+            "Bauteil aus dem gemessenen Volumen (mit Stegen bzw. wie gezeichnet, wenn sie abgetrennt werden), nicht "
+            "aus Metergewicht × Länge des größeren Profils; der Rest des Querschnitts ist Abfall. Material und "
+            "Stangen rechnen weiter mit dem ganzen Profil. Zusatzarbeiten in €/kg (z. B. Verzinken) nehmen dieses "
+            "Gewicht, Zusatzarbeiten in €/m² (z. B. Pulvern) die Fläche anteilig (Teil zu ganzem Profil).",
+            "<b>Satz und Baugruppe als STEP</b>: STEP speichern im Fenster Satz in 3D und im Editor der "
+            "Schweißbaugruppe schreibt das virtuelle Bauteil als exakten Körper mit Stegen bzw. Ringen in die "
+            "Baugruppe (abgetrennt: wie gezeichnet), siehe [[step_baugruppe]].",
+            "<b>Plausibilitätsprüfung</b>: die Prüfregel <i>Virtuelles Bauteil prüfen</i> ([[pruefregeln]]) "
+            "vergleicht das gemessene Mehrvolumen der Stege bzw. Ringe mit dem erwarteten (2 × 2 mm × Querschnitt "
+            "des Profils minus gezeichneter Querschnitt). Fehlt es oder ist es ein Vielfaches (z. B. Aussparung am "
+            "Ende, falsches Profil), kommt eine Warnung: dann das Teil im 3D ansehen.",
             "<b>Rohrgröße</b>: das nächstgrößere Rohr einer festen Normreihe (Quadrat-, Rechteck- und Rundrohr nach "
             "EN 10219/10305), wenn es höchstens 1 mm größer ist als die Zeichnung; sonst Sondermaß mit Hinweis. Steht "
             "das Rohr in den Stammdaten, wird es genommen, sonst als Profil vorgeschlagen. Wählst du in der Spalte "
@@ -2675,7 +2721,9 @@ def kapitel_optimieren(i):
         (5, "<b>Steckverbindung hinzufügen</b>: zwischen den zwei markierten Teilen im Reiter Struktur und Teile.")])
     i.genauer()
     i.liste("<b>Hinzufügen</b>: Markieren Sie im Reiter <i>Struktur und Teile</i> zwei Rohre. Das zweite wird "
-            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe.",
+            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe. Schneller geht es im "
+            "3D: im Reiter <i>Strukturbaum und 3D</i> das erste Rohr anklicken, das zweite mit Strg+Klick, dann "
+            "<i>Steckverbindung hinzufügen</i> unter der Ansicht ([[baugruppe_baum]]).",
             "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
             "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
             "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
@@ -2730,11 +2778,15 @@ def kapitel_optimieren(i):
     i.abschnitt("Rahmen-Assistent", marke="rahmen_assistent")
     i.text("<b>Neue Position → Rahmen-Assistent</b> baut einen <b>Rechteckrahmen</b> oder <b>Quader</b> aus Quadrat-, "
            "Rechteck- oder Rundrohr ohne STEP-Datei: Profil, Werkstoff, Außenmaße und Ecken eingeben, die Vorschau "
-           "nennt die Rohre. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
+           "nennt die Rohre und zeigt sie rechts im 3D. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
            "([[satz_3d]]).", kurz=True)
     i.genauer()
     i.liste("<b>Gehrung</b> (nur Rechteckrahmen): vier Rohre mit 45°-Gehrung, Länge außen B bzw. H. Satz in 3D "
             "schlägt dann den Knickrahmen vor ([[vorschlaege]]).",
+            "<b>Knickrahmen (ein Rohr, geknickt)</b> (nur Rechteckrahmen aus Quadrat- oder Rechteckrohr): wie "
+            "Gehrung, danach öffnet Satz in 3D gleich <i>Knickrahmen erstellen</i> für alle vier Rohre (erster "
+            "Schenkel, Freistich, Knickzugabe, K-Faktor, [[satz_3d]]). Mit OK wird der Rahmen eine Position: das "
+            "gestreckte Rohr mit drei V-Ausschnitten.",
             "<b>stumpf</b>: die Waagrechten laufen durch (Länge B), die Senkrechten stehen dazwischen (H − 2 × "
             "Profilhöhe; Rundrohr mit Sattel, Länge Mitte zu Mitte H − Ø).",
             "<b>stumpf mit Steckverbindungen</b>: wie stumpf, dazu an jedem Stoß eine Steckverbindung (wie <i>Alle "
@@ -2774,9 +2826,16 @@ def kapitel_optimieren(i):
            "Knickrahmen.", kurz=True)
     i.genauer()
     i.liste("<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
-            "3D blau. Ein Klick auf ein Teil im 3D markiert es, mit Strg kommt es dazu bzw. fällt wieder weg.",
+            "3D blau. Ein Klick auf ein Teil im 3D markiert es, auch nahe an einer Kante; mit Strg kommt es dazu bzw. "
+            "fällt wieder weg. Die Zeile unter der Ansicht nennt die markierten Positionen. Ein <b>Doppelklick</b> "
+            "auf ein Rohr wählt die ganze Gehrungskette (alle Rohre, die zusammen einen Knickrahmen ergeben). Ein "
+            "<b>Rechtsklick</b> auf ein Teil öffnet ein Menü: Gehrungskette wählen, Knickrahmen erstellen bzw. lösen, "
+            "Steckverbindung hinzufügen (das zuerst gewählte Rohr wird Aufnahme), Aufnahme und Stecker tauschen, "
+            "Steckverbindung entfernen, Nur Gewähltes zeigen und Auswahl aufheben.",
             "<b>Reiter Steckverbindungen</b>: dieselbe Tabelle und dieselben Knöpfe wie in der Schweißbaugruppe "
-            "([[steckverbindung_anlegen]]). <i>Steckverbindung hinzufügen</i> nimmt die zwei markierten Rohre (das "
+            "([[steckverbindung_anlegen]]). Ein Klick in eine Zeile zeigt Aufnahme und Stecker im 3D blau. Ein Klick "
+            "auf ein Rohr im 3D markiert seine Verbindungen in der Tabelle, zwei Rohre (Strg+Klick) die Verbindung "
+            "zwischen ihnen. <i>Steckverbindung hinzufügen</i> nimmt die zwei markierten Rohre (das "
             "zweite wird Stecker). <i>Alle Stöße stecken</i> braucht die Lage der Rohrenden aus dem STEP-Import: Ein "
             "Satz merkt sie sich ab Version 0.9.95; ältere Sätze bitte neu einlesen.",
             "<b>Längsnaht wählen</b> (Leiste über dem 3D): einschalten und die Fläche eines Rohrs anklicken. Bei "
@@ -2872,10 +2931,16 @@ def kapitel_optimieren(i):
             "außen gesehen). <b>Wände</b> – <i>beide Wände (durchgehend)</i> setzt dieselbe Kontur genau gegenüber "
             "(z. B. Durchgangsbohrung), <i>alle vier Seiten</i> beim Quadrat- und Rechteckrohr, <i>am Umfang "
             "verteilt</i> beim Rundrohr mit <i>Anzahl am Umfang</i> (4 = alle 90°); jede Kopie zählt im Schneidweg "
-            "und bei den Einstichen und ist in Skizze und 3D zu sehen. <b>Schnittrichtung</b> (Rundrohr): "
-            "<i>senkrecht zur Oberfläche</i> (Strahl zur Rohrmitte, Standard) oder <i>parallel zur Konturachse</i> "
-            "wie gebohrt – das braucht die 3D-Schnittbearbeitung am Teil, die Schnittlänge ist dann die der Kontur "
-            "(Bohrung π × d).",
+            "und bei den Einstichen und ist in Skizze und 3D zu sehen. <b>Schnittrichtung</b> (Rundrohr und "
+            "Quadrat-/Rechteckrohr mit Eckradius): <i>senkrecht zur Oberfläche</i> (2D, Standard) – der Strahl steht "
+            "an jedem Punkt 90° zur Oberfläche, und es gilt immer die <b>Innenkante</b> der Kontur: innen hat sie "
+            "genau die Maße der Zeichnung bzw. der STEP, außen ist sie auf dem Rundrohr und in der Rundung der Ecke "
+            "dafür etwas breiter (in der Abwicklung, im 3D, im Schnittkörper und in der Schnittlänge so gerechnet; "
+            "auf ebenen Wänden ändert sich nichts). <i>parallel zur Konturachse</i> ist die <b>ebene "
+            "Bearbeitung</b> wie gebohrt: die Schnittfläche ist eben, außen hat die Kontur die Maße der Zeichnung, "
+            "und eine Kontur nah an der Kante wird gerade (parallel zur Wand) durch die Rundung geschnitten. Das "
+            "braucht die 3D-Schnittbearbeitung am Teil; Abwicklung, 3D und Schnittlänge stellen sich beim Umschalten "
+            "sofort um (Bohrung dann π × d).",
             "<b>Außenradius</b> (Quadrat- und Rechteckrohr, Eigenschaften des Teils): leer = Wert der Stammdaten, bei "
             "<b>Aluminium</b> 0, sonst Vorgabe nach Norm (als grauer Text angezeigt); 0 = scharfkantig. Er gilt im ganzen <b>Angebot</b> für "
             "alle Positionen mit gleichem Profil und Werkstoff: Beim Übernehmen rechnet das Programm die übrigen "
@@ -3225,8 +3290,8 @@ def kapitel_optimieren(i):
     i.abschnitt("Stangenbild", marke="stangenbild")
     i.bild("erg_stangenbild", "Reiter Stangenbild, Ansicht Stangenmuster", hoehe=85 * mm, legende=[
         (1, "<b>Umschalter</b>: <i>Stangenmuster</i> (gleich belegte Stangen zusammengefasst, wie "
-            "bisher), <i>Übersicht</i> (jede Stange eine Zeile) und <i>Detail</i> (eine Stange groß). Das Programm "
-            "merkt sich die zuletzt gewählte Ansicht, auch für das Abmessungs-Fenster ([[abmessung_fenster]]).")])
+            "bisher), <i>Übersicht</i> (jede Stange eine Zeile, Standard) und <i>Detail</i> (eine Stange groß). Das "
+            "Programm merkt sich die zuletzt gewählte Ansicht, auch für das Abmessungs-Fenster ([[abmessung_fenster]]).")])
     i.text("Jede Stange als Balken: Teile farbig mit Positionsnummer, Rest hellgrau, Greiferrest rot. Doppelklick "
            "auf ein Teil springt zur Position. Oben wählt man zwischen Stangenmuster, Übersicht und Detail.", kurz=True)
     i.bild("erg_stangen_uebersicht", "Ansicht Übersicht: jede Stange eine Zeile, nach Abmessung gruppiert",
@@ -3234,7 +3299,10 @@ def kapitel_optimieren(i):
                (1, "<b>Übersicht</b> wählen."),
                (2, "Je Abmessung eine Kopfzeile (Profil, Werkstoff, Lieferlänge, Anzahl Stangen, Ausnutzung), darunter "
                    "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
-                   "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern.")])
+                   "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern. Bleibt die "
+                   "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Detail-Ansicht (Kennzahlen, "
+                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern); <b>Esc</b> schließt es. Die Wartezeit "
+                   "steht unter Einstellungen › Ansicht (<i>Stangenbild: Detail-Fenster nach … Sekunden</i>, 0 = aus).")])
     i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
            hoehe=95 * mm, legende=[
                (1, "<b>Kennzahlen</b> der Stange: Lieferlänge, Teile, Nutzung, Rest (Verschnitt, es gibt keine "
@@ -4112,6 +4180,12 @@ def kapitel_baugruppen(i):
            "<i>Maße löschen</i>. Messen und Naht zeichnen schalten sich gegenseitig aus. <i>Längsnaht wählen</i>: "
            "die Fläche eines Rohrs anklicken, die Längsnaht liegt dann dort (wie im Fenster Satz in 3D, "
            "[[satz_3d]]); sie ist im 3D rot.")
+    i.text("<b>Teile im 3D wählen</b>: Ein Klick auf ein Teil wählt es (blau), auch nahe an einer Kante; der Baum "
+           "springt auf das Teil und der Reiter Struktur und Teile markiert es mit. Strg+Klick nimmt weitere Teile "
+           "dazu oder wieder weg, ein Klick im Baum wählt neu. Doppelklick und Rechtsklick-Menü wie im Fenster Satz "
+           "in 3D. Unter der Ansicht stehen dazu <b>Knickrahmen "
+           "erstellen …</b> (gewählte Rohre mit Gehrung, [[satz_3d]]) und <b>Steckverbindung hinzufügen</b> (genau "
+           "zwei Rohre: das zuerst gewählte wird Aufnahme, das zweite Stecker, [[steckverbindung_anlegen]]).")
     i.text("<b>Rohre aus den Eingaben</b>: Quadrat-, Rechteck- und Rundrohre (und andere Profile, die der "
            "Teile-Editor zeichnet) stehen so im 3D, wie sie gerechnet werden: Gehrungen, Konturen und die Schlitze "
            "und Nasen der Steckverbindungen ([[steckverbindung]]), auch der noch nicht gespeicherten aus dem Reiter "
@@ -4302,6 +4376,10 @@ def kapitel_baugruppen(i):
             "Namen mit Umlauten (Fußplatte, Geländer) stehen richtig in der STEP-Datei.",
             "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
             "kommen als facettierter Körper hinein, mit Hinweis.",
+            "<b>Virtuelle Bauteile</b> (Winkel/U aus größerem Profil, offen gezeichnete Rohre, [[offene_rohre]]): "
+            "bleiben die Stege am Teil, kommt der exakte Körper mit Stegen bzw. Ringen 2 mm hinein (so wird "
+            "gelasert, die Kundendatei wird dafür kurz neu gemessen); werden sie abgetrennt, das Teil wie gezeichnet. "
+            "Beides mit Hinweis, Lage wie in der STEP-Datei.",
             "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "
             "mit Hinweis.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
@@ -4841,6 +4919,9 @@ def kapitel_einstellungen(i):
         ["Ansicht", "Dichte (kompakt, normal, komfortabel)",
          "Zeilenhöhe der Tabellen und Abstand in Knöpfen und Feldern: <i>kompakt</i> zeigt mehr Zeilen, "
          "<i>komfortabel</i> mehr Luft (Vorgabe normal). Gilt sofort, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Stangenbild: Detail-Fenster nach so vielen Sekunden auf einer Stange (0 = aus)",
+         "Wie lange die Maus in der Übersicht des Stangenbilds auf einer Stange bleiben muss, bis ein kleines Fenster "
+         "ihre Detail-Ansicht zeigt ([[stangenbild]]); Vorgabe 1 Sekunde, 0 = nie. Nur an diesem Arbeitsplatz."],
         ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
          "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
          "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
@@ -5672,11 +5753,15 @@ def kapitel_stammdaten(i):
             "<b>Wand zu dick zum Knicken</b> (Knickrahmen): Wandstärke über dem Grenzwert in mm (Vorgabe 4, HINWEIS).",
             "<b>Nase zu schmal</b> (Steckverbindung): Nasenbreite unter Grenzwert × Wand des Steckers (Vorgabe 3,0, "
             "WARNUNG, [[steckverbindung]]).",
+            "<b>Virtuelles Bauteil prüfen</b> (Teil mit Stegen bzw. Ringen 2 mm, [[offene_rohre]]): gemessenes "
+            "Mehrvolumen mehr als Grenzwert × erwartet, weniger als erwartet ÷ Grenzwert oder keins (Vorgabe 3,0, "
+            "WARNUNG).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
            "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39, die drei Regeln für "
-           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.49.")
+           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.49, die Regel für virtuelle "
+           "Bauteile beim ersten Start von Version 0.9.148.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
@@ -5960,7 +6045,7 @@ def kapitel_zukauf(i):
     i.bild("zukauf_kategorien", "Zukaufartikel, Unterreiter Kategorien (Beispiel: 30 % für Schrauben und Muttern)",
            hoehe=80 * mm, legende=[(1, "Unterreiter <b>Kategorien</b>")])
     i.text("Je Kategorie ein Standardaufschlag. Vorrang: Aufschlag der Position vor dem des Artikels vor dem der "
-           "Kategorie vor dem Standard der Einstellungen. In Angeboten ab 0.9.146 ersetzen <i>Aufschlag Bleche</i> "
+           "Kategorie vor dem Standard der Einstellungen. In Angeboten ab 0.9.151 ersetzen <i>Aufschlag Bleche</i> "
            "und <i>Aufschlag Zukaufteile</i> der Karte Kalkulation die Regeln von Artikel, Kategorie und Standard "
            "([[angebotskopf]]).", kurz=True)
     i.genauer()
@@ -6394,6 +6479,15 @@ def kapitel_pflege(i):
             "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
             "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
             "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
+            "<b>Download bricht ab (z. B. im Firmennetz)</b>: Reißt die Verbindung ab, versucht das Programm es von "
+            "selbst bis zu sechsmal und macht an der Abbruchstelle weiter (Hinweis <i>Verbindung unterbrochen, neuer "
+            "Versuch …</i>). Scheitert es trotzdem, bleibt das schon Geladene liegen: <i>Hilfe → Nach Updates "
+            "suchen …</i> setzt dort fort. Die Meldung nennt die wahrscheinliche Ursache: Firewall, Proxy oder "
+            "Virenscanner im Firmennetz, eine Sperrseite statt der Datei, HTTP 403 (gesperrt) oder ein fremdes "
+            "Zertifikat. Dann die IT bitten, <i>github.com</i> und <i>*.githubusercontent.com</i> freizugeben, oder in "
+            "einem anderen Netz aktualisieren. Installierte und portable Version verhalten sich dabei gleich; die "
+            "portable braucht Schreibrechte in ihrem Ordner. Jeder Versuch steht mit Proxy-Angabe im Protokoll "
+            "<i>Daten\\Protokoll\\fehler.log</i>.",
             "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
@@ -6446,9 +6540,14 @@ def kapitel_pflege(i):
             "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
     i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
            "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
-           "ersten Start der neuen Version: auf die Frage nach vorhandenen Daten <b>Daten übernehmen …</b> wählen "
-           "und die Datei <i>Daten\\rohrlaser.db</i> der portablen Version, eine Sicherung oder eine Export-Datei "
-           "angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Danach mit der neuen Version "
+           "ersten Start der neuen Version: Das Programm sucht die zuletzt benutzten Daten selbst (frühere portable "
+           "Kopie oder installierte Version) und zeigt sie mit Ordner und Datum an. <b>Diese Daten übernehmen</b> "
+           "kopiert Datendatei, Lizenz und Angebots-Ablage (nur, wenn hier noch keine sind). Mit <b>Andere Daten "
+           "wählen …</b> lässt sich stattdessen die Datei <i>Daten\\rohrlaser.db</i>, eine Sicherung oder eine "
+           "Export-Datei angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Läuft die alte "
+           "Version noch, zuerst dort beenden. <b>Neues ZIP</b> am einfachsten in den bisherigen Ordner entpacken "
+           "(Dateien ersetzen): Der Ordner <i>Daten</i> ist nicht im ZIP und bleibt stehen; das neue Setup über die "
+           "alte Installation behält die Daten ohnehin. Danach mit der neuen Version "
            "weiterarbeiten und die alte nicht mehr benutzen, sonst laufen zwei Datenbestände auseinander.",
            "Jeder Arbeitsplatz hat seine eigene Datendatei; geteilt wird über den gemeinsamen Ordner "
            "([[mehrere_arbeitsplaetze]]), nicht über eine gemeinsame Datendatei. Solange das Programm läuft, sperrt "
@@ -6852,6 +6951,10 @@ def kapitel_fragen(i):
          "Eine Programmdatei ließ sich nicht austauschen, meist weil sie gerade offen ist (Bedienungsanleitung im "
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
+        ["Update: <b>Verbindung wurde mehrmals unterbrochen</b>, <b>Webseite statt der Datei</b> oder <b>403</b>",
+         "Das Netz (meist Firewall, Proxy oder Virenscanner in der Firma) bricht den Download ab oder sperrt ihn. "
+         "Nichts wurde verändert. Später noch einmal suchen (setzt fort), in einem anderen Netz aktualisieren oder "
+         "die IT bitten, github.com und *.githubusercontent.com freizugeben ([[updates]])."],
         ["Update meldet <b>nicht gültig signiert</b> oder <b>unbekanntes Format</b>",
          "Die geladene Dateiliste war unvollständig oder nicht vom Hersteller. Das Programm hat nichts verändert. "
          "Ein paar Minuten warten (ein Update wird vielleicht gerade hochgeladen) und noch einmal suchen; bleibt "
@@ -6880,9 +6983,6 @@ def kapitel_fragen(i):
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
         ["<b>HINWEIS: Schneidzeit manuell</b>",
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
-        ["<b>HINWEIS: Meterpreis manuell</b>",
-         "Für die Position ist ein Materialpreis je m von Hand eingetragen; er ersetzt den berechneten Preis "
-         "([[meterpreis]])."],
         ["<b>WARNUNG: Konturen klein + mittel länger als Schneidweg</b>",
          "Der Schneidweg wurde von Hand kleiner eingetragen als die kleinen und mittleren Konturen zusammen. Der "
          "Anteil mit Vorschub groß wird mit 0 gerechnet. Schneidweg oder die Spalten Kontur klein/mittel [mm] "

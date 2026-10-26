@@ -77,9 +77,22 @@ def messung():
     assert abs(z(m, "innen") - formel["schnitt"]) < 0.02 * formel["schnitt"], (m["innen"], formel["schnitt"])
     n = json.loads(zlib.decompress(m["_netz"]).decode("utf-8"))
     assert "ES" in n["t"] and n["t"]["ES"], list(n["t"])
+    # Einbaulage: das Teil (ohne Stege) liegt wie in der STEP (vorher um den Unterschied der Schwerlinien verschoben)
+    assert welt_huelle(n) == ((0, 0, 0), (33, 30, 500)), welt_huelle(n)
 
 
-fall("gerader Winkel 33x30x6 aus 60x40x6: Enden 100 mm, zwei Längsschnitte 496 mm, Stege im 3D", messung)
+def welt_huelle(n):
+    """Hülle der Teil-Dreiecke (ohne Stege) in Dateilage, gerundet auf 0,01 mm."""
+    lg, p = n["lage"], n["p"]
+    o, ax, x = lg[:3], lg[3:6], lg[6:9]
+    y = (ax[1] * x[2] - ax[2] * x[1], ax[2] * x[0] - ax[0] * x[2], ax[0] * x[1] - ax[1] * x[0])
+    idx = {i for art, v in n["t"].items() if art not in ("ES", "EW", "EO") for i in v}
+    pk = [tuple(o[k] + p[3 * i] * x[k] + p[3 * i + 1] * y[k] + p[3 * i + 2] * ax[k] for k in range(3)) for i in idx]
+    return tuple(tuple(round(f(q[k] for q in pk), 2) + 0.0 for k in range(3)) for f in (min, max))
+
+
+fall("gerader Winkel 33x30x6 aus 60x40x6: Enden 100 mm, zwei Längsschnitte 496 mm, Stege im 3D, Lage wie STEP",
+     messung)
 
 
 def gehrung_ausklinkung_u():
@@ -95,6 +108,8 @@ def gehrung_ausklinkung_u():
     u = messen("U_60x30", "U-Profil|60|50|6")
     assert "stege=virtuell" in u["sicherheit"] and (round(z(u, "abm_a"), 2), round(z(u, "abm_b"), 2)) == (60, 50), (u["abm_a"], u["abm_b"])
     assert len(step._paare(u["innen_liste"])) == 2, u["innen_liste"]
+    nu = json.loads(zlib.decompress(u["_netz"]).decode("utf-8"))
+    assert welt_huelle(nu) == ((0, 0, 0), (60, 30, 400)), welt_huelle(nu)
     nicht = messen("U_60x30", "U-Profil|80|50|6")        # andere Steghöhe: wie gezeichnet
     assert "stege=virtuell" not in nicht["sicherheit"] and round(z(nicht, "abm_b"), 2) == 30, nicht["sicherheit"]
 

@@ -286,6 +286,15 @@ class Skizze(QWidget):
             g.drawPolyline(QPolygonF(pts))
         return True
 
+    def _faktor_aussen(self, ein):
+        """Abwicklung (Außenhaut) am Rundrohr: 2D-Konturen sind außen am Umfang um Außen-/Innenradius breiter als
+        gezeichnet, weil die Innenkante maßhaltig ist (Patrick 26.10.2026); 3D eben und alles andere: 1,0."""
+        qs = self.qs
+        wand = getattr(qs, "wand", 0) or 0
+        if not qs.r or not wand or wand >= qs.r or not sf.innen_2d(ein, self.eingaben):
+            return 1.0
+        return qs.r / (qs.r - wand)
+
     def _konturen(self, g, a, lagen):
         qs = self.qs
         for d in lagen:
@@ -296,6 +305,9 @@ class Skizze(QWidget):
                 if s0 > qs.umfang:
                     s0 -= qs.umfang
                 umr = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
+                k_aussen = self._faktor_aussen(d["eingabe"])
+                if k_aussen != 1.0:             # 2D am Rundrohr: außen breiter als gezeichnet (Innenkante maßhaltig)
+                    umr = [(dx, dq * k_aussen) for dx, dq in umr]
                 poly = QPolygonF([self._bild(a, d["x"] + dx, s0 + dq) for dx, dq in umr])
                 sicht = 1.0
                 dqs = [dq for _, dq in umr]
