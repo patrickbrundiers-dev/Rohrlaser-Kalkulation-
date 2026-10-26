@@ -3202,7 +3202,7 @@ def kapitel_optimieren(i):
            "<b>Eingespartes Material [mm]</b>, wie viel kürzer die Belegung gegenüber zwei Schnitten mit Abstand ist. "
            "Die Werkstattpapiere zeigen Lage und Naht in derselben Spalte.")
     i.text("Ein Doppelklick auf ein Teil in der unteren Liste springt zu seiner Position.")
-    i.abschnitt("Stangenbild")
+    i.abschnitt("Stangenbild", marke="stangenbild")
     i.bild("erg_stangenbild", "Reiter Stangenbild, Ansicht Stangenmuster", hoehe=85 * mm, legende=[
         (1, "<b>Umschalter</b>: <i>Stangenmuster</i> (gleich belegte Stangen zusammengefasst, wie "
             "bisher), <i>Übersicht</i> (jede Stange eine Zeile) und <i>Detail</i> (eine Stange groß). Das Programm "
@@ -3502,6 +3502,21 @@ def kapitel_staffeln(i):
                (3, "Gemeinkosten mit ihrer Basis."),
                (4, "Einmalige Rüstkosten (Rüstkosten = separat): nicht im Stückpreis, aber im Gesamtpreis."),
                (5, "Änderung des Preises je Einheit zur letzten Eingabe, in € und %.")])
+    i.abschnitt("Schnittschema je Staffel")
+    i.text("Jede Stufe hat ihren eigenen Schnittplan. <b>Schnittschema …</b> zeigt ihn je Stufe mit Stangen, "
+           "Verschnitt, €/m und Materialkosten – daraus kommt der Materialpreis der Staffel.", kurz=True)
+    i.genauer()
+    i.text("Im Ergebnis steht unter <b>Schnittschema</b> je Abmessung und Stufe, wie viele Stangen welcher "
+           "Lieferlänge die Menge braucht und wie gut sie ausgenutzt sind (z. B. „13 × 6.000 · 91 %“), daneben die "
+           "Stangenkosten inkl. Verschnitt. Der Tooltip nennt Positionen, Meter, Verschnitt und Meterpreis. Ein "
+           "Doppelklick darauf oder der Knopf <b>Schnittschema …</b> öffnet das Fenster der Stufe: oben die Auswahl "
+           "der Stufe, darunter je Abmessung Stangen, Material [m], Teile [m], Verschnitt [m], Ausnutzung, €/m und "
+           "Materialkosten mit Summe, unten die Stangen wie im Reiter Stangenbild (Stangenmuster, Übersicht, Detail; "
+           "[[stangenbild]]).")
+    i.text("Die Materialkosten des Schnittschemas sind die Material-Grundkosten der Stufe vor Materialverlust und "
+           "Materialzuschlag. Hat eine Stufe mehrere Sätze bzw. Positionen, werden sie gemeinsam optimiert; das "
+           "Schnittschema gilt dann für die ganze Stufe. Fehlt es (ältere Staffelpreise), rechnet der Reiter die "
+           "Stufen einmal neu.")
     i.abschnitt("Prüfung und Fehler")
     i.text("Rote Stufen haben einen FEHLER (z. B. keine Menge oder überschneidende Mengen) und werden nicht "
            "ausgegeben.", kurz=True)

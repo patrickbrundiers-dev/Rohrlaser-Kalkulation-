@@ -259,6 +259,34 @@ ok("Fenster der Stufe: Einstellungen wie im Angebot (leer = grau), Rabattprüfun
    "(neu: alle), Mengen = Angebot × 2; "
    "Nebenkosten je Einheit wirken sofort")
 
+# Schnittschema je Staffel (Patrick 26.10.2026): je Stufe der Schnittplan, je Abmessung Stangen, Meter, €/m, Kosten
+from rohrlaser.staffel_seite import stufen_der_zeilen  # noqa: E402
+assert st.anzahl_veraltet() == 0
+for z in st.zeilen:
+    sch = staffeln.schema_der_zeile(st.zeilen, z)
+    assert sch and sch["stangen"] and sch["abmessungen"], z["schluessel"]
+    assert sum(abm["stangen"] for abm in sch["abmessungen"]) == len(sch["stangen"]) == z["stangen"]
+    for abm in sch["abmessungen"]:
+        assert 0 < abm["nutz_m"] <= abm["meter"] + 1e-9 and abm["meter"] == sum(ln * n for ln, n in abm["laengen"]) / 1000
+        assert abm["kunde"] or (abm["preis_m"] and abm["kosten"] > 0)
+    if not z["gemeinsam"]:              # eine Mengenzeile: Stangenkosten = Material-Grundkosten der Stufe
+        assert nah(sum(abm["kosten"] for abm in sch["abmessungen"]), z["bausteine"]["material"], 1e-6)
+json.dumps(st.zeilen)                                      # gespeichert als JSON
+assert len(stufen_der_zeilen(st.zeilen)) == m.rowCount()
+mehr = max(st.zeilen, key=lambda z: z["menge"])
+weniger = min((z for z in st.zeilen if z["schluessel"] == mehr["schluessel"]), key=lambda z: z["menge"])
+assert len(staffeln.schema_der_zeile(st.zeilen, mehr)["stangen"]) >= len(staffeln.schema_der_zeile(st.zeilen, weniger)["stangen"])
+schnitt = st.baum.zeile("schnitt")
+assert schnitt is not None and schnitt.childCount() >= 1 and schnitt.text(1).endswith("Stangen")
+fenster_s = st.schnittschema(mehr)
+assert fenster_s.wahl.count() == m.rowCount() and fenster_s.tabelle.rowCount() >= 2
+assert fenster_s.tabelle.item(fenster_s.tabelle.rowCount() - 1, 0).text() == "Summe"
+assert len(fenster_s.stangen_seite.stangen) >= len(staffeln.schema_der_zeile(st.zeilen, mehr)["stangen"])
+fenster_s.wahl.setCurrentIndex(0)
+assert fenster_s.stangen_seite.stangen
+fenster_s.reject()
+ok("Schnittschema je Staffel: Stangen je Abmessung, Meter, €/m und Materialkosten je Stufe, im Ergebnis und im Fenster")
+
 # Menge geändert: Stufe veraltet, Hintergrundlauf rechnet nur sie neu
 speichern(5, mengen=[("10", 200, None)])
 assert st.anzahl_veraltet() == 1 and "VERALTET" in s.staffel_info.text()
