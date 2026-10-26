@@ -90,10 +90,12 @@ def vorgaben(profil):
         out["flach_als"] = p["flach_als"]
     if p.get("anbau_weglassen") in ("ja", "nein"):
         out["anbau_weglassen"] = p["anbau_weglassen"] == "ja"
+    if begriffe(p.get("zusatz")):
+        out["zusatz"] = begriffe(p.get("zusatz"))
     return out
 
 
-def korrekturen(messwerte, start, werkstoff_vorgabe, anbau_start=None, anbau_jetzt=None):
+def korrekturen(messwerte, start, werkstoff_vorgabe, anbau_start=None, anbau_jetzt=None, zusatz_vorgabe=None):
     """Was im Prüfdialog korrigiert wurde und sich als Importprofil des Kunden merken lässt (Plan Bedienung B8).
     start: _uebernehmen je Messwert beim Öffnen. Ergebnis: dict mit werkstoff_id (alle gewählten Rohre/Profile haben
     denselben anderen Werkstoff als die Vorgabe), normteile (Bauteilnamen, die beim Öffnen gewählt waren und
@@ -115,6 +117,12 @@ def korrekturen(messwerte, start, werkstoff_vorgabe, anbau_start=None, anbau_jet
         out["normteile"] = namen
     if anbau_start is not None and anbau_jetzt is not None and bool(anbau_start) != bool(anbau_jetzt):
         out["anbau_weglassen"] = "ja" if anbau_jetzt else "nein"
+    # Zusatzarbeiten, die alle gewählten Teile bekommen und die das Profil noch nicht vorgibt (Plan Angebotsablauf V4)
+    alle = [set(m.get("_zusatz") or ()) for m in messwerte if m.get("_uebernehmen") and not m.get("fehler")]
+    gemeinsam = set.intersection(*alle) if alle else set()
+    neu = sorted(gemeinsam - set(zusatz_vorgabe or ()))
+    if neu:
+        out["zusatz"] = neu
     return out
 
 
@@ -126,6 +134,8 @@ def korrekturen_text(k):
         teile.append("Normteile " + ", ".join(k["normteile"][:4]) + (" …" if len(k["normteile"]) > 4 else ""))
     if k.get("anbau_weglassen"):
         teile.append("Anbauteile " + ("weglassen" if k["anbau_weglassen"] == "ja" else "übernehmen"))
+    if k.get("zusatz"):
+        teile.append("Zusatzarbeit " + ", ".join(k["zusatz"]))
     return "; ".join(teile)
 
 
@@ -146,4 +156,8 @@ def merken(db, kundennr, k):
         db.aendern("importprofile", profil["id"], "normteile", "; ".join(neu))
     if k.get("anbau_weglassen"):
         db.aendern("importprofile", profil["id"], "anbau_weglassen", k["anbau_weglassen"])
+    if k.get("zusatz"):
+        alt = begriffe(profil.get("zusatz"))
+        neu = alt + [n for n in k["zusatz"] if n.lower() not in {a.lower() for a in alt}]
+        db.aendern("importprofile", profil["id"], "zusatz", "; ".join(neu))
     return f"Importprofil des Kunden {kundennr} ergänzt: {korrekturen_text(k)}"

@@ -41,6 +41,23 @@ def kunde_aus_ordner(kunden, dateien):
     return None
 
 
+# „Anfrage 4711“, „Anfrage-Nr. 4711“, „Anfr. 4711“, „RFQ 4711“ im Ordnernamen (Plan Angebotsablauf V5)
+REFERENZ = re.compile(r"(?:anfrage|anfr\.|rfq)\s*(?:-?\s*nr\.?|nummer)?\s*[:#-]?\s*([0-9][\w/.-]*|[a-z]+-?[0-9][\w/.-]*)",
+                      re.IGNORECASE)
+
+
+def referenz_aus_ordner(dateien):
+    """Anfrage-Nr. des Kunden aus dem nächsten Ordnernamen der Dateien (z. B. „Müller Anfrage 4711“ → 4711), sonst
+    None."""
+    for d in map(Path, dateien or ()):
+        ordner = d if d.is_dir() else d.parent
+        for name in [ordner.name] + [p.name for p in ordner.parents][:ORDNER_TIEFE - 1]:
+            m = REFERENZ.search(name or "")
+            if m:
+                return m.group(1).rstrip(".-")
+    return None
+
+
 def kunde_vorschlag(db, dateien):
     """Vorschlag für den Kunden: aus dem Ordnernamen, sonst der Kunde des zuletzt geänderten eigenen Angebots mit
     Importprofil, sonst None."""
@@ -84,7 +101,9 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     fenster.angebote.neu_laden()
     seite = fenster.angebot_oeffnen(i)
     extra = dict(formulare=formulare) if formulare else {}
-    if seite.step_importieren(gefunden, kunde_waehlen=waehlen, **extra) is None and not seite.positionen:
+    referenz = (kopf or {}).get("kundenreferenz") or referenz_aus_ordner(dateien)
+    if seite.step_importieren(gefunden, kunde_waehlen=waehlen, referenz=referenz, **extra) is None \
+            and not seite.positionen:
         # abgebrochen: das eben angelegte leere Angebot wieder entfernen (wie vorher beim Abbruch der Kundenwahl)
         fenster.angebot_schliessen(i)
         db.angebot_loeschen(i)

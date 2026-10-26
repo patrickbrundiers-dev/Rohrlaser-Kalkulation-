@@ -1046,7 +1046,9 @@ def kapitel_angebot(i):
             "Aufschlag Bleche, Aufschlag Zukaufteile, Handling Kundenmaterial), <b>Zeit und "
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel SN und Stundensatz der Maschine zur Information, "
             "Rüstzeit je Maschine nur, wenn sie nicht 0 min ist; Stangenwechsel je Stange, Rüstzeit je Abmessung, "
-            "Programmierzeit je Position und je Innenkontur änderbar), <b>Verkauf und Gewinn</b> (Gewinn, "
+            "Programmierzeit je Position und je Innenkontur änderbar; wahlweise <b>Rüsten je Angebot [€]</b> und "
+            "<b>Rüsten je Abmessung [€]</b> als fester Betrag statt Minuten × Stundensatz, leer = Minuten, "
+            "einblendbar über die Sichtbarkeit, Vorgabe in den Einstellungen), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
             "<b>Aufschlag Bleche [%]</b> und <b>Aufschlag Zukaufteile [%]</b> (Vorgabe je 10 % aus den Einstellungen) "
@@ -1267,8 +1269,14 @@ def kapitel_angebot(i):
            "Programm nicht erkennt (z. B. „4xM7“ ohne Stammdaten), steht rot darunter, weil sie mit 0 € rechnen würde. "
            "Bei einer einzelnen Position führen <b>Schweißnaht …</b> und <b>Bohrungen prüfen …</b> unten rechts zur "
            "übrigen Bearbeitung derselben Position.")
-    i.liste("Sind mehrere Positionen markiert, gilt die Auswahl für alle. Die automatische Menge (Gewicht, Fläche, "
-            "Länge) rechnet jede Position für sich.",
+    i.liste("Sind mehrere Positionen markiert, zeigt das Fenster nur, was alle gemeinsam haben, und ändert auch "
+            "nur das: eine neue Zusatzarbeit kommt zu jeder Position dazu, eine entfernte fällt überall weg. Eigene "
+            "Gewinde und Arbeiten einzelner Positionen (z. B. Senken und Flowdrill aus <i>Bohrungen prüfen</i>) "
+            "bleiben. Haben die Positionen verschiedene Gewinde, steht im Feld „unterschiedlich“; ein Eintrag wird "
+            "dann bei jeder Position ergänzt. Die automatische Menge (Gewicht, Fläche, Länge) rechnet jede Position "
+            "für sich.",
+            "Die Positionsliste zeigt Gewinde und Zusatzarbeiten zusammen in der Spalte <b>Gewinde · "
+            "Zusatzarbeiten</b> gleich hinter der Artikelnummer.",
             "Die Kosten erscheinen in der Kalkulation in der Spalte <i>Zusatzarbeiten je Teil</i> und in der Summe "
             "<i>Zusatzarbeiten</i>; Zeiten (s/Stück, z. B. Gravur extra) erhöhen die Laserzeit.",
             "<b>Schweißen</b> (Abrechnung €/h): in <i>Menge bzw. Sekunden je Teil</i> die Schweißzeit je Teil in "
@@ -1604,8 +1612,11 @@ def kapitel_step(i):
             "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
             "sollen ([[einstellungen]]).",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
-            "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien wechseln "
-            "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
+            "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien stehen alle "
+            "Dateien untereinander in einer Liste (Gruppenzeile mit dem Dateinamen); die Pfeil-Knöpfe oben springen "
+            "zur vorigen bzw. nächsten Datei (<i>Datei 2 von 7: …</i>). Oben stehen auch <b>Kunde</b> und "
+            "<b>Anfrage-Nr.</b> (Kundenreferenz des Angebots, vorgeschlagen aus dem Ordnernamen, z. B. "
+            "<i>Anfrage 4711</i>). Dort je Teil festlegen, ob es "
             "übernommen wird, und Profil, Werkstoff und Stückzahl wählen. <b>Übernehmen</b> legt die Positionen "
             "aller Dateien an, <b>Abbrechen</b> verwirft die Messung. Ist unten <b>STEP-Dateien in den Ordner des "
             "Angebots kopieren</b> angehakt, kommen die STEP-Dateien beim Übernehmen in den Unterordner <i>STEP</i> "
@@ -1623,16 +1634,16 @@ def kapitel_step(i):
             "Bericht je Datei, auch später noch über <i>Meldungen</i> in der Statusleiste ([[meldungen]]).",
             nummeriert=True)
     i.abschnitt("Rohrliste prüfen")
-    i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
+    i.bild("step_pruefen", "STEP-Import prüfen: alle Dateien in einer Liste, Eingaben je Teil und 3D-Ansicht",
            hoehe=100 * mm, legende=[
-               (1, "Pfeil-Knöpfe links/rechts: zwischen den STEP-Dateien wechseln; daneben Nummer und Name der Datei."),
+               (1, "Kunde und Anfrage-Nr.; darunter die Pfeil-Knöpfe: zur vorigen/nächsten STEP-Datei springen."),
                (2, "Rohrliste der Datei: Häkchen, Profil-ID, Werkstoff-ID und Stückzahl je Teil."),
-               (3, "Werkstoff und Stückzahl für alle oder die markierten Zeilen setzen.")])
+               (3, "Werkstoff, Stückzahl und Zusatzarbeit für alle oder die markierten Zeilen setzen.")])
     i.text("Rote Gruppenzeile = Profil fehlt in den Stammdaten (wird beim Übernehmen angelegt). Gelber Hinweis = "
            "prüfen. Abgewählte Teile werden nicht übernommen. Spalte <b>Art</b>: Bauteilart umstellen, wenn falsch "
            "erkannt.", kurz=True)
     i.genauer()
-    i.liste("Jede Zeile ist ein Teil. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
+    i.liste("Jede Zeile ist ein Teil, der <b>Hinweis</b> steht gleich dahinter. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
             "<b>In Datei</b> zeigt, wie oft es in der Datei vorkommt.",
             "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart und ist bei jeder Zeile eine Auswahl. Bei "
             "Flachstahl/Blech und Profil/Kantteil steht dort zuerst die andere Messung (siehe Bleche beim "
@@ -1648,9 +1659,11 @@ def kapitel_step(i):
             "(Vorgabe S235-10219 = S235 EN10219) und bei Einzelteilen die Stückzahl 1. Bleche bekommen keinen Werkstoff "
             "vorbelegt. Ist oben eine Anzahl Sätze eingetragen, heißt die Spalte <b>Stück je Satz</b> (siehe Baugruppen "
             "als Satz).",
-            "Für viele Teile auf einmal: unten Werkstoff und/oder Stückzahl wählen und <b>Für alle</b> klicken (gilt "
-            "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
-            "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
+            "Für viele Teile auf einmal: unten Werkstoff, Stückzahl und/oder eine <b>Zusatzarbeit</b> (z. B. "
+            "Feuerverzinken) wählen und <b>Für alle</b> klicken (gilt für alle Teile aller Dateien, die Stückzahl nur "
+            "für Teile ohne Satz), oder Zeilen markieren (Strg/Umschalt) und <b>Für markierte</b>. Die Spalte "
+            "<b>Zusatzarbeiten</b> zeigt die Auswahl, Rechtsklick <i>Zusatzarbeiten entfernen</i> nimmt sie wieder "
+            "weg. Mit <i>Für diesen Kunden merken</i> kommt die Zusatzarbeit ins Importprofil ([[importprofile]]). <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
             "<b>3D-Schnittbearbeitung aktivieren</b> (seit 0.8.19, unter <i>Werte setzen</i>, gilt für alle Teile): "
             "3D heißt: die Schnittfläche steht nicht senkrecht (90°) zur Rohroberfläche. Der Import misst dafür an "
@@ -1703,6 +1716,11 @@ def kapitel_step(i):
                (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
                    "Zusatzarbeiten (z. B. 2× Senken, 4× Bohren).")])
     i.genauer()
+    i.text("<b>Mehrere Positionen auf einmal:</b> Haben mehrere Positionen offene Bohrungen, öffnet der Doppelklick "
+           "auf den Status, der Link im Angebots-Check und die Einblendung nach dem STEP-Import "
+           "(<b>Bohrungen prüfen …</b>) ein Fenster mit allen Bohrungen aller Positionen (Spalten Pos. und "
+           "Artikelnummer). <b>Alle bestätigen</b> und <b>Übernehmen</b> gilt dann für alle; oben steht, wie viele "
+           "Zeilen noch offen sind.")
     i.text("Der STEP-Import und der Schneidweg-Rechner erkennen vier Arten von Bohrungen, die nach der Zeichnung "
            "geprüft werden müssen:")
     i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
@@ -2053,7 +2071,8 @@ def kapitel_step(i):
     i.text("<b>Der Prüfdialog lernt</b>: Wählt man für alle Rohre einen anderen Werkstoff, wählt Teile ab oder "
            "schaltet die Anbauteile um, steht unter der Liste <b>Für Kunde … merken (Importprofil)</b> mit den "
            "Korrekturen. Angehakt, schreibt <i>Übernehmen</i> sie ins Importprofil des Kunden (legt es an, wenn es "
-           "fehlt): der Werkstoff wird Vorgabe, abgewählte Teile kommen mit ihrem Bauteilnamen zu den Normteilen. "
+           "fehlt): der Werkstoff wird Vorgabe, abgewählte Teile kommen mit ihrem Bauteilnamen zu den Normteilen, "
+           "eine Zusatzarbeit für alle Teile (z. B. Feuerverzinken) kommt in jede Position. "
            "Die nächste Anfrage dieses Kunden ist dann gleich so vorbelegt; der Bericht nennt, was gemerkt wurde.")
     i.genauer()
     i.liste("Die Messung liest die Baugruppenstruktur und die Namen der Bauteile aus der STEP-Datei. Wie die "
@@ -2081,6 +2100,8 @@ def kapitel_step(i):
         ["Werkstoff Rohre/Profile, Flache Teile als, Anbauteile nicht übernehmen",
          "Vorbelegung im Prüfdialog statt der Einstellungen <i>Standard-Werkstoff</i>, <i>ebene flache Teile "
          "vorgeben als</i> und des Häkchens für Anbauteile"],
+        ["Zusatzarbeiten für alle Teile (mit ; getrennt)", "Zusatzarbeiten aus den Stammdaten, die jedes "
+                                                           "übernommene Teil bekommt, z. B. Feuerverzinken"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
@@ -4868,6 +4889,9 @@ def kapitel_einstellungen(i):
          "im Angebot Artikel-, Kategorie- und Standardaufschlag, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
+        ["Kalkulation", "Rüsten je Abmessung als Betrag [€], Rüsten je Angebot als Betrag [€] (leer = Minuten)",
+         "fester Betrag statt Rüstzeit × Stundensatz (je verschiedenem Profil bzw. einmal je Angebot); Vorgabe neuer "
+         "Angebote, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
          "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
          "<i>Programmierung</i>, auf deren Stückzahl verteilt, ohne Zuschläge auf den Preis; je Position von Hand "

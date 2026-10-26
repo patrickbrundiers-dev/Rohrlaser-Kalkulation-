@@ -2695,14 +2695,21 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     f8 = sum(_n(positionen[i].get("stueck")) for i in laser)
     if not f8:              # ohne Rohrlaserteile kein Rüsten der Maschine (Übersicht = Preis)
         ruest = 0
-    f7 = ruest / 60 * s_rm + wechsel_s / 3600 * s_sw
+    # Rüsten wahlweise als fester Betrag (Patrick 26.10.2026): € je Angebot bzw. je Abmessung im Angebot statt
+    # Minuten × Stundensatz; die Rüstminuten zählen dann nicht mehr (weder Kosten noch Zeit)
+    ruest_eur, ruest_abm_eur = (kopf.get(n) if _zahl(kopf.get(n)) else None
+                                for n in ("ruesten_angebot_eur", "ruesten_abmessung_eur"))
+    if ruest_eur is not None:
+        ruest = 0
+    ruest_maschine = (ruest_eur if ruest_eur is not None else ruest / 60 * s_rm) if f8 else 0
+    f7 = ruest_maschine + wechsel_s / 3600 * s_sw
     teile_abm = {}
     for i in laser:
         if _n(positionen[i].get("stueck")) > 0:
             pid = positionen[i]["profil_id"]
             teile_abm[pid] = teile_abm.get(pid, 0) + _n(positionen[i]["stueck"])
-    ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
-    ruest_abm = ruest_abm_min / 60 * s_ra              # € je Abmessung
+    ruest_abm_min = _n(einstellungen.get("ruesten_abmessung")) if ruest_abm_eur is None else 0
+    ruest_abm = ruest_abm_min / 60 * s_ra if ruest_abm_eur is None else ruest_abm_eur     # € je Abmessung
     # RP- und Sonderprofile: Rüstzuschlag der Maschine je Abmessung (Patrick 22.10.2026, F7 a), wie Rüsten je Abmessung
     ruest_sonder_min = _n(zb["maschine"].get("ruest_sonder"))
     sonder_abm = {pid: ruest_sonder_min / 60 * s_ra for pid in teile_abm
@@ -2873,7 +2880,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=gw, skonto_teil=t_ - ohne,
                  selbst_teil=sk_, selbst_position=sk_ * c)
         # Anteile je Teil (nur Aufteilung von rz und uz, für die Staffelpreise je Satz bzw. Position)
-        z.update(ruesten_maschine_teil=(ruest / 60 * s_rm / f8 if f8 else 0),
+        z.update(ruesten_maschine_teil=(ruest_maschine / f8 if f8 else 0),
                  stangenwechsel_teil=(wechsel_s / 3600 * s_sw / f8 if f8 else 0),
                  ruesten_abm_teil=(r_abm / n_abm if n_abm and c else 0),
                  pauschale_abm_teil=(pausch_abm / n_abm if n_abm and c else 0),
@@ -2903,7 +2910,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
 
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
                   stangen=len(stangen), beladungen=n_lad, beladungen_sn=n_sn, teile=f8,
-                  abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm + sum(sonder_abm.values()),
+                  abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten_angebot_eur=ruest_eur,
+                  ruesten_abmessung_eur=ruest_abm_eur, ruesten=f7 + ruest_abm * n_abm + sum(sonder_abm.values()),
                   abmessungen_sonder=len(sonder_abm), ruestzeit_sonder=ruest_sonder_min,
                   pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
@@ -2930,7 +2938,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # Selbstkosten + Gewinn + Fracht + Skonto = Verkaufspreis)
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
                   gravur_anbau=_summe("gravur_anbau_teil"), pruefung_anbau=_summe("pruefung_teil"),
-                  ruesten_maschine=ruest / 60 * s_rm, ruesten_abmessungen=ruest_abm * n_abm + sum(sonder_abm.values()),
+                  ruesten_maschine=ruest_maschine, ruesten_abmessungen=ruest_abm * n_abm + sum(sonder_abm.values()),
                   stangenwechsel_kosten=wechsel_s / 3600 * s_sw,
                   zuschlag_material=_summe("zuschlag_material_teil"),
                   zuschlag_fertigung=_summe("zuschlag_fertigung_teil"),
@@ -3121,13 +3129,17 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
                      "Stammdaten Gewinde (Festpreis)", art_="Fremd/Preis"))
     sid, sr = satz["Rüsten Maschine"]
     rm = summen["ruestzeit"]
+    fest = summen.get("ruesten_angebot_eur")
     out.append(zeile("Rüsten Maschine", 1, "Angebot", rm, None, rm, summen["ruesten_maschine"],
+                     f"fester Betrag {zahl(fest, 2)} € je Angebot" if fest is not None else
                      f"{zahl(rm, 1)} min / 60 × {zahl(sr, 2)} €/h",
                      "Maschine (Snapshot)" if zb["gespeichert"] else "Maschine (Stammdaten)", sid=sid, satz_=sr))
     sid, sa = satz["Rüsten je Abmessung"]
     ra = summen["abmessungen"] * summen["ruestzeit_abmessung"]
     out.append(zeile("Rüsten je Abmessung", summen["abmessungen"], "Abmessungen", ra, None, ra,
                      summen["ruesten_abmessungen"],
+                     f"{summen['abmessungen']} × {zahl(summen['ruesten_abmessung_eur'], 2)} € (fester Betrag)"
+                     if summen.get("ruesten_abmessung_eur") is not None else
                      f"{summen['abmessungen']} × {zahl(summen['ruestzeit_abmessung'], 1)} min / 60 × {zahl(sa, 2)} €/h",
                      "Angebot (Vorgabe Einstellungen)", sid=sid, satz_=sa))
     sid, sw = satz["Stangenwechsel"]

@@ -30,12 +30,53 @@ def _zahl(text, titel):
         raise ValueError(f"{titel}: '{t}' ist keine Zahl.")
 
 
+def _gleich(e):
+    """Vergleichswert einer Zusatzarbeit (Name, Menge, Preis, Text) für 'haben alle Positionen gemeinsam'."""
+    return e.get("name"), e.get("menge"), e.get("preis"), e.get("text") or None
+
+
+def gemeinsam(positionen):
+    """Was mehrere Positionen gemeinsam haben (Dialog bei Mehrfachauswahl): (Gewinde oder None, wenn es sich
+    unterscheidet; Zusatzarbeiten, die in allen Positionen gleich stehen, Einträge der ersten Position)."""
+    gewinde = {(p.get("gewinde") or "").strip() for p in positionen}
+    listen = [rechnen.zusatz_liste(p) for p in positionen]
+    alle = [{_gleich(e) for e in liste} for liste in listen[1:]]
+    zusatz = [e for e in (listen[0] if listen else []) if all(_gleich(e) in s for s in alle)]
+    return (gewinde.pop() if len(gewinde) == 1 else None), zusatz
+
+
+def zusammenfuehren(p, vorher, ergebnis):
+    """Neue Werte (Gewinde, Zusatzarbeiten) einer Position bei Mehrfachauswahl (Plan Angebotsablauf V0): nur das
+    Gemeinsame (vorher = gemeinsam(...)) wird geändert, eigene Einträge der Position bleiben. Gewinde: war es
+    überall gleich, gilt der neue Text; sonst wird ein eingegebener Text angehängt. Zusatzarbeiten: gemeinsame, die
+    im Dialog gelöscht oder geändert wurden, fallen weg; neue bzw. geänderte kommen dazu (gleicher Name ersetzt den
+    eigenen Eintrag). Unveränderte behalten den Eintrag der Position (Menge, Preisstand, Herkunft)."""
+    g_vorher, z_vorher = vorher
+    g_neu, z_json = ergebnis
+    if g_vorher is not None:
+        gewinde = g_neu
+    else:
+        eigen = (p.get("gewinde") or "").strip().rstrip(";,").strip()
+        dazu = (g_neu or "").strip()
+        gewinde = "; ".join(x for x in (eigen, dazu) if x) or None
+    neu = rechnen.zusatz_liste(dict(zusatz=z_json)) if z_json else []
+    neu_gleich = {_gleich(e) for e in neu}
+    weg = {_gleich(e) for e in z_vorher} - neu_gleich          # gemeinsam, im Dialog gelöscht oder geändert
+    unveraendert = {_gleich(e) for e in z_vorher} & neu_gleich
+    neu_namen = {e["name"] for e in neu if _gleich(e) not in unveraendert}
+    liste = [e for e in rechnen.zusatz_liste(p) if _gleich(e) not in weg and e["name"] not in neu_namen]
+    vorhanden = {_gleich(e) for e in liste}
+    liste += [e for e in neu if _gleich(e) not in vorhanden]
+    return gewinde, (json.dumps(liste, ensure_ascii=False) if liste else None)
+
+
 class ZusatzDialog(QDialog):
     """p: erste gewählte Position (für Vorgaben und automatische Mengen), anzahl: gewählte Positionen."""
 
-    def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None, weitere=None):
+    def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None, weitere=None, gewinde_verschieden=False):
         """weitere: {Knopftext: Funktion} für die übrige Bearbeitung der Position (Schweißnaht, Bohrungen), damit
-        alles über einen Dialog erreichbar ist (Prüfbericht C-5)."""
+        alles über einen Dialog erreichbar ist (Prüfbericht C-5). Mehrere Positionen: p zeigt nur, was alle gemeinsam
+        haben (gemeinsam); gewinde_verschieden = die Gewinde unterscheiden sich, das Feld ergänzt dann nur."""
         super().__init__(parent)
         self.p, self.k = p, k
         self.katalog = {z["name"]: z for z in tabellen.get("zusatzarbeiten") or () if z.get("name")}
@@ -50,7 +91,8 @@ class ZusatzDialog(QDialog):
         lay = QVBoxLayout(self)
         form = QFormLayout()
         self.gewinde = QLineEdit(p.get("gewinde") or "")
-        self.gewinde.setPlaceholderText("z. B. 4xM6; 2xM8")
+        self.gewinde.setPlaceholderText("unterschiedlich – Eingabe wird bei jeder Position ergänzt"
+                                        if gewinde_verschieden else "z. B. 4xM6; 2xM8")
         self.gewinde.textChanged.connect(self._gewinde_info)
         self.gewinde_info = QLabel()
         self.gewinde_info.setStyleSheet("color: #5F6B7A;")
@@ -67,7 +109,7 @@ class ZusatzDialog(QDialog):
         dazu.clicked.connect(self.gewinde_hinzufuegen)
         for w in (self.gewinde_anzahl, self.gewinde_wahl, dazu):
             zeile.addWidget(w)
-        form.addRow("Gewinde (geprüft)", zeile)
+        form.addRow("Gewinde ergänzen" if gewinde_verschieden else "Gewinde (geprüft)", zeile)
         form.addRow("", self.gewinde_info)
         lay.addLayout(form)
         self.tabelle = QTableWidget(0, len(SPALTEN))
@@ -106,8 +148,10 @@ class ZusatzDialog(QDialog):
                 "Abrechnung €/h (z. B. Schweißen): Sekunden je Teil eintragen, gerechnet wird Sekunden ÷ 3600 × "
                 "Stundensatz.")
         if anzahl > 1:
-            text += (f" Gilt für alle {anzahl} markierten Positionen und ersetzt dort Gewinde und Zusatzarbeiten; "
-                     "automatische Mengen rechnet jede Position selbst.")
+            text += (f" Gilt für alle {anzahl} markierten Positionen: die Liste zeigt nur, was alle gemeinsam haben. "
+                     "Hinzugefügtes kommt bei jeder Position dazu, Gelöschtes fällt überall weg; eigene Gewinde und "
+                     "Zusatzarbeiten einzelner Positionen (z. B. aus „Bohrungen prüfen“) bleiben. Automatische Mengen "
+                     "rechnet jede Position selbst.")
         if not self.katalog:
             text += " Unter Einstellungen (Zusatzarbeiten) ist noch keine Zusatzarbeit angelegt."
         text += (" Der Preis der Stammdaten wird beim Hinzufügen in der Position gespeichert (Preisstand); spätere "

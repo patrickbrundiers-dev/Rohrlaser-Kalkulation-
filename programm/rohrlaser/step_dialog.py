@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
+                               QLineEdit, QSizePolicy,
                                QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -128,19 +129,26 @@ class StepPruefDialog(QDialog):
     BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
     VOLLGRUPPE = "Vollmaterial (Zukaufteile, gesägt)"
     AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
-    SPALTEN = ("Teil", "In Datei", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl", "Länge [mm]",
-               "Schneidweg [mm]", "Konturen", "Anbauteile", "Hinweis")
-    SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
+    # Hinweis gleich hinter dem Teil (Plan Angebotsablauf V2: bei 1366 px sichtbar, ganzer Text im Tooltip)
+    SPALTEN = ("Teil", "In Datei", "Hinweis", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl",
+               "Zusatzarbeiten", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Anbauteile")
+    (SP_HINWEIS, SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_ZUSATZ, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN,
+     SP_ANBAU) = range(2, 12)
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
-                 kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None):
+                 kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
+                 zusatz_vorgabe=None, referenz=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
         Anzahl schon vorhandener Artikel) wie step.vorpruefung – statt zweier Rückfragen nach dem Übernehmen stehen
         sie als Häkchen unter der Liste. lernen (B8): Korrekturen (Werkstoff aller Rohre, abgewählte Teile,
-        Anbauteile) per Häkchen als Importprofil des Kunden merken; Ergebnis nach OK in self.lernen_werte."""
+        Anbauteile) per Häkchen als Importprofil des Kunden merken; Ergebnis nach OK in self.lernen_werte.
+        Plan Angebotsablauf: alle Dateien stehen in einer Liste (◀ ▶ springen zur nächsten Datei, V1), das Fenster passt
+        in 1366 px (V2); zusatzarbeiten = Namen der Zusatzarbeiten für „Werte setzen“ (V4, zusatz_vorgabe = aus dem
+        Importprofil für alle Teile vorbelegt); referenz = Vorschlag der Anfrage-Nr. des Kunden (V5, None = kein Feld),
+        Ergebnis in self.referenz_text()."""
         from . import step
         super().__init__(parent)
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
@@ -173,11 +181,17 @@ class StepPruefDialog(QDialog):
         # Datei -> Anzahl oben (Einzelpositionen: Stückzahl aller Teile; Satz: Anzahl Sätze)
         self.anzahl = {d: self.saetze[d] or 1 for d in self.dateien}
         self.datei_nr = 0
+        self.zusatz_vorgabe = list(zusatz_vorgabe or ())     # aus dem Importprofil (step_importieren belegt vor)
 
-        # Kopfzeile: Datei wechseln, Sätze
+        # Kopf (V2: untereinander, damit das Fenster in 1366 px passt): Kunde und Anfrage-Nr., Datei wechseln, Sätze
         self.kopf = QWidget()
-        kl = QHBoxLayout(self.kopf)
-        kl.setContentsMargins(0, 0, 0, 0)
+        kopf_lay = QVBoxLayout(self.kopf)
+        kopf_lay.setContentsMargins(0, 0, 0, 0)
+        kopf_lay.setSpacing(4)
+        kunde_zeile, datei_zeile = QHBoxLayout(), QHBoxLayout()
+        kopf_lay.addLayout(kunde_zeile)
+        kopf_lay.addLayout(datei_zeile)
+        kl = datei_zeile
         self.zurueck, self.vor = QPushButton("◀"), QPushButton("▶")
         for b, schritt, tipp in ((self.zurueck, -1, "Vorige STEP-Datei"), (self.vor, 1, "Nächste STEP-Datei")):
             b.setFixedWidth(36)
@@ -187,6 +201,8 @@ class StepPruefDialog(QDialog):
         f = self.datei_text.font()
         f.setBold(True)
         self.datei_text.setFont(f)
+        self.datei_text.setMinimumWidth(80)         # lange Dateinamen machen das Fenster nicht breiter (V2)
+        self.datei_text.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.satz_feld = QWidget()
         sl = QHBoxLayout(self.satz_feld)
         sl.setContentsMargins(0, 0, 0, 0)
@@ -239,17 +255,32 @@ class StepPruefDialog(QDialog):
             i = self.kunde_wahl.findData(str(kundennr or ""))
             self.kunde_wahl.setCurrentIndex(max(i, 0))
             self.kunde_wahl.currentIndexChanged.connect(lambda _i: self._kunde_setzen())
-            kl.addWidget(QLabel("Kunde:"))
-            kl.addWidget(self.kunde_wahl)
-            kl.addSpacing(18)
+            kunde_zeile.addWidget(QLabel("Kunde:"))
+            kunde_zeile.addWidget(self.kunde_wahl)
+            kunde_zeile.addSpacing(18)
+        self.referenz = None
+        if referenz is not None:        # V5: Anfrage-Nr. des Kunden gleich hier (Vorschlag aus Ordnername/Formular)
+            self.referenz = QLineEdit(str(referenz or ""))
+            self.referenz.setPlaceholderText("z. B. Anfrage-Nr. des Kunden")
+            self.referenz.setToolTip("Kundenreferenz des Angebots (Anfrage-Nr. des Kunden), steht im Angebots-PDF. "
+                                     "Vorschlag aus dem Ordnernamen der STEP-Dateien (z. B. „Anfrage 4711“) bzw. dem "
+                                     "Anfrageformular.")
+            self.referenz.setMaximumWidth(220)
+            kunde_zeile.addWidget(QLabel("Anfrage-Nr.:"))
+            kunde_zeile.addWidget(self.referenz)
+        kunde_zeile.addStretch(1)
+        self.dateien_info = QLabel()
+        self.dateien_info.setStyleSheet("color: #595959;")
         kl.addWidget(self.zurueck)
         kl.addWidget(self.vor)
         kl.addSpacing(6)
-        kl.addWidget(self.datei_text)
-        kl.addSpacing(24)
-        kl.addWidget(self.satz_feld)
-        kl.addWidget(self.satz_info)
-        kl.addStretch(1)
+        kl.addWidget(self.datei_text, 1)
+        kl.addWidget(self.dateien_info)
+        satz_zeile = QHBoxLayout()      # Baugruppe: Anzahl, Als Satz, Schweißbaugruppe in eigener Zeile
+        satz_zeile.addWidget(self.satz_feld)
+        satz_zeile.addWidget(self.satz_info)
+        satz_zeile.addStretch(1)
+        kopf_lay.addLayout(satz_zeile)
 
         self.baum = QTreeWidget()
         self.baum.setColumnCount(len(self.SPALTEN))
@@ -258,17 +289,21 @@ class StepPruefDialog(QDialog):
         self.baum.setUniformRowHeights(True)
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
+        self.baum.currentItemChanged.connect(lambda it, *_: self._markiert_datei(it))
         self.baum.itemDoubleClicked.connect(self._doppelklick)
         self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
         self.baum.customContextMenuRequested.connect(self._kontextmenue)
         self._baum_fuellen()
-        for c, b in enumerate((250, 55, 150, 130, 120, 75, 80, 95, 65, 130, 260)):
+        for c, b in enumerate((220, 50, 150, 130, 120, 110, 70, 120, 80, 95, 65, 130)):
             self.baum.setColumnWidth(c, b)
 
-        # Werte für mehrere Teile auf einmal
+        # Werte für mehrere Teile auf einmal (zwei Zeilen, V2): Werkstoff, Stückzahl, Zusatzarbeit (V4)
         self.leiste = QWidget()
-        alle = QHBoxLayout(self.leiste)
-        alle.setContentsMargins(0, 0, 0, 0)
+        leiste_lay = QVBoxLayout(self.leiste)
+        leiste_lay.setContentsMargins(0, 0, 0, 0)
+        leiste_lay.setSpacing(4)
+        alle = QHBoxLayout()
+        leiste_lay.addLayout(alle)
         alle.addWidget(QLabel("Werte setzen:"))
         self.alle_ws = QComboBox()
         liste_fuellen(self.alle_ws, k, "werkstoff", "(Werkstoff)")
@@ -277,6 +312,18 @@ class StepPruefDialog(QDialog):
         self.alle_stk.setSpecialValueText("(Stückzahl)")
         alle.addWidget(self.alle_ws)
         alle.addWidget(self.alle_stk)
+        self.alle_zusatz = QComboBox()
+        self.alle_zusatz.addItem("(Zusatzarbeit)", None)
+        for n in zusatzarbeiten or ():
+            self.alle_zusatz.addItem(f"+ {n}", n)
+        self.alle_zusatz.setToolTip("Zusatzarbeit (z. B. Feuerverzinken) mit „Für markierte“ bzw. „Für alle“ an die "
+                                    "Teile hängen; sie kommt beim Übernehmen in jede Position (Preis aus den "
+                                    "Stammdaten). Die Spalte Zusatzarbeiten zeigt die Wahl, Rechtsklick entfernt sie.")
+        self.alle_zusatz.setVisible(bool(zusatzarbeiten))
+        alle.addWidget(self.alle_zusatz)
+        alle.addStretch(1)
+        alle = QHBoxLayout()
+        leiste_lay.addLayout(alle)
         for text, nur, tipp in (("Für markierte", True, "Markierte Zeilen dieser Datei"),
                                 ("Für alle", False, "Alle Teile aller STEP-Dateien")):
             b = QPushButton(text)
@@ -616,6 +663,9 @@ class StepPruefDialog(QDialog):
                 punkt.fill(QColor(TEILFARBEN[len(self.zeilen) % len(TEILFARBEN)]))
                 it.setIcon(0, QIcon(punkt))
             self.zeilen.append(z)
+            self._zusatz_text(z)
+            if it.text(self.SP_HINWEIS) and not it.toolTip(self.SP_HINWEIS):
+                it.setToolTip(self.SP_HINWEIS, it.text(self.SP_HINWEIS))
         self.fehler_gruppen = {}
         magenta = QPixmap(12, 12)
         magenta.fill(QColor(FARBE_FEHLT))
@@ -680,6 +730,10 @@ class StepPruefDialog(QDialog):
         it = self.baum.itemAt(pos)
         z = self._zeile(it)
         menue = QMenu(self)
+        if any(self.messwerte[i].get("_zusatz") for x in self._markiert() or ([z] if z else []) for i in x.liste):
+            menue.addAction("Zusatzarbeiten entfernen", lambda: self.zusatz_setzen(
+                None, self._markiert() or [z]))
+            menue.addSeparator()
         koerper = self._markierte_koerper()
         a = menue.addAction("Knickverbindung erstellen …")
         a.setEnabled(len(koerper) >= 2)
@@ -757,34 +811,61 @@ class StepPruefDialog(QDialog):
     def datei(self):
         return self.dateien[self.datei_nr] if self.dateien else None
 
-    def datei_waehlen(self, nr):
-        """Datei Nr. nr (ab 0) zeigen: nur ihre Teile, Feld Anzahl, 3D des ersten Teils."""
+    def _datei_von(self, it):
+        """STEP-Datei eines Eintrags der Liste (Teil, Profilgruppe, Baugruppe, nicht übernehmbar) oder None."""
+        while it is not None:
+            z = self._zeile(it)
+            if z:
+                return z.datei
+            for d, b in list(self.baugruppen.items()) + list(self.fehler_gruppen.items()):
+                if b is it:
+                    return d
+            g = next((k for k, g in self.gruppen.items() if g is it), None)
+            if g:
+                return g[0]
+            it = it.parent()
+        return None
+
+    def _markiert_datei(self, it):
+        """Anderer Eintrag markiert (alle Dateien in einer Liste, V1): Kopf (Anzahl, Als Satz) folgt seiner Datei."""
+        d = self._datei_von(it)
+        if d is not None and d != self.datei and d in self.dateien:
+            self.datei_waehlen(self.dateien.index(d), springen=False)
+
+    def datei_waehlen(self, nr, springen=True):
+        """Datei Nr. nr (ab 0) wählen: Kopf (Feld Anzahl, Als Satz) für diese Datei, 3D des ersten Teils. Alle Dateien
+        stehen in einer Liste (Plan Angebotsablauf V1); springen = zur Datei blättern."""
         if not self.dateien:
             return
         self.datei_nr = max(0, min(nr, len(self.dateien) - 1))
         d = self.datei
         n = len(self.dateien)
-        self.datei_text.setText(f"Datei {self.datei_nr + 1} von {n}: {Path(str(d)).name}")
+        self.datei_text.setText(f"Datei {self.datei_nr + 1} von {n}: {Path(str(d)).name}" if n > 1
+                                else Path(str(d)).name)
+        self.datei_text.setToolTip(str(d))
+        self.dateien_info.setText("alle Dateien in der Liste, ◀ ▶ springen" if n > 1 else "")
         self.zurueck.setEnabled(self.datei_nr > 0)
         self.vor.setEnabled(self.datei_nr < n - 1)
         self.zurueck.setVisible(n > 1)
         self.vor.setVisible(n > 1)
         for (datei, vorschlag), g in self.gruppen.items():
-            g.setHidden(datei != d)
-            if datei == d:
-                anz = g.childCount()
-                g.setText(0, f"{vorschlag or 'ohne Profil'} – {anz} Teil{'e' if anz != 1 else ''}"
-                          + ("  (Profil fehlt in den Stammdaten)" if vorschlag not in self.k.profile
-                             and vorschlag not in (self.BLECHGRUPPE, self.VOLLGRUPPE) else ""))
-        for datei, g in self.fehler_gruppen.items():
-            g.setHidden(datei != d)
-        for datei, b in self.baugruppen.items():
-            b.setHidden(datei != d)
+            anz = g.childCount()
+            vorn = "" if datei in self.baugruppen or n == 1 else f"{Path(str(datei)).stem} · "
+            g.setText(0, f"{vorn}{vorschlag or 'ohne Profil'} – {anz} Teil{'e' if anz != 1 else ''}"
+                      + ("  (Profil fehlt in den Stammdaten)" if vorschlag not in self.k.profile
+                         and vorschlag not in (self.BLECHGRUPPE, self.VOLLGRUPPE) else ""))
+        if springen:
+            ziel = self.baugruppen.get(d) or next((g for (datei, _), g in self.gruppen.items() if datei == d),
+                                                  None) or self.fehler_gruppen.get(d)
+            if ziel is not None:
+                self.baum.scrollToItem(ziel, QAbstractItemView.PositionAtTop)
         self.satz_feld.setVisible(d in self.mehrteilig)
         self.satz_info.setVisible(d in self.mehrteilig)
         self._kopf_werte(d)
         self._satz_anzeigen()
         self._knick_anzeigen()
+        if not springen:
+            return
         self.baum.clearSelection()
         erste = [z for z in self.zeilen if z.datei == d]
         if d in self.baugruppen:
@@ -957,19 +1038,41 @@ class StepPruefDialog(QDialog):
              if not it.isHidden() and it.parent() is not None and not it.parent().isHidden()]
         return [x for x in z if x]
 
-    def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False):
-        """Werkstoff und/oder Stückzahl (None = Auswahl unten) in alle Teile aller Dateien bzw. die markierten
-        Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld Anzahl als Sätze)."""
+    def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False, zusatz=None):
+        """Werkstoff, Stückzahl und/oder Zusatzarbeit (None = Auswahl unten) in alle Teile aller Dateien bzw. die
+        markierten Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld Anzahl
+        als Sätze); die Zusatzarbeit kommt zu den schon gewählten dazu (V4)."""
         werkstoff = werkstoff if werkstoff is not None else (
             self.alle_ws.currentText() if self.alle_ws.currentIndex() > 0 else None)
         stueck = stueck if stueck is not None else (self.alle_stk.value() or None)
-        for z in (self._markiert() if nur_markierte else self.zeilen):
+        zusatz = zusatz if zusatz is not None else self.alle_zusatz.currentData()
+        ziel = self._markiert() if nur_markierte else self.zeilen
+        if zusatz:
+            self.zusatz_setzen(zusatz, ziel)
+        for z in ziel:
             if werkstoff is not None:
                 z.ws.setCurrentText(werkstoff)
             if stueck is not None:
                 z.werte["einzeln"] = stueck
                 if not self.saetze.get(z.datei):
                     z.sp.setValue(stueck)
+
+    def zusatz_setzen(self, name, zeilen=None):
+        """Zusatzarbeit name an die Teile der Zeilen (Vorgabe: alle) hängen; None = ihre Zusatzarbeiten entfernen."""
+        for z in self.zeilen if zeilen is None else zeilen:
+            for i in z.liste:
+                m = self.messwerte[i]
+                m["_zusatz"] = [n for n in m.get("_zusatz") or () if n != name] + [name] if name else []
+            self._zusatz_text(z)
+
+    def _zusatz_text(self, z):
+        namen = self.messwerte[z.liste[0]].get("_zusatz") or []
+        z.it.setText(self.SP_ZUSATZ, ", ".join(namen))
+        z.it.setToolTip(self.SP_ZUSATZ, "Zusatzarbeiten für dieses Teil (Rechtsklick: entfernen)" if namen else "")
+
+    def referenz_text(self):
+        """Anfrage-Nr. des Kunden aus dem Feld oben (V5), None = kein Feld bzw. leer."""
+        return (self.referenz.text().strip() or None) if self.referenz is not None else None
 
     def _blech_werkstoffe_fuellen(self, cb):
         """Blech-Werkstoffe (Einstellungen → Blech-Werkstoffe) nach Kategorie, davor leer = offen."""
@@ -1227,7 +1330,8 @@ class StepPruefDialog(QDialog):
             return {}
         from . import importprofil
         return importprofil.korrekturen(self.messwerte, self._start, self.werkstoff, self._anbau_start
-                                        if self.anbau_von else None, self.anbau_weg.isChecked())
+                                        if self.anbau_von else None, self.anbau_weg.isChecked(),
+                                        zusatz_vorgabe=self.zusatz_vorgabe)
 
     def mit_pdf(self):
         """Übernehmen und danach gleich das Angebots-PDF (B1)."""

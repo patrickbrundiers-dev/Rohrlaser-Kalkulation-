@@ -27,7 +27,8 @@ FRACHT_OFFEN_EINSTELLUNG = "ansicht_fracht_offen"        # Karte Fracht auf- ode
 # steht nicht hier: er zählt nur, solange die Programmierzeit leer ist (Kostenübersicht, Zeiten & Arbeitskosten)
 GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "handling_beistellung")),
-    ("Zeit und Rüsten", ("ruesten_abmessung", "programmierung_zeit", "programmierung_kontur")),
+    ("Zeit und Rüsten", ("ruesten_abmessung", "ruesten_abmessung_eur", "ruesten_angebot_eur", "programmierung_zeit",
+                         "programmierung_kontur")),
     ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
 )
@@ -1100,6 +1101,14 @@ class UebersichtBereich(QWidget):
             w.setToolTip("" if aktuell else "Ohne aktuelle Optimierung fehlen Material, Stangenwechsel und "
                                             "Verschnitt. Bitte optimieren.")
         self._stand_text(stand)
+
+    def wird_berechnet(self):
+        """Gleich optimiert das Programm selbst (Plan Angebotsablauf V7): statt eines vorläufigen Preises ohne
+        Material „wird berechnet …“ zeigen, bis die Optimierung fertig ist (kosten_setzen schreibt dann die Preise)."""
+        for name, (t, titel) in self.preis_titel.items():
+            t.setText(titel)
+            self.preis[name].setText("wird berechnet …")
+            self.preis[name].setToolTip("Das Programm optimiert gleich selbst (Material, Stangen, Verschnitt).")
 
     def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None, versand=None):
         """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf

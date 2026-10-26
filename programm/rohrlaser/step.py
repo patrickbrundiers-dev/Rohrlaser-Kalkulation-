@@ -1643,7 +1643,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
-            neu.append(p)
+            neu.append(_zusatz_wahl(p, m, zusatz_katalog))
             ziel = naechste
             diesmal[art] = p
             naechste += 10
@@ -1691,7 +1691,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
-            neu.append(p)
+            neu.append(_zusatz_wahl(p, m, zusatz_katalog))
             ziel = naechste
             diesmal[art] = p
             naechste += 10
@@ -1835,7 +1835,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz"
                                 + (f" (Körper {', '.join(messwerte[j].get('koerper') for j in gruppen[i])})" if anzahl > 1 else ""))
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
-            neu.append(p)
+            neu.append(_zusatz_wahl(p, m, zusatz_katalog))
             ziel = naechste
             diesmal[art] = p
             naechste += 10
@@ -1856,6 +1856,22 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     naechste = _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck)
     return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel,
                 satz_daten=_satz_stoesse(messwerte, satz_teile))
+
+
+def _zusatz_wahl(p, m, katalog):
+    """Zusatzarbeiten, die im Prüfdialog für das Teil gewählt sind (m['_zusatz'] = Namen, Plan Angebotsablauf V4),
+    an die Zusatzarbeiten der Position anhängen (Preisstand aus den Stammdaten; schon vorhandene bleiben)."""
+    namen = [n for n in m.get("_zusatz") or () if n]
+    kat = {z.get("name"): z for z in katalog or ()}
+    if not namen or not kat:
+        return p
+    liste = rechnen.zusatz_liste(p)
+    da = {e["name"] for e in liste}
+    liste += [dict(name=n, menge=None, preis=None, text=None, quelle="STEP-Import", stand=rechnen.zusatz_stand(kat[n]))
+              for n in dict.fromkeys(namen) if n in kat and n not in da]
+    if liste:
+        p["zusatz"] = json.dumps(liste, ensure_ascii=False)
+    return p
 
 
 def _satz_stoesse(messwerte, satz_teile):
