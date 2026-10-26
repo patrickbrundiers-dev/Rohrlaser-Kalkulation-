@@ -40,7 +40,7 @@ from .leiste import UmbruchLeiste
 from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, \
     step_einstellungen, stil, tabellen_eingabe, teile_editor, vorkalk
 from .schritte import Schrittanzeige
-from .stangen_ansicht import MUSTER as STANGEN_MUSTER, StangenSeite
+from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
 from . import stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
@@ -684,7 +684,6 @@ STATUS_ZIELE = (
     ("Stückzahl", "feld:stueck", "Stückzahl eintragen"),
     ("Stange länger", "feld:stange", "Stangenlänge eintragen"),
     ("kein gültiger Materialpreis", "feld:preis_m", "Meterpreis eintragen"),
-    ("Meterpreis manuell", "feld:preis_m", "Meterpreis ändern"),
     ("keine Schneiddaten", "feld:zeit_manuell", "Schneidzeit von Hand eintragen"),
     ("Schneidzeit manuell", "feld:zeit_manuell", "Schneidzeit ändern"),
     ("beigestellt", "feld:material_herkunft", "Material ändern"),
@@ -1451,7 +1450,9 @@ PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None,
 KALK_IMMER = {"pos", "artikel", "stueck", "material_teil", "herstell_teil", "preis_teil", "preis_position"}
 KOMPAKT_IMMER = {"pos", "artikel", "profil", "stueck", "laenge", "material", "oberflaeche", "laser_brutto", "laser_netto",
                  "preis_teil", "preis_position"}
-STANGENBILD_EINSTELLUNG = "ansicht_stangenbild"   # Reiter Stangenbild: Stangenmuster, Übersicht oder Detail
+# Reiter Stangenbild: Stangenmuster, Übersicht oder Detail; seit 0.9.146 neuer Name, damit für alle zuerst die Übersicht
+# gilt (Patrick 26.10.2026: „Übersicht als Standardansicht“), danach wird die Wahl wieder gemerkt
+STANGENBILD_EINSTELLUNG = "ansicht_stangenbild_2"
 KOMPAKT_EINSTELLUNG = "ansicht_kalk_kompakt"    # Reiter Kalkulation: kompakte Übersicht (Vorgabe) oder alle Spalten
 PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}   # einmal über dem Schnittplan
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
@@ -1793,8 +1794,9 @@ class AngebotSeite(QWidget):
         plan.addWidget(plan_oben)
         plan.addWidget(plan_unten)
         # Stangenbild: Umschalter Stangenmuster / Übersicht / Detail (Lantek-Ideen L1, L2, L4)
-        self.stangen_seite = StangenSeite(self.db.einstellung(STANGENBILD_EINSTELLUNG) or STANGEN_MUSTER,
-                                          lambda a: self.db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a))
+        self.stangen_seite = StangenSeite(self.db.einstellung(STANGENBILD_EINSTELLUNG) or STANGEN_UEBERSICHT,
+                                          lambda a: self.db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a),
+                                          lambda: self.db.einstellung("stangenbild_popup"))
         self.stangen_seite.doppelklick.connect(self.zur_position)
         self.bild = self.stangen_seite.bild
         teile_ansicht.setToolTip("Doppelklick auf ein Teil: zur Position")
@@ -4948,7 +4950,7 @@ class AngebotSeite(QWidget):
                              ohne_plan=ohne_plan, seite=self)
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
             return 0
-        n = len(d.aenderungen) + len(d.kopf_aenderungen)
+        n = len(d.aenderungen) + len(d.kopf_aenderungen) + (d.vorgaben is not None)
         if n:
             self._material_speichern(d)
         if d.nachher:
@@ -4956,8 +4958,10 @@ class AngebotSeite(QWidget):
         return n
 
     def _material_speichern(self, d):
-        n = len(d.aenderungen) + len(d.kopf_aenderungen)
+        n = len(d.aenderungen) + len(d.kopf_aenderungen) + (d.vorgaben is not None)
         vorher = self._verkauf()
+        if d.vorgaben is not None:      # von Hand vorgegebene Stangen (Patrick 26.10.2026)
+            self.db.stangen_vorgabe_speichern(self.id, d.vorgaben)
         for g, felder in d.aenderungen:
             for pid in g["ids"]:
                 for feld, wert in felder.items():
@@ -4967,7 +4971,8 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         plan = any(set(f) & {"werkstoff_id", "oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen)
         self.f.meldung(f"Material: {n} Änderung(en) gespeichert. {preis_aenderung(vorher, self._verkauf())}"
-                       + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else ""))
+                       + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else
+                          " Vorgegebene Stangen geändert: bitte neu optimieren." if d.vorgaben is not None else ""))
 
     def _material_nachher(self, aktion, wert=None):
         """Schritt aus dem Material-Fenster, nachdem es geschlossen ist: 'position' (wert = Bezug ref), 'markieren'

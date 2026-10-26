@@ -67,7 +67,6 @@ def _():
         "HINWEIS: keine Schneiddaten": "feld:zeit_manuell",
         "HINWEIS: Bohrungen prüfen (Doppelklick)": "bohrungen_pruefen",
         "HINWEIS: Schneidzeit manuell": "feld:zeit_manuell",
-        "HINWEIS: Meterpreis manuell": "feld:preis_m",
         "HINWEIS: Material vom Kunden beigestellt": "feld:material_herkunft",
     }
     for text, ziel in erwartet.items():

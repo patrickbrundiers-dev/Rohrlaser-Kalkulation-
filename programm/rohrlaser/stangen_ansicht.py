@@ -5,15 +5,17 @@
 - StangenDetail (L2): eine Stange groß mit Kennzahlen und den Teilen als Kacheln, darunter die Abwicklung der ganzen
   Stange (L4, AbwicklungBild).
 - StangenSeite: Umschalter Stangenmuster / Übersicht / Detail (F2a) für den Reiter Stangenbild und das
-  Abmessungs-Fenster. Klick auf eine Zeile der Übersicht zeigt diese Stange im Detail.
+  Abmessungs-Fenster. Klick auf eine Zeile der Übersicht zeigt diese Stange im Detail. Standard ist die Übersicht;
+  bleibt die Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Detail-Ansicht, Esc schließt es (Patrick
+  26.10.2026, StangenPopup).
 
 Farben je Position wie im Stangenbild (stil.TEIL_FARBEN), Rest grau, Greiferrest rot, gewählte Stange im Akzent,
 hervorgehobenes Teil orange. Die Abwicklung rechnet stangen_abwicklung.py.
 """
-from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
-from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStackedWidget,
-                               QToolTip, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy,
+                               QStackedWidget, QToolTip, QVBoxLayout, QWidget)
 
 from . import abmessung, rechnen, stil, stangen_abwicklung as sa
 from .stammdaten import zahl_als_text
@@ -98,6 +100,8 @@ class StangenUebersicht(QWidget):
     """Je Stange eine dünne Zeile (F3a), gruppiert nach Abmessung. Signale: gewaehlt(Nummer der Stange; Klick oder
     Eingabetaste), vorgewaehlt(Nummer; Pfeiltasten), klick(ref), doppelklick(ref)."""
     ZEILE, KOPF, LINKS, RECHTS = 16, 24, 44, 52
+    WARTEN_MS = 1000        # so lange auf einer Stange, dann das Fenster mit den Stangendetails (StangenPopup);
+                            # warten() = Sekunden aus der Einstellung stangenbild_popup (0 = aus), None = WARTEN_MS
     gewaehlt = Signal(int)
     vorgewaehlt = Signal(int)
     klick = Signal(str)
@@ -108,11 +112,26 @@ class StangenUebersicht(QWidget):
         self.zeilen = []            # [(art 'kopf'/'stange', y, Text bzw. Stange)]
         self.farben, self.flaechen, self.stangen_y = {}, [], {}
         self.gewaehlt_nr, self.markiert = None, None
+        self.werte = {}             # {Nummer: Werte der Stange} für Gewicht und Kosten im Popup
+        self.detail_daten = None    # nr -> Daten der Detail-Ansicht (StangenSeite, mit Abwicklung)
+        self.warten = None
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setToolTip("Klick: Stange im Detail · Doppelklick auf ein Teil: zur Position · Pfeiltasten: blättern")
+        self.setMouseTracking(True)
+        self.setToolTip("Klick: Stange im Detail · Doppelklick auf ein Teil: zur Position · Pfeiltasten: blättern · "
+                        "Maus 1 Sekunde auf einer Stange: Details (Esc schließt)")
+        self.popup = StangenPopup(self)
+        self.popup.daten = self._popup_daten
+        self.popup.doppelklick.connect(self.doppelklick)
+        self.uhr = QTimer(self)
+        self.uhr.setSingleShot(True)
+        self.uhr.setInterval(self.WARTEN_MS)
+        self.uhr.timeout.connect(self.popup_zeigen)
+        self._ueber, self._maus = None, QPoint()
 
-    def setzen(self, stangen, farben=None):
+    def setzen(self, stangen, farben=None, werte=None):
+        self.popup_schliessen()
+        self.werte = werte or {}
         self.farben = {r: QColor(f) for r, f in (farben or teil_farben(stangen)).items()}
         self.laenge = max((s["stange"] for s in stangen), default=1) or 1
         self.zeilen, self.stangen_y, y = [], {}, 6
@@ -164,7 +183,65 @@ class StangenUebersicht(QWidget):
         if t is not None:
             self.doppelklick.emit(t["ref"])
 
+    def mouseMoveEvent(self, ereignis):
+        """Maus auf einer Stange: nach WARTEN_MS das Fenster mit den Stangendetails; auf einer anderen Stange neu."""
+        s, _ = self._bei(_punkt(ereignis))
+        nr = s["nr"] if s is not None else None
+        self._maus = _punkt(ereignis).toPoint()
+        if nr != self._ueber:
+            self._ueber = nr
+            self.uhr.stop()
+            ms = self.wartezeit()
+            if nr is not None and ms > 0 and not (self.popup.isVisible() and self.popup.nr == nr):
+                self.uhr.start(ms)
+        super().mouseMoveEvent(ereignis)
+
+    def wartezeit(self):
+        """Millisekunden bis zum Detail-Fenster (0 = aus); ohne oder mit ungültiger Einstellung WARTEN_MS."""
+        try:
+            w = self.warten() if self.warten is not None else None
+            return self.WARTEN_MS if w is None or w == "" else max(0, int(round(1000 * float(w))))
+        except (TypeError, ValueError):
+            return self.WARTEN_MS
+
+    def leaveEvent(self, ereignis):
+        self._ueber = None
+        self.uhr.stop()
+        super().leaveEvent(ereignis)
+
+    def hideEvent(self, ereignis):
+        self.popup_schliessen()
+        super().hideEvent(ereignis)
+
+    def _popup_daten(self, nr):
+        """Daten für die Detail-Ansicht im Popup; StangenSeite setzt dafür detail_daten (mit Abwicklung)."""
+        if self.detail_daten is not None:
+            return self.detail_daten(nr)
+        s = next((z[2] for z in self.zeilen if z[0] == "stange" and z[2]["nr"] == nr), None)
+        if s is None:
+            return None
+        return s, self.werte.get(nr), {r: f.name() for r, f in self.farben.items()}, self.nummern(), [nr], None
+
+    def popup_zeigen(self, nr=None):
+        """Detail-Ansicht der Stange nr (ohne Angabe: unter der Maus) als kleines Fenster neben der Maus zeigen."""
+        nr = self._ueber if nr is None else nr
+        if nr not in self.stangen_y:
+            return None
+        y = self.stangen_y[nr]
+        wo = self.mapToGlobal(QPoint(max(self._maus.x(), self.LINKS) + 16, y + self.ZEILE + 4))
+        QToolTip.hideText()
+        self.setFocus()             # Esc kommt hier an (keyPressEvent)
+        return self.popup.zeigen(nr, wo)
+
+    def popup_schliessen(self):
+        self.uhr.stop()
+        self.popup.hide()
+        self.popup.nr = None
+
     def keyPressEvent(self, ereignis):
+        if ereignis.key() == Qt.Key_Escape and self.popup.isVisible():
+            self.popup_schliessen()
+            return
         nr = self.nummern()
         if ereignis.key() in (Qt.Key_Up, Qt.Key_Down) and nr:
             i = nr.index(self.gewaehlt_nr) if self.gewaehlt_nr in nr else -1
@@ -180,6 +257,8 @@ class StangenUebersicht(QWidget):
     def event(self, ereignis):
         if ereignis.type() == QEvent.ToolTip:
             s, t = self._bei(QPointF(ereignis.pos()))
+            if s is not None and (self.uhr.isActive() or self.popup.isVisible()):
+                return True             # auf einer Stange gilt das Fenster mit den Details
             text = _tipp_teil(s, t) if t is not None else _tipp_stange(s) if s is not None else self.toolTip()
             QToolTip.showText(ereignis.globalPos(), text, self)
             return True
@@ -562,6 +641,58 @@ class StangenDetail(QWidget):
 
 
 # ---------------------------------------------------------------------------------------------- Seite (F2a)
+class StangenPopup(QFrame):
+    """Kleines Fenster mit der Detail-Ansicht einer Stange (Übersicht, Maus 1 Sekunde auf der Stange; Patrick
+    26.10.2026 „das meinte ich als Detail“): Kennzahlen, Stangenbild, Teile als Kacheln und Abwicklung wie die Ansicht
+    Detail, mit eigenem Blättern. Esc schließt. Signal doppelklick(ref)."""
+    BREITE, HOEHE = 760, 560
+    doppelklick = Signal(str)
+
+    def __init__(self, parent):
+        super().__init__(parent, Qt.Tool | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setStyleSheet(f"StangenPopup {{ background: #FFFFFF; border: 1px solid {stil.AKZENT}; }}")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(2, 2, 2, 2)
+        self.detail = StangenDetail()
+        self.detail.doppelklick.connect(self.doppelklick)
+        self.detail.blaettern.connect(lambda nr: self.zeigen(nr))
+        rolle = QScrollArea()
+        rolle.setWidgetResizable(True)
+        rolle.setFrameShape(QFrame.NoFrame)
+        rolle.setWidget(self.detail)
+        lay.addWidget(rolle, 1)
+        hinweis = QLabel("Esc: schließen · Klick in der Übersicht: Stange in der Ansicht Detail")
+        hinweis.setStyleSheet(f"color: {stil.TEXT_GRAU};")
+        lay.addWidget(hinweis)
+        self.resize(self.BREITE, self.HOEHE)
+        self.nr, self.daten = None, None
+
+    def zeigen(self, nr, wo=None):
+        """Stange nr zeigen; daten(nr) = (Stange, Werte, Farben, alle Nummern, gleich belegte, Abwicklung)."""
+        d = self.daten(nr) if self.daten else None
+        if d is None:
+            return None
+        self.nr = nr
+        self.detail.setzen(*d)
+        if wo is not None:
+            bild = self.screen().availableGeometry() if self.screen() else None
+            if bild is not None:        # ganz auf dem Bildschirm
+                wo = QPoint(max(bild.left(), min(wo.x(), bild.right() - self.width())),
+                            max(bild.top(), min(wo.y(), bild.bottom() - self.height())))
+            self.move(wo)
+        self.show()
+        self.raise_()
+        return self
+
+    def keyPressEvent(self, ereignis):
+        if ereignis.key() == Qt.Key_Escape:
+            self.hide()
+            self.nr = None
+            return
+        super().keyPressEvent(ereignis)
+
+
 class StangenSeite(QWidget):
     """Reiter Stangenbild bzw. Bereich im Abmessungs-Fenster: Umschalter Stangenmuster / Übersicht / Detail.
     ansicht = Start-Ansicht, merken(Ansicht) wird bei jedem Umschalten gerufen. Signale: klick(ref), doppelklick(ref).
@@ -569,7 +700,7 @@ class StangenSeite(QWidget):
     klick = Signal(str)
     doppelklick = Signal(str)
 
-    def __init__(self, ansicht=MUSTER, merken=None):
+    def __init__(self, ansicht=UEBERSICHT, merken=None, warten=None):
         super().__init__()
         from .angebot_fenster import Stangenbild
         self.merken = merken
@@ -601,6 +732,8 @@ class StangenSeite(QWidget):
         self.uebersicht.vorgewaehlt.connect(lambda nr: (self.stange_zeigen(nr), self._hinscrollen()))
         self.uebersicht.klick.connect(self._teil_merken)
         self.uebersicht.doppelklick.connect(self.doppelklick)
+        self.uebersicht.detail_daten = self._detail_daten
+        self.uebersicht.warten = warten     # Sekunden bis zum Detail-Fenster (Einstellung stangenbild_popup)
         self.detail = StangenDetail()
         self.detail.klick.connect(self._teil)
         self.detail.doppelklick.connect(self.doppelklick)
@@ -616,7 +749,7 @@ class StangenSeite(QWidget):
         self.rolle = self.rollen[MUSTER]
         lay.addWidget(self.stapel, 1)
         self.ansicht = None
-        self.ansicht_setzen(ansicht if ansicht in ANSICHTEN else MUSTER, melden=False)
+        self.ansicht_setzen(ansicht if ansicht in ANSICHTEN else UEBERSICHT, melden=False)
 
     # ------------------------------------------------------------------ Daten
     def setzen(self, paare, abwicklung=None):
@@ -627,7 +760,7 @@ class StangenSeite(QWidget):
         self.farben = teil_farben(self.stangen)
         self.abw, self.abw_cache = abwicklung, {}
         self.bild.setzen(dict(stangen=self.stangen) if self.stangen else None, self.farben)
-        self.uebersicht.setzen(self.stangen, self.farben)
+        self.uebersicht.setzen(self.stangen, self.farben, self.werte)
         self.info.setText(f"{len(self.stangen)} {'Stange' if len(self.stangen) == 1 else 'Stangen'}"
                           if self.stangen else "")
         nummern = [s["nr"] for s in self.stangen]
@@ -637,6 +770,13 @@ class StangenSeite(QWidget):
 
     def stange(self, nr):
         return next((s for s in self.stangen if s["nr"] == nr), None)
+
+    def _detail_daten(self, nr):
+        """(Stange, Werte, Farben, alle Nummern, gleich belegte, Abwicklung) für die Detail-Ansicht im Popup."""
+        s = self.stange(nr)
+        if s is None:
+            return None
+        return s, self.werte.get(nr), self.farben, [x["nr"] for x in self.stangen], self.gleiche(s), self.abwicklung(s)
 
     def abwicklung(self, s):
         if self.abw is None or s is None:
@@ -657,6 +797,8 @@ class StangenSeite(QWidget):
         if name not in ANSICHTEN:
             return
         self.ansicht = name
+        if name != UEBERSICHT:
+            self.uebersicht.popup_schliessen()
         for b in self.knoepfe.buttons():
             b.setChecked(b.text() == name)
         self.stapel.setCurrentWidget(self.rollen[name])

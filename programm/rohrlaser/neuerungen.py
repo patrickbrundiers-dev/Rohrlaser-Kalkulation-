@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.150", "<b>Stangen von Hand vorgeben</b>: Im Fenster <i>Material …</i> hat jede Abmessung die Spalte "
+                "<b>Stangen vorgegeben</b>. Dort lassen sich mehrere Stangenlängen mit Stückzahl eintragen (z. B. "
+                "3 × 6.000 + 2 × 4.500 mm). Die Optimierung plant dann nur mit genau diesen Stangen, mit möglichst "
+                "wenig Stangenlänge; Teile, die nicht mehr passen, stehen unter <i>nicht eingeplant</i>. Staffelpreise "
+                "rechnen ohne Vorgabe ([[stangen_vorgabe]]). Außerdem meldet ein von Hand eingetragener Meterpreis "
+                "nichts mehr im Status: der berechnete Preis ist nur Vorgabe ([[meterpreis]]). Das <b>Stangenbild</b> "
+                "öffnet jetzt in der <i>Übersicht</i>; bleibt die Maus 1 Sekunde auf einer Stange, zeigt ein kleines "
+                "Fenster ihre Detail-Ansicht (Kennzahlen, Teile, Abwicklung), Esc schließt es; die Wartezeit ist unter "
+                "Einstellungen › Ansicht einstellbar ([[stangenbild]]).",
+     "Stangen von Hand vorgeben; Meterpreis von Hand ohne Meldung; Stangenbild: Übersicht als Standard, Details per "
+     "Maus"],
     ["0.9.149", "<b>Konturen: bei 90° zur Oberfläche gilt die Innenkante</b>: Wird eine Kontur senkrecht zur Oberfläche "
                 "geschnitten (2D), hat sie innen genau die Maße der Zeichnung bzw. der STEP; der Strahl steht an jedem "
                 "Punkt 90° zur Oberfläche, außen ist die Kontur auf dem Rundrohr und in der Rundung der Ecke "

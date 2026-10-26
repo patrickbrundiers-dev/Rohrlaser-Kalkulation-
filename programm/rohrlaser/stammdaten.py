@@ -1028,6 +1028,10 @@ EINSTELLUNGEN = (
     # Tabellen-Eingabe wie Excel (Plan Arbeitsabläufe W5, tabellen_eingabe.py): wohin Eingabe in der Positionsliste springt
     Einstellung("eingabe_richtung", "Positionsliste: Eingabe springt (nach unten oder nach rechts)", "Ansicht",
                 "auswahl", EINGABE_RICHTUNGEN[0], auswahl="eingaberichtung"),
+    # Stangenbild, Ansicht Übersicht: Maus so lange auf einer Stange, dann ihre Detail-Ansicht im kleinen Fenster
+    # (Patrick 26.10.2026: „Zeit einstellbar machen“)
+    Einstellung("stangenbild_popup", "Stangenbild: Detail-Fenster nach so vielen Sekunden auf einer Stange (0 = aus)",
+                "Ansicht", "zahl", 1.0, 0, 10),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
     # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel zeigt den Bearbeiter (die Nummer ist
     # seit 23.10.2026 ohne Kürzel, nummern.py); über den gemeinsamen Ordner sehen alle die Angebote der anderen und
