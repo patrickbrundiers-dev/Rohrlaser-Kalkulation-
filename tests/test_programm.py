@@ -349,7 +349,7 @@ assert all(x["menge"] != 200 for x in ang["staffeln"]) and "VERALTET" in s4.staf
 assert s4.staffelpreise_rechnen()
 ang = s4.angebot_daten()
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 992.32) < 1e-9 and ang["mwst"] == 188.54, ang   # Referenzwerte (Außenradius nach Norm ab 0.9.62, bis 0.9.61: 992,20 / 188,52; T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
+assert abs(ang["netto"] - 992.08) < 1e-9 and ang["mwst"] == 188.50, ang   # Referenzwerte (Preisregeln 26.10.2026: Rüsten/Stangenwechsel verteilt, Satz ungerundet, bis 0.9.14x: 992,32 / 188,54; Außenradius nach Norm ab 0.9.62, bis 0.9.61: 992,20 / 188,52; T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
@@ -424,7 +424,8 @@ assert abs(huellkreis(dict(form="Rechteckrohr", a=120, b=60)) - 134.164) < 1e-3
 assert huellkreis(dict(form="Sonderprofil", a=50)) is None
 db = Datenbank(tmp / "d" / "rohrlaser.db")
 zuschlaege_wie_bisher(db)
-assert db.einstellung("ruesten_abmessung") == 15 and db.einstellung("pauschale_abmessung") == 22.5
+assert db.einstellung("ruesten_abmessung") == 15 and db.einstellung("pauschale_abmessung") == 0      # Vorgabe 0 seit 26.10.2026
+db.einstellung_setzen("pauschale_abmessung", 22.5)                       # Werte unten mit der Pauschale bis 25.10.2026
 assert db.einstellung("angebotsaufschlag") == 50
 k, tab = db.kontext(), db.tabellen()
 kopf = dict(maschine="T11", stange=6000)

@@ -1046,7 +1046,9 @@ def kapitel_angebot(i):
             "Aufschlag Bleche, Aufschlag Zukaufteile, Handling Kundenmaterial), <b>Zeit und "
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel SN und Stundensatz der Maschine zur Information, "
             "Rüstzeit je Maschine nur, wenn sie nicht 0 min ist; Stangenwechsel je Stange, Rüstzeit je Abmessung, "
-            "Programmierzeit je Position und je Innenkontur änderbar), <b>Verkauf und Gewinn</b> (Gewinn, "
+            "Programmierzeit je Position und je Innenkontur änderbar; wahlweise <b>Rüsten je Angebot [€]</b> und "
+            "<b>Rüsten je Abmessung [€]</b> als fester Betrag statt Minuten × Stundensatz, leer = Minuten, "
+            "einblendbar über die Sichtbarkeit, Vorgabe in den Einstellungen), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
             "<b>Aufschlag Bleche [%]</b> und <b>Aufschlag Zukaufteile [%]</b> (Vorgabe je 10 % aus den Einstellungen) "
@@ -1109,19 +1111,23 @@ def kapitel_angebot(i):
             "als eigene Zeile.",
             "Staffelpreise rechnen das Kundenmaterial in jeder Stufe ohne Materialkosten.")
     i.abschnitt("Mindestpreis", marke="mindestpreis")
-    i.text("Liegt ein Angebot unter dem <b>Mindestpreis</b> (Mindestauftragswert, Vorgabe 200,00 € netto), hebt das "
-           "Programm alle Stückpreise im gleichen Verhältnis an. Der Betrag steht nur in den Einstellungen; je "
+    i.text("Liegt der <b>Warenwert</b> eines Angebots (ohne Fracht, nach Abzug des Skontos) unter dem "
+           "<b>Mindestpreis</b> (Mindestauftragswert, Vorgabe 200,00 € netto), hebt das Programm alle Stückpreise "
+           "im gleichen Verhältnis an. Der Betrag steht nur in den Einstellungen; je "
            "Angebot lässt er sich mit dem Häkchen <b>Mindestauftragswert anwenden</b> (Karte <i>Kalkulation dieses "
            "Angebots</i>) ausschalten.", kurz=True)
     i.genauer()
     i.text("Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie kalkuliert. "
-           "Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
-    i.liste("Beispiel: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis × 200 ÷ 148; "
-            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation und Kalkulations-PDF steht die "
+           "Der Mindestpreis ist netto und gilt für die Ware: ohne Fracht, nach Abzug des Skontos und vor der "
+           "Umsatzsteuer. Beispiel: 200,00 € Mindestpreis, 30,00 € Fracht, 2 % Skonto → Angebot 234,69 € netto; zahlt "
+           "der Kunde mit Skonto, bleiben 200,00 € für die Ware. Festgeschriebene Angebote vor dem 26.10.2026 rechnen "
+           "wie verschickt (Mindestpreis auf den Verkaufspreis mit Fracht).")
+    i.liste("Beispiel ohne Fracht und Skonto: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis "
+            "× 200 ÷ 148; Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation und Kalkulations-PDF steht die "
             "Differenz als Kostenart <b>Anhebung auf Mindestpreis</b> (mit kalkuliertem Preis und Mindestpreis), "
             "je Position in der Spalte <i>Mindestpreis je Teil</i>.",
             "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
-            "200,00 € netto.“. Die angehobenen Stückpreise sind auf den Cent aufgerundet, damit die Summe nie unter "
+            "200,00 € netto (Warenwert ohne Fracht).“. Die angehobenen Stückpreise sind auf den Cent aufgerundet, damit die Summe nie unter "
             "dem Mindestpreis liegt (200 € bei 7 Stück: 28,58 € je Stück = 200,06 €).",
             "Genau beim Mindestpreis oder darüber ändert sich nichts. Der Mindestpreis gilt einmal je Angebot, nicht "
             "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
@@ -1267,8 +1273,14 @@ def kapitel_angebot(i):
            "Programm nicht erkennt (z. B. „4xM7“ ohne Stammdaten), steht rot darunter, weil sie mit 0 € rechnen würde. "
            "Bei einer einzelnen Position führen <b>Schweißnaht …</b> und <b>Bohrungen prüfen …</b> unten rechts zur "
            "übrigen Bearbeitung derselben Position.")
-    i.liste("Sind mehrere Positionen markiert, gilt die Auswahl für alle. Die automatische Menge (Gewicht, Fläche, "
-            "Länge) rechnet jede Position für sich.",
+    i.liste("Sind mehrere Positionen markiert, zeigt das Fenster nur, was alle gemeinsam haben, und ändert auch "
+            "nur das: eine neue Zusatzarbeit kommt zu jeder Position dazu, eine entfernte fällt überall weg. Eigene "
+            "Gewinde und Arbeiten einzelner Positionen (z. B. Senken und Flowdrill aus <i>Bohrungen prüfen</i>) "
+            "bleiben. Haben die Positionen verschiedene Gewinde, steht im Feld „unterschiedlich“; ein Eintrag wird "
+            "dann bei jeder Position ergänzt. Die automatische Menge (Gewicht, Fläche, Länge) rechnet jede Position "
+            "für sich.",
+            "Die Positionsliste zeigt Gewinde und Zusatzarbeiten zusammen in der Spalte <b>Gewinde · "
+            "Zusatzarbeiten</b> gleich hinter der Artikelnummer.",
             "Die Kosten erscheinen in der Kalkulation in der Spalte <i>Zusatzarbeiten je Teil</i> und in der Summe "
             "<i>Zusatzarbeiten</i>; Zeiten (s/Stück, z. B. Gravur extra) erhöhen die Laserzeit.",
             "<b>Schweißen</b> (Abrechnung €/h): in <i>Menge bzw. Sekunden je Teil</i> die Schweißzeit je Teil in "
@@ -1604,8 +1616,11 @@ def kapitel_step(i):
             "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
             "sollen ([[einstellungen]]).",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
-            "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien wechseln "
-            "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
+            "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien stehen alle "
+            "Dateien untereinander in einer Liste (Gruppenzeile mit dem Dateinamen); die Pfeil-Knöpfe oben springen "
+            "zur vorigen bzw. nächsten Datei (<i>Datei 2 von 7: …</i>). Oben stehen auch <b>Kunde</b> und "
+            "<b>Anfrage-Nr.</b> (Kundenreferenz des Angebots, vorgeschlagen aus dem Ordnernamen, z. B. "
+            "<i>Anfrage 4711</i>). Dort je Teil festlegen, ob es "
             "übernommen wird, und Profil, Werkstoff und Stückzahl wählen. <b>Übernehmen</b> legt die Positionen "
             "aller Dateien an, <b>Abbrechen</b> verwirft die Messung. Ist unten <b>STEP-Dateien in den Ordner des "
             "Angebots kopieren</b> angehakt, kommen die STEP-Dateien beim Übernehmen in den Unterordner <i>STEP</i> "
@@ -1623,16 +1638,16 @@ def kapitel_step(i):
             "Bericht je Datei, auch später noch über <i>Meldungen</i> in der Statusleiste ([[meldungen]]).",
             nummeriert=True)
     i.abschnitt("Rohrliste prüfen")
-    i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
+    i.bild("step_pruefen", "STEP-Import prüfen: alle Dateien in einer Liste, Eingaben je Teil und 3D-Ansicht",
            hoehe=100 * mm, legende=[
-               (1, "Pfeil-Knöpfe links/rechts: zwischen den STEP-Dateien wechseln; daneben Nummer und Name der Datei."),
+               (1, "Kunde und Anfrage-Nr.; darunter die Pfeil-Knöpfe: zur vorigen/nächsten STEP-Datei springen."),
                (2, "Rohrliste der Datei: Häkchen, Profil-ID, Werkstoff-ID und Stückzahl je Teil."),
-               (3, "Werkstoff und Stückzahl für alle oder die markierten Zeilen setzen.")])
+               (3, "Werkstoff, Stückzahl und Zusatzarbeit für alle oder die markierten Zeilen setzen.")])
     i.text("Rote Gruppenzeile = Profil fehlt in den Stammdaten (wird beim Übernehmen angelegt). Gelber Hinweis = "
            "prüfen. Abgewählte Teile werden nicht übernommen. Spalte <b>Art</b>: Bauteilart umstellen, wenn falsch "
            "erkannt.", kurz=True)
     i.genauer()
-    i.liste("Jede Zeile ist ein Teil. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
+    i.liste("Jede Zeile ist ein Teil, der <b>Hinweis</b> steht gleich dahinter. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
             "<b>In Datei</b> zeigt, wie oft es in der Datei vorkommt.",
             "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart und ist bei jeder Zeile eine Auswahl. Bei "
             "Flachstahl/Blech und Profil/Kantteil steht dort zuerst die andere Messung (siehe Bleche beim "
@@ -1648,9 +1663,11 @@ def kapitel_step(i):
             "(Vorgabe S235-10219 = S235 EN10219) und bei Einzelteilen die Stückzahl 1. Bleche bekommen keinen Werkstoff "
             "vorbelegt. Ist oben eine Anzahl Sätze eingetragen, heißt die Spalte <b>Stück je Satz</b> (siehe Baugruppen "
             "als Satz).",
-            "Für viele Teile auf einmal: unten Werkstoff und/oder Stückzahl wählen und <b>Für alle</b> klicken (gilt "
-            "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
-            "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
+            "Für viele Teile auf einmal: unten Werkstoff, Stückzahl und/oder eine <b>Zusatzarbeit</b> (z. B. "
+            "Feuerverzinken) wählen und <b>Für alle</b> klicken (gilt für alle Teile aller Dateien, die Stückzahl nur "
+            "für Teile ohne Satz), oder Zeilen markieren (Strg/Umschalt) und <b>Für markierte</b>. Die Spalte "
+            "<b>Zusatzarbeiten</b> zeigt die Auswahl, Rechtsklick <i>Zusatzarbeiten entfernen</i> nimmt sie wieder "
+            "weg. Mit <i>Für diesen Kunden merken</i> kommt die Zusatzarbeit ins Importprofil ([[importprofile]]). <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
             "<b>3D-Schnittbearbeitung aktivieren</b> (seit 0.8.19, unter <i>Werte setzen</i>, gilt für alle Teile): "
             "3D heißt: die Schnittfläche steht nicht senkrecht (90°) zur Rohroberfläche. Der Import misst dafür an "
@@ -1703,6 +1720,11 @@ def kapitel_step(i):
                (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
                    "Zusatzarbeiten (z. B. 2× Senken, 4× Bohren).")])
     i.genauer()
+    i.text("<b>Mehrere Positionen auf einmal:</b> Haben mehrere Positionen offene Bohrungen, öffnet der Doppelklick "
+           "auf den Status, der Link im Angebots-Check und die Einblendung nach dem STEP-Import "
+           "(<b>Bohrungen prüfen …</b>) ein Fenster mit allen Bohrungen aller Positionen (Spalten Pos. und "
+           "Artikelnummer). <b>Alle bestätigen</b> und <b>Übernehmen</b> gilt dann für alle; oben steht, wie viele "
+           "Zeilen noch offen sind.")
     i.text("Der STEP-Import und der Schneidweg-Rechner erkennen vier Arten von Bohrungen, die nach der Zeichnung "
            "geprüft werden müssen:")
     i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
@@ -2053,7 +2075,8 @@ def kapitel_step(i):
     i.text("<b>Der Prüfdialog lernt</b>: Wählt man für alle Rohre einen anderen Werkstoff, wählt Teile ab oder "
            "schaltet die Anbauteile um, steht unter der Liste <b>Für Kunde … merken (Importprofil)</b> mit den "
            "Korrekturen. Angehakt, schreibt <i>Übernehmen</i> sie ins Importprofil des Kunden (legt es an, wenn es "
-           "fehlt): der Werkstoff wird Vorgabe, abgewählte Teile kommen mit ihrem Bauteilnamen zu den Normteilen. "
+           "fehlt): der Werkstoff wird Vorgabe, abgewählte Teile kommen mit ihrem Bauteilnamen zu den Normteilen, "
+           "eine Zusatzarbeit für alle Teile (z. B. Feuerverzinken) kommt in jede Position. "
            "Die nächste Anfrage dieses Kunden ist dann gleich so vorbelegt; der Bericht nennt, was gemerkt wurde.")
     i.genauer()
     i.liste("Die Messung liest die Baugruppenstruktur und die Namen der Bauteile aus der STEP-Datei. Wie die "
@@ -2081,6 +2104,8 @@ def kapitel_step(i):
         ["Werkstoff Rohre/Profile, Flache Teile als, Anbauteile nicht übernehmen",
          "Vorbelegung im Prüfdialog statt der Einstellungen <i>Standard-Werkstoff</i>, <i>ebene flache Teile "
          "vorgeben als</i> und des Häkchens für Anbauteile"],
+        ["Zusatzarbeiten für alle Teile (mit ; getrennt)", "Zusatzarbeiten aus den Stammdaten, die jedes "
+                                                           "übernommene Teil bekommt, z. B. Feuerverzinken"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
@@ -2262,8 +2287,12 @@ def kapitel_optimieren(i):
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
             "dem Zuschlag Fremdleistung.",
             "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
-            "Stangenwechsel je Stange (Stangen mit fester Schweißnaht-Lage mit dem Stangenwechsel SN), gleichmäßig "
-            "auf alle Teile verteilt, je mit dem Stundensatz ihres Arbeitsschritts.",
+            "Stangenwechsel je Stange (Stangen mit fester Schweißnaht-Lage mit dem Stangenwechsel SN), je mit dem "
+            "Stundensatz ihres Arbeitsschritts. Die Rüstzeit der Maschine verteilt sich nach der Laserzeit (ein Teil "
+            "mit doppelter Schneidzeit trägt doppelt so viel), der Stangenwechsel einer Stangengruppe wie das Material "
+            "nach der Teilelänge (ein 2.150-mm-Teil trägt mehr als ein 345-mm-Teil), die Rüstzeit je Abmessung "
+            "gleichmäßig auf die Teile dieser Abmessung. Festgeschriebene Angebote vor dem 26.10.2026 verteilen "
+            "Maschine und Stangenwechsel wie damals gleichmäßig je Teil.",
             "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten ([[stundensaetze]]) × Stundensatz, auf die "
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
             "<b>Programmierkosten</b>: Programmierzeit der Position × Stundensatz <i>Programmierung</i> "
@@ -2274,18 +2303,23 @@ def kapitel_optimieren(i):
             "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.22 verschickt und damit "
             "festgeschrieben wurden ([[preise_festschreiben]]), rechnen weiter mit ihrem Betrag je Position "
             "(<i>Programmierkosten je Position (alt) [€]</i>, auch in einer Staffel-Stufe).",
-            "<b>Pauschale je Abmessung, Angebotsaufschlag</b>: ohne Zuschläge in die Selbstkosten.",
+            "<b>Pauschale je Abmessung, Angebotsaufschlag</b>: ohne Zuschläge in die Selbstkosten. Die Pauschale je "
+            "Abmessung ist seit 26.10.2026 0 € (Vorgabe, einmalig auch in den Einstellungen), weil die Rüstzeit je "
+            "Abmessung denselben Aufwand deckt; Angebote mit eigenem Wert behalten ihn.",
             "<b>Zukaufteile</b>: Einstand und Aufschlag der Zukaufteile der Position ([[zukauf_angebot]]), ohne "
-            "Zuschläge in die Selbstkosten (Spalte <i>Zukaufteile je Teil</i>).",
+            "Zuschläge und <b>ohne Gewinn</b> in die Selbstkosten: ihr Aufschlag (bei Blechen der Aufschlag Bleche) "
+            "ist ihr Gewinn (Spalte <i>Zukaufteile je Teil</i>). Beispiel: Blech EK 100,00 €, Aufschlag 10 %, Skonto "
+            "2 % → 112,24 €.",
             "<b>Selbstkosten</b> = Herstellkosten + Programmierkosten + Pauschale je Abmessung + Angebotsaufschlag + "
             "Zukaufteile (Spalte <i>Selbstkosten je Teil</i>).",
-            "<b>Gewinn</b> = Selbstkosten × Gewinn %.",
+            "<b>Gewinn</b> = (Selbstkosten − Zukaufteile) × Gewinn %.",
             "<b>Fracht</b>: nach dem Gewinn, ohne Zuschläge und ohne Gewinn (reine Fremdkosten).",
             "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis mit Gewinn "
             "bleibt (Skonto % des Verkaufspreises, „im Hundert“). Je Teil in der Spalte <i>Skonto je Teil</i>.")
     i.abschnitt("Worauf der Gewinn rechnet", marke="gewinn_basis")
-    i.text("Der Gewinn rechnet auf <b>alle Kosten</b> (Selbstkosten): Herstellkosten, Programmierung, Pauschalen, "
-           "Angebotsaufschlag und Zukaufteile. Nur die Fracht bekommt keinen Gewinn. Das Skonto kommt zuletzt auf "
+    i.text("Der Gewinn rechnet auf die <b>Selbstkosten ohne Zukaufteile</b>: Herstellkosten, Programmierung, "
+           "Pauschalen und Angebotsaufschlag. Zukaufteile und Bleche tragen nur ihren Aufschlag (Patrick 26.10.2026), "
+           "die Fracht bekommt keinen Gewinn. Das Skonto kommt zuletzt auf "
            "den Preis mit Gewinn.", kurz=True)
     i.text("Bis Oktober 2026 rechnete der Gewinn nur auf die Herstellkosten; Programmierung, Pauschalen, "
            "Angebotsaufschlag, Fracht und Zukaufteile kamen ohne Gewinn danach. Angebote, deren Preise vorher "
@@ -3401,7 +3435,9 @@ def kapitel_optimieren(i):
             "späteren Angebot wiederverwendet; ein Reststückwert wird nicht angerechnet.")
     i.text("<b>Gesamtkosten je Variante</b> = Materialkosten (Stangen × Preis der Lieferlänge) + Stangenwechsel und "
            "Arbeitsschritte je Stange für jede Beladung + Kosten je Zuschnitt beim Lieferanten (Vorgabe 0 €: die "
-           "12-m-Stangen kommen geschnitten ohne Zusatzkosten). Laserzeit und Schnittwege sind in allen Varianten "
+           "12-m-Stangen kommen geschnitten ohne Zusatzkosten). Die Kosten je Zuschnitt zählen auch im Angebot zu "
+           "den Materialkosten der Lieferstange (seit 26.10.2026; Beispiel 2 Zuschnitte à 3 € = 6,00 € je "
+           "Lieferstange). Laserzeit und Schnittwege sind in allen Varianten "
            "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Stangenlängen nach Zuschnitt, Materiallänge, "
            "Materialkosten, Stangenwechsel, Zuschnittkosten, Reststückwert (nicht angerechnet), Gesamtkosten, "
            "Verschnitt in mm und % und fehlende Angaben.")
@@ -3672,7 +3708,9 @@ def kapitel_fracht(i):
             "Pos. 1 und 6,00 € je Teil in Pos. 2. Neue Angebote verteilen nach Gewicht; ältere Angebote und ihre "
             "Kopien bleiben bei je Stück, damit sich ihre Preise nicht ändern. Fehlt einer Position das Gewicht "
             "(kein Profil oder Werkstoff mit Dichte), verteilt das Programm in diesem Angebot je Stück und zeigt den "
-            "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte.",
+            "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte. Eine <b>Schweißbaugruppe</b> reist als ein Stück: sie "
+            "trägt die Fracht ihrer Einzelteile (Gewicht von Hand oder Summe der Einzelteile), die Einzelteile zählen "
+            "nicht noch einmal.",
             "<b>Fracht berechnen …</b> öffnet den Frachtrechner ([[fracht_rechner]]), vorbelegt mit dem Nettogewicht und dem "
             "längsten Teil aus den Positionen, dem Kunden (PLZ, Land, Lieferbedingung aus dem Kundenstamm), dem "
             "Angebotsdatum und einem Packvorschlag. Eine schon gespeicherte Berechnung wird mit ihren Eingaben "
@@ -4475,7 +4513,9 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>im Angebotstext der Position nennen</i> eine Zeile mit Menge je Teil, z. B.:<br/>"
            "<i>Quadratrohr 40 x 40 x 3<br/>L = 550 mm<br/>inkl. Material S235 EN10219<br/>inkl. Gewinde 4xM6<br/>"
            "inkl. Senken</i><br/>"
-           "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile.")
+           "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile. Der Preis je Satz ist die "
+           "Summe der ungerundeten Stückpreise × Stück je Satz, erst dann auf den Cent gerundet; so steht für "
+           "dieselbe Menge derselbe Preis wie in der Staffel.")
     i.abschnitt("Ordner je Angebot", marke="angebotsordner")
     i.text("Jedes Angebot hat in der Ablage einen eigenen Ordner <i>Nummer Kunde</i>, z. B. "
            "<i>2026-00042 Stahlbau Ostermann</i>. Alles, was das Programm zum Angebot speichert, kommt dort hinein: "
@@ -4618,8 +4658,9 @@ def kapitel_ausgabe(i, seiten, ablage):
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
     i.genauer()
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
-           "Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)</i>, Vorgabe 0). Gemeint ist der Gewinn aus dem "
-           "Preisaufbau geteilt durch den Verkaufspreis. Angebote der Kollegen lassen sich ansehen und ausgeben, "
+           "Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)</i>, Vorgabe 0). Gemeint ist (Gewinn + "
+           "Anhebung auf den Mindestpreis) geteilt durch den Warenwert (Selbstkosten + Gewinn + Anhebung), ohne "
+           "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Angebote der Kollegen lassen sich ansehen und ausgeben, "
            "ohne dass der Check fragt.")
     i.abschnitt("Angebot (PDF)")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
@@ -4903,6 +4944,9 @@ def kapitel_einstellungen(i):
          "im Angebot Artikel-, Kategorie- und Standardaufschlag, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
+        ["Kalkulation", "Rüsten je Abmessung als Betrag [€], Rüsten je Angebot als Betrag [€] (leer = Minuten)",
+         "fester Betrag statt Rüstzeit × Stundensatz (je verschiedenem Profil bzw. einmal je Angebot); Vorgabe neuer "
+         "Angebote, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
          "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
          "<i>Programmierung</i>, auf deren Stückzahl verteilt, ohne Zuschläge auf den Preis; je Position von Hand "
@@ -4917,8 +4961,9 @@ def kapitel_einstellungen(i):
          "Vorgabe 0."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
-        ["Kalkulation", "Mindestpreis je Angebot netto [€] (0 = keiner)",
-         "Vorgabe 200,00 €; gilt für alle Angebote, darunter werden die Stückpreise anteilig angehoben "
+        ["Kalkulation", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)",
+         "Vorgabe 200,00 €; gilt für alle Angebote und für die Ware ohne Fracht nach Abzug des Skontos, darunter "
+         "werden die Stückpreise anteilig angehoben "
          "([[mindestpreis]])."],
         ["Angebot", "Lieferzeit neuer Angebote: Angabe als, Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, "
                     "KW/Jahr oder Datum), Lieferzeit neuer Angebote: Freitext",

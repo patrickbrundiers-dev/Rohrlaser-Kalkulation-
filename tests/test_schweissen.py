@@ -138,7 +138,8 @@ ok("S4 Dialog: Sekunden je Teil und 75 €/h als Vorgabe; Formular: Vorgabezeit 
 db.einstellung_setzen("mindestpreis", 5000.0)
 s.neu_laden()
 an = s._rechnung()[1]
-assert an["mindestpreis_gilt"] and nah(an["verkauf"], 5000)
+sk = an["skonto_satz"] / 100           # Mindestpreis für die Ware ohne Fracht nach Skonto (Patrick 26.10.2026, 5a)
+assert an["mindestpreis_gilt"] and nah(an["verkauf"] * (1 - sk) - an["fracht"], 5000)
 assert s.kopf_bereich.mindest_an.isChecked() and "5.000,00 € netto" in s.kopf_bereich.mindest_an.text()
 s.kopf_bereich.mindest_an.setChecked(False)              # speichert sofort
 assert db.angebot(a)["mindestpreis_anwenden"] == "nein" and s.einst["mindestpreis"] == 0
@@ -146,7 +147,7 @@ aus = s._rechnung()[1]
 assert not aus["mindestpreis_gilt"] and nah(aus["verkauf"], an["verkauf_kalkuliert"])
 assert "ohne Mindestauftragswert" in s.kopf_bereich.kalk_kurz.text()
 s.kopf_bereich.mindest_an.setChecked(True)
-assert db.angebot(a)["mindestpreis_anwenden"] is None and nah(s._rechnung()[1]["verkauf"], 5000)
+assert db.angebot(a)["mindestpreis_anwenden"] is None and nah(s._rechnung()[1]["verkauf"], an["verkauf"])
 assert rechnen.einstellungen_angebot(dict(mindestpreis_anwenden="nein"), dict(mindestpreis=200))["mindestpreis"] == 0
 ok("M1 Mindestauftragswert je Angebot aus: Verkaufspreis = kalkuliert; an (Vorgabe): angehoben auf 5.000 €")
 db.schliessen()

@@ -22,6 +22,7 @@ from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, m
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
+from . import zusatz_dialog
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
@@ -638,8 +639,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Nutzlänge Stange [mm]", "nutz", 0), ("Preis hinterlegt", "preis_hinterlegt", None),
              ("Vorschub groß [mm/min]", "vorschub", 0), ("Schneidgas", "gas", None), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
-SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
-            "einstiche", "zeit_manuell", "prog_zeit", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
+# Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
+# sichtbar, was an jedem Teil gemacht wird)
+SICHTBAR = ["pos", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck",
+            "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "satz", "je_satz", "preis_m", "material_herkunft",
+            "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
@@ -817,6 +821,8 @@ class PositionenModell(QAbstractTableModel):
         if richtung == Qt.Vertical:
             return self.kopf_text.get(abschnitt) or str(abschnitt + 1)
         art, x = self.spalten[abschnitt]
+        if art == "zusatz":
+            return "Gewinde · Zusatzarbeiten"
         return x.titel if art in ("feld",) + EIGENE else {"status": "Status",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
 
@@ -831,8 +837,9 @@ class PositionenModell(QAbstractTableModel):
             return self.daten[r].get(x.name)
         if art == "status":
             return self.status[r]
-        if art == "zusatz":
-            return rechnen.zusatz_text(self.daten[r])
+        if art == "zusatz":         # V6: Gewinde und Zusatzarbeiten zusammen, z. B. „4xM6 · Senken; feuerverzinkt“
+            p = self.daten[r]
+            return " · ".join(t for t in ((p.get("gewinde") or "").strip(), rechnen.zusatz_text(p)) if t)
         if art == "zukauf":
             return zukauf.zukauf_text(self.daten[r])
         if art == "naht":
@@ -2052,6 +2059,7 @@ class AngebotSeite(QWidget):
             self._auto_timer.timeout.connect(self.auto_optimieren)
         if self.auto_optimieren_moeglich():
             self._auto_timer.start(self.AUTO_PAUSE_MS)      # jede weitere Änderung schiebt den Lauf hinaus
+            self.uebersicht_bereich.wird_berechnet()        # V7: kein vorläufiger Preis ohne Material
         else:
             self._auto_timer.stop()
 
@@ -2403,6 +2411,8 @@ class AngebotSeite(QWidget):
             return self.preise_aktualisieren()
         if art == "kalkulation":
             return self.reiter.setCurrentWidget(self.kalk_seite)
+        if art == "bohrungen":
+            return self.bohrungen_alle_pruefen()
         return None
 
     def vor_verschickt(self):
@@ -3138,19 +3148,24 @@ class AngebotSeite(QWidget):
         if not zeilen:
             self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
             return False
+        # Mehrere Positionen (Plan Angebotsablauf V0): nur das Gemeinsame zeigen und ändern, eigene Werte bleiben
+        vorher = zusatz_dialog.gemeinsam([self.positionen[r] for r in zeilen]) if len(zeilen) > 1 else None
         if werte is None:
             weitere = {}
             if len(zeilen) == 1 and not kein_laserteil(self.positionen[zeilen[0]]):
                 weitere = {"Schweißnaht …": lambda: self.schweissnaht(list(zeilen)),
                            "Bohrungen prüfen …": lambda: self.bohrungen_pruefen(list(zeilen))}
-            d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen,
-                            self.db.zusatz_haeufigkeit(), weitere)
+            p = self.positionen[zeilen[0]]
+            if vorher is not None:
+                p = dict(p, gewinde=vorher[0] or "", zusatz=json.dumps(vorher[1], ensure_ascii=False))
+            d = ZusatzDialog(self, p, len(zeilen), self.k, self.tabellen, self.db.zusatz_haeufigkeit(), weitere,
+                             gewinde_verschieden=vorher is not None and vorher[0] is None)
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
-        gewinde, zusatz = werte
         for r in zeilen:
             p = self.positionen[r]
+            gewinde, zusatz = werte if vorher is None else zusatz_dialog.zusammenfuehren(p, vorher, werte)
             self.db.position_aendern(p["id"], "gewinde", gewinde)
             self.db.position_aendern(p["id"], "zusatz", zusatz)
         self.f.meldung(f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
@@ -3864,6 +3879,8 @@ class AngebotSeite(QWidget):
             self.schneidweg_berechnen(zeile)
         elif ziel == "baugruppe_bearbeiten":
             self.baugruppe_bearbeiten([zeile], fokus=self.pos_modell.status[zeile])
+        elif ziel == "bohrungen_pruefen" and len(offen := self.bohrungen_offen()) > 1:
+            self.bohrungen_alle_pruefen(offen)      # V3: alle offenen in einem Fenster, nicht eines je Position
         else:
             getattr(self, ziel)([zeile])
         return ziel
@@ -3896,8 +3913,14 @@ class AngebotSeite(QWidget):
         if not zeilen:
             self.f.meldung("Bitte zuerst eine Position markieren.", fehler=True)
             return False
-        p = self.positionen[zeilen[0]]
         gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
+        if werte is None and len(zeilen) > 1:       # mehrere markiert: ein Fenster für alle (Plan Angebotsablauf V3)
+            mit = [r for r in zeilen if not kein_laserteil(self.positionen[r]) and bohrbild.aus_position(
+                self.positionen[r], gewinde, rechnen.wand_position(self.positionen[r], self.k))]
+            if len(mit) > 1:
+                return self.bohrungen_alle_pruefen(mit)
+            zeilen = mit or zeilen[:1]
+        p = self.positionen[zeilen[0]]
         katalog = self.tabellen.get("zusatzarbeiten") or []
         if werte is None:
             from .bohrbild_dialog import BohrbildDialog
@@ -3918,6 +3941,50 @@ class AngebotSeite(QWidget):
                        + (f", {bohrbild.offen(liste)} noch offen" if bohrbild.offen(liste) else "") + "."
                        + (f" Zusatzarbeit {', '.join(fehlt)} fehlt in den Stammdaten (Einstellungen › Zusatzarbeiten)."
                           if fehlt else ""), fehler=bool(fehlt))
+        self.neu_laden()
+        return True
+
+    def bohrungen_offen(self):
+        """Zeilen der Positionen mit ungeprüften Gewinde-Vorschlägen, Senkungen, Flowdrill oder Bohren."""
+        from . import bohrbild
+        gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
+        return [r for r, p in enumerate(self.positionen) if not kein_laserteil(p) and bohrbild.offen(
+            bohrbild.aus_position(p, gewinde, rechnen.wand_position(p, self.k)))]
+
+    def bohrungen_alle_pruefen(self, zeilen=None, werte=None, dialog=None):
+        """Bohrungen mehrerer Positionen in einem Fenster prüfen (Plan Angebotsablauf V3, BohrbildSammelDialog);
+        ohne zeilen alle mit offenen Zeilen. werte = {Zeile: Bohrbild} setzt sie ohne Dialog, dialog(d) bedient das
+        Fenster statt exec (Tests). Ergebnis: True = gespeichert."""
+        from . import bohrbild
+        zeilen = self.bohrungen_offen() if zeilen is None else [r for r in zeilen if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Keine Position mit offenen Bohrungen oder Gewinde-Vorschlägen.")
+            return False
+        katalog = self.tabellen.get("zusatzarbeiten") or []
+        if werte is None:
+            from .bohrbild_dialog import BohrbildSammelDialog
+            gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
+            d = BohrbildSammelDialog(self, [(r, self.positionen[r], rechnen.wand_position(self.positionen[r], self.k))
+                                            for r in zeilen], gewinde, self.db.einstellung("fliessloch_laser"))
+            if dialog is not None:
+                dialog(d)
+            elif d.exec() != QDialog.Accepted:
+                return False
+            if d.ergebnis is None:
+                return False
+            werte = d.ergebnis
+        fehlt, offen = set(), 0
+        for r, liste in werte.items():
+            p = self.positionen[r]
+            felder = bohrbild.anwenden(p, liste, None, katalog, rechnen.stundensaetze(self.tabellen))
+            fehlt |= set(felder.pop("_fehlt", None) or ())
+            for name, wert in felder.items():
+                self.db.position_aendern(p["id"], name, wert)
+            offen += bohrbild.offen(liste)
+        self.f.meldung(f"Bohrungen von {len(werte)} Position(en) gespeichert"
+                       + (f", {offen} Zeile(n) noch offen" if offen else "") + "."
+                       + (f" Zusatzarbeit {', '.join(sorted(fehlt))} fehlt in den Stammdaten (Einstellungen › "
+                          "Zusatzarbeiten)." if fehlt else ""), fehler=bool(fehlt))
         self.neu_laden()
         return True
 
@@ -5162,12 +5229,13 @@ class AngebotSeite(QWidget):
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
-                         formulare=None):
+                         formulare=None, referenz=None):
         """STEP-Dateien messen und übernehmen. formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
         Stückzahlen je
         Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja). kunde_waehlen: Kunde oben im Prüfdialog wählen
-        (neues Angebot aus STEP, Plan Bedienung B1). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
+        (neues Angebot aus STEP, Plan Bedienung B1); referenz = Vorschlag der Anfrage-Nr. des Kunden (aus dem
+        Ordnernamen, Plan Angebotsablauf V5). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
         doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF."""
         from . import importprofil
         profil = self.importprofil()
@@ -5191,6 +5259,12 @@ class AngebotSeite(QWidget):
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
+        katalog_namen = [z["name"] for z in self.db.zeilen("zusatzarbeiten") if z.get("name")
+                         and z.get("aktiv") != "nein"]
+        self._step_zusatz = [n for n in vorgaben.get("zusatz") or () if n in katalog_namen]
+        for m in messwerte:             # Importprofil: Zusatzarbeiten für alle Teile (Plan Angebotsablauf V4)
+            if self._step_zusatz:
+                m.setdefault("_zusatz", list(self._step_zusatz))
         formular_bericht = None
         if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
             from . import formular
@@ -5221,7 +5295,10 @@ class AngebotSeite(QWidget):
                                   kunden=self.db.zeilen("kunden") if kunde_waehlen else None,
                                   kundennr=self.kopf.get("kundennr"), kunde_gewechselt=lambda nr: self._step_kunde_gewechselt(nr, messwerte),
                                   vorpruefung=lambda: step.vorpruefung(messwerte, self.positionen, self.k),
-                                  lernen=True, maschine=rechnen.maschine(self.kopf, self.k))
+                                  lernen=True, maschine=rechnen.maschine(self.kopf, self.k),
+                                  zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
+                                  referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
+                                  or referenz else None)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
@@ -5229,13 +5306,17 @@ class AngebotSeite(QWidget):
             fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
             neue_profile, erneut, pdf_danach = dlg.neue_profile_anlegen(), dlg.doppelte_eintragen(), dlg.pdf_danach
             werkstoff = dlg.werkstoff
+            if dlg.referenz_text() and dlg.referenz_text() != (self.kopf.get("kundenreferenz") or None):
+                self.db.angebot_aendern(self.id, "kundenreferenz", dlg.referenz_text())     # V5
+                self.neu_laden()
             if kunde_waehlen and str(dlg.kundennr or "") != str(self.kopf.get("kundennr") or ""):
                 self.kunde_waehlen(str(dlg.kundennr or ""))
                 self.f.angebote.neu_laden()
                 if self.flach_bis() != flach_gemessen:      # flache Teile gibt der Kunde anders vor: neu messen
                     self.f.meldung("Der gewählte Kunde gibt flache Teile anders vor (Importprofil) – die STEP-Dateien "
                                    "werden dafür neu gemessen.")
-                    return self.step_importieren(dateien, None, stueck, als_satz, formulare=formulare)
+                    return self.step_importieren(dateien, None, stueck, als_satz, formulare=formulare,
+                                                 referenz=referenz)
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
@@ -5294,21 +5375,41 @@ class AngebotSeite(QWidget):
         if kopieren:
             erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
-        # ruhige Meldung statt Fenster (B1/B2); Einzelheiten hinter „Bericht …“ und im Meldungsverlauf
-        self.f.meldung(text, bericht=("STEP-Import", "\n".join(erg["bericht"])))
+        # ruhige Meldung statt Fenster (B1/B2); Einzelheiten hinter „Bericht …“ und im Meldungsverlauf. Offene
+        # Bohrungen (Gewinde, Senkungen, Flowdrill): Knopf führt gleich zum Prüfen aller (Plan Angebotsablauf V3)
+        offen = self.bohrungen_offen()
+        aktion = None
+        if offen and not pdf_danach:
+            text += f" {len(offen)} Position(en) mit Bohrungen/Gewinde zu prüfen."
+            aktion = ("Bohrungen prüfen …", lambda: self.bohrungen_alle_pruefen() if len(self.bohrungen_offen()) > 1
+                      else self.bohrungen_pruefen(self.bohrungen_offen()[:1] or None))
+        self.f.meldung(text, aktion=aktion, bericht=("STEP-Import", "\n".join(erg["bericht"])))
         if pdf_danach:
             self.angebot_pdf()
         return erg
 
     def _step_kunde_gewechselt(self, kundennr, messwerte):
         """Prüfdialog (B1): Kunde gewechselt. Importprofil des neuen Kunden auf die Messwerte anwenden (Benennung,
-        Normteile) und dessen Werkstoff-Vorgabe liefern. Der Angebotskopf folgt erst beim Übernehmen."""
+        Normteile, Zusatzarbeiten) und (Werkstoff-Vorgabe, Zusatzarbeiten) liefern. Der Angebotskopf folgt erst beim
+        Übernehmen."""
         from . import importprofil
         profil = importprofil.fuer_kunde(self.db, kundennr)
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
         ws = importprofil.vorgaben(profil).get("werkstoff") or self.db.einstellung("step_werkstoff") or None
-        return ws if ws in self.k.werkstoffe else None
+        # Zusatzarbeiten des alten Importprofils durch die des neuen ersetzen, von Hand gewählte bleiben (V4)
+        katalog = {z["name"] for z in self.db.zeilen("zusatzarbeiten") if z.get("name") and z.get("aktiv") != "nein"}
+        alt = getattr(self, "_step_zusatz", [])
+        neu = [n for n in importprofil.vorgaben(profil).get("zusatz") or () if n in katalog]
+        for m in messwerte:
+            liste = [n for n in m.get("_zusatz") or () if n not in alt]
+            liste += [n for n in neu if n not in liste]
+            if liste:
+                m["_zusatz"] = liste
+            else:
+                m.pop("_zusatz", None)
+        self._step_zusatz = neu
+        return (ws if ws in self.k.werkstoffe else None), neu
 
     def _virtuell_messen(self, pfad, ziel):
         """Eine STEP-Datei mit STEP-Import.exe --stege ziel messen (Winkel/U aus größerem Profil als virtuelles

@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 63     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 64     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -116,6 +116,8 @@ SCHEMA_VERSION = 63     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 62: Stangen von Hand vorgegeben je Abmessung (angebote.stangen_vorgabe, JSON, leer)
                         # 63: Aufschlag Bleche und Zukaufteile je Angebot (angebote.aufschlag_blech, aufschlag_zukauf;
                         #     leer = Aufschlagsregeln wie bisher)
+                        # 64: Rüsten als fester Betrag je Angebot bzw. je Abmessung (angebote.ruesten_angebot_eur,
+                        #     ruesten_abmessung_eur, leer = Minuten), Zusatzarbeiten im Importprofil (importprofile.zusatz)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -134,6 +136,7 @@ GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
+PAUSCHALE_STAND = "2026-10-26"     # Pauschale je Abmessung einmalig auf 0, Rüsten je Abmessung deckt sie (Patrick 26.10.2026)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
 BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
@@ -216,6 +219,7 @@ class Datenbank:
             self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
             self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
@@ -400,6 +404,9 @@ class Datenbank:
                 for n in ("zuschlag_material", "zuschlag_fertigung"):
                     self._einstellung_schreiben(n, 0)
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            if version > 0 and self.einstellung("pauschale_stand") != PAUSCHALE_STAND:
+                self._einstellung_schreiben("pauschale_abmessung", 0)
+                self._einstellung_schreiben("pauschale_stand", PAUSCHALE_STAND)
             if version > 0 and self.einstellung("bohr_zusatz_stand") != BOHR_ZUSATZ_STAND:
                 self._bohr_zusatz_ergaenzen()
             if version > 0 and self.einstellung("schweissen_stand") != SCHWEISSEN_STAND:

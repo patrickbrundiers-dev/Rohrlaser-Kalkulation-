@@ -80,7 +80,8 @@ _KOPF_FELD = {f.name: f for f in ANGEBOT_KOPF}
 EINSTELLUNG_FELDER = (
     Feld("bezeichnung", "Bezeichnung", breite=160),
     STUFE_FELD["gewinn"],
-    *[f for f in KALKULATION if f.name not in ("gewinn", "aufschlag_blech", "aufschlag_zukauf")],
+    *[f for f in KALKULATION if f.name not in ("gewinn", "aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur",
+                                               "ruesten_angebot_eur")],
     _KOPF_FELD["fracht"], _KOPF_FELD["skonto"],
     *(STUFE_FELD[n] for n in ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten",
                               "arbeitsgang", "arbeitsgang_min", "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit",
@@ -282,7 +283,8 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
                      "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
-                     "aufschlag_blech", "aufschlag_zukauf")      # Aufschlag Bleche bzw. Zukaufteile des Angebots
+                     "aufschlag_blech", "aufschlag_zukauf",      # Aufschlag Bleche bzw. Zukaufteile des Angebots
+                     "ruesten_abmessung_eur", "ruesten_angebot_eur")     # Rüsten als fester Betrag
     # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
     if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
         tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
@@ -448,12 +450,14 @@ def stufe_bepreisen(lz, stufe, mz, einst, alle=None, positionen=None):
     ohne = dict(einst, mindestpreis=0)
     erste = [preise_anwenden(x, w, ohne, alle, positionen) for x, w in zip(lz, werte)]
     mindest = _zahl(einst.get("mindestpreis"))
-    netto = sum(x["preis"]["netto"] for x in erste if x.get("preis"))
+    netto = sum(x["preis"]["ware"] for x in erste if x.get("preis"))      # ab 26.10.2026 Ware, davor Verkaufspreis
     if not (mindest > 0 and 0 < netto < mindest):
         return [preise_anwenden(x, w, einst, alle, positionen, anhebung=0.0) for x, w in zip(lz, werte)]
     faktor = mindest / netto
+    neu = rechnen.neue_preisregeln(einst)
     return [preise_anwenden(x, w, einst, alle, positionen,
-                            anhebung=(e["preis"]["netto"] * (faktor - 1) if e.get("preis") else 0.0))
+                            anhebung=(e["preis"]["ware"] * (faktor - 1) / (1 - e["preis"]["skonto_anteil"] if neu else 1)
+                                      if e.get("preis") else 0.0))
             for x, w, e in zip(lz, werte, erste)]
 
 
@@ -712,7 +716,14 @@ def wirksam(stufe, einst):
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
                 neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")),
                 mindestpreis=_zahl(einst.get("mindestpreis")),
-                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst))
+                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst))
+
+
+def marge(gewinn, anhebung, selbst):
+    """Marge am Warenwert (Patrick 26.10.2026, 3a): (Gewinn + Anhebung auf den Mindestpreis) ÷ (Selbstkosten + Gewinn +
+    Anhebung), ohne Fracht und Skonto; anhebung ohne Skonto. None ohne Warenwert."""
+    basis = selbst + gewinn + anhebung
+    return (gewinn + anhebung) / basis if basis else None
 
 
 def preise(b, menge, w, anhebung=None):
@@ -753,17 +764,21 @@ def preise(b, menge, w, anhebung=None):
     # Fracht ohne Gewinn danach (festgeschrieben vor dem 23.10.2026: Gewinn nur auf die Herstellkosten, wie bisher)
     selbst = herstell + b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + zk_e + zk_a
     if w.get("selbst_basis", True):
-        gewinn = selbst * w["gewinn"]
+        # ab 26.10.2026: Zukaufteile ohne Gewinn, nur mit ihrem Aufschlag
+        gewinn = (selbst - zk_e - zk_a if w.get("neu", True) else selbst) * w["gewinn"]
         ohne = selbst + gewinn + b["fracht"]
     else:
         gewinn = herstell * w["gewinn"]
         weitere = b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + b["fracht"]
         ohne = herstell + gewinn + weitere + zk_e + zk_a
     netto = ohne / (1 - sk)
-    # Mindestpreis netto je Stufe (jede Stufe ist ein eigenes Angebot): Stückpreis anheben, auf den Cent aufgerundet
+    # Mindestpreis netto je Stufe (jede Stufe ist ein eigenes Angebot): Stückpreis anheben, auf den Cent aufgerundet;
+    # ab 26.10.2026 für die Ware ohne Fracht nach Skonto (ware = Selbstkosten + Gewinn), davor für den Verkaufspreis
+    ware = selbst + gewinn if w.get("neu", True) else netto
     if anhebung is None:
         mindest = _zahl(w.get("mindestpreis"))
-        anhebung = mindest - netto if mindest > 0 and 0 < netto < mindest else 0.0
+        anhebung = (mindest - ware) / (1 - sk if w.get("neu", True) else 1) if mindest > 0 and 0 < ware < mindest \
+            else 0.0
     netto += anhebung
     einmalig = 0.0
     if w["ruesten"] == SEPARAT:     # Rüsten mit Gemeinkosten, Gewinn und Skonto als einmalige Position
@@ -778,7 +793,8 @@ def preise(b, menge, w, anhebung=None):
     return dict(fehler=None, m_grund=m0, m_verlust=verlust, m_zuschlag=mz, m_gesamt=m1 + mz, fertigung=fert,
                 fert_gesamt=f_sum, ruesten=b["ruesten"], ruest_gesamt=r_sum, gk_fertigung=gk_f, fremd=b["fremd"],
                 gk_fremd=gk_fl, neben=neben, herstell=herstell, selbst=selbst, gewinn=gewinn,
-                marge=gewinn / netto if netto else None, pauschalen=b["pauschalen"],
+                marge=marge(gewinn, anhebung * (1 - sk), selbst), ware=ware, skonto_anteil=sk,
+                pauschalen=b["pauschalen"],
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
                 skonto=netto - anhebung - ohne, mindest_anhebung=anhebung, netto=netto, einmalig=einmalig,

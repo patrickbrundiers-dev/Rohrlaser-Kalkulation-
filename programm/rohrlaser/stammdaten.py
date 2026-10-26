@@ -629,6 +629,8 @@ IMPORTPROFILE = Tabelle(
      Feld("werkstoff_id", "Werkstoff Rohre/Profile", "auswahl", auswahl="werkstoff", breite=120),
      Feld("flach_als", "Flache Teile als", "auswahl", auswahl="flachals", breite=150),
      Feld("anbau_weglassen", "Anbauteile nicht übernehmen", "auswahl", auswahl="janein", breite=90),
+     # Plan Angebotsablauf V4: Zusatzarbeiten für alle Teile dieses Kunden (Namen mit ; getrennt, z. B. Feuerverzinken)
+     Feld("zusatz", "Zusatzarbeiten für alle Teile (mit ; getrennt)", breite=180),
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("kundennr",),
     "Vorgaben für den STEP-Import je Kunde; sie gelten in Angeboten dieses Kunden, leere Felder wie in den "
@@ -761,7 +763,12 @@ EINSTELLUNGEN = (
     Einstellung("zukauf_aufschlag", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)", "Kalkulation",
                 "zahl_leer", None, 0, 1000),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, 0, 1440),
-    Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, 0, 100000),
+    # Rüsten als fester Betrag statt Minuten × Stundensatz (Patrick 26.10.2026), Vorgabe neuer Angebote; leer = Minuten
+    Einstellung("ruesten_abmessung_eur", "Rüsten je Abmessung als Betrag [€] (leer = Minuten)", "Kalkulation",
+                "zahl_leer", None, 0, 100000),
+    Einstellung("ruesten_angebot_eur", "Rüsten je Angebot als Betrag [€] (leer = Minuten der Maschine)", "Kalkulation",
+                "zahl_leer", None, 0, 100000),
+    Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 0.0, 0, 100000),
     # Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026; bis 0.8.21: 8,50 € je Position):
     # Grundzeit je Position + Zeit je Innenkontur, je Position von Hand überschreibbar
     Einstellung("programmierung_zeit", "Programmierzeit je Position [min]", "Kalkulation", "zahl", 5.0, 0, 1440),
@@ -779,7 +786,7 @@ EINSTELLUNGEN = (
     # im Angebots-PDF: Hinweis, welche Stangen der Kunde beistellen muss
     Einstellung("beistellung_hinweis", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf", "Angebots-PDF",
                 "auswahl", "ja", auswahl="janein"),
-    Einstellung("mindestpreis", "Mindestpreis je Angebot netto [€] (0 = keiner)", "Kalkulation", "zahl", 200.0, 0,
+    Einstellung("mindestpreis", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)", "Kalkulation", "zahl", 200.0, 0,
                 1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
     # Mindestwerte erreicht sind
@@ -947,7 +954,7 @@ EINSTELLUNGEN = (
     Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
                 100, 0, 10000),
     # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
-    Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)", "Angebot", "anteil",
+    Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
     # Standard-Staffeln (Plan Arbeitsabläufe W3): Faktoren auf die Bestellmenge, angelegt per Knopf
     Einstellung("staffeln_standard", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",

@@ -252,6 +252,142 @@ class BohrbildDialog(QDialog):
         super().accept()
 
 
+class BohrbildSammelDialog(QDialog):
+    """„Bohrungen prüfen“ für mehrere Positionen in einer Tabelle (Plan Angebotsablauf V3): je Zeile Pos., Art, Ø,
+    Anzahl je Teil, Gewinde, Laser und Bestätigen/Ablehnen; „Alle bestätigen“ und ein Übernehmen statt eines Fensters
+    je Position. Preise je Position und Gewinde von Hand bleiben, wie sie sind (dafür das Fenster der einen Position).
+    positionen = [(Zeile, Position, Wandstärke)]. Ergebnis: self.ergebnis = {Zeile: Bohrbild-Liste}."""
+    SPALTEN = ("Pos.", "Artikelnummer", "Art", "Ø [mm]", "Anzahl je Teil", "Gewinde", "Laser", "Prüfung")
+    PRUEF = 7
+
+    def __init__(self, parent, positionen, gewinde, laser=None):
+        super().__init__(parent)
+        self.ergebnis = None
+        self.zeilen = []        # (Zeile der Position, Index im Bohrbild, Auswahl Gewinde, Laser, Knopfgruppe)
+        self.listen = {}
+        for r, p, wand in positionen:
+            self.listen[r] = [dict(z) for z in bohrbild.aus_position(p, gewinde, wand, laser or bohrbild.GRAVUR)]
+        gewinde_namen = [g for g, _ in gewinde]
+        n = sum(len(liste) for liste in self.listen.values())
+        self.setWindowTitle(f"Bohrungen prüfen – {len(positionen)} Positionen")
+        self.resize(1100, 520)
+        lay = QVBoxLayout(self)
+        lay.addWidget(hilfe.Hinweis(
+            "Je Zeile „Bestätigen“ oder „Ablehnen“, oder alles mit „Alle bestätigen“. Gewinde werden erst nach dem "
+            "Bestätigen gerechnet; bestätigte Senkungen, Flowdrill und Bohren kommen als Zusatzarbeit (€/Stück) in die "
+            "Position. Preise je Position und Gewinde von Hand: Doppelklick auf die Position im Angebot.",
+            schluessel="bohrbild_sammel"))
+        self.tabelle = QTableWidget(n, len(self.SPALTEN))
+        self.tabelle.setHorizontalHeaderLabels(self.SPALTEN)
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setSelectionMode(QAbstractItemView.NoSelection)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        zeile = 0
+        for r, p, _ in positionen:
+            for i, z in enumerate(self.listen[r]):
+                art = {"Bohrung": "Bohrung (Kernloch)", "Fließloch": "Flowdrill",
+                       bohrbild.BOHREN: "Bohren (< 0,7 × Wand)"}.get(z["art"], z["art"])
+                masse = bohrbild.dez(z.get("d")) + (f" / {bohrbild.dez(z.get('D'))}" if z.get("D") else "")
+                for c, text in ((0, str(p.get("pos") or "") if i == 0 else ""),
+                                (1, str(p.get("artikel") or "") if i == 0 else ""), (2, art), (3, masse),
+                                (4, str(z.get("anzahl") or ""))):
+                    it = QTableWidgetItem(text)
+                    if c in (0, 3, 4):
+                        it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                    self.tabelle.setItem(zeile, c, it)
+                gw = None
+                if z["art"] in ("Bohrung", "Fließloch"):
+                    gw = QComboBox()
+                    gw.addItem(KEIN_GEWINDE)
+                    gw.addItems(sorted(set(gewinde_namen) | ({z["gewinde"]} if z.get("gewinde") else set()),
+                                       key=_gewinde_sortierung))
+                    gw.setCurrentText(z.get("gewinde") or KEIN_GEWINDE)
+                    self.tabelle.setCellWidget(zeile, 5, gw)
+                ls = None
+                if z["art"] == "Senkung":
+                    ls = QCheckBox(f"Senk-Ø {bohrbild.dez(z.get('D'))} gravieren")
+                    ls.setChecked(bool(z.get("gravur")))
+                elif z["art"] in ("Fließloch", bohrbild.BOHREN):
+                    ls = QComboBox()
+                    ls.addItems(bohrbild.LASER)
+                    ls.setCurrentText(z.get("laser") or bohrbild.GRAVUR)
+                if ls is not None:
+                    self.tabelle.setCellWidget(zeile, 6, ls)
+                else:
+                    self.tabelle.setItem(zeile, 6, QTableWidgetItem("schneidet die Bohrung"))
+                knoepfe = QWidget()
+                kl = QHBoxLayout(knoepfe)
+                kl.setContentsMargins(2, 0, 2, 0)
+                gruppe = QButtonGroup(knoepfe)
+                for text, status, farbe in (("✓ Bestätigen", bohrbild.BESTAETIGT, "#C6EFCE"),
+                                            ("✗ Ablehnen", bohrbild.ABGELEHNT, "#FFC7CE")):
+                    b = QPushButton(text)
+                    b.setCheckable(True)
+                    b.setProperty("status", status)
+                    b.setStyleSheet(f"QPushButton:checked {{ background: {farbe}; font-weight: bold; }}")
+                    b.setChecked(z.get("status") == status)
+                    gruppe.addButton(b)
+                    kl.addWidget(b)
+                gruppe.buttonClicked.connect(self._stand)
+                self.tabelle.setCellWidget(zeile, self.PRUEF, knoepfe)
+                self.zeilen.append((r, i, gw, ls, gruppe))
+                zeile += 1
+        kopf = self.tabelle.horizontalHeader()
+        kopf.setSectionResizeMode(QHeaderView.ResizeToContents)
+        kopf.setSectionResizeMode(1, QHeaderView.Interactive)
+        self.tabelle.setColumnWidth(1, 220)
+        kopf.setStretchLastSection(True)
+        self.tabelle.verticalHeader().setDefaultSectionSize(34)
+        lay.addWidget(self.tabelle, 1)
+        unten = QHBoxLayout()
+        alle = QPushButton("Alle bestätigen")
+        alle.clicked.connect(self.alle_bestaetigen)
+        unten.addWidget(alle)
+        self.info = QLabel()
+        unten.addWidget(self.info, 1)
+        lay.addLayout(unten)
+        bb = QDialogButtonBox()
+        bb.addButton("Übernehmen", QDialogButtonBox.AcceptRole)
+        bb.addButton("Abbrechen", QDialogButtonBox.RejectRole)
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        lay.addWidget(bb)
+        self._stand()
+
+    def setzen(self, nr, status):
+        for b in self.zeilen[nr][4].buttons():
+            b.setChecked(b.property("status") == status)
+        self._stand()
+
+    def alle_bestaetigen(self):
+        for nr in range(len(self.zeilen)):
+            self.setzen(nr, bohrbild.BESTAETIGT)
+
+    def werte(self):
+        """{Zeile der Position: Bohrbild nach der Wahl im Dialog}."""
+        out = {r: [dict(z) for z in liste] for r, liste in self.listen.items()}
+        for r, i, gw, ls, gruppe in self.zeilen:
+            z = out[r][i]
+            b = gruppe.checkedButton()
+            z["status"] = b.property("status") if b else bohrbild.OFFEN
+            if gw is not None:
+                z["gewinde"] = None if gw.currentText() == KEIN_GEWINDE else gw.currentText()
+            if isinstance(ls, QCheckBox):
+                z["gravur"] = ls.isChecked()
+            elif isinstance(ls, QComboBox):
+                z["laser"] = ls.currentText()
+        return out
+
+    def _stand(self, *_):
+        n = sum(bohrbild.offen(liste) for liste in self.werte().values())
+        self.info.setText(f"<span style='color:#7A5A00'>{n} Zeile{'n' if n != 1 else ''} noch offen</span>" if n
+                          else "Alle Zeilen geprüft.")
+
+    def accept(self):
+        self.ergebnis = self.werte()
+        super().accept()
+
+
 def _gewinde_sortierung(g):
     try:
         return (0, float(str(g).upper().lstrip("M").replace(",", ".")))

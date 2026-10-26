@@ -163,7 +163,7 @@ else:
         gesehen["zeilen"] = [(z.it.text(0), z.it.text(1), z.pr.currentText()) for z in d.zeilen]
         gesehen["satzfeld"] = (d.satz_feld.isVisibleTo(d) and d.satz_spin.value() == 1
                                and not d.satz_knopf.isChecked())                # Vorgabe: kein Satz
-        gesehen["kopf_einzeln"] = d.baum.headerItem().text(5)
+        gesehen["kopf_einzeln"] = d.baum.headerItem().text(d.SP_STUECK)
         gesehen["baugruppe"] = d.baugruppen[d.datei].text(0)
         bg = d.ansicht.ansicht.modell                                  # 3D: Baugruppe in Einbaulage
         gesehen["bg"] = (d.ansicht.info.text(), bg and bg.groesse, bg and sorted(bg.arten))
@@ -171,11 +171,11 @@ else:
         gesehen["vorgabe"] = [(z.ws.currentText(), z.sp.value()) for z in d.zeilen]   # Einstellung, 1 Stück
         d.alle_setzen("S355-10219", 3)
         d.satz_spin.setValue(2)                                       # Anzahl erhöhen: bleibt Einzelpositionen
-        gesehen["anzahl"] = ([z.sp.value() for z in d.zeilen], d.satz_knopf.isChecked(), d.baum.headerItem().text(5),
+        gesehen["anzahl"] = ([z.sp.value() for z in d.zeilen], d.satz_knopf.isChecked(), d.baum.headerItem().text(d.SP_STUECK),
                              d.baugruppen[d.datei].text(0).endswith("als Einzelteile"))
         d.satz_knopf.setChecked(True)                                 # erst der Knopf macht einen Satz (2 Sätze)
         d.satz_spin.setValue(4)                                       # oben 4 Sätze eintragen
-        gesehen["kopf"] = d.baum.headerItem().text(5)
+        gesehen["kopf"] = d.baum.headerItem().text(d.SP_STUECK)
         gesehen["je_satz"] = [z.sp.value() for z in d.zeilen]          # Spalte zeigt jetzt Stück je Satz
         d.zeile_setzen("T08_Gestell_Baugruppe-K4", uebernehmen=False)
         d.baum.setCurrentItem(d.zeilen[0].it)
@@ -226,9 +226,9 @@ else:
     QTimer.singleShot(20, pruefen_mehrere)
     einzel = HIER / "step" / "T01_RR42-4x2_L1250.step"
     sq.step_importieren([str(BAUGRUPPE), str(einzel)])
-    assert gesehen["d1"] == ("Datei 1 von 2: T08_Gestell_Baugruppe.step",
-                             ["T08_Gestell_Baugruppe-K1", "T08_Gestell_Baugruppe-K4"], True, False), gesehen
-    assert gesehen["d2"] == ("Datei 2 von 2: T01_RR42-4x2_L1250.step", ["T01_RR42-4x2_L1250"], False, False), gesehen
+    alle = ["T08_Gestell_Baugruppe-K1", "T08_Gestell_Baugruppe-K4", "T01_RR42-4x2_L1250"]   # alle Dateien in einer Liste
+    assert gesehen["d1"] == ("Datei 1 von 2: T08_Gestell_Baugruppe.step", alle, True, False), gesehen
+    assert gesehen["d2"] == ("Datei 2 von 2: T01_RR42-4x2_L1250.step", alle, False, False), gesehen
     assert gesehen["zurueck"].startswith("Datei 1 von 2"), gesehen
     assert gesehen["leer"] and gesehen["einzelteile"].endswith("– als Einzelteile"), gesehen
     p = db.positionen(aq)

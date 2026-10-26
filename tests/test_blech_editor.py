@@ -182,7 +182,7 @@ ok("B4 Angebot: Blech / Kantteil legt Zukaufartikel mit Richtpreis und Position 
    "öffnen trägt den neuen Preis ab Stückzahl ein")
 
 # ------------------------------------------------------------------ B5 Staffelstufe
-from rohrlaser import staffeln  # noqa: E402
+from rohrlaser import ausgabe, staffeln  # noqa: E402
 daten = db.blech_daten()
 p = db.positionen(a)[-1]
 eingabe = blech.lesen(p["technik"])
@@ -230,7 +230,8 @@ assert nah(gross["bausteine"]["zukauf_einstand"], 100 * 5.0)
 assert "Blech" not in (gleich.get("hinweis") or "")
 from rohrlaser.staffel_seite import angebotspreise  # noqa: E402
 ap = angebotspreise(s.positionen, s._rechnung()[0])
-assert nah(gleich["preis_einheit"], ap[str(p["pos"])], 0.005), (gleich["preis_einheit"], ap)
+# Ware 199,20 € < 200 €: der Mindestpreis greift (für die Ware nach Skonto, 26.10.2026), Stückpreis aufgerundet wie im PDF
+assert gleich["preis_einheit"] == ausgabe.aufrunden(ap[str(p["pos"])]), (gleich["preis_einheit"], ap)
 ok("B5 Staffelstufe: Richtpreis für die Stückzahl der Stufe neu, EK aus dem Einkauf ab 50 St geht vor, "
    "Stückzahl des Angebots = Angebotspreis")
 # ------------------------------------------------------------------ B6 Kantteil aus dem STEP-Import

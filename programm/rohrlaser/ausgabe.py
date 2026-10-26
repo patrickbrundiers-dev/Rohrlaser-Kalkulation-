@@ -233,7 +233,12 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             einmal = 0.0        # Einmalkosten der Baugruppe als eigene Zeile: nicht im Preis je Baugruppe
             if bg is not None and (kalk_zeilen[bg[0]] or {}).get("bg_einmal_preis_teil"):
                 einmal = kaufm_runden(kalk_zeilen[bg[0]]["bg_einmal_preis_teil"] * _wert(bg[1].get("stueck")), 2)
-            satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile) - (einmal / saetze), 2)
+            if rechnen.neue_preisregeln(einst):    # aus ungerundeten Stückpreisen wie die Staffel (Patrick 26.10.2026)
+                roh = sum(_wert((kalk_zeilen[j] or {}).get("preis_teil")) * je(q) for j, q in teile) - einmal / saetze
+                mindest_satz = any(_wert((kalk_zeilen[j] or {}).get("mindestpreis_teil")) > 0 for j, _ in teile)
+                satzpreis = aufrunden(roh) if mindest_satz else kaufm_runden(roh, 2)
+            else:
+                satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile) - (einmal / saetze), 2)
             if bg is None:
                 zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}", menge=saetze,
                                    preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
@@ -286,7 +291,9 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=kaufm_runden(netto + mwst, 2), mwst_satz=satz_mwst, staffeln=staffeln,
                 hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[],
                 lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen")),
-                mindestpreis=f"Mindestauftragswert {euro_text(mindest)} € netto." if gilt and mindest > 0 else "",
+                mindestpreis=(f"Mindestauftragswert {euro_text(mindest)} € netto"
+                              + (" (Warenwert ohne Fracht)." if rechnen.neue_preisregeln(einst) else ".")
+                              if gilt and mindest > 0 else ""),
                 kundenreferenz=kopf.get("kundenreferenz") or "",
                 beistellung=beistellung_text(positionen, ergebnis, k, einst, dezimal))
 
