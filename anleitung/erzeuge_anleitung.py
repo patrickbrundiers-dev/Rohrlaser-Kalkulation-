@@ -1583,8 +1583,8 @@ def kapitel_step(i):
             "Angebots kopieren</b> angehakt, kommen die STEP-Dateien beim Übernehmen in den Unterordner <i>STEP</i> "
             "im Ordner des Angebots ([[angebotsordner]]; Vorgabe in den Einstellungen).",
             "Enthält eine STEP mehrere Teile, steht sie als <b>Baugruppe</b> in der Liste und die 3D-Ansicht zeigt "
-            "sie zusammengebaut. Oben steht das Feld <b>Sätze</b>, vorbelegt mit 1: die Baugruppe wird ein Satz; "
-            "leer = jedes Teil als Einzelposition (siehe Baugruppen als Satz).",
+            "sie zusammengebaut. Oben steht das Feld <b>Sätze</b>, vorbelegt leer: jedes Teil wird eine "
+            "Einzelposition. Nur wer eine Anzahl Sätze einträgt, bekommt einen Satz (siehe Baugruppen als Satz).",
             "Fehlen Profile in den Stammdaten, steht unter der Liste ein Häkchen <b>Fehlende Profile aus den "
             "Messwerten anlegen</b> (vorbelegt; danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im "
             "Angebot, steht dort <b>… trotzdem noch einmal eintragen</b> (Vorgabe aus = überspringen). Nach dem "
@@ -1948,10 +1948,11 @@ def kapitel_step(i):
             "<i>geschlossen</i> mit <i>offene_seite</i> (Seite, Lücken, Breite, Länge, Steg, Radius, vergrößert, "
             "Normrohr, Schalen je Umfang, vorher); die Spalte <i>offene_seite</i> der Messwerte enthält dasselbe.")
     i.abschnitt("Baugruppen als Satz")
-    i.text("Mehrere Teile in einer STEP-Datei = <b>Baugruppe</b>. Feld <b>Sätze</b> (Vorgabe 1): gleiche Teile werden "
-           "eine Position mit <b>Stück je Satz</b>; leer = jedes Teil einzeln.", kurz=True)
+    i.text("Mehrere Teile in einer STEP-Datei = <b>Baugruppe</b>. Feld <b>Sätze</b> (Vorgabe leer = jedes Teil "
+           "einzeln); erst mit einer Anzahl Sätze werden gleiche Teile eine Position mit <b>Stück je Satz</b>.",
+           kurz=True)
     i.bild("step_satz_pruefen", "Baugruppe im Prüfdialog: 4 Sätze eingetragen", hoehe=80 * mm, legende=[
-        (1, "<b>Sätze</b>: Anzahl Sätze (Vorgabe 1); leer = Einzelpositionen. Rechts daneben der Satzname."),
+        (1, "<b>Sätze</b>: Anzahl Sätze (Vorgabe leer = Einzelpositionen). Rechts daneben der Satzname."),
         (2, "Die Baugruppe mit ihren Teilen; die Spalte zeigt <b>Stück je Satz</b>."),
         (3, "3D-Ansicht der zusammengebauten Baugruppe, gleiche Teile in gleicher Farbe.")])
     i.bild("step_satz_positionen", "Baugruppe als Satz: 3 gleiche Quadratrohre und 1 Rundrohr, 4 Sätze",
@@ -1964,15 +1965,16 @@ def kapitel_step(i):
             "Gleiche Teile haben dieselbe Farbe; das farbige Quadrat vor dem Teil in der Liste zeigt sie.",
             "Klick auf eine Profilgruppe: die Baugruppe mit diesen Teilen blau, den Rest hellgrau. Klick auf ein "
             "Teil: das Einzelteil mit Schnitten und Konturen. Klick auf die Baugruppen-Zeile: wieder alles.")
-    i.text("Das Feld <b>Sätze</b> oben ist mit <b>1</b> vorbelegt, die Baugruppe wird also ein Satz. Ist eine "
-           "Anzahl eingetragen:")
+    i.text("Das Feld <b>Sätze</b> oben ist <b>leer</b> vorbelegt: eine STEP mit mehreren Teilen wird nicht von selbst "
+           "ein Satz, jedes Teil wird eine Einzelposition. Als Satz anlegen: oben die Anzahl Sätze eintragen "
+           "(z. B. 1). Ist eine Anzahl eingetragen:")
     i.liste("Der Satz heißt wie die Datei (ohne Endung) und steht in der Spalte <b>Satz</b> jeder Position.",
             "Gleiche Teile (gleiche Maße, Konturen und Bohrungen, Lage im Raum egal) werden eine Position; "
             "<b>Stück je Satz</b> ist ihre Anzahl in der Baugruppe.",
             "Die Spalte der Rohrliste heißt dann <b>Stück je Satz</b> (vorgegeben: Anzahl in der Baugruppe, "
             "änderbar). Stückzahl der Position = Sätze × Stück je Satz.",
             "Das STEP-Protokoll zeigt weiter jeden Körper, die gleichen mit dem Hinweis <i>gleich wie …</i>.")
-    i.text("Wird das Feld <b>geleert</b> (auf 0), wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
+    i.text("Bleibt das Feld <b>leer</b> (bzw. wird es auf 0 gesetzt), wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
            "der Rohrliste. Bei mehreren Dateien gilt das Feld je Datei. Staffelpreise und Angebot rechnen den Satz "
            "wie einen von Hand angelegten ([[staffeln]]).")
     i.text("Neben dem Feld steht das Häkchen <b>als Schweißbaugruppe</b> (nur mit Sätzen, Vorgabe aus). Damit wird "

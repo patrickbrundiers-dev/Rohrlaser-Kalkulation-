@@ -116,7 +116,7 @@ class _Zeile:
 
 class StepPruefDialog(QDialog):
     """Gemessene Rohre je STEP-Datei und Profil mit 3D-Ansicht. Oben Pfeile zum Wechseln der Datei und bei Dateien
-    mit mehreren Teilen (Baugruppe) das Feld 'Sätze' (Vorgabe 1 Satz, leer = Einzelpositionen); ihre Teile stehen
+    mit mehreren Teilen (Baugruppe) das Feld 'Sätze' (Vorgabe leer = Einzelpositionen, ab 1 = Satz); ihre Teile stehen
     unter einem Knoten 'Baugruppe'. Je Teil übernehmen ja/nein, Profil, Werkstoff
     und Stückzahl (bei einem Satz: Stück je Satz); gleiche Teile einer Datei stehen in einer Zeile (Spalte
     'In Datei'). OK schreibt die Werte als _uebernehmen, _profil, _werkstoff, _stueck, _saetze, _je_satz in die
@@ -164,8 +164,8 @@ class StepPruefDialog(QDialog):
         # eigene Körper, die an ein Rohr geschweißt sind: standardmäßig nicht übernehmen (nur Gravur auf dem Rohr)
         self.anbau_von = step.anbau_von(messwerte)
         self.anbau_weglassen = all(m.get("_anbau_weglassen", True) for m in messwerte)
-        # Datei -> Sätze (0 = leer = Einzelpositionen); Baugruppen sind als 1 Satz vorbelegt
-        self.saetze = {d: 1 if d in self.mehrteilig else 0 for d in self.dateien}
+        # Datei -> Sätze (0 = leer = Einzelpositionen); auch Baugruppen sind leer vorbelegt, ein Satz nur auf Wunsch
+        self.saetze = {d: 0 for d in self.dateien}
         for m in messwerte:
             if "_saetze" in m and m.get("datei") in self.mehrteilig:
                 self.saetze[m["datei"]] = int(m["_saetze"] or 0)
@@ -191,8 +191,8 @@ class StepPruefDialog(QDialog):
         self.satz_spin = RechenSpinGanz()
         self.satz_spin.setRange(0, 100000)
         self.satz_spin.setSpecialValueText("leer")
-        self.satz_spin.setToolTip("Anzahl Sätze dieser Baugruppe (Vorgabe 1). Leer = jedes Teil als Einzelposition "
-                                  "laden.")
+        self.satz_spin.setToolTip("Anzahl Sätze dieser Baugruppe. Vorgabe leer = jedes Teil als Einzelposition laden; "
+                                  "ab 1 wird die Datei ein Satz.")
         self.satz_spin.valueChanged.connect(lambda n: self.saetze_setzen(n))
         sl.addWidget(self.satz_spin)
         # Schweißbaugruppe: Satz als Position der Art Schweißbaugruppe mit den Unterbaugruppen der STEP-Struktur
@@ -363,8 +363,8 @@ class StepPruefDialog(QDialog):
                          "eintragen. Art: eine andere wählen, wenn das Teil falsch erkannt wurde. Nicht übernehmbare "
                          "Teile (in 3D magenta): darunter Profilform und Profil-ID wählen und „Nachtragen“. Anbauteile (aufgeschweißte Bolzen, Laschen …): Doppelklick auf "
                          "die Spalte Anbauteile = prüfen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
-                         "Enthält eine Datei mehrere Teile, steht sie als Baugruppe da und wird ein Satz: oben die "
-                         "Anzahl Sätze eintragen (Vorgabe 1; leer = Einzelpositionen); die Spalte zeigt Stück je Satz, "
+                         "Enthält eine Datei mehrere Teile, steht sie als Baugruppe da; die Teile werden Einzelpositionen "
+                         "(Sätze leer). Als Satz: oben die Anzahl Sätze eintragen; die Spalte zeigt dann Stück je Satz, "
                          "Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
                          "markieren (Strg/Umschalt) und unten Werte setzen; „Für alle“ gilt für alle Dateien. In der "
                          "3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün, "

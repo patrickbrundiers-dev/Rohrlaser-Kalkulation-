@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.143", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen ist "
+                "das Feld <i>Sätze</i> bei einer Baugruppe jetzt leer vorbelegt, jedes Teil wird eine Einzelposition. "
+                "Einen Satz gibt es nur, wenn oben eine Anzahl Sätze eingetragen wird ([[step]]).",
+     "STEP mit mehreren Teilen: Vorgabe Einzelpositionen, Satz nur auf Wunsch (Feld Sätze)"],
     ["0.9.142", "<b>STEP-Import: vier Fehler behoben</b>: Ein geschlossenes Rohr mit vielen Langlöchern (z. B. QR "
                 "40x40x2) wurde als Kantteil erkannt; jetzt ist ein geschlossenes Rohr immer ein Rohr, alle Schnitte "
                 "werden übernommen ([[bleche]]). Im Rohr-Editor fehlte der Umriss komplexer Enden (Ausklinkung wurde "

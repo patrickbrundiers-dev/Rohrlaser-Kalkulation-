@@ -161,7 +161,8 @@ else:
             QTimer.singleShot(20, pruefen)
             return
         gesehen["zeilen"] = [(z.it.text(0), z.it.text(1), z.pr.currentText()) for z in d.zeilen]
-        gesehen["satzfeld"] = d.satz_feld.isVisibleTo(d) and d.satz_spin.value() == 1     # Vorgabe 1 Satz
+        gesehen["satzfeld"] = d.satz_feld.isVisibleTo(d) and d.satz_spin.value() == 0     # Vorgabe leer: kein Satz
+        gesehen["kopf_einzeln"] = d.baum.headerItem().text(5)
         gesehen["baugruppe"] = d.baugruppen[d.datei].text(0)
         bg = d.ansicht.ansicht.modell                                  # 3D: Baugruppe in Einbaulage
         gesehen["bg"] = (d.ansicht.info.text(), bg and bg.groesse, bg and sorted(bg.arten))
@@ -189,8 +190,10 @@ else:
     assert gesehen["bg"][1] > gesehen["einzelteil"] * 1.1, gesehen      # mehr als ein Rohr: zusammengesetzt
     assert gesehen["3d"] and gesehen["satzfeld"] and gesehen["kopf"] == "Stück je Satz", gesehen
     assert gesehen["je_satz"] == [3, 1], gesehen
-    assert gesehen["vorgabe"] == [("S235-10219", 3), ("S235-10219", 1)], gesehen      # Stück je Satz
-    assert gesehen["baugruppe"] == "Baugruppe „T08_Gestell_Baugruppe“ – 4 Teile, 2 verschieden – 1 Satz", gesehen
+    assert gesehen["kopf_einzeln"] == "Stückzahl", gesehen
+    assert [w for w, _ in gesehen["vorgabe"]] == ["S235-10219", "S235-10219"], gesehen
+    assert gesehen["baugruppe"] == "Baugruppe „T08_Gestell_Baugruppe“ – 4 Teile, 2 verschieden – als Einzelteile", \
+        gesehen
     assert [(x["artikel"], x["werkstoff_id"], x["stueck"], x["je_satz"], x["satz"]) for x in db.positionen(ap)] == [
         ("T08_Gestell_Baugruppe-K1", "S355-10219", 12, 3, "T08_Gestell_Baugruppe")], db.positionen(ap)
 
@@ -202,7 +205,7 @@ else:
             return
         sichtbar = lambda: [z.it.text(0) for z in d.zeilen if not z.it.parent().isHidden()]
         gesehen["d1"] = (d.datei_text.text(), sichtbar(), d.satz_feld.isVisibleTo(d), d.zurueck.isEnabled())
-        d.satz_spin.setValue(0)                                       # Sätze leer = Einzelpositionen
+        gesehen["leer"] = d.satz_spin.value() == 0                     # Vorgabe: Sätze leer = Einzelpositionen
         gesehen["einzelteile"] = d.baugruppen[d.datei].text(0)
         d.vor.click()
         gesehen["d2"] = (d.datei_text.text(), sichtbar(), d.satz_feld.isVisibleTo(d), d.vor.isEnabled())
@@ -221,7 +224,7 @@ else:
                              ["T08_Gestell_Baugruppe-K1", "T08_Gestell_Baugruppe-K4"], True, False), gesehen
     assert gesehen["d2"] == ("Datei 2 von 2: T01_RR42-4x2_L1250.step", ["T01_RR42-4x2_L1250"], False, False), gesehen
     assert gesehen["zurueck"].startswith("Datei 1 von 2"), gesehen
-    assert gesehen["einzelteile"].endswith("– als Einzelteile"), gesehen
+    assert gesehen["leer"] and gesehen["einzelteile"].endswith("– als Einzelteile"), gesehen
     p = db.positionen(aq)
     assert [(x["artikel"][-2:], x["satz"], x["stueck"], x["werkstoff_id"]) for x in p] == [
         ("K1", None, 5, "S235-10219"), ("K2", None, 5, "S235-10219"), ("K3", None, 5, "S235-10219"),
