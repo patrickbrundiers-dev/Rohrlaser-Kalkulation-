@@ -1059,8 +1059,9 @@ def bericht(erg, pid=None):
     """Zusammenfassung für den Rohr-Editor (eine Zeile je Punkt)."""
     eing = erg.get("eingaben") or {}
     n = sum(int(z.get("anzahl") or 1) * (2 if z.get("wand") == "beide" else 1) for z in eing.get("konturen") or ())
-    zeilen = [f"Aus DXF: {_profil_text(erg['profil'])} (aus {erg.get('profil_quelle')}), Länge "
-              f"{_z(erg['laenge'])} mm, Ende A {_ende_text(eing.get('a'))}, Ende B {_ende_text(eing.get('b'))}, "
+    laenge = f"{_z(erg['laenge'])} mm" if erg.get("laenge") else "fehlt"
+    zeilen = [f"Aus {erg.get('quelle_name') or 'DXF'}: {_profil_text(erg['profil'])} (aus {erg.get('profil_quelle')}), "
+              f"Länge {laenge}, Ende A {_ende_text(eing.get('a'))}, Ende B {_ende_text(eing.get('b'))}, "
               f"{n} Kontur{'en' if n != 1 else ''}."]
     if pid is None:
         zeilen.append(f"Profil {_profil_text(erg['profil'])} fehlt in den Stammdaten: bitte mit „Neu …“ anlegen "

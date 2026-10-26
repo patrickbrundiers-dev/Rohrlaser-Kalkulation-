@@ -18,6 +18,7 @@ DPI = 300                   # PDF-Seiten werden so gerendert
 MAX_PIXEL = 4200            # längste Seite höchstens (A4 mit 300 dpi: 3508)
 MIN_BREITE = 2000           # kleinere Bilder (Handyfoto, Fax) werden vergrößert
 UNSICHER_UNTER = 70         # Erkennungssicherheit (0–100) darunter: Wort unsicher
+LUECKE = 1.5               # Lücke zwischen Wörtern [× Schrifthöhe], ab der ein neues Textstück beginnt
 ZEIT_S = 60                 # je Seite
 BILD = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 
@@ -60,7 +61,9 @@ def seiten(pfad):
 
 
 def _tsv_text(tsv):
-    """Tesseract-TSV in (Text mit einer Zeile je erkannter Zeile, unsichere Wörter)."""
+    """Tesseract-TSV in (Text mit einer Zeile je erkannter Zeile, unsichere Wörter, Textstücke). Textstücke: Wörter
+    einer Zeile ohne große Lücke (mehr als LUECKE × Schrifthöhe) als dict(text, x0, y0, x1, y1) in Pixeln, y nach
+    unten (für Schriftfelder von Zeichnungen, pdf_zeichnung.py)."""
     zeilen, unsicher = {}, set()
     for z in tsv.splitlines()[1:]:
         t = z.split("\t")
@@ -68,38 +71,55 @@ def _tsv_text(tsv):
             continue
         try:
             conf = float(t[10])
+            box = [int(t[6]), int(t[7]), int(t[6]) + int(t[8]), int(t[7]) + int(t[9])]
         except ValueError:
             continue
-        zeilen.setdefault((int(t[1]), int(t[2]), int(t[3]), int(t[4])), []).append(t[11])
+        zeilen.setdefault((int(t[1]), int(t[2]), int(t[3]), int(t[4])), []).append((t[11], box))
         if 0 <= conf < UNSICHER_UNTER:
             unsicher.add(t[11].strip())
-    return "\n".join(" ".join(w) for _, w in sorted(zeilen.items())), unsicher
+    segmente = []
+    for _, woerter in sorted(zeilen.items()):
+        for w, b in woerter:
+            h = max(b[3] - b[1], 1)
+            if segmente and segmente[-1]["_zeile"] is woerter and b[0] - segmente[-1]["x1"] <= LUECKE * h:
+                sg = segmente[-1]
+                sg.update(text=sg["text"] + " " + w, x1=max(sg["x1"], b[2]), y0=min(sg["y0"], b[1]),
+                          y1=max(sg["y1"], b[3]))
+            else:
+                segmente.append(dict(text=w, x0=b[0], y0=b[1], x1=b[2], y1=b[3], _zeile=woerter))
+    for sg in segmente:
+        del sg["_zeile"]
+    return "\n".join(" ".join(w for w, _ in ws) for _, ws in sorted(zeilen.items())), unsicher, segmente
 
 
-def bild_lesen(bild, exe, zeit=ZEIT_S):
-    """Ein Bild (PIL) mit Tesseract lesen: (Text, unsichere Wörter). OSError/subprocess-Fehler gehen durch."""
+def bild_lesen(bild, exe, zeit=ZEIT_S, psm=6):
+    """Ein Bild (PIL) mit Tesseract lesen: (Text, unsichere Wörter, Textstücke). psm 6 = Formular (ein Textblock),
+    11 = verstreuter Text (Zeichnung). OSError/subprocess-Fehler gehen durch."""
     puffer = io.BytesIO()
     bild.save(puffer, format="PNG")
     umgebung = dict(os.environ)
     if Path(exe).parent.name == TESSERACT_ORDNER:   # mitgeliefert: Sprachdaten in tessdata daneben (Vorgabe von
         umgebung.pop("TESSDATA_PREFIX", None)        # Tesseract), nie die einer anderen Installation
-    erg = subprocess.run([exe, "stdin", "stdout", "-l", SPRACHEN, "--psm", "6", "tsv"], input=puffer.getvalue(),
+    erg = subprocess.run([exe, "stdin", "stdout", "-l", SPRACHEN, "--psm", str(psm), "tsv"], input=puffer.getvalue(),
                          capture_output=True, timeout=zeit, check=True, env=umgebung,
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return _tsv_text(erg.stdout.decode("utf-8", errors="replace"))
 
 
-def lesen(pfad, programmordner=None):
-    """Formular (Scan-PDF oder Bild) lesen: dict(text, unsicher) oder None (kein Tesseract, Datei nicht lesbar)."""
+def lesen(pfad, programmordner=None, psm=6, nur_erste=False):
+    """Formular (Scan-PDF oder Bild) lesen: dict(text, unsicher, segmente, seiten [(Breite, Höhe)]) oder None (kein
+    Tesseract, Datei nicht lesbar). segmente: Textstücke mit Lage und Seitennummer (seite). nur_erste: nur Seite 1."""
     exe = programm(programmordner)
     if not exe:
         return None
     try:
-        texte, unsicher = [], set()
-        for b in seiten(pfad):
-            t, u = bild_lesen(b, exe)
+        texte, unsicher, segmente, groessen = [], set(), [], []
+        for i, b in enumerate(seiten(pfad)[:1] if nur_erste else seiten(pfad)):
+            t, u, sg = bild_lesen(b, exe, psm=psm)
             texte.append(t)
             unsicher |= u
+            segmente += [dict(x, seite=i) for x in sg]
+            groessen.append(b.size)
     except Exception:           # kaputtes Bild, Tesseract abgestürzt oder zu langsam: wie ohne Formular
         return None
-    return dict(text="\n".join(texte), unsicher=unsicher)
+    return dict(text="\n".join(texte), unsicher=unsicher, segmente=segmente, seiten=groessen)

@@ -864,6 +864,9 @@ EINSTELLUNGEN = (
                 "(Vorgabe des Häkchens im Baugruppen-Editor)", "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     Einstellung("gravur_schrifthoehe", "Gravur: Schrifthöhe der Artikelnummer [mm]", "Schweißbaugruppen", "zahl", 10.0,
                 1, 200),
+    # Plan W7 Stufe 1 (Patrick 26.10.2026: erst optional zum Testen): Neue Position aus dem Schriftfeld einer PDF
+    Einstellung("pdf_zeichnung", "Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“", "STEP-Import",
+                "auswahl", "nein", auswahl="janein"),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "STEP-Import", "zahl", 150.0, 1, 10000),
     # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
