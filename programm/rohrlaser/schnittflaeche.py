@@ -12,10 +12,17 @@ Abschnitte werden gelb gezeigt (Art 'GB') und gemeldet.
 
 Eine Quelle für 3D-Ansicht (rohr3d), Zeit (dreid/rechnen) und später den STEP-Export (3E-8): je Punkt der
 Außenkante die Lage der Innenkante. Die Schnittlänge bleibt die der Außenkante (Plan G1 a).
+
+Konturen (Patrick 26.10.2026, Variante C): Bei 90° zur Oberfläche (2D) gilt immer die Innenkante der Kontur. Innen
+hat die Kontur die Maße der Zeichnung bzw. STEP, der Strahl steht je Punkt senkrecht zur Oberfläche, außen ist sie
+deshalb auf Rundrohr und Eckradius breiter (wie dreid.bohrung_2d_rundrohr). Mit Schnittrichtung parallel (3D) ist die
+Schnittfläche eben: außen wie gezeichnet, jeder Punkt parallel zur Normalen in der Konturmitte nach innen.
 """
+import bisect
 import math
 
 from . import skizze as sk
+from .schneidweg import BOHRUNG, LANGLOCH, LOCHFELD, POLYGON, RECHTECK, SCHLITZ, SENKUNG
 
 GRENZE = 45.0           # Kopfschwenk höchstens [°], wenn keine Maschine bekannt ist
 TOL = 0.05              # Grad: so viel über der Grenze zählt noch nicht als begrenzt
@@ -96,3 +103,65 @@ def hinweis(name, stuecke, grenze=GRENZE):
         return None
     return (f"{name}: {lg:.0f} mm des Schnitts brauchen bis {beta:.0f}°, auf {grenze:.0f}° begrenzt, Kontur dort "
             "nicht maßhaltig").replace(".", ",")
+
+
+INNEN_ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, LOCHFELD)   # Innenkante maßhaltig (2D)
+
+
+def eben_3d(z, e):
+    """Kontur z mit Schnittrichtung parallel und 3D am Teil e: ebene Schnittfläche (Kopf hält die Richtung)."""
+    return z.get("schnitt") == "parallel" and e.get("d3") is True
+
+
+def innen_2d(z, e):
+    """Kontur z wird senkrecht zur Oberfläche geschnitten (2D) und hat innen die Maße der Zeichnung: alle
+    Innenkonturen außer 3D (eben, schräge Bohrung) und durchgehend durch beide Wände (ein Strahl durchs Profil)."""
+    if z.get("art") not in INNEN_ARTEN or eben_3d(z, e) or z.get("wand") == "beide":
+        return False
+    if e.get("d3") is True and z.get("d3") and z.get("art") == BOHRUNG:
+        return False
+    return True
+
+
+def _umrechnen(t, von, nach):
+    """Bogenlänge t auf dem Umriss 'von' -> gleiche Stelle (gleiches Stück, gleicher Anteil) auf 'nach'."""
+    k = max(0, min(len(von) - 2, bisect.bisect_right(von, t) - 1))
+    f = 0.0 if von[k + 1] - von[k] < 1e-12 else (t - von[k]) / (von[k + 1] - von[k])
+    return nach[k] + f * (nach[k + 1] - nach[k])
+
+
+def innen_massgebend(q, cum, cum_i, tm=None):
+    """Lochrand q [(t, x)] mit t = Konturmitte tm + gezeichneter Abstand am Umfang so umrechnen, dass die Kontur auf
+    der Innenwand (Stücke cum_i, gleiche Teilung wie der Außenumriss cum) diese Abstände zur Mitte hat. Die Mitte
+    bleibt (Vorgabe: Mitte von q); auf ebenen Wänden ändert sich nichts, auf Bogen und Rundrohr wird die Kontur außen
+    breiter. Ergebnis: Bogenlänge t auf dem Außenumriss, gilt für außen und innen (gleicher Anteil je Stück)."""
+    if not q or len(cum) != len(cum_i) or cum[-1] <= 0 or cum_i[-1] <= 0:
+        return q
+    T, Ti = cum[-1], cum_i[-1]
+    if tm is None:
+        tm = (min(p[0] for p in q) + max(p[0] for p in q)) / 2
+    basis = T * math.floor(tm / T)
+    ti_m = _umrechnen(tm - basis, cum, cum_i)
+    out = []
+    for t, x in q:
+        ti = ti_m + (t - tm)
+        k = math.floor(ti / Ti)
+        out.append((_umrechnen(ti - k * Ti, cum_i, cum) + k * T + basis, x))
+    return out
+
+
+def strahl_bis(poly, p, d):
+    """Abstand von p in Richtung d (Einheitsvektor) bis zum ersten Schnitt mit dem geschlossenen Polygon oder None."""
+    beste = None
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        nenner = d[0] * ey - d[1] * ex
+        if abs(nenner) < 1e-12:
+            continue
+        wx, wy = a[0] - p[0], a[1] - p[1]
+        s = (wx * ey - wy * ex) / nenner
+        f = (wx * d[1] - wy * d[0]) / nenner
+        if s > 1e-9 and -1e-9 <= f <= 1 + 1e-9 and (beste is None or s < beste):
+            beste = s
+    return beste

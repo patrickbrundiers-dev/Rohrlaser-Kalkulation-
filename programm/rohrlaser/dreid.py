@@ -183,6 +183,21 @@ def bohrung_2d_rundrohr(d, aussen, wand, schritte=720):
     return lg
 
 
+def umriss_2d_faktor(pts, aussen, wand):
+    """Rundrohr, 2D-Schnitt einer Kontur (Patrick 26.10.2026): die Innenkante hat die gezeichneten Maße, außen ist
+    jeder Abstand am Umfang um Außen-/Innenradius länger. Faktor Schnittlänge außen / gezeichnete Länge für den
+    Umriss pts [(längs, am Umfang)]; 1,0 ohne passende Maße."""
+    R = _z(aussen) / 2
+    ri = R - _z(wand)
+    pts = list(pts or ())
+    if ri <= 0 or len(pts) < 2:
+        return 1.0
+    k = R / ri
+    roh = sum(math.dist(a, b) for a, b in zip(pts, pts[1:] + pts[:1]))
+    aus = sum(math.hypot(b[0] - a[0], k * (b[1] - a[1])) for a, b in zip(pts, pts[1:] + pts[:1]))
+    return aus / roh if roh > 1e-9 else 1.0
+
+
 def austritt(wand, laengs, quer):
     """Versatz des Austritts innen gegen den Eintritt außen [mm]: (längs Richtung Ende B, quer Richtung 90°)."""
     return _z(wand) * math.tan(math.radians(laengs)), _z(wand) * math.tan(math.radians(quer))

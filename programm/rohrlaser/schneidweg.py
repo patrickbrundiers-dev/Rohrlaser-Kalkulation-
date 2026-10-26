@@ -851,8 +851,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                                                                                   f", {1 + kopien}× am Umfang")
         if _z(e.get("drehung")) and e.get("art") not in (BOHRUNG, SENKUNG, FLOWDRILL, GRAVUR):
             masse += f", gedreht {zahl(_z(e.get('drehung')), 1)}°"
-        parallel = e.get("schnitt") == "parallel" and form == "Rundrohr" and e.get("art") not in GRAVUREN \
-            and e.get("art") != FLOWDRILL
+        parallel = e.get("schnitt") == "parallel" and form in ("Rundrohr",) + opt.RADIUS_FORMEN \
+            and e.get("art") not in GRAVUREN and e.get("art") != FLOWDRILL
         if parallel and not mit_3d:
             hinweise_3d.append(f"{e.get('art')}: Schnitt parallel zur Konturachse braucht die 3D-Schnittbearbeitung "
                                "(Häkchen am Teil); gerechnet senkrecht zur Oberfläche.")
@@ -868,6 +868,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                 and not (mit_3d and e.get("d3")) and not parallel:
             # 2D: Strahl zur Rohrmitte, außen breiter als die Konstruktion (Messung macht das schon selbst)
             lg = dreid.bohrung_2d_rundrohr(_z(e.get("d")), profil.get("a"), profil.get("wand")) or lg
+        elif form == "Rundrohr" and e.get("art") in (LANGLOCH, RECHTECK, SCHLITZ, POLYGON) \
+                and not _z(e.get("gemessen")) and not parallel and e.get("wand") != "beide":
+            # 2D (Patrick 26.10.2026): Innenkante maßhaltig, außen am Umfang um Außen-/Innenradius breiter
+            from .skizze import umriss_kontur
+            lg *= dreid.umriss_2d_faktor(umriss_kontur(e), profil.get("a"), profil.get("wand"))
         if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
             try:
                 nl, nq, ges, h_ = dreid.neigung_begrenzen(e.get("neigung_l"), e.get("neigung_q"), maschine)
