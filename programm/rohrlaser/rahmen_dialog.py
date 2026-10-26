@@ -1,8 +1,8 @@
 """Fenster „Rahmen-Assistent“ (Plan „Baugruppen automatisch“ A8): Profil, Werkstoff, Form, Ecken und Außenmaße
-eingeben, die Vorschau nennt die Rohre; nach OK steht in self.ergebnis dict(erg = rahmen.bauen(...), profil_id,
+eingeben, die Vorschau nennt die Rohre und zeigt sie im 3D (Patrick 26.10.2026); nach OK steht in self.ergebnis dict(erg = rahmen.bauen(...), profil_id,
 werkstoff_id, saetze, name)."""
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
-                               QLineEdit, QVBoxLayout)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
+                               QLineEdit, QVBoxLayout, QWidget)
 
 from . import rahmen
 from .eingabe import RechenSpin, RechenSpinGanz
@@ -24,11 +24,20 @@ class RahmenDialog(QDialog):
         self.setWindowTitle("Rahmen-Assistent")
         self.profile = {pid: p for pid, p in (profile or {}).items() if (p or {}).get("form") in rahmen.PROFILE}
         self.ergebnis = None
-        lay = QVBoxLayout(self)
+        aussen = QHBoxLayout(self)
+        links = QWidget()
+        lay = QVBoxLayout(links)
+        lay.setContentsMargins(0, 0, 0, 0)
+        aussen.addWidget(links)
+        from .ansicht3d import Ansicht3DMitKnoepfen
+        self.ansicht = Ansicht3DMitKnoepfen()
+        self.ansicht.setMinimumSize(420, 380)
+        aussen.addWidget(self.ansicht, 1)
         lay.addWidget(QLabel("Rechteckrahmen oder Quader aus Rohr ohne STEP-Datei: die Rohre werden Positionen eines "
                              "Satzes, mit Einbaulage und Stößen wie aus dem STEP-Import (Satz in 3D, Steckverbindungen, "
                              "Vorschläge, Montagefolge)."))
         lay.itemAt(0).widget().setWordWrap(True)
+        lay.itemAt(0).widget().setMaximumWidth(460)
         form = QFormLayout()
         self.profil = QComboBox()
         self.profil.addItems(sorted(self.profile, key=str.lower))
@@ -58,13 +67,14 @@ class RahmenDialog(QDialog):
         self.knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.knoepfe.accepted.connect(self._ok)
         self.knoepfe.rejected.connect(self.reject)
+        lay.addStretch(1)
         lay.addWidget(self.knoepfe)
         for w in (self.profil, self.form, self.ecken):
             w.currentTextChanged.connect(lambda _: self.neu())
         for w in (self.b, self.h, self.t):
             w.valueChanged.connect(lambda _: self.neu())
         self.hochkant.toggled.connect(lambda _: self.neu())
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(960)
         self.neu()
 
     def satz_name(self):
@@ -90,9 +100,14 @@ class RahmenDialog(QDialog):
         self.knoepfe.button(QDialogButtonBox.Ok).setEnabled(erg is not None)
         if fehler:
             self.vorschau.setText(f"<span style='color:#C62828'>{fehler}</span>")
+            self.ansicht.setzen(None, "", "")
             return
         self.vorschau.setText("<b>Rohre je Satz:</b><br>" + "<br>".join(rahmen.text(erg)) + (
-            "<br>Steckverbindungen an allen Stößen (Satz in 3D öffnet danach)." if erg["stecken"] else ""))
+            "<br>Steckverbindungen an allen Stößen (Satz in 3D öffnet danach)." if erg["stecken"] else "") + (
+            "<br>Die vier Rohre werden ein Knickrahmen: Satz in 3D öffnet danach mit „Knickrahmen erstellen“ "
+            "(erster Schenkel, Freistich, Knickzugabe)." if erg.get("knick") else ""))
+        self.ansicht.setzen(rahmen.vorschau(erg, self.profile[self.profil.currentText()]), self.satz_name(),
+                            "Vorschau: Rohre in Einbaulage, gleiche Rohre in gleicher Farbe.")
 
     def _ok(self):
         erg, fehler = self.berechnen()

@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.146", "<b>Konturen: bei 90° zur Oberfläche gilt die Innenkante</b>: Wird eine Kontur senkrecht zur Oberfläche "
+    ["0.9.147", "<b>Konturen: bei 90° zur Oberfläche gilt die Innenkante</b>: Wird eine Kontur senkrecht zur Oberfläche "
                 "geschnitten (2D), hat sie innen genau die Maße der Zeichnung bzw. der STEP; der Strahl steht an jedem "
                 "Punkt 90° zur Oberfläche, außen ist die Kontur auf dem Rundrohr und in der Rundung der Ecke "
                 "(Quadrat-/Rechteckrohr, Kontur nah am Rand) deshalb breiter. 3D-Ansicht, Schnittkörper, Abwicklung, "
@@ -31,6 +31,18 @@ NEUERUNGEN = [
                 "([[teile_editor]]).",
      "Konturen bei 90° zur Oberfläche: Innenkante maßhaltig, außen breiter; parallel (3D) = ebene Bearbeitung, auch "
      "am Eckradius."],
+    ["0.9.146", "<b>Teile im 3D anklicken</b>: Im Fenster Satz in 3D und im Editor der Schweißbaugruppe (Reiter "
+                "Strukturbaum und 3D) wählt ein Klick auf ein Teil es aus, auch nahe an einer Kante; Strg+Klick nimmt "
+                "weitere dazu oder weg. Liste und Baum gehen mit. Im Editor der Schweißbaugruppe stehen unter dem 3D "
+                "<b>Knickrahmen erstellen …</b> und <b>Steckverbindung hinzufügen</b> für die gewählten Rohre "
+                "([[baugruppe_baum]]). Beim Stecksystem zeigt eine Zeile im Reiter Steckverbindungen Aufnahme und "
+                "Stecker blau im 3D, ein Klick auf ein Rohr markiert seine Verbindungen ([[satz_3d]]). "
+                "<b>Doppelklick</b> wählt die ganze Gehrungskette, <b>Rechtsklick</b> öffnet ein Menü (Knickrahmen "
+                "erstellen/lösen, Steckverbindung hinzufügen/tauschen/entfernen, Nur Gewähltes). Der "
+                "<b>Rahmen-Assistent</b> zeigt den Rahmen im 3D und hat die Ecke <i>Knickrahmen</i>: der Rahmen wird "
+                "gleich ein geknicktes Rohr ([[rahmen_assistent]]). Ein Klick in ein Feld einer Tabelle markiert "
+                "jetzt auch die Zeile.",
+     "Knickrahmen und Stecksystem: Teile im 3D per Klick, Doppelklick und Rechtsklick wählen; Rahmen-Assistent mit 3D"],
     ["0.9.145", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen wird "
                 "eine Baugruppe jetzt als Einzelpositionen übernommen. Das Feld <i>Anzahl</i> oben erhöht nur die "
                 "Stückzahl aller Teile der Datei. Ein Satz entsteht nur mit dem Knopf <b>Als Satz</b>; dann zählt "
