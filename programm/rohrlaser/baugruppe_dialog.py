@@ -2730,7 +2730,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                    "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
             return 0
         from .ansicht3d import baugruppe as zusammen
-        from .baugruppe_ansicht import Flaechen, naehte_einsetzen, teil_kennung
+        from .baugruppe_ansicht import flaechen_merken, naehte_einsetzen, teil_kennung
         bereiche = []
         netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur} | aktuell, farbe,
                            bereiche=bereiche)
@@ -2750,7 +2750,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             schluessel = json.dumps([[b, k] for b, k in zip(besitzer, koerper)] + [sorted(
                 (pid, (self._rohr_cache.get(pid) or ("",))[0]) for pid in rohre)], default=str)
             if getattr(self, "_flaechen", (None,))[0] != schluessel:
-                self._flaechen = (schluessel, Flaechen(netz))
+                self._flaechen = (schluessel, flaechen_merken(netz, schluessel))
             raupen = naehte_einsetzen(netz, naehte, self._flaechen[1])
             ohne_verlauf = sum(1 for n in self.bg.get("naehte") or [] if not n.get("linien")) - self._abgeleitet
             if naehte:
