@@ -25,7 +25,9 @@ NEUERUNGEN = [
                 "einer Baugruppe) ein Spalt bis 3 mm (Einstellung), erkennt der STEP-Import die Naht und graviert den "
                 "Umriss genau unter das Blech; Vorschläge und Anbauteile tragen das Spaltmaß und sind zum Prüfen "
                 "markiert, die Teile werden nie verschoben. Neu: WARNUNG bei Spalt über 2 mm (Einstellung) und für "
-                "Teile ohne Naht zu einem anderen Teil ([[naht_spalt]]).",
+                "Teile ohne Naht zu einem anderen Teil. Der Spalt kostet mehr Schweißgut: Nahtgruppen rechnen mit a + Spalt "
+                "(gelb bis „a-Maß und Spalt bestätigen“), auch eine im 3D gezeichnete Naht findet das Teil auf der "
+                "anderen Seite des Spalts ([[naht_spalt]]).",
      "Schweißnaht und Gravur auch bei Spalt zwischen Blech und Rohr."],
     ["0.9.151", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
                 "Zuschlag Fremdleistung): Vorgabe je 10 % aus den Einstellungen, % auf den Einstand aller Bleche bzw. "
