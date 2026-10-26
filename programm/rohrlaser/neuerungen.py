@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.140", "<b>Rohrteil aus einer PDF-Zeichnung (Test)</b>: Mit der Einstellung <i>Testfunktion "
+                "PDF-Zeichnungen</i> bietet <i>Neue Position</i> den Typ <i>Aus PDF-Zeichnung (Test)</i>. Profil, Länge, "
+                "Werkstoff, Benennung, Artikel und Stückzahl kommen aus dem Text der Zeichnung (auch Scan oder Foto), "
+                "der Rohr-Editor öffnet damit. Ist das PDF direkt aus dem CAD gespeichert, liest das Programm auch die "
+                "Linien wie bei einer DXF: Enden, Bohrungen und Ausschnitte kommen mit. Englische Schriftfelder werden "
+                "gelesen; fehlt das Profil im Text, kommt es aus den Maßen am Querschnitt und die Wandstärke wird aus "
+                "den passenden Profilen gewählt ([[pdf_zeichnung]]).",
+     "Testfunktion: Rohrteil aus einer PDF-Zeichnung, auch mit Enden und Konturen aus den Linien."],
     ["0.9.139", "<b>Blech-Editor: Konturen im 3D aus dem Material geschnitten</b>: Bohrungen, Senkungen, "
                 "Langlöcher, Rechtecke und Polygone sind in der 3D-Ansicht echte Löcher mit Lochwand durch die "
                 "Blechdicke, auch im gekanteten Teil und in der Biegung; bisher waren sie nur rote Linien auf der "

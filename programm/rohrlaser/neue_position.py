@@ -10,6 +10,7 @@ ROHR, BLECH, ZUKAUF, LEER = "Rohr / Profil", "Blech / Kantteil", "Zukaufteil", "
 DXF = "Aus DXF (Blech oder Rohr)"
 SCHWEISS = "Schweißbaugruppe"
 RAHMEN = "Rahmen-Assistent"
+PDF = "Aus PDF-Zeichnung (Test)"       # nur mit Einstellung pdf_zeichnung = ja (Plan W7 Stufe 1)
 TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und Stückzahl, dazu Enden, Bohrungen und "
                "Konturen im Schneidweg-Rechner mit Skizze.",
          BLECH: "Blech- oder Kantteil (vom Blechlaser, als Zukaufteil): Bezeichnung, Lieferant (Technik "
@@ -17,6 +18,8 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
          DXF: "Eine oder mehrere DXF-Dateien einlesen: jedes Blech der Zeichnung wird eine Position wie aus dem "
               "Blech-Editor (Werkstoff und Dicke vorgeschlagen, Rahmen und Schriftfeld fallen weg). Zeigt die Datei "
               "ein Rohrteil in Ansichten mit Schnitt, öffnet der Rohr-Editor mit Profil, Länge, Enden und Konturen.",
+         PDF: "Rohrteil aus einer PDF-Zeichnung (auch Scan oder Foto): Profil, Länge, Werkstoff, Artikel und "
+              "Stückzahl aus dem Schriftfeld, der Rohr-Editor öffnet damit. Enden und Konturen von Hand ergänzen.",
          ZUKAUF: "Anderes Zukaufteil (Normteil, Schrauben, Handelsware …): Bezeichnung, Kategorie, Lieferant, "
                  "Einkaufspreis und Menge.",
          SCHWEISS: "Baugruppe aus Einzelteilen dieses Angebots: Unterbaugruppen, Nahtgruppen, Arbeitsgänge und "
@@ -27,15 +30,18 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
 
 
 class TypDialog(QDialog):
-    """Auswahl des Typs; nach OK steht er in self.typ (ROHR, BLECH, DXF, ZUKAUF, SCHWEISS, RAHMEN oder LEER)."""
+    """Auswahl des Typs; nach OK steht er in self.typ (ROHR, BLECH, DXF, PDF, ZUKAUF, SCHWEISS, RAHMEN oder LEER);
+    pdf: Typ PDF anbieten (Einstellung pdf_zeichnung)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, pdf=False):
         super().__init__(parent)
         self.setWindowTitle("Neue Position")
         self.typ = None
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel("<b>Welche Art von Position?</b>"))
         for typ, text in TYPEN.items():
+            if typ == PDF and not pdf:
+                continue
             b = QPushButton(typ)
             b.setMinimumHeight(40)
             b.setDefault(typ == ROHR)

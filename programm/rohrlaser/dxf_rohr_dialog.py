@@ -39,12 +39,13 @@ def merken(db, text, projektion):
     db.einstellung_setzen(EINSTELLUNG, alle)
 
 
-def rohr_erkennen(fenster, db, pfad, dialog=None, auch_fehler=False):
+def rohr_erkennen(fenster, db, pfad, dialog=None, auch_fehler=False, text=None):
     """DXF lesen und als Rohrzeichnung erkennen; bei Unsicherheit das Zuordnungsfenster (auch_fehler: auch, wenn das
     Rohr nicht erkannt wurde, aber ein Schnitt oder Profiltext da ist). dialog(d) bedient das Fenster statt exec
-    (Tests). Ergebnis von dxf_rohr.erkennen; abgebrochen=True, wenn das Fenster abgebrochen wurde. OSError und
-    ValueError beim Lesen gehen an den Aufrufer."""
-    text = di.datei_lesen(pfad)
+    (Tests). text: DXF-Text statt der Datei (Linien einer PDF-Zeichnung, pdf_vektor.py). Ergebnis von
+    dxf_rohr.erkennen; abgebrochen=True, wenn das Fenster abgebrochen wurde. OSError und ValueError beim Lesen gehen
+    an den Aufrufer."""
+    text = text if text is not None else di.datei_lesen(pfad)
     name = Path(pfad).name
     erg, vorgaben = dxf_rohr.erkennen(text, name), {}
     proj = gemerkt(db, text)

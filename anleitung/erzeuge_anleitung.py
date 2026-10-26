@@ -965,6 +965,8 @@ def kapitel_angebot(i):
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
                ["<b>Aus DXF (Blech oder Rohr)</b>", "eine oder mehrere DXF-Dateien; jedes Blech wird eine Position "
                 "wie aus dem Blech-Editor ([[dxf_import]]), eine Rohrzeichnung öffnet den Rohr-Editor ([[dxf_rohr]])"],
+               ["<b>Aus PDF-Zeichnung (Test)</b>", "nur mit der Einstellung: Profil, Länge und Schriftfeld aus "
+                "einer PDF-Zeichnung oder einem Scan in den Rohr-Editor ([[pdf_zeichnung]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
                ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
                 "vorgewählt ([[schweissbaugruppe]])"],
@@ -3086,6 +3088,44 @@ def kapitel_optimieren(i):
             "wird vorgeschlagen.",
             "Oben im Editor steht, was erkannt wurde, mit allen Hinweisen. Im 3D und in der Skizze ist alles sofort "
             "zu sehen und wie gewohnt änderbar; erst <b>OK</b> legt die Position an.")
+    i.abschnitt("Rohrteil aus einer PDF-Zeichnung (Test)", marke="pdf_zeichnung")
+    i.text("Noch eine <b>Testfunktion</b>: Erst mit der Einstellung <i>Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“</i>"
+           " (Einstellungen → STEP-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
+           "<b>Aus PDF-Zeichnung (Test)</b> an. Das Programm liest den <b>Text</b> der Zeichnung (aus einem PDF mit "
+           "Text direkt, Scans und Fotos mit der Texterkennung wie beim Anfrageformular, [[anfragen]]) und öffnet den "
+           "Rohr-Editor damit. Ist das PDF direkt aus dem CAD gespeichert (Linien, kein Scan), liest es auch die "
+           "<b>Linien</b> wie bei einer DXF ([[dxf_rohr]]): Enden, Bohrungen und Ausschnitte kommen mit. Bei einem "
+           "Scan sind die Enden gerade und Konturen werden im Rohr-Editor ergänzt; <b>STEP speichern</b> "
+           "([[step_export]]) macht daraus eine STEP-Datei.",
+           kurz=True)
+    i.genauer()
+    i.liste("<b>Profil</b>: aus dem Feld <i>Halbzeug</i>, <i>Profil</i> oder <i>Rohmaterial</i> (auch nur "
+            "<i>40x40x3</i>), sonst irgendwo auf dem Blatt (<i>QR 40x40x3</i>, <i>Rechteckrohr 60x40x3</i>, "
+            "<i>Ø42,4x2</i>). Steht kein Profil im Text, nimmt das Programm die Maße am <b>Querschnitt</b>: eine "
+            "waagrechte und eine senkrechte Maßzahl dicht beieinander (z. B. 50 und 30 ergibt 50×30). Die "
+            "Wandstärke steht dann nicht in der Zeichnung: Gibt es in den Stammdaten mehrere passende Profile "
+            "(RE 50x30x2, RE 50x30x3), fragt ein kleines Fenster, welches; bei einem nimmt es dieses, bei keinem das "
+            "ähnlichste (Hinweis). Ohne Profil gibt es keine Position (Meldung).",
+            "<b>Länge</b>: <i>L = 860</i>, <i>860 lg</i>, das Feld <i>Länge</i> oder <i>Zuschnitt</i>, ein vierter "
+            "Wert am Profil (<i>QR 40x40x3x860</i>); sonst die größte Maßzahl außerhalb des Schriftfelds, dann mit "
+            "Hinweis „bitte prüfen“. Ohne Zahl bleibt die Länge leer.",
+            "<b>Schriftfeld</b>: Benennung wird Bezeichnung, Zeichnungs-, Artikel- oder Teilenummer wird Artikel "
+            "(sonst der Dateiname), Werkstoff bzw. Material wird vorgeschlagen, Stückzahl/Menge wird die Stückzahl. "
+            "Der Wert steht im selben Text hinter der Beschriftung, darunter (DIN EN ISO 7200) oder rechts daneben. "
+            "Englische Schriftfelder gehen auch (Title, DWG No., Part No., Material, Quantity). Ohne erkannte "
+            "Beschriftung wird der Text mit der größten Schrift im Schriftfeld die Bezeichnung.",
+            "Oben im Rohr-Editor steht, woher die Werte kommen; bei einem Scan der Hinweis, alles mit der Zeichnung "
+            "zu vergleichen.",
+            "<b>Linien</b> (PDF aus dem CAD): Ein PDF kennt keine Layer, die Art einer Linie ergibt sich aus "
+            "Strichstärke und Muster: breit durchgezogen = sichtbare Kante, gestrichelt = verdeckt, Strich-Punkt = "
+            "Mittellinie, schmal = Maß- und Hilfslinie. Danach läuft dieselbe Erkennung wie bei der DXF (Ansichten, "
+            "Maßstab aus den Maßzahlen, Profil aus dem Schnitt, Enden, Konturen), bei Unsicherheit mit dem "
+            "Zuordnungsfenster. Stückzahl und fehlende Angaben kommen aus dem Schriftfeld. Ergeben die Linien kein "
+            "Rohr, gelten nur die Angaben aus dem Text (Hinweis oben im Rohr-Editor).")
+    i.hinweis("Es gibt noch keine echten Kundenzeichnungen zum Abstimmen. Fällt etwas auf (falsches Feld, Profil "
+              "nicht erkannt, Linie falsch eingeordnet), die Zeichnung schicken: danach wird die Erkennung "
+              "nachgeschärft. Getestet ist das Lesen der Linien bisher mit DXF-Zeichnungen, die als PDF gedruckt "
+              "wurden.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),

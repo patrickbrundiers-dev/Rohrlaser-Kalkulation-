@@ -918,7 +918,8 @@ class SchneidwegDialog(QDialog):
         self.aus_position = False
         self._dxf_bericht = "<br>".join(zeilen)
         self.eingaben_setzen(erg["eingaben"])
-        self.laenge_setzen(erg["laenge"])
+        if erg.get("laenge"):           # PDF-Zeichnung (W7) ohne Längenangabe: von Hand eintragen
+            self.laenge_setzen(erg["laenge"])
 
     # ------------------------------------------------------------------ Eingaben
     def zeile_neu(self, z, rechnen_=True):

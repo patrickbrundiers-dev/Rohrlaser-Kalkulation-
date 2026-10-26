@@ -2652,12 +2652,12 @@ class AngebotSeite(QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, DXF, LEER, RAHMEN, ROHR, SCHWEISS, ZUKAUF, TypDialog
+        from .neue_position import BLECH, DXF, LEER, PDF, RAHMEN, ROHR, SCHWEISS, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
             else:
-                d = TypDialog(self)
+                d = TypDialog(self, pdf=self.db.einstellung("pdf_zeichnung") == "ja")
                 if d.exec() != QDialog.Accepted or not d.typ:
                     return None
                 typ = d.typ
@@ -2665,6 +2665,8 @@ class AngebotSeite(QWidget):
             return typ if self.blech_neu(dialog=dialog) else None
         if typ == DXF:
             return typ if self.blech_aus_dxf() else None
+        if typ == PDF:
+            return typ if self.rohr_aus_pdf(dialog=dialog) else None
         if typ == ZUKAUF:
             return typ if self.zukauf_schnell(zeilen=[], blech=False) else None
         if typ == ROHR:
@@ -2842,7 +2844,7 @@ class AngebotSeite(QWidget):
             pid = dxf_rohr.profil_id(dxf[1]["profil"], self.k.profile) or \
                 dxf_rohr.ersatz_profil(dxf[1]["profil"], self.k.profile) or pid
         p = dict(pos=self._naechste_pos(), profil_id=pid, werkstoff_id=wst if wst in self.k.werkstoffe else None,
-                 stueck=1)
+                 stueck=(dxf[1].get("stueck") if dxf else None) or 1)
         d = SchneidwegDialog(self, p, self.k.profile[pid], self.kopf, self.k, self.tabellen, self.db, self.positionen,
                              neu=True)
         if dxf:
@@ -2873,6 +2875,85 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
                        f"{rechnen.zahl(erg['schneidweg'], 1)} mm.")
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid_neu), None))
+        return True
+
+    def rohr_aus_pdf(self, pfade=None, dialog=None, zuordnung=None, wand=None):
+        """Rohrteile aus PDF-Zeichnungen (Plan W7, Test): ein PDF aus dem CAD (Linien) geht durch die Rohrerkennung
+        der DXF (Stufe 2, pdf_vektor.py: Enden und Konturen, bei Unsicherheit das Zuordnungsfenster); sonst Profil,
+        Länge, Werkstoff, Artikel, Benennung und Stückzahl aus dem Text (Stufe 1, Scans mit Tesseract,
+        pdf_zeichnung.py). Profil nur aus den Maßen am Schnitt (ohne Wand): die Wandstärke wird aus den passenden
+        Profilen der Stammdaten gewählt. Je Datei öffnet der Rohr-Editor damit. dialog(d) bedient den Rohr-Editor,
+        zuordnung(d) das Zuordnungsfenster, wand(liste) die Wahl der Wandstärke statt exec (Tests). Ergebnis: Anzahl
+        angelegter Positionen."""
+        from . import dxf_rohr_dialog, pdf_vektor, pdf_zeichnung
+        if self.fremd():
+            return 0
+        if not pfade:
+            pfade, _ = QFileDialog.getOpenFileNames(self, "Aus PDF-Zeichnung", str(self.db.einstellung("dxf_ordner") or ""),
+                                                    "Zeichnungen (*.pdf *.PDF *.png *.jpg *.jpeg *.tif *.tiff)")
+            if not pfade:
+                return 0
+            self.db.einstellung_setzen("dxf_ordner", str(Path(pfade[0]).parent))
+        n = 0
+        for pfad in pfade:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            try:
+                erg = pdf_zeichnung.erkennen(pfad, self.f.programmordner)
+                try:
+                    linien = pdf_vektor.dxf_text(pfad) if Path(pfad).suffix.lower() == ".pdf" else None
+                except Exception:       # beschädigtes PDF o. ä.: nur der Text
+                    linien = None
+            finally:
+                QApplication.restoreOverrideCursor()
+            if linien:
+                lin = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung, text=linien)
+                if lin["ok"] and not lin.get("abgebrochen"):
+                    erg = pdf_zeichnung.mit_linien(lin, erg)
+                elif erg["ok"]:         # Zuordnung abgebrochen oder kein Rohr in den Linien: nur der Text
+                    erg["hinweise"].append("Die Linien der Zeichnung ergaben kein Rohr: nur Angaben aus dem Text.")
+            if not erg["ok"]:
+                self.f.meldung(f"{Path(pfad).name}: " + " ".join(erg["warnungen"]), fehler=True)
+                continue
+            if erg["profil"].get("wand") is None and not self._wand_waehlen(erg, Path(pfad).name, wand):
+                continue
+            n += bool(self.rohr_neu(dialog=dialog, dxf=(Path(pfad).name, erg)))
+        if n > 1:
+            self.f.meldung(f"{n} Positionen aus PDF-Zeichnungen angelegt.")
+        return n
+
+    def _wand_waehlen(self, erg, name, wand=None):
+        """Profil ohne Wandstärke (aus den Maßen am Schnitt einer PDF-Zeichnung): die Profile der Stammdaten mit
+        gleicher Form und gleichem Außenmaß zur Wahl (eines: ohne Frage), ohne solche das ähnlichste der Form. Setzt
+        erg['profil']['wand']; False = abgebrochen oder kein Profil der Form."""
+        from . import dxf_rohr
+        pr = erg["profil"]
+        passend = sorted((pid for pid, p in self.k.profile.items() if p.get("form") == pr["form"]
+                          and abs(float(p.get("a") or 0) - pr["a"]) < 0.05
+                          and abs(float(p.get("b") or p.get("a") or 0) - pr["b"]) < 0.05),
+                         key=lambda pid: float(self.k.profile[pid].get("wand") or 0))
+        if not passend:
+            pid = dxf_rohr.ersatz_profil(dict(pr, wand=0.0), self.k.profile)
+            if not pid:
+                self.f.meldung(f"{name}: kein {pr['form']} in den Stammdaten.", fehler=True)
+                return False
+            erg["warnungen"].append(f"Kein Profil {dxf_rohr._z(pr['a'])}×{dxf_rohr._z(pr['b'])} in den Stammdaten: "
+                                    f"das ähnlichste ({pid}) ist gewählt.")
+        elif len(passend) == 1:
+            pid = passend[0]
+        else:
+            if wand:
+                pid = wand(passend)
+            else:
+                pid, ok = QInputDialog.getItem(self, "Wandstärke wählen",
+                                               f"{name}: Profil {dxf_rohr._z(pr['a'])}×{dxf_rohr._z(pr['b'])} aus den "
+                                               "Maßen am Schnitt, die Wandstärke steht nicht in der Zeichnung.\n"
+                                               "Profil:", passend, 0, False)
+                pid = pid if ok else None
+            if not pid:
+                return False
+        p = self.k.profile[pid]
+        erg["profil"] = dict(form=p.get("form"), a=float(p.get("a") or 0), b=float(p.get("b") or p.get("a") or 0),
+                             wand=float(p.get("wand") or 0))
         return True
 
     def blech_neu(self, dialog=None):
