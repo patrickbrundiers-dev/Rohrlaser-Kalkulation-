@@ -920,13 +920,16 @@ def _zuteilen(g, stangen, vorrat):
 def _fuellen(g, teile, frei, stangen, art="quote"):
     """Teile auf die freien Stangen verteilen: das längste übrige Teil eröffnet eine Stange, aufgefüllt wird der Reihe
     nach mit allem, was noch passt; genommen wird die freie Länge, die so am besten gefüllt ist (art 'quote'), bzw.
-    die längste ('lang') oder kürzeste ('kurz') freie Länge, auf die das Teil passt. Hängt an stangen [(Länge, Teile)]
-    an und zählt frei herunter. Ergebnis: Teile ohne Stange."""
+    die längste ('lang') oder kürzeste ('kurz') freie Länge, auf die das Teil passt; 'anzahl': kürzeste Teile zuerst
+    auf die längste freie Stange (möglichst viele Teile, wenn die Stangen knapp sind). Hängt an stangen [(Länge,
+    Teile)] an und zählt frei herunter. Ergebnis: Teile ohne Stange."""
     gs = {laenge: replace(g, stange=laenge, teile=[]) for laenge in frei}
     teile, uebrig = sortiert(teile), []
+    if art == "anzahl":
+        teile = teile[::-1]
     while teile:
         t, beste = teile[0], None
-        for laenge in sorted(frei, reverse=art != "kurz"):
+        for laenge in sorted(frei, reverse=art != "kurz"):         # 'anzahl' wie 'lang'
             if frei[laenge] <= 0 or not passt(gs[laenge], [t]):
                 continue
             if beste is not None and art != "quote":
@@ -1041,7 +1044,7 @@ def vorrat_planen(g, vorrat):
         st, ohne, frei = _zuteilen(g, [[t for t, _ in f] for f in optimiere(h)], vorrat)
         rest = [t for t in g.teile if id(t) not in drauf] + [t for s in ohne for t in s]
         kandidaten.append((st, _fuellen(g, rest, frei, st)))
-    for art in ("quote", "lang", "kurz"):
+    for art in ("quote", "lang", "kurz", "anzahl"):
         st = []
         kandidaten.append((st, _fuellen(g, list(g.teile), dict(vorrat), st, art)))
     for art, hoch in (("quote", 1.0), ("lang", 1.0), ("quote", 1.2), ("lang", 1.2)):

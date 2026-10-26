@@ -69,6 +69,13 @@ f, rest = opt.vorrat_planen(g, v)
 opt.pruefe_vorrat(g, v, f, rest)
 assert not rest and sum(laengen(f)) <= 10500, laengen(f)
 
+# Knappe Stangen: möglichst viele Teile. 1 × 8.000 (nutzbar 7.900): 6.300 allein oder 2.400 + 1.900 -> die zwei
+g = gruppe(teile(1, 6300) + teile(1, 2400, zeile=14) + teile(1, 1900, zeile=15))
+v = [(8000, 1)]
+f, rest = opt.vorrat_planen(g, v)
+opt.pruefe_vorrat(g, v, f, rest)
+assert [t.laenge for t in rest] == [6300] and sorted(t.laenge for t, _ in f[0][1]) == [1900, 2400], rest
+
 # Kontrolle schlägt an: mehr Stangen als vorgegeben, Teil doppelt
 try:
     opt.pruefe_vorrat(g, [(6000, 1)], f, rest)

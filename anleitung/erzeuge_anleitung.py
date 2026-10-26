@@ -3286,8 +3286,8 @@ def kapitel_optimieren(i):
                (2, "Je Abmessung eine Kopfzeile (Profil, Werkstoff, Lieferlänge, Anzahl Stangen, Ausnutzung), darunter "
                    "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
                    "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern. Bleibt die "
-                   "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Details (Länge, Teile, Rest, "
-                   "Nutzung, Endbeschnitt, Greiferrest, Gewicht, Material, Teile je Position); <b>Esc</b> schließt es.")])
+                   "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Detail-Ansicht (Kennzahlen, "
+                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern); <b>Esc</b> schließt es.")])
     i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
            hoehe=95 * mm, legende=[
                (1, "<b>Kennzahlen</b> der Stange: Lieferlänge, Teile, Nutzung, Rest (Verschnitt, es gibt keine "
