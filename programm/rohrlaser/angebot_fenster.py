@@ -1246,13 +1246,13 @@ class Stangenbild(QWidget):
                     p.setPen(stift)
                     p.drawLine(QPointF(r.left() + 3, hy), QPointF(r.right() - 3, hy))
                 if self.markiert is not None and t["ref"] == self.markiert:
-                    p.setPen(QPen(QColor(stil.ORANGE), 3))
+                    p.setPen(QPen(stil.farbe(stil.ORANGE), 3))
                     p.setBrush(Qt.NoBrush)
                     p.drawRect(r.adjusted(-1, -1, 1, 1))
                 self.flaechen.append((QRectF(r), t))
                 text = f"{t['pos'] if t['pos'] is not None else t['artikel']}\n{_z(t['laenge'], 1)}"
                 if r.width() > 28:
-                    p.setPen(QColor("white"))        # fest: weiße Schrift auf der Teilfarbe
+                    p.setPen(stil.schrift_auf(self.farben.get(t["ref"], stil.farbe("#4E79A7"))))   # lesbar auf der Teilfarbe
                     p.setFont(klein)
                     p.drawText(r, Qt.AlignCenter, text if r.width() > 46 else str(t["pos"] or ""))
                 vorher = t

@@ -3,12 +3,12 @@ je Angebot) und CSV-Import mit Vorschau (zukauf_csv)."""
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import hilfe, tastatur, zukauf_csv
+from . import hilfe, stil, tastatur, zukauf_csv
 from .stammdaten import zahl_als_text
 from .zukauf_dialog import datum_text
 
@@ -222,7 +222,7 @@ class CsvImportDialog(QDialog):
         for r, z in enumerate(zeilen):
             if z["aktion"] in FARBE:
                 for c in range(len(self.SPALTEN)):
-                    self.tabelle.item(r, c).setBackground(QBrush(QColor(FARBE[z["aktion"]])))
+                    self.tabelle.item(r, c).setBackground(QBrush(stil.farbe(FARBE[z["aktion"]])))
         self.tabelle.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Cancel)
         self.importieren_knopf = knoepfe.addButton("Importieren", QDialogButtonBox.AcceptRole)

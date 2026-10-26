@@ -1164,7 +1164,7 @@ class EditorRahmen(QObject):
         for r in range(d.tabelle.rowCount()):
             it = d.tabelle.item(r, 1)
             if it is not None:
-                it.setBackground(QColor(stil.GRUEN_FLAECHE) if self._zeile_step(r) is True else QColor(0, 0, 0, 0))
+                it.setBackground(stil.farbe(stil.GRUEN_FLAECHE) if self._zeile_step(r) is True else QColor(0, 0, 0, 0))
         d.tabelle.blockSignals(False)
 
     def _zeile_step(self, r):
@@ -1236,7 +1236,7 @@ class EditorRahmen(QObject):
             it = QTreeWidgetItem([m.text, m.herkunft])
             it.setData(0, Qt.UserRole, m.id)
             it.setToolTip(0, m.text)
-            it.setForeground(1, QColor(FARBE_HERKUNFT.get(m.herkunft, stil.TEXT)))
+            it.setForeground(1, stil.farbe(FARBE_HERKUNFT.get(m.herkunft, stil.TEXT)))
             gruppen[m.gruppe].addChild(it)
             if m.id == self.gewaehlt:
                 wahl = it
@@ -1260,13 +1260,13 @@ class EditorRahmen(QObject):
         eintraege += [(dfm.HINWEIS, h, []) for h in erg.get("hinweise") or ()]
         for stufe, text, z in sorted(eintraege, key=lambda t: -dfm.RANG[t[0]]):
             it = QListWidgetItem(f"{stufe}: {text}")
-            it.setForeground(QColor(FARBE_STUFE[stufe]))
+            it.setForeground(stil.farbe(FARBE_STUFE[stufe]))
             it.setData(Qt.UserRole, z)
             it.setToolTip(text + ("\nKlick zeigt die Stelle" if z else ""))
             liste.addItem(it)
         if not eintraege:
             it = QListWidgetItem("Keine Prüfmeldungen")
-            it.setForeground(QColor(stil.GRUEN))
+            it.setForeground(stil.farbe(stil.GRUEN))
             liste.addItem(it)
         liste.blockSignals(False)
         n = len(eintraege)
