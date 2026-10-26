@@ -6461,9 +6461,14 @@ def kapitel_pflege(i):
             "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
     i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
            "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
-           "ersten Start der neuen Version: auf die Frage nach vorhandenen Daten <b>Daten übernehmen …</b> wählen "
-           "und die Datei <i>Daten\\rohrlaser.db</i> der portablen Version, eine Sicherung oder eine Export-Datei "
-           "angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Danach mit der neuen Version "
+           "ersten Start der neuen Version: Das Programm sucht die zuletzt benutzten Daten selbst (frühere portable "
+           "Kopie oder installierte Version) und zeigt sie mit Ordner und Datum an. <b>Diese Daten übernehmen</b> "
+           "kopiert Datendatei, Lizenz und Angebots-Ablage (nur, wenn hier noch keine sind). Mit <b>Andere Daten "
+           "wählen …</b> lässt sich stattdessen die Datei <i>Daten\\rohrlaser.db</i>, eine Sicherung oder eine "
+           "Export-Datei angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Läuft die alte "
+           "Version noch, zuerst dort beenden. <b>Neues ZIP</b> am einfachsten in den bisherigen Ordner entpacken "
+           "(Dateien ersetzen): Der Ordner <i>Daten</i> ist nicht im ZIP und bleibt stehen; das neue Setup über die "
+           "alte Installation behält die Daten ohnehin. Danach mit der neuen Version "
            "weiterarbeiten und die alte nicht mehr benutzen, sonst laufen zwei Datenbestände auseinander.",
            "Jeder Arbeitsplatz hat seine eigene Datendatei; geteilt wird über den gemeinsamen Ordner "
            "([[mehrere_arbeitsplaetze]]), nicht über eine gemeinsame Datendatei. Solange das Programm läuft, sperrt "
