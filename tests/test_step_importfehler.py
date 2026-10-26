@@ -80,15 +80,17 @@ def koerper(nr, laenge, name="Rohr"):
 def f4_gleicher_name(db):
     k, gew = db.kontext(), db.zeilen("gewinde")
     # 77 verschiedene Teile, alle mit Bauteilname „Rohr“, dazu dreimal dasselbe Teil „Strebe“
-    mw = [koerper(i + 1, 300 + 10 * i) for i in range(77)] + [koerper(78 + i, 500, "Strebe") for i in range(3)]
+    mw = [koerper(i + 1, 300 + 10 * i) for i in range(77)] + [koerper(78 + i, 500, "Strebe") for i in range(3)] \
+        + [koerper(81 + i, 2000) for i in range(2)]          # zweimal ein weiteres Teil „Rohr“: eine Nummer
     importprofil.anwenden(mw, None, {"step_benennung": "Bauteilname"})
     namen = [m["artikel"] for m in mw]
     assert namen[:3] == ["Rohr", "Rohr-2", "Rohr-3"] and namen[76] == "Rohr-77", namen[:3]
-    assert namen[77:] == ["Strebe"] * 3, namen[77:]          # gleiches Teil, gleicher Name: bleibt eine Nummer
+    assert namen[77:] == ["Strebe"] * 3 + ["Rohr-78"] * 2, namen[77:]          # gleiches Teil, gleicher Name: bleibt eine Nummer
     erg = step.uebernehmen(mw, [], k, gew, None, "S235-10219", 2)
     pos = erg["positionen"]
-    assert len(pos) == 78, len(pos)
-    assert len({p["artikel"] for p in pos}) == 78
+    assert len(pos) == 79, len(pos)
+    assert len({p["artikel"] for p in pos}) == 79
+    assert next(p for p in pos if p["artikel"] == "Rohr-78")["stueck"] == 4
     strebe = next(p for p in pos if p["artikel"] == "Strebe")
     assert strebe["stueck"] == 6, strebe["stueck"]             # 3 Körper × 2 Stück
     # zweiter Import derselben Datei: dieselben Nummern, alles „steht schon im Angebot“

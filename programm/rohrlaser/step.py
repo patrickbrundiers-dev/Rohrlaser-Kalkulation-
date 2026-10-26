@@ -1395,15 +1395,17 @@ def eindeutige_artikel(messwerte):
     zweiter Import derselben Dateien erkennt die Artikel also wieder."""
     vergeben = {str(m.get("artikel")) for m in messwerte if m.get("artikel") not in (None, "")}
     gruppe = {i: e for e, liste in teile_gruppen(messwerte).items() for i in liste}
-    gesehen = {}            # Artikel -> Gruppe gleicher Teile des ersten Körpers mit dieser Nummer
+    gesehen = set()         # schon vergebene Nummern dieses Imports
+    zugeteilt = {}          # (Name, Gruppe gleicher Teile) -> Nummer: gleiche Teile gleichen Namens dieselbe Nummer
     for i, m in enumerate(messwerte):
         art = m.get("artikel")
         if art in (None, ""):
             continue
         art = str(art)
-        g = gruppe.get(i, ("einzeln", i))
-        if art in gesehen and gesehen[art] == g:
-            continue        # gleiches Teil, gleicher Name: dasselbe Teil mehrfach verbaut (eine Position)
+        schl = (art, gruppe.get(i, ("einzeln", i)))
+        if schl in zugeteilt:
+            m["artikel"] = zugeteilt[schl]      # dasselbe Teil mehrfach verbaut (eine Position)
+            continue
         if art in gesehen:
             n = 2
             while f"{art}-{n}" in vergeben:
@@ -1411,7 +1413,8 @@ def eindeutige_artikel(messwerte):
             art = f"{art}-{n}"
             vergeben.add(art)
             m["artikel"] = art
-        gesehen[art] = g
+        gesehen.add(art)
+        zugeteilt[schl] = art
     return messwerte
 
 
