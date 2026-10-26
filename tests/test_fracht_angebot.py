@@ -216,6 +216,13 @@ assert art == fracht_angebot.NACH_GEWICHT and not hinweis
 assert nah(sum(x * p["stueck"] for x, p in zip(je, pos_bg)), 100.0)
 je, _, _ = fracht_angebot.anteile(pos_bg, w_bg, 100.0, fracht_angebot.JE_STUECK)
 assert nah(sum(x * p["stueck"] for x, p in zip(je, pos_bg)), 100.0)
+# längstes Teil: das Packmaß der Baugruppe zählt, wenn es länger ist als jedes Einzelteil (Teillänge-Zuschlag)
+from rohrlaser import baugruppe  # noqa: E402
+i_bg = next(i for i, p in enumerate(pos_bg) if p.get("art") == "Schweißbaugruppe")
+g_bg = baugruppe.lesen(pos_bg[i_bg]["baugruppe"])
+g_bg.setdefault("stamm", {})["abmessungen"] = "7500 x 800 x 600"
+pos_lang = [dict(p, baugruppe=baugruppe.speichern(g_bg)) if i == i_bg else p for i, p in enumerate(pos_bg)]
+assert fracht_angebot.ware(pos_lang, w_bg)[1] == 7500.0
 db_bg.schliessen()
 ok("Schweißbaugruppe: Gewicht aus den Einzelteilen (nicht doppelt), Fracht vollständig verteilt, kein 'Gewicht fehlt'")
 

@@ -121,12 +121,13 @@ def paletten_einst(einst):
 
 
 def _baugruppen_traeger(positionen, werte):
-    """Mit Schweißbaugruppe im Angebot: {Index: (Stück, Gewicht je Stück oder None)} der Positionen, die Fracht tragen
+    """Mit Schweißbaugruppe im Angebot: {Index: (Stück, Gewicht je Stück oder None, Packmaße (l, b, h) oder None)} der
+    Positionen, die Fracht tragen
     (paletten.packstuecke: die Baugruppe reist als ein Stück, Gewicht von Hand, sonst Summe ihrer Einzelteile; die
     Einzelteile nicht noch einmal). Ohne Baugruppe None (jede Position trägt sich selbst, wie bisher)."""
     if not any(ist_baugruppe(p) for p, w in zip(positionen, werte) if w is not None):
         return None
-    return {x["i"]: (x["stueck"], x["gewicht"]) for x in paletten.packstuecke(positionen, werte)}
+    return {x["i"]: (x["stueck"], x["gewicht"], x.get("masse")) for x in paletten.packstuecke(positionen, werte)}
 
 
 def ware(positionen, werte):
@@ -142,7 +143,9 @@ def ware(positionen, werte):
             laenge = max(laenge, float(p.get("laenge") or 0))
             if i not in traeger:          # Einzelteil einer Baugruppe: reist in ihr
                 continue
-            stk, g = traeger[i]
+            stk, g, masse = traeger[i]
+            if masse:                     # Packmaß der Baugruppe kann länger sein als jedes Einzelteil
+                laenge = max(laenge, float(masse[0]))
             if g is None:
                 fehlt.append(str(p.get("pos") or "?"))
             else:
@@ -166,12 +169,12 @@ def anteile(positionen, werte, betrag, art):
     if traeger is not None:         # Schweißbaugruppe: trägt die Fracht ihrer Einzelteile (ein Packstück)
         for i in aktiv:
             out[i] = 0.0
-        teile = sum(stk for stk, _ in traeger.values())
+        teile = sum(stk for stk, _, _ in traeger.values())
         if art == NACH_GEWICHT:
-            fehlt = [str(positionen[i].get("pos") or "?") for i, (_, g) in traeger.items() if not g]
+            fehlt = [str(positionen[i].get("pos") or "?") for i, (_, g, _) in traeger.items() if not g]
             if not fehlt:
-                gesamt = sum(stk * g for stk, g in traeger.values())
-                for i, (_, g) in traeger.items():
+                gesamt = sum(stk * g for stk, g, _ in traeger.values())
+                for i, (_, g, _) in traeger.items():
                     out[i] = betrag * g / gesamt if gesamt else 0.0
                 return out, hinweis, NACH_GEWICHT
             hinweis = (f"Gewicht fehlt bei Pos. {', '.join(fehlt)}: Fracht in diesem Angebot je Stück verteilt"
