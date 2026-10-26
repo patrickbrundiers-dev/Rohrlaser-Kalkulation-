@@ -161,7 +161,8 @@ else:
             QTimer.singleShot(20, pruefen)
             return
         gesehen["zeilen"] = [(z.it.text(0), z.it.text(1), z.pr.currentText()) for z in d.zeilen]
-        gesehen["satzfeld"] = d.satz_feld.isVisibleTo(d) and d.satz_spin.value() == 0     # Vorgabe leer: kein Satz
+        gesehen["satzfeld"] = (d.satz_feld.isVisibleTo(d) and d.satz_spin.value() == 1
+                               and not d.satz_knopf.isChecked())                # Vorgabe: kein Satz
         gesehen["kopf_einzeln"] = d.baum.headerItem().text(5)
         gesehen["baugruppe"] = d.baugruppen[d.datei].text(0)
         bg = d.ansicht.ansicht.modell                                  # 3D: Baugruppe in Einbaulage
@@ -169,6 +170,10 @@ else:
         gesehen["einzeln"] = [z.sp.value() for z in d.zeilen]
         gesehen["vorgabe"] = [(z.ws.currentText(), z.sp.value()) for z in d.zeilen]   # Einstellung, 1 Stück
         d.alle_setzen("S355-10219", 3)
+        d.satz_spin.setValue(2)                                       # Anzahl erhöhen: bleibt Einzelpositionen
+        gesehen["anzahl"] = ([z.sp.value() for z in d.zeilen], d.satz_knopf.isChecked(), d.baum.headerItem().text(5),
+                             d.baugruppen[d.datei].text(0).endswith("als Einzelteile"))
+        d.satz_knopf.setChecked(True)                                 # erst der Knopf macht einen Satz (2 Sätze)
         d.satz_spin.setValue(4)                                       # oben 4 Sätze eintragen
         gesehen["kopf"] = d.baum.headerItem().text(5)
         gesehen["je_satz"] = [z.sp.value() for z in d.zeilen]          # Spalte zeigt jetzt Stück je Satz
@@ -191,6 +196,7 @@ else:
     assert gesehen["3d"] and gesehen["satzfeld"] and gesehen["kopf"] == "Stück je Satz", gesehen
     assert gesehen["je_satz"] == [3, 1], gesehen
     assert gesehen["kopf_einzeln"] == "Stückzahl", gesehen
+    assert gesehen["anzahl"] == ([2, 2], False, "Stückzahl", True), gesehen
     assert [w for w, _ in gesehen["vorgabe"]] == ["S235-10219", "S235-10219"], gesehen
     assert gesehen["baugruppe"] == "Baugruppe „T08_Gestell_Baugruppe“ – 4 Teile, 2 verschieden – als Einzelteile", \
         gesehen
@@ -205,7 +211,7 @@ else:
             return
         sichtbar = lambda: [z.it.text(0) for z in d.zeilen if not z.it.parent().isHidden()]
         gesehen["d1"] = (d.datei_text.text(), sichtbar(), d.satz_feld.isVisibleTo(d), d.zurueck.isEnabled())
-        gesehen["leer"] = d.satz_spin.value() == 0                     # Vorgabe: Sätze leer = Einzelpositionen
+        gesehen["leer"] = not d.satz_knopf.isChecked()                # Vorgabe: Einzelpositionen
         gesehen["einzelteile"] = d.baugruppen[d.datei].text(0)
         d.vor.click()
         gesehen["d2"] = (d.datei_text.text(), sichtbar(), d.satz_feld.isVisibleTo(d), d.vor.isEnabled())
