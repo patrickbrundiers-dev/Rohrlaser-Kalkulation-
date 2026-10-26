@@ -34,6 +34,17 @@ NEUERUNGEN = [
                 "([[angebotskopf]]).",
      "STEP-Prüfdialog mit allen Dateien, Anfrage-Nr. und Zusatzarbeit für alle; Bohrungen aller Positionen in einem "
      "Fenster; Fehler Zusatzarbeiten bei Mehrfachauswahl behoben; Rüsten wahlweise in €."],
+    ["0.9.152", "<b>Preisregeln nach der Prüfung der Preisberechnung</b> (26.10.2026): Zukaufteile und Bleche "
+                "bekommen <b>keinen Gewinn</b> mehr, nur ihren Aufschlag; der Gewinn rechnet auf die Selbstkosten "
+                "ohne Zukaufteile. Der <b>Mindestpreis</b> gilt für die Ware ohne Fracht nach Abzug des Skontos "
+                "([[mindestpreis]]). Der <b>Satzpreis</b> wird aus den ungerundeten Stückpreisen gebildet und ist "
+                "damit gleich dem Staffelpreis derselben Menge. Die <b>Mindestmarge</b> misst den Gewinn am "
+                "Warenwert. <b>Pauschale je Abmessung</b>: Vorgabe 0 € (Rüsten je Abmessung deckt sie). Rüsten "
+                "Maschine wird nach Maschinenzeit, der Stangenwechsel nach Stangenanteil verteilt (Summen gleich). "
+                "<b>Zuschnittkosten</b> beim Lieferanten gehen in die Stangenkosten ein. Die <b>Fracht</b> einer "
+                "Schweißbaugruppe trägt die Baugruppe als ein Packstück (keine Meldung „Gewicht fehlt“ mehr). "
+                "Festgeschriebene Angebote rechnen wie verschickt.",
+     "Preisregeln: Zukauf ohne Gewinn, Mindestpreis für die Ware, Satzpreis wie Staffel, Fracht bei Baugruppen."],
     ["0.9.151", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
                 "Zuschlag Fremdleistung): Vorgabe je 10 % aus den Einstellungen, % auf den Einstand aller Bleche bzw. "
                 "aller übrigen Zukaufteile des Angebots; ersetzt dort Artikel-, Kategorie- und Standardaufschlag, ein "

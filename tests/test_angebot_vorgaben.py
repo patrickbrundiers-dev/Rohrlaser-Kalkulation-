@@ -145,17 +145,19 @@ _, s = rechnen.kalkulation(kopf, [dict(p, stueck=None) for p in pos], erg, k, ta
 assert s["verkauf"] == 0 and not s["mindestpreis_gilt"]
 ok("M2 genau beim Mindestpreis, darüber, Mindestpreis 0 und Angebot ohne Preis: keine Anhebung")
 
-# Skonto: Mindestpreis gilt netto nach Skonto-Einrechnung
+# Skonto: Mindestpreis gilt für die Ware nach Abzug des Skontos (Patrick 26.10.2026, 5a)
 _, s = rechnen.kalkulation(dict(kopf, skonto=3), pos, erg, k, tab, einst)
+assert nah(s["verkauf"] * 0.97 - s["fracht"], 200) and s["skonto"] > 0
+_, s = rechnen.kalkulation(dict(kopf, skonto=3), pos, erg, k, tab, dict(einst, preisregeln=rechnen.PREISREGELN_ALT))
 assert nah(s["verkauf"], 200) and s["skonto"] > 0
-ok("M3 mit 3 % Skonto: Angebotssumme netto genau 200 € (Skonto eingerechnet, keine zweite Anhebung)")
+ok("M3 mit 3 % Skonto: Ware nach Abzug des Skontos genau 200 € (festgeschrieben vor dem 26.10.: Summe 200 €)")
 
 # Angebot: Stückpreise aufgerundet, Summe nie unter 200 €; Hinweis für den Kunden, keine zusätzliche Zeile
 ang = ausgabe.angebot(kopf, pos, z1, k, einst)
 assert len(ang["zeilen"]) == 2 and 200 <= ang["netto"] < 200.05, ang["netto"]
 for z, zz in zip(ang["zeilen"], z1):
     assert z["preis"] >= zz["preis_teil"] - 1e-9 and z["preis"] - zz["preis_teil"] < 0.01
-assert ang["mindestpreis"] == "Mindestauftragswert 200,00 € netto."
+assert ang["mindestpreis"] == "Mindestauftragswert 200,00 € netto (Warenwert ohne Fracht)."
 ang0 = ausgabe.angebot(kopf, pos, z0, k, dict(einst, mindestpreis=0))
 assert ang0["mindestpreis"] == "" and nah(ang0["netto"], ausgabe.kaufm_runden(sum(z["gesamt"] for z in ang0["zeilen"])))
 ok(f"M4 Angebot: Stückpreise auf den Cent aufgerundet, netto {ang['netto']:.2f} €, MwSt auf netto, Hinweis 'Mindestauftragswert'")
@@ -180,7 +182,7 @@ assert st_gross["preis"]["mindest_anhebung"] == 0 and st_gross["preis_gesamt"] >
 st_ohne = staffeln.stufe_rechnen(kopf, pos, "10", 2, k, tab, dict(einst, mindestpreis=0))
 assert st_ohne["preis"]["mindest_anhebung"] == 0 and st_ohne["preis_gesamt"] < 200
 sp = [dict(st_klein, schluessel="10", einheit="Stück", bezeichnung="T10")]
-assert ausgabe.angebot(kopf, pos, z0, k, einst, sp)["mindestpreis"] == "Mindestauftragswert 200,00 € netto."
+assert ausgabe.angebot(kopf, pos, z0, k, einst, sp)["mindestpreis"] == "Mindestauftragswert 200,00 € netto (Warenwert ohne Fracht)."
 ok(f"M6 Staffelpreise: kleine Stufe auf 200 € angehoben ({st_klein['preis_gesamt']:.2f} €), große Stufe unverändert")
 
 # ------------------------------------------------------------------ L4 Lieferzeit ändert keine Preise
@@ -205,7 +207,7 @@ finally:
 alles = "\n".join(texte)
 assert ziel.stat().st_size > 1000
 assert "Lieferzeit: ca. 20 Arbeitstage nach Auftragseingang." in alles and "Lieferzeit nach Absprache" not in alles
-assert "Mindestauftragswert 200,00 € netto." in alles and "Ihre Anfrage" in alles and "Anfrage 4711" in alles
+assert "Mindestauftragswert 200,00 € netto (Warenwert ohne Fracht)." in alles and "Ihre Anfrage" in alles and "Anfrage 4711" in alles
 assert alles.count("Lieferzeit") == 1
 # älteres Angebot ohne Lieferzeit: wie bisher nur der Satz aus den Bedingungen
 texte.clear()

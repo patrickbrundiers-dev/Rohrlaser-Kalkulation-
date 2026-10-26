@@ -1111,19 +1111,23 @@ def kapitel_angebot(i):
             "als eigene Zeile.",
             "Staffelpreise rechnen das Kundenmaterial in jeder Stufe ohne Materialkosten.")
     i.abschnitt("Mindestpreis", marke="mindestpreis")
-    i.text("Liegt ein Angebot unter dem <b>Mindestpreis</b> (Mindestauftragswert, Vorgabe 200,00 € netto), hebt das "
-           "Programm alle Stückpreise im gleichen Verhältnis an. Der Betrag steht nur in den Einstellungen; je "
+    i.text("Liegt der <b>Warenwert</b> eines Angebots (ohne Fracht, nach Abzug des Skontos) unter dem "
+           "<b>Mindestpreis</b> (Mindestauftragswert, Vorgabe 200,00 € netto), hebt das Programm alle Stückpreise "
+           "im gleichen Verhältnis an. Der Betrag steht nur in den Einstellungen; je "
            "Angebot lässt er sich mit dem Häkchen <b>Mindestauftragswert anwenden</b> (Karte <i>Kalkulation dieses "
            "Angebots</i>) ausschalten.", kurz=True)
     i.genauer()
     i.text("Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie kalkuliert. "
-           "Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
-    i.liste("Beispiel: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis × 200 ÷ 148; "
-            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation und Kalkulations-PDF steht die "
+           "Der Mindestpreis ist netto und gilt für die Ware: ohne Fracht, nach Abzug des Skontos und vor der "
+           "Umsatzsteuer. Beispiel: 200,00 € Mindestpreis, 30,00 € Fracht, 2 % Skonto → Angebot 234,69 € netto; zahlt "
+           "der Kunde mit Skonto, bleiben 200,00 € für die Ware. Festgeschriebene Angebote vor dem 26.10.2026 rechnen "
+           "wie verschickt (Mindestpreis auf den Verkaufspreis mit Fracht).")
+    i.liste("Beispiel ohne Fracht und Skonto: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis "
+            "× 200 ÷ 148; Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation und Kalkulations-PDF steht die "
             "Differenz als Kostenart <b>Anhebung auf Mindestpreis</b> (mit kalkuliertem Preis und Mindestpreis), "
             "je Position in der Spalte <i>Mindestpreis je Teil</i>.",
             "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
-            "200,00 € netto.“. Die angehobenen Stückpreise sind auf den Cent aufgerundet, damit die Summe nie unter "
+            "200,00 € netto (Warenwert ohne Fracht).“. Die angehobenen Stückpreise sind auf den Cent aufgerundet, damit die Summe nie unter "
             "dem Mindestpreis liegt (200 € bei 7 Stück: 28,58 € je Stück = 200,06 €).",
             "Genau beim Mindestpreis oder darüber ändert sich nichts. Der Mindestpreis gilt einmal je Angebot, nicht "
             "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
@@ -2282,8 +2286,12 @@ def kapitel_optimieren(i):
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
             "dem Zuschlag Fremdleistung.",
             "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
-            "Stangenwechsel je Stange (Stangen mit fester Schweißnaht-Lage mit dem Stangenwechsel SN), gleichmäßig "
-            "auf alle Teile verteilt, je mit dem Stundensatz ihres Arbeitsschritts.",
+            "Stangenwechsel je Stange (Stangen mit fester Schweißnaht-Lage mit dem Stangenwechsel SN), je mit dem "
+            "Stundensatz ihres Arbeitsschritts. Die Rüstzeit der Maschine verteilt sich nach der Laserzeit (ein Teil "
+            "mit doppelter Schneidzeit trägt doppelt so viel), der Stangenwechsel einer Stangengruppe wie das Material "
+            "nach der Teilelänge (ein 2.150-mm-Teil trägt mehr als ein 345-mm-Teil), die Rüstzeit je Abmessung "
+            "gleichmäßig auf die Teile dieser Abmessung. Festgeschriebene Angebote vor dem 26.10.2026 verteilen "
+            "Maschine und Stangenwechsel wie damals gleichmäßig je Teil.",
             "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten ([[stundensaetze]]) × Stundensatz, auf die "
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
             "<b>Programmierkosten</b>: Programmierzeit der Position × Stundensatz <i>Programmierung</i> "
@@ -2294,18 +2302,23 @@ def kapitel_optimieren(i):
             "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.22 verschickt und damit "
             "festgeschrieben wurden ([[preise_festschreiben]]), rechnen weiter mit ihrem Betrag je Position "
             "(<i>Programmierkosten je Position (alt) [€]</i>, auch in einer Staffel-Stufe).",
-            "<b>Pauschale je Abmessung, Angebotsaufschlag</b>: ohne Zuschläge in die Selbstkosten.",
+            "<b>Pauschale je Abmessung, Angebotsaufschlag</b>: ohne Zuschläge in die Selbstkosten. Die Pauschale je "
+            "Abmessung ist seit 26.10.2026 0 € (Vorgabe, einmalig auch in den Einstellungen), weil die Rüstzeit je "
+            "Abmessung denselben Aufwand deckt; Angebote mit eigenem Wert behalten ihn.",
             "<b>Zukaufteile</b>: Einstand und Aufschlag der Zukaufteile der Position ([[zukauf_angebot]]), ohne "
-            "Zuschläge in die Selbstkosten (Spalte <i>Zukaufteile je Teil</i>).",
+            "Zuschläge und <b>ohne Gewinn</b> in die Selbstkosten: ihr Aufschlag (bei Blechen der Aufschlag Bleche) "
+            "ist ihr Gewinn (Spalte <i>Zukaufteile je Teil</i>). Beispiel: Blech EK 100,00 €, Aufschlag 10 %, Skonto "
+            "2 % → 112,24 €.",
             "<b>Selbstkosten</b> = Herstellkosten + Programmierkosten + Pauschale je Abmessung + Angebotsaufschlag + "
             "Zukaufteile (Spalte <i>Selbstkosten je Teil</i>).",
-            "<b>Gewinn</b> = Selbstkosten × Gewinn %.",
+            "<b>Gewinn</b> = (Selbstkosten − Zukaufteile) × Gewinn %.",
             "<b>Fracht</b>: nach dem Gewinn, ohne Zuschläge und ohne Gewinn (reine Fremdkosten).",
             "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis mit Gewinn "
             "bleibt (Skonto % des Verkaufspreises, „im Hundert“). Je Teil in der Spalte <i>Skonto je Teil</i>.")
     i.abschnitt("Worauf der Gewinn rechnet", marke="gewinn_basis")
-    i.text("Der Gewinn rechnet auf <b>alle Kosten</b> (Selbstkosten): Herstellkosten, Programmierung, Pauschalen, "
-           "Angebotsaufschlag und Zukaufteile. Nur die Fracht bekommt keinen Gewinn. Das Skonto kommt zuletzt auf "
+    i.text("Der Gewinn rechnet auf die <b>Selbstkosten ohne Zukaufteile</b>: Herstellkosten, Programmierung, "
+           "Pauschalen und Angebotsaufschlag. Zukaufteile und Bleche tragen nur ihren Aufschlag (Patrick 26.10.2026), "
+           "die Fracht bekommt keinen Gewinn. Das Skonto kommt zuletzt auf "
            "den Preis mit Gewinn.", kurz=True)
     i.text("Bis Oktober 2026 rechnete der Gewinn nur auf die Herstellkosten; Programmierung, Pauschalen, "
            "Angebotsaufschlag, Fracht und Zukaufteile kamen ohne Gewinn danach. Angebote, deren Preise vorher "
@@ -3421,7 +3434,9 @@ def kapitel_optimieren(i):
             "späteren Angebot wiederverwendet; ein Reststückwert wird nicht angerechnet.")
     i.text("<b>Gesamtkosten je Variante</b> = Materialkosten (Stangen × Preis der Lieferlänge) + Stangenwechsel und "
            "Arbeitsschritte je Stange für jede Beladung + Kosten je Zuschnitt beim Lieferanten (Vorgabe 0 €: die "
-           "12-m-Stangen kommen geschnitten ohne Zusatzkosten). Laserzeit und Schnittwege sind in allen Varianten "
+           "12-m-Stangen kommen geschnitten ohne Zusatzkosten). Die Kosten je Zuschnitt zählen auch im Angebot zu "
+           "den Materialkosten der Lieferstange (seit 26.10.2026; Beispiel 2 Zuschnitte à 3 € = 6,00 € je "
+           "Lieferstange). Laserzeit und Schnittwege sind in allen Varianten "
            "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Stangenlängen nach Zuschnitt, Materiallänge, "
            "Materialkosten, Stangenwechsel, Zuschnittkosten, Reststückwert (nicht angerechnet), Gesamtkosten, "
            "Verschnitt in mm und % und fehlende Angaben.")
@@ -3692,7 +3707,9 @@ def kapitel_fracht(i):
             "Pos. 1 und 6,00 € je Teil in Pos. 2. Neue Angebote verteilen nach Gewicht; ältere Angebote und ihre "
             "Kopien bleiben bei je Stück, damit sich ihre Preise nicht ändern. Fehlt einer Position das Gewicht "
             "(kein Profil oder Werkstoff mit Dichte), verteilt das Programm in diesem Angebot je Stück und zeigt den "
-            "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte.",
+            "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte. Eine <b>Schweißbaugruppe</b> reist als ein Stück: sie "
+            "trägt die Fracht ihrer Einzelteile (Gewicht von Hand oder Summe der Einzelteile), die Einzelteile zählen "
+            "nicht noch einmal.",
             "<b>Fracht berechnen …</b> öffnet den Frachtrechner ([[fracht_rechner]]), vorbelegt mit dem Nettogewicht und dem "
             "längsten Teil aus den Positionen, dem Kunden (PLZ, Land, Lieferbedingung aus dem Kundenstamm), dem "
             "Angebotsdatum und einem Packvorschlag. Eine schon gespeicherte Berechnung wird mit ihren Eingaben "
@@ -4461,7 +4478,9 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>im Angebotstext der Position nennen</i> eine Zeile mit Menge je Teil, z. B.:<br/>"
            "<i>Quadratrohr 40 x 40 x 3<br/>L = 550 mm<br/>inkl. Material S235 EN10219<br/>inkl. Gewinde 4xM6<br/>"
            "inkl. Senken</i><br/>"
-           "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile.")
+           "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile. Der Preis je Satz ist die "
+           "Summe der ungerundeten Stückpreise × Stück je Satz, erst dann auf den Cent gerundet; so steht für "
+           "dieselbe Menge derselbe Preis wie in der Staffel.")
     i.abschnitt("Ordner je Angebot", marke="angebotsordner")
     i.text("Jedes Angebot hat in der Ablage einen eigenen Ordner <i>Nummer Kunde</i>, z. B. "
            "<i>2026-00042 Stahlbau Ostermann</i>. Alles, was das Programm zum Angebot speichert, kommt dort hinein: "
@@ -4604,8 +4623,9 @@ def kapitel_ausgabe(i, seiten, ablage):
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
     i.genauer()
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
-           "Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)</i>, Vorgabe 0). Gemeint ist der Gewinn aus dem "
-           "Preisaufbau geteilt durch den Verkaufspreis. Angebote der Kollegen lassen sich ansehen und ausgeben, "
+           "Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)</i>, Vorgabe 0). Gemeint ist (Gewinn + "
+           "Anhebung auf den Mindestpreis) geteilt durch den Warenwert (Selbstkosten + Gewinn + Anhebung), ohne "
+           "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Angebote der Kollegen lassen sich ansehen und ausgeben, "
            "ohne dass der Check fragt.")
     i.abschnitt("Angebot (PDF)")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
@@ -4906,8 +4926,9 @@ def kapitel_einstellungen(i):
          "Vorgabe 0."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
-        ["Kalkulation", "Mindestpreis je Angebot netto [€] (0 = keiner)",
-         "Vorgabe 200,00 €; gilt für alle Angebote, darunter werden die Stückpreise anteilig angehoben "
+        ["Kalkulation", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)",
+         "Vorgabe 200,00 €; gilt für alle Angebote und für die Ware ohne Fracht nach Abzug des Skontos, darunter "
+         "werden die Stückpreise anteilig angehoben "
          "([[mindestpreis]])."],
         ["Angebot", "Lieferzeit neuer Angebote: Angabe als, Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, "
                     "KW/Jahr oder Datum), Lieferzeit neuer Angebote: Freitext",

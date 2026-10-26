@@ -97,9 +97,14 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     if summen.get("fracht_fehler"):
         out.append(Punkt(WARNUNG, f"Fracht: {summen['fracht_fehler']}", "fracht",
                          "Das Angebot enthält dann keine Fracht." if fracht_angebot.auto(kopf) else ""))
-    verkauf, gewinn = _zahl(summen.get("verkauf")), _zahl(summen.get("gewinn"))
-    if mindestmarge and verkauf and gewinn is not None and gewinn / verkauf < mindestmarge - 1e-9:
-        text = (f"Marge {zahl(100 * gewinn / verkauf, 1)} % unter der Mindestmarge {zahl(100 * mindestmarge, 1)} %"
+    # Marge am Warenwert (Patrick 26.10.2026, 3a): (Gewinn + Anhebung auf den Mindestpreis) ÷ (Selbstkosten + Gewinn +
+    # Anhebung), ohne Fracht und Skonto
+    gewinn, selbst = _zahl(summen.get("gewinn")), _zahl(summen.get("selbst"))
+    anhebung = (_zahl(summen.get("mindestpreis_anhebung")) or 0.0) * (1 - (_zahl(summen.get("skonto_satz")) or 0) / 100)
+    basis = (selbst or 0.0) + (gewinn or 0.0) + anhebung
+    m = (gewinn + anhebung) / basis if gewinn is not None and selbst is not None and basis > 0 else None
+    if mindestmarge and m is not None and m < mindestmarge - 1e-9:
+        text = (f"Marge {zahl(100 * m, 1)} % unter der Mindestmarge {zahl(100 * mindestmarge, 1)} %"
                 if admin else "Marge unter der Mindestmarge (Einstellungen)")
         out.append(Punkt(WARNUNG, text, "kalkulation"))
     if staffel_widersprueche:

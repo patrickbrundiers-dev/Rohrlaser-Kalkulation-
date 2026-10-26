@@ -197,6 +197,35 @@ ok("manuell: gleiche Fracht in allen Stufen; berechnet ohne Frachtberechnung: ke
 assert "frei Haus nach DE 25980" in fracht_angebot.angebotstext(a)
 ok("Angebots-PDF: 'Die Preise enthalten die Fracht frei Haus nach DE 25980.'")
 
+# Schweißbaugruppe (Prüfung Preisberechnung 26.10.2026): die Baugruppe hat kein eigenes Gewicht, ihre Einzelteile
+# reisen in ihr. Fracht nach Gewicht verteilt sich ohne Hinweis 'Gewicht fehlt', Teile zählen nicht doppelt.
+import beispiel_baugruppe  # noqa: E402
+db_bg = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
+bg_id = beispiel_baugruppe.anlegen(db_bg)
+kopf_bg, pos_bg = db_bg.angebot(bg_id), db_bg.positionen(bg_id)
+for p in pos_bg:
+    if p.get("art") == "Zukaufteil":
+        p["gewicht_teil"] = 0.05            # Schrauben mit Gewicht
+k_bg, tab_bg = db_bg.kontext(), db_bg.tabellen()
+w_bg = [rechnen.position_werte(p, kopf_bg, k_bg, tab_bg) for p in pos_bg]
+netto, _, fehlt = fracht_angebot.ware(pos_bg, w_bg)
+teile = sum(w["gewicht"] * p["stueck"] for p, w in zip(pos_bg, w_bg) if p.get("art") != "Schweißbaugruppe")
+assert not fehlt and nah(netto, teile), (netto, teile, fehlt)
+je, hinweis, art = fracht_angebot.anteile(pos_bg, w_bg, 100.0, fracht_angebot.NACH_GEWICHT)
+assert art == fracht_angebot.NACH_GEWICHT and not hinweis
+assert nah(sum(x * p["stueck"] for x, p in zip(je, pos_bg)), 100.0)
+je, _, _ = fracht_angebot.anteile(pos_bg, w_bg, 100.0, fracht_angebot.JE_STUECK)
+assert nah(sum(x * p["stueck"] for x, p in zip(je, pos_bg)), 100.0)
+# längstes Teil: das Packmaß der Baugruppe zählt, wenn es länger ist als jedes Einzelteil (Teillänge-Zuschlag)
+from rohrlaser import baugruppe  # noqa: E402
+i_bg = next(i for i, p in enumerate(pos_bg) if p.get("art") == "Schweißbaugruppe")
+g_bg = baugruppe.lesen(pos_bg[i_bg]["baugruppe"])
+g_bg.setdefault("stamm", {})["abmessungen"] = "7500 x 800 x 600"
+pos_lang = [dict(p, baugruppe=baugruppe.speichern(g_bg)) if i == i_bg else p for i, p in enumerate(pos_bg)]
+assert fracht_angebot.ware(pos_lang, w_bg)[1] == 7500.0
+db_bg.schliessen()
+ok("Schweißbaugruppe: Gewicht aus den Einzelteilen (nicht doppelt), Fracht vollständig verteilt, kein 'Gewicht fehlt'")
+
 fenster.close()
 db.schliessen()
 print("OK: Fracht im Angebot und in den Staffelpreisen")
