@@ -2170,7 +2170,8 @@ def kapitel_step(i):
             "<b>Nahtkandidaten</b> dazu: je Paar sich berührender Teile eine mögliche Schweißnaht mit Länge (Umfang "
             "am Rohrende bzw. der Berührung), Stoßart (Kehlnaht, Stumpfnaht in einer Flucht, Ecknaht bei Gehrung) "
             "und Dicke der dünneren Wand. Sie sind nur ein Vorschlag mit Status <i>prüfen</i> für die "
-            "Schweißbaugruppen.",
+            "Schweißbaugruppen. Ab Version 1.20 auch bei einem Spalt zwischen den Teilen (mit Spaltmaß, "
+            "[[naht_spalt]]) und je Datei die Teile ohne Naht.",
             "<i>STEP-Import.exe</i> kann auch ohne das Programm messen: <i>STEP-Import.exe --ausgabe messwerte.txt "
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
@@ -4311,8 +4312,42 @@ def kapitel_baugruppen(i):
            "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Vorgaben, Einstellung "
            "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>; z. B. Wand 4 mm → "
            "a 2,5 mm). Der Vorschlag ist gelb markiert und der Status "
-           "zeigt den HINWEIS <i>a-Maß nach Regel, bitte bestätigen</i>, bis du das a-Maß prüfst und <b>a-Maß "
-           "bestätigen</b> drückst oder einen anderen Wert einträgst.")
+           "zeigt den HINWEIS <i>a-Maß nach Regel, bitte bestätigen</i>, bis du das a-Maß prüfst und <b>a-Maß und "
+           "Spalt bestätigen</b> drückst oder einen anderen Wert einträgst.")
+    i.abschnitt("Spalt zwischen zwei Teilen", marke="naht_spalt")
+    i.text("Liegt zwischen zwei Teilen ein kleiner Spalt (z. B. Blech 1,5 mm neben dem Rohr), erkennt der STEP-Import "
+           "dort trotzdem eine Naht und graviert den Umriss bzw. die Positionsmarke genau unter das Blech auf die "
+           "Rohrwand. Solche Vorschläge und Anbauteile tragen das Spaltmaß und sind zum Prüfen markiert.", kurz=True)
+    i.text("Bis zu welchem Spalt das gilt, steht unter Einstellungen, Karte STEP-Import: <i>STEP-Import: Spalt zwischen "
+           "zwei Teilen bis [mm] gilt noch als Schweißstoß (Naht und Gravur)</i> (Vorgabe 3 mm). Die "
+           "Teile selbst werden dabei nie verschoben, Lage und Konturen bleiben genau wie in der STEP-Datei; nur zum "
+           "Messen wird eine Kopie an das andere Teil gelegt. Ist der Spalt einer Nahtgruppe oder eines Vorschlags "
+           "größer als <i>Schweißbaugruppen: Warnung, wenn der Spalt einer Naht größer ist als [mm]</i> (Vorgabe "
+           "2 mm), zeigt die Baugruppe die WARNUNG <i>Spalt … mm zwischen den Teilen, Konstruktion prüfen</i>; "
+           "drucken geht trotzdem. Hat ein Teil der Baugruppe zu keinem anderen eine Naht (Spalt zu groß oder lose "
+           "konstruiert), meldet der Import <i>ohne Naht zu einem anderen Teil … – lose?</i>, und die Baugruppe "
+           "zeigt dieselbe WARNUNG, bis eine Nahtgruppe das Teil enthält oder du eine Nahtgruppe von Hand anlegst.")
+    i.text("Der Spalt kostet mehr Schweißgut: eine übernommene Nahtgruppe trägt ihn in der Spalte <b>Spalt [mm]</b>. "
+           "Eine Kehlnaht rechnet dann mit dem Nahtquerschnitt von a + Spalt, Stumpf- und Ecknaht mit zusätzlich "
+           "Spalt × Dicke; Schweißzeit und Zusatzwerkstoff steigen im selben Verhältnis (der Hinweis der Zeile zeigt "
+           "z. B. <i>Spalt 1,5 mm (Schweißgut ×2,3)</i>). Bis du ihn mit <b>a-Maß und Spalt bestätigen</b> prüfst, "
+           "ist die Zeile gelb und die Baugruppe zeigt den HINWEIS <i>Spalt … mm eingerechnet (a + Spalt), bitte "
+           "bestätigen</i>. Spalt leeren oder 0 rechnet wie ohne Spalt.")
+    i.text("Steckt ein Rohr durch ein Loch im Blech, schlägt der Import eine Kehlnaht rundum mit dem Außenumfang des "
+           "Rohrs vor und hakt <b>beidseitig</b> an (oben und unten am Blech geschweißt); wird nur eine Seite "
+           "geschweißt, das Häkchen in der Nahtgruppe entfernen.")
+    i.abschnitt("a-Maß und Stückliste aus der Zeichnung", marke="zeichnung_baugruppe")
+    i.text("<b>Aus Zeichnung …</b> (Reiter Nahtgruppen) liest die Zeichnung der Baugruppe (PDF aus dem CAD, DXF oder "
+           "Scan) und setzt die a-Maße der Schweißangaben in die Kehlnähte. Die Zeichnung ist maßgebend.", kurz=True)
+    i.text("Gelesen wird der Text nach DIN EN ISO 2553: <i>a4</i>, <i>a 3,5</i>, <i>z7</i> (Schenkel, a = z ÷ √2), "
+           "<i>s5</i> (Stumpfnaht), unterbrochen <i>a4 3×100 (200)</i>, dazu <i>umlaufend</i> und <i>beidseitig</i>. "
+           "Steht nur eine Größe in der Zeichnung, bekommen alle Kehlnähte ohne a-Maß bzw. mit a-Maß nach Regel "
+           "dieses a-Maß. Stehen mehrere da, nimmt jede Nahtgruppe die zu ihrer Wanddicke passende (das größte a bis "
+           "Faktor × Wanddicke) und bleibt gelb, bis du sie mit <b>a-Maß und Spalt bestätigen</b> prüfst; Nahtgruppen "
+           "ohne Wanddicke bleiben offen. Von Hand gesetzte a-Maße bleiben. Die <b>Stückliste</b> der Zeichnung "
+           "(Kopfzeile mit Pos. und Menge) vergleicht das Programm mit den Einzelteilen der Baugruppe und meldet "
+           "fehlende Teile und andere Stückzahlen. Bei einem Scan oder Foto liest die Texterkennung "
+           "([[pdf_zeichnung]]) – dann alle Werte prüfen.")
     i.abschnitt("Arbeitsgänge und Vorrichtungen")
     i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
            "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)

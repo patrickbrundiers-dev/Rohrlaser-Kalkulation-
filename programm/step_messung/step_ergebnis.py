@@ -104,11 +104,16 @@ Versionen von SCHEMA_VERSION:
   (Profilform der offenen Messung), steg (mm, null = Spalt geschlossen)}, "erkennungssicherheit" mit "offene_seite":
   "stege" bzw. "ergänzt", Prüfstatus "prüfen"; sonst null. Im Netz der offenen Messung sind die Stege bzw. der
   geschlossene Spalt Art "EO". Felder aus 1.18 unverändert.
+- 1.20 (26.10.2026): Schweißstoß mit Spalt (bis Einstellung step_naht_spalt, Vorgabe 3 mm): Nahtkandidaten auch
+  zwischen Körpern mit Spalt, dann mit "spalt_mm" (sonst fehlt das Feld); Anbauteile mit Spalt zum Rohr mit "spalt"
+  (mm) und Vertrauen "prüfen", Gravur genau unter dem Anbauteil auf der Rohrwand. Je Datei "ohne_naht" = Körper
+  "nr" einer Baugruppe ohne Nahtkandidat ([] bei Einzelteilen, null = nicht bestimmt). Rohr durch ein Blech gesteckt:
+  Nahtkandidat mit "beidseitig": true und laenge_mm = Außenumfang des Rohrs (je Seite). Felder aus 1.19 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.19"
+SCHEMA_VERSION = "1.20"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -224,6 +229,7 @@ def datei(name, teile=None, fehler=None):
     if fehler is not None or not teile:
         return {"datei": name, "importstatus": "nicht lesbar", "fehler": fehler, "einheit_datei": None,
                 "einheit_ausgabe": "mm", "meldungen": [], "warnungen": [], "baugruppe": None, "struktur": None, "nahtkandidaten": [],
+                "ohne_naht": [],
                 "anzahl_koerper": 0, "koerper": []}
     meldungen = teile[0].meldungen
     leer = [h for t in teile if not t.koerper for h in t.hinweise]     # z. B. "Kein Körper … in der Datei"
@@ -238,6 +244,7 @@ def datei(name, teile=None, fehler=None):
         "baugruppe": len(teile) > 1,
         "struktur": teile[0].struktur,
         "nahtkandidaten": list(teile[0].naehte or []),
+        "ohne_naht": list(teile[0].ohne_naht) if teile[0].ohne_naht is not None else None,
         "anzahl_koerper": len([t for t in teile if t.koerper]),
         "koerper": [koerper(t) for t in teile if t.koerper],
     }
