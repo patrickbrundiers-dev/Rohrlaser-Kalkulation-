@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.155", "<b>Schweißnaht und Gravur auch bei Spalt</b>: Liegt zwischen Blech und Rohr (oder zwei anderen Teilen "
+                "einer Baugruppe) ein Spalt bis 3 mm (Einstellung), erkennt der STEP-Import die Naht und graviert den "
+                "Umriss genau unter das Blech; Vorschläge und Anbauteile tragen das Spaltmaß und sind zum Prüfen "
+                "markiert, die Teile werden nie verschoben. Neu: WARNUNG bei Spalt über 2 mm (Einstellung) und für "
+                "Teile ohne Naht zu einem anderen Teil. Der Spalt kostet mehr Schweißgut: Nahtgruppen rechnen mit a + Spalt "
+                "(gelb bis „a-Maß und Spalt bestätigen“), auch eine im 3D gezeichnete Naht findet das Teil auf der "
+                "anderen Seite des Spalts. Rohr durch ein Blech gesteckt: Naht rundum, beidseitig ([[naht_spalt]]). Neu im Reiter Nahtgruppen: "
+                "<b>Aus Zeichnung …</b> liest a-Maße (DIN EN ISO 2553) und Stückliste aus PDF, DXF oder Scan "
+                "([[zeichnung_baugruppe]]).",
+     "Schweißnaht und Gravur auch bei Spalt zwischen Blech und Rohr."],
     ["0.9.154", "<b>Hell- und Dunkelmodus optisch verbessert</b>: Im Dunkelmodus sind Rahmen von Eingabefeldern, "
                 "Auswahllisten und Häkchenkästchen wieder sichtbar, Hauptknöpfe kräftig blau mit gut lesbarer weißer "
                 "Schrift, die Herkunft der Merkmale im Teile-Editor und die Legende der Kostenbalken nicht mehr dunkel "

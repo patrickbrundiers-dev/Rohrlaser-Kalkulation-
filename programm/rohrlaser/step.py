@@ -102,6 +102,7 @@ def struktur_anhaengen(messwerte, json_pfad):
         d = je_datei.get(m.get("datei")) or {}
         m["_struktur"] = d.get("struktur")
         m["_nahtkandidaten"] = d.get("nahtkandidaten") or []
+        m["_ohne_naht"] = d.get("ohne_naht") or []
     return messwerte
 
 
@@ -1891,6 +1892,21 @@ def _satz_stoesse(messwerte, satz_teile):
     return out
 
 
+def _ohne_naht(messwerte, datei, liste):
+    """Teile der Datei ohne Nahtkandidat (STEP-JSON 1.20 "ohne_naht") als [{koerper, name}] für die Baugruppe; nur
+    Körper, deren Position übernommen wird (liste = [(Position, Knoten)])."""
+    nummern = {str(k) for m in messwerte if m.get("datei") == datei for k in m.get("_ohne_naht") or ()}
+    if not nummern:
+        return []
+    artikel = {str(p.get("artikel") or "") for p, _ in liste}
+    out = []
+    for m in messwerte:
+        k = str(m.get("koerper") or "")
+        if m.get("datei") == datei and k in nummern and str(m.get("artikel") or "") in artikel:
+            out.append(dict(koerper=k, name=str(m.get("artikel") or f"Körper {k}")))
+    return out
+
+
 def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, maschine, zusatz_katalog, hinweise):
     """Leitteil einer Knickverbindung (Prüfdialog, knickverbindung.py): Konturen aller Schenkel auf dem gestreckten
     Rohr, V-Ausschnitte, Länge, Schneidweg und Enden aus dem Schneidweg-Rechner, gefaltetes Netz und Zusatzarbeit
@@ -1966,6 +1982,9 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
             bericht.append(f"Schweißbaugruppe {name}: " + ", ".join(f"{u['name']} ({u['menge']} Stück)" for u in unter)
                            + " als Unterbaugruppe eingehängt")
         bg, hinweise = baugruppe.aus_step(name, struktur, liste, kandidaten)
+        lose = _ohne_naht(messwerte, datei, liste) if not unter else []
+        if lose:
+            bg["ohne_naht"] = lose
         # Stöße Rohrende an Rohrwand (STEP-JSON 1.18) für „Alle Stöße stecken“; Körpernummern gelten je Datei, darum
         # nur ohne eingehängte Unterbaugruppen aus anderen Dateien
         stoesse = [k["stoss"] for k in kandidaten or () if isinstance(k, dict) and isinstance(k.get("stoss"), dict)]
@@ -1978,6 +1997,13 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
                        f"{len(bg['knoten'])} Unterbaugruppen" + ("" if struktur else " (Datei ohne Struktur)")
                        + (f", {sum(len(v['teile']) for v in bg['vorschlaege'])} Nahtkandidaten als Vorschlag" if
                           bg["vorschlaege"] else "") + "; Nahtgruppen und Arbeitsgänge im Editor ergänzen")
+        spalte = [v for v in bg["vorschlaege"] if baugruppe._zahl(v.get("spalt"))]
+        if spalte:
+            bericht.append(f"Schweißbaugruppe {name}: {len(spalte)} Nahtvorschl{'ag' if len(spalte) == 1 else 'äge'} "
+                           f"mit Spalt (bis {baugruppe._text(max(v['spalt'] for v in spalte))} mm), prüfen")
+        if lose:
+            bericht.append(f"Schweißbaugruppe {name}: ohne Naht zu einem anderen Teil: "
+                           + ", ".join(x["name"] for x in lose) + " – lose? prüfen")
         bericht += [f"{p.get('artikel')}: {h}" for (p, _), h in zip(liste, hinweise) if h]
         naechste += 10
     return naechste

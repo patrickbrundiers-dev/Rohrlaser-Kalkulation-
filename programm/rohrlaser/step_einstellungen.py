@@ -7,13 +7,15 @@ Grenzwerte der Erkennung). Die Vorgaben sind die bisher festen Werte, ohne Ände
 import shutil
 from pathlib import Path
 
-from . import VERSION, bohrbild, step
+from . import VERSION, baugruppe, bohrbild, step
 
 CACHE_ORDNER = "STEP-Cache"     # neben der Datenbank
 TOLERANZEN = {"step_tol_profil": (step, "TOL_MASS", 0.15), "step_tol_gleich": (step, "TOL_GLEICH", 0.2),
               "step_tol_kernloch": (bohrbild, "TOL_KERNLOCH", 0.05)}
+# außerhalb der Karte STEP-Import, aber ebenso beim Start und nach jeder Änderung gesetzt
+WEITERE = {"schweiss_spalt_max": (baugruppe, "SPALT_MAX", 2.0)}
 EINSTELLUNGEN = set(TOLERANZEN) | {"step_prozesse", "step_zeitlimit", "step_cache", "step_cache_mb",
-                                   "step_flach_laenge", "step_gekantet_anteil"}
+                                   "step_flach_laenge", "step_gekantet_anteil", "step_naht_spalt"}
 
 
 def _zahl(db, name, vorgabe):
@@ -22,7 +24,7 @@ def _zahl(db, name, vorgabe):
 
 
 def anwenden(db):
-    for name, (modul, glob, vorgabe) in TOLERANZEN.items():
+    for name, (modul, glob, vorgabe) in (TOLERANZEN | WEITERE).items():
         setattr(modul, glob, _zahl(db, name, vorgabe))
 
 
@@ -34,7 +36,8 @@ def mess_argumente(db):
     args = ["--prozesse", str(int(_zahl(db, "step_prozesse", 0))),
             "--zeitlimit", f"{_zahl(db, 'step_zeitlimit', 120):g}",
             "--flach-laenge", f"{_zahl(db, 'step_flach_laenge', 3.0):g}",
-            "--gekantet-anteil", f"{_zahl(db, 'step_gekantet_anteil', 0.85):g}"]
+            "--gekantet-anteil", f"{_zahl(db, 'step_gekantet_anteil', 0.85):g}",
+            "--naht-spalt", f"{_zahl(db, 'step_naht_spalt', 3.0):g}"]
     if (db.einstellung("step_cache") or "ja") == "ja":
         args += ["--cache", str(cache_ordner(db)), "--cache-mb", f"{_zahl(db, 'step_cache_mb', 500):g}",
                  "--kennung", VERSION]
