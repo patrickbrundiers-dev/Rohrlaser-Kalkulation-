@@ -54,6 +54,7 @@ LIEFERZEIT_TOOLTIP = ("Arbeitstage und Wochen zählen ab Auftragseingang; Kalend
                       "Termine; „nur Text“ zeigt nur den Freitext")
 # Fracht rechts neben der Kalkulation ab dieser Breite der Angebotsseite (darunter steht sie unter der Kalkulation)
 FRACHT_RECHTS_AB = 1800
+RUESTEN_EUR = ("ruesten_angebot_eur", "ruesten_abmessung_eur")     # leer = Rüsten in Minuten × Stundensatz
 
 from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
 
@@ -871,7 +872,8 @@ class KopfBereich(QWidget):
             be, we = self.zeilen_erweitert[name]
             be.setVisible(not zeigen and not weg)
             we.setVisible(not zeigen and not weg)
-            versteckt += not zeigen and not weg
+            # Rüsten in € leer = Minuten (kein Wert auf 0): nur unter Erweiterte Einstellungen, nicht mitgezählt
+            versteckt += not zeigen and not weg and not (name in RUESTEN_EUR and self.wert(name) is None)
             if zeigen:
                 gezeigt.add(name)
         for titel, (leer, namen) in self.gruppen_leer.items():
