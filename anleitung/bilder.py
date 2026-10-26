@@ -336,6 +336,8 @@ def main(ziel):
     haupt = angebot_anlegen(db, vorlagen["ABN-02"], "A-2026-0041", "Anlagenbau Hessler", "10233",
                             "Maschinengestell MG 2000", saetze=2)
     db.einstellung_setzen("letzte_angebotsnummer", "A-2026-0041")
+    # Zusatzarbeiten unter Position: nur auf dem eigenen Bild an, die übrigen Bilder zeigen die Liste einzeilig
+    db.einstellung_setzen("ansicht_zusatz_unterzeilen", False)
     for a in (a1, a2):
         f.angebot_oeffnen(a).optimieren()
         f.angebot_schliessen(a)
@@ -456,6 +458,22 @@ def main(ziel):
     s.zusatzarbeiten([0])
     db.position_aendern(s.positionen[1]["id"], "zeit_manuell", 45.0)
     s.neu_laden()
+
+    # 7a1) Häkchen „Zusatzarbeiten unter Position“: je Arbeitsschritt eine Zeile unter der Position
+    s.unter_haken_pos.setChecked(True)
+    s.pos_ansicht.auto_groesse.anpassen()
+    QApplication.processEvents()
+    v = s.pos_ansicht
+    oben = s.unter_haken_pos.mapTo(f, QPoint(0, 0)).y() - 6
+    unten = v.viewport().mapTo(f, QPoint(0, v.rowViewportPosition(2) + v.rowHeight(2))).y() + 4
+    h0 = s.pos_unter.hoehe(0)
+    y0 = v.rowViewportPosition(0) + v.rowHeight(0) - h0
+    x0 = max(v.columnViewportPosition(s.pos_unter.spalte), 0)
+    foto.foto("zusatz_unterzeilen", f, [(s.unter_haken_pos, 1),
+                                        ((v.viewport(), QRect(x0, y0, min(760, v.viewport().width() - x0), h0)), 2)],
+              ausschnitt=QRect(0, oben, f.width() - s.uebersicht_rahmen.width() - 10, unten - oben))
+    s.unter_haken_pos.setChecked(False)
+    QApplication.processEvents()
 
     # 7a2) Schneidweg-Rechner: Gehrung, Bohrungen, Langloch (nur Foto, Abbrechen: Position bleibt unverändert)
     def schneidweg_ausfuellen(d):

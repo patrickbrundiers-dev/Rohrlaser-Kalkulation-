@@ -1296,6 +1296,31 @@ def kapitel_angebot(i):
             "aktuellen Werte für alle Zeilen (gilt nach OK).",
             "Steht in einer älteren Position (ohne Preisstand) eine Zusatzarbeit, die es in den Stammdaten nicht mehr "
             "gibt, zeigt der Status <b>WARNUNG: Zusatzarbeit … unbekannt</b> und sie wird nicht gerechnet.")
+    i.abschnitt("Zusatzarbeiten unter der Position", marke="zusatz_unterzeilen")
+    i.bild("zusatz_unterzeilen", "Häkchen „Zusatzarbeiten unter Position“: je Arbeitsschritt eine Zeile", hoehe=62 * mm,
+           legende=[
+               (1, "Häkchen <b>Zusatzarbeiten unter Position</b> über der Positionsliste (dasselbe Häkchen steht im "
+                   "Reiter <i>Kalkulation</i> über der kompakten Übersicht). Vorgabe: an; die Wahl merkt sich das "
+                   "Programm."),
+               (2, "Unter der Position je Arbeitsschritt eine eingerückte Zeile: Name, Menge je Teil, Preis je "
+                   "Einheit, Zeit, € je Teil, € der Position, eigen oder Fremdleistung.")])
+    i.text("Mit dem Häkchen steht unter jeder Position, was außer dem Laserschneiden an ihr gemacht und berechnet "
+           "wird.", kurz=True)
+    i.genauer()
+    i.liste("Reihenfolge wie in der Werkstatt: <b>Programmieren</b> (Zeit je Position × Stundensatz, auf die "
+            "Stückzahl verteilt), <b>Gewinde</b>, Nachbearbeitung (Senken, Flowdrill, Bohren, Entgraten, Biegen, "
+            "Sägen …), Montage (<b>Zukaufteile</b> der Position, Schweißen), Oberfläche (Verzinken, Pulvern …), "
+            "Prüfung, Verpackung, Sonstiges. Die Stufe einer Zusatzarbeit ist ihre <i>Kategorie</i> in den "
+            "Stammdaten ([[zusatzarbeiten_verwalten]]); ohne Kategorie steht sie bei Sonstiges.",
+            "Zusatzarbeiten mit Zeit je Stück, die in die Laserzeit gehen (z. B. <i>Gravur extra</i>), erscheinen "
+            "nicht: sie stecken in <i>Laser schneiden</i>.",
+            "Die Beträge sind dieselben wie in der Kalkulation: „inkl. Mindestbetrag“ heißt, der Mindestbetrag der "
+            "Zusatzarbeit hebt den Preis an; bei Abrechnung € je Angebot steht der Pauschalbetrag und der auf das Teil "
+            "umgelegte Anteil.",
+            "Rot: eine Zusatzarbeit fehlt in den Stammdaten oder Schweißen hat keine Zeit (wie die Warnung im Status).",
+            "Die Zeilen sind nur Anzeige. Ein Klick wählt die Position, ein Doppelklick öffnet ihre "
+            "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
+            "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
     i.abschnitt("Schneidzeit anpassen", marke="schneidzeit")
     i.text("Doppelklick in <b>Schneidzeit je Teil [s]</b>, eigene Zeit eintragen: sie steht fett und ersetzt die "
            "berechnete. Feld leeren = wieder berechnet.")

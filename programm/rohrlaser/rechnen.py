@@ -2959,6 +2959,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf, zukauf_teil=zk_einst + zk_auf,
                  zukauf_fehlt=sum(1 for x in zk if x["fehler"]),
+                 zukauf_einzeln=[dict(vk=float(x["vk"]), fehler=x["fehler"]) for x in zk],   # Unterzeilen je Anbauteil
                  herstell_teil=s_, pauschalen_teil=uz, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
                  nicht_eingeplant=nicht)

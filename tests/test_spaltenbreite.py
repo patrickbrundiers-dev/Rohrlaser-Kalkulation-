@@ -95,8 +95,9 @@ pv = s.pos_ansicht
 spalte = next(i for i in range(pv.model().columnCount()) if s.pos_modell.name(i) == "bezeichnung")
 assert pv.auto_groesse.eingepasst
 assert pv.columnWidth(spalte) == spaltenbreite.MAX_BREITE, pv.columnWidth(spalte)
-assert pv.rowHeight(0) == pv.verticalHeader().defaultSectionSize() < pv.rowHeight(1)
-assert pv.rowHeight(1) <= spaltenbreite.MAX_ZEILEN * pv.fontMetrics().lineSpacing() + 8
+unter = pv.unterzeilen.hoehe          # Zusatzarbeiten unter der Position (Programmieren) kommen dazu
+assert pv.rowHeight(0) - unter(0) == pv.verticalHeader().defaultSectionSize() < pv.rowHeight(1) - unter(1)
+assert pv.rowHeight(1) - unter(1) <= spaltenbreite.MAX_ZEILEN * pv.fontMetrics().lineSpacing() + 8
 sichtbar = [c for c in range(pv.model().columnCount()) if not pv.isColumnHidden(c)]
 assert all(pv.columnWidth(c) <= spaltenbreite.MAX_BREITE for c in sichtbar[:-1])   # letzte füllt den Rest
 ok("Angebot: Positionen passend eingepasst, lange Bezeichnung umgebrochen (höchstens 3 Zeilen), "
