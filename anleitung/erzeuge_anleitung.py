@@ -3779,7 +3779,10 @@ def kapitel_zukauf_angebot(i):
                (8, "<b>Als Zukaufteil anlegen</b>: neuer Zukaufartikel (Kategorie Blechteile, Artikeltyp Blech, "
                    "Maße, Werkstoff) mit dem Richtpreis als EK und eine neue Position der Art Zukaufteil."),
                (9, "<b>3D-Ansicht</b>: das Teil aus den Eingaben gefaltet, Innenkonturen rot, Biegelinien grün. "
-                   "Drehen mit der linken Maustaste, Knöpfe für feste Blickrichtungen."),
+                   "Bohrungen, Senkungen, Langlöcher, Rechtecke und Polygone sind aus dem Material geschnitten "
+                   "(mit Lochwand durch die Dicke); Gravuren und Konturen, die über den Rand reichen oder sich "
+                   "überschneiden, bleiben Linien. Drehen mit der linken Maustaste, Knöpfe für feste "
+                   "Blickrichtungen."),
                (10, "<b>Außenkontur</b>: <i>Rechteck</i> aus den Maßen (Kantteil: Kantlänge × Abwicklung) oder "
                     "<i>Polygon</i> mit Eckpunkten x,y der Abwicklung, z. B. mit Ausklinkungen."),
                (11, "<b>Merkmale</b> mit Herkunft (Teil, Biegungen, Innenkonturen; [[teile_editor]])."),

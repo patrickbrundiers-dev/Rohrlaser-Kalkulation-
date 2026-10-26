@@ -279,4 +279,46 @@ assert step.kantteile_vorbelegen(mw, {"L 50x30x3": dict(form="L-Profil", a=50, b
 assert mw[0]["profilform"] == "L-Profil"
 ok("B6 Kantteil aus STEP: Polygon-Außenkontur, mehrachsig mit Kantungen, 3D-Ansicht gefaltet, Profil/Kantteil nach "
    "Stammdaten")
+
+# B7 Konturen im 3D aus dem Material geschnitten (Patrick 26.10.2026: „nicht in 3D im Material sichtbar, nur 2D-Linien“)
+from collections import Counter  # noqa: E402
+
+from rohrlaser import blech3d  # noqa: E402
+
+
+def dicht_und_volumen(e):
+    n = blech3d.netz(e, blech.zuschnitt(e))
+    p, t = n["p"], n["t"]["BL"]
+
+    def k(i):
+        return tuple(round(p[3 * i + j], 2) for j in range(3))
+    kanten, vol = Counter(), 0.0
+    for q in range(0, len(t), 3):
+        a, b, c = k(t[q]), k(t[q + 1]), k(t[q + 2])
+        if len({a, b, c}) < 3:
+            continue
+        kanten.update(((a, b), (b, c), (c, a)))
+        vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) +
+                a[2] * (b[0] * c[1] - b[1] * c[0])) / 6
+    return sum(1 for (u, v), m in kanten.items() if kanten.get((v, u), 0) != m), abs(vol), n
+
+
+loecher = [dict(art=sw.BOHRUNG, d=20, x=60, y=40), dict(art=sw.LANGLOCH, l=50, b=12, x=150, y=82),
+           dict(art=sw.RECHTECK, b=40, h=30, x=150, y=140), dict(art=sw.BOHRUNG, d=30, x=2, y=2),
+           dict(art=sw.TEXT_GRAVUR, text="AB", hoehe=10, x=250, y=40)]
+for name, grund in (("flach", dict(laenge=300, breite=200, dicke=5)),
+                    ("gekantet", dict(art=blech.KANTTEIL, dicke=4, kantlaenge=300,
+                                      schenkel=[dict(laenge=80, winkel=90, radius=8), dict(laenge=100)]))):
+    offen0, v0, n0 = dicht_und_volumen(grund)
+    offen, v, n = dicht_und_volumen(dict(grund, konturen=loecher))
+    s_ = grund["dicke"]
+    soll = (math.pi * 100 + (38 * 12 + math.pi * 36) + 1200) * s_      # Ø20, Langloch, Rechteck (Ø30 am Rand bleibt)
+    assert offen0 == 0 and offen == 0, (name, offen0, offen)
+    assert abs((v0 - v) - soll) < 0.03 * soll, (name, v0 - v, soll)
+    assert n["l"]["K"] and n.get("wk"), name             # Linien und Schnittkörper bleiben
+pk = [(0, 0), (100, 0), (100, 50), (0, 50)]
+assert len(blech3d.loecher(pk, [[(40, 20), (60, 20), (60, 30), (40, 30)], [(50, 25), (70, 25), (70, 35), (50, 35)],
+                                [(90, 40), (110, 40), (110, 45), (90, 45)]])) == 1      # Überschneidung, Rand
+ok("B7 Blech-3D: Bohrung, Langloch und Rechteck aus dem Material geschnitten, Netz dicht, Volumen passt; Kontur am "
+   "Rand und Gravur bleiben Linien")
 print("OK: Blech-Editor")
