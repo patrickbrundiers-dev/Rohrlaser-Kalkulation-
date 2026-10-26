@@ -644,6 +644,10 @@ SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id",
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
+# Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
+PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
+                        "konturen", "kontur_grenzen", "klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n",
+                        "gross_mm")
 RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelklick: Schneidweg-Rechner
 # Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
 VORSCHAU_FELDER = ("technik", "laenge", "profil_id", "art", "konturen", "a_ende", "b_ende", "a_schnitt", "b_schnitt")
@@ -1026,7 +1030,8 @@ class PositionenModell(QAbstractTableModel):
         self.s.db.position_aendern(p["id"], f.name, wert)
         if f.name in ("konturen", "kontur_grenzen"):     # Konturliste geändert: beim Neuladen neu einteilen
             self.s.db.position_aendern(p["id"], "kontur_grenzen", None)
-        self.s.f.meldung(f"{f.titel} gespeichert.")
+        neu = self.s.profil_gewechselt(dict(p, profil_id=wert)) if f.name == "profil_id" else None
+        self.s.f.meldung(f"{f.titel} gespeichert." + (f" {neu}" if neu else ""))
         self.geaendert.emit()
         return True
 
@@ -3645,7 +3650,7 @@ class AngebotSeite(QWidget):
         profil = rechnen.profil_im_angebot(profil, self.kopf, q.get("profil_id"), q.get("werkstoff_id"), self.k)
         m = rechnen.maschine(self.kopf, self.k)
         erg = schneidweg.rechnen(eingaben, profil, rechnen.kontur_regel(m, rechnen.wand_schneiden(profil)),
-                                 gewinde_liste(self.tabellen), m)
+                                 gewinde_liste(self.tabellen), m, laenge=laenge or q.get("laenge"))
         if erg["fehler"]:
             return None, " ".join(erg["fehler"])
         p = dict(q, **erg["felder"])
@@ -3876,7 +3881,8 @@ class AngebotSeite(QWidget):
             naht_neu = {}
         profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
-        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k),
+                                 laenge=p.get("laenge"))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False
@@ -3914,6 +3920,32 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
+    def profil_gewechselt(self, p):
+        """Profil einer Position aus dem STEP-Import in der Tabelle geändert (Patrick 25.10.2026: Winkel 33x30x6 auf
+        60x40x6): Enden, Konturen und – bei Winkel/U/C aus einem größeren Profil – die Längsschnitte zwischen den
+        Stegen 2 mm wie im Rohr-Editor neu rechnen (schneidweg.rechnen) und in die Position schreiben. Ergebnis: Text
+        für die Meldung oder None (keine STEP-Werte, Profil unbekannt, Fehler)."""
+        e = schneidweg.lesen(p.get("technik"))
+        pid = p.get("profil_id")
+        profil = self.k.profile.get(pid) or opt.profil_aus_name(pid) if pid else None
+        if not p.get("technik") or e.get("quelle") != schneidweg.QUELLE_STEP or not profil or kein_laserteil(p):
+            return None
+        profil = dict(profil, profil_id=pid)
+        if pid in self.k.profile:
+            profil = rechnen.profil_im_angebot(profil, self.kopf, pid, p.get("werkstoff_id"), self.k)
+        m = rechnen.maschine(self.kopf, self.k)
+        e, _ = schneidweg.aus_position(e, p, profil)
+        erg = schneidweg.rechnen(e, profil, rechnen.kontur_regel(m, rechnen.wand_schneiden(profil)),
+                                 gewinde_liste(self.tabellen), m, laenge=p.get("laenge"))
+        if erg["fehler"]:
+            return None
+        for name in PROFILWECHSEL_FELDER:
+            if name in erg["felder"]:
+                self.db.position_aendern(p["id"], name, erg["felder"][name])
+        sk = next((h for h in erg["hinweise"] if "Schenkel gekürzt" in h or "aus dem Rohr" in h), None)
+        return f"Schneidweg für {pid} neu gerechnet: {rechnen.zahl(erg['schneidweg'], 1)} mm" + \
+            (f" ({sk})" if sk else "") + "."
+
     def _radius_uebernehmen(self, p, eingaben):
         """Außenradius aus dem Rechner (eingaben['r_aussen']) als Radius des Angebots für Profil + Werkstoff speichern
         und die übrigen Positionen der Gruppe mit Eingaben des Rechners neu rechnen (Positionen ohne Eingaben rechnen
@@ -3940,7 +3972,7 @@ class AngebotSeite(QWidget):
             profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, wst, self.k)
             grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
             erg = schneidweg.rechnen(e, profil, grenzen, gewinde_liste(self.tabellen),
-                                     rechnen.maschine(self.kopf, self.k))
+                                     rechnen.maschine(self.kopf, self.k), laenge=q.get("laenge"))
             if erg["fehler"]:
                 continue
             for name in ("schneidweg", "a_schnitt", "b_schnitt"):

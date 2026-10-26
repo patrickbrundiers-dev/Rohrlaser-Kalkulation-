@@ -825,7 +825,7 @@ class SchneidwegDialog(QDialog):
         self.rechnen()
         einst = getattr(self.parent(), "einst", None) or {}
         eingaben = self.eingaben()
-        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
+        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine, laenge=self._teil_laenge())
 
         def schreiben(ziel):
             zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil,
@@ -1060,6 +1060,10 @@ class SchneidwegDialog(QDialog):
             self.tabelle.removeRow(r)
         self.rechnen()
 
+    def _teil_laenge(self):
+        """Teilelänge für den Rechner (Feld der neuen Position, sonst die Position)."""
+        return self.k_laenge.value() if hasattr(self, "k_laenge") else self.p.get("laenge")
+
     def pruefung(self, eingaben=None):
         """Befunde der Fertigungsprüfung (dfm.rohr) für die aktuellen Eingaben und Teilelänge."""
         p = dict(self.p, technik=sw.speichern(eingaben or self.eingaben()),
@@ -1200,7 +1204,7 @@ class SchneidwegDialog(QDialog):
 
     def _rechnen(self):
         eingaben = self.eingaben()
-        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
+        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine, laenge=self._teil_laenge())
         self.ergebnis = erg
         t = self.ergebnis_tabelle
         kopf = t.horizontalHeader()

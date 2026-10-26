@@ -1902,7 +1902,12 @@ def kapitel_step(i):
             "<b>Winkel, U oder C aus einem größeren Profil</b>: gibt es den Winkel nur größer (z. B. L 33×30×6 nur als "
             "L 60×40×6), bei Profil-ID das größere Profil gleicher Form wählen. Beim Übernehmen wird jeder zu lange "
             "Schenkel gekürzt: ein Längsschnitt zwischen zwei Stegen 2 mm an den Enden, dazu je Steg der Querschnitt "
-            "über die weggeschnittene Breite. Bei U und C muss die Steghöhe gleich sein, sonst kommt ein Hinweis.",
+            "über die weggeschnittene Breite. Bei U und C muss die Steghöhe gleich sein, sonst kommt ein Hinweis. "
+            "Steht das größere Profil noch nicht in den Stammdaten, wird es mit den Maßen aus dem Namen angelegt "
+            "(L 60x40x6 = 60 × 40 × 6 mm, nicht mit den gemessenen 33 × 30). Dasselbe gilt, wenn das Profil erst "
+            "<b>nach dem Übernehmen</b> in der Positionstabelle (Spalte Profil) oder im Rohr-Editor geändert wird: "
+            "Schneidweg, Enden und Längsschnitte (Zeilen <i>Längsschnitt … Steg 2 mm an den Enden</i>) werden "
+            "automatisch neu gerechnet; zurück auf das gemessene Profil gilt wieder die Messung.",
             "<b>Winkel, U oder C aus dem Rohr</b>: gibt es das Profil gar nicht, in der Spalte Art die Rohrform und "
             "bei Profil-ID das Rohr wählen. Beim Übernehmen: Enden = Rohrumfang, "
             "dazu das Fenster zwischen den Ringen 2 mm (zwei Längsschnitte an den Schenkelenden + je Ring der Umfang, "
