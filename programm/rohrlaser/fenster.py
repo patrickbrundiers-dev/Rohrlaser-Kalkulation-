@@ -976,7 +976,7 @@ class EinstellungenSeite(QScrollArea):
         if e.name == hilfe.HILFE_EINSTELLUNG:
             hilfe.alle_aktualisieren()
         from . import step_einstellungen
-        if e.name in step_einstellungen.EINSTELLUNGEN:
+        if e.name in step_einstellungen.EINSTELLUNGEN or e.name in step_einstellungen.WEITERE:
             step_einstellungen.anwenden(self.db)
         if e.name in ("ansicht_thema", "ansicht_schrift", "ansicht_dichte"):
             haupt = self.window()

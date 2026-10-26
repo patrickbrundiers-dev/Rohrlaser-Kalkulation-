@@ -11,8 +11,9 @@ from . import VERSION, baugruppe, bohrbild, step
 
 CACHE_ORDNER = "STEP-Cache"     # neben der Datenbank
 TOLERANZEN = {"step_tol_profil": (step, "TOL_MASS", 0.15), "step_tol_gleich": (step, "TOL_GLEICH", 0.2),
-              "step_tol_kernloch": (bohrbild, "TOL_KERNLOCH", 0.05),
-              "schweiss_spalt_max": (baugruppe, "SPALT_MAX", 2.0)}
+              "step_tol_kernloch": (bohrbild, "TOL_KERNLOCH", 0.05)}
+# außerhalb der Karte STEP-Import, aber ebenso beim Start und nach jeder Änderung gesetzt
+WEITERE = {"schweiss_spalt_max": (baugruppe, "SPALT_MAX", 2.0)}
 EINSTELLUNGEN = set(TOLERANZEN) | {"step_prozesse", "step_zeitlimit", "step_cache", "step_cache_mb",
                                    "step_flach_laenge", "step_gekantet_anteil", "step_naht_spalt"}
 
@@ -23,7 +24,7 @@ def _zahl(db, name, vorgabe):
 
 
 def anwenden(db):
-    for name, (modul, glob, vorgabe) in TOLERANZEN.items():
+    for name, (modul, glob, vorgabe) in (TOLERANZEN | WEITERE).items():
         setattr(modul, glob, _zahl(db, name, vorgabe))
 
 

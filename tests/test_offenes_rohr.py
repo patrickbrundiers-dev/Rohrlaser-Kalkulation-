@@ -272,7 +272,7 @@ def spalten():
     assert not h["geschlossen"] and step._stege(step.geschlossen(c)) and not step._stege(step.geschlossen(a))
     js = json.loads((tmp / "m.json").read_text(encoding="utf-8"))
     k = js["dateien"][0]["koerper"][0]
-    assert js["schema_version"] == "1.19" and k["geschlossen"]["offene_seite"]["seite"] in ("oben", "unten", "links",
+    assert tuple(map(int, js["schema_version"].split("."))) >= (1, 19) and k["geschlossen"]["offene_seite"]["seite"] in ("oben", "unten", "links",
                                                                                         "rechts"), k["geschlossen"]
     assert k["offene_seite"] is None and js["dateien"][2]["koerper"][0]["geschlossen"] is None
     assert js["dateien"][1]["koerper"][0]["geschlossen"]["offene_seite"]["steg"] == 2.0

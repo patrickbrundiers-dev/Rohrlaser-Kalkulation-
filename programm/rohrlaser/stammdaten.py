@@ -857,8 +857,8 @@ EINSTELLUNGEN = (
                 "Schweißbaugruppen", "zahl", 0.7, 0.1, 2),
     # Spalt zwischen zwei Teilen (Patrick 26.10.2026): bis step_naht_spalt noch Naht und Gravur aus dem STEP, über
     # schweiss_spalt_max eine Warnung „Konstruktion prüfen“
-    Einstellung("step_naht_spalt", "Schweißbaugruppen: Spalt zwischen zwei Teilen bis [mm] gilt im STEP-Import noch "
-                "als Schweißstoß (Naht und Gravur)", "Schweißbaugruppen", "zahl", 3.0, 0, 10),
+    Einstellung("step_naht_spalt", "STEP-Import: Spalt zwischen zwei Teilen bis [mm] gilt noch als Schweißstoß (Naht "
+                "und Gravur)", "STEP-Import", "zahl", 3.0, 0, 10),
     Einstellung("schweiss_spalt_max", "Schweißbaugruppen: Warnung, wenn der Spalt einer Naht größer ist als [mm]",
                 "Schweißbaugruppen", "zahl", 2.0, 0, 10),
     # Vorkalkulation (vorkalk.py): Stundensätze der vorgeschlagenen Arbeitsgänge

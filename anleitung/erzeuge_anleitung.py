@@ -4255,8 +4255,8 @@ def kapitel_baugruppen(i):
     i.text("Liegt zwischen zwei Teilen ein kleiner Spalt (z. B. Blech 1,5 mm neben dem Rohr), erkennt der STEP-Import "
            "dort trotzdem eine Naht und graviert den Umriss bzw. die Positionsmarke genau unter das Blech auf die "
            "Rohrwand. Solche Vorschläge und Anbauteile tragen das Spaltmaß und sind zum Prüfen markiert.", kurz=True)
-    i.text("Bis zu welchem Spalt das gilt, steht unter Einstellungen → Vorgaben: <i>Schweißbaugruppen: Spalt zwischen "
-           "zwei Teilen bis [mm] gilt im STEP-Import noch als Schweißstoß (Naht und Gravur)</i> (Vorgabe 3 mm). Die "
+    i.text("Bis zu welchem Spalt das gilt, steht unter Einstellungen, Karte STEP-Import: <i>STEP-Import: Spalt zwischen "
+           "zwei Teilen bis [mm] gilt noch als Schweißstoß (Naht und Gravur)</i> (Vorgabe 3 mm). Die "
            "Teile selbst werden dabei nie verschoben, Lage und Konturen bleiben genau wie in der STEP-Datei; nur zum "
            "Messen wird eine Kopie an das andere Teil gelegt. Ist der Spalt einer Nahtgruppe oder eines Vorschlags "
            "größer als <i>Schweißbaugruppen: Warnung, wenn der Spalt einer Naht größer ist als [mm]</i> (Vorgabe "
