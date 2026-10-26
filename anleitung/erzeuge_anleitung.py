@@ -101,7 +101,8 @@ class Nummer(Flowable):
 class BildBlock(Flowable):
     """Bilder nebeneinander mit Überschrift, Unterschrift und Legende als ein Block, der nicht getrennt wird.
     Passt er nicht mehr ganz auf die Seite, werden die Bilder bis auf 70 % verkleinert; reicht das nicht,
-    beginnt der Block auf der nächsten Seite in voller Größe."""
+    beginnt der Block auf der nächsten Seite in voller Größe
+    (höchstens so groß, dass er auf eine leere Seite passt)."""
 
     ABSTAND = 6 * mm
 
@@ -120,6 +121,9 @@ class BildBlock(Flowable):
         texte = sum(f.wrap(verf_breite, verf_hoehe)[1] + f.getSpaceBefore() + f.getSpaceAfter()
                     for f in self.oben + self.unten)
         voll = max(h for _, _, h in self._bilder(verf_breite, self.max_hoehe))
+        rahmen = getattr(getattr(self, "_frame", None), "_aH", None)
+        if rahmen and texte + voll + 2 > rahmen:  # passt auch auf eine leere Seite nicht: so weit wie nötig verkleinern
+            voll = max(rahmen - texte - 2, 1)
         platz = verf_hoehe - texte - 2
         bild_h = voll if platz >= voll or platz < 0.7 * voll else platz
         self.liste = self._bilder(verf_breite, bild_h)
