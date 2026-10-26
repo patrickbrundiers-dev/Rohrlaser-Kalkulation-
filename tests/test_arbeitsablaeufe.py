@@ -54,27 +54,21 @@ assert not staffeln.gueltige(s.stufen)
 mengen = {schl: m for schl, _, m in staffeln.auswahl(s.positionen) if m}
 assert mengen
 
-# W3: Angebots-PDF legt die Standard-Staffeln an (Vorgabe 1; 2; 5)
+# W3: das Angebots-PDF legt keine Staffeln an und rechnet keine (Patrick 26.10.2026: nie automatisch)
 assert db.einstellung("staffeln_standard") == "1; 2; 5"
 assert s.angebot_pdf()
-stufen = db.staffel_stufen(a)
-assert len(stufen) == 3, stufen
-for st, f in zip(stufen, (1, 2, 5)):
-    zeilen = {z["schluessel"]: z["menge"] for z in s.stufen if z["stufe_id"] == st["id"]}
-    assert zeilen == {schl: m * f for schl, m in mengen.items()}, (f, zeilen)
-assert len((s.kopf.get("staffelpreise") or {}).get("zeilen") or []) >= 3
-ok(f"W3 Angebots-PDF ohne Stufe: 3 Standard-Staffeln (× 1, × 2, × 5) für {len(mengen)} Sätze/Positionen, gerechnet")
-
-# Ein zweites PDF legt keine weiteren an; gelöschte Stufen kommen in dieser Sitzung nicht wieder
-assert s.angebot_pdf() and len(db.staffel_stufen(a)) == 3
-s.st_seite.ansicht.selectAll()
-s.st_seite.loeschen()
-assert not db.staffel_stufen(a)
-assert s.angebot_pdf() and not db.staffel_stufen(a)
-ok("W3 vorhandene Stufen bleiben; nach Löschen aller Stufen legt das PDF in dieser Sitzung keine neuen an")
+assert not db.staffel_stufen(a) and not s.kopf.get("staffelpreise")
+ok("W3 Angebots-PDF ohne Stufe: legt keine Standard-Staffeln an, rechnet nichts")
 
 # Knopf „Standard-Staffeln“ legt sie jederzeit an; leere Einstellung = aus
 assert len(s.st_seite.standard()) == 3 and len(db.staffel_stufen(a)) == 3
+stufen = db.staffel_stufen(a)
+for st, f in zip(stufen, (1, 2, 5)):
+    zeilen = {z["schluessel"]: z["menge"] for z in s.stufen if z["stufe_id"] == st["id"]}
+    assert zeilen == {schl: m * f for schl, m in mengen.items()}, (f, zeilen)
+assert not s.kopf.get("staffelpreise") and s.st_seite.anzahl_veraltet() == 3    # angelegt, nicht gerechnet
+assert s.angebot_pdf() and not s.kopf.get("staffelpreise")                    # auch das PDF rechnet sie nicht
+assert len(s.staffelpreise_rechnen()) >= 3 and s.st_seite.anzahl_veraltet() == 0
 db.einstellung_setzen("staffeln_standard", "")
 assert s.st_seite.standard() == [] and len(db.staffel_stufen(a)) == 3
 db.einstellung_setzen("staffeln_standard", "1; 2; 5")
