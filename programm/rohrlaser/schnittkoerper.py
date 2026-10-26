@@ -18,9 +18,10 @@ Netz-Eintrag 'wk': [dict(id = Merkmal 'kontur:3', art = Farbe (ARTEN), o = Ring 
 (gleich viele Punkte), d = Deckel als Dreiecke [i, j, k, …] über die Nummern im Ring, t = Text, auf = True, wenn
 die Fläche dort nicht ausgeschnitten ist (Gravur, Flowdrill, Blech))].
 """
+import bisect
 import math
 
-from . import skizze as sk
+from . import schnittflaeche as sf, skizze as sk
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, SONSTIGE, V_AUSSCHNITT, _z)
 
@@ -119,6 +120,12 @@ def rohr(e, qs, L, xyz):
     if not t_wand and qs.flaechen:      # Vollmaterial / offene Profile ohne Wandangabe: Dicke wie im Querschnitt
         t_wand = min(qs.B, qs.H) / 10
     d3 = e.get("d3") is True
+    rund = None
+    if qs.r or qs.radius:               # Rundrohr, Eckradius: wie die Löcher im 3D (rohr3d.loch_poly)
+        r_ = sf.ringe(qs)
+        if r_ is not None:
+            from .rohr3d import _laengen
+            rund = (r_[0], r_[1], _laengen(r_[0]), _laengen(r_[1]))
     out = []
     for d in lagen:
         ein = d["eingabe"]
@@ -132,6 +139,13 @@ def rohr(e, qs, L, xyz):
         pts = sk.umriss_kontur(ein)
         if not pts or len(pts) < 3:
             continue
+        neig = sk.neigung_3d(ein) if art == BOHRUNG and d3 else None
+        if rund is not None and not beide and not (neig and (neig[0] or neig[1])) \
+                and (sf.innen_2d(ein, e) or sf.eben_3d(ein, e)) and (qs.r or _im_radius(qs, ein, pts)):
+            k = _rund_koerper(d, e, qs, rund, xyz, t_wand)
+            if k is not None:
+                out.append(k)
+                continue
         pts = _ring(pts)
         if qs.r or (ein.get("umriss") and qs.flaechen):
             pts = _ring(sk._dicht(pts + pts[:1], 1.0 if qs.radius and ein.get("umriss") else SCHRITT))
@@ -159,7 +173,6 @@ def rohr(e, qs, L, xyz):
                 neu_o.append((x, u, v))
                 neu_r.append((-n_[0], -n_[1], 0.0) if n_ else rr)
             orte, richt = neu_o, neu_r
-        neig = sk.neigung_3d(ein) if art == BOHRUNG and d3 else None
         tief = t_wand
         if art in GRAVUREN:
             tief = _z(ein.get("tiefe")) or GRAVUR_TIEFE
@@ -200,6 +213,71 @@ def rohr(e, qs, L, xyz):
             k["auf"] = True             # Wand dort nicht ausgeschnitten: Körper liegt auf der Fläche
         out.append(k)
     return out
+
+
+def _im_radius(qs, ein, pts):
+    """Kontur einer ebenen Wand reicht in den Eckradius (oder über die Kante)."""
+    try:
+        f = qs.flaeche(ein.get("seite"))
+    except (ValueError, TypeError, AttributeError):
+        return True
+    if f is None:
+        return True
+    q = _z(ein.get("q"))
+    return max(abs(q + dq) for _, dq in pts) > f.breite / 2 - qs.radius - 0.01
+
+
+def _rund_koerper(d, e, qs, rund, xyz, t_wand):
+    """Körper einer Kontur auf Rundrohr bzw. über den Eckradius (Patrick 26.10.2026): 2D senkrecht zur Oberfläche
+    mit maßhaltiger Innenkante (außen breiter), 3D eben (parallel zur Normalen in der Konturmitte). None, wenn die
+    Kontur nicht ausgeschnitten ist oder die Lage nicht passt."""
+    from .rohr3d import loch_poly
+    aussen, innen, cum, cum_i = rund
+    poly = loch_poly(d, e, qs, aussen, cum, cum_i)
+    if not poly or len(poly) < 3:
+        return None
+    poly = _ring(poly)
+    T = cum[-1]
+
+    def ort(t, wand):
+        """Punkt t der Abwicklung außen auf der Wand (gleiches Stück, gleicher Anteil)."""
+        t = t % T
+        i = max(0, min(len(aussen) - 1, bisect.bisect_right(cum, t) - 1))
+        f = 0.0 if cum[i + 1] - cum[i] < 1e-12 else (t - cum[i]) / (cum[i + 1] - cum[i])
+        (u0, v0), (u1, v1) = wand[i], wand[(i + 1) % len(wand)]
+        return u0 + f * (u1 - u0), v0 + f * (v1 - v0)
+    ein = d["eingabe"]
+    eben = sf.eben_3d(ein, e)
+    if eben:
+        tm = (min(p[0] for p in poly) + max(p[0] for p in poly)) / 2
+        i = max(0, min(len(aussen) - 1, bisect.bisect_right(cum, tm % T) - 1))
+        (u0, v0), (u1, v1) = aussen[i], aussen[(i + 1) % len(aussen)]
+        lg = math.hypot(u1 - u0, v1 - v0) or 1.0
+        n_m = ((v1 - v0) / lg, -(u1 - u0) / lg)
+        if qs.r:                        # Rundrohr: Normale genau in der Mitte (nicht die des Stücks)
+            um, vm = ort(tm, aussen)
+            lg = math.hypot(um, vm) or 1.0
+            n_m = (um / lg, vm / lg)
+    o, u_ = [], []
+    for t, x in poly:
+        pa = ort(t, aussen)
+        pi = ort(t, innen)
+        if eben:
+            sv = sf.strahl_bis(innen, pa, (-n_m[0], -n_m[1]))
+            if sv is None:              # so nah an der Kante, dass der Strahl innen nicht ankommt: Wandstärke tief
+                sv = t_wand
+            pi = (pa[0] - sv * n_m[0], pa[1] - sv * n_m[1])
+        lg = math.dist(pa, pi) or 1.0
+        ru, rv = (pi[0] - pa[0]) / lg, (pi[1] - pa[1]) / lg
+        o += [round(c, 3) for c in xyz(x, pa[0] - ru * UEBERSTAND, pa[1] - rv * UEBERSTAND)]
+        u_ += [round(c, 3) for c in xyz(x, pi[0] + ru * UEBERSTAND_INNEN, pi[1] + rv * UEBERSTAND_INNEN)]
+    art = ein.get("art")
+    text = f"{sk.kurz(ein)}\n{tiefe_text(ein, qs, None, t_wand)}"
+    if not eben:
+        text += " · senkrecht zur Oberfläche, Innenkante maßhaltig"
+    elif "parallel" not in text:
+        text += " · 3D eben (parallel zur Konturachse)"
+    return dict(id=f"kontur:{d['zeile']}", art=FARBE_ART.get(art), o=o, u=u_, d=_deckel(poly), t=text)
 
 
 def blech(e, zs, haut, ansicht, dicke):

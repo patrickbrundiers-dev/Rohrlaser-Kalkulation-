@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.149", "<b>Konturen: bei 90° zur Oberfläche gilt die Innenkante</b>: Wird eine Kontur senkrecht zur Oberfläche "
+                "geschnitten (2D), hat sie innen genau die Maße der Zeichnung bzw. der STEP; der Strahl steht an jedem "
+                "Punkt 90° zur Oberfläche, außen ist die Kontur auf dem Rundrohr und in der Rundung der Ecke "
+                "(Quadrat-/Rechteckrohr, Kontur nah am Rand) deshalb breiter. 3D-Ansicht, Schnittkörper, Abwicklung, "
+                "STEP-Export und Schnittlänge rechnen so. Mit <b>Schnittrichtung parallel (3D)</b> wird daraus die "
+                "ebene Bearbeitung: ebene Schnittfläche, außen wie gezeichnet, Ansicht und Schnittlänge stellen sich "
+                "beim Umschalten sofort um. Die Schnittrichtung gibt es jetzt auch beim Quadrat- und Rechteckrohr "
+                "([[teile_editor]]).",
+     "Konturen bei 90° zur Oberfläche: Innenkante maßhaltig, außen breiter; parallel (3D) = ebene Bearbeitung, auch "
+     "am Eckradius."],
     ["0.9.148", "<b>Virtuelles Bauteil weiter genutzt</b>: Winkel/U aus größerem Profil und offen gezeichnete Rohre "
                 "lassen sich als <b>STEP mit Stegen bzw. Ringen</b> speichern (Rechtsklick oder STEP speichern im "
                 "Schneidweg-Rechner, Lage wie die Kundendatei). Je Position wählbar, ob die Stege <b>bleiben</b> "

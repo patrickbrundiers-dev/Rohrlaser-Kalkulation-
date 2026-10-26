@@ -177,38 +177,65 @@ def _innen(pt, poly):
     return drin
 
 
-def loecher(e, qs, aussen, cum, L):
+def loecher(e, qs, aussen, cum, L, cum_i=None):
     """Geschnittene Konturen als [(Polygon [(t, x)], Zeile)] in der Abwicklung des Außenumrisses; über die Naht
-    (t = 0) reichende zusätzlich um den Umfang verschoben."""
-    T = cum[-1]
+    (t = 0) reichende zusätzlich um den Umfang verschoben. Mit cum_i (Innenumriss, gleiche Teilung; Rundrohr und
+    Eckradius): 2D-Konturen innen mit den gezeichneten Abständen zur Mitte, außen breiter
+    (schnittflaeche.innen_massgebend, Patrick 26.10.2026)."""
     out = []
     for d in sk.lagen(e.get("konturen") or [], L, qs):
-        ein = d["eingabe"]
-        art = ein.get("art")
-        if art not in LOCH_ARTEN and not (art == SONDERKONTUR and ein.get("umriss")):
-            continue
-        pts = sk.umriss_kontur(ein)
-        if not pts or len(pts) < 3:
-            continue
-        try:
-            s0 = sk.s_lage(qs, ein)
-            poly, t_alt = [], None
-            for dx, dq in sk._dicht(pts, 2.0):
-                (u, v), _ = qs.s_zu_uv((s0 + dq) % qs.umfang)
-                t = _t_von(aussen, cum, u, v)
-                if t_alt is not None:           # über die Naht: stetig weiterzählen
-                    t += T * round((t_alt - t) / T)
-                poly.append((t, d["x"] + dx))
-                t_alt = t
-        except (ValueError, TypeError, ZeroDivisionError, AttributeError):
-            continue
-        out.append((poly, d["zeile"]))
-        t_min, t_max = min(p[0] for p in poly), max(p[0] for p in poly)
-        if t_min < 0:
-            out.append(([(t + T, x) for t, x in poly], d["zeile"]))
-        if t_max > T:
-            out.append(([(t - T, x) for t, x in poly], d["zeile"]))
+        poly = loch_poly(d, e, qs, aussen, cum, cum_i)
+        if poly:
+            out.append((poly, d["zeile"]))
+            _naht_kopien(out, poly, d["zeile"], cum[-1])
     return out
+
+
+def loch_poly(d, e, qs, aussen, cum, cum_i=None):
+    """Rand einer geschnittenen Kontur (Lage d aus skizze.lagen) als [(t, x)] in der Abwicklung des Außenumrisses
+    oder None (keine ausgeschnittene Kontur). t läuft über die Naht stetig weiter."""
+    T = cum[-1]
+    ein = d["eingabe"]
+    art = ein.get("art")
+    if art not in LOCH_ARTEN and not (art == SONDERKONTUR and ein.get("umriss")):
+        return None
+    pts = sk.umriss_kontur(ein)
+    if not pts or len(pts) < 3:
+        return None
+    try:
+        s0 = sk.s_lage(qs, ein)
+        if cum_i is not None and sf.innen_2d(ein, e):
+            (u, v), _ = qs.s_zu_uv(s0 % qs.umfang)
+            tm = _t_von(aussen, cum, u, v)
+            return sf.innen_massgebend([(tm + dq, d["x"] + dx) for dx, dq in sk._dicht(pts, 2.0)], cum, cum_i, tm)
+        # 3D eben am Eckradius: Kontur auf der Ebene der Wand, parallel zur Normalen auf die Rundung gelegt
+        eben = cum_i is not None and not qs.r and qs.radius and sf.eben_3d(ein, e)
+        n_m = qs.s_zu_uv(s0 % qs.umfang)[1] if eben else None
+        poly, t_alt = [], None
+        for dx, dq in sk._dicht(pts, 2.0):
+            (u, v), n_p = qs.s_zu_uv((s0 + dq) % qs.umfang)
+            if eben and math.dist(n_p, n_m) < 1e-6:
+                sv = sf.strahl_bis(aussen, (u + 2 * qs.radius * n_m[0], v + 2 * qs.radius * n_m[1]),
+                                   (-n_m[0], -n_m[1]))
+                if sv is not None:
+                    u, v = u + (2 * qs.radius - sv) * n_m[0], v + (2 * qs.radius - sv) * n_m[1]
+            t = _t_von(aussen, cum, u, v)
+            if t_alt is not None:           # über die Naht: stetig weiterzählen
+                t += T * round((t_alt - t) / T)
+            poly.append((t, d["x"] + dx))
+            t_alt = t
+    except (ValueError, TypeError, ZeroDivisionError, AttributeError):
+        return None
+    return poly
+
+
+def _naht_kopien(out, poly, zeile, T):
+    """Über die Naht (t = 0) reichende Kontur zusätzlich um den Umfang verschoben."""
+    t_min, t_max = min(p[0] for p in poly), max(p[0] for p in poly)
+    if t_min < 0:
+        out.append(([(t + T, x) for t, x in poly], zeile))
+    if t_max > T:
+        out.append(([(t - T, x) for t, x in poly], zeile))
 
 
 def _schnitte(poly, x):
@@ -458,13 +485,15 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
 
     cum = _laengen(aussen)
     T = cum[-1]
-    loch_zeile = loecher(e, qs, aussen, cum, L) if innen and T > 0 else []
+    zeilen = e.get("konturen") or []
+    # Rundrohr und Eckradius: 2D (Strahl senkrecht zur Oberfläche) mit maßhaltiger Innenkante, außen breiter; 3D
+    # (Schnittrichtung parallel) eben durch die Wand (Patrick 26.10.2026, Variante C, schnittflaeche.innen_massgebend)
+    rundung = bool(qs.r or qs.radius) and bool(innen) and T > 0
+    parallel = {i for i, z in enumerate(zeilen) if sf.eben_3d(z, e)} if rundung else set()
+    cum_i = _laengen(innen) if rundung else None
+    loch_zeile = loecher(e, qs, aussen, cum, L, cum_i) if innen and T > 0 else []
     loch = [q for q, _ in loch_zeile]
     loch_rahmen = [(min(p[0] for p in q), max(p[0] for p in q), min(p[1] for p in q), max(p[1] for p in q)) for q in loch]
-    zeilen = e.get("konturen") or []
-    parallel = {i for i, z in enumerate(zeilen) if z.get("schnitt") == "parallel"} \
-        if qs.r and e.get("d3") is True and innen else set()
-    cum_i = _laengen(innen) if parallel else None
 
     def ort(t, x, wand):
         """Punkt (t, x) der Abwicklung auf der Außen- bzw. Innenwand (gleiche Spalte, gleicher Anteil)."""
@@ -475,22 +504,32 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         return x, u0 + f * (u1 - u0), v0 + f * (v1 - v0)
 
     def innen_parallel(q):
-        """Lochrand auf der Innenwand bei Schnitt parallel zur Konturachse (Rundrohr, 3D): jeder Punkt des Rands
-        außen geht parallel zur Normalen in der Lochmitte nach innen (statt zur Rohrmitte). [(t, x)] wie q."""
+        """Lochrand auf der Innenwand bei Schnitt parallel zur Konturachse (3D, ebene Bearbeitung): jeder Punkt des
+        Rands außen geht parallel zur Normalen in der Lochmitte nach innen (statt senkrecht zur Oberfläche).
+        Rundrohr und Eckradius. [(t, x)] wie q."""
         tm = sum(p[0] for p in q) / len(q)
-        _, um, vm = ort(tm, 0.0, aussen)
-        lg = math.hypot(um, vm) or 1.0
-        nu, nv = um / lg, vm / lg
+        if qs.r:
+            _, um, vm = ort(tm, 0.0, aussen)
+            lg = math.hypot(um, vm) or 1.0
+            nu, nv = um / lg, vm / lg
+        else:                           # Normale der Wand an der Lochmitte (auf dem Bogen: Normale des Bogens)
+            k = max(0, min(len(aussen) - 1, bisect.bisect_right(cum, tm % T) - 1))
+            (u0, v0), (u1, v1) = aussen[k], aussen[(k + 1) % len(aussen)]
+            lg = math.hypot(u1 - u0, v1 - v0) or 1.0
+            nu, nv = (v1 - v0) / lg, -(u1 - u0) / lg
         ri = math.hypot(*innen[0])
         out = []
         for t, x in q:
             _, u, v = ort(t, x, aussen)
-            pn = u * nu + v * nv
-            disk = pn * pn - (u * u + v * v) + ri * ri
-            if disk < 0:
+            if qs.r:
+                pn = u * nu + v * nv
+                disk = pn * pn - (u * u + v * v) + ri * ri
+                sv = pn - math.sqrt(disk) if disk >= 0 else None
+            else:
+                sv = sf.strahl_bis(innen, (u, v), (-nu, -nv))
+            if sv is None:
                 out.append((t, x))
                 continue
-            sv = pn - math.sqrt(disk)
             ti = _t_von(innen, cum_i, u - sv * nu, v - sv * nv)
             k = max(0, min(len(innen) - 1, bisect.bisect_right(cum_i, ti) - 1))
             f = 0.0 if cum_i[k + 1] - cum_i[k] < 1e-12 else (ti - cum_i[k]) / (cum_i[k + 1] - cum_i[k])

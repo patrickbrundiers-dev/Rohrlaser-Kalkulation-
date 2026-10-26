@@ -375,11 +375,13 @@ def lochwand_innen(e):
 
 radial, par = lochwand_innen(dict(a={}, b={}, konturen=[bo])), lochwand_innen(dict(a={}, b={}, konturen=[bo], d3=True))
 aussen_q = 21.2 * math.sin(10 / 21.2)                  # Rand außen (Bogen 10 auf R 21,2) quer gemessen
-assert radial < aussen_q - 0.5 and abs(par - aussen_q) < 0.1, (radial, par)     # parallel: innen so breit wie außen
+innen_q = 19.2 * math.sin(10 / 19.2)                   # 2D: Innenkante maßhaltig (Bogen 10 auf ri 19,2)
+assert abs(radial - innen_q) < 0.1 and abs(par - aussen_q) < 0.1, (radial, par)     # parallel: innen so breit wie außen
 # Dialog: Felder schreiben in die Zeile, Kopien in 3D, Bezug ab Ende B
 d.eingaben_setzen(dict(a={}, b={}, konturen=[dict(art=sw.RECHTECK, anzahl=1, b=40, h=10, r=0, x=100)]))
 ed.waehlen("kontur:0")
-assert "Drehwinkel" in ei.felder and "Wände" in ei.felder and "Schnittrichtung" not in ei.felder
+# Quadratrohr mit Eckradius: Schnittrichtung wählbar (Patrick 26.10.2026: 3D = ebene Bearbeitung am Radius)
+assert "Drehwinkel" in ei.felder and "Wände" in ei.felder and "Schnittrichtung" in ei.felder
 ei.felder["Drehwinkel"].setText("90")
 ei.felder["Drehwinkel"].uebernehmen()
 assert d.eingaben()["konturen"][0]["drehung"] == 90

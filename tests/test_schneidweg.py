@@ -235,7 +235,11 @@ f7 = e7r["felder"]
 assert not e7r["fehler"] and f7["a_gerade"] == "nein" and nah(f7["a_schnitt"], sw.sattel(42.4, 60.3), 0.1)
 assert "Ausklinkung auf Rundrohr Ø 60,3" in e7r["schritte"][0]["text"]
 pol = next(x for x in e7r["schritte"] if "Polygon" in x["text"])
-assert pol["laenge"] == 120 and pol["huelle"] == 40 and pol["klasse"] == "mittel" and "4 Eckpunkte" in pol["text"]
+# 2D am Rundrohr (Patrick 26.10.2026): Innenkante maßhaltig, außen am Umfang um R/ri länger
+from rohrlaser import dreid  # noqa: E402
+k_pol = dreid.umriss_2d_faktor([(0, 0), (40, 0), (40, 20), (0, 20)], RR["a"], RR["wand"])
+assert k_pol > 1.01 and dreid.umriss_2d_faktor([(0, 0), (40, 0)], 60, 0) == 1.0
+assert nah(pol["laenge"], 120 * k_pol, 0.6) and pol["huelle"] == 40 and pol["klasse"] == "mittel" and "4 Eckpunkte" in pol["text"]
 assert f7["bohrungen"] == "2xØ6,8; 4xØ8,5; 1xØ13" and f7["gewinde_vorschlag"] == "2xM8; 4xM10", f7
 assert "Polygon" in sw.rechnen(dict(a={}, b={}, konturen=[dict(art="Polygon", anzahl=1, punkte="0,0; 1")]), RR,
                                (10, 50))["fehler"][0]
