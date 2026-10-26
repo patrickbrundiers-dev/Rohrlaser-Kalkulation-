@@ -117,6 +117,8 @@ def gewicht():
     assert abs(w["abfall_kg"] - (voll * 0.5 - w["gewicht"])) < 1e-6, w["abfall_kg"]
     p["technik"] = json.dumps(dict(e, stege_abtrennen=True))
     assert abs(rechnen.position_werte(p, {}, k, T)["gewicht"] - 171000 * 7.85 / 1e6) < 1e-6
+    w0 = rechnen.position_werte(dict(p, profil_id="L fehlt"), {}, k, T)     # Profil nicht in den Stammdaten
+    assert abs(w0["gewicht"] - 171000 * 7.85 / 1e6) < 1e-6 and w0["abfall_kg"] is None, w0
     p["laenge"] = 250           # Länge geändert: anteilig
     assert abs(rechnen.position_werte(p, {}, k, T)["gewicht"] - 171000 * 7.85 / 1e6 / 2) < 1e-6
     p["technik"] = json.dumps(dict(konturen=[]))

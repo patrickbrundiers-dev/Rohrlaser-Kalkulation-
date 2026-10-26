@@ -141,10 +141,11 @@ def position_werte(p, kopf, k, tabellen):
     je = p.get("je_umfang") if isinstance(p.get("je_umfang"), (int, float)) and p["je_umfang"] > 1 else 1
     w["gewicht"] = kgm * p["laenge"] / 1000 / je if kgm is not None and not _leer(p.get("laenge")) else None
     w["abfall_kg"] = None
-    if w["gewicht"] is not None and je == 1:     # virtuelles Bauteil: Gewicht aus dem Volumen, der Rest ist Abfall
+    if je == 1:          # virtuelles Bauteil: Gewicht aus dem Volumen (auch ohne Metergewicht), der Rest ist Abfall
         g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
         if g is not None:
-            w["abfall_kg"] = max(0.0, w["gewicht"] - g)
+            if w["gewicht"] is not None:
+                w["abfall_kg"] = max(0.0, w["gewicht"] - g)
             w["gewicht"] = g
     # Material: Rohrstücke (Halbschalen: mehrere Teile aus einem Rohrumfang)
     w["laenge_gesamt"] = (p["laenge"] * rohrstuecke(p) if not _leer(p.get("laenge")) and not _leer(p.get("stueck"))
