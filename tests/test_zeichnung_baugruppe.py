@@ -1,5 +1,5 @@
 """Zeichnung einer Schweißbaugruppe lesen (Plan Spalt Naht Gravur S9, Patrick 26.10.2026 „mit einbauen“):
-- G1 PDF aus dem CAD: Schweißangaben a4, a 3,5 umlaufend, z7 (a = 4,5), s5, a4 3×100 (200), beidseitig; keine
+- G1 PDF aus dem CAD: Schweißangaben a4, a 3,5 umlaufend, z7 (a = 4,95), s5, a4 3×100 (200), beidseitig; keine
   Fehltreffer bei Blattformat „A4“, Maßstab, Masse oder Profil „QR 40x40x3“
 - G2 Stückliste (Pos., Menge, Benennung) unter der Kopfzeile, Ende der Liste erkannt
 - G3 DXF mit TEXT/MTEXT: dieselben Angaben
@@ -64,11 +64,11 @@ def dxf(pfad):
 def pruefen(erg, quelle):
     n = erg["naehte"]
     masse = [(x["nahtart"], x["mass"]) for x in n]
-    assert masse == [("Kehlnaht", 4.0), ("Kehlnaht", 3.5), ("Kehlnaht", 4.5), ("Stumpfnaht", 5.0), ("Kehlnaht", 4.0),
+    assert masse == [("Kehlnaht", 4.0), ("Kehlnaht", 3.5), ("Kehlnaht", 4.95), ("Stumpfnaht", 5.0), ("Kehlnaht", 4.0),
                      ("Kehlnaht", 3.0)], (quelle, masse)
     assert n[1]["rundum"] and not n[0]["rundum"] and n[5]["beidseitig"] and not n[1]["beidseitig"], (quelle, n)
     assert (n[4]["anzahl"], n[4]["laenge"], n[4]["abstand"]) == (3, 100.0, 200.0), (quelle, n[4])
-    assert zb.a_masse(erg) == [3.0, 3.5, 4.0, 4.5]
+    assert zb.a_masse(erg) == [3.0, 3.5, 4.0, 4.95]
     assert erg["stueckliste"] == [dict(pos=1, menge=4, name="Rohr"), dict(pos=2, menge=1, name="Strebe"),
                                   dict(pos=3, menge=2, name="Blechlasche")], (quelle, erg["stueckliste"])
 
@@ -97,7 +97,7 @@ assert bg["naehte"][0]["mass_quelle"] == "Zeichnung" and "mass_quelle" not in bg
 bg["naehte"] = [dict(id="1", nahtart="Kehlnaht", dicke=5), dict(id="2", nahtart="Kehlnaht", dicke=8),
                 dict(id="3", nahtart="Kehlnaht", dicke=3), dict(id="4", nahtart="Kehlnaht")]
 assert zb.anwenden(bg, erg) == 3                      # ohne Wanddicke bleibt offen
-assert [n.get("mass") for n in bg["naehte"]] == [3.5, 4.5, 3.0, None], [n.get("mass") for n in bg["naehte"]]
+assert [n.get("mass") for n in bg["naehte"]] == [3.5, 4.95, 3.0, None], [n.get("mass") for n in bg["naehte"]]
 assert all(baugruppe.regel_offen(n) for n in bg["naehte"][:3]), "mehrere Größen: gelb bis bestätigt"
 assert zb.abgleich(erg, [dict(name="Rohr", menge=4), dict(name="Strebe", menge=1),
                          dict(name="Blechlasche", menge=2)]) == []

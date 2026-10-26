@@ -56,7 +56,7 @@ def texte(pfad, programmordner=None):
 
 def naehte(segmente):
     """Schweißangaben je Textstück: [dict(nahtart, mass (a-Maß bzw. Dicke), anzahl, laenge, abstand, rundum,
-    beidseitig, text)]; z-Maß als a = z ÷ √2 (auf 0,5 mm abgerundet)."""
+    beidseitig, text)]; z-Maß als a = z ÷ √2 (auf 0,01 mm, nicht abgerundet)."""
     out = []
     for s in segmente:
         t = s["text"]
@@ -66,7 +66,7 @@ def naehte(segmente):
             if art == "Kehlnaht":
                 wert = _zahl(m.group(2))
                 if wert and m.group(1) == "z":
-                    wert = math.floor(wert / math.sqrt(2) * 2 + 1e-9) / 2
+                    wert = round(wert / math.sqrt(2), 2)      # nicht abrunden: a geht im Quadrat ins Schweißgut
             else:
                 wert = _zahl(m.group(1))
             if not wert or wert <= 0 or wert > GROESSE_MAX:
