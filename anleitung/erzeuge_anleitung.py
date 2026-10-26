@@ -2120,7 +2120,8 @@ def kapitel_step(i):
             "<b>Nahtkandidaten</b> dazu: je Paar sich berührender Teile eine mögliche Schweißnaht mit Länge (Umfang "
             "am Rohrende bzw. der Berührung), Stoßart (Kehlnaht, Stumpfnaht in einer Flucht, Ecknaht bei Gehrung) "
             "und Dicke der dünneren Wand. Sie sind nur ein Vorschlag mit Status <i>prüfen</i> für die "
-            "Schweißbaugruppen.",
+            "Schweißbaugruppen. Ab Version 1.20 auch bei einem Spalt zwischen den Teilen (mit Spaltmaß, "
+            "[[naht_spalt]]) und je Datei die Teile ohne Naht.",
             "<i>STEP-Import.exe</i> kann auch ohne das Programm messen: <i>STEP-Import.exe --ausgabe messwerte.txt "
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
@@ -4238,6 +4239,19 @@ def kapitel_baugruppen(i):
            "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
            "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
            "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
+    i.abschnitt("Spalt zwischen zwei Teilen", marke="naht_spalt")
+    i.text("Liegt zwischen zwei Teilen ein kleiner Spalt (z. B. Blech 1,5 mm neben dem Rohr), erkennt der STEP-Import "
+           "dort trotzdem eine Naht und graviert den Umriss bzw. die Positionsmarke genau unter das Blech auf die "
+           "Rohrwand. Solche Vorschläge und Anbauteile tragen das Spaltmaß und sind zum Prüfen markiert.", kurz=True)
+    i.text("Bis zu welchem Spalt das gilt, steht unter Einstellungen → Vorgaben: <i>Schweißbaugruppen: Spalt zwischen "
+           "zwei Teilen bis [mm] gilt im STEP-Import noch als Schweißstoß (Naht und Gravur)</i> (Vorgabe 3 mm). Die "
+           "Teile selbst werden dabei nie verschoben, Lage und Konturen bleiben genau wie in der STEP-Datei; nur zum "
+           "Messen wird eine Kopie an das andere Teil gelegt. Ist der Spalt einer Nahtgruppe oder eines Vorschlags "
+           "größer als <i>Schweißbaugruppen: Warnung, wenn der Spalt einer Naht größer ist als [mm]</i> (Vorgabe "
+           "2 mm), zeigt die Baugruppe die WARNUNG <i>Spalt … mm zwischen den Teilen, Konstruktion prüfen</i>; "
+           "drucken geht trotzdem. Hat ein Teil der Baugruppe zu keinem anderen eine Naht (Spalt zu groß oder lose "
+           "konstruiert), meldet der Import <i>ohne Naht zu einem anderen Teil … – lose?</i>, und die Baugruppe "
+           "zeigt dieselbe WARNUNG, bis eine Nahtgruppe das Teil enthält oder du eine Nahtgruppe von Hand anlegst.")
     i.bild("baugruppe_vorschlaege", "Nahtkandidaten aus STEP im Reiter Nahtgruppen", hoehe=45 * mm, kurz=False,
            legende=[(1, "Je Zeile gleiche Nähte einer Unterbaugruppe: Stoßart, Länge je Naht, Anzahl je Stück, "
                         "Dicke und beteiligte Körper."),

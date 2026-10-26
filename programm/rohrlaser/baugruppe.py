@@ -400,7 +400,8 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
     derselben Unterbaugruppe werden ein Vorschlag mit Anzahl je Stück der Unterbaugruppe (Kandidaten ÷ Menge; geht
     das nicht auf, direkt an der Baugruppe). Das Maß (a-Maß bzw. Dicke) bleibt offen: die STEP-Datei kennt kein
     a-Maß; bei Stumpf- und Ecknaht ist die gemessene Dicke das Maß. Erst nach Prüfung im Editor (Übernehmen) werden
-    sie Nahtgruppen."""
+    sie Nahtgruppen. Kandidaten mit Spalt (STEP-JSON 1.20 spalt_mm) bilden eigene Vorschläge mit "spalt" (größter
+    Spalt der Gruppe)."""
     km = knoten_map(bg)
     gruppen = {}
     for k in kandidaten or ():
@@ -408,15 +409,18 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
             continue
         kn = str(k.get("knoten") or "")
         kn = kn if kn in km and kn != wurzel else ""
-        schl = (kn, k.get("stossart") or "Kehlnaht", round(k["laenge_mm"]), k.get("dicke_mm"))
+        spalt = round(k["spalt_mm"], 1) if _zahl(k.get("spalt_mm")) and k["spalt_mm"] > 0 else None
+        schl = (kn, k.get("stossart") or "Kehlnaht", round(k["laenge_mm"]), k.get("dicke_mm"), spalt)
         gruppen.setdefault(schl, []).append(k)
     out = []
-    for (kn, art, laenge, dicke), liste in gruppen.items():
+    for (kn, art, laenge, dicke, spalt), liste in gruppen.items():
         f = faktor(bg, kn) or 1
         if len(liste) % f:
             kn, f = "", 1
         v = dict(id=neue_id(), knoten=kn, nahtart=art, laenge=laenge, anzahl=len(liste) // f,
                  dicke=dicke, teile=[x.get("teile") for x in liste], quelle="STEP")
+        if spalt:
+            v["spalt"] = max(x["spalt_mm"] for x in liste)
         linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
         if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
             v["linien"] = linien
@@ -450,6 +454,8 @@ def vorschlag_naht(v, regel=None):
         n["linien"] = v["linien"]
     if _zahl(v.get("dicke")) and v["dicke"] > 0:          # Wanddicke für das Heften der Vorkalkulation
         n["dicke"] = v["dicke"]
+    if _zahl(v.get("spalt")) and v["spalt"] > 0:          # Spalt der Teile (STEP), Prüfregel SPALT_MAX
+        n["spalt"] = v["spalt"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
         n["mass"] = v["dicke"]
     elif v.get("nahtart") == "Kehlnaht" and regel:
@@ -705,6 +711,33 @@ def groesste_posten(r, n=3):
     return sorted((x for x in posten if x[1] > 0), key=lambda x: -x[1])[:n]
 
 
+SPALT_MAX = 2.0     # mm: größerer Spalt einer Naht -> Warnung (Einstellung schweiss_spalt_max, Patrick 26.10.2026)
+
+
+def spalt_zu_gross(bg):
+    """Text, wenn eine Nahtgruppe oder ein Vorschlag einen Spalt über SPALT_MAX hat (Konstruktion prüfen), sonst None."""
+    for liste, titel in ((bg.get("naehte") or (), "Nahtgruppe"), (bg.get("vorschlaege") or (), "Nahtvorschlag")):
+        for x in liste:
+            if _zahl(x.get("spalt")) and x["spalt"] > SPALT_MAX + 1e-9:
+                nr = f" {x['nr']}" if x.get("nr") else ""
+                return (f"{titel}{nr}: Spalt {_text(round(x['spalt'], 1))} mm zwischen den Teilen (über "
+                        f"{_text(SPALT_MAX)} mm), Konstruktion prüfen")
+    return None
+
+
+def ohne_naht(bg):
+    """Teile der Baugruppe ohne Naht zu einem anderen Teil (STEP-Import, bg['ohne_naht'] = [{koerper, name}]),
+    solange keine Nahtgruppe oder kein Vorschlag sie enthält und keine Nahtgruppe von Hand (ohne Körper) da ist:
+    [Name]."""
+    lose = [x for x in bg.get("ohne_naht") or () if isinstance(x, dict) and x.get("koerper")]
+    if not lose or any(not n.get("koerper") for n in bg.get("naehte") or ()):
+        return []
+    mit = {str(k) for n in bg.get("naehte") or () for k in n.get("koerper") or ()}
+    mit |= {str(k) for v in bg.get("vorschlaege") or () for paar in v.get("teile") or ()
+            if isinstance(paar, (list, tuple)) for k in paar}
+    return [str(x.get("name") or x["koerper"]) for x in lose if str(x["koerper"]) not in mit]
+
+
 def status(p, w, positionen=None):
     """Status einer Baugruppen-Position (wie rechnen.status): FEHLER, WARNUNG, HINWEIS oder OK."""
     if not _zahl(p.get("stueck")) or p["stueck"] < 1:
@@ -741,6 +774,12 @@ def status(p, w, positionen=None):
         doppelt = doppelt_schweissen(p, positionen)
         if doppelt:
             return "WARNUNG: " + doppelt
+    spalt = spalt_zu_gross(bg)
+    if spalt:
+        return "WARNUNG: " + spalt
+    lose = ohne_naht(bg)
+    if lose:
+        return f"WARNUNG: ohne Naht zu einem anderen Teil: {', '.join(lose[:3])}{' …' if len(lose) > 3 else ''} – lose?"
     if not bg["naehte"] and not bg["arbeitsgaenge"]:
         return "HINWEIS: keine Nahtgruppen und Arbeitsgänge"
     from .vorkalk import offen

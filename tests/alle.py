@@ -42,6 +42,7 @@ TESTS = [
     ("test_step_export.py", QT),
     ("test_baugruppe_step.py", QT),
     ("test_anbau_gravur.py", QT),
+    ("test_naht_spalt.py", QT),
     ("test_step_kantteile.py", {}),
     ("test_offenes_rohr.py", QT),
     ("test_winkel_virtuell.py", QT),
