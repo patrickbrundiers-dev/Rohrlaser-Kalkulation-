@@ -344,7 +344,10 @@ st6 = st_mod.daten[5]
 s4.st_seite.stufe_speichern(st6["id"], {}, {}, [("10", 200, None)])
 assert db.staffeln(a4)[5]["menge"] == 200
 assert "VERALTET" in s4.staffel_info.text()
-ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
+ang = s4.angebot_daten()      # rechnet nie automatisch: die veraltete Stufe fehlt
+assert all(x["menge"] != 200 for x in ang["staffeln"]) and "VERALTET" in s4.staffel_info.text()
+assert s4.staffelpreise_rechnen()
+ang = s4.angebot_daten()
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
 assert abs(ang["netto"] - 992.32) < 1e-9 and ang["mwst"] == 188.54, ang   # Referenzwerte (Außenradius nach Norm ab 0.9.62, bis 0.9.61: 992,20 / 188,52; T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"

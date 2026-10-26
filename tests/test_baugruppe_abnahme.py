@@ -79,8 +79,7 @@ g["arbeitsgaenge"][0]["zeit_min"] = 7                          # Schleifen 6 →
 db.position_aendern(pos[0]["id"], "baugruppe", baugruppe.speichern(g))
 s.neu_laden()
 assert st.anzahl_veraltet() == 3, st.anzahl_veraltet()
-st._hintergrund_starten()
-assert st.warten() and st.anzahl_veraltet() == 0
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0
 hinten = st.zeilen
 for z1, z2 in zip(vorne, hinten):
     assert z2["preis_einheit"] > z1["preis_einheit"], (z1["menge"], z1["preis_einheit"], z2["preis_einheit"])
@@ -89,9 +88,8 @@ assert stufen_kurz(neu_vorne) == stufen_kurz(hinten), (stufen_kurz(neu_vorne), s
 g["arbeitsgaenge"][0]["zeit_min"] = 6
 db.position_aendern(pos[0]["id"], "baugruppe", baugruppe.speichern(g))
 s.neu_laden()
-st._hintergrund_starten()
-assert st.warten() and stufen_kurz(st.zeilen) == stufen_kurz(vorne)
-ok("A3 Staffel-Seite: 3 Stufen im Hintergrund = Vordergrund, Änderung an der Baugruppe macht alle Stufen veraltet")
+assert st.rechnen(alle=False) is not None and stufen_kurz(st.zeilen) == stufen_kurz(vorne)
+ok("A3 Staffel-Seite: 3 Stufen über den Knopf = direkt gerechnet, Änderung an der Baugruppe macht alle Stufen veraltet")
 
 # ------------------------------------------------------------------ A2 Festwerte
 kopf, pos = s.kopf, s.positionen

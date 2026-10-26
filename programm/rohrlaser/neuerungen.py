@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.143", "<b>Staffeln nie automatisch rechnen</b>: Staffelpreise werden nur noch mit dem Knopf "
+                "<b>Staffelpreise rechnen</b> (Reiter Staffeln) gerechnet, nicht mehr im Hintergrund nach Änderungen "
+                "und nicht vor dem Angebots-PDF. Veraltete Stufen haben keinen Preis und fehlen im Angebot; der "
+                "Angebots-Check warnt davor. Das Angebots-PDF legt auch keine Standard-Staffeln mehr an, das macht "
+                "nur der Knopf <b>Standard-Staffeln</b> ([[staffeln]]).",
+     "Staffeln: nur noch auf Knopfdruck rechnen, nie automatisch"],
     ["0.9.142", "<b>STEP-Import: vier Fehler behoben</b>: Ein geschlossenes Rohr mit vielen Langlöchern (z. B. QR "
                 "40x40x2) wurde als Kantteil erkannt; jetzt ist ein geschlossenes Rohr immer ein Rohr, alle Schnitte "
                 "werden übernommen ([[bleche]]). Im Rohr-Editor fehlte der Umriss komplexer Enden (Ausklinkung wurde "

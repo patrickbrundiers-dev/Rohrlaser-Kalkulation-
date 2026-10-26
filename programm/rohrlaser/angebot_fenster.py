@@ -4454,7 +4454,7 @@ class AngebotSeite(QWidget):
         return self.st_seite.rechnen()
 
     def staffelpreise_aktuell(self):
-        """Staffelpreise fürs Angebot; veraltete werden vorher neu gerechnet. None = abgebrochen."""
+        """Staffelpreise fürs Angebot, ohne neuen Mengenlauf (nie automatisch): veraltete Stufen fehlen."""
         return self.st_seite.aktuell()
 
     # -------------------------------------------------------------- Ausgabe (PDF, CSV)
@@ -4558,8 +4558,6 @@ class AngebotSeite(QWidget):
         if not self._vor_ausgabe(pruefen=not self.fremd(), weiter="Angebot erstellen"):
             return None
         uebergangen = self.check_uebergangen
-        if not self.fremd() and not self.db.nur_lesen:
-            self.st_seite.standard_auto()       # Standard-Staffeln, falls das Angebot noch keine Stufe hat (W3)
         ang = self.angebot_daten()
         if ang is None:
             return None
