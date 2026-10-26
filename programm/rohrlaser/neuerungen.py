@@ -21,10 +21,25 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.143", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen ist "
-                "das Feld <i>Sätze</i> bei einer Baugruppe jetzt leer vorbelegt, jedes Teil wird eine Einzelposition. "
-                "Einen Satz gibt es nur, wenn oben eine Anzahl Sätze eingetragen wird ([[step]]).",
-     "STEP mit mehreren Teilen: Vorgabe Einzelpositionen, Satz nur auf Wunsch (Feld Sätze)"],
+    ["0.9.145", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen wird "
+                "eine Baugruppe jetzt als Einzelpositionen übernommen. Das Feld <i>Anzahl</i> oben erhöht nur die "
+                "Stückzahl aller Teile der Datei. Ein Satz entsteht nur mit dem Knopf <b>Als Satz</b>; dann zählt "
+                "<i>Anzahl</i> als Anzahl Sätze und die Spalte zeigt Stück je Satz ([[step]]).",
+     "STEP mit mehreren Teilen: Einzelpositionen, Anzahl erhöht Stückzahl, Satz nur mit Knopf „Als Satz“"],
+    ["0.9.144", "<b>Winkel aus größerem Profil als virtuelles Bauteil</b>: Wird für einen Winkel oder ein U ein "
+                "größeres Profil gleicher Form gewählt (z. B. L 33×30×6 aus L 60×40×6), misst das Programm jetzt das "
+                "Teil plus je einen Steg 2 mm des größeren Profils an den Enden wie ein echtes Bauteil. Enden, "
+                "Längsschnitte und Querschnitte stimmen damit genau, auch bei Gehrungen und Ausklinkungen am "
+                "gekürzten Schenkel; im 3D sind die Stege rot. Gilt im Prüfdialog und beim Profilwechsel in der "
+                "Positionstabelle ([[offene_rohre]]). Außerdem wartet das automatische Optimieren, solange Sie eine Zelle "
+                "bearbeiten, damit die Eingabe nicht unterbrochen wird.",
+     "Winkel/U aus größerem Profil: Teil mit Stegen 2 mm als virtuelles Bauteil gemessen"],
+    ["0.9.143", "<b>Staffeln nie automatisch rechnen</b>: Staffelpreise werden nur noch mit dem Knopf "
+                "<b>Staffelpreise rechnen</b> (Reiter Staffeln) gerechnet, nicht mehr im Hintergrund nach Änderungen "
+                "und nicht vor dem Angebots-PDF. Veraltete Stufen haben keinen Preis und fehlen im Angebot; der "
+                "Angebots-Check warnt davor. Das Angebots-PDF legt auch keine Standard-Staffeln mehr an, das macht "
+                "nur der Knopf <b>Standard-Staffeln</b> ([[staffeln]]).",
+     "Staffeln: nur noch auf Knopfdruck rechnen, nie automatisch"],
     ["0.9.142", "<b>STEP-Import: vier Fehler behoben</b>: Ein geschlossenes Rohr mit vielen Langlöchern (z. B. QR "
                 "40x40x2) wurde als Kantteil erkannt; jetzt ist ein geschlossenes Rohr immer ein Rohr, alle Schnitte "
                 "werden übernommen ([[bleche]]). Im Rohr-Editor fehlte der Umriss komplexer Enden (Ausklinkung wurde "

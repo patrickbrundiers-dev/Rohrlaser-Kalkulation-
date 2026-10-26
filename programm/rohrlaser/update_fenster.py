@@ -15,7 +15,7 @@ from . import NAME, protokoll, update
 
 SUCHEN_NACH_MS = 3000        # nach dem Start etwas warten, das Fenster soll zuerst da sein
 SPAETER_FRAGEN_MS = 30000    # ist gerade ein Dialog offen (z. B. STEP-Import), später nachfragen
-HINTERGRUND = ("Optimieren", "Staffelpreise")   # Threads, die vor dem Austausch fertig sein sollen
+HINTERGRUND = ("Optimieren",)   # Threads, die vor dem Austausch fertig sein sollen
 HINTERGRUND_WARTEN_S = 15
 
 

@@ -899,8 +899,10 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                              anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=n, huelle=hk, klasse=klasse,
                              schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
         liste += [(hk if hk is not None else OHNE_HUELLE, lg)] * n
-    sk = schenkel_kuerzen(_messprofil(eingaben.get("schenkel_mess")) or messprofil_eingaben(eingaben),
-                          dict(profil), _z(laenge) or _z(eingaben.get("l_step")))
+    # virtuelles Bauteil (step_schenkel): Stege und Längsschnitte sind schon gemessene Konturen
+    sk = None if eingaben.get("stege_virtuell") else \
+        schenkel_kuerzen(_messprofil(eingaben.get("schenkel_mess")) or messprofil_eingaben(eingaben), dict(profil),
+                         _z(laenge) or _z(eingaben.get("l_step")))
     if sk and sk["schnitte"]:           # Winkel/U/C aus größerem Profil: Längsschnitte zwischen den Stegen
         lg_k = _z(laenge) or _z(eingaben.get("l_step"))
         for lg in sk["schnitte"]:

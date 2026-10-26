@@ -1,14 +1,13 @@
 """Reiter 'Staffeln' im Angebot: Mengenstufen mit eigenen Werten (Materialzuschlag, Gewinn, Nebenkosten …) und
 Ergebnis je Stufe mit allen Kostenpositionen bis zum Bruttopreis.
 
-Rechnung in staffeln.py: der Mengenlauf (Optimierung je Stufe) läuft nach Änderungen an Mengen, Positionen oder
-Stammdaten automatisch im Hintergrund, die Preisschicht (Zuschläge, Gewinn, Nebenkosten) sofort bei jeder Eingabe.
+Rechnung in staffeln.py: der Mengenlauf (Optimierung je Stufe) läuft nur auf Knopfdruck („Staffelpreise rechnen“;
+Patrick 26.10.2026: nie automatisch), die Preisschicht (Zuschläge, Gewinn, Nebenkosten) auf gespeicherte Mengenläufe
+sofort bei jeder Eingabe. Passt ein Mengenlauf nicht mehr, ist die Stufe VERALTET und kommt nicht ins Angebot.
 """
-import copy
 import datetime
-import threading
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QRectF, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressDialog, QPushButton,
@@ -898,11 +897,6 @@ class Vergleich(QWidget):
         p.drawText(QRectF(li, self.height() - 14, rechts - li, 14), Qt.AlignRight, "Menge")
 
 
-class _Bote(QObject):
-    """Bringt das Ergebnis des Hintergrundlaufs in den Programmablauf zurück."""
-    fertig = Signal(int, object, object)
-
-
 # ------------------------------------------------------------------ Reiter
 class StaffelSeite(QWidget):
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
@@ -937,12 +931,11 @@ class StaffelSeite(QWidget):
             self.knoepfe[text] = b
         self.knoepfe["Standard-Staffeln"].setToolTip(
             "Je Faktor aus Einstellungen → Angebot („Standard-Staffeln“) eine Stufe mit Menge des Angebots × Faktor. "
-            "Hat das Angebot noch keine Stufe, legt das Angebots-PDF sie selbst an.")
+            "Gerechnet werden sie erst mit „Staffelpreise rechnen“.")
         self.knoepfe["Schnittschema …"].setToolTip(
             "Schnittplan je Stufe: Stangen je Abmessung, Verschnitt, €/m und Materialkosten – daraus kommt der "
             "Materialpreis der Staffel")
         self.baum.itemDoubleClicked.connect(self._baum_doppelklick)
-        self._auto_aus = False          # Stufen in dieser Sitzung gelöscht: das PDF legt keine Standard-Staffeln an
         leiste.addStretch(1)
         self.hinweis = hilfe.Hinweis("Je Zeile eine Stufe, gerechnet wie ein eigener Auftrag: alle Sätze und "
                                      "Positionen mit Menge zusammen. Doppelklick öffnet die Stufe mit Einstellungen, "
@@ -975,12 +968,6 @@ class StaffelSeite(QWidget):
         lay.addLayout(leiste)
         lay.addWidget(self.teiler, 1)
         self.zeilen, self.vorher = [], {}
-        self._lauf, self._laeuft = 0, False
-        self._bote = _Bote()
-        self._bote.fertig.connect(self._hintergrund_fertig)
-        self._timer = QTimer(self)
-        self._timer.setSingleShot(True)
-        self._timer.timeout.connect(self._hintergrund_starten)
 
     # -------------------------------------------------------------- Anzeige
     def setzen(self):
@@ -1023,11 +1010,10 @@ class StaffelSeite(QWidget):
         if not staffeln.gueltige(self.s.stufen):
             text, farbe = "Keine Mengenstufen eingetragen.", "#5F6B7A"
         elif not sp:
-            text, farbe = "Staffelpreise noch nicht gerechnet.", "#7A5A00"
+            text, farbe = "Staffelpreise noch nicht gerechnet – bitte „Staffelpreise rechnen“.", "#7A5A00"
         elif offen:
-            text = (f"VERALTET – {offen} Stufe(n) passen nicht mehr zu Angebot, Mengen oder Stammdaten"
-                    + (" und werden im Hintergrund neu gerechnet …" if self._laeuft or self._timer.isActive()
-                       else ". Das Angebot rechnet sie neu."))
+            text = (f"VERALTET – {offen} Stufe(n) passen nicht mehr zu Angebot, Mengen oder Stammdaten. Sie werden "
+                    "nicht automatisch gerechnet und kommen bis „Staffelpreise rechnen“ nicht ins Angebot.")
             farbe = "#B42318"
         else:
             text, farbe = f"Staffelpreise aktuell (Mengenlauf {_zeit(sp.get('am'))}).", "#1E6B34"
@@ -1036,8 +1022,6 @@ class StaffelSeite(QWidget):
             text += f" {fehler} Stufe(n) mit FEHLER – ohne Preis, nicht im Angebot."
             farbe = "#B42318" if not offen else farbe
         self.info.setText(f"<b style='color:{farbe}'>{text}</b>")
-        if offen and not self.s.f.stumm:
-            self._planen()
 
     # -------------------------------------------------------------- Stufen
     def neu(self):
@@ -1106,25 +1090,16 @@ class StaffelSeite(QWidget):
         self.s.db.staffel_stufen_loeschen([self.modell.daten[r]["id"] for r in zeilen])
         self.s.neu_laden()
         self.s.rueckgaengig_anbieten(f"{len(zeilen)} Stufe(n) gelöscht.")
-        if not staffeln.gueltige(self.s.stufen):
-            self._auto_aus = True
 
-    def standard_auto(self):
-        return self.standard(automatisch=True)
-
-    def standard(self, automatisch=False):
-        """Standard-Staffeln (Plan Arbeitsabläufe W3): je Faktor der Einstellung 'staffeln_standard' eine Stufe mit
-        den Mengen des Angebots × Faktor. automatisch=True (vor dem Angebots-PDF): nur, wenn das Angebot noch keine
-        Stufe hat und in dieser Sitzung keine gelöscht wurden, ohne Fehlermeldung. Ergebnis: IDs der neuen Stufen."""
-        if automatisch and (self._auto_aus or staffeln.gueltige(self.s.stufen)):
-            return []
+    def standard(self):
+        """Standard-Staffeln (Plan Arbeitsabläufe W3, Knopf): je Faktor der Einstellung 'staffeln_standard' eine Stufe
+        mit den Mengen des Angebots × Faktor (ohne Mengenlauf). Ergebnis: IDs der neuen Stufen."""
         from .kundenvorgabe import staffeln_text      # Faktoren des Kunden (W2), sonst der Einstellung
         faktoren = staffeln.standard_faktoren(staffeln_text(self.s.db, self.s.kopf.get("kundennr")))
         mengen = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.s.positionen) if menge]
         if not faktoren or not mengen:
-            if not automatisch:
-                self.s.f.meldung("Keine Standard-Staffeln eingestellt (Einstellungen → Angebot bzw. Kundenvorgaben)." if not faktoren else
-                                 "Im Angebot hat noch kein Satz und keine Position eine Stückzahl.", fehler=True)
+            self.s.f.meldung("Keine Standard-Staffeln eingestellt (Einstellungen → Angebot bzw. Kundenvorgaben)." if not faktoren else
+                             "Im Angebot hat noch kein Satz und keine Position eine Stückzahl.", fehler=True)
             return []
         ids = []
         for f in faktoren:
@@ -1135,7 +1110,7 @@ class StaffelSeite(QWidget):
             ids.append(sid)
         self.s.neu_laden()
         self.s.f.meldung(f"{len(ids)} Standard-Staffeln angelegt (Menge × " + "; ".join(
-            zahl_als_text(f, 2 if f != int(f) else 0) for f in faktoren) + ").")
+            zahl_als_text(f, 2 if f != int(f) else 0) for f in faktoren) + "). Preise mit „Staffelpreise rechnen“.")
         return ids
 
     def schnittschema(self, zeile=None):
@@ -1170,8 +1145,6 @@ class StaffelSeite(QWidget):
             self.speichern([])
             self.stand()
             return []
-        self._timer.stop()
-        self._lauf += 1                 # ein laufender Hintergrundlauf gilt nicht mehr
         fortschritt = QProgressDialog("Staffelpreise werden gerechnet …", "Abbrechen", 0, len(stufen), self)
         fortschritt.setWindowModality(Qt.WindowModal)
         fortschritt.setMinimumDuration(500)
@@ -1198,53 +1171,9 @@ class StaffelSeite(QWidget):
         return self.zeilen
 
     def aktuell(self):
-        """Staffelpreise fürs Angebot; veraltete Stufen werden vorher neu gerechnet. None = abgebrochen."""
+        """Staffelpreise fürs Angebot, ohne neuen Mengenlauf (Patrick 26.10.2026: nie automatisch rechnen): veraltete
+        oder nie gerechnete Stufen haben keinen Preis und fehlen im Angebot; der Angebots-Check warnt davor."""
         if not staffeln.gueltige(self.s.stufen):
             return []
-        if self.s.kopf.get("staffelpreise") and not self.anzahl_veraltet():
-            self.stand()
-            return self.zeilen
-        return self.rechnen(alle=False)
-
-    # -------------------------------------------------------------- Hintergrund
-    def _planen(self):
-        if not self._laeuft:
-            self._timer.start(700)
-
-    def _hintergrund_starten(self):
-        """Veraltete Mengenläufe in einem eigenen Ablauf rechnen (mit Kopien der Eingaben)."""
-        if self._laeuft or not self.anzahl_veraltet():
-            return
-        self._lauf += 1
-        nr, self._laeuft = self._lauf, True
-        args = copy.deepcopy(self._args())
-        daten = copy.deepcopy(self._daten())
-        alt = copy.deepcopy((self.s.kopf.get("staffelpreise") or {}).get("zeilen"))
-        kenn = self.kennung()
-
-        def lauf():
-            try:
-                zeilen = staffeln.rechnen_alle(*args, alt=alt, stufen_daten=daten)
-                self._bote.fertig.emit(nr, zeilen, kenn)
-            except Exception as e:          # noqa: BLE001 – Fehler im Programmablauf melden
-                self._bote.fertig.emit(nr, None, str(e))
-        threading.Thread(target=lauf, name="Staffelpreise", daemon=True).start()   # Name: update_fenster
         self.stand()
-
-    def _hintergrund_fertig(self, nr, zeilen, kenn):
-        self._laeuft = False
-        if zeilen is None:
-            self.s.f.meldung(f"Staffelpreise: Hintergrundlauf abgebrochen ({kenn}).", fehler=True)
-            return
-        if nr == self._lauf and kenn == self.kennung():
-            self.speichern(zeilen)
-            self.s.f.meldung(f"Staffelpreise neu gerechnet ({len(zeilen)} Stufe(n)).")
-        self.stand()                    # passt es nicht mehr (Eingaben geändert), plant stand() neu
-
-    def warten(self, sekunden=120):
-        """Auf den Hintergrundlauf warten (Tests). True = fertig."""
-        ende = datetime.datetime.now() + datetime.timedelta(seconds=sekunden)
-        while (self._laeuft or self._timer.isActive()) and datetime.datetime.now() < ende:
-            QApplication.processEvents()
-            threading.Event().wait(0.02)
-        return not self._laeuft and not self._timer.isActive()
+        return self.zeilen

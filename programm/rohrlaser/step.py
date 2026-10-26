@@ -483,6 +483,10 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     if sm and _z(m, "laenge") > 0 and not rohr_geschlossen(m):  # Winkel/U/C: Schenkel kürzen bei größerem Profil
         eing.update(l_step=round(_z(m, "laenge"), 1),
                     schenkel_mess=messprofil_text(sm["form"], sm["a"], sm["b"], sm["wand"]))
+        if "stege=virtuell" in (m.get("sicherheit") or ""):    # Stege und Längsschnitte schon gemessen
+            eing["stege_virtuell"] = True
+        if m.get("_pfad"):          # STEP-Datei: Profilwechsel in der Tabelle misst das virtuelle Bauteil neu
+            eing.update(step_datei=str(m["_pfad"]), step_koerper=int(_z(m, "koerper") or 1))
     if r_mess is not None and kasten and mp:    # Eckradius der STEP-Datei: Skizze und 3D wie die STEP
         eing.update(r_step=r_mess, r_step_profil=mp)
     for d in liste:
@@ -689,10 +693,41 @@ def schenkel_messprofil(m):
     """Gemessener offener Querschnitt (Winkel, U, C) als dict(form, a, b, wand) für schneidweg.schenkel_kuerzen,
     auch wenn die Art im Prüfdialog auf das Rohr gestellt ist; sonst None."""
     from .schneidweg import OFFEN_SCHENKEL
+    if m.get("_mess_original"):     # virtuelles Bauteil gemessen: der gezeichnete Querschnitt zählt
+        m = m["_mess_original"]
     gemessen = m.get("_form_gemessen") or m.get("profilform")
     if gemessen not in OFFEN_SCHENKEL:
         return None
     return dict(form=gemessen, a=_z(m, "abm_a"), b=_z(m, "abm_b"), wand=_wand(m))
+
+
+def stege_ziel(m, pr):
+    """Größeres Profil für das virtuelle Bauteil (Patrick 26.10.2026: Winkel/U aus einem größeren Profil gleicher Form
+    als Bauteil mit Stegen 2 mm messen, step_messung/step_schenkel): 'Form|A|B|Wand' für STEP-Import.exe --stege,
+    wenn das Teil als Winkel bzw. U gemessen ist und pr dieselbe Form, größer, ist; sonst None."""
+    from .schneidweg import schenkel_kuerzen
+    mess = schenkel_messprofil(m)
+    if not pr or not mess or mess["form"] not in ("L-Profil", "U-Profil") or pr.get("form") != mess["form"]:
+        return None
+    k = schenkel_kuerzen(mess, pr, _z(m, "laenge"))
+    if not k or not k["schnitte"]:
+        return None
+    return "|".join([mess["form"]] + [f"{float(pr.get(x) or 0):g}" for x in ("a", "b", "wand")])
+
+
+def virtuell_einsetzen(m, neu):
+    """Messwerte des virtuellen Bauteils (neu, gleiche Datei und Körper) in m übernehmen; was der Prüfdialog gesetzt
+    hat (Schlüssel mit _), Artikel und Bezeichnung bleiben. True, wenn neu wirklich mit Stegen gemessen ist."""
+    if "stege=virtuell" not in (neu.get("sicherheit") or ""):
+        return False
+    m["_mess_original"] = {k_: m.get(k_) for k_ in ("profilform", "abm_a", "abm_b", "wandstaerke", "laenge")}
+    for k_, v in neu.items():
+        if k_ not in ("artikel", "datei", "koerper") and not k_.startswith("_"):
+            m[k_] = v
+    if neu.get("_netz"):
+        m["_netz"] = neu["_netz"]
+    m.pop("_form_gemessen", None)
+    return True
 
 
 def fenster_neu(m, pr):
@@ -706,7 +741,7 @@ def fenster_neu(m, pr):
     belegter Umfang des Profils). Beides rechnet schneidweg.schenkel_kuerzen (gleich im Rohr-Editor und beim
     Profilwechsel in der Positionstabelle)."""
     from .schneidweg import schenkel_kuerzen
-    mess = schenkel_messprofil(m)
+    mess = schenkel_messprofil(m) if "stege=virtuell" not in (m.get("sicherheit") or "") else None
     if pr and mess and (pr.get("form") == mess["form"] or not rohr_geschlossen(m)):
         k = schenkel_kuerzen(mess, pr, _z(m, "laenge"))
         return (k["schnitt"], k["text"]) if k else None

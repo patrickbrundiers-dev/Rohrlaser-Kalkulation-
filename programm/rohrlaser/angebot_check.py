@@ -107,8 +107,9 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
                          "Die Stufen rechnen mit eigenen Werten (z. B. Materialzuschlag). Der Kunde sieht beide Preise "
                          "untereinander; Stufe oder Angebotswerte angleichen. " + "; ".join(staffel_widersprueche[1:3])))
     if staffeln_veraltet:
-        out.append(Punkt(HINWEIS, f"{staffeln_veraltet} Staffelstufe(n) veraltet (werden vor dem PDF neu gerechnet)",
-                         "staffeln"))
+        out.append(Punkt(WARNUNG, f"{staffeln_veraltet} Staffelstufe(n) veraltet oder nicht gerechnet: ohne Preis, "
+                         "nicht im Angebot", "staffeln",
+                         "Staffeln werden nie automatisch gerechnet. Reiter Staffeln → „Staffelpreise rechnen“."))
     for h in laser_hinweise or ():
         z = [i for i in h["zeilen"] if i in st]
         if z:

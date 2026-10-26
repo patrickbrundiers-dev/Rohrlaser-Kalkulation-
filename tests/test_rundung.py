@@ -103,7 +103,7 @@ for angebot in ANGEBOTE + [None]:
         name = angebot["name"]
     s = fenster.angebot_oeffnen(aid)
     assert s.optimieren()
-    staffeln = s.staffelpreise_aktuell() or []
+    staffeln = s.staffelpreise_rechnen() or []
     ang = s.angebot_daten()
     z, st = pruefen(name, ang, None)
     n_zeilen, n_staffeln = n_zeilen + z, n_staffeln + st

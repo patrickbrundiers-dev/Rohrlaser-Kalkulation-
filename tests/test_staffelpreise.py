@@ -287,14 +287,17 @@ assert fenster_s.stangen_seite.stangen
 fenster_s.reject()
 ok("Schnittschema je Staffel: Stangen je Abmessung, Meter, €/m und Materialkosten je Stufe, im Ergebnis und im Fenster")
 
-# Menge geändert: Stufe veraltet, Hintergrundlauf rechnet nur sie neu
+# Menge geändert: Stufe veraltet, nichts rechnet automatisch; der Knopf rechnet nur sie neu
 speichern(5, mengen=[("10", 200, None)])
 assert st.anzahl_veraltet() == 1 and "VERALTET" in s.staffel_info.text()
 assert st.zeilen[5]["preis_einheit"] is None and st.zeilen[0]["preis_einheit"]
-st._hintergrund_starten()
-assert st.warten() and st.anzahl_veraltet() == 0 and "aktuell" in s.staffel_info.text()
+for _ in range(20):                                       # nie automatisch (Patrick 26.10.2026)
+    app.processEvents()
+assert st.anzahl_veraltet() == 1 and st.zeilen[5]["preis_einheit"] is None and "nicht automatisch" in s.staffel_info.text()
+assert all(z["schluessel"] != "10" or z["menge"] != 200 for z in s.staffelpreise_aktuell() if z.get("preis_einheit"))
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0 and "aktuell" in s.staffel_info.text()
 assert st.zeilen[5]["menge"] == 200 and st.zeilen[5]["preis_einheit"] < sp[5]["preis_einheit"]
-ok("Menge geändert: nur diese Stufe wird im Hintergrund neu gerechnet")
+ok("Menge geändert: Stufe VERALTET ohne Preis, nicht automatisch gerechnet; der Knopf rechnet nur sie neu")
 
 # Fehlerhafte Eingaben: gleiche Menge zweimal für Pos. 10 -> rot, ohne Preis, nicht im Angebot
 speichern(4, mengen=[("10", 24, None)])
@@ -302,6 +305,7 @@ assert m.data(m.index(4, 5)).startswith("FEHLER: Menge doppelt"), m.data(m.index
 ang = s.angebot_daten()
 assert [x["menge"] for x in ang["staffeln"] if x["pos"] == "10"] == [200]      # beide doppelten Stufen fehlen
 speichern(4, mengen=[("10", 50, None)])
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0      # nur auf Knopfdruck
 ang = s.angebot_daten()
 assert [x["bereich"] for x in ang["staffeln"]] == ["ab 2", "ab 4", "ab 8", "ab 24", "ab 50", "ab 200"], ang["staffeln"]
 # jede Stufe steht unter ihrer Angebotszeile (Satz bzw. Pos.), aufsteigend nach Menge; Summe nur aus den Hauptzeilen
@@ -430,7 +434,9 @@ fenster = Hauptfenster(d, tmp / "alt", stumm=True)
 s = fenster.angebot_oeffnen(a)
 assert s.st_seite.anzahl_veraltet() == 3 and "VERALTET" in s.staffel_info.text()
 assert s.optimieren()
-neu = s.staffelpreise_aktuell()
+assert not any(z.get("preis_einheit") for z in s.staffelpreise_aktuell())   # nie automatisch gerechnet
+assert s.st_seite.anzahl_veraltet() == 3
+neu = s.staffelpreise_rechnen()
 for z in neu:
     assert z["preis_einheit"] == ausgabe.kaufm_runden(z["bausteine"]["verkauf"] / z["menge"], 2)
 fenster.close()
