@@ -206,17 +206,20 @@ try:
 except ValueError:
     pass
 assert seite.zusatzarbeiten([0, 1], werte)
-assert all(p["gewinde"] == "2xM8" and json.loads(p["zusatz"])[0]["name"] == "Pulverbeschichten" for p in seite.positionen)
+# Mehrfachauswahl (Plan Angebotsablauf V0): eigene Gewinde und Zusatzarbeiten der 1. Position bleiben
+assert [p["gewinde"] for p in seite.positionen] == ["4xM6; 2xM8", "2xM8"], [p["gewinde"] for p in seite.positionen]
+assert [[e["name"] for e in json.loads(p["zusatz"])] for p in seite.positionen] == [
+    ["Feuerverzinken", "Pulverbeschichten", "Gravur extra"], ["Pulverbeschichten", "Gravur extra"]]
 m = seite.pos_modell
 c = next(i for i, (art, _) in enumerate(m.spalten) if art == "zusatz")
-assert m.data(m.index(0, c)) == "Pulverbeschichten RAL 9005; Gravur extra"
+assert m.data(m.index(1, c)) == "2xM8 · Pulverbeschichten RAL 9005; Gravur extra", m.data(m.index(1, c))
 c = next(i for i, (art, f) in enumerate(m.spalten) if art == "feld" and f.name == "zeit_manuell")
-berechnet = m.zeiten[0]
-assert berechnet and m.data(m.index(0, c)) == m.data(m.index(0, c), Qt.EditRole) != ""   # grau: berechnete Zeit
-m.setData(m.index(0, c), m.data(m.index(0, c), Qt.EditRole))
-assert seite.positionen[0]["zeit_manuell"] is None          # unverändert bestätigt = bleibt berechnet
-assert m.setData(m.index(0, c), "45")
-assert seite.positionen[0]["zeit_manuell"] == 45 and m.status[0] == "HINWEIS: Schneidzeit manuell"
+berechnet = m.zeiten[1]
+assert berechnet and m.data(m.index(1, c)) == m.data(m.index(1, c), Qt.EditRole) != ""   # grau: berechnete Zeit
+m.setData(m.index(1, c), m.data(m.index(1, c), Qt.EditRole))
+assert seite.positionen[1]["zeit_manuell"] is None          # unverändert bestätigt = bleibt berechnet
+assert m.setData(m.index(1, c), "45")
+assert seite.positionen[1]["zeit_manuell"] == 45 and m.status[1] == "HINWEIS: Schneidzeit manuell"
 assert "Zusatzarbeiten" in seite.uebersicht_bereich.einzeln.text()
 
 # Kalkulationswerte je Angebot: Vorgabe aus den Einstellungen, im Angebot änderbar

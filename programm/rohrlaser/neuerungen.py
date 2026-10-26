@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.153", "<b>Angebot aus STEP schneller</b>: Der Prüfdialog zeigt alle Dateien in einer Liste (Pfeile "
+                "springen zur Datei), den Hinweis gleich hinter dem Teil und passt auf 1366 px. Oben stehen Kunde und "
+                "<b>Anfrage-Nr.</b> (Vorschlag aus dem Ordnernamen). Unter <i>Werte setzen</i> gibt es eine "
+                "<b>Zusatzarbeit für alle</b> (z. B. Feuerverzinken), auch fürs Importprofil des Kunden "
+                "([[importprofile]]). <b>Bohrungen prüfen</b> öffnet für alle Positionen ein Fenster "
+                "([[bohrungen_pruefen]]). <b>Fehler behoben</b>: Zusatzarbeiten für mehrere markierte Positionen "
+                "überschrieben Gewinde, Senken und Flowdrill der anderen; jetzt ändert sich nur das Gemeinsame "
+                "([[zusatzarbeiten_angebot]]). Die Spalte <b>Gewinde · Zusatzarbeiten</b> steht hinter der "
+                "Artikelnummer; bis zum automatischen Optimieren steht „wird berechnet …“ statt eines Preises ohne "
+                "Material. <b>Rüsten</b> wahlweise als fester Betrag in € je Angebot bzw. je Abmessung statt Minuten "
+                "([[angebotskopf]]).",
+     "STEP-Prüfdialog mit allen Dateien, Anfrage-Nr. und Zusatzarbeit für alle; Bohrungen aller Positionen in einem "
+     "Fenster; Fehler Zusatzarbeiten bei Mehrfachauswahl behoben; Rüsten wahlweise in €."],
     ["0.9.152", "<b>Preisregeln nach der Prüfung der Preisberechnung</b> (26.10.2026): Zukaufteile und Bleche "
                 "bekommen <b>keinen Gewinn</b> mehr, nur ihren Aufschlag; der Gewinn rechnet auf die Selbstkosten "
                 "ohne Zukaufteile. Der <b>Mindestpreis</b> gilt für die Ware ohne Fracht nach Abzug des Skontos "

@@ -6,7 +6,7 @@ Ein Punkt ist ein Paar (Art, Text) wie bisher in rechnen.freigabe_punkte, dazu z
 details (z. B. betroffene Positionen). Arten: FEHLER blockiert (übergehen nur mit Begründung), WARNUNG fragt einmal,
 HINWEIS informiert nur.
 
-Ziele: pos:<Zeile>, kopf:<Feld>, kunde, fracht, optimieren, staffeln, preise, kalkulation.
+Ziele: pos:<Zeile>, kopf:<Feld>, kunde, fracht, optimieren, staffeln, preise, kalkulation, bohrungen.
 """
 import datetime
 
@@ -77,10 +77,12 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         if z:
             out.append(Punkt(art, f"{_n_pos(len(z))} mit {art} (siehe Meldungen)", f"pos:{z[0]}",
                              _pos_liste(z, positionen)))
-    for pruefen, text in ((bohrbild_offen, "Bohrungen/Gewinde-Vorschlag ungeprüft"), (anbau_offen, "Anbauteile ungeprüft")):
+    for pruefen, text, ziel in ((bohrbild_offen, "Bohrungen/Gewinde-Vorschlag ungeprüft", "bohrungen"),
+                                (anbau_offen, "Anbauteile ungeprüft", None)):
         z = [i for i in aktiv if pruefen(positionen[i])]
-        if z:
-            out.append(Punkt(WARNUNG, f"{_n_pos(len(z))}: {text}", f"pos:{z[0]}", _pos_liste(z, positionen)))
+        if z:      # Bohrungen: „Hinspringen“ öffnet das Fenster für alle (Plan Angebotsablauf V3), nur eine: die Zeile
+            out.append(Punkt(WARNUNG, f"{_n_pos(len(z))}: {text}", ziel if ziel and len(z) > 1 else f"pos:{z[0]}",
+                             _pos_liste(z, positionen)))
     if kalk_zeilen is not None and stand == "aktuell":     # vorher meldet jede Position „kein Schnittplan“
         z = [i for i in aktiv if i < len(kalk_zeilen) and kalk_zeilen[i] and kalk_zeilen[i].get("hinweis")
              and not st[i].startswith((FEHLER, WARNUNG))]

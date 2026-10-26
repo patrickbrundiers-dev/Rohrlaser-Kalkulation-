@@ -53,6 +53,9 @@ KALKULATION = (
     Feld("aufschlag_zukauf", "Aufschlag Zukaufteile [%]", "zahl", 0, 1000, stellen=1),
     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1),
     Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
+    # Rüsten wahlweise als fester Betrag statt Minuten × Stundensatz (Patrick 26.10.2026); leer = Minuten
+    Feld("ruesten_abmessung_eur", "Rüsten je Abmessung [€]", "zahl", 0, 100000, stellen=2),
+    Feld("ruesten_angebot_eur", "Rüsten je Angebot [€]", "zahl", 0, 100000, stellen=2),
     Feld("pauschale_abmessung", "Pauschale je Abmessung [€]", "zahl", 0, 100000, stellen=2),
     # Programmierung: (Grundzeit je Position + Zeit je Innenkontur) × Stundensatz 'Programmierung'. Der Betrag je
     # Position (bis 0.8.21) zählt nur noch in vorher verschickten Angeboten (festgeschriebene Preisbasis)
@@ -67,7 +70,7 @@ KALKULATION = (
 )
 KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn")
 # Kalkulationswerte, bei denen leer nicht „wie Einstellungen“ heißt, sondern „wie vor dem Feld“ (ältere Angebote)
-KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf")
+KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur", "ruesten_angebot_eur")
 KOPF = KOPF + KALKULATION
 
 

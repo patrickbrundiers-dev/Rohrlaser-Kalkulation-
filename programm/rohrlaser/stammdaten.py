@@ -629,6 +629,8 @@ IMPORTPROFILE = Tabelle(
      Feld("werkstoff_id", "Werkstoff Rohre/Profile", "auswahl", auswahl="werkstoff", breite=120),
      Feld("flach_als", "Flache Teile als", "auswahl", auswahl="flachals", breite=150),
      Feld("anbau_weglassen", "Anbauteile nicht übernehmen", "auswahl", auswahl="janein", breite=90),
+     # Plan Angebotsablauf V4: Zusatzarbeiten für alle Teile dieses Kunden (Namen mit ; getrennt, z. B. Feuerverzinken)
+     Feld("zusatz", "Zusatzarbeiten für alle Teile (mit ; getrennt)", breite=180),
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("kundennr",),
     "Vorgaben für den STEP-Import je Kunde; sie gelten in Angeboten dieses Kunden, leere Felder wie in den "
@@ -761,6 +763,11 @@ EINSTELLUNGEN = (
     Einstellung("zukauf_aufschlag", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)", "Kalkulation",
                 "zahl_leer", None, 0, 1000),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, 0, 1440),
+    # Rüsten als fester Betrag statt Minuten × Stundensatz (Patrick 26.10.2026), Vorgabe neuer Angebote; leer = Minuten
+    Einstellung("ruesten_abmessung_eur", "Rüsten je Abmessung als Betrag [€] (leer = Minuten)", "Kalkulation",
+                "zahl_leer", None, 0, 100000),
+    Einstellung("ruesten_angebot_eur", "Rüsten je Angebot als Betrag [€] (leer = Minuten der Maschine)", "Kalkulation",
+                "zahl_leer", None, 0, 100000),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 0.0, 0, 100000),
     # Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026; bis 0.8.21: 8,50 € je Position):
     # Grundzeit je Position + Zeit je Innenkontur, je Position von Hand überschreibbar
