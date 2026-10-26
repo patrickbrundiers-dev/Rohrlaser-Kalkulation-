@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.148", "<b>Stangen von Hand vorgeben</b>: Im Fenster <i>Material …</i> hat jede Abmessung die Spalte "
+    ["0.9.149", "<b>Stangen von Hand vorgeben</b>: Im Fenster <i>Material …</i> hat jede Abmessung die Spalte "
                 "<b>Stangen vorgegeben</b>. Dort lassen sich mehrere Stangenlängen mit Stückzahl eintragen (z. B. "
                 "3 × 6.000 + 2 × 4.500 mm). Die Optimierung plant dann nur mit genau diesen Stangen, mit möglichst "
                 "wenig Stangenlänge; Teile, die nicht mehr passen, stehen unter <i>nicht eingeplant</i>. Staffelpreise "
@@ -31,6 +31,22 @@ NEUERUNGEN = [
                 "Fenster ihre Details, Esc schließt es ([[stangenbild]]).",
      "Stangen von Hand vorgeben; Meterpreis von Hand ohne Meldung; Stangenbild: Übersicht als Standard, Details per "
      "Maus"],
+    ["0.9.148", "<b>Virtuelles Bauteil weiter genutzt</b>: Winkel/U aus größerem Profil und offen gezeichnete Rohre "
+                "lassen sich als <b>STEP mit Stegen bzw. Ringen</b> speichern (Rechtsklick oder STEP speichern im "
+                "Schneidweg-Rechner, Lage wie die Kundendatei). Je Position wählbar, ob die Stege <b>bleiben</b> "
+                "(Vorgabe) oder <b>abgetrennt</b> werden (Zusatzarbeit „Stege abtrennen“ €/Stück). Zeichnung und "
+                "Werkstattpapiere zeigen die Stege rot mit Hinweis; das <b>Gewicht</b> je Teil kommt aus dem "
+                "gemessenen Volumen statt aus dem Metergewicht des größeren Profils ([[offene_rohre]]). Behoben: ein "
+                "virtueller Winkel/U lag in Satz und Baugruppe um einige Millimeter verschoben, jetzt exakt wie in "
+                "der STEP. "
+                "Auch STEP speichern im Fenster <b>Satz in 3D</b> und im Editor der "
+                "Schweißbaugruppe schreibt Winkel/U aus größerem Profil und offen gezeichnete Rohre als exakten "
+                "Körper mit Stegen bzw. Ringen 2 mm (abgetrennt: wie gezeichnet) ([[step_baugruppe]]). Neue Prüfregel "
+                "<b>Virtuelles Bauteil prüfen</b> warnt, wenn das gemessene Mehrvolumen der Stege nicht zum Profil "
+                "passt ([[pruefregeln]]). Zusatzarbeiten in €/kg rechnen mit dem Gewicht aus dem Volumen, in €/m² "
+                "mit der anteiligen Fläche. Die Stecknasen sind gegen das 3D-Modell nachgemessen: der Schneidweg "
+                "stimmt auf 0,1 mm.",
+     "Virtuelles Bauteil: STEP-Export (auch im Satz), Stege bleiben/abtrennen, Zeichnung, Gewicht, Prüfregel"],
     ["0.9.147", "<b>Online-Update im Firmennetz robuster</b>: Bricht der Download ab (Firewall, Proxy, "
                 "Virenscanner), versucht das Programm es selbst bis zu sechsmal und macht an der Abbruchstelle "
                 "weiter; ein späterer Versuch setzt das schon Geladene fort. Die Meldung nennt die wahrscheinliche "

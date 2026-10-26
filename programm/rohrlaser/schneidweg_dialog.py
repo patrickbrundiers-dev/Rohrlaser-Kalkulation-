@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
 
 from . import einblendung, stil
 from . import (biegerohr, dfm, dreid, durchdringung as dd, hilfe, knickrahmen, naht, profil_neu, rechnen,
-               schneidweg as sw, skizze as sk, tabellen_eingabe)
+               schneidweg as sw, skizze as sk, tabellen_eingabe, virtuell)
 from .fenster import liste_fuellen
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
@@ -126,6 +126,9 @@ class SchneidwegDialog(QDialog):
         r = e.get("r_step")
         if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0:
             self.r_step, self.r_step_profil = float(r), e.get("r_step_profil")
+        # Messwerte des STEP-Imports ohne eigenes Eingabefeld (Winkel aus größerem Profil, virtuelles Bauteil):
+        # bleiben beim Speichern erhalten
+        self._mess_extra = {k_: e[k_] for k_ in sw.DURCHREICHEN if k_ in e}
         self.biegerohr = biegerohr.lesen(e)        # Biegerohr aus dem STEP-Import: bleibt in den Eingaben
         self.knick = knickrahmen.lesen(e)          # Knickrahmen: Schenkel, daraus die gestreckte Länge
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
@@ -167,6 +170,14 @@ class SchneidwegDialog(QDialog):
         self.d3_info.setWordWrap(True)
         zeile_3d.addWidget(self.d3)
         zeile_3d.addWidget(self.d3_info, 1)
+        # virtuelles Bauteil (Winkel aus größerem Profil, offenes Rohr): Stege dranlassen oder abtrennen (virtuell.py)
+        self.stege_ab = QCheckBox("Stege abtrennen (Nacharbeit)")
+        self.stege_ab.setChecked(bool(e.get("stege_abtrennen")))
+        self.stege_ab.setToolTip("Je ein Steg bzw. Ring 2 mm an Ende A und B hält das Teil beim Lasern (virtuelles "
+                                 "Bauteil). Aus = die Stege bleiben am Teil. An = danach abtrennen und entgraten: "
+                                 f"Zusatzarbeit „{virtuell.ZUSATZ_STEGE}“ (€/Stück), Gewicht wie gezeichnet.")
+        self.stege_ab.setVisible(virtuell.ist_virtuell(self._mess_extra))
+        zeile_3d.addWidget(self.stege_ab)
         lay.addLayout(zeile_3d)
 
         enden = QGridLayout()
@@ -839,9 +850,13 @@ class SchneidwegDialog(QDialog):
         erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine, laenge=self._teil_laenge())
 
         def schreiben(ziel):
+            netz = None
+            if virtuell.ist_virtuell(eingaben) and self.db is not None and self.p.get("id"):
+                from .ansicht3d import entpacken
+                netz = entpacken(self.db.netz(self.p["id"]))
             zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil,
                                     sw.mit_angenommener_richtung(ohne_3d(eingaben), self.profil), erg, self.naht_werte(), einst,
-                                    self.schneidzeit())
+                                    self.schneidzeit(), netz=netz)
         if pfad is not None:
             schreiben(pfad)
             return pfad
@@ -855,6 +870,12 @@ class SchneidwegDialog(QDialog):
         """Teil als STEP mit echtem Volumenkörper (step_export, Plan 3D-Editor 3E-8): Gehrungen, Ausklinkungen,
         Konturen, Nasen und Gravuren wie im 3D-Modell. Ohne pfad: Dateidialog im Ordner des Angebots."""
         from . import step_export
+        seite = self.parent()
+        if virtuell.ist_virtuell(self._mess_extra) and hasattr(seite, "virtuell_step_speichern"):
+            # virtuelles Bauteil: der gemessene Körper mit Stegen (genau wie die STEP), nicht aus den Eingaben gebaut
+            zeile = next((i for i, q in enumerate(seite.positionen) if q.get("id") == self.p.get("id")), None)
+            if zeile is not None:
+                return seite.virtuell_step_speichern(zeile, pfad)
         if getattr(self, "biegerohr", None):
             einblendung.melden(self, "Ein Biegerohr kommt aus der STEP-Datei des Kunden: "
                                     "bitte diese weitergeben, der STEP-Export baut nur gerade Rohre.")
@@ -1162,6 +1183,9 @@ class SchneidwegDialog(QDialog):
             if s in getattr(self, "_nasen", {}):
                 enden[s]["nasen"] = self._nasen[s]
         out = dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
+        out.update(self._mess_extra)
+        if virtuell.ist_virtuell(self._mess_extra) and self.stege_ab.isChecked():
+            out["stege_abtrennen"] = True
         if isinstance(getattr(self, "r_aussen", None), (int, float)):      # Außenradius je Teil (sonst Stammdaten/Norm)
             out["r_aussen"] = self.r_aussen
         if isinstance(getattr(self, "r_step", None), (int, float)):        # Eckradius der STEP-Datei

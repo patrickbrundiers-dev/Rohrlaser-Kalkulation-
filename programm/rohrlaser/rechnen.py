@@ -17,7 +17,7 @@ from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, co2_maschine, OHNE_NAHT,
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
 from . import fracht_angebot
-from . import anbau, baugruppe, dfm, dreid, naht, parallel, rp_profile, zukauf
+from . import anbau, baugruppe, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -140,6 +140,13 @@ def position_werte(p, kopf, k, tabellen):
     w["kg_m"] = kgm
     je = p.get("je_umfang") if isinstance(p.get("je_umfang"), (int, float)) and p["je_umfang"] > 1 else 1
     w["gewicht"] = kgm * p["laenge"] / 1000 / je if kgm is not None and not _leer(p.get("laenge")) else None
+    w["abfall_kg"] = None
+    if je == 1:          # virtuelles Bauteil: Gewicht aus dem Volumen (auch ohne Metergewicht), der Rest ist Abfall
+        g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+        if g is not None:
+            if w["gewicht"] is not None:
+                w["abfall_kg"] = max(0.0, w["gewicht"] - g)
+            w["gewicht"] = g
     # Material: Rohrstücke (Halbschalen: mehrere Teile aus einem Rohrumfang)
     w["laenge_gesamt"] = (p["laenge"] * rohrstuecke(p) if not _leer(p.get("laenge")) and not _leer(p.get("stueck"))
                           else None)
@@ -1788,13 +1795,23 @@ def zusatz_stand(z, saetze=None, datum=None):
 
 
 def oberflaeche(p, k):
-    """Außenfläche eines Teils [m²] = Umfang × Länge (ohne Stirnflächen und Innenseite)."""
+    """Außenfläche eines Teils [m²] = Umfang × Länge (ohne Stirnflächen und Innenseite); virtuelles Bauteil
+    anteilig."""
     pr = k.profile.get(p.get("profil_id"))
     if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
         return None
     u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), p.get("profil_id"),
                    profil_im_angebot(pr, None, p.get("profil_id"), p.get("werkstoff_id"), k).get("r_aussen"))
-    return u * p["laenge"] / 1e6 if u else None
+    if not u:
+        return None
+    m2 = u * p["laenge"] / 1e6
+    # virtuelles Bauteil (Winkel/U aus größerem Profil, offenes Rohr): Fläche im Verhältnis Teil zu ganzem Profil
+    # (dünne Wand: Fläche ~ Querschnitt), sonst zahlt der Kunde das Pulvern des abgeschnittenen Schenkels
+    g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+    kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if g is not None else None
+    if g is not None and kgm:
+        m2 *= min(1.0, g / (kgm * p["laenge"] / 1000))
+    return m2
 
 
 def zusatz_menge_auto(art, p, k):
@@ -1806,6 +1823,9 @@ def zusatz_menge_auto(art, p, k):
         g = p.get("gewicht_teil")
         return float(g) if isinstance(g, (int, float)) and g > 0 else None
     if art == "€/kg":
+        g = virtuell.gewicht(p, (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("dichte"))
+        if g is not None:                           # virtuelles Bauteil: Gewicht aus dem Volumen (wie position_werte)
+            return g
         kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k)
         return kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
     if art == "€/m²":

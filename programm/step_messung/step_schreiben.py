@@ -118,7 +118,24 @@ def grundkoerper(k):
         return _prisma(f, float(k["dicke"]))
     if k["art"] == "netz":
         return netz_koerper(k["p"], k["t"])
+    if k["art"] == "step":
+        return step_koerper(k["pfad"], k.get("matrix"))
     raise ValueError(f"Grundkörper {k['art']!r} unbekannt")
+
+
+def step_koerper(pfad, matrix=None):
+    """Körper aus einer STEP-Datei (virtuelles Bauteil der Messung, exakt statt facettiert), mit matrix (3 × 4
+    zeilenweise) in das System des Teils gebracht."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+    from OCP.IFSelect import IFSelect_RetDone
+    from OCP.STEPControl import STEPControl_Reader
+    r = STEPControl_Reader()
+    if r.ReadFile(str(pfad)) != IFSelect_RetDone or not r.TransferRoots():
+        raise ValueError(f"STEP nicht lesbar: {pfad}")
+    k = r.OneShape()
+    if k is None or k.IsNull():
+        raise ValueError(f"STEP ohne Körper: {pfad}")
+    return BRepBuilderAPI_Transform(k, _trsf(matrix), True).Shape() if matrix else k
 
 
 def netz_koerper(p, t):
@@ -1031,6 +1048,19 @@ def _step_schreiben(doc, ziel, produkt):
         raise ValueError("Übertragung nach STEP fehlgeschlagen")
     if w.Write(str(ziel)) != IFSelect_RetDone:
         raise ValueError(f"STEP-Datei nicht geschrieben: {ziel}")
+
+
+def form_schreiben(form, ziel, name):
+    """Einen fertigen Körper (OpenCascade-Form, mm) unverändert als STEP schreiben (virtuelles Bauteil der Messung,
+    step_geometrie.virtuell_ablegen)."""
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDataStd import TDataStd_Name
+    from OCP.TDocStd import TDocStd_Document
+    from OCP.XCAFDoc import XCAFDoc_DocumentTool
+    doc = TDocStd_Document(TCollection_ExtendedString("XmlOcaf"))
+    lab = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main()).AddShape(form, False)
+    TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(name or "Teil"), True))
+    _step_schreiben(doc, ziel, name)
 
 
 def schreiben(bauplan, ziel):
