@@ -28,7 +28,8 @@ NEUERUNGEN = [
                 "rechnen ohne Vorgabe ([[stangen_vorgabe]]). Außerdem meldet ein von Hand eingetragener Meterpreis "
                 "nichts mehr im Status: der berechnete Preis ist nur Vorgabe ([[meterpreis]]). Das <b>Stangenbild</b> "
                 "öffnet jetzt in der <i>Übersicht</i>; bleibt die Maus 1 Sekunde auf einer Stange, zeigt ein kleines "
-                "Fenster ihre Detail-Ansicht (Kennzahlen, Teile, Abwicklung), Esc schließt es ([[stangenbild]]).",
+                "Fenster ihre Detail-Ansicht (Kennzahlen, Teile, Abwicklung), Esc schließt es; die Wartezeit ist unter "
+                "Einstellungen › Ansicht einstellbar ([[stangenbild]]).",
      "Stangen von Hand vorgeben; Meterpreis von Hand ohne Meldung; Stangenbild: Übersicht als Standard, Details per "
      "Maus"],
     ["0.9.148", "<b>Virtuelles Bauteil weiter genutzt</b>: Winkel/U aus größerem Profil und offen gezeichnete Rohre "

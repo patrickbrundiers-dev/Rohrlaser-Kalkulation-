@@ -119,7 +119,12 @@ st.uebersicht.resize(1200, st.uebersicht.minimumHeight())
 st.uebersicht.grab()
 # Maus 1 Sekunde auf einer Stange: Fenster mit den Stangendetails, Esc schließt
 u = st.uebersicht
-assert u.uhr.interval() == 1000 and not u.popup.isVisible()
+assert u.wartezeit() == 1000 and not u.popup.isVisible()           # Vorgabe 1 s, einstellbar (0 = aus)
+db.einstellung_setzen("stangenbild_popup", 2.5)
+assert u.wartezeit() == 2500
+db.einstellung_setzen("stangenbild_popup", 0)
+assert u.wartezeit() == 0
+db.einstellung_setzen("stangenbild_popup", 1.0)
 _wo = QPointF(u.LINKS + 20, u.stangen_y[3] + 8)
 QApplication.sendEvent(u, QMouseEvent(QEvent.MouseMove, _wo, u.mapToGlobal(_wo), Qt.NoButton, Qt.NoButton,
                                       Qt.NoModifier))

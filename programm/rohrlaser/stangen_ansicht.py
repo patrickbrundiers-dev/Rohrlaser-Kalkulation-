@@ -100,7 +100,8 @@ class StangenUebersicht(QWidget):
     """Je Stange eine dünne Zeile (F3a), gruppiert nach Abmessung. Signale: gewaehlt(Nummer der Stange; Klick oder
     Eingabetaste), vorgewaehlt(Nummer; Pfeiltasten), klick(ref), doppelklick(ref)."""
     ZEILE, KOPF, LINKS, RECHTS = 16, 24, 44, 52
-    WARTEN_MS = 1000        # so lange auf einer Stange, dann das Fenster mit den Stangendetails (StangenPopup)
+    WARTEN_MS = 1000        # so lange auf einer Stange, dann das Fenster mit den Stangendetails (StangenPopup);
+                            # warten() = Sekunden aus der Einstellung stangenbild_popup (0 = aus), None = WARTEN_MS
     gewaehlt = Signal(int)
     vorgewaehlt = Signal(int)
     klick = Signal(str)
@@ -113,6 +114,7 @@ class StangenUebersicht(QWidget):
         self.gewaehlt_nr, self.markiert = None, None
         self.werte = {}             # {Nummer: Werte der Stange} für Gewicht und Kosten im Popup
         self.detail_daten = None    # nr -> Daten der Detail-Ansicht (StangenSeite, mit Abwicklung)
+        self.warten = None
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
@@ -189,9 +191,18 @@ class StangenUebersicht(QWidget):
         if nr != self._ueber:
             self._ueber = nr
             self.uhr.stop()
-            if nr is not None and not (self.popup.isVisible() and self.popup.nr == nr):
-                self.uhr.start()
+            ms = self.wartezeit()
+            if nr is not None and ms > 0 and not (self.popup.isVisible() and self.popup.nr == nr):
+                self.uhr.start(ms)
         super().mouseMoveEvent(ereignis)
+
+    def wartezeit(self):
+        """Millisekunden bis zum Detail-Fenster (0 = aus); ohne oder mit ungültiger Einstellung WARTEN_MS."""
+        try:
+            w = self.warten() if self.warten is not None else None
+            return self.WARTEN_MS if w is None or w == "" else max(0, int(round(1000 * float(w))))
+        except (TypeError, ValueError):
+            return self.WARTEN_MS
 
     def leaveEvent(self, ereignis):
         self._ueber = None
@@ -689,7 +700,7 @@ class StangenSeite(QWidget):
     klick = Signal(str)
     doppelklick = Signal(str)
 
-    def __init__(self, ansicht=UEBERSICHT, merken=None):
+    def __init__(self, ansicht=UEBERSICHT, merken=None, warten=None):
         super().__init__()
         from .angebot_fenster import Stangenbild
         self.merken = merken
@@ -722,6 +733,7 @@ class StangenSeite(QWidget):
         self.uebersicht.klick.connect(self._teil_merken)
         self.uebersicht.doppelklick.connect(self.doppelklick)
         self.uebersicht.detail_daten = self._detail_daten
+        self.uebersicht.warten = warten     # Sekunden bis zum Detail-Fenster (Einstellung stangenbild_popup)
         self.detail = StangenDetail()
         self.detail.klick.connect(self._teil)
         self.detail.doppelklick.connect(self.doppelklick)

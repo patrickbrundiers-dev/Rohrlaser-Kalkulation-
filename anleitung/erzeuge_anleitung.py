@@ -3287,7 +3287,8 @@ def kapitel_optimieren(i):
                    "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
                    "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern. Bleibt die "
                    "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Detail-Ansicht (Kennzahlen, "
-                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern); <b>Esc</b> schließt es.")])
+                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern); <b>Esc</b> schließt es. Die Wartezeit "
+                   "steht unter Einstellungen › Ansicht (<i>Stangenbild: Detail-Fenster nach … Sekunden</i>, 0 = aus).")])
     i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
            hoehe=95 * mm, legende=[
                (1, "<b>Kennzahlen</b> der Stange: Lieferlänge, Teile, Nutzung, Rest (Verschnitt, es gibt keine "
@@ -4901,6 +4902,9 @@ def kapitel_einstellungen(i):
         ["Ansicht", "Dichte (kompakt, normal, komfortabel)",
          "Zeilenhöhe der Tabellen und Abstand in Knöpfen und Feldern: <i>kompakt</i> zeigt mehr Zeilen, "
          "<i>komfortabel</i> mehr Luft (Vorgabe normal). Gilt sofort, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Stangenbild: Detail-Fenster nach so vielen Sekunden auf einer Stange (0 = aus)",
+         "Wie lange die Maus in der Übersicht des Stangenbilds auf einer Stange bleiben muss, bis ein kleines Fenster "
+         "ihre Detail-Ansicht zeigt ([[stangenbild]]); Vorgabe 1 Sekunde, 0 = nie. Nur an diesem Arbeitsplatz."],
         ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
          "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
          "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "

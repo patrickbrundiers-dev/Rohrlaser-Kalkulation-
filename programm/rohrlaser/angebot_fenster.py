@@ -1795,7 +1795,8 @@ class AngebotSeite(QWidget):
         plan.addWidget(plan_unten)
         # Stangenbild: Umschalter Stangenmuster / Übersicht / Detail (Lantek-Ideen L1, L2, L4)
         self.stangen_seite = StangenSeite(self.db.einstellung(STANGENBILD_EINSTELLUNG) or STANGEN_UEBERSICHT,
-                                          lambda a: self.db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a))
+                                          lambda a: self.db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a),
+                                          lambda: self.db.einstellung("stangenbild_popup"))
         self.stangen_seite.doppelklick.connect(self.zur_position)
         self.bild = self.stangen_seite.bild
         teile_ansicht.setToolTip("Doppelklick auf ein Teil: zur Position")
