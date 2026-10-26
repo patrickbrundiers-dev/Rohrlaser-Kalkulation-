@@ -3456,6 +3456,15 @@ def _am_ende(t, punkt, spalt=0.0):
     return None
 
 
+def _auf_achse(t, punkt):
+    """True, wenn punkt nahe der Achse des Rohrs t liegt (innerhalb ¼ des kleineren Außenmaßes) und das Rohr einen
+    Außenumfang hat: eine Berührung rundum hat ihre Mitte auf der Achse."""
+    if not _ist_rohr(t) or not t.achse_global or not t.ende_a_global or not t.kontur_umfang:
+        return False
+    v = gp_Vec(gp_Pnt(*t.ende_a_global), gp_Pnt(*punkt))
+    return v.Crossed(gp_Vec(*t.achse_global)).Magnitude() < min(t.abm_a, t.abm_b or t.abm_a) / 4
+
+
 def _mm(v):
     return f"{v:.1f}".replace(".", ",")
 
@@ -3569,7 +3578,7 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
             if kanten.Length() == 0:
                 continue
             draehte = ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(kanten, 0.01, False)
-            laengen, mitte, gesamt, zuege = [], [0.0, 0.0, 0.0], 0.0, []
+            laengen, mitte, gesamt, zuege, schwer = [], [0.0, 0.0, 0.0], 0.0, [], [0.0, 0.0, 0.0]
             for w in range(1, draehte.Length() + 1):
                 lw, zug = 0.0, []
                 for e in _liste(draehte.Value(w), TopAbs_EDGE):
@@ -3578,6 +3587,10 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
                     p = c.Value((c.FirstParameter() + c.LastParameter()) / 2)
                     for n, v in enumerate((p.X(), p.Y(), p.Z())):
                         mitte[n] += v * lg
+                    for k in range(8):      # Schwerpunkt der Kanten (ganze Kreise: Mitte auf der Achse)
+                        q = c.Value(c.FirstParameter() + (c.LastParameter() - c.FirstParameter()) * (k + 0.5) / 8)
+                        for n, v in enumerate((q.X(), q.Y(), q.Z())):
+                            schwer[n] += v * lg / 8
                     gesamt += lg
                     lw += lg
                     zug.append(_naht_linie(c, lg))
@@ -3597,6 +3610,13 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
             enden = [x for t, e in ((ta, ea), (tb, eb)) if e
                      for x in [t.ende_a if e == "A" else t.ende_b] if isinstance(x, (int, float)) and x > 0]
             laenge = min(enden) if enden else max(laengen)
+            # Rohr durch ein Blech gesteckt (Mitte der Berührung auf der Rohrachse, nicht am Ende): rundum, beidseitig
+            # (Plan S8); Länge = Außenumfang des Rohrs, je Seite eine Naht
+            schwer = [v / gesamt for v in schwer] if gesamt else schwer
+            durch = next((t for t, e, o in ((ta, ea, tb), (tb, eb, ta)) if not e and not _ist_rohr(o)
+                          and _auf_achse(t, schwer)), None)
+            if durch is not None and not ea and not eb:
+                laenge = durch.kontur_umfang
             dicken = [d for d in (_naht_dicke(ta), _naht_dicke(tb)) if d]
             k_ = dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
                       laenge_mm=round(laenge, 1), stossart=stossart,
@@ -3604,6 +3624,8 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
                       linien=zuege[laengen.index(max(laengen))])
             if spalt:
                 k_["spalt_mm"] = round(spalt, 2)
+            if durch is not None and not ea and not eb:
+                k_["beidseitig"] = True
             if stossart == "Kehlnaht" and bool(ea) != bool(eb):
                 try:
                     st = _stoss(tb if eb else ta, eb or ea, ta if eb else tb, mitte, rahmen)

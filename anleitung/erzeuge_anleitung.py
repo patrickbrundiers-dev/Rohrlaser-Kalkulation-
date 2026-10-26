@@ -4270,6 +4270,9 @@ def kapitel_baugruppen(i):
            "z. B. <i>Spalt 1,5 mm (Schweißgut ×2,3)</i>). Bis du ihn mit <b>a-Maß und Spalt bestätigen</b> prüfst, "
            "ist die Zeile gelb und die Baugruppe zeigt den HINWEIS <i>Spalt … mm eingerechnet (a + Spalt), bitte "
            "bestätigen</i>. Spalt leeren oder 0 rechnet wie ohne Spalt.")
+    i.text("Steckt ein Rohr durch ein Loch im Blech, schlägt der Import eine Kehlnaht rundum mit dem Außenumfang des "
+           "Rohrs vor und hakt <b>beidseitig</b> an (oben und unten am Blech geschweißt); wird nur eine Seite "
+           "geschweißt, das Häkchen in der Nahtgruppe entfernen.")
     i.abschnitt("Arbeitsgänge und Vorrichtungen")
     i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
            "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)

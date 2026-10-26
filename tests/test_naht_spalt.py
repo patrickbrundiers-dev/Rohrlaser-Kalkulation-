@@ -6,6 +6,7 @@ gerechnet, auch wurde dort nicht graviert“; Plan Spalt_Naht_Gravur, Freigabe �
 - N2 Spalt 4 mm (über step_naht_spalt 3 mm): keine Naht, beide Körper in "ohne_naht"; mit Einstellung 5 mm erkannt
 - N3 Rohrende mit Spalt vor der Kopfplatte: Kehlnaht mit der Schnittlänge des Endes wie ohne Spalt
 - N4 Die Datei bleibt unverändert, das Blech wird nicht verschoben (Grundregel 25.10.: Lage wie STEP)
+- N8 Rohr durch ein Blech gesteckt (mit und ohne Spalt): Naht rundum = Außenumfang, beidseitig (S8)
 - N5 Programm: Nahtvorschlag mit Spalt, Prüfregel „Spalt zu groß“ (schweiss_spalt_max), Teile ohne Naht als Warnung,
   Einstellung geht als --naht-spalt an die Messung
 
@@ -31,7 +32,8 @@ if find_spec("OCP") is None:
 import step_ergebnis  # noqa: E402
 import step_geometrie as sg  # noqa: E402
 import step_messen  # noqa: E402
-from erzeuge_testteile import baugruppe as zusammen, kastenrohr, schreibe  # noqa: E402
+from erzeuge_testteile import baugruppe as zusammen, kastenrohr, rundrohr, schreibe, zylinder  # noqa: E402
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut  # noqa: E402
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox  # noqa: E402
 from OCP.gp import gp_Pnt  # noqa: E402
 from rohrlaser import baugruppe, step, step_einstellungen  # noqa: E402
@@ -239,3 +241,18 @@ nid = d.naht_aus_punkten([(30.0, -16.0, 100.0), (30.0, -16.0, 250.0)], nahtart="
 gez = next(x for x in d.bg["naehte"] if x["id"] == nid)
 assert gez.get("koerper") == ["1"] and "spalt" not in gez, "weit weg vom Blech: nur das Rohr"
 ok("N7 Editor: Naht mit Spalt übernehmen und bestätigen, Naht mit Spalt im 3D zeichnen")
+
+# N8 Rohr durch ein Blech gesteckt
+for spalt in (0.0, 1.0):
+    platte = BRepAlgoAPI_Cut(box(-100, -100, 400, 200, 200, 10),
+                             zylinder((0, 0, 390), (0, 0, 1), 42.4 + 2 * spalt, 30)).Shape()
+    t = sg.analysiere_datei(datei(f"durch_{spalt:g}", rundrohr(42.4, 2, 1000), platte))
+    assert len(t[0].naehte) == 1, t[0].naehte
+    n = t[0].naehte[0]
+    nah(n["laenge_mm"], 42.4 * 3.141592653589793, 0.2, f"Umfang, Spalt {spalt}")
+    assert n["beidseitig"] is True and n["stossart"] == "Kehlnaht", n
+    v = baugruppe.vorschlaege_aus_step(baugruppe.leer(), t[0].naehte)
+    assert v[0]["beidseitig"] and baugruppe.vorschlag_naht(v[0])["beidseitig"], v
+t = sg.analysiere_datei(blech_datei(1.5))
+assert "beidseitig" not in t[0].naehte[0], "Blech außen auf dem Rohr: nicht beidseitig"
+ok("N8 Rohr durch Blech gesteckt: rundum = Außenumfang, beidseitig")

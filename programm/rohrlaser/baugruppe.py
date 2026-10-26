@@ -410,10 +410,11 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
         kn = str(k.get("knoten") or "")
         kn = kn if kn in km and kn != wurzel else ""
         spalt = round(k["spalt_mm"], 1) if _zahl(k.get("spalt_mm")) and k["spalt_mm"] > 0 else None
-        schl = (kn, k.get("stossart") or "Kehlnaht", round(k["laenge_mm"]), k.get("dicke_mm"), spalt)
+        schl = (kn, k.get("stossart") or "Kehlnaht", round(k["laenge_mm"]), k.get("dicke_mm"), spalt,
+                bool(k.get("beidseitig")))
         gruppen.setdefault(schl, []).append(k)
     out = []
-    for (kn, art, laenge, dicke, spalt), liste in gruppen.items():
+    for (kn, art, laenge, dicke, spalt, beidseitig), liste in gruppen.items():
         f = faktor(bg, kn) or 1
         if len(liste) % f:
             kn, f = "", 1
@@ -421,6 +422,8 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
                  dicke=dicke, teile=[x.get("teile") for x in liste], quelle="STEP")
         if spalt:
             v["spalt"] = max(x["spalt_mm"] for x in liste)
+        if beidseitig:                                      # Rohr durch Blech gesteckt (STEP-JSON 1.20)
+            v["beidseitig"] = True
         linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
         if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
             v["linien"] = linien
@@ -456,6 +459,8 @@ def vorschlag_naht(v, regel=None):
         n["dicke"] = v["dicke"]
     if _zahl(v.get("spalt")) and v["spalt"] > 0:          # Spalt der Teile (STEP), Prüfregel SPALT_MAX
         n["spalt"] = v["spalt"]
+    if v.get("beidseitig"):                             # Rohr durch Blech gesteckt: rundum auf beiden Seiten
+        n["beidseitig"] = True
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
         n["mass"] = v["dicke"]
     elif v.get("nahtart") == "Kehlnaht" and regel:

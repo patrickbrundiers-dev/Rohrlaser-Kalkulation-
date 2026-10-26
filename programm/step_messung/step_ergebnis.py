@@ -107,7 +107,8 @@ Versionen von SCHEMA_VERSION:
 - 1.20 (26.10.2026): Schweißstoß mit Spalt (bis Einstellung step_naht_spalt, Vorgabe 3 mm): Nahtkandidaten auch
   zwischen Körpern mit Spalt, dann mit "spalt_mm" (sonst fehlt das Feld); Anbauteile mit Spalt zum Rohr mit "spalt"
   (mm) und Vertrauen "prüfen", Gravur genau unter dem Anbauteil auf der Rohrwand. Je Datei "ohne_naht" = Körper
-  "nr" einer Baugruppe ohne Nahtkandidat ([] bei Einzelteilen, null = nicht bestimmt). Felder aus 1.19 unverändert.
+  "nr" einer Baugruppe ohne Nahtkandidat ([] bei Einzelteilen, null = nicht bestimmt). Rohr durch ein Blech gesteckt:
+  Nahtkandidat mit "beidseitig": true und laenge_mm = Außenumfang des Rohrs (je Seite). Felder aus 1.19 unverändert.
 """
 from datetime import datetime
 
