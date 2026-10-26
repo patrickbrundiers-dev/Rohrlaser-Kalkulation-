@@ -121,6 +121,13 @@ assert all("Feuerverzinken" in rechnen.zusatz_text(p) for p in seite.positionen)
 profil = importprofil.fuer_kunde(db, "10588")
 assert importprofil.vorgaben(profil).get("zusatz") == ["Feuerverzinken"], profil
 ok("V4: Zusatzarbeit für alle Teile im Prüfdialog, als Importprofil des Kunden gemerkt")
+db.neu("kunden", dict(kundennr="10600", name="Metallbau Ohne Profil"))
+mw = [dict(artikel="X1", datei="x.step", _zusatz=["Feuerverzinken", "Entgraten"])]
+seite._step_zusatz = ["Feuerverzinken"]
+assert seite._step_kunde_gewechselt("10600", mw)[1] == [] and mw[0]["_zusatz"] == ["Entgraten"], mw
+assert seite._step_kunde_gewechselt("10588", mw)[1] == ["Feuerverzinken"]
+assert mw[0]["_zusatz"] == ["Entgraten", "Feuerverzinken"], mw
+ok("V4: Kundenwechsel im Prüfdialog ersetzt die Zusatzarbeiten des Importprofils, eigene bleiben")
 
 # V3: Einblendung nach dem Import führt zum Prüfen aller offenen Bohrungen
 offen = seite.bohrungen_offen()

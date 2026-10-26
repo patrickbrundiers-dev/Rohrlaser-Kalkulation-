@@ -5261,9 +5261,10 @@ class AngebotSeite(QWidget):
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
         katalog_namen = [z["name"] for z in self.db.zeilen("zusatzarbeiten") if z.get("name")
                          and z.get("aktiv") != "nein"]
+        self._step_zusatz = [n for n in vorgaben.get("zusatz") or () if n in katalog_namen]
         for m in messwerte:             # Importprofil: Zusatzarbeiten für alle Teile (Plan Angebotsablauf V4)
-            if vorgaben.get("zusatz"):
-                m.setdefault("_zusatz", [n for n in vorgaben["zusatz"] if n in katalog_namen])
+            if self._step_zusatz:
+                m.setdefault("_zusatz", list(self._step_zusatz))
         formular_bericht = None
         if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
             from . import formular
@@ -5389,13 +5390,26 @@ class AngebotSeite(QWidget):
 
     def _step_kunde_gewechselt(self, kundennr, messwerte):
         """Prüfdialog (B1): Kunde gewechselt. Importprofil des neuen Kunden auf die Messwerte anwenden (Benennung,
-        Normteile) und dessen Werkstoff-Vorgabe liefern. Der Angebotskopf folgt erst beim Übernehmen."""
+        Normteile, Zusatzarbeiten) und (Werkstoff-Vorgabe, Zusatzarbeiten) liefern. Der Angebotskopf folgt erst beim
+        Übernehmen."""
         from . import importprofil
         profil = importprofil.fuer_kunde(self.db, kundennr)
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
         ws = importprofil.vorgaben(profil).get("werkstoff") or self.db.einstellung("step_werkstoff") or None
-        return ws if ws in self.k.werkstoffe else None
+        # Zusatzarbeiten des alten Importprofils durch die des neuen ersetzen, von Hand gewählte bleiben (V4)
+        katalog = {z["name"] for z in self.db.zeilen("zusatzarbeiten") if z.get("name") and z.get("aktiv") != "nein"}
+        alt = getattr(self, "_step_zusatz", [])
+        neu = [n for n in importprofil.vorgaben(profil).get("zusatz") or () if n in katalog]
+        for m in messwerte:
+            liste = [n for n in m.get("_zusatz") or () if n not in alt]
+            liste += [n for n in neu if n not in liste]
+            if liste:
+                m["_zusatz"] = liste
+            else:
+                m.pop("_zusatz", None)
+        self._step_zusatz = neu
+        return (ws if ws in self.k.werkstoffe else None), neu
 
     def _virtuell_messen(self, pfad, ziel):
         """Eine STEP-Datei mit STEP-Import.exe --stege ziel messen (Winkel/U aus größerem Profil als virtuelles

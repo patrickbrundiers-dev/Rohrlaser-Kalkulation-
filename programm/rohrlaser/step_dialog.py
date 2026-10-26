@@ -1384,6 +1384,8 @@ class StepPruefDialog(QDialog):
                 m.pop("_uebernehmen", None)
         alt_ws = self.werkstoff
         ws = self.kunde_gewechselt(neu)
+        if isinstance(ws, tuple):       # (Werkstoff, Zusatzarbeiten des neuen Importprofils)
+            ws, self.zusatz_vorgabe = ws[0], list(ws[1] or ())
         if ws != alt_ws:
             for m in self.messwerte:
                 if m.get("_werkstoff", alt_ws) == alt_ws and not m.get("_blech_artikel"):
