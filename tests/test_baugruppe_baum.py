@@ -215,8 +215,29 @@ assert v3.ansicht.netz["l"].get("NL"), v3.ansicht.netz["l"].keys()
 d3.zeichnen_knopf.setChecked(True)                                            # Naht zeichnen schaltet sie aus
 assert not d3.laengsnaht_knopf.isChecked()
 d3.zeichnen_knopf.setChecked(False)
+# Auswahl im 3D (Patrick 26.10.2026): Klick wählt das Teil (Baum und Teiletabelle mit), Strg+Klick dazu bzw. weg
+assert d3.auswahl_leiste.isVisibleTo(d3) and not d3.auswahl_steck.isEnabled()
+rohr_nr = [i for i, (p_, _, _) in enumerate(d3._koerper_lage) if p_ in rohre]
+p1 = d3._koerper_lage[rohr_nr[0]][0]
+p2 = next(d3._koerper_lage[i][0] for i in rohr_nr if d3._koerper_lage[i][0] != p1)
+assert d3._3d_geklickt(dict(id=f"teil:{rohr_nr[0]}", punkt=(0, 0, 0)), strg=False) == p1
+assert d3.wahl_3d == [p1] and d3.baum.currentItem() is d3.baum_items[("teil", p1)]
+assert [d3.teile[r]["_id"] for r in d3.teile_tab.markierte()] == [p1]
+assert d3.baum_hervor == {p1} and "blau" in v3.info.text()
+nr2 = next(i for i in rohr_nr if d3._koerper_lage[i][0] == p2)
+d3._3d_geklickt(dict(id=f"teil:{nr2}", punkt=(0, 0, 0)), strg=True)
+assert d3.wahl_3d == [p1, p2] and d3.baum_hervor == {p1, p2} and d3.auswahl_steck.isEnabled()
+assert sorted(d3.teile[r]["_id"] for r in d3.teile_tab.markierte()) == sorted([p1, p2])
+anz = len(d3.bg["steckverbindungen"])
+kennung = d3.steck_aus_3d()
+assert kennung and len(d3.bg["steckverbindungen"]) == anz + 1
+assert (d3.bg["steckverbindungen"][-1]["_auf"], d3.bg["steckverbindungen"][-1]["_st"]) == (p1, p2)
+d3._3d_geklickt(dict(id=f"teil:{nr2}", punkt=(0, 0, 0)), strg=True)          # Strg+Klick nimmt es wieder weg
+assert d3.wahl_3d == [p1] and not d3.auswahl_steck.isEnabled()
+d3.baum.setCurrentItem(d3.baum.topLevelItem(0))                               # Klick im Baum: Auswahl aus dem Baum
+assert d3.wahl_3d == [] and d3.baum_hervor == set()
 ok("3D wie im Rohr-Editor: Rohre aus den Eingaben, Nähte als Raupe, Nur Gewähltes, Nähte aus, Darstellung, "
-   "Messen, Längsnaht per Klick")
+   "Messen, Längsnaht per Klick, Teile per Klick wählen und stecken")
 
 # ------------------------------------------------------------------ ohne 3D-Daten
 d2 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0})

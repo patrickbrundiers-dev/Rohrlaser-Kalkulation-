@@ -14,7 +14,7 @@ import json
 import math
 import re
 
-from PySide6.QtCore import QItemSelectionModel, Qt, QTimer
+from PySide6.QtCore import QEvent, QItemSelectionModel, QPoint, Qt, QTimer
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
@@ -95,8 +95,27 @@ class ZeilenTabelle(QTableWidget):
         self.ungueltig = set()
         for r, z in enumerate(self.zeilen):
             for c, s in enumerate(self.spalten):
-                self.setCellWidget(r, c, self._feld(z, s))
+                f = self._feld(z, s)
+                self._zeile_klick(f)
+                self.setCellWidget(r, c, f)
         self.auffrischen()
+
+    def _zeile_klick(self, f):
+        """Klick oder Fokus in ein Feld markiert seine Zeile (die Felder fangen den Klick sonst ab; Patrick 26.10.2026:
+        gewählte Zeile im 3D zeigen). Strg: Zeile dazu."""
+        for w in (f, getattr(f, "feld", None), f.lineEdit() if isinstance(f, QComboBox) and f.isEditable() else None):
+            if w is not None:
+                w.installEventFilter(self)
+
+    def eventFilter(self, obj, e):
+        if e.type() in (QEvent.FocusIn, QEvent.MouseButtonPress) and isinstance(obj, QWidget):
+            pos = self.viewport().mapFromGlobal(obj.mapToGlobal(QPoint(1, 1)))
+            r = self.indexAt(pos).row()
+            if r >= 0 and r not in self.markierte():
+                strg = bool(QApplication.keyboardModifiers() & Qt.ControlModifier)
+                self.selectionModel().select(self.model().index(r, 0), (
+                    QItemSelectionModel.Select if strg else QItemSelectionModel.ClearAndSelect) | QItemSelectionModel.Rows)
+        return super().eventFilter(obj, e)
 
     def _feld(self, z, s):
         w = z.get(s.schluessel)
@@ -218,6 +237,17 @@ class ZeilenTabelle(QTableWidget):
 
     def markierte(self):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
+
+
+def teile_markieren(tab, teile, ids):
+    """Zeilen der Teile ids (Positions-IDs) in der Teiletabelle tab markieren, ohne Signal (Auswahl im 3D)."""
+    sel = tab.selectionModel()
+    tab.blockSignals(True)
+    tab.clearSelection()
+    for r, t in enumerate(teile):
+        if t["_id"] in ids and r < tab.rowCount():
+            sel.select(tab.model().index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+    tab.blockSignals(False)
 
 
 def gravierbar(q):
@@ -1637,6 +1667,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.hilfe_vk, self.vk_ergebnis = {}, None
         self.netze = netze or {}    # {Positions-ID: Netz-Bytes} aus dem STEP-Import (3D im Strukturbaum, D1)
         self._netz_cache, self.ansicht3d = {}, None
+        self.wahl_3d = []           # im 3D angeklickte Teile (Positions-IDs, Strg+Klick: mehrere)
         self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
         self.bg = baugruppe.lesen(p.get("baugruppe")) or baugruppe.leer()
         self.bg = copy.deepcopy(self.bg)
@@ -2514,7 +2545,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
         self.baum = StrukturBaum(self.teil_verschieben)
-        self.baum.itemSelectionChanged.connect(self.baum_gewaehlt)
+        self.baum.itemSelectionChanged.connect(self._baum_klick)
         ll.addWidget(self.baum, 1)
         ll.addWidget(hilfe.Hinweis(
             "Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt die Teile in der 3D-Ansicht blau "
@@ -2548,6 +2579,25 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         zl.addWidget(self.zeichnen_text, 1)
         self.zeichnen_leiste.setVisible(False)
         self.baum_rechts_lay.addWidget(self.zeichnen_leiste)
+        # Auswahl im 3D (Patrick 26.10.2026): angeklickte Rohre direkt zum Knickrahmen bzw. zur Steckverbindung
+        self.auswahl_leiste = QWidget()
+        al = QHBoxLayout(self.auswahl_leiste)
+        al.setContentsMargins(0, 0, 0, 0)
+        self.auswahl_text = QLabel()
+        self.auswahl_text.setStyleSheet(f"color: {GRAU};")
+        self.auswahl_knick = QPushButton("Knickrahmen erstellen …")
+        self.auswahl_knick.setToolTip("Die im 3D gewählten Rohre (Strg+Klick), die mit Gehrung aneinanderstoßen, werden "
+                                      "ein Knickrahmen")
+        self.auswahl_knick.clicked.connect(lambda: self.knick_erstellen())
+        self.auswahl_steck = QPushButton("Steckverbindung hinzufügen")
+        self.auswahl_steck.setToolTip("Zwischen den zwei im 3D gewählten Rohren: das erste ist die Aufnahme (Schlitze), "
+                                      "das zweite der Stecker (Nasen)")
+        self.auswahl_steck.clicked.connect(lambda: self.steck_aus_3d())
+        al.addWidget(self.auswahl_text, 1)
+        for b in (self.auswahl_knick, self.auswahl_steck):
+            al.addWidget(b)
+        self.auswahl_leiste.setVisible(False)
+        self.baum_rechts_lay.addWidget(self.auswahl_leiste)
         teil.addWidget(links)
         teil.addWidget(self.baum_rechts)
         teil.setSizes([540, 760])
@@ -2623,6 +2673,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
             self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
             self.zeichnen_leiste.setVisible(not self.nur_lesen)
+            self.auswahl_leiste.setVisible(not self.nur_lesen)
             self._zeichnen_stand()
         self.baum_gewaehlt()
 
@@ -2648,10 +2699,24 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     f"blau: Teile der Unterbaugruppe der Nahtgruppe {n.get('nr') or ''}")
         return set(), "gleiche Teile in gleicher Farbe"
 
+    def _baum_klick(self):
+        """Zeile im Baum gewählt: ein Teil wird auch die Auswahl im 3D und im Reiter Struktur und Teile."""
+        it = self.baum.currentItem()
+        art, kid = it.data(0, Qt.UserRole) if it else ("bg", "")
+        self.wahl_3d = [kid] if art == "teil" else []
+        if self.wahl_3d:
+            teile_markieren(self.teile_tab, self.teile, self.wahl_3d)
+        self.baum_gewaehlt()
+
     def baum_gewaehlt(self):
         it = self.baum.currentItem()
         art, kid = it.data(0, Qt.UserRole) if it else ("bg", "")
         hervor, text = self._gewaehlte_teile((art, kid))
+        if self.wahl_3d:
+            hervor = set(self.wahl_3d)
+            titel = {t["_id"]: self._teil_titel(t["_q"]) for t in self.teile}
+            text = "blau: " + ", ".join(titel.get(p, "") for p in self.wahl_3d)
+        self._auswahl_stand()
         self.baum_hervor = hervor
         self.zeige_3d(hervor, text, naht=kid if art == "naht" else None)
 
@@ -2787,17 +2852,54 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.naht_zeichnen(False)
         self.laengsnaht_aus()
 
-    def _3d_geklickt(self, treffer):
-        """Klick auf eine Fläche im 3D: mit „Längsnaht wählen“ die Längsnaht dieses Rohrs setzen."""
+    def _3d_geklickt(self, treffer, strg=None):
+        """Klick auf eine Fläche im 3D: mit „Längsnaht wählen“ die Längsnaht dieses Rohrs setzen, sonst das Teil
+        wählen (Strg: dazu bzw. weg; Baum und Reiter Struktur und Teile gehen mit). Ergebnis: Nahtwinkel bzw.
+        Positions-ID."""
         kennung = str((treffer or {}).get("id") or "")
         lagen = getattr(self, "_koerper_lage", [])
-        if not kennung.startswith("teil:") or not self.laengsnaht_knopf.isChecked() or self.nur_lesen:
+        if not kennung.startswith("teil:"):
             return None
         nr = int(kennung[5:])
         if nr >= len(lagen):
             return None
         pid, lage, modell = lagen[nr]
-        return self.laengsnaht_setzen(pid, treffer["punkt"], lage, modell)
+        if self.laengsnaht_knopf.isChecked():
+            return None if self.nur_lesen else self.laengsnaht_setzen(pid, treffer["punkt"], lage, modell)
+        if strg is None:
+            strg = bool(QApplication.keyboardModifiers() & Qt.ControlModifier)
+        wahl = list(self.wahl_3d) if strg else []
+        wahl = [x for x in wahl if x != pid] if pid in wahl else wahl + [pid]
+        self.teile_waehlen(wahl)
+        return pid
+
+    def teile_waehlen(self, ids):
+        """Teile ids (Positions-IDs, Reihenfolge = Klickfolge) wählen: blau im 3D, im Baum (ein Teil) und markiert im
+        Reiter Struktur und Teile (für Knickrahmen und Steckverbindung)."""
+        self.wahl_3d = list(ids)
+        teile_markieren(self.teile_tab, self.teile, self.wahl_3d)
+        self.baum.blockSignals(True)
+        it = self.baum_items.get(("teil", self.wahl_3d[-1])) if self.wahl_3d else None
+        self.baum.setCurrentItem(it or self.baum.topLevelItem(0))
+        self.baum.blockSignals(False)
+        self.baum_gewaehlt()
+
+    def _auswahl_stand(self):
+        n = len(self.wahl_3d)
+        self.auswahl_text.setText(f"{n} Teil{'e' if n != 1 else ''} gewählt" if n else
+                                  "Klick auf ein Teil wählt es, Strg+Klick nimmt Teile dazu")
+        self.auswahl_knick.setEnabled(n >= 1 and not self.nur_lesen)
+        self.auswahl_steck.setEnabled(n == 2 and not self.nur_lesen)
+
+    def steck_aus_3d(self):
+        """Steckverbindung zwischen den zwei im 3D gewählten Teilen (erstes = Aufnahme). Ergebnis: Kennung oder None."""
+        if len(self.wahl_3d) != 2:
+            einblendung.melden(self, "Im 3D genau zwei Rohre wählen (Strg+Klick).")
+            return None
+        kennung = self.steck_neu(*self.wahl_3d)
+        if kennung:
+            einblendung.melden(self, "Steckverbindung angelegt (Werte im Reiter Steckverbindungen).")
+        return kennung
 
     def naht_zeichnen(self, an):
         """Zeichenmodus der 3D-Ansicht an/aus: Klicks setzen Punkte eines Linienzugs (fängt die nächste Ecke)."""

@@ -6,6 +6,9 @@ Schweißbaugruppe ist (z. B. ein Rahmen, den der Kunde als Stecksystem möchte),
   Die Rohre zeigt das 3D aus den Eingaben, mit Schlitzen und Nasen (baugruppe_ansicht.rohr_netz).
 - Längsnaht per Klick: „Längsnaht wählen“ an, dann die Fläche eines Rohrs anklicken; Quadrat-/Rechteckrohr: Mitte
   der Wand, Rundrohr: genau dort. Ergebnis: feste Position, Quelle manuell (wie der Dialog Schweißnaht).
+- Auswahl im 3D (Patrick 26.10.2026): Klick auf ein Teil (auch nahe einer Kante) markiert es in der Liste, Strg+Klick
+  nimmt es dazu bzw. weg; auf dem Reiter Steckverbindungen markiert der Klick die Verbindungen des Teils (zwei Teile:
+  die Verbindung zwischen ihnen), eine Zeile dort zeigt Aufnahme und Stecker blau.
 - Knickrahmen (Schritt 2b): markierte Quadrat-/Rechteckrohre, die mit Gehrung aneinanderstoßen, werden wie im
   STEP-Prüfdialog ein Knickrahmen (knickverbindung.py): eine Position mit dem gestreckten Rohr, V-Ausschnitten und
   Zusatzarbeit Knicken; die Rohre fallen weg bzw. zählen je Satz weniger. Mehrere gleiche Rahmen im Satz werden
@@ -25,7 +28,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
 from . import schneidweg as sw, steckverbindung, tastatur
 from .angebot import ist_baugruppe
 from .baugruppe_dialog import (FEHLER_FARBE, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
-                               _text)
+                               _text, teile_markieren)
 from .baugruppe_step import StepBaugruppe
 
 TEIL = "teil:"              # Kennung der Dreiecke im 3D: teil:<Nummer des Körpers>
@@ -107,6 +110,9 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
         self.reiter.addTab(self._seite_stecken(), "Steckverbindungen")
+        self._sync = False
+        self.steck_tab.itemSelectionChanged.connect(self._steck_gewaehlt)
+        self.reiter.currentChanged.connect(lambda _: (self._steck_aus_teilen(), self.zeigen()))
         teilung.addWidget(self.reiter)
         from .baugruppe_ansicht import BaugruppenAnsicht
         self.ansicht3d = BaugruppenAnsicht(geaendert=self.zeigen, vor_messen=self.laengsnaht_aus)
@@ -214,7 +220,9 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         netz, _ = zusammen(netze, {i for i, k in enumerate(self._koerper) if k[0] in hervor and not nur} | aktuell,
                            farbe, bereiche=bereiche)
         ohne = len(self.teile) - len({k[0] for k in self._koerper}) if not nur else 0
-        info = f"{len(netze)} Körper in Einbaulage" + (", blau = markiert" if hervor else "") + "."
+        info = f"{len(netze)} Körper in Einbaulage" + (
+            f", blau = markiert ({self._markiert_text()})" if hervor else
+            ", Klick auf ein Teil markiert es, Strg+Klick nimmt Teile dazu") + "."
         if netz:
             teil_kennung(netz, bereiche, [f"{TEIL}{i}" for i in range(len(netze))])
             nl = self.laengsnaht_linien(self._koerper)
@@ -239,21 +247,49 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         if nr >= len(self._koerper):
             return None
         pid, lage, modell = self._koerper[nr]
-        r = next(i for i, t in enumerate(self.teile) if t["_id"] == pid)
         if self.laengsnaht_knopf.isChecked():
             return self.laengsnaht_setzen(pid, treffer["punkt"], lage, modell)
-        sel = self.teile_tab.selectionModel()
         strg = bool(QApplication.keyboardModifiers() & Qt.ControlModifier)
-        self.teile_tab.blockSignals(True)
-        if not strg:
-            self.teile_tab.clearSelection()
-        if strg and r in self.teile_tab.markierte():
-            sel.select(self.teile_tab.model().index(r, 0), QItemSelectionModel.Deselect | QItemSelectionModel.Rows)
-        else:
-            sel.select(self.teile_tab.model().index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
-        self.teile_tab.blockSignals(False)
+        ids = [self.teile[r]["_id"] for r in self.teile_tab.markierte() if r < len(self.teile)] if strg else []
+        self.teile_markieren([x for x in ids if x != pid] if pid in ids else ids + [pid])
+        self._steck_aus_teilen()
         self.zeigen()
         return pid
+
+    def teile_markieren(self, ids):
+        """Zeilen der Teile ids (Positions-IDs) im Reiter Teile markieren, ohne Neuzeichnen."""
+        teile_markieren(self.teile_tab, self.teile, ids)
+
+    def _markiert_text(self):
+        pos = [_text(self.teile[r]["_q"].get("pos")) for r in self.teile_tab.markierte() if r < len(self.teile)]
+        return "Pos. " + ", ".join(pos)
+
+    def _steck_aus_teilen(self):
+        """Auf dem Reiter Steckverbindungen: die Verbindungen der markierten Teile markieren (ein Teil: alle seine,
+        mehrere: die zwischen ihnen)."""
+        if self.reiter.currentIndex() != 1:
+            return
+        ids = {self.teile[r]["_id"] for r in self.teile_tab.markierte() if r < len(self.teile)}
+        tab, sel = self.steck_tab, self.steck_tab.selectionModel()
+        self._sync = True
+        tab.clearSelection()
+        for r, z in enumerate(self.bg["steckverbindungen"]):
+            paar = {z.get("_auf"), z.get("_st")}
+            if (paar & ids if len(ids) == 1 else paar <= ids) and r < tab.rowCount():
+                sel.select(tab.model().index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        self._sync = False
+        zeilen = tab.markierte()
+        if zeilen:
+            tab.scrollTo(tab.model().index(zeilen[0], 0))
+
+    def _steck_gewaehlt(self):
+        """Zeile im Reiter Steckverbindungen gewählt: Aufnahme und Stecker im 3D blau (und im Reiter Teile markiert)."""
+        if self._sync:
+            return
+        zeilen = self.bg["steckverbindungen"]
+        self.teile_markieren({zeilen[r].get(k) for r in self.steck_tab.markierte() if r < len(zeilen)
+                              for k in ("_auf", "_st")})
+        self.zeigen()
 
     # -------------------------------------------------------------- Speichern
     def step_name(self):

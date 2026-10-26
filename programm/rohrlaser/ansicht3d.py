@@ -1127,6 +1127,13 @@ class Ansicht3D(QWidget):
             self.angeklickt.emit(treffer)
             return treffer
         kn = self.modell.linien_id[beste[1]] if beste[1] < len(self.modell.linien_id) else None
+        if kn is None and getattr(self, "flaeche_vor_kante", False):
+            # Baugruppe/Satz: Klick nahe einer Körperkante (ohne Merkmal) wählt die Fläche darunter, also ihr Teil
+            treffer = self._flaeche_treffer(bild, x, y)
+            if treffer is not None:
+                treffer.pop("tiefe", None)
+                self.angeklickt.emit(treffer)
+                return treffer
         treffer = dict(id=kn, punkt=beste[2])
         self.angeklickt.emit(treffer)
         return treffer

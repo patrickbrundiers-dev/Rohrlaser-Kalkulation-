@@ -2664,7 +2664,9 @@ def kapitel_optimieren(i):
         (5, "<b>Steckverbindung hinzufügen</b>: zwischen den zwei markierten Teilen im Reiter Struktur und Teile.")])
     i.genauer()
     i.liste("<b>Hinzufügen</b>: Markieren Sie im Reiter <i>Struktur und Teile</i> zwei Rohre. Das zweite wird "
-            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe.",
+            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe. Schneller geht es im "
+            "3D: im Reiter <i>Strukturbaum und 3D</i> das erste Rohr anklicken, das zweite mit Strg+Klick, dann "
+            "<i>Steckverbindung hinzufügen</i> unter der Ansicht ([[baugruppe_baum]]).",
             "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
             "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
             "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
@@ -2763,9 +2765,12 @@ def kapitel_optimieren(i):
            "Knickrahmen.", kurz=True)
     i.genauer()
     i.liste("<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
-            "3D blau. Ein Klick auf ein Teil im 3D markiert es, mit Strg kommt es dazu bzw. fällt wieder weg.",
+            "3D blau. Ein Klick auf ein Teil im 3D markiert es, auch nahe an einer Kante; mit Strg kommt es dazu bzw. "
+            "fällt wieder weg. Die Zeile unter der Ansicht nennt die markierten Positionen.",
             "<b>Reiter Steckverbindungen</b>: dieselbe Tabelle und dieselben Knöpfe wie in der Schweißbaugruppe "
-            "([[steckverbindung_anlegen]]). <i>Steckverbindung hinzufügen</i> nimmt die zwei markierten Rohre (das "
+            "([[steckverbindung_anlegen]]). Ein Klick in eine Zeile zeigt Aufnahme und Stecker im 3D blau. Ein Klick "
+            "auf ein Rohr im 3D markiert seine Verbindungen in der Tabelle, zwei Rohre (Strg+Klick) die Verbindung "
+            "zwischen ihnen. <i>Steckverbindung hinzufügen</i> nimmt die zwei markierten Rohre (das "
             "zweite wird Stecker). <i>Alle Stöße stecken</i> braucht die Lage der Rohrenden aus dem STEP-Import: Ein "
             "Satz merkt sie sich ab Version 0.9.95; ältere Sätze bitte neu einlesen.",
             "<b>Längsnaht wählen</b> (Leiste über dem 3D): einschalten und die Fläche eines Rohrs anklicken. Bei "
@@ -4101,6 +4106,11 @@ def kapitel_baugruppen(i):
            "<i>Maße löschen</i>. Messen und Naht zeichnen schalten sich gegenseitig aus. <i>Längsnaht wählen</i>: "
            "die Fläche eines Rohrs anklicken, die Längsnaht liegt dann dort (wie im Fenster Satz in 3D, "
            "[[satz_3d]]); sie ist im 3D rot.")
+    i.text("<b>Teile im 3D wählen</b>: Ein Klick auf ein Teil wählt es (blau), auch nahe an einer Kante; der Baum "
+           "springt auf das Teil und der Reiter Struktur und Teile markiert es mit. Strg+Klick nimmt weitere Teile "
+           "dazu oder wieder weg, ein Klick im Baum wählt neu. Unter der Ansicht stehen dazu <b>Knickrahmen "
+           "erstellen …</b> (gewählte Rohre mit Gehrung, [[satz_3d]]) und <b>Steckverbindung hinzufügen</b> (genau "
+           "zwei Rohre: das zuerst gewählte wird Aufnahme, das zweite Stecker, [[steckverbindung_anlegen]]).")
     i.text("<b>Rohre aus den Eingaben</b>: Quadrat-, Rechteck- und Rundrohre (und andere Profile, die der "
            "Teile-Editor zeichnet) stehen so im 3D, wie sie gerechnet werden: Gehrungen, Konturen und die Schlitze "
            "und Nasen der Steckverbindungen ([[steckverbindung]]), auch der noch nicht gespeicherten aus dem Reiter "
