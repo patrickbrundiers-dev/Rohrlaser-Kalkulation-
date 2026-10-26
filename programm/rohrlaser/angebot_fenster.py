@@ -4198,9 +4198,10 @@ class AngebotSeite(QWidget):
         """Virtuelles Bauteil (so wird gelasert: Teil mit Stegen bzw. Ringen) als STEP: die Kundendatei wird mit
         STEP-Import.exe --virtuell neu gemessen, der Körper unverändert in Dateilage geschrieben. Ohne pfad:
         Dateidialog. Ergebnis: Pfad oder None."""
-        if zeile is None:
+        if zeile is None:           # die erste markierte virtuelle Position (das Menü zeigt den Eintrag, wenn eine es ist)
             zeilen = self._markierte_zeilen()
-            zeile = zeilen[0] if zeilen else None
+            zeile = next((z for z in zeilen if z < len(self.positionen) and virtuell.technik_lesen(self.positionen[z])),
+                         zeilen[0] if zeilen else None)
         if zeile is None or zeile >= len(self.positionen):
             return None
         p = self.positionen[zeile]
