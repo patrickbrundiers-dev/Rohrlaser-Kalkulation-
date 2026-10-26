@@ -2137,7 +2137,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         regel = QPushButton("a-Maß und Spalt bestätigen")
         regel.setToolTip("a-Maß nach Regel und eingerechneten Spalt der markierten Nahtgruppen als geprüft übernehmen")
         regel.clicked.connect(lambda: self.regel_bestaetigen(self.naht_tab.markierte()))
-        for b in (neu, kopie, weg, stamm, regel):
+        zeichnung = QPushButton("Aus Zeichnung …")
+        zeichnung.setToolTip("Zeichnung der Baugruppe (PDF, DXF, Scan) lesen: a-Maße der Schweißangaben in die "
+                             "Kehlnähte übernehmen, Stückliste mit den Einzelteilen vergleichen")
+        zeichnung.clicked.connect(lambda: self.aus_zeichnung())
+        zeichnung.setEnabled(not self.nur_lesen)
+        for b in (neu, kopie, weg, stamm, regel, zeichnung):
             leiste.addWidget(b)
         leiste.addStretch(1)
         lay.addLayout(leiste)
@@ -2208,6 +2213,44 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
     def _regel_faktor(self):
         w = self.db.einstellung("schweiss_a_regel") if self.db is not None else None
         return w if isinstance(w, (int, float)) and w > 0 else baugruppe.A_REGEL_VORGABE
+
+    def aus_zeichnung(self, pfad=None, melden=True):
+        """Zeichnung der Baugruppe lesen (zeichnung_baugruppe, Plan S9): a-Maße in die Kehlnähte ohne bzw. mit a-Maß
+        nach Regel (Zeichnung maßgebend), Stückliste gegen die Einzelteile. pfad: sonst Dateiauswahl. Ergebnis:
+        dict(geaendert, a_masse, abweichungen, hinweise) oder None (abgebrochen)."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import zeichnung_baugruppe as zb
+        if self.nur_lesen:
+            return None
+        if pfad is None:
+            pfad, _ = QFileDialog.getOpenFileName(self, "Zeichnung der Baugruppe", "",
+                                                  "Zeichnung (*.pdf *.dxf *.png *.jpg *.jpeg *.tif *.tiff)")
+            if not pfad:
+                return None
+        ordner = getattr(getattr(self.parent(), "f", None), "programmordner", None)    # Tesseract für Scans
+        erg = zb.lesen(pfad, ordner)
+        geaendert = zb.anwenden(self.bg, erg, self._regel_faktor())
+        teile = [dict(name=t["_q"].get("bezeichnung") or t["_q"].get("artikel") or "",
+                      menge=int((t.get("je") or 1) * (baugruppe.faktor(self.bg, t.get("knoten") or "") or 1)))
+                 for t in self.teile if t.get("drin")]
+        abw = zb.abgleich(erg, teile)
+        masse = zb.a_masse(erg)
+        self.bg["zeichnung"] = dict(datei=str(pfad).replace("\\", "/").rsplit("/", 1)[-1], a_masse=masse,
+                                    stueckliste=len(erg["stueckliste"]), abweichungen=abw)
+        if geaendert:
+            self.naht_tab.aufbauen()
+        self.aktualisieren()
+        out = dict(geaendert=geaendert, a_masse=masse, abweichungen=abw, hinweise=erg["hinweise"])
+        if melden:
+            zeilen = [f"a-Maße der Zeichnung: {', '.join(_text(a) for a in masse) or 'keine'}; "
+                      f"{geaendert} Kehlnaht-Gruppe{'n' if geaendert != 1 else ''} gesetzt"
+                      + (" (mehrere Größen: nach Wanddicke, bitte bestätigen)" if len(masse) > 1 and geaendert else "")]
+            if erg["stueckliste"]:
+                zeilen.append("Stückliste passt zu den Einzelteilen." if not abw else
+                              "Stückliste weicht ab:\n" + "\n".join(abw[:10]))
+            zeilen += erg["hinweise"]
+            QMessageBox.information(self, "Zeichnung der Baugruppe", "\n".join(zeilen))
+        return out
 
     def regel_bestaetigen(self, zeilen=None):
         """a-Maß nach Regel und Spalt der markierten Nahtgruppen (zeilen: Indizes, sonst alle) als geprüft

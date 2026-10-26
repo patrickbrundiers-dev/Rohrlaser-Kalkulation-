@@ -4273,6 +4273,18 @@ def kapitel_baugruppen(i):
     i.text("Steckt ein Rohr durch ein Loch im Blech, schlägt der Import eine Kehlnaht rundum mit dem Außenumfang des "
            "Rohrs vor und hakt <b>beidseitig</b> an (oben und unten am Blech geschweißt); wird nur eine Seite "
            "geschweißt, das Häkchen in der Nahtgruppe entfernen.")
+    i.abschnitt("a-Maß und Stückliste aus der Zeichnung", marke="zeichnung_baugruppe")
+    i.text("<b>Aus Zeichnung …</b> (Reiter Nahtgruppen) liest die Zeichnung der Baugruppe (PDF aus dem CAD, DXF oder "
+           "Scan) und setzt die a-Maße der Schweißangaben in die Kehlnähte. Die Zeichnung ist maßgebend.", kurz=True)
+    i.text("Gelesen wird der Text nach DIN EN ISO 2553: <i>a4</i>, <i>a 3,5</i>, <i>z7</i> (Schenkel, a = z ÷ √2), "
+           "<i>s5</i> (Stumpfnaht), unterbrochen <i>a4 3×100 (200)</i>, dazu <i>umlaufend</i> und <i>beidseitig</i>. "
+           "Steht nur eine Größe in der Zeichnung, bekommen alle Kehlnähte ohne a-Maß bzw. mit a-Maß nach Regel "
+           "dieses a-Maß. Stehen mehrere da, nimmt jede Nahtgruppe die zu ihrer Wanddicke passende (das größte a bis "
+           "Faktor × Wanddicke) und bleibt gelb, bis du sie mit <b>a-Maß und Spalt bestätigen</b> prüfst; Nahtgruppen "
+           "ohne Wanddicke bleiben offen. Von Hand gesetzte a-Maße bleiben. Die <b>Stückliste</b> der Zeichnung "
+           "(Kopfzeile mit Pos. und Menge) vergleicht das Programm mit den Einzelteilen der Baugruppe und meldet "
+           "fehlende Teile und andere Stückzahlen. Bei einem Scan oder Foto liest die Texterkennung "
+           "([[pdf_zeichnung]]) – dann alle Werte prüfen.")
     i.abschnitt("Arbeitsgänge und Vorrichtungen")
     i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
            "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)

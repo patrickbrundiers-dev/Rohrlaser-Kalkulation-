@@ -27,7 +27,9 @@ NEUERUNGEN = [
                 "markiert, die Teile werden nie verschoben. Neu: WARNUNG bei Spalt über 2 mm (Einstellung) und für "
                 "Teile ohne Naht zu einem anderen Teil. Der Spalt kostet mehr Schweißgut: Nahtgruppen rechnen mit a + Spalt "
                 "(gelb bis „a-Maß und Spalt bestätigen“), auch eine im 3D gezeichnete Naht findet das Teil auf der "
-                "anderen Seite des Spalts. Rohr durch ein Blech gesteckt: Naht rundum, beidseitig ([[naht_spalt]]).",
+                "anderen Seite des Spalts. Rohr durch ein Blech gesteckt: Naht rundum, beidseitig ([[naht_spalt]]). Neu im Reiter Nahtgruppen: "
+                "<b>Aus Zeichnung …</b> liest a-Maße (DIN EN ISO 2553) und Stückliste aus PDF, DXF oder Scan "
+                "([[zeichnung_baugruppe]]).",
      "Schweißnaht und Gravur auch bei Spalt zwischen Blech und Rohr."],
     ["0.9.151", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
                 "Zuschlag Fremdleistung): Vorgabe je 10 % aus den Einstellungen, % auf den Einstand aller Bleche bzw. "
