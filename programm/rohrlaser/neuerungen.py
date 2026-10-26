@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.154", "<b>Hell- und Dunkelmodus optisch verbessert</b>: Im Dunkelmodus sind Rahmen von Eingabefeldern, "
+                "Auswahllisten und Häkchenkästchen wieder sichtbar, Hauptknöpfe kräftig blau mit gut lesbarer weißer "
+                "Schrift, die Herkunft der Merkmale im Teile-Editor und die Legende der Kostenbalken nicht mehr dunkel "
+                "auf dunkel. Im Stangenbild steht die Positionsnummer auf hellen Teilfarben in dunkler Schrift. Der "
+                "Hellmodus hat eine ruhige, einheitlich kühlgraue Fensterfläche ([[einstellungen]]).",
+     "Dunkelmodus: sichtbare Rahmen und Häkchen, lesbare Hauptknöpfe; Hellmodus einheitlich kühlgrau; Stangenbild "
+     "lesbare Positionsnummern."],
     ["0.9.153", "<b>Angebot aus STEP schneller</b>: Der Prüfdialog zeigt alle Dateien in einer Liste (Pfeile "
                 "springen zur Datei), den Hinweis gleich hinter dem Teil und passt auf 1366 px. Oben stehen Kunde und "
                 "<b>Anfrage-Nr.</b> (Vorschlag aus dem Ordnernamen). Unter <i>Werte setzen</i> gibt es eine "

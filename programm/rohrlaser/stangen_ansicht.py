@@ -311,7 +311,7 @@ class StangenUebersicht(QWidget):
                 p.drawLine(r.topLeft(), r.bottomLeft())
                 p.drawLine(r.topRight(), r.bottomRight())
                 if self.markiert is not None and t["ref"] == self.markiert:
-                    p.setPen(QPen(QColor(stil.ORANGE), 2))
+                    p.setPen(QPen(stil.farbe(stil.ORANGE), 2))
                     p.setBrush(Qt.NoBrush)
                     p.drawRect(r.adjusted(0, -1, 0, 1))
                 self.flaechen.append((r, t, s))
@@ -402,7 +402,7 @@ class Kacheln(QWidget):
             p.fillRect(QRectF(r.left(), r.top(), 7, r.height()), farbe)
             p.restore()
             wahl = self.markiert is not None and t["ref"] == self.markiert
-            p.setPen(QPen(QColor(stil.ORANGE), 2.5) if wahl else QPen(stil.farbe(stil.RAHMEN), 1))
+            p.setPen(QPen(stil.farbe(stil.ORANGE), 2.5) if wahl else QPen(stil.farbe(stil.RAHMEN), 1))
             p.drawPath(weg)
             innen = r.adjusted(12, 3, -6, -3)
             p.setFont(fett)
@@ -489,7 +489,7 @@ class AbwicklungBild(QWidget):
             flaeche.setAlpha(120)
             p.setBrush(flaeche)
             wahl = self.markiert is not None and t["ref"] == self.markiert
-            p.setPen(QPen(QColor(stil.ORANGE), 2.5) if wahl else QPen(stil.farbe("#202020"), 1.2))
+            p.setPen(QPen(stil.farbe(stil.ORANGE), 2.5) if wahl else QPen(stil.farbe("#202020"), 1.2))
             p.drawPolygon(poly)
             self.flaechen.append((poly, t))
         p.setBrush(Qt.NoBrush)

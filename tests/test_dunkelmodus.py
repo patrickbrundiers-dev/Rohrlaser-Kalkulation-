@@ -64,7 +64,10 @@ for datei in sorted((WURZEL / "programm" / "rohrlaser").glob("*.py")):
             if h not in D and h not in ERLAUBT and not 70 <= helligkeit(h) <= 200:
                 offen.append(f"{datei.name}:{nr} {h}")
         if "# fest:" not in zeile and (re.search(r'QColor\("(#|white|black)', zeile)
-                                        or re.search(r"setForeground\(Qt\.(gray|red|darkYellow|black)", zeile)):
+                                        or re.search(r"setForeground\(Qt\.(gray|red|darkYellow|black)", zeile)
+                                        # Themefarbe ohne stil.farbe (26.10.2026: Herkunft im Editor unsichtbar)
+                                        or re.search(r"QColor\((stil\.)?(TEXT|ROT|GRUEN|ORANGE|GELB_TEXT|AKZENT|"
+                                                     r"RAHMEN|LINIE|FLAECHE|FARBE_HERKUNFT|FARBE_STUFE)\b", zeile)):
             fest.append(f"{datei.name}:{nr}")
 pruefe(not offen, f"D2 helle Flächen/dunkle Schrift haben eine Dunkel-Farbe {offen[:8] or ''}")
 pruefe(not fest, f"D3 keine festen Farben in der Oberfläche {fest[:8] or ''}")
