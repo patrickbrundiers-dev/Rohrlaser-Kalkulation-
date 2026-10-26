@@ -187,12 +187,17 @@ jobs:
           $setup = "$env:RUNNER_TEMP\tesseract-setup.exe"
           $quelle = "$env:RUNNER_TEMP\Tesseract-OCR"
           Invoke-WebRequest "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" -OutFile $setup
-          $p = Start-Process -Wait -PassThru -FilePath $setup -ArgumentList @("/S", "/D=$quelle")
-          if ($p.ExitCode -ne 0 -or -not (Test-Path "$quelle\tesseract.exe")) { throw "Tesseract-Setup Rückgabewert $($p.ExitCode)" }
+          # Das Setup (NSIS) mit 7-Zip auspacken: die stille Installation meldete 0, legte aber nichts in /D ab (Lauf 918)
+          & 7z x -y "-o$quelle" $setup | Out-Null
+          if (-not (Test-Path "$quelle\tesseract.exe")) {
+            $p = Start-Process -Wait -PassThru -FilePath $setup -ArgumentList @("/S", "/D=$quelle")
+            foreach ($o in @($quelle, "$env:ProgramFiles\Tesseract-OCR")) { if (Test-Path "$o\tesseract.exe") { $quelle = $o; break } }
+            if (-not (Test-Path "$quelle\tesseract.exe")) { throw "Tesseract nicht gefunden (Setup Rückgabewert $($p.ExitCode))" }
+          }
           $ziel = "dist/Rohrlaser-Angebotskalkulation/Tesseract-OCR"
           New-Item -ItemType Directory -Force "$ziel/tessdata" | Out-Null
           Copy-Item "$quelle\tesseract.exe", "$quelle\*.dll" $ziel
-          Get-ChildItem $quelle -Filter "*LICENSE*" | Copy-Item -Destination $ziel
+          Get-ChildItem $quelle, "$quelle\doc" -Filter "*LICENSE*" -ErrorAction SilentlyContinue | Copy-Item -Destination $ziel
           foreach ($s in @("deu", "eng")) {
             Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$s.traineddata" -OutFile "$ziel/tessdata/$s.traineddata"
           }
