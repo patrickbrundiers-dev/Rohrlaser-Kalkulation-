@@ -2053,7 +2053,9 @@ class AngebotSeite(QWidget):
     def auto_optimieren(self):
         """Automatisch optimieren (W1), ohne Meldungsfenster. Ergebnis: True = optimiert, False = nicht nötig oder
         gescheitert (Grund in der Statuszeile, gleiche Eingaben werden nicht erneut versucht)."""
-        if QApplication.activeModalWidget() is not None:     # Dialog offen: danach erneut versuchen
+        # Dialog offen oder Zelle in Bearbeitung (Neuladen würde den Editor schließen): danach erneut versuchen
+        if QApplication.activeModalWidget() is not None or \
+                self.pos_ansicht.state() == QAbstractItemView.EditingState:
             self._auto_timer.start(self.AUTO_PAUSE_MS)
             return False
         if not self.auto_optimieren_moeglich():

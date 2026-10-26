@@ -2089,7 +2089,8 @@ def kapitel_optimieren(i):
     i.genauer()
     i.text("Ist ein Angebot im Vorgang <i>Entwurf</i> und hat es höchstens so viele aktive Positionen wie die "
            "Einstellung <i>Automatisch optimieren: Entwürfe bis Positionen (0 = aus)</i> (Vorgabe 100) und weniger "
-           "als 500 Teile, optimiert das Programm etwa 0,8 Sekunden nach der letzten Änderung von selbst. Das "
+           "als 500 Teile, optimiert das Programm etwa 0,8 Sekunden nach der letzten Änderung von selbst; solange "
+           "Sie gerade eine Zelle bearbeiten, wartet es, damit Ihre Eingabe nicht unterbrochen wird. Das "
            "Ergebnis ist dasselbe wie mit <b>Optimieren</b> (F9); die Statuszeile meldet <i>Automatisch optimiert</i>. "
            "Verschickte oder beauftragte Angebote, Angebote anderer Benutzer und der Lesemodus behalten ihren "
            "Schnittplan, bis Sie selbst optimieren. Klappt das automatische Optimieren nicht (z. B. eine Position "
