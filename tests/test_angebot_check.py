@@ -59,7 +59,7 @@ erwartet = {
     "Zukaufteil ohne Einkaufspreis": (ac.WARNUNG, "pos:1", "Pos. 20"),
     "Fracht: PLZ fehlt": (ac.WARNUNG, "fracht", None),
     "Marge 2 % unter der Mindestmarge 5 %": (ac.WARNUNG, "kalkulation", ""),
-    "2 Staffelstufe(n) veraltet": (ac.HINWEIS, "staffeln", ""),
+    "2 Staffelstufe(n) veraltet": (ac.WARNUNG, "staffeln", None),
     "Mindestauftragswert greift": (ac.HINWEIS, "kopf:mindestpreis_anwenden", ""),
     "Stammdaten seit dem Festschreiben geändert (1 Wert)": (ac.HINWEIS, "preise", "Profil QR 40: 3,10 statt 2,90 €/m"),
     "Lieferzeit leer": (ac.HINWEIS, "kopf:lieferzeit", ""),
@@ -73,7 +73,7 @@ for teil, (art, ziel, details) in erwartet.items():
 assert finde(liste, "Hinweis in der Kalkulation") is None          # Pos. 10 hat schon FEHLER: nicht doppelt
 assert finde(liste, "E-Mail") is None                               # ohne Kunde keine E-Mail-Prüfung
 assert [x.art for x in liste] == sorted((x.art for x in liste), key=ac.ARTEN.index)
-assert ac.blockiert(liste) and len(ac.offen(liste)) == 7
+assert ac.blockiert(liste) and len(ac.offen(liste)) == 8
 ohne_admin = ac.punkte(dict(kopf), pos[:1], ["OK"], "aktuell", dict(verkauf=1000.0, gewinn=20.0), mindestmarge=0.05)
 assert [x.text for x in ohne_admin] == ["Marge unter der Mindestmarge (Einstellungen)"], ohne_admin
 liste2 = ac.punkte(dict(kopf, kunde="X"), pos, ["OK", "OK", ""], "aktuell", dict(verkauf=1.0),
