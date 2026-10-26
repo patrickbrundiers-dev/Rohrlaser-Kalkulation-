@@ -4060,7 +4060,7 @@ class AngebotSeite(QWidget):
         if not erg["positionen"]:
             return None
         q = erg["positionen"][0]
-        for name in PROFILWECHSEL_FELDER + ("technik", "gravur"):
+        for name in PROFILWECHSEL_FELDER + ("technik",):
             if name in q:
                 self.db.position_aendern(p["id"], name, q[name])
         if q.get("_netz"):
