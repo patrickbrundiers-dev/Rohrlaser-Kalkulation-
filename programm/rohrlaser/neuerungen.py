@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.147", "<b>Konturen: bei 90° zur Oberfläche gilt die Innenkante</b>: Wird eine Kontur senkrecht zur Oberfläche "
+    ["0.9.148", "<b>Konturen: bei 90° zur Oberfläche gilt die Innenkante</b>: Wird eine Kontur senkrecht zur Oberfläche "
                 "geschnitten (2D), hat sie innen genau die Maße der Zeichnung bzw. der STEP; der Strahl steht an jedem "
                 "Punkt 90° zur Oberfläche, außen ist die Kontur auf dem Rundrohr und in der Rundung der Ecke "
                 "(Quadrat-/Rechteckrohr, Kontur nah am Rand) deshalb breiter. 3D-Ansicht, Schnittkörper, Abwicklung, "
@@ -31,6 +31,15 @@ NEUERUNGEN = [
                 "([[teile_editor]]).",
      "Konturen bei 90° zur Oberfläche: Innenkante maßhaltig, außen breiter; parallel (3D) = ebene Bearbeitung, auch "
      "am Eckradius."],
+    ["0.9.147", "<b>Online-Update im Firmennetz robuster</b>: Bricht der Download ab (Firewall, Proxy, "
+                "Virenscanner), versucht das Programm es selbst bis zu sechsmal und macht an der Abbruchstelle "
+                "weiter; ein späterer Versuch setzt das schon Geladene fort. Die Meldung nennt die wahrscheinliche "
+                "Ursache (Sperrseite eines Proxys, HTTP 403, fremdes Zertifikat, fehlende Schreibrechte der portablen "
+                "Version), jeder Versuch steht mit Proxy-Angabe im Protokoll ([[updates]]). <b>Neue Kopie findet die "
+                "alten Daten</b>: Startet eine neu entpackte oder neu installierte Version ohne Daten, zeigt sie die "
+                "zuletzt benutzten Daten (frühere portable Kopie oder installierte Version) an und übernimmt sie mit "
+                "einem Klick samt Lizenz und Angebots-Ablage ([[datensicherung]]).",
+     "Update: Download setzt nach Abbruch fort; neue Kopie übernimmt die alten Daten per Klick"],
     ["0.9.146", "<b>Teile im 3D anklicken</b>: Im Fenster Satz in 3D und im Editor der Schweißbaugruppe (Reiter "
                 "Strukturbaum und 3D) wählt ein Klick auf ein Teil es aus, auch nahe an einer Kante; Strg+Klick nimmt "
                 "weitere dazu oder weg. Liste und Baum gehen mit. Im Editor der Schweißbaugruppe stehen unter dem 3D "

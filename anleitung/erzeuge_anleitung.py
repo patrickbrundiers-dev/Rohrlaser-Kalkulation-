@@ -6406,6 +6406,15 @@ def kapitel_pflege(i):
             "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
             "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
             "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
+            "<b>Download bricht ab (z. B. im Firmennetz)</b>: Reißt die Verbindung ab, versucht das Programm es von "
+            "selbst bis zu sechsmal und macht an der Abbruchstelle weiter (Hinweis <i>Verbindung unterbrochen, neuer "
+            "Versuch …</i>). Scheitert es trotzdem, bleibt das schon Geladene liegen: <i>Hilfe → Nach Updates "
+            "suchen …</i> setzt dort fort. Die Meldung nennt die wahrscheinliche Ursache: Firewall, Proxy oder "
+            "Virenscanner im Firmennetz, eine Sperrseite statt der Datei, HTTP 403 (gesperrt) oder ein fremdes "
+            "Zertifikat. Dann die IT bitten, <i>github.com</i> und <i>*.githubusercontent.com</i> freizugeben, oder in "
+            "einem anderen Netz aktualisieren. Installierte und portable Version verhalten sich dabei gleich; die "
+            "portable braucht Schreibrechte in ihrem Ordner. Jeder Versuch steht mit Proxy-Angabe im Protokoll "
+            "<i>Daten\\Protokoll\\fehler.log</i>.",
             "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
@@ -6458,9 +6467,14 @@ def kapitel_pflege(i):
             "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
     i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
            "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
-           "ersten Start der neuen Version: auf die Frage nach vorhandenen Daten <b>Daten übernehmen …</b> wählen "
-           "und die Datei <i>Daten\\rohrlaser.db</i> der portablen Version, eine Sicherung oder eine Export-Datei "
-           "angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Danach mit der neuen Version "
+           "ersten Start der neuen Version: Das Programm sucht die zuletzt benutzten Daten selbst (frühere portable "
+           "Kopie oder installierte Version) und zeigt sie mit Ordner und Datum an. <b>Diese Daten übernehmen</b> "
+           "kopiert Datendatei, Lizenz und Angebots-Ablage (nur, wenn hier noch keine sind). Mit <b>Andere Daten "
+           "wählen …</b> lässt sich stattdessen die Datei <i>Daten\\rohrlaser.db</i>, eine Sicherung oder eine "
+           "Export-Datei angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Läuft die alte "
+           "Version noch, zuerst dort beenden. <b>Neues ZIP</b> am einfachsten in den bisherigen Ordner entpacken "
+           "(Dateien ersetzen): Der Ordner <i>Daten</i> ist nicht im ZIP und bleibt stehen; das neue Setup über die "
+           "alte Installation behält die Daten ohnehin. Danach mit der neuen Version "
            "weiterarbeiten und die alte nicht mehr benutzen, sonst laufen zwei Datenbestände auseinander.",
            "Jeder Arbeitsplatz hat seine eigene Datendatei; geteilt wird über den gemeinsamen Ordner "
            "([[mehrere_arbeitsplaetze]]), nicht über eine gemeinsame Datendatei. Solange das Programm läuft, sperrt "
@@ -6864,6 +6878,10 @@ def kapitel_fragen(i):
          "Eine Programmdatei ließ sich nicht austauschen, meist weil sie gerade offen ist (Bedienungsanleitung im "
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
+        ["Update: <b>Verbindung wurde mehrmals unterbrochen</b>, <b>Webseite statt der Datei</b> oder <b>403</b>",
+         "Das Netz (meist Firewall, Proxy oder Virenscanner in der Firma) bricht den Download ab oder sperrt ihn. "
+         "Nichts wurde verändert. Später noch einmal suchen (setzt fort), in einem anderen Netz aktualisieren oder "
+         "die IT bitten, github.com und *.githubusercontent.com freizugeben ([[updates]])."],
         ["Update meldet <b>nicht gültig signiert</b> oder <b>unbekanntes Format</b>",
          "Die geladene Dateiliste war unvollständig oder nicht vom Hersteller. Das Programm hat nichts verändert. "
          "Ein paar Minuten warten (ein Update wird vielleicht gerade hochgeladen) und noch einmal suchen; bleibt "

@@ -152,6 +152,7 @@ class Updater:
         fortschritt.setAutoReset(False)
         fortschritt.setValue(0)
         stand = [0]
+        hinweis = [""]          # „Verbindung unterbrochen, neuer Versuch …“ (update.holen)
 
         def pruefen(i, n):
             fortschritt.setValue(i)
@@ -160,13 +161,21 @@ class Updater:
                 raise update.Abbruch()
 
         def geladen(n):
+            if n:
+                hinweis[0] = ""
             stand[0] += n
             fortschritt.setValue(min(stand[0], fortschritt.maximum()))
-            fortschritt.setLabelText(f"Herunterladen: {mb(stand[0])} von {mb(plan['groesse'])}")
+            fortschritt.setLabelText(f"Herunterladen: {mb(stand[0])} von {mb(plan['groesse'])}"
+                                     + (f"\n{hinweis[0]}" if hinweis[0] else ""))
             QApplication.processEvents()
             if fortschritt.wasCanceled():
                 raise update.Abbruch()
 
+        def melden(text):
+            hinweis[0] = text
+            geladen(0)
+
+        protokoll.info(f"Update: lade {update.stand_text(online)} von {self.quelle} (Proxy: {update.systemproxy()})")
         try:
             for versuch in range(2):
                 fortschritt.setRange(0, len(online["dateien"]))
@@ -177,11 +186,13 @@ class Updater:
                 stand[0] = 0
                 geladen(0)
                 try:
-                    neu_ordner = update.laden(self.ordner, self.quelle, online, plan, geladen)
+                    neu_ordner = update.laden(self.ordner, self.quelle, online, plan, geladen, melden=melden)
                     break
-                except update.UpdateFehler:
-                    # Paket fehlt: seit der Suche hat ein neuerer Stand die Dateiliste ersetzt -> mit der neuen
-                    update.verwerfen(self.ordner)
+                except update.UpdateFehler as e:
+                    protokoll.info(f"Update: Download fehlgeschlagen: {e}")
+                    # Paket fehlt: seit der Suche hat ein neuerer Stand die Dateiliste ersetzt -> mit der neuen.
+                    # Geladenes bleibt (inhaltsadressiert, geprüft): ein neuer Versuch setzt dort fort.
+                    update.verwerfen(self.ordner, download_behalten=True)
                     frisch = update.neuere_liste(self.quelle, online) if versuch == 0 else None
                     if frisch is None:
                         raise
@@ -199,9 +210,10 @@ class Updater:
             return False
         except (update.UpdateFehler, OSError) as e:
             fortschritt.close()
-            update.verwerfen(self.ordner)
+            update.verwerfen(self.ordner, download_behalten=isinstance(e, update.UpdateFehler))
+            protokoll.info(f"Update ließ sich nicht laden: {e}")
             QMessageBox.warning(self.f, "Update", f"Das Update ließ sich nicht laden, das Programm bleibt wie es "
-                                f"war.\n\n{e}")
+                                f"war.\n\n{e}\n\nDetails stehen im Protokoll (Daten\\Protokoll\\fehler.log).")
             return False
         fortschritt.close()
         protokoll.info(f"Update: {update.stand_text(online)} geladen ({len(plan['neu'])} Dateien), Programm wird "
