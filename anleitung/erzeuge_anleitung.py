@@ -3595,7 +3595,9 @@ def kapitel_fracht(i):
             "Pos. 1 und 6,00 € je Teil in Pos. 2. Neue Angebote verteilen nach Gewicht; ältere Angebote und ihre "
             "Kopien bleiben bei je Stück, damit sich ihre Preise nicht ändern. Fehlt einer Position das Gewicht "
             "(kein Profil oder Werkstoff mit Dichte), verteilt das Programm in diesem Angebot je Stück und zeigt den "
-            "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte.",
+            "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte. Eine <b>Schweißbaugruppe</b> reist als ein Stück: sie "
+            "trägt die Fracht ihrer Einzelteile (Gewicht von Hand oder Summe der Einzelteile), die Einzelteile zählen "
+            "nicht noch einmal.",
             "<b>Fracht berechnen …</b> öffnet den Frachtrechner ([[fracht_rechner]]), vorbelegt mit dem Nettogewicht und dem "
             "längsten Teil aus den Positionen, dem Kunden (PLZ, Land, Lieferbedingung aus dem Kundenstamm), dem "
             "Angebotsdatum und einem Packvorschlag. Eine schon gespeicherte Berechnung wird mit ihren Eingaben "

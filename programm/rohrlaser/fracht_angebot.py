@@ -18,6 +18,7 @@ Fracht mit dem gespeicherten Tarif-Snapshot neu; in den übrigen Modi gilt der B
 import json
 
 from . import paletten
+from .angebot import ist_baugruppe
 
 PALETTEN_EINST = ("palette_hoehe_gesamt", "palette_max_brutto", "palette_mischen", "palette_fuellgrad",
                   "palette_zwischenlage")
@@ -119,12 +120,33 @@ def paletten_einst(einst):
     return {n: (einst or {}).get(n) for n in PALETTEN_EINST}
 
 
+def _baugruppen_traeger(positionen, werte):
+    """Mit Schweißbaugruppe im Angebot: {Index: (Stück, Gewicht je Stück oder None)} der Positionen, die Fracht tragen
+    (paletten.packstuecke: die Baugruppe reist als ein Stück, Gewicht von Hand, sonst Summe ihrer Einzelteile; die
+    Einzelteile nicht noch einmal). Ohne Baugruppe None (jede Position trägt sich selbst, wie bisher)."""
+    if not any(ist_baugruppe(p) for p, w in zip(positionen, werte) if w is not None):
+        return None
+    return {x["i"]: (x["stueck"], x["gewicht"]) for x in paletten.packstuecke(positionen, werte)}
+
+
 def ware(positionen, werte):
     """Nettogewicht und längstes Teil der Ware. werte[i] = rechnen.position_werte (None = Position ohne Profil).
+    Eine Schweißbaugruppe zählt einmal (_baugruppen_traeger), ihre Einzelteile nicht doppelt.
     Ergebnis: (netto kg, max. Länge mm, [Pos. ohne Gewicht])."""
     netto, laenge, fehlt = 0.0, 0.0, []
-    for p, w in zip(positionen, werte):
+    traeger = _baugruppen_traeger(positionen, werte)
+    for i, (p, w) in enumerate(zip(positionen, werte)):
         if w is None or not p.get("stueck"):
+            continue
+        if traeger is not None:
+            laenge = max(laenge, float(p.get("laenge") or 0))
+            if i not in traeger:          # Einzelteil einer Baugruppe: reist in ihr
+                continue
+            stk, g = traeger[i]
+            if g is None:
+                fehlt.append(str(p.get("pos") or "?"))
+            else:
+                netto += g * stk
             continue
         if w.get("gewicht") is None:
             fehlt.append(str(p.get("pos") or "?"))
@@ -138,9 +160,26 @@ def anteile(positionen, werte, betrag, art):
     """Fracht je Teil für jede Position (Liste, None = nicht aktiv) und Hinweis.
     je Stück: betrag / Teile; nach Gewicht: betrag × Teilegewicht / Gesamtgewicht der Teile."""
     aktiv = [i for i, w in enumerate(werte) if w is not None]
-    teile = sum(positionen[i].get("stueck") or 0 for i in aktiv)
     out = [None] * len(positionen)
     hinweis = ""
+    traeger = _baugruppen_traeger(positionen, werte)
+    if traeger is not None:         # Schweißbaugruppe: trägt die Fracht ihrer Einzelteile (ein Packstück)
+        for i in aktiv:
+            out[i] = 0.0
+        teile = sum(stk for stk, _ in traeger.values())
+        if art == NACH_GEWICHT:
+            fehlt = [str(positionen[i].get("pos") or "?") for i, (_, g) in traeger.items() if not g]
+            if not fehlt:
+                gesamt = sum(stk * g for stk, g in traeger.values())
+                for i, (_, g) in traeger.items():
+                    out[i] = betrag * g / gesamt if gesamt else 0.0
+                return out, hinweis, NACH_GEWICHT
+            hinweis = (f"Gewicht fehlt bei Pos. {', '.join(fehlt)}: Fracht in diesem Angebot je Stück verteilt"
+                       if betrag else "")
+        for i in traeger:
+            out[i] = betrag / teile if teile else 0.0
+        return out, hinweis, JE_STUECK
+    teile = sum(positionen[i].get("stueck") or 0 for i in aktiv)
     if art == NACH_GEWICHT:
         fehlt = [str(positionen[i].get("pos") or "?") for i in aktiv
                  if (positionen[i].get("stueck") or 0) > 0 and not werte[i].get("gewicht")]
