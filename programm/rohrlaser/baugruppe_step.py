@@ -12,7 +12,7 @@ vorkommt, Unterbaugruppen wie im Strukturbaum, Namen = Artikelnummer bzw. Pos.
   Editor): das Netz als Körper, mit Hinweis (facettiert).
 - Teile ohne Lage (von Hand angelegt): neben die Baugruppe gelegt, mit Hinweis (F4 a). Schweißnähte nicht (F3 a).
 """
-from . import blech, schneidweg as sw, step_export, steckverbindung as stv
+from . import blech, schneidweg as sw, step_export, steckverbindung as stv, virtuell
 
 
 def lage_matrix(lage, versatz_z=0.0):
@@ -31,13 +31,22 @@ def lage_achsen(lage):
     return [list(x), list(y), list(z)]
 
 
+def lage_invers(lage):
+    """Umkehrung von lage_matrix (Datei -> System des Teils), 3 × 4 zeilenweise."""
+    m = lage_matrix(lage)
+    r = [[m[4 * i + j] for j in range(3)] for i in range(3)]
+    o = [m[4 * i + 3] for i in range(3)]
+    return [round(float(c), 9) for j in range(3)
+            for c in (r[0][j], r[1][j], r[2][j], -sum(r[i][j] * o[i] for i in range(3)))]
+
+
 def _lagen(netz):
     lagen = (netz or {}).get("lagen") or ([netz["lage"]] if (netz or {}).get("lage") else [])
     return [lg for lg in lagen if lg and len(lg) == 9]
 
 
-def _dreiecke(netz):
-    return [i for idx in ((netz or {}).get("t") or {}).values() for i in idx]
+def _dreiecke(netz, ohne=()):
+    return [i for art, idx in ((netz or {}).get("t") or {}).items() if art not in ohne for i in idx]
 
 
 def netz_in_lage(netz, lage):
@@ -60,7 +69,20 @@ def bauplan(name, eintraege, knoten=()):
         q, netz = x["q"], x.get("netz") or {}
         name_t = step_export.teilname(q)
         lagen, plan, art = _lagen(netz), None, None
-        if x.get("rohr"):
+        ohne = virtuell.ARTEN_ROT if x.get("virtuell") else ()
+        if x.get("virtuell_step") and lagen:
+            # virtuelles Bauteil (Teil mit Stegen bzw. Ringen 2 mm, so wird gelasert): der Körper der Messung exakt,
+            # aus der Dateilage in das System des Teils gebracht und wie jedes Teil eingesetzt
+            plan = dict(name=name_t, koerper=dict(art="step", pfad=str(x["virtuell_step"]),
+                                                  matrix=lage_invers(lagen[0])), werkzeuge=[], rillen=[], meldungen=[])
+            art = ("lage", 0.0)
+            hinweise.append(f"{name_t}: virtuelles Bauteil mit Stegen {virtuell.STEG:g} mm (so gelasert)")
+        elif x.get("virtuell"):
+            if virtuell.technik_lesen(q).get("stege_abtrennen"):
+                hinweise.append(f"{name_t}: Stege werden abgetrennt, Teil wie gezeichnet")
+            else:
+                hinweise.append(f"{name_t}: virtuelles Bauteil nicht erzeugt, Teil wie gezeichnet")
+        elif x.get("rohr"):
             e, laenge, profil, nasen_w = x["rohr"]
             try:
                 plan = step_export.rohr_teil(e, profil, laenge, name_t, nasen_winkel=nasen_w, artikel=q.get("artikel"),
@@ -69,15 +91,15 @@ def bauplan(name, eintraege, knoten=()):
                 art = ("lage", -float(nb.get("laenge_plus") or 0) if nb else 0.0)
             except (ValueError, TypeError, ZeroDivisionError, KeyError) as f:
                 hinweise.append(f"{name_t}: Rohr nicht aus den Eingaben ({f})")
-        e_blech = blech.lesen(q.get("technik"))
+        e_blech = None if x.get("virtuell") else blech.lesen(q.get("technik"))
         if plan is None and e_blech:
             try:
                 plan = step_export.blech_teil(e_blech, blech.zuschnitt(e_blech), name_t)
                 art = ("ausrichten", None)
             except ValueError as f:
                 hinweise.append(f"{name_t}: Blech nicht aus den Eingaben ({f})")
-        if plan is None and netz.get("p") and _dreiecke(netz):
-            plan = dict(name=name_t, koerper=dict(art="netz", p=netz["p"], t=_dreiecke(netz)), werkzeuge=[],
+        if plan is None and netz.get("p") and _dreiecke(netz, ohne):
+            plan = dict(name=name_t, koerper=dict(art="netz", p=netz["p"], t=_dreiecke(netz, ohne)), werkzeuge=[],
                         rillen=[], meldungen=[])
             art = ("lage", 0.0)
             hinweise.append(f"{name_t}: als Netz aus der STEP-Messung (facettiert)")
@@ -152,16 +174,28 @@ class StepBaugruppe:
                 if laenge and profil and eigenes_modell(e, netz) and not sw.lesen(q.get("technik")).get("knickrahmen"):
                     rohr = (e, laenge, profil, winkel.get(pid))
             out.append(dict(pid=pid, q=q, netz=netz, knoten=t.get("knoten") or "", rohr=rohr,
-                            gravur_h=t.get("gravur_h") if t.get("gravur") else 0))
+                            gravur_h=t.get("gravur_h") if t.get("gravur") else 0,
+                            virtuell=virtuell.ist_virtuell(virtuell.technik_lesen(q))))
         return out
+
+    def _virtuell_erzeugen(self, eintraege, ordner):
+        """Virtuelle Bauteile (Stege bleiben am Teil) aus der Kundendatei messen lassen (über die Angebotsseite,
+        eine Messung je Datei und Zielprofil): x["virtuell_step"] = Pfad des Körpers in Dateilage."""
+        seite = self.parent()
+        if not hasattr(seite, "virtuell_erzeugen"):
+            return
+        for x in eintraege:
+            if x.get("virtuell") and not virtuell.technik_lesen(x["q"]).get("stege_abtrennen"):
+                x["virtuell_step"] = seite.virtuell_erzeugen(x["q"], ordner)
 
     def step_speichern(self, pfad=None):
         """Dateidialog (Ordner des Angebots), Bauplan, Schreiben, Meldung. Ergebnis: Pfad oder None;
         self.step_ergebnis = Ergebnis des Exports (für Tests)."""
         from PySide6.QtWidgets import QFileDialog, QMessageBox
+        import tempfile
         name = self.step_name()
-        plan, hinweise = bauplan(name, self.step_eintraege(), getattr(self, "bg", {}).get("knoten") or ())
-        if not plan["teile"]:
+        eintraege = self.step_eintraege()
+        if not eintraege:
             QMessageBox.information(self, "STEP speichern", "Keine Teile mit 3D-Modell.")
             return None
         if pfad is None:
@@ -169,8 +203,14 @@ class StepBaugruppe:
                                                   "STEP-Datei (*.step *.stp)")
             if not pfad:
                 return None
-        erg = step_export.mit_anzeige(self, plan, pfad, name=name,
-                                      zeitlimit=step_export.zeitlimit_fuer(plan, step_export.ZEITLIMIT * 3))
+        with tempfile.TemporaryDirectory() as tmp:
+            self._virtuell_erzeugen(eintraege, tmp)
+            plan, hinweise = bauplan(name, eintraege, getattr(self, "bg", {}).get("knoten") or ())
+            if not plan["teile"]:
+                QMessageBox.information(self, "STEP speichern", "Keine Teile mit 3D-Modell.")
+                return None
+            erg = step_export.mit_anzeige(self, plan, pfad, name=name,
+                                          zeitlimit=step_export.zeitlimit_fuer(plan, step_export.ZEITLIMIT * 3))
         erg["hinweise"] = list(hinweise) + list(erg.get("hinweise") or ())
         self.step_ergebnis = erg
         gut = bool(erg.get("teile")) and not erg.get("fehler")

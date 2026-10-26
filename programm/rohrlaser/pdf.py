@@ -865,7 +865,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
                       _z(m["gewicht"], 1)])
     tab = _tabelle(daten, [55 * mm, 55 * mm, 25 * mm, 25 * mm, 26 * mm], rechts=(2, 3, 4))
     tab.setStyle(TableStyle([("FONT", (3, 1), (3, -1), FETT, 8.5)]))
-    inhalt += [tab, Spacer(1, 4 * mm)] + _laser_hinweise(wp.get("hinweise"))
+    inhalt += [tab, Spacer(1, 4 * mm)] + _laser_hinweise(wp.get("hinweise")) + _stege_hinweise(wp.get("stege"))
     if wp.get("zukaufteile"):        # Bleche usw.: werden nicht gelasert, nur bereitgestellt
         daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Zukaufteil", "Stück", "bereit"])]
         for z in wp["zukaufteile"]:
@@ -1126,6 +1126,20 @@ def _laser_hinweise(hinweise):
     daten = [_kopfzeile(["Werkstoff", "Hinweis für den Rohrlaser"])]
     daten += [[_p(h["werkstoff"], S_FETT), _p(h["text"], S_KLEIN)] for h in hinweise]
     return [_p("Hinweise zum Werkstoff", S_H2), _tabelle(daten, [45 * mm, 141 * mm], zebra=False), Spacer(1, 4 * mm)]
+
+
+def _stege_hinweise(stege):
+    """Abschnitt 'Virtuelle Bauteile' (ausgabe.stege_hinweise): Stege 2 mm an den Enden stehen lassen bzw. abtrennen,
+    leer ohne solche Positionen."""
+    if not stege:
+        return []
+    rot = ParagraphStyle("steg", parent=S_KLEIN, textColor=colors.HexColor("#E00000"))
+    daten = [_kopfzeile(["Pos.", "Artikel", "Stück", "Stege", "Hinweis"])]
+    daten += [[_p(str(s_.get("pos") or "")), _p(s_.get("artikel") or ""), _z(s_.get("stueck"), 0),
+               _p("abtrennen" if s_.get("abtrennen") else "bleiben", S_FETT), _p(s_.get("text") or "", rot)]
+              for s_ in stege]
+    return [_p("Virtuelle Bauteile (Stege 2 mm)", S_H2),
+            _tabelle(daten, [w * mm for w in (14, 40, 14, 22, 96)], rechts=(2,), zebra=False), Spacer(1, 4 * mm)]
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,

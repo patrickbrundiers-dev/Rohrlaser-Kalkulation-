@@ -17,6 +17,9 @@ Regeln (Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen):
   Kontur im Knickbereich  Knickrahmen: Kontur näher am V-Ausschnitt als Grenzwert × Wand (2,0, WARNUNG)
   Wand zu dick zum Knicken
                           Knickrahmen: Wandstärke über Grenzwert in mm (4, HINWEIS)
+  Virtuelles Bauteil prüfen
+                          Teil mit Stegen bzw. Ringen 2 mm: Mehrvolumen mehr als Grenzwert × erwartet, weniger
+                          als erwartet / Grenzwert oder keins (3, WARNUNG)
 
 Geometrie: jede Kontur mit Lage als Linienzug (skizze.umriss_kontur) auf der Abwicklung des Rohrs (x längs,
 s am Umfang, skizze.s_lage) bzw. im Zuschnitt (x, y); Steg = kleinster Abstand zweier Linienzüge, Rand = Abstand
@@ -35,6 +38,8 @@ SCHENKEL_KURZ, KNICKBEREICH, KNICK_WAND = "Schenkel zu kurz", "Kontur im Knickbe
 KNICK_REGELN = (SCHENKEL_KURZ, KNICKBEREICH, KNICK_WAND)
 NASE_SCHMAL = "Nase zu schmal"
 STECK_REGELN = (NASE_SCHMAL,)
+VIRTUELL_PRUEFEN = "Virtuelles Bauteil prüfen"
+VIRTUELL_REGELN = (VIRTUELL_PRUEFEN,)
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
     BOHRUNG_KLEIN: (1.0, WARNUNG, "Bohrung bzw. Senkung Ø kleiner als Grenzwert × Wandstärke bzw. Blechdicke"),
@@ -51,6 +56,8 @@ REGELN = {
     KNICKBEREICH: (2.0, WARNUNG, "Knickrahmen: Kontur näher am V-Ausschnitt als Grenzwert × Wandstärke"),
     KNICK_WAND: (4.0, HINWEIS, "Knickrahmen: Wandstärke über Grenzwert in mm (Knicken von Hand schwer)"),
     NASE_SCHMAL: (3.0, WARNUNG, "Steckverbindung: Nasenbreite kleiner als Grenzwert × Wandstärke des Steckers"),
+    VIRTUELL_PRUEFEN: (3.0, WARNUNG, "Virtuelles Bauteil (Stege bzw. Ringe 2 mm): gemessenes Mehrvolumen mehr als "
+                                     "Grenzwert × erwartet, weniger als erwartet / Grenzwert oder keins"),
 }
 RANG = {HINWEIS: 0, WARNUNG: 1, FEHLER: 2}
 
@@ -182,6 +189,7 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
         out += _biegerohr(e, laenge, dict(profil), wand, r)
         out += _knickrahmen(e, laenge, dict(profil), wand, r)
         out += _nasen(e, wand, r)
+        out += _virtuell(e, dict(profil), r)
     if not e or not e.get("konturen"):
         return tuple(out)
     konturen = e["konturen"]
@@ -346,6 +354,53 @@ def _nasen(e, wand, r):
             out.append(Befund(NASE_SCHMAL, stufe, f"{titel}: Nase {_zahl(sv._z(nb['bN']))} mm unter {_zahl(g)} × Wand "
                                                   f"({_zahl(g * wand)} mm), Nase kann beim Heften abbrechen"))
     return out
+
+
+def profil_flaeche(profil):
+    """Querschnittsfläche [mm²] eines Profils aus form, a, b, wand (ohne Radien) oder None."""
+    from .schneidweg import _z
+    form, a, w = profil.get("form"), _z(profil.get("a")), _z(profil.get("wand"))
+    b = _z(profil.get("b")) or a
+    if a <= 0 or w <= 0:
+        return None
+    if form == "Rundrohr":
+        return math.pi / 4 * (a * a - max(a - 2 * w, 0) ** 2)
+    if form in ("Quadratrohr", "Rechteckrohr"):
+        return a * b - max(a - 2 * w, 0) * max(b - 2 * w, 0)
+    if form == "L-Profil":
+        return w * (a + b - w)
+    if form == "U-Profil":
+        return w * (a + 2 * b - 2 * w)
+    return None
+
+
+def _virtuell(e, profil, r):
+    """Plausibilität des virtuellen Bauteils (Teil mit Stegen bzw. Ringen 2 mm, technik volumen_teil und
+    volumen_gezeichnet): das gemessene Mehrvolumen gegen 2 × 2 mm × (Querschnitt des Profils − gezeichneter
+    Querschnitt). Ein Vielfaches deutet auf Stege, die mehr füllen als das abgeschnittene Profil (z. B. eine
+    Aussparung am Ende), kein Mehrvolumen auf eine Messung ohne Stege."""
+    from . import virtuell
+    from .schneidweg import _z
+    if VIRTUELL_PRUEFEN not in r or not virtuell.ist_virtuell(e):
+        return []
+    g, stufe = r[VIRTUELL_PRUEFEN]
+    vt, vg, l_step = _z(e.get("volumen_teil")), _z(e.get("volumen_gezeichnet")), _z(e.get("l_step"))
+    if vt <= 0 or vg <= 0:
+        return []
+    was = "Ringe" if e.get("offen_virtuell") else "Stege"
+    mehr = vt - vg
+    if mehr <= 1.0:
+        return [Befund(VIRTUELL_PRUEFEN, stufe, f"Virtuelles Bauteil ohne Mehrvolumen: {was} fehlen in der Messung, "
+                                                "3D prüfen")]
+    a_profil = profil_flaeche(profil)
+    if not a_profil or l_step <= 0 or not g or g <= 1:
+        return []
+    erwartet = 2 * virtuell.STEG * max(a_profil - vg / l_step, 0.0)
+    if erwartet <= 0 or erwartet / g <= mehr <= g * erwartet:
+        return []
+    return [Befund(VIRTUELL_PRUEFEN, stufe, f"Virtuelles Bauteil: {was} {_zahl(mehr / 1000, 1)} cm³ gemessen, "
+                                            f"erwartet etwa {_zahl(erwartet / 1000, 1)} cm³ – Stege bzw. Ringe im 3D "
+                                            "prüfen (Aussparung am Ende, anderes Profil?)")]
 
 
 def _zeilen(lagen):

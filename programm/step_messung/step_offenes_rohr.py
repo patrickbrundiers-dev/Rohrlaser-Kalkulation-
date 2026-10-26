@@ -736,6 +736,8 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
     elif steg:
         r.offene_seite["normrohr"] = False
         r.hinweise.append(f"{HINWEIS}: kein Normrohr passt (Hülle {r.abm_a:g} × {r.abm_b:g} mm), Sondermaß prüfen")
+    r.volumen = g._volumen(zu)          # so gelasert (Gewicht); gezeichnet: t.volumen
+    g.virtuell_ablegen(zu, koerper)
     t.geschlossen = r
     if netz:
         try:
@@ -1065,6 +1067,8 @@ def _rund_schliessen(solid, t, datei, koerper, netz):
     else:
         m.hinweise.append(f"{HINWEIS}: Spalt {breite:.1f} mm über {laenge:.1f} mm Länge geschlossen (vorher "
                           f"{t.profilform}) – Profil prüfen")
+    m.volumen = g._volumen(zu)
+    g.virtuell_ablegen(zu, koerper)
     t.geschlossen = m
     if netz:
         try:

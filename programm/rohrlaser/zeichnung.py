@@ -13,7 +13,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import CondPageBreak, Image, Spacer
 
-from . import naht as naht_, rechnen, schneidweg as sw, skizze as sk, stil
+from . import naht as naht_, rechnen, schneidweg as sw, skizze as sk, stil, virtuell
 from .pdf import GRAU, S_H2, S_KLEIN, _dok_kopf, _dokument, _erstellt, _fuss, _kacheln, _kopfzeile, _p, _tabelle
 from .skizze_widget import ABWICKLUNG, ANSICHTEN, Skizze
 
@@ -84,8 +84,33 @@ def naht_text(werte, profil):
     return naht_.seite(profil, werte["naht_winkel"])["text"]
 
 
-def zeichnung_pdf(pfad, kopf, p, profil, eingaben, ergebnis, naht=None, einst=None, schneidzeit=None):
-    """Zeichnung als PDF schreiben. eingaben/ergebnis aus dem Schneidweg-Rechner, naht = Nahtfelder der Position."""
+def _virtuell(eingaben, netz, profil_id):
+    """Abschnitt virtuelles Bauteil: Hinweis und 3D-Bilder (ganzes Teil, Ende A und B vergrößert, Stege rot), leer
+    ohne virtuelles Bauteil."""
+    from reportlab.platypus import Table, TableStyle
+
+    from .ansicht3d import vorschaubild
+    hinweis = virtuell.hinweis(eingaben, profil_id)
+    if not hinweis:
+        return []
+    rot = ParagraphStyle("zv", parent=S_KLEIN, textColor=virtuell.FARBE)
+    out = [CondPageBreak(60 * mm), _p("Virtuelles Bauteil (so wird gelasert)", S_H2), _p(hinweis, rot)]
+    if netz and netz.get("p"):
+        bilder = []
+        for teil, b_mm, h_mm in ((netz, 120, 45), (virtuell.netz_ausschnitt(netz, "a"), 70, 45),
+                                 (virtuell.netz_ausschnitt(netz, "b"), 70, 45)):
+            pix = vorschaubild(teil, round(b_mm * 4), round(h_mm * 4), 2.0)
+            bilder.append(Image(_png(pix), width=b_mm * mm, height=h_mm * mm) if pix is not None else "")
+        tab = Table([bilder, [_p("Ganzes Teil", S_GRAU), _p("Ende A", S_GRAU), _p("Ende B", S_GRAU)]],
+                    colWidths=[125 * mm, 74 * mm, 74 * mm])
+        tab.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (0, 0), (-1, -1), "CENTER")]))
+        out.append(tab)
+    return out + [Spacer(1, 3 * mm)]
+
+
+def zeichnung_pdf(pfad, kopf, p, profil, eingaben, ergebnis, naht=None, einst=None, schneidzeit=None, netz=None):
+    """Zeichnung als PDF schreiben. eingaben/ergebnis aus dem Schneidweg-Rechner, naht = Nahtfelder der Position,
+    netz = 3D-Netz der Position (virtuelles Bauteil: Stege rot)."""
     titel = f"Zeichnung Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip()
     doc, leinwand = _dokument(pfad, titel, _fuss(einst, titel), quer=True)
     angaben = [("Angebot", kopf.get("nummer")), ("Kunde", kopf.get("kunde")), ("Pos.", rechnen.zahl(p.get("pos"), 0)
@@ -112,6 +137,7 @@ def zeichnung_pdf(pfad, kopf, p, profil, eingaben, ergebnis, naht=None, einst=No
     inhalt += [bild, _p(f"{massstab}. {hinweis}", S_GRAU)]
     if not isinstance(laenge, (int, float)) or laenge <= 0:
         inhalt.append(_p("Teilelänge fehlt: gezeichnet mit 1000 mm.", S_GRAU))
+    inhalt += _virtuell(eingaben, netz, p.get("profil_id"))
     bild, massstab = _bild(skizze, ABWICKLUNG, 80)
     inhalt += [CondPageBreak(bild.drawHeight + 12 * mm), _p("Abwicklung", S_H2), bild, _p(f"{massstab}. Jede Fläche ein Streifen, von oben nach unten.", S_GRAU),
                Spacer(1, 3 * mm)]

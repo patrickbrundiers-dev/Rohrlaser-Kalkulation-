@@ -1098,6 +1098,11 @@ def v_ergaenzen(eingaben, profil):
     return dict(eingaben, konturen=konturen)
 
 
+# Messwerte des STEP-Imports ohne eigenes Feld im Schneidweg-Rechner: bleiben beim Speichern erhalten
+DURCHREICHEN = ("l_step", "schenkel_mess", "stege_virtuell", "offen_virtuell", "volumen_teil", "volumen_gezeichnet",
+                "step_datei", "step_koerper")
+
+
 def speichern(eingaben):
     """Eingaben als JSON für positionen.technik (mit Quelle). Der Außenradius gehört dem Angebot (angebote.radien,
     je Profil + Werkstoff) und wird nicht je Position gespeichert."""
