@@ -4012,6 +4012,9 @@ class AngebotSeite(QWidget):
         if not p.get("technik") or e.get("quelle") != schneidweg.QUELLE_STEP or not profil or kein_laserteil(p):
             return None
         profil = dict(profil, profil_id=pid)
+        neu = self._profil_neu_messen(p, e, profil)
+        if neu:
+            return neu
         if pid in self.k.profile:
             profil = rechnen.profil_im_angebot(profil, self.kopf, pid, p.get("werkstoff_id"), self.k)
         m = rechnen.maschine(self.kopf, self.k)
@@ -4026,6 +4029,44 @@ class AngebotSeite(QWidget):
         sk = next((h for h in erg["hinweise"] if "Schenkel gekürzt" in h or "aus dem Rohr" in h), None)
         return f"Schneidweg für {pid} neu gerechnet: {rechnen.zahl(erg['schneidweg'], 1)} mm" + \
             (f" ({sk})" if sk else "") + "."
+
+    def _profil_neu_messen(self, p, e, profil):
+        """Profilwechsel einer Position mit gemessenem Winkel/U (technik step_datei, schenkel_mess): größeres Profil
+        gleicher Form -> virtuelles Bauteil mit Stegen messen, gezeichnetes Profil -> wie gezeichnet messen; Werte und
+        3D-Netz der Position ersetzen. Ergebnis: Text für die Meldung oder None (keine Datei, nicht messbar)."""
+        mess = schneidweg._messprofil(e.get("schenkel_mess"))
+        pfad = e.get("step_datei")
+        if not mess or not pfad or not Path(pfad).is_file() or profil.get("form") != mess["form"]:
+            return None
+        m0 = dict(profilform=mess["form"], abm_a=mess["a"], abm_b=mess["b"], wandstaerke=mess["wand"],
+                  laenge=e.get("l_step"))
+        ziel = step.stege_ziel(m0, profil)
+        gleich = not ziel and all(abs(float(profil.get(x) or 0) - y) <= step.TOL_MASS
+                                  for x, y in (("a", max(mess["a"], mess["b"] or 0)), ("b", min(mess["a"], mess["b"] or 0))))
+        if not ziel and not gleich:
+            return None
+        if ziel:
+            zeilen = self._virtuell_messen(pfad, ziel)
+        else:
+            zeilen = self.step_messen([pfad])
+        z = next((x for x in zeilen or () if str(x.get("koerper")) == str(e.get("step_koerper") or 1)), None)
+        if z is None or (ziel and "stege=virtuell" not in (z.get("sicherheit") or "")):
+            return None
+        m = dict(z, _uebernehmen=True, _pfad=pfad, _profil=profil["profil_id"])
+        if ziel:
+            m["_mess_original"] = m0
+        erg = step.uebernehmen([m], [], self.k, self.tabellen["gewinde"], rechnen.maschine(self.kopf, self.k),
+                               p.get("werkstoff_id"), p.get("stueck"))
+        if not erg["positionen"]:
+            return None
+        q = erg["positionen"][0]
+        for name in PROFILWECHSEL_FELDER + ("technik", "gravur"):
+            if name in q:
+                self.db.position_aendern(p["id"], name, q[name])
+        if q.get("_netz"):
+            self.db.netz_speichern(p["id"], q["_netz"])
+        return (f"Schneidweg für {profil['profil_id']} neu gemessen: {rechnen.zahl(q['schneidweg'], 1)} mm"
+                + (" (Bauteil mit Stegen 2 mm)." if ziel else " (wie gezeichnet)."))
 
     def _radius_uebernehmen(self, p, eingaben):
         """Außenradius aus dem Rechner (eingaben['r_aussen']) als Radius des Angebots für Profil + Werkstoff speichern
@@ -5004,6 +5045,10 @@ class AngebotSeite(QWidget):
             return None
         messwerte, json_ablage = gemessen
         dateien = list(getattr(self, "step_dateien_zuletzt", None) or dateien or [])
+        pfade = {Path(d).name: str(d) for d in step.step_dateien(dateien)}
+        for m in messwerte:             # STEP-Datei je Teil (virtuelles Bauteil beim Profilwechsel, step_schenkel)
+            if m.get("datei") in pfade:
+                m["_pfad"] = pfade[m["datei"]]
         # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
@@ -5062,6 +5107,7 @@ class AngebotSeite(QWidget):
         mehr = step.mehrteilig(messwerte, mit_blechen=True)
         if als_satz is None:        # Prüfdialog: Feld „Sätze“ je Datei (leer = Einzelpositionen); ohne Dialog als Satz
             als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
+        stege_bericht = self._stege_messen(messwerte)
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
                                neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
@@ -5107,6 +5153,8 @@ class AngebotSeite(QWidget):
             erg["bericht"].append(gelernt)
         if formular_bericht:
             erg["bericht"].append(formular_bericht)
+        if stege_bericht:
+            erg["bericht"].append(stege_bericht)
         if kopieren:
             erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
@@ -5125,6 +5173,46 @@ class AngebotSeite(QWidget):
                                                                                      "step_normteile")})
         ws = importprofil.vorgaben(profil).get("werkstoff") or self.db.einstellung("step_werkstoff") or None
         return ws if ws in self.k.werkstoffe else None
+
+    def _virtuell_messen(self, pfad, ziel):
+        """Eine STEP-Datei mit STEP-Import.exe --stege ziel messen (Winkel/U aus größerem Profil als virtuelles
+        Bauteil, step_messung/step_schenkel). Ergebnis: Messwerte je Körper (mit 3D-Netz) oder None."""
+        befehl = step.messprogramm(self.f.programmordner)
+        if befehl is None or not Path(pfad).is_file():
+            return None
+        with tempfile.TemporaryDirectory() as tmp:
+            ausgabe, netze = Path(tmp) / "messwerte.txt", Path(tmp) / "netze"
+            if not self._messen(befehl + [str(pfad), "--ausgabe", str(ausgabe), "--netze", str(netze), "--stege", ziel,
+                                          "--flachstahl-bis", str(self.flach_bis())]
+                                + step_einstellungen.mess_argumente(self.db), 1, ausgabe) or not ausgabe.exists():
+                return None
+            return step.lade_netze(step.lies_messwerte(ausgabe), netze)
+
+    def _stege_messen(self, messwerte):
+        """Winkel/U, für die im Prüfdialog ein größeres Profil gleicher Form gewählt ist (Patrick 26.10.2026: „ein
+        virtuelles Bauteil anlegen“): Teil + Stege 2 mm des größeren Profils neu messen und die Messwerte ersetzen;
+        ohne Messung (Datei fehlt, Enden nicht eben) rechnet die Übernahme mit der Formel. Ergebnis: Berichtzeile."""
+        auftraege = {}
+        for i, m in enumerate(messwerte):
+            if m.get("fehler") or not step.gewaehlt(m) or not m.get("_pfad") or not m.get("_profil"):
+                continue
+            pr = self.k.profile.get(m["_profil"]) or opt.profil_aus_name(m["_profil"])
+            ziel = step.stege_ziel(m, pr)
+            if ziel:
+                auftraege.setdefault((m["_pfad"], ziel), []).append(i)
+        gemessen, formel = 0, 0
+        for (pfad, ziel), liste in auftraege.items():
+            neu = {str(z.get("koerper")): z for z in self._virtuell_messen(pfad, ziel) or ()}
+            for i in liste:
+                z = neu.get(str(messwerte[i].get("koerper")))
+                if z and step.virtuell_einsetzen(messwerte[i], z):
+                    gemessen += 1
+                else:
+                    formel += 1
+        if not gemessen and not formel:
+            return None
+        return (f"Winkel/U aus größerem Profil: {gemessen} Teil(e) als Bauteil mit Stegen 2 mm gemessen"
+                + (f", {formel} mit der Formel gerechnet (Enden nicht eben oder Messung nicht möglich)" if formel else ""))
 
     def _step_kopieren(self, dateien):
         """STEP-Dateien in den Unterordner STEP des Angebotsordners kopieren. Ergebnis: Zeile für den Bericht."""

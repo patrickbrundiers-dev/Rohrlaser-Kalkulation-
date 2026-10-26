@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.143", "<b>Winkel aus größerem Profil als virtuelles Bauteil</b>: Wird für einen Winkel oder ein U ein "
+                "größeres Profil gleicher Form gewählt (z. B. L 33×30×6 aus L 60×40×6), misst das Programm jetzt das "
+                "Teil plus je einen Steg 2 mm des größeren Profils an den Enden wie ein echtes Bauteil. Enden, "
+                "Längsschnitte und Querschnitte stimmen damit genau, auch bei Gehrungen und Ausklinkungen am "
+                "gekürzten Schenkel; im 3D sind die Stege rot. Gilt im Prüfdialog und beim Profilwechsel in der "
+                "Positionstabelle ([[offene_rohre]]).",
+     "Winkel/U aus größerem Profil: Teil mit Stegen 2 mm als virtuelles Bauteil gemessen"],
     ["0.9.142", "<b>STEP-Import: vier Fehler behoben</b>: Ein geschlossenes Rohr mit vielen Langlöchern (z. B. QR "
                 "40x40x2) wurde als Kantteil erkannt; jetzt ist ein geschlossenes Rohr immer ein Rohr, alle Schnitte "
                 "werden übernommen ([[bleche]]). Im Rohr-Editor fehlte der Umriss komplexer Enden (Ausklinkung wurde "

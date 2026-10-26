@@ -44,6 +44,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("HK", "Gegenrohr (Hilfskörper)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
     ("EW", "Ringe bzw. Spalt (aus dem Rohr)", "#E00000", None),   # STEP: Rohr mit Spalt gezeichnet, Spalt geschlossen
     ("EO", "Ringe bzw. Spalt (nicht gefertigt)", "#E89A9A", None),  # derselbe Spalt, wenn das Teil offen bleibt
+    ("ES", "Stege 2 mm (aus größerem Profil)", "#E00000", None),  # Winkel/U aus größerem Profil (step_schenkel)
     ("UW", "über dem Rohr (fällt weg)", "#F28E2B", None),     # offenes Rohr: ragt über den Rohrquerschnitt
     ("UO", "über dem Rohr (bleibt, Teil offen)", "#AEB8C4", None),  # dasselbe, wenn das Teil offen bleibt
     # Schnittkörper je Kontur (schnittkoerper.py): halb durchsichtig, Farbe je Konturart

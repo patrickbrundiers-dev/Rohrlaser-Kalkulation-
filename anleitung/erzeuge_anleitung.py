@@ -1907,15 +1907,19 @@ def kapitel_step(i):
             "Schenkelenden an den Rohrecken), nimmt das Programm das nächstgrößere Rohr quer zur offenen Seite, bei "
             "dem der Radius erst nach den Schenkelenden beginnt (z. B. U 60×40 → RE 60×50); die Seitenwände bleiben "
             "auf dem Rohr, das Fenster läuft an den Schenkelenden. Hinweis im Prüfdialog.",
-            "<b>Winkel, U oder C aus einem größeren Profil</b>: gibt es den Winkel nur größer (z. B. L 33×30×6 nur als "
-            "L 60×40×6), bei Profil-ID das größere Profil gleicher Form wählen. Beim Übernehmen wird jeder zu lange "
-            "Schenkel gekürzt: ein Längsschnitt zwischen zwei Stegen 2 mm an den Enden, dazu je Steg der Querschnitt "
-            "über die weggeschnittene Breite. Bei U und C muss die Steghöhe gleich sein, sonst kommt ein Hinweis. "
-            "Steht das größere Profil noch nicht in den Stammdaten, wird es mit den Maßen aus dem Namen angelegt "
-            "(L 60x40x6 = 60 × 40 × 6 mm, nicht mit den gemessenen 33 × 30). Dasselbe gilt, wenn das Profil erst "
-            "<b>nach dem Übernehmen</b> in der Positionstabelle (Spalte Profil) oder im Rohr-Editor geändert wird: "
-            "Schneidweg, Enden und Längsschnitte (Zeilen <i>Längsschnitt … Steg 2 mm an den Enden</i>) werden "
-            "automatisch neu gerechnet; zurück auf das gemessene Profil gilt wieder die Messung.",
+            "<b>Winkel oder U aus einem größeren Profil</b>: gibt es den Winkel nur größer (z. B. L 33×30×6 nur als "
+            "L 60×40×6), bei Profil-ID das größere Profil gleicher Form wählen. Das Programm legt dann ein "
+            "<b>virtuelles Bauteil</b> an: das gezeichnete Teil plus je ein Steg 2 mm des größeren Profils an Ende A "
+            "und B, und misst es wie jedes andere Teil. So stimmen Enden (über den ganzen größeren Querschnitt), "
+            "Längsschnitte und Querschnitte um die Stege genau, auch bei Gehrungen und schrägen Enden; eine "
+            "Ausklinkung am gekürzten Schenkel wird Teil des Längsschnitts. Im 3D sind die Stege rot. Bei U muss die "
+            "Steghöhe gleich sein. Steht das größere Profil noch nicht in den Stammdaten, wird es mit den Maßen aus "
+            "dem Namen angelegt (L 60x40x6 = 60 × 40 × 6 mm).",
+            "Das Profil lässt sich auch <b>nach dem Übernehmen</b> in der Positionstabelle (Spalte Profil) ändern: "
+            "liegt die STEP-Datei noch am gleichen Ort, misst das Programm das virtuelle Bauteil neu (zurück auf das "
+            "gezeichnete Profil: wieder wie gezeichnet). Ohne Datei, bei nicht ebenen Enden, bei C-Profilen und im "
+            "Rohr-Editor rechnet es mit der Formel: je gekürztem Schenkel ein Längsschnitt zwischen den Stegen plus "
+            "zweimal die weggeschnittene Breite (Zeilen <i>Längsschnitt … Steg 2 mm an den Enden</i>).",
             "<b>Winkel, U oder C aus dem Rohr</b>: gibt es das Profil gar nicht, in der Spalte Art die Rohrform und "
             "bei Profil-ID das Rohr wählen. Beim Übernehmen: Enden = Rohrumfang, "
             "dazu das Fenster zwischen den Ringen 2 mm (zwei Längsschnitte an den Schenkelenden + je Ring der Umfang, "
