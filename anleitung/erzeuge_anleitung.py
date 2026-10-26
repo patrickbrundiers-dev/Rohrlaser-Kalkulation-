@@ -4239,6 +4239,18 @@ def kapitel_baugruppen(i):
            "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
            "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
            "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
+    i.bild("baugruppe_vorschlaege", "Nahtkandidaten aus STEP im Reiter Nahtgruppen", hoehe=45 * mm, kurz=False,
+           legende=[(1, "Je Zeile gleiche Nähte einer Unterbaugruppe: Stoßart, Länge je Naht, Anzahl je Stück, "
+                        "Dicke und beteiligte Körper."),
+                    (2, "<b>Markierte übernehmen</b> legt daraus Nahtgruppen an."),
+                    (3, "<b>a-Maß nach Regel vorschlagen</b>: Kehlnaht mit a = Faktor × Wanddicke, bis zur "
+                        "Bestätigung gelb.")])
+    i.text("Mit dem Häkchen <b>a-Maß nach Regel vorschlagen</b> bekommt eine übernommene Kehlnaht ein a-Maß = Faktor × "
+           "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Vorgaben, Einstellung "
+           "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>; z. B. Wand 4 mm → "
+           "a 2,5 mm). Der Vorschlag ist gelb markiert und der Status "
+           "zeigt den HINWEIS <i>a-Maß nach Regel, bitte bestätigen</i>, bis du das a-Maß prüfst und <b>a-Maß "
+           "bestätigen</b> drückst oder einen anderen Wert einträgst.")
     i.abschnitt("Spalt zwischen zwei Teilen", marke="naht_spalt")
     i.text("Liegt zwischen zwei Teilen ein kleiner Spalt (z. B. Blech 1,5 mm neben dem Rohr), erkennt der STEP-Import "
            "dort trotzdem eine Naht und graviert den Umriss bzw. die Positionsmarke genau unter das Blech auf die "
@@ -4252,18 +4264,6 @@ def kapitel_baugruppen(i):
            "drucken geht trotzdem. Hat ein Teil der Baugruppe zu keinem anderen eine Naht (Spalt zu groß oder lose "
            "konstruiert), meldet der Import <i>ohne Naht zu einem anderen Teil … – lose?</i>, und die Baugruppe "
            "zeigt dieselbe WARNUNG, bis eine Nahtgruppe das Teil enthält oder du eine Nahtgruppe von Hand anlegst.")
-    i.bild("baugruppe_vorschlaege", "Nahtkandidaten aus STEP im Reiter Nahtgruppen", hoehe=45 * mm, kurz=False,
-           legende=[(1, "Je Zeile gleiche Nähte einer Unterbaugruppe: Stoßart, Länge je Naht, Anzahl je Stück, "
-                        "Dicke und beteiligte Körper."),
-                    (2, "<b>Markierte übernehmen</b> legt daraus Nahtgruppen an."),
-                    (3, "<b>a-Maß nach Regel vorschlagen</b>: Kehlnaht mit a = Faktor × Wanddicke, bis zur "
-                        "Bestätigung gelb.")])
-    i.text("Mit dem Häkchen <b>a-Maß nach Regel vorschlagen</b> bekommt eine übernommene Kehlnaht ein a-Maß = Faktor × "
-           "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Vorgaben, Einstellung "
-           "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>; z. B. Wand 4 mm → "
-           "a 2,5 mm). Der Vorschlag ist gelb markiert und der Status "
-           "zeigt den HINWEIS <i>a-Maß nach Regel, bitte bestätigen</i>, bis du das a-Maß prüfst und <b>a-Maß "
-           "bestätigen</b> drückst oder einen anderen Wert einträgst.")
     i.abschnitt("Arbeitsgänge und Vorrichtungen")
     i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
            "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)
