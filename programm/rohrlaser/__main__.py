@@ -233,20 +233,53 @@ def info(orte_, ergebnis):
     return code
 
 
-def erster_start(orte_):
-    """Noch keine Datendatei: vorhandene Daten (Datendatei, Sicherung oder Export) übernehmen oder mit
-    Beispieldaten beginnen. Ergebnis: False, wenn das Programm beendet werden soll."""
+def erster_start(orte_, frueher=None):
+    """Noch keine Datendatei: vorhandene Daten übernehmen oder mit Beispieldaten beginnen. Hat eine andere Kopie des
+    Programms schon Daten (zuletzt benutzter Datenordner, installierte Version; orte.fruehere_daten), wird die
+    neueste mit einem Klick angeboten, samt Lizenz und Angebots-Ablage. Sonst Datendatei, Sicherung oder Export
+    wählen. frueher: Kandidaten (Tests). Ergebnis: False, wenn das Programm beendet werden soll."""
     from PySide6.QtWidgets import QFileDialog, QMessageBox
+    from . import orte
     from .datenbank import datei_uebernehmen
-    m = QMessageBox(QMessageBox.Question, NAME,
-                    f"Hier gibt es noch keine Daten ({orte_.art}, Datenordner {orte_.daten}).\n\n"
-                    "Vorhandene Daten aus einer anderen Programmversion übernehmen (Datendatei rohrlaser.db, eine "
-                    "Sicherung oder eine Export-Datei)? Die Quelle bleibt dabei unverändert.")
-    uebernehmen = m.addButton("Daten übernehmen …", QMessageBox.AcceptRole)
+    frueher = orte.fruehere_daten(orte_) if frueher is None else frueher
+    vorschlag = frueher[0] if frueher else None
+    text = f"Hier gibt es noch keine Daten ({orte_.art}, Datenordner {orte_.daten}).\n\n"
+    if vorschlag:
+        text += (f"Gefunden: Daten der {'portablen' if vorschlag.get('art') == 'portabel' else 'installierten'} "
+                 f"Version in\n{vorschlag['daten']}\n(zuletzt geändert {vorschlag['geaendert']:%d.%m.%Y %H:%M}).\n\n"
+                 "Diese Daten übernehmen? Übernommen wird eine Kopie, die alte Version bleibt unverändert.")
+    else:
+        text += ("Vorhandene Daten aus einer anderen Programmversion übernehmen (Datendatei rohrlaser.db, eine "
+                 "Sicherung oder eine Export-Datei)? Die Quelle bleibt dabei unverändert.")
+    m = QMessageBox(QMessageBox.Question, NAME, text)
+    gefunden = m.addButton("Diese Daten übernehmen", QMessageBox.AcceptRole) if vorschlag else None
+    uebernehmen = m.addButton("Andere Daten wählen …" if vorschlag else "Daten übernehmen …",
+                              QMessageBox.AcceptRole if not vorschlag else QMessageBox.ActionRole)
     m.addButton("Mit Beispieldaten beginnen", QMessageBox.RejectRole)
+    if gefunden:
+        m.setDefaultButton(gefunden)
     m.exec()
+    if gefunden is not None and m.clickedButton() is gefunden:
+        try:
+            if (Path(vorschlag["daten"]) / orte.SPERRE).exists():
+                try:        # läuft die alte Version noch, wäre die Kopie evtl. nicht auf dem letzten Stand
+                    orte.Sperre(vorschlag["daten"]).freigeben()
+                except orte.Gesperrt as e:
+                    raise OSError(f"{e} Bitte die alte Version zuerst beenden.") from None
+                except OSError:
+                    pass        # Ordner nur lesbar: kopieren geht trotzdem
+            i = datei_uebernehmen(vorschlag["datei"], orte_.datei)
+            teile = orte.beiwerk_uebernehmen(vorschlag, orte_)
+            QMessageBox.information(None, NAME, f"Daten übernommen: {i['anzahl'].get('angebote', 0)} Angebote aus "
+                                    f"{vorschlag['daten']}" + (f", dazu {', '.join(teile)}" if teile else "") + ".")
+            return True
+        except OSError as e:
+            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{e}\n\n"
+                                            "Bitte die Datei von Hand wählen.")
+            uebernehmen = m.clickedButton()
     while m.clickedButton() is uebernehmen:
-        datei, _ = QFileDialog.getOpenFileName(None, "Daten übernehmen", str(Path.home()),
+        datei, _ = QFileDialog.getOpenFileName(None, "Daten übernehmen", str(vorschlag["daten"] if vorschlag
+                                                                                 else Path.home()),
                                                "Datendatei, Sicherung oder Export (*.db *.zip)")
         if not datei:
             return True
@@ -358,6 +391,8 @@ def main(argv=None):
             try:
                 db = Datenbank(o.datei)
                 db.sicherung_heute()
+                if getattr(sys, "frozen", False):
+                    orte.merken(o)      # damit eine neue Kopie des Programms diese Daten findet
                 break
             except Exception as e:
                 if not oeffnen_fehlgeschlagen(o, e):

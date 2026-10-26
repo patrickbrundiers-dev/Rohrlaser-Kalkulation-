@@ -96,6 +96,92 @@ def ermitteln(programmordner, daten=None, frozen=None, umgebung=None, dokumente=
     return orte
 
 
+# ------------------------------------------------------------------ zuletzt benutzte Daten
+# Patrick 26.10.2026: neue Version in einem neuen Ordner (ZIP) oder neu installiert soll die bisherigen Daten selbst
+# finden. Jeder Start merkt sich seinen Datenordner in einer kleinen Liste im Benutzerprofil; der erste Start einer
+# neuen Kopie ohne Datendatei bietet den zuletzt benutzten an (erster_start in __main__.py).
+ZULETZT = "zuletzt_benutzt.json"
+ZULETZT_MAX = 8
+LIZENZ = "Lizenz"
+
+
+def zuletzt_datei(umgebung=None):
+    return lokaler_ordner(umgebung) / ORDNER_INSTALLIERT / ZULETZT
+
+
+def _zuletzt_lesen(umgebung=None):
+    try:
+        liste = json.loads(zuletzt_datei(umgebung).read_text(encoding="utf-8"))
+        return [e for e in liste if isinstance(e, dict) and e.get("daten")] if isinstance(liste, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def merken(orte, umgebung=None):
+    """Beim Start: diesen Datenordner (mit Programm- und Ablageordner) vorn in die Liste der zuletzt benutzten
+    setzen. Fehler stören nicht."""
+    eintrag = dict(daten=str(orte.daten), programm=str(orte.programm), ablage=str(orte.ablage), art=orte.art,
+                   version=VERSION, zeit=datetime.datetime.now().isoformat(timespec="seconds"))
+    liste = [eintrag] + [e for e in _zuletzt_lesen(umgebung) if os.path.normcase(e["daten"]) !=
+                         os.path.normcase(eintrag["daten"])]
+    try:
+        pfad = zuletzt_datei(umgebung)
+        pfad.parent.mkdir(parents=True, exist_ok=True)
+        tmp = pfad.with_name(pfad.name + ".neu")
+        tmp.write_text(json.dumps(liste[:ZULETZT_MAX], ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, pfad)
+    except OSError:
+        pass
+
+
+def fruehere_daten(orte, umgebung=None):
+    """Vorhandene Datendateien anderer Programmkopien (zuletzt benutzte und die der installierten Version), ohne die
+    eigene, neueste zuerst. Ergebnis: Liste von dict(daten, datei, programm, ablage, art, geaendert (datetime))."""
+    kandidaten = _zuletzt_lesen(umgebung)
+    kandidaten.append(dict(daten=str(lokaler_ordner(umgebung) / ORDNER_INSTALLIERT / DATEN), art="installiert"))
+    eigen = os.path.normcase(str(Path(orte.daten).resolve()))
+    gesehen, erg = {eigen}, []
+    for e in kandidaten:
+        d = Path(e["daten"])
+        try:
+            schluessel = os.path.normcase(str(d.resolve()))
+            datei = d / DATENDATEI
+            if schluessel in gesehen or not datei.is_file():
+                continue
+            geaendert = datetime.datetime.fromtimestamp(datei.stat().st_mtime)
+        except OSError:
+            continue
+        gesehen.add(schluessel)
+        erg.append(dict(e, daten=d, datei=datei, geaendert=geaendert))
+    return sorted(erg, key=lambda e: e["geaendert"], reverse=True)
+
+
+def beiwerk_uebernehmen(quelle, orte):
+    """Nach dem Übernehmen der Datendatei aus quelle (Eintrag aus fruehere_daten): Lizenz und die Angebots-Ablage
+    der alten Kopie mitnehmen, wenn hier noch keine sind. Die Quelle bleibt unverändert. Ergebnis: Liste der
+    übernommenen Teile (Text)."""
+    import shutil
+    teile = []
+    lizenz = Path(quelle["daten"]) / LIZENZ
+    try:
+        if lizenz.is_dir() and not (Path(orte.daten) / LIZENZ).exists():
+            shutil.copytree(lizenz, Path(orte.daten) / LIZENZ)
+            teile.append("Lizenz")
+    except OSError:
+        pass
+    ablage = Path(quelle["ablage"]) if quelle.get("ablage") else None
+    ziel = Path(orte.ablage)
+    try:
+        leer = not ziel.exists() or not any(ziel.iterdir())
+        if ablage and ablage.is_dir() and any(ablage.iterdir()) and leer and \
+                os.path.normcase(str(ablage.resolve())) != os.path.normcase(str(ziel.resolve())):
+            shutil.copytree(ablage, ziel, dirs_exist_ok=True)
+            teile.append(f"Angebots-Ablage ({ziel})")
+    except OSError:
+        pass
+    return teile
+
+
 # ------------------------------------------------------------------ Sperre
 class Gesperrt(Exception):
     """Die Datendatei ist von einem anderen Programm geöffnet. info: Inhalt der Sperrdatei (dict, ggf. leer)."""
