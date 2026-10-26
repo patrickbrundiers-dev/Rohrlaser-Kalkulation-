@@ -95,6 +95,10 @@ def _zahl(text):
         return None
 
 
+# Werte eines Endes, die die Eingabefelder des Dialogs setzen (eingaben); alles andere am Ende kommt aus der Messung
+ENDE_FELDER = ("winkel", "achse", "sattel", "richtung", "winkel_h", "winkel_b", "gegen", "d3", "nasen")
+
+
 class SchneidwegDialog(QDialog):
     """p: Position, profil: Stammdaten-Zeile des Profils, kopf/k/tabellen: Angebot und Stammdaten (Maschine,
     Konturgrenzen, Schneiddaten), db: Datenbank für Vorlagen, positionen: Positionen des Angebots zum Kopieren von
@@ -117,6 +121,11 @@ class SchneidwegDialog(QDialog):
         # Profil der Position anders als gemessen (von Hand geändert): Konturen umrechnen bzw. Umriss übertragen
         e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(profil, profil_id=p.get("profil_id")))
         e = dreid.vorschlag(e, rechnen.maschine(kopf or {}, k)) or e     # Maschine mit 3D: Vorgabe 3D an
+        # Eckradius der STEP-Datei schon beim Öffnen (sonst lagen Konturen auf Kastenrohren in Skizze und 3D um den
+        # Radiusunterschied neben der STEP, Patrick 26.10.2026)
+        r = e.get("r_step")
+        if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0:
+            self.r_step, self.r_step_profil = float(r), e.get("r_step_profil")
         self.biegerohr = biegerohr.lesen(e)        # Biegerohr aus dem STEP-Import: bleibt in den Eingaben
         self.knick = knickrahmen.lesen(e)          # Knickrahmen: Schenkel, daraus die gestreckte Länge
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
@@ -708,8 +717,10 @@ class SchneidwegDialog(QDialog):
             x = e.get(s) or {}
             gm = self.gemessen_text[s]
             if sw._z(x.get("gemessen")):
-                self._ende_step[s] = (self._ende_werte(s), {k_: x[k_] for k_ in (
-                    "gemessen", "huelle_gemessen", "form", "messprofil", "flaechen", "huelle") if x.get(k_) is not None})
+                # alles Gemessene (auch Umriss und Schwenk eines komplexen Endes, sonst ist eine Ausklinkung im Editor
+                # gerade, Patrick 26.10.2026), nur nicht, was die Eingabefelder des Endes selbst setzen
+                self._ende_step[s] = (self._ende_werte(s), {k_: v for k_, v in x.items() if v is not None
+                                                            and k_ not in ENDE_FELDER})
                 self.winkel[s].setStyleSheet("background: #E8F5E9;")
                 gm.setText(f"<span style='color:#1E6B35'>gemessen {rechnen.zahl(x['gemessen'], 1)} mm"
                            + (f", {x['form']}" if x.get("form") else "")
