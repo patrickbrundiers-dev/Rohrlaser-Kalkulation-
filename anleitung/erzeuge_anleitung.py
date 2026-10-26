@@ -2687,7 +2687,9 @@ def kapitel_optimieren(i):
         (5, "<b>Steckverbindung hinzufügen</b>: zwischen den zwei markierten Teilen im Reiter Struktur und Teile.")])
     i.genauer()
     i.liste("<b>Hinzufügen</b>: Markieren Sie im Reiter <i>Struktur und Teile</i> zwei Rohre. Das zweite wird "
-            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe.",
+            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe. Schneller geht es im "
+            "3D: im Reiter <i>Strukturbaum und 3D</i> das erste Rohr anklicken, das zweite mit Strg+Klick, dann "
+            "<i>Steckverbindung hinzufügen</i> unter der Ansicht ([[baugruppe_baum]]).",
             "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
             "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
             "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
@@ -2742,11 +2744,15 @@ def kapitel_optimieren(i):
     i.abschnitt("Rahmen-Assistent", marke="rahmen_assistent")
     i.text("<b>Neue Position → Rahmen-Assistent</b> baut einen <b>Rechteckrahmen</b> oder <b>Quader</b> aus Quadrat-, "
            "Rechteck- oder Rundrohr ohne STEP-Datei: Profil, Werkstoff, Außenmaße und Ecken eingeben, die Vorschau "
-           "nennt die Rohre. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
+           "nennt die Rohre und zeigt sie rechts im 3D. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
            "([[satz_3d]]).", kurz=True)
     i.genauer()
     i.liste("<b>Gehrung</b> (nur Rechteckrahmen): vier Rohre mit 45°-Gehrung, Länge außen B bzw. H. Satz in 3D "
             "schlägt dann den Knickrahmen vor ([[vorschlaege]]).",
+            "<b>Knickrahmen (ein Rohr, geknickt)</b> (nur Rechteckrahmen aus Quadrat- oder Rechteckrohr): wie "
+            "Gehrung, danach öffnet Satz in 3D gleich <i>Knickrahmen erstellen</i> für alle vier Rohre (erster "
+            "Schenkel, Freistich, Knickzugabe, K-Faktor, [[satz_3d]]). Mit OK wird der Rahmen eine Position: das "
+            "gestreckte Rohr mit drei V-Ausschnitten.",
             "<b>stumpf</b>: die Waagrechten laufen durch (Länge B), die Senkrechten stehen dazwischen (H − 2 × "
             "Profilhöhe; Rundrohr mit Sattel, Länge Mitte zu Mitte H − Ø).",
             "<b>stumpf mit Steckverbindungen</b>: wie stumpf, dazu an jedem Stoß eine Steckverbindung (wie <i>Alle "
@@ -2786,9 +2792,16 @@ def kapitel_optimieren(i):
            "Knickrahmen.", kurz=True)
     i.genauer()
     i.liste("<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
-            "3D blau. Ein Klick auf ein Teil im 3D markiert es, mit Strg kommt es dazu bzw. fällt wieder weg.",
+            "3D blau. Ein Klick auf ein Teil im 3D markiert es, auch nahe an einer Kante; mit Strg kommt es dazu bzw. "
+            "fällt wieder weg. Die Zeile unter der Ansicht nennt die markierten Positionen. Ein <b>Doppelklick</b> "
+            "auf ein Rohr wählt die ganze Gehrungskette (alle Rohre, die zusammen einen Knickrahmen ergeben). Ein "
+            "<b>Rechtsklick</b> auf ein Teil öffnet ein Menü: Gehrungskette wählen, Knickrahmen erstellen bzw. lösen, "
+            "Steckverbindung hinzufügen (das zuerst gewählte Rohr wird Aufnahme), Aufnahme und Stecker tauschen, "
+            "Steckverbindung entfernen, Nur Gewähltes zeigen und Auswahl aufheben.",
             "<b>Reiter Steckverbindungen</b>: dieselbe Tabelle und dieselben Knöpfe wie in der Schweißbaugruppe "
-            "([[steckverbindung_anlegen]]). <i>Steckverbindung hinzufügen</i> nimmt die zwei markierten Rohre (das "
+            "([[steckverbindung_anlegen]]). Ein Klick in eine Zeile zeigt Aufnahme und Stecker im 3D blau. Ein Klick "
+            "auf ein Rohr im 3D markiert seine Verbindungen in der Tabelle, zwei Rohre (Strg+Klick) die Verbindung "
+            "zwischen ihnen. <i>Steckverbindung hinzufügen</i> nimmt die zwei markierten Rohre (das "
             "zweite wird Stecker). <i>Alle Stöße stecken</i> braucht die Lage der Rohrenden aus dem STEP-Import: Ein "
             "Satz merkt sie sich ab Version 0.9.95; ältere Sätze bitte neu einlesen.",
             "<b>Längsnaht wählen</b> (Leiste über dem 3D): einschalten und die Fläche eines Rohrs anklicken. Bei "
@@ -4126,6 +4139,12 @@ def kapitel_baugruppen(i):
            "<i>Maße löschen</i>. Messen und Naht zeichnen schalten sich gegenseitig aus. <i>Längsnaht wählen</i>: "
            "die Fläche eines Rohrs anklicken, die Längsnaht liegt dann dort (wie im Fenster Satz in 3D, "
            "[[satz_3d]]); sie ist im 3D rot.")
+    i.text("<b>Teile im 3D wählen</b>: Ein Klick auf ein Teil wählt es (blau), auch nahe an einer Kante; der Baum "
+           "springt auf das Teil und der Reiter Struktur und Teile markiert es mit. Strg+Klick nimmt weitere Teile "
+           "dazu oder wieder weg, ein Klick im Baum wählt neu. Doppelklick und Rechtsklick-Menü wie im Fenster Satz "
+           "in 3D. Unter der Ansicht stehen dazu <b>Knickrahmen "
+           "erstellen …</b> (gewählte Rohre mit Gehrung, [[satz_3d]]) und <b>Steckverbindung hinzufügen</b> (genau "
+           "zwei Rohre: das zuerst gewählte wird Aufnahme, das zweite Stecker, [[steckverbindung_anlegen]]).")
     i.text("<b>Rohre aus den Eingaben</b>: Quadrat-, Rechteck- und Rundrohre (und andere Profile, die der "
            "Teile-Editor zeichnet) stehen so im 3D, wie sie gerechnet werden: Gehrungen, Konturen und die Schlitze "
            "und Nasen der Steckverbindungen ([[steckverbindung]]), auch der noch nicht gespeicherten aus dem Reiter "
@@ -6403,6 +6422,15 @@ def kapitel_pflege(i):
             "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
             "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
             "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
+            "<b>Download bricht ab (z. B. im Firmennetz)</b>: Reißt die Verbindung ab, versucht das Programm es von "
+            "selbst bis zu sechsmal und macht an der Abbruchstelle weiter (Hinweis <i>Verbindung unterbrochen, neuer "
+            "Versuch …</i>). Scheitert es trotzdem, bleibt das schon Geladene liegen: <i>Hilfe → Nach Updates "
+            "suchen …</i> setzt dort fort. Die Meldung nennt die wahrscheinliche Ursache: Firewall, Proxy oder "
+            "Virenscanner im Firmennetz, eine Sperrseite statt der Datei, HTTP 403 (gesperrt) oder ein fremdes "
+            "Zertifikat. Dann die IT bitten, <i>github.com</i> und <i>*.githubusercontent.com</i> freizugeben, oder in "
+            "einem anderen Netz aktualisieren. Installierte und portable Version verhalten sich dabei gleich; die "
+            "portable braucht Schreibrechte in ihrem Ordner. Jeder Versuch steht mit Proxy-Angabe im Protokoll "
+            "<i>Daten\\Protokoll\\fehler.log</i>.",
             "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
@@ -6455,9 +6483,14 @@ def kapitel_pflege(i):
             "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
     i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
            "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
-           "ersten Start der neuen Version: auf die Frage nach vorhandenen Daten <b>Daten übernehmen …</b> wählen "
-           "und die Datei <i>Daten\\rohrlaser.db</i> der portablen Version, eine Sicherung oder eine Export-Datei "
-           "angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Danach mit der neuen Version "
+           "ersten Start der neuen Version: Das Programm sucht die zuletzt benutzten Daten selbst (frühere portable "
+           "Kopie oder installierte Version) und zeigt sie mit Ordner und Datum an. <b>Diese Daten übernehmen</b> "
+           "kopiert Datendatei, Lizenz und Angebots-Ablage (nur, wenn hier noch keine sind). Mit <b>Andere Daten "
+           "wählen …</b> lässt sich stattdessen die Datei <i>Daten\\rohrlaser.db</i>, eine Sicherung oder eine "
+           "Export-Datei angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Läuft die alte "
+           "Version noch, zuerst dort beenden. <b>Neues ZIP</b> am einfachsten in den bisherigen Ordner entpacken "
+           "(Dateien ersetzen): Der Ordner <i>Daten</i> ist nicht im ZIP und bleibt stehen; das neue Setup über die "
+           "alte Installation behält die Daten ohnehin. Danach mit der neuen Version "
            "weiterarbeiten und die alte nicht mehr benutzen, sonst laufen zwei Datenbestände auseinander.",
            "Jeder Arbeitsplatz hat seine eigene Datendatei; geteilt wird über den gemeinsamen Ordner "
            "([[mehrere_arbeitsplaetze]]), nicht über eine gemeinsame Datendatei. Solange das Programm läuft, sperrt "
@@ -6861,6 +6894,10 @@ def kapitel_fragen(i):
          "Eine Programmdatei ließ sich nicht austauschen, meist weil sie gerade offen ist (Bedienungsanleitung im "
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
+        ["Update: <b>Verbindung wurde mehrmals unterbrochen</b>, <b>Webseite statt der Datei</b> oder <b>403</b>",
+         "Das Netz (meist Firewall, Proxy oder Virenscanner in der Firma) bricht den Download ab oder sperrt ihn. "
+         "Nichts wurde verändert. Später noch einmal suchen (setzt fort), in einem anderen Netz aktualisieren oder "
+         "die IT bitten, github.com und *.githubusercontent.com freizugeben ([[updates]])."],
         ["Update meldet <b>nicht gültig signiert</b> oder <b>unbekanntes Format</b>",
          "Die geladene Dateiliste war unvollständig oder nicht vom Hersteller. Das Programm hat nichts verändert. "
          "Ein paar Minuten warten (ein Update wird vielleicht gerade hochgeladen) und noch einmal suchen; bleibt "

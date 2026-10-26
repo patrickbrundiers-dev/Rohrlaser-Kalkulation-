@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.146", "<b>Stangen von Hand vorgeben</b>: Im Fenster <i>Material …</i> hat jede Abmessung die Spalte "
+    ["0.9.148", "<b>Stangen von Hand vorgeben</b>: Im Fenster <i>Material …</i> hat jede Abmessung die Spalte "
                 "<b>Stangen vorgegeben</b>. Dort lassen sich mehrere Stangenlängen mit Stückzahl eintragen (z. B. "
                 "3 × 6.000 + 2 × 4.500 mm). Die Optimierung plant dann nur mit genau diesen Stangen, mit möglichst "
                 "wenig Stangenlänge; Teile, die nicht mehr passen, stehen unter <i>nicht eingeplant</i>. Staffelpreise "
@@ -31,6 +31,27 @@ NEUERUNGEN = [
                 "Fenster ihre Details, Esc schließt es ([[stangenbild]]).",
      "Stangen von Hand vorgeben; Meterpreis von Hand ohne Meldung; Stangenbild: Übersicht als Standard, Details per "
      "Maus"],
+    ["0.9.147", "<b>Online-Update im Firmennetz robuster</b>: Bricht der Download ab (Firewall, Proxy, "
+                "Virenscanner), versucht das Programm es selbst bis zu sechsmal und macht an der Abbruchstelle "
+                "weiter; ein späterer Versuch setzt das schon Geladene fort. Die Meldung nennt die wahrscheinliche "
+                "Ursache (Sperrseite eines Proxys, HTTP 403, fremdes Zertifikat, fehlende Schreibrechte der portablen "
+                "Version), jeder Versuch steht mit Proxy-Angabe im Protokoll ([[updates]]). <b>Neue Kopie findet die "
+                "alten Daten</b>: Startet eine neu entpackte oder neu installierte Version ohne Daten, zeigt sie die "
+                "zuletzt benutzten Daten (frühere portable Kopie oder installierte Version) an und übernimmt sie mit "
+                "einem Klick samt Lizenz und Angebots-Ablage ([[datensicherung]]).",
+     "Update: Download setzt nach Abbruch fort; neue Kopie übernimmt die alten Daten per Klick"],
+    ["0.9.146", "<b>Teile im 3D anklicken</b>: Im Fenster Satz in 3D und im Editor der Schweißbaugruppe (Reiter "
+                "Strukturbaum und 3D) wählt ein Klick auf ein Teil es aus, auch nahe an einer Kante; Strg+Klick nimmt "
+                "weitere dazu oder weg. Liste und Baum gehen mit. Im Editor der Schweißbaugruppe stehen unter dem 3D "
+                "<b>Knickrahmen erstellen …</b> und <b>Steckverbindung hinzufügen</b> für die gewählten Rohre "
+                "([[baugruppe_baum]]). Beim Stecksystem zeigt eine Zeile im Reiter Steckverbindungen Aufnahme und "
+                "Stecker blau im 3D, ein Klick auf ein Rohr markiert seine Verbindungen ([[satz_3d]]). "
+                "<b>Doppelklick</b> wählt die ganze Gehrungskette, <b>Rechtsklick</b> öffnet ein Menü (Knickrahmen "
+                "erstellen/lösen, Steckverbindung hinzufügen/tauschen/entfernen, Nur Gewähltes). Der "
+                "<b>Rahmen-Assistent</b> zeigt den Rahmen im 3D und hat die Ecke <i>Knickrahmen</i>: der Rahmen wird "
+                "gleich ein geknicktes Rohr ([[rahmen_assistent]]). Ein Klick in ein Feld einer Tabelle markiert "
+                "jetzt auch die Zeile.",
+     "Knickrahmen und Stecksystem: Teile im 3D per Klick, Doppelklick und Rechtsklick wählen; Rahmen-Assistent mit 3D"],
     ["0.9.145", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen wird "
                 "eine Baugruppe jetzt als Einzelpositionen übernommen. Das Feld <i>Anzahl</i> oben erhöht nur die "
                 "Stückzahl aller Teile der Datei. Ein Satz entsteht nur mit dem Knopf <b>Als Satz</b>; dann zählt "

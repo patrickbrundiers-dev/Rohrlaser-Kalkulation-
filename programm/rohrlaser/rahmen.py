@@ -17,7 +17,8 @@ from . import skizze as sk
 RAHMEN, QUADER = "Rechteckrahmen", "Quader"
 FORMEN = (RAHMEN, QUADER)
 GEHRUNG, STUMPF, STECKEN = "Gehrung", "stumpf", "stumpf mit Steckverbindungen"
-ECKEN = (GEHRUNG, STUMPF, STECKEN)
+KNICK = "Knickrahmen (ein Rohr, geknickt)"     # Patrick 26.10.2026: wie Gehrung, danach Knickrahmen erstellen
+ECKEN = (GEHRUNG, KNICK, STUMPF, STECKEN)
 PROFILE = ("Quadratrohr", "Rechteckrohr", "Rundrohr")
 
 
@@ -73,7 +74,11 @@ def bauen(profil, form, b, h, t=None, ecken=GEHRUNG, hochkant=False):
         raise ValueError("Rahmen-Assistent: Form und Ecken wählen.")
     if b <= 2 * d + 1 or h <= 2 * d + 1:
         raise ValueError(f"Rahmen-Assistent: Breite und Höhe müssen größer als 2 × {d:g} mm sein.")
+    if ecken == KNICK and rund:
+        raise ValueError("Rahmen-Assistent: Knickrahmen nur aus Quadrat- oder Rechteckrohr.")
     if form == QUADER:
+        if ecken == KNICK:
+            raise ValueError("Rahmen-Assistent: Knickrahmen nur als Rechteckrahmen.")
         if ecken == GEHRUNG:
             raise ValueError("Rahmen-Assistent: Quader nur mit stumpfen Ecken (Gehrung an drei Rohren je Ecke geht "
                              "nicht).")
@@ -110,7 +115,7 @@ def bauen(profil, form, b, h, t=None, ecken=GEHRUNG, hochkant=False):
     def rahmen(yc):
         """Ein Rahmen in der Ebene y = yc; Ergebnis {unten, oben, links, rechts: Körpernummer}."""
         k = {}
-        if ecken == GEHRUNG:
+        if ecken in (GEHRUNG, KNICK):
             k["unten"] = rohr("Rahmen waagrecht", b, gehrung, (0, yc, d / 2), (1, 0, 0), (0, 0, -1))
             k["oben"] = rohr("Rahmen waagrecht", b, gehrung, (0, yc, h - d / 2), (1, 0, 0), (0, 0, 1))
             k["links"] = rohr("Rahmen senkrecht", h, gehrung, (d / 2, yc, 0), (0, 0, 1), (-1, 0, 0))
@@ -146,7 +151,7 @@ def bauen(profil, form, b, h, t=None, ecken=GEHRUNG, hochkant=False):
             teile.append(dict(name=name, laenge=laenge, eingaben=e, lagen=[], koerper=[]))
         teile[schluessel[k]]["lagen"].append(lage)
         teile[schluessel[k]]["koerper"].append(nr)
-    return dict(teile=teile, stoesse=stoesse, stecken=ecken == STECKEN)
+    return dict(teile=teile, stoesse=stoesse, stecken=ecken == STECKEN, knick=ecken == KNICK)
 
 
 def netz(teil, profil):
@@ -157,6 +162,19 @@ def netz(teil, profil):
         n["lagen"] = teil["lagen"]
         n["koerper"] = teil["koerper"]
     return n
+
+
+def vorschau(erg, profil):
+    """Alle Rohre in Einbaulage als ein Netz für die 3D-Vorschau des Assistenten (gleiche Rohre in gleicher Farbe)
+    oder None."""
+    from .ansicht3d import baugruppe
+    netze, farben = [], []
+    for nr, t in enumerate(erg["teile"]):
+        n = netz(t, profil)
+        for lage in n.get("lagen") or ():
+            netze.append(dict(n, lage=lage))
+            farben.append(nr)
+    return baugruppe(netze, (), farben)[0] if netze else None
 
 
 def text(erg, profil_text=""):

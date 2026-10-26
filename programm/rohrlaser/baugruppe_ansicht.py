@@ -541,6 +541,7 @@ class BaugruppenAnsicht(QWidget):
             if b.parent() is self.d3.knoepfe and b is not self.d3.modi:
                 b.hide()
         self.ansicht, self.info = self.d3.ansicht, self.d3.info
+        self.ansicht.flaeche_vor_kante = True     # Klick auf eine Kante wählt das Teil dahinter (Auswahl im 3D)
         self.nur_gewaehlt, self.naehte = False, True
         leiste = QWidget()
         self._leiste = ll = QHBoxLayout(leiste)
