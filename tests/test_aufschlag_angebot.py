@@ -86,6 +86,20 @@ nah(g["Z-1"]["vk"], 20 * 2.0 * 1.50, "Positionsaufschlag geht vor")
 # Blech ohne Artikeltyp, aber Kategorie Blechteile (ältere Artikel) zählt als Blech
 e = dict(artikel_id=None, stand=dict(kategorie="Blechteile"))
 assert zukauf.ist_blech(e) and not zukauf.ist_blech(dict(artikel_id=None, stand=dict(kategorie="Normteile")))
+# Staffelpreise: geänderter Aufschlag macht gespeicherte Stufen veraltet (Prüfsumme des Mengenlaufs)
+from rohrlaser import staffeln  # noqa: E402
+
+
+def pruefsumme(a):
+    kopf, pos, k, tab = db.angebot(a), db.positionen(a), db.kontext(), db.tabellen()
+    return staffeln._hash(staffeln._gemeinsam(kopf, pos, k, tab, rechnen.einstellungen_angebot(kopf, db.einstellungen())))
+
+
+vor = pruefsumme(a)
+db.angebot_aendern(a, "aufschlag_zukauf", 15)
+assert pruefsumme(a) != vor
+db.angebot_aendern(a, "aufschlag_zukauf", 10)
+assert pruefsumme(a) == vor
 ok("A1 neue Angebote: Aufschlag Bleche bzw. Zukaufteile 10 % ersetzt Artikelaufschläge, Positionsaufschlag geht vor")
 
 # ------------------------------------------------------------------ A2 ältere Angebote

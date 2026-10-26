@@ -281,7 +281,8 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
-                     "laengenwahl")      # übernommene Lieferlängen gelten auch in den Stufen
+                     "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
+                     "aufschlag_blech", "aufschlag_zukauf")      # Aufschlag Bleche bzw. Zukaufteile des Angebots
     # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
     if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
         tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
