@@ -88,7 +88,7 @@ assert "im Prüfdialog abgewählt" in pr["G.step3"] and "Profil im Prüfdialog g
 assert "Profil fehlt in Stammdaten" in pr["H.step7"]                 # neue ID: ohne Anlegen nur Hinweis
 assert step.vorpruefung(je, [], k)[0] == ["QR 50x50x3"]
 e = step.uebernehmen(je, [], k, gew, None, neue_profile=True, saetze=["G.step"])
-assert [x["profil_id"] for x in e["profile"]] == ["QR 50x50x3"] and e["profile"][0]["a"] == 40.0   # Maße gemessen
+assert [x["profil_id"] for x in e["profile"]] == ["QR 50x50x3"] and e["profile"][0]["a"] == 50.0   # Maße aus dem Namen
 assert [(p["artikel"], p["stueck"]) for p in e["positionen"] if p.get("satz")] == [("G-K1", 8), ("G-K5", None),
                                                                                     ("G-K6", None)]
 je[6]["_profil"] = "RR 42,4x2,0"                                     # vorhandenes Profil: keine Rückfrage

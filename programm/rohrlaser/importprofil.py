@@ -75,6 +75,8 @@ def anwenden(messwerte, profil=None, einstellungen=None):
             n += 1
         else:
             m.pop("_normteil", None)
+    from .step import eindeutige_artikel       # Bauteilname mehrfach vergeben: -2, -3 … (sonst nur einer übernommen)
+    eindeutige_artikel([m for m in messwerte if not m.get("fehler")])
     return n
 
 

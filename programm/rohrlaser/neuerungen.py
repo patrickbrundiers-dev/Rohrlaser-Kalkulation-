@@ -21,12 +21,98 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.132", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
+    ["0.9.145", "<b>Aufschlag Bleche</b> und <b>Aufschlag Zukaufteile</b> je Angebot (Karte Kalkulation, unter "
                 "Zuschlag Fremdleistung): Vorgabe je 10 % aus den Einstellungen, % auf den Einstand aller Bleche bzw. "
                 "aller übrigen Zukaufteile des Angebots; ersetzt dort Artikel-, Kategorie- und Standardaufschlag, ein "
                 "Positionsaufschlag geht vor. Die Zeilen stehen nur da, wenn das Angebot Bleche bzw. Zukaufteile hat; "
                 "ältere Angebote rechnen wie bisher ([[angebotskopf]]).",
      "Aufschlag Bleche und Zukaufteile je Angebot (Vorgabe 10 %)."],
+    ["0.9.144", "<b>Winkel aus größerem Profil als virtuelles Bauteil</b>: Wird für einen Winkel oder ein U ein "
+                "größeres Profil gleicher Form gewählt (z. B. L 33×30×6 aus L 60×40×6), misst das Programm jetzt das "
+                "Teil plus je einen Steg 2 mm des größeren Profils an den Enden wie ein echtes Bauteil. Enden, "
+                "Längsschnitte und Querschnitte stimmen damit genau, auch bei Gehrungen und Ausklinkungen am "
+                "gekürzten Schenkel; im 3D sind die Stege rot. Gilt im Prüfdialog und beim Profilwechsel in der "
+                "Positionstabelle ([[offene_rohre]]). Außerdem wartet das automatische Optimieren, solange Sie eine Zelle "
+                "bearbeiten, damit die Eingabe nicht unterbrochen wird.",
+     "Winkel/U aus größerem Profil: Teil mit Stegen 2 mm als virtuelles Bauteil gemessen"],
+    ["0.9.143", "<b>Staffeln nie automatisch rechnen</b>: Staffelpreise werden nur noch mit dem Knopf "
+                "<b>Staffelpreise rechnen</b> (Reiter Staffeln) gerechnet, nicht mehr im Hintergrund nach Änderungen "
+                "und nicht vor dem Angebots-PDF. Veraltete Stufen haben keinen Preis und fehlen im Angebot; der "
+                "Angebots-Check warnt davor. Das Angebots-PDF legt auch keine Standard-Staffeln mehr an, das macht "
+                "nur der Knopf <b>Standard-Staffeln</b> ([[staffeln]]).",
+     "Staffeln: nur noch auf Knopfdruck rechnen, nie automatisch"],
+    ["0.9.142", "<b>STEP-Import: vier Fehler behoben</b>: Ein geschlossenes Rohr mit vielen Langlöchern (z. B. QR "
+                "40x40x2) wurde als Kantteil erkannt; jetzt ist ein geschlossenes Rohr immer ein Rohr, alle Schnitte "
+                "werden übernommen ([[bleche]]). Im Rohr-Editor fehlte der Umriss komplexer Enden (Ausklinkung wurde "
+                "gerade gezeigt) und der Eckradius aus der STEP (Konturen lagen bei anderem Radius bis über 1 mm "
+                "daneben); beides bleibt jetzt erhalten. Haben verschiedene Teile denselben Bauteilnamen, wurde beim "
+                "Übernehmen nur eines übernommen; jetzt bekommt jedes weitere Teil die Nummer mit -2, -3 … "
+                "([[importprofile]]).",
+     "STEP-Import: Rohr nie Kantteil, Ausklinkung und Radius im Editor wie STEP, alle Positionen übernommen."],
+    ["0.9.141", "<b>Schnittschema je Staffel</b>: Im Reiter <i>Staffeln</i> zeigt das Ergebnis je Stufe und "
+                "Abmessung die Stangen (Anzahl × Lieferlänge, Ausnutzung) und ihre Kosten inkl. Verschnitt. Der neue "
+                "Knopf <b>Schnittschema …</b> (oder Doppelklick) öffnet den Schnittplan der Stufe mit Stangen, Meter, "
+                "Verschnitt, €/m und Materialkosten je Abmessung und dem Stangenbild. So ist der Materialpreis jeder "
+                "Staffel nachvollziehbar. Gespeicherte Staffelpreise werden dafür einmal neu gerechnet ([[staffeln]]).",
+     "Staffeln: Schnittschema je Stufe mit Stangen, Verschnitt und Materialkosten"],
+    ["0.9.140", "<b>Rohrteil aus einer PDF-Zeichnung (Test)</b>: Mit der Einstellung <i>Testfunktion "
+                "PDF-Zeichnungen</i> bietet <i>Neue Position</i> den Typ <i>Aus PDF-Zeichnung (Test)</i>. Profil, Länge, "
+                "Werkstoff, Benennung, Artikel und Stückzahl kommen aus dem Text der Zeichnung (auch Scan oder Foto), "
+                "der Rohr-Editor öffnet damit. Ist das PDF direkt aus dem CAD gespeichert, liest das Programm auch die "
+                "Linien wie bei einer DXF: Enden, Bohrungen und Ausschnitte kommen mit. Englische Schriftfelder werden "
+                "gelesen; fehlt das Profil im Text, kommt es aus den Maßen am Querschnitt und die Wandstärke wird aus "
+                "den passenden Profilen gewählt ([[pdf_zeichnung]]).",
+     "Testfunktion: Rohrteil aus einer PDF-Zeichnung, auch mit Enden und Konturen aus den Linien."],
+    ["0.9.139", "<b>Blech-Editor: Konturen im 3D aus dem Material geschnitten</b>: Bohrungen, Senkungen, "
+                "Langlöcher, Rechtecke und Polygone sind in der 3D-Ansicht echte Löcher mit Lochwand durch die "
+                "Blechdicke, auch im gekanteten Teil und in der Biegung; bisher waren sie nur rote Linien auf der "
+                "geschlossenen Fläche. Gravuren und Konturen, die über den Rand reichen oder sich überschneiden, "
+                "bleiben Linien ([[blech_editor]]).",
+     "Blech-Editor: Konturen im 3D als echte Löcher"],
+    ["0.9.138", "<b>Schweißbaugruppen-Editor schneller</b>: Der Reiter <i>Strukturbaum und 3D</i> rechnete die "
+                "Schweißnaht-Raupen bei jedem Klick im Baum neu und beim Öffnen doppelt; das Programm stand dabei je "
+                "Klick mehrere Sekunden. Jetzt werden die Raupen einmal gerechnet und gemerkt, auch für das nächste "
+                "Öffnen derselben Baugruppe, und die Suche der Flächen an der Naht prüft nur noch Dreiecke in der Nähe. "
+                "Bei einem Satz mit 15 Teilen dauern sechs Klicks im Baum 5 s statt 33 s, der 3D-Reiter öffnet beim "
+                "zweiten Mal in 2 s statt 9 s. Das Bild bleibt genau gleich ([[baugruppe_baum]]).",
+     "Schweißbaugruppen-Editor: 3D und Klicks im Strukturbaum viel schneller"],
+    ["0.9.137", "<b>Winkel aus größerem Profil: Stege 2 mm jetzt auch beim Profilwechsel</b>: Wird ein Winkel, U oder C "
+                "auf ein größeres Profil gleicher Form gestellt (z. B. L 33×30×6 → L 60×40×6), rechnet das Programm die "
+                "Längsschnitte zwischen den Stegen 2 mm an den Enden jetzt auch, wenn das Profil erst nach dem "
+                "Übernehmen in der Positionstabelle oder im Rohr-Editor geändert wird. Fehlt das größere Profil in den "
+                "Stammdaten, wird es mit den Maßen aus dem Namen angelegt statt mit den gemessenen "
+                "([[offene_rohre]]).",
+     "Winkel/U/C auf größeres Profil gestellt: Stege 2 mm auch nach dem Übernehmen, Profil mit Maßen aus dem Namen"],
+    ["0.9.136", "<b>Scans und Fotos als Anfrageformular</b>: Gescannte PDFs, Faxe und Handyfotos (JPG, PNG, TIFF) "
+                "liest die mitgelieferte Texterkennung Tesseract (Deutsch/Englisch) schon im Hintergrund, die Liste "
+                "zeigt <i>liest Formular …</i>. Anfragenummer, Kunde und Stückzahlen wie beim PDF mit Text; leicht "
+                "verwechselbare Zeichen (0/O, 4/A …) gleichen sich aus, unsichere Mengen sind gelb ([[anfragen]]).",
+     "Scans, Faxe und Fotos als Anfrageformular (Texterkennung Tesseract)."],
+    ["0.9.135", "<b>Große STEP-Dateien viel schneller eingelesen</b>: Ab 20 MB lässt der STEP-Import beim Einlesen zwei "
+                "Prüfungen auf sich kreuzende Kanten weg, die mit der Zahl der Bohrungen quadratisch wachsen. Ein Rundrohr "
+                "mit 7.000 Bohrungen wird so in etwa 13 min statt über 80 min eingelesen; "
+                "Volumen und Messwerte bleiben gleich (geprüft mit 1.000 und 3.000 Bohrungen). Kleinere Dateien werden "
+                "unverändert eingelesen ([[step]]).",
+     "Große STEP-Dateien (ab 20 MB) viel schneller eingelesen, gleiche Messwerte"],
+    ["0.9.134", "<b>Anfrageformular lesen</b>: Liegt bei einer neuen Anfrage ein PDF mit Text, liest das Programm "
+                "die <b>Anfragenummer</b> (kommt in <i>Ihre Anfrage / Zeichen</i>, Unterordner heißt "
+                "<i>Kunde – Anfragenummer</i>), den <b>Kunden</b> aus der Kundenliste und die <b>Stückzahlen</b> je "
+                "Artikelnummer bzw. STEP-Dateiname. Unsicher erkannte Mengen sind im Prüfdialog gelb ([[anfragen]]).",
+     "Anfrageformular (PDF mit Text): Anfragenummer, Kunde und Stückzahlen werden übernommen."],
+    ["0.9.133", "<b>Neue Anfragen aus dem Anfrage-Ordner</b>: STEP-Dateien und Anfrageformulare in einen Ordner "
+                "legen (Einstellungen → Ablage → <i>Anfrage-Ordner</i>); die Startseite zeigt sie unter <b>Neue "
+                "Anfragen</b>. Ein Unterordner ist eine Anfrage, lose Dateien mit weniger als 10 Minuten Abstand "
+                "auch. Öffnen macht daraus ein Angebot aus STEP und verschiebt die Dateien danach in den "
+                "Angebotsordner; mehrere Anfragen eines Kunden lassen sich zusammen öffnen, Kollegen sehen <i>in "
+                "Bearbeitung</i> ([[anfragen]]).",
+     "Neue Anfragen aus dem Anfrage-Ordner auf der Startseite, Öffnen als Angebot, Dateien in den Angebotsordner"],
+    ["0.9.132", "<b>Design-Prüfung</b>: Die Fußzeile der PDFs wird bei langen Firmendaten kleiner bzw. zweizeilig und "
+                "läuft nicht mehr in „Seite x von y“. In den Werkstattpapieren steht die Spalte <i>Lage</i> mittig "
+                "und breiter. Die <b>Übersicht</b> rechts wird so breit wie ihr Inhalt und schneidet keine Beträge "
+                "mehr ab; die <b>Staffelkurve</b> zeigt die Preise auf hellem Grund neben der Linie und den größten "
+                "Preis an der Achse. Der <b>Angebots-Check</b> warnt, wenn ein Staffelpreis dem Angebotspreis "
+                "widerspricht ([[angebots_check]]).",
+     "Design-Prüfung: PDF-Fußzeile, Spalte Lage, Übersicht nicht abgeschnitten, Staffelkurve, Check Staffel gegen Angebotspreis"],
     ["0.9.131", "<b>Angebotskopf und Kalkulation kompakter</b>: Bearbeiter neben der Bemerkung, der Satz „Im Angebot: "
                 "Lieferzeit …“ nur noch ohne Lieferzeit (sonst als Tooltip); die Fracht steht auf breiten Bildschirmen "
                 "rechts neben der Kalkulation, der Haken Mindestauftragswert unter Verkauf und Gewinn. <i>Rüstzeit je "

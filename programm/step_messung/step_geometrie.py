@@ -233,6 +233,29 @@ def _konsole_mitschneiden(fn):
     return erg, re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
+GROSS_AB_MB = 20         # Performance-Update P5: ab dieser Dateigröße beim Einlesen ohne die Prüfung auf sich
+                        # kreuzende Kanten (wächst quadratisch mit den Kanten einer Fläche: Rohr mit 7.000 Bohrungen über
+                        # 80 min, ohne etwa 13 min mit Baugruppenleser). Kleinere Dateien werden wie bisher geheilt.
+SCHNELL_OHNE = ("FixShape.FixNonAdjacentIntersectingEdgesMode", "FixShape.FixSelfIntersectionMode")
+
+
+def _grosse_datei_einstellen(leser, pfad):
+    """leser: Reader oder Liste (STEPCAFControl und STEPControl); True, wenn die zwei Prüfungen aus sind."""
+    try:
+        if _Path(pfad).stat().st_size < GROSS_AB_MB * 1e6:
+            return False
+        from OCP.TCollection import TCollection_AsciiString
+        from OCP.collections import DataMap_TCollection_AsciiString_TCollection_AsciiString as Werte
+        w = Werte()
+        for name in SCHNELL_OHNE:
+            w.Bind(TCollection_AsciiString(name), TCollection_AsciiString("0"))
+        for r in leser if isinstance(leser, (list, tuple)) else [leser]:
+            r.SetShapeFixParameters(w)
+        return True
+    except Exception:       # ältere OpenCascade-Version: wie bisher
+        return False
+
+
 def lies_step_info(pfad):
     """Liest eine STEP-Datei. Ergebnis: (Körper, Info). Körper = Liste (Art, Shape) mit Art 'Volumenkörper',
     'aus Flächenmodell genäht' (geschlossene Fläche zu Volumen gemacht) oder 'Flächenmodell offen' (nicht messbar).
@@ -247,6 +270,7 @@ def lies_step_info(pfad):
         r = caf.ChangeReader()
     except ImportError:
         caf, r = None, STEPControl_Reader()
+    _grosse_datei_einstellen([x for x in (caf, r) if x is not None], pfad)  # CAF-Leser hat eigene Werte
     status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
     fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
     if status != IFSelect_RetDone:
@@ -660,8 +684,18 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
         else:
             gruppen.append([s])
     if not gruppen:
-        return []
-    return max(gruppen, key=lambda g: (len(g), g[0][2]))
+        return [] if n >= REGEL_DICHT else _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
+    beste = max(gruppen, key=lambda g: (len(g), g[0][2]))
+    if len(beste) < 3 and n < REGEL_DICHT:
+        # viele Ausschnitte (Rohr voller Langlöcher): die meisten Schnitte treffen ein Merkmal, dichter suchen, damit
+        # die Achse aus drei gleichen Querschnitten sicher ist
+        dicht = _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
+        if len(dicht) > len(beste):
+            return dicht
+    return beste
+
+
+REGEL_DICHT = 41      # Schnitte, wenn bei 7 Schnitten keine drei gleichen Regelquerschnitte gefunden werden
 
 
 def _min_rechteck(pts):
@@ -2753,6 +2787,14 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
     t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    if STEGE:           # vom Programm gewähltes größeres Profil: Winkel/U als virtuelles Bauteil mit Stegen
+        try:
+            from step_schenkel import mit_stegen, ziel_lesen
+            v = mit_stegen(solid, t, ziel_lesen(STEGE), datei, koerper, netz)
+        except Exception:  # dann gilt die Messung wie gezeichnet (das Programm rechnet mit der Formel)
+            v = None
+        if v is not None:
+            return v
     try:
         from step_offenes_rohr import schliessen
         schliessen(solid, t, datei, koerper, netz)
@@ -2826,16 +2868,19 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     mehrachsig = bool(fl and (fl.get("abwicklung") or {}).get("mehrachsig"))
     # geschlossenes Hohlprofil (Rohr) mit sicherer Achse bleibt Rohr: Gehrungen an beiden Enden drücken das Volumen
     # unter Querschnitt × Länge (RE 80x40, 480 mm, 2 × 45°: 83 %), das ist kein ausgeschnittenes Kantteil
-    rohr = t is not None and bool(t.kammern) and t.sicherheit.get("achse") == "sicher" and not mehrachsig
-    if fl and fl["art"] == "gekantet" and (t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
-                                           or t.profilform == "offenes Sonderprofil" or mehrachsig
-                                           or (volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge and not rohr)):
+    # Patrick 26.10.2026: ein geschlossenes Rohr ist immer ein Rohr, keine Ausnahme (auch wenn die Achse wegen vieler
+    # Langlöcher nur "wahrscheinlich" ist oder die Ausschnitte das Volumen drücken)
+    rohr = t is not None and bool(t.kammern) and t.profilform not in ("", "offenes Sonderprofil")
+    if fl and fl["art"] == "gekantet" and not rohr and (
+            t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
+            or t.profilform == "offenes Sonderprofil" or mehrachsig
+            or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
         b.alternative = _als_profil(solid, b, None, t)
         return b
     if t.profilform:
         t.bauteiltyp = "Profil"
-        if fl and t.alternative is None and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
+        if fl and t.alternative is None and not rohr and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
             try:      # Grenzfall: auch als (gekantetes) Blech messen, im Prüfdialog wählbar
                 t.alternative = _blech_teil(solid, datei, koerper, fl, volumen, False, daten and dict(daten))
             except Exception:  # Zweitmessung darf die Messung nie verhindern
@@ -3670,8 +3715,14 @@ def _verbund_pruefen(teile, koerper):
 EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET_ANTEIL"}
 
 
+STEGE = None    # größeres Profil gleicher Form („Form|A|B|Wand“): Winkel/U als virtuelles Bauteil (step_schenkel)
+
+
 def einstellen(werte):
-    """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe)."""
+    """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe) und das
+    größere Profil für Winkel/U mit Stegen (Schlüssel stege, step_schenkel)."""
+    global STEGE
+    STEGE = (werte or {}).get("stege") or None
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85}
     for name, glob in EINSTELLBAR.items():
         v = (werte or {}).get(name)

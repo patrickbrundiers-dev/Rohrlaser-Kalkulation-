@@ -31,7 +31,7 @@ from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_zukaufteil, kein_laserteil
-from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
+from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
@@ -507,10 +507,10 @@ class AngeboteSeite(QWidget):
         self.neu_laden()
         self.oeffnen.emit(i)
 
-    def neu_aus_step(self, dateien=None, kundennr=None):
-        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py)."""
+    def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
+        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare."""
         from . import step_neu
-        return step_neu.neues_angebot(self.f, dateien, kundennr)
+        return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
     # STEP-Dateien oder Ordner auf die Liste ziehen: neues Angebot (W11)
     def dragEnterEvent(self, ereignis):
@@ -644,6 +644,10 @@ SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id",
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
+# Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
+PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
+                        "konturen", "kontur_grenzen", "klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n",
+                        "gross_mm")
 RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelklick: Schneidweg-Rechner
 # Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
 VORSCHAU_FELDER = ("technik", "laenge", "profil_id", "art", "konturen", "a_ende", "b_ende", "a_schnitt", "b_schnitt")
@@ -1026,7 +1030,8 @@ class PositionenModell(QAbstractTableModel):
         self.s.db.position_aendern(p["id"], f.name, wert)
         if f.name in ("konturen", "kontur_grenzen"):     # Konturliste geändert: beim Neuladen neu einteilen
             self.s.db.position_aendern(p["id"], "kontur_grenzen", None)
-        self.s.f.meldung(f"{f.titel} gespeichert.")
+        neu = self.s.profil_gewechselt(dict(p, profil_id=wert)) if f.name == "profil_id" else None
+        self.s.f.meldung(f"{f.titel} gespeichert." + (f" {neu}" if neu else ""))
         self.geaendert.emit()
         return True
 
@@ -1606,12 +1611,7 @@ class AngebotSeite(QWidget):
         oben_rahmen.setFrameShape(QFrame.NoFrame)
         oben_rahmen.setWidget(self.kopf_bereich)
         # Übersicht als rechte Spalte über die ganze Höhe: Preise immer im Blick, die Reiter bekommen mehr Höhe
-        self.uebersicht_rahmen = QScrollArea()
-        self.uebersicht_rahmen.setWidgetResizable(True)
-        self.uebersicht_rahmen.setFrameShape(QFrame.NoFrame)
-        self.uebersicht_rahmen.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.uebersicht_rahmen.setWidget(self.uebersicht_bereich)
-        self.uebersicht_rahmen.setMinimumWidth(UEBERSICHT_MIN)
+        self.uebersicht_rahmen = UebersichtRahmen(self.uebersicht_bereich, UEBERSICHT_MIN)
 
         # Aktionen in drei Gruppen (Layout-Plan L9): Erfassen · Rechnen · Ausgeben. Rechts nur Angebot (PDF) als
         # Knopf, alle weiteren Ausgaben im Menü „Ausgaben“; Positionen löschen über Rechtsklick oder Entf
@@ -2053,7 +2053,9 @@ class AngebotSeite(QWidget):
     def auto_optimieren(self):
         """Automatisch optimieren (W1), ohne Meldungsfenster. Ergebnis: True = optimiert, False = nicht nötig oder
         gescheitert (Grund in der Statuszeile, gleiche Eingaben werden nicht erneut versucht)."""
-        if QApplication.activeModalWidget() is not None:     # Dialog offen: danach erneut versuchen
+        # Dialog offen oder Zelle in Bearbeitung (Neuladen würde den Editor schließen): danach erneut versuchen
+        if QApplication.activeModalWidget() is not None or \
+                self.pos_ansicht.state() == QAbstractItemView.EditingState:
             self._auto_timer.start(self.AUTO_PAUSE_MS)
             return False
         if not self.auto_optimieren_moeglich():
@@ -2361,7 +2363,20 @@ class AngebotSeite(QWidget):
             kunde=(self.db.kunde(kundennr) or {}) if kundennr else None, preis_abweichung=preis_abweichung,
             mindestmarge=self.db.einstellung("mindestmarge") or 0,
             admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin),
-            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k))
+            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k),
+            staffel_widersprueche=self._staffel_widersprueche(zeilen))
+
+    def _staffel_widersprueche(self, kalk_zeilen):
+        """Staffelpreise (letzter gespeicherter Stand), die im Angebots-PDF dem Preis der Zeile widersprechen
+        (ausgabe.staffel_widersprueche); ohne Stufen nichts."""
+        sp = (self.kopf.get("staffelpreise") or {}).get("zeilen")
+        if not self.stufen or not sp:
+            return []
+        try:
+            return ausgabe.staffel_widersprueche(ausgabe.angebot(self.kopf, self.positionen, kalk_zeilen, self.k,
+                                                                 self.einst, sp, ergebnis=self.ergebnis))
+        except (ValueError, TypeError, KeyError, ZeroDivisionError):     # unvollständiges Angebot: ohne Prüfung
+            return []
 
     def check_link(self, ziel):
         """„Hinspringen“ aus dem Angebots-Check (Übersicht oder Fenster); ziel wie angebot_check (ohne 'check:')."""
@@ -2639,12 +2654,12 @@ class AngebotSeite(QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, DXF, LEER, RAHMEN, ROHR, SCHWEISS, ZUKAUF, TypDialog
+        from .neue_position import BLECH, DXF, LEER, PDF, RAHMEN, ROHR, SCHWEISS, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
             else:
-                d = TypDialog(self)
+                d = TypDialog(self, pdf=self.db.einstellung("pdf_zeichnung") == "ja")
                 if d.exec() != QDialog.Accepted or not d.typ:
                     return None
                 typ = d.typ
@@ -2652,6 +2667,8 @@ class AngebotSeite(QWidget):
             return typ if self.blech_neu(dialog=dialog) else None
         if typ == DXF:
             return typ if self.blech_aus_dxf() else None
+        if typ == PDF:
+            return typ if self.rohr_aus_pdf(dialog=dialog) else None
         if typ == ZUKAUF:
             return typ if self.zukauf_schnell(zeilen=[], blech=False) else None
         if typ == ROHR:
@@ -2829,7 +2846,7 @@ class AngebotSeite(QWidget):
             pid = dxf_rohr.profil_id(dxf[1]["profil"], self.k.profile) or \
                 dxf_rohr.ersatz_profil(dxf[1]["profil"], self.k.profile) or pid
         p = dict(pos=self._naechste_pos(), profil_id=pid, werkstoff_id=wst if wst in self.k.werkstoffe else None,
-                 stueck=1)
+                 stueck=(dxf[1].get("stueck") if dxf else None) or 1)
         d = SchneidwegDialog(self, p, self.k.profile[pid], self.kopf, self.k, self.tabellen, self.db, self.positionen,
                              neu=True)
         if dxf:
@@ -2860,6 +2877,85 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
                        f"{rechnen.zahl(erg['schneidweg'], 1)} mm.")
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid_neu), None))
+        return True
+
+    def rohr_aus_pdf(self, pfade=None, dialog=None, zuordnung=None, wand=None):
+        """Rohrteile aus PDF-Zeichnungen (Plan W7, Test): ein PDF aus dem CAD (Linien) geht durch die Rohrerkennung
+        der DXF (Stufe 2, pdf_vektor.py: Enden und Konturen, bei Unsicherheit das Zuordnungsfenster); sonst Profil,
+        Länge, Werkstoff, Artikel, Benennung und Stückzahl aus dem Text (Stufe 1, Scans mit Tesseract,
+        pdf_zeichnung.py). Profil nur aus den Maßen am Schnitt (ohne Wand): die Wandstärke wird aus den passenden
+        Profilen der Stammdaten gewählt. Je Datei öffnet der Rohr-Editor damit. dialog(d) bedient den Rohr-Editor,
+        zuordnung(d) das Zuordnungsfenster, wand(liste) die Wahl der Wandstärke statt exec (Tests). Ergebnis: Anzahl
+        angelegter Positionen."""
+        from . import dxf_rohr_dialog, pdf_vektor, pdf_zeichnung
+        if self.fremd():
+            return 0
+        if not pfade:
+            pfade, _ = QFileDialog.getOpenFileNames(self, "Aus PDF-Zeichnung", str(self.db.einstellung("dxf_ordner") or ""),
+                                                    "Zeichnungen (*.pdf *.PDF *.png *.jpg *.jpeg *.tif *.tiff)")
+            if not pfade:
+                return 0
+            self.db.einstellung_setzen("dxf_ordner", str(Path(pfade[0]).parent))
+        n = 0
+        for pfad in pfade:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            try:
+                erg = pdf_zeichnung.erkennen(pfad, self.f.programmordner)
+                try:
+                    linien = pdf_vektor.dxf_text(pfad) if Path(pfad).suffix.lower() == ".pdf" else None
+                except Exception:       # beschädigtes PDF o. ä.: nur der Text
+                    linien = None
+            finally:
+                QApplication.restoreOverrideCursor()
+            if linien:
+                lin = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung, text=linien)
+                if lin["ok"] and not lin.get("abgebrochen"):
+                    erg = pdf_zeichnung.mit_linien(lin, erg)
+                elif erg["ok"]:         # Zuordnung abgebrochen oder kein Rohr in den Linien: nur der Text
+                    erg["hinweise"].append("Die Linien der Zeichnung ergaben kein Rohr: nur Angaben aus dem Text.")
+            if not erg["ok"]:
+                self.f.meldung(f"{Path(pfad).name}: " + " ".join(erg["warnungen"]), fehler=True)
+                continue
+            if erg["profil"].get("wand") is None and not self._wand_waehlen(erg, Path(pfad).name, wand):
+                continue
+            n += bool(self.rohr_neu(dialog=dialog, dxf=(Path(pfad).name, erg)))
+        if n > 1:
+            self.f.meldung(f"{n} Positionen aus PDF-Zeichnungen angelegt.")
+        return n
+
+    def _wand_waehlen(self, erg, name, wand=None):
+        """Profil ohne Wandstärke (aus den Maßen am Schnitt einer PDF-Zeichnung): die Profile der Stammdaten mit
+        gleicher Form und gleichem Außenmaß zur Wahl (eines: ohne Frage), ohne solche das ähnlichste der Form. Setzt
+        erg['profil']['wand']; False = abgebrochen oder kein Profil der Form."""
+        from . import dxf_rohr
+        pr = erg["profil"]
+        passend = sorted((pid for pid, p in self.k.profile.items() if p.get("form") == pr["form"]
+                          and abs(float(p.get("a") or 0) - pr["a"]) < 0.05
+                          and abs(float(p.get("b") or p.get("a") or 0) - pr["b"]) < 0.05),
+                         key=lambda pid: float(self.k.profile[pid].get("wand") or 0))
+        if not passend:
+            pid = dxf_rohr.ersatz_profil(dict(pr, wand=0.0), self.k.profile)
+            if not pid:
+                self.f.meldung(f"{name}: kein {pr['form']} in den Stammdaten.", fehler=True)
+                return False
+            erg["warnungen"].append(f"Kein Profil {dxf_rohr._z(pr['a'])}×{dxf_rohr._z(pr['b'])} in den Stammdaten: "
+                                    f"das ähnlichste ({pid}) ist gewählt.")
+        elif len(passend) == 1:
+            pid = passend[0]
+        else:
+            if wand:
+                pid = wand(passend)
+            else:
+                pid, ok = QInputDialog.getItem(self, "Wandstärke wählen",
+                                               f"{name}: Profil {dxf_rohr._z(pr['a'])}×{dxf_rohr._z(pr['b'])} aus den "
+                                               "Maßen am Schnitt, die Wandstärke steht nicht in der Zeichnung.\n"
+                                               "Profil:", passend, 0, False)
+                pid = pid if ok else None
+            if not pid:
+                return False
+        p = self.k.profile[pid]
+        erg["profil"] = dict(form=p.get("form"), a=float(p.get("a") or 0), b=float(p.get("b") or p.get("a") or 0),
+                             wand=float(p.get("wand") or 0))
         return True
 
     def blech_neu(self, dialog=None):
@@ -3637,7 +3733,7 @@ class AngebotSeite(QWidget):
         profil = rechnen.profil_im_angebot(profil, self.kopf, q.get("profil_id"), q.get("werkstoff_id"), self.k)
         m = rechnen.maschine(self.kopf, self.k)
         erg = schneidweg.rechnen(eingaben, profil, rechnen.kontur_regel(m, rechnen.wand_schneiden(profil)),
-                                 gewinde_liste(self.tabellen), m)
+                                 gewinde_liste(self.tabellen), m, laenge=laenge or q.get("laenge"))
         if erg["fehler"]:
             return None, " ".join(erg["fehler"])
         p = dict(q, **erg["felder"])
@@ -3868,7 +3964,8 @@ class AngebotSeite(QWidget):
             naht_neu = {}
         profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
-        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k),
+                                 laenge=p.get("laenge"))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False
@@ -3906,6 +4003,73 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
+    def profil_gewechselt(self, p):
+        """Profil einer Position aus dem STEP-Import in der Tabelle geändert (Patrick 25.10.2026: Winkel 33x30x6 auf
+        60x40x6): Enden, Konturen und – bei Winkel/U/C aus einem größeren Profil – die Längsschnitte zwischen den
+        Stegen 2 mm wie im Rohr-Editor neu rechnen (schneidweg.rechnen) und in die Position schreiben. Ergebnis: Text
+        für die Meldung oder None (keine STEP-Werte, Profil unbekannt, Fehler)."""
+        e = schneidweg.lesen(p.get("technik"))
+        pid = p.get("profil_id")
+        profil = self.k.profile.get(pid) or opt.profil_aus_name(pid) if pid else None
+        if not p.get("technik") or e.get("quelle") != schneidweg.QUELLE_STEP or not profil or kein_laserteil(p):
+            return None
+        profil = dict(profil, profil_id=pid)
+        neu = self._profil_neu_messen(p, e, profil)
+        if neu:
+            return neu
+        if pid in self.k.profile:
+            profil = rechnen.profil_im_angebot(profil, self.kopf, pid, p.get("werkstoff_id"), self.k)
+        m = rechnen.maschine(self.kopf, self.k)
+        e, _ = schneidweg.aus_position(e, p, profil)
+        erg = schneidweg.rechnen(e, profil, rechnen.kontur_regel(m, rechnen.wand_schneiden(profil)),
+                                 gewinde_liste(self.tabellen), m, laenge=p.get("laenge"))
+        if erg["fehler"]:
+            return None
+        for name in PROFILWECHSEL_FELDER:
+            if name in erg["felder"]:
+                self.db.position_aendern(p["id"], name, erg["felder"][name])
+        sk = next((h for h in erg["hinweise"] if "Schenkel gekürzt" in h or "aus dem Rohr" in h), None)
+        return f"Schneidweg für {pid} neu gerechnet: {rechnen.zahl(erg['schneidweg'], 1)} mm" + \
+            (f" ({sk})" if sk else "") + "."
+
+    def _profil_neu_messen(self, p, e, profil):
+        """Profilwechsel einer Position mit gemessenem Winkel/U (technik step_datei, schenkel_mess): größeres Profil
+        gleicher Form -> virtuelles Bauteil mit Stegen messen, gezeichnetes Profil -> wie gezeichnet messen; Werte und
+        3D-Netz der Position ersetzen. Ergebnis: Text für die Meldung oder None (keine Datei, nicht messbar)."""
+        mess = schneidweg._messprofil(e.get("schenkel_mess"))
+        pfad = e.get("step_datei")
+        if not mess or not pfad or not Path(pfad).is_file() or profil.get("form") != mess["form"]:
+            return None
+        m0 = dict(profilform=mess["form"], abm_a=mess["a"], abm_b=mess["b"], wandstaerke=mess["wand"],
+                  laenge=e.get("l_step"))
+        ziel = step.stege_ziel(m0, profil)
+        gleich = not ziel and all(abs(float(profil.get(x) or 0) - y) <= step.TOL_MASS
+                                  for x, y in (("a", max(mess["a"], mess["b"] or 0)), ("b", min(mess["a"], mess["b"] or 0))))
+        if not ziel and not gleich:
+            return None
+        if ziel:
+            zeilen = self._virtuell_messen(pfad, ziel)
+        else:
+            zeilen = self.step_messen([pfad])
+        z = next((x for x in zeilen or () if str(x.get("koerper")) == str(e.get("step_koerper") or 1)), None)
+        if z is None or (ziel and "stege=virtuell" not in (z.get("sicherheit") or "")):
+            return None
+        m = dict(z, _uebernehmen=True, _pfad=pfad, _profil=profil["profil_id"])
+        if ziel:
+            m["_mess_original"] = m0
+        erg = step.uebernehmen([m], [], self.k, self.tabellen["gewinde"], rechnen.maschine(self.kopf, self.k),
+                               p.get("werkstoff_id"), p.get("stueck"))
+        if not erg["positionen"]:
+            return None
+        q = erg["positionen"][0]
+        for name in PROFILWECHSEL_FELDER + ("technik",):
+            if name in q:
+                self.db.position_aendern(p["id"], name, q[name])
+        if q.get("_netz"):
+            self.db.netz_speichern(p["id"], q["_netz"])
+        return (f"Schneidweg für {profil['profil_id']} neu gemessen: {rechnen.zahl(q['schneidweg'], 1)} mm"
+                + (" (Bauteil mit Stegen 2 mm)." if ziel else " (wie gezeichnet)."))
+
     def _radius_uebernehmen(self, p, eingaben):
         """Außenradius aus dem Rechner (eingaben['r_aussen']) als Radius des Angebots für Profil + Werkstoff speichern
         und die übrigen Positionen der Gruppe mit Eingaben des Rechners neu rechnen (Positionen ohne Eingaben rechnen
@@ -3932,7 +4096,7 @@ class AngebotSeite(QWidget):
             profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, wst, self.k)
             grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
             erg = schneidweg.rechnen(e, profil, grenzen, gewinde_liste(self.tabellen),
-                                     rechnen.maschine(self.kopf, self.k))
+                                     rechnen.maschine(self.kopf, self.k), laenge=q.get("laenge"))
             if erg["fehler"]:
                 continue
             for name in ("schneidweg", "a_schnitt", "b_schnitt"):
@@ -4333,7 +4497,7 @@ class AngebotSeite(QWidget):
         return self.st_seite.rechnen()
 
     def staffelpreise_aktuell(self):
-        """Staffelpreise fürs Angebot; veraltete werden vorher neu gerechnet. None = abgebrochen."""
+        """Staffelpreise fürs Angebot, ohne neuen Mengenlauf (nie automatisch): veraltete Stufen fehlen."""
         return self.st_seite.aktuell()
 
     # -------------------------------------------------------------- Ausgabe (PDF, CSV)
@@ -4437,8 +4601,6 @@ class AngebotSeite(QWidget):
         if not self._vor_ausgabe(pruefen=not self.fremd(), weiter="Angebot erstellen"):
             return None
         uebergangen = self.check_uebergangen
-        if not self.fremd() and not self.db.nur_lesen:
-            self.st_seite.standard_auto()       # Standard-Staffeln, falls das Angebot noch keine Stufe hat (W3)
         ang = self.angebot_daten()
         if ang is None:
             return None
@@ -4863,8 +5025,11 @@ class AngebotSeite(QWidget):
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage else None
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
-    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False):
-        """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
+    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
+                         formulare=None):
+        """STEP-Dateien messen und übernehmen. formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
+        Stückzahlen je
+        Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja). kunde_waehlen: Kunde oben im Prüfdialog wählen
         (neues Angebot aus STEP, Plan Bedienung B1). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
         doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF."""
@@ -4880,12 +5045,26 @@ class AngebotSeite(QWidget):
             return None
         messwerte, json_ablage = gemessen
         dateien = list(getattr(self, "step_dateien_zuletzt", None) or dateien or [])
+        pfade = {Path(d).name: str(d) for d in step.step_dateien(dateien)}
+        for m in messwerte:             # STEP-Datei je Teil (virtuelles Bauteil beim Profilwechsel, step_schenkel)
+            if m.get("datei") in pfade:
+                m["_pfad"] = pfade[m["datei"]]
         # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
+        formular_bericht = None
+        if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
+            from . import formular
+            namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
+            st = formular.stueck_aus(formulare, namen)
+            n = formular.stueck_setzen(messwerte, st)
+            unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
+            formular_bericht = (f"Stückzahlen aus dem Anfrageformular: {n} Teil(e)"
+                                + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
+                                + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else ""))
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
@@ -4920,7 +5099,7 @@ class AngebotSeite(QWidget):
                 if self.flach_bis() != flach_gemessen:      # flache Teile gibt der Kunde anders vor: neu messen
                     self.f.meldung("Der gewählte Kunde gibt flache Teile anders vor (Importprofil) – die STEP-Dateien "
                                    "werden dafür neu gemessen.")
-                    return self.step_importieren(dateien, None, stueck, als_satz)
+                    return self.step_importieren(dateien, None, stueck, als_satz, formulare=formulare)
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
@@ -4928,6 +5107,7 @@ class AngebotSeite(QWidget):
         mehr = step.mehrteilig(messwerte, mit_blechen=True)
         if als_satz is None:        # Prüfdialog: Feld „Sätze“ je Datei (leer = Einzelpositionen); ohne Dialog als Satz
             als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
+        stege_bericht = self._stege_messen(messwerte)
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
                                neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
@@ -4971,6 +5151,10 @@ class AngebotSeite(QWidget):
             erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
         if gelernt:
             erg["bericht"].append(gelernt)
+        if formular_bericht:
+            erg["bericht"].append(formular_bericht)
+        if stege_bericht:
+            erg["bericht"].append(stege_bericht)
         if kopieren:
             erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
@@ -4989,6 +5173,46 @@ class AngebotSeite(QWidget):
                                                                                      "step_normteile")})
         ws = importprofil.vorgaben(profil).get("werkstoff") or self.db.einstellung("step_werkstoff") or None
         return ws if ws in self.k.werkstoffe else None
+
+    def _virtuell_messen(self, pfad, ziel):
+        """Eine STEP-Datei mit STEP-Import.exe --stege ziel messen (Winkel/U aus größerem Profil als virtuelles
+        Bauteil, step_messung/step_schenkel). Ergebnis: Messwerte je Körper (mit 3D-Netz) oder None."""
+        befehl = step.messprogramm(self.f.programmordner)
+        if befehl is None or not Path(pfad).is_file():
+            return None
+        with tempfile.TemporaryDirectory() as tmp:
+            ausgabe, netze = Path(tmp) / "messwerte.txt", Path(tmp) / "netze"
+            if not self._messen(befehl + [str(pfad), "--ausgabe", str(ausgabe), "--netze", str(netze), "--stege", ziel,
+                                          "--flachstahl-bis", str(self.flach_bis())]
+                                + step_einstellungen.mess_argumente(self.db), 1, ausgabe) or not ausgabe.exists():
+                return None
+            return step.lade_netze(step.lies_messwerte(ausgabe), netze)
+
+    def _stege_messen(self, messwerte):
+        """Winkel/U, für die im Prüfdialog ein größeres Profil gleicher Form gewählt ist (Patrick 26.10.2026: „ein
+        virtuelles Bauteil anlegen“): Teil + Stege 2 mm des größeren Profils neu messen und die Messwerte ersetzen;
+        ohne Messung (Datei fehlt, Enden nicht eben) rechnet die Übernahme mit der Formel. Ergebnis: Berichtzeile."""
+        auftraege = {}
+        for i, m in enumerate(messwerte):
+            if m.get("fehler") or not step.gewaehlt(m) or not m.get("_pfad") or not m.get("_profil"):
+                continue
+            pr = self.k.profile.get(m["_profil"]) or opt.profil_aus_name(m["_profil"])
+            ziel = step.stege_ziel(m, pr)
+            if ziel:
+                auftraege.setdefault((m["_pfad"], ziel), []).append(i)
+        gemessen, formel = 0, 0
+        for (pfad, ziel), liste in auftraege.items():
+            neu = {str(z.get("koerper")): z for z in self._virtuell_messen(pfad, ziel) or ()}
+            for i in liste:
+                z = neu.get(str(messwerte[i].get("koerper")))
+                if z and step.virtuell_einsetzen(messwerte[i], z):
+                    gemessen += 1
+                else:
+                    formel += 1
+        if not gemessen and not formel:
+            return None
+        return (f"Winkel/U aus größerem Profil: {gemessen} Teil(e) als Bauteil mit Stegen 2 mm gemessen"
+                + (f", {formel} mit der Formel gerechnet (Enden nicht eben oder Messung nicht möglich)" if formel else ""))
 
     def _step_kopieren(self, dateien):
         """STEP-Dateien in den Unterordner STEP des Angebotsordners kopieren. Ergebnis: Zeile für den Bericht."""

@@ -394,12 +394,12 @@ alle = list(range(len(seite.positionen)))
 ohne = json.dumps([dict(name="Feuerverzinken"), dict(name="Entgraten")])
 assert seite.zusatzarbeiten(alle, (None, ohne))
 assert seite.optimieren()
-preise_ohne = [(x["menge"], x["preis_einheit"]) for x in seite.staffelpreise_aktuell()]
+preise_ohne = [(x["menge"], x["preis_einheit"]) for x in seite.staffelpreise_rechnen()]
 katalog = {z["name"]: z for z in db.zeilen("zusatzarbeiten")}
 mit = json.dumps([dict(name=n, stand=rechnen.zusatz_stand(katalog[n])) for n in ("Feuerverzinken", "Entgraten")])
 assert seite.zusatzarbeiten(alle, (None, mit))
 assert seite.optimieren()
-preise_mit = [(x["menge"], x["preis_einheit"]) for x in seite.staffelpreise_aktuell()]
+preise_mit = [(x["menge"], x["preis_einheit"]) for x in seite.staffelpreise_rechnen()]
 assert preise_ohne == preise_mit and len(preise_mit) >= 2, (preise_ohne, preise_mit)
 f.close()
 db.schliessen()

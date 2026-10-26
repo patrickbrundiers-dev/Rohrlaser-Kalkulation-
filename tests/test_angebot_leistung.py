@@ -101,7 +101,6 @@ for schl, menge in (("10", 24), ("10", 50), ("10", 100), ("20", 10), ("20", 40),
     db.staffel_neu(a, dict(schluessel=schl, menge=menge))
 s = f.angebot_oeffnen(a)
 s.optimieren()
-s.st_seite._timer.stop()
 f.angebot_schliessen(a)
 app.processEvents()
 
@@ -124,7 +123,6 @@ angebot_fenster.AngebotSeite._neu_laden = laden_zaehlen
 try:
     t = dauer(lambda: f.angebot_oeffnen(a))
     s = f.offen[a]
-    s.st_seite._timer.stop()
     assert zaehler["neu_laden"] == 1, f"Öffnen lädt {zaehler['neu_laden']}x"
     ok(f"Angebot öffnen lädt einmal ({t:.2f} s, Grenze {GRENZE_OEFFNEN} s)")
     assert t < GRENZE_OEFFNEN, t
@@ -140,14 +138,11 @@ c = next(i for i, (_, fd) in enumerate(m.spalten) if getattr(fd, "name", None) =
 zeiten = []
 for wert in ("7", "9", "11"):
     zeiten.append(dauer(lambda: (m.setData(m.index(0, c), wert, Qt.EditRole), app.processEvents())))
-    s.st_seite._timer.stop()
 t = sorted(zeiten)[1]
 assert t < GRENZE_ZELLE, zeiten
 ok(f"Zelle ändern bis Anzeige fertig {t:.2f} s (Grenze {GRENZE_ZELLE} s)")
 
 t = dauer(s.angebot_pdf)
-s.st_seite.warten(600)
-s.st_seite._timer.stop()
 assert t < GRENZE_PDF, t
 ok(f"Knopf Angebots-PDF mit Staffeln {t:.2f} s (Grenze {GRENZE_PDF} s)")
 f.angebot_schliessen(a)

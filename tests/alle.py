@@ -44,6 +44,8 @@ TESTS = [
     ("test_anbau_gravur.py", QT),
     ("test_step_kantteile.py", {}),
     ("test_offenes_rohr.py", QT),
+    ("test_winkel_virtuell.py", QT),
+    ("test_step_importfehler.py", QT),
     ("test_step_messung_robust.py", QT),
     ("test_step_struktur.py", {}),
     ("test_step_leistung.py", {}),
@@ -74,7 +76,7 @@ TESTS = [
     "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_satz3d.py", "test_satz_knick.py", "test_baugruppe_vorschlaege.py", "test_steck_montage.py", "test_montagefolge.py", "test_rahmen_assistent.py", "test_gravur.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py",
-    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_nachfassen.py", "test_bedienung.py", "test_eingabefelder.py", "test_anleitung.py",
+    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_design_pruefung.py", "test_anfragen.py", "test_formular.py", "test_pdf_zeichnung.py", "test_pdf_vektor.py", "test_nachfassen.py", "test_bedienung.py", "test_eingabefelder.py", "test_anleitung.py",
     "test_performance_update.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)

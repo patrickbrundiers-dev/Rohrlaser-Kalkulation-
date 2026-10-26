@@ -868,6 +868,9 @@ EINSTELLUNGEN = (
                 "(Vorgabe des Häkchens im Baugruppen-Editor)", "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     Einstellung("gravur_schrifthoehe", "Gravur: Schrifthöhe der Artikelnummer [mm]", "Schweißbaugruppen", "zahl", 10.0,
                 1, 200),
+    # Plan W7 Stufe 1 (Patrick 26.10.2026: erst optional zum Testen): Neue Position aus dem Schriftfeld einer PDF
+    Einstellung("pdf_zeichnung", "Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“", "STEP-Import",
+                "auswahl", "nein", auswahl="janein"),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "STEP-Import", "zahl", 150.0, 1, 10000),
     # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
@@ -940,7 +943,7 @@ EINSTELLUNGEN = (
     # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
-    # Standard-Staffeln (Plan Arbeitsabläufe W3): Faktoren auf die Bestellmenge, angelegt vor dem ersten Angebots-PDF
+    # Standard-Staffeln (Plan Arbeitsabläufe W3): Faktoren auf die Bestellmenge, angelegt per Knopf
     Einstellung("staffeln_standard", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
                 "Angebot", "text", "1; 2; 5"),
     Einstellung("briefkopf_1", "Briefkopf Zeile 1 (Firma)", "Angebots-PDF", "text", "Firmenname"),
@@ -969,6 +972,8 @@ EINSTELLUNGEN = (
                 "ganz", 10, 0, 365),
     # je Angebot ein Ordner darin (angebotsordner.py): '2026-00042 Kunde', Fassungen als 'Fassung 2'
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "ordner", ""),
+    # Anfrage-Ordner (Plan W6a): neue STEP-Anfragen erscheinen auf der Startseite (anfragen.py)
+    Einstellung("anfrage_ordner", "Anfrage-Ordner (leer = aus)", "Ablage", "ordner", ""),
     # CSV-Export (Patrick 24.10.2026): zuletzt gewählter Zielordner, nur dieser Arbeitsplatz
     Einstellung("csv_ordner", "CSV-Export: zuletzt gewählter Ordner (leer = Ordner des Angebots)", "Ablage", "ordner",
                 ""),

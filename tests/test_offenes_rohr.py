@@ -445,5 +445,62 @@ def winkel_aus_groesserem():
 
 fall("Winkel/U/C aus größerem Profil (Schenkel gekürzt, Stege 2 mm) oder aus dem Rohr (Ringe + Fenster)", winkel_aus_groesserem)
 
+
+def winkel_33_auf_60():
+    # Patricks Fall 25.10.2026: Winkel 33x30x6 auf 60x40x6 geändert, die 2 mm Stege kamen nicht. (1) Profil fehlt in
+    # den Stammdaten und wird angelegt: Maße aus dem Namen, nicht aus der Messung; (2) Rohr-Editor rechnet dasselbe;
+    # (3) Profil erst nach dem Import in der Positionstabelle geändert: Schneidweg automatisch mit den Stegen
+    from rohrlaser import rechnen, schneidweg as sw
+    from rohrlaser.datenbank import Datenbank
+    from rohrlaser.fenster import Hauptfenster
+    schreibe(profil([(0, 0), (33, 0), (33, 6), (6, 6), (6, 30), (0, 30)], 500), "W33", tmp)
+    step_messen.main(["--ausgabe", str(tmp / "w33.txt"), "--netze", str(tmp / "w33"), str(tmp / "W33.step")])
+    w = step.lade_netze(step.lies_messwerte(tmp / "w33.txt"), tmp / "w33")[0]
+    assert w["profilform"] == "L-Profil" and w["profil_id_vorschlag"] == "L 33x30x6", w["profil_id_vorschlag"]
+    db = Datenbank(tmp / "w33.db")
+    k = db.kontext()
+    assert "L 60x40x6" not in k.profile
+    soll = 2 * (500 - 4) + 2 * (27 + 10)            # Längsschnitte zwischen den Stegen + Querschnitte um die Stege
+    erg = step.uebernehmen([dict(w, _uebernehmen=True, _profil="L 60x40x6")], [], k, db.zeilen("gewinde"), None,
+                           "S235-10219", 1, neue_profile=True)
+    p = erg["positionen"][0]
+    neu = next(x for x in erg["profile"] if x["profil_id"] == "L 60x40x6")
+    assert (neu["a"], neu["b"], neu["wand"]) == (60, 40, 6), neu
+    assert abs(p["innen"] - soll) < 0.1 and abs(p["schneidweg"] - (soll + 200)) < 0.1, (p["innen"], p["schneidweg"])
+    assert any("2 Schenkel gekürzt" in b for b in erg["bericht"]), erg["bericht"]
+    pr = dict(profil_id="L 60x40x6", form="L-Profil", a=60, b=40, wand=6)
+    r = sw.rechnen(sw.lesen(p["technik"]), pr, rechnen.kontur_regel(None, 6))
+    assert abs(r["felder"]["schneidweg"] - p["schneidweg"]) < 0.1 and abs(r["felder"]["innen"] - soll) < 0.1, r["felder"]
+    assert sum(1 for x in r["schritte"] if x.get("art") == "Längsschnitt") == 2 and r["felder"]["gross_n"] == 2, r
+    # ohne Profilwechsel: wie gemessen
+    ohne = step.uebernehmen([dict(w, _uebernehmen=True)], [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
+    p0 = ohne["positionen"][0]
+    assert p0["profil_id"] == "L 33x30x6" and not p0["innen"], p0
+    r = sw.rechnen(sw.lesen(p0["technik"]), dict(pr, profil_id="L 33x30x6", a=33, b=30), rechnen.kontur_regel(None, 6))
+    assert abs(r["felder"]["schneidweg"] - p0["schneidweg"]) < 0.1 and not r["felder"]["innen"], r["felder"]
+    # in der Positionstabelle geändert
+    db.profile_anlegen([dict(profil_id="L 33x30x6", form="L-Profil", a=33, b=30, wand=6),
+                        dict(profil_id="L 60x40x6", form="L-Profil", a=60, b=40, wand=6)])
+    fenster = Hauptfenster(db, tmp, stumm=True)
+    an = db.angebot_neu(dict(kunde="Test", kundennr="4711"))
+    werte = {x: p0.get(x) for x in ("pos", "artikel", "profil_id", "werkstoff_id", "laenge", "stueck", "schneidweg",
+                                    "einstiche", "innen", "technik", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade",
+                                    "konturen", "kontur_grenzen") if p0.get(x) is not None}
+    db.position_neu(an, dict(werte, stueck=1))
+    s = fenster.angebot_oeffnen(an)
+    spalte = next(i for i, (art, f) in enumerate(s.pos_modell.spalten) if art == "feld" and f.name == "profil_id")
+    assert s.pos_modell.setData(s.pos_modell.index(0, spalte), "L 60x40x6")
+    q = s.positionen[0]
+    assert q["profil_id"] == "L 60x40x6" and abs(q["innen"] - soll) < 0.1, {x: q.get(x) for x in werte}
+    assert abs(q["schneidweg"] - (soll + 200)) < 0.1 and q["a_schnitt"] == 100, q["schneidweg"]
+    assert s.pos_modell.setData(s.pos_modell.index(0, spalte), "L 33x30x6")     # zurück: wie gemessen
+    q = s.positionen[0]
+    assert abs(q["schneidweg"] - p0["schneidweg"]) < 0.1 and not q["innen"], q["schneidweg"]
+    fenster.close()
+
+
+fall("Winkel 33x30x6 → 60x40x6: Profil aus dem Namen angelegt, Stege 2 mm im Import, Rohr-Editor und in der Tabelle",
+     winkel_33_auf_60)
+
 print("Alle Tests OK" if not fehler else f"{fehler} Test(s) fehlgeschlagen")
 sys.exit(1 if fehler else 0)

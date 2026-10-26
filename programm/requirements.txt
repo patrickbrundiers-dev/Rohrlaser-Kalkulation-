@@ -2,3 +2,5 @@
 PySide6-Essentials==6.12.0
 reportlab==5.1.0
 cryptography==50.0.1
+# Anfrageformular lesen (Plan W6b/W6c): Text aus PDF, Seitenbilder für Tesseract
+pypdfium2==5.13.0

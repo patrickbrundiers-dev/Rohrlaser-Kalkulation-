@@ -46,8 +46,8 @@ from .stammdaten import Feld, kontext_aus
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
            "herstell", "herstell_einheit", "preis_einheit", "preis_gesamt", "hinweis")
 MAX_STUFEN = 200
-VERSION = 3          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag
-                     # (ältere gespeicherte Staffelpreise gelten als veraltet)
+VERSION = 4          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag;
+                     # 4: Schnittschema je Stufe (ältere gespeicherte Staffelpreise gelten als veraltet)
 
 PROZENT, EURO = "%", "€/Einheit"
 UMLEGEN, SEPARAT = "umlegen", "separat"
@@ -603,6 +603,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         gemeinsam.append(summen["fracht_hinweis"])
     if fracht_text:
         gemeinsam.append(fracht_text)
+    je[0][0]["schnittschema"] = schnittschema(kopf, lauf, erg, k, tabellen)    # einmal je Stufe
     for x, m in je:
         if not m:
             x["hinweis"] = "FEHLER: Satz/Pos. nicht im Angebot"
@@ -618,6 +619,36 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
                  laser=sum(w for _, w, _ in b["fertigung"]), ruesten=sum(w for _, w, _ in b["ruesten"]), bausteine=b,
                  hinweis="; ".join(text + gemeinsam) or None)
     return [x for x, _ in je]
+
+
+def schnittschema(kopf, positionen, erg, k, tabellen):
+    """Schnittschema eines Mengenlaufs (Patrick 26.10.2026: je Staffel sehen, woraus der Materialpreis kommt):
+    stangen = Stangen des Schnittplans (wie rechnen.optimieren), werte = rechnen.stangen_werte, abmessungen = je
+    Abmessung dict(profil, werkstoff, oberflaeche, stange, kunde, positionen, stangen, laengen [[Länge, Anzahl]],
+    meter, nutz_m, kg, preis_m (€/m, mit dem die Stangen rechnen), kosten (Stangenkosten inkl. Verschnitt),
+    ausnutzung). None ohne Stangen."""
+    if not (erg or {}).get("stangen"):
+        return None
+    abm = []
+    for g in rechnen.material_abmessungen(kopf, positionen, erg, k, tabellen):
+        if not g["stangen"]:
+            continue
+        abm.append(dict(profil=g["profil"], werkstoff=g["werkstoff"], oberflaeche=g["oberflaeche"], stange=g["stange"],
+                        kunde=bool(g["kunde"]), positionen=[txt(x) for x in g["positionen"]], stangen=g["stangen"],
+                        laengen=sorted([[ln, n] for ln, n in g["laengen"].items()]), meter=g["meter"],
+                        nutz_m=g["nutz_m"], kg=g["kg"], preis_m=None if g["kunde"] else g["wirksam"],
+                        kosten=g["kosten"], ausnutzung=g["ausnutzung"]))
+    return dict(stangen=erg["stangen"], werte=rechnen.stangen_werte(erg, kopf, positionen, k, tabellen),
+                abmessungen=abm)
+
+
+def schema_der_zeile(zeilen, z):
+    """Schnittschema der Stufe einer Ergebniszeile (gespeichert an einer Zeile der Stufe) oder None."""
+    if z.get("schnittschema"):
+        return z["schnittschema"]
+    if z.get("stufe") is None:
+        return None
+    return next((x["schnittschema"] for x in zeilen if x.get("stufe") == z["stufe"] and x.get("schnittschema")), None)
 
 
 def bausteine(summen, ohne_materialpreis=0):

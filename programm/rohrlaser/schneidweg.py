@@ -488,6 +488,67 @@ def konturen_umstellen(eingaben, profil):
     return dict(eingaben, konturen=konturen), hinweise, d_schnitt, d_gravur
 
 
+STEG = 2.0      # mm, Steg an den Enden eines Teils aus größerem Profil bzw. Ring aus dem Rohr (Patrick 25.10.2026)
+OFFEN_SCHENKEL = ("L-Profil", "U-Profil", "C-Profil")
+
+
+def messprofil_eingaben(eingaben):
+    """Gemessener Querschnitt der Eingaben (messprofil an Ende A bzw. B aus dem STEP-Import) als dict oder None."""
+    for s in ("a", "b"):
+        mp = _messprofil(((eingaben or {}).get(s) or {}).get("messprofil"))
+        if mp:
+            return mp
+    return None
+
+
+def schenkel_kuerzen(mess, profil, laenge):
+    """Winkel, U oder C aus einem größeren Profil (Patrick 25.10.2026: „Winkel 33x30x6 gab es nur als 60x40x6“).
+    mess = gemessener Querschnitt (form, a, b, wand), profil = Profil der Position, laenge = Teilelänge [mm].
+    Gleiche Form, größer: die Schenkel werden gekürzt, an den Enden bleibt je ein Steg STEG mm stehen – je gekürztem
+    Schenkel ein Längsschnitt zwischen den Stegen und zwei Querschnitte um die Stege (Breite, um die er kürzer wird).
+    U/C nur bei gleicher Steghöhe. Rohr statt des offenen Profils: je ein Ring STEG mm an den Enden, dazwischen
+    alles ausgeschnitten, was nicht zum Profil gehört – zwei Längsschnitte + je Ring der freie Umfang.
+    Ergebnis dict(schnitte=[Länge je Schnitt], schnitt=Summe, text) bzw. dict(schnitte=[], schnitt=0, text=Hinweis)
+    oder None (nichts zu kürzen)."""
+    from .rechnen import zahl
+    if not mess or not profil or mess.get("form") not in OFFEN_SCHENKEL:
+        return None
+    gemessen, laenge = mess["form"], _z(laenge)
+    a, b, pa, pb = _z(mess.get("a")), _z(mess.get("b")), _z(profil.get("a")), _z(profil.get("b"))
+    pid = profil.get("profil_id") or ""
+    if laenge <= 4 * STEG:
+        return None
+    if profil.get("form") == gemessen:
+        if gemessen == "L-Profil":
+            if (pa >= pb) != (a >= b):
+                pa, pb = pb, pa
+            kuerzer = [pa - a, pb - b]
+        else:                   # U/C: Steg (a) bleibt, beide Schenkel (b) kürzer
+            if abs(pa - a) > 0.3:
+                return dict(schnitte=[], schnitt=0.0,
+                            text=f"{gemessen} aus {pid}: Steghöhe anders, Schneidweg bitte prüfen".replace("  ", " "))
+            kuerzer = [pb - b, pb - b]
+        if any(x < -0.3 for x in (pa - a, pb - b)):
+            return None
+        kuerzer = [x for x in kuerzer if x > 0.3]
+        if not kuerzer:
+            return None
+        schnitte = [laenge - 2 * STEG + 2 * x for x in kuerzer]
+        return dict(schnitte=schnitte, schnitt=sum(schnitte),
+                    text=(f"{gemessen} aus {pid}: {len(kuerzer)} Schenkel gekürzt, je ein Steg {zahl(STEG, 0)} mm "
+                          f"an den Enden (Schnitt {zahl(sum(schnitte), 1)} mm)").replace("  ", " "))
+    if profil.get("form") in ("Quadratrohr", "Rechteckrohr", "Rundrohr"):
+        u_rohr = opt.schnittlaenge(profil["form"], pa, pb or pa, profil.get("wand"))
+        belegt = opt.schnittlaenge(gemessen, a, b, mess.get("wand"))
+        if u_rohr <= 0:
+            return None
+        schnitte = [laenge - 2 * STEG] * 2 + [max(u_rohr - belegt, 0.0)] * 2
+        return dict(schnitte=schnitte, schnitt=sum(schnitte),
+                    text=(f"{gemessen} aus dem Rohr {pid}: je ein Ring {zahl(STEG, 0)} mm an den Enden, dazwischen "
+                          f"ausgeschnitten (Fenster {zahl(sum(schnitte), 1)} mm)").replace("  ", " "))
+    return None
+
+
 def richtung_pruefen(profil, richtung, achse):
     """Passt die Richtung (am längsten …) zur Gehrungsachse? Beim Rechteckrohr liegt die Breitseite oben: 0°/180°
     kippt über die kürzere Seite, 90°/270° über die längere. Ergebnis: Fehlertext oder None."""
@@ -660,7 +721,7 @@ def kontur(e):
     raise ValueError(f"Unbekannte Konturart '{art}'.")
 
 
-def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
+def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None):
     """Schneidweg je Teil aus den Eingaben. profil = Stammdaten-Zeile, grenzen = Regel der Konturklassen
     (rechnen.kontur_regel: Grenzen der Maschine, mit Wandstärke auch die Faktoren × Wand). maschine = Stammdaten-
     Zeile der Maschine für die Grenzen des Schwenkwinkels (3D, dreid; None = Vorgabe ±45°): mit Häkchen
@@ -668,7 +729,9 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     begrenzten Winkel), eine Gehrung in 3D behält ihre Länge (nur der Kopf ist geschwenkt).
     Ergebnis dict(schritte=[{text, anzahl, laenge_stueck, laenge, einstiche, huelle, klasse, schaetzung}],
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
-    gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
+    gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher).
+    laenge = Teilelänge der Position (leer: gemessene Länge l_step): Winkel/U/C aus einem größeren Profil bzw. dem
+    Rohr (schenkel_kuerzen) bekommen die Längsschnitte zwischen den Stegen als eigene Zeile."""
     from . import knickrahmen as kn, steckverbindung as sv
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
     profil = mit_radius(profil, eingaben)
@@ -836,6 +899,20 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
                              anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=n, huelle=hk, klasse=klasse,
                              schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
         liste += [(hk if hk is not None else OHNE_HUELLE, lg)] * n
+    # virtuelles Bauteil (step_schenkel): Stege und Längsschnitte sind schon gemessene Konturen
+    sk = None if eingaben.get("stege_virtuell") else \
+        schenkel_kuerzen(_messprofil(eingaben.get("schenkel_mess")) or messprofil_eingaben(eingaben), dict(profil),
+                         _z(laenge) or _z(eingaben.get("l_step")))
+    if sk and sk["schnitte"]:           # Winkel/U/C aus größerem Profil: Längsschnitte zwischen den Stegen
+        lg_k = _z(laenge) or _z(eingaben.get("l_step"))
+        for lg in sk["schnitte"]:
+            schritte.append(dict(text=f"1 × Längsschnitt {zahl(lg, 1)} mm (Steg {zahl(STEG, 0)} mm an den Enden)",
+                                 anzahl=1, laenge_stueck=lg, laenge=lg, einstiche=1, huelle=lg_k, klasse="groß",
+                                 schaetzung=False, gerade=None, art="Längsschnitt", eingabe={}))
+            liste.append((lg_k, lg))
+        hinweise_ende.append(sk["text"])
+    elif sk:
+        hinweise_ende.append(sk["text"])
     gravur = _z(eingaben.get("gravur")) + gravur_zeilen     # weitere Gravur + Gravur-Zeilen
     a_s, b_s = schritte[0]["laenge"], schritte[1]["laenge"]
     innen = sum(lg for _, lg in liste)

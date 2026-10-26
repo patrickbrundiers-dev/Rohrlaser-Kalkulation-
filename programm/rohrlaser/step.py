@@ -479,6 +479,14 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         if m.get("profilform") and _z(m, "abm_a") > 0 else None       # gemessener Querschnitt (Profilwechsel)
     if d3:
         eing["d3"] = True
+    sm = schenkel_messprofil(m)
+    if sm and _z(m, "laenge") > 0 and not rohr_geschlossen(m):  # Winkel/U/C: Schenkel kürzen bei größerem Profil
+        eing.update(l_step=round(_z(m, "laenge"), 1),
+                    schenkel_mess=messprofil_text(sm["form"], sm["a"], sm["b"], sm["wand"]))
+        if "stege=virtuell" in (m.get("sicherheit") or ""):    # Stege und Längsschnitte schon gemessen
+            eing["stege_virtuell"] = True
+        if m.get("_pfad"):          # STEP-Datei: Profilwechsel in der Tabelle misst das virtuelle Bauteil neu
+            eing.update(step_datei=str(m["_pfad"]), step_koerper=int(_z(m, "koerper") or 1))
     if r_mess is not None and kasten and mp:    # Eckradius der STEP-Datei: Skizze und 3D wie die STEP
         eing.update(r_step=r_mess, r_step_profil=mp)
     for d in liste:
@@ -675,7 +683,51 @@ def enden_neu(m, pr, rechner):
     return dict(laengen=laengen, differenz=diff, hinweise=hinweise) if laengen or hinweise else None
 
 
-RING = 2.0      # mm, Ring an den Enden eines Teils aus dem Rohr (offen gezeichnete Rohre, Patrick 25.10.2026)
+def _aus_name(pid):
+    """Profil aus dem Namen der Profil-ID (optimierung.profil_aus_name) oder None."""
+    from .optimierung import profil_aus_name
+    return profil_aus_name(pid)
+
+
+def schenkel_messprofil(m):
+    """Gemessener offener Querschnitt (Winkel, U, C) als dict(form, a, b, wand) für schneidweg.schenkel_kuerzen,
+    auch wenn die Art im Prüfdialog auf das Rohr gestellt ist; sonst None."""
+    from .schneidweg import OFFEN_SCHENKEL
+    if m.get("_mess_original"):     # virtuelles Bauteil gemessen: der gezeichnete Querschnitt zählt
+        m = m["_mess_original"]
+    gemessen = m.get("_form_gemessen") or m.get("profilform")
+    if gemessen not in OFFEN_SCHENKEL:
+        return None
+    return dict(form=gemessen, a=_z(m, "abm_a"), b=_z(m, "abm_b"), wand=_wand(m))
+
+
+def stege_ziel(m, pr):
+    """Größeres Profil für das virtuelle Bauteil (Patrick 26.10.2026: Winkel/U aus einem größeren Profil gleicher Form
+    als Bauteil mit Stegen 2 mm messen, step_messung/step_schenkel): 'Form|A|B|Wand' für STEP-Import.exe --stege,
+    wenn das Teil als Winkel bzw. U gemessen ist und pr dieselbe Form, größer, ist; sonst None."""
+    from .schneidweg import schenkel_kuerzen
+    mess = schenkel_messprofil(m)
+    if not pr or not mess or mess["form"] not in ("L-Profil", "U-Profil") or pr.get("form") != mess["form"]:
+        return None
+    k = schenkel_kuerzen(mess, pr, _z(m, "laenge"))
+    if not k or not k["schnitte"]:
+        return None
+    return "|".join([mess["form"]] + [f"{float(pr.get(x) or 0):g}" for x in ("a", "b", "wand")])
+
+
+def virtuell_einsetzen(m, neu):
+    """Messwerte des virtuellen Bauteils (neu, gleiche Datei und Körper) in m übernehmen; was der Prüfdialog gesetzt
+    hat (Schlüssel mit _), Artikel und Bezeichnung bleiben. True, wenn neu wirklich mit Stegen gemessen ist."""
+    if "stege=virtuell" not in (neu.get("sicherheit") or ""):
+        return False
+    m["_mess_original"] = {k_: m.get(k_) for k_ in ("profilform", "abm_a", "abm_b", "wandstaerke", "laenge")}
+    for k_, v in neu.items():
+        if k_ not in ("artikel", "datei", "koerper") and not k_.startswith("_"):
+            m[k_] = v
+    if neu.get("_netz"):
+        m["_netz"] = neu["_netz"]
+    m.pop("_form_gemessen", None)
+    return True
 
 
 def fenster_neu(m, pr):
@@ -684,42 +736,15 @@ def fenster_neu(m, pr):
     wird so viel breiter bzw. schmaler wie die Seite des Rohrs (Rundrohr: Bogen mit dem Durchmesser), sein Schnitt um
     das Doppelte. Die Enden rechnet enden_neu. Ergebnis (Unterschied im Schneidweg mm, Hinweis) oder None.
     Offenes Profil (Winkel, U, C), für das von Hand ein Rohr gewählt ist (Patrick: „Winkel 33x30x6 gab es nur als
-    60x40x6“): aus dem Rohr mit je einem Ring RING mm an den Enden, dazwischen alles ausgeschnitten, was nicht zum
+    60x40x6“): aus dem Rohr mit je einem Ring 2 mm an den Enden, dazwischen alles ausgeschnitten, was nicht zum
     Profil gehört – Fenster = zwei Längsschnitte an den Schenkelenden + je Ring der freie Umfang (Rohrumfang −
-    belegter Umfang des Profils)."""
-    gemessen = m.get("_form_gemessen") or m.get("profilform")      # Art im Prüfdialog evtl. auf das Rohr gestellt
-    if pr and gemessen in ("L-Profil", "U-Profil", "C-Profil") and pr.get("form") == gemessen:
-        # aus einem größeren Profil derselben Form (Patrick 25.10.2026: „Winkel 33x30x6 gab es nur als 60x40x6“): die
-        # Schenkel werden gekürzt, an den Enden bleibt je ein Steg RING mm stehen – je gekürztem Schenkel ein
-        # Längsschnitt zwischen den Stegen und zwei Querschnitte um die Stege (Breite, um die er kürzer wird)
-        laenge, a, b = _z(m, "laenge"), _z(m, "abm_a"), _z(m, "abm_b")
-        pa, pb = float(pr.get("a") or 0), float(pr.get("b") or 0)
-        if gemessen == "L-Profil":
-            if (pa >= pb) != (a >= b):
-                pa, pb = pb, pa
-            kuerzer = [pa - a, pb - b]
-        else:                   # U/C: Steg (a) bleibt, beide Schenkel (b) kürzer
-            if abs(pa - a) > TOL_MASS:
-                return 0.0, f"{gemessen} aus {pr.get('profil_id') or ''}: Steghöhe anders, Schneidweg bitte prüfen"
-            kuerzer = [pb - b, pb - b]
-        kuerzer = [x for x in kuerzer if x > TOL_MASS]
-        if not kuerzer or laenge <= 4 * RING or any(x < -TOL_MASS for x in (pa - a, pb - b)):
-            return None
-        diff = sum(laenge - 2 * RING + 2 * x for x in kuerzer)
-        return diff, (f"{gemessen} aus {pr.get('profil_id') or ''}: {len(kuerzer)} Schenkel gekürzt, je ein Steg "
-                      f"{dez(RING)} mm an den Enden (Schnitt {dez(round(diff, 1))} mm)").replace("  ", " ")
-    if pr and gemessen in ("L-Profil", "U-Profil", "C-Profil") and not rohr_geschlossen(m) and \
-            pr.get("form") in ("Quadratrohr", "Rechteckrohr", "Rundrohr"):
-        from .optimierung import schnittlaenge
-        laenge = _z(m, "laenge")
-        u_rohr = schnittlaenge(pr["form"], float(pr.get("a") or 0), float(pr.get("b") or pr.get("a") or 0),
-                               pr.get("wand"))
-        belegt = schnittlaenge(gemessen, _z(m, "abm_a"), _z(m, "abm_b"), _wand(m))
-        if laenge <= 4 * RING or u_rohr <= 0:
-            return None
-        diff = 2 * (laenge - 2 * RING) + 2 * max(u_rohr - belegt, 0.0)
-        return diff, (f"{gemessen} aus dem Rohr {pr.get('profil_id') or ''}: je ein Ring {dez(RING)} mm an den "
-                      f"Enden, dazwischen ausgeschnitten (Fenster {dez(round(diff, 1))} mm)").replace("  ", " ")
+    belegter Umfang des Profils). Beides rechnet schneidweg.schenkel_kuerzen (gleich im Rohr-Editor und beim
+    Profilwechsel in der Positionstabelle)."""
+    from .schneidweg import schenkel_kuerzen
+    mess = schenkel_messprofil(m) if "stege=virtuell" not in (m.get("sicherheit") or "") else None
+    if pr and mess and (pr.get("form") == mess["form"] or not rohr_geschlossen(m)):
+        k = schenkel_kuerzen(mess, pr, _z(m, "laenge"))
+        return (k["schnitt"], k["text"]) if k else None
     if not pr or not _stege(m):
         return None
     try:
@@ -1397,6 +1422,37 @@ def _voll_position(m, form, abm, laenge, wst, zukauf_liste, neue_artikel):
     return dict(neu=schl), text
 
 
+def eindeutige_artikel(messwerte):
+    """Gleiche Artikelnummer für verschiedene Körper eines Imports (Bauteilname im CAD mehrfach vergeben, z. B. 77
+    Körper „Rohr“): ab dem zweiten verschiedenen Teil mit Zusatz -2, -3 … (gleiche Teile mit gleichem Namen bleiben eine
+    Position, uebernehmen zählt ihre Stückzahl zusammen). Sonst galt jeder weitere Körper als „steht schon im Angebot“
+    und nur einer wurde übernommen (Patrick 26.10.2026). Gleiche Messwerte ergeben immer dieselben Nummern, ein
+    zweiter Import derselben Dateien erkennt die Artikel also wieder."""
+    vergeben = {str(m.get("artikel")) for m in messwerte if m.get("artikel") not in (None, "")}
+    gruppe = {i: e for e, liste in teile_gruppen(messwerte).items() for i in liste}
+    gesehen = set()         # schon vergebene Nummern dieses Imports
+    zugeteilt = {}          # (Name, Gruppe gleicher Teile) -> Nummer: gleiche Teile gleichen Namens dieselbe Nummer
+    for i, m in enumerate(messwerte):
+        art = m.get("artikel")
+        if art in (None, ""):
+            continue
+        art = str(art)
+        schl = (art, gruppe.get(i, ("einzeln", i)))
+        if schl in zugeteilt:
+            m["artikel"] = zugeteilt[schl]      # dasselbe Teil mehrfach verbaut (eine Position)
+            continue
+        if art in gesehen:
+            n = 2
+            while f"{art}-{n}" in vergeben:
+                n += 1
+            art = f"{art}-{n}"
+            vergeben.add(art)
+            m["artikel"] = art
+        gesehen.add(art)
+        zugeteilt[schl] = art
+    return messwerte
+
+
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
                 blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None):
@@ -1436,6 +1492,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     grenz_hinweis = f"Konturgrenzen Vorgabe {klein:g}/{mittel:g} mm (Maschine ohne Werte)" if vorgabe else ""
     profile = dict(k.profile)
     vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
+    eindeutige_artikel(messwerte)
+    diesmal = {}            # Artikel -> Position aus diesem Import (gleiches Teil mit gleichem Namen: Stück addieren)
     pos_max = max((p["pos"] for p in positionen if isinstance(p.get("pos"), (int, float))), default=0)
     naechste = int(pos_max) + 10
     neu, neue_prof, protokoll, bericht = [], [], [], []
@@ -1484,6 +1542,17 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     neue_prof.append(p)
                     profile[pid] = p
                     hinweise.append("RP-Profil aus der Bibliothek in Stammdaten angelegt")
+                elif neue_profile and pid and m.get("_profil") and pid != gemessen and _aus_name(pid):
+                    # von Hand ein anderes Profil eingetippt (Patrick 25.10.2026: Winkel 33x30x6 → 60x40x6): Maße
+                    # aus dem Namen, nicht aus der Messung – sonst hieße das Profil 60x40x6 und hätte 33x30x6
+                    p = dict(_aus_name(pid), profil_id=pid, bemerkung="aus STEP-Import angelegt (Maße aus dem "
+                             "Namen), bitte prüfen")
+                    neue_prof.append(p)
+                    profile[pid] = p
+                    hinweise.append("Profil neu in Stammdaten angelegt (Maße aus dem Namen)")
+                    abw = profil_abweichung(m, p)
+                    if abw:
+                        hinweise.append(abw)
                 elif neue_profile and pid:
                     p = dict(profil_id=pid, form=m["profilform"], a=round(_z(m, "abm_a"), 2),
                              b=round(_z(m, "abm_b"), 2) if m["profilform"] in MIT_B else None,
@@ -1512,6 +1581,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 m.get("pruefstatus") == "prüfen" and m.get("_uebernehmen") is not True)):
             hinweise.append(f"nicht übernommen: {blech_text(m)}" + (" im Prüfdialog abgewählt" if "_uebernehmen" in m
                                                                      else " ungeprüft (Prüfstatus prüfen), im Prüfdialog bestätigen"))
+        elif m.get("profilform") in BLECHE and art in diesmal:        # dasselbe Teil noch einmal: Stückzahl dazu
+            erst, stk = diesmal[art], m.get("_stueck", stueck)
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
         elif m.get("profilform") in BLECHE and art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif m.get("profilform") in BLECHE:
@@ -1545,10 +1620,16 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
-            vorhanden.add(art)
+            diesmal[art] = p
             naechste += 10
         elif mit_blechen and ist_voll(m) and m.get("_uebernehmen") is False:
             hinweise.append(f"nicht übernommen: {voll_text(m)} im Prüfdialog abgewählt")
+        elif mit_blechen and ist_voll(m) and art in diesmal:        # dasselbe Teil noch einmal: Stückzahl dazu
+            erst, stk = diesmal[art], m.get("_stueck", stueck)
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
         elif mit_blechen and ist_voll(m) and art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif mit_blechen and ist_voll(m):       # Vollmaterial: Zukaufteil mit Zusatzarbeit Sägen (Plan Vollmaterial)
@@ -1587,13 +1668,19 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
-            vorhanden.add(art)
+            diesmal[art] = p
             naechste += 10
         elif m.get("profilform") in NICHT_KALKULIERT:
             hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         elif not gewaehlt(m):
             hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(unsicher(m))}), im Prüfdialog "
                             "bestätigen" if "_uebernehmen" not in m else "nicht übernommen: im Prüfdialog abgewählt")
+        elif art in diesmal:        # dasselbe Teil noch einmal (gleicher Name, gleiche Messung): Stückzahl dazu
+            erst, stk = diesmal[art], m.get("_stueck", stueck)
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
         elif art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):
@@ -1725,7 +1812,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
-            vorhanden.add(art)
+            diesmal[art] = p
             naechste += 10
         if erster == i:
             ergebnis[i] = ziel

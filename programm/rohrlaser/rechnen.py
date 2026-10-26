@@ -2434,7 +2434,8 @@ def freigabe_punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0
                     **weitere):
     """'Prüfen vor Freigabe' (Prüfbericht C-2, 3.4), seit Plan A2 der Angebots-Check (angebot_check.punkte): alle
     offenen Punkte vor dem Angebots-PDF als Liste von Paaren (Art, Text) mit ziel und details; Art FEHLER, WARNUNG
-    oder HINWEIS. weitere: kalk_zeilen, kunde, preis_abweichung, mindestmarge, admin, laser_hinweise."""
+    oder HINWEIS. weitere: kalk_zeilen, kunde, preis_abweichung, mindestmarge, admin, laser_hinweise,
+    staffel_widersprueche."""
     from .angebot_check import punkte
     return punkte(kopf, positionen, status, stand, summen, staffeln_veraltet, gueltig_bis, heute, **weitere)
 

@@ -101,6 +101,15 @@ pruefe(step.grosse_dateien([klein]) is None, "P5a kleine Datei ohne Hinweis")
 t = step.grosse_dateien([klein, gross])
 pruefe(t and "gross.step (225 MB)" in t and "etwa 9 min" in t and "etwa 9 GB" in t, f"P5a Hinweis {t!r}")
 ok("P5a große STEP-Datei: Hinweis mit Dauer und Arbeitsspeicher")
+try:
+    import step_geometrie as sg  # noqa: E402
+    from OCP.STEPControl import STEPControl_Reader  # noqa: E402
+except ImportError:
+    sg = None
+if sg is not None:
+    pruefe(not sg._grosse_datei_einstellen(STEPControl_Reader(), klein), "P5 kleine Datei: Einlesen wie bisher")
+    pruefe(sg._grosse_datei_einstellen(STEPControl_Reader(), gross), "P5 große Datei: Kantenprüfungen aus")
+    ok("P5 Einlesen großer Dateien ab 20 MB ohne die quadratischen Kantenprüfungen")
 
 # P10 Systemprüfung
 zeilen = sp.pruefen(tempfile.gettempdir(), gl=(False, "Test"), bildschirm=(1280, 720))
@@ -155,5 +164,35 @@ pruefe(S.st_seite is S._st_seite and "st_seite" not in S._offen_fuellen, "P9 Zug
 S.neu_laden()
 pruefe("nachkalk" not in S._offen_fuellen, "P9 sichtbare Seite sofort gefüllt")
 ok("P9 Staffeln und Nachkalkulation erst beim Zeigen bzw. Zugriff")
+# E1 Schweißbaugruppe 3D (Patrick 25.10.2026 „Schweißbaugruppen Editor braucht sehr lange“): Raupen gemerkt
+from rohrlaser import baugruppe_ansicht as ba  # noqa: E402
+
+
+def quader(x0, y0, z0, x1, y1, z1, basis):
+    pk = [(x, y, z) for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)]
+    seiten = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    return [c for q in pk for c in q], [basis + i for a, b, c, d in seiten for i in (a, b, c, a, c, d)]
+
+
+p1, t1 = quader(0, 0, 0, 200, 100, 8, 0)
+p2, t2 = quader(80, 40, 8, 120, 60, 300, 8)
+bnetz = {"p": p1 + p2, "t": {"P": t1 + t2}}
+fl = ba.Flaechen(bnetz)
+for q in [(80, 50, 9), (100, 40, 8.5), (5, 5, 4), (150, 90, 20), (120, 61, 8)]:
+    alle = sorted((ba.abstand_dreieck(q, a, b, c), n, f) for a, b, c, n, f in fl.dreiecke)
+    pruefe(sorted(fl.an(q)) == [x for x in alle if x[0] <= ba.BERUEHRT], f"E1 Hüllfilter findet dieselben Flächen bei {q}")
+zug = [80, 40, 8, 120, 40, 8, 120, 60, 8, 80, 60, 8, 80, 40, 8]
+r1 = ba.raupe(zug, "Kehlnaht", 4.0, fl)
+roh = ba.Flaechen(bnetz)
+roh.raupen = None
+pruefe(r1 is not None and r1 == ba.raupe(zug, "Kehlnaht", 4.0, roh), "E1 gemerkte Raupe = frisch gerechnet")
+pruefe(ba.raupe(zug, "Kehlnaht", 4.0, fl) is r1, "E1 zweite Raupe aus dem Merker")
+pruefe(ba.flaechen_merken(bnetz, "x") is ba.flaechen_merken(dict(bnetz), "x"), "E1 Flächen über Fenster gemerkt")
+pruefe(ba.flaechen_merken(dict(bnetz, p=[c + 1 for c in bnetz["p"]]), "x") is not ba.flaechen_merken(bnetz, "x"),
+       "E1 andere Punkte = neue Flächen")
+aufrufe = []
+ba.BaugruppenAnsicht(geaendert=lambda: aufrufe.append(1))
+pruefe(not aufrufe, "E1 Anlegen der 3D-Ansicht zeichnet nicht doppelt")
+ok("E1 Schweißbaugruppe 3D: Hüllfilter, Raupen und Flächen gemerkt, kein doppeltes Zeichnen")
 print("Alle Prüfungen Performance-Update bestanden.")
 os._exit(0)

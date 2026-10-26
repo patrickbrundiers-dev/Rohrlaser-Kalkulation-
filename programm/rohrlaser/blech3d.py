@@ -2,8 +2,11 @@
 
 Kein CAD, nur zur Anschauung: Die Abwicklung (Außenkontur des Zuschnitts) wird in Dreiecke zerlegt und an jeder
 Biegung um ihre Biegelinie geklappt, im Bereich der Biegung als Bogen (Bogenlänge ba, Radius ba / φ). Oben und
-unten je eine Haut im Abstand der Blechdicke, dazu die Seitenflächen am Rand. Innenkonturen und Biegelinien sind
-Linien auf der Haut (Farben wie im Editor und in der 3D-Ansicht des STEP-Imports), die Flächen bleiben geschlossen.
+unten je eine Haut im Abstand der Blechdicke, dazu die Seitenflächen am Rand. Geschlossene Innenkonturen (Bohrung,
+Senkung, Langloch, Rechteck, Polygon) sind aus dem Material geschnitten, mit Lochwand durch die Dicke (Patrick
+26.10.2026: „Konturen nicht in 3D im Material sichtbar, nur 2D-Linien“); Gravuren, offene Linien und Konturen, die
+nicht ganz im Blech liegen oder sich überschneiden, bleiben Linien. Konturen und Biegelinien sind dazu Linien auf der
+Haut (Farben wie im Editor und in der 3D-Ansicht des STEP-Imports).
 
 Biegungen: Kantteil aus den Schenkeln (blech.biegungen, parallel zur Kantlänge), mehrachsig gekantete Zuschnitte
 aus den Biegelinien der STEP-Messung (eingaben['biegelinien']). Die Grundfläche ist die Seite mit dem Schwerpunkt
@@ -11,12 +14,14 @@ der Abwicklung (Kantteil: Schenkel 1). + Biegewinkel = nach oben (zum Betrachter
 
 Ergebnis: Netz wie ansicht3d ({p, t, l, ln}); ln = Normale je Linienzug, damit Linien auf der Rückseite verdeckt
 sind."""
+import bisect
 import math
 
 from . import blech, schneidweg as sw
 
 _z = sw._z
 BOGEN_SCHRITT = 15.0        # Grad je Teilstück eines Biegebogens
+SPALTEN = 8                 # gelochte Haut: so viele senkrechte Teilungen über die Länge (höchstens alle 30 mm)
 
 
 def _flaeche2(pk):
@@ -43,6 +48,139 @@ def _ohrschnitt(pk):
         else:
             break                               # kein Ohr gefunden (Polygon schneidet sich): Rest als Fächer
     out += [(pk[idx[0]], pk[idx[q]], pk[idx[q + 1]]) for q in range(1, len(idx) - 1)]
+    return out
+
+
+def _im_polygon(p, pk):
+    """Punkt p strikt im Polygon pk (gerade/ungerade)."""
+    x, y, drin = p[0], p[1], False
+    for i in range(len(pk)):
+        (x1, y1), (x2, y2) = pk[i - 1], pk[i]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            drin = not drin
+    return drin
+
+
+def _strecken_schneiden(a, b, c, d):
+    def s(u, v, w):
+        return (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0])
+    return s(a, b, c) * s(a, b, d) < 0 and s(c, d, a) * s(c, d, b) < 0
+
+
+def loecher(kontur, zuege):
+    """Innenkonturen, die aus dem Material geschnitten werden: geschlossene Züge [(x, y)] ganz im Blech, ohne
+    Überschneidung mit dem Rand oder einem früheren Loch; gegen den Uhrzeigersinn, ohne doppelten Endpunkt."""
+    out, huellen = [], []
+    for zug in zuege:
+        pk = [tuple(q) for q in zug]
+        if len(pk) > 1 and math.dist(pk[0], pk[-1]) < 1e-9:
+            pk = pk[:-1]
+        if len(pk) < 3 or abs(_flaeche2(pk)) < 1e-6:
+            continue
+        if _flaeche2(pk) < 0:
+            pk.reverse()
+        h = (min(x for x, _ in pk), min(y for _, y in pk), max(x for x, _ in pk), max(y for _, y in pk))
+        if not all(_im_polygon(q, kontur) for q in pk) or any(_im_polygon(q, pk) for q in kontur) or \
+                any(_strecken_schneiden(pk[i - 1], pk[i], kontur[j - 1], kontur[j])
+                    for i in range(len(pk)) for j in range(len(kontur))
+                    if min(kontur[j - 1][0], kontur[j][0]) <= h[2] and max(kontur[j - 1][0], kontur[j][0]) >= h[0]):
+            continue
+        frei = True
+        for hg, ag in zip(huellen, out):
+            if hg[0] > h[2] or hg[2] < h[0] or hg[1] > h[3] or hg[3] < h[1]:
+                continue
+            if _im_polygon(pk[0], ag) or _im_polygon(ag[0], pk) or any(
+                    _strecken_schneiden(pk[i - 1], pk[i], ag[j - 1], ag[j]) for i in range(len(pk))
+                    for j in range(len(ag))):
+                frei = False
+                break
+        if frei:
+            out.append(pk)
+            huellen.append(h)
+    return out
+
+
+def spalten_fuer(kontur):
+    """Senkrechte Teilungen für _gelocht: lange, dünne Streifen in Stücke (die Software-Darstellung sortiert nach
+    Dreiecksmitten und zeigt lange Splitter falsch)."""
+    x0, x1 = min(x for x, _ in kontur), max(x for x, _ in kontur)
+    schritt = max(30.0, (x1 - x0) / SPALTEN)
+    return [x0 + schritt * k for k in range(1, int((x1 - x0) / schritt) + 1) if x0 + schritt * k < x1 - 1e-6]
+
+
+def _bei_x(poly, x):
+    """Konvexes Polygon an der Senkrechten x teilen; Ecken auf der Linie gehören zu beiden Teilen."""
+    links, rechts = [], []
+    for i, a in enumerate(poly):
+        b = poly[(i + 1) % len(poly)]
+        if a[0] <= x + 1e-9:
+            links.append(a)
+        if a[0] >= x - 1e-9:
+            rechts.append(a)
+        if (a[0] < x - 1e-9 < x + 1e-9 < b[0]) or (b[0] < x - 1e-9 < x + 1e-9 < a[0]):
+            q = (x, a[1] + (x - a[0]) * (b[1] - a[1]) / (b[0] - a[0]))
+            links.append(q)
+            rechts.append(q)
+    return [q for q in (links, rechts) if len(q) >= 3 and abs(_flaeche2(q)) > 1e-9]
+
+
+def _gelocht(kontur, loch, spalten=()):
+    """Fläche der Außenkontur ohne die Löcher als konvexe Stücke [(x, y)]: waagerechte Streifen zwischen allen
+    Eckhöhen, im Streifen die Trapeze zwischen den Kanten (gerade/ungerade), senkrecht an spalten geteilt. Jedes
+    Stück bekommt die Schnittpunkte der Nachbarstreifen auf seiner Ober- und Unterkante (keine T-Stöße, sonst feine
+    Risse im Bild)."""
+    kanten = []
+    for pk in [kontur] + loch:
+        for i in range(len(pk)):
+            a, b = pk[i - 1], pk[i]
+            if abs(a[1] - b[1]) > 1e-12:
+                kanten.append((a, b) if a[1] < b[1] else (b, a))
+    hoehen = sorted({q[1] for pk in [kontur] + loch for q in pk})
+    kanten.sort(key=lambda k: k[0][1])
+
+    def x_bei(k, y):
+        (x1, y1), (x2, y2) = k
+        return x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+    streifen, naechst, aktiv = [], 0, []
+    for ya, yb in zip(hoehen, hoehen[1:]):
+        if yb - ya < 1e-9:
+            continue
+        ym = (ya + yb) / 2
+        while naechst < len(kanten) and kanten[naechst][0][1] <= ym:
+            aktiv.append(kanten[naechst])
+            naechst += 1
+        aktiv = [k for k in aktiv if k[1][1] > ym]
+        reihe = sorted(aktiv, key=lambda k: x_bei(k, ym))
+        streifen.append((ya, yb, [(reihe[i], reihe[i + 1]) for i in range(0, len(reihe) - 1, 2)]))
+    punkte_auf = {}                 # Höhe -> alle Schnittpunkte der Streifen darüber und darunter
+    for ya, yb, paare in streifen:
+        for kl, kr in paare:
+            for y in (ya, yb):
+                xl, xr = x_bei(kl, y), x_bei(kr, y)
+                punkte_auf.setdefault(y, set()).update([xl, xr] + [x for x in spalten if xl < x < xr])
+    sortiert = {y: sorted(v) for y, v in punkte_auf.items()}
+    out = []
+    for ya, yb, paare in streifen:
+        for kl, kr in paare:
+            la, ra, lb, rb = x_bei(kl, ya), x_bei(kr, ya), x_bei(kl, yb), x_bei(kr, yb)
+            unten = [x for x in sortiert[ya] if la + 1e-7 < x < ra - 1e-7]
+            oben = [x for x in sortiert[yb] if lb + 1e-7 < x < rb - 1e-7][::-1]
+            pk = [(la, ya)] + [(x, ya) for x in unten] + [(ra, ya), (rb, yb)] + [(x, yb) for x in oben] + [(lb, yb)]
+            rein = [q for i, q in enumerate(pk) if math.dist(q, pk[i - 1]) > 1e-9]
+            if len(rein) < 3 or abs(_flaeche2(rein)) <= 1e-9:
+                continue
+            stuecke = [rein]
+            for x in spalten:
+                if la + 1e-7 < x < ra - 1e-7 or lb + 1e-7 < x < rb - 1e-7:
+                    stuecke = [q for st in stuecke for q in _bei_x(st, x)]
+            for st in stuecke:
+                n = len(st)
+                if all((st[i][0] - st[i - 1][0]) * (st[(i + 1) % n][1] - st[i][1]) -
+                       (st[i][1] - st[i - 1][1]) * (st[(i + 1) % n][0] - st[i][0]) > 1e-9 for i in range(n)):
+                    out.append(st)          # echte Ecken: Fächer ab der ersten (wie die Teile ohne Löcher)
+                    continue
+                m = (sum(q[0] for q in st) / len(st), sum(q[1] for q in st) / len(st))
+                out += [[m, q, st[(i + 1) % len(st)]] for i, q in enumerate(st)]     # Fächer ab der Mitte
     return out
 
 
@@ -178,7 +316,11 @@ def netz(e, zs):
     s = max(_z(e.get("dicke")), 0.1)
     kontur = aussenkontur(e, zs)
     bg = biegungen(e, zs, kontur)
-    teile = [list(t) for t in _ohrschnitt(kontur)]
+    arten = (sw.BOHRUNG, sw.SENKUNG) + tuple(blech.DREH_ARTEN)
+    loch = loecher(kontur, [zug for z, zug in konturzuege(e, zs) if z.get("art") in arten and not z.get("linien")])
+    spalten = spalten_fuer(kontur) if loch else []
+    teile = _gelocht(kontur, loch, spalten) if loch else [list(t) for t in _ohrschnitt(kontur)]
+    loch_hoehen = sorted({q[1] for pk in [kontur] + loch for q in pk})      # Streifengrenzen von _gelocht
     for b in bg:                            # an jeder Biegezone teilen, im Bogen in Schritten
         n_schritt = max(2, math.ceil(math.degrees(abs(b["phi"])) / BOGEN_SCHRITT))
         for i in range(n_schritt + 1):
@@ -214,30 +356,18 @@ def netz(e, zs):
             for seite in (1, -1):
                 (a, na), (b, _), (c, _) = haut(t[0], seite), haut(t[i], seite), haut(t[i + 1], seite)
                 dreieck(a, b, c, tuple(x * seite for x in na))
-    # Seitenflächen: Rand an den Biegezonen geteilt
+    # Seitenflächen: Rand und Lochwände an den Biegezonen geteilt (Vorderseite nach außen bzw. zur Lochmitte)
     rand = []
-    for i, a in enumerate(kontur):
-        b = kontur[(i + 1) % len(kontur)]
-        ts = {0.0, 1.0}
-        for bb in bg:
-            n_schritt = max(2, math.ceil(math.degrees(abs(bb["phi"])) / BOGEN_SCHRITT))
-            da = (a[0] - bb["o"][0]) * bb["n"][0] + (a[1] - bb["o"][1]) * bb["n"][1]
-            db = (b[0] - bb["o"][0]) * bb["n"][0] + (b[1] - bb["o"][1]) * bb["n"][1]
-            for j in range(n_schritt + 1):
-                w = bb["ba"] * j / n_schritt
-                if abs(db - da) > 1e-9 and 0 < (w - da) / (db - da) < 1:
-                    ts.add((w - da) / (db - da))
-        ts = sorted(ts)
-        stuecke = [(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for t in ts]
-        for p1, p2 in zip(stuecke, stuecke[1:]):
-            rand.append((p1, p2))
-    for p1, p2 in rand:
+    for pk, aussen_rechts in [(kontur, True)] + [(q, False) for q in loch]:
+        _rand_stuecke(_an_hoehen(pk, loch_hoehen, spalten) if loch else pk, bg, rand, aussen_rechts)
+    for p1, p2, rechts in rand:
         o1, u1 = haut(p1, 1)[0], haut(p1, -1)[0]
         o2, u2 = haut(p2, 1)[0], haut(p2, -1)[0]
         m = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
         dx, dy = p2[0] - p1[0], p2[1] - p1[1]
         lg = math.hypot(dx, dy) or 1
-        aussen = (m[0] + dy / lg * 0.05, m[1] - dx / lg * 0.05)       # rechts der Kante = außen (ccw)
+        f = 0.05 if rechts else -0.05       # rechts der Kante = außen (ccw), Loch: links = Lochinneres
+        aussen = (m[0] + dy / lg * f, m[1] - dx / lg * f)
         va, vb = gefaltet(m)[0], gefaltet(aussen)[0]
         soll = tuple(vb[i] - va[i] for i in range(3))
         dreieck(o1, o2, u2, soll)
@@ -282,6 +412,41 @@ def netz(e, zs):
     if wk:
         out["wk"] = wk
     return out
+
+
+def _an_hoehen(pk, hoehen, spalten=()):
+    """Geschlossenen Zug an den Streifenhöhen und Spalten von _gelocht teilen (Rand und Lochwand ohne T-Stöße zur
+    Haut)."""
+    out = []
+    for i, a in enumerate(pk):
+        b = pk[(i + 1) % len(pk)]
+        out.append(a)
+        ts = set()
+        for k, grenzen in ((1, hoehen), (0, spalten)):
+            if abs(b[k] - a[k]) < 1e-12:
+                continue
+            lo, hi = sorted((a[k], b[k]))
+            for g in grenzen[bisect.bisect_right(grenzen, lo + 1e-9):bisect.bisect_left(grenzen, hi - 1e-9)]:
+                ts.add((g - a[k]) / (b[k] - a[k]))
+        out += [(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for t in sorted(ts)]
+    return out
+
+def _rand_stuecke(pk, bg, rand, rechts):
+    """Kanten des geschlossenen Zugs pk an den Biegezonen geteilt an rand anhängen: (p1, p2, rechts)."""
+    for i, a in enumerate(pk):
+        b = pk[(i + 1) % len(pk)]
+        ts = {0.0, 1.0}
+        for bb in bg:
+            n_schritt = max(2, math.ceil(math.degrees(abs(bb["phi"])) / BOGEN_SCHRITT))
+            da = (a[0] - bb["o"][0]) * bb["n"][0] + (a[1] - bb["o"][1]) * bb["n"][1]
+            db = (b[0] - bb["o"][0]) * bb["n"][0] + (b[1] - bb["o"][1]) * bb["n"][1]
+            for j in range(n_schritt + 1):
+                w = bb["ba"] * j / n_schritt
+                if abs(db - da) > 1e-9 and 0 < (w - da) / (db - da) < 1:
+                    ts.add((w - da) / (db - da))
+        ts = sorted(ts)
+        stuecke = [(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for t in ts]
+        rand.extend((p1, p2, rechts) for p1, p2 in zip(stuecke, stuecke[1:]))
 
 
 def kontur_mitten(e, zs):
