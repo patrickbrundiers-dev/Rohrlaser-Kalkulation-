@@ -11,7 +11,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile
+from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile, virtuell
 
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -487,6 +487,14 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             eing["stege_virtuell"] = True
         if m.get("_pfad"):          # STEP-Datei: Profilwechsel in der Tabelle misst das virtuelle Bauteil neu
             eing.update(step_datei=str(m["_pfad"]), step_koerper=int(_z(m, "koerper") or 1))
+    vv = virtuell.volumen(m)
+    if vv and _z(m, "laenge") > 0:     # virtuelles Bauteil mit Stegen bzw. Ringen: Gewicht, STEP-Export, Zeichnung
+        eing.update(volumen_teil=round(vv[0], 1), volumen_gezeichnet=round(vv[1], 1),
+                    l_step=eing.get("l_step") or round(_z(m, "laenge"), 1))
+        if _stege(m):
+            eing["offen_virtuell"] = True
+        if m.get("_pfad"):
+            eing.update(step_datei=str(m["_pfad"]), step_koerper=int(_z(m, "koerper") or 1))
     if r_mess is not None and kasten and mp:    # Eckradius der STEP-Datei: Skizze und 3D wie die STEP
         eing.update(r_step=r_mess, r_step_profil=mp)
     for d in liste:
@@ -599,7 +607,24 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     rest = _z(m, "gravur") - gravur_zeilen      # Gravur ohne eigene Zeile (z. B. Anbauteile) nur als Länge
     if rest > 0.05:
         eing["gravur"] = round(rest, 1)
+    if eing.get("stege_virtuell"):
+        _laengsschnitte_zeigen(eing)
     return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
+
+
+def _laengsschnitte_zeigen(eing):
+    """Virtuelles Bauteil (Winkel aus größerem Profil): die Längsschnitte zwischen den Stegen sind gemessene
+    „sonstige Konturen“ ohne Umriss – die Skizze zeichnete sie als Kreis mit dem Hüllmaß (größer als das Teil). Umriss
+    als Rechteck: Länge = Hüllmaß, Breite = weggeschnittener Schenkel ≈ (Schnittlänge − Hüllmaß) / 2. Nur Anzeige,
+    gerechnet wird weiter mit der gemessenen Länge."""
+    lg = _z(eing, "l_step")
+    for k in eing["konturen"]:
+        h, s_ = _z(k, "huelle_gemessen"), _z(k, "gemessen")
+        if k.get("art") != "sonstige Kontur" or k.get("umriss") or not lg or h < 0.5 * lg or s_ <= h:
+            continue
+        b2, h2 = max((s_ - h) / 2, 1.0) / 2, h / 2
+        k["umriss"] = [[-h2, -b2], [h2, -b2], [h2, b2], [-h2, b2]]
+        k.setdefault("text", "Längsschnitt (Steg 2 mm an den Enden)")
 
 
 def konturen_enden(m):

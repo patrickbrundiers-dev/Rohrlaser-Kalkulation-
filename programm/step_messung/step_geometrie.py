@@ -2944,6 +2944,22 @@ ANBAU_BEARBEITUNG = {"Bolzen": "Positionsmarke", "Mutter": "Umriss", "Lasche": "
                      "Kopfplatte": "keine", "Sonstiges": "Umriss"}
 
 
+def virtuell_ablegen(form, koerper):
+    """Virtuelles Bauteil (so wird gelasert: Teil ∪ Stege bzw. Ringe, in Dateilage) als STEP in den Ordner VIRTUELL
+    schreiben, Datei k<Körper>.step (Patrick 26.10.2026: STEP-Export für die Maschine). Ohne Ordner nichts; ein Fehler
+    beim Schreiben ändert die Messung nicht."""
+    if not VIRTUELL or form is None:
+        return
+    try:
+        from pathlib import Path
+
+        from step_schreiben import form_schreiben
+        Path(VIRTUELL).mkdir(parents=True, exist_ok=True)
+        form_schreiben(form, Path(VIRTUELL) / f"k{int(koerper or 1)}.step", f"Teil {int(koerper or 1)} virtuell")
+    except Exception:  # noqa: BLE001 – die Messung bleibt gültig
+        pass
+
+
 def _volumen(shape):
     p = GProp_GProps()
     BRepGProp.VolumeProperties_s(shape, p)
@@ -3716,13 +3732,16 @@ EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET
 
 
 STEGE = None    # größeres Profil gleicher Form („Form|A|B|Wand“): Winkel/U als virtuelles Bauteil (step_schenkel)
+VIRTUELL = None     # Ordner für die virtuellen Bauteile als STEP (virtuell_ablegen) oder None
 
 
 def einstellen(werte):
-    """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe) und das
-    größere Profil für Winkel/U mit Stegen (Schlüssel stege, step_schenkel)."""
-    global STEGE
+    """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe), das
+    größere Profil für Winkel/U mit Stegen (Schlüssel stege, step_schenkel) und den Ordner für die virtuellen Bauteile
+    als STEP (Schlüssel virtuell, virtuell_ablegen)."""
+    global STEGE, VIRTUELL
     STEGE = (werte or {}).get("stege") or None
+    VIRTUELL = (werte or {}).get("virtuell") or None
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85}
     for name, glob in EINSTELLBAR.items():
         v = (werte or {}).get(name)
