@@ -115,6 +115,8 @@ from rohrlaser.step_dialog import StepPruefDialog  # noqa: E402
 app = QApplication.instance() or QApplication([])
 mw = [{n: v for n, v in x.items() if not n.startswith("_") or n in ("_struktur", "_netz")} for x in m]
 d = StepPruefDialog(None, mw, k, "S235-10219", 1, db.zukauf_artikel_liste(), {})
+assert not d.bg_haken.isEnabled() and not d.satz_knopf.isChecked()     # Vorgabe: Einzelpositionen, kein Satz
+d.satz_knopf.setChecked(True)
 assert d.bg_haken.isEnabled() and not d.bg_haken.isChecked()
 d.bg_haken.setChecked(True)
 d.werte_schreiben()

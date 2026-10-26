@@ -997,6 +997,7 @@ def main(ziel):
             QTimer.singleShot(50, satz_ausfuellen)
             return
         d.resize(1300, 520)
+        d.satz_knopf.setChecked(True)
         d.satz_spin.setValue(4)
         d.baugruppe_zeigen(d.datei)                      # 3D: ganze Baugruppe
         bereit()

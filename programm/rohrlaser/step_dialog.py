@@ -116,7 +116,8 @@ class _Zeile:
 
 class StepPruefDialog(QDialog):
     """Gemessene Rohre je STEP-Datei und Profil mit 3D-Ansicht. Oben Pfeile zum Wechseln der Datei und bei Dateien
-    mit mehreren Teilen (Baugruppe) das Feld 'Sätze' (Vorgabe 1 Satz, leer = Einzelpositionen); ihre Teile stehen
+    mit mehreren Teilen (Baugruppe) das Feld 'Anzahl' und den Knopf 'Als Satz' (Vorgabe Einzelpositionen; Anzahl
+    erhöht nur die Stückzahl, ein Satz entsteht nur mit dem Knopf); ihre Teile stehen
     unter einem Knoten 'Baugruppe'. Je Teil übernehmen ja/nein, Profil, Werkstoff
     und Stückzahl (bei einem Satz: Stück je Satz); gleiche Teile einer Datei stehen in einer Zeile (Spalte
     'In Datei'). OK schreibt die Werte als _uebernehmen, _profil, _werkstoff, _stueck, _saetze, _je_satz in die
@@ -164,11 +165,13 @@ class StepPruefDialog(QDialog):
         # eigene Körper, die an ein Rohr geschweißt sind: standardmäßig nicht übernehmen (nur Gravur auf dem Rohr)
         self.anbau_von = step.anbau_von(messwerte)
         self.anbau_weglassen = all(m.get("_anbau_weglassen", True) for m in messwerte)
-        # Datei -> Sätze (0 = leer = Einzelpositionen); Baugruppen sind als 1 Satz vorbelegt
-        self.saetze = {d: 1 if d in self.mehrteilig else 0 for d in self.dateien}
+        # Datei -> Sätze (0 = leer = Einzelpositionen); auch Baugruppen sind leer vorbelegt, ein Satz nur auf Wunsch
+        self.saetze = {d: 0 for d in self.dateien}
         for m in messwerte:
             if "_saetze" in m and m.get("datei") in self.mehrteilig:
                 self.saetze[m["datei"]] = int(m["_saetze"] or 0)
+        # Datei -> Anzahl oben (Einzelpositionen: Stückzahl aller Teile; Satz: Anzahl Sätze)
+        self.anzahl = {d: self.saetze[d] or 1 for d in self.dateien}
         self.datei_nr = 0
 
         # Kopfzeile: Datei wechseln, Sätze
@@ -187,14 +190,19 @@ class StepPruefDialog(QDialog):
         self.satz_feld = QWidget()
         sl = QHBoxLayout(self.satz_feld)
         sl.setContentsMargins(0, 0, 0, 0)
-        sl.addWidget(QLabel("Sätze:"))
+        sl.addWidget(QLabel("Anzahl:"))
         self.satz_spin = RechenSpinGanz()
-        self.satz_spin.setRange(0, 100000)
-        self.satz_spin.setSpecialValueText("leer")
-        self.satz_spin.setToolTip("Anzahl Sätze dieser Baugruppe (Vorgabe 1). Leer = jedes Teil als Einzelposition "
-                                  "laden.")
-        self.satz_spin.valueChanged.connect(lambda n: self.saetze_setzen(n))
+        self.satz_spin.setRange(1, 100000)
+        self.satz_spin.setToolTip("Anzahl dieser Baugruppe. Ohne Satz: Stückzahl jedes Teils (Einzelpositionen). "
+                                  "Mit „Als Satz“: Anzahl Sätze.")
+        self.satz_spin.valueChanged.connect(lambda n: self.anzahl_setzen(n))
         sl.addWidget(self.satz_spin)
+        self.satz_knopf = QPushButton("Als Satz")
+        self.satz_knopf.setCheckable(True)
+        self.satz_knopf.setToolTip("Die Teile dieser Datei als Satz anlegen (Satzname = Dateiname, gleiche Teile eine "
+                                   "Position mit Stück je Satz). Nicht gedrückt = jedes Teil eine Einzelposition.")
+        self.satz_knopf.toggled.connect(lambda an: self.als_satz_setzen(an))
+        sl.addWidget(self.satz_knopf)
         # Schweißbaugruppe: Satz als Position der Art Schweißbaugruppe mit den Unterbaugruppen der STEP-Struktur
         self.baugruppe = {d: any(m.get("_baugruppe") for m in messwerte if m.get("datei") == d) for d in self.dateien}
         self.bg_haken = QCheckBox("als Schweißbaugruppe")
@@ -208,7 +216,7 @@ class StepPruefDialog(QDialog):
         self.bg_ziel = {}
         self.ziel_wahl = QComboBox()
         self.ziel_wahl.setToolTip("Mehrere STEP-Dateien als eine Baugruppe: diese Datei als Unterbaugruppe in die "
-                                  "Schweißbaugruppe einer anderen Datei einhängen. 'Sätze' gilt dann als Stück je "
+                                  "Schweißbaugruppe einer anderen Datei einhängen. 'Anzahl' gilt dann als Stück je "
                                   "übergeordneter Baugruppe.")
         self.ziel_wahl.currentIndexChanged.connect(lambda i: self._ziel_setzen(self.ziel_wahl.itemData(i)))
         sl.addWidget(self.ziel_wahl)
@@ -363,8 +371,9 @@ class StepPruefDialog(QDialog):
                          "eintragen. Art: eine andere wählen, wenn das Teil falsch erkannt wurde. Nicht übernehmbare "
                          "Teile (in 3D magenta): darunter Profilform und Profil-ID wählen und „Nachtragen“. Anbauteile (aufgeschweißte Bolzen, Laschen …): Doppelklick auf "
                          "die Spalte Anbauteile = prüfen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
-                         "Enthält eine Datei mehrere Teile, steht sie als Baugruppe da und wird ein Satz: oben die "
-                         "Anzahl Sätze eintragen (Vorgabe 1; leer = Einzelpositionen); die Spalte zeigt Stück je Satz, "
+                         "Enthält eine Datei mehrere Teile, steht sie als Baugruppe da; die Teile werden Einzelpositionen, "
+                         "„Anzahl“ oben setzt die Stückzahl aller Teile. Knopf „Als Satz“: die Datei wird ein Satz, "
+                         "Anzahl = Sätze, die Spalte zeigt Stück je Satz, "
                          "Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
                          "markieren (Strg/Umschalt) und unten Werte setzen; „Für alle“ gilt für alle Dateien. In der "
                          "3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün, "
@@ -391,6 +400,10 @@ class StepPruefDialog(QDialog):
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
+        for d in self.mehrteilig:       # ohne Satz: Anzahl = gemeinsame Stückzahl der Teile (z. B. aus dem Formular)
+            stk = {z.werte["einzeln"] for z in self.zeilen if z.datei == d}
+            if not self.saetze.get(d) and len(stk) == 1 and stk != {0}:
+                self.anzahl[d] = int(stk.pop())
         self.datei_waehlen(0)
         # Häkchen der Vorprüfung nach Änderungen auffrischen, gesammelt (nicht während die Liste aufgebaut wird)
         self._vor_uhr = QTimer(self)
@@ -745,7 +758,7 @@ class StepPruefDialog(QDialog):
         return self.dateien[self.datei_nr] if self.dateien else None
 
     def datei_waehlen(self, nr):
-        """Datei Nr. nr (ab 0) zeigen: nur ihre Teile, Feld Sätze, 3D des ersten Teils."""
+        """Datei Nr. nr (ab 0) zeigen: nur ihre Teile, Feld Anzahl, 3D des ersten Teils."""
         if not self.dateien:
             return
         self.datei_nr = max(0, min(nr, len(self.dateien) - 1))
@@ -769,9 +782,7 @@ class StepPruefDialog(QDialog):
             b.setHidden(datei != d)
         self.satz_feld.setVisible(d in self.mehrteilig)
         self.satz_info.setVisible(d in self.mehrteilig)
-        self.satz_spin.blockSignals(True)
-        self.satz_spin.setValue(self.saetze.get(d, 0))
-        self.satz_spin.blockSignals(False)
+        self._kopf_werte(d)
         self._satz_anzeigen()
         self._knick_anzeigen()
         self.baum.clearSelection()
@@ -809,7 +820,7 @@ class StepPruefDialog(QDialog):
             koerper, verschieden = self.mehrteilig[d]
             from .step import satzname
             n = self.saetze[d]
-            self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"leer = {koerper} Einzelteile")
+            self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"{koerper} Einzelteile")
             self.baugruppen[d].setText(0, f"Baugruppe „{satzname(d)}“ – {koerper} Teile, {verschieden} verschieden – "
                                        + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if satz else "als Einzelteile"))
 
@@ -829,6 +840,39 @@ class StepPruefDialog(QDialog):
             self.bg_ziel.pop(datei, None)
         return True
 
+    def _kopf_werte(self, datei):
+        """Feld Anzahl und Knopf Als Satz der gezeigten Datei ohne Signale setzen."""
+        for w in (self.satz_spin, self.satz_knopf):
+            w.blockSignals(True)
+        self.satz_spin.setValue(self.anzahl.get(datei, 1))
+        self.satz_knopf.setChecked(bool(self.saetze.get(datei)))
+        for w in (self.satz_spin, self.satz_knopf):
+            w.blockSignals(False)
+
+    def anzahl_setzen(self, n, datei=None):
+        """Feld Anzahl einer Datei (Vorgabe: die gezeigte). Ohne Satz bekommt jedes Teil diese Stückzahl (bleibt
+        Einzelposition, wird nie von selbst ein Satz); mit Satz ist es die Anzahl Sätze."""
+        datei = self.datei if datei is None else datei
+        if datei not in self.mehrteilig:
+            raise KeyError(datei)
+        n = max(1, int(n or 1))
+        self.anzahl[datei] = n
+        if self.saetze.get(datei):
+            return self.saetze_setzen(n, datei)
+        for z in self.zeilen:
+            if z.datei == datei:
+                z.werte["einzeln"] = n
+                z.sp.blockSignals(True)
+                z.sp.setValue(n)
+                z.sp.blockSignals(False)
+        if datei == self.datei:
+            self._kopf_werte(datei)
+
+    def als_satz_setzen(self, an, datei=None):
+        """Knopf Als Satz: an = die Datei wird ein Satz mit Anzahl Sätze aus dem Feld Anzahl; aus = Einzelpositionen."""
+        datei = self.datei if datei is None else datei
+        self.saetze_setzen(self.anzahl.get(datei, 1) if an else 0, datei)
+
     def saetze_setzen(self, n, datei=None):
         """Anzahl Sätze einer Datei (Vorgabe: die gezeigte); 0 = Einzelpositionen. Wechselt die Spalte Stückzahl
         zwischen Stückzahl und Stück je Satz."""
@@ -836,16 +880,15 @@ class StepPruefDialog(QDialog):
         if datei not in self.mehrteilig:
             raise KeyError(datei)
         self.saetze[datei] = int(n or 0)
+        if n:
+            self.anzahl[datei] = int(n)
         for z in self.zeilen:
             if z.datei == datei:
                 z.sp.blockSignals(True)
                 z.sp.setValue(z.werte[self._modus(datei)])
                 z.sp.blockSignals(False)
         if datei == self.datei:
-            if self.satz_spin.value() != self.saetze[datei]:
-                self.satz_spin.blockSignals(True)
-                self.satz_spin.setValue(self.saetze[datei])
-                self.satz_spin.blockSignals(False)
+            self._kopf_werte(datei)
             self._satz_anzeigen()
 
     def _zeile(self, it):
@@ -916,7 +959,7 @@ class StepPruefDialog(QDialog):
 
     def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False):
         """Werkstoff und/oder Stückzahl (None = Auswahl unten) in alle Teile aller Dateien bzw. die markierten
-        Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld Sätze)."""
+        Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld Anzahl als Sätze)."""
         werkstoff = werkstoff if werkstoff is not None else (
             self.alle_ws.currentText() if self.alle_ws.currentIndex() > 0 else None)
         stueck = stueck if stueck is not None else (self.alle_stk.value() or None)
