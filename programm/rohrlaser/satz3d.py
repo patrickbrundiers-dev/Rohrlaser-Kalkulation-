@@ -8,7 +8,8 @@ Schweißbaugruppe ist (z. B. ein Rahmen, den der Kunde als Stecksystem möchte),
   der Wand, Rundrohr: genau dort. Ergebnis: feste Position, Quelle manuell (wie der Dialog Schweißnaht).
 - Auswahl im 3D (Patrick 26.10.2026): Klick auf ein Teil (auch nahe einer Kante) markiert es in der Liste, Strg+Klick
   nimmt es dazu bzw. weg; auf dem Reiter Steckverbindungen markiert der Klick die Verbindungen des Teils (zwei Teile:
-  die Verbindung zwischen ihnen), eine Zeile dort zeigt Aufnahme und Stecker blau.
+  die Verbindung zwischen ihnen), eine Zeile dort zeigt Aufnahme und Stecker blau. Doppelklick wählt die ganze
+  Gehrungskette, Rechtsklick öffnet ein Menü (AuswahlEditor).
 - Knickrahmen (Schritt 2b): markierte Quadrat-/Rechteckrohre, die mit Gehrung aneinanderstoßen, werden wie im
   STEP-Prüfdialog ein Knickrahmen (knickverbindung.py): eine Position mit dem gestreckten Rohr, V-Ausschnitten und
   Zusatzarbeit Knicken; die Rohre fallen weg bzw. zählen je Satz weniger. Mehrere gleiche Rahmen im Satz werden
@@ -27,7 +28,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
 
 from . import schneidweg as sw, steckverbindung, tastatur
 from .angebot import ist_baugruppe
-from .baugruppe_dialog import (FEHLER_FARBE, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
+from .baugruppe_dialog import (FEHLER_FARBE, AuswahlEditor, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
                                _text, teile_markieren)
 from .baugruppe_step import StepBaugruppe
 
@@ -69,7 +70,8 @@ class _Teile(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
-class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, StepBaugruppe, QDialog):
+class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, AuswahlEditor,
+                   StepBaugruppe, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -103,7 +105,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         kopf = QLabel(f"<b>Satz {satz}</b>: {len(self.teile)} Teile in der Einbaulage der STEP-Datei. Zwei Rohre "
                       "markieren (Reiter Teile oder Strg+Klick im 3D) und „Steckverbindung hinzufügen“, oder „Alle Stöße "
                       "stecken“; Längsnaht: „Längsnaht wählen“ und die Fläche eines Rohrs anklicken; Rohre mit Gehrung: "
-                      "markieren und „Knickrahmen erstellen …“.")
+                      "markieren (Doppelklick im 3D wählt die ganze Kette) und „Knickrahmen erstellen …“. Rechtsklick "
+                      "im 3D: Menü.")
         kopf.setWordWrap(True)
         lay.addWidget(kopf)
         teilung = QSplitter(Qt.Horizontal)
@@ -120,6 +123,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.laengsnaht_knopf_anlegen(nur_lesen)
         self.montage_knopf_anlegen()
         self.ansicht3d.ansicht.angeklickt.connect(self.geklickt)
+        self.auswahl_signale()
         teilung.addWidget(self.ansicht3d)
         teilung.setSizes([560, 840])
         lay.addWidget(teilung, 1)
@@ -251,10 +255,20 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
             return self.laengsnaht_setzen(pid, treffer["punkt"], lage, modell)
         strg = bool(QApplication.keyboardModifiers() & Qt.ControlModifier)
         ids = [self.teile[r]["_id"] for r in self.teile_tab.markierte() if r < len(self.teile)] if strg else []
-        self.teile_markieren([x for x in ids if x != pid] if pid in ids else ids + [pid])
+        self.auswahl_setzen([x for x in ids if x != pid] if pid in ids else ids + [pid])
+        return pid
+
+    def auswahl(self):
+        """Markierte Teile (Positions-IDs) in Klickfolge."""
+        ids = [self.teile[r]["_id"] for r in self.teile_tab.markierte() if r < len(self.teile)]
+        folge = [x for x in getattr(self, "_folge", []) if x in ids]
+        return folge + [x for x in ids if x not in folge]
+
+    def auswahl_setzen(self, ids):
+        self._folge = list(ids)
+        self.teile_markieren(ids)
         self._steck_aus_teilen()
         self.zeigen()
-        return pid
 
     def teile_markieren(self, ids):
         """Zeilen der Teile ids (Positions-IDs) im Reiter Teile markieren, ohne Neuzeichnen."""

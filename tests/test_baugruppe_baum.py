@@ -232,12 +232,40 @@ anz = len(d3.bg["steckverbindungen"])
 kennung = d3.steck_aus_3d()
 assert kennung and len(d3.bg["steckverbindungen"]) == anz + 1
 assert (d3.bg["steckverbindungen"][-1]["_auf"], d3.bg["steckverbindungen"][-1]["_st"]) == (p1, p2)
+menue = dict(d3.kontext_menue(dict(id=f"teil:{nr2}", punkt=(0, 0, 0))))      # Rechtsklick: gehört schon dazu
+weg = next(t for t in menue if t.startswith("Steckverbindung") and t.endswith("entfernen"))
+assert d3.wahl_3d == [p1, p2] and menue["Aufnahme und Stecker tauschen"] and menue[weg], menue
+d3.kontext_menue(dict(id=f"teil:{nr2}", punkt=(0, 0, 0)), wahl=weg)
+assert len(d3.bg["steckverbindungen"]) <= anz and not d3._steck_zeilen([p1, p2])
 d3._3d_geklickt(dict(id=f"teil:{nr2}", punkt=(0, 0, 0)), strg=True)          # Strg+Klick nimmt es wieder weg
 assert d3.wahl_3d == [p1] and not d3.auswahl_steck.isEnabled()
+# Doppelklick und Rechtsklick an der Maus: Signale doppelt bzw. kontext mit der Fläche unter dem Zeiger
+from PySide6.QtCore import QEvent, QPointF  # noqa: E402
+from PySide6.QtGui import QMouseEvent  # noqa: E402
+w3 = v3.ansicht
+w3.resize(600, 500)
+pixel = next(((x, y) for x in range(20, 600, 20) for y in range(20, 500, 20) if w3.flaeche_unter(x, y)), None)
+assert pixel is not None
+signale = []
+w3.doppelt.connect(lambda t: signale.append(("doppelt", t["id"])))
+w3.kontext.connect(lambda t, pos: signale.append(("kontext", t["id"])))
+d3.kontext_menue = lambda *a, **kw: None                                      # kein Menü im Test
+pt = QPointF(*pixel)
+
+
+def maus(art, knopf):
+    return QMouseEvent(art, pt, pt, w3.mapToGlobal(pt), knopf, knopf, Qt.NoModifier)
+
+
+w3.mouseDoubleClickEvent(maus(QEvent.MouseButtonDblClick, Qt.LeftButton))
+w3.mousePressEvent(maus(QEvent.MouseButtonPress, Qt.RightButton))
+w3.mouseReleaseEvent(maus(QEvent.MouseButtonRelease, Qt.RightButton))
+assert [x[0] for x in signale] == ["doppelt", "kontext"] and str(signale[0][1]).startswith("teil:"), signale
+del d3.kontext_menue
 d3.baum.setCurrentItem(d3.baum.topLevelItem(0))                               # Klick im Baum: Auswahl aus dem Baum
 assert d3.wahl_3d == [] and d3.baum_hervor == set()
 ok("3D wie im Rohr-Editor: Rohre aus den Eingaben, Nähte als Raupe, Nur Gewähltes, Nähte aus, Darstellung, "
-   "Messen, Längsnaht per Klick, Teile per Klick wählen und stecken")
+   "Messen, Längsnaht per Klick, Teile per Klick wählen und stecken, Rechtsklick-Menü")
 
 # ------------------------------------------------------------------ ohne 3D-Daten
 d2 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0})

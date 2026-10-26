@@ -2721,11 +2721,15 @@ def kapitel_optimieren(i):
     i.abschnitt("Rahmen-Assistent", marke="rahmen_assistent")
     i.text("<b>Neue Position → Rahmen-Assistent</b> baut einen <b>Rechteckrahmen</b> oder <b>Quader</b> aus Quadrat-, "
            "Rechteck- oder Rundrohr ohne STEP-Datei: Profil, Werkstoff, Außenmaße und Ecken eingeben, die Vorschau "
-           "nennt die Rohre. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
+           "nennt die Rohre und zeigt sie rechts im 3D. Mit OK werden sie Positionen eines Satzes mit 3D, danach öffnet Satz in 3D "
            "([[satz_3d]]).", kurz=True)
     i.genauer()
     i.liste("<b>Gehrung</b> (nur Rechteckrahmen): vier Rohre mit 45°-Gehrung, Länge außen B bzw. H. Satz in 3D "
             "schlägt dann den Knickrahmen vor ([[vorschlaege]]).",
+            "<b>Knickrahmen (ein Rohr, geknickt)</b> (nur Rechteckrahmen aus Quadrat- oder Rechteckrohr): wie "
+            "Gehrung, danach öffnet Satz in 3D gleich <i>Knickrahmen erstellen</i> für alle vier Rohre (erster "
+            "Schenkel, Freistich, Knickzugabe, K-Faktor, [[satz_3d]]). Mit OK wird der Rahmen eine Position: das "
+            "gestreckte Rohr mit drei V-Ausschnitten.",
             "<b>stumpf</b>: die Waagrechten laufen durch (Länge B), die Senkrechten stehen dazwischen (H − 2 × "
             "Profilhöhe; Rundrohr mit Sattel, Länge Mitte zu Mitte H − Ø).",
             "<b>stumpf mit Steckverbindungen</b>: wie stumpf, dazu an jedem Stoß eine Steckverbindung (wie <i>Alle "
@@ -2766,7 +2770,11 @@ def kapitel_optimieren(i):
     i.genauer()
     i.liste("<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
             "3D blau. Ein Klick auf ein Teil im 3D markiert es, auch nahe an einer Kante; mit Strg kommt es dazu bzw. "
-            "fällt wieder weg. Die Zeile unter der Ansicht nennt die markierten Positionen.",
+            "fällt wieder weg. Die Zeile unter der Ansicht nennt die markierten Positionen. Ein <b>Doppelklick</b> "
+            "auf ein Rohr wählt die ganze Gehrungskette (alle Rohre, die zusammen einen Knickrahmen ergeben). Ein "
+            "<b>Rechtsklick</b> auf ein Teil öffnet ein Menü: Gehrungskette wählen, Knickrahmen erstellen bzw. lösen, "
+            "Steckverbindung hinzufügen (das zuerst gewählte Rohr wird Aufnahme), Aufnahme und Stecker tauschen, "
+            "Steckverbindung entfernen, Nur Gewähltes zeigen und Auswahl aufheben.",
             "<b>Reiter Steckverbindungen</b>: dieselbe Tabelle und dieselben Knöpfe wie in der Schweißbaugruppe "
             "([[steckverbindung_anlegen]]). Ein Klick in eine Zeile zeigt Aufnahme und Stecker im 3D blau. Ein Klick "
             "auf ein Rohr im 3D markiert seine Verbindungen in der Tabelle, zwei Rohre (Strg+Klick) die Verbindung "
@@ -4108,7 +4116,8 @@ def kapitel_baugruppen(i):
            "[[satz_3d]]); sie ist im 3D rot.")
     i.text("<b>Teile im 3D wählen</b>: Ein Klick auf ein Teil wählt es (blau), auch nahe an einer Kante; der Baum "
            "springt auf das Teil und der Reiter Struktur und Teile markiert es mit. Strg+Klick nimmt weitere Teile "
-           "dazu oder wieder weg, ein Klick im Baum wählt neu. Unter der Ansicht stehen dazu <b>Knickrahmen "
+           "dazu oder wieder weg, ein Klick im Baum wählt neu. Doppelklick und Rechtsklick-Menü wie im Fenster Satz "
+           "in 3D. Unter der Ansicht stehen dazu <b>Knickrahmen "
            "erstellen …</b> (gewählte Rohre mit Gehrung, [[satz_3d]]) und <b>Steckverbindung hinzufügen</b> (genau "
            "zwei Rohre: das zuerst gewählte wird Aufnahme, das zweite Stecker, [[steckverbindung_anlegen]]).")
     i.text("<b>Rohre aus den Eingaben</b>: Quadrat-, Rechteck- und Rundrohre (und andere Profile, die der "

@@ -107,6 +107,22 @@ gesehen = {}
 
 
 def bedienen(d):
+    # Doppelklick im 3D (26.10.2026): ganze Gehrungskette gewählt, Rechtsklick-Menü erstellt den Knickrahmen
+    nr = next(i for i, k in enumerate(d._koerper) if k[0] == strebe["id"])
+    gesehen["kette"] = sorted(d.doppelt_geklickt(dict(id=f"teil:{nr}", punkt=(0, 0, 0))))
+    gesehen["kette_mark"] = len(d.teile_tab.markierte())
+    menue = d.kontext_menue(dict(id=f"teil:{nr}", punkt=(0, 0, 0)))
+    gesehen["menue"] = dict(menue)
+    d.knick_erstellen = (lambda alt: lambda **kw: alt(dialog=lambda dlg: QDialog.Accepted, melden=False))(
+        d.knick_erstellen)
+    d.kontext_menue(dict(id=f"teil:{nr}", punkt=(0, 0, 0)), wahl="Knickrahmen erstellen …")
+    gesehen["menue_knick"] = len(d.knicke)
+    gesehen["kette_neu"] = len(d.kette_zu(strebe["id"]))
+    d.kontext_menue(dict(id=f"teil:{nr}", punkt=(0, 0, 0)), wahl="Knickrahmen lösen")
+    gesehen["menue_los"] = len(d.knicke)
+    del d.knick_erstellen
+    d.kontext_menue(dict(id=f"teil:{nr}", punkt=(0, 0, 0)), wahl="Auswahl aufheben")
+    gesehen["leer"] = d.teile_tab.markierte()
     # ein Rohr allein: Grund
     d.teile_tab.selectRow(0)
     gesehen["allein"] = d.knick_erstellen(melden=False)
@@ -122,6 +138,12 @@ def bedienen(d):
 
 
 assert seite.satz_3d(0, dialog=bedienen)
+assert gesehen["kette"] == sorted(q["id"] for q in vorher) and gesehen["kette_mark"] == 2, gesehen
+assert gesehen["menue"]["Knickrahmen erstellen …"] and not gesehen["menue"]["Knickrahmen lösen"], gesehen
+assert gesehen["menue"]["Steckverbindung hinzufügen (erstes = Aufnahme)"], gesehen              # zwei Positionen
+assert gesehen["menue_knick"] == 1 and gesehen["kette_neu"] == 2 and gesehen["menue_los"] == 0, gesehen
+assert gesehen["leer"] == [], gesehen
+ok("Satz in 3D: Doppelklick wählt die Gehrungskette, Rechtsklick-Menü erstellt und löst den Knickrahmen")
 assert isinstance(gesehen["allein"], str) and gesehen["allein"], gesehen
 assert gesehen["n"] == 1 and gesehen["geloest"] == 1 and gesehen["wieder"] == 1, gesehen
 assert "Knickrahmen 1" in gesehen["text"] and gesehen["farben"] == 5, gesehen
