@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from .stammdaten import zahl_als_text
 from .stil import BALKEN_FARBEN, LINIE, TEXT, TEXT_GRAU
+from .stil import farbe as thema_farbe
 
 BALKEN_HOEHE = 14
 ZEILE = 18
@@ -58,11 +59,11 @@ class Kostenbalken(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         breite, y, summe = self.width(), self._oben(), self.summe()
         if self.titel:
-            p.setPen(QColor(TEXT))
+            p.setPen(thema_farbe(TEXT))
             p.drawText(QRectF(0, 0, breite, ZEILE), Qt.AlignLeft | Qt.AlignVCenter,
                        QFontMetrics(self.font()).elidedText(f"{self.titel}  {_euro(summe)}", Qt.ElideRight, breite))
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(LINIE))
+        p.setBrush(thema_farbe(LINIE))
         p.drawRoundedRect(QRectF(0, y, breite, BALKEN_HOEHE), 3, 3)
         x = 0.0
         for _, w, farbe in self.teile:
@@ -77,7 +78,7 @@ class Kostenbalken(QWidget):
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(farbe))
             p.drawRect(QRectF(0, y + 4, 10, 10))
-            p.setPen(QColor(TEXT if w > 0 else TEXT_GRAU))
+            p.setPen(thema_farbe(TEXT if w > 0 else TEXT_GRAU))
             anteil = f"  {w / summe * 100:.0f} %" if summe > 0 and w > 0 else ""
             p.drawText(QRectF(16, y, breite - 16, ZEILE), Qt.AlignLeft | Qt.AlignVCenter, t)
             p.drawText(QRectF(16, y, breite - 16, ZEILE), Qt.AlignRight | Qt.AlignVCenter, _euro(w) + anteil)
@@ -141,7 +142,7 @@ class Kostenwasserfall(QWidget):
         vorher, farbe_nr = None, 0
         for i, (titel, von, bis, summe) in enumerate(self.stufen):
             y = i * ZEILE
-            p.setPen(QColor(TEXT))
+            p.setPen(thema_farbe(TEXT))
             f = p.font()
             f.setBold(summe)
             p.setFont(f)
@@ -159,8 +160,8 @@ class Kostenwasserfall(QWidget):
             p.setBrush(QColor(farbe))
             p.drawRect(QRectF(a, y + 3, max(b - a, 1.0), ZEILE - 6))
             if vorher is not None:                  # Verbindungslinie vom Ende der vorigen Stufe
-                p.setPen(QColor(TEXT_GRAU))
+                p.setPen(thema_farbe(TEXT_GRAU))
                 p.drawLine(int(vorher), y - 3, int(vorher), y + 3)
             vorher = x(bis)
-        p.setPen(QColor(LINIE))
+        p.setPen(thema_farbe(LINIE))
         p.drawLine(links, 0, links, ZEILE * len(self.stufen))

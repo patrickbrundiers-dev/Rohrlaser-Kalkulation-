@@ -21,7 +21,7 @@ from .sichtbarkeit import ohne_wert
 from .staffeln import EURO, PROZENT, UMLEGEN
 from .stammdaten import Feld, wert_aus_text, zahl_als_text
 
-GRAU = QColor(stil.TEXT_GRAU)
+GRAU = stil.farbe_fest(stil.TEXT_GRAU)
 FARBE_SUMME = stil.farbe_fest("#DDEBF7")
 ZEILENHOEHE = 20
 

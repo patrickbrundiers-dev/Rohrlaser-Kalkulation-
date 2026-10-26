@@ -4992,7 +4992,10 @@ def kapitel_einstellungen(i):
          "Modus). Im Dunkelmodus sind Eingabezellen blaugrau und berechnete Zellen dunkler, auch Skizzen, "
          "Editoren und die 3D-Ansicht sind dunkel; Zeichnungen und alle PDF-Ausgaben bleiben weiß. Hell bleibt hell, "
          "auch wenn Windows dunkel eingestellt ist. Der Tastaturfokus ist in Dunkel und Hoher Kontrast blau bzw. "
-         "schwarz umrandet. Gilt sofort, nur an diesem Arbeitsplatz."],
+         "schwarz umrandet. Im Dunkelmodus haben Eingabefelder, Auswahllisten und Häkchenkästchen einen hellen "
+         "Rahmen, Hauptknöpfe (z. B. <i>Optimieren</i>, <i>Angebot (PDF)</i>) sind kräftig blau mit weißer Schrift. "
+         "Im Stangenbild steht die Positionsnummer in dunkler Schrift auf hellen Teilfarben (Orange, Gelb, Grün) und "
+         "in weißer Schrift auf dunklen. Gilt sofort, nur an diesem Arbeitsplatz."],
         ["Ansicht", "Schriftgröße [%] (90 bis 150)",
          "Schrift im ganzen Programm größer oder kleiner (Vorgabe 100 %), z. B. 120 % für große Bildschirme. Gilt "
          "sofort, nur an diesem Arbeitsplatz."],

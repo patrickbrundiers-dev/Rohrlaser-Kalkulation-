@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.154", "<b>Schweißnaht und Gravur auch bei Spalt</b>: Liegt zwischen Blech und Rohr (oder zwei anderen Teilen "
+    ["0.9.155", "<b>Schweißnaht und Gravur auch bei Spalt</b>: Liegt zwischen Blech und Rohr (oder zwei anderen Teilen "
                 "einer Baugruppe) ein Spalt bis 3 mm (Einstellung), erkennt der STEP-Import die Naht und graviert den "
                 "Umriss genau unter das Blech; Vorschläge und Anbauteile tragen das Spaltmaß und sind zum Prüfen "
                 "markiert, die Teile werden nie verschoben. Neu: WARNUNG bei Spalt über 2 mm (Einstellung) und für "
@@ -31,6 +31,13 @@ NEUERUNGEN = [
                 "<b>Aus Zeichnung …</b> liest a-Maße (DIN EN ISO 2553) und Stückliste aus PDF, DXF oder Scan "
                 "([[zeichnung_baugruppe]]).",
      "Schweißnaht und Gravur auch bei Spalt zwischen Blech und Rohr."],
+    ["0.9.154", "<b>Hell- und Dunkelmodus optisch verbessert</b>: Im Dunkelmodus sind Rahmen von Eingabefeldern, "
+                "Auswahllisten und Häkchenkästchen wieder sichtbar, Hauptknöpfe kräftig blau mit gut lesbarer weißer "
+                "Schrift, die Herkunft der Merkmale im Teile-Editor und die Legende der Kostenbalken nicht mehr dunkel "
+                "auf dunkel. Im Stangenbild steht die Positionsnummer auf hellen Teilfarben in dunkler Schrift. Der "
+                "Hellmodus hat eine ruhige, einheitlich kühlgraue Fensterfläche ([[einstellungen]]).",
+     "Dunkelmodus: sichtbare Rahmen und Häkchen, lesbare Hauptknöpfe; Hellmodus einheitlich kühlgrau; Stangenbild "
+     "lesbare Positionsnummern."],
     ["0.9.153", "<b>Angebot aus STEP schneller</b>: Der Prüfdialog zeigt alle Dateien in einer Liste (Pfeile "
                 "springen zur Datei), den Hinweis gleich hinter dem Teil und passt auf 1366 px. Oben stehen Kunde und "
                 "<b>Anfrage-Nr.</b> (Vorschlag aus dem Ordnernamen). Unter <i>Werte setzen</i> gibt es eine "
