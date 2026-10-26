@@ -1816,7 +1816,9 @@ def kapitel_step(i):
             "gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder C-Profil, weil es als "
             "Stangenmaterial auf dem Rohrlaser geschnitten werden kann; als Art lässt sich <i>Kantteil</i> wählen. "
             "Ist es scharfkantig gezeichnet (ohne Biegeradien), ist im Prüfdialog das Profil nur vorbelegt, wenn "
-            "ein passendes Profil in den Stammdaten steht, sonst das Kantteil.",
+            "ein passendes Profil in den Stammdaten steht, sonst das Kantteil. Ein <b>geschlossenes Rohr</b> "
+            "(Rund-, Quadrat-, Rechteckrohr, Sonder- oder Mehrkammerprofil) ist immer ein Rohr, nie ein Kantteil, "
+            "auch mit vielen Langlöchern oder Ausschnitten; alle Schnitte werden übernommen.",
             "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
             "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
             "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "
@@ -1996,7 +1998,9 @@ def kapitel_step(i):
     i.liste("Die Messung liest die Baugruppenstruktur und die Namen der Bauteile aus der STEP-Datei. Wie die "
             "Artikelnummer entsteht, steht in der Einstellung <i>Artikelnummer aus (Bauteilname, Dateiname oder "
             "beides)</i> (Vorgabe Bauteilname). Ohne Namen in der Datei bleibt es wie bisher beim Dateinamen mit "
-            "Körpernummer (<i>Gestell-K3</i>). Der Tooltip auf dem Artikel im Prüfdialog zeigt die Lage in der "
+            "Körpernummer (<i>Gestell-K3</i>). Tragen verschiedene Teile denselben Bauteilnamen, bekommt jedes "
+            "weitere die Nummer mit <i>-2</i>, <i>-3</i> … (aus 77 Körpern „Rohr“ werden 77 Positionen); gleiche "
+            "Teile mit gleichem Namen bleiben eine Position mit zusammengezählter Stückzahl. Der Tooltip auf dem Artikel im Prüfdialog zeigt die Lage in der "
             "Baugruppe, z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>.",
             "Steht im Bauteilnamen ein Begriff aus der Einstellung <i>Normteile: Begriffe im Bauteilnamen (mit ; "
             "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "

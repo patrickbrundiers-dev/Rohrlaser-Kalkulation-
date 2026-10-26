@@ -1387,6 +1387,37 @@ def _voll_position(m, form, abm, laenge, wst, zukauf_liste, neue_artikel):
     return dict(neu=schl), text
 
 
+def eindeutige_artikel(messwerte):
+    """Gleiche Artikelnummer für verschiedene Körper eines Imports (Bauteilname im CAD mehrfach vergeben, z. B. 77
+    Körper „Rohr“): ab dem zweiten verschiedenen Teil mit Zusatz -2, -3 … (gleiche Teile mit gleichem Namen bleiben eine
+    Position, uebernehmen zählt ihre Stückzahl zusammen). Sonst galt jeder weitere Körper als „steht schon im Angebot“
+    und nur einer wurde übernommen (Patrick 26.10.2026). Gleiche Messwerte ergeben immer dieselben Nummern, ein
+    zweiter Import derselben Dateien erkennt die Artikel also wieder."""
+    vergeben = {str(m.get("artikel")) for m in messwerte if m.get("artikel") not in (None, "")}
+    gruppe = {i: e for e, liste in teile_gruppen(messwerte).items() for i in liste}
+    gesehen = set()         # schon vergebene Nummern dieses Imports
+    zugeteilt = {}          # (Name, Gruppe gleicher Teile) -> Nummer: gleiche Teile gleichen Namens dieselbe Nummer
+    for i, m in enumerate(messwerte):
+        art = m.get("artikel")
+        if art in (None, ""):
+            continue
+        art = str(art)
+        schl = (art, gruppe.get(i, ("einzeln", i)))
+        if schl in zugeteilt:
+            m["artikel"] = zugeteilt[schl]      # dasselbe Teil mehrfach verbaut (eine Position)
+            continue
+        if art in gesehen:
+            n = 2
+            while f"{art}-{n}" in vergeben:
+                n += 1
+            art = f"{art}-{n}"
+            vergeben.add(art)
+            m["artikel"] = art
+        gesehen.add(art)
+        zugeteilt[schl] = art
+    return messwerte
+
+
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
                 blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None):
@@ -1426,6 +1457,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     grenz_hinweis = f"Konturgrenzen Vorgabe {klein:g}/{mittel:g} mm (Maschine ohne Werte)" if vorgabe else ""
     profile = dict(k.profile)
     vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
+    eindeutige_artikel(messwerte)
+    diesmal = {}            # Artikel -> Position aus diesem Import (gleiches Teil mit gleichem Namen: Stück addieren)
     pos_max = max((p["pos"] for p in positionen if isinstance(p.get("pos"), (int, float))), default=0)
     naechste = int(pos_max) + 10
     neu, neue_prof, protokoll, bericht = [], [], [], []
@@ -1513,6 +1546,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 m.get("pruefstatus") == "prüfen" and m.get("_uebernehmen") is not True)):
             hinweise.append(f"nicht übernommen: {blech_text(m)}" + (" im Prüfdialog abgewählt" if "_uebernehmen" in m
                                                                      else " ungeprüft (Prüfstatus prüfen), im Prüfdialog bestätigen"))
+        elif m.get("profilform") in BLECHE and art in diesmal:        # dasselbe Teil noch einmal: Stückzahl dazu
+            erst, stk = diesmal[art], m.get("_stueck", stueck)
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
         elif m.get("profilform") in BLECHE and art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif m.get("profilform") in BLECHE:
@@ -1546,10 +1585,16 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
-            vorhanden.add(art)
+            diesmal[art] = p
             naechste += 10
         elif mit_blechen and ist_voll(m) and m.get("_uebernehmen") is False:
             hinweise.append(f"nicht übernommen: {voll_text(m)} im Prüfdialog abgewählt")
+        elif mit_blechen and ist_voll(m) and art in diesmal:        # dasselbe Teil noch einmal: Stückzahl dazu
+            erst, stk = diesmal[art], m.get("_stueck", stueck)
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
         elif mit_blechen and ist_voll(m) and art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif mit_blechen and ist_voll(m):       # Vollmaterial: Zukaufteil mit Zusatzarbeit Sägen (Plan Vollmaterial)
@@ -1588,13 +1633,19 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
-            vorhanden.add(art)
+            diesmal[art] = p
             naechste += 10
         elif m.get("profilform") in NICHT_KALKULIERT:
             hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         elif not gewaehlt(m):
             hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(unsicher(m))}), im Prüfdialog "
                             "bestätigen" if "_uebernehmen" not in m else "nicht übernommen: im Prüfdialog abgewählt")
+        elif art in diesmal:        # dasselbe Teil noch einmal (gleicher Name, gleiche Messung): Stückzahl dazu
+            erst, stk = diesmal[art], m.get("_stueck", stueck)
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
         elif art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):
@@ -1726,7 +1777,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
-            vorhanden.add(art)
+            diesmal[art] = p
             naechste += 10
         if erster == i:
             ergebnis[i] = ziel

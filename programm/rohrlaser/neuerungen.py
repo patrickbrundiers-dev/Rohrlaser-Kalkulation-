@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.142", "<b>STEP-Import: vier Fehler behoben</b>: Ein geschlossenes Rohr mit vielen Langlöchern (z. B. QR "
+                "40x40x2) wurde als Kantteil erkannt; jetzt ist ein geschlossenes Rohr immer ein Rohr, alle Schnitte "
+                "werden übernommen ([[bleche]]). Im Rohr-Editor fehlte der Umriss komplexer Enden (Ausklinkung wurde "
+                "gerade gezeigt) und der Eckradius aus der STEP (Konturen lagen bei anderem Radius bis über 1 mm "
+                "daneben); beides bleibt jetzt erhalten. Haben verschiedene Teile denselben Bauteilnamen, wurde beim "
+                "Übernehmen nur eines übernommen; jetzt bekommt jedes weitere Teil die Nummer mit -2, -3 … "
+                "([[importprofile]]).",
+     "STEP-Import: Rohr nie Kantteil, Ausklinkung und Radius im Editor wie STEP, alle Positionen übernommen."],
     ["0.9.141", "<b>Schnittschema je Staffel</b>: Im Reiter <i>Staffeln</i> zeigt das Ergebnis je Stufe und "
                 "Abmessung die Stangen (Anzahl × Lieferlänge, Ausnutzung) und ihre Kosten inkl. Verschnitt. Der neue "
                 "Knopf <b>Schnittschema …</b> (oder Doppelklick) öffnet den Schnittplan der Stufe mit Stangen, Meter, "

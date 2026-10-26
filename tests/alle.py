@@ -44,6 +44,7 @@ TESTS = [
     ("test_anbau_gravur.py", QT),
     ("test_step_kantteile.py", {}),
     ("test_offenes_rohr.py", QT),
+    ("test_step_importfehler.py", QT),
     ("test_step_messung_robust.py", QT),
     ("test_step_struktur.py", {}),
     ("test_step_leistung.py", {}),

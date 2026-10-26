@@ -684,8 +684,18 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
         else:
             gruppen.append([s])
     if not gruppen:
-        return []
-    return max(gruppen, key=lambda g: (len(g), g[0][2]))
+        return [] if n >= REGEL_DICHT else _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
+    beste = max(gruppen, key=lambda g: (len(g), g[0][2]))
+    if len(beste) < 3 and n < REGEL_DICHT:
+        # viele Ausschnitte (Rohr voller Langlöcher): die meisten Schnitte treffen ein Merkmal, dichter suchen, damit
+        # die Achse aus drei gleichen Querschnitten sicher ist
+        dicht = _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
+        if len(dicht) > len(beste):
+            return dicht
+    return beste
+
+
+REGEL_DICHT = 41      # Schnitte, wenn bei 7 Schnitten keine drei gleichen Regelquerschnitte gefunden werden
 
 
 def _min_rechteck(pts):
@@ -2850,16 +2860,19 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     mehrachsig = bool(fl and (fl.get("abwicklung") or {}).get("mehrachsig"))
     # geschlossenes Hohlprofil (Rohr) mit sicherer Achse bleibt Rohr: Gehrungen an beiden Enden drücken das Volumen
     # unter Querschnitt × Länge (RE 80x40, 480 mm, 2 × 45°: 83 %), das ist kein ausgeschnittenes Kantteil
-    rohr = t is not None and bool(t.kammern) and t.sicherheit.get("achse") == "sicher" and not mehrachsig
-    if fl and fl["art"] == "gekantet" and (t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
-                                           or t.profilform == "offenes Sonderprofil" or mehrachsig
-                                           or (volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge and not rohr)):
+    # Patrick 26.10.2026: ein geschlossenes Rohr ist immer ein Rohr, keine Ausnahme (auch wenn die Achse wegen vieler
+    # Langlöcher nur "wahrscheinlich" ist oder die Ausschnitte das Volumen drücken)
+    rohr = t is not None and bool(t.kammern) and t.profilform not in ("", "offenes Sonderprofil")
+    if fl and fl["art"] == "gekantet" and not rohr and (
+            t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
+            or t.profilform == "offenes Sonderprofil" or mehrachsig
+            or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
         b.alternative = _als_profil(solid, b, None, t)
         return b
     if t.profilform:
         t.bauteiltyp = "Profil"
-        if fl and t.alternative is None and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
+        if fl and t.alternative is None and not rohr and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
             try:      # Grenzfall: auch als (gekantetes) Blech messen, im Prüfdialog wählbar
                 t.alternative = _blech_teil(solid, datei, koerper, fl, volumen, False, daten and dict(daten))
             except Exception:  # Zweitmessung darf die Messung nie verhindern
