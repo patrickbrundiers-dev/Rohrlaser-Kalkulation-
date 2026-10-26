@@ -183,7 +183,8 @@ ZUSATZ = {      # nur in diesen Themes: deutlicher Tastaturfokus (B9)
     # Hell- und Dunkelmodus optisch verbessert (26.10.2026): Fusion zeichnet Rahmen von Eingabefeldern und Häkchen-
     # kästchen aus der Fensterfarbe (dunkler) – auf dunklem Grund fast unsichtbar; Hauptknopf weiße Schrift auf
     # Hellblau war kaum lesbar (2,6 : 1), jetzt kräftiges Blau (5,5 : 1)
-    "Dunkel": "QLineEdit, QComboBox, QAbstractSpinBox { border: 1px solid #56657A; border-radius: 3px; "
+    "Dunkel": "QLineEdit, QComboBox, QAbstractSpinBox, QPlainTextEdit, QTextEdit { border: 1px solid #56657A; "
+              "border-radius: 3px; "
               "padding: 1px 3px; }\n"
               "QLineEdit:disabled, QComboBox:disabled, QAbstractSpinBox:disabled { border-color: #343E4C; }\n"
               "QComboBox::drop-down, QDateTimeEdit::drop-down { border: none; width: 18px; }\n"
