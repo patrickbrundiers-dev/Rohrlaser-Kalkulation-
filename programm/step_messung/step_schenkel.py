@@ -204,10 +204,38 @@ def mit_stegen(solid, t, ziel, datei="", koerper=1, netz=False):
     m.hinweise.append(f"{HINWEIS}: {form} {t.abm_a:g}x{t.abm_b:g}x{d:g} aus {soll[0]:g}x{soll[1]:g}x{d:g}, "
                       f"Schenkel gekürzt, je ein Steg {STEG:g} mm an Ende A und B (virtuelles Bauteil gemessen)")
     m.sicherheit["stege"] = "virtuell"
+    # Volumen mit Stegen (Gewicht, so gelasert); die Spalte volumen bleibt das gezeichnete Teil
+    m.sicherheit["volumen_virtuell"] = f"{g._volumen(zu):.1f}"
+    g.virtuell_ablegen(zu, koerper)
     if netz:
         try:
             _netz_koerper(t, stege, ax3, 0.05, art="ES")
             m.netz = t.netz
         except Exception:  # ohne Anzeige der Stege bleibt die Messung gültig
             pass
+    if m.netz:
+        # das Netz steht im System des gezeichneten Teils (Ende A auf seiner Schwerlinie), Lage und Konturen der
+        # Messung im System des größeren Profils: Netz umrechnen, sonst lag das Teil in Satz und Baugruppe um den
+        # Unterschied der Schwerlinien verschoben (Grundregel: Teile nie verschieben)
+        _netz_umrechnen(m.netz, t, m)
     return m
+
+
+def _netz_umrechnen(netz, von, nach):
+    """Punkte und Kantenzüge des Netzes vom Rohr-System der Messung von in das der Messung nach umrechnen."""
+    from OCP.gp import gp_Pnt, gp_Trsf
+    a, b = gp_Trsf(), gp_Trsf()
+    a.SetTransformation(g._rohr_ax3(von))
+    b.SetTransformation(g._rohr_ax3(nach))
+    tr = b.Multiplied(a.Inverted())
+
+    def neu(pk):
+        out = []
+        for i in range(0, len(pk) - 2, 3):
+            q = gp_Pnt(pk[i], pk[i + 1], pk[i + 2]).Transformed(tr)
+            out += [round(q.X(), 4), round(q.Y(), 4), round(q.Z(), 4)]
+        return out
+    if netz.get("p"):
+        netz["p"] = neu(netz["p"])
+    for art, zuege in (netz.get("l") or {}).items():
+        netz["l"][art] = [neu(z) for z in zuege]

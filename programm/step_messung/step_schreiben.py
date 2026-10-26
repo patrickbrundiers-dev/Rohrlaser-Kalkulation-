@@ -1033,6 +1033,19 @@ def _step_schreiben(doc, ziel, produkt):
         raise ValueError(f"STEP-Datei nicht geschrieben: {ziel}")
 
 
+def form_schreiben(form, ziel, name):
+    """Einen fertigen Körper (OpenCascade-Form, mm) unverändert als STEP schreiben (virtuelles Bauteil der Messung,
+    step_geometrie.virtuell_ablegen)."""
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDataStd import TDataStd_Name
+    from OCP.TDocStd import TDocStd_Document
+    from OCP.XCAFDoc import XCAFDoc_DocumentTool
+    doc = TDocStd_Document(TCollection_ExtendedString("XmlOcaf"))
+    lab = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main()).AddShape(form, False)
+    TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(name or "Teil"), True))
+    _step_schreiben(doc, ziel, name)
+
+
 def schreiben(bauplan, ziel):
     """Alle Teile bauen und als STEP schreiben -> Ergebnis (dict)."""
     if bauplan.get("baugruppe"):

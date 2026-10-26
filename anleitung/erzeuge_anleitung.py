@@ -1930,6 +1930,24 @@ def kapitel_step(i):
             "umschaltbar auf eine je Rohr mit Ringen. Die Position bekommt <b>Teile je Rohrumfang</b>: Rohrstücke = "
             "Stückzahl ÷ je Umfang aufgerundet (5 Schalen, 2 je Umfang = 3 Rohrstücke). Eine Halbschale von genau "
             "180° passt mit Luft nur einmal.",
+            "<b>Virtuelles Bauteil als STEP</b>: für Winkel/U aus einem größeren Profil und offen gezeichnete Rohre "
+            "speichert Rechtsklick → <i>Virtuelles Bauteil als STEP …</i> (oder <b>STEP speichern</b> im "
+            "Schneidweg-Rechner) den Körper, der wirklich gelasert wird: Teil plus Stege bzw. Ringe, genau in der Lage "
+            "der Kundendatei, die selbst unverändert bleibt. Damit bekommt die Programmierung am Laser die echte "
+            "Geometrie. Die STEP-Datei der Position muss noch am gleichen Ort liegen.",
+            "<b>Stege bleiben oder abtrennen</b>: Vorgabe ist, dass die Stege bzw. Ringe 2 mm am Teil bleiben. Je "
+            "Position umschaltbar (Rechtsklick → <i>Stege abtrennen an/aus</i> oder Häkchen <i>Stege abtrennen "
+            "(Nacharbeit)</i> im Schneidweg-Rechner): abgetrennt kommt die Zusatzarbeit <i>Stege abtrennen</i> "
+            "(€ je Teil, Preis in den Stammdaten Zusatzarbeiten) dazu und das Gewicht ist das des gezeichneten Teils. "
+            "Die Wahl bleibt beim Wechsel auf ein anderes größeres Profil erhalten.",
+            "<b>Zeichnung und Werkstattpapiere</b>: die Zeichnung aus dem Schneidweg-Rechner zeigt das virtuelle "
+            "Bauteil mit roten Stegen (ganzes Teil, Ende A und B vergrößert) und den Hinweis „bleibt stehen“ bzw. "
+            "„abtrennen und entgraten“; die Werkstattpapiere listen diese Positionen im Abschnitt <i>Virtuelle "
+            "Bauteile (Stege 2 mm)</i>.",
+            "<b>Gewicht</b>: das Gewicht je Teil (Spalte Gewicht, Palettenschein, Fracht) kommt beim virtuellen "
+            "Bauteil aus dem gemessenen Volumen (mit Stegen bzw. wie gezeichnet, wenn sie abgetrennt werden), nicht "
+            "aus Metergewicht × Länge des größeren Profils; der Rest des Querschnitts ist Abfall. Material und "
+            "Stangen rechnen weiter mit dem ganzen Profil.",
             "<b>Rohrgröße</b>: das nächstgrößere Rohr einer festen Normreihe (Quadrat-, Rechteck- und Rundrohr nach "
             "EN 10219/10305), wenn es höchstens 1 mm größer ist als die Zeichnung; sonst Sondermaß mit Hinweis. Steht "
             "das Rohr in den Stammdaten, wird es genommen, sonst als Profil vorgeschlagen. Wählst du in der Spalte "

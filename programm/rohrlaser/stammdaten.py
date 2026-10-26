@@ -1697,7 +1697,7 @@ def beispiel_zusatzarbeiten():
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
         + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
-        + saege_zusatzarbeiten()
+        + saege_zusatzarbeiten() + stege_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1739,6 +1739,16 @@ def saege_zusatzarbeiten():
     return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_SAEGEN, art="€/Stück",
                  preis=SAEGEN_PREIS, fremd="nein", angebotstext="gesägt",
                  bemerkung="Preis je Schnitt; Menge = Schnitte je Teil (Vollmaterial Rund-/Vierkantstahl)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
+
+
+def stege_zusatzarbeiten():
+    """Vorbelegung Stege abtrennen (virtuelles Bauteil, Patrick 26.10.2026: je Position wählbar): € je Teil, Menge 1
+    (Schneidweg-Rechner bzw. Rechtsklick trägt sie ein). Beispielpreis, bitte anpassen."""
+    from .virtuell import STEGE_PREIS, ZUSATZ_STEGE
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_STEGE, art="€/Stück",
+                 preis=STEGE_PREIS, fremd="nein", angebotstext="Stege abgetrennt und entgratet",
+                 bemerkung="Preis je Teil: Stege 2 mm an Ende A und B (virtuelles Bauteil) abtrennen und entgraten",
                  kategorie="Nachbearbeitung", aktiv="ja")]
 
 
