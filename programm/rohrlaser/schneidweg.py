@@ -868,11 +868,19 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                 and not (mit_3d and e.get("d3")) and not parallel:
             # 2D: Strahl zur Rohrmitte, außen breiter als die Konstruktion (Messung macht das schon selbst)
             lg = dreid.bohrung_2d_rundrohr(_z(e.get("d")), profil.get("a"), profil.get("wand")) or lg
-        elif form == "Rundrohr" and e.get("art") in (LANGLOCH, RECHTECK, SCHLITZ, POLYGON) \
+        elif form == "Rundrohr" and e.get("art") in (LANGLOCH, RECHTECK, SCHLITZ, POLYGON, LOCHFELD) \
                 and not _z(e.get("gemessen")) and not parallel and e.get("wand") != "beide":
             # 2D (Patrick 26.10.2026): Innenkante maßhaltig, außen am Umfang um Außen-/Innenradius breiter
             from .skizze import umriss_kontur
-            lg *= dreid.umriss_2d_faktor(umriss_kontur(e), profil.get("a"), profil.get("wand"))
+            ein = e
+            if e.get("art") == LOCHFELD:    # je Loch: Bohrung bzw. Langloch des Felds
+                d_, l_ = _z(e.get("d")), _z(e.get("lang"))
+                ein = dict(art=LANGLOCH, l=l_, b=d_, quer=e.get("quer"), drehung=e.get("drehung")) if l_ > d_ \
+                    else None
+                if ein is None:
+                    lg = dreid.bohrung_2d_rundrohr(d_, profil.get("a"), profil.get("wand")) or lg
+            if ein is not None:
+                lg *= dreid.umriss_2d_faktor(umriss_kontur(ein), profil.get("a"), profil.get("wand"))
         if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
             try:
                 nl, nq, ges, h_ = dreid.neigung_begrenzen(e.get("neigung_l"), e.get("neigung_q"), maschine)

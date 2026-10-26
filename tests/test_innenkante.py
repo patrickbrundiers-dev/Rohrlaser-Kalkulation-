@@ -88,6 +88,8 @@ ll = dict(art=sw.LANGLOCH, anzahl=1, l=40, b=10, x=100)
 zwei = sw.rechnen(dict(a={}, b={}, konturen=[ll]), RR, (10, 50))["schritte"][2]["laenge"]
 drei = sw.rechnen(dict(a={}, b={}, d3=True, konturen=[dict(ll, schnitt="parallel")]), RR, (10, 50))
 assert abs(drei["schritte"][2]["laenge"] - (2 * 30 + math.pi * 10)) < 0.01 and zwei > drei["schritte"][2]["laenge"] + 0.5
+lf = sw.rechnen(dict(a={}, b={}, konturen=[dict(art=sw.LOCHFELD, anzahl=3, d=10, abstand=20, x=100)]), RR, (10, 50))
+assert abs(lf["schritte"][2]["laenge_stueck"] - dreid.bohrung_2d_rundrohr(10, 60, 3)) < 0.01      # Lochfeld je Loch
 qr3 = sw.rechnen(dict(a={}, b={}, d3=True, konturen=[dict(ll, schnitt="parallel")]), QR, (10, 50))
 assert "parallel (3D)" in qr3["schritte"][2]["text"]
 ok("I4 Abwicklung Rundrohr außen breiter (2D), 3D wie gezeichnet; Schneidweg 2D länger, Quadratrohr parallel (3D)")
