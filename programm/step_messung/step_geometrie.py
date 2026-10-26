@@ -2787,6 +2787,14 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
     t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    if STEGE:           # vom Programm gewähltes größeres Profil: Winkel/U als virtuelles Bauteil mit Stegen
+        try:
+            from step_schenkel import mit_stegen, ziel_lesen
+            v = mit_stegen(solid, t, ziel_lesen(STEGE), datei, koerper, netz)
+        except Exception:  # dann gilt die Messung wie gezeichnet (das Programm rechnet mit der Formel)
+            v = None
+        if v is not None:
+            return v
     try:
         from step_offenes_rohr import schliessen
         schliessen(solid, t, datei, koerper, netz)
@@ -3707,8 +3715,14 @@ def _verbund_pruefen(teile, koerper):
 EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET_ANTEIL"}
 
 
+STEGE = None    # größeres Profil gleicher Form („Form|A|B|Wand“): Winkel/U als virtuelles Bauteil (step_schenkel)
+
+
 def einstellen(werte):
-    """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe)."""
+    """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe) und das
+    größere Profil für Winkel/U mit Stegen (Schlüssel stege, step_schenkel)."""
+    global STEGE
+    STEGE = (werte or {}).get("stege") or None
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85}
     for name, glob in EINSTELLBAR.items():
         v = (werte or {}).get(name)
