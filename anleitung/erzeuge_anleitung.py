@@ -6381,6 +6381,15 @@ def kapitel_pflege(i):
             "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
             "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
             "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
+            "<b>Download bricht ab (z. B. im Firmennetz)</b>: Reißt die Verbindung ab, versucht das Programm es von "
+            "selbst bis zu sechsmal und macht an der Abbruchstelle weiter (Hinweis <i>Verbindung unterbrochen, neuer "
+            "Versuch …</i>). Scheitert es trotzdem, bleibt das schon Geladene liegen: <i>Hilfe → Nach Updates "
+            "suchen …</i> setzt dort fort. Die Meldung nennt die wahrscheinliche Ursache: Firewall, Proxy oder "
+            "Virenscanner im Firmennetz, eine Sperrseite statt der Datei, HTTP 403 (gesperrt) oder ein fremdes "
+            "Zertifikat. Dann die IT bitten, <i>github.com</i> und <i>*.githubusercontent.com</i> freizugeben, oder in "
+            "einem anderen Netz aktualisieren. Installierte und portable Version verhalten sich dabei gleich; die "
+            "portable braucht Schreibrechte in ihrem Ordner. Jeder Versuch steht mit Proxy-Angabe im Protokoll "
+            "<i>Daten\\Protokoll\\fehler.log</i>.",
             "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
@@ -6839,6 +6848,10 @@ def kapitel_fragen(i):
          "Eine Programmdatei ließ sich nicht austauschen, meist weil sie gerade offen ist (Bedienungsanleitung im "
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
+        ["Update: <b>Verbindung wurde mehrmals unterbrochen</b>, <b>Webseite statt der Datei</b> oder <b>403</b>",
+         "Das Netz (meist Firewall, Proxy oder Virenscanner in der Firma) bricht den Download ab oder sperrt ihn. "
+         "Nichts wurde verändert. Später noch einmal suchen (setzt fort), in einem anderen Netz aktualisieren oder "
+         "die IT bitten, github.com und *.githubusercontent.com freizugeben ([[updates]])."],
         ["Update meldet <b>nicht gültig signiert</b> oder <b>unbekanntes Format</b>",
          "Die geladene Dateiliste war unvollständig oder nicht vom Hersteller. Das Programm hat nichts verändert. "
          "Ein paar Minuten warten (ein Update wird vielleicht gerade hochgeladen) und noch einmal suchen; bleibt "

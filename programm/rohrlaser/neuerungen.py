@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.146", "<b>Online-Update im Firmennetz robuster</b>: Bricht der Download ab (Firewall, Proxy, "
+                "Virenscanner), versucht das Programm es selbst bis zu sechsmal und macht an der Abbruchstelle "
+                "weiter; ein späterer Versuch setzt das schon Geladene fort. Die Meldung nennt die wahrscheinliche "
+                "Ursache (Sperrseite eines Proxys, HTTP 403, fremdes Zertifikat, fehlende Schreibrechte der portablen "
+                "Version), jeder Versuch steht mit Proxy-Angabe im Protokoll ([[updates]]).",
+     "Update: Download setzt nach Abbruch fort, klare Meldung im Firmennetz"],
     ["0.9.145", "<b>STEP mit mehreren Teilen nicht mehr automatisch als Satz</b>: Im Dialog STEP-Import prüfen wird "
                 "eine Baugruppe jetzt als Einzelpositionen übernommen. Das Feld <i>Anzahl</i> oben erhöht nur die "
                 "Stückzahl aller Teile der Datei. Ein Satz entsteht nur mit dem Knopf <b>Als Satz</b>; dann zählt "
