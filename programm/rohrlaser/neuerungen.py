@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.141", "<b>Schnittschema je Staffel</b>: Im Reiter <i>Staffeln</i> zeigt das Ergebnis je Stufe und "
+                "Abmessung die Stangen (Anzahl × Lieferlänge, Ausnutzung) und ihre Kosten inkl. Verschnitt. Der neue "
+                "Knopf <b>Schnittschema …</b> (oder Doppelklick) öffnet den Schnittplan der Stufe mit Stangen, Meter, "
+                "Verschnitt, €/m und Materialkosten je Abmessung und dem Stangenbild. So ist der Materialpreis jeder "
+                "Staffel nachvollziehbar. Gespeicherte Staffelpreise werden dafür einmal neu gerechnet ([[staffeln]]).",
+     "Staffeln: Schnittschema je Stufe mit Stangen, Verschnitt und Materialkosten"],
     ["0.9.140", "<b>Rohrteil aus einer PDF-Zeichnung (Test)</b>: Mit der Einstellung <i>Testfunktion "
                 "PDF-Zeichnungen</i> bietet <i>Neue Position</i> den Typ <i>Aus PDF-Zeichnung (Test)</i>. Profil, Länge, "
                 "Werkstoff, Benennung, Artikel und Stückzahl kommen aus dem Text der Zeichnung (auch Scan oder Foto), "
