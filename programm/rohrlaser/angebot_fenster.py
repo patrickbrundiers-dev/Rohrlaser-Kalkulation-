@@ -1684,6 +1684,8 @@ class AngebotSeite(QWidget):
         # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
         self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())
         menue.aboutToShow.connect(lambda: self.lager_aktion.setVisible(self.f.lager_an()))
+        # Material-/Fertigungsvarianten mit Zielgröße (varianten.py)
+        menue.addAction("Varianten vergleichen …", lambda: self.varianten_vergleichen())
         # Arbeitsgänge je Position mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.py)
         menue.addAction("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen())
         menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
@@ -5253,6 +5255,28 @@ class AngebotSeite(QWidget):
             self.f.meldung("Material aus Lager: bitte zuerst (neu) optimieren.", fehler=True)
             return None
         d = LagerplanDialog(self)
+        (dialog(d) if dialog else d.exec())
+        return d
+
+    def varianten_gruppen(self):
+        """Varianten je Stangengruppe (varianten.gruppen); mit Lager-Variante, wenn das Lager eingeschaltet und der
+        Schnittplan aktuell ist (Planung ohne Buchung)."""
+        from . import lager, varianten
+        if not self.ergebnis or self.stand_optimierung() != "aktuell":
+            return []
+        plan = None
+        if self.f.lager_an():
+            werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+            plan = lager.planen(self.db, self.id, self.ergebnis, werte)
+        return varianten.gruppen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst, plan)
+
+    def varianten_vergleichen(self, dialog=None):
+        """Fenster „Varianten vergleichen“ (varianten_dialog). dialog(d) bedient das Fenster statt exec (Tests)."""
+        from .varianten_dialog import VariantenDialog
+        if not self.ergebnis or self.stand_optimierung() != "aktuell":
+            self.f.meldung("Varianten vergleichen: bitte zuerst (neu) optimieren.", fehler=True)
+            return None
+        d = VariantenDialog(self, self)
         (dialog(d) if dialog else d.exec())
         return d
 
