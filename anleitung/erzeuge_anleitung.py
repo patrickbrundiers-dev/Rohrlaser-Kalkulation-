@@ -1347,6 +1347,21 @@ def kapitel_angebot(i):
             "Die Zeilen sind nur Anzeige. Ein Klick wählt die Position, ein Doppelklick öffnet ihre "
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
+    i.abschnitt("Arbeitsgänge vorschlagen", marke="arbeitsgaenge")
+    i.text("<i>Weitere ▾</i> bzw. Rechtsklick → <b>Arbeitsgänge vorschlagen …</b> öffnet das Fenster "
+           "<b>Arbeitsgänge je Position</b>: was das Angebot schon rechnet und was Ihre Regeln zusätzlich "
+           "vorschlagen. Ein Vorschlag kostet nichts, bis er angenommen ist.", kurz=True)
+    i.liste("Je Zeile Arbeitsgang, Menge je Teil, Zeit je Teil, € je Teil, Kostenart (Fertigung, Fremdleistung, "
+            "Zukauf), Status und Herkunft. Status <b>im Angebot</b>: Laser schneiden, Gewinde aus „Gewinde geprüft“, "
+            "die Zusatzarbeiten der Position, Zukaufteil bzw. Zukaufartikel – das wird gerechnet. <b>Vorschlag</b> "
+            "(gelb): eine Arbeitsgang-Regel trifft zu, der Betrag ist nur voraussichtlich. <b>zu prüfen</b>: "
+            "Gewinde-Vorschlag aus dem Kernloch, zu bestätigen unter „Bohrungen prüfen“ ([[bohrungen_pruefen]]).",
+            "<b>Annehmen</b> trägt die Zusatzarbeit mit heutigem Preisstand und der Herkunft „Regel: …“ in die "
+            "Zusatzarbeiten der Position ein; ab dann wird sie gerechnet. <b>Ablehnen</b> merkt sich die Position "
+            "(grau), <b>Ablehnung zurücknehmen</b> macht daraus wieder einen Vorschlag.",
+            "Doppelt gerechnet wird nie: Hat die Position die Zusatzarbeit schon, kommt kein Vorschlag; schlagen "
+            "mehrere Regeln dasselbe vor, entsteht ein Vorschlag mit allen Regeln als Herkunft.",
+            "Die Regeln stehen unter Einstellungen → <i>Arbeitsgang-Regeln</i> ([[stammdaten]]).")
     i.abschnitt("Schneidzeit anpassen", marke="schneidzeit")
     i.text("Doppelklick in <b>Schneidzeit je Teil [s]</b>, eigene Zeit eintragen: sie steht fett und ersetzt die "
            "berechnete. Feld leeren = wieder berechnet.")
@@ -2164,6 +2179,22 @@ def kapitel_step(i):
                                                            "übernommene Teil bekommt, z. B. Feuerverzinken"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
+    i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
+    i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
+           "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)
+    i.liste("Reiter <b>Merkmale</b>: Profilform, Querschnitt, Wandstärke, Länge, Ende A, Ende B, Innenkonturen, "
+            "Gewinde-Vorschlag, Anbauteile und Hinweise der Messung, je mit Status <b>sicher</b> (grün), "
+            "<b>prüfen</b> (gelb: wahrscheinlich oder unsicher erkannt, Annahme wie das Gewinde aus dem Kernloch) "
+            "oder <b>nicht erkannt</b> (rot: fehlt, oder kein Standardprofil – ein Sonderprofil wird nie still als "
+            "Standardprofil gerechnet) und dem Grund.",
+            "Reiter <b>Korrekturen</b>: jede Änderung eines gemessenen Felds nach dem Import (Profil, Länge, "
+            "Schneidweg, Einstiche, Enden, Innenkonturen, Gravur, Bohrungen, Gewinde) mit Zeitpunkt, gemessenem und "
+            "neuem Wert. Die Korrekturen bleiben mit der Position gespeichert.",
+            "Reiter <b>Rohdaten der Messung</b>: die Messwerte, so wie STEP-Import.exe sie geliefert hat.",
+            "<b>Alle Merkmale geprüft</b> bestätigt die offenen Merkmale. Bis dahin nennt der Angebots-Check "
+            "„STEP-Merkmale zu prüfen“ als Hinweis (kein Fehler, das Angebot rechnet wie bisher).",
+            "Positionen von Hand oder aus Importen vor 0.9.161 haben keine STEP-Merkmale; dann meldet das Programm "
+            "das. Eine defekte oder leere STEP-Datei führt zu „nicht erkannt“, nie zum Absturz.")
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
     i.text("<i>plausibel</i> = Messung stimmig, <i>prüfen</i> = bitte ansehen, <i>nicht messbar</i> = kein Profil "
            "erkannt. Unsichere Teile sind nicht angehakt.")
@@ -3554,6 +3585,30 @@ def kapitel_optimieren(i):
             "([[staffeln]]).")
     i.bild("erg_lieferlaengen_geplant", "Nach dem Übernehmen: 12-m-Variante geplant, Link zurück auf 6 m",
            hoehe=90 * mm)
+    _abschnitt_varianten(i)
+
+
+def _abschnitt_varianten(i):
+    i.abschnitt("Varianten vergleichen", marke="varianten")
+    i.text("Nach dem Optimieren zeigt <i>Weitere ▾ → <b>Varianten vergleichen …</b></i> je Profil und Werkstoff die "
+           "ausführbaren Varianten nebeneinander und empfiehlt eine nach der gewählten <b>Zielgröße</b>.", kurz=True)
+    i.liste("Varianten: die Stangenlänge des Angebots, die anderen Lieferlängen (auch mit Zuschnitt beim Lieferanten, "
+            "[[lieferlaengen]]) und – mit eingeschaltetem Lager – „wie geplant, aus Lager“ mit den passenden "
+            "Lagerstangen bzw. Reststücken ([[lager]]).",
+            "Kennzahlen: Kosten (Material, Stangenwechsel, Zuschnitt; Lagermaterial mit seinem Lagerwert), Verschnitt "
+            "in %, Lieferstangen (Neukauf), Beladungen und Wechselzeit. Die Laserzeit ist in allen Varianten gleich "
+            "und wird nicht verglichen.",
+            "Zielgröße: <i>Kosten</i>, <i>Verschnitt</i>, <i>Stangenanzahl</i>, <i>Wechselzeit</i> oder "
+            "<i>Ausgewogen</i> (Kosten 0,5, Verschnitt 0,2, Stangen 0,1, Wechselzeit 0,2). Punkte = je Kriterium Wert "
+            "÷ bester Wert, gewichtet; 1,000 heißt überall die beste. Empfohlen (grün) ist die Variante mit den "
+            "wenigsten Punkten, bei Gleichstand die günstigere.",
+            "Alle Varianten kommen aus derselben Optimierung mit denselben Fertigungsregeln. Nicht ausführbare "
+            "Varianten und fehlende Preise werden nie empfohlen.",
+            "Spalte <i>Status der Optimierung</i>: „optimal (…)“ ist bewiesen, „nicht bewiesen (Suche begrenzt)“ "
+            "heißt, die Stangenzahl könnte noch kleiner gehen; Vergleichsrechnungen anderer Längen sind nie als "
+            "optimal gekennzeichnet.",
+            "<b>Lieferlänge übernehmen und neu optimieren</b> plant die markierte Länge; <b>Material aus Lager …</b> "
+            "öffnet die Reservierung des beauftragten Angebots.")
 
 
 def kapitel_staffeln(i):
@@ -4867,6 +4922,18 @@ def kapitel_nachkalkulation(i):
            "einer Vorlage, zeigt der Tooltip ihres Namens die Schweißzeit Ist ÷ Soll der bisherigen Aufträge aus "
            "derselben Vorlage. Aus den nachkalkulierten "
            "Baugruppen schlägt das Programm geänderte Schweiß-Kennwerte vor ([[schweiss_stammdaten]]).")
+    i.abschnitt("Fracht, Ausschuss und Auswertung aller Aufträge", marke="nachkalk_auswertung")
+    i.text("Neu bei den Ist-Werten: <b>Fracht</b> [€] (Soll = Fracht des Angebots), <b>Ausschuss</b> [€] und "
+           "<b>Ausschuss</b> [Stück]; Soll für Ausschuss ist 0. Beim Speichern merkt sich die Nachkalkulation das "
+           "Soll mit Maschine, Werkstoffen, Profilen und Stückzahl.", kurz=True)
+    i.liste("<b>Auswertung aller Aufträge …</b> öffnet die <b>Auswertung der Nachkalkulation</b> über alle "
+            "Aufträge, gruppiert nach Kostenart, Maschine, Werkstoff, Profil oder Stückzahl: Anzahl, Soll, Ist, "
+            "Abweichung in %, Median und Streuung von Ist ÷ Soll. Gezählt werden nur wirklich eingetragene Ist-Werte, "
+            "leere zählen nie als 0 €. Nachkalkulationen ohne gespeichertes Soll (vor 0.9.161) bleiben unverändert "
+            "und werden mitgezählt als „ohne gespeichertes Soll“.",
+            "Daraus kommen <b>Kennwert-Vorschläge</b>: Laserzeit je Maschine und Werkstoff-Kategorie (ändert die "
+            "Vorschübe der Schneiddaten erst nach <i>Freigeben</i>, mit Verlauf und Rücknahme) und Rüsten (nur "
+            "Vorschlag, ändert nichts). Unter 5 Aufträgen heißt es „zu wenig Daten“.")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
 
 
@@ -4961,6 +5028,67 @@ def kapitel_versand(i):
            "das Fenster <i>Lieferdatum setzen</i> für alle markierten Aufträge.",
            "Bei einem beauftragten Angebot hängen die <b>Werkstattpapiere</b> die Palettenscheine hinten an "
            "([[ausgabe]]); die Einstellung schaltet das ab.")
+
+
+def kapitel_fertigung(i):
+    i.kapitel("Fertigung und Lager", marke="fertigung")
+    i.text("Der Reiter <b>Fertigung</b> zeigt alle beauftragten Angebote mit Freigabe und Fertigungsstatus. Der "
+           "Reiter <b>Lager</b> (nur mit Einstellung) führt Materialbestand und, wenn gewünscht, Reststücke.",
+           kurz=True)
+    i.liste("Markieren, <b>Neuer Status</b> wählen, <b>Status setzen</b>. Der erste Status ist die <b>Freigabe</b>: "
+            "sie hält den Angebotsstand fest (Version, Zeitpunkt, Kürzel, Prüfsumme über Positionen und "
+            "fertigungsrelevante Kopfwerte). Die Status kommen aus der Einstellung <i>Fertigungsstatus</i> "
+            "(Vorgabe Freigegeben, Arbeitsvorbereitung, Material bereit, In Fertigung, Fremdvergabe, "
+            "Qualitätsprüfung, Fertig gemeldet).",
+            "Gegen widersprüchliche Zustände: nur beauftragte Angebote; vor der Freigabe kein anderer Status; "
+            "derselbe Status nicht zweimal; vorwärts darf übersprungen werden; zurück und eine neue Freigabe nur mit "
+            "Bemerkung (Grund). Jeder Wechsel steht im <b>Verlauf</b> und wird nie geändert.",
+            "Wird das Angebot nach der Freigabe geändert, ist die Zeile gelb („nach Freigabe geändert – neu "
+            "freigeben“). Die <b>Werkstattpapiere</b> nennen den freigegebenen Stand mit Version und listen die "
+            "Positionen mit ihrer festen <b>ID</b>; nach einer Änderung steht dort eine rote Warnung "
+            "([[ausgabe]]).",
+            "<b>Durchlaufzeiten</b>: Stunden je Status je Auftrag und im Mittel, dazu der Durchlauf von der "
+            "Freigabe bis zur Fertigmeldung. Ein laufender Status zählt noch nicht.",
+            "<b>Materialverbrauch je Charge</b>: welche Lagerposten (mit Charge) in welchen Auftrag gegangen sind, "
+            "mit Suche – für die Rückverfolgbarkeit.",
+            "<b>Export (JSON/CSV) …</b> speichert den Fertigungsauftrag ohne Preise für andere Systeme: Kopf, "
+            "Freigabe, Statusverlauf, Positionen mit ID, Stangen des Schnittplans und Material aus dem Lager; daneben "
+            "die Positionen als CSV.",
+            "Im Angebot <i>Weitere ▾ → <b>Fertigungsstatus …</b></i> springt zum Auftrag im Reiter Fertigung. "
+            "Die Einstellung <i>Reiter Fertigung verwenden (Status beauftragter Angebote)</i> blendet alles aus.")
+    i.abschnitt("Lager und Reststücke", marke="lager")
+    i.text("Mit der Einstellung <i>Materialbestand verwenden (Reiter Lager)</i> = ja erscheint der Reiter "
+           "<b>Lager</b>. Angebote und ihre Preise ändern sich dadurch nie; das Lager kommt erst beim beauftragten "
+           "Angebot ins Spiel.", kurz=True)
+    i.liste("Unterreiter <b>Bestand</b>: je Posten Kennung (S-00001 Stangen, R-00001 Reststücke), Art, Profil-ID, "
+            "Werkstoff-ID, Oberfläche, Länge, Bestand, reserviert, verfügbar, Charge, Lagerort und Herkunft. "
+            "<b>Zugang …</b> öffnet <i>Lager: Zugang</i>; <b>Bestand korrigieren …</b> setzt den Bestand (Inventur, "
+            "nie unter die reservierte Menge); <b>Ausbuchen …</b> nimmt einen Posten ganz heraus.",
+            "Unterreiter <b>Buchungen</b>: das Journal aller Zugänge, Korrekturen, Reservierungen, Verbräuche und "
+            "Stornos mit Zeit und Kürzel.",
+            "<b>Reststücke</b> gibt es nur mit der Einstellung <i>Reststücke verwalten (lagern und wieder "
+            "einplanen)</i> (Vorgabe nein). Dann kommen beim Verbrauch die Reste ab <i>Reststücke: kürzester Rest, "
+            "der ins Lager kommt</i> (Vorgabe 500 mm) als eigene Posten ins Lager und werden bei späteren Aufträgen "
+            "zuerst eingeplant. Ohne die Einstellung bleiben Reste wie bisher nur Verschnitt.",
+            "<i>Reststücke und Lagerstangen: Wert in Prozent des Materialpreises</i> bewertet Lagermaterial im "
+            "Variantenvergleich (Vorgabe 100 %).",
+            "Das Lager steht in der eigenen Datendatei und wird zwischen Arbeitsplätzen nicht abgeglichen "
+            "([[mehrere_arbeitsplaetze]]); es gehört an einen Arbeitsplatz, z. B. die Arbeitsvorbereitung.")
+    i.abschnitt("Material aus Lager im Auftrag", marke="material_aus_lager")
+    i.text("Im beauftragten, optimierten Angebot <i>Weitere ▾ → <b>Material aus Lager …</b></i>: das Programm plant "
+           "je Stange des Schnittplans, ob ein Reststück oder eine Lagerstange passt, sonst Neukauf.", kurz=True)
+    i.liste("Ein Posten passt, wenn Profil, Werkstoff und Oberfläche gleich sind und er mindestens so lang ist wie "
+            "der Bedarf der Stange (Endbeschnitt, Teile, Trennungen und Greiferrest). Die Teile liegen genau wie im "
+            "Schnittplan, nie überbelegt. Erst das kürzeste passende Reststück, dann die kürzeste Lagerstange.",
+            "<b>Reservieren</b> belegt alles oder nichts; ist ein Posten inzwischen weg, kommt eine Meldung und "
+            "nichts wird gebucht. Ein Posten kann nie doppelt reserviert werden.",
+            "<b>Reservierung freigeben</b> hebt sie auf (Storno). <b>Verbrauch buchen</b> bucht den Bestand aus "
+            "und legt die Reste als neue Reststücke an. <b>Verbrauch stornieren …</b> stellt den Stand vor dem "
+            "Verbrauch wieder her, solange ein neues Reststück nicht schon verwendet wurde.",
+            "Die <b>Materialanfrage</b> lässt Stangen aus dem Lager weg. Wird das Angebot nach dem Reservieren "
+            "neu optimiert, weist das Fenster darauf hin: dann neu planen.",
+            "Beim Löschen eines Angebots werden seine Reservierungen freigegeben; gebuchter Verbrauch bleibt im "
+            "Journal.")
 
 
 def kapitel_einstellungen(i):
@@ -5238,6 +5366,17 @@ def kapitel_einstellungen(i):
          "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
         ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",
          "Tage bis zur automatischen Wiedervorlage eines verschickten Angebots ([[nachfassen]])"],
+        ["Lager und Fertigung", "Materialbestand verwenden (Reiter Lager)",
+         "ja = Reiter Lager und im Angebot <i>Material aus Lager …</i> (Vorgabe nein, [[lager]])"],
+        ["Lager und Fertigung", "Reststücke verwalten (lagern und wieder einplanen)",
+         "ja = Reste ab der Mindestlänge kommen beim Verbrauch ins Lager (Vorgabe nein, nur Verschnitt)"],
+        ["Lager und Fertigung", "Reststücke: kürzester Rest, der ins Lager kommt [mm]", "Vorgabe 500 mm"],
+        ["Lager und Fertigung", "Reststücke und Lagerstangen: Wert in Prozent des Materialpreises",
+         "Lagerwert im Variantenvergleich (Vorgabe 100 %, [[varianten]])"],
+        ["Lager und Fertigung", "Reiter Fertigung verwenden (Status beauftragter Angebote)",
+         "nein = Reiter Fertigung und Freigabe-Angaben in den Werkstattpapieren aus ([[fertigung]])"],
+        ["Lager und Fertigung", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
+         "eigene Status; die erste Zeile ist die Freigabe"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten (Admin-Passwort beim Start nur bei älterer Admin-Lizenz ohne eigenes); "
                                                     "verschlüsselt gespeichert, Feld bleibt leer; <b>Entfernen</b> = "
@@ -6087,6 +6226,24 @@ def kapitel_stammdaten(i):
             "Abrechnung, den Mindestbetrag und die Fremdleistung in der Position. Spätere Änderungen in den "
             "Stammdaten (oder Löschen) ändern bestehende Angebote deshalb nicht. Positionen aus älteren Versionen "
             "ohne Preisstand rechnen wie bisher mit den aktuellen Stammdaten.")
+    i.abschnitt("Arbeitsgang-Regeln", marke="arbeitsgang_regeln")
+    i.bild("stamm_arbeitsgang_regeln", "Einstellungen, Arbeitsgang-Regeln mit den Beispielregeln", hoehe=60 * mm)
+    i.text("Unter Einstellungen → Kalkulation → <b>Arbeitsgang-Regeln</b> stehen die Regeln für „Arbeitsgänge "
+           "vorschlagen …“ im Angebot ([[arbeitsgaenge]]). Eine Regel schlägt eine Zusatzarbeit vor, wenn die "
+           "Position alle ausgefüllten Bedingungen erfüllt; leere Bedingungen gelten immer.", kurz=True)
+    i.liste("<b>Regel</b> (Name), <b>Vorgeschlagene Zusatzarbeit</b> (Name aus den Zusatzarbeiten; unbekannte oder "
+            "deaktivierte werden nicht vorgeschlagen).",
+            "<b>Wenn Merkmal</b>: immer, Gewinde, Bohrungen, Innenkonturen, Schräges Ende, Zukaufteil oder "
+            "Schweißbaugruppe. <b>Stichwörter in Bezeichnung/Artikel (; getrennt)</b>: eines genügt, Groß- und "
+            "Kleinschreibung egal (z. B. „verzinkt;fvz“).",
+            "<b>Profilform</b>, <b>Werkstoff-Kategorie</b>, <b>Werkstoff-ID</b>, <b>Oberfläche</b>, <b>Kunde</b>, "
+            "<b>ab Stückzahl</b>: weitere Bedingungen.",
+            "<b>Menge je Teil</b>: automatisch (wie in den Zusatzarbeiten: kg, m², m oder 1 Stück) oder die Anzahl "
+            "Gewinde, Bohrungen bzw. Innenkonturen des Teils. <b>Aktiv</b> = nein schaltet die Regel ab, "
+            "<b>Bemerkung</b> ist frei.",
+            "Neue Dateien und Dateien vor 0.9.161 bekommen Beispielregeln (Feuerverzinken bei „verzinkt“, "
+            "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus). Bitte an die eigene Fertigung "
+            "anpassen.")
 
 
 def kapitel_zukauf(i):
@@ -7253,7 +7410,8 @@ def kapitel_schnellstart(i):
 # auf der Trennseite des Teils; test_anleitung.py prüft, dass jedes Kapitel einen Eintrag hat.
 STECKBRIEFE = {
     "ueberblick": ("Was das Programm kann, wie ein Angebot abläuft und was die Farben bedeuten.",
-                   "Hauptfenster mit den Reitern Start, Angebote, Versand, Kunden, Frachtkosten, Zukaufartikel, Einstellungen"),
+                   "Hauptfenster mit den Reitern Start, Angebote, Versand, Fertigung, Lager, Kunden, Frachtkosten, "
+                   "Zukaufartikel, Einstellungen"),
     "start": ("Programm installieren oder portabel entpacken, Windows-Warnungen, erster Start.",
               "Download-Bereich auf GitHub (Rohrlaser-Updates, <i>download</i>); im Programm der Reiter <i>Start</i>"),
     "schnellstart": ("Einmal durch ein ganzes Angebot, vom Anlegen bis zum PDF.",
@@ -7278,6 +7436,9 @@ STECKBRIEFE = {
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
     "versand": ("Paletten eines Auftrags rechnen, Palettenbegleitscheine drucken und den Versand verfolgen.",
                 "Reiter <i>Versand</i>; im Angebot <i>Vorgang ▾ → Palettenbegleitschein …</i>"),
+    "fertigung": ("Beauftragte Angebote freigeben, Fertigungsstatus führen, Material aus dem Lager reservieren und "
+                  "verbuchen.",
+                  "Reiter <i>Fertigung</i> und <i>Lager</i> (Einstellung); im Angebot <i>Weitere ▾</i>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
                         "Im Angebot Reiter <i>Nachkalkulation</i>"),
     "einstellungen": ("Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
@@ -7313,7 +7474,7 @@ TEILE = [
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
       kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_versand,
-      kapitel_nachkalkulation]),
+      kapitel_fertigung, kapitel_nachkalkulation]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,

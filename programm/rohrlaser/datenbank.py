@@ -29,7 +29,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import kennwerte, nummern, passwort, teilen, vollmaterial, zukauf
+from . import fertigung, kennwerte, lager, nummern, passwort, step_pruefung, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 64     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 65     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -118,6 +118,10 @@ SCHEMA_VERSION = 64     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     leer = Aufschlagsregeln wie bisher)
                         # 64: Rüsten als fester Betrag je Angebot bzw. je Abmessung (angebote.ruesten_angebot_eur,
                         #     ruesten_abmessung_eur, leer = Minuten), Zusatzarbeiten im Importprofil (importprofile.zusatz)
+                        # 65: Wettbewerbsvergleich: Materialbestand und Reststücke (Tabellen lager_*, leer; lager.py),
+                        #     Fertigungsstatus (Tabelle auftrag_status, angebote.freigabe; fertigung.py), Prüfstatus der
+                        #     STEP-Merkmale (positionen.step_merkmale), Arbeitsgangvorschläge (Tabelle
+                        #     arbeitsgang_regeln mit Beispielregeln, positionen.arbeitsgaenge); ältere Daten leer
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -394,6 +398,8 @@ class Datenbank:
                 self._einfuegen("blech_kfaktoren", beispieldaten()["blech_kfaktoren"])
             if 0 < version < 48 and not self.anzahl("pruefregeln"):
                 self._einfuegen("pruefregeln", beispieldaten()["pruefregeln"])
+            if 0 < version < 65 and not self.anzahl("arbeitsgang_regeln"):     # P1-4: Beispielregeln
+                self._einfuegen("arbeitsgang_regeln", beispieldaten()["arbeitsgang_regeln"])
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
@@ -424,6 +430,8 @@ class Datenbank:
             if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
                 self._stege_ergaenzen()
             teilen.einrichten(self.con)
+            lager.einrichten(self.con)
+            fertigung.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
@@ -431,7 +439,7 @@ class Datenbank:
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis")
+                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
@@ -1902,6 +1910,14 @@ class Datenbank:
     @schreibt
     def angebot_loeschen(self, angebot_id):
         with self.con:
+            # Lager (lager.py): Reservierungen des Angebots freigeben, gebuchter Verbrauch bleibt im Journal. Lagerauftrag
+            # weg und Reservierungen vom Angebot lösen: SQLite kann die Angebots-ID wieder vergeben, ein neues Angebot
+            # darf keinen alten Lagerauftrag erben
+            self.con.execute("UPDATE lager_reservierung SET status='freigegeben', geaendert=? WHERE angebot_id=? AND "
+                             "status='reserviert'", (self._jetzt(), angebot_id))
+            self.con.execute("UPDATE lager_reservierung SET angebot_id=NULL WHERE angebot_id=?", (angebot_id,))
+            self.con.execute("DELETE FROM lager_auftraege WHERE angebot_id=?", (angebot_id,))
+            fertigung.angebot_geloescht(self, angebot_id)          # Statusjournal gehört zum Angebot
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
     @schreibt
@@ -2125,6 +2141,13 @@ class Datenbank:
         POSITIONEN.feld(feld)
         _zahl_pruefen(feld, wert)
         with self.con:
+            if feld in step_pruefung.GEMESSEN:      # gemessenes Feld von Hand geändert: Korrektur protokollieren
+                r = self.con.execute(f'SELECT "{feld}", step_merkmale FROM positionen WHERE id=?',
+                                     (position_id,)).fetchone()
+                if r is not None and r[1]:
+                    neu = step_pruefung.korrektur(r[1], feld, r[0], wert)
+                    if neu != r[1]:
+                        self.con.execute("UPDATE positionen SET step_merkmale=? WHERE id=?", (neu, position_id))
             self.con.execute(f'UPDATE positionen SET "{feld}"=? WHERE id=?', (wert, position_id))
             self.con.execute("UPDATE angebote SET geaendert=? WHERE id=(SELECT angebot_id FROM positionen WHERE id=?)",
                              (self._jetzt(), position_id))

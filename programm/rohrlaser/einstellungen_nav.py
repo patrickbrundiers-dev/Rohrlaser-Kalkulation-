@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QStackedWidget, QTreeWidge
 
 # Thema -> Seiten (Name der Stammdatentabelle bzw. Schlüssel der eigenen Seiten); Unbekanntes landet unter WEITERE
 GRUPPEN = (
-    ("Kalkulation", ("vorgaben", "zeitvorgaben", "zusatzarbeiten")),
+    ("Kalkulation", ("vorgaben", "zeitvorgaben", "zusatzarbeiten", "arbeitsgang_regeln")),
     ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen")),
     ("Maschinen", ("maschinen", "schneiddaten", "gewinde", "pruefregeln")),
     ("Blech", ("blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
