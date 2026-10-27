@@ -651,7 +651,7 @@ ARBEITSGANG_REGELN = Tabelle(
     (Feld("name", "Regel", pflicht=True, breite=150),
      Feld("zusatzarbeit", "Vorgeschlagene Zusatzarbeit", pflicht=True, breite=150),
      Feld("merkmal", "Wenn Merkmal", "auswahl", auswahl="regelmerkmal", breite=110),
-     Feld("stichwort", "Stichwörter (; getrennt) in Bezeichnung/Artikel", breite=170),
+     Feld("stichwort", "Stichwörter in Bezeichnung/Artikel (; getrennt)", breite=170),
      Feld("profilform", "Profilform", "auswahl", auswahl="profilform", breite=100),
      Feld("kategorie", "Werkstoff-Kategorie", "auswahl", auswahl="kategorie", breite=100),
      Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", breite=110),
@@ -1046,7 +1046,7 @@ EINSTELLUNGEN = (
                 auswahl="janein"),
     # Materialbestand und Reststücke (Wettbewerbsvergleich P0-1, lager.py; Patrick 27.10.2026: Reststücke optional,
     # Vorgabe aus). Ohne 'lager_aktiv' kein Reiter Lager, Angebote wie bisher
-    Einstellung("lager_aktiv", "Materialbestand (Reiter Lager) verwenden", "Lager und Fertigung", "auswahl", "nein",
+    Einstellung("lager_aktiv", "Materialbestand verwenden (Reiter Lager)", "Lager und Fertigung", "auswahl", "nein",
                 auswahl="janein"),
     Einstellung("reste_aktiv", "Reststücke verwalten (lagern und wieder einplanen)", "Lager und Fertigung", "auswahl",
                 "nein", auswahl="janein"),
@@ -1055,7 +1055,7 @@ EINSTELLUNGEN = (
     Einstellung("restwert_anteil", "Reststücke und Lagerstangen: Wert in Prozent des Materialpreises",
                 "Lager und Fertigung", "anteil", 1.0, 0, 1),
     # Fertigungsstatus beauftragter Angebote (Wettbewerbsvergleich P1-6, fertigung.py)
-    Einstellung("fertigung_aktiv", "Reiter Fertigung (Status beauftragter Angebote) verwenden", "Lager und Fertigung",
+    Einstellung("fertigung_aktiv", "Reiter Fertigung verwenden (Status beauftragter Angebote)", "Lager und Fertigung",
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("fertigung_status", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
                 "Lager und Fertigung", "mehrzeilig", "Freigegeben\nArbeitsvorbereitung\nMaterial bereit\nIn Fertigung\n"
