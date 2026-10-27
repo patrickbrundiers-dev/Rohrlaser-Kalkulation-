@@ -177,6 +177,9 @@ def main():
                 assert sorted(arten) == soll, (name, arten)
             if name == "O5_C_Lippe":
                 assert abs(float(e.get("c_lippe") or 0) - 20) < 0.1, e.get("c_lippe")
+                d.skizze.zeigen(e)          # Skizze (2D) mit der gemessenen Lippe wie das 3D
+                vs = sorted({round(abs(v_), 1) for _, v_ in d.skizze.qs.umriss[0]})
+                assert 30.0 in vs, ("Lippe 20 der STEP fehlt in der Skizze", vs)
             d.deleteLater()
         assert gesehen == set(f), sorted(set(f) - gesehen)
         ok("R1 Flowdrill im Editor an der gemessenen Stelle, Senkung mit Senkrand wie die STEP")

@@ -61,6 +61,11 @@ class Skizze(QWidget):
 
     def zeigen(self, eingaben, ergebnis=None):
         self.eingaben, self.ergebnis = eingaben, ergebnis
+        if (self.profil or {}).get("form") == "C-Profil":     # Abkantung aus der STEP wie im 3D (mit_radius)
+            lippe = sw.mit_radius(self.profil, eingaben).get("lippe")
+            if lippe != getattr(self, "_lippe", None):
+                self.qs = sk.Querschnitt(dict(self.profil, lippe=lippe) if lippe else self.profil)
+                self._lippe = lippe
         if self._ziehen is None or self._ziehen.get("art") != "kontur":
             self.update()
 
