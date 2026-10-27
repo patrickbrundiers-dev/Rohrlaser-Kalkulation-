@@ -6203,6 +6203,7 @@ def kapitel_stammdaten(i):
             "Stammdaten (oder Löschen) ändern bestehende Angebote deshalb nicht. Positionen aus älteren Versionen "
             "ohne Preisstand rechnen wie bisher mit den aktuellen Stammdaten.")
     i.abschnitt("Arbeitsgang-Regeln", marke="arbeitsgang_regeln")
+    i.bild("stamm_arbeitsgang_regeln", "Einstellungen, Arbeitsgang-Regeln mit den Beispielregeln", hoehe=60 * mm)
     i.text("Unter Einstellungen → Kalkulation → <b>Arbeitsgang-Regeln</b> stehen die Regeln für „Arbeitsgänge "
            "vorschlagen …“ im Angebot ([[arbeitsgaenge]]). Eine Regel schlägt eine Zusatzarbeit vor, wenn die "
            "Position alle ausgefüllten Bedingungen erfüllt; leere Bedingungen gelten immer.", kurz=True)
