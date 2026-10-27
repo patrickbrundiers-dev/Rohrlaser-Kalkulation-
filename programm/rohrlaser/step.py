@@ -851,12 +851,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
 
 def _umfang_form(d, tol=0.01):
     """Ausschnitt eines offenen Profils (nur Hüllmaße gemessen): 'Rechteck', wenn die Schnittlänge auf 1 % gleich
-    2 · (Länge + Breite) ist, 'Langloch' bei 2 · (Länge − Breite) + π · Breite, sonst None (bleibt sonstige Kontur)."""
+    2 · (Länge + Breite) ist, 'Langloch' bei 2 · (Länge − Breite) + π · Breite, sonst None (bleibt sonstige Kontur).
+    Passen beide (sehr schlankes Loch), gilt die genauere."""
     lg, br, sl = float(d["laenge"]), float(d["breite"]), float(d.get("schnittlaenge") or 0)
-    for form, soll in (("Rechteck", 2 * (lg + br)), ("Langloch", 2 * (lg - br) + math.pi * br)):
-        if soll > 0 and abs(sl - soll) <= tol * soll:
-            return form
-    return None
+    passend = [(abs(sl - soll) / soll, form) for form, soll in (("Rechteck", 2 * (lg + br)),
+                                                                ("Langloch", 2 * (lg - br) + math.pi * br))
+               if soll > 0 and abs(sl - soll) <= tol * soll]
+    return min(passend)[1] if passend else None
 
 
 def _laengsschnitte_zeigen(eing):
