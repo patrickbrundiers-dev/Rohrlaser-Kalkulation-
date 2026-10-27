@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.162", "<b>Kleine Löcher trotzdem schneiden</b>: Für Bohrungen kleiner als 0,7 × Wandstärke gibt es neben "
+                "<i>Gravur Ø0,5</i> und <i>Loch Ø0,5</i> (markieren und aufbohren) die dritte Wahl <i>Ø schneiden "
+                "(ohne Bohren)</i>: der Laser schneidet den vollen Lochdurchmesser, Zeit und Preis kommen aus dem "
+                "Schneidweg, es gibt keine Zusatzarbeit Bohren und keine Warnung. Je Bohrung im Fenster Bohrungen "
+                "prüfen wählbar, Vorgabe für STEP-Import und alle Editoren in der Einstellung <i>Bohrung kleiner "
+                "als 0,7 × Wandstärke am Laser</i> ([[bohrungen_pruefen]]).",
+     "Bohrung < 0,7 × Wand: 3. Option „Ø schneiden (ohne Bohren)“."],
     ["0.9.160", "<b>Gehrung in 2D: lange Seite kürzer</b>: Bei einer Gehrung, die in 2D (90° zur Oberfläche) "
                 "geschnitten wird, ist jetzt die Innenkante maßhaltig; die Spitze wird um Wand · tan(Winkel) kürzer "
                 "(3 mm bei Wand 3 und 45°), damit innen nichts über die Gehrung ragt. <b>STEP</b>: Gehrungen, die in "
