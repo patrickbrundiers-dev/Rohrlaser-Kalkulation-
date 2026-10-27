@@ -133,6 +133,9 @@ def mit_radius(profil, eingaben):
     (eingaben['r_step'], Skizze und 3D wie die STEP; nur solange das Profil das gemessene ist), sonst eingaben['r_aussen'] (Zahl; beim Speichern wird er zum
     Radius des Angebots für Profil + Werkstoff), sonst unverändert."""
     e = eingaben or {}
+    if profil.get("form") == "C-Profil" and _z(e.get("c_lippe")) > 0 and not profil.get("lippe") and \
+            not anderes_profil(dict(messprofil=e.get("c_lippe_profil")), profil):
+        profil = dict(profil, lippe=_z(e["c_lippe"]))       # Abkantung des C-Profils aus der STEP (gemessenes Profil)
     r = e.get("r_aussen")
     if isinstance(e.get("r_step"), (int, float)) and not isinstance(e.get("r_step"), bool) and \
             not anderes_profil(dict(messprofil=e.get("r_step_profil")), profil):
@@ -1108,7 +1111,7 @@ def v_ergaenzen(eingaben, profil):
 
 # Messwerte des STEP-Imports ohne eigenes Feld im Schneidweg-Rechner: bleiben beim Speichern erhalten
 DURCHREICHEN = ("l_step", "schenkel_mess", "stege_virtuell", "offen_virtuell", "volumen_teil", "volumen_gezeichnet",
-                "step_datei", "step_koerper")
+                "step_datei", "step_koerper", "c_lippe", "c_lippe_profil")
 
 
 def speichern(eingaben):

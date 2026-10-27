@@ -2529,6 +2529,13 @@ def kapitel_optimieren(i):
             "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
             "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
             "STEP. Ist die lange Seite in der STEP schon gekürzt, bleibt das Ende komplex, genau wie gemessen.",
+            "<b>STEP-Import robuster</b> (seit 0.9.163): Fließlochbohrungen (Flowdrill) stehen jetzt als Zeile "
+            "<i>Flowdrill</i> mit Kernloch Ø an der gemessenen Stelle in der Konturtabelle (vorher fehlten sie im "
+            "Editor); eine Senkung zeigt im 3D zusätzlich den Senkrand Ø D wie die STEP, geschnitten wird weiter nur "
+            "die Bohrung. Offene Profile (U, L, Flachstahl): Gehrungen liegen in jeder Richtung auf der richtigen "
+            "Seite, Ausschnitte, deren Schnittlänge genau ein Rechteck oder Langloch ergibt, stehen als Rechteck bzw. "
+            "Langloch (längs oder quer wie gemessen) statt als Kreis. C-Profile zeigen die gemessene Abkantung "
+            "(Lippe) in Skizze und 3D. Ältere Importe: STEP neu einlesen.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
