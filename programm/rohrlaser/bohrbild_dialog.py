@@ -23,7 +23,7 @@ class BohrbildDialog(QDialog):
 
     def __init__(self, parent, p, gewinde, wand=None, laser=None, katalog=None, saetze=None, gewinde_preise=None):
         """gewinde = [(Gewinde, Kernloch)] der Stammdaten, wand = Wandstärke (Bohren < 0,7 × Wand), laser = Vorgabe
-        der Markierung, katalog = Zeilen der Zusatzarbeiten (None: Zusatzarbeiten nicht anzeigen), gewinde_preise =
+        für Bohren (Einstellung bohren_laser), katalog = Zeilen der Zusatzarbeiten (None: Zusatzarbeiten nicht anzeigen), gewinde_preise =
         {Gewinde: € je Stück} der Einstellungen. Preise je Zeile: leer = Einstellungen (grau), sonst nur diese
         Position."""
         super().__init__(parent)
@@ -42,7 +42,8 @@ class BohrbildDialog(QDialog):
         info = hilfe.Hinweis("Je Zeile „Bestätigen“ oder „Ablehnen“. Gewinde werden erst nach dem Bestätigen "
                       "gerechnet. Senkung: der Laser schneidet die Bohrung, auf Wunsch wird der Senk-Ø graviert. "
                       "Flowdrill: der Laser markiert nur (Gravur oder Loch Ø0,5); abgelehnt = normale Bohrung. "
-                      "Bohren: Bohrung kleiner als 0,7 × Wandstärke, der Laser markiert nur, danach aufbohren; "
+                      "Bohren: Bohrung kleiner als 0,7 × Wandstärke, der Laser markiert nur, danach aufbohren, "
+                      "oder „Ø schneiden (ohne Bohren)“: der Laser schneidet den Ø trotzdem, kein Bohren; "
                       "abgelehnt = der Laser schneidet sie. Bestätigte Senkungen, Flowdrill und Bohren kommen als "
                       "Zusatzarbeit Senken, Flowdrill bzw. Bohren mit der Anzahl je Teil in die Position.",
                              schluessel="bohrbild")             # erster Satz, Rest hinter „mehr“ (L7)
@@ -80,7 +81,7 @@ class BohrbildDialog(QDialog):
                 ls.toggled.connect(self._auswirkung)
             elif z["art"] in ("Fließloch", bohrbild.BOHREN):
                 ls = QComboBox()
-                ls.addItems(bohrbild.LASER)
+                ls.addItems(bohrbild.LASER_BOHREN if z["art"] == bohrbild.BOHREN else bohrbild.LASER)
                 ls.setCurrentText(z.get("laser") or bohrbild.GRAVUR)
                 ls.currentTextChanged.connect(self._auswirkung)
             if ls is not None:
@@ -309,7 +310,7 @@ class BohrbildSammelDialog(QDialog):
                     ls.setChecked(bool(z.get("gravur")))
                 elif z["art"] in ("Fließloch", bohrbild.BOHREN):
                     ls = QComboBox()
-                    ls.addItems(bohrbild.LASER)
+                    ls.addItems(bohrbild.LASER_BOHREN if z["art"] == bohrbild.BOHREN else bohrbild.LASER)
                     ls.setCurrentText(z.get("laser") or bohrbild.GRAVUR)
                 if ls is not None:
                     self.tabelle.setCellWidget(zeile, 6, ls)
