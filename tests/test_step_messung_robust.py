@@ -87,7 +87,7 @@ sys.path.insert(0, str(MESSEN.parent))
 import step_geometrie  # noqa: E402
 assert EINSTELLUNG["step_flach_laenge"].vorgabe == step_geometrie.FLACHSTAHL_LAENGE
 assert EINSTELLUNG["step_gekantet_anteil"].vorgabe == step_geometrie.GEKANTET_ANTEIL
-for name in ("flach_als", "flachstahl_bis", "step_ordner", "step_werkstoff", "fliessloch_laser",
+for name in ("flach_als", "flachstahl_bis", "step_ordner", "step_werkstoff", "fliessloch_laser", "bohren_laser",
              *step_einstellungen.EINSTELLUNGEN):
     assert EINSTELLUNG[name].gruppe == "STEP-Import", name
 assert {"step_prozesse", "step_cache", "step_cache_mb"} <= teilen.LOKAL

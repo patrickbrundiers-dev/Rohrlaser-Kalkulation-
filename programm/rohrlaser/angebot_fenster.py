@@ -2980,7 +2980,8 @@ class AngebotSeite(QWidget):
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
         from . import bohrbild     # Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand: von Hand eingegeben = bestätigt
         bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
-                                    rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"))
+                                    rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"),
+                                    self.db.einstellung("bohren_laser"))
         if bild:
             werte.update(bohrbild.anwenden(werte, bild, None, self.tabellen.get("zusatzarbeiten") or [],
                                            rechnen.stundensaetze(self.tabellen)))
@@ -4023,7 +4024,7 @@ class AngebotSeite(QWidget):
         if werte is None:
             from .bohrbild_dialog import BohrbildDialog
             d = BohrbildDialog(self, p, gewinde, rechnen.wand_position(p, self.k),
-                               self.db.einstellung("fliessloch_laser"), katalog, rechnen.stundensaetze(self.tabellen),
+                               self.db.einstellung("bohren_laser"), katalog, rechnen.stundensaetze(self.tabellen),
                                {g["gewinde"]: g.get("preis") for g in self.tabellen["gewinde"] if g.get("gewinde")})
             if d.exec() != QDialog.Accepted:
                 return False
@@ -4063,7 +4064,7 @@ class AngebotSeite(QWidget):
             from .bohrbild_dialog import BohrbildSammelDialog
             gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
             d = BohrbildSammelDialog(self, [(r, self.positionen[r], rechnen.wand_position(self.positionen[r], self.k))
-                                            for r in zeilen], gewinde, self.db.einstellung("fliessloch_laser"))
+                                            for r in zeilen], gewinde, self.db.einstellung("bohren_laser"))
             if dialog is not None:
                 dialog(d)
             elif d.exec() != QDialog.Accepted:
@@ -4233,7 +4234,8 @@ class AngebotSeite(QWidget):
         g_liste = gewinde_liste(self.tabellen) or step.KERNLOCH
         alt = bohrbild.aus_position(p, g_liste)         # ohne Bohrbild: aus Gewinde-Vorschlag und Gewinde geprüft
         bild = bohrbild.aus_rechner(erg, alt, g_liste,
-                                    rechnen.wand_schneiden(profil), self.db.einstellung("fliessloch_laser"))
+                                    rechnen.wand_schneiden(profil), self.db.einstellung("fliessloch_laser"),
+                                    self.db.einstellung("bohren_laser"))
         if bild or p.get("bohrbild") or erg["felder"].get("gewinde_vorschlag"):
             felder.update(bohrbild.anwenden(dict(p, **felder, bohrbild=None), bild, bohrbild.hand_gewinde(p, alt),
                                             self.tabellen.get("zusatzarbeiten") or [],
@@ -5581,7 +5583,8 @@ class AngebotSeite(QWidget):
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
                                neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
-                               fliessloch_laser=self.db.einstellung("fliessloch_laser"), blech_daten=blech_daten,
+                               fliessloch_laser=self.db.einstellung("fliessloch_laser"),
+                               bohren_laser=self.db.einstellung("bohren_laser"), blech_daten=blech_daten,
                                biegerohr_faktor=self.db.einstellung("biegerohr_faktor"),
                                zusatz_katalog=self.db.zeilen("zusatzarbeiten"))
         self.db.profile_anlegen(erg["profile"])

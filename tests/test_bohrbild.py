@@ -251,6 +251,45 @@ def _():
     assert nah(f["schneidweg"], erg["schneidweg"] - 4 * PI * 5 + 4 * PI * 0.5, 0.1), (f, erg["schneidweg"])
 
 
+@fall("Bohren 3. Option 'Ø schneiden (ohne Bohren)': Schneidweg wie gemessen, kein Bohren, keine Warnung")
+def _():
+    from rohrlaser import schneidweg
+    assert bohrbild.LASER_BOHREN == (bohrbild.GRAVUR, bohrbild.LOCH, bohrbild.SCHNEIDEN)
+    m = dict(bohrungen="5.0:4|6.0:2", fliessloecher="7.3:2")
+    z = bohrbild.aus_messung(m, [], bohrbild.LOCH, 8, bohrbild.SCHNEIDEN)
+    assert [(x["art"], x.get("laser")) for x in z] == [("Fließloch", bohrbild.LOCH), ("Bohren", bohrbild.SCHNEIDEN)], z
+    assert bohrbild.aus_messung(m, [], bohrbild.LOCH, 8)[1]["laser"] == bohrbild.LOCH      # ohne Vorgabe wie bisher
+    p = dict(schneidweg=500.0, innen=180.0, einstiche=10, gravur=None, kontur_grenzen="10/50; 3×/8× Wand 8",
+             konturen="A:40x160; E:40x160; 5x15,7; 5x15,7; 5x15,7; 5x15,7; 6x18,8; 6x18,8")
+    assert rechnen.konturen_pruefen(p, 8) == rechnen.KONTUR_ZU_KLEIN
+    katalog = [dict(name=n, art="€/Stück", preis=1.0) for n in ("Senken", "Flowdrill", "Bohren")]
+    best = [dict(x, status="bestätigt") for x in z if x["art"] == "Bohren"]
+    f = bohrbild.anwenden(p, best, None, katalog)
+    assert "schneidweg" not in f and "einstiche" not in f and "konturen" not in f, f      # Ø wird geschnitten
+    assert not rechnen.zusatz_liste(dict(p, **f)), f                                     # kein Bohren
+    assert bohrbild.arbeiten(best) == {} and bohrbild.arbeit_preise([dict(best[0], preis=2.0)]) == {}
+    assert rechnen.konturen_pruefen(dict(p, **f), 8) is None
+    assert bohrbild.text(best) == "4x Ø5 geschnitten (ohne Bohren)", bohrbild.text(best)
+    # von markieren + Bohren auf Ø schneiden umgestellt: Schneidweg, Einstiche, Konturen und Zusatzarbeit zurück
+    p.update(bohrbild.anwenden(p, [dict(best[0], laser=bohrbild.GRAVUR)], None, katalog))
+    assert nah(p["schneidweg"], 500 - 4 * PI * 5, 0.1) and p["einstiche"] == 6 and rechnen.zusatz_liste(p)
+    f = bohrbild.anwenden(p, best, None, katalog)
+    assert nah(f["schneidweg"], 500, 0.1) and f["einstiche"] == 10 and f["konturen"].count("5x15,7") == 4, f
+    assert not f.get("gravur") and not rechnen.zusatz_liste(dict(p, **f)), f
+    # alle Editoren (Schneidweg-Rechner): Vorgabe Ø schneiden, eingegebene kleine Bohrung bleibt im Schneidweg
+    profil = dict(form="Quadratrohr", a=60, b=60, wand=8)
+    erg = schneidweg.rechnen(dict(a={}, b={}, konturen=[dict(art="Bohrung", anzahl=4, d=5)]), profil, (10, 50), [])
+    neu = bohrbild.aus_rechner(erg, [], [], 8, bohrbild.GRAVUR, bohrbild.SCHNEIDEN)
+    assert [(x["art"], x["status"], x["laser"]) for x in neu] == [("Bohren", "bestätigt", bohrbild.SCHNEIDEN)], neu
+    f = bohrbild.anwenden(dict(erg["felder"]), neu, None, katalog)
+    assert "schneidweg" not in f and not rechnen.zusatz_liste(f), f
+    assert rechnen.konturen_pruefen(dict(erg["felder"], **f), 8) is None
+    # Vorgabe in den Einstellungen
+    from rohrlaser.stammdaten import EINSTELLUNGEN
+    e = next(x for x in EINSTELLUNGEN if x.name == "bohren_laser")
+    assert e.vorgabe == bohrbild.GRAVUR, e
+
+
 @fall("Angebot: Bohren im Dialog vorgeschlagen, Bestätigen trägt Zusatzarbeiten ein, Schneidweg-Rechner behält Status")
 def _():
     from PySide6.QtWidgets import QApplication
@@ -280,6 +319,21 @@ def _():
         assert nah(p["schneidweg"], 330 - 2 * PI * 2, 0.1) and p["einstiche"] == 4, p
         (w,) = rechnen.zusatz_werte(p, seite.k, seite.tabellen)      # 2 × 0,40 € (Einstellungen)
         assert w["menge"] == 2 and nah(w["betrag"], 2 * 0.40, 0.001), w
+        # 3. Option im Dialog: Ø schneiden (ohne Bohren) -> Schneidweg zurück, Zusatzarbeit Bohren weg
+        d = BohrbildDialog(None, p, gew, 3, bohrbild.SCHNEIDEN, db.zeilen("zusatzarbeiten"))
+        ls = d.laser[0]
+        assert [ls.itemText(i) for i in range(ls.count())] == list(bohrbild.LASER_BOHREN)
+        d.setzen(0, "bestätigt", laser=bohrbild.SCHNEIDEN)
+        d.accept()
+        assert seite.bohrungen_pruefen([0], werte=d.ergebnis)
+        q = db.positionen(a)[0]
+        assert not rechnen.zusatz_liste(q) and nah(q["schneidweg"], 330, 0.1) and q["einstiche"] == 6, q
+        assert rechnen.konturen_pruefen(q, 3) is None
+        d = BohrbildDialog(None, q, gew, 3, None, db.zeilen("zusatzarbeiten"))
+        d.setzen(0, "bestätigt", laser=bohrbild.GRAVUR)
+        d.accept()
+        assert seite.bohrungen_pruefen([0], werte=d.ergebnis)
+        p = db.positionen(a)[0]
         # Schneidweg-Rechner: Bohrbild aus den Eingaben, Bohren bleibt bestätigt, Zusatzarbeit bleibt
         assert seite.schneidweg_berechnen(0, eingaben=dict(a={}, b={}, konturen=[dict(art="Bohrung", anzahl=2, d=2)]),
                                           ueberschreiben=True)
