@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.161", "<b>Sätze heben sich ab</b>: In der Positionsliste stehen die Positionen eines Satzes zusammen und "
+                "sind je Satz farbig hinterlegt (abwechselnd blau und violett, auch im Dunkelmodus). Die Spalten "
+                "Satz und Stück je Satz stehen gleich hinter Pos.; die erste Position zeigt fett Name und Anzahl "
+                "Sätze. Eine Klammer am Zeilenkopf (▾ │ └) zeigt, was zusammengehört; Klick auf ▾ klappt den Satz "
+                "zu. Im Reiter Kalkulation (kompakt und alle Spalten) gibt es die Spalte Satz mit derselben Farbe "
+                "([[saetze_abheben]]).",
+     "Sätze farbig und zusammen in Positionsliste und Kalkulation, Klammer am Zeilenkopf, zuklappbar."],
     ["0.9.160", "<b>Gehrung in 2D: lange Seite kürzer</b>: Bei einer Gehrung, die in 2D (90° zur Oberfläche) "
                 "geschnitten wird, ist jetzt die Innenkante maßhaltig; die Spitze wird um Wand · tan(Winkel) kürzer "
                 "(3 mm bei Wand 3 und 45°), damit innen nichts über die Gehrung ragt. <b>STEP</b>: Gehrungen, die in "
