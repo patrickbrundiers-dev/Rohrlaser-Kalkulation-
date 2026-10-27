@@ -46,6 +46,7 @@ TESTS = [
     ("test_zeichnung_baugruppe.py", QT),
     ("test_step_kantteile.py", {}),
     ("test_offenes_rohr.py", QT),
+    ("test_rohr_ausschnitt.py", {}),
     ("test_winkel_virtuell.py", QT),
     ("test_virtuell_nutzen.py", QT),
     ("test_nasen_geometrie.py", QT),

@@ -28,6 +28,12 @@ NEUERUNGEN = [
                 "Schneidweg unverändert). Schrägschnitt zweiachsig: gemessene Richtung bleibt im Editor, Spitze auf "
                 "der gerundeten Ecke ([[schneidweg_rechner]]). Ältere Importe: STEP neu einlesen.",
      "STEP-Import: Gehrungen, Ausklinkungen und Schlitze im Editor genau wie in der STEP."],
+    ["0.9.157", "<b>Rohr mit großem Ausschnitt</b>: Ein Rund-, Quadrat- oder Rechteckrohr, das an beiden Enden als "
+                "Ring gezeichnet ist und dazwischen fast über die ganze Länge offen (Längsausschnitt, Sattel mit "
+                "Schlitz, Kerben am Rand), wird wieder als Rohr erkannt (war <i>offenes Sonderprofil</i>). Der "
+                "Ausschnitt ist Innenkontur genau wie in der STEP, die Ringe der Zeichnung bleiben unverändert. Ein "
+                "Ausschnitt, der an einen Sattel anschließt, gilt nicht mehr als Fließloch ([[offene_rohre]]).",
+     "Rohr mit großem Ausschnitt und geschlossenen Enden wird als Rohr erkannt."],
     ["0.9.156", "<b>Zusatzarbeiten unter der Position</b>: Mit dem Häkchen <b>Zusatzarbeiten unter Position</b> "
                 "(Vorgabe an) steht unter jeder Position je Arbeitsschritt eine eingerückte Zeile mit Menge, Preis je "
                 "Einheit, Zeit, € je Teil, € der Position und eigen/Fremdleistung, in der Reihenfolge der Werkstatt: "

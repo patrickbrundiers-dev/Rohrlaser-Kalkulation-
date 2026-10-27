@@ -2040,6 +2040,11 @@ def kapitel_step(i):
             "offen; die Enden müssen eben sein (gerade oder schräg).",
             "<b>Fenster</b>: genau über der Lücke (Laschen und Schlitzränder bleiben stehen) zwischen den Ringen; es "
             "zählt als Innenkontur im Schneidweg. Bohrungen und Ausschnitte der Wände bleiben.",
+            "<b>Enden schon geschlossen gezeichnet</b>: Ist das Rohr an beiden Enden als ganzer Ring gezeichnet und "
+            "nur dazwischen fast über die ganze Länge offen (großer Längsausschnitt, Sattel mit Schlitz, Kerben am "
+            "Rand), ist es ein Rohr mit Ausschnitt: Rund-, Quadrat- oder Rechteckrohr, der Ausschnitt als "
+            "Innenkontur <b>genau wie in der STEP</b>. Es kommt nichts dazu, auch ein Ring schmaler als 2 mm bleibt "
+            "so schmal; der Hinweis lautet <i>Enden in der STEP geschlossen</i>.",
             "<b>Spalt bis 2 mm</b>: Stoßen die Kanten mit einem schmalen Spalt aneinander, wird der Spalt ganz "
             "geschlossen (kein Fenster); Art <i>… – Spalt geschlossen</i>.",
             "<b>Vorbelegung</b>: immer als Rohr, auch wenn ein U- oder C-Profil der Stammdaten passt; als Kantteil "

@@ -2423,7 +2423,7 @@ def bohrung_art(flaechen, aussenkanten):
     der Außenhaut. Senkung: Zylinder eines Ø quer zur Achse + Kegel, außen größer als die Bohrung. Fließloch: Kernloch
     (kleinster Zylinder) ist außen genau so groß, dazu ein koaxialer Kragen innen (größerer Zylinder, Ring- oder
     Rundungsflächen). Ergebnis: ("Senkung", Ø, Senk-Ø) bzw. ("Fließloch", Ø, Kragen-Ø) oder None."""
-    zyl, kegel, sonst = [], 0, 0
+    zyl, kegel, sonst, ebenen = [], 0, 0, []
     for f in flaechen:
         z_ = _zylinder(f)
         if z_ is not None:
@@ -2431,17 +2431,25 @@ def bohrung_art(flaechen, aussenkanten):
                 return None
             zyl.append(z_)
             continue
-        typ = BRepAdaptor_Surface(TopoDS.Face(f)).GetType()
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        typ = s.GetType()
         if typ == GeomAbs_Cone:
             kegel += 1
-        elif typ in (GeomAbs_Plane, GeomAbs_Torus):
+        elif typ == GeomAbs_Torus:
             sonst += 1
+        elif typ == GeomAbs_Plane:
+            ebenen.append(s.Plane().Axis().Direction())
         else:
             return None
     if not zyl or not aussenkanten:
         return None
     kern = min(zyl, key=lambda c: c.Radius())
     ax = kern.Axis()
+    # Ringfläche des Kragens: eben, quer zur Bohrungsachse. Andere Ebenen (Schlitz oder Ausschnitt, der an einen
+    # Sattel anschließt, Patrick 27.10.2026) machen aus dem Merkmal keine Bohrung
+    if any(abs(abs(n.Dot(ax.Direction())) - 1) > 1e-3 for n in ebenen):
+        return None
+    sonst += len(ebenen)
     for c in zyl:     # alle Zylinder koaxial zum Kernloch
         if abs(abs(c.Axis().Direction().Dot(ax.Direction())) - 1) > 1e-6 or \
                 gp_Vec(ax.Location(), c.Axis().Location()).Crossed(_vec(ax.Direction())).Magnitude() > 0.01:
