@@ -1684,6 +1684,8 @@ class AngebotSeite(QWidget):
         # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
         self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())
         menue.aboutToShow.connect(lambda: self.lager_aktion.setVisible(self.f.lager_an()))
+        # Arbeitsgänge je Position mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.py)
+        menue.addAction("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen())
         menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
         menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
@@ -1732,6 +1734,7 @@ class AngebotSeite(QWidget):
                 ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
                 ("STEP-Merkmale prüfen …", lambda: self.step_merkmale_pruefen(), ""),
+                ("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
@@ -4041,6 +4044,48 @@ class AngebotSeite(QWidget):
             self.f.meldung(f"Pos. {p.get('pos') or ''}: STEP-Merkmale als geprüft bestätigt.")
             self.neu_laden()
         return d
+
+    def arbeitsgaenge_zeilen(self):
+        """Arbeitsgänge aller Positionen mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.uebersicht)."""
+        from . import arbeitsgaenge
+        return arbeitsgaenge.uebersicht(self.kopf, self.positionen, self.k, self.tabellen,
+                                        self.db.zeilen("arbeitsgang_regeln"))
+
+    def arbeitsgaenge_vorschlagen(self, dialog=None):
+        """Fenster „Arbeitsgänge je Position“: Vorschläge annehmen oder ablehnen. dialog(d) bedient das Fenster statt
+        exec (Tests). Ergebnis: Dialog."""
+        from .arbeitsgaenge_dialog import ArbeitsgaengeDialog
+        d = ArbeitsgaengeDialog(self, self)
+        (dialog(d) if dialog else d.exec())
+        return d
+
+    def _position_frisch(self, position_id):
+        return next((x for x in self.db.positionen(self.id) if x["id"] == position_id), None)
+
+    def arbeitsgang_annehmen(self, position_id, name):
+        """Vorgeschlagene Zusatzarbeit in die Position übernehmen (mit Preisstand); doppelt nie. Ergebnis: True."""
+        from . import arbeitsgaenge
+        p = self._position_frisch(position_id)
+        neu = arbeitsgaenge.annehmen(p, name, self.db.zeilen("arbeitsgang_regeln"), self.tabellen) if p else None
+        if neu is None:
+            self.f.meldung(f"„{name}“ ist schon in der Position oder nicht in den Zusatzarbeiten.", fehler=True)
+            return False
+        self.db.position_aendern(position_id, "zusatz", neu)
+        if name in arbeitsgaenge.lesen(p)["abgelehnt"]:
+            self.db.position_aendern(position_id, "arbeitsgaenge", arbeitsgaenge.ablehnen(p, name, zurueck=True))
+        self.f.meldung(f"Pos. {p.get('pos') or ''}: „{name}“ angenommen, wird jetzt gerechnet.")
+        self.neu_laden()
+        return True
+
+    def arbeitsgang_ablehnen(self, position_id, name, zurueck=False):
+        """Vorschlag ablehnen bzw. Ablehnung zurücknehmen (bleibt in positionen.arbeitsgaenge). Ergebnis: True."""
+        from . import arbeitsgaenge
+        p = self._position_frisch(position_id)
+        if p is None:
+            return False
+        self.db.position_aendern(position_id, "arbeitsgaenge", arbeitsgaenge.ablehnen(p, name, zurueck))
+        self.neu_laden()
+        return True
 
     def anbauteile_pruefen(self, zeilen=None, werte=None):
         """Anbauteile der (ersten) markierten Position aus dem STEP-Import prüfen (AnbauDialog): Art, Bearbeitung,

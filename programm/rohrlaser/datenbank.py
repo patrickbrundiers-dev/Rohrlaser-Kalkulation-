@@ -398,6 +398,8 @@ class Datenbank:
                 self._einfuegen("blech_kfaktoren", beispieldaten()["blech_kfaktoren"])
             if 0 < version < 48 and not self.anzahl("pruefregeln"):
                 self._einfuegen("pruefregeln", beispieldaten()["pruefregeln"])
+            if 0 < version < 65 and not self.anzahl("arbeitsgang_regeln"):     # P1-4: Beispielregeln
+                self._einfuegen("arbeitsgang_regeln", beispieldaten()["arbeitsgang_regeln"])
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
