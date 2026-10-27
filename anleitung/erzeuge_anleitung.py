@@ -1234,7 +1234,9 @@ def kapitel_angebot(i):
         ["Programmierzeit [min]", "grau = Grundzeit je Position + Zeit je Innenkontur × Innenkonturen; anpassen "
                                   "(fett) ersetzt sie für diese Position, leeren = wieder berechnet ([[stundensaetze]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
-        ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
+        ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]]); "
+                                "die Spalten stehen gleich hinter Pos., die Positionen eines Satzes zusammen und farbig "
+                                "([[saetze_abheben]])"],
         ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
                                 "([[meterpreis]])"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i> (Trennung mit Semikolon oder Komma, x oder ×). Nur was hier "
@@ -1255,6 +1257,28 @@ def kapitel_angebot(i):
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
            "„(leer)“ markiert. Die Wahl gilt für alle Angebote, bis <i>Automatisch: Spalten mit Werten zeigen</i> sie "
            "zurücksetzt. Ausgeblendete Spalten verlieren keine Werte.")
+    i.abschnitt("Sätze in Positionsliste und Kalkulation", marke="saetze_abheben")
+    i.bild("satz_abheben", "Zwei Sätze und Einzelteile in der Positionsliste", hoehe=62 * mm, legende=[
+        (1, "Spalte <b>Satz</b> gleich hinter Pos.: an der ersten Position fett Name und Anzahl Sätze, darunter "
+            "der Name in Grau; daneben <b>Stück je Satz</b>."),
+        (2, "Klammer am Zeilenkopf: <b>▾</b> an der ersten Position, │ dazwischen, └ an der letzten. Klick auf ▾ "
+            "klappt den Satz zu (▸), ein weiterer Klick wieder auf.")])
+    i.text("Positionen eines Satzes stehen zusammen und sind je Satz farbig hinterlegt (abwechselnd blau und "
+           "violett, im Dunkelmodus dunkle Töne); Einzelteile bleiben ohne Farbe.", kurz=True)
+    i.bild("satz_kalkulation", "Reiter Kalkulation: Spalte Satz und dieselbe Farbe wie in der Positionsliste",
+           hoehe=55 * mm)
+    i.genauer()
+    i.liste("Ein Satz sind alle Positionen mit demselben Namen in der Spalte <b>Satz</b>. Stehen sie im Angebot "
+            "verstreut, zeigt die Liste sie direkt unter der ersten Position des Satzes; die Pos.-Nummern und die "
+            "Reihenfolge im Angebots-PDF ändern sich dadurch nicht.",
+            "Die Anzahl Sätze ist Stückzahl ÷ Stück je Satz der ersten Position. Zugeklappt steht dahinter, wie viele "
+            "Positionen der Satz hat. Der Zustand gilt, bis das Angebot geschlossen wird.",
+            "Doppelklick bzw. Tippen in die Spalte Satz ändert wie bisher nur den Namen.",
+            "Im Reiter <i>Kalkulation</i> (kompakt und alle Spalten) steht die Spalte <b>Satz</b> hinter der "
+            "Artikelnummer, die Zeilen haben dieselbe Farbe. Ohne Sätze im Angebot ist die Spalte ausgeblendet.",
+            "Schweißbaugruppen ([[schweissbaugruppe]]) haben ihre eigene Gruppierung (▾/└ an der Baugruppe) und "
+            "werden hier nicht zusätzlich gefärbt. Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit "
+            "seinen Teilen darunter.")
     i.abschnitt("Zusatzarbeiten und Gewinde je Bauteil", marke="zusatzarbeiten_angebot")
     i.text("Positionen markieren → <b>Zusatzarbeiten …</b> (oder Doppelklick in die Spalte <i>Zusatzarbeiten</i>).",
            kurz=True)

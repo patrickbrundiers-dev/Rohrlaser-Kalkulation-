@@ -7,7 +7,8 @@ def _position(z, schluessel):
     return w * (z.get("stueck") or 0) if isinstance(w, (int, float)) else None
 
 
-KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Stückzahl", "stueck", 0, 60),
+KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Satz", "satz", None, 120),
+                ("Stückzahl", "stueck", 0, 60),
                 ("Kundenmaterial", "kundenmaterial", None, 70),
                 ("Material je Teil [€]", "material_teil", 3, 80), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 80),
                 ("Gewindezeit je Teil [s]", "gewindezeit", 1, 75),
@@ -88,7 +89,8 @@ FEHLER_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 150
 # Kompakte Teileübersicht im Reiter Kalkulation (Patrick 23.10.2026): das Wichtigste je Bauteil auf einen Blick.
 # Laserzeit berechnet = Schneidzeit aus den Konturen (brutto); genutzt = was in den Preis eingeht (nach gemeinsamen
 # Schnitten, mit Zusatz- und Prüfzeit, bzw. die Zeit von Hand).
-KOMPAKT_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Profil", "profil", None, 130),
+KOMPAKT_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Satz", "satz", None, 130),
+                   ("Profil", "profil", None, 130),
                    ("Stückzahl", "stueck", 0, 60), ("Länge [mm]", "laenge", 1, 75), ("Material", "material", None, 110),
                    ("Oberfläche", "oberflaeche", None, 85),
                    ("Laserzeit berechnet je Teil [s]", "laser_brutto", 1, 85),
@@ -100,7 +102,8 @@ KOMPAKT_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 13
 
 def kompakt_zeilen(positionen, zeilen):
     """Zeilen der kompakten Übersicht aus Positionen und Kalkulationszeilen (gleiche Reihenfolge, None = ohne
-    Kalkulation); 'zeile' = Index der Position für den Sprung in die Positionsliste."""
+    Kalkulation); 'zeile' = Index der Position für den Sprung in die Positionsliste. Satz und Tönung kommen aus den
+    Kalkulationszeilen (satzgruppen.zeilen_markieren)."""
     out = []
     for i, (p, z) in enumerate(zip(positionen, zeilen)):
         if not z:
@@ -108,7 +111,8 @@ def kompakt_zeilen(positionen, zeilen):
         netto = z.get("laser_netto")
         stueck = z.get("stueck") or 0
         zukauf = not p.get("profil_id")
-        out.append(dict(zeile=i, pos=z.get("pos"), artikel=z.get("artikel"), profil=p.get("profil_id") or "",
+        out.append(dict(zeile=i, pos=z.get("pos"), artikel=z.get("artikel"), satz=z.get("satz") or "",
+                        satz_ton=z.get("satz_ton"), profil=p.get("profil_id") or "",
                         stueck=z.get("stueck"), laenge=None if zukauf else p.get("laenge"),
                         material=p.get("werkstoff_id") or "",
                         oberflaeche="" if zukauf else (p.get("oberflaeche") or "roh"),

@@ -170,6 +170,8 @@ UMSETZUNG = {
         "#1F4E79": "#6CA6DE", "#1F3864": "#8FB3E8", "#5A6470": "#A3ADBA", "#C0392B": "#F28B82", "#7F6000": "#E0C060",
         "#A0A0A0": "#7A8494", "#999999": "#7A8494", "#C62828": "#F28B82", "#1565C0": "#64A8F0", "#00838F": "#4DD0E1",
         "#E8F0FA": "#22324A",
+        # Sätze in Positionsliste und Kalkulation (satzgruppen.py, 27.10.2026): Tönung Blau/Violett und Satzname
+        "#E4EEFA": "#1E3550", "#EEE6F7": "#35284A", "#285F9E": "#8BBBE8", "#6E3FA3": "#C7A6F0",
     },
     "Hoher Kontrast": {
         "#1F2937": "#000000", "#111827": "#000000", "#3A4656": "#111111", "#5F6B7A": "#2F3742", "#9AA3AF": "#5F6B7A",
@@ -366,7 +368,8 @@ KONTRAST_PAARE = [
     (AKZENT, "#FFFFFF", "Kartentitel"), ("#FFFFFF", AKZENT, "Hauptknopf"), (ROT, ROT_FLAECHE, "Fehler"),
     (GELB_TEXT, GELB_FLAECHE, "Warnung"), (GRUEN, GRUEN_FLAECHE, "OK"), ("#8C1D18", "#FDECEA", "Stand veraltet"),
     ("#7A5A00", "#FFF6DB", "Stand offen"), (TEXT, "#FFFCF0", "Eingabezelle"), (TEXT, "#EDEDED", "berechnete Zelle"),
-    ("#111827", "#CFE0F5", "Auswahl"), ("#3A4656", "#EEF1F5", "Reiter"), (AKZENT, "#EEF4FB", "Verkaufspreis"),
+    ("#111827", "#CFE0F5", "Auswahl"), ("#285F9E", "#E4EEFA", "Satzname Blau"), ("#6E3FA3", "#EEE6F7", "Satzname Violett"),
+    (TEXT, "#E4EEFA", "Satzzeile Blau"), (TEXT, "#EEE6F7", "Satzzeile Violett"), ("#3A4656", "#EEF1F5", "Reiter"), (AKZENT, "#EEF4FB", "Verkaufspreis"),
 ]
 
 

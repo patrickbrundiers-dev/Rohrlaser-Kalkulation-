@@ -1031,6 +1031,40 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("step_satz_positionen", f, [(s3.pos_ansicht, 1)])
 
+    # 11a1) Sätze abheben (27.10.2026): zwei Sätze und Einzelteile, Positionsliste und kompakte Kalkulation
+    mix = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Gestelle und Einzelteile"))
+    mg, vm = vorlagen["ABN-02"]["positionen"], vorlagen["ABN-03"]["positionen"]
+    for nr, p, satz, saetze, stueck in [(10, mg[0], "Gestell MG 2000", 4, None), (20, mg[1], "Gestell MG 2000", 4, None),
+                                        (30, mg[2], "Gestell MG 2000", 4, None), (40, mg[4], None, None, None),
+                                        (50, vm[0], "Tischgestell VM", 10, 40), (60, vm[1], "Tischgestell VM", 10, 40),
+                                        (70, mg[5], None, None, None)]:
+        werte = dict(pos=nr, artikel=p["artikel"], bezeichnung=p["bezeichnung"], profil_id=p["profil"],
+                     werkstoff_id=p["werkstoff"], laenge=p["laenge"], stueck=stueck or p["stueck"],
+                     schneidweg=p["schneidweg"], einstiche=p["einstiche"])
+        if satz:
+            werte.update(satz=satz, je_satz=werte["stueck"] // saetze)
+        db.position_neu(mix, werte)
+    s6 = f.angebot_oeffnen(mix)
+    s6.optimieren()
+    reiter_waehlen(s6, "Positionen")
+    bereit()
+    v6, m6 = s6.pos_ansicht, s6.pos_modell
+    sp = next(c for c in range(m6.columnCount()) if m6.name(c) == "satz")
+    unten = v6.viewport().mapTo(f, QPoint(0, v6.rowViewportPosition(6) + v6.rowHeight(6))).y() + 4
+    oben = v6.mapTo(f, QPoint(0, 0)).y() - 4
+    kopf6 = v6.verticalHeader()
+    foto.foto("satz_abheben", f, [((v6.viewport(), v6.visualRect(m6.index(0, sp))), 1),
+                                  ((kopf6, QRect(0, kopf6.sectionViewportPosition(0), kopf6.width(),
+                                                 3 * kopf6.defaultSectionSize())), 2)],
+              ausschnitt=QRect(0, oben, f.width() - s6.uebersicht_rahmen.width() - 10, unten - oben))
+    reiter_waehlen(s6, "Kalkulation")
+    k6 = s6.kompakt_ansicht
+    unten = k6.mapTo(f, QPoint(0, k6.rowViewportPosition(6) + k6.rowHeight(6) + k6.horizontalHeader().height())).y() + 4
+    oben = k6.mapTo(f, QPoint(0, 0)).y() - 4
+    foto.foto("satz_kalkulation", f, ausschnitt=QRect(0, oben, f.width() - s6.uebersicht_rahmen.width() - 10,
+                                                      unten - oben))
+    f.angebot_schliessen(mix)
+
     # 11a2) Strukturbaum mit 3D im Baugruppen-Editor (D1): Teile des Gestells, ein Teil in einer Unterbaugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog
     d = BaugruppeDialog(s3, dict(pos=900, stueck=4), s3.positionen, s3.tabellen, s3._saetze(),
