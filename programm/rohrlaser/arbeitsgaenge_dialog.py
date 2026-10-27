@@ -1,13 +1,13 @@
 """Fenster „Arbeitsgänge vorschlagen“ (arbeitsgaenge.py): Arbeitsgänge je Position mit Status, Vorschläge der
 Arbeitsgang-Regeln annehmen oder ablehnen."""
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import arbeitsgaenge as ag
+from . import arbeitsgaenge as ag, stil
 from .rechnen import zahl
 
-FARBE = {ag.VORSCHLAG: "#FFF6DB", ag.ABGELEHNT: "#EEEEEE", ag.ZU_PRUEFEN: "#FDECEA"}
+FARBE = {ag.VORSCHLAG: "#FFF6DB", ag.ABGELEHNT: "#F2F2F2", ag.ZU_PRUEFEN: "#FDECEA"}
 SPALTEN = ("Pos.", "Artikel", "Arbeitsgang", "Menge je Teil", "Zeit je Teil [s]", "€ je Teil", "Kostenart",
            "Status", "Herkunft")
 
@@ -64,7 +64,7 @@ class ArbeitsgaengeDialog(QDialog):
             for c, w in enumerate(werte):
                 it = QTableWidgetItem("" if w is None else str(w))
                 if z["status"] in FARBE:
-                    it.setBackground(QBrush(QColor(FARBE[z["status"]])))
+                    it.setBackground(QBrush(stil.farbe(FARBE[z["status"]])))
                 t.setItem(r, c, it)
         s = ag.summen(self.zeilen)
         n_v = sum(1 for z in self.zeilen if z["status"] == ag.VORSCHLAG)

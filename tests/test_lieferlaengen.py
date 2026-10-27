@@ -213,11 +213,13 @@ e1 = rechnen.optimieren(kopf, [pos(3100, 10), pos(2800, 5, nr=20)], db.kontext()
 e2 = rechnen.optimieren(kopf, [pos(3100, 10), pos(2800, 5, nr=20)], db.kontext(), db.tabellen(), einst)
 assert json.dumps(e1, sort_keys=True, default=str) == json.dumps(e2, sort_keys=True, default=str)
 
-# 9) Keine Reststückverwaltung: Vergleich und Optimierung ändern die Datenbank nicht, keine Bestandstabelle
+# 9) Vergleich und Optimierung ändern die Datenbank nicht. Lager und Reststücke (lager.py, Patrick 27.10.2026:
+# optional, Vorgabe aus) bleiben ohne Einstellung aus und leer; der Vergleich rechnet keinen Reststückwert an
 vorher = {t: db.anzahl(t) for t in ("lieferlaengen", "preise", "profile")}
 con = sqlite3.connect(db.pfad)
-tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-assert not {t for t in tabellen if "rest" in t or "bestand" in t or "lager" in t}, tabellen
+assert db.einstellung("lager_aktiv") == "nein" and db.einstellung("reste_aktiv") == "nein"
+assert all(con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] == 0
+           for t in ("lager_bestand", "lager_reservierung", "lager_auftraege", "lager_buchungen"))
 vergleich([pos(3100, 30)])
 assert {t: db.anzahl(t) for t in vorher} == vorher
 print("Gruppen OK")

@@ -2,11 +2,11 @@
 Materialverbrauch je Charge und Export des Fertigungsauftrags (JSON/CSV). Nur mit Einstellung 'fertigung_aktiv'."""
 import json
 
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QTabWidget, QVBoxLayout, QWidget)
 
-from . import fertigung, lager
+from . import fertigung, lager, stil
 from .lager_seite import _fuellen, _tabelle
 
 SPALTEN = (("Angebot", "nummer"), ("Kunde", "kunde"), ("Auftragsnr.", "auftragsnr"), ("Liefertermin", "liefertermin"),
@@ -80,7 +80,7 @@ class FertigungSeite(QWidget):
         for r, z in enumerate(self.zeilen):
             if z["geaendert"]:
                 for c in range(len(SPALTEN)):
-                    self.liste.item(r, c).setBackground(QBrush(QColor("#FFF6DB")))
+                    self.liste.item(r, c).setBackground(QBrush(stil.farbe("#FFF6DB")))
         self._zeiten()
         self._chargen()
         self._auswahl()

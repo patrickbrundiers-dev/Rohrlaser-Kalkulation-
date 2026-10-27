@@ -1,15 +1,15 @@
 """Fenster „Varianten vergleichen“ (varianten.py): Lieferlängen und Material aus dem Lager je Stangengruppe mit
 Zielgröße, Punkten, Empfehlung und Status der Optimierung."""
-from PySide6.QtGui import QBrush, QColor, QFont
+from PySide6.QtGui import QBrush, QFont
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import varianten as va
+from . import stil, varianten as va
 from .rechnen import zahl
 
 SPALTEN = ("Gruppe / Variante", "Kosten [€]", "Verschnitt [%]", "Lieferstangen (Neukauf)", "Beladungen",
            "Wechselzeit [min]", "Punkte", "Status der Optimierung", "Hinweis")
-EMPFOHLEN, GEPLANT, GRUPPE = "#E3F4E8", "#EAF1FB", "#F2F2F2"
+EMPFOHLEN, GEPLANT, GRUPPE = "#E3F4E8", "#EEF4FB", "#F2F2F2"
 
 
 class VariantenDialog(QDialog):
@@ -77,7 +77,7 @@ class VariantenDialog(QDialog):
             t.setItem(r, 0, kopf)
             t.setItem(r, 8, QTableWidgetItem(b["grund"]))
             for c in range(len(SPALTEN)):
-                (t.item(r, c) or self._setzen(r, c, "")).setBackground(QBrush(QColor(GRUPPE)))
+                (t.item(r, c) or self._setzen(r, c, "")).setBackground(QBrush(stil.farbe(GRUPPE)))
             self.zeilen.append((g, None))
             for i, v in enumerate(g["varianten"]):
                 r = t.rowCount()
@@ -94,9 +94,9 @@ class VariantenDialog(QDialog):
                 for c, w in enumerate(werte):
                     it = self._setzen(r, c, w)
                     if i == b["beste"]:
-                        it.setBackground(QBrush(QColor(EMPFOHLEN)))
+                        it.setBackground(QBrush(stil.farbe(EMPFOHLEN)))
                     elif v["geplant"]:
-                        it.setBackground(QBrush(QColor(GEPLANT)))
+                        it.setBackground(QBrush(stil.farbe(GEPLANT)))
                 self.zeilen.append((g, v))
         self.info.setText(
             ("Noch nicht optimiert." if not self.gruppen else

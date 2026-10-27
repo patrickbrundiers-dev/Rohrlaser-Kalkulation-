@@ -1,9 +1,9 @@
 """Fenster „STEP-Merkmale prüfen“ (step_pruefung.py): Status je Merkmal, Rohdaten der Messung und Korrekturen."""
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton,
                                QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout)
 
-from . import step_pruefung
+from . import step_pruefung, stil
 
 FARBE = {step_pruefung.SICHER: "#E3F4E8", step_pruefung.PRUEFEN: "#FFF6DB", step_pruefung.NICHT: "#FDECEA"}
 
@@ -33,7 +33,7 @@ class MerkmaleDialog(QDialog):
         self.merkmale = _tabelle(("Merkmal", "Wert", "Status", "Grund / Annahme"),
                                  [(x["merkmal"], x["wert"], x["status"], x["grund"]) for x in m])
         for r, x in enumerate(m):
-            self.merkmale.item(r, 2).setBackground(QBrush(QColor(FARBE.get(x["status"], "#FFFFFF"))))
+            self.merkmale.item(r, 2).setBackground(QBrush(stil.farbe(FARBE.get(x["status"], "#FFFFFF"))))
         self.korrekturen = _tabelle(("Zeitpunkt", "Feld", "gemessen bzw. vorher", "von Hand"),
                                     [(k["am"], k["feld"], k["alt"], k["neu"]) for k in d.get("korrekturen") or ()])
         self.roh = _tabelle(("Messwert", "Wert"), sorted((d.get("roh") or {}).items()))
