@@ -106,9 +106,10 @@ assert set(n["t"]) == {"A", "I", "EA", "EB", "K"} and n["eingaben"] is True
 assert n["li"]["K"] == ["kontur:0", "kontur:0", "kontur:1"] and n["li"]["G"] == ["kontur:2"]
 assert n["li"]["EA"] == ["ende:a"] and n["li"]["EB"] == ["ende:b"]
 mo = ansicht3d.Modell(n)
-assert abs(mo.min[2]) < 1e-6 and abs(mo.max[2] - 500) < 1e-6 and abs(mo.max[1] - 20) < 1e-6
+# Gehrung in 2D: lange Seite um Wand · tan 45° = 3 mm kürzer (Innenkante maßhaltig, Patrick 27.10.2026)
+assert abs(mo.min[2] - 3) < 1e-6 and abs(mo.max[2] - 500) < 1e-6 and abs(mo.max[1] - 20) < 1e-6
 za = [n["l"]["EA"][0][i + 2] for i in range(0, len(n["l"]["EA"][0]), 3)]
-assert abs(max(za) - min(za) - 40) < 0.01                   # Gehrung 45° über Höhe 40: 40 mm tief
+assert abs(max(za) - min(za) - 37) < 0.01                   # Gehrung 45° über Höhe 40: 40 mm tief, 3 mm kürzer
 lang = [n["l"]["K"][2][i:i + 3] for i in range(0, len(n["l"]["K"][2]), 3)]
 assert all(abs(p[0] + 20.4) < 0.01 for p in lang)           # Langloch vorne: X = −u, 0,4 über der Wand
 rr = rohr3d.netz(dict(a=dict(sattel=60), b={}, konturen=[]), dict(form="Rundrohr", a=40, wand=2), 300)

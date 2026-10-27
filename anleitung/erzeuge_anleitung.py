@@ -2459,6 +2459,17 @@ def kapitel_optimieren(i):
             "seine Länge ist aus dem Endschnitt herausgerechnet (Schneidweg gesamt wie gemessen). Eine gemessene "
             "Richtung, die nicht 0°/90°/180°/270° ist (zweiachsiger Schrägschnitt), steht in <i>längste Seite</i> "
             "als <i>gemessen (…°)</i> und bleibt beim Speichern erhalten. Ältere Importe: STEP neu einlesen.",
+            "<b>Gehrung in 2D: Innenkante maßhaltig</b> (seit 0.9.160): Wird eine Gehrung in 2D geschnitten (Strahl "
+            "90° zur Oberfläche, ohne Häkchen 3D), liegt die Innenkante genau unter der Außenkante. Damit innen nichts "
+            "über die Gehrungsfläche ragt, ist die Innenkante maßhaltig: die lange Seite (Spitze) wird um "
+            "Wand · tan(Winkel) kürzer, z. B. 3 mm bei Wand 3 und 45°; die kurze Seite bleibt. Editor, Skizze, 3D und "
+            "Stangenansicht zeigen das so, die Länge der Position bleibt das Maß bis zur Spitze der Gehrungsfläche, "
+            "die Schnittlänge bleibt wie bisher. Gehrungen aus der STEP stehen wie in der STEP (Außenkante auf der "
+            "Fläche), solange sie nicht geändert werden; in 3D ist die Fläche eben durch die Wand.",
+            "<b>Gehrung schon 2D in der STEP</b> (seit 0.9.160): Ist eine Gehrung in der STEP bereits 90° zur "
+            "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
+            "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
+            "STEP. Ist die lange Seite in der STEP schon gekürzt, bleibt das Ende komplex, genau wie gemessen.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "

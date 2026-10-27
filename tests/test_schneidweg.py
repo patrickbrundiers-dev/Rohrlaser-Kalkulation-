@@ -281,17 +281,21 @@ for form, seiten in (("U-Profil", ["Flansch oben", "Steg", "Flansch unten"]), ("
 # zurück; über Höhe (Maß a = 60, waagrecht): vorne 0, hinten 60; Richtung 180°: oben 40 zurück
 qs = sk.Querschnitt(RE)
 assert (qs.B, qs.H) == (60, 40)
+# In 2D (Strahl 90° zur Oberfläche, Patrick 27.10.2026) ist die Innenkante maßhaltig: die lange Seite wird um
+# Wand · tan(Winkel) = 3 mm kürzer; Gehrung aus der STEP ('aussen_mass') bzw. auf der Soll-Fläche wie gezeichnet
 e45 = dict(winkel=45, achse="über Breite")
-assert nah(sk.schnitt_x(qs, e45, 0, 20), 0) and nah(sk.schnitt_x(qs, e45, 0, -20), 40)
+assert nah(sk.schnitt_x(qs, e45, 0, 20), 3) and nah(sk.schnitt_x(qs, e45, 0, -20), 40)
+assert nah(sk.schnitt_x(qs, e45, 0, 20, aussen=True), 0) and nah(sk.schnitt_x(qs, dict(e45, aussen_mass=True), 0, 20), 0)
+assert nah(sk.schnitt_x(qs, dict(e45, d3=True), 0, 20), 0)                     # 3D: eben durch die Wand
 assert nah(sk.schnitt_x(qs, dict(e45, richtung=180), 0, 20), 40)
 assert nah(sk.schnitt_x(qs, dict(winkel=45, achse="über Höhe"), -30, 0), 60)
 # Abwicklung: Schnittlinie des Endes; Seitenansicht zeigt die Schräge, Draufsicht nur die verdeckte Kante
 linie = dict(sk.ende_abwicklung(qs, e45, 200))
-assert nah(linie[0], 0) and nah(max(linie.values()), 40)
+assert nah(linie[0], 3) and nah(max(linie.values()), 40)
 sil_v = sk.silhouette(qs, e45, {}, 800, "vorne")
-assert nah(sil_v[0][1], 40) and nah(sil_v[-1][1], 0) and nah(sil_v[0][4], 800)        # schräg in der Seitenansicht
+assert nah(sil_v[0][1], 40) and nah(sil_v[-1][1], 3) and nah(sil_v[0][4], 800)        # schräg in der Seitenansicht
 sil_o = sk.silhouette(qs, e45, {}, 800, "oben")
-assert all(nah(z[1], 0) and nah(z[2], 0) and nah(z[3], 40) for z in sil_o)        # oben gerade, unten verdeckt bei 40
+assert all(nah(z[1], 3) and nah(z[2], 3) and nah(z[3], 40) for z in sil_o)        # oben gerade, unten verdeckt bei 40
 # Ausklinkung Rundrohr (Gegenrohr quer): oben/unten am längsten (die „Hörner“ greifen um das Gegenrohr), an den Seiten
 # R − √(R² − r²) dahinter (seit 3E-7 über durchdringung, vorher spiegelverkehrt gezeichnet)
 qr_ = sk.Querschnitt(RR)

@@ -67,12 +67,21 @@ def _knick_anteile(qs, poly, enden, extra=()):
         for i, a in enumerate(poly):
             b = poly[(i + 1) % len(poly)]
             du, dv = b[0] - a[0], b[1] - a[1]
+            if qs.r:        # Rundrohr: Punkt der Sehne in derselben Richtung von der Mitte (gleiches s wie uv_zu_s)
+                det = u * dv - v * du
+                if abs(det) > 1e-12:
+                    f = (u * a[1] - v * a[0]) / -det
+                    if -1e-9 <= f <= 1 + 1e-9 and (a[0] + f * du) * u + (a[1] + f * dv) * v > 0:
+                        beste = (0.0, i, min(max(f, 0.0), 1.0))
+                        break
+                continue
             lg = du * du + dv * dv
             f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
             d = (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
             if beste is None or d < beste[0]:
                 beste = (d, i, f)
-        out.setdefault(beste[1], []).append(beste[2])
+        if beste:
+            out.setdefault(beste[1], []).append(beste[2])
     return out
 
 

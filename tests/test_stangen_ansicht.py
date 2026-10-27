@@ -46,7 +46,7 @@ assert d and d["umfang"] == qs.umfang == 160 and not d["fehlt"] and len(d["teile
 assert [n for n, _, _ in d["streifen"]] == ["oben", "vorne", "unten", "hinten"] and d["naht"] == 20
 t = d["teile"][0]
 spitze = min(t["umriss"][:sa.PUNKTE_ENDE + 1], key=lambda q: q[0])
-assert abs(spitze[0] - 10) < 1e-6 and 0 <= spitze[1] <= 40            # Gehrung: oben am längsten, an der Spitze
+assert abs(spitze[0] - 13) < 1e-6 and 0 <= spitze[1] <= 40            # Gehrung: oben am längsten (2D: 3 mm kürzer)
 assert max(x for x, _ in t["umriss"]) == 810 and all(10 <= x <= 810 for x, _ in t["umriss"])
 loch = t["konturen"][0]
 mitte = sum(s for _, s in loch["punkte"]) / len(loch["punkte"])

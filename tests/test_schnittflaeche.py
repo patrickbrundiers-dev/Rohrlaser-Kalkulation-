@@ -54,7 +54,7 @@ assert not any(s["begrenzt"] for s in st) and max(s["winkel"] for s in st) <= 30
 aussen, innen = sf.ringe(qs_qr)
 for pa, pi in zip(aussen, innen):                   # Innenkante auf der Ebene (Schnitt eben durch die Wand)
     d = sf.punkt(qs_qr, e30, pa, pi, True)
-    assert abs(d["x_innen"] - sk.schnitt_x(qs_qr, e30, *pi)) < 1e-6
+    assert abs(d["x_innen"] - sk.schnitt_x(qs_qr, e30, *pi, aussen=True)) < 1e-6      # Soll-Ebene
 ok("F2 3D 30°: oben/unten 30° Kopfwinkel, Seitenwände 0°, Innenkante auf der Soll-Ebene, nichts begrenzt")
 
 # ------------------------------------------------------------------ F3 3D über 45°

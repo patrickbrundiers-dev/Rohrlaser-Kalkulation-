@@ -34,14 +34,15 @@ def punkt(qs, e, aussen, innen, d3, grenze=GRENZE):
     (entlang der Mantelnormale). Ergebnis dict(x_aussen, x_innen, beta (nötiger Kopfwinkel für die Soll-Fläche),
     winkel (verwendet: 2D 0, 3D höchstens die Grenze), begrenzt). x = Abstand hinter der Spitze des Endes (wie
     skizze.schnitt_x)."""
-    xa = sk.schnitt_x(qs, e, *aussen)
+    xa = sk.schnitt_x(qs, e, *aussen, aussen=True)     # auf der Soll-Fläche (Gehrung: Ebene)
+    x2 = sk.schnitt_x(qs, e, *aussen) if not d3 else xa  # 2D: Innenkante maßhaltig (lange Seite kürzer)
     tiefe = math.dist(aussen, innen)
     if tiefe < 1e-9:
-        return dict(x_aussen=xa, x_innen=xa, beta=0.0, winkel=0.0, begrenzt=False)
-    delta = sk.schnitt_x(qs, e, *innen) - xa
+        return dict(x_aussen=x2, x_innen=x2, beta=0.0, winkel=0.0, begrenzt=False)
+    delta = sk.schnitt_x(qs, e, *innen, aussen=True) - xa
     beta = math.degrees(math.atan2(abs(delta), tiefe))
     if not d3:
-        return dict(x_aussen=xa, x_innen=xa, beta=beta, winkel=0.0, begrenzt=False)
+        return dict(x_aussen=x2, x_innen=x2, beta=beta, winkel=0.0, begrenzt=False)
     w = min(beta, grenze)
     xi = xa + math.copysign(tiefe * math.tan(math.radians(w)), delta) if delta else xa
     return dict(x_aussen=xa, x_innen=xi, beta=beta, winkel=w, begrenzt=beta > grenze + TOL)
@@ -84,7 +85,7 @@ def abschnitte(qs, e, d3, grenze=GRENZE, schritt=SCHRITT):
             f0, f1 = j / m, (j + 1) / m
             q0 = (a0[0] + f0 * (a1[0] - a0[0]), a0[1] + f0 * (a1[1] - a0[1]))
             q1 = (a0[0] + f1 * (a1[0] - a0[0]), a0[1] + f1 * (a1[1] - a0[1]))
-            dx = sk.schnitt_x(qs, e, *q1) - sk.schnitt_x(qs, e, *q0)
+            dx = sk.schnitt_x(qs, e, *q1, aussen=True) - sk.schnitt_x(qs, e, *q0, aussen=True)    # Länge wie bisher (G1)
             out.append(dict(laenge=math.hypot(lg / m, dx), beta=d["beta"], winkel=d["winkel"],
                             begrenzt=d["begrenzt"], u=pa[0], v=pa[1]))
     return out
