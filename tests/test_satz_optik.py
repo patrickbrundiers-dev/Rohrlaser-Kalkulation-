@@ -42,6 +42,7 @@ assert satzgruppen.kopf_texte({"C": [1, 2, 3]})[2] == "│ 3"
 assert satzgruppen.zelltext(i[0]) == "▣ A · 4 Sätze" and satzgruppen.zelltext(i[3]) == "A"
 assert satzgruppen.zelltext(i[0], zu=True) == "▣ A · 4 Sätze · 2 Positionen"
 assert satzgruppen.zelltext(dict(i[2], saetze=1)) == "▣ B · 1 Satz"
+assert satzgruppen.anzahl_saetze(dict(satz="C", stueck=3)) == 3        # Stück je Satz leer = 1 wie rechnen
 m = satzgruppen.zeilen_markieren(pos, [dict(pos=1), None, dict(pos=3), dict(pos=4), dict(pos=5)])
 assert m[1] is None and m[0]["satz"] == "A" and m[0]["satz_ton"] == 0 and m[2]["satz_ton"] == 1 and m[3]["satz_ton"] == 0
 ok("Gruppen je Satzname (ohne Baugruppen), Reihenfolge zusammen, Tönung abwechselnd, Klammer ▾ │ └, Zelltext")

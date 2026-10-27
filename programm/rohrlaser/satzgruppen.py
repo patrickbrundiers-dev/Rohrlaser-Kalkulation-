@@ -45,12 +45,10 @@ def ordnen(folge, gruppen):
 
 
 def anzahl_saetze(p):
-    """Anzahl Sätze aus Stückzahl ÷ Stück je Satz (None, wenn nicht bestimmbar)."""
-    try:
-        je, st = float(p.get("je_satz") or 0), float(p.get("stueck") or 0)
-    except (TypeError, ValueError):
-        return None
-    return round(st / je) if je > 0 and st > 0 else None
+    """Anzahl Sätze wie in der Rechnung (rechnen.saetze_von: Stück je Satz leer = 1), gerundet; None ohne Stückzahl."""
+    from . import rechnen
+    n = rechnen.saetze_von(p)
+    return round(n) if n else None
 
 
 def info(positionen, gruppen):
