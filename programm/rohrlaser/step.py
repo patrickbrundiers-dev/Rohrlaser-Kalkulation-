@@ -376,7 +376,7 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
     if not um or len(um) < 3 or umfang <= 0:
         return None
     n = max(1, int(round(umfang / schritt)))
-    feld, zug = {}, []
+    feld, hoch, zug = {}, {}, []
     pts = [(float(u), float(z)) for u, z in um]
     for i, (u0, z0) in enumerate(pts):
         u1, z1 = pts[(i + 1) % len(pts)]
@@ -390,10 +390,23 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
             abst = max((laenge - z) if ende_b else z, 0.0)
             j = int(round(s_von(u) / umfang * n)) % n
             feld[j] = min(feld.get(j, abst), abst)
+            hoch[j] = max(hoch.get(j, abst), abst)
             zug.append((j, abst, u, z))
-    pk = [(j * umfang / n, feld[j]) for j in sorted(feld)]
-    if len(pk) < 3:
+    js = sorted(feld)
+    if len(js) < 3:
         return None
+    pk = []
+    for i, j in enumerate(js):              # senkrechte Kante in der Rasterstelle: Stufe genau bei s, nicht schräg
+        s_ = j * umfang / n
+        links, rechts = feld[js[i - 1]], feld[js[(i + 1) % len(js)]]
+        werte = (feld[j], hoch[j])
+        v0, v1 = (min(werte, key=lambda v: abs(v - x)) for x in (links, rechts))
+        spanne = hoch[j] - feld[j]          # senkrecht: die Nachbarn liegen je auf einem Ende der Spanne
+        if spanne > 0.2 and abs(v0 - v1) > 0.2 and abs(v0 - links) < spanne / 4 and abs(v1 - rechts) < spanne / 4 \
+                and 0 < i < len(js) - 1:
+            pk += [(s_ - 1e-3, v0), (s_ + 1e-3, v1)]
+        else:
+            pk.append((s_, feld[j]))
     if ausflug is not None:
         ausflug += _ausfluege(zug, feld)
     behalten, stapel = {0, len(pk) - 1}, [(0, len(pk) - 1)]
@@ -408,7 +421,7 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
         if k is not None:
             behalten.add(k)
             stapel += [(i0, k), (k, i1)]
-    return [[round(pk[i][0], 2), round(pk[i][1], 2)] for i in sorted(behalten)]
+    return [[round(pk[i][0], 3), round(pk[i][1], 2)] for i in sorted(behalten)]
 
 
 AUSFLUG_TOL = 0.2       # mm hinter der äußersten Kante: ab da läuft der Schnitt ins Teil (Ausflug)

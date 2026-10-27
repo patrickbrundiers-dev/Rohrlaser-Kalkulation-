@@ -49,27 +49,30 @@ def _unterteilen(poly, teile=None, extra=None):
     return out, anzahl
 
 
-def _knick_anteile(qs, poly, enden):
+def _knick_anteile(qs, poly, enden, extra=()):
     """Knicke der gemessenen Enden (Umriss eines komplexen Endes, Stellen s) als {Kante von poly: [Anteile]}: dort
-    braucht der Umriss einen Punkt, sonst schneidet die Schnittkante die Ecke ab."""
+    braucht der Umriss einen Punkt, sonst schneidet die Schnittkante die Ecke ab. extra: weitere Stellen s (Ränder
+    der Mündungen von Ausflügen, dort endet die Schnittkante genau)."""
     out = {}
+    stellen = list(extra)
     for es in enden:
         if not es.get("umriss") or _z(es.get("winkel")):
             continue
         um = sk._ende_umriss_merken(qs, es["umriss"])
-        for s in getattr(um, "stellen", ()) if um else ():
-            (u, v), _ = qs.s_zu_uv(s % qs.umfang)
-            u, v, _ = sk.rund_ort(qs, u, v)
-            beste = None
-            for i, a in enumerate(poly):
-                b = poly[(i + 1) % len(poly)]
-                du, dv = b[0] - a[0], b[1] - a[1]
-                lg = du * du + dv * dv
-                f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
-                d = (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
-                if beste is None or d < beste[0]:
-                    beste = (d, i, f)
-            out.setdefault(beste[1], []).append(beste[2])
+        stellen += list(getattr(um, "stellen", ()) if um else ())
+    for s in stellen:
+        (u, v), _ = qs.s_zu_uv(s % qs.umfang)
+        u, v, _ = sk.rund_ort(qs, u, v)
+        beste = None
+        for i, a in enumerate(poly):
+            b = poly[(i + 1) % len(poly)]
+            du, dv = b[0] - a[0], b[1] - a[1]
+            lg = du * du + dv * dv
+            f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
+            d = (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
+            if beste is None or d < beste[0]:
+                beste = (d, i, f)
+        out.setdefault(beste[1], []).append(beste[2])
     return out
 
 
@@ -453,7 +456,8 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         return L - (sk.schnitt_x(qs, eb, u, v) if x is None else x) - plus["b"]
 
     roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
-    knicke = _knick_anteile(qs, roh_a, (ea, eb))
+    knicke = _knick_anteile(qs, roh_a, (ea, eb), [s_ for k in e.get("konturen") or () if k.get("muendung")
+                                                  for s_ in k["muendung"]])
     aussen, teile = _unterteilen(roh_a, extra=knicke)
     innen = None
     if len(umriss) > 1 and len(umriss[1]) == len(umriss[0]):
