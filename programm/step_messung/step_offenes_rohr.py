@@ -681,7 +681,7 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
         return False
     breite, laenge = sum(u1 - u0 for u0, u1 in felder), e["z"][1] - e["z"][0]
     steg = 0.0 if all(u1 - u0 <= SPALT_MAX + SPALT_TOL for u0, u1 in felder) or laenge < 4 * STEG else STEG
-    zu, ringe = voll, None
+    zu, ringe, ringe_step = voll, None, False
     if steg:
         # Ringe des ganzen Rohrquerschnitts an den Enden, dazwischen über der Lücke das Fenster ausgeschnitten
         rg = ring(e, d, steg)
@@ -697,6 +697,8 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
             # Schenkelenden (eigene Flächen), der Querschnitt ist das ganze Rohr
             zu = _vereinen(solid, ringe, e["ax3"], False)
             quer_k = _vereinen(solid, [e["rohr"]], e["ax3"], False)
+        elif ringe and _ringe_im_teil(e, d):
+            zu, ringe_step = solid, True    # Ringe stehen schon in der STEP: Fenster genau wie gezeichnet
         else:
             mit_ringen = _vereinen(_vereinen(solid, teile, e["ax3"]), ringe, e["ax3"], False) if ringe and f else None
             zu = _ausschneiden(mit_ringen, f[0], e["ax3"]) if mit_ringen is not None else None
@@ -710,7 +712,11 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
     r.offene_seite = dict(seite=e["seite"], luecken=[[round(u0 - ecke, 2), round(u1 - ecke, 2)] for u0, u1 in felder],
                           breite=round(breite, 2), laenge=round(laenge, 2), vorher=t.profilform, steg=steg or None)
     r.sicherheit["offene_seite"] = "stege" if steg else "ergänzt"
-    if steg:
+    if ringe_step:
+        r.offene_seite["ringe_step"] = True
+        r.hinweise.append(f"{HINWEIS}: Enden in der STEP geschlossen, Ausschnitt ({breite:.1f} mm breit) als "
+                          f"Innenkontur wie gezeichnet (vorher {t.profilform}) – Profil prüfen")
+    elif steg:
         r.hinweise.append(f"{HINWEIS}: aus dem Rohr gelasert, offene Seite ({breite:.1f} mm breit) bis auf je einen "
                           f"Ring {steg:g} mm an Ende A und B ausgeschnitten (vorher {t.profilform}) – Profil prüfen")
     else:
@@ -739,7 +745,7 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
     r.volumen = g._volumen(zu)          # so gelasert (Gewicht); gezeichnet: t.volumen
     g.virtuell_ablegen(zu, koerper)
     t.geschlossen = r
-    if netz:
+    if netz and not ringe_step:         # Ringe aus der STEP: nichts ergänzt, nichts zusätzlich zu zeigen
         try:
             if ringe:       # sichtbar nur, was zum Teil dazukommt
                 # der ganze Ring, auf der Wand (Patrick: „der Steg muss auf die Rohrwandung gesetzt werden“)
@@ -754,6 +760,19 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
     return True
 
 
+def _ringe_im_teil(e, d):
+    """True, wenn ein Ring RING_PRUEF breit an beiden Enden ganz im Teil liegt: das Rohr ist an den Enden schon
+    geschlossen gezeichnet (Patrick 27.10.2026), es wird kein Ring ergänzt."""
+    rg = ring(e, d, RING_PRUEF)
+    if not rg or not rg[0]:
+        return False
+    for k in rg[0]:
+        rest = _bool("minus", k, e["lok"])
+        if rest is None or g._volumen(rest) >= RING_REST * g._volumen(k):
+            return False
+    return True
+
+
 # ---- Rundrohr: Halbschale und offenes Rundrohr (Patrick 25.10.2026: „Funktioniert das dann auch mit Rundrohr? Dass
 # er die Halbschale zu einem geschlossenen Rohr macht?“) – Mantel aus zwei gleichachsigen Zylindern, über die ganze
 # Länge ein Stück des Umfangs offen. Gefertigt aus dem Rundrohr mit je einem Ring-Steg STEG an Ende A und B, das offene
@@ -761,6 +780,9 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
 # sein (gerade oder Gehrung): der Steg läuft in der Ebene des Endes weiter.
 
 GRAD = 0.25             # Grad, Abtastung des Umfangs
+ENDE_TOL = 0.05         # mm, Endfläche erreicht zmin bzw. zmax
+RING_PRUEF = 0.3        # mm, Ring an den Enden, der ganz im Teil liegen muss (Enden geschlossen gezeichnet)
+RING_REST = 0.01        # Anteil des Prüfrings, der außerhalb des Teils liegen darf (Rundung der Booleschen Operation)
 LUFT = 5.0          # mm am Außendurchmesser zwischen zwei Schalen aus einem Rohrumfang (Patrick 25.10.2026)
 
 
@@ -856,7 +878,8 @@ def _rund_erkennen(solid):
 
 def _enden_eben(lok, zmin, zmax):
     """Ebene je Ende (gp_Pln) aus den Endflächen des Körpers (Normale mit Anteil längs der Achse, nahe zmin bzw.
-    zmax); None, wenn ein Ende nicht in einer Ebene liegt."""
+    zmax); None, wenn ein Ende nicht in einer Ebene liegt. Querflächen, die das Ende nicht erreichen (Ränder eines
+    Fensters kurz vor dem geschlossenen Ring, Patrick 27.10.2026), zählen nicht als Ende."""
     from OCP.BRepAdaptor import BRepAdaptor_Surface
     from OCP.GeomAbs import GeomAbs_Plane
     from OCP.TopAbs import TopAbs_FACE
@@ -874,7 +897,10 @@ def _enden_eben(lok, zmin, zmax):
             continue                # Längsfläche (Rand der Lücke)
         bb = Bnd_Box()
         BRepBndLib.Add_s(f, bb, False)
-        enden[0 if (bb.CornerMin().Z() + bb.CornerMax().Z()) / 2 < mitte else 1].append(pl)
+        k = 0 if (bb.CornerMin().Z() + bb.CornerMax().Z()) / 2 < mitte else 1
+        if (bb.CornerMin().Z() - zmin if k == 0 else zmax - bb.CornerMax().Z()) > ENDE_TOL:
+            continue                # Querfläche im Teil (Fensterrand), nicht am Ende
+        enden[k].append(pl)
     out = []
     for k in (0, 1):
         if not enden[k]:
@@ -886,6 +912,17 @@ def _enden_eben(lok, zmin, zmax):
                 return None
         out.append(p0)
     return out
+
+
+def _enden_zu(e):
+    """True, wenn das offene Rundrohr an beiden Enden schon ganz geschlossen gezeichnet ist (je ein Ring mindestens
+    RING_PRUEF breit, Patrick 27.10.2026: Rohr mit großem Ausschnitt, „wird nicht als Rundrohr erkannt“). Dann wird
+    kein Ring ergänzt: der Ausschnitt bleibt genau wie in der STEP."""
+    ringe = _rund_stuecke(e, RING_PRUEF, ganz=True)
+    if ringe is None:
+        return False
+    rest = _bool("minus", ringe, e["lok"])
+    return rest is not None and g._volumen(rest) < RING_REST * g._volumen(ringe)
 
 
 def _halbraum(pl, verschiebung, ref):
@@ -1039,9 +1076,13 @@ def _rund_schliessen(solid, t, datei, koerper, netz):
         return False
     voll = _vereinen(solid, [voll_stueck], e["ax3"])
     stuecke, zu = None, voll
+    ringe_step = bool(steg) and _enden_zu(e)
     if steg:
         stuecke, rohr = _rund_stuecke(e, steg, ganz=True), _rund_stuecke(e, 0.0, ganz=True)
-        zu = _vereinen(solid, [stuecke], e["ax3"]) if stuecke is not None else None
+        if ringe_step:          # Ringe stehen schon in der STEP: nichts ergänzen, Fenster genau wie gezeichnet
+            stuecke, zu = None, solid
+        else:
+            zu = _vereinen(solid, [stuecke], e["ax3"]) if stuecke is not None else None
         voll = _vereinen(voll, [rohr], e["ax3"], False) if rohr is not None and voll is not None else None
     if voll is None or zu is None:
         return False
@@ -1054,9 +1095,13 @@ def _rund_schliessen(solid, t, datei, koerper, netz):
     m.offene_seite = dict(seite="Umfang", luecken=[[round(w0, 2), round(w1, 2)]], breite=round(breite, 2),
                           laenge=round(laenge, 2), vorher=t.profilform, steg=steg or None)
     m.sicherheit["offene_seite"] = "stege" if steg else "ergänzt"
-    if steg:
+    if ringe_step:
+        m.offene_seite["ringe_step"] = True
+        m.hinweise.append(f"{HINWEIS}: Rundrohr, Enden in der STEP geschlossen, Ausschnitt ({w1 - w0:.0f}°, "
+                          f"{breite:.1f} mm) als Innenkontur wie gezeichnet (vorher {t.profilform}) – Profil prüfen")
+    elif steg:
         m.offene_seite.update(_schalen(e, m))
-    if steg:
+    if steg and not ringe_step:
         m.hinweise.append(f"{HINWEIS}: aus dem Rundrohr gelasert, offener Umfang ({w1 - w0:.0f}°, {breite:.1f} mm) bis "
                           f"auf je einen Ring {steg:g} mm an Ende A und B ausgeschnitten (vorher {t.profilform}) – "
                           "Profil prüfen")
@@ -1064,13 +1109,13 @@ def _rund_schliessen(solid, t, datei, koerper, netz):
             m.hinweise.append(f"{HINWEIS}: {m.offene_seite['je_umfang']} Schalen je Rohrumfang möglich "
                               f"({m.offene_seite['schale_grad']:g}°, {LUFT:g} mm Luft), je Schale ganz freigeschnitten "
                               f"{m.offene_seite['schale_schnitt']:g} mm")
-    else:
+    elif not steg:
         m.hinweise.append(f"{HINWEIS}: Spalt {breite:.1f} mm über {laenge:.1f} mm Länge geschlossen (vorher "
                           f"{t.profilform}) – Profil prüfen")
     m.volumen = g._volumen(zu)
     g.virtuell_ablegen(zu, koerper)
     t.geschlossen = m
-    if netz:
+    if netz and not ringe_step:     # nichts ergänzt: nichts zusätzlich zu zeigen
         try:
             # sichtbar nur das, was zum Teil kommt (ohne die Überlappung in die Ränder)
             if steg:        # der ganze Ring, auf der Wand
