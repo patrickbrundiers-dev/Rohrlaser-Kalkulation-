@@ -141,7 +141,8 @@ class Liste(QAbstractTableModel):
             if f is not None:
                 return QBrush(f)
         # Zeilen eines Satzes getönt, Satzname fett in der Farbe des Satzes (satzgruppen.zeilen_markieren)
-        ton = self.zeilen[index.row()].get("satz_ton")
+        z = self.zeilen[index.row()] if index.row() < len(self.zeilen) else None
+        ton = z.get("satz_ton") if isinstance(z, dict) else None
         if ton is None:
             return None
         if rolle == Qt.ItemDataRole.BackgroundRole:
