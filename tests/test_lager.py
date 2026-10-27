@@ -192,6 +192,20 @@ lager.reservieren(db, aid, "x", lager.planen(db, aid, erg, werte))
 assert sum(z["reserviert"] for z in lager.bestand(db)) > 0
 db.angebot_loeschen(aid)
 assert sum(z["reserviert"] for z in lager.bestand(db)) == 0
+assert lager.auftrag(db, aid) is None
+# verbrauchtes Angebot löschen: kein Lagerauftrag bleibt für eine wieder vergebene Angebots-ID, Journal bleibt
+lager.zugang(db, "Stange", PROFIL, WST, 6000, 2)
+aid = db.angebot_neu(dict(kopf, nummer=None))
+lager.reservieren(db, aid, "x", lager.planen(db, aid, erg, werte))
+lager.verbrauchen(db, aid)
+n_journal = len(lager.buchungen(db))
+db.angebot_loeschen(aid)
+assert lager.auftrag(db, aid) is None and len(lager.buchungen(db)) == n_journal
+neu = db.angebot_neu(dict(kopf, nummer=None))
+assert lager.auftrag(db, neu) is None
+lager.reservieren(db, neu, "y", lager.planen(db, neu, erg, werte))     # neues Angebot erbt nichts
+lager.freigeben(db, neu)
+db.angebot_loeschen(neu)
 
 # ------------------------------------------------------------------ Lesemodus
 db.lesemodus("Test")

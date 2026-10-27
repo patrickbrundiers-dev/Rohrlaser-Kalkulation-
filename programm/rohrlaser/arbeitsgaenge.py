@@ -162,15 +162,18 @@ def eintrag(name, regel, menge, katalog, tabellen):
     return e
 
 
-def annehmen(p, name, regeln, tabellen):
+def annehmen(p, name, regeln, tabellen, kopf=None, k=None):
     """Neuer Inhalt für positionen.zusatz mit der angenommenen Zusatzarbeit; unverändert (None), wenn sie schon da ist
-    oder unbekannt ist."""
+    oder unbekannt ist. Menge und Herkunft aus der ersten Regel, die auf die Position zutrifft (wie im Vorschlag);
+    ohne Kontext k die erste Regel mit dieser Zusatzarbeit."""
     liste = rechnen.zusatz_liste(p)
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
     if name in {e["name"] for e in liste} or name not in katalog:
         return None
-    regel = next((r for r in regeln or () if r.get("zusatzarbeit") == name), None)
-    menge = regel_menge(regel or {}, p, tabellen.get("gewinde") or ())
+    gewinde = tabellen.get("gewinde") or ()
+    passend = [r for r in regeln or () if r.get("zusatzarbeit") == name]
+    regel = next((r for r in passend if k is None or trifft(r, p, kopf, k, gewinde)), None)
+    menge = regel_menge(regel or {}, p, gewinde)
     return json.dumps(liste + [eintrag(name, regel, menge, katalog, tabellen)], ensure_ascii=False)
 
 

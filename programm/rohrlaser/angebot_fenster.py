@@ -4071,7 +4071,8 @@ class AngebotSeite(QWidget):
         """Vorgeschlagene Zusatzarbeit in die Position übernehmen (mit Preisstand); doppelt nie. Ergebnis: True."""
         from . import arbeitsgaenge
         p = self._position_frisch(position_id)
-        neu = arbeitsgaenge.annehmen(p, name, self.db.zeilen("arbeitsgang_regeln"), self.tabellen) if p else None
+        neu = arbeitsgaenge.annehmen(p, name, self.db.zeilen("arbeitsgang_regeln"), self.tabellen,
+                                                self.kopf, self.k) if p else None
         if neu is None:
             self.f.meldung(f"„{name}“ ist schon in der Position oder nicht in den Zusatzarbeiten.", fehler=True)
             return False

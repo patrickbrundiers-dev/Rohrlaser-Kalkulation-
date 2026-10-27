@@ -115,6 +115,11 @@ assert ag.trifft(dict(r, merkmal="Innenkonturen"), basis, {}, k, [])
 assert not ag.trifft(dict(r, merkmal="Gewinde"), basis, {}, k, [])
 assert ag.regel_menge(dict(menge_art="Anzahl Innenkonturen"), basis, []) == 2
 tab = db.tabellen()
+# zwei Regeln für dieselbe Zusatzarbeit, nur die zweite trifft: Annehmen nimmt Menge und Herkunft der zutreffenden
+rs = [dict(name="R1", zusatzarbeit="Entgraten", aktiv="ja", min_stueck=99999, menge_art="Anzahl Gewinde"),
+      dict(name="R2", zusatzarbeit="Entgraten", aktiv="ja", menge_art="automatisch")]
+e = json.loads(ag.annehmen(basis, "Entgraten", rs, tab, {}, k))[-1]
+assert e["menge"] is None and e["quelle"] == "Regel: R2", e
 assert not [x for x in ag.position(basis, {}, k, tab, [dict(r, zusatzarbeit="Gibt es nicht")])
             if x["status"] == ag.VORSCHLAG]
 

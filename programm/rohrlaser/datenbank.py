@@ -1910,11 +1910,13 @@ class Datenbank:
     @schreibt
     def angebot_loeschen(self, angebot_id):
         with self.con:
-            # Lager (lager.py): Reservierungen des Angebots freigeben, gebuchter Verbrauch bleibt im Journal
+            # Lager (lager.py): Reservierungen des Angebots freigeben, gebuchter Verbrauch bleibt im Journal. Lagerauftrag
+            # weg und Reservierungen vom Angebot lösen: SQLite kann die Angebots-ID wieder vergeben, ein neues Angebot
+            # darf keinen alten Lagerauftrag erben
             self.con.execute("UPDATE lager_reservierung SET status='freigegeben', geaendert=? WHERE angebot_id=? AND "
                              "status='reserviert'", (self._jetzt(), angebot_id))
-            self.con.execute("UPDATE lager_auftraege SET status='freigegeben' WHERE angebot_id=? AND "
-                             "status='reserviert'", (angebot_id,))
+            self.con.execute("UPDATE lager_reservierung SET angebot_id=NULL WHERE angebot_id=?", (angebot_id,))
+            self.con.execute("DELETE FROM lager_auftraege WHERE angebot_id=?", (angebot_id,))
             fertigung.angebot_geloescht(self, angebot_id)          # Statusjournal gehört zum Angebot
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
