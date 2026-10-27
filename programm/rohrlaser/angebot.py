@@ -247,6 +247,10 @@ POSITIONEN = Tabelle(
      Feld("technik", "Schneidweg-Rechner", breite=120),
      # Bohrbild (bohrbild.py): Gewinde-Vorschläge, Senkungen, Fließlochbohrungen mit Prüfstatus als JSON, keine Spalte
      Feld("bohrbild", "Bohrungen prüfen", breite=120),
+     # Prüfstatus je STEP-Merkmal mit Rohdaten und Korrekturen (step_pruefung.py, Schema 65), keine Spalte
+     Feld("step_merkmale", "STEP-Merkmale", breite=120),
+     # Arbeitsgangvorschläge (arbeitsgaenge.py, Schema 65): abgelehnte Vorschläge als JSON, keine Spalte
+     Feld("arbeitsgaenge", "Arbeitsgangvorschläge", breite=120),
      # Anbauteile aus dem STEP-Import (anbau.py): aufgeschweißte Bolzen, Laschen … mit Bearbeitung, Gravur und
      # Prüfstatus als JSON; die Spalte zeigt die Kurzfassung, Doppelklick = Anbauteile prüfen
      Feld("anbauteile", "Anbauteile", "anbau", breite=170),

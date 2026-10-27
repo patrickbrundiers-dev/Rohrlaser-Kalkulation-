@@ -30,8 +30,14 @@ FELDER = (  # (Name, Titel, Nachkommastellen)
     ("zusatz", "Gewinde und Zusatzarbeiten Ist [€]", 2),
     ("zukauf", "Zukaufteile Ist (Einkauf + Bezugskosten) [€]", 2),
     ("sonstiges", "Sonstige Kosten Ist [€]", 2),
+    # Wettbewerbsvergleich P0-2: Fracht und Ausschuss getrennt (leer = wie kalkuliert bzw. kein Ausschuss)
+    ("fracht", "Fracht Ist [€]", 2),
+    ("ausschuss", "Ausschuss Ist (verworfene Teile, Material + Arbeit) [€]", 2),
+    ("ausschuss_stk", "Ausschuss Ist [Stück]", 0),
     ("erloes", "Erlös laut Rechnung [€]", 2),
 )
+# nur Mengen, keine eigene Kostenzeile (Ausschussquote in der Auswertung)
+NUR_MENGE = ("ausschuss_stk",)
 
 
 def _n(v):
@@ -106,9 +112,12 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
                             m * faktor if m is not None else soll, m is not None))
     for name, text, soll in (("zusatz", "Gewinde und Zusatzarbeiten", summen["gewinde"] + summen["zusatz"]),
                              ("zukauf", "Zukaufteile (Einstand)", summen.get("zukauf_einstand", 0.0)),
-                             ("sonstiges", "Sonstige Kosten", 0.0)):
+                             ("sonstiges", "Sonstige Kosten", 0.0),
+                             ("fracht", "Fracht", summen.get("fracht") or 0.0),
+                             ("ausschuss", "Ausschuss", 0.0)):
         b = _n(ist.get(name))
         zeilen.append(zeile(text, "€", None, None, soll, b if b is not None else soll, b is not None))
+        zeilen[-1]["feld"] = name
     bg_soll = baugruppen_soll(positionen, zeilen_k)
     bg_zeilen, bg_info = _baugruppen_zeilen(bg_soll, ist, zeile)
     zeilen += bg_zeilen
@@ -223,6 +232,11 @@ def rest_wie_geplant(v, ist):
     setzen(ist, "zusatz", z["Gewinde und Zusatzarbeiten"]["soll"])
     setzen(ist, "zukauf", z["Zukaufteile (Einstand)"]["soll"])
     setzen(ist, "sonstiges", 0.0)
+    if "Fracht" in z:
+        setzen(ist, "fracht", z["Fracht"]["soll"])
+    if "Ausschuss" in z:
+        setzen(ist, "ausschuss", 0.0)
+        setzen(ist, "ausschuss_stk", 0)
     setzen(ist, "erloes", v["erloes"]["soll"])
     einheiten = {name: einheit for name, _, einheit, _ in BG_FELDER}
     bg_zeilen = [x for x in v["zeilen"] if x.get("bg_id") is not None]
@@ -242,3 +256,136 @@ def erfasst(ist):
         any(_n(v) is not None for n in ("stangen", "meterpreis") for v in (ist.get(n) or {}).values()) or \
         any(_n(e.get(n)) is not None or e.get("grund") for e in (ist.get("baugruppen") or {}).values()
             for n in [x[0] for x in BG_FELDER] + ["grund"])
+
+
+# ------------------------------------------------------------------ Auswertung über alle Aufträge (P0-2)
+MENGEN_KLASSEN = ((10, "1–10 Teile"), (100, "11–100 Teile"), (1000, "101–1.000 Teile"), (None, "über 1.000 Teile"))
+MERKMALE = {"kostenart": "Kostenart", "maschine": "Maschine", "werkstoff": "Werkstoff", "profil": "Profil",
+            "menge": "Stückzahl"}
+
+
+def mengen_klasse(teile):
+    for grenze, text in MENGEN_KLASSEN:
+        if grenze is None or (teile or 0) <= grenze:
+            return text
+
+
+def soll_stand(v, kopf, positionen, ergebnis, k=None):
+    """Soll und Ist der Nachkalkulation, wie sie beim Speichern gerechnet waren (Grundlage der Auswertung und der
+    Kennwert-Vorschläge, ohne die Angebote neu zu rechnen): Maschine, Werkstoffe, Kategorien, Profile, Teile, je
+    Kostenart [Text, Feld, Einheit, Menge Soll, Menge Ist, Soll €, Ist €, erfasst], Erlös und Deckungsbeitrag."""
+    laser = [p for p in positionen if p.get("profil_id") and isinstance(p.get("stueck"), (int, float))]
+    kat = sorted({str((k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("kategorie") or "") for p in laser}
+                 - {""}) if k is not None else []
+    return dict(maschine=kopf.get("maschine") or "", werkstoffe=sorted({str(p.get("werkstoff_id") or "") for p in laser} - {""}),
+                kategorien=kat, profile=sorted({str(p["profil_id"]) for p in laser}),
+                teile=int(sum(p["stueck"] for p in laser)), kennung=(ergebnis or {}).get("kennung"),
+                zeilen=[[z["text"], z.get("feld") or z.get("bg_feld") or "", z["einheit"], z["soll_menge"],
+                         z["ist_menge"], z["soll"], z["ist"], z["erfasst"] == "ja"] for z in v["zeilen"]],
+                erloes=[v["erloes"]["soll"], v["erloes"]["ist"], v["erloes"]["erfasst"] == "ja"],
+                db=[v["db"]["soll"], v["db"]["ist"]])
+
+
+def faelle(db):
+    """Nachkalkulierte Angebote mit Soll-Stand: [dict(nummer, datum, ist, soll=soll_stand)]; ohne: in 'ohne' gezählt.
+    Ergebnis (Fälle, Anzahl ohne Soll-Stand)."""
+    out, ohne = [], 0
+    for a in db.angebote():
+        if not a.get("nachkalkuliert"):
+            continue
+        ist = db.angebot(a["id"]).get("nachkalkulation") or {}
+        if not isinstance(ist.get("soll"), dict):
+            ohne += 1
+            continue
+        out.append(dict(nummer=a.get("nummer"), datum=ist.get("am") or "", ist=ist, soll=ist["soll"]))
+    return out, ohne
+
+
+def auswertung(db, merkmal="kostenart"):
+    """Abweichungen über alle nachkalkulierten Aufträge, gruppiert nach merkmal (MERKMALE) und Kostenart. Nur
+    erfasste Ist-Werte zählen (leere Ist-Werte sind keine Nullkosten und auch nicht 'wie geplant'). Ein Auftrag mit
+    mehreren Werkstoffen bzw. Profilen zählt in jeder seiner Gruppen. Ergebnis dict(zeilen=[dict(gruppe, kostenart,
+    n, soll, ist, abweichung, prozent, median, streuung)], auftraege, ohne_soll, ausschuss=dict(teile, stueck,
+    quote))."""
+    import statistics
+    fl, ohne = faelle(db)
+    gruppen = {}
+    teile = stk = 0
+    for f in fl:
+        s = f["soll"]
+        werte = {"kostenart": ["alle"], "maschine": [s.get("maschine") or "?"], "werkstoff": s.get("werkstoffe") or ["?"],
+                 "profil": s.get("profile") or ["?"], "menge": [mengen_klasse(s.get("teile"))]}[merkmal]
+        a_stk = _n(f["ist"].get("ausschuss_stk"))
+        if a_stk is not None:
+            teile += s.get("teile") or 0
+            stk += a_stk
+        for text, _feld, _e, _sm, _im, soll, ist, erfasst in s.get("zeilen") or ():
+            if not erfasst:
+                continue
+            for w in werte:
+                gruppen.setdefault((w, text), []).append((soll, ist))
+    zeilen = []
+    for (g, text), paare in sorted(gruppen.items(), key=lambda x: (str(x[0][0]), str(x[0][1]))):
+        soll, ist = sum(p[0] for p in paare), sum(p[1] for p in paare)
+        q = [p[1] / p[0] for p in paare if p[0] > 0]
+        med = statistics.median(q) if q else None
+        zeilen.append(dict(gruppe=g, kostenart=text, n=len(paare), soll=soll, ist=ist, abweichung=ist - soll,
+                           prozent=100 * (ist - soll) / soll if soll else None, median=med,
+                           streuung=statistics.median(abs(x - med) for x in q) if q else None))
+    return dict(zeilen=zeilen, auftraege=len(fl), ohne_soll=ohne,
+                ausschuss=dict(teile=teile, stueck=stk, quote=stk / teile if teile else None))
+
+
+# ------------------------------------------------------------------ Kennwert-Quellen (kennwerte.py)
+def _zeile(s, text):
+    return next((z for z in s.get("zeilen") or () if z[0] == text), None)
+
+
+def faelle_laserzeit(db):
+    """Laserzeit Soll/Ist [h] je Maschine und Werkstoff-Kategorie; nur Aufträge mit einer Kategorie und erfasster
+    Laserzeit."""
+    out = []
+    for f in faelle(db)[0]:
+        s, z = f["soll"], _zeile(f["soll"], "Laserzeit")
+        if z and z[7] and len(s.get("kategorien") or ()) == 1 and s.get("maschine") and _n(z[3]) and _n(z[4]) is not None:
+            out.append(dict(schluessel=(s["maschine"], s["kategorien"][0]), soll=z[3], ist=z[4], angebot=f["nummer"],
+                            datum=f["datum"]))
+    return out
+
+
+def anwenden_laserzeit(db, schluessel, faktor):
+    """Vorschübe der Schneiddaten dieser Maschine und Kategorie ÷ Faktor (Ist länger als Soll = langsamer)."""
+    maschine, kat = schluessel
+    werkstoff_kat = {z.get("werkstoff_id"): z.get("kategorie") for z in db.zeilen("werkstoffe")}
+    aend = []
+    for z in db.zeilen("schneiddaten"):
+        k_z = z.get("kategorie") or werkstoff_kat.get(z.get("werkstoff_id"))
+        if z.get("maschinen_id") != maschine or k_z != kat:
+            continue
+        for feld in ("vorschub_gross", "vorschub_mittel", "vorschub_klein", "vorschub_gravur"):
+            if isinstance(z.get(feld), (int, float)):
+                neu = max(1.0, round(z[feld] / faktor))
+                db.aendern("schneiddaten", z["id"], feld, neu)
+                aend.append(["schneiddaten", z["id"], feld, z[feld], neu])
+    return aend
+
+
+def faelle_ruesten(db):
+    """Rüsten + Stangenwechsel Soll/Ist [min] je Maschine (nur Vorschlag: Rüstzeiten stehen im Angebot und in den
+    Einstellungen, ein Faktor lässt sich nicht eindeutig zuordnen)."""
+    out = []
+    for f in faelle(db)[0]:
+        s, z = f["soll"], _zeile(f["soll"], "Rüsten + Stangenwechsel")
+        if z and z[7] and s.get("maschine") and _n(z[3]) and _n(z[4]) is not None:
+            out.append(dict(schluessel=(s["maschine"],), soll=z[3], ist=z[4], angebot=f["nummer"], datum=f["datum"]))
+    return out
+
+
+def _quellen():
+    from . import kennwerte
+    kennwerte.register_quelle("laserzeit", "Laserzeit (Maschine, Kategorie) → Vorschübe", faelle_laserzeit,
+                              anwenden_laserzeit)
+    kennwerte.register_quelle("ruesten", "Rüsten + Stangenwechsel (Maschine), nur Vorschlag", faelle_ruesten)
+
+
+_quellen()

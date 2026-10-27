@@ -1013,6 +1013,22 @@ EINSTELLUNGEN = (
     # Hinweis bei Beauftragt und Anhang an die Werkstattpapiere ausgeblendet; gespeicherte Versanddaten bleiben
     Einstellung("versand_aktiv", "Reiter Versand und Palettenbegleitschein verwenden", "Versand", "auswahl", "ja",
                 auswahl="janein"),
+    # Materialbestand und Reststücke (Wettbewerbsvergleich P0-1, lager.py; Patrick 27.10.2026: Reststücke optional,
+    # Vorgabe aus). Ohne 'lager_aktiv' kein Reiter Lager, Angebote wie bisher
+    Einstellung("lager_aktiv", "Materialbestand (Reiter Lager) verwenden", "Lager und Fertigung", "auswahl", "nein",
+                auswahl="janein"),
+    Einstellung("reste_aktiv", "Reststücke verwalten (lagern und wieder einplanen)", "Lager und Fertigung", "auswahl",
+                "nein", auswahl="janein"),
+    Einstellung("rest_min_laenge", "Reststücke: kürzester Rest, der ins Lager kommt [mm]", "Lager und Fertigung",
+                "zahl", 500.0, 0, 20000),
+    Einstellung("restwert_anteil", "Reststücke und Lagerstangen: Wert in Prozent des Materialpreises",
+                "Lager und Fertigung", "anteil", 1.0, 0, 1),
+    # Fertigungsstatus beauftragter Angebote (Wettbewerbsvergleich P1-6, fertigung.py)
+    Einstellung("fertigung_aktiv", "Reiter Fertigung (Status beauftragter Angebote) verwenden", "Lager und Fertigung",
+                "auswahl", "ja", auswahl="janein"),
+    Einstellung("fertigung_status", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
+                "Lager und Fertigung", "mehrzeilig", "Freigegeben\nArbeitsvorbereitung\nMaterial bereit\nIn Fertigung\n"
+                "Fremdvergabe\nQualitätsprüfung\nFertig gemeldet"),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
                 1200, 200, 3000),
     Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",

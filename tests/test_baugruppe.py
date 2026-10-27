@@ -544,7 +544,7 @@ nah(b["ist_min_m"], 60 / 6.64, "Ist min/m")
 assert b["grund"] == "Nacharbeit Naht 2"
 # ohne Baugruppe: keine zusätzlichen Zeilen
 v3 = nachkalkulation.vergleich(kopf, pos[1:], erg2, k, tab, einst, None, kalk=(zeilen2, summen2))
-assert len(v3["zeilen"]) == 6 and v3["baugruppen"] == []
+assert len(v3["zeilen"]) == 8 and v3["baugruppen"] == []      # 6 + Fracht + Ausschuss (P0-2)
 # Reiter Nachkalkulation: Tabelle der Baugruppen, Ist-Werte gespeichert
 nk_s = seite.nachkalk
 nk_s.neu_laden()

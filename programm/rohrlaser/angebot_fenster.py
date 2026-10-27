@@ -1681,6 +1681,9 @@ class AngebotSeite(QWidget):
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
+        # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
+        self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())
+        menue.aboutToShow.connect(lambda: self.lager_aktion.setVisible(self.f.lager_an()))
         menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
         menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
@@ -1728,6 +1731,7 @@ class AngebotSeite(QWidget):
                 ("Material …", lambda: self.material_einstellen(), ""),
                 ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
+                ("STEP-Merkmale prüfen …", lambda: self.step_merkmale_pruefen(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
@@ -3241,7 +3245,8 @@ class AngebotSeite(QWidget):
     # Rechtsklick (B5): Eintrag -> Arten, für die er erscheint (rohr, blech, zukauf, baugruppe); fehlt = immer
     MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
-                   "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"}}
+                   "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
+                   "STEP-Merkmale prüfen …": {"rohr"}}
 
     def _markierte_zeilen(self):
         return sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()
@@ -4010,6 +4015,32 @@ class AngebotSeite(QWidget):
                           "Zusatzarbeiten)." if fehlt else ""), fehler=bool(fehlt))
         self.neu_laden()
         return True
+
+    def step_merkmale_pruefen(self, zeilen=None, dialog=None):
+        """Prüfstatus je STEP-Merkmal der (ersten) markierten Position mit Rohdaten und Korrekturen (step_pruefung);
+        „Alle geprüft“ bestätigt sie. dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Dialog oder None."""
+        from . import step_pruefung
+        from .step_pruefung_dialog import MerkmaleDialog
+        if zeilen is None:
+            zeilen = self._markierte_zeilen()
+        zeilen = [r for r in zeilen if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst eine Position markieren.", fehler=True)
+            return None
+        p = self.positionen[zeilen[0]]
+        aktuell = next((x for x in self.db.positionen(self.id) if x["id"] == p["id"]), p)      # mit Korrekturen
+        if not step_pruefung.lesen(aktuell.get("step_merkmale")):
+            self.f.meldung(f"Pos. {p.get('pos') or ''}: keine STEP-Merkmale (nicht aus dem STEP-Import oder vor "
+                           "Version 0.9.161 importiert).", fehler=True)
+            return None
+        d = MerkmaleDialog(self, aktuell)
+        (dialog(d) if dialog else d.exec())
+        if d.bestaetigt:
+            self.db.position_aendern(p["id"], "step_merkmale", step_pruefung.bestaetigen(
+                aktuell.get("step_merkmale"), self.db.einstellung("benutzer_kuerzel") or ""))
+            self.f.meldung(f"Pos. {p.get('pos') or ''}: STEP-Merkmale als geprüft bestätigt.")
+            self.neu_laden()
+        return d
 
     def anbauteile_pruefen(self, zeilen=None, werte=None):
         """Anbauteile der (ersten) markierten Position aus dem STEP-Import prüfen (AnbauDialog): Art, Bearbeitung,
@@ -5138,6 +5169,13 @@ class AngebotSeite(QWidget):
         if gruppe is not None:
             paare = abmessung.lieferstangen(erg, gruppe["gruppe"], werte)
             erg, werte = dict(erg, stangen=[s for s, _ in paare]), [w for _, w in paare]
+        from . import lager
+        aus_lager = lager.aus_lager(self.db, self.id, self.ergebnis) if self.f.lager_an() else set()
+        if aus_lager:               # Stangen aus dem Lager (reserviert) nicht anfragen
+            paare = [(s, w) for s, w in zip(erg["stangen"], werte) if s["nr"] not in aus_lager]
+            erg, werte = dict(erg, stangen=[s for s, _ in paare]), [w for _, w in paare]
+            self.f.meldung(f"Materialanfrage: {len(aus_lager)} Stange(n) kommen aus dem Lager und werden nicht "
+                           "angefragt.")
         zeilen = materialanfrage.bedarf(self.positionen, erg, self.k, self.tabellen, werte, self.kopf)
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
@@ -5154,6 +5192,23 @@ class AngebotSeite(QWidget):
             self.neu_laden()
         if d.meldung:
             self.f.meldung(d.meldung)
+        return d
+
+    # -------------------------------------------------------------- Lager
+    def material_aus_lager(self, dialog=None):
+        """Fenster „Material aus Lager“ (lager_seite.LagerplanDialog): nur beauftragte, optimierte Angebote.
+        dialog(d) bedient das Fenster statt exec (Tests)."""
+        from .lager_seite import LagerplanDialog
+        if not self.f.lager_an():
+            return None
+        if self.kopf.get("vorgang") != "Beauftragt":
+            self.f.meldung("Material aus Lager: erst nach „Beauftragt“ (Vorgang ▾).", fehler=True)
+            return None
+        if not self.ergebnis or not self.ergebnis.get("stangen") or self.stand_optimierung() != "aktuell":
+            self.f.meldung("Material aus Lager: bitte zuerst (neu) optimieren.", fehler=True)
+            return None
+        d = LagerplanDialog(self)
+        (dialog(d) if dialog else d.exec())
         return d
 
     # -------------------------------------------------------------- STEP-Import
