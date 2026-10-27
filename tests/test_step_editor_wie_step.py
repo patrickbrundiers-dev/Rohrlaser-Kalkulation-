@@ -71,6 +71,21 @@ def e5_skizze(e, profil):
     assert i is not None and i < len(sk.umriss_kontur(k)) - 1, "Schließkante über der Mündung gezeichnet"
 
 
+def e2_umstellen(k, profil):
+    """Profil von Hand geändert (kontur_umstellen): die Mündung wandert mit dem Umriss, bleibt an dessen Enden."""
+    neu = dict(profil, a=100.0, b=50.0, r_aussen=5.0)
+    z, lg = sw.kontur_umstellen(k, neu)
+    assert lg and z.get("muendung") and z["muendung"] != k["muendung"], (k["muendung"], z.get("muendung"))
+    qs = sk.Querschnitt(neu)
+    s_m = sk.s_lage(qs, z)
+    um = z["umriss"]
+    i = sk.muendung_ende(z, sk.umriss_kontur(z))
+    assert i is not None and i < len(sk.umriss_kontur(z)) - 1, "Mündung nach dem Umstellen geschlossen"
+    for p in (um[0], um[-1]):                   # Reihenfolge der Mündung: aufsteigend in s
+        d = min(abs((s_m + float(p[1]) - s_ + qs.umfang / 2) % qs.umfang - qs.umfang / 2) for s_ in z["muendung"])
+        assert d < 0.1, ("Mündung nicht an den Enden des Umrisses", p, z["muendung"], d)
+
+
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -128,6 +143,7 @@ def main():
                 d2.deleteLater()
                 if name.startswith("E2_RE_Gehrung_Schlitz"):
                     e5_skizze(e, profil)
+                    e2_umstellen(teil[0], profil)
             else:
                 assert not teil, (name, teil)
             if name == "E1_RE_Ausklinkung_A":
