@@ -29,7 +29,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import kennwerte, lager, nummern, passwort, step_pruefung, teilen, vollmaterial, zukauf
+from . import fertigung, kennwerte, lager, nummern, passwort, step_pruefung, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -431,6 +431,7 @@ class Datenbank:
                 self._stege_ergaenzen()
             teilen.einrichten(self.con)
             lager.einrichten(self.con)
+            fertigung.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
@@ -438,7 +439,7 @@ class Datenbank:
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis") + lager.TABELLEN
+                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
@@ -1914,6 +1915,7 @@ class Datenbank:
                              "status='reserviert'", (self._jetzt(), angebot_id))
             self.con.execute("UPDATE lager_auftraege SET status='freigegeben' WHERE angebot_id=? AND "
                              "status='reserviert'", (angebot_id,))
+            fertigung.angebot_geloescht(self, angebot_id)          # Statusjournal gehört zum Angebot
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
     @schreibt

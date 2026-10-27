@@ -1684,6 +1684,9 @@ class AngebotSeite(QWidget):
         # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
         self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())
         menue.aboutToShow.connect(lambda: self.lager_aktion.setVisible(self.f.lager_an()))
+        # Freigabe und Fertigungsstatus (fertigung.py): Reiter Fertigung mit diesem Auftrag
+        self.fertigung_aktion = menue.addAction("Fertigungsstatus …", lambda: self.f.fertigung_zeigen(self.id))
+        menue.aboutToShow.connect(lambda: self.fertigung_aktion.setVisible(self.f.fertigung_an()))
         # Material-/Fertigungsvarianten mit Zielgröße (varianten.py)
         menue.addAction("Varianten vergleichen …", lambda: self.varianten_vergleichen())
         # Arbeitsgänge je Position mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.py)
@@ -4997,9 +5000,23 @@ class AngebotSeite(QWidget):
             wp = dict(wp, palettenscheine=palettenschein.seiten(z["kopf"], z["schein"], z["packliste"], z["gruppen"]))
         if gruppe is None:              # Montageblätter der Sätze und Baugruppen mit Steckverbindungen (A7)
             wp = dict(wp, montage=self.montageblaetter())
+        wp = dict(wp, freigabe=self.freigabe_stand())
         aktuell = self.stand_optimierung() == "aktuell"
         return self._schreiben("Werkstattpapiere", self._ziel(name, ".pdf"),
                                lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
+
+    def freigabe_stand(self):
+        """Freigegebener Auftragsstand für die Werkstattpapiere (fertigung.stand_text) mit Positionen und stabilen IDs;
+        None ohne Freigabe."""
+        from . import fertigung
+        if not self.f.fertigung_an():
+            return None
+        text, warnung = fertigung.stand_text(self.db, self.id, self.db.angebot(self.id), self.db.positionen(self.id))
+        if not text:
+            return None
+        return dict(text=text, warnung=warnung, positionen=[
+            dict(id=p["id"], pos=p.get("pos"), artikel=p.get("artikel"), bezeichnung=p.get("bezeichnung"),
+                 stueck=p.get("stueck")) for p in self.positionen])
 
     def montageblaetter(self):
         """Montageblätter der Werkstattpapiere (A7): je Schweißbaugruppe und je Satz mit Steckverbindungen und Stößen

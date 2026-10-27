@@ -433,10 +433,10 @@ def angebot_geloescht(db, angebot_id):
 
 
 def verbrauch_je_charge(db):
-    """Rückverfolgbarkeit: [dict(charge, kennung, profil, werkstoff, nummer, anzahl, zeit)] aller Verbrauchsbuchungen
-    mit Charge."""
+    """Rückverfolgbarkeit: [dict(charge, kennung, profil, werkstoff, nummer, anzahl, laenge, zeit)] aller
+    Verbrauchsbuchungen (Charge leer, wenn beim Zugang keine erfasst wurde)."""
     out = []
-    for r in db.con.execute("SELECT b.zeit, b.kennung, b.nummer, b.anzahl, p.charge, p.profil, p.werkstoff FROM "
+    for r in db.con.execute("SELECT b.zeit, b.kennung, b.nummer, b.anzahl, b.laenge, p.charge, p.profil, p.werkstoff FROM "
                             "lager_buchungen b LEFT JOIN lager_bestand p ON p.id=b.bestand_id WHERE b.art='Verbrauch' "
                             "ORDER BY b.id"):
         out.append(dict(r))
