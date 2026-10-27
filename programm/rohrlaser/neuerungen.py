@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.161", "<b>Wettbewerbsvergleich umgesetzt</b>: <b>Lager</b> (Einstellung, Vorgabe aus) mit Bestand, "
+                "Zugang, Korrektur, Journal und – nur wenn eingeschaltet – <b>Reststücken</b>; im beauftragten Angebot "
+                "<i>Material aus Lager …</i> plant, reserviert ohne Doppelbelegung und bucht den Verbrauch "
+                "([[lager]]). <b>Nachkalkulation</b> mit Fracht und Ausschuss, gespeichertem Soll-Stand und "
+                "<i>Auswertung aller Aufträge …</i>; Kennwert-Vorschläge für die Laserzeit nur nach Freigabe "
+                "([[nachkalk_auswertung]]). <b>STEP-Merkmale prüfen …</b>: Status je Merkmal (sicher / prüfen / "
+                "nicht erkannt), Rohdaten und Korrekturen ([[step_merkmale]]). <b>Arbeitsgänge vorschlagen …</b> "
+                "nach eigenen Regeln, gerechnet erst nach Annehmen ([[arbeitsgaenge]]). <b>Varianten vergleichen …</b> "
+                "mit Zielgröße ([[varianten]]). Reiter <b>Fertigung</b>: Freigabe mit festgehaltenem Stand, Status je "
+                "Auftrag, Durchlaufzeiten, Export, Materialverbrauch je Charge ([[fertigung]]).",
+     "Lager mit optionalen Reststücken, Nachkalkulation-Auswertung, STEP-Merkmale, Arbeitsgänge, Varianten, Fertigung."],
     ["0.9.160", "<b>Gehrung in 2D: lange Seite kürzer</b>: Bei einer Gehrung, die in 2D (90° zur Oberfläche) "
                 "geschnitten wird, ist jetzt die Innenkante maßhaltig; die Spitze wird um Wand · tan(Winkel) kürzer "
                 "(3 mm bei Wand 3 und 45°), damit innen nichts über die Gehrung ragt. <b>STEP</b>: Gehrungen, die in "

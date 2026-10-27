@@ -988,6 +988,14 @@ class EinstellungenSeite(QScrollArea):
             haupt = self.window()
             if hasattr(haupt, "versand_anwenden"):
                 haupt.versand_anwenden()
+        if e.name in ("fertigung_aktiv", "fertigung_status"):
+            haupt = self.window()
+            if hasattr(haupt, "fertigung_anwenden"):
+                haupt.fertigung_anwenden()
+        if e.name in ("lager_aktiv", "reste_aktiv"):
+            haupt = self.window()
+            if hasattr(haupt, "lager_anwenden"):
+                haupt.lager_anwenden()
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
@@ -1430,6 +1438,16 @@ class Hauptfenster(QMainWindow):
         self.versand = VersandSeite(self)
         self.reiter.addTab(self.versand, "Versand")
         self.reiter.setTabVisible(self.reiter.indexOf(self.versand), self.versand_an())
+        # Fertigung: Freigabe und Status beauftragter Angebote (Wettbewerbsvergleich P1-6), Einstellung 'fertigung_aktiv'
+        from .fertigung_seite import FertigungSeite
+        self.fertigung = FertigungSeite(self)
+        self.reiter.addTab(self.fertigung, "Fertigung")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.fertigung), self.fertigung_an())
+        # Lager: Materialbestand und Reststücke (Wettbewerbsvergleich P0-1), nur mit Einstellung 'lager_aktiv'
+        from .lager_seite import LagerSeite
+        self.lager = LagerSeite(self)
+        self.reiter.addTab(self.lager, "Lager")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.lager), self.lager_an())
         self.seiten = [StammdatenSeite(db, t, self.meldung) for t in TABELLEN]
         for s in self.seiten:           # Kunden als eigener Reiter, die übrigen Stammdaten unter Einstellungen
             if s.t.name == "kunden":
@@ -2030,6 +2048,36 @@ class Hauptfenster(QMainWindow):
         self.reiter.setTabVisible(self.reiter.indexOf(self.versand), self.versand_an())
         if self.versand_an():
             self.versand.neu_laden()
+
+    def fertigung_an(self):
+        """Reiter Fertigung eingeschaltet (Einstellung 'fertigung_aktiv', Vorgabe ja)?"""
+        return self.db.einstellung("fertigung_aktiv") != "nein"
+
+    def fertigung_anwenden(self):
+        self.reiter.setTabVisible(self.reiter.indexOf(self.fertigung), self.fertigung_an())
+        if self.fertigung_an():
+            self.fertigung.neu_laden()
+
+    def fertigung_zeigen(self, angebot_id):
+        """Reiter Fertigung mit dem Auftrag markiert; nur beauftragte Angebote (sonst Hinweis). Ergebnis: True."""
+        if not self.fertigung_an():
+            return False
+        self.fertigung.neu_laden()
+        if not any(z["id"] == angebot_id for z in self.fertigung.zeilen):
+            self.meldung("Fertigungsstatus: erst nach „Beauftragt“ (Vorgang ▾).", fehler=True)
+            return False
+        self.reiter.setCurrentWidget(self.fertigung)
+        self.fertigung.waehlen(angebot_id)
+        return True
+
+    def lager_an(self):
+        """Reiter Lager und „Material aus Lager …“ eingeschaltet (Einstellung 'lager_aktiv', Vorgabe nein)?"""
+        return self.db.einstellung("lager_aktiv") == "ja"
+
+    def lager_anwenden(self):
+        self.reiter.setTabVisible(self.reiter.indexOf(self.lager), self.lager_an())
+        if self.lager_an():
+            self.lager.neu_laden()
 
     def palettenschein(self, angebot_id):
         """Fenster „Palettenbegleitschein“ eines Angebots (nur beauftragte; sonst Hinweis)."""

@@ -3,7 +3,7 @@ import datetime
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush
-from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
@@ -86,7 +86,7 @@ class NachkalkulationSeite(QWidget):
         el.addWidget(self.bg_rahmen)
         knoepfe = QHBoxLayout()
         for text, ziel in (("Rest wie geplant", self.rest_wie_geplant), ("Ist-Werte löschen", self.loeschen),
-                           ("Nachkalkulation (PDF)", self.pdf)):
+                           ("Nachkalkulation (PDF)", self.pdf), ("Auswertung aller Aufträge …", self.auswertung)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             knoepfe.addWidget(b)
@@ -260,8 +260,11 @@ class NachkalkulationSeite(QWidget):
         self.neu_laden()
 
     def _platzhalter(self, v):
+        z = {x["text"]: x for x in v["zeilen"]}
         soll = {"laser_h": (v["zeilen"][1]["soll_menge"], 2), "ruest_min": (v["zeilen"][2]["soll_menge"], 0),
-                "zusatz": (v["zeilen"][3]["soll"], 2), "zukauf": (v["zeilen"][4]["soll"], 2), "sonstiges": (0, 2), "erloes": (v["erloes"]["soll"], 2)}
+                "zusatz": (v["zeilen"][3]["soll"], 2), "zukauf": (v["zeilen"][4]["soll"], 2), "sonstiges": (0, 2),
+                "fracht": (z["Fracht"]["soll"], 2), "ausschuss": (0, 2), "ausschuss_stk": (0, 0),
+                "erloes": (v["erloes"]["soll"], 2)}
         for name, (w, st) in soll.items():
             self.felder[name].setPlaceholderText(f"leer = Soll {_z(w, st)}")
 
@@ -270,6 +273,12 @@ class NachkalkulationSeite(QWidget):
         self.ist["am"] = datetime.datetime.now().isoformat(timespec="seconds")
         if not nk.erfasst(self.ist) and not self.ist.get("bemerkung"):
             self.ist = {}
+        elif self.s.ergebnis and self.s.ergebnis.get("stangen"):
+            # Soll und Ist festhalten (Auswertung und Kennwert-Vorschläge über alle Aufträge, P0-2)
+            s = self.s
+            self.ist.pop("soll", None)
+            v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
+            self.ist["soll"] = nk.soll_stand(v, s.kopf, s.positionen, s.ergebnis, s.k)
         self.s.db.nachkalkulation_speichern(self.s.id, self.ist or None)
         self.s.kopf["nachkalkulation"] = self.ist or None
         self.s.f.meldung("Nachkalkulation gespeichert.")
@@ -368,3 +377,71 @@ class NachkalkulationSeite(QWidget):
         aktuell = s.stand_optimierung() == "aktuell"
         return s._schreiben("Nachkalkulation", s._ziel("Nachkalkulation", ".pdf"),
                             lambda p: pdf.nachkalkulation_pdf(p, s.kopf, v, self.ist, aktuell, s.einst))
+
+    def auswertung(self, dialog=None):
+        """Fenster „Auswertung der Nachkalkulation“ über alle Aufträge (nachkalkulation.auswertung)."""
+        d = AuswertungDialog(self, self.s.db)
+        (dialog(d) if dialog else d.exec())
+        return d
+
+
+AUSWERTUNG_SPALTEN = (("Gruppe", "gruppe", None), ("Kostenart", "kostenart", None), ("Aufträge", "n", 0),
+                      ("Soll [€]", "soll", 2), ("Ist [€]", "ist", 2), ("Abweichung [€]", "abweichung", 2),
+                      ("Abweichung [%]", "prozent", 1), ("Median Ist ÷ Soll", "median", 3),
+                      ("Streuung (MAD)", "streuung", 3))
+
+
+class AuswertungDialog(QDialog):
+    def __init__(self, parent, db):
+        super().__init__(parent)
+        self.db = db
+        self.setWindowTitle("Auswertung der Nachkalkulation")
+        self.resize(980, 560)
+        self.merkmal = QComboBox()
+        for name, titel in nk.MERKMALE.items():
+            self.merkmal.addItem(titel, name)
+        self.merkmal.currentIndexChanged.connect(self.neu_laden)
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Gruppieren nach:"))
+        oben.addWidget(self.merkmal)
+        oben.addStretch(1)
+        self.tabelle = QTableWidget(0, len(AUSWERTUNG_SPALTEN))
+        self.tabelle.setHorizontalHeaderLabels([t for t, _, _ in AUSWERTUNG_SPALTEN])
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.verticalHeader().setVisible(False)
+        self.info = QLabel()
+        self.info.setWordWrap(True)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(self.info)
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.rejected.connect(self.reject)
+        lay.addWidget(kn)
+        self.ergebnis = None
+        self.neu_laden()
+
+    def neu_laden(self, *_):
+        self.ergebnis = e = nk.auswertung(self.db, self.merkmal.currentData())
+        self.tabelle.setRowCount(len(e["zeilen"]))
+        for r, z in enumerate(e["zeilen"]):
+            for c, (_, name, st) in enumerate(AUSWERTUNG_SPALTEN):
+                w = z.get(name)
+                it = QTableWidgetItem(_z(w, st) if st is not None else str(w or ""))
+                if st is not None:
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if name == "prozent":
+                    b = nk.bewertung(z["soll"], z["ist"])
+                    if b:
+                        it.setBackground(QBrush(ROT_FLAECHE if b == "hoch" else GRUEN_FLAECHE))
+                self.tabelle.setItem(r, c, it)
+        self.tabelle.resizeColumnsToContents()
+        a = e["ausschuss"]
+        self.info.setText(
+            f"{e['auftraege']} nachkalkulierte Aufträge ausgewertet; nur erfasste Ist-Werte zählen (leer ist weder "
+            "0 € noch „wie geplant“). Median und Streuung zeigen, wie sicher eine Abweichung ist; Richtwerte ändern "
+            "sich nur über Einstellungen → Kennwerte aus der Nachkalkulation (mit Freigabe)."
+            + (f" {e['ohne_soll']} ältere Nachkalkulation(en) ohne gespeichertes Soll: einmal öffnen und einen "
+               "Ist-Wert speichern." if e["ohne_soll"] else "")
+            + (f" Ausschuss: {a['stueck']:g} von {a['teile']} Teilen ({_z(100 * a['quote'], 2)} %)." if a["quote"]
+               is not None else ""))
