@@ -565,6 +565,71 @@ def offen_lage(querschnitt, profil):
     return lage
 
 
+def sk_querschnitt(form, a, b, wand, r):
+    """Querschnitt der Skizze für das gemessene Profil (Eckradius der Messung)."""
+    from . import skizze as sk
+    return sk.Querschnitt(dict(form=form, a=a, b=b if form != "Rundrohr" else None, wand=wand, r_aussen=r))
+
+
+GEHRUNG_2D_TOL = 0.1      # mm: so genau muss ein komplexes Ende einer Gehrung folgen (Messung ±0,08), damit es als Gehrung gilt
+
+
+def gehrung_aus_umriss(qs, umriss):
+    """Komplexes Ende (gemessener Umriss [[s, Abstand]]) als Gehrung erkennen, auch wenn die STEP schon 2D geschnitten
+    ist (Schnittfläche 90° zur Oberfläche statt eben, Innenkante unter der Außenkante, Patrick 27.10.2026): die
+    Außenkante liegt auf der Gehrungsebene ('aussen_mass', Editor wie die STEP). Nur Richtungen 0/90/180/270°.
+    Ergebnis dict(winkel, richtung, aussen_mass) oder None, wenn die Gehrung den Umriss nicht überall auf
+    GEHRUNG_2D_TOL trifft (dann bleibt das Ende komplex, genau wie gemessen)."""
+    from . import skizze as sk
+    um = sk._ende_umriss(qs, umriss)
+    if um is None or not (qs.r or qs.form in ("Quadratrohr", "Rechteckrohr")):
+        return None
+    n = max(200, int(qs.umfang))
+    pkt = []
+    for i in range(n):
+        s = qs.umfang * i / n
+        (u, v), _ = qs.s_zu_uv(s)
+        ur, vr, _ = sk.rund_ort(qs, u, v)
+        pkt.append((ur, vr, um(sk.uv_zu_s(qs, ur, vr))))
+
+    def ebene(auswahl):
+        # Ausgleichsebene Abstand = k0 − k1·u − k2·v (kleinste Quadrate, Normalgleichungen 3×3)
+        a_ = [[0.0] * 3 for _ in range(3)]
+        r_ = [0.0] * 3
+        for u, v, d in auswahl:
+            x = (1.0, -u, -v)
+            for i in range(3):
+                r_[i] += x[i] * d
+                for j in range(3):
+                    a_[i][j] += x[i] * x[j]
+        try:
+            for i in range(3):          # Gauß ohne Pivot reicht (gut gestellt bei vielen Punkten ums Rohr)
+                for j in range(i + 1, 3):
+                    f = a_[j][i] / a_[i][i]
+                    a_[j] = [a_[j][k] - f * a_[i][k] for k in range(3)]
+                    r_[j] -= f * r_[i]
+            k = [0.0] * 3
+            for i in (2, 1, 0):
+                k[i] = (r_[i] - sum(a_[i][j] * k[j] for j in range(i + 1, 3))) / a_[i][i]
+        except ZeroDivisionError:
+            return None
+        t = math.hypot(k[1], k[2])
+        if t < 1e-4:
+            return None
+        th = math.degrees(math.atan2(k[1], k[2])) % 360
+        if min(abs(th - q) for q in (0, 90, 180, 270, 360)) > 0.5:
+            return None
+        return round(math.degrees(math.atan(t)), 2), float(round(th / 90) * 90 % 360)
+
+    def fehler(e):
+        return max(abs(sk.schnitt_x(qs, e, u, v) - d) for u, v, d in pkt)
+    erst = ebene(pkt)
+    if erst is None or not 0 < erst[0] < 80:
+        return None
+    e = dict(winkel=erst[0], richtung=erst[1], aussen_mass=True)
+    return e if fehler(e) <= GEHRUNG_2D_TOL else None
+
+
 def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -651,6 +716,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                              winkel_b=round(waag if a_senk else senk, 2))
                 if d3 and nicht_senkrecht(d):     # 3D nur, wenn die Fläche nicht 90° zur Oberfläche steht
                     e["d3"] = True
+                e["aussen_mass"] = True     # Außenkante wie in der STEP auf der Gehrungsfläche (nicht 2D gekürzt)
             if d.get("schwenk") is not None:
                 e["schwenk"] = round(float(d["schwenk"]), 2)
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
@@ -660,7 +726,17 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 u_umf = math.pi * ma if mform == "Rundrohr" else 2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)
                 um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), s_von, s_umfang, ausflug=ausflug,
                                   u_umfang=u_umf)
-                if um:
+                g2 = None
+                if um and not ausflug:      # schon 2D geschnittene Gehrung (oder ebene): als Gehrung übernehmen
+                    try:
+                        g2 = gehrung_aus_umriss(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um)
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        g2 = None
+                if g2:
+                    quer = mschmal if g2["richtung"] % 180 == 0 else mbreit
+                    e.update(g2, form="Gehrung", achse=ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1])
+                    e.pop("schwenk", None)
+                elif um:
                     e["umriss"] = um
                     for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
                         k = _ende_ausflug(zug, art[-1], m, mform, s_von, s_umfang, mbreit, mschmal, bool(r_mess))

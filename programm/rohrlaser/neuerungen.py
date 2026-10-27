@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.159", "<b>Gehrung in 2D: lange Seite kürzer</b>: Bei einer Gehrung, die in 2D (90° zur Oberfläche) "
+                "geschnitten wird, ist jetzt die Innenkante maßhaltig; die Spitze wird um Wand · tan(Winkel) kürzer "
+                "(3 mm bei Wand 3 und 45°), damit innen nichts über die Gehrung ragt. <b>STEP</b>: Gehrungen, die in "
+                "der Datei schon 2D geschnitten sind, werden als Gehrung erkannt (nicht mehr komplexes Ende). "
+                "Größere Ausschnitte: ein langes Fenster im Rohr lag im Editor bis 6 mm daneben, eine Stufe am "
+                "Rundrohr-Ende 1,3 mm; beides liegt jetzt genau wie in der STEP ([[schneidweg_rechner]]).",
+     "Gehrung 2D mit maßhaltiger Innenkante, 2D-Gehrungen aus der STEP erkannt, große Ausschnitte genau."],
     ["0.9.158", "<b>STEP-Import in den Editor genau wie die STEP</b>: Gehrungen mit einem Schlitz an der Spitze, "
                 "Ausklinkungen und andere komplexe Enden lagen im Rohr-Editor als gerades Ende (bis 80 mm daneben), "
                 "der Schlitz fehlte. Jetzt stehen alle Enden in Editor, Skizze und 3D wie in der STEP; ein Schlitz, "

@@ -101,9 +101,11 @@ ok("R3 Maßzahlen, Profil- und Längentext, Muster (Anzahl + Abstand), schmales 
 # ------------------------------------------------------------------ R4 3D
 n = rohr3d.netz(e, dict(form="Quadratrohr", a=40, b=40, wand=3), erg["laenge"])
 p = [n["p"][i:i + 3] for i in range(0, len(n["p"]), 3)]
-for i, (lo, hi) in enumerate(((-20, 20), (-20, 20), (0, 1018.8))):
-    assert nah(min(q[i] for q in p), lo, 0.01) and nah(max(q[i] for q in p), hi, 0.01)
-ok("R4 3D aus den Eingaben: 40 × 40, Länge Spitze zu Spitze 1018,8")
+# Gehrung in 2D (Patrick 27.10.2026): Innenkante maßhaltig, die lange Seite je Ende um Wand · tan(Winkel) kürzer
+kurz = [3 * math.tan(math.radians(e[s_]["winkel"])) for s_ in ("a", "b")]
+for i, (lo, hi) in enumerate(((-20, 20), (-20, 20), (kurz[0], 1018.8 - kurz[1]))):
+    assert nah(min(q[i] for q in p), lo, 0.01) and nah(max(q[i] for q in p), hi, 0.01), (i, lo, hi)
+ok("R4 3D aus den Eingaben: 40 × 40, Länge Spitze zu Spitze 1018,8, in 2D je Ende Wand · tan(Winkel) kürzer")
 
 # ------------------------------------------------------------------ R6 Patricks Bauteil 1
 B1 = HIER / "dxf" / "rohr_bauteil1_patrick.dxf"
@@ -122,9 +124,10 @@ assert e6["konturen"] == [
 n = rohr3d.netz(e6, erg6["profil"], erg6["laenge"])
 p = [n["p"][i:i + 3] for i in range(0, len(n["p"]), 3)]
 oben, unten = [max(q[2] for q in p if nah(q[1], v, 0.01)) for v in (75, -75)]
-assert nah(oben, 543.3 - 150 * math.tan(math.radians(30)), 0.2) and nah(unten, 543.3, 0.01), (oben, unten)
+kurz = 5 * math.tan(math.radians(30))        # 2D: lange Seite (unten) um Wand · tan 30° kürzer
+assert nah(oben, 543.3 - 150 * math.tan(math.radians(30)), 0.2) and nah(unten, 543.3 - kurz, 0.01), (oben, unten)
 ok("R6 Bauteil 1: Schnittverlauf-Striche nicht in der Ansicht, Gehrung 30° statt Ausklinkung, Fenster R 2, Ø 50 "
-   "durchgehend, schräge Bohrung Ø 20 / 30°; 3D oben 456,7, unten 543,3")
+   "durchgehend, schräge Bohrung Ø 20 / 30°; 3D oben 456,7, unten 543,3 − Wand · tan 30° (2D)")
 
 # ------------------------------------------------------------------ R5 Oberfläche
 from rohrlaser.fenster import Hauptfenster  # noqa: E402

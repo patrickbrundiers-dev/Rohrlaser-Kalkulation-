@@ -303,9 +303,11 @@ def winkel_text(w):
 
 
 # ---------------------------------------------------------------------- Enden
-def schnitt_x(qs, e, u, v):
+def schnitt_x(qs, e, u, v, aussen=False):
     """Wie weit die Schnittkante eines Endes an der Stelle (u, v) des Querschnitts hinter der äußersten Spitze liegt
-    [mm, ≥ 0]. e = Eingabe des Endes {winkel, achse, richtung, sattel | gegen} (Gegenrohr: durchdringung)."""
+    [mm, ≥ 0]. e = Eingabe des Endes {winkel, achse, richtung, sattel | gegen} (Gegenrohr: durchdringung).
+    Gehrung in 2D (ohne 'd3'): Innenkante maßhaltig, die lange Seite wird kürzer (innen_lage); 'aussen_mass' (STEP,
+    Außenkante auf der Gehrungsfläche) bzw. aussen=True: die Außenkante auf der Fläche (Schnittlänge wie bisher)."""
     e = e or {}
     g = dd.gegen_lesen(e)
     if g and (qs.r or e.get("gegen")):      # Gegenrohr (auch die alte Ausklinkung auf Rundrohr)
@@ -322,7 +324,32 @@ def schnitt_x(qs, e, u, v):
     th = _richtung(qs, e)
     s, c = math.sin(math.radians(th)), math.cos(math.radians(th))
     ext = qs.ausdehnung(th)
-    return max(0.0, (ext - (u * s + v * c)) * math.tan(math.radians(w)))
+    tw = math.tan(math.radians(w))
+    x = max(0.0, (ext - (u * s + v * c)) * tw)
+    if not aussen and not e.get("d3") and not e.get("aussen_mass") and (qs.wand or 0) > 0 \
+            and (qs.r or qs.form in ("Quadratrohr", "Rechteckrohr")):
+        x = max(x, (ext - innen_lage(qs, u, v, s, c)) * tw, qs.wand * tw)
+    return x
+
+
+def innen_lage(qs, u, v, s, c):
+    """Gehrung in 2D (Strahl senkrecht zur Oberfläche, Patrick 27.10.2026): Lage des Innenpunkts unter (u, v) in
+    Richtung (s, c) der langen Seite. Die Innenkante ist maßhaltig, wo sie sonst über die Gehrungsfläche ragen würde:
+    die Wand, die zur langen Seite zeigt, wird um Wand · tan(Winkel) kürzer geschnitten (am Eckradius entsprechend
+    der Rundung); an der kurzen Seite bleibt die Außenkante (innen liegt dort ohnehin hinter der Fläche). Punkt der
+    Skizze auf der Rundung wie die 3D-Ansicht (rund_ort); an den Ecken hält schnitt_x zusätzlich Wand · tan(Winkel)
+    ein (der Eckblock gehört zu beiden Wänden). Nur geschlossene Rohre."""
+    t = qs.wand or 0.0
+    if qs.r:
+        lg = math.hypot(u, v)
+        if lg < 1e-9:
+            return u * s + v * c
+        return (u - t * u / lg) * s + (v - t * v / lg) * c
+    ur, vr, n = rund_ort(qs, u, v)
+    if n is None or math.hypot(ur - u, vr - v) > 1e-6:      # auf einer Fläche (auch Punkt der scharfkantigen Skizze)
+        ur, vr = u, v
+        _, n = qs.s_zu_uv(uv_zu_s(qs, u, v))
+    return (ur - t * n[0]) * s + (vr - t * n[1]) * c
 
 
 def _richtung(qs, e):

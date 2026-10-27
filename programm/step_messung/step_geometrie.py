@@ -665,9 +665,9 @@ def _querschnitt_daten(ws):
     return netto, sx / netto, sy / netto
 
 
-def _regelquerschnitt(lok, zmin, zmax, n=7):
-    """Schnitte an n Stellen; die häufigste Kombination aus Konturanzahl und Fläche ist der Regelquerschnitt
-    (Schnitte durch Bohrungen o. ä. weichen ab). Ergebnis: Liste (z, Konturen, Fläche, Schwerpunkt x, y)."""
+def _querschnitt_gruppen(lok, zmin, zmax, n):
+    """Schnitte an n Stellen, gruppiert nach Konturanzahl und Fläche: Liste von Gruppen [(z, Konturen, Fläche,
+    Schwerpunkt x, y)]."""
     schnitte = []
     for i in range(n):
         z = zmin + (i + 0.537) / (n + 0.1) * (zmax - zmin)
@@ -684,6 +684,13 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
                 break
         else:
             gruppen.append([s])
+    return gruppen
+
+
+def _regelquerschnitt(lok, zmin, zmax, n=7):
+    """Schnitte an n Stellen; die häufigste Kombination aus Konturanzahl und Fläche ist der Regelquerschnitt
+    (Schnitte durch Bohrungen o. ä. weichen ab). Ergebnis: Liste (z, Konturen, Fläche, Schwerpunkt x, y)."""
+    gruppen = _querschnitt_gruppen(lok, zmin, zmax, n)
     if not gruppen:
         return [] if n >= REGEL_DICHT else _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
     beste = max(gruppen, key=lambda g: (len(g), g[0][2]))
@@ -693,6 +700,15 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
         dicht = _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
         if len(dicht) > len(beste):
             return dicht
+    if len(beste[0][1]) == 1 and n < REGEL_DICHT:
+        # offener Querschnitt: auch ein Rohr mit einem langen Fenster (Patrick 27.10.2026, größere Ausschnitte) – alle
+        # Schnitte treffen das Fenster, der Schwerpunkt liegt neben der Rohrmitte. Gibt es an anderer Stelle (meist
+        # nahe den Enden) mindestens zwei gleiche geschlossene Querschnitte mit größerer Fläche, sind sie der Regel-
+        # querschnitt (ein Ausschnitt nimmt nur Werkstoff weg)
+        zu = [g for g in _querschnitt_gruppen(lok, zmin, zmax, REGEL_DICHT)
+              if len(g) >= 2 and len(g[0][1]) >= 2 and g[0][2] > beste[0][2] * 1.002]
+        if zu:
+            return max(zu, key=lambda g: (g[0][2], len(g)))
     return beste
 
 
