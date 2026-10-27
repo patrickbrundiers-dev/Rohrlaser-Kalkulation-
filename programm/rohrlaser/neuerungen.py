@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.163", "<b>STEP-Import und Editor robuster</b> (Testreihe über alle Testteile und die bisherigen STEP-Dateien): "
+                "<b>Flowdrill</b> (Fließlochbohrung) fehlte im Editor, steht jetzt mit Kernloch Ø an der gemessenen "
+                "Stelle; <b>Senkung</b> zeigt im 3D den Senkrand wie die STEP. <b>Offene Profile</b>: Gehrungen an U-, "
+                "L- und Flachprofilen lagen teils auf der falschen Seite (bis 50 mm), Rechteck-Ausschnitte und "
+                "Langlöcher waren nur ein Kreis; beides jetzt wie in der STEP. <b>C-Profil</b> mit der gemessenen "
+                "Abkantung ([[schneidweg_rechner]]).",
+     "STEP-Import robuster: Flowdrill im Editor, Gehrungen und Ausschnitte an offenen Profilen, C-Profil mit Lippe."],
     ["0.9.162", "<b>Kleine Löcher trotzdem schneiden</b>: Für Bohrungen kleiner als 0,7 × Wandstärke gibt es neben "
                 "<i>Gravur Ø0,5</i> und <i>Loch Ø0,5</i> (markieren und aufbohren) die dritte Wahl <i>Ø schneiden "
                 "(ohne Bohren)</i>: der Laser schneidet den vollen Lochdurchmesser, Zeit und Preis kommen aus dem "

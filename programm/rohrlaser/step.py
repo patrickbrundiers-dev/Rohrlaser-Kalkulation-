@@ -7,6 +7,7 @@ Gewinde-Vorschlag, Konturklassen, Protokoll.
 import datetime
 import json
 import math
+import re
 import importlib.util
 import sys
 from pathlib import Path
@@ -562,6 +563,12 @@ def offen_lage(querschnitt, profil):
         fl = min(qs.flaechen, key=lambda fl_: abst(p, fl_.p0, fl_.p1))
         q = (p[0] - fl.mitte[0]) * fl.dir[0] + (p[1] - fl.mitte[1]) * fl.dir[1]
         return fl.name, max(-fl.breite / 2, min(fl.breite / 2, q))
+
+    def richtung(th):       # Umfangswinkel der Messung (0° oben, 90° rechts von Ende A) -> Richtung der Skizze
+        x, y = -math.sin(math.radians(th)), math.cos(math.radians(th))
+        u, v = (p_ - m_ for p_, m_ in zip(f(x, y), (mu, mv)))
+        return round(math.degrees(math.atan2(u, v)) % 360, 1) % 360
+    lage.richtung = richtung
     return lage
 
 
@@ -686,6 +693,11 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             eing["offen_virtuell"] = True
         if m.get("_pfad"):
             eing.update(step_datei=str(m["_pfad"]), step_koerper=int(_z(m, "koerper") or 1))
+    lippe = re.search(r"Abkantung ([0-9.]+) mm", m.get("hinweise") or "") if form == "C-Profil" else None
+    if lippe:                   # C-Profil: Abkantung wie in der STEP (Skizze und 3D)
+        eing["c_lippe"] = float(lippe.group(1))
+        if mp:
+            eing["c_lippe_profil"] = mp
     if r_mess is not None and kasten and mp:    # Eckradius der STEP-Datei: Skizze und 3D wie die STEP
         eing.update(r_step=r_mess, r_step_profil=mp)
     for d in liste:
@@ -702,7 +714,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 e["winkel"] = round(float(d["gehrung"]), 2)
                 r = d.get("richtung")
                 if r is not None:
-                    e["richtung"] = float(r) % 360
+                    e["richtung"] = float(r) % 360 if not offen else offen.richtung(float(r))
                     # Achse passend zur Richtung (Breitseite oben: 0°/180° kippt über die kürzere Seite)
                     quer = schmal if e["richtung"] % 180 == 0 else breit
                     e["achse"] = ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1]
@@ -753,6 +765,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             if d.get("tiefe"):
                 k["tiefe"] = round(float(d["tiefe"]), 2)
             gravur_zeilen += k["laenge"]
+        elif art == "Fließloch" and d.get("z") is not None and d.get("durchmesser"):
+            k = dict(anzahl=1, x=round(float(d["z"]), 1))   # Flowdrill: nicht im Schneidweg, Lage wie gemessen
         elif not d.get("durchgehend") or d.get("z") is None or not d.get("schnittlaenge"):
             continue
         else:
@@ -780,12 +794,23 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                              neigung_q=round(float(d.get("neigung_q") or 0), 1))
                 else:                       # Messung vor STEP-JSON 1.5: Richtung unbekannt
                     k.update(d3=True, neigung_l=round(schraeg, 1), text=f"schräg {schraeg:g}°, 3D prüfen")
+        elif art == "Fließloch":
+            k.update(art="Flowdrill", d=float(d["durchmesser"]))
         elif art == "Senkung" and d.get("durchmesser") and d.get("senk_durchmesser"):
             k.update(art="Senkung", d=float(d["durchmesser"]), D=float(d["senk_durchmesser"]))
         elif art == "Langloch" and d.get("laenge") and d.get("breite"):
             k.update(art="Langloch", l=float(d["laenge"]), b=float(d["breite"]))
             if not laengs:
                 k["quer"] = True
+        elif art == "Ausschnitt" and offen and d.get("laenge") and d.get("breite") and _umfang_form(d):
+            # offenes Profil: Ausschnitt ohne Umriss, dessen Schnittlänge genau ein Rechteck bzw. Langloch ergibt
+            lg, br = float(d["laenge"]), float(d["breite"])
+            if _umfang_form(d) == "Langloch":
+                k.update(art="Langloch", l=lg, b=br)
+                if not laengs:
+                    k["quer"] = True
+            else:
+                k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
         elif art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite"):
             lg, br = float(d["laenge"]), float(d["breite"])
             k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
@@ -822,6 +847,17 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     if eing.get("stege_virtuell"):
         _laengsschnitte_zeigen(eing)
     return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
+
+
+def _umfang_form(d, tol=0.01):
+    """Ausschnitt eines offenen Profils (nur Hüllmaße gemessen): 'Rechteck', wenn die Schnittlänge auf 1 % gleich
+    2 · (Länge + Breite) ist, 'Langloch' bei 2 · (Länge − Breite) + π · Breite, sonst None (bleibt sonstige Kontur).
+    Passen beide (sehr schlankes Loch), gilt die genauere."""
+    lg, br, sl = float(d["laenge"]), float(d["breite"]), float(d.get("schnittlaenge") or 0)
+    passend = [(abs(sl - soll) / soll, form) for form, soll in (("Rechteck", 2 * (lg + br)),
+                                                                ("Langloch", 2 * (lg - br) + math.pi * br))
+               if soll > 0 and abs(sl - soll) <= tol * soll]
+    return min(passend)[1] if passend else None
 
 
 def _laengsschnitte_zeigen(eing):
