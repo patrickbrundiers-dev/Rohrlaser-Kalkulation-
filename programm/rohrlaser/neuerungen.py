@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.159", "<b>Rüsten als Betrag in €</b> (je Angebot bzw. je Abmessung): Aus dem Betrag wird jetzt auch die "
+                "<b>Rüstzeit</b> gerechnet, Betrag ÷ Stundensatz (z. B. 30 € bei 90 €/h = 20 min). Sie steht im Reiter "
+                "<i>Zeiten & Arbeitskosten</i>, in den Werkstattpapieren und in der Nachkalkulation; der Preis bleibt "
+                "genau der eingegebene Betrag ([[angebotskopf]]).",
+     "Rüsten in €: Rüstzeit = Betrag ÷ Stundensatz."],
     ["0.9.158", "<b>STEP-Import in den Editor genau wie die STEP</b>: Gehrungen mit einem Schlitz an der Spitze, "
                 "Ausklinkungen und andere komplexe Enden lagen im Rohr-Editor als gerades Ende (bis 80 mm daneben), "
                 "der Schlitz fehlte. Jetzt stehen alle Enden in Editor, Skizze und 3D wie in der STEP; ein Schlitz, "

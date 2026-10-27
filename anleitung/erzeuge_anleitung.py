@@ -1047,7 +1047,9 @@ def kapitel_angebot(i):
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel SN und Stundensatz der Maschine zur Information, "
             "Rüstzeit je Maschine nur, wenn sie nicht 0 min ist; Stangenwechsel je Stange, Rüstzeit je Abmessung, "
             "Programmierzeit je Position und je Innenkontur änderbar; wahlweise <b>Rüsten je Angebot [€]</b> und "
-            "<b>Rüsten je Abmessung [€]</b> als fester Betrag statt Minuten × Stundensatz, leer = Minuten, "
+            "<b>Rüsten je Abmessung [€]</b> als fester Betrag statt Minuten × Stundensatz (die Rüstzeit für Zeiten, "
+            "Werkstattpapiere und Nachkalkulation ist dann Betrag ÷ Stundensatz, z. B. 30 € bei 90 €/h = 20 min), "
+            "leer = Minuten, "
             "einblendbar über die Sichtbarkeit, Vorgabe in den Einstellungen), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
@@ -4983,7 +4985,8 @@ def kapitel_einstellungen(i):
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
         ["Kalkulation", "Rüsten je Abmessung als Betrag [€], Rüsten je Angebot als Betrag [€] (leer = Minuten)",
-         "fester Betrag statt Rüstzeit × Stundensatz (je verschiedenem Profil bzw. einmal je Angebot); Vorgabe neuer "
+         "fester Betrag statt Rüstzeit × Stundensatz (je verschiedenem Profil bzw. einmal je Angebot), Rüstzeit = "
+         "Betrag ÷ Stundensatz; Vorgabe neuer "
          "Angebote, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
          "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
