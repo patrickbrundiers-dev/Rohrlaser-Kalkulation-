@@ -175,7 +175,8 @@ fenster.einstellungen.felder["gewinn"].editingFinished.emit()
 assert db.einstellung("gewinn") == 0.125
 # Reiter: Kunden eigener Reiter, die übrigen Stammdaten und die Vorgaben unter Einstellungen (mit Passwort)
 haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
-assert haupt == ["Start", "Angebote", "Versand", "Kunden", "Frachtkosten", "Zukaufartikel", "Einstellungen"], haupt
+assert haupt == ["Start", "Angebote", "Versand", "Fertigung", "Lager", "Kunden", "Frachtkosten", "Zukaufartikel",
+                 "Einstellungen"], haupt
 b = fenster.bereich
 assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
@@ -185,7 +186,7 @@ assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Pro
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren", "Schweiß-Vorkalkulation",
                                                                  "Importprofile (STEP)", "Kundenvorgaben",
-                                                                 "Stundensätze und Zeitvorgaben"]
+                                                                 "Arbeitsgang-Regeln", "Stundensätze und Zeitvorgaben"]
 assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
 fenster.zeigen(seite)
 assert fenster.reiter.currentWidget() is b and b.stapel.currentIndex() == 0       # erst die Passwortabfrage

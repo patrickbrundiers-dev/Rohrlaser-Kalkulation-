@@ -852,12 +852,31 @@ def _schweissplan(plan):
     return out
 
 
+def _freigabe_block(f):
+    """Freigegebener Auftragsstand (fertigung.py): Version, Warnung bei Änderung danach und Positionen mit stabiler
+    ID, damit Rückfragen aus der Werkstatt eindeutig einer Angebotsposition zugeordnet werden."""
+    if not f or not f.get("text"):
+        return []
+    out = [Spacer(1, 1 * mm), _p(f["text"], S_KLEIN)]
+    if f.get("warnung"):
+        out.append(_p(f["warnung"], S_ROT))
+    if f.get("positionen"):
+        daten = [_kopfzeile(["Pos.", "ID", "Artikelnummer", "Bezeichnung", "Stück"])]
+        for p in f["positionen"]:
+            daten.append([_p(_z(p["pos"], 0), S_FETT), str(p["id"]), _p(p["artikel"], S_KLEIN),
+                          _p(p["bezeichnung"], S_KLEIN), _z(p["stueck"], 0)])
+        out += [_p("Positionen des Auftrags", S_H2), _tabelle(daten, [14 * mm, 16 * mm, 50 * mm, 86 * mm, 20 * mm],
+                                                               rechts=(4,))]
+    return out + [Spacer(1, 3 * mm)]
+
+
 def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     """wp = ausgabe.werkstatt(...). Schnittpläne hochkant, danach das Stangenbild quer – eine Datei."""
     nr = kopf.get("nummer") or ""
     doc, leinwand = _dokument(pfad, f"Werkstattpapiere {nr}", _fuss(einst, f"Werkstattpapier {nr}"), auch_quer=True)
     achtung = "ACHTUNG: Schnittplan passt nicht zum aktuellen Angebot (Optimierung veraltet)."
     inhalt = _dok_kopf("Werkstattpapiere – Schnittpläne", kopf, einst, 186 * mm, warnung=None if aktuell else achtung)
+    inhalt += _freigabe_block(wp.get("freigabe"))
     inhalt.append(_p("Materialliste", S_H2))
     daten = [_kopfzeile(["Profil", "Werkstoff", "Stange [mm]", "Stangen", "Gewicht [kg]"])]
     for m in wp["material"]:

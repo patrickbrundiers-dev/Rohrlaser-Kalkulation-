@@ -640,6 +640,36 @@ IMPORTPROFILE = Tabelle(
     "Normteile zusätzlich: Begriffe zu denen aus der Einstellung, Teile mit diesen Wörtern im Namen sind im "
     "Prüfdialog abgewählt.")
 
+# Regeln für Arbeitsgang-Vorschläge (Wettbewerbsvergleich P1-4, arbeitsgaenge.py): Bedingungen aus Profil, Werkstoff,
+# Oberfläche, Kunde, Stichwort und Merkmal der Position schlagen eine Zusatzarbeit vor; gerechnet wird sie erst, wenn
+# sie im Angebot angenommen ist (dann steht sie mit Preisstand in den Zusatzarbeiten der Position)
+REGEL_MERKMALE = ("immer", "Gewinde", "Bohrungen", "Innenkonturen", "Schräges Ende", "Zukaufteil",
+                  "Schweißbaugruppe")
+REGEL_MENGEN = ("automatisch", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen")
+ARBEITSGANG_REGELN = Tabelle(
+    "arbeitsgang_regeln", "Arbeitsgang-Regeln",
+    (Feld("name", "Regel", pflicht=True, breite=150),
+     Feld("zusatzarbeit", "Vorgeschlagene Zusatzarbeit", pflicht=True, breite=150),
+     Feld("merkmal", "Wenn Merkmal", "auswahl", auswahl="regelmerkmal", breite=110),
+     Feld("stichwort", "Stichwörter in Bezeichnung/Artikel (; getrennt)", breite=170),
+     Feld("profilform", "Profilform", "auswahl", auswahl="profilform", breite=100),
+     Feld("kategorie", "Werkstoff-Kategorie", "auswahl", auswahl="kategorie", breite=100),
+     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", breite=110),
+     Feld("oberflaeche", "Oberfläche", "auswahl", auswahl="oberflaeche", breite=90),
+     Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", breite=100),
+     Feld("min_stueck", "ab Stückzahl", "ganz", 0, 1000000, breite=70),
+     Feld("menge_art", "Menge je Teil", "auswahl", auswahl="regelmenge", breite=120),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("name",),
+    "Regeln für „Arbeitsgänge vorschlagen …“ im Angebot: Trifft eine Position alle ausgefüllten Bedingungen "
+    "(leer = egal; Stichwörter: eines genügt, Groß-/Kleinschreibung egal), schlägt das Programm die Zusatzarbeit vor. "
+    "Ein Vorschlag kostet nichts, bis er im Angebot angenommen ist; dann steht er mit Preisstand und Herkunft "
+    "„Regel: …“ in den Zusatzarbeiten der Position. Abgelehnte Vorschläge merkt sich die Position. Menge je Teil: "
+    "automatisch = wie in den Zusatzarbeiten (kg, m², m bzw. 1 Stück), sonst die Anzahl Gewinde, Bohrungen oder "
+    "Innenkonturen des Teils.")
+
+
 # Plan Arbeitsabläufe W2 (Freigabe F3b): Vorgaben je Kunde für den Angebotskopf, getrennt von den Importprofilen;
 # angewandt von kundenvorgabe.py beim Anlegen eines Angebots und beim Wählen des Kunden
 KUNDENVORGABEN = Tabelle(
@@ -692,7 +722,8 @@ KONTUR_VORLAGEN = Tabelle(
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             PRUEFREGELN, SCHWEISSVERFAHREN,
-            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN)
+            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN,
+            ARBEITSGANG_REGELN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -1021,6 +1052,22 @@ EINSTELLUNGEN = (
     # Hinweis bei Beauftragt und Anhang an die Werkstattpapiere ausgeblendet; gespeicherte Versanddaten bleiben
     Einstellung("versand_aktiv", "Reiter Versand und Palettenbegleitschein verwenden", "Versand", "auswahl", "ja",
                 auswahl="janein"),
+    # Materialbestand und Reststücke (Wettbewerbsvergleich P0-1, lager.py; Patrick 27.10.2026: Reststücke optional,
+    # Vorgabe aus). Ohne 'lager_aktiv' kein Reiter Lager, Angebote wie bisher
+    Einstellung("lager_aktiv", "Materialbestand verwenden (Reiter Lager)", "Lager und Fertigung", "auswahl", "nein",
+                auswahl="janein"),
+    Einstellung("reste_aktiv", "Reststücke verwalten (lagern und wieder einplanen)", "Lager und Fertigung", "auswahl",
+                "nein", auswahl="janein"),
+    Einstellung("rest_min_laenge", "Reststücke: kürzester Rest, der ins Lager kommt [mm]", "Lager und Fertigung",
+                "zahl", 500.0, 0, 20000),
+    Einstellung("restwert_anteil", "Reststücke und Lagerstangen: Wert in Prozent des Materialpreises",
+                "Lager und Fertigung", "anteil", 1.0, 0, 1),
+    # Fertigungsstatus beauftragter Angebote (Wettbewerbsvergleich P1-6, fertigung.py)
+    Einstellung("fertigung_aktiv", "Reiter Fertigung verwenden (Status beauftragter Angebote)", "Lager und Fertigung",
+                "auswahl", "ja", auswahl="janein"),
+    Einstellung("fertigung_status", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
+                "Lager und Fertigung", "mehrzeilig", "Freigegeben\nArbeitsvorbereitung\nMaterial bereit\nIn Fertigung\n"
+                "Fremdvergabe\nQualitätsprüfung\nFertig gemeldet"),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
                 1200, 200, 3000),
     Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",
@@ -1216,6 +1263,7 @@ class Kontext:
                          "schweissverfahren": list(self.schweissverfahren), "nahtart": list(NAHTARTEN),
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
+                         "regelmerkmal": list(REGEL_MERKMALE), "regelmenge": list(REGEL_MENGEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
                          "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
                          "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
@@ -1431,7 +1479,21 @@ def beispieldaten():
         "blechlaser": zeilen(BLECHLASER, beispiel_blechlaser()),
         "blech_kfaktoren": zeilen(BLECH_KFAKTOREN, beispiel_blech_kfaktoren()),
         "pruefregeln": zeilen(PRUEFREGELN, dfm.beispiel_regeln()),
+        "arbeitsgang_regeln": beispiel_arbeitsgang_regeln(),
     }
+
+
+def beispiel_arbeitsgang_regeln():
+    """Vorbelegung Arbeitsgang-Regeln (Beispiele, bitte an die eigene Fertigung anpassen)."""
+    def r(name, zusatzarbeit, **w):
+        return dict({f.name: None for f in ARBEITSGANG_REGELN.felder}, **dict(
+            dict(name=name, zusatzarbeit=zusatzarbeit, aktiv="ja", menge_art="automatisch"), **w))
+    return [r("Verzinkt laut Bezeichnung", "Feuerverzinken", stichwort="verzinkt;feuerverzinkt;fvz",
+              kategorie="Stahl", bemerkung="Beispiel: Stichwort in Bezeichnung oder Artikelnummer"),
+            r("Pulver laut Bezeichnung", "Pulverbeschichten", stichwort="pulver;RAL",
+              bemerkung="Beispiel: Farbe je Position als Text ergänzen"),
+            r("Entgraten bei Innenkonturen", "Entgraten", merkmal="Innenkonturen", aktiv="nein",
+              bemerkung="Beispiel, aus: bei Bedarf aktivieren")]
 
 
 def beispiel_blech_werkstoffe():

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import einblendung, stil
+from . import einblendung, step_pruefung, stil
 from . import hilfe
 from .ansicht3d import ARTEN, TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
@@ -70,7 +70,9 @@ def _messinfo(m):
             f"{m.get('konturen') or 0}" + (f"<br>{anbau}" if anbau else "")
             + (f" · {m['hinweise']}" if m.get("hinweise") else "")
             + (f"<br><b style='color:{farbe}'>Prüfstatus: {status}</b>" if status else "")
-            + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else ""))
+            + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else "")
+            + "<br>" + step_pruefung.html(step_pruefung.merkmale(m, step.gewinde_vorschlag(m.get("bohrungen"),
+                                                                                           step.KERNLOCH))))
 
 
 class _Mit3D(QDialog):

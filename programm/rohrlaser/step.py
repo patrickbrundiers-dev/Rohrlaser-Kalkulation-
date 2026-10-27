@@ -11,7 +11,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile, virtuell
+from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile, step_pruefung, virtuell
 
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -1855,6 +1855,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            # Prüfstatus je Merkmal mit Rohdaten (Wettbewerbsvergleich P0-3); Profil im Prüfdialog geändert = Korrektur
+            p["step_merkmale"] = step_pruefung.speicherwert(m, vorschlag, jetzt)
+            if m.get("_profil") and pid != profil_vorschlag(m, profile):
+                p["step_merkmale"] = step_pruefung.korrektur(p["step_merkmale"], "profil_id",
+                                                             profil_vorschlag(m, profile) or m.get("profilform"), pid,
+                                                             jetzt)
             neu.append(_zusatz_wahl(p, m, zusatz_katalog))
             ziel = naechste
             diesmal[art] = p
@@ -1903,6 +1909,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            # Prüfstatus je Merkmal mit Rohdaten (Wettbewerbsvergleich P0-3); Profil im Prüfdialog geändert = Korrektur
+            p["step_merkmale"] = step_pruefung.speicherwert(m, vorschlag, jetzt)
+            if m.get("_profil") and pid != profil_vorschlag(m, profile):
+                p["step_merkmale"] = step_pruefung.korrektur(p["step_merkmale"], "profil_id",
+                                                             profil_vorschlag(m, profile) or m.get("profilform"), pid,
+                                                             jetzt)
             neu.append(_zusatz_wahl(p, m, zusatz_katalog))
             ziel = naechste
             diesmal[art] = p
@@ -2047,6 +2059,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz"
                                 + (f" (Körper {', '.join(messwerte[j].get('koerper') for j in gruppen[i])})" if anzahl > 1 else ""))
                 satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            # Prüfstatus je Merkmal mit Rohdaten (Wettbewerbsvergleich P0-3); Profil im Prüfdialog geändert = Korrektur
+            p["step_merkmale"] = step_pruefung.speicherwert(m, vorschlag, jetzt)
+            if m.get("_profil") and pid != profil_vorschlag(m, profile):
+                p["step_merkmale"] = step_pruefung.korrektur(p["step_merkmale"], "profil_id",
+                                                             profil_vorschlag(m, profile) or m.get("profilform"), pid,
+                                                             jetzt)
             neu.append(_zusatz_wahl(p, m, zusatz_katalog))
             ziel = naechste
             diesmal[art] = p
