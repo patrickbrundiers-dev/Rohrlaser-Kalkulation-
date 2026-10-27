@@ -11,7 +11,9 @@ Zeile: {art, d, anzahl, status, …}; status offen / bestätigt / abgelehnt.
   Gewindeformen (Kernloch nach FLIESSLOCH_KERN). Abgelehnt = normale Bohrung Ø d, die der Laser schneidet.
 - art "Bohren": Bohrung Ø d kleiner als 0,7 × Wandstärke (rechnen.KONTUR_MIN_WAND), die der Laser kaum sauber
   schneidet. Offen und abgelehnt schneidet der Laser sie wie gemessen; bestätigt markiert er nur (Gravur oder Loch
-  Ø 0,5 wie beim Flowdrill), danach wird aufgebohrt.
+  Ø 0,5 wie beim Flowdrill), danach wird aufgebohrt. 3. Option laser = SCHNEIDEN (Patrick 27.10.2026): der Laser
+  schneidet den Ø trotzdem, ohne anschließendes Bohren (Schneidweg wie gemessen, keine Zusatzarbeit, keine Warnung).
+  Vorgabe der Wahl: Einstellung bohren_laser.
 
 Arbeitsschritt als Zusatzarbeit (ZUSATZ_ARBEIT): bestätigte Senkungen, Flowdrill und Bohren tragen beim Übernehmen
 die Zusatzarbeiten Senken, Flowdrill bzw. Bohren mit der Anzahl je Teil in die Position ein (quelle = QUELLE);
@@ -26,11 +28,13 @@ import json
 import math
 
 from . import rechnen
-from .stammdaten import FLIESSLOCH_LASER, ZUSATZ_BOHREN, ZUSATZ_FLOWDRILL, ZUSATZ_SENKEN
+from .stammdaten import BOHREN_LASER, BOHREN_SCHNEIDEN, FLIESSLOCH_LASER, ZUSATZ_BOHREN, ZUSATZ_FLOWDRILL, ZUSATZ_SENKEN
 
 OFFEN, BESTAETIGT, ABGELEHNT = "offen", "bestätigt", "abgelehnt"
 LASER = FLIESSLOCH_LASER
 GRAVUR, LOCH = LASER
+SCHNEIDEN = BOHREN_SCHNEIDEN        # Bohren: Ø trotzdem schneiden, kein Bohren
+LASER_BOHREN = BOHREN_LASER         # Auswahl für Zeilen 'Bohren' (Gravur, Loch Ø 0,5, Ø schneiden)
 MARKE_D = rechnen.MARKIERLOCH          # Ø der Markierung für Fließlochbohrungen [mm]
 # Kernloch fürs Gewindeformen nach Fließlochbohrung (Richtwerte Flowdrill), nicht DIN 336
 FLIESSLOCH_KERN = (("M5", 4.5), ("M6", 5.4), ("M8", 7.3), ("M10", 9.2), ("M12", 10.9), ("M16", 14.8))
@@ -67,20 +71,36 @@ def zu_klein(d, wand):
         MARKE_D < round(float(d or 0), 2) < round(rechnen.KONTUR_MIN_WAND * wand, 2)
 
 
+def _bohren_laser(laser):
+    return laser if laser in LASER_BOHREN else GRAVUR
+
+
+def nur_schneiden(z):
+    """Zeile 'Bohren', die der Laser trotzdem im vollen Ø schneidet (kein Bohren, keine Warnung)."""
+    return z.get("art") == BOHREN and z.get("laser") == SCHNEIDEN and z.get("status") != OFFEN
+
+
+def gelasert(liste):
+    """Ø (auf 0,1 gerundet) der Bohren-Zeilen, die der Laser bewusst schneidet: abgelehnt oder Ø schneiden."""
+    return {round(float(z.get("d") or 0), 1) for z in liste
+            if z.get("art") == BOHREN and (z.get("status") == ABGELEHNT or nur_schneiden(z))}
+
+
 def bohren_zeilen(bohrungen, wand, laser=GRAVUR, vorhanden=()):
-    """Zeilen 'Bohren' für die Bohrungen [(Ø, Anzahl)] kleiner als 0,7 × Wandstärke, ohne die Ø in vorhanden."""
+    """Zeilen 'Bohren' für die Bohrungen [(Ø, Anzahl)] kleiner als 0,7 × Wandstärke, ohne die Ø in vorhanden;
+    laser = Vorgabe (Gravur/Loch Ø 0,5 und aufbohren oder SCHNEIDEN)."""
     summe = {}
     for d, n in bohrungen:
         if zu_klein(d, wand) and round(d, 2) not in vorhanden:
             summe[round(d, 2)] = summe.get(round(d, 2), 0) + int(n)
-    return [dict(art=BOHREN, d=d, anzahl=n, laser=laser if laser in LASER else GRAVUR, status=OFFEN)
+    return [dict(art=BOHREN, d=d, anzahl=n, laser=_bohren_laser(laser), status=OFFEN)
             for d, n in sorted(summe.items()) if n > 0]
 
 
-def aus_messung(m, gewinde, laser=GRAVUR, wand=None):
+def aus_messung(m, gewinde, laser=GRAVUR, wand=None, bohren_laser=None):
     """Zeilen aus den Messwerten eines Teils (Spalten bohrungen, senkungen, fliessloecher); gewinde = [(Gewinde,
-    Kernloch)] der Stammdaten. Alle Zeilen offen; laser = Vorgabe für Fließlochbohrungen und Bohren; mit wand
-    (Wandstärke) zusätzlich Bohren für Bohrungen kleiner als 0,7 × Wand."""
+    Kernloch)] der Stammdaten. Alle Zeilen offen; laser = Vorgabe für Fließlochbohrungen und (ohne bohren_laser)
+    Bohren; mit wand (Wandstärke) zusätzlich Bohren für Bohrungen kleiner als 0,7 × Wand."""
     out = []
     bohrungen = [(d, n) for (d,), n in _paare(m.get("bohrungen"))]
     for d, n in bohrungen:
@@ -92,10 +112,10 @@ def aus_messung(m, gewinde, laser=GRAVUR, wand=None):
     for (d,), n in _paare(m.get("fliessloecher")):
         out.append(dict(art="Fließloch", d=d, anzahl=n, gewinde=_gewinde(d, FLIESSLOCH_KERN, 0.15),
                         laser=laser if laser in LASER else GRAVUR, status=OFFEN))
-    return out + bohren_zeilen(bohrungen, wand, laser)
+    return out + bohren_zeilen(bohrungen, wand, bohren_laser or laser)
 
 
-def aus_rechner(erg, alt, gewinde, wand=None, laser=GRAVUR):
+def aus_rechner(erg, alt, gewinde, wand=None, laser=GRAVUR, bohren_laser=None):
     """Bohrbild nach dem Schneidweg-Rechner (Ergebnis schneidweg.rechnen): Gewinde der Bohrungen (Spalte Gewinde der
     Konturzeile, sonst Vorschlag nach dem Kernloch), Senkungen, Flowdrill und Bohren (< 0,7 × Wand) aus den
     Eingaben. Was im Rechner eingegeben ist, gilt als bestätigt (Patrick 23.10.2026); Zeilen gleicher Art und
@@ -128,7 +148,8 @@ def aus_rechner(erg, alt, gewinde, wand=None, laser=GRAVUR):
     summe = {}
     for (d, _, _), n in bohr.items():
         summe[d] = summe.get(d, 0) + n
-    neu += [(dict(z, status=BESTAETIGT), False) for z in bohren_zeilen(sorted(summe.items()), wand, laser)]
+    neu += [(dict(z, status=BESTAETIGT), False)
+            for z in bohren_zeilen(sorted(summe.items()), wand, bohren_laser or laser)]
     vorher = {(z.get("art"), round(float(z.get("d") or 0), 2)): z for z in alt or ()}
     out = []
     for z, hand in neu:
@@ -198,7 +219,7 @@ def zusatz(liste):
         n = int(z.get("anzahl") or 0)
         if z["art"] == "Senkung" and z.get("gravur") and z.get("status") != ABGELEHNT and z.get("D"):
             out["gravur"] += n * math.pi * float(z["D"])
-        elif z["art"] == BOHREN and z.get("status") == BESTAETIGT:
+        elif z["art"] == BOHREN and z.get("status") == BESTAETIGT and z.get("laser") != SCHNEIDEN:
             d = float(z.get("d") or 0)        # gemessene Bohrung fällt weg, der Laser markiert nur
             out["schneidweg"] -= n * math.pi * d
             out["weg"] += [(d, math.pi * d)] * n
@@ -245,7 +266,7 @@ def arbeiten(liste):
     out = {}
     for z in liste:
         name = ZUSATZ_ARBEIT.get(z.get("art"))
-        if name and z.get("status") == BESTAETIGT and int(z.get("anzahl") or 0) > 0:
+        if name and z.get("status") == BESTAETIGT and int(z.get("anzahl") or 0) > 0 and not nur_schneiden(z):
             out[name] = out.get(name, 0) + int(z["anzahl"])
     return out
 
@@ -255,7 +276,8 @@ def arbeit_preise(liste):
     out = {}
     for z in liste:
         name = ZUSATZ_ARBEIT.get(z.get("art"))
-        if name and z.get("status") == BESTAETIGT and isinstance(z.get("preis"), (int, float)):
+        if name and z.get("status") == BESTAETIGT and isinstance(z.get("preis"), (int, float)) \
+                and not nur_schneiden(z):
             out[name] = float(z["preis"])
     return out
 
@@ -315,6 +337,8 @@ def text(liste):
         elif z["art"] == "Fließloch":
             out.append(f"{z['anzahl']}x Flowdrill Ø{dez(z['d'])}"
                        + (f" ({z['gewinde']})" if z.get("gewinde") else ""))
+        elif nur_schneiden(z):
+            out.append(f"{z['anzahl']}x Ø{dez(z['d'])} geschnitten (ohne Bohren)")
         elif z["art"] == BOHREN:
             out.append(f"{z['anzahl']}x Bohren Ø{dez(z['d'])}")
     return "; ".join(out)

@@ -1727,7 +1727,7 @@ def eindeutige_artikel(messwerte):
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
-                blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None):
+                bohren_laser=None, blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -2062,7 +2062,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             # Gewinde-Vorschläge, Senkungen, Fließlochbohrungen, Bohren (< 0,7 × Wand): offen bis 'Bohrungen prüfen'
             # (bohrbild.py), erst dann die Zusatzarbeiten Senken, Flowdrill, Bohren
             bild = bohrbild.aus_messung(m_bild, gewinde, fliessloch_laser or bohrbild.GRAVUR,
-                                        regel[4] if len(regel) >= 5 else None)
+                                        regel[4] if len(regel) >= 5 else None, bohren_laser)
             if bild:
                 p.update(bohrbild.anwenden(p, bild))
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None

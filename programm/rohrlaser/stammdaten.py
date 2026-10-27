@@ -747,6 +747,10 @@ ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT = (
 LIEFERZEIT_ARTEN = (ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT)
 # Was der Laser an einer Fließlochbohrung (Flowdrill) macht (bohrbild.py): Markierung als Gravur oder kleines Loch
 FLIESSLOCH_LASER = ("Gravur Ø0,5", "Loch Ø0,5")
+# Bohrung kleiner als 0,7 × Wand (Bohren): wie Flowdrill markieren und aufbohren, oder als 3. Option den Ø trotzdem
+# schneiden, ohne anschließendes Bohren (Patrick 27.10.2026)
+BOHREN_SCHNEIDEN = "Ø schneiden (ohne Bohren)"
+BOHREN_LASER = FLIESSLOCH_LASER + (BOHREN_SCHNEIDEN,)
 # STEP-Import, Vorgabe für ebene flache Teile (Patrick 22.10.2026: vorerst immer Blech, Flachstahl im Prüfdialog wählbar)
 FLACH_ALS = ("Blech", "Flachstahl bis Breite (Einstellung darunter)")
 # Herkunft des Materials je Position (angebot.POSITIONEN 'material_herkunft'): leer = Eigenmaterial (wie bisher);
@@ -930,6 +934,10 @@ EINSTELLUNGEN = (
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
     Einstellung("fliessloch_laser", "STEP-Import: Flowdrill-Bohrung am Laser", "STEP-Import", "auswahl",
                 FLIESSLOCH_LASER[0], auswahl="fliesslochlaser"),
+    # Vorgabe für Bohrungen kleiner als 0,7 × Wandstärke (STEP-Import und alle Editoren): markieren + Bohren oder
+    # den Ø trotzdem schneiden, ohne Bohren (bohrbild.SCHNEIDEN)
+    Einstellung("bohren_laser", "Bohrung kleiner als 0,7 × Wandstärke am Laser", "STEP-Import", "auswahl",
+                BOHREN_LASER[0], auswahl="bohrenlaser"),
     # Teile mit diesen Wörtern im Bauteilnamen sind Normteile: im Prüfdialog abgewählt (importprofil.py)
     Einstellung("step_normteile", "Normteile: Begriffe im Bauteilnamen (mit ; getrennt)", "STEP-Import", "text",
                 "ISO; DIN; Schraube; Mutter; Scheibe; Stift; Niet; Normteil"),
@@ -1246,6 +1254,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
