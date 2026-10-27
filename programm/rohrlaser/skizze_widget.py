@@ -209,10 +209,19 @@ class Skizze(QWidget):
         qs = self.qs
         la, lb = sk.ende_abwicklung(qs, e_a), sk.ende_abwicklung(qs, e_b)
         umriss = [self._bild(a, d, s) for s, d in la] + [self._bild(a, self.L - d, s) for s, d in reversed(lb)]
-        g.setPen(QPen(FARBE_TEIL, 1.4))
+        g.setPen(Qt.NoPen)
         g.setBrush(QBrush(FARBE_SCHNITT))       # Material kräftiger, damit die Ausschnitte (Grund) hervortreten
         g.drawPolygon(QPolygonF(umriss))
         g.setBrush(Qt.NoBrush)
+        g.setPen(QPen(FARBE_TEIL, 1.4))
+        # Umriss ohne die Mündungen der Ausflüge am Ende (Schlitz, der ins Ende läuft: dort ist das Teil offen)
+        konturen = self.eingaben.get("konturen") or ()
+        for linie_, ende_, hinten in ((la, "A", False), (lb, "B", True)):
+            muend = [k["muendung"] for k in konturen if k.get("ende_teil") == ende_ and k.get("muendung")]
+            for teil in sk.ohne_muendung(qs, linie_, muend):
+                g.drawPolyline(QPolygonF([self._bild(a, self.L - d if hinten else d, s) for s, d in teil]))
+        for s_ in (0.0, qs.umfang):             # Ränder der Abwicklung
+            g.drawLine(self._bild(a, self._d_bei(la, s_), s_), self._bild(a, self.L - self._d_bei(lb, s_), s_))
         # Enden in 3D: Stücke über der Schwenkgrenze gelb (Plan 3E-10, wie im 3D)
         wand = getattr(qs, "wand", 0) or 0
         for e_, linie_, hinten in ((e_a, la, False), (e_b, lb, True)):
@@ -334,8 +343,11 @@ class Skizze(QWidget):
                     wahl = d["zeile"] == self.markiert and not self.druck
                     farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
                     g.setPen(QPen(farbe, 2.2 if wahl else 1.3))
+                    i_m = sk.muendung_ende(d["eingabe"], sk.umriss_kontur(d["eingabe"]))
                     for i in range(len(pts3)):
                         j = (i + 1) % len(pts3)
+                        if i_m is not None and i >= i_m:
+                            break               # Ausflug eines Endes: zur Mündung hin offen
                         if min(sk.sichtbar(ns[i], a[0]), sk.sichtbar(ns[j], a[0])) >= -0.01:
                             g.drawLine(poly[i], poly[j])
                     r = poly.boundingRect()
@@ -361,6 +373,13 @@ class Skizze(QWidget):
             r = poly.boundingRect()
             if r.width() < 3 and r.height() < 3:
                 g.drawEllipse(r.center(), 2.5, 2.5)
+            elif d["eingabe"].get("muendung") and sk.muendung_ende(d["eingabe"], sk.umriss_kontur(d["eingabe"])):
+                i_m = sk.muendung_ende(d["eingabe"], sk.umriss_kontur(d["eingabe"]))
+                stift_ = g.pen()
+                g.setPen(Qt.NoPen)
+                g.drawPolygon(poly)             # Fläche ganz, Linie zur Mündung hin offen (wie in der STEP)
+                g.setPen(stift_)
+                g.drawPolyline(QPolygonF([poly[i] for i in range(min(i_m + 1, poly.size()))]))
             elif not (d["art"] == sw.TEXT_GRAVUR and self._text_zeichnen(g, a, d)):
                 g.drawPolygon(poly)
             if begrenzt:

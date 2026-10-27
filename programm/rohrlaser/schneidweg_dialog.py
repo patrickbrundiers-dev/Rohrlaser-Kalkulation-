@@ -247,8 +247,6 @@ class SchneidwegDialog(QDialog):
             sa.valueChanged.connect(self.rechnen)
             ri = QComboBox()
             ri.addItems(list(sw.RICHTUNGEN))
-            ri.setCurrentText(next((t for t, v in sw.RICHTUNGEN.items() if v == e[seite].get("richtung")),
-                                   sw.AUTOMATISCH))
             ri.setEnabled(form in sw.MIT_RICHTUNG)
             ri.setToolTip("Gehrung: Seite, an der das Teil an diesem Ende am längsten ist (Blick von Ende A, "
                           "Rechteckrohr mit der Breitseite oben). „automatisch“: aus „gekippt über“ angenommen, die "
@@ -256,6 +254,7 @@ class SchneidwegDialog(QDialog):
             ri.currentTextChanged.connect(self.rechnen)
             gm = QLabel()
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
+            self._richtung_setzen(seite, e[seite].get("richtung"))
             self.winkel_b[seite] = wb
             self.gemessen_text[seite] = gm
             enden.addWidget(QLabel(titel), r, 0)
@@ -1017,7 +1016,8 @@ class SchneidwegDialog(QDialog):
         # Eigenschaften je Kontur (3E-4, nur im Eigenschaften-Feld): Drehwinkel, Bezug der Lage, Schnittrichtung, Wände
         art.eig = {k_: z[k_] for k_ in EIGENSCHAFTEN if z.get(k_) not in (None, "", 0)}
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
-        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle") if z.get(k_) is not None}
+        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle", "ende_teil", "muendung")
+                 if z.get(k_) is not None}
         art.extra = (art.currentText(), extra) if extra else None
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
             art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
@@ -1061,6 +1061,29 @@ class SchneidwegDialog(QDialog):
                 f.blockSignals(False)
         self._gegen_text(s)
         self.rechnen()
+
+    def _richtung_setzen(self, s, wert):
+        """Längste Seite eines Endes anzeigen: 0/90/180/270° bzw. automatisch aus der Liste; eine gemessene Richtung
+        dazwischen (Schrägschnitt zweiachsig aus der STEP, z. B. 323,9°) als eigener Eintrag „gemessen“, sonst ging
+        sie im Editor verloren und der Schnitt lag gedreht (Patrick 27.10.2026)."""
+        ri = self.richtung[s]
+        ri.blockSignals(True)
+        while ri.count() > len(sw.RICHTUNGEN):
+            ri.removeItem(ri.count() - 1)
+        if isinstance(wert, (int, float)) and not isinstance(wert, bool) and \
+                all(v is None or abs(float(wert) % 360 - v) > 1e-6 for v in sw.RICHTUNGEN.values()):
+            ri.addItem(f"gemessen ({rechnen.zahl(float(wert) % 360, 1)}°)", float(wert) % 360)
+            ri.setCurrentIndex(ri.count() - 1)
+        else:
+            ri.setCurrentText(next((t for t, v in sw.RICHTUNGEN.items() if v is not None and isinstance(
+                wert, (int, float)) and abs(float(wert) % 360 - v) < 1e-6), sw.AUTOMATISCH))
+        ri.blockSignals(False)
+
+    def _richtung_wert(self, s):
+        ri = self.richtung[s]
+        if ri.currentIndex() >= len(sw.RICHTUNGEN):
+            return ri.currentData()
+        return sw.RICHTUNGEN.get(ri.currentText())
 
     def _ende_werte(self, s):
         return (self.winkel[s].value(), self.achse[s].currentText(), self.sattel[s].value(),
@@ -1167,7 +1190,7 @@ class SchneidwegDialog(QDialog):
             konturen.append(z)
         enden = {s: dict(winkel=self.winkel[s].value(), achse=self.achse[s].currentText(),
                          sattel=self.sattel[s].value() or None,
-                         richtung=sw.RICHTUNGEN.get(self.richtung[s].currentText())) for s in ("a", "b")}
+                         richtung=self._richtung_wert(s)) for s in ("a", "b")}
         for s in ("a", "b"):            # zweiachsig: Winkel über Höhe und Breite, winkel = Gesamtneigung der Ebene
             if enden[s]["achse"] == sw.ACHSE_ZWEI:
                 w_h, w_b = self.winkel[s].value(), self.winkel_b[s].value()
@@ -1304,8 +1327,7 @@ class SchneidwegDialog(QDialog):
                 if x.get("achse") in sw.ACHSEN_WAHL:
                     self.achse[s].setCurrentText(x["achse"])
                 self.sattel[s].setValue(sw._z(x.get("sattel")) if self.sattel[s].isEnabled() else 0)
-                self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
-                                                      if v == x.get("richtung")), sw.AUTOMATISCH))
+                self._richtung_setzen(s, x.get("richtung"))
                 self.gegen[s] = x.get("gegen") if isinstance(x.get("gegen"), dict) and \
                     self.gegen_knopf[s].isEnabled() else None
                 self._gegen_text(s)

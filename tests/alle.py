@@ -51,6 +51,7 @@ TESTS = [
     ("test_virtuell_nutzen.py", QT),
     ("test_nasen_geometrie.py", QT),
     ("test_step_importfehler.py", QT),
+    ("test_step_editor_wie_step.py", QT),
     ("test_step_messung_robust.py", QT),
     ("test_step_struktur.py", {}),
     ("test_step_leistung.py", {}),

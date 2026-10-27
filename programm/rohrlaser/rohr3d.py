@@ -49,27 +49,30 @@ def _unterteilen(poly, teile=None, extra=None):
     return out, anzahl
 
 
-def _knick_anteile(qs, poly, enden):
+def _knick_anteile(qs, poly, enden, extra=()):
     """Knicke der gemessenen Enden (Umriss eines komplexen Endes, Stellen s) als {Kante von poly: [Anteile]}: dort
-    braucht der Umriss einen Punkt, sonst schneidet die Schnittkante die Ecke ab."""
+    braucht der Umriss einen Punkt, sonst schneidet die Schnittkante die Ecke ab. extra: weitere Stellen s (Ränder
+    der Mündungen von Ausflügen, dort endet die Schnittkante genau)."""
     out = {}
+    stellen = list(extra)
     for es in enden:
         if not es.get("umriss") or _z(es.get("winkel")):
             continue
         um = sk._ende_umriss_merken(qs, es["umriss"])
-        for s in getattr(um, "stellen", ()) if um else ():
-            (u, v), _ = qs.s_zu_uv(s % qs.umfang)
-            u, v, _ = sk.rund_ort(qs, u, v)
-            beste = None
-            for i, a in enumerate(poly):
-                b = poly[(i + 1) % len(poly)]
-                du, dv = b[0] - a[0], b[1] - a[1]
-                lg = du * du + dv * dv
-                f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
-                d = (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
-                if beste is None or d < beste[0]:
-                    beste = (d, i, f)
-            out.setdefault(beste[1], []).append(beste[2])
+        stellen += list(getattr(um, "stellen", ()) if um else ())
+    for s in stellen:
+        (u, v), _ = qs.s_zu_uv(s % qs.umfang)
+        u, v, _ = sk.rund_ort(qs, u, v)
+        beste = None
+        for i, a in enumerate(poly):
+            b = poly[(i + 1) % len(poly)]
+            du, dv = b[0] - a[0], b[1] - a[1]
+            lg = du * du + dv * dv
+            f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
+            d = (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
+            if beste is None or d < beste[0]:
+                beste = (d, i, f)
+        out.setdefault(beste[1], []).append(beste[2])
     return out
 
 
@@ -453,7 +456,8 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         return L - (sk.schnitt_x(qs, eb, u, v) if x is None else x) - plus["b"]
 
     roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
-    knicke = _knick_anteile(qs, roh_a, (ea, eb))
+    knicke = _knick_anteile(qs, roh_a, (ea, eb), [s_ for k in e.get("konturen") or () if k.get("muendung")
+                                                  for s_ in k["muendung"]])
     aussen, teile = _unterteilen(roh_a, extra=knicke)
     innen = None
     if len(umriss) > 1 and len(umriss[1]) == len(umriss[0]):
@@ -643,8 +647,9 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
             for a, b, c in _ohrschnitt(aussen):
                 dreieck(art, _xyz(z(*a), *a), _xyz(z(*b), *b), _xyz(z(*c), *c), soll, ende)
         # Schnittkante als Linie (Merkmal Ende)
-        zug = [_xyz(z(u, v), u, v) for u, v in aussen + aussen[:1]]
-        linie(art, zug, (0, 1, 0), f"ende:{art[1].lower()}")
+        muend = [k["muendung"] for k in e.get("konturen") or () if k.get("ende_teil") == art[1] and k.get("muendung")]
+        for teil in _ohne_muendung(qs, aussen + aussen[:1], muend):
+            linie(art, [_xyz(z(u, v), u, v) for u, v in teil], (0, 1, 0), f"ende:{art[1].lower()}")
         for i in sorted(gelb[art[1].lower()]):         # über der 3D-Grenze: gelb über der Schnittkante
             p0, p1 = aussen[i], aussen[(i + 1) % len(aussen)]
             linie("GB", [_xyz(z(*p0), *p0), _xyz(z(*p1), *p1)], (0, 1, 0), ende)
@@ -702,7 +707,12 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                 neu.append(((x, u, v), nr or n_))
             pts, ns = [p_ for p_, _ in neu], [n_ for _, n_ in neu]
         zug = [_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND) for (x, u, v), (nu, nv) in zip(pts, ns + ns[-1:] * len(pts))]
-        if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
+        if ein.get("muendung"):         # Ausflug eines Endes: zur Mündung hin offen
+            basis = fein if geschlossen and (qs.r or (rund and ein.get("umriss"))) else sk.umriss_kontur(ein)
+            i = sk.muendung_ende(ein, basis)
+            if i is not None and len(basis or ()) == len(zug):
+                zug = zug[:i + 1]
+        elif not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
     # Gravur der Anbauteile (STEP-Import, anbau.gravur_zuege): Lage aus der Messung, im selben Rohrsystem
@@ -853,3 +863,25 @@ def durchbruch_koerper(qs, d, n=40):
             ring.append((x, ou + m * nu + gy * tu, ov + m * nv + gy * tv))
         ringe.append(ring + ring[:1])
     return ringe + [[ringe[0][i], ringe[1][i]] for i in range(0, n, max(1, n // 8))]
+
+
+def _ohne_muendung(qs, pts, muend):
+    """Schnittkante eines Endes (Punkte (u, v) des Außenumrisses) ohne die Stücke in den Mündungen [s von, s bis]
+    der Ausflüge (Schlitz o. ä., der in das Ende läuft): dort ist das Teil offen. Liste der Teilzüge."""
+    if not muend:
+        return [pts]
+
+    def offen(u, v):
+        s = sk.uv_zu_s(qs, u, v)
+        return any(0 < (s - a) % qs.umfang < (b - a) % qs.umfang for a, b in muend)
+    out, zug = [], []
+    for i, p in enumerate(pts):
+        if i and offen((p[0] + pts[i - 1][0]) / 2, (p[1] + pts[i - 1][1]) / 2):
+            if len(zug) > 1:
+                out.append(zug)
+            zug = [p]
+            continue
+        zug.append(p)
+    if len(zug) > 1:
+        out.append(zug)
+    return out

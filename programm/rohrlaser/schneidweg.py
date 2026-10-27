@@ -392,7 +392,11 @@ def _umriss_neu(e, alt, profil):
     q0, q1 = sk.Querschnitt(alt), sk.Querschnitt(profil)
     if q0.umfang <= 0 or q1.umfang <= 0:
         return None
-    pts = sk._dicht([(float(x), float(y)) for x, y in e["umriss"]])
+    roh = [(float(x), float(y)) for x, y in e["umriss"]]
+    pts = sk._dicht(roh)
+    offen = bool(e.get("muendung"))        # Teil eines Endes: Umriss zur Mündung hin offen, keine Schließkante
+    if offen:
+        pts = pts[:len(pts) - pts[::-1].index(roh[-1])]
     s0 = sk.s_lage(q0, e)
     m1 = _umfang_s(q1, _umfang_t(q0, s0))
     neu, vor_alt, vor_neu = [], 0.0, 0.0
@@ -404,7 +408,7 @@ def _umriss_neu(e, alt, profil):
         vor_alt, vor_neu = ds, d1
 
     def umfang(p):
-        return sum(math.dist(p[i], p[(i + 1) % len(p)]) for i in range(len(p)))
+        return sum(math.dist(p[i], p[(i + 1) % len(p)]) for i in range(len(p) - offen))
 
     def ausdehnung(p):
         return max(max(x for x, _ in p) - min(x for x, _ in p), max(y for _, y in p) - min(y for _, y in p))
@@ -451,6 +455,10 @@ def kontur_umstellen(e, profil):
             z["seite"] = seite
         if abs(q) > 0.05:
             z["q"] = q
+        if e.get("muendung"):            # offene Stelle am Ende: wie der Umriss Fläche und Anteil behalten
+            from . import skizze as sk
+            q0, q1 = sk.Querschnitt(_messprofil(e["messprofil"])), sk.Querschnitt(profil)
+            z["muendung"] = [round(_umfang_s(q1, _umfang_t(q0, _z(s_))), 2) for s_ in e["muendung"]]
         return z, (alt, z["laenge"])
     return e, None
 
@@ -909,8 +917,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
         if _z(e.get("gemessen")) > 0:
             masse = (masse + " (STEP gemessen)").strip()
         schritte.append(dict(text=f"{n} × {e.get('art')} {masse}".strip() + (f" ({e['text']})" if e.get("text") else ""),
-                             anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=n, huelle=hk, klasse=klasse,
-                             schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
+                             anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=0 if e.get("ende_teil") else n,
+                             huelle=hk, klasse=klasse, schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
         liste += [(hk if hk is not None else OHNE_HUELLE, lg)] * n
     # virtuelles Bauteil (step_schenkel): Stege und Längsschnitte sind schon gemessene Konturen
     sk = None if eingaben.get("stege_virtuell") else \
