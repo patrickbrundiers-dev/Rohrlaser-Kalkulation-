@@ -724,6 +724,20 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         elif not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+        if ein.get("art") == SENKUNG and _z(ein.get("D")) > _z(ein.get("d")):
+            # Rand der Senkung auf der Außenwand wie in der STEP (geschnitten wird nur die Bohrung Ø d)
+            rk = _z(ein.get("D")) / 2
+            try:
+                pts, n_mitte = sk.platzieren(qs, d, [(rk * math.cos(math.pi * i / 24), rk * math.sin(math.pi * i / 24))
+                                                     for i in range(48)])
+            except (ValueError, TypeError, ZeroDivisionError):
+                continue
+            zug = []
+            for x, u, v in pts:
+                r = math.hypot(u, v) or 1.0
+                nu, nv = (u / r, v / r) if qs.r else n_mitte
+                zug.append(_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND))
+            linie("K", zug + zug[:1], _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
     # Gravur der Anbauteile (STEP-Import, anbau.gravur_zuege): Lage aus der Messung, im selben Rohrsystem
     for zug in e.get("anbau_gravur") or ():
         if len(zug) >= 2:

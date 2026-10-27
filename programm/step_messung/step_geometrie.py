@@ -1775,7 +1775,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
             else:
                 # Maße in der Wandebene: entlang der Achse (dz) und quer dazu; die Wanddicke steckt mit im Hüllmaß
                 d.update(art="Ausschnitt", laenge=round(max(dz, quer), 2), breite=round(min(dz, quer), 2),
-                         huellmass=round(max(dz, quer), 2))
+                         huellmass=round(max(dz, quer), 2), richtung=90.0 if dz >= quer else 0.0)   # 90° = längs
                 t.innen_liste.append((max(dz, quer), schnitt))
             liste.append(d)
         if m["art"] in enden:

@@ -74,7 +74,16 @@ class Querschnitt:
                 self.umriss = [[(u1, v1), (u1, -v1), (-u1, -v1), (-u1, -v1 + t), (u1 - t, -v1 + t), (u1 - t, v1)]]
                 self.flaechen = [Flaeche("Schenkel a", (u1, v1), (u1, -v1), (1, 0)),
                                  Flaeche("Schenkel b", (u1, -v1), (-u1, -v1), (0, -1))]
-            elif form in ("U-Profil", "C-Profil"):      # Steg senkrecht vorne, Flansche nach hinten
+            elif form == "C-Profil":    # wie U, Abkantung (Lippe) nach innen: aus der STEP, sonst geschätzt
+                c = _z(profil.get("lippe")) or min(br / 3, h / 4)
+                c = max(t, min(c, v1))
+                self.umriss = [[(u1, -v1), (-u1, -v1), (-u1, -v1 + c), (-u1 + t, -v1 + c), (-u1 + t, -v1 + t),
+                                (u1 - t, -v1 + t), (u1 - t, v1 - t), (-u1 + t, v1 - t), (-u1 + t, v1 - c),
+                                (-u1, v1 - c), (-u1, v1), (u1, v1)]]
+                self.flaechen = [Flaeche("Flansch oben", (-u1, v1), (u1, v1), (0, 1)),
+                                 Flaeche("Steg", (u1, v1), (u1, -v1), (1, 0)),
+                                 Flaeche("Flansch unten", (u1, -v1), (-u1, -v1), (0, -1))]
+            elif form == "U-Profil":    # Steg senkrecht vorne, Flansche nach hinten
                 self.umriss = [[(u1, -v1), (-u1, -v1), (-u1, -v1 + t), (u1 - t, -v1 + t), (u1 - t, v1 - t),
                                 (-u1, v1 - t), (-u1, v1), (u1, v1)]]
                 self.flaechen = [Flaeche("Flansch oben", (-u1, v1), (u1, v1), (0, 1)),
