@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.158", "<b>STEP-Import in den Editor genau wie die STEP</b>: Gehrungen mit einem Schlitz an der Spitze, "
+                "Ausklinkungen und andere komplexe Enden lagen im Rohr-Editor als gerades Ende (bis 80 mm daneben), "
+                "der Schlitz fehlte. Jetzt stehen alle Enden in Editor, Skizze und 3D wie in der STEP; ein Schlitz, "
+                "der ins Ende läuft, ist eine eigene Zeile „Teil von Ende B“ (offen zum Ende, kein eigener Einstich, "
+                "Schneidweg unverändert). Schrägschnitt zweiachsig: gemessene Richtung bleibt im Editor, Spitze auf "
+                "der gerundeten Ecke ([[schneidweg_rechner]]). Ältere Importe: STEP neu einlesen.",
+     "STEP-Import: Gehrungen, Ausklinkungen und Schlitze im Editor genau wie in der STEP."],
     ["0.9.156", "<b>Zusatzarbeiten unter der Position</b>: Mit dem Häkchen <b>Zusatzarbeiten unter Position</b> "
                 "(Vorgabe an) steht unter jeder Position je Arbeitsschritt eine eingerückte Zeile mit Menge, Preis je "
                 "Einheit, Zeit, € je Teil, € der Position und eigen/Fremdleistung, in der Reihenfolge der Werkstatt: "

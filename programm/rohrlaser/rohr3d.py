@@ -643,8 +643,9 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
             for a, b, c in _ohrschnitt(aussen):
                 dreieck(art, _xyz(z(*a), *a), _xyz(z(*b), *b), _xyz(z(*c), *c), soll, ende)
         # Schnittkante als Linie (Merkmal Ende)
-        zug = [_xyz(z(u, v), u, v) for u, v in aussen + aussen[:1]]
-        linie(art, zug, (0, 1, 0), f"ende:{art[1].lower()}")
+        muend = [k["muendung"] for k in e.get("konturen") or () if k.get("ende_teil") == art[1] and k.get("muendung")]
+        for teil in _ohne_muendung(qs, aussen + aussen[:1], muend):
+            linie(art, [_xyz(z(u, v), u, v) for u, v in teil], (0, 1, 0), f"ende:{art[1].lower()}")
         for i in sorted(gelb[art[1].lower()]):         # über der 3D-Grenze: gelb über der Schnittkante
             p0, p1 = aussen[i], aussen[(i + 1) % len(aussen)]
             linie("GB", [_xyz(z(*p0), *p0), _xyz(z(*p1), *p1)], (0, 1, 0), ende)
@@ -702,7 +703,12 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                 neu.append(((x, u, v), nr or n_))
             pts, ns = [p_ for p_, _ in neu], [n_ for _, n_ in neu]
         zug = [_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND) for (x, u, v), (nu, nv) in zip(pts, ns + ns[-1:] * len(pts))]
-        if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
+        if ein.get("muendung"):         # Ausflug eines Endes: zur Mündung hin offen
+            basis = fein if geschlossen and (qs.r or (rund and ein.get("umriss"))) else sk.umriss_kontur(ein)
+            i = sk.muendung_ende(ein, basis)
+            if i is not None and len(basis or ()) == len(zug):
+                zug = zug[:i + 1]
+        elif not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
     # Gravur der Anbauteile (STEP-Import, anbau.gravur_zuege): Lage aus der Messung, im selben Rohrsystem
@@ -853,3 +859,25 @@ def durchbruch_koerper(qs, d, n=40):
             ring.append((x, ou + m * nu + gy * tu, ov + m * nv + gy * tv))
         ringe.append(ring + ring[:1])
     return ringe + [[ringe[0][i], ringe[1][i]] for i in range(0, n, max(1, n // 8))]
+
+
+def _ohne_muendung(qs, pts, muend):
+    """Schnittkante eines Endes (Punkte (u, v) des Außenumrisses) ohne die Stücke in den Mündungen [s von, s bis]
+    der Ausflüge (Schlitz o. ä., der in das Ende läuft): dort ist das Teil offen. Liste der Teilzüge."""
+    if not muend:
+        return [pts]
+
+    def offen(u, v):
+        s = sk.uv_zu_s(qs, u, v)
+        return any(0 < (s - a) % qs.umfang < (b - a) % qs.umfang for a, b in muend)
+    out, zug = [], []
+    for i, p in enumerate(pts):
+        if i and offen((p[0] + pts[i - 1][0]) / 2, (p[1] + pts[i - 1][1]) / 2):
+            if len(zug) > 1:
+                out.append(zug)
+            zug = [p]
+            continue
+        zug.append(p)
+    if len(zug) > 1:
+        out.append(zug)
+    return out

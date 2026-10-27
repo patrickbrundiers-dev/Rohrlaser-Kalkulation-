@@ -2444,6 +2444,14 @@ def kapitel_optimieren(i):
             "Außenkontur neu (Rund-, Quadrat-, Rechteckrohr, RP-Profil), Text <i>STEP-Form, für … gerechnet</i>. "
             "Dasselbe gilt für gerade, Gehrungs- und zweiachsige Enden aus dem STEP-Import. Das braucht "
             "STEP-Import.exe ab 0.8.30; ältere Messungen behalten bei komplexen Enden die gemessene Länge.",
+            "<b>Enden aus dem STEP-Import wie in der STEP</b> (seit 0.9.158): Gehrung, Schrägschnitt zweiachsig, "
+            "Ausklinkung und jedes andere Ende stehen im Editor, in der Skizze und im 3D genau so wie in der STEP "
+            "(Lage und Form). Läuft ein Schlitz oder Ausschnitt in das Ende hinein (z. B. Schlitz, der in die "
+            "Gehrung mündet), steht er als eigene Zeile <i>Sonderkontur – Teil von Ende A/B</i> mit seinem echten "
+            "Umriss in der Konturtabelle; zum Ende hin ist er offen gezeichnet, er hat keinen eigenen Einstich und "
+            "seine Länge ist aus dem Endschnitt herausgerechnet (Schneidweg gesamt wie gemessen). Eine gemessene "
+            "Richtung, die nicht 0°/90°/180°/270° ist (zweiachsiger Schrägschnitt), steht in <i>längste Seite</i> "
+            "als <i>gemessen (…°)</i> und bleibt beim Speichern erhalten. Ältere Importe: STEP neu einlesen.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "

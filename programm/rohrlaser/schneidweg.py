@@ -909,8 +909,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
         if _z(e.get("gemessen")) > 0:
             masse = (masse + " (STEP gemessen)").strip()
         schritte.append(dict(text=f"{n} × {e.get('art')} {masse}".strip() + (f" ({e['text']})" if e.get("text") else ""),
-                             anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=n, huelle=hk, klasse=klasse,
-                             schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
+                             anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=0 if e.get("ende_teil") else n,
+                             huelle=hk, klasse=klasse, schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
         liste += [(hk if hk is not None else OHNE_HUELLE, lg)] * n
     # virtuelles Bauteil (step_schenkel): Stege und Längsschnitte sind schon gemessene Konturen
     sk = None if eingaben.get("stege_virtuell") else \

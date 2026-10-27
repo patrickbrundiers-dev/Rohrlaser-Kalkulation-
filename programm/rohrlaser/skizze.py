@@ -151,12 +151,18 @@ class Querschnitt:
         return next((f for f in self.flaechen if f.name == name), self.flaechen[0] if self.flaechen else None)
 
     def ausdehnung(self, richtung):
-        """Größte Ausdehnung des Umrisses in Richtung (0 = oben, 90 = vorne …) ab der Mitte [mm]."""
+        """Größte Ausdehnung des Umrisses in Richtung (0 = oben, 90 = vorne …) ab der Mitte [mm]. Quadrat-/
+        Rechteckrohr mit Außenradius: bis zur gerundeten Ecke (dort liegt die Spitze eines schrägen Schnitts über die
+        Ecke wie in der STEP, nicht an der scharfen Ecke der Skizze)."""
         if not hasattr(self, "_aus"):
             self._aus = {}
         if richtung not in self._aus:
             s, c = math.sin(math.radians(richtung)), math.cos(math.radians(richtung))
-            self._aus[richtung] = self.r if self.r else max(u * s + v * c for u, v in self.umriss[0])
+            r = self.radius if self.form in ("Quadratrohr", "Rechteckrohr") else 0.0
+            if r and not self.r and self.flaechen and 0 < r <= min(self.B, self.H) / 2:
+                self._aus[richtung] = (self.B / 2 - r) * abs(s) + (self.H / 2 - r) * abs(c) + r
+            else:
+                self._aus[richtung] = self.r if self.r else max(u * s + v * c for u, v in self.umriss[0])
         return self._aus[richtung]
 
     # ------------------------------------------------------------------ Abwicklung
@@ -363,9 +369,14 @@ def silhouette(qs, e_a, e_b, L, ansicht, n=80):
     idx, tiefe = (0, 1) if ansicht == "oben" else (1, 0)
     poly = qs.umriss[0]
     lo, hi = min(p[idx] for p in poly), max(p[idx] for p in poly)
+    ws = [lo + (hi - lo) * i / n for i in range(n + 1)]
+    for e in (e_a, e_b):            # Knicke eines gemessenen Endes (Ausklinkung): Stufe genau, nicht schräg
+        um = _ende_umriss_merken(qs, e["umriss"]) if e and e.get("umriss") and not _z(e.get("winkel")) else None
+        for st in getattr(um, "stellen", ()) if um else ():
+            w0 = qs.s_zu_uv(st % qs.umfang)[0][idx]
+            ws += [w for w in (w0 - 1e-4, w0 + 1e-4) if lo < w < hi]
     out = []
-    for i in range(n + 1):
-        w = lo + (hi - lo) * i / n
+    for w in sorted(set(ws)):
         pk = schnittpunkte(qs, min(max(w, lo + 1e-7), hi - 1e-7), ansicht) or [min(poly, key=lambda p: abs(p[idx] - w))]
         vorn, hinten = max(pk, key=lambda p: p[tiefe]), min(pk, key=lambda p: p[tiefe])
         xa = [schnitt_x(qs, e_a, *p) for p in pk]
@@ -573,6 +584,43 @@ def umriss_kontur(e, n=36):
     if e.get("spiegeln"):               # Gegenwand einer durchgehenden Kontur: quer gespiegelt
         pts = [(x, -q) for x, q in pts]
     return pts
+
+
+def muendung_ende(e, pts):
+    """Kontur e mit offener Mündung am Ende (STEP-Import: Schlitz o. ä., der in das Ende läuft, 'muendung'): Index
+    des letzten Punkts ihres Umrisses in pts (Umriss unterteilt, geschlossen); die Punkte danach liegen auf der
+    Schließkante über der Mündung und werden nicht als Linie gezeichnet. None ohne Mündung."""
+    if not e.get("muendung") or len(e.get("umriss") or ()) < 3 or not pts:
+        return None
+    try:
+        lx, lq = (float(c) for c in e["umriss"][-1])
+    except (TypeError, ValueError):
+        return None
+    for i in range(len(pts) - 1, -1, -1):
+        if abs(pts[i][0] - lx) < 1e-6 and abs(pts[i][1] - lq) < 1e-6:
+            return i
+    return None
+
+
+def ohne_muendung(qs, linie, muend):
+    """Schnittlinie eines Endes in der Abwicklung [(s, Abstand)] ohne die Stücke in den Mündungen [s von, s bis] der
+    Ausflüge (STEP-Import: Schlitz o. ä., der in das Ende läuft): Liste der Teilstücke."""
+    if not muend:
+        return [list(linie)]
+
+    def offen(s):
+        return any(0 < (s - a) % qs.umfang < (b - a) % qs.umfang for a, b in muend)
+    out, teil = [], []
+    for i, p in enumerate(linie):
+        if i and offen((p[0] + linie[i - 1][0]) / 2):
+            if len(teil) > 1:
+                out.append(teil)
+            teil = [p]
+            continue
+        teil.append(p)
+    if len(teil) > 1:
+        out.append(teil)
+    return out
 
 
 def _dicht(pts, schritt=3.0):
