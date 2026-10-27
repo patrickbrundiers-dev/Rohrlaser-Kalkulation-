@@ -736,6 +736,9 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
             for x, u, v in pts:
                 r = math.hypot(u, v) or 1.0
                 nu, nv = (u / r, v / r) if qs.r else n_mitte
+                if rund:        # über eine gerundete Ecke: auf der Außenkontur wie die Bohrung
+                    u, v, nr = sk.rund_ort(qs, u, v)
+                    nu, nv = nr or (nu, nv)
                 zug.append(_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND))
             linie("K", zug + zug[:1], _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
     # Gravur der Anbauteile (STEP-Import, anbau.gravur_zuege): Lage aus der Messung, im selben Rohrsystem
