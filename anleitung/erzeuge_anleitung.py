@@ -1047,7 +1047,9 @@ def kapitel_angebot(i):
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel SN und Stundensatz der Maschine zur Information, "
             "Rüstzeit je Maschine nur, wenn sie nicht 0 min ist; Stangenwechsel je Stange, Rüstzeit je Abmessung, "
             "Programmierzeit je Position und je Innenkontur änderbar; wahlweise <b>Rüsten je Angebot [€]</b> und "
-            "<b>Rüsten je Abmessung [€]</b> als fester Betrag statt Minuten × Stundensatz, leer = Minuten, "
+            "<b>Rüsten je Abmessung [€]</b> als fester Betrag statt Minuten × Stundensatz (die Rüstzeit für Zeiten, "
+            "Werkstattpapiere und Nachkalkulation ist dann Betrag ÷ Stundensatz, z. B. 30 € bei 90 €/h = 20 min), "
+            "leer = Minuten, "
             "einblendbar über die Sichtbarkeit, Vorgabe in den Einstellungen), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
@@ -2457,14 +2459,14 @@ def kapitel_optimieren(i):
             "seine Länge ist aus dem Endschnitt herausgerechnet (Schneidweg gesamt wie gemessen). Eine gemessene "
             "Richtung, die nicht 0°/90°/180°/270° ist (zweiachsiger Schrägschnitt), steht in <i>längste Seite</i> "
             "als <i>gemessen (…°)</i> und bleibt beim Speichern erhalten. Ältere Importe: STEP neu einlesen.",
-            "<b>Gehrung in 2D: Innenkante maßhaltig</b> (seit 0.9.159): Wird eine Gehrung in 2D geschnitten (Strahl "
+            "<b>Gehrung in 2D: Innenkante maßhaltig</b> (seit 0.9.160): Wird eine Gehrung in 2D geschnitten (Strahl "
             "90° zur Oberfläche, ohne Häkchen 3D), liegt die Innenkante genau unter der Außenkante. Damit innen nichts "
             "über die Gehrungsfläche ragt, ist die Innenkante maßhaltig: die lange Seite (Spitze) wird um "
             "Wand · tan(Winkel) kürzer, z. B. 3 mm bei Wand 3 und 45°; die kurze Seite bleibt. Editor, Skizze, 3D und "
             "Stangenansicht zeigen das so, die Länge der Position bleibt das Maß bis zur Spitze der Gehrungsfläche, "
             "die Schnittlänge bleibt wie bisher. Gehrungen aus der STEP stehen wie in der STEP (Außenkante auf der "
             "Fläche), solange sie nicht geändert werden; in 3D ist die Fläche eben durch die Wand.",
-            "<b>Gehrung schon 2D in der STEP</b> (seit 0.9.159): Ist eine Gehrung in der STEP bereits 90° zur "
+            "<b>Gehrung schon 2D in der STEP</b> (seit 0.9.160): Ist eine Gehrung in der STEP bereits 90° zur "
             "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
             "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
             "STEP. Ist die lange Seite in der STEP schon gekürzt, bleibt das Ende komplex, genau wie gemessen.",
@@ -4994,7 +4996,8 @@ def kapitel_einstellungen(i):
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
         ["Kalkulation", "Rüsten je Abmessung als Betrag [€], Rüsten je Angebot als Betrag [€] (leer = Minuten)",
-         "fester Betrag statt Rüstzeit × Stundensatz (je verschiedenem Profil bzw. einmal je Angebot); Vorgabe neuer "
+         "fester Betrag statt Rüstzeit × Stundensatz (je verschiedenem Profil bzw. einmal je Angebot), Rüstzeit = "
+         "Betrag ÷ Stundensatz; Vorgabe neuer "
          "Angebote, je Angebot änderbar ([[angebotskopf]])"],
         ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
          "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "

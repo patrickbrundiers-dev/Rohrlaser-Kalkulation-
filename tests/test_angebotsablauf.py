@@ -195,7 +195,13 @@ seite.neu_laden()
 seite.optimieren()
 z1, s1 = seite._rechnung()
 assert abs(s1["ruesten_maschine"] - 40.0) < 1e-9 and abs(s1["ruesten_abmessungen"] - 12.5 * s1["abmessungen"]) < 1e-9
-assert s1["ruestzeit"] == 0 and s1["ruestzeit_abmessung"] == 0, "fester Betrag: Rüstminuten zählen nicht"
+# Rüstzeit folgt aus dem Betrag: € / Stundensatz × 60 (Patrick 27.10.2026: „30 € … wird daraus keine Zeit berechnet“)
+s_rm = s0["ruesten_maschine"] * 60 / s0["ruestzeit"]
+s_ra = s0["ruesten_abmessungen"] * 60 / (s0["abmessungen"] * s0["ruestzeit_abmessung"])
+assert abs(s1["ruestzeit"] - 40.0 / s_rm * 60) < 1e-9 and abs(s1["ruestzeit_abmessung"] - 12.5 / s_ra * 60) < 1e-9, s1
+zz = {z["schritt"]: z for z in s1["zeiten"]}
+assert abs(zz["Rüsten Maschine"]["gesamt_min"] - s1["ruestzeit"]) < 1e-9 and "≙" in zz["Rüsten Maschine"]["formel"]
+assert zz["Rüsten je Abmessung"]["gesamt_min"] > 0 and "≙" in zz["Rüsten je Abmessung"]["formel"]
 ruesten = sum(z["ruesten_teil"] * z["stueck"] for z in z1 if z)
 assert abs(ruesten - (40.0 + 12.5 * s1["abmessungen"] + s1["stangenwechsel_kosten"])) < 0.01, ruesten
 db.angebot_aendern(seite.id, "ruesten_angebot_eur", None)
@@ -204,7 +210,7 @@ seite.neu_laden()
 seite.optimieren()
 assert abs(seite._rechnung()[1]["ruesten_maschine"] - s0["ruesten_maschine"]) < 1e-9, "leer = Minuten wie bisher"
 assert db.einstellung("ruesten_angebot_eur") is None and "ruesten_abmessung_eur" not in db.kalkulation_vorgaben()
-ok("Rüsten je Angebot bzw. je Abmessung als fester Betrag, leer = Minuten × Stundensatz")
+ok("Rüsten je Angebot bzw. je Abmessung als fester Betrag (Rüstzeit = Betrag ÷ Stundensatz), leer = Minuten × Stundensatz")
 
 assert angebot_check and bohrbild      # verwendet über die Seite
 f.close()

@@ -2759,11 +2759,12 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     if not f8:              # ohne Rohrlaserteile kein Rüsten der Maschine (Übersicht = Preis)
         ruest = 0
     # Rüsten wahlweise als fester Betrag (Patrick 26.10.2026): € je Angebot bzw. je Abmessung im Angebot statt
-    # Minuten × Stundensatz; die Rüstminuten zählen dann nicht mehr (weder Kosten noch Zeit)
+    # Minuten × Stundensatz. Die Rüstzeit folgt dann aus dem Betrag: € / Stundensatz × 60 (Patrick 27.10.2026:
+    # „30 € … wird daraus keine Zeit berechnet“), damit Zeiten, Werkstattpapiere und Nachkalkulation sie kennen
     ruest_eur, ruest_abm_eur = (kopf.get(n) if _zahl(kopf.get(n)) else None
                                 for n in ("ruesten_angebot_eur", "ruesten_abmessung_eur"))
     if ruest_eur is not None:
-        ruest = 0
+        ruest = _n(ruest_eur) / s_rm * 60 if s_rm and f8 else 0
     ruest_maschine = (ruest_eur if ruest_eur is not None else ruest / 60 * s_rm) if f8 else 0
     f7 = ruest_maschine + wechsel_s / 3600 * s_sw
     teile_abm = {}
@@ -2771,7 +2772,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if _n(positionen[i].get("stueck")) > 0:
             pid = positionen[i]["profil_id"]
             teile_abm[pid] = teile_abm.get(pid, 0) + _n(positionen[i]["stueck"])
-    ruest_abm_min = _n(einstellungen.get("ruesten_abmessung")) if ruest_abm_eur is None else 0
+    ruest_abm_min = (_n(einstellungen.get("ruesten_abmessung")) if ruest_abm_eur is None
+                     else _n(ruest_abm_eur) / s_ra * 60 if s_ra else 0)
     ruest_abm = ruest_abm_min / 60 * s_ra if ruest_abm_eur is None else ruest_abm_eur     # € je Abmessung
     # RP- und Sonderprofile: Rüstzuschlag der Maschine je Abmessung (Patrick 22.10.2026, F7 a), wie Rüsten je Abmessung
     ruest_sonder_min = _n(zb["maschine"].get("ruest_sonder"))
@@ -3218,14 +3220,16 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
     rm = summen["ruestzeit"]
     fest = summen.get("ruesten_angebot_eur")
     out.append(zeile("Rüsten Maschine", 1, "Angebot", rm, None, rm, summen["ruesten_maschine"],
-                     f"fester Betrag {zahl(fest, 2)} € je Angebot" if fest is not None else
+                     f"fester Betrag {zahl(fest, 2)} € je Angebot (≙ {zahl(rm, 1)} min bei {zahl(sr, 2)} €/h)"
+                     if fest is not None else
                      f"{zahl(rm, 1)} min / 60 × {zahl(sr, 2)} €/h",
                      "Maschine (Snapshot)" if zb["gespeichert"] else "Maschine (Stammdaten)", sid=sid, satz_=sr))
     sid, sa = satz["Rüsten je Abmessung"]
     ra = summen["abmessungen"] * summen["ruestzeit_abmessung"]
     out.append(zeile("Rüsten je Abmessung", summen["abmessungen"], "Abmessungen", ra, None, ra,
                      summen["ruesten_abmessungen"],
-                     f"{summen['abmessungen']} × {zahl(summen['ruesten_abmessung_eur'], 2)} € (fester Betrag)"
+                     f"{summen['abmessungen']} × {zahl(summen['ruesten_abmessung_eur'], 2)} € (fester Betrag, ≙ "
+                     f"{zahl(summen['ruestzeit_abmessung'], 1)} min bei {zahl(sa, 2)} €/h)"
                      if summen.get("ruesten_abmessung_eur") is not None else
                      f"{summen['abmessungen']} × {zahl(summen['ruestzeit_abmessung'], 1)} min / 60 × {zahl(sa, 2)} €/h",
                      "Angebot (Vorgabe Einstellungen)", sid=sid, satz_=sa))
