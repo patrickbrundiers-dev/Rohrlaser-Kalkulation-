@@ -50,6 +50,66 @@ LINIE = colors.HexColor("#D9D9D9")
 KOPF_H = 7 * mm              # Kopfzeile mit Teil und Kapitel
 TITEL_BAND = 78 * mm         # dunkelblaues Band oben auf der Titelseite
 
+# Ersatzschrift (Design-Prüfung 28.10.2026): Helvetica hat – auch mit Symbol und ZapfDingbats, die reportlab selbst
+# nachschlägt – keine Zeichen wie ▾ ▸ │ └ ◀ ▶ ⌂ ⚠ oder tiefgestellte Ziffern (N₂, CO₂); im PDF stand dafür ein
+# schwarzes Kästchen. Solche Zeichen setzt _t in DejaVu Sans (Linux: Paket fonts-dejavu-core, im Workflow
+# installiert). Fehlt die Schrift, bleibt der Text wie bisher.
+ERSATZ_ORDNER = (Path("/usr/share/fonts/truetype/dejavu"), Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts")
+_fehlt_in_helvetica = {}
+
+
+def ersatzschrift_einrichten():
+    """DejaVu Sans (normal und fett) als Schriftfamilie anmelden; Ergebnis: Name oder None (nicht gefunden)."""
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    for ordner in ERSATZ_ORDNER:
+        normal, fett = ordner / "DejaVuSans.ttf", ordner / "DejaVuSans-Bold.ttf"
+        if normal.is_file():
+            pdfmetrics.registerFont(TTFont("DejaVuSans", str(normal)))
+            pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", str(fett if fett.is_file() else normal)))
+            pdfmetrics.registerFontFamily("DejaVuSans", normal="DejaVuSans", bold="DejaVuSans-Bold",
+                                          italic="DejaVuSans", boldItalic="DejaVuSans-Bold")
+            return "DejaVuSans"
+    return None
+
+
+ERSATZSCHRIFT = ersatzschrift_einrichten()
+
+
+def _fehlt(zeichen):
+    """Hat Helvetica (mit Symbol und ZapfDingbats) dieses Zeichen nicht?"""
+    if zeichen not in _fehlt_in_helvetica:
+        from reportlab.pdfbase import pdfmetrics
+        h = pdfmetrics.getFont("Helvetica")
+        gefunden = False
+        for schrift in [h, *h.substitutionFonts]:
+            try:
+                zeichen.encode(schrift.encName)
+                gefunden = True
+                break
+            except (UnicodeEncodeError, LookupError):
+                pass
+        _fehlt_in_helvetica[zeichen] = not gefunden
+    return _fehlt_in_helvetica[zeichen]
+
+
+def mit_ersatzschrift(text):
+    """Zeichen, die Helvetica fehlen, in <font name="DejaVuSans"> setzen (Tags sind ASCII und bleiben unberührt)."""
+    if not ERSATZSCHRIFT or text.isascii():
+        return text
+    teile, lauf = [], ""
+    for zeichen in text:
+        if ord(zeichen) > 127 and _fehlt(zeichen):
+            lauf += zeichen
+            continue
+        if lauf:
+            teile.append(f'<font name="{ERSATZSCHRIFT}">{lauf}</font>')
+            lauf = ""
+        teile.append(zeichen)
+    if lauf:
+        teile.append(f'<font name="{ERSATZSCHRIFT}">{lauf}</font>')
+    return "".join(teile)
+
 S = ParagraphStyle("text", fontName="Helvetica", fontSize=10, leading=13.5, spaceAfter=4)
 S_LISTE = ParagraphStyle("liste", parent=S, leftIndent=12, bulletIndent=2, spaceAfter=2)
 S_H1 = ParagraphStyle("h1", parent=S, fontName="Helvetica-Bold", fontSize=20, leading=24, textColor=BLAU,
@@ -279,7 +339,11 @@ class Inhalt:
         return f'<a name="{marke}"/>'
 
     def _t(self, text):
-        """[[marke]] -> „Kapitel 6.7“ als Link; im ersten Durchlauf nur Platzhalter."""
+        """[[marke]] -> „Kapitel 6.7“ als Link; im ersten Durchlauf nur Platzhalter. Zeichen, die Helvetica fehlen,
+        in der Ersatzschrift (mit_ersatzschrift)."""
+        return mit_ersatzschrift(self._verweise(text))
+
+    def _verweise(self, text):
         def ersetzen(m):
             if self.marken is None:
                 return "Kapitel ?"
@@ -340,7 +404,8 @@ class Inhalt:
             self.neue_titel[marke] = titel
             if self._teil:
                 self.neue_teile[self._teil].append(marke)
-        self.f.append(Paragraph(f'{anker}<font color="#8EA9C1">{self.kapitel_nr}</font>&nbsp;&nbsp;{titel}', S_H1))
+        kopf = f'{anker}<font color="#8EA9C1">{self.kapitel_nr}</font>&nbsp;&nbsp;{titel}'
+        self.f.append(Paragraph(mit_ersatzschrift(kopf), S_H1))
         self.f.append(HRFlowable(width="100%", thickness=1.2, color=BLAU, spaceBefore=1, spaceAfter=7))
         if marke in STECKBRIEFE:
             self.steckbrief(*STECKBRIEFE[marke])
@@ -361,7 +426,8 @@ class Inhalt:
         self.abschnitt_nr += 1
         self._genauer = False
         anker = self._marke(marke, f"{self.kapitel_nr}.{self.abschnitt_nr}")
-        teile = [CondPageBreak(45 * mm), Paragraph(f"{anker}{self.kapitel_nr}.{self.abschnitt_nr}&nbsp;&nbsp;{titel}", S_H2)]
+        kopf = mit_ersatzschrift(f"{anker}{self.kapitel_nr}.{self.abschnitt_nr}&nbsp;&nbsp;{titel}")
+        teile = [CondPageBreak(45 * mm), Paragraph(kopf, S_H2)]
         if self.kurz:
             self._offen = teile
         else:
@@ -374,7 +440,7 @@ class Inhalt:
         self._genauer = True
         if not self.kurz:
             self.f.append(CondPageBreak(45 * mm))
-            self.f.append(Paragraph("Genauer" + (f": {titel}" if titel else ""), S_GENAUER_KOPF))
+            self.f.append(Paragraph(mit_ersatzschrift("Genauer" + (f": {titel}" if titel else "")), S_GENAUER_KOPF))
 
     def text(self, *absaetze, kurz=False):
         if self._zeigen(kurz):
@@ -491,7 +557,7 @@ class Inhalt:
         """Tabelle wie im Angebots-PDF: ohne Gitter, blaue Linie unter dem Kopf und am Ende, dazwischen fein grau."""
         if not self._zeigen(kurz):
             return
-        daten = [[Paragraph(f'<font color="#1F4E78"><b>{k}</b></font>', S_LEGENDE) for k in kopf]]
+        daten = [[Paragraph(mit_ersatzschrift(f'<font color="#1F4E78"><b>{k}</b></font>'), S_LEGENDE) for k in kopf]]
         daten += [[Paragraph(self._t(z), S_LEGENDE) for z in zeile] for zeile in zeilen]
         t = Table(daten, colWidths=[b * mm for b in breiten], repeatRows=1)
         t.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, 0), 1, BLAU),
@@ -942,8 +1008,8 @@ def kapitel_angebot(i):
            "Ein Klick auf Titel oder Zeile klappt ihn auf; die Wahl gilt, solange das Angebot offen ist. Die Karte "
            "<b>Fracht</b> zeigt zugeklappt Frachtart und Betrag, <b>Fracht berechnen …</b> steht auch zugeklappt "
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
-           "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
-           "Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
+           "ungleich 0, vorn orange „(n abweichend von den Einstellungen)“, wenn Werte abweichen. Auf- und "
+           "Zuklappen von Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
            "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Im Angebotskopf "
            "steht der Bearbeiter neben der Bemerkung; der Satz „Im Angebot: Lieferzeit …“ erscheint nur, wenn keine "
            "Lieferzeit eingetragen ist, sonst als Tooltip über den Lieferzeit-Feldern. Die Trennlinien zwischen oben und unten und zur Übersicht "
@@ -1169,7 +1235,8 @@ def kapitel_angebot(i):
            "<b>Angebots-Check</b>, Kennzahlen, <b>Preisaufbau</b> und Zeiten. Vor dem Optimieren stehen die "
            "Preise grau mit „(vorläufig)“.")
     i.genauer()
-    i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
+    i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Wird berechnet …</i> "
+            "(gelb: gleich optimiert das Programm selbst, die Preise zeigen bis dahin „…“), <i>Optimierung "
             "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, [[veraltet]]).",
             "Darunter der <b>Preisstand</b>: <i>Preise: aktuelle Stammdaten</i>, solange noch kein "
             "Angebots-PDF erzeugt wurde, danach <i>Preise festgeschrieben am …</i>. Haben sich die Stammdaten "
@@ -5192,8 +5259,8 @@ def kapitel_einstellungen(i):
         ["Angebot", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
          "Vorgabe 1; 2; 5: Stufen, die der Knopf <b>Standard-Staffeln</b> anlegt ([[staffeln]])."],
         ["Ansicht", "Hilfetexte über Tabellen und Seiten",
-         "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
-         "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen, auch für "
+         "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>mehr</b> (mit i-Symbol) zeigt den ganzen Text; "
+         "<i>nur Tooltip</i>: nur <b>Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen, auch für "
          "die Hinweise in den Dialogen STEP prüfen, Bohrungen prüfen und Blech-Editor "
          "([[stammdaten]]) und die Staffeln."],
         ["Ansicht", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)",
@@ -5554,7 +5621,8 @@ def kapitel_stammdaten(i):
            "der mit einem Passwort geschützt ist ([[passwort]]). Alle Tabellen sind gleich aufgebaut:")
     i.bild("stamm_profile", "Einstellungen, Seite Profile", hoehe=125 * mm, legende=[
         (1, "Seite der Tabelle in der Navigation links. Oben steht der erste Satz des Hilfetextes, was in die Spalten gehört; "
-            "<b>ⓘ mehr</b> zeigt den ganzen Text, <b>ⓘ weniger</b> klappt ihn wieder zu (bleibt je Tabelle so)."),
+            "<b>mehr</b> (mit i-Symbol) zeigt den ganzen Text, <b>weniger</b> klappt ihn wieder zu (bleibt je "
+            "Tabelle so)."),
         (2, "<b>Neue Zeile</b> hängt eine leere Zeile an und springt hinein."),
         (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen (vorher Rückfrage; verweisen andere Tabellen "
             "darauf, sagt das Programm wie viele)."),
@@ -5569,7 +5637,7 @@ def kapitel_stammdaten(i):
             "<b>Nur Fehler und Warnungen</b> (rechts neben der Suche) zeigt nur die Zeilen, die geprüft werden "
             "müssen; rechts daneben steht, wie viele Zeilen FEHLER und WARNUNG haben.",
             "Hilfetexte: unter Vorgaben, Gruppe Ansicht, <i>Hilfetexte über Tabellen und Seiten</i> = "
-            "<i>aufklappbar</i> (erster Satz und ⓘ mehr) oder <i>nur Tooltip</i> (nur <b>ⓘ Hilfe</b>, der Text "
+            "<i>aufklappbar</i> (erster Satz und <b>mehr</b>) oder <i>nur Tooltip</i> (nur <b>Hilfe</b>, der Text "
             "erscheint beim Zeigen mit der Maus) ([[vorgaben]]).",
             "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite und Zeilenhöhe passen sich dem Inhalt an "
             "([[angebot]]); von Hand ändern: Trennlinie im Kopf ziehen.",

@@ -321,9 +321,10 @@ assert hilfe.kurztext("Abmessung A = Ø bzw. Breite (z. B. 40). Zweiter Satz.") 
 assert hilfe.kurztext("Nur ein Satz.") == "Nur ein Satz."
 profile = next(x for x in fenster.seiten if x.t.name == "profile")
 h = profile.hinweis
-assert h.label.text() == hilfe.kurztext(profile.t.hinweis) and h.knopf.text() == "ⓘ mehr" and not h.offen
+assert h.label.text() == hilfe.kurztext(profile.t.hinweis) and h.knopf.text() == "mehr" and not h.offen
+assert not h.knopf.icon().isNull()                 # i-Symbol gezeichnet (Zeichen ⓘ fehlt in manchen Schriften)
 h.knopf.click()
-assert h.offen and h.label.text() == h.text and h.knopf.text() == "ⓘ weniger"
+assert h.offen and h.label.text() == h.text and h.knopf.text() == "weniger"
 assert (db.einstellung(hilfe.OFFEN_EINSTELLUNG) or {}).get("tabelle:profile")
 neu_h = hilfe.Hinweis(profile.t.hinweis, db, "tabelle:profile")
 assert neu_h.offen                                  # gemerkt, auch für neu gebaute Seiten
@@ -334,9 +335,9 @@ cb = e.felder[hilfe.HILFE_EINSTELLUNG]
 assert not cb.isEditable() and [cb.itemText(i) for i in range(cb.count())] == list(hilfe.HILFE_ARTEN)
 cb.setCurrentText("nur Tooltip")
 assert db.einstellung(hilfe.HILFE_EINSTELLUNG) == "nur Tooltip"
-assert not h.label.isVisibleTo(h) and h.knopf.text() == "ⓘ Hilfe" and h.knopf.toolTip() == h.text
+assert not h.label.isVisibleTo(h) and h.knopf.text() == "Hilfe" and h.knopf.toolTip() == h.text
 cb.setCurrentText("aufklappbar")
-assert h.label.isVisibleTo(h) and h.knopf.text() == "ⓘ mehr"
+assert h.label.isVisibleTo(h) and h.knopf.text() == "mehr"
 assert FARBE_STATUS["OK"] == FARBE_BERECHNET and FARBE_STATUS["FEHLER"] != FARBE_BERECHNET
 alle = profile.filter.rowCount()
 db.aendern("profile", profile.modell.daten[0]["id"], "a", None)
@@ -360,7 +361,7 @@ assert e.zweispaltig == (e.viewport().width() >= e.ZWEI_SPALTEN)
 e._anordnen(False)
 assert e.spalten[1].count() == 1 and e.spalten[0].count() == len(e.boxen) + 1     # rechts nur der Abstandhalter
 assert all(w.maximumWidth() <= e.BREITE_TEXT + 160 for n, w in e.felder.items() if n != "logo")
-ok("Einstellungen: Hilfetext kurz mit ⓘ mehr (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
+ok("Einstellungen: Hilfetext kurz mit „mehr“ (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
    "Warnungen, Vorgaben bei 1920 px zweispaltig, bei schmalem Fenster einspaltig")
 # Teil 5: Fracht, Zukauf, Dialoge mit kurzen Hilfetexten; Zukauf-Formular in Abschnitten zum Aufklappen
 schluessel = {h.schluessel for h in hilfe._alle}

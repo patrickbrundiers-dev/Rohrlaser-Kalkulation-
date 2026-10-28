@@ -367,7 +367,7 @@ class AngeboteSeite(QWidget):
         self.abgleich_knopf.setToolTip("Eigene Angebote in den gemeinsamen Ordner legen und Angebote und Stammdaten "
                                        "der Kollegen holen (auch beim Start und Beenden)")
         self.abgleich_knopf.clicked.connect(lambda: self.f.abgleichen())
-        self.vorgang_knopf = QPushButton("Vorgang ▾")
+        self.vorgang_knopf = QPushButton("Vorgang")       # Pfeil zeichnet Qt (Menü), nicht doppelt im Text
         self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
                                       "Angebots-PDF selbst), Beauftragt (mit Auftragsnummer und Liefertermin), Abgelehnt; Nachfassen vermerken "
                                       "und Wiedervorlage")

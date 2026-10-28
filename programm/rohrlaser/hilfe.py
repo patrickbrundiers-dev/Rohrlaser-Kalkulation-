@@ -1,20 +1,50 @@
 """Hilfetexte über Tabellen und Seiten: kurz oder als Tooltip (Einstellung 'ansicht_hilfe').
 
-aufklappbar (Vorgabe): nur der erste Satz steht da, 'ⓘ mehr' zeigt den ganzen Text. Ob ein Hinweis offen ist, merkt
-sich das Programm je Seite (Einstellung 'ansicht_hilfe_offen', über alle Angebote und Neustarts).
-nur Tooltip: statt des Textes steht nur 'ⓘ Hilfe', der ganze Text erscheint beim Zeigen mit der Maus.
+aufklappbar (Vorgabe): nur der erste Satz steht da, 'mehr' (mit i-Symbol) zeigt den ganzen Text. Ob ein Hinweis offen
+ist, merkt sich das Programm je Seite (Einstellung 'ansicht_hilfe_offen', über alle Angebote und Neustarts).
+nur Tooltip: statt des Textes steht nur 'Hilfe' (mit i-Symbol), der ganze Text erscheint beim Zeigen mit der Maus.
+
+Das i-Symbol ist gezeichnet statt des Zeichens ⓘ: Schriften ohne dieses Zeichen (z. B. Liberation Sans der
+Bildschirmfotos) zeigten ein leeres Kästchen (Design-Prüfung 28.10.2026).
 """
 import re
 import sqlite3
 import weakref
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 
 HILFE_EINSTELLUNG = "ansicht_hilfe"
 OFFEN_EINSTELLUNG = "ansicht_hilfe_offen"     # {Schlüssel: True} der aufgeklappten Hinweise
 HILFE_ARTEN = ("aufklappbar", "nur Tooltip")
+from . import stil  # noqa: E402
 from .stil import TEXT_GRAU as GRAU  # noqa: E402
+
+SYMBOL_GROESSE = 12
+_symbole = {}           # (Farbe, Größe) -> QIcon
+
+
+def info_symbol(groesse=SYMBOL_GROESSE):
+    """Kreis mit i in der Linkfarbe des aktuellen Themes (wie der Knopftext), doppelte Auflösung für 200 %."""
+    from PySide6.QtGui import QIcon, QPainter, QPen, QPixmap
+    farbe = stil.farbe(stil.AKZENT)
+    schluessel = (farbe.name(), groesse)
+    if schluessel not in _symbole:
+        bild = QPixmap(groesse * 2, groesse * 2)
+        bild.fill(Qt.transparent)
+        bild.setDevicePixelRatio(2)
+        p = QPainter(bild)
+        p.setRenderHint(QPainter.Antialiasing)
+        g = float(groesse)
+        p.setPen(QPen(farbe, 1.1))
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(QRectF(0.75, 0.75, g - 1.5, g - 1.5))
+        p.setPen(QPen(farbe, max(1.4, g / 8), Qt.SolidLine, Qt.RoundCap))
+        p.drawLine(QPointF(g / 2, g * .46), QPointF(g / 2, g * .73))
+        p.drawPoint(QPointF(g / 2, g * .28))
+        p.end()
+        _symbole[schluessel] = QIcon(bild)
+    return _symbole[schluessel]
 # Satzende: Punkt/Doppelpunkt nach mindestens zwei Buchstaben oder Ziffern, danach ein Großbuchstabe;
 # Abkürzungen wie 'bzw.', 'z. B.', 'inkl.' beenden keinen Satz
 _SATZENDE = re.compile(r"(?<=[\wäöüß)\]]{2})[.!]\s+(?=[A-ZÄÖÜ0-9'„])")
@@ -72,6 +102,8 @@ class Hinweis(QWidget):
         self.knopf.setAutoRaise(True)
         self.knopf.setCursor(Qt.PointingHandCursor)
         self.knopf.setStyleSheet("QToolButton { color: #1F4E78; border: none; padding: 0 2px; }")
+        self.knopf.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.knopf.setIconSize(QSize(SYMBOL_GROESSE, SYMBOL_GROESSE))
         self.knopf.clicked.connect(lambda: self.aufklappen(not self.offen, merken=True))
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -115,9 +147,10 @@ class Hinweis(QWidget):
         elif self.isHidden() and self.parentWidget() is not None:     # nie als eigenes Fenster zeigen
             self.show()
         lang = self.kurz != self.text
+        self.knopf.setIcon(info_symbol())          # je Aufruf: folgt einem Themewechsel
         if self.tooltip:
             self.label.setVisible(False)
-            self.knopf.setText("ⓘ Hilfe")
+            self.knopf.setText("Hilfe")
             self.knopf.setToolTip(self.text)
             self.knopf.setVisible(True)
             self.layout().setAlignment(self.knopf, Qt.AlignLeft)
@@ -127,7 +160,7 @@ class Hinweis(QWidget):
         self.label.setVisible(True)
         self.layout().setAlignment(self.knopf, Qt.AlignTop)
         ganz = self.offen or not lang
-        # eingeklappt: eine Zeile direkt mit 'ⓘ mehr' dahinter, bei Platzmangel abgeschnitten (Tooltip zeigt alles);
+        # eingeklappt: eine Zeile direkt mit 'mehr' dahinter, bei Platzmangel abgeschnitten (Tooltip zeigt alles);
         # aufgeklappt: Umbruch über die ganze Breite
         self.label.setWordWrap(ganz)
         self.label.setMinimumWidth(0 if ganz else 1)
@@ -137,5 +170,5 @@ class Hinweis(QWidget):
         self.label.setText(self.text if ganz else self.kurz)
         self.label.setToolTip("" if ganz else self.text)
         self.knopf.setVisible(lang)
-        self.knopf.setText("ⓘ weniger" if self.offen else "ⓘ mehr")
+        self.knopf.setText("weniger" if self.offen else "mehr")
         self.knopf.setToolTip("Hilfetext einklappen" if self.offen else "Ganzen Hilfetext zeigen")

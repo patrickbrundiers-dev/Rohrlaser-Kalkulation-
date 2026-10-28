@@ -1,6 +1,7 @@
 """Schrittanzeige im Angebot (Layout-Plan L10): ① Positionen erfasst → ② Optimiert → ③ Geprüft → ④ Verschickt.
 
-Erledigte Schritte grün mit Haken, der aktuelle (erste offene) blau und fett, die übrigen grau. Grundlage sind die
+Erledigte Schritte grün mit Haken, der aktuelle (erste offene) blau und fett, die übrigen grau (Nebentext-Grau, gut
+lesbar; nur die Pfeile dazwischen sind hellgrau). Grundlage sind die
 vorhandenen Stände: Positionen, Stand der Optimierung, offene Punkte im „Angebots-Check“, der Vorgang und der
 CSV-Export (Vermerk im Versandverlauf).
 """
@@ -60,8 +61,8 @@ class Schrittanzeige(QWidget):
                 farbe, fett, zeichen = stil.AKZENT, "bold", NUMMERN[i]
             elif f:
                 farbe, fett, zeichen = stil.GRUEN, "normal", "✓"
-            else:
-                farbe, fett, zeichen = "#9AA3AF", "normal", NUMMERN[i]
+            else:       # offene Schritte grau, aber lesbar (TEXT_GRAU 5,4 : 1 statt #9AA3AF 2,6 : 1, Design-Prüfung)
+                farbe, fett, zeichen = stil.TEXT_GRAU, "normal", NUMMERN[i]
             m.setText(f"{zeichen} {SCHRITTE[i]}")
             m.setStyleSheet(f"color: {farbe}; font-weight: {fett};")
         self.setToolTip("Nächster Schritt: " + NAECHSTES[jetzt])
