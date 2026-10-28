@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.169", "<b>Schweißbaugruppe: Mengen aus den Einzelteilen</b>: Arbeitsgänge nach Gewicht, Fläche oder Länge "
+                "(Verzinken €/kg, Pulvern €/m², Prüfen je Teil) rechnen ihre Menge selbst – neue Spalte <b>Menge "
+                "aus</b> mit Gewicht, Oberfläche, Länge, Naht oder Teile; ändert sich ein Teil, ändert sich der Preis "
+                "mit. Über der Tabelle stehen Gewicht, Außenfläche, Nahtlänge und Anzahl Teile je Baugruppe. Das "
+                "Gewicht für das Wenden kommt ohne Eintrag in den Stammdaten aus der Summe der Teile "
+                "([[baugruppe_mengen]]).",
+     "Schweißbaugruppe: Menge aus Gewicht, Oberfläche, Länge, Naht oder Teile automatisch."],
     ["0.9.168", "<b>CSV-Dateien robuster</b>: Der <b>Kunden-Import</b> liest jetzt auch Dateien aus Excel für Mac, "
                 "Unicode-Text (UTF-16), Komma- und Tab-Dateien, <i>sep=;</i> und Titelzeilen, stürzt bei kaputten "
                 "Dateien nicht mehr ab und nennt bei jedem Fehler Zeile und Spalte (Buchstabe und Titel); Export → "

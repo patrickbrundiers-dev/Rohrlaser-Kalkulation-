@@ -17,7 +17,7 @@ from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, co2_maschine, OHNE_NAHT,
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
 from . import fracht_angebot
-from . import anbau, baugruppe, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
+from . import anbau, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -2846,7 +2846,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if i in bg_pos:
             zeilen[i] = _baugruppe_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
                                          fracht_je[i] if c else 0, skonto, (zf, zfl, gew), tabellen, zb["saetze"],
-                                         selbst_basis, zk_gewinn=not neu)
+                                         selbst_basis, zk_gewinn=not neu,
+                                         mengen=bg_mengen.je_knoten(baugruppe.lesen(p.get("baugruppe")), positionen, k))
             continue
         gr = gruppe_von(p, kopf)
         d = sum(kosten_gr.get(gr, ()))
@@ -3101,14 +3102,14 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zus
     return z
 
 
-def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_basis=True, zk_gewinn=True):
+def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_basis=True, zk_gewinn=True, mengen=None):
     """Kalkulationszeile einer Schweißbaugruppe: eigene Leistungen (Nahtgruppen, Arbeitsgänge, umgelegte Einmalkosten;
     baugruppe.rechnen) als Fertigung mit Zuschlag Fertigung bzw. als Fremdleistung mit Zuschlag Fremdleistung, dazu
     Gewinn, Zukaufteile der Baugruppe (z. B. Schrauben je Satz), Frachtanteil und Skonto wie jede Position. Kein
     Material, keine Laserzeit (die Einzelteile sind eigene Positionen). selbst_basis: Gewinn auch auf die Zukaufteile
     (Selbstkosten), sonst nur auf die eigenen Leistungen (festgeschrieben vor dem 23.10.2026)."""
     zf, zfl, gew = zuschlaege
-    r = baugruppe.rechnen(p, tabellen, saetze, c)
+    r = baugruppe.rechnen(p, tabellen, saetze, c, mengen)
     eigen, fremd = r["eigen"], r["fremd"]
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0

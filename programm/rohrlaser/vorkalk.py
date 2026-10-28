@@ -13,7 +13,7 @@ Rechenweg (alle Werte aus schweiss_regeln, kursiv im Plan):
                      Einzelteils (Pos.) als Basisteil, alle übrigen Stück × Zeit ihrer Positionierhilfe; eingebaute
                      Unterbaugruppen zählen als Teil 'frei'
   Wenden             Wendevorgänge je Baugruppe (bg['wenden']) × Zeit je Wenden × Faktor nach Gewicht (Gewicht der
-                     Baugruppe aus den Stammdaten der Baugruppe)
+                     Baugruppe aus den Stammdaten der Baugruppe, sonst Summe der Einzelteile, bg_mengen)
   Heften             je Naht max(Mindestzahl, aufrunden(Nahtlänge ÷ Heftabstand)); Heftabstand nach der kleineren
                      Wanddicke (Nahtgruppe 'dicke', bei Stumpf- und Ecknaht das Maß), gesteckt × Faktor; Mindestzahl
                      gerade, rundum (Umfangsnaht) bzw. gesteckt
@@ -28,7 +28,7 @@ weiter nur in baugruppe.rechnen: die Vorschläge sind gewöhnliche Heftpunkte un
 """
 import math
 
-from . import anbau, baugruppe
+from . import anbau, baugruppe, bg_mengen
 from .stammdaten import NACHARBEIT_STUFEN, POSITIONIERHILFEN
 
 VORSCHLAG, BESTAETIGT, HAND = "vorschlag", "bestätigt", "hand"
@@ -209,31 +209,30 @@ def positionieren(bg, positionen, bg_id, regeln, hilfen):
     return summe, f"{teile} = {_text(round(summe, 2))} min je Baugruppe"
 
 
-def gewicht(bg):
-    """Gewicht der Baugruppe [kg] aus ihren Stammdaten (Feld Gewicht, Komma erlaubt), sonst None."""
-    t = str((bg.get("stamm") or {}).get("gewicht") or "").replace(",", ".").split()
-    try:
-        g = float(t[0]) if t else None
-    except ValueError:
-        return None
-    return g if g is not None and math.isfinite(g) and g > 0 else None
+def gewicht(bg, positionen=None, k=None):
+    """Gewicht der Baugruppe [kg]: Stammdaten der Baugruppe (Feld Gewicht, Komma erlaubt), sonst Summe der
+    Einzelteile (bg_mengen, nur mit positionen), sonst None."""
+    return bg_mengen.gewicht(bg, positionen, k)[0]
 
 
-def wenden(bg, regeln):
-    """(Minuten je Wenden, Anzahl, Begründung) oder (None, None, was fehlt bzw. None ohne Wendevorgänge)."""
+def wenden(bg, regeln, positionen=None, k=None):
+    """(Minuten je Wenden, Anzahl, Begründung) oder (None, None, was fehlt bzw. None ohne Wendevorgänge). Gewicht wie
+    gewicht()."""
     n = bg.get("wenden")
     if not _zahl(n) or n <= 0:
         return None, None, None
     zeit = regeln.wert("Wenden", "Zeit je Wenden")
     if zeit is None:
         return None, None, "Regel Wenden (Zeit je Wenden) fehlt"
-    g = gewicht(bg)
+    g, herkunft = bg_mengen.gewicht(bg, positionen, k)
     if g is None:
-        return None, None, "Gewicht der Baugruppe fehlt (Stammdaten der Baugruppe) für den Faktor beim Wenden"
+        return None, None, ("Gewicht der Baugruppe fehlt (Stammdaten der Baugruppe oder Gewicht der Einzelteile) für "
+                            "den Faktor beim Wenden")
     f, stufe = regeln.stufe("Wenden", g, "Faktor")
     if f is None:
         return None, None, "Regel Wenden (Faktor nach Gewicht) fehlt"
-    return zeit * f, int(n), f"{int(n)} × {_text(zeit)} min × {_text(f)} ({stufe}, {_text(g)} kg)"
+    return zeit * f, int(n), (f"{int(n)} × {_text(zeit)} min × {_text(f)} ({stufe}, {_text(round(g, 1))} kg aus "
+                              f"{herkunft})")
 
 
 # ------------------------------------------------------------------ Heften und Nacharbeit
@@ -377,7 +376,7 @@ def _ag_setzen(bg, art, werte, text, satz_id, richtwert, out):
     out.append(f"{AG_NAMEN[art]}: {text}")
 
 
-def vorkalkulieren(p, positionen, tabellen, einstellungen=None):
+def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
     """Vorkalkulation der Baugruppen-Position p (Index in positionen egal, Einzelteile über bg_knoten): setzt in
     ihrer Baugruppe Heftpunkte und Nacharbeitsstufe der Nahtgruppen und die Arbeitsgänge Rüsten, Positionieren,
     Wenden und Verputzen als Vorschläge; Werte von Hand und bestätigte bleiben. Ändert nichts an den Positionen.
@@ -411,7 +410,7 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None):
                out)
     if t is None:
         hinweise.append(text)
-    t, n, text = wenden(bg, regeln)
+    t, n, text = wenden(bg, regeln, positionen, k)
     _ag_setzen(bg, WENDEN, None if t is None else dict(zeit_min=round(t, 4), menge=n), text, satz, regeln.richtwert,
                out)
     if text and t is None:
@@ -421,10 +420,13 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None):
                out)
     if text and t is None:
         hinweise.append(text)
+    n = bg_mengen.anwenden(bg, positionen, k)        # Arbeitsgänge mit Bezug: Menge aus den Einzelteilen
+    if n:
+        out.append(f"Menge aus den Einzelteilen: {n} Arbeitsgang/-gänge")
     return dict(bg=bg, aenderungen=out, hinweise=hinweise, hilfen=hilfen, richtwert=regeln.richtwert)
 
 
-def komplett(p, positionen, tabellen, einstellungen=None):
+def komplett(p, positionen, tabellen, einstellungen=None, k=None):
     """Vorkalkulation automatisch: erst alle Nahtvorschläge aus dem STEP als Nahtgruppen (a-Maß nach der Regel
     schweiss_a_regel, Verfahren = erstes aktives), dann vorkalkulieren. Ergebnis wie vorkalkulieren, zusätzlich
     naehte_neu (Anzahl)."""
@@ -437,7 +439,7 @@ def komplett(p, positionen, tabellen, einstellungen=None):
     verfahren = next((z["verfahren"] for z in tabellen.get("schweissverfahren") or ()
                       if z.get("verfahren") and z.get("aktiv", True) is not False), None)
     n = baugruppe.vorschlaege_anlegen(bg, regel, verfahren)
-    r = vorkalkulieren(dict(p, baugruppe=baugruppe.speichern(bg)), positionen, tabellen, einst)
+    r = vorkalkulieren(dict(p, baugruppe=baugruppe.speichern(bg)), positionen, tabellen, einst, k)
     r["naehte_neu"] = n
     if n:
         r["aenderungen"].insert(0, f"{n} Nahtgruppe(n) aus den STEP-Vorschlägen")

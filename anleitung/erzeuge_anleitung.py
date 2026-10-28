@@ -4510,12 +4510,14 @@ def kapitel_baugruppen(i):
         (3, "<b>Umlage</b>: <i>je Auftrag</i> ganz, <i>anteilig</i> mit dem Anteil in %, <i>wiederverwendbar</i> "
             "gar nicht (Vorrichtung schon vorhanden)."),
         (4, "<b>Fremd</b>: Fremdleistung mit Zuschlag Fremdleistung statt Fertigung."),
-        (5, "<b>Arbeitsgang hinzufügen</b> bzw. <b>Vorrichtung hinzufügen</b>.")])
+        (5, "<b>Arbeitsgang hinzufügen</b> bzw. <b>Vorrichtung hinzufügen</b>."),
+        (6, "<b>Menge aus</b>: Gewicht, Oberfläche, Länge, Naht oder Teile – die Menge folgt den Einzelteilen."),
+        (7, "Mengen je Baugruppe aus den Einzelteilen: Gewicht, Außenfläche, Nahtlänge, Anzahl Teile.")])
     i.genauer()
     i.text("<b>Aus Zusatzarbeiten …</b> übernimmt eine Zusatzarbeit der Stammdaten ([[zusatzarbeiten_verwalten]]) als "
            "Arbeitsgang: Stundensatz-ID bzw. eigener Stundensatz, Zeitaufwand (in Minuten umgerechnet), Festpreis "
-           "und Material als Kosten je Einheit (bei €/kg, €/m², €/m die Menge in kg, m² bzw. m im Arbeitsgang "
-           "eintragen), €/Angebot als Einmalbetrag und Fremdleistung. Danach lässt sich alles im Arbeitsgang ändern; "
+           "und Material als Kosten je Einheit (bei €/kg, €/m², €/m kommt die Menge aus den Einzelteilen, "
+           "[[baugruppe_mengen]]), €/Angebot als Einmalbetrag und Fremdleistung. Danach lässt sich alles im Arbeitsgang ändern; "
            "spätere Änderungen der Zusatzarbeit ändern den Arbeitsgang nicht.")
     i.text("Laufende Kosten je Stück der Unterbaugruppe: Zeit je Einheit × Menge × Stundensatz + Kosten je Einheit "
            "× Menge. Einmalkosten werden durch die Anzahl Baugruppen geteilt, in den Staffeln durch die Menge der "
@@ -4528,6 +4530,25 @@ def kapitel_baugruppen(i):
     i.text("Aus einer STEP-Baugruppe: im Prüfdialog des STEP-Imports bei <b>Sätze</b> das Häkchen <b>als "
            "Schweißbaugruppe</b> setzen ([[step]]); Unterbaugruppen und Zuordnung der Teile kommen dann aus der "
            "Datei.")
+    i.abschnitt("Mengen aus den Einzelteilen", marke="baugruppe_mengen")
+    i.text("Für Arbeitsgänge, die nach Gewicht, Fläche oder Länge abgerechnet werden (Verzinken €/kg, Pulvern €/m², "
+           "Strahlen, Prüfen je Teil), rechnet das Programm die Menge selbst: in der Spalte <b>Menge aus</b> "
+           "<i>Gewicht</i>, <i>Oberfläche</i>, <i>Länge</i>, <i>Naht</i> oder <i>Teile</i> wählen.", kurz=True)
+    i.tabelle(["Menge aus", "Rechnung je Stück der (Unter-)Baugruppe"], [
+        ["Gewicht [kg]", "Rohrlaserteile Metergewicht × Länge (virtuelles Bauteil aus dem Volumen), Zukaufteile "
+                         "und Bleche <i>Gewicht je Teil</i>"],
+        ["Oberfläche [m²]", "Rohrlaserteile Umfang × Länge (ohne Stirnflächen und Innenseite), Bleche beide Seiten "
+                            "des Zuschnitts; Schrauben und Normteile ohne Fläche"],
+        ["Länge [m]", "Länge der Rohrlaserteile"],
+        ["Naht [m]", "Nahtgruppen: Länge × Anzahl, beidseitig doppelt"],
+        ["Teile", "Anzahl Einzelteile"]], [35, 230])
+    i.text("Die Menge zählt jedes Teil mit seinen Stück je Baugruppe bzw. Unterbaugruppe und wird bei jeder Rechnung "
+           "neu bestimmt: ändert sich eine Länge oder kommt ein Teil dazu, ändert sich der Preis mit. Fehlt ein "
+           "Gewicht (Zukaufteil ohne <i>Gewicht je Teil</i>), zählt das Teil 0, die Zeile über der Tabelle nennt es "
+           "(<i>unvollständig: Pos. …</i>). Wer die Menge von Hand überschreibt, stellt <i>Menge aus</i> auf "
+           "<i>von Hand</i> – der Wert von Hand geht vor. <b>Aus Zusatzarbeiten …</b> stellt €/kg auf Gewicht, "
+           "€/m² auf Oberfläche und €/m auf Länge. Das <b>Gewicht der Baugruppe</b> für das Wenden "
+           "([[vorkalkulation_baugruppe]]) ist das Gewicht im Reiter Stammdaten, leer die Summe der Einzelteile.")
     i.abschnitt("Vorkalkulation: Rüsten, Positionieren, Heften, Verputzen", marke="vorkalkulation_baugruppe")
     i.text("<b>Vorkalkulation rechnen</b> unten im Editor füllt, was sich aus Struktur und Teilen ableiten lässt: "
            "Heftpunkte und Nacharbeit je Nahtgruppe, die Positionierhilfe je Einzelteil und die Arbeitsgänge "
@@ -4538,7 +4559,8 @@ def kapitel_baugruppen(i):
            hoehe=60 * mm, legende=[
                (1, "<b>Vorkalkulation rechnen</b>: Vorschläge aus Struktur, Teilen und den Regeln."),
                (2, "Gelb = Vorschlag, im Tooltip die Rechnung (z. B. 15 + 1 × 3 Teilenummern = 18 min)."),
-               (3, "<b>Wendevorgänge je Baugruppe</b>: Zeit je Wenden × Faktor nach Gewicht (Reiter Stammdaten)."),
+               (3, "<b>Wendevorgänge je Baugruppe</b>: Zeit je Wenden × Faktor nach Gewicht (Reiter Stammdaten, leer "
+                   "= Summe der Einzelteile)."),
                (4, "Ergebnis der Vorkalkulation und was fehlt (fehlende Regel, Wanddicke, Gewicht)."),
                (5, "<b>Vorschläge bestätigen</b>: alle gelben Werte als geprüft übernehmen.")])
     i.genauer()
@@ -4555,7 +4577,8 @@ def kapitel_baugruppen(i):
         ["Verputzen", "Naht [m] × min je m der <b>Nacharbeit</b> × Faktor Zugänglichkeit; Nacharbeit aus Qualität "
                       "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
                       "verzinkt = Spritzer entfernen)"],
-        ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe"]], [40, 225])
+        ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe (Stammdaten, leer = Summe "
+                   "der Einzelteile)"]], [40, 225])
     i.text("Im Reiter Nahtgruppen gehören dazu die Spalten <b>Wanddicke</b>, <b>gesteckt</b>, <b>rundum</b> und "
            "<b>Nacharbeit</b>; in der Teileliste die Spalten <b>Positionierhilfe</b> (leer = Vorschlag, daneben "
            "<i>Vorschlag</i> mit Grund) und Stück je Baugruppe. Fehlt eine Regel oder ein Wert, gibt es keinen "

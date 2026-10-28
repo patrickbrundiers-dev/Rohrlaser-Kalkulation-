@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton, QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, baugruppe_vorschlaege as bv, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
+from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
@@ -42,7 +42,8 @@ ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "E
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
 LANGTEXT = ("beschreibung", "bemerkung", "intern")
 HERKUNFT = {vorkalk.VORSCHLAG: "Vorschlag der Vorkalkulation (gelb, mit „Vorschläge bestätigen“ übernehmen)",
-            vorkalk.BESTAETIGT: "Vorschlag bestätigt", vorkalk.HAND: "von Hand (die Vorkalkulation lässt den Wert stehen)"}
+            vorkalk.BESTAETIGT: "Vorschlag bestätigt", vorkalk.HAND: "von Hand (die Vorkalkulation lässt den Wert stehen)",
+            bg_mengen.AUTO: "automatisch aus den Einzelteilen (Bezug; eine Menge von Hand stellt auf „von Hand“)"}
 
 
 def _text(w, stellen=None):
@@ -163,6 +164,24 @@ class ZeilenTabelle(QTableWidget):
         if s.frei:
             f.setEditText(str(w or ""))
         f.blockSignals(False)
+
+    def felder_neu(self, schluessel):
+        """Felder einer Spalte aus den Zeilen neu anzeigen (z. B. Menge aus den Einzelteilen), ohne die Tabelle neu
+        aufzubauen; ein Feld, in dem gerade getippt wird, bleibt."""
+        c = next((c for c, s in enumerate(self.spalten) if s.schluessel == schluessel), None)
+        if c is None:
+            return
+        s = self.spalten[c]
+        for r, z in enumerate(self.zeilen):
+            f = self.cellWidget(r, c)
+            if isinstance(f, QComboBox):
+                self._optionen_setzen(f, s, z.get(schluessel))
+            elif isinstance(f, QLineEdit) and not f.hasFocus():
+                t = _text(z.get(schluessel)) if s.typ in ("zahl", "ganz") else str(z.get(schluessel) or "")
+                if f.text() != t:
+                    f.blockSignals(True)
+                    f.setText(t)
+                    f.blockSignals(False)
 
     def optionen_neu(self):
         """Auswahllisten neu füllen (z. B. nach neuer Unterbaugruppe), gewählte Werte bleiben."""
@@ -1776,6 +1795,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         # Profile der Stammdaten {profil_id: Zeile} für die Steckverbindungen (ohne: die der Angebotsseite)
         self.profile = profile or getattr(getattr(parent, "k", None), "profile", None) or {}
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
+        self.k = getattr(parent, "k", None)     # Profile und Werkstoffe: Gewicht und Fläche der Teile (bg_mengen)
+        self.mengen = {}
         self.einstellungen = einstellungen or {}     # Stundensätze der Vorkalkulation (schweiss_vk_satz …)
         self.hilfe_vk, self.vk_ergebnis = {}, None
         self.netze = netze or {}    # {Positions-ID: Netz-Bytes} aus dem STEP-Import (3D im Strukturbaum, D1)
@@ -2305,6 +2326,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("knoten", "Unterbaugruppe", "auswahl", 130, optionen=lambda: self._knoten_optionen()),
             Spalte("satz_id", "Stundensatz", "auswahl", 150, optionen=self._satz_optionen),
             Spalte("menge", "Menge", "zahl", 55, tipp="Einheiten je Stück der Unterbaugruppe (leer = 1)", vk=True),
+            Spalte("bezug", "Menge aus", "auswahl", 95, optionen=[(b, None if b == bg_mengen.HAND else b)
+                                                                   for b in bg_mengen.BEZUEGE],
+                   tipp="Menge automatisch aus den Einzelteilen: Gewicht [kg], Oberfläche [m²], Länge [m], Naht [m] "
+                        "oder Anzahl Teile je Stück der Unterbaugruppe (z. B. Verzinken €/kg, Pulvern €/m²)"),
             Spalte("zeit_min", "Zeit je\nEinheit [min]", "zahl", 80, vk=True),
             Spalte("kosten_einheit", "Kosten je\nEinheit [€]", "zahl", 80, tipp="z. B. Fremdleistung, Material"),
             Spalte("ruest_min", "Rüstzeit\n[min]", "zahl", 70, tipp="einmal je Auftrag bzw. Staffelstufe", vk=True),
@@ -2319,6 +2344,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("_hinweis", "Hinweis", "anzeige", 160,
                    anzeige=lambda z, r: self._zeile_wert("Arbeitsgang", z, "hinweis"))],
             self.bg["arbeitsgaenge"], self.aktualisieren, self._ag_herkunft)
+        self.mengen_info = QLabel()
+        self.mengen_info.setStyleSheet(f"color: {GRAU};")
+        self.mengen_info.setToolTip("Mengen je Baugruppe aus den Einzelteilen (Gewicht, Außenfläche, Nahtlänge, Teile); "
+                                    "Arbeitsgänge mit „Menge aus“ rechnen damit")
+        lay.addWidget(self.mengen_info)
         lay.addWidget(self.ag_tab, 1)
         leiste = QHBoxLayout()
         neu = QPushButton("Arbeitsgang hinzufügen")
@@ -2528,8 +2558,23 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self._vk_timer.start()      # Vorkalkulation automatisch: nach der Eingabe neu vorschlagen
         bg = self.daten()
         p = self._position(bg)
-        self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze)
         positionen = self._positionen_neu(p)
+        if not self.nur_lesen and bg_mengen.anwenden(self.bg, positionen, self.k):   # Menge aus den Einzelteilen
+            bg = self.daten()
+            p = self._position(bg)
+            positionen[-1] = dict(positionen[-1], baugruppe=p["baugruppe"])
+            if getattr(self, "ag_tab", None) is not None:
+                for n in ("menge", "bezug"):
+                    self.ag_tab.felder_neu(n)
+        self.mengen = bg_mengen.je_knoten(bg, positionen, self.k)
+        self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze, None, self.mengen)
+        m = bg_mengen.mengen(bg, positionen, self.k)
+        if getattr(self, "mengen_info", None) is not None:
+            self.mengen_info.setText("Je Baugruppe aus den Einzelteilen: " + bg_mengen.text(m))
+        g = getattr(self, "stamm_felder", {}).get("gewicht")
+        if g is not None:
+            g.setPlaceholderText(f"leer = aus den Einzelteilen {_text(round(m['gewicht'], 1))} kg" if m["gewicht"]
+                                 else "leer = aus den Einzelteilen (Gewicht unbekannt)")
         self.hilfe_vk = {positionen[i]["id"]: v for i, v in vorkalk.hilfen_vorschlag(bg, positionen, bg["id"]).items()}
         for tab in (getattr(self, "knoten_tab", None), getattr(self, "teile_tab", None),
                     getattr(self, "naht_tab", None), getattr(self, "ag_tab", None)):
@@ -2618,7 +2663,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         st = vorkalk.naht_status(z, feld)
         return (st, ((z.get("vk") or {}).get(feld) or {}).get("text")) if st else None
 
-    def _ag_herkunft(self, z, _feld):
+    def _ag_herkunft(self, z, feld):
+        if feld == "menge" and bg_mengen.bezug(z):
+            _, grund = bg_mengen.menge(z, (self.mengen or {}).get(z.get("knoten") or ""))
+            return bg_mengen.AUTO, grund
         st = vorkalk.ag_status(z)
         return (st, (z.get("vk") or {}).get("text")) if st else None
 
@@ -2652,7 +2700,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             n_neu = baugruppe.vorschlaege_anlegen(self.bg, self._regel_faktor(), verfahren)
             self._vorschlaege_zeigen()
         p = self._position()
-        r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen)
+        r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen, self.k)
         neu = {n.get("id"): n for n in r["bg"]["naehte"]}
         for n in self.bg["naehte"]:
             x = neu.get(n.get("id"))

@@ -646,9 +646,10 @@ def arbeitsgang_rechnen(ag, saetze):
 
 
 # ------------------------------------------------------------------ Baugruppe rechnen
-def rechnen(p, tabellen, saetze, anzahl=None):
+def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
-    der Position. Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
+    der Position. mengen = bg_mengen.je_knoten (Arbeitsgänge mit Bezug rechnen mit der Menge aus den Einzelteilen;
+    ohne: die eingetragene Menge). Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
     zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, werte, vorschlag (Vorkalkulation offen)}], fehler, warnungen, richtwert).
     eigen/fremd enthalten den umgelegten Einmalanteil (einmal)."""
     from .vorkalk import NAHT_FELDER, VORSCHLAG, ag_status, naht_status
@@ -693,6 +694,13 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         if f is None:
             out["warnungen"].append(f"{ag.get('name') or 'Arbeitsgang'}: Unterbaugruppe fehlt")
             continue
+        if mengen is not None and ag.get("bezug"):
+            from . import bg_mengen
+            wert, grund = bg_mengen.menge(ag, mengen.get(ag.get("knoten") or ""))
+            if wert is not None:
+                ag = dict(ag, menge=wert)
+            elif grund:
+                out["warnungen"].append(f"{ag.get('name') or 'Arbeitsgang'}: Menge aus {grund}")
         r = arbeitsgang_rechnen(ag, saetze)
         if r["fehlt"]:
             out["warnungen"].append(r["fehlt"])
@@ -963,6 +971,9 @@ def arbeitsgang_vorlage(z):
         ag["kosten_einheit"] = kosten
     if z.get("art") == "€/Angebot" and preis:
         ag["einmal_eur"] = preis
+    from .bg_mengen import BEZUG_ART
+    if z.get("art") in BEZUG_ART:          # Menge aus den Einzelteilen (Plan 28.10.2026, Schritt 1)
+        ag["bezug"] = BEZUG_ART[z["art"]]
     return {k: v for k, v in ag.items() if v is not None}
 
 
