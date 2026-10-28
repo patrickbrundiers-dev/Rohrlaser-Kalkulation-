@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.178", "<b>Zusammenarbeit über den gemeinsamen Ordner</b>: Das Programm gleicht jetzt <b>alle 2 Minuten "
+                "von selbst</b> ab (nur wenn sich etwas geändert hat; Einstellung <i>Automatischer Abgleich alle [min]</i>), "
+                "rechts in der Statusleiste steht <i>⇄ abgeglichen 14:32</i>. <b>Wer arbeitet woran</b>: hat ein "
+                "Kollege sein Angebot offen, steht <i>● geöffnet</i> hinter seinem Kürzel ([[wer_arbeitet_woran]]). "
+                "Angebote lassen sich <b>an einen Kollegen übergeben</b> (Vorgang ▾, mit Notiz, zurücknehmbar) und "
+                "beim Bearbeiter die <b>Übernahme anfragen</b>; er wird gefragt und kann übergeben oder ablehnen "
+                "([[angebot_uebergeben]]). <b>Konflikte</b> (dieselben Stammdaten bei zwei Kollegen verschieden "
+                "geändert) zeigt <i>Datei → Abgleich-Konflikte …</i>; die verlorene Fassung lässt sich "
+                "wiederherstellen ([[abgleich_konflikte]]).",
+     "Gemeinsamer Ordner: Abgleich alle 2 Minuten, sehen wer woran arbeitet, Angebote übergeben/anfragen, Konflikte"],
     ["0.9.177", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
                 "3 mm und mindestens √(dickere Wand) − 0,5 vor (EN 1993-1-8), nie mehr als die dünnere Wand. Liegt "
                 "ein a-Maß zwischen zwei Kennwertzeilen, rechnet die Schweißzeit den Wert dazwischen (nach a²); dicke "

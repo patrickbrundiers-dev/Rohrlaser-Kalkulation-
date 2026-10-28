@@ -18,6 +18,17 @@ Abgleich (Knopf, beim Start lesen, beim Beenden schreiben):
    anderen kommen als fremde Angebote (angebote.fremd = Kürzel) in die eigene Datei: nur zum Ansehen und Kopieren,
    beim nächsten Abgleich wieder auf den Stand des Bearbeiters gesetzt.
 3. schreiben: eigene Datei aktualisieren (nur geänderte Angebote neu) und in den gemeinsamen Ordner legen.
+
+Zusammenarbeit (Patrick 28.10.2026, Freigabe „Alles 1-4“): das Programm gleicht alle paar Minuten selbst ab
+(teilen_fenster.auto_abgleich). In der Info der eigenen Datei stehen die gerade geöffneten eigenen Angebote (wer
+arbeitet woran). Vorgänge zwischen zwei Mitarbeitern stehen in der Tabelle vorgaenge der Datei des Absenders:
+- Übergabe: der Bearbeiter gibt ein Angebot samt Inhalt an einen Kollegen ab; der übernimmt es beim nächsten Lesen
+  als eigenes. Bis dahin ist es beim Absender schon ein fremdes Angebot (nur ansehen, Übergabe zurücknehmen).
+- Anfrage: ein Kollege möchte ein Angebot übernehmen; der Bearbeiter wird beim Abgleich gefragt (übergeben/ablehnen).
+- Abgelehnt: Antwort auf eine Anfrage.
+Erledigte Vorgänge anderer merkt sich jeder Arbeitsplatz (teilen_erledigt), eigene verschwinden, sobald der Empfänger
+sie umgesetzt hat. Konflikte (dieselbe Stammdatenzeile hier und bei einem Kollegen seit dem letzten Lesen geändert)
+werden gemerkt (teilen_konflikte) und lassen sich ansehen und umkehren.
 """
 import datetime
 import hashlib
@@ -46,12 +57,16 @@ LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefo
          "letzte_angebotsnummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
          "anfrage_signatur", "anfrage_outlook_signatur", "step_prozesse", "step_cache", "step_cache_mb", "ansicht_3d",
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
-         "anfrage_ordner", "stangenbild_popup"}
+         "anfrage_ordner", "stangenbild_popup", "teilen_takt"}
 EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL)
 EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsamen Einstellungen (uid = Name)
 # Spalten eines Angebots, die nur die Anzeige merkt (Liste) oder die nur hier gelten
 ANGEBOT_OHNE = ("id", "fremd", "fremd_stand", "vk_netto", "stand", "vk_am", "geaendert")
 UEBERNEHMEN, ZUSAMMENFUEHREN = "uebernehmen", "zusammenfuehren"
+UEBERGABE, ANFRAGE, ABGELEHNT = "uebergabe", "anfrage", "abgelehnt"     # Vorgänge zwischen Mitarbeitern
+VORGAENGE, ERLEDIGT, KONFLIKTE = "teilen_vorgaenge", "teilen_erledigt", "teilen_konflikte"   # lokale Merker
+FRISCH_MIN = 20                 # geöffnete Angebote eines Kollegen gelten so lange nach seinem letzten Schreiben
+KONFLIKTE_MAX = 100
 
 
 class TeilenFehler(Exception):
@@ -343,6 +358,8 @@ def _datei_anlegen(con):
                 "PRIMARY KEY (tabelle, uid))")
     con.execute("CREATE TABLE IF NOT EXISTS angebote (nummer TEXT PRIMARY KEY, hash TEXT, inhalt TEXT)")
     con.execute("CREATE TABLE IF NOT EXISTS netze (nummer TEXT, idx INTEGER, daten BLOB, PRIMARY KEY (nummer, idx))")
+    con.execute("CREATE TABLE IF NOT EXISTS vorgaenge (id TEXT PRIMARY KEY, art TEXT, nummer TEXT, an TEXT, zeit TEXT, "
+                "notiz TEXT, bezug TEXT, inhalt TEXT)")
 
 
 def info_lesen(pfad):
@@ -399,10 +416,11 @@ def _lokal_kopieren(db, quelle):
     return ziel
 
 
-def schreiben(db, uebernehmen=False):
+def schreiben(db, uebernehmen=False, offen=None):
     """Schritt 3: eigene Datei im Zwischenspeicher aktualisieren und in den gemeinsamen Ordner legen.
     uebernehmen: die Datei des Kürzels gehört einem anderen Arbeitsplatz (z. B. neuer Rechner) und wird übernommen;
-    ihre Angebote, die es hier nicht gibt, kommen vorher als eigene Angebote herein. Ergebnis: Anzahl Angebote."""
+    ihre Angebote, die es hier nicht gibt, kommen vorher als eigene Angebote herein. offen: {Nummer: seit} der hier
+    gerade geöffneten eigenen Angebote (für die Kollegen). Ergebnis: Anzahl Angebote."""
     from . import nummern
     k, o = kuerzel(db), _ordner_pruefen(db)
     if not k:
@@ -451,13 +469,14 @@ def schreiben(db, uebernehmen=False):
                                [(nummer, idx, d) for idx, d in netze.items()])
             weg = set(alt) - {n for _, n in eigene}
             sc.executemany("DELETE FROM angebote WHERE nummer=?", [(n,) for n in weg])
-            sc.executemany("DELETE FROM netze WHERE nummer=?", [(n,) for n in weg])
+            uebergaben = _vorgaenge_schreiben(db, sc, karte)
+            sc.executemany("DELETE FROM netze WHERE nummer=?", [(n,) for n in weg - uebergaben])
             info = dict(kuerzel=k, name=db.einstellung("benutzer_name") or "", email=db.einstellung("benutzer_email") or "",
                         telefon=db.einstellung("benutzer_telefon") or "", installation=ich, rechner=socket.gethostname(),
                         benutzer=os.environ.get("USERNAME") or os.environ.get("USER") or "",
                         schema=con.execute("PRAGMA user_version").fetchone()[0], version=VERSION, format=FORMAT,
                         stand=datetime.datetime.now().isoformat(timespec="seconds"), angebote=len(eigene),
-                        letzte=db.einstellung("letzte_angebotsnummer"))
+                        letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}))
             sc.executemany("INSERT OR REPLACE INTO info (name, wert) VALUES (?, ?)",
                            [(n, json.dumps(w, ensure_ascii=False)) for n, w in info.items()])
     finally:
@@ -535,13 +554,17 @@ def _zeile_schreiben(db, t, zeilen_id, daten, u):
             db._maschine_umbenannt(alt[feld], werte[feld])
 
 
-def zusammenfuehren(db, entfernt):
+def zusammenfuehren(db, entfernt, seit=None, konflikte=None):
     """Stammdaten und Einstellungen der anderen übernehmen, wo deren Änderung neuer ist. entfernt: {(Tabelle, uid):
-    (zeit, daten)} – je Zeile die neueste Änderung aus allen fremden Dateien. Ergebnis: Anzahl übernommener Zeilen."""
+    (zeit, daten)} – je Zeile die neueste Änderung aus allen fremden Dateien. seit: Zeitpunkt des letzten Lesens;
+    wurde eine Zeile seitdem hier und bei einem Kollegen verschieden geändert, kommt ein Eintrag in die Liste
+    konflikte. Ergebnis: Anzahl übernommener Zeilen."""
     con = db.con
     b = basis(con)
     n = 0
     karten = {}
+    if seit and konflikte is not None:
+        konflikte.extend(_konflikte_finden(con, entfernt, b, seit))
 
     def id_von(tabelle, u):
         if tabelle not in karten:
@@ -629,7 +652,7 @@ def lesen(db, modus=None):
     dateien = andere_dateien(db)
     erstmals = not con.execute("SELECT 1 FROM teilen_basis LIMIT 1").fetchone()
     bericht = dict(mitarbeiter=[], stammdaten=0, angebote_neu=0, angebote_geaendert=0, angebote_weg=0, hinweise=[],
-                   geaenderte_ids=[], entfernte_ids=[])
+                   geaenderte_ids=[], entfernte_ids=[], uebernommen=[], anfragen=[], abgelehnt=[], konflikte=[])
     gelesen = {}
     for k2, pfad in dateien.items():
         try:
@@ -644,15 +667,18 @@ def lesen(db, modus=None):
             for t in GETEILT:            # Zukaufartikel bleiben (Angebote verweisen über die ID), sie werden zusammengeführt
                 if t.schluessel:
                     con.execute(f'DELETE FROM "{t.name}"')
-        erfassen(con, ("0000|" + k) if erstmals and gelesen else jetzt(k))
+        seit = None if erstmals else db.einstellung("teilen_lese_zeit")
+        lese_zeit = jetzt(k)
+        erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit)
         entfernt = {}
+        vorgaenge = {}          # Kürzel -> [Vorgang] aus den Dateien der anderen
         bekannt = dict(db.einstellung("teilen_mitarbeiter") or {})
         angebote = {}
         for k2, kopie in gelesen.items():
             fc = sqlite3.connect(kopie)
             try:
                 info = {n: json.loads(w) for n, w in fc.execute("SELECT name, wert FROM info")}
-                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version")}
+                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen")}
                 bericht["mitarbeiter"].append(k2)
                 if int(info.get("format") or 0) > FORMAT or int(info.get("schema") or 0) > schema:
                     bericht["hinweise"].append(
@@ -664,26 +690,40 @@ def lesen(db, modus=None):
                             entfernt[(t, u)] = (zeit, json.loads(daten) if daten is not None else None)
                 angebote[k2] = {nummer: (h, inhalt) for nummer, h, inhalt in
                                 fc.execute("SELECT nummer, hash, NULL FROM angebote")}
+                if fc.execute("SELECT 1 FROM sqlite_master WHERE name='vorgaenge'").fetchone():
+                    cur = fc.execute("SELECT id, art, nummer, an, zeit, notiz, bezug FROM vorgaenge")
+                    namen = [d[0] for d in cur.description]
+                    vorgaenge[k2] = [dict(zip(namen, r), von=k2) for r in cur]
+                else:
+                    vorgaenge[k2] = []
             except (sqlite3.DatabaseError, ValueError) as e:
                 bericht["hinweise"].append(f"Datei von {k2} nicht lesbar: {e}")
             finally:
                 fc.close()
-        bericht["stammdaten"] = zusammenfuehren(db, entfernt)
+        bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"])
+        _konflikte_merken(db, bericht["konflikte"])
         db._einstellung_schreiben("teilen_mitarbeiter", bekannt)
         karte = _uid_karte(con, "zukauf_artikel")
         karte_id = {u: i for i, u in karte.items()}
+        unterwegs = _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id)
         for k2, liste in angebote.items():
             fc = sqlite3.connect(gelesen[k2])
             try:
                 hier = {r[1]: (r[0], r[2]) for r in con.execute("SELECT id, nummer, fremd FROM angebote")}
+                fremd_stand = dict(con.execute("SELECT id, fremd_stand FROM angebote WHERE fremd=?", (k2,)).fetchall())
                 for nummer, (h, _) in liste.items():
                     a = hier.get(nummer)
+                    if a is not None and a[1] not in (None, k2) and nummer not in angebote.get(a[1], {}):
+                        a = (a[0], k2)          # beim bisherigen Bearbeiter nicht mehr: übergeben, jetzt von k2
                     if a is not None and a[1] != k2:
                         bericht["hinweise"].append(f"Angebot {nummer} von {k2} nicht übernommen: doppelte "
                                                    "Angebotsnummer, die Nummer gibt es hier schon. Bitte bei einem "
                                                    "der beiden Angebote die Nummer ändern.")
                         continue
+                    if a is not None and fremd_stand.get(a[0]) == h:
+                        continue            # unverändert (Stand des letzten Lesens), ohne den Inhalt zu vergleichen
                     if a is not None and _hash(angebot_inhalt(con, a[0], karte)[0]) == h:
+                        con.execute("UPDATE angebote SET fremd=?, fremd_stand=? WHERE id=?", (k2, h, a[0]))
                         continue
                     inhalt = json.loads(fc.execute("SELECT inhalt FROM angebote WHERE nummer=?", (nummer,)).fetchone()[0])
                     netze = {i: bytes(d) for i, d in fc.execute("SELECT idx, daten FROM netze WHERE nummer=?", (nummer,))}
@@ -691,13 +731,14 @@ def lesen(db, modus=None):
                     bericht["angebote_geaendert" if a else "angebote_neu"] += 1
                     bericht["geaenderte_ids"].append(i)
                 for nummer, (i, fremd) in hier.items():
-                    if fremd == k2 and nummer not in liste:
+                    if fremd == k2 and nummer not in liste and nummer not in unterwegs:
                         con.execute("DELETE FROM angebote WHERE id=?", (i,))
                         bericht["angebote_weg"] += 1
                         bericht["entfernte_ids"].append(i)
             finally:
                 fc.close()
         db._einstellung_schreiben("teilen_gelesen", datetime.datetime.now().isoformat(timespec="seconds"))
+        db._einstellung_schreiben("teilen_lese_zeit", lese_zeit)
     return bericht
 
 
@@ -720,8 +761,333 @@ def bericht_text(b):
         teile.append(f"Angebote: {neu} neu, {geaendert} geändert, {weg} entfernt")
     if b.get("stammdaten"):
         teile.append(f"{b['stammdaten']} Stammdaten übernommen")
+    if b.get("uebernommen"):
+        teile.append("übernommen: " + ", ".join(f"{u['nummer']} von {u['von']}" for u in b["uebernommen"]))
+    if b.get("konflikte"):
+        teile.append(f"{len(b['konflikte'])} Konflikte (Datei → Abgleich-Konflikte …)")
     if b.get("nummern"):
         teile.append("endgültige Nummer: " + ", ".join(f"{a} → {n}" for a, n in b["nummern"]))
     if "eigene" in b:
         teile.append(f"{b['eigene']} eigene Angebote geteilt")
     return "; ".join(teile) + "."
+
+
+# ------------------------------------------------------------------ Konflikte (Schritt 4)
+def _wer(zeit):
+    return str(zeit or "").rpartition("|")[2]
+
+
+def _bezeichnung(tabelle, daten):
+    """Lesbarer Name einer Zeile: Reiter und Schlüssel (z. B. „Kunden 10042 Muster GmbH“)."""
+    t = GETEILT_NAME.get(tabelle)
+    if t is None:
+        return tabelle
+    d = daten or {}
+    teile = [str(d.get(s)) for s in t.schluessel if d.get(s) not in (None, "")]
+    for name in ("name", "bezeichnung", "kunde"):
+        if d.get(name) not in (None, "") and str(d[name]) not in teile:
+            teile.append(str(d[name]))
+            break
+    return f"{t.titel}: {' '.join(teile)}" if teile else t.titel
+
+
+def _konflikte_finden(con, entfernt, b, seit):
+    """Zeilen, die seit dem letzten Lesen (seit) hier und bei einem Kollegen verschieden geändert wurden. Es gewinnt
+    die jüngere Änderung wie bisher; der Eintrag hält die verlorene Fassung zum Wiederherstellen fest."""
+    from .stammdaten import EINSTELLUNG
+    lokal = None
+    out = []
+    for (t, u), (zeit, daten) in entfernt.items():
+        hier = b.get((t, u))
+        if hier is None or zeit <= seit or hier[1] <= seit or zeit == hier[1]:
+            continue
+        if _hash(daten) == hier[0] or (t == EINST and u not in EINSTELLUNGEN_GETEILT):
+            continue
+        if lokal is None:
+            lokal = lokale_zeilen(con)
+        meine = lokal.get((t, u))
+        if meine == daten:
+            continue
+        fremd_gewinnt = zeit > hier[1]
+        if t == EINST:
+            e = EINSTELLUNG.get(u)
+            text = "Einstellung: " + (e.titel if e else u)
+        else:
+            text = _bezeichnung(t, daten or meine)
+        out.append(dict(id=uuid.uuid4().hex, zeit=datetime.datetime.now().isoformat(timespec="seconds"), tabelle=t,
+                        uid=u, text=text, gewinner=_wer(zeit) if fremd_gewinnt else _wer(hier[1]),
+                        verlierer=_wer(hier[1]) if fremd_gewinnt else _wer(zeit),
+                        verloren=meine if fremd_gewinnt else daten, gewonnen=daten if fremd_gewinnt else meine,
+                        erledigt=False))
+    return out
+
+
+def _konflikte_merken(db, neu):
+    if neu:
+        alle = list(neu) + list(db.einstellung(KONFLIKTE) or [])
+        db._einstellung_schreiben(KONFLIKTE, alle[:KONFLIKTE_MAX])
+
+
+def konflikte(db, offen_nur=False):
+    """Gemerkte Konflikte, neueste zuerst (offen_nur: nur nicht erledigte)."""
+    return [k for k in (db.einstellung(KONFLIKTE) or []) if not (offen_nur and k.get("erledigt"))]
+
+
+def konflikt_erledigt(db, kid, wiederherstellen=False):
+    """Konflikt als erledigt markieren; wiederherstellen: die verlorene Fassung hier eintragen (geht beim nächsten
+    Abgleich als neueste Änderung an alle). Ergebnis: True, wenn gefunden."""
+    alle = list(db.einstellung(KONFLIKTE) or [])
+    k = next((x for x in alle if x.get("id") == kid), None)
+    if k is None:
+        return False
+    with db.con:
+        if wiederherstellen:
+            _zeile_setzen(db, k["tabelle"], k["uid"], k.get("verloren"))
+        k["erledigt"] = True
+        k["wiederhergestellt"] = bool(wiederherstellen)
+        db._einstellung_schreiben(KONFLIKTE, alle)
+    return True
+
+
+def _zeile_setzen(db, tabelle, u, daten):
+    """Werte einer geteilten Zeile (Form wie in der Datei: Verweise als Kennung) hier eintragen; None = löschen."""
+    con = db.con
+    if tabelle == EINST:
+        if daten is not None:
+            con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (u, daten["wert"]))
+        return
+    t = GETEILT_NAME.get(tabelle)
+    if t is None:
+        return
+    hier = {uu: i for i, uu in _uid_karte(con, tabelle).items()}.get(u)
+    if daten is None:
+        if hier is not None:
+            con.execute(f'DELETE FROM "{tabelle}" WHERE id=?', (hier,))
+        return
+    werte = dict(daten)
+    for feld, ziel in ID_VERWEISE.get(tabelle, {}).items():
+        if werte.get(feld) is not None:
+            werte[feld] = {uu: i for i, uu in _uid_karte(con, ziel).items()}.get(werte[feld])
+    _zeile_schreiben(db, t, hier, werte, u)
+
+
+# ------------------------------------------------------------------ Wer arbeitet woran, Übergabe, Anfrage (2, 3)
+def offen_bei(db, nummer, jetzt_=None):
+    """Hat ein Kollege das Angebot gerade geöffnet? (Kürzel, seit) oder None. Gilt nur, solange seine Datei frisch ist
+    (FRISCH_MIN nach seinem letzten Schreiben; das Programm schreibt bei geöffneten Angeboten regelmäßig)."""
+    return kollegen_offen(db, jetzt_).get(nummer) if nummer else None
+
+
+def kollegen_offen(db, jetzt_=None):
+    """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben (nur frische Dateien)."""
+    jetzt_ = jetzt_ or datetime.datetime.now()
+    ich = kuerzel(db)
+    out = {}
+    for k, m in (db.einstellung("teilen_mitarbeiter") or {}).items():
+        if k == ich or not m.get("offen"):
+            continue
+        try:
+            stand = datetime.datetime.fromisoformat(m.get("stand") or "")
+        except ValueError:
+            continue
+        if jetzt_ - stand <= datetime.timedelta(minutes=FRISCH_MIN):
+            for nummer, seit in m["offen"].items():
+                out.setdefault(nummer, (k, seit))
+    return out
+
+
+def _vorgaenge(db):
+    return dict(db.einstellung(VORGAENGE) or {})
+
+
+def _vorgang_neu(db, **werte):
+    v = _vorgaenge(db)
+    i = uuid.uuid4().hex
+    v[i] = dict(werte, zeit=datetime.datetime.now().isoformat(timespec="seconds"))
+    db._einstellung_schreiben(VORGAENGE, v)
+    return i
+
+
+def vorgang_offen(db, nummer, art):
+    """Eigener noch nicht umgesetzter Vorgang (Übergabe oder Anfrage) zu einer Nummer: dict mit id oder None."""
+    for i, v in _vorgaenge(db).items():
+        if v.get("nummer") == nummer and v.get("art") == art:
+            return dict(v, id=i)
+    return None
+
+
+def kollegen(db):
+    """{Kürzel: Name} der anderen Mitarbeiter (aus dem letzten Lesen)."""
+    ich = kuerzel(db)
+    return {k: (m or {}).get("name") or "" for k, m in sorted((db.einstellung("teilen_mitarbeiter") or {}).items())
+            if k != ich}
+
+
+def uebergeben(db, angebot_id, an, notiz="", bezug=None):
+    """Eigenes Angebot an den Kollegen an übergeben: hier gleich nur noch zum Ansehen (fremd = an), der Kollege
+    übernimmt es beim nächsten Abgleich als eigenes. bezug: beantwortete Anfrage. Ergebnis: Kennung des Vorgangs."""
+    from . import nummern
+    a = db.angebot(angebot_id) or {}
+    an = kuerzel_sauber(an)
+    if not a:
+        raise TeilenFehler("Das Angebot gibt es nicht mehr.")
+    if a.get("fremd"):
+        raise TeilenFehler(f"Angebot {a['nummer']} gehört {a['fremd']}: übergeben kann nur der Bearbeiter.")
+    if not an or an == kuerzel(db):
+        raise TeilenFehler("Bitte einen Kollegen wählen.")
+    if nummern.vorlaeufig(a.get("nummer")):
+        raise TeilenFehler(f"Angebot {a['nummer']} hat noch eine vorläufige Nummer. Erst abgleichen, wenn der "
+                           "gemeinsame Ordner erreichbar ist, dann übergeben.")
+    with db.con:
+        db.con.execute("UPDATE angebote SET fremd=?, fremd_stand=NULL, bearbeiter=? WHERE id=?", (an, an, angebot_id))
+        return _vorgang_neu(db, art=UEBERGABE, nummer=a["nummer"], an=an, notiz=notiz or "", bezug=bezug)
+
+
+def zuruecknehmen(db, angebot_id):
+    """Übergabe, die der Kollege noch nicht übernommen hat, zurücknehmen: das Angebot ist wieder eigenes.
+    Ergebnis: True, wenn eine offene Übergabe zurückgenommen wurde."""
+    a = db.angebot(angebot_id) or {}
+    v = vorgang_offen(db, a.get("nummer"), UEBERGABE)
+    if v is None or a.get("fremd") != v.get("an"):
+        return False
+    with db.con:
+        db.con.execute("UPDATE angebote SET fremd=NULL, fremd_stand=NULL, bearbeiter=? WHERE id=?",
+                       (kuerzel(db), angebot_id))
+        alle = _vorgaenge(db)
+        alle.pop(v["id"], None)
+        db._einstellung_schreiben(VORGAENGE, alle)
+    return True
+
+
+def anfragen(db, angebot_id, notiz=""):
+    """Angebot eines Kollegen übernehmen wollen: Anfrage an den Bearbeiter (der wird beim Abgleich gefragt).
+    Ergebnis: Kennung der Anfrage (eine schon offene bleibt)."""
+    a = db.angebot(angebot_id) or {}
+    if not a.get("fremd"):
+        raise TeilenFehler("Das Angebot gehört schon Ihnen.")
+    offen = vorgang_offen(db, a["nummer"], ANFRAGE)
+    if offen:
+        return offen["id"]
+    with db.con:
+        return _vorgang_neu(db, art=ANFRAGE, nummer=a["nummer"], an=a["fremd"], notiz=notiz or "")
+
+
+def beantworten(db, anfrage, ja, notiz=""):
+    """Anfrage eines Kollegen (aus bericht['anfragen']) beantworten: ja = Angebot übergeben, sonst ablehnen."""
+    if ja:
+        i = uebergeben(db, anfrage["angebot_id"], anfrage["von"], notiz or "auf Ihre Anfrage", bezug=anfrage["id"])
+    else:
+        with db.con:
+            i = _vorgang_neu(db, art=ABGELEHNT, nummer=anfrage["nummer"], an=anfrage["von"], notiz=notiz or "",
+                             bezug=anfrage["id"])
+    with db.con:
+        _erledigt(db, anfrage["id"], anfrage["von"])
+    return i
+
+
+def _erledigt(db, vid, von):
+    e = dict(db.einstellung(ERLEDIGT) or {})
+    e[vid] = von
+    db._einstellung_schreiben(ERLEDIGT, e)
+
+
+def _vorgaenge_schreiben(db, sc, karte):
+    """Eigene offene Vorgänge in die geteilte Datei (Übergaben mit Inhalt und Netzen). Ergebnis: Nummern der
+    übergebenen Angebote (deren Netze bleiben in der Datei)."""
+    sc.execute("DELETE FROM vorgaenge")
+    nummern_ = set()
+    ids = dict(db.con.execute("SELECT nummer, id FROM angebote").fetchall())
+    for i, v in _vorgaenge(db).items():
+        inhalt = None
+        if v.get("art") == UEBERGABE:
+            aid = ids.get(v.get("nummer"))
+            if aid is None:
+                continue
+            inh, netze = angebot_inhalt(db.con, aid, karte)
+            inhalt = json.dumps(inh, ensure_ascii=False)
+            sc.execute("DELETE FROM netze WHERE nummer=?", (v["nummer"],))
+            sc.executemany("INSERT INTO netze (nummer, idx, daten) VALUES (?, ?, ?)",
+                           [(v["nummer"], idx, d) for idx, d in netze.items()])
+            nummern_.add(v["nummer"])
+        sc.execute("INSERT INTO vorgaenge (id, art, nummer, an, zeit, notiz, bezug, inhalt) VALUES (?, ?, ?, ?, ?, ?, "
+                   "?, ?)", (i, v.get("art"), v.get("nummer"), v.get("an"), v.get("zeit"), v.get("notiz"),
+                             v.get("bezug"), inhalt))
+    return nummern_
+
+
+def _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id):
+    """Vorgänge der anderen umsetzen und eigene aufräumen (in lesen). Ergebnis: Nummern eigener Übergaben, die der
+    Empfänger noch nicht übernommen hat (diese Angebote bleiben hier, obwohl sie in seiner Datei noch fehlen)."""
+    con, ich = db.con, kuerzel(db)
+    eigene = _vorgaenge(db)
+    erledigt = dict(db.einstellung(ERLEDIGT) or {})
+    hier = {r[1]: (r[0], r[2]) for r in con.execute("SELECT id, nummer, fremd FROM angebote")}
+    for k2, liste in vorgaenge.items():
+        for v in liste:
+            if v.get("an") != ich or v["id"] in erledigt:
+                continue
+            nummer, a = v.get("nummer"), hier.get(v.get("nummer"))
+            if v["art"] == UEBERGABE:
+                if a is None or a[1] is not None:       # noch nicht eigenes: übernehmen
+                    fc = sqlite3.connect(gelesen[k2])
+                    try:
+                        r = fc.execute("SELECT inhalt FROM vorgaenge WHERE id=?", (v["id"],)).fetchone()
+                        netze = {i: bytes(d) for i, d in
+                                 fc.execute("SELECT idx, daten FROM netze WHERE nummer=?", (nummer,))}
+                    finally:
+                        fc.close()
+                    if not r or not r[0]:
+                        continue
+                    i = angebot_einsetzen(con, json.loads(r[0]), netze, None, None, a[0] if a else None, karte_id)
+                    con.execute("UPDATE angebote SET bearbeiter=? WHERE id=?", (ich, i))
+                    hier[nummer] = (i, None)
+                    bericht["uebernommen"].append(dict(nummer=nummer, von=k2, notiz=v.get("notiz") or "", id=i))
+                    bericht["geaenderte_ids"].append(i)
+                for vid, e in list(eigene.items()):     # eigene Anfrage dazu ist damit erledigt
+                    if e.get("art") == ANFRAGE and e.get("nummer") == nummer:
+                        eigene.pop(vid)
+                erledigt[v["id"]] = k2
+            elif v["art"] == ANFRAGE:
+                if a is not None and a[1] is None:
+                    if vorgang_offen(db, nummer, UEBERGABE) is None:
+                        bericht["anfragen"].append(dict(v, angebot_id=a[0]))
+                    continue                            # gefragt wird bis zur Antwort bei jedem Abgleich
+                erledigt[v["id"]] = k2                  # gehört nicht (mehr) mir: nichts zu tun
+            elif v["art"] == ABGELEHNT:
+                if v.get("bezug") in eigene:
+                    eigene.pop(v["bezug"])
+                    bericht["abgelehnt"].append(dict(nummer=nummer, von=k2, notiz=v.get("notiz") or ""))
+                erledigt[v["id"]] = k2
+    unterwegs = set()
+    for vid, e in list(eigene.items()):
+        an = e.get("an")
+        if an not in gelesen:
+            if e.get("art") == UEBERGABE:
+                unterwegs.add(e.get("nummer"))
+            continue
+        ids_dort = {v["id"] for v in vorgaenge.get(an, ())}
+        if e.get("art") == UEBERGABE:
+            if e.get("nummer") in angebote.get(an, {}):
+                eigene.pop(vid)                         # übernommen
+            else:
+                unterwegs.add(e.get("nummer"))
+        elif e.get("art") == ANFRAGE:
+            if e.get("nummer") not in angebote.get(an, {}):
+                eigene.pop(vid)                         # gehört dem Kollegen nicht mehr
+        elif e.get("art") == ABGELEHNT and e.get("bezug") not in ids_dort:
+            eigene.pop(vid)                             # Kollege hat die Antwort gesehen
+    for vid, k2 in list(erledigt.items()):              # nur Vorgänge merken, die es dort noch gibt
+        if k2 in vorgaenge and vid not in {v["id"] for v in vorgaenge[k2]}:
+            erledigt.pop(vid)
+    db._einstellung_schreiben(VORGAENGE, eigene)
+    db._einstellung_schreiben(ERLEDIGT, erledigt)
+    return unterwegs
+
+
+def dateien_stand(db):
+    """Größe und Zeit der Dateien der Kollegen: unverändert = nichts Neues zu lesen."""
+    out = []
+    for k, p in andere_dateien(db).items():
+        st = p.stat()
+        out.append((k, st.st_size, st.st_mtime_ns))
+    return tuple(out)
