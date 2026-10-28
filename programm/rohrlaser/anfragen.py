@@ -267,7 +267,7 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
         if o:
             name = o.name
         else:
-            g = sorted(g, key=lambda d: _zeit(d) or jetzt)
+            g = sorted(g, key=quell_zeit)             # Mails nach Sendezeit, älteste zuerst
             name = g[0].stem if len(g) == 1 else (f"{g[0].stem} + Nachtrag" if g[0].suffix.lower() in MAIL else
                                                   f"{len(g)} Dateien vom {_zeit(g[0]).strftime('%d.%m. %H:%M')}")
         out.append(Anfrage(name, o, g, kunde_aus_ordner(kunden, g) if kunden else None, gesperrt))
@@ -498,11 +498,10 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     kunde_mail, hinweis = None, []
     domains = mail.eigene_domains([db.einstellung(n) for n in ("briefkopf_1", "briefkopf_2", "briefkopf_3",
                                                                "briefkopf_4", "benutzer_email")])
-    for m in mails:
-        kunde_mail, wie = mail.kunde(m, kunden, domains)
-        if kunde_mail:
-            hinweis.append(f"Kunde {kunde_text(kunden, kunde_mail)} ({wie})")
-            break
+    treffer = [t for t in (mail.kunde(m, kunden, domains) for m in mails) if t[0]]
+    if treffer:             # mehrere Mails: genaue Absenderadresse vor Domain
+        kunde_mail, wie = next((t for t in treffer if t[1].startswith("Absender")), treffer[0])
+        hinweis.append(f"Kunde {kunde_text(kunden, kunde_mail)} ({wie})")
     kunde_domain = None
     if mails and not kunde_mail and not e["kunde"]:
         for m in mails:
