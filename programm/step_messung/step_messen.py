@@ -120,7 +120,7 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
             teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen)
         else:
             teile = analysiere_datei(datei, netze is not None, flach_bis, auslassen, melden, gel)
-    except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
+    except Exception as e:  # noqa: BLE001 – Datei defekt o. ä.: als Fehlerzeile melden
         return _fehler_ergebnis(datei, _text(e) or type(e).__name__)
     out = []
     for t in teile:
@@ -134,11 +134,11 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
             (Path(netze) / netz).write_text(json.dumps(t.netz, separators=(",", ":")), encoding="utf-8")
         z = _zeile(t, datei.name, artikel, netz)
         if t.geschlossen is not None:
-            zu = dict(zip(SPALTEN, _zeile(t.geschlossen, datei.name, artikel, netz)))
+            zu = dict(zip(SPALTEN, _zeile(t.geschlossen, datei.name, artikel, netz), strict=False))
             z[SPALTEN.index("geschlossen")] = json.dumps({k: v for k, v in zu.items() if k not in OHNE_ALTERNATIVE},
                                                          ensure_ascii=False, separators=(",", ":"))
         if t.alternative is not None:
-            alt = dict(zip(SPALTEN, _zeile(t.alternative, datei.name, artikel, netz)))
+            alt = dict(zip(SPALTEN, _zeile(t.alternative, datei.name, artikel, netz), strict=False))
             z[SPALTEN.index("alternative")] = json.dumps({k: v for k, v in alt.items() if k not in OHNE_ALTERNATIVE},
                                                          ensure_ascii=False, separators=(",", ":"))
         out.append(z)
@@ -182,7 +182,7 @@ def _knick_schenkel(t):
         return ""
     out = []
     for x in t.knick_schenkel:
-        d = {k: v for k, v in zip(SPALTEN, _zeile(x, "", "", "")) if k not in OHNE_ALTERNATIVE + ("knick_schenkel",)}
+        d = {k: v for k, v in zip(SPALTEN, _zeile(x, "", "", ""), strict=False) if k not in OHNE_ALTERNATIVE + ("knick_schenkel",)}
         if x.ende_a_global and x.achse_global and x.x_global:
             d["lage"] = [round(v, 6) for v in (*x.ende_a_global, *x.achse_global, *x.x_global)]
         out.append(d)
@@ -308,7 +308,7 @@ def _arbeiter(auftraege, ereignisse, wid):
             try:
                 step_geometrie.einstellen(einst)
                 gel = _lesen(datei)
-            except Exception as e:  # wie messen: Fehlerzeile
+            except Exception as e:  # noqa: BLE001 – wie messen: Fehlerzeile
                 ereignisse.put(("fertig", wid, schluessel, _fehler_ergebnis(datei, _text(e) or type(e).__name__)))
                 continue
             gelesen[str(datei)] = gel

@@ -12,6 +12,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from . import protokoll
+
 TESSERACT_ORDNER = "Tesseract-OCR"
 SPRACHEN = "deu+eng"
 DPI = 300                   # PDF-Seiten werden so gerendert
@@ -120,6 +122,7 @@ def lesen(pfad, programmordner=None, psm=6, nur_erste=False):
             unsicher |= u
             segmente += [dict(x, seite=i) for x in sg]
             groessen.append(b.size)
-    except Exception:           # kaputtes Bild, Tesseract abgestürzt oder zu langsam: wie ohne Formular
+    except Exception as e:  # noqa: BLE001 – kaputtes Bild, Tesseract abgestürzt oder zu langsam: wie ohne Formular
+        protokoll.nebenbei(e, "Texterkennung (Tesseract)")
         return None
     return dict(text="\n".join(texte), unsicher=unsicher, segmente=segmente, seiten=groessen)

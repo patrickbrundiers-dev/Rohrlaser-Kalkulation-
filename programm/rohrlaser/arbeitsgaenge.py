@@ -119,7 +119,7 @@ def position(p, kopf, k, tabellen, regeln):
                           "Kernloch im STEP (in „Bohrungen prüfen“ bestätigen)"))
     vorhanden = set()
     for z, e in zip(rechnen.zusatz_werte(p, k, tabellen), [e for e in rechnen.zusatz_liste(p)
-                                                          if _bekannt(e, tabellen)]):
+                                                          if _bekannt(e, tabellen)], strict=True):
         vorhanden.add(z["name"])
         out.append(_zeile(p, z["name"], IM_ANGEBOT, FREMD if z["fremd"] else FERTIGUNG,
                           e.get("quelle") or "Zusatzarbeiten", z["menge"], z["einheit"], z["arbeit_s"],

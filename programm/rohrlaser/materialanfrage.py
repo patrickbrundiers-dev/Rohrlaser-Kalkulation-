@@ -50,7 +50,7 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
     None, naht.stange_lage)}]. Kundenmaterial fehlt (der Kunde liefert es). werte = stangen_werte (Gewicht je
     Stange), sonst ohne Gewicht. kopf = Angebot (eingetragene Nahtlage der Lieferstangen)."""
     zeilen = {}
-    gewichte = {s["nr"]: w.get("gewicht") for s, w in zip((ergebnis or {}).get("stangen") or (), werte or ())}
+    gewichte = {s["nr"]: w.get("gewicht") for s, w in zip((ergebnis or {}).get("stangen") or (), werte or (), strict=False)}
     for s in (ergebnis or {}).get("stangen") or ():
         if s.get("beistellung"):
             continue

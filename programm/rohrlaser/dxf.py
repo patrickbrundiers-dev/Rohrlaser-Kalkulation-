@@ -94,7 +94,7 @@ def _linien(layer, z, cx, cy):
     out = []
     for zug in z.get("linien") or ():
         pk = [(cx + float(x), cy + float(y)) for x, y in zug]
-        out += [_linie(layer, a, b) for a, b in zip(pk, pk[1:]) if math.dist(a, b) > 1e-9]
+        out += [_linie(layer, a, b) for a, b in zip(pk, pk[1:], strict=False) if math.dist(a, b) > 1e-9]
     return out
 
 
@@ -148,7 +148,7 @@ def kontur_elemente(z, cx, cy, layer=INNEN):
     if art == sw.TEXT_GRAVUR:           # Einstrich-Schrift, immer auf dem Layer Gravur
         from . import gravur_text
         zuege = gravur_text.gedreht(gravur_text.linien(z.get("text"), _z(z.get("hoehe"))), z.get("winkel"), cx, cy)
-        return [_linie(GRAVUR, a, b) for zug in zuege for a, b in zip(zug, zug[1:]) if math.dist(a, b) > 1e-9]
+        return [_linie(GRAVUR, a, b) for zug in zuege for a, b in zip(zug, zug[1:], strict=False) if math.dist(a, b) > 1e-9]
     return []
 
 

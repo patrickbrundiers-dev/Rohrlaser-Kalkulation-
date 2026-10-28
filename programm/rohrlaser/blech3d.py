@@ -86,7 +86,7 @@ def loecher(kontur, zuege):
                     if min(kontur[j - 1][0], kontur[j][0]) <= h[2] and max(kontur[j - 1][0], kontur[j][0]) >= h[0]):
             continue
         frei = True
-        for hg, ag in zip(huellen, out):
+        for hg, ag in zip(huellen, out, strict=False):
             if hg[0] > h[2] or hg[2] < h[0] or hg[1] > h[3] or hg[3] < h[1]:
                 continue
             if _im_polygon(pk[0], ag) or _im_polygon(ag[0], pk) or any(
@@ -142,7 +142,7 @@ def _gelocht(kontur, loch, spalten=()):
         (x1, y1), (x2, y2) = k
         return x1 + (y - y1) * (x2 - x1) / (y2 - y1)
     streifen, naechst, aktiv = [], 0, []
-    for ya, yb in zip(hoehen, hoehen[1:]):
+    for ya, yb in zip(hoehen, hoehen[1:], strict=False):
         if yb - ya < 1e-9:
             continue
         ym = (ya + yb) / 2
@@ -242,8 +242,8 @@ def biegungen(e, zs, kontur):
     if not kontur:
         return out
     ax = _flaeche2(kontur) / 2 or 1
-    gx = sum((a[0] + b[0]) * (a[0] * b[1] - b[0] * a[1]) for a, b in zip(kontur, kontur[1:] + kontur[:1])) / (6 * ax)
-    gy = sum((a[1] + b[1]) * (a[0] * b[1] - b[0] * a[1]) for a, b in zip(kontur, kontur[1:] + kontur[:1])) / (6 * ax)
+    gx = sum((a[0] + b[0]) * (a[0] * b[1] - b[0] * a[1]) for a, b in zip(kontur, kontur[1:] + kontur[:1], strict=False)) / (6 * ax)
+    gy = sum((a[1] + b[1]) * (a[0] * b[1] - b[0] * a[1]) for a, b in zip(kontur, kontur[1:] + kontur[:1], strict=False)) / (6 * ax)
     verschub = (0.0, 0.0)
     if zs.get("punkte"):
         pk = [tuple(map(float, q)) for q in zs["punkte"]]
@@ -446,7 +446,7 @@ def _rand_stuecke(pk, bg, rand, rechts):
                     ts.add((w - da) / (db - da))
         ts = sorted(ts)
         stuecke = [(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for t in ts]
-        rand.extend((p1, p2, rechts) for p1, p2 in zip(stuecke, stuecke[1:]))
+        rand.extend((p1, p2, rechts) for p1, p2 in zip(stuecke, stuecke[1:], strict=False))
 
 
 def kontur_mitten(e, zs):

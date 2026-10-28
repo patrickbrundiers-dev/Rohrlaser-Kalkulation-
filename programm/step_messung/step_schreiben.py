@@ -296,7 +296,7 @@ def werkzeug_gruppen(werkzeuge, huelle=_huelle):
             allein.append([w])
             continue
         z = zellen(b)
-        for g, r in zip(gruppen, raster):
+        for g, r in zip(gruppen, raster, strict=False):
             if not any(beruehrt(b, a) for c in z for a in r.get(c, ())):
                 break
         else:
@@ -606,7 +606,7 @@ def platte_falten(k, koerper, meldungen, rillen=()):
         if teile:
             try:
                 bogen = abziehen(bogen, [_gefaltetes_werkzeug(f, b, z0, z1) for f in teile])
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001 – Grund wird gemeldet
                 meldungen.append(f"Kontur in einer Biegezone nicht erzeugt ({ex})")
         zone = _zone_prisma(b, lo, hi, -s, s)
         gravur = []
@@ -618,7 +618,7 @@ def platte_falten(k, koerper, meldungen, rillen=()):
         if gravur:
             try:
                 bogen = abziehen(bogen, gravur)
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001 – Grund wird gemeldet
                 meldungen.append(f"Gravur in einer Biegezone nicht erzeugt ({ex})")
         stuecke.append(_bewegt(bogen, _trsf_kette(kette)) if kette else bogen)
     zurueck = gp_Trsf()
@@ -647,7 +647,7 @@ def teil_bauen(teil):
     for w in teil.get("werkzeuge") or ():
         try:
             wz.append(werkzeug(w))
-        except Exception as ex:             # ein Werkzeug fehlt: Teil trotzdem schreiben, mit Meldung
+        except Exception as ex:  # noqa: BLE001 – ein Werkzeug fehlt: Teil trotzdem schreiben, mit Meldung
             meldungen.append(f"{w.get('name') or w['art']}: nicht erzeugt ({ex})")
     for gruppe in werkzeug_gruppen(wz):     # überlappende Werkzeuge (Stücke einer Kontur, Enden) nie zusammen
         k = abziehen(k, gruppe)
@@ -655,15 +655,15 @@ def teil_bauen(teil):
     for w in teil.get("rillen") or ():
         try:
             rillen.append(werkzeug(w))
-        except Exception:
-            pass
+        except Exception as ex:             # noqa: BLE001 – eine Rille fehlt: Teil trotzdem schreiben, mit Meldung
+            meldungen.append(f"{w.get('name') or w.get('art') or 'Rille'}: nicht erzeugt ({ex})")
     if rillen:
         k = abziehen(k, rillen)
     if teil["koerper"].get("biegungen"):
         k = platte_falten(k, teil["koerper"], meldungen, rillen)
     try:
         k = vereinfachen(k)
-    except Exception as ex:
+    except Exception as ex:  # noqa: BLE001 – Grund wird gemeldet
         meldungen.append(f"Flächen nicht zusammengelegt ({ex})")
     if teil.get("lage"):
         from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
@@ -715,7 +715,7 @@ def _flaechen_punkte(dreiecke, n=PROBE):
     flaechen = [0.5 * math.sqrt(sum(c * c for c in _kreuz3(_sub3(b, a), _sub3(c, a)))) for a, b, c in dreiecke]
     gesamt = sum(flaechen) or 1.0
     out = []
-    for (a, b, c), f in zip(dreiecke, flaechen):
+    for (a, b, c), f in zip(dreiecke, flaechen, strict=False):
         k = max(1, round(math.sqrt(f / gesamt * n * 2)))
         for i in range(k):
             for j in range(k - i):
@@ -963,7 +963,7 @@ def baugruppe_schreiben(bauplan, ziel):
     for teil in bauplan.get("teile") or ():
         try:
             k, meldungen = teil_bauen(teil)
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001 – Grund wird gemeldet
             k, meldungen = None, [f"nicht gebaut ({ex})"]
             hinweise.append(f"{teil.get('name') or 'Teil'}: nicht gebaut ({ex})")
         formen.append(k)
@@ -993,7 +993,7 @@ def baugruppe_schreiben(bauplan, ziel):
                 try:
                     m, fehler = ausrichten(formen[nr], e["ausrichten"]["p"], e["ausrichten"]["t"],
                                            e["ausrichten"].get("achsen"))
-                except Exception as ex:
+                except Exception as ex:  # noqa: BLE001 – Grund wird gemeldet
                     hinweise.append(f"{teile[nr]['name']}: Lage nicht bestimmt ({ex}), neben die Baugruppe gelegt")
                     daneben.append((lab, nr))
                     continue
@@ -1088,7 +1088,7 @@ def schreiben(bauplan, ziel):
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "--export":          # STEP-Import.exe --export BAUPLAN --step ZIEL [--ergebnis E]
-        werte = dict(zip(argv[::2], argv[1::2]))
+        werte = dict(zip(argv[::2], argv[1::2], strict=False))
         plan, ziel, erg_pfad = werte.get("--export"), werte.get("--step"), werte.get("--ergebnis")
     else:
         plan, ziel, erg_pfad = (argv + [None, None, None])[:3]
@@ -1099,7 +1099,7 @@ def main(argv=None):
         bauplan = json.loads(Path(plan).read_text(encoding="utf-8"))
         erg = schreiben(bauplan, ziel)
         code = 0
-    except Exception as ex:
+    except Exception as ex:  # noqa: BLE001 – Grund wird gemeldet
         erg, code = dict(ok=False, fehler=str(ex), teile=[]), 1
     text = json.dumps(erg, ensure_ascii=False)
     if erg_pfad:

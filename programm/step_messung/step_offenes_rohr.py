@@ -123,7 +123,7 @@ def erkennen(solid, d):
         if h[0] < huelle[0] - TOL_HUELLE or h[1] < huelle[1] - TOL_HUELLE or h[2] > huelle[2] + TOL_HUELLE or \
                 h[3] > huelle[3] + TOL_HUELLE:
             return None
-        if max(abs(p - q) for p, q in zip(h, huelle)) > TOL_HUELLE:
+        if max(abs(p - q) for p, q in zip(h, huelle, strict=False)) > TOL_HUELLE:
             continue
         offen = {}
         for seite in ("links", "rechts", "unten", "oben"):
@@ -321,7 +321,7 @@ def ring(e, d, steg, anzeige=False):
     v_weit = v_aussen + innen * (abs(x1 - x0 if not quer else y1 - y0) + 1.0)   # über die gegenüberliegende Wand
     ringe = []
     for k, richtung in ((0, 1.0), (1, -1.0)):
-        ende = _knicke([(u, z[k]) for u, z in zip(us, gegen)])
+        ende = _knicke([(u, z[k]) for u, z in zip(us, gegen, strict=False)])
         drahte = []
         for v in (v_aussen - innen * (1.0 + _wachs(e, x0, y0, x1, y1)), v_weit):
             # Versatz quer zur Wand: in der Wandschicht gemessen, linear über die Hülle verlängert
@@ -433,7 +433,7 @@ def _rundrechteck(x0, y0, x1, y1, r, z, h):
           for r_ in (r if isinstance(r, (tuple, list)) else (r,) * 4)]
     ecken = ((x1, y0, -1, 1, -90), (x1, y1, -1, -1, 0), (x0, y1, 1, -1, 90), (x0, y0, 1, 1, 180))
     stuecke = []        # je Ecke Anfang, (Mitte), Ende des Bogens bzw. nur der Eckpunkt
-    for (x, y, sx, sy, w0), r_ in zip(ecken, rs):
+    for (x, y, sx, sy, w0), r_ in zip(ecken, rs, strict=False):
         if r_ < 1e-6:
             stuecke.append([gp_Pnt(x, y, z)])
         else:
@@ -469,7 +469,7 @@ def wand(e, d, ueberlapp=True, fenster=0.0):
         gegen = _profil_z(lok, uv_zu_xyz, us, v_gm)
         if gegen is None:
             return None
-        enden = [_knicke([(u, z[k]) for u, z in zip(us, gegen)]) for k in (0, 1)]
+        enden = [_knicke([(u, z[k]) for u, z in zip(us, gegen, strict=False)]) for k in (0, 1)]
         drahte, schicht = [], []
         for v in (v_lo, v_hi):
             va, vb = versatz[a + d / 2, v], versatz[b - d / 2, v]
@@ -519,7 +519,7 @@ def _vereinen(solid, teile, ax3, einheitlich=True):
         u = ShapeUpgrade_UnifySameDomain(koerper[0], True, True, True)
         u.Build()
         return u.Shape()
-    except Exception:       # OpenCascade kann nicht vereinheitlichen: Körper wie verschmolzen
+    except Exception:  # noqa: BLE001 – OpenCascade kann nicht vereinheitlichen: Körper wie verschmolzen
         return koerper[0]
 
 
@@ -547,7 +547,7 @@ def _gitter(schicht, quer, laenge):
     k_u = 0 if quer else 1
 
     def an(linie, u):
-        for p, q in zip(linie, linie[1:]):
+        for p, q in zip(linie, linie[1:], strict=False):
             if p[k_u] - 1e-9 <= u <= q[k_u] + 1e-9:
                 s = 0.0 if q[k_u] == p[k_u] else (u - p[k_u]) / (q[k_u] - p[k_u])
                 return [p[m] + (q[m] - p[m]) * s for m in range(3)]
@@ -755,7 +755,7 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
                     _netz_koerper(t, e["rest"], e["ax3"], 0.2, art="UO")     # fällt weg: über dem Rohr
             else:
                 _netz_wand(t, e, d)
-        except Exception:  # ohne Anzeige der Stege bzw. der Wand bleibt alles andere gültig
+        except Exception:  # noqa: BLE001, S110 – ohne Anzeige der Stege bzw. der Wand bleibt alles andere gültig
             pass
     return True
 
@@ -1029,7 +1029,7 @@ def _netz_koerper(t, koerper, ax3, abheben=0.0, art="EO"):
             for v in versatz:
                 betrag = math.sqrt(sum(c * c for c in v)) or 1.0
                 v[:] = [c / betrag * abheben for c in v]
-        for pt, v in zip(q, versatz):
+        for pt, v in zip(q, versatz, strict=False):
             p += [round(pt.X() + v[0], 2), round(pt.Y() + v[1], 2), round(pt.Z() + v[2], 2)]
         idx += [basis + i for tri_ in dreiecke for i in tri_]
     g._netz_anhaengen(t.netz, dict(p=p, t={art: idx}, l={}))
@@ -1122,6 +1122,6 @@ def _rund_schliessen(solid, t, datei, koerper, netz):
                 _netz_koerper(t, stuecke, e["ax3"], 0.05)
             else:
                 _netz_koerper(t, _bool("minus", voll_stueck, e["lok"]), e["ax3"])
-        except Exception:  # ohne Anzeige bleibt alles andere gültig
+        except Exception:  # noqa: BLE001, S110 – ohne Anzeige bleibt alles andere gültig
             pass
     return True

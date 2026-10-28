@@ -253,7 +253,7 @@ def _grosse_datei_einstellen(leser, pfad):
         for r in leser if isinstance(leser, (list, tuple)) else [leser]:
             r.SetShapeFixParameters(w)
         return True
-    except Exception:       # ältere OpenCascade-Version: wie bisher
+    except Exception:  # noqa: BLE001 – ältere OpenCascade-Version: wie bisher
         return False
 
 
@@ -289,7 +289,7 @@ def lies_step_info(pfad):
     if caf is not None:
         try:
             doc = _caf_uebertragen(caf)
-        except Exception:  # Struktur und Namen sind Zusatz: ohne sie wie bisher messen
+        except Exception:  # noqa: BLE001 – Struktur und Namen sind Zusatz: ohne sie wie bisher messen
             doc = None
     if doc is None:
         if caf is not None:         # Übertragung abgebrochen: neu lesen ohne Struktur
@@ -312,8 +312,8 @@ def lies_step_info(pfad):
     if doc is not None:
         try:
             info["struktur"], info["bauteile"] = _struktur(doc, koerper, _Path(pfad).stem)
-        except Exception:  # wie oben: Struktur darf die Messung nie verhindern
-            pass
+        except Exception as e:  # noqa: BLE001 – wie oben: Struktur darf die Messung nie verhindern, aber melden
+            info["meldungen"].append(f"Baugruppenstruktur nicht gelesen: {e or type(e).__name__}")
     return koerper, info
 
 
@@ -759,7 +759,7 @@ def _strecken(draht, schritt=0.5):
         n = max(2, min(2000, int(lg / (1.0 if c.GetType() == GeomAbs_Line else schritt)) + 1))
         u0, u1 = c.FirstParameter(), c.LastParameter()
         q = [c.Value(u0 + (u1 - u0) * k / n) for k in range(n + 1)]
-        out += [(a.X(), a.Y(), b.X(), b.Y()) for a, b in zip(q, q[1:])]
+        out += [(a.X(), a.Y(), b.X(), b.Y()) for a, b in zip(q, q[1:], strict=False)]
     return out
 
 
@@ -917,7 +917,7 @@ def _profilform(aussen, a, b, tol=0.05):
     xs = [s[0] for s in st]
     ys = [s[1] for s in st]
     mx, my = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
-    r = [math.hypot(x - mx, y - my) for x, y in zip(xs, ys)]
+    r = [math.hypot(x - mx, y - my) for x, y in zip(xs, ys, strict=False)]
     if max(r) - min(r) < 2 * tol:
         return "Kreis"
     belegt = [0.0] * 4
@@ -1177,7 +1177,7 @@ class _Abwicklung:
         ys = [s[1] for s in s_aussen] + [s[3] for s in s_aussen]
         self.cx, self.cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
         self.ref = ref
-        pts = sorted({(round(self.theta(x, y), 9), x, y) for x, y in zip(xs, ys)})
+        pts = sorted({(round(self.theta(x, y), 9), x, y) for x, y in zip(xs, ys, strict=False)})
         self.th, self.s, self.xy = [], [], []
         lauf = 0.0
         for i, (th, x, y) in enumerate(pts):
@@ -1234,7 +1234,7 @@ def _umriss_uv(kanten, abw, zmin, u_mitte=None):
     try:
         wires = ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(seq, 1e-3, False)
         zuege = [TopoDS.Wire(wires.Value(i)) for i in range(1, wires.Length() + 1)]
-    except Exception:  # Umriss ist nur Zusatz
+    except Exception:  # noqa: BLE001 – Umriss ist nur Zusatz
         return None
     if not zuege:
         return None
@@ -1426,7 +1426,7 @@ def _ende_flaechen(flaechen, kanten, cx, cy, ref, z_ref, tol=0.1):
             px, py = dreh(p0.X() - cx, p0.Y() - cy)
             gx, gy = -nx / n[2], -ny / n[2]
             e = ["E", round(gx, 6), round(gy, 6), round(p0.Z() - z_ref - gx * px - gy * py, 4)]
-            if not any(all(abs(a - b) < 1e-4 for a, b in zip(e[1:], x[1:])) for x in out if x[0] == "E"):
+            if not any(all(abs(a - b) < 1e-4 for a, b in zip(e[1:], x[1:], strict=False)) for x in out if x[0] == "E"):
                 out.append(e)
         elif sf.GetType() == GeomAbs_Cylinder:
             zyl = sf.Cylinder()
@@ -1487,7 +1487,7 @@ def _endform(flaechen, laenge, ref=0.0, ende="B"):
                         schnittlaenge=round(laenge, 2))
         d = pl.Axis().Direction()
         n = (d.X(), d.Y(), d.Z()) if d.Z() >= 0 else (-d.X(), -d.Y(), -d.Z())
-        if not any(sum(a * b for a, b in zip(n, m)) > 1 - 1e-6 for m in normalen):
+        if not any(sum(a * b for a, b in zip(n, m, strict=False)) > 1 - 1e-6 for m in normalen):
             normalen.append(n)
     if len(normalen) != 1:
         return dict(form="komplex", gehrung=None, um_x=None, um_y=None, richtung=None,
@@ -1698,7 +1698,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
         laenge = sum(_kantenlaenge(e) for e in kanten)
         zg = zuege(kanten)
         nm = m["normalen"]
-        durch = any(sum(p * q for p, q in zip(a_, b_)) < -0.5 for i, a_ in enumerate(nm) for b_ in nm[i + 1:])
+        durch = any(sum(p * q for p, q in zip(a_, b_, strict=False)) < -0.5 for i, a_ in enumerate(nm) for b_ in nm[i + 1:])
         bb = Bnd_Box()
         for e in kanten:
             BRepBndLib.AddOptimal_s(e, bb, False, False)
@@ -2091,7 +2091,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     def waende(um):
         """Wände (Seiten wie 'seite', z. B. '0°', '90°'), die eine abgewickelte Kontur berührt; Ecken zählen nicht."""
         out, us = [], []
-        for (u0, _), (u1, _) in zip(um, um[1:] + um[:1]):     # auch zwischen den Eckpunkten des Umrisses
+        for (u0, _), (u1, _) in zip(um, um[1:] + um[:1], strict=False):     # auch zwischen den Eckpunkten des Umrisses
             n = max(1, int(abs(u1 - u0)))
             us += [u0 + (u1 - u0) * i / n for i in range(n)]
         for u in us:
@@ -2553,7 +2553,7 @@ def _flach_pruefen(solid, volumen):
         from step_abwicklung import abwickeln
         try:
             abw = abwickeln(solid, dicke)
-        except Exception:  # Abwicklung ist nur ein Versuch
+        except Exception:  # noqa: BLE001 – Abwicklung ist nur ein Versuch
             abw = None
         if abw and "fehler" not in abw and not abw.get("rohr"):
             return dict(erg, art="gekantet", abwicklung=abw)
@@ -2763,7 +2763,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
             from step_abwicklung import abwickeln
             try:
                 abw = abwickeln(solid, d)
-            except Exception as e:  # ohne Abwicklung bleibt es bei den Außenmaßen
+            except Exception as e:  # noqa: BLE001 – ohne Abwicklung bleibt es bei den Außenmaßen
                 abw = dict(fehler=str(e))
         if "fehler" not in abw:
             # Abwicklung (STEP-JSON 1.12): Zuschnitt, Schenkel, Biegelinien, Innenkonturen mit Lage, Schneidweg
@@ -2818,14 +2818,15 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         try:
             from step_schenkel import mit_stegen, ziel_lesen
             v = mit_stegen(solid, t, ziel_lesen(STEGE), datei, koerper, netz)
-        except Exception:  # dann gilt die Messung wie gezeichnet (das Programm rechnet mit der Formel)
+        except Exception as e:  # noqa: BLE001 – dann gilt die Messung wie gezeichnet (Formel)
+            t.hinweise.append(f"Stege nicht ergänzt, Messung wie gezeichnet: {e or type(e).__name__}")
             v = None
         if v is not None:
             return v
     try:
         from step_offenes_rohr import schliessen
         schliessen(solid, t, datei, koerper, netz)
-    except Exception:  # Schließen darf die Messung nie verhindern
+    except Exception:  # noqa: BLE001 – Schließen darf die Messung nie verhindern
         t.geschlossen = None
     return t
 
@@ -2837,14 +2838,14 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     try:        # Biegerohr (Zylinder + Tori, Plan S9): Mittellinie und gestreckte Länge
         from step_biegerohr import messen as biegerohr_messen
         b = biegerohr_messen(solid, datei, koerper, netz)
-    except Exception:  # Biegerohr-Erkennung darf die übrige Messung nie verhindern
+    except Exception:  # noqa: BLE001 – Biegerohr-Erkennung darf die übrige Messung nie verhindern
         b = None
     if b is not None:
         return b
     try:        # Knickrahmen aus einem Körper (Plan K1-3): in gerade Stücke mit Gehrung teilen, je Stück messen
         from step_knickrahmen import messen as knickrahmen_messen
         b = knickrahmen_messen(solid, datei, koerper, netz)
-    except Exception:  # Knickrahmen-Erkennung darf die übrige Messung nie verhindern
+    except Exception:  # noqa: BLE001 – Knickrahmen-Erkennung darf die übrige Messung nie verhindern
         b = None
     if b is not None:
         return b
@@ -2853,7 +2854,7 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     volumen = abs(p.Mass())
     try:
         fl = _flach_pruefen(solid, volumen)
-    except Exception:  # Blechprüfung darf die Profilmessung nie verhindern
+    except Exception:  # noqa: BLE001 – Blechprüfung darf die Profilmessung nie verhindern
         fl = None
     daten = None
     if fl and fl["art"] == "eben":
@@ -2866,7 +2867,7 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     t = fehler = None
     try:
         t = _profil_messen(solid, datei, koerper, netz)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 – Grund wird gemeldet
         fehler = e
     # aufgesetzte Teile (Bolzen, Laschen, Kopfplatten …): nur bei Verdacht trennen und neu messen (sonst bleibt alles
     # wie bisher); Rohrlaser-Geometrie ohne Anbauteile, die Messung ohne Trennung steht kurz in t.trennung und ganz
@@ -2875,7 +2876,7 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
             t.sicherheit.get("wandstaerke") == "unsicher":
         try:
             g = _getrennt_messen(solid, datei, koerper, netz, t)
-        except Exception:  # Trennung gescheitert: Messung ohne Trennung gilt
+        except Exception:  # noqa: BLE001 – Trennung gescheitert: Messung ohne Trennung gilt
             g = None
         if g is not None:
             if t is not None and t.profilform:
@@ -2890,7 +2891,7 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
         from step_abwicklung import abwickeln
         try:
             fl["abwicklung"] = abwickeln(solid, fl["dicke"])
-        except Exception as e:  # ohne Abwicklung bleibt es bei den Außenmaßen
+        except Exception as e:  # noqa: BLE001 – ohne Abwicklung bleibt es bei den Außenmaßen
             fl["abwicklung"] = dict(fehler=str(e))
     mehrachsig = bool(fl and (fl.get("abwicklung") or {}).get("mehrachsig"))
     # geschlossenes Hohlprofil (Rohr) mit sicherer Achse bleibt Rohr: Gehrungen an beiden Enden drücken das Volumen
@@ -2910,7 +2911,7 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
         if fl and t.alternative is None and not rohr and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
             try:      # Grenzfall: auch als (gekantetes) Blech messen, im Prüfdialog wählbar
                 t.alternative = _blech_teil(solid, datei, koerper, fl, volumen, False, daten and dict(daten))
-            except Exception:  # Zweitmessung darf die Messung nie verhindern
+            except Exception:  # noqa: BLE001 – Zweitmessung darf die Messung nie verhindern
                 t.alternative = None
     return t
 
@@ -2921,7 +2922,7 @@ def _als_profil(solid, b, form=None, t=None):
     if t is None:
         try:
             t = _profil_messen(solid, b.datei, b.koerper, False)
-        except Exception:  # nicht als Profil messbar: Ersatzwerte
+        except Exception:  # noqa: BLE001 – nicht als Profil messbar: Ersatzwerte
             t = None
     passt = t is not None and t.laenge > 0 and (t.profilform == form if form else
                                                 t.profilform in ("L-Profil", "U-Profil", "C-Profil"))
@@ -2983,7 +2984,7 @@ def virtuell_ablegen(form, koerper):
         from step_schreiben import form_schreiben
         Path(VIRTUELL).mkdir(parents=True, exist_ok=True)
         form_schreiben(form, Path(VIRTUELL) / f"k{int(koerper or 1)}.step", f"Teil {int(koerper or 1)} virtuell")
-    except Exception:  # noqa: BLE001 – die Messung bleibt gültig
+    except Exception:  # noqa: BLE001, S110 – die Messung bleibt gültig
         pass
 
 
@@ -3086,7 +3087,7 @@ def _laengsanbau_kontur(aussen, innen, wand):
                 mf = BRepBuilderAPI_MakeFace(TopoDS.Wire(w), True)
                 if mf.IsDone() and (best is None or _flaeche(mf.Face()) > best[0]):
                     best = (_flaeche(mf.Face()), TopoDS.Wire(w))
-        except Exception:  # Versatz nicht möglich: kein Längsanbau-Kandidat
+        except Exception:  # noqa: BLE001, S112 – Versatz nicht möglich: kein Längsanbau-Kandidat
             continue
     if best is None:
         return None
@@ -3412,8 +3413,8 @@ def _beruehrende_anbauteile(teile, koerper, netz, rahmen=None):
     Rohre berühren (Gestell), bleiben unberührt. rahmen(t): Abwicklung eines Rohrs, dessen _rahmen fehlt (in einem
     anderen Prozess gemessen); wird nur für Rohre mit Anbauteil gebraucht."""
     from OCP.BRepExtrema import BRepExtrema_DistShapeShape
-    rohre = [(t, k) for t, (art, k) in zip(teile, koerper) if _ist_rohr(t)]
-    andere = [(t, k) for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and
+    rohre = [(t, k) for t, (art, k) in zip(teile, koerper, strict=False) if _ist_rohr(t)]
+    andere = [(t, k) for t, (art, k) in zip(teile, koerper, strict=False) if art != "Flächenmodell offen" and
               not _ist_rohr(t) and (t.bauteiltyp in ("Blech", "Blech gekantet") or
                                     t.profilform in ("Rundstahl", "Vierkantstahl", ""))]
     for t, k in rohre:
@@ -3442,7 +3443,7 @@ def _beruehrende_anbauteile(teile, koerper, netz, rahmen=None):
                 # unter dem Blech auf der Rohrwand; das Teil selbst bleibt, wo es ist
                 k_ = _an_schieben(ka, dist) if spalt else ka
                 _anbau_beschreiben(t, [TopoDS.Solid(k_)], f"Körper {ta.koerper}", netz, mit_flaechen=False)
-            except Exception:  # Beschreibung gescheitert: Teil bleibt wie gemessen
+            except Exception:  # noqa: BLE001 – Beschreibung gescheitert: Teil bleibt wie gemessen
                 t.hinweise.append(f"Körper {ta.koerper} berührt das Rohr, Lage nicht bestimmbar, prüfen")
                 continue
             if spalt and len(t.anbauteile) > vorher:
@@ -3512,7 +3513,7 @@ def _spalt_huelle(k, spalt):
         mk = BRepOffsetAPI_MakeOffsetShape()
         mk.PerformByJoin(k, spalt + NAHT_SPALT_RAND, 1e-3, BRepOffset_Skin, False, False, GeomAbs_Arc)
         return mk.Shape() if mk.IsDone() else None
-    except Exception:  # Aufdicken ist nur ein Hilfsmittel
+    except Exception:  # noqa: BLE001 – Aufdicken ist nur ein Hilfsmittel
         return None
 
 
@@ -3562,7 +3563,7 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
     "spalt_mm". stand (dict): "vollstaendig" = False, wenn wegen NAHT_PAARE_MAX nicht alle Paare geprüft wurden."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
     from OCP.BRepExtrema import BRepExtrema_DistShapeShape
-    koerper_ = [(t, k) for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and t.koerper]
+    koerper_ = [(t, k) for t, (art, k) in zip(teile, koerper, strict=False) if art != "Flächenmodell offen" and t.koerper]
     if len(koerper_) < 2:
         return []
     boxen = []
@@ -3627,7 +3628,7 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
             mitte = [v / gesamt for v in mitte] if gesamt else mitte
             ea, eb = _am_ende(ta, mitte, spalt), _am_ende(tb, mitte, spalt)
             if ea and eb:
-                cos = abs(sum(x * y for x, y in zip(ta.achse_global, tb.achse_global)))
+                cos = abs(sum(x * y for x, y in zip(ta.achse_global, tb.achse_global, strict=False)))
                 stossart = "Stumpfnaht" if cos > 0.999 else "Ecknaht"
             else:
                 stossart = "Kehlnaht"
@@ -3655,7 +3656,7 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
             if stossart == "Kehlnaht" and bool(ea) != bool(eb):
                 try:
                     st = _stoss(tb if eb else ta, eb or ea, ta if eb else tb, mitte, rahmen)
-                except Exception:  # Lage des Stoßes ist nur ein Vorschlag: nie die Nahtkandidaten verhindern
+                except Exception:  # noqa: BLE001 – Lage des Stoßes ist nur ein Vorschlag
                     st = None
                 if st:
                     k_["stoss"] = st
@@ -3666,7 +3667,7 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
 def _ohne_naht(teile, koerper, naehte):
     """Körpernummern einer Baugruppe (ab zwei Körpern), die mit keinem anderen Körper einen Nahtkandidaten haben
     (Patrick 26.10.2026: lose Teile sofort sehen, z. B. Spalt größer als NAHT_SPALT); [] bei Einzelteilen."""
-    nummern = [t.koerper for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and t.koerper
+    nummern = [t.koerper for t, (art, k) in zip(teile, koerper, strict=False) if art != "Flächenmodell offen" and t.koerper
                and t.profilform != VERBUNDKERN]
     if len(nummern) < 2:
         return []
@@ -3689,7 +3690,7 @@ def _stoss(st, ende, auf, mitte, rahmen=None):
     if not -1 <= q.Z() <= auf.laenge + 1:
         return None
     theta = r["abw"].theta(q.X(), q.Y())
-    cos = min(1.0, abs(sum(x * y for x, y in zip(st.achse_global, auf.achse_global))))
+    cos = min(1.0, abs(sum(x * y for x, y in zip(st.achse_global, auf.achse_global, strict=False))))
     out = dict(stecker=st.koerper, ende=ende.lower(), aufnahme=auf.koerper, z=round(q.Z(), 1),
                achswinkel=round(math.degrees(math.acos(cos)), 1))
     if r["kasten"]:
@@ -3787,7 +3788,7 @@ def _rohnetz(t, shape):
         t.netz = dreiecksnetz(shape, faces, {i: "N" for i in range(1, faces.Extent() + 1)}, [], 0.0,
                               max(10.0, groesse / 20))
         t.netz["lage"] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
-    except Exception:  # 3D-Ansicht darf die Messung nie verhindern
+    except Exception:  # noqa: BLE001 – 3D-Ansicht darf die Messung nie verhindern
         t.netz = None
 
 
@@ -3823,11 +3824,11 @@ def _verbund_pruefen(teile, koerper):
         b = Bnd_Box()
         BRepBndLib.Add_s(k, b)
         boxen.append(b)
-    for i, (t, (_, k)) in enumerate(zip(teile, koerper)):
+    for i, (t, (_, k)) in enumerate(zip(teile, koerper, strict=False)):
         if not t.kammern:
             continue
         bi = boxen[i]
-        for j, (u, (_, kj)) in enumerate(zip(teile, koerper)):
+        for j, (u, (_, kj)) in enumerate(zip(teile, koerper, strict=False)):
             bj = boxen[j]
             if i == j or u.verbund or bj.IsOut(bi) or not all(
                     bi.CornerMin().Coord(n) - 0.01 <= bj.CornerMin().Coord(n) and
@@ -3923,7 +3924,7 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
     else:
         try:
             t = analysiere(k, gel.name, i, netz, flach_bis)
-        except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
+        except Exception as e:  # noqa: BLE001 – Körper gescheitert: melden, andere weiter messen
             t = Teil(datei=gel.name, koerper=i)
             t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")
     t.einheit, t.meldungen = info["einheit"], info["meldungen"]
@@ -3968,7 +3969,7 @@ def _instanz(vorbild, nr, info, v):
         if x is not t:
             x.koerper, x.bauteil, x.pfad, x.knoten = nr, t.bauteil, t.pfad, t.knoten
         if x.ende_a_global:
-            x.ende_a_global = tuple(a + b for a, b in zip(x.ende_a_global, v))
+            x.ende_a_global = tuple(a + b for a, b in zip(x.ende_a_global, v, strict=False))
     if rahmen is not None:
         tr = gp_Trsf()
         tr.SetTranslation(gp_Vec(*v))
@@ -4011,16 +4012,18 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
     else:
         try:
             _beruehrende_anbauteile(out, koerper, netz, rahmen)
-        except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
-            pass
+        except Exception as e:  # noqa: BLE001 – Zuordnung der Baugruppe darf die Messung nie verhindern, aber melden
+            if out:
+                out[0].hinweise.append(f"Anbauteile nicht bestimmt: {e or type(e).__name__}")
         try:
             _verbund_pruefen(out, koerper)
-        except Exception:  # wie oben
-            pass
+        except Exception as e:  # noqa: BLE001 – wie oben
+            if out:
+                out[0].hinweise.append(f"Verbund nicht geprüft: {e or type(e).__name__}")
         stand = dict(vollstaendig=True)
         try:
             naehte = _nahtkandidaten(out, koerper, info.get("struktur"), rahmen, stand)
-        except Exception:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
+        except Exception:  # noqa: BLE001 – Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
             naehte, stand["vollstaendig"] = [], False
         if stand["vollstaendig"] and out:
             out[0].ohne_naht = _ohne_naht(out, koerper, naehte)

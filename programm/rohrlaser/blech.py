@@ -263,7 +263,7 @@ def _innen(p, pk):
     """Punkt p im Polygon pk (Strahlverfahren)."""
     x, y = p
     drin = False
-    for (x1, y1), (x2, y2) in zip(pk, pk[1:] + pk[:1]):
+    for (x1, y1), (x2, y2) in zip(pk, pk[1:] + pk[:1], strict=False):
         if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
             drin = not drin
     return drin
@@ -304,7 +304,7 @@ def _gravur_hindernisse(e, z, k=K_FAKTOR):
         lg, br = zs["laenge"], zs["breite"]
         rand = [(0.0, 0.0), (lg, 0.0), (lg, br), (0.0, br)]
     xs = [x for x, _ in rand]
-    strecken = list(zip(rand, rand[1:] + rand[:1]))
+    strecken = list(zip(rand, rand[1:] + rand[:1], strict=False))
     if e.get("art") == KANTTEIL:
         strecken += [((min(xs), lage), (max(xs), lage)) for lage, _, _, _ in zs.get("biegungen") or ()]
     else:

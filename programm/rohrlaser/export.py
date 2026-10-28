@@ -207,17 +207,17 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
     # Stangengewicht je Stangengruppe (für Einsatzgewicht und Verschnitt)
     gruppen_kg = {}
     if ergebnis and ergebnis.get("stangen"):
-        for s, x in zip(ergebnis["stangen"], rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen)):
+        for s, x in zip(ergebnis["stangen"], rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen), strict=True):
             if x.get("gewicht") is not None:
                 g = rechnen.gruppe_der_stange(s)
                 gruppen_kg[g] = gruppen_kg.get(g, 0.0) + x["gewicht"]
     teile_abm = {}
-    for p, z in zip(positionen, kalk_zeilen):
+    for p, z in zip(positionen, kalk_zeilen, strict=True):
         if z and not ist_zukaufteil(p):
             teile_abm[p.get("profil_id")] = teile_abm.get(p.get("profil_id"), 0) + _werte(z, "stueck")
     datum_angebot = datum(kopf.get("datum"))
     out = []
-    for p, z in zip(positionen, kalk_zeilen):
+    for p, z in zip(positionen, kalk_zeilen, strict=True):
         if not z:
             continue
         zk = ist_zukaufteil(p)
@@ -307,7 +307,7 @@ def baugruppen_zeilen(positionen, kalk_zeilen):
     """Eine Zeile je Schweißbaugruppe (Texte in BAUGRUPPE_SPALTEN): Zeiten, Nahtlänge und Kosten je Baugruppe aus der
     Kalkulation. Leer ohne Baugruppe."""
     out = []
-    for p, z in zip(positionen, kalk_zeilen):
+    for p, z in zip(positionen, kalk_zeilen, strict=True):
         if not z or not z.get("baugruppe"):
             continue
         bz = z.get("bg_zeilen") or ()

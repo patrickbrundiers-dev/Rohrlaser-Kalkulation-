@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDateEdit, QDialog,
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import feiertage, palettenschein, palettenschein_dialog, pdf
+from . import feiertage, palettenschein, palettenschein_dialog, pdf, protokoll
 
 SPALTEN = ("Angebot", "Kunde", "Bestellnummer", "Lieferdatum", "Paletten", "Stück", "Stand", "Gedruckt",
            "Versendet am")
@@ -87,7 +87,8 @@ class VersandSeite(QWidget):
             return None, None
         try:
             alles = palettenschein.zusammenstellen(self.db, z["id"], dict(d), stamm)
-        except Exception:          # beschädigtes Angebot: Liste trotzdem zeigen
+        except Exception as e:  # noqa: BLE001 – beschädigtes Angebot: Liste trotzdem zeigen
+            protokoll.nebenbei(e, "Palettenschein zusammenstellen")
             return None, None
         return palettenschein.anzahl(d, alles["packliste"]), alles["packliste"]
 

@@ -356,7 +356,7 @@ class MeterpreisDialog(QDialog):
         alt = dict(self.kopf.get("stangen_vorgabe") or {})
         neu = {s: v for s, v in alt.items() if s not in {rechnen.laengen_schluessel(g["gruppe"]) for g in self.gruppen}}
         felder = {id(g): f for g, f in aenderungen}
-        for g, v in zip(self.gruppen, self.vorrat):
+        for g, v in zip(self.gruppen, self.vorrat, strict=False):
             if not v:
                 continue
             f = felder.get(id(g), {})

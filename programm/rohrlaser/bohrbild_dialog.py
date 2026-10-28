@@ -182,7 +182,7 @@ class BohrbildDialog(QDialog):
     def werte(self):
         """Bohrbild nach der Wahl im Dialog."""
         out = []
-        for z, gruppe, gw, ls, (gp, ap) in zip(self.liste, self.gruppen, self.gewinde, self.laser, self.preise):
+        for z, gruppe, gw, ls, (gp, ap) in zip(self.liste, self.gruppen, self.gewinde, self.laser, self.preise, strict=False):
             z = dict(z)
             if gp is not None:
                 z["gewinde_preis"] = self._preis(gp)

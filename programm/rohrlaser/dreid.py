@@ -193,8 +193,8 @@ def umriss_2d_faktor(pts, aussen, wand):
     if ri <= 0 or len(pts) < 2:
         return 1.0
     k = R / ri
-    roh = sum(math.dist(a, b) for a, b in zip(pts, pts[1:] + pts[:1]))
-    aus = sum(math.hypot(b[0] - a[0], k * (b[1] - a[1])) for a, b in zip(pts, pts[1:] + pts[:1]))
+    roh = sum(math.dist(a, b) for a, b in zip(pts, pts[1:] + pts[:1], strict=False))
+    aus = sum(math.hypot(b[0] - a[0], k * (b[1] - a[1])) for a, b in zip(pts, pts[1:] + pts[:1], strict=False))
     return aus / roh if roh > 1e-9 else 1.0
 
 

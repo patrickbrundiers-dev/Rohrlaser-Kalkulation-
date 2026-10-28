@@ -106,7 +106,7 @@ def vorschau(roh, vorhandene, kategorien=()):
                 return dict(zeilen=[], fehler=[f"Zeile {nr}: Kopfzeile ohne Spalte(n) {', '.join(fehlt)}"])
             continue
         z = dict(nr=nr, werte={}, bezug={}, fehler=[], hinweis=[], aenderung=[])
-        for name, wert in zip(spalten, roh_zeile):
+        for name, wert in zip(spalten, roh_zeile, strict=False):
             if not name:
                 continue
             wert = wert.strip()

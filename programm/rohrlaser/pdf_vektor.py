@@ -15,6 +15,8 @@ bzw. dem Schriftfeld. Texte mit Lage, Höhe und Drehung (Maßzahlen, Schriftfeld
 import ctypes
 import math
 
+from . import protokoll
+
 PT = 25.4 / 72              # mm je Punkt
 SCHMAL_ANTEIL = 0.7         # Strichstärke darunter: schmale Linie
 BOGEN_TOL = 0.02            # Bézier als Kreisbogen, wenn Abweichung höchstens so viel × Radius
@@ -185,7 +187,8 @@ def lesen(pfad):
     import pypdfium2.raw as raw
     try:
         pdf = pdfium.PdfDocument(str(pfad))
-    except Exception:
+    except Exception as e:  # noqa: BLE001 – PDF für Linien öffnen
+        protokoll.nebenbei(e, "PDF für Linien öffnen")
         return None
     try:
         seite = pdf[0]
@@ -204,7 +207,7 @@ def lesen(pfad):
     laengen = {}
     for w, _muster, zuege in roh:
         for zug, _zu in zuege:
-            lg = sum(math.dist(_ende(a), _ende(b)) for a, b in zip(zug, zug[1:]))
+            lg = sum(math.dist(_ende(a), _ende(b)) for a, b in zip(zug, zug[1:], strict=False))
             laengen[round(w, 2)] = laengen.get(round(w, 2), 0.0) + lg
     if not laengen:
         return None
@@ -222,7 +225,7 @@ def lesen(pfad):
             if zu and _ende(zug[-1]) != _ende(zug[0]):
                 zug = zug + [("L", _ende(zug[0]))]
             boegen = []
-            for a, b in zip(zug, zug[1:]):
+            for a, b in zip(zug, zug[1:], strict=False):
                 p = _ende(a)
                 if b[0] == "C":
                     bg = _als_bogen(p, b[1], b[2], b[3])
@@ -230,7 +233,7 @@ def lesen(pfad):
                         boegen.append(bg)
                         continue
                     pk = [p] + [_bezier(p, b[1], b[2], b[3], t / 8) for t in range(1, 9)]
-                    erg["strecken"] += [(mm(s), mm(e), art) for s, e in zip(pk, pk[1:])]
+                    erg["strecken"] += [(mm(s), mm(e), art) for s, e in zip(pk, pk[1:], strict=False)]
                 elif math.dist(p, b[1]) > 1e-6:
                     erg["strecken"].append((mm(p), mm(b[1]), art))
             erg["boegen"] += [(mm(c), r * PT, w0, w1, art) for c, r, w0, w1 in boegen]

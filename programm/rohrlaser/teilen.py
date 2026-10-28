@@ -185,7 +185,7 @@ def lokale_zeilen(con):
         cur = con.execute(f'SELECT * FROM "{t.name}"')
         namen = [d[0] for d in cur.description]
         for r in cur:
-            z = dict(zip(namen, r))
+            z = dict(zip(namen, r, strict=True))
             u = z.pop("uid")
             z.pop("id", None)
             for feld, ziel in verweise.items():
@@ -257,7 +257,7 @@ def _zukauf_id(liste_json, karte):
 def _zeilen(con, sql, wert):
     cur = con.execute(sql, (wert,))
     namen = [d[0] for d in cur.description]
-    return [dict(zip(namen, r)) for r in cur]
+    return [dict(zip(namen, r, strict=True)) for r in cur]
 
 
 def angebot_inhalt(con, angebot_id, artikel_uid=None):
@@ -519,7 +519,7 @@ def _zeile_schreiben(db, t, zeilen_id, daten, u):
         _einfuegen(con, t.name, dict(werte, uid=u), set(spalten) | {"uid"})
         return
     alt = dict(zip([d[0] for d in con.execute(f'SELECT * FROM "{t.name}" WHERE id=?', (zeilen_id,)).description],
-                   con.execute(f'SELECT * FROM "{t.name}" WHERE id=?', (zeilen_id,)).fetchone()))
+                   con.execute(f'SELECT * FROM "{t.name}" WHERE id=?', (zeilen_id,)).fetchone(), strict=True))
     for n in spalten:                 # Spalten, die die andere Version nicht kennt, bleiben
         if n not in daten:
             werte[n] = alt.get(n)

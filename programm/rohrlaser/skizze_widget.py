@@ -233,7 +233,7 @@ class Skizze(QWidget):
             if not (wand and self.eingaben.get("d3") is True and (e_ or {}).get("d3")):
                 continue
             g.setPen(QPen(FARBE_BEGRENZT, 3.0))
-            for (s0, d0), (s1, d1) in zip(linie_, linie_[1:]):
+            for (s0, d0), (s1, d1) in zip(linie_, linie_[1:], strict=False):
                 (u, v), (nu, nv) = qs.s_zu_uv((s0 + s1) / 2)
                 if sf.punkt(qs, e_, (u, v), (u - wand * nu, v - wand * nv), True, self.grenze)["begrenzt"]:
                     g.drawLine(self._bild(a, self.L - d0 if hinten else d0, s0),

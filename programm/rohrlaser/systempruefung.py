@@ -13,6 +13,8 @@ import platform
 import shutil
 import sys
 
+from . import protokoll
+
 OK, GENUG, ZU_WENIG, UNBEKANNT = "ok", "genug", "zu_wenig", "unbekannt"
 ZEICHEN = {OK: "✓", GENUG: "✓ (Minimum)", ZU_WENIG: "✗ unter Minimum", UNBEKANNT: "?"}
 
@@ -125,7 +127,7 @@ def pruefen(datenordner=None, gl=None, bildschirm=None):
         try:
             from .ansicht3d_gl import gl_moeglich
             gl = gl_moeglich()
-        except Exception as ex:         # ohne Qt-Anwendung oder OpenGL-Bibliothek
+        except Exception as ex:  # noqa: BLE001 – ohne Qt-Anwendung oder OpenGL-Bibliothek
             gl = (False, f"nicht prüfbar ({type(ex).__name__})")
     dazu("Grafik", gl[1] if gl[0] else f"ohne OpenGL: {gl[1]}", OK if gl[0] else GENUG)
     frei = None
@@ -143,7 +145,7 @@ def pruefen(datenordner=None, gl=None, bildschirm=None):
             if sc is not None:
                 g, f = sc.geometry(), sc.devicePixelRatio()
                 bildschirm = (round(g.width() * f), round(g.height() * f))
-        except Exception:
+        except Exception:  # noqa: BLE001 – ohne Bildschirm: Zeile „unbekannt“
             bildschirm = None
     if bildschirm:
         b, h = bildschirm
@@ -163,7 +165,8 @@ def start_pruefung_noetig(db, version):
     """7a: True, wenn seit Installation bzw. Update (andere Version) noch nicht geprüft wurde."""
     try:
         return db.einstellung(EINSTELLUNG) != version
-    except Exception:
+    except Exception as e:  # noqa: BLE001 – Systemprüfung-Stand lesen
+        protokoll.nebenbei(e, "Systemprüfung-Stand lesen")
         return False
 
 
@@ -171,8 +174,8 @@ def start_gepruft(db, version):
     try:
         if not getattr(db, "nur_lesen", False):
             db.einstellung_setzen(EINSTELLUNG, version)
-    except Exception:           # Lesemodus o. ä.: beim nächsten Start noch einmal
-        pass
+    except Exception as e:  # noqa: BLE001 – Lesemodus o. ä.: beim nächsten Start noch einmal
+        protokoll.nebenbei(e, "Systemprüfung-Stand merken")
 
 
 def html(zeilen):

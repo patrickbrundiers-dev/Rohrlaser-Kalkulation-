@@ -191,7 +191,7 @@ def durchlaufzeiten(db, angebot_id=None):
         if not v:
             continue
         je = {}
-        for a, b in zip(v, v[1:]):
+        for a, b in zip(v, v[1:], strict=False):
             je[a["status"]] = je.get(a["status"], 0.0) + (_zeit(b["am"]) - _zeit(a["am"])).total_seconds() / 3600
         fertig = v[-1]["status"] == liste[-1]
         start = next((x["am"] for x in v if x["status"] == liste[0]), v[0]["am"])

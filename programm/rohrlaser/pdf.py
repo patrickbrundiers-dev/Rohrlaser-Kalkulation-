@@ -17,7 +17,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe, querschnitt, rechnen, stangen_abwicklung
+from . import ausgabe, protokoll, querschnitt, rechnen, stangen_abwicklung
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
@@ -269,7 +269,8 @@ def logo_bild(einst, breite=55 * mm, hoehe=24 * mm):
         f = min(breite / b, hoehe / h)
         roh.seek(0)
         bild = Image(roh, width=b * f, height=h * f, mask="auto")
-    except Exception:       # beschädigte Einstellung: Angebot ohne Logo statt Abbruch
+    except Exception as e:  # noqa: BLE001 – beschädigte Einstellung: Angebot ohne Logo statt Abbruch
+        protokoll.nebenbei(e, "Logo ins PDF setzen")
         return None
     bild.hAlign = "RIGHT"
     return bild
@@ -998,15 +999,15 @@ def spalten_waehlen(spalten, zeilen, breite):
     gewaehlt = [s for s in spalten if s[4] or hat_wert(s)]
     rl = rl_canvas.Canvas(io.BytesIO())
     minimum = [max(rl.stringWidth(w, FETT, 7) for w in s[0].split()) + 7 for s in gewaehlt]
-    w = [max(s[3] * mm, m) for s, m in zip(gewaehlt, minimum)]
+    w = [max(s[3] * mm, m) for s, m in zip(gewaehlt, minimum, strict=True)]
     f = breite / sum(w)
     if f < 1:           # zu breit: nur über das Minimum hinaus kürzen
-        frei = sum(x - m for x, m in zip(w, minimum))
+        frei = sum(x - m for x, m in zip(w, minimum, strict=True))
         zuviel = sum(w) - breite
-        w = [x - (x - m) * min(1, zuviel / frei) if frei else x for x, m in zip(w, minimum)]
+        w = [x - (x - m) * min(1, zuviel / frei) if frei else x for x, m in zip(w, minimum, strict=True)]
     else:
         w = [x * f for x in w]
-    return list(zip(gewaehlt, w))
+    return list(zip(gewaehlt, w, strict=True))
 
 
 def _spalten_tabelle(spalten, zeilen, breite, fett=()):

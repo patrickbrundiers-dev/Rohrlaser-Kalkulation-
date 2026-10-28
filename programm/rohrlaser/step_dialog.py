@@ -1190,7 +1190,7 @@ class StepPruefDialog(QDialog):
         gleiche = [i for g in self.fehler_gruppen.values() for i in (g.child(n).data(1, Qt.UserRole)
                                                                      for n in range(g.childCount()))
                    if self.messwerte[i].get("datei") == m.get("datei") and hat_huelle(self.messwerte[i])
-                   and all(abs(a - b) <= 0.2 for a, b in zip(masse(self.messwerte[i]), masse(m)))]
+                   and all(abs(a - b) <= 0.2 for a, b in zip(masse(self.messwerte[i]), masse(m), strict=False))]
         if not step.von_hand(m, form, profil_id, self.k.profile):
             return None
         for i in gleiche:           # gleiche nicht übernehmbare Körper der Datei (gleiches Hüllmaß) ebenso
@@ -1381,7 +1381,7 @@ class StepPruefDialog(QDialog):
         # Häkchen wie beim Öffnen (Vorgabe: Normteile, unsichere Teile) folgen dem neuen Importprofil; nur selbst
         # geänderte bleiben
         self.werte_schreiben()
-        for m, v in zip(self.messwerte, self._start):
+        for m, v in zip(self.messwerte, self._start, strict=False):
             if m.get("_uebernehmen") == v:
                 m.pop("_uebernehmen", None)
         alt_ws = self.werkstoff

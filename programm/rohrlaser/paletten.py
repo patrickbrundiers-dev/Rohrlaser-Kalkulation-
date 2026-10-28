@@ -182,7 +182,7 @@ def packstuecke(positionen, werte):
     in_bg = {j for bg_id in bgs for j in baugruppe.teile(positionen, bg_id)}
     soll = baugruppe.soll_werte(positionen) if bgs else {}
     out = []
-    for i, (p, w) in enumerate(zip(positionen, werte)):
+    for i, (p, w) in enumerate(zip(positionen, werte, strict=True)):
         if w is None or i in in_bg:
             continue
         n = p.get("stueck")
@@ -466,7 +466,7 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
         pal["nr"] = nr
     gewichte = [s["gewicht"] for s in stuecke]
     return dict(leer, paletten=paletten, anzahl=len(paletten), je_lht=je_lht,
-                netto=sum(g * s["stueck"] for g, s in zip(gewichte, stuecke) if g is not None))
+                netto=sum(g * s["stueck"] for g, s in zip(gewichte, stuecke, strict=True) if g is not None))
 
 
 def ladung(positionen, werte, lht_zeilen, std_id, lg_id, einst=None):

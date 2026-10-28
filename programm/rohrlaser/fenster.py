@@ -33,6 +33,7 @@ from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, Kontext, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
 from .eingabe import RechenSpin, RechenSpinGanz, Schalter, Segment, segment_passt
+from . import protokoll
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 ANLEITUNG_KOPIE = "Anleitung"     # Unterordner im Datenordner (anleitung_kopie)
@@ -2217,7 +2218,8 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             try:
                 i = datei_info(quelle) if Path(quelle).suffix.lower() == ".db" else None
-            except Exception:
+            except Exception as e:  # noqa: BLE001 – Inhalt der Datendatei lesen
+                protokoll.nebenbei(e, "Inhalt der Datendatei lesen")
                 i = None
             inhalt = (f"\n\nInhalt: {i['anzahl'].get('angebote', 0)} Angebote, letzte Änderung "
                       f"{i.get('letzte_aenderung') or '–'}." if i else "")

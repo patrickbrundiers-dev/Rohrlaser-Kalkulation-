@@ -125,7 +125,7 @@ def _baugruppen_traeger(positionen, werte):
     Positionen, die Fracht tragen
     (paletten.packstuecke: die Baugruppe reist als ein Stück, Gewicht von Hand, sonst Summe ihrer Einzelteile; die
     Einzelteile nicht noch einmal). Ohne Baugruppe None (jede Position trägt sich selbst, wie bisher)."""
-    if not any(ist_baugruppe(p) for p, w in zip(positionen, werte) if w is not None):
+    if not any(ist_baugruppe(p) for p, w in zip(positionen, werte, strict=True) if w is not None):
         return None
     return {x["i"]: (x["stueck"], x["gewicht"], x.get("masse")) for x in paletten.packstuecke(positionen, werte)}
 
@@ -136,7 +136,7 @@ def ware(positionen, werte):
     Ergebnis: (netto kg, max. Länge mm, [Pos. ohne Gewicht])."""
     netto, laenge, fehlt = 0.0, 0.0, []
     traeger = _baugruppen_traeger(positionen, werte)
-    for i, (p, w) in enumerate(zip(positionen, werte)):
+    for i, (p, w) in enumerate(zip(positionen, werte, strict=True)):
         if w is None or not p.get("stueck"):
             continue
         if traeger is not None:

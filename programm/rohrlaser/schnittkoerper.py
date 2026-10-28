@@ -168,7 +168,7 @@ def rohr(e, qs, L, xyz):
             richt = [(-nm[0], -nm[1], 0.0)] * len(orte)
         if qs.radius and not qs.r and not ein.get("wand") == "beide":   # Eckradius: auf dem Bogen wie im STEP
             neu_o, neu_r = [], []
-            for (x, u, v), rr in zip(orte, richt):
+            for (x, u, v), rr in zip(orte, richt, strict=False):
                 u, v, n_ = sk.rund_ort(qs, u, v)
                 neu_o.append((x, u, v))
                 neu_r.append((-n_[0], -n_[1], 0.0) if n_ else rr)
@@ -195,7 +195,7 @@ def rohr(e, qs, L, xyz):
         # über mehrere Wände (Sonderkontur, V-Ausschnitt): ohne Deckel, eine ebene Fläche ginge quer durchs Profil
         deckel = _deckel(pts) if len(set(richt)) == 1 or qs.r else []
         o, u_ = [], []
-        for (x, u, v), (ru, rv, rx), tf in zip(orte, richt, tiefen):
+        for (x, u, v), (ru, rv, rx), tf in zip(orte, richt, tiefen, strict=False):
             a = (x - rx * UEBERSTAND, u - ru * UEBERSTAND, v - rv * UEBERSTAND)
             b = (x + rx * (tf + UEBERSTAND_INNEN), u + ru * (tf + UEBERSTAND_INNEN), v + rv * (tf + UEBERSTAND_INNEN))
             o += [round(c, 3) for c in xyz(*a)]

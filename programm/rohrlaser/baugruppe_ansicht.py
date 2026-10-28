@@ -329,7 +329,7 @@ def _punkte(zug):
 
 def _verdichten(pts, schritt=ABSTAND_LINIE):
     out = [pts[0]]
-    for a, b in zip(pts, pts[1:]):
+    for a, b in zip(pts, pts[1:], strict=False):
         n = max(1, math.ceil(math.dist(a, b) / schritt))
         out += [tuple(a[k] + (b[k] - a[k]) * i / n for k in range(3)) for i in range(1, n + 1)]
     return out
@@ -404,10 +404,10 @@ def _raupe_stueck(pts, nahtart, groesse, flaechen):
             dreiecke.append(len(punkte) // 3)
             punkte.extend(round(x, 3) for x in v)
 
-    ringe = [[_add(q, d) for d in qs] for q, qs in zip(pts, quer)]
+    ringe = [[_add(q, d) for d in qs] for q, qs in zip(pts, quer, strict=False)]
     # nur die freien Seiten: Kehlnaht die Nahtoberfläche (die Schenkel liegen an den Teilen), sonst beide Flanken
     sichtbar = [1] if nahtart == "Kehlnaht" else [1, 2]
-    for r0, r1 in zip(ringe, ringe[1:]):
+    for r0, r1 in zip(ringe, ringe[1:], strict=False):
         mitte = tuple(sum(v[k] for v in r0 + r1) / 6 for k in range(3))
         for k in sichtbar:
             a, b = r0[k], r0[(k + 1) % 3]
@@ -457,7 +457,7 @@ def verlauf_aus_stoss(naht, stoesse, koerper_netz):
         zuege = ((netz or {}).get("l") or {}).get("EA" if s_["ende"] == "a" else "EB") or []
         if not zuege or not lage:
             continue
-        zug = max(zuege, key=lambda z: sum(math.dist(a, b) for a, b in zip(_punkte(z), _punkte(z)[1:])))
+        zug = max(zuege, key=lambda z: sum(math.dist(a, b) for a, b in zip(_punkte(z), _punkte(z)[1:], strict=False)))
         out.append([round(c, 3) for q in _punkte(zug) for c in in_lage(q, lage)])
     return out
 

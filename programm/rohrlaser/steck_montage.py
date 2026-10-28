@@ -23,7 +23,7 @@ def _einheit(v):
 
 
 def _gleich(a, b):
-    return sum(x * y for x, y in zip(a, b)) >= math.cos(math.radians(GRAD))
+    return sum(x * y for x, y in zip(a, b, strict=False)) >= math.cos(math.radians(GRAD))
 
 
 def kanten(koerper, stoesse, verbindungen):
@@ -206,8 +206,8 @@ def richtung_text(d):
     """Fügerichtung als Text: nächste Achse der Datei (+X …), sonst die Richtung gerundet."""
     if d is None:
         return ""
-    a, t = max(ACHSEN, key=lambda x: sum(p * q for p, q in zip(x[0], d)))
-    if sum(p * q for p, q in zip(a, d)) >= math.cos(math.radians(GRAD)):
+    a, t = max(ACHSEN, key=lambda x: sum(p * q for p, q in zip(x[0], d, strict=False)))
+    if sum(p * q for p, q in zip(a, d, strict=False)) >= math.cos(math.radians(GRAD)):
         return t
     return "(" + "; ".join(f"{c:.2f}".replace(".", ",") for c in d) + ")"
 
@@ -241,7 +241,7 @@ def explosion(schritte, kanten_, enden, faktor=1.0):
         if d is not None:
             partner = next((p for dd, p in _richtungen(k, gesetzt, kanten_) if _gleich(dd, d)), None)
             basis = out.get(partner, basis)
-            basis = tuple(b - c * weit for b, c in zip(basis, d))
+            basis = tuple(b - c * weit for b, c in zip(basis, d, strict=False))
         out[k] = basis
         gesetzt.add(k)
     return out
@@ -283,7 +283,7 @@ def montage_folge(positionen, verbindungen, stoesse, netze):
     kanten_ = kanten(koerper, stoesse, verb)
     if not kanten_:
         return None
-    marke = {(a, s_, e): str(v.get("marke") or "").strip() for (a, s_, e), v in zip(verb, verbindungen or ())}
+    marke = {(a, s_, e): str(v.get("marke") or "").strip() for (a, s_, e), v in zip(verb, verbindungen or (), strict=False)}
     marken = {}
     for st in stoesse or ():
         if isinstance(st, dict) and str(st.get("aufnahme")) in koerper and str(st.get("stecker")) in koerper:

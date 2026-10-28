@@ -80,7 +80,7 @@ def _starten(n):
                 c.close()
             return False
         # Zuordnung Prozess/Verbindung ist für die Arbeit egal (beendet werden alle zusammen)
-        _helfer.extend(zip(neu, verbunden))
+        _helfer.extend(zip(neu, verbunden, strict=False))
     return True
 
 

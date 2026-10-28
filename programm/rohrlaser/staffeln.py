@@ -428,7 +428,7 @@ def rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt=None,
             lz = stufe_lauf(kopf, positionen, st, mz, k, tabellen, einst)
             for x in lz:
                 x["kennung_stufe"] = kenn
-        for x, z in zip(lz, mz):
+        for x, z in zip(lz, mz, strict=True):
             x.update(stufe_id=z.get("id"), stufe=st.get("id") if st is not z else None,
                      stufe_nr=nummer.get(st.get("id"), lfd) if st is not z else lfd, gemeinsam=len(mz) > 1,
                      stufe_name=st.get("bezeichnung") if st is not z else None)
@@ -442,23 +442,23 @@ def stufe_bepreisen(lz, stufe, mz, einst, alle=None, positionen=None):
     vk = [_zahl((x.get("bausteine") or {}).get("verkauf")) for x in lz]
     summe_vk = sum(vk)
     werte = []
-    for x, z, v in zip(lz, mz, vk):
+    for x, z, v in zip(lz, mz, vk, strict=True):
         w = _zusammen(stufe, z)
         if len(mz) > 1 and _zahl(w.get("neben_pauschal")):
             w = dict(w, neben_pauschal=w["neben_pauschal"] * (v / summe_vk if summe_vk else 1 / len(mz)))
         werte.append(w)
     ohne = dict(einst, mindestpreis=0)
-    erste = [preise_anwenden(x, w, ohne, alle, positionen) for x, w in zip(lz, werte)]
+    erste = [preise_anwenden(x, w, ohne, alle, positionen) for x, w in zip(lz, werte, strict=True)]
     mindest = _zahl(einst.get("mindestpreis"))
     netto = sum(x["preis"]["ware"] for x in erste if x.get("preis"))      # ab 26.10.2026 Ware, davor Verkaufspreis
     if not (mindest > 0 and 0 < netto < mindest):
-        return [preise_anwenden(x, w, einst, alle, positionen, anhebung=0.0) for x, w in zip(lz, werte)]
+        return [preise_anwenden(x, w, einst, alle, positionen, anhebung=0.0) for x, w in zip(lz, werte, strict=True)]
     faktor = mindest / netto
     neu = rechnen.neue_preisregeln(einst)
     return [preise_anwenden(x, w, einst, alle, positionen,
                             anhebung=(e["preis"]["ware"] * (faktor - 1) / (1 - e["preis"]["skonto_anteil"] if neu else 1)
                                       if e.get("preis") else 0.0))
-            for x, w, e in zip(lz, werte, erste)]
+            for x, w, e in zip(lz, werte, erste, strict=True)]
 
 
 def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=True, stufe=None):

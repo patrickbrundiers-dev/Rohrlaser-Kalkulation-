@@ -126,7 +126,7 @@ def gl_moeglich():
                 fn = ctx.functions()
                 _PRUEFUNG = (True, f"{fn.glGetString(GL_RENDERER)}, OpenGL {fn.glGetString(GL_VERSION)}")
         ctx.doneCurrent()
-    except Exception as e:  # jede Panne: QPainter
+    except Exception as e:  # noqa: BLE001 – jede Panne: QPainter
         _PRUEFUNG = (False, f"OpenGL-Fehler: {e or type(e).__name__}")
     return _PRUEFUNG
 
@@ -179,7 +179,7 @@ def koerper_daten(koerper, gewaehlt, farben, linien_farben):
                 d.extend(c)
         li = out["wkl" + g]
         for ring in k["ringe"]:
-            for a, b in zip(ring, ring[1:]):
+            for a, b in zip(ring, ring[1:], strict=False):
                 for q in (a, b):
                     li.extend(q)
                     li.extend((0.0, 0.0, 1.0))
@@ -226,7 +226,7 @@ class GLFlaeche(QOpenGLWidget):
             if not (self.prog.addShaderFromSourceCode(QOpenGLShader.Vertex, VERTEX) and
                     self.prog.addShaderFromSourceCode(QOpenGLShader.Fragment, FRAGMENT) and self.prog.link()):
                 raise RuntimeError("Shader: " + (self.prog.log() or "").strip()[:200])
-        except Exception as e:  # OpenGL nicht nutzbar: zurück zu QPainter
+        except Exception as e:  # noqa: BLE001 – OpenGL nicht nutzbar: zurück zu QPainter
             self._fehler(e)
 
     def _fehler(self, e):
@@ -240,7 +240,7 @@ class GLFlaeche(QOpenGLWidget):
         self.puffer = {}
         farben = {a: _farbe(c) for a, c in ansicht3d.FARBE.items()}
         linien = {a: _farbe(c) for a, c in ansicht3d.LINIE.items()}
-        for name, daten in zip(("dreiecke", "linien", "kanten"), puffer_daten(modell, farben, linien, kanten)):
+        for name, daten in zip(("dreiecke", "linien", "kanten"), puffer_daten(modell, farben, linien, kanten), strict=False):
             if not daten:
                 continue
             b = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
@@ -257,7 +257,7 @@ class GLFlaeche(QOpenGLWidget):
             return
         try:
             self._zeichnen()
-        except Exception as e:  # z. B. Treiberfehler: zurück zu QPainter
+        except Exception as e:  # noqa: BLE001 – z. B. Treiberfehler: zurück zu QPainter
             self._fehler(e)
             return
         p = QPainter(self)
@@ -391,7 +391,7 @@ class GLFlaeche(QOpenGLWidget):
                            ("licht", ansicht3d.LICHT), ("licht2", ansicht3d.LICHT2),
                            ("kfarbe", _farbe(ansicht3d.KANTE))):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
-        for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp"), ansicht3d.LICHT_WERTE):
+        for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp"), ansicht3d.LICHT_WERTE, strict=False):
             wert1(name, wert)
         pr.setUniformValue(pr.uniformLocation("abb"), 2 * s / w, 2 * ox / w - 1, 2 * s / hh, 1 - 2 * oy / hh)
         wert1("tiefe", 1.0 / max(1e-6, modell.groesse))

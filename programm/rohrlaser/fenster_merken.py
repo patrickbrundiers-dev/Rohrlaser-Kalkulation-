@@ -76,7 +76,7 @@ class FensterMerker(QObject):
                 w.restoreGeometry(g)
                 self._auf_bildschirm(w)
         teiler = w.findChildren(QSplitter)
-        for s, zustand in zip(teiler, eintrag.get("t") or []):
+        for s, zustand in zip(teiler, eintrag.get("t") or [], strict=False):
             z = _bytes(zustand)
             if z is not None:
                 s.restoreState(z)

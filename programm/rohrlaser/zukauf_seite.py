@@ -1061,7 +1061,7 @@ class ArtikelSeite(QWidget):
         self.sichtbar = self.gefiltert()
         zellen = [self.zellen(a) for a in self.sichtbar]
         self.tabelle.setRowCount(len(self.sichtbar))
-        for r, (a, w) in enumerate(zip(self.sichtbar, zellen)):
+        for r, (a, w) in enumerate(zip(self.sichtbar, zellen, strict=False)):
             for c, (_, n, _) in enumerate(SPALTEN):
                 it = QTableWidgetItem(w[n])
                 it.setData(Qt.UserRole, a["id"])

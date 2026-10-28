@@ -43,4 +43,22 @@ t.start()
 t.join()
 assert len(gemeldet) == 2 and pfad.read_text(encoding="utf-8").count("Unerwarteter Fehler") == 2
 print("OK     Fehler in Knopf-Aktion und Hintergrund-Thread: gemeldet, in fehler.log protokolliert, Programm läuft weiter")
+
+# Fehler in einer Nebensache: ohne Meldung weiter, aber mit Stacktrace im Protokoll; Lesemodus ist Absicht
+try:
+    {}["fehlt"]
+except KeyError as e:
+    protokoll.nebenbei(e, "Spaltenbreiten merken")
+
+
+class Lesemodus(Exception):
+    pass
+
+
+protokoll.nebenbei(Lesemodus("nur lesen"), "Fenster merken")
+inhalt = pfad.read_text(encoding="utf-8")
+assert len(gemeldet) == 2, gemeldet
+assert "Spaltenbreiten merken nicht möglich" in inhalt and "KeyError: 'fehlt'" in inhalt and "Traceback" in inhalt
+assert "Fenster merken" not in inhalt
+print("OK     Nebensache: ohne Meldung, mit Stacktrace im Protokoll; Lesemodus nicht protokolliert")
 print("OK: Fehlerprotokoll")

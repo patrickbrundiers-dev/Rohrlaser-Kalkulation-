@@ -719,7 +719,7 @@ class ZusatzVerwaltung(QWidget):
         self.sichtbar = self.gefiltert()
         zellen = [self.zellen(z) for z in self.sichtbar]
         self.tabelle.setRowCount(len(self.sichtbar))
-        for r, (z, w) in enumerate(zip(self.sichtbar, zellen)):
+        for r, (z, w) in enumerate(zip(self.sichtbar, zellen, strict=False)):
             for c, (_, n, _) in enumerate(SPALTEN):
                 it = QTableWidgetItem(w[n])
                 it.setData(Qt.UserRole, z["id"])

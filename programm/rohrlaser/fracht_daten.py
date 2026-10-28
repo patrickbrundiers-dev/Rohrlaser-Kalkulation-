@@ -440,7 +440,7 @@ def plz_csv_lesen(text, zonen, laender):
                 return [], [f"Zeile {nr}: Kopfzeile mit mindestens 'PLZ von' und 'Zone' erwartet"]
             continue
         z, meldung = {}, None
-        for name, wert in zip(spalten, roh):
+        for name, wert in zip(spalten, roh, strict=False):
             if not name:
                 continue
             try:

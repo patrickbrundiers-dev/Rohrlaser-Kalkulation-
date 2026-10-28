@@ -27,7 +27,7 @@ def _kreuz(a, b):
 
 
 def _skalar(a, b):
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=False))
 
 
 def _lage(o, z, x):

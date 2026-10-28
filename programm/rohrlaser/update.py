@@ -539,7 +539,7 @@ def lizenz_zusatz(quelle=ADRESSE, timeout=10):
             if kopf:
                 import email.utils
                 datum = email.utils.parsedate_to_datetime(kopf).date()
-    except Exception:       # noqa: BLE001 – keine Sperrliste veröffentlicht (404), kein Netz, kaputter Kopf
+    except Exception:       # noqa: BLE001, S110 – keine Sperrliste veröffentlicht (404), kein Netz, kaputter Kopf
         pass
     return dict(sperrliste=daten, datum=datum)
 

@@ -97,7 +97,7 @@ def schritte(p, z, katalog=()):
             neu(KATEGORIE_STUFE.get(kat.get(ohne), "Sonstiges"), f"{ohne}{TRENNER}ohne Zeit je Teil", True)
     # Zukaufteile (Anbauteile) eines Rohrlaserteils; ein Zukaufteil oder eine Baugruppe ist selbst die Zeile
     if not z.get("zukaufteil") and not z.get("baugruppe"):
-        for e, x in zip(zukauf.eintraege(p), z.get("zukauf_einzeln") or ()):
+        for e, x in zip(zukauf.eintraege(p), z.get("zukauf_einzeln") or (), strict=False):
             st = e.get("stand") or {}
             einheit = zukauf.EINHEIT_KURZ.get(st.get("einheit"), st.get("einheit") or "")
             je_satz = e.get("je") == zukauf.JE_SATZ

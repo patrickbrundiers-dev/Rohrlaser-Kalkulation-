@@ -76,9 +76,9 @@ def beschreiben(a, b, spalten):
     geaendert = [pid for pid in pa if pa[pid] != pb[pid]]
     if geaendert:
         z_a, z_b = pa[geaendert[0]], pb[geaendert[0]]
-        namen = [n for n, x, y in zip(spalten, z_a, z_b) if x != y and n != "nr"]
+        namen = [n for n, x, y in zip(spalten, z_a, z_b, strict=False) if x != y and n != "nr"]
         was = ", ".join(_titel(POSITIONEN.felder, n) for n in namen[:2]) or "Position"
-        pos = dict(zip(spalten, z_b)).get("pos")
+        pos = dict(zip(spalten, z_b, strict=False)).get("pos")
         nr = f" Pos. {pos:g}" if isinstance(pos, (int, float)) else ""
         return was + nr + (f" und {len(geaendert) - 1} weitere" if len(geaendert) > 1 else "")
     ka, kb = dict(a["angebot"]), dict(b["angebot"])

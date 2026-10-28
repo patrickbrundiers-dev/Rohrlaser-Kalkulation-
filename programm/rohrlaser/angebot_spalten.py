@@ -105,7 +105,7 @@ def kompakt_zeilen(positionen, zeilen):
     Kalkulation); 'zeile' = Index der Position für den Sprung in die Positionsliste. Satz und Tönung kommen aus den
     Kalkulationszeilen (satzgruppen.zeilen_markieren)."""
     out = []
-    for i, (p, z) in enumerate(zip(positionen, zeilen)):
+    for i, (p, z) in enumerate(zip(positionen, zeilen, strict=True)):
         if not z:
             continue
         netto = z.get("laser_netto")

@@ -217,7 +217,7 @@ class DxfImportDialog(QDialog):
             self.kant.setVisible(bool(t["biegelinien"]))
             self.winkel.setVisible(bool(t["biegelinien"]))
             self.winkel.setRowCount(0)
-            for (y, _a), w in zip(t["biegelinien"], z["winkel"]):
+            for (y, _a), w in zip(t["biegelinien"], z["winkel"], strict=False):
                 i = self.winkel.rowCount()
                 self.winkel.insertRow(i)
                 it = QTableWidgetItem(f"{y:g}".replace(".", ","))

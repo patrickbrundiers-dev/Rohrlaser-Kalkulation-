@@ -211,7 +211,7 @@ def main(ziel):
                ("10233", "Anlagenbau Hessler", "Am Hafen 8", "60314 Frankfurt", "Frau Hessler", "069 987654",
                 "einkauf@hessler-anlagenbau.example", 3, 14, 45, "Rahmenvertrag")):
         db.neu("kunden", dict(zip(("kundennr", "name", "strasse", "plz_ort", "ansprechpartner", "telefon", "email",
-                                   "skonto", "skonto_tage", "zahlungsziel", "bemerkung"), kd)))
+                                   "skonto", "skonto_tage", "zahlungsziel", "bemerkung"), kd, strict=False)))
     # Lieferlängen: 12-m-Stangen nur für ein Profil, das in den übrigen Beispielangeboten nicht vorkommt
     db.neu("lieferlaengen", dict(profil_id="RR 48,3x2,6", werkstoff_id="S235-10219", laenge=12000,
                                  lieferant="Beispiel-Lieferant", bemerkung="geschnitten nach Werkstücklängen"))

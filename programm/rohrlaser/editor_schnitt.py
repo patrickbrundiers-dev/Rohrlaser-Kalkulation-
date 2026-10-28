@@ -42,7 +42,7 @@ def stellen(e, qs, L, x):
         except (ValueError, TypeError, ZeroDivisionError, AttributeError):
             continue
         dq = _schnitte(pts, x - d["x"])
-        for a, b in zip(dq[0::2], dq[1::2]):
+        for a, b in zip(dq[0::2], dq[1::2], strict=False):
             out.append((s_c + a, s_c + b, d["zeile"], ein.get("art")))
     return out
 

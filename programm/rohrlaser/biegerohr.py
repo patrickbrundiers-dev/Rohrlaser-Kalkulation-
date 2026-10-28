@@ -73,7 +73,7 @@ def geraden_zwischen(br):
     el = br["elemente"]
     boegen = [i for i, e in enumerate(el) if e["art"] == "bogen"]
     out = []
-    for n, (i, j) in enumerate(zip(boegen, boegen[1:]), start=1):
+    for n, (i, j) in enumerate(zip(boegen, boegen[1:], strict=False), start=1):
         out.append((n, sum(float(e["laenge"]) for e in el[i + 1:j] if e["art"] == "gerade")))
     return out
 

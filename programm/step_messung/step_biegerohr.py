@@ -374,7 +374,7 @@ def messen(solid, datei="", koerper=1, netz=False):
             fl = g.TopTools_IndexedMapOfShape()
             TopExp.MapShapes_s(lok, TopAbs_FACE, fl)
             t.netz = g.dreiecksnetz(lok, fl, {i: "A" for i in range(1, fl.Extent() + 1)}, [], 0.0, t.abm_a)
-        except Exception:  # 3D-Ansicht darf die Messung nie verhindern
+        except Exception:  # noqa: BLE001 – 3D-Ansicht darf die Messung nie verhindern
             t.netz = None
     return t
 

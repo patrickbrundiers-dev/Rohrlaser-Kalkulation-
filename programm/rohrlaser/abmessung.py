@@ -24,7 +24,7 @@ def stangen(ergebnis, gruppe, sw=None):
 
 def lieferstangen(ergebnis, gruppe, sw):
     """Lieferstangen (wie gerechnet und bezahlt) der Abmessung: [(Stange, Werte)]."""
-    return [(s, w) for s, w in zip((ergebnis or {}).get("stangen") or [], sw or []) if gruppe_der_stange(s) == gruppe]
+    return [(s, w) for s, w in zip((ergebnis or {}).get("stangen") or [], sw or [], strict=False) if gruppe_der_stange(s) == gruppe]
 
 
 def muster(paare):
@@ -120,7 +120,7 @@ def bilanz(paare, kgm=None, liefer_m=None):
         else:
             fugen = s["verlust"]
             rest = s["stange"] - s["end"] - teile - s["verlust"] - s["greif"]
-        for name, w in zip(BILANZ, (teile, fugen, s["end"], s["greif"], rest)):
+        for name, w in zip(BILANZ[:-1], (teile, fugen, s["end"], s["greif"], rest), strict=True):  # Zuschnitt unten
             summe[name] += w / 1000
         gesamt += s["stange"] / 1000
         gespart += rechnen.gehrung_gespart(s) / 1000

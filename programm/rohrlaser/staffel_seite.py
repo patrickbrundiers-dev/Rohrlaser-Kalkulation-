@@ -41,7 +41,7 @@ def angebotspreise(positionen, zeilen):
     """Preis je Einheit im Angebot (Hauptmenge): je Position ohne Satz der Stückpreis, je Satz die Summe der
     Stückpreise × Stück je Satz (wie im Angebots-PDF). zeilen = rechnen.kalkulation(...)[0]."""
     out = {}
-    for p, z in zip(positionen, zeilen):
+    for p, z in zip(positionen, zeilen, strict=False):
         if not z or not staffeln.position_aktiv(p) or not isinstance(z.get("preis_teil"), (int, float)):
             continue
         satz = staffeln.txt(p.get("satz"))
@@ -252,7 +252,7 @@ class StufeDialog(QDialog):
         # Materialpreis je Abmessung
         self.abm = staffeln.abmessungen(a.positionen)
         angebot_m = {}
-        for p, mp in zip(a.positionen, getattr(a.pos_modell, "meterpreise", []) or []):
+        for p, mp in zip(a.positionen, getattr(a.pos_modell, "meterpreise", []) or [], strict=False):
             if mp and mp[1] is not None:
                 angebot_m.setdefault(staffeln.abmessung(p), mp[1])
         eigene = staffeln.meterpreise(stufe)
@@ -707,7 +707,7 @@ class ErgebnisBaum(QTreeWidget):
             it = neu(gruppe if art == "kind" else None, titel, art, schl)
             if art != "kind":
                 gruppe = it
-            for j, (z, w) in enumerate(zip(zeilen, werte)):
+            for j, (z, w) in enumerate(zip(zeilen, werte, strict=False)):
                 if isinstance(w, (int, float)):
                     zelle(it, z, j, w, art)
             if schl in ("fertigung", "ruesten"):            # Arbeitsschritte je Stufe
@@ -875,7 +875,7 @@ class Vergleich(QWidget):
             for px, _, m, _ in pk:
                 p.drawText(QRectF(px - 30, y1 + 2, 60, 14), Qt.AlignHCenter, _z(m, 0))
             p.setPen(QPen(farbe, 2))
-            for (x1, ya, _, _), (x2, yb, _, _) in zip(pk, pk[1:]):
+            for (x1, ya, _, _), (x2, yb, _, _) in zip(pk, pk[1:], strict=False):
                 p.drawLine(int(x1), int(ya), int(x2), int(yb))
             p.setBrush(farbe)
             p.setPen(Qt.NoPen)

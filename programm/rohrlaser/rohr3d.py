@@ -305,7 +305,7 @@ def zelle_frei(feld, loch_liste):
     hoch = [max(p[1] for p in poly) for poly in loch_liste]
     tief = [min(p[1] for p in poly) for poly in loch_liste]
     naechst, aktiv = 0, set()
-    for xa, xb in zip(hoehen, hoehen[1:]):
+    for xa, xb in zip(hoehen, hoehen[1:], strict=False):
         if xb - xa < 1e-7 or xb <= x_min or xa >= x_max:
             continue
         xm = (xa + xb) / 2
@@ -477,8 +477,8 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         g = sf.GRENZE if grenze is None else abs(float(grenze))
         for s_, es in (("a", ea), ("b", eb)):
             d3 = e.get("d3") is True and bool(es.get("d3"))
-            werte = [sf.punkt(qs, es, pa, pi, d3, g) for pa, pi in zip(aussen, innen)]
-            for pi, w in zip(innen, werte):
+            werte = [sf.punkt(qs, es, pa, pi, d3, g) for pa, pi in zip(aussen, innen, strict=False)]
+            for pi, w in zip(innen, werte, strict=False):
                 innen_x[s_][(round(pi[0], 6), round(pi[1], 6))] = w["x_innen"]
             gelb[s_] = {i for i in range(len(werte)) if werte[i]["begrenzt"] or werte[(i + 1) % len(werte)]["begrenzt"]}
 
@@ -603,7 +603,7 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                 zug = [(tl0, x0), (tr0, x0)] + [(t1, x) for x in rechts] + [(tr1, x1), (tl1, x1)] + \
                     [(t0, x) for x in links]
                 m = p3(sum(q[0] for q in zug) / len(zug), sum(q[1] for q in zug) / len(zug))
-                for q, r in zip(zug, zug[1:] + zug[:1]):
+                for q, r in zip(zug, zug[1:] + zug[:1], strict=False):
                     dreieck(art, m, p3(*q), p3(*r), soll)
         return set(range(n))
 
@@ -613,9 +613,9 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         gelocht_i = mantel_loch(innen, "I", False, loch_innen) if loch else set()
         mantel(innen, "I", False, gelocht_i)
     # Lochwände: je Kante des Lochs ein Viereck von außen nach innen, Vorderseite zur Lochmitte
-    for (q, zeile), qi in zip(loch_zeile, loch_innen):
-        dreh = 1 if sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(q, q[1:] + q[:1])) > 0 else -1
-        for (a, b), (ai, bi) in zip(zip(q, q[1:] + q[:1]), zip(qi, qi[1:] + qi[:1])):
+    for (q, zeile), qi in zip(loch_zeile, loch_innen, strict=False):
+        dreh = 1 if sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(q, q[1:] + q[:1], strict=False)) > 0 else -1
+        for (a, b), (ai, bi) in zip(zip(q, q[1:] + q[:1], strict=False), zip(qi, qi[1:] + qi[:1], strict=False), strict=False):
             tm, xm = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
             if not 0 <= tm < T:
                 continue
@@ -645,7 +645,7 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                     xm = (z(*p0) + z(*p1)) / 2
                     xm += 1e-3 if art == "EA" else -1e-3
                     if any(r[0] <= tm <= r[1] and r[2] <= xm <= r[3] and _innen((tm, xm), q)
-                           for q, r in zip(loch, loch_rahmen)):
+                           for q, r in zip(loch, loch_rahmen, strict=False)):
                         continue
                 a0, a1 = _xyz(z(*p0), *p0), _xyz(z(*p1), *p1)
                 b0, b1 = _xyz(z(*q0), *q0), _xyz(z(*q1), *q1)
@@ -711,11 +711,11 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
             continue
         if rund:                # Eckradius: auf der gerundeten Außenkontur wie Netz und STEP
             neu = []
-            for (x, u, v), n_ in zip(pts, ns + ns[-1:] * len(pts)):
+            for (x, u, v), n_ in zip(pts, ns + ns[-1:] * len(pts), strict=False):
                 u, v, nr = sk.rund_ort(qs, u, v)
                 neu.append(((x, u, v), nr or n_))
             pts, ns = [p_ for p_, _ in neu], [n_ for _, n_ in neu]
-        zug = [_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND) for (x, u, v), (nu, nv) in zip(pts, ns + ns[-1:] * len(pts))]
+        zug = [_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND) for (x, u, v), (nu, nv) in zip(pts, ns + ns[-1:] * len(pts), strict=False)]
         if ein.get("muendung"):         # Ausflug eines Endes: zur Mündung hin offen
             basis = fein if geschlossen and (qs.r or (rund and ein.get("umriss"))) else sk.umriss_kontur(ein)
             i = sk.muendung_ende(ein, basis)
@@ -768,7 +768,7 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                 xa, xi = z(u, v), z(ui, vi)
                 aus.append((_xyz(xa, u, v), _xyz(xa + richtung * lg, u, v), (u, v)))
                 inn.append((_xyz(xi, ui, vi), _xyz(xi + richtung * lg, ui, vi)))
-            for (a0, a1, (u0, v0)), (b0, b1, (u1, v1)), (c0, c1), (d0, d1) in zip(aus, aus[1:], inn, inn[1:]):
+            for (a0, a1, (u0, v0)), (b0, b1, (u1, v1)), (c0, c1), (d0, d1) in zip(aus, aus[1:], inn, inn[1:], strict=False):
                 du, dv = u1 - u0, v1 - v0
                 dreieck("A", a0, b0, b1, _xyz(0, dv, -du), ende)
                 dreieck("A", a0, b1, a1, _xyz(0, dv, -du), ende)

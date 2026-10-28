@@ -14,7 +14,7 @@ PUNKTE_ENDE = 48            # Stützstellen je Schnittkante
 
 def _linie_bei(linie, s):
     """Wert der Schnittlinie [(s, d)] an der Stelle s (linear zwischen den Stützstellen)."""
-    for (s0, d0), (s1, d1) in zip(linie, linie[1:]):
+    for (s0, d0), (s1, d1) in zip(linie, linie[1:], strict=False):
         if s0 <= s <= s1:
             return d0 + (d1 - d0) * ((s - s0) / (s1 - s0) if s1 > s0 else 0.0)
     return linie[-1][1] if linie else 0.0

@@ -148,7 +148,7 @@ def rahmen(k, profil):
     zug, kf, fs = _z(k.get("z")), _z(k.get("k")) or K_FAKTOR, _z(k.get("freistich"))
     knicke, pos, enden, stoss = [], 0.0, None, None
     vs = [ausgleich(be, s, kf) for be in betas]
-    for i, (a_, be, v) in enumerate(zip(schenkel, betas, vs), start=1):
+    for i, (a_, be, v) in enumerate(zip(schenkel, betas, vs, strict=False), start=1):
         netto = v - zug
         pos += a_
         m = v_masse(b, h, s, be, fs)

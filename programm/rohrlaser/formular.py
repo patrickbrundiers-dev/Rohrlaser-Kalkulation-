@@ -7,6 +7,8 @@ import re
 import unicodedata
 from pathlib import Path
 
+from . import protokoll
+
 # „Anfrage-Nr.: A-4711“, „Anfragenummer 2026/123“, „Bestellnummer …“, „Projekt-Nr.“, „RFQ No.“
 NUMMER_WOERTER = (r"anfrage[\s-]*(?:nr|nummer|no)?\.?|anfragenummer|unsere\s+anfrage|bestell[\s-]*(?:nr|nummer)\.?|"
                   r"projekt[\s-]*(?:nr|nummer)\.?|rfq(?:[\s-]*(?:no|nr))?\.?|request(?:\s+no)?\.?|inquiry(?:\s+no)?\.?")
@@ -31,7 +33,8 @@ def pdf_text(pfad):
     try:
         import pypdfium2 as pdfium
         pdf = pdfium.PdfDocument(str(pfad))
-    except Exception:           # kaputte oder verschlüsselte Datei: wie ohne Text
+    except Exception as e:  # noqa: BLE001 – kaputte oder verschlüsselte Datei: wie ohne Text
+        protokoll.nebenbei(e, "PDF-Formular öffnen")
         return ""
     try:
         seiten = []

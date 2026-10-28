@@ -79,7 +79,7 @@ def _vereinheitlichen(solid):
         u.Build()
         sol = g._liste(u.Shape(), g.TopAbs_SOLID)
         return sol[0] if len(sol) == 1 else solid
-    except Exception:  # dann eben mit den Flächen, wie sie sind
+    except Exception:  # noqa: BLE001 – dann eben mit den Flächen, wie sie sind
         return solid
 
 

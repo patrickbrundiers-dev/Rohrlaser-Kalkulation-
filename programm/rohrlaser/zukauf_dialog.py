@@ -258,7 +258,7 @@ class ZukaufDialog(QDialog):
             werte = self._vorschau(self.eintraege)
             self.tabelle.setRowCount(len(self.eintraege))
             veraltet = {r for r, *_ in self.vergleich()}
-            for r, (e, w) in enumerate(zip(self.eintraege, werte)):
+            for r, (e, w) in enumerate(zip(self.eintraege, werte, strict=False)):
                 st = e.get("stand") or {}
                 a = self.artikel.get(e.get("artikel_id"))
                 zellen = (artikel_name(st) or artikel_name(a or {}) or "?",

@@ -69,13 +69,13 @@ def kreis_einpassen(pk):
     (kein Kreis). abw = größte Abweichung eines Punkts vom Kreis [mm]."""
     if len(pk) < 6:
         return None
-    schritt = max(math.dist(a, b) for a, b in zip(pk, pk[1:]))
+    schritt = max(math.dist(a, b) for a, b in zip(pk, pk[1:], strict=False))
     bogen = math.dist(pk[0], pk[-1]) > 2 * schritt          # offen: Bogen (z. B. Ende eines Langlochs)
     if not bogen and len(pk) < 9:
         return None
     ring = pk[:-1] if math.dist(pk[0], pk[-1]) < 1e-6 else list(pk)
     s = [0.0, 0.0, 0.0]                 # Normale nach Newell (auch für leicht gewölbte Ringe stabil)
-    for a, b in zip(ring, ring[1:] + ring[:1]):         # offener Bogen: über die Sehne geschlossen
+    for a, b in zip(ring, ring[1:] + ring[:1], strict=False):         # offener Bogen: über die Sehne geschlossen
         s[0] += (a[1] - b[1]) * (a[2] + b[2])
         s[1] += (a[2] - b[2]) * (a[0] + b[0])
         s[2] += (a[0] - b[0]) * (a[1] + b[1])
@@ -117,7 +117,7 @@ def kreis_einpassen(pk):
     tiefe = max(abs(_dot(_sub(q, c), n)) for q in ring)
     if abw > min(0.05, max(0.02, 0.004 * r)) or tiefe > max(0.05, 0.02 * r):
         return None
-    if bogen and sum(math.dist(a, b) for a, b in zip(pk, pk[1:])) / r < math.radians(60):
+    if bogen and sum(math.dist(a, b) for a, b in zip(pk, pk[1:], strict=False)) / r < math.radians(60):
         return None                     # zu kurzer Bogen: Mitte unsicher
     mitte = tuple(c[i] + e1[i] * mx + e2[i] * my for i in range(3))
     return dict(m=mitte, n=n, d=2 * r, abw=abw, bogen=bogen)
@@ -163,7 +163,7 @@ class Geometrie:
                         if not k["bogen"]:
                             continue
                 if art in ("K", "G", "EA", "EB", "B", "HK"):
-                    segmente += [(a, b) for a, b in zip(pk, pk[1:]) if math.dist(a, b) > 1e-6]
+                    segmente += [(a, b) for a, b in zip(pk, pk[1:], strict=False) if math.dist(a, b) > 1e-6]
         segmente += [(a, b) for a, b, _ in modell.kanten()]
         self.geraden = _geraden(segmente)
         ecken = {}
@@ -479,7 +479,7 @@ def fang_zeichnen(p, bild, t, farbe, beschriften=False):
     p.setBrush(Qt.NoBrush)
     if el.get("typ") == "kreis":
         pk = [bild(q) for q in _kreis_punkte(el)]
-        for a, b in zip(pk, pk[1:]):
+        for a, b in zip(pk, pk[1:], strict=False):
             p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
     elif el.get("typ") == "gerade":
         a, b = bild(el["a"]), bild(el["b"])

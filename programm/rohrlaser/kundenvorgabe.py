@@ -58,9 +58,9 @@ def ersetzen(kopf, neu, *frueher):
             out[n] = neu[n]
     if any(n in neu for n in LIEFERZEIT):
         jetzt = tuple(kopf.get(n) for n in LIEFERZEIT)
-        ziel = tuple(neu.get(n, f_alt) for n, f_alt in zip(LIEFERZEIT, jetzt))
+        ziel = tuple(neu.get(n, f_alt) for n, f_alt in zip(LIEFERZEIT, jetzt, strict=True))
         unberuehrt = all(w in (None, "") for w in jetzt) or any(
             all(gleich(kopf.get(n), f.get(n)) for n in LIEFERZEIT) for f in frueher)
         if unberuehrt and ziel != jetzt:
-            out.update({n: w for n, w in zip(LIEFERZEIT, ziel)})
+            out.update({n: w for n, w in zip(LIEFERZEIT, ziel, strict=True)})
     return out

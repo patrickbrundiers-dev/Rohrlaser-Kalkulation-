@@ -195,7 +195,7 @@ def _spline_punkte(d):
     knoten = _alle(d, 40)
     gew = _alle(d, 41)
     xs, ys = _alle(d, 10), _alle(d, 20)
-    ctrl = list(zip(xs, ys))
+    ctrl = list(zip(xs, ys, strict=False))
     if len(ctrl) >= grad + 1 and len(knoten) == len(ctrl) + grad + 1:
         if len(gew) != len(ctrl):
             gew = [1.0] * len(ctrl)
@@ -217,7 +217,7 @@ def _spline_punkte(d):
             x, y, w = pts[grad]
             out.append((x / w, y / w) if w else (x, y))
         return out
-    fit = list(zip(_alle(d, 11), _alle(d, 21)))
+    fit = list(zip(_alle(d, 11), _alle(d, 21), strict=False))
     return fit if len(fit) >= 2 else ctrl
 
 
@@ -273,7 +273,7 @@ def _strecken(pk, layer, trafo, geschlossen=False, bulges=None):
         p, q, b = pk[i], pk[(i + 1) % n], bulges[i]
         if b and not trafo.gleichmaessig:
             zug = [p] + sw.bogen_punkte(p, q, b)
-            out += [("S", layer, trafo(a), trafo(c), 0.0) for a, c in zip(zug, zug[1:])]
+            out += [("S", layer, trafo(a), trafo(c), 0.0) for a, c in zip(zug, zug[1:], strict=False)]
         else:
             out.append(("S", layer, trafo(p), trafo(q), -b if spiegel else b))
     return out
@@ -428,7 +428,7 @@ class Zug:
 
     def laenge(self):
         d = self.dicht()
-        return sum(math.dist(a, b) for a, b in zip(d, d[1:] + (d[:1] if self.geschlossen else [])))
+        return sum(math.dist(a, b) for a, b in zip(d, d[1:] + (d[:1] if self.geschlossen else []), strict=False))
 
     def umgedreht(self):
         n = len(self.punkte)
@@ -645,7 +645,7 @@ def _zahl(v, stellen=4):
 def punkte_text(pk, bulges, dx=0.0, dy=0.0):
     """Eckpunkte mit Bulge als Text für das Feld Eckpunkte (schneidweg.punkte_roh)."""
     return "; ".join(f"{_zahl(x - dx)},{_zahl(y - dy)}" + (f",{_zahl(b, 6)}" if abs(b) > 1e-9 else "")
-                     for (x, y), b in zip(pk, bulges))
+                     for (x, y), b in zip(pk, bulges, strict=False))
 
 
 def _polygon_kontur(z):
@@ -792,7 +792,7 @@ class _Kontur:
         z = _ohne_flucht(self.zug)
         return len(z.punkte) == 4 and not any(z.bulges) and all(
             abs(a[0] - b[0]) <= FORM_TOL or abs(a[1] - b[1]) <= FORM_TOL
-            for a, b in zip(z.punkte, z.punkte[1:] + z.punkte[:1]))
+            for a, b in zip(z.punkte, z.punkte[1:] + z.punkte[:1], strict=False))
 
 
 def _baum(konturen):
@@ -947,7 +947,7 @@ def _ansichten(schnitt, kreise, gefunden):
     for p, q, b, _l in schnitt:
         if b:
             zug = [p] + sw.bogen_punkte(p, q, b)
-            strecken += list(zip(zug, zug[1:]))
+            strecken += list(zip(zug, zug[1:], strict=False))
         else:
             strecken.append((p, q))
     ansichten = da.seitenansichten(da.gruppen(strecken, [(c, r) for _, c, r in kreise]))
@@ -1024,7 +1024,7 @@ def _teil(aussen, innen, offen, gravur, gravtexte, biegung):
     e = dict(art=blech.ZUSCHNITT, konturen=[])
     if len(aussen.punkte) == 4 and not any(aussen.bulges) and all(
             abs(a[0] - b[0]) <= FORM_TOL or abs(a[1] - b[1]) <= FORM_TOL
-            for a, b in zip(aussen.punkte, aussen.punkte[1:] + aussen.punkte[:1])):
+            for a, b in zip(aussen.punkte, aussen.punkte[1:] + aussen.punkte[:1], strict=False)):
         e.update(form=blech.RECHTECK, laenge=round(lg, 4), breite=round(br, 4), eckradius=0)
     else:
         e.update(form=blech.POLYGON, punkte=punkte_text(aussen.punkte, aussen.bulges, ox, oy),
@@ -1056,7 +1056,7 @@ def _teil(aussen, innen, offen, gravur, gravtexte, biegung):
         pk = [p for zug in linien for p in zug]
         cx, cy = (min(x for x, _ in pk) + max(x for x, _ in pk)) / 2, (min(y for _, y in pk) + max(y for _, y in pk)) / 2
         e["konturen"].append(dict(art=sw.GRAVUR, anzahl=1,
-                                  laenge=round(sum(math.dist(a, b) for zug in linien for a, b in zip(zug, zug[1:])), 2),
+                                  laenge=round(sum(math.dist(a, b) for zug in linien for a, b in zip(zug, zug[1:], strict=False)), 2),
                                   x=round(cx - ox, 4), y=round(cy - oy, 4),
                                   linien=[[[round(x - cx, 4), round(y - cy, 4)] for x, y in zug] for zug in linien]))
         zahl["gravur"] += 1
@@ -1091,7 +1091,7 @@ def als_kantteil(e, winkel, dicke, k=blech.K_FAKTOR, radius=None):
     s = _z(dicke)
     r = s if radius in (None, "") else _z(radius)
     schenkel, vorher = [], 0.0          # vorher: Lage des Schenkelanfangs in der Abwicklung
-    for lage, w in zip(lagen, winkel):
+    for lage, w in zip(lagen, winkel, strict=False):
         v = blech.ausgleich(w, r, s, k(r) if callable(k) else k)
         schenkel.append(dict(laenge=round(lage + v / 2 - vorher, 3), winkel=w, radius=None))
         vorher = lage + v / 2 - v

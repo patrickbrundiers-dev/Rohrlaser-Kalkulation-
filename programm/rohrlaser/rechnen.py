@@ -960,10 +960,10 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
     vorraete = [stangen_vorgabe(kopf, gruppe_schluessel(g), (m or {}).get("max_stange")) for g in gruppen]
     # Kundenmaterial: kommt in der Stangenlänge des Angebots, kein Vergleich der Lieferlängen
     infos = [laengen_der_gruppe(g, k, tabellen, einst) if tabellen and not g.beistellung and not v else None
-             for g, v in zip(gruppen, vorraete)]
+             for g, v in zip(gruppen, vorraete, strict=True)]
     # Große Angebote: alle Schnittpläne vorab auf Hilfsprozessen (parallel.py, gleiches Ergebnis)
     opt.vorgerechnet.gruppen = parallel.vorrechnen(
-        _auftraege([g for g, v in zip(gruppen, vorraete) if not v], [i for i, v in zip(infos, vorraete) if not v], m,
+        _auftraege([g for g, v in zip(gruppen, vorraete, strict=True) if not v], [i for i, v in zip(infos, vorraete, strict=True) if not v], m,
                    saege, einst),
         lambda fertig, alle: melden(fertig * len(gruppen) // alle, schritte, f"Schnittpläne: {fertig} von {alle} gerechnet"))
     try:
@@ -980,7 +980,7 @@ def _auftraege(gruppen, infos, m, saege, einst):
     out = []
     maxw = _n((m or {}).get("max_stange"))
     puffer = _n(einstellung_wert(einst, "zuschnitt_puffer"))
-    for g, i in zip(gruppen, infos):
+    for g, i in zip(gruppen, infos, strict=True):
         if i is None or i["basis_lieferbar"]:
             out.append(g)
             h = opt.ohne_drehung_gruppe(g)
@@ -1001,7 +1001,7 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
                 vorraete):
     schritte = 2 * len(gruppen)
     folgen_je_gruppe = []
-    for n, (g, i, v) in enumerate(zip(gruppen, infos, vorraete)):
+    for n, (g, i, v) in enumerate(zip(gruppen, infos, vorraete, strict=True)):
         melden(n, schritte, f"Schnittplan {g.profil} / {g.werkstoff}")
         if v:
             plan = opt.vorrat_planen(g, v)
@@ -1009,10 +1009,10 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
             folgen_je_gruppe.append(plan)
             continue
         folgen_je_gruppe.append(opt.optimiere(g) if i is None or i["basis_lieferbar"] else None)
-    mit = [(g, f) for g, f, v in zip(gruppen, folgen_je_gruppe, vorraete) if f is not None and not v]
+    mit = [(g, f) for g, f, v in zip(gruppen, folgen_je_gruppe, vorraete, strict=True) if f is not None and not v]
     opt.pruefe([g for g, _ in mit], [f for _, f in mit])
     stangen, auswertung, laengen, nr = [], [], [], 0
-    for n, (g, folgen, vorrat) in enumerate(zip(gruppen, folgen_je_gruppe, vorraete)):
+    for n, (g, folgen, vorrat) in enumerate(zip(gruppen, folgen_je_gruppe, vorraete, strict=True)):
         melden(len(gruppen) + n, schritte, f"Lieferlängen und Auswertung {g.profil} / {g.werkstoff}")
         s0, a0 = len(stangen), len(auswertung)
         if vorrat:
@@ -1164,13 +1164,13 @@ def anzeige_stangen(ergebnis, sw=None):
     mit_werten = sw is not None
     sw = sw if mit_werten else [None] * len(stangen)
     topf = {}                           # Gruppe -> [Kosten der Lieferstangen, Länge der Werkstücke]
-    for s, w in zip(stangen, sw):
+    for s, w in zip(stangen, sw, strict=True):
         if s.get("werkstuecke") and w is not None and w["kosten"] is not None:
             t = topf.setdefault((gruppe_der_stange(s), s["stange"]), [0.0, 0.0])
             t[0] += w["kosten"]
             t[1] += sum(x["laenge"] for x in s["werkstuecke"])
     out = []
-    for s, w in zip(stangen, sw):
+    for s, w in zip(stangen, sw, strict=True):
         if not s.get("werkstuecke"):
             out.append((dict(s, nr=len(out) + 1), w))
             continue
@@ -1308,7 +1308,7 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
         g["ids"].append(p.get("id"))
         g["teile_m"] += _n(p.get("laenge")) * rohrstuecke(p) / 1000      # Halbschalen: Rohrstücke
     if ergebnis and ergebnis.get("stangen"):
-        for s, w in zip(ergebnis["stangen"], stangen_werte(ergebnis, kopf, positionen, k, tabellen)):
+        for s, w in zip(ergebnis["stangen"], stangen_werte(ergebnis, kopf, positionen, k, tabellen), strict=True):
             gr = gruppe_der_stange(s)
             gr = gr[:4] + (("Kunde",) if len(gr) > 4 else ())
             g = out.get(gr)
@@ -2018,7 +2018,7 @@ def konturklassen(liste, grenzen):
         kl[c][0] += 1
         kl[c][1] += laenge
     out = {}
-    for name, (n, lg) in zip(("klein", "mittel", "gross"), kl):
+    for name, (n, lg) in zip(("klein", "mittel", "gross"), kl, strict=True):
         out[f"{name}_n"], out[f"{name}_mm"] = n, round(lg, 1)
     return out
 
@@ -2808,7 +2808,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # Summanden je Stangengruppe einmal sammeln; summiert wird je Position wie bisher mit sum() in derselben
     # Reihenfolge (sum() rechnet Gleitkommazahlen genauer als fortlaufendes Addieren, so bleibt jeder Wert gleich)
     kosten_gr, meter_gr, laenge_gr = {}, {}, {}
-    for s, x in zip(stangen, sw):
+    for s, x in zip(stangen, sw, strict=True):
         g = gruppe_der_stange(s)
         kosten_gr.setdefault(g, []).append(x["kosten"])
         meter_gr.setdefault(g, []).append(s["stange"] / 1000)
@@ -3435,7 +3435,7 @@ def auswertung_zeilen(ergebnis, sw):
     sw = stangen_werte(...)"""
     out = []
     for a in ergebnis["auswertung"]:
-        st_g = [(s, w) for s, w in zip(ergebnis["stangen"], sw)
+        st_g = [(s, w) for s, w in zip(ergebnis["stangen"], sw, strict=True)
                 if gruppe_der_stange(s) == gruppe_der_stange(a)]
         bedarf = sum(s["stange"] for s, _ in st_g) / 1000
         laenge = sum(w["summe"] for _, w in st_g) / 1000

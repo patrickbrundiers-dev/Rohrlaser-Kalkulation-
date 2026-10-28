@@ -114,7 +114,7 @@ class BildBlock(Flowable):
 
     def _bilder(self, breite, hoehe):
         je = (breite - self.ABSTAND * (len(self.pfade) - 1)) / len(self.pfade)
-        return [(p, min(je / w, hoehe / h) * w, min(je / w, hoehe / h) * h) for p, (w, h) in zip(self.pfade, self.groessen)]
+        return [(p, min(je / w, hoehe / h) * w, min(je / w, hoehe / h) * h) for p, (w, h) in zip(self.pfade, self.groessen, strict=False)]
 
     def wrap(self, verf_breite, verf_hoehe):
         self.breite = verf_breite
@@ -468,7 +468,7 @@ class Inhalt:
         halb = (len(zeilen) + 1) // 2
         if len(zeilen) > 3:   # zweispaltig
             links, rechts = zeilen[:halb], zeilen[halb:] + [["", ""]] * (2 * halb - len(zeilen))
-            daten = [l + r for l, r in zip(links, rechts)]
+            daten = [l + r for l, r in zip(links, rechts, strict=False)]
             breiten = [8 * mm, BREITE / 2 - 10 * mm, 8 * mm, BREITE / 2 - 6 * mm]
         else:
             daten, breiten = zeilen, [8 * mm, BREITE - 8 * mm]
@@ -7259,7 +7259,9 @@ def kapitel_fragen(i):
          "Fenster, die bestätigt werden müssen."],
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
-         "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben."],
+         "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben. Auch Fehler in Nebensachen, die "
+         "keine Meldung wert sind (Spaltenbreite oder Fenstergröße nicht gemerkt, Vorschaubild oder Logo nicht "
+         "lesbar), stehen dort mit Einzelheiten; das Programm arbeitet ohne sie weiter."],
         ["Übersicht: <b>Preise festgeschrieben am …, Stammdaten seitdem geändert</b>",
          "Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile oder Maschine wurden nach dem Angebots-PDF "
          "geändert; das Angebot rechnet weiter mit den "

@@ -55,7 +55,7 @@ class Schrittanzeige(QWidget):
     def setzen(self, fertig):
         self.fertig = tuple(fertig)
         jetzt = aktuell(self.fertig)
-        for i, (m, f) in enumerate(zip(self.marken, self.fertig)):
+        for i, (m, f) in enumerate(zip(self.marken, self.fertig, strict=False)):
             if i == jetzt:
                 farbe, fett, zeichen = stil.AKZENT, "bold", NUMMERN[i]
             elif f:

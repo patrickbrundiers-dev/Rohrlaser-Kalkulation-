@@ -21,7 +21,7 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixm
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
                                QWidget)
 
-from . import stil
+from . import protokoll, stil
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("A", "Außenwand", "#B9C3CD", None),
@@ -252,7 +252,8 @@ def speicher_setzen(db):
 def perspektive_vorgabe():
     try:
         return _speicher is not None and _speicher.einstellung(PERSPEKTIVE_EINSTELLUNG) is True
-    except Exception:           # Lesemodus, alte Datei
+    except Exception as e:  # noqa: BLE001 – Lesemodus, alte Datei
+        protokoll.nebenbei(e, "Einstellung Perspektive lesen")
         return False
 
 
@@ -260,7 +261,8 @@ def koerper_vorgabe():
     """Schnittkörper zeigen (Vorgabe an, je Benutzer gemerkt)."""
     try:
         return _speicher is None or _speicher.einstellung(KOERPER_EINSTELLUNG) is not False
-    except Exception:           # Lesemodus, alte Datei
+    except Exception as e:  # noqa: BLE001 – Lesemodus, alte Datei
+        protokoll.nebenbei(e, "Einstellung Körper lesen")
         return True
 
 
@@ -268,16 +270,16 @@ def _koerper_merken(an):
     try:
         if _speicher is not None:
             _speicher.einstellung_setzen(KOERPER_EINSTELLUNG, bool(an))
-    except Exception:           # Lesemodus: dann eben nicht merken
-        pass
+    except Exception as e:  # noqa: BLE001 – Lesemodus: dann eben nicht merken
+        protokoll.nebenbei(e, "Einstellung Körper merken")
 
 
 def _perspektive_merken(an):
     try:
         if _speicher is not None:
             _speicher.einstellung_setzen(PERSPEKTIVE_EINSTELLUNG, bool(an))
-    except Exception:           # Lesemodus: dann eben nicht merken
-        pass
+    except Exception as e:  # noqa: BLE001 – Lesemodus: dann eben nicht merken
+        protokoll.nebenbei(e, "Einstellung Perspektive merken")
 
 
 def renderer_setzen(wert):
@@ -365,7 +367,7 @@ class Modell:
         xs, ys, zs = ([q[k] for q in self.punkte] or [0] for k in range(3))
         self.min = (min(xs), min(ys), min(zs))
         self.max = (max(xs), max(ys), max(zs))
-        self.mitte = tuple((a + b) / 2 for a, b in zip(self.min, self.max))
+        self.mitte = tuple((a + b) / 2 for a, b in zip(self.min, self.max, strict=False))
         self.groesse = max(1e-6, math.dist(self.min, self.max))
         laenge = self.max[2] - self.min[2]
         self.dreiecke = []
@@ -390,7 +392,7 @@ class Modell:
                 if art in ("K", "G") and len(pk) >= 4:
                     ring = pk[:-1] if pk[0] == pk[-1] else pk
                     self.mitten.append(tuple(sum(q[i] for q in ring) / len(ring) for i in range(3)))
-                for a, b in zip(pk, pk[1:]):
+                for a, b in zip(pk, pk[1:], strict=False):
                     if n is None:
                         m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
                         r = math.hypot(m[0], m[1]) or 1.0
@@ -745,7 +747,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                 liste.append((schicht, (pa[2] + pb[2] + pc[2]) / 3, (pa, pb, pc), art, licht_wert(*nr), False))
         if linien:
             for ring in k["ringe"]:
-                for a, b in zip(ring, ring[1:]):
+                for a, b in zip(ring, ring[1:], strict=False):
                     (ra, _), (rb, _) = gedreht(a), gedreht(b)
                     liste.append((schicht, (ra[2] + rb[2]) / 2 + 1e-6, (ra, rb), art, 1.0, True))
     if linien and darstellung in MIT_KOERPERKANTEN:
@@ -1027,7 +1029,7 @@ class Ansicht3D(QWidget):
         if self.mess_art == MESS_WINKEL:
             return None
         if len(self.messpunkte) == 2 or (not self.mess_max and len(self.messpunkte) > 1):
-            return sum(math.dist(a, b) for a, b in zip(self.messpunkte, self.messpunkte[1:]))
+            return sum(math.dist(a, b) for a, b in zip(self.messpunkte, self.messpunkte[1:], strict=False))
         return None
 
     def winkel(self):
@@ -1156,7 +1158,7 @@ class Ansicht3D(QWidget):
         if not mo.dreiecke_id:
             return None
         beste = None
-        for (i, j, k, _, _), kn in zip(mo.dreiecke, mo.dreiecke_id):
+        for (i, j, k, _, _), kn in zip(mo.dreiecke, mo.dreiecke_id, strict=False):
             if kn is None:
                 continue
             a, b, c = bild(mo.punkte[i]), bild(mo.punkte[j]), bild(mo.punkte[k])
@@ -1233,7 +1235,7 @@ class Ansicht3D(QWidget):
                 pk += [a, b]
                 normalen.append(n)
         if not pk and self.markiert:        # Merkmal nur als Fläche (netz 'ti')
-            for (i, j, k, _, n), kn in zip(mo.dreiecke, mo.dreiecke_id):
+            for (i, j, k, _, n), kn in zip(mo.dreiecke, mo.dreiecke_id, strict=False):
                 if kn in self.markiert:
                     pk += [mo.punkte[i], mo.punkte[j], mo.punkte[k]]
                     normalen.append(n)
@@ -1356,7 +1358,7 @@ class Ansicht3D(QWidget):
         if self.schnitt_linie:
             p.setPen(QPen(SCHNITT, 2.5, Qt.DashLine))
             pk = [bild(v) for v in self.schnitt_linie]
-            for a, b in zip(pk, pk[1:]):
+            for a, b in zip(pk, pk[1:], strict=False):
                 p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
         p.setPen(QPen(MARKIERT, 4.0, Qt.SolidLine, Qt.RoundCap))
         z = self.markiert_z
@@ -1372,7 +1374,7 @@ class Ansicht3D(QWidget):
                 continue
             pk = [bild(v) for v in punkte]
             p.setPen(QPen(MESSEN, 2.0))
-            for a, b in zip(pk, pk[1:]):
+            for a, b in zip(pk, pk[1:], strict=False):
                 p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
             p.setBrush(QBrush(MESSEN))
             for q in pk:
@@ -1632,7 +1634,7 @@ class Ansicht3DMitKnoepfen(QWidget):
         ml.setSpacing(0)
         self.modus_knoepfe = QButtonGroup(self.modi)
         for text, tipp in zip(MODI, ("Rohr mit Anbauteilen (sandfarben)", "Nur die Rohrlaser-Geometrie ohne Anbauteile",
-                                     "Rohr mit allen Gravurlinien, ohne Schnittlinien")):
+                                     "Rohr mit allen Gravurlinien, ohne Schnittlinien"), strict=False):
             b = QPushButton(text)
             b.setCheckable(True)
             b.setChecked(text == MODI[0])

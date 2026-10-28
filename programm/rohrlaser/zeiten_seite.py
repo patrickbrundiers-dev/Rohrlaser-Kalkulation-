@@ -173,7 +173,7 @@ class ZeitenSeite(QWidget):
             "<span style='color:#7A5A00'><b>Stundensätze nicht im Angebot gespeichert</b> (älteres Angebot): es gelten "
             "die aktuellen Einstellungen. „Stundensätze aus Einstellungen“ speichert sie im Angebot.</span>")
         k = rechnen.zeit_summen(zeiten, summen.get("teile"))
-        wert = {n: w for (_, w, _), (_, n, _) in zip(rechnen.kostenarten(summen, self.s.einst), rechnen.KOSTENARTEN)}
+        wert = {n: w for (_, w, _), (_, n, _) in zip(rechnen.kostenarten(summen, self.s.einst), rechnen.KOSTENARTEN, strict=True)}
         zuschlaege = wert["zuschlag_material"] + wert["zuschlag_fertigung"] + wert["zuschlag_fremdleistung"]
         zeilen = [("Maschinenzeit", rechnen.zeit_text(k["maschine_min"]), False),
                   ("davon Rüsten Maschine", rechnen.zeit_text(k["ruest_maschine_min"]), False),

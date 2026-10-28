@@ -355,7 +355,7 @@ def _anordnen_gehrung(g, teile, gerade):
         for folge in (gerade, _kette_gehrung(g, list(teile), naht_stange)):
             summe, wahl = _drehungen_waehlen(g, folge, naht_stange)
             if beste is None or summe < beste[0] - EPS:
-                beste = (summe, list(zip(folge, wahl)))
+                beste = (summe, list(zip(folge, wahl, strict=True)))
     return beste[1]
 
 
@@ -395,7 +395,7 @@ def _drehen(g, teile):
     for naht_stange in naht_lagen(g, teile) or [0]:
         summe, wahl = _drehungen_waehlen(g, teile, naht_stange)
         if beste is None or summe < beste[0] - EPS:
-            beste = (summe, list(zip(teile, wahl)))
+            beste = (summe, list(zip(teile, wahl, strict=True)))
     return beste[1]
 
 
@@ -523,7 +523,7 @@ def aufloesen(g, stangen):
 
 def gemeinsame_schnitte(folge):
     n = 0
-    for (t1, d1), (t2, d2) in zip(folge, folge[1:]):
+    for (t1, d1), (t2, d2) in zip(folge, folge[1:], strict=False):
         if lage(t1, d1)[1] and lage(t2, d2)[0]:
             n += 1
     return n
@@ -531,7 +531,7 @@ def gemeinsame_schnitte(folge):
 
 def gehrungen_ineinander(g, folge):
     """Anzahl der Stellen, an denen Gehrungen ineinanderliegen."""
-    return sum(1 for (t1, r1), (t2, r2) in zip(folge, folge[1:]) if ineinander(g, t1, r1, t2, r2))
+    return sum(1 for (t1, r1), (t2, r2) in zip(folge, folge[1:], strict=False) if ineinander(g, t1, r1, t2, r2))
 
 
 def gleichartig(a, b):
@@ -803,7 +803,7 @@ def muster_optimierung(g):
         verschachtelbar(g, t) for t in g.teile) else 0
     # ganze Stangen aus der LP-Lösung, Rest heuristisch
     rest, vorrat, stangen = list(bedarf), {k: list(v) for k, v in gruppen.items()}, []
-    for m, xp in sorted(zip(muster, x), key=lambda a: (-a[1], a[0])):
+    for m, xp in sorted(zip(muster, x, strict=True), key=lambda a: (-a[1], a[0])):
         for _ in range(int(math.floor(xp + 1e-9))):
             if any(rest[i] < m[i] for i in range(n)):
                 break
@@ -811,7 +811,7 @@ def muster_optimierung(g):
             if _mit_3d(g, neu) and not passt(g, neu):     # Muster ohne 3D-Greifmaß gerechnet: Rest heuristisch
                 break
             stangen.append([vorrat[keys[i]].pop() for i in range(n) for _ in range(m[i])])
-            rest = [r - c for r, c in zip(rest, m)]
+            rest = [r - c for r, c in zip(rest, m, strict=True)]
     uebrig = [t for k in keys for t in vorrat[k]]
     if uebrig:
         h = replace(g, teile=uebrig, bewiesen=False, schranke=0)
@@ -838,7 +838,7 @@ def muster_folge(g):
             break
         for _ in range(min(bedarf[i] // m[i] for i in range(len(m)) if m[i])):
             stangen.append([gruppen[keys[i]].pop() for i in range(len(m)) for _ in range(m[i])])
-            bedarf = [b - c for b, c in zip(bedarf, m)]
+            bedarf = [b - c for b, c in zip(bedarf, m, strict=True)]
     if _mit_3d(g, g.teile):     # Muster ohne 3D-Greifmaß gerechnet: Stangen, die damit nicht passen, neu packen
         zu_viel = [t for s in stangen if not passt(g, s) for t in s]
         stangen = [s for s in stangen if passt(g, s)] + (first_fit(g, zu_viel) if zu_viel else [])
@@ -1289,7 +1289,7 @@ def profil_aus_name(pid):
 
 def pruefe(gruppen, ergebnisse):
     """Unabhängige Kontrolle: keine Stange überbelegt, jedes Teil genau einmal eingeplant."""
-    for g, folgen in zip(gruppen, ergebnisse):
+    for g, folgen in zip(gruppen, ergebnisse, strict=True):
         ids = sorted((t.zeile, t.nr) for f in folgen for t, _ in f)
         soll = sorted((t.zeile, t.nr) for t in g.teile)
         if ids != soll:
@@ -1309,7 +1309,7 @@ def pruefe_drehungen(g, folge):
         raise AssertionError(f"{g.profil}: feste Naht auf Breit- und Schmalseite auf einer Stange")
     if not any(all(r in drehungen(g, t, s) for t, r in folge) for s in lagen):
         raise AssertionError(f"{g.profil}: unzulässige Drehung um die Längsachse")
-    for (t1, r1), (t2, r2) in zip(folge, folge[1:]):
+    for (t1, r1), (t2, r2) in zip(folge, folge[1:], strict=False):
         if t1.b_gehrung is not None and t2.a_gehrung is not None and g.querschnitt and \
                 not (t1.b_gerade and t2.a_gerade) and ineinander(g, t1, r1, t2, r2):
             if gehrung_trennung(g, t1.b_gehrung, r1, t2.a_gehrung, r2) < trennung_teile(g, t1, r1, t2, r2) - EPS:

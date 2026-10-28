@@ -109,7 +109,7 @@ def korrekturen(messwerte, start, werkstoff_vorgabe, anbau_start=None, anbau_jet
         if w and w != werkstoff_vorgabe:
             out["werkstoff_id"] = w
     namen = []
-    for m, vorher in zip(messwerte, start):
+    for m, vorher in zip(messwerte, start, strict=False):
         name = (m.get("bauteil") or "").strip()
         if vorher and not m.get("_uebernehmen") and name and name not in namen and m.get("_knick_von") is None:
             namen.append(name)

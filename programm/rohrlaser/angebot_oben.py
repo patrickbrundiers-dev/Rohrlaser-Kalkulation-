@@ -1154,7 +1154,7 @@ class UebersichtBereich(QWidget):
             self.meldungen_bereich.knopf.setObjectName("meldung_ok")
             self.meldungen.setText("Alle Positionen sind OK.")
         else:
-            self.meldungen_bereich.setze_titel("Meldungen: " + " · ".join(t for t, a in zip(teile, n.values()) if a))
+            self.meldungen_bereich.setze_titel("Meldungen: " + " · ".join(t for t, a in zip(teile, n.values(), strict=False) if a))
             self.meldungen_bereich.knopf.setObjectName("meldung_fehler" if n["FEHLER"] else "meldung_warnung")
             farbe = {"FEHLER": "#B42318", "WARNUNG": "#7A5A00", "HINWEIS": "#5F6B7A"}
             self.meldungen.setText("<br>".join(
@@ -1251,7 +1251,7 @@ class UebersichtBereich(QWidget):
     def kosten_setzen(self, kosten):
         """kosten: rechnen.kostenarten(...). Oben die Gruppen (rechnen.KOSTEN_GRUPPEN), aufklappbar jede Kostenart
         einzeln. Zeilen mit 0,00 € sind ausgeblendet, Herstellkosten und Verkaufspreis immer sichtbar."""
-        betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
+        betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN, strict=False)}
         for name, w in self.preis.items():
             w.setText(f"{_z(betrag[name][1])} €")
         self._kosten = kosten

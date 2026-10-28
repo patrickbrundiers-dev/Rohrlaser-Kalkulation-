@@ -10,6 +10,8 @@ import re
 import shutil
 from pathlib import Path
 
+from . import protokoll
+
 STEP_ORDNER = "STEP"
 UMNUMMERIERT = "ordner_umnummeriert"        # vom Programm gemerkt: [[alte, neue Nummer]] (lokal, nicht sichtbar)
 VERSCHOBEN = "ablage_lose_verschoben"       # vom Programm gemerkt: Ablage, deren lose Dateien verschoben wurden
@@ -91,8 +93,8 @@ def umnummerieren_offen(db, ablage):
     anzahl = umnummerieren(ablage, paare)
     try:
         db.einstellung_setzen(UMNUMMERIERT, [])
-    except Exception:       # Lesemodus: beim nächsten Mal noch einmal (umbenannte Ordner werden nicht mehr gefunden)
-        pass
+    except Exception as e:  # noqa: BLE001 – beim nächsten Mal noch einmal (umbenannte Ordner werden nicht mehr gefunden)
+        protokoll.nebenbei(e, "Umnummerierung merken")
     return anzahl
 
 
@@ -139,8 +141,8 @@ def lose_verschieben_einmal(db, ablage):
     anzahl = lose_verschieben(ablage, angebote)
     try:
         db.einstellung_setzen(VERSCHOBEN, str(ablage))
-    except Exception:       # Lesemodus: beim nächsten Start noch einmal
-        pass
+    except Exception as e:  # noqa: BLE001 – Lesemodus: beim nächsten Start noch einmal
+        protokoll.nebenbei(e, "Verschobenen Ablageordner merken")
     return anzahl
 
 

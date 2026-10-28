@@ -170,7 +170,7 @@ def schlitz_zeilen(v, profil_a, profil_s):
     m = masse(v, profil_a, profil_s)
     rund = profil_a.get("form") == "Rundrohr"
     out = []
-    for (dx, dq), (sl, sb) in zip(m["nasen"], m["schlitze"]):
+    for (dx, dq), (sl, sb) in zip(m["nasen"], m["schlitze"], strict=False):
         z = dict(art="Rechteck", anzahl=1, b=round(sl, 3), h=round(sb, 3), r=0, quelle=quelle(v["id"]),
                  text=f"Schlitz {HERKUNFT}")
         if v.get("x") is not None:
@@ -331,7 +331,7 @@ def marken_zeilen(v, e_a, e_s, profil_a, profil_s, laenge_a, laenge_s):
         sin = math.sin(math.radians(_z(v.get("winkel")) or 90.0))
         m = masse(v, profil_a, profil_s)
         halb = max([(ab if waende == "quer" else bw) / 2 / sin]
-                   + [abs(dx) + sl / 2 for (dx, _), (sl, _) in zip(m["nasen"], m["schlitze"])])
+                   + [abs(dx) + sl / 2 for (dx, _), (sl, _) in zip(m["nasen"], m["schlitze"], strict=False)])
         seite = v.get("seite") or qs.seiten()[0]
         s = sk.s_lage(qs, dict(seite=seite))
         x0 = _z(v["x"])
@@ -507,7 +507,7 @@ def nasen_wahl(v, profil_s, kontakte, nase_min=None):
 
     def breite(w_, seiten):
         b_n = _z(v.get("bN"))
-        for k, sz in zip(kontakte, seiten):
+        for k, sz in zip(kontakte, seiten, strict=False):
             x = dict(v, **w_)
             x.pop("nase_seite", None)
             if w_["anzahl"] == 1 and sz < 0:
@@ -713,7 +713,7 @@ def _breite_einzeln(v, w_, profil_s, k, seite, mind):
 
 # ------------------------------------------------------------------ Editor der Baugruppe
 SEITEN_KASTEN = ("oben", "vorne", "unten", "hinten")
-SEITE_STEP = dict(zip(("0°", "90°", "180°", "270°"), SEITEN_KASTEN))     # Seite der STEP-Messung (wie step.SEITE_KASTEN)
+SEITE_STEP = dict(zip(("0°", "90°", "180°", "270°"), SEITEN_KASTEN, strict=False))     # Seite der STEP-Messung (wie step.SEITE_KASTEN)
 FELDER = ("x", "seite", "anzahl", "bN", "rand", "c", "ueberstand", "waende", "winkel", "wandbreite", "abstand", "schlitze",
           "nasen")
 

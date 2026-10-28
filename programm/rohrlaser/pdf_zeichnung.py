@@ -15,7 +15,7 @@ Stufe 2 (Konturen aus den Linien eines PDFs wie bei der DXF) braucht echte Zeich
 import re
 from pathlib import Path
 
-from . import dxf_rohr, formular
+from . import dxf_rohr, formular, protokoll
 
 # Feldbeschriftungen im Schriftfeld (Anfang des Textes, ohne Groß/klein)
 FELDER = {
@@ -55,7 +55,8 @@ def _pdf_segmente(pfad):
     try:
         import pypdfium2 as pdfium
         pdf = pdfium.PdfDocument(str(pfad))
-    except Exception:
+    except Exception as e:  # noqa: BLE001 – Zeichnung (PDF) öffnen
+        protokoll.nebenbei(e, "Zeichnung (PDF) öffnen")
         return None
     try:
         seite = pdf[0]
@@ -70,7 +71,8 @@ def _pdf_segmente(pfad):
         text = tp.get_text_range()
         tp.close()
         return dict(text=text.replace("\r\n", "\n").replace("\r", "\n"), segmente=segmente, ocr=False)
-    except Exception:
+    except Exception as e:  # noqa: BLE001 – Text der Zeichnung lesen
+        protokoll.nebenbei(e, "Text der Zeichnung lesen")
         return None
     finally:
         pdf.close()
@@ -284,7 +286,8 @@ def _senkrecht(pfad, programmordner=None):
     try:
         bild = ocr.seiten(pfad)[0]
         _t, _u, segmente = ocr.bild_lesen(bild.rotate(-90, expand=True), exe, psm=11)
-    except Exception:
+    except Exception as e:  # noqa: BLE001 – Gedrehte Zeichnung erkennen
+        protokoll.nebenbei(e, "Gedrehte Zeichnung erkennen")
         return []
     h = bild.height
     return [dict(text=s["text"], x0=s["y0"], x1=s["y1"], y0=h - s["x1"], y1=h - s["x0"], seite=0, senkrecht=True)

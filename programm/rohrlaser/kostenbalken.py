@@ -91,7 +91,7 @@ def wasserfall(kosten):
     rechnen.KOSTEN_GRUPPEN mit Betrag ≠ 0. Eine Summenzeile (Herstellkosten, Selbstkosten, Verkaufspreis) reicht von 0 bis zu
     ihrem Betrag und setzt den laufenden Stand neu, sodass die letzte Zeile genau den Verkaufspreis trifft."""
     from . import rechnen
-    betrag = {n: (w or 0.0) for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
+    betrag = {n: (w or 0.0) for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN, strict=True)}
     stand, aus = 0.0, []
     for titel, namen, summe in rechnen.KOSTEN_GRUPPEN:
         w = sum(betrag[n] for n in namen)

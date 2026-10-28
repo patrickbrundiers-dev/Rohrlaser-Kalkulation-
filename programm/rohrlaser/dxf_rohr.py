@@ -105,7 +105,7 @@ class _Linien:
             p, q, b = el[2], el[3], el[4]
             zug = [p] + sw.bogen_punkte(p, q, b) if b else [p, q]
             ziel = self.mass if mass else self.verdeckt if verdeckt else self.sicht
-            ziel += [(a, c) for a, c in zip(zug, zug[1:]) if math.dist(a, c) > 1e-9]
+            ziel += [(a, c) for a, c in zip(zug, zug[1:], strict=False) if math.dist(a, c) > 1e-9]
         self.dims = _dimensionen(roh)
         self.layer = sorted({str(el[1]).upper() for el in di.elemente(roh)})
 
@@ -178,7 +178,7 @@ def masse_aufgeloest(mass, texte):
         if len(uniq) < 2:
             continue
         ut = p[0] * u[0] + p[1] * u[1] + 0.5 * len(str(text)) * 0.7 * h     # Mitte des Texts etwa
-        paare = list(zip(uniq, uniq[1:]))
+        paare = list(zip(uniq, uniq[1:], strict=False))
         drin = [pq for pq in paare if pq[0][0] <= ut <= pq[1][0]]
         a, b = drin[0] if drin else min(paare, key=lambda pq: min(abs(pq[0][0] - ut), abs(pq[1][0] - ut)))
         out.append(dict(wert=v, laenge=b[0] - a[0], a=a[1], b=b[1], durchmesser=_durchmesser(text)))
@@ -449,9 +449,9 @@ class Laengsansicht:
         n = len(ys)
         my, mx = sum(ys) / n, sum(xs) / n
         syy = sum((y - my) ** 2 for y in ys)
-        s = sum((y - my) * (x - mx) for y, x in zip(ys, xs)) / syy if syy else 0.0
+        s = sum((y - my) * (x - mx) for y, x in zip(ys, xs, strict=False)) / syy if syy else 0.0
         c = mx + s * (self.yc - my)
-        eben = all(abs(c + s * (y - self.yc) - x) <= EBEN_TOL * self.hoehe for y, x in zip(ys, xs))
+        eben = all(abs(c + s * (y - self.yc) - x) <= EBEN_TOL * self.hoehe for y, x in zip(ys, xs, strict=False))
         return c, s, eben
 
 
@@ -707,7 +707,7 @@ def _erkennen(roh, li, dateiname, vorgaben):
 
     def ansichten_liste(rolle_von, f_je):
         return [dict(nr=i, rolle=rolle_von(a), bb=a.bb, massstab=f, quelle=quelle, vorgabe=rollen.get(i))
-                for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je))]
+                for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je, strict=False))]
     if not ansichten:
         warn.append("In der DXF sind keine sichtbaren Kanten.")
         return erg
@@ -721,7 +721,7 @@ def _erkennen(roh, li, dateiname, vorgaben):
     f_je = massstab_je_ansicht(ansichten, masse, (vorgabe[0], vorgabe[1] or "Vorgabe 1:1"))
     # Schnitt (Zuordnung von Hand: nur die Ansicht mit Rolle Schnitt)
     qs, schnitte = None, 0
-    for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je)):
+    for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je, strict=False)):
         if rollen.get(i) in ("weg", "vorne", "oben") or ("schnitt" in rollen.values() and rollen.get(i) != "schnitt"):
             continue
         q = querschnitt(a, li.sicht, li.kreise)
@@ -757,7 +757,7 @@ def _erkennen(roh, li, dateiname, vorgaben):
     # Längsansichten: die schmale Seite ist so groß wie eine Profilseite (Ansicht ohne eigenes Maß: auch mit einem
     # anderen Normmaßstab, wenn der passt)
     laengs, senkrecht = [], False
-    for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je)):
+    for i, (a, (f, quelle)) in enumerate(zip(ansichten, f_je, strict=False)):
         if a.iso or (qs and a is qs[0]) or rollen.get(i) in ("weg", "schnitt"):
             continue
         hoch = a.hoehe if a.breite >= a.hoehe else a.breite

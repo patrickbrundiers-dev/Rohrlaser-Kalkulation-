@@ -86,7 +86,7 @@ def lies_messwerte(pfad):
     if not zeilen:
         return []
     kopf = zeilen[0].split("\t")
-    return [dict(zip(kopf, z.split("\t") + [""] * (len(kopf) - len(z.split("\t"))))) for z in zeilen[1:] if z]
+    return [dict(zip(kopf, z.split("\t") + [""] * (len(kopf) - len(z.split("\t"))), strict=False)) for z in zeilen[1:] if z]
 
 
 def struktur_anhaengen(messwerte, json_pfad):
@@ -541,7 +541,7 @@ def offen_lage(querschnitt, profil):
     um = qs.umriss[0]
     us, vs = [p[0] for p in um], [p[1] for p in um]
     mu, mv = (max(us) + min(us)) / 2, (max(vs) + min(vs)) / 2
-    kanten = list(zip(um, um[1:] + um[:1]))
+    kanten = list(zip(um, um[1:] + um[:1], strict=False))
 
     def abst(p, a, b):
         dx, dy = b[0] - a[0], b[1] - a[1]
@@ -566,7 +566,7 @@ def offen_lage(querschnitt, profil):
 
     def richtung(th):       # Umfangswinkel der Messung (0° oben, 90° rechts von Ende A) -> Richtung der Skizze
         x, y = -math.sin(math.radians(th)), math.cos(math.radians(th))
-        u, v = (p_ - m_ for p_, m_ in zip(f(x, y), (mu, mv)))
+        u, v = (p_ - m_ for p_, m_ in zip(f(x, y), (mu, mv), strict=False))
         return round(math.degrees(math.atan2(u, v)) % 360, 1) % 360
     lage.richtung = richtung
     return lage
@@ -916,7 +916,7 @@ def profil_abweichung(m, pr):
     ist, soll = _masse(form, _z(m, "abm_a"), _z(m, "abm_b")), _masse(form, pr.get("a"), pr.get("b"))
     fl_ist, fl_soll = _z(m, "flaeche"), flaeche_wirksam(pr) or 0
     wand_ist, wand_soll = _wand(m), float(pr.get("wand") or 0)
-    abweichend = any(abs(x - y) > TOL_MASS for x, y in zip(ist, soll)) or \
+    abweichend = any(abs(x - y) > TOL_MASS for x, y in zip(ist, soll, strict=False)) or \
         (form != "Flachstahl" and abs(wand_ist - wand_soll) > 0.15) or \
         (fl_ist > 0 and fl_soll > 0 and abs(fl_ist - fl_soll) > 0.015 * fl_soll)
     if not abweichend:
@@ -1488,7 +1488,7 @@ def _gleich(a, b):
         return False
     enden = [sorted([(x.get("ende_a_gerade") == "1", _z(x, "ende_a")), (x.get("ende_b_gerade") == "1", _z(x, "ende_b"))])
              for x in (a, b)]
-    return all(ga == gb and abs(la - lb) <= TOL_GLEICH for (ga, la), (gb, lb) in zip(*enden))
+    return all(ga == gb and abs(la - lb) <= TOL_GLEICH for (ga, la), (gb, lb) in zip(*enden, strict=True))
 
 
 def _blechteil(m):
@@ -2050,7 +2050,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 hinweise.append(f"Halbschalen: {sch['je_umfang']} je Rohrumfang ({dez(sch['schale_grad'])}°, "
                                 f"{dez(sch['luft'])} mm Luft), je Schale ganz freigeschnitten; Rohrstücke = Stückzahl "
                                 f"÷ {sch['je_umfang']}")
-            for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
+            for name, (n, l) in zip(("klein", "mittel", "gross"), kl, strict=False):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if m.get("innen_liste") or enden:
                 p["konturen"] = rechnen.konturen_text(_paare(m.get("innen_liste")), enden)
@@ -2269,6 +2269,6 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
         if lose:
             bericht.append(f"Schweißbaugruppe {name}: ohne Naht zu einem anderen Teil: "
                            + ", ".join(x["name"] for x in lose) + " – lose? prüfen")
-        bericht += [f"{p.get('artikel')}: {h}" for (p, _), h in zip(liste, hinweise) if h]
+        bericht += [f"{p.get('artikel')}: {h}" for (p, _), h in zip(liste, hinweise, strict=False) if h]
         naechste += 10
     return naechste

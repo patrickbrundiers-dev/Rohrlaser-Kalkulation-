@@ -643,7 +643,7 @@ class SteckEditor:
                     wahl, hinweis = steckverbindung.nasen_wahl_ecke(v, profil_s, kont, einst.get("nase_min"))
             except ValueError:
                 continue
-            for e, x in zip(mit, wahl):
+            for e, x in zip(mit, wahl, strict=False):
                 if x is None:
                     e["_weg"] = True
                     self.steck_ohne_nase += 1
@@ -758,7 +758,7 @@ class SteckEditor:
                     self.__dict__.setdefault("_steck_trafo", {})[k] = (treffer[0], treffer[1], laenge)
             if neu != list(lagen):
                 self._netz_cache[pid] = dict(netz, lagen=neu, lage=neu[0])
-                self.__dict__.setdefault("steck_lagen", {})[pid] = dict(zip(koerper, neu))
+                self.__dict__.setdefault("steck_lagen", {})[pid] = dict(zip(koerper, neu, strict=False))
                 geaendert = True
         if geaendert:
             self.__dict__.pop("_rohr_cache", None)
@@ -828,7 +828,7 @@ class SteckEditor:
             return (lagen[j] if j < len(lagen) else None), n
 
         def dot(a, b):
-            return sum(x * y for x, y in zip(a, b))
+            return sum(x * y for x, y in zip(a, b, strict=False))
         try:
             (la, na), (ls, ns) = lage(auf, k_auf), lage(st, k_st)
             if not la or not ls or len(la) != 9 or len(ls) != 9 or not na.get("p") or not ns.get("p"):
@@ -1141,7 +1141,7 @@ class KnickEditor:
         return dict(koerper=[(mw[t["i"]]["pid"], mw[t["i"]]["lage_nr"]) for t in k["teile"]],
                     leit=m["pid"], eingaben=eing, laenge=m.get("_knick_laenge"), knicke=len(k["teile"]) - 1,
                     netz=kv.netz_gefaltet(mw, m), text=kv.text(m), nummern=[str(x) for x in nrs if x not in (None, "")],
-                    ecken=[sorted((str(a), str(b))) for a, b in zip(nrs, nrs[1:])
+                    ecken=[sorted((str(a), str(b))) for a, b in zip(nrs, nrs[1:], strict=False)
                            if a not in (None, "") and b not in (None, "")])
 
     def knick_kandidaten(self):
@@ -2979,7 +2979,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             info += " Rohre aus den Eingaben (mit Schlitzen und Nasen der Steckverbindungen)."
         if netz and getattr(self.ansicht3d, "naehte", True):
             naehte = self._naehte_3d(naht, koerper_netz, {str(k) for k in koerper} if nur else None)
-            schluessel = json.dumps([[b, k] for b, k in zip(besitzer, koerper)] + [sorted(
+            schluessel = json.dumps([[b, k] for b, k in zip(besitzer, koerper, strict=False)] + [sorted(
                 (pid, (self._rohr_cache.get(pid) or ("",))[0]) for pid in rohre)], default=str)
             if getattr(self, "_flaechen", (None,))[0] != schluessel:
                 self._flaechen = (schluessel, flaechen_merken(netz, schluessel))
@@ -3144,7 +3144,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         punkte = [tuple(q) for q in punkte]
         if len(punkte) < 2 or self.nur_lesen:
             return None
-        laenge = sum(math.dist(a, b) for a, b in zip(punkte, punkte[1:]))
+        laenge = sum(math.dist(a, b) for a, b in zip(punkte, punkte[1:], strict=False))
         # Spalt (Patrick 26.10.2026): der Zug liegt auf einem Teil, das andere darf bis step_naht_spalt entfernt sein
         mit = self.teile_an(punkte, max(NAHT_TOLERANZ, self._naht_spalt() + NAHT_TOLERANZ), mit_abstand=True)
         nah_ = [x for x in mit if x[2] <= NAHT_TOLERANZ]

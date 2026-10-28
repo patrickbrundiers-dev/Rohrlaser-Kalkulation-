@@ -270,7 +270,7 @@ def ende_3d(profil, flaechen, huelle, schritt=0.5):
         return None
     wahl = min if huelle == "min" else max
     pts = []
-    for (u0, v0), (u1, v1) in zip(um, um[1:] + um[:1]):
+    for (u0, v0), (u1, v1) in zip(um, um[1:] + um[:1], strict=True):
         n = max(1, int(math.hypot(u1 - u0, v1 - v0) / schritt))
         pts += [(u0 + (u1 - u0) * i / n, v0 + (v1 - v0) * i / n) for i in range(n)]
     hoehen = []
@@ -318,7 +318,7 @@ def anderes_profil(e, profil):
         return False
     if form != profil.get("form") or abs(wand - _z(profil.get("wand"))) > 0.15:
         return True
-    return any(abs(x - y) > 0.3 for x, y in zip(_masse(form, a, b), _masse(form, profil.get("a"), profil.get("b"))))
+    return any(abs(x - y) > 0.3 for x, y in zip(_masse(form, a, b), _masse(form, profil.get("a"), profil.get("b")), strict=True))
 
 
 def ende_neu(profil, e):
@@ -362,7 +362,7 @@ def anderer_querschnitt(e, profil):
     if alt["form"] != profil.get("form") or abs(alt["wand"] - _z(profil.get("wand"))) > 0.15:
         return True
     return any(abs(x - y) > 0.3 for x, y in zip(_masse(alt["form"], alt["a"], alt["b"]),
-                                                _masse(alt["form"], profil.get("a"), profil.get("b"))))
+                                                _masse(alt["form"], profil.get("a"), profil.get("b")), strict=True))
 
 
 def _umfang_t(qs, s):

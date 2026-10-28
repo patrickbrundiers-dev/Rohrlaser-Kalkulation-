@@ -5,8 +5,14 @@ line-length = 120
 target-version = "py312"         # wie der Windows-Build (paket.yml)
 
 [lint]
-select = ["E9", "F"]
+# BLE001/S110/S112 (Verbesserungsplan P0-1): kein „except Exception“ ohne Begründung. Entweder engere Ausnahme, oder
+# protokoll.nebenbei(e, …) bzw. Hinweis/Meldung am Teil, oder bewusst still mit „# noqa: BLE001 – Grund“.
+# B905 (P0-2): zip() immer mit strict=. True im Rechenkern (parallele Listen, ungleiche Länge = Fehler, der still
+# falsche Werte zuordnet), False wo kürzer gewollt ist (Nachbarpaare x, x[1:], CSV-Zeilen, gespeicherte Stände).
+select = ["E9", "F", "BLE001", "S110", "S112", "B905"]
 
 [lint.per-file-ignores]
+# Tests dürfen jeden Fehler abfangen (Aufräumen, Fehler als Testergebnis melden)
+"tests/*.py" = ["BLE001", "S110", "S112", "B905"]
 # STEP-Messung: wird gerade im Thread „Rohr- und Blech-Editor, STEP robuster“ umgebaut, dort aufräumen
 "programm/step_messung/*.py" = ["F401"]

@@ -527,12 +527,12 @@ class BlechSkizze(QWidget):
         p.setPen(stil.farbe("#333333"))
         p.drawText(QPointF(feld.x(), feld.y() - 8), "Seitenansicht (Außenmaße)")
         p.setPen(QPen(stil.farbe(FARBE_LINIE), min(max(2.0, sw._z(self.eingaben.get("dicke")) * m), 8.0)))
-        for (x1, y1), (x2, y2) in zip(pk, pk[1:]):
+        for (x1, y1), (x2, y2) in zip(pk, pk[1:], strict=False):
             p.drawLine(QPointF(ox + x1 * m, oy - y1 * m), QPointF(ox + x2 * m, oy - y2 * m))
         p.setPen(stil.farbe("#333333"))
         schenkel = [z for z in self.eingaben.get("schenkel") or [] if sw._z(z.get("laenge")) > 0]
         mx, my = sum(xs) / len(xs), sum(ys) / len(ys)          # Maße von der Mitte weg nach außen schieben
-        for (x1, y1), (x2, y2), z in zip(pk, pk[1:], schenkel):
+        for (x1, y1), (x2, y2), z in zip(pk, pk[1:], schenkel, strict=False):
             cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
             dx, dy = cx - mx, cy - my
             n = (dx * dx + dy * dy) ** 0.5 or 1

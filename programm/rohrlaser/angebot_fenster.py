@@ -51,6 +51,7 @@ from . import satzgruppen, unterzeilen
 from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
+from . import protokoll
 
 
 def preis_aenderung(vorher, nachher):
@@ -792,7 +793,8 @@ class PositionenModell(QAbstractTableModel):
                     neu = vorschau.rohr(p, self.k.profile.get(p.get("profil_id")))
                 else:
                     neu = None
-            except Exception:       # beschädigte Daten: ohne Bild weiter
+            except Exception as e:  # noqa: BLE001 – beschädigte Daten: ohne Bild weiter
+                protokoll.nebenbei(e, "Vorschaubild der Position")
                 neu = None
             self.bilder[pid] = alt = (schluessel, neu)
         return alt[1]
@@ -2552,14 +2554,14 @@ class AngebotSeite(QWidget):
             positionen=str(sum(1 for s in stat if s)), stueck=f"{_z(teile, 0)} Stk",
             gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
-            [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
+            [(p.get("pos"), st) for p, st in zip(self.positionen, stat, strict=False) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         punkte = self.freigabe_punkte(summen, zeilen, preis_abw)
         self.uebersicht_bereich.freigabe_setzen(punkte)
         self._punkte = punkte
         self._schritte_setzen()
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
-        vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
+        vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN, strict=False) if n == "verkauf")
         stand = self.stand_optimierung()
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
@@ -2577,7 +2579,7 @@ class AngebotSeite(QWidget):
                                              not any(z.get("satz") for z in self.kompakt.zeilen))
         katalog = self.tabellen.get("zusatzarbeiten") or ()
         self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) for i, (p, z) in enumerate(zip(self.positionen,
-                                                                                                   zeilen))}
+                                                                                                   zeilen, strict=False))}
         self.pos_unter.aktualisieren()
         self.kompakt_unter.aktualisieren()
         leere_ausblenden(self.kompakt_ansicht, self.kompakt, KOMPAKT_IMMER)
@@ -3023,7 +3025,8 @@ class AngebotSeite(QWidget):
                 erg = pdf_zeichnung.erkennen(pfad, self.f.programmordner)
                 try:
                     linien = pdf_vektor.dxf_text(pfad) if Path(pfad).suffix.lower() == ".pdf" else None
-                except Exception:       # beschädigtes PDF o. ä.: nur der Text
+                except Exception as e:  # noqa: BLE001 – beschädigtes PDF o. ä.: nur der Text
+                    protokoll.nebenbei(e, "Linien aus der PDF lesen")
                     linien = None
             finally:
                 QApplication.restoreOverrideCursor()
@@ -3629,7 +3632,7 @@ class AngebotSeite(QWidget):
             try:
                 ea, es = eingaben(a), eingaben(s_)
                 lg = [nach_id[x].get("laenge") for x in (a, s_)]
-                lg = [g + laenge[x] if isinstance(g, (int, float)) else None for g, x in zip(lg, (a, s_))]
+                lg = [g + laenge[x] if isinstance(g, (int, float)) else None for g, x in zip(lg, (a, s_), strict=False)]
                 eing[a], eing[s_], plus = sv.anwenden(v, ea, es, pa, ps, lg, hinweise)
             except ValueError as f:
                 hinweise.append(f"Steckverbindung Pos. {nach_id[a].get('pos') or ''}/{nach_id[s_].get('pos') or ''}: {f}")
@@ -4606,7 +4609,7 @@ class AngebotSeite(QWidget):
                 return 0
             paare = d.ergebnis
         else:
-            paare = [(z, w) for z, w in zip(liste, preise) if w]
+            paare = [(z, w) for z, w in zip(liste, preise, strict=False) if w]
         nummer = self.kopf.get("nummer") or ""
         geaendert = {}
         for z, preis in paare:
@@ -5302,7 +5305,7 @@ class AngebotSeite(QWidget):
         from . import lager
         aus_lager = lager.aus_lager(self.db, self.id, self.ergebnis) if self.f.lager_an() else set()
         if aus_lager:               # Stangen aus dem Lager (reserviert) nicht anfragen
-            paare = [(s, w) for s, w in zip(erg["stangen"], werte) if s["nr"] not in aus_lager]
+            paare = [(s, w) for s, w in zip(erg["stangen"], werte, strict=False) if s["nr"] not in aus_lager]
             erg, werte = dict(erg, stangen=[s for s, _ in paare]), [w for _, w in paare]
             self.f.meldung(f"Materialanfrage: {len(aus_lager)} Stange(n) kommen aus dem Lager und werden nicht "
                            "angefragt.")

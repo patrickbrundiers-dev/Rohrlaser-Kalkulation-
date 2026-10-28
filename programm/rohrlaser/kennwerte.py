@@ -59,8 +59,8 @@ def auswerten(faelle, mindest_n=5):
     med = statistics.median(q)
     mad = statistics.median(abs(x - med) for x in q)
     if mad > 0:
-        drin = [f for f, x in zip(gueltig, q) if abs(x - med) <= MAD_GRENZE * mad]
-        raus = [f for f, x in zip(gueltig, q) if abs(x - med) > MAD_GRENZE * mad]
+        drin = [f for f, x in zip(gueltig, q, strict=True) if abs(x - med) <= MAD_GRENZE * mad]
+        raus = [f for f, x in zip(gueltig, q, strict=True) if abs(x - med) > MAD_GRENZE * mad]
     else:
         drin, raus = gueltig, []
     q = _verhaeltnisse(drin)

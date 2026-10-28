@@ -110,7 +110,7 @@ class _Graph:
         _enden_fangen(zuege)
         strecken = []
         for i, pts in enumerate(zuege):
-            for a, b in zip(pts, pts[1:]):
+            for a, b in zip(pts, pts[1:], strict=False):
                 if math.hypot(b[0] - a[0], b[1] - a[1]) > FANG / 2:
                     strecken.append((a, b, i))
         strecken = self._teilen(strecken)
@@ -153,7 +153,7 @@ class _Graph:
         for j, (a, b, i) in enumerate(strecken):
             us = sorted(u for u in teil[j] if FANG / 10 < u < 1 - FANG / 10)
             pts = [a] + [(a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1])) for u in us] + [b]
-            aus += [(p, q, i) for p, q in zip(pts, pts[1:])]
+            aus += [(p, q, i) for p, q in zip(pts, pts[1:], strict=False)]
         return aus
 
     def zyklen(self):
@@ -236,7 +236,7 @@ def _beruehrung(s, t):
 
 def _flaeche_umfang(pts):
     a = u = 0.0
-    for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]):
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1], strict=False):
         a += x1 * y2 - x2 * y1
         u += math.hypot(x2 - x1, y2 - y1)
     return a / 2, u
@@ -244,7 +244,7 @@ def _flaeche_umfang(pts):
 
 def _innen(x, y, pts):
     drin = False
-    for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]):
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1], strict=False):
         if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
             drin = not drin
     return drin
@@ -259,7 +259,7 @@ def wandstaerke(elemente):
     zaehler = {}
     for radien in je_mitte.values():
         r = sorted(radien)
-        for a, b in zip(r, r[1:]):
+        for a, b in zip(r, r[1:], strict=False):
             d = round(b - a, 2)
             if d >= 0.3:
                 zaehler[d] = zaehler.get(d, 0) + 1
@@ -315,7 +315,7 @@ def querschnitt(elemente, mit_konturen=False):
     for p in positiv:
         for z in [p] + p["loecher"]:
             ks = z["schluessel"]
-            for a, b in zip(ks, ks[1:] + ks[:1]):
+            for a, b in zip(ks, ks[1:] + ks[:1], strict=False):
                 flaeche_von[(a, b)] = p
     doppel, doppel_kanten, umfang, elem_aussen = 0.0, [], 0.0, set()
     richtung = {"aussen": {}, "doppel": {}}     # Länge je Richtung (Grad 0 = waagerecht … 90 = senkrecht)
@@ -500,7 +500,7 @@ def erkennen(breite, hoehe, flaeche, umfang, kammern=1, wand=None, eintraege=Non
     treffer = []
     for pid, e in eintraege.items():
         if (e.get("kammern") or 0) != kammern or \
-                any(abs(x - y) > TOL_MASS for x, y in zip(sorted((e["breite"], e["hoehe"])), m)):
+                any(abs(x - y) > TOL_MASS for x, y in zip(sorted((e["breite"], e["hoehe"])), m, strict=False)):
             continue
         if wand and abs(e["wand"] - wand) > 0.15:
             continue

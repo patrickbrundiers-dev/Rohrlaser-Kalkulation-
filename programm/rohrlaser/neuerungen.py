@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.165", "<b>Keine still verschluckten Fehler mehr</b>: Scheitert eine Nebensache (Spaltenbreite oder "
+                "Fenstergröße merken, Vorschaubild, Logo im PDF, Texterkennung), arbeitet das Programm weiter wie "
+                "bisher, schreibt den Grund aber ins Fehlerprotokoll (Daten/Protokoll/fehler.log). Der STEP-Import "
+                "zeigt einen Hinweis zum Prüfen, wenn Anbauteile, Verbund oder Baugruppenstruktur einer Datei nicht "
+                "bestimmt werden konnten oder die gewünschten Stege nicht ergänzt wurden, statt sie still wegzulassen. "
+                "Im Rechenkern prüft das Programm, dass zusammengehörige Listen (Stangen und ihre Werte, Positionen "
+                "und Kalkulationszeilen, Staffelstufen) gleich lang sind, damit nie Werte der falschen Zeile zugeordnet "
+                "werden.",
+     "Fehler in Nebensachen ins Protokoll, STEP-Hinweis statt stillem Weglassen, Längenprüfung im Rechenkern."],
     ["0.9.164", "<b>Sätze heben sich ab</b>: In der Positionsliste stehen die Positionen eines Satzes zusammen und "
                 "sind je Satz farbig hinterlegt (abwechselnd blau und violett, auch im Dunkelmodus). Die Spalten "
                 "Satz und Stück je Satz stehen gleich hinter Pos.; die erste Position zeigt fett Name und Anzahl "

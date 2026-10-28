@@ -463,7 +463,7 @@ def _farbschema_setzen(name):
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QGuiApplication
         QGuiApplication.styleHints().setColorScheme(Qt.ColorScheme.Dark if name == "Dunkel" else Qt.ColorScheme.Light)
-    except Exception:       # noqa: BLE001 – ältere Qt-Version
+    except Exception:       # noqa: BLE001, S110 – ältere Qt-Version
         pass
 
 

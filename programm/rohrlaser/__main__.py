@@ -151,7 +151,7 @@ def selbsttest(app, ergebnis, step_dateien=()):
             db.schliessen()
         protokoll.append("SELBSTTEST OK")
         code = 0
-    except Exception:
+    except Exception:  # noqa: BLE001 – Selbsttest: Stacktrace steht im Protokoll
         protokoll.append(traceback.format_exc())
         protokoll.append("SELBSTTEST FEHLER")
         code = 1
@@ -188,7 +188,7 @@ def update_test(app, quelle, ergebnis, alle):
             db.schliessen()
         protokoll.append("UPDATE OK")
         code = 0
-    except Exception:
+    except Exception:  # noqa: BLE001 – Update: Stacktrace steht im Protokoll
         protokoll.append(traceback.format_exc())
         protokoll.append("UPDATE FEHLER")
         code = 1
@@ -222,7 +222,7 @@ def info(orte_, ergebnis):
         finally:
             sperre.freigeben()
         code = 0
-    except Exception:
+    except Exception:  # noqa: BLE001 – Stacktrace steht im Ergebnis
         werte["fehler"] = traceback.format_exc()
         code = 1
     text = json.dumps(werte, indent=1, ensure_ascii=False)
@@ -394,7 +394,7 @@ def main(argv=None):
                 if getattr(sys, "frozen", False):
                     orte.merken(o)      # damit eine neue Kopie des Programms diese Daten findet
                 break
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 – der Anwender entscheidet im Dialog
                 if not oeffnen_fehlgeschlagen(o, e):
                     return 1
         from . import stil

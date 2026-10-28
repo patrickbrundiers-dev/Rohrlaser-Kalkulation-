@@ -56,7 +56,7 @@ def gruppen(ergebnis, kopf, positionen, k, tabellen):
         return []
     sw = rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen)
     out = {}
-    for s, w in zip(ergebnis["stangen"], sw):
+    for s, w in zip(ergebnis["stangen"], sw, strict=True):
         ob = s.get("oberflaeche") or ""
         g = out.setdefault(rechnen.gruppe_der_stange(s),
                            dict(schluessel=gruppenschluessel(s["profil"], s["werkstoff"], s["stange"], ob)
@@ -144,7 +144,7 @@ def baugruppen_soll(positionen, kalk_zeilen):
     in h bzw. None bei €-Feldern."""
     from . import baugruppe
     out = []
-    for p, z in zip(positionen, kalk_zeilen):
+    for p, z in zip(positionen, kalk_zeilen, strict=True):
         if not z or not z.get("baugruppe"):
             continue
         bg = baugruppe.lesen(p.get("baugruppe")) or {}

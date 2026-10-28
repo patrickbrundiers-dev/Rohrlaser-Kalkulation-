@@ -206,7 +206,7 @@ def _ende_werkzeug(ring_o, ring_i, s, L, meldungen):
     fern = min(0.0, min(p[2] for p in alle)) - FERN if s == "a" else max(L, max(p[2] for p in alle)) + FERN
     n = Netz()
     k = len(ring_o)
-    for o, q in zip(ring_o, ring_i):
+    for o, q in zip(ring_o, ring_i, strict=False):
         d = _norm(_sub(o, q))
         o2, q2 = _add(o, d, UEBER), _add(q, d, -UEBER)
         for p in (o2, q2, (q2[0], q2[1], fern), (o2[0], o2[1], fern)):
@@ -412,7 +412,7 @@ def vollprofil_werkzeuge(bau, e, ohne=()):
             continue
         n3 = _norm(rohr3d._xyz(0, *n_mitte))
         p3 = [rohr3d._xyz(*p) for p in pts]
-        paare = [(a, p) for i, (a, p) in enumerate(zip(pk2, p3)) if math.dist(a, pk2[i - 1]) > 1e-7]
+        paare = [(a, p) for i, (a, p) in enumerate(zip(pk2, p3, strict=False)) if math.dist(a, pk2[i - 1]) > 1e-7]
         pk2 = [a for a, _ in paare]
         oben = [_add(p, n3, UEBER) for _, p in paare]
         unten = [_add(p, n3, -tief) for _, p in paare]
@@ -460,7 +460,7 @@ def _frei(p, polygone, aussen=None, abstand=GRAVUR_ABSTAND + GRAVUR_BREITE / 2):
 def _fein(zug):
     """Linienzug [(Punkt, Normale)] so unterteilen, dass kein Stück länger als GRAVUR_SCHRITT ist."""
     out = zug[:1]
-    for (a, na), (b, nb) in zip(zug, zug[1:]):
+    for (a, na), (b, nb) in zip(zug, zug[1:], strict=False):
         k = max(1, math.ceil(math.dist(a, b) / GRAVUR_SCHRITT))
         for i in range(1, k + 1):
             f = i / k
@@ -488,7 +488,7 @@ def rillen(zuege, frei):
             teile.append(lauf)
         for lauf in teile:
             stuecke = []                # zusammengefasst: (Anfang, Ende, Normale)
-            for (a, na), (c, nc) in zip(lauf, lauf[1:]):
+            for (a, na), (c, nc) in zip(lauf, lauf[1:], strict=False):
                 if math.dist(a, c) < 1e-6:
                     continue
                 n = _norm(_add(na, nc))

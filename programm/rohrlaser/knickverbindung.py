@@ -51,11 +51,11 @@ def _netz(m):
 
 
 def _sub(a, b):
-    return tuple(x - y for x, y in zip(a, b))
+    return tuple(x - y for x, y in zip(a, b, strict=False))
 
 
 def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=False))
 
 
 def _kreuz(a, b):
@@ -571,7 +571,7 @@ def kandidaten_filtern(kandidaten, messwerte, datei):
         if m.get("datei") != datei or not m.get("_knickrahmen") or ist_koerper(m):
             continue
         nrs = [str(messwerte[t["i"]].get("koerper")) for t in m["_knick_teile"]]
-        for a, b in zip(nrs, nrs[1:]):
+        for a, b in zip(nrs, nrs[1:], strict=False):
             weg.add(frozenset((a, b)))
     if not weg:
         return list(kandidaten or ())

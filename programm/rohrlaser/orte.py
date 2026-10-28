@@ -259,5 +259,5 @@ class Sperre:
 def _benutzer():
     try:
         return getpass.getuser()
-    except Exception:
+    except (ImportError, KeyError, OSError):    # kein Benutzername in Umgebung und Benutzerdatenbank
         return ""

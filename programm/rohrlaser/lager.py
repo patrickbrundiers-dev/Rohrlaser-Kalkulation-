@@ -221,7 +221,7 @@ def bedarf(ergebnis, werte):
     """Lieferstangen des Schnittplans, die aus dem Lager kommen können: [dict(nr, profil, werkstoff, oberflaeche,
     stange, belegt, bedarf, rest, kosten)]; werte = rechnen.stangen_werte (gleiche Reihenfolge)."""
     out = []
-    for s, w in zip((ergebnis or {}).get("stangen") or (), werte or ()):
+    for s, w in zip((ergebnis or {}).get("stangen") or (), werte or (), strict=False):
         if s.get("beistellung") or s.get("werkstuecke"):
             continue
         belegt = w["belegt"]

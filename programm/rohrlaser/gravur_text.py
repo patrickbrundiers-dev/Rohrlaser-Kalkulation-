@@ -98,7 +98,7 @@ def masse(text, hoehe):
 
 def laenge(text, hoehe):
     """Gravurlänge [mm]: Summe aller Striche."""
-    return sum(math.dist(a, b) for zug in linien(text, hoehe) for a, b in zip(zug, zug[1:]))
+    return sum(math.dist(a, b) for zug in linien(text, hoehe) for a, b in zip(zug, zug[1:], strict=False))
 
 
 def gedreht(zuege, winkel, x=0.0, y=0.0):

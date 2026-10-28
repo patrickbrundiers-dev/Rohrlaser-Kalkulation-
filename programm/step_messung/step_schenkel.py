@@ -211,7 +211,7 @@ def mit_stegen(solid, t, ziel, datei="", koerper=1, netz=False):
         try:
             _netz_koerper(t, stege, ax3, 0.05, art="ES")
             m.netz = t.netz
-        except Exception:  # ohne Anzeige der Stege bleibt die Messung gültig
+        except Exception:  # noqa: BLE001, S110 – ohne Anzeige der Stege bleibt die Messung gültig
             pass
     if m.netz:
         # das Netz steht im System des gezeichneten Teils (Ende A auf seiner Schwerlinie), Lage und Konturen der

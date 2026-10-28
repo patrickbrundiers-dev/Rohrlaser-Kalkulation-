@@ -62,7 +62,7 @@ def gruppen(kopf, positionen, ergebnis, k, tabellen, einst, lagerplan=None):
             continue
         schl = (a["profil"], a["werkstoff"], _ob(a["oberflaeche"]))
         grund = a.get("grundlaenge", a["stange"])
-        st = [(s, w) for s, w in zip(ergebnis["stangen"], werte)
+        st = [(s, w) for s, w in zip(ergebnis["stangen"], werte, strict=True)
               if (s["profil"], s["werkstoff"], _ob(s.get("oberflaeche"))) == schl and not s.get("beistellung")
               and (s["stange"] == a["stange"] or a.get("vorgegeben"))]
         varianten = []

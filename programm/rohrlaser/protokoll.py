@@ -43,6 +43,15 @@ def info(text):
     _log.info(text)
 
 
+def nebenbei(wert, wozu):
+    """Fehler in einer Nebensache (Einstellung merken, Vorschaubild, Zusatzinfo): das Programm läuft ohne sie weiter,
+    der Fehler kommt aber ins Protokoll statt still zu verschwinden. Lesemodus ist Absicht und wird nicht notiert."""
+    if ist_lesemodus(wert):
+        return
+    _log.info("%s nicht möglich: %s", wozu,
+              "".join(traceback.format_exception(type(wert), wert, wert.__traceback__)).rstrip())
+
+
 def ist_lesemodus(wert):
     """Abgewiesener Schreibversuch im Lesemodus (Lizenz): Ausnahme Lesemodus oder SQLite 'readonly database'."""
     import sqlite3
@@ -93,7 +102,7 @@ def _haken(art, wert, tb):
     _in_meldung = True
     try:
         _zeigen(f"{art.__name__}: {wert}", details)
-    except Exception:                   # noqa: BLE001 – die Meldung selbst darf nie einen zweiten Fehler auslösen
+    except Exception:                   # noqa: BLE001, S110 – die Meldung selbst darf nie einen zweiten Fehler auslösen
         pass
     finally:
         _in_meldung = False

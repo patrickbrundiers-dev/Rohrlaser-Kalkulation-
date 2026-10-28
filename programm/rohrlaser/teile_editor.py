@@ -32,6 +32,7 @@ from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
 from .menueband import Menueband
 from .eingabe import RechenSpin
+from . import protokoll
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
@@ -420,7 +421,8 @@ class EditorRahmen(QObject):
         db = getattr(self.d, "db", None)
         try:
             v = db.einstellung(name) if db is not None else None
-        except Exception:           # z. B. Lesemodus fremder Daten
+        except Exception as e:  # noqa: BLE001 – z. B. Lesemodus fremder Daten
+            protokoll.nebenbei(e, "Einstellung des Editors lesen")
             v = None
         return v if v not in (None, "") else vorgabe
 
@@ -507,7 +509,7 @@ class EditorRahmen(QObject):
                          "Gravur und Biegelinien; Werkstoff und Dicke werden vorgeschlagen")
             self._vorlagen_knopf_bauen(g)
             g = kon.gruppe("Kantteil")
-            for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):
+            for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen"), strict=False):
                 g.knopf(b.text().replace("+ ", ""), sym, lambda _=False, b=b: b.click(), gross=False,
                         tipp="Schenkel anhängen" if sym == "neu" else "Markierte Schenkel entfernen")
         # Ansicht
@@ -730,8 +732,8 @@ class EditorRahmen(QObject):
         try:
             if db is not None:
                 db.einstellung_setzen(name, wert)
-        except Exception:           # Lesemodus: dann eben nicht merken
-            pass
+        except Exception as e:  # noqa: BLE001 – Lesemodus: dann eben nicht merken
+            protokoll.nebenbei(e, "Einstellung des Editors merken")
 
     def _modus_knoepfe(self, modus):
         for m, b in self.modus_knoepfe.items():
@@ -1016,7 +1018,8 @@ class EditorRahmen(QObject):
                 return
             try:
                 zeit = d.schneidzeit()
-            except Exception:       # ohne Schneiddaten bzw. unvollständige Eingaben
+            except Exception as e:  # noqa: BLE001 – ohne Schneiddaten bzw. unvollständige Eingaben
+                protokoll.nebenbei(e, "Schneidzeit im Editor rechnen")
                 zeit = None
             self.leiste_unten.kacheln_setzen([
                 ("Schneidweg", f"{rechnen.zahl(f.get('schneidweg'), 1)} mm",

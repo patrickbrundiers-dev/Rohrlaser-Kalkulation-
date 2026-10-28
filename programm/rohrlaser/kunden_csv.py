@@ -81,7 +81,7 @@ def vorschau(roh, vorhandene, kontext=None, nur_neue=False):
             continue
         z = dict(nr=nr, fehler=[], hinweis=[], aenderung=[])
         w = {}
-        for name, wert in zip(spalten, roh_zeile):
+        for name, wert in zip(spalten, roh_zeile, strict=False):
             if name:
                 try:
                     w[name] = wert_aus_text(KUNDEN.feld(name), wert)

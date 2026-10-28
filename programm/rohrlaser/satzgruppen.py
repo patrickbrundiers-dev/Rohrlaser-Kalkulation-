@@ -102,7 +102,7 @@ def zeilen_markieren(positionen, zeilen):
     gruppen = saetze(positionen, ausgenommen(positionen))
     ton = {n: nr % 2 for nr, n in enumerate(gruppen)}
     out = []
-    for p, z in zip(positionen, zeilen):
+    for p, z in zip(positionen, zeilen, strict=True):
         if z is not None:
             i = len(out)
             n = name(p) if any(i in ix for ix in gruppen.values()) else ""

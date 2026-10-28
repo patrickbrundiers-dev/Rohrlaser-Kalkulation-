@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, \
     QMessageBox, QPushButton
 
-from . import anfragen, angebotsordner
+from . import anfragen, angebotsordner, protokoll
 
 ANFRAGEN_S = 30             # Sekunden zwischen zwei Blicken in den Ordner
 
@@ -147,7 +147,8 @@ class AnfragenKarte:
     def _ergebnis(future):
         try:
             return future.result()
-        except Exception:
+        except Exception as e:  # noqa: BLE001 – Anfrage lesen
+            protokoll.nebenbei(e, "Anfrage lesen")
             return None
 
     def formular_lesen(self, d):

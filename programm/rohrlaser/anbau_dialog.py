@@ -134,7 +134,7 @@ class AnbauDialog(QDialog):
     def werte(self):
         """Anbauteile nach der Wahl im Dialog."""
         out = []
-        for a, art, be, lg, gruppe in zip(self.liste, self.arten, self.bearbeitung, self.laengen, self.gruppen):
+        for a, art, be, lg, gruppe in zip(self.liste, self.arten, self.bearbeitung, self.laengen, self.gruppen, strict=False):
             a = dict(a)
             b = gruppe.checkedButton()
             a.update(art=art.currentText(), bearbeitung=be.currentText(), gravur_laenge=round(lg.value(), 2),

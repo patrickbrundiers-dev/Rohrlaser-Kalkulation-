@@ -179,14 +179,14 @@ def erkennen(solid):
     if max(_laenge(s) for s in seiten) < 3 * b:
         return None      # gerades Rohr o. ä.: die Hülle ist nicht viel größer als das Profil
     belegt = [_belegt(s, strecken) >= BELEGT for s in seiten]
-    lang = [s for s, j in zip(seiten, belegt) if j]
+    lang = [s for s, j in zip(seiten, belegt, strict=False) if j]
     if not lang:
         return None
     s, h = _wand_innen(max(lang, key=_laenge), strecken) or (None, None)
     if not s or h < 2.5 * s or h > _laenge(max(lang, key=_laenge)) / 2:
         return None
     grenze = 1.5 * max(h, b)
-    art = ["S" if j and _laenge(x) >= grenze else "L" if _laenge(x) >= grenze else "k" for x, j in zip(seiten, belegt)]
+    art = ["S" if j and _laenge(x) >= grenze else "L" if _laenge(x) >= grenze else "k" for x, j in zip(seiten, belegt, strict=False)]
     if art.count("L") > 1 or art.count("S") < 2:
         return None
     geschlossen = "L" not in art
@@ -200,7 +200,7 @@ def erkennen(solid):
         seiten, art = seiten[1:], art[1:]
     while art and art[-1] == "k":
         seiten, art = seiten[:-1], art[:-1]
-    sch = [x for x, a_ in zip(seiten, art) if a_ == "S"]
+    sch = [x for x, a_ in zip(seiten, art, strict=False) if a_ == "S"]
     if len(sch) < (3 if geschlossen else 2):
         return None
     ecken = []
@@ -380,5 +380,5 @@ def _netz(solid, r):
         n = g.dreiecksnetz(solid, faces, arten, [], 0.0, max(10.0, groesse / 20))
         n["lage"] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
         return n
-    except Exception:  # 3D-Ansicht darf die Messung nie verhindern
+    except Exception:  # noqa: BLE001 – 3D-Ansicht darf die Messung nie verhindern
         return None

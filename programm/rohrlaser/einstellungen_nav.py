@@ -155,7 +155,7 @@ class NavigationsReiter(QWidget):
 
     def treffer(self, suche):
         """Indizes der Seiten, die zur Suche passen (leer = alle)."""
-        return [i for i, (s, t) in enumerate(zip(self.seiten, self.titel))
+        return [i for i, (s, t) in enumerate(zip(self.seiten, self.titel, strict=False))
                 if not suche.strip() or any(passt(x, suche) for x in suchtexte(s, t))]
 
     def filtern(self, suche):

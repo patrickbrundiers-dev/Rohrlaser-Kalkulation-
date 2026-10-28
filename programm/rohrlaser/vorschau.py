@@ -57,7 +57,7 @@ def rohr(p, profil, breite=64, hoehe=18, dpr=2.0):
     g.setPen(QPen(FARBE_TEIL, 1.0))
     g.setBrush(QBrush(FARBE_FLAECHE))
     g.drawPolygon(QPolygonF([pkt(z[1], z[0]) for z in sil] + [pkt(z[4], z[0]) for z in reversed(sil)]))
-    for d, (pts3, n) in zip(lagen, formen):
+    for d, (pts3, n) in zip(lagen, formen, strict=False):
         if sk.sichtbar(n, ansicht) < 0.12:
             continue                # auf der Rückseite oder von der Kante gesehen
         farbe = FARBE_GRAVUR if d["art"] == sw.GRAVUR else FARBE_KONTUR

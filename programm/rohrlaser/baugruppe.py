@@ -723,7 +723,7 @@ def kostenaufteilung(r):
     schweissen = sum(z["kosten"] for z in r["zeilen"] if z["art"] == "Naht") - vb
     arbeit = sum(z["kosten"] for z in r["zeilen"] if z["art"] == "Arbeitsgang" and not z["fremd"])
     fremd = r["fremd"] - r["einmal_fremd"]
-    teile = list(zip(KOSTENTEILE, (schweissen, arbeit, r["einmal"], fremd, vb)))
+    teile = list(zip(KOSTENTEILE, (schweissen, arbeit, r["einmal"], fremd, vb), strict=True))
     return teile if vb else teile[:4]
 
 

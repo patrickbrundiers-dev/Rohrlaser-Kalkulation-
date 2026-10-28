@@ -656,7 +656,7 @@ class Datenbank:
         T03, T11 und LT7 dazu, wo es die Zeile (Maschine, Kategorie, Gas, Wandstärke) noch nicht gibt."""
         neu = {z["maschinen_id"]: z for z in beispieldaten()["maschinen"]}
         da = {z["maschinen_id"]: z for z in self.zeilen("maschinen") if z.get("maschinen_id")}
-        beispiel = lambda z, werte: all(z.get(n) == w for n, w in zip(MASCHINE_WERTE, werte))
+        beispiel = lambda z, werte: all(z.get(n) == w for n, w in zip(MASCHINE_WERTE, werte, strict=False))
         for alt, (ziel, werte) in ALTE_MASCHINEN.items():
             z = da.get(alt)
             if z is not None and ziel not in da and beispiel(z, werte):

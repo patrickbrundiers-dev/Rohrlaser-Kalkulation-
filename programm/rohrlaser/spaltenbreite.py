@@ -19,6 +19,7 @@ Regeln (für alle Tabellen gleich, damit das Layout ruhig und übersichtlich ble
 """
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QGuiApplication
+from . import protokoll
 
 MAX_BREITE = 260
 MIN_BREITE = 40
@@ -37,7 +38,8 @@ def speicher_setzen(db):
 def _gemerkt():
     try:
         return dict(_db.einstellung(SPEICHER_NAME) or {}) if _db is not None else {}
-    except Exception:           # z. B. Datendatei gerade nicht lesbar: dann eben ohne gemerkte Breiten
+    except Exception as e:  # noqa: BLE001 – z. B. Datendatei gerade nicht lesbar: dann eben ohne gemerkte Breiten
+        protokoll.nebenbei(e, "Spaltenbreiten lesen")
         return {}
 
 
@@ -51,8 +53,8 @@ def _merken(schluessel, breiten):
         alle.pop(schluessel, None)
     try:
         _db.einstellung_setzen(SPEICHER_NAME, alle)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001 – Spaltenbreiten merken
+        protokoll.nebenbei(e, "Spaltenbreiten merken")
 
 
 def tabellen_schluessel(ansicht):

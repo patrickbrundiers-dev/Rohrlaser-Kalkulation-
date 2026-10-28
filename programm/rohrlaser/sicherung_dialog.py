@@ -34,7 +34,7 @@ def sicherungen_lesen(ordner_liste):
                 info = (json.loads(beschreibung.read_text(encoding="utf-8")) if beschreibung.is_file()
                         else datei_info(p))
                 z.update(schema=info.get("schema"), anzahl=info.get("anzahl") or {})
-            except Exception as e:     # beschädigte oder fremde Datei: anzeigen, aber nicht wählbar
+            except Exception as e:  # noqa: BLE001 – beschädigte oder fremde Datei: anzeigen, aber nicht wählbar
                 z.update(schema=None, anzahl={}, fehler=str(e))
             zeilen.append(z)
     return sorted(zeilen, key=lambda z: z["zeit"], reverse=True)
