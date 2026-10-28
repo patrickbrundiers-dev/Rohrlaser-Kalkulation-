@@ -78,7 +78,7 @@ def _text(roh):
     if not isinstance(roh, bytes):
         return roh.lstrip("\ufeff")
     if roh.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return roh.decode("utf-16").lstrip("\ufeff")
+        return roh.decode("utf-16", errors="replace").lstrip("\ufeff")      # abgeschnittene Datei: kein Abbruch
     if roh[:400].count(b"\x00") > len(roh[:400]) // 4:          # UTF-16 ohne BOM
         try:
             return roh.decode("utf-16-le" if roh[1:2] == b"\x00" else "utf-16-be")

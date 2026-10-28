@@ -128,7 +128,8 @@ ok("PLZ: führende Null nur für Deutschland, Land vom vorhandenen Kunden")
 
 # ------------------------------------------------------------------ kaputte Dateien: nie eine Ausnahme
 for roh in (b"\x00\x01\x02;\xff\xfe", b'"' * 5000, b"Kundennummer;Kundenname\n" + b'1;"' + b"x" * 200000,
-            "Kundennummer;Kundenname\n1;A\r2;B\n".encode(), b"\xef\xbb\xbf", b"\xff\xfe"):
+            "Kundennummer;Kundenname\n1;A\r2;B\n".encode(), b"\xef\xbb\xbf", b"\xff\xfe",
+            "Kundennummer;Kundenname\r\n1;A\r\n".encode("utf-16") + b"\x41"):     # UTF-16 abgeschnitten
     v = vorschau(roh)
     assert isinstance(v["zeilen"], list) and isinstance(v["fehler"], list)
 ok("kaputte Dateien (Binärdaten, endlose Anführungszeichen, riesiges Feld): Meldung, keine Ausnahme")
