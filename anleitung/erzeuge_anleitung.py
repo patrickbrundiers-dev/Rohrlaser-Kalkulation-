@@ -3665,13 +3665,13 @@ def kapitel_staffeln(i):
         (1, "<b>Neue Stufe …</b> legt eine Stufe mit den Mengen des Angebots an und öffnet ihr Fenster; dort die "
             "Mengen ändern. <b>Stufen löschen</b> entfernt die markierten Stufen mit ihren Mengen. "
             "<b>Standard-Staffeln</b> legt je Faktor aus den Einstellungen eine Stufe mit den Mengen des Angebots × "
-            "Faktor an (Vorgabe 1; 2; 5), ohne sie zu rechnen."),
+            "Faktor an (Vorgabe 1; 2; 5). Stufen legt das Programm nie von selbst an."),
         (2, "<b>Stufe bearbeiten …</b> (oder Doppelklick auf die Stufe) öffnet das Fenster der Stufe."),
         (3, "Je Zeile eine Stufe: Bezeichnung, Mengen, eigene Werte (oder „wie Angebot“), Netto gesamt und "
             "Prüfung („gemeinsamer Auftrag“ bei mehreren Sätzen und Positionen, sonst der Fehler)."),
-        (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Das Programm rechnet Staffeln <b>nie "
-            "automatisch</b>: Gewinn und Zuschläge wirken sofort auf die gerechneten Stufen, aber nach neuen Mengen, "
-            "Materialpreisen, Fracht oder Änderungen am Angebot ist die Stufe VERALTET, bis Sie den Knopf drücken.")])
+        (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Meist ist das nicht nötig: Sind Stufen angelegt, "
+            "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten). Gewinn und "
+            "Zuschläge wirken sofort.")])
     i.text("Reiter <i>Staffeln</i>: Preise für weitere Mengen. Jede <b>Stufe</b> wird wie ein eigener Auftrag "
            "optimiert und kalkuliert; Rüsten, Verschnitt und Pauschalen verteilen sich auf ihre Menge. Ein "
            "Doppelklick auf eine Stufe öffnet ihre Werte.", kurz=True)
@@ -3701,7 +3701,7 @@ def kapitel_staffeln(i):
             "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
             "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig.")])
     i.text("<b>Standard-Staffeln</b>: Der Knopf legt die Standard-Staffeln an, z. B. für 10 Stück die Stufen 10, 20 "
-           "und 50; gerechnet werden sie mit <b>Staffelpreise rechnen</b>. Das Angebots-PDF legt keine Stufen an. Die "
+           "und 50; danach rechnet das Programm sie selbst. Das Angebots-PDF legt keine Stufen an. Die "
            "Faktoren stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
            "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5); eigene Faktoren je Kunde stehen in den "
            "Kundenvorgaben ([[kundenvorgaben]]).")
@@ -3763,8 +3763,7 @@ def kapitel_staffeln(i):
                (5, "<b>Gesamtpreis netto</b>, <b>Umsatzsteuer</b> und <b>Gesamtpreis brutto</b>."),
                (6, "<b>Staffelkurve</b>: Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position ein "
                    "eigenes Feld mit Preis an jedem Punkt; die Achse beginnt bei 0."),
-               (7, "Stand: aktuell, VERALTET (erst <b>Staffelpreise rechnen</b>, sonst ohne Preis und nicht im "
-                   "Angebot) oder Stufen mit FEHLER.")])
+               (7, "Stand: aktuell, VERALTET (wird gleich automatisch neu gerechnet) oder Stufen mit FEHLER.")])
     i.text("Von den Kosten der Stufe über Materialzuschlag, Gewinn und Nebenkosten bis zum Stückpreis brutto; "
            "<b>Details</b> zeigt jeden Schritt.", kurz=True)
     i.genauer()
@@ -3840,14 +3839,27 @@ def kapitel_staffeln(i):
            "„Staffelpreise bei Einzelbestellung dieser Position“ (bzw. „dieses Satzes“): Sie trägt Rüsten, "
            "Pauschalen und Mindestpreis allein und kann deshalb teurer sein als der Preis im Gesamtangebot. Eine "
            "Stufe mit gleicher Menge und gleichem Preis wie die Position entfällt dort. Ändert sich etwas am "
-           "Angebot, zeigt der Reiter VERALTET. Staffeln werden nie automatisch gerechnet, auch nicht vor dem "
-           "Drucken: veraltete Stufen fehlen im Angebots-PDF, und der Angebots-Check warnt vorher "
-           "(„Staffelstufe(n) veraltet oder nicht gerechnet“). Dann im Reiter <i>Staffeln</i> "
-           "<b>Staffelpreise rechnen</b>.")
+           "Angebot, rechnet das Programm angelegte Stufen selbst neu ([[staffeln_automatisch]]).")
     i.text("Ältere Angebote (vor Version 0.8.0): Beim ersten Öffnen mit dieser Version werden ihre Mengenstufen zu "
            "Stufen zusammengefasst, je Satz bzw. Position der Größe nach: die kleinste Menge in Stufe 1, die nächste in "
            "Stufe 2 usw. Widersprechen sich die Werte zweier Zeilen (z. B. verschiedener Gewinn), bekommt die Zeile "
            "eine eigene Stufe. Vorher legt das Programm im Ordner Sicherung die Sicherung „vor_Schema_36“ an.")
+    i.abschnitt("Staffeln nach Änderungen automatisch neu rechnen", marke="staffeln_automatisch")
+    i.text("Sind im Angebot Stufen angelegt, rechnet das Programm sie nach jeder Änderung selbst neu: Positionen, "
+           "Stückzahlen, Material, Zusatzarbeiten, Teile-Editoren, Rückgängig/Wiederholen, Stammdaten und "
+           "Einstellungen. Es wartet dazu 1,5 Sekunden nach der letzten Änderung (mehrere Eingaben hintereinander "
+           "ergeben einen Lauf) und rechnet im Hintergrund nur die Stufen, die nicht mehr passen; Sie können "
+           "weiterarbeiten. Bis dahin zeigt der Reiter VERALTET „… werden gleich neu gerechnet“.", kurz=True)
+    i.genauer()
+    i.liste("Stufen legt das Programm nie selbst an: nur <b>Neue Stufe …</b> und <b>Standard-Staffeln</b> legen "
+            "sie an.",
+            "Mengen und Werte der Stufen bleiben, wie sie eingetragen sind; neu gerechnet werden nur die Preise.",
+            "Vor dem Angebots-PDF rechnet das Programm noch offene Stufen sofort, damit keine Stufe fehlt.",
+            "Die neuen Preise sind kein eigener Schritt für <b>Rückgängig</b>: Strg+Z nimmt Ihre letzte Änderung "
+            "zurück, die Stufen passen sich wieder an.",
+            "Im Lesemodus und bei Angeboten von Kollegen rechnet das Programm nichts: veraltete Stufen bleiben ohne "
+            "Preis, fehlen im Angebots-PDF, und der Angebots-Check warnt („Staffelstufe(n) veraltet oder nicht "
+            "gerechnet“).")
 
 
 def kapitel_fracht(i):
