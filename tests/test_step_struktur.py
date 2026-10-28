@@ -212,7 +212,7 @@ erg = step.uebernehmen(m3, [], k, db.zeilen("gewinde"), None, "S235-10219", None
 g = baugruppe.lesen(next(p for p in erg["positionen"] if p.get("art") == BAUGRUPPE)["baugruppe"])
 assert not g["naehte"]
 vs = sorted((v["nahtart"], v["anzahl"], v["laenge"], v["knoten"], v.get("zugang")) for v in g["vorschlaege"])
-# seit 0.9.175 trennt die Erreichbarkeit aus STEP: 4 der 5 Kehlnähte sind nur eingeschränkt erreichbar
+# seit 0.9.176 trennt die Erreichbarkeit aus STEP: 4 der 5 Kehlnähte sind nur eingeschränkt erreichbar
 assert vs == [("Kehlnaht", 1, 152, "", "gut"), ("Kehlnaht", 4, 152, "", "eingeschränkt"),
               ("Stumpfnaht", 1, 152, "", "gut")], vs
 assert any("6 Nahtkandidaten als Vorschlag" in b for b in erg["bericht"]), erg["bericht"]
