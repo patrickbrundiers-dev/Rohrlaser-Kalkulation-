@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.183", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
+                "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
+                "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",
+     "Datendatei: schneller bei vielen Angeboten (Indizes)."],
     ["0.9.182", "<b>Eigene Abrechnungsregeln für Zusatzarbeiten</b>: Die Arbeitsgang-Regeln setzen jetzt auch, "
                 "<i>wie</i> abgerechnet wird und <i>wann</i> eine Zusatzarbeit automatisch gilt. Je Regel Zuordnung "
                 "(Vorschlag, automatisch, nur Preis), Abrechnung, Preis je Einheit, Menge (z. B. Innen- + "
