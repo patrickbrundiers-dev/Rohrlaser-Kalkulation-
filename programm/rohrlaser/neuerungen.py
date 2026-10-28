@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.181", "<b>Mehr im gemeinsamen Ordner</b> ([[gemeinsamer_ordner_mehr]]): <b>Anfragen</b> liegen im Unterordner "
+                "<i>Anfragen</i> (wenn kein eigener Anfrage-Ordner eingetragen ist) und lassen sich mit <i>Zuweisen …</i> "
+                "einem Kollegen geben; alle sehen <i>für MK</i>, beim Kollegen steht sie fett ([[anfragen]]). Neue "
+                "<b>Angebotsordner</b> (PDF, CSV, STEP) entstehen im Unterordner <i>Angebote</i>, so öffnet jeder "
+                "denselben Ordner; ältere bleiben in der eigenen Ablage. <b>Notizen an Kollegen</b> (Vorgang ▾ → "
+                "<i>Notiz an Kollegen …</i>, wahlweise mit Wiedervorlage) stehen auf seiner Startseite unter "
+                "<i>Heute</i> mit <i>Erledigt</i> und <i>Antworten …</i>. Die <b>Sicherung beim Beenden</b> kommt "
+                "zusätzlich nach <i>Sicherungen/Kürzel</i>. Alles einzeln abschaltbar (Einstellungen → Benutzer).",
+     "Anfragen zuweisen, Angebotsordner, Notizen und Sicherung im gemeinsamen Ordner"],
     ["0.9.180", "<b>Löschschutz für optimierte Angebote</b>: Neue Einstellung <i>Angebot → Löschschutz: optimierte "
                 "Angebote nicht löschbar</i> (Vorgabe aus). <i>immer</i> schützt jedes Angebot, das "
                 "einmal optimiert wurde, <i>nur von Hand</i> nur die von Hand optimierten. "

@@ -895,6 +895,8 @@ def kapitel_angebote(i):
             "Beim Öffnen wird die Anfrage <b>gesperrt</b>: Kollegen sehen <i>in Bearbeitung: PB</i> (Kürzel aus "
             "[[mehrere_arbeitsplaetze]]). Lose Dateien kommen dazu in einen eigenen Unterordner <i>Anfrage Datum Uhrzeit</i>. "
             "Eine vergessene Sperre gilt nach 12 Stunden nicht mehr.",
+            "Mit gemeinsamem Ordner gilt ohne eigenen Eintrag dessen Unterordner <i>Anfragen</i>; eine Anfrage lässt "
+            "sich dort mit <b>Zuweisen …</b> einem Kollegen geben ([[gemeinsamer_ordner_mehr]]).",
             "Nach dem <b>Übernehmen</b> verschiebt das Programm die STEP-Dateien in den Unterordner <i>STEP</i> und "
             "die Formulare in den Unterordner <i>Anfrage</i> des Angebotsordners ([[angebotsordner]]); der leere "
             "Unterordner im Anfrage-Ordner entfällt. <b>Abbrechen</b> lässt alles liegen und hebt die Sperre auf.",
@@ -5786,6 +5788,35 @@ def kapitel_mehrere(i):
     i.text("Nur für den eigenen Arbeitsplatz gelten: Benutzer (Name, Kürzel, E-Mail, Telefon), gemeinsamer Ordner, "
            "Ablageordner, zweiter Sicherungsordner, STEP-Standardordner, Hilfetexte und die Signatur der "
            "Materialanfrage.")
+    i.abschnitt("Mehr im gemeinsamen Ordner", marke="gemeinsamer_ordner_mehr")
+    i.text("Im gemeinsamen Ordner liegen auch die <b>Anfragen</b>, die <b>Angebotsordner</b> und eine <b>Sicherung</b> "
+           "jedes Arbeitsplatzes; Kollegen bekommen <b>Notizen</b>.", kurz=True)
+    i.genauer()
+    i.tabelle(["Unterordner", "Was darin liegt"], [
+        ["<i>Anfragen</i>", "der Anfrage-Ordner für alle ([[anfragen]]), solange in den Einstellungen kein eigener "
+                            "Anfrage-Ordner eingetragen ist"],
+        ["<i>Angebote</i>", "die Ordner der Angebote mit PDFs, CSV und STEP-Dateien ([[angebotsordner]]); so öffnet "
+                            "<b>Ordner öffnen</b> auch bei Angeboten der Kollegen deren Ordner"],
+        ["<i>Sicherungen\\PB</i>", "beim Beenden eine Sicherung je Tag und Arbeitsplatz, die letzten 7 Tage; "
+                                    "<i>Sicherung wiederherstellen …</i> zeigt sie mit an"]],
+        [45, 220])
+    i.liste("Die Einstellungen dazu stehen in der Gruppe Benutzer und gelten für alle: <i>Anfrage-Ordner im "
+            "gemeinsamen Ordner</i>, <i>Angebotsordner im gemeinsamen Ordner</i> und <i>Sicherung beim Beenden auch "
+            "im gemeinsamen Ordner</i> (jeweils ja/nein, Vorgabe ja).",
+            "Ordner älterer Angebote bleiben in der eigenen Ablage, das Programm findet sie dort weiter. Daten-Export "
+            "und -Import schlagen weiter die eigene Ablage vor. Ist der gemeinsame Ordner nicht erreichbar, schreibt "
+            "das Programm in die eigene Ablage.",
+            "<b>Anfrage zuweisen</b>: auf der Startseite in <i>Neue Anfragen</i> eine Anfrage markieren, <b>Zuweisen "
+            "…</b>, Kollegen wählen und eine Notiz dazu. Alle sehen dann <i>für MK</i> hinter der Anfrage; beim "
+            "Kollegen steht sie fett und oben im Titel <i>davon 1 für Sie</i>. <b>Öffnen</b> ohne Auswahl nimmt "
+            "zuerst die eigenen. Öffnet jemand eine Anfrage, die einem anderen zugewiesen ist, fragt das Programm "
+            "nach. <i>(niemand)</i> hebt die Zuweisung auf.",
+            "<b>Notiz an Kollegen</b>: im Reiter Angebote ein Angebot markieren (auch das eines Kollegen), "
+            "<i>Vorgang ▾ → Notiz an Kollegen …</i>, Kollegen wählen, Text, wahlweise <i>Wiedervorlage am</i> "
+            "mit Datum. Der Kollege bekommt beim nächsten Abgleich eine Meldung; auf seiner Startseite steht die "
+            "Notiz unter <b>Notizen von Kollegen</b> (mit Wiedervorlage erst ab dem Datum schwarz, vorher grau). "
+            "Doppelklick öffnet das Angebot, <b>Antworten …</b> schickt eine Notiz zurück, <b>Erledigt</b> nimmt "
+            "sie aus der Liste.")
     i.abschnitt("Konflikte beim Abgleich", marke="abgleich_konflikte")
     i.text("Haben zwei dieselbe Stammdatenzeile verschieden geändert, zeigt <i>Datei → Abgleich-Konflikte …</i>, "
            "wessen Änderung gilt; die andere lässt sich wiederherstellen.", kurz=True)
