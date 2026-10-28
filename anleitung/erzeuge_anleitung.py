@@ -5488,8 +5488,8 @@ def kapitel_mehrere(i):
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
-            "<b>Abgleichen</b> im Reiter Angebote holt die Angebote der Kollegen; beim Start und Beenden geht das "
-            "von selbst.", nummeriert=True, kurz=True)
+            "Abgeglichen wird von selbst (alle 2 Minuten, beim Start und Beenden); <b>Abgleichen</b> im Reiter "
+            "Angebote tut es sofort.", nummeriert=True, kurz=True)
     i.abschnitt("Benutzer und Kürzel")
     i.genauer()
     i.liste("<b>Datei → Benutzer und gemeinsamer Ordner …</b> (beim ersten Start von selbst): Name, Kürzel, E-Mail "
@@ -5537,6 +5537,10 @@ def kapitel_mehrere(i):
            "gemeinsamen Einstellungen.")
     i.tabelle(["Wann", "Was passiert"], [
         ["Programmstart", "holt Angebote und Stammdaten der Kollegen (ohne Fenster; Fehler nur in der Statuszeile)"],
+        ["Alle 2 Minuten (von selbst)", "holt Neues der Kollegen und legt eigene Änderungen in den Ordner; nur wenn "
+                                        "sich etwas geändert hat, nicht während ein Dialog offen ist. Der Abstand "
+                                        "steht in den Einstellungen, Gruppe Benutzer: <i>Automatischer Abgleich alle [min] "
+                                        "(0 = aus)</i>"],
         ["Knopf <b>Abgleichen</b> (Reiter Angebote) oder <i>Datei → Mit den Kollegen abgleichen</i> (Strg+Umschalt+A)",
          "holt den Stand der Kollegen und legt den eigenen in den Ordner"],
         ["Beenden", "legt die eigenen Angebote und Stammdaten in den Ordner; ist er nicht erreichbar, fragt das "
@@ -5554,6 +5558,35 @@ def kapitel_mehrere(i):
             "eigener Nummer und heutigem Datum an.",
             "Ändert oder löscht der Kollege sein Angebot, zeigt der nächste Abgleich das auch hier; ein offenes "
             "Fenster lädt neu bzw. schließt sich.")
+    i.abschnitt("Wer arbeitet woran", marke="wer_arbeitet_woran")
+    i.text("Hat ein Kollege sein Angebot gerade offen, steht in der Liste <b>● geöffnet</b> hinter seinem Kürzel.",
+           kurz=True)
+    i.genauer()
+    i.liste("Jedes Programm meldet beim Abgleich, welche eigenen Angebote gerade offen sind. In der Spalte "
+            "<b>Bearbeiter</b> steht dann z. B. <i>PB ● geöffnet</i>, im gelben Hinweis des Angebots <i>PB hat es "
+            "gerade geöffnet (seit 10:12)</i>.",
+            "Stürzt ein Programm ab, gilt die Meldung nach 20 Minuten ohne Abgleich nicht mehr.",
+            "Rechts in der Statusleiste steht <b>⇄ abgeglichen 14:32</b>; der Tipp zeigt den gemeinsamen Ordner und "
+            "den Stand jedes Kollegen. Ist der Ordner nicht erreichbar, steht dort <i>⇄ Ordner nicht erreichbar</i> "
+            "in Rot.")
+    i.abschnitt("Angebot übergeben oder übernehmen", marke="angebot_uebergeben")
+    i.text("Ein Angebot lässt sich an einen Kollegen <b>übergeben</b>; umgekehrt kann man die <b>Übernahme "
+           "anfragen</b>. Danach gehört es dem anderen und nur er kann es ändern.", kurz=True)
+    i.genauer()
+    i.liste("<b>Übergeben</b>: im Reiter Angebote das eigene Angebot markieren, <i>Vorgang ▾ → An Kollegen "
+            "übergeben …</i>, Kollegen wählen und eine kurze Notiz schreiben (z. B. <i>bitte fertig rechnen</i>). Das "
+            "Angebot ist sofort nur noch zum Ansehen; der Kollege übernimmt es beim nächsten Abgleich und bekommt "
+            "eine Meldung mit der Notiz. Nummer, Positionen, Staffeln und 3D-Ansicht bleiben gleich, Bearbeiter wird "
+            "der Kollege.",
+            "<b>Übergabe zurücknehmen</b>: solange der Kollege das Angebot noch nicht übernommen hat (z. B. weil sein "
+            "Programm nicht läuft), steht der Knopf im gelben Hinweis des Angebots.",
+            "<b>Übernahme anfragen</b>: im Angebot eines Kollegen im gelben Hinweis <i>Übernahme anfragen …</i>, "
+            "Notiz dazu. Der Bearbeiter wird bei seinem nächsten Abgleich gefragt (Fenster <i>Angebot übergeben?</i>): <b>Übergeben</b>, <b>Ablehnen</b> "
+            "(mit kurzer Begründung) oder <b>Später</b> (dann fragt das Programm beim nächsten Mal wieder). Die "
+            "Antwort kommt als Meldung zurück; nach dem Übergeben ist das Angebot beim Anfragenden bearbeitbar.",
+            "Ein Angebot mit vorläufiger Nummer lässt sich erst übergeben, wenn es seine endgültige Nummer hat.",
+            "Wer nur weiterrechnen will, ohne dass das Angebot den Bearbeiter wechselt, nimmt weiter <b>Als Kopie "
+            "übernehmen</b>.")
     i.abschnitt("Gemeinsame Stammdaten")
     i.text("Stammdaten und Einstellungen gelten für alle; bei gleichzeitigen Änderungen gewinnt die neueste.",
            kurz=True)
@@ -5567,6 +5600,18 @@ def kapitel_mehrere(i):
     i.text("Nur für den eigenen Arbeitsplatz gelten: Benutzer (Name, Kürzel, E-Mail, Telefon), gemeinsamer Ordner, "
            "Ablageordner, zweiter Sicherungsordner, STEP-Standardordner, Hilfetexte und die Signatur der "
            "Materialanfrage.")
+    i.abschnitt("Konflikte beim Abgleich", marke="abgleich_konflikte")
+    i.text("Haben zwei dieselbe Stammdatenzeile verschieden geändert, zeigt <i>Datei → Abgleich-Konflikte …</i>, "
+           "wessen Änderung gilt; die andere lässt sich wiederherstellen.", kurz=True)
+    i.genauer()
+    i.liste("Es gilt die jüngere Änderung. Die andere Fassung merkt sich das Programm. Die Meldung nach dem Abgleich "
+            "hat dann den Knopf <b>Konflikte …</b>, die Statusleiste zeigt <i>· 1 Konflikte</i>.",
+            "<i>Datei → Abgleich-Konflikte …</i> listet sie: welche Zeile (z. B. <i>Kunden: 10042 Muster GmbH</i>), "
+            "wessen Änderung gilt und wessen verloren ging; der Tipp zeigt die abweichenden Werte.",
+            "<b>Andere Fassung wiederherstellen</b> trägt die verlorene Fassung wieder ein; sie geht beim nächsten "
+            "Abgleich an alle. <b>So lassen (gesehen)</b> markiert den Konflikt als erledigt.",
+            "Beide Seiten sehen den Konflikt. Die Zeit der Rechner sollte ungefähr stimmen (Windows stellt sie "
+            "selbst), sonst gewinnt im Zweifel der Rechner mit der späteren Uhr.")
     i.abschnitt("Erster Abgleich, neuer Rechner")
     i.genauer()
     i.liste("Liegen im Ordner schon Dateien von Kollegen, fragt der erste Abgleich: <b>Übernehmen</b> (empfohlen "
@@ -5582,7 +5627,7 @@ def kapitel_mehrere(i):
             "erst nach dem eigenen Update (Hinweis beim Abgleich); seine Angebote kommen trotzdem.")
     i.hinweis("Das Kürzel ist eine Kennung, kein Zugriffsschutz: wer den gemeinsamen Ordner öffnen kann, sieht alle "
               "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
-              "letzten Abgleichs, nicht live.")
+              "letzten Abgleichs (von selbst alle 2 Minuten), nicht live.")
 
 
 def kapitel_stammdaten(i):
@@ -7529,7 +7574,8 @@ STECKBRIEFE = {
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
     "mehrere_arbeitsplaetze": ("Kürzel als Bearbeiter, gemeinsamer Nummernkreis 2026-00001; Angebote und Stammdaten "
-                               "mit den Kollegen über einen gemeinsamen Ordner teilen.",
+                               "mit den Kollegen über einen gemeinsamen Ordner teilen, Angebote übergeben, sehen wer "
+                               "woran arbeitet.",
                                "<i>Datei → Benutzer und gemeinsamer Ordner …</i>; Knopf <i>Abgleichen</i> im Reiter "
                                "Angebote"),
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",

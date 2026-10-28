@@ -320,7 +320,8 @@ class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
-    SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Bearbeiter", lambda z: bearbeiter(z), None, 70),
+    SPALTEN = [("Angebotsnummer", "nummer", None, 120),
+               ("Bearbeiter", lambda z: bearbeiter(z) + (" ● geöffnet" if z.get("_offen") else ""), None, 70),
                ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
                ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
@@ -378,10 +379,13 @@ class AngeboteSeite(QWidget):
         menue.addSeparator()            # Plan A9
         menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen())
         menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
+        # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
+        self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
         trenner = menue.addSeparator()  # Plan Palettenbegleitschein (ausgeblendet, wenn Versand aus)
         ps = menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
         self.palettenschein_aktionen = (trenner, ps)
         menue.aboutToShow.connect(lambda: [a.setVisible(self.f.versand_an()) for a in self.palettenschein_aktionen])
+        menue.aboutToShow.connect(lambda: self.uebergeben_aktion.setVisible(teilen.aktiv(self.db)))
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -427,8 +431,10 @@ class AngeboteSeite(QWidget):
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
                                                              nachfassen=self.db.einstellung("nachfassen_tage"))}
         zeilen = []
+        geteilt = teilen.aktiv(self.db)
         for z in alle:
             z["_wv"] = faellig.get(id(z))
+            z["_offen"] = teilen.offen_bei(self.db, z.get("nummer")) if geteilt and z.get("fremd") else None
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
             if not passt(vorgang(z), z["_abgelaufen"], z):
                 continue
@@ -461,6 +467,14 @@ class AngeboteSeite(QWidget):
             self.wer_filter.setCurrentText(alt if alt in eintraege else ALLE if eintraege else "")
             self.wer_filter.blockSignals(False)
         return self.wer_filter.currentText() if sichtbar_jetzt else ALLE
+
+    def uebergeben(self, angebot_id=None, an=None, notiz=""):
+        """Vorgang → An Kollegen übergeben: das gewählte eigene Angebot gehört danach dem Kollegen."""
+        from . import teilen_fenster
+        i = angebot_id or self._gewaehlt()
+        if i is None or self._fremd(i, "Übergeben"):
+            return False
+        return teilen_fenster.uebergeben(self.f, i, an, notiz)
 
     def _fremd(self, i, was):
         """Angebot eines Kollegen: Hinweis statt Ändern. Ergebnis: True = fremd (nichts tun)."""
@@ -2034,6 +2048,17 @@ class AngebotSeite(QWidget):
         kopie.setToolTip("Eigene Kopie mit eigener Nummer und heutigem Datum anlegen und öffnen")
         kopie.clicked.connect(lambda: self.als_kopie())
         fl.addWidget(kopie)
+        # Zusammenarbeit (Patrick 28.10.2026): Übernahme beim Bearbeiter anfragen, eigene Übergabe zurücknehmen
+        self.anfrage_knopf = QPushButton("Übernahme anfragen …")
+        self.anfrage_knopf.setToolTip("Den Bearbeiter fragen, ob er Ihnen das Angebot übergibt (er wird beim nächsten "
+                                      "Abgleich gefragt)")
+        self.anfrage_knopf.clicked.connect(lambda: self._anfragen())
+        fl.addWidget(self.anfrage_knopf)
+        self.zurueck_knopf = QPushButton("Übergabe zurücknehmen")
+        self.zurueck_knopf.setToolTip("Das Angebot wieder selbst bearbeiten (nur solange der Kollege es noch nicht "
+                                      "übernommen hat)")
+        self.zurueck_knopf.clicked.connect(lambda: self._zuruecknehmen())
+        fl.addWidget(self.zurueck_knopf)
         self.fremd_leiste.hide()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
@@ -2084,11 +2109,34 @@ class AngebotSeite(QWidget):
         if lesen and not k:
             self.fremd_text.setText(f"<b>Lesemodus</b> – {self.db.nur_lesen}. Das Angebot lässt sich ansehen, aber "
                                     "nicht ändern (Hilfe → Lizenz …).")
+        nr = (self.kopf or {}).get("nummer")
+        uebergabe = teilen.vorgang_offen(self.db, nr, teilen.UEBERGABE) if k else None
+        anfrage = teilen.vorgang_offen(self.db, nr, teilen.ANFRAGE) if k else None
+        self.zurueck_knopf.setVisible(bool(uebergabe) and not lesen)
+        self.anfrage_knopf.setVisible(bool(k) and not uebergabe and not lesen and teilen.aktiv(self.db))
+        self.anfrage_knopf.setEnabled(not anfrage)
+        self.anfrage_knopf.setText("Übernahme angefragt" if anfrage else "Übernahme anfragen …")
         if k:
             m = teilen.mitarbeiter(self.db, k)
             wer = f"{m.get('name')} ({k})" if m.get("name") else k
-            self.fremd_text.setText(f"<b>Angebot von {wer}</b> – nur zum Ansehen (Stand des letzten Abgleichs). "
-                                    "Ändern kann es nur der Bearbeiter; zum Weiterarbeiten als eigene Kopie übernehmen.")
+            if uebergabe:
+                self.fremd_text.setText(f"<b>An {wer} übergeben</b> – {k} übernimmt das Angebot beim nächsten Abgleich. "
+                                        "Bis dahin lässt sich die Übergabe zurücknehmen.")
+                return
+            offen = teilen.offen_bei(self.db, nr)
+            jetzt = (f" <b>{k} hat es gerade geöffnet</b> (seit {str(offen[1])[11:16] or offen[1]})."
+                     if offen else "")
+            self.fremd_text.setText(f"<b>Angebot von {wer}</b> – nur zum Ansehen (Stand des letzten Abgleichs).{jetzt} "
+                                    "Ändern kann es nur der Bearbeiter; zum Weiterarbeiten als eigene Kopie übernehmen "
+                                    "oder die Übernahme anfragen.")
+
+    def _anfragen(self, notiz=None):
+        from . import teilen_fenster
+        return teilen_fenster.anfragen(self.f, self.id, notiz)
+
+    def _zuruecknehmen(self):
+        from . import teilen_fenster
+        return teilen_fenster.zuruecknehmen(self.f, self.id)
 
     def als_kopie(self):
         """Fremdes (oder eigenes) Angebot kopieren: eigene Nummer, öffnet die Kopie."""
