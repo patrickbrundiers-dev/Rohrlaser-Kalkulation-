@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.171", "<b>Fehlende Abmessung gleich anlegen</b>: Steht eine getippte Abmessung (z. B. RE 70x30x3) nicht in "
+                "den Stammdaten, bietet ein Menü unter dem Feld <i>Abmessung … neu anlegen …</i> an – in der "
+                "Schnellzeile, in der Profilspalte und in der Kopfzeile des Rohr-Editors (Neue Position). Das Fenster "
+                "ist aus der Eingabe vorbelegt (Form, Maße, Profil-ID, kg/m), fragt bei C-Profil und Trägern ohne "
+                "Normtabelle die Fläche ab, und die Position wird danach mit der neuen Abmessung angelegt. Kein "
+                "Materialpreis wird geraten ([[abmessung_neu]]).",
+     "Unbekannte Abmessung in Schnellzeile, Profilspalte oder Rohr-Editor: Menü „neu anlegen …“, vorbelegt."],
     ["0.9.170", "<b>12-m-Zuschnitt genauer</b>: Für die Werkstücke aus einer 12-m-Stange probiert die Optimierung "
                 "neben Beladelänge und 12 m ÷ 2 … 6 jetzt alle 250 mm ab der nötigen Länge als Obergrenze aus (bis "
                 "300 Teile je Abmessung). Bei gemischten Teilelängen spart das Lieferstangen, z. B. 3 statt 4 "

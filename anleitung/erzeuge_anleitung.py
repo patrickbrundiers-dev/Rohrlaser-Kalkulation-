@@ -1653,6 +1653,24 @@ def kapitel_angebot(i):
             "Schnellzeile einfügen: je Zeile eine Position. Nicht erkannte Zeilen nennt die Einblendung (alle unter "
             "<b>Bericht …</b>); die erste steht danach zum Korrigieren in der Schnellzeile, die übrigen folgen nach "
             "jeder Eingabe. Alles zusammen ist ein Schritt für <b>Rückgängig</b>.")
+    i.abschnitt("Fehlende Abmessung gleich anlegen", marke="abmessung_neu")
+    i.text("Steht eine getippte Abmessung (z. B. <i>RE 70x30x3</i> oder <i>RR 60,3x2,9</i>) nicht in den Stammdaten, "
+           "erscheint nach der Eingabe direkt unter dem Feld ein kleines Menü: <b>Abmessung … neu anlegen …</b>. "
+           "Das Fenster <i>Neue Abmessung anlegen</i> ist aus der Eingabe vorbelegt; <b>Profil anlegen</b> schreibt "
+           "sie in die Stammdaten und die Eingabe läuft mit ihr weiter.", kurz=True)
+    i.genauer()
+    i.liste("Das Menü kommt in der Schnellzeile ([[schnellzeile]]), in der Profilspalte der Positionsliste und in "
+            "der Kopfzeile des Rohr-Editors bei <i>Neue Position → Rohr / Profil</i> (dort auch über <b>Neu …</b>). "
+            "<i>Nicht anlegen</i> oder Esc schließt es; die Eingabe bleibt dann wie sie war.",
+            "Erkannt werden die Kürzel RR (auch Ø), QR, RE, FL, L, U und C; ohne Kürzel gilt bei drei Maßen "
+            "Rechteckrohr (gleiche Seiten: Quadratrohr), bei zwei Maßen Rundrohr. <i>QR 50x4</i> wird QR 50x50x4, "
+            "<i>L 50x5</i> ein gleichschenkliger Winkel L 50x50x5. Form, Maße und Profil-ID lassen sich im Fenster "
+            "noch ändern; mit einer anderen Profil-ID bekommt die Position diese.",
+            "Querschnitt, kg/m und Hüllkreis rechnet das Programm aus den Maßen. Lässt sich der Querschnitt nicht "
+            "rechnen (C-Profil, Träger ohne Normtabelle), fragt das Fenster die <b>Fläche</b> laut Hersteller ab.",
+            "Einen Materialpreis rät das Programm nicht: Die Meldung erinnert daran, ihn unter Einstellungen → "
+            "Werkstoffe/Materialpreise oder im Angebot über <b>Material …</b> als Meterpreis einzutragen "
+            "([[material_fenster]]); bis dahin zeigt die Position ihn als fehlend.")
     i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
     i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
         ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],
