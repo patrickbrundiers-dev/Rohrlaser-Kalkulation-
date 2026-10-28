@@ -469,6 +469,7 @@ class StepPruefDialog(QDialog):
         self._vor_uhr.setInterval(150)
         self._vor_uhr.timeout.connect(self.vorpruefung_zeigen)
         self.baum.itemChanged.connect(lambda *_: self._vor_uhr.start())
+        self.baum.itemChanged.connect(self._artikel_geaendert)
         self.baum.currentItemChanged.connect(lambda *_: self._vor_uhr.start())
         self.anbau_weg.toggled.connect(lambda *_: self._vor_uhr.start())
         self.alle_ws.currentIndexChanged.connect(lambda *_: self._vor_uhr.start())
@@ -524,6 +525,10 @@ class StepPruefDialog(QDialog):
                 g.setExpanded(True)
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
+            it.setData(0, Qt.UserRole + 1, it.text(0))       # Artikelnummer beim Aufbau (Doppelklick ändert sie)
+            herkunft = "von Hand geändert" if m.get("_artikel_hand") else m.get("_artikel_herkunft")
+            if m.get("_artikel_unsicher") and not m.get("_artikel_hand"):
+                it.setBackground(0, QBrush(stil.farbe(stil.GELB_FLAECHE)))
             gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen" and not m.get("_normteil"))
                         is not False) if ist_blech \
                 else m.get("_uebernehmen", not m.get("_normteil")) is not False if ist_voll else step.gewaehlt(m)
@@ -565,8 +570,13 @@ class StepPruefDialog(QDialog):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
             if m.get("_normteil"):
                 hinweis.append(f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken")
-            if m.get("pfad") and m.get("pfad") != m.get("artikel"):
-                it.setToolTip(0, f"In der Baugruppe: {m['pfad']}")
+            tipp = [f"Artikelnummer aus: {herkunft}"] if herkunft else []
+            if m.get("_artikel_unsicher") and not m.get("_artikel_hand"):
+                tipp.append("Unsicher – bitte prüfen.")
+            if m.get("pfad") and "/" in str(m["pfad"]) and m.get("pfad") != m.get("artikel"):
+                tipp.append(f"In der Baugruppe: {m['pfad']}")
+            tipp.append("Doppelklick: Artikelnummer ändern")
+            it.setToolTip(0, "\n".join(tipp))
             if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
                 hinweis.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
             hinweis += [h for h in [m.get("hinweise")] if h]
@@ -1242,8 +1252,34 @@ class StepPruefDialog(QDialog):
 
     def _doppelklick(self, it, spalte):
         z = self._zeile(it)
-        if z and spalte == self.SP_ANBAU and it.text(self.SP_ANBAU):
+        if z and spalte == 0:           # Artikelnummer ändern (gilt für alle gleichen Teile der Zeile)
+            it.setFlags(it.flags() | Qt.ItemIsEditable)
+            self.baum.editItem(it, 0)
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+        elif z and spalte == self.SP_ANBAU and it.text(self.SP_ANBAU):
             self.anbau_pruefen(z.liste[0])
+
+    def _artikel_geaendert(self, it, spalte):
+        z = self._zeile(it)
+        if z and spalte == 0 and it.text(0).strip() and it.text(0) != it.data(0, Qt.UserRole + 1):
+            self.baum.blockSignals(True)
+            try:
+                self.artikel_setzen(z, it.text(0))
+            finally:
+                self.baum.blockSignals(False)
+            self._vor_uhr.start()
+
+    def artikel_setzen(self, z, text):
+        """Artikelnummer der Zeile z von Hand (Prüfdialog, Doppelklick): für alle gleichen Teile, bleibt beim
+        Kundenwechsel (importprofil.anwenden) erhalten; leer = wie gemessen."""
+        text = (text or "").strip()
+        for i in z.liste:
+            m = self.messwerte[i]
+            if text and text != (m.get("artikel") or ""):
+                m["artikel"], m["_artikel_hand"] = text, True
+        z.it.setData(0, Qt.UserRole + 1, z.it.text(0))
+        z.it.setBackground(0, QBrush())
+        z.it.setToolTip(0, "Artikelnummer aus: von Hand geändert\nDoppelklick: Artikelnummer ändern")
 
     def anbau_pruefen(self, index, dialog=False):
         """Dialog 'Anbauteile prüfen' für die Zeile mit dem Teil Nr. index; dialog=True: nur den Dialog zurückgeben
@@ -1304,6 +1340,8 @@ class StepPruefDialog(QDialog):
         """Gewählte Werte in die Messwerte schreiben (_uebernehmen, _profil, _werkstoff, _stueck; bei einem Satz
         _saetze = Sätze, _stueck = Sätze, _je_satz = Stück je Satz)."""
         for z in self.zeilen:
+            if z.it.text(0).strip() and z.it.text(0) != z.it.data(0, Qt.UserRole + 1):
+                self.artikel_setzen(z, z.it.text(0))
             profil = z.pr.currentText().strip()
             saetze = self.saetze.get(z.datei) if z.datei in self.mehrteilig else 0
             for i in z.liste:

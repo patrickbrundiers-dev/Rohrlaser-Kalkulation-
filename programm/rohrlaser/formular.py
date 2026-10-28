@@ -193,7 +193,7 @@ def stueck_setzen(messwerte, stueck):
     for m in messwerte:
         if m.get("_saetze"):
             continue
-        for kandidat in (m.get("artikel"), m.get("datei")):
+        for kandidat in (m.get("artikel"), m.get("bauteil"), m.get("datei")):     # Bauteilname auch unbereinigt
             w = je.get(_schluessel(kandidat)) if kandidat else None
             if w:
                 m["_stueck"], m["_stueck_formular"] = w[0], w[1]

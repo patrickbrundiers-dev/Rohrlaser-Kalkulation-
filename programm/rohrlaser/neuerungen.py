@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.171", "<b>Artikelnummer aus der STEP-Datei besser</b>: Schreibt das CAD-System eine eigene "
+                "<b>Teilenummer</b> in die STEP-Datei, wird sie die Artikelnummer und die Benennung die Bezeichnung. "
+                "Namen werden bereinigt: CAD-Zusätze (<i>Rohr:1</i>, <i>Teil1&lt;1&gt;</i>), Dateiendungen "
+                "(<i>.SLDPRT</i>), Kopie-Zusätze (<i>Kopie von</i>, <i> - Kopie</i>, <i> (1)</i>) und die "
+                "<b>Revision</b> (<i>_Rev B</i>, <i>_v2</i>, <i>Index C</i>, steht dann in der Bezeichnung) fallen "
+                "weg. CAD-Standardnamen wie <i>Teil1</i>, <i>Part1</i>, <i>Body1</i> gelten wie kein Name (dann der "
+                "Dateiname). Steht eine Nummer im Namen (<i>Strebe links 4711-020</i>), wird sie erkannt. Im "
+                "<b>Prüfdialog</b> zeigt der Tooltip auf dem Teil die Herkunft der Nummer, unsichere Nummern sind "
+                "gelb, und ein Doppelklick ändert die Artikelnummer ([[importprofile]]).",
+     "Artikelnummer aus STEP: Teilenummer, Bereinigung, Revision, Nummer im Namen, im Prüfdialog änderbar"],
     ["0.9.170", "<b>12-m-Zuschnitt genauer</b>: Für die Werkstücke aus einer 12-m-Stange probiert die Optimierung "
                 "neben Beladelänge und 12 m ÷ 2 … 6 jetzt alle 250 mm ab der nötigen Länge als Obergrenze aus (bis "
                 "300 Teile je Abmessung). Bei gemischten Teilelängen spart das Lieferstangen, z. B. 3 statt 4 "
