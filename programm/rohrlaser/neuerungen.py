@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.173", "<b>Mehrere Mails zur selben Anfrage</b>: Mails vom selben Kunden mit derselben Anfrage-Nr. oder "
+                "demselben Betreff (ohne AW:/WG:) innerhalb von 3 Tagen sind eine Anfrage, auch ein Nachtrag ohne "
+                "STEP. Bei verschiedenen Angaben gilt die neueste Mail, die ältere steht als Hinweis im Prüfdialog "
+                "(Stückzahl gelb mit Tooltip). Kommt eine STEP-Datei neu, gilt die neueste Version; die alte bleibt "
+                "als <i>Name (alt)</i> liegen und wird nicht importiert. Ein Nachtrag zu einem schon übernommenen "
+                "Angebot wird auf der Startseite genannt ([[anfrage_mail]]).",
+     "Mehrere Mails je Anfrage: zusammengefasst, neueste gilt, alte STEP als „(alt)“."],
     ["0.9.172", "<b>E-Mail und Anfrageformular schlauer</b>: Ist der Absender unbekannt, legt das Programm den "
                 "Kunden mit Adresse, Ansprechpartner und Telefon aus Signatur bzw. Formular an – mit der Bemerkung "
                 "<i>Kunde prüfen</i> (bei Abbruch wieder entfernt). Das Anfrageformular wird wie die Mail ausgewertet "

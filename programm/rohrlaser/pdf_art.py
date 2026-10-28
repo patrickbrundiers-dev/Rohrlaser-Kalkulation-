@@ -281,7 +281,33 @@ def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):
     return n
 
 
-AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle")
+AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle", "_stueck_anders")
+
+
+def mails_vergleichen(messwerte, mails, namen):
+    """Mehrere Mails zur selben Anfrage (Patrick 28.10.2026, F3 a; mails neueste zuerst): die Stückzahl kommt aus der
+    neuesten Mail, die das Teil nennt; nennt eine andere Mail eine andere Zahl, steht sie in _stueck_anders (Tooltip,
+    gelb). Setzt _stueck_quelle auf die Mail."""
+    from . import formular, mail
+    if len(mails) < 2:
+        return
+    je = [(f, formular.stueckzahlen(f["text"], namen), formular.stueckzahlen(mail.neuester_teil(f["text"]), namen))
+          for f in mails]
+    for m in messwerte:
+        if "_stueck_formular" not in m or m.get("_saetze"):
+            continue
+        schl = {formular._schluessel(k) for k in (m.get("artikel"), m.get("datei")) if k}
+
+        def wert(st):
+            return next((w[0] for n, w in st.items() if formular._schluessel(n) in schl), None)
+        quelle = next((f for f, st, _ in je if wert(st) == m["_stueck"]), None)
+        if quelle is None:
+            continue
+        m["_stueck_quelle"] = quelle.get("quelle") or "der E-Mail"
+        anders = [f"{f.get('quelle', 'der E-Mail')[4:]}: {w}" for f, _, st in je
+                  if f is not quelle and (w := wert(st)) is not None and w != m["_stueck"]]
+        if anders:
+            m["_stueck_anders"] = "; ".join(dict.fromkeys(anders))
 
 
 def anwenden(messwerte, formulare, werkstoffe=None):
@@ -299,6 +325,7 @@ def anwenden(messwerte, formulare, werkstoffe=None):
     formulare = [f for f in formulare or () if f]
     namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
     n = formular.stueck_setzen(messwerte, formular.stueck_aus([f for f in formulare if f.get("text")], namen))
+    mails_vergleichen(messwerte, [f for f in formulare if f.get("mail") and f.get("text")], namen)
     unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
     z = zeichnung_zu_teilen(messwerte, [z for f in formulare for z in f.get("zeichnungen") or ()], werkstoffe)
     return dict(formular=n, unsicher=unsicher, zeichnung=z)
