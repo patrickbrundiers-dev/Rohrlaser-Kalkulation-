@@ -57,7 +57,7 @@ ok("Statusleiste „⇄ abgeglichen 14:32“ mit Kollegen im Tipp; Abgleich alle
 # ---------------------------------------------------------------- automatischer Abgleich
 teilen_fenster.auto_abgleich(f_pb)
 assert teilen_fenster.auto_abgleich(f_pb) is None, "nichts Neues: weder lesen noch schreiben"
-datei = gemeinsam / "Rohrlaser_PB.sqlite"
+datei = gemeinsam / "Rohrlaser_PB" / "haupt.sqlite"
 vorher = datei.stat().st_mtime_ns
 seite = f_pb.angebot_oeffnen(a1)
 b = teilen_fenster.auto_abgleich(f_pb)

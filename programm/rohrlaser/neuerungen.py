@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.185", "<b>Abgleich mit den Kollegen bei vielen Angeboten schnell</b>: Das Programm packt nur noch Angebote "
+                "neu, die seit dem letzten Abgleich geändert wurden, und legt im gemeinsamen Ordner je Mitarbeiter einen "
+                "Ordner mit einer Datei je Monat an; über das Netz geht nur der geänderte Monat (bei 10.000 Angeboten "
+                "Sekunden statt einer Minute). Alte Einzeldateien werden weiter gelesen. Bitte alle Arbeitsplätze "
+                "aktualisieren, ältere Programme sehen die neuen Ordner nicht ([[gemeinsamer_ordner]]).",
+     "Abgleich: nur geänderte Angebote, eine Datei je Monat im gemeinsamen Ordner."],
     ["0.9.184", "<b>Viele Angebote, Teil 2</b>: <b>Wiederholteile</b> sucht über einen Index nur passende Positionen "
                 "und stuft im Hintergrund ein, das Angebot bleibt auch bei Tausenden Angeboten flüssig "
                 "([[wiederholteile]]). Der Reiter <b>Versand</b> rechnet erst, wenn er gezeigt wird; Aufträge ohne "

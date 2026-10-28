@@ -5733,15 +5733,23 @@ def kapitel_mehrere(i):
               "<b>Netzlaufwerk</b> (Server oder NAS im Firmennetz). Bei OneDrive/SharePoint kommt die Reservierung "
               "erst mit der Synchronisierung bei den Kollegen an; legen zwei in diesem Moment ein Angebot an, kann "
               "eine Nummer selten doppelt entstehen. Der Abgleich meldet das.")
-    i.abschnitt("Gemeinsamer Ordner")
+    i.abschnitt("Gemeinsamer Ordner", marke="gemeinsamer_ordner")
     i.genauer()
     i.text("Ein Ordner, den alle erreichen: ein Netzlaufwerk, eine NAS oder ein OneDrive-/SharePoint-Ordner, den "
            "alle synchronisieren. Jeder trägt denselben Ordner ein (im Dialog oder in den Einstellungen, Gruppe "
-           "Benutzer: <i>Gemeinsamer Ordner der Mitarbeiter</i>; leer = nicht teilen). Darin legt jedes Programm genau eine Datei an, "
-           "<i>Rohrlaser_PB.sqlite</i>, <i>Rohrlaser_MK.sqlite</i> …, und schreibt nur in seine eigene. Deshalb kann "
-           "nichts kaputtgehen, wenn zwei gleichzeitig abgleichen, auch nicht über OneDrive. Die eigene Datei enthält "
-           "alle eigenen Angebote (mit Positionen, Staffeln, STEP-Protokoll und 3D-Ansicht), die Stammdaten und die "
-           "gemeinsamen Einstellungen.")
+           "Benutzer: <i>Gemeinsamer Ordner der Mitarbeiter</i>; leer = nicht teilen). Darin legt jedes Programm genau einen "
+           "Ordner an, <i>Rohrlaser_PB</i>, <i>Rohrlaser_MK</i> …, und schreibt nur in seinen eigenen. Deshalb kann "
+           "nichts kaputtgehen, wenn zwei gleichzeitig abgleichen, auch nicht über OneDrive. Im eigenen Ordner liegen "
+           "die Hauptdatei <i>haupt.sqlite</i> (Stammdaten, gemeinsame Einstellungen, Notizen und Übergaben) und je "
+           "Monat des Angebotsdatums eine Datei <i>Angebote_2026-10.sqlite</i> mit den eigenen Angeboten (Positionen, "
+           "Staffeln, STEP-Protokoll und 3D-Ansicht).")
+    i.text("<b>Auch bei vielen Angeboten schnell:</b> Das Programm merkt sich, welche Angebote seit dem letzten "
+           "Abgleich geändert wurden, und packt nur diese neu. In den gemeinsamen Ordner gehen nur die Monate, in "
+           "denen sich etwas geändert hat, meist also eine kleine Datei statt aller Angebote. Wird ein Monat gerade "
+           "geschrieben, während ein Kollege liest, bleiben dessen Angebote bis zum nächsten Abgleich, wie sie waren. "
+           "Programme vor Version 0.9.185 schrieben eine einzige Datei <i>Rohrlaser_PB.sqlite</i>; solche Dateien "
+           "werden weiter gelesen, die eigene wird beim ersten Abgleich durch den Ordner ersetzt. Ältere Programme "
+           "sehen die neuen Ordner nicht: <b>alle Arbeitsplätze auf dieselbe Version aktualisieren</b>.")
     i.tabelle(["Wann", "Was passiert"], [
         ["Programmstart", "holt Angebote und Stammdaten der Kollegen (ohne Fenster; Fehler nur in der Statuszeile)"],
         ["Alle 2 Minuten (von selbst)", "holt Neues der Kollegen und legt eigene Änderungen in den Ordner; nur wenn "
