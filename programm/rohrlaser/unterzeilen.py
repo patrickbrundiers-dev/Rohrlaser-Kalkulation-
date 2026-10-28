@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from . import rechnen, zukauf
 from .stammdaten import ZUSATZ_EINHEIT, zahl_als_text
-from .stil import GELB_FLAECHE, GELB_TEXT
+from .stil import GELB_FLAECHE, GELB_TEXT, farbe
 
 EINSTELLUNG = "ansicht_zusatz_unterzeilen"      # Häkchen (Vorgabe an, Freigabe 4b)
 STUFEN = ("Programmieren", "Gewinde", "Nachbearbeitung", "Montage", "Oberfläche", "Prüfung", "Verpackung", "Sonstiges")
@@ -237,7 +237,7 @@ class Unterzeilen(QObject):
         text = QColor(pal.color(QPalette.Text))
         text.setAlpha(190)
         rot = QColor("#D0021B")             # fest: kräftiges Rot, auf hell und dunkel lesbar
-        gelb, gelb_flaeche = QColor(GELB_TEXT), QColor(GELB_FLAECHE)
+        gelb, gelb_flaeche = farbe(GELB_TEXT), farbe(GELB_FLAECHE)
         linie = QColor(pal.color(QPalette.Mid))
         linie.setAlpha(90)
         p.setFont(self.schrift)
