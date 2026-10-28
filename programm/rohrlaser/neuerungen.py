@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.169", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
+                "Feld (Text, Zahl, Rechnung, Datum, Auswahl), in Tabellen geht es eine Zeile weiter. Übernehmen "
+                "und schließen nur mit dem Knopf oder gezielt mit <b>Strg+Enter</b>. Ausnahmen: reine Ja/Nein-"
+                "Fragen, Dateiauswahl und Suchen und ausführen ([[eingaben]]).",
+     "Enter schließt in keinem Dialog das Fenster; Strg+Enter übernimmt."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "
