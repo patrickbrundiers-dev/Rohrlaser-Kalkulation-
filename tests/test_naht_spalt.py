@@ -143,7 +143,7 @@ bg, bericht, db = importieren(blech_datei(3))
 assert len(bg["vorschlaege"]) == 1 and bg["vorschlaege"][0]["spalt"] == 3, bg["vorschlaege"]
 assert any("mit Spalt" in z for z in bericht), bericht
 naht = baugruppe.vorschlag_naht(bg["vorschlaege"][0], 0.7)
-assert naht["spalt"] == 3 and naht["nahtart"] == "Kehlnaht" and naht["mass"] == 3.0, naht      # a-Maß mindestens 3 mm, höchstens die Wand 3 (0.9.174)
+assert naht["spalt"] == 3 and naht["nahtart"] == "Kehlnaht" and naht["mass"] == 3.0, naht      # a-Maß mindestens 3 mm, höchstens die Wand 3 (0.9.175)
 assert baugruppe.SPALT_MAX == 2.0
 assert "Spalt 3 mm" in (baugruppe.spalt_zu_gross(bg) or ""), baugruppe.spalt_zu_gross(bg)
 baugruppe.SPALT_MAX = 3.0

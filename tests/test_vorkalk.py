@@ -94,7 +94,7 @@ assert ag["ruesten"]["umlage"] == baugruppe.UMLAGE_AUFTRAG and not ag["ruesten"]
 nah(ag["positionieren"]["zeit_min"], 6.8, "Positionieren 0 + 4 × 0,5 + 4 × 1,2")
 assert "Basisteil" in ag["positionieren"]["vk"]["text"]
 n1, n2 = bg["naehte"]
-assert n1["heftpunkte"] == 3 and n2["heftpunkte"] == 5, (n1["heftpunkte"], n2["heftpunkte"])   # + 1 Enden (0.9.174)
+assert n1["heftpunkte"] == 3 and n2["heftpunkte"] == 5, (n1["heftpunkte"], n2["heftpunkte"])   # + 1 Enden (0.9.175)
 assert "gesteckt" in n1["vk"]["heftpunkte"]["text"]
 assert n1["nacharbeit"] == n2["nacharbeit"] == "Spritzer entfernen"
 nah(ag["verputzen"]["zeit_min"], 8 * 0.16 * 1.5, "Verputzen (4 × 0,16 + 4 × 0,16) m × 1,5")
@@ -218,7 +218,7 @@ def zelle(tab, r, schluessel):
 r = d.vorkalkulation()
 assert r["richtwert"] and "Richtwerte" in d.vk_info.text()
 namen = [x["name"] for x in d.bg["arbeitsgaenge"]]
-assert namen == ["Rüsten Schweißplatz", "Teile positionieren", "Verputzen", "Sichtprüfung"], namen     # 0.9.171
+assert namen == ["Rüsten Schweißplatz", "Teile positionieren", "Verputzen", "Sichtprüfung"], namen     # 0.9.172
 nah(d.bg["arbeitsgaenge"][0]["ruest_min"], 15 + 1 * 2, "Rüsten mit Richtwerten 15 + 1 × 2")
 nah(d.bg["arbeitsgaenge"][1]["zeit_min"], 0.5 + 2 * 2.0, "Basisteil 0,5 + 2 Laschen frei × 2,0")
 assert d.bg["naehte"][0]["heftpunkte"] == 4 and d.bg["naehte"][0]["nacharbeit"] == "Spritzer entfernen"

@@ -41,7 +41,7 @@ assert r(3, 0.7, 30) == 3.0                   # höchstens die dünnere Wand
 assert "mindestens √30" in baugruppe.a_mass_text(5, 0.7, 30) and "5 mm" in baugruppe.a_mass_text(5, 0.7, 30)
 alt = baugruppe.A_MIN
 baugruppe.A_MIN = 0.0
-assert r(4, 0.7) == 2.5 and r(2, 0.7) == 1.0 and r(0.5, 0.7) is None          # wie vor 0.9.174
+assert r(4, 0.7) == 2.5 and r(2, 0.7) == 1.0 and r(0.5, 0.7) is None          # wie vor 0.9.175
 baugruppe.A_MIN = alt
 ok("A1 a-Maß: 0,7 × t, mindestens 3 mm bzw. √t − 0,5, höchstens die dünnere Wand; Einstellung 0 = alte Regel")
 

@@ -21,39 +21,44 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.174", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
+    ["0.9.175", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
                 "3 mm und mindestens √(dickere Wand) − 0,5 vor (EN 1993-1-8), nie mehr als die dünnere Wand. Liegt "
                 "ein a-Maß zwischen zwei Kennwertzeilen, rechnet die Schweißzeit den Wert dazwischen (nach a²); dicke "
                 "Nähte werden mehrlagig mit Zeit je Zusatzlage. Heftpunkte zählen beide Enden mit, rundum nach dem "
                 "Umfang, Edelstahl und Aluminium enger; die Heftzeit wächst mit der Wanddicke. Neue Regeln unter "
                 "Einstellungen → Schweiß-Vorkalkulation (Richtwerte laden ergänzt sie) ([[vorkalkulation_baugruppe]]).",
      "Schweißbaugruppe: a-Maß mit Mindestmaß, Kennwerte dazwischen, mehrlagig, Heftpunkte genauer."],
-    ["0.9.173", "<b>Schweißbaugruppe: Erreichbarkeit der Nähte aus STEP</b>: Die STEP-Messung prüft je Naht, ob der "
+    ["0.9.174", "<b>Schweißbaugruppe: Erreichbarkeit der Nähte aus STEP</b>: Die STEP-Messung prüft je Naht, ob der "
                 "Brenner hinkommt (andere Teile im Weg, enge Ecken). Die Vorkalkulation schlägt daraus die "
                 "<b>Zugänglichkeit</b> je Nahtgruppe und die <b>Wendevorgänge</b> vor (gelb, mit Begründung). Nähte, "
                 "die gar nicht erreichbar sind, zeigt das 3D orange, der Status warnt "
                 "([[baugruppe_erreichbar]]).",
      "Schweißbaugruppe: Zugänglichkeit und Wenden aus der Erreichbarkeit im STEP."],
-    ["0.9.172", "<b>Schweißbaugruppe: Serieneffekt, Rüsten je Los, Lernen der Vorkalkulation</b>: In den Stammdaten der "
+    ["0.9.173", "<b>Schweißbaugruppe: Serieneffekt, Rüsten je Los, Lernen der Vorkalkulation</b>: In den Stammdaten der "
                 "Baugruppe senkt ein <b>Serieneffekt</b> (% je Verdopplung, mit Untergrenze) die Zeit für Schweißen "
                 "und eigene Arbeitsgänge je Staffelstufe; die <b>Losgröße</b> lässt Rüstzeiten je Los anfallen "
                 "([[baugruppe_serie]]). Die Nachkalkulation nimmt freiwillig <i>davon Rüsten / Positionieren / "
                 "Verputzen</i> auf, daraus schlägt das Programm Faktoren für die Regeln der Vorkalkulation vor. Die "
                 "Zeiten zeigen Schweißen und Arbeitsgänge getrennt.",
      "Schweißbaugruppe: Serieneffekt, Rüsten je Los, Vorkalkulation lernt aus der Nachkalkulation."],
-    ["0.9.171", "<b>Schweißbaugruppe: Werkstoff und Nachbehandlung</b>: Nahtgruppen haben die Spalte <b>Werkstoff</b> "
+    ["0.9.172", "<b>Schweißbaugruppe: Werkstoff und Nachbehandlung</b>: Nahtgruppen haben die Spalte <b>Werkstoff</b> "
                 "(Faktor auf die Lichtbogenzeit, Richtwert Edelstahl 1,3); die Vorkalkulation schlägt ihn aus den "
                 "Teilen vor. Neu vorgeschlagen werden <i>Beizen / Passivieren</i> bei Edelstahl, <i>Richten</i> bei "
                 "viel Naht je kg und dünner Wand und eine <i>Sichtprüfung</i> – mit Regeln unter Einstellungen → "
                 "Schweiß-Vorkalkulation (Richtwerte laden ergänzt sie) ([[vorkalkulation_baugruppe]]).",
      "Schweißbaugruppe: Faktor Werkstoff, Vorschläge Beizen, Richten, Sichtprüfung."],
-    ["0.9.170", "<b>Schweißbaugruppe: Mengen aus den Einzelteilen</b>: Arbeitsgänge nach Gewicht, Fläche oder Länge "
+    ["0.9.171", "<b>Schweißbaugruppe: Mengen aus den Einzelteilen</b>: Arbeitsgänge nach Gewicht, Fläche oder Länge "
                 "(Verzinken €/kg, Pulvern €/m², Prüfen je Teil) rechnen ihre Menge selbst – neue Spalte <b>Menge "
                 "aus</b> mit Gewicht, Oberfläche, Länge, Naht oder Teile; ändert sich ein Teil, ändert sich der Preis "
                 "mit. Über der Tabelle stehen Gewicht, Außenfläche, Nahtlänge und Anzahl Teile je Baugruppe. Das "
                 "Gewicht für das Wenden kommt ohne Eintrag in den Stammdaten aus der Summe der Teile "
                 "([[baugruppe_mengen]]).",
      "Schweißbaugruppe: Menge aus Gewicht, Oberfläche, Länge, Naht oder Teile automatisch."],
+    ["0.9.170", "<b>12-m-Zuschnitt genauer</b>: Für die Werkstücke aus einer 12-m-Stange probiert die Optimierung "
+                "neben Beladelänge und 12 m ÷ 2 … 6 jetzt alle 250 mm ab der nötigen Länge als Obergrenze aus (bis "
+                "300 Teile je Abmessung). Bei gemischten Teilelängen spart das Lieferstangen, z. B. 3 statt 4 "
+                "12-m-Stangen ([[lieferlaengen]]).",
+     "12-m-Zuschnitt: feineres Raster der Werkstücklängen, spart bei gemischten Teilen Stangen."],
     ["0.9.169", "<b>Teil länger als die Stange</b>: Passt ein Teil nicht auf die 6-m-Stange des Angebots, wohl aber "
                 "auf eine längere Lieferlänge (z. B. 12 m, beim Lieferanten auf Beladelänge zugeschnitten) oder auf "
                 "eine von Hand vorgegebene Stange, zeigt die Position keinen FEHLER mehr. Die Optimierung plant die "
