@@ -471,6 +471,9 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
             v["spalt"] = max(x["spalt_mm"] for x in liste)
         if beidseitig:                                      # Rohr durch Blech gesteckt (STEP-JSON 1.20)
             v["beidseitig"] = True
+        dmax = [x["dicke_max_mm"] for x in liste if _zahl(x.get("dicke_max_mm")) and x["dicke_max_mm"] > 0]
+        if dmax:                                            # dickere Wand (STEP-JSON 1.22) für das Mindest-a
+            v["dicke_max"] = max(dmax)
         if zugang:                                          # Erreichbarkeit (STEP-JSON 1.21)
             v["zugang"] = zugang
             v["seiten"] = [list(s) for x in liste for s in x.get("seiten") or () if isinstance(s, list) and s]
@@ -482,15 +485,36 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
 
 
 A_REGEL_VORGABE = 0.7          # a-Maß-Regel (P6): a = Faktor × kleinere Wanddicke, abgerundet auf 0,5 mm
+A_MIN = 3.0                    # mm: a-Maß mindestens (EN 1993-1-8; Einstellung schweiss_a_min, 0 = aus; Schritt 5)
 
 
-def a_mass_regel(dicke, faktor=A_REGEL_VORGABE):
-    """Vorschlag a-Maß [mm] nach der Regel a = Faktor × kleinere Wanddicke, auf 0,5 mm abgerundet; None, wenn keine
-    Dicke bekannt ist oder weniger als 0,5 mm herauskommt."""
+def a_mass_regel(dicke, faktor=A_REGEL_VORGABE, dicke_max=None):
+    """Vorschlag a-Maß [mm] nach der Regel a = Faktor × kleinere Wanddicke, auf 0,5 mm abgerundet, mindestens A_MIN
+    und mindestens √(dickere Wand) − 0,5 (EN 1993-1-8, aufgerundet auf 0,5 mm; nur mit dicke_max), höchstens die
+    kleinere Wanddicke (dünne Wand: a = Wand); None, wenn keine Dicke bekannt ist oder weniger als 0,5 mm
+    herauskommt (Plan Schweißbaugruppen 28.10.2026, Schritt 5)."""
     if not _zahl(dicke) or not _zahl(faktor) or dicke <= 0 or faktor <= 0:
         return None
     a = math.floor(faktor * dicke * 2 + 1e-9) / 2
+    unten = A_MIN if _zahl(A_MIN) and A_MIN > 0 else 0.0
+    if _zahl(dicke_max) and dicke_max > 0:
+        unten = max(unten, math.ceil((math.sqrt(dicke_max) - 0.5) * 2 - 1e-9) / 2)
+    if unten > a:
+        a = min(unten, math.floor(dicke * 2 + 1e-9) / 2)
     return a if a >= 0.5 else None
+
+
+def a_mass_text(dicke, faktor=A_REGEL_VORGABE, dicke_max=None):
+    """Rechenweg des a-Maß-Vorschlags für den Tooltip."""
+    a = a_mass_regel(dicke, faktor, dicke_max)
+    if a is None:
+        return ""
+    t = f"a = {_text(faktor)} × {_text(dicke)} mm"
+    if _zahl(A_MIN) and A_MIN > 0:
+        t += f", mindestens {_text(A_MIN)} mm"
+    if _zahl(dicke_max) and dicke_max > 0:
+        t += f", mindestens √{_text(dicke_max)} − 0,5"
+    return t + f", höchstens die Wand → {_text(a)} mm"
 
 
 def vorschlag_naht(v, regel=None):
@@ -515,10 +539,12 @@ def vorschlag_naht(v, regel=None):
         n["zugang_step"] = v["zugang"]
         if v.get("seiten"):
             n["seiten"] = v["seiten"]
+    if _zahl(v.get("dicke_max")) and v["dicke_max"] > 0:  # dickere Wand (STEP-JSON 1.22): Mindest-a √t − 0,5
+        n["dicke_max"] = v["dicke_max"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
         n["mass"] = v["dicke"]
     elif v.get("nahtart") == "Kehlnaht" and regel:
-        a = a_mass_regel(v.get("dicke"), regel)
+        a = a_mass_regel(v.get("dicke"), regel, v.get("dicke_max"))
         if a:
             n["mass"] = n["mass_regel"] = a
     return n
@@ -587,17 +613,53 @@ def kennwert(verfahren, nahtart, mass, tabellen):
     return min(kand, key=lambda z: z["mass_bis"]) if kand else None
 
 
+def lagen_zahl(naht, st):
+    """Anzahl Lagen einer Nahtgruppe: aufrunden(a bzw. Dicke ÷ 'a je Lage' der Regel Mehrlagig), sonst 1."""
+    a, je = naht.get("mass"), (st or {}).get("lage_a")
+    if not _zahl(a) or not _zahl(je) or je <= 0 or a <= je + 1e-9:
+        return 1
+    return math.ceil(a / je - 1e-9)
+
+
+def kennwert_min_m(verfahren, nahtart, mass, tabellen):
+    """(min/m, Kennwertzeile) für eine Nahtgröße: zwischen zwei Zeilen nach dem Nahtquerschnitt geradlinig (a = 3,5
+    liegt zwischen den Zeilen bis 3 und bis 4, gewichtet nach a²), sonst die Zeile selbst; (None, None) ohne Zeile
+    (Plan Schweißbaugruppen 28.10.2026, Schritt 5)."""
+    hi = kennwert(verfahren, nahtart, mass, tabellen)
+    if hi is None:
+        return None, None
+    lo = [z for z in tabellen.get("schweiss_kennwerte") or ()
+          if z.get("verfahren") == verfahren and z.get("nahtart") == nahtart and _zahl(z.get("mass_bis"))
+          and _zahl(z.get("min_m")) and z["mass_bis"] < mass - 1e-9]
+    if not lo or hi["mass_bis"] <= mass + 1e-9:
+        return hi["min_m"], hi
+    lo = max(lo, key=lambda z: z["mass_bis"])
+    q0, q1, q = (nahtquerschnitt(nahtart, x) for x in (lo["mass_bis"], hi["mass_bis"], mass))
+    if q1 <= q0:
+        return hi["min_m"], hi
+    return lo["min_m"] + (hi["min_m"] - lo["min_m"]) * (q - q0) / (q1 - q0), hi
+
+
 def naht_stand(naht, tabellen, datum=None):
     """Kennwerte einer Nahtgruppe aus den Stammdaten, zum Merken in der Nahtgruppe ('stand'): Lichtbogenzeit je m,
     Faktoren, Lichtbogenzeitfaktor, Zeit je Heftpunkt, Stundensatz-ID und ob ein Wert nur Richtwert ist."""
     import datetime
     v = next((z for z in tabellen.get("schweissverfahren") or () if z.get("verfahren") == naht.get("verfahren")), None)
-    kw = kennwert(naht.get("verfahren"), naht.get("nahtart"), naht.get("mass"), tabellen)
+    min_m, kw = kennwert_min_m(naht.get("verfahren"), naht.get("nahtart"), naht.get("mass"), tabellen) \
+        if _zahl(naht.get("mass")) else (None, None)
     fz = {art: _faktor_zeile(tabellen, art, naht.get(feld))
           for art, feld in (("Schweißlage", "lage"), ("Zugänglichkeit", "zugang"), ("Qualität", "qualitaet"),
                             ("Werkstoff", "werkstoff"))}
     richt = [z for z in [v, kw, *fz.values()] if z and z.get("status") == "Richtwert"]
-    return dict(verfahren=bool(v), min_m=kw["min_m"] if kw else None, mass_bis=kw["mass_bis"] if kw else None,
+    from .vorkalk import Regeln, dicke as wand
+    regeln = Regeln(tabellen)
+    lage_a, zusatz = regeln.wert("Mehrlagig", "a je Lage"), regeln.wert("Mehrlagig", "Zeit je Zusatzlage")
+    f_heft = regeln.stufe("Heftzeit", wand(naht))[0] if wand(naht) is not None else None
+    extra = dict(lage_a=lage_a, zusatzlage_min_m=zusatz) if lage_a and lage_a > 0 and zusatz is not None else {}
+    if f_heft:
+        extra["f_heft"] = f_heft
+    return dict(verfahren=bool(v), min_m=round(min_m, 4) if min_m is not None else None,
+                mass_bis=kw["mass_bis"] if kw else None, **extra,
                 lichtbogen=(v or {}).get("lichtbogen"), heft_s=(v or {}).get("heft_s"), satz_id=(v or {}).get("satz_id"),
                 f_lage=_n((fz["Schweißlage"] or {}).get("faktor")) or 1.0,
                 f_zugang=_n((fz["Zugänglichkeit"] or {}).get("faktor")) or 1.0,
@@ -666,8 +728,11 @@ def naht_rechnen(naht, tabellen, saetze):
         else:
             lb = naht_m * st["min_m"] * _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) \
                 * _n(st.get("f_qualitaet") or 1) * _n(st.get("f_werkstoff") or 1) * f_spalt
-            heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60
-            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft)
+            heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60 * _n(st.get("f_heft") or 1)
+            lagen = lagen_zahl(naht, st)            # mehrlagig: je Zusatzlage Zwischenzeit (Reinigen, Ansetzen)
+            zwischen = naht_m * (lagen - 1) * _n(st.get("zusatzlage_min_m")) if lagen > 1 else 0.0
+            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen,
+                       lagen=lagen, zwischen_min=zwischen)
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
     vb = verbrauch(naht, st, naht_m * f_spalt, out["lichtbogen_min"])

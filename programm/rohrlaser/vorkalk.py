@@ -15,7 +15,9 @@ Rechenweg (alle Werte aus schweiss_regeln, kursiv im Plan):
   Wenden             Wendevorgänge je Baugruppe (bg['wenden'], Vorschlag aus der Erreichbarkeit im STEP:
                      baugruppe.wenden_aus_step) × Zeit je Wenden × Faktor nach Gewicht (Gewicht der
                      Baugruppe aus den Stammdaten der Baugruppe, sonst Summe der Einzelteile, bg_mengen)
-  Heften             je Naht max(Mindestzahl, aufrunden(Nahtlänge ÷ Heftabstand)); Heftabstand nach der kleineren
+  Heften             je Naht max(Mindestzahl, aufrunden(Nahtlänge ÷ Heftabstand) + 1 (beide Enden; rundum ohne +1,
+                     Mindestzahl rundum auch Umfang ÷ 'Umfang je Heftpunkt rundum')); Edelstahl/Aluminium Abstand ×
+                     Faktor; Heftabstand nach der kleineren
                      Wanddicke (Nahtgruppe 'dicke', bei Stumpf- und Ecknaht das Maß), gesteckt × Faktor; Mindestzahl
                      gerade, rundum (Umfangsnaht) bzw. gesteckt
   Zugänglichkeit     je Nahtgruppe aus der Erreichbarkeit im STEP (zugang_step; nicht erreichbar = schlecht)
@@ -72,6 +74,13 @@ RICHTWERTE = (
     ("Heften", "Mindestzahl rundum", None, 3.0, "Heftpunkte"),
     ("Heften", "Mindestzahl gesteckt", None, 1.0, "Heftpunkte"),
     ("Heften", "Faktor Abstand gesteckt", None, 2.0, "Faktor"),
+    ("Heften", "Umfang je Heftpunkt rundum", None, 100.0, "mm"),           # Schritt 5: große Rohre mehr Punkte
+    ("Heften", "Faktor Abstand Edelstahl/Aluminium", None, 0.7, "Faktor"),  # mehr Verzug: enger heften
+    ("Heftzeit", "bis 3 mm", 3.0, 1.0, "Faktor"),                          # Zeit je Heftpunkt nach Wanddicke
+    ("Heftzeit", "bis 6 mm", 6.0, 1.3, "Faktor"),
+    ("Heftzeit", "über 6 mm", None, 1.6, "Faktor"),
+    ("Mehrlagig", "a je Lage", None, 6.0, "mm"),                           # dickere Nähte mehrlagig
+    ("Mehrlagig", "Zeit je Zusatzlage", None, 1.0, "min je m Naht"),       # Reinigen, Ansetzen je weitere Lage
     ("Wenden", "Zeit je Wenden", None, 1.5, "min"),
     ("Wenden", "Faktor bis 20 kg", 20.0, 1.0, "Faktor"),
     ("Wenden", "Faktor bis 50 kg", 50.0, 1.5, "Faktor"),
@@ -283,9 +292,22 @@ def heftpunkte(naht, regeln):
         if f is None:
             return None, "Regel Heften Faktor Abstand gesteckt fehlt"
         abstand, text = abstand * f, f" × {_text(f)} (gesteckt)"
-    n = max(int(mind), math.ceil(naht["laenge"] / abstand - 1e-9))
-    return n, (f"max({int(mind)}, aufrunden({_text(naht['laenge'])} ÷ {_text(abstand)}))"
-               f" = {n}; Heftabstand {stufe}{text}, Wand {_text(d)} mm")
+    if naht.get("werkstoff") in ("Edelstahl", "Aluminium"):       # mehr Verzug: enger heften (Schritt 5)
+        f = regeln.wert("Heften", "Faktor Abstand Edelstahl/Aluminium")
+        if f:
+            abstand, text = abstand * f, text + f" × {_text(f)} ({naht['werkstoff']})"
+    mind, mtext = int(mind), str(int(mind))
+    if art == "rundum":           # geschlossene Naht: keine Enden; große Rohre je Umfang einen Punkt mehr
+        je = regeln.wert("Heften", "Umfang je Heftpunkt rundum")
+        if je:
+            mind = max(mind, math.ceil(naht["laenge"] / je - 1e-9))
+            mtext = f"{mtext}, {_text(naht['laenge'])} ÷ {_text(je)}"
+        n = max(mind, math.ceil(naht["laenge"] / abstand - 1e-9))
+        formel = f"aufrunden({_text(naht['laenge'])} ÷ {_text(round(abstand, 2))})"
+    else:                         # offene Naht: Punkte an beiden Enden, dazwischen im Heftabstand
+        n = max(mind, math.ceil(naht["laenge"] / abstand - 1e-9) + 1)
+        formel = f"aufrunden({_text(naht['laenge'])} ÷ {_text(round(abstand, 2))}) + 1"
+    return n, f"max({mtext}, {formel}) = {n}; Heftabstand {stufe}{text}, Wand {_text(d)} mm"
 
 
 def stufe_vorschlag(naht, bg):

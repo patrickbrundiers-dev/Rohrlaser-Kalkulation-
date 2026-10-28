@@ -14,6 +14,9 @@ KENNWERTE = {
     "schweissverfahren": [dict(verfahren="MAG", bezeichnung="MAG Hand", satz_id="Schweißen", lichtbogen=40, heft_s=6,
                                aktiv="ja", status="geprüft")],
     "schweiss_kennwerte": [dict(verfahren="MAG", nahtart="Kehlnaht", mass_bis=4, min_m=1.5, status="geprüft"),
+                           dict(verfahren="MAG", nahtart="Kehlnaht", mass_bis=5, min_m=2.4, status="geprüft"),
+                           # a5 genau auf einer Zeile: Handrechnung bleibt, seit 0.9.174 rechnet ein a zwischen zwei
+                           # Zeilen nach dem Nahtquerschnitt (tests/test_bg_naht_rechnung.py)
                            dict(verfahren="MAG", nahtart="Kehlnaht", mass_bis=6, min_m=2.4, status="geprüft"),
                            dict(verfahren="MAG", nahtart="Stumpfnaht", mass_bis=5, min_m=3.0, status="geprüft")],
     "schweiss_faktoren": [dict(art="Schweißlage", wert="PF", faktor=1.2, status="geprüft")],

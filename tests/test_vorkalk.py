@@ -94,14 +94,14 @@ assert ag["ruesten"]["umlage"] == baugruppe.UMLAGE_AUFTRAG and not ag["ruesten"]
 nah(ag["positionieren"]["zeit_min"], 6.8, "Positionieren 0 + 4 × 0,5 + 4 × 1,2")
 assert "Basisteil" in ag["positionieren"]["vk"]["text"]
 n1, n2 = bg["naehte"]
-assert n1["heftpunkte"] == 2 and n2["heftpunkte"] == 4, (n1["heftpunkte"], n2["heftpunkte"])
+assert n1["heftpunkte"] == 3 and n2["heftpunkte"] == 5, (n1["heftpunkte"], n2["heftpunkte"])   # + 1 Enden (0.9.174)
 assert "gesteckt" in n1["vk"]["heftpunkte"]["text"]
 assert n1["nacharbeit"] == n2["nacharbeit"] == "Spritzer entfernen"
 nah(ag["verputzen"]["zeit_min"], 8 * 0.16 * 1.5, "Verputzen (4 × 0,16 + 4 × 0,16) m × 1,5")
 assert all(a["satz_id"] == "Schweißen" for a in ag.values())
 assert vorkalk.offen(bg) == 7          # 2 × Heftpunkte, 2 × Nacharbeit, 3 Arbeitsgänge
 assert not erg["richtwert"]
-ok("V1b Plan-Beispiel: Rüsten 18 min, Positionieren 6,8 min, Heften 2/4, Verputzen 1,92 min")
+ok("V1b Plan-Beispiel: Rüsten 18 min, Positionieren 6,8 min, Heften 3/5, Verputzen 1,92 min")
 
 # ------------------------------------------------------------------ V1c ohne Steckverbindung und Gravur
 pos0 = gestell(steck=False, gravur=False)
@@ -109,9 +109,9 @@ erg0 = vorkalk.vorkalkulieren(pos0[0], pos0, tab)
 ag0 = {a["vk"]["art"]: a for a in erg0["bg"]["arbeitsgaenge"]}
 nah(ag0["positionieren"]["zeit_min"], 16.0, "ohne Hilfen 4 × 2,0 + 4 × 2,0")
 heft = sum(n["heftpunkte"] * n["anzahl"] for n in erg0["bg"]["naehte"])
-assert heft == 32, heft
-assert sum(n["heftpunkte"] * n["anzahl"] for n in bg["naehte"]) == 24          # gesteckt: 8 Heftpunkte weniger
-ok("V1c ohne Steckverbindung und Gravur: Positionieren 16,0 min, 32 Heftpunkte (gesteckt 9,2 min und 8 weniger)")
+assert heft == 40, heft                                                # (4 + 1) × 4 × 2
+assert sum(n["heftpunkte"] * n["anzahl"] for n in bg["naehte"]) == 32          # gesteckt: 8 Heftpunkte weniger
+ok("V1c ohne Steckverbindung und Gravur: Positionieren 16,0 min, 40 Heftpunkte (gesteckt 9,2 min und 8 weniger)")
 
 # ------------------------------------------------------------------ V1d Hand, bestätigt, Status
 pos[0]["baugruppe"] = baugruppe.speichern(bg)
@@ -129,7 +129,7 @@ bg3 = vorkalk.vorkalkulieren(pos[0], pos, tab2)["bg"]
 ag3 = {a["vk"]["art"]: a for a in bg3["arbeitsgaenge"]}
 assert bg3["naehte"][1]["heftpunkte"] == 6 and ag3["positionieren"]["zeit_min"] == 9.5    # Hand bleibt
 assert ag3["ruesten"]["ruest_min"] == 18                                                  # bestätigt bleibt
-assert bg3["naehte"][0]["heftpunkte"] == 1                                               # Vorschlag neu: 160 ÷ 200
+assert bg3["naehte"][0]["heftpunkte"] == 2                                               # neu: 1 + 1 Ende
 assert vorkalk.ag_status(ag3["positionieren"]) == vorkalk.HAND
 pos[0]["baugruppe"] = baugruppe.speichern(bg3)
 w = dict(bg_tabellen=dict(tab, schweissverfahren=[dict(verfahren="MAG", satz_id="Schweißen", lichtbogen=40, heft_s=6,
@@ -155,7 +155,7 @@ assert all(n.get("heftpunkte") is None for n in leer["bg"]["naehte"])
 assert any("Heftpunkte ohne Vorschlag" in h for h in leer["hinweise"])
 ohne_dicke = dict(laenge=100, nahtart="Kehlnaht", mass=3)
 assert vorkalk.heftpunkte(ohne_dicke, vorkalk.Regeln(tab)) == (None, "Wanddicke fehlt (Spalte Dicke)")
-assert vorkalk.heftpunkte(dict(laenge=100, nahtart="Stumpfnaht", mass=5), vorkalk.Regeln(tab))[0] == 2  # Maß = Dicke
+assert vorkalk.heftpunkte(dict(laenge=100, nahtart="Stumpfnaht", mass=5), vorkalk.Regeln(tab))[0] == 3  # Maß = Dicke
 assert vorkalk.heftpunkte(dict(laenge=20, dicke=3, rundum=True), vorkalk.Regeln(tab))[0] == 3
 bgw = baugruppe.lesen(pos0[0]["baugruppe"])
 bgw["wenden"] = 2
@@ -221,9 +221,9 @@ namen = [x["name"] for x in d.bg["arbeitsgaenge"]]
 assert namen == ["Rüsten Schweißplatz", "Teile positionieren", "Verputzen", "Sichtprüfung"], namen     # 0.9.171
 nah(d.bg["arbeitsgaenge"][0]["ruest_min"], 15 + 1 * 2, "Rüsten mit Richtwerten 15 + 1 × 2")
 nah(d.bg["arbeitsgaenge"][1]["zeit_min"], 0.5 + 2 * 2.0, "Basisteil 0,5 + 2 Laschen frei × 2,0")
-assert d.bg["naehte"][0]["heftpunkte"] == 3 and d.bg["naehte"][0]["nacharbeit"] == "Spritzer entfernen"
+assert d.bg["naehte"][0]["heftpunkte"] == 4 and d.bg["naehte"][0]["nacharbeit"] == "Spritzer entfernen"
 feld, huelle = zelle(d.naht_tab, 0, "heftpunkte")
-assert feld.text() == "3" and GELB_FLAECHE in feld.styleSheet() and "aufrunden" in huelle.toolTip()
+assert feld.text() == "4" and GELB_FLAECHE in feld.styleSheet() and "aufrunden" in huelle.toolTip()
 assert GELB_FLAECHE in zelle(d.ag_tab, 1, "zeit_min")[0].styleSheet()
 assert vorkalk.offen(d.bg) == 6 and "6 Vorschläge der Vorkalkulation offen" in d.status, d.status
 assert d.fokus(d.status) == (1, 0)                                     # Sprung zur ersten Nahtgruppe mit Vorschlag
@@ -275,7 +275,7 @@ p_k = next(q for q in seite.positionen if q["id"] == pb)
 r = vorkalk.komplett(p_k, seite.positionen, seite.tabellen, dict(schweiss_a_regel=0.7))
 neu = r["bg"]["naehte"][-1]
 assert r["naehte_neu"] == 1 and not r["bg"]["vorschlaege"], r["naehte_neu"]
-assert neu["nahtart"] == "Kehlnaht" and neu["mass"] == neu["mass_regel"] == 2 and neu["verfahren"], neu
+assert neu["nahtart"] == "Kehlnaht" and neu["mass"] == neu["mass_regel"] == 3 and neu["verfahren"], neu
 assert baugruppe.regel_offen(neu) and vorkalk.naht_status(neu, "heftpunkte") == vorkalk.VORSCHLAG
 assert "1 Nahtgruppe(n) aus den STEP-Vorschlägen" in r["aenderungen"][0]
 # Editor: Vorgabe aus der Einstellung, ohne Wahl der Baugruppe

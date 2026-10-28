@@ -114,11 +114,14 @@ Versionen von SCHEMA_VERSION:
   "erreichbar" = Anteil der Punkte mit freier Richtung (0..1) und "seiten" = je freiem Punkt die Lagen ("+Z", "-Z",
   "+X", "-X", "+Y", "-Y": diese Achse der Datei zeigt nach oben), in denen der Brenner von oben oder seitlich
   hinkommt. Die Felder fehlen, wenn die Zeit für die Prüfung abgelaufen ist. Felder aus 1.20 unverändert.
+- 1.22 (28.10.2026): Je Nahtkandidat "dicke_max_mm" = dickere Wand der beiden Teile (dicke_mm bleibt die dünnere),
+  für das Mindest-a √t − 0,5 (Plan Schweißbaugruppen, Schritt 5); fehlt, wenn nur eine Dicke bekannt ist. Felder aus
+  1.21 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.21"
+SCHEMA_VERSION = "1.22"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

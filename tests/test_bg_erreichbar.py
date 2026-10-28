@@ -49,7 +49,7 @@ else:
             schreibe(zusammen(*koerper), name, tmp)
         return {tuple(sorted(n["teile"])): n for n in sg.analysiere_datei(tmp / f"{name}.step")[0].naehte}
 
-    assert step_ergebnis.SCHEMA_VERSION == "1.21"
+    assert tuple(map(int, step_ergebnis.SCHEMA_VERSION.split("."))) >= (1, 21)
     t = messen("rohr_platte", box(-150, -150, -10, 300, 300, 10), kastenrohr(60, 40, 3, 500, 4))
     n = t[(1, 2)]
     assert n["zugang"] == "gut" and n["erreichbar"] == 1.0, n

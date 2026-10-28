@@ -36,7 +36,7 @@ VORLAGEN = "baugruppen_vorlagen"
 RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
              "</span>")
 DIREKT = "(Baugruppe selbst)"
-NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff")    # neuer Stand, wenn geändert
+NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff", "dicke")    # neuer Stand, wenn geändert
 ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "Entgraten", "Bohren", "Gewindeschneiden",
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
@@ -2570,7 +2570,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 teile.append(w["verbrauch_hinweis"])
             if w.get("spalt_faktor", 1) > 1:
                 teile.append(f"Spalt {_text(z.get('spalt'))} mm (Schweißgut ×{_text(round(w['spalt_faktor'], 2))})")
-            offen = (["a-Maß nach Regel"] if baugruppe.regel_offen(z) else []) + \
+            if w.get("lagen", 1) > 1:
+                teile.append(f"{w['lagen']} Lagen (+ {_text(round(w['zwischen_min'], 2))} min Zwischenzeit)")
+            regel_text = baugruppe.a_mass_text(z.get("dicke"), self._regel_faktor(), z.get("dicke_max"))
+            offen = ([f"a-Maß nach Regel ({regel_text})" if regel_text else "a-Maß nach Regel"]
+                     if baugruppe.regel_offen(z) else []) + \
                 (["Spalt"] if baugruppe.spalt_offen(z) else [])
             if offen:
                 return (", ".join(teile + [" und ".join(offen) + ", bitte bestätigen"]), WARNUNG)

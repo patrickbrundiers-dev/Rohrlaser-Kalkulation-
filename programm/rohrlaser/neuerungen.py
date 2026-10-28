@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.174", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
+                "3 mm und mindestens √(dickere Wand) − 0,5 vor (EN 1993-1-8), nie mehr als die dünnere Wand. Liegt "
+                "ein a-Maß zwischen zwei Kennwertzeilen, rechnet die Schweißzeit den Wert dazwischen (nach a²); dicke "
+                "Nähte werden mehrlagig mit Zeit je Zusatzlage. Heftpunkte zählen beide Enden mit, rundum nach dem "
+                "Umfang, Edelstahl und Aluminium enger; die Heftzeit wächst mit der Wanddicke. Neue Regeln unter "
+                "Einstellungen → Schweiß-Vorkalkulation (Richtwerte laden ergänzt sie) ([[vorkalkulation_baugruppe]]).",
+     "Schweißbaugruppe: a-Maß mit Mindestmaß, Kennwerte dazwischen, mehrlagig, Heftpunkte genauer."],
     ["0.9.173", "<b>Schweißbaugruppe: Erreichbarkeit der Nähte aus STEP</b>: Die STEP-Messung prüft je Naht, ob der "
                 "Brenner hinkommt (andere Teile im Weg, enge Ecken). Die Vorkalkulation schlägt daraus die "
                 "<b>Zugänglichkeit</b> je Nahtgruppe und die <b>Wendevorgänge</b> vor (gelb, mit Begründung). Nähte, "

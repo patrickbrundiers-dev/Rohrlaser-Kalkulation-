@@ -4467,7 +4467,13 @@ def kapitel_baugruppen(i):
            "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
            "Verfahren, Nahtart, Nahtgröße, Lage, Zugänglichkeit, Qualität oder Werkstoff, gelten für diese Zeile die "
            "aktuellen "
-           "Stammdaten; <b>Kennwerte neu aus Stammdaten</b> setzt alle Zeilen auf die aktuellen Werte. Rechnet eine "
+           "Stammdaten; <b>Kennwerte neu aus Stammdaten</b> setzt alle Zeilen auf die aktuellen Werte. Liegt das "
+           "a-Maß zwischen zwei Zeilen der Schweiß-Kennwerte (z. B. a 3,5 zwischen <i>bis 3</i> und <i>bis 4</i>), "
+           "rechnet das Programm den Wert dazwischen nach dem Nahtquerschnitt (a²) statt mit der größeren Zeile. "
+           "Dicke Nähte werden <b>mehrlagig</b>: über <i>a je Lage</i> (Regel <i>Mehrlagig</i>, Richtwert 6 mm) "
+           "kommt je weitere Lage die <i>Zeit je Zusatzlage</i> × Naht [m] dazu (Reinigen, Ansetzen), der Hinweis "
+           "nennt die Lagen. Die Zeit je Heftpunkt wächst mit der Wanddicke (Regel <i>Heftzeit</i>: bis 3 mm × 1,0, "
+           "bis 6 mm × 1,3, darüber × 1,6). Rechnet eine "
            "Zeile mit Richtwerten, zeigt die Baugruppe den HINWEIS <i>Schweißzeit aus ungeprüften Richtwerten</i>. "
            "<b>Nahtgruppe hinzufügen</b> legt eine Zeile mit Verfahren und Nahtart der letzten an; <b>Markierte "
            "kopieren</b> und <b>Markierte entfernen</b> arbeiten auf den markierten Zeilen.")
@@ -4485,8 +4491,12 @@ def kapitel_baugruppen(i):
                         "Bestätigung gelb.")])
     i.text("Mit dem Häkchen <b>a-Maß nach Regel vorschlagen</b> bekommt eine übernommene Kehlnaht ein a-Maß = Faktor × "
            "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Vorgaben, Einstellung "
-           "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>; z. B. Wand 4 mm → "
-           "a 2,5 mm). Der Vorschlag ist gelb markiert und der Status "
+           "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>), mindestens "
+           "<b>3 mm</b> (Einstellung <i>Schweißbaugruppen: a-Maß-Regel mindestens [mm] (EN 1993-1-8: 3 mm, höchstens "
+           "die dünnere Wand; 0 = aus)</i>) und mindestens <b>√(dickere Wand) − 0,5</b> (EN 1993-1-8, wenn der "
+           "STEP-Import beide Wanddicken kennt), aber nie dicker als die dünnere Wand. Beispiele: Wand 5 mm → a 3,5; "
+           "Wand 4 mm → a 3 (statt 2,5); Wand 2 mm → a 2; Rohr 5 mm auf Platte 30 mm → a 5 (√30 − 0,5 = 4,98). "
+           "Der Rechenweg steht im Hinweis der Zeile. Der Vorschlag ist gelb markiert und der Status "
            "zeigt den HINWEIS <i>a-Maß nach Regel, bitte bestätigen</i>, bis du das a-Maß prüfst und <b>a-Maß und "
            "Spalt bestätigen</b> drückst oder einen anderen Wert einträgst.")
     i.abschnitt("Spalt zwischen zwei Teilen", marke="naht_spalt")
@@ -4608,8 +4618,11 @@ def kapitel_baugruppen(i):
         ["Positionierhilfe", "Steckverbindung (Teil einer Steckverbindung der Baugruppe), Vorrichtung (Arbeitsgang "
                              "Vorrichtung an seiner Unterbaugruppe), Gravur (Zukaufteil, dessen Lage auf dem Rohr "
                              "graviert ist: Anbauteil mit Umriss oder Marke), sonst frei"],
-        ["Heftpunkte je Naht", "größer von Mindestzahl (gerade, rundum, gesteckt) und Nahtlänge ÷ Heftabstand; "
-                               "Heftabstand nach der kleineren <b>Wanddicke</b>, gesteckt × Faktor"],
+        ["Heftpunkte je Naht", "größer von Mindestzahl (gerade, rundum, gesteckt) und aufrunden(Nahtlänge ÷ "
+                               "Heftabstand) + 1 (ein Punkt an jedem Ende); <b>rundum</b> ohne + 1, aber mindestens "
+                               "Umfang ÷ <i>Umfang je Heftpunkt rundum</i> (große Rohre mehr Punkte); Heftabstand nach "
+                               "der kleineren <b>Wanddicke</b>, gesteckt × Faktor, Edelstahl und Aluminium × "
+                               "<i>Faktor Abstand Edelstahl/Aluminium</i> (0,7: mehr Verzug)"],
         ["Verputzen", "Naht [m] × min je m der <b>Nacharbeit</b> × Faktor Zugänglichkeit; Nacharbeit aus Qualität "
                       "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
                       "verzinkt = Spritzer entfernen)"],
@@ -6249,9 +6262,10 @@ def kapitel_stammdaten(i):
                                     "Faktor 1"],
         ["<b>Schweiß-Vorkalkulation</b>", "Regeln für <b>Vorkalkulation rechnen</b> im Baugruppen-Editor "
                                           "([[vorkalkulation_baugruppe]]): je Art (Rüsten, Positionieren, Heften, "
-                                          "Heftabstand, Wenden, Nacharbeit, Nachbehandlung, Richten, Prüfen) und "
+                                          "Heftabstand, Wenden, Nacharbeit, Nachbehandlung, Richten, Prüfen, "
+                                          "Heftzeit, Mehrlagig) und "
                                           "Ausprägung ein Wert mit Einheit; "
-                                          "Heftabstand und Wenden in Stufen über <i>bis Wanddicke [mm] bzw. Gewicht "
+                                          "Heftabstand, Heftzeit und Wenden in Stufen über <i>bis Wanddicke [mm] bzw. Gewicht "
                                           "[kg]</i> (es gilt das kleinste <i>bis</i>, das passt, sonst die Zeile ohne "
                                           "<i>bis</i>)"]], [45, 220])
     i.bild("stamm_schweiss_kennwerte", "Einstellungen, Schweiß-Kennwerte nach Richtwerte laden", hoehe=85 * mm,

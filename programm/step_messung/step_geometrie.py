@@ -3649,6 +3649,8 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
                       laenge_mm=round(laenge, 1), stossart=stossart,
                       dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
                       linien=zuege[laengen.index(max(laengen))])
+            if len(dicken) == 2:          # dickere Wand für das Mindest-a √t − 0,5 (STEP-JSON 1.22)
+                k_["dicke_max_mm"] = round(max(dicken), 2)
             if spalt:
                 k_["spalt_mm"] = round(spalt, 2)
             if durch is not None and not ea and not eb:
