@@ -3490,7 +3490,9 @@ def kapitel_optimieren(i):
                    "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
                    "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern. Bleibt die "
                    "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Detail-Ansicht (Kennzahlen, "
-                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern); <b>Esc</b> schließt es. Die Wartezeit "
+                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern). Ist es offen, zeigt es beim Überfahren "
+                   "einer anderen Stange sofort diese; verlässt die Maus die Stangen (und das Fenster), schließt es "
+                   "von selbst, <b>Esc</b> geht auch. Die Wartezeit "
                    "steht unter Einstellungen › Ansicht (<i>Stangenbild: Detail-Fenster nach … Sekunden</i>, 0 = aus).")])
     i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
            hoehe=95 * mm, legende=[
@@ -3561,6 +3563,25 @@ def kapitel_optimieren(i):
            "Einstellungen (Gruppe Lieferlängen) eingeschaltet ist</b>: <i>beim Optimieren andere Lieferlängen "
            "vergleichen</i> = ja. Vorgabe ist <i>nein</i>, weil der Vergleich bei großen Gruppen Zeit kostet; "
            "dann wird nur mit der Stangenlänge des Angebots geplant, außer sie ist für ein Profil nicht lieferbar.")
+    i.text("<b>Teil länger als die 6-m-Stange:</b> Passt ein Teil nicht auf die Stangenlänge des Angebots, wohl "
+           "aber auf eine längere Lieferlänge (z. B. 6.200 mm aus einer 12-m-Stange, beim Lieferanten auf höchstens "
+           "Beladelänge − Puffer zugeschnitten) oder auf eine von Hand vorgegebene Stange ([[material_fenster]]), "
+           "zeigt die Position <b>keinen FEHLER</b>. Die Optimierung plant die ganze Gruppe dann mit der günstigsten "
+           "passenden Lieferlänge (bzw. der übernommenen), auch wenn der Vergleich in den Einstellungen aus ist; der "
+           "Vergleich heißt <i>Teil zu lang für 6 m – 12-m-Stangen verwenden</i>. Der FEHLER <i>Teil länger als "
+           "Nutzlänge</i> bleibt nur, wenn das Teil auf keine verfügbare Stange passt, bei Kundenmaterial und bei "
+           "Profilen mit <i>Lieferlängen vergleichen = nein</i>.")
+    i.text("<b>Vorschlag Mischen (12 m + 6 m):</b> Ist bei einer längeren Lieferlänge die letzte Stange schlecht "
+           "belegt, prüft das Programm, ob die am schlechtesten belegten (bis zu drei) langen Stangen durch Stangen in "
+           "der Stangenlänge des Angebots ersetzt günstiger wären, z. B. 31 Stützen 3.100 mm: 10 × 12 m + 1 × 6 m statt "
+           "11 × 12 m. Gerechnet wird wie beim Vergleich (Material mit den Preisen beider Längen, Beladungen, "
+           "Zuschnitte). Ist das günstiger als beide reinen Varianten, steht im Fenster <b>12-m-Lösung ansehen …</b> "
+           "blau <i>Vorschlag Mischen: …</i> mit Kosten und Ersparnis, und der Knopf erscheint auch dann. Der Link "
+           "<b>Stangenbelegung ansehen …</b> öffnet das Stangenbild des Vorschlags (12-m-Stangen als ihre Werkstücke, "
+           "dazu die 6-m-Stangen) in einem eigenen Fenster. Den Vorschlag gibt es nur bei eingeschaltetem Vergleich der "
+           "Lieferlängen. <b>Es ist "
+           "nur ein Vorschlag zum Ansehen</b>: Schnittplan und Kalkulation bleiben unverändert. Kein Vorschlag, wenn "
+           "die Stangenlänge des Angebots nicht lieferbar ist oder ein betroffenes Teil nicht darauf passt.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
             "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
             "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
@@ -7316,7 +7337,8 @@ def kapitel_fragen(i):
          "Auswahlliste wählen oder in den Stammdaten anlegen."],
         ["Teil unter <b>nicht eingeplante Teile</b>",
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest bzw. 3D-Greifmaß bei einer "
-         "3D-Bearbeitung am Ende), Profil über max. Hüllkreis oder "
+         "3D-Bearbeitung am Ende) und auch keine längere Lieferlänge oder vorgegebene Stange passt "
+         "([[lieferlaengen]]), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
         ["Kurze Meldung unten rechts, die von selbst verschwindet",
