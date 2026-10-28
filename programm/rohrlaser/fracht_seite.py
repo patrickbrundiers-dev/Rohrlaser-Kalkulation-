@@ -737,7 +737,7 @@ class ZonenSeite(QWidget):
                                                   str(self.f.ablage() / "PLZ-Zuordnungen.csv"), "CSV (*.csv)")
             if not pfad:
                 return None
-        Path(pfad).write_text(plz_csv(self.db.zeilen("fracht_plz")), encoding="utf-8")
+        Path(pfad).write_text(plz_csv(self.db.zeilen("fracht_plz")), encoding="utf-8", newline="")
         self.f.meldung(f"PLZ-Zuordnungen exportiert: {pfad}")
         return pfad
 

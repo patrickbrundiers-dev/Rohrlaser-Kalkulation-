@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.168", "<b>Teil länger als die Stange</b>: Passt ein Teil nicht auf die 6-m-Stange des Angebots, wohl aber "
+    ["0.9.169", "<b>Teil länger als die Stange</b>: Passt ein Teil nicht auf die 6-m-Stange des Angebots, wohl aber "
                 "auf eine längere Lieferlänge (z. B. 12 m, beim Lieferanten auf Beladelänge zugeschnitten) oder auf "
                 "eine von Hand vorgegebene Stange, zeigt die Position keinen FEHLER mehr. Die Optimierung plant die "
                 "Gruppe dann automatisch mit der günstigsten passenden Lieferlänge, auch bei ausgeschaltetem "
@@ -31,6 +31,15 @@ NEUERUNGEN = [
                 "Stangenbild-Übersicht: das Detail-Fenster wechselt mit der Maus auf die nächste Stange und schließt "
                 "von selbst, wenn die Maus die Stangen verlässt ([[stangenbild]]).",
      "Zu langes Teil ohne FEHLER bei 12 m; Vorschlag 12 m + 6 m; Stangen-Popup folgt der Maus."],
+    ["0.9.168", "<b>CSV-Dateien robuster</b>: Der <b>Kunden-Import</b> liest jetzt auch Dateien aus Excel für Mac, "
+                "Unicode-Text (UTF-16), Komma- und Tab-Dateien, <i>sep=;</i> und Titelzeilen, stürzt bei kaputten "
+                "Dateien nicht mehr ab und nennt bei jedem Fehler Zeile und Spalte (Buchstabe und Titel); Export → "
+                "Import zeigt nie Fehler für unveränderte Kunden. Der <b>Kunden-Export</b> schützt führende Nullen, "
+                "+49-Telefonnummern und Ähnliches vor Excel und schreibt unter Windows keine doppelten Zeilenenden "
+                "mehr (auch Zukauf-, PLZ- und Fertigungs-CSV) ([[kunden_csv]]). Im <b>Angebots-CSV</b> stehen in "
+                "Zahlenspalten nur noch Zahlen: Lieferzeit in Wochen (2 statt „ca. 2 Wochen“), Marge Netto% und "
+                "Verschnitt ohne %-Zeichen, Schneidgas N2/O2 ([[csv_export]]).",
+     "CSV robuster: Kunden-Import mit Zeile/Spalte, Excel-Schutz; Angebots-CSV Lieferzeit als Zahl."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "
