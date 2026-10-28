@@ -3,7 +3,8 @@
 Ein Angebot mit langen Texten (Briefkopf, Kundenname, Anfrage, Artikelnummern, Umlaute), Staffeln und Satz erzeugt
 Angebot, Werkstattpapiere, Kalkulation, Nachkalkulation, Palettenschein und Verladeliste. Geprüft wird jede Seite:
 kein Zeichen überdeckt ein anderes, kein Zeichen ragt aus dem Blatt. Dazu die Bausteine einzeln: Fußzeile (bis drei
-Zeilen, nie unter 'Seite x von y'), Breite der Kopfangaben, Umbruch zu langer Zellen, Kürzen im Palettenschein.
+Zeilen, nie unter 'Seite x von y'), Breite der Kopfangaben, Umbruch zu langer Zellen, Kürzen im Palettenschein;
+freigegeben (V1–V3): 3 Stangen je Seite im Stangenbild, Summe und Konditionen zusammen.
 
 Aufruf: python tests/test_pdf_layout.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -149,6 +150,10 @@ for name, pfad in pfade.items():
     assert pfad and Path(pfad).exists(), name
     f = fehler_im_layout(pfad)
     assert not f, (name, f[:10])
+texte = [x.get_textpage().get_text_range() for x in pdfium.PdfDocument(str(pfade["Angebot"]))]
+assert any("Gesamtbetrag" in t and "Konditionen" in t for t in texte), "Summe und Konditionen getrennt"
+texte = [x.get_textpage().get_text_range() for x in pdfium.PdfDocument(str(pfade["Werkstattpapiere"]))]
+assert max(t.count("Abwicklung Stange") for t in texte) == 3, "Stangenbild: 3 Stangen je Seite"
 ok(f"L5 {len(pfade)} PDFs mit langen Texten ({', '.join(pfade)}): keine Überlappung, nichts außerhalb des Blatts")
 fenster.close()
 db.schliessen()

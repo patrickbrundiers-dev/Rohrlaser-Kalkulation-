@@ -302,6 +302,8 @@ def _erstellt():
 S_A = ParagraphStyle("a", parent=S, fontSize=9, leading=11.5)
 S_A_FETT = ParagraphStyle("a_fett", parent=S_A, fontName=FETT)
 S_A_GRAU = ParagraphStyle("a_grau", parent=S_A, textColor=GRAU)
+S_A_ARTIKEL = ParagraphStyle("a_artikel", parent=S_A, fontSize=8, leading=10)       # lange Art.-Nr. lesbar (V3)
+S_A_ARTIKEL_GRAU = ParagraphStyle("a_artikel_grau", parent=S_A_ARTIKEL, textColor=GRAU)
 S_A_RECHTS = ParagraphStyle("a_rechts", parent=S_A, alignment=TA_RIGHT)
 S_A_STAFFEL = ParagraphStyle("a_staffel", parent=S_A_RECHTS, textColor=colors.HexColor("#404040"))
 S_A_KOPF = ParagraphStyle("a_kopf", parent=S_A, fontName=FETT, textColor=BLAU, fontSize=8.5)
@@ -424,11 +426,11 @@ def _angebot_positionen(ang):
                 gruppen.append((start, len(daten) - 1))
             start = len(daten)
         if z["art"] == "satzteil":
-            r = zeile([_p(_z(z["pos"], 0), S_A_GRAU), _p(z["artikel"], S_A_GRAU), _p(z["text"], S_A_GRAU), "", "", "", ""])
+            r = zeile([_p(_z(z["pos"], 0), S_A_GRAU), _p(z["artikel"], S_A_ARTIKEL_GRAU), _p(z["text"], S_A_GRAU), "", "", "", ""])
             stil.append(("SPAN", (2, r), (4, r)))
             continue
         erste, _, rest = (z["text"] or "").partition("\n")
-        zeile([_p(_z(z["pos"], 0)), _p(z["artikel"]), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
+        zeile([_p(_z(z["pos"], 0)), _p(z["artikel"], S_A_ARTIKEL), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
                _p(z.get("einheit") or ("Satz" if z["art"] == "satz" else "Stk.")), _p(_z(z["preis"]), S_A_RECHTS),
                _p(_z(z["gesamt"]), S_A_RECHTS)])
         staffeln(z.get("staffeln") or (), z["art"] == "satz")
@@ -447,7 +449,7 @@ def _angebot_positionen(ang):
         if i < len(gruppen) - 1:
             stil.append(("LINEBELOW", (0, bis), (-1, bis), 0.5, LINIE))
     stil.append(("LINEBELOW", (0, -1), (-1, -1), 1, BLAU))
-    breiten = [11 * mm, 25 * mm, 71 * mm, 16 * mm, 15 * mm, 24 * mm, 24 * mm]     # Einh. 'pausch.' passt
+    breiten = [11 * mm, 30 * mm, 66 * mm, 16 * mm, 15 * mm, 24 * mm, 24 * mm]     # Einh. 'pausch.' passt
     t = LongTable(daten, colWidths=breiten, repeatRows=1)
     t.setStyle(TableStyle(stil))
     # Eine Position (Satz mit seinen Teilen) bleibt auf einer Seite zusammen, solange sie auf eine Seite passt. Ein
@@ -499,15 +501,16 @@ def angebot_pdf(pfad, kopf, ang, einst):
     t = Table(summen, colWidths=[52 * mm, 30 * mm], hAlign="RIGHT")
     t.setStyle(TableStyle([("BACKGROUND", (0, 2), (-1, 2), HELLBLAU), ("TOPPADDING", (0, 2), (-1, 2), 4),
                            ("BOTTOMPADDING", (0, 2), (-1, 2), 4), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
-    inhalt += [Spacer(1, 3 * mm), KeepTogether(t)]
+    schluss = [t]
 
-    # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen
+    # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen.
+    # Summe und Konditionen bleiben zusammen auf einer Seite (Patrick 28.10.2026, V2)
     bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
     texte = [t for t in (ang.get("lieferzeit"), ang.get("beistellung"), ang.get("fracht"), ang.get("zahlung"),
                          ang.get("mindestpreis"), bed) if t]
     if texte:
-        inhalt += [Spacer(1, 8 * mm), KeepTogether([_p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)]
-                                                   + [_p(t, S_A_GRAU) for t in texte])]
+        schluss += [Spacer(1, 8 * mm), _p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A_GRAU) for t in texte]
+    inhalt += [Spacer(1, 3 * mm), KeepTogether(schluss)]
     doc.build(inhalt, canvasmaker=leinwand)
 
 
@@ -517,7 +520,7 @@ class StangenBalken(Flowable):
     Rest hellgrau, Greiferrest rot. Schweißnaht als roter Strich auf jedem Teil; in der Titelzeile je Stange
     Querschnitt von Ende A mit rotem Punkt an der Naht, gedrehte Teile und die Ersparnis der Gehrungen ineinander
     (grüne Schnittkanten)."""
-    HOEHE = 31 * mm
+    HOEHE = 26 * mm         # 3 Stangen mit Abwicklung je Seite (Patrick 28.10.2026, V1)
     GRUEN = colors.HexColor("#1E7B34")
 
     def __init__(self, m, farben):
@@ -548,11 +551,11 @@ class StangenBalken(Flowable):
         c, m, s = self.canv, self.m, self.m["stange"]
         lang = s["stange"] or 1
         f = self.breite / lang
-        y, h = 10 * mm, 11 * mm
+        y, h = 5 * mm, 11 * mm
         c.setFont(FETT, 9)
         c.setFillColor(BLAU)
         titel = ausgabe.muster_titel(m)
-        c.drawString(0, 26.5 * mm, titel)
+        c.drawString(0, 21.5 * mm, titel)
         c.setFont(SCHRIFT, 8.5)
         c.setFillColor(colors.black)
         gespart = m.get("gespart") or 0
@@ -561,14 +564,14 @@ class StangenBalken(Flowable):
                      f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %"
                      + (f"  ·  Gehrungen ineinander {_z(gespart, 1)} mm gespart" if gespart > 0 else ""))
         x = c.stringWidth(titel, FETT, 9) + 4 * mm
-        c.drawString(x, 26.5 * mm, zeile)
+        c.drawString(x, 21.5 * mm, zeile)
         lage, q, zeichen = rechnen.stange_zeichen(s)
         if zeichen:                         # Naht und Drehung einmal je Stange
             x += c.stringWidth(zeile, SCHRIFT, 8.5) + 4 * mm
-            self._symbol(q, lage, x, 26 * mm)
+            self._symbol(q, lage, x, 21 * mm)
             c.setFont(SCHRIFT, 8.5)
             c.setFillColor(colors.black)
-            c.drawString(x + 4.2 * mm, 26.5 * mm, zeichen)
+            c.drawString(x + 4.2 * mm, 21.5 * mm, zeichen)
 
         def rechteck(von, bis, farbe, rand=0.3):
             c.setFillColor(farbe)
@@ -949,7 +952,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         tab = _tabelle(daten, [12 * mm, 33 * mm, 45 * mm, 69 * mm, 14 * mm, 13 * mm], rechts=(4,))
         tab.setStyle(TableStyle([("ALIGN", (5, 0), (5, -1), "CENTER")]))
         inhalt += [_p("Zukaufteile (nicht lasern, zum Auftrag bereitstellen)", S_H2), tab, Spacer(1, 4 * mm)]
-    breiten = [11 * mm, 12 * mm, 27 * mm, 35 * mm, 18 * mm, 17 * mm, 17 * mm, 16 * mm, 22 * mm, 11 * mm]
+    breiten = [11 * mm, 12 * mm, 30 * mm, 32 * mm, 18 * mm, 17 * mm, 17 * mm, 16 * mm, 22 * mm, 11 * mm]
     for m in wp["muster"]:
         s = m["stange"]
         daten = [_kopfzeile(["Platz", "Pos.", "Artikelnummer", "Bezeichnung", "Länge [mm]", "Von [mm]", "Bis [mm]",

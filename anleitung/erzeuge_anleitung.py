@@ -4858,6 +4858,8 @@ def kapitel_ausgabe(i, seiten, ablage):
            "mehrzeiligen Anfrage-Nr. im Angebot. Ist ein Wert breiter als seine Spalte, wird er in der Spalte "
            "umbrochen statt in die Nachbarspalte zu laufen. Im Palettenschein wird ein zu langer Artikeltext oder "
            "Kundenname mit „…“ gekürzt, die Stückzahl bleibt frei lesbar.")
+    i.text("Im Angebot bleiben Summe und Konditionen zusammen auf einer Seite; lange Artikelnummern stehen etwas "
+           "kleiner (8 pt) in einer breiteren Spalte. Das Stangenbild zeigt drei Stangen mit Abwicklung je Seite.")
     i.text("Je Stangenmuster steht eine Kopfzeile mit Stangennummern, Profil, Werkstoff und Anzahl gleicher "
            "Stangen, darunter Stangenlänge, Endbeschnitt, Greiferrest, Rest und Ausnutzung. In der Liste sind Pos. "
            "und Länge fett, die Spalte <i>erl.</i> hat ein Kästchen zum Abhaken.")

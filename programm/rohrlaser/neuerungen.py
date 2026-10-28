@@ -26,8 +26,10 @@ NEUERUNGEN = [
                 "Briefkopf in der Fußzeile bis zu drei Zeilen statt über die Seitenzahl, Stundensatz in der "
                 "Kalkulation nicht mehr über der Gesamtzeit, Artikeltext im Palettenschein mit „…“ statt über der "
                 "Stückzahl, Einheit „pausch.“ ohne Umbruch, Kopfangaben oben bündig und langer Kundenname breiter, "
-                "zu lange Tabellenwerte umbrochen ([[ausgabe]]).",
-     "PDFs: keine Überlappungen mehr bei langen Texten (Fußzeile, Kalkulation, Palettenschein, Kopfangaben)."],
+                "zu lange Tabellenwerte umbrochen. Dazu: Stangenbild mit drei Stangen je Seite (Werkstattpapiere rund "
+                "20 % kürzer), Summe und Konditionen im Angebot zusammen, lange Artikelnummern kleiner und lesbarer "
+                "([[ausgabe]]).",
+     "PDFs: keine Überlappungen bei langen Texten, Stangenbild kompakter, Summe und Konditionen zusammen."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "
