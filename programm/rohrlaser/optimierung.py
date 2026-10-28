@@ -1088,6 +1088,9 @@ def pruefe_vorrat(g, vorrat, folgen, uebrig):
 # Schnittverlust + Greiferrest, auf ganze mm aufgerundet, höchstens die max. Stangenlänge der Maschine. Zwischen zwei
 # Werkstücken geht der Schnittverlust des Zuschnitts verloren, der Rest der Lieferstange ist Verschnitt.
 ZUSCHNITT_TEILUNG = 6    # Ziel-Werkstücklängen: Lieferlänge geteilt durch 1 … 6 (Schritte, keine Zeit)
+ZUSCHNITT_RASTER = 250   # dazu alle 250 mm zwischen nötiger und max. Werkstücklänge (Patrick 28.10.2026: optimale
+                         # Zuschnittslänge; spart bei gemischten Teilelängen Lieferstangen)
+ZUSCHNITT_RASTER_MAX = 300   # nur bis zu so vielen Teilen je Gruppe (große Gruppen: Rechenzeit, kaum Gewinn)
 
 
 def werkstueck_laenge(g, folge):
@@ -1101,13 +1104,16 @@ def zuschnitt_belegt(laengen, saege):
 
 
 def zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, puffer=0):
-    """Ziel-Werkstücklängen, die ausprobiert werden: die max. Werkstücklänge und die Lieferlänge geteilt durch 2 … n
-    (abzüglich der Zuschnitte), soweit das längste Teil hineinpasst und die Mindestlänge erreicht ist. Längste
-    zuerst."""
+    """Ziel-Werkstücklängen, die ausprobiert werden (Obergrenzen: jedes Werkstück wird danach auf seinen Bedarf
+    gekürzt): die max. Werkstücklänge, die Lieferlänge geteilt durch 2 … n (abzüglich der Zuschnitte) und bis
+    ZUSCHNITT_RASTER_MAX Teile ab der nötigen Länge alle ZUSCHNITT_RASTER mm, soweit das längste Teil hineinpasst und
+    die Mindestlänge erreicht ist. Längste zuerst."""
     noetig = max(g.endbeschnitt + max(t.laenge + max(g.greiferrest, t.rest) for t in g.teile) + g.kerf + puffer,
                  min_werkstueck or 0)
     ziele = {int(min(max_werkstueck, math.floor((lieferlaenge - (n - 1) * saege) / n + EPS)))
              for n in range(1, ZUSCHNITT_TEILUNG + 1)}
+    if len(g.teile) <= ZUSCHNITT_RASTER_MAX:
+        ziele |= set(range(int(math.ceil(noetig - EPS)), int(max_werkstueck), ZUSCHNITT_RASTER))
     return sorted((z for z in ziele if z + EPS >= noetig), reverse=True)
 
 

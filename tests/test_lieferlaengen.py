@@ -76,6 +76,18 @@ g = gruppe(teile(4, 2700))
 st = opt.zuschnitt(g, 12000, 8500, 3)
 assert max(l for s in st for l, _ in s) <= 8500
 opt.pruefe_zuschnitt(g, st, 12000, 8500, 3)
+# Raster der Ziel-Längen (Patrick 28.10.2026, optimale Zuschnittslänge): gemischte Teile passen in 3 statt 4
+# 12-m-Stangen, weil auch Werkstücke wie 5.851 mm (keine feste Teilung von 12 m) ausprobiert werden
+g = opt.Gruppe("QR 40x40x3", "S235-10219", 6000, 20, 80, 0.3, 2)
+g.teile = [opt.Teil(13, 10, "A", i, l, True, True, 100, 100)
+           for i, l in enumerate([850, 850, 850, 1240, 2350, 2980, 3600, 3600, 3600, 4150, 4150, 5200])]
+st = opt.zuschnitt(g, 12000, 6500, 3, 2500, 50)
+assert len(st) == 3, werkstuecke(st)
+opt.pruefe_zuschnitt(g, st, 12000, 6500, 3, 2500)
+assert 5851 in opt.zuschnitt_ziele(g, 12000, 6500, 3, 2500, 50) and 5998 in opt.zuschnitt_ziele(g, 12000, 6500, 3,
+                                                                                              2500, 50)
+_viele = opt.replace(g, teile=g.teile * 30)                  # über 300 Teile: nur die festen Teilungen (Rechenzeit)
+assert 5851 not in opt.zuschnitt_ziele(_viele, 12000, 6500, 3, 2500, 50)
 print("Zuschnitt OK")
 
 
