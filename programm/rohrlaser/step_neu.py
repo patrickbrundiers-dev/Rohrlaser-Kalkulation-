@@ -88,7 +88,7 @@ def _mails_lesen(fenster, dateien):
             dateien += [str(d) for d in anfragen.neben_auspacken(p)]
         except OSError as e:
             fenster.meldung(f"Anhänge von {p.name} lassen sich nicht auspacken: {e}", fehler=True)
-        m = mail.lesen(p)
+        m = mail.lesen(p) if p.suffix.lower() in anfragen.MAIL else None      # ZIP: nur auspacken
         if m:
             mails.append(m)
     return dateien, anfragen.werte(fenster.db, [], mails)[2]
@@ -99,7 +99,7 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     """Angebot anlegen und die STEP-Dateien importieren. dateien: Dateien/Ordner (ohne: Dateiauswahl); kundennr:
     ohne Dialog (Tests, '' = ohne Kunde); kopf: weitere Kopffelder (z. B. kundenreferenz aus dem Anfrageformular);
     formulare: gelesene Anfrageformulare (Stückzahlen je Artikelnummer, W6b/W6c); aus einer E-Mail der Anfrage:
-    vorschlag = Kunde (Absenderadresse), hinweis = Zeilen „Aus der E-Mail“ für den Prüfdialog, werkstoff_text = Text,
+    vorschlag = Kunde (Absenderadresse), hinweis = Zeilen „Aus E-Mail/Formular“ für den Prüfdialog, werkstoff_text = Text,
     in dem der Import nach dem Werkstoff sucht; neuer_kunde = Stammdaten eines unbekannten Absenders (mail.kunde_daten):
     der Kunde wird angelegt (Bemerkung „Kunde prüfen“, Patrick 28.10.2026) und bei Abbruch wieder entfernt.
     Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
@@ -109,7 +109,7 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
         return None
     if not dateien:
         dateien, _ = QFileDialog.getOpenFileNames(fenster, "Neues Angebot aus STEP", str(step_ablage.start_ordner(db)),
-                                                  "STEP-Dateien und E-Mails (*.step *.stp *.STEP *.STP *.msg *.eml)")
+                                                  "STEP-Dateien, E-Mails und ZIP (*.step *.stp *.STEP *.STP *.msg *.eml *.zip)")
         if not dateien:
             return None
     if formulare is None:           # Kundenordner oder Mail gezogen: E-Mail auslesen wie im Anfrage-Ordner

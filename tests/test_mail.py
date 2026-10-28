@@ -251,9 +251,9 @@ k = db.kontext()
 mw = [dict(datei="x.step", artikel="T1", bauteil="T1", profilform="Rundrohr", profil_id_vorschlag=next(iter(k.profile)),
            laenge=500, pruefstatus="plausibel", schneidweg=100)]
 dlg = StepPruefDialog(None, mw, k, "1.4301", 1, vorpruefung=lambda: ([], 0), hinweis=kw["hinweis"])
-assert dlg.mail_hinweis is not None and "Aus der E-Mail" in dlg.mail_hinweis.text() and "KW" in dlg.mail_hinweis.text()
+assert dlg.mail_hinweis is not None and "Aus E-Mail/Formular" in dlg.mail_hinweis.text() and "KW" in dlg.mail_hinweis.text()
 assert StepPruefDialog(None, [dict(mw[0])], k, "1.4301", 1, vorpruefung=lambda: ([], 0)).mail_hinweis is None
-ok("Prüfdialog zeigt „Aus der E-Mail: …“ (nur mit Mail)")
+ok("Prüfdialog zeigt „Aus E-Mail/Formular: …“ (nur mit Mail)")
 # ------------------------------------------------------------------ robuster und intelligenter (0.9.171)
 RTF = (b"{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}\\pard Bitte 5 Stk MG-01\\par Material 1.4301\\par Gr\\'fc\\'dfe\\par}")
 r = mail.aus_bytes(bau.msg_rtf("Alt", bau.rtf_mela(RTF), [("A.stp", b"x")]))

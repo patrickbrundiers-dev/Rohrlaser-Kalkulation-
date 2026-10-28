@@ -22,19 +22,22 @@ SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abg
 STEP = {".step", ".stp"}
 FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}     # Anfrageformulare (gelesen ab W6b/W6c)
 MAIL = {".msg", ".eml"}     # E-Mail aus Outlook (mail.py)
+ARCHIV = {".zip"}           # ZIP mit STEP-Dateien (Patrick 28.10.2026): wird wie eine Mail beim Öffnen ausgepackt
+BEHAELTER = MAIL | ARCHIV
 BILD, BILD_MIN = FORMULAR - {".pdf"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
 ZIEL_FORMULAR = "Anfrage"   # Unterordner im Angebotsordner für Formulare (STEP-Dateien: angebotsordner.STEP_ORDNER)
 
 
 def _relevant(p):
-    return p.is_file() and not p.name.startswith((".", "~$")) and p.suffix.lower() in STEP | FORMULAR | MAIL
+    return p.is_file() and not p.name.startswith((".", "~$")) and p.suffix.lower() in STEP | FORMULAR | BEHAELTER
 
 
 _ANHAENGE = {}              # (Pfad, Größe, Änderungszeit) -> Namen der Anhänge (Ordner wird alle 30 s angesehen)
 
 
 def mail_anhaenge(p):
-    """Namen der Anhänge einer Mail (zwischengespeichert, solange sich die Datei nicht ändert)."""
+    """Namen der Anhänge einer Mail bzw. der Dateien einer ZIP (zwischengespeichert, solange sich die Datei nicht
+    ändert)."""
     from . import mail
     try:
         st = p.stat()
@@ -44,13 +47,22 @@ def mail_anhaenge(p):
     if k not in _ANHAENGE:
         if len(_ANHAENGE) > 500:
             _ANHAENGE.clear()
-        _ANHAENGE[k] = mail.anhang_namen(p)
+        _ANHAENGE[k] = [n for n, _ in _zip_dateien(p)] if p.suffix.lower() in ARCHIV else mail.anhang_namen(p)
     return _ANHAENGE[k]
 
 
+def _zip_dateien(p):
+    """Dateien einer ZIP [(Name, bytes)] samt ZIPs und Mails darin (mail.zip_inhalt), [] wenn nicht lesbar."""
+    from . import mail
+    try:
+        return mail.zip_inhalt(Path(p).read_bytes())
+    except OSError:
+        return []
+
+
 def _hat_step(dateien):
-    """STEP-Datei dabei, direkt oder als Anhang einer Mail."""
-    return any(d.suffix.lower() in STEP or (d.suffix.lower() in MAIL and any(
+    """STEP-Datei dabei, direkt oder als Anhang einer Mail bzw. in einer ZIP."""
+    return any(d.suffix.lower() in STEP or (d.suffix.lower() in BEHAELTER and any(
         Path(n).suffix.lower() in STEP for n in mail_anhaenge(d))) for d in dateien)
 
 
@@ -83,10 +95,14 @@ class Anfrage:
     def mails(self):
         return [d for d in self.dateien if d.suffix.lower() in MAIL]
 
+    @property
+    def archive(self):
+        return [d for d in self.dateien if d.suffix.lower() in ARCHIV]
+
     def step_anzahl(self):
         """STEP-Dateien samt denen in Mail-Anhängen (noch nicht ausgepackt, gleiche Namen einmal)."""
         namen = {d.name.lower() for d in self.step}
-        for m in self.mails:
+        for m in self.mails + self.archive:
             namen |= {n.lower() for n in mail_anhaenge(m) if Path(n).suffix.lower() in STEP}
         return len(namen)
 
@@ -97,7 +113,8 @@ class Anfrage:
 
     def text(self):
         teile = [f"{self.step_anzahl()} STEP"] + ([f"{len(self.formulare)} Formular"] if self.formulare else []) \
-            + ([f"{len(self.mails)} E-Mail"] if self.mails else [])
+            + ([f"{len(self.mails)} E-Mail"] if self.mails else []) \
+            + ([f"{len(self.archive)} ZIP"] if self.archive else [])
         z = f" · {self.zeit.strftime('%d.%m. %H:%M')}" if self.zeit else ""
         return f"{self.name} ({', '.join(teile)}){z}" + (f" · in Bearbeitung: {self.gesperrt}" if self.gesperrt else "")
 
@@ -120,9 +137,11 @@ def sperre_lesen(ordner, jetzt=None):
     return text.split("|")[0].strip() or "?"
 
 
-def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN):
+def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None):
     """Anfragen im Ordner, älteste zuerst. kunden = Zeilen der Kundentabelle (für den Kunden aus dem Ordnernamen).
-    Anfragen ohne STEP-Datei und Dateien, die gerade noch geschrieben werden, fehlen."""
+    Anfragen ohne STEP-Datei und Dateien, die gerade noch geschrieben werden, fehlen; ohne_step (Liste) bekommt die
+    Namen der Ordner bzw. Dateien, die nur Zeichnungen/Formulare haben (Hinweis, Patrick 28.10.2026: aus Zeichnungen
+    nichts automatisch anlegen)."""
     from .step_neu import kunde_aus_ordner
     jetzt = jetzt or datetime.datetime.now()
     wurzel = Path(ordner) if ordner else None
@@ -144,6 +163,8 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN):
             except OSError:
                 continue
             if not _hat_step(dateien):
+                if ohne_step is not None and any(d.suffix.lower() in FORMULAR for d in dateien):
+                    ohne_step.append(e.name)
                 continue
             if any((_zeit(d) or jetzt) > ruhig for d in dateien):
                 continue
@@ -152,7 +173,7 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN):
         elif _relevant(e) and (_zeit(e) or jetzt) <= ruhig:
             lose.append(e)
     lose.sort(key=lambda d: _zeit(d) or jetzt)
-    einzeln = [[d] for d in lose if d.suffix.lower() in MAIL and _hat_step([d])]   # Mail mit STEP: für sich
+    einzeln = [[d] for d in lose if d.suffix.lower() in BEHAELTER and _hat_step([d])]   # Mail/ZIP mit STEP: für sich
     lose = [d for d in lose if [d] not in einzeln]
     gruppen = []
     for d in lose:
@@ -162,6 +183,8 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN):
             gruppen.append([d])
     for g in gruppen + einzeln:
         if not _hat_step(g):
+            if ohne_step is not None:
+                ohne_step += [d.name for d in g if d.suffix.lower() in FORMULAR]
             continue
         name = g[0].stem if len(g) == 1 else f"{len(g)} Dateien vom {_zeit(g[0]).strftime('%d.%m. %H:%M')}"
         out.append(Anfrage(name, None, g, kunde_aus_ordner(kunden, g) if kunden else None))
@@ -211,16 +234,18 @@ def sperren(anfrage, wurzel, kuerzel, jetzt=None):
 
 
 def auspacken(anfrage):
-    """STEP-Dateien und Formulare aus den Anhängen der Mails in den Unterordner der (gesperrten) Anfrage legen. Liegt
+    """STEP-Dateien und Formulare aus den Anhängen der Mails und aus ZIP-Dateien in den Unterordner der (gesperrten)
+    Anfrage legen. Liegt
     eine gleiche Datei schon dort (zweites Öffnen nach Abbruch), wird sie nicht doppelt angelegt. Ergebnis: die Anfrage
     mit den neuen Dateien. OSError: nicht möglich."""
     from . import mail
-    if not anfrage.ordner or not anfrage.mails:
+    if not anfrage.ordner or not (anfrage.mails or anfrage.archive):
         return anfrage
     neu = []
-    for m in anfrage.mails:
-        gelesen = mail.lesen(m)
-        for name, daten in (gelesen.anhaenge if gelesen else ()):
+    for m in anfrage.mails + anfrage.archive:
+        gelesen = mail.lesen(m) if m.suffix.lower() in MAIL else None
+        inhalt = _zip_dateien(m) if m.suffix.lower() in ARCHIV else (gelesen.anhaenge if gelesen else ())
+        for name, daten in inhalt:
             endung = Path(name).suffix.lower()
             if endung not in STEP | FORMULAR or (endung in BILD and len(daten) < BILD_MIN):
                 continue            # kleine Bilder: Logo der Signatur, kein Formular
@@ -387,21 +412,22 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
 
 
 def mails_neben(pfade):
-    """E-Mails (.msg/.eml) unter den gezogenen Dateien und Ordnern (Ordner samt Unterordnern)."""
+    """E-Mails (.msg/.eml) und ZIP-Dateien mit STEP unter den gezogenen Dateien und Ordnern (Ordner samt
+    Unterordnern)."""
     out = []
     for p in map(Path, pfade or ()):
         try:
             kandidaten = sorted(x for x in p.rglob("*") if x.is_file()) if p.is_dir() else [p]
         except OSError:
             continue
-        out += [x for x in kandidaten if x.suffix.lower() in MAIL and not x.name.startswith(("~$", "."))
-                and x not in out]
+        out += [x for x in kandidaten if not x.name.startswith(("~$", ".")) and x not in out
+                and (x.suffix.lower() in MAIL or (x.suffix.lower() in ARCHIV and _hat_step([x])))]
     return out
 
 
 def neben_auspacken(mail_pfad):
-    """STEP-Anhänge einer Mail neben die Mail legen (Kundenordner gezogen), gleiche Dateien nicht doppelt. Ergebnis:
-    [Pfade der STEP-Dateien aus der Mail]."""
+    """STEP-Anhänge einer Mail bzw. STEP-Dateien einer ZIP daneben legen (Kundenordner gezogen), gleiche Dateien
+    nicht doppelt. Ergebnis: [Pfade der STEP-Dateien aus der Mail/ZIP]."""
     a = auspacken(Anfrage(mail_pfad.parent.name, mail_pfad.parent, [mail_pfad]))
     namen = {n.lower() for n in mail_anhaenge(mail_pfad) if Path(n).suffix.lower() in STEP}
     return [d for d in a.step] + [d for d in mail_pfad.parent.iterdir() if d.name.lower() in namen

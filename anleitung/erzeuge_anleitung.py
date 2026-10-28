@@ -871,8 +871,12 @@ def kapitel_angebote(i):
     i.liste("<b>Eine Anfrage</b> ist ein Unterordner (samt Unterordnern darin), z. B. <i>Anfragen\\Hessler 25.10. "
             "Gestell</i>. Dateien direkt im Anfrage-Ordner gehören zusammen, solange zwischen zwei Dateien weniger als "
             "10 Minuten liegen; mehr Abstand ergibt eine neue Anfrage.",
-            "Gezählt werden STEP-Dateien (*.step, *.stp), Formulare (PDF, JPG, PNG, TIFF) und E-Mails (*.msg, *.eml, "
-            "[[anfrage_mail]]); eine Anfrage ohne STEP – auch nicht im Anhang einer Mail – erscheint nicht. Dateien, die gerade noch kopiert werden, kommen beim nächsten Blick (alle 30 Sekunden).",
+            "Gezählt werden STEP-Dateien (*.step, *.stp), Formulare (PDF, JPG, PNG, TIFF), E-Mails (*.msg, *.eml, "
+            "[[anfrage_mail]]) und ZIP-Dateien; eine Anfrage ohne STEP – auch nicht im Anhang einer Mail oder in "
+            "einer ZIP – erscheint nicht. Eine <b>ZIP</b> mit STEP-Dateien ist wie eine Mail eine Anfrage für sich: "
+            "beim Öffnen packt das Programm STEP-Dateien und Formulare aus (auch aus Unterordnern und ZIP in ZIP), "
+            "eine ZIP aufs Programm gezogen wird daneben ausgepackt. Dateien, die gerade noch kopiert werden, kommen "
+            "beim nächsten Blick (alle 30 Sekunden).",
             "Den <b>Kunden</b> schlägt das Programm wie beim Ziehen aus dem Ordnernamen vor (Name oder Kundennummer).",
             "Hat ein Kunde <b>mehrere offene Anfragen</b>, steht ein Hinweis darunter: getrennt öffnen (je ein "
             "Angebot) oder beide markieren und <b>Zusammen öffnen</b> – ein Angebot, die Stangen werden gemeinsam "
@@ -907,12 +911,31 @@ def kapitel_angebote(i):
             "Zahlen, bei denen sich die Texterkennung selbst unsicher ist, sind ebenfalls gelb.")
     i.hinweis("Gelbe Stückzahlen im Prüfdialog kurz mit dem Formular vergleichen. Am besten liest die Erkennung "
               "Scans mit 300 dpi in Schwarzweiß oder Graustufen; schräge Fotos mit Schatten gehen schlechter.")
+    i.text("<b>Zeichnung oder Formular?</b> Jede Seite eines PDFs (auch Scans und Fotos) ordnet das Programm für "
+           "sich ein: <i>Zeichnung</i> (Schriftfeld mit Maßstab, Gezeichnet/Geprüft, Zeichnungs-Nr., Toleranzangabe, "
+           "viele Maßzahlen und Linien), <i>Formular</i> (Anrede und Gruß, „Anfrage“, Positionen mit Menge, "
+           "Liefertermin, Fließtext) oder <i>unklar</i>. Ein PDF mit Formular auf Seite 1 und Zeichnungen dahinter "
+           "wird Seite für Seite getrennt ausgewertet:")
+    i.liste("<b>Formular-Seiten</b> liefern Anfrage-Nr., Kunde, Stückzahlen, Lieferzeit und Werkstoff wie oben.",
+            "<b>Zeichnungs-Seiten</b> liefern nur ihr Schriftfeld: Passt die Zeichnungs-Nr., die Benennung oder der "
+            "Dateiname zu einem STEP-Teil, kommen <b>Stückzahl</b> und <b>Werkstoff</b> (nur eindeutig) für dieses "
+            "Teil daher – gelb zum Prüfen. Formular und E-Mail gehen vor. Maße und Zeichnungsnummern werden nie als "
+            "Anfrage-Nr. oder Stückzahl gelesen.",
+            "<b>Unklare Seiten</b> liest das Programm wie ein Formular; die Zeile im Prüfdialog steht dann in "
+            "Gelb mit <i>bitte prüfen</i>.",
+            "Aus Zeichnungen entstehen <b>keine Positionen</b>: Ein Ordner nur mit Zeichnungen (ohne STEP) erscheint "
+            "nicht in der Liste, darunter steht nur ein Hinweis <i>Ohne STEP …</i>. Die Teile dann von Hand anlegen "
+            "oder die STEP-Dateien dazulegen.")
+    i.text("Im Prüfdialog steht oben je PDF eine Zeile wie <i>📄 Anfrage.pdf: Formular (S. 1), Zeichnung (S. 2–3)</i> "
+           "(Tooltip: Merkmale je Seite). Rechts daneben lässt sich die Einordnung ändern: <b>automatisch</b>, "
+           "<b>alles Formular</b>, <b>alles Zeichnung</b> oder <b>nicht verwenden</b>; Stückzahlen und Werkstoffe "
+           "werden dann sofort neu zugeordnet, ohne die Datei neu zu lesen.")
 
     i.abschnitt("E-Mail aus Outlook auslesen", marke="anfrage_mail")
     i.text("Die ganze E-Mail aus Outlook in den Anfrage-Ordner ziehen (wird zur <i>.msg</i>-Datei) – die Anhänge muss "
            "man nicht einzeln speichern. Beim Öffnen packt das Programm die STEP-Dateien und Formulare aus und belegt "
            "Kunde, Anfrage-Nr., Lieferzeit, Werkstoff und Stückzahlen aus der Mail vor; der Prüfdialog zeigt oben "
-           "<i>✉ Aus der E-Mail: …</i>, was übernommen wurde.", kurz=True)
+           "<i>✉ Aus E-Mail/Formular: …</i>, was übernommen wurde.", kurz=True)
     i.genauer()
     i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
             "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "

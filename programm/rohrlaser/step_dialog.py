@@ -140,7 +140,7 @@ class StepPruefDialog(QDialog):
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
-                 zusatz_vorgabe=None, referenz=None, hinweis=None):
+                 zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -151,7 +151,9 @@ class StepPruefDialog(QDialog):
         in 1366 px (V2); zusatzarbeiten = Namen der Zusatzarbeiten für „Werte setzen“ (V4, zusatz_vorgabe = aus dem
         Importprofil für alle Teile vorbelegt); referenz = Vorschlag der Anfrage-Nr. des Kunden (V5, None = kein Feld),
         Ergebnis in self.referenz_text(). hinweis = Zeilen, die aus der E-Mail der Anfrage übernommen wurden (Kunde,
-        Lieferzeit, Werkstoff), stehen unter dem Kunden zum Prüfen."""
+        Lieferzeit, Werkstoff), stehen unter dem Kunden zum Prüfen. pdf_formulare = gelesene PDFs der Anfrage mit ihren
+        Seiten (pdf_art): je Datei eine Zeile „Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl; pdf_neu(Datei, Wahl)
+        ordnet Stückzahlen und Werkstoffe danach neu zu (die Zeilen werden aufgefrischt)."""
         from . import step
         super().__init__(parent)
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
@@ -274,12 +276,15 @@ class StepPruefDialog(QDialog):
         kunde_zeile.addStretch(1)
         self.mail_hinweis = None
         if hinweis:                     # E-Mail der Anfrage (28.10.2026): was vorbelegt wurde
-            self.mail_hinweis = QLabel("✉ Aus der E-Mail: " + " · ".join(hinweis))
+            self.mail_hinweis = QLabel("✉ Aus E-Mail/Formular: " + " · ".join(hinweis))
             self.mail_hinweis.setWordWrap(True)
             self.mail_hinweis.setStyleSheet("color: #595959;")
             self.mail_hinweis.setToolTip("Vorschläge aus der E-Mail im Anfrage-Ordner. Kunde, Werkstoff und Stückzahlen "
                                          "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.")
             kopf_lay.insertWidget(1, self.mail_hinweis)
+        self.pdf_wahl = {}              # Datei -> QComboBox (Zeichnung oder Formular, 28.10.2026)
+        for nr, g in enumerate(pdf_formulare or ()):
+            kopf_lay.insertLayout(1 + (self.mail_hinweis is not None) + nr, self._pdf_zeile(g, pdf_neu))
         self.dateien_info = QLabel()
         self.dateien_info.setStyleSheet("color: #595959;")
         kl.addWidget(self.zurueck)
@@ -662,12 +667,7 @@ class StepPruefDialog(QDialog):
                        m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
                        m.get("_je_satz") or len(liste), ist_zk)
             sp.setValue(z.werte[self._modus(datei)])
-            if "_stueck_formular" in m and not m.get("_saetze"):     # Stückzahl aus dem Anfrageformular (W6b)
-                sicher = m["_stueck_formular"]
-                sp.setToolTip("Stückzahl aus dem Anfrageformular" + ("" if sicher else
-                              " – unsicher erkannt, bitte prüfen"))
-                if not sicher:
-                    sp.setStyleSheet(f"background: {stil.farbe(stil.GELB_FLAECHE).name()};")
+            self._vorschlag_faerben(z, m)
             sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
             if datei in self.baugruppen:       # Farbe des Teils in der Baugruppen-Ansicht
                 punkt = QPixmap(12, 12)
@@ -814,6 +814,73 @@ class StepPruefDialog(QDialog):
         self.werte_schreiben()
         knickverbindung.loesen(self.messwerte, i)
         self._neu_aufbauen(i)
+
+    def _vorschlag_faerben(self, z, m):
+        """Stückzahl aus Formular/Mail bzw. Zeichnung (W6b, 28.10.2026): Tooltip, unsicher gelb; Werkstoff aus dem
+        Schriftfeld einer Zeichnung gelb."""
+        gelb = f"background: {stil.farbe(stil.GELB_FLAECHE).name()};"
+        if "_stueck_formular" in m and not m.get("_saetze"):
+            sicher = m["_stueck_formular"]
+            z.sp.setToolTip(f"Stückzahl aus {m.get('_stueck_quelle') or 'dem Anfrageformular'}"
+                            + ("" if sicher else " – unsicher erkannt, bitte prüfen"))
+            z.sp.setStyleSheet("" if sicher else gelb)
+        else:
+            z.sp.setToolTip("")
+            z.sp.setStyleSheet("")
+        if z.ws is not None and not z.blech:
+            z.ws.setStyleSheet(gelb if m.get("_werkstoff_quelle") else "")
+            z.ws.setToolTip(f"Werkstoff aus {m['_werkstoff_quelle']} – bitte prüfen" if m.get("_werkstoff_quelle")
+                            else z.ws.toolTip())
+
+    def _pdf_zeile(self, g, pdf_neu):
+        """Zeile „📄 Datei: Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl automatisch / alles Formular / alles
+        Zeichnung / nicht verwenden."""
+        from . import pdf_art
+        zeile = QHBoxLayout()
+        text = QLabel()
+        text.setWordWrap(True)
+        text.setToolTip("Seiten eingeordnet nach ihren Merkmalen:\n" + pdf_art.gruende(g))
+        wahl = QComboBox()
+        for t, w in (("automatisch", pdf_art.AUTO), ("alles Formular", pdf_art.FORMULAR),
+                     ("alles Zeichnung", pdf_art.ZEICHNUNG), ("nicht verwenden", pdf_art.NICHT)):
+            wahl.addItem(t, w)
+        wahl.setToolTip("Formular: Stückzahlen, Anfrage-Nr. und Termin daraus lesen. Zeichnung: nur das Schriftfeld "
+                        "(Zeichnungs-Nr., Werkstoff, Stückzahl) für das passende Teil, gelb. Aus Zeichnungen entstehen "
+                        "nie Positionen.")
+        unklar = any(s["art"] == pdf_art.UNKLAR for s in g["seiten"])
+
+        def zeigen():
+            w = wahl.currentData()
+            text.setText("📄 " + (f"{g.get('datei')}: nicht verwendet" if w == pdf_art.NICHT
+                                 else pdf_art.beschreibung(dict(g, wahl=w))))
+            text.setStyleSheet(f"color: {stil.farbe(stil.GELB_TEXT).name()};" if unklar and w == pdf_art.AUTO
+                               else "color: #595959;")
+
+        def geaendert():
+            zeigen()
+            if pdf_neu:
+                pdf_neu(g.get("datei"), wahl.currentData())
+                self._vorschlaege_auffrischen()
+
+        zeigen()
+        wahl.currentIndexChanged.connect(geaendert)
+        self.pdf_wahl[g.get("datei")] = wahl
+        zeile.addWidget(text, 1)
+        zeile.addWidget(wahl)
+        return zeile
+
+    def _vorschlaege_auffrischen(self):
+        """Nach dem Umschalten einer PDF: Stückzahlen und Werkstoffe aus den Messwerten in die Zeilen."""
+        for z in self.zeilen:
+            m = self.messwerte[z.liste[0]]
+            if m.get("_saetze"):
+                continue
+            z.werte["einzeln"] = (m.get("_stueck") if "_stueck" in m else self.stueck) or 0
+            if self._modus(z.datei) == "einzeln":
+                z.sp.setValue(z.werte["einzeln"])
+            if z.ws is not None and not z.blech:
+                z.ws.setCurrentText(m.get("_werkstoff", self.werkstoff) or "")
+            self._vorschlag_faerben(z, m)
 
     def _modus(self, datei):
         return "satz" if self.saetze.get(datei) else "einzeln"
