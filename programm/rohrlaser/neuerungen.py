@@ -21,13 +21,23 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.169", "<b>Schweißbaugruppe: Mengen aus den Einzelteilen</b>: Arbeitsgänge nach Gewicht, Fläche oder Länge "
+    ["0.9.170", "<b>Schweißbaugruppe: Mengen aus den Einzelteilen</b>: Arbeitsgänge nach Gewicht, Fläche oder Länge "
                 "(Verzinken €/kg, Pulvern €/m², Prüfen je Teil) rechnen ihre Menge selbst – neue Spalte <b>Menge "
                 "aus</b> mit Gewicht, Oberfläche, Länge, Naht oder Teile; ändert sich ein Teil, ändert sich der Preis "
                 "mit. Über der Tabelle stehen Gewicht, Außenfläche, Nahtlänge und Anzahl Teile je Baugruppe. Das "
                 "Gewicht für das Wenden kommt ohne Eintrag in den Stammdaten aus der Summe der Teile "
                 "([[baugruppe_mengen]]).",
      "Schweißbaugruppe: Menge aus Gewicht, Oberfläche, Länge, Naht oder Teile automatisch."],
+    ["0.9.169", "<b>Teil länger als die Stange</b>: Passt ein Teil nicht auf die 6-m-Stange des Angebots, wohl aber "
+                "auf eine längere Lieferlänge (z. B. 12 m, beim Lieferanten auf Beladelänge zugeschnitten) oder auf "
+                "eine von Hand vorgegebene Stange, zeigt die Position keinen FEHLER mehr. Die Optimierung plant die "
+                "Gruppe dann automatisch mit der günstigsten passenden Lieferlänge, auch bei ausgeschaltetem "
+                "Längenvergleich ([[lieferlaengen]]). Neu im Fenster 12-m-Lösung ansehen: <b>Vorschlag Mischen</b>, "
+                "z. B. 10 × 12 m + 1 × 6 m statt 11 × 12 m, wenn das günstiger ist (nur zum Ansehen, der Schnittplan "
+                "bleibt, nur bei eingeschaltetem Längenvergleich) mit Link <i>Stangenbelegung ansehen …</i>. "
+                "Stangenbild-Übersicht: das Detail-Fenster wechselt mit der Maus auf die nächste Stange und schließt "
+                "von selbst, wenn die Maus die Stangen verlässt ([[stangenbild]]).",
+     "Zu langes Teil ohne FEHLER bei 12 m; Vorschlag 12 m + 6 m; Stangen-Popup folgt der Maus."],
     ["0.9.168", "<b>CSV-Dateien robuster</b>: Der <b>Kunden-Import</b> liest jetzt auch Dateien aus Excel für Mac, "
                 "Unicode-Text (UTF-16), Komma- und Tab-Dateien, <i>sep=;</i> und Titelzeilen, stürzt bei kaputten "
                 "Dateien nicht mehr ab und nennt bei jedem Fehler Zeile und Spalte (Buchstabe und Titel); Export → "
