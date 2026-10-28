@@ -37,6 +37,7 @@ class Mail:
         self.absender_name, self.absender = (absender_name or "").strip(), (absender or "").strip().lower()
         self.datum, self.betreff, self.text = datum, (betreff or "").strip(), text or ""
         self.anhaenge = list(anhaenge or [])
+        self.datei_zeit = None      # Änderungszeit der Datei (lesen), falls kein Sendedatum
 
     @property
     def domain(self):
@@ -67,6 +68,8 @@ def lesen(pfad):
     except OSError:
         return None
     m = aus_bytes(daten, pfad.suffix.lower())
+    if m is not None:           # ohne Sendedatum: Änderungszeit der Datei für „die neueste gilt“
+        m.datei_zeit = datetime.datetime.fromtimestamp(st.st_mtime)
     if st.st_size <= CACHE_BIS:
         if len(_GELESEN) >= CACHE_MAX:
             _GELESEN.pop(next(iter(_GELESEN)))

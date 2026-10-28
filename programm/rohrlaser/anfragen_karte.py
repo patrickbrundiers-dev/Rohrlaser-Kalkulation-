@@ -70,7 +70,13 @@ class AnfragenKarte:
             return
         kunden = self.f.db.zeilen("kunden")
         ohne = []
-        neu = anfragen.suchen(o, kunden, ohne_step=ohne)
+        try:            # Nachtrag zu einer schon übernommenen Anfrage erkennen (Anfrage-Nr. = Kundenreferenz)
+            angebote = {r: (n, k) for r, n, k in self.f.db.con.execute(
+                "SELECT kundenreferenz, nummer, kundennr FROM angebote WHERE COALESCE(kundenreferenz, '') <> '' "
+                "ORDER BY id")}
+        except Exception:
+            angebote = {}
+        neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote)
         st = (anfragen.stand(neu), tuple(ohne))
         if st == self._stand and not erzwingen:
             return
@@ -94,6 +100,12 @@ class AnfragenKarte:
         mehrere = anfragen.gleicher_kunde(neu)
         zeilen = [f"{len(v)} offene Anfragen von <b>{anfragen.kunde_text(kunden, k)}</b>: getrennt öffnen oder "
                   f"<a href='{k}'>beide markieren</a> und „Zusammen öffnen“" for k, v in mehrere.items()]
+        nachtrag = [t for t in ohne if "(Nachtrag zu Angebot " in t]
+        ohne = [t for t in ohne if t not in nachtrag]
+        for t in nachtrag:  # Mail ohne STEP zu einer schon übernommenen Anfrage (Patrick 28.10.2026, F2 a)
+            name, _, nr = t[:-1].partition(" (Nachtrag zu Angebot ")
+            zeilen.append(f"Nachtrag zu Angebot <b>{nr}</b>: {name} – bitte im Angebot prüfen und die Mail von Hand "
+                          "dazulegen")
         if ohne:        # nur Zeichnungen/Formulare: nichts automatisch daraus anlegen (Patrick 28.10.2026)
             zeilen.append(f"Ohne STEP (nicht in der Liste, z. B. nur Zeichnung als PDF): {', '.join(ohne[:4])}"
                           + (f" und {len(ohne) - 4} weitere" if len(ohne) > 4 else "")

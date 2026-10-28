@@ -939,9 +939,20 @@ def kapitel_angebote(i):
     i.genauer()
     i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
             "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "
-            "Eine Mail mit STEP-Anhang ist immer eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen. "
+            "Eine Mail mit STEP-Anhang ist eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen – außer "
+            "sie gehört zur selben Anfrage wie eine andere Mail (nächster Punkt). "
             "Auch ältere Outlook-Mails nur mit RTF-Text und Anhänge in <i>winmail.dat</i> werden gelesen; ein "
             "beschädigter Anhang wird übersprungen, der Rest der Mail trotzdem ausgewertet.",
+            "<b>Mehrere Mails zur selben Anfrage</b>: Mails vom selben Kunden (gleiche Firmen-Domain, bei Freemail "
+            "gleiche Adresse) mit derselben Anfrage-Nr. oder demselben Betreff (ohne <i>AW:</i>, <i>WG:</i>; "
+            "Allerweltsbetreffs wie <i>Anfrage</i> zählen nicht) innerhalb von 3 Tagen sind <b>eine</b> Anfrage – "
+            "die Liste zeigt dann z. B. <i>Anfrage + Nachtrag (2 STEP, 3 E-Mail)</i>. Ein Nachtrag ohne STEP gehört "
+            "mit dazu. Bei verschiedenen Angaben (Stückzahl, Lieferzeit, Werkstoff) gilt die <b>neueste</b> Mail; "
+            "der Prüfdialog nennt oben die ältere Angabe, eine abweichende Stückzahl steht im Tooltip und das Feld "
+            "ist gelb. Kommt eine STEP-Datei mit gleichem Namen ein zweites Mal, gilt die neueste Version; die "
+            "ältere bleibt als <i>Teil (alt).stp</i> liegen, wird nicht importiert und wandert mit in den "
+            "Angebotsordner. Kommt ein Nachtrag erst, wenn die Anfrage schon ein Angebot ist, sagt die Startseite "
+            "<i>Nachtrag zu Angebot …</i> – dann das Angebot von Hand anpassen.",
             "<b>Kunde</b>: Die Absenderadresse wird mit dem Feld <i>E-Mail</i> der Kunden verglichen ([[kunden]]) – "
             "erst genau, dann nur die Domain (<i>@kunde.de</i>). Bei Freemail-Adressen (gmail, web.de, gmx …) zählt "
             "nur die genaue Adresse; passt eine Domain zu mehreren Kunden, entscheidet das Programm nicht. Mails "

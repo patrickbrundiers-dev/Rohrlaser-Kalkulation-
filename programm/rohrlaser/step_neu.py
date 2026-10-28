@@ -83,7 +83,7 @@ def _mails_lesen(fenster, dateien):
     if not pfade:
         return dateien, {}
     dateien, mails = list(dateien), []
-    for p in pfade:
+    for p in sorted(pfade, key=anfragen.quell_zeit):     # älteste zuerst; gleicher Name: die neueste Version gilt
         try:
             dateien += [str(d) for d in anfragen.neben_auspacken(p)]
         except OSError as e:
@@ -91,7 +91,14 @@ def _mails_lesen(fenster, dateien):
         m = mail.lesen(p) if p.suffix.lower() in anfragen.MAIL else None      # ZIP: nur auspacken
         if m:
             mails.append(m)
-    return dateien, anfragen.werte(fenster.db, [], mails)[2]
+    return list(dict.fromkeys(dateien)), anfragen.werte(fenster.db, [], mails)[2]
+
+
+def _alte_version(p):
+    """'Teil1 (alt).step' neben 'Teil1.step': ältere Version aus einer früheren Mail, nicht importieren."""
+    from . import anfragen
+    p = Path(p)
+    return anfragen.ist_alt(p) and p.with_name(anfragen.ALT.sub("", p.stem) + p.suffix).exists()
 
 
 def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=None, vorschlag=None, hinweis=None,
@@ -118,7 +125,7 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
         formulare, hinweis = w.get("formulare"), hinweis or w.get("hinweis")
         vorschlag, werkstoff_text = vorschlag or w.get("vorschlag"), werkstoff_text or w.get("werkstoff_text")
         neuer_kunde = neuer_kunde or w.get("neuer_kunde")
-    gefunden = [str(d) for d in step.step_dateien(dateien)]
+    gefunden = [str(d) for d in step.step_dateien(dateien) if not _alte_version(d)]
     if not gefunden:
         if not fenster.stumm:
             QMessageBox.information(fenster, "Neues Angebot aus STEP", "Keine STEP-Dateien (*.step, *.stp) gefunden.")
