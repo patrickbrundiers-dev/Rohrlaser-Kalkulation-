@@ -47,11 +47,14 @@ def pdf_text(pfad):
 
 
 def anfragenummer(text):
-    """Erste Anfrage-/Bestell-/Projektnummer im Text oder None."""
-    for m in NUMMER.finditer(text or ""):
+    """Erste Anfrage-/Bestell-/Projektnummer im Text oder None. Treffer dürfen sich überlappen: in
+    „Angebotsanfrage⏎Anfrage-Nr.: A-1“ zählt die zweite Stelle, wenn die erste keine Nummer hat."""
+    text, pos = text or "", 0
+    while (m := NUMMER.search(text, pos)):
         nr = m.group(1).strip(".-/_")
         if any(c.isdigit() for c in nr) and len(nr) >= 3:
             return nr
+        pos = m.start() + 1
     return None
 
 
@@ -173,15 +176,11 @@ def auswerten(text, kunden=(), namen=(), eigene=(), ocr=False, unsicher=()):
 
 def datei_lesen(pfad, programmordner=None):
     """Ein Formular lesen: PDF mit Text direkt, Scan-PDF und Bilder mit Tesseract (ocr.py, W6c). Ergebnis dict(text,
-    ocr, unsicher) oder None (nicht lesbar, kein Tesseract)."""
-    pfad = Path(pfad)
-    if pfad.suffix.lower() == ".pdf":
-        text = pdf_text(pfad)
-        if text.strip():
-            return dict(text=text, ocr=False, unsicher=set())
-    from . import ocr
-    erg = ocr.lesen(pfad, programmordner)
-    return dict(erg, ocr=True) if erg and erg["text"].strip() else None
+    ocr, unsicher) oder None (nicht lesbar, kein Tesseract). Jede Seite wird eingeordnet (pdf_art, 28.10.2026): text
+    nur aus Formular- und unklaren Seiten, Zeichnungsseiten liefern nur ihr Schriftfeld (zeichnungen); dazu datei,
+    seiten und wahl für den Prüfdialog."""
+    from . import pdf_art
+    return pdf_art.lesen(pfad, programmordner)
 
 
 def stueck_setzen(messwerte, stueck):
