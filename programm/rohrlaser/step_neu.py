@@ -4,6 +4,7 @@ STEP-Dateien oder ein Ordner auf die Angebotsliste bzw. die Startseite ziehen od
 Das Programm schlägt den Kunden vor (kunde_vorschlag), legt das Angebot an (mit den Kundenvorgaben, W2), öffnet es
 und startet den STEP-Import wie in der Positionsliste.
 """
+import datetime
 import re
 from pathlib import Path
 
@@ -73,20 +74,50 @@ def kunde_vorschlag(db, dateien):
     return None
 
 
-def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=None):
+def _mails_lesen(fenster, dateien):
+    """E-Mails unter den gezogenen Dateien/Ordnern (Patrick 28.10.2026): STEP-Anhänge neben die Mail legen und Kunde,
+    Anfrage-Nr., Lieferzeit, Bemerkung, Werkstoff und Stückzahlen wie im Anfrage-Ordner (anfragen.werte) vorbelegen.
+    Ergebnis (Dateien samt ausgepackter STEP-Dateien, weitere Werte)."""
+    from . import anfragen, mail
+    pfade = anfragen.mails_neben(dateien)
+    if not pfade:
+        return dateien, {}
+    dateien, mails = list(dateien), []
+    for p in pfade:
+        try:
+            dateien += [str(d) for d in anfragen.neben_auspacken(p)]
+        except OSError as e:
+            fenster.meldung(f"Anhänge von {p.name} lassen sich nicht auspacken: {e}", fehler=True)
+        m = mail.lesen(p) if p.suffix.lower() in anfragen.MAIL else None      # ZIP: nur auspacken
+        if m:
+            mails.append(m)
+    return dateien, anfragen.werte(fenster.db, [], mails)[2]
+
+
+def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=None, vorschlag=None, hinweis=None,
+                  werkstoff_text=None, neuer_kunde=None):
     """Angebot anlegen und die STEP-Dateien importieren. dateien: Dateien/Ordner (ohne: Dateiauswahl); kundennr:
     ohne Dialog (Tests, '' = ohne Kunde); kopf: weitere Kopffelder (z. B. kundenreferenz aus dem Anfrageformular);
-    formulare: gelesene Anfrageformulare (Stückzahlen je Artikelnummer, W6b/W6c). Ergebnis: Angebotsseite oder None
-    (abgebrochen, nichts angelegt)."""
+    formulare: gelesene Anfrageformulare (Stückzahlen je Artikelnummer, W6b/W6c); aus einer E-Mail der Anfrage:
+    vorschlag = Kunde (Absenderadresse), hinweis = Zeilen „Aus E-Mail/Formular“ für den Prüfdialog, werkstoff_text = Text,
+    in dem der Import nach dem Werkstoff sucht; neuer_kunde = Stammdaten eines unbekannten Absenders (mail.kunde_daten):
+    der Kunde wird angelegt (Bemerkung „Kunde prüfen“, Patrick 28.10.2026) und bei Abbruch wieder entfernt.
+    Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
     db = fenster.db
     if db.nur_lesen:
         fenster.meldung("Lesemodus: es lassen sich keine Angebote anlegen.", fehler=True)
         return None
     if not dateien:
         dateien, _ = QFileDialog.getOpenFileNames(fenster, "Neues Angebot aus STEP", str(step_ablage.start_ordner(db)),
-                                                  "STEP-Dateien (*.step *.stp *.STEP *.STP)")
+                                                  "STEP-Dateien, E-Mails und ZIP (*.step *.stp *.STEP *.STP *.msg *.eml *.zip)")
         if not dateien:
             return None
+    if formulare is None:           # Kundenordner oder Mail gezogen: E-Mail auslesen wie im Anfrage-Ordner
+        dateien, w = _mails_lesen(fenster, dateien)
+        kopf = dict(w.get("kopf") or {}, **(kopf or {}))
+        formulare, hinweis = w.get("formulare"), hinweis or w.get("hinweis")
+        vorschlag, werkstoff_text = vorschlag or w.get("vorschlag"), werkstoff_text or w.get("werkstoff_text")
+        neuer_kunde = neuer_kunde or w.get("neuer_kunde")
     gefunden = [str(d) for d in step.step_dateien(dateien)]
     if not gefunden:
         if not fenster.stumm:
@@ -95,18 +126,46 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
         return None
     step_ablage.ordner_merken(db, gefunden)
     waehlen = kundennr is None and not fenster.stumm     # Plan Bedienung B1: Kunde oben im Prüfdialog
+    neu_angelegt = None
+    if kundennr is None and not vorschlag and neuer_kunde:
+        vorschlag, neu_angelegt = kunde_anlegen(db, neuer_kunde)
     if kundennr is None:
-        kundennr = kunde_vorschlag(db, dateien) or ""
+        kundennr = vorschlag or kunde_vorschlag(db, dateien) or ""
     i = db.angebot_neu(dict(kopf or {}, kundennr=kundennr or None))
     fenster.angebote.neu_laden()
     seite = fenster.angebot_oeffnen(i)
-    extra = dict(formulare=formulare) if formulare else {}
+    extra = {n: w for n, w in (("formulare", formulare), ("hinweis", hinweis), ("werkstoff_text", werkstoff_text))
+             if w}
     referenz = (kopf or {}).get("kundenreferenz") or referenz_aus_ordner(dateien)
     if seite.step_importieren(gefunden, kunde_waehlen=waehlen, referenz=referenz, **extra) is None \
             and not seite.positionen:
         # abgebrochen: das eben angelegte leere Angebot wieder entfernen (wie vorher beim Abbruch der Kundenwahl)
         fenster.angebot_schliessen(i)
         db.angebot_loeschen(i)
+        if neu_angelegt and not db.con.execute("SELECT 1 FROM angebote WHERE kundennr=?", (vorschlag,)).fetchone():
+            db.loeschen("kunden", [neu_angelegt])       # mit dem Angebot auch den eben angelegten Kunden
         fenster.angebote.neu_laden()
         return None
+    if neu_angelegt:
+        fenster.meldung(f"Neuer Kunde {vorschlag} – {neuer_kunde.get('name')} angelegt (Bemerkung „Kunde prüfen“).")
     return seite
+
+
+PRUEFEN = "Kunde prüfen"
+
+
+def kunde_anlegen(db, daten):
+    """Kunden aus mail.kunde_daten anlegen: nächste freie Kundennummer, Bemerkung „Kunde prüfen – aus E-Mail vom
+    …“. Ergebnis (Kundennummer, Zeilen-ID) bzw. (None, None) wenn nicht möglich."""
+    from . import mail, stammdaten
+    try:
+        nr = mail.neue_kundennr([k.get("kundennr") for k in db.zeilen("kunden")])
+        felder = {f.name for f in stammdaten.KUNDEN.felder}
+        werte = {k: v for k, v in daten.items() if k in felder and v}
+        if not re.fullmatch(r"[A-Z]{2}", werte.get("land") or "DE"):
+            werte.pop("land")
+        werte.update(kundennr=nr, bemerkung=f"{PRUEFEN} – automatisch aus der Anfrage angelegt am "
+                                            f"{datetime.date.today().strftime('%d.%m.%Y')}")
+        return nr, db.neu("kunden", werte)
+    except Exception:       # z. B. Lesemodus: dann ohne Kunden weiter
+        return None, None

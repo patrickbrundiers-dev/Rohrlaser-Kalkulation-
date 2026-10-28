@@ -89,7 +89,7 @@ def vorschau(roh, vorhandene, kategorien=()):
     text = _text(roh)
     probe = next((z for z in text.splitlines() if z.strip()), "")
     trenner = ";" if probe.count(";") >= probe.count(",") else ","
-    leser = csv.reader(io.StringIO(text), delimiter=trenner)
+    leser = csv.reader(io.StringIO(text, newline=""), delimiter=trenner)
     namen = {titel(n).lower(): n for n in ARTIKEL_SPALTEN + BEZUG_SPALTEN}
     namen.update({_feld(n).titel.lower(): n for n in ARTIKEL_SPALTEN + BEZUG_SPALTEN})
     namen.update({n: n for n in ARTIKEL_SPALTEN + BEZUG_SPALTEN})

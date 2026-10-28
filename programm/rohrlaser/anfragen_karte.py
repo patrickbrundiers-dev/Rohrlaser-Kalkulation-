@@ -69,8 +69,9 @@ class AnfragenKarte:
             self.anfragen = []
             return
         kunden = self.f.db.zeilen("kunden")
-        neu = anfragen.suchen(o, kunden)
-        st = anfragen.stand(neu)
+        ohne = []
+        neu = anfragen.suchen(o, kunden, ohne_step=ohne)
+        st = (anfragen.stand(neu), tuple(ohne))
         if st == self._stand and not erzwingen:
             return
         markiert = {a.schluessel for a in self.markierte()}
@@ -91,10 +92,14 @@ class AnfragenKarte:
                            if neu else f"Keine neuen Anfragen im Ordner {o}")
         self.liste.setVisible(bool(neu))
         mehrere = anfragen.gleicher_kunde(neu)
-        self.hinweis.setText("<br>".join(
-            f"{len(v)} offene Anfragen von <b>{anfragen.kunde_text(kunden, k)}</b>: getrennt öffnen oder "
-            f"<a href='{k}'>beide markieren</a> und „Zusammen öffnen“" for k, v in mehrere.items()))
-        self.hinweis.setVisible(bool(mehrere))
+        zeilen = [f"{len(v)} offene Anfragen von <b>{anfragen.kunde_text(kunden, k)}</b>: getrennt öffnen oder "
+                  f"<a href='{k}'>beide markieren</a> und „Zusammen öffnen“" for k, v in mehrere.items()]
+        if ohne:        # nur Zeichnungen/Formulare: nichts automatisch daraus anlegen (Patrick 28.10.2026)
+            zeilen.append(f"Ohne STEP (nicht in der Liste, z. B. nur Zeichnung als PDF): {', '.join(ohne[:4])}"
+                          + (f" und {len(ohne) - 4} weitere" if len(ohne) > 4 else "")
+                          + " – Teile von Hand anlegen oder die STEP dazulegen")
+        self.hinweis.setText("<br>".join(zeilen))
+        self.hinweis.setVisible(bool(zeilen))
         self._knoepfe_setzen()
 
     def _anfrage(self, it):
@@ -168,33 +173,28 @@ class AnfragenKarte:
         return self._gelesen[k]
 
     def _formulare(self, gesperrt):
-        """Anfrageformulare lesen (Plan W6b/W6c): Anfragenummer ins Feld „Ihre Anfrage“ und in den Ordnernamen
-        'Kunde – Nummer' (daraus schlägt der Import den Kunden vor), gelesene Formulare für die Stückzahlen. Ändert
-        gesperrt (neue Pfade). Ergebnis: weitere Werte für neu_aus_step (kopf, formulare)."""
-        from . import formular
+        """Anfrageformulare und E-Mails lesen (Plan W6b/W6c, Mail 28.10.2026, anfragen.werte): Anfragenummer ins Feld
+        „Ihre Anfrage“ und in den Ordnernamen 'Kunde – Nummer', dazu Stückzahlen, Kunde, Lieferzeit, Bemerkung und
+        Werkstoff aus der Mail. Ändert gesperrt (neue Pfade). Ergebnis: weitere Werte für neu_aus_step."""
+        from . import mail
         gelesen = [g for g in (self.formular_lesen(d) for a in gesperrt for d in a.formulare) if g]
-        if not gelesen:
-            return {}
-        kunden = self.f.db.zeilen("kunden")
-        eigene = [self.f.db.einstellung("briefkopf_1") or ""]
-        e = formular.auswerten("\n".join(g["text"] for g in gelesen), kunden, eigene=eigene)
-        kunde = e["kunde"] or next((a.kunde for a in gesperrt if a.kunde), None)
-        if e["nummer"] and len(gesperrt) == 1:
+        mails = [m for m in (mail.lesen(d) for a in gesperrt for d in a.mails) if m]
+        kunde, nummer, weitere = anfragen.werte(self.f.db, gelesen, mails,
+                                                next((a.kunde for a in gesperrt if a.kunde), None))
+        if nummer and len(gesperrt) == 1:
             try:
                 gesperrt[0] = anfragen.umbenennen(gesperrt[0], anfragen.ordner_name(
-                    anfragen.kunde_text(kunden, kunde) if kunde else "", e["nummer"]))
+                    anfragen.kunde_text(self.f.db.zeilen("kunden"), kunde) if kunde else "", nummer))
             except OSError:
                 pass            # Ordner offen (Explorer): Name bleibt
         if kunde:
             for a in gesperrt:
                 a.kunde = a.kunde or kunde
-        weitere = dict(formulare=gelesen)
-        if e["nummer"]:
-            weitere["kopf"] = dict(kundenreferenz=e["nummer"])
         return weitere
 
     def oeffnen(self, auswahl, zusammen=False, kundennr=None):
-        """Anfragen als ein neues Angebot aus STEP öffnen (ohne Auswahl: die älteste offene). Sperren, importieren,
+        """Anfragen als ein neues Angebot aus STEP öffnen (ohne Auswahl: die älteste offene). Sperren, Anhänge der
+        Mails auspacken, importieren,
         danach die Dateien in den Angebotsordner verschieben; bei Abbruch Sperre aufheben. kundennr: ohne Kundenwahl
         (Tests). Ergebnis: Angebotsseite oder None."""
         auswahl = [a for a in auswahl if a] or [a for a in self.anfragen if not a.gesperrt][:1]
@@ -212,6 +212,7 @@ class AnfragenKarte:
         try:
             for a in auswahl:
                 gesperrt.append(anfragen.sperren(a, self.ordner(), kuerzel))
+                gesperrt[-1] = anfragen.auspacken(gesperrt[-1])      # Fehler: Sperre wird unten aufgehoben
         except OSError as e:
             for a in gesperrt:
                 anfragen.freigeben(a)
