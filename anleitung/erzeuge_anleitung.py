@@ -4226,7 +4226,11 @@ def kapitel_zukauf_angebot(i):
             "<b>Rohrzeichnung</b>: Ist auf der Zeichnung ein Rohr (Schnitt mit gleichmäßiger Wand und eine Ansicht "
             "gleicher Breite), öffnet im Angebot statt des Fensters der Rohr-Editor mit allem aus der Zeichnung "
             "([[dxf_rohr]]). Im Blech-Editor meldet das Fenster das Rohr mit Profil und Länge (z. B. <i>QR 40 × 40 "
-            "× 3, Länge 150 mm</i>) und übernimmt nichts als Blech.",
+            "× 3, Länge 150 mm</i>) und übernimmt nichts als Blech. Als Rohr gilt die Zeichnung nur mit einem Beleg "
+            "(Bemaßung, verdeckte Kanten, Mittellinien, Schraffur, Schriftfeld oder Profiltext wie <i>SHS 40x40x3</i>, "
+            "<i>QR40x40x3</i>, <i>Rohr EN 10219 40x40x3</i>). Liegen nur Umrisse vor, etwa ein Ring neben einem "
+            "gleich breiten Streifen, fragt das Zuordnungsfenster nach; dort führt <b>Als Blech importieren</b> zum "
+            "Blech-Import, in dem die Teile dann angehakt sind.",
             "<b>Werkstoff und Dicke</b> stehen meist nicht als Wert in der DXF: Vorschlag aus dem Dateinamen (z. B. "
             "Halter_3mm_1.4301.dxf), sonst aus Texten der Zeichnung (t=3, 3 mm, S235, V2A), sonst wie beim letzten "
             "Import. Je Teil sind Bezeichnung, Werkstoff, Dicke und Stückzahl änderbar.",

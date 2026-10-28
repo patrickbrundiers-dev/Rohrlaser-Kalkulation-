@@ -1200,6 +1200,15 @@ def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=
     gefunden, n_rahmen = _teile(konturen, text_punkte, offen)
     kreuz_grund, kreuz_warn = _ueberschneidungen(gefunden)
     ansichten, rohr = _ansichten(schnitt, kreise, gefunden)
+    rohr_zweifel = None
+    if rohr:                    # bestätigen mit der Rohr-Erkennung (dxf_rohr), sonst bleiben die Bleche angehakt
+        from . import dxf_rohr
+        try:
+            r_erg = dxf_rohr.erkennen(text, dateiname, namen, weg)
+        except (ValueError, KeyError, TypeError, ZeroDivisionError):
+            r_erg = dict(ok=False)
+        if not (r_erg.get("ok") and r_erg.get("belegt")):
+            rohr_zweifel, rohr = rohr, None
     stamm = re.sub(r"\.dxf$", "", str(dateiname or "").replace("\\", "/").split("/")[-1], flags=re.IGNORECASE)
     teile = []
     for nr, (k, innen, grund) in enumerate(gefunden, 1):
@@ -1228,7 +1237,11 @@ def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=
                     "nicht übernommen.")
     if rohr:
         warn.insert(0, f"Die Zeichnung zeigt ein Rohr ({rohr['text']}), kein Blech: als Blech wird nichts "
-                       "übernommen. Den Import von Rohrzeichnungen bringt Schritt 3E-12.")
+                       "übernommen. Im Angebot öffnet „Neue Position → Aus DXF“ dafür den Rohr-Editor.")
+    elif rohr_zweifel:
+        warn.insert(0, f"Teile sehen aus wie Schnitt und Ansicht eines Rohrs ({rohr_zweifel['text']}), als "
+                       "Rohrzeichnung aber nicht belegt (keine Bemaßung, verdeckten Kanten, Schraffur oder "
+                       "Profiltext): als Bleche angehakt, bitte prüfen.")
     n_iso = sum(1 for a in ansichten if a.iso)
     if n_iso and not rohr:
         warn.append(f"Isometrische Ansicht erkannt ({n_iso}×): ihre Konturen sind nicht angehakt.")

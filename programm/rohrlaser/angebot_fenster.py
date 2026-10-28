@@ -3137,7 +3137,7 @@ class AngebotSeite(QWidget):
         for pfad in pfade:
             # Rohrzeichnung (Ansichten eines Rohrlaserteils, 3E-12): Rohr-Editor mit allem aus der Zeichnung
             try:
-                rohr = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung)
+                rohr = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung, blech_moeglich=True)
             except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
                 rohr = None
             if rohr and rohr.get("abgebrochen"):

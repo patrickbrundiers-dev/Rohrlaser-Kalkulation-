@@ -9,6 +9,9 @@ verbessern“). Typische Dateien aus verschiedenen CAD-Programmen, synthetisch e
 - D4 Gleiche Teile (Patrick 28.10.2026 „a“): auch gedreht ein Teil mit Stückzahl, gespiegelt und anders nicht.
 - D5 Rohr: Schriftfeld „Werkstoff: S235JR“ / Wert rechts daneben; Patricks Rohrzeichnungen mit Papierbereich und
   CRLF ergeben dasselbe; Importfenster übernimmt die Stückzahl.
+- D6 Rohr oder Blech (Patrick 28.10.2026 „Rohrerkennung robuster“): Profiltexte SHS/RHS/CHS, Profilrohr, QR40x40x3,
+  mit Norm; Ring bzw. Rahmen neben gleich breitem Streifen ohne Belege ist unsicher (Zuordnungsfenster mit „Als Blech
+  importieren“), im Blech-Import bleiben die Teile angehakt; eine echte Rohrzeichnung bleibt Rohr.
 
 Aufruf: python tests/test_dxf_robust.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -242,4 +245,59 @@ from rohrlaser.dxf_import_dialog import DxfImportDialog  # noqa: E402
 d = DxfImportDialog(None, None, text=datei(minsert, bloecke=teil), pfad="minsert.dxf")
 assert d.zustand[0]["stueck"] == 6
 ok("D5b Importfenster: Stückzahl gleicher Teile vorbelegt")
+
+# ------------------------------------------------------------------ D6 Rohr oder Blech
+for t_, form, a, b, w in (("SHS 40x40x3", "Quadratrohr", 40, 40, 3), ("RHS 60x40x3", "Rechteckrohr", 60, 40, 3),
+                          ("CHS 42.4x2", "Rundrohr", 42.4, 42.4, 2), ("Profilrohr 40x40x3", "Quadratrohr", 40, 40, 3),
+                          ("QR40x40x3", "Quadratrohr", 40, 40, 3), ("Rohr EN 10219 40x40x3", "Quadratrohr", 40, 40, 3),
+                          ("VKT 40x40x3", "Quadratrohr", 40, 40, 3), ("Stahlrohr Ø33,7x2,6", "Rundrohr", 33.7, 33.7, 2.6)):
+    assert dr.profil_aus_text([t_]) == dict(form=form, a=a, b=b, wand=w), t_
+assert dr.profil_aus_text(["Rohrschelle 40x3"]) is None and dr.profil_aus_text(["Blech 1000x2000x3"]) is None
+
+
+def ansichten(verdeckt=True, schnitt=True, profil=None, ring=False):
+    """Rohr 500 lang, 40 × 40 × 3 (bzw. Ring Ø40/Ø34): Vorderansicht oben, Draufsicht darunter, Schnitt rechts."""
+    els = [rechteck(0, 100, 500, 40, "KONTUR"), rechteck(0, 0, 500, 40, "KONTUR")]
+    if verdeckt:
+        els += [linie((0, y0 + y), (500, y0 + y), "VERDECKT") for y0 in (0, 100) for y in (3, 37)]
+    if schnitt:
+        els += [kreis((620, 120), 20, "KONTUR"), kreis((620, 120), 17, "KONTUR")] if ring else \
+            [rechteck(600, 100, 40, 40, "KONTUR"), rechteck(603, 103, 34, 34, "KONTUR")]
+    if profil:
+        els.append(text((0, -20), profil))
+    return datei(*els, layer=(("VERDECKT", "DASHED"), ("KONTUR", "CONTINUOUS")))
+
+
+e = dr.erkennen(ansichten(), "rohr.dxf")
+assert e["ok"] and e["belegt"] and e["profil"]["wand"] == 3 and not any("Umrisse" in u for u in e["unsicher"])
+e = dr.erkennen(ansichten(schnitt=False, profil="SHS 40x40x3"), "rohr.dxf")
+assert e["ok"] and e["profil"] == dict(form="Quadratrohr", a=40, b=40, wand=3)
+e = dr.erkennen(datei(kreis((20, 20), 20), kreis((20, 20), 18), rechteck(100, 0, 200, 40)), "satz.dxf")
+assert e["ok"] and not e["belegt"] and any("Blech-Satz" in u for u in e["unsicher"]), e["unsicher"]
+r = di.importieren(datei(kreis((20, 20), 20), kreis((20, 20), 18), rechteck(100, 0, 200, 40)), "satz.dxf")
+assert not r["rohr"] and len(aktive(r)) == 2 and "als Bleche angehakt" in r["warnungen"][0], r["warnungen"]
+r = di.importieren(datei(rechteck(0, 0, 100, 100), rechteck(5, 5, 90, 90), rechteck(150, 0, 300, 100),
+                         kreis((300, 50), 10)), "rahmen.dxf")
+assert not r["rohr"] and len(aktive(r)) == 2
+r = di.importieren(ansichten(), "rohr.dxf")
+assert r["rohr"] and not aktive(r) and "Rohr-Editor" in r["warnungen"][0]
+
+from rohrlaser import dxf_rohr_dialog  # noqa: E402
+
+satz = datei(kreis((20, 20), 20), kreis((20, 20), 18), rechteck(100, 0, 200, 40))
+gesehen = []
+
+
+def als_blech(d):
+    gesehen.append(d.blech_knopf.text())
+    d.blech_knopf.click()
+    return d.result()
+
+
+erg = dxf_rohr_dialog.rohr_erkennen(None, None, "satz.dxf", dialog=als_blech, text=satz, blech_moeglich=True)
+assert gesehen == ["Als Blech importieren"] and erg["als_blech"] and not erg["ok"] and not erg.get("abgebrochen")
+erg = dxf_rohr_dialog.rohr_erkennen(None, None, "satz.dxf", dialog=lambda d: d.accept() or d.result(), text=satz)
+assert erg["ok"] and not hasattr(dxf_rohr_dialog.DxfZuordnungDialog(None, satz, "x", erg), "blech_knopf")
+ok("D6 Rohr oder Blech: mehr Profiltexte, Ring/Rahmen + Streifen ohne Belege unsicher („Als Blech importieren“), "
+   "im Blech-Import angehakt; echte Rohrzeichnung bleibt Rohr")
 print("Alle Tests DXF-Import robust bestanden.")

@@ -47,8 +47,16 @@ PROJEKTION_3 = r"THIRD\s*ANGLE|3RD\s*ANGLE|PROJEKTIONSMETHODE\s*3|ISO[\s-]*A\b|M
 DEUTSCH_WORTE = ("benennung", "werkstoff", "maßstab", "massstab", "zeichnungsnummer", "gezeichnet", "geprüft")
 ROLLEN = {"vorne": "Vorderansicht", "oben": "Draufsicht", "schnitt": "Schnitt", "weg": "nicht verwenden"}
 PROFIL_WORTE = {"Quadratrohr": "Quadratrohr", "QR": "Quadratrohr", "VKR": "Quadratrohr", "Vierkantrohr": "Quadratrohr",
-                "Rechteckrohr": "Rechteckrohr", "RE": "Rechteckrohr", "RR": "Rundrohr", "Rundrohr": "Rundrohr",
-                "Rohr": None}
+                "VKT": "Quadratrohr", "SHS": "Quadratrohr", "Rechteckrohr": "Rechteckrohr", "RE": "Rechteckrohr",
+                "RHS": "Rechteckrohr", "RR": "Rundrohr", "Rundrohr": "Rundrohr", "CHS": "Rundrohr", "Rohr": None,
+                "Profilrohr": None, "Hohlprofil": None, "Stahlrohr": None, "Edelstahlrohr": None, "Tube": None,
+                "Pipe": None}
+# Rohrwort vor den Maßen: auch zusammengeschrieben (QR40x40x3), mit Bindestrich (4-Kant-Rohr) und mit Norm dazwischen
+# (Rohr EN 10219 40x40x3)
+PROFIL_MUSTER = (r"(?<![A-Za-zÄÖÜäöüß])(Quadratrohr|Vierkantrohr|Rechteckrohr|Rundrohr|Profilrohr|Hohlprofil|"
+                 r"Edelstahlrohr|Stahlrohr|VKR|VKT|SHS|RHS|CHS|QR|RE|RR|Rohr|Tube|Pipe)(?![a-zäöüß])\.?"
+                 r"(?:\s*(?:EN|DIN|ISO)\s*[\d-]+(?:-\d)?)?\s*(?:Ø|%%c)?\s*"
+                 r"(\d+(?:[.,]\d+)?)\s*[xX×*]\s*(\d+(?:[.,]\d+)?)(?:\s*[xX×*]\s*(\d+(?:[.,]\d+)?))?")
 END_PROBEN = (0.2, 0.35, 0.5, 0.65, 0.8)    # Höhen (Anteil), an denen die Endkante abgetastet wird
 EBEN_TOL = 0.02         # Endkante gerade, wenn alle Proben so nah an der Geraden liegen (Anteil der Höhe)
 LAENGS_ANTEIL = 0.3     # waagrechte Linien, die zusammen so viel der Länge ausmachen, sind Längskanten
@@ -88,11 +96,21 @@ class _Linien:
 
     def __init__(self, roh, namen=None, weg=()):
         self.sicht, self.verdeckt, self.mass, self.kreise, self.texte = [], [], [], [], []
+        # Zeichnungsmerkmale (Mittellinien, Schraffur): unterscheiden eine Rohrzeichnung von einem Blech-Satz aus Ring
+        # bzw. Rahmen und Streifen, der nur aus Umrissen besteht
+        self.mittel = 0
+        self.schraffur = sum(1 for typ, _d in roh["entitaeten"] if typ == "HATCH")
         for el in di.elemente(roh):
             layer = el[1]
             if el[0] == "T":
                 self.texte.append(el[1:6])
                 continue
+            if di._hat(layer, ("SCHRAFF", "HATCH")):
+                self.schraffur += 1
+            if di._hat(layer, MITTEL_WORTE) or (el[-1] and not di._hat(layer, VERDECKT_WORTE + MASS_WORTE) and
+                                                 "CENTER" in str(roh["layer"].get(str(layer).upper(), {})
+                                                                 .get("linientyp", ""))):
+                self.mittel += 1
             mass = di._hat(layer, MASS_WORTE)
             verdeckt = di._hat(layer, VERDECKT_WORTE) or (el[-1] and not di._hat(layer, MITTEL_WORTE) and not mass)
             art = di.layer_art(layer, namen, weg)
@@ -122,6 +140,7 @@ class _Linien:
         neu.texte = [(layer, d(p), h, (w or 0.0) + 90.0, t) for layer, p, h, w, t in self.texte]
         neu.dims = [dict(m, a=d(m["a"]), b=d(m["b"])) for m in self.dims]
         neu.layer = self.layer
+        neu.mittel, neu.schraffur = self.mittel, self.schraffur
         return neu
 
 
@@ -302,9 +321,7 @@ def profil_aus_text(texte):
             a, t_ = (float(g.replace(",", ".")) for g in m.groups())
             if 0 < t_ < a / 2:
                 return dict(form="Rundrohr", a=a, b=a, wand=t_)
-        m = re.search(r"\b(Quadratrohr|Vierkantrohr|Rechteckrohr|Rundrohr|VKR|QR|RE|RR|Rohr)\b\.?\s*(?:Ø|%%c)?\s*"
-                      r"(\d+(?:[.,]\d+)?)\s*[xX×*]\s*(\d+(?:[.,]\d+)?)(?:\s*[xX×*]\s*(\d+(?:[.,]\d+)?))?", s,
-                      re.IGNORECASE)
+        m = re.search(PROFIL_MUSTER, s, re.IGNORECASE)
         if not m:
             continue
         wort = next((v for k, v in PROFIL_WORTE.items() if k.upper() == m.group(1).upper()), None)
@@ -832,6 +849,14 @@ def _erkennen(roh, li, dateiname, vorgaben):
         lvs = lvs[:1]
     if all(quelle.startswith("Vorgabe") for _a, _f, quelle, _i in laengs) and not masse:
         unsicher.append("Keine Bemaßung und kein Maßstab im Schriftfeld: Maßstab 1:1 angenommen.")
+    # Belege für eine Rohrzeichnung: Profiltext, Bemaßung, verdeckte Kanten, Mittellinien, Schraffur oder Schriftfeld.
+    # Nur Umrisse (Ring bzw. Rahmen neben einem gleich breiten Streifen) kann auch ein Blech-Satz sein.
+    erg["belegt"] = bool(pt or masse or li.verdeckt or li.mittel or li.schraffur or erg["werkstoff_text"] or erg["name"]
+                         or projektion(texte)[0])
+    if not erg["belegt"] and not rollen:
+        unsicher.insert(0, "Nur Umrisse ohne Bemaßung, verdeckte Kanten, Mittellinien, Schraffur oder Profiltext: "
+                           "das kann auch ein Blech-Satz sein (Ring bzw. Rahmen und ein gleich breiter Streifen). "
+                           "Als Rohr übernehmen oder „Als Blech importieren“ wählen.")
     # Länge
     laengen = [lv.a.breite * lv.f for lv in lvs]
     L = max(laengen)

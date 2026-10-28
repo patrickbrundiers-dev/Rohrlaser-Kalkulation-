@@ -26,8 +26,11 @@ NEUERUNGEN = [
                 "Kleine Lücken (bis 0,5 mm) werden geschlossen, doppelte Linien und Bohrungen zählen einmal, Teile mit "
                 "gemeinsamer Kante werden beide erkannt. Gleiche Bleche werden ein Teil mit Stückzahl. Kreise auf der "
                 "Außenkante, sich schneidende Konturen und Zoll ohne Einheit meldet das Prüffenster "
-                "([[dxf_import]]). Im Rohr-Schriftfeld wird auch „Werkstoff: S235JR“ gelesen.",
-     "DXF-Import robuster: Layout, Attribute, Lücken, doppelte Linien, gleiche Teile mit Stückzahl."],
+                "([[dxf_import]]). Im Rohr-Schriftfeld wird auch „Werkstoff: S235JR“ gelesen. <b>Rohr oder Blech</b> wird "
+                "sicherer erkannt: mehr Profiltexte (SHS, RHS, CHS, Profilrohr, QR40x40x3, mit Norm), eine "
+                "Rohrzeichnung braucht einen Beleg (Bemaßung, verdeckte Kanten, Schraffur, Profiltext), sonst fragt "
+                "das Zuordnungsfenster und bietet „Als Blech importieren“.",
+     "DXF-Import robuster: Layout, Attribute, Lücken, doppelte Linien, gleiche Teile, Rohr oder Blech sicherer."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "
