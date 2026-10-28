@@ -4203,6 +4203,17 @@ def kapitel_zukauf_angebot(i):
             "weitere Layer ohne Schnitt</i>. Layer mit GRAV "
             "oder MARK im Namen (bzw. der Layer Gravur aus der Einstellung DXF-Layer) werden graviert, Texte darauf "
             "werden Text-Gravur. Offene Schnittlinien kommen als sonstige Kontur mit ihrer Länge und einem Hinweis.",
+            "<b>Dateien aus jedem CAD</b>: Rahmen und Schriftfeld im Papierbereich (Layout) werden nicht Teil, ihre "
+            "Texte liefern aber Werkstoff und Dicke; Schriftfelder als Block mit Attributen, Mehrfach-Blöcke, "
+            "Linientyp „VonLayer“ und Sonderzeichen (Ø, °, ±, Umlaute) werden gelesen. Lücken in einer Kontur bis "
+            "0,5 mm schließt das Programm gerade und meldet es, größere Lücken bleiben offen. Doppelt oder teilweise "
+            "doppelt gezeichnete Linien und Bohrungen zählen nur einmal, zwei Teile mit gemeinsamer Kante werden "
+            "beide erkannt. Ein Kreis auf der Außenkante (statt ausgeschnitten) oder sich schneidende Konturen "
+            "werden gemeldet und nicht angehakt, eine Zeichnung in Zoll ohne Einheit ebenso – das Programm rechnet "
+            "nie still etwas anderes als gezeichnet.",
+            "<b>Gleiche Teile</b>: Liegt dasselbe Blech mehrmals in der DXF (auch gedreht oder als Mehrfach-Block), "
+            "wird es ein Teil mit der Stückzahl (im Fenster „3× gleich“, Stückzahl änderbar). Gespiegelte Teile "
+            "und Teile mit anderen Bohrungen bleiben eigene Teile.",
             "<b>Zeichenblatt</b>: Rahmen und Schriftfeld werden erkannt und nicht übernommen. Liegen mehrere Bleche "
             "auf einer Zeichnung, zeigt das Fenster jedes mit Vorschaubild und Haken; ein Kästchen mit Text (z. B. "
             "aus dem Schriftfeld) ist nicht angehakt. Den <b>Maßstab</b> schlägt das Programm aus der Bemaßung oder "

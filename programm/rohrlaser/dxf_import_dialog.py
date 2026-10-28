@@ -161,7 +161,7 @@ class DxfImportDialog(QDialog):
         self.zustand = []
         for t in self.erg["teile"]:
             self.zustand.append(dict(name=t["name"], werkstoff=self.werkstoff_vorschlag, dicke=self.dicke_vorschlag,
-                                     stueck=1, kant=bool(t["biegelinien"]),
+                                     stueck=t.get("anzahl") or 1, kant=bool(t["biegelinien"]),
                                      winkel=[b["winkel"] for b in t["e"].get("biegelinien_dxf") or ()]))
         self.liste.blockSignals(True)
         self.liste.clear()

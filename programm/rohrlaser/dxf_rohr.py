@@ -332,10 +332,15 @@ def laenge_aus_text(texte):
 
 
 def schriftfeld(texte, worte):
-    """Wert unter einer Feldbeschriftung des Schriftfelds (z. B. 'Benennung'): der nächste größere Text darunter."""
+    """Wert einer Feldbeschriftung des Schriftfelds (z. B. 'Benennung'): im selben Text ('Werkstoff: S235JR'), sonst
+    der nächste größere Text darunter, sonst der nächste Text rechts daneben auf derselben Zeile."""
     for layer, p, h, w, t in texte:
-        if not any(str(t).strip().lower().startswith(x) for x in worte):
+        x = next((x for x in worte if str(t).strip().lower().startswith(x)), None)
+        if x is None:
             continue
+        rest = re.sub(r"^[\w.\-]*\s*[:=]?\s*", "", str(t).strip()[len(x):], count=1).strip()
+        if rest[:1].isalnum():
+            return rest
         beste = None
         for _l, q, h2, _w, t2 in texte:
             dy, dx = p[1] - q[1], abs(q[0] - p[0])
@@ -344,7 +349,16 @@ def schriftfeld(texte, worte):
                     beste = (dy, str(t2).strip())
         if beste:
             return beste[1]
+        rechts = [(q[0] - p[0], str(t2).strip()) for _l, q, h2, _w, t2 in texte
+                  if 0 < q[0] - p[0] <= 40 * max(h, 1.0) and abs(q[1] - p[1]) <= 0.5 * max(h, 1.0) and str(t2).strip()
+                  and str(t2).strip() != str(t).strip()]
+        if rechts:
+            return min(rechts)[1]
     return None
+
+
+def _feld(texte, papier, worte):
+    return schriftfeld(texte, worte) or (schriftfeld(papier, worte) if papier else None)
 
 
 def projektion(texte):
@@ -689,15 +703,16 @@ def erkennen(text, dateiname="", namen=None, weg=(), vorgaben=None):
 
 
 def _erkennen(roh, li, dateiname, vorgaben):
-    texte = [t[4] for t in li.texte]
+    papier = list(roh.get("papier_texte") or ())       # Schriftfeld im Layout: nur Texte, nie Lage oder Maßstab
+    texte = [t[4] for t in li.texte] + [t[4] for t in papier]
     warn, hinweise, unsicher = [], [], []
     rollen = {int(k): v for k, v in (vorgaben.get("rollen") or {}).items()}
     erg = dict(ok=False, warnungen=warn, hinweise=hinweise, unsicher=unsicher, ansichten=[], profil=None,
                eingaben=None, drehung=vorgaben.get("drehung") or 0, teile=1, rohrartig=False,
                linien=[[round(c, 2) for c in (*p, *q)] for p, q in li.sicht],
-               werkstoff_text=schriftfeld(li.texte, ("werkstoff", "material")),
-               name=schriftfeld(li.texte, ("benennung", "bezeichnung", "titel")),
-               artikel=schriftfeld(li.texte, ("zeichnungsnummer", "zeichnungs-nr", "zeichn.-nr", "artikelnummer",
+               werkstoff_text=_feld(li.texte, papier, ("werkstoff", "material")),
+               name=_feld(li.texte, papier, ("benennung", "bezeichnung", "titel")),
+               artikel=_feld(li.texte, papier, ("zeichnungsnummer", "zeichnungs-nr", "zeichn.-nr", "artikelnummer",
                                               "artikel-nr", "teilenummer", "sachnummer")),
                laenge_text=laenge_aus_text(texte), profil_text=profil_aus_text([dateiname] + texte))
     ansichten = ohne_innere(ohne_striche(ohne_rahmen(da.gruppen(li.sicht, li.kreise)), li.sicht))
@@ -711,7 +726,7 @@ def _erkennen(roh, li, dateiname, vorgaben):
     if not ansichten:
         warn.append("In der DXF sind keine sichtbaren Kanten.")
         return erg
-    vorgabe = di.massstab_vorschlag(roh, texte)
+    vorgabe = di.massstab_vorschlag(roh, [t[4] for t in li.texte])
     if vorgabe[1] is None:          # Schriftfeld mit Feld „Maßstab“ und dem Wert darunter
         m = re.match(r"^\s*(\d+(?:[.,]\d+)?)\s*:\s*(\d+(?:[.,]\d+)?)\s*$",
                      schriftfeld(li.texte, ("maßstab", "massstab", "maszstab", "scale")) or "")
