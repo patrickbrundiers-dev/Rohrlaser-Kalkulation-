@@ -187,7 +187,29 @@ assert all(x["Stückpr."] == "0.00" for x in pz if x["Pos."] in ("60", "70", "80
 werk = ausgabe.werkstatt(kopf, pm, e1, k, tab)
 assert sum(1 for m in werk["muster"] if "MUSTERTEILE" in ausgabe.muster_titel(m)) == 3
 assert sum(1 for m in werk["material"] if "MUSTER" in m["werkstoff"]) == 3
-ok("K6 Angebot: Muster 0 € mit Vermerk, Hinweis mit Betrag und Frist, eigene Zeile; PDF, CSV, Werkstattpapiere")
+# Meterpreise/Kalkulation-PDF: Musterstangen in ihrer eigenen Abmessung, Stangenvorgabe getrennt (auch Kundenmaterial)
+from rohrlaser import abmessung  # noqa: E402
+ma = rechnen.material_abmessungen(kopf, pm, e1, k, tab)
+mg = [g for g in ma if g["gruppe"][-1] == rechnen.MUSTER]
+assert len(mg) == 3 and all(g["stangen"] >= 1 and g["kosten"] > 0 for g in mg)
+assert sum(g["stangen"] for g in ma) == len(e1["stangen"])
+assert all(abmessung.gruppe_der_stange(s) in {g["gruppe"] for g in ma} for s in e1["stangen"])
+gk = ("QR 40x40x3", "S235-10219", "", 6000, "Kunde")
+assert rechnen.laengen_schluessel(gk + (rechnen.MUSTER,)) != rechnen.laengen_schluessel(gk)
+assert rechnen.laengen_schluessel(gk[:4] + (rechnen.MUSTER,)).endswith("|Muster")
+# Satz als Muster: Satzzeile mit Vermerk
+pms = mit_muster(pos, {30, 40})
+zs, ss, _ = kalk(pms)
+sz = [z for z in ausgabe.angebot(kopf, pms, zs, k, einst)["zeilen"] if z["art"] == "satz"]
+assert sz and all(z["muster"] and ausgabe.MUSTER_VERMERK in z["text"] and z["gesamt"] == 0 for z in sz)
+# CSV-Gesamtzeit: Rüsten Maschine je Lauf auf dessen Teile (Muster ein Rüsten, Serie ein Rüsten)
+gz = {x["Pos."]: x for x in pz}
+ruest_s = s1["ruestzeit"] * 60 / 2
+anteil = sum(export._gesamtzeit_s(p, z1[i], s1, {}, None) - export._gesamtzeit_s(p, z1[i], dict(s1, ruestzeit=0), {}, None)
+             for i, p in enumerate(pm) if p["pos"] in M_POS)
+assert nah(anteil, ruest_s, 1e-6) and gz
+ok("K6 Angebot: Muster 0 € mit Vermerk, Hinweis mit Betrag und Frist, eigene Zeile; PDF, CSV, Werkstattpapiere, "
+   "Meterpreise, Satz als Muster, Zeiten je Lauf")
 
 # ------------------------------------------------------------------ K7 Oberfläche
 from PySide6.QtWidgets import QApplication  # noqa: E402

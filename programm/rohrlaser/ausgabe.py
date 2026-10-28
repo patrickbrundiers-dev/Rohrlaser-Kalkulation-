@@ -246,14 +246,18 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 satzpreis = aufrunden(roh) if mindest_satz else kaufm_runden(roh, 2)
             else:
                 satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile) - (einmal / saetze), 2)
+            satz_muster = any((kalk_zeilen[j] or {}).get("muster") == "ja" for j, _ in teile)
+            vermerk = ("\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)) if satz_muster else ""
             if bg is None:
-                zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}", menge=saetze,
-                                   preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
+                zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}" + vermerk,
+                                   menge=saetze, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2),
+                                   muster=satz_muster))
             else:               # Schweißbaugruppe: eine Zeile, Einzelteile nur mit Häkchen 'Stückliste'
                 from . import baugruppe
                 zeilen.append(dict(art="satz", pos=bg[1].get("pos"), artikel=bg[1].get("artikel"), satz=satz,
-                                   text=baugruppe.zeile_angebot(bg[1]), menge=saetze, einheit="Stk.",
-                                   baugruppe=True, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
+                                   text=baugruppe.zeile_angebot(bg[1]) + vermerk, menge=saetze, einheit="Stk.",
+                                   baugruppe=True, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2),
+                                   muster=satz_muster))
                 if einmal:
                     zeilen.append(dict(art="einmal", pos=None, artikel=None, satz=satz, einheit="pausch.",
                                        text=f"Einmalkosten Schweißbaugruppe {satz} (Rüsten, Vorrichtungen), "

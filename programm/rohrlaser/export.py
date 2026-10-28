@@ -118,15 +118,23 @@ def _werte(z, n):
 
 
 def _gesamtzeit_s(p, z, summen, teile_abm, profil):
-    """Zeit einer Position [s]: Laserzeit × Menge + Anteil Rüsten Maschine und Stangenwechsel (nach Teilen des
-    Angebots) + Rüsten je Abmessung (nach Teilen der Abmessung) + Programmierzeit der Position."""
+    """Zeit einer Position [s]: Laserzeit × Menge + Anteil Rüsten Maschine (nach Teilen des Laufs, Muster
+    eigener Lauf) und Stangenwechsel (nach Teilen des Angebots) + Rüsten je Abmessung (nach Teilen der Abmessung) + Programmierzeit der Position."""
     c = _werte(z, "stueck")
     if not c:
         return 0.0
     t = _werte(z, "laser_netto") * c
     teile = _zahl(summen.get("teile")) or 0
     if teile:
-        t += (_werte(summen, "ruestzeit") * 60 + _werte(summen, "stangenwechsel_s")) * c / teile
+        t += _werte(summen, "stangenwechsel_s") * c / teile
+        ruest = _werte(summen, "ruestzeit") * 60
+        laeufe = _zahl(summen.get("laeufe")) or 1
+        if laeufe > 1:          # Muster und Serie je ein Lauf: Rüsten je Lauf auf dessen Teile
+            n_mu = _zahl(summen.get("teile_muster")) or 0
+            lauf = n_mu if (z or {}).get("muster") == "ja" else teile - n_mu
+            t += ruest / laeufe * c / lauf if lauf else 0
+        else:
+            t += ruest * c / teile
     n_abm = teile_abm.get(rechnen.abm_schluessel(p)) or 0
     if n_abm:
         abm = _werte(summen, "ruestzeit_abmessung")

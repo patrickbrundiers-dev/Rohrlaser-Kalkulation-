@@ -90,6 +90,12 @@ def ohne_muster(gr):
     return tuple(gr[:-1]) if gr and gr[-1] == MUSTER else tuple(gr)
 
 
+def gruppe_einheitlich(gr):
+    """Gruppe in der Schreibweise von material_abmessungen: Beistellung als 'Kunde', 'Muster' bleibt zuletzt."""
+    mu = len(gr) > 4 and gr[-1] == MUSTER
+    return tuple(gr[:4]) + (("Kunde",) if gr[4:len(gr) - mu] else ()) + ((MUSTER,) if mu else ())
+
+
 def gruppe_der_stange(s):
     """Stangengruppe einer Stange oder Auswertungszeile (gespeicherte Ergebnisse ohne Oberfläche = roh, ohne
     Beistellung = eigenes Material). Mit einer anderen Lieferlänge geplante Stangen gehören zur Gruppe ihrer
@@ -1407,8 +1413,7 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
         g["teile_m"] += _n(p.get("laenge")) * rohrstuecke(p) / 1000      # Halbschalen: Rohrstücke
     if ergebnis and ergebnis.get("stangen"):
         for s, w in zip(ergebnis["stangen"], stangen_werte(ergebnis, kopf, positionen, k, tabellen)):
-            gr = gruppe_der_stange(s)
-            gr = gr[:4] + (("Kunde",) if len(gr) > 4 else ())
+            gr = gruppe_einheitlich(gruppe_der_stange(s))
             g = out.get(gr)
             if g is None:
                 continue
@@ -1486,9 +1491,10 @@ def laengen_schluessel(gr):
     """Schlüssel einer Gruppe (Profil, Werkstoff, Oberfläche, Stangenlänge[, Beistellung]) für die gespeicherte
     Längenwahl."""
     profil, werkstoff, ob, stange = gr[:4]
-    bs = gr[4] if len(gr) > 4 and gr[4] else ""
+    mu = len(gr) > 4 and gr[-1] == MUSTER          # Muster: eigener Lauf, eigene Stangenvorgabe
+    bs = gr[4] if len(gr) > 4 + mu and gr[4] else ""
     return f"{profil}|{werkstoff}|{ob or ''}|{int(stange) if float(stange).is_integer() else stange}" + \
-        (f"|{bs}" if bs else "")
+        (f"|{bs}" if bs else "") + (f"|{MUSTER}" if mu else "")
 
 
 def lieferlaengen(profil_id, werkstoff_id, k, tabellen, einst=None, auto=True):
@@ -3284,7 +3290,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     def _summe(n):
         return sum(z.get(n, 0.0) * z["stueck"] for z in zeilen if z)
 
-    summen = dict(ruestzeit=ruest * laeufe, laeufe=laeufe, stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
+    summen = dict(ruestzeit=ruest * laeufe, laeufe=laeufe,
+                  teile_muster=sum(_n(positionen[i].get("stueck")) for i in stk_laser if i in muster_laser),
+                  stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
                   stangen=len(stangen), beladungen=n_lad, beladungen_sn=n_sn, teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten_angebot_eur=ruest_eur,
                   ruesten_abmessung_eur=ruest_abm_eur, ruesten=f7 + ruest_abm * n_abm + sum(sonder_abm.values()),
