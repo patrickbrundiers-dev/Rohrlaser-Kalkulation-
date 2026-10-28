@@ -61,7 +61,8 @@ def vorschlag(text):
     from .optimierung import profil_aus_name
     n = profil_aus_name(t)
     if n is not None and n["form"] in TRAEGER + ("U-Profil",) and n.get("flaeche_manuell"):    # IPE 200, UPN 100
-        return dict(n, profil_id=" ".join(t.split()).upper())
+        kurz, _, rest = t.partition(" ")
+        return dict(n, profil_id=f"{kurz.upper()} {rest}".strip())     # 'I 100x55x5x8' behält die Flanschdicke
     m = re.fullmatch(rf"(Ø|[A-Za-zÄÖÜäöü]+)?\.?\s*({_ZAHL}(?:x{_ZAHL})+)", t)
     if not m:
         return None
@@ -161,6 +162,8 @@ class ProfilNeuDialog(QDialog):
             self.a.setValue(vor["a"])
             self.b.setValue(vor.get("b") or 0)
             self.wand.setValue(vor["wand"])
+            if vor.get("flaeche_manuell"):
+                self.flaeche.setValue(vor["flaeche_manuell"])
         self.pid = QLineEdit()
         self.pid.setPlaceholderText("wird aus den Maßen vorgeschlagen")
         self.info = QLabel()
@@ -185,6 +188,9 @@ class ProfilNeuDialog(QDialog):
         self.form.currentTextChanged.connect(self.pruefen)
         self.pid.textChanged.connect(self._info)
         self.pruefen()
+        if vor and self.pid.text() != vor["profil_id"]:     # Träger 'I h x b x Steg x Flansch': ID wie eingegeben
+            self._von_hand = True
+            self.pid.setText(vor["profil_id"])
 
     @staticmethod
     def _spin(von, bis):

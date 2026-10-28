@@ -58,6 +58,9 @@ d.form.setCurrentText("C-Profil")
 assert "Fläche" in d.fehler(), d.fehler()      # Querschnitt nicht rechenbar: Fläche abfragen
 d.flaeche.setValue(420)
 assert d.fehler() == "" and d.werte()["flaeche_manuell"] == 420
+# Träger ohne Normtabelle (Codex-Review #326): Profil-ID mit Flanschdicke und Fläche bleiben erhalten
+d = profil_neu.ProfilNeuDialog(None, k.profile, None, k.profilformen, eingabe="i 100x55x5x8")
+assert d.pid.text() == "I 100x55x5x8" and d.flaeche.value() > 0 and d.fehler() == "", (d.pid.text(), d.fehler())
 ok("Fenster aus der Eingabe vorbelegt; Fläche wird abgefragt, wenn sie sich nicht rechnen lässt")
 
 # ------------------------------------------------------------------ Schnellzeile
