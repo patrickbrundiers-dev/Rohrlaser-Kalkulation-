@@ -529,7 +529,7 @@ class AngeboteSeite(QWidget):
 
     def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
         """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare,
-        vorschlag, hinweis, werkstoff_text (Anfrage-Ordner, E-Mail)."""
+        vorschlag, hinweis, werkstoff_text, neuer_kunde (Anfrage-Ordner, E-Mail)."""
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 

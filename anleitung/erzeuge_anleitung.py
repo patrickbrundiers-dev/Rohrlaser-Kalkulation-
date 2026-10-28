@@ -916,18 +916,27 @@ def kapitel_angebote(i):
     i.genauer()
     i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
             "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "
-            "Eine Mail mit STEP-Anhang ist immer eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen.",
+            "Eine Mail mit STEP-Anhang ist immer eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen. "
+            "Auch ältere Outlook-Mails nur mit RTF-Text und Anhänge in <i>winmail.dat</i> werden gelesen; ein "
+            "beschädigter Anhang wird übersprungen, der Rest der Mail trotzdem ausgewertet.",
             "<b>Kunde</b>: Die Absenderadresse wird mit dem Feld <i>E-Mail</i> der Kunden verglichen ([[kunden]]) – "
             "erst genau, dann nur die Domain (<i>@kunde.de</i>). Bei Freemail-Adressen (gmail, web.de, gmx …) zählt "
             "nur die genaue Adresse; passt eine Domain zu mehreren Kunden, entscheidet das Programm nicht. Mails "
             "aus der eigenen Firma (Domain aus Briefkopf oder Benutzer-E-Mail) zählen nicht: Hat ein Kollege die "
-            "Anfrage weitergeleitet, gilt der ursprüngliche Absender. Ohne Treffer gilt wie bisher der Name im Text "
-            "bzw. der Ordnername.",
+            "Anfrage weitergeleitet, gilt der ursprüngliche Absender. Ohne Treffer gilt der Name im Text, dann ein "
+            "Kunde, dessen Name in der Domain steckt (<i>@schmitz-stahlbau.de</i> → <i>Schmitz Stahlbau GmbH</i>, nur "
+            "wenn genau einer passt; der Hinweis sagt <i>bitte prüfen</i>), sonst der Ordnername.",
+            "<b>Neuer Kunde</b>: Ist der Absender bei keinem Kunden bekannt, legt das Programm ihn an – mit der "
+            "nächsten freien Kundennummer, Firmenname, Ansprechpartner, Straße, PLZ/Ort, Telefon und E-Mail aus der "
+            "Signatur bzw. dem Kopf des Anfrageformulars und der Bemerkung <i>Kunde prüfen</i>. Bei <b>Abbrechen</b> "
+            "wird der neue Kunde wieder entfernt. Die Daten danach unter Stammdaten → Kunden ([[kunden]]) "
+            "kontrollieren und die Bemerkung löschen.",
             "<b>Anfrage-Nr.</b> aus Formular, Betreff oder Text (<i>Anfrage Nr. A-4711</i>), wie beim Formular.",
             "<b>Lieferzeit</b>: Ein Wunschtermin wie <i>Liefertermin KW 47</i> oder <i>benötigt bis 20.11.</i> "
             "wird die Lieferzeit des Angebots (Kalenderwoche bzw. Lieferdatum). Gezählt werden nur Sätze über "
             "Lieferung oder Bedarf, nicht <i>Angebot bis …</i>; zitierte Zeilen (&gt;), vergangene oder mehrere "
-            "verschiedene Termine übernimmt das Programm nicht.",
+            "verschiedene Termine übernimmt das Programm nicht. Auch eine Dauer zählt (<i>Lieferung in 3 Wochen</i>, "
+            "<i>innerhalb von 10 Arbeitstagen</i>). Bei einer Antwort mit Verlauf gilt die neueste Nachricht zuerst.",
             "<b>Bemerkung</b> (intern, nicht im Angebots-PDF): <i>E-Mail von Name &lt;Adresse&gt; vom Datum: "
             "Betreff</i>.",
             "<b>Werkstoff</b>: Steht ein Werkstoff im Text (<i>1.4301</i>, <i>V2A</i>, <i>S355J2H</i>, "
@@ -936,6 +945,11 @@ def kapitel_angebote(i):
             "dabei, bleibt sie; sonst nennt der Hinweis die Kandidaten und man wählt selbst.",
             "<b>Stückzahlen</b> wie beim Formular aus Zeilen mit Artikelnummer oder Dateiname "
             "(<i>MG-01 Stiel 20 Stk</i>); ein Formular im Anhang wird mitgelesen.",
+            "<b>Anfrageformular</b>: Lieferzeit, Werkstoff und die Hinweise unten liest das Programm aus dem "
+            "Formular genauso wie aus der Mail (erst die Mail, dann das Formular) – auch ohne Mail.",
+            "<b>Nur als Hinweis</b> (nichts wird automatisch gesetzt): mehrere Mengen (<i>10 / 50 / 100 Stk</i>) – "
+            "Staffel bei Bedarf von Hand anlegen; erwähnte Zusatzarbeiten (<i>verzinkt</i>, <i>entgratet</i>) – mit "
+            "<i>Für alle</i> setzen; eine Anfrage-Nr., die es schon in einem Angebot gibt.",
             "Nach dem Übernehmen liegt die Mail im Unterordner <i>Anfrage</i> des Angebotsordners.")
     i.text("Auch ohne Anfrage-Ordner: Eine <i>.msg</i>-Datei oder einen Kundenordner mit Mail auf die Startseite "
            "oder die Angebotsliste ziehen ([[angebot_aus_step]]) – die STEP-Anhänge werden dann neben die Mail "

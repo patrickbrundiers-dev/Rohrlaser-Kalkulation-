@@ -294,13 +294,28 @@ def werte(db, gelesen, mails, ordner_kunde=None):
     gelesene Formulare (dict text/ocr/unsicher), mails = mail.Mail. Kunde: Absenderadresse der Mail (F1), sonst Name im
     Text, sonst ordner_kunde; Anfrage-Nr. aus Formular, Betreff oder Text; Wunschtermin als Lieferzeit (F2); interne
     Bemerkung (F3); der Mailtext geht als werkstoff_text an den Import (F4) und mit den Formularen in die Stückzahlen.
+    Dazu (Patrick 28.10.2026 „robuster und intelligenter“): Kunde auch über den Domainnamen (passt zum Kundennamen),
+    Hinweise auf unbekannte Absender, gewünschte Staffelmengen, erwähnte Zusatzarbeiten und schon vorhandene Angebote
+    mit derselben Anfrage-Nr. Ein Fehler beim Auswerten bricht das Öffnen nie ab (dann nur ohne Vorschläge).
     Ergebnis (Kundennummer oder None, Anfrage-Nr. oder None, weitere Werte für neu_aus_step)."""
+    try:
+        return _werte(db, gelesen, mails, ordner_kunde)
+    except Exception as e:          # nie am Auswerten scheitern: Anfrage öffnet ohne Vorschläge
+        weitere = dict(formulare=list(gelesen)) if gelesen else {}
+        if mails:
+            weitere["hinweis"] = [f"E-Mail nur teilweise ausgewertet ({type(e).__name__}) – bitte selbst prüfen"]
+        return ordner_kunde, None, weitere
+
+
+def _werte(db, gelesen, mails, ordner_kunde=None):
     from . import formular, mail
+    formular_text = "\n".join(g["text"] for g in gelesen if g.get("text"))
     gelesen = list(gelesen) + [dict(text=m.volltext(), ocr=False, unsicher=set(), mail=True) for m in mails]
     if not gelesen:
         return ordner_kunde, None, {}
     kunden = db.zeilen("kunden")
-    e = formular.auswerten("\n".join(g["text"] for g in gelesen), kunden, eigene=[db.einstellung("briefkopf_1") or ""])
+    eigen_name = db.einstellung("briefkopf_1") or ""
+    e = formular.auswerten("\n".join(g["text"] for g in gelesen), kunden, eigene=[eigen_name])
     kunde_mail, hinweis = None, []
     domains = mail.eigene_domains([db.einstellung(n) for n in ("briefkopf_1", "briefkopf_2", "briefkopf_3",
                                                                "briefkopf_4", "benutzer_email")])
@@ -309,21 +324,63 @@ def werte(db, gelesen, mails, ordner_kunde=None):
         if kunde_mail:
             hinweis.append(f"Kunde {kunde_text(kunden, kunde_mail)} ({wie})")
             break
-    kunde = kunde_mail or e["kunde"] or ordner_kunde
+    kunde_domain = None
+    if mails and not kunde_mail and not e["kunde"]:
+        for m in mails:
+            kunde_domain, wie = mail.kunde_aus_domain(m, kunden, domains)
+            if kunde_domain:
+                hinweis.append(f"Kunde {kunde_text(kunden, kunde_domain)} ({wie}, bitte prüfen)")
+                break
+    kunde = kunde_mail or e["kunde"] or kunde_domain or ordner_kunde
     weitere, kopf = dict(formulare=gelesen), {}
+    if not kunde:           # unbekannter Kunde: neu anlegen mit „Kunde prüfen“ (Patrick 28.10.2026)
+        absender = next((m for m in mails if mail.adressen(m, domains)), None)
+        daten = mail.kunde_daten(absender, formular_text, domains)
+        if daten and formular.ohne_zeichen(daten["name"]) != formular.ohne_zeichen(eigen_name):
+            weitere["neuer_kunde"] = daten
+            hinweis.append(f"Neuer Kunde „{daten['name']}“ angelegt (Bemerkung „Kunde prüfen“)")
+    elif mails and not kunde_mail:
+        fremd = next((a for m in mails for a in mail.adressen(m, domains)), None)
+        if fremd:
+            hinweis.append(f"Absender {fremd} steht bei keinem Kunden – beim Kunden unter E-Mail eintragen, dann "
+                           "erkennt das Programm ihn nächstes Mal")
     if e["nummer"]:
         kopf["kundenreferenz"] = e["nummer"]
     if kunde:
         weitere["vorschlag"] = kunde
     if mails:
-        text = "\n".join(m.volltext() for m in mails)
         kopf["bemerkung"] = "; ".join(mail.bemerkung(m) for m in mails)
-        art, wert, satz = mail.termin(text)
+    # Mail und Anfrageformular gleich auswerten (Patrick 28.10.2026): erst die Mail, dann das Formular
+    quellen = [q for q in ("\n".join(m.volltext() for m in mails), formular_text) if q.strip()]
+    for q in quellen:
+        art, wert, satz = mail.termin(q)
         if art:
             from .angebot import lieferzeit_text
             kopf.update(lieferzeit_art=art, lieferzeit_wert=wert)
             hinweis.append(f"{lieferzeit_text(kopf).rstrip('.')} (aus „{satz[:60]}“)")
-        weitere.update(werkstoff_text=text, hinweis=hinweis)
+            break
+    for q in quellen:
+        staffel = mail.staffel_mengen(q)
+        if staffel:
+            hinweis.append(f"Mengen {' / '.join(map(str, staffel))} angefragt – Staffel bei Bedarf von Hand anlegen")
+            break
+    katalog = [z["name"] for z in db.zeilen("zusatzarbeiten") if z.get("name") and z.get("aktiv") != "nein"]
+    erwaehnt = {}
+    for q in quellen:
+        for name, wort in mail.zusatz_erwaehnt(q, katalog):
+            erwaehnt.setdefault(name, wort)
+    for name, wort in erwaehnt.items():
+        hinweis.append(f"„{wort}“ erwähnt – Zusatzarbeit {name} mit „Für alle“ setzen")
+    if quellen:
+        weitere["werkstoff_text"] = "\n".join(quellen)
+    if e["nummer"]:
+        schon = db.con.execute("SELECT nummer FROM angebote WHERE kundenreferenz=? ORDER BY id", (e["nummer"],)
+                               ).fetchall()
+        if schon:
+            hinweis.append(f"Anfrage-Nr. {e['nummer']} gibt es schon in Angebot "
+                           f"{', '.join(z[0] for z in schon[:3])}")
+    if hinweis:
+        weitere["hinweis"] = hinweis
     if kopf:
         weitere["kopf"] = kopf
     return kunde, e["nummer"], weitere

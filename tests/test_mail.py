@@ -254,4 +254,91 @@ dlg = StepPruefDialog(None, mw, k, "1.4301", 1, vorpruefung=lambda: ([], 0), hin
 assert dlg.mail_hinweis is not None and "Aus der E-Mail" in dlg.mail_hinweis.text() and "KW" in dlg.mail_hinweis.text()
 assert StepPruefDialog(None, [dict(mw[0])], k, "1.4301", 1, vorpruefung=lambda: ([], 0)).mail_hinweis is None
 ok("Prüfdialog zeigt „Aus der E-Mail: …“ (nur mit Mail)")
+# ------------------------------------------------------------------ robuster und intelligenter (0.9.166)
+RTF = (b"{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}\\pard Bitte 5 Stk MG-01\\par Material 1.4301\\par Gr\\'fc\\'dfe\\par}")
+r = mail.aus_bytes(bau.msg_rtf("Alt", bau.rtf_mela(RTF), [("A.stp", b"x")]))
+assert r.text == "Bitte 5 Stk MG-01\nMaterial 1.4301\nGrüße" and r.anhaenge == [("A.stp", b"x")], r.text
+spez = bytes.fromhex("2d0000002b0000004c5a4675f1c5c7a703000a007263706731323542320af32068656c090020627705b06c647d0a800fa0")
+assert mail.rtf_entpacken(spez) == b"{\\rtf1\\ansi\\ansicpg1252\\pard hello world}\r\n"        # Beispiel aus MS-OXRTFCP
+assert mail.rtf_text(b"{\\rtf1\\ansi\\fromhtml1{\\*\\htmltag <p>}Menge 7 Stk{\\*\\htmltag </p>}\\htmlrtf{\\par}"
+                     b"\\htmlrtf0}") == "Menge 7 Stk"
+ok("alte Outlook-Datei nur mit RTF-Text (komprimiert und unkomprimiert, auch aus HTML)")
+
+winmail = bau.tnef([("MG-01 Stiel lang.stp", STEP)])
+assert mail.tnef_anhaenge(winmail) == [("MG-01 Stiel lang.stp", STEP)]
+assert mail.tnef_anhaenge(bau.tnef([("Teil.stp", b"S")], lang=False)) == [("TEIL~1.STP", b"S")]
+assert [n for n, _ in mail.aus_bytes(bau.eml("A", "s. Anhang", "K", "k@x.de", None, [("winmail.dat", winmail)]),
+                                     ".eml").anhaenge] == ["MG-01 Stiel lang.stp"]
+assert [n for n, _ in mail.aus_bytes(bau.msg("A", "s. Anhang", "K", "k@x.de", None,
+                                             [("winmail.dat", winmail)])).anhaenge] == ["MG-01 Stiel lang.stp"]
+assert mail.tnef_anhaenge(winmail[:40]) == []                                        # abgeschnitten: nichts
+assert mail.sauber("CON.stp") == "_CON.stp" and mail.sauber("x" * 300 + ".step").endswith(".step")
+assert len(mail.sauber("x" * 300 + ".step")) <= 150
+ok("winmail.dat in .eml und .msg ausgepackt (langer Name), Windows-Sondernamen und lange Namen")
+
+pfad = tmp / "zwischen.msg"
+pfad.write_bytes(roh)
+assert mail.lesen(pfad) is mail.lesen(pfad)                     # zwischengespeichert
+pfad.write_bytes(bau.msg("Neu", "anders"))
+os.utime(pfad, (alt_s + 60, alt_s + 60))
+assert mail.lesen(pfad).betreff == "Neu"                        # geändert: neu gelesen
+ok("Mail wird je Datei nur einmal gelesen, nach Änderung neu")
+
+VERLAUF = "Neu: bitte Liefertermin KW 50\n\n-----Ursprüngliche Nachricht-----\nVon: x\nLiefertermin KW 46"
+assert mail.termin(VERLAUF, HEUTE)[:2] == (KALENDERWOCHE, "50/2026")            # neueste Nachricht zählt
+assert mail.termin("Lieferung in 3 Wochen", HEUTE)[:2] == ("Wochen", "3")
+assert mail.termin("Liefertermin innerhalb von 10 Arbeitstagen", HEUTE)[:2] == ("Arbeitstage", "10")
+assert mail.werkstoff("Material 1.4301\n\n-----Ursprüngliche Nachricht-----\nMaterial S355", ws)[0] == "1.4301"
+ok("Antwortverlauf: neueste Nachricht zuerst; Lieferzeit auch als Dauer (Wochen, Arbeitstage)")
+
+kd = [dict(kundennr="1", name="Schmitz Stahlbau GmbH", email=""), dict(kundennr="2", name="Anders", email="")]
+assert mail.kunde_aus_domain(mail.Mail(absender="a@schmitz-stahlbau.de"), kd)[0] == "1"
+assert mail.kunde_aus_domain(mail.Mail(absender="a@ganz-anders.de"), kd)[0] is None
+assert mail.staffel_mengen("Bitte Preise für 10 / 50 / 100 Stk") == [10, 50, 100]
+assert mail.staffel_mengen("MG-01 20 Stk") == []
+assert mail.zusatz_erwaehnt("Teile bitte verzinkt und entgratet", ["Verzinken", "Entgraten", "Lackieren"]) == \
+    [("Verzinken", "verzinkt"), ("Entgraten", "entgratet")]
+ok("Kunde über Domain im Namen (nur eindeutig), Mengenstaffel und Zusatzarbeiten nur als Hinweis")
+
+SIG = ("Hallo,\nAnfrage anbei.\n\nMit freundlichen Grüßen\nJens Neu\nNeu Blechtechnik GmbH\nIndustriestr. 12\n"
+       "58093 Hagen\nTel. +49 2331 12345-0\n")
+neu_m = mail.Mail(absender="jens@neu-blech.de", absender_name="Jens Neu", text=SIG)
+assert mail.kunde_daten(neu_m) == dict(email="jens@neu-blech.de", ansprechpartner="Jens Neu",
+                                       name="Neu Blechtechnik GmbH", telefon="+49 2331 12345-0", plz="58093",
+                                       plz_ort="58093 Hagen", land="DE", strasse="Industriestr. 12"), \
+    mail.kunde_daten(neu_m)
+assert mail.kunde_daten(mail.Mail(absender="info@stahl-otto.de", text="Gruß"))["name"] == "Stahl Otto"
+assert mail.kunde_daten(mail.Mail(absender="patrick@laser.example"), "", {"laser.example"}) is None
+assert mail.neue_kundennr(["10417", "10500", "K-0099"]) == "10501" and mail.neue_kundennr([]) == "10001"
+assert mail.neue_kundennr(["K-0099"]) == "K-0100"
+ok("neuer Kunde: Firma, Ansprechpartner, Straße, PLZ/Ort, Telefon aus Signatur; nächste Kundennummer")
+
+_, _, wf = anfragen.werte(db, [dict(text="Anfrage-Nr. 4711\nLiefertermin KW 50\nMengen 10/20/50 Stk", ocr=False,
+                                    unsicher=set())], [], "10417")
+assert wf["kopf"]["lieferzeit_wert"] == f"50/{HEUTE.year}" or wf["kopf"]["lieferzeit_art"] == KALENDERWOCHE, wf
+assert any("10 / 20 / 50" in h for h in wf["hinweis"]), wf["hinweis"]
+assert any("A-4711" in h and "gibt es schon" in h for h in anfragen.werte(db, [], [m])[2]["hinweis"])
+kaputt = mail.Mail(absender="x@y.de")
+kaputt.volltext = None                                          # Fehler in der Auswertung: kein Absturz
+k3, n3, w3 = anfragen.werte(db, [], [kaputt], "10417")
+assert k3 == "10417" and "teilweise" in w3["hinweis"][0], w3
+ok("Anfrageformular wie die Mail ausgewertet (Lieferzeit, Staffel), doppelte Anfrage-Nr., Fehler abgefangen")
+
+neu_ordner = tmp / "Kunden" / "Irgendwo"
+neu_ordner.mkdir(parents=True)
+(neu_ordner / "Anfrage.msg").write_bytes(bau.msg("Anfrage Gestell", SIG, "Jens Neu", "jens@neu-blech.de", GESENDET,
+                                                  [("Teil 9.stp", STEP)]))
+vorher = {k["kundennr"] for k in db.zeilen("kunden")}
+AngebotSeite.step_importieren = lambda self, *a, **kw: None     # abgebrochen
+assert fenster.angebote.neu_aus_step([str(neu_ordner)]) is None
+assert {k["kundennr"] for k in db.zeilen("kunden")} == vorher, "Kunde nach Abbruch nicht entfernt"
+AngebotSeite.step_importieren = step_importieren
+seite3 = fenster.angebote.neu_aus_step([str(neu_ordner)])
+AngebotSeite.step_importieren = orig
+neu_k = [k for k in db.zeilen("kunden") if k["kundennr"] not in vorher]
+assert len(neu_k) == 1 and neu_k[0]["name"] == "Neu Blechtechnik GmbH" and neu_k[0]["email"] == "jens@neu-blech.de"
+assert neu_k[0]["bemerkung"].startswith("Kunde prüfen") and neu_k[0]["plz_ort"] == "58093 Hagen", neu_k[0]
+assert str(seite3.kopf.get("kundennr")) == neu_k[0]["kundennr"] == "10702", seite3.kopf
+assert any("Neuer Kunde" in h for h in aufrufe[-1][2]["hinweis"])
+ok("unbekannter Absender: Kunde angelegt mit „Kunde prüfen“, bei Abbruch wieder entfernt")
 print("Alle Tests bestanden.")

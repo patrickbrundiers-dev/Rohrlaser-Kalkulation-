@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.166", "<b>E-Mail und Anfrageformular schlauer</b>: Ist der Absender unbekannt, legt das Programm den "
+                "Kunden mit Adresse, Ansprechpartner und Telefon aus Signatur bzw. Formular an – mit der Bemerkung "
+                "<i>Kunde prüfen</i> (bei Abbruch wieder entfernt). Das Anfrageformular wird wie die Mail ausgewertet "
+                "(Lieferzeit, Werkstoff). Robuster: ältere Outlook-Mails nur mit RTF-Text, <i>winmail.dat</i>, "
+                "beschädigte Anhänge. Intelligenter: bei Antworten zählt die neueste Nachricht, Lieferzeit auch als "
+                "Dauer (<i>in 3 Wochen</i>), Kunde über den Firmennamen in der Domain; Hinweise zu Mengenstaffel, "
+                "Zusatzarbeiten und doppelter Anfrage-Nr. ([[anfrage_mail]]).",
+     "Mail/Formular: unbekannte Kunden anlegen („Kunde prüfen“), RTF/winmail.dat, Verlauf, Dauer, Hinweise."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "
