@@ -175,6 +175,17 @@ def step_importieren(self, dateien=None, *args, **kw):
     return {}
 
 
+ausp = anfragen.auspacken
+
+
+def voll(_a):
+    raise OSError("Datenträger voll")
+
+
+anfragen.auspacken = voll                   # Auspacken scheitert: Sperre wird wieder aufgehoben
+assert karte.oeffnen([karte.anfragen[0]]) is None
+assert anfragen.sperre_lesen(karte.anfragen[0].ordner) is None, "Sperre nach Fehler beim Auspacken"
+anfragen.auspacken = ausp
 orig = AngebotSeite.step_importieren
 AngebotSeite.step_importieren = step_importieren
 seite = karte.oeffnen([karte.anfragen[0]])

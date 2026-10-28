@@ -206,7 +206,8 @@ class AnfragenKarte:
         gesperrt = []
         try:
             for a in auswahl:
-                gesperrt.append(anfragen.auspacken(anfragen.sperren(a, self.ordner(), kuerzel)))
+                gesperrt.append(anfragen.sperren(a, self.ordner(), kuerzel))
+                gesperrt[-1] = anfragen.auspacken(gesperrt[-1])      # Fehler: Sperre wird unten aufgehoben
         except OSError as e:
             for a in gesperrt:
                 anfragen.freigeben(a)
