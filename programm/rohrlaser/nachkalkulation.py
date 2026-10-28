@@ -60,9 +60,10 @@ def gruppen(ergebnis, kopf, positionen, k, tabellen):
         ob = s.get("oberflaeche") or ""
         g = out.setdefault(rechnen.gruppe_der_stange(s),
                            dict(schluessel=gruppenschluessel(s["profil"], s["werkstoff"], s["stange"], ob)
-                                + ("|Kunde" if s.get("beistellung") else ""),
+                                + ("|Kunde" if s.get("beistellung") else "") + ("|Muster" if s.get("muster") else ""),
                                 profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], ob)
-                                + (" – Kundenmaterial" if s.get("beistellung") else ""),
+                                + (" – Kundenmaterial" if s.get("beistellung") else "")
+                                + (" – Muster" if s.get("muster") else ""),
                                 stange=s["stange"], soll=0, kosten=0.0))
         g["soll"] += 1
         g["kosten"] += w["kosten"] or 0

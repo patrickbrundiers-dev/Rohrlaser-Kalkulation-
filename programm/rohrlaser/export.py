@@ -127,7 +127,7 @@ def _gesamtzeit_s(p, z, summen, teile_abm, profil):
     teile = _zahl(summen.get("teile")) or 0
     if teile:
         t += (_werte(summen, "ruestzeit") * 60 + _werte(summen, "stangenwechsel_s")) * c / teile
-    n_abm = teile_abm.get(p.get("profil_id")) or 0
+    n_abm = teile_abm.get(rechnen.abm_schluessel(p)) or 0
     if n_abm:
         abm = _werte(summen, "ruestzeit_abmessung")
         if (profil or {}).get("form") in rechnen.SONDERFORMEN:
@@ -142,6 +142,13 @@ def _stueckpreis(z):
     if _werte(z, "mindestpreis_teil") > 0:
         return aufrunden(_werte(z, "preis_teil"))
     return kaufm_runden(_werte(z, "preis_teil"), 2)
+
+
+def _muster_text(z):
+    """Kommentar eines Musterteils (Preis 0): wohin seine Kosten gehen."""
+    if (z or {}).get("muster") != "ja":
+        return ""
+    return "Muster, Musterkosten einmalig" if _werte(z, "muster_einmal_position") > 0 else "Muster, im Serienpreis enthalten"
 
 
 def _arbeitsgaenge(p, z, k):
@@ -244,7 +251,8 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
     teile_abm = {}
     for p, z in zip(positionen, kalk_zeilen):
         if z and not ist_zukaufteil(p):
-            teile_abm[p.get("profil_id")] = teile_abm.get(p.get("profil_id"), 0) + _werte(z, "stueck")
+            schl = rechnen.abm_schluessel(p)       # Musterteile: eigener Lauf, eigenes Rüsten je Abmessung
+            teile_abm[schl] = teile_abm.get(schl, 0) + _werte(z, "stueck")
     datum_angebot = datum(kopf.get("datum"))
     out = []
     for p, z in zip(positionen, kalk_zeilen):
@@ -309,7 +317,7 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             "zum Schneiden": "0",
             "Gesamt HK(€)": geld(hk),
             "Marge Netto%": zahl(100 * (preis - hk) / hk, 1) if hk > 0 else "",
-            "Kommentar": _text(z.get("hinweis")),
+            "Kommentar": "; ".join(t for t in (_text(z.get("hinweis")), _muster_text(z)) if t),
             "Preis/Kg": geld(einkauf / einsatz_ges) if einsatz_ges and _werte(z, "material_position") > 0 else "",
             "Einsatzgewicht": zahl(einsatz, 3),
             "HK()": geld(hk_teil),

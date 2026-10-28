@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.172", "<b>Musterteile</b>: Positionen lassen sich als <b>Muster</b> markieren (Spalte <i>Muster</i>, "
+                "Rechtsklick „Muster an/aus“, Häkchen in Rohr-, Blech-, Baugruppen-Editor und Satz in 3D). Muster "
+                "stehen im Angebot mit 0,00 € und dem Vermerk „Muster – im Serienpreis enthalten“; ihre Kosten "
+                "(Selbstkosten mit normalem Gewinn, Zukauf nur mit Aufschlag) werden nach Wert auf die "
+                "Serienpositionen umgelegt, so entsteht nie eine Minusmarge. Muster laufen als eigener Lauf mit "
+                "eigenem Rüsten, Material nach belegter Länge. Je Angebot umschaltbar auf eine eigene Zeile "
+                "„Musterkosten einmalig“ (ohne Serienposition automatisch). Staffelpreise legen die Muster je "
+                "Stufe einmal um; das Angebots-PDF nennt, dass die Muster berechnet werden, wenn keine Serie "
+                "folgt ([[musterteile]]).",
+                "Musterteile: 0 € im Angebot, Kosten auf die Serie umgelegt, keine Minusmarge"],
     ["0.9.171", "<b>Artikelnummer aus der STEP-Datei besser</b>: Schreibt das CAD-System eine eigene "
                 "<b>Teilenummer</b> in die STEP-Datei, wird sie die Artikelnummer und die Benennung die Bezeichnung. "
                 "Namen werden bereinigt: CAD-Zusätze (<i>Rohr:1</i>, <i>Teil1&lt;1&gt;</i>), Dateiendungen "

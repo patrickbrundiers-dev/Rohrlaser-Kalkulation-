@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
+from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
@@ -1808,6 +1809,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                  ("Anzahl Baugruppen", self.anzahl, 0)):
             kopf.addWidget(QLabel(titel))
             kopf.addWidget(w, streck)
+        # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
+        self.muster_haken = MusterHaken(p)
+        kopf.addWidget(self.muster_haken)
         self.bezeichnung.textChanged.connect(self.aktualisieren)
         self.anzahl.valueChanged.connect(self.aktualisieren)
         lay.addLayout(kopf)
@@ -2461,7 +2465,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
 
     def _position(self, bg=None):
         return dict(self.p, art=BAUGRUPPE, stueck=self.anzahl.value(), baugruppe=baugruppe.speichern(bg or self.daten()),
-                    bezeichnung=self.bezeichnung.text().strip() or None, artikel=self.artikel.text().strip() or None)
+                    bezeichnung=self.bezeichnung.text().strip() or None, artikel=self.artikel.text().strip() or None,
+                    muster=self.muster_haken.wert() if hasattr(self, "muster_haken") else self.p.get("muster"))
 
     def _positionen_neu(self, p):
         """Positionen des Angebots mit dieser Baugruppe und den Zuordnungen des Dialogs, abgeglichen (für den Status)."""
@@ -3322,7 +3327,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
-        return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel")},
+        return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
                     knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
                     lagen=dict(getattr(self, "steck_lagen", {})))
