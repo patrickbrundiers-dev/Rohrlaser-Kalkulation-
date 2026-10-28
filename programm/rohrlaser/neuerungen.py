@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.169", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
+    ["0.9.166", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
                 "Feld (Text, Zahl, Rechnung, Datum, Auswahl), in Tabellen geht es eine Zeile weiter. Übernehmen "
                 "und schließen nur mit dem Knopf oder gezielt mit <b>Strg+Enter</b>. Ausnahmen: reine Ja/Nein-"
                 "Fragen, Dateiauswahl und Suchen und ausführen ([[eingaben]]).",
