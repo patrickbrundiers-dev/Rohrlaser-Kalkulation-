@@ -2151,6 +2151,9 @@ class AngebotSeite(QWidget):
         ok = self.optimieren(automatisch=True)
         if not ok:
             self._auto_fehlgeschlagen = kennung
+            # „Wird berechnet …“ und „…“ wieder durch Stand und vorläufige Preise ersetzen; _auto_planen plant für
+            # dieselben Eingaben nicht noch einmal
+            self.neu_laden()
         return ok
 
     def _neu_laden(self):

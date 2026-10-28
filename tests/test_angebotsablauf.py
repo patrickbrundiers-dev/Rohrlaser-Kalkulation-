@@ -188,6 +188,24 @@ assert seite.auto_optimieren()
 assert ub.preis["verkauf"].text().endswith("€") and ub.stand.text() == "Optimierung abgeschlossen"
 ok("V7: „Wird berechnet …“ bis zum automatischen Optimieren")
 
+# V7: scheitert das automatische Optimieren, steht wieder der Stand mit vorläufigen Preisen da (nicht „Wird berechnet …“)
+db.position_aendern(t01["id"], "stueck", 11)
+seite.neu_laden()
+if seite.auto_optimieren_moeglich():
+    assert ub.stand.text() == "Wird berechnet …"
+    seite.optimieren = lambda automatisch=False: False
+    try:
+        assert not seite.auto_optimieren()
+    finally:
+        del seite.optimieren
+    assert ub.stand.text() != "Wird berechnet …" and ub.preis["verkauf"].text().endswith("€"), ub.stand.text()
+    assert not seite.auto_optimieren_moeglich()          # gleiche Eingaben: kein neuer Versuch, keine Schleife
+db.position_aendern(t01["id"], "stueck", 12)
+seite.neu_laden()
+if seite.auto_optimieren_moeglich():
+    assert seite.auto_optimieren()
+ok("V7: gescheitertes automatisches Optimieren zeigt wieder Stand und vorläufige Preise")
+
 # ------------------------------------------------------------------ Rüsten als fester Betrag
 f.stumm = True
 z0, s0 = seite._rechnung()
