@@ -1235,9 +1235,9 @@ def kapitel_angebot(i):
            "<b>Angebots-Check</b>, Kennzahlen, <b>Preisaufbau</b> und Zeiten. Vor dem Optimieren stehen die "
            "Preise grau mit „(vorläufig)“.")
     i.genauer()
-    i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Wird berechnet …</i> "
-            "(gelb: gleich optimiert das Programm selbst, die Preise zeigen bis dahin „…“), <i>Optimierung "
-            "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, [[veraltet]]).",
+    i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
+            "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, [[veraltet]]). Optimiert das Programm gleich "
+            "selbst, steht dahinter <i>– wird berechnet …</i>, und die Preise zeigen bis dahin „…“.",
             "Darunter der <b>Preisstand</b>: <i>Preise: aktuelle Stammdaten</i>, solange noch kein "
             "Angebots-PDF erzeugt wurde, danach <i>Preise festgeschrieben am …</i>. Haben sich die Stammdaten "
             "seitdem geändert, steht er gelb mit der Anzahl der Änderungen (Mauszeiger darauf zeigt sie einzeln), "

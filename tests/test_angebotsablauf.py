@@ -6,7 +6,7 @@
 - V4: Zusatzarbeit für alle Teile schon im Prüfdialog, als Importprofil des Kunden merkbar.
 - V5: Anfrage-Nr. des Kunden im Prüfdialog, Vorschlag aus dem Ordnernamen.
 - V6: Spalte „Gewinde · Zusatzarbeiten“ gleich hinter der Artikelnummer.
-- V7: Bis zum automatischen Optimieren „…“ und Stand „Wird berechnet …“ statt eines Preises ohne Material.
+- V7: Bis zum automatischen Optimieren „…“ und Stand „… – wird berechnet …“ statt eines Preises ohne Material.
 - Rüsten wahlweise als fester Betrag je Angebot bzw. je Abmessung statt Minuten × Stundensatz.
 
 Aufruf: python tests/test_angebotsablauf.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -183,22 +183,23 @@ ub = seite.uebersicht_bereich
 if seite.auto_optimieren_moeglich():
     # Text nur im Stand, die großen Preisfelder zeigen „…“ (langer Text in 17 pt schnitt den Preisaufbau ab)
     assert ub.preis["verkauf"].text() == "…" and ub.preis["herstell"].text() == "…"
-    assert ub.stand.text() == "Wird berechnet …" and ub.stand.objectName() == "stand_offen"
+    # Stand behält Wort und Farbe (Veraltet bzw. Noch nicht optimiert) und sagt dahinter „– wird berechnet …“
+    assert ub.stand.text().endswith(" – wird berechnet …"), ub.stand.text()
 assert seite.auto_optimieren()
 assert ub.preis["verkauf"].text().endswith("€") and ub.stand.text() == "Optimierung abgeschlossen"
-ok("V7: „Wird berechnet …“ bis zum automatischen Optimieren")
+ok("V7: „… – wird berechnet …“ bis zum automatischen Optimieren")
 
-# V7: scheitert das automatische Optimieren, steht wieder der Stand mit vorläufigen Preisen da (nicht „Wird berechnet …“)
+# V7: scheitert das automatische Optimieren, steht wieder der Stand mit vorläufigen Preisen da (ohne „wird berechnet“)
 db.position_aendern(t01["id"], "stueck", 11)
 seite.neu_laden()
 if seite.auto_optimieren_moeglich():
-    assert ub.stand.text() == "Wird berechnet …"
+    assert ub.stand.text().endswith(" – wird berechnet …"), ub.stand.text()
     seite.optimieren = lambda automatisch=False: False
     try:
         assert not seite.auto_optimieren()
     finally:
         del seite.optimieren
-    assert ub.stand.text() != "Wird berechnet …" and ub.preis["verkauf"].text().endswith("€"), ub.stand.text()
+    assert "wird berechnet" not in ub.stand.text() and ub.preis["verkauf"].text().endswith("€"), ub.stand.text()
     assert not seite.auto_optimieren_moeglich()          # gleiche Eingaben: kein neuer Versuch, keine Schleife
 db.position_aendern(t01["id"], "stueck", 12)
 seite.neu_laden()

@@ -1108,18 +1108,18 @@ class UebersichtBereich(QWidget):
     def wird_berechnet(self):
         """Gleich optimiert das Programm selbst (Plan Angebotsablauf V7): statt eines vorläufigen Preises ohne
         Material „…“ zeigen, bis die Optimierung fertig ist (kosten_setzen schreibt dann die Preise); der Stand oben
-        sagt „Wird berechnet …“. Den Text nicht in die großen Preisfelder (17 pt): er machte die Übersicht breiter
-        als die Spalte, rechts wurden die Beträge im Preisaufbau abgeschnitten und die Spalte sprang nach dem
-        Optimieren zurück (Design-Prüfung 28.10.2026)."""
+        behält Wort und Farbe („Noch nicht optimiert“ gelb, „Veraltet“ rot) und sagt dahinter „– wird berechnet …“.
+        Den Text nicht in die großen Preisfelder (17 pt): er machte die Übersicht breiter als die Spalte, rechts
+        wurden die Beträge im Preisaufbau abgeschnitten und die Spalte sprang nach dem Optimieren zurück
+        (Design-Prüfung 28.10.2026)."""
         for name, (t, titel) in self.preis_titel.items():
             t.setText(titel)
             self.preis[name].setText("…")
             self.preis[name].setToolTip("Das Programm optimiert gleich selbst (Material, Stangen, Verschnitt).")
-        self.stand.setText("Wird berechnet …")
-        self.stand.setObjectName("stand_offen")
+        stand = getattr(self, "_stand", None)
+        kurz = self.STAND[stand][0] if stand in self.STAND else "Veraltet"
+        self.stand.setText(f"{kurz} – wird berechnet …")
         self.stand.setToolTip("Das Programm optimiert gleich selbst, sobald kurz nichts mehr geändert wird.")
-        self.stand.style().unpolish(self.stand)
-        self.stand.style().polish(self.stand)
 
     def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None, versand=None):
         """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf
@@ -1145,6 +1145,7 @@ class UebersichtBereich(QWidget):
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):
+        self._stand = stand                 # für wird_berechnet
         text, name = self.STAND.get(stand, ("Veraltet – Angebot oder Stammdaten geändert, bitte neu optimieren",
                                             "stand_veraltet"))
         self.stand.setText(text)
