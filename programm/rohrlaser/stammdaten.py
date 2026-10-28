@@ -1161,6 +1161,7 @@ EINSTELLUNGEN = (
     Einstellung("benutzer_email", "E-Mail (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),
+    Einstellung("teilen_takt", "Automatischer Abgleich alle [min] (0 = aus)", "Benutzer", "zahl", 2.0, 0, 60),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 

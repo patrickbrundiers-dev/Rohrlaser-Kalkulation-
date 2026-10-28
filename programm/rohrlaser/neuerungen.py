@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.178", "<b>Eigene Abrechnungsregeln für Zusatzarbeiten</b>: Die Arbeitsgang-Regeln setzen jetzt auch, "
+    ["0.9.179", "<b>Eigene Abrechnungsregeln für Zusatzarbeiten</b>: Die Arbeitsgang-Regeln setzen jetzt auch, "
                 "<i>wie</i> abgerechnet wird und <i>wann</i> eine Zusatzarbeit automatisch gilt. Je Regel Zuordnung "
                 "(Vorschlag, automatisch, nur Preis), Abrechnung, Preis je Einheit, Menge (z. B. Innen- + "
                 "Außenfläche), Faktor und Mindestbetrag je Teil, neue Bedingungen Abmessung von/bis und Teileart "
@@ -32,6 +32,16 @@ NEUERUNGEN = [
                 "Aufpreis einer Oberfläche geht auch je kg oder je m². Gewinde, Senken, Flowdrill und Bohren "
                 "bleiben € je Stück; alte und festgeschriebene Angebote rechnen unverändert ([[abrechnungsregeln]]).",
      "Eigene Abrechnungsregeln: Preis je Werkstoff/Profil, automatisch zuordnen, Strahlen €/kg, Aufpreis je kg."],
+    ["0.9.178", "<b>Zusammenarbeit über den gemeinsamen Ordner</b>: Das Programm gleicht jetzt <b>alle 2 Minuten "
+                "von selbst</b> ab (nur wenn sich etwas geändert hat; Einstellung <i>Automatischer Abgleich alle [min]</i>), "
+                "rechts in der Statusleiste steht <i>⇄ abgeglichen 14:32</i>. <b>Wer arbeitet woran</b>: hat ein "
+                "Kollege sein Angebot offen, steht <i>● geöffnet</i> hinter seinem Kürzel ([[wer_arbeitet_woran]]). "
+                "Angebote lassen sich <b>an einen Kollegen übergeben</b> (Vorgang ▾, mit Notiz, zurücknehmbar) und "
+                "beim Bearbeiter die <b>Übernahme anfragen</b>; er wird gefragt und kann übergeben oder ablehnen "
+                "([[angebot_uebergeben]]). <b>Konflikte</b> (dieselben Stammdaten bei zwei Kollegen verschieden "
+                "geändert) zeigt <i>Datei → Abgleich-Konflikte …</i>; die verlorene Fassung lässt sich "
+                "wiederherstellen ([[abgleich_konflikte]]).",
+     "Gemeinsamer Ordner: Abgleich alle 2 Minuten, sehen wer woran arbeitet, Angebote übergeben/anfragen, Konflikte"],
     ["0.9.177", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
                 "3 mm und mindestens √(dickere Wand) − 0,5 vor (EN 1993-1-8), nie mehr als die dünnere Wand. Liegt "
                 "ein a-Maß zwischen zwei Kennwertzeilen, rechnet die Schweißzeit den Wert dazwischen (nach a²); dicke "
