@@ -82,6 +82,17 @@ assert "gerade geöffnet" in fs.fremd_text.text()
 assert fs.anfrage_knopf.isVisibleTo(fs) and fs.anfrage_knopf.isEnabled() and not fs.zurueck_knopf.isVisibleTo(fs)
 ok("„PB ● geöffnet“ in der Liste und „PB hat es gerade geöffnet“ im Hinweis; Knopf Übernahme anfragen")
 
+f_pb.angebot_schliessen(a1)
+assert teilen_fenster.auto_abgleich(f_pb) is not None, "geschlossen: wird geschrieben"
+assert teilen_fenster.auto_abgleich(f_mk) is not None
+assert au.modell.data(au.modell.index(zeile, spalte)) == "PB", "Liste ohne ● geöffnet, ohne Knopf Aktualisieren"
+assert "gerade geöffnet" not in fs.fremd_text.text()
+seite = f_pb.angebot_oeffnen(a1)
+teilen_fenster.auto_abgleich(f_pb)
+teilen_fenster.auto_abgleich(f_mk)
+assert au.modell.data(au.modell.index(zeile, spalte)) == "PB ● geöffnet" and "gerade geöffnet" in fs.fremd_text.text()
+ok("nur geöffnet/geschlossen beim Kollegen: Liste und Hinweis folgen beim automatischen Abgleich")
+
 # ---------------------------------------------------------------- Übernahme anfragen
 assert fs._anfragen("bitte an mich") is True
 assert not fs.anfrage_knopf.isEnabled() and fs.anfrage_knopf.text() == "Übernahme angefragt"

@@ -875,21 +875,25 @@ def _zeile_setzen(db, tabelle, u, daten):
 def offen_bei(db, nummer, jetzt_=None):
     """Hat ein Kollege das Angebot gerade geöffnet? (Kürzel, seit) oder None. Gilt nur, solange seine Datei frisch ist
     (FRISCH_MIN nach seinem letzten Schreiben; das Programm schreibt bei geöffneten Angeboten regelmäßig)."""
-    if not nummer:
-        return None
+    return kollegen_offen(db, jetzt_).get(nummer) if nummer else None
+
+
+def kollegen_offen(db, jetzt_=None):
+    """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben (nur frische Dateien)."""
     jetzt_ = jetzt_ or datetime.datetime.now()
     ich = kuerzel(db)
+    out = {}
     for k, m in (db.einstellung("teilen_mitarbeiter") or {}).items():
-        seit = (m.get("offen") or {}).get(nummer)
-        if k == ich or not seit:
+        if k == ich or not m.get("offen"):
             continue
         try:
             stand = datetime.datetime.fromisoformat(m.get("stand") or "")
         except ValueError:
             continue
         if jetzt_ - stand <= datetime.timedelta(minutes=FRISCH_MIN):
-            return k, seit
-    return None
+            for nummer, seit in m["offen"].items():
+                out.setdefault(nummer, (k, seit))
+    return out
 
 
 def _vorgaenge(db):

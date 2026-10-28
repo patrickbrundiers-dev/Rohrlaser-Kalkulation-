@@ -190,6 +190,9 @@ def _neu_laden(fenster, bericht, voll):
     if voll:
         fenster.alles_neu_laden()
         return
+    anwesend = teilen.kollegen_offen(fenster.db)               # wer gerade was geöffnet hat (● geöffnet)
+    anders = anwesend != fenster.__dict__.get("_teilen_anwesend")
+    fenster._teilen_anwesend = anwesend
     if (bericht.get("angebote_neu") or bericht.get("angebote_geaendert") or bericht.get("angebote_weg")
             or bericht.get("uebernommen") or bericht.get("nummern")):
         fenster.start.neu_laden()
@@ -198,6 +201,12 @@ def _neu_laden(fenster, bericht, voll):
         for i in bericht.get("geaenderte_ids", ()):
             if i in fenster.offen:
                 fenster.offen[i].neu_laden()
+    elif anders:
+        fenster.angebote.neu_laden()
+    if anders:
+        for seite in fenster.offen.values():
+            if (getattr(seite, "kopf", None) or {}).get("fremd"):
+                seite._fremd_anzeigen()
     if bericht.get("stammdaten"):
         for s in fenster.seiten:
             s.neu_laden()
