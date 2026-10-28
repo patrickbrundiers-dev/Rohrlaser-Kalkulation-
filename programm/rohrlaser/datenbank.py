@@ -305,6 +305,10 @@ class Datenbank:
             stufen_sp = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in EINSTELLUNG_FELDER)
             self.con.execute("CREATE TABLE IF NOT EXISTS staffel_stufen (id INTEGER PRIMARY KEY, angebot_id INTEGER "
                              f"NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, {stufen_sp})")
+            # Suche nach Angebot (Öffnen, Rückgängig, Abgleich, Löschen): ohne Index liest SQLite die ganze Tabelle,
+            # bei 10.000 Angeboten je Angebot einige Millisekunden (Prüfung Datenbank bei vielen Angeboten 28.10.)
+            for tabelle in ("staffeln", "staffel_stufen", "step_protokoll"):
+                self.con.execute(f"CREATE INDEX IF NOT EXISTS {tabelle}_angebot ON {tabelle} (angebot_id)")
             spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")

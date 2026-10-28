@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.171", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
+                "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
+                "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",
+     "Datendatei: schneller bei vielen Angeboten (Indizes)."],
     ["0.9.170", "<b>12-m-Zuschnitt genauer</b>: Für die Werkstücke aus einer 12-m-Stange probiert die Optimierung "
                 "neben Beladelänge und 12 m ÷ 2 … 6 jetzt alle 250 mm ab der nötigen Länge als Obergrenze aus (bis "
                 "300 Teile je Abmessung). Bei gemischten Teilelängen spart das Lieferstangen, z. B. 3 statt 4 "

@@ -6974,6 +6974,12 @@ def kapitel_pflege(i):
            "zweites Programm mit derselben Datendatei (die andere Version, ein zweites Fenster oder ein anderer "
            "Rechner auf einem Netzlaufwerk) meldet <b>„schon in einem anderen Programm geöffnet“</b> mit Rechner und "
            "Benutzer und startet nicht.")
+    i.text("<b>Viele Angebote:</b> Je Angebot wächst die Datendatei um etwa 0,1 bis 0,3 MB (Schnittplan und "
+           "3D-Modelle aus dem STEP-Import), 1.000 Angebote ergeben also etwa 200 MB. Angebotsliste, Suche, "
+           "Speichern und Rückgängig bleiben auch bei 10.000 Angeboten schnell; Staffeln, Mengenstufen und "
+           "STEP-Protokoll eines Angebots findet das Programm über einen Index. Mit der Größe der Datendatei wachsen "
+           "dagegen die Dauer der täglichen Sicherung und der Platz für die Sicherungen (bis zu 30 laufende und "
+           "je Art 10 „vor …“-Sicherungen) sowie beim Teilen die Datei im gemeinsamen Ordner.")
 
 
 def kapitel_step_messung(i):
