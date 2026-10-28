@@ -699,8 +699,9 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
             wert, grund = bg_mengen.menge(ag, mengen.get(ag.get("knoten") or ""))
             if wert is not None:
                 ag = dict(ag, menge=wert)
-            elif grund:
+            elif grund:         # Menge unbekannt: nicht als 1 oder alten Wert rechnen (nichts erfinden)
                 out["warnungen"].append(f"{ag.get('name') or 'Arbeitsgang'}: Menge aus {grund}")
+                ag = dict(ag, menge=0)
         r = arbeitsgang_rechnen(ag, saetze)
         if r["fehlt"]:
             out["warnungen"].append(r["fehlt"])

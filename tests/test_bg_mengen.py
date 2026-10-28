@@ -20,7 +20,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from rohrlaser import baugruppe, bg_mengen, rechnen, vorkalk, zukauf  # noqa: E402
+from rohrlaser import ausgabe, baugruppe, bg_mengen, rechnen, vorkalk, zukauf  # noqa: E402
 from rohrlaser.angebot import BAUGRUPPE, ZUKAUFTEIL  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -130,7 +130,16 @@ ohne = [dict(p, profil_id=None) if p["pos"] in (10, 20) else p for p in ohne]
 r = baugruppe.rechnen(dict(stueck=3, baugruppe=baugruppe.speichern(bg)), tab, {}, None,
                       bg_mengen.je_knoten(bg, ohne, k))
 assert any("Verzinken: Menge aus Gewicht fehlt" in w for w in r["warnungen"]), r["warnungen"]
-ok("M3 Menge eingetragen und gemerkt, Menge von Hand stellt auf „von Hand“, fehlendes Gewicht = Warnung")
+nah(r["fremd"], 5 * 10.0, "Verzinken ohne Gewicht: 0, nicht 1 und nicht die alte Menge")
+plan = ausgabe.schweissplan([dict(p, baugruppe=baugruppe.speichern(bg)) if p["pos"] == 100 else p for p in pos],
+                            tab, k)
+nah(plan[0]["arbeitsgaenge"][0]["menge"], round(m_neu["gewicht"], 4), "Schweißplan: Menge aus den aktuellen Teilen")
+alt = [dict(p, laenge=1000) if p["pos"] == holm["pos"] else p for p in pos]
+alt = [dict(p, baugruppe=baugruppe.speichern(bg)) if p["pos"] == 100 else p for p in alt]
+nah(ausgabe.schweissplan(alt, tab, k)[0]["arbeitsgaenge"][0]["menge"], round(bg_mengen.mengen(bg, alt, k)["gewicht"], 4),
+    "Schweißplan folgt der Teilelänge")
+ok("M3 Menge eingetragen und gemerkt, Menge von Hand stellt auf „von Hand“, fehlendes Gewicht = Warnung und 0, "
+   "Schweißplan mit aktuellen Mengen")
 
 # ------------------------------------------------------------------ M4 Wenden nach Gewicht
 regeln = vorkalk.Regeln({"schweiss_regeln": vorkalk.richtwerte()})
