@@ -540,7 +540,7 @@ PRUEFREGELN = Tabelle(
 # dazu Heftpunkte. Neue Dateien bekommen die Tabellen leer; 'Richtwerte laden' (baugruppe.richtwerte) trägt
 # hergeleitete Richtwerte mit Status 'Richtwert' ein, die die Kalkulation als HINWEIS kennzeichnet.
 NAHTARTEN = ("Kehlnaht", "Stumpfnaht", "Ecknaht")
-SCHWEISS_FAKTORARTEN = ("Schweißlage", "Zugänglichkeit", "Qualität")
+SCHWEISS_FAKTORARTEN = ("Schweißlage", "Zugänglichkeit", "Qualität", "Werkstoff")    # Werkstoff: Plan 28.10.2026
 KENNWERT_STATUS = ("Richtwert", "geprüft")
 
 SCHWEISSVERFAHREN = Tabelle(
@@ -588,13 +588,15 @@ SCHWEISS_FAKTOREN = Tabelle(
      Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
      Feld("bemerkung", "Bemerkung", breite=260)),
     ("art", "wert"),
-    "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit "
-    "und Qualitätsanforderung. Leer bzw. nicht gefunden = Faktor 1.")
+    "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit, "
+    "Qualitätsanforderung und Werkstoff (Kategorie der Teile: Stahl, Edelstahl, Aluminium, Buntmetall). Leer bzw. "
+    "nicht gefunden = Faktor 1.")
 
 # Vorkalkulation der Schweißbaugruppe (Plan Vorkalkulation, Patrick 24.10.2026 „alles a außer 8b“, vorkalk.py):
 # Regelwerte für Rüsten, Positionieren je Positionierhilfe, Heften, Wenden und Nacharbeit; neue Dateien leer,
 # 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
-SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit")
+SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit",
+                       "Nachbehandlung", "Richten", "Prüfen")         # die letzten drei: Plan 28.10.2026, Schritt 2
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -612,7 +614,8 @@ SCHWEISS_REGELN = Tabelle(
     "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
     "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
     "Heftpunkte je Naht = größer von Mindestzahl und Nahtlänge ÷ Heftabstand (nach kleinerer Wanddicke, gesteckt × "
-    "Faktor); Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe. Das Ergebnis sind "
+    "Faktor); Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
+    "Edelstahl, Richten (viel Naht je kg bei dünner Wand) und Sichtprüfung in min je m Naht. Das Ergebnis sind "
     "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
 
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs

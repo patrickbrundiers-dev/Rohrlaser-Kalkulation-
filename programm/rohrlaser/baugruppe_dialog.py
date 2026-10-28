@@ -26,7 +26,7 @@ from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
-from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
+from .stammdaten import KATEGORIEN, NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
 from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
 
 FEHLER_FARBE = "#B42318"
@@ -36,7 +36,7 @@ VORLAGEN = "baugruppen_vorlagen"
 RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
              "</span>")
 DIREKT = "(Baugruppe selbst)"
-NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet")    # neuer Stand, wenn geändert
+NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff")    # neuer Stand, wenn geändert
 ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "Entgraten", "Bohren", "Gewindeschneiden",
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
@@ -2135,6 +2135,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                    tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items())),
             Spalte("zugang", "Zugänglichkeit", "auswahl", 95, optionen=lambda: self._faktor_optionen("Zugänglichkeit")),
             Spalte("qualitaet", "Qualität", "auswahl", 85, optionen=lambda: self._faktor_optionen("Qualität")),
+            Spalte("werkstoff", "Werkstoff", "auswahl", 90, vk=True,
+                   optionen=lambda: self._faktor_optionen("Werkstoff", KATEGORIEN),
+                   tipp="Werkstoff der Teile (Faktor Werkstoff auf die Lichtbogenzeit, Edelstahl: Beizen); leer = "
+                        "Stahl. Die Vorkalkulation schlägt ihn aus den Teilen vor"),
             Spalte("nacharbeit", "Nacharbeit", "auswahl", 120, vk=True,
                    optionen=[("", None)] + [(n, n) for n in NACHARBEIT_STUFEN],
                    tipp="Verputzen bzw. Schleifen der Naht (Arbeitsgang Verputzen der Vorkalkulation)"),

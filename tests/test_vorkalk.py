@@ -218,14 +218,14 @@ def zelle(tab, r, schluessel):
 r = d.vorkalkulation()
 assert r["richtwert"] and "Richtwerte" in d.vk_info.text()
 namen = [x["name"] for x in d.bg["arbeitsgaenge"]]
-assert namen == ["Rüsten Schweißplatz", "Teile positionieren", "Verputzen"], namen
+assert namen == ["Rüsten Schweißplatz", "Teile positionieren", "Verputzen", "Sichtprüfung"], namen     # 0.9.171
 nah(d.bg["arbeitsgaenge"][0]["ruest_min"], 15 + 1 * 2, "Rüsten mit Richtwerten 15 + 1 × 2")
 nah(d.bg["arbeitsgaenge"][1]["zeit_min"], 0.5 + 2 * 2.0, "Basisteil 0,5 + 2 Laschen frei × 2,0")
 assert d.bg["naehte"][0]["heftpunkte"] == 3 and d.bg["naehte"][0]["nacharbeit"] == "Spritzer entfernen"
 feld, huelle = zelle(d.naht_tab, 0, "heftpunkte")
 assert feld.text() == "3" and GELB_FLAECHE in feld.styleSheet() and "aufrunden" in huelle.toolTip()
 assert GELB_FLAECHE in zelle(d.ag_tab, 1, "zeit_min")[0].styleSheet()
-assert vorkalk.offen(d.bg) == 5 and "5 Vorschläge der Vorkalkulation offen" in d.status, d.status
+assert vorkalk.offen(d.bg) == 6 and "6 Vorschläge der Vorkalkulation offen" in d.status, d.status
 assert d.fokus(d.status) == (1, 0)                                     # Sprung zur ersten Nahtgruppe mit Vorschlag
 feld.setText("5")                                                      # von Hand
 assert vorkalk.naht_status(d.bg["naehte"][0], "heftpunkte") == vorkalk.HAND and feld.styleSheet() == ""
@@ -260,7 +260,7 @@ bericht = []
 seite._vorkalkulieren({1}, bericht)
 bg_db = baugruppe.lesen(db.position(pb)["baugruppe"]) if hasattr(db, "position") else baugruppe.lesen(
     next(q for q in db.positionen(a) if q["id"] == pb)["baugruppe"])
-assert vorkalk.offen(bg_db) == 5 and "Vorkalkulation" in bericht[0], (vorkalk.offen(bg_db), bericht)
+assert vorkalk.offen(bg_db) == 6 and "Vorkalkulation" in bericht[0], (vorkalk.offen(bg_db), bericht)
 ok("V2b Positionierhilfe bestätigt = bg_hilfe, Kalkulation-PDF „(Vorschlag)“, Vorkalkulation beim STEP-Import")
 assert bg_db["stamm"]["vk_auto"] is True, "STEP-Import mit Einstellung: Häkchen Vorkalkulation automatisch"
 

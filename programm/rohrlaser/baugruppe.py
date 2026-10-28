@@ -14,6 +14,7 @@ Rechenweg je Baugruppe (alle Beträge je Baugruppe, ungerundet):
   Menge eines Knotens  m(k) = Menge des Knotens × Menge seiner übergeordneten Knoten (Baugruppe selbst: 1)
   Nahtgruppe           Naht [m] = Länge je Naht × Anzahl × (2 bei beidseitig) / 1000
                        Lichtbogenzeit = Naht × Kennwert [min/m] × Faktor Schweißlage × Zugänglichkeit × Qualität
+                                        × Werkstoff
                        Schweißzeit = Lichtbogenzeit ÷ Lichtbogenzeitfaktor + Heftpunkte × Anzahl × Zeit je Heftpunkt
                        (oder die Zeit von Hand), × m(k); Kosten = Zeit × Stundensatz des Verfahrens
   Arbeitsgang          laufend = (Zeit je Einheit × Menge / 60 × Stundensatz + Kosten je Einheit × Menge) × m(k)
@@ -540,13 +541,15 @@ def naht_stand(naht, tabellen, datum=None):
     v = next((z for z in tabellen.get("schweissverfahren") or () if z.get("verfahren") == naht.get("verfahren")), None)
     kw = kennwert(naht.get("verfahren"), naht.get("nahtart"), naht.get("mass"), tabellen)
     fz = {art: _faktor_zeile(tabellen, art, naht.get(feld))
-          for art, feld in (("Schweißlage", "lage"), ("Zugänglichkeit", "zugang"), ("Qualität", "qualitaet"))}
+          for art, feld in (("Schweißlage", "lage"), ("Zugänglichkeit", "zugang"), ("Qualität", "qualitaet"),
+                            ("Werkstoff", "werkstoff"))}
     richt = [z for z in [v, kw, *fz.values()] if z and z.get("status") == "Richtwert"]
     return dict(verfahren=bool(v), min_m=kw["min_m"] if kw else None, mass_bis=kw["mass_bis"] if kw else None,
                 lichtbogen=(v or {}).get("lichtbogen"), heft_s=(v or {}).get("heft_s"), satz_id=(v or {}).get("satz_id"),
                 f_lage=_n((fz["Schweißlage"] or {}).get("faktor")) or 1.0,
                 f_zugang=_n((fz["Zugänglichkeit"] or {}).get("faktor")) or 1.0,
                 f_qualitaet=_n((fz["Qualität"] or {}).get("faktor")) or 1.0,
+                f_werkstoff=_n((fz["Werkstoff"] or {}).get("faktor")) or 1.0,
                 richtwert=bool(richt), datum=datum or datetime.date.today().isoformat(),
                 **{k: (v or {}).get(k) for k in VERBRAUCH if _zahl((v or {}).get(k))})
 
@@ -609,7 +612,7 @@ def naht_rechnen(naht, tabellen, saetze):
             out["fehlt"] = f"Lichtbogenzeitfaktor fehlt ({naht.get('verfahren')})"
         else:
             lb = naht_m * st["min_m"] * _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) \
-                * _n(st.get("f_qualitaet") or 1) * f_spalt
+                * _n(st.get("f_qualitaet") or 1) * _n(st.get("f_werkstoff") or 1) * f_spalt
             heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60
             out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft)
     if out["zeit_min"] and not _zahl(satz):
@@ -904,7 +907,10 @@ RICHT_FAKTOREN = (("Schweißlage", "PA", 1.0), ("Schweißlage", "PB", 1.0), ("Sc
                   ("Schweißlage", "PD", 1.4), ("Schweißlage", "PE", 1.6), ("Schweißlage", "PF", 1.3),
                   ("Schweißlage", "PG", 1.1), ("Zugänglichkeit", "gut", 1.0), ("Zugänglichkeit", "eingeschränkt", 1.25),
                   ("Zugänglichkeit", "schlecht", 1.6), ("Qualität", "normal", 1.0), ("Qualität", "erhöht", 1.2),
-                  ("Qualität", "Sichtnaht", 1.4))
+                  ("Qualität", "Sichtnaht", 1.4),
+                  # Werkstoff (Plan 28.10.2026): Edelstahl langsamer (Wärmeeinbringung, Anlauffarben), Aluminium
+                  # steckt schon in den MIG-Kennwerten
+                  ("Werkstoff", "Stahl", 1.0), ("Werkstoff", "Edelstahl", 1.3), ("Werkstoff", "Aluminium", 1.0))
 
 
 def nahtquerschnitt(nahtart, mass):

@@ -20,6 +20,14 @@ Rechenweg (alle Werte aus schweiss_regeln, kursiv im Plan):
   Verputzen          Σ Nahtgruppen Naht [m] × min/m der Nacharbeitsstufe × Faktor Zugänglichkeit × Menge bis zur
                      Baugruppe; Stufe aus Qualität (erhöht = verschleifen, Sichtnaht = bündig) und Oberfläche der
                      Baugruppe (beschichtet, verzinkt = Spritzer entfernen), sonst keine
+Schritt 2 (Plan Schweißbaugruppen 28.10.2026, Freigabe „Ja alles“):
+  Werkstoff          je Nahtgruppe die häufigste Werkstoff-Kategorie der Teile ihrer (Unter-)Baugruppe, wenn nicht
+                     Stahl (Faktor Werkstoff der Schweiß-Faktoren auf die Lichtbogenzeit)
+  Beizen             Σ Naht [m] der Nahtgruppen aus Edelstahl × min je m (Nachbehandlung 'Beizen Edelstahl')
+  Richten            nur bei Naht je kg ≥ 'ab Naht je kg' und kleinster Wanddicke ≤ 'bis Wanddicke': Naht [m] ×
+                     'Zeit je m Naht'; Gewicht wie beim Wenden
+  Prüfen             'Sichtprüfung je Baugruppe' + Naht [m] × 'je m Naht'
+  Fehlen diese Regeln (ältere Dateien), gibt es keinen Vorschlag; nur Edelstahl ohne Beiz-Regel meldet einen Hinweis.
 
 Jeder Wert ist ein Vorschlag mit Begründung (Nahtgruppe bzw. Arbeitsgang: Schlüssel 'vk'). Der gemerkte Wert erkennt
 Änderungen von Hand: weicht das Feld davon ab, gilt es als 'hand' und eine neue Vorkalkulation lässt es stehen, ebenso
@@ -34,9 +42,11 @@ from .stammdaten import NACHARBEIT_STUFEN, POSITIONIERHILFEN
 VORSCHLAG, BESTAETIGT, HAND = "vorschlag", "bestätigt", "hand"
 BASISTEIL = "Basisteil"
 RUESTEN, POSITIONIEREN, WENDEN, VERPUTZEN = "ruesten", "positionieren", "wenden", "verputzen"
+BEIZEN, RICHTEN, PRUEFEN = "beizen", "richten", "pruefen"
 AG_NAMEN = {RUESTEN: "Rüsten Schweißplatz", POSITIONIEREN: "Teile positionieren", WENDEN: "Wenden / Umspannen",
-            VERPUTZEN: "Verputzen"}
-NAHT_FELDER = ("heftpunkte", "nacharbeit")
+            VERPUTZEN: "Verputzen", BEIZEN: "Beizen / Passivieren", RICHTEN: "Richten", PRUEFEN: "Sichtprüfung"}
+NAHT_FELDER = ("heftpunkte", "nacharbeit", "werkstoff")
+EDELSTAHL = "Edelstahl"
 AG_FELDER = ("zeit_min", "ruest_min", "menge")
 MARKEN = tuple(b for b in anbau.BEARBEITUNGEN if b != "keine")       # Gravur, an der ein Teil angelegt wird
 BESCHICHTET = ("pulver", "lack", "beschicht", "verzink", "ktl", "eloxi")
@@ -67,6 +77,12 @@ RICHTWERTE = (
     ("Nacharbeit", "Spritzer entfernen", None, 1.5, "min je m Naht"),
     ("Nacharbeit", "Naht verschleifen", None, 4.0, "min je m Naht"),
     ("Nacharbeit", "bündig planschleifen", None, 8.0, "min je m Naht"),
+    ("Nachbehandlung", "Beizen Edelstahl", None, 3.0, "min je m Naht"),
+    ("Richten", "ab Naht je kg", None, 0.1, "m Naht je kg"),
+    ("Richten", "bis Wanddicke", None, 3.0, "mm"),
+    ("Richten", "Zeit je m Naht", None, 2.0, "min je m Naht"),
+    ("Prüfen", "Sichtprüfung je Baugruppe", None, 1.0, "min je Baugruppe"),
+    ("Prüfen", "je m Naht", None, 0.3, "min je m Naht"),
 )
 
 
@@ -308,6 +324,77 @@ def verputzen(bg, regeln, tabellen):
     return summe, " + ".join(teile) + f" = {_text(round(summe, 2))} min je Baugruppe"
 
 
+# ------------------------------------------------------------------ Werkstoff, Beizen, Richten, Prüfen (Schritt 2)
+def werkstoff_vorschlag(bg, positionen, k, knoten_id=""):
+    """(Kategorie, Begründung) der Teile einer (Unter-)Baugruppe: häufigste Werkstoff-Kategorie (Stück je Baugruppe)
+    der Teile darin; None bei Stahl, ohne Teile oder ohne Stammdaten (k)."""
+    if k is None:
+        return None
+    bereich = bg_mengen._unter(bg, knoten_id)
+    zahl = {}
+    for i in baugruppe.teile(positionen, bg["id"]):
+        p = positionen[i]
+        kn = baugruppe.zuordnung(p)[1]
+        if bereich is not None and kn not in bereich:
+            continue
+        kat = (k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("kategorie")
+        if kat:
+            zahl[kat] = zahl.get(kat, 0) + (p.get("je_knoten") if _zahl(p.get("je_knoten")) else 1)
+    if not zahl:
+        return None
+    kat = max(sorted(zahl), key=lambda x: zahl[x])
+    if kat == "Stahl":
+        return None
+    andere = sorted(x for x in zahl if x != kat)
+    return kat, f"Werkstoff der Teile: {kat}" + (f" (auch {', '.join(andere)})" if andere else "")
+
+
+def _naht_m(nt, bg):
+    f = baugruppe.faktor(bg, nt.get("knoten") or "") or 0
+    anzahl = _n(nt.get("anzahl")) if _zahl(nt.get("anzahl")) else 1
+    return _n(nt.get("laenge")) * anzahl * (2 if nt.get("beidseitig") else 1) / 1000 * f
+
+
+def beizen(bg, regeln):
+    """(Minuten je Baugruppe, Begründung) oder (None, was fehlt bzw. None ohne Edelstahl)."""
+    m = sum(_naht_m(nt, bg) for nt in bg["naehte"] if nt.get("werkstoff") == EDELSTAHL)
+    if not m:
+        return None, None
+    z = regeln.wert("Nachbehandlung", "Beizen Edelstahl")
+    if z is None:
+        return None, "Regel Nachbehandlung Beizen Edelstahl fehlt (Richtwerte laden)"
+    return m * z, f"{_text(round(m, 3))} m Naht Edelstahl × {_text(z)} min/m = {_text(round(m * z, 2))} min je Baugruppe"
+
+
+def richten(bg, regeln, positionen=None, k=None):
+    """(Minuten je Baugruppe, Begründung) oder (None, Grund bzw. None, wenn nicht zu richten oder Regeln fehlen)."""
+    ab, bis, zeit = (regeln.wert("Richten", w) for w in ("ab Naht je kg", "bis Wanddicke", "Zeit je m Naht"))
+    m = sum(_naht_m(nt, bg) for nt in bg["naehte"])
+    if None in (ab, bis, zeit) or not m:
+        return None, None
+    wand = min((d for d in (dicke(nt) for nt in bg["naehte"]) if d), default=None)
+    if wand is None or wand > bis + 1e-9:
+        return None, None
+    g, _ = bg_mengen.gewicht(bg, positionen, k)
+    if g is None:
+        return None, "Richten: Gewicht der Baugruppe fehlt"
+    if m / g < ab - 1e-9:
+        return None, None
+    return m * zeit, (f"{_text(round(m, 3))} m Naht ÷ {_text(round(g, 1))} kg = {_text(round(m / g, 3))} m/kg ≥ "
+                      f"{_text(ab)}, Wand {_text(wand)} mm ≤ {_text(bis)} mm: {_text(round(m, 3))} m × {_text(zeit)} "
+                      f"min/m = {_text(round(m * zeit, 2))} min je Baugruppe")
+
+
+def pruefen(bg, regeln):
+    """(Minuten je Baugruppe, Begründung) oder (None, None) ohne Regeln bzw. Nahtgruppen."""
+    grund, je_m = regeln.wert("Prüfen", "Sichtprüfung je Baugruppe"), regeln.wert("Prüfen", "je m Naht")
+    if grund is None or je_m is None or not bg["naehte"]:
+        return None, None
+    m = sum(_naht_m(nt, bg) for nt in bg["naehte"])
+    t = grund + m * je_m
+    return t, f"{_text(grund)} + {_text(round(m, 3))} m × {_text(je_m)} min/m = {_text(round(t, 2))} min je Baugruppe"
+
+
 # ------------------------------------------------------------------ Vorschläge setzen, bestätigen, zählen
 def _status(gemerkt, aktuell):
     """Herkunft eines Felds: hand, wenn es vom gemerkten Vorschlag abweicht, sonst der gemerkte Status."""
@@ -334,7 +421,7 @@ def ag_status(ag):
     return vk.get("status") or VORSCHLAG
 
 
-def _naht_setzen(nt, feld, wert, text, out):
+def _naht_setzen(nt, feld, wert, text, out, entfernen=False):
     st = naht_status(nt, feld)
     if st in (HAND, BESTAETIGT) or (st is None and nt.get(feld) not in (None, "")):
         if st is None:           # von Hand eingetragen, bevor vorkalkuliert wurde
@@ -343,6 +430,10 @@ def _naht_setzen(nt, feld, wert, text, out):
             nt["vk"][feld].update(status=HAND)
         return
     if wert is None:
+        if entfernen and st == VORSCHLAG:       # Vorschlag ohne Grundlage mehr (z. B. Teile jetzt Stahl)
+            nt.pop(feld, None)
+            nt["vk"].pop(feld, None)
+            out.append(f"Nahtgruppe {nt.get('nr') or ''}: {feld} entfernt".replace("  ", " "))
         return
     if nt.get(feld) != wert:
         out.append(f"Nahtgruppe {nt.get('nr') or ''}: {feld} {_text(wert) if _zahl(wert) else wert}".replace("  ", " "))
@@ -399,6 +490,8 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
         _naht_setzen(nt, "heftpunkte", n, text, out)
         st, grund = stufe_vorschlag(nt, bg)
         _naht_setzen(nt, "nacharbeit", st, grund, out)
+        w = werkstoff_vorschlag(bg, positionen, k, nt.get("knoten") or "")
+        _naht_setzen(nt, "werkstoff", w[0] if w else None, w[1] if w else None, out, entfernen=True)
     satz = einst.get("schweiss_vk_satz") or "Schweißen"
     satz_na = einst.get("schweiss_vk_satz_nacharbeit") or satz
     t, text = ruesten(bg, positionen, bg["id"], regeln)
@@ -420,6 +513,11 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
                out)
     if text and t is None:
         hinweise.append(text)
+    for art, (t, text), s in ((BEIZEN, beizen(bg, regeln), satz_na), (RICHTEN, richten(bg, regeln, positionen, k), satz),
+                              (PRUEFEN, pruefen(bg, regeln), satz)):
+        _ag_setzen(bg, art, None if t is None else dict(zeit_min=round(t, 4)), text, s, regeln.richtwert, out)
+        if text and t is None:
+            hinweise.append(text)
     n = bg_mengen.anwenden(bg, positionen, k)        # Arbeitsgänge mit Bezug: Menge aus den Einzelteilen
     if n:
         out.append(f"Menge aus den Einzelteilen: {n} Arbeitsgang/-gänge")

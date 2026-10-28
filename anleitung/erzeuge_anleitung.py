@@ -4458,14 +4458,15 @@ def kapitel_baugruppen(i):
         (1, "<b>Verfahren</b> und <b>Nahtart</b> (Kehlnaht, Stumpfnaht, Ecknaht)."),
         (2, "<b>a-Maß / Dicke</b>: Kehlnaht a-Maß, Stumpf- und Ecknaht Blechdicke; dazu Länge je Naht und Anzahl."),
         (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
-        (4, "<b>Lage</b> (PA … PG), Zugänglichkeit und Qualität: Faktoren auf die Lichtbogenzeit."),
+        (4, "<b>Lage</b> (PA … PG), Zugänglichkeit, Qualität und Werkstoff: Faktoren auf die Lichtbogenzeit."),
         (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
         (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Etikett "
             "<i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
     i.genauer()
     i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
            "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
-           "Verfahren, Nahtart, Nahtgröße, Lage, Zugänglichkeit oder Qualität, gelten für diese Zeile die aktuellen "
+           "Verfahren, Nahtart, Nahtgröße, Lage, Zugänglichkeit, Qualität oder Werkstoff, gelten für diese Zeile die "
+           "aktuellen "
            "Stammdaten; <b>Kennwerte neu aus Stammdaten</b> setzt alle Zeilen auf die aktuellen Werte. Rechnet eine "
            "Zeile mit Richtwerten, zeigt die Baugruppe den HINWEIS <i>Schweißzeit aus ungeprüften Richtwerten</i>. "
            "<b>Nahtgruppe hinzufügen</b> legt eine Zeile mit Verfahren und Nahtart der letzten an; <b>Markierte "
@@ -4599,9 +4600,16 @@ def kapitel_baugruppen(i):
                       "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
                       "verzinkt = Spritzer entfernen)"],
         ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe (Stammdaten, leer = Summe "
-                   "der Einzelteile)"]], [40, 225])
-    i.text("Im Reiter Nahtgruppen gehören dazu die Spalten <b>Wanddicke</b>, <b>gesteckt</b>, <b>rundum</b> und "
-           "<b>Nacharbeit</b>; in der Teileliste die Spalten <b>Positionierhilfe</b> (leer = Vorschlag, daneben "
+                   "der Einzelteile)"],
+        ["Werkstoff je Naht", "häufigste Werkstoff-Kategorie der Teile der (Unter-)Baugruppe; nur vorgeschlagen, wenn "
+                              "nicht Stahl (Faktor <i>Werkstoff</i> der Schweiß-Faktoren, Richtwert Edelstahl 1,3)"],
+        ["Beizen / Passivieren", "Naht [m] der Nahtgruppen aus Edelstahl × min je m (Nachbehandlung <i>Beizen "
+                                 "Edelstahl</i>)"],
+        ["Richten", "nur wenn Naht je kg ≥ <i>ab Naht je kg</i> und die dünnste Wand ≤ <i>bis Wanddicke</i> (viel "
+                    "Wärme in wenig Material = Verzug): Naht [m] × <i>Zeit je m Naht</i>"],
+        ["Sichtprüfung", "<i>Sichtprüfung je Baugruppe</i> + Naht [m] × <i>je m Naht</i>"]], [40, 225])
+    i.text("Im Reiter Nahtgruppen gehören dazu die Spalten <b>Wanddicke</b>, <b>gesteckt</b>, <b>rundum</b>, "
+           "<b>Nacharbeit</b> und <b>Werkstoff</b>; in der Teileliste die Spalten <b>Positionierhilfe</b> (leer = Vorschlag, daneben "
            "<i>Vorschlag</i> mit Grund) und Stück je Baugruppe. Fehlt eine Regel oder ein Wert, gibt es keinen "
            "Vorschlag, sondern einen Hinweis unter der Summe: das Programm erfindet nichts. Gerechnet wird wie immer "
            "über Nahtgruppen und Arbeitsgänge; die vorgeschlagenen Arbeitsgänge laufen mit dem Stundensatz aus den "
@@ -6197,12 +6205,14 @@ def kapitel_stammdaten(i):
                                      "Blechdicke (Spalte <i>a-Maß bzw. Blechdicke bis [mm]</i>). Es gilt die Zeile "
                                      "mit dem kleinsten <i>bis</i>, das die Nahtgröße abdeckt; <i>Herkunft / "
                                      "Bemerkung</i> sagt, woher der Wert stammt."],
-        ["<b>Schweiß-Faktoren</b>", "Zuschläge auf die Lichtbogenzeit für Schweißlage (PA … PG), Zugänglichkeit und "
-                                    "Qualitätsanforderung: je Art und <i>Ausprägung</i> ein <i>Faktor auf die "
-                                    "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"],
+        ["<b>Schweiß-Faktoren</b>", "Zuschläge auf die Lichtbogenzeit für Schweißlage (PA … PG), Zugänglichkeit, "
+                                    "Qualitätsanforderung und Werkstoff (Stahl, Edelstahl, Aluminium): je Art und "
+                                    "<i>Ausprägung</i> ein <i>Faktor auf die Lichtbogenzeit</i>; nicht eingetragen = "
+                                    "Faktor 1"],
         ["<b>Schweiß-Vorkalkulation</b>", "Regeln für <b>Vorkalkulation rechnen</b> im Baugruppen-Editor "
                                           "([[vorkalkulation_baugruppe]]): je Art (Rüsten, Positionieren, Heften, "
-                                          "Heftabstand, Wenden, Nacharbeit) und Ausprägung ein Wert mit Einheit; "
+                                          "Heftabstand, Wenden, Nacharbeit, Nachbehandlung, Richten, Prüfen) und "
+                                          "Ausprägung ein Wert mit Einheit; "
                                           "Heftabstand und Wenden in Stufen über <i>bis Wanddicke [mm] bzw. Gewicht "
                                           "[kg]</i> (es gilt das kleinste <i>bis</i>, das passt, sonst die Zeile ohne "
                                           "<i>bis</i>)"]], [45, 220])
