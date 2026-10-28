@@ -62,6 +62,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          # DejaVu Sans: Ersatzschrift der Anleitung für Zeichen, die Helvetica fehlt (▾, ▸, N₂ …)
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core
           # Scans lesen (Plan W6c, tests/test_formular.py); im Windows-Paket wird Tesseract mitgeliefert
           sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
           # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py

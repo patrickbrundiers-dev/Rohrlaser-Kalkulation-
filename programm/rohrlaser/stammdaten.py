@@ -1092,7 +1092,7 @@ EINSTELLUNGEN = (
     Einstellung("palettenschein_werkstatt", "Palettenscheine an die Werkstattpapiere anhängen (beauftragte Angebote)",
                 "Versand", "auswahl", "ja", auswahl="janein"),
     # Der Reiter Einstellungen (mit den Stammdaten außer Kunden) öffnet nur mit diesem Passwort; leer = ohne
-    # Hilfetexte über den Tabellen: aufklappbar (erster Satz, 'ⓘ mehr') oder nur als Tooltip (siehe hilfe.py)
+    # Hilfetexte über den Tabellen: aufklappbar (erster Satz, 'mehr') oder nur als Tooltip (siehe hilfe.py)
     Einstellung("ansicht_hilfe", "Hilfetexte über Tabellen und Seiten", "Ansicht", "auswahl", "aufklappbar",
                 auswahl="hilfeart"),
     # 3D-Ansicht zeichnen mit OpenGL (Grafikkarte) oder QPainter (Software); Automatisch = OpenGL, wenn möglich

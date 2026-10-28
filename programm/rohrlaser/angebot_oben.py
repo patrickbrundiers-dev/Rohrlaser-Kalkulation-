@@ -589,8 +589,9 @@ class KopfBereich(QWidget):
         if self.s.kopf.get("mindestpreis_anwenden") == "nein":
             teile.append("ohne Mindestauftragswert")
         n = getattr(self, "_n_abweichend", 0)
-        self.kalk_kurz.setText("   " + " · ".join(teile)
-                               + (f"   <b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>" if n else ""))
+        # Hinweis auf Abweichungen vorn: hinten wurde er bei vielen Werten als Erstes abgeschnitten (Design-Prüfung)
+        abweichend = f"<b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>   " if n else ""
+        self.kalk_kurz.setText("   " + abweichend + " · ".join(teile))
         self.kalk_kurz.setToolTip("\n".join(teile))
 
     def _gruppen_anordnen(self, spalten):
@@ -1106,11 +1107,19 @@ class UebersichtBereich(QWidget):
 
     def wird_berechnet(self):
         """Gleich optimiert das Programm selbst (Plan Angebotsablauf V7): statt eines vorläufigen Preises ohne
-        Material „wird berechnet …“ zeigen, bis die Optimierung fertig ist (kosten_setzen schreibt dann die Preise)."""
+        Material „…“ zeigen, bis die Optimierung fertig ist (kosten_setzen schreibt dann die Preise); der Stand oben
+        behält Wort und Farbe („Noch nicht optimiert“ gelb, „Veraltet“ rot) und sagt dahinter „– wird berechnet …“.
+        Den Text nicht in die großen Preisfelder (17 pt): er machte die Übersicht breiter als die Spalte, rechts
+        wurden die Beträge im Preisaufbau abgeschnitten und die Spalte sprang nach dem Optimieren zurück
+        (Design-Prüfung 28.10.2026)."""
         for name, (t, titel) in self.preis_titel.items():
             t.setText(titel)
-            self.preis[name].setText("wird berechnet …")
+            self.preis[name].setText("…")
             self.preis[name].setToolTip("Das Programm optimiert gleich selbst (Material, Stangen, Verschnitt).")
+        stand = getattr(self, "_stand", None)
+        kurz = self.STAND[stand][0] if stand in self.STAND else "Veraltet"
+        self.stand.setText(f"{kurz} – wird berechnet …")
+        self.stand.setToolTip("Das Programm optimiert gleich selbst, sobald kurz nichts mehr geändert wird.")
 
     def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None, versand=None):
         """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf
@@ -1136,6 +1145,7 @@ class UebersichtBereich(QWidget):
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):
+        self._stand = stand                 # für wird_berechnet
         text, name = self.STAND.get(stand, ("Veraltet – Angebot oder Stammdaten geändert, bitte neu optimieren",
                                             "stand_veraltet"))
         self.stand.setText(text)

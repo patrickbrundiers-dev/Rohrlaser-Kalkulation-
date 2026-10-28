@@ -137,6 +137,10 @@ def main(argv=None):
             print(f"{'OK    ' if code == 0 else 'FEHLER'}  {dauer:7.1f} s  {name}", flush=True)
             if code != 0:
                 print("\n".join("        | " + z for z in ausgabe.rstrip().splitlines()[-60:]), flush=True)
+                if os.environ.get("GITHUB_ACTIONS"):    # als Annotation: im Pull Request ohne Protokoll lesbar
+                    ende = "%0A".join(z.replace("%", "%25").replace("\r", "")
+                                      for z in ausgabe.rstrip().splitlines()[-25:])
+                    print(f"::error title=Test rot: {name}::{ende}", flush=True)
     gesamt = time.monotonic() - start
 
     rot = [n for n, c, _ in ergebnisse if c != 0]
