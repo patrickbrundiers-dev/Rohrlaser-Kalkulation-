@@ -304,7 +304,9 @@ def angebot_inhalt(con, angebot_id, artikel_uid=None):
     """Alles zu einem Angebot ohne die IDs dieses Arbeitsplatzes: (Inhalt, {Index der Position: Netz-Bytes}).
     Staffeln verweisen über den Index ihrer Stufe, Zukaufteile über die Kennung des Artikels."""
     karte = artikel_uid if artikel_uid is not None else _uid_karte(con, "zukauf_artikel")
+    from .datenbank import ergebnis_text
     kopf = _zeilen(con, "SELECT * FROM angebote WHERE id=?", angebot_id)[0]
+    kopf["ergebnis"] = ergebnis_text(kopf.get("ergebnis"))     # in der geteilten Datei immer als JSON-Text
     kopf = _ohne_leere({k: v for k, v in kopf.items() if k not in ANGEBOT_OHNE})
     positionen, netze, pos_index = [], {}, {}
     for i, p in enumerate(_zeilen(con, "SELECT * FROM positionen WHERE angebot_id=? ORDER BY id", angebot_id)):
@@ -346,6 +348,9 @@ def angebot_einsetzen(con, inhalt, netze, fremd, stand, angebot_id=None, artikel
                for t in ("angebote", "positionen", "staffeln", "staffel_stufen")}
     kopf = {k: v for k, v in inhalt["kopf"].items() if k in spalten["angebote"] and k not in ANGEBOT_OHNE}
     kopf.update(fremd=fremd, fremd_stand=stand, geaendert=datetime.datetime.now().isoformat(timespec="seconds"))
+    if isinstance(kopf.get("ergebnis"), str):
+        from .datenbank import ergebnis_packen
+        kopf["ergebnis"] = ergebnis_packen(kopf["ergebnis"])
     if angebot_id is None:
         angebot_id = _einfuegen(con, "angebote", kopf, spalten["angebote"])
     else:

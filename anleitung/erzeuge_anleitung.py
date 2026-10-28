@@ -1304,7 +1304,10 @@ def kapitel_angebot(i):
             "(Schneidzeit von Hand, Programmierzeit, Einstiche, Zusatzarbeiten, Gewinde, Schweißnaht); jeder Wert "
             "lässt sich einzeln abwählen, Strg+Z nimmt die Übernahme zurück.",
             "Der <b>Preis wird nie übernommen</b>, er entsteht immer neu aus der Kalkulation mit den heutigen "
-            "Stammdaten. <b>Angebot öffnen</b> zeigt das alte Angebot, <b>Hinspringen</b> markiert die Position.")
+            "Stammdaten. <b>Angebot öffnen</b> zeigt das alte Angebot, <b>Hinspringen</b> markiert die Position.",
+            "Auch bei vielen tausend Angeboten bleibt das Angebot flüssig: die Datendatei sucht über einen Index nur "
+            "Positionen mit gleicher Artikelnummer oder gleichem Profil und passender Länge heraus, das Einstufen läuft "
+            "im Hintergrund. Angebote im Archiv ([[archiv]]) zählen nicht mit.")
     i.abschnitt("Positionen", marke="positionen")
     i.text("Eine Zeile je Teil. Pflicht sind <b>Profil-ID</b>, <b>Werkstoff-ID</b>, <b>Teilelänge</b> und "
            "<b>Stückzahl</b>; gelbe Felder sind Eingaben, graue rechnet das Programm. Optionale Spalten erscheinen, "
@@ -5202,6 +5205,10 @@ def kapitel_versand(i):
             "Mehrere Aufträge markieren: <b>Palettenscheine drucken</b> (ein PDF für alle), <b>Verladeliste</b> "
             "(Übersicht für die Verladung), <b>✓ Verladebereit</b>, <b>✓ Versendet</b>, <b>Lieferdatum …</b> und "
             "<b>Archivieren</b> (im Filter <i>Archiviert</i> holt derselbe Knopf sie zurück).",
+            "Aufträge, deren Lieferdatum (ohne Lieferdatum: Angebotsdatum) mehr als <b>90 Tage</b> zurückliegt und für "
+            "die nie ein Palettenschein bearbeitet oder gedruckt wurde, stehen automatisch unter <i>Archiviert</i>. "
+            "Zurückholen geht wie oben; ein zurückgeholter Auftrag bleibt dann in der Liste. Der Reiter rechnet die "
+            "Paletten erst, wenn er angezeigt wird, der Programmstart wartet also nicht darauf.",
             "<b>Palettenschein …</b> (oder Doppelklick; im Angebot <i>Vorgang ▾</i> bzw. <i>Weitere ▾ → "
             "Palettenbegleitschein …</i>) öffnet das Fenster des Auftrags.", kurz=True)
     i.abschnitt("Palettenschein eines Auftrags", marke="palettenschein")
@@ -5601,6 +5608,9 @@ def kapitel_einstellungen(i):
         ["Ablage", "Zweiter Sicherungsordner", "zusätzliche Sicherung beim Beenden und mit <i>Datensicherung "
                                                "erstellen</i>, z. B. Netzlaufwerk, OneDrive oder USB-Stick; leer = "
                                                "keiner ([[datensicherung]])"],
+        ["Ablage", "Archiv: archivierbar ab Alter in Jahren", "Vorgabe 2; <i>Datei → Alte Angebote "
+                                                                      "archivieren …</i> verschiebt Angebote aus "
+                                                                      "diesen Jahren ins Archiv ([[archiv]])"],
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
@@ -7230,18 +7240,22 @@ def kapitel_pflege(i):
             "<b>Andere Datei …</b>: eine Sicherung, Datendatei oder Export-Datei von woanders wählen.")])
     i.genauer()
     i.text("Das Programm sichert die Datendatei in den Ordner <i>Sicherung</i> im Datenordner:")
-    i.liste("beim ersten Start jedes Tages,",
+    i.liste("beim ersten Start jedes Tages (im Hintergrund, man kann sofort weiterarbeiten; ein Fehler erscheint "
+            "in der Statuszeile),",
             "beim Beenden (eine je Tag, wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>),",
             "mit <b>Datensicherung erstellen</b> (Startseite oder Menü <i>Datei</i>),",
             "vor einem Update (<i>_vor_update</i>), vor dem Erweitern der Datendatei (<i>_vor_Schema_…</i>), vor dem "
             "Wiederherstellen (<i>_vor_Wiederherstellung</i>), vor einem Import (<i>_vor_Import</i>), vor dem "
             "Zurücksetzen der Frachtzonen (<i>_vor_Frachtzonen_Standard</i>, [[fracht_zonen_standard]]) und vor dem "
-            "CSV-Import der Kunden (<i>_vor_Kundenimport</i>, [[kunden_csv]]).")
+            "CSV-Import der Kunden (<i>_vor_Kundenimport</i>, [[kunden_csv]]) und vor dem Archivieren alter Angebote "
+            "(<i>_vor_Archiv</i>, [[archiv]]).")
     i.text("Jede Sicherung wird gleich nach dem Schreiben geprüft: die Datei muss unbeschädigt sein und gleich viele "
            "Angebote und Positionen enthalten wie die Datendatei. Daneben liegt eine gleichnamige <i>.json</i>-Datei "
-           "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben die "
-           "letzten 30, von jeder Art der Sicherungen „vor …“ die letzten 10; sie werden also nicht von den "
-           "täglichen Sicherungen verdrängt. Gelöscht werden nur ältere Sicherungen, nie Angebote oder Stammdaten.",
+           "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben "
+           "<b>gestaffelt</b> alle der letzten 7 Tage, dazu je Woche die neueste für 4 Wochen und je Monat die "
+           "neueste für 12 Monate; damit reicht die Sicherung ein Jahr zurück, braucht aber nur etwa 23 Dateien. Von "
+           "den Sicherungen vor einem Update bleiben die letzten 3, von jeder anderen Art „vor …“ die letzten 10; "
+           "sie werden nicht von den täglichen Sicherungen verdrängt. Gelöscht werden nur ältere Sicherungen, nie Angebote oder Stammdaten.",
            "<b>Zweiter Sicherungsordner</b> (Einstellungen, Gruppe Ablage): z. B. ein Netzlaufwerk, OneDrive oder ein "
            "USB-Stick. Beim Beenden, mit <i>Datensicherung erstellen</i> und vor Updates geht dann zusätzlich eine "
            "Kopie dorthin. Ist der Ordner nicht erreichbar, meldet das Programm das beim Beenden und fragt, ob "
@@ -7276,11 +7290,31 @@ def kapitel_pflege(i):
            "Rechner auf einem Netzlaufwerk) meldet <b>„schon in einem anderen Programm geöffnet“</b> mit Rechner und "
            "Benutzer und startet nicht.")
     i.text("<b>Viele Angebote:</b> Je Angebot wächst die Datendatei um etwa 0,1 bis 0,3 MB (Schnittplan und "
-           "3D-Modelle aus dem STEP-Import), 1.000 Angebote ergeben also etwa 200 MB. Angebotsliste, Suche, "
-           "Speichern und Rückgängig bleiben auch bei 10.000 Angeboten schnell; Staffeln, Mengenstufen und "
-           "STEP-Protokoll eines Angebots findet das Programm über einen Index. Mit der Größe der Datendatei wachsen "
-           "dagegen die Dauer der täglichen Sicherung und der Platz für die Sicherungen (bis zu 30 laufende und "
-           "je Art 10 „vor …“-Sicherungen) sowie beim Teilen die Datei im gemeinsamen Ordner.")
+           "3D-Modelle aus dem STEP-Import; der Schnittplan wird gepackt gespeichert), 1.000 Angebote ergeben also "
+           "etwa 100 bis 200 MB. Angebotsliste, Suche, Speichern, Rückgängig und die Wiederholteile bleiben auch bei "
+           "10.000 Angeboten schnell; Staffeln, Mengenstufen, STEP-Protokoll und gleiche Teile findet das Programm "
+           "über einen Index. Mit der Größe der Datendatei wachsen die Dauer der täglichen Sicherung (läuft im "
+           "Hintergrund), der Platz für die Sicherungen und beim Teilen die Datei im gemeinsamen Ordner. Alte "
+           "Angebote lassen sich deshalb ins Archiv verschieben, siehe [[archiv]].")
+    i.abschnitt("Alte Angebote archivieren", marke="archiv")
+    i.text("<b>Datei → Alte Angebote archivieren …</b> verschiebt eigene Angebote, deren Angebotsdatum mehr als "
+           "<b>2 Jahre</b> zurückliegt (genauer: aus Jahren bis einschließlich heute minus 2; einstellbar unter "
+           "Einstellungen → Ablage → <i>Archiv</i>), in eine Archivdatei je Jahr (Datenordner, Ordner <i>Archiv</i>, "
+           "z. B. <i>Rohrlaser_Archiv_2023.db</i>). Die Datendatei wird kleiner, Start, Sicherung und Abgleich "
+           "schneller.", kurz=True)
+    i.liste("Vorher zeigt das Programm die Anzahl je Jahr und fragt nach; dann sichert es den jetzigen Stand "
+            "(<i>_vor_Archiv</i>) und verschiebt die Angebote mit Positionen, 3D-Modellen, Staffeln, Mengenstufen, "
+            "STEP-Protokoll und Fertigungsstatus.",
+            "Es bleiben immer in der Datendatei: geöffnete Angebote, Angebote mit Lagerauftrag oder Reservierung "
+            "und Angebote der Kollegen (die archiviert jeder selbst).",
+            "Archivierte Angebote stehen nicht mehr in der Angebotsliste, in den Wiederholteilen, in der "
+            "Nachkalkulation und in den Auswertungen. Beim Teilen sehen auch die Kollegen sie nicht mehr.",
+            "<b>Datei → Archiv durchsuchen …</b> sucht in allen Archivdateien nach Nummer, Kunde, Kundennummer, "
+            "Bemerkung, Artikelnummer oder Bezeichnung. <b>Zurückholen</b> (oder Doppelklick) legt das Angebot "
+            "wieder in die Angebotsliste, mit gleicher Nummer, und öffnet es.",
+            "Die Archivdateien werden nach jedem Archivieren und Zurückholen nach <i>Sicherung/Archiv</i> und in "
+            "den zweiten Sicherungsordner kopiert. <i>Daten exportieren</i> nimmt das Archiv nicht mit; beim "
+            "Umziehen den Ordner <i>Archiv</i> mitkopieren.")
 
 
 def kapitel_step_messung(i):

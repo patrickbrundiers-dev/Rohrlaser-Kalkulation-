@@ -164,6 +164,18 @@ assert palettenschein.lesen('{"status": ["Versendet", "Quatsch"], "max_je": {"3"
 assert palettenschein.lesen("kaputt") == palettenschein.leer()
 ok("Status (Verladebereit, Versendet mit Datum), Filter der Versandübersicht, Lesen robust")
 
+# alte Aufträge ohne Palettenschein (Vorschlag 3b): nach AUTO_ARCHIV_TAGE automatisch im Archiv
+alt = dict(liefertermin="2026-07-01", nummer="2")
+assert palettenschein.passt(alt, palettenschein.leer(), "Archiviert", heute)
+assert not palettenschein.passt(alt, palettenschein.leer(), "Aktuell", heute)
+assert palettenschein.passt(dict(datum="2026-07-01"), palettenschein.leer(), "Archiviert", heute)   # ohne Termin
+assert not palettenschein.auto_archiviert(dict(liefertermin="2026-08-01"), palettenschein.leer(), heute)  # 81 Tage
+assert not palettenschein.auto_archiviert(alt, dict(palettenschein.leer(), gedruckt_am="2026-06-30"), heute)
+assert not palettenschein.auto_archiviert(alt, dict(palettenschein.leer(), status=["Auftrag vollständig"]), heute)
+assert not palettenschein.auto_archiviert(alt, dict(palettenschein.leer(), zurueckgeholt=True), heute)
+assert palettenschein.passt(alt, dict(palettenschein.leer(), zurueckgeholt=True), "Aktuell", heute)
+ok(f"Alte Aufträge ohne Palettenschein nach {palettenschein.AUTO_ARCHIV_TAGE} Tagen im Archiv, zurückgeholte nicht")
+
 # ------------------------------------------------------------------ Datenbank, Beispielangebot
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
@@ -237,7 +249,28 @@ seite.waehlen([aid])
 assert db.angebot(aid)["liefertermin"] == "2026-12-01"
 seite.archivieren()
 assert db.palettenschein(aid)["archiviert"]
-ok("Versandübersicht: Versendet, Verladeliste-PDF, Lieferdatum ändern, Archivieren")
+seite.filter.setCurrentIndex(seite.filter.findData("Archiviert"))
+seite.waehlen([aid])
+seite.archivieren()
+assert not db.palettenschein(aid)["archiviert"] and db.palettenschein(aid)["zurueckgeholt"]
+ok("Versandübersicht: Versendet, Verladeliste-PDF, Lieferdatum ändern, Archivieren, Zurückholen")
+
+# mit Bildschirm: der Reiter rechnet Packlisten erst, wenn er gezeigt wird (Programmstart schneller)
+fenster.stumm = False
+try:
+    fenster.reiter.setCurrentWidget(fenster.angebote)
+    seite.filter.setCurrentIndex(seite.filter.findData("Alle"))
+    seite.tabelle.setRowCount(0)
+    seite.neu_laden()
+    assert seite._veraltet and seite.tabelle.rowCount() == 0
+    fenster.show()
+    fenster.reiter.setCurrentWidget(seite)
+    app.processEvents()
+    assert not seite._veraltet and seite.tabelle.rowCount() >= 1
+    fenster.hide()
+finally:
+    fenster.stumm = True
+ok("Reiter Versand lädt erst beim Zeigen")
 
 # PDFs direkt, Werkstattpapiere mit Palettenscheinen
 p1 = tmp / "scheine.pdf"

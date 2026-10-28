@@ -3983,19 +3983,59 @@ class AngebotSeite(QWidget):
         return zelle.contains(maus) and maus.x() <= zelle.left() + self.pos_ansicht.iconSize().width() + 8
 
     # -------------------------------------------------------------- Wiederholteile (Plan A1, wiederholteile.py)
-    def wiederholteile_suchen(self):
+    def wiederholteile_suchen(self, warten=True):
         """{Positions-ID: [Treffer]}; gerechnet nur, wenn sich die suchrelevanten Werte oder andere Angebote geändert
-        haben."""
+        haben. warten=False (Anzeige): die Datenbank liefert die möglichen Treffer sofort, eingestuft wird in einem
+        eigenen Thread; bis dahin bleibt das bisherige Ergebnis (None, wenn es noch keines gibt), danach zeigt
+        _wt_fertig() das neue an. Ohne Bildschirm (stumm) wird immer gleich gerechnet."""
         from . import wiederholteile
         kennung = (wiederholteile.stand(self.db), self.kopf.get("kundennr"),
                    tuple(tuple(p.get(f) for f in wiederholteile.FELDER) for p in self.positionen))
-        if getattr(self, "_wt_kennung", None) != kennung:
-            self._wt_kennung = kennung
-            self._wt = wiederholteile.suchen(self.db, self.id, self.kopf.get("kundennr"), self.positionen)
-        return self._wt
+        if getattr(self, "_wt_kennung", None) == kennung:
+            return self._wt
+        zeilen = wiederholteile.laden(self.db, self.id, self.positionen)
+        if warten or self.f.stumm:
+            self._wt_kennung, self._wt_lauf = kennung, None
+            self._wt = wiederholteile.auswerten(zeilen, self.kopf.get("kundennr"), self.positionen)
+            return self._wt
+        lauf = getattr(self, "_wt_lauf", None)
+        if lauf is not None and lauf[0] == kennung:
+            return getattr(self, "_wt", None)
+        ende = {}
+        positionen, kundennr = [dict(p) for p in self.positionen], self.kopf.get("kundennr")
+
+        def rechnen_():
+            ende["treffer"] = wiederholteile.auswerten(zeilen, kundennr, positionen)
+
+        t = threading.Thread(target=rechnen_, name="Wiederholteile", daemon=True)
+        self._wt_lauf = (kennung, t, ende)
+        t.start()
+        if getattr(self, "_wt_zeitgeber", None) is None:
+            self._wt_zeitgeber = QTimer(self)
+            self._wt_zeitgeber.setInterval(50)
+            self._wt_zeitgeber.timeout.connect(self._wt_fertig)
+        self._wt_zeitgeber.start()
+        return getattr(self, "_wt", None)
+
+    def _wt_fertig(self):
+        """Zeitgeber: Einstufen im Thread fertig -> Ergebnis übernehmen und anzeigen (nur der neueste Lauf zählt)."""
+        lauf = getattr(self, "_wt_lauf", None)
+        if lauf is None:
+            self._wt_zeitgeber.stop()
+            return
+        kennung, t, ende = lauf
+        if t.is_alive():
+            return
+        self._wt_zeitgeber.stop()
+        self._wt_lauf = None
+        if "treffer" in ende:
+            self._wt_kennung, self._wt = kennung, ende["treffer"]
+        self.wiederholteile_anzeigen()
 
     def wiederholteile_anzeigen(self):
-        treffer = self.wiederholteile_suchen()
+        treffer = self.wiederholteile_suchen(warten=False)
+        if treffer is None:             # erstes Ergebnis kommt noch aus dem Thread
+            return
         self.uebersicht_bereich.wiederholteile_setzen(
             [(r, " · ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") is not None else None,
                                             p.get("artikel") or p.get("bezeichnung")) if x), treffer[p["id"]])

@@ -13,7 +13,8 @@ from .datenbank import SCHEMA_VERSION, _geschuetzt, datei_info
 
 SPALTEN = ("Zeit", "Art", "Angebote", "Positionen", "Schema", "Ordner")
 ARTEN = {"update": "vor Update", "Schema": "vor Schema-Umstellung", "Wiederherstellung": "vor Wiederherstellung",
-         "Import": "vor Import", "Uebernahme": "vor Übernahme"}
+         "Import": "vor Import", "Uebernahme": "vor Übernahme",
+         "Archiv": "vor Archivieren"}
 
 
 def art_text(pfad):

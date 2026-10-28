@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.184", "<b>Viele Angebote, Teil 2</b>: <b>Wiederholteile</b> sucht über einen Index nur passende Positionen "
+                "und stuft im Hintergrund ein, das Angebot bleibt auch bei Tausenden Angeboten flüssig "
+                "([[wiederholteile]]). Der Reiter <b>Versand</b> rechnet erst, wenn er gezeigt wird; Aufträge ohne "
+                "Palettenschein, deren Liefertermin über 90 Tage zurückliegt, stehen automatisch unter Archiviert "
+                "([[versand]]). <b>Sicherungen gestaffelt</b>: 7 Tage, 4 Wochen, 12 Monate, vor Updates nur die letzten 3; "
+                "die tägliche Sicherung läuft im Hintergrund, der Schnittplan wird gepackt gespeichert (Datendatei etwa "
+                "40 % kleiner, [[datensicherung]]). Neu: <b>Datei → Alte Angebote archivieren …</b> und <b>Archiv "
+                "durchsuchen …</b>, eine Archivdatei je Jahr, Angebote lassen sich jederzeit zurückholen ([[archiv]]).",
+     "Viele Angebote: Wiederholteile schneller, Versand-Reiter, gestaffelte Sicherungen, Archiv alter Angebote."],
     ["0.9.183", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
                 "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
                 "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",

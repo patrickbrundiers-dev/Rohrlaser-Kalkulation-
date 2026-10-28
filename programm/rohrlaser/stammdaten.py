@@ -1085,6 +1085,9 @@ EINSTELLUNGEN = (
                 ""),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
+    # Archiv alter Angebote (archiv.py, Vorschlag 5b 28.10.2026): Angebote älter als so viele volle Jahre
+    Einstellung("archiv_jahre", "Archiv: archivierbar ab Alter in Jahren",
+                "Ablage", "ganz", 2, 1, 20),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(PROFILFORMEN)),
     Einstellung("kategorien", "Werkstoff-Kategorien (eine je Zeile)", "Auswahllisten", "mehrzeilig",
