@@ -138,6 +138,21 @@ pdf_art.anwenden(mw, kw["formulare"])
 assert mw[0]["_stueck"] == 30 and "26.10. 14:00" in mw[0]["_stueck_quelle"], mw[0]
 assert mw[0]["_stueck_anders"] == "E-Mail vom 26.10. 09:00: 20", mw[0]
 assert mw[1]["_stueck"] == 5 and "_stueck_anders" not in mw[1], mw[1]
+# neueste Mail nennt die Zahl nur unsicher (ohne „Stk“), die ältere sicher: trotzdem gilt die neueste
+unsicher = [dict(text="Betreff: AW\nTeil1 30", mail=True, quelle="der E-Mail vom 27.10. 10:00"),
+            dict(text="Betreff: Anfrage\nTeil1 20 Stk", mail=True, quelle="der E-Mail vom 26.10. 09:00")]
+mw3 = [dict(datei="Teil1.stp", artikel="Teil1")]
+pdf_art.anwenden(mw3, unsicher)
+assert mw3[0]["_stueck"] == 30 and mw3[0]["_stueck_anders"] == "E-Mail vom 26.10. 09:00: 20", mw3[0]
+mw4 = [dict(datei="Teil1.stp", artikel="Teil1")]           # ein Anfrageformular geht weiter vor
+pdf_art.anwenden(mw4, [dict(text="Pos 10 Teil1 12 Stk")] + unsicher)
+assert mw4[0]["_stueck"] == 12, mw4[0]
+# Mail ohne Sendedatum: zählt mit der Änderungszeit der Datei
+ohne_datum = tmp / "ohne_datum.eml"
+ohne_datum.write_bytes(bau.eml("AW: Anfrage A-5000", f"Liefertermin KW 52/{JAHR}", *VON))
+mit = mail.Mail(*VON, T0, "Anfrage A-5000", f"Liefertermin KW 50/{JAHR}")
+_, _, w = anfragen.werte(db, [], [mit, mail.lesen(ohne_datum)])
+assert any(f"KW 52/{JAHR}" in h and h.startswith("Lieferzeit") for h in w["hinweis"]), w["hinweis"]
 from rohrlaser.step_dialog import StepPruefDialog  # noqa: E402
 k = db.kontext()
 mw2 = [dict(datei="Teil1.stp", artikel="Teil1", bauteil="Teil1", profilform="Rundrohr",

@@ -487,7 +487,8 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     from . import formular, mail
     formular_text = "\n".join(g["text"] for g in gelesen if g.get("text"))
     # mehrere Mails zur selben Anfrage (F3 a): die neueste gilt, andere Werte älterer Mails nur als Hinweis
-    mails = sorted(mails, key=lambda m: m.datum or datetime.datetime.min, reverse=True)
+    mails = sorted(mails, key=lambda m: m.datum or m.datei_zeit or datetime.datetime.min,
+                   reverse=True)
     gelesen = list(gelesen) + [dict(text=m.volltext(), ocr=False, unsicher=set(), mail=True, quelle="der " + _mail_name(m, mails))
                                for m in mails]
     if not gelesen:

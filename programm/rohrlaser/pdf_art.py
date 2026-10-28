@@ -284,10 +284,11 @@ def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):
 AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle", "_stueck_anders")
 
 
-def mails_vergleichen(messwerte, mails, namen):
+def mails_vergleichen(messwerte, mails, namen, formulare=()):
     """Mehrere Mails zur selben Anfrage (Patrick 28.10.2026, F3 a; mails neueste zuerst): die Stückzahl kommt aus der
-    neuesten Mail, die das Teil nennt; nennt eine andere Mail eine andere Zahl, steht sie in _stueck_anders (Tooltip,
-    gelb). Setzt _stueck_quelle auf die Mail."""
+    neuesten Mail, die das Teil nennt, auch wenn sie dort unsicher erkannt ist und eine ältere sie sicher nennt (ein
+    Anfrageformular in formulare geht weiter vor); nennt eine andere Mail eine andere Zahl, steht sie in
+    _stueck_anders (Tooltip, gelb). Setzt _stueck_quelle auf die Mail."""
     from . import formular, mail
     if len(mails) < 2:
         return
@@ -298,9 +299,15 @@ def mails_vergleichen(messwerte, mails, namen):
             continue
         schl = {formular._schluessel(k) for k in (m.get("artikel"), m.get("datei")) if k}
 
-        def wert(st):
-            return next((w[0] for n, w in st.items() if formular._schluessel(n) in schl), None)
-        quelle = next((f for f, st, _ in je if wert(st) == m["_stueck"]), None)
+        def wert(st, ganz=False):
+            return next(((w if ganz else w[0]) for n, w in st.items() if formular._schluessel(n) in schl), None)
+        im_formular = any(wert(formular.stueckzahlen(f["text"], namen)) is not None for f in formulare)
+        quelle = None if im_formular else next((f for f, st, _ in je if wert(st) is not None), None)
+        if quelle is not None:          # neueste Mail, die das Teil nennt
+            w = wert(next(st for f, st, _ in je if f is quelle), ganz=True)
+            m["_stueck"], m["_stueck_formular"] = w
+        else:
+            quelle = next((f for f, st, _ in je if wert(st) == m["_stueck"]), None)
         if quelle is None:
             continue
         m["_stueck_quelle"] = quelle.get("quelle") or "der E-Mail"
@@ -325,7 +332,8 @@ def anwenden(messwerte, formulare, werkstoffe=None):
     formulare = [f for f in formulare or () if f]
     namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
     n = formular.stueck_setzen(messwerte, formular.stueck_aus([f for f in formulare if f.get("text")], namen))
-    mails_vergleichen(messwerte, [f for f in formulare if f.get("mail") and f.get("text")], namen)
+    mails_vergleichen(messwerte, [f for f in formulare if f.get("mail") and f.get("text")], namen,
+                      [f for f in formulare if not f.get("mail") and f.get("text")])
     unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
     z = zeichnung_zu_teilen(messwerte, [z for f in formulare for z in f.get("zeichnungen") or ()], werkstoffe)
     return dict(formular=n, unsicher=unsicher, zeichnung=z)
