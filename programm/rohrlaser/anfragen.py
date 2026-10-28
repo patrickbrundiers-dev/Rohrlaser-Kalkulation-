@@ -9,8 +9,16 @@ Wer eine Anfrage öffnet, sperrt sie (Datei SPERRE mit Kürzel im Unterordner; l
 eigenen Unterordner). Nach dem Übernehmen der Positionen werden die Dateien in den Angebotsordner verschoben, ein
 leerer Unterordner entfällt; bei Abbruch wird nur die Sperre wieder aufgehoben.
 E-Mails (Patrick 28.10.2026): aus Outlook gezogene .msg- und .eml-Dateien gehören zur Anfrage; STEP-Dateien und
-Formulare in ihren Anhängen zählen mit und werden beim Öffnen in den Unterordner ausgepackt (mail.py). Ohne Qt."""
+Formulare in ihren Anhängen zählen mit und werden beim Öffnen in den Unterordner ausgepackt (mail.py).
+Mehrere Mails zur selben Anfrage (Patrick 28.10.2026, F1-F4 a): Mails vom selben Absender mit derselben Anfrage-Nr.
+oder demselben Betreff (ohne AW:/WG:) innerhalb von ZUSAMMEN_TAGE Tagen gehören zu einer Anfrage, auch ein Nachtrag
+ohne STEP; beim Auspacken gilt bei gleichem Dateinamen die neueste Version, die ältere bleibt als 'Name (alt)'.
+Gemeinsamer Ordner (Patrick 28.10.2026): ohne eigenen Anfrage-Ordner gilt der Unterordner „Anfragen“ des gemeinsamen
+Ordners (ordner). Eine Anfrage lässt sich einem Kollegen zuweisen (Datei ZUGEWIESEN im Unterordner, für alle
+sichtbar). Ohne Qt."""
 import datetime
+import os
+import re
 import shutil
 from pathlib import Path
 
@@ -19,13 +27,26 @@ ABSTAND_MIN = 10            # Minuten: lose Dateien mit kleinerem Abstand sind e
 RUHE_S = 15                 # Sekunden: jüngere Dateien werden evtl. noch geschrieben (Kopieren aus der E-Mail)
 SPERRE = ".in_bearbeitung"  # Datei im Unterordner: Kürzel und Zeit des Bearbeiters
 SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abgestürzt)
+ZUGEWIESEN = ".zugewiesen"  # Datei im Unterordner: Kürzel des Kollegen, Absender, Zeit, Notiz
 STEP = {".step", ".stp"}
 FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}     # Anfrageformulare (gelesen ab W6b/W6c)
 MAIL = {".msg", ".eml"}     # E-Mail aus Outlook (mail.py)
 ARCHIV = {".zip"}           # ZIP mit STEP-Dateien (Patrick 28.10.2026): wird wie eine Mail beim Öffnen ausgepackt
 BEHAELTER = MAIL | ARCHIV
+ZUSAMMEN_TAGE = 3           # Mails zur selben Anfrage (Anfrage-Nr. bzw. Betreff, gleicher Absender) so lange zusammen
+ALT = re.compile(r" \(alt\)(?: \(\d+\))?$", re.I)     # ältere Version einer Datei aus einer früheren Mail
 BILD, BILD_MIN = FORMULAR - {".pdf"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
 ZIEL_FORMULAR = "Anfrage"   # Unterordner im Angebotsordner für Formulare (STEP-Dateien: angebotsordner.STEP_ORDNER)
+
+
+def ordner(db):
+    """Anfrage-Ordner: eingetragener Ordner, sonst „Anfragen“ im gemeinsamen Ordner (Einstellung teilen_anfragen),
+    sonst None (aus)."""
+    from . import teilen
+    eigen = str(db.einstellung(EINSTELLUNG) or "").strip()
+    if eigen:
+        return Path(eigen)
+    return teilen.unterordner(db, teilen.ANFRAGEN, "teilen_anfragen", anlegen=True)
 
 
 def _relevant(p):
@@ -73,23 +94,82 @@ def _zeit(p):
         return None
 
 
+def ist_alt(p):
+    """Ältere Version aus einer früheren Mail ('Teil1 (alt).step'): wird mit verschoben, aber nicht importiert."""
+    return bool(ALT.search(Path(p).stem))
+
+
+PRAEFIX = re.compile(r"^\s*(?:(?:AW|RE|WG|FW|FWD|TR|VS|SV|Antw(?:ort)?|Weiterleitung)\s*(?:\[\d+\])?\s*:\s*)+", re.I)
+GENERISCH = {"anfrage", "angebot", "angebotsanfrage", "preisanfrage", "bitte", "um", "ihr", "ihre", "unser", "unsere",
+             "neue", "neu", "zur", "zum", "für", "fuer", "info", "request", "quotation", "rfq", "inquiry", "mail", "-"}
+
+
+def betreff_kern(betreff):
+    """Betreff ohne AW:/WG:/RE:, klein, Leerzeichen vereinheitlicht; None bei Allerweltsbetreffs wie „Anfrage“."""
+    t = re.sub(r"\s+", " ", PRAEFIX.sub("", betreff or "")).strip().lower()
+    return t if set(t.replace(":", " ").split()) - GENERISCH else None
+
+
+_KOPF = {}                  # (Pfad, Größe, Änderungszeit) -> Kopfdaten zum Zusammenfassen (mail_kopf)
+
+
+def mail_kopf(p):
+    """Was zum Zusammenfassen zählt: dict(nummer, betreff, absender, domain, zeit) oder None (keine Mail)."""
+    from . import formular, mail
+    p = Path(p)
+    if p.suffix.lower() not in MAIL:
+        return None
+    try:
+        st = p.stat()
+    except OSError:
+        return None
+    k = (str(p), st.st_size, st.st_mtime_ns)
+    if k not in _KOPF:
+        if len(_KOPF) > 500:
+            _KOPF.clear()
+        m = mail.lesen(p)
+        _KOPF[k] = None if m is None else dict(
+            nummer=formular.anfragenummer(m.volltext()), betreff=betreff_kern(m.betreff), absender=m.absender,
+            domain=m.domain, zeit=m.datum or datetime.datetime.fromtimestamp(st.st_mtime))
+    return _KOPF[k]
+
+
+def gleiche_anfrage(a, b, tage=ZUSAMMEN_TAGE):
+    """Zwei Mails (mail_kopf) gehören zur selben Anfrage: höchstens tage auseinander, gleicher Absender (gleiche Firma
+    bzw. bei Freemail gleiche Adresse) und gleiche Anfrage-Nr. oder gleicher Betreff."""
+    from . import mail
+    if not a or not b or abs(a["zeit"] - b["zeit"]) > datetime.timedelta(days=tage):
+        return False
+    if not a["domain"] or a["domain"] != b["domain"] or (a["domain"] in mail.FREEMAIL and a["absender"] != b["absender"]):
+        return False
+    return bool((a["nummer"] and a["nummer"].lower() == (b["nummer"] or "").lower())
+                or (a["betreff"] and a["betreff"] == b["betreff"]))
+
+
+def quell_zeit(p):
+    """Zeit einer Mail (gesendet) bzw. einer Datei (geändert) für „die neueste gilt“."""
+    k = mail_kopf(p)
+    return k["zeit"] if k else (_zeit(Path(p)) or datetime.datetime.min)
+
+
 class Anfrage:
     """Eine Anfrage im Ordner: name (Anzeige), ordner (Unterordner oder None bei losen Dateien), dateien [Path],
     zeit (jüngste Datei), kunde (Kundennummer oder None), gesperrt (Kürzel oder None)."""
 
-    def __init__(self, name, ordner, dateien, kunde=None, gesperrt=None):
+    def __init__(self, name, ordner, dateien, kunde=None, gesperrt=None, zugewiesen=None):
         self.name, self.ordner, self.dateien = name, ordner, sorted(dateien)
         self.kunde, self.gesperrt = kunde, gesperrt
+        self.zugewiesen = zugewiesen or {}      # {an, von, zeit, notiz} oder {}
         zeiten = [z for z in map(_zeit, self.dateien) if z]
         self.zeit = max(zeiten) if zeiten else None
 
     @property
     def step(self):
-        return [d for d in self.dateien if d.suffix.lower() in STEP]
+        return [d for d in self.dateien if d.suffix.lower() in STEP and not ist_alt(d)]
 
     @property
     def formulare(self):
-        return [d for d in self.dateien if d.suffix.lower() in FORMULAR]
+        return [d for d in self.dateien if d.suffix.lower() in FORMULAR and not ist_alt(d)]
 
     @property
     def mails(self):
@@ -116,7 +196,11 @@ class Anfrage:
             + ([f"{len(self.mails)} E-Mail"] if self.mails else []) \
             + ([f"{len(self.archive)} ZIP"] if self.archive else [])
         z = f" · {self.zeit.strftime('%d.%m. %H:%M')}" if self.zeit else ""
-        return f"{self.name} ({', '.join(teile)}){z}" + (f" · in Bearbeitung: {self.gesperrt}" if self.gesperrt else "")
+        an = self.zugewiesen.get("an")
+        notiz = self.zugewiesen.get("notiz")
+        return (f"{self.name} ({', '.join(teile)}){z}" + (f" · für {an}" if an else "")
+                + (f" („{notiz}“)" if an and notiz else "")
+                + (f" · in Bearbeitung: {self.gesperrt}" if self.gesperrt else ""))
 
     def __repr__(self):
         return f"Anfrage({self.name!r}, {len(self.dateien)} Dateien)"
@@ -137,23 +221,25 @@ def sperre_lesen(ordner, jetzt=None):
     return text.split("|")[0].strip() or "?"
 
 
-def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None):
+def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None):
     """Anfragen im Ordner, älteste zuerst. kunden = Zeilen der Kundentabelle (für den Kunden aus dem Ordnernamen).
     Anfragen ohne STEP-Datei und Dateien, die gerade noch geschrieben werden, fehlen; ohne_step (Liste) bekommt die
     Namen der Ordner bzw. Dateien, die nur Zeichnungen/Formulare haben (Hinweis, Patrick 28.10.2026: aus Zeichnungen
-    nichts automatisch anlegen)."""
+    nichts automatisch anlegen). Mails zur selben Anfrage (gleiche_anfrage) kommen zusammen, auch ein Nachtrag ohne
+    STEP (lose Dateien auch zu einem nicht gesperrten Unterordner). angebote = {Anfrage-Nr.: (Angebotsnummer,
+    Kundennummer)}: ein Nachtrag des Kunden zu einer schon übernommenen Anfrage steht in ohne_step als
+    'Mail (Nachtrag zu Angebot …)'."""
     from .step_neu import kunde_aus_ordner
     jetzt = jetzt or datetime.datetime.now()
     wurzel = Path(ordner) if ordner else None
     if not wurzel or not wurzel.is_dir():
         return []
     ruhig = jetzt - datetime.timedelta(seconds=RUHE_S)
-    out = []
     try:
         eintraege = sorted(wurzel.iterdir())
     except OSError:
         return []
-    lose = []
+    gruppen, lose = [], []      # gruppen: [Unterordner oder None, [Dateien], Sperre]
     for e in eintraege:
         if e.name.startswith((".", "~$")):
             continue
@@ -162,33 +248,99 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None):
                 dateien = [d for d in e.rglob("*") if _relevant(d)]
             except OSError:
                 continue
-            if not _hat_step(dateien):
-                if ohne_step is not None and any(d.suffix.lower() in FORMULAR for d in dateien):
-                    ohne_step.append(e.name)
+            if _hat_step(dateien) and any((_zeit(d) or jetzt) > ruhig for d in dateien):
                 continue
-            if any((_zeit(d) or jetzt) > ruhig for d in dateien):
-                continue
-            out.append(Anfrage(e.name, e, dateien, kunde_aus_ordner(kunden, dateien) if kunden else None,
-                               sperre_lesen(e, jetzt)))
+            if dateien:
+                gruppen.append([e, dateien, sperre_lesen(e, jetzt)])
         elif _relevant(e) and (_zeit(e) or jetzt) <= ruhig:
             lose.append(e)
     lose.sort(key=lambda d: _zeit(d) or jetzt)
-    einzeln = [[d] for d in lose if d.suffix.lower() in BEHAELTER and _hat_step([d])]   # Mail/ZIP mit STEP: für sich
+    # Mail/ZIP mit STEP für sich; eine Mail ohne STEP erst für sich (Nachtrag zu einer anderen Mail?), sonst unten zu
+    # den losen Dateien aus derselben Zeit
+    einzeln = [[d] for d in lose if d.suffix.lower() in BEHAELTER and (_hat_step([d]) or mail_kopf(d))]
     lose = [d for d in lose if [d] not in einzeln]
-    gruppen = []
+    zeitlich = []
     for d in lose:
-        if gruppen and (_zeit(d) - _zeit(gruppen[-1][-1])) < datetime.timedelta(minutes=abstand):
-            gruppen[-1].append(d)
+        if zeitlich and (_zeit(d) - _zeit(zeitlich[-1][-1])) < datetime.timedelta(minutes=abstand):
+            zeitlich[-1].append(d)
         else:
-            gruppen.append([d])
-    for g in gruppen + einzeln:
+            zeitlich.append([d])
+    gruppen += [[None, g, None] for g in einzeln]
+    gruppen = _mails_zusammen(gruppen)
+    zeitlich = [[None, g, None] for g in zeitlich]
+    for g in list(gruppen):
+        if g[0] is None and len(g[1]) == 1 and not _hat_step(g[1]) and g[1][0].suffix.lower() in MAIL:
+            t = _zeit(g[1][0]) or jetzt
+            nah = [z for z in zeitlich if any(abs((_zeit(d) or jetzt) - t) < datetime.timedelta(minutes=abstand)
+                                              for d in z[1])]
+            if nah:
+                nah[0][1].append(g[1][0])
+                gruppen.remove(g)
+    gruppen += zeitlich
+    out = []
+    for o, g, gesperrt in gruppen:
         if not _hat_step(g):
             if ohne_step is not None:
-                ohne_step += [d.name for d in g if d.suffix.lower() in FORMULAR]
+                ohne_step += [o.name] if o else _ohne_step_namen(g, angebote, kunden)
             continue
-        name = g[0].stem if len(g) == 1 else f"{len(g)} Dateien vom {_zeit(g[0]).strftime('%d.%m. %H:%M')}"
-        out.append(Anfrage(name, None, g, kunde_aus_ordner(kunden, g) if kunden else None))
+        if o:
+            name = o.name
+        else:
+            g = sorted(g, key=quell_zeit)             # Mails nach Sendezeit, älteste zuerst
+            name = g[0].stem if len(g) == 1 else (f"{g[0].stem} + Nachtrag" if g[0].suffix.lower() in MAIL else
+                                                  f"{len(g)} Dateien vom {_zeit(g[0]).strftime('%d.%m. %H:%M')}")
+        out.append(Anfrage(name, o, g, kunde_aus_ordner(kunden, g) if kunden else None, gesperrt,
+                           zuweisung_lesen(o) if o else None))
     return sorted(out, key=lambda a: a.zeit or jetzt)
+
+
+def _mails_zusammen(gruppen):
+    """Gruppen [Unterordner, Dateien, Sperre] zusammenlegen, deren Mails zur selben Anfrage gehören. Zwei Unterordner
+    bleiben getrennt (kein Verschieben ganzer Ordner), ein gesperrter Unterordner bekommt nichts dazu."""
+    koepfe = [[k for d in g[1] if (k := mail_kopf(d))] for g in gruppen]
+    i = 0
+    while i < len(gruppen):
+        j = i + 1
+        while j < len(gruppen):
+            a, b = gruppen[i], gruppen[j]
+            erlaubt = not (a[0] and b[0]) and not a[2] and not b[2]
+            if erlaubt and any(gleiche_anfrage(x, y) for x in koepfe[i] for y in koepfe[j]):
+                a[0] = a[0] or b[0]
+                a[1] = a[1] + [d for d in b[1] if d not in a[1]]
+                koepfe[i] += koepfe.pop(j)
+                gruppen.pop(j)
+                j = i + 1           # neue Mails in der Gruppe: noch einmal mit allen vergleichen
+            else:
+                j += 1
+        i += 1
+    return gruppen
+
+
+def _ohne_step_namen(dateien, angebote=None, kunden=()):
+    """Namen für den Hinweis „Ohne STEP“: Formulare und Mails; Mail mit Anfrage-Nr. eines vorhandenen Angebots als
+    Nachtrag dazu, wenn sie vom Kunden des Angebots kommt (gleiche Firma bzw. Adresse; Kunde ohne E-Mail: nur die
+    Nummer)."""
+    out = []
+    for d in dateien:
+        if d.suffix.lower() in FORMULAR:
+            out.append(d.name)
+        elif d.suffix.lower() in MAIL:
+            k = mail_kopf(d)
+            nr = k and k["nummer"] and next((v for n, v in (angebote or {}).items()
+                                             if str(n).lower() == k["nummer"].lower() and _vom_kunden(k, v[1], kunden)),
+                                            None)
+            out.append(f"{d.name} (Nachtrag zu Angebot {nr[0]})" if nr else d.name)
+    return out
+
+
+def _vom_kunden(kopf, kundennr, kunden):
+    from . import mail
+    adressen = [a.lower() for z in kunden or () if str(z.get("kundennr")) == str(kundennr)
+                for a in mail.ADRESSE.findall(str(z.get("email") or ""))]
+    if not adressen:
+        return True
+    return any(a == kopf["absender"] or (a.rpartition("@")[2] == kopf["domain"] and kopf["domain"] not in mail.FREEMAIL)
+               for a in adressen)
 
 
 def gleicher_kunde(anfragen):
@@ -215,19 +367,57 @@ def _gleich(a, b):
     return Path(b).exists() and gleich(Path(a), Path(b))
 
 
-def sperren(anfrage, wurzel, kuerzel, jetzt=None):
-    """Anfrage für diesen Arbeitsplatz sperren. Lose Dateien kommen vorher in einen eigenen Unterordner
-    ('Anfrage 2026-10-25 20-13'). Ergebnis: die Anfrage (mit ordner). OSError: nicht möglich."""
-    jetzt = jetzt or datetime.datetime.now()
-    if anfrage.ordner is None:
+def _in_unterordner(anfrage, wurzel, jetzt):
+    """Lose Dateien in einen eigenen Unterordner ('Anfrage 2026-10-25 20-13'), ein Nachtrag (lose Mail) zu einem
+    Unterordner in diesen. Ergebnis: Anfrage mit ordner."""
+    o = anfrage.ordner
+    draussen = [d for d in anfrage.dateien if not o or not d.is_relative_to(o)]
+    if not draussen:
+        return anfrage
+    if o is None:
         o = _frei(Path(wurzel) / f"Anfrage {(anfrage.zeit or jetzt).strftime('%Y-%m-%d %H-%M')}")
         o.mkdir(parents=True)
-        neu = []
-        for d in anfrage.dateien:
-            z = _frei(o / d.name)
-            shutil.move(str(d), str(z))
-            neu.append(z)
-        anfrage = Anfrage(o.name, o, neu, anfrage.kunde)
+    neu = [d for d in anfrage.dateien if d not in draussen]
+    for d in draussen:
+        z = _frei(o / d.name)
+        shutil.move(str(d), str(z))
+        neu.append(z)
+    return Anfrage(o.name, o, neu, anfrage.kunde, anfrage.gesperrt, anfrage.zugewiesen)
+
+
+def zuweisung_lesen(o):
+    """Zuweisung im Unterordner: {an, von, zeit, notiz} oder {}."""
+    try:
+        teile = (Path(o) / ZUGEWIESEN).read_text(encoding="utf-8").split("|", 3)
+    except OSError:
+        return {}
+    teile += [""] * (4 - len(teile))
+    an = teile[0].strip()
+    return dict(an=an, von=teile[1].strip(), zeit=teile[2].strip(), notiz=teile[3].strip()) if an else {}
+
+
+def zuweisen(anfrage, wurzel, an, von="", notiz="", jetzt=None):
+    """Anfrage einem Kollegen zuweisen (an leer = Zuweisung aufheben); lose Dateien kommen dazu in einen eigenen
+    Unterordner. Alle sehen „für MK“ in der Liste. Ergebnis: die Anfrage. OSError: nicht möglich."""
+    jetzt = jetzt or datetime.datetime.now()
+    anfrage = _in_unterordner(anfrage, wurzel, jetzt)
+    datei = anfrage.ordner / ZUGEWIESEN
+    if not an:
+        datei.unlink(missing_ok=True)
+        anfrage.zugewiesen = {}
+        return anfrage
+    notiz = " ".join(str(notiz or "").split())
+    datei.write_text(f"{an}|{von}|{jetzt.isoformat(timespec='seconds')}|{notiz}", encoding="utf-8")
+    anfrage.zugewiesen = dict(an=an, von=von, zeit=jetzt.isoformat(timespec="seconds"), notiz=notiz)
+    return anfrage
+
+
+def sperren(anfrage, wurzel, kuerzel, jetzt=None):
+    """Anfrage für diesen Arbeitsplatz sperren. Lose Dateien kommen vorher in einen eigenen Unterordner
+    ('Anfrage 2026-10-25 20-13'); ein Nachtrag (lose Mail) zu einem Unterordner kommt in diesen. Ergebnis: die Anfrage
+    (mit ordner). OSError: nicht möglich."""
+    jetzt = jetzt or datetime.datetime.now()
+    anfrage = _in_unterordner(anfrage, wurzel, jetzt)
     (anfrage.ordner / SPERRE).write_text(f"{kuerzel or '?'}|{jetzt.isoformat(timespec='seconds')}", encoding="utf-8")
     anfrage.gesperrt = kuerzel or "?"
     return anfrage
@@ -235,16 +425,18 @@ def sperren(anfrage, wurzel, kuerzel, jetzt=None):
 
 def auspacken(anfrage):
     """STEP-Dateien und Formulare aus den Anhängen der Mails und aus ZIP-Dateien in den Unterordner der (gesperrten)
-    Anfrage legen. Liegt
-    eine gleiche Datei schon dort (zweites Öffnen nach Abbruch), wird sie nicht doppelt angelegt. Ergebnis: die Anfrage
-    mit den neuen Dateien. OSError: nicht möglich."""
+    Anfrage legen, älteste Mail zuerst. Liegt eine gleiche Datei schon dort (zweites Öffnen nach Abbruch), wird sie
+    nicht doppelt angelegt. Gleicher Name, anderer Inhalt (Patrick 28.10.2026, F4 a): die neueste Version (nach Datum
+    der Mail bzw. Änderungszeit der Datei) bekommt den Namen, die ältere heißt 'Name (alt)'; die ausgepackte Datei
+    bekommt dazu die Zeit ihrer Mail. Ergebnis: die Anfrage mit den neuen Dateien. OSError: nicht möglich."""
     from . import mail
     if not anfrage.ordner or not (anfrage.mails or anfrage.archive):
         return anfrage
-    neu = []
-    for m in anfrage.mails + anfrage.archive:
+    neu, umbenannt = [], {}
+    for m in sorted(anfrage.mails + anfrage.archive, key=quell_zeit):
         gelesen = mail.lesen(m) if m.suffix.lower() in MAIL else None
         inhalt = _zip_dateien(m) if m.suffix.lower() in ARCHIV else (gelesen.anhaenge if gelesen else ())
+        zeit, aus_dieser = quell_zeit(m), set()
         for name, daten in inhalt:
             endung = Path(name).suffix.lower()
             if endung not in STEP | FORMULAR or (endung in BILD and len(daten) < BILD_MIN):
@@ -254,12 +446,26 @@ def auspacken(anfrage):
                          if p.is_file() and p.stat().st_size == len(daten) and p.read_bytes() == daten]
             if vorhanden:
                 continue
+            if ziel.exists() and ziel not in aus_dieser:        # andere Version aus einer anderen Mail/Datei
+                alt = _frei(ziel.with_name(f"{ziel.stem} (alt){ziel.suffix}"))
+                if (_zeit(ziel) or datetime.datetime.min) <= zeit:
+                    ziel.rename(alt)
+                    umbenannt[ziel] = alt
+                    neu = [alt if d == ziel else d for d in neu]
+                else:
+                    ziel = alt
             ziel = _frei(ziel)
             ziel.write_bytes(daten)
+            if zeit > datetime.datetime(1971, 1, 1):
+                os.utime(ziel, (zeit.timestamp(), zeit.timestamp()))
+            aus_dieser.add(ziel)
             neu.append(ziel)
     if not neu:
         return anfrage
-    return Anfrage(anfrage.name, anfrage.ordner, anfrage.dateien + neu, anfrage.kunde, anfrage.gesperrt)
+    dateien = [umbenannt.get(d, d) for d in anfrage.dateien]
+    return Anfrage(anfrage.name, anfrage.ordner, dateien + [d for d in neu if d not in dateien], anfrage.kunde,
+                   anfrage.gesperrt,
+                   anfrage.zugewiesen)
 
 
 def umbenennen(anfrage, name):
@@ -270,7 +476,8 @@ def umbenennen(anfrage, name):
     neu = _frei(anfrage.ordner.with_name(name))
     alt = anfrage.ordner
     alt.rename(neu)
-    a = Anfrage(neu.name, neu, [neu / d.relative_to(alt) for d in anfrage.dateien], anfrage.kunde, anfrage.gesperrt)
+    a = Anfrage(neu.name, neu, [neu / d.relative_to(alt) for d in anfrage.dateien], anfrage.kunde, anfrage.gesperrt,
+                anfrage.zugewiesen)
     return a
 
 
@@ -304,6 +511,7 @@ def verschieben(anfrage, ziel, step_ordner="STEP"):
     if anfrage.ordner and not fehler:
         try:
             (anfrage.ordner / SPERRE).unlink(missing_ok=True)
+            (anfrage.ordner / ZUGEWIESEN).unlink(missing_ok=True)
             for o in sorted((p for p in anfrage.ordner.rglob("*") if p.is_dir()), key=lambda p: -len(p.parts)):
                 if not any(o.iterdir()):
                     o.rmdir()
@@ -335,7 +543,11 @@ def werte(db, gelesen, mails, ordner_kunde=None):
 def _werte(db, gelesen, mails, ordner_kunde=None):
     from . import formular, mail
     formular_text = "\n".join(g["text"] for g in gelesen if g.get("text"))
-    gelesen = list(gelesen) + [dict(text=m.volltext(), ocr=False, unsicher=set(), mail=True) for m in mails]
+    # mehrere Mails zur selben Anfrage (F3 a): die neueste gilt, andere Werte älterer Mails nur als Hinweis
+    mails = sorted(mails, key=lambda m: m.datum or m.datei_zeit or datetime.datetime.min,
+                   reverse=True)
+    gelesen = list(gelesen) + [dict(text=m.volltext(), ocr=False, unsicher=set(), mail=True, quelle="der " + _mail_name(m, mails))
+                               for m in mails]
     if not gelesen:
         return ordner_kunde, None, {}
     kunden = db.zeilen("kunden")
@@ -344,11 +556,10 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     kunde_mail, hinweis = None, []
     domains = mail.eigene_domains([db.einstellung(n) for n in ("briefkopf_1", "briefkopf_2", "briefkopf_3",
                                                                "briefkopf_4", "benutzer_email")])
-    for m in mails:
-        kunde_mail, wie = mail.kunde(m, kunden, domains)
-        if kunde_mail:
-            hinweis.append(f"Kunde {kunde_text(kunden, kunde_mail)} ({wie})")
-            break
+    treffer = [t for t in (mail.kunde(m, kunden, domains) for m in mails) if t[0]]
+    if treffer:             # mehrere Mails: genaue Absenderadresse vor Domain
+        kunde_mail, wie = next((t for t in treffer if t[1].startswith("Absender")), treffer[0])
+        hinweis.append(f"Kunde {kunde_text(kunden, kunde_mail)} ({wie})")
     kunde_domain = None
     if mails and not kunde_mail and not e["kunde"]:
         for m in mails:
@@ -375,15 +586,25 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         weitere["vorschlag"] = kunde
     if mails:
         kopf["bemerkung"] = "; ".join(mail.bemerkung(m) for m in mails)
-    # Mail und Anfrageformular gleich auswerten (Patrick 28.10.2026): erst die Mail, dann das Formular
-    quellen = [q for q in ("\n".join(m.volltext() for m in mails), formular_text) if q.strip()]
-    for q in quellen:
+    # Mail und Anfrageformular gleich auswerten (Patrick 28.10.2026): erst die Mails (neueste zuerst), dann das Formular
+    benannt = [(_mail_name(m, mails), m.volltext()) for m in mails] + [("Anfrageformular", formular_text)]
+    benannt = [(n, q) for n, q in benannt if q.strip()]
+    quellen = [q for _, q in benannt]
+    from .angebot import lieferzeit_text
+    gilt = None
+    for n, q in benannt:
         art, wert, satz = mail.termin(q)
-        if art:
-            from .angebot import lieferzeit_text
+        if not art:
+            continue
+        if gilt is None:
+            gilt = (art, wert)
             kopf.update(lieferzeit_art=art, lieferzeit_wert=wert)
-            hinweis.append(f"{lieferzeit_text(kopf).rstrip('.')} (aus „{satz[:60]}“)")
-            break
+            hinweis.append(f"{lieferzeit_text(kopf).rstrip('.')} (aus „{satz[:60]}“"
+                           + (f", {n}" if len(mails) > 1 else "") + ")")
+        elif (art, wert) != gilt and len(mails) > 1:
+            anders = lieferzeit_text(dict(lieferzeit_art=art, lieferzeit_wert=wert)).rstrip(".")
+            anders = anders.removeprefix("Lieferzeit: ")
+            hinweis.append(f"{n} nennt {anders} – es gilt die neueste")
     for q in quellen:
         staffel = mail.staffel_mengen(q)
         if staffel:
@@ -398,6 +619,19 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         hinweis.append(f"„{wort}“ erwähnt – Zusatzarbeit {name} mit „Für alle“ setzen")
     if quellen:
         weitere["werkstoff_text"] = "\n".join(quellen)
+        if len(mails) > 1:      # Werkstoff: die neueste Quelle, die einen nennt
+            ws = db.zeilen("werkstoffe")
+            gefunden = [(n, q, mail.werkstoff(q, ws)) for n, q in benannt]
+            gefunden = [(n, q, w) for n, q, w in gefunden if w[1]]
+            if gefunden:
+                weitere["werkstoff_text"] = gefunden[0][1]
+                for n, _, w in gefunden[1:]:
+                    if w[1] != gefunden[0][2][1]:
+                        hinweis.append(f"{n} nennt Werkstoff {w[1]} – es gilt {gefunden[0][2][1]} "
+                                       f"({gefunden[0][0]})")
+    if len(mails) > 1:
+        hinweis.insert(0, f"{len(mails)} E-Mails zu dieser Anfrage – bei verschiedenen Angaben gilt die neueste "
+                          f"({_mail_name(mails[0], mails)})")
     if e["nummer"]:
         schon = db.con.execute("SELECT nummer FROM angebote WHERE kundenreferenz=? ORDER BY id", (e["nummer"],)
                                ).fetchall()
@@ -409,6 +643,13 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     if kopf:
         weitere["kopf"] = kopf
     return kunde, e["nummer"], weitere
+
+
+def _mail_name(m, mails):
+    """'E-Mail vom 28.10. 09:15' (bei mehreren Mails mit Uhrzeit), für Hinweise und Tooltips."""
+    if not m.datum:
+        return "E-Mail"
+    return f"E-Mail vom {m.datum.strftime('%d.%m. %H:%M' if len(mails) > 1 else '%d.%m.')}"
 
 
 def mails_neben(pfade):
@@ -442,7 +683,7 @@ def ordner_name(kunde, anfragenummer):
 
 def stand(anfragen):
     """Kurzer Vergleichswert, ob sich die Liste geändert hat (Startseite nur dann neu zeichnen)."""
-    return tuple((a.schluessel, a.gesperrt, len(a.dateien)) for a in anfragen)
+    return tuple((a.schluessel, a.gesperrt, len(a.dateien), tuple(sorted(a.zugewiesen.items()))) for a in anfragen)
 
 
 def kunde_text(kunden, nr):

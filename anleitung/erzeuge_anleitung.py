@@ -791,6 +791,17 @@ def kapitel_angebote(i):
            "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
+           "<b>Löschschutz</b>: Mit der Einstellung <i>Angebot → Löschschutz: optimierte Angebote nicht löschbar</i> "
+           "([[vorgaben]]) lässt sich ein Angebot, das einmal optimiert wurde, nicht mehr löschen. <i>immer</i> "
+           "zählt auch das automatische Optimieren der Entwürfe, <i>nur von Hand</i> nur F9, "
+           "<b>Optimieren</b> und das Optimieren vor einer Ausgabe; Vorgabe <i>aus</i>. <b>Löschen</b> zeigt "
+           "dann, wann das Angebot optimiert wurde, und den Ausweg: Vorgang <i>Abgelehnt</i> setzen oder "
+           "<b>Kopieren</b> (die Kopie ist frei, bis sie selbst optimiert wird). Der Schutz bleibt, auch wenn der "
+           "Schnittplan später verworfen wird. Positionen im Angebot bleiben löschbar. Mit Admin-Rechten "
+           "([[lizenz]]) fragt das Programm nach und löscht trotzdem. Ältere Angebote mit einem Eintrag in "
+           "<i>Optimiert am</i> gelten als optimiert. Die Einstellung gilt für alle Arbeitsplätze im gemeinsamen "
+           "Ordner; die Kopie eines Kollegen-Angebots verschwindet beim Abgleich nur, wenn der Kollege es löschen "
+           "durfte.",
            "<b>Vorgang ▾ → Beauftragt</b> öffnet ein kleines Fenster: <b>Auftragsnummer des Kunden</b> (z. B. seine "
            "Bestellnummer) und <b>Liefertermin</b> eintragen, beides freiwillig. Den Termin schlägt das Programm aus "
            "der Lieferzeit des Angebots vor, gerechnet ab heute (10 Arbeitstage, 3 Wochen, Freitag der Kalenderwoche "
@@ -884,6 +895,8 @@ def kapitel_angebote(i):
             "Beim Öffnen wird die Anfrage <b>gesperrt</b>: Kollegen sehen <i>in Bearbeitung: PB</i> (Kürzel aus "
             "[[mehrere_arbeitsplaetze]]). Lose Dateien kommen dazu in einen eigenen Unterordner <i>Anfrage Datum Uhrzeit</i>. "
             "Eine vergessene Sperre gilt nach 12 Stunden nicht mehr.",
+            "Mit gemeinsamem Ordner gilt ohne eigenen Eintrag dessen Unterordner <i>Anfragen</i>; eine Anfrage lässt "
+            "sich dort mit <b>Zuweisen …</b> einem Kollegen geben ([[gemeinsamer_ordner_mehr]]).",
             "Nach dem <b>Übernehmen</b> verschiebt das Programm die STEP-Dateien in den Unterordner <i>STEP</i> und "
             "die Formulare in den Unterordner <i>Anfrage</i> des Angebotsordners ([[angebotsordner]]); der leere "
             "Unterordner im Anfrage-Ordner entfällt. <b>Abbrechen</b> lässt alles liegen und hebt die Sperre auf.",
@@ -939,9 +952,20 @@ def kapitel_angebote(i):
     i.genauer()
     i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
             "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "
-            "Eine Mail mit STEP-Anhang ist immer eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen. "
+            "Eine Mail mit STEP-Anhang ist eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen – außer "
+            "sie gehört zur selben Anfrage wie eine andere Mail (nächster Punkt). "
             "Auch ältere Outlook-Mails nur mit RTF-Text und Anhänge in <i>winmail.dat</i> werden gelesen; ein "
             "beschädigter Anhang wird übersprungen, der Rest der Mail trotzdem ausgewertet.",
+            "<b>Mehrere Mails zur selben Anfrage</b>: Mails vom selben Kunden (gleiche Firmen-Domain, bei Freemail "
+            "gleiche Adresse) mit derselben Anfrage-Nr. oder demselben Betreff (ohne <i>AW:</i>, <i>WG:</i>; "
+            "Allerweltsbetreffs wie <i>Anfrage</i> zählen nicht) innerhalb von 3 Tagen sind <b>eine</b> Anfrage – "
+            "die Liste zeigt dann z. B. <i>Anfrage + Nachtrag (2 STEP, 3 E-Mail)</i>. Ein Nachtrag ohne STEP gehört "
+            "mit dazu. Bei verschiedenen Angaben (Stückzahl, Lieferzeit, Werkstoff) gilt die <b>neueste</b> Mail; "
+            "der Prüfdialog nennt oben die ältere Angabe, eine abweichende Stückzahl steht im Tooltip und das Feld "
+            "ist gelb. Kommt eine STEP-Datei mit gleichem Namen ein zweites Mal, gilt die neueste Version; die "
+            "ältere bleibt als <i>Teil (alt).stp</i> liegen, wird nicht importiert und wandert mit in den "
+            "Angebotsordner. Kommt ein Nachtrag erst, wenn die Anfrage schon ein Angebot ist, sagt die Startseite "
+            "<i>Nachtrag zu Angebot …</i> – dann das Angebot von Hand anpassen.",
             "<b>Kunde</b>: Die Absenderadresse wird mit dem Feld <i>E-Mail</i> der Kunden verglichen ([[kunden]]) – "
             "erst genau, dann nur die Domain (<i>@kunde.de</i>). Bei Freemail-Adressen (gmail, web.de, gmx …) zählt "
             "nur die genaue Adresse; passt eine Domain zu mehreren Kunden, entscheidet das Programm nicht. Mails "
@@ -5773,6 +5797,35 @@ def kapitel_mehrere(i):
     i.text("Nur für den eigenen Arbeitsplatz gelten: Benutzer (Name, Kürzel, E-Mail, Telefon), gemeinsamer Ordner, "
            "Ablageordner, zweiter Sicherungsordner, STEP-Standardordner, Hilfetexte und die Signatur der "
            "Materialanfrage.")
+    i.abschnitt("Mehr im gemeinsamen Ordner", marke="gemeinsamer_ordner_mehr")
+    i.text("Im gemeinsamen Ordner liegen auch die <b>Anfragen</b>, die <b>Angebotsordner</b> und eine <b>Sicherung</b> "
+           "jedes Arbeitsplatzes; Kollegen bekommen <b>Notizen</b>.", kurz=True)
+    i.genauer()
+    i.tabelle(["Unterordner", "Was darin liegt"], [
+        ["<i>Anfragen</i>", "der Anfrage-Ordner für alle ([[anfragen]]), solange in den Einstellungen kein eigener "
+                            "Anfrage-Ordner eingetragen ist"],
+        ["<i>Angebote</i>", "die Ordner der Angebote mit PDFs, CSV und STEP-Dateien ([[angebotsordner]]); so öffnet "
+                            "<b>Ordner öffnen</b> auch bei Angeboten der Kollegen deren Ordner"],
+        ["<i>Sicherungen\\PB</i>", "beim Beenden eine Sicherung je Tag und Arbeitsplatz, die letzten 7 Tage; "
+                                    "<i>Sicherung wiederherstellen …</i> zeigt sie mit an"]],
+        [45, 220])
+    i.liste("Die Einstellungen dazu stehen in der Gruppe Benutzer und gelten für alle: <i>Anfrage-Ordner im "
+            "gemeinsamen Ordner</i>, <i>Angebotsordner im gemeinsamen Ordner</i> und <i>Sicherung beim Beenden auch "
+            "im gemeinsamen Ordner</i> (jeweils ja/nein, Vorgabe ja).",
+            "Ordner älterer Angebote bleiben in der eigenen Ablage, das Programm findet sie dort weiter. Daten-Export "
+            "und -Import schlagen weiter die eigene Ablage vor. Ist der gemeinsame Ordner nicht erreichbar, schreibt "
+            "das Programm in die eigene Ablage.",
+            "<b>Anfrage zuweisen</b>: auf der Startseite in <i>Neue Anfragen</i> eine Anfrage markieren, <b>Zuweisen "
+            "…</b>, Kollegen wählen und eine Notiz dazu. Alle sehen dann <i>für MK</i> hinter der Anfrage; beim "
+            "Kollegen steht sie fett und oben im Titel <i>davon 1 für Sie</i>. <b>Öffnen</b> ohne Auswahl nimmt "
+            "zuerst die eigenen. Öffnet jemand eine Anfrage, die einem anderen zugewiesen ist, fragt das Programm "
+            "nach. <i>(niemand)</i> hebt die Zuweisung auf.",
+            "<b>Notiz an Kollegen</b>: im Reiter Angebote ein Angebot markieren (auch das eines Kollegen), "
+            "<i>Vorgang ▾ → Notiz an Kollegen …</i>, Kollegen wählen, Text, wahlweise <i>Wiedervorlage am</i> "
+            "mit Datum. Der Kollege bekommt beim nächsten Abgleich eine Meldung; auf seiner Startseite steht die "
+            "Notiz unter <b>Notizen von Kollegen</b> (mit Wiedervorlage erst ab dem Datum schwarz, vorher grau). "
+            "Doppelklick öffnet das Angebot, <b>Antworten …</b> schickt eine Notiz zurück, <b>Erledigt</b> nimmt "
+            "sie aus der Liste.")
     i.abschnitt("Konflikte beim Abgleich", marke="abgleich_konflikte")
     i.text("Haben zwei dieselbe Stammdatenzeile verschieden geändert, zeigt <i>Datei → Abgleich-Konflikte …</i>, "
            "wessen Änderung gilt; die andere lässt sich wiederherstellen.", kurz=True)
@@ -6562,7 +6615,7 @@ def kapitel_stammdaten(i):
             "Zusatzarbeit. <b>Aktiv</b> = nein schaltet die Regel ab, "
             "<b>Bemerkung</b> ist frei.",
             "Neue Dateien und Dateien vor 0.9.161 bekommen Beispielregeln (Feuerverzinken bei „verzinkt“, "
-            "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus), ab 0.9.179 dazu drei "
+            "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus), ab 0.9.182 dazu drei "
             "Beispiele für Strahlen (aus). Bitte an die eigene Fertigung anpassen.")
     i.abschnitt("Eigene Abrechnungsregeln (Beispiel Strahlen)", marke="abrechnungsregeln")
     i.text("Mit den Arbeitsgang-Regeln legen Sie fest, <b>wie</b> eine Zusatzarbeit abgerechnet wird und <b>wann</b> "
@@ -6591,7 +6644,7 @@ def kapitel_stammdaten(i):
             "Abrechnung wird dort nicht übernommen (Prüfung FEHLER).",
             "<b>Schweißbaugruppe</b>: „Aus Zusatzarbeiten …“ im Editor übernimmt Abrechnung und Preis der "
             "passenden Regel in den Arbeitsgang ([[baugruppe_mengen]]).",
-            "<b>Alte Angebote bleiben gleich</b>: Regeln gelten für Zusatzarbeiten, die ab 0.9.179 hinzukommen, und "
+            "<b>Alte Angebote bleiben gleich</b>: Regeln gelten für Zusatzarbeiten, die ab 0.9.182 hinzukommen, und "
             "für automatische. Ein festgeschriebenes Angebot (Angebots-PDF) rechnet mit den Regeln vom Tag des "
             "Festschreibens, Angebote von vorher ganz ohne Regeln; geänderte Regeln meldet „Aktuelle Preise "
             "übernehmen …“.")

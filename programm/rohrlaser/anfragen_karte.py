@@ -5,8 +5,8 @@ gelesen (Scans mit Tesseract dauern einige Sekunden je Seite, Plan W6c); die Lis
 from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, \
-    QMessageBox, QPushButton
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QInputDialog, QLabel, QListWidget, \
+    QListWidgetItem, QMessageBox, QPushButton
 
 from . import anfragen, angebotsordner
 
@@ -45,7 +45,11 @@ class AnfragenKarte:
         self.knopf_zusammen.clicked.connect(lambda: self.oeffnen(self.markierte(), zusammen=True))
         ordner = QPushButton("Ordner öffnen")
         ordner.clicked.connect(self.ordner_oeffnen)
-        for b in (self.knopf_oeffnen, self.knopf_zusammen, ordner):
+        # Gemeinsamer Ordner (Patrick 28.10.2026): Anfrage einem Kollegen zuweisen, für alle sichtbar
+        self.knopf_zuweisen = QPushButton("Zuweisen …")
+        self.knopf_zuweisen.setToolTip("Markierte Anfrage einem Kollegen zuweisen (alle sehen „für MK“)")
+        self.knopf_zuweisen.clicked.connect(lambda: self.zuweisen(self.markierte()[:1]))
+        for b in (self.knopf_oeffnen, self.knopf_zusammen, self.knopf_zuweisen, ordner):
             zeile.addWidget(b)
         zeile.addStretch(1)
         lay.addLayout(zeile)
@@ -60,7 +64,8 @@ class AnfragenKarte:
         self.neu_laden()
 
     def ordner(self):
-        return (self.f.db.einstellung(anfragen.EINSTELLUNG) or "").strip()
+        o = anfragen.ordner(self.f.db)
+        return str(o) if o else ""
 
     def neu_laden(self, erzwingen=False):
         o = self.ordner()
@@ -69,8 +74,15 @@ class AnfragenKarte:
             self.anfragen = []
             return
         kunden = self.f.db.zeilen("kunden")
+        ich = self.f.db.einstellung("benutzer_kuerzel") or ""
         ohne = []
-        neu = anfragen.suchen(o, kunden, ohne_step=ohne)
+        try:            # Nachtrag zu einer schon übernommenen Anfrage erkennen (Anfrage-Nr. = Kundenreferenz)
+            angebote = {r: (n, k) for r, n, k in self.f.db.con.execute(
+                "SELECT kundenreferenz, nummer, kundennr FROM angebote WHERE COALESCE(kundenreferenz, '') <> '' "
+                "ORDER BY id")}
+        except Exception:
+            angebote = {}
+        neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote)
         st = (anfragen.stand(neu), tuple(ohne))
         if st == self._stand and not erzwingen:
             return
@@ -83,17 +95,29 @@ class AnfragenKarte:
             liest = " · liest Formular …" if any(_schluessel(d) in self._laeuft for d in a.formulare) else ""
             it = QListWidgetItem((f"{kunde}  –  {a.text()}" if kunde else a.text()) + liest)
             it.setData(Qt.ItemDataRole.UserRole, a.schluessel)
-            if a.gesperrt:
+            if a.gesperrt or (a.zugewiesen.get("an") and a.zugewiesen.get("an") != ich):
                 it.setForeground(self.liste.palette().placeholderText())
+            if a.zugewiesen.get("an") == ich and not a.gesperrt:
+                schrift = it.font()
+                schrift.setBold(True)       # mir zugewiesen
+                it.setFont(schrift)
             self.liste.addItem(it)
             it.setSelected(a.schluessel in markiert)
         offen = [a for a in neu if not a.gesperrt]
-        self.titel.setText(f"<b>{len(offen)} offene Anfrage{'n' if len(offen) != 1 else ''}</b> im Ordner {o}"
+        meine = [a for a in offen if ich and a.zugewiesen.get("an") == ich]
+        self.titel.setText(f"<b>{len(offen)} offene Anfrage{'n' if len(offen) != 1 else ''}</b>"
+                           + (f", davon <b>{len(meine)} für Sie</b>," if meine else "") + f" im Ordner {o}"
                            if neu else f"Keine neuen Anfragen im Ordner {o}")
         self.liste.setVisible(bool(neu))
         mehrere = anfragen.gleicher_kunde(neu)
         zeilen = [f"{len(v)} offene Anfragen von <b>{anfragen.kunde_text(kunden, k)}</b>: getrennt öffnen oder "
                   f"<a href='{k}'>beide markieren</a> und „Zusammen öffnen“" for k, v in mehrere.items()]
+        nachtrag = [t for t in ohne if "(Nachtrag zu Angebot " in t]
+        ohne = [t for t in ohne if t not in nachtrag]
+        for t in nachtrag:  # Mail ohne STEP zu einer schon übernommenen Anfrage (Patrick 28.10.2026, F2 a)
+            name, _, nr = t[:-1].partition(" (Nachtrag zu Angebot ")
+            zeilen.append(f"Nachtrag zu Angebot <b>{nr}</b>: {name} – bitte im Angebot prüfen und die Mail von Hand "
+                          "dazulegen")
         if ohne:        # nur Zeichnungen/Formulare: nichts automatisch daraus anlegen (Patrick 28.10.2026)
             zeilen.append(f"Ohne STEP (nicht in der Liste, z. B. nur Zeichnung als PDF): {', '.join(ohne[:4])}"
                           + (f" und {len(ohne) - 4} weitere" if len(ohne) > 4 else "")
@@ -113,6 +137,39 @@ class AnfragenKarte:
         n = len(self.markierte())
         self.knopf_oeffnen.setEnabled(n == 1 or (n == 0 and bool(self.anfragen)))
         self.knopf_zusammen.setEnabled(n > 1)
+        from . import teilen
+        self.knopf_zuweisen.setVisible(teilen.aktiv(self.f.db))
+        self.knopf_zuweisen.setEnabled(n == 1)
+
+    def zuweisen(self, auswahl, an=None, notiz=""):
+        """Anfrage einem Kollegen zuweisen (ohne an: Auswahl); „(niemand)“ hebt die Zuweisung auf. Ergebnis: True."""
+        from . import teilen
+        if not auswahl:
+            return False
+        a = auswahl[0]
+        ich = teilen.kuerzel(self.f.db)
+        if an is None:
+            if self.f.stumm:
+                return False
+            namen = {k: f"{k} – {n}" if n else k for k, n in teilen.kollegen(self.f.db).items()}
+            namen[ich] = f"{ich} (ich)"
+            eintraege = list(namen.values()) + ["(niemand)"]
+            wahl, gut = QInputDialog.getItem(self.f, "Anfrage zuweisen", f"„{a.name}“ zuweisen an:", eintraege, 0, False)
+            if not gut:
+                return False
+            an = next((k for k, t in namen.items() if t == wahl), "")
+            if an:
+                notiz, gut = QInputDialog.getText(self.f, "Anfrage zuweisen", "Notiz (darf leer sein):")
+                if not gut:
+                    return False
+        try:
+            anfragen.zuweisen(a, self.ordner(), an, ich, notiz)
+        except OSError as e:
+            self.f.meldung(f"Anfrage lässt sich nicht zuweisen: {e}", fehler=True)
+            return False
+        self.f.meldung(f"Anfrage „{a.name}“ " + (f"an {an} zugewiesen." if an else "nicht mehr zugewiesen."))
+        self.neu_laden(erzwingen=True)
+        return True
 
     def _kunde_markieren(self, kundennr):
         self.liste.clearSelection()
@@ -197,7 +254,10 @@ class AnfragenKarte:
         Mails auspacken, importieren,
         danach die Dateien in den Angebotsordner verschieben; bei Abbruch Sperre aufheben. kundennr: ohne Kundenwahl
         (Tests). Ergebnis: Angebotsseite oder None."""
-        auswahl = [a for a in auswahl if a] or [a for a in self.anfragen if not a.gesperrt][:1]
+        ich = self.f.db.einstellung("benutzer_kuerzel") or ""
+        frei = [a for a in self.anfragen if not a.gesperrt and a.zugewiesen.get("an") in (None, "", ich)]
+        frei.sort(key=lambda a: a.zugewiesen.get("an") != ich)       # mir zugewiesene zuerst (sonst älteste)
+        auswahl = [a for a in auswahl if a] or frei[:1]
         if not auswahl:
             return None
         if len(auswahl) > 1 and not zusammen:
@@ -206,6 +266,11 @@ class AnfragenKarte:
         fremd = [a for a in auswahl if a.gesperrt and a.gesperrt != kuerzel]
         if fremd and not self.f.stumm and QMessageBox.question(
                 self.f, "Anfrage öffnen", f"„{fremd[0].name}“ ist in Bearbeitung von {fremd[0].gesperrt}. "
+                "Trotzdem öffnen?") != QMessageBox.Yes:
+            return None
+        andere = [a for a in auswahl if a.zugewiesen.get("an") not in (None, "", kuerzel)]
+        if andere and not fremd and not self.f.stumm and QMessageBox.question(
+                self.f, "Anfrage öffnen", f"„{andere[0].name}“ ist {andere[0].zugewiesen['an']} zugewiesen. "
                 "Trotzdem öffnen?") != QMessageBox.Yes:
             return None
         gesperrt = []
