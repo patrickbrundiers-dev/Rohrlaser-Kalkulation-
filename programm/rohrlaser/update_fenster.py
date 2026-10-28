@@ -40,7 +40,6 @@ def mb(n):
 
 class Frage(QDialog):
     """Hinweis auf den neuen Stand mit „Jetzt aktualisieren“ und „Später“."""
-    ENTER_SCHLIESST = True      # reine Ja/Nein-Frage (tastatur.EnterRegel: Ausnahme)
 
     def __init__(self, eltern, online, lokal):
         super().__init__(eltern)

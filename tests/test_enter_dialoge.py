@@ -4,7 +4,7 @@ tastatur.einrichten(app):
 - E1 Enter in Textfeld, Zahlenfeld, Rechenfeld, Datum, Auswahlliste (auch beschreibbar) und Tabelle schließt den
   Dialog nicht; die Eingabe ist übernommen; in einer bearbeitbaren Tabelle geht es eine Zeile weiter.
 - E2 Strg+Enter übernimmt gezielt (klickt OK); ein Knopf mit dem Fokus reagiert weiter auf Enter.
-- E3 Ausnahmen nur für reine Bestätigungen: Ja/Nein-Fragen (QMessageBox, Update-Frage), Dateiauswahl und
+- E3 Ausnahmen nur für reine Bestätigungen: Ja/Nein-Fragen und Hinweise (QMessageBox), Dateiauswahl und
   „Suchen und ausführen“ (Enter führt aus). Kurze Eingabefragen (QInputDialog) halten die Regel ein.
 - E4 Alle Dialogklassen des Programms durchlaufen: jede hält die Regel ein, auch mit eigener Tastenbehandlung
   (keyPressEvent, event, eventFilter); Ausnahmen nur aus der Liste unten.
@@ -36,7 +36,7 @@ from rohrlaser import eingabe, tastatur  # noqa: E402
 from rohrlaser.mengen_dialog import StueckDialog  # noqa: E402
 
 # Bewusste Ausnahmen (ENTER_SCHLIESST = True): neue nur nach Rücksprache eintragen
-AUSNAHMEN = {"rohrlaser.befehlspalette.Befehlspalette", "rohrlaser.update_fenster.Frage"}
+AUSNAHMEN = {"rohrlaser.befehlspalette.Befehlspalette"}
 
 
 def ok(t):

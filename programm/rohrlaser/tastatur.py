@@ -157,7 +157,7 @@ TASTEN_ENTER = (Qt.Key_Return, Qt.Key_Enter)
 
 
 def enter_schliesst(dialog):
-    """Ausnahmen der Enter-Regel: reine Bestätigungen (Ja/Nein-Fragen), Dateiauswahl, Fortschritt und Fenster, deren
+    """Ausnahmen der Enter-Regel: reine Bestätigungen (Ja/Nein-Fragen, Hinweise mit OK), Dateiauswahl, Fortschritt und Fenster, deren
     Sinn Enter ist (Klassenattribut ENTER_SCHLIESST = True, z. B. Suchen und ausführen)."""
     from PySide6.QtWidgets import QColorDialog, QFileDialog, QFontDialog, QMessageBox, QProgressDialog
     return isinstance(dialog, (QMessageBox, QFileDialog, QProgressDialog, QColorDialog, QFontDialog)) \
