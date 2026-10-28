@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.178", "<b>Eigene Abrechnungsregeln für Zusatzarbeiten</b>: Die Arbeitsgang-Regeln setzen jetzt auch, "
+                "<i>wie</i> abgerechnet wird und <i>wann</i> eine Zusatzarbeit automatisch gilt. Je Regel Zuordnung "
+                "(Vorschlag, automatisch, nur Preis), Abrechnung, Preis je Einheit, Menge (z. B. Innen- + "
+                "Außenfläche), Faktor und Mindestbetrag je Teil, neue Bedingungen Abmessung von/bis und Teileart "
+                "Rohr/Profil bzw. Blech; die genaueste Regel gewinnt. Automatische Zusatzarbeiten werden gerechnet, "
+                "stehen gelb mit „(automatisch)“ in Positionsliste und Unterzeilen und lassen sich unter "
+                "„Arbeitsgänge vorschlagen …“ abwählen. Neu vorbelegt: <b>Strahlen</b> nach kg Fertigteil mit drei "
+                "Beispielregeln (aus). Zusatzarbeiten haben neu Menge aus, Faktor und Mindestbetrag je Teil; der "
+                "Aufpreis einer Oberfläche geht auch je kg oder je m². Gewinde, Senken, Flowdrill und Bohren "
+                "bleiben € je Stück; alte und festgeschriebene Angebote rechnen unverändert ([[abrechnungsregeln]]).",
+     "Eigene Abrechnungsregeln: Preis je Werkstoff/Profil, automatisch zuordnen, Strahlen €/kg, Aufpreis je kg."],
     ["0.9.177", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
                 "3 mm und mindestens √(dickere Wand) − 0,5 vor (EN 1993-1-8), nie mehr als die dünnere Wand. Liegt "
                 "ein a-Maß zwischen zwei Kennwertzeilen, rechnet die Schweißzeit den Wert dazwischen (nach a²); dicke "
