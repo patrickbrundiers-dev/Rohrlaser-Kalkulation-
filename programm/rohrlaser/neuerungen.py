@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.169", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
+                "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
+                "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "
+                "kürzer, die Innenkante bleibt maßhaltig, die Schnittlänge gleich. Eine in 3D übernommene ebene "
+                "STEP-Gehrung wird beim Umstellen auf 2D ebenso kürzer. Neu auch für offene Profile und Flachstahl: "
+                "der Schenkel, der zur langen Seite zeigt, wird um seine Dicke · tan(Winkel) kürzer "
+                "([[schneidweg_rechner]]).",
+     "Gehrung auf 2D umstellen: lange Seite überall um Wand · tan(Winkel) kürzer, auch offene Profile."],
     ["0.9.168", "<b>CSV-Dateien robuster</b>: Der <b>Kunden-Import</b> liest jetzt auch Dateien aus Excel für Mac, "
                 "Unicode-Text (UTF-16), Komma- und Tab-Dateien, <i>sep=;</i> und Titelzeilen, stürzt bei kaputten "
                 "Dateien nicht mehr ab und nennt bei jedem Fehler Zeile und Spalte (Buchstabe und Titel); Export → "

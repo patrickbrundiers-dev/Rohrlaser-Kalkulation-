@@ -729,8 +729,12 @@ class SchneidwegDialog(QDialog):
             if sw._z(x.get("gemessen")):
                 # alles Gemessene (auch Umriss und Schwenk eines komplexen Endes, sonst ist eine Ausklinkung im Editor
                 # gerade, Patrick 26.10.2026), nur nicht, was die Eingabefelder des Endes selbst setzen
+                # eine in 3D übernommene (ebene) STEP-Gehrung braucht 'aussen_mass' nicht (3D = wie gezeichnet); so
+                # wird sie beim Umstellen auf 2D an der langen Seite kürzer wie jede 2D-Gehrung (Patrick 28.10.2026)
+                eben_3d = x.get("d3") is True and e.get("d3") is True
                 self._ende_step[s] = (self._ende_werte(s), {k_: v for k_, v in x.items() if v is not None
-                                                            and k_ not in ENDE_FELDER})
+                                                            and k_ not in ENDE_FELDER
+                                                            and not (eben_3d and k_ == "aussen_mass")})
                 self.winkel[s].setStyleSheet("background: #E8F5E9;")
                 gm.setText(f"<span style='color:#1E6B35'>gemessen {rechnen.zahl(x['gemessen'], 1)} mm"
                            + (f", {x['form']}" if x.get("form") else "")
@@ -1201,7 +1205,7 @@ class SchneidwegDialog(QDialog):
         for s in ("a", "b"):
             if self.gegen.get(s):
                 enden[s]["gegen"] = dict(self.gegen[s])
-            if self.ende_3d[s].isChecked():
+            if self.ende_3d[s].isChecked() and self.d3.isChecked():    # Gehrung in 3D nur mit 3D am Bauteil
                 enden[s]["d3"] = True
             if s in getattr(self, "_nasen", {}):
                 enden[s]["nasen"] = self._nasen[s]
@@ -1553,10 +1557,11 @@ class SchneidwegDialog(QDialog):
 
 
 def ohne_3d(e):
-    """Eingaben für Skizze und Zeichnung: ohne Häkchen am Bauteil zählt „3D“ an Konturen nicht (2D wie gerechnet)."""
+    """Eingaben für Skizze und Zeichnung: ohne Häkchen am Bauteil zählt „3D“ an Konturen und Enden nicht (2D wie
+    gerechnet)."""
     if e.get("d3") is True:
         return e
-    return dict(e, konturen=[{k: v for k, v in z.items() if k != "d3"} for z in e.get("konturen") or ()])
+    return dict(sw.enden_2d(dict(e)), konturen=[{k: v for k, v in z.items() if k != "d3"} for z in e.get("konturen") or ()])
 
 
 def winkel_anzeige(w):

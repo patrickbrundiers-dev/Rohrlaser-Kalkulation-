@@ -49,6 +49,7 @@ class Querschnitt:
         a, b, t = _z(profil.get("a")) or 40.0, _z(profil.get("b")), _z(profil.get("wand"))
         self.form, self.r, self.flaechen, self.umriss = form, None, [], []
         self.radius, self.wand = 0.0, t     # Außenradius (Quadrat-/Rechteckrohr), nur für Bilder (umriss_rund)
+        self.dicke = 0.0                # offene Profile, Flachstahl: größte Wanddicke (Gehrung in 2D, schnitt_x)
         self.a_waagrecht = False        # Maß a liegt waagrecht (Gehrung "über Höhe" kippt dann über u)
         if form == "Rundrohr":
             self.r = a / 2
@@ -69,6 +70,7 @@ class Querschnitt:
             t = t or max(1.0, min(h, br) / 10)
             tf = tf or t
             self.B, self.H = br, h
+            self.dicke = max(t, tf)
             u1, v1 = br / 2, h / 2
             if form == "L-Profil":       # Schenkel a senkrecht vorne, Schenkel b unten
                 self.umriss = [[(u1, v1), (u1, -v1), (-u1, -v1), (-u1, -v1 + t), (u1 - t, -v1 + t), (u1 - t, v1)]]
@@ -117,6 +119,7 @@ class Querschnitt:
             if form == "Flachstahl":
                 self.B, self.H = a, (t or max(1.0, a / 10))
                 self.a_waagrecht = True
+                self.dicke = self.H
             else:                       # Quadrat-, Rechteckrohr, unbekannte Form: Breitseite oben (wie die Naht)
                 self.B, self.H = max(a, b or a), min(a, b or a)
                 self.a_waagrecht = a > (b or a)
@@ -335,10 +338,60 @@ def schnitt_x(qs, e, u, v, aussen=False):
     ext = qs.ausdehnung(th)
     tw = math.tan(math.radians(w))
     x = max(0.0, (ext - (u * s + v * c)) * tw)
-    if not aussen and not e.get("d3") and not e.get("aussen_mass") and (qs.wand or 0) > 0 \
-            and (qs.r or qs.form in ("Quadratrohr", "Rechteckrohr")):
-        x = max(x, (ext - innen_lage(qs, u, v, s, c)) * tw, qs.wand * tw)
+    # 'aussen_mass' nur für Gehrungen, die schon in der STEP 2D (90° zur Oberfläche) sind; eine ebene STEP-Gehrung
+    # ('schwenk' ab 0,5°, auch ältere Importe) wird in 2D wie gefertigt kürzer (Patrick 28.10.2026, Variante a)
+    if not aussen and not e.get("d3") and not (e.get("aussen_mass") and _z(e.get("schwenk")) < 0.5):
+        if (qs.wand or 0) > 0 and (qs.r or qs.form in ("Quadratrohr", "Rechteckrohr")):
+            x = max(x, (ext - innen_lage(qs, u, v, s, c)) * tw, qs.wand * tw)
+        elif qs.dicke > 0 and not qs.r and len(qs.umriss) == 1:
+            x = max(x, (ext - wand_lage_offen(qs, u, v, s, c)) * tw)
     return x
+
+
+def wand_lage_offen(qs, u, v, s, c):
+    """Gehrung in 2D an offenen Profilen und Flachstahl (Patrick 28.10.2026, wie innen_lage beim Rohr): der Strahl
+    steht senkrecht zur Fläche des Schenkels, die ganze Dicke unter dem Punkt (u, v) wird an derselben Stelle
+    geschnitten. Ergebnis: kleinste Lage in Richtung (s, c) der langen Seite über diese Dicke, also die Seite, die
+    sonst über die Gehrungsfläche ragen würde (der Schenkel wird dort um Dicke · tan(Winkel) kürzer). Ein Punkt im
+    Eckblock gehört zu beiden Schenkeln (wie die Ecken beim Rohr); Punkte außerhalb der Schenkel (Abkantung des
+    C-Profils) bleiben auf der Fläche."""
+    lage = u * s + v * c
+    for (nu, nv), d0, d1, q0, q1 in _schenkel(qs):
+        tief = u * nu + v * nv          # Lage quer zur Wand (außen d1, innen d0)
+        quer = -u * nv + v * nu         # Lage entlang der Wand
+        if d0 - 1e-6 <= tief <= d1 + 1e-6 and q0 - 1e-6 <= quer <= q1 + 1e-6:
+            d = (d1 - tief, d0 - tief)          # bis zur Außen- und Innenseite
+            lage = min([lage] + [(u + k * nu) * s + (v + k * nv) * c for k in d])
+    return lage
+
+
+def _schenkel(qs):
+    """Wände eines offenen Profils aus seinen Flächen: [(Normale, d0 innen, d1 außen, q0, q1)] je Fläche, die länger
+    als die Dicke ist; Dicke bis zur Gegenseite (Strahl von der Flächenmitte), höchstens qs.dicke."""
+    if getattr(qs, "_schenkel", None) is not None:
+        return qs._schenkel
+    poly, out = qs.umriss[0], []
+    n = len(poly)
+    for f in qs.flaechen:
+        if f.breite <= qs.dicke * 1.05:
+            continue
+        nu, nv = f.n
+        tiefe = qs.dicke
+        for k in range(n):
+            (a0, b0), (a1, b1) = poly[k], poly[(k + 1) % n]
+            ea, eb = a1 - a0, b1 - b0
+            det = nu * eb - nv * ea         # Mitte − t·n = (a0, b0) + g·e  ->  t, g
+            if abs(det) < 1e-12:
+                continue
+            t = (-(a0 - f.mitte[0]) * eb + (b0 - f.mitte[1]) * ea) / det
+            g = (-nu * (b0 - f.mitte[1]) + nv * (a0 - f.mitte[0])) / det
+            if 1e-6 < t < tiefe and -1e-9 <= g <= 1 + 1e-9:
+                tiefe = t
+        d1 = f.mitte[0] * nu + f.mitte[1] * nv
+        q = sorted(-p[0] * nv + p[1] * nu for p in (f.p0, f.p1))
+        out.append(((nu, nv), d1 - tiefe, d1, q[0], q[1]))
+    qs._schenkel = out
+    return out
 
 
 def innen_lage(qs, u, v, s, c):

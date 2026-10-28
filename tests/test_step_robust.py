@@ -133,7 +133,7 @@ def main():
             d = SchneidwegDialog(None, p, profil, kopf, k, db.tabellen(), db)
             e = d.eingaben()
             arten = [z.get("art") for z in e["konturen"]]
-            n = d.ansicht3d.ansicht.netz
+            n = wie.netz_wie_konstruiert(d)    # ebene Gehrungen wie konstruiert (in 2D kürzer)
             sn = ansicht3d.entpacken(m["_netz"])
 
             def linien(netz, *a):

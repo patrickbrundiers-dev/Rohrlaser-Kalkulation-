@@ -726,9 +726,11 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     a_senk = abs(schmal - a_) < 1e-6
                     e.update(achse=ACHSE_ZWEI, winkel_h=round(senk if a_senk else waag, 2),
                              winkel_b=round(waag if a_senk else senk, 2))
-                if d3 and nicht_senkrecht(d):     # 3D nur, wenn die Fläche nicht 90° zur Oberfläche steht
-                    e["d3"] = True
-                e["aussen_mass"] = True     # Außenkante wie in der STEP auf der Gehrungsfläche (nicht 2D gekürzt)
+                if nicht_senkrecht(d):      # ebene Gehrung (Konstruktion): 3D wie in der STEP, sonst 2D gefertigt
+                    if d3:                  # = lange Seite um Wand · tan(Winkel) kürzer (Patrick 28.10.2026, a)
+                        e["d3"] = True
+                else:
+                    e["aussen_mass"] = True     # schon 2D in der STEP: Außenkante auf der Gehrungsfläche wie dort
             if d.get("schwenk") is not None:
                 e["schwenk"] = round(float(d["schwenk"]), 2)
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung

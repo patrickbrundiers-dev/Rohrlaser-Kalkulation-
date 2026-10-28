@@ -2559,8 +2559,14 @@ def kapitel_optimieren(i):
             "über die Gehrungsfläche ragt, ist die Innenkante maßhaltig: die lange Seite (Spitze) wird um "
             "Wand · tan(Winkel) kürzer, z. B. 3 mm bei Wand 3 und 45°; die kurze Seite bleibt. Editor, Skizze, 3D und "
             "Stangenansicht zeigen das so, die Länge der Position bleibt das Maß bis zur Spitze der Gehrungsfläche, "
-            "die Schnittlänge bleibt wie bisher. Gehrungen aus der STEP stehen wie in der STEP (Außenkante auf der "
-            "Fläche), solange sie nicht geändert werden; in 3D ist die Fläche eben durch die Wand.",
+            "die Schnittlänge bleibt wie bisher. In 3D ist die Fläche eben durch die Wand. <b>Umstellen auf 2D</b> "
+            "(seit 0.9.169): Ohne Häkchen <i>3D-Schnittbearbeitung</i> am Bauteil gilt jede Gehrung als 2D, auch wenn "
+            "am Ende noch <i>Gehrung in 3D</i> steht; 3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export werden sofort "
+            "kürzer. Eine ebene Gehrung aus der STEP (Konstruktion, 3D) wird in 2D ebenso kürzer, auch wenn die STEP "
+            "ohne 3D eingelesen wird – so, wie der 2D-Laser sie schneidet. Nur eine Gehrung, die schon in der STEP "
+            "2D geschnitten ist, bleibt genau wie in der STEP. Offene Profile (L, U, C, T, I) und Flachstahl: der "
+            "Schenkel, der zur langen Seite zeigt und quer zur Kippachse dick ist, wird um seine Dicke · tan(Winkel) "
+            "kürzer; Schenkel, deren Dicke längs der Kippachse liegt, bleiben.",
             "<b>Gehrung schon 2D in der STEP</b> (seit 0.9.160): Ist eine Gehrung in der STEP bereits 90° zur "
             "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
             "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
