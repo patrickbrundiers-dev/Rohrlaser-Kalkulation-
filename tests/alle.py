@@ -70,7 +70,7 @@ TESTS = [
     "test_zusatz_verwaltung.py", "test_zukauf.py", "test_zukauf_verwaltung.py", "test_zukauf_angebot.py",
     "test_zukauf_preise.py", "test_aufschlag_angebot.py", "test_kunden_csv.py", "test_kunden_csv_robust.py", "test_zukauf_schnell.py", "test_zukauf_ek.py", "test_zukauf_blech.py",
     "test_vollmaterial.py",
-    "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_bohrbild.py",
+    "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_artikel_step.py", "test_bohrbild.py",
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
     "test_step_bleche.py", "test_werkstoffe.py", "test_werkstoffe_rohrlaser.py", "test_meterpreis.py", "test_material_fenster.py", "test_stangen_vorgabe.py", "test_abmessung_fenster.py", "test_stangen_ansicht.py",
     "test_maschinen.py", "test_lager.py", "test_nachkalk_auswertung.py", "test_arbeitsgaenge.py", "test_varianten.py", "test_fertigung.py",
