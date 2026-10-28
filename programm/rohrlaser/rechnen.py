@@ -706,6 +706,7 @@ def laengen_info(g, k, tabellen, m, einst=None):
         return laengen_der_gruppe(g, k, tabellen, einst)
     zeilen = lieferlaengen(g.profil, g.werkstoff, k, tabellen, einst)
     return dict(ausgenommen=False, zeilen=zeilen, basis_lieferbar=False, zu_kurz=True,
+                basis_bestellbar=laengen_der_gruppe(g, k, tabellen, einst)["basis_lieferbar"],
                 alternativen=sorted(lz for lz, _ in ausweich_laengen(g.profil, g.werkstoff, g.stange, k, tabellen, m,
                                                                      einst)))
 
@@ -995,6 +996,50 @@ def _beistellung_markieren(g, zeilen):
             x["beistellung"] = g.beistellung
 
 
+def _variante_stangen(g, v, gewaehlt, positionen, saege, nr, laengen=None):
+    """Stangen (wie optimieren) einer mit Lieferlänge gewaehlt geplanten Gruppe (variante_planen); laengen = je
+    Lieferstange ihre Länge (Vorschlag Mischen), sonst alle gewaehlt. Ergebnis (Stangen ab Nummer nr + 1,
+    gemeinsame Schnitte)."""
+    stangen, n_gem_gruppe = [], 0
+    for lieferstange, lb in zip(v["stangen"], laengen or [gewaehlt] * len(v["stangen"])):
+        nr += 1
+        if not v["zuschnitt"] or lb != gewaehlt:         # ganze Stange (beim Mischen: Stangenlänge des Angebots)
+            folge = lieferstange[0][1]
+            teile, verlust, n_gem, belegung = _folge_teile(g, folge, positionen)
+            n_gem_gruppe += n_gem
+            stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
+                                stange=lb, grundlaenge=g.stange, end=g.endbeschnitt,
+                                greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge), verlust=round(verlust, 2), trennungen=len(folge),
+                                gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
+            continue
+        start, teile, verlust, n_gem, belegung, ws = 0.0, [], 0.0, 0, [], []
+        for j, (laenge, folge) in enumerate(lieferstange, start=1):
+            if j > 1:
+                start += saege
+                verlust += saege
+            t_ws, v_ws, g_ws, b_ws = _folge_teile(g, folge, positionen, start)
+            for t in t_ws:
+                t["werkstueck"] = j
+            # Aufrundung des Werkstücks auf ganze mm zählt zum Verlust; der Greiferrest bleibt frei
+            verlust += v_ws + (laenge - g.endbeschnitt - sum(t.laenge for t, _ in folge) - v_ws
+                               - opt.hinten(g, folge))
+            ws.append(dict(nr=j, von=round(start, 2), bis=round(start + laenge, 2), laenge=laenge,
+                           end=g.endbeschnitt, greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge)))
+            teile += t_ws
+            n_gem += g_ws
+            belegung.append(f"W{j} {mm_text(laenge)}: " + " | ".join(b_ws))
+            start += laenge
+        n_gem_gruppe += n_gem
+        rest = gewaehlt - start
+        stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
+                            stange=gewaehlt, grundlaenge=g.stange, end=g.endbeschnitt * len(ws),
+                            greif=sum(w_["greif"] for w_ in ws), verlust=round(verlust, 2), trennungen=len(teile),
+                            gemeinsam=n_gem, belegung=" || ".join(belegung), teile=teile, werkstuecke=ws,
+                            zuschnitt=f"Zuschnitt beim Lieferanten: {' + '.join(mm_text(w['laenge']) for w in ws)}"
+                                      f" mm, Rest {mm_text(max(rest - (saege if rest > saege else rest), 0))} mm"))
+    return stangen, n_gem_gruppe
+
+
 class Abbruch(Exception):
     """Optimierung vom Benutzer abgebrochen (fortschritt hat sie ausgelöst); es wird nichts gespeichert."""
 
@@ -1119,43 +1164,9 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
             continue
         v = plaene[gewaehlt]
         h = opt.replace(g, stange=gewaehlt, teile=list(g.teile))
-        n_gem_gruppe = 0
-        for lieferstange in v["stangen"]:
-            nr += 1
-            if not v["zuschnitt"]:
-                folge = lieferstange[0][1]
-                teile, verlust, n_gem, belegung = _folge_teile(g, folge, positionen)
-                n_gem_gruppe += n_gem
-                stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
-                                    stange=gewaehlt, grundlaenge=g.stange, end=g.endbeschnitt,
-                                    greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge), verlust=round(verlust, 2), trennungen=len(folge),
-                                    gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
-                continue
-            start, teile, verlust, n_gem, belegung, ws = 0.0, [], 0.0, 0, [], []
-            for j, (laenge, folge) in enumerate(lieferstange, start=1):
-                if j > 1:
-                    start += saege
-                    verlust += saege
-                t_ws, v_ws, g_ws, b_ws = _folge_teile(g, folge, positionen, start)
-                for t in t_ws:
-                    t["werkstueck"] = j
-                # Aufrundung des Werkstücks auf ganze mm zählt zum Verlust; der Greiferrest bleibt frei
-                verlust += v_ws + (laenge - g.endbeschnitt - sum(t.laenge for t, _ in folge) - v_ws
-                                   - opt.hinten(g, folge))
-                ws.append(dict(nr=j, von=round(start, 2), bis=round(start + laenge, 2), laenge=laenge,
-                               end=g.endbeschnitt, greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge)))
-                teile += t_ws
-                n_gem += g_ws
-                belegung.append(f"W{j} {mm_text(laenge)}: " + " | ".join(b_ws))
-                start += laenge
-            n_gem_gruppe += n_gem
-            rest = gewaehlt - start
-            stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
-                                stange=gewaehlt, grundlaenge=g.stange, end=g.endbeschnitt * len(ws),
-                                greif=sum(w_["greif"] for w_ in ws), verlust=round(verlust, 2), trennungen=len(teile),
-                                gemeinsam=n_gem, belegung=" || ".join(belegung), teile=teile, werkstuecke=ws,
-                                zuschnitt=f"Zuschnitt beim Lieferanten: {' + '.join(mm_text(w['laenge']) for w in ws)}"
-                                          f" mm, Rest {mm_text(max(rest - (saege if rest > saege else rest), 0))} mm"))
+        neu, n_gem_gruppe = _variante_stangen(g, v, gewaehlt, positionen, saege, nr)
+        stangen += neu
+        nr += len(neu)
         n = len(v["stangen"])
         untergrenze = opt.untergrenze(h) if not v["zuschnitt"] else math.ceil(
             (sum(opt.mindestbedarf(g, t) for t in g.teile) + g.endbeschnitt + g.greiferrest) / gewaehlt - EPS)
@@ -1543,6 +1554,79 @@ def variante_planen(g, laenge, m, saege, puffer=0):
     return out
 
 
+MISCHEN_MAX = 3          # so viele am schlechtesten belegte lange Lieferstangen werden höchstens ersetzt
+
+
+def mischung_planen(g, v, saege, maxk=MISCHEN_MAX, plan=False):
+    """Vorschlag 'Mischen' (Patrick 28.10.2026, zunächst nur zum Ansehen): die am schlechtesten belegten
+    Lieferstangen einer längeren Variante v (variante_planen) durch Stangen der Stangenlänge des Angebots ersetzen,
+    z. B. 10 × 12 m + 1 × 6 m statt 11 × 12 m. Probiert 1 … maxk Stangen, es gilt die mit der größten
+    Materialersparnis. Ergebnis dict(lang, basis, werkstuecke, zuschnitte, material_mm, verschnitt_mm, gemeinsam)
+    oder None, wenn Mischen kein Material spart oder ein betroffenes Teil nicht auf die Stange passt. plan=True:
+    zusätzlich 'plan' = (verbleibende lange Lieferstangen, Folgen der Stangen in der Stangenlänge des Angebots)."""
+    laenge, basis = v["laenge"], g.stange
+    if v["fehler"] or not v["stangen"] or laenge <= basis + EPS:
+        return None
+
+    def teile_von(st):
+        return [t for _, f in st for t, _ in f]
+
+    def schnitte(st):
+        return (len(st) - 1 + (1 if laenge - opt.zuschnitt_belegt([l for l, _ in st], saege) > saege + EPS else 0)
+                if v["zuschnitt"] else 0)
+    reihe = sorted(v["stangen"], key=lambda st: sum(t.laenge for t in teile_von(st)))
+    beste = None
+    for k in range(1, min(maxk, len(reihe)) + 1):
+        weg = reihe[:k]
+        h = opt.replace(g, teile=[t for st in weg for t in teile_von(st)])
+        if variante_gruppe(h, basis, None) is None:
+            break
+        folgen = opt.optimiere(h)
+        opt.pruefe([h], [folgen])
+        gespart = k * laenge - len(folgen) * basis
+        if gespart > EPS and (beste is None or gespart > beste[0] + EPS):
+            beste = (gespart, k, weg, folgen)
+    if beste is None:
+        return None
+    _, k, weg, folgen = beste
+    n = len(v["stangen"])
+    nutz = sum(t.laenge for t in g.teile)
+    material = (n - k) * laenge + len(folgen) * basis
+    if plan:
+        return dict(plan=([st for st in v["stangen"] if not any(st is w for w in weg)], folgen))
+    return dict(lang=n - k, basis=len(folgen), basis_laenge=basis,
+                werkstuecke=sum(len(st) for st in v["stangen"]) - sum(len(st) for st in weg) + len(folgen),
+                zuschnitte=sum(schnitte(st) for st in v["stangen"]) - sum(schnitte(st) for st in weg),
+                material_mm=material, verschnitt_mm=material - nutz,
+                gemeinsam=sum(opt.gemeinsame_schnitte(f) for st in v["stangen"] if not any(st is w for w in weg)
+                              for _, f in st) + sum(opt.gemeinsame_schnitte(f) for f in folgen))
+
+
+def mischung_stangen(kopf, positionen, k, tabellen, einst, vg, laenge):
+    """Stangen (wie optimieren['stangen']) des Vorschlags Mischen der Gruppe vg (Eintrag aus ergebnis['laengen'])
+    mit Lieferlänge laenge, nur zum Ansehen (Stangenbild); [] wenn es den Vorschlag nicht mehr gibt."""
+    gruppen, _, _ = gruppen_bilden(kopf, positionen, k, tabellen, einst)
+    g = next((g for g in gruppen if laengen_schluessel(gruppe_schluessel(g)) == vg["schluessel"]), None)
+    m = maschine(kopf, k)
+    if g is None or m is None:
+        return []
+    saege = _n(einstellung_wert(einst, "zuschnitt_verlust"))
+    v = variante_planen(g, laenge, m, saege, _n(einstellung_wert(einst, "zuschnitt_puffer")))
+    mi = mischung_planen(g, v, saege, plan=True)
+    if not mi:
+        return []
+    lang, folgen = mi["plan"]
+    v2 = dict(v, stangen=lang + [[(g.stange, f)] for f in folgen])
+    stangen, _ = _variante_stangen(g, v2, laenge, positionen, saege, 0,
+                                   [laenge] * len(lang) + [g.stange] * len(folgen))
+    return stangen
+
+
+def mischung_text(m, laenge):
+    """'10 × 12 m + 1 × 6 m'"""
+    return f"{m['lang']} × {m_text(laenge)} m + {m['basis']} × {m_text(m['basis_laenge'])} m"
+
+
 def variante_kennzahlen(g, v, saege):
     """Kennzahlen einer geplanten Variante (zum Speichern im Ergebnis, ohne Kosten)."""
     nutz = sum(t.laenge for t in g.teile)
@@ -1575,13 +1659,22 @@ def laengen_vergleich_gruppe(g, k, tabellen, m, saege, basis_plan=None, einst=No
     for laenge in info["alternativen"]:
         plaene[laenge] = variante_planen(g, laenge, m, saege, puffer)
     gr = (g.profil, g.werkstoff, g.oberflaeche, g.stange, g.beistellung)
+    kennzahlen = []
+    for laenge, v in plaene.items():
+        kz = variante_kennzahlen(g, v, saege)
+        # Vorschlag Mischen nur, wenn die Stangenlänge des Angebots bestellt werden kann
+        if laenge != g.stange and info.get("basis_bestellbar", info["basis_lieferbar"]) and not info["ausgenommen"]:
+            mi = mischung_planen(g, v, saege)
+            if mi:
+                kz["mischung"] = mi
+        kennzahlen.append(kz)
     return dict(schluessel=laengen_schluessel(gr), profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                 stange=g.stange, ausgenommen=info["ausgenommen"], basis_lieferbar=info["basis_lieferbar"],
                 zu_kurz=bool(info.get("zu_kurz")),
                 naht=any(t.drehung == opt.FEST for t in g.teile),
                 automatisch=bool(info["zeilen"]) and all(z.get("automatisch") for z in info["zeilen"]),
                 max_werkstueck=(m or {}).get("max_stange"), saege=saege,
-                varianten=[variante_kennzahlen(g, v, saege) for v in plaene.values()]), plaene
+                varianten=kennzahlen), plaene
 
 
 def je_werkstueck_kosten(kopf, k, tabellen, sn=False):
@@ -1620,8 +1713,20 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
         v["zuschnitt_kosten"] = je_zs * v["zuschnitte"]
         v["gesamt"] = v["material"] + v["werkstueck_kosten"] + v["zuschnitt_kosten"]
         v["verschnitt_anteil"] = v["verschnitt_mm"] / v["material_mm"] if v["material_mm"] else 0
+        if v.get("mischung"):
+            mi = v["mischung"] = dict(v["mischung"])
+            pb, fb = lieferstange_preis(gr, vg["stange"], vg["stange"] / 1000 * kgm if kgm is not None else None,
+                                        kopf, positionen, k, tabellen, einst)
+            mi["fehlt"] = [f for f in (fehlt, fb) if f]
+            mi["material"] = preis * mi["lang"] + pb * mi["basis"]
+            mi["werkstueck_kosten"] = je_ws * mi["werkstuecke"]
+            mi["zuschnitt_kosten"] = je_zs * mi["zuschnitte"]
+            mi["gesamt"] = mi["material"] + mi["werkstueck_kosten"] + mi["zuschnitt_kosten"]
+            if mi["gesamt"] >= v["gesamt"] - EPS:       # Mischen nicht günstiger: kein Vorschlag
+                del v["mischung"]
         varianten.append(v)
     out = dict(vg, varianten=varianten)
+    out["mischung"] = mischung_vorschlag(vg, varianten)
     basis = next((v for v in varianten if v["laenge"] == vg["stange"]), None)
     alt = [v for v in varianten if v["laenge"] != vg["stange"] and not v["fehler"]]
     std = f"{m_text(vg['stange'])}-m-Stangen empfohlen"
@@ -1687,6 +1792,26 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
         warum = "gleiche Gesamtkosten"
     return dict(out, empfehlung=LAENGE_KEIN_VORTEIL, titel=f"Kein ausreichender Kostenvorteil für {lb} m",
                 beste=vg["stange"], begruendung=f"{zahlen}; {warum}.")
+
+
+def mischung_vorschlag(vg, varianten):
+    """Günstigster Vorschlag 'Mischen' einer Gruppe (nur zum Ansehen, Patrick 28.10.2026): dict(laenge, text,
+    gesamt, statt_basis, statt_lang, ersparnis, fehlt) oder None. ersparnis gegenüber der günstigeren der beiden
+    reinen Varianten (Stangenlänge des Angebots, falls lieferbar, und die lange Lieferlänge)."""
+    basis = next((v for v in varianten if v["laenge"] == vg["stange"] and not v["fehler"]), None)
+    beste = None
+    for v in varianten:
+        mi = v.get("mischung")
+        if not mi:
+            continue
+        vergleich = min(x["gesamt"] for x in (v, basis) if x is not None)
+        ersparnis = vergleich - mi["gesamt"]
+        if ersparnis > EPS and (beste is None or ersparnis > beste["ersparnis"]):
+            beste = dict(laenge=v["laenge"], text=mischung_text(mi, v["laenge"]), gesamt=mi["gesamt"],
+                         statt_lang=v["gesamt"], statt_basis=basis["gesamt"] if basis else None, ersparnis=ersparnis,
+                         fehlt=mi["fehlt"] + [f for f in (basis or {}).get("fehlt", []) if f not in mi["fehlt"]],
+                         mischung=mi)
+    return beste
 
 
 # ------------------------------------------------------------------ Kalkulation

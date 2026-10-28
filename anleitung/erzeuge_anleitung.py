@@ -3569,6 +3569,16 @@ def kapitel_optimieren(i):
            "Vergleich heißt <i>Teil zu lang für 6 m – 12-m-Stangen verwenden</i>. Der FEHLER <i>Teil länger als "
            "Nutzlänge</i> bleibt nur, wenn das Teil auf keine verfügbare Stange passt, bei Kundenmaterial und bei "
            "Profilen mit <i>Lieferlängen vergleichen = nein</i>.")
+    i.text("<b>Vorschlag Mischen (12 m + 6 m):</b> Ist bei einer längeren Lieferlänge die letzte Stange schlecht "
+           "belegt, prüft das Programm, ob die am schlechtesten belegten (bis zu drei) langen Stangen durch Stangen in "
+           "der Stangenlänge des Angebots ersetzt günstiger wären, z. B. 31 Stützen 3.100 mm: 10 × 12 m + 1 × 6 m statt "
+           "11 × 12 m. Gerechnet wird wie beim Vergleich (Material mit den Preisen beider Längen, Beladungen, "
+           "Zuschnitte). Ist das günstiger als beide reinen Varianten, steht im Fenster <b>12-m-Lösung ansehen …</b> "
+           "blau <i>Vorschlag Mischen: …</i> mit Kosten und Ersparnis, und der Knopf erscheint auch dann. Der Link "
+           "<b>Stangenbelegung ansehen …</b> öffnet das Stangenbild des Vorschlags (12-m-Stangen als ihre Werkstücke, "
+           "dazu die 6-m-Stangen) in einem eigenen Fenster. <b>Es ist "
+           "nur ein Vorschlag zum Ansehen</b>: Schnittplan und Kalkulation bleiben unverändert. Kein Vorschlag, wenn "
+           "die Stangenlänge des Angebots nicht lieferbar ist oder ein betroffenes Teil nicht darauf passt.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
             "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
             "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
