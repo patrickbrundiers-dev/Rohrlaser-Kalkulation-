@@ -22,19 +22,21 @@ STEP-Merkmale, Arbeitsgänge, Varianten und Fertigung. Dieser Plan setzt deshalb
 
 ## P0 – Zuverlässigkeit (zuerst, klein, kein Verhalten ändern)
 
-### 1. Still geschluckte Fehler sichtbar machen
+### 1. Still geschluckte Fehler sichtbar machen – **erledigt in 0.9.165**
 - Alle 47 `except Exception: pass/return/continue` durchgehen. Je Fall entscheiden: engere Ausnahme (`OSError`, `ValueError` …),
   oder `protokoll`-Eintrag mit Stacktrace, oder bewusst still mit Kommentar *warum*.
 - Schwerpunkt `step_messung/step_geometrie.py` und `step_offenes_rohr.py`: dort verdeckt ein stiller Fehler eine falsche Messung,
   die dann als Rechenwert im Angebot landet.
 - **Abnahme:** ruff-Regel `BLE001`/`S110` aktiv; jede verbleibende Ausnahme hat `# noqa` mit Begründung.
 
-### 2. `zip(..., strict=True)` in Rechen- und Geometriecode
+### 2. `zip(..., strict=True)` in Rechen- und Geometriecode – **erledigt in 0.9.165** (strict=True nur im Rechenkern, sonst ausdrücklich False)
 - 241 Stellen; zuerst `rechnen.py`, `optimierung.py`, `schneidweg.py`, `step_messung/*`, `pdf.py` (Werte ↔ Spalten).
 - Wo ungleiche Länge gewollt ist: `strict=False` ausdrücklich hinschreiben.
 - **Abnahme:** `B905` aktiv, Tests und Abnahme (`tests/test_abnahme.py`) unverändert grün.
 
 ### 3. Oberflächen der neuen Reiter testen
+- Hinweis: Die Liste unten beruht auf einer Namenssuche in `tests/`; manche Reiter werden womöglich indirekt über das
+  Hauptfenster getestet. Vor dem Schreiben neuer Tests deshalb zuerst P0-4 (Abdeckung messen).
 - Rauchtests (öffnen, füllen, speichern, im Lesemodus öffnen) für `fracht_seite`, `nachkalk_seite`, `lager_seite`,
   `fertigung_seite`, `versand_seite`, `varianten_dialog`, `arbeitsgaenge_dialog`, `editor_eigenschaften`.
 - Muster wie die bestehenden Qt-Tests mit `QT_QPA_PLATFORM=offscreen`; in `tests/alle.py` eintragen.
