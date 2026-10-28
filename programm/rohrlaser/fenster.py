@@ -1527,6 +1527,21 @@ class Hauptfenster(QMainWindow):
             teilen_fenster.benutzer_bearbeiten(self, erststart=True)
         elif teilen.aktiv(self.db):
             teilen_fenster.abgleichen(self, schreiben=False, leise=True)
+        # Zusammenarbeit (Patrick 28.10.2026): alle paar Minuten von selbst abgleichen (Einstellung teilen_takt)
+        self.teilen_takt = QTimer(self)
+        self.teilen_takt.timeout.connect(self._teilen_takt)
+        self._teilen_takt(starten=True)
+
+    def _teilen_takt(self, starten=False):
+        from . import teilen_fenster
+        try:
+            ms = teilen_fenster.takt_ms(self.db)
+            if not starten and ms:
+                teilen_fenster.auto_abgleich(self)
+        except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            self.teilen_takt.stop()
+            return
+        self.teilen_takt.start(ms or 60_000)    # aus: jede Minute nachsehen, ob es eingeschaltet wurde
 
     def benutzer_bearbeiten(self):
         from . import teilen_fenster
@@ -1537,6 +1552,11 @@ class Hauptfenster(QMainWindow):
         from . import teilen_fenster
         return teilen_fenster.abgleichen(self)
 
+    def konflikte_zeigen(self):
+        """Datei → Abgleich-Konflikte: Stammdaten, die hier und bei einem Kollegen verschieden geändert wurden."""
+        from . import teilen_fenster
+        return teilen_fenster.konflikte_zeigen(self)
+
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
@@ -1545,6 +1565,7 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
+                                  ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
@@ -1876,7 +1897,7 @@ class Hauptfenster(QMainWindow):
     # -------------------------------------------------------------- Lizenz
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
                            "optimieren", "importieren", "drucken", "staffeln", "stueck")
-    SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen")
+    SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …")
 
     def lizenz_anwenden(self):
         """Lizenzzustand auf die Oberfläche: Hinweis in der Statusleiste, Fenstertitel, Admin-Rechte (Einstellungen
@@ -2146,7 +2167,7 @@ class Hauptfenster(QMainWindow):
         überschrieben), auch in den zweiten Sicherungsordner."""
         if not self.stumm and not self.db.nur_lesen and teilen.aktiv(self.db):
             from . import teilen_fenster
-            if teilen_fenster.abgleichen(self, lesen=False, leise=True) is None and QMessageBox.warning(
+            if teilen_fenster.abgleichen(self, lesen=False, leise=True, beenden=True) is None and QMessageBox.warning(
                     self, "Abgleichen", "Die eigenen Angebote ließen sich nicht in den gemeinsamen Ordner legen "
                     "(siehe Statuszeile). Die Kollegen sehen den Stand nach dem nächsten Abgleich.\n\n"
                     "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:

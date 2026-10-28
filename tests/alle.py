@@ -70,7 +70,7 @@ TESTS = [
     "test_zusatz_verwaltung.py", "test_zukauf.py", "test_zukauf_verwaltung.py", "test_zukauf_angebot.py",
     "test_zukauf_preise.py", "test_aufschlag_angebot.py", "test_kunden_csv.py", "test_kunden_csv_robust.py", "test_zukauf_schnell.py", "test_zukauf_ek.py", "test_zukauf_blech.py",
     "test_vollmaterial.py",
-    "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_bohrbild.py",
+    "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_artikel_step.py", "test_bohrbild.py",
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
     "test_step_bleche.py", "test_werkstoffe.py", "test_werkstoffe_rohrlaser.py", "test_meterpreis.py", "test_material_fenster.py", "test_stangen_vorgabe.py", "test_abmessung_fenster.py", "test_stangen_ansicht.py",
     "test_maschinen.py", "test_lager.py", "test_nachkalk_auswertung.py", "test_arbeitsgaenge.py", "test_varianten.py", "test_fertigung.py",
@@ -84,10 +84,10 @@ TESTS = [
     "test_konturvorlagen.py", "test_dxf_import.py", "test_dxf_ansichten.py", "test_dxf_rohr.py", "test_dxf_varianten.py", "test_schnittflaeche.py", "test_innenkante.py", "test_gegenrohr.py", "test_editor_griffe.py", "test_biegerohr.py", "test_knickrahmen.py",
     "test_knickverbindung.py", "test_knickrahmen_koerper.py", "test_steckverbindung.py", "test_naht.py",
     "test_stangenwechsel_sn.py", "test_3d.py", "test_3d_greifmass.py", "test_3d_editor.py", "test_programmierung.py",
-    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_satz3d.py", "test_satz_knick.py", "test_baugruppe_vorschlaege.py", "test_steck_montage.py", "test_montagefolge.py", "test_rahmen_assistent.py", "test_gravur.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
+    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_bg_mengen.py", "test_bg_werkstoff.py", "test_bg_serie.py", "test_bg_erreichbar.py", "test_bg_naht_rechnung.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_satz3d.py", "test_satz_knick.py", "test_baugruppe_vorschlaege.py", "test_steck_montage.py", "test_montagefolge.py", "test_rahmen_assistent.py", "test_gravur.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
-    "test_teilen_fenster.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py", "test_hell_dunkel.py",
-    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_loeschschutz.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_design_pruefung.py", "test_anfragen.py", "test_formular.py", "test_mail.py", "test_pdf_zeichnung.py", "test_pdf_vektor.py", "test_nachfassen.py", "test_bedienung.py", "test_eingabefelder.py", "test_angebotsablauf.py", "test_anleitung.py",
+    "test_teilen_fenster.py", "test_teilen_zusammenarbeit.py", "test_teilen_zusammenarbeit_fenster.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py", "test_hell_dunkel.py",
+    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_loeschschutz.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_design_pruefung.py", "test_anfragen.py", "test_formular.py", "test_mail.py", "test_pdf_art.py", "test_pdf_zeichnung.py", "test_pdf_vektor.py", "test_nachfassen.py", "test_bedienung.py", "test_eingabefelder.py", "test_angebotsablauf.py", "test_anleitung.py",
     "test_performance_update.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)

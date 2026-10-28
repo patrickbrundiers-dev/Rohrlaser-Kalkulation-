@@ -387,7 +387,7 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                    schweissplan, hinweise=rechnen.laser_hinweise)."""
     zk = [dict(pos=p.get("pos"), artikel=p.get("artikel"), bezeichnung=p.get("bezeichnung"), stueck=p.get("stueck"),
                text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
-    plan = schweissplan(positionen, tabellen)
+    plan = schweissplan(positionen, tabellen, k)
     hinweise = rechnen.laser_hinweise(positionen, k)      # Laser-Hinweise der Werkstoffe (24.10.2026)
     stege = stege_hinweise(positionen)
     if not ergebnis or not ergebnis.get("stangen"):
@@ -444,10 +444,11 @@ def _abwicklung(s, positionen, profil_von, merker=None):
         return None
 
 
-def schweissplan(positionen, tabellen):
+def schweissplan(positionen, tabellen, k=None):
     """Schweißplan je Schweißbaugruppe für die Werkstattpapiere (Verbesserung P2), ohne Preise: Struktur mit Mengen,
-    Einzelteile mit Pos., Nahtgruppen, Arbeitsgänge in Reihenfolge, Vorrichtungen und Vorgabezeit je Baugruppe."""
-    from . import baugruppe
+    Einzelteile mit Pos., Nahtgruppen, Arbeitsgänge in Reihenfolge, Vorrichtungen und Vorgabezeit je Baugruppe.
+    Mit k: Mengen mit Bezug aus den aktuellen Einzelteilen (bg_mengen), wie im Preis."""
+    from . import baugruppe, bg_mengen
     out = []
     for p in positionen:
         bg = baugruppe.lesen(p.get("baugruppe")) if ist_baugruppe(p) else None
@@ -455,7 +456,12 @@ def schweissplan(positionen, tabellen):
             continue
         km = baugruppe.knoten_map(bg)
         kname = (lambda kid: (km.get(kid) or {}).get("name") or "Unterbaugruppe" if kid else "Baugruppe")
-        r = baugruppe.rechnen(p, tabellen, {})            # nur Zeiten (Stundensätze spielen hier keine Rolle)
+        mengen = None
+        if k is not None:                                 # Menge aus den Einzelteilen: aktueller Stand der Teile
+            bg_mengen.anwenden(bg, positionen, k)
+            mengen = bg_mengen.je_knoten(bg, positionen, k)
+        r = baugruppe.rechnen(dict(p, baugruppe=baugruppe.speichern(bg)), tabellen, {},  # nur Zeiten
+                              mengen=mengen)
         zeiten = {(x["art"], x["id"]): x for x in r["zeilen"]}
         struktur = [dict(name=k.get("name") or "Unterbaugruppe", menge=k.get("menge"),
                          unter=kname(k.get("parent") or ""), je_bg=baugruppe.faktor(bg, k["id"])) for k in bg["knoten"]]

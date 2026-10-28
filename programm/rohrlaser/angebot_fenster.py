@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe
+    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import zusatz_dialog
@@ -288,7 +288,7 @@ def step_neu_pfade(ereignis):
     Ordner werden hier nicht durchsucht (das stockt beim Ziehen), sondern erst nach dem Ablegen."""
     urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
     pfade = [u.toLocalFile() for u in urls if u.isLocalFile()]
-    mail = any(Path(p).suffix.lower() in (".msg", ".eml") for p in pfade)     # E-Mail mit STEP-Anhang (28.10.2026)
+    mail = any(Path(p).suffix.lower() in (".msg", ".eml", ".zip") for p in pfade)  # E-Mail/ZIP mit STEP (28.10.2026)
     return pfade if step.step_kandidaten(pfade) or mail else []
 
 
@@ -320,7 +320,8 @@ class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
-    SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Bearbeiter", lambda z: bearbeiter(z), None, 70),
+    SPALTEN = [("Angebotsnummer", "nummer", None, 120),
+               ("Bearbeiter", lambda z: bearbeiter(z) + (" ● geöffnet" if z.get("_offen") else ""), None, 70),
                ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
                ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
@@ -378,10 +379,13 @@ class AngeboteSeite(QWidget):
         menue.addSeparator()            # Plan A9
         menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen())
         menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
+        # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
+        self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
         trenner = menue.addSeparator()  # Plan Palettenbegleitschein (ausgeblendet, wenn Versand aus)
         ps = menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
         self.palettenschein_aktionen = (trenner, ps)
         menue.aboutToShow.connect(lambda: [a.setVisible(self.f.versand_an()) for a in self.palettenschein_aktionen])
+        menue.aboutToShow.connect(lambda: self.uebergeben_aktion.setVisible(teilen.aktiv(self.db)))
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -430,8 +434,10 @@ class AngeboteSeite(QWidget):
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
                                                              nachfassen=self.db.einstellung("nachfassen_tage"))}
         zeilen = []
+        geteilt = teilen.aktiv(self.db)
         for z in alle:
             z["_wv"] = faellig.get(id(z))
+            z["_offen"] = teilen.offen_bei(self.db, z.get("nummer")) if geteilt and z.get("fremd") else None
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
             if not passt(vorgang(z), z["_abgelaufen"], z):
                 continue
@@ -464,6 +470,14 @@ class AngeboteSeite(QWidget):
             self.wer_filter.setCurrentText(alt if alt in eintraege else ALLE if eintraege else "")
             self.wer_filter.blockSignals(False)
         return self.wer_filter.currentText() if sichtbar_jetzt else ALLE
+
+    def uebergeben(self, angebot_id=None, an=None, notiz=""):
+        """Vorgang → An Kollegen übergeben: das gewählte eigene Angebot gehört danach dem Kollegen."""
+        from . import teilen_fenster
+        i = angebot_id or self._gewaehlt()
+        if i is None or self._fremd(i, "Übergeben"):
+            return False
+        return teilen_fenster.uebergeben(self.f, i, an, notiz)
 
     def _fremd(self, i, was):
         """Angebot eines Kollegen: Hinweis statt Ändern. Ergebnis: True = fremd (nichts tun)."""
@@ -532,7 +546,7 @@ class AngeboteSeite(QWidget):
 
     def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
         """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare,
-        vorschlag, hinweis, werkstoff_text (Anfrage-Ordner, E-Mail)."""
+        vorschlag, hinweis, werkstoff_text, neuer_kunde (Anfrage-Ordner, E-Mail)."""
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
@@ -2060,6 +2074,17 @@ class AngebotSeite(QWidget):
         kopie.setToolTip("Eigene Kopie mit eigener Nummer und heutigem Datum anlegen und öffnen")
         kopie.clicked.connect(lambda: self.als_kopie())
         fl.addWidget(kopie)
+        # Zusammenarbeit (Patrick 28.10.2026): Übernahme beim Bearbeiter anfragen, eigene Übergabe zurücknehmen
+        self.anfrage_knopf = QPushButton("Übernahme anfragen …")
+        self.anfrage_knopf.setToolTip("Den Bearbeiter fragen, ob er Ihnen das Angebot übergibt (er wird beim nächsten "
+                                      "Abgleich gefragt)")
+        self.anfrage_knopf.clicked.connect(lambda: self._anfragen())
+        fl.addWidget(self.anfrage_knopf)
+        self.zurueck_knopf = QPushButton("Übergabe zurücknehmen")
+        self.zurueck_knopf.setToolTip("Das Angebot wieder selbst bearbeiten (nur solange der Kollege es noch nicht "
+                                      "übernommen hat)")
+        self.zurueck_knopf.clicked.connect(lambda: self._zuruecknehmen())
+        fl.addWidget(self.zurueck_knopf)
         self.fremd_leiste.hide()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
@@ -2110,11 +2135,34 @@ class AngebotSeite(QWidget):
         if lesen and not k:
             self.fremd_text.setText(f"<b>Lesemodus</b> – {self.db.nur_lesen}. Das Angebot lässt sich ansehen, aber "
                                     "nicht ändern (Hilfe → Lizenz …).")
+        nr = (self.kopf or {}).get("nummer")
+        uebergabe = teilen.vorgang_offen(self.db, nr, teilen.UEBERGABE) if k else None
+        anfrage = teilen.vorgang_offen(self.db, nr, teilen.ANFRAGE) if k else None
+        self.zurueck_knopf.setVisible(bool(uebergabe) and not lesen)
+        self.anfrage_knopf.setVisible(bool(k) and not uebergabe and not lesen and teilen.aktiv(self.db))
+        self.anfrage_knopf.setEnabled(not anfrage)
+        self.anfrage_knopf.setText("Übernahme angefragt" if anfrage else "Übernahme anfragen …")
         if k:
             m = teilen.mitarbeiter(self.db, k)
             wer = f"{m.get('name')} ({k})" if m.get("name") else k
-            self.fremd_text.setText(f"<b>Angebot von {wer}</b> – nur zum Ansehen (Stand des letzten Abgleichs). "
-                                    "Ändern kann es nur der Bearbeiter; zum Weiterarbeiten als eigene Kopie übernehmen.")
+            if uebergabe:
+                self.fremd_text.setText(f"<b>An {wer} übergeben</b> – {k} übernimmt das Angebot beim nächsten Abgleich. "
+                                        "Bis dahin lässt sich die Übergabe zurücknehmen.")
+                return
+            offen = teilen.offen_bei(self.db, nr)
+            jetzt = (f" <b>{k} hat es gerade geöffnet</b> (seit {str(offen[1])[11:16] or offen[1]})."
+                     if offen else "")
+            self.fremd_text.setText(f"<b>Angebot von {wer}</b> – nur zum Ansehen (Stand des letzten Abgleichs).{jetzt} "
+                                    "Ändern kann es nur der Bearbeiter; zum Weiterarbeiten als eigene Kopie übernehmen "
+                                    "oder die Übernahme anfragen.")
+
+    def _anfragen(self, notiz=None):
+        from . import teilen_fenster
+        return teilen_fenster.anfragen(self.f, self.id, notiz)
+
+    def _zuruecknehmen(self):
+        from . import teilen_fenster
+        return teilen_fenster.zuruecknehmen(self.f, self.id)
 
     def als_kopie(self):
         """Fremdes (oder eigenes) Angebot kopieren: eigene Nummer, öffnet die Kopie."""
@@ -3530,7 +3578,8 @@ class AngebotSeite(QWidget):
             if not ist_baugruppe(p) or baugruppe.daten_fehler(p.get("baugruppe")):
                 continue
             saetze = saetze if saetze is not None else self._saetze()
-            r = baugruppe.rechnen(p, self.tabellen, saetze)
+            r = baugruppe.rechnen(p, self.tabellen, saetze, None,
+                                  bg_mengen.je_knoten(baugruppe.lesen(p.get("baugruppe")), self.positionen, self.k))
             out.append((f"Pos. {p.get('pos') or ''} {baugruppe.name(p)}".strip(), baugruppe.kostenaufteilung(r),
                         baugruppe.groesste_posten(r)))
         return out
@@ -3863,7 +3912,7 @@ class AngebotSeite(QWidget):
         schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
         einst = self._vk_einstellungen()
         for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
-            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst)
+            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst, self.k)
             if r["bg"] is None:
                 continue
             r["bg"]["stamm"]["vk_auto"] = True
@@ -5558,9 +5607,10 @@ class AngebotSeite(QWidget):
         (neues Angebot aus STEP, Plan Bedienung B1); referenz = Vorschlag der Anfrage-Nr. des Kunden (aus dem
         Ordnernamen, Plan Angebotsablauf V5). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
         doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF.
-        Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus der E-Mail“ oben im Prüfdialog; werkstoff_text
+        Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus E-Mail/Formular“ oben im Prüfdialog; werkstoff_text
         = Mailtext, ein dort eindeutig genannter Werkstoff (mail.werkstoff) ersetzt die Vorgabe."""
         from . import importprofil
+        ws_aus_mail = False
         profil = self.importprofil()
         vorgaben = importprofil.vorgaben(profil)
         if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
@@ -5571,7 +5621,7 @@ class AngebotSeite(QWidget):
                 from . import mail
                 ws, wort, kandidaten = mail.werkstoff(werkstoff_text, self.db.zeilen("werkstoffe"), werkstoff)
                 if ws and ws in self.k.werkstoffe:
-                    werkstoff = ws
+                    werkstoff, ws_aus_mail = ws, True
                     hinweis.append(f"Werkstoff {ws} (aus „{wort}“)")
                 elif wort:
                     hinweis.append(f"Werkstoff „{wort}“ nicht eindeutig ({', '.join(kandidaten[:4])}) – bitte wählen")
@@ -5597,17 +5647,30 @@ class AngebotSeite(QWidget):
         for m in messwerte:             # Importprofil: Zusatzarbeiten für alle Teile (Plan Angebotsablauf V4)
             if self._step_zusatz:
                 m.setdefault("_zusatz", list(self._step_zusatz))
-        formular_bericht = None
+        formular_bericht, pdf_neu = None, None
         if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
-            from . import formular
-            namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
-            st = formular.stueck_aus(formulare, namen)
-            n = formular.stueck_setzen(messwerte, st)
-            unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
-            quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
-            formular_bericht = (f"Stückzahlen aus {quelle}: {n} Teil(e)"
-                                + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
-                                + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else ""))
+            from . import pdf_art
+            ws_zeilen = None if ws_aus_mail else self.db.zeilen("werkstoffe")
+            wahl = {}                   # Datei -> Wahl im Prüfdialog (pdf_art.AUTO, FORMULAR, ZEICHNUNG, NICHT)
+
+            def anwenden():
+                aktiv = [pdf_art.zusammen(f, wahl.get(f.get("datei"), f.get("wahl", pdf_art.AUTO))) if f.get("seiten") else f
+                         for f in formulare]
+                erg = pdf_art.anwenden(messwerte, aktiv, ws_zeilen)
+                n, unsicher = erg["formular"], erg["unsicher"]
+                quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
+                return (f"Stückzahlen aus {quelle}: {n} Teil(e)"
+                        + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
+                        + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else "")
+                        + (f"; aus Zeichnungen (Schriftfeld): {erg['zeichnung']} Teil(e), bitte prüfen"
+                           if erg["zeichnung"] else ""))
+
+            def pdf_neu(datei, w):      # im Prüfdialog umgeschaltet: neu zuordnen, nichts neu lesen
+                nonlocal formular_bericht
+                wahl[datei] = w
+                formular_bericht = anwenden()
+
+            formular_bericht = anwenden()
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
@@ -5631,7 +5694,8 @@ class AngebotSeite(QWidget):
                                   lernen=True, maschine=rechnen.maschine(self.kopf, self.k),
                                   zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
                                   referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
-                                  or referenz else None, hinweis=hinweis)
+                                  or referenz else None, hinweis=hinweis,
+                                  pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
