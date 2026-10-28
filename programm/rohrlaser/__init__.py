@@ -3,7 +3,7 @@ import importlib.machinery
 import importlib.util
 from pathlib import Path
 
-VERSION = "0.9.179"
+VERSION = "0.9.180"
 NAME = "Rohrlaser Angebotskalkulation"
 URHEBER = "© 2026 Patrick Brundiers. Alle Rechte vorbehalten."
 _HIER = Path(__file__).resolve().parent

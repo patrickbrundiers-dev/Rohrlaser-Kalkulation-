@@ -148,7 +148,7 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
             and not seite.positionen:
         # abgebrochen: das eben angelegte leere Angebot wieder entfernen (wie vorher beim Abbruch der Kundenwahl)
         fenster.angebot_schliessen(i)
-        db.angebot_loeschen(i)
+        db.angebot_loeschen(i, trotz_schutz=True)     # eben angelegt, nie optimiert
         if neu_angelegt and not db.con.execute("SELECT 1 FROM angebote WHERE kundennr=?", (vorschlag,)).fetchone():
             db.loeschen("kunden", [neu_angelegt])       # mit dem Angebot auch den eben angelegten Kunden
         fenster.angebote.neu_laden()

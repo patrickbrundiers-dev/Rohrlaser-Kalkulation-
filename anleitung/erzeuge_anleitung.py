@@ -791,6 +791,17 @@ def kapitel_angebote(i):
            "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
+           "<b>Löschschutz</b>: Mit der Einstellung <i>Angebot → Löschschutz: optimierte Angebote nicht löschbar</i> "
+           "([[vorgaben]]) lässt sich ein Angebot, das einmal optimiert wurde, nicht mehr löschen. <i>immer</i> "
+           "zählt auch das automatische Optimieren der Entwürfe, <i>nur von Hand</i> nur F9, "
+           "<b>Optimieren</b> und das Optimieren vor einer Ausgabe; Vorgabe <i>aus</i>. <b>Löschen</b> zeigt "
+           "dann, wann das Angebot optimiert wurde, und den Ausweg: Vorgang <i>Abgelehnt</i> setzen oder "
+           "<b>Kopieren</b> (die Kopie ist frei, bis sie selbst optimiert wird). Der Schutz bleibt, auch wenn der "
+           "Schnittplan später verworfen wird. Positionen im Angebot bleiben löschbar. Mit Admin-Rechten "
+           "([[lizenz]]) fragt das Programm nach und löscht trotzdem. Ältere Angebote mit einem Eintrag in "
+           "<i>Optimiert am</i> gelten als optimiert. Die Einstellung gilt für alle Arbeitsplätze im gemeinsamen "
+           "Ordner; die Kopie eines Kollegen-Angebots verschwindet beim Abgleich nur, wenn der Kollege es löschen "
+           "durfte.",
            "<b>Vorgang ▾ → Beauftragt</b> öffnet ein kleines Fenster: <b>Auftragsnummer des Kunden</b> (z. B. seine "
            "Bestellnummer) und <b>Liefertermin</b> eintragen, beides freiwillig. Den Termin schlägt das Programm aus "
            "der Lieferzeit des Angebots vor, gerechnet ab heute (10 Arbeitstage, 3 Wochen, Freitag der Kalenderwoche "

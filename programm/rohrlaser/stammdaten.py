@@ -762,6 +762,9 @@ FLACH_ALS = ("Blech", "Flachstahl bis Breite (Einstellung darunter)")
 # Kundenmaterial: keine Materialkosten, eigene Stangengruppe, Bearbeitung wie sonst
 EIGENMATERIAL, KUNDENMATERIAL = "Eigenmaterial", "Kunde beigestellt"
 MATERIAL_HERKUNFT = (EIGENMATERIAL, KUNDENMATERIAL)
+# Löschschutz der Angebote (Patrick 28.10.2026): einmal optimierte Angebote lassen sich nicht mehr löschen (Admin schon)
+LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND = "aus", "immer", "nur von Hand"
+LOESCHSCHUTZ = (LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND)
 
 
 # ------------------------------------------------------------------ Einstellungen
@@ -996,6 +999,10 @@ EINSTELLUNGEN = (
     Einstellung("lieferzeit_wert", "Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, KW/Jahr oder Datum)",
                 "Angebot", "text", ""),
     Einstellung("lieferzeit_zusatz", "Lieferzeit neuer Angebote: Freitext", "Angebot", "text", "nach Absprache"),
+    # Patrick 28.10.2026: einmal optimierte Angebote nicht mehr löschbar (Positionen schon; der Admin darf löschen).
+    # Vorgabe aus; „von Hand“ zählt nur F9/Optimieren, nicht das automatische Optimieren der Entwürfe
+    Einstellung("loeschschutz", "Löschschutz: optimierte Angebote nicht löschbar (immer = auch automatisch "
+                "optimierte)", "Angebot", "auswahl", LOESCHSCHUTZ_AUS, auswahl="loeschschutz"),
     # Plan Arbeitsabläufe W1: Entwürfe bis zu so vielen Positionen nach jeder Änderung selbst optimieren
     Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
                 100, 0, 10000),
@@ -1261,7 +1268,8 @@ class Kontext:
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
-                         "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "lieferzeitart": list(LIEFERZEIT_ARTEN),
+                         "loeschschutz": list(LOESCHSCHUTZ), "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),

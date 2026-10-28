@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.180", "<b>Löschschutz für optimierte Angebote</b>: Neue Einstellung <i>Angebot → Löschschutz: optimierte "
+                "Angebote nicht löschbar</i> (Vorgabe aus). <i>immer</i> schützt jedes Angebot, das "
+                "einmal optimiert wurde, <i>nur von Hand</i> nur die von Hand optimierten. "
+                "Geschützte Angebote lassen sich in der Angebotsliste nicht löschen; der Hinweis nennt den Ausweg "
+                "(Vorgang <i>Abgelehnt</i> oder <i>Kopieren</i>). Positionen bleiben löschbar, mit Admin-Rechten "
+                "fragt das Programm nach und löscht trotzdem. Ältere Angebote mit <i>Optimiert am</i> gelten als "
+                "optimiert ([[angebote]]).",
+     "Löschschutz: einmal optimierte Angebote nicht mehr löschbar (Einstellung, Vorgabe aus; Admin darf)."],
     ["0.9.179", "<b>Mehrere Mails zur selben Anfrage</b>: Mails vom selben Kunden mit derselben Anfrage-Nr. oder "
                 "demselben Betreff (ohne AW:/WG:) innerhalb von 3 Tagen sind eine Anfrage, auch ein Nachtrag ohne "
                 "STEP. Bei verschiedenen Angaben gilt die neueste Mail, die ältere steht als Hinweis im Prüfdialog "

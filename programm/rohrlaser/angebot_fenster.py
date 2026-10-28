@@ -399,6 +399,9 @@ class AngeboteSeite(QWidget):
             if text == "Neues Angebot":
                 b.setToolTip("Neues Angebot anlegen. Aus STEP-Dateien: Dateien oder einen Ordner auf die Liste "
                              "ziehen oder Datei → Neues Angebot aus STEP …")
+            if text == "Löschen":
+                b.setToolTip("Markiertes Angebot mit allen Positionen löschen. Mit Löschschutz (Einstellungen → "
+                             "Angebot) lassen sich einmal optimierte Angebote nur mit Admin-Rechten löschen.")
             if text == "Ordner öffnen":
                 b.setToolTip("Ordner des markierten Angebots in der Ablage öffnen (PDFs, CSV, Materialanfrage, "
                              "STEP); ohne Markierung die ganze Ablage")
@@ -643,10 +646,19 @@ class AngeboteSeite(QWidget):
         if not i or self._fremd(i, "löschen"):
             return
         a = self.db.angebot(i)
-        if QMessageBox.question(self, "Angebot löschen", f"Angebot {a['nummer']} mit allen Positionen löschen?\n\n"
-                                "Die tägliche Datensicherung enthält es weiterhin.") == QMessageBox.Yes:
+        grund = self.db.loeschschutz(i)         # Löschschutz (Patrick 28.10.2026): einmal optimiert = bleibt
+        admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
+        if grund and not admin:
+            QMessageBox.information(self, "Angebot löschen", grund)
+            self.f.meldung(f"Angebot {a['nummer']} ist gegen Löschen geschützt.", fehler=True)
+            return
+        frage = f"Angebot {a['nummer']} mit allen Positionen löschen?\n\nDie tägliche Datensicherung enthält es weiterhin."
+        if grund:
+            frage = (f"{grund}\n\nMit Admin-Rechten trotzdem löschen?\n\nDie tägliche Datensicherung enthält es "
+                     "weiterhin.")
+        if QMessageBox.question(self, "Angebot löschen", frage) == QMessageBox.Yes:
             self.f.angebot_schliessen(i)
-            self.db.angebot_loeschen(i)
+            self.db.angebot_loeschen(i, trotz_schutz=bool(grund))
             self.neu_laden()
 
 
@@ -4869,7 +4881,7 @@ class AngebotSeite(QWidget):
             self.db.profile_anlegen(erg["neue_profile"])
             erg["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.db.kontext(), self.tabellen,
                                                      self.einst)
-        self.db.ergebnis_speichern(self.id, erg)
+        self.db.ergebnis_speichern(self.id, erg, von_hand=not automatisch)
         self.neu_laden()
         n_teile = sum(len(s["teile"]) for s in erg["stangen"])
         text = f"{len(erg['stangen'])} Stangen, {n_teile} Teile eingeplant"
