@@ -2140,7 +2140,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("rundum", "rundum", "haken", 55, tipp="Umfangsnaht um ein Rohr (Mindestzahl Heftpunkte rundum)"),
             Spalte("lage", "Lage", "auswahl", 60, optionen=lambda: self._faktor_optionen("Schweißlage", baugruppe.LAGEN),
                    tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items())),
-            Spalte("zugang", "Zugänglichkeit", "auswahl", 95, optionen=lambda: self._faktor_optionen("Zugänglichkeit")),
+            Spalte("zugang", "Zugänglichkeit", "auswahl", 95, vk=True,
+                   optionen=lambda: self._faktor_optionen("Zugänglichkeit"),
+                   tipp="Zugänglichkeit für den Brenner (Faktor auf die Lichtbogenzeit und das Verputzen); die "
+                        "Vorkalkulation schlägt sie aus der Erreichbarkeit im STEP vor"),
             Spalte("qualitaet", "Qualität", "auswahl", 85, optionen=lambda: self._faktor_optionen("Qualität")),
             Spalte("werkstoff", "Werkstoff", "auswahl", 90, vk=True,
                    optionen=lambda: self._faktor_optionen("Werkstoff", KATEGORIEN),
@@ -2385,6 +2388,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.wenden.setToolTip("Wie oft die Baugruppe beim Schweißen gewendet oder umgespannt wird (Vorkalkulation: "
                                "Zeit je Wenden × Faktor nach Gewicht aus den Stammdaten der Baugruppe)")
         self.wenden.valueChanged.connect(self._wenden_geaendert)
+        self._wenden_zeigen()
         leiste.addWidget(self.wenden)
         lay.addLayout(leiste)
         lay.addWidget(hilfe.Hinweis(
@@ -2399,7 +2403,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.bg["wenden"] = n
         else:
             self.bg.pop("wenden", None)
+        self._wenden_zeigen()
         self.aktualisieren()
+
+    def _wenden_zeigen(self):
+        """Wendevorgänge aus STEP als Vorschlag gelb mit Begründung (wie die Felder der Tabellen)."""
+        st = vorkalk.wenden_status(self.bg)
+        self.wenden.setStyleSheet(f"background: {GELB_FLAECHE}; color: {GELB_TEXT};" if st == vorkalk.VORSCHLAG else "")
+        grund = ((self.bg.get("vk") or {}).get("wenden") or {}).get("text")
+        tipp = ("Wie oft die Baugruppe beim Schweißen gewendet oder umgespannt wird (Vorkalkulation: Zeit je Wenden × "
+                "Faktor nach Gewicht; Vorschlag aus der Erreichbarkeit der Nähte im STEP)")
+        self.wenden.setToolTip(f"{HERKUNFT[st]}: {grund}\n\n{tipp}" if st and grund else tipp)
 
     def arbeitsgang_neu(self, werte=None):
         a = dict(id=baugruppe.neue_id(), name="Vorrichten", umlage=baugruppe.UMLAGE_AUFTRAG,
@@ -2730,6 +2744,16 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 else:
                     n[feld] = x[feld]
         self.bg["arbeitsgaenge"][:] = r["bg"]["arbeitsgaenge"]       # gleiche Liste, die Tabelle zeigt sie
+        for feld in ("wenden", "vk"):                                  # Wendevorgänge aus STEP (Vorschlag)
+            if r["bg"].get(feld) is None:
+                self.bg.pop(feld, None)
+            else:
+                self.bg[feld] = r["bg"][feld]
+        if getattr(self, "wenden", None) is not None:
+            self.wenden.blockSignals(True)
+            self.wenden.setValue(int(self.bg.get("wenden") or 0))
+            self.wenden.blockSignals(False)
+            self._wenden_zeigen()
         self.vk_ergebnis = r
         self.naht_tab.aufbauen()
         self.ag_tab.aufbauen()
@@ -2746,6 +2770,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if self.nur_lesen:
             return 0
         n = vorkalk.bestaetigen(self.bg)
+        if getattr(self, "wenden", None) is not None:
+            self._wenden_zeigen()
         for t in self.teile:
             v = self.hilfe_vk.get(t["_id"])
             if t.get("drin") and not t.get("hilfe") and v:
@@ -2955,7 +2981,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
 
     def naht_linien(self, naht=None):
         """Schweißnähte für die 3D-Ansicht: {Art: [Linienzüge]} mit SN = Nahtgruppen, SV = noch offene Nahtvorschläge
-        aus dem STEP-Import, SH = Nahtgruppe naht (gewählt). Nur Nähte mit Nahtverlauf (STEP-JSON 1.16)."""
+        aus dem STEP-Import, SH = Nahtgruppe naht (gewählt), SX = laut STEP nicht erreichbar (orange). Nur Nähte mit Nahtverlauf (STEP-JSON 1.16)."""
         linien = {}
         for art, zuege, _, _ in self._naehte_3d(naht):
             linien.setdefault(art, []).extend(zuege)
@@ -2979,14 +3005,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 groesse = n.get("mass") if isinstance(n.get("mass"), (int, float)) and n["mass"] > 0 else \
                     (0.7 * n["dicke"] if n.get("nahtart") == "Kehlnaht" else n["dicke"]) \
                     if isinstance(n.get("dicke"), (int, float)) and n["dicke"] > 0 else None
-                out.append(("SH" if n.get("id") == naht else "SN", zuege, n.get("nahtart"), groesse))
+                art = "SH" if n.get("id") == naht else \
+                    "SX" if n.get("zugang_step") == baugruppe.NICHT_ERREICHBAR else "SN"
+                out.append((art, zuege, n.get("nahtart"), groesse))
         for v in self.bg.get("vorschlaege") or []:
             koerper = {str(k) for paar in v.get("teile") or () if isinstance(paar, (list, tuple)) for k in paar}
             if nur_koerper is not None and not koerper <= nur_koerper:
                 continue
             if v.get("linien"):
                 d = v.get("dicke") if isinstance(v.get("dicke"), (int, float)) and v["dicke"] > 0 else None
-                out.append(("SV", v["linien"], v.get("nahtart"),
+                out.append(("SX" if v.get("zugang") == baugruppe.NICHT_ERREICHBAR else "SV", v["linien"],
+                            v.get("nahtart"),
                             (0.7 * d if v.get("nahtart") == "Kehlnaht" else d) if d else None))
         return out
 

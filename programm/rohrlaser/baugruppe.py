@@ -400,13 +400,54 @@ def unter_einhaengen(struktur, teile_gruppen, kandidaten, unter):
     return dict(knoten=knoten), teile_gruppen, kandidaten
 
 
+NICHT_ERREICHBAR = "nicht erreichbar"
+ZUGANG_STUFEN = ("gut", "eingeschränkt", "schlecht", NICHT_ERREICHBAR)     # Erreichbarkeit aus STEP (JSON 1.21)
+SEITEN = ("+Z", "-Z", "+X", "-X", "+Y", "-Y")
+
+
+def zugang_wert(stufe):
+    """Wert der Spalte Zugänglichkeit für eine Stufe aus STEP (nicht erreichbar rechnet wie schlecht) oder None."""
+    return "schlecht" if stufe == NICHT_ERREICHBAR else stufe if stufe in ZUGANG_STUFEN else None
+
+
+def wenden_aus_step(bg):
+    """(Wendevorgänge, Begründung) aus der Erreichbarkeit der Nahtgruppen (STEP, Feld seiten = je Nahtpunkt die Lagen,
+    in denen der Brenner von oben oder seitlich hinkommt): kleinste Zahl Lagen, in der jeder Nahtpunkt einmal oben
+    liegt, minus 1. (None, None) ohne Angaben aus STEP. Nicht erreichbare Nähte zählen nicht (eigene Warnung)."""
+    import itertools
+    punkte = {frozenset(x for x in s if x in SEITEN) for nt in bg.get("naehte") or ()
+              for s in nt.get("seiten") or () if isinstance(s, list)}
+    punkte.discard(frozenset())
+    if not punkte:
+        return None, None
+    for n in range(1, len(SEITEN) + 1):
+        for lagen in itertools.combinations(SEITEN, n):
+            if all(p & set(lagen) for p in punkte):
+                text = (f"STEP: {len(punkte)} verschiedene Brennerlagen der Nähte, {n} Lage{'' if n == 1 else 'n'} "
+                        f"nötig ({', '.join(lagen)} oben)")
+                return n - 1, text
+    return None, None
+
+
+def nicht_erreichbar(bg):
+    """Text, wenn eine Nahtgruppe oder ein Vorschlag laut STEP nicht erreichbar ist (kein Nahtpunkt mit freiem Weg für
+    den Brenner), sonst None."""
+    for liste, titel in ((bg.get("naehte") or (), "Nahtgruppe"), (bg.get("vorschlaege") or (), "Nahtvorschlag")):
+        for x in liste:
+            if (x.get("zugang_step") if titel == "Nahtgruppe" else x.get("zugang")) == NICHT_ERREICHBAR:
+                nr = f" {x['nr']}" if x.get("nr") else ""
+                return f"{titel}{nr}: laut STEP für den Brenner nicht erreichbar, Konstruktion oder Reihenfolge prüfen"
+    return None
+
+
 def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
     """Nahtkandidaten der STEP-Messung als Vorschläge für Nahtgruppen: gleiche Stoßart, Länge (auf mm) und Dicke in
     derselben Unterbaugruppe werden ein Vorschlag mit Anzahl je Stück der Unterbaugruppe (Kandidaten ÷ Menge; geht
     das nicht auf, direkt an der Baugruppe). Das Maß (a-Maß bzw. Dicke) bleibt offen: die STEP-Datei kennt kein
     a-Maß; bei Stumpf- und Ecknaht ist die gemessene Dicke das Maß. Erst nach Prüfung im Editor (Übernehmen) werden
     sie Nahtgruppen. Kandidaten mit Spalt (STEP-JSON 1.20 spalt_mm) bilden eigene Vorschläge mit "spalt" (größter
-    Spalt der Gruppe)."""
+    Spalt der Gruppe). Erreichbarkeit (STEP-JSON 1.21 zugang): verschiedene Stufen bilden eigene Vorschläge mit
+    "zugang" und "seiten" (Lagen je Nahtpunkt aller Kandidaten, für die Wendevorgänge)."""
     km = knoten_map(bg)
     gruppen = {}
     for k in kandidaten or ():
@@ -415,11 +456,12 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
         kn = str(k.get("knoten") or "")
         kn = kn if kn in km and kn != wurzel else ""
         spalt = round(k["spalt_mm"], 1) if _zahl(k.get("spalt_mm")) and k["spalt_mm"] > 0 else None
+        zugang = k.get("zugang") if k.get("zugang") in ZUGANG_STUFEN else None
         schl = (kn, k.get("stossart") or "Kehlnaht", round(k["laenge_mm"]), k.get("dicke_mm"), spalt,
-                bool(k.get("beidseitig")))
+                bool(k.get("beidseitig")), zugang)
         gruppen.setdefault(schl, []).append(k)
     out = []
-    for (kn, art, laenge, dicke, spalt, beidseitig), liste in gruppen.items():
+    for (kn, art, laenge, dicke, spalt, beidseitig, zugang), liste in gruppen.items():
         f = faktor(bg, kn) or 1
         if len(liste) % f:
             kn, f = "", 1
@@ -429,6 +471,9 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
             v["spalt"] = max(x["spalt_mm"] for x in liste)
         if beidseitig:                                      # Rohr durch Blech gesteckt (STEP-JSON 1.20)
             v["beidseitig"] = True
+        if zugang:                                          # Erreichbarkeit (STEP-JSON 1.21)
+            v["zugang"] = zugang
+            v["seiten"] = [list(s) for x in liste for s in x.get("seiten") or () if isinstance(s, list) and s]
         linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
         if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
             v["linien"] = linien
@@ -466,6 +511,10 @@ def vorschlag_naht(v, regel=None):
         n["spalt"] = v["spalt"]
     if v.get("beidseitig"):                             # Rohr durch Blech gesteckt: rundum auf beiden Seiten
         n["beidseitig"] = True
+    if v.get("zugang") in ZUGANG_STUFEN:                # Erreichbarkeit aus STEP: Vorschlag Zugänglichkeit, Wenden
+        n["zugang_step"] = v["zugang"]
+        if v.get("seiten"):
+            n["seiten"] = v["seiten"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
         n["mass"] = v["dicke"]
     elif v.get("nahtart") == "Kehlnaht" and regel:
@@ -860,7 +909,7 @@ def status(p, w, positionen=None):
         doppelt = doppelt_schweissen(p, positionen)
         if doppelt:
             return "WARNUNG: " + doppelt
-    spalt = spalt_zu_gross(bg)
+    spalt = spalt_zu_gross(bg) or nicht_erreichbar(bg)
     if spalt:
         return "WARNUNG: " + spalt
     lose = ohne_naht(bg)

@@ -12,11 +12,13 @@ Rechenweg (alle Werte aus schweiss_regeln, kursiv im Plan):
   Positionieren      je Unterbaugruppe (und Baugruppe selbst) × Menge bis zur Baugruppe: ein Stück des ersten
                      Einzelteils (Pos.) als Basisteil, alle übrigen Stück × Zeit ihrer Positionierhilfe; eingebaute
                      Unterbaugruppen zählen als Teil 'frei'
-  Wenden             Wendevorgänge je Baugruppe (bg['wenden']) × Zeit je Wenden × Faktor nach Gewicht (Gewicht der
+  Wenden             Wendevorgänge je Baugruppe (bg['wenden'], Vorschlag aus der Erreichbarkeit im STEP:
+                     baugruppe.wenden_aus_step) × Zeit je Wenden × Faktor nach Gewicht (Gewicht der
                      Baugruppe aus den Stammdaten der Baugruppe, sonst Summe der Einzelteile, bg_mengen)
   Heften             je Naht max(Mindestzahl, aufrunden(Nahtlänge ÷ Heftabstand)); Heftabstand nach der kleineren
                      Wanddicke (Nahtgruppe 'dicke', bei Stumpf- und Ecknaht das Maß), gesteckt × Faktor; Mindestzahl
                      gerade, rundum (Umfangsnaht) bzw. gesteckt
+  Zugänglichkeit     je Nahtgruppe aus der Erreichbarkeit im STEP (zugang_step; nicht erreichbar = schlecht)
   Verputzen          Σ Nahtgruppen Naht [m] × min/m der Nacharbeitsstufe × Faktor Zugänglichkeit × Menge bis zur
                      Baugruppe; Stufe aus Qualität (erhöht = verschleifen, Sichtnaht = bündig) und Oberfläche der
                      Baugruppe (beschichtet, verzinkt = Spritzer entfernen), sonst keine
@@ -45,7 +47,7 @@ RUESTEN, POSITIONIEREN, WENDEN, VERPUTZEN = "ruesten", "positionieren", "wenden"
 BEIZEN, RICHTEN, PRUEFEN = "beizen", "richten", "pruefen"
 AG_NAMEN = {RUESTEN: "Rüsten Schweißplatz", POSITIONIEREN: "Teile positionieren", WENDEN: "Wenden / Umspannen",
             VERPUTZEN: "Verputzen", BEIZEN: "Beizen / Passivieren", RICHTEN: "Richten", PRUEFEN: "Sichtprüfung"}
-NAHT_FELDER = ("heftpunkte", "nacharbeit", "werkstoff")
+NAHT_FELDER = ("heftpunkte", "nacharbeit", "werkstoff", "zugang")
 EDELSTAHL = "Edelstahl"
 AG_FELDER = ("zeit_min", "ruest_min", "menge")
 MARKEN = tuple(b for b in anbau.BEARBEITUNGEN if b != "keine")       # Gravur, an der ein Teil angelegt wird
@@ -441,6 +443,50 @@ def _naht_setzen(nt, feld, wert, text, out, entfernen=False):
     nt.setdefault("vk", {})[feld] = dict(wert=wert, status=VORSCHLAG, text=text)
 
 
+def zugang_vorschlag(nt, tabellen):
+    """(Zugänglichkeit, Begründung) aus der Erreichbarkeit im STEP (Feld zugang_step der Nahtgruppe, Schritt 4) oder
+    (None, None) ohne STEP; (None, was fehlt), wenn die Stufe in den Schweiß-Faktoren fehlt (nichts erfinden)."""
+    stufe = nt.get("zugang_step")
+    wert = baugruppe.zugang_wert(stufe)
+    if wert is None:
+        return None, None
+    if baugruppe._faktor_zeile(tabellen or {}, "Zugänglichkeit", wert) is None:
+        return None, f"Zugänglichkeit „{wert}“ fehlt in den Schweiß-Faktoren"
+    n = len(nt.get("seiten") or ())
+    text = f"STEP: Brenner {stufe}" + (f", {n} freie Nahtpunkte" if n else "")
+    if stufe == baugruppe.NICHT_ERREICHBAR:
+        text += " (rechnet wie schlecht, Konstruktion prüfen)"
+    return wert, text
+
+
+def wenden_status(bg):
+    """Herkunft der Wendevorgänge (vorschlag, bestätigt, hand) oder None (nicht aus STEP vorgeschlagen)."""
+    return _status((bg.get("vk") or {}).get("wenden"), int(bg.get("wenden") or 0))
+
+
+def _wenden_setzen(bg, n, text, out):
+    """Wendevorgänge aus STEP (baugruppe.wenden_aus_step) als Vorschlag; Wert von Hand und bestätigter bleiben."""
+    st = wenden_status(bg)
+    if st == BESTAETIGT or (n is None and st != VORSCHLAG):
+        return
+    if st == HAND or (st is None and bg.get("wenden")):
+        bg.setdefault("vk", {})["wenden"] = dict(wert=int(bg.get("wenden") or 0), status=HAND, text="von Hand")
+        return
+    if n is None:
+        if st == VORSCHLAG:          # keine Angaben aus STEP mehr: Vorschlag entfernen
+            bg.pop("wenden", None)
+            bg["vk"].pop("wenden", None)
+            out.append("Wendevorgänge entfernt")
+        return
+    if int(bg.get("wenden") or 0) != n:
+        out.append(f"Wendevorgänge {n}")
+    if n:
+        bg["wenden"] = n
+    else:
+        bg.pop("wenden", None)
+    bg.setdefault("vk", {})["wenden"] = dict(wert=n, status=VORSCHLAG, text=text)
+
+
 def _ag_setzen(bg, art, werte, text, satz_id, richtwert, out):
     ag = next((a for a in bg["arbeitsgaenge"] if (a.get("vk") or {}).get("art") == art), None)
     st = ag_status(ag) if ag else None
@@ -492,6 +538,10 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
         _naht_setzen(nt, "nacharbeit", st, grund, out)
         w = werkstoff_vorschlag(bg, positionen, k, nt.get("knoten") or "")
         _naht_setzen(nt, "werkstoff", w[0] if w else None, w[1] if w else None, out, entfernen=True)
+        z, text = zugang_vorschlag(nt, tabellen)
+        if text and z is None:
+            hinweise.append(f"Nahtgruppe {nt.get('nr') or ''}: {text}".replace("  ", " "))
+        _naht_setzen(nt, "zugang", z, text, out, entfernen=True)
     satz = einst.get("schweiss_vk_satz") or "Schweißen"
     satz_na = einst.get("schweiss_vk_satz_nacharbeit") or satz
     t, text = ruesten(bg, positionen, bg["id"], regeln)
@@ -503,6 +553,7 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
                out)
     if t is None:
         hinweise.append(text)
+    _wenden_setzen(bg, *baugruppe.wenden_aus_step(bg), out)
     t, n, text = wenden(bg, regeln, positionen, k)
     _ag_setzen(bg, WENDEN, None if t is None else dict(zeit_min=round(t, 4), menge=n), text, satz, regeln.richtwert,
                out)
@@ -547,6 +598,9 @@ def komplett(p, positionen, tabellen, einstellungen=None, k=None):
 def bestaetigen(bg):
     """Alle offenen Vorschläge der Baugruppe als bestätigt merken (Werte bleiben). Ergebnis: Anzahl."""
     n = 0
+    if wenden_status(bg) == VORSCHLAG:
+        bg["vk"]["wenden"]["status"] = BESTAETIGT
+        n += 1
     for nt in bg["naehte"]:
         for feld in NAHT_FELDER:
             if naht_status(nt, feld) == VORSCHLAG:
@@ -564,7 +618,8 @@ def offen(bg):
     if not bg:
         return 0
     return (sum(1 for nt in bg["naehte"] for feld in NAHT_FELDER if naht_status(nt, feld) == VORSCHLAG)
-            + sum(1 for ag in bg["arbeitsgaenge"] if ag_status(ag) == VORSCHLAG))
+            + sum(1 for ag in bg["arbeitsgaenge"] if ag_status(ag) == VORSCHLAG)
+            + (wenden_status(bg) == VORSCHLAG))
 
 
 __all__ = ["vorkalkulieren", "bestaetigen", "offen", "richtwerte", "Regeln", "NACHARBEIT_STUFEN"]

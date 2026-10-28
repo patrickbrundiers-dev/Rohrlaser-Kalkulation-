@@ -4614,7 +4614,9 @@ def kapitel_baugruppen(i):
                       "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
                       "verzinkt = Spritzer entfernen)"],
         ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe (Stammdaten, leer = Summe "
-                   "der Einzelteile)"],
+                   "der Einzelteile); Wendevorgänge aus der Erreichbarkeit im STEP ([[baugruppe_erreichbar]])"],
+        ["Zugänglichkeit je Naht", "aus der Erreichbarkeit im STEP: gut, eingeschränkt, schlecht (nicht erreichbar "
+                                   "rechnet wie schlecht)"],
         ["Werkstoff je Naht", "häufigste Werkstoff-Kategorie der Teile der (Unter-)Baugruppe; nur vorgeschlagen, wenn "
                               "nicht Stahl (Faktor <i>Werkstoff</i> der Schweiß-Faktoren, Richtwert Edelstahl 1,3)"],
         ["Beizen / Passivieren", "Naht [m] der Nahtgruppen aus Edelstahl × min je m (Nachbehandlung <i>Beizen "
@@ -4641,6 +4643,24 @@ def kapitel_baugruppen(i):
            "Baugruppen ohne eigene Wahl vor; auf <i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
            "STEP-Import gleich durch ([[step]]), der Bericht nennt das Ergebnis. Nimmt man das Häkchen bei einer "
            "Baugruppe heraus, bleibt es dort aus, auch wenn die Einstellung ja ist.", kurz=True)
+    i.abschnitt("Erreichbarkeit der Nähte aus STEP: Zugänglichkeit und Wenden", marke="baugruppe_erreichbar")
+    i.text("Beim STEP-Import prüft die Messung je Nahtvorschlag, ob der <b>Brenner</b> hinkommt: an 6 Punkten der "
+           "Naht je 48 Richtungen, ob 150 mm frei sind (andere Teile der Baugruppe im Weg, enge Ecken). Daraus "
+           "schlägt die Vorkalkulation je Nahtgruppe die <b>Zugänglichkeit</b> vor (gelb, Faktor auf Schweißzeit und "
+           "Verputzen) und aus den Lagen, in denen jede Naht von oben oder seitlich erreichbar ist, die "
+           "<b>Wendevorgänge je Baugruppe</b> (kleinste Zahl Lagen − 1; das Feld neben den Arbeitsgängen wird gelb, "
+           "der Tooltip nennt die Lagen).", kurz=True)
+    i.tabelle(["Ergebnis", "Bedeutung"], [
+        ["gut", "an jedem Punkt der Naht genug freie Richtungen für den Brennerwinkel"],
+        ["eingeschränkt", "überall erreichbar, aber eng (wenige freie Richtungen, z. B. Blech auf dem Eckradius)"],
+        ["schlecht", "ein Teil der Naht ist nicht erreichbar (z. B. Wand innen in einem Kasten)"],
+        ["nicht erreichbar", "kein Punkt der Naht frei: rechnet wie <i>schlecht</i>, im 3D <b>orange</b>, der Status "
+                             "warnt <i>laut STEP für den Brenner nicht erreichbar</i>; Konstruktion oder "
+                             "Schweißfolge prüfen (vorher schweißen, dann einbauen)"]], [35, 230])
+    i.text("Fehlt in den Schweiß-Faktoren die Zugänglichkeit (gut, eingeschränkt, schlecht), gibt es keinen "
+           "Vorschlag, sondern einen Hinweis. Ein Wert von Hand bleibt stehen. Ältere Baugruppen ohne diese "
+           "Prüfung bekommen sie nach einem neuen STEP-Import. Im Fenster <b>Satz in 3D</b> gibt es keine "
+           "Nahtgruppen; die orange Farbe zeigt sich dort nicht, die gemeinsame 3D-Ansicht kennt sie aber.")
     i.abschnitt("Im Angebot und in den Staffeln")
     i.text("Das Angebot zeigt <b>eine Zeile je Baugruppe</b>: <i>Schweißbaugruppe</i> mit Bezeichnung, darunter "
            "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "
