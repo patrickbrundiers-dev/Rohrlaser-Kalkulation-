@@ -510,15 +510,6 @@ def erkennen(breite, hoehe, flaeche, umfang, kammern=1, wand=None, eintraege=Non
     return [pid for _, pid in sorted(treffer)]
 
 
-def schnitt_aus_messung(e, gemessen, gerade):
-    """Schnittlänge eines Endes für ein RP-Profil aus der STEP-Messung: die Messung zählt die Doppellage als zwei
-    Wände (Außenkontur + Kammer), der Laser trennt sie mit einem Schnitt. Gerades Ende: Schnittlänge der Kontur,
-    sonst die gemessene Länge im Verhältnis Schnittlänge / Konturlänge."""
-    if gerade or not gemessen:
-        return e["schnitt"]
-    return gemessen * e["schnitt"] / e["umfang"] if e.get("umfang") else gemessen
-
-
 def ausduennen(pts, tol=0.005):
     """Geschlossenen Zug vereinfachen (Douglas-Peucker): Punkte, die weniger als tol von der Sehne abweichen, fallen
     weg."""

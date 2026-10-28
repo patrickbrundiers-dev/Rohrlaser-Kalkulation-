@@ -15,7 +15,7 @@ STEP-Merkmale, Arbeitsgänge, Varianten und Fertigung. Dieser Plan setzt deshalb
 | `except Exception:` mit nur `pass`/`return`/`continue` | 47 (davon 8 in `step_geometrie.py`) | Fehler werden still geschluckt |
 | ruff B905 (`zip` ohne `strict`) | 241 | stille Fehler bei ungleich langen Listen |
 | Rückgabe-Typangaben | 0 von 5.301 Funktionen | keine statische Prüfung möglich |
-| Module ohne Erwähnung in `tests/` | u. a. `fracht_seite` (1.125), `editor_eigenschaften` (472), `nachkalk_seite` (447), `lager_seite` (283), `versand_seite`, `fertigung_seite`, `varianten_dialog`, `arbeitsgaenge_dialog` | Oberflächen der neuen Funktionen aus 0.9.161 ungetestet |
+| Testabdeckung (gemessen 28.10.2026) | gesamt 89 %, Rechenkern 89–100 %; Reiter wie `fracht_seite` 87 %, `nachkalk_seite` 86 %, `lager_seite` 84 % | gut; die frühere Annahme „Reiter ungetestet“ (Namenssuche) war falsch |
 | Schema-Version | 65 | viele Migrationen in einer Datei |
 | `neuerungen.py` | 1.471 Zeilen Text im Quellcode | wächst mit jedem Release |
 | Commits letzte 30 Tage | 60 | hohes Tempo → Architektur muss parallele Arbeit tragen |
@@ -34,18 +34,21 @@ STEP-Merkmale, Arbeitsgänge, Varianten und Fertigung. Dieser Plan setzt deshalb
 - Wo ungleiche Länge gewollt ist: `strict=False` ausdrücklich hinschreiben.
 - **Abnahme:** `B905` aktiv, Tests und Abnahme (`tests/test_abnahme.py`) unverändert grün.
 
-### 3. Oberflächen der neuen Reiter testen
-- Hinweis: Die Liste unten beruht auf einer Namenssuche in `tests/`; manche Reiter werden womöglich indirekt über das
-  Hauptfenster getestet. Vor dem Schreiben neuer Tests deshalb zuerst P0-4 (Abdeckung messen).
-- Rauchtests (öffnen, füllen, speichern, im Lesemodus öffnen) für `fracht_seite`, `nachkalk_seite`, `lager_seite`,
-  `fertigung_seite`, `versand_seite`, `varianten_dialog`, `arbeitsgaenge_dialog`, `editor_eigenschaften`.
-- Muster wie die bestehenden Qt-Tests mit `QT_QPA_PLATFORM=offscreen`; in `tests/alle.py` eintragen.
-- **Abnahme:** jedes Modul in `programm/rohrlaser` ist von mindestens einem Test importiert (kleines Prüfskript im Workflow,
-  analog zur Regel „jede Testdatei steht in TESTS“).
+### 3. Lücken gezielt schließen – **erledigt in 0.9.165** (nach Messung statt Namenssuche)
+- Die Messung (P0-4) zeigt: die Reiter werden über das Hauptfenster schon zu 84–88 % getestet, eigene Rauchtests
+  bringen wenig. Echte Lücken im Preisbereich: `paletten.packmass` war für Blech, Kantteil, Knickrahmen, Biegerohr und
+  Baugruppe ungetestet → `tests/test_packmass.py` mit nachgerechneten Werten.
+- Die Messung fand toten Code: `staffeln.bausteine` (seit 0.9.117 durch `_bausteine_teil` ersetzt), dazu
+  `export.zip_name`, `rp_profile.schnitt_aus_messung`, `eingabe.ist_zahlenfeld`, `step_abwicklung._punkt_in` – entfernt.
+- Bleibt niedrig, weil eigener Prozess bzw. nur unter Windows: `step_messung/step_messen.py` 37 %,
+  `step_schreiben.py` 31 % (laufen als STEP-Import.exe, coverage misst sie nicht), `__main__.py` 16 % (Selbsttest,
+  Update), `ansicht3d_gl.py` 18 % (OpenGL). Für die STEP-Messung decken die STEP-Referenztests (54 Fälle, 531
+  Merkmale) das Ergebnis ab; Abdeckung dort nur mit `coverage` in den Hilfsprozessen messbar (später, P2).
 
-### 4. Abdeckung messen und Untergrenze setzen
-- `tests/alle.py --coverage` gibt es schon, läuft aber nicht im Workflow. Einmal je Sammel-Release laufen lassen, Bericht als Artefakt.
-- Untergrenze je Kernmodul (`rechnen`, `optimierung`, `datenbank`, `schneidweg`, `step`) festhalten, darf nicht sinken.
+### 4. Abdeckung messen und Untergrenze setzen – **erledigt in 0.9.165**
+- Beim Sammel-Release von Hand läuft `tests/alle.py --langsam --coverage`, danach `tests/abdeckung_pruefen.py`: Untergrenze
+  je Kernmodul (21 Module, 2 Prozentpunkte unter der Messung) und gesamt 87 %; Tabelle in der Zusammenfassung des Laufs.
+  Im PR keine Messung (bleibt schnell). Steigt die Abdeckung, die Grenzen in `MINDEST` nachziehen.
 
 ## P1 – Wartbarkeit (schrittweise, je PR ein Modul)
 

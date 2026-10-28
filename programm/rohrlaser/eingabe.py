@@ -13,7 +13,7 @@ import re
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPalette, QValidator
-from PySide6.QtWidgets import (QAbstractButton, QAbstractSpinBox, QButtonGroup, QDoubleSpinBox, QHBoxLayout,
+from PySide6.QtWidgets import (QAbstractButton, QButtonGroup, QDoubleSpinBox, QHBoxLayout,
                                QPushButton, QSpinBox, QWidget)
 
 from . import stil
@@ -357,7 +357,3 @@ class RechenSpinGanz(_Rechnen, QSpinBox):
                 return self.prefix() + self.textFromValue(int(round(w))) + self.suffix()
             return self.prefix() + self.textFromValue(self.value()) + self.suffix()
         return super().fixup(text)
-
-
-def ist_zahlenfeld(w):
-    return isinstance(w, QAbstractSpinBox)

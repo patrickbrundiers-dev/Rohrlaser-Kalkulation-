@@ -657,45 +657,6 @@ def schema_der_zeile(zeilen, z):
     return next((x["schnittschema"] for x in zeilen if x.get("stufe") == z["stufe"] and x.get("schnittschema")), None)
 
 
-def bausteine(summen, ohne_materialpreis=0):
-    """Kostenbausteine eines Mengenlaufs ohne Zuschläge und Gewinn (Beträge für die ganze Stufe).
-    fertigung/ruesten: [(Arbeitsschritt, Betrag, Erklärung)]; die Arbeitsschritte kommen aus summen['zeiten'],
-    Rüstzeiten der weiteren Arbeitsschritte zählen zum Rüsten, ihre Zeit je Einheit zur Fertigung."""
-    fert, ruest = [], []
-    for z in summen["zeiten"]:
-        if z["schritt"] in ("Programmierung", "Zusatzarbeiten (€)"):
-            continue
-        texte = rechnen.schritt_texte(z)
-        if z["schritt"] in ("Rüsten Maschine", "Rüsten je Abmessung"):
-            ruest.append((z["schritt"], z["kosten"], f"{texte[1]} × {texte[4]} €/h"))
-        elif z["fest"]:
-            fert.append((z["schritt"], z["kosten"], f"{texte[0]}, {texte[2]} je Einheit, {texte[3]}, {texte[4]} €/h"
-                         if z["satz"] is not None else "ohne Zeit (Festpreis)"))
-        else:
-            r = _zahl(z["ruest_min"]) / 60 * _zahl(z["satz"])
-            if abs(r) >= 0.005:
-                ruest.append((f"{z['schritt']} (Rüsten)", r, f"{texte[1]} × {texte[4]} €/h"))
-            if abs(z["kosten"] - r) >= 0.005:
-                fert.append((z["schritt"], z["kosten"] - r, f"{texte[0]} × {texte[2]}, {texte[4]} €/h"))
-    if abs(summen["zusatz_eigen"]) >= 0.005:
-        fert.append(("Zusatzarbeiten", summen["zusatz_eigen"], "Stammdaten Zusatzarbeiten"))
-    if abs(summen.get("handling_beistellung", 0)) >= 0.005:
-        fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/m × Stangenlänge Kundenmaterial"))
-    if abs(summen.get("baugruppe_laufend_eigen", 0)) >= 0.005:
-        fert.append(("Schweißbaugruppen", summen["baugruppe_laufend_eigen"], "Nahtgruppen und Arbeitsgänge"))
-    if abs(summen.get("baugruppe_einmal_ruesten", 0)) >= 0.005:
-        ruest.append(("Schweißbaugruppen einmalig", summen["baugruppe_einmal_ruesten"],
-                      "Rüstzeit und Einmalbeträge der Arbeitsgänge"))
-    return dict(material=summen["material"], material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
-                fremd=summen["zusatz_fremd"] + summen.get("baugruppe_fremd_staffel", 0.0),
-                bg_getrennt=(summen.get("baugruppe_getrennt_eigen", 0.0), summen.get("baugruppe_getrennt_fremd", 0.0)),
-                pauschalen=summen["pauschalen"],
-                programmierung=summen["programmierung"], angebotsaufschlag=summen["angebotsaufschlag"],
-                fracht=summen["fracht"], skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
-                zukauf_einstand=summen.get("zukauf_einstand", 0), zukauf_aufschlag=summen.get("zukauf_aufschlag", 0),
-                zukauf_fehlt=summen.get("zukauf_fehlt", 0), verkauf=summen["verkauf"])
-
-
 # ------------------------------------------------------------------ Preisschicht
 def wirksam(stufe, einst):
     """Werte der Stufe, leere Werte aus dem Angebot (einst = rechnen.einstellungen_angebot, Prozent als Anteil).

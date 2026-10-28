@@ -371,9 +371,3 @@ def zip_schreiben(pfad, kopfzeile, pos_zeilen, bg_zeilen=None):
         if bg_zeilen:
             z.writestr(BAUGRUPPE_DATEI, csv_bytes(BAUGRUPPE_SPALTEN, bg_zeilen))
     _sicher_schreiben(pfad, puffer.getvalue())
-
-
-def zip_name(kopf):
-    """'Angebot_2613000461.zip' (unzulässige Zeichen der Nummer als _)."""
-    nr = re.sub(r'[\\/:*?"<>|\x00-\x1f\s]', "_", _text(kopf.get("nummer"))) or "ohne_Nummer"
-    return f"Angebot_{nr}.zip"

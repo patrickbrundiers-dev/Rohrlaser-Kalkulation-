@@ -46,7 +46,8 @@ jobs:
   tests:
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    timeout-minutes: 30            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen
+    # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen; von Hand mit Abdeckungsmessung (langsamer)
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 55 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -82,8 +83,16 @@ jobs:
         run: |
           /usr/bin/python3 -m pip install --break-system-packages -r requirements-dev.txt
           /usr/bin/python3 -m ruff check programm tests werkzeuge anleitung
-      - name: Alle Tests parallel (tests/alle.py; langsame Tests nur beim Sammel-Release von Hand)
-        run: /usr/bin/python3 tests/alle.py ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY"
+      # Sammel-Release von Hand: zusätzlich langsame Tests und Abdeckungsmessung mit Untergrenze je Kernmodul
+      # (Verbesserungsplan P0-4, tests/abdeckung_pruefen.py); im PR ohne beides, damit er schnell bleibt
+      - name: Alle Tests parallel (tests/alle.py; langsame Tests und Abdeckung nur beim Sammel-Release von Hand)
+        run: /usr/bin/python3 tests/alle.py ${{ github.event_name != 'pull_request' && '--langsam --coverage' || '' }} --markdown "$GITHUB_STEP_SUMMARY"
+      - name: Testabdeckung (Untergrenze je Kernmodul)
+        if: github.event_name != 'pull_request'
+        run: |
+          /usr/bin/python3 -m coverage combine -q
+          /usr/bin/python3 -m coverage json -q -o abdeckung.json
+          /usr/bin/python3 tests/abdeckung_pruefen.py abdeckung.json --markdown "$GITHUB_STEP_SUMMARY"
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen

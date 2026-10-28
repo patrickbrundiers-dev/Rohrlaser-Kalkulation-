@@ -65,12 +65,6 @@ def _punkte_in(face, n=5):
     return [p for _, p in out[:n]]
 
 
-def _punkt_in(face):
-    """Ein Punkt mitten in der Fläche (Schwerpunkt des größten Dreiecks des Netzes) oder None."""
-    p = _punkte_in(face, 1)
-    return p[0] if p else None
-
-
 def _vereinheitlichen(solid):
     """Angrenzende Flächen derselben Ebene bzw. desselben Zylinders zusammenfassen (aus Booleschen Operationen
     zerstückelte Flächen), damit jede Haut-Fläche ganz geprüft wird."""

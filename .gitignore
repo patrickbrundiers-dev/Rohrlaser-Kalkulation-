@@ -13,3 +13,6 @@ local.properties
 *.jks
 *.pem
 *.lizenz
+.coverage
+.coverage.*
+abdeckung.json
