@@ -69,8 +69,9 @@ class AnfragenKarte:
             self.anfragen = []
             return
         kunden = self.f.db.zeilen("kunden")
-        neu = anfragen.suchen(o, kunden)
-        st = anfragen.stand(neu)
+        ohne = []
+        neu = anfragen.suchen(o, kunden, ohne_step=ohne)
+        st = (anfragen.stand(neu), tuple(ohne))
         if st == self._stand and not erzwingen:
             return
         markiert = {a.schluessel for a in self.markierte()}
@@ -91,10 +92,14 @@ class AnfragenKarte:
                            if neu else f"Keine neuen Anfragen im Ordner {o}")
         self.liste.setVisible(bool(neu))
         mehrere = anfragen.gleicher_kunde(neu)
-        self.hinweis.setText("<br>".join(
-            f"{len(v)} offene Anfragen von <b>{anfragen.kunde_text(kunden, k)}</b>: getrennt öffnen oder "
-            f"<a href='{k}'>beide markieren</a> und „Zusammen öffnen“" for k, v in mehrere.items()))
-        self.hinweis.setVisible(bool(mehrere))
+        zeilen = [f"{len(v)} offene Anfragen von <b>{anfragen.kunde_text(kunden, k)}</b>: getrennt öffnen oder "
+                  f"<a href='{k}'>beide markieren</a> und „Zusammen öffnen“" for k, v in mehrere.items()]
+        if ohne:        # nur Zeichnungen/Formulare: nichts automatisch daraus anlegen (Patrick 28.10.2026)
+            zeilen.append(f"Ohne STEP (nicht in der Liste, z. B. nur Zeichnung als PDF): {', '.join(ohne[:4])}"
+                          + (f" und {len(ohne) - 4} weitere" if len(ohne) > 4 else "")
+                          + " – Teile von Hand anlegen oder die STEP dazulegen")
+        self.hinweis.setText("<br>".join(zeilen))
+        self.hinweis.setVisible(bool(zeilen))
         self._knoepfe_setzen()
 
     def _anfrage(self, it):
