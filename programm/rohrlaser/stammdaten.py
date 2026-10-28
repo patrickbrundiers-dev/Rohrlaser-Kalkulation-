@@ -540,7 +540,7 @@ PRUEFREGELN = Tabelle(
 # dazu Heftpunkte. Neue Dateien bekommen die Tabellen leer; 'Richtwerte laden' (baugruppe.richtwerte) trägt
 # hergeleitete Richtwerte mit Status 'Richtwert' ein, die die Kalkulation als HINWEIS kennzeichnet.
 NAHTARTEN = ("Kehlnaht", "Stumpfnaht", "Ecknaht")
-SCHWEISS_FAKTORARTEN = ("Schweißlage", "Zugänglichkeit", "Qualität")
+SCHWEISS_FAKTORARTEN = ("Schweißlage", "Zugänglichkeit", "Qualität", "Werkstoff")    # Werkstoff: Plan 28.10.2026
 KENNWERT_STATUS = ("Richtwert", "geprüft")
 
 SCHWEISSVERFAHREN = Tabelle(
@@ -588,13 +588,16 @@ SCHWEISS_FAKTOREN = Tabelle(
      Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
      Feld("bemerkung", "Bemerkung", breite=260)),
     ("art", "wert"),
-    "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit "
-    "und Qualitätsanforderung. Leer bzw. nicht gefunden = Faktor 1.")
+    "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit, "
+    "Qualitätsanforderung und Werkstoff (Kategorie der Teile: Stahl, Edelstahl, Aluminium, Buntmetall). Leer bzw. "
+    "nicht gefunden = Faktor 1.")
 
 # Vorkalkulation der Schweißbaugruppe (Plan Vorkalkulation, Patrick 24.10.2026 „alles a außer 8b“, vorkalk.py):
 # Regelwerte für Rüsten, Positionieren je Positionierhilfe, Heften, Wenden und Nacharbeit; neue Dateien leer,
 # 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
-SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit")
+SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit",
+                       "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
+                       "Heftzeit", "Mehrlagig")                       # Plan 28.10.2026, Schritt 5
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -611,8 +614,10 @@ SCHWEISS_REGELN = Tabelle(
     "Regeln der Vorkalkulation im Baugruppen-Editor (Knopf 'Vorkalkulation rechnen'): Rüsten einmalig je Auftrag = "
     "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
     "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
-    "Heftpunkte je Naht = größer von Mindestzahl und Nahtlänge ÷ Heftabstand (nach kleinerer Wanddicke, gesteckt × "
-    "Faktor); Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe. Das Ergebnis sind "
+    "Heftpunkte je Naht = größer von Mindestzahl und aufrunden(Nahtlänge ÷ Heftabstand) + 1 für die Enden (nach "
+    "kleinerer Wanddicke, gesteckt bzw. Edelstahl/Aluminium × Faktor; rundum ohne + 1, mindestens Umfang ÷ Umfang je "
+    "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
+    "Edelstahl, Richten (viel Naht je kg bei dünner Wand) und Sichtprüfung in min je m Naht. Das Ergebnis sind "
     "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
 
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
@@ -907,6 +912,8 @@ EINSTELLUNGEN = (
     # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
     Einstellung("schweiss_a_regel", "Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)",
                 "Schweißbaugruppen", "zahl", 0.7, 0.1, 2),
+    Einstellung("schweiss_a_min", "Schweißbaugruppen: a-Maß-Regel mindestens [mm] (EN 1993-1-8: 3 mm, höchstens die "
+                "dünnere Wand; 0 = aus)", "Schweißbaugruppen", "zahl", 3.0, 0, 10),
     # Spalt zwischen zwei Teilen (Patrick 26.10.2026): bis step_naht_spalt noch Naht und Gravur aus dem STEP, über
     # schweiss_spalt_max eine Warnung „Konstruktion prüfen“
     Einstellung("step_naht_spalt", "STEP-Import: Spalt zwischen zwei Teilen bis [mm] gilt noch als Schweißstoß (Naht "

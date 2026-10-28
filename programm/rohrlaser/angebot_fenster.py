@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe
+    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import zusatz_dialog
@@ -3522,7 +3522,8 @@ class AngebotSeite(QWidget):
             if not ist_baugruppe(p) or baugruppe.daten_fehler(p.get("baugruppe")):
                 continue
             saetze = saetze if saetze is not None else self._saetze()
-            r = baugruppe.rechnen(p, self.tabellen, saetze)
+            r = baugruppe.rechnen(p, self.tabellen, saetze, None,
+                                  bg_mengen.je_knoten(baugruppe.lesen(p.get("baugruppe")), self.positionen, self.k))
             out.append((f"Pos. {p.get('pos') or ''} {baugruppe.name(p)}".strip(), baugruppe.kostenaufteilung(r),
                         baugruppe.groesste_posten(r)))
         return out
@@ -3855,7 +3856,7 @@ class AngebotSeite(QWidget):
         schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
         einst = self._vk_einstellungen()
         for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
-            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst)
+            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst, self.k)
             if r["bg"] is None:
                 continue
             r["bg"]["stamm"]["vk_auto"] = True

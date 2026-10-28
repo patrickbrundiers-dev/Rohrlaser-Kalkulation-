@@ -19,7 +19,8 @@ dazu der Abweichungsgrund (Text) und als Hinweis für die Kennwerte die Schweiß
 Werte ändern weder die Kalkulation noch die Stammdaten (Kennwerte nur von Hand nach Prüfung anpassen).
 
 ist (gespeichert je Angebot): {stangen: {Gruppenschlüssel: Anzahl}, meterpreis: {Gruppenschlüssel: €/m}, laser_h, ruest_min, zusatz, zukauf, sonstiges, erloes,
-bemerkung, am, baugruppen: {Baugruppen-ID: {schweiss_h, arbeit_h, material, fremd, grund}}};
+bemerkung, am, baugruppen: {Baugruppen-ID: {schweiss_h, arbeit_h, material, fremd, grund, ruesten_h, positionieren_h,
+verputzen_h}}} (die drei letzten optional: Teile der Arbeitsgänge zum Lernen der Vorkalkulation, BG_TEILE);
 Gruppenschlüssel = 'Profil|Werkstoff|Stangenlänge'.
 """
 from . import rechnen
@@ -138,11 +139,19 @@ BG_FELDER = (  # (Name, Titel, Einheit, Nachkommastellen)
     ("material", "Material und Einmalbeträge", "€", 2),
     ("fremd", "Fremdleistungen", "€", 2),
 )
+# Teile der Arbeitsgänge aus der Vorkalkulation (Plan 28.10.2026, Schritt 3, V4): nur zum Lernen der Regeln, kein
+# eigener Kostenvergleich (stecken in 'Arbeitsgänge'). (Feld in ist['baugruppen'][ID], Titel, Art der Vorkalkulation,
+# Art der Regeln)
+BG_TEILE = (
+    ("ruesten_h", "davon Rüsten", "ruesten", "Rüsten"),
+    ("positionieren_h", "davon Positionieren", "positionieren", "Positionieren"),
+    ("verputzen_h", "davon Verputzen", "verputzen", "Nacharbeit"),
+)
 
 
 def baugruppen_soll(positionen, kalk_zeilen):
-    """Soll je Schweißbaugruppe aus der Kalkulation: [{id, name, anzahl, naht_m, werte {Feld: (Menge, €)}}]; Menge
-    in h bzw. None bei €-Feldern."""
+    """Soll je Schweißbaugruppe aus der Kalkulation: [{id, name, anzahl, naht_m, werte {Feld: (Menge, €)}, teile
+    {Feld aus BG_TEILE: h}}]; Menge in h bzw. None bei €-Feldern."""
     from . import baugruppe
     out = []
     for p, z in zip(positionen, kalk_zeilen):
@@ -151,6 +160,9 @@ def baugruppen_soll(positionen, kalk_zeilen):
         bg = baugruppe.lesen(p.get("baugruppe")) or {}
         c = z.get("stueck") or 0
         w = {n: [0.0, 0.0] for n, *_ in BG_FELDER}
+        vk_art = {a.get("id"): (a.get("vk") or {}).get("art") for a in bg.get("arbeitsgaenge") or ()}
+        teile = {n: 0.0 for n, *_ in BG_TEILE}
+        art_feld = {art: n for n, _, art, _ in BG_TEILE}
         for x in z.get("bg_zeilen") or ():
             r = x.get("werte") or {}
             if x["art"] == "Naht":
@@ -164,12 +176,16 @@ def baugruppen_soll(positionen, kalk_zeilen):
             if x["fremd"]:
                 w["fremd"][1] += gesamt
             else:
-                w["arbeit_h"][0] += (r.get("laufend_min") or 0) * x["faktor"] * c / 60 + (r.get("einmal_min") or 0) * u / 60
+                h = (r.get("laufend_min") or 0) * x["faktor"] * c / 60 + (r.get("einmal_min") or 0) * u / 60
+                w["arbeit_h"][0] += h
+                if art_feld.get(vk_art.get(x.get("id"))):
+                    teile[art_feld[vk_art[x["id"]]]] += h
                 w["arbeit_h"][1] += zeit_eur
                 w["material"][1] += gesamt - zeit_eur
         out.append(dict(id=bg.get("id"), name=baugruppe.name(p, bg), anzahl=c,
                         naht_m=sum((z.get("bg_naht_m") or {}).values()) * c,
-                        werte={n: (w[n][0] if e == "h" else None, w[n][1]) for n, _, e, _ in BG_FELDER}))
+                        werte={n: (w[n][0] if e == "h" else None, w[n][1]) for n, _, e, _ in BG_FELDER},
+                        teile=teile))
     return out
 
 

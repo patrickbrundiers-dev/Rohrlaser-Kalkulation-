@@ -18,7 +18,7 @@ from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
-from . import anbau, baugruppe, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
+from . import anbau, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -3138,7 +3138,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if i in bg_pos:
             zeilen[i] = _baugruppe_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
                                          fracht_je[i] if c else 0, skonto, (zf, zfl, gew), tabellen, zb["saetze"],
-                                         selbst_basis, zk_gewinn=not neu)
+                                         selbst_basis, zk_gewinn=not neu,
+                                         mengen=bg_mengen.je_knoten(baugruppe.lesen(p.get("baugruppe")), positionen, k))
             continue
         gr = gruppe_von(p, kopf)
         d = sum(kosten_gr.get(gr, ()))
@@ -3332,6 +3333,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zukauf_einstand=_summe("zukauf_einstand_teil"), zukauf_aufschlag=_summe("zukauf_aufschlag_teil"),
                   zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen,
                   baugruppe_eigen=_summe("bg_eigen_teil"), baugruppe_fremd=_summe("bg_fremd_teil"),
+                  baugruppe_schweiss_min=_summe("bg_schweiss_min"),
                   baugruppe_einmal=_summe("bg_einmal_teil"), baugruppe_zeit_min=_summe("bg_zeit_min"),
                   baugruppe_laufend_eigen=_summe("bg_laufend_eigen_teil"),
                   baugruppe_einmal_ruesten=_summe("bg_einmal_ruesten_teil"),
@@ -3406,14 +3408,14 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zus
     return z
 
 
-def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_basis=True, zk_gewinn=True):
+def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_basis=True, zk_gewinn=True, mengen=None):
     """Kalkulationszeile einer Schweißbaugruppe: eigene Leistungen (Nahtgruppen, Arbeitsgänge, umgelegte Einmalkosten;
     baugruppe.rechnen) als Fertigung mit Zuschlag Fertigung bzw. als Fremdleistung mit Zuschlag Fremdleistung, dazu
     Gewinn, Zukaufteile der Baugruppe (z. B. Schrauben je Satz), Frachtanteil und Skonto wie jede Position. Kein
     Material, keine Laserzeit (die Einzelteile sind eigene Positionen). selbst_basis: Gewinn auch auf die Zukaufteile
     (Selbstkosten), sonst nur auf die eigenen Leistungen (festgeschrieben vor dem 23.10.2026)."""
     zf, zfl, gew = zuschlaege
-    r = baugruppe.rechnen(p, tabellen, saetze, c)
+    r = baugruppe.rechnen(p, tabellen, saetze, c, mengen)
     eigen, fremd = r["eigen"], r["fremd"]
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
@@ -3590,9 +3592,12 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
                      "Menge × Preis je Einheit, ggf. Mindestbetrag", "Stammdaten Zusatzarbeiten", art_="Fremd/Preis"))
     # Schweißbaugruppen: Schweißen und eigene Arbeitsgänge (baugruppe.rechnen), Fremdleistungen ohne Zeit
     bg_min = _n(summen.get("baugruppe_zeit_min"))
+    bg_sw = _n(summen.get("baugruppe_schweiss_min"))
     out.append(zeile("Schweißbaugruppen", summen.get("baugruppen", 0), "Baugruppen", None, None, bg_min,
                      _n(summen.get("baugruppe_eigen")), f"{zahl(bg_min, 1)} min Schweißen und Arbeitsgänge je Baugruppe "
-                     "× Stückzahl", "Schweißbaugruppen (Nahtgruppen, Arbeitsgänge)", art_="Personal", parallel=False))
+                     "× Stückzahl" + (f", davon Schweißen {zahl(bg_sw, 1)} min, Arbeitsgänge {zahl(bg_min - bg_sw, 1)} "
+                                      "min" if bg_sw and bg_min else ""),
+                     "Schweißbaugruppen (Nahtgruppen, Arbeitsgänge)", art_="Personal", parallel=False))
     out.append(zeile("Schweißbaugruppen Fremdleistung (€)", summen.get("baugruppen", 0), "Baugruppen", None, None, None,
                      _n(summen.get("baugruppe_fremd")), "Fremdleistungen der Baugruppen", "Schweißbaugruppen",
                      art_="Fremd/Preis"))
