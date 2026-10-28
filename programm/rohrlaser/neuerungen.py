@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.166", "<b>E-Mail und Anfrageformular schlauer</b>: Ist der Absender unbekannt, legt das Programm den "
+    ["0.9.169", "<b>E-Mail und Anfrageformular schlauer</b>: Ist der Absender unbekannt, legt das Programm den "
                 "Kunden mit Adresse, Ansprechpartner und Telefon aus Signatur bzw. Formular an – mit der Bemerkung "
                 "<i>Kunde prüfen</i> (bei Abbruch wieder entfernt). Das Anfrageformular wird wie die Mail ausgewertet "
                 "(Lieferzeit, Werkstoff). Robuster: ältere Outlook-Mails nur mit RTF-Text, <i>winmail.dat</i>, "
@@ -29,6 +29,15 @@ NEUERUNGEN = [
                 "Dauer (<i>in 3 Wochen</i>), Kunde über den Firmennamen in der Domain; Hinweise zu Mengenstaffel, "
                 "Zusatzarbeiten und doppelter Anfrage-Nr. ([[anfrage_mail]]).",
      "Mail/Formular: unbekannte Kunden anlegen („Kunde prüfen“), RTF/winmail.dat, Verlauf, Dauer, Hinweise."],
+    ["0.9.168", "<b>CSV-Dateien robuster</b>: Der <b>Kunden-Import</b> liest jetzt auch Dateien aus Excel für Mac, "
+                "Unicode-Text (UTF-16), Komma- und Tab-Dateien, <i>sep=;</i> und Titelzeilen, stürzt bei kaputten "
+                "Dateien nicht mehr ab und nennt bei jedem Fehler Zeile und Spalte (Buchstabe und Titel); Export → "
+                "Import zeigt nie Fehler für unveränderte Kunden. Der <b>Kunden-Export</b> schützt führende Nullen, "
+                "+49-Telefonnummern und Ähnliches vor Excel und schreibt unter Windows keine doppelten Zeilenenden "
+                "mehr (auch Zukauf-, PLZ- und Fertigungs-CSV) ([[kunden_csv]]). Im <b>Angebots-CSV</b> stehen in "
+                "Zahlenspalten nur noch Zahlen: Lieferzeit in Wochen (2 statt „ca. 2 Wochen“), Marge Netto% und "
+                "Verschnitt ohne %-Zeichen, Schneidgas N2/O2 ([[csv_export]]).",
+     "CSV robuster: Kunden-Import mit Zeile/Spalte, Excel-Schutz; Angebots-CSV Lieferzeit als Zahl."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "

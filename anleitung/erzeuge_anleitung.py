@@ -4750,7 +4750,10 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
            "keine zusätzlichen Spalten. Der Export ändert nichts am Angebot; die Werte stammen aus derselben "
            "Rechnung wie Übersicht und Kalkulation, Stückpreis und Preis genau wie im Angebots-PDF. Staffelmengen "
-           "sind nicht enthalten, nur die Menge der Position. Werte, die es im Programm nicht gibt, bleiben leer.")
+           "sind nicht enthalten, nur die Menge der Position. Werte, die es im Programm nicht gibt, bleiben leer.",
+           "Alle Zahlenspalten enthalten nur Zahlen mit Punkt oder sind leer, nie Text oder ein %-Zeichen: das "
+           "Zielprogramm liest sie als Zahl (<i>double</i>). Text wie <i>ca. 2 Wochen</i> in einer Zahlenspalte "
+           "führte dort zu einem Fehler bzw. einem leeren Angebot.")
     i.tabelle(["Angebotskopf.csv", "Inhalt"], [
         ["Erstellungsdatum / Datum Kunde:", "Anlagedatum des Angebots / Angebotsdatum"],
         ["Kunden Nr., Kunde:, Nachname", "Kundennummer, Kundenname, Ansprechpartner des Kunden"],
@@ -4758,7 +4761,9 @@ def kapitel_ausgabe(i, seiten, ablage):
         ["Kundenanfrage:, Kommentar", "Ihre Anfrage / Zeichen, Bemerkung"],
         ["Versandkosten, Feste Versandkosten, Versand inkl.", "Fracht in €; True bei Frachtart manuell; True bei "
          "<i>im Artikelpreis enthalten</i>"],
-        ["Lieferzeit", "z. B. <i>ca. 2 Wochen nach Auftragseingang</i> ([[lieferzeit]])"],
+        ["Lieferzeit", "Wochen als Zahl, z. B. <i>2</i> ([[lieferzeit]]): Wochen wie eingegeben, Arbeitstage ÷ 5, "
+         "Kalenderwoche oder Lieferdatum = Wochen ab Angebotsdatum (auf ½ Woche aufgerundet); leer bei nur Freitext "
+         "oder <i>nach Absprache</i>. Der Freitext steht im Angebot, nicht in der CSV."],
         ["%Kunde Mat, %Kunde Arb., %Fremdarb., %Aufschlag", "Zuschlag Material, Fertigung, Fremdleistung und Gewinn "
          "in % (2 = 2 %)"],
         ["Bearbeitungszeit, Gesamtzeit", "Summe der Spalten der Positionen"],
@@ -4776,15 +4781,15 @@ def kapitel_ausgabe(i, seiten, ablage):
         ["Werkstoff, Werkstofftyp, Dicke", "Kategorie (Stahl …), Text im Angebot des Werkstoffs, Wandstärke [mm]"],
         ["Fläche, Gew., Umfang, L.", "Mantelfläche außen [m²], Gewicht je Teil [kg], Schneidweg je Teil [mm], "
          "Teilelänge [mm]"],
-        ["Maschine, Schneiden, Date", "Maschine des Angebots, Schneidgas, Angebotsdatum"],
+        ["Maschine, Schneiden, Date", "Maschine des Angebots, Schneidgas (N2, O2), Angebotsdatum"],
         ["Artikeltext", "Angebotstext der Position in einer Zeile"],
         ["Bearbeitungszeit, Gesamtzeit", "Laserzeit je Teil; Laserzeit × Menge + Anteil Rüsten, Stangenwechsel, "
          "Rüsten je Abmessung + Programmierzeit"],
         ["Gesamt HK(€), HK(), Marge Netto(), Marge Netto%", "Herstellkosten der Position und je Teil; Preis − "
-         "Herstellkosten, in % der Herstellkosten"],
+         "Herstellkosten, in % der Herstellkosten (Zahl ohne %-Zeichen, z. B. 17.5)"],
         ["Kommentar", "Hinweis der Kalkulation"],
         ["Einsatzgewicht, Gesamt Einkauf(Kg), Verschnitt", "Stangengewicht anteilig je Teil bzw. × Menge; "
-         "(Einsatz − Gewicht) ÷ Einsatz in %"],
+         "(Einsatz − Gewicht) ÷ Einsatz in % (Zahl ohne %-Zeichen, z. B. 4)"],
         ["Gesamt Einkauf(), Preis/Kg", "Material + Einkauf Zukaufteile der Position; Material € je kg Einsatz"],
         ["Liste der Arbeitsgänge", "<i>Profile [Rechteckrohr 120x60x3], Gewinde [4xM6], Zusatzarbeit […]</i>, "
          "durch Komma getrennt"],
@@ -5723,7 +5728,10 @@ def kapitel_stammdaten(i):
     i.genauer()
     i.text("Im Reiter <i>Kunden</i> speichert <b>CSV exportieren</b> alle Kunden als CSV-Datei (Semikolon, mit Excel "
            "zu öffnen): eine Zeile je Kunde, Kopfzeile mit den Spaltentiteln wie im Reiter, Zahlen mit Komma. So "
-           "lässt sich die Liste in Excel bearbeiten oder aus einem anderen Programm übernehmen.",
+           "lässt sich die Liste in Excel bearbeiten oder aus einem anderen Programm übernehmen. Werte, die Excel "
+           "beim Öffnen verändern würde (Kundennummer oder PLZ mit führender Null, Telefon <i>+49 …</i>, lange "
+           "Ziffernfolgen, Text wie <i>1-2</i>, der wie ein Datum aussieht), stehen als <i>=\"…\"</i> in der Datei: "
+           "Excel zeigt sie unverändert, der Import liest sie wieder als Text.",
            "<b>CSV importieren …</b> liest eine solche Datei und zeigt zuerst eine Vorschau: je Zeile <i>neu</i> "
            "(grün), <i>ändern</i> (gelb, mit alt → neu), <i>unverändert</i>, <i>übersprungen</i> (grau) oder "
            "<i>Fehler</i> (rot). Übernommen wird erst mit <b>Importieren</b>.")
@@ -5740,6 +5748,28 @@ def kapitel_stammdaten(i):
             "formatieren.",
             "Vor dem Import legt das Programm eine Datensicherung an (Name endet auf <i>_vor_Kundenimport</i>), "
             "der alte Stand lässt sich zurückholen ([[datensicherung]]).")
+    i.text("Welche Dateien gehen: Trennzeichen Semikolon, Komma oder Tabulator (auch mit <i>sep=;</i> in der ersten "
+           "Zeile), UTF-8 mit oder ohne BOM (Excel <i>CSV UTF-8</i>), Windows-1252 (Excel <i>CSV "
+           "(Trennzeichen-getrennt)</i>), UTF-16 (Excel <i>Unicode-Text</i>), Zeilenenden von Windows, Linux und "
+           "Mac, Titelzeilen über der Kopfzeile, Zeilenumbrüche, Semikolons und Anführungszeichen in Feldern. "
+           "Ein Kunde, der seit dem Export unverändert ist, zeigt nie einen Fehler, auch wenn ein alter Wert die "
+           "heutige Prüfung nicht besteht (dann steht ein Hinweis in der Vorschau). Länder als Name "
+           "(<i>Deutschland</i>, <i>Österreich</i> …) werden zum Ländercode.")
+    i.tabelle(["Meldung in der Vorschau", "Was tun"], [
+        ["<i>Zeile 5 … Spalte J (Skonto [%]): Wert zwischen 0 und 20 eingeben</i>", "Zeile wie in Excel, Spalte als "
+         "Buchstabe und Titel: dort korrigieren und neu importieren."],
+        ["<i>Excel-Fehlerwert #NAME? statt Inhalt</i>", "Excel hat z. B. <i>+49 …</i> als Formel gelesen. In Excel den "
+         "Wert mit Hochkomma eingeben (<i>'+49 …</i>)."],
+        ["<i>… ist eine von Excel gekürzte Zahl</i>", "z. B. <i>1,23457E+11</i>: Spalte in Excel als Text formatieren "
+         "und den Wert neu eingeben."],
+        ["<i>Anführungszeichen \" nicht geschlossen …</i>", "Ein Feld beginnt mit \" ohne Ende; die genannten "
+         "Textzeilen der Datei prüfen."],
+        ["<i>… Werte, aber nur … Spalten in der Kopfzeile</i>", "Ein Trennzeichen steht ohne Anführungszeichen im "
+         "Text (z. B. <i>Meyer, Hans</i> in einer Komma-Datei); die Werte wären verrutscht."],
+        ["<i>Kundennummer 123 → 00123</i> (Hinweis)", "Excel hat die führende Null entfernt; der Import ordnet die "
+         "Zeile dem vorhandenen Kunden zu."],
+        ["<i>Kein Zugriff … noch in Excel geöffnet?</i>", "Datei in Excel schließen und Export bzw. Import "
+         "wiederholen."]], [170, 130])
     i.abschnitt("Profile", marke="profile")
     i.text("Profil-ID, Form, Maße und Wandstärke. Unbekannte Rohre im Angebot oder STEP-Import legt das Programm "
            "selbst an.", kurz=True)
