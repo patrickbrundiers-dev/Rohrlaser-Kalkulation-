@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
                                QPushButton, QVBoxLayout, QWidget)
 
-from . import nummern, teilen
+from . import nummern, stil, teilen
 from .angebot import kuerzel_sauber
 
 
@@ -405,7 +405,7 @@ class KonflikteDialog(QDialog):
             it.setData(Qt.UserRole, k["id"])
             it.setToolTip(_unterschied(k))
             if k.get("erledigt"):
-                it.setForeground(Qt.gray)
+                it.setForeground(stil.farbe(stil.TEXT_GRAU))
             self.liste.addItem(it)
         self._knoepfe()
 
