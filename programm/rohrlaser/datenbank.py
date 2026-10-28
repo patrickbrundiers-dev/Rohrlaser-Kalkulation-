@@ -36,6 +36,7 @@ from .fracht_angebot import UMLAGE_NEU
 from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
                       lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
+from .stammdaten import LOESCHSCHUTZ_HAND, LOESCHSCHUTZ_JEDES
 from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
@@ -163,6 +164,10 @@ def _zahl_pruefen(feld, wert):
 
 class Lesemodus(PermissionError):
     """Ändern im Lesemodus (Lizenz fehlt, abgelaufen, gesperrt …). Text: Grund für den Benutzer."""
+
+
+class Loeschschutz(PermissionError):
+    """Angebot löschen verweigert: einmal optimiert und Einstellung 'loeschschutz' an. Text: Grund für den Benutzer."""
 
 
 def _zugriff(art):
@@ -341,6 +346,14 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
             if "stangen_vorgabe" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
+            if "optimiert_erstmals" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                # Löschschutz (Patrick 28.10.2026): erste Optimierung überhaupt bzw. von Hand; bleibt, auch wenn das
+                # Ergebnis später verworfen wird. Bestand: aus 'optimiert_am' (automatisch oder von Hand ist
+                # nicht bekannt, daher beides)
+                self.con.execute("ALTER TABLE angebote ADD COLUMN optimiert_erstmals TEXT")
+                self.con.execute("ALTER TABLE angebote ADD COLUMN optimiert_hand TEXT")
+                self.con.execute("UPDATE angebote SET optimiert_erstmals=optimiert_am, optimiert_hand=optimiert_am "
+                                 "WHERE optimiert_am IS NOT NULL")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -1907,8 +1920,34 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET ersetzt_durch=? WHERE id=?", (nummer, angebot_id))
         return neu
 
+    @liest
+    def loeschschutz(self, angebot_id):
+        """Löschschutz (Einstellung 'loeschschutz', Patrick 28.10.2026): Text mit Grund, wenn das Angebot einmal
+        (von Hand) optimiert wurde und deshalb nicht gelöscht werden darf; sonst None."""
+        art = self.einstellung("loeschschutz")
+        spalte = {LOESCHSCHUTZ_JEDES: "optimiert_erstmals", LOESCHSCHUTZ_HAND: "optimiert_hand"}.get(art)
+        if spalte is None:
+            return None
+        r = self.con.execute(f"SELECT nummer, {spalte} FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        if not r or not r[1]:
+            return None
+        am = r[1][:16].replace("T", " ")
+        try:
+            am = datetime.datetime.fromisoformat(r[1]).strftime("%d.%m.%Y %H:%M")
+        except ValueError:
+            pass
+        return (f"Angebot {r[0]} wurde am {am} optimiert und ist gegen Löschen geschützt (Einstellungen → Angebot → "
+                "Löschschutz). Stattdessen den Vorgang auf „Abgelehnt“ setzen oder „Kopieren“; löschen kann nur "
+                "der Admin.")
+
     @schreibt
-    def angebot_loeschen(self, angebot_id):
+    def angebot_loeschen(self, angebot_id, trotz_schutz=False):
+        """Angebot mit allem löschen. Löschschutz an und einmal optimiert: Ausnahme Loeschschutz, außer
+        trotz_schutz (nur mit Admin-Rechten, Angebotsliste)."""
+        if not trotz_schutz:
+            grund = self.loeschschutz(angebot_id)
+            if grund:
+                raise Loeschschutz(grund)
         with self.con:
             # Lager (lager.py): Reservierungen des Angebots freigeben, gebuchter Verbrauch bleibt im Journal. Lagerauftrag
             # weg und Reservierungen vom Angebot lösen: SQLite kann die Angebots-ID wieder vergeben, ein neues Angebot
@@ -1921,11 +1960,15 @@ class Datenbank:
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
     @schreibt
-    def ergebnis_speichern(self, angebot_id, ergebnis):
+    def ergebnis_speichern(self, angebot_id, ergebnis, von_hand=False):
+        """Ergebnis der Optimierung speichern (None = verwerfen). von_hand: F9/Optimieren statt automatisch (W1);
+        erste Optimierung bzw. erste von Hand bleibt für den Löschschutz gemerkt."""
+        jetzt = self._jetzt() if ergebnis else None
         with self.con:
-            self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=? WHERE id=?",
-                             (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None,
-                              self._jetzt() if ergebnis else None, angebot_id))
+            self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=?, optimiert_erstmals=COALESCE("
+                             "optimiert_erstmals, ?), optimiert_hand=COALESCE(optimiert_hand, ?) WHERE id=?",
+                             (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None, jetzt, jetzt,
+                              jetzt if von_hand else None, angebot_id))
 
     @schreibt
     def kennzahlen_merken(self, angebot_id, vk_netto, stand):
