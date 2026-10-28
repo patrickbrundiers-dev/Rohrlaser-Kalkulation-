@@ -46,6 +46,22 @@ def stange_wirksam(p, kopf):
     return p.get("stange") if not _leer(p.get("stange")) else kopf.get("stange")
 
 
+def nutz_lang(p, kopf, k, tabellen, m, w):
+    """Größte Nutzlänge, auf die die Optimierung für die Position ausweichen kann, wenn das Teil nicht auf die
+    Stangenlänge passt (Patrick 28.10.2026): längste von Hand vorgegebene Stange (stangen_vorgabe), sonst die
+    längste ladbare längere Lieferlänge (ausweich_laengen); None = keine."""
+    pid, wst = p.get("profil_id"), p.get("werkstoff_id")
+    gr = (pid, wst, oberflaeche_von(p), w["stange"]) + (("Kunde",) if beigestellt(p) else ())
+    vorrat = stangen_vorgabe(kopf, gr, (m or {}).get("max_stange"))
+    if vorrat:
+        lang = vorrat[0][0]
+    elif beigestellt(p):
+        return None
+    else:
+        lang = max((lb for _, lb in ausweich_laengen(pid, wst, w["stange"], k, tabellen, m)), default=None)
+    return lang - w["end"] - w["greif"] if lang is not None else None
+
+
 def oberflaeche_von(p):
     """Oberfläche einer Position; leer und 'roh' sind gleich ('')."""
     o = str(p.get("oberflaeche") or "").strip()
@@ -159,6 +175,7 @@ def position_werte(p, kopf, k, tabellen):
         w["end"] = pr["endbeschnitt"] if pr and pr.get("endbeschnitt") is not None else (m.get("endbeschnitt") or 0)
         w["greif"] = pr["greiferrest"] if pr and pr.get("greiferrest") is not None else (m.get("greiferrest") or 0)
         w["nutz"] = w["stange"] - w["end"] - w["greif"] if w["stange"] is not None else None
+        w["nutz_lang"] = nutz_lang(p, kopf, k, tabellen, m, w) if w["stange"] is not None else None
     if _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
         w["preis_hinterlegt"] = None
     else:
@@ -421,7 +438,9 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     grenze = grenze_ueberschritten(m, k.profile.get(p.get("profil_id")), w["kg_m"])
     if grenze:
         return "FEHLER: " + grenze
-    if w["nutz"] is None or p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"]:
+    # passt das Teil nicht auf die Stange, aber auf eine vorgegebene oder längere Lieferlänge: kein FEHLER
+    nutz = max(w["nutz"], w.get("nutz_lang") or 0) if w["nutz"] is not None else None
+    if nutz is None or p["laenge"] + _n(m.get("schnittverlust")) > nutz:
         return "FEHLER: Teil länger als Nutzlänge"
     nahtlos = ohne_naht(p.get("werkstoff_id"), k)     # Werkstoff ohne Naht: Vorgabe entfällt (HINWEIS unten)
     naht_status = None if nahtlos else naht.pruefen(p, k.profile.get(p.get("profil_id")),
@@ -432,7 +451,7 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     if d3_status and d3_status.startswith("FEHLER"):
         return d3_status
     rest = dreid.rest_letztes(p, m)
-    if rest > w["greif"] and p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"] + w["greif"] - rest:
+    if rest > w["greif"] and p["laenge"] + _n(m.get("schnittverlust")) > nutz + w["greif"] - rest:
         return "FEHLER: Teil zu lang für das 3D-Greifmaß der Maschine"
     befunde = dfm.rohr(p, k.profile.get(p.get("profil_id")), m, w.get("pruefregeln"), w.get("wand"))
     stufe = {b.stufe for b in befunde}
@@ -536,8 +555,10 @@ def rohrstuecke(p):
     return -(-int(stk) // je)
 
 
-def gruppen_bilden(kopf, positionen, k):
+def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
     """Optimierungsgruppen (Profil + Werkstoff + Oberfläche + Stangenlänge) aus den Positionen.
+    Mit tabellen: ein Teil, das nicht auf die Stangenlänge des Angebots passt, aber auf eine längere Lieferlänge
+    (ausweich_laengen), kommt trotzdem in die Gruppe; die Gruppe wird dann mit dieser Lieferlänge geplant.
     Ergebnis: (gruppen, fehler, neue_profile). Unbekannte Profile, deren ID dem Schema entspricht
     (z. B. 'RR 42,4x2,0'), werden aus dem Namen angelegt: sie stehen in neue_profile
     und zählen hier schon als vorhanden."""
@@ -595,10 +616,14 @@ def gruppen_bilden(kopf, positionen, k):
             fehl(grenze); continue
         end = pr["end"] if pr["end"] is not None else me["end"]
         greif = pr["greif"] if pr["greif"] is not None else me["greif"]
-        if end + laenge + me["kerf"] > lang - greif + EPS:
-            fehl("Teil länger als Nutzlänge der Stange"); continue
         rest = dreid.rest_letztes(p, m)          # 3D-Greifmaß, wenn das Teil das letzte der Stange ist
-        if end + laenge + me["kerf"] > lang - max(greif, rest) + EPS:
+        if end + laenge + me["kerf"] > lang - max(greif, rest) + EPS and not vorrat and not bs and tabellen and any(
+                end + laenge + me["kerf"] <= lb - max(greif, rest) + EPS
+                for _, lb in ausweich_laengen(pid, wst, stange, k, tabellen, m, einst)):
+            pass                                 # passt auf eine längere Lieferlänge (Patrick 28.10.2026)
+        elif end + laenge + me["kerf"] > lang - greif + EPS:
+            fehl("Teil länger als Nutzlänge der Stange"); continue
+        elif end + laenge + me["kerf"] > lang - max(greif, rest) + EPS:
             fehl("Teil zu lang für das 3D-Greifmaß der Maschine"); continue
         key = (pid, wst, ob, stange) + ((bs,) if bs else ())
         g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob,
@@ -647,6 +672,44 @@ def stangen_vorgabe(kopf, gr, maxlen=None):
     return [(laenge, n) for laenge, n in opt.vorrat_lesen(v) if not maxlen or laenge <= _n(maxlen) + EPS]
 
 
+def ausweich_laengen(profil_id, werkstoff_id, stange, k, tabellen, m, einst=None):
+    """Längere Lieferlängen, auf die die Optimierung ausweicht, wenn ein Teil nicht auf die Stangenlänge des Angebots
+    passt (Patrick 28.10.2026: kein FEHLER, wenn das Teil z. B. auf die gewählte 12-m-Stange passt): Zeilen der
+    Lieferlängen (ohne eigene Zeile ab Hüllkreis-Ø automatisch 12 m), unabhängig von der Einstellung
+    'Lieferlängen vergleichen'; nicht bei Profilen mit 'Lieferlängen vergleichen = nein'. Ergebnis [(Lieferlänge,
+    größte ladbare Stange)]: über der max. Stangenlänge der Maschine schneidet der Lieferant zu, das Werkstück ist dann
+    höchstens max. Stangenlänge − Zuschnitt-Puffer lang."""
+    if not tabellen or ((k.profile.get(profil_id) or {}).get("laengenvergleich") or "").strip().lower() == "nein":
+        return []
+    einst = einst if einst is not None else tabellen.get("einstellungen")
+    maxw = _n((m or {}).get("max_stange"))
+    puffer = math.ceil(_n(einstellung_wert(einst, "zuschnitt_puffer")) - EPS)
+    out = []
+    for z in lieferlaengen(profil_id, werkstoff_id, k, tabellen, einst):
+        lz = z["laenge"]
+        if stange is not None and lz <= _n(stange) + EPS:
+            continue
+        out.append((lz, maxw - puffer if maxw and lz > maxw + EPS else lz))
+    return out
+
+
+def basis_zu_kurz(g, m):
+    """True, wenn ein Teil der Gruppe nicht auf die Stangenlänge des Angebots passt (nur über ausweich_laengen in
+    der Gruppe)."""
+    return variante_gruppe(g, g.stange, None) is None
+
+
+def laengen_info(g, k, tabellen, m, einst=None):
+    """laengen_der_gruppe; passt ein Teil nicht auf die Stangenlänge des Angebots (basis_zu_kurz), gilt diese als
+    nicht ausführbar und die längeren Lieferlängen (ausweich_laengen) sind die Alternativen."""
+    if not basis_zu_kurz(g, m):
+        return laengen_der_gruppe(g, k, tabellen, einst)
+    zeilen = lieferlaengen(g.profil, g.werkstoff, k, tabellen, einst)
+    return dict(ausgenommen=False, zeilen=zeilen, basis_lieferbar=False, zu_kurz=True,
+                alternativen=sorted(lz for lz, _ in ausweich_laengen(g.profil, g.werkstoff, g.stange, k, tabellen, m,
+                                                                     einst)))
+
+
 def vorrat_text(vorrat):
     """'3 × 6.000 + 2 × 4.500 mm'"""
     return " + ".join(f"{n} × {mm_text(laenge)}" for laenge, n in vorrat) + " mm" if vorrat else ""
@@ -678,14 +741,14 @@ def teil_kennung(t):
 def laengen_eingaben(gruppen, kopf, k, tabellen, einst):
     """Was der Vergleich der Lieferlängen verwendet (für die Prüfsumme); leer ohne Lieferlängen."""
     daten = []
+    m = maschine(kopf, k) or {}
     for g in gruppen:
-        info = laengen_der_gruppe(g, k, tabellen, einst)
+        info = laengen_info(g, k, tabellen, m, einst)
         if info["zeilen"] or info["ausgenommen"]:
             daten.append([g.profil, g.werkstoff, g.oberflaeche, g.stange, info["ausgenommen"], info["basis_lieferbar"],
                           [[z.get(n) for n in ("laenge", "basis", "preis")] for z in info["zeilen"]]])
     if not daten and not kopf.get("laengenwahl"):
         return []
-    m = maschine(kopf, k) or {}
     return [daten, m.get("max_stange"), einstellung_wert(einst, "zuschnitt_verlust"), kopf.get("laengenwahl") or {},
             m.get("min_stange"), einstellung_wert(einst, "zuschnitt_puffer")]
 
@@ -694,7 +757,7 @@ def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
     """Prüfsumme über alles, was die Optimierung verwendet. Weicht sie von der gespeicherten ab,
     ist die Optimierung veraltet."""
     try:
-        gruppen, fehler, neue = gruppen_bilden(kopf, positionen, k)
+        gruppen, fehler, neue = gruppen_bilden(kopf, positionen, k, tabellen, einst)
     except ValueError as e:
         return "fehler:" + str(e)
     # Oberfläche nur, wenn gesetzt: ältere Angebote ohne Oberfläche bleiben aktuell
@@ -876,14 +939,15 @@ def laenge_waehlen(vg, plaene, kopf, positionen, k, tabellen, einst, auto=False)
     if vg is None:
         return None
     gew = (kopf.get("laengenwahl") or {}).get(vg["schluessel"])
+    gew_ok = gew is not None and gew in plaene and gew != vg["stange"] and not plaene[gew]["fehler"]
+    if gew_ok and not auto and vg.get("zu_kurz"):    # Teil zu lang für die Stangenlänge: übernommene Länge gilt
+        return gew
     if auto or not vg["basis_lieferbar"]:
         b = laengen_bewerten(vg, kopf, positionen, k, tabellen, einst)
         if b["empfehlung"] in (LAENGE_ALTERNATIVE, LAENGE_NUR_ALTERNATIVE) or not vg["basis_lieferbar"]:
             return b["beste"] if b["beste"] != vg["stange"] else None
         return None
-    if gew is not None and gew in plaene and gew != vg["stange"] and not plaene[gew]["fehler"]:
-        return gew
-    return None
+    return gew if gew_ok else None
 
 
 def _vorrat_eintragen(g, vorrat, folgen, uebrig, positionen, fehler, stangen, auswertung, nr):
@@ -951,7 +1015,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
     auto: Lieferlänge je Gruppe nach der Empfehlung (Staffelpreise), sonst nur übernommene Längen.
     fortschritt(schritt, schritte, text): wird vor jeder Gruppe aufgerufen (Fortschrittsanzeige); löst sie Abbruch
     aus, endet die Optimierung ohne Ergebnis. Die Rechnung selbst ist dieselbe."""
-    gruppen, fehler, neue_profile = gruppen_bilden(kopf, positionen, k)
+    gruppen, fehler, neue_profile = gruppen_bilden(kopf, positionen, k, tabellen, einst)
     melden = fortschritt or (lambda *_: None)
     schritte = 2 * len(gruppen)
     m = maschine(kopf, k)
@@ -959,7 +1023,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
     # von Hand vorgegebene Stangen je Gruppe (stangen_vorgabe): kein Vergleich der Lieferlängen
     vorraete = [stangen_vorgabe(kopf, gruppe_schluessel(g), (m or {}).get("max_stange")) for g in gruppen]
     # Kundenmaterial: kommt in der Stangenlänge des Angebots, kein Vergleich der Lieferlängen
-    infos = [laengen_der_gruppe(g, k, tabellen, einst) if tabellen and not g.beistellung and not v else None
+    infos = [laengen_info(g, k, tabellen, m, einst) if tabellen and not g.beistellung and not v else None
              for g, v in zip(gruppen, vorraete)]
     # Große Angebote: alle Schnittpläne vorab auf Hilfsprozessen (parallel.py, gleiches Ergebnis)
     opt.vorgerechnet.gruppen = parallel.vorrechnen(
@@ -1012,14 +1076,14 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
     mit = [(g, f) for g, f, v in zip(gruppen, folgen_je_gruppe, vorraete) if f is not None and not v]
     opt.pruefe([g for g, _ in mit], [f for _, f in mit])
     stangen, auswertung, laengen, nr = [], [], [], 0
-    for n, (g, folgen, vorrat) in enumerate(zip(gruppen, folgen_je_gruppe, vorraete)):
+    for n, (g, folgen, vorrat, info) in enumerate(zip(gruppen, folgen_je_gruppe, vorraete, infos)):
         melden(len(gruppen) + n, schritte, f"Lieferlängen und Auswertung {g.profil} / {g.werkstoff}")
         s0, a0 = len(stangen), len(auswertung)
         if vorrat:
             nr = _vorrat_eintragen(g, vorrat, *folgen, positionen, fehler, stangen, auswertung, nr)
             _beistellung_markieren(g, stangen[s0:] + auswertung[a0:])
             continue
-        vg, plaene = (laengen_vergleich_gruppe(g, k, tabellen, m, saege, folgen, einst) if tabellen and not g.beistellung
+        vg, plaene = (laengen_vergleich_gruppe(g, k, tabellen, m, saege, folgen, einst, info) if info is not None
                       else (None, {}))
         gewaehlt = laenge_waehlen(vg, plaene, kopf, positionen, k, tabellen, einst, auto)
         if vg is not None:
@@ -1493,13 +1557,13 @@ def variante_kennzahlen(g, v, saege):
                 else [])
 
 
-def laengen_vergleich_gruppe(g, k, tabellen, m, saege, basis_plan=None, einst=None):
+def laengen_vergleich_gruppe(g, k, tabellen, m, saege, basis_plan=None, einst=None, info=None):
     """Vergleichsdaten einer Gruppe (ohne Kosten) oder None, wenn es für sie keine Lieferlängen gibt.
     basis_plan: schon gerechnete Folgen mit der Stangenlänge des Angebots (spart eine Optimierung).
     Ergebnis dict(schluessel, profil, werkstoff, oberflaeche, stange, ausgenommen, basis_lieferbar,
     varianten=[Kennzahlen, die erste ist die Stangenlänge des Angebots, falls lieferbar]) und die Pläne
-    (Länge -> variante_planen) für die Übernahme."""
-    info = laengen_der_gruppe(g, k, tabellen, einst)
+    (Länge -> variante_planen) für die Übernahme. info: schon ermittelte laengen_info."""
+    info = info if info is not None else laengen_info(g, k, tabellen, m, einst)
     if not info["zeilen"] and not info["ausgenommen"]:
         return None, {}
     puffer = _n(einstellung_wert(einst, "zuschnitt_puffer"))
@@ -1513,6 +1577,7 @@ def laengen_vergleich_gruppe(g, k, tabellen, m, saege, basis_plan=None, einst=No
     gr = (g.profil, g.werkstoff, g.oberflaeche, g.stange, g.beistellung)
     return dict(schluessel=laengen_schluessel(gr), profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                 stange=g.stange, ausgenommen=info["ausgenommen"], basis_lieferbar=info["basis_lieferbar"],
+                zu_kurz=bool(info.get("zu_kurz")),
                 naht=any(t.drehung == opt.FEST for t in g.teile),
                 automatisch=bool(info["zeilen"]) and all(z.get("automatisch") for z in info["zeilen"]),
                 max_werkstueck=(m or {}).get("max_stange"), saege=saege,
@@ -1560,6 +1625,8 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
     basis = next((v for v in varianten if v["laenge"] == vg["stange"]), None)
     alt = [v for v in varianten if v["laenge"] != vg["stange"] and not v["fehler"]]
     std = f"{m_text(vg['stange'])}-m-Stangen empfohlen"
+    # Teil zu lang für die Stangenlänge des Angebots (laengen_info): wie nicht lieferbar, mit eigenem Text
+    nicht = "zu kurz für ein Teil" if vg.get("zu_kurz") else "nicht lieferbar"
     if vg["ausgenommen"]:
         return dict(out, empfehlung=LAENGE_STANDARD, titel=std, beste=vg["stange"],
                     begruendung="Profil ist vom Vergleich der Lieferlängen ausgenommen (Profile: Lieferlängen "
@@ -1569,7 +1636,7 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
                  else "; ".join(f"{m_text(v['laenge'])} m: {v['fehler']}" for v in varianten if v["fehler"]))
         if basis is None:
             return dict(out, empfehlung=LAENGE_ANGABEN_FEHLEN, titel="Vergleich nicht möglich – Angaben fehlen",
-                        beste=None, begruendung=f"{m_text(vg['stange'])} m ist nicht lieferbar und keine andere "
+                        beste=None, begruendung=f"{m_text(vg['stange'])} m ist {nicht} und keine andere "
                                                 f"Lieferlänge ist ausführbar ({grund}).")
         return dict(out, empfehlung=LAENGE_STANDARD, titel=std, beste=vg["stange"],
                     begruendung=f"Keine ausführbare andere Lieferlänge ({grund}).")
@@ -1580,8 +1647,15 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
     if basis is None:
         if beste["fehlt"]:
             return dict(out, empfehlung=LAENGE_ANGABEN_FEHLEN, titel="Vergleich nicht möglich – Angaben fehlen",
-                        beste=beste["laenge"], begruendung=f"{m_text(vg['stange'])} m ist nicht lieferbar; "
+                        beste=beste["laenge"], begruendung=f"{m_text(vg['stange'])} m ist {nicht}; "
                                                            + "; ".join(beste["fehlt"]) + ".")
+        if vg.get("zu_kurz"):
+            return dict(out, empfehlung=LAENGE_NUR_ALTERNATIVE, beste=beste["laenge"],
+                        titel=f"Teil zu lang für {m_text(vg['stange'])} m – {m_text(beste['laenge'])}-m-Stangen "
+                              f"verwenden",
+                        begruendung=f"Mindestens ein Teil {vg['profil']} / {vg['werkstoff']} passt nicht auf die "
+                                    f"{mm_text(vg['stange'])}-mm-Stange; geplant wird mit der günstigsten "
+                                    f"ausführbaren längeren Lieferlänge.")
         return dict(out, empfehlung=LAENGE_NUR_ALTERNATIVE, beste=beste["laenge"],
                     titel=f"{m_text(vg['stange'])} m nicht lieferbar – {m_text(beste['laenge'])}-m-Stangen verwenden",
                     begruendung=f"Für {vg['profil']} / {vg['werkstoff']} ist {mm_text(vg['stange'])} mm nicht als "
