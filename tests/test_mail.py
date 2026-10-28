@@ -254,7 +254,7 @@ dlg = StepPruefDialog(None, mw, k, "1.4301", 1, vorpruefung=lambda: ([], 0), hin
 assert dlg.mail_hinweis is not None and "Aus der E-Mail" in dlg.mail_hinweis.text() and "KW" in dlg.mail_hinweis.text()
 assert StepPruefDialog(None, [dict(mw[0])], k, "1.4301", 1, vorpruefung=lambda: ([], 0)).mail_hinweis is None
 ok("Prüfdialog zeigt „Aus der E-Mail: …“ (nur mit Mail)")
-# ------------------------------------------------------------------ robuster und intelligenter (0.9.169)
+# ------------------------------------------------------------------ robuster und intelligenter (0.9.170)
 RTF = (b"{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}\\pard Bitte 5 Stk MG-01\\par Material 1.4301\\par Gr\\'fc\\'dfe\\par}")
 r = mail.aus_bytes(bau.msg_rtf("Alt", bau.rtf_mela(RTF), [("A.stp", b"x")]))
 assert r.text == "Bitte 5 Stk MG-01\nMaterial 1.4301\nGrüße" and r.anhaenge == [("A.stp", b"x")], r.text

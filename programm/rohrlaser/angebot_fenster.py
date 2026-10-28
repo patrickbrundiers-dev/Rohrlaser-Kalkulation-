@@ -1360,6 +1360,18 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst, nur=None):
         html.append("</table>")
         html.append(f"<p><span style='color:{farbe.get(b['empfehlung'], '#202020')}'><b>{b['titel']}</b></span><br>"
                     f"{b['begruendung']}</p>")
+        mi = b.get("mischung")
+        if mi:      # Vorschlag Mischen: nur zum Ansehen, der Schnittplan bleibt (Patrick 28.10.2026)
+            statt = " bzw. ".join(f"{_z(x)} € mit nur {rechnen.m_text(l)} m" for x, l in
+                                  ((mi["statt_basis"], vg["stange"]), (mi["statt_lang"], mi["laenge"])) if x is not None)
+            html.append(f"<p><span style='color:#1E5BA8'><b>Vorschlag Mischen: {mi['text']}</b></span><br>"
+                        f"Die am schlechtesten belegten {rechnen.m_text(mi['laenge'])}-m-Stangen werden durch "
+                        f"{rechnen.m_text(vg['stange'])}-m-Stangen ersetzt: {_z(mi['gesamt'])} € statt {statt} "
+                        f"(spart {_z(mi['ersparnis'])} €, Materiallänge {_z(mi['mischung']['material_mm'] / 1000, 1)} m, "
+                        f"{_z(mi['mischung']['werkstuecke'], 0)} Beladungen"
+                        + (f", Angaben fehlen: {', '.join(mi['fehlt'])}" if mi["fehlt"] else "")
+                        + f"). <a href='mischung:{i}:{mi['laenge']}'>Stangenbelegung ansehen …</a> <i>Nur ein "
+                        "Vorschlag zum Ansehen – der Schnittplan wird dadurch nicht geändert.</i></p>")
         links = [f"<a href='laenge:{i}:{v['laenge']}'>{rechnen.m_text(v['laenge'])}-m-Stangen übernehmen</a>"
                  for v in b["varianten"] if v["laenge"] != geplant and v["laenge"] != vg["stange"] and not v["fehler"]]
         if geplant != vg["stange"] and vg["basis_lieferbar"]:
@@ -1380,6 +1392,8 @@ def laengen_sinnvoll(erg, kopf, positionen, k, tabellen, einst):
             texte.append(f"{vg['profil']}: {rechnen.m_text(vg['gewaehlt'])} m geplant")
         elif b["empfehlung"] in (rechnen.LAENGE_ALTERNATIVE, rechnen.LAENGE_NUR_ALTERNATIVE):
             texte.append(f"{vg['profil']}: {b['titel']}")
+        if b.get("mischung") and not b["mischung"]["fehlt"]:
+            texte.append(f"{vg['profil']}: Vorschlag Mischen {b['mischung']['text']} spart {_z(b['mischung']['ersparnis'])} €")
     return " · ".join(texte) or None
 
 
@@ -4829,7 +4843,10 @@ class AngebotSeite(QWidget):
 
     def laenge_waehlen(self, link):
         """Link 'laenge:<Gruppe>:<Länge>' aus dem Vergleich der Lieferlängen: Länge für die Gruppe übernehmen (0 = wieder
-        die Stangenlänge des Angebots), speichern und neu optimieren."""
+        die Stangenlänge des Angebots), speichern und neu optimieren. 'mischung:<Gruppe>:<Länge>': Stangenbelegung
+        des Vorschlags Mischen ansehen (mischung_zeigen)."""
+        if link.startswith("mischung:"):
+            return self.mischung_zeigen(link)
         try:
             _, i, laenge = link.split(":")
             vg = self.ergebnis["laengen"][int(i)]
@@ -4849,6 +4866,40 @@ class AngebotSeite(QWidget):
                 f"{rechnen.m_text(laenge)}-m-Stangen übernommen, Schnittplan neu optimiert." if laenge else
                 f"wieder mit {rechnen.m_text(vg['stange'])}-m-Stangen geplant, Schnittplan neu optimiert."))
         return ok
+
+    def mischung_zeigen(self, link):
+        """Stangenbelegung des Vorschlags Mischen (z. B. 10 × 12 m + 1 × 6 m) in einem eigenen Fenster, nur zum
+        Ansehen: der Schnittplan bleibt (Patrick 28.10.2026)."""
+        try:
+            _, i, laenge = link.split(":")
+            vg = self.ergebnis["laengen"][int(i)]
+            laenge = int(laenge)
+        except (ValueError, IndexError, KeyError, TypeError):
+            return False
+        stangen = rechnen.mischung_stangen(self.kopf, self.positionen, self.k, self.tabellen, self.einst, vg, laenge)
+        if not stangen:
+            self.f.meldung("Der Vorschlag Mischen gilt nicht mehr: bitte neu optimieren.", fehler=True)
+            return False
+        n_lang = sum(1 for s in stangen if s["stange"] == laenge)
+        titel = (f"Vorschlag Mischen {vg['profil']}: {n_lang} × {rechnen.m_text(laenge)} m + "
+                 f"{len(stangen) - n_lang} × {rechnen.m_text(vg['stange'])} m (nur Ansicht)")
+        d = QDialog(self)
+        d.setWindowTitle(titel)
+        d.resize(1250, 760)
+        lay = QVBoxLayout(d)
+        hinweis = QLabel(f"<b>{titel}</b><br>Zugeschnittene {rechnen.m_text(laenge)}-m-Stangen erscheinen als ihre "
+                         "Werkstücke. Nur ein Vorschlag: Schnittplan und Kalkulation bleiben unverändert.")
+        hinweis.setWordWrap(True)
+        lay.addWidget(hinweis)
+        seite = StangenSeite(STANGEN_UEBERSICHT)
+        seite.setzen([(s, None) for s in rechnen.anzeige_stangen(dict(stangen=stangen))])
+        lay.addWidget(seite, 1)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        self.mischung_dialog = d          # Verweis halten (nicht modal)
+        d.show()
+        return True
 
     # -------------------------------------------------------------- Staffeln (staffel_seite.py)
     def staffel_neu(self):
