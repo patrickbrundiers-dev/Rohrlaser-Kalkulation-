@@ -13,6 +13,7 @@ import csv
 import hashlib
 import io
 import os
+import re
 import sys
 import tempfile
 import time
@@ -113,7 +114,7 @@ assert K["Kunden Nr."] == "10916" and K["Kunde:"] == "AP Glas GmbH" and K["Nachn
 assert K["Versandzone:"] == "Ab Werk" and K["Kundenanfrage:"] == "Bestellung Rohrlaserteile"
 assert K["Datum Kunde:"] == "23.10.2026" and len(K["Erstellungsdatum"]) == 10 and K["Erstellungsdatum"][2] == "."
 assert K["Versandkosten"] == "50.00" and K["Feste Versandkosten"] == "True" and K["Versand inkl."] == "False"
-assert K["Lieferzeit"].startswith("ca. 2 Wochen nach Auftragseingang") and "Lieferzeit" not in K["Lieferzeit"], K
+assert K["Lieferzeit"] == "2", K["Lieferzeit"]      # Wochen als Zahl (Zielprogramm liest double, 28.10.)
 assert euro(K["Preis"]) == ang["netto"], (K["Preis"], ang["netto"])
 assert K["Restblech min.€"] == "" or euro(K["Restblech min.€"]) > 0
 assert K["Aufrunden"] == "+0.01" and K["Kundenkurzbez."] == K["Anrede"] == K["Rabatt(Euros)"] == ""
@@ -123,14 +124,14 @@ for p, z, az in zip(P, [x for x in zeilen if x], [x for x in ang["zeilen"] if x[
     assert abs(euro(p["HK()"]) - z["herstell_teil"]) < 0.005
     hk = euro(p["Gesamt HK(€)"])
     assert abs(euro(p["Marge Netto()"]) - (euro(p["Preis"]) - z["herstell_position"])) < 0.006
-    assert p["Marge Netto%"].endswith(" %") and abs(euro(p["Marge Netto%"][:-2])
+    assert "%" not in p["Marge Netto%"] and abs(euro(p["Marge Netto%"])
                                                     - 100 * (az["gesamt"] - z["herstell_position"]) / z["herstell_position"]) < 0.06
     assert abs(euro(p["Gesamt Einkauf()"]) - z["material_position"]) < 0.005 and euro(p["Gesamt Einkauf()"]) > 0
     assert p["Werkstoff"] == "Stahl" and p["Werkstofftyp"] == "S235 EN10219" and p["Dicke"] == "3"
     assert p["Maschine"] == "T11" and p["Date"] == "23.10.2026" and p["Menge"] in ("2", "4")
     assert p["Bearbeitungszeit"].count(":") == 2 and len(p["Bearbeitungszeit"]) == 8
     assert p["Gesamtzeit"] > p["Bearbeitungszeit"]
-    assert euro(p["Einsatzgewicht"]) >= euro(p["Gew."]) > 0 and p["Verschnitt"].endswith("%")
+    assert euro(p["Einsatzgewicht"]) >= euro(p["Gew."]) > 0 and re.fullmatch(r"\d+", p["Verschnitt"])
     assert abs(euro(p["Gesamt Einkauf(Kg)"]) - euro(p["Einsatzgewicht"]) * int(p["Menge"])) < 0.01
     assert p["Liste der Arbeitsgänge"].startswith("Profile [Rechteckrohr 120x60x3]")
 p1, p2 = P
@@ -210,5 +211,31 @@ dauer = time.time() - t0
 assert len(lesen(pg[1].read_bytes())) == 201
 assert dauer < 30, dauer
 ok(f"C7 Formate HH:MM:SS/TT.MM.JJJJ, Text-Zahlen, leeres Angebot abgewiesen, 200 Positionen in {dauer:.1f} s")
+
+# ------------------------------------------------------------------ C8 Zahlenspalten für das Zielprogramm (28.10.)
+def zahlen_ok(werte, spalten):
+    """Jede Zahlenspalte leer oder als double lesbar (wie das Zielprogramm, Dezimalpunkt)."""
+    for n in spalten:
+        if werte[n] != "":
+            float(werte[n])           # ValueError = Fehler wie 'double' im Zielprogramm
+
+
+zahlen_ok(K, export.KOPF_ZAHLEN)
+for p in P + [dict(zip(pos[0], z)) for z in lesen(pg[1].read_bytes())[1:]]:
+    zahlen_ok(p, export.POSITION_ZAHLEN)
+assert set(export.KOPF_ZAHLEN) <= set(export.KOPF_SPALTEN) and set(export.POSITION_ZAHLEN) <= set(export.POSITION_SPALTEN)
+assert all(p["Schneiden"] in ("", "N2", "O2", "Luft") or "₂" not in p["Schneiden"] for p in P), P
+lw = export.lieferzeit_wochen
+assert lw(dict(lieferzeit_art="Wochen", lieferzeit_wert="3")) == 3
+assert lw(dict(lieferzeit_art="Arbeitstage", lieferzeit_wert="7")) == 1.4
+assert lw(dict(lieferzeit_art="Kalenderwoche", lieferzeit_wert="46/2026", datum="2026-10-28")) == 2      # Mo 9.11.
+assert lw(dict(lieferzeit_art="Lieferdatum", lieferzeit_wert="2026-11-15", datum="2026-10-28")) == 3   # 18 Tage
+assert lw(dict(lieferzeit_art="Lieferdatum", lieferzeit_wert="2026-10-01", datum="2026-10-28")) == 0
+for kaputt in (dict(lieferzeit_art="nur Text", lieferzeit_zusatz="ca. 2 Wochen"), dict(lieferzeit_art="Wochen",
+               lieferzeit_wert="ca. 2"), dict(lieferzeit_art="Kalenderwoche", lieferzeit_wert="KW 46"), {}, None):
+    assert lw(kaputt) is None, kaputt
+    kz = export.kopf_zeile(dict(kaputt or {}, kundennr="1"), [], {}, {}, [], fenster.db.kontext())
+    assert kz["Lieferzeit"] == "", kz["Lieferzeit"]
+ok("C8 Zahlenspalten nur Zahlen (Lieferzeit in Wochen, Marge/Verschnitt ohne %), Freitext-Lieferzeit leer statt Fehler")
 
 print("OK: CSV-Export Angebotskopf/Angebotspositionen")

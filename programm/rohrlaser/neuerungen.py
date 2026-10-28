@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.166", "<b>STEP-Import für typische Laserteile robuster</b> (Testreihe nach Beispielbildern: Profile mit "
+    ["0.9.169", "<b>STEP-Import für typische Laserteile robuster</b> (Testreihe nach Beispielbildern: Profile mit "
                 "Lochbildern auf mehreren Seiten, Kerben, Ausklinkungen, C-Profile, Kantteile): <b>offene Profile</b> "
                 "(U, C, L, Kantprofil) zeigen Ausklinkungen am Ende (auch T-förmig), Kerben im Schenkel und "
                 "V-Ausschnitte mit dem echten Umriss wie in der STEP statt als Kreis; eine breite Kerbe über drei "
@@ -31,6 +31,15 @@ NEUERUNGEN = [
                 "Vorschlag auch nach dem Kern-Ø nach ISO (M8 = 6,647) und für ausmodellierte Gewinde "
                 "([[bohrungen_pruefen]]).",
      "STEP: offene Profile mit echtem Umriss, Senkung durch die Wand, Gewinde nach ISO-Kern-Ø und ausmodelliert."],
+    ["0.9.168", "<b>CSV-Dateien robuster</b>: Der <b>Kunden-Import</b> liest jetzt auch Dateien aus Excel für Mac, "
+                "Unicode-Text (UTF-16), Komma- und Tab-Dateien, <i>sep=;</i> und Titelzeilen, stürzt bei kaputten "
+                "Dateien nicht mehr ab und nennt bei jedem Fehler Zeile und Spalte (Buchstabe und Titel); Export → "
+                "Import zeigt nie Fehler für unveränderte Kunden. Der <b>Kunden-Export</b> schützt führende Nullen, "
+                "+49-Telefonnummern und Ähnliches vor Excel und schreibt unter Windows keine doppelten Zeilenenden "
+                "mehr (auch Zukauf-, PLZ- und Fertigungs-CSV) ([[kunden_csv]]). Im <b>Angebots-CSV</b> stehen in "
+                "Zahlenspalten nur noch Zahlen: Lieferzeit in Wochen (2 statt „ca. 2 Wochen“), Marge Netto% und "
+                "Verschnitt ohne %-Zeichen, Schneidgas N2/O2 ([[csv_export]]).",
+     "CSV robuster: Kunden-Import mit Zeile/Spalte, Excel-Schutz; Angebots-CSV Lieferzeit als Zahl."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "
