@@ -4546,7 +4546,8 @@ def kapitel_baugruppen(i):
            "Stufe: kleine Mengen tragen mehr davon. Eine wiederverwendbare Vorrichtung mit Betrag zeigt den HINWEIS "
            "<i>wiederverwendbare Vorrichtung nicht berechnet</i>, damit das bewusst bleibt. Der Reiter "
            "<i>Stammdaten</i> nimmt Zeichnungsnummer, Revisionsstand, Werkstoff, Oberfläche und Bemerkungen auf; "
-           "Zeichnung, Revision, Werkstoff und Oberfläche stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet "
+           "Zeichnung, Revision, Werkstoff und Oberfläche stehen im Angebotstext ([[baugruppe_serie]] für "
+           "Serieneffekt und Losgröße). Der Reiter <i>Übersicht</i> listet "
            "oben einen <b>Kostenbalken</b> (Schweißen, Arbeitsgänge, umgelegte Einmalkosten, Fremdleistung je "
            "Baugruppe) und darunter alle Nahtgruppen und Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
     i.text("Aus einer STEP-Baugruppe: im Prüfdialog des STEP-Imports bei <b>Sätze</b> das Häkchen <b>als "
@@ -4571,6 +4572,19 @@ def kapitel_baugruppen(i):
            "<i>von Hand</i> – der Wert von Hand geht vor. <b>Aus Zusatzarbeiten …</b> stellt €/kg auf Gewicht, "
            "€/m² auf Oberfläche und €/m auf Länge. Das <b>Gewicht der Baugruppe</b> für das Wenden "
            "([[vorkalkulation_baugruppe]]) ist das Gewicht im Reiter Stammdaten, leer die Summe der Einzelteile.")
+    i.abschnitt("Serieneffekt und Rüsten je Los", marke="baugruppe_serie")
+    i.text("Wer viele gleiche Baugruppen schweißt, wird schneller. Im Reiter <i>Stammdaten</i> der Baugruppe trägt "
+           "<b>Serieneffekt [% je Verdopplung]</b> diese Lernkurve ein (leer = aus); <b>Losgröße zum Rüsten</b> "
+           "lässt die Rüstzeiten je Los anfallen statt einmal je Auftrag.", kurz=True)
+    i.tabelle(["Feld", "Rechnung"], [
+        ["Serieneffekt", "Zeit je Baugruppe × Anzahl<sup>log2(1 − p)</sup>, z. B. 10 %: 2 Stück 90 %, 4 Stück "
+                         "81 %, 8 Stück 72,9 % der Zeit für 1 Stück. Gilt für Schweißen und eigene Arbeitsgänge, "
+                         "nicht für Fremdleistungen, Material, Schweißzusatz und Einmalkosten"],
+        ["höchstens bis", "Untergrenze in % der Zeit für 1 Stück (leer = 70 %)"],
+        ["Losgröße", "Rüstzeiten der Arbeitsgänge × aufrunden(Anzahl ÷ Losgröße); Einmalbeträge (Vorrichtung, "
+                     "Lehre) bleiben einmal je Auftrag; leer = ein Los"]], [35, 230])
+    i.text("Beides rechnet je Staffelstufe mit deren Menge ([[staffeln]]): größere Stufen werden je Stück "
+           "günstiger, mehr Lose bringen mehr Rüsten. Die Summe unten im Editor nennt den Faktor und die Lose.")
     i.abschnitt("Vorkalkulation: Rüsten, Positionieren, Heften, Verputzen", marke="vorkalkulation_baugruppe")
     i.text("<b>Vorkalkulation rechnen</b> unten im Editor füllt, was sich aus Struktur und Teilen ableiten lässt: "
            "Heftpunkte und Nacharbeit je Nahtgruppe, die Positionierhilfe je Einzelteil und die Arbeitsgänge "
@@ -5020,7 +5034,11 @@ def kapitel_nachkalkulation(i):
             "<b>Abweichungsgrund</b>: Text, z. B. Nacharbeit oder Ausschuss; steht auch im PDF.",
             "<b>Schweißen Soll/Ist [min/m Naht]</b>: Schweißzeit je Meter Naht. Weicht das Ist bei mehreren "
             "Aufträgen in dieselbe Richtung ab, die Schweiß-Kennwerte ([[schweiss_stammdaten]]) prüfen und von Hand "
-            "anpassen; die Nachkalkulation ändert keine Stammdaten und keine Angebote.")
+            "anpassen; die Nachkalkulation ändert keine Stammdaten und keine Angebote.",
+            "<b>davon Rüsten / Positionieren / Verputzen</b> [h] (freiwillig): wie viel der Arbeitsgänge darauf "
+            "entfiel. Soll sind die Arbeitsgänge der Vorkalkulation ([[vorkalkulation_baugruppe]]). Die Werte zählen "
+            "nicht extra zu den Kosten (sie stecken in den Arbeitsgängen), aus ihnen lernen die Regeln der "
+            "Vorkalkulation.")
     i.text("Die Zeilen der Baugruppen stehen im Vergleich als <i>Name: Schweißen</i>, <i>Name: Arbeitsgänge</i> usw. "
            "und zählen zu den Einzelkosten. Angebote ohne Baugruppe zeigen die Tabelle nicht. Ein Ist, das mindestens "
            "10 % über dem Soll liegt, ist rot hinterlegt, mindestens 10 % darunter grün. Stammt die Baugruppe aus "
@@ -6255,6 +6273,10 @@ def kapitel_stammdaten(i):
            "Datum, Begründung und Programmversion unter <i>Bisherige Freigaben</i>; <b>Gewählte Freigabe "
            "zurücknehmen</b> stellt die alten Werte wieder her (Werte, die du seitdem von Hand geändert hast, "
            "bleiben). Verschickte Angebote ändern sich nie.")
+    i.text("Ebenso lernt die <b>Vorkalkulation</b>: Wer in der Nachkalkulation der Baugruppe <i>davon Rüsten</i>, "
+           "<i>davon Positionieren</i> bzw. <i>davon Verputzen</i> einträgt, bekommt hier je Art (Rüsten, "
+           "Positionieren, Nacharbeit) einen Faktor Ist ÷ Soll. Die Freigabe multipliziert alle Regeln dieser Art "
+           "der Schweiß-Vorkalkulation mit dem Faktor, auch zurücknehmbar.")
     i.text("Der Unterreiter <b>Schweiß-Vorkalkulation</b> hält die Regeln für <b>Vorkalkulation rechnen</b> "
            "([[vorkalkulation_baugruppe]]). Neue Datendateien bekommen ihn leer; <b>Richtwerte laden</b> trägt die "
            "fehlenden Zeilen mit Status <i>Richtwert</i> ein. Ändere die Werte nach den ersten Aufträgen und stelle "

@@ -42,7 +42,11 @@ STAMM_FELDER = (("kundenartikel", "Kundenartikelnummer"), ("zeichnung", "Zeichnu
                 ("revision", "Revisionsstand"), ("beschreibung", "Beschreibung"), ("werkstoff", "Werkstoff"),
                 ("oberflaeche", "Oberfläche / Beschichtung"), ("gewicht", "Gewicht [kg]"),
                 ("abmessungen", "Abmessungen"), ("verfahren", "Fertigungsverfahren"), ("bemerkung", "Bemerkungen"),
-                ("intern", "Interne Kalkulationshinweise"))
+                ("intern", "Interne Kalkulationshinweise"),
+                # Plan 28.10.2026, Schritt 3: Serieneffekt (leer = aus) und Rüsten je Los (leer = ein Los je Auftrag)
+                ("serie", "Serieneffekt [% je Verdopplung]"), ("serie_min", "Serieneffekt höchstens bis [% der Zeit]"),
+                ("los", "Losgröße zum Rüsten [Stück]"))
+SERIE_MIN = 70.0        # Untergrenze des Serieneffekts [% der Zeit für 1 Stück], wenn nichts eingetragen ist
 
 
 def _n(v):
@@ -649,18 +653,54 @@ def arbeitsgang_rechnen(ag, saetze):
 
 
 # ------------------------------------------------------------------ Baugruppe rechnen
+def stamm_zahl(bg, feld):
+    """Zahl aus einem Textfeld der Stammdaten der Baugruppe (Komma erlaubt, Einheit dahinter egal), sonst None."""
+    t = str(((bg or {}).get("stamm") or {}).get(feld) or "").replace(",", ".").replace("%", " ").split()
+    try:
+        w = float(t[0]) if t else None
+    except ValueError:
+        return None
+    return w if w is not None and math.isfinite(w) else None
+
+
+def serie_faktor(bg, n):
+    """(Faktor auf die laufenden Zeiten, Text) des Serieneffekts (Plan 28.10.2026, Schritt 3): je Verdopplung der
+    Anzahl Baugruppen p % weniger Zeit (Lernkurve, mittlere Zeit je Stück = n ^ log2(1 − p)), höchstens bis zur
+    Untergrenze (Vorgabe 70 % der Zeit für 1 Stück). Leer bzw. 0 % oder 1 Stück = 1."""
+    p = stamm_zahl(bg, "serie")
+    if p is None or p <= 0 or p >= 100 or not _zahl(n) or n <= 1:
+        return 1.0, ""
+    u = stamm_zahl(bg, "serie_min")
+    u = (u if u is not None and 0 < u <= 100 else SERIE_MIN) / 100
+    f = n ** math.log2(1 - p / 100)
+    if f < u:
+        return u, f"Serieneffekt {_text(p)} % je Verdopplung: Untergrenze {_text(round(u * 100, 1))} % bei {_text(n)} Stk."
+    return f, f"Serieneffekt {_text(p)} % je Verdopplung: {_text(round(f * 100, 1))} % der Zeit bei {_text(n)} Stk."
+
+
+def lose(bg, n):
+    """Anzahl Lose zum Rüsten: aufrunden(Anzahl ÷ Losgröße der Stammdaten), ohne Losgröße 1 Los je Auftrag."""
+    los = stamm_zahl(bg, "los")
+    if los is None or los < 1 or not _zahl(n) or n <= 0:
+        return 1
+    return max(1, math.ceil(n / int(los) - 1e-9))
+
+
 def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
     der Position. mengen = bg_mengen.je_knoten (Arbeitsgänge mit Bezug rechnen mit der Menge aus den Einzelteilen;
     ohne: die eingetragene Menge). Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
     zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, werte, vorschlag (Vorkalkulation offen)}], fehler, warnungen, richtwert).
-    eigen/fremd enthalten den umgelegten Einmalanteil (einmal)."""
+    eigen/fremd enthalten den umgelegten Einmalanteil (einmal). Serieneffekt (serie_faktor) auf die laufenden
+    eigenen Zeiten (Nahtgruppen, Arbeitsgänge ohne Fremdleistung), Rüstzeit × Anzahl Lose (lose); serie, lose und
+    serie_text im Ergebnis."""
     from .vorkalk import NAHT_FELDER, VORSCHLAG, ag_status, naht_status
     bg = lesen(p.get("baugruppe"))
     n = anzahl if anzahl is not None else p.get("stueck")
     n = n if _zahl(n) and n > 0 else 0
     out = dict(eigen=0.0, fremd=0.0, einmal=0.0, einmal_fremd=0.0, einmal_gesamt=0.0, zeit_min=0.0, schweiss_min=0.0, naht_m={},
-               zeilen=[], fehler=None, warnungen=[], richtwert=False, wiederverwendbar=0, verbrauch=0.0)
+               zeilen=[], fehler=None, warnungen=[], richtwert=False, wiederverwendbar=0, verbrauch=0.0, serie=1.0,
+               lose=1, serie_text="")
     if bg is None:
         out["fehler"] = "Baugruppendaten fehlen"
         return out
@@ -669,6 +709,9 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
         out["fehler"] = sf
         return out
     km = knoten_map(bg)
+    s, out["serie_text"] = serie_faktor(bg, n)
+    n_lose = lose(bg, n)
+    out.update(serie=s, lose=n_lose)
 
     def kname(kid):
         return (km.get(kid) or {}).get("name") or "" if kid else ""
@@ -679,6 +722,8 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
             out["warnungen"].append(f"Nahtgruppe {nt.get('nr') or ''}: Unterbaugruppe fehlt".replace("  ", " "))
             continue
         r = naht_rechnen(nt, tabellen, saetze)
+        if s != 1.0:
+            r = dict(r, zeit_min=r["zeit_min"] * s, kosten=(r["kosten"] - r["material"]) * s + r["material"])
         if r["fehlt"]:
             out["warnungen"].append(f"Nahtgruppe {nt.get('nr') or ''}: {r['fehlt']}".replace("  ", " "))
         out["richtwert"] |= r["richtwert"]
@@ -706,6 +751,12 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
                 out["warnungen"].append(f"{ag.get('name') or 'Arbeitsgang'}: Menge aus {grund}")
                 ag = dict(ag, menge=0)
         r = arbeitsgang_rechnen(ag, saetze)
+        if s != 1.0 and not r["fremd"]:
+            r = dict(r, laufend_min=r["laufend_min"] * s,
+                     laufend=r["laufend"] - r["laufend_min"] * (1 - s) / 60 * _n(r["satz"]))
+        if n_lose > 1 and r["einmal_min"]:
+            r = dict(r, einmal=r["einmal"] + r["einmal_min"] * (n_lose - 1) / 60 * _n(r["satz"]),
+                     einmal_min=r["einmal_min"] * n_lose)
         if r["fehlt"]:
             out["warnungen"].append(r["fehlt"])
         if r["umlage"] == UMLAGE_WIEDER and r["einmal"]:

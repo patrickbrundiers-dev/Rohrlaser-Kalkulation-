@@ -41,6 +41,13 @@ ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "E
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
 LANGTEXT = ("beschreibung", "bemerkung", "intern")
+STAMM_RECHNEN = {   # Felder der Stammdaten, die die Rechnung ändern: (Platzhalter, Tooltip)
+    "serie": ("leer = aus", "Lernkurve: je Verdopplung der Anzahl Baugruppen so viel % weniger Zeit für Schweißen und "
+                            "eigene Arbeitsgänge (z. B. 10). Gilt je Staffelstufe mit deren Menge; Fremdleistungen, "
+                            "Material und Einmalkosten bleiben"),
+    "serie_min": ("leer = 70", "Untergrenze des Serieneffekts in % der Zeit für 1 Stück"),
+    "los": ("leer = ein Los je Auftrag", "Rüstzeiten der Arbeitsgänge fallen je Los an: aufrunden(Anzahl ÷ Losgröße) "
+                                         "× Rüstzeit; Einmalbeträge (Vorrichtung) bleiben einmal je Auftrag")}
 HERKUNFT = {vorkalk.VORSCHLAG: "Vorschlag der Vorkalkulation (gelb, mit „Vorschläge bestätigen“ übernehmen)",
             vorkalk.BESTAETIGT: "Vorschlag bestätigt", vorkalk.HAND: "von Hand (die Vorkalkulation lässt den Wert stehen)",
             bg_mengen.AUTO: "automatisch aus den Einzelteilen (Bezug; eine Menge von Hand stellt auf „von Hand“)"}
@@ -2450,6 +2457,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 f.setFixedHeight(54)
             else:
                 f = QLineEdit(str(self.bg["stamm"].get(n) or ""))
+            if n in STAMM_RECHNEN:          # Serieneffekt, Losgröße: rechnen sofort mit
+                f.setPlaceholderText(STAMM_RECHNEN[n][0])
+                f.setToolTip(STAMM_RECHNEN[n][1])
+                f.textChanged.connect(self.aktualisieren)
             self.stamm_felder[n] = f
             form.addRow(titel, f)
         self.stamm_wahl = {}
@@ -2600,7 +2611,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             f"<b>Je Baugruppe:</b> Schweißen und Arbeitsgänge {_euro(e['eigen'])}, Fremdleistungen "
             f"{_euro(e['fremd'])}, davon Einmalkosten umgelegt {_euro(e['einmal'])} (gesamt "
             f"{_euro(e['einmal_gesamt'])} bei {anzahl} Stk.) · Zeit {_min(e['zeit_min'])}, davon Schweißen "
-            f"{_min(e['schweiss_min'])} · {n_teile} Einzelteil(e). <b>Status:</b> {self.status}")
+            f"{_min(e['schweiss_min'])} · {n_teile} Einzelteil(e)"
+            + (f" · {e['serie_text']}" if e.get("serie_text") else "")
+            + (f" · Rüsten {e['lose']} Lose" if e.get("lose", 1) > 1 else "")
+            + f". <b>Status:</b> {self.status}")
         self.summe.setTextFormat(Qt.RichText)
         self.balken.setzen(baugruppe.kostenaufteilung(e))
         naht = ", ".join(f"{v} {_text(round(m, 2))} m" for v, m in sorted(e["naht_m"].items())) or "keine"

@@ -3232,6 +3232,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zukauf_einstand=_summe("zukauf_einstand_teil"), zukauf_aufschlag=_summe("zukauf_aufschlag_teil"),
                   zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen,
                   baugruppe_eigen=_summe("bg_eigen_teil"), baugruppe_fremd=_summe("bg_fremd_teil"),
+                  baugruppe_schweiss_min=_summe("bg_schweiss_min"),
                   baugruppe_einmal=_summe("bg_einmal_teil"), baugruppe_zeit_min=_summe("bg_zeit_min"),
                   baugruppe_laufend_eigen=_summe("bg_laufend_eigen_teil"),
                   baugruppe_einmal_ruesten=_summe("bg_einmal_ruesten_teil"),
@@ -3485,9 +3486,12 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
                      "Menge × Preis je Einheit, ggf. Mindestbetrag", "Stammdaten Zusatzarbeiten", art_="Fremd/Preis"))
     # Schweißbaugruppen: Schweißen und eigene Arbeitsgänge (baugruppe.rechnen), Fremdleistungen ohne Zeit
     bg_min = _n(summen.get("baugruppe_zeit_min"))
+    bg_sw = _n(summen.get("baugruppe_schweiss_min"))
     out.append(zeile("Schweißbaugruppen", summen.get("baugruppen", 0), "Baugruppen", None, None, bg_min,
                      _n(summen.get("baugruppe_eigen")), f"{zahl(bg_min, 1)} min Schweißen und Arbeitsgänge je Baugruppe "
-                     "× Stückzahl", "Schweißbaugruppen (Nahtgruppen, Arbeitsgänge)", art_="Personal", parallel=False))
+                     "× Stückzahl" + (f", davon Schweißen {zahl(bg_sw, 1)} min, Arbeitsgänge {zahl(bg_min - bg_sw, 1)} "
+                                      "min" if bg_sw and bg_min else ""),
+                     "Schweißbaugruppen (Nahtgruppen, Arbeitsgänge)", art_="Personal", parallel=False))
     out.append(zeile("Schweißbaugruppen Fremdleistung (€)", summen.get("baugruppen", 0), "Baugruppen", None, None, None,
                      _n(summen.get("baugruppe_fremd")), "Fremdleistungen der Baugruppen", "Schweißbaugruppen",
                      art_="Fremd/Preis"))

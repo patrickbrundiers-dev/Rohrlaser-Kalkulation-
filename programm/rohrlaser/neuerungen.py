@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.172", "<b>Schweißbaugruppe: Serieneffekt, Rüsten je Los, Lernen der Vorkalkulation</b>: In den Stammdaten der "
+                "Baugruppe senkt ein <b>Serieneffekt</b> (% je Verdopplung, mit Untergrenze) die Zeit für Schweißen "
+                "und eigene Arbeitsgänge je Staffelstufe; die <b>Losgröße</b> lässt Rüstzeiten je Los anfallen "
+                "([[baugruppe_serie]]). Die Nachkalkulation nimmt freiwillig <i>davon Rüsten / Positionieren / "
+                "Verputzen</i> auf, daraus schlägt das Programm Faktoren für die Regeln der Vorkalkulation vor. Die "
+                "Zeiten zeigen Schweißen und Arbeitsgänge getrennt.",
+     "Schweißbaugruppe: Serieneffekt, Rüsten je Los, Vorkalkulation lernt aus der Nachkalkulation."],
     ["0.9.171", "<b>Schweißbaugruppe: Werkstoff und Nachbehandlung</b>: Nahtgruppen haben die Spalte <b>Werkstoff</b> "
                 "(Faktor auf die Lichtbogenzeit, Richtwert Edelstahl 1,3); die Vorkalkulation schlägt ihn aus den "
                 "Teilen vor. Neu vorgeschlagen werden <i>Beizen / Passivieren</i> bei Edelstahl, <i>Richten</i> bei "
