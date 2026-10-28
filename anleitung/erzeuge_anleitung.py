@@ -3601,8 +3601,11 @@ def kapitel_optimieren(i):
             "zugeschnitten wird; der Puffer ist Verschnitt. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
             "Vorgabe 3 mm). Passen Werkstücke deshalb nicht mehr zusammen in die Stange, kommen sie auf die nächste.",
             "Gerechnet wird zweistufig: erst die Teile zu Werkstücken (dieselbe Optimierung wie bei normalen "
-            "Stangen, mit mehreren Ziel-Längen: Beladelänge, Lieferlänge / 2, / 3 …), dann die Werkstücke auf die "
-            "Lieferstangen. Es gilt die Planung mit den wenigsten Stangen, dann den wenigsten Beladungen. Eine "
+            "Stangen, mit mehreren Ziel-Längen: Beladelänge, Lieferlänge / 2, / 3 … und bei bis zu 300 Teilen "
+            "zusätzlich alle 250 mm ab der Länge, die das längste Teil braucht), dann die Werkstücke auf die "
+            "Lieferstangen. Die Ziel-Länge ist nur die Obergrenze: jedes Werkstück wird danach auf seinen Bedarf "
+            "gekürzt (z. B. 4.601 + 3.751 + 3.642 mm aus einer 12-m-Stange). Es gilt die Planung mit den wenigsten "
+            "Stangen, dann den wenigsten Beladungen. Eine "
             "eigene Kontrolle prüft, dass kein Werkstück und keine Stange überbelegt ist und jedes Teil genau einmal "
             "vorkommt.",
             "Längen bis zur Beladelänge (z. B. 6.500 mm) werden direkt geladen, ohne Zuschnitt.",
