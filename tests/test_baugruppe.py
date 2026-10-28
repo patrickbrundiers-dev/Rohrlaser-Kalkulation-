@@ -70,7 +70,8 @@ db.stammdaten_ersetzen({
     "schweissverfahren": [dict(verfahren="MAG", bezeichnung="MAG Hand", satz_id="Schweißen", lichtbogen=40, heft_s=6,
                                aktiv="ja", status="geprüft")],
     "schweiss_kennwerte": [dict(verfahren="MAG", nahtart="Kehlnaht", mass_bis=4, min_m=1.5, status="geprüft"),
-                           dict(verfahren="MAG", nahtart="Kehlnaht", mass_bis=6, min_m=2.4, status="geprüft"),
+                           dict(verfahren="MAG", nahtart="Kehlnaht", mass_bis=5, min_m=2.4, status="geprüft"),  # a5 auf
+                           dict(verfahren="MAG", nahtart="Kehlnaht", mass_bis=6, min_m=2.4, status="geprüft"),  # Zeile
                            dict(verfahren="MAG", nahtart="Stumpfnaht", mass_bis=5, min_m=3.0, status="geprüft")],
     "schweiss_faktoren": [dict(art="Schweißlage", wert="PF", faktor=1.2, status="geprüft")],
 }, {}, "Test")
@@ -781,12 +782,12 @@ ok(f"B21 Schweißplan ({len(b['naehte'])} Nahtgruppen, Vorgabe {b['vorgabe_min']
 from rohrlaser import kennwerte  # noqa: E402
 from rohrlaser.kennwerte_dialog import KennwerteDialog  # noqa: E402
 
-assert [baugruppe.a_mass_regel(t) for t in (3, 4, 5, 0.5, None)] == [2.0, 2.5, 3.5, None, None]
-assert baugruppe.a_mass_regel(4, 0.5) == 2.0
+assert [baugruppe.a_mass_regel(t) for t in (3, 4, 5, 0.5, None)] == [3.0, 3.0, 3.5, 0.5, None]   # mindestens 3
+assert baugruppe.a_mass_regel(4, 0.5) == 3.0 and baugruppe.a_mass_regel(8, 0.5) == 4.0
 v_k = dict(knoten="", nahtart="Kehlnaht", laenge=150, anzahl=2, dicke=4.0)
 assert "mass" not in baugruppe.vorschlag_naht(v_k)                                          # ohne Häkchen wie bisher
 n_r = baugruppe.vorschlag_naht(v_k, 0.7)
-assert n_r["mass"] == n_r["mass_regel"] == 2.5 and baugruppe.regel_offen(n_r)
+assert n_r["mass"] == n_r["mass_regel"] == 3.0 and baugruppe.regel_offen(n_r)
 g6 = baugruppe.leer()
 g6["naehte"] = [dict(n_r, id="r1", nr="1", verfahren="MAG")]
 p6 = dict(pos=910, art=BAUGRUPPE, stueck=1, baugruppe=baugruppe.speichern(g6))
@@ -800,7 +801,7 @@ db.einstellung_setzen("schweiss_a_regel", 0.5)
 d = BaugruppeDialog(None, p6, [p6], db.tabellen(), saetze, db=db)
 assert d._regel_faktor() == 0.5
 d.regel_bestaetigen()
-assert not baugruppe.regel_offen(d.bg["naehte"][0]) and d.bg["naehte"][0]["mass"] == 2.5
+assert not baugruppe.regel_offen(d.bg["naehte"][0]) and d.bg["naehte"][0]["mass"] == 3.0
 d.reject()
 db.einstellung_setzen("schweiss_a_regel", baugruppe.A_REGEL_VORGABE)
 

@@ -169,3 +169,36 @@ def eml(betreff="", text="", absender_name="", absender="", datum=None, anhaenge
         else:
             m.add_attachment(daten, maintype="application", subtype="octet-stream", filename=name)
     return bytes(m)
+
+
+def tnef(anhaenge, lang=True):
+    """winmail.dat mit Anhängen [(Name, bytes)]: Titel als 8.3-Kurzname, langer Name in den MAPI-Eigenschaften
+    (wie Outlook); lang=False: nur der Titel."""
+    def attr(stufe, kennung, art, wert):
+        return struct.pack("<BII", stufe, (art << 16) | kennung, len(wert)) + wert + struct.pack("<H", sum(wert) & 0xFFFF)
+    out = struct.pack("<IH", 0x223E9F78, 0x0001)
+    out += attr(1, 0x9006, 0x0006, b"\x00\x00\x00\x00")          # attTnefVersion (Nachricht)
+    for name, daten in anhaenge:
+        kurz = (name.split(".")[0][:6].upper() + "~1." + name.rsplit(".", 1)[-1][:3].upper()).encode("cp1252") + b"\0"
+        out += attr(2, 0x9002, 0x0006, b"\x00" * 14)               # attAttachRendData
+        out += attr(2, 0x8010, 0x0001, kurz)                        # attAttachTitle
+        out += attr(2, 0x800F, 0x0006, daten)                       # attAttachData
+        if lang:
+            n = name.encode("utf-16-le") + b"\0\0"
+            mapi = struct.pack("<I", 2)
+            mapi += struct.pack("<HH", 0x0003, 0x0E21) + struct.pack("<I", 0)        # PidTagAttachNumber (PT_LONG)
+            mapi += struct.pack("<HH", 0x001F, 0x3707) + struct.pack("<II", 1, len(n)) + n + b"\0" * (-len(n) % 4)
+            out += attr(2, 0x9005, 0x0006, mapi)                    # attAttachment
+    return out
+
+
+def rtf_mela(rtf):
+    """Unkomprimiertes RTF im Format von PidTagRtfCompressed ('MELA')."""
+    return struct.pack("<IIII", len(rtf) + 12, len(rtf), 0x414C454D, 0) + rtf
+
+
+def msg_rtf(betreff, rtf_stream, anhaenge=()):
+    """.msg ohne Text und HTML, nur mit RTF-Strom (ältere Outlook-Versionen)."""
+    stroeme = _nachricht(betreff, None, "Alt Kunde", "alt@kunde-alt.de", None, list(anhaenge))
+    stroeme["__substg1.0_10090102"] = rtf_stream
+    return cfb(stroeme)

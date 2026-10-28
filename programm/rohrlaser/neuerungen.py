@@ -21,10 +21,65 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.171", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
+    ["0.9.178", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
                 "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
                 "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",
      "Datendatei: schneller bei vielen Angeboten (Indizes)."],
+    ["0.9.177", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
+                "3 mm und mindestens √(dickere Wand) − 0,5 vor (EN 1993-1-8), nie mehr als die dünnere Wand. Liegt "
+                "ein a-Maß zwischen zwei Kennwertzeilen, rechnet die Schweißzeit den Wert dazwischen (nach a²); dicke "
+                "Nähte werden mehrlagig mit Zeit je Zusatzlage. Heftpunkte zählen beide Enden mit, rundum nach dem "
+                "Umfang, Edelstahl und Aluminium enger; die Heftzeit wächst mit der Wanddicke. Neue Regeln unter "
+                "Einstellungen → Schweiß-Vorkalkulation (Richtwerte laden ergänzt sie) ([[vorkalkulation_baugruppe]]).",
+     "Schweißbaugruppe: a-Maß mit Mindestmaß, Kennwerte dazwischen, mehrlagig, Heftpunkte genauer."],
+    ["0.9.176", "<b>Schweißbaugruppe: Erreichbarkeit der Nähte aus STEP</b>: Die STEP-Messung prüft je Naht, ob der "
+                "Brenner hinkommt (andere Teile im Weg, enge Ecken). Die Vorkalkulation schlägt daraus die "
+                "<b>Zugänglichkeit</b> je Nahtgruppe und die <b>Wendevorgänge</b> vor (gelb, mit Begründung). Nähte, "
+                "die gar nicht erreichbar sind, zeigt das 3D orange, der Status warnt "
+                "([[baugruppe_erreichbar]]).",
+     "Schweißbaugruppe: Zugänglichkeit und Wenden aus der Erreichbarkeit im STEP."],
+    ["0.9.175", "<b>Schweißbaugruppe: Serieneffekt, Rüsten je Los, Lernen der Vorkalkulation</b>: In den Stammdaten der "
+                "Baugruppe senkt ein <b>Serieneffekt</b> (% je Verdopplung, mit Untergrenze) die Zeit für Schweißen "
+                "und eigene Arbeitsgänge je Staffelstufe; die <b>Losgröße</b> lässt Rüstzeiten je Los anfallen "
+                "([[baugruppe_serie]]). Die Nachkalkulation nimmt freiwillig <i>davon Rüsten / Positionieren / "
+                "Verputzen</i> auf, daraus schlägt das Programm Faktoren für die Regeln der Vorkalkulation vor. Die "
+                "Zeiten zeigen Schweißen und Arbeitsgänge getrennt.",
+     "Schweißbaugruppe: Serieneffekt, Rüsten je Los, Vorkalkulation lernt aus der Nachkalkulation."],
+    ["0.9.174", "<b>Schweißbaugruppe: Werkstoff und Nachbehandlung</b>: Nahtgruppen haben die Spalte <b>Werkstoff</b> "
+                "(Faktor auf die Lichtbogenzeit, Richtwert Edelstahl 1,3); die Vorkalkulation schlägt ihn aus den "
+                "Teilen vor. Neu vorgeschlagen werden <i>Beizen / Passivieren</i> bei Edelstahl, <i>Richten</i> bei "
+                "viel Naht je kg und dünner Wand und eine <i>Sichtprüfung</i> – mit Regeln unter Einstellungen → "
+                "Schweiß-Vorkalkulation (Richtwerte laden ergänzt sie) ([[vorkalkulation_baugruppe]]).",
+     "Schweißbaugruppe: Faktor Werkstoff, Vorschläge Beizen, Richten, Sichtprüfung."],
+    ["0.9.173", "<b>Schweißbaugruppe: Mengen aus den Einzelteilen</b>: Arbeitsgänge nach Gewicht, Fläche oder Länge "
+                "(Verzinken €/kg, Pulvern €/m², Prüfen je Teil) rechnen ihre Menge selbst – neue Spalte <b>Menge "
+                "aus</b> mit Gewicht, Oberfläche, Länge, Naht oder Teile; ändert sich ein Teil, ändert sich der Preis "
+                "mit. Über der Tabelle stehen Gewicht, Außenfläche, Nahtlänge und Anzahl Teile je Baugruppe. Das "
+                "Gewicht für das Wenden kommt ohne Eintrag in den Stammdaten aus der Summe der Teile "
+                "([[baugruppe_mengen]]).",
+     "Schweißbaugruppe: Menge aus Gewicht, Oberfläche, Länge, Naht oder Teile automatisch."],
+    ["0.9.172", "<b>E-Mail und Anfrageformular schlauer</b>: Ist der Absender unbekannt, legt das Programm den "
+                "Kunden mit Adresse, Ansprechpartner und Telefon aus Signatur bzw. Formular an – mit der Bemerkung "
+                "<i>Kunde prüfen</i> (bei Abbruch wieder entfernt). Das Anfrageformular wird wie die Mail ausgewertet "
+                "(Lieferzeit, Werkstoff). Robuster: ältere Outlook-Mails nur mit RTF-Text, <i>winmail.dat</i>, "
+                "beschädigte Anhänge. Intelligenter: bei Antworten zählt die neueste Nachricht, Lieferzeit auch als "
+                "Dauer (<i>in 3 Wochen</i>), Kunde über den Firmennamen in der Domain; Hinweise zu Mengenstaffel, "
+                "Zusatzarbeiten und doppelter Anfrage-Nr. ([[anfrage_mail]]). <b>PDF: Zeichnung oder Formular</b>: "
+                "Jede Seite eines PDFs (auch Scans) wird eingeordnet; Zeichnungen liefern nur ihr Schriftfeld "
+                "(Stückzahl, Werkstoff für das passende STEP-Teil, gelb), nie Positionen; die Einordnung lässt sich "
+                "im Prüfdialog umschalten ([[anfragen]]). <b>ZIP-Dateien</b> im Anfrage-Ordner oder aufs "
+                "Programm gezogen werden ausgepackt. Texterkennung bei mehreren Scans deutlich schneller.",
+     "Mail/Formular: neue Kunden („Kunde prüfen“), RTF/winmail.dat; PDF Zeichnung/Formular je Seite; ZIP auspacken."],
+    ["0.9.171", "<b>Artikelnummer aus der STEP-Datei besser</b>: Schreibt das CAD-System eine eigene "
+                "<b>Teilenummer</b> in die STEP-Datei, wird sie die Artikelnummer und die Benennung die Bezeichnung. "
+                "Namen werden bereinigt: CAD-Zusätze (<i>Rohr:1</i>, <i>Teil1&lt;1&gt;</i>), Dateiendungen "
+                "(<i>.SLDPRT</i>), Kopie-Zusätze (<i>Kopie von</i>, <i> - Kopie</i>, <i> (1)</i>) und die "
+                "<b>Revision</b> (<i>_Rev B</i>, <i>_v2</i>, <i>Index C</i>, steht dann in der Bezeichnung) fallen "
+                "weg. CAD-Standardnamen wie <i>Teil1</i>, <i>Part1</i>, <i>Body1</i> gelten wie kein Name (dann der "
+                "Dateiname). Steht eine Nummer im Namen (<i>Strebe links 4711-020</i>), wird sie erkannt. Im "
+                "<b>Prüfdialog</b> zeigt der Tooltip auf dem Teil die Herkunft der Nummer, unsichere Nummern sind "
+                "gelb, und ein Doppelklick ändert die Artikelnummer ([[importprofile]]).",
+     "Artikelnummer aus STEP: Teilenummer, Bereinigung, Revision, Nummer im Namen, im Prüfdialog änderbar"],
     ["0.9.170", "<b>12-m-Zuschnitt genauer</b>: Für die Werkstücke aus einer 12-m-Stange probiert die Optimierung "
                 "neben Beladelänge und 12 m ÷ 2 … 6 jetzt alle 250 mm ab der nötigen Länge als Obergrenze aus (bis "
                 "300 Teile je Abmessung). Bei gemischten Teilelängen spart das Lieferstangen, z. B. 3 statt 4 "

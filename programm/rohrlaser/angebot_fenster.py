@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe
+    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import zusatz_dialog
@@ -288,7 +288,7 @@ def step_neu_pfade(ereignis):
     Ordner werden hier nicht durchsucht (das stockt beim Ziehen), sondern erst nach dem Ablegen."""
     urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
     pfade = [u.toLocalFile() for u in urls if u.isLocalFile()]
-    mail = any(Path(p).suffix.lower() in (".msg", ".eml") for p in pfade)     # E-Mail mit STEP-Anhang (28.10.2026)
+    mail = any(Path(p).suffix.lower() in (".msg", ".eml", ".zip") for p in pfade)  # E-Mail/ZIP mit STEP (28.10.2026)
     return pfade if step.step_kandidaten(pfade) or mail else []
 
 
@@ -529,7 +529,7 @@ class AngeboteSeite(QWidget):
 
     def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
         """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare,
-        vorschlag, hinweis, werkstoff_text (Anfrage-Ordner, E-Mail)."""
+        vorschlag, hinweis, werkstoff_text, neuer_kunde (Anfrage-Ordner, E-Mail)."""
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
@@ -3518,7 +3518,8 @@ class AngebotSeite(QWidget):
             if not ist_baugruppe(p) or baugruppe.daten_fehler(p.get("baugruppe")):
                 continue
             saetze = saetze if saetze is not None else self._saetze()
-            r = baugruppe.rechnen(p, self.tabellen, saetze)
+            r = baugruppe.rechnen(p, self.tabellen, saetze, None,
+                                  bg_mengen.je_knoten(baugruppe.lesen(p.get("baugruppe")), self.positionen, self.k))
             out.append((f"Pos. {p.get('pos') or ''} {baugruppe.name(p)}".strip(), baugruppe.kostenaufteilung(r),
                         baugruppe.groesste_posten(r)))
         return out
@@ -3851,7 +3852,7 @@ class AngebotSeite(QWidget):
         schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
         einst = self._vk_einstellungen()
         for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
-            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst)
+            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst, self.k)
             if r["bg"] is None:
                 continue
             r["bg"]["stamm"]["vk_auto"] = True
@@ -5546,9 +5547,10 @@ class AngebotSeite(QWidget):
         (neues Angebot aus STEP, Plan Bedienung B1); referenz = Vorschlag der Anfrage-Nr. des Kunden (aus dem
         Ordnernamen, Plan Angebotsablauf V5). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
         doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF.
-        Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus der E-Mail“ oben im Prüfdialog; werkstoff_text
+        Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus E-Mail/Formular“ oben im Prüfdialog; werkstoff_text
         = Mailtext, ein dort eindeutig genannter Werkstoff (mail.werkstoff) ersetzt die Vorgabe."""
         from . import importprofil
+        ws_aus_mail = False
         profil = self.importprofil()
         vorgaben = importprofil.vorgaben(profil)
         if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
@@ -5559,7 +5561,7 @@ class AngebotSeite(QWidget):
                 from . import mail
                 ws, wort, kandidaten = mail.werkstoff(werkstoff_text, self.db.zeilen("werkstoffe"), werkstoff)
                 if ws and ws in self.k.werkstoffe:
-                    werkstoff = ws
+                    werkstoff, ws_aus_mail = ws, True
                     hinweis.append(f"Werkstoff {ws} (aus „{wort}“)")
                 elif wort:
                     hinweis.append(f"Werkstoff „{wort}“ nicht eindeutig ({', '.join(kandidaten[:4])}) – bitte wählen")
@@ -5585,17 +5587,30 @@ class AngebotSeite(QWidget):
         for m in messwerte:             # Importprofil: Zusatzarbeiten für alle Teile (Plan Angebotsablauf V4)
             if self._step_zusatz:
                 m.setdefault("_zusatz", list(self._step_zusatz))
-        formular_bericht = None
+        formular_bericht, pdf_neu = None, None
         if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
-            from . import formular
-            namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
-            st = formular.stueck_aus(formulare, namen)
-            n = formular.stueck_setzen(messwerte, st)
-            unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
-            quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
-            formular_bericht = (f"Stückzahlen aus {quelle}: {n} Teil(e)"
-                                + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
-                                + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else ""))
+            from . import pdf_art
+            ws_zeilen = None if ws_aus_mail else self.db.zeilen("werkstoffe")
+            wahl = {}                   # Datei -> Wahl im Prüfdialog (pdf_art.AUTO, FORMULAR, ZEICHNUNG, NICHT)
+
+            def anwenden():
+                aktiv = [pdf_art.zusammen(f, wahl.get(f.get("datei"), f.get("wahl", pdf_art.AUTO))) if f.get("seiten") else f
+                         for f in formulare]
+                erg = pdf_art.anwenden(messwerte, aktiv, ws_zeilen)
+                n, unsicher = erg["formular"], erg["unsicher"]
+                quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
+                return (f"Stückzahlen aus {quelle}: {n} Teil(e)"
+                        + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
+                        + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else "")
+                        + (f"; aus Zeichnungen (Schriftfeld): {erg['zeichnung']} Teil(e), bitte prüfen"
+                           if erg["zeichnung"] else ""))
+
+            def pdf_neu(datei, w):      # im Prüfdialog umgeschaltet: neu zuordnen, nichts neu lesen
+                nonlocal formular_bericht
+                wahl[datei] = w
+                formular_bericht = anwenden()
+
+            formular_bericht = anwenden()
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
@@ -5619,7 +5634,8 @@ class AngebotSeite(QWidget):
                                   lernen=True, maschine=rechnen.maschine(self.kopf, self.k),
                                   zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
                                   referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
-                                  or referenz else None, hinweis=hinweis)
+                                  or referenz else None, hinweis=hinweis,
+                                  pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
