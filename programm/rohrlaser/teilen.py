@@ -26,6 +26,9 @@ arbeitet woran). Vorgänge zwischen zwei Mitarbeitern stehen in der Tabelle vorg
   als eigenes. Bis dahin ist es beim Absender schon ein fremdes Angebot (nur ansehen, Übergabe zurücknehmen).
 - Anfrage: ein Kollege möchte ein Angebot übernehmen; der Bearbeiter wird beim Abgleich gefragt (übergeben/ablehnen).
 - Abgelehnt: Antwort auf eine Anfrage.
+- Notiz: kurzer Text an einen Kollegen, wahlweise zu einem Angebot und mit Wiedervorlage-Datum; er sieht sie auf der
+  Startseite. Die Info jeder Datei nennt die erledigten Vorgänge der anderen (erledigt): so weiß der Absender, dass
+  die Notiz angekommen ist.
 Erledigte Vorgänge anderer merkt sich jeder Arbeitsplatz (teilen_erledigt), eigene verschwinden, sobald der Empfänger
 sie umgesetzt hat. Konflikte (dieselbe Stammdatenzeile hier und bei einem Kollegen seit dem letzten Lesen geändert)
 werden gemerkt (teilen_konflikte) und lassen sich ansehen und umkehren.
@@ -63,8 +66,10 @@ EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsa
 # Spalten eines Angebots, die nur die Anzeige merkt (Liste) oder die nur hier gelten
 ANGEBOT_OHNE = ("id", "fremd", "fremd_stand", "vk_netto", "stand", "vk_am", "geaendert")
 UEBERNEHMEN, ZUSAMMENFUEHREN = "uebernehmen", "zusammenfuehren"
-UEBERGABE, ANFRAGE, ABGELEHNT = "uebergabe", "anfrage", "abgelehnt"     # Vorgänge zwischen Mitarbeitern
+UEBERGABE, ANFRAGE, ABGELEHNT, NOTIZ = "uebergabe", "anfrage", "abgelehnt", "notiz"     # Vorgänge zwischen Mitarbeitern
 VORGAENGE, ERLEDIGT, KONFLIKTE = "teilen_vorgaenge", "teilen_erledigt", "teilen_konflikte"   # lokale Merker
+NOTIZEN = "teilen_notizen"      # erhaltene Notizen der Kollegen (lokal)
+NOTIZEN_MAX = 200
 FRISCH_MIN = 20                 # geöffnete Angebote eines Kollegen gelten so lange nach seinem letzten Schreiben
 KONFLIKTE_MAX = 100
 
@@ -133,6 +138,26 @@ def ordner(db):
 def aktiv(db):
     """Teilen eingerichtet: Kürzel und gemeinsamer Ordner eingetragen."""
     return bool(kuerzel(db) and ordner(db))
+
+
+ANFRAGEN, ANGEBOTE, SICHERUNGEN = "Anfragen", "Angebote", "Sicherungen"     # Unterordner im gemeinsamen Ordner
+
+
+def unterordner(db, name, einstellung, anlegen=False):
+    """Unterordner des gemeinsamen Ordners (Anfragen, Angebote, Sicherungen), wenn geteilt wird, die Einstellung „ja“
+    ist und der Ordner erreichbar ist; sonst None. anlegen: fehlenden Unterordner anlegen."""
+    if not aktiv(db) or db.einstellung(einstellung) != "ja":
+        return None
+    o = ordner(db)
+    if not o.is_dir():
+        return None
+    u = o / name
+    if anlegen:
+        try:
+            u.mkdir(exist_ok=True)
+        except OSError:
+            return None
+    return u
 
 
 def datei_name(k):
@@ -476,7 +501,8 @@ def schreiben(db, uebernehmen=False, offen=None):
                         benutzer=os.environ.get("USERNAME") or os.environ.get("USER") or "",
                         schema=con.execute("PRAGMA user_version").fetchone()[0], version=VERSION, format=FORMAT,
                         stand=datetime.datetime.now().isoformat(timespec="seconds"), angebote=len(eigene),
-                        letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}))
+                        letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}),
+                        erledigt=sorted(db.einstellung(ERLEDIGT) or {}))
             sc.executemany("INSERT OR REPLACE INTO info (name, wert) VALUES (?, ?)",
                            [(n, json.dumps(w, ensure_ascii=False)) for n, w in info.items()])
     finally:
@@ -652,7 +678,8 @@ def lesen(db, modus=None):
     dateien = andere_dateien(db)
     erstmals = not con.execute("SELECT 1 FROM teilen_basis LIMIT 1").fetchone()
     bericht = dict(mitarbeiter=[], stammdaten=0, angebote_neu=0, angebote_geaendert=0, angebote_weg=0, hinweise=[],
-                   geaenderte_ids=[], entfernte_ids=[], uebernommen=[], anfragen=[], abgelehnt=[], konflikte=[])
+                   geaenderte_ids=[], entfernte_ids=[], uebernommen=[], anfragen=[], abgelehnt=[], konflikte=[],
+                   notizen=[])
     gelesen = {}
     for k2, pfad in dateien.items():
         try:
@@ -672,6 +699,7 @@ def lesen(db, modus=None):
         erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit)
         entfernt = {}
         vorgaenge = {}          # Kürzel -> [Vorgang] aus den Dateien der anderen
+        quittiert = {}          # Kürzel -> Kennungen der Vorgänge, die er erledigt hat
         bekannt = dict(db.einstellung("teilen_mitarbeiter") or {})
         angebote = {}
         for k2, kopie in gelesen.items():
@@ -690,8 +718,10 @@ def lesen(db, modus=None):
                             entfernt[(t, u)] = (zeit, json.loads(daten) if daten is not None else None)
                 angebote[k2] = {nummer: (h, inhalt) for nummer, h, inhalt in
                                 fc.execute("SELECT nummer, hash, NULL FROM angebote")}
+                quittiert[k2] = set(info.get("erledigt") or ())
                 if fc.execute("SELECT 1 FROM sqlite_master WHERE name='vorgaenge'").fetchone():
-                    cur = fc.execute("SELECT id, art, nummer, an, zeit, notiz, bezug FROM vorgaenge")
+                    cur = fc.execute("SELECT id, art, nummer, an, zeit, notiz, bezug, CASE WHEN art=? THEN inhalt END "
+                                     "AS extra FROM vorgaenge", (NOTIZ,))
                     namen = [d[0] for d in cur.description]
                     vorgaenge[k2] = [dict(zip(namen, r), von=k2) for r in cur]
                 else:
@@ -705,7 +735,7 @@ def lesen(db, modus=None):
         db._einstellung_schreiben("teilen_mitarbeiter", bekannt)
         karte = _uid_karte(con, "zukauf_artikel")
         karte_id = {u: i for i, u in karte.items()}
-        unterwegs = _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id)
+        unterwegs = _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id, quittiert)
         for k2, liste in angebote.items():
             fc = sqlite3.connect(gelesen[k2])
             try:
@@ -763,6 +793,8 @@ def bericht_text(b):
         teile.append(f"{b['stammdaten']} Stammdaten übernommen")
     if b.get("uebernommen"):
         teile.append("übernommen: " + ", ".join(f"{u['nummer']} von {u['von']}" for u in b["uebernommen"]))
+    if b.get("notizen"):
+        teile.append(f"{len(b['notizen'])} Notiz(en) von Kollegen")
     if b.get("konflikte"):
         teile.append(f"{len(b['konflikte'])} Konflikte (Datei → Abgleich-Konflikte …)")
     if b.get("nummern"):
@@ -998,7 +1030,7 @@ def _vorgaenge_schreiben(db, sc, karte):
     nummern_ = set()
     ids = dict(db.con.execute("SELECT nummer, id FROM angebote").fetchall())
     for i, v in _vorgaenge(db).items():
-        inhalt = None
+        inhalt = json.dumps(dict(faellig=v.get("faellig")), ensure_ascii=False) if v.get("art") == NOTIZ else None
         if v.get("art") == UEBERGABE:
             aid = ids.get(v.get("nummer"))
             if aid is None:
@@ -1015,12 +1047,13 @@ def _vorgaenge_schreiben(db, sc, karte):
     return nummern_
 
 
-def _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id):
+def _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id, quittiert=None):
     """Vorgänge der anderen umsetzen und eigene aufräumen (in lesen). Ergebnis: Nummern eigener Übergaben, die der
     Empfänger noch nicht übernommen hat (diese Angebote bleiben hier, obwohl sie in seiner Datei noch fehlen)."""
     con, ich = db.con, kuerzel(db)
     eigene = _vorgaenge(db)
     erledigt = dict(db.einstellung(ERLEDIGT) or {})
+    notizen_neu = []
     hier = {r[1]: (r[0], r[2]) for r in con.execute("SELECT id, nummer, fremd FROM angebote")}
     for k2, liste in vorgaenge.items():
         for v in liste:
@@ -1053,6 +1086,16 @@ def _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id):
                         bericht["anfragen"].append(dict(v, angebot_id=a[0]))
                     continue                            # gefragt wird bis zur Antwort bei jedem Abgleich
                 erledigt[v["id"]] = k2                  # gehört nicht (mehr) mir: nichts zu tun
+            elif v["art"] == NOTIZ:
+                try:
+                    extra = json.loads(v.get("extra") or "{}")
+                except ValueError:
+                    extra = {}
+                n = dict(id=v["id"], von=k2, nummer=nummer, notiz=v.get("notiz") or "", zeit=v.get("zeit"),
+                         faellig=extra.get("faellig"), erledigt=False)
+                notizen_neu.append(n)
+                bericht["notizen"].append(n)
+                erledigt[v["id"]] = k2
             elif v["art"] == ABGELEHNT:
                 if v.get("bezug") in eigene:
                     eigene.pop(v["bezug"])
@@ -1076,11 +1119,15 @@ def _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id):
                 eigene.pop(vid)                         # gehört dem Kollegen nicht mehr
         elif e.get("art") == ABGELEHNT and e.get("bezug") not in ids_dort:
             eigene.pop(vid)                             # Kollege hat die Antwort gesehen
+        elif e.get("art") == NOTIZ and vid in (quittiert or {}).get(an, ()):
+            eigene.pop(vid)                             # Notiz ist angekommen
     for vid, k2 in list(erledigt.items()):              # nur Vorgänge merken, die es dort noch gibt
         if k2 in vorgaenge and vid not in {v["id"] for v in vorgaenge[k2]}:
             erledigt.pop(vid)
     db._einstellung_schreiben(VORGAENGE, eigene)
     db._einstellung_schreiben(ERLEDIGT, erledigt)
+    if notizen_neu:
+        db._einstellung_schreiben(NOTIZEN, (notizen_neu + list(db.einstellung(NOTIZEN) or []))[:NOTIZEN_MAX])
     return unterwegs
 
 
@@ -1091,3 +1138,36 @@ def dateien_stand(db):
         st = p.stat()
         out.append((k, st.st_size, st.st_mtime_ns))
     return tuple(out)
+
+
+# ------------------------------------------------------------------ Notizen an Kollegen
+def notiz_senden(db, an, text, nummer=None, faellig=None):
+    """Notiz an den Kollegen an (wahlweise zu einem Angebot, faellig = ISO-Datum der Wiedervorlage). Sie geht mit dem
+    nächsten Abgleich hinaus. Ergebnis: Kennung."""
+    an, text = kuerzel_sauber(an), " ".join(str(text or "").split())
+    if not an or an == kuerzel(db):
+        raise TeilenFehler("Bitte einen Kollegen wählen.")
+    if not text:
+        raise TeilenFehler("Bitte einen Text eingeben.")
+    with db.con:
+        return _vorgang_neu(db, art=NOTIZ, nummer=nummer or None, an=an, notiz=text, faellig=faellig or None)
+
+
+def notizen(db, offen_nur=False, heute=None):
+    """Erhaltene Notizen, neueste zuerst; offen_nur: nicht erledigte. Jede bekommt 'faellig_jetzt' (ohne Datum oder
+    Datum erreicht)."""
+    heute = (heute or datetime.date.today()).isoformat()
+    out = []
+    for n in db.einstellung(NOTIZEN) or []:
+        if offen_nur and n.get("erledigt"):
+            continue
+        out.append(dict(n, faellig_jetzt=not n.get("faellig") or n["faellig"] <= heute))
+    return out
+
+
+def notiz_erledigt(db, nid):
+    alle = list(db.einstellung(NOTIZEN) or [])
+    for n in alle:
+        if n.get("id") == nid:
+            n["erledigt"] = True
+    db.einstellung_setzen(NOTIZEN, alle)

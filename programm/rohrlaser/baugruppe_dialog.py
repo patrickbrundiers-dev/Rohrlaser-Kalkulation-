@@ -2446,7 +2446,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 return None
         if name not in katalog:
             return None
-        return self.arbeitsgang_neu(baugruppe.arbeitsgang_vorlage(katalog[name]))
+        from .zusatz_regeln import katalog_mit_regel      # Preis der passenden Arbeitsgang-Regel (Abrechnungsregeln)
+        z = katalog_mit_regel(katalog[name], self.p, None, self.k, self.tabellen) if self.k else katalog[name]
+        return self.arbeitsgang_neu(baugruppe.arbeitsgang_vorlage(z))
 
     def _kopieren(self, liste, tab):
         for r in tab.markierte():

@@ -831,9 +831,11 @@ class StepPruefDialog(QDialog):
         gelb = f"background: {stil.farbe(stil.GELB_FLAECHE).name()};"
         if "_stueck_formular" in m and not m.get("_saetze"):
             sicher = m["_stueck_formular"]
+            anders = m.get("_stueck_anders")        # mehrere Mails: ältere nennt eine andere Zahl
             z.sp.setToolTip(f"Stückzahl aus {m.get('_stueck_quelle') or 'dem Anfrageformular'}"
-                            + ("" if sicher else " – unsicher erkannt, bitte prüfen"))
-            z.sp.setStyleSheet("" if sicher else gelb)
+                            + ("" if sicher else " – unsicher erkannt, bitte prüfen")
+                            + (f"\nAndere Angabe: {anders} – es gilt die neueste" if anders else ""))
+            z.sp.setStyleSheet("" if sicher and not anders else gelb)
         else:
             z.sp.setToolTip("")
             z.sp.setStyleSheet("")

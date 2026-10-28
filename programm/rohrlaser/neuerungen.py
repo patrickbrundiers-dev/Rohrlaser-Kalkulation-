@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.179", "<b>Musterteile</b>: Positionen lassen sich als <b>Muster</b> markieren (Spalte <i>Muster</i>, "
+    ["0.9.184", "<b>Musterteile</b>: Positionen lassen sich als <b>Muster</b> markieren (Spalte <i>Muster</i>, "
                 "Rechtsklick „Muster an/aus“, Häkchen in Rohr-, Blech-, Baugruppen-Editor und Satz in 3D). Muster "
                 "stehen im Angebot mit 0,00 € und dem Vermerk „Muster – im Serienpreis enthalten“; ihre Kosten "
                 "(Selbstkosten mit normalem Gewinn, Zukauf nur mit Aufschlag) werden nach Wert auf die "
@@ -31,6 +31,45 @@ NEUERUNGEN = [
                 "Stufe einmal um; das Angebots-PDF nennt, dass die Muster berechnet werden, wenn keine Serie "
                 "folgt ([[musterteile]]).",
                 "Musterteile: 0 € im Angebot, Kosten auf die Serie umgelegt, keine Minusmarge"],
+    ["0.9.183", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
+                "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
+                "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",
+     "Datendatei: schneller bei vielen Angeboten (Indizes)."],
+    ["0.9.182", "<b>Eigene Abrechnungsregeln für Zusatzarbeiten</b>: Die Arbeitsgang-Regeln setzen jetzt auch, "
+                "<i>wie</i> abgerechnet wird und <i>wann</i> eine Zusatzarbeit automatisch gilt. Je Regel Zuordnung "
+                "(Vorschlag, automatisch, nur Preis), Abrechnung, Preis je Einheit, Menge (z. B. Innen- + "
+                "Außenfläche), Faktor und Mindestbetrag je Teil, neue Bedingungen Abmessung von/bis und Teileart "
+                "Rohr/Profil bzw. Blech; die genaueste Regel gewinnt. Automatische Zusatzarbeiten werden gerechnet, "
+                "stehen gelb mit „(automatisch)“ in Positionsliste und Unterzeilen und lassen sich unter "
+                "„Arbeitsgänge vorschlagen …“ abwählen. Neu vorbelegt: <b>Strahlen</b> nach kg Fertigteil mit drei "
+                "Beispielregeln (aus). Zusatzarbeiten haben neu Menge aus, Faktor und Mindestbetrag je Teil; der "
+                "Aufpreis einer Oberfläche geht auch je kg oder je m². Gewinde, Senken, Flowdrill und Bohren "
+                "bleiben € je Stück; alte und festgeschriebene Angebote rechnen unverändert ([[abrechnungsregeln]]).",
+     "Eigene Abrechnungsregeln: Preis je Werkstoff/Profil, automatisch zuordnen, Strahlen €/kg, Aufpreis je kg."],
+    ["0.9.181", "<b>Mehr im gemeinsamen Ordner</b> ([[gemeinsamer_ordner_mehr]]): <b>Anfragen</b> liegen im Unterordner "
+                "<i>Anfragen</i> (wenn kein eigener Anfrage-Ordner eingetragen ist) und lassen sich mit <i>Zuweisen …</i> "
+                "einem Kollegen geben; alle sehen <i>für MK</i>, beim Kollegen steht sie fett ([[anfragen]]). Neue "
+                "<b>Angebotsordner</b> (PDF, CSV, STEP) entstehen im Unterordner <i>Angebote</i>, so öffnet jeder "
+                "denselben Ordner; ältere bleiben in der eigenen Ablage. <b>Notizen an Kollegen</b> (Vorgang ▾ → "
+                "<i>Notiz an Kollegen …</i>, wahlweise mit Wiedervorlage) stehen auf seiner Startseite unter "
+                "<i>Heute</i> mit <i>Erledigt</i> und <i>Antworten …</i>. Die <b>Sicherung beim Beenden</b> kommt "
+                "zusätzlich nach <i>Sicherungen/Kürzel</i>. Alles einzeln abschaltbar (Einstellungen → Benutzer).",
+     "Anfragen zuweisen, Angebotsordner, Notizen und Sicherung im gemeinsamen Ordner"],
+    ["0.9.180", "<b>Löschschutz für optimierte Angebote</b>: Neue Einstellung <i>Angebot → Löschschutz: optimierte "
+                "Angebote nicht löschbar</i> (Vorgabe aus). <i>immer</i> schützt jedes Angebot, das "
+                "einmal optimiert wurde, <i>nur von Hand</i> nur die von Hand optimierten. "
+                "Geschützte Angebote lassen sich in der Angebotsliste nicht löschen; der Hinweis nennt den Ausweg "
+                "(Vorgang <i>Abgelehnt</i> oder <i>Kopieren</i>). Positionen bleiben löschbar, mit Admin-Rechten "
+                "fragt das Programm nach und löscht trotzdem. Ältere Angebote mit <i>Optimiert am</i> gelten als "
+                "optimiert ([[angebote]]).",
+     "Löschschutz: einmal optimierte Angebote nicht mehr löschbar (Einstellung, Vorgabe aus; Admin darf)."],
+    ["0.9.179", "<b>Mehrere Mails zur selben Anfrage</b>: Mails vom selben Kunden mit derselben Anfrage-Nr. oder "
+                "demselben Betreff (ohne AW:/WG:) innerhalb von 3 Tagen sind eine Anfrage, auch ein Nachtrag ohne "
+                "STEP. Bei verschiedenen Angaben gilt die neueste Mail, die ältere steht als Hinweis im Prüfdialog "
+                "(Stückzahl gelb mit Tooltip). Kommt eine STEP-Datei neu, gilt die neueste Version; die alte bleibt "
+                "als <i>Name (alt)</i> liegen und wird nicht importiert. Ein Nachtrag zu einem schon übernommenen "
+                "Angebot wird auf der Startseite genannt ([[anfrage_mail]]).",
+     "Mehrere Mails je Anfrage: zusammengefasst, neueste gilt, alte STEP als „(alt)“."],
     ["0.9.178", "<b>Zusammenarbeit über den gemeinsamen Ordner</b>: Das Programm gleicht jetzt <b>alle 2 Minuten "
                 "von selbst</b> ab (nur wenn sich etwas geändert hat; Einstellung <i>Automatischer Abgleich alle [min]</i>), "
                 "rechts in der Statusleiste steht <i>⇄ abgeglichen 14:32</i>. <b>Wer arbeitet woran</b>: hat ein "

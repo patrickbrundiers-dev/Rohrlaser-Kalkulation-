@@ -36,11 +36,13 @@ from .fracht_angebot import UMLAGE_NEU
 from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
                       lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
+from .stammdaten import LOESCHSCHUTZ_HAND, LOESCHSCHUTZ_JEDES
 from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
+                         strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
 SCHEMA_VERSION = 66     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
@@ -132,6 +134,7 @@ UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), (
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
+SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
@@ -149,6 +152,7 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
+STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
@@ -165,6 +169,10 @@ def _zahl_pruefen(feld, wert):
 
 class Lesemodus(PermissionError):
     """Ändern im Lesemodus (Lizenz fehlt, abgelaufen, gesperrt …). Text: Grund für den Benutzer."""
+
+
+class Loeschschutz(PermissionError):
+    """Angebot löschen verweigert: einmal optimiert und Einstellung 'loeschschutz' an. Text: Grund für den Benutzer."""
 
 
 def _zugriff(art):
@@ -234,6 +242,7 @@ class Datenbank:
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
+            self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -307,6 +316,10 @@ class Datenbank:
             stufen_sp = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in EINSTELLUNG_FELDER)
             self.con.execute("CREATE TABLE IF NOT EXISTS staffel_stufen (id INTEGER PRIMARY KEY, angebot_id INTEGER "
                              f"NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, {stufen_sp})")
+            # Suche nach Angebot (Öffnen, Rückgängig, Abgleich, Löschen): ohne Index liest SQLite die ganze Tabelle,
+            # bei 10.000 Angeboten je Angebot einige Millisekunden (Prüfung Datenbank bei vielen Angeboten 28.10.)
+            for tabelle in ("staffeln", "staffel_stufen", "step_protokoll"):
+                self.con.execute(f"CREATE INDEX IF NOT EXISTS {tabelle}_angebot ON {tabelle} (angebot_id)")
             spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
@@ -343,6 +356,14 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
             if "stangen_vorgabe" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
+            if "optimiert_erstmals" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                # Löschschutz (Patrick 28.10.2026): erste Optimierung überhaupt bzw. von Hand; bleibt, auch wenn das
+                # Ergebnis später verworfen wird. Bestand: aus 'optimiert_am' (automatisch oder von Hand ist
+                # nicht bekannt, daher beides)
+                self.con.execute("ALTER TABLE angebote ADD COLUMN optimiert_erstmals TEXT")
+                self.con.execute("ALTER TABLE angebote ADD COLUMN optimiert_hand TEXT")
+                self.con.execute("UPDATE angebote SET optimiert_erstmals=optimiert_am, optimiert_hand=optimiert_am "
+                                 "WHERE optimiert_am IS NOT NULL")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -431,6 +452,8 @@ class Datenbank:
                 self._voll_ergaenzen()
             if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
                 self._stege_ergaenzen()
+            if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
+                self._strahlen_ergaenzen()
             teilen.einrichten(self.con)
             lager.einrichten(self.con)
             fertigung.einrichten(self.con)
@@ -557,6 +580,13 @@ class Datenbank:
             neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.VIRTUELL_REGELN]
             self._einfuegen("pruefregeln", neu, ergaenzen=True)
         self._einstellung_schreiben("stege_stand", STEGE_STAND)
+
+    def _strahlen_ergaenzen(self):
+        """Einmalig: Zusatzarbeit 'Strahlen' (€/kg) und die Beispielregeln (aus) anlegen, wenn es sie (dem Namen
+        nach) noch nicht gibt (Plan Abrechnungsregeln). Rechnet nichts anders: nur hinzugefügt, Regeln aus."""
+        self._einfuegen("zusatzarbeiten", strahl_zusatzarbeiten(), ergaenzen=True)
+        self._einfuegen("arbeitsgang_regeln", strahl_regeln(), ergaenzen=True)
+        self._einstellung_schreiben("strahlen_stand", STRAHLEN_STAND)
 
     def _knick_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem
@@ -1338,7 +1368,8 @@ class Datenbank:
     def _tabellen_bauen(self):
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
-                                           "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln")}
+                                           "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln",
+                                           "arbeitsgang_regeln")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
@@ -1909,8 +1940,34 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET ersetzt_durch=? WHERE id=?", (nummer, angebot_id))
         return neu
 
+    @liest
+    def loeschschutz(self, angebot_id):
+        """Löschschutz (Einstellung 'loeschschutz', Patrick 28.10.2026): Text mit Grund, wenn das Angebot einmal
+        (von Hand) optimiert wurde und deshalb nicht gelöscht werden darf; sonst None."""
+        art = self.einstellung("loeschschutz")
+        spalte = {LOESCHSCHUTZ_JEDES: "optimiert_erstmals", LOESCHSCHUTZ_HAND: "optimiert_hand"}.get(art)
+        if spalte is None:
+            return None
+        r = self.con.execute(f"SELECT nummer, {spalte} FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        if not r or not r[1]:
+            return None
+        am = r[1][:16].replace("T", " ")
+        try:
+            am = datetime.datetime.fromisoformat(r[1]).strftime("%d.%m.%Y %H:%M")
+        except ValueError:
+            pass
+        return (f"Angebot {r[0]} wurde am {am} optimiert und ist gegen Löschen geschützt (Einstellungen → Angebot → "
+                "Löschschutz). Stattdessen den Vorgang auf „Abgelehnt“ setzen oder „Kopieren“; löschen kann nur "
+                "der Admin.")
+
     @schreibt
-    def angebot_loeschen(self, angebot_id):
+    def angebot_loeschen(self, angebot_id, trotz_schutz=False):
+        """Angebot mit allem löschen. Löschschutz an und einmal optimiert: Ausnahme Loeschschutz, außer
+        trotz_schutz (nur mit Admin-Rechten, Angebotsliste)."""
+        if not trotz_schutz:
+            grund = self.loeschschutz(angebot_id)
+            if grund:
+                raise Loeschschutz(grund)
         with self.con:
             # Lager (lager.py): Reservierungen des Angebots freigeben, gebuchter Verbrauch bleibt im Journal. Lagerauftrag
             # weg und Reservierungen vom Angebot lösen: SQLite kann die Angebots-ID wieder vergeben, ein neues Angebot
@@ -1923,11 +1980,15 @@ class Datenbank:
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
     @schreibt
-    def ergebnis_speichern(self, angebot_id, ergebnis):
+    def ergebnis_speichern(self, angebot_id, ergebnis, von_hand=False):
+        """Ergebnis der Optimierung speichern (None = verwerfen). von_hand: F9/Optimieren statt automatisch (W1);
+        erste Optimierung bzw. erste von Hand bleibt für den Löschschutz gemerkt."""
+        jetzt = self._jetzt() if ergebnis else None
         with self.con:
-            self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=? WHERE id=?",
-                             (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None,
-                              self._jetzt() if ergebnis else None, angebot_id))
+            self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=?, optimiert_erstmals=COALESCE("
+                             "optimiert_erstmals, ?), optimiert_hand=COALESCE(optimiert_hand, ?) WHERE id=?",
+                             (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None, jetzt, jetzt,
+                              jetzt if von_hand else None, angebot_id))
 
     @schreibt
     def kennzahlen_merken(self, angebot_id, vk_netto, stand):
@@ -2405,14 +2466,26 @@ class Datenbank:
         Ergebnis: (Pfade, Fehlertext oder None) – ein nicht erreichbarer zweiter Ordner (Netzlaufwerk,
         USB-Stick fehlt) verhindert die erste Sicherung nicht."""
         pfade = [self.sicherung(zusatz=zusatz)]
+        fehler = None
         ordner2 = (self.einstellung("sicherung_ordner2") or "").strip()
-        if not ordner2:
-            return pfade, None
-        try:
-            pfade.append(self.sicherung(ordner2, zusatz=zusatz))
-        except OSError as e:
-            return pfade, f"Zweiter Sicherungsordner nicht erreichbar ({ordner2}): {e}"
-        return pfade, None
+        if ordner2:
+            try:
+                pfade.append(self.sicherung(ordner2, zusatz=zusatz))
+            except OSError as e:
+                fehler = f"Zweiter Sicherungsordner nicht erreichbar ({ordner2}): {e}"
+        gemeinsam = self.sicherung_gemeinsam() if zusatz == "beenden" else None
+        if gemeinsam is not None:            # Beenden: auch in den gemeinsamen Ordner (Patrick 28.10.2026)
+            try:
+                pfade.append(self.sicherung(gemeinsam, behalten=SICHERUNGEN_GEMEINSAM, zusatz=zusatz))
+            except OSError as e:
+                fehler = fehler or f"Gemeinsamer Ordner nicht erreichbar ({gemeinsam}): {e}"
+        return pfade, fehler
+
+    @liest
+    def sicherung_gemeinsam(self):
+        """Ordner Sicherungen/<Kürzel> im gemeinsamen Ordner (Einstellung teilen_sicherung) oder None."""
+        u = teilen.unterordner(self, teilen.SICHERUNGEN, "teilen_sicherung")
+        return u / teilen.kuerzel(self) if u is not None else None
 
     @liest
     def sicherungsordner(self):
@@ -2421,6 +2494,9 @@ class Datenbank:
         ordner2 = (self.einstellung("sicherung_ordner2") or "").strip()
         if ordner2 and Path(ordner2).is_dir():
             ordner.append(Path(ordner2))
+        gemeinsam = self.sicherung_gemeinsam()
+        if gemeinsam is not None and gemeinsam.is_dir():
+            ordner.append(gemeinsam)
         return ordner
 
     @erlaubt
