@@ -140,7 +140,7 @@ class StepPruefDialog(QDialog):
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
-                 zusatz_vorgabe=None, referenz=None):
+                 zusatz_vorgabe=None, referenz=None, hinweis=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -150,7 +150,8 @@ class StepPruefDialog(QDialog):
         Plan Angebotsablauf: alle Dateien stehen in einer Liste (◀ ▶ springen zur nächsten Datei, V1), das Fenster passt
         in 1366 px (V2); zusatzarbeiten = Namen der Zusatzarbeiten für „Werte setzen“ (V4, zusatz_vorgabe = aus dem
         Importprofil für alle Teile vorbelegt); referenz = Vorschlag der Anfrage-Nr. des Kunden (V5, None = kein Feld),
-        Ergebnis in self.referenz_text()."""
+        Ergebnis in self.referenz_text(). hinweis = Zeilen, die aus der E-Mail der Anfrage übernommen wurden (Kunde,
+        Lieferzeit, Werkstoff), stehen unter dem Kunden zum Prüfen."""
         from . import step
         super().__init__(parent)
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
@@ -271,6 +272,14 @@ class StepPruefDialog(QDialog):
             kunde_zeile.addWidget(QLabel("Anfrage-Nr.:"))
             kunde_zeile.addWidget(self.referenz)
         kunde_zeile.addStretch(1)
+        self.mail_hinweis = None
+        if hinweis:                     # E-Mail der Anfrage (28.10.2026): was vorbelegt wurde
+            self.mail_hinweis = QLabel("✉ Aus der E-Mail: " + " · ".join(hinweis))
+            self.mail_hinweis.setWordWrap(True)
+            self.mail_hinweis.setStyleSheet("color: #595959;")
+            self.mail_hinweis.setToolTip("Vorschläge aus der E-Mail im Anfrage-Ordner. Kunde, Werkstoff und Stückzahlen "
+                                         "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.")
+            kopf_lay.insertWidget(1, self.mail_hinweis)
         self.dateien_info = QLabel()
         self.dateien_info.setStyleSheet("color: #595959;")
         kl.addWidget(self.zurueck)

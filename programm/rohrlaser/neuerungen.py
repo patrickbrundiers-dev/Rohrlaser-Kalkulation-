@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
+                "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
+                "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "
+                "Domain, Anfrage-Nr. aus Betreff und Text, Wunschtermin als Lieferzeit (KW oder Datum), interne "
+                "Bemerkung mit Absender und Betreff, Werkstoff (nur eindeutig) und Stückzahlen je Artikel. Der "
+                "Prüfdialog zeigt oben, was aus der Mail kommt ([[anfrage_mail]]).",
+     "Outlook-Mail (.msg/.eml) auslesen: Anhänge, Kunde, Anfrage-Nr., Lieferzeit, Werkstoff, Stückzahlen."],
     ["0.9.164", "<b>Sätze heben sich ab</b>: In der Positionsliste stehen die Positionen eines Satzes zusammen und "
                 "sind je Satz farbig hinterlegt (abwechselnd blau und violett, auch im Dunkelmodus). Die Spalten "
                 "Satz und Stück je Satz stehen gleich hinter Pos.; die erste Position zeigt fett Name und Anzahl "

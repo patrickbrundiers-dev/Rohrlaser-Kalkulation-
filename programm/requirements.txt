@@ -4,3 +4,5 @@ reportlab==5.1.0
 cryptography==50.0.1
 # Anfrageformular lesen (Plan W6b/W6c): Text aus PDF, Seitenbilder für Tesseract
 pypdfium2==5.13.0
+# E-Mail aus Outlook (.msg) im Anfrage-Ordner lesen (mail.py, 28.10.2026)
+olefile==0.47

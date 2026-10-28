@@ -288,7 +288,8 @@ def step_neu_pfade(ereignis):
     Ordner werden hier nicht durchsucht (das stockt beim Ziehen), sondern erst nach dem Ablegen."""
     urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
     pfade = [u.toLocalFile() for u in urls if u.isLocalFile()]
-    return pfade if step.step_kandidaten(pfade) else []
+    mail = any(Path(p).suffix.lower() in (".msg", ".eml") for p in pfade)     # E-Mail mit STEP-Anhang (28.10.2026)
+    return pfade if step.step_kandidaten(pfade) or mail else []
 
 
 def step_drop(fenster, ereignis, ziel, aufruf):
@@ -527,7 +528,8 @@ class AngeboteSeite(QWidget):
         self.oeffnen.emit(i)
 
     def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
-        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare."""
+        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare,
+        vorschlag, hinweis, werkstoff_text (Anfrage-Ordner, E-Mail)."""
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
@@ -5485,20 +5487,31 @@ class AngebotSeite(QWidget):
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
-                         formulare=None, referenz=None):
+                         formulare=None, referenz=None, hinweis=None, werkstoff_text=None):
         """STEP-Dateien messen und übernehmen. formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
         Stückzahlen je
         Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja). kunde_waehlen: Kunde oben im Prüfdialog wählen
         (neues Angebot aus STEP, Plan Bedienung B1); referenz = Vorschlag der Anfrage-Nr. des Kunden (aus dem
         Ordnernamen, Plan Angebotsablauf V5). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
-        doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF."""
+        doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF.
+        Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus der E-Mail“ oben im Prüfdialog; werkstoff_text
+        = Mailtext, ein dort eindeutig genannter Werkstoff (mail.werkstoff) ersetzt die Vorgabe."""
         from . import importprofil
         profil = self.importprofil()
         vorgaben = importprofil.vorgaben(profil)
         if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
             werkstoff = vorgaben.get("werkstoff") or self.db.einstellung("step_werkstoff") or None
             werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
+            hinweis = list(hinweis or ())
+            if werkstoff_text:      # Werkstoff aus der E-Mail: nur eindeutig, sonst nur Hinweis
+                from . import mail
+                ws, wort, kandidaten = mail.werkstoff(werkstoff_text, self.db.zeilen("werkstoffe"), werkstoff)
+                if ws and ws in self.k.werkstoffe:
+                    werkstoff = ws
+                    hinweis.append(f"Werkstoff {ws} (aus „{wort}“)")
+                elif wort:
+                    hinweis.append(f"Werkstoff „{wort}“ nicht eindeutig ({', '.join(kandidaten[:4])}) – bitte wählen")
         flach_gemessen = self.flach_bis()
         gemessen = self.step_messen(dateien, mit_ablage=True)
         if gemessen is None:
@@ -5528,7 +5541,8 @@ class AngebotSeite(QWidget):
             st = formular.stueck_aus(formulare, namen)
             n = formular.stueck_setzen(messwerte, st)
             unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
-            formular_bericht = (f"Stückzahlen aus dem Anfrageformular: {n} Teil(e)"
+            quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
+            formular_bericht = (f"Stückzahlen aus {quelle}: {n} Teil(e)"
                                 + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
                                 + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else ""))
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
@@ -5554,7 +5568,7 @@ class AngebotSeite(QWidget):
                                   lernen=True, maschine=rechnen.maschine(self.kopf, self.k),
                                   zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
                                   referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
-                                  or referenz else None)
+                                  or referenz else None, hinweis=hinweis)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
@@ -5572,7 +5586,9 @@ class AngebotSeite(QWidget):
                     self.f.meldung("Der gewählte Kunde gibt flache Teile anders vor (Importprofil) – die STEP-Dateien "
                                    "werden dafür neu gemessen.")
                     return self.step_importieren(dateien, None, stueck, als_satz, formulare=formulare,
-                                                 referenz=referenz)
+                                                 referenz=referenz, hinweis=[h for h in hinweis or ()
+                                                                             if not h.startswith("Werkstoff")],
+                                                 werkstoff_text=werkstoff_text)
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
