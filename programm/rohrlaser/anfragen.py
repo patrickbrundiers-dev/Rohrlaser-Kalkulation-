@@ -12,7 +12,10 @@ E-Mails (Patrick 28.10.2026): aus Outlook gezogene .msg- und .eml-Dateien gehör
 Formulare in ihren Anhängen zählen mit und werden beim Öffnen in den Unterordner ausgepackt (mail.py).
 Mehrere Mails zur selben Anfrage (Patrick 28.10.2026, F1-F4 a): Mails vom selben Absender mit derselben Anfrage-Nr.
 oder demselben Betreff (ohne AW:/WG:) innerhalb von ZUSAMMEN_TAGE Tagen gehören zu einer Anfrage, auch ein Nachtrag
-ohne STEP; beim Auspacken gilt bei gleichem Dateinamen die neueste Version, die ältere bleibt als 'Name (alt)'. Ohne Qt."""
+ohne STEP; beim Auspacken gilt bei gleichem Dateinamen die neueste Version, die ältere bleibt als 'Name (alt)'.
+Gemeinsamer Ordner (Patrick 28.10.2026): ohne eigenen Anfrage-Ordner gilt der Unterordner „Anfragen“ des gemeinsamen
+Ordners (ordner). Eine Anfrage lässt sich einem Kollegen zuweisen (Datei ZUGEWIESEN im Unterordner, für alle
+sichtbar). Ohne Qt."""
 import datetime
 import os
 import re
@@ -24,6 +27,7 @@ ABSTAND_MIN = 10            # Minuten: lose Dateien mit kleinerem Abstand sind e
 RUHE_S = 15                 # Sekunden: jüngere Dateien werden evtl. noch geschrieben (Kopieren aus der E-Mail)
 SPERRE = ".in_bearbeitung"  # Datei im Unterordner: Kürzel und Zeit des Bearbeiters
 SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abgestürzt)
+ZUGEWIESEN = ".zugewiesen"  # Datei im Unterordner: Kürzel des Kollegen, Absender, Zeit, Notiz
 STEP = {".step", ".stp"}
 FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}     # Anfrageformulare (gelesen ab W6b/W6c)
 MAIL = {".msg", ".eml"}     # E-Mail aus Outlook (mail.py)
@@ -33,6 +37,16 @@ ZUSAMMEN_TAGE = 3           # Mails zur selben Anfrage (Anfrage-Nr. bzw. Betreff
 ALT = re.compile(r" \(alt\)(?: \(\d+\))?$", re.I)     # ältere Version einer Datei aus einer früheren Mail
 BILD, BILD_MIN = FORMULAR - {".pdf"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
 ZIEL_FORMULAR = "Anfrage"   # Unterordner im Angebotsordner für Formulare (STEP-Dateien: angebotsordner.STEP_ORDNER)
+
+
+def ordner(db):
+    """Anfrage-Ordner: eingetragener Ordner, sonst „Anfragen“ im gemeinsamen Ordner (Einstellung teilen_anfragen),
+    sonst None (aus)."""
+    from . import teilen
+    eigen = str(db.einstellung(EINSTELLUNG) or "").strip()
+    if eigen:
+        return Path(eigen)
+    return teilen.unterordner(db, teilen.ANFRAGEN, "teilen_anfragen", anlegen=True)
 
 
 def _relevant(p):
@@ -142,9 +156,10 @@ class Anfrage:
     """Eine Anfrage im Ordner: name (Anzeige), ordner (Unterordner oder None bei losen Dateien), dateien [Path],
     zeit (jüngste Datei), kunde (Kundennummer oder None), gesperrt (Kürzel oder None)."""
 
-    def __init__(self, name, ordner, dateien, kunde=None, gesperrt=None):
+    def __init__(self, name, ordner, dateien, kunde=None, gesperrt=None, zugewiesen=None):
         self.name, self.ordner, self.dateien = name, ordner, sorted(dateien)
         self.kunde, self.gesperrt = kunde, gesperrt
+        self.zugewiesen = zugewiesen or {}      # {an, von, zeit, notiz} oder {}
         zeiten = [z for z in map(_zeit, self.dateien) if z]
         self.zeit = max(zeiten) if zeiten else None
 
@@ -181,7 +196,11 @@ class Anfrage:
             + ([f"{len(self.mails)} E-Mail"] if self.mails else []) \
             + ([f"{len(self.archive)} ZIP"] if self.archive else [])
         z = f" · {self.zeit.strftime('%d.%m. %H:%M')}" if self.zeit else ""
-        return f"{self.name} ({', '.join(teile)}){z}" + (f" · in Bearbeitung: {self.gesperrt}" if self.gesperrt else "")
+        an = self.zugewiesen.get("an")
+        notiz = self.zugewiesen.get("notiz")
+        return (f"{self.name} ({', '.join(teile)}){z}" + (f" · für {an}" if an else "")
+                + (f" („{notiz}“)" if an and notiz else "")
+                + (f" · in Bearbeitung: {self.gesperrt}" if self.gesperrt else ""))
 
     def __repr__(self):
         return f"Anfrage({self.name!r}, {len(self.dateien)} Dateien)"
@@ -270,7 +289,8 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
             g = sorted(g, key=quell_zeit)             # Mails nach Sendezeit, älteste zuerst
             name = g[0].stem if len(g) == 1 else (f"{g[0].stem} + Nachtrag" if g[0].suffix.lower() in MAIL else
                                                   f"{len(g)} Dateien vom {_zeit(g[0]).strftime('%d.%m. %H:%M')}")
-        out.append(Anfrage(name, o, g, kunde_aus_ordner(kunden, g) if kunden else None, gesperrt))
+        out.append(Anfrage(name, o, g, kunde_aus_ordner(kunden, g) if kunden else None, gesperrt,
+                           zuweisung_lesen(o) if o else None))
     return sorted(out, key=lambda a: a.zeit or jetzt)
 
 
@@ -347,23 +367,57 @@ def _gleich(a, b):
     return Path(b).exists() and gleich(Path(a), Path(b))
 
 
+def _in_unterordner(anfrage, wurzel, jetzt):
+    """Lose Dateien in einen eigenen Unterordner ('Anfrage 2026-10-25 20-13'), ein Nachtrag (lose Mail) zu einem
+    Unterordner in diesen. Ergebnis: Anfrage mit ordner."""
+    o = anfrage.ordner
+    draussen = [d for d in anfrage.dateien if not o or not d.is_relative_to(o)]
+    if not draussen:
+        return anfrage
+    if o is None:
+        o = _frei(Path(wurzel) / f"Anfrage {(anfrage.zeit or jetzt).strftime('%Y-%m-%d %H-%M')}")
+        o.mkdir(parents=True)
+    neu = [d for d in anfrage.dateien if d not in draussen]
+    for d in draussen:
+        z = _frei(o / d.name)
+        shutil.move(str(d), str(z))
+        neu.append(z)
+    return Anfrage(o.name, o, neu, anfrage.kunde, anfrage.gesperrt, anfrage.zugewiesen)
+
+
+def zuweisung_lesen(o):
+    """Zuweisung im Unterordner: {an, von, zeit, notiz} oder {}."""
+    try:
+        teile = (Path(o) / ZUGEWIESEN).read_text(encoding="utf-8").split("|", 3)
+    except OSError:
+        return {}
+    teile += [""] * (4 - len(teile))
+    an = teile[0].strip()
+    return dict(an=an, von=teile[1].strip(), zeit=teile[2].strip(), notiz=teile[3].strip()) if an else {}
+
+
+def zuweisen(anfrage, wurzel, an, von="", notiz="", jetzt=None):
+    """Anfrage einem Kollegen zuweisen (an leer = Zuweisung aufheben); lose Dateien kommen dazu in einen eigenen
+    Unterordner. Alle sehen „für MK“ in der Liste. Ergebnis: die Anfrage. OSError: nicht möglich."""
+    jetzt = jetzt or datetime.datetime.now()
+    anfrage = _in_unterordner(anfrage, wurzel, jetzt)
+    datei = anfrage.ordner / ZUGEWIESEN
+    if not an:
+        datei.unlink(missing_ok=True)
+        anfrage.zugewiesen = {}
+        return anfrage
+    notiz = " ".join(str(notiz or "").split())
+    datei.write_text(f"{an}|{von}|{jetzt.isoformat(timespec='seconds')}|{notiz}", encoding="utf-8")
+    anfrage.zugewiesen = dict(an=an, von=von, zeit=jetzt.isoformat(timespec="seconds"), notiz=notiz)
+    return anfrage
+
+
 def sperren(anfrage, wurzel, kuerzel, jetzt=None):
     """Anfrage für diesen Arbeitsplatz sperren. Lose Dateien kommen vorher in einen eigenen Unterordner
     ('Anfrage 2026-10-25 20-13'); ein Nachtrag (lose Mail) zu einem Unterordner kommt in diesen. Ergebnis: die Anfrage
     (mit ordner). OSError: nicht möglich."""
     jetzt = jetzt or datetime.datetime.now()
-    o = anfrage.ordner
-    draussen = [d for d in anfrage.dateien if not o or not d.is_relative_to(o)]
-    if draussen:
-        if o is None:
-            o = _frei(Path(wurzel) / f"Anfrage {(anfrage.zeit or jetzt).strftime('%Y-%m-%d %H-%M')}")
-            o.mkdir(parents=True)
-        neu = [d for d in anfrage.dateien if d not in draussen]
-        for d in draussen:
-            z = _frei(o / d.name)
-            shutil.move(str(d), str(z))
-            neu.append(z)
-        anfrage = Anfrage(o.name, o, neu, anfrage.kunde)
+    anfrage = _in_unterordner(anfrage, wurzel, jetzt)
     (anfrage.ordner / SPERRE).write_text(f"{kuerzel or '?'}|{jetzt.isoformat(timespec='seconds')}", encoding="utf-8")
     anfrage.gesperrt = kuerzel or "?"
     return anfrage
@@ -410,7 +464,8 @@ def auspacken(anfrage):
         return anfrage
     dateien = [umbenannt.get(d, d) for d in anfrage.dateien]
     return Anfrage(anfrage.name, anfrage.ordner, dateien + [d for d in neu if d not in dateien], anfrage.kunde,
-                   anfrage.gesperrt)
+                   anfrage.gesperrt,
+                   anfrage.zugewiesen)
 
 
 def umbenennen(anfrage, name):
@@ -421,7 +476,8 @@ def umbenennen(anfrage, name):
     neu = _frei(anfrage.ordner.with_name(name))
     alt = anfrage.ordner
     alt.rename(neu)
-    a = Anfrage(neu.name, neu, [neu / d.relative_to(alt) for d in anfrage.dateien], anfrage.kunde, anfrage.gesperrt)
+    a = Anfrage(neu.name, neu, [neu / d.relative_to(alt) for d in anfrage.dateien], anfrage.kunde, anfrage.gesperrt,
+                anfrage.zugewiesen)
     return a
 
 
@@ -455,6 +511,7 @@ def verschieben(anfrage, ziel, step_ordner="STEP"):
     if anfrage.ordner and not fehler:
         try:
             (anfrage.ordner / SPERRE).unlink(missing_ok=True)
+            (anfrage.ordner / ZUGEWIESEN).unlink(missing_ok=True)
             for o in sorted((p for p in anfrage.ordner.rglob("*") if p.is_dir()), key=lambda p: -len(p.parts)):
                 if not any(o.iterdir()):
                     o.rmdir()
@@ -626,7 +683,7 @@ def ordner_name(kunde, anfragenummer):
 
 def stand(anfragen):
     """Kurzer Vergleichswert, ob sich die Liste geändert hat (Startseite nur dann neu zeichnen)."""
-    return tuple((a.schluessel, a.gesperrt, len(a.dateien)) for a in anfragen)
+    return tuple((a.schluessel, a.gesperrt, len(a.dateien), tuple(sorted(a.zugewiesen.items()))) for a in anfragen)
 
 
 def kunde_text(kunden, nr):

@@ -131,6 +131,7 @@ UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), (
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
+SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
@@ -2446,14 +2447,26 @@ class Datenbank:
         Ergebnis: (Pfade, Fehlertext oder None) – ein nicht erreichbarer zweiter Ordner (Netzlaufwerk,
         USB-Stick fehlt) verhindert die erste Sicherung nicht."""
         pfade = [self.sicherung(zusatz=zusatz)]
+        fehler = None
         ordner2 = (self.einstellung("sicherung_ordner2") or "").strip()
-        if not ordner2:
-            return pfade, None
-        try:
-            pfade.append(self.sicherung(ordner2, zusatz=zusatz))
-        except OSError as e:
-            return pfade, f"Zweiter Sicherungsordner nicht erreichbar ({ordner2}): {e}"
-        return pfade, None
+        if ordner2:
+            try:
+                pfade.append(self.sicherung(ordner2, zusatz=zusatz))
+            except OSError as e:
+                fehler = f"Zweiter Sicherungsordner nicht erreichbar ({ordner2}): {e}"
+        gemeinsam = self.sicherung_gemeinsam() if zusatz == "beenden" else None
+        if gemeinsam is not None:            # Beenden: auch in den gemeinsamen Ordner (Patrick 28.10.2026)
+            try:
+                pfade.append(self.sicherung(gemeinsam, behalten=SICHERUNGEN_GEMEINSAM, zusatz=zusatz))
+            except OSError as e:
+                fehler = fehler or f"Gemeinsamer Ordner nicht erreichbar ({gemeinsam}): {e}"
+        return pfade, fehler
+
+    @liest
+    def sicherung_gemeinsam(self):
+        """Ordner Sicherungen/<Kürzel> im gemeinsamen Ordner (Einstellung teilen_sicherung) oder None."""
+        u = teilen.unterordner(self, teilen.SICHERUNGEN, "teilen_sicherung")
+        return u / teilen.kuerzel(self) if u is not None else None
 
     @liest
     def sicherungsordner(self):
@@ -2462,6 +2475,9 @@ class Datenbank:
         ordner2 = (self.einstellung("sicherung_ordner2") or "").strip()
         if ordner2 and Path(ordner2).is_dir():
             ordner.append(Path(ordner2))
+        gemeinsam = self.sicherung_gemeinsam()
+        if gemeinsam is not None and gemeinsam.is_dir():
+            ordner.append(gemeinsam)
         return ordner
 
     @erlaubt

@@ -6,7 +6,8 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+from PySide6.QtCore import QDate
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
                                QPushButton, QVBoxLayout, QWidget)
 
@@ -194,7 +195,7 @@ def _neu_laden(fenster, bericht, voll):
     anders = anwesend != fenster.__dict__.get("_teilen_anwesend")
     fenster._teilen_anwesend = anwesend
     if (bericht.get("angebote_neu") or bericht.get("angebote_geaendert") or bericht.get("angebote_weg")
-            or bericht.get("uebernommen") or bericht.get("nummern")):
+            or bericht.get("uebernommen") or bericht.get("nummern") or bericht.get("notizen")):
         fenster.start.neu_laden()
         fenster.angebote.neu_laden()
         fenster.versand.neu_laden()
@@ -222,6 +223,9 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
     for u in bericht.get("uebernommen", ()):
         texte.append(f"{_name(db, u['von'])} hat Ihnen Angebot {u['nummer']} übergeben" +
                      (f": „{u['notiz']}“" if u.get("notiz") else "."))
+    for n in bericht.get("notizen", ()):
+        texte.append(f"Notiz von {_name(db, n['von'])}" + (f" zu Angebot {n['nummer']}" if n.get("nummer") else "")
+                     + f": „{n['notiz']}“" + (f" (Wiedervorlage {_datum(n['faellig'])})" if n.get("faellig") else ""))
     for a in bericht.get("abgelehnt", ()):
         texte.append(f"{_name(db, a['von'])} gibt Angebot {a['nummer']} nicht ab" +
                      (f": „{a['notiz']}“" if a.get("notiz") else "."))
@@ -247,6 +251,13 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
         except (teilen.TeilenFehler, OSError) as e:
             fenster.meldung(f"Antwort kommt beim nächsten Abgleich an: {e}", fehler=True)
         fenster.alles_neu_laden()
+
+
+def _datum(iso):
+    try:
+        return datetime.date.fromisoformat(str(iso)).strftime("%d.%m.%Y")
+    except ValueError:
+        return str(iso or "")
 
 
 def _name(db, k):
@@ -299,6 +310,66 @@ class UebergebenDialog(QDialog):
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
         form.addRow(knoepfe)
+
+
+class NotizDialog(QDialog):
+    """Notiz an einen Kollegen, wahlweise mit Wiedervorlage-Datum."""
+    def __init__(self, fenster, nummer=None):
+        super().__init__(fenster)
+        self.setWindowTitle("Notiz an Kollegen" + (f" zu Angebot {nummer}" if nummer else ""))
+        self.setMinimumWidth(460)
+        form = QFormLayout(self)
+        self.wer = QComboBox()
+        for k, name in teilen.kollegen(fenster.db).items():
+            self.wer.addItem(f"{k} – {name}" if name else k, k)
+        self.text = QLineEdit()
+        self.text.setPlaceholderText("z. B. bitte Preis prüfen, Kunde ruft Freitag an")
+        self.mit_datum = QCheckBox("Wiedervorlage am")
+        self.datum = QDateEdit(QDate.currentDate().addDays(1))
+        self.datum.setCalendarPopup(True)
+        self.datum.setEnabled(False)
+        self.mit_datum.toggled.connect(self.datum.setEnabled)
+        zeile = QWidget()
+        zl = QHBoxLayout(zeile)
+        zl.setContentsMargins(0, 0, 0, 0)
+        zl.addWidget(self.mit_datum)
+        zl.addWidget(self.datum)
+        zl.addStretch(1)
+        form.addRow("An", self.wer)
+        form.addRow("Notiz", self.text)
+        form.addRow("", zeile)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.button(QDialogButtonBox.Ok).setText("Senden")
+        knoepfe.accepted.connect(self.accept)
+        knoepfe.rejected.connect(self.reject)
+        form.addRow(knoepfe)
+
+    def faellig(self):
+        return self.datum.date().toString("yyyy-MM-dd") if self.mit_datum.isChecked() else None
+
+
+def notiz_senden(fenster, angebot_id=None, an=None, text="", faellig=None, vorschlag=None):
+    """Notiz an einen Kollegen (ohne an: Dialog), gleich in den gemeinsamen Ordner. Ergebnis: True = gesendet."""
+    db = fenster.db
+    nummer = (db.angebot(angebot_id) or {}).get("nummer") if angebot_id else None
+    if not teilen.aktiv(db) or not teilen.kollegen(db):
+        fenster.meldung("Notizen gehen nur mit gemeinsamem Ordner und Kollegen darin.", fehler=True)
+        return False
+    if an is None:
+        d = NotizDialog(fenster, nummer)
+        if vorschlag and d.wer.findData(vorschlag) >= 0:
+            d.wer.setCurrentIndex(d.wer.findData(vorschlag))
+        if fenster.stumm or d.exec() != QDialog.Accepted:
+            return False
+        an, text, faellig = d.wer.currentData(), d.text.text(), d.faellig()
+    try:
+        teilen.notiz_senden(db, an, text, nummer, faellig)
+    except teilen.TeilenFehler as e:
+        fenster.meldung(str(e), fehler=True)
+        return False
+    fenster.meldung(f"Notiz an {an} gesendet" + (f" (Angebot {nummer})." if nummer else "."))
+    abgleichen(fenster, lesen=False, leise=True)
+    return True
 
 
 def uebergeben(fenster, angebot_id, an=None, notiz=""):
@@ -558,7 +629,7 @@ def abgleichen(fenster, lesen=True, schreiben=True, leise=False, beenden=False, 
     if lesen or uebernehmen or umnummeriert:
         _neu_laden(fenster, bericht, voll=not auto)
     neues = any(bericht.get(n) for n in ("angebote_neu", "angebote_geaendert", "angebote_weg", "stammdaten",
-                                         "uebernommen", "konflikte", "nummern"))
+                                         "uebernommen", "konflikte", "nummern", "notizen"))
     if not auto or neues:
         fenster.meldung(teilen.bericht_text(bericht),
                         aktion=("Konflikte …", lambda: konflikte_zeigen(fenster)) if bericht.get("konflikte") else None)

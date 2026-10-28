@@ -1226,6 +1226,24 @@ class StartSeite(QWidget):
             wk.addWidget(b)
         wk.addStretch(1)
         hl.addWidget(self.wv_knoepfe)
+        # Notizen der Kollegen (gemeinsamer Ordner, Patrick 28.10.2026)
+        self.notiz_titel = QLabel()
+        hl.addWidget(self.notiz_titel)
+        self.notizen = QListWidget()
+        self.notizen.setToolTip("Notizen der Kollegen; Doppelklick öffnet das Angebot, „Erledigt“ nimmt die Notiz "
+                                "aus der Liste")
+        self.notizen.setMaximumHeight(120)
+        self.notizen.itemActivated.connect(lambda it: self._notiz_oeffnen(it))
+        hl.addWidget(self.notizen)
+        self.notiz_knoepfe = QWidget()
+        nk = QHBoxLayout(self.notiz_knoepfe)
+        nk.setContentsMargins(0, 0, 0, 0)
+        for text, ziel in (("Erledigt", self.notiz_erledigt), ("Antworten …", self.notiz_antworten)):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            nk.addWidget(b)
+        nk.addStretch(1)
+        hl.addWidget(self.notiz_knoepfe)
         self.kennzahlen = QLabel()
         self.kennzahlen.setTextFormat(Qt.RichText)
         self.kennzahlen.setWordWrap(True)
@@ -1362,6 +1380,7 @@ class StartSeite(QWidget):
                               "<b>Wiedervorlage:</b> nichts fällig")
         self.wiedervorlage.setVisible(bool(n))
         self.wv_knoepfe.setVisible(bool(n))
+        self.notizen_laden()
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
         self.kennzahlen.setVisible(admin)
         if admin:
@@ -1372,6 +1391,50 @@ class StartSeite(QWidget):
                 f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
                 f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+
+    def notizen_laden(self):
+        """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""
+        offen = sorted(teilen.notizen(self.f.db, offen_nur=True), key=lambda n: not n["faellig_jetzt"])
+        self.notizen.clear()
+        for n in offen:
+            wann = ""
+            if n.get("faellig"):
+                wann = f" · Wiedervorlage {datetime.date.fromisoformat(n['faellig']):%d.%m.%Y}"
+            it = QListWidgetItem(f"{n['von']}: {n['notiz']}" + (f"  (Angebot {n['nummer']})" if n.get("nummer") else "")
+                                 + wann)
+            it.setData(Qt.ItemDataRole.UserRole, n["id"])
+            if not n["faellig_jetzt"]:
+                it.setForeground(self.notizen.palette().placeholderText())
+            self.notizen.addItem(it)
+        faellig = sum(1 for n in offen if n["faellig_jetzt"])
+        self.notiz_titel.setText(f"<b>Notizen von Kollegen</b> ({faellig})" if offen else "")
+        for w in (self.notiz_titel, self.notizen, self.notiz_knoepfe):
+            w.setVisible(bool(offen))
+
+    def _notiz(self, it=None):
+        it = it or self.notizen.currentItem() or (self.notizen.item(0) if self.notizen.count() else None)
+        nid = it.data(Qt.ItemDataRole.UserRole) if it else None
+        return next((n for n in teilen.notizen(self.f.db) if n["id"] == nid), None)
+
+    def _notiz_oeffnen(self, it):
+        n = self._notiz(it)
+        a = next((z for z in self.f.db.angebote() if n and z.get("nummer") == n.get("nummer")), None)
+        if a:
+            self.f.angebot_oeffnen(a["id"])
+
+    def notiz_erledigt(self):
+        n = self._notiz()
+        if n:
+            teilen.notiz_erledigt(self.f.db, n["id"])
+            self.notizen_laden()
+
+    def notiz_antworten(self):
+        from . import teilen_fenster
+        n = self._notiz()
+        if not n:
+            return False
+        a = next((z for z in self.f.db.angebote() if z.get("nummer") == n.get("nummer")), None)
+        return teilen_fenster.notiz_senden(self.f, a["id"] if a else None, vorschlag=n["von"])
 
     def _wv_aktion(self, ziel):
         it = self.wiedervorlage.currentItem() or (self.wiedervorlage.item(0) if self.wiedervorlage.count() else None)
@@ -1411,7 +1474,7 @@ class Hauptfenster(QMainWindow):
         self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
         try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.28 entfernt)
-            db.zeichnungen_entfernen(self.ablage())
+            db.zeichnungen_entfernen(self.ablage_lokal())
         except OSError:
             pass
         from . import step_einstellungen
@@ -2199,7 +2262,7 @@ class Hauptfenster(QMainWindow):
 
     def daten_exportieren(self):
         from PySide6.QtWidgets import QFileDialog
-        vorschlag = self.ablage() / f"Rohrlaser-Daten {datetime.date.today():%Y-%m-%d}.zip"
+        vorschlag = self.ablage_lokal() / f"Rohrlaser-Daten {datetime.date.today():%Y-%m-%d}.zip"
         ziel, _ = QFileDialog.getSaveFileName(self, "Daten exportieren", str(vorschlag), "Export-Datei (*.zip)")
         if ziel:
             self.export_schreiben(ziel)
@@ -2223,7 +2286,7 @@ class Hauptfenster(QMainWindow):
 
     def daten_importieren(self):
         from PySide6.QtWidgets import QFileDialog
-        datei, _ = QFileDialog.getOpenFileName(self, "Daten importieren", str(self.ablage()),
+        datei, _ = QFileDialog.getOpenFileName(self, "Daten importieren", str(self.ablage_lokal()),
                                                "Export, Sicherung oder Datendatei (*.zip *.db)")
         if datei:
             self.daten_ersetzen(datei, zusatz="vor_Import")
@@ -2267,7 +2330,13 @@ class Hauptfenster(QMainWindow):
         self.datei_oeffnen(self.db.pfad.parent)
 
     def ablage(self):
-        """Ordner für PDF und CSV-Export (Einstellung 'Ablageordner', sonst portabel 'Angebote' neben dem Programm,
+        """Ordner für PDF und CSV-Export: mit gemeinsamem Ordner dessen Unterordner „Angebote“ (Einstellung
+        teilen_ablage, Patrick 28.10.2026), sonst die eigene Ablage (ablage_lokal)."""
+        gemeinsam = teilen.unterordner(self.db, teilen.ANGEBOTE, "teilen_ablage", anlegen=True)
+        return gemeinsam if gemeinsam is not None else self.ablage_lokal()
+
+    def ablage_lokal(self):
+        """Ablage dieses Arbeitsplatzes (Einstellung 'Ablageordner', sonst portabel 'Angebote' neben dem Programm,
         installiert Dokumente\\Rohrlaser Angebote)."""
         vorgabe = self.orte.ablage if self.orte else self.programmordner / ausgabe.ABLAGE
         return ausgabe.ablageordner(self.db.einstellung("ablageordner"), vorgabe)
@@ -2282,6 +2351,10 @@ class Hauptfenster(QMainWindow):
         """Ordner des Angebots in der Ablage ('2026-00042 Kunde', Fassungen 'Fassung 2' darin), wird angelegt.
         Vorher werden Ordner vorläufiger Nummern auf die endgültige umbenannt. OSError: nicht anlegbar."""
         ablage = self.ablage()
+        lokal = self.ablage_lokal()
+        grund = angebotsordner.teile(kopf)[0]
+        if ablage != lokal and not angebotsordner.finden(ablage, grund) and angebotsordner.finden(lokal, grund):
+            ablage = lokal          # Ordner aus der Zeit vor dem gemeinsamen Ordner bleibt, wo er ist
         angebotsordner.umnummerieren_offen(self.db, ablage)
         return angebotsordner.ordner(ablage, kopf)
 
@@ -2300,7 +2373,7 @@ class Hauptfenster(QMainWindow):
     def lose_dateien_verschieben(self):
         """Einmalig je Ablage: Dateien aus der Zeit vor den Angebotsordnern in den Ordner ihres Angebots."""
         try:
-            n = angebotsordner.lose_verschieben_einmal(self.db, self.ablage())
+            n = angebotsordner.lose_verschieben_einmal(self.db, self.ablage_lokal())
         except (OSError, sqlite3.Error):
             return 0
         if n:

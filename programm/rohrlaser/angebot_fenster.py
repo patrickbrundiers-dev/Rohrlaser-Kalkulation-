@@ -381,11 +381,13 @@ class AngeboteSeite(QWidget):
         menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
         # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
         self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
+        self.notiz_aktion = menue.addAction("Notiz an Kollegen …", lambda: self.notiz())
         trenner = menue.addSeparator()  # Plan Palettenbegleitschein (ausgeblendet, wenn Versand aus)
         ps = menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
         self.palettenschein_aktionen = (trenner, ps)
         menue.aboutToShow.connect(lambda: [a.setVisible(self.f.versand_an()) for a in self.palettenschein_aktionen])
-        menue.aboutToShow.connect(lambda: self.uebergeben_aktion.setVisible(teilen.aktiv(self.db)))
+        menue.aboutToShow.connect(lambda: [a.setVisible(teilen.aktiv(self.db))
+                                           for a in (self.uebergeben_aktion, self.notiz_aktion)])
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -478,6 +480,14 @@ class AngeboteSeite(QWidget):
         if i is None or self._fremd(i, "Übergeben"):
             return False
         return teilen_fenster.uebergeben(self.f, i, an, notiz)
+
+    def notiz(self, angebot_id=None, an=None, text="", faellig=None):
+        """Vorgang → Notiz an Kollegen: zum gewählten Angebot (auch eines Kollegen), wahlweise mit Wiedervorlage."""
+        from . import teilen_fenster
+        i = angebot_id or self._gewaehlt()
+        if i is None:
+            return False
+        return teilen_fenster.notiz_senden(self.f, i, an, text, faellig)
 
     def _fremd(self, i, was):
         """Angebot eines Kollegen: Hinweis statt Ändern. Ergebnis: True = fremd (nichts tun)."""
