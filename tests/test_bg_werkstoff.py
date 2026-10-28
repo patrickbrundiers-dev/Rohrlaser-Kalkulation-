@@ -46,7 +46,7 @@ nah(r1["zeit_min"], r0["zeit_min"] * 1.3, "Edelstahl × 1,3")
 st = baugruppe.naht_stand(dict(naht, werkstoff="Edelstahl"), TAB)
 assert st["f_werkstoff"] == 1.3
 alt = dict(st)
-alt.pop("f_werkstoff")                                     # gemerkter Stand vor 0.9.172: Faktor 1, bitgleich
+alt.pop("f_werkstoff")                                     # gemerkter Stand vor 0.9.173: Faktor 1, bitgleich
 nah(baugruppe.naht_rechnen(dict(naht, werkstoff="Edelstahl", stand=alt), TAB, SAETZE)["zeit_min"], r0["zeit_min"])
 rw = {(z["art"], z["wert"]): z["faktor"] for z in baugruppe.richtwerte()["schweiss_faktoren"]}
 assert rw[("Werkstoff", "Edelstahl")] == 1.3 and rw[("Werkstoff", "Stahl")] == rw[("Werkstoff", "Aluminium")] == 1.0
