@@ -21,21 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.185", "<b>Abgleich mit den Kollegen bei vielen Angeboten schnell</b>: Das Programm packt nur noch Angebote "
-                "neu, die seit dem letzten Abgleich geändert wurden, und legt im gemeinsamen Ordner je Mitarbeiter einen "
-                "Ordner mit einer Datei je Monat an; über das Netz geht nur der geänderte Monat (bei 10.000 Angeboten "
-                "Sekunden statt einer Minute). Alte Einzeldateien werden weiter gelesen. Bitte alle Arbeitsplätze "
-                "aktualisieren, ältere Programme sehen die neuen Ordner nicht ([[gemeinsamer_ordner]]).",
-     "Abgleich: nur geänderte Angebote, eine Datei je Monat im gemeinsamen Ordner."],
-    ["0.9.184", "<b>Viele Angebote, Teil 2</b>: <b>Wiederholteile</b> sucht über einen Index nur passende Positionen "
+    ["0.9.185", "<b>Viele Angebote, Teil 2</b>: <b>Wiederholteile</b> sucht über einen Index nur passende Positionen "
                 "und stuft im Hintergrund ein, das Angebot bleibt auch bei Tausenden Angeboten flüssig "
                 "([[wiederholteile]]). Der Reiter <b>Versand</b> rechnet erst, wenn er gezeigt wird; Aufträge ohne "
                 "Palettenschein, deren Liefertermin über 90 Tage zurückliegt, stehen automatisch unter Archiviert "
                 "([[versand]]). <b>Sicherungen gestaffelt</b>: 7 Tage, 4 Wochen, 12 Monate, vor Updates nur die letzten 3; "
                 "die tägliche Sicherung läuft im Hintergrund, der Schnittplan wird gepackt gespeichert (Datendatei etwa "
                 "40 % kleiner, [[datensicherung]]). Neu: <b>Datei → Alte Angebote archivieren …</b> und <b>Archiv "
-                "durchsuchen …</b>, eine Archivdatei je Jahr, Angebote lassen sich jederzeit zurückholen ([[archiv]]).",
-     "Viele Angebote: Wiederholteile schneller, Versand-Reiter, gestaffelte Sicherungen, Archiv alter Angebote."],
+                "durchsuchen …</b>, eine Archivdatei je Jahr, Angebote lassen sich jederzeit zurückholen ([[archiv]]). <b>"
+                "Abgleich mit den Kollegen bei vielen Angeboten schnell</b>: Das Programm packt nur noch Angebote "
+                "neu, die seit dem letzten Abgleich geändert wurden, und legt im gemeinsamen Ordner je Mitarbeiter einen "
+                "Ordner mit einer Datei je Monat an; über das Netz geht nur der geänderte Monat (bei 1.000 Angeboten "
+                "0,1 statt 6,6 Sekunden). Alte Einzeldateien werden weiter gelesen. Bitte alle Arbeitsplätze "
+                "aktualisieren, ältere Programme sehen die neuen Ordner nicht ([[gemeinsamer_ordner]]).",
+     "Viele Angebote: Wiederholteile schneller, Versand-Reiter, gestaffelte Sicherungen, Archiv alter Angebote, Abgleich nur geänderte Angebote je Monat."],
     ["0.9.183", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
                 "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
                 "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",
