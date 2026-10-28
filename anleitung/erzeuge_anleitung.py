@@ -871,8 +871,8 @@ def kapitel_angebote(i):
     i.liste("<b>Eine Anfrage</b> ist ein Unterordner (samt Unterordnern darin), z. B. <i>Anfragen\\Hessler 25.10. "
             "Gestell</i>. Dateien direkt im Anfrage-Ordner gehören zusammen, solange zwischen zwei Dateien weniger als "
             "10 Minuten liegen; mehr Abstand ergibt eine neue Anfrage.",
-            "Gezählt werden STEP-Dateien (*.step, *.stp) und Formulare (PDF, JPG, PNG, TIFF); eine Anfrage ohne STEP "
-            "erscheint nicht. Dateien, die gerade noch kopiert werden, kommen beim nächsten Blick (alle 30 Sekunden).",
+            "Gezählt werden STEP-Dateien (*.step, *.stp), Formulare (PDF, JPG, PNG, TIFF) und E-Mails (*.msg, *.eml, "
+            "[[anfrage_mail]]); eine Anfrage ohne STEP – auch nicht im Anhang einer Mail – erscheint nicht. Dateien, die gerade noch kopiert werden, kommen beim nächsten Blick (alle 30 Sekunden).",
             "Den <b>Kunden</b> schlägt das Programm wie beim Ziehen aus dem Ordnernamen vor (Name oder Kundennummer).",
             "Hat ein Kunde <b>mehrere offene Anfragen</b>, steht ein Hinweis darunter: getrennt öffnen (je ein "
             "Angebot) oder beide markieren und <b>Zusammen öffnen</b> – ein Angebot, die Stangen werden gemeinsam "
@@ -907,6 +907,42 @@ def kapitel_angebote(i):
             "Zahlen, bei denen sich die Texterkennung selbst unsicher ist, sind ebenfalls gelb.")
     i.hinweis("Gelbe Stückzahlen im Prüfdialog kurz mit dem Formular vergleichen. Am besten liest die Erkennung "
               "Scans mit 300 dpi in Schwarzweiß oder Graustufen; schräge Fotos mit Schatten gehen schlechter.")
+
+    i.abschnitt("E-Mail aus Outlook auslesen", marke="anfrage_mail")
+    i.text("Die ganze E-Mail aus Outlook in den Anfrage-Ordner ziehen (wird zur <i>.msg</i>-Datei) – die Anhänge muss "
+           "man nicht einzeln speichern. Beim Öffnen packt das Programm die STEP-Dateien und Formulare aus und belegt "
+           "Kunde, Anfrage-Nr., Lieferzeit, Werkstoff und Stückzahlen aus der Mail vor; der Prüfdialog zeigt oben "
+           "<i>✉ Aus der E-Mail: …</i>, was übernommen wurde.", kurz=True)
+    i.genauer()
+    i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
+            "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "
+            "Eine Mail mit STEP-Anhang ist immer eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen.",
+            "<b>Kunde</b>: Die Absenderadresse wird mit dem Feld <i>E-Mail</i> der Kunden verglichen ([[kunden]]) – "
+            "erst genau, dann nur die Domain (<i>@kunde.de</i>). Bei Freemail-Adressen (gmail, web.de, gmx …) zählt "
+            "nur die genaue Adresse; passt eine Domain zu mehreren Kunden, entscheidet das Programm nicht. Mails "
+            "aus der eigenen Firma (Domain aus Briefkopf oder Benutzer-E-Mail) zählen nicht: Hat ein Kollege die "
+            "Anfrage weitergeleitet, gilt der ursprüngliche Absender. Ohne Treffer gilt wie bisher der Name im Text "
+            "bzw. der Ordnername.",
+            "<b>Anfrage-Nr.</b> aus Formular, Betreff oder Text (<i>Anfrage Nr. A-4711</i>), wie beim Formular.",
+            "<b>Lieferzeit</b>: Ein Wunschtermin wie <i>Liefertermin KW 47</i> oder <i>benötigt bis 20.11.</i> "
+            "wird die Lieferzeit des Angebots (Kalenderwoche bzw. Lieferdatum). Gezählt werden nur Sätze über "
+            "Lieferung oder Bedarf, nicht <i>Angebot bis …</i>; zitierte Zeilen (&gt;), vergangene oder mehrere "
+            "verschiedene Termine übernimmt das Programm nicht.",
+            "<b>Bemerkung</b> (intern, nicht im Angebots-PDF): <i>E-Mail von Name &lt;Adresse&gt; vom Datum: "
+            "Betreff</i>.",
+            "<b>Werkstoff</b>: Steht ein Werkstoff im Text (<i>1.4301</i>, <i>V2A</i>, <i>S355J2H</i>, "
+            "<i>AW-6060</i>), wird er für Rohre und Profile vorgewählt – aber nur, wenn genau ein Werkstoff der "
+            "Stammdaten passt. Passen mehrere (z. B. <i>S235</i> zu zwei Normen) und die Vorgabe des Kunden ist "
+            "dabei, bleibt sie; sonst nennt der Hinweis die Kandidaten und man wählt selbst.",
+            "<b>Stückzahlen</b> wie beim Formular aus Zeilen mit Artikelnummer oder Dateiname "
+            "(<i>MG-01 Stiel 20 Stk</i>); ein Formular im Anhang wird mitgelesen.",
+            "Nach dem Übernehmen liegt die Mail im Unterordner <i>Anfrage</i> des Angebotsordners.")
+    i.text("Auch ohne Anfrage-Ordner: Eine <i>.msg</i>-Datei oder einen Kundenordner mit Mail auf die Startseite "
+           "oder die Angebotsliste ziehen ([[angebot_aus_step]]) – die STEP-Anhänge werden dann neben die Mail "
+           "gelegt (nicht doppelt) und alles wie oben vorbelegt.")
+    i.hinweis("Direkt aus Outlook ins Programm ziehen geht nicht (Outlook gibt dabei keine Datei weiter); die Mail "
+              "erst in den Anfrage-Ordner oder einen Ordner im Explorer ziehen. Vorschläge im Prüfdialog kurz "
+              "prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf und lassen sich dort ändern.")
 
 
 def kapitel_angebot(i):
@@ -5619,7 +5655,7 @@ def kapitel_stammdaten(i):
         ["Arbeitsschritte", "Arbeitsschritt, Stundensatz, Art, Rüstzeit, Zeit je Einheit",
          "Welcher Arbeitsschritt mit welchem Stundensatz und welcher Zeitvorgabe gerechnet wird ([[stundensaetze]])."]],
         [30, 95, 140])
-    i.abschnitt("Kunden")
+    i.abschnitt("Kunden", marke="kunden")
     i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
     i.text("Im Reiter <i>Kunden</i>: Kundennummer, Name und Anschrift eintragen. Im Angebotskopf die Kundennummer "
            "wählen, dann kommen Anschrift, Fracht-PLZ und Zahlungsbedingungen mit.", kurz=True)
@@ -5636,7 +5672,8 @@ def kapitel_stammdaten(i):
                                                          "die Fracht statt PLZ und Land"],
         ["Lieferbedingung", "frei Haus, frei Frachtführer, unfrei, ab Werk oder Abholung; bei unfrei, ab Werk und "
                             "Abholung trägt der Kunde die Fracht (Frachtkosten 0 €)"],
-        ["Telefon, E-Mail", "zur Info"],
+        ["Telefon", "zur Info"],
+        ["E-Mail", "erkennt den Kunden an der Absenderadresse einer Anfrage-Mail ([[anfrage_mail]]); mehrere mit ; trennen"],
         ["Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
          "den Preis eingerechnet ([[kalkulation]])."],

@@ -73,20 +73,47 @@ def kunde_vorschlag(db, dateien):
     return None
 
 
-def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=None):
+def _mails_lesen(fenster, dateien):
+    """E-Mails unter den gezogenen Dateien/Ordnern (Patrick 28.10.2026): STEP-Anhänge neben die Mail legen und Kunde,
+    Anfrage-Nr., Lieferzeit, Bemerkung, Werkstoff und Stückzahlen wie im Anfrage-Ordner (anfragen.werte) vorbelegen.
+    Ergebnis (Dateien samt ausgepackter STEP-Dateien, weitere Werte)."""
+    from . import anfragen, mail
+    pfade = anfragen.mails_neben(dateien)
+    if not pfade:
+        return dateien, {}
+    dateien, mails = list(dateien), []
+    for p in pfade:
+        try:
+            dateien += [str(d) for d in anfragen.neben_auspacken(p)]
+        except OSError as e:
+            fenster.meldung(f"Anhänge von {p.name} lassen sich nicht auspacken: {e}", fehler=True)
+        m = mail.lesen(p)
+        if m:
+            mails.append(m)
+    return dateien, anfragen.werte(fenster.db, [], mails)[2]
+
+
+def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=None, vorschlag=None, hinweis=None,
+                  werkstoff_text=None):
     """Angebot anlegen und die STEP-Dateien importieren. dateien: Dateien/Ordner (ohne: Dateiauswahl); kundennr:
     ohne Dialog (Tests, '' = ohne Kunde); kopf: weitere Kopffelder (z. B. kundenreferenz aus dem Anfrageformular);
-    formulare: gelesene Anfrageformulare (Stückzahlen je Artikelnummer, W6b/W6c). Ergebnis: Angebotsseite oder None
-    (abgebrochen, nichts angelegt)."""
+    formulare: gelesene Anfrageformulare (Stückzahlen je Artikelnummer, W6b/W6c); aus einer E-Mail der Anfrage:
+    vorschlag = Kunde (Absenderadresse), hinweis = Zeilen „Aus der E-Mail“ für den Prüfdialog, werkstoff_text = Text,
+    in dem der Import nach dem Werkstoff sucht. Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
     db = fenster.db
     if db.nur_lesen:
         fenster.meldung("Lesemodus: es lassen sich keine Angebote anlegen.", fehler=True)
         return None
     if not dateien:
         dateien, _ = QFileDialog.getOpenFileNames(fenster, "Neues Angebot aus STEP", str(step_ablage.start_ordner(db)),
-                                                  "STEP-Dateien (*.step *.stp *.STEP *.STP)")
+                                                  "STEP-Dateien und E-Mails (*.step *.stp *.STEP *.STP *.msg *.eml)")
         if not dateien:
             return None
+    if formulare is None:           # Kundenordner oder Mail gezogen: E-Mail auslesen wie im Anfrage-Ordner
+        dateien, w = _mails_lesen(fenster, dateien)
+        kopf = dict(w.get("kopf") or {}, **(kopf or {}))
+        formulare, hinweis = w.get("formulare"), hinweis or w.get("hinweis")
+        vorschlag, werkstoff_text = vorschlag or w.get("vorschlag"), werkstoff_text or w.get("werkstoff_text")
     gefunden = [str(d) for d in step.step_dateien(dateien)]
     if not gefunden:
         if not fenster.stumm:
@@ -96,11 +123,12 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     step_ablage.ordner_merken(db, gefunden)
     waehlen = kundennr is None and not fenster.stumm     # Plan Bedienung B1: Kunde oben im Prüfdialog
     if kundennr is None:
-        kundennr = kunde_vorschlag(db, dateien) or ""
+        kundennr = vorschlag or kunde_vorschlag(db, dateien) or ""
     i = db.angebot_neu(dict(kopf or {}, kundennr=kundennr or None))
     fenster.angebote.neu_laden()
     seite = fenster.angebot_oeffnen(i)
-    extra = dict(formulare=formulare) if formulare else {}
+    extra = {n: w for n, w in (("formulare", formulare), ("hinweis", hinweis), ("werkstoff_text", werkstoff_text))
+             if w}
     referenz = (kopf or {}).get("kundenreferenz") or referenz_aus_ordner(dateien)
     if seite.step_importieren(gefunden, kunde_waehlen=waehlen, referenz=referenz, **extra) is None \
             and not seite.positionen:
