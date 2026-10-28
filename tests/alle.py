@@ -66,7 +66,7 @@ TESTS = [
 ] + [(name, QT) for name in (
     "test_programm.py", "test_csv_export.py", "test_konturklassen.py", "test_zusatzarbeiten.py",
     "test_zusatz_verwaltung.py", "test_zukauf.py", "test_zukauf_verwaltung.py", "test_zukauf_angebot.py",
-    "test_zukauf_preise.py", "test_aufschlag_angebot.py", "test_kunden_csv.py", "test_zukauf_schnell.py", "test_zukauf_ek.py", "test_zukauf_blech.py",
+    "test_zukauf_preise.py", "test_aufschlag_angebot.py", "test_kunden_csv.py", "test_kunden_csv_robust.py", "test_zukauf_schnell.py", "test_zukauf_ek.py", "test_zukauf_blech.py",
     "test_vollmaterial.py",
     "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_bohrbild.py",
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
