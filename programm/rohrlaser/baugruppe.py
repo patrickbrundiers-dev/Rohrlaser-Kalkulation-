@@ -14,6 +14,7 @@ Rechenweg je Baugruppe (alle Beträge je Baugruppe, ungerundet):
   Menge eines Knotens  m(k) = Menge des Knotens × Menge seiner übergeordneten Knoten (Baugruppe selbst: 1)
   Nahtgruppe           Naht [m] = Länge je Naht × Anzahl × (2 bei beidseitig) / 1000
                        Lichtbogenzeit = Naht × Kennwert [min/m] × Faktor Schweißlage × Zugänglichkeit × Qualität
+                                        × Werkstoff
                        Schweißzeit = Lichtbogenzeit ÷ Lichtbogenzeitfaktor + Heftpunkte × Anzahl × Zeit je Heftpunkt
                        (oder die Zeit von Hand), × m(k); Kosten = Zeit × Stundensatz des Verfahrens
   Arbeitsgang          laufend = (Zeit je Einheit × Menge / 60 × Stundensatz + Kosten je Einheit × Menge) × m(k)
@@ -41,7 +42,11 @@ STAMM_FELDER = (("kundenartikel", "Kundenartikelnummer"), ("zeichnung", "Zeichnu
                 ("revision", "Revisionsstand"), ("beschreibung", "Beschreibung"), ("werkstoff", "Werkstoff"),
                 ("oberflaeche", "Oberfläche / Beschichtung"), ("gewicht", "Gewicht [kg]"),
                 ("abmessungen", "Abmessungen"), ("verfahren", "Fertigungsverfahren"), ("bemerkung", "Bemerkungen"),
-                ("intern", "Interne Kalkulationshinweise"))
+                ("intern", "Interne Kalkulationshinweise"),
+                # Plan 28.10.2026, Schritt 3: Serieneffekt (leer = aus) und Rüsten je Los (leer = ein Los je Auftrag)
+                ("serie", "Serieneffekt [% je Verdopplung]"), ("serie_min", "Serieneffekt höchstens bis [% der Zeit]"),
+                ("los", "Losgröße zum Rüsten [Stück]"))
+SERIE_MIN = 70.0        # Untergrenze des Serieneffekts [% der Zeit für 1 Stück], wenn nichts eingetragen ist
 
 
 def _n(v):
@@ -395,13 +400,54 @@ def unter_einhaengen(struktur, teile_gruppen, kandidaten, unter):
     return dict(knoten=knoten), teile_gruppen, kandidaten
 
 
+NICHT_ERREICHBAR = "nicht erreichbar"
+ZUGANG_STUFEN = ("gut", "eingeschränkt", "schlecht", NICHT_ERREICHBAR)     # Erreichbarkeit aus STEP (JSON 1.21)
+SEITEN = ("+Z", "-Z", "+X", "-X", "+Y", "-Y")
+
+
+def zugang_wert(stufe):
+    """Wert der Spalte Zugänglichkeit für eine Stufe aus STEP (nicht erreichbar rechnet wie schlecht) oder None."""
+    return "schlecht" if stufe == NICHT_ERREICHBAR else stufe if stufe in ZUGANG_STUFEN else None
+
+
+def wenden_aus_step(bg):
+    """(Wendevorgänge, Begründung) aus der Erreichbarkeit der Nahtgruppen (STEP, Feld seiten = je Nahtpunkt die Lagen,
+    in denen der Brenner von oben oder seitlich hinkommt): kleinste Zahl Lagen, in der jeder Nahtpunkt einmal oben
+    liegt, minus 1. (None, None) ohne Angaben aus STEP. Nicht erreichbare Nähte zählen nicht (eigene Warnung)."""
+    import itertools
+    punkte = {frozenset(x for x in s if x in SEITEN) for nt in bg.get("naehte") or ()
+              for s in nt.get("seiten") or () if isinstance(s, list)}
+    punkte.discard(frozenset())
+    if not punkte:
+        return None, None
+    for n in range(1, len(SEITEN) + 1):
+        for lagen in itertools.combinations(SEITEN, n):
+            if all(p & set(lagen) for p in punkte):
+                text = (f"STEP: {len(punkte)} verschiedene Brennerlagen der Nähte, {n} Lage{'' if n == 1 else 'n'} "
+                        f"nötig ({', '.join(lagen)} oben)")
+                return n - 1, text
+    return None, None
+
+
+def nicht_erreichbar(bg):
+    """Text, wenn eine Nahtgruppe oder ein Vorschlag laut STEP nicht erreichbar ist (kein Nahtpunkt mit freiem Weg für
+    den Brenner), sonst None."""
+    for liste, titel in ((bg.get("naehte") or (), "Nahtgruppe"), (bg.get("vorschlaege") or (), "Nahtvorschlag")):
+        for x in liste:
+            if (x.get("zugang_step") if titel == "Nahtgruppe" else x.get("zugang")) == NICHT_ERREICHBAR:
+                nr = f" {x['nr']}" if x.get("nr") else ""
+                return f"{titel}{nr}: laut STEP für den Brenner nicht erreichbar, Konstruktion oder Reihenfolge prüfen"
+    return None
+
+
 def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
     """Nahtkandidaten der STEP-Messung als Vorschläge für Nahtgruppen: gleiche Stoßart, Länge (auf mm) und Dicke in
     derselben Unterbaugruppe werden ein Vorschlag mit Anzahl je Stück der Unterbaugruppe (Kandidaten ÷ Menge; geht
     das nicht auf, direkt an der Baugruppe). Das Maß (a-Maß bzw. Dicke) bleibt offen: die STEP-Datei kennt kein
     a-Maß; bei Stumpf- und Ecknaht ist die gemessene Dicke das Maß. Erst nach Prüfung im Editor (Übernehmen) werden
     sie Nahtgruppen. Kandidaten mit Spalt (STEP-JSON 1.20 spalt_mm) bilden eigene Vorschläge mit "spalt" (größter
-    Spalt der Gruppe)."""
+    Spalt der Gruppe). Erreichbarkeit (STEP-JSON 1.21 zugang): verschiedene Stufen bilden eigene Vorschläge mit
+    "zugang" und "seiten" (Lagen je Nahtpunkt aller Kandidaten, für die Wendevorgänge)."""
     km = knoten_map(bg)
     gruppen = {}
     for k in kandidaten or ():
@@ -410,11 +456,12 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
         kn = str(k.get("knoten") or "")
         kn = kn if kn in km and kn != wurzel else ""
         spalt = round(k["spalt_mm"], 1) if _zahl(k.get("spalt_mm")) and k["spalt_mm"] > 0 else None
+        zugang = k.get("zugang") if k.get("zugang") in ZUGANG_STUFEN else None
         schl = (kn, k.get("stossart") or "Kehlnaht", round(k["laenge_mm"]), k.get("dicke_mm"), spalt,
-                bool(k.get("beidseitig")))
+                bool(k.get("beidseitig")), zugang)
         gruppen.setdefault(schl, []).append(k)
     out = []
-    for (kn, art, laenge, dicke, spalt, beidseitig), liste in gruppen.items():
+    for (kn, art, laenge, dicke, spalt, beidseitig, zugang), liste in gruppen.items():
         f = faktor(bg, kn) or 1
         if len(liste) % f:
             kn, f = "", 1
@@ -424,6 +471,12 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
             v["spalt"] = max(x["spalt_mm"] for x in liste)
         if beidseitig:                                      # Rohr durch Blech gesteckt (STEP-JSON 1.20)
             v["beidseitig"] = True
+        dmax = [x["dicke_max_mm"] for x in liste if _zahl(x.get("dicke_max_mm")) and x["dicke_max_mm"] > 0]
+        if dmax:                                            # dickere Wand (STEP-JSON 1.22) für das Mindest-a
+            v["dicke_max"] = max(dmax)
+        if zugang:                                          # Erreichbarkeit (STEP-JSON 1.21)
+            v["zugang"] = zugang
+            v["seiten"] = [list(s) for x in liste for s in x.get("seiten") or () if isinstance(s, list) and s]
         linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
         if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
             v["linien"] = linien
@@ -432,15 +485,36 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
 
 
 A_REGEL_VORGABE = 0.7          # a-Maß-Regel (P6): a = Faktor × kleinere Wanddicke, abgerundet auf 0,5 mm
+A_MIN = 3.0                    # mm: a-Maß mindestens (EN 1993-1-8; Einstellung schweiss_a_min, 0 = aus; Schritt 5)
 
 
-def a_mass_regel(dicke, faktor=A_REGEL_VORGABE):
-    """Vorschlag a-Maß [mm] nach der Regel a = Faktor × kleinere Wanddicke, auf 0,5 mm abgerundet; None, wenn keine
-    Dicke bekannt ist oder weniger als 0,5 mm herauskommt."""
+def a_mass_regel(dicke, faktor=A_REGEL_VORGABE, dicke_max=None):
+    """Vorschlag a-Maß [mm] nach der Regel a = Faktor × kleinere Wanddicke, auf 0,5 mm abgerundet, mindestens A_MIN
+    und mindestens √(dickere Wand) − 0,5 (EN 1993-1-8, aufgerundet auf 0,5 mm; nur mit dicke_max), höchstens die
+    kleinere Wanddicke (dünne Wand: a = Wand); None, wenn keine Dicke bekannt ist oder weniger als 0,5 mm
+    herauskommt (Plan Schweißbaugruppen 28.10.2026, Schritt 5)."""
     if not _zahl(dicke) or not _zahl(faktor) or dicke <= 0 or faktor <= 0:
         return None
     a = math.floor(faktor * dicke * 2 + 1e-9) / 2
+    unten = A_MIN if _zahl(A_MIN) and A_MIN > 0 else 0.0
+    if _zahl(dicke_max) and dicke_max > 0:
+        unten = max(unten, math.ceil((math.sqrt(dicke_max) - 0.5) * 2 - 1e-9) / 2)
+    if unten > a:
+        a = min(unten, math.floor(dicke * 2 + 1e-9) / 2)
     return a if a >= 0.5 else None
+
+
+def a_mass_text(dicke, faktor=A_REGEL_VORGABE, dicke_max=None):
+    """Rechenweg des a-Maß-Vorschlags für den Tooltip."""
+    a = a_mass_regel(dicke, faktor, dicke_max)
+    if a is None:
+        return ""
+    t = f"a = {_text(faktor)} × {_text(dicke)} mm"
+    if _zahl(A_MIN) and A_MIN > 0:
+        t += f", mindestens {_text(A_MIN)} mm"
+    if _zahl(dicke_max) and dicke_max > 0:
+        t += f", mindestens √{_text(dicke_max)} − 0,5"
+    return t + f", höchstens die Wand → {_text(a)} mm"
 
 
 def vorschlag_naht(v, regel=None):
@@ -461,10 +535,16 @@ def vorschlag_naht(v, regel=None):
         n["spalt"] = v["spalt"]
     if v.get("beidseitig"):                             # Rohr durch Blech gesteckt: rundum auf beiden Seiten
         n["beidseitig"] = True
+    if v.get("zugang") in ZUGANG_STUFEN:                # Erreichbarkeit aus STEP: Vorschlag Zugänglichkeit, Wenden
+        n["zugang_step"] = v["zugang"]
+        if v.get("seiten"):
+            n["seiten"] = v["seiten"]
+    if _zahl(v.get("dicke_max")) and v["dicke_max"] > 0:  # dickere Wand (STEP-JSON 1.22): Mindest-a √t − 0,5
+        n["dicke_max"] = v["dicke_max"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
         n["mass"] = v["dicke"]
     elif v.get("nahtart") == "Kehlnaht" and regel:
-        a = a_mass_regel(v.get("dicke"), regel)
+        a = a_mass_regel(v.get("dicke"), regel, v.get("dicke_max"))
         if a:
             n["mass"] = n["mass_regel"] = a
     return n
@@ -533,20 +613,58 @@ def kennwert(verfahren, nahtart, mass, tabellen):
     return min(kand, key=lambda z: z["mass_bis"]) if kand else None
 
 
+def lagen_zahl(naht, st):
+    """Anzahl Lagen einer Nahtgruppe: aufrunden(a bzw. Dicke ÷ 'a je Lage' der Regel Mehrlagig), sonst 1."""
+    a, je = naht.get("mass"), (st or {}).get("lage_a")
+    if not _zahl(a) or not _zahl(je) or je <= 0 or a <= je + 1e-9:
+        return 1
+    return math.ceil(a / je - 1e-9)
+
+
+def kennwert_min_m(verfahren, nahtart, mass, tabellen):
+    """(min/m, Kennwertzeile) für eine Nahtgröße: zwischen zwei Zeilen nach dem Nahtquerschnitt geradlinig (a = 3,5
+    liegt zwischen den Zeilen bis 3 und bis 4, gewichtet nach a²), sonst die Zeile selbst; (None, None) ohne Zeile
+    (Plan Schweißbaugruppen 28.10.2026, Schritt 5)."""
+    hi = kennwert(verfahren, nahtart, mass, tabellen)
+    if hi is None:
+        return None, None
+    lo = [z for z in tabellen.get("schweiss_kennwerte") or ()
+          if z.get("verfahren") == verfahren and z.get("nahtart") == nahtart and _zahl(z.get("mass_bis"))
+          and _zahl(z.get("min_m")) and z["mass_bis"] < mass - 1e-9]
+    if not lo or hi["mass_bis"] <= mass + 1e-9:
+        return hi["min_m"], hi
+    lo = max(lo, key=lambda z: z["mass_bis"])
+    q0, q1, q = (nahtquerschnitt(nahtart, x) for x in (lo["mass_bis"], hi["mass_bis"], mass))
+    if q1 <= q0:
+        return hi["min_m"], hi
+    return lo["min_m"] + (hi["min_m"] - lo["min_m"]) * (q - q0) / (q1 - q0), hi
+
+
 def naht_stand(naht, tabellen, datum=None):
     """Kennwerte einer Nahtgruppe aus den Stammdaten, zum Merken in der Nahtgruppe ('stand'): Lichtbogenzeit je m,
     Faktoren, Lichtbogenzeitfaktor, Zeit je Heftpunkt, Stundensatz-ID und ob ein Wert nur Richtwert ist."""
     import datetime
     v = next((z for z in tabellen.get("schweissverfahren") or () if z.get("verfahren") == naht.get("verfahren")), None)
-    kw = kennwert(naht.get("verfahren"), naht.get("nahtart"), naht.get("mass"), tabellen)
+    min_m, kw = kennwert_min_m(naht.get("verfahren"), naht.get("nahtart"), naht.get("mass"), tabellen) \
+        if _zahl(naht.get("mass")) else (None, None)
     fz = {art: _faktor_zeile(tabellen, art, naht.get(feld))
-          for art, feld in (("Schweißlage", "lage"), ("Zugänglichkeit", "zugang"), ("Qualität", "qualitaet"))}
+          for art, feld in (("Schweißlage", "lage"), ("Zugänglichkeit", "zugang"), ("Qualität", "qualitaet"),
+                            ("Werkstoff", "werkstoff"))}
     richt = [z for z in [v, kw, *fz.values()] if z and z.get("status") == "Richtwert"]
-    return dict(verfahren=bool(v), min_m=kw["min_m"] if kw else None, mass_bis=kw["mass_bis"] if kw else None,
+    from .vorkalk import Regeln, dicke as wand
+    regeln = Regeln(tabellen)
+    lage_a, zusatz = regeln.wert("Mehrlagig", "a je Lage"), regeln.wert("Mehrlagig", "Zeit je Zusatzlage")
+    f_heft = regeln.stufe("Heftzeit", wand(naht))[0] if wand(naht) is not None else None
+    extra = dict(lage_a=lage_a, zusatzlage_min_m=zusatz) if lage_a and lage_a > 0 and zusatz is not None else {}
+    if f_heft:
+        extra["f_heft"] = f_heft
+    return dict(verfahren=bool(v), min_m=round(min_m, 4) if min_m is not None else None,
+                mass_bis=kw["mass_bis"] if kw else None, **extra,
                 lichtbogen=(v or {}).get("lichtbogen"), heft_s=(v or {}).get("heft_s"), satz_id=(v or {}).get("satz_id"),
                 f_lage=_n((fz["Schweißlage"] or {}).get("faktor")) or 1.0,
                 f_zugang=_n((fz["Zugänglichkeit"] or {}).get("faktor")) or 1.0,
                 f_qualitaet=_n((fz["Qualität"] or {}).get("faktor")) or 1.0,
+                f_werkstoff=_n((fz["Werkstoff"] or {}).get("faktor")) or 1.0,
                 richtwert=bool(richt), datum=datum or datetime.date.today().isoformat(),
                 **{k: (v or {}).get(k) for k in VERBRAUCH if _zahl((v or {}).get(k))})
 
@@ -609,9 +727,12 @@ def naht_rechnen(naht, tabellen, saetze):
             out["fehlt"] = f"Lichtbogenzeitfaktor fehlt ({naht.get('verfahren')})"
         else:
             lb = naht_m * st["min_m"] * _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) \
-                * _n(st.get("f_qualitaet") or 1) * f_spalt
-            heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60
-            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft)
+                * _n(st.get("f_qualitaet") or 1) * _n(st.get("f_werkstoff") or 1) * f_spalt
+            heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60 * _n(st.get("f_heft") or 1)
+            lagen = lagen_zahl(naht, st)            # mehrlagig: je Zusatzlage Zwischenzeit (Reinigen, Ansetzen)
+            zwischen = naht_m * (lagen - 1) * _n(st.get("zusatzlage_min_m")) if lagen > 1 else 0.0
+            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen,
+                       lagen=lagen, zwischen_min=zwischen)
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
     vb = verbrauch(naht, st, naht_m * f_spalt, out["lichtbogen_min"])
@@ -646,17 +767,54 @@ def arbeitsgang_rechnen(ag, saetze):
 
 
 # ------------------------------------------------------------------ Baugruppe rechnen
-def rechnen(p, tabellen, saetze, anzahl=None):
+def stamm_zahl(bg, feld):
+    """Zahl aus einem Textfeld der Stammdaten der Baugruppe (Komma erlaubt, Einheit dahinter egal), sonst None."""
+    t = str(((bg or {}).get("stamm") or {}).get(feld) or "").replace(",", ".").replace("%", " ").split()
+    try:
+        w = float(t[0]) if t else None
+    except ValueError:
+        return None
+    return w if w is not None and math.isfinite(w) else None
+
+
+def serie_faktor(bg, n):
+    """(Faktor auf die laufenden Zeiten, Text) des Serieneffekts (Plan 28.10.2026, Schritt 3): je Verdopplung der
+    Anzahl Baugruppen p % weniger Zeit (Lernkurve, mittlere Zeit je Stück = n ^ log2(1 − p)), höchstens bis zur
+    Untergrenze (Vorgabe 70 % der Zeit für 1 Stück). Leer bzw. 0 % oder 1 Stück = 1."""
+    p = stamm_zahl(bg, "serie")
+    if p is None or p <= 0 or p >= 100 or not _zahl(n) or n <= 1:
+        return 1.0, ""
+    u = stamm_zahl(bg, "serie_min")
+    u = (u if u is not None and 0 < u <= 100 else SERIE_MIN) / 100
+    f = n ** math.log2(1 - p / 100)
+    if f < u:
+        return u, f"Serieneffekt {_text(p)} % je Verdopplung: Untergrenze {_text(round(u * 100, 1))} % bei {_text(n)} Stk."
+    return f, f"Serieneffekt {_text(p)} % je Verdopplung: {_text(round(f * 100, 1))} % der Zeit bei {_text(n)} Stk."
+
+
+def lose(bg, n):
+    """Anzahl Lose zum Rüsten: aufrunden(Anzahl ÷ Losgröße der Stammdaten), ohne Losgröße 1 Los je Auftrag."""
+    los = stamm_zahl(bg, "los")
+    if los is None or los < 1 or not _zahl(n) or n <= 0:
+        return 1
+    return max(1, math.ceil(n / int(los) - 1e-9))
+
+
+def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
-    der Position. Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
+    der Position. mengen = bg_mengen.je_knoten (Arbeitsgänge mit Bezug rechnen mit der Menge aus den Einzelteilen;
+    ohne: die eingetragene Menge). Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
     zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, werte, vorschlag (Vorkalkulation offen)}], fehler, warnungen, richtwert).
-    eigen/fremd enthalten den umgelegten Einmalanteil (einmal)."""
+    eigen/fremd enthalten den umgelegten Einmalanteil (einmal). Serieneffekt (serie_faktor) auf die laufenden
+    eigenen Zeiten (Nahtgruppen, Arbeitsgänge ohne Fremdleistung), Rüstzeit × Anzahl Lose (lose); serie, lose und
+    serie_text im Ergebnis."""
     from .vorkalk import NAHT_FELDER, VORSCHLAG, ag_status, naht_status
     bg = lesen(p.get("baugruppe"))
     n = anzahl if anzahl is not None else p.get("stueck")
     n = n if _zahl(n) and n > 0 else 0
     out = dict(eigen=0.0, fremd=0.0, einmal=0.0, einmal_fremd=0.0, einmal_gesamt=0.0, zeit_min=0.0, schweiss_min=0.0, naht_m={},
-               zeilen=[], fehler=None, warnungen=[], richtwert=False, wiederverwendbar=0, verbrauch=0.0)
+               zeilen=[], fehler=None, warnungen=[], richtwert=False, wiederverwendbar=0, verbrauch=0.0, serie=1.0,
+               lose=1, serie_text="")
     if bg is None:
         out["fehler"] = "Baugruppendaten fehlen"
         return out
@@ -665,6 +823,9 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         out["fehler"] = sf
         return out
     km = knoten_map(bg)
+    s, out["serie_text"] = serie_faktor(bg, n)
+    n_lose = lose(bg, n)
+    out.update(serie=s, lose=n_lose)
 
     def kname(kid):
         return (km.get(kid) or {}).get("name") or "" if kid else ""
@@ -675,6 +836,8 @@ def rechnen(p, tabellen, saetze, anzahl=None):
             out["warnungen"].append(f"Nahtgruppe {nt.get('nr') or ''}: Unterbaugruppe fehlt".replace("  ", " "))
             continue
         r = naht_rechnen(nt, tabellen, saetze)
+        if s != 1.0:
+            r = dict(r, zeit_min=r["zeit_min"] * s, kosten=(r["kosten"] - r["material"]) * s + r["material"])
         if r["fehlt"]:
             out["warnungen"].append(f"Nahtgruppe {nt.get('nr') or ''}: {r['fehlt']}".replace("  ", " "))
         out["richtwert"] |= r["richtwert"]
@@ -693,7 +856,21 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         if f is None:
             out["warnungen"].append(f"{ag.get('name') or 'Arbeitsgang'}: Unterbaugruppe fehlt")
             continue
+        if mengen is not None and ag.get("bezug"):
+            from . import bg_mengen
+            wert, grund = bg_mengen.menge(ag, mengen.get(ag.get("knoten") or ""))
+            if wert is not None:
+                ag = dict(ag, menge=wert)
+            elif grund:         # Menge unbekannt: nicht als 1 oder alten Wert rechnen (nichts erfinden)
+                out["warnungen"].append(f"{ag.get('name') or 'Arbeitsgang'}: Menge aus {grund}")
+                ag = dict(ag, menge=0)
         r = arbeitsgang_rechnen(ag, saetze)
+        if s != 1.0 and not r["fremd"]:
+            r = dict(r, laufend_min=r["laufend_min"] * s,
+                     laufend=r["laufend"] - r["laufend_min"] * (1 - s) / 60 * _n(r["satz"]))
+        if n_lose > 1 and r["einmal_min"]:
+            r = dict(r, einmal=r["einmal"] + r["einmal_min"] * (n_lose - 1) / 60 * _n(r["satz"]),
+                     einmal_min=r["einmal_min"] * n_lose)
         if r["fehlt"]:
             out["warnungen"].append(r["fehlt"])
         if r["umlage"] == UMLAGE_WIEDER and r["einmal"]:
@@ -797,7 +974,7 @@ def status(p, w, positionen=None):
         doppelt = doppelt_schweissen(p, positionen)
         if doppelt:
             return "WARNUNG: " + doppelt
-    spalt = spalt_zu_gross(bg)
+    spalt = spalt_zu_gross(bg) or nicht_erreichbar(bg)
     if spalt:
         return "WARNUNG: " + spalt
     lose = ohne_naht(bg)
@@ -895,7 +1072,10 @@ RICHT_FAKTOREN = (("Schweißlage", "PA", 1.0), ("Schweißlage", "PB", 1.0), ("Sc
                   ("Schweißlage", "PD", 1.4), ("Schweißlage", "PE", 1.6), ("Schweißlage", "PF", 1.3),
                   ("Schweißlage", "PG", 1.1), ("Zugänglichkeit", "gut", 1.0), ("Zugänglichkeit", "eingeschränkt", 1.25),
                   ("Zugänglichkeit", "schlecht", 1.6), ("Qualität", "normal", 1.0), ("Qualität", "erhöht", 1.2),
-                  ("Qualität", "Sichtnaht", 1.4))
+                  ("Qualität", "Sichtnaht", 1.4),
+                  # Werkstoff (Plan 28.10.2026): Edelstahl langsamer (Wärmeeinbringung, Anlauffarben), Aluminium
+                  # steckt schon in den MIG-Kennwerten
+                  ("Werkstoff", "Stahl", 1.0), ("Werkstoff", "Edelstahl", 1.3), ("Werkstoff", "Aluminium", 1.0))
 
 
 def nahtquerschnitt(nahtart, mass):
@@ -963,6 +1143,9 @@ def arbeitsgang_vorlage(z):
         ag["kosten_einheit"] = kosten
     if z.get("art") == "€/Angebot" and preis:
         ag["einmal_eur"] = preis
+    from .bg_mengen import BEZUG_ART
+    if z.get("art") in BEZUG_ART:          # Menge aus den Einzelteilen (Plan 28.10.2026, Schritt 1)
+        ag["bezug"] = BEZUG_ART[z["art"]]
     return {k: v for k, v in ag.items() if v is not None}
 
 

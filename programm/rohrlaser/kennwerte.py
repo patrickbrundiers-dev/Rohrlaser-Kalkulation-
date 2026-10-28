@@ -11,8 +11,9 @@ Schnittstelle:
   status 'ok' oder 'zu wenig Daten' (weniger als mindest_n Fälle nach den Ausreißern).
 - freigeben(db, vorschlag, begruendung, version) -> ID der Historie; zuruecknehmen(db, historie_id) -> Anzahl Werte.
 
-Eingebaute Quelle 'schweissen': Schweißzeit je Baugruppe (Soll aus den Nahtgruppen, Ist aus der Nachkalkulation)
-je Verfahren und Nahtart; nur Baugruppen, deren berechnete Nahtgruppen alle dasselbe Verfahren und dieselbe Nahtart
+Eingebaute Quellen: 'vorkalkulation' (Plan 28.10.2026): Ist-Zeiten Rüsten, Positionieren, Verputzen der Nachkalkulation
+gegen die Arbeitsgänge der Vorkalkulation; Freigabe: alle Regeln dieser Art × Faktor. 'schweissen': Schweißzeit
+je Baugruppe (Soll aus den Nahtgruppen, Ist aus der Nachkalkulation) je Verfahren und Nahtart; nur Baugruppen, deren berechnete Nahtgruppen alle dasselbe Verfahren und dieselbe Nahtart
 haben (keine Zeit von Hand). Freigabe: alle Kennwerte dieses Verfahrens und dieser Nahtart × Faktor.
 """
 import datetime
@@ -176,3 +177,55 @@ def anwenden_schweissen(db, schluessel, faktor):
 
 
 register_quelle("schweissen", "Schweißzeit (Verfahren, Nahtart)", faelle_schweissen, anwenden_schweissen)
+
+
+# ------------------------------------------------------------------ Quelle Vorkalkulation (Plan 28.10.2026, V4)
+def faelle_vorkalkulation(db):
+    """Je nachkalkulierte Baugruppe und Teil der Vorkalkulation (Rüsten, Positionieren, Verputzen) mit Ist-Zeit: Soll
+    = Zeit der Arbeitsgänge dieser Art aus der Vorkalkulation (laufend × Anzahl + Rüsten), Schlüssel = Art der Regeln."""
+    from . import baugruppe, nachkalkulation, rechnen
+    from .angebot import ist_baugruppe
+    tab = db.tabellen()
+    saetze = rechnen.stundensaetze(tab)
+    out = []
+    for a in db.angebote():
+        if not a.get("nachkalkuliert"):
+            continue
+        kopf = db.angebot(a["id"])
+        ist = kopf.get("nachkalkulation") or {}
+        ist_bg = ist.get("baugruppen") or {}
+        if not ist_bg:
+            continue
+        for p in db.positionen(a["id"]):
+            bg = baugruppe.lesen(p.get("baugruppe")) if ist_baugruppe(p) else None
+            e = ist_bg.get((bg or {}).get("id")) or {}
+            felder = [t for t in nachkalkulation.BG_TEILE if isinstance(e.get(t[0]), (int, float))]
+            if not bg or not felder:
+                continue
+            c = p.get("stueck") or 0
+            r = baugruppe.rechnen(p, tab, saetze)
+            art = {x.get("id"): (x.get("vk") or {}).get("art") for x in bg["arbeitsgaenge"]}
+            for feld, _, vk_art, regel_art in felder:
+                soll = sum(((z["werte"].get("laufend_min") or 0) * z["faktor"] * c
+                            + (z["werte"].get("einmal_min") or 0) * (z["werte"].get("umlage_faktor") or 0)) / 60
+                           for z in r["zeilen"] if z["art"] == "Arbeitsgang" and art.get(z["id"]) == vk_art)
+                if soll > 0:
+                    out.append(dict(schluessel=(regel_art,), soll=soll, ist=e[feld], angebot=kopf.get("nummer"),
+                                    datum=ist.get("am")))
+    return out
+
+
+def anwenden_vorkalkulation(db, schluessel, faktor):
+    """Alle Regeln der Art (Rüsten, Positionieren, Nacharbeit) × Faktor; Stufen nach 'bis' bleiben."""
+    (regel_art,) = schluessel
+    aend = []
+    for z in db.zeilen("schweiss_regeln"):
+        if z.get("art") == regel_art and isinstance(z.get("zahl"), (int, float)):
+            neu = round(z["zahl"] * faktor, 2)
+            db.aendern("schweiss_regeln", z["id"], "zahl", neu)
+            aend.append(["schweiss_regeln", z["id"], "zahl", z["zahl"], neu])
+    return aend
+
+
+register_quelle("vorkalkulation", "Vorkalkulation Schweißbaugruppe (Rüsten, Positionieren, Verputzen)",
+                faelle_vorkalkulation, anwenden_vorkalkulation)

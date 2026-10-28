@@ -190,7 +190,7 @@ def rohr_netz(e, profil, laenge, nasen_w=None):
 class Flaechen:
     """Dreiecke des Baugruppen-Netzes in einem Raster (ZELLE), um die Flächen an einer Naht schnell zu finden."""
 
-    def __init__(self, netz, ohne=("SN", "SV", "SH")):
+    def __init__(self, netz, ohne=("SN", "SV", "SH", "SX")):
         p = netz.get("p") or []
         self.dreiecke, self.raster, self.huellen, self.raupen = [], {}, [], {}
         for art, idx in (netz.get("t") or {}).items():
@@ -421,7 +421,7 @@ def _raupe_stueck(pts, nahtart, groesse, flaechen):
 
 
 def naehte_einsetzen(netz, naehte, flaechen=None):
-    """Nähte in das Netz der Baugruppe: naehte = [(Art SN/SV/SH, Linienzüge, Nahtart, Größe [mm] oder None)].
+    """Nähte in das Netz der Baugruppe: naehte = [(Art SN/SV/SH/SX, Linienzüge, Nahtart, Größe [mm] oder None)].
     Raupen als Dreiecke der Art (von nahem), dazu der Linienzug (immer sichtbar, von weitem). Ändert netz.
     Ergebnis: Anzahl Raupen."""
     if flaechen is None:
