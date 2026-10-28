@@ -428,7 +428,7 @@ def plz_csv_lesen(text, zonen, laender):
     text = text.lstrip("﻿")
     probe = text.splitlines()[0] if text.strip() else ""
     trenner = ";" if probe.count(";") >= probe.count(",") else ","
-    leser = csv.reader(io.StringIO(text), delimiter=trenner)
+    leser = csv.reader(io.StringIO(text, newline=""), delimiter=trenner)
     titel = {PLZ.feld(n).titel.lower(): n for n in CSV_PLZ} | {n: n for n in CSV_PLZ}
     zeilen, fehler, spalten = [], [], None
     for nr, roh in enumerate(leser, 1):

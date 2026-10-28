@@ -68,7 +68,7 @@ inhalt = "\n".join([";".join(kopf),
     zeile(kundennr="10005", name="Skonto zu hoch", skonto="50"),                            # Bereich
     zeile(kundennr="10003", name="doppelt"),                                                # doppelt in Datei
     zeile(kundennr="", name="ohne Nummer"),                                                 # Pflichtfeld
-    zeile(kundennr="10006", name="", land="Deutschland"),                                   # Pflicht + Land
+    zeile(kundennr="10006", name="", land="Germanien"),                                     # Pflicht + Land
 ])
 imp = tmp / "import.csv"
 imp.write_text(inhalt, encoding="cp1252")              # auch Excel-Dateien ohne UTF-8
@@ -80,10 +80,11 @@ z = {z["nr"]: z for z in v["zeilen"]}
 assert z[2]["aenderung"] == ["Telefon: 05250 123 → 05250 456", "Skonto [%]: 2,5 → 3,0"], z[2]["aenderung"]
 assert z[3]["kunde"]["plz"] == "01067" and z[3]["kunde"]["plz_ort"] == "01067 Dresden", z[3]["kunde"]
 assert any("führende Null" in h for h in z[3]["hinweis"])
-assert "Lieferbedingung" in z[4]["fehler"][0] and "Skonto" in z[5]["fehler"][0]
+assert z[4]["fehler"][0].startswith("Spalte O (Lieferbedingung): „irgendwie“ unbekannt"), z[4]["fehler"]
+assert z[5]["fehler"][0].startswith("Spalte J (Skonto [%]): Wert zwischen"), z[5]["fehler"]
 assert "doppelt in der Datei (wie Zeile 3)" in z[6]["fehler"][0]
-assert z[7]["fehler"] == ["Kundennummer fehlt"] and "Kundenname fehlt" in z[8]["fehler"]
-assert any("Ländercode" in f for f in z[8]["fehler"]), z[8]["fehler"]
+assert z[7]["fehler"] == ["Spalte A (Kundennummer): fehlt"] and "Spalte B (Kundenname): fehlt" in z[8]["fehler"]
+assert "Spalte F (Land): Land als zweistelliger Ländercode, z. B. DE" in z[8]["fehler"], z[8]["fehler"]
 ok("Vorschau: ändern mit Unterschieden, neu, PLZ-Null ergänzt, Fehler bei Auswahl, Bereich, Dublette, Pflichtfeld")
 
 nur = kunden_csv.vorschau(imp.read_bytes(), db.zeilen("kunden"), db.kontext(), nur_neue=True)
@@ -93,7 +94,8 @@ ok("Vorhandene Kunden nicht ändern: vorhandene Kundennummer wird übersprungen"
 teil = tmp / "teil.csv"
 teil.write_text("Kundennr.;Telefon\n10002;0351 999\n", encoding="utf-8")
 v = kunden_csv.vorschau(teil.read_bytes(), db.zeilen("kunden"), db.kontext())
-assert v["fehler"] == ["Zeile 1: Kopfzeile ohne Spalte(n) Kundenname"], v
+assert v["fehler"][0].startswith("Zeile 1: Kopfzeile ohne Spalte(n) Kundenname (gelesen mit Trennzeichen Semikolon: "
+                              "Kundennr., Telefon)"), v
 teil.write_text("Kundennr.;Name;Telefon\n10002;Metallbau Probe;0351 999\n", encoding="utf-8")
 v = kunden_csv.vorschau(teil.read_bytes(), db.zeilen("kunden"), db.kontext())
 assert v["zeilen"][0]["aenderung"] == ["Telefon: leer → 0351 999"], v["zeilen"][0]
