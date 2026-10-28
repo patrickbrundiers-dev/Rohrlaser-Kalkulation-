@@ -1830,10 +1830,14 @@ def kapitel_step(i):
     i.text("Der STEP-Import und der Schneidweg-Rechner erkennen vier Arten von Bohrungen, die nach der Zeichnung "
            "geprüft werden müssen:")
     i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
-            "(z. B. Ø 5 → M6). Der Laser schneidet die Bohrung; das Gewinde wird erst nach dem Bestätigen gerechnet.",
-            "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4). Der Laser schneidet die Bohrung Ø 6,6, die "
-            "Senkung selbst ist Nacharbeit. Auf Wunsch wird der Senk-Ø als Gravur eingerechnet (Häkchen "
-            "<i>Senk-Ø gravieren</i>, je Senkung π × Senk-Ø).",
+            "(z. B. Ø 5 → M6) oder zum Kern-Ø nach ISO, mit dem viele CAD-Systeme die Gewindebohrung zeichnen "
+            "(z. B. Ø 6,647 → M8). Ist das Gewinde in der STEP ausmodelliert (Gewindegänge), erkennt der Import es "
+            "am Außen-Ø. Der Laser schneidet das Kernloch; das Gewinde wird erst nach dem Bestätigen gerechnet.",
+            "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4) oder Zylindersenkung (Bohrung mit Absatz). Der "
+            "Laser schneidet nur die Bohrung Ø 6,6, die Senkung selbst ist Nacharbeit. Geht der Kegel durch die "
+            "ganze Wand (dünne Wand, keine Bohrung mehr übrig), schneidet der Laser den kleinsten Ø an der "
+            "Innenseite, nie den Senk-Ø. Gilt für Rohre, offene Profile und Bleche. Auf Wunsch wird der Senk-Ø als "
+            "Gravur eingerechnet (Häkchen <i>Senk-Ø gravieren</i>, je Senkung π × Senk-Ø).",
             "<b>Flowdrill (Fließlochbohrung)</b>: Bohrung mit Kragen. Der Laser macht nur eine Markierung, je nach "
             "Auswahl eine <i>Gravur Ø0,5</i> oder ein <i>Loch Ø0,5</i> (Schneidweg und Einstich). Die Vorgabe steht in "
             "der Einstellung <i>STEP-Import: Flowdrill-Bohrung am Laser</i>. Das Gewinde wird nach dem "

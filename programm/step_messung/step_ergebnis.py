@@ -109,11 +109,18 @@ Versionen von SCHEMA_VERSION:
   (mm) und Vertrauen "prüfen", Gravur genau unter dem Anbauteil auf der Rohrwand. Je Datei "ohne_naht" = Körper
   "nr" einer Baugruppe ohne Nahtkandidat ([] bei Einzelteilen, null = nicht bestimmt). Rohr durch ein Blech gesteckt:
   Nahtkandidat mit "beidseitig": true und laenge_mm = Außenumfang des Rohrs (je Seite). Felder aus 1.19 unverändert.
+- 1.21 (28.10.2026): Offene Profile (U, C, L, Flachstahl, Träger): Ausschnitte und komplexe Enden tragen "zuege" =
+  Kanten der Kontur als geordnete Züge [[x, y, z], …] (x, y im System von "querlage", z ab Ende A; beide Seiten der
+  Wand), daraus legt das Programm den echten Umriss auf die Flächen der Skizze. Senkungen auch ohne Bohrung (Kegel
+  durch die ganze Wand: "durchmesser" = kleinster Ø an der Innenseite) und als Zylindersenkung; bei Blechen
+  "senkungen" im Block "blech" ([[Ø, Senk-Ø, Anzahl]]) und je Innenkontur "senk_durchmesser". Ausmodellierte
+  Gewinde sind "Bohrung" mit "durchmesser" = Kern-Ø, "gewinde" (z. B. "M8") und "gewinde_aussen". Felder aus 1.20
+  unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.20"
+SCHEMA_VERSION = "1.21"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

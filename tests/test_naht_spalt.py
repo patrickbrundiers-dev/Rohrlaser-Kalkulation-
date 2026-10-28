@@ -128,7 +128,7 @@ def importieren(pfad):
     d.mkdir()
     step_messen.main(["--ausgabe", str(d / "m.txt"), "--json", str(d / "m.json"), "--netze", str(d / "n"),
                       "--naht-spalt", "3", str(pfad)])
-    assert json.loads((d / "m.json").read_text(encoding="utf-8"))["schema_version"] == "1.20"
+    assert json.loads((d / "m.json").read_text(encoding="utf-8"))["schema_version"] == "1.21"
     mw = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(d / "m.txt"), d / "n"), d / "m.json")
     for x in mw:
         x.update(_saetze=1, _stueck=1, _baugruppe=True, _uebernehmen=True)

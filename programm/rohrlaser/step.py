@@ -170,12 +170,12 @@ def bohrungen_text(text):
 
 
 def gewinde_vorschlag(text, gewinde):
+    """'4xM6; 2xM8' für die Bohrungen der Messung, deren Ø zum Kernloch (oder Kern-Ø D1) eines Gewindes passt."""
     out = []
     for d, n in _paare(text):
-        for g, kern in gewinde:
-            if abs(d - kern) <= bohrbild.TOL_KERNLOCH:
-                out.append(f"{int(n)}x{g}")
-                break
+        g = bohrbild._gewinde(d, gewinde)
+        if g:
+            out.append(f"{int(n)}x{g}")
     return "; ".join(out)
 
 
@@ -237,6 +237,7 @@ def kandidaten_3d(m):
 
 
 SCHRAEG_3D = 0.5        # Grad, wie step_geometrie.SCHRAEG_3D und SCHWENK_3D
+SCHRAEG_LAGE = 0.5      # Grad: Langloch/Rechteck so weit schräg zur Achse -> Sonderkontur mit Umriss
 
 
 def nicht_senkrecht(d):
@@ -377,10 +378,21 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
     if not um or len(um) < 3 or umfang <= 0:
         return None
     n = max(1, int(round(umfang / schritt)))
-    feld, hoch, zug = {}, {}, []
-    pts = [(float(u), float(z)) for u, z in um]
-    for i, (u0, z0) in enumerate(pts):
-        u1, z1 = pts[(i + 1) % len(pts)]
+    feld, hoch, zug, laeufe = {}, {}, [], []
+    pts = [None if p is None else (float(p[0]), float(p[1])) for p in um]
+    getrennt = None in pts                  # Läufe offener Profile (None dazwischen): nur innerhalb verbinden
+    for i, p in enumerate(pts):
+        q = pts[(i + 1) % len(pts)]
+        if p is None or q is None or getrennt and i == len(pts) - 1:
+            if p is not None and (q is None or getrennt):
+                abst = max((laenge - p[1]) if ende_b else p[1], 0.0)
+                j = int(round(s_von(p[0]) / umfang * n)) % n
+                feld[j] = min(feld.get(j, abst), abst)
+                hoch[j] = max(hoch.get(j, abst), abst)
+                laeufe.append(zug + [(j, abst, p[0], p[1])])
+                zug = []
+            continue
+        (u0, z0), (u1, z1) = p, q
         if i == len(pts) - 1 and abs(u1 - u0) > umfang / 2:     # vom Ende zum Anfang einmal rundum: kurze Lücke
             if not u_umfang:
                 continue
@@ -409,7 +421,8 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
         else:
             pk.append((s_, feld[j]))
     if ausflug is not None:
-        ausflug += _ausfluege(zug, feld)
+        for lf in laeufe or [zug]:
+            ausflug += _ausfluege(lf, feld, ring=not laeufe)
     behalten, stapel = {0, len(pk) - 1}, [(0, len(pk) - 1)]
     while stapel:                           # Douglas-Peucker: gerade Stücke (unter 0,01 mm) zusammenfassen
         i0, i1 = stapel.pop()
@@ -429,22 +442,25 @@ AUSFLUG_TOL = 0.2       # mm hinter der äußersten Kante: ab da läuft der Schn
 AUSFLUG_BREITE = 0.5    # mm am Umfang mindestens (senkrechte Kanten einer Ausklinkung sind kein Ausflug)
 
 
-def _ausfluege(zug, feld):
+def _ausfluege(zug, feld, ring=True):
     """Ausflüge des Zugs [(Rasterstelle j, Abstand, u, z)] hinter die äußerste Kante feld {j: Abstand}: je Ausflug
-    die Punkte (u, z) der Messung von der letzten Stelle auf der Kante bis zur nächsten (ausgedünnt)."""
+    die Punkte (u, z) der Messung von der letzten Stelle auf der Kante bis zur nächsten (ausgedünnt). ring=False:
+    offener Lauf (offenes Profil), nicht über sein Ende hinaus verbunden."""
     if not zug:
         return []
     aus = [a > feld[j] + AUSFLUG_TOL for j, a, _, _ in zug]
     if all(aus):
         return []
-    start = aus.index(False)                # beim ersten Punkt auf der Kante beginnen (Zug läuft rundum)
-    zug, aus = zug[start:] + zug[:start], aus[start:] + aus[:start]
-    sprung, glatt = 0.0, []                 # u über die Naht des Zugs (einmal rundum) fortlaufend machen
-    for i, p in enumerate(zug):
-        if i and abs(p[2] - sprung - glatt[-1][2]) > 10:
-            sprung = p[2] - glatt[-1][2]
-        glatt.append((p[0], p[1], p[2] - sprung, p[3]))
-    zug = glatt
+    sprung = 0.0
+    if ring:
+        start = aus.index(False)            # beim ersten Punkt auf der Kante beginnen (Zug läuft rundum)
+        zug, aus = zug[start:] + zug[:start], aus[start:] + aus[:start]
+        glatt = []                          # u über die Naht des Zugs (einmal rundum) fortlaufend machen
+        for i, p in enumerate(zug):
+            if i and abs(p[2] - sprung - glatt[-1][2]) > 10:
+                sprung = p[2] - glatt[-1][2]
+            glatt.append((p[0], p[1], p[2] - sprung, p[3]))
+        zug = glatt
     out, lauf = [], None
 
     def fertig(lauf):
@@ -459,13 +475,13 @@ def _ausfluege(zug, feld):
             if not a:
                 fertig(lauf)
                 lauf = None
-    if lauf is not None:                    # Ausflug bis zum Ende des Zugs: zurück am Anfang
+    if lauf is not None and ring:           # Ausflug bis zum Ende des Zugs: zurück am Anfang
         j, a, u, z = zug[0]
         fertig(lauf + [(j, a, u - sprung, z)])
     return out
 
 
-def _ende_ausflug(zug, ende, m, mform, s_von, s_umfang, mbreit, mschmal, rund):
+def _ende_ausflug(zug, ende, m, mform, s_von, s_umfang, mbreit, mschmal, rund, seite_von=None):
     """Ausflug eines komplexen Endes (Zug [(u, z)] der Messung, _ausfluege) als Sonderkontur der Eingaben: echter
     Umriss (über die äußerste Kante geschlossen), Länge = Länge des Zugs ohne die Schließkante (die ist offen),
     Lage wie eine gemessene Sonderkontur. 'ende_teil' = A/B: gehört zum Schnitt dieses Endes (kein eigener Einstich);
@@ -493,11 +509,11 @@ def _ende_ausflug(zug, ende, m, mform, s_von, s_umfang, mbreit, mschmal, rund):
     if mform == "Rundrohr":
         u_umfang = math.pi * (_z(m, "abm_a") or 1.0)
         k["seite"] = round(u_c / u_umfang * 360 % 360, 1)
-    else:
-        seite, q = _kasten_seite(s_von(u_c), mbreit, mschmal)
+    else:       # Kastenprofil bzw. offenes Profil (seite_von: Flächen der Skizze, skizze.s_zu_seite)
+        seite, q = seite_von(s_von(u_c)) if seite_von else _kasten_seite(s_von(u_c), mbreit, mschmal)
         if abs(q) > 0.05:
             k["q"] = q
-        if seite != "oben":
+        if seite != "oben" or seite_von:
             k["seite"] = seite
     return k
 
@@ -569,7 +585,101 @@ def offen_lage(querschnitt, profil):
         u, v = (p_ - m_ for p_, m_ in zip(f(x, y), (mu, mv)))
         return round(math.degrees(math.atan2(u, v)) % 360, 1) % 360
     lage.richtung = richtung
+    lage.uv, lage.qs = f, qs
     return lage
+
+
+def offen_s(offen, x, y):
+    """Punkt (x, y) der Messung (Querschnitt um die Mitte, offen_lage) als (s, Abstand) auf den Flächen der Skizze:
+    s = Stelle der Abwicklung (wie skizze.s_lage), Abstand = von der Außenseite der nächsten Fläche ins Material."""
+    qs = offen.qs
+    u, v = offen.uv(float(x), float(y))
+    beste, s0 = None, 0.0
+    for fl in qs.flaechen:
+        dx, dy = fl.p1[0] - fl.p0[0], fl.p1[1] - fl.p0[1]
+        lg = fl.breite or 1.0
+        t = max(0.0, min(lg, ((u - fl.p0[0]) * dx + (v - fl.p0[1]) * dy) / lg))
+        ab = math.hypot(u - fl.p0[0] - t * dx / lg, v - fl.p0[1] - t * dy / lg)
+        if beste is None or ab < beste[1] - 1e-9:
+            beste = (s0 + t, ab)
+        s0 += fl.breite
+    return beste
+
+
+def _offen_laeufe(offen, zug, wand, rest=None):
+    """Gemessener Zug [[x, y, z]] eines offenen Profils: die Stücke auf der Außenseite der Wände (die Skizze zeichnet
+    die Konturen außen) als Läufe [[(s, z)]] der Reihe nach, ein ganz außen liegender Zug geschlossen (erster Punkt
+    am Ende wiederholt); die Innenseite derselben Kante fällt weg. rest (Liste): Punkte, die weder außen noch innen
+    auf einer Fläche der Skizze liegen (z. B. auf der Abkantung eines C-Profils), kommen dort hinein."""
+    # am Rand der Abwicklung (Kante eines Schenkels) knapp innen bleiben: s = 0 und s = Umfang sind bei offenen
+    # Profilen verschiedene Stellen, die Skizze rechnet aber am Umfang weiter (sonst Linie quer über das Profil)
+    um = offen.qs.umfang
+    pk = [((min(max(sa[0], 0.01), um - 0.01), sa[1]), float(z)) for (sa, z) in
+          ((offen_s(offen, x, y), z) for x, y, z in zug)]
+    drin = [sa[1] <= wand / 2 + 0.05 for sa, _ in pk]
+    if rest is not None:
+        rest += [p for p in pk if p[0][1] > wand + 0.1]
+    if all(drin):
+        return [[(sa[0], z) for sa, z in pk] + [(pk[0][0][0], pk[0][1])]]
+    if not any(drin):
+        return []
+    k = drin.index(False)                   # beim ersten Punkt innen beginnen: Läufe nicht über das Zugende teilen
+    pk, drin = pk[k:] + pk[:k], drin[k:] + drin[:k]
+    out, lauf = [], []
+    for (sa, z), d in zip(pk, drin):
+        if d:
+            lauf.append((sa[0], z))
+        elif lauf:
+            out.append(lauf)
+            lauf = []
+    if lauf:
+        out.append(lauf)
+    return [x for x in out if len(x) >= 2]
+
+
+def _offen_umriss(d, k, offen, wand):
+    """Umriss einer Kontur am offenen Profil aus den gemessenen Zügen (STEP-JSON 1.21) um die Mitte der Zeile k (x,
+    Seite, q): (Umriss [[dx längs, ds]], Mündung [s von, s bis] oder None, Anteil der Kanten außerhalb der Flächen
+    der Skizze) oder None. Der längste Lauf auf der Außenseite; ist er offen (Kerbe vom Rand der Wand), schließt die
+    Gerade über den Rand der Wand ihn, gezeichnet wird sie nicht (Mündung wie bei Ausflügen am Ende)."""
+    from . import skizze as sk
+    rest, alle = [], 0
+    laeufe = []
+    for zug in d.get("zuege") or ():
+        alle += len(zug)
+        laeufe += _offen_laeufe(offen, zug, wand, rest)
+    if not laeufe:
+        return None
+    lf = max(laeufe, key=lambda x: sum(math.dist(a, b) for a, b in zip(x, x[1:])))
+    geschlossen = len(lf) > 3 and lf[0] == lf[-1]
+    if geschlossen:
+        lf = lf[:-1]
+    if len(lf) < 3:
+        return None
+    s0 = sk.s_lage(offen.qs, k)
+    x0 = float(k.get("x") or 0)
+    um = [[round(z - x0, 2), round(s - s0, 2)] for s, z in lf]
+    return um, None if geschlossen else [round(lf[0][0], 2), round(lf[-1][0], 2)], len(rest) / max(alle, 1)
+
+
+def _offen_ende_umriss(d, ende_b, laenge, offen, wand, ausflug=None):
+    """Umriss eines komplexen Endes am offenen Profil [[s, Abstand vom Ende]] (wie _ende_umriss) aus den gemessenen
+    Zügen; None ohne Züge. ausflug (Liste): Schnitte vom Ende ins Teil und zurück (z. B. T-Ausklinkung) als Züge
+    [(s, z)]."""
+    pts = []
+    for zug in d.get("zuege") or ():
+        for lf in _offen_laeufe(offen, zug, wand):
+            if pts:
+                pts.append(None)
+            pts += lf
+    if not pts:
+        return None
+    return _ende_umriss(dict(umriss=pts), ende_b, laenge, lambda s: s, offen.qs.umfang, ausflug=ausflug)
+
+
+def sk_s_zu_seite(qs, s):
+    from . import skizze as sk
+    return sk.s_zu_seite(qs, s)
 
 
 def sk_querschnitt(form, a, b, wand, r):
@@ -733,6 +843,21 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 e["schwenk"] = round(float(d["schwenk"]), 2)
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
                 e.update(flaechen=d["flaechen"], huelle=d["huelle"])
+            if d.get("form") == "komplex" and offen and d.get("zuege"):
+                # offenes Profil, z. B. Ausklinkung am Ende (Patrick 28.10.2026): Umriss auf den Flächen der Skizze
+                ausflug = []
+                um = _offen_ende_umriss(d, art == "Ende B", _z(m, "laenge"), offen, _z(m, "wandstaerke") or _wand(m),
+                                        ausflug)
+                if um:
+                    e["umriss"] = um
+                    for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
+                        k = _ende_ausflug(zug, art[-1], m, mform, lambda s_: s_, offen.qs.umfang, 0, 0, False,
+                                          lambda s_: sk_s_zu_seite(offen.qs, s_))
+                        if k:
+                            e["gemessen"] = round(max(e["gemessen"] - k["gemessen"], 0.0), 2)
+                            if mp:
+                                k["messprofil"] = mp
+                            eing["konturen"].append(k)
             if d.get("form") == "komplex" and (mform == "Rundrohr" or mkasten):     # Umriss für die Abwicklung
                 ausflug = []
                 u_umf = math.pi * ma if mform == "Rundrohr" else 2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)
@@ -776,6 +901,10 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
         umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess)) if mform == "Rundrohr" or mkasten else None
+        if umriss and art in ("Langloch", "Rechteckausschnitt") and min(lage % 90, 90 - lage % 90) > SCHRAEG_LAGE:
+            # schräg liegendes Langloch/Rechteck (z. B. 30° zur Achse, Patrick 28.10.2026): die Zeilen Langloch und
+            # Rechteck kennen nur längs/quer – als Sonderkontur mit dem gemessenen Umriss, sonst bis 8 mm daneben
+            art = "Sonderkontur"
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -838,6 +967,16 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
             if abs(q) > 0.05:
                 k["q"] = round(q, 1)
+            if k.get("art") == "sonstige Kontur" and d.get("zuege"):
+                # Ausschnitt ohne Grundform (Kerbe im Schenkel, V-Ausschnitt, Patrick 28.10.2026): echter Umriss wie
+                # in der STEP statt eines Kreises mit dem Hüllmaß
+                um_ = _offen_umriss(d, k, offen, _z(m, "wandstaerke") or _wand(m))
+                if um_:
+                    k.update(art="Sonderkontur", umriss=um_[0])
+                    if um_[1]:
+                        k["muendung"] = um_[1]
+                    if um_[2] > 0.05:
+                        k["text"] = "Teil der Kontur auf der Abkantung: nicht gezeichnet, Länge gemessen"
         if mp:
             k["messprofil"] = mp
         eing["konturen"].append(k)

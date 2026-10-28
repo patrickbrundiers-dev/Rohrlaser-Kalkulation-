@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.166", "<b>STEP-Import für typische Laserteile robuster</b> (Testreihe nach Beispielbildern: Profile mit "
+                "Lochbildern auf mehreren Seiten, Kerben, Ausklinkungen, C-Profile, Kantteile): <b>offene Profile</b> "
+                "(U, C, L, Kantprofil) zeigen Ausklinkungen am Ende (auch T-förmig), Kerben im Schenkel und "
+                "V-Ausschnitte mit dem echten Umriss wie in der STEP statt als Kreis; eine breite Kerbe über drei "
+                "Wände eines Rechteckrohrs lag im Editor auf der falschen Seite; schräg liegende Langlöcher und "
+                "Rechtecke werden Sonderkontur mit Umriss. <b>Senkungen</b> auch, wenn der Kegel durch die ganze Wand "
+                "geht, und Zylindersenkungen – geschnitten wird nur der Bohrungs-Ø (auch bei Blechen). <b>Gewinde</b>: "
+                "Vorschlag auch nach dem Kern-Ø nach ISO (M8 = 6,647) und für ausmodellierte Gewinde "
+                "([[bohrungen_pruefen]]).",
+     "STEP: offene Profile mit echtem Umriss, Senkung durch die Wand, Gewinde nach ISO-Kern-Ø und ausmodelliert."],
     ["0.9.165", "<b>E-Mail aus Outlook auslesen</b>: Eine ganze Mail (*.msg aus Outlook oder *.eml) im "
                 "Anfrage-Ordner oder auf die Startseite gezogen reicht – das Programm packt STEP-Dateien, Formulare, "
                 "ZIP-Archive und weitergeleitete Mails aus und belegt vor: Kunde über die Absenderadresse bzw. "

@@ -43,7 +43,7 @@ from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_Transform
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
 from OCP.GCPnts import GCPnts_AbscissaPoint
-from OCP.GeomAbs import GeomAbs_Plane, GeomAbs_Cylinder, GeomAbs_Cone, GeomAbs_Torus, GeomAbs_Line, GeomAbs_BSplineSurface, GeomAbs_BezierSurface
+from OCP.GeomAbs import GeomAbs_Plane, GeomAbs_Cylinder, GeomAbs_Cone, GeomAbs_Torus, GeomAbs_Line, GeomAbs_BSplineSurface, GeomAbs_BezierSurface, GeomAbs_SurfaceOfRevolution
 from OCP.ShapeAnalysis import ShapeAnalysis_FreeBounds
 try:  # OCP >= 7.8
     from OCP.collections import (IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher as TopTools_IndexedMapOfShape,
@@ -1223,6 +1223,21 @@ GRAVUR_TIEFE = 0.5       # mm: flachere nicht durchgehende Merkmale sind immer G
 UMRISS_PUNKTE = 300      # höchstens so viele Punkte je Umriss (sonst gröber ausgedünnt)
 
 
+def _u_entrollen(uv, umfang):
+    """Punkte (u, z) einer Kontur auf dem Umfang fortlaufend machen: die Naht (u = 0 = Umfang) wird in die größte
+    Lücke zwischen den Umfangspositionen gelegt. Vorher galt jede Kontur, die mehr als den halben Umfang überspannt,
+    als „über die 0°-Naht“: eine breite Kerbe über drei Wände (V-Ausschnitt unten, Patrick 28.10.2026) wurde dabei
+    zerrissen und ihre Mitte lag auf der falschen Seite."""
+    if not uv or umfang <= 0:
+        return uv
+    us = sorted(u % umfang for u, _ in uv)
+    luecke, schnitt = us[0] + umfang - us[-1], None          # Lücke über die Naht: nichts verschieben
+    for a, b in zip(us, us[1:]):
+        if b - a > luecke:
+            luecke, schnitt = b - a, (a + b) / 2
+    return [(u % umfang + (umfang if schnitt is not None and u % umfang < schnitt else 0.0), v) for u, v in uv]
+
+
 def _umriss_uv(kanten, abw, zmin, u_mitte=None):
     """Abgewickelter Umriss einer Kontur (STEP-JSON 1.12): Punkte [u, z] der Reihe nach, u = Umfangsposition
     [mm] wie bei 'u' (über die 0°-Naht hinaus fortlaufend, also auch < 0 oder > Umfang), z ab Ende A. Mehrere Züge:
@@ -1594,6 +1609,49 @@ def _normale(face, p):
     return (v.X() / m, v.Y() / m, v.Z() / m) if m > 1e-12 else None
 
 
+def _zuege_xyz(kanten, cx, cy, zmin, tol=0.02):
+    """Kanten einer Kontur als geordnete Züge [[x, y, z], …] (x, y um die Mitte cx, cy des Querschnitts, z ab Ende A),
+    ausgedünnt (Douglas-Peucker räumlich, Abweichung höchstens tol) und auf 0,01 mm gerundet; [] wenn sich nichts
+    ordnen lässt. Offene Profile (STEP-JSON 1.21): daraus legt das Programm den echten Umriss auf die Flächen der
+    Skizze (wie "umriss" bei Hohlprofilen)."""
+    seq = TopTools_HSequenceOfShape()
+    for e in kanten:
+        seq.Append(e)
+    try:
+        wires = ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(seq, 1e-3, False)
+        draehte = [TopoDS.Wire(wires.Value(i)) for i in range(1, wires.Length() + 1)]
+    except Exception:  # Umriss ist nur Zusatz
+        return []
+
+    def dp(a):
+        if len(a) < 3:
+            return a
+        p0, p1 = a[0], a[-1]
+        v = [p1[i] - p0[i] for i in range(3)]
+        lg = math.sqrt(sum(x * x for x in v))
+
+        def abst(q):
+            w = [q[i] - p0[i] for i in range(3)]
+            if lg < 1e-9:
+                return math.sqrt(sum(x * x for x in w))
+            c = [w[1] * v[2] - w[2] * v[1], w[2] * v[0] - w[0] * v[2], w[0] * v[1] - w[1] * v[0]]
+            return math.sqrt(sum(x * x for x in c)) / lg
+        ab = [abst(q) for q in a[1:-1]]
+        i = max(range(len(ab)), key=ab.__getitem__)
+        if ab[i] <= tol:
+            return [a[0], a[-1]]
+        return dp(a[:i + 2])[:-1] + dp(a[i + 1:])
+    out = []
+    for w in draehte:
+        pk = [(q.X() - cx, q.Y() - cy, q.Z() - zmin) for q in _draht_punkte(w, 0.25)]
+        if len(pk) < 3:
+            continue
+        j = max(range(len(pk)), key=lambda i: math.dist(pk[i], pk[0]))
+        pk = dp(pk[:j + 1])[:-1] + dp(pk[j:] + [pk[0]])[:-1]
+        out.append([[round(x, 2), round(y, 2), round(z, 2)] for x, y, z in pk])
+    return out
+
+
 def _offen_konturen(t, lok, aussen, zmin, netz):
     """Schnitte an offenen Profilen (U, C, L, Flachstahl). Profil und Wand liegen auf einer einzigen Kontur; eine
     Fläche, die nicht auf ihr liegt, gehört zu einem Merkmal (Ende, Bohrung, Ausschnitt). Ein Merkmal geht durch,
@@ -1746,7 +1804,17 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
                 art_, dm, aussen = ba
                 d = dict(durchgehend=True, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
                          art=art_, durchmesser=dm, querlage=quer_lage(bb))
-                if art_ == "Senkung":
+                if art_ == "Gewinde":       # ausmodelliertes Gewinde: Laser schneidet das Kernloch
+                    schnitt = math.pi * dm
+                    t.innen += schnitt
+                    t.innen_konturen += 1
+                    t.konturen += 1
+                    t.innen_liste.append((dm, schnitt))
+                    bohrungen[dm] = bohrungen.get(dm, 0) + 1
+                    d.update(art="Bohrung", gewinde=gewinde_aus_nenn(aussen, dm), gewinde_aussen=aussen,
+                             schnittlaenge=round(schnitt, 2), huellmass=dm,
+                             hinweis="Gewinde im Modell: Laser schneidet das Kernloch")
+                elif art_ == "Senkung":
                     schnitt = math.pi * dm
                     t.innen += schnitt
                     t.innen_konturen += 1
@@ -1776,6 +1844,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
                 # Maße in der Wandebene: entlang der Achse (dz) und quer dazu; die Wanddicke steckt mit im Hüllmaß
                 d.update(art="Ausschnitt", laenge=round(max(dz, quer), 2), breite=round(min(dz, quer), 2),
                          huellmass=round(max(dz, quer), 2), richtung=90.0 if dz >= quer else 0.0)   # 90° = längs
+                d["zuege"] = _zuege_xyz(kanten, qcx, qcy, zmin)
                 t.innen_liste.append((max(dz, quer), schnitt))
             liste.append(d)
         if m["art"] in enden:
@@ -1790,6 +1859,8 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
                                                          um_y=None, richtung=None, schnittlaenge=0.0)
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
+        if e.get("form") == "komplex" and kt:      # z. B. Ausklinkung am Ende: echte Kanten für die Skizze
+            e["zuege"] = _zuege_xyz(kt, qcx, qcy, zmin)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
     kopf[0]["querschnitt"] = querschnitt        # Umriss von Ende A aus (x, y um die Mitte), zu "querlage" der Konturen
     t.konturen_liste = kopf + sorted(liste, key=lambda d: d["z"])
@@ -2058,8 +2129,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     def lage_auf_rohr(zug):
         """Abgewickelte Kontur -> Form, Maße, Mitte (z ab Ende A, Winkel, Seite), Normale der Wand dort."""
         uv = [(abw.u(p.X(), p.Y()), p.Z() - zmin) for p in _punkte_kanten(zug)]
-        if max(u for u, _ in uv) - min(u for u, _ in uv) > abw.umfang / 2:     # über die 0°-Naht
-            uv = [(u + abw.umfang if u < abw.umfang / 2 else u, v) for u, v in uv]
+        uv = _u_entrollen(uv, abw.umfang)      # über die 0°-Naht fortlaufend
         form, (uc, vc), lage = _form_2d(uv)
         winkel, px, py = abw.punkt(uc)
         seite = None
@@ -2163,7 +2233,18 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
         art_, dm, aussen = ba
         form, lage, d, normale = lage_auf_rohr(kanten)
         d.update(durchgehend=True, art=art_, durchmesser=dm)
-        if art_ == "Senkung":
+        if art_ == "Gewinde":
+            # ausmodelliertes Gewinde: der Laser schneidet das Kernloch (Ø innen), Gewinde ist Nacharbeit (€/Stück)
+            schnitt = rund_2d(dm, math.pi * dm)
+            t.innen += schnitt
+            t.innen_konturen += 1
+            t.konturen += 1
+            t.innen_liste.append((dm, schnitt))
+            bohrungen[dm] = bohrungen.get(dm, 0) + 1
+            d.update(art="Bohrung", gewinde=gewinde_aus_nenn(aussen, dm), gewinde_aussen=aussen,
+                     schnittlaenge=round(schnitt, 2), huellmass=dm, schraeg=0.0,
+                     hinweis="Gewinde im Modell: Laser schneidet das Kernloch")
+        elif art_ == "Senkung":
             schnitt = rund_2d(dm, math.pi * dm)
             t.innen += schnitt
             t.innen_konturen += 1
@@ -2436,50 +2517,100 @@ def _ebenen_gruppen(solid):
     return gruppen
 
 
-def bohrung_art(flaechen, aussenkanten):
-    """Senkung oder Fließlochbohrung (Flowdrill) aus den Flächen eines durchgehenden Merkmals und seinen Kanten auf
-    der Außenhaut. Senkung: Zylinder eines Ø quer zur Achse + Kegel, außen größer als die Bohrung. Fließloch: Kernloch
-    (kleinster Zylinder) ist außen genau so groß, dazu ein koaxialer Kragen innen (größerer Zylinder, Ring- oder
-    Rundungsflächen). Ergebnis: ("Senkung", Ø, Senk-Ø) bzw. ("Fließloch", Ø, Kragen-Ø) oder None."""
-    zyl, kegel, sonst, ebenen = [], 0, 0, []
+GEWINDE_NENN = {3: 2.459, 4: 3.242, 5: 4.134, 6: 4.917, 8: 6.647, 10: 8.376, 12: 10.106, 14: 11.835, 16: 13.835,
+                20: 17.294, 24: 20.752}     # ISO-Regelgewinde: Nenn-Ø -> Kern-Ø D1 des Muttergewindes (ISO 965)
+
+
+def gewinde_aus_nenn(nenn, kern=None, tol=0.3):
+    """Gewinde (z. B. 'M8') zu einem modellierten Gewinde: Außen-Ø nenn (± tol) und, wenn bekannt, Kern-Ø kern höchstens
+    so groß wie das Kernloch; sonst None."""
+    for m, d1 in GEWINDE_NENN.items():
+        if abs(nenn - m) <= tol and (kern is None or d1 - 0.4 <= kern <= m - 0.3):
+            return f"M{m}"
+    return None
+
+
+def bohrung_art(flaechen, aussenkanten, rohr=True):
+    """Senkung, Fließlochbohrung (Flowdrill) oder modelliertes Gewinde aus den Flächen eines durchgehenden Merkmals und
+    seinen Kanten auf der Außenhaut. Ergebnis: ("Senkung", Bohrungs-Ø, Senk-Ø), ("Fließloch", Ø, Kragen-Ø),
+    ("Gewinde", Kern-Ø, Außen-Ø) oder None.
+    Senkung: Kegel (Kegelsenkung) bzw. zweiter, größerer Zylinder mit ebenem Absatz (Zylindersenkung), außen größer
+    als die Bohrung. Geschnitten wird der kleinste Ø – auch wenn die Senkung durch die ganze Wand geht und gar keine
+    Bohrung mehr übrig ist (Kegel bis zur Innenseite: Ø dort, Patrick 28.10.2026). Fließloch: Kernloch (kleinster
+    Zylinder) ist außen genau so groß, dazu ein koaxialer Kragen innen. Gewinde (im CAD ausmodelliert): Rillen als
+    mehrere Kegel oder Schraubenflächen (Freiform) um eine Achse; Kern- und Außen-Ø aus dem Abstand der Kanten.
+    rohr: Messsystem eines Rohrs (Z = Rohrachse, eine Bohrung steht quer dazu); False bei Blechen (Dateilage)."""
+    zyl, kegel, sonst, ebenen, frei = [], [], 0, [], []
     for f in flaechen:
         z_ = _zylinder(f)
         if z_ is not None:
-            if abs(z_.Axis().Direction().Z()) > 0.99:
+            if rohr and abs(z_.Axis().Direction().Z()) > 0.99:
                 return None
             zyl.append(z_)
             continue
         s = BRepAdaptor_Surface(TopoDS.Face(f))
         typ = s.GetType()
         if typ == GeomAbs_Cone:
-            kegel += 1
+            kegel.append(s.Cone())
         elif typ == GeomAbs_Torus:
             sonst += 1
         elif typ == GeomAbs_Plane:
             ebenen.append(s.Plane().Axis().Direction())
+        elif typ in (GeomAbs_BSplineSurface, GeomAbs_BezierSurface, GeomAbs_SurfaceOfRevolution):
+            frei.append(f)
         else:
             return None
-    if not zyl or not aussenkanten:
+    if not (zyl or kegel) or not aussenkanten:
         return None
-    kern = min(zyl, key=lambda c: c.Radius())
-    ax = kern.Axis()
-    # Ringfläche des Kragens: eben, quer zur Bohrungsachse. Andere Ebenen (Schlitz oder Ausschnitt, der an einen
-    # Sattel anschließt, Patrick 27.10.2026) machen aus dem Merkmal keine Bohrung
-    if any(abs(abs(n.Dot(ax.Direction())) - 1) > 1e-3 for n in ebenen):
+    ax = min(zyl, key=lambda c: c.Radius()).Axis() if zyl else kegel[0].Axis()
+    richt = ax.Direction()
+    if rohr and abs(richt.Z()) > 0.99:
+        return None
+    # Ringfläche des Kragens bzw. Absatz der Zylindersenkung: eben, quer zur Bohrungsachse. Andere Ebenen (Schlitz
+    # oder Ausschnitt, der an einen Sattel anschließt, Patrick 27.10.2026) machen aus dem Merkmal keine Bohrung
+    if any(abs(abs(n.Dot(richt)) - 1) > 1e-3 for n in ebenen):
         return None
     sonst += len(ebenen)
-    for c in zyl:     # alle Zylinder koaxial zum Kernloch
-        if abs(abs(c.Axis().Direction().Dot(ax.Direction())) - 1) > 1e-6 or \
-                gp_Vec(ax.Location(), c.Axis().Location()).Crossed(_vec(ax.Direction())).Magnitude() > 0.01:
+
+    def koaxial(a):
+        return abs(abs(a.Direction().Dot(richt)) - 1) <= 1e-6 and \
+            gp_Vec(ax.Location(), a.Location()).Crossed(_vec(richt)).Magnitude() <= 0.01
+    if not all(koaxial(c.Axis()) for c in zyl) or not all(koaxial(k.Axis()) for k in kegel):
+        return None
+
+    def radial(punkte):
+        return [gp_Vec(ax.Location(), p).Crossed(_vec(richt)).Magnitude() for p in punkte]
+    abst = radial(_punkte_kanten(aussenkanten))
+    alle = radial(_punkte_kanten([e for f in flaechen for e in _liste(f, TopAbs_EDGE)], 0.25))
+    r_min, r_max = min(alle), max(alle)
+    if frei:
+        # Schraubenflächen eines Gewindes: rundum um die Achse, nur im Ring zwischen Kern und Außen-Ø
+        pf = _punkte_kanten([e for f in frei for e in _liste(f, TopAbs_EDGE)], 0.25)
+        ref = _vec(gp_Dir(1, 0, 0) if abs(richt.X()) < 0.9 else gp_Dir(0, 1, 0)).Crossed(_vec(richt))
+        ref2 = _vec(richt).Crossed(ref)
+        winkel = {int(math.degrees(math.atan2(gp_Vec(ax.Location(), p).Dot(ref2),
+                                              gp_Vec(ax.Location(), p).Dot(ref))) // 30) for p in pf}
+        if len(winkel) < 12 or r_max - r_min > 0.25 * r_max + 0.5:
             return None
-    radien = {round(c.Radius(), 2) for c in zyl}
-    r = kern.Radius()
-    # Abstand der Wandkanten von der Achse (offene Profile: Kanten beider Wandseiten, daher größter und kleinster)
-    abst = [gp_Vec(ax.Location(), p).Crossed(_vec(ax.Direction())).Magnitude() for p in _punkte_kanten(aussenkanten)]
-    if kegel and len(radien) == 1 and max(abst) > r + 0.1:
-        return ("Senkung", round(2 * r, 2), round(2 * max(abst), 1))
-    if abs(min(abst) - r) < 0.05 and (len(radien) > 1 or sonst):
-        return ("Fließloch", round(2 * r, 2), round(2 * max(c.Radius() for c in zyl), 2))
+        g = gewinde_aus_nenn(2 * r_max, 2 * r_min)
+        return ("Gewinde", round(2 * r_min, 2), round(2 * r_max, 2)) if g else None
+    if len(kegel) >= 3 and not frei:
+        # Gewinde als Rillen (Kegel im Wechsel), z. B. vereinfachter Export
+        if r_max - r_min <= 0.25 * r_max + 0.5 and gewinde_aus_nenn(2 * r_max, 2 * r_min):
+            return ("Gewinde", round(2 * r_min, 2), round(2 * r_max, 2))
+        return None
+    radien = sorted({round(c.Radius(), 2) for c in zyl})
+    if kegel and len(kegel) <= 2 and len(radien) <= 1 and max(abst) > r_min + 0.1:
+        # Kegelsenkung (auch durch die ganze Wand: dann ohne Zylinder, kleinster Ø an der Innenseite)
+        if radien and abs(radien[0] - r_min) > 0.02:
+            return None
+        return ("Senkung", round(2 * r_min, 2), round(2 * max(abst), 1))
+    if not kegel and len(radien) == 2 and sonst and min(abst) > radien[0] + 0.1 and \
+            abs(max(abst) - radien[1]) < 0.05 and abs(min(abst) - radien[1]) < 0.05:
+        # Zylindersenkung: außen nur der große Ø, innen die Bohrung
+        return ("Senkung", round(2 * radien[0], 2), round(2 * radien[1], 1))
+    if zyl and abs(min(abst) - min(radien)) < 0.05 and (len(radien) > 1 or sonst):
+        return ("Fließloch", round(2 * min(radien), 2), round(2 * max(radien), 2))
     return None
 
 
@@ -2619,6 +2750,22 @@ def _vereinfachen(pk, tol=0.05):
     return dp(pk[:j + 1])[:-1] + dp(pk[j:] + [pk[0]])[:-1]
 
 
+def _blech_sonder(k, ba):
+    """Innenkontur eines Blechs (_blech_kontur) mit Senkung bzw. Gewinde (blech_loch_art): Bohrung mit dem
+    geschnittenen Ø, dazu Senk- bzw. Gewinde-Ø."""
+    if not ba:
+        return
+    art_, dm, aussen = ba
+    k.update(art="Bohrung", durchmesser=dm, schnittlaenge=round(math.pi * dm, 2))
+    for x in ("laenge", "breite", "quer", "punkte"):
+        k.pop(x, None)
+    if art_ == "Senkung":
+        k.update(senk_durchmesser=aussen, hinweis="Laser schneidet die Bohrung, Senkung ist Nacharbeit")
+    else:
+        k.update(gewinde=gewinde_aus_nenn(aussen, dm), gewinde_aussen=aussen,
+                 hinweis="Gewinde im Modell: Laser schneidet das Kernloch")
+
+
 def _blech_kontur(pts):
     """Innenkontur eines Blechs aus ihren Punkten (x, y im Zuschnitt): Art, Maße, Mitte, Lage für den Blech-Editor.
     Bohrung / Langloch / Rechteck längs oder quer, sonst Polygon (Eckpunkte um die Mitte)."""
@@ -2638,6 +2785,63 @@ def _blech_kontur(pts):
         d.update(art="Polygon", x=round(mx, 2), y=round(my, 2),
                  punkte=[[round(x - mx, 2), round(y - my, 2)] for x, y in pk])
     return d
+
+
+def blech_loch_art(solid, haupt, dicke, draht):
+    """Senkung bzw. ausmodelliertes Gewinde an einer Innenkontur (Draht der Hauptfläche) eines Blechs: (Art, Ø, Senk-
+    bzw. Außen-Ø) wie bohrung_art oder None. Die Flächen der Bohrung werden von den Kanten des Drahts aus gesammelt
+    (ohne die beiden Hauptebenen); als Außenseite gilt die Seite mit dem größeren Rand (Senkung von der Hauptfläche
+    oder von der Gegenseite, Patrick 28.10.2026)."""
+    pl = _ebene(haupt)
+    if pl is None:
+        return None
+    n, o = pl.Axis().Direction(), pl.Location()
+
+    def hoehe(p):
+        return (p.X() - o.X()) * n.X() + (p.Y() - o.Y()) * n.Y() + (p.Z() - o.Z()) * n.Z()
+
+    def in_hauptebene(f):
+        e = _ebene(f)
+        if e is None or abs(abs(e.Axis().Direction().Dot(n)) - 1) > 1e-6:
+            return False
+        h = abs(hoehe(e.Location()))
+        return h < 0.01 or abs(h - dicke) < 0.01
+    kf = TopTools_IndexedDataMapOfShapeListOfShape()
+    TopExp.MapShapesAndAncestors_s(solid, TopAbs_EDGE, TopAbs_FACE, kf)
+    gesehen, stapel, flaechen = TopTools_IndexedMapOfShape(), [], []
+    for e in _liste(draht, TopAbs_EDGE):
+        if kf.Contains(e):
+            stapel += [f for f in kf.FindFromKey(e)]
+    while stapel and len(flaechen) < 200:
+        f = stapel.pop()
+        if gesehen.Contains(f) or f.IsSame(haupt) or in_hauptebene(f):
+            continue
+        gesehen.Add(f)
+        flaechen.append(f)
+        for e in _liste(f, TopAbs_EDGE):
+            if kf.Contains(e):
+                stapel += [g for g in kf.FindFromKey(e) if not gesehen.Contains(g)]
+    if not flaechen or len(flaechen) >= 200:
+        return None
+    seiten = {0: [], 1: []}
+    for f in flaechen:
+        for e in _liste(f, TopAbs_EDGE):
+            hs = [hoehe(p) for p in _punkte_kanten([e], 2.0)]
+            if all(abs(h) < 0.01 for h in hs):
+                seiten[0].append(e)
+            elif all(abs(abs(h) - dicke) < 0.01 for h in hs):
+                seiten[1].append(e)
+    if not seiten[0] or not seiten[1]:
+        return None
+
+    def rand(kanten):
+        b = Bnd_Box()
+        for e in kanten:
+            BRepBndLib.AddOptimal_s(e, b, False, False)
+        return b.SquareExtent()
+    aussen = max(seiten.values(), key=rand)
+    ba = bohrung_art(flaechen, aussen, rohr=False)
+    return ba if ba and ba[0] in ("Senkung", "Gewinde") else None
 
 
 def _blech_daten(solid, fl):
@@ -2672,17 +2876,24 @@ def _blech_daten(solid, fl):
     mf = BRepBuilderAPI_MakeFace(aussen, True)
     flaeche_aussen = _flaeche(mf.Face()) if mf.IsDone() else laenge * breite
     innen = [TopoDS.Wire(d) for d in _liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
-    bohrungen, innen_liste, innen_laenge, lage = {}, [], 0.0, []
+    bohrungen, innen_liste, innen_laenge, lage, senkungen, sonder = {}, [], 0.0, [], {}, {}
     for d in innen:
         lg = _draht_laenge(d)
-        innen_laenge += lg
         dm = _wire_kreis(d)
+        ba = blech_loch_art(solid, face, fl["dicke"], d)
+        if ba:      # Senkung/Gewinde: geschnitten wird der kleinste Ø (Bohrung bzw. Kernloch)
+            dm, lg = ba[1], math.pi * ba[1]
+            if ba[0] == "Senkung":
+                senkungen[(ba[1], ba[2])] = senkungen.get((ba[1], ba[2]), 0) + 1
+            sonder[len(lage)] = ba
+        innen_laenge += lg
         if dm is not None:
             bohrungen[dm] = bohrungen.get(dm, 0) + 1
         b = Bnd_Box()
         BRepBndLib.AddOptimal_s(d, b, False, False)
         q0, q1 = b.CornerMin(), b.CornerMax()
-        innen_liste.append((round(max(q1.X() - q0.X(), q1.Y() - q0.Y(), q1.Z() - q0.Z()), 2), round(lg, 2)))
+        hm = ba[1] if ba else max(q1.X() - q0.X(), q1.Y() - q0.Y(), q1.Z() - q0.Z())
+        innen_liste.append((round(hm, 2), round(lg, 2)))
         lage.append((d, lg))
     # System für die 3D-Ansicht und Lage in der Datei: Z = Längsrichtung, Y = Normale der Hauptfläche
     xd, yd = ax0.XDirection(), ax0.YDirection()
@@ -2697,12 +2908,13 @@ def _blech_daten(solid, fl):
         pk = [(p.X(), p.Y()) for p in _draht_punkte(_transformiere(draht, ax0))]
         return [(x * c + y * s_ - u0, -x * s_ + y * c - v0) for x, y in pk]
     konturen_lage = []
-    for d, lg in lage:
+    for i, (d, lg) in enumerate(lage):
         try:
             k = _blech_kontur(zuschnitt(d))
         except (ValueError, ZeroDivisionError, IndexError):
             continue
         k["schnittlaenge"] = round(lg, 2)
+        _blech_sonder(k, sonder.get(i))
         konturen_lage.append(k)
     aussen_punkte = None
     if not rechteckig:
@@ -2713,6 +2925,7 @@ def _blech_daten(solid, fl):
     return dict(laenge=laenge, breite=breite, dicke=fl["dicke"], flaeche_aussen=flaeche_aussen,
                 flaeche_netto=_flaeche(face), umfang_aussen=_draht_laenge(aussen), umfang_innen=innen_laenge,
                 innen=len(innen), bohrungen=dict(sorted(bohrungen.items())), innen_liste=innen_liste,
+                senkungen=[[d_, dd_, n_] for (d_, dd_), n_ in sorted(senkungen.items())],
                 kontur="rechteckig" if rechteckig else "frei", laengsseiten_gerade=min(seiten) >= 0.8 * laenge,
                 konturen_lage=konturen_lage, aussen_punkte=aussen_punkte, ax3=ax3)
 
@@ -2739,6 +2952,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         t.bauteiltyp = t.profilform = "Blech"
         t.abm_a, t.abm_b, t.wandstaerke, t.laenge = b["laenge"], b["breite"], d, b["laenge"]
         t.bohrungen, t.innen_liste, t.innen_konturen = b["bohrungen"], b["innen_liste"], b["innen"]
+        t.senkungen = {(d_, dd_): n_ for d_, dd_, n_ in b.get("senkungen") or ()}
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
         t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]
         t.sicherheit.update(profil="sicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
@@ -3289,8 +3503,7 @@ def _anbau_beschreiben(t, teile, quelle, netz=False, mit_flaechen=True):
             if not pts:
                 continue
             uv = [(abw.u(p.X(), p.Y()), p.Z()) for p in pts]
-            if max(u for u, _ in uv) - min(u for u, _ in uv) > abw.umfang / 2:      # über die 0°-Naht
-                uv = [(u + abw.umfang if u < abw.umfang / 2 else u, v) for u, v in uv]
+            uv = _u_entrollen(uv, abw.umfang)      # über die 0°-Naht fortlaufend
             form, (uc, vc), _ = _form_2d(uv) if len(uv) >= 3 else (("Punkt", 0.0, 0.0), uv[0], 0.0)
             winkel, px, py = abw.punkt(uc)
             if r["kasten"]:
@@ -3749,8 +3962,8 @@ def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
     out = []
     for d, n in bohrungen.items():
         for gew, kern in tabelle:
-            if abs(d - kern) <= tol:
-                out.append(f"{n}x{gew}")
+            if abs(d - kern) <= tol or abs(d - GEWINDE_NENN.get(int(gew[1:]) if gew[1:].isdigit() else 0, -9)) <= tol:
+                out.append(f"{n}x{gew}")       # Kernloch nach DIN 336 oder Kern-Ø D1 (CAD-Modell)
                 break
     return "; ".join(out)
 
