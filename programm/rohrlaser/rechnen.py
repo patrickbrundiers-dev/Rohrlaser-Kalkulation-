@@ -1290,6 +1290,24 @@ def stangenkosten(s, gewicht, kopf, positionen, k, tabellen):
     return lieferstange_preis(gruppe_der_stange(s), s["stange"], gewicht, kopf, positionen, k, tabellen)[0]
 
 
+def oberflaeche_aufpreis_m(ob, profil, werkstoff, k):
+    """Aufpreis der Oberfläche in € je m Stange: 'Aufpreis je' €/m (leer, wie bisher), €/kg × Metergewicht oder
+    €/m² × Umfang (Plan Abrechnungsregeln 28.10.2026). Ohne Gewicht bzw. Umfang 0."""
+    z = k.oberflaechen.get(ob or "") or {}
+    w = _n(z.get("aufpreis_m"))
+    basis = z.get("aufpreis_basis") or "€/m"
+    if not w or basis == "€/m":
+        return w
+    if basis == "€/kg":
+        return w * _n(kg_je_m(profil, werkstoff, k))
+    pr = k.profile.get(profil)
+    if not pr or pr.get("a") is None:
+        return 0.0
+    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), profil,
+                   profil_im_angebot(pr, None, profil, werkstoff, k).get("r_aussen"))
+    return w * _n(u) / 1000
+
+
 def haendler_mehrlaenge(laenge, einst=None, tabellen=None):
     """Länge, die der Händler je Stange zusätzlich berechnet (nur Preis, nicht Planung): Einstellungen
     'haendler_mehr_kurz' bis zur Grenze 'haendler_mehr_grenze' (Vorgabe 50 mm bis 6.500 mm), darüber
@@ -1313,7 +1331,7 @@ def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst
     ab = [p["preis_m"] for p in positionen if _n(p.get("preis_m")) and gruppe_von(p, kopf) == gr]
     if ab and max(ab) > 0:
         return max(ab) * lb / 1000, None
-    aufpreis_m = _n((k.oberflaechen.get(ob or "") or {}).get("aufpreis_m"))
+    aufpreis_m = oberflaeche_aufpreis_m(ob, profil, werkstoff, k)
     aufpreis = aufpreis_m * lb / 1000
     zl = next((z for z in lieferlaengen(profil, werkstoff, k, tabellen, einst) if z["laenge"] == laenge), None)
     if zl is not None and zl.get("basis"):
@@ -2007,6 +2025,10 @@ def zusatz_stand(z, saetze=None, datum=None):
         stand["zeit_s"] = pr["zeit_s"] or None
     elif pr["zeit_s"]:                 # Zeitaufwand je Einheit für die Zeiten (ändert den Preis nicht)
         stand["arbeit_s"] = pr["zeit_s"]
+    for n in ("bezug", "faktor", "mindest_teil"):      # Plan Abrechnungsregeln 28.10.2026 (nur gesetzte)
+        if not _leer(z.get(n)):
+            stand[n] = z[n]
+    stand["regeln"] = "ja"             # ab 28.10.2026: Arbeitsgang-Regeln mit Preis gelten (ältere Stände: nein)
     return stand
 
 
@@ -2030,6 +2052,21 @@ def oberflaeche(p, k):
     return m2
 
 
+def flaeche_innen_aussen(p, k):
+    """Innen- und Außenfläche eines Teils [m²] (Strahlen, Verzinken innen): geschlossene Rohre Außenfläche ×
+    (Umfang außen + innen) ÷ Umfang außen, innen = außen − 2π × Wand (rund) bzw. − 8 × Wand (eckig); offene Profile
+    und Träger haben in der Außenfläche schon beide Seiten. Ohne Wand die Außenfläche."""
+    m2 = oberflaeche(p, k)
+    pr = k.profile.get(p.get("profil_id")) or {}
+    s, form = pr.get("wand"), pr.get("form")
+    if m2 is None or not _zahl(s) or form not in ("Rundrohr", "Quadratrohr", "Rechteckrohr", rp_profile.FORM):
+        return m2
+    a, b = _n(pr.get("a")), _n(pr.get("b")) or _n(pr.get("a"))
+    aussen = math.pi * a if form == "Rundrohr" else 2 * (a + b)
+    innen = aussen - (2 * math.pi * s if form == "Rundrohr" else 8 * s)
+    return m2 * (aussen + max(innen, 0.0)) / aussen if aussen > 0 else m2
+
+
 def zusatz_menge_auto(art, p, k):
     """Vorschlag Menge je Teil: kg = Teilegewicht, m² = Außenfläche, m = Teilelänge, €/h: keine (Sekunden je Teil
     von Hand bzw. Vorgabezeit, zusatz_vorgabe_s), sonst 1 Stück."""
@@ -2051,30 +2088,57 @@ def zusatz_menge_auto(art, p, k):
     return 1.0
 
 
-def zusatz_werte(p, k, tabellen):
+def zusatz_werte(p, k, tabellen, kopf=None):
     """Zusatzarbeiten einer Position je Teil: [{name, art, einheit, menge, preis, betrag, zeit, fremd, text,
-    angebotstext, mindest, arbeit_s}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück, kommt zur
-    Laserzeit), arbeit_s = eigene Arbeitszeit je Teil für die Zeiten (€/h: die Zeit; sonst Zeitaufwand der Stammdaten
-    × Menge; Fremdleistungen, s/Stück und €/Angebot 0). Bei €/h ist
-    menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600 × €/h.
-    Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung)."""
+    angebotstext, mindest, arbeit_s, auto, regel, quelle}]. betrag = € je Teil (ohne Mindestbetrag je Angebot, mit
+    Mindestbetrag je Teil), zeit = s je Teil (Art s/Stück, kommt zur Laserzeit), arbeit_s = eigene Arbeitszeit je Teil
+    für die Zeiten (€/h: die Zeit; sonst Zeitaufwand der Stammdaten × Menge; Fremdleistungen, s/Stück und €/Angebot
+    0). Bei €/h ist menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600
+    × €/h. Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung).
+    Arbeitsgang-Regeln (zusatz_regeln.py, Plan Abrechnungsregeln): automatische Zusatzarbeiten kommen dazu (auto =
+    True); eine passende Regel mit Preis setzt Abrechnung, Preis, Menge aus, Faktor und Mindestbetrag je Teil, aber
+    nur bei Preisständen ab 28.10.2026 (Merker 'regeln') und automatischen, damit alte Angebote gleich bleiben. Werte
+    von Hand in der Position (Menge, Preis) gehen vor. regel = Name der Regel, deren Preis gilt."""
+    from . import zusatz_regeln as zr
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
     saetze = stundensaetze(tabellen)
+    regeln = [r for r in tabellen.get("arbeitsgang_regeln") or () if zr.aktiv(r)]
+    gewinde = tabellen.get("gewinde") or ()
+    liste = zusatz_liste(p)
+    if regeln and not ist_baugruppe(p):
+        liste = liste + zr.automatische(p, kopf, k, tabellen, {e["name"] for e in liste})
     out = []
-    for e in zusatz_liste(p):
+    for e in liste:
         stand = e.get("stand") if isinstance(e.get("stand"), dict) else None   # Preisstand beim Hinzufügen
         kz = stand or katalog.get(e["name"])
         if kz is None:
             continue
+        mit_regeln = bool(regeln) and (e.get("auto") or (stand or {}).get("regeln") == "ja")
+        r = zr.preisregel(e["name"], p, kopf, k, gewinde, regeln) if mit_regeln else None
         art = kz.get("art")
-        menge = e.get("menge") if isinstance(e.get("menge"), (int, float)) else zusatz_menge_auto(art, p, k)
+        if r and not _leer(r.get("art")) and not _leer(r.get("preis")) and not zr.nur_stueck(e["name"]):
+            art = r["art"]
+        bezug = r.get("menge_art") if r and r.get("menge_art") not in (None, "", "automatisch") else kz.get("bezug")
+        faktor = _n(r.get("faktor")) if r and not _leer(r.get("faktor")) else _n(kz.get("faktor")) or 1.0
+        if isinstance(e.get("menge"), (int, float)):
+            menge = e["menge"]
+        elif art in ("€/h", "€/Angebot", "s/Stück") or bezug in (None, "", "automatisch") and faktor == 1.0:
+            menge = zusatz_menge_auto(art, p, k)
+        else:
+            m = zr.menge_bezug(bezug, art, p, k, gewinde)
+            menge = m * faktor if m is not None else None
         if art == "€/h" and menge is None:
             menge = zusatz_vorgabe_s(kz)
         if isinstance(e.get("preis"), (int, float)):
             preis = e["preis"]
+        elif r and not _leer(r.get("preis")):
+            preis = _n(r["preis"])
         else:
             preis = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
         wert = _n(menge) * preis / (3600 if art == "€/h" else 1)
+        mindest_teil = _n(r.get("mindest_teil")) if r and not _leer(r.get("mindest_teil")) else _n(kz.get("mindest_teil"))
+        if mindest_teil and art not in ("s/Stück", "€/Angebot"):
+            wert = max(wert, mindest_teil)
         if kz.get("fremd") == "ja" or art in ("s/Stück", "€/Angebot"):
             arbeit_s = 0.0
         elif art == "€/h":
@@ -2088,7 +2152,9 @@ def zusatz_werte(p, k, tabellen):
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,
                         fremd=kz.get("fremd") == "ja", text=e.get("text"), mindest=_n(kz.get("mindest")),
-                        angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s))
+                        angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s,
+                        auto=bool(e.get("auto")), regel=(r or {}).get("name") or e.get("regel"),
+                        quelle=e.get("quelle")))
     return out
 
 
@@ -2567,6 +2633,9 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                 # ab 24.10.2026 (Schema 55): Schneidgas und Vorschub-Faktor der Werkstoffe (nur gesetzte)
                 werkstoff_laser={w: v for w in sorted(werkstoffe, key=str) if (v := _laser_werte(k.werkstoffe.get(w)))},
                 aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)},
+                # ab 28.10.2026 (Plan Abrechnungsregeln): Basis der Aufpreise und Regeln der Zusatzarbeiten
+                aufpreis_basen={o: (k.oberflaechen.get(o) or {}).get("aufpreis_basis") or "€/m" for o in sorted(ofl)},
+                zusatz_regeln=zusatz_regeln_aus(tabellen, datum),
                 # ab 0.7.0: Gewinde, preisrelevante Einstellungen, Profil- und Maschinenzeile (Prüfbericht B-4)
                 gewinde=[dict(z) for z in tabellen.get("gewinde") or []],
                 einstellungen=dict({n: einst.get(n) for n in EINST_FEST if n in einst},
@@ -2574,6 +2643,22 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    preisregeln=einst.get("preisregeln") or PREISREGELN_NEU),
                 profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
+
+
+def zusatz_regeln_aus(tabellen, datum=None):
+    """Regeln der Zusatzarbeiten für den Snapshot: {regeln: [aktive Regeln mit Preis oder automatisch], staende:
+    {Zusatzarbeit: Preisstand} für die automatischen (damit ein festgeschriebenes Angebot auch deren Preis behält)}."""
+    from . import zusatz_regeln as zr
+    from .stammdaten import ARBEITSGANG_REGELN
+    regeln = [{f.name: r.get(f.name) for f in ARBEITSGANG_REGELN.felder} for r in tabellen.get("arbeitsgang_regeln") or ()
+              if zr.aktiv(r) and (zr.preisrelevant(r) or zr.zuordnung(r) == zr.AUTOMATISCH)]
+    katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
+    saetze = stundensaetze(tabellen)
+    auto = {r["zusatzarbeit"] for r in regeln if zr.zuordnung(r) == zr.AUTOMATISCH}
+    staende = dict(tabellen.get("zusatz_auto_staende") or {})
+    staende.update({n: zusatz_stand(katalog[n], saetze, datum) for n in sorted(auto)
+                    if n in katalog and katalog[n].get("aktiv") != "nein" and n not in staende})
+    return dict(regeln=regeln, staende={n: staende[n] for n in sorted(auto) if n in staende})
 
 
 def preisbasis_anwenden(kopf, k, tabellen):
@@ -2627,6 +2712,10 @@ def preisbasis_anwenden(kopf, k, tabellen):
     if "zuschnitt_kosten" not in fest:
         e["zuschnitt_kosten"] = 0.0
     tab["einstellungen"] = e
+    # Regeln der Zusatzarbeiten: wie festgeschrieben; festgeschrieben vor dem 28.10.2026: ohne Regeln
+    zr_fest = pb.get("zusatz_regeln") if isinstance(pb.get("zusatz_regeln"), dict) else {}
+    tab["arbeitsgang_regeln"] = [dict(z) for z in zr_fest.get("regeln") or ()]
+    tab["zusatz_auto_staende"] = dict(zr_fest.get("staende") or {})
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
     if isinstance(pb.get("werkstoff_laser"), dict):     # ältere Snapshots: aktuelle Werte
@@ -2634,8 +2723,9 @@ def preisbasis_anwenden(kopf, k, tabellen):
         ws = {w: dict(z, **{n: (fest_l.get(w) or {}).get(n) for n in LASER_FELDER})
               if w in (pb.get("tonnenpreise") or {}) and _laser_werte(z) != (fest_l.get(w) or {}) else z
               for w, z in ws.items()}
-    of = {o: dict(z, aufpreis_m=pb["aufpreise"][o]) if o in (pb.get("aufpreise") or {}) else z
-          for o, z in k.oberflaechen.items()}
+    basen = pb.get("aufpreis_basen") or {}      # vor dem 28.10.2026 festgeschrieben: €/m
+    of = {o: dict(z, aufpreis_m=pb["aufpreise"][o], aufpreis_basis=basen.get(o) or "€/m")
+          if o in (pb.get("aufpreise") or {}) else z for o, z in k.oberflaechen.items()}
     pr = {pid: _fest(z, (pb.get("profile") or {}).get(pid)) for pid, z in k.profile.items()}
     ma = {m: _fest(z, (pb.get("maschinen") or {}).get(m)) if m == kopf.get("maschine") else z
           for m, z in k.maschinen.items()}
@@ -2681,7 +2771,16 @@ def _vergleich(pb):
                 tonnenpreise=pb.get("tonnenpreise") or {}, aufpreise=pb.get("aufpreise") or {}, lieferlaengen=lief,
                 gewinde=_json_liste(pb.get("gewinde") or []), einstellungen=pb.get("einstellungen") or {},
                 profile=pb.get("profile") or {}, maschinen=pb.get("maschinen") or {},
-                werkstoff_laser=pb.get("werkstoff_laser") if "werkstoff_laser" in pb else None)
+                werkstoff_laser=pb.get("werkstoff_laser") if "werkstoff_laser" in pb else None,
+                aufpreis_basen=pb.get("aufpreis_basen") if "aufpreis_basen" in pb else None,
+                zusatz_regeln=_regeln_vergleich(pb["zusatz_regeln"]) if "zusatz_regeln" in pb else None)
+
+
+def _regeln_vergleich(zr):
+    """Regeln und Preisstände eines Snapshots ohne Datum."""
+    zr = zr if isinstance(zr, dict) else {}
+    staende = {n: {a: b for a, b in (st or {}).items() if a != "datum"} for n, st in (zr.get("staende") or {}).items()}
+    return dict(regeln=_json_liste(zr.get("regeln") or []), staende=staende)
 
 
 def preisbasis_gleich(a, b):
@@ -2715,7 +2814,14 @@ def preisbasis_abweichung(kopf, k, tabellen):
             out.append(f"Tonnenpreis {w}: {zahl(t)} → {zahl(neu['tonnenpreise'].get(w))} €/t")
     for o, a in alt["aufpreise"].items():
         if neu["aufpreise"].get(o) != a:
-            out.append(f"Aufpreis {o}: {zahl(a)} → {zahl(neu['aufpreise'].get(o))} €/m")
+            out.append(f"Aufpreis {o}: {zahl(a)} → {zahl(neu['aufpreise'].get(o))} € je "
+                       f"{(alt['aufpreis_basen'] or {}).get(o, '€/m').removeprefix('€/')}")
+    if alt["aufpreis_basen"] is not None:
+        for o, b in alt["aufpreis_basen"].items():
+            if (neu["aufpreis_basen"] or {}).get(o, b) != b:
+                out.append(f"Aufpreis {o}: je {b} → je {neu['aufpreis_basen'].get(o)}")
+    if alt["zusatz_regeln"] is not None and alt["zusatz_regeln"] != neu["zusatz_regeln"]:
+        out.append("Regeln der Zusatzarbeiten (Arbeitsgang-Regeln mit Preis oder automatisch) geändert")
     if alt["schneiddaten"] != neu["schneiddaten"]:
         out.append(f"Schneiddaten der Maschine {pb.get('maschine')} geändert")
     if alt["werkstoff_laser"] is not None:
@@ -2830,11 +2936,11 @@ def programmier_zeit(p, einstellungen):
     return _n(grund) + _n(einstellungen.get("programmierung_kontur")) * konturen_anzahl(p), False
 
 
-def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen):
+def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen, kopf=None):
     """Zusatzarbeiten je Position (Teil von kalkulation): Beträge je Teil mit Mindestbetrag je Zusatzarbeit und
     Angebot (anteilig angehoben) und €/Angebot einmal je Angebot, auf die Teile umgelegt. Ergebnis {Index: [Einträge
     mit 'teil']}."""
-    zus = {i: zusatz_werte(positionen[i], k, tabellen) if i in laser else [] for i in aktiv}
+    zus = {i: zusatz_werte(positionen[i], k, tabellen, kopf) if i in laser else [] for i in aktiv}
     zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
     for i in aktiv:
         c = _n(positionen[i].get("stueck"))
@@ -2989,7 +3095,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
     pruefzeit_anbau = _n(einstellungen.get("pruefzeit_anbau"))      # min je Teil mit unsicher erkannten Anbauteilen
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
-    zus = _zusatz_umlegen(positionen, aktiv, laser + zk_pos, k, tabellen)   # Zukaufteile: z. B. Sägen
+    zus = _zusatz_umlegen(positionen, aktiv, laser + zk_pos, k, tabellen, kopf)   # Zukaufteile: z. B. Sägen
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]

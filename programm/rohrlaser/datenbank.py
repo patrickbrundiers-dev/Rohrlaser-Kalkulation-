@@ -42,6 +42,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
+                         strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
 SCHEMA_VERSION = 65     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
@@ -149,6 +150,7 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
+STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
@@ -238,6 +240,7 @@ class Datenbank:
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
+            self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -443,6 +446,8 @@ class Datenbank:
                 self._voll_ergaenzen()
             if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
                 self._stege_ergaenzen()
+            if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
+                self._strahlen_ergaenzen()
             teilen.einrichten(self.con)
             lager.einrichten(self.con)
             fertigung.einrichten(self.con)
@@ -569,6 +574,13 @@ class Datenbank:
             neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.VIRTUELL_REGELN]
             self._einfuegen("pruefregeln", neu, ergaenzen=True)
         self._einstellung_schreiben("stege_stand", STEGE_STAND)
+
+    def _strahlen_ergaenzen(self):
+        """Einmalig: Zusatzarbeit 'Strahlen' (€/kg) und die Beispielregeln (aus) anlegen, wenn es sie (dem Namen
+        nach) noch nicht gibt (Plan Abrechnungsregeln). Rechnet nichts anders: nur hinzugefügt, Regeln aus."""
+        self._einfuegen("zusatzarbeiten", strahl_zusatzarbeiten(), ergaenzen=True)
+        self._einfuegen("arbeitsgang_regeln", strahl_regeln(), ergaenzen=True)
+        self._einstellung_schreiben("strahlen_stand", STRAHLEN_STAND)
 
     def _knick_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem
@@ -1350,7 +1362,8 @@ class Datenbank:
     def _tabellen_bauen(self):
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
-                                           "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln")}
+                                           "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln",
+                                           "arbeitsgang_regeln")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]

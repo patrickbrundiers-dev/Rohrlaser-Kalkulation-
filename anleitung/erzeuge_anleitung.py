@@ -1413,6 +1413,11 @@ def kapitel_angebot(i):
             "rechnet 0 €. Die Schweißzeit kommt nicht zur Laserzeit; danach Zuschlag Fertigung und Gewinn wie bei "
             "den übrigen Zusatzarbeiten. Im Angebot steht „inkl. geschweißt“.",
             "Im Angebot steht jede Arbeit mit ihrem Text hinter <i>Zusatzarbeiten:</i>.",
+            "<b>Automatisch aus den Regeln</b> (gelber Hinweis unter der Liste): Zusatzarbeiten, die eine "
+            "Arbeitsgang-Regel mit Zuordnung „automatisch“ setzt, z. B. Strahlen bei „gestrahlt“ in der Bezeichnung, "
+            "mit Menge, Preis und Regel. Sie stehen nicht in der Liste; abwählen oder fest übernehmen unter "
+            "„Arbeitsgänge vorschlagen …“ ([[abrechnungsregeln]]). Hat eine Regel einen eigenen Preis (z. B. "
+            "Strahlen Edelstahl 0,55 €/kg), gilt er auch für Zusatzarbeiten, die Sie hier hinzufügen.",
             "Die Liste zeigt nur aktive Zusatzarbeiten: zuerst die häufig verwendeten, dann nach Kategorie.",
             "Der Preis der Stammdaten wird beim Hinzufügen in der Position gespeichert (Preisstand, im Feld Preis grau "
             "mit Datum). Haben sich die Stammdaten seitdem geändert, holt <b>Preise aus Stammdaten übernehmen</b> die "
@@ -1452,7 +1457,10 @@ def kapitel_angebot(i):
             "Zukauf), Status und Herkunft. Status <b>im Angebot</b>: Laser schneiden, Gewinde aus „Gewinde geprüft“, "
             "die Zusatzarbeiten der Position, Zukaufteil bzw. Zukaufartikel – das wird gerechnet. <b>Vorschlag</b> "
             "(gelb): eine Arbeitsgang-Regel trifft zu, der Betrag ist nur voraussichtlich. <b>zu prüfen</b>: "
-            "Gewinde-Vorschlag aus dem Kernloch, zu bestätigen unter „Bohrungen prüfen“ ([[bohrungen_pruefen]]).",
+            "Gewinde-Vorschlag aus dem Kernloch, zu bestätigen unter „Bohrungen prüfen“ ([[bohrungen_pruefen]]). "
+            "<b>automatisch</b> (gelb): eine Regel mit Zuordnung „automatisch“ trifft zu, die Zusatzarbeit wird "
+            "ohne Klick gerechnet ([[abrechnungsregeln]]); <b>Abwählen</b> nimmt sie aus der Rechnung (grau, "
+            "„abgelehnt“), <b>Annehmen</b> übernimmt sie fest in die Position.",
             "<b>Annehmen</b> trägt die Zusatzarbeit mit heutigem Preisstand und der Herkunft „Regel: …“ in die "
             "Zusatzarbeiten der Position ein; ab dann wird sie gerechnet. <b>Ablehnen</b> merkt sich die Position "
             "(grau), <b>Ablehnung zurücknehmen</b> macht daraus wieder einen Vorschlag.",
@@ -2476,7 +2484,8 @@ def kapitel_optimieren(i):
            "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
             "(Verschnitt ist enthalten). Preis: abweichender Preis der Position, sonst <i>Preise</i>, sonst "
-            "Tonnenpreis des Werkstoffs; bei den beiden letzten kommt der Aufpreis der Oberfläche je m dazu.",
+            "Tonnenpreis des Werkstoffs; bei den beiden letzten kommt der Aufpreis der Oberfläche dazu (je m, je kg "
+            "oder je m², [[werkstoffe]]).",
             "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
@@ -6099,7 +6108,7 @@ def kapitel_stammdaten(i):
     i.bild("stamm_werkstoffe", "Einstellungen, Werkstoffe mit Kategorie", hoehe=100 * mm)
     i.text("Werkstoff mit Kategorie (Stahl, Edelstahl, Aluminium, Buntmetall), Dichte, Tonnenpreis und "
            "Rohrlaser-Eigenschaften (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis). Oberflächen mit "
-           "Aufpreis je Meter.", kurz=True)
+           "Aufpreis je Meter, je kg oder je m².", kurz=True)
     i.bild("stamm_oberflaechen", "Einstellungen, Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm, kurz=False)
     i.genauer("Felder")
     i.tabelle(["Werkstoffe", "Bedeutung"], [
@@ -6141,8 +6150,12 @@ def kapitel_stammdaten(i):
     i.tabelle(["Oberflächen", "Bedeutung"], [
         ["<b>Oberfläche</b>", "Name, z. B. <i>roh</i>, <i>K240</i>, <i>gestrahlt</i>; Auswahl in der Position"],
         ["Kategorie (leer = alle)", "für welche Werkstoffe die Oberfläche passt; sonst Warnung in der Position"],
-        ["Aufpreis [€/m]", "kommt je Meter Stange auf den Materialpreis (Preise bzw. Tonnenpreis). Ein abweichender "
-                           "Materialpreis in der Position ersetzt Preis und Aufpreis."],
+        ["Aufpreis [€ je Basis]", "kommt auf den Materialpreis der Stange (Preise bzw. Tonnenpreis), also mit "
+                                  "Verschnitt. Ein abweichender Materialpreis in der Position ersetzt Preis und "
+                                  "Aufpreis."],
+        ["Aufpreis je", "€/m (leer, wie bisher): je Meter Stange; €/kg: × Metergewicht, z. B. gestrahlt gekaufte "
+                        "Stangen, wenn der Händler nach Gewicht abrechnet; €/m²: × Umfang. Festgeschriebene Angebote "
+                        "von vor dem 28.10.2026 rechnen weiter je Meter."],
         ["Text im Angebot", "steht hinter dem Werkstoff in der Bezeichnung, z. B. „Oberfläche K240 geschliffen“"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
@@ -6510,8 +6523,9 @@ def kapitel_stammdaten(i):
                (2, "<b>Arbeitszeit und Kosten</b>: Festpreis je Einheit, Zeitaufwand mit Zeiteinheit (s, min, h), "
                    "Stundensatz aus den Stammdaten oder eigener Stundensatz; die Arbeitskosten rechnet das Programm"),
                (3, "<b>Material und Zuschläge</b>: Materialkosten je Einheit und Materialzuschlag in % oder €"),
-               (4, "<b>Weitere Optionen</b> (zugeklappt): weiterer Zuschlag, Mindestbetrag, Fremdleistung, Text im "
-                   "Angebot"),
+               (4, "<b>Weitere Optionen</b> (zugeklappt): weiterer Zuschlag, Mindestbetrag je Angebot, Menge aus mit "
+                   "Faktor, Mindestbetrag je Teil, Fremdleistung, Text im Angebot; darunter die Regeln dieser "
+                   "Zusatzarbeit"),
                (5, "<b>Ergebnis</b>: Selbstkosten, Zuschläge und Verkaufspreis je Einheit, darunter die "
                    "Berechnungsgrundlage im Angebot"),
                (6, "<b>Speichern</b> / <b>Abbrechen</b>")])
@@ -6538,6 +6552,12 @@ def kapitel_stammdaten(i):
         ["Mindestbetrag je Angebot", "liegt die Summe dieser Zusatzarbeit im ganzen Angebot darunter, wird sie auf den "
                                      "Mindestbetrag angehoben und anteilig auf die Teile verteilt (typisch für "
                                      "Verzinkereien). Bei Staffelpreisen gilt er je Mengenstufe."],
+        ["Menge aus", "automatisch (leer) = nach der Abrechnung (kg, m², m, Stück); sonst <i>Innen- + "
+                      "Außenfläche</i> (Strahlen oder Verzinken innen und außen) oder die Anzahl Gewinde, Bohrungen "
+                      "bzw. Innenkonturen des Teils"],
+        ["Faktor Menge", "Menge × Faktor, z. B. 1,05 für Gehänge oder Abtrag beim Verzinken (leer = 1)"],
+        ["Mindestbetrag je Teil", "ein Teil kostet mindestens diesen Betrag (z. B. kleine Teile beim Strahlen); "
+                                  "der Mindestbetrag je Angebot gilt zusätzlich"],
         ["Fremdleistung", "ja: Aufschlag mit dem <i>Zuschlag Fremdleistung</i> (Einstellungen), sonst mit dem "
                           "Zuschlag Fertigung wie eigene Arbeit"],
         ["Text im Angebot", "so erscheint die Arbeit im Angebotstext der Position, je Arbeit eine eigene Zeile, "
@@ -6552,7 +6572,8 @@ def kapitel_stammdaten(i):
         ["€/Stück", "1", "Menge × Preis, z. B. Entgraten"],
         ["€/Angebot", "1", "einmal je Angebot (pauschal), verteilt auf die Teile der Positionen mit dieser Arbeit, "
                            "z. B. Prüfprotokoll"],
-        ["€/kg", "Teilegewicht aus Profil, Länge und Dichte", "Menge × Preis, z. B. Feuerverzinken nach Gewicht"],
+        ["€/kg", "Teilegewicht aus Profil, Länge und Dichte (fertiges Teil, ohne Verschnitt)",
+         "Menge × Preis, z. B. Feuerverzinken oder <i>Strahlen</i> nach Gewicht"],
         ["€/m²", "Außenfläche = Umfang × Länge (ohne Innenseite und Stirnflächen)",
          "Menge × Preis, z. B. Pulverbeschichten"],
         ["€/m", "Teilelänge in m", "Menge × Preis"],
@@ -6579,19 +6600,54 @@ def kapitel_stammdaten(i):
     i.text("Unter Einstellungen → Kalkulation → <b>Arbeitsgang-Regeln</b> stehen die Regeln für „Arbeitsgänge "
            "vorschlagen …“ im Angebot ([[arbeitsgaenge]]). Eine Regel schlägt eine Zusatzarbeit vor, wenn die "
            "Position alle ausgefüllten Bedingungen erfüllt; leere Bedingungen gelten immer.", kurz=True)
-    i.liste("<b>Regel</b> (Name), <b>Vorgeschlagene Zusatzarbeit</b> (Name aus den Zusatzarbeiten; unbekannte oder "
-            "deaktivierte werden nicht vorgeschlagen).",
-            "<b>Wenn Merkmal</b>: immer, Gewinde, Bohrungen, Innenkonturen, Schräges Ende, Zukaufteil oder "
-            "Schweißbaugruppe. <b>Stichwörter in Bezeichnung/Artikel (; getrennt)</b>: eines genügt, Groß- und "
+    i.liste("<b>Regel</b> (Name), <b>Zusatzarbeit</b> (Name aus den Zusatzarbeiten; unbekannte oder "
+            "deaktivierte werden nicht vorgeschlagen), <b>Zuordnung</b>: Vorschlag (leer, wie bisher), automatisch "
+            "oder nur Preis ([[abrechnungsregeln]]).",
+            "<b>Wenn Merkmal</b>: immer, Gewinde, Bohrungen, Innenkonturen, Schräges Ende, Zukaufteil, "
+            "Schweißbaugruppe, Rohr/Profil oder Blech. <b>Stichwörter in Bezeichnung/Artikel (; getrennt)</b>: eines genügt, Groß- und "
             "Kleinschreibung egal (z. B. „verzinkt;fvz“).",
             "<b>Profilform</b>, <b>Werkstoff-Kategorie</b>, <b>Werkstoff-ID</b>, <b>Oberfläche</b>, <b>Kunde</b>, "
-            "<b>ab Stückzahl</b>: weitere Bedingungen.",
-            "<b>Menge je Teil</b>: automatisch (wie in den Zusatzarbeiten: kg, m², m oder 1 Stück) oder die Anzahl "
-            "Gewinde, Bohrungen bzw. Innenkonturen des Teils. <b>Aktiv</b> = nein schaltet die Regel ab, "
+            "<b>ab Stückzahl</b>, <b>Abmessung von [mm]</b>/<b>Abmessung bis [mm]</b> (größtes Außenmaß: Ø, Höhe oder Breite): weitere "
+            "Bedingungen.",
+            "<b>Menge je Teil</b>: automatisch (wie in den Zusatzarbeiten: kg, m², m oder 1 Stück), Innen- + "
+            "Außenfläche oder die Anzahl Gewinde, Bohrungen bzw. Innenkonturen des Teils. <b>Abrechnung</b>, "
+            "<b>Preis je Einheit</b>, <b>Faktor Menge</b> und <b>Mindestbetrag je Teil</b>: leer = wie die "
+            "Zusatzarbeit. <b>Aktiv</b> = nein schaltet die Regel ab, "
             "<b>Bemerkung</b> ist frei.",
             "Neue Dateien und Dateien vor 0.9.161 bekommen Beispielregeln (Feuerverzinken bei „verzinkt“, "
-            "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus). Bitte an die eigene Fertigung "
-            "anpassen.")
+            "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus), ab 0.9.182 dazu drei "
+            "Beispiele für Strahlen (aus). Bitte an die eigene Fertigung anpassen.")
+    i.abschnitt("Eigene Abrechnungsregeln (Beispiel Strahlen)", marke="abrechnungsregeln")
+    i.text("Mit den Arbeitsgang-Regeln legen Sie fest, <b>wie</b> eine Zusatzarbeit abgerechnet wird und <b>wann</b> "
+           "sie automatisch gilt: z. B. Strahlen nach kg, für Edelstahl teurer, und automatisch, wenn „gestrahlt“ "
+           "in der Bezeichnung steht.", kurz=True)
+    i.tabelle(["Regel", "Bedingung", "Zuordnung", "Abrechnung, Preis", "Mindest je Teil"], [
+        ["Strahlen Stahl", "Werkstoff-Kategorie Stahl", "nur Preis", "€/kg, 0,35 €", "0,50 €"],
+        ["Strahlen Edelstahl", "Werkstoff-Kategorie Edelstahl", "nur Preis", "€/kg, 0,55 €", "0,80 €"],
+        ["Strahlen laut Bezeichnung", "Stichwort gestrahlt; strahlen; SA 2", "automatisch", "wie oben", ""]],
+        [45, 75, 30, 50, 30])
+    i.liste("<b>Zuordnung</b>: <i>Vorschlag</i> = erscheint unter „Arbeitsgänge vorschlagen …“ und kostet erst nach "
+            "Annehmen; <i>automatisch</i> = wird ohne Klick gerechnet, steht gelb mit „(automatisch)“ in der "
+            "Positionsliste, den Unterzeilen und im Fenster Zusatzarbeiten und lässt sich unter „Arbeitsgänge "
+            "vorschlagen …“ abwählen; <i>nur Preis</i> = ordnet nichts zu, setzt nur den Preis.",
+            "<b>Preis</b>: Abrechnung, Preis je Einheit, Menge je Teil, Faktor und Mindestbetrag je Teil der Regel "
+            "gelten für die Zusatzarbeit an jeder passenden Position, gleich ob sie von Hand, per Vorschlag oder "
+            "automatisch dorthin kam. Menge oder Preis von Hand in der Position gehen immer vor.",
+            "<b>Mehrere Regeln</b> passen: die genaueste gewinnt (meiste ausgefüllte Bedingungen), bei Gleichstand "
+            "die obere. Welche Regel gilt, zeigen die Unterzeilen („Preis: Regel …“) und das Formular der "
+            "Zusatzarbeit (Bereich Regeln).",
+            "<b>Strahlen</b> rechnet nach dem Gewicht des fertigen Teils (ohne Verschnitt) und steht als eigene "
+            "Zeile mit Zuschlag Fremdleistung und Gewinn. Gestrahlt gekaufte Stangen sind dagegen eine Oberfläche "
+            "des Materials: deren Aufpreis kommt mit Verschnitt in den Materialpreis, wahlweise je m, je kg oder "
+            "je m² ([[werkstoffe]]).",
+            "<b>Gewinde, Senken, Flowdrill und Bohren</b> rechnen immer € je Stück; eine Regel mit anderer "
+            "Abrechnung wird dort nicht übernommen (Prüfung FEHLER).",
+            "<b>Schweißbaugruppe</b>: „Aus Zusatzarbeiten …“ im Editor übernimmt Abrechnung und Preis der "
+            "passenden Regel in den Arbeitsgang ([[baugruppe_mengen]]).",
+            "<b>Alte Angebote bleiben gleich</b>: Regeln gelten für Zusatzarbeiten, die ab 0.9.182 hinzukommen, und "
+            "für automatische. Ein festgeschriebenes Angebot (Angebots-PDF) rechnet mit den Regeln vom Tag des "
+            "Festschreibens, Angebote von vorher ganz ohne Regeln; geänderte Regeln meldet „Aktuelle Preise "
+            "übernehmen …“.")
 
 
 def kapitel_zukauf(i):

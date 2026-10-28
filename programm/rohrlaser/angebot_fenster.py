@@ -883,6 +883,16 @@ class PositionenModell(QAbstractTableModel):
         return x.titel if art in ("feld",) + EIGENE else {"status": "Status",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
 
+    def _zusatz_auto(self, p):
+        """Automatische Zusatzarbeiten der Position aus den Arbeitsgang-Regeln, z. B. „Strahlen (automatisch)“."""
+        tab = getattr(self.s, "tabellen", None) or {}
+        if not tab.get("arbeitsgang_regeln") or getattr(self.s, "k", None) is None:
+            return ""
+        from . import zusatz_regeln
+        vorhanden = {e["name"] for e in rechnen.zusatz_liste(p)}
+        return "; ".join(f"{a['name']} (automatisch)" for a in
+                         zusatz_regeln.automatische(p, getattr(self.s, "kopf", None), self.s.k, tab, vorhanden))
+
     def name(self, c):
         """Name einer Spalte (Feldname, 'status', 'abweichung' oder 'berechnet:' + Schlüssel)."""
         art, x = self.spalten[c]
@@ -896,7 +906,8 @@ class PositionenModell(QAbstractTableModel):
             return self.status[r]
         if art == "zusatz":         # V6: Gewinde und Zusatzarbeiten zusammen, z. B. „4xM6 · Senken; feuerverzinkt“
             p = self.daten[r]
-            return " · ".join(t for t in ((p.get("gewinde") or "").strip(), rechnen.zusatz_text(p)) if t)
+            return " · ".join(t for t in ((p.get("gewinde") or "").strip(), rechnen.zusatz_text(p),
+                                          self._zusatz_auto(p)) if t)
         if art == "zukauf":
             return zukauf.zukauf_text(self.daten[r])
         if art == "naht":
@@ -3344,7 +3355,7 @@ class AngebotSeite(QWidget):
             if vorher is not None:
                 p = dict(p, gewinde=vorher[0] or "", zusatz=json.dumps(vorher[1], ensure_ascii=False))
             d = ZusatzDialog(self, p, len(zeilen), self.k, self.tabellen, self.db.zusatz_haeufigkeit(), weitere,
-                             gewinde_verschieden=vorher is not None and vorher[0] is None)
+                             gewinde_verschieden=vorher is not None and vorher[0] is None, kopf=self.kopf)
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
