@@ -113,20 +113,21 @@ def teilenummern(pfad):
         return {}
     schl = (str(pfad), st.st_mtime_ns, st.st_size)
     if schl not in _PRODUKTE:
+        import mmap
         out = {}
-        try:
-            with open(pfad, "rb") as f:
-                daten = f.read()
-        except OSError:
-            daten = b""
         nummern = {}
-        for t in _PRODUKT.finditer(daten):
+        try:           # über mmap durchsuchen: große STEP-Dateien (100 MB und mehr) nicht ganz in den Speicher lesen
+            with open(pfad, "rb") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as daten:
+                treffer = [(t.group(1), t.group(2)) for t in _PRODUKT.finditer(daten)]
+        except (OSError, ValueError):       # ValueError: leere Datei
+            treffer = []
+        for t in treffer:
             def dec(b):
                 try:
                     return _text(b.decode("utf-8"))
                 except UnicodeDecodeError:
                     return _text(b.decode("latin-1"))
-            nr, name = dec(t.group(1)).strip(), dec(t.group(2)).strip()
+            nr, name = dec(t[0]).strip(), dec(t[1]).strip()
             nummern.setdefault(name or nr, set()).add(nr)
         for name, nrn in nummern.items():
             nr = next(iter(nrn)) if len(nrn) == 1 else ""
@@ -162,7 +163,8 @@ def bestimmen(m, benennung, muster=""):
             herkunft += f" (Bauteilname „{name}“ ist ein CAD-Standardname)"
         if datei_rev:
             notiz.append(f"Revision „{datei_rev}“ abgetrennt")
-        return dict(artikel=bisher, bezeichnung=None, herkunft="; ".join([herkunft] + notiz),
+        return dict(artikel=bisher, bezeichnung=bereinigt(t.group(1)) if datei_rev else None,
+                    herkunft="; ".join([herkunft] + notiz),
                     unsicher=bool(standard and benennung != BENENNUNGEN[1]))
     nummer, bezeichnung, unsicher = name, None, False
     herkunft = "Bauteilname"

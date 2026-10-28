@@ -108,6 +108,12 @@ def a_import(tmp):
     assert herkunft["7788-01"].startswith("Teilenummer der STEP-Datei")
     assert art[("Lasche.step", "Lasche Ü")] == ("L-5544", "Lasche Ü", False), art
     ok("A3 Teilenummer der STEP vor der Benennung (auch mit kodiertem Umlaut), Benennung = Bezeichnung")
+    b = ip.bestimmen(dict(datei="Rahmen_Rev C.step", artikel="Rahmen_Rev C-K2", bauteil="Teil2"), BENENNUNGEN[0])
+    assert (b["artikel"], b["bezeichnung"], b["unsicher"]) == ("Rahmen-K2", "Rahmen_Rev C", True), b
+    leer = tmp / "leer.step"
+    leer.write_bytes(b"")
+    assert ip.teilenummern(str(leer)) == {} and ip.teilenummern(str(tmp / "fehlt.step")) == {}
+    ok("A4 Revision im Dateinamen steht in der Bezeichnung; leere oder fehlende Datei ohne Teilenummern")
     erg = step.uebernehmen(mw, [], db_k[0], db_k[1], None, "S235-10219", 1)
     pos = {p["artikel"]: p for p in erg["positionen"]}
     assert pos["7788-01"].get("bezeichnung") == "Konsole links" and "Querrohr" in pos, sorted(pos)
