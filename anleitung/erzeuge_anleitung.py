@@ -3490,7 +3490,9 @@ def kapitel_optimieren(i):
                    "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
                    "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern. Bleibt die "
                    "Maus 1 Sekunde auf einer Stange, zeigt ein kleines Fenster ihre Detail-Ansicht (Kennzahlen, "
-                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern); <b>Esc</b> schließt es. Die Wartezeit "
+                   "Balken, Teile als Kacheln, Abwicklung; ◀ ▶ blättern). Ist es offen, zeigt es beim Überfahren "
+                   "einer anderen Stange sofort diese; verlässt die Maus die Stangen (und das Fenster), schließt es "
+                   "von selbst, <b>Esc</b> geht auch. Die Wartezeit "
                    "steht unter Einstellungen › Ansicht (<i>Stangenbild: Detail-Fenster nach … Sekunden</i>, 0 = aus).")])
     i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
            hoehe=95 * mm, legende=[
@@ -3576,7 +3578,8 @@ def kapitel_optimieren(i):
            "Zuschnitte). Ist das günstiger als beide reinen Varianten, steht im Fenster <b>12-m-Lösung ansehen …</b> "
            "blau <i>Vorschlag Mischen: …</i> mit Kosten und Ersparnis, und der Knopf erscheint auch dann. Der Link "
            "<b>Stangenbelegung ansehen …</b> öffnet das Stangenbild des Vorschlags (12-m-Stangen als ihre Werkstücke, "
-           "dazu die 6-m-Stangen) in einem eigenen Fenster. <b>Es ist "
+           "dazu die 6-m-Stangen) in einem eigenen Fenster. Den Vorschlag gibt es nur bei eingeschaltetem Vergleich der "
+           "Lieferlängen. <b>Es ist "
            "nur ein Vorschlag zum Ansehen</b>: Schnittplan und Kalkulation bleiben unverändert. Kein Vorschlag, wenn "
            "die Stangenlänge des Angebots nicht lieferbar ist oder ein betroffenes Teil nicht darauf passt.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "

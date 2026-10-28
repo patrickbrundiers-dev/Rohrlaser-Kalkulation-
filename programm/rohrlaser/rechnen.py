@@ -1662,8 +1662,10 @@ def laengen_vergleich_gruppe(g, k, tabellen, m, saege, basis_plan=None, einst=No
     kennzahlen = []
     for laenge, v in plaene.items():
         kz = variante_kennzahlen(g, v, saege)
-        # Vorschlag Mischen nur, wenn die Stangenlänge des Angebots bestellt werden kann
-        if laenge != g.stange and info.get("basis_bestellbar", info["basis_lieferbar"]) and not info["ausgenommen"]:
+        # Vorschlag Mischen nur mit eingeschaltetem Vergleich (Patrick 28.10.2026) und wenn die Stangenlänge des
+        # Angebots bestellt werden kann
+        if laenge != g.stange and laengen_vergleichen(einst) and info.get("basis_bestellbar", info["basis_lieferbar"]) \
+                and not info["ausgenommen"]:
             mi = mischung_planen(g, v, saege)
             if mi:
                 kz["mischung"] = mi

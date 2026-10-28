@@ -56,6 +56,13 @@ assert sum(len(s["teile"]) for s in st) == 31 and [len(s["teile"]) for s in st i
 assert all(s.get("werkstuecke") for s in st if s["stange"] == 12000)
 assert len(rechnen.anzeige_stangen(dict(stangen=st))) == 31          # je Beladung eine Stange im Bild
 
+# Vergleich in den Einstellungen aus: kein Vorschlag (Patrick 28.10.2026: nur wenn eingeschaltet), auch nicht bei
+# einem Teil, das nur auf 12 m passt
+_aus = dict(einst, laenge_vergleich="nein")
+_p = [pos(3100, 30), pos(6200, 1, nr=20)]
+_erg = rechnen.optimieren(kopf, _p, db.kontext(), db.tabellen(), _aus)
+assert not any(v.get("mischung") for vg in _erg["laengen"] for v in vg["varianten"])
+
 # 30 × 3.100: alle 12-m-Stangen voll belegt, eine 6-m-Stange spart nichts -> kein Vorschlag
 _, b = bewerten([pos(3100, 30)])
 assert "mischung" not in b["varianten"][1] and b["mischung"] is None, b["mischung"]
