@@ -95,7 +95,7 @@ spalte = [s[0] for s in au.SPALTEN].index("Bearbeiter")
 zeile = next(r for r in range(au.modell.rowCount()) if au.modell.zeilen[r]["nummer"] == pb.angebot(a1)["nummer"])
 fid = au.modell.zeilen[zeile]["id"]
 idx = au.modell.index(zeile, spalte)
-assert au.modell.data(idx) == "PB" and au.modell.data(idx, Qt.FontRole).italic()
+assert au.modell.data(idx) == "PB ● geöffnet" and au.modell.data(idx, Qt.FontRole).italic(), "PB hat es offen"
 au.wer_filter.setCurrentText(MEINE)
 assert au.modell.rowCount() == 0
 au.wer_filter.setCurrentText("PB")

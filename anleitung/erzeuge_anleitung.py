@@ -791,6 +791,17 @@ def kapitel_angebote(i):
            "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
+           "<b>Löschschutz</b>: Mit der Einstellung <i>Angebot → Löschschutz: optimierte Angebote nicht löschbar</i> "
+           "([[vorgaben]]) lässt sich ein Angebot, das einmal optimiert wurde, nicht mehr löschen. <i>immer</i> "
+           "zählt auch das automatische Optimieren der Entwürfe, <i>nur von Hand</i> nur F9, "
+           "<b>Optimieren</b> und das Optimieren vor einer Ausgabe; Vorgabe <i>aus</i>. <b>Löschen</b> zeigt "
+           "dann, wann das Angebot optimiert wurde, und den Ausweg: Vorgang <i>Abgelehnt</i> setzen oder "
+           "<b>Kopieren</b> (die Kopie ist frei, bis sie selbst optimiert wird). Der Schutz bleibt, auch wenn der "
+           "Schnittplan später verworfen wird. Positionen im Angebot bleiben löschbar. Mit Admin-Rechten "
+           "([[lizenz]]) fragt das Programm nach und löscht trotzdem. Ältere Angebote mit einem Eintrag in "
+           "<i>Optimiert am</i> gelten als optimiert. Die Einstellung gilt für alle Arbeitsplätze im gemeinsamen "
+           "Ordner; die Kopie eines Kollegen-Angebots verschwindet beim Abgleich nur, wenn der Kollege es löschen "
+           "durfte.",
            "<b>Vorgang ▾ → Beauftragt</b> öffnet ein kleines Fenster: <b>Auftragsnummer des Kunden</b> (z. B. seine "
            "Bestellnummer) und <b>Liefertermin</b> eintragen, beides freiwillig. Den Termin schlägt das Programm aus "
            "der Lieferzeit des Angebots vor, gerechnet ab heute (10 Arbeitstage, 3 Wochen, Freitag der Kalenderwoche "
@@ -884,6 +895,8 @@ def kapitel_angebote(i):
             "Beim Öffnen wird die Anfrage <b>gesperrt</b>: Kollegen sehen <i>in Bearbeitung: PB</i> (Kürzel aus "
             "[[mehrere_arbeitsplaetze]]). Lose Dateien kommen dazu in einen eigenen Unterordner <i>Anfrage Datum Uhrzeit</i>. "
             "Eine vergessene Sperre gilt nach 12 Stunden nicht mehr.",
+            "Mit gemeinsamem Ordner gilt ohne eigenen Eintrag dessen Unterordner <i>Anfragen</i>; eine Anfrage lässt "
+            "sich dort mit <b>Zuweisen …</b> einem Kollegen geben ([[gemeinsamer_ordner_mehr]]).",
             "Nach dem <b>Übernehmen</b> verschiebt das Programm die STEP-Dateien in den Unterordner <i>STEP</i> und "
             "die Formulare in den Unterordner <i>Anfrage</i> des Angebotsordners ([[angebotsordner]]); der leere "
             "Unterordner im Anfrage-Ordner entfällt. <b>Abbrechen</b> lässt alles liegen und hebt die Sperre auf.",
@@ -939,9 +952,20 @@ def kapitel_angebote(i):
     i.genauer()
     i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
             "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "
-            "Eine Mail mit STEP-Anhang ist immer eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen. "
+            "Eine Mail mit STEP-Anhang ist eine Anfrage für sich, auch wenn zwei Mails gleichzeitig kommen – außer "
+            "sie gehört zur selben Anfrage wie eine andere Mail (nächster Punkt). "
             "Auch ältere Outlook-Mails nur mit RTF-Text und Anhänge in <i>winmail.dat</i> werden gelesen; ein "
             "beschädigter Anhang wird übersprungen, der Rest der Mail trotzdem ausgewertet.",
+            "<b>Mehrere Mails zur selben Anfrage</b>: Mails vom selben Kunden (gleiche Firmen-Domain, bei Freemail "
+            "gleiche Adresse) mit derselben Anfrage-Nr. oder demselben Betreff (ohne <i>AW:</i>, <i>WG:</i>; "
+            "Allerweltsbetreffs wie <i>Anfrage</i> zählen nicht) innerhalb von 3 Tagen sind <b>eine</b> Anfrage – "
+            "die Liste zeigt dann z. B. <i>Anfrage + Nachtrag (2 STEP, 3 E-Mail)</i>. Ein Nachtrag ohne STEP gehört "
+            "mit dazu. Bei verschiedenen Angaben (Stückzahl, Lieferzeit, Werkstoff) gilt die <b>neueste</b> Mail; "
+            "der Prüfdialog nennt oben die ältere Angabe, eine abweichende Stückzahl steht im Tooltip und das Feld "
+            "ist gelb. Kommt eine STEP-Datei mit gleichem Namen ein zweites Mal, gilt die neueste Version; die "
+            "ältere bleibt als <i>Teil (alt).stp</i> liegen, wird nicht importiert und wandert mit in den "
+            "Angebotsordner. Kommt ein Nachtrag erst, wenn die Anfrage schon ein Angebot ist, sagt die Startseite "
+            "<i>Nachtrag zu Angebot …</i> – dann das Angebot von Hand anpassen.",
             "<b>Kunde</b>: Die Absenderadresse wird mit dem Feld <i>E-Mail</i> der Kunden verglichen ([[kunden]]) – "
             "erst genau, dann nur die Domain (<i>@kunde.de</i>). Bei Freemail-Adressen (gmail, web.de, gmx …) zählt "
             "nur die genaue Adresse; passt eine Domain zu mehreren Kunden, entscheidet das Programm nicht. Mails "
@@ -1389,6 +1413,11 @@ def kapitel_angebot(i):
             "rechnet 0 €. Die Schweißzeit kommt nicht zur Laserzeit; danach Zuschlag Fertigung und Gewinn wie bei "
             "den übrigen Zusatzarbeiten. Im Angebot steht „inkl. geschweißt“.",
             "Im Angebot steht jede Arbeit mit ihrem Text hinter <i>Zusatzarbeiten:</i>.",
+            "<b>Automatisch aus den Regeln</b> (gelber Hinweis unter der Liste): Zusatzarbeiten, die eine "
+            "Arbeitsgang-Regel mit Zuordnung „automatisch“ setzt, z. B. Strahlen bei „gestrahlt“ in der Bezeichnung, "
+            "mit Menge, Preis und Regel. Sie stehen nicht in der Liste; abwählen oder fest übernehmen unter "
+            "„Arbeitsgänge vorschlagen …“ ([[abrechnungsregeln]]). Hat eine Regel einen eigenen Preis (z. B. "
+            "Strahlen Edelstahl 0,55 €/kg), gilt er auch für Zusatzarbeiten, die Sie hier hinzufügen.",
             "Die Liste zeigt nur aktive Zusatzarbeiten: zuerst die häufig verwendeten, dann nach Kategorie.",
             "Der Preis der Stammdaten wird beim Hinzufügen in der Position gespeichert (Preisstand, im Feld Preis grau "
             "mit Datum). Haben sich die Stammdaten seitdem geändert, holt <b>Preise aus Stammdaten übernehmen</b> die "
@@ -1428,7 +1457,10 @@ def kapitel_angebot(i):
             "Zukauf), Status und Herkunft. Status <b>im Angebot</b>: Laser schneiden, Gewinde aus „Gewinde geprüft“, "
             "die Zusatzarbeiten der Position, Zukaufteil bzw. Zukaufartikel – das wird gerechnet. <b>Vorschlag</b> "
             "(gelb): eine Arbeitsgang-Regel trifft zu, der Betrag ist nur voraussichtlich. <b>zu prüfen</b>: "
-            "Gewinde-Vorschlag aus dem Kernloch, zu bestätigen unter „Bohrungen prüfen“ ([[bohrungen_pruefen]]).",
+            "Gewinde-Vorschlag aus dem Kernloch, zu bestätigen unter „Bohrungen prüfen“ ([[bohrungen_pruefen]]). "
+            "<b>automatisch</b> (gelb): eine Regel mit Zuordnung „automatisch“ trifft zu, die Zusatzarbeit wird "
+            "ohne Klick gerechnet ([[abrechnungsregeln]]); <b>Abwählen</b> nimmt sie aus der Rechnung (grau, "
+            "„abgelehnt“), <b>Annehmen</b> übernimmt sie fest in die Position.",
             "<b>Annehmen</b> trägt die Zusatzarbeit mit heutigem Preisstand und der Herkunft „Regel: …“ in die "
             "Zusatzarbeiten der Position ein; ab dann wird sie gerechnet. <b>Ablehnen</b> merkt sich die Position "
             "(grau), <b>Ablehnung zurücknehmen</b> macht daraus wieder einen Vorschlag.",
@@ -2452,7 +2484,8 @@ def kapitel_optimieren(i):
            "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
             "(Verschnitt ist enthalten). Preis: abweichender Preis der Position, sonst <i>Preise</i>, sonst "
-            "Tonnenpreis des Werkstoffs; bei den beiden letzten kommt der Aufpreis der Oberfläche je m dazu.",
+            "Tonnenpreis des Werkstoffs; bei den beiden letzten kommt der Aufpreis der Oberfläche dazu (je m, je kg "
+            "oder je m², [[werkstoffe]]).",
             "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
@@ -5652,8 +5685,8 @@ def kapitel_mehrere(i):
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
-            "<b>Abgleichen</b> im Reiter Angebote holt die Angebote der Kollegen; beim Start und Beenden geht das "
-            "von selbst.", nummeriert=True, kurz=True)
+            "Abgeglichen wird von selbst (alle 2 Minuten, beim Start und Beenden); <b>Abgleichen</b> im Reiter "
+            "Angebote tut es sofort.", nummeriert=True, kurz=True)
     i.abschnitt("Benutzer und Kürzel")
     i.genauer()
     i.liste("<b>Datei → Benutzer und gemeinsamer Ordner …</b> (beim ersten Start von selbst): Name, Kürzel, E-Mail "
@@ -5701,6 +5734,10 @@ def kapitel_mehrere(i):
            "gemeinsamen Einstellungen.")
     i.tabelle(["Wann", "Was passiert"], [
         ["Programmstart", "holt Angebote und Stammdaten der Kollegen (ohne Fenster; Fehler nur in der Statuszeile)"],
+        ["Alle 2 Minuten (von selbst)", "holt Neues der Kollegen und legt eigene Änderungen in den Ordner; nur wenn "
+                                        "sich etwas geändert hat, nicht während ein Dialog offen ist. Der Abstand "
+                                        "steht in den Einstellungen, Gruppe Benutzer: <i>Automatischer Abgleich alle [min] "
+                                        "(0 = aus)</i>"],
         ["Knopf <b>Abgleichen</b> (Reiter Angebote) oder <i>Datei → Mit den Kollegen abgleichen</i> (Strg+Umschalt+A)",
          "holt den Stand der Kollegen und legt den eigenen in den Ordner"],
         ["Beenden", "legt die eigenen Angebote und Stammdaten in den Ordner; ist er nicht erreichbar, fragt das "
@@ -5718,6 +5755,35 @@ def kapitel_mehrere(i):
             "eigener Nummer und heutigem Datum an.",
             "Ändert oder löscht der Kollege sein Angebot, zeigt der nächste Abgleich das auch hier; ein offenes "
             "Fenster lädt neu bzw. schließt sich.")
+    i.abschnitt("Wer arbeitet woran", marke="wer_arbeitet_woran")
+    i.text("Hat ein Kollege sein Angebot gerade offen, steht in der Liste <b>● geöffnet</b> hinter seinem Kürzel.",
+           kurz=True)
+    i.genauer()
+    i.liste("Jedes Programm meldet beim Abgleich, welche eigenen Angebote gerade offen sind. In der Spalte "
+            "<b>Bearbeiter</b> steht dann z. B. <i>PB ● geöffnet</i>, im gelben Hinweis des Angebots <i>PB hat es "
+            "gerade geöffnet (seit 10:12)</i>.",
+            "Stürzt ein Programm ab, gilt die Meldung nach 20 Minuten ohne Abgleich nicht mehr.",
+            "Rechts in der Statusleiste steht <b>⇄ abgeglichen 14:32</b>; der Tipp zeigt den gemeinsamen Ordner und "
+            "den Stand jedes Kollegen. Ist der Ordner nicht erreichbar, steht dort <i>⇄ Ordner nicht erreichbar</i> "
+            "in Rot.")
+    i.abschnitt("Angebot übergeben oder übernehmen", marke="angebot_uebergeben")
+    i.text("Ein Angebot lässt sich an einen Kollegen <b>übergeben</b>; umgekehrt kann man die <b>Übernahme "
+           "anfragen</b>. Danach gehört es dem anderen und nur er kann es ändern.", kurz=True)
+    i.genauer()
+    i.liste("<b>Übergeben</b>: im Reiter Angebote das eigene Angebot markieren, <i>Vorgang ▾ → An Kollegen "
+            "übergeben …</i>, Kollegen wählen und eine kurze Notiz schreiben (z. B. <i>bitte fertig rechnen</i>). Das "
+            "Angebot ist sofort nur noch zum Ansehen; der Kollege übernimmt es beim nächsten Abgleich und bekommt "
+            "eine Meldung mit der Notiz. Nummer, Positionen, Staffeln und 3D-Ansicht bleiben gleich, Bearbeiter wird "
+            "der Kollege.",
+            "<b>Übergabe zurücknehmen</b>: solange der Kollege das Angebot noch nicht übernommen hat (z. B. weil sein "
+            "Programm nicht läuft), steht der Knopf im gelben Hinweis des Angebots.",
+            "<b>Übernahme anfragen</b>: im Angebot eines Kollegen im gelben Hinweis <i>Übernahme anfragen …</i>, "
+            "Notiz dazu. Der Bearbeiter wird bei seinem nächsten Abgleich gefragt (Fenster <i>Angebot übergeben?</i>): <b>Übergeben</b>, <b>Ablehnen</b> "
+            "(mit kurzer Begründung) oder <b>Später</b> (dann fragt das Programm beim nächsten Mal wieder). Die "
+            "Antwort kommt als Meldung zurück; nach dem Übergeben ist das Angebot beim Anfragenden bearbeitbar.",
+            "Ein Angebot mit vorläufiger Nummer lässt sich erst übergeben, wenn es seine endgültige Nummer hat.",
+            "Wer nur weiterrechnen will, ohne dass das Angebot den Bearbeiter wechselt, nimmt weiter <b>Als Kopie "
+            "übernehmen</b>.")
     i.abschnitt("Gemeinsame Stammdaten")
     i.text("Stammdaten und Einstellungen gelten für alle; bei gleichzeitigen Änderungen gewinnt die neueste.",
            kurz=True)
@@ -5731,6 +5797,47 @@ def kapitel_mehrere(i):
     i.text("Nur für den eigenen Arbeitsplatz gelten: Benutzer (Name, Kürzel, E-Mail, Telefon), gemeinsamer Ordner, "
            "Ablageordner, zweiter Sicherungsordner, STEP-Standardordner, Hilfetexte und die Signatur der "
            "Materialanfrage.")
+    i.abschnitt("Mehr im gemeinsamen Ordner", marke="gemeinsamer_ordner_mehr")
+    i.text("Im gemeinsamen Ordner liegen auch die <b>Anfragen</b>, die <b>Angebotsordner</b> und eine <b>Sicherung</b> "
+           "jedes Arbeitsplatzes; Kollegen bekommen <b>Notizen</b>.", kurz=True)
+    i.genauer()
+    i.tabelle(["Unterordner", "Was darin liegt"], [
+        ["<i>Anfragen</i>", "der Anfrage-Ordner für alle ([[anfragen]]), solange in den Einstellungen kein eigener "
+                            "Anfrage-Ordner eingetragen ist"],
+        ["<i>Angebote</i>", "die Ordner der Angebote mit PDFs, CSV und STEP-Dateien ([[angebotsordner]]); so öffnet "
+                            "<b>Ordner öffnen</b> auch bei Angeboten der Kollegen deren Ordner"],
+        ["<i>Sicherungen\\PB</i>", "beim Beenden eine Sicherung je Tag und Arbeitsplatz, die letzten 7 Tage; "
+                                    "<i>Sicherung wiederherstellen …</i> zeigt sie mit an"]],
+        [45, 220])
+    i.liste("Die Einstellungen dazu stehen in der Gruppe Benutzer und gelten für alle: <i>Anfrage-Ordner im "
+            "gemeinsamen Ordner</i>, <i>Angebotsordner im gemeinsamen Ordner</i> und <i>Sicherung beim Beenden auch "
+            "im gemeinsamen Ordner</i> (jeweils ja/nein, Vorgabe ja).",
+            "Ordner älterer Angebote bleiben in der eigenen Ablage, das Programm findet sie dort weiter. Daten-Export "
+            "und -Import schlagen weiter die eigene Ablage vor. Ist der gemeinsame Ordner nicht erreichbar, schreibt "
+            "das Programm in die eigene Ablage.",
+            "<b>Anfrage zuweisen</b>: auf der Startseite in <i>Neue Anfragen</i> eine Anfrage markieren, <b>Zuweisen "
+            "…</b>, Kollegen wählen und eine Notiz dazu. Alle sehen dann <i>für MK</i> hinter der Anfrage; beim "
+            "Kollegen steht sie fett und oben im Titel <i>davon 1 für Sie</i>. <b>Öffnen</b> ohne Auswahl nimmt "
+            "zuerst die eigenen. Öffnet jemand eine Anfrage, die einem anderen zugewiesen ist, fragt das Programm "
+            "nach. <i>(niemand)</i> hebt die Zuweisung auf.",
+            "<b>Notiz an Kollegen</b>: im Reiter Angebote ein Angebot markieren (auch das eines Kollegen), "
+            "<i>Vorgang ▾ → Notiz an Kollegen …</i>, Kollegen wählen, Text, wahlweise <i>Wiedervorlage am</i> "
+            "mit Datum. Der Kollege bekommt beim nächsten Abgleich eine Meldung; auf seiner Startseite steht die "
+            "Notiz unter <b>Notizen von Kollegen</b> (mit Wiedervorlage erst ab dem Datum schwarz, vorher grau). "
+            "Doppelklick öffnet das Angebot, <b>Antworten …</b> schickt eine Notiz zurück, <b>Erledigt</b> nimmt "
+            "sie aus der Liste.")
+    i.abschnitt("Konflikte beim Abgleich", marke="abgleich_konflikte")
+    i.text("Haben zwei dieselbe Stammdatenzeile verschieden geändert, zeigt <i>Datei → Abgleich-Konflikte …</i>, "
+           "wessen Änderung gilt; die andere lässt sich wiederherstellen.", kurz=True)
+    i.genauer()
+    i.liste("Es gilt die jüngere Änderung. Die andere Fassung merkt sich das Programm. Die Meldung nach dem Abgleich "
+            "hat dann den Knopf <b>Konflikte …</b>, die Statusleiste zeigt <i>· 1 Konflikte</i>.",
+            "<i>Datei → Abgleich-Konflikte …</i> listet sie: welche Zeile (z. B. <i>Kunden: 10042 Muster GmbH</i>), "
+            "wessen Änderung gilt und wessen verloren ging; der Tipp zeigt die abweichenden Werte.",
+            "<b>Andere Fassung wiederherstellen</b> trägt die verlorene Fassung wieder ein; sie geht beim nächsten "
+            "Abgleich an alle. <b>So lassen (gesehen)</b> markiert den Konflikt als erledigt.",
+            "Beide Seiten sehen den Konflikt. Die Zeit der Rechner sollte ungefähr stimmen (Windows stellt sie "
+            "selbst), sonst gewinnt im Zweifel der Rechner mit der späteren Uhr.")
     i.abschnitt("Erster Abgleich, neuer Rechner")
     i.genauer()
     i.liste("Liegen im Ordner schon Dateien von Kollegen, fragt der erste Abgleich: <b>Übernehmen</b> (empfohlen "
@@ -5746,7 +5853,7 @@ def kapitel_mehrere(i):
             "erst nach dem eigenen Update (Hinweis beim Abgleich); seine Angebote kommen trotzdem.")
     i.hinweis("Das Kürzel ist eine Kennung, kein Zugriffsschutz: wer den gemeinsamen Ordner öffnen kann, sieht alle "
               "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
-              "letzten Abgleichs, nicht live.")
+              "letzten Abgleichs (von selbst alle 2 Minuten), nicht live.")
 
 
 def kapitel_stammdaten(i):
@@ -6001,7 +6108,7 @@ def kapitel_stammdaten(i):
     i.bild("stamm_werkstoffe", "Einstellungen, Werkstoffe mit Kategorie", hoehe=100 * mm)
     i.text("Werkstoff mit Kategorie (Stahl, Edelstahl, Aluminium, Buntmetall), Dichte, Tonnenpreis und "
            "Rohrlaser-Eigenschaften (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis). Oberflächen mit "
-           "Aufpreis je Meter.", kurz=True)
+           "Aufpreis je Meter, je kg oder je m².", kurz=True)
     i.bild("stamm_oberflaechen", "Einstellungen, Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm, kurz=False)
     i.genauer("Felder")
     i.tabelle(["Werkstoffe", "Bedeutung"], [
@@ -6043,8 +6150,12 @@ def kapitel_stammdaten(i):
     i.tabelle(["Oberflächen", "Bedeutung"], [
         ["<b>Oberfläche</b>", "Name, z. B. <i>roh</i>, <i>K240</i>, <i>gestrahlt</i>; Auswahl in der Position"],
         ["Kategorie (leer = alle)", "für welche Werkstoffe die Oberfläche passt; sonst Warnung in der Position"],
-        ["Aufpreis [€/m]", "kommt je Meter Stange auf den Materialpreis (Preise bzw. Tonnenpreis). Ein abweichender "
-                           "Materialpreis in der Position ersetzt Preis und Aufpreis."],
+        ["Aufpreis [€ je Basis]", "kommt auf den Materialpreis der Stange (Preise bzw. Tonnenpreis), also mit "
+                                  "Verschnitt. Ein abweichender Materialpreis in der Position ersetzt Preis und "
+                                  "Aufpreis."],
+        ["Aufpreis je", "€/m (leer, wie bisher): je Meter Stange; €/kg: × Metergewicht, z. B. gestrahlt gekaufte "
+                        "Stangen, wenn der Händler nach Gewicht abrechnet; €/m²: × Umfang. Festgeschriebene Angebote "
+                        "von vor dem 28.10.2026 rechnen weiter je Meter."],
         ["Text im Angebot", "steht hinter dem Werkstoff in der Bezeichnung, z. B. „Oberfläche K240 geschliffen“"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
@@ -6412,8 +6523,9 @@ def kapitel_stammdaten(i):
                (2, "<b>Arbeitszeit und Kosten</b>: Festpreis je Einheit, Zeitaufwand mit Zeiteinheit (s, min, h), "
                    "Stundensatz aus den Stammdaten oder eigener Stundensatz; die Arbeitskosten rechnet das Programm"),
                (3, "<b>Material und Zuschläge</b>: Materialkosten je Einheit und Materialzuschlag in % oder €"),
-               (4, "<b>Weitere Optionen</b> (zugeklappt): weiterer Zuschlag, Mindestbetrag, Fremdleistung, Text im "
-                   "Angebot"),
+               (4, "<b>Weitere Optionen</b> (zugeklappt): weiterer Zuschlag, Mindestbetrag je Angebot, Menge aus mit "
+                   "Faktor, Mindestbetrag je Teil, Fremdleistung, Text im Angebot; darunter die Regeln dieser "
+                   "Zusatzarbeit"),
                (5, "<b>Ergebnis</b>: Selbstkosten, Zuschläge und Verkaufspreis je Einheit, darunter die "
                    "Berechnungsgrundlage im Angebot"),
                (6, "<b>Speichern</b> / <b>Abbrechen</b>")])
@@ -6440,6 +6552,12 @@ def kapitel_stammdaten(i):
         ["Mindestbetrag je Angebot", "liegt die Summe dieser Zusatzarbeit im ganzen Angebot darunter, wird sie auf den "
                                      "Mindestbetrag angehoben und anteilig auf die Teile verteilt (typisch für "
                                      "Verzinkereien). Bei Staffelpreisen gilt er je Mengenstufe."],
+        ["Menge aus", "automatisch (leer) = nach der Abrechnung (kg, m², m, Stück); sonst <i>Innen- + "
+                      "Außenfläche</i> (Strahlen oder Verzinken innen und außen) oder die Anzahl Gewinde, Bohrungen "
+                      "bzw. Innenkonturen des Teils"],
+        ["Faktor Menge", "Menge × Faktor, z. B. 1,05 für Gehänge oder Abtrag beim Verzinken (leer = 1)"],
+        ["Mindestbetrag je Teil", "ein Teil kostet mindestens diesen Betrag (z. B. kleine Teile beim Strahlen); "
+                                  "der Mindestbetrag je Angebot gilt zusätzlich"],
         ["Fremdleistung", "ja: Aufschlag mit dem <i>Zuschlag Fremdleistung</i> (Einstellungen), sonst mit dem "
                           "Zuschlag Fertigung wie eigene Arbeit"],
         ["Text im Angebot", "so erscheint die Arbeit im Angebotstext der Position, je Arbeit eine eigene Zeile, "
@@ -6454,7 +6572,8 @@ def kapitel_stammdaten(i):
         ["€/Stück", "1", "Menge × Preis, z. B. Entgraten"],
         ["€/Angebot", "1", "einmal je Angebot (pauschal), verteilt auf die Teile der Positionen mit dieser Arbeit, "
                            "z. B. Prüfprotokoll"],
-        ["€/kg", "Teilegewicht aus Profil, Länge und Dichte", "Menge × Preis, z. B. Feuerverzinken nach Gewicht"],
+        ["€/kg", "Teilegewicht aus Profil, Länge und Dichte (fertiges Teil, ohne Verschnitt)",
+         "Menge × Preis, z. B. Feuerverzinken oder <i>Strahlen</i> nach Gewicht"],
         ["€/m²", "Außenfläche = Umfang × Länge (ohne Innenseite und Stirnflächen)",
          "Menge × Preis, z. B. Pulverbeschichten"],
         ["€/m", "Teilelänge in m", "Menge × Preis"],
@@ -6481,19 +6600,54 @@ def kapitel_stammdaten(i):
     i.text("Unter Einstellungen → Kalkulation → <b>Arbeitsgang-Regeln</b> stehen die Regeln für „Arbeitsgänge "
            "vorschlagen …“ im Angebot ([[arbeitsgaenge]]). Eine Regel schlägt eine Zusatzarbeit vor, wenn die "
            "Position alle ausgefüllten Bedingungen erfüllt; leere Bedingungen gelten immer.", kurz=True)
-    i.liste("<b>Regel</b> (Name), <b>Vorgeschlagene Zusatzarbeit</b> (Name aus den Zusatzarbeiten; unbekannte oder "
-            "deaktivierte werden nicht vorgeschlagen).",
-            "<b>Wenn Merkmal</b>: immer, Gewinde, Bohrungen, Innenkonturen, Schräges Ende, Zukaufteil oder "
-            "Schweißbaugruppe. <b>Stichwörter in Bezeichnung/Artikel (; getrennt)</b>: eines genügt, Groß- und "
+    i.liste("<b>Regel</b> (Name), <b>Zusatzarbeit</b> (Name aus den Zusatzarbeiten; unbekannte oder "
+            "deaktivierte werden nicht vorgeschlagen), <b>Zuordnung</b>: Vorschlag (leer, wie bisher), automatisch "
+            "oder nur Preis ([[abrechnungsregeln]]).",
+            "<b>Wenn Merkmal</b>: immer, Gewinde, Bohrungen, Innenkonturen, Schräges Ende, Zukaufteil, "
+            "Schweißbaugruppe, Rohr/Profil oder Blech. <b>Stichwörter in Bezeichnung/Artikel (; getrennt)</b>: eines genügt, Groß- und "
             "Kleinschreibung egal (z. B. „verzinkt;fvz“).",
             "<b>Profilform</b>, <b>Werkstoff-Kategorie</b>, <b>Werkstoff-ID</b>, <b>Oberfläche</b>, <b>Kunde</b>, "
-            "<b>ab Stückzahl</b>: weitere Bedingungen.",
-            "<b>Menge je Teil</b>: automatisch (wie in den Zusatzarbeiten: kg, m², m oder 1 Stück) oder die Anzahl "
-            "Gewinde, Bohrungen bzw. Innenkonturen des Teils. <b>Aktiv</b> = nein schaltet die Regel ab, "
+            "<b>ab Stückzahl</b>, <b>Abmessung von [mm]</b>/<b>Abmessung bis [mm]</b> (größtes Außenmaß: Ø, Höhe oder Breite): weitere "
+            "Bedingungen.",
+            "<b>Menge je Teil</b>: automatisch (wie in den Zusatzarbeiten: kg, m², m oder 1 Stück), Innen- + "
+            "Außenfläche oder die Anzahl Gewinde, Bohrungen bzw. Innenkonturen des Teils. <b>Abrechnung</b>, "
+            "<b>Preis je Einheit</b>, <b>Faktor Menge</b> und <b>Mindestbetrag je Teil</b>: leer = wie die "
+            "Zusatzarbeit. <b>Aktiv</b> = nein schaltet die Regel ab, "
             "<b>Bemerkung</b> ist frei.",
             "Neue Dateien und Dateien vor 0.9.161 bekommen Beispielregeln (Feuerverzinken bei „verzinkt“, "
-            "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus). Bitte an die eigene Fertigung "
-            "anpassen.")
+            "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus), ab 0.9.182 dazu drei "
+            "Beispiele für Strahlen (aus). Bitte an die eigene Fertigung anpassen.")
+    i.abschnitt("Eigene Abrechnungsregeln (Beispiel Strahlen)", marke="abrechnungsregeln")
+    i.text("Mit den Arbeitsgang-Regeln legen Sie fest, <b>wie</b> eine Zusatzarbeit abgerechnet wird und <b>wann</b> "
+           "sie automatisch gilt: z. B. Strahlen nach kg, für Edelstahl teurer, und automatisch, wenn „gestrahlt“ "
+           "in der Bezeichnung steht.", kurz=True)
+    i.tabelle(["Regel", "Bedingung", "Zuordnung", "Abrechnung, Preis", "Mindest je Teil"], [
+        ["Strahlen Stahl", "Werkstoff-Kategorie Stahl", "nur Preis", "€/kg, 0,35 €", "0,50 €"],
+        ["Strahlen Edelstahl", "Werkstoff-Kategorie Edelstahl", "nur Preis", "€/kg, 0,55 €", "0,80 €"],
+        ["Strahlen laut Bezeichnung", "Stichwort gestrahlt; strahlen; SA 2", "automatisch", "wie oben", ""]],
+        [45, 75, 30, 50, 30])
+    i.liste("<b>Zuordnung</b>: <i>Vorschlag</i> = erscheint unter „Arbeitsgänge vorschlagen …“ und kostet erst nach "
+            "Annehmen; <i>automatisch</i> = wird ohne Klick gerechnet, steht gelb mit „(automatisch)“ in der "
+            "Positionsliste, den Unterzeilen und im Fenster Zusatzarbeiten und lässt sich unter „Arbeitsgänge "
+            "vorschlagen …“ abwählen; <i>nur Preis</i> = ordnet nichts zu, setzt nur den Preis.",
+            "<b>Preis</b>: Abrechnung, Preis je Einheit, Menge je Teil, Faktor und Mindestbetrag je Teil der Regel "
+            "gelten für die Zusatzarbeit an jeder passenden Position, gleich ob sie von Hand, per Vorschlag oder "
+            "automatisch dorthin kam. Menge oder Preis von Hand in der Position gehen immer vor.",
+            "<b>Mehrere Regeln</b> passen: die genaueste gewinnt (meiste ausgefüllte Bedingungen), bei Gleichstand "
+            "die obere. Welche Regel gilt, zeigen die Unterzeilen („Preis: Regel …“) und das Formular der "
+            "Zusatzarbeit (Bereich Regeln).",
+            "<b>Strahlen</b> rechnet nach dem Gewicht des fertigen Teils (ohne Verschnitt) und steht als eigene "
+            "Zeile mit Zuschlag Fremdleistung und Gewinn. Gestrahlt gekaufte Stangen sind dagegen eine Oberfläche "
+            "des Materials: deren Aufpreis kommt mit Verschnitt in den Materialpreis, wahlweise je m, je kg oder "
+            "je m² ([[werkstoffe]]).",
+            "<b>Gewinde, Senken, Flowdrill und Bohren</b> rechnen immer € je Stück; eine Regel mit anderer "
+            "Abrechnung wird dort nicht übernommen (Prüfung FEHLER).",
+            "<b>Schweißbaugruppe</b>: „Aus Zusatzarbeiten …“ im Editor übernimmt Abrechnung und Preis der "
+            "passenden Regel in den Arbeitsgang ([[baugruppe_mengen]]).",
+            "<b>Alte Angebote bleiben gleich</b>: Regeln gelten für Zusatzarbeiten, die ab 0.9.182 hinzukommen, und "
+            "für automatische. Ein festgeschriebenes Angebot (Angebots-PDF) rechnet mit den Regeln vom Tag des "
+            "Festschreibens, Angebote von vorher ganz ohne Regeln; geänderte Regeln meldet „Aktuelle Preise "
+            "übernehmen …“.")
 
 
 def kapitel_zukauf(i):
@@ -7707,7 +7861,8 @@ STECKBRIEFE = {
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
     "mehrere_arbeitsplaetze": ("Kürzel als Bearbeiter, gemeinsamer Nummernkreis 2026-00001; Angebote und Stammdaten "
-                               "mit den Kollegen über einen gemeinsamen Ordner teilen.",
+                               "mit den Kollegen über einen gemeinsamen Ordner teilen, Angebote übergeben, sehen wer "
+                               "woran arbeitet.",
                                "<i>Datei → Benutzer und gemeinsamer Ordner …</i>; Knopf <i>Abgleichen</i> im Reiter "
                                "Angebote"),
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
