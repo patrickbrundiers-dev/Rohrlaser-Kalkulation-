@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.172", "<b>Musterteile</b>: Positionen lassen sich als <b>Muster</b> markieren (Spalte <i>Muster</i>, "
+    ["0.9.173", "<b>Musterteile</b>: Positionen lassen sich als <b>Muster</b> markieren (Spalte <i>Muster</i>, "
                 "Rechtsklick „Muster an/aus“, Häkchen in Rohr-, Blech-, Baugruppen-Editor und Satz in 3D). Muster "
                 "stehen im Angebot mit 0,00 € und dem Vermerk „Muster – im Serienpreis enthalten“; ihre Kosten "
                 "(Selbstkosten mit normalem Gewinn, Zukauf nur mit Aufschlag) werden nach Wert auf die "
@@ -31,6 +31,18 @@ NEUERUNGEN = [
                 "Stufe einmal um; das Angebots-PDF nennt, dass die Muster berechnet werden, wenn keine Serie "
                 "folgt ([[musterteile]]).",
                 "Musterteile: 0 € im Angebot, Kosten auf die Serie umgelegt, keine Minusmarge"],
+    ["0.9.172", "<b>E-Mail und Anfrageformular schlauer</b>: Ist der Absender unbekannt, legt das Programm den "
+                "Kunden mit Adresse, Ansprechpartner und Telefon aus Signatur bzw. Formular an – mit der Bemerkung "
+                "<i>Kunde prüfen</i> (bei Abbruch wieder entfernt). Das Anfrageformular wird wie die Mail ausgewertet "
+                "(Lieferzeit, Werkstoff). Robuster: ältere Outlook-Mails nur mit RTF-Text, <i>winmail.dat</i>, "
+                "beschädigte Anhänge. Intelligenter: bei Antworten zählt die neueste Nachricht, Lieferzeit auch als "
+                "Dauer (<i>in 3 Wochen</i>), Kunde über den Firmennamen in der Domain; Hinweise zu Mengenstaffel, "
+                "Zusatzarbeiten und doppelter Anfrage-Nr. ([[anfrage_mail]]). <b>PDF: Zeichnung oder Formular</b>: "
+                "Jede Seite eines PDFs (auch Scans) wird eingeordnet; Zeichnungen liefern nur ihr Schriftfeld "
+                "(Stückzahl, Werkstoff für das passende STEP-Teil, gelb), nie Positionen; die Einordnung lässt sich "
+                "im Prüfdialog umschalten ([[anfragen]]). <b>ZIP-Dateien</b> im Anfrage-Ordner oder aufs "
+                "Programm gezogen werden ausgepackt. Texterkennung bei mehreren Scans deutlich schneller.",
+     "Mail/Formular: neue Kunden („Kunde prüfen“), RTF/winmail.dat; PDF Zeichnung/Formular je Seite; ZIP auspacken."],
     ["0.9.171", "<b>Artikelnummer aus der STEP-Datei besser</b>: Schreibt das CAD-System eine eigene "
                 "<b>Teilenummer</b> in die STEP-Datei, wird sie die Artikelnummer und die Benennung die Bezeichnung. "
                 "Namen werden bereinigt: CAD-Zusätze (<i>Rohr:1</i>, <i>Teil1&lt;1&gt;</i>), Dateiendungen "
