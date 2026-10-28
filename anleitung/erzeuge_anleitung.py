@@ -2218,8 +2218,10 @@ def kapitel_step(i):
            "<i>Anzahl</i> gilt bei ihr als Stück je übergeordneter Baugruppe. Die andere Datei wird dabei selbst "
            "Schweißbaugruppe. Es entsteht nur eine Baugruppen-Position; der Bericht nennt die eingehängten Dateien.")
     i.abschnitt("Bauteilnamen, Normteile und Importprofile", marke="importprofile")
-    i.text("Hat die Konstruktion Namen, wird der <b>Bauteilname</b> die Artikelnummer. <b>Normteile</b> (Schrauben, "
-           "Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest.", kurz=True)
+    i.text("Hat die Konstruktion Namen, wird die <b>Teilenummer</b> bzw. der <b>Bauteilname</b> die Artikelnummer. "
+           "<b>Normteile</b> (Schrauben, Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest. "
+           "Im Prüfdialog zeigt der Tooltip auf dem Teil, woher die Nummer kommt; gelb = bitte prüfen, Doppelklick "
+           "ändert sie.", kurz=True)
     i.text("<b>Der Prüfdialog lernt</b>: Wählt man für alle Rohre einen anderen Werkstoff, wählt Teile ab oder "
            "schaltet die Anbauteile um, steht unter der Liste <b>Für Kunde … merken (Importprofil)</b> mit den "
            "Korrekturen. Angehakt, schreibt <i>Übernehmen</i> sie ins Importprofil des Kunden (legt es an, wenn es "
@@ -2234,6 +2236,25 @@ def kapitel_step(i):
             "weitere die Nummer mit <i>-2</i>, <i>-3</i> … (aus 77 Körpern „Rohr“ werden 77 Positionen); gleiche "
             "Teile mit gleichem Namen bleiben eine Position mit zusammengezählter Stückzahl. Der Tooltip auf dem Artikel im Prüfdialog zeigt die Lage in der "
             "Baugruppe, z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>.",
+            "<b>Woher die Artikelnummer kommt</b> (Reihenfolge): 1. die <b>Teilenummer</b> der STEP-Datei, wenn das "
+            "CAD-System sie getrennt von der Benennung schreibt (die Benennung wird dann die Bezeichnung), 2. das "
+            "<i>Muster</i> des Importprofils, 3. der <b>Bauteilname</b>, 4. der <b>Dateiname</b>. Steht im "
+            "Bauteilnamen genau eine Nummer mit mindestens 4 Ziffern (<i>Strebe links 4711-020</i>), wird sie die "
+            "Artikelnummer und der Name die Bezeichnung; Abmessungen (<i>40x40x2</i>, <i>L1000</i>), Normen "
+            "(<i>ISO 4017</i>) und Werkstoffnummern (<i>1.4301</i>) zählen nicht.",
+            "<b>Bereinigt</b> werden Bauteil- und Dateinamen: CAD-Zusätze (<i>Rohr:1</i> → <i>Rohr</i>, "
+            "<i>Teil1&lt;1&gt;</i>), Dateiendungen (<i>12345-01.SLDPRT</i> → <i>12345-01</i>), Kopie-Zusätze "
+            "(<i>Kopie von 4711</i>, <i>4711 - Kopie</i>, <i>4711 (1)</i> → <i>4711</i>) und die <b>Revision</b> am "
+            "Ende (<i>4711-020_Rev B</i>, <i>4711_v2</i>, <i>4711 Index C</i> → <i>4711-020</i> bzw. <i>4711</i>; "
+            "die Revision steht in der Bezeichnung). <b>CAD-Standardnamen</b> (<i>Teil1</i>, <i>Bauteil3</i>, "
+            "<i>Part1</i>, <i>Body1</i>, <i>PRT0001</i>, <i>COMPOUND</i>) gelten wie kein Name: dann zählt der "
+            "Dateiname.",
+            "<b>Im Prüfdialog</b> zeigt der Tooltip auf dem Teil die Herkunft (z. B. <i>Artikelnummer aus: "
+            "Teilenummer der STEP-Datei</i> oder <i>Bauteilname; Revision „v2“ abgetrennt</i>). <b>Gelb</b> ist "
+            "die Nummer, wenn sie unsicher ist: Dateiname statt eines CAD-Standardnamens, Nummer im Namen erkannt "
+            "oder Zusatz <i>-2</i>, weil der Name schon zu einem anderen Teil gehört. <b>Doppelklick</b> auf das "
+            "Teil ändert die Artikelnummer für alle gleichen Teile der Zeile; sie bleibt auch beim Wechsel des "
+            "Kunden.",
             "Steht im Bauteilnamen ein Begriff aus der Einstellung <i>Normteile: Begriffe im Bauteilnamen (mit ; "
             "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "
             "ist das Teil ein Normteil. Es ist im Prüfdialog abgewählt (Hinweis <i>Normteil … – zum Übernehmen "

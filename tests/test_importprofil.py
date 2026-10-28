@@ -21,12 +21,12 @@ tmp = Path(tempfile.mkdtemp())
 
 # 1. Benennung und Muster
 m = dict(datei="Gestell.step", artikel="Gestell-K3", bauteil="4711-02 Strebe QR40x3")
-assert importprofil.artikel_aus(m, BENENNUNGEN[0]) == ("4711-02 Strebe QR40x3", None)
+assert importprofil.artikel_aus(m, BENENNUNGEN[0]) == ("4711-02", "4711-02 Strebe QR40x3")   # Nummer im Namen
 assert importprofil.artikel_aus(m, BENENNUNGEN[1]) == ("Gestell-K3", None)
-assert importprofil.artikel_aus(m, BENENNUNGEN[2]) == ("Gestell-4711-02 Strebe QR40x3", None)
+assert importprofil.artikel_aus(m, BENENNUNGEN[2]) == ("Gestell-4711-02", "4711-02 Strebe QR40x3")
 assert importprofil.artikel_aus(m, BENENNUNGEN[0], r"^([\d-]+)") == ("4711-02", "4711-02 Strebe QR40x3")
 assert importprofil.artikel_aus(m, BENENNUNGEN[0], r"\d{4}") == ("4711", "4711-02 Strebe QR40x3")
-assert importprofil.artikel_aus(m, BENENNUNGEN[0], r"(ungültig") == ("4711-02 Strebe QR40x3", None)
+assert importprofil.artikel_aus(m, BENENNUNGEN[0], r"(ungültig") == ("4711-02", "4711-02 Strebe QR40x3")
 assert importprofil.artikel_aus(dict(artikel="X-K1", bauteil=""), BENENNUNGEN[0]) == ("X-K1", None)
 print("OK: Artikel aus Bauteilname, Dateiname oder beidem; Muster mit Klammerausdruck")
 
@@ -65,7 +65,7 @@ fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
 ohne = fenster.angebot_oeffnen(db.angebot_neu(dict(kunde="Andere")))
 erg = ohne.step_importieren([str(GESTELL), str(EINZEL), str(OHNE_NAMEN)], "S235-10219", 1, als_satz=False)
 artikel = {p["artikel"] for p in erg["positionen"]}
-assert {"Holm RE60x40x3 L800", "Strebe QR40x3 L500", "Querrohr RR42.4x2 L600", "Halter 4711 QR40x3"} <= artikel, \
+assert {"Holm RE60x40x3 L800", "Strebe QR40x3 L500", "Querrohr RR42.4x2 L600", "4711"} <= artikel, \
     artikel
 assert not any("Schraube" in a for a in artikel), "Normteile werden nicht übernommen"
 assert {"T08_Gestell_Baugruppe-K1"} <= artikel, "Dateien ohne Namen wie bisher"
