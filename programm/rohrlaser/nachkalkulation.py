@@ -7,6 +7,7 @@ Verglichen werden die Einzelkosten ohne Zuschläge und Gewinn, weil nur sie sich
 - Rüsten + Stangenwechsel [min] × Stundensatz (Soll = Rüstzeit je Angebot + je Abmessung + Stangenwechsel)
 - Gewinde und Zusatzarbeiten [€] (Soll = Gewinde + Zusatzarbeiten der Kalkulation, Ist z. B. laut Rechnung)
 - Sonstige Kosten [€] (Soll 0, z. B. Nacharbeit)
+- Reklamationen [€] (Soll 0, Summe der erfassten Reklamationen des Auftrags, reklamation.py; nur wenn es welche gibt)
 Erlös: Ist laut Rechnung, leer = Verkaufspreis des Angebots. Deckungsbeitrag = Erlös − Einzelkosten.
 Nicht erfasste Ist-Werte (leer) zählen wie das Soll und sind in der Spalte 'erfasst' als 'nein' markiert.
 
@@ -120,6 +121,10 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
         b = _n(ist.get(name))
         zeilen.append(zeile(text, "€", None, None, soll, b if b is not None else soll, b is not None))
         zeilen[-1]["feld"] = name
+    r = _n(ist.get("reklamation"))      # Reklamationskosten (reklamation.py), nur wenn es welche gibt
+    if r is not None:
+        zeilen.append(zeile("Reklamationen", "€", None, None, 0.0, r, True))
+        zeilen[-1]["feld"] = "reklamation"
     bg_soll = baugruppen_soll(positionen, zeilen_k)
     bg_zeilen, bg_info = _baugruppen_zeilen(bg_soll, ist, zeile)
     zeilen += bg_zeilen

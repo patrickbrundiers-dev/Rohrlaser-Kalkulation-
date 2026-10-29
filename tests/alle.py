@@ -74,7 +74,7 @@ TESTS = [
     "test_vollmaterial.py",
     "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_artikel_step.py", "test_bohrbild.py",
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
-    "test_step_bleche.py", "test_werkstoffe.py", "test_werkstoffe_rohrlaser.py", "test_meterpreis.py", "test_material_fenster.py", "test_stangen_vorgabe.py", "test_abmessung_fenster.py", "test_stangen_ansicht.py",
+    "test_step_bleche.py", "test_werkstoffe.py", "test_werkstoffe_rohrlaser.py", "test_meterpreis.py", "test_teuerung.py", "test_preis_simulator.py", "test_absage.py", "test_auftragsbestaetigung.py", "test_etiketten.py", "test_auslastung.py", "test_reklamation.py", "test_material_fenster.py", "test_stangen_vorgabe.py", "test_abmessung_fenster.py", "test_stangen_ansicht.py",
     "test_maschinen.py", "test_schneiddaten_standard.py", "test_lager.py", "test_nachkalk_auswertung.py", "test_arbeitsgaenge.py", "test_abrechnungsregeln.py", "test_varianten.py", "test_fertigung.py",
     "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_unterzeilen.py", "test_satz_optik.py", "test_kopf_kompakt.py", "test_spaltenbreite.py",
     "test_angebot_leistung.py", "test_zeiten.py",
@@ -90,7 +90,7 @@ TESTS = [
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_teilen_zusammenarbeit.py", "test_teilen_zusammenarbeit_fenster.py", "test_teilen_ordner.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py", "test_hell_dunkel.py",
     "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_loeschschutz.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_design_pruefung.py", "test_pdf_layout.py", "test_anfragen.py", "test_formular.py", "test_mail.py", "test_pdf_art.py", "test_mehrere_mails.py", "test_pdf_zeichnung.py", "test_pdf_vektor.py", "test_nachfassen.py", "test_bedienung.py", "test_abmessung_neu.py", "test_eingabefelder.py", "test_angebotsablauf.py", "test_anleitung.py",
-    "test_performance_update.py", "test_datenbank_indizes.py", "test_archiv.py", "test_teilen_monate.py",
+    "test_performance_update.py", "test_datenbank_indizes.py", "test_pruefung_optik.py", "test_archiv.py", "test_teilen_monate.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
 LANGSAM = [("test_gehrung.py", QT), ("test_belastung.py", QT)]

@@ -12,7 +12,7 @@ import math
 import json
 import re
 
-from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, co2_maschine, OHNE_NAHT, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
+from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
@@ -1362,26 +1362,99 @@ def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst
         return max(ab) * lb / 1000, None
     aufpreis_m = oberflaeche_aufpreis_m(ob, profil, werkstoff, k)
     aufpreis = aufpreis_m * lb / 1000
+
+    def mit_teuerung(material, auf, fehlt):
+        """Material + Teuerungszuschlag des Werkstoffs + Aufpreis der Oberfläche (der Zuschlag nicht auf den Aufpreis)."""
+        zuschlag, f = teuerung_betrag(material, gb, werkstoff, k)
+        return material + zuschlag + auf, fehlt or f
+
     zl = next((z for z in lieferlaengen(profil, werkstoff, k, tabellen, einst) if z["laenge"] == laenge), None)
     if zl is not None and zl.get("basis"):
         if zl["basis"] == "€/kg":
-            return _n(gb) * zl["preis"] + aufpreis, None if gewicht is not None else "Gewicht fehlt"
+            return mit_teuerung(_n(gb) * zl["preis"], aufpreis, None if gewicht is not None else "Gewicht fehlt")
         if zl["basis"] == "€/m":
-            return zl["preis"] * lb / 1000 + aufpreis, None
-        return zl["preis"] + aufpreis_m * laenge / 1000, None
+            return mit_teuerung(zl["preis"] * lb / 1000, aufpreis, None)
+        return mit_teuerung(zl["preis"], aufpreis_m * laenge / 1000, None)
     z = preis_zeile(profil, werkstoff, k, tabellen)
     if z is not None:
         if z["basis"] == "€/kg":
-            return _n(gb) * z["preis"] + aufpreis, None if gewicht is not None else "Gewicht fehlt"
+            return mit_teuerung(_n(gb) * z["preis"], aufpreis, None if gewicht is not None else "Gewicht fehlt")
         if z["basis"] == "€/m":
-            return z["preis"] * lb / 1000 + aufpreis, None
+            return mit_teuerung(z["preis"] * lb / 1000, aufpreis, None)
         if z["basis"] == "€/Stange":
             fehlt = (f"Preis für {mm_text(laenge)} mm fehlt (Lieferlängen)"
                      if zl is not None and z["lieferlaenge"] != laenge else None)
-            return z["preis"] * laenge / z["lieferlaenge"] + aufpreis_m * laenge / 1000, fehlt
+            return mit_teuerung(z["preis"] * laenge / z["lieferlaenge"], aufpreis_m * laenge / 1000, fehlt)
     tonne = (k.werkstoffe.get(werkstoff) or {}).get("tonnenpreis")
-    return _n(gb) * _n(tonne) / 1000 + aufpreis, None if _n(tonne) > 0 and gewicht is not None \
-        else f"kein Materialpreis für {profil} / {werkstoff}"
+    return mit_teuerung(_n(gb) * _n(tonne) / 1000, aufpreis, None if _n(tonne) > 0 and gewicht is not None
+                        else f"kein Materialpreis für {profil} / {werkstoff}")
+
+
+def teuerung(werkstoff_id, k, zeile=None):
+    """Teuerungszuschlag des Werkstoffs (Plan 29.10.2026 1a): (Art, Wert, Stand) mit Art '%' oder '€/kg', sonst None
+    (keine Art, Wert leer oder 0). zeile = Werkstoffzeile statt Suche in k."""
+    w = zeile if zeile is not None else werkstoff_zeile(werkstoff_id, k)
+    art, wert = w.get("teuerung_art"), w.get("teuerung_wert")
+    if art not in TEUERUNG_ARTEN or not isinstance(wert, (int, float)) or isinstance(wert, bool) or not wert:
+        return None
+    return art, float(wert), w.get("teuerung_stand") or None
+
+
+def teuerung_betrag(material, gewicht, werkstoff_id, k):
+    """Teuerungszuschlag in € auf den Materialpreis material (ohne Oberflächen-Aufpreis) einer Stange mit dem
+    berechneten Gewicht gewicht: (€, fehlt). '%' = Anteil von material, '€/kg' = Gewicht × Wert; fehlt = 'Gewicht
+    fehlt', wenn der Zuschlag je kg gilt und das Gewicht fehlt. Ohne Zuschlag (0, None)."""
+    t = teuerung(werkstoff_id, k)
+    if t is None:
+        return 0.0, None
+    art, wert, _ = t
+    if art == TEUERUNG_PROZENT:
+        return material * wert / 100, None
+    if gewicht is None:
+        return 0.0, "Gewicht fehlt"
+    return gewicht * wert, None
+
+
+TEUERUNG_ALT_MONATE = 3   # älter: Hinweis im Angebots-Check (Zuschläge ändern sich meist monatlich)
+
+
+def teuerung_hinweise(positionen, k, heute=None):
+    """Hinweise für den Angebots-Check wie laser_hinweise: [dict(werkstoff, text, zeilen)] für Werkstoffe aktiver
+    Rohrlaser-Positionen, deren Teuerungszuschlag ohne Stand oder älter als TEUERUNG_ALT_MONATE ist."""
+    import datetime
+    out = {}
+    for i, p in enumerate(positionen or ()):
+        if not position_aktiv(p) or kein_laserteil(p) or beigestellt(p):
+            continue
+        t = teuerung(p.get("werkstoff_id"), k)
+        if t is None:
+            continue
+        try:
+            alt = ((heute or datetime.date.today()) - datetime.date.fromisoformat(str(t[2]))).days / 30.4
+        except ValueError:
+            alt = None
+        if alt is not None and alt <= TEUERUNG_ALT_MONATE:
+            continue
+        grund = "ohne Stand" if alt is None else f"älter als {TEUERUNG_ALT_MONATE} Monate"
+        out.setdefault(p["werkstoff_id"], dict(werkstoff=p["werkstoff_id"], zeilen=[],
+                                               text=f"{teuerung_text(p['werkstoff_id'], k)} {grund}, bitte prüfen")
+                       )["zeilen"].append(i)
+    return list(out.values())
+
+
+def teuerung_text(werkstoff_id, k):
+    """Teuerungszuschlag als Text, z. B. 'Teuerungszuschlag 8 % (Stand 01.10.2026)', sonst None."""
+    import datetime
+    t = teuerung(werkstoff_id, k)
+    if t is None:
+        return None
+    art, wert, stand = t
+    text = f"Teuerungszuschlag {zahl(wert)} {art}" if art == TEUERUNG_PROZENT else f"Teuerungszuschlag {zahl(wert)} €/kg"
+    try:
+        text += f" (Stand {datetime.date.fromisoformat(str(stand)).strftime('%d.%m.%Y')})"
+    except ValueError:
+        pass
+    return text
 
 
 def meterpreis(p, kopf, positionen, k, tabellen):
@@ -1452,11 +1525,18 @@ PREIS_ALT_MONATE = 6      # älter: Hinweis im Tooltip des Meterpreises
 def preis_herkunft(p, kopf, k, tabellen, heute=None):
     """Woher der berechnete Meterpreis kommt, als Text für den Tooltip (Prüfbericht C-3): Zeile aus 'Lieferlängen'
     oder 'Preise' mit Preis, Gültig ab und Lieferant, sonst der Tonnenpreis des Werkstoffs; ist der Preis älter als
-    PREIS_ALT_MONATE, steht ein Hinweis dabei. None ohne Profil, Werkstoff oder bei Zukaufteilen."""
-    import datetime
+    PREIS_ALT_MONATE, steht ein Hinweis dabei; ein Teuerungszuschlag des Werkstoffs steht dahinter. None ohne Profil,
+    Werkstoff oder bei Zukaufteilen."""
     if kein_laserteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
         return None
     pid, wid, laenge = p["profil_id"], p["werkstoff_id"], gruppe_von(p, kopf)[3]
+    text = _preis_herkunft_text(pid, wid, laenge, k, tabellen, heute)
+    tz = teuerung_text(wid, k)
+    return f"{text}, zzgl. {tz}" if tz and text != "Herkunft: kein Preis hinterlegt" else text
+
+
+def _preis_herkunft_text(pid, wid, laenge, k, tabellen, heute):
+    import datetime
     z = next((r for r in lieferlaengen(pid, wid, k, tabellen, auto=False) if _n(r.get("laenge")) == _n(laenge)), None)
     quelle = "Lieferlängen"
     if z is None:
@@ -2672,6 +2752,8 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                 tonnenpreise={w: (k.werkstoffe.get(w) or {}).get("tonnenpreis") for w in sorted(werkstoffe, key=str)},
                 # ab 24.10.2026 (Schema 55): Schneidgas und Vorschub-Faktor der Werkstoffe (nur gesetzte)
                 werkstoff_laser={w: v for w in sorted(werkstoffe, key=str) if (v := _laser_werte(k.werkstoffe.get(w)))},
+                # ab 29.10.2026 (Schema 68): Teuerungszuschlag der Werkstoffe (nur gesetzte)
+                teuerung={w: v for w in sorted(werkstoffe, key=str) if (v := _teuerung_werte(k.werkstoffe.get(w)))},
                 aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)},
                 # ab 28.10.2026 (Plan Abrechnungsregeln): Basis der Aufpreise und Regeln der Zusatzarbeiten
                 aufpreis_basen={o: (k.oberflaechen.get(o) or {}).get("aufpreis_basis") or "€/m" for o in sorted(ofl)},
@@ -2763,6 +2845,10 @@ def preisbasis_anwenden(kopf, k, tabellen):
         ws = {w: dict(z, **{n: (fest_l.get(w) or {}).get(n) for n in LASER_FELDER})
               if w in (pb.get("tonnenpreise") or {}) and _laser_werte(z) != (fest_l.get(w) or {}) else z
               for w, z in ws.items()}
+    fest_t = pb.get("teuerung") if isinstance(pb.get("teuerung"), dict) else {}   # vor dem 29.10.2026: ohne Zuschlag
+    ws = {w: dict(z, **{n: (fest_t.get(w) or {}).get(n) for n in TEUERUNG_FELDER})
+          if w in (pb.get("tonnenpreise") or {}) and _teuerung_werte(z) != (fest_t.get(w) or {}) else z
+          for w, z in ws.items()}
     basen = pb.get("aufpreis_basen") or {}      # vor dem 28.10.2026 festgeschrieben: €/m
     of = {o: dict(z, aufpreis_m=pb["aufpreise"][o], aufpreis_basis=basen.get(o) or "€/m")
           if o in (pb.get("aufpreise") or {}) else z for o, z in k.oberflaechen.items()}
@@ -2773,6 +2859,14 @@ def preisbasis_anwenden(kopf, k, tabellen):
 
 
 LASER_FELDER = ("gas_vorgabe", "vorschub_faktor")
+TEUERUNG_FELDER = ("teuerung_art", "teuerung_wert", "teuerung_stand")
+
+
+def _teuerung_werte(z):
+    """Festgeschriebener Teuerungszuschlag eines Werkstoffs (nur gesetzte Felder, nur mit wirksamem Zuschlag)."""
+    if not z or teuerung(z.get("werkstoff_id"), None, z) is None:
+        return {}
+    return {n: z.get(n) for n in TEUERUNG_FELDER if not _leer(z.get(n))}
 
 
 def _laser_werte(z):
@@ -2830,6 +2924,7 @@ def _vergleich(pb):
                 profile=pb.get("profile") or {}, maschinen=pb.get("maschinen") or {},
                 werkstoff_laser=pb.get("werkstoff_laser") if "werkstoff_laser" in pb else None,
                 aufpreis_basen=pb.get("aufpreis_basen") if "aufpreis_basen" in pb else None,
+                teuerung=pb.get("teuerung") or {},          # vor dem 29.10.2026 festgeschrieben: ohne Zuschlag
                 zusatz_regeln=_regeln_vergleich(pb["zusatz_regeln"]) if "zusatz_regeln" in pb else None)
 
 
@@ -2891,6 +2986,12 @@ def preisbasis_abweichung(kopf, k, tabellen):
         for w in pb.get("tonnenpreise") or {}:
             if (alt["werkstoff_laser"].get(w) or {}) != (neu["werkstoff_laser"].get(w) or {}):
                 out.append(f"Schneidgas/Vorschub-Faktor {w} geändert")
+    for w in pb.get("tonnenpreise") or {}:
+        a, n = alt["teuerung"].get(w) or {}, neu["teuerung"].get(w) or {}
+        if a != n:
+            t = lambda v: f"{zahl(_n(v.get('teuerung_wert')))} {v.get('teuerung_art')}" if v else "ohne"
+            out.append(f"Teuerungszuschlag {w}: {t(a)} → {t(n)}" if t(a) != t(n)
+                       else f"Teuerungszuschlag {w}: Stand geändert")
     if "lieferlaengen" in pb and alt["lieferlaengen"] != neu["lieferlaengen"]:
         out.append("Lieferlängen geändert")
     if "gewinde" in pb and alt["gewinde"] != neu["gewinde"]:

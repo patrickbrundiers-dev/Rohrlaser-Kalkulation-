@@ -7,6 +7,7 @@ erreichbar, bekommt das Angebot eine vorläufige Nummer (V-PB-1); die endgültig
 vor dem Angebots-PDF. Ohne gemeinsamen Ordner zählt der Arbeitsplatz lokal im gleichen Format. Eine vergebene Nummer
 wird nie wieder vergeben, auch wenn das Angebot gelöscht wird."""
 import datetime
+import json
 import os
 import re
 import socket
@@ -143,3 +144,68 @@ def endgueltig(db, angebot_id=None):
                                                                if zusatz])
         out += [(alt, nr + zusatz) for _, alt, zusatz, _ in glieder]
     return out
+
+
+# ------------------------------------------------------------------ Auftragsbestätigung (Plan 29.10.2026 1c)
+AB_WIE_ANGEBOT, AB_EIGEN = "wie Angebot", "eigener Nummernkreis"
+AB_NUMMER = (AB_WIE_ANGEBOT, AB_EIGEN)
+AB_MUSTER = re.compile(r"^AB-(\d{4})-(\d{5,})$")
+AB_ORDNER = "AB-Nummern"
+
+
+def ab_zaehler(nr):
+    """'AB-2026-00007' -> 7, sonst 0."""
+    m = AB_MUSTER.match(str(nr or "").strip())
+    return int(m.group(2)) if m else 0
+
+
+def ab_vorhanden(kopf):
+    """AB-Nummer der letzten Auftragsbestätigung dieses Angebots (Versandverlauf, art 'ab') oder None."""
+    alle = [e.get("nummer") for e in (kopf or {}).get("versand") or () if isinstance(e, dict) and e.get("art") == "ab"]
+    return next((n for n in reversed(alle) if n), None)
+
+
+def _ab_hoechster_lokal(db):
+    werte = [db.einstellung("letzte_ab_nummer")]
+    for (v,) in db.con.execute("SELECT versand FROM angebote WHERE versand LIKE '%\"art\": \"ab\"%'"):
+        try:
+            werte.append(ab_vorhanden({"versand": json.loads(v)}))
+        except (TypeError, ValueError):
+            continue
+    return max((ab_zaehler(n) for n in werte), default=0)
+
+
+def ab_nummer(db, kopf, datum=None):
+    """Nummer der Auftragsbestätigung: eine schon vergebene AB-Nummer des Angebots bleibt; Einstellung
+    'ab_nummer' = wie Angebot: die Angebotsnummer; eigener Nummernkreis: AB-Jahr-Zähler, mit gemeinsamem Ordner dort
+    reserviert (Unterordner AB-Nummern, wie die Angebotsnummern), sonst lokal gezählt. OSError: Ordner nicht
+    erreichbar."""
+    alt = ab_vorhanden(kopf)
+    if alt:
+        return alt
+    if (db.einstellung("ab_nummer") or AB_WIE_ANGEBOT) != AB_EIGEN:
+        return str(kopf.get("nummer") or "")
+    jahr = _jahr(datum)
+    n = _ab_hoechster_lokal(db)
+    if teilen.aktiv(db):
+        basis = teilen.ordner(db)
+        if basis is None or not basis.is_dir():
+            raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {basis}")
+        o = basis / AB_ORDNER
+        o.mkdir(exist_ok=True)
+        n = max(n, reservierungen(o))
+        while True:
+            n += 1
+            try:
+                fd = os.open(o / f"{n:05d}{ENDUNG}", os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                continue
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(f"AB-{jahr}-{n:05d}\n{kopf.get('nummer') or ''}\n{teilen.kuerzel(db)}\n"
+                        f"{datetime.datetime.now().isoformat(timespec='seconds')}\n")
+            break
+    else:
+        n += 1
+    nr = f"AB-{jahr}-{n:05d}"
+    db.einstellung_setzen("letzte_ab_nummer", nr)
+    return nr

@@ -879,7 +879,7 @@ class Ansicht3D(QWidget):
             gl, self._gl = self._gl, None
             gl.hide()
             gl.deleteLater()
-        QTimer.singleShot(0, self.update)
+        QTimer.singleShot(0, self, self.update)
 
     def update(self, *args):
         super().update(*args)

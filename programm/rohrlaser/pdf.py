@@ -345,8 +345,9 @@ def _staffel_text(st, satz=False):
     return f"{stufe}Ab {n} {einheit} je{zzgl}"
 
 
-def _angebot_kopf(kopf, ang, einst):
-    """Briefkopf mit Logo, Anschriftfeld links und Angebotsdaten rechts, Titel (Breite 186 mm)."""
+def _angebot_kopf(kopf, ang, einst, ab=None):
+    """Briefkopf mit Logo, Anschriftfeld links und Angebotsdaten rechts, Titel (Breite 186 mm). ab: Daten der
+    Auftragsbestätigung (auftragsbestaetigung_pdf), dann Titel und Datenblock der AB."""
     firma = [einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)]
     links = [_p(firma[0], S_A_FIRMA)] if firma[0] else []
     links += [_p(t, S_A_GRAU) for t in firma[1:] if t]
@@ -361,11 +362,19 @@ def _angebot_kopf(kopf, ang, einst):
     kunde = [kopf.get("kunde")] + list(ang.get("anschrift") or ())
     anschrift = ([_p(absender, S_A_ABSENDER), Spacer(1, 2 * mm)] if absender else []) + \
         [_p("\n".join(str(x) for x in kunde if x), S_A_ANSCHRIFT)]
-    bis = ausgabe.gueltig_bis(kopf, einst)
-    daten = [("Angebots-Nr.", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
-             ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
-    if ang.get("kundenreferenz"):
-        daten.append(("Ihre Anfrage", ang["kundenreferenz"]))
+    if ab is None:
+        bis = ausgabe.gueltig_bis(kopf, einst)
+        daten = [("Angebots-Nr.", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
+                 ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
+        if ang.get("kundenreferenz"):
+            daten.append(("Ihre Anfrage", ang["kundenreferenz"]))
+        titel = f"Angebot {kopf.get('nummer') or ''}".strip()
+    else:
+        daten = [("AB-Nr.", ab.get("nummer")), ("Datum", ausgabe.datum_text(ab.get("datum"))),
+                 ("Unser Angebot", kopf.get("nummer")), ("vom", ausgabe.datum_text(kopf.get("datum"))),
+                 ("Kunden-Nr.", kopf.get("kundennr")), ("Ihre Bestellung", ab.get("bestellung")),
+                 ("Ihre Anfrage", ang.get("kundenreferenz")), ("Liefertermin", ab_termin_text(ab.get("liefertermin")))]
+        titel = f"Auftragsbestätigung {ab.get('nummer') or ''}".strip()
     ap = ang.get("ansprechpartner") or {}      # Bearbeiter des Angebots (Benutzer und Kürzel, teilen.mitarbeiter)
     daten += [("Ansprechpartner", ap.get("name")), ("Telefon", ap.get("telefon"))]
     zeilen = [[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")]
@@ -380,9 +389,19 @@ def _angebot_kopf(kopf, ang, einst):
     t = Table([[anschrift, rechts]], colWidths=[120 * mm, 66 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                            ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
-    inhalt += [t, Spacer(1, 14 * mm), _p(f"Angebot {kopf.get('nummer') or ''}".strip(), S_A_TITEL),
-               Spacer(1, 5 * mm)]
+    inhalt += [t, Spacer(1, 14 * mm), _p(titel, S_A_TITEL), Spacer(1, 5 * mm)]
+    if ab is not None and ab.get("text"):
+        inhalt += [_p(ab["text"], S_A), Spacer(1, 4 * mm)]
     return inhalt
+
+
+def ab_termin_text(iso):
+    """Liefertermin der Auftragsbestätigung: '15.11.2026 (KW 46)'; leer ohne Termin."""
+    try:
+        d = datetime.date.fromisoformat(str(iso))
+    except (TypeError, ValueError):
+        return ""
+    return f"{d.strftime('%d.%m.%Y')} (KW {d.isocalendar()[1]})"
 
 
 def _angebot_positionen(ang):
@@ -484,12 +503,13 @@ def _zeilen_hoehen(daten, breiten, stil, rand=3, oben_unten=7):
 GRUPPE_MAX_HOEHE = 600      # pt: kleiner als der Textbereich einer A4-Seite (765 pt) abzüglich Tabellenkopf
 
 
-def angebot_pdf(pfad, kopf, ang, einst):
-    """ang = ausgabe.angebot(...)."""
+def angebot_pdf(pfad, kopf, ang, einst, ab=None):
+    """ang = ausgabe.angebot(...). ab: Auftragsbestätigung (auftragsbestaetigung_pdf)."""
     firma = " · ".join(t for t in (einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)) if t)
-    fuss = "   |   ".join(t for t in (firma, f"Angebot {kopf.get('nummer') or ''}".strip()) if t)
-    doc, leinwand = _dokument(pfad, f"Angebot {kopf.get('nummer') or ''}", fuss)
-    inhalt = _angebot_kopf(kopf, ang, einst)
+    titel = f"Auftragsbestätigung {ab.get('nummer') or ''}" if ab else f"Angebot {kopf.get('nummer') or ''}"
+    fuss = "   |   ".join(t for t in (firma, titel.strip()) if t)
+    doc, leinwand = _dokument(pfad, titel, fuss)
+    inhalt = _angebot_kopf(kopf, ang, einst, ab)
     inhalt.append(_angebot_positionen(ang))
 
     satz = _z(100 * ang["mwst_satz"], 0 if float(100 * ang["mwst_satz"]).is_integer() else 1)
@@ -506,12 +526,22 @@ def angebot_pdf(pfad, kopf, ang, einst):
     # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen.
     # Summe und Konditionen bleiben zusammen auf einer Seite (Patrick 28.10.2026, V2)
     bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
-    texte = [t for t in (ang.get("lieferzeit"), ang.get("beistellung"), ang.get("muster"), ang.get("fracht"),
+    liefer = ang.get("lieferzeit")
+    if ab is not None and ab.get("liefertermin"):       # AB: der vereinbarte Termin statt der Lieferzeit
+        liefer = f"Liefertermin: {ab_termin_text(ab['liefertermin'])}."
+    texte = [t for t in (liefer, ang.get("beistellung"), ang.get("muster"), ang.get("fracht"),
                          ang.get("zahlung"), ang.get("mindestpreis"), bed) if t]
     if texte:
         schluss += [Spacer(1, 8 * mm), _p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A_GRAU) for t in texte]
     inhalt += [Spacer(1, 3 * mm), KeepTogether(schluss)]
     doc.build(inhalt, canvasmaker=leinwand)
+
+
+def auftragsbestaetigung_pdf(pfad, kopf, ang, einst, ab):
+    """Auftragsbestätigung im Layout des Angebots (Plan 29.10.2026 1c): ab = {nummer, datum, bestellung,
+    liefertermin, text}. Bestätigt werden die bestellten Mengen, Staffelpreise entfallen."""
+    ang = dict(ang, staffeln=[], zeilen=[dict(z, staffeln=[]) for z in ang["zeilen"]])
+    angebot_pdf(pfad, kopf, ang, einst, ab)
 
 
 # ------------------------------------------------------------------ Werkstattpapiere mit Stangenbild
