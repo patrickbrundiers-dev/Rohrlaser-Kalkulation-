@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
                                QMessageBox, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
-from . import einblendung, stil
+from . import einblendung, funktionen, stil
 from . import (biegerohr, dfm, dreid, durchdringung as dd, hilfe, knickrahmen, naht, profil_neu, rechnen,
                schneidweg as sw, skizze as sk, tabellen_eingabe, virtuell)
 from .muster_haken import MusterHaken
@@ -359,6 +359,8 @@ class SchneidwegDialog(QDialog):
         self.knick_knopf.clicked.connect(lambda: self.knickrahmen())
         self.knick_knopf.setEnabled(self.kasten)
         leiste.addWidget(self.knick_knopf)
+        if not funktionen.an("funktion_knick_steck"):        # Funktion ausgeschaltet (funktionen.py)
+            self.knick_knopf.hide()
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(self._entfernen)
         kopieren = QPushButton("Aus Position kopieren …")

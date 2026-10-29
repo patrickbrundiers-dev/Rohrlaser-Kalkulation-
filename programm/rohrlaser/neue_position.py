@@ -31,16 +31,16 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
 
 class TypDialog(QDialog):
     """Auswahl des Typs; nach OK steht er in self.typ (ROHR, BLECH, DXF, PDF, ZUKAUF, SCHWEISS, RAHMEN oder LEER);
-    pdf: Typ PDF anbieten (Einstellung pdf_zeichnung)."""
+    pdf: Typ PDF anbieten (Einstellung pdf_zeichnung); ohne: diese Typen nicht anbieten (Funktion ausgeschaltet)."""
 
-    def __init__(self, parent=None, pdf=False):
+    def __init__(self, parent=None, pdf=False, ohne=()):
         super().__init__(parent)
         self.setWindowTitle("Neue Position")
         self.typ = None
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel("<b>Welche Art von Position?</b>"))
         for typ, text in TYPEN.items():
-            if typ == PDF and not pdf:
+            if typ == PDF and not pdf or typ in ohne:
                 continue
             b = QPushButton(typ)
             b.setMinimumHeight(40)

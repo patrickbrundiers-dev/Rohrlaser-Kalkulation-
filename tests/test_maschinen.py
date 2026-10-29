@@ -14,7 +14,8 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 
 from rohrlaser import rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
-from rohrlaser.stammdaten import (ALTE_VORSCHUB, TABELLE, alte_richtwerte, beispiel_schneiddaten, pruefen)  # noqa: E402
+from rohrlaser.stammdaten import (ALTE_VORSCHUB, TABELLE, alte_richtwerte, beispiel_schneiddaten, pruefen,
+                                  richtwerte_2110)  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 
@@ -39,9 +40,10 @@ sd = lambda m, w, s: rechnen.schneiddaten(m, w, s, tab, rechnen.kategorie(w, k))
 # Faser: Stahl N₂ bis 4 mm, darüber O₂; CO₂: Stahl N₂ bis 2 mm; Edelstahl/Alu nur N₂
 assert (sd("T11", "S235-10219", 4)["gas"], sd("T11", "S235-10219", 4.5)["gas"]) == ("N₂", "O₂")
 assert (sd("T03", "S235-10219", 2)["gas"], sd("T03", "S235-10219", 2.5)["gas"]) == ("N₂", "O₂")
-assert sd("T11", "1.4301", 10)["gas"] == "N₂" and sd("T11", "1.4301", 11) is None
+assert sd("LT7", "1.4301", 10)["gas"] == "N₂" and sd("LT7", "1.4301", 11) is None
+assert sd("T11", "1.4301", 6)["gas"] == "N₂" and sd("T11", "1.4301", 7) is None    # Trumpf 4 kW: bis 6 mm
 assert sd("T03", "AW6060-T66", 6)["gas"] == "N₂" and sd("T03", "AW6060-T66", 7) is None
-assert sd("T11", "AW6060-T66", 8)["gas"] == "N₂"
+assert sd("LT7", "AW6060-T66", 8)["gas"] == "N₂" and sd("T11", "AW6060-T66", 7) is None
 # CO₂ dünn langsamer als Faser, dick ähnlich; LT7 = T11
 assert sd("T03", "S235-10219", 2)["vorschub_gross"] < sd("T11", "S235-10219", 2)["vorschub_gross"] / 1.5
 assert sd("T03", "S235-10219", 10)["vorschub_gross"] >= 0.9 * sd("LT7", "S235-10219", 10)["vorschub_gross"]
@@ -49,14 +51,15 @@ assert sd("T03", "S235-10219", 10)["vorschub_gross"] >= 0.9 * sd("LT7", "S235-10
 assert max(z[5] for z in beispiel_schneiddaten() if z[4] <= 2) == 8000
 assert all(sd("LT7", w, s)["vorschub_gross"] == sd("T11", w, s)["vorschub_gross"]
            for w in ("S235-10219", "1.4301", "AW6060-T66") for s in (1, 1.5, 2))
-assert sd("LT7", "1.4301", 3)["vorschub_gross"] == 4500 and sd("T11", "1.4301", 3)["vorschub_gross"] == 5800
+assert sd("LT7", "1.4301", 3)["vorschub_gross"] == 5000 and sd("T11", "1.4301", 3)["vorschub_gross"] == 5800
 assert sd("LT7", "S235-10219", 8)["vorschub_gross"] == 1300 and sd("T11", "S235-10219", 8)["vorschub_gross"] == 2100
 z = sd("LT7", "S235-10219", 3)
 assert (z["gas"], z["vorschub_gross"], z["vorschub_mittel"], z["vorschub_klein"], z["vorschub_gravur"]) \
-    == ("N₂", 4500, 2700, 1350, 3000), z   # Gravur 3.000 mm/min (Patrick, 21.10.2026)   # Gravur 3.000 mm/min (Patrick, 21.10.2026)
+    == ("N₂", 3500, 2100, 1050, 3000), z   # Stahl N₂ 3 mm geschätzt (29.10.2026), bis 0.9.196 4.500   # Gravur 3.000 mm/min (Patrick, 21.10.2026)   # Gravur 3.000 mm/min (Patrick, 21.10.2026)
 assert "4 kW" in sd("T11", "S235-10219", 3)["bemerkung"] and "3,2 kW" in sd("T03", "S235-10219", 3)["bemerkung"]
 assert sd("T03", "S235-10219", 3)["einstechzeit"] > sd("T11", "S235-10219", 3)["einstechzeit"]
-assert sd("T11", "S235-10219", 12)["vorschub_gross"] == 1100 and sd("T11", "S235-10219", 13) is None
+assert sd("LT7", "S235-10219", 12)["vorschub_gross"] == 800 and sd("LT7", "S235-10219", 13) is None
+assert sd("T11", "S235-10219", 10)["vorschub_gross"] == 1300 and sd("T11", "S235-10219", 11) is None
 assert all(z["bemerkung"].startswith("Beispiel: Richtwert") for z in db.zeilen("schneiddaten"))
 
 # 2) Plausibilität in der Prüfspalte
@@ -196,7 +199,7 @@ d = Datenbank(p)
 k, tb = d.kontext(), d.tabellen()
 assert sorted(k.maschinen) == ["LT7", "T03", "T11"] and k.maschinen["LT7"]["stundensatz"] == 155
 assert d.anzahl("schneiddaten") == len(beispiel_schneiddaten())
-assert rechnen.schneiddaten("LT7", "S235-10219", 3, tb, "Stahl")["vorschub_gross"] == 4500
+assert rechnen.schneiddaten("LT7", "S235-10219", 3, tb, "Stahl")["vorschub_gross"] == 3500
 assert rechnen.schneiddaten("T03", "S235-10219", 3, tb, "Stahl")["gas"] == "O₂"
 pruefe_neu(d, a)
 d.schliessen()
@@ -276,11 +279,63 @@ assert rechnen.schneiddaten("LT7", "S235-10219", 1, tb, "Stahl")["vorschub_gross
 assert rechnen.schneiddaten("LT7", "S355-10219", 1, tb, "Stahl")["vorschub_gross"] == 8000
 assert rechnen.schneiddaten("T11", "S355-10219", 1, tb, "Stahl")["vorschub_gross"] == 9999    # von Hand
 assert rechnen.schneiddaten("T11", "1.4301", 3, tb, "Edelstahl")["vorschub_gross"] == 5800
-z = rechnen.schneiddaten("T11", "S355-10219", 12, tb, "Stahl")
-assert (z["vorschub_gross"], z["vorschub_mittel"], z["vorschub_klein"]) == (1100, 660, 330), z
+z = rechnen.schneiddaten("T11", "S355-10219", 10, tb, "Stahl")
+assert (z["vorschub_gross"], z["vorschub_mittel"], z["vorschub_klein"]) == (1300, 780, 390), z
+assert rechnen.schneiddaten("T11", "S355-10219", 12, tb, "Stahl") is None     # über der Trumpf-Grenze entfallen
 d = Datenbank(p)
-assert d.einstellung("richtwerte_stand") == "2026-10-21"
+assert d.einstellung("richtwerte_stand") == "2026-10-29"
 assert len(list((p.parent / "Sicherung").glob("*vor_Richtwerte*.db"))) == 1
 d.schliessen()
+
+# g) Datei mit Richtwerten 0.6.19 bis 0.9.196 (Abgleich Schneidtabellen 29.10.2026): unveränderte Zeilen bekommen
+#    die neuen Werte und die Herkunft in der Bemerkung, unveränderte T11-Zeilen über der Trumpf-Grenze entfallen,
+#    von Hand geänderte Zeilen bleiben
+p = tmp / "g" / "rohrlaser.db"
+d = Datenbank(p)
+d.schliessen()
+con = sqlite3.connect(p)
+con.execute("DELETE FROM schneiddaten")
+for (m, kat, gas, wand), (g, mi, kl, ein) in richtwerte_2110().items():
+    laser = "CO₂-Laser" if m == "T03" else "Faserlaser"
+    con.execute("INSERT INTO schneiddaten (maschinen_id, kategorie, gas, wand_bis, vorschub_gross, vorschub_mittel, "
+                "vorschub_klein, einstechzeit, vorschub_gravur, bemerkung) VALUES (?,?,?,?,?,?,?,?,3000,?)",
+                (m, kat, gas, wand, g, mi, kl, ein, f"Beispiel: Richtwert {laser} 3 kW, Rohr"))
+con.execute("UPDATE schneiddaten SET vorschub_gross=4444 WHERE maschinen_id='LT7' AND kategorie='Edelstahl' "
+            "AND wand_bis=4")
+con.execute("UPDATE schneiddaten SET vorschub_gross=555 WHERE maschinen_id='T11' AND kategorie='Edelstahl' "
+            "AND wand_bis=10")
+con.execute("DELETE FROM einstellungen WHERE name='richtwerte_stand'")
+con.commit()
+con.close()
+d = Datenbank(p)
+tb = d.tabellen()
+z = rechnen.schneiddaten("LT7", "S355-10219", 3, tb, "Stahl")
+assert (z["gas"], z["vorschub_gross"], z["vorschub_mittel"], z["vorschub_klein"]) == ("N₂", 3500, 2100, 1050), z
+assert "Schätzung (N₂ bis 4 mm" in z["bemerkung"], z["bemerkung"]
+assert rechnen.schneiddaten("T11", "S355-10219", 4, tb, "Stahl")["vorschub_gross"] == 3000
+z = rechnen.schneiddaten("LT7", "1.4301", 3, tb, "Edelstahl")
+assert (z["vorschub_gross"], z["einstechzeit"]) == (5000, 0.5), z
+assert "GWEIKE Rohr 3 kW" in z["bemerkung"] and "Hypertherm" in z["bemerkung"], z["bemerkung"]
+assert rechnen.schneiddaten("LT7", "1.4301", 4, tb, "Edelstahl")["vorschub_gross"] == 4444      # von Hand
+assert rechnen.schneiddaten("T11", "1.4301", 6, tb, "Edelstahl")["vorschub_gross"] == 2200
+assert rechnen.schneiddaten("T11", "1.4301", 8, tb, "Edelstahl")["vorschub_gross"] == 555       # von Hand, bleibt
+assert rechnen.schneiddaten("T11", "S355-10219", 12, tb, "Stahl") is None
+assert rechnen.schneiddaten("T11", "AlMgSi0,5", 8, tb, "Aluminium") is None
+assert rechnen.schneiddaten("LT7", "AlMgSi0,5", 8, tb, "Aluminium")["vorschub_gross"] == 550   # LT7 ohne Grenze
+assert rechnen.schneiddaten("T03", "S355-10219", 12, tb, "Stahl")["vorschub_gross"] == 850     # CO₂ unverändert
+assert d.einstellung("richtwerte_stand") == "2026-10-29"
+assert len(list((p.parent / "Sicherung").glob("*vor_Richtwerte*.db"))) == 1
+# V4: Wand über den Schneiddaten der Maschine -> Text für die WARNUNG, sonst None
+t = rechnen.wand_ueber_schneiddaten("T11", "S355-10219", "Stahl", 12, tb)
+assert t == "Wandstärke 12 mm über den Schneiddaten von T11 (bis 10 mm) – Maschine prüfen oder Zeit von Hand eintragen", t
+assert rechnen.wand_ueber_schneiddaten("T11", "S355-10219", "Stahl", 10, tb) is None
+assert rechnen.wand_ueber_schneiddaten("LT7", "S355-10219", "Stahl", 12, tb) is None
+assert rechnen.wand_ueber_schneiddaten("T11", "X", "Unbekannt", 12, tb) is None                 # keine Zeilen: kein Text
+d.schliessen()
+# Neue Datei: T11 ohne Zeilen über der Grenze, Bemerkung mit Herkunft
+std = beispiel_schneiddaten()
+assert max(z[4] for z in std if z[0] == "T11" and z[2] == "Edelstahl") == 6
+assert max(z[4] for z in std if z[0] == "T11" and z[2] == "Stahl") == 10
+assert all("Vorschub:" in z[10] and "Einstechen:" in z[10] for z in std)
 
 print("OK: Maschinen und Schneiddaten")

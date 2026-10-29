@@ -219,11 +219,26 @@ def position_werte(p, kopf, k, tabellen):
                           kategorie(p["werkstoff_id"], k), werkstoff_zeile(p["werkstoff_id"], k))
         w["vorschub"] = _n(sd.get("vorschub_gross")) if sd else None
         w["gas"] = sd.get("gas") if sd else None
+        w["wand_zu_dick"] = None if sd else wand_ueber_schneiddaten(
+            kopf.get("maschine"), p["werkstoff_id"], kategorie(p["werkstoff_id"], k), w["wand_schneiden"], tabellen)
         d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (1, 1, 1, 1, 0)) if sd else None
         w["fehlt_3d"] = d3["fehlt"] if d3 else None
         ez = zeit_enden(p, kopf, sd, tabellen, k, w["vorschub"]) if sd else None
         w["fehlt_ende"] = ez["fehlt"] if ez else None
     return w
+
+
+def wand_ueber_schneiddaten(maschinen_id, werkstoff_id, kat, wand, tabellen):
+    """Text, wenn die Maschine Schneiddaten für Werkstoff bzw. Kategorie hat, aber alle nur für dünnere Wände: die
+    Wand liegt dann über dem, was die Maschine schneidet (Plan Schneidtabellen 29.10.2026, V4), sonst None."""
+    bis = [z["wand_bis"] for z in tabellen.get("schneiddaten") or () if z.get("maschinen_id") == maschinen_id
+           and isinstance(z.get("wand_bis"), (int, float))
+           and (z.get("werkstoff_id") == werkstoff_id if not _leer(z.get("werkstoff_id"))
+                else not _leer(kat) and z.get("kategorie") == kat)]
+    if not bis or wand <= max(bis):
+        return None
+    return (f"Wandstärke {zahl(wand, 1)} mm über den Schneiddaten von {maschinen_id} (bis {zahl(max(bis), 1)} mm) – "
+            "Maschine prüfen oder Zeit von Hand eintragen")
 
 
 def preis_zeile(profil_id, werkstoff_id, k, tabellen):
@@ -511,6 +526,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "WARNUNG: " + sonder
     if not manuell and w.get("fehlt_ende"):
         return "WARNUNG: " + w["fehlt_ende"]
+    if not manuell and w.get("wand_zu_dick"):
+        return "WARNUNG: " + w["wand_zu_dick"]
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:

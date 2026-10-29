@@ -21,13 +21,35 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.201", "<b>Gewinn gestaffelt nach Auftragswert</b> ([[gewinn_gestaffelt]]): in den Einstellungen "
-                "(Kalkulation) bis zu 4 Grenzen und 5 Sätze, z. B. 30 % bis 500 €, 20 % bis 2.000 €, 12 % bis "
+    ["0.9.203", "<b>Gewinn gestaffelt nach Auftragswert</b> ([[gewinn_gestaffelt]]): in den Einstellungen "
+                "(Seite <i>Gewinn gestaffelt</i>) bis zu 4 Grenzen und 5 Sätze, z. B. 30 % bis 500 €, 20 % bis 2.000 €, 12 % bis "
                 "10.000 €, darüber 8 %. Auftragswert = Selbstkosten des Angebots ohne Zukaufteile und Fracht; ein "
                 "Satz für alle Positionen; an den Grenzen kein Preissprung nach unten. Ab Werk aus; ein eigener "
                 "Gewinn im Angebot oder in der Staffel-Stufe gilt statt der Stufen, festgeschriebene Angebote bleiben "
                 "gleich.",
      "Gewinn gestaffelt nach Auftragswert (bis 5 Stufen, Vorgabe aus)"],
+    ["0.9.202", "<b>Einstellungen aufgeräumt</b>: Statt einer langen Seite <i>Vorgaben</i> mit allen Einstellungen "
+                "hat jedes Thema eine eigene Seite neben den passenden Stammdaten, z. B. <i>Zuschläge und Preise</i>, "
+                "<i>Neue Angebote</i>, <i>Blech-Richtpreis</i>, <i>STEP-Import</i>, <i>Versand und Paletten</i>. "
+                "Alles, was nur für diesen Arbeitsplatz gilt (Name, Farbschema, Ordner, Signatur), steht auf <i>Mein "
+                "Arbeitsplatz</i>. Titel ohne doppelte Vorsilbe (voller Titel im Tooltip), selten geänderte Toleranzen "
+                "und Faktoren eingeklappt; die Suche findet weiter alles und öffnet die richtige Seite "
+                "([[vorgaben]]). <b>Funktionen ein- und ausschalten</b>: Auf der neuen Seite <i>Funktionen</i> lassen "
+                "sich 15 Bereiche abschalten, z. B. Bleche, Zukaufteile, Frachtkosten, Schweißbaugruppen, "
+                "Nachkalkulation, Reklamationen oder Musterteile. Ausschalten blendet nur aus, Daten und Rechnung "
+                "bleiben; nach dem Update ist alles eingeschaltet ([[funktionen]]). Werte mit „0 = aus“ wie Nachfassen, "
+                "automatisch optimieren, Mindestmarge oder Standard-Staffeln haben einen Schalter davor, der den "
+                "letzten Wert behält.",
+     "Einstellungen nach Themen auf eigenen Seiten; Funktionen ein- und ausschalten."],
+    ["0.9.201", "<b>Schneiddaten mit Schneidtabellen abgeglichen</b>: Die Richtwerte für T11 und LT7 sind mit "
+                "veröffentlichten Schneidtabellen verglichen; die Bemerkung jeder Zeile nennt jetzt die Herkunft "
+                "(Herstellerwert oder Schätzung). Stahl mit N₂ 3–4 mm langsamer (LT7 3.500 / 2.500, T11 4.000 / 3.000 "
+                "mm/min), Edelstahl LT7 3 mm 5.000 und 4 mm 4.500, T11 6 mm 2.200 mm/min, Einstechzeiten Edelstahl "
+                "nach Herstellertabelle (0,2 bis 2,0 s). T11 endet an der Grenze der TruLaser Tube 5000 fiber 4 kW "
+                "(Stahl 10, Edelstahl und Alu 6 mm); dickere Wände zeigen eine Warnung statt einer Zeit "
+                "([[maschinen_schneiddaten]]). Unveränderte Standardzeilen werden beim ersten Start angepasst "
+                "(mit Sicherung), eigene Werte bleiben; festgeschriebene Angebote rechnen unverändert.",
+     "Schneiddaten mit Schneidtabellen abgeglichen, Herkunft je Zeile, Warnung über der Maschinengrenze."],
     ["0.9.200", "<b>Kalkulation genauer</b> ([[kalkulation_genauer]]): neue Maschinenfelder <i>Nebenzeit je Teil</i> "
                 "(Ausschieben/Entnehmen), <i>Schneidgas N₂/O₂ [€/h]</i> (Gaskosten je Laserstunde nach dem Gas der "
                 "Schneiddaten; genauer über <i>Düse Ø</i> und <i>Gasdruck</i> in den Schneiddaten und <i>Gaspreis "

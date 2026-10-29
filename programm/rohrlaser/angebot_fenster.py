@@ -43,7 +43,7 @@ from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimie
 from .schritte import Schrittanzeige
 from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
-from . import muster_haken, stangen_abwicklung, vollmaterial
+from . import funktionen, muster_haken, stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -406,8 +406,10 @@ class AngeboteSeite(QWidget):
         for v in VORGAENGE:
             menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
         menue.addSeparator()            # Plan A9
-        menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen())
-        menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
+        self.nachfassen_aktionen = (menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen()),
+                                    menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen()))
+        menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an("funktion_nachfassen"))
+                                           for a in self.nachfassen_aktionen])
         # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
         self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
         self.notiz_aktion = menue.addAction("Notiz an Kollegen …", lambda: self.notiz())
@@ -1875,15 +1877,17 @@ class AngebotSeite(QWidget):
         menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
         menue.addSeparator()
         # Auftragsbestätigung (Plan 29.10.2026 1c): im Layout des Angebots, mit Bestellnummer und Liefertermin
-        menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf())
+        fa = self.funktion_aktionen = []          # (Aktion, Funktion): ausgeblendet, wenn die Funktion aus ist
+        fa.append((menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf()), "funktion_ab"))
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
         # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
-        menue.addAction("Etiketten mit QR-Code (PDF) …", lambda: self.etiketten_pdf())
+        fa.append((menue.addAction("Etiketten mit QR-Code (PDF) …", lambda: self.etiketten_pdf()), "funktion_etiketten"))
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
         menue.aboutToShow.connect(lambda: self.palettenschein_aktion.setVisible(self.f.versand_an()))
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
+        fa.append((self.anfrage_aktion, "funktion_materialanfrage"))
         # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
         self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())
         menue.aboutToShow.connect(lambda: self.lager_aktion.setVisible(self.f.lager_an()))
@@ -1891,15 +1895,18 @@ class AngebotSeite(QWidget):
         self.fertigung_aktion = menue.addAction("Fertigungsstatus …", lambda: self.f.fertigung_zeigen(self.id))
         menue.aboutToShow.connect(lambda: self.fertigung_aktion.setVisible(self.f.fertigung_an()))
         # Material-/Fertigungsvarianten mit Zielgröße (varianten.py)
-        menue.addAction("Varianten vergleichen …", lambda: self.varianten_vergleichen())
+        fa.append((menue.addAction("Varianten vergleichen …", lambda: self.varianten_vergleichen()), "funktion_simulator"))
         # Arbeitsgänge je Position mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.py)
         menue.addAction("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen())
         # Reklamationen je Auftrag/Position mit Kosten in der Nachkalkulation (Plan 29.10.2026 2c)
         self.reklamation_aktion = menue.addAction("Reklamation erfassen …", lambda: self.reklamation_erfassen())
+        fa.append((self.reklamation_aktion, "funktion_reklamation"))
         menue.aboutToShow.connect(lambda: self.reklamation_aktion.setEnabled(
             (self.db.angebot(self.id) or {}).get("vorgang") == "Beauftragt" and not self.fremd()))
-        menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
-        menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
+        fa.append((menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id)),  # Plan A9
+                   "funktion_nachfassen"))
+        fa.append((menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id)),
+                   "funktion_nachfassen"))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
         csv = menue.addMenu("CSV-Export")
         csv.setToolTipsVisible(True)
@@ -1910,7 +1917,10 @@ class AngebotSeite(QWidget):
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("Ordner öffnen", lambda: self.f.angebot_ordner_oeffnen(self.kopf))):
-            menue.addAction(text, lambda ziel=ziel: ziel())
+            a = menue.addAction(text, lambda ziel=ziel: ziel())
+            if text == "Schweißnaht …":
+                fa.append((a, "funktion_schweissen"))
+        menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an(n)) for a, n in self.funktion_aktionen])
         self.weitere.setMenu(menue)
         leiste.addWidget(self.weitere)
 
@@ -2227,6 +2237,15 @@ class AngebotSeite(QWidget):
         lay.addWidget(self.spalten, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()
+        self.funktionen_anwenden()
+
+    def funktionen_anwenden(self):
+        """Funktionen ein/aus (funktionen.py): Knöpfe Zukaufteile und Fracht berechnen, Reiter Nachkalkulation.
+        Menüeinträge prüfen beim Öffnen selbst. Hat das Angebot schon Zukaufteile, bleibt der Knopf."""
+        zukauf = funktionen.an("funktion_zukauf") or any(ist_zukaufteil(p) for p in getattr(self, "positionen", ()))
+        self.zukauf_knopf.setVisible(zukauf)
+        self.kopf_bereich.fracht_knopf.setVisible(funktionen.an("funktion_fracht"))
+        self.reiter.setTabVisible(self.reiter.indexOf(self._nachkalk), funktionen.an("funktion_nachkalkulation"))
 
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
@@ -2999,7 +3018,9 @@ class AngebotSeite(QWidget):
             if self.f.stumm:
                 typ = LEER
             else:
-                d = TypDialog(self, pdf=self.db.einstellung("pdf_zeichnung") == "ja")
+                d = TypDialog(self, pdf=self.db.einstellung("pdf_zeichnung") == "ja",
+                              ohne=[t for t, n in ((BLECH, "funktion_blech"), (ZUKAUF, "funktion_zukauf"),
+                                                   (SCHWEISS, "funktion_schweissen")) if not funktionen.an(n)])
                 if d.exec() != QDialog.Accepted or not d.typ:
                     return None
                 typ = d.typ
@@ -3668,6 +3689,10 @@ class AngebotSeite(QWidget):
                 sichtbar = mit_virtuell
             elif text == "Für markierte setzen …":
                 sichtbar = len(zeilen) > 1 and "rohr" in arten
+            elif text == "Muster an/aus" and not funktionen.an("funktion_muster"):
+                sichtbar = any(ist_muster(self.positionen[r]) for r in zeilen)     # vorhandene Muster zurücknehmen
+            elif text == "Schweißnaht …" and not funktionen.an("funktion_schweissen"):
+                sichtbar = False
             a.setVisible(sichtbar)
         return [t for t, a in self.pos_aktionen.items() if a.isVisible()]
 
