@@ -280,12 +280,15 @@ OBERFLAECHEN = Tabelle(
     "oberflaechen", "Oberflächen",
     (Feld("oberflaeche", "Oberfläche", pflicht=True, breite=120),
      Feld("kategorie", "Kategorie (leer = alle)", "auswahl", auswahl="kategorie", breite=110),
-     Feld("aufpreis_m", "Aufpreis [€/m]", "zahl", 0, 10000, stellen=2, breite=80),
+     Feld("aufpreis_m", "Aufpreis [€ je Basis]", "zahl", 0, 10000, stellen=2, breite=80),
      Feld("angebotstext", "Text im Angebot", breite=160),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Bemerkung", breite=260),
+     # Plan Abrechnungsregeln 28.10.2026 (Schritt 1): Basis des Aufpreises, leer = €/m wie bisher
+     Feld("aufpreis_basis", "Aufpreis je", "auswahl", auswahl="aufpreisbasis", breite=70)),
     ("oberflaeche",),
     "Oberfläche des Rohmaterials, je Position wählbar (leer = roh). Teile mit unterschiedlicher Oberfläche "
-    "kommen nie auf dieselbe Stange. Der Aufpreis je m kommt auf den Materialpreis der Stange; ein "
+    "kommen nie auf dieselbe Stange. Der Aufpreis kommt auf den Materialpreis der Stange (mit Verschnitt), je "
+    "nach 'Aufpreis je' in €/m (leer, wie bisher), €/kg (× Metergewicht) oder €/m² (× Umfang); ein "
     "abweichender Materialpreis in der Position ersetzt Preis und Aufpreis. Kategorie: für welche Werkstoffe "
     "die Oberfläche passt (sonst Warnung im Angebot).")
 
@@ -410,6 +413,16 @@ GEWINDE = Tabelle(
     "Tabelle (±0,05 mm). In der Kalkulation zählt nur der Preis je Gewinde (€ je Stück); in 'Bohrungen prüfen' "
     "lässt er sich je Position ändern. Ohne Preis rechnet das Gewinde mit 0 € (Warnung).")
 
+def _pruefung_zusatz(z, k):
+    from .zusatz_regeln import pruefung_zusatz
+    return pruefung_zusatz(z, k)
+
+
+def _pruefung_regel(z, k):
+    from .zusatz_regeln import pruefung
+    return pruefung(z, k)
+
+
 ZUSATZARBEITEN = Tabelle(
     "zusatzarbeiten", "Zusatzarbeiten",
     (Feld("name", "Zusatzarbeit", pflicht=True, breite=160),
@@ -431,7 +444,11 @@ ZUSATZARBEITEN = Tabelle(
      Feld("zuschlag_material", "Materialzuschlag", "zahl", 0, 100000, stellen=2, breite=80),
      Feld("zuschlag_material_art", "Materialzuschlag in", "auswahl", auswahl="zuschlagart", breite=60),
      Feld("zuschlag_weitere", "Weiterer Zuschlag [%]", "zahl", 0, 1000, stellen=2, breite=80),
-     Feld("zuschlag_weitere_basis", "Weiterer Zuschlag auf", "auswahl", auswahl="zuschlagbasis", breite=110)),
+     Feld("zuschlag_weitere_basis", "Weiterer Zuschlag auf", "auswahl", auswahl="zuschlagbasis", breite=110),
+     # Plan Abrechnungsregeln 28.10.2026 (leer = wie bisher): Menge aus (Bezug), Faktor, Mindestbetrag je Teil
+     Feld("bezug", "Menge aus", "auswahl", auswahl="regelmenge", breite=120),
+     Feld("faktor", "Faktor Menge", "zahl", 0.01, 100, stellen=3, breite=70),
+     Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90)),
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
     "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
@@ -439,7 +456,12 @@ ZUSATZARBEITEN = Tabelle(
     "Teil, im Angebot je Position eingetragen, × Stundensatz, z. B. Schweißen). Preis je Einheit = "
     "Festpreis + Zeitaufwand × Stundensatz + Material mit Materialzuschlag + weiterer Zuschlag. Mindestbetrag: "
     "liegt die Summe im Angebot darunter, wird auf den Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag "
-    "Fremdleistung, sonst Zuschlag Fertigung.")
+    "Fremdleistung, sonst Zuschlag Fertigung. Menge aus: leer = nach der Abrechnung, sonst z. B. Innen- + "
+    "Außenfläche (Strahlen, Verzinken innen) oder Anzahl Bohrungen; Faktor: Menge × Faktor (z. B. 1,05 für "
+    "Gehänge); Mindestbetrag je Teil: ein Teil kostet mindestens diesen Betrag. Abweichende Preise je Werkstoff, "
+    "Profil oder Kunde und automatisches Zuordnen: Arbeitsgang-Regeln. Gewinde, Senken, Flowdrill und Bohren "
+    "rechnen nur € je Stück.",
+    pruefung=_pruefung_zusatz)
 
 STUNDENSAETZE = Tabelle(
     "stundensaetze", "Stundensätze",
@@ -540,7 +562,7 @@ PRUEFREGELN = Tabelle(
 # dazu Heftpunkte. Neue Dateien bekommen die Tabellen leer; 'Richtwerte laden' (baugruppe.richtwerte) trägt
 # hergeleitete Richtwerte mit Status 'Richtwert' ein, die die Kalkulation als HINWEIS kennzeichnet.
 NAHTARTEN = ("Kehlnaht", "Stumpfnaht", "Ecknaht")
-SCHWEISS_FAKTORARTEN = ("Schweißlage", "Zugänglichkeit", "Qualität")
+SCHWEISS_FAKTORARTEN = ("Schweißlage", "Zugänglichkeit", "Qualität", "Werkstoff")    # Werkstoff: Plan 28.10.2026
 KENNWERT_STATUS = ("Richtwert", "geprüft")
 
 SCHWEISSVERFAHREN = Tabelle(
@@ -588,13 +610,16 @@ SCHWEISS_FAKTOREN = Tabelle(
      Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
      Feld("bemerkung", "Bemerkung", breite=260)),
     ("art", "wert"),
-    "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit "
-    "und Qualitätsanforderung. Leer bzw. nicht gefunden = Faktor 1.")
+    "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit, "
+    "Qualitätsanforderung und Werkstoff (Kategorie der Teile: Stahl, Edelstahl, Aluminium, Buntmetall). Leer bzw. "
+    "nicht gefunden = Faktor 1.")
 
 # Vorkalkulation der Schweißbaugruppe (Plan Vorkalkulation, Patrick 24.10.2026 „alles a außer 8b“, vorkalk.py):
 # Regelwerte für Rüsten, Positionieren je Positionierhilfe, Heften, Wenden und Nacharbeit; neue Dateien leer,
 # 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
-SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit")
+SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit",
+                       "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
+                       "Heftzeit", "Mehrlagig")                       # Plan 28.10.2026, Schritt 5
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -611,8 +636,10 @@ SCHWEISS_REGELN = Tabelle(
     "Regeln der Vorkalkulation im Baugruppen-Editor (Knopf 'Vorkalkulation rechnen'): Rüsten einmalig je Auftrag = "
     "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
     "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
-    "Heftpunkte je Naht = größer von Mindestzahl und Nahtlänge ÷ Heftabstand (nach kleinerer Wanddicke, gesteckt × "
-    "Faktor); Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe. Das Ergebnis sind "
+    "Heftpunkte je Naht = größer von Mindestzahl und aufrunden(Nahtlänge ÷ Heftabstand) + 1 für die Enden (nach "
+    "kleinerer Wanddicke, gesteckt bzw. Edelstahl/Aluminium × Faktor; rundum ohne + 1, mindestens Umfang ÷ Umfang je "
+    "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
+    "Edelstahl, Richten (viel Naht je kg bei dünner Wand) und Sichtprüfung in min je m Naht. Das Ergebnis sind "
     "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
 
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
@@ -644,12 +671,16 @@ IMPORTPROFILE = Tabelle(
 # Oberfläche, Kunde, Stichwort und Merkmal der Position schlagen eine Zusatzarbeit vor; gerechnet wird sie erst, wenn
 # sie im Angebot angenommen ist (dann steht sie mit Preisstand in den Zusatzarbeiten der Position)
 REGEL_MERKMALE = ("immer", "Gewinde", "Bohrungen", "Innenkonturen", "Schräges Ende", "Zukaufteil",
-                  "Schweißbaugruppe")
-REGEL_MENGEN = ("automatisch", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen")
+                  "Schweißbaugruppe", "Rohr/Profil", "Blech")
+REGEL_MENGEN = ("automatisch", "Innen- + Außenfläche", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen")
+# Plan Abrechnungsregeln 28.10.2026: Zuordnung der Regel (leer = Vorschlag wie bisher), siehe zusatz_regeln.py
+REGEL_ZUORDNUNGEN = ("Vorschlag", "automatisch", "nur Preis")
+AUFPREIS_BASEN = ("€/m", "€/kg", "€/m²")
 ARBEITSGANG_REGELN = Tabelle(
     "arbeitsgang_regeln", "Arbeitsgang-Regeln",
     (Feld("name", "Regel", pflicht=True, breite=150),
-     Feld("zusatzarbeit", "Vorgeschlagene Zusatzarbeit", pflicht=True, breite=150),
+     Feld("zusatzarbeit", "Zusatzarbeit", pflicht=True, breite=150),
+     Feld("zuordnung", "Zuordnung", "auswahl", auswahl="regelzuordnung", breite=95),
      Feld("merkmal", "Wenn Merkmal", "auswahl", auswahl="regelmerkmal", breite=110),
      Feld("stichwort", "Stichwörter in Bezeichnung/Artikel (; getrennt)", breite=170),
      Feld("profilform", "Profilform", "auswahl", auswahl="profilform", breite=100),
@@ -660,14 +691,28 @@ ARBEITSGANG_REGELN = Tabelle(
      Feld("min_stueck", "ab Stückzahl", "ganz", 0, 1000000, breite=70),
      Feld("menge_art", "Menge je Teil", "auswahl", auswahl="regelmenge", breite=120),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
-     Feld("bemerkung", "Bemerkung", breite=200)),
+     Feld("bemerkung", "Bemerkung", breite=200),
+     # Plan Abrechnungsregeln 28.10.2026 (leer = wie die Zusatzarbeit): Abmessung, Preis, Faktor, Mindest je Teil
+     Feld("a_von", "Abmessung von [mm]", "zahl", 0, 100000, stellen=1, breite=75),
+     Feld("a_bis", "Abmessung bis [mm]", "zahl", 0, 100000, stellen=1, breite=75),
+     Feld("art", "Abrechnung (leer = wie Zusatzarbeit)", "auswahl", auswahl="zusatzart", breite=90),
+     Feld("preis", "Preis je Einheit [€] (leer = wie Zusatzarbeit)", "zahl", 0, 100000, stellen=2, breite=95),
+     Feld("faktor", "Faktor Menge", "zahl", 0.01, 100, stellen=3, breite=70),
+     Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90)),
     ("name",),
     "Regeln für „Arbeitsgänge vorschlagen …“ im Angebot: Trifft eine Position alle ausgefüllten Bedingungen "
     "(leer = egal; Stichwörter: eines genügt, Groß-/Kleinschreibung egal), schlägt das Programm die Zusatzarbeit vor. "
     "Ein Vorschlag kostet nichts, bis er im Angebot angenommen ist; dann steht er mit Preisstand und Herkunft "
     "„Regel: …“ in den Zusatzarbeiten der Position. Abgelehnte Vorschläge merkt sich die Position. Menge je Teil: "
-    "automatisch = wie in den Zusatzarbeiten (kg, m², m bzw. 1 Stück), sonst die Anzahl Gewinde, Bohrungen oder "
-    "Innenkonturen des Teils.")
+    "automatisch = wie in den Zusatzarbeiten (kg, m², m bzw. 1 Stück), sonst Innen- + Außenfläche oder die Anzahl "
+    "Gewinde, Bohrungen oder Innenkonturen des Teils. Zuordnung: Vorschlag (leer, wie bisher), automatisch (die "
+    "Zusatzarbeit gilt ohne Klick, gelb markiert „automatisch“, abwählbar in „Arbeitsgänge vorschlagen …“) oder "
+    "nur Preis (ordnet nichts zu). Abrechnung, Preis je Einheit, Faktor und Mindestbetrag je Teil gelten für die "
+    "Zusatzarbeit an jeder passenden Position, gleich wie sie dorthin kam (leer = wie die Zusatzarbeit); "
+    "Abmessung = größtes Außenmaß des Profils (Ø, Höhe oder Breite). Passen mehrere Regeln, gewinnt die genaueste "
+    "(meiste Bedingungen), bei Gleichstand die obere. Beispiel: Strahlen Stahl 0,35 €/kg, Edelstahl 0,55 €/kg. "
+    "Gewinde, Senken, Flowdrill und Bohren rechnen immer € je Stück.",
+    pruefung=_pruefung_regel)
 
 
 # Plan Arbeitsabläufe W2 (Freigabe F3b): Vorgaben je Kunde für den Angebotskopf, getrennt von den Importprofilen;
@@ -757,6 +802,12 @@ FLACH_ALS = ("Blech", "Flachstahl bis Breite (Einstellung darunter)")
 # Kundenmaterial: keine Materialkosten, eigene Stangengruppe, Bearbeitung wie sonst
 EIGENMATERIAL, KUNDENMATERIAL = "Eigenmaterial", "Kunde beigestellt"
 MATERIAL_HERKUNFT = (EIGENMATERIAL, KUNDENMATERIAL)
+# Musterkosten im Angebot (angebot.KOPF 'muster_darstellung'): leer = auf die Serie umlegen (Patrick 28.10.2026, F1 a)
+MUSTER_UMLEGEN, MUSTER_ZEILE = "auf die Serie umlegen", "eigene Zeile Musterkosten"
+MUSTER_DARSTELLUNG = (MUSTER_UMLEGEN, MUSTER_ZEILE)
+# Löschschutz der Angebote (Patrick 28.10.2026): einmal optimierte Angebote lassen sich nicht mehr löschen (Admin schon)
+LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND = "aus", "immer", "nur von Hand"
+LOESCHSCHUTZ = (LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND)
 
 
 # ------------------------------------------------------------------ Einstellungen
@@ -821,6 +872,13 @@ EINSTELLUNGEN = (
     # im Angebots-PDF: Hinweis, welche Stangen der Kunde beistellen muss
     Einstellung("beistellung_hinweis", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf", "Angebots-PDF",
                 "auswahl", "ja", auswahl="janein"),
+    # Musterteile (Patrick 28.10.2026, F6 a): Hinweis im Angebots-PDF, was die Muster ohne Serienbestellung kosten;
+    # {betrag} = Musterkosten netto, {datum} = Angebotsdatum + Frist, {pos} = Positionen der Muster. Leer = kein Hinweis
+    Einstellung("muster_hinweis", "Angebots-PDF: Hinweis zu Musterteilen (leer = keiner)", "Angebots-PDF", "mehrzeilig",
+                "Die Muster (Pos. {pos}) sind im Serienpreis enthalten. Wird bis {datum} keine Serie bestellt, "
+                "berechnen wir die Muster mit {betrag} € netto."),
+    Einstellung("muster_frist", "Angebots-PDF: Frist für die Serienbestellung nach Musterlieferung [Tage]",
+                "Angebots-PDF", "ganz", 90, 0, 3650),
     Einstellung("mindestpreis", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)", "Kalkulation", "zahl", 200.0, 0,
                 1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
@@ -897,6 +955,8 @@ EINSTELLUNGEN = (
     # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
     Einstellung("schweiss_a_regel", "Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)",
                 "Schweißbaugruppen", "zahl", 0.7, 0.1, 2),
+    Einstellung("schweiss_a_min", "Schweißbaugruppen: a-Maß-Regel mindestens [mm] (EN 1993-1-8: 3 mm, höchstens die "
+                "dünnere Wand; 0 = aus)", "Schweißbaugruppen", "zahl", 3.0, 0, 10),
     # Spalt zwischen zwei Teilen (Patrick 26.10.2026): bis step_naht_spalt noch Naht und Gravur aus dem STEP, über
     # schweiss_spalt_max eine Warnung „Konstruktion prüfen“
     Einstellung("step_naht_spalt", "STEP-Import: Spalt zwischen zwei Teilen bis [mm] gilt noch als Schweißstoß (Naht "
@@ -989,6 +1049,10 @@ EINSTELLUNGEN = (
     Einstellung("lieferzeit_wert", "Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, KW/Jahr oder Datum)",
                 "Angebot", "text", ""),
     Einstellung("lieferzeit_zusatz", "Lieferzeit neuer Angebote: Freitext", "Angebot", "text", "nach Absprache"),
+    # Patrick 28.10.2026: einmal optimierte Angebote nicht mehr löschbar (Positionen schon; der Admin darf löschen).
+    # Vorgabe aus; „von Hand“ zählt nur F9/Optimieren, nicht das automatische Optimieren der Entwürfe
+    Einstellung("loeschschutz", "Löschschutz: optimierte Angebote nicht löschbar (immer = auch automatisch "
+                "optimierte)", "Angebot", "auswahl", LOESCHSCHUTZ_AUS, auswahl="loeschschutz"),
     # Plan Arbeitsabläufe W1: Entwürfe bis zu so vielen Positionen nach jeder Änderung selbst optimieren
     Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
                 100, 0, 10000),
@@ -1031,6 +1095,9 @@ EINSTELLUNGEN = (
                 ""),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
+    # Archiv alter Angebote (archiv.py, Vorschlag 5b 28.10.2026): Angebote älter als so viele volle Jahre
+    Einstellung("archiv_jahre", "Archiv: archivierbar ab Alter in Jahren",
+                "Ablage", "ganz", 2, 1, 20),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(PROFILFORMEN)),
     Einstellung("kategorien", "Werkstoff-Kategorien (eine je Zeile)", "Auswahllisten", "mehrzeilig",
@@ -1114,6 +1181,14 @@ EINSTELLUNGEN = (
     Einstellung("benutzer_email", "E-Mail (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),
+    Einstellung("teilen_takt", "Automatischer Abgleich alle [min] (0 = aus)", "Benutzer", "zahl", 2.0, 0, 60),
+    # Was zusätzlich im gemeinsamen Ordner liegt (Patrick 28.10.2026 „Alle“); gilt für alle Mitarbeiter
+    Einstellung("teilen_anfragen", "Anfrage-Ordner im gemeinsamen Ordner (wenn oben keiner eingetragen ist)",
+                "Benutzer", "auswahl", "ja", auswahl="janein"),
+    Einstellung("teilen_ablage", "Angebotsordner im gemeinsamen Ordner (PDF, CSV, STEP)",
+                "Benutzer", "auswahl", "ja", auswahl="janein"),
+    Einstellung("teilen_sicherung", "Sicherung beim Beenden auch im gemeinsamen Ordner",
+                "Benutzer", "auswahl", "ja", auswahl="janein"),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 
@@ -1253,9 +1328,10 @@ class Kontext:
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
-                         "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "lieferzeitart": list(LIEFERZEIT_ARTEN),
+                         "loeschschutz": list(LOESCHSCHUTZ), "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
@@ -1264,6 +1340,7 @@ class Kontext:
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
                          "regelmerkmal": list(REGEL_MERKMALE), "regelmenge": list(REGEL_MENGEN),
+                         "regelzuordnung": list(REGEL_ZUORDNUNGEN), "aufpreisbasis": list(AUFPREIS_BASEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
                          "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
                          "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
@@ -1493,7 +1570,7 @@ def beispiel_arbeitsgang_regeln():
             r("Pulver laut Bezeichnung", "Pulverbeschichten", stichwort="pulver;RAL",
               bemerkung="Beispiel: Farbe je Position als Text ergänzen"),
             r("Entgraten bei Innenkonturen", "Entgraten", merkmal="Innenkonturen", aktiv="nein",
-              bemerkung="Beispiel, aus: bei Bedarf aktivieren")]
+              bemerkung="Beispiel, aus: bei Bedarf aktivieren")] + strahl_regeln()
 
 
 def beispiel_blech_werkstoffe():
@@ -1789,7 +1866,7 @@ def beispiel_zusatzarbeiten():
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
         + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
-        + saege_zusatzarbeiten() + stege_zusatzarbeiten()
+        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1842,6 +1919,32 @@ def stege_zusatzarbeiten():
                  preis=STEGE_PREIS, fremd="nein", angebotstext="Stege abgetrennt und entgratet",
                  bemerkung="Preis je Teil: Stege 2 mm an Ende A und B (virtuelles Bauteil) abtrennen und entgraten",
                  kategorie="Nachbearbeitung", aktiv="ja")]
+
+
+# Strahlen (Patrick 28.10.2026, Plan Abrechnungsregeln): der Strahler rechnet nach Gewicht, also € je kg Fertigteil
+ZUSATZ_STRAHLEN = "Strahlen"
+
+
+def strahl_zusatzarbeiten():
+    """Vorbelegung Strahlen: € je kg Teilegewicht (ohne Verschnitt), Fremdleistung. Beispielpreis, bitte anpassen;
+    Preise je Werkstoff über die Arbeitsgang-Regeln (Beispielregeln, aus)."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_STRAHLEN, art="€/kg", preis=0.40,
+                 mindest=60.0, fremd="ja", angebotstext="gestrahlt",
+                 bemerkung="Beispielpreis; Strahler rechnet nach Gewicht der fertigen Teile. Preise je Werkstoff: "
+                           "Arbeitsgang-Regeln", kategorie="Oberfläche", aktiv="ja")]
+
+
+def strahl_regeln():
+    """Beispielregeln Strahlen (aus): Preis je Werkstoff-Kategorie und automatisch nach Stichwort."""
+    def r(name, **w):
+        return dict({f.name: None for f in ARBEITSGANG_REGELN.felder}, **dict(
+            dict(name=name, zusatzarbeit=ZUSATZ_STRAHLEN, aktiv="nein", menge_art="automatisch"), **w))
+    return [r("Strahlen Stahl", zuordnung="nur Preis", kategorie="Stahl", art="€/kg", preis=0.35, mindest_teil=0.50,
+              bemerkung="Beispiel: Preis für Stahl, bei Bedarf aktivieren"),
+            r("Strahlen Edelstahl", zuordnung="nur Preis", kategorie="Edelstahl", art="€/kg", preis=0.55,
+              mindest_teil=0.80, bemerkung="Beispiel: Glasperlstrahlen Edelstahl teurer"),
+            r("Strahlen laut Bezeichnung", zuordnung="automatisch", stichwort="gestrahlt;strahlen;SA 2",
+              bemerkung="Beispiel: Strahlen automatisch, wenn es in Bezeichnung oder Artikel steht")]
 
 
 def knick_zusatzarbeiten():

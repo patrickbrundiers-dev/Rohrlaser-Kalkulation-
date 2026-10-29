@@ -23,7 +23,8 @@ EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalt
 # Schweißbaugruppen: Spalte -> (Feld in ist['baugruppen'][ID] oder None, Titel); Ist-Spalten und Grund editierbar
 BG_SPALTEN = [(None, "Baugruppe")] + [x for n, titel, e, _ in nk.BG_FELDER
                                       for x in ((None, f"{titel} Soll [{e}]"), (n, f"{titel} Ist [{e}]"))] + [
-    ("grund", "Abweichungsgrund"), (None, "Schweißen Soll [min/m Naht]"), (None, "Schweißen Ist [min/m Naht]")]
+    ("grund", "Abweichungsgrund"), (None, "Schweißen Soll [min/m Naht]"), (None, "Schweißen Ist [min/m Naht]")] + [
+    x for n, titel, *_ in nk.BG_TEILE for x in ((None, f"{titel} Soll [h]"), (n, f"{titel} Ist [h]"))]
 
 
 def _z(w, stellen=2):
@@ -201,6 +202,10 @@ class NachkalkulationSeite(QWidget):
                 urteil[len(texte) - 1] = nk.bewertung(sw, e.get(n))
             texte += [b["grund"], _z(b["soll_min_m"], 2), _z(b["ist_min_m"], 2)]
             urteil[len(texte) - 1] = nk.bewertung(b["soll_min_m"], b["ist_min_m"])
+            for n, *_ in nk.BG_TEILE:       # davon Rüsten, Positionieren, Verputzen (Lernen der Vorkalkulation)
+                sw = (soll[b["id"]].get("teile") or {}).get(n)
+                texte += [_z(sw, 2), "" if e.get(n) is None else _z(e.get(n), 2)]
+                urteil[len(texte) - 1] = nk.bewertung(sw, e.get(n))
             verlauf = self._verlauf(vorlagen.get(b["id"]))
             for c, (feld, _) in enumerate(BG_SPALTEN):
                 it = QTableWidgetItem(texte[c])

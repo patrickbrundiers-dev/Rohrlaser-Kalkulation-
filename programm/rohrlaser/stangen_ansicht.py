@@ -13,7 +13,7 @@ Farben je Position wie im Stangenbild (stil.TEIL_FARBEN), Rest grau, Greiferrest
 hervorgehobenes Teil orange. Die Abwicklung rechnet stangen_abwicklung.py.
 """
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import QColor, QCursor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy,
                                QStackedWidget, QToolTip, QVBoxLayout, QWidget)
 
@@ -69,7 +69,7 @@ def gruppen(stangen):
         kopf = (f"{s['profil']} · {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))} · "
                 f"{' / '.join(_z(x, 0) for x in laengen)} mm · {len(st)} {'Stange' if len(st) == 1 else 'Stangen'}"
                 f" · Ausnutzung {_z(100 * summe / gesamt, 1) if gesamt else '–'} %"
-                + (" · Kundenmaterial" if s.get("beistellung") else ""))
+                + (" · Kundenmaterial" if s.get("beistellung") else "") + (" · MUSTER (eigener Lauf)" if s.get("muster") else ""))
         liste.append((kopf, st))
     return liste
 
@@ -102,6 +102,7 @@ class StangenUebersicht(QWidget):
     ZEILE, KOPF, LINKS, RECHTS = 16, 24, 44, 52
     WARTEN_MS = 1000        # so lange auf einer Stange, dann das Fenster mit den Stangendetails (StangenPopup);
                             # warten() = Sekunden aus der Einstellung stangenbild_popup (0 = aus), None = WARTEN_MS
+    ZU_MS = 400             # Maus so lange weg von den Stangen: Popup schließt (Lücken zwischen den Zeilen überbrücken)
     gewaehlt = Signal(int)
     vorgewaehlt = Signal(int)
     klick = Signal(str)
@@ -119,7 +120,7 @@ class StangenUebersicht(QWidget):
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
         self.setToolTip("Klick: Stange im Detail · Doppelklick auf ein Teil: zur Position · Pfeiltasten: blättern · "
-                        "Maus 1 Sekunde auf einer Stange: Details (Esc schließt)")
+                        "Maus 1 Sekunde auf einer Stange: Details (andere Stange: wechselt, Maus weg: schließt)")
         self.popup = StangenPopup(self)
         self.popup.daten = self._popup_daten
         self.popup.doppelklick.connect(self.doppelklick)
@@ -127,6 +128,11 @@ class StangenUebersicht(QWidget):
         self.uhr.setSingleShot(True)
         self.uhr.setInterval(self.WARTEN_MS)
         self.uhr.timeout.connect(self.popup_zeigen)
+        # Maus weg von den Stangen (und nicht im Popup): Popup schließt nach ZU_MS von selbst (Patrick 28.10.2026)
+        self.zu_uhr = QTimer(self)
+        self.zu_uhr.setSingleShot(True)
+        self.zu_uhr.setInterval(self.ZU_MS)
+        self.zu_uhr.timeout.connect(self._zu_pruefen)
         self._ueber, self._maus = None, QPoint()
 
     def setzen(self, stangen, farben=None, werte=None):
@@ -184,17 +190,35 @@ class StangenUebersicht(QWidget):
             self.doppelklick.emit(t["ref"])
 
     def mouseMoveEvent(self, ereignis):
-        """Maus auf einer Stange: nach WARTEN_MS das Fenster mit den Stangendetails; auf einer anderen Stange neu."""
+        """Maus auf einer Stange: nach WARTEN_MS das Fenster mit den Stangendetails. Ist es offen, zeigt es sofort die
+        Stange unter der Maus; weg von den Stangen schließt es nach ZU_MS (Patrick 28.10.2026: nicht erst mit Esc)."""
         s, _ = self._bei(_punkt(ereignis))
         nr = s["nr"] if s is not None else None
         self._maus = _punkt(ereignis).toPoint()
+        if nr is not None:
+            self.zu_uhr.stop()
+        elif self.popup.isVisible():
+            self.zu_uhr.start()
         if nr != self._ueber:
             self._ueber = nr
             self.uhr.stop()
             ms = self.wartezeit()
-            if nr is not None and ms > 0 and not (self.popup.isVisible() and self.popup.nr == nr):
+            if nr is not None and self.popup.isVisible():
+                if self.popup.nr != nr:
+                    self.popup_zeigen(nr)           # offen: gleich die andere Stange
+            elif nr is not None and ms > 0:
                 self.uhr.start(ms)
         super().mouseMoveEvent(ereignis)
+
+    def _zu_pruefen(self):
+        """Popup schließen, wenn die Maus weder auf einer Stange noch im Popup ist."""
+        pos = QCursor.pos()
+        if not self.popup.isVisible() or self.popup.frameGeometry().contains(pos):
+            return
+        s, _ = self._bei(QPointF(self.mapFromGlobal(pos))) if self.rect().contains(self.mapFromGlobal(pos)) \
+            else (None, None)
+        if s is None:
+            self.popup_schliessen()
 
     def wartezeit(self):
         """Millisekunden bis zum Detail-Fenster (0 = aus); ohne oder mit ungültiger Einstellung WARTEN_MS."""
@@ -207,6 +231,8 @@ class StangenUebersicht(QWidget):
     def leaveEvent(self, ereignis):
         self._ueber = None
         self.uhr.stop()
+        if self.popup.isVisible():
+            self.zu_uhr.start()
         super().leaveEvent(ereignis)
 
     def hideEvent(self, ereignis):
@@ -235,6 +261,7 @@ class StangenUebersicht(QWidget):
 
     def popup_schliessen(self):
         self.uhr.stop()
+        self.zu_uhr.stop()
         self.popup.hide()
         self.popup.nr = None
 
@@ -613,7 +640,8 @@ class StangenDetail(QWidget):
         if k["gewicht"] is not None:
             teile.append(f"Gewicht {_z(k['gewicht'], 1)} kg")
         if k["kosten"] is not None:
-            teile.append("Kundenmaterial" if s.get("beistellung") else f"Material {_z(k['kosten'])} €")
+            teile.append("Kundenmaterial" if s.get("beistellung") else f"Material {_z(k['kosten'])} €"
+                         + (" (nur belegte Länge, Muster)" if s.get("muster") else ""))
         teile.append(f"gemeinsame Schnitte {k['gemeinsam']}")
         if rechnen.gehrung_gespart(s) > 0:
             teile.append(f"Gehrungen ineinander {_z(rechnen.gehrung_gespart(s), 1)} mm gespart")
@@ -644,7 +672,8 @@ class StangenDetail(QWidget):
 class StangenPopup(QFrame):
     """Kleines Fenster mit der Detail-Ansicht einer Stange (Übersicht, Maus 1 Sekunde auf der Stange; Patrick
     26.10.2026 „das meinte ich als Detail“): Kennzahlen, Stangenbild, Teile als Kacheln und Abwicklung wie die Ansicht
-    Detail, mit eigenem Blättern. Esc schließt. Signal doppelklick(ref)."""
+    Detail, mit eigenem Blättern. Maus auf eine andere Stange: wechselt, Maus weg von Stangen und Popup oder Esc:
+    schließt. Signal doppelklick(ref)."""
     BREITE, HOEHE = 760, 560
     doppelklick = Signal(str)
 
@@ -662,7 +691,8 @@ class StangenPopup(QFrame):
         rolle.setFrameShape(QFrame.NoFrame)
         rolle.setWidget(self.detail)
         lay.addWidget(rolle, 1)
-        hinweis = QLabel("Esc: schließen · Klick in der Übersicht: Stange in der Ansicht Detail")
+        hinweis = QLabel("Maus auf eine andere Stange: wechselt · Maus weg: schließt · Esc: schließen · Klick in der "
+                         "Übersicht: Stange in der Ansicht Detail")
         hinweis.setStyleSheet(f"color: {stil.TEXT_GRAU};")
         lay.addWidget(hinweis)
         self.resize(self.BREITE, self.HOEHE)
@@ -691,6 +721,13 @@ class StangenPopup(QFrame):
             self.nr = None
             return
         super().keyPressEvent(ereignis)
+
+    def leaveEvent(self, ereignis):
+        """Maus verlässt das Popup: schließt, wenn sie nicht wieder auf eine Stange geht (StangenUebersicht.zu_uhr)."""
+        zu = getattr(self.parent(), "zu_uhr", None)
+        if zu is not None:
+            zu.start()
+        super().leaveEvent(ereignis)
 
 
 class StangenSeite(QWidget):

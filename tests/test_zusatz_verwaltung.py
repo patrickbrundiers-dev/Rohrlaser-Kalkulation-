@@ -81,7 +81,7 @@ assert f.bereich.unter.currentWidget() is s and s.titel == "Zusatzarbeiten"
 f.zeigen(next(x for x in f.seiten if x.t.name == "zusatzarbeiten"))     # alter Weg (Anleitung) zeigt die neue Seite
 assert f.bereich.unter.currentWidget() is s
 n0 = len(db.zeilen("zusatzarbeiten"))
-assert len(s.sichtbar) == n0 == 13
+assert len(s.sichtbar) == n0 == 14     # mit Strahlen (28.10.2026)
 
 # 1) Neue Zusatzarbeit anlegen
 fo = s.neu()
@@ -339,7 +339,7 @@ s.suche.setText("verzink")
 assert {x["name"] for x in s.sichtbar} == {"Feuerverzinken", "Galvanisch verzinken"}
 s.suche.clear()
 s.kat_filter.setCurrentText("Oberfläche")
-assert {x["kategorie"] for x in s.sichtbar} == {"Oberfläche"} and len(s.sichtbar) == 3
+assert {x["kategorie"] for x in s.sichtbar} == {"Oberfläche"} and len(s.sichtbar) == 4     # mit Strahlen
 s.kat_filter.setCurrentText("Alle")
 s.sortierung.setCurrentText("Preis")
 preise = [x["_preis"]["preis"] for x in s.sichtbar if x["art"] != "s/Stück"]

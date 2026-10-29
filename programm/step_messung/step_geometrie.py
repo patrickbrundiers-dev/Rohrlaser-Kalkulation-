@@ -28,6 +28,7 @@ Annahmen:
   (der Laser schneidet jede Wand einmal), siehe _offen_konturen.
 """
 import math
+import time
 from dataclasses import dataclass, field
 
 from OCP.STEPControl import STEPControl_Reader
@@ -3861,6 +3862,8 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
                       laenge_mm=round(laenge, 1), stossart=stossart,
                       dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
                       linien=zuege[laengen.index(max(laengen))])
+            if len(dicken) == 2:          # dickere Wand für das Mindest-a √t − 0,5 (STEP-JSON 1.22)
+                k_["dicke_max_mm"] = round(max(dicken), 2)
             if spalt:
                 k_["spalt_mm"] = round(spalt, 2)
             if durch is not None and not ea and not eb:
@@ -3874,6 +3877,127 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
                     k_["stoss"] = st
             out.append(k_)
     return out
+
+
+ERREICH_WEG = 150.0         # mm: so weit muss der Brenner vom Nahtpunkt aus frei sein (Brennerlänge, Plan V3)
+ERREICH_START = 0.5         # mm: Strahl beginnt so weit vom Nahtpunkt (Berührung der Teile selbst zählt nicht)
+ERREICH_NAH = 5.0           # mm: Nahtbereich; die beiden Teile der Naht sperren erst ab hier (Brennerabstand)
+ERREICH_RICHTUNGEN = 48     # Brennerrichtungen je Nahtpunkt (gleichmäßig auf der Kugel)
+ERREICH_PUNKTE = 6          # Nahtpunkte je Kandidat (entlang des Nahtverlaufs)
+ERREICH_GUT = 6             # freie Richtungen je Punkt ab hier: Zugänglichkeit gut (Raum für den Brennerwinkel)
+ERREICH_SEITE = 0.1         # Richtung zählt für eine Lage, wenn sie etwas von oben kommt (unten liegt der Tisch)
+ERREICH_ZEIT = 20.0         # s: danach keine weiteren Kandidaten prüfen (große Baugruppen), Feld fehlt dann
+ERREICH_STUFE_MAX = 60.0    # s: Auswertungen über die Baugruppe samt Erreichbarkeit (Zeitlimit je Körper 120 s)
+SEITEN = (("+Z", (0, 0, 1)), ("-Z", (0, 0, -1)), ("+X", (1, 0, 0)), ("-X", (-1, 0, 0)), ("+Y", (0, 1, 0)),
+          ("-Y", (0, -1, 0)))
+
+
+def _kugel_richtungen(n=ERREICH_RICHTUNGEN):
+    """n Einheitsvektoren gleichmäßig auf der Kugel (Fibonacci), nie genau entlang einer Achse."""
+    out, g = [], math.pi * (3 - math.sqrt(5))
+    for i in range(n):
+        z = 1 - (2 * i + 1) / n
+        r = math.sqrt(max(0.0, 1 - z * z))
+        out.append((r * math.cos(g * i + 0.3), r * math.sin(g * i + 0.3), z))
+    return out
+
+
+def _naht_punkte(linien, n=ERREICH_PUNKTE):
+    """n Punkte gleichmäßig entlang der Linienzüge eines Kandidaten (nicht an den Enden)."""
+    stuecke = []
+    for z in linien or ():
+        pk = [tuple(z[i:i + 3]) for i in range(0, len(z) - 2, 3)]
+        stuecke += [(a, b, math.dist(a, b)) for a, b in zip(pk, pk[1:]) if math.dist(a, b) > 1e-9]
+    gesamt = sum(x[2] for x in stuecke)
+    if not gesamt:
+        return []
+    out, s, i = [], 0.0, 0
+    for k in range(n):
+        ziel = gesamt * (k + 0.5) / n
+        while i < len(stuecke) - 1 and s + stuecke[i][2] < ziel:
+            s += stuecke[i][2]
+            i += 1
+        a, b, lg = stuecke[i]
+        t = min(1.0, max(0.0, (ziel - s) / lg))
+        out.append(tuple(a[j] + (b[j] - a[j]) * t for j in range(3)))
+    return out
+
+
+def _erreichbarkeit(naehte, teile, koerper, stand=None, zeit=ERREICH_ZEIT):
+    """Erreichbarkeit je Nahtkandidat für den Schweißbrenner (Plan Schweißbaugruppen 28.10.2026, Schritt 4 = V3):
+    an ERREICH_PUNKTE Punkten des Nahtverlaufs je ERREICH_RICHTUNGEN Strahlen bis ERREICH_WEG gegen alle Körper der
+    Baugruppe. Die beiden Teile der Naht sperren eine Richtung erst ab ERREICH_NAH (dort darf der Strahl nicht in
+    ihrem Material liegen, sonst gesperrt), alle anderen ab ERREICH_START.
+    Setzt je Kandidat "zugang" = gut (jeder Punkt mindestens ERREICH_GUT freie Richtungen), eingeschränkt (jeder
+    Punkt frei, aber enger), schlecht (ein Teil der Punkte ohne freie Richtung), nicht erreichbar (kein Punkt frei),
+    "erreichbar" (Anteil freier Punkte) und "seiten" = je freiem Punkt die Lagen (+Z, -Z, +X …: diese Achse zeigt
+    nach oben), in denen er eine freie Richtung von oben oder seitlich hat (nicht von unten, dort liegt der Tisch);
+    daraus rechnet das Programm die Wendevorgänge (baugruppe.wenden_aus_step). Nur Vorschlag;
+    nach zeit Sekunden (höchstens ERREICH_ZEIT) fehlen die Felder bei den übrigen Kandidaten
+    (stand["erreichbar_vollstaendig"] = False)."""
+    from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
+    from OCP.gp import gp_Lin
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    koerper_, nummer = [], {}
+    for t, (art, k) in zip(teile, koerper):
+        if art != "Flächenmodell offen" and t.koerper:
+            b = Bnd_Box()
+            BRepBndLib.Add_s(k, b, False)
+            nummer[t.koerper] = len(koerper_)
+            koerper_.append((k, b))
+    if not naehte or len(koerper_) < 2:
+        return
+    schnitt = {}
+
+    def frei(i, p, d, eigen):
+        k, b = koerper_[i]
+        lin = gp_Lin(gp_Pnt(*p), gp_Dir(*d))
+        if b.IsOut(lin):
+            return True
+        if eigen:
+            q = gp_Pnt(*(p[j] + d[j] * ERREICH_NAH for j in range(3)))
+            if BRepClass3d_SolidClassifier(k, q, 1e-3).State() == TopAbs_IN:
+                return False
+        if i not in schnitt:
+            schnitt[i] = IntCurvesFace_ShapeIntersector()
+            schnitt[i].Load(k, 1e-3)
+        x = schnitt[i]
+        x.PerformNearest(lin, ERREICH_NAH if eigen else ERREICH_START, ERREICH_WEG)
+        return not (x.IsDone() and x.NbPnt() > 0)
+
+    richtungen, start = _kugel_richtungen(), time.monotonic()
+    for k_ in naehte:
+        if time.monotonic() - start > min(zeit, ERREICH_ZEIT):
+            if stand is not None:
+                stand["erreichbar_vollstaendig"] = False
+            return
+        punkte = _naht_punkte(k_.get("linien"))
+        if not punkte:
+            continue
+        frei_je, seiten = [], []
+        eigen = {nummer[n] for n in k_.get("teile") or () if n in nummer}
+        for p in punkte:
+            nah_ = Bnd_Box()
+            nah_.Update(*[v - ERREICH_WEG for v in p], *[v + ERREICH_WEG for v in p])
+            nahe = [i for i, (_, b) in enumerate(koerper_) if not b.IsOut(nah_)]
+            offen = [d for d in richtungen if all(frei(i, p, d, i in eigen) for i in nahe)]
+            frei_je.append(len(offen))
+            if offen:
+                seiten.append([s for s, u in SEITEN if any(sum(a * c for a, c in zip(d, u)) >= ERREICH_SEITE
+                                                            for d in offen)])
+        n_frei = sum(1 for f in frei_je if f)
+        if not n_frei:
+            stufe = "nicht erreichbar"
+        elif n_frei < len(frei_je):
+            stufe = "schlecht"
+        elif min(frei_je) < ERREICH_GUT:
+            stufe = "eingeschränkt"
+        else:
+            stufe = "gut"
+        k_["zugang"] = stufe
+        k_["erreichbar"] = round(n_frei / len(frei_je), 2)
+        k_["seiten"] = seiten
 
 
 def _ohne_naht(teile, koerper, naehte):
@@ -4222,6 +4346,7 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
             out[0].hinweise.append(f"Anbauteile, Verbund und Nahtkandidaten nicht bestimmt: {auslassen[n + 1]}")
         naehte = []
     else:
+        beginn = time.monotonic()
         try:
             _beruehrende_anbauteile(out, koerper, netz, rahmen)
         except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
@@ -4235,6 +4360,10 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
             naehte = _nahtkandidaten(out, koerper, info.get("struktur"), rahmen, stand)
         except Exception:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
             naehte, stand["vollstaendig"] = [], False
+        try:
+            _erreichbarkeit(naehte, out, koerper, stand, ERREICH_STUFE_MAX - (time.monotonic() - beginn))
+        except Exception:  # Erreichbarkeit ist ein Vorschlag: nie die Messung verhindern
+            pass
         if stand["vollstaendig"] and out:
             out[0].ohne_naht = _ohne_naht(out, koerper, naehte)
     for t in out:

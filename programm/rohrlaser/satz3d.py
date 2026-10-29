@@ -27,6 +27,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
                                QVBoxLayout, QWidget)
 
 from . import schneidweg as sw, steckverbindung, tastatur
+from .angebot import ist_muster
+from .muster_haken import MusterHaken
 from .angebot import ist_baugruppe
 from .baugruppe_dialog import (FEHLER_FARBE, AuswahlEditor, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
                                _text, teile_markieren)
@@ -109,6 +111,12 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                       "im 3D: Menü.")
         kopf.setWordWrap(True)
         lay.addWidget(kopf)
+        # Musterteil (Patrick 28.10.2026): in allen Editoren gleich; hier für alle Teile des Satzes
+        self.muster_haken = MusterHaken(dict(muster="ja") if self.teile and all(
+            ist_muster(t["_q"]) for t in self.teile) else None)
+        self.muster_haken.setText("Satz als Muster")
+        self.muster_haken.setEnabled(not nur_lesen)
+        lay.addWidget(self.muster_haken)
         teilung = QSplitter(Qt.Horizontal)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
@@ -321,7 +329,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, verbindungen)
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
                     teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
-                    daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]))
+                    daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]),
+                    **self.muster_haken.geaendert())
 
     def _ok(self):
         if self.nur_lesen:

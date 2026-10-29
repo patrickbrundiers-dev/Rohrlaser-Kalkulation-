@@ -98,29 +98,51 @@ def stand(db):
 
 def suchen(db, angebot_id, kundennr, positionen):
     """{Positions-ID: [Treffer, bester zuerst]} für die Positionen eines Angebots; nur Positionen mit Treffern."""
-    import json
+    return auswerten(laden(db, angebot_id, positionen), kundennr, positionen)
+
+
+def laden(db, angebot_id, positionen):
+    """Mögliche Treffer aus der Datendatei (schnell, über Indizes): Positionen anderer Angebote mit gleicher
+    Artikelnummer oder mit gleicher Abmessung und Länge ± LAENGE_TOL. Ergebnis: Zeilen für auswerten().
+    Die Datenbank filtert nur grob vor, entschieden wird in einstufen() (Prüfung Datenbank bei vielen Angeboten)."""
     kandidaten = [p for p in positionen if _txt(p.get("artikel")) or _txt(p.get("profil_id"))]
     if not kandidaten:
-        return {}
+        return []
     artikel = sorted({_txt(p.get("artikel")).casefold() for p in kandidaten if _txt(p.get("artikel"))})
-    profile = sorted({_txt(p.get("profil_id")) for p in kandidaten if _txt(p.get("profil_id"))})
     bedingung, werte = [], []
     if artikel:
         bedingung.append(f"LOWER(TRIM(p.artikel)) IN ({', '.join('?' * len(artikel))})")
         werte += artikel
-    if profile:
-        bedingung.append(f"p.profil_id IN ({', '.join('?' * len(profile))})")
-        werte += profile
+    geometrie = sorted({(roh, _zahl(p.get("laenge"))) for p in kandidaten
+                        for roh in {p.get("profil_id"), _txt(p.get("profil_id"))}
+                        if _txt(p.get("profil_id")) and _zahl(p.get("laenge")) is not None}, key=repr)
+    for profil, laenge in geometrie:
+        bedingung.append("(p.profil_id = ? AND p.laenge BETWEEN ? AND ?)")
+        werte += [profil, laenge - LAENGE_TOL - 1e-9, laenge + LAENGE_TOL + 1e-9]
+    if not bedingung:
+        return []
     spalten = ", ".join(f'p."{f}"' for f in FELDER)
     sql = (f"SELECT {spalten}, a.nummer AS _nummer, a.kunde AS _kunde, a.kundennr AS _kundennr, a.datum AS _datum, "
            "a.vorgang AS _vorgang, a.fremd AS _fremd, a.staffelpreise AS _sp, a.nachkalkulation IS NOT NULL AS _nk "
            f"FROM positionen p JOIN angebote a ON a.id = p.angebot_id WHERE p.angebot_id != ? AND ({' OR '.join(bedingung)})")
-    zeilen = [dict(r) for r in db.con.execute(sql, [angebot_id] + werte)]
+    return [dict(r) for r in db.con.execute(sql, [angebot_id] + werte)]
+
+
+def auswerten(zeilen, kundennr, positionen):
+    """Treffer aus den Zeilen von laden() einstufen (ohne Datenbank, darf in einem eigenen Thread laufen)."""
+    import json
+    kandidaten = [p for p in positionen if _txt(p.get("artikel")) or _txt(p.get("profil_id"))]
     staffeln = {}
     aus = {}
+    nach_artikel, nach_profil = {}, {}          # nur Zeilen vergleichen, die überhaupt passen können
+    for i, z in enumerate(zeilen):
+        nach_artikel.setdefault(_txt(z.get("artikel")).casefold(), []).append(i)
+        nach_profil.setdefault(_txt(z.get("profil_id")), []).append(i)
     for p in kandidaten:
         liste = []
-        for z in zeilen:
+        art_p, profil_p = _txt(p.get("artikel")).casefold(), _txt(p.get("profil_id"))
+        moegliche = set(nach_artikel.get(art_p, ()) if art_p else ()) | set(nach_profil.get(profil_p, ()) if profil_p else ())
+        for z in (zeilen[i] for i in sorted(moegliche)):
             art = einstufen(p, z, kundennr, z["_kundennr"])
             if art is None:
                 continue

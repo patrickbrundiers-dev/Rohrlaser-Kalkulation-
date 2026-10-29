@@ -16,10 +16,11 @@ bleibt die der Zusatzarbeiten. Abgelehnte Vorschläge stehen in positionen.arbei
 import json
 
 from . import rechnen, zukauf
+from . import zusatz_regeln as zr
 from .angebot import ist_baugruppe, ist_zukaufteil, kein_laserteil
-from .bohrbild import bohrungen_lesen
 
 IM_ANGEBOT, VORSCHLAG, ABGELEHNT, ZU_PRUEFEN = "im Angebot", "Vorschlag", "abgelehnt", "zu prüfen"
+AUTOMATISCH = "automatisch"     # Regel mit Zuordnung automatisch: wird gerechnet, abwählbar (Ablehnen)
 FERTIGUNG, FREMD, ZUKAUF = "Fertigung", "Fremdleistung", "Zukauf"
 QUELLE = "Regel: "
 
@@ -35,58 +36,9 @@ def lesen(p):
     return d
 
 
-def _stichworte(text):
-    return [w.strip().lower() for w in str(text or "").split(";") if w.strip()]
-
-
-def anzahl_gewinde(p, gewinde):
-    return sum(rechnen.gewinde_anzahl(p.get("gewinde"), gewinde).values()) if p.get("gewinde") else 0.0
-
-
-def anzahl_bohrungen(p):
-    return float(sum(n for _, n in bohrungen_lesen(p.get("bohrungen"))))
-
-
-def anzahl_innen(p):
-    return float(sum(int(p.get(n) or 0) for n in ("klein_n", "mittel_n", "gross_n")))
-
-
-def _merkmal(merkmal, p, gewinde):
-    if merkmal in (None, "", "immer"):
-        return True
-    return {"Gewinde": lambda: anzahl_gewinde(p, gewinde) > 0 or bool(p.get("gewinde_vorschlag")),
-            "Bohrungen": lambda: anzahl_bohrungen(p) > 0,
-            "Innenkonturen": lambda: anzahl_innen(p) > 0 or float(p.get("innen") or 0) > 0,
-            "Schräges Ende": lambda: not kein_laserteil(p) and "nein" in (p.get("a_gerade"), p.get("b_gerade")),
-            "Zukaufteil": lambda: ist_zukaufteil(p),
-            "Schweißbaugruppe": lambda: ist_baugruppe(p)}.get(merkmal, lambda: False)()
-
-
-def trifft(regel, p, kopf, k, gewinde):
-    """True, wenn die Position alle ausgefüllten Bedingungen der Regel erfüllt (leer = egal)."""
-    if regel.get("aktiv") == "nein" or not regel.get("zusatzarbeit"):
-        return False
-    pr = k.profile.get(p.get("profil_id")) or {}
-    proben = (("profilform", pr.get("form")), ("kategorie", rechnen.kategorie(p.get("werkstoff_id"), k)),
-              ("werkstoff_id", p.get("werkstoff_id")), ("oberflaeche", p.get("oberflaeche")),
-              ("kundennr", (kopf or {}).get("kundennr")))
-    if any(regel.get(n) not in (None, "") and regel[n] != wert for n, wert in proben):
-        return False
-    if regel.get("min_stueck") and float(p.get("stueck") or 0) < float(regel["min_stueck"]):
-        return False
-    worte = _stichworte(regel.get("stichwort"))
-    if worte:
-        text = " ".join(str(p.get(n) or "") for n in ("bezeichnung", "artikel")).lower()
-        if not any(w in text for w in worte):
-            return False
-    return _merkmal(regel.get("merkmal"), p, gewinde)
-
-
-def regel_menge(regel, p, gewinde):
-    """Menge je Teil für die Zusatzarbeit: None = automatisch (wie Zusatzarbeiten), sonst die gezählte Anzahl."""
-    art = regel.get("menge_art") or "automatisch"
-    return {"Anzahl Gewinde": lambda: anzahl_gewinde(p, gewinde), "Anzahl Bohrungen": lambda: anzahl_bohrungen(p),
-            "Anzahl Innenkonturen": lambda: anzahl_innen(p)}.get(art, lambda: None)()
+# Bedingungen und Mengen stehen in zusatz_regeln.py (auch für Preisregeln und automatische Zusatzarbeiten)
+anzahl_gewinde, anzahl_bohrungen, anzahl_innen = zr.anzahl_gewinde, zr.anzahl_bohrungen, zr.anzahl_innen
+trifft, regel_menge = zr.trifft, zr.regel_menge
 
 
 def _zeile(p, arbeitsgang, status, kostenart, herkunft, menge=None, einheit="", zeit=0.0, betrag=None, regeln=()):
@@ -118,36 +70,37 @@ def position(p, kopf, k, tabellen, regeln):
         out.append(_zeile(p, f"Gewinde {p['gewinde_vorschlag']}", ZU_PRUEFEN, FERTIGUNG,
                           "Kernloch im STEP (in „Bohrungen prüfen“ bestätigen)"))
     vorhanden = set()
-    for z, e in zip(rechnen.zusatz_werte(p, k, tabellen), [e for e in rechnen.zusatz_liste(p)
-                                                          if _bekannt(e, tabellen)]):
+    for z in rechnen.zusatz_werte(p, k, tabellen, kopf):
         vorhanden.add(z["name"])
-        out.append(_zeile(p, z["name"], IM_ANGEBOT, FREMD if z["fremd"] else FERTIGUNG,
-                          e.get("quelle") or "Zusatzarbeiten", z["menge"], z["einheit"], z["arbeit_s"],
-                          z["betrag"] + z["pauschal"]))
+        herkunft = (z["quelle"] or "Zusatzarbeiten") + (f" · Preis: Regel {z['regel']}" if z["regel"] and
+                                                       not z["auto"] else "")
+        out.append(_zeile(p, z["name"], AUTOMATISCH if z["auto"] else IM_ANGEBOT, FREMD if z["fremd"] else FERTIGUNG,
+                          herkunft, z["menge"], z["einheit"], z["arbeit_s"], z["betrag"] + z["pauschal"],
+                          [z["regel"]] if z["auto"] and z["regel"] else ()))
     vorhanden |= {e["name"] for e in rechnen.zusatz_liste(p)}
     abgelehnt = set(lesen(p)["abgelehnt"])
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
     vorschlaege = {}
     for r in regeln or ():
         name = r.get("zusatzarbeit")
-        if name in vorhanden or name not in katalog or katalog[name].get("aktiv") == "nein" \
-                or not trifft(r, p, kopf, k, gewinde):
+        if zr.zuordnung(r) == zr.NUR_PREIS or name in vorhanden or name not in katalog \
+                or katalog[name].get("aktiv") == "nein" or not trifft(r, p, kopf, k, gewinde):
+            continue
+        # automatisch und nicht abgewählt steht schon oben; abgewählt bleibt als abgelehnt sichtbar
+        if zr.zuordnung(r) == zr.AUTOMATISCH and name not in abgelehnt:
             continue
         vorschlaege.setdefault(name, []).append(r)
     for name, rs in vorschlaege.items():
         menge = regel_menge(rs[0], p, gewinde)
-        probe = dict(p, zusatz=json.dumps([eintrag(name, rs[0], menge, katalog, tabellen)], ensure_ascii=False))
-        z = (rechnen.zusatz_werte(probe, k, tabellen) or [None])[0]
+        probe = dict(p, zusatz=json.dumps([eintrag(name, rs[0], menge, katalog, tabellen)], ensure_ascii=False),
+                     arbeitsgaenge=None)
+        z = (rechnen.zusatz_werte(probe, k, dict(tabellen, arbeitsgang_regeln=[r for r in tabellen.get(
+            "arbeitsgang_regeln") or () if zr.zuordnung(r) != zr.AUTOMATISCH]), kopf) or [None])[0]
         out.append(_zeile(p, name, ABGELEHNT if name in abgelehnt else VORSCHLAG,
                           FREMD if katalog[name].get("fremd") == "ja" else FERTIGUNG,
                           ", ".join(QUELLE + r["name"] for r in rs), z and z["menge"], z and z["einheit"] or "",
                           z["arbeit_s"] if z else 0.0, z and (z["betrag"] + z["pauschal"]), [r["name"] for r in rs]))
     return out
-
-
-def _bekannt(e, tabellen):
-    """Eintrag, den rechnen.zusatz_werte rechnet (Preisstand oder Name in den Stammdaten)."""
-    return isinstance(e.get("stand"), dict) or e["name"] in {z.get("name") for z in tabellen.get("zusatzarbeiten") or ()}
 
 
 def uebersicht(kopf, positionen, k, tabellen, regeln):
@@ -186,9 +139,11 @@ def ablehnen(p, name, zurueck=False):
 
 
 def summen(zeilen):
-    """{Kostenart: € je Teil} der gerechneten Zeilen (im Angebot) und der offenen Vorschläge getrennt."""
+    """{Kostenart: € je Teil} der gerechneten Zeilen (im Angebot, auch automatische) und der offenen Vorschläge
+    getrennt."""
     out = {IM_ANGEBOT: {}, VORSCHLAG: {}}
     for z in zeilen:
-        if z["status"] in out and isinstance(z["betrag"], (int, float)):
-            out[z["status"]][z["kostenart"]] = out[z["status"]].get(z["kostenart"], 0.0) + z["betrag"]
+        st = IM_ANGEBOT if z["status"] == AUTOMATISCH else z["status"]
+        if st in out and isinstance(z["betrag"], (int, float)):
+            out[st][z["kostenart"]] = out[st].get(z["kostenart"], 0.0) + z["betrag"]
     return out

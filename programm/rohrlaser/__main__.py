@@ -390,7 +390,7 @@ def main(argv=None):
         while True:
             try:
                 db = Datenbank(o.datei)
-                db.sicherung_heute()
+                sicherung = db.sicherung_heute(hintergrund=True)     # große Datei: Start wartet nicht darauf
                 if getattr(sys, "frozen", False):
                     orte.merken(o)      # damit eine neue Kopie des Programms diese Daten findet
                 break
@@ -409,6 +409,8 @@ def main(argv=None):
             protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen (ohne Admin-Rechte weiter):\n" + traceback.format_exc())
         f = Hauptfenster(db, programmordner(), orte=o, lizenz=stelle)
         f.starten()
+        if sicherung is not None:
+            f.sicherung_beobachten(sicherung)
         if absturz is not None:
             protokoll.info("Unterbrochenes Update zurückgenommen" + (": " + "; ".join(absturz) if absturz else ""))
             f.meldung("Ein unterbrochenes Update wurde zurückgenommen, das Programm ist auf dem vorigen Stand."
@@ -419,6 +421,8 @@ def main(argv=None):
                       fehler=a.nach_update != "ok")
         code = app.exec()
         ausstehend = f.updater.ausstehend
+        if sicherung is not None:
+            sicherung.warten()          # tägliche Sicherung zu Ende schreiben, nie halb liegen lassen
         db.schliessen()
     finally:
         sperre.freigeben()

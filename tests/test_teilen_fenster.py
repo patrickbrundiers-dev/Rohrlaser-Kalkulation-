@@ -75,7 +75,7 @@ if shutil.which("pdftotext"):                         # Text prüfen, wo pdftote
     assert "Ansprechpartner" in text and "Patrick Brundiers" in text and "pb@example.com" in text, text[:800]
 ok("eigenes Angebot: Bearbeiter im Kopf (PB – Name), Ansprechpartner mit Telefon und E-Mail für das Angebots-PDF")
 assert teilen_fenster.abgleichen(f_pb) is not None
-assert (gemeinsam / "Rohrlaser_PB.sqlite").exists()
+assert (gemeinsam / "Rohrlaser_PB" / "haupt.sqlite").exists()
 ok("Knopf Abgleichen legt die eigene Datei in den gemeinsamen Ordner")
 
 # ---------------------------------------------------------------- Kollege sieht das Angebot
@@ -84,10 +84,10 @@ for n, w in (("benutzer_name", "Martin K"), ("benutzer_kuerzel", "MK"), ("teilen
     mk.einstellung_setzen(n, w)
 f_mk = Hauptfenster(mk, tmp, stumm=True)
 assert teilen_fenster.abgleichen(f_mk) is None, "erster Abgleich braucht die Rückfrage (stumm: abgebrochen)"
-assert not (gemeinsam / "Rohrlaser_MK.sqlite").exists()
+assert not (gemeinsam / "Rohrlaser_MK" / "haupt.sqlite").exists()
 teilen.lesen(mk, teilen.UEBERNEHMEN)
 b = teilen_fenster.abgleichen(f_mk)
-assert b is not None and (gemeinsam / "Rohrlaser_MK.sqlite").exists()
+assert b is not None and (gemeinsam / "Rohrlaser_MK" / "haupt.sqlite").exists()
 au = f_mk.angebote
 eintraege = [au.wer_filter.itemText(i) for i in range(au.wer_filter.count())]
 assert eintraege == [MEINE, ALLE, "PB"] and au.wer_filter.currentText() == ALLE, eintraege
@@ -95,7 +95,7 @@ spalte = [s[0] for s in au.SPALTEN].index("Bearbeiter")
 zeile = next(r for r in range(au.modell.rowCount()) if au.modell.zeilen[r]["nummer"] == pb.angebot(a1)["nummer"])
 fid = au.modell.zeilen[zeile]["id"]
 idx = au.modell.index(zeile, spalte)
-assert au.modell.data(idx) == "PB" and au.modell.data(idx, Qt.FontRole).italic()
+assert au.modell.data(idx) == "PB ● geöffnet" and au.modell.data(idx, Qt.FontRole).italic(), "PB hat es offen"
 au.wer_filter.setCurrentText(MEINE)
 assert au.modell.rowCount() == 0
 au.wer_filter.setCurrentText("PB")
@@ -138,12 +138,12 @@ ok("Abgleich: offenes Angebot des Kollegen zeigt den neuen Stand, gelöschtes wi
 
 # ---------------------------------------------------------------- Beenden schreibt die eigene Datei
 f_mk.stumm = False
-vorher = teilen.info_lesen(gemeinsam / "Rohrlaser_MK.sqlite")["angebote"]
+vorher = teilen.info_lesen(gemeinsam / "Rohrlaser_MK" / "haupt.sqlite")["angebote"]
 mk.angebot_neu(dict(kunde="noch eins"))
 from rohrlaser import fenster as fenster_modul  # noqa: E402
 fenster_modul.QMessageBox.warning = staticmethod(lambda *a, **k: fenster_modul.QMessageBox.Yes)
 f_mk.db.sicherungen = lambda zusatz=None: ([], None)
 f_mk.close()
-assert teilen.info_lesen(gemeinsam / "Rohrlaser_MK.sqlite")["angebote"] == vorher + 1
+assert teilen.info_lesen(gemeinsam / "Rohrlaser_MK" / "haupt.sqlite")["angebote"] == vorher + 1
 ok("Beenden: eigene Angebote in den gemeinsamen Ordner gelegt")
 print("OK: Oberfläche mehrere Arbeitsplätze")

@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.169", "<b>STEP-Import für typische Laserteile robuster</b> (Testreihe nach Beispielbildern: Profile mit "
+    ["0.9.187", "<b>STEP-Import für typische Laserteile robuster</b> (Testreihe nach Beispielbildern: Profile mit "
                 "Lochbildern auf mehreren Seiten, Kerben, Ausklinkungen, C-Profile, Kantteile): <b>offene Profile</b> "
                 "(U, C, L, Kantprofil) zeigen Ausklinkungen am Ende (auch T-förmig), Kerben im Schenkel und "
                 "V-Ausschnitte mit dem echten Umriss wie in der STEP statt als Kreis; eine breite Kerbe über drei "
@@ -31,6 +31,156 @@ NEUERUNGEN = [
                 "Vorschlag auch nach dem Kern-Ø nach ISO (M8 = 6,647) und für ausmodellierte Gewinde "
                 "([[bohrungen_pruefen]]).",
      "STEP: offene Profile mit echtem Umriss, Senkung durch die Wand, Gewinde nach ISO-Kern-Ø und ausmodelliert."],
+    ["0.9.186", "<b>Fehlende Abmessung gleich anlegen</b>: Steht eine getippte Abmessung (z. B. RE 70x30x3) nicht in "
+                "den Stammdaten, bietet ein Menü unter dem Feld <i>Abmessung … neu anlegen …</i> an – in der "
+                "Schnellzeile, in der Profilspalte und in der Kopfzeile des Rohr-Editors (Neue Position). Das Fenster "
+                "ist aus der Eingabe vorbelegt (Form, Maße, Profil-ID, kg/m), fragt bei C-Profil und Trägern ohne "
+                "Normtabelle die Fläche ab, und die Position wird danach mit der neuen Abmessung angelegt. Kein "
+                "Materialpreis wird geraten ([[abmessung_neu]]).",
+     "Unbekannte Abmessung in Schnellzeile, Profilspalte oder Rohr-Editor: Menü „neu anlegen …“, vorbelegt."],
+    ["0.9.185", "<b>Viele Angebote, Teil 2</b>: <b>Wiederholteile</b> sucht über einen Index nur passende Positionen "
+                "und stuft im Hintergrund ein, das Angebot bleibt auch bei Tausenden Angeboten flüssig "
+                "([[wiederholteile]]). Der Reiter <b>Versand</b> rechnet erst, wenn er gezeigt wird; Aufträge ohne "
+                "Palettenschein, deren Liefertermin über 90 Tage zurückliegt, stehen automatisch unter Archiviert "
+                "([[versand]]). <b>Sicherungen gestaffelt</b>: 7 Tage, 4 Wochen, 12 Monate, vor Updates nur die letzten 3; "
+                "die tägliche Sicherung läuft im Hintergrund, der Schnittplan wird gepackt gespeichert (Datendatei etwa "
+                "40 % kleiner, [[datensicherung]]). Neu: <b>Datei → Alte Angebote archivieren …</b> und <b>Archiv "
+                "durchsuchen …</b>, eine Archivdatei je Jahr, Angebote lassen sich jederzeit zurückholen ([[archiv]]). <b>"
+                "Abgleich mit den Kollegen bei vielen Angeboten schnell</b>: Das Programm packt nur noch Angebote "
+                "neu, die seit dem letzten Abgleich geändert wurden, und legt im gemeinsamen Ordner je Mitarbeiter einen "
+                "Ordner mit einer Datei je Monat an; über das Netz geht nur der geänderte Monat (bei 1.000 Angeboten "
+                "0,1 statt 6,6 Sekunden). Alte Einzeldateien werden weiter gelesen. Bitte alle Arbeitsplätze "
+                "aktualisieren, ältere Programme sehen die neuen Ordner nicht ([[gemeinsamer_ordner]]).",
+     "Viele Angebote: Wiederholteile schneller, Versand-Reiter, gestaffelte Sicherungen, Archiv alter Angebote, Abgleich nur geänderte Angebote je Monat."],
+    ["0.9.184", "<b>Musterteile</b>: Positionen lassen sich als <b>Muster</b> markieren (Spalte <i>Muster</i>, "
+                "Rechtsklick „Muster an/aus“, Häkchen in Rohr-, Blech-, Baugruppen-Editor und Satz in 3D). Muster "
+                "stehen im Angebot mit 0,00 € und dem Vermerk „Muster – im Serienpreis enthalten“; ihre Kosten "
+                "(Selbstkosten mit normalem Gewinn, Zukauf nur mit Aufschlag) werden nach Wert auf die "
+                "Serienpositionen umgelegt, so entsteht nie eine Minusmarge. Muster laufen als eigener Lauf mit "
+                "eigenem Rüsten, Material nach belegter Länge. Je Angebot umschaltbar auf eine eigene Zeile "
+                "„Musterkosten einmalig“ (ohne Serienposition automatisch). Staffelpreise legen die Muster je "
+                "Stufe einmal um; das Angebots-PDF nennt, dass die Muster berechnet werden, wenn keine Serie "
+                "folgt ([[musterteile]]).",
+                "Musterteile: 0 € im Angebot, Kosten auf die Serie umgelegt, keine Minusmarge"],
+    ["0.9.183", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
+                "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
+                "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",
+     "Datendatei: schneller bei vielen Angeboten (Indizes)."],
+    ["0.9.182", "<b>Eigene Abrechnungsregeln für Zusatzarbeiten</b>: Die Arbeitsgang-Regeln setzen jetzt auch, "
+                "<i>wie</i> abgerechnet wird und <i>wann</i> eine Zusatzarbeit automatisch gilt. Je Regel Zuordnung "
+                "(Vorschlag, automatisch, nur Preis), Abrechnung, Preis je Einheit, Menge (z. B. Innen- + "
+                "Außenfläche), Faktor und Mindestbetrag je Teil, neue Bedingungen Abmessung von/bis und Teileart "
+                "Rohr/Profil bzw. Blech; die genaueste Regel gewinnt. Automatische Zusatzarbeiten werden gerechnet, "
+                "stehen gelb mit „(automatisch)“ in Positionsliste und Unterzeilen und lassen sich unter "
+                "„Arbeitsgänge vorschlagen …“ abwählen. Neu vorbelegt: <b>Strahlen</b> nach kg Fertigteil mit drei "
+                "Beispielregeln (aus). Zusatzarbeiten haben neu Menge aus, Faktor und Mindestbetrag je Teil; der "
+                "Aufpreis einer Oberfläche geht auch je kg oder je m². Gewinde, Senken, Flowdrill und Bohren "
+                "bleiben € je Stück; alte und festgeschriebene Angebote rechnen unverändert ([[abrechnungsregeln]]).",
+     "Eigene Abrechnungsregeln: Preis je Werkstoff/Profil, automatisch zuordnen, Strahlen €/kg, Aufpreis je kg."],
+    ["0.9.181", "<b>Mehr im gemeinsamen Ordner</b> ([[gemeinsamer_ordner_mehr]]): <b>Anfragen</b> liegen im Unterordner "
+                "<i>Anfragen</i> (wenn kein eigener Anfrage-Ordner eingetragen ist) und lassen sich mit <i>Zuweisen …</i> "
+                "einem Kollegen geben; alle sehen <i>für MK</i>, beim Kollegen steht sie fett ([[anfragen]]). Neue "
+                "<b>Angebotsordner</b> (PDF, CSV, STEP) entstehen im Unterordner <i>Angebote</i>, so öffnet jeder "
+                "denselben Ordner; ältere bleiben in der eigenen Ablage. <b>Notizen an Kollegen</b> (Vorgang ▾ → "
+                "<i>Notiz an Kollegen …</i>, wahlweise mit Wiedervorlage) stehen auf seiner Startseite unter "
+                "<i>Heute</i> mit <i>Erledigt</i> und <i>Antworten …</i>. Die <b>Sicherung beim Beenden</b> kommt "
+                "zusätzlich nach <i>Sicherungen/Kürzel</i>. Alles einzeln abschaltbar (Einstellungen → Benutzer).",
+     "Anfragen zuweisen, Angebotsordner, Notizen und Sicherung im gemeinsamen Ordner"],
+    ["0.9.180", "<b>Löschschutz für optimierte Angebote</b>: Neue Einstellung <i>Angebot → Löschschutz: optimierte "
+                "Angebote nicht löschbar</i> (Vorgabe aus). <i>immer</i> schützt jedes Angebot, das "
+                "einmal optimiert wurde, <i>nur von Hand</i> nur die von Hand optimierten. "
+                "Geschützte Angebote lassen sich in der Angebotsliste nicht löschen; der Hinweis nennt den Ausweg "
+                "(Vorgang <i>Abgelehnt</i> oder <i>Kopieren</i>). Positionen bleiben löschbar, mit Admin-Rechten "
+                "fragt das Programm nach und löscht trotzdem. Ältere Angebote mit <i>Optimiert am</i> gelten als "
+                "optimiert ([[angebote]]).",
+     "Löschschutz: einmal optimierte Angebote nicht mehr löschbar (Einstellung, Vorgabe aus; Admin darf)."],
+    ["0.9.179", "<b>Mehrere Mails zur selben Anfrage</b>: Mails vom selben Kunden mit derselben Anfrage-Nr. oder "
+                "demselben Betreff (ohne AW:/WG:) innerhalb von 3 Tagen sind eine Anfrage, auch ein Nachtrag ohne "
+                "STEP. Bei verschiedenen Angaben gilt die neueste Mail, die ältere steht als Hinweis im Prüfdialog "
+                "(Stückzahl gelb mit Tooltip). Kommt eine STEP-Datei neu, gilt die neueste Version; die alte bleibt "
+                "als <i>Name (alt)</i> liegen und wird nicht importiert. Ein Nachtrag zu einem schon übernommenen "
+                "Angebot wird auf der Startseite genannt ([[anfrage_mail]]).",
+     "Mehrere Mails je Anfrage: zusammengefasst, neueste gilt, alte STEP als „(alt)“."],
+    ["0.9.178", "<b>Zusammenarbeit über den gemeinsamen Ordner</b>: Das Programm gleicht jetzt <b>alle 2 Minuten "
+                "von selbst</b> ab (nur wenn sich etwas geändert hat; Einstellung <i>Automatischer Abgleich alle [min]</i>), "
+                "rechts in der Statusleiste steht <i>⇄ abgeglichen 14:32</i>. <b>Wer arbeitet woran</b>: hat ein "
+                "Kollege sein Angebot offen, steht <i>● geöffnet</i> hinter seinem Kürzel ([[wer_arbeitet_woran]]). "
+                "Angebote lassen sich <b>an einen Kollegen übergeben</b> (Vorgang ▾, mit Notiz, zurücknehmbar) und "
+                "beim Bearbeiter die <b>Übernahme anfragen</b>; er wird gefragt und kann übergeben oder ablehnen "
+                "([[angebot_uebergeben]]). <b>Konflikte</b> (dieselben Stammdaten bei zwei Kollegen verschieden "
+                "geändert) zeigt <i>Datei → Abgleich-Konflikte …</i>; die verlorene Fassung lässt sich "
+                "wiederherstellen ([[abgleich_konflikte]]).",
+     "Gemeinsamer Ordner: Abgleich alle 2 Minuten, sehen wer woran arbeitet, Angebote übergeben/anfragen, Konflikte"],
+    ["0.9.177", "<b>Schweißbaugruppe: a-Maß, Heftpunkte und Schweißzeit genauer</b>: Die a-Maß-Regel schlägt mindestens "
+                "3 mm und mindestens √(dickere Wand) − 0,5 vor (EN 1993-1-8), nie mehr als die dünnere Wand. Liegt "
+                "ein a-Maß zwischen zwei Kennwertzeilen, rechnet die Schweißzeit den Wert dazwischen (nach a²); dicke "
+                "Nähte werden mehrlagig mit Zeit je Zusatzlage. Heftpunkte zählen beide Enden mit, rundum nach dem "
+                "Umfang, Edelstahl und Aluminium enger; die Heftzeit wächst mit der Wanddicke. Neue Regeln unter "
+                "Einstellungen → Schweiß-Vorkalkulation (Richtwerte laden ergänzt sie) ([[vorkalkulation_baugruppe]]).",
+     "Schweißbaugruppe: a-Maß mit Mindestmaß, Kennwerte dazwischen, mehrlagig, Heftpunkte genauer."],
+    ["0.9.176", "<b>Schweißbaugruppe: Erreichbarkeit der Nähte aus STEP</b>: Die STEP-Messung prüft je Naht, ob der "
+                "Brenner hinkommt (andere Teile im Weg, enge Ecken). Die Vorkalkulation schlägt daraus die "
+                "<b>Zugänglichkeit</b> je Nahtgruppe und die <b>Wendevorgänge</b> vor (gelb, mit Begründung). Nähte, "
+                "die gar nicht erreichbar sind, zeigt das 3D orange, der Status warnt "
+                "([[baugruppe_erreichbar]]).",
+     "Schweißbaugruppe: Zugänglichkeit und Wenden aus der Erreichbarkeit im STEP."],
+    ["0.9.175", "<b>Schweißbaugruppe: Serieneffekt, Rüsten je Los, Lernen der Vorkalkulation</b>: In den Stammdaten der "
+                "Baugruppe senkt ein <b>Serieneffekt</b> (% je Verdopplung, mit Untergrenze) die Zeit für Schweißen "
+                "und eigene Arbeitsgänge je Staffelstufe; die <b>Losgröße</b> lässt Rüstzeiten je Los anfallen "
+                "([[baugruppe_serie]]). Die Nachkalkulation nimmt freiwillig <i>davon Rüsten / Positionieren / "
+                "Verputzen</i> auf, daraus schlägt das Programm Faktoren für die Regeln der Vorkalkulation vor. Die "
+                "Zeiten zeigen Schweißen und Arbeitsgänge getrennt.",
+     "Schweißbaugruppe: Serieneffekt, Rüsten je Los, Vorkalkulation lernt aus der Nachkalkulation."],
+    ["0.9.174", "<b>Schweißbaugruppe: Werkstoff und Nachbehandlung</b>: Nahtgruppen haben die Spalte <b>Werkstoff</b> "
+                "(Faktor auf die Lichtbogenzeit, Richtwert Edelstahl 1,3); die Vorkalkulation schlägt ihn aus den "
+                "Teilen vor. Neu vorgeschlagen werden <i>Beizen / Passivieren</i> bei Edelstahl, <i>Richten</i> bei "
+                "viel Naht je kg und dünner Wand und eine <i>Sichtprüfung</i> – mit Regeln unter Einstellungen → "
+                "Schweiß-Vorkalkulation (Richtwerte laden ergänzt sie) ([[vorkalkulation_baugruppe]]).",
+     "Schweißbaugruppe: Faktor Werkstoff, Vorschläge Beizen, Richten, Sichtprüfung."],
+    ["0.9.173", "<b>Schweißbaugruppe: Mengen aus den Einzelteilen</b>: Arbeitsgänge nach Gewicht, Fläche oder Länge "
+                "(Verzinken €/kg, Pulvern €/m², Prüfen je Teil) rechnen ihre Menge selbst – neue Spalte <b>Menge "
+                "aus</b> mit Gewicht, Oberfläche, Länge, Naht oder Teile; ändert sich ein Teil, ändert sich der Preis "
+                "mit. Über der Tabelle stehen Gewicht, Außenfläche, Nahtlänge und Anzahl Teile je Baugruppe. Das "
+                "Gewicht für das Wenden kommt ohne Eintrag in den Stammdaten aus der Summe der Teile "
+                "([[baugruppe_mengen]]).",
+     "Schweißbaugruppe: Menge aus Gewicht, Oberfläche, Länge, Naht oder Teile automatisch."],
+    ["0.9.172", "<b>E-Mail und Anfrageformular schlauer</b>: Ist der Absender unbekannt, legt das Programm den "
+                "Kunden mit Adresse, Ansprechpartner und Telefon aus Signatur bzw. Formular an – mit der Bemerkung "
+                "<i>Kunde prüfen</i> (bei Abbruch wieder entfernt). Das Anfrageformular wird wie die Mail ausgewertet "
+                "(Lieferzeit, Werkstoff). Robuster: ältere Outlook-Mails nur mit RTF-Text, <i>winmail.dat</i>, "
+                "beschädigte Anhänge. Intelligenter: bei Antworten zählt die neueste Nachricht, Lieferzeit auch als "
+                "Dauer (<i>in 3 Wochen</i>), Kunde über den Firmennamen in der Domain; Hinweise zu Mengenstaffel, "
+                "Zusatzarbeiten und doppelter Anfrage-Nr. ([[anfrage_mail]]). <b>PDF: Zeichnung oder Formular</b>: "
+                "Jede Seite eines PDFs (auch Scans) wird eingeordnet; Zeichnungen liefern nur ihr Schriftfeld "
+                "(Stückzahl, Werkstoff für das passende STEP-Teil, gelb), nie Positionen; die Einordnung lässt sich "
+                "im Prüfdialog umschalten ([[anfragen]]). <b>ZIP-Dateien</b> im Anfrage-Ordner oder aufs "
+                "Programm gezogen werden ausgepackt. Texterkennung bei mehreren Scans deutlich schneller.",
+     "Mail/Formular: neue Kunden („Kunde prüfen“), RTF/winmail.dat; PDF Zeichnung/Formular je Seite; ZIP auspacken."],
+    ["0.9.171", "<b>Artikelnummer aus der STEP-Datei besser</b>: Schreibt das CAD-System eine eigene "
+                "<b>Teilenummer</b> in die STEP-Datei, wird sie die Artikelnummer und die Benennung die Bezeichnung. "
+                "Namen werden bereinigt: CAD-Zusätze (<i>Rohr:1</i>, <i>Teil1&lt;1&gt;</i>), Dateiendungen "
+                "(<i>.SLDPRT</i>), Kopie-Zusätze (<i>Kopie von</i>, <i> - Kopie</i>, <i> (1)</i>) und die "
+                "<b>Revision</b> (<i>_Rev B</i>, <i>_v2</i>, <i>Index C</i>, steht dann in der Bezeichnung) fallen "
+                "weg. CAD-Standardnamen wie <i>Teil1</i>, <i>Part1</i>, <i>Body1</i> gelten wie kein Name (dann der "
+                "Dateiname). Steht eine Nummer im Namen (<i>Strebe links 4711-020</i>), wird sie erkannt. Im "
+                "<b>Prüfdialog</b> zeigt der Tooltip auf dem Teil die Herkunft der Nummer, unsichere Nummern sind "
+                "gelb, und ein Doppelklick ändert die Artikelnummer ([[importprofile]]).",
+     "Artikelnummer aus STEP: Teilenummer, Bereinigung, Revision, Nummer im Namen, im Prüfdialog änderbar"],
+    ["0.9.170", "<b>12-m-Zuschnitt genauer</b>: Für die Werkstücke aus einer 12-m-Stange probiert die Optimierung "
+                "neben Beladelänge und 12 m ÷ 2 … 6 jetzt alle 250 mm ab der nötigen Länge als Obergrenze aus (bis "
+                "300 Teile je Abmessung). Bei gemischten Teilelängen spart das Lieferstangen, z. B. 3 statt 4 "
+                "12-m-Stangen ([[lieferlaengen]]).",
+     "12-m-Zuschnitt: feineres Raster der Werkstücklängen, spart bei gemischten Teilen Stangen."],
+    ["0.9.169", "<b>Teil länger als die Stange</b>: Passt ein Teil nicht auf die 6-m-Stange des Angebots, wohl aber "
+                "auf eine längere Lieferlänge (z. B. 12 m, beim Lieferanten auf Beladelänge zugeschnitten) oder auf "
+                "eine von Hand vorgegebene Stange, zeigt die Position keinen FEHLER mehr. Die Optimierung plant die "
+                "Gruppe dann automatisch mit der günstigsten passenden Lieferlänge, auch bei ausgeschaltetem "
+                "Längenvergleich ([[lieferlaengen]]). Neu im Fenster 12-m-Lösung ansehen: <b>Vorschlag Mischen</b>, "
+                "z. B. 10 × 12 m + 1 × 6 m statt 11 × 12 m, wenn das günstiger ist (nur zum Ansehen, der Schnittplan "
+                "bleibt, nur bei eingeschaltetem Längenvergleich) mit Link <i>Stangenbelegung ansehen …</i>. "
+                "Stangenbild-Übersicht: das Detail-Fenster wechselt mit der Maus auf die nächste Stange und schließt "
+                "von selbst, wenn die Maus die Stangen verlässt ([[stangenbild]]).",
+     "Zu langes Teil ohne FEHLER bei 12 m; Vorschlag 12 m + 6 m; Stangen-Popup folgt der Maus."],
     ["0.9.168", "<b>CSV-Dateien robuster</b>: Der <b>Kunden-Import</b> liest jetzt auch Dateien aus Excel für Mac, "
                 "Unicode-Text (UTF-16), Komma- und Tab-Dateien, <i>sep=;</i> und Titelzeilen, stürzt bei kaputten "
                 "Dateien nicht mehr ab und nennt bei jedem Fehler Zeile und Spalte (Buchstabe und Titel); Export → "
