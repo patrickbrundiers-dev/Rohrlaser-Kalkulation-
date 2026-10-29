@@ -1779,18 +1779,29 @@ class Datenbank:
 
     # -------------------------------------------------------------- Angebote
     @liest
-    def angebote(self, suche=""):
-        """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
+    def angebote(self, suche="", seit=None, dazu=()):
+        """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung.
+        seit (ISO-Datum, Zeitraum der Angebotsliste, Patrick 29.10.2026): nur Angebote mit Datum oder Änderung ab
+        diesem Tag (_im_zeitraum) und dazu die, die trotzdem sichtbar bleiben können (Entwurf/Verschickt wegen der
+        Wiedervorlage, Beauftragt wegen des Versands, mit _schein; dazu: IDs, z. B. geöffnete); die Auswahl trifft
+        AngeboteSeite. Mit Suche: immer alle."""
+        zeitraum = bool(seit) and not suche
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
                "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
-               "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
+               + ("(a.datum >= ? OR a.geaendert >= ?) AS _im_zeitraum, a.palettenschein AS _schein, " if zeitraum else "")
+               + "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
-        werte = []
+        werte = [seit, seit] if zeitraum else []
         if suche:
             sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
                     "OR a.auftragsnr LIKE ? "
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
             werte = [f"%{suche}%"] * 7
+        elif zeitraum:
+            sql += (" WHERE a.datum >= ? OR a.geaendert >= ? OR (COALESCE(a.ersetzt_durch, '') = '' AND "
+                    "COALESCE(NULLIF(a.vorgang, ''), 'Entwurf') IN ('Entwurf', 'Verschickt', 'Beauftragt'))"
+                    + (f" OR a.id IN ({','.join('?' * len(dazu))})" if dazu else ""))
+            werte += [seit, seit, *dazu]
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
         from .nachkalkulation import erfasst
         zeilen = []
@@ -1803,8 +1814,14 @@ class Datenbank:
                 z["versand"] = []
             nk = z.pop("_nk")      # ist_erfasst: echte Ist-Werte (nicht nur eine Bemerkung), Filter Nachkalkulation offen
             z["ist_erfasst"] = bool(nk) and erfasst(json.loads(nk))
+            if zeitraum:
+                z["_im_zeitraum"] = bool(z["_im_zeitraum"])
             zeilen.append(z)
         return zeilen
+
+    @liest
+    def angebote_anzahl(self):
+        return self.con.execute("SELECT COUNT(*) FROM angebote").fetchone()[0]
 
     @liest
     def angebot(self, angebot_id):

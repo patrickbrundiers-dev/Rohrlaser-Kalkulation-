@@ -781,7 +781,18 @@ def kapitel_angebote(i):
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
            "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
+    i.text("<b>Zeitraum</b> rechts neben dem Vorgang: Die Liste zeigt nur Angebote mit Datum oder Änderung in den "
+           "letzten 30, 60, 100, 150 oder 365 Tagen oder <i>Alle</i> (Vorgabe 150 Tage). Die <b>Suche</b> findet "
+           "immer alle Angebote.", kurz=True)
     i.genauer()
+    i.text("<b>Zeitraum</b>: Auch ältere Angebote bleiben sichtbar, wenn eine <i>Wiedervorlage fällig</i> ist "
+           "([[nachfassen]]), wenn ein Auftrag beauftragt und noch nicht versendet ist (wie im Versand unter "
+           "<i>Aktuell</i>) oder wenn das Angebot gerade geöffnet ist. Unter der Liste steht dann z. B. "
+           "<i>123 ältere Angebote ausgeblendet</i>; <b>Alle zeigen</b> stellt den Zeitraum auf <i>Alle</i>. "
+           "Die Vorgabe beim Start steht unter <i>Einstellungen → Angebot → Angebotsliste: Zeitraum</i> ([[vorgaben]]) "
+           "und gilt nur für diesen Arbeitsplatz. Ausgeblendete Angebote bleiben unverändert in der Datenbank, "
+           "werden weiter abgeglichen und gesichert; Jahre zurück entlastet das Archiv ([[archiv]]). Bei sehr "
+           "vielen Angeboten (ab etwa 10.000) lädt die Liste mit Zeitraum spürbar schneller.")
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
            "nicht geöffnet wurden, haben dort noch keinen Wert.",
