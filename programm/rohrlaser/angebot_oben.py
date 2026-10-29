@@ -1374,14 +1374,16 @@ class UebersichtBereich(QWidget):
             elif titel == "Material" or any(sichtbar(betrag[n][1]) for n in namen):     # Material immer
                 zeichen = "" if titel == "Material" else "+ "
                 einzeln = [n for n in namen if sichtbar(betrag[n][1])]
-                if len(namen) == 1:
-                    text = betrag[namen[0]][0]                                  # einzeln mit Mengenangabe
+                if len(namen) == 1 or einzeln == [namen[0]]:
+                    # einzeln mit Mengenangabe; auch eine Gruppe, deren Zusatzposten (z. B. Schneidgas, Schrotterlös)
+                    # 0 sind, ohne Aufklappen
+                    text = betrag[namen[0]][0]
                 elif titel in self.offene_gruppen:
                     text = f"<a href='{titel}' style='color:#1F2937;text-decoration:none'>▾ {titel}</a>"
                 else:
                     text = f"<a href='{titel}' style='color:#1F2937;text-decoration:none'>▸ {titel}</a>"
                 html += f"<tr><td>{zeichen}{text}</td><td align='right'>{_z(gesamt)} €</td></tr>"
-                if len(namen) > 1 and titel in self.offene_gruppen:
+                if len(namen) > 1 and einzeln != [namen[0]] and titel in self.offene_gruppen:
                     for n in einzeln:
                         html += (f"<tr><td style='color:{GRAU};padding-left:14px'>{betrag[n][0]}</td>"
                                  f"<td align='right' style='color:{GRAU}'>{_z(betrag[n][1])} €</td></tr>")
