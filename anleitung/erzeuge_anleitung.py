@@ -7485,12 +7485,16 @@ def kapitel_frachtkosten(i):
            "Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie, bis die Ziel-PLZ neu eingegeben "
            "oder der Haken neu gesetzt wird.")
     i.tabelle(["Zone (Straßen-km ab Versandort)", "1 Palette", "2–3 Paletten je Stück", "4–6 Paletten je Stück"], [
-        ["RW1 bis 200 km", "100,00 €", "85,00 €", "70,00 €"],
+        ["RW0A bis 50 km", "65,00 €", "55,25 €", "45,50 €"],
+        ["RW0B 50–100 km", "80,00 €", "68,00 €", "56,00 €"],
+        ["RW1 100–200 km", "100,00 €", "85,00 €", "70,00 €"],
         ["RW2 200–450 km", "115,00 €", "97,75 €", "80,50 €"],
         ["RW3 450–650 km", "125,00 €", "106,25 €", "87,50 €"],
         ["RW4 über 650 km und RW-INSEL", "140,00 €", "119,00 €", "98,00 €"]], [70, 45, 75, 75])
     i.liste("Die Zone kommt aus den ersten zwei Ziffern der Ziel-PLZ: Entfernung vom Versandort zum Mittelpunkt der "
-            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Bielefeld und Dortmund in RW1, Hamburg, "
+            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Paderborn, Bielefeld (33…) und Herford "
+            "(32…) im Nahbereich RW0A, Lippstadt (59…), Osnabrück (49…) und Münster (48…) in RW0B, Dortmund "
+            "und Hannover in RW1, Hamburg, "
             "Berlin, Frankfurt und Stuttgart in RW2, Dresden und München in RW3. Inseln ohne Brücke (Sylt, Föhr, "
             "Amrum, Pellworm, Halligen, Ostfriesische Inseln, Helgoland, Hiddensee) sind die Zone RW-INSEL.",
             "Mehr als 6 Stellplätze: Teilladung, Preis anfragen (das Programm rechnet nicht still weiter).",
@@ -7499,7 +7503,14 @@ def kapitel_frachtkosten(i):
             "Zuschläge: schwere Palette 40 € je Stellplatz ab 300 kg je Stellplatz, Überlänge (Teile über 2,40 m) "
             "60 €, Inselzuschlag 60 €; nur wenn gewählt: Avisierung 25 €, Hebebühne 40 €, Wartezeit 60 € je Stunde "
             "(Hebebühne und Wartezeit geschätzt). Kein Diesel- und kein Mautzuschlag, beide sind im Preis enthalten.",
-            "Beispiele ab Delbrück: 1 Palette 190 kg nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
+            "<b>Eigene Anlieferung</b> (eigener Lkw oder Transporter, bis 200 km): Versandart <i>Eigene "
+            "Anlieferung</i> im Frachtrechner wählen. Tarif RW-EIGEN: 20 € je Sendung für Laden und Abladen plus "
+            "1,00 € je gefahrenem km (Hin- und Rückfahrt, also 2,00 € je km Entfernung). Die Entfernung trägt man im "
+            "Feld <i>Entfernung [km]</i> ein; leer gilt die typische Entfernung der Zone (RW0A 30 km, RW0B 75 km, "
+            "RW1 150 km). Beispiel 20 km: 20 € + 40 km × 1,00 € = 60 €. Schätzwerte: die eigenen Kosten im Tarif "
+            "RW-EIGEN eintragen. Die automatische Fracht im Angebot nutzt weiter die Versandart aus den "
+            "Einstellungen (Palettenversand).",
+            "Beispiele ab Delbrück: 1 Palette 190 kg nach Paderborn 65 €, nach Münster 80 €, nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
             "nach Hamburg 155 €; Langgut 6 m mit 500 kg nach Hamburg 353,25 €; Sylt 200 €.",
             "Der Dienstleister SLH (Spedition u. Logistik Haaren, Keimeier u. Finke) ist angelegt; öffentliche "
             "Preise gibt es nicht. Liegt ein Angebot vor, die Preise als eigenen Tarif für SLH eintragen; er gilt "
