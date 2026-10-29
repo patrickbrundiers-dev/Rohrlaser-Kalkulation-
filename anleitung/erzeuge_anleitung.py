@@ -6667,7 +6667,7 @@ def kapitel_stammdaten(i):
             "Programm keine künstliche 6-m-Variante.",
             "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
             "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Stangenlängen zu.")
-    i.abschnitt("Maschinen, Schneiddaten und Gewinde")
+    i.abschnitt("Maschinen, Schneiddaten und Gewinde", marke="maschinen_schneiddaten")
     i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)
     i.text("<b>Maschinen</b>: Stundensatz, Reste, Stangenlänge und Grenzen. <b>Schneiddaten</b>: Vorschub und "
@@ -6762,19 +6762,27 @@ def kapitel_stammdaten(i):
                              "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit. Standard "
                              "seit 0.9.196 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
-           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.19 stammen die Faserlaser-Werte aus "
-           "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "
-           "8.000 mm/min bis 2 mm Wand (Stahl 1 mm 8.000, 2 mm 7.000, 3 mm 4.500 mm/min mit N₂ auf LT7). Mehr "
-           "Leistung hilft erst ab 3 mm: T11 hat bis 2 mm dieselben Werte wie LT7, darüber rund 30 % mehr (z. B. "
-           "Stahl 8 mm mit O₂ 2.100 statt 1.300 mm/min). Die CO₂-Werte sind Schätzwerte. Es sind keine "
-           "Herstellerwerte, bitte mit echten Schnittzeiten der Maschine vergleichen und anpassen. Faserlaser: Stahl "
-           "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
-           "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "
-           "Vorschub mittel ist 60 %, klein 30 % von groß, Vorschub Gravur 3.000 mm/min. Beim ersten Start von "
-           "0.6.19 bekommen unveränderte Richtwert-Zeilen älterer Datendateien die neuen Werte (vorher wird eine "
-           "Sicherung angelegt); von Hand geänderte Zeilen bleiben. Eigene Schneiddaten älterer Datendateien bleiben "
-           "erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche Wandstärke-Stufe und welches "
-           "Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten Wandstärke-Stufe und Schneidgas).")
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.9.201 sind sie mit veröffentlichten "
+           "Schneidtabellen abgeglichen, und die <i>Bemerkung</i> jeder Zeile nennt die Herkunft: <i>GWEIKE Rohr 3 kW "
+           "bzw. 4 kW</i> (Rohr-Schneidtabellen eines Rohrlaser-Herstellers), <i>Hypertherm 3 kW Flachbett</i> "
+           "(Einstechzeiten Edelstahl) oder <i>Schätzung</i>. Trumpf und Adige veröffentlichen keine Vorschubtabellen; "
+           "bitte mit echten Schnittzeiten der Maschine vergleichen und anpassen. Am Rohr begrenzt bei dünnen Wänden "
+           "die Drehachse, darum höchstens 8.000 mm/min bis 2 mm Wand; mehr Leistung hilft erst ab 3 mm (T11 rund "
+           "30 % schneller als LT7). Faserlaser: Stahl mit N₂ bis 4 mm (3 und 4 mm geschätzt: LT7 3.500 / 2.500, T11 "
+           "4.000 / 3.000 mm/min, denn Herstellertabellen schneiden hier bei 3–4 kW mit O₂), darüber O₂; Edelstahl "
+           "und Aluminium mit N₂. Einstechzeit Edelstahl: 0,2 s bis 2 mm, 0,5 s bis 5 mm, 1,0 s bei 6 mm, 1,5 s bei 8 "
+           "mm, 2,0 s bei 10 mm. LT7 hat Zeilen bis Stahl 12 mm, Edelstahl 10 mm, Aluminium 8 mm. T11 endet an der "
+           "Grenze der Trumpf TruLaser Tube 5000 fiber mit 4 kW: Stahl 10 mm, Edelstahl und Aluminium 6 mm, "
+           "Buntmetall 5 mm. Ist eine Wand dicker als die dickste Schneiddaten-Zeile der Maschine für diesen Werkstoff "
+           "bzw. diese Kategorie, zeigt die Position die WARNUNG <i>Wandstärke … über den Schneiddaten</i>: dann eine "
+           "andere Maschine wählen oder die Zeit von Hand eintragen. CO₂-Laser (Schätzwerte): Stahl mit N₂ bis 2 mm, "
+           "darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. Vorschub mittel ist 60 %, "
+           "klein 30 % von groß (Schätzung), Vorschub Gravur 3.000 mm/min. Beim ersten Start einer neuen Fassung "
+           "bekommen unveränderte Richtwert-Zeilen älterer Datendateien die neuen Werte und Bemerkungen, unveränderte "
+           "T11-Zeilen über der Grenze entfallen (vorher wird eine Sicherung angelegt); von Hand geänderte Zeilen "
+           "bleiben. Eigene Schneiddaten gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche "
+           "Wandstärke-Stufe und welches Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten "
+           "Wandstärke-Stufe und Schneidgas).")
     i.text("Die Prüfspalte warnt, wenn ein Vorschub nicht passt: Vorschub mittel oder klein größer als groß, oder "
            "ein höherer Vorschub als bei der nächstdünneren Wandstärke derselben Maschine, desselben Werkstoffs "
            "bzw. derselben Kategorie und desselben Gases. In den Maschinen warnt sie, wenn einer Maschine "

@@ -1855,7 +1855,33 @@ _FASER_3KW[("Buntmetall", "O₂")] = [(1, 4000, 0.2), (1.5, 3000, 0.3), (2, 1800
 _FASER_4KW[("Buntmetall", "N₂")] = [(1, 6000, 0.2), (1.5, 5000, 0.3), (2, 3500, 0.4), (3, 2300, 0.6), (4, 1300, 0.8),
                                    (5, 800, 1.0)]
 _FASER_4KW[("Buntmetall", "O₂")] = [(1, 4000, 0.2), (1.5, 3000, 0.3), (2, 1800, 0.5), (3, 1200, 0.8), (4, 650, 1.2)]
+# Stand 21.10.2026 (0.6.19 bis 0.9.196): unveränderte Zeilen dieser Fassung ersetzt das Update einmalig
+_RICHTWERTE_2110 = {m: {k: list(v) for k, v in t.items()} for m, t in
+                    (("T03", _CO2), ("T11", _FASER_4KW), ("LT7", _FASER_3KW))}
+# Abgleich mit Schneidtabellen 29.10.2026 (Freigabe Patrick „1a 2a 3a 4a 5c“): V1 Stahl N₂ 3–4 mm vorsichtig
+# geschätzt (keine Herstellerwerte bei 3–4 kW, N₂ bleibt bis 4 mm), V2/V3 Edelstahl auf die Untergrenze der GWEIKE-
+# Rohrtabellen, V5 Einstechzeit Edelstahl nach Hypertherm HFL030 (3 kW, Flachbett)
+_VORSCHUB_2910 = {("LT7", "Stahl", "N₂"): {3: 3500, 4: 2500}, ("T11", "Stahl", "N₂"): {3: 4000, 4: 3000},
+                  ("LT7", "Edelstahl", "N₂"): {3: 5000, 4: 4500}, ("T11", "Edelstahl", "N₂"): {6: 2200}}
+EINSTECHEN_EDELSTAHL = {1: 0.2, 1.5: 0.2, 2: 0.2, 3: 0.5, 4: 0.5, 5: 0.5, 6: 1.0, 8: 1.5, 10: 2.0}
+# V4: Trumpf TruLaser Tube 5000 fiber mit TruFiber 4001 (T11) schneidet am Rohr höchstens 10 mm Baustahl, 6 mm
+# Edelstahl und Aluminium, 5 mm Kupfer/Messing (Technische Daten Trumpf); Zeilen darüber entfallen, das Programm
+# warnt dann statt zu rechnen (rechnen.wand_ueber_schneiddaten)
+GRENZE_WAND = {"T11": {"Stahl": 10, "Edelstahl": 6, "Aluminium": 6, "Buntmetall": 5}}
+GRENZE_TEXT = {"T11": "Grenze Trumpf TruLaser Tube 5000 fiber 4 kW"}
+for (_m, _kat, _gas), _neu in _VORSCHUB_2910.items():
+    {"LT7": _FASER_3KW, "T11": _FASER_4KW}[_m][(_kat, _gas)] = [
+        (w, _neu.get(w, v), e) for w, v, e in {"LT7": _FASER_3KW, "T11": _FASER_4KW}[_m][(_kat, _gas)]]
+for _t in (_FASER_3KW, _FASER_4KW):
+    _t[("Edelstahl", "N₂")] = [(w, v, EINSTECHEN_EDELSTAHL.get(w, e)) for w, v, e in _t[("Edelstahl", "N₂")]]
+for _m, _grenzen in GRENZE_WAND.items():
+    _t = {"T11": _FASER_4KW}[_m]
+    for (_kat, _gas), _stufen in list(_t.items()):
+        _t[(_kat, _gas)] = [z for z in _stufen if z[0] <= _grenzen.get(_kat, 1000)]
 RICHTWERTE = {"T03": _CO2, "T11": _FASER_4KW, "LT7": _FASER_3KW}
+# Herkunft je Zeile für die Bemerkung (V6): Wandstärken mit Werten aus den GWEIKE-Rohrtabellen je Leistung
+_GWEIKE = {("Stahl", "N₂"): {3: (1, 1.5, 2), 4: (1, 1.5, 2)}, ("Stahl", "O₂"): {3: (6, 8, 10, 12), 4: (6, 8, 10, 12)},
+           ("Edelstahl", "N₂"): {3: (1, 1.5, 2, 3, 4, 6), 4: (1, 1.5, 2, 3, 4, 6)}}
 # Richtwerte 0.5.13 bis 0.6.18 (Flachbett-Tabellen mit ≈ 40 % Rohrabschlag, T11 = Faser × 1,2); unveränderte Zeilen
 # dieser Fassung ersetzt das Update einmalig (Datenbank._richtwerte_anpassen)
 _ALTE_FAKTOR = {"T03": 1.0, "T11": 1.2, "LT7": 1.0}
@@ -1879,6 +1905,24 @@ _ALTE_RICHTWERTE = {
 GRAVUR = {"Faser": 3000, "CO₂": 3000}
 ALTE_GRAVUR = (15000, 10000)
 RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel: Richtwert CO₂-Laser"}
+
+
+def richtwert_quelle(m, kat, gas, wand):
+    """Herkunft einer Richtwert-Zeile für die Bemerkung (Patrick 29.10.2026, V6): Herstellerwert oder Schätzung."""
+    if LASER.get(m) != "Faser":
+        return "Vorschub: Schätzung; Einstechen: Schätzung"
+    kw = round(LEISTUNG[m])
+    if float(wand) in _GWEIKE.get((kat, gas), {}).get(kw, ()):
+        v = f"GWEIKE Rohr {3 if (kat, gas) == ('Stahl', 'N₂') else kw} kW"    # Stahl N₂ dünn: Drehachse begrenzt
+    elif (kat, gas) == ("Stahl", "N₂"):
+        v = "Schätzung (N₂ bis 4 mm, kein Herstellerwert)"
+    else:
+        v = "Schätzung"
+    e = "Hypertherm 3 kW Flachbett" if kat == "Edelstahl" else "Schätzung"
+    text = f"Vorschub: {v}; Einstechen: {e}"
+    if wand == GRENZE_WAND.get(m, {}).get(kat):
+        text += f"; {GRENZE_TEXT[m]}: bis {zahl_als_text(wand)} mm"
+    return text
 # Zeit je Ecke im Anfangs- und Endschnitt (Patrick 29.10.2026, S2 „nach Wandstärke“): 0,2 s + 0,05 s je mm
 # 'Wandstärke bis' der Zeile (1 mm 0,25 s, 3 mm 0,35 s, 8 mm 0,6 s, 12 mm 0,8 s); bis 0.9.195 leer
 ECKE_GRUND, ECKE_JE_MM = 0.2, 0.05
@@ -1899,8 +1943,15 @@ def beispiel_schneiddaten():
         for (kat, gas), stufen in RICHTWERTE[m].items():
             for wand, v, ein in stufen:
                 out.append((m, None, kat, gas, wand, v, round(v * 0.6, -1), round(v * 0.3, -1), ein, GRAVUR[laser],
-                            text, zeit_ecke(wand)))
+                            f"{text}; {richtwert_quelle(m, kat, gas, wand)}", zeit_ecke(wand)))
     return out
+
+
+def richtwerte_2110():
+    """{(Maschine, Kategorie, Gas, Wandstärke bis): (Vorschub groß, mittel, klein, Einstechzeit)} der Richtwerte
+    0.6.19 bis 0.9.196 (Stand 21.10.2026)."""
+    return {(m, kat, gas, float(wand)): (float(v), float(round(v * 0.6, -1)), float(round(v * 0.3, -1)), float(ein))
+            for m, tab in _RICHTWERTE_2110.items() for (kat, gas), stufen in tab.items() for wand, v, ein in stufen}
 
 
 def alte_richtwerte():
