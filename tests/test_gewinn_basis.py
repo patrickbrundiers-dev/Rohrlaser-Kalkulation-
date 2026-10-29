@@ -58,7 +58,7 @@ with tempfile.TemporaryDirectory() as tmp:
     db.einstellung_setzen("pauschale_abmessung", 22.5)      # Werte unten mit der Pauschale bis 25.10.2026
 
     # 1) Abnahmeangebote mit 25 % Gewinn und 2 % Skonto: neu und alt von Hand nachgerechnet
-    erwartet = {"ABN-01": (475.30, 498.89), "ABN-07": (376.99, 407.60), "ABN-08": (556.00, 591.08)}     # ABN-08 bis 0.9.61 scharfkantig: 555,60 / 590,68; bis 0.9.194 ohne Zeit je Ecke: 555,61 / 590,69
+    erwartet = {"ABN-01": (475.30, 498.89), "ABN-07": (376.99, 407.60), "ABN-08": (556.00, 591.08)}     # ABN-08 bis 0.9.61 scharfkantig: 555,60 / 590,68; bis 0.9.195 ohne Zeit je Ecke: 555,61 / 590,69
     for a in ANGEBOTE:
         kopf = dict({n: a[n] for n in ("kunde", "maschine", "stange")}, skonto=2, gewinn=25)
         _, s_neu = rechne(db, dict(kopf, nummer=a["nummer"] + "-n"), programm_positionen(a))

@@ -50,7 +50,7 @@ from .spaltenbreite import AutoGroesse
 from . import satzgruppen, unterzeilen
 from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
-from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
+from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text
 
 
 def preis_aenderung(vorher, nachher):
@@ -237,6 +237,16 @@ def abgelaufen(z, tage, heute=None):
     return vorgang(z) == "Verschickt" and g is not None and g < (heute or datetime.date.today())
 
 
+def offener_auftrag(z, heute=None):
+    """Beauftragt und noch nicht versendet (wie Versand → Aktuell: nicht archiviert, auch nicht automatisch);
+    bleibt in der Angebotsliste trotz Zeitraum sichtbar."""
+    from . import palettenschein
+    if vorgang(z) != "Beauftragt":
+        return False
+    d = palettenschein.lesen(z.get("_schein"))
+    return not palettenschein.ist_versendet(d) and not palettenschein.archiviert(z, d, heute)
+
+
 def angebot_status(z):
     """'Nachkalkuliert', 'Optimiert', 'Veraltet' oder 'Nicht optimiert'; ohne gemerkten Stand (Angebot seit dem
     Update nicht geöffnet) zählt, ob es ein Optimierungsergebnis gibt."""
@@ -366,6 +376,19 @@ class AngeboteSeite(QWidget):
         self.vorgang_filter.addItems(list(VORGANG_FILTER))
         self.vorgang_filter.setToolTip("Angebote nach Vorgang zeigen; abgelaufen = verschickt und Gültigkeit vorbei")
         self.vorgang_filter.currentTextChanged.connect(self.neu_laden)
+        # Zeitraum (Patrick 29.10.2026): ältere Angebote ausblenden, Vorgabe in den Einstellungen → Angebot
+        self.zeitraum_filter = QComboBox()
+        self.zeitraum_filter.addItems(list(ZEITRAUM))
+        self.zeitraum_filter.setToolTip("Nur Angebote mit Datum oder Änderung in diesem Zeitraum zeigen. Fällige "
+                                        "Wiedervorlagen, nicht versendete Aufträge und geöffnete Angebote bleiben "
+                                        "immer sichtbar, die Suche findet alle.")
+        self._zeitraum_vorgabe = None
+        self.zeitraum_filter.currentTextChanged.connect(self.neu_laden)
+        self.zeitraum_hinweis = QLabel()
+        self.zeitraum_hinweis.setObjectName("kennzahltitel")
+        self.zeitraum_hinweis.setTextFormat(Qt.RichText)
+        self.zeitraum_hinweis.linkActivated.connect(lambda _: self.zeitraum_filter.setCurrentText(ZEITRAUM_ALLE))
+        self.zeitraum_hinweis.hide()
         # Mehrere Arbeitsplätze (teilen.py): eigene Angebote, alle oder die eines Kollegen
         self.wer_filter = QComboBox()
         self.wer_filter.setToolTip("Eigene Angebote, alle oder die eines Kollegen zeigen. Angebote der Kollegen "
@@ -419,11 +442,17 @@ class AngeboteSeite(QWidget):
         leiste.addWidget(self.abgleich_knopf)
         leiste.addSpacing(20)
         leiste.addWidget(self.wer_filter)
+        # schmale Fenster (1024 px): die Auswahlen dürfen schmaler werden als ihr längster Eintrag, damit der
+        # Zeitraum die Mindestbreite des Hauptfensters nicht erhöht
+        self.vorgang_filter.setMinimumWidth(120)
+        self.zeitraum_filter.setMinimumWidth(70)
         leiste.addWidget(self.vorgang_filter)
+        leiste.addWidget(self.zeitraum_filter)
         leiste.addWidget(self.suche, 1)
         lay = QVBoxLayout(self)
         lay.addLayout(leiste)
         lay.addWidget(self.ansicht, 1)
+        lay.addWidget(self.zeitraum_hinweis)
         self.setAcceptDrops(True)
         self.neu_laden()
 
@@ -436,15 +465,24 @@ class AngeboteSeite(QWidget):
         self._such_timer.stop()
         tage = self.db.einstellung("gueltigkeit")
         passt = VORGANG_FILTER.get(self.vorgang_filter.currentText(), VORGANG_FILTER["Alle Angebote"])
-        alle = self.db.angebote(self.suche.text().strip())
+        such = self.suche.text().strip()
+        seit = self._zeitraum_seit()
+        offen = sorted(i for i in (getattr(self.f, "offen", None) or ()) if isinstance(i, int))
+        alle = self.db.angebote(such, seit=seit, dazu=offen)
         wer = self._wer_fuellen(alle)
         from . import cockpit
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
                                                              nachfassen=self.db.einstellung("nachfassen_tage"))}
+        for z in alle:
+            z["_wv"] = faellig.get(id(z))
+        if seit and not such:
+            heute = datetime.date.today()
+            alle = [z for z in alle if z.get("_im_zeitraum") or z["_wv"] or z["id"] in offen
+                    or offener_auftrag(z, heute)]
+        self._zeitraum_hinweis_setzen(self.db.angebote_anzahl() - len(alle) if seit and not such else 0)
         zeilen = []
         geteilt = teilen.aktiv(self.db)
         for z in alle:
-            z["_wv"] = faellig.get(id(z))
             z["_offen"] = teilen.offen_bei(self.db, z.get("nummer")) if geteilt and z.get("fremd") else None
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
             if not passt(vorgang(z), z["_abgelaufen"], z):
@@ -454,6 +492,26 @@ class AngeboteSeite(QWidget):
             zeilen.append(z)
         self.modell.setzen(zeilen)
         self._leere_spalten()
+
+    def _zeitraum_seit(self):
+        """ISO-Datum, ab dem die Liste Angebote zeigt (Auswahl Zeitraum), None = alle. Folgt der Einstellung
+        'angebote_zeitraum', sobald sie sich ändert."""
+        vorgabe = self.db.einstellung("angebote_zeitraum")
+        if vorgabe != self._zeitraum_vorgabe:
+            self._zeitraum_vorgabe = vorgabe
+            if vorgabe in ZEITRAUM:
+                self.zeitraum_filter.blockSignals(True)
+                self.zeitraum_filter.setCurrentText(vorgabe)
+                self.zeitraum_filter.blockSignals(False)
+        tage = ZEITRAUM.get(self.zeitraum_filter.currentText())
+        return (datetime.date.today() - datetime.timedelta(days=tage)).isoformat() if tage else None
+
+    def _zeitraum_hinweis_setzen(self, anzahl):
+        if anzahl > 0:
+            self.zeitraum_hinweis.setText(
+                f"{anzahl:,} ältere Angebote ausgeblendet (Zeitraum {self.zeitraum_filter.currentText()}).".replace(",", ".")
+                + " <a href='alle'>Alle zeigen</a> · Die Suche findet alle.")
+        self.zeitraum_hinweis.setVisible(anzahl > 0)
 
     AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "Liefertermin")    # leer: ausgeblendet (L6, W8)
 

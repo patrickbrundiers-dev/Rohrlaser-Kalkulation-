@@ -781,7 +781,18 @@ def kapitel_angebote(i):
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
            "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
+    i.text("<b>Zeitraum</b> rechts neben dem Vorgang: Die Liste zeigt nur Angebote mit Datum oder Änderung in den "
+           "letzten 30, 60, 100, 150 oder 365 Tagen oder <i>Alle</i> (Vorgabe 150 Tage). Die <b>Suche</b> findet "
+           "immer alle Angebote.", kurz=True)
     i.genauer()
+    i.text("<b>Zeitraum</b>: Auch ältere Angebote bleiben sichtbar, wenn eine <i>Wiedervorlage fällig</i> ist "
+           "([[nachfassen]]), wenn ein Auftrag beauftragt und noch nicht versendet ist (wie im Versand unter "
+           "<i>Aktuell</i>) oder wenn das Angebot gerade geöffnet ist. Unter der Liste steht dann z. B. "
+           "<i>123 ältere Angebote ausgeblendet</i>; <b>Alle zeigen</b> stellt den Zeitraum auf <i>Alle</i>. "
+           "Die Vorgabe beim Start steht unter <i>Einstellungen → Angebot → Angebotsliste: Zeitraum</i> ([[vorgaben]]) "
+           "und gilt nur für diesen Arbeitsplatz. Ausgeblendete Angebote bleiben unverändert in der Datenbank, "
+           "werden weiter abgeglichen und gesichert; Jahre zurück entlastet das Archiv ([[archiv]]). Bei sehr "
+           "vielen Angeboten (ab etwa 10.000) lädt die Liste mit Zeitraum spürbar schneller.")
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
            "nicht geöffnet wurden, haben dort noch keinen Wert.",
@@ -1536,7 +1547,7 @@ def kapitel_angebot(i):
     i.genauer()
     i.liste("<b>Konturklassen</b>: jede Innenkontur und auch der Anfangs- und Endschnitt kommen nach ihrem Hüllmaß "
             "in klein, mittel oder groß (Grenzen der Maschine, zusätzlich nach Hüllmaß ÷ Wandstärke). Ein gerader "
-            "Schnitt an QR 40x40 ist also mittel, an RE 60x40 groß. Das gilt seit 0.9.195 gleich für STEP-Import, "
+            "Schnitt an QR 40x40 ist also mittel, an RE 60x40 groß. Das gilt seit 0.9.196 gleich für STEP-Import, "
             "Schneidweg-Rechner und <i>Bohrungen prüfen</i>.",
             "<b>Gemeinsamer Schnitt</b>: zwei gerade Enden nebeneinander teilen sich einen Schnitt; abgezogen werden "
             "genau die Zeit dieses Endes (Vorschub seiner Klasse), seine Einstiche, Anfahrzeit und Ecken.",
@@ -1546,7 +1557,7 @@ def kapitel_angebot(i):
             "Die Kalkulation zeigt jeden Anteil in eigenen Spalten (<i>davon Einstiche</i>, <i>davon "
             "Anfahren/Drehen</i>, <i>davon Ecken</i> …).")
     i.hinweis("Festgeschriebene Angebote ([[preise_festschreiben]]) rechnen mit dem Stand beim Festschreiben weiter; "
-              "vor 0.9.195 festgeschriebene ohne Eckzeit und ohne Anfahrzeit.")
+              "vor 0.9.196 festgeschriebene ohne Eckzeit und ohne Anfahrzeit.")
     i.abschnitt("Meterpreis anpassen", marke="meterpreis")
     i.text("Doppelklick in <b>Materialpreis [€/m]</b>, eigenen Preis eintragen: er steht fett und gilt für alle "
            "Positionen derselben Stangengruppe. Feld leeren = wieder berechnet. Der Mauszeiger zeigt die Herkunft "
@@ -6596,7 +6607,7 @@ def kapitel_stammdaten(i):
         ["Zeit je Ecke [s]", "Zuschlag je Ecke im Anfangs- und Endschnitt (der Laser bremst in der Ecke): "
                              "RP-Profile nach der Zahl der Ecken ihrer Kontur, Quadrat- und Rechteckrohr 4 je Ende, "
                              "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit. Standard "
-                             "seit 0.9.195 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
+                             "seit 0.9.196 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
            "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.19 stammen die Faserlaser-Werte aus "
            "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "

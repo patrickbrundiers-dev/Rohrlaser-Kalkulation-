@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.195", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
+    ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
                 "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "
                 "eigene Zeilen (z. B. je Werkstoff) behalten. Die Vorschau zeigt jeden Wert jetzt → Standard, welche "
                 "eigenen Zeilen entfallen und welche Standardzeilen fehlen; vorher legt das Programm eine "
@@ -34,6 +34,12 @@ NEUERUNGEN = [
                 "werden einmalig gefüllt). Neues Maschinenfeld <i>Zeit je Kontur (Anfahren/Drehen)</i>, leer = 0 "
                 "([[schneidzeit_genauer]]). Festgeschriebene Angebote rechnen unverändert.",
      "Schneiddaten zurücksetzen mit Vorschau und Sicherung; Schneidzeit: Enden, Ecken, Anfahren genauer."],
+    ["0.9.195", "<b>Zeitraum in der Angebotsliste</b>: Neben dem Vorgang wählt man, welche Angebote die Liste zeigt "
+                "– mit Datum oder Änderung in den letzten 30, 60, 100, 150 oder 365 Tagen oder alle (Vorgabe 150 Tage, "
+                "Einstellungen → Angebot, nur dieser Arbeitsplatz). Fällige Wiedervorlagen, beauftragte und noch nicht "
+                "versendete Aufträge und geöffnete Angebote bleiben immer sichtbar, die Suche findet alle. Unter der "
+                "Liste steht, wie viele ältere ausgeblendet sind, mit „Alle zeigen“ ([[angebote]]).",
+     "Angebotsliste: Zeitraum 30/60/100/150/365 Tage oder alle, Suche findet weiter alle."],
     ["0.9.194", "<b>Teuerungszuschlag je Werkstoff</b>: Bei den Werkstoffen gibt es neu die Spalten "
                 "<i>Teuerungszuschlag je</i> (% oder €/kg), <i>Teuerungszuschlag</i> und <i>Teuerung Stand</i>. "
                 "Der Zuschlag kommt auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis, nicht auf "
