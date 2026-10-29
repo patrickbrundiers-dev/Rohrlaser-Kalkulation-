@@ -1516,7 +1516,7 @@ def kapitel_angebot(i):
     i.genauer()
     i.liste("<b>Konturklassen</b>: jede Innenkontur und auch der Anfangs- und Endschnitt kommen nach ihrem Hüllmaß "
             "in klein, mittel oder groß (Grenzen der Maschine, zusätzlich nach Hüllmaß ÷ Wandstärke). Ein gerader "
-            "Schnitt an QR 40x40 ist also mittel, an RE 60x40 groß. Das gilt seit 0.9.191 gleich für STEP-Import, "
+            "Schnitt an QR 40x40 ist also mittel, an RE 60x40 groß. Das gilt seit 0.9.193 gleich für STEP-Import, "
             "Schneidweg-Rechner und <i>Bohrungen prüfen</i>.",
             "<b>Gemeinsamer Schnitt</b>: zwei gerade Enden nebeneinander teilen sich einen Schnitt; abgezogen werden "
             "genau die Zeit dieses Endes (Vorschub seiner Klasse), seine Einstiche, Anfahrzeit und Ecken.",
@@ -1526,7 +1526,7 @@ def kapitel_angebot(i):
             "Die Kalkulation zeigt jeden Anteil in eigenen Spalten (<i>davon Einstiche</i>, <i>davon "
             "Anfahren/Drehen</i>, <i>davon Ecken</i> …).")
     i.hinweis("Festgeschriebene Angebote ([[preise_festschreiben]]) rechnen mit dem Stand beim Festschreiben weiter; "
-              "vor 0.9.191 festgeschriebene ohne Eckzeit und ohne Anfahrzeit.")
+              "vor 0.9.193 festgeschriebene ohne Eckzeit und ohne Anfahrzeit.")
     i.abschnitt("Meterpreis anpassen", marke="meterpreis")
     i.text("Doppelklick in <b>Materialpreis [€/m]</b>, eigenen Preis eintragen: er steht fett und gilt für alle "
            "Positionen derselben Stangengruppe. Feld leeren = wieder berechnet. Der Mauszeiger zeigt die Herkunft "
@@ -1742,7 +1742,12 @@ def kapitel_angebot(i):
             "Tab im Feld. Eine unfertige Rechnung ist rot umrandet; der Tooltip sagt, was fehlt. Ergebnisse über "
             "dem Höchstwert werden auf den Höchstwert begrenzt. Geht in Zahlenfeldern der Dialoge und Einstellungen "
             "und in den Zahlenspalten der Tabellen; im Teile-Editor zusätzlich mit Größen wie <i>L/2</i>.",
-            "Klickt man in ein Zahlenfeld, ist der alte Wert markiert und wird beim Tippen gleich ersetzt.")
+            "Klickt man in ein Zahlenfeld, ist der alte Wert markiert und wird beim Tippen gleich ersetzt.",
+            "<b>Enter schließt kein Fenster</b>: In jedem Dialog übernimmt Enter nur die Eingabe im Feld (Text, "
+            "Zahl, Rechnung, Datum, Auswahl), in einer Tabelle geht es eine Zeile weiter. Übernommen und "
+            "geschlossen wird mit dem Knopf (OK, Übernehmen) oder gezielt mit <b>Strg+Enter</b>. Ist ein Knopf "
+            "angewählt (z. B. mit Tab), drückt Enter diesen Knopf. Ausnahmen sind nur reine Ja/Nein-Fragen (Enter = "
+            "die vorgeschlagene Antwort), die Dateiauswahl und <i>Suchen und ausführen</i> (Strg+K).")
     i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
     i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
            "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "
@@ -3254,7 +3259,7 @@ def kapitel_optimieren(i):
     i.liste("<b>Abwicklung</b> (oben rechts, auf jedem Reiter sichtbar): beim Rohr der aufgerollte Umfang mit allen "
             "Konturen (ausgeschnitten), beim Blech der Zuschnitt mit Biegelinien. Das Fenster folgt jeder Eingabe, "
             "Klick wählt eine Kontur, Ziehen verschiebt sie, Mausrad zoomt, Doppelklick passt ein. Größe und Lage "
-            "merkt sich das Programm. Enter schließt auch die Fenster Baugruppe und Satz in 3D nicht mehr.",
+            "merkt sich das Programm. Enter schließt auch sonst kein Fenster ([[eingaben]]).",
             "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
@@ -5151,6 +5156,15 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Alle PDFs haben dasselbe Aussehen wie das Angebot: Firmenname und kleines Firmenlogo oben, Titel in "
            "Dunkelblau, darunter Angebot, Kunde, Maschine und Erstellzeit, Listen ohne Gitter mit feinen Linien und "
            "jeder zweiten Zeile leicht hinterlegt, Fußzeile mit Firmenname und Seitenzahl.")
+    i.text("<b>Lange Texte</b> bleiben lesbar und überdecken nichts: Ein langer Briefkopf steht in der Fußzeile "
+           "in bis zu drei Zeilen links neben „Seite x von y“ (notfalls etwas kleiner, als letztes mit „…“ gekürzt). "
+           "Ein langer Kundenname bekommt im Kopf der Werkstattpapiere, der Kalkulation und der Nachkalkulation den "
+           "Platz, den die kurzen Angaben nicht brauchen; alle Angaben stehen oben bündig, auch neben einer "
+           "mehrzeiligen Anfrage-Nr. im Angebot. Ist ein Wert breiter als seine Spalte, wird er in der Spalte "
+           "umbrochen statt in die Nachbarspalte zu laufen. Im Palettenschein wird ein zu langer Artikeltext oder "
+           "Kundenname mit „…“ gekürzt, die Stückzahl bleibt frei lesbar.")
+    i.text("Im Angebot bleiben Summe und Konditionen zusammen auf einer Seite; lange Artikelnummern stehen etwas "
+           "kleiner (8 pt) in einer breiteren Spalte. Das Stangenbild zeigt drei Stangen mit Abwicklung je Seite.")
     i.text("Je Stangenmuster steht eine Kopfzeile mit Stangennummern, Profil, Werkstoff und Anzahl gleicher "
            "Stangen, darunter Stangenlänge, Endbeschnitt, Greiferrest, Rest und Ausnutzung. In der Liste sind Pos. "
            "und Länge fett, die Spalte <i>erl.</i> hat ein Kästchen zum Abhaken.")
@@ -6402,7 +6416,7 @@ def kapitel_stammdaten(i):
         ["Zeit je Ecke [s]", "Zuschlag je Ecke im Anfangs- und Endschnitt (der Laser bremst in der Ecke): "
                              "RP-Profile nach der Zahl der Ecken ihrer Kontur, Quadrat- und Rechteckrohr 4 je Ende, "
                              "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit. Standard "
-                             "seit 0.9.191 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
+                             "seit 0.9.193 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
            "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.19 stammen die Faserlaser-Werte aus "
            "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "
@@ -7683,7 +7697,8 @@ def kapitel_tastenkuerzel(i):
            "[[rueckgaengig]] beschrieben.")
     i.tabelle(["Taste", "Wirkung", "Wo"], [list(z) for z in TASTENKUERZEL], [28, 170, 67])
     i.text("In Textfeldern wirken Strg+Z, Strg+C, Strg+V, Strg+X und Entf wie gewohnt im Text. Gespeichert wird jede "
-           "Eingabe sofort; Strg+S schließt nur eine offene Eingabe ab.")
+           "Eingabe sofort; Strg+S schließt nur eine offene Eingabe ab. Enter schließt in keinem Fenster den Dialog, "
+           "Strg+Enter übernimmt ([[eingaben]]).")
     i.abschnitt("Doppelklick", marke="doppelklick")
     i.text("Ein Doppelklick führt meist direkt dorthin, wo etwas zu tun ist. Wo er einen Dialog öffnet, bearbeitet "
            "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Der Tooltip (Maus kurz auf der Zelle lassen) "

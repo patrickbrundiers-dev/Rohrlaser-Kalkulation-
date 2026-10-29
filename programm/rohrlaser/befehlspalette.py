@@ -128,6 +128,8 @@ def treffer(liste, suche, anzahl=MAX_TREFFER):
 
 
 class Befehlspalette(QDialog):
+    ENTER_SCHLIESST = True      # Enter führt den gewählten Befehl aus (tastatur.EnterRegel: Ausnahme)
+
     def __init__(self, fenster):
         super().__init__(fenster)
         self.f = fenster

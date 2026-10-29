@@ -180,7 +180,7 @@ assert abs(z1["einsparung"] - z0["einsparung"] - gem * 0.5 / 10) < 1e-9
 ok("Rechner: Enden QR 40 mittel wie STEP, Einsparung = angesetzte Zeit des Endes; Anfahren je Einstich, gemeinsamer "
    "Schnitt spart es mit")
 
-# 8) Festgeschriebene Angebote vor 0.9.191: ohne Eckzeit und ohne Anfahrzeit, keine Meldung 'geändert'
+# 8) Festgeschriebene Angebote vor 0.9.193: ohne Eckzeit und ohne Anfahrzeit, keine Meldung 'geändert'
 pb = rechnen.preisbasis_aus(kopf, [pos], k, tab)
 assert all("zeit_ecke" in x for x in pb["schneiddaten"])
 alt = dict(pb, schneiddaten=[{n: v for n, v in x.items() if n != "zeit_ecke"} for x in pb["schneiddaten"]],

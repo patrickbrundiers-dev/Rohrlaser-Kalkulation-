@@ -115,7 +115,7 @@ a_s = 2 * 40 / math.cos(math.radians(45)) + 80
 assert not erg["fehler"] and nah(f["innen"], innen) and nah(f["a_schnitt"], a_s) and f["b_schnitt"] == 160
 assert nah(f["schneidweg"], a_s + 160 + innen, 0.1) and f["einstiche"] == 2 + 4 + 2 + 1 + 1
 assert (f["a_gerade"], f["b_gerade"]) == ("nein", "ja") and f["gravur"] == 50 and f["kontur_grenzen"] == "10/50"
-assert (f["klein_n"], f["mittel_n"], f["gross_n"]) == (4, 4, 2), f      # Enden 40 mm mittel (wie STEP, ab 0.9.191)
+assert (f["klein_n"], f["mittel_n"], f["gross_n"]) == (4, 4, 2), f      # Enden 40 mm mittel (wie STEP, ab 0.9.193)
 assert f["konturen"].startswith("A:40x193,1; E:40x160; 8,5x26,7") and f["konturen"].endswith("9999x123"), f["konturen"]
 assert rechnen.konturen_lesen(f["konturen"], True)[0] == ("A", 40.0, 193.1)
 assert sw.rechnen(dict(a={}, b={}), IPE, (10, 50))["einstiche"] == 8          # Träger: 4 Einstiche je Ende

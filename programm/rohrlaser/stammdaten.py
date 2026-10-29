@@ -1775,7 +1775,7 @@ GRAVUR = {"Faser": 3000, "CO₂": 3000}
 ALTE_GRAVUR = (15000, 10000)
 RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel: Richtwert CO₂-Laser"}
 # Zeit je Ecke im Anfangs- und Endschnitt (Patrick 29.10.2026, S2 „nach Wandstärke“): 0,2 s + 0,05 s je mm
-# 'Wandstärke bis' der Zeile (1 mm 0,25 s, 3 mm 0,35 s, 8 mm 0,6 s, 12 mm 0,8 s); bis 0.9.190 leer
+# 'Wandstärke bis' der Zeile (1 mm 0,25 s, 3 mm 0,35 s, 8 mm 0,6 s, 12 mm 0,8 s); bis 0.9.192 leer
 ECKE_GRUND, ECKE_JE_MM = 0.2, 0.05
 
 
