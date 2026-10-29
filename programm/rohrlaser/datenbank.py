@@ -165,7 +165,7 @@ KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickr
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
-FRACHT_NAH_STAND = "2026-10-29"    # Fracht-Richtwerte mit Nahbereich und eigener Anlieferung neu (_fracht_nahbereich)
+FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
@@ -631,7 +631,8 @@ class Datenbank:
 
     def _fracht_nahbereich(self):
         """Einmalig (Patrick 29.10.2026, 3b): Sind die Fracht-Richtwerte geladen, werden sie neu geladen, mit den
-        Nahbereichs-Ringen bis 50 und 50–100 km und dem Tarif 'Eigene Anlieferung' (vorher Sicherung
+        Nahbereichs-Ringen bis 50 und 50–100 km, dem Tarif 'Eigene Anlieferung', Europalette bis 3.000 mm und dem
+        Paketversand mit drei Kartons (Stand 2026-10-29b; vorher Sicherung
         vor_Fracht_Nahbereich). Eigene Einträge bleiben, gespeicherte Frachtberechnungen behalten ihre Tarifkopie.
         Ohne Richtwerte oder ohne gültige Absender-PLZ ändert sich nichts."""
         from .fracht_richtwerte import richtwerte
@@ -645,13 +646,14 @@ class Datenbank:
     def _richtwerte_schreiben(self, daten):
         """Zeilen mit BEISPIEL oder RICHTWERT in der Bemerkung und die Preise der Richtwert-Tarife durch daten
         (fracht_richtwerte.richtwerte) ersetzen, ohne Transaktion. Ergebnis: (entfernt, eingefügt)."""
-        from .fracht_richtwerte import TARIF, TARIF_EIGEN
+        from .fracht_richtwerte import TARIF, TARIF_EIGEN, TARIF_PAKET
         weg = neu = 0
         for tabelle in KURZ:
             if "bemerkung" in [f.name for f in ALLE_TABELLE[tabelle].felder]:
                 weg += self.con.execute(f'DELETE FROM "{tabelle}" WHERE bemerkung LIKE \'BEISPIEL%\' '
                                         "OR bemerkung LIKE 'RICHTWERT%'").rowcount
-        weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id IN (?, ?)", (TARIF, TARIF_EIGEN)).rowcount
+        weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id IN (?, ?, ?)",
+                                (TARIF, TARIF_EIGEN, TARIF_PAKET)).rowcount
         for tabelle, zeilen in daten.items():
             namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
             for z in zeilen:
@@ -1601,7 +1603,7 @@ class Datenbank:
         werden passend neu geschrieben (Land DE, Dienstleister und Tarif angelegt, falls sie fehlen); andere Tarife,
         Zuschläge, Ladehilfsmittel und Angebote mit gespeicherter Tarifkopie bleiben unverändert.
         Ergebnis: (entfernt, eingefügt, Pfad der Sicherung)."""
-        from .fracht_richtwerte import TARIF, TARIF_EIGEN, richtwerte
+        from .fracht_richtwerte import TARIF, TARIF_EIGEN, TARIF_PAKET, richtwerte
         absender_plz = (absender_plz or self.einstellung("absender_plz") or "").strip()
         daten = richtwerte(absender_plz)              # ValueError bei unbekannter PLZ, vor jeder Änderung
         pfad = self.sicherung(zusatz="vor_Frachtzonen_Standard")
@@ -1615,7 +1617,8 @@ class Datenbank:
         with self.con:
             for tabelle in ("fracht_plz", "fracht_zonen"):
                 weg += self.con.execute(f'DELETE FROM "{tabelle}"').rowcount
-            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id IN (?, ?)", (TARIF, TARIF_EIGEN)).rowcount
+            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id IN (?, ?, ?)",
+                                    (TARIF, TARIF_EIGEN, TARIF_PAKET)).rowcount
             for tabelle in ("fracht_laender", "fracht_dienstleister", "fracht_tarife"):
                 einfuegen(tabelle, daten[tabelle])
             for tabelle in ("fracht_zonen", "fracht_plz", "fracht_preise"):

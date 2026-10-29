@@ -45,8 +45,9 @@ r.plz.setText("20095")
 r.netto.setValue(406.1)
 r.max_laenge.setText("2150")
 r.packvorschlag()
-assert [e["lht_id"] for e in r.lht_eintraege()] == ["LG"] and not r.packliste_box.isVisibleTo(r)
-ok("Ohne Angebot: Packvorschlag nur nach Gewicht und längstem Teil (1 × Langgut), keine Packliste")
+assert [e["lht_id"] for e in r.lht_eintraege()] == ["EUR"] and not r.packliste_box.isVisibleTo(r)
+ok("Ohne Angebot: Packvorschlag nur nach Gewicht und längstem Teil (2.150 mm passt auf die Europalette bis "
+   "3.000 mm), keine Packliste")
 
 assert r.aus_angebot_laden(aid)
 pos = db.positionen(aid)
@@ -67,11 +68,22 @@ assert r.lht_eintraege()[0]["lht_id"] == v[0]["lht"][0]["lht_id"]
 e = r.rechnen()
 assert e["gesamt"] == v[0]["gesamt"], (e["gesamt"], v[0]["gesamt"])
 eur = next(x for x in v if x["std_id"] == "EUR")
-assert any(t["lht_id"] == "LG" for t in eur["lht"]), eur["lht"]
-assert v[0]["gesamt"] < eur["gesamt"], (v[0], eur["gesamt"])
+ind = next(x for x in v if x["std_id"] == "IND")
+assert eur["lht"] == [dict(lht_id="EUR", anzahl=1)] and v[0]["gesamt"] == eur["gesamt"], eur["lht"]
+assert any(t["lht_id"] == "LG" for t in ind["lht"]) and ind["gesamt"] > eur["gesamt"], ind["lht"]
+assert not any(x["paket"] for x in v), "Teile bis 2.150 mm passen in keinen Karton"
 assert "günstigste" in r.vergleich.text()
-ok(f"Günstigste Kombination: {v[0]['bezeichnung']} {fracht.euro(v[0]['gesamt'])} statt Europalette + Langgut "
-   f"{fracht.euro(eur['gesamt'])}; Vergleich aller {len(v)} Ladungsträger in der Packliste")
+ok(f"Günstigste Kombination: {v[0]['bezeichnung']} {fracht.euro(v[0]['gesamt'])} (Teile bis 2.150 mm mit Überstand "
+   f"längs) statt Industriepalette + Langgut {fracht.euro(ind['gesamt'])}; Vergleich aller {len(v)} Ladungsträger")
+ueber = [p for p in r.packliste["paletten"] for s in p["schichten"]
+         if (r.packliste["stuecke"][s["k"]]["plan_geo"] or {}).get("ueber")]
+for p in ueber:
+    for s in p["schichten"]:
+        geo = r.packliste["stuecke"][s["k"]]["plan_geo"]
+        x, y, _ = geo["teil"]
+        assert x <= 3000 and max(geo["quer_je"]) * y <= 800 + 1e-6, geo
+assert ueber
+ok("Europalette: Überstand nur längs über die 1.200er Seite (Teile bis 3.000 mm), quer nie über 800 mm")
 
 # gleiche Rechnung wie paletten.packen mit dem gewählten Träger
 pl = paletten.packen(pos, werte, db.fracht_daten()["lht"], v[0]["std_id"], db.einstellung("fracht_lht_langgut"),
@@ -113,6 +125,43 @@ assert dlg.rechner.laden_knopf.isHidden() and dlg.rechner.vergleich_liste
 assert dlg.rechner.vergleich_liste[0]["std_id"] == v[0]["std_id"]
 dlg.reject()
 ok("Fracht berechnen im Angebot: derselbe günstigste Vorschlag mit Packliste")
+
+# Paketversand (Patrick 29.10.2026, 2a/3a): kleine Teile in Kartons, günstiger als jede Palette
+from rohrlaser import fracht_richtwerte  # noqa: E402
+klein_pos = [dict(id=901, pos=10, stueck=20, laenge=300.0, artikel="K1", bezeichnung="Vierkant 40")]
+klein_werte = [dict(gewicht=0.8, profil_abm=("Quadratrohr", 40.0, 40.0, 2.0))]
+r.ware = (klein_pos, klein_werte)
+r.versandart.setCurrentText("")
+r.packvorschlag()
+v = r.vergleich_liste
+pakete = {x["std_id"]: x for x in v if x["paket"]}
+assert set(pakete) == {"K-S", "K-M", "K-L"}, list(pakete)
+assert pakete["K-S"]["lht"] == [dict(lht_id="K-S", anzahl=2)] and abs(pakete["K-S"]["gesamt"] - 20.98) < 1e-6
+assert pakete["K-M"]["lht"] == [dict(lht_id="K-M", anzahl=1)] and abs(pakete["K-M"]["gesamt"] - 18.99) < 1e-6
+assert v[0]["std_id"] == "K-M" and v[0]["gesamt"] < min(x["gesamt"] for x in v if not x["paket"])
+assert r.versandart.currentText() == fracht_richtwerte.PAKET and r.lht_eintraege()[0]["lht_id"] == "K-M"
+e = r.rechnen()
+assert abs(e["gesamt"] - 18.99) < 1e-6, e["gesamt"]
+assert paletten.kurz(r.packliste) == "1 Karton (1 × K-M)" and "Paket" in r.vergleich.text()
+for p in r.packliste["paletten"]:
+    assert p["art"] == "Karton" and p["brutto"] <= 20.0 + 1e-6 and p["hoehe"] <= 400 + 1e-6, p
+app.processEvents()
+assert not r.packliste_ansicht.grab().isNull()
+ok(f"Paket: 20 Teile 16 kg -> 1 Karton M {fracht.euro(e['gesamt'])} (2 Kartons S {fracht.euro(pakete['K-S']['gesamt'])},"
+   f" Palette ab {fracht.euro(min(x['gesamt'] for x in v if not x['paket']))}); Versandart Paket, Skizze des Kartons")
+
+# zu lang für jeden Karton: wieder Palette, Versandart Paket wird zurückgenommen
+klein_pos[0]["laenge"] = 1500.0
+r.packvorschlag()
+assert not any(x["paket"] for x in r.vergleich_liste) and r.versandart.currentText() == ""
+assert r.lht_eintraege()[0]["lht_id"] == "EUR"
+ok("Teile 1.500 mm: kein Karton passt, Palette und Versandart wieder automatisch")
+
+# zu schwer für einen Karton L (ein Teil über 30,8 kg): kein Paket
+klein_pos[0]["laenge"], klein_werte[0]["gewicht"] = 300.0, 35.0
+r.packvorschlag()
+assert not any(x["paket"] for x in r.vergleich_liste)
+ok("Teil schwerer als die Gewichtsklasse: kein Paket")
 
 fenster.close()
 db.schliessen()

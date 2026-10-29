@@ -14,8 +14,19 @@ PLZ-Region, dazu eine Inselzone. Keine Speditionsangebote: alle Zeilen tragen RI
 Eigene Anlieferung (eigener Lkw oder Transporter, Versandart 'Eigene Anlieferung', bis 200 km): 20 € je Sendung für
 Laden und Abladen plus 1,00 € je gefahrenem km (Fahrzeug und Fahrer, Hin- und Rückfahrt = 2,00 € je km Entfernung).
 Entfernung aus dem Frachtrechner (Feld Entfernung) oder die typische Entfernung der Zone. Schätzwerte.
+
+Europalette und Einwegpalette: Teile bis 3.000 mm, Überstand nur längs über die 1.200er Seite, quer nie (Patrick
+29.10.2026, 1b); längere Teile kommen auf Langgut.
+
+Paketversand (Patrick 29.10.2026, 2a/3a): drei Kartons S 400 × 300 × 200 bis 10 kg, M 600 × 400 × 400 bis 20 kg,
+L 1.200 × 200 × 200 bis 31,5 kg (Innenmaße; Nutzlast = Gewichtsklasse − Kartongewicht). Preis je Karton nach der
+Gewichtsklasse: DHL Paket national online 10/2026 bis 10 kg 10,49 €, bis 20 kg 18,99 €, bis 31,5 kg 23,99 €
+(UPS Standard und Hermes liegen bei ähnlichen Maßen eher darüber; Mailboxes etc. verkauft DHL/UPS mit Aufschlag).
+Höchstmaß DHL 120 × 60 × 60 cm. Kartons und Preise sind änderbar (Ladehilfsmittel, Tarif RW-PAKET).
 """
 import math
+
+from .fracht import PAKET
 
 RICHTWERT = "RICHTWERT Recherche 10/2026 (Marktpreise + 10 % Puffer), kein Speditionsangebot"
 STRASSE = 1.25          # Straßen-km je Luftlinien-km (grob)
@@ -63,6 +74,11 @@ EIGEN = "Eigene Anlieferung"
 EIGEN_ZONEN = ("RW0A", "RW0B", "RW1")      # eigene Anlieferung bis 200 km
 EIGEN_SENDUNG = 20.0                       # € je Sendung: Laden und Abladen
 EIGEN_KM = 1.00                            # € je gefahrenem km (Fahrzeug und Fahrer)
+TARIF_PAKET = "RW-PAKET"
+# Kartons: (ID, Bezeichnung, Länge, Breite, Höhe innen [mm], Eigengewicht [kg], Gewichtsklasse [kg], Preis [€])
+KARTONS = (("K-S", "Karton S 400 × 300 × 200", 400, 300, 200, 0.3, 10.0, 10.49),
+           ("K-M", "Karton M 600 × 400 × 400", 600, 400, 400, 0.6, 20.0, 18.99),
+           ("K-L", "Karton L 1200 × 200 × 200", 1200, 200, 200, 0.7, 31.5, 23.99))
 
 
 def entfernung(a, b):
@@ -104,25 +120,32 @@ def richtwerte(absender_plz):
     dl = [("RICHTWERT", "Richtwert Palettenversand (Marktpreise)", VERSANDART, None, "ja", r),
           ("SLH", "Spedition u. Logistik Haaren, Keimeier u. Finke GmbH (Bad Wünnenberg, CTL-Partner)", VERSANDART,
            None, "ja", "keine öffentlichen Preise gefunden; Tarif nach Angebot hier eintragen"),
-          ("EIGEN", "Eigener Lkw / Transporter", EIGEN, None, "ja", r + "; Schätzwert, eigene Kosten eintragen")]
+          ("EIGEN", "Eigener Lkw / Transporter", EIGEN, None, "ja", r + "; Schätzwert, eigene Kosten eintragen"),
+          ("PAKET", "Paketdienst (Richtwert DHL Paket)", PAKET, None, "ja", r + "; DHL, UPS, Hermes, GLS")]
     tarife = [(TARIF, "Palettenversand Deutschland (Richtwert, inkl. Maut und Diesel)", "RICHTWERT", "Standardtarif",
                "Palettentarif", VERSANDART, "DE", None, None, "2026-01-01", None, "EUR", None, None, None, None, None,
                None, 50, "2026-10", "ja", r),
               (TARIF_EIGEN, "Eigene Anlieferung bis 200 km (Schätzwert)", "EIGEN", "Standardtarif",
                "Individueller Tarif", EIGEN, "DE", ", ".join(EIGEN_ZONEN), None, "2026-01-01", None, "EUR", None, None,
-               None, None, None, None, 60, "2026-10", "ja", r + "; Schätzwert, eigene Kosten eintragen")]
+               None, None, None, None, 60, "2026-10", "ja", r + "; Schätzwert, eigene Kosten eintragen"),
+              (TARIF_PAKET, "Paketversand Deutschland je Karton (Richtwert DHL)", "PAKET", "Standardtarif",
+               "Individueller Tarif", PAKET, "DE", None, None, "2026-01-01", None, "EUR", None, None, None, None, None,
+               None, 70, "2026-10", "ja", r + "; DHL Paket national online 10/2026, Preis je Karton")]
     preise = [(TARIF_EIGEN, None, "Sendung", None, None, EIGEN_SENDUNG, "Festpreis",
                r + "; Laden und Abladen (ca. 20 min)"),
               (TARIF_EIGEN, None, "km", None, None, round(2 * EIGEN_KM, 2), "je Einheit",
                r + f"; Hin- und Rückfahrt: {EIGEN_KM:.2f}".replace(".", ",") + " € je gefahrenem km (Fahrzeug und Fahrer)")]
+    preise += [(TARIF_PAKET, None, "Ladungsträger", k[0], None, k[7], "je Einheit",
+                r + f"; DHL Paket bis {k[6]:g} kg".replace(".", ",")) for k in KARTONS]
     for zone, _, _, p, _ in RINGE + (("RW-INSEL", "", None, RINGE[-1][3], None),):
         for bis, f in MENGEN:
             preise.append((TARIF, zone, "Stellplatz", None, bis, round(p * f, 2), "je Einheit", r))
         preise.append((TARIF, zone, "Stellplatz", None, None, None, "je Einheit",
                        "mehr als 6 Stellplätze: Teilladung, Preis anfragen"))
-    lht = [("EUR", "Europalette 1200 × 800", "Europalette", 1200, 800, 144, 25, 800, 1400, "nein", None, 1, "ja",
-            r + "; Nutzlast im Packvorschlag 800 kg"),
-           ("EW", "Einwegpalette 1200 × 800", "Einwegpalette", 1200, 800, 140, 15, 800, 1400, "nein", None, 1, "ja", r),
+    lht = [("EUR", "Europalette 1200 × 800", "Europalette", 1200, 800, 144, 25, 800, 3000, "nein", None, 1, "ja",
+            r + "; Nutzlast im Packvorschlag 800 kg; Teile bis 3.000 mm, Überstand nur längs"),
+           ("EW", "Einwegpalette 1200 × 800", "Einwegpalette", 1200, 800, 140, 15, 800, 3000, "nein", None, 1, "ja",
+            r + "; Teile bis 3.000 mm, Überstand nur längs"),
            ("IND", "Industriepalette 1200 × 1000", "Industriepalette", 1200, 1000, 144, 30, 1000, 1400, "nein", None,
             1.25, "ja", r),
            ("GB", "Gitterbox 1240 × 835 × 970", "Gitterbox", 1240, 835, 970, 85, 1000, 1200, "ja", 4, 1, "ja", r),
@@ -132,6 +155,8 @@ def richtwerte(absender_plz):
             r + "; zählt als 3 Stellplätze"),
            ("SL", "Sonderladung (Maße je Sendung)", "Sonderladung", None, None, None, None, None, None, "nein", None,
             None, "ja", r)]
+    lht += [(i, text, "Karton", l, b, h, eg, round(kg - eg, 1), l, "nein", None, None, "ja",
+             r + f"; Innenmaße, Paket bis {kg:g} kg".replace(".", ",")) for i, text, l, b, h, eg, kg, _ in KARTONS]
     zus = [("RW-SCHWER", "Schwere Palette (über 300 kg je Stellplatz)", "Sonderhandling", "€ je Stellplatz", None,
             None, 40.0, None, None, None, None, None, None, TARIF, None, None, "Gewicht je Stellplatz über", 300, "ja",
             r + "; Marktpreis 300–600 kg ca. 140 € statt 100 €"),

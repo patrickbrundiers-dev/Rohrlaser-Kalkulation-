@@ -19,7 +19,7 @@ MODELLE = ("Gewichtstarif", "Palettentarif", "Gitterboxtarif", "Kombinationstari
 BEZUG = ("Sendung", "kg", "100 kg", "Ladungsträger", "Stellplatz", "km", "Lademeter")
 PREISARTEN = ("Festpreis", "je Einheit")
 LHT_ARTEN = ("Europalette", "Einwegpalette", "Industriepalette", "Gitterbox", "Sonderpalette", "Langgut",
-             "Sonderladung")
+             "Sonderladung", "Karton")
 LIEFERBEDINGUNGEN = ("frei Haus", "frei Frachtführer", "unfrei", "ab Werk", "Abholung")
 # Lieferbedingungen, bei denen der Kunde die Fracht trägt: Frachtkosten 0 mit Hinweis
 OHNE_FRACHT = ("unfrei", "ab Werk", "Abholung")
@@ -191,7 +191,7 @@ PREISE = Tabelle(
     (Feld("tarif_id", "Tarif", "auswahl", auswahl="tarif", pflicht=True, breite=160),
      Feld("zone_id", "Zone", "auswahl", auswahl="zone", breite=80),
      Feld("bezug", "Bezugseinheit", "auswahl", auswahl="bezug", pflicht=True, breite=100),
-     Feld("lht_art", "Ladehilfsmittel", "auswahl", auswahl="lhtart", breite=110),
+     Feld("lht_art", "Ladehilfsmittel", "auswahl", auswahl="lhtart_id", breite=110),
      Feld("bis", "bis Menge", "zahl", 0, 100000000, stellen=2, breite=80),
      Feld("preis", "Preis", "zahl", 0, 10000000, stellen=2, breite=80),
      Feld("preisart", "Preisart", "auswahl", auswahl="preisart", breite=90),
@@ -200,7 +200,7 @@ PREISE = Tabelle(
     "Je Zeile eine Stufe: gilt bis zur Menge 'bis Menge' in der Bezugseinheit (leer = ohne Obergrenze; bei kg und "
     "100 kg ist 'bis Menge' immer in kg, beide bilden eine Gewichtsstaffel). Preisart "
     "Festpreis = Preis der ganzen Stufe, je Einheit = Preis × Menge. Zone leer = alle Zonen, Ladehilfsmittel "
-    "leer = alle übrigen. Preis leer = individuelle Berechnung. Preisart leer = Festpreis.",
+    "leer = alle übrigen; statt der Art kann auch ein einzelnes Ladehilfsmittel stehen (z. B. Karton K-M), es geht dann der Art vor. Preis leer = individuelle Berechnung. Preisart leer = Festpreis.",
     pruefung=_preis_pruefung)
 
 LHT = Tabelle(
@@ -212,7 +212,7 @@ LHT = Tabelle(
      Feld("breite", "Breite [mm]", "ganz", 0, 5000, breite=70),
      Feld("hoehe", "Höhe [mm]", "ganz", 0, 5000, breite=70),
      Feld("eigengewicht", "Eigengewicht [kg]", "zahl", 0, 10000, stellen=1, breite=80),
-     Feld("nutzlast", "Nutzlast [kg]", "zahl", 0, 100000, stellen=0, breite=75),
+     Feld("nutzlast", "Nutzlast [kg]", "zahl", 0, 100000, stellen=1, breite=75),
      Feld("max_laenge", "Max. Teillänge [mm]", "ganz", 0, 30000, breite=85),
      Feld("stapelbar", "Stapelbar", "auswahl", auswahl="janein", breite=65),
      Feld("stapelfaktor", "Stapelfaktor", "ganz", 1, 10, breite=65),
@@ -221,7 +221,8 @@ LHT = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=260)),
     ("lht_id",),
     "Ladungsträger mit Maßen, Eigengewicht und Nutzlast. Max. Teillänge: längere Teile kommen im Packvorschlag "
-    "auf Langgut. Stapelfaktor = wie viele übereinander einen Stellplatz teilen. Stellplätze je Stück leer = 1.",
+    "auf Langgut; ist sie größer als die Länge, dürfen Teile längs überstehen, quer nie. Karton: Maße = Innenmaße, "
+    "Nutzlast = Gewichtsklasse des Pakets − Eigengewicht. Stapelfaktor = wie viele übereinander einen Stellplatz teilen. Stellplätze je Stück leer = 1.",
     pruefung=_lht_pruefung)
 
 ZUSCHLAEGE = Tabelle(
@@ -319,6 +320,7 @@ def listen_aus(daten, kunden=()):
     return {"land": ids("laender", "land"), "zone": ids("zonen", "zone_id"),
             "dienstleister": ids("dienstleister", "dienstleister_id"), "tarif": ids("tarife", "tarif_id"),
             "lht": ids("lht", "lht_id"), "zuschlag": ids("zuschlaege", "zuschlag_id"),
+            "lhtart_id": list(LHT_ARTEN) + [i for i in ids("lht", "lht_id") if i not in LHT_ARTEN],
             "kunde": sorted({k["kundennr"] for k in kunden if k.get("kundennr")}),
             "plz_laenge": {z["land"]: z["plz_laenge"] for z in daten.get("laender", [])
                            if z.get("land") and z.get("plz_laenge")}}
