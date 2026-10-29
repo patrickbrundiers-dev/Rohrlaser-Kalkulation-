@@ -60,9 +60,20 @@ def _paare(text, getrennt="/"):
 TOL_KERNLOCH = 0.05     # mm: Bohrung gilt als Kernloch eines Gewindes (Einstellung step_tol_kernloch)
 
 
+# Kern-Ø D1 des Muttergewindes (ISO 965): so modellieren viele CAD-Systeme (Inventor, Creo, Fusion) die Gewindebohrung
+# statt mit dem Kernloch nach DIN 336 (M8: 6,647 statt 6,8, Patrick 28.10.2026 „Gewinde-Erkennung verbessern“)
+KERN_D1 = {"M3": 2.459, "M4": 3.242, "M5": 4.134, "M6": 4.917, "M8": 6.647, "M10": 8.376, "M12": 10.106,
+           "M14": 11.835, "M16": 13.835, "M20": 17.294, "M24": 20.752}
+
+
 def _gewinde(d, tabelle, tol=None):
+    """Gewinde zur Bohrung Ø d: Kernloch der Tabelle (Stammdaten Gewinde) ± tol, sonst Kern-Ø D1 eines Gewindes der
+    Tabelle (CAD-Modell mit dem Kern-Ø); None, wenn nichts passt."""
     tol = TOL_KERNLOCH if tol is None else tol
-    return next((g for g, kern in tabelle if abs(d - kern) <= tol), None)
+    g = next((g for g, kern in tabelle if abs(d - kern) <= tol), None)
+    if g is None and tabelle is not FLIESSLOCH_KERN:
+        g = next((g for g, _ in tabelle if g in KERN_D1 and abs(d - KERN_D1[g]) <= tol), None)
+    return g
 
 
 def zu_klein(d, wand):
