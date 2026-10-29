@@ -5264,6 +5264,26 @@ def kapitel_nachkalkulation(i):
             "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
+    i.abschnitt("Reklamationen", marke="reklamation")
+    i.text("Reklamiert der Kunde Teile eines Auftrags, erfassen Sie das im beauftragten Angebot unter <i>Ausgaben → "
+           "Reklamation erfassen …</i>. Die Kosten erscheinen in der Nachkalkulation als eigene Kostenart "
+           "<b>Reklamationen</b>; <i>Datei → Reklamationen …</i> zeigt alle offenen und die Quote.", kurz=True)
+    i.liste("Im Fenster <i>Reklamation</i>: <b>Position</b> (oder <i>ganzer Auftrag</i>, z. B. bei einem "
+            "Transportschaden), <b>Datum</b>, <b>Menge reklamiert</b> (bei einer Position Pflicht), <b>Fehlerart</b> "
+            "(Einstellung <i>Reklamationen: Fehlerarten</i>), <b>Ursache</b> (intern: Fertigung, intern: "
+            "Arbeitsvorbereitung / Programm, Material / Lieferant, Kunde, Transport, unbekannt), <b>Maßnahme</b> "
+            "(Nacharbeit, Neuteile, Gutschrift, Rücksendung, keine), <b>Kosten</b> (eigene Kosten: Nacharbeit, "
+            "Neuteile, Gutschrift, Fracht), <b>Status</b> offen/erledigt und eine Bemerkung. Nur für beauftragte "
+            "Angebote.",
+            "<b>Nachkalkulation</b>: Hat der Auftrag Reklamationen, steht dort die Zeile <i>Reklamationen</i> mit "
+            "Soll 0 und der Summe der Kosten als Ist; sie senkt den Deckungsbeitrag und zählt in der Auswertung "
+            "über alle Aufträge. Eine gespeicherte Nachkalkulation wird beim Erfassen gleich aktualisiert. Ohne "
+            "Reklamation bleibt die Nachkalkulation wie bisher.",
+            "<i>Datei → Reklamationen …</i>: Reiter <b>Liste</b> mit offenen bzw. allen Reklamationen (offene gelb), "
+            "<b>Bearbeiten …</b> (auch Doppelklick), <b>Erledigt</b> und <b>Angebot öffnen</b>. Oben die offenen und "
+            "für die letzten 12 Monate Anzahl, Stück, Kosten und die <b>Quote</b> = reklamierte ÷ gelieferte Stück "
+            "der beauftragten Angebote. Reiter <b>Je Fehlerart</b>, <b>Je Kunde</b> und <b>Je Werkstoff</b> zeigen, "
+            "wo es sich häuft.")
     i.abschnitt("Schweißbaugruppen nachkalkulieren")
     i.text("Hat das Angebot Schweißbaugruppen ([[schweissbaugruppe]]), erscheint unter den Ist-Werten die Tabelle "
            "<b>Schweißbaugruppen (leer = wie kalkuliert)</b>: je Baugruppe Soll und Ist für den ganzen Auftrag.",
@@ -5831,6 +5851,8 @@ def kapitel_einstellungen(i):
          "A4-Bogen 3 × 8 oder 2 × 7 Etiketten oder Etikettendrucker 100 × 50 / 62 × 29 mm ([[etiketten]])"],
         ["Lager und Fertigung", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte = fertig)",
          "Vorgabe Geschnitten, Entgratet, Verpackt ([[etiketten]])"],
+        ["Lager und Fertigung", "Reklamationen: Fehlerarten (eine Zeile je Fehlerart)",
+         "Auswahl im Fenster Reklamation ([[reklamation]])"],
         ["Lager und Fertigung", "Auslastung: Stunden je Arbeitstag und Maschine (Maschine leer = dieser Wert), "
                                 "Auslastung: Stunden am Samstag, Auslastung: nutzbarer Anteil der Schichtzeit "
                                 "(Wartung, Störungen), Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. "

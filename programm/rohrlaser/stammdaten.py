@@ -1159,6 +1159,11 @@ EINSTELLUNGEN = (
                 auswahl="etikettformat"),
     Einstellung("rueckmeldung_schritte", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte "
                 "= fertig)", "Lager und Fertigung", "mehrzeilig", "Geschnitten\nEntgratet\nVerpackt"),
+    # Reklamationen (Plan 29.10.2026 2c, reklamation.py)
+    Einstellung("reklamation_fehlerarten", "Reklamationen: Fehlerarten (eine Zeile je Fehlerart)",
+                "Lager und Fertigung", "mehrzeilig", "Maß außerhalb der Toleranz\nKontur fehlt oder falsch\nGrat oder "
+                "Schlacke\nOberfläche, Kratzer, Anlauffarben\nFalscher Werkstoff oder falsches Profil\nFalsche "
+                "Menge\nTransportschaden\nSonstiges"),
     # Wochenauslastung je Maschine mit Schichtkalender (Plan 29.10.2026 2b, auslastung.py)
     Einstellung("schicht_stunden", "Auslastung: Stunden je Arbeitstag und Maschine (Maschine leer = dieser Wert)",
                 "Lager und Fertigung", "zahl", 8.0, 0, 24),

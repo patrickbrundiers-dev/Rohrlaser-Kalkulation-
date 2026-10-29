@@ -41,9 +41,12 @@ NEUERUNGEN = [
                 "je Position, was geschnitten, entgratet und verpackt ist ([[etiketten]]). "
                 "<b>Maschinenauslastung je Woche</b> (Datei bzw. Reiter Fertigung): Laserstunden der Aufträge gegen "
                 "den Schichtkalender (Stunden je Tag und Maschine, Samstag, Feiertage, Betriebsruhe), auf Wunsch mit "
-                "verschickten Angeboten nach Trefferquote ([[auslastung]]).",
+                "verschickten Angeboten nach Trefferquote ([[auslastung]]). <b>Reklamationen</b> je Auftrag und "
+                "Position (Ausgaben → Reklamation erfassen …) mit Fehlerart, Ursache, Maßnahme und Kosten; die Kosten "
+                "stehen als eigene Kostenart in der Nachkalkulation, Datei → Reklamationen … zeigt offene und die "
+                "Quote je Fehlerart, Kunde und Werkstoff ([[reklamation]]).",
      "Teuerungszuschlag je Werkstoff; Preis-Simulator; Absagegrund mit Trefferquote; Auftragsbestätigung als PDF; "
-     "QR-Etiketten mit Rückmeldung per Scan; Maschinenauslastung je Woche."],
+     "QR-Etiketten mit Rückmeldung per Scan; Maschinenauslastung je Woche; Reklamationen."],
     ["0.9.189", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
                 "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
                 "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "

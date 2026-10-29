@@ -30,7 +30,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import etiketten, fertigung, kennwerte, lager, nummern, passwort, step_pruefung, teilen, vollmaterial, zukauf
+from . import etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -132,7 +132,8 @@ SCHEMA_VERSION = 69     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 68: Teuerungszuschlag je Werkstoff (werkstoffe.teuerung_art, teuerung_wert, teuerung_stand;
                         #     leer = kein Zuschlag; Plan 29.10.2026 1a)
                         # 69: Rückmeldungen per Scan der Etiketten (Tabelle rueckmeldungen, etiketten.py; Plan
-                        #     29.10.2026 2a)
+                        #     29.10.2026 2a), Schichtstunden je Maschine (maschinen.schicht_stunden, 2b),
+                        #     Reklamationen (Tabelle reklamationen, reklamation.py, 2c)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -475,6 +476,7 @@ class Datenbank:
             lager.einrichten(self.con)
             fertigung.einrichten(self.con)
             etiketten.einrichten(self.con)
+            reklamation.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
@@ -484,7 +486,8 @@ class Datenbank:
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN + etiketten.TABELLEN
+                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN + etiketten.TABELLEN \
+        + reklamation.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
@@ -1998,6 +2001,7 @@ class Datenbank:
             self.con.execute("DELETE FROM lager_auftraege WHERE angebot_id=?", (angebot_id,))
             fertigung.angebot_geloescht(self, angebot_id)          # Statusjournal gehört zum Angebot
             etiketten.angebot_geloescht(self, angebot_id)          # Rückmeldungen per Scan ebenso
+            reklamation.angebot_geloescht(self, angebot_id)
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
     @schreibt

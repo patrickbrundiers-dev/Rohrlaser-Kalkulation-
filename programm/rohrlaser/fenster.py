@@ -1646,6 +1646,7 @@ class Hauptfenster(QMainWindow):
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
+                                  ("Reklamationen …", self.reklamationen, None),
                                   (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
                                   ("Daten importieren …", self.daten_importieren, None),
@@ -2305,6 +2306,15 @@ class Hauptfenster(QMainWindow):
         Dialog (im Selbsttest ohne exec)."""
         from .auslastung_dialog import AuslastungDialog
         d = AuslastungDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def reklamationen(self):
+        """Datei → Reklamationen: offene bzw. alle Reklamationen und Quote je Fehlerart, Kunde, Werkstoff
+        (reklamation.py). Ergebnis: der Dialog (im Selbsttest ohne exec)."""
+        from .reklamation_dialog import ReklamationenDialog
+        d = ReklamationenDialog(self)
         if not self.stumm:
             d.exec()
         return d

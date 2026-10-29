@@ -1835,6 +1835,10 @@ class AngebotSeite(QWidget):
         menue.addAction("Varianten vergleichen …", lambda: self.varianten_vergleichen())
         # Arbeitsgänge je Position mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.py)
         menue.addAction("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen())
+        # Reklamationen je Auftrag/Position mit Kosten in der Nachkalkulation (Plan 29.10.2026 2c)
+        self.reklamation_aktion = menue.addAction("Reklamation erfassen …", lambda: self.reklamation_erfassen())
+        menue.aboutToShow.connect(lambda: self.reklamation_aktion.setEnabled(
+            (self.db.angebot(self.id) or {}).get("vorgang") == "Beauftragt" and not self.fremd()))
         menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
         menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
@@ -5356,6 +5360,17 @@ class AngebotSeite(QWidget):
             self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand")
             self.f.meldung(f"Auftragsbestätigung {nr} erstellt.")
         return pfad
+
+    def reklamation_erfassen(self, dialog=None):
+        """Reklamation zu diesem Auftrag (reklamation_dialog.erfassen); die Nachkalkulation zeigt die Kosten gleich
+        mit und speichert sie, wenn schon Ist-Werte erfasst sind. Ergebnis: id oder None."""
+        from . import reklamation_dialog
+        i = reklamation_dialog.erfassen(self.f, self.id, self, dialog)
+        if i is not None:
+            self._nachkalk.neu_laden()
+            if self.kopf.get("nachkalkulation") and not self.db.nur_lesen:
+                self._nachkalk._speichern()
+        return i
 
     def etiketten_pdf(self, dialog=None):
         """Etiketten mit QR-Code je Position (etiketten_dialog.drucken). Ergebnis: Pfad oder None."""
