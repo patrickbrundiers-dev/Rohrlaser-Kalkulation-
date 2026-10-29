@@ -146,6 +146,47 @@ def a6_pruefdialog(mw, k):
     d.reject()
     app.processEvents()
     ok("A6 Prüfdialog: Herkunft im Tooltip, gelb wenn unsicher, Nummer änderbar und bleibt")
+    a7_doppelt(mw, k)
+
+
+def a7_doppelt(mw, k):
+    """Artikelnummer im Prüfdialog bearbeiten (Patrick 29.10.2026): Spalte heißt Artikelnummer, F2/Rechtsklick
+    bearbeiten, gleiche Nummer an zwei Teilen rot mit Hinweis, schon im Angebot gelb, leer = wieder aus der STEP."""
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser import stil
+    from rohrlaser.step_dialog import StepPruefDialog
+    app = QApplication.instance() or QApplication([])
+    mw = [{n: v for n, v in x.items() if not n.startswith("_") or n in ("_pfad", "_struktur", "_netz")} for x in mw]
+    ip.anwenden(mw, None, {"step_benennung": BENENNUNGEN[0]})
+    d = StepPruefDialog(None, mw, k, "S235-10219", 1, None, {}, vorhandene_artikel=["7788-01"])
+    assert d.baum.headerItem().text(0).startswith("Artikelnummer")
+    z = next(z for z in d.zeilen if z.it.text(0) == "4711-020")
+    k_ = next(z for z in d.zeilen if z.it.text(0) == "7788-01")
+    assert k_.it.background(0).color() == stil.farbe(stil.GELB_FLAECHE) and "schon im Angebot" in k_.it.toolTip(0)
+    assert d.artikel_bearbeiten(z.it) and d.baum.state() == d.baum.State.EditingState
+    d.baum.closePersistentEditor(z.it, 0)
+    assert not d.doppelt_info.isVisibleTo(d)
+    z.it.setText(0, "7788-01")              # gleiche Nummer wie ein anderes Teil
+    app.processEvents()
+    assert d.artikel_pruefen() == 2 and d.doppelt_info.isVisibleTo(d) and "-2" in d.doppelt_info.text()
+    assert z.it.background(0).color() == stil.farbe(stil.ROT_FLAECHE) and "anderes Teil" in z.it.toolTip(0)
+    assert k_.it.background(0).color() == stil.farbe(stil.ROT_FLAECHE)
+    assert "Aus der STEP bestimmt: 4711-020" in z.it.toolTip(0)
+    z.it.setText(0, "")                     # leer = wieder die aus der STEP bestimmte Nummer
+    app.processEvents()
+    m = mw[z.liste[0]]
+    assert z.it.text(0) == "4711-020" and m["artikel"] == "4711-020" and not m.get("_artikel_hand")
+    assert d.artikel_pruefen() == 0 and not d.doppelt_info.isVisibleTo(d)
+    assert z.it.background(0).color() == stil.farbe(stil.GELB_FLAECHE)      # wieder „unsicher“ wie bestimmt
+    z.it.setText(0, "4711-020-B")
+    app.processEvents()
+    d.werte_schreiben()
+    erg = step.uebernehmen(mw, [], k, [], None, "S235-10219", 1)
+    assert "4711-020-B" in {p["artikel"] for p in erg["positionen"]}
+    d.reject()
+    app.processEvents()
+    ok("A7 Prüfdialog: Spalte Artikelnummer, F2 bearbeitet, doppelte Nummer rot mit Hinweis, schon im Angebot gelb, "
+       "leer = wieder aus der STEP, geänderte Nummer kommt ins Angebot")
 
 
 if __name__ == "__main__":

@@ -33,6 +33,9 @@ UEBERSICHT = [
     ("F8", "Staffelpreise rechnen", "geöffnetes Angebot"),
     ("Strg+Umschalt+S", "Stückzahl ändern: markierte (ohne Markierung alle) Positionen × Faktor oder = Wert",
      "geöffnetes Angebot"),
+    ("Alt+↑", "Markierte Positionen eine Zeile nach oben (Baugruppe mit ihren Teilen, Satz mit seinen Positionen; "
+              "Positionsnummern werden der neuen Reihenfolge nach vergeben)", "Positionsliste"),
+    ("Alt+↓", "Markierte Positionen eine Zeile nach unten", "Positionsliste"),
     ("Strg+Umschalt+M", "Materialanfrage (E-Mail) an den Lieferanten", "geöffnetes Angebot"),
     ("F5", "Aktualisieren: Seite neu laden und rechnen", "überall"),
     ("F2", "Zelle bearbeiten", "Tabellen"),

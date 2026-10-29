@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.193", "<b>Reihenfolge der Positionen ändern</b>: markierte Positionen mit <b>Alt+↑ / Alt+↓</b>, "
+                "Rechtsklick (Nach oben, Nach unten, An den Anfang, Ans Ende) oder durch Ziehen am Zeilenkopf "
+                "verschieben; Schweißbaugruppen wandern mit ihren Teilen, Sätze ganz. Kalkulation, Angebots-PDF und "
+                "Werkstattpapiere folgen, aufsteigende Positionsnummern bleiben aufsteigend, Staffeln je Position und "
+                "ein aktueller Schnittplan ziehen mit; <i>Positionsnummern neu vergeben</i> zählt 10, 20, 30 … "
+                "([[reihenfolge]]). <b>Artikelnummer im STEP-Import ändern</b>: Spalte <i>Artikelnummer ✎</i> mit "
+                "Doppelklick, F2 oder Rechtsklick; gleiche Nummer an zwei Teilen rot mit Hinweis, schon im Angebot "
+                "gelb, leeres Feld = wieder die Nummer aus der STEP ([[importprofile]]).",
+     "Reihenfolge der Positionen verschieben (Alt+↑/↓, Ziehen); Artikelnummer im STEP-Import ändern."],
     ["0.9.192", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
                 "Feld (Text, Zahl, Rechnung, Datum, Auswahl), in Tabellen geht es eine Zeile weiter. Übernehmen "
                 "und schließen nur mit dem Knopf oder gezielt mit <b>Strg+Enter</b>. Ausnahmen: reine Ja/Nein-"

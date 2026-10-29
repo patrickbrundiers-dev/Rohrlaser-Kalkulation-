@@ -2231,6 +2231,26 @@ class Datenbank:
                              (self._jetzt(), position_id))
 
     @schreibt
+    def positionen_ordnen(self, angebot_id, folge, staffel_schluessel=None, ergebnis=False):
+        """Reihenfolge der Positionen ändern (reihenfolge.py), eine Transaktion: folge = [(Positions-ID, Pos.-Nummer)]
+        in der neuen Reihenfolge (nr = 1, 2, 3 …); staffel_schluessel = {alt: neu} für die Staffeln je Position;
+        ergebnis = umgestellter Schnittplan (False = gespeicherten Plan nicht anfassen, optimiert_am bleibt)."""
+        with self.con:
+            self.con.executemany("UPDATE positionen SET nr=?, pos=? WHERE id=? AND angebot_id=?",
+                                 [(k + 1, pos, pid, angebot_id) for k, (pid, pos) in enumerate(folge)])
+            if staffel_schluessel:
+                zeilen = self.con.execute("SELECT id, schluessel FROM staffeln WHERE angebot_id=?",
+                                          (angebot_id,)).fetchall()
+                self.con.executemany("UPDATE staffeln SET schluessel=? WHERE id=?",
+                                     [(staffel_schluessel[str(z[1])], z[0]) for z in zeilen
+                                      if str(z[1]) in staffel_schluessel])
+            if ergebnis is not False:
+                self.con.execute("UPDATE angebote SET ergebnis=? WHERE id=?",
+                                 (ergebnis_packen(json.dumps(ergebnis, ensure_ascii=False)) if ergebnis else None,
+                                  angebot_id))
+            self.con.execute("UPDATE angebote SET geaendert=? WHERE id=?", (self._jetzt(), angebot_id))
+
+    @schreibt
     def positionen_loeschen(self, ids):
         with self.con:
             self.con.executemany("DELETE FROM positionen WHERE id=?", [(i,) for i in ids])
