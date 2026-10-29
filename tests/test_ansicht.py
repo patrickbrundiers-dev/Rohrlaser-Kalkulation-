@@ -350,7 +350,7 @@ profile.nur_fehler.setChecked(False)
 assert profile.filter.rowCount() == len(profile.modell.daten) >= alle
 fenster.bereich.oeffnen(db.einstellung("passwort"))
 fenster.reiter.setCurrentWidget(fenster.bereich)
-s = max(e.seiten, key=lambda s: len(s.boxen))         # Seite mit den meisten Karten (seit 0.9.198 Themenseiten)
+s = max(e.seiten, key=lambda s: len(s.boxen))         # Seite mit den meisten Karten (seit 0.9.199 Themenseiten)
 fenster.bereich.zeigen(s)
 fenster.resize(1920, 1040)
 QApplication.processEvents()

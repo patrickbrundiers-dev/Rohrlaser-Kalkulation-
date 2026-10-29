@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.198", "<b>Einstellungen aufgeräumt</b>: Statt einer langen Seite <i>Vorgaben</i> mit allen Einstellungen "
+    ["0.9.199", "<b>Einstellungen aufgeräumt</b>: Statt einer langen Seite <i>Vorgaben</i> mit allen Einstellungen "
                 "hat jedes Thema eine eigene Seite neben den passenden Stammdaten, z. B. <i>Zuschläge und Preise</i>, "
                 "<i>Neue Angebote</i>, <i>Blech-Richtpreis</i>, <i>STEP-Import</i>, <i>Versand und Paletten</i>. "
                 "Alles, was nur für diesen Arbeitsplatz gilt (Name, Farbschema, Ordner, Signatur), steht auf <i>Mein "
@@ -34,6 +34,18 @@ NEUERUNGEN = [
                 "automatisch optimieren, Mindestmarge oder Standard-Staffeln haben einen Schalter davor, der den "
                 "letzten Wert behält.",
      "Einstellungen nach Themen auf eigenen Seiten; Funktionen ein- und ausschalten."],
+    ["0.9.198", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
+                "CAD als <b>eigene dünne Körper</b> (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf "
+                "dem Rohr liegen, werden jetzt Gravur des Rohrs – mit allen Konturen (auch innen in „O“, „A“, „B“), "
+                "genau wie in der STEP, wie eingeprägte Schrift. Früher wurde jedes Zeichen als Blech vermessen "
+                "(24 Zeichen mehrere Minuten, jetzt wenige Sekunden), als Anbauteil ohne Innenkonturen gezählt oder bei Flächen "
+                "gar nicht als Gravur erkannt. Erhabene Schrift bis 0,5 mm gilt nicht mehr als Anbauteil-Verdacht "
+                "(rund dreimal schneller), und bei sehr viel eingeprägter Schrift sind die Querschnitte schneller. "
+                "Behoben: <b>lange Gravur mit Stecknasen vorne und hinten</b> – im Editor war das halbe Teil "
+                "weggeschnitten (der Querschnitt durch die Schrift galt als Profil, die Wand wurde Teil der Enden, "
+                "Messung mehrere Minuten). Jetzt Enden, Wand und Schneidweg wie ohne Gravur, wenige Sekunden "
+                "([[step_messung]]).",
+     "STEP: Schrift als eigener Körper oder Fläche wird Gravur des Rohrs (statt Minuten nur Sekunden)."],
     ["0.9.197", "<b>Reihenfolge der Positionen ändern</b>: markierte Positionen mit <b>Alt+↑ / Alt+↓</b>, "
                 "Rechtsklick (Nach oben, Nach unten, An den Anfang, Ans Ende) oder durch Ziehen am Zeilenkopf "
                 "verschieben; Schweißbaugruppen wandern mit ihren Teilen, Sätze ganz. Kalkulation, Angebots-PDF und "
