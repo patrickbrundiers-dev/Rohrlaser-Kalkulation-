@@ -155,7 +155,10 @@ ok("Kollege mit älterem Programm (eine Datei, Format 1): Angebote werden weiter
 # eigene alte Einzeldatei: nach dem Schreiben im neuen Format weg
 teilen.schreiben(ko)
 assert not (gemeinsam / "Rohrlaser_KO.sqlite").exists() and (gemeinsam / "Rohrlaser_KO" / "haupt.sqlite").exists()
-ok("eigene alte Einzeldatei wird nach dem ersten Schreiben im neuen Format entfernt")
+assert (teilen._cache(mk) / "fremd_Rohrlaser_KO.sqlite").exists()
+teilen.lesen(mk)
+assert not (teilen._cache(mk) / "fremd_Rohrlaser_KO.sqlite").exists()
+ok("eigene alte Einzeldatei wird nach dem ersten Schreiben im neuen Format entfernt, beim Kollegen auch die lokale Kopie davon")
 
 # nach einem Programm-Update: einmal alles neu packen (Aufbau des Inhalts könnte sich geändert haben)
 haupt = teilen._cache(pb) / "Rohrlaser_PB" / "haupt.sqlite"

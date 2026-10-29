@@ -539,6 +539,9 @@ class Quelle:
             ziel.mkdir(parents=True, exist_ok=True)
             self.haupt = _lokal_kopieren(db, haupt, ziel / HAUPT)
             self.ordner, self.lokal = haupt.parent, ziel
+            alt = _cache(db) / ("fremd_" + datei_name(k))     # Kopie der alten Einzeldatei (Format 1) aufräumen
+            alt.unlink(missing_ok=True)
+            alt.with_suffix(".stand").unlink(missing_ok=True)
         else:
             self.haupt = _lokal_kopieren(db, haupt)
             self.ordner = self.lokal = None
