@@ -156,7 +156,7 @@ assert (f["klein_n"], f["mittel_n"], f["gross_n"]) == (8, 2, 0) and f["mittel_mm
 pos = dict(f, pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=500, stueck=10)
 assert rechnen.konturen_anzahl(pos) == 8 and rechnen.konturen_anzahl(dict(klein_n=3, gross_n=1)) == 4
 assert rechnen.konturklassen_neu(pos, m, 3) is None          # gleiche Einteilung wie beim Neu-Einteilen
-assert rechnen.ende_vorschub(pos, (5800, 3480, 1740), rechnen.kontur_regel(m, 3)) == 3480
+assert rechnen.ende_vorschub(pos, (4000, 2400, 1200), rechnen.kontur_regel(m, 3)) == 2400   # T11 Stahl N₂ 3 mm ab 0.9.197
 
 
 def kalk(pos, kopf=kopf, k=k, tab=tab):
@@ -165,7 +165,7 @@ def kalk(pos, kopf=kopf, k=k, tab=tab):
 
 
 z0 = kalk(pos)
-ende = 60 * f["a_schnitt"] / 3480                              # ein gerades Ende mit Vorschub mittel
+ende = 60 * f["a_schnitt"] / 2400                              # ein gerades Ende mit Vorschub mittel
 assert abs(z0["zeit_mittel"] - 2 * ende) < 1e-6 and z0["zeit_anfahren"] == 0
 assert abs(z0["zeit_ecken"] - 2 * 4 * zeit_ecke(3)) < 1e-9
 gem = sum(t["eingespart_e"] for st in rechnen.optimieren(kopf, [pos], k)["stangen"] for t in st["teile"])

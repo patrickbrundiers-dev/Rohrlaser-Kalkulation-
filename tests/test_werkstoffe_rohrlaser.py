@@ -55,18 +55,18 @@ ok("R1 29 Werkstoffe, Buntmetall-Richtwerte nur Faser, Tooltip in der Werkstoffw
 
 # ------------------------------------------------------------------ R2 Schneiddaten
 sd = lambda m, w, s: rechnen.schneiddaten(m, w, s, tab, rechnen.kategorie(w, k), rechnen.werkstoff_zeile(w, k))
-assert sd("LT7", "S235-10219", 3)["vorschub_gross"] == 4500
+assert sd("LT7", "S235-10219", 3)["vorschub_gross"] == 3500      # ab 0.9.197, bis 0.9.196 4.500
 z = sd("LT7", "DX51D+Z275", 3)
-assert (z["gas"], z["vorschub_gross"], z["vorschub_mittel"]) == ("N₂", 4050, 2430), z
+assert (z["gas"], z["vorschub_gross"], z["vorschub_mittel"]) == ("N₂", 3150, 1890), z   # × 0,9; bis 0.9.196 4.050 / 2.430
 assert sd("LT7", "S235-10219", 5)["gas"] == "O₂" and sd("LT7", "DX51D+Z275", 5) is None      # nur N₂
 assert sd("LT7", "Cu-DHP", 2)["gas"] == "O₂" and sd("LT7", "Cu-DHP", 2)["vorschub_gross"] == 1800
 assert sd("LT7", "CuZn37", 2)["gas"] == "N₂" and sd("T03", "CuZn37", 2) is None
 assert sd("T11", "1.4462", 3)["vorschub_gross"] == 4640          # 5.800 × 0,8
 # ohne Werkstoffzeile wie bisher; eigene Zeile des Werkstoffs ohne Faktor (2a)
-assert rechnen.schneiddaten("LT7", "DX51D+Z275", 3, tab, "Stahl")["vorschub_gross"] == 4500
+assert rechnen.schneiddaten("LT7", "DX51D+Z275", 3, tab, "Stahl")["vorschub_gross"] == 3500
 db.neu("schneiddaten", dict(maschinen_id="LT7", werkstoff_id="1.4462", gas="N₂", wand_bis=3, vorschub_gross=3000))
 tab = db.tabellen()
-assert sd("LT7", "1.4462", 3)["vorschub_gross"] == 3000 and sd("LT7", "1.4462", 4)["vorschub_gross"] == 2800
+assert sd("LT7", "1.4462", 3)["vorschub_gross"] == 3000 and sd("LT7", "1.4462", 4)["vorschub_gross"] == 3600   # 4.500 × 0,8 (bis 0.9.196 2.800)
 assert rechnen.vorschub_faktor(dict(vorschub_faktor=0)) == 1 and rechnen.gase_von(None) == ("N₂", "O₂")
 ok("R2 Vorschub-Faktor auf Kategorie-Zeilen, eigene Zeilen ohne Faktor, Schneidgas nur N₂/nur O₂")
 
