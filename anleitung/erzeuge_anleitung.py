@@ -5776,7 +5776,7 @@ def kapitel_einstellungen(i):
                                               "Layer und Splitter"],
         ["Fertigung und Versand", "Lager, Fertigung, Auslastung, Versand und Paletten",
          "Reststücke, Fertigungsstatus, Etiketten, Reklamationen, Schichten, Paletten, Palettenschein"],
-    ])
+    ], [32 * mm, 50 * mm, BREITE - 82 * mm])
     i.text("Einige Werte mit „0 = aus“ oder „leer = aus“ haben einen eigenen Schalter davor: Nachfassen, automatisch "
            "optimieren, Mindestmarge, Standard-Staffeln, automatischer Abgleich und Stangenbild-Fenster. Aus "
            "speichert 0 bzw. leer, der letzte Wert bleibt grau stehen und kommt beim Einschalten zurück.")
@@ -5798,7 +5798,7 @@ def kapitel_einstellungen(i):
            "Ordner. Ein reiner Rohrbetrieb schaltet zum Beispiel <b>Bleche und Kantteile</b> ab; wer nie Preise "
            "durchspielt, auch <b>Preis-Simulator und Varianten</b>.")
     i.tabelle(["Funktion", "Was beim Ausschalten verschwindet"],
-              [[f.titel, f.text] for f in funktionen.FUNKTIONEN])
+              [[f.titel, f.text] for f in funktionen.FUNKTIONEN], [55 * mm, BREITE - 55 * mm])
     i.abschnitt("Alle Einstellungen", marke="alle_einstellungen")
     i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
            "Ausnahme: Stundensätze und Zeitvorgaben ([[stundensaetze]]) speichert jedes Angebot beim Anlegen. "
