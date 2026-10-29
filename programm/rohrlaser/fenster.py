@@ -1205,6 +1205,14 @@ class EinstellungenSammlung:
     def findChildren(self, typ):
         return [w for s in self.seiten for w in s.findChildren(typ)]
 
+    def setEnabled(self, an):
+        for s in self.seiten:
+            s.setEnabled(an)
+
+    def setToolTip(self, text):
+        for s in self.seiten:
+            s.setToolTip(text)
+
 
 class ZeitvorgabenSeite(QWidget):
     """Unterreiter 'Stundensätze und Zeitvorgaben': Stundensätze oben, Arbeitsschritte darunter."""
