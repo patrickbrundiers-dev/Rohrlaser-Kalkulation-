@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.201", "<b>Gewinn gestaffelt nach Auftragswert</b> ([[gewinn_gestaffelt]]): in den Einstellungen "
+                "(Kalkulation) bis zu 4 Grenzen und 5 Sätze, z. B. 30 % bis 500 €, 20 % bis 2.000 €, 12 % bis "
+                "10.000 €, darüber 8 %. Auftragswert = Selbstkosten des Angebots ohne Zukaufteile und Fracht; ein "
+                "Satz für alle Positionen; an den Grenzen kein Preissprung nach unten. Ab Werk aus; ein eigener "
+                "Gewinn im Angebot oder in der Staffel-Stufe gilt statt der Stufen, festgeschriebene Angebote bleiben "
+                "gleich.",
+     "Gewinn gestaffelt nach Auftragswert (bis 5 Stufen, Vorgabe aus)"],
     ["0.9.200", "<b>Kalkulation genauer</b> ([[kalkulation_genauer]]): neue Maschinenfelder <i>Nebenzeit je Teil</i> "
                 "(Ausschieben/Entnehmen), <i>Schneidgas N₂/O₂ [€/h]</i> (Gaskosten je Laserstunde nach dem Gas der "
                 "Schneiddaten; genauer über <i>Düse Ø</i> und <i>Gasdruck</i> in den Schneiddaten und <i>Gaspreis "

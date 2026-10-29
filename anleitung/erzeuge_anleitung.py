@@ -2684,6 +2684,35 @@ def kapitel_optimieren(i):
            "übernehmen …</b> stellt sie um (der Dialog nennt „Gewinn auf Herstellkosten → auf Selbstkosten“). Mit "
            "gleichem Gewinn-Prozentsatz steigen die Preise dadurch; bei den Prüfangeboten mit 25 % Gewinn um 1,6 bis "
            "8 %, bei kleinen Aufträgen am meisten.")
+    i.abschnitt("Gewinn gestaffelt nach Auftragswert", marke="gewinn_gestaffelt")
+    i.text("Statt eines festen Gewinns kann der Gewinn in bis zu 5 Stufen nach dem Auftragswert gelten: kleine "
+           "Aufträge mit mehr, große mit weniger Prozent. Ab Werk aus (Grenze 1 leer), dann gilt <i>Gewinn</i> wie "
+           "bisher.", kurz=True)
+    i.tabelle(["Einstellung (Kalkulation)", "Bedeutung"], [
+        ["<b>Gewinn gestaffelt: Grenze 1 bis Auftragswert [€]</b>, <b>Gewinn gestaffelt: Grenze 2 bis Auftragswert "
+         "[€]</b>, <b>Gewinn gestaffelt: Grenze 3 bis Auftragswert [€]</b>, <b>Gewinn gestaffelt: Grenze 4 bis "
+         "Auftragswert [€]</b>",
+         "obere Grenzen der Stufen, aufsteigend; eine leere oder kleinere Grenze beendet die Liste. Grenze 1 leer = "
+         "aus."],
+        ["<b>Gewinn gestaffelt: Satz 1 bis Grenze 1</b>, <b>Gewinn gestaffelt: Satz 2 bis Grenze 2</b>, "
+         "<b>Gewinn gestaffelt: Satz 3 bis Grenze 3</b>, <b>Gewinn gestaffelt: Satz 4 bis Grenze 4</b>",
+         "Gewinn in % für Aufträge bis zu dieser Grenze."],
+        ["<b>Gewinn gestaffelt: Satz über der letzten Grenze</b>", "Gewinn in % für alles über der letzten Grenze "
+         "(mit 2 Grenzen gilt dafür Satz 3, mit 4 Grenzen dieses Feld)."]],
+        [90, 175])
+    i.text("<b>Auftragswert</b> ist die Basis des Gewinns ([[gewinn_basis]]): die Selbstkosten des ganzen Angebots "
+           "ohne Zukaufteile, Bleche und Fracht. Ein Satz gilt für alle Positionen des Angebots, die Übersicht zeigt "
+           "„Gewinn (… % gestaffelt)“. Beispiel 30 % bis 500 €, 20 % bis 2.000 €, 12 % bis 10.000 €, darüber 8 %: "
+           "1.500 € Basis → 20 % = 300 € Gewinn.")
+    i.text("<b>Kein Preissprung nach unten</b>: knapp über einer Grenze würde der kleinere Satz den Preis unter den "
+           "eines Auftrags genau an der Grenze drücken (500 € + 30 % = 650 €, 501 € + 20 % = 601 €). Das Programm "
+           "hebt den Gewinn dann so weit an, dass der Preis nicht fällt (501 € → 650 €); ein größerer Auftrag kostet "
+           "so nie weniger als ein kleinerer.")
+    i.text("Ein eigener <i>Gewinn [%]</i> im Angebot (auch aus der Kundenvorgabe) oder in einer Staffel-Stufe gilt "
+           "statt der Stufen. Sind die Stufen eingeschaltet, bekommen neue Angebote das Feld <i>Gewinn [%]</i> leer "
+           "und rechnen gestaffelt; ältere Angebote haben dort den festen Gewinn von damals stehen und behalten ihn, "
+           "bis man das Feld leert. Staffelpreise rechnen den Satz nach dem Wert der ganzen Stufe. Festgeschriebene "
+           "Angebote ([[preise_festschreiben]]) behalten ihren Gewinn.")
     i.abschnitt("Nebenzeit, Schneidgas, Ausschuss, Schrotterlös und Preiseinheit", marke="kalkulation_genauer")
     i.text("Diese Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
            "Preise wie bisher. Auch die Preiseinheit für Kleinteile ist ab Werk aus.", kurz=True)

@@ -1746,6 +1746,9 @@ class Datenbank:
             w = self.einstellung(f.name)
             if isinstance(w, (int, float)):
                 out[f.name] = round(w * 100, 4) if f.name in KALK_PROZENT else w
+        from .rechnen import gewinn_stufen
+        if gewinn_stufen(self.einstellungen()):
+            out["gewinn"] = None        # gestaffelter Gewinn: neue Angebote ohne eigenen Gewinn, sonst gälte der feste
         return out
 
     @liest
