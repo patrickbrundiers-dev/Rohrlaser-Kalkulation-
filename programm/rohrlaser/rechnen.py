@@ -676,10 +676,11 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
                    b_gehrung=None if b_ger else naht.ende_lesen(p.get("b_ende")),
                    drehung={naht.FEST: opt.FEST, naht.UNBEKANNT: opt.UNBEKANNT}.get(naht_wirksam(p, k), opt.FREI))
         if geh["drehung"] == opt.FEST:
-            try:
-                geh["naht"] = naht.normieren(p.get("naht_winkel"))
-            except ValueError:
-                geh["drehung"] = opt.UNBEKANNT      # feste Naht ohne Winkel (FEHLER im Status): nicht drehen
+            # Kasten: Mitte der Seite wie Spalte und Prüfung (ein Winkel wie 50° aus einem Rundrohr, für mehrere
+            # Positionen gesetzt, zählte sonst gerundet zur anderen Seite)
+            geh["naht"] = naht.wirksamer_winkel(pr, p.get("naht_winkel"))
+            if geh["naht"] is None:
+                geh["drehung"] = opt.UNBEKANNT      # Winkel fehlt (FEHLER) oder Naht auf der Ecke: nicht drehen
         if geh["drehung"] == opt.FREI and not (a_ger and b_ger):
             # Gehrung ohne Richtung (Schneidweg-Rechner): frei drehbare Teile legen sich mit Drehung in jeder Lage
             # gleich gut ineinander, also mit angenommener Richtung planen (Patrick 22.10.2026)

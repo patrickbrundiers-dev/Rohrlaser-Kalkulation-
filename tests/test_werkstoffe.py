@@ -47,7 +47,7 @@ assert pruefen(TABELLE["schneiddaten"], dict(z, kategorie="Stahl", gas=None), k)
 
 # 2) Schneiddaten: N₂ solange es eine N₂-Zeile gibt, darüber O₂; Kategorie, wenn der Werkstoff keine eigene hat
 sd = lambda m, w, s: rechnen.schneiddaten(m, w, s, tab, rechnen.kategorie(w, k))
-assert (sd("LT7", "S235-10219", 3)["gas"], sd("LT7", "S235-10219", 3)["vorschub_gross"]) == ("N₂", 3500)   # ab 0.9.199, bis 0.9.196 4.500
+assert (sd("LT7", "S235-10219", 3)["gas"], sd("LT7", "S235-10219", 3)["vorschub_gross"]) == ("N₂", 3500)   # ab 0.9.200, bis 0.9.196 4.500
 assert (sd("LT7", "S235-10219", 4)["gas"], sd("LT7", "S235-10219", 4.5)["gas"]) == ("N₂", "O₂")
 assert sd("LT7", "E355-10305", 5)["vorschub_gross"] == 2200 and sd("LT7", "S355-10219", 10)["wand_bis"] == 10
 assert sd("LT7", "S235-10219", 13) is None
@@ -72,7 +72,7 @@ p0 = dict(pos=10, artikel="A", profil_id="RE 120x60x4", werkstoff_id="1.4301", l
           einstiche=2)
 erg = rechnen.optimieren(kopf, [p0], k)
 zk, _ = rechnen.kalkulation(kopf, [p0], erg, k, tab, db.einstellungen())
-assert (zk[0]["wand_stufe"], zk[0]["gas"], zk[0]["vorschub_gross"]) == (4, "N₂", 4500), zk[0]   # Edelstahl 4 mm LT7 ab 0.9.199, bis 0.9.196 3.500
+assert (zk[0]["wand_stufe"], zk[0]["gas"], zk[0]["vorschub_gross"]) == (4, "N₂", 4500), zk[0]   # Edelstahl 4 mm LT7 ab 0.9.200, bis 0.9.196 3.500
 assert rechnen.position_werte(p0, kopf, k, tab)["gas"] == "N₂"
 
 # 3) Oberfläche: eigene Stangen, Aufpreis je m, Text im Angebot, Prüfungen

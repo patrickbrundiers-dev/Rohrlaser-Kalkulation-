@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.199", "<b>Schneiddaten mit Schneidtabellen abgeglichen</b>: Die Richtwerte für T11 und LT7 sind mit "
+    ["0.9.200", "<b>Schneiddaten mit Schneidtabellen abgeglichen</b>: Die Richtwerte für T11 und LT7 sind mit "
                 "veröffentlichten Schneidtabellen verglichen; die Bemerkung jeder Zeile nennt jetzt die Herkunft "
                 "(Herstellerwert oder Schätzung). Stahl mit N₂ 3–4 mm langsamer (LT7 3.500 / 2.500, T11 4.000 / 3.000 "
                 "mm/min), Edelstahl LT7 3 mm 5.000 und 4 mm 4.500, T11 6 mm 2.200 mm/min, Einstechzeiten Edelstahl "
@@ -30,6 +30,15 @@ NEUERUNGEN = [
                 "([[maschinen_schneiddaten]]). Unveränderte Standardzeilen werden beim ersten Start angepasst "
                 "(mit Sicherung), eigene Werte bleiben; festgeschriebene Angebote rechnen unverändert.",
      "Schneiddaten mit Schneidtabellen abgeglichen, Herkunft je Zeile, Warnung über der Maschinengrenze."],
+    ["0.9.199", "<b>Optimieren mit fester Schweißnaht an mehreren Positionen</b>: Hatten mehrere Positionen einer "
+                "Abmessung eine feste Naht (oder Gehrungen), konnte die Optimierung ein Teil doppelt und ein anderes "
+                "gar nicht einplanen; die Kontrolle meldete dann „Teile fehlen oder doppelt“. Ursache war ein "
+                "Zwischenspeicher, der Teile nach der Reihenfolge der Schnittmuster vertauschte – behoben, die "
+                "Kontrolle bleibt. <b>Schweißnaht …</b> für mehrere Positionen: verschiedene Nahtwinkel bleiben je "
+                "Position, solange der Winkel nicht geändert wird; die Querschnittslage gilt nur für Rechteckrohre, "
+                "bei Quadrat- und Rechteckrohr liegt die Naht immer auf einer Seitenmitte, und die Optimierung "
+                "rechnet mit derselben Seite wie Spalte und Prüfung ([[schweissnaht]]).",
+     "Optimieren mit fester Naht an mehreren Positionen: kein Teil mehr doppelt/fehlend; Nahtwinkel je Position."],
     ["0.9.198", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
                 "CAD als <b>eigene dünne Körper</b> (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf "
                 "dem Rohr liegen, werden jetzt Gravur des Rohrs – mit allen Konturen (auch innen in „O“, „A“, „B“), "

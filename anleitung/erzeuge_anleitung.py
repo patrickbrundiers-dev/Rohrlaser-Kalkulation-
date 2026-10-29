@@ -1690,6 +1690,13 @@ def kapitel_angebot(i):
             "Das Fenster nennt die getroffene Seite: bei Rechteckrohr <i>Breitseite</i> (die längere Seite) oder "
             "<i>Schmalseite</i>, bei Quadratrohr nur die Richtung, bei Rundrohr nur den Winkel. Liegt der Winkel auf "
             "einer Ecke, ist die Seite nicht eindeutig (Warnung).",
+            "<b>Mehrere Positionen</b> markiert: das Fenster zeigt die Werte der ersten. Haben die Positionen "
+            "verschiedene Nahtwinkel (z. B. aus dem STEP-Import), behält jede ihren eigenen, solange der Winkel im "
+            "Fenster nicht geändert wird; Nahtvorgabe und Quelle gelten für alle. Ein geänderter Winkel gilt für "
+            "alle markierten Positionen. Die Querschnittslage bekommen nur Rechteckrohre; bei Quadrat- und "
+            "Rechteckrohr legt das Programm die Naht auf die Mitte der Seite, auf der sie liegt (ein Winkel von "
+            "50° eines Rundrohrs wird bei RE 60x40 zu 0°, bei QR 40x40 zu 90°). Mit genau dieser Seite rechnet "
+            "auch die Optimierung.",
             "<b>Naht der Lieferstange</b> (nur Rechteckrohr, bei fester Position): auf welcher Seite die bestellte "
             "Stange ihre Schweißnaht hat, <i>Breitseite</i> oder <i>Schmalseite</i>. Das ist eine Angabe des "
             "<b>Angebots</b>, nicht der Stammdaten: sie gilt in diesem Angebot für alle Positionen mit gleichem "
@@ -6633,7 +6640,7 @@ def kapitel_stammdaten(i):
                              "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit. Standard "
                              "seit 0.9.196 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
-           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.9.199 sind sie mit veröffentlichten "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.9.200 sind sie mit veröffentlichten "
            "Schneidtabellen abgeglichen, und die <i>Bemerkung</i> jeder Zeile nennt die Herkunft: <i>GWEIKE Rohr 3 kW "
            "bzw. 4 kW</i> (Rohr-Schneidtabellen eines Rohrlaser-Herstellers), <i>Hypertherm 3 kW Flachbett</i> "
            "(Einstechzeiten Edelstahl) oder <i>Schätzung</i>. Trumpf und Adige veröffentlichen keine Vorschubtabellen; "
