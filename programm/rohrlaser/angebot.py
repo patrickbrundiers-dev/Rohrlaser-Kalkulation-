@@ -38,6 +38,9 @@ KOPF = (
     # Mindestauftragswert (Betrag aus den Einstellungen) für dieses Angebot anwenden: leer = ja, "nein" = aus
     # (Patrick 23.10.2026); der Betrag selbst bleibt nur in den Einstellungen änderbar
     Feld("mindestpreis_anwenden", "Mindestauftragswert anwenden", "auswahl", auswahl="janein"),
+    # Musterteile (Patrick 28.10.2026): leer = Musterkosten auf die Serienpositionen umlegen, MUSTER_ZEILE = als
+    # eigene Zeile „Musterkosten einmalig“ (ohne Serienposition immer so)
+    Feld("muster_darstellung", "Musterkosten im Angebot", "auswahl", auswahl="musterdarstellung"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
@@ -111,6 +114,11 @@ def ist_baugruppe(p):
 def kein_laserteil(p):
     """True für Positionen ohne Rohrlaser-Bearbeitung (Zukaufteil, Schweißbaugruppe): nicht optimiert, nicht gelasert."""
     return (p or {}).get("art") in (ZUKAUFTEIL, BAUGRUPPE)
+
+
+def ist_muster(p):
+    """True für ein Musterteil (Spalte Muster = ja): eigener Fertigungslauf, Preis 0, Kosten auf die Serie."""
+    return (p or {}).get("muster") == "ja"
 
 
 def aktiv(p):
@@ -277,7 +285,10 @@ POSITIONEN = Tabelle(
      Feld("bg_gravur", "Gravur Artikelnr. h [mm]", "zahl", 0, 200, stellen=1, breite=90),
      # Halbschalen aus dem Rundrohr (STEP-Import, offen gezeichnete Rohre): so viele Teile aus einem Rohrumfang,
      # Rohrstücke = Stückzahl ÷ je Umfang aufgerundet (rechnen.rohrstuecke); leer = 1 Teil je Rohrstück
-     Feld("je_umfang", "Teile je Rohrumfang", "ganz", 1, 100, breite=70)),
+     Feld("je_umfang", "Teile je Rohrumfang", "ganz", 1, 100, breite=70),
+     # Musterteil (Schema 66, Patrick 28.10.2026): „ja“ = voll gerechnet, aber ohne eigenen Preis im Angebot; die
+     # Kosten mit Gewinn gehen auf die Serienpositionen (bzw. als Musterkosten einmalig in eine eigene Zeile)
+     Feld("muster", "Muster", "auswahl", auswahl="janein", breite=60)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

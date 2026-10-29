@@ -124,7 +124,8 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     if staffeln_veraltet:
         out.append(Punkt(WARNUNG, f"{staffeln_veraltet} Staffelstufe(n) veraltet oder nicht gerechnet: ohne Preis, "
                          "nicht im Angebot", "staffeln",
-                         "Staffeln werden nie automatisch gerechnet. Reiter Staffeln → „Staffelpreise rechnen“."))
+                         "Angelegte Staffeln rechnet das Programm nach Änderungen selbst neu (nicht im Lesemodus und bei "
+                         "Angeboten anderer). Sonst Reiter Staffeln → „Staffelpreise rechnen“."))
     for h in laser_hinweise or ():
         z = [i for i in h["zeilen"] if i in st]
         if z:

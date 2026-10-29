@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QWidget)
 
 from . import hilfe, rechnen, stil, tastatur
-from .stammdaten import (TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORIEN, ZUSATZART_TEXT, ZUSATZARTEN,
+from .stammdaten import (REGEL_MENGEN, TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORIEN, ZUSATZART_TEXT, ZUSATZARTEN,
                          ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, zahl_als_text, zahl_aus_text)
 
 TITEL = "Zusatzarbeiten"
@@ -88,6 +88,29 @@ def verkauf(z, preis, vg):
     return preis * (1 + zs) * (1 + vg["gewinn"])
 
 
+def rechnen_regeln():
+    from . import zusatz_regeln      # spät: zusatz_regeln braucht angebot
+    return zusatz_regeln
+
+
+def regeln_text(name, regeln):
+    """Kurzer Text, welche Arbeitsgang-Regeln für diese Zusatzarbeit gelten (Preis, automatisch, Vorschlag)."""
+    zr = rechnen_regeln()
+    eigene = [r for r in regeln or () if name and r.get("zusatzarbeit") == name]
+    if not eigene:
+        return ("Keine Regeln. Abweichende Preise je Werkstoff, Profil oder Kunde und automatisches Zuordnen: "
+                "Einstellungen → Arbeitsgang-Regeln.")
+    zeilen = []
+    for r in eigene:
+        teile = [zr.zuordnung(r)]
+        if r.get("preis") is not None:
+            teile.append(f"{zahl_als_text(r['preis'], 2)} {r.get('art') or ''}".strip())
+        if r.get("mindest_teil") is not None:
+            teile.append(f"mind. {euro(r['mindest_teil'])} je Teil")
+        zeilen.append(f"• {r.get('name')}: {', '.join(teile)}" + ("" if zr.aktiv(r) else " (aus)"))
+    return "\n".join(zeilen) + "\nÄndern: Einstellungen → Arbeitsgang-Regeln."
+
+
 def kopie_name(name, vorhanden):
     """'Name (Kopie)', bei Bedarf 'Name (Kopie 2)', 'Name (Kopie 3)' … (frei in vorhanden)."""
     vorhanden = {v.lower() for v in vorhanden}
@@ -113,8 +136,14 @@ def grundlage_text(z):
                     "Position gespeichert.")
     menge = {"€/kg": "× Teilegewicht [kg]", "€/m²": "× Außenfläche [m²]", "€/m": "× Teilelänge [m]",
              "€/Stück": "× Stückzahl"}.get(art)
+    if menge and z.get("bezug") not in (None, "", "automatisch"):
+        menge = f"× {z['bezug']}"
+    if menge and _n(z.get("faktor")) and z["faktor"] != 1:
+        menge += f" × Faktor {zahl_als_text(z['faktor'])}"
     t = (f"Im Angebot: Preis je Einheit {menge} der Position" if menge else
          "Im Angebot: Preis einmal je Angebot, umgelegt auf die Teile der Positionen mit dieser Zusatzarbeit")
+    if _n(z.get("mindest_teil")) and menge:
+        t += f", mindestens {euro(z['mindest_teil'])} je Teil"
     if _n(z.get("mindest")):
         t += f", mindestens {euro(z['mindest'])} je Angebot"
     t += (", dann Zuschlag " + ("Fremdleistung" if z.get("fremd") == "ja" else "Fertigung")
@@ -213,6 +242,17 @@ class ZusatzFormular(QWidget):
         self.zuschlag_weitere_basis.addItems(list(ZUSCHLAG_BASIS))
         self.zuschlag_weitere_basis.setCurrentText("Arbeit und Material")
         self.mindest = self._zahl("0,00")
+        # Plan Abrechnungsregeln 28.10.2026: Menge aus, Faktor, Mindestbetrag je Teil
+        self.bezug = QComboBox()
+        self.bezug.addItems(list(REGEL_MENGEN))
+        self.bezug.setToolTip("Woraus die Menge je Teil kommt: automatisch nach der Abrechnung (kg = Teilegewicht, "
+                              "m² = Außenfläche, m = Länge, Stück) oder z. B. Innen- + Außenfläche (Strahlen)")
+        self.faktor = self._zahl("1")
+        self.faktor.setToolTip("Menge × Faktor, z. B. 1,05 für Gehänge oder Abtrag (leer = 1)")
+        self.mindest_teil = self._zahl("0,00")
+        self.regeln_text = QLabel()
+        self.regeln_text.setWordWrap(True)
+        self.regeln_text.setStyleSheet(f"color: {GRAU};")
         self.fremd = QCheckBox("Fremdleistung (Zuschlag Fremdleistung statt Fertigung)")
         self.angebotstext = QLineEdit()
         self.angebotstext.setPlaceholderText("leer = Name")
@@ -266,8 +306,13 @@ class ZusatzFormular(QWidget):
         self.zeile_weitere = self._zeile(self.zuschlag_weitere, QLabel("% auf"), self.zuschlag_weitere_basis)
         f4.addRow("Weiterer Zuschlag", self.zeile_weitere)
         f4.addRow("Mindestbetrag je Angebot", self._zeile(self.mindest, QLabel("€")))
+        self.zeile_bezug = self._zeile(self.bezug, QLabel("× Faktor"), self.faktor)
+        f4.addRow("Menge aus", self.zeile_bezug)
+        f4.addRow("Mindestbetrag je Teil", self._zeile(self.mindest_teil, QLabel("€")))
         f4.addRow("", self.fremd)
         f4.addRow("Text im Angebot", self.angebotstext)
+        f6 = self._bereich(lay, "Regeln (Arbeitsgang-Regeln)")
+        f6.addRow(self.regeln_text)
         f5 = self._bereich(lay, "Ergebnis")
         f5.addRow(self.ergebnis)
         f5.addRow(self.grundlage)
@@ -289,14 +334,17 @@ class ZusatzFormular(QWidget):
         self.setMinimumWidth(420)
 
         for w in (self.name, self.beschreibung, self.preis, self.zeit, self.satz, self.material,
-                  self.zuschlag_material, self.zuschlag_weitere, self.mindest, self.angebotstext):
+                  self.zuschlag_material, self.zuschlag_weitere, self.mindest, self.angebotstext, self.faktor,
+                  self.mindest_teil):
             w.textEdited.connect(self._geaendert)
         self.kategorie.editTextChanged.connect(self._geaendert)
-        for w in (self.art, self.zeit_einheit, self.satz_id, self.zuschlag_material_art, self.zuschlag_weitere_basis):
+        for w in (self.art, self.zeit_einheit, self.satz_id, self.zuschlag_material_art, self.zuschlag_weitere_basis,
+                  self.bezug):
             w.currentIndexChanged.connect(self._geaendert)
         for w in (self.aktiv, self.fremd):
             w.toggled.connect(self._geaendert)
-        for w, stellen in ((self.preis, 2), (self.satz, 2), (self.material, 2), (self.mindest, 2),
+        for w, stellen in ((self.preis, 2), (self.satz, 2), (self.material, 2), (self.mindest, 2), (self.mindest_teil, 2),
+                           (self.faktor, None),
                            (self.zuschlag_material, None), (self.zuschlag_weitere, None), (self.zeit, None)):
             w.editingFinished.connect(lambda w=w, s=stellen: self._formatieren(w, s))
         self._mehr_zeigen(False)
@@ -336,7 +384,8 @@ class ZusatzFormular(QWidget):
     def _mehr_zeigen(self, offen):
         self.box_mehr.setVisible(offen)
         self.mehr.setText(("▾ " if offen else "▸ ") + "Weitere Optionen")
-        self.mehr.setToolTip("Weiterer Zuschlag, Mindestbetrag je Angebot, Fremdleistung, Text im Angebot")
+        self.mehr.setToolTip("Weiterer Zuschlag, Mindestbetrag je Angebot, Menge aus, Faktor, Mindestbetrag je Teil, "
+                             "Fremdleistung, Text im Angebot")
 
     def _formatieren(self, w, stellen):
         try:
@@ -374,7 +423,7 @@ class ZusatzFormular(QWidget):
         self.art.setCurrentIndex(max(self.art.findData(z.get("art") or "€/Stück"), 0))
         self.aktiv.setChecked(aktiv(z))
         for n, stellen in (("preis", 2), ("satz", 2), ("material", 2), ("mindest", 2), ("zeit", None),
-                           ("zuschlag_material", None), ("zuschlag_weitere", None)):
+                           ("zuschlag_material", None), ("zuschlag_weitere", None), ("mindest_teil", 2), ("faktor", None)):
             w = z.get(n)
             getattr(self, n).setText(zahl_als_text(w, stellen if n != "preis" or z.get("art") != "s/Stück" else None,
                                                    tausender=False) if isinstance(w, (int, float)) else "")
@@ -383,8 +432,11 @@ class ZusatzFormular(QWidget):
         self.zuschlag_weitere_basis.setCurrentText(z.get("zuschlag_weitere_basis") or "Arbeit und Material")
         self.fremd.setChecked(z.get("fremd") == "ja")
         self.angebotstext.setText(z.get("angebotstext") or "")
+        self.bezug.setCurrentText(z.get("bezug") or "automatisch")
+        self.regeln_text.setText(regeln_text(z.get("name"), self.db.zeilen("arbeitsgang_regeln")))
         self.mehr.setChecked(bool(_n(z.get("zuschlag_weitere")) or _n(z.get("mindest")) or z.get("fremd") == "ja"
-                                  or z.get("angebotstext")))
+                                  or z.get("angebotstext") or z.get("bezug") not in (None, "", "automatisch")
+                                  or _n(z.get("faktor")) or _n(z.get("mindest_teil"))))
         self._mehr_zeigen(self.mehr.isChecked())
         self._laedt = False
         self.geaendert = False
@@ -412,9 +464,11 @@ class ZusatzFormular(QWidget):
         werte["satz_id"] = self.satz_id.currentData()
         werte["zuschlag_material_art"] = self.zuschlag_material_art.currentText()
         werte["zuschlag_weitere_basis"] = self.zuschlag_weitere_basis.currentText()
+        werte["bezug"] = None if self.bezug.currentText() == "automatisch" else self.bezug.currentText()
         titel = {"preis": self.preis_titel.text(), "zeit": "Zeitaufwand", "satz": "Stundensatz",
                  "material": "Materialkosten", "zuschlag_material": "Materialzuschlag",
-                 "zuschlag_weitere": "Weiterer Zuschlag", "mindest": "Mindestbetrag"}
+                 "zuschlag_weitere": "Weiterer Zuschlag", "mindest": "Mindestbetrag",
+                 "faktor": "Faktor", "mindest_teil": "Mindestbetrag je Teil"}
         for n, t in titel.items():
             text = getattr(self, n).text().strip()
             try:
@@ -424,12 +478,18 @@ class ZusatzFormular(QWidget):
                 continue
             if w is not None and w < 0:
                 fehler[n] = f"{t}: negative Werte sind nicht zulässig."
+            elif w is not None and n == "faktor" and w == 0:
+                fehler[n] = "Faktor: bitte größer als 0 (leer = 1)."
             elif w is not None and FELD[n].bis is not None and w > FELD[n].bis:
                 fehler[n] = f"{t}: höchstens {zahl_als_text(FELD[n].bis)}."
             else:
                 werte[n] = w
         if werte["satz_id"]:
             werte["satz"] = None
+        if werte["art"] in ("s/Stück", "€/h", "€/Angebot"):      # Menge aus, Faktor, je Teil gibt es dort nicht
+            for n in ("bezug", "faktor", "mindest_teil"):
+                werte[n] = None
+                fehler.pop(n, None)
         if werte["art"] == "s/Stück":           # nur die Zeit je Stück zählt
             for n in ("zeit", "satz_id", "satz", "material", "zuschlag_material", "zuschlag_weitere"):
                 werte[n] = None
@@ -452,10 +512,14 @@ class ZusatzFormular(QWidget):
             self.f2.setRowVisible(i, not s_stueck)
         self.box3.setVisible(not s_stueck and not je_h)
         self.zeile_weitere.setEnabled(not s_stueck and not je_h)
+        mengen = self.art.currentData() in ("€/kg", "€/m²", "€/m", "€/Stück")
+        self.zeile_bezug.setEnabled(mengen)
+        self.mindest_teil.setEnabled(mengen)
         eigen = self.satz_id.currentData() is None
         self.satz.setEnabled(eigen)
         werte, fehler = self._felder()
-        for n in ("preis", "zeit", "satz", "material", "zuschlag_material", "zuschlag_weitere", "mindest"):
+        for n in ("preis", "zeit", "satz", "material", "zuschlag_material", "zuschlag_weitere", "mindest", "faktor",
+                  "mindest_teil"):
             getattr(self, n).setStyleSheet(ROTER_RAHMEN if n in fehler else "")
         if not eigen:
             self.satz.setText(zahl_als_text(self.saetze.get(werte["satz_id"]), 2, tausender=False)
@@ -491,6 +555,8 @@ class ZusatzFormular(QWidget):
                   if x.get("name") and x["id"] != self.zeilen_id}
         if werte["name"].lower() in andere:
             raise ValueError(f"Eine Zusatzarbeit '{werte['name']}' gibt es schon. Bitte einen anderen Namen wählen.")
+        if rechnen_regeln().nur_stueck(werte["name"]) and werte["art"] != "€/Stück":
+            raise ValueError(f"{werte['name']} rechnet nur € je Stück (Gewinde, Senken, Flowdrill, Bohren).")
         if werte["art"] == "s/Stück":
             if not _n(werte.get("preis")):
                 raise ValueError("Bitte die Maschinenzeit je Stück in Sekunden eingeben.")

@@ -98,6 +98,8 @@ def bild_lesen(bild, exe, zeit=ZEIT_S, psm=6):
     puffer = io.BytesIO()
     bild.save(puffer, format="PNG")
     umgebung = dict(os.environ)
+    umgebung.setdefault("OMP_THREAD_LIMIT", "1")    # ein Kern je Seite: mehrere Seiten/Programme gleichzeitig
+    #                                                 laufen sonst um ein Vielfaches langsamer (Zeitlimit)
     if Path(exe).parent.name == TESSERACT_ORDNER:   # mitgeliefert: Sprachdaten in tessdata daneben (Vorgabe von
         umgebung.pop("TESSDATA_PREFIX", None)        # Tesseract), nie die einer anderen Installation
     erg = subprocess.run([exe, "stdin", "stdout", "-l", SPRACHEN, "--psm", str(psm), "tsv"], input=puffer.getvalue(),

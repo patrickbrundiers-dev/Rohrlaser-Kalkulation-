@@ -15,7 +15,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt  # noqa: E402
-from PySide6.QtGui import QMouseEvent  # noqa: E402
+from PySide6.QtGui import QCursor, QMouseEvent  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -140,6 +140,29 @@ QTest.keyClick(u, Qt.Key_Escape)
 assert not u.popup.isVisible()
 u.popup_zeigen(5)
 assert u.popup.isVisible() and u.popup.nr == 5
+# Patrick 28.10.2026: Popup offen, Maus auf eine andere Stange -> gleich diese; Maus weg von den Stangen -> zu
+
+
+def _maus(x, y):
+    p = QPointF(x, y)
+    QCursor.setPos(u.mapToGlobal(p.toPoint()))
+    QApplication.sendEvent(u, QMouseEvent(QEvent.MouseMove, p, u.mapToGlobal(p), Qt.NoButton, Qt.NoButton,
+                                          Qt.NoModifier))
+
+
+_maus(u.LINKS + 20, u.stangen_y[6] + 8)
+assert u.popup.isVisible() and u.popup.nr == 6 and not u.uhr.isActive(), u.popup.nr
+_maus(u.LINKS + 20, u.stangen_y[7] + 8)
+assert u.popup.nr == 7
+_maus(5, 2)                                              # über der ersten Kopfzeile: keine Stange
+assert u.zu_uhr.isActive() and u.popup.isVisible()
+_maus(u.LINKS + 20, u.stangen_y[7] + 8)                             # zurück vor Ablauf: bleibt offen
+assert not u.zu_uhr.isActive()
+_maus(5, 2)
+QTest.qWait(u.ZU_MS + 200)
+assert not u.popup.isVisible()
+ok("Popup wechselt mit der Maus auf eine andere Stange und schließt von selbst, wenn die Maus die Stangen verlässt")
+u.popup_zeigen(5)
 st.ansicht_setzen(DETAIL)                                           # andere Ansicht: Fenster zu
 assert not u.popup.isVisible()
 st.ansicht_setzen(UEBERSICHT)

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
 from . import einblendung, stil
 from . import (biegerohr, dfm, dreid, durchdringung as dd, hilfe, knickrahmen, naht, profil_neu, rechnen,
                schneidweg as sw, skizze as sk, tabellen_eingabe, virtuell)
+from .muster_haken import MusterHaken
 from .fenster import liste_fuellen
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
@@ -319,6 +320,9 @@ class SchneidwegDialog(QDialog):
         enden.addWidget(self.naht_quelle, 4, 3)
         enden.addWidget(self.naht_info, 4, 4, 1, 2)
         self._naht_start = self.naht_werte()
+        # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
+        self.muster_haken = MusterHaken(p)
+        enden.addWidget(self.muster_haken, 5, 0, 1, 2)
         enden.setColumnStretch(5, 1)
         lay.addLayout(enden)
 
@@ -495,9 +499,12 @@ class SchneidwegDialog(QDialog):
         self.k_profil.completer().setCompletionMode(QCompleter.PopupCompletion)
         self.k_profil.setToolTip("Profil aus den Stammdaten (Eintippen sucht, z. B. 40x40)")
         self.k_profil.currentTextChanged.connect(self._profil_gewaehlt)
+        # getippte Abmessung fehlt in den Stammdaten: Menü „neu anlegen …“ unter dem Feld (Patrick 28.10.2026)
+        self.k_profil.lineEdit().editingFinished.connect(self._profil_fehlt)
         self.k_profil_neu = QPushButton("Neu …")
-        self.k_profil_neu.setToolTip("Profil fehlt in den Stammdaten: hier mit Form und Maßen anlegen")
-        self.k_profil_neu.clicked.connect(lambda: self.profil_neu())
+        self.k_profil_neu.setToolTip("Profil fehlt in den Stammdaten: hier mit Form und Maßen anlegen (eine "
+                                     "eingetippte Abmessung wie RE 70x30x3 füllt das Fenster vor)")
+        self.k_profil_neu.clicked.connect(lambda: self.profil_neu(eingabe=self._profil_getippt()))
         profil_feld = QWidget()
         pl = QHBoxLayout(profil_feld)
         pl.setContentsMargins(0, 0, 0, 0)
@@ -551,14 +558,28 @@ class SchneidwegDialog(QDialog):
         self.k_profil.addItems(liste)
         return liste
 
-    def profil_neu(self, werte=None, dialog=None):
+    def _profil_getippt(self):
+        """Eingetippter Text im Profilfeld, wenn er kein Profil der Stammdaten ist (sonst None)."""
+        t = self.k_profil.currentText().strip()
+        return t if t and t not in self.k.profile and profil_neu.vorschlag(t) else None
+
+    def _profil_fehlt(self):
+        """Eingabe im Profilfeld bestätigt, Abmessung fehlt in den Stammdaten: Menü „Abmessung … neu anlegen …“."""
+        t = self._profil_getippt()
+        if t and self.neu and getattr(self, "_fehlt_gezeigt", None) != t:
+            self._fehlt_gezeigt = t
+            self.abm_menue = profil_neu.anbieten(self, t, lambda x: self.profil_neu(eingabe=x),
+                                                 self.k_profil.mapToGlobal(self.k_profil.rect().bottomLeft()))
+
+    def profil_neu(self, werte=None, dialog=None, eingabe=None):
         """Fehlendes Profil anlegen (ProfilNeuDialog; werte = fertige Zeile ohne Dialog, dialog(d) bedient ihn in
-        Tests): in die Stammdaten schreiben und hier wählen. Ergebnis: Profil-ID oder None."""
+        Tests, eingabe = getippte Abmessung füllt ihn vor): in die Stammdaten schreiben und hier wählen. Ergebnis:
+        Profil-ID oder None."""
         interaktiv = werte is None and dialog is None
         if werte is None:
             form = self.k_form.currentText()
             d = profil_neu.ProfilNeuDialog(self, self.k.profile, form if form != profil_neu.ALLE else None,
-                                           self.k.profilformen)
+                                           self.k.profilformen, eingabe=eingabe)
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.fehler():
                 return None
             werte = d.werte()
@@ -729,8 +750,12 @@ class SchneidwegDialog(QDialog):
             if sw._z(x.get("gemessen")):
                 # alles Gemessene (auch Umriss und Schwenk eines komplexen Endes, sonst ist eine Ausklinkung im Editor
                 # gerade, Patrick 26.10.2026), nur nicht, was die Eingabefelder des Endes selbst setzen
+                # eine in 3D übernommene (ebene) STEP-Gehrung braucht 'aussen_mass' nicht (3D = wie gezeichnet); so
+                # wird sie beim Umstellen auf 2D an der langen Seite kürzer wie jede 2D-Gehrung (Patrick 28.10.2026)
+                eben_3d = x.get("d3") is True and e.get("d3") is True
                 self._ende_step[s] = (self._ende_werte(s), {k_: v for k_, v in x.items() if v is not None
-                                                            and k_ not in ENDE_FELDER})
+                                                            and k_ not in ENDE_FELDER
+                                                            and not (eben_3d and k_ == "aussen_mass")})
                 self.winkel[s].setStyleSheet("background: #E8F5E9;")
                 gm.setText(f"<span style='color:#1E6B35'>gemessen {rechnen.zahl(x['gemessen'], 1)} mm"
                            + (f", {x['form']}" if x.get("form") else "")
@@ -778,6 +803,10 @@ class SchneidwegDialog(QDialog):
         w = NAHT_WAHL[self.naht_winkel.currentText()] if isinstance(self.naht_winkel, QComboBox) else \
             naht.normieren(self.naht_winkel.value())
         return dict(naht_vorgabe=v, naht_winkel=w, naht_quelle=self.naht_quelle.currentText())
+
+    def muster_geaendert(self):
+        """{'muster': …}, wenn das Häkchen Muster umgeschaltet wurde, sonst leer."""
+        return self.muster_haken.geaendert() if hasattr(self, "muster_haken") else {}
 
     def naht_geaendert(self):
         """Nahtfelder, wenn sie im Dialog geändert wurden (sonst leer: bestehende Werte bleiben unangetastet)."""
@@ -1201,7 +1230,7 @@ class SchneidwegDialog(QDialog):
         for s in ("a", "b"):
             if self.gegen.get(s):
                 enden[s]["gegen"] = dict(self.gegen[s])
-            if self.ende_3d[s].isChecked():
+            if self.ende_3d[s].isChecked() and self.d3.isChecked():    # Gehrung in 3D nur mit 3D am Bauteil
                 enden[s]["d3"] = True
             if s in getattr(self, "_nasen", {}):
                 enden[s]["nasen"] = self._nasen[s]
@@ -1553,10 +1582,11 @@ class SchneidwegDialog(QDialog):
 
 
 def ohne_3d(e):
-    """Eingaben für Skizze und Zeichnung: ohne Häkchen am Bauteil zählt „3D“ an Konturen nicht (2D wie gerechnet)."""
+    """Eingaben für Skizze und Zeichnung: ohne Häkchen am Bauteil zählt „3D“ an Konturen und Enden nicht (2D wie
+    gerechnet)."""
     if e.get("d3") is True:
         return e
-    return dict(e, konturen=[{k: v for k, v in z.items() if k != "d3"} for z in e.get("konturen") or ()])
+    return dict(sw.enden_2d(dict(e)), konturen=[{k: v for k, v in z.items() if k != "d3"} for z in e.get("konturen") or ()])
 
 
 def winkel_anzeige(w):

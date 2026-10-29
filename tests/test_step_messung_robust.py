@@ -98,10 +98,10 @@ db.einstellung_setzen("step_tol_kernloch", 0.3)
 db.einstellung_setzen("step_tol_profil", 0.4)
 step_einstellungen.anwenden(db)
 assert bohrbild.TOL_KERNLOCH == 0.3 and step.TOL_MASS == 0.4
-assert step.gewinde_vorschlag("4.9:4", step.KERNLOCH) == "4xM6"
+assert step.gewinde_vorschlag("4.8:4", step.KERNLOCH) == "4xM6"
 db.einstellung_setzen("step_tol_kernloch", 0.05)
 step_einstellungen.anwenden(db)
-assert step.gewinde_vorschlag("4.9:4", step.KERNLOCH) == ""
+assert step.gewinde_vorschlag("4.8:4", step.KERNLOCH) == ""
 db.einstellung_setzen("step_cache", "nein")
 assert "--cache" not in step_einstellungen.mess_argumente(db)
 (tmp / "db" / "STEP-Cache" / "x").mkdir(parents=True)

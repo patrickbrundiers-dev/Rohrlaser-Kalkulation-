@@ -109,11 +109,26 @@ Versionen von SCHEMA_VERSION:
   (mm) und Vertrauen "prüfen", Gravur genau unter dem Anbauteil auf der Rohrwand. Je Datei "ohne_naht" = Körper
   "nr" einer Baugruppe ohne Nahtkandidat ([] bei Einzelteilen, null = nicht bestimmt). Rohr durch ein Blech gesteckt:
   Nahtkandidat mit "beidseitig": true und laenge_mm = Außenumfang des Rohrs (je Seite). Felder aus 1.19 unverändert.
+- 1.21 (28.10.2026): Je Nahtkandidat (Plan Schweißbaugruppen 28.10., Schritt 4) "zugang" = gut, eingeschränkt,
+  schlecht oder nicht erreichbar (Brenner: an 6 Punkten des Nahtverlaufs je 48 Strahlen bis 150 mm gegen alle Körper),
+  "erreichbar" = Anteil der Punkte mit freier Richtung (0..1) und "seiten" = je freiem Punkt die Lagen ("+Z", "-Z",
+  "+X", "-X", "+Y", "-Y": diese Achse der Datei zeigt nach oben), in denen der Brenner von oben oder seitlich
+  hinkommt. Die Felder fehlen, wenn die Zeit für die Prüfung abgelaufen ist. Felder aus 1.20 unverändert.
+- 1.22 (28.10.2026): Je Nahtkandidat "dicke_max_mm" = dickere Wand der beiden Teile (dicke_mm bleibt die dünnere),
+  für das Mindest-a √t − 0,5 (Plan Schweißbaugruppen, Schritt 5); fehlt, wenn nur eine Dicke bekannt ist. Felder aus
+  1.21 unverändert.
+- 1.23 (29.10.2026): Offene Profile (U, C, L, Flachstahl, Träger): Ausschnitte und komplexe Enden tragen "zuege" =
+  Kanten der Kontur als geordnete Züge [[x, y, z], …] (x, y im System von "querlage", z ab Ende A; beide Seiten der
+  Wand), daraus legt das Programm den echten Umriss auf die Flächen der Skizze. Senkungen auch ohne Bohrung (Kegel
+  durch die ganze Wand: "durchmesser" = kleinster Ø an der Innenseite) und als Zylindersenkung; bei Blechen
+  "senkungen" im Block "blech" ([[Ø, Senk-Ø, Anzahl]]) und je Innenkontur "senk_durchmesser". Ausmodellierte
+  Gewinde sind "Bohrung" mit "durchmesser" = Kern-Ø, "gewinde" (z. B. "M8") und "gewinde_aussen". Felder aus 1.22
+  unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.20"
+SCHEMA_VERSION = "1.23"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

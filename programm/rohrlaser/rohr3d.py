@@ -20,7 +20,7 @@ vorne/90°).
 import bisect
 import math
 
-from . import durchdringung as dd, schnittflaeche as sf, skizze as sk, steckverbindung as stv
+from . import durchdringung as dd, schneidweg as sw, schnittflaeche as sf, skizze as sk, steckverbindung as stv
 from .blech3d import _flaeche2, _ohrschnitt
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, V_AUSSCHNITT, _z, mit_radius)
@@ -60,9 +60,15 @@ def _knick_anteile(qs, poly, enden, extra=()):
             continue
         um = sk._ende_umriss_merken(qs, es["umriss"])
         stellen += list(getattr(um, "stellen", ()) if um else ())
+    orte = []
     for s in stellen:
-        (u, v), _ = qs.s_zu_uv(s % qs.umfang)
-        u, v, _ = sk.rund_ort(qs, u, v)
+        (u, v), n_ = qs.s_zu_uv(s % qs.umfang)
+        orte.append(sk.rund_ort(qs, u, v)[:2])
+        if len(qs.umriss) == 1 and not qs.r and qs.wand:
+            # offenes Profil: ein Umriss für beide Seiten der Wand, der Knick gehört auch auf die Innenseite
+            # (gegenüber, um die Wand nach innen; sonst läuft die Kante dort schräg, Patrick 28.10.2026)
+            orte.append((u - qs.wand * n_[0], v - qs.wand * n_[1]))
+    for u, v in orte:
         beste = None
         for i, a in enumerate(poly):
             b = poly[(i + 1) % len(poly)]
@@ -425,6 +431,7 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
     umriss = qs.umriss_rund(12)             # Quadrat-/Rechteckrohr mit Außenradius (je Ecke 12 Stücke)
     if not umriss or len(umriss[0]) < 3:
         return None
+    e = sw.enden_2d(dict(e))            # ohne 3D am Bauteil: Gehrungen in 2D (auch wenn am Ende noch „3D“ steht)
     ea, eb = e.get("a") or {}, e.get("b") or {}
     punkte, dreiecke, linien, normalen, kennung, flaeche_id = [], {}, {}, {}, {}, {}
 

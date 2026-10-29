@@ -39,12 +39,12 @@ def merken(db, text, projektion):
     db.einstellung_setzen(EINSTELLUNG, alle)
 
 
-def rohr_erkennen(fenster, db, pfad, dialog=None, auch_fehler=False, text=None):
+def rohr_erkennen(fenster, db, pfad, dialog=None, auch_fehler=False, text=None, blech_moeglich=False):
     """DXF lesen und als Rohrzeichnung erkennen; bei Unsicherheit das Zuordnungsfenster (auch_fehler: auch, wenn das
     Rohr nicht erkannt wurde, aber ein Schnitt oder Profiltext da ist). dialog(d) bedient das Fenster statt exec
     (Tests). text: DXF-Text statt der Datei (Linien einer PDF-Zeichnung, pdf_vektor.py). Ergebnis von
     dxf_rohr.erkennen; abgebrochen=True, wenn das Fenster abgebrochen wurde. OSError und ValueError beim Lesen gehen
-    an den Aufrufer."""
+    an den Aufrufer. blech_moeglich: das Fenster bietet „Als Blech importieren“ (Ergebnis ok=False, als_blech=True)."""
     text = text if text is not None else di.datei_lesen(pfad)
     name = Path(pfad).name
     erg, vorgaben = dxf_rohr.erkennen(text, name), {}
@@ -54,8 +54,11 @@ def rohr_erkennen(fenster, db, pfad, dialog=None, auch_fehler=False, text=None):
         erg = dxf_rohr.erkennen(text, name, vorgaben=vorgaben)
     if not ((erg["ok"] and erg["unsicher"]) or (auch_fehler and not erg["ok"] and erg["rohrartig"])):
         return erg
-    d = DxfZuordnungDialog(fenster, text, name, erg, vorgaben)
-    if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.erg["ok"]:
+    d = DxfZuordnungDialog(fenster, text, name, erg, vorgaben, blech_moeglich=blech_moeglich)
+    antwort = dialog(d) if dialog else d.exec()
+    if d.als_blech:
+        return dict(d.erg, ok=False, als_blech=True)
+    if antwort != QDialog.Accepted or not d.erg["ok"]:
         return dict(d.erg, ok=False, abgebrochen=True)
     if d.vorgaben.get("projektion") in (1, 3):
         merken(db, text, d.vorgaben["projektion"])
@@ -112,9 +115,10 @@ class Vorschau(QWidget):
 class DxfZuordnungDialog(QDialog):
     """Zuordnung der Ansichten einer Rohrzeichnung. Nach OK: self.erg (neu erkannt) und self.vorgaben."""
 
-    def __init__(self, parent, text, dateiname, erg, vorgaben=None):
+    def __init__(self, parent, text, dateiname, erg, vorgaben=None, blech_moeglich=False):
         super().__init__(parent)
         self.text, self.dateiname, self.erg = text, dateiname, erg
+        self.als_blech = False
         self.vorgaben = dict(vorgaben or {})
         self.setWindowTitle(f"DXF-Zeichnung zuordnen – {dateiname}")
         lay = QVBoxLayout(self)
@@ -164,6 +168,10 @@ class DxfZuordnungDialog(QDialog):
         self.knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
         self.knoepfe.accepted.connect(self.accept)
         self.knoepfe.rejected.connect(self.reject)
+        if blech_moeglich:          # Zeichnung ist doch kein Rohr: Blech-Import statt Abbrechen
+            self.blech_knopf = self.knoepfe.addButton("Als Blech importieren", QDialogButtonBox.ActionRole)
+            self.blech_knopf.setToolTip("Die Zeichnung zeigt Bleche (z. B. Ring und Streifen): DXF-Import für Bleche")
+            self.blech_knopf.clicked.connect(self.blech_importieren)
         lay.addWidget(self.knoepfe)
         self.resize(1100, 650)
         self._felder_setzen()
@@ -241,6 +249,10 @@ class DxfZuordnungDialog(QDialog):
         except (ValueError, KeyError, TypeError, ZeroDivisionError) as x:
             self.erg = dict(self.erg, ok=False, warnungen=[str(x)])
         self._zeigen()
+
+    def blech_importieren(self):
+        self.als_blech = True
+        self.reject()
 
     def accept(self):
         if self.vorgaben_lesen() != self.vorgaben:
