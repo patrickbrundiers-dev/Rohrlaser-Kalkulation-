@@ -1310,6 +1310,48 @@ def main(ziel):
     foto.foto("erg_lieferlaengen_geplant", s.laengen_dialog, [(s.laengen_ansicht, 1)])
     s.laengen_dialog.close()
 
+    # Fenster aus dem Menü Datei: Preis-Simulator, Wochenauslastung, Reklamationen; Stundensatz ermitteln; Etiketten
+    from rohrlaser import reklamation
+    from rohrlaser.auslastung_dialog import AuslastungDialog
+    from rohrlaser.etiketten_dialog import EtikettenDialog
+    from rohrlaser.preis_simulator_dialog import PreisSimulatorDialog
+    from rohrlaser.reklamation_dialog import ReklamationenDialog
+    from rohrlaser.stundensatz_dialog import StundensatzDialog
+    f.angebot_schliessen(rahmen)
+
+    def fenster_foto(name, d, marken):
+        d.show()
+        QApplication.processEvents()
+        foto.foto(name, d, marken(d))
+        d.close()
+
+    sim = PreisSimulatorDialog(f, admin=False)
+    sim.material["Edelstahl"].setValue(8)
+    sim.maschine.setValue(10)
+    sim.rechnen()
+    fenster_foto("preis_simulator", sim, lambda d: [(d.material["Edelstahl"], 1), (d.maschine, 2), (d.knopf, 3),
+                                                     (d.tabelle, 4)])
+    heute = datetime.date(2026, 10, 21)
+    for angebot, auftragsnr, termin in ((rahmen, "AB-26-0815", "2026-10-30"), (haupt, "AB-26-0821", "2026-11-06")):
+        db.vorgang_setzen(angebot, "Beauftragt")
+        db.auftrag_setzen(angebot, auftragsnr, termin)
+    fenster_foto("auslastung", AuslastungDialog(f, heute), lambda d: [(d.wochen, 1), (d.offene, 2), (d.tabelle, 3)])
+    stuetze = db.positionen(rahmen)[0]["id"]
+    reklamation.speichern(db, rahmen, dict(position_id=stuetze, menge=2, fehlerart="Grat oder Schlacke",
+                                           ursache="intern: Fertigung", massnahme="Nacharbeit", kosten=48.5))
+    reklamation.speichern(db, haupt, dict(position_id=None, fehlerart="Transportschaden", massnahme="Gutschrift",
+                                          kosten=120))
+    fenster_foto("reklamationen", ReklamationenDialog(f, heute), lambda d: [(d.filter, 1), (d.tabelle, 2)])
+    t03 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T03")
+    t03.update(anschaffung=650000, nutzungsdauer=10, flaeche=60, instandhaltung=3, wartung=8000, leistung_kw=35,
+               verschleiss=4, bediener_anteil=50)                  # Beispielwerte einer Rohrlaseranlage (erfunden)
+    fenster_foto("stundensatz_ermitteln", StundensatzDialog(f, t03, db.einstellungen()),
+                 lambda d: [(d.felder["anschaffung"], 1), (d.tabelle, 2), (d.vergleich, 3)])
+    etiketten = EtikettenDialog(f, db, db.angebot(rahmen), db.positionen(rahmen))
+    etiketten.resize(820, etiketten.sizeHint().height())
+    fenster_foto("etiketten_dialog", etiketten,
+                 lambda d: [(d.format, 1), (d.je_stueck, 2), (d.start, 3)])
+
     # Menü Hilfe
     f.reiter.setCurrentWidget(f.start)
     start_zeigen()

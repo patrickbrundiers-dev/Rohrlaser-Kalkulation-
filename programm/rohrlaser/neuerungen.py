@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.207", "<b>Bedienungsanleitung, Kurzanleitung und Präsentation auf dem Stand 0.9.206</b>: neue "
+                "Bildschirmfotos für Preis-Simulator ([[preis_simulator]]), Maschinenauslastung je Woche "
+                "([[auslastung]]), Reklamationen ([[reklamation]]), Stundensatz ermitteln ([[stundensatz_ermitteln]]) "
+                "und Etiketten mit QR-Code ([[etiketten]]); der Preis-Simulator steht jetzt bei „Angebote verwalten“ "
+                "neben der Angebots-Auswertung. Am Programm ändert sich nichts.",
+     "Anleitung und Kurzanleitung mit neuen Bildern, Preis-Simulator bei „Angebote verwalten“"],
     ["0.9.206", "<b>Gewinn gestaffelt nach Auftragswert</b> ([[gewinn_gestaffelt]]): in den Einstellungen "
                 "(Seite <i>Gewinn gestaffelt</i>) bis zu 4 Grenzen und 5 Sätze, z. B. 30 % bis 500 €, 20 % bis 2.000 €, 12 % bis "
                 "10.000 €, darüber 8 %. Auftragswert = Selbstkosten des Angebots ohne Zukaufteile und Fracht; ein "

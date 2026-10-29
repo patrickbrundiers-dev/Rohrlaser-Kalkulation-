@@ -868,6 +868,31 @@ def kapitel_angebote(i):
             "Wettbewerb (unser Preis gegen den genannten, z. B. +20 % = wir waren 20 % teurer).",
             "Viele Absagen „Preis zu hoch“ in einer Gruppe zeigen, wo es zu teuer ist; eine sehr hohe Trefferquote "
             "kann heißen, dass die Preise dort Luft nach oben haben ([[preis_simulator]]).")
+    i.abschnitt("Preis-Simulator: was wäre, wenn …", marke="preis_simulator")
+    i.bild("preis_simulator", "Preis-Simulator: Edelstahl +8 %, Maschine +10 €/h für alle offenen Angebote",
+           hoehe=105 * mm, legende=[(1, "Änderung der Materialpreise je Werkstoff-Kategorie"),
+                                    (2, "Stundensatz der Maschine"), (3, "Rechnen"),
+                                    (4, "Verkaufspreis vorher, nachher und Differenz je Angebot, unten die Summe")])
+    i.text("<i>Datei → Preis-Simulator …</i> rechnet alle offenen Angebote (Entwurf und Verschickt) einmal wie sie "
+           "sind und einmal mit geänderten Preisen, z. B. Edelstahl +8 % oder Stundensatz der Maschine +10 €/h. "
+           "Es wird nichts gespeichert.", kurz=True)
+    i.genauer("Eingaben und Ergebnis")
+    i.tabelle(["Eingabe", "Wirkung"], [
+        ["Material Stahl, Edelstahl, Aluminium, Buntmetall [%]",
+         "Materialpreise der Werkstoffe dieser Kategorie: Preise, Lieferlängen, Tonnenpreis, Materialpreis von Hand in "
+         "der Position und ein Teuerungszuschlag je kg ([[teuerungszuschlag]]); Oberflächen-Aufpreise bleiben"],
+        ["Stundensatz Maschine [€/h]", "auf den Stundensatz der Maschine des Angebots (Laserzeit, Rüsten, "
+                                       "Stangenwechsel)"],
+        ["weitere Stundensätze [%]", "alle übrigen Stundensätze, z. B. Programmierung und Schweißen"],
+        ["Zukaufteile (Einkauf) [%]", "Staffelpreise der Zukaufteile im Preisstand der Position; Bezugskosten bleiben"],
+        ["auch beauftragte Angebote", "zeigt zusätzlich die beauftragten Angebote, deren Preis schon zugesagt ist"]],
+        [70, 195])
+    i.text("Die Tabelle zeigt je Angebot den Verkaufspreis vorher und nachher und die Differenz (rot = teurer), "
+           "darunter die Summe. Mit Admin-Rechten kommen drei Margen dazu: vorher, <b>bei gleichem Preis</b> (der "
+           "Kunde hat das Angebot schon, die Kosten steigen) und mit neuem Preis. Gerechnet wird wie im Angebot: "
+           "mit den festgeschriebenen Preisen und Zeiten ([[preise_festschreiben]]), den Einstellungen des Angebots "
+           "und dem gespeicherten Schnittplan. Angebote ohne Schnittplan stehen mit „nicht optimiert“ in der Liste. "
+           "Doppelklick öffnet das Angebot.")
     i.abschnitt("Neue Fassung", marke="neue_fassung")
     i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
            "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "
@@ -2753,6 +2778,10 @@ def kapitel_optimieren(i):
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
     i.abschnitt("Stundensatz ermitteln je Maschine", marke="stundensatz_ermitteln")
+    i.bild("stundensatz_ermitteln", "Stundensatz ermitteln: Eingaben links, Rechenweg rechts (Beispielwerte)",
+           hoehe=100 * mm, legende=[(1, "Werte der Maschine: Anschaffung, Nutzungsdauer, Fläche, Leistung …"),
+                                    (2, "Rechenweg je Posten in €/Jahr und €/h bis zum Stundensatz"),
+                                    (3, "Vergleich mit dem bisher eingetragenen Satz")])
     i.text("Der Stundensatz einer Maschine kann von Hand eingetragen oder ermittelt werden. In den Maschinen-"
            "Stammdaten steht dafür die Spalte <b>Stundensatz von Hand/ermittelt</b>; leer heißt von Hand. Der Knopf "
            "<i>Stundensatz ermitteln …</i> öffnet für die markierte Maschine einen Dialog mit dem Rechenweg.",
@@ -5489,6 +5518,9 @@ def kapitel_nachkalkulation(i):
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
     i.abschnitt("Reklamationen", marke="reklamation")
+    i.bild("reklamationen", "Datei → Reklamationen: offene Reklamationen mit Kosten und Quote", hoehe=100 * mm,
+           legende=[(1, "offene oder alle"), (2, "je Reklamation Position, Fehlerart, Ursache, Maßnahme, Kosten; "
+                                                "Doppelklick bearbeitet")])
     i.text("Reklamiert der Kunde Teile eines Auftrags, erfassen Sie das im beauftragten Angebot unter <i>Ausgaben → "
            "Reklamation erfassen …</i>. Die Kosten erscheinen in der Nachkalkulation als eigene Kostenart "
            "<b>Reklamationen</b>; <i>Datei → Reklamationen …</i> zeigt alle offenen und die Quote.", kurz=True)
@@ -5543,27 +5575,6 @@ def kapitel_nachkalkulation(i):
             "Vorschübe der Schneiddaten erst nach <i>Freigeben</i>, mit Verlauf und Rücknahme) und Rüsten (nur "
             "Vorschlag, ändert nichts). Unter 5 Aufträgen heißt es „zu wenig Daten“.")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
-    i.abschnitt("Preis-Simulator: was wäre, wenn …", marke="preis_simulator")
-    i.text("<i>Datei → Preis-Simulator …</i> rechnet alle offenen Angebote (Entwurf und Verschickt) einmal wie sie "
-           "sind und einmal mit geänderten Preisen, z. B. Edelstahl +8 % oder Stundensatz der Maschine +10 €/h. "
-           "Es wird nichts gespeichert.", kurz=True)
-    i.genauer("Eingaben und Ergebnis")
-    i.tabelle(["Eingabe", "Wirkung"], [
-        ["Material Stahl, Edelstahl, Aluminium, Buntmetall [%]",
-         "Materialpreise der Werkstoffe dieser Kategorie: Preise, Lieferlängen, Tonnenpreis, Materialpreis von Hand in "
-         "der Position und ein Teuerungszuschlag je kg ([[teuerungszuschlag]]); Oberflächen-Aufpreise bleiben"],
-        ["Stundensatz Maschine [€/h]", "auf den Stundensatz der Maschine des Angebots (Laserzeit, Rüsten, "
-                                       "Stangenwechsel)"],
-        ["weitere Stundensätze [%]", "alle übrigen Stundensätze, z. B. Programmierung und Schweißen"],
-        ["Zukaufteile (Einkauf) [%]", "Staffelpreise der Zukaufteile im Preisstand der Position; Bezugskosten bleiben"],
-        ["auch beauftragte Angebote", "zeigt zusätzlich die beauftragten Angebote, deren Preis schon zugesagt ist"]],
-        [70, 195])
-    i.text("Die Tabelle zeigt je Angebot den Verkaufspreis vorher und nachher und die Differenz (rot = teurer), "
-           "darunter die Summe. Mit Admin-Rechten kommen drei Margen dazu: vorher, <b>bei gleichem Preis</b> (der "
-           "Kunde hat das Angebot schon, die Kosten steigen) und mit neuem Preis. Gerechnet wird wie im Angebot: "
-           "mit den festgeschriebenen Preisen und Zeiten ([[preise_festschreiben]]), den Einstellungen des Angebots "
-           "und dem gespeicherten Schnittplan. Angebote ohne Schnittplan stehen mit „nicht optimiert“ in der Liste. "
-           "Doppelklick öffnet das Angebot.")
 
 
 def kapitel_versand(i):
@@ -5692,6 +5703,9 @@ def kapitel_fertigung(i):
             "Im Angebot <i>Weitere ▾ → <b>Fertigungsstatus …</b></i> springt zum Auftrag im Reiter Fertigung. "
             "Die Einstellung <i>Reiter Fertigung verwenden (Status beauftragter Angebote)</i> blendet alles aus.")
     i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
+    i.bild("etiketten_dialog", "Etiketten mit QR-Code drucken", hoehe=48 * mm,
+           legende=[(1, "Bogenformat"), (2, "je Stück ein Etikett"), (3, "erstes freies Feld eines angebrochenen "
+                                                                          "Bogens")])
     i.text("Etiketten mit QR-Code je Position kommen an Bund, Kiste oder Teil. In der Werkstatt scannt man sie nach "
            "jedem Arbeitsschritt mit einem Handscanner; der Reiter Fertigung zeigt dann je Position, was geschnitten, "
            "entgratet und verpackt ist.", kurz=True)
@@ -5721,6 +5735,9 @@ def kapitel_fertigung(i):
             "je Schritt, Vorgabe Geschnitten, Entgratet, Verpackt). Die Rückmeldungen liegen in der Datendatei des "
             "Arbeitsplatzes, an dem gescannt wird, und werden mit dem Angebot gelöscht.")
     i.abschnitt("Wochenauslastung je Maschine", marke="auslastung")
+    i.bild("auslastung", "Maschinenauslastung je Woche: Bedarf / Kapazität je Maschine", hoehe=105 * mm,
+           legende=[(1, "Zeitraum in Wochen"), (2, "verschickte Angebote gewichtet mitzählen"),
+                    (3, "je Zelle Stunden Bedarf / Kapazität und %; Zelle wählen zeigt die Aufträge darunter")])
     i.text("<i>Datei → Maschinenauslastung …</i> (oder <b>Auslastung …</b> im Reiter Fertigung) öffnet das Fenster "
            "<i>Maschinenauslastung je Woche</i>: je Maschine und Woche, wie viele Laserstunden die Aufträge brauchen und wie viele der Schichtkalender hergibt.",
            kurz=True)
