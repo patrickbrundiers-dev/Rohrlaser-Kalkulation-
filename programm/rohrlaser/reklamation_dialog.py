@@ -215,7 +215,7 @@ class ReklamationenDialog(QDialog):
         self.zeilen = rk.liste(self.db, nur_offen=self.filter.currentIndex() == 0)
         t = self.tabelle
         t.setRowCount(len(self.zeilen))
-        offen = QBrush(stil.farbe("#FFF1C2"))
+        offen = QBrush(stil.farbe("#FFF2CC"))
         for r, z in enumerate(self.zeilen):
             werte = (_datum(z.get("datum")), z.get("nummer") or "", z.get("kunde") or "", z.get("pos") or "",
                      z.get("artikel") or "", _z(z.get("menge")), z.get("fehlerart") or "", z.get("ursache") or "",

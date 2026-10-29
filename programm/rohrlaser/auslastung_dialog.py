@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QDial
 
 from . import auslastung, stil
 
-FARBEN = {"gruen": "#E3F4E8", "gelb": "#FFF1C2", "rot": "#F8D4D0", "grau": "#F2F2F2"}
+FARBEN = {"gruen": "#E3F4E8", "gelb": "#FFF2CC", "rot": "#F8D7DA", "grau": "#F2F2F2"}
 
 
 def _h(x):
