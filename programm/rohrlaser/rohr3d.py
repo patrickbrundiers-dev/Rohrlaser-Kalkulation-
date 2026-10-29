@@ -60,9 +60,15 @@ def _knick_anteile(qs, poly, enden, extra=()):
             continue
         um = sk._ende_umriss_merken(qs, es["umriss"])
         stellen += list(getattr(um, "stellen", ()) if um else ())
+    orte = []
     for s in stellen:
-        (u, v), _ = qs.s_zu_uv(s % qs.umfang)
-        u, v, _ = sk.rund_ort(qs, u, v)
+        (u, v), n_ = qs.s_zu_uv(s % qs.umfang)
+        orte.append(sk.rund_ort(qs, u, v)[:2])
+        if len(qs.umriss) == 1 and not qs.r and qs.wand:
+            # offenes Profil: ein Umriss für beide Seiten der Wand, der Knick gehört auch auf die Innenseite
+            # (gegenüber, um die Wand nach innen; sonst läuft die Kante dort schräg, Patrick 28.10.2026)
+            orte.append((u - qs.wand * n_[0], v - qs.wand * n_[1]))
+    for u, v in orte:
         beste = None
         for i, a in enumerate(poly):
             b = poly[(i + 1) % len(poly)]
