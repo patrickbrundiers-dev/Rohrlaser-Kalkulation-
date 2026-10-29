@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.199", "<b>Optimieren mit fester Schweißnaht an mehreren Positionen</b>: Hatten mehrere Positionen einer "
+                "Abmessung eine feste Naht (oder Gehrungen), konnte die Optimierung ein Teil doppelt und ein anderes "
+                "gar nicht einplanen; die Kontrolle meldete dann „Teile fehlen oder doppelt“. Ursache war ein "
+                "Zwischenspeicher, der Teile nach der Reihenfolge der Schnittmuster vertauschte – behoben, die "
+                "Kontrolle bleibt. <b>Schweißnaht …</b> für mehrere Positionen: verschiedene Nahtwinkel bleiben je "
+                "Position, solange der Winkel nicht geändert wird; die Querschnittslage gilt nur für Rechteckrohre, "
+                "bei Quadrat- und Rechteckrohr liegt die Naht immer auf einer Seitenmitte, und die Optimierung "
+                "rechnet mit derselben Seite wie Spalte und Prüfung ([[schweissnaht]]).",
+     "Optimieren mit fester Naht an mehreren Positionen: kein Teil mehr doppelt/fehlend; Nahtwinkel je Position."],
     ["0.9.198", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
                 "CAD als <b>eigene dünne Körper</b> (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf "
                 "dem Rohr liegen, werden jetzt Gravur des Rohrs – mit allen Konturen (auch innen in „O“, „A“, „B“), "
