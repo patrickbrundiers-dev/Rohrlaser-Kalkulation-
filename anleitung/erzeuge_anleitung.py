@@ -1041,7 +1041,10 @@ def kapitel_angebot(i):
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
-           "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Im Angebotskopf "
+           "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
+           "niedriger als 760 Punkte (Laptop mit 1366 × 768), werden die Karten flacher, und Kalkulation und Fracht "
+           "stehen zugeklappt nebeneinander; so bleibt mehr Platz für die Positionen. Passt eine zugeklappte Zeile "
+           "nicht in die Breite, endet sie mit „…“, der Tooltip zeigt den ganzen Text. Im Angebotskopf "
            "steht der Bearbeiter neben der Bemerkung; der Satz „Im Angebot: Lieferzeit …“ erscheint nur, wenn keine "
            "Lieferzeit eingetragen ist, sonst als Tooltip über den Lieferzeit-Feldern. Die Trennlinien zwischen oben und unten und zur Übersicht "
            "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ordner öffnen</b> "
@@ -1689,6 +1692,8 @@ def kapitel_angebot(i):
             "<i>Aktuelle Preise übernehmen</i>. Ganze Angebote und Stammdaten fragen weiter vorher, weil es dort "
             "kein Rückgängig gibt.",
             "In Editoren und Dialogen erscheint die Einblendung im Fenster selbst, damit sie nicht dahinter liegt.",
+            "Bei einem offenen Angebot steht die Einblendung links neben der Übersicht, damit sie Preise und Zeiten "
+            "nicht verdeckt.",
             "<b>Meldungen (n)</b> in der Statusleiste zeigt die letzten 20 Meldungen mit Uhrzeit; Einträge mit "
             "<i>(Bericht …)</i> öffnen den Bericht noch einmal.",
             "Fehler, bei denen Daten verloren gehen könnten, und echte Entscheidungen bleiben Fenster.")
@@ -5356,7 +5361,9 @@ def kapitel_fertigung(i):
     i.text("Der Reiter <b>Fertigung</b> zeigt alle beauftragten Angebote mit Freigabe und Fertigungsstatus. Der "
            "Reiter <b>Lager</b> (nur mit Einstellung) führt Materialbestand und, wenn gewünscht, Reststücke.",
            kurz=True)
-    i.liste("Markieren, <b>Neuer Status</b> wählen, <b>Status setzen</b>. Der erste Status ist die <b>Freigabe</b>: "
+    i.liste("Solange eine Liste leer ist (Fertigung, Versand, Lager), steht ein grauer Hinweis darin, z. B. "
+            "„Noch keine beauftragten Angebote“.",
+            "Markieren, <b>Neuer Status</b> wählen, <b>Status setzen</b>. Der erste Status ist die <b>Freigabe</b>: "
             "sie hält den Angebotsstand fest (Version, Zeitpunkt, Kürzel, Prüfsumme über Positionen und "
             "fertigungsrelevante Kopfwerte). Die Status kommen aus der Einstellung <i>Fertigungsstatus</i> "
             "(Vorgabe Freigegeben, Arbeitsvorbereitung, Material bereit, In Fertigung, Fremdvergabe, "

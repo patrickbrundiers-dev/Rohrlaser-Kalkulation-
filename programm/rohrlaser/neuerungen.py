@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.189", "<b>Prüfung Performance, System, Daten, Optik</b> (Berechnung und Import unverändert): Am "
+                "<b>Laptop</b> (Angebotsseite niedriger als 760 Punkte) sind die Karten oben flacher, Kalkulation und "
+                "Fracht stehen zugeklappt nebeneinander, so sind mehr Positionen sichtbar ([[angebot]]). "
+                "Zugeklappte Zeilen enden mit „…“ statt abgeschnitten, der Tooltip zeigt alles. Einblendungen stehen "
+                "links neben der Übersicht und verdecken keine Preise ([[meldungen]]). In den Zeiten der Übersicht "
+                "stehen Zeit und Betrag mit Abstand. Leere Listen in Fertigung, Versand und Lager zeigen einen "
+                "Hinweis ([[fertigung]]). Eine seltene Fehlermeldung beim Schließen eines Angebots ist behoben.",
+     "Laptop: mehr Positionen sichtbar, „…“ statt abgeschnitten, Einblendung neben der Übersicht, Hinweis in leeren Listen."],
     ["0.9.188", "<b>DXF-Import robuster</b> für Bleche und Rohre: Papierbereich (Layout), Schriftfelder mit Attributen, "
                 "Mehrfach-Blöcke, Linientyp „VonLayer“, Sonderzeichen und Splines aus Stützpunkten werden gelesen. "
                 "Kleine Lücken (bis 0,5 mm) werden geschlossen, doppelte Linien und Bohrungen zählen einmal, Teile mit "
