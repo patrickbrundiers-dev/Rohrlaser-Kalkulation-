@@ -1082,6 +1082,11 @@ EINSTELLUNGEN = (
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
+    # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001
+    Einstellung("ab_nummer", "Auftragsbestätigung: Nummer", "Angebots-PDF", "auswahl", "wie Angebot",
+                auswahl="abnummer"),
+    Einstellung("ab_text", "Auftragsbestätigung: Text über den Positionen", "Angebots-PDF", "mehrzeilig",
+                "Vielen Dank für Ihren Auftrag. Wir bestätigen ihn zu den folgenden Preisen und Bedingungen."),
     # Materialanfrage per Outlook: Vorlagen mit Platzhaltern, Signatur
     Einstellung("anfrage_betreff", "Materialanfrage: Betreff", "Materialanfrage", "text",
                 "Materialanfrage zu Angebot {angebot}"),
@@ -1339,7 +1344,9 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN),
-                         "loeschschutz": list(LOESCHSCHUTZ), "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "loeschschutz": list(LOESCHSCHUTZ),
+                         "abnummer": ["wie Angebot", "eigener Nummernkreis"],
+                         "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),

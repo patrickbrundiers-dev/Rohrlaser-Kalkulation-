@@ -4937,7 +4937,7 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
         (1, "<b>Angebot (PDF)</b> (Strg+P) für den Kunden, mit Staffelpreisen und Konditionen."),
         (2, "Menü <b>Ausgaben</b>: <b>Werkstattpapiere (PDF)</b> (Materialliste und Schnittpläne zum Abhaken, "
-            "Stangenbild), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
+            "Stangenbild), <b>Auftragsbestätigung (PDF)</b> ([[auftragsbestaetigung]]), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
             "<b>Materialanfrage (E-Mail)</b> (Stangenbedarf beim Lieferanten anfragen, [[materialanfrage]]), "
             "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen als einzelne Dateien in einen Ordner Ihrer Wahl, "
             "[[csv_export]]), "
@@ -4977,6 +4977,30 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile. Der Preis je Satz ist die "
            "Summe der ungerundeten Stückpreise × Stück je Satz, erst dann auf den Cent gerundet; so steht für "
            "dieselbe Menge derselbe Preis wie in der Staffel.")
+    i.abschnitt("Auftragsbestätigung", marke="auftragsbestaetigung")
+    i.text("Hat der Kunde bestellt, erstellt <i>Ausgaben → Auftragsbestätigung (PDF)</i> die Auftragsbestätigung im "
+           "Layout des Angebots, mit den Preisen des Angebots, der Bestellnummer des Kunden und dem Liefertermin.",
+           kurz=True)
+    i.genauer()
+    i.liste("Die Auftragsbestätigung gibt es nur für beauftragte Angebote. Steht das Angebot noch nicht auf "
+            "<i>Beauftragt</i>, fragt das Programm nach und öffnet das Fenster für Bestellnummer und Liefertermin "
+            "([[angebote]]).",
+            "Rechts oben stehen AB-Nr., Datum (heute), unser Angebot mit Datum, Kunden-Nr., <b>Ihre Bestellung</b> "
+            "(Auftragsnummer des Kunden) und <b>Liefertermin</b> mit Kalenderwoche, z. B. „15.11.2026 (KW 46)“. "
+            "Über den Positionen steht der Text der Einstellung <i>Angebots-PDF → Auftragsbestätigung: Text über den "
+            "Positionen</i> (Vorgabe „Vielen Dank für Ihren Auftrag …“).",
+            "Bestätigt werden die bestellten Mengen zu den Preisen des Angebots (festgeschrieben, "
+            "[[preise_festschreiben]]); Staffelpreise und „Gültig bis“ entfallen. In den Konditionen steht der "
+            "Liefertermin statt der Lieferzeit; ohne Termin die Lieferzeit des Angebots.",
+            "Weicht die Summe vom zuletzt verschickten Angebots-PDF ab (z. B. Positionen geändert), zeigt das "
+            "Programm beide Beträge und erstellt die Auftragsbestätigung nur nach Bestätigung.",
+            "<b>Nummer</b>: Vorgabe ist die Angebotsnummer. Mit der Einstellung <i>Auftragsbestätigung: Nummer</i> = "
+            "<i>eigener Nummernkreis</i> zählt das Programm AB-2026-00001, AB-2026-00002 … hoch, mit gemeinsamem "
+            "Ordner dort reserviert wie die Angebotsnummern ([[mehrere_arbeitsplaetze]]). Eine erneut erstellte "
+            "Auftragsbestätigung desselben Angebots behält ihre Nummer.",
+            "Die Datei <i>Nummer Auftragsbestätigung.pdf</i> liegt im Ordner des Angebots ([[angebotsordner]]); "
+            "Datum, AB-Nr. und Betrag stehen im Versandverlauf (Mauszeiger auf <i>Preise festgeschrieben</i>). Sie "
+            "zählt nicht als Versand des Angebots (Nachfassen bleibt unverändert).")
     i.abschnitt("Ordner je Angebot", marke="angebotsordner")
     i.text("Jedes Angebot hat in der Ablage einen eigenen Ordner <i>Nummer Kunde</i>, z. B. "
            "<i>2026-00042 Stahlbau Ostermann</i>. Alles, was das Programm zum Angebot speichert, kommt dort hinein: "

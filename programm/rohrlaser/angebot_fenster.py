@@ -1815,6 +1815,8 @@ class AngebotSeite(QWidget):
         menue = QMenu(self.weitere)
         menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
         menue.addSeparator()
+        # Auftragsbestätigung (Plan 29.10.2026 1c): im Layout des Angebots, mit Bestellnummer und Liefertermin
+        menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf())
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
         menue.aboutToShow.connect(lambda: self.palettenschein_aktion.setVisible(self.f.versand_an()))
@@ -5259,9 +5261,9 @@ class AngebotSeite(QWidget):
                                                      self.einst)
         return copy.deepcopy(merken["ergebnis"])
 
-    def angebot_daten(self):
-        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen)."""
-        sp = self.staffelpreise_aktuell()
+    def angebot_daten(self, staffeln=True):
+        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen); staffeln=False: ohne."""
+        sp = self.staffelpreise_aktuell() if staffeln else ()
         if sp is None:
             return None
         zeilen, _ = self._rechnung()
@@ -5294,6 +5296,63 @@ class AngebotSeite(QWidget):
             if not (self.db.angebot(self.id) or {}).get("vorgang"):     # Entwurf -> Verschickt (sonst bleibt er)
                 self.db.vorgang_setzen(self.id, "Verschickt")
                 self.f.angebote.neu_laden()
+        return pfad
+
+    def auftragsbestaetigung_pdf(self, abweichung_ok=None):
+        """Auftragsbestätigung als PDF (Plan 29.10.2026 1c): Layout und Preise des Angebots (festgeschrieben),
+        bestellte Mengen ohne Staffelpreise, Bestellnummer und Liefertermin aus „Beauftragt“. Noch nicht beauftragt:
+        Rückfrage, dann Vorgang Beauftragt. Weicht die Summe vom zuletzt verschickten Angebot ab, fragt das Programm
+        nach (abweichung_ok: Antwort ohne Fenster). Vermerk im Versandverlauf (art 'ab') mit der AB-Nummer."""
+        if self.fremd():
+            self.f.meldung("Auftragsbestätigungen nur für eigene Angebote.", fehler=True)
+            return None
+        if not self.nummer_endgueltig("Auftragsbestätigung"):
+            return None
+        if not any(position_aktiv(p) for p in self.positionen):
+            self.f.meldung("Das Angebot hat keine Positionen.", fehler=True)
+            return None
+        kopf = self.db.angebot(self.id) or {}
+        if kopf.get("vorgang") != "Beauftragt":
+            if self.f.stumm:
+                self.f.meldung("Auftragsbestätigung: das Angebot ist noch nicht beauftragt.", fehler=True)
+                return None
+            if QMessageBox.question(self, "Auftragsbestätigung", "Das Angebot ist noch nicht beauftragt.\n\nJetzt "
+                                    "als beauftragt markieren (Bestellnummer und Liefertermin) und die "
+                                    "Auftragsbestätigung erstellen?") != QMessageBox.Yes:
+                return None
+            if not self.f.angebote.vorgang_setzen("Beauftragt", angebot_id=self.id):
+                return None
+            kopf = self.db.angebot(self.id) or {}
+        if not self._vor_ausgabe(weiter="Auftragsbestätigung erstellen"):
+            return None
+        ang = self.angebot_daten(staffeln=False)
+        if ang is None:
+            return None
+        verschickt = [e for e in kopf.get("versand") or () if isinstance(e, dict) and not e.get("art")
+                      and e.get("netto") is not None]
+        if verschickt and abs(verschickt[-1]["netto"] - ang["netto"]) > 0.005:
+            frage = (f"Die Summe weicht vom zuletzt verschickten Angebot ab:\n\nAngebot "
+                     f"{ausgabe.datum_text(verschickt[-1].get('datum'))}: {ausgabe.euro_text(verschickt[-1]['netto'])} € "
+                     f"netto\nAuftragsbestätigung: {ausgabe.euro_text(ang['netto'])} € netto\n\nTrotzdem erstellen?")
+            if abweichung_ok is None:
+                abweichung_ok = not self.f.stumm and QMessageBox.question(
+                    self, "Auftragsbestätigung", frage) == QMessageBox.Yes
+            if not abweichung_ok:
+                return None
+        try:
+            nr = angebotsnummern.ab_nummer(self.db, kopf)
+        except OSError as e:
+            QMessageBox.warning(self, "Auftragsbestätigung", f"Keine AB-Nummer: {e}")
+            return None
+        ab = dict(nummer=nr, datum=datetime.date.today().isoformat(), bestellung=kopf.get("auftragsnr"),
+                  liefertermin=kopf.get("liefertermin"), text=self.einst.get("ab_text") or "")
+        pfad = self._schreiben("Auftragsbestätigung", self._ziel("Auftragsbestätigung", ".pdf"),
+                               lambda p: pdf.auftragsbestaetigung_pdf(p, self.kopf, ang, self.einst, ab))
+        if pfad is not None:
+            self.db.versand_merken(self.id, dict(art="ab", datum=ab["datum"], nummer=nr, netto=ang["netto"],
+                                                 datei=Path(pfad).name))
+            self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand")
+            self.f.meldung(f"Auftragsbestätigung {nr} erstellt.")
         return pfad
 
     def preise_festschreiben(self):

@@ -165,6 +165,9 @@ def _versand_text(v):
         if v.get("preis"):
             t += f" (Wettbewerb {_z(v['preis'])} €)"
         return t + (f": {v['bemerkung']}" if v.get("bemerkung") else "")
+    if v.get("art") == "ab":            # Auftragsbestätigung (Plan 29.10.2026 1c)
+        return (f"{datum_text(v.get('datum'))}: Auftragsbestätigung {v.get('nummer') or ''} – {_z(v.get('netto'))} € "
+                f"netto ({v.get('datei') or 'PDF'})")
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
     if v.get("art") == "wiedervorlage":
