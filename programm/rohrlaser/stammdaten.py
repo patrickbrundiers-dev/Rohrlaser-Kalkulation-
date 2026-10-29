@@ -7,7 +7,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import dfm, feiertage, naht, normprofile, rp_profile
+from . import dfm, feiertage, funktionen, naht, normprofile, rp_profile
 from .stil import DICHTEN, THEMES
 
 EINGABE_RICHTUNGEN = ("nach unten", "nach rechts")      # Einstellung eingabe_richtung (tabellen_eingabe.py)
@@ -1237,7 +1237,9 @@ EINSTELLUNGEN = (
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
     Einstellung("teilen_sicherung", "Sicherung beim Beenden auch im gemeinsamen Ordner",
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
-)
+) + tuple(
+    # Funktionen ein/aus (funktionen.py, Patrick 29.10.2026): ja = sichtbar, nein = ausgeblendet, Daten bleiben
+    Einstellung(f.name, f.titel, "Funktionen", "auswahl", "ja", auswahl="janein") for f in funktionen.FUNKTIONEN)
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 
 

@@ -178,7 +178,8 @@ haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
 assert haupt == ["Start", "Angebote", "Versand", "Fertigung", "Lager", "Kunden", "Frachtkosten", "Zukaufartikel",
                  "Einstellungen"], haupt
 b = fenster.bereich
-assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Profile", "Werkstoffe", "Oberflächen",
+from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
+assert [b.unter.tabText(i) for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)",
@@ -200,7 +201,7 @@ assert b.gesperrt() and b.stapel.currentIndex() == 0
 db.einstellung_setzen("passwort", "")             # leer = ohne Passwort
 fenster.reiter.setCurrentWidget(fenster.start)
 fenster.zeigen(fenster.einstellungen)
-assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is fenster.einstellungen
+assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is fenster.einstellungen.seiten[0]
 db.einstellung_setzen("passwort", "av")
 fenster.close()
 db.schliessen()

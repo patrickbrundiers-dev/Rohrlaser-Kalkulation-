@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.197", "<b>Einstellungen aufgeräumt</b>: Statt einer langen Seite <i>Vorgaben</i> mit allen Einstellungen "
+                "hat jedes Thema eine eigene Seite neben den passenden Stammdaten, z. B. <i>Zuschläge und Preise</i>, "
+                "<i>Neue Angebote</i>, <i>Blech-Richtpreis</i>, <i>STEP-Import</i>, <i>Versand und Paletten</i>. "
+                "Alles, was nur für diesen Arbeitsplatz gilt (Name, Farbschema, Ordner, Signatur), steht auf <i>Mein "
+                "Arbeitsplatz</i>. Titel ohne doppelte Vorsilbe (voller Titel im Tooltip), selten geänderte Toleranzen "
+                "und Faktoren eingeklappt; die Suche findet weiter alles und öffnet die richtige Seite "
+                "([[vorgaben]]). <b>Funktionen ein- und ausschalten</b>: Auf der neuen Seite <i>Funktionen</i> lassen "
+                "sich 15 Bereiche abschalten, z. B. Bleche, Zukaufteile, Frachtkosten, Schweißbaugruppen, "
+                "Nachkalkulation, Reklamationen oder Musterteile. Ausschalten blendet nur aus, Daten und Rechnung "
+                "bleiben; nach dem Update ist alles eingeschaltet ([[funktionen]]).",
+     "Einstellungen nach Themen auf eigenen Seiten; Funktionen ein- und ausschalten."],
     ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
                 "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "
                 "eigene Zeilen (z. B. je Werkstoff) behalten. Die Vorschau zeigt jeden Wert jetzt → Standard, welche "

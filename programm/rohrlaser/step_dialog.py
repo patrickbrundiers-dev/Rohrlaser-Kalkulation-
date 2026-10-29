@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import einblendung, step_pruefung, stil
+from . import einblendung, funktionen, step_pruefung, stil
 from . import hilfe
 from .ansicht3d import ARTEN, TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
@@ -395,6 +395,8 @@ class StepPruefDialog(QDialog):
         self.knick_knopf.clicked.connect(lambda: self.knick_erstellen())
         kz.addWidget(self.knick_info, 1)
         kz.addWidget(self.knick_knopf)
+        if not funktionen.an("funktion_knick_steck"):        # Funktion ausgeschaltet (funktionen.py)
+            self.knick_knopf.hide()
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
