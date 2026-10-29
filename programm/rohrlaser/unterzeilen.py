@@ -21,12 +21,14 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from . import rechnen, zukauf
 from .stammdaten import ZUSATZ_EINHEIT, zahl_als_text
+from .stil import GELB_FLAECHE, GELB_TEXT, farbe
 
 EINSTELLUNG = "ansicht_zusatz_unterzeilen"      # Häkchen (Vorgabe an, Freigabe 4b)
 STUFEN = ("Programmieren", "Gewinde", "Nachbearbeitung", "Montage", "Oberfläche", "Prüfung", "Verpackung", "Sonstiges")
 KATEGORIE_STUFE = {"Laser": "Nachbearbeitung", "Nachbearbeitung": "Nachbearbeitung", "Montage": "Montage",
                    "Oberfläche": "Oberfläche", "Prüfung": "Prüfung", "Verpackung": "Verpackung"}
 TRENNER = "  ·  "
+AUTO = "automatisch"       # zweiter Wert einer Unterzeile: automatische Zusatzarbeit (gelb), True = Warnung (rot)
 
 
 def _eur(w, stellen=2):
@@ -43,6 +45,10 @@ def _zusatz_zeile(e, stueck):
     if art == "s/Stück":
         return None
     name = e["name"] + (f" {e['text']}" if e.get("text") else "")
+    if e.get("auto"):          # Arbeitsgang-Regel mit Zuordnung automatisch (Plan Abrechnungsregeln)
+        name += f" (automatisch, Regel {e.get('regel')})"
+    elif e.get("regel"):
+        name += f" (Preis: Regel {e['regel']})"
     teil = float(e.get("teil") or 0)
     if art == "€/Angebot":
         teile = [f"pauschal {_eur(e.get('pauschal'))}", f"umgelegt {_eur(teil)}/Teil"]
@@ -86,8 +92,8 @@ def schritte(p, z, katalog=()):
                                      "eigen")))
     for e in z.get("zusatzarbeiten") or ():
         text = _zusatz_zeile(e, stueck)
-        if text:
-            neu(KATEGORIE_STUFE.get(kat.get(e["name"]), "Sonstiges"), text)
+        if text:      # automatische gelb: sie stehen nicht in der Liste der Position
+            neu(KATEGORIE_STUFE.get(kat.get(e["name"]), "Sonstiges"), text, AUTO if e.get("auto") else False)
     if katalog:
         unbekannt = rechnen.zusatz_unbekannt(p, katalog)
         if unbekannt:
@@ -231,6 +237,7 @@ class Unterzeilen(QObject):
         text = QColor(pal.color(QPalette.Text))
         text.setAlpha(190)
         rot = QColor("#D0021B")             # fest: kräftiges Rot, auf hell und dunkel lesbar
+        gelb, gelb_flaeche = farbe(GELB_TEXT), farbe(GELB_FLAECHE)
         linie = QColor(pal.color(QPalette.Mid))
         linie.setAlpha(90)
         p.setFont(self.schrift)
@@ -252,6 +259,10 @@ class Unterzeilen(QObject):
             p.drawLine(x0, y, x0 + breite, y)
             for n, (t, warnung) in enumerate(zeilen):
                 rect = QRect(x0 + 10, y + n * self.zeile_h, breite - 14, self.zeile_h)
-                p.setPen(rot if warnung else text)
+                if warnung == AUTO:
+                    p.fillRect(QRect(x0 + 4, y + n * self.zeile_h + 1, breite - 8, self.zeile_h - 2), gelb_flaeche)
+                    p.setPen(gelb)
+                else:
+                    p.setPen(rot if warnung else text)
                 p.drawText(rect, Qt.AlignVCenter | Qt.AlignLeft, fm.elidedText("↳  " + t, Qt.ElideRight, rect.width()))
         p.end()

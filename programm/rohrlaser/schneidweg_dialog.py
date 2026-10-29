@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
 from . import einblendung, stil
 from . import (biegerohr, dfm, dreid, durchdringung as dd, hilfe, knickrahmen, naht, profil_neu, rechnen,
                schneidweg as sw, skizze as sk, tabellen_eingabe, virtuell)
+from .muster_haken import MusterHaken
 from .fenster import liste_fuellen
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
@@ -319,6 +320,9 @@ class SchneidwegDialog(QDialog):
         enden.addWidget(self.naht_quelle, 4, 3)
         enden.addWidget(self.naht_info, 4, 4, 1, 2)
         self._naht_start = self.naht_werte()
+        # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
+        self.muster_haken = MusterHaken(p)
+        enden.addWidget(self.muster_haken, 5, 0, 1, 2)
         enden.setColumnStretch(5, 1)
         lay.addLayout(enden)
 
@@ -795,6 +799,10 @@ class SchneidwegDialog(QDialog):
         w = NAHT_WAHL[self.naht_winkel.currentText()] if isinstance(self.naht_winkel, QComboBox) else \
             naht.normieren(self.naht_winkel.value())
         return dict(naht_vorgabe=v, naht_winkel=w, naht_quelle=self.naht_quelle.currentText())
+
+    def muster_geaendert(self):
+        """{'muster': …}, wenn das Häkchen Muster umgeschaltet wurde, sonst leer."""
+        return self.muster_haken.geaendert() if hasattr(self, "muster_haken") else {}
 
     def naht_geaendert(self):
         """Nahtfelder, wenn sie im Dialog geändert wurden (sonst leer: bestehende Werte bleiben unangetastet)."""

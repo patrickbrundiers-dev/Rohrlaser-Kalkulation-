@@ -72,6 +72,7 @@ class Gruppe:
     bewiesen: bool = False   # Stangenzahl ist nachweislich minimal
     schranke: int = 0        # nachgewiesene Mindestzahl Stangen (Untergrenze oder Schranke der Schnittmuster)
     beistellung: str = ""    # 'Kunde' = vom Kunden beigestelltes Material; nie mit eigenem Material auf einer Stange
+    muster: bool = False     # Musterteile: eigener Fertigungslauf, nie mit Serienteilen auf einer Stange
     # Querschnitt für das Ineinanderlegen von Gehrungen: ('Kasten', Breite, Höhe) mit der Breitseite oben,
     # ('Rund', Radius) oder () = keine Gehrungen ineinanderlegen
     querschnitt: tuple = ()

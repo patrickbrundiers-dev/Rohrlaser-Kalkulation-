@@ -447,8 +447,8 @@ def angebot_pdf(pfad, kopf, ang, einst):
 
     # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen
     bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
-    texte = [t for t in (ang.get("lieferzeit"), ang.get("beistellung"), ang.get("fracht"), ang.get("zahlung"),
-                         ang.get("mindestpreis"), bed) if t]
+    texte = [t for t in (ang.get("lieferzeit"), ang.get("beistellung"), ang.get("muster"), ang.get("fracht"),
+                         ang.get("zahlung"), ang.get("mindestpreis"), bed) if t]
     if texte:
         inhalt += [Spacer(1, 8 * mm), KeepTogether([_p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)]
                                                    + [_p(t, S_A_GRAU) for t in texte])]

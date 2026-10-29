@@ -69,7 +69,7 @@ def gruppen(stangen):
         kopf = (f"{s['profil']} · {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))} · "
                 f"{' / '.join(_z(x, 0) for x in laengen)} mm · {len(st)} {'Stange' if len(st) == 1 else 'Stangen'}"
                 f" · Ausnutzung {_z(100 * summe / gesamt, 1) if gesamt else '–'} %"
-                + (" · Kundenmaterial" if s.get("beistellung") else ""))
+                + (" · Kundenmaterial" if s.get("beistellung") else "") + (" · MUSTER (eigener Lauf)" if s.get("muster") else ""))
         liste.append((kopf, st))
     return liste
 
@@ -640,7 +640,8 @@ class StangenDetail(QWidget):
         if k["gewicht"] is not None:
             teile.append(f"Gewicht {_z(k['gewicht'], 1)} kg")
         if k["kosten"] is not None:
-            teile.append("Kundenmaterial" if s.get("beistellung") else f"Material {_z(k['kosten'])} €")
+            teile.append("Kundenmaterial" if s.get("beistellung") else f"Material {_z(k['kosten'])} €"
+                         + (" (nur belegte Länge, Muster)" if s.get("muster") else ""))
         teile.append(f"gemeinsame Schnitte {k['gemeinsam']}")
         if rechnen.gehrung_gespart(s) > 0:
             teile.append(f"Gehrungen ineinander {_z(rechnen.gehrung_gespart(s), 1)} mm gespart")

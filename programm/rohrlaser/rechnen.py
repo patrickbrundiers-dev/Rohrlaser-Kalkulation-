@@ -15,7 +15,8 @@ import re
 from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, co2_maschine, OHNE_NAHT, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
+from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
+from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
 from . import anbau, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
@@ -73,11 +74,26 @@ def beigestellt(p):
     return (p or {}).get("material_herkunft") == KUNDENMATERIAL
 
 
+MUSTER = "Muster"      # letzter Teil des Gruppenschlüssels von Musterteilen (eigener Fertigungslauf)
+
+
 def gruppe_von(p, kopf):
     """Stangengruppe einer Position: (Profil, Werkstoff, Oberfläche, Stangenlänge), bei Kundenmaterial zusätzlich
-    'Kunde' (eigenes und beigestelltes Material nie auf einer Stange)."""
+    'Kunde' (eigenes und beigestelltes Material nie auf einer Stange), bei Musterteilen zuletzt 'Muster' (eigener
+    Lauf, nie mit Serienteilen auf einer Stange; Patrick 28.10.2026)."""
     return (p.get("profil_id"), p.get("werkstoff_id"), oberflaeche_von(p), stange_wirksam(p, kopf)) + \
-        (("Kunde",) if beigestellt(p) else ())
+        (("Kunde",) if beigestellt(p) else ()) + ((MUSTER,) if ist_muster(p) else ())
+
+
+def ohne_muster(gr):
+    """Gruppenschlüssel ohne die Kennung 'Muster' (gleicher Materialpreis wie die Serie)."""
+    return tuple(gr[:-1]) if gr and gr[-1] == MUSTER else tuple(gr)
+
+
+def gruppe_einheitlich(gr):
+    """Gruppe in der Schreibweise von material_abmessungen: Beistellung als 'Kunde', 'Muster' bleibt zuletzt."""
+    mu = len(gr) > 4 and gr[-1] == MUSTER
+    return tuple(gr[:4]) + (("Kunde",) if gr[4:len(gr) - mu] else ()) + ((MUSTER,) if mu else ())
 
 
 def gruppe_der_stange(s):
@@ -85,7 +101,7 @@ def gruppe_der_stange(s):
     Beistellung = eigenes Material). Mit einer anderen Lieferlänge geplante Stangen gehören zur Gruppe ihrer
     Positionen (grundlaenge)."""
     return (s["profil"], s["werkstoff"], s.get("oberflaeche") or "", s.get("grundlaenge") or s["stange"]) + \
-        ((s["beistellung"],) if s.get("beistellung") else ())
+        ((s["beistellung"],) if s.get("beistellung") else ()) + ((MUSTER,) if s.get("muster") else ())
 
 
 def beladungen(stangen):
@@ -603,8 +619,10 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
         if not stange:
             fehl("Stangenlänge fehlt"); continue
         bs = "Kunde" if beigestellt(p) else ""
+        mu = ist_muster(p)
         # Stangen von Hand vorgegeben: die längste vorgegebene Stange begrenzt die Teilelänge
-        vorrat = stangen_vorgabe(kopf, (pid, wst, ob, stange) + ((bs,) if bs else ()), me["maxlen"])
+        vorrat = stangen_vorgabe(kopf, (pid, wst, ob, stange) + ((bs,) if bs else ()) + ((MUSTER,) if mu else ()),
+                                 me["maxlen"])
         if me["maxlen"] and stange > me["maxlen"] and not vorrat:
             fehl("Stange länger als Maschine zulässt"); continue
         lang = vorrat[0][0] if vorrat else stange
@@ -617,7 +635,7 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
         end = pr["end"] if pr["end"] is not None else me["end"]
         greif = pr["greif"] if pr["greif"] is not None else me["greif"]
         rest = dreid.rest_letztes(p, m)          # 3D-Greifmaß, wenn das Teil das letzte der Stange ist
-        if end + laenge + me["kerf"] > lang - max(greif, rest) + EPS and not vorrat and not bs and tabellen and any(
+        if end + laenge + me["kerf"] > lang - max(greif, rest) + EPS and not vorrat and not bs and not mu and tabellen and any(
                 end + laenge + me["kerf"] <= lb - max(greif, rest) + EPS
                 for _, lb in ausweich_laengen(pid, wst, stange, k, tabellen, m, einst)):
             pass                                 # passt auf eine längere Lieferlänge (Patrick 28.10.2026)
@@ -625,9 +643,9 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
             fehl("Teil länger als Nutzlänge der Stange"); continue
         elif end + laenge + me["kerf"] > lang - max(greif, rest) + EPS:
             fehl("Teil zu lang für das 3D-Greifmaß der Maschine"); continue
-        key = (pid, wst, ob, stange) + ((bs,) if bs else ())
+        key = (pid, wst, ob, stange) + ((bs,) if bs else ()) + ((MUSTER,) if mu else ())
         g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob,
-                                               beistellung=bs, querschnitt=querschnitt_gehrung(pr)))
+                                               beistellung=bs, muster=mu, querschnitt=querschnitt_gehrung(pr)))
         a_ger = p.get("a_gerade") != "nein"
         b_ger = p.get("b_gerade") != "nein"
         u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"], pid,
@@ -661,7 +679,8 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
 
 def gruppe_schluessel(g):
     """Stangengruppe (wie gruppe_von) einer Optimierungsgruppe."""
-    return (g.profil, g.werkstoff, g.oberflaeche or "", g.stange) + ((g.beistellung,) if g.beistellung else ())
+    return (g.profil, g.werkstoff, g.oberflaeche or "", g.stange) + ((g.beistellung,) if g.beistellung else ()) + \
+        ((MUSTER,) if g.muster else ())
 
 
 def stangen_vorgabe(kopf, gr, maxlen=None):
@@ -764,7 +783,7 @@ def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
     # Oberfläche nur, wenn gesetzt: ältere Angebote ohne Oberfläche bleiben aktuell
     daten = [[(g.profil, g.werkstoff, g.stange, g.endbeschnitt, g.greiferrest, g.kerf, g.abstand,
                [teil_kennung(t) for t in g.teile]) + ((g.oberflaeche,) if g.oberflaeche else ())
-              + ((g.beistellung,) if g.beistellung else ())
+              + ((g.beistellung,) if g.beistellung else ()) + ((MUSTER,) if g.muster else ())
               for g in gruppen],
              [sorted(f.items()) for f in fehler], [sorted(n.items()) for n in neue]]
     laengen = laengen_eingaben(gruppen, kopf, k, tabellen, einst)
@@ -990,10 +1009,14 @@ def _vorrat_eintragen(g, vorrat, folgen, uebrig, positionen, fehler, stangen, au
 
 
 def _beistellung_markieren(g, zeilen):
-    """Stangen und Auswertung einer Gruppe mit Kundenmaterial kennzeichnen (beistellung='Kunde')."""
+    """Stangen und Auswertung einer Gruppe mit Kundenmaterial kennzeichnen (beistellung='Kunde'), Musterteile mit
+    muster=True."""
     if g.beistellung:
         for x in zeilen:
             x["beistellung"] = g.beistellung
+    if g.muster:
+        for x in zeilen:
+            x["muster"] = True
 
 
 def _variante_stangen(g, v, gewaehlt, positionen, saege, nr, laengen=None):
@@ -1068,7 +1091,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
     # von Hand vorgegebene Stangen je Gruppe (stangen_vorgabe): kein Vergleich der Lieferlängen
     vorraete = [stangen_vorgabe(kopf, gruppe_schluessel(g), (m or {}).get("max_stange")) for g in gruppen]
     # Kundenmaterial: kommt in der Stangenlänge des Angebots, kein Vergleich der Lieferlängen
-    infos = [laengen_info(g, k, tabellen, m, einst) if tabellen and not g.beistellung and not v else None
+    infos = [laengen_info(g, k, tabellen, m, einst) if tabellen and not g.beistellung and not g.muster and not v else None
              for g, v in zip(gruppen, vorraete)]
     # Große Angebote: alle Schnittpläne vorab auf Hilfsprozessen (parallel.py, gleiches Ergebnis)
     opt.vorgerechnet.gruppen = parallel.vorrechnen(
@@ -1190,12 +1213,15 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
 
 # ------------------------------------------------------------------ Schnittplan-Werte
 def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
-    """Berechnete Spalten je Stange: teile, summe, belegt, rest, ausnutzung, pruefung, gewicht, kosten."""
+    """Berechnete Spalten je Stange: teile, summe, belegt, rest, ausnutzung, pruefung, gewicht, kosten.
+    Stangen mit Musterteilen (eigener Lauf, Patrick 28.10.2026 F4 a) kosten nur den belegten Teil (Endbeschnitt,
+    Teile, Schnittverluste) zum Preis der Stange, der Rest geht ins Lager; kosten_voll = Preis der ganzen Stange."""
     out = []
-    # Positionen je Stangengruppe einmal sortieren (lieferstange_preis sucht darin nur die eigene Gruppe)
+    # Positionen je Stangengruppe einmal sortieren (lieferstange_preis sucht darin nur die eigene Gruppe; Muster
+    # rechnen mit dem Materialpreis der Serie derselben Abmessung)
     nach_gruppe = {}
     for p in positionen:
-        nach_gruppe.setdefault(gruppe_von(p, kopf), []).append(p)
+        nach_gruppe.setdefault(ohne_muster(gruppe_von(p, kopf)), []).append(p)
     preise = {}     # Stangen derselben Gruppe, Länge und Masse kosten dasselbe (lieferstange_preis hängt nur davon ab)
     e = tabellen.get("einstellungen")
     je_zs = _n(einstellung_wert(e, "zuschnitt_kosten")) if neue_preisregeln(e) else 0.0
@@ -1219,10 +1245,13 @@ def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
         gr = gruppe_der_stange(s)
         schl = (gr, s["stange"], gewicht, bool(s.get("beistellung")))
         if schl not in preise:
-            preise[schl] = stangenkosten(s, gewicht, kopf, nach_gruppe.get(gr, []), k, tabellen)
+            preise[schl] = stangenkosten(s, gewicht, kopf, nach_gruppe.get(ohne_muster(gr), []), k, tabellen)
         # Zuschnitte beim Lieferanten (Patrick 26.10.2026, 1a): Kosten je Zuschnitt wie im Vergleich der Lieferlängen
         zs = zuschnitte(s, saege) if je_zs and not s.get("beistellung") else 0
         out[-1]["kosten"] = preise[schl] + je_zs * zs if preise[schl] is not None else None
+        if s.get("muster") and out[-1]["kosten"] is not None:
+            out[-1]["kosten_voll"] = out[-1]["kosten"]
+            out[-1]["kosten"] *= min(belegt / s["stange"], 1.0) if s["stange"] else 1.0
         out[-1]["zuschnitte"] = zs
     return out
 
@@ -1290,6 +1319,24 @@ def stangenkosten(s, gewicht, kopf, positionen, k, tabellen):
     return lieferstange_preis(gruppe_der_stange(s), s["stange"], gewicht, kopf, positionen, k, tabellen)[0]
 
 
+def oberflaeche_aufpreis_m(ob, profil, werkstoff, k):
+    """Aufpreis der Oberfläche in € je m Stange: 'Aufpreis je' €/m (leer, wie bisher), €/kg × Metergewicht oder
+    €/m² × Umfang (Plan Abrechnungsregeln 28.10.2026). Ohne Gewicht bzw. Umfang 0."""
+    z = k.oberflaechen.get(ob or "") or {}
+    w = _n(z.get("aufpreis_m"))
+    basis = z.get("aufpreis_basis") or "€/m"
+    if not w or basis == "€/m":
+        return w
+    if basis == "€/kg":
+        return w * _n(kg_je_m(profil, werkstoff, k))
+    pr = k.profile.get(profil)
+    if not pr or pr.get("a") is None:
+        return 0.0
+    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), profil,
+                   profil_im_angebot(pr, None, profil, werkstoff, k).get("r_aussen"))
+    return w * _n(u) / 1000
+
+
 def haendler_mehrlaenge(laenge, einst=None, tabellen=None):
     """Länge, die der Händler je Stange zusätzlich berechnet (nur Preis, nicht Planung): Einstellungen
     'haendler_mehr_kurz' bis zur Grenze 'haendler_mehr_grenze' (Vorgabe 50 mm bis 6.500 mm), darüber
@@ -1310,10 +1357,10 @@ def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst
     # berechnete Länge (Händler-Mehrlänge) für Preise nach Länge oder Gewicht; €/Stange bleibt je Stange
     lb = laenge + (haendler_mehrlaenge(laenge, einst, tabellen) if mehr and laenge else 0)
     gb = gewicht * lb / laenge if gewicht is not None and laenge else gewicht
-    ab = [p["preis_m"] for p in positionen if _n(p.get("preis_m")) and gruppe_von(p, kopf) == gr]
+    ab = [p["preis_m"] for p in positionen if _n(p.get("preis_m")) and ohne_muster(gruppe_von(p, kopf)) == ohne_muster(gr)]
     if ab and max(ab) > 0:
         return max(ab) * lb / 1000, None
-    aufpreis_m = _n((k.oberflaechen.get(ob or "") or {}).get("aufpreis_m"))
+    aufpreis_m = oberflaeche_aufpreis_m(ob, profil, werkstoff, k)
     aufpreis = aufpreis_m * lb / 1000
     zl = next((z for z in lieferlaengen(profil, werkstoff, k, tabellen, einst) if z["laenge"] == laenge), None)
     if zl is not None and zl.get("basis"):
@@ -1384,8 +1431,7 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
         g["teile_m"] += _n(p.get("laenge")) * rohrstuecke(p) / 1000      # Halbschalen: Rohrstücke
     if ergebnis and ergebnis.get("stangen"):
         for s, w in zip(ergebnis["stangen"], stangen_werte(ergebnis, kopf, positionen, k, tabellen)):
-            gr = gruppe_der_stange(s)
-            gr = gr[:4] + (("Kunde",) if len(gr) > 4 else ())
+            gr = gruppe_einheitlich(gruppe_der_stange(s))
             g = out.get(gr)
             if g is None:
                 continue
@@ -1463,9 +1509,10 @@ def laengen_schluessel(gr):
     """Schlüssel einer Gruppe (Profil, Werkstoff, Oberfläche, Stangenlänge[, Beistellung]) für die gespeicherte
     Längenwahl."""
     profil, werkstoff, ob, stange = gr[:4]
-    bs = gr[4] if len(gr) > 4 and gr[4] else ""
+    mu = len(gr) > 4 and gr[-1] == MUSTER          # Muster: eigener Lauf, eigene Stangenvorgabe
+    bs = gr[4] if len(gr) > 4 + mu and gr[4] else ""
     return f"{profil}|{werkstoff}|{ob or ''}|{int(stange) if float(stange).is_integer() else stange}" + \
-        (f"|{bs}" if bs else "")
+        (f"|{bs}" if bs else "") + (f"|{MUSTER}" if mu else "")
 
 
 def lieferlaengen(profil_id, werkstoff_id, k, tabellen, einst=None, auto=True):
@@ -2007,6 +2054,10 @@ def zusatz_stand(z, saetze=None, datum=None):
         stand["zeit_s"] = pr["zeit_s"] or None
     elif pr["zeit_s"]:                 # Zeitaufwand je Einheit für die Zeiten (ändert den Preis nicht)
         stand["arbeit_s"] = pr["zeit_s"]
+    for n in ("bezug", "faktor", "mindest_teil"):      # Plan Abrechnungsregeln 28.10.2026 (nur gesetzte)
+        if not _leer(z.get(n)):
+            stand[n] = z[n]
+    stand["regeln"] = "ja"             # ab 28.10.2026: Arbeitsgang-Regeln mit Preis gelten (ältere Stände: nein)
     return stand
 
 
@@ -2030,6 +2081,21 @@ def oberflaeche(p, k):
     return m2
 
 
+def flaeche_innen_aussen(p, k):
+    """Innen- und Außenfläche eines Teils [m²] (Strahlen, Verzinken innen): geschlossene Rohre Außenfläche ×
+    (Umfang außen + innen) ÷ Umfang außen, innen = außen − 2π × Wand (rund) bzw. − 8 × Wand (eckig); offene Profile
+    und Träger haben in der Außenfläche schon beide Seiten. Ohne Wand die Außenfläche."""
+    m2 = oberflaeche(p, k)
+    pr = k.profile.get(p.get("profil_id")) or {}
+    s, form = pr.get("wand"), pr.get("form")
+    if m2 is None or not _zahl(s) or form not in ("Rundrohr", "Quadratrohr", "Rechteckrohr", rp_profile.FORM):
+        return m2
+    a, b = _n(pr.get("a")), _n(pr.get("b")) or _n(pr.get("a"))
+    aussen = math.pi * a if form == "Rundrohr" else 2 * (a + b)
+    innen = aussen - (2 * math.pi * s if form == "Rundrohr" else 8 * s)
+    return m2 * (aussen + max(innen, 0.0)) / aussen if aussen > 0 else m2
+
+
 def zusatz_menge_auto(art, p, k):
     """Vorschlag Menge je Teil: kg = Teilegewicht, m² = Außenfläche, m = Teilelänge, €/h: keine (Sekunden je Teil
     von Hand bzw. Vorgabezeit, zusatz_vorgabe_s), sonst 1 Stück."""
@@ -2051,30 +2117,57 @@ def zusatz_menge_auto(art, p, k):
     return 1.0
 
 
-def zusatz_werte(p, k, tabellen):
+def zusatz_werte(p, k, tabellen, kopf=None):
     """Zusatzarbeiten einer Position je Teil: [{name, art, einheit, menge, preis, betrag, zeit, fremd, text,
-    angebotstext, mindest, arbeit_s}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück, kommt zur
-    Laserzeit), arbeit_s = eigene Arbeitszeit je Teil für die Zeiten (€/h: die Zeit; sonst Zeitaufwand der Stammdaten
-    × Menge; Fremdleistungen, s/Stück und €/Angebot 0). Bei €/h ist
-    menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600 × €/h.
-    Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung)."""
+    angebotstext, mindest, arbeit_s, auto, regel, quelle}]. betrag = € je Teil (ohne Mindestbetrag je Angebot, mit
+    Mindestbetrag je Teil), zeit = s je Teil (Art s/Stück, kommt zur Laserzeit), arbeit_s = eigene Arbeitszeit je Teil
+    für die Zeiten (€/h: die Zeit; sonst Zeitaufwand der Stammdaten × Menge; Fremdleistungen, s/Stück und €/Angebot
+    0). Bei €/h ist menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600
+    × €/h. Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung).
+    Arbeitsgang-Regeln (zusatz_regeln.py, Plan Abrechnungsregeln): automatische Zusatzarbeiten kommen dazu (auto =
+    True); eine passende Regel mit Preis setzt Abrechnung, Preis, Menge aus, Faktor und Mindestbetrag je Teil, aber
+    nur bei Preisständen ab 28.10.2026 (Merker 'regeln') und automatischen, damit alte Angebote gleich bleiben. Werte
+    von Hand in der Position (Menge, Preis) gehen vor. regel = Name der Regel, deren Preis gilt."""
+    from . import zusatz_regeln as zr
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
     saetze = stundensaetze(tabellen)
+    regeln = [r for r in tabellen.get("arbeitsgang_regeln") or () if zr.aktiv(r)]
+    gewinde = tabellen.get("gewinde") or ()
+    liste = zusatz_liste(p)
+    if regeln and not ist_baugruppe(p):
+        liste = liste + zr.automatische(p, kopf, k, tabellen, {e["name"] for e in liste})
     out = []
-    for e in zusatz_liste(p):
+    for e in liste:
         stand = e.get("stand") if isinstance(e.get("stand"), dict) else None   # Preisstand beim Hinzufügen
         kz = stand or katalog.get(e["name"])
         if kz is None:
             continue
+        mit_regeln = bool(regeln) and (e.get("auto") or (stand or {}).get("regeln") == "ja")
+        r = zr.preisregel(e["name"], p, kopf, k, gewinde, regeln) if mit_regeln else None
         art = kz.get("art")
-        menge = e.get("menge") if isinstance(e.get("menge"), (int, float)) else zusatz_menge_auto(art, p, k)
+        if r and not _leer(r.get("art")) and not _leer(r.get("preis")) and not zr.nur_stueck(e["name"]):
+            art = r["art"]
+        bezug = r.get("menge_art") if r and r.get("menge_art") not in (None, "", "automatisch") else kz.get("bezug")
+        faktor = _n(r.get("faktor")) if r and not _leer(r.get("faktor")) else _n(kz.get("faktor")) or 1.0
+        if isinstance(e.get("menge"), (int, float)):
+            menge = e["menge"]
+        elif art in ("€/h", "€/Angebot", "s/Stück") or bezug in (None, "", "automatisch") and faktor == 1.0:
+            menge = zusatz_menge_auto(art, p, k)
+        else:
+            m = zr.menge_bezug(bezug, art, p, k, gewinde)
+            menge = m * faktor if m is not None else None
         if art == "€/h" and menge is None:
             menge = zusatz_vorgabe_s(kz)
         if isinstance(e.get("preis"), (int, float)):
             preis = e["preis"]
+        elif r and not _leer(r.get("preis")):
+            preis = _n(r["preis"])
         else:
             preis = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
         wert = _n(menge) * preis / (3600 if art == "€/h" else 1)
+        mindest_teil = _n(r.get("mindest_teil")) if r and not _leer(r.get("mindest_teil")) else _n(kz.get("mindest_teil"))
+        if mindest_teil and art not in ("s/Stück", "€/Angebot"):
+            wert = max(wert, mindest_teil)
         if kz.get("fremd") == "ja" or art in ("s/Stück", "€/Angebot"):
             arbeit_s = 0.0
         elif art == "€/h":
@@ -2088,7 +2181,9 @@ def zusatz_werte(p, k, tabellen):
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,
                         fremd=kz.get("fremd") == "ja", text=e.get("text"), mindest=_n(kz.get("mindest")),
-                        angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s))
+                        angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s,
+                        auto=bool(e.get("auto")), regel=(r or {}).get("name") or e.get("regel"),
+                        quelle=e.get("quelle")))
     return out
 
 
@@ -2567,6 +2662,9 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                 # ab 24.10.2026 (Schema 55): Schneidgas und Vorschub-Faktor der Werkstoffe (nur gesetzte)
                 werkstoff_laser={w: v for w in sorted(werkstoffe, key=str) if (v := _laser_werte(k.werkstoffe.get(w)))},
                 aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)},
+                # ab 28.10.2026 (Plan Abrechnungsregeln): Basis der Aufpreise und Regeln der Zusatzarbeiten
+                aufpreis_basen={o: (k.oberflaechen.get(o) or {}).get("aufpreis_basis") or "€/m" for o in sorted(ofl)},
+                zusatz_regeln=zusatz_regeln_aus(tabellen, datum),
                 # ab 0.7.0: Gewinde, preisrelevante Einstellungen, Profil- und Maschinenzeile (Prüfbericht B-4)
                 gewinde=[dict(z) for z in tabellen.get("gewinde") or []],
                 einstellungen=dict({n: einst.get(n) for n in EINST_FEST if n in einst},
@@ -2574,6 +2672,22 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    preisregeln=einst.get("preisregeln") or PREISREGELN_NEU),
                 profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
+
+
+def zusatz_regeln_aus(tabellen, datum=None):
+    """Regeln der Zusatzarbeiten für den Snapshot: {regeln: [aktive Regeln mit Preis oder automatisch], staende:
+    {Zusatzarbeit: Preisstand} für die automatischen (damit ein festgeschriebenes Angebot auch deren Preis behält)}."""
+    from . import zusatz_regeln as zr
+    from .stammdaten import ARBEITSGANG_REGELN
+    regeln = [{f.name: r.get(f.name) for f in ARBEITSGANG_REGELN.felder} for r in tabellen.get("arbeitsgang_regeln") or ()
+              if zr.aktiv(r) and (zr.preisrelevant(r) or zr.zuordnung(r) == zr.AUTOMATISCH)]
+    katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
+    saetze = stundensaetze(tabellen)
+    auto = {r["zusatzarbeit"] for r in regeln if zr.zuordnung(r) == zr.AUTOMATISCH}
+    staende = dict(tabellen.get("zusatz_auto_staende") or {})
+    staende.update({n: zusatz_stand(katalog[n], saetze, datum) for n in sorted(auto)
+                    if n in katalog and katalog[n].get("aktiv") != "nein" and n not in staende})
+    return dict(regeln=regeln, staende={n: staende[n] for n in sorted(auto) if n in staende})
 
 
 def preisbasis_anwenden(kopf, k, tabellen):
@@ -2627,6 +2741,10 @@ def preisbasis_anwenden(kopf, k, tabellen):
     if "zuschnitt_kosten" not in fest:
         e["zuschnitt_kosten"] = 0.0
     tab["einstellungen"] = e
+    # Regeln der Zusatzarbeiten: wie festgeschrieben; festgeschrieben vor dem 28.10.2026: ohne Regeln
+    zr_fest = pb.get("zusatz_regeln") if isinstance(pb.get("zusatz_regeln"), dict) else {}
+    tab["arbeitsgang_regeln"] = [dict(z) for z in zr_fest.get("regeln") or ()]
+    tab["zusatz_auto_staende"] = dict(zr_fest.get("staende") or {})
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
     if isinstance(pb.get("werkstoff_laser"), dict):     # ältere Snapshots: aktuelle Werte
@@ -2634,8 +2752,9 @@ def preisbasis_anwenden(kopf, k, tabellen):
         ws = {w: dict(z, **{n: (fest_l.get(w) or {}).get(n) for n in LASER_FELDER})
               if w in (pb.get("tonnenpreise") or {}) and _laser_werte(z) != (fest_l.get(w) or {}) else z
               for w, z in ws.items()}
-    of = {o: dict(z, aufpreis_m=pb["aufpreise"][o]) if o in (pb.get("aufpreise") or {}) else z
-          for o, z in k.oberflaechen.items()}
+    basen = pb.get("aufpreis_basen") or {}      # vor dem 28.10.2026 festgeschrieben: €/m
+    of = {o: dict(z, aufpreis_m=pb["aufpreise"][o], aufpreis_basis=basen.get(o) or "€/m")
+          if o in (pb.get("aufpreise") or {}) else z for o, z in k.oberflaechen.items()}
     pr = {pid: _fest(z, (pb.get("profile") or {}).get(pid)) for pid, z in k.profile.items()}
     ma = {m: _fest(z, (pb.get("maschinen") or {}).get(m)) if m == kopf.get("maschine") else z
           for m, z in k.maschinen.items()}
@@ -2681,7 +2800,16 @@ def _vergleich(pb):
                 tonnenpreise=pb.get("tonnenpreise") or {}, aufpreise=pb.get("aufpreise") or {}, lieferlaengen=lief,
                 gewinde=_json_liste(pb.get("gewinde") or []), einstellungen=pb.get("einstellungen") or {},
                 profile=pb.get("profile") or {}, maschinen=pb.get("maschinen") or {},
-                werkstoff_laser=pb.get("werkstoff_laser") if "werkstoff_laser" in pb else None)
+                werkstoff_laser=pb.get("werkstoff_laser") if "werkstoff_laser" in pb else None,
+                aufpreis_basen=pb.get("aufpreis_basen") if "aufpreis_basen" in pb else None,
+                zusatz_regeln=_regeln_vergleich(pb["zusatz_regeln"]) if "zusatz_regeln" in pb else None)
+
+
+def _regeln_vergleich(zr):
+    """Regeln und Preisstände eines Snapshots ohne Datum."""
+    zr = zr if isinstance(zr, dict) else {}
+    staende = {n: {a: b for a, b in (st or {}).items() if a != "datum"} for n, st in (zr.get("staende") or {}).items()}
+    return dict(regeln=_json_liste(zr.get("regeln") or []), staende=staende)
 
 
 def preisbasis_gleich(a, b):
@@ -2715,7 +2843,14 @@ def preisbasis_abweichung(kopf, k, tabellen):
             out.append(f"Tonnenpreis {w}: {zahl(t)} → {zahl(neu['tonnenpreise'].get(w))} €/t")
     for o, a in alt["aufpreise"].items():
         if neu["aufpreise"].get(o) != a:
-            out.append(f"Aufpreis {o}: {zahl(a)} → {zahl(neu['aufpreise'].get(o))} €/m")
+            out.append(f"Aufpreis {o}: {zahl(a)} → {zahl(neu['aufpreise'].get(o))} € je "
+                       f"{(alt['aufpreis_basen'] or {}).get(o, '€/m').removeprefix('€/')}")
+    if alt["aufpreis_basen"] is not None:
+        for o, b in alt["aufpreis_basen"].items():
+            if (neu["aufpreis_basen"] or {}).get(o, b) != b:
+                out.append(f"Aufpreis {o}: je {b} → je {neu['aufpreis_basen'].get(o)}")
+    if alt["zusatz_regeln"] is not None and alt["zusatz_regeln"] != neu["zusatz_regeln"]:
+        out.append("Regeln der Zusatzarbeiten (Arbeitsgang-Regeln mit Preis oder automatisch) geändert")
     if alt["schneiddaten"] != neu["schneiddaten"]:
         out.append(f"Schneiddaten der Maschine {pb.get('maschine')} geändert")
     if alt["werkstoff_laser"] is not None:
@@ -2830,11 +2965,11 @@ def programmier_zeit(p, einstellungen):
     return _n(grund) + _n(einstellungen.get("programmierung_kontur")) * konturen_anzahl(p), False
 
 
-def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen):
+def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen, kopf=None):
     """Zusatzarbeiten je Position (Teil von kalkulation): Beträge je Teil mit Mindestbetrag je Zusatzarbeit und
     Angebot (anteilig angehoben) und €/Angebot einmal je Angebot, auf die Teile umgelegt. Ergebnis {Index: [Einträge
     mit 'teil']}."""
-    zus = {i: zusatz_werte(positionen[i], k, tabellen) if i in laser else [] for i in aktiv}
+    zus = {i: zusatz_werte(positionen[i], k, tabellen, kopf) if i in laser else [] for i in aktiv}
     zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
     for i in aktiv:
         c = _n(positionen[i].get("stueck"))
@@ -2899,6 +3034,57 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
                 manuell=manuell, zeit_extra=zeit_extra, pruef=pruef, oz=oz)
 
 
+def abm_schluessel(p):
+    """Abmessung einer Position für Rüsten je Abmessung: Profil-ID, bei Musterteilen (Profil-ID, 'Muster'), denn
+    sie laufen getrennt von der Serie und werden eigens gerüstet (Patrick 28.10.2026, F4 a)."""
+    pid = p.get("profil_id")
+    return (pid, MUSTER) if ist_muster(p) else pid
+
+
+def abm_profil(schl):
+    """Profil-ID zu einem abm_schluessel."""
+    return schl[0] if isinstance(schl, tuple) else schl
+
+
+def _muster_umlegen(zeilen, positionen, kopf, skonto):
+    """Musterteile (Patrick 28.10.2026, Plan „Musterteile im Angebot“, alle a): Musterpositionen sind voll gerechnet
+    (Material nach Länge, eigenes Rüsten, Programmierung, Zusatzarbeiten, Zukaufteile), stehen aber mit Preis 0 im
+    Angebot. Ihr Verkaufswert (Selbstkosten + Gewinn, Zukaufteile nur mit Aufschlag, Fracht, Skonto) wird nach den
+    Selbstkosten auf die Serienpositionen umgelegt (F1 a, F2 a, F3 a); mit „eigene Zeile Musterkosten“ im Kopf
+    oder ohne Serienposition bleibt die Serie unverändert und der Betrag steht als „Musterkosten einmalig“ im
+    Angebot. Summe des Angebots und Gewinn bleiben gleich. Ändert zeilen; Ergebnis: dict(betrag, ware (ohne Fracht
+    nach Skonto), einmalig, zeile, ohne_serie, positionen). Je Serienposition die Anteile je Teil (muster_selbst_teil
+    mit Gewinn, muster_zukauf_teil ohne, muster_fracht_teil) für die Staffeln, bei eigener Zeile als
+    muster_getrennt_*."""
+    muster = [i for i, z in enumerate(zeilen) if z and ist_muster(positionen[i]) and z["stueck"]]
+    if not muster:
+        return dict(betrag=0.0, ware=0.0, einmalig=0.0, zeile=False, ohne_serie=False, positionen=[])
+    serie = [i for i, z in enumerate(zeilen) if z and i not in muster and z["stueck"] and z["selbst_position"] > 0]
+    gewicht = sum(zeilen[i]["selbst_position"] for i in serie)
+    betrag = sum(zeilen[i]["preis_position"] for i in muster)
+    selbst = sum(zeilen[i]["selbst_position"] for i in muster)
+    zk = sum(_n(zeilen[i].get("zukauf_teil")) * zeilen[i]["stueck"] for i in muster)
+    fr = sum(_n(zeilen[i].get("fracht_teil")) * zeilen[i]["stueck"] for i in muster)
+    zeile = kopf.get("muster_darstellung") == MUSTER_ZEILE or not serie or gewicht <= 0
+    for i in muster:
+        z = zeilen[i]
+        z.update(muster="ja", muster_preis_teil=z["preis_teil"], muster_preis_position=z["preis_position"],
+                 muster_fracht_teil=z["fracht_teil"], preis_teil=0.0, preis_position=0.0, fracht_teil=0.0)
+    for i in serie:
+        z = zeilen[i]
+        a, c = z["selbst_position"] / gewicht, z["stueck"]
+        anteile = dict(selbst_teil=(selbst - zk) * a / c, zukauf_teil=zk * a / c, fracht_teil=fr * a / c)
+        if zeile:
+            z.update({f"muster_getrennt_{n}": w for n, w in anteile.items()})
+            continue
+        plus = betrag * a / c
+        z.update({f"muster_{n}": w for n, w in anteile.items()})
+        z.update(muster_teil=plus, preis_teil=z["preis_teil"] + plus, preis_position=(z["preis_teil"] + plus) * c,
+                 fracht_teil=z["fracht_teil"] + anteile["fracht_teil"])
+    return dict(betrag=betrag, ware=betrag * (1 - skonto) - fr, einmalig=betrag if zeile else 0.0, zeile=zeile,
+                ohne_serie=not serie or gewicht <= 0, positionen=muster)
+
+
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation je Position und Summen. Ergebnis: (zeilen, summen); zeilen[i] ist None für
     Positionen ohne Profil.
@@ -2958,6 +3144,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     f8 = sum(_n(positionen[i].get("stueck")) for i in laser)
     if not f8:              # ohne Rohrlaserteile kein Rüsten der Maschine (Übersicht = Preis)
         ruest = 0
+    # Musterteile laufen getrennt von der Serie (Patrick 28.10.2026, F4 a): ein Lauf mehr mit eigenem Rüsten der
+    # Maschine und eigenem Rüsten je Abmessung (abm_schluessel)
+    stk_laser = [i for i in laser if _n(positionen[i].get("stueck")) > 0]
+    muster_laser = {i for i in laser if ist_muster(positionen[i])}
+    laeufe = 2 if any(i in muster_laser for i in stk_laser) and any(i not in muster_laser for i in stk_laser) else 1
     # Rüsten wahlweise als fester Betrag (Patrick 26.10.2026): € je Angebot bzw. je Abmessung im Angebot statt
     # Minuten × Stundensatz. Die Rüstzeit folgt dann aus dem Betrag: € / Stundensatz × 60 (Patrick 27.10.2026:
     # „30 € … wird daraus keine Zeit berechnet“), damit Zeiten, Werkstattpapiere und Nachkalkulation sie kennen
@@ -2965,12 +3156,13 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                 for n in ("ruesten_angebot_eur", "ruesten_abmessung_eur"))
     if ruest_eur is not None:
         ruest = _n(ruest_eur) / s_rm * 60 if s_rm and f8 else 0
-    ruest_maschine = (ruest_eur if ruest_eur is not None else ruest / 60 * s_rm) if f8 else 0
+    ruest_lauf = (ruest_eur if ruest_eur is not None else ruest / 60 * s_rm) if f8 else 0
+    ruest_maschine = ruest_lauf * laeufe
     f7 = ruest_maschine + wechsel_s / 3600 * s_sw
     teile_abm = {}
     for i in laser:
         if _n(positionen[i].get("stueck")) > 0:
-            pid = positionen[i]["profil_id"]
+            pid = abm_schluessel(positionen[i])
             teile_abm[pid] = teile_abm.get(pid, 0) + _n(positionen[i]["stueck"])
     ruest_abm_min = (_n(einstellungen.get("ruesten_abmessung")) if ruest_abm_eur is None
                      else _n(ruest_abm_eur) / s_ra * 60 if s_ra else 0)
@@ -2978,7 +3170,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # RP- und Sonderprofile: Rüstzuschlag der Maschine je Abmessung (Patrick 22.10.2026, F7 a), wie Rüsten je Abmessung
     ruest_sonder_min = _n(zb["maschine"].get("ruest_sonder"))
     sonder_abm = {pid: ruest_sonder_min / 60 * s_ra for pid in teile_abm
-                  if (k.profile.get(pid) or {}).get("form") in SONDERFORMEN} if ruest_sonder_min else {}
+                  if (k.profile.get(abm_profil(pid)) or {}).get("form") in SONDERFORMEN} if ruest_sonder_min else {}
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
     # Programmierung je Position mit Stückzahl, einmal je Angebot: Zeit × Stundensatz (verschickt vor 0.8.22: € je Pos.)
     s_prog = satz["Programmierung"][1]
@@ -2989,7 +3181,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
     pruefzeit_anbau = _n(einstellungen.get("pruefzeit_anbau"))      # min je Teil mit unsicher erkannten Anbauteilen
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
-    zus = _zusatz_umlegen(positionen, aktiv, laser + zk_pos, k, tabellen)   # Zukaufteile: z. B. Sägen
+    zus = _zusatz_umlegen(positionen, aktiv, laser + zk_pos, k, tabellen, kopf)   # Zukaufteile: z. B. Sägen
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
@@ -3022,9 +3214,14 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                            zus[i], pruefzeit_anbau) for i in laser}
     rm_kosten = ruest_maschine          # Minuten × Stundensatz oder fester Betrag je Angebot
     if neu:     # Patrick 26.10.2026 (9a): Rüsten Maschine nach Maschinenzeit, Stangenwechsel nach Stangenanteil
-        zeit_ges = sum(_n(v["oz"]) * _n(positionen[i].get("stueck")) for i, v in vorab.items())
-        rm_teil = {i: (rm_kosten * _n(v["oz"]) / zeit_ges if zeit_ges else (rm_kosten / f8 if f8 else 0))
-                   for i, v in vorab.items()}
+        rm_teil = {}
+        # je Lauf (Serie, Muster) sein Rüsten auf dessen Teile; ohne Muster ein Lauf mit allen Teilen wie bisher
+        for lauf in ([vorab] if laeufe == 1 else [{i: v for i, v in vorab.items() if (i in muster_laser) == m_}
+                                                 for m_ in (False, True)]):
+            zeit_ges = sum(_n(v["oz"]) * _n(positionen[i].get("stueck")) for i, v in lauf.items())
+            f8_l = sum(_n(positionen[i].get("stueck")) for i in lauf) if laeufe > 1 else f8
+            rm_teil.update({i: (ruest_lauf * _n(v["oz"]) / zeit_ges if zeit_ges else (ruest_lauf / f8_l if f8_l else 0))
+                            for i, v in lauf.items()})
         sw_gr = {}
         for gr_, n_ in ((gruppe_der_stange(s), s) for s in stangen):
             n_l, n_s = beladungen([n_]), beladungen_sn([n_])
@@ -3078,8 +3275,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         qz = _n(oz) / 3600 * s_laser + pz / 3600 * s_gew + gp
         ze = sum(e["teil"] for e in zus[i] if not e["fremd"])
         zfr = sum(e["teil"] for e in zus[i] if e["fremd"])
-        n_abm = teile_abm.get(p.get("profil_id"), 0)
-        r_abm = ruest_abm + sonder_abm.get(p.get("profil_id"), 0)
+        n_abm = teile_abm.get(abm_schluessel(p), 0)
+        r_abm = ruest_abm + sonder_abm.get(abm_schluessel(p), 0)
         if sw_gr is None:       # bis 25.10.2026 (bitgleich wie bisher)
             rm_i, sw_i = rm_teil[i], (wechsel_s / 3600 * s_sw / f8 if f8 else 0)
             rz = (f7 / f8 if f8 else 0) + (r_abm / n_abm if n_abm and c else 0)
@@ -3168,19 +3365,23 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  nicht_eingeplant=nicht)
         zeilen[i] = z
     n_abm = len(teile_abm)
+    # Musterteile (Patrick 28.10.2026): Preis 0, Kosten mit Gewinn auf die Serie bzw. als Musterkosten einmalig
+    mu = _muster_umlegen(zeilen, positionen, kopf, skonto)
     # Mindestpreis netto je Angebot (nach Skonto, vor MwSt): liegt die Summe darunter, steigen alle Stückpreise
     # im gleichen Verhältnis, bis der Mindestpreis erreicht ist (einmal je Angebot, keine zusätzliche Position)
     mindest = _n(einstellungen.get("mindestpreis"))
-    kalkuliert = sum(z["preis_position"] for z in zeilen if z)
+    kalkuliert = sum(z["preis_position"] for z in zeilen if z) + mu["einmalig"]
     if neu:     # ab 26.10.2026 (5a): Mindestpreis gilt für die Ware ohne Fracht, nach Abzug des Skontos
         ware = {id(z): z["preis_teil"] * (1 - skonto) - z["fracht_teil"] for z in zeilen if z}
-        ware_ges = sum(ware[id(z)] * z["stueck"] for z in zeilen if z)
+        ware_ges = sum(ware[id(z)] * z["stueck"] for z in zeilen if z) + (mu["ware"] if mu["einmalig"] else 0.0)
         faktor = mindest / ware_ges if mindest > 0 and 0 < ware_ges < mindest else 1.0
         for z in zeilen:
             if z:
                 plus = ware[id(z)] * (faktor - 1) / (1 - skonto)
                 z.update(preis_teil=z["preis_teil"] + plus, preis_position=(z["preis_teil"] + plus) * z["stueck"],
                          mindestpreis_teil=plus)
+        if mu["einmalig"]:
+            mu["einmalig"] += mu["ware"] * (faktor - 1) / (1 - skonto)
     else:       # bis 25.10.2026: Verkaufspreis inkl. Fracht und Skonto
         faktor = mindest / kalkuliert if mindest > 0 and 0 < kalkuliert < mindest else 1.0
         for z in zeilen:
@@ -3188,11 +3389,17 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                 alt = z["preis_teil"]
                 z.update(preis_teil=alt * faktor, preis_position=alt * faktor * z["stueck"],
                          mindestpreis_teil=alt * (faktor - 1))
+        mu["einmalig"] *= faktor
+    for i in mu["positionen"]:      # Musterkosten einmalig je Musterposition (Angebot: eine Zeile, Summe)
+        zeilen[i]["muster_einmal_position"] = (zeilen[i]["muster_preis_position"] * mu["einmalig"] / mu["betrag"]
+                                               if mu["einmalig"] and mu["betrag"] else 0.0)
 
     def _summe(n):
         return sum(z.get(n, 0.0) * z["stueck"] for z in zeilen if z)
 
-    summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
+    summen = dict(ruestzeit=ruest * laeufe, laeufe=laeufe,
+                  teile_muster=sum(_n(positionen[i].get("stueck")) for i in stk_laser if i in muster_laser),
+                  stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
                   stangen=len(stangen), beladungen=n_lad, beladungen_sn=n_sn, teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten_angebot_eur=ruest_eur,
                   ruesten_abmessung_eur=ruest_abm_eur, ruesten=f7 + ruest_abm * n_abm + sum(sonder_abm.values()),
@@ -3216,7 +3423,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   herstell=sum(z["herstell_position"] for z in zeilen if z),
                   selbst=sum(z["selbst_position"] for z in zeilen if z),
                   gewinn_basis=GEWINN_SELBST if selbst_basis else GEWINN_HERSTELL,
-                  verkauf=sum(z["preis_position"] for z in zeilen if z))
+                  verkauf=sum(z["preis_position"] for z in zeilen if z) + mu["einmalig"])
     # Einzelne Kostenarten (Material + Laser + Gewinde + Rüsten + Stangenwechsel + Zusatzarbeiten + Zuschläge
     # = Herstellkosten; Herstellkosten + Programmierung + Pauschalen + Aufschlag + Zukaufteile = Selbstkosten;
     # Selbstkosten + Gewinn + Fracht + Skonto = Verkaufspreis)
@@ -3240,6 +3447,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   baugruppe_getrennt_eigen=_summe("bg_getrennt_eigen_teil"),
                   baugruppe_getrennt_fremd=_summe("bg_getrennt_fremd_teil"),
                   baugruppen=sum(1 for i in bg_pos if _n(positionen[i].get("stueck")) > 0))
+    summen.update(muster_betrag=mu["betrag"], muster_einmalig=mu["einmalig"], muster_zeile=mu["zeile"],
+                  muster_ohne_serie=mu["ohne_serie"], muster_positionen=len(mu["positionen"]),
+                  muster_pos=[positionen[i].get("pos") for i in mu["positionen"]])
     summen.update(verkauf_kalkuliert=kalkuliert, mindestpreis=mindest, mindestpreis_gilt=faktor > 1,
                   mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
@@ -3371,7 +3581,7 @@ def weitere_schritte(zb, teile, n_stangen, teile_abm, n_positionen):
 
         def teil(p, c, ruest_min=ruest_min, zeit_s=zeit_s, satz=satz, bezug=bezug, menge=menge, rb=rb):
             """Kosten dieses Schritts je Teil einer Position mit c Stück."""
-            n_abm = teile_abm.get(p.get("profil_id"), 0)
+            n_abm = teile_abm.get(abm_schluessel(p), 0)
             if not (ruest_min or zeit_s) or not teile:
                 return 0
             r = (ruest_min / 60 * satz / n_abm if n_abm else 0) if rb == "Abmessung" else ruest_min / 60 * satz / teile
@@ -3422,9 +3632,11 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
     rm = summen["ruestzeit"]
     fest = summen.get("ruesten_angebot_eur")
     out.append(zeile("Rüsten Maschine", 1, "Angebot", rm, None, rm, summen["ruesten_maschine"],
-                     f"fester Betrag {zahl(fest, 2)} € je Angebot (≙ {zahl(rm, 1)} min bei {zahl(sr, 2)} €/h)"
-                     if fest is not None else
-                     f"{zahl(rm, 1)} min / 60 × {zahl(sr, 2)} €/h",
+                     (f"fester Betrag {zahl(fest, 2)} € je Angebot (≙ {zahl(rm, 1)} min bei {zahl(sr, 2)} €/h)"
+                      if fest is not None else
+                      f"{zahl(rm, 1)} min / 60 × {zahl(sr, 2)} €/h")
+                     + (f", {summen['laeufe']} Läufe (Muster getrennt von der Serie)"
+                        if summen.get("laeufe", 1) > 1 else ""),
                      "Maschine (Snapshot)" if zb["gespeichert"] else "Maschine (Stammdaten)", sid=sid, satz_=sr))
     sid, sa = satz["Rüsten je Abmessung"]
     ra = summen["abmessungen"] * summen["ruestzeit_abmessung"]
@@ -3597,7 +3809,8 @@ def kostenarten(summen, einst):
              if summen.get(n)]
     zusatz = {
         "laser_schneiden": f" (davon {', '.join(davon)})" if davon else "",
-        "ruesten_maschine": f" ({z(summen['ruestzeit'])} min)",
+        "ruesten_maschine": f" ({z(summen['ruestzeit'])} min"
+                            + (f", {summen['laeufe']} Läufe: Muster getrennt" if summen.get("laeufe", 1) > 1 else "") + ")",
         "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min"
                                + (f" + {summen['abmessungen_sonder']} × {z(summen['ruestzeit_sonder'])} min RP-/"
                                   "Sonderprofil" if summen.get("abmessungen_sonder") else "") + ")",
@@ -3612,8 +3825,18 @@ def kostenarten(summen, einst):
         "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)",
         "mindestpreis_anhebung": (f" (kalkuliert {z(summen.get('verkauf_kalkuliert', 0), 2)} €, Mindestpreis "
                                   f"{z(summen.get('mindestpreis', 0), 2)} € netto)" if summen.get("mindestpreis_gilt")
-                                  else "")}
+                                  else ""),
+        "verkauf": muster_text(summen)}
     return [(t + zusatz.get(n, ""), summen.get(n, 0.0), fett) for t, n, fett in KOSTENARTEN]
+
+
+def muster_text(summen):
+    """' (davon Musterteile 181,06 €, auf die Serie umgelegt)' bzw. '… als Musterkosten einmalig'; leer ohne Muster."""
+    if not summen.get("muster_positionen"):
+        return ""
+    wie = ("als eigene Zeile Musterkosten einmalig" + (" (keine Serienposition)" if summen.get("muster_ohne_serie") else "")
+           if summen.get("muster_zeile") else "auf die Serie umgelegt")
+    return f" (davon Musterteile {zahl(summen.get('muster_betrag', 0), 2)} €, {wie})"
 
 
 def eingeplant_je_position(ergebnis):

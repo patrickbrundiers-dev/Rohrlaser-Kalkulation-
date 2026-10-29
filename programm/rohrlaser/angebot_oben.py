@@ -16,7 +16,7 @@ from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
                       aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
 from .sichtbarkeit import MASCHINE, OPTIONAL, ist_null, kopf_sichtbar, sichtbar
-from .stammdaten import zahl_als_text
+from .stammdaten import MUSTER_DARSTELLUNG, MUSTER_UMLEGEN, zahl_als_text
 from .eingabe import RechenSpin, RechenSpinGanz
 
 KOPF_FELD = {f.name: f for f in KOPF}
@@ -336,6 +336,20 @@ class KopfBereich(QWidget):
                                    "Mindestauftragswert.")
         self.mindest_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["mindestpreis_anwenden"], None if an else "nein"))
+        # Musterteile (Patrick 28.10.2026): Kosten auf die Serie umlegen oder als eigene Zeile; nur mit Musterteilen
+        self.muster_wahl = QWidget()
+        ml = QHBoxLayout(self.muster_wahl)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.addWidget(QLabel("Musterkosten"))
+        self.muster_darstellung = QComboBox()
+        self.muster_darstellung.addItems(list(MUSTER_DARSTELLUNG))
+        self.muster_darstellung.setToolTip("Musterteile (Spalte Muster) stehen mit 0 € im Angebot. Ihre Kosten mit "
+                                           "Gewinn werden nach den Selbstkosten auf die Serienpositionen umgelegt "
+                                           "oder stehen als eigene Zeile „Musterkosten einmalig“ im Angebot (ohne "
+                                           "Serienposition immer so).")
+        self.muster_darstellung.currentTextChanged.connect(
+            lambda t: seite._kopf_speichern(KOPF_FELD["muster_darstellung"], None if t == MUSTER_UMLEGEN else t))
+        ml.addWidget(self.muster_darstellung, 1)
         gruppen = QGridLayout()
         gruppen.setHorizontalSpacing(18)
         self.gruppen_leer = {}
@@ -380,6 +394,7 @@ class KopfBereich(QWidget):
                 r += 1
             if titel == "Verkauf und Gewinn":  # Mindestauftragswert ein/aus gehört zum Verkauf, spart eine Zeile
                 form.addWidget(self.mindest_an, r + 1, 0, 1, 2)
+                form.addWidget(self.muster_wahl, r + 2, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -737,6 +752,10 @@ class KopfBereich(QWidget):
                                 if isinstance(betrag, (int, float)) and betrag > 0 else
                                 "Mindestauftragswert anwenden (0 €)")
         self.mindest_an.blockSignals(False)
+        self.muster_darstellung.blockSignals(True)
+        self.muster_darstellung.setCurrentText(s.kopf.get("muster_darstellung") or MUSTER_UMLEGEN)
+        self.muster_darstellung.blockSignals(False)
+        self.muster_wahl.setVisible(any(p.get("muster") == "ja" for p in getattr(s, "positionen", None) or ()))
         self._abweichungen_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()
