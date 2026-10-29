@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
 
 from . import (ansicht3d_leiste, biegerohr, dfm, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
+from . import funktionen
 from . import schneidweg as sw
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
@@ -469,6 +470,8 @@ class EditorRahmen(QObject):
             k = g.knopf("Knickrahmen", "v_ausschnitt", lambda: d.knickrahmen(),
                         tipp=d.knick_knopf.toolTip())
             k.setEnabled(d.knick_knopf.isEnabled())
+            if not funktionen.an("funktion_knick_steck"):    # Funktion ausgeschaltet (funktionen.py)
+                k.hide()
             gm = QMenu(self.band)
             gm.addAction("An Ende A …", lambda: d.gegenrohr("a"))
             gm.addAction("An Ende B …", lambda: d.gegenrohr("b"))

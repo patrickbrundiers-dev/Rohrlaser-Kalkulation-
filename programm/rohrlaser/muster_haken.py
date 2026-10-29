@@ -3,6 +3,7 @@ Angebot“): ein Musterteil wird voll gerechnet, steht aber ohne eigenen Preis i
 Gewinn auf die Serie (rechnen._muster_umlegen)."""
 from PySide6.QtWidgets import QCheckBox
 
+from . import funktionen
 from .angebot import ist_muster
 
 TEXT = "Muster"
@@ -24,6 +25,8 @@ class MusterHaken(QCheckBox):
         self.setToolTip(HILFE)
         self.start = ist_muster(p)
         self.setChecked(self.start)
+        if not self.start and not funktionen.an("funktion_muster"):      # Funktion Musterteile ausgeschaltet
+            self.hide()
 
     def wert(self):
         return wert(self.isChecked())

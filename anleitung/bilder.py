@@ -313,19 +313,20 @@ def main(ziel):
     foto.foto("zukauf_kategorien", f, [(tab_rect(f.zukauf.unter, "Kategorien"), 1)])
     f.zukauf.unter.setCurrentWidget(zs)
 
-    # 4) Einstellungen: Unterreiter Vorgaben
+    # 4) Einstellungen: Seiten nach Themen (Plan „Einstellungen aufräumen“ 29.10.2026), zuerst Funktionen
     f.zeigen(f.einstellungen)
     QApplication.processEvents()
-    foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Vorgaben"), 1),
+    foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Funktionen"), 1),
                                    (knopf(f.bereich, "Einstellungen sperren"), 2)])
-    leiste = f.einstellungen.verticalScrollBar()
-    leiste.setValue(leiste.maximum())
+    funktionen_seite = f.einstellungen.seiten[0]
+    foto.foto("einstellungen_funktionen", f, [(funktionen_seite.felder["funktion_blech"], 1)])
+    zuschlaege = f.einstellung_zeigen("gewinn")
+    QApplication.processEvents()
     foto.foto("einstellungen_unten", f)
-    leiste.setValue(0)
     nav = f.bereich.unter
     nav.suche.setText("gewinn")
     QApplication.processEvents()
-    foto.foto("einstellungen_suche", f, [(nav.suche, 1), (nav.baum, 2), (f.einstellungen.boxen[0], 3)],
+    foto.foto("einstellungen_suche", f, [(nav.suche, 1), (nav.baum, 2), (zuschlaege.boxen[0], 3)],
               ausschnitt=QRect(0, 0, f.width(), 360))
     nav.suche.setText("")
 
