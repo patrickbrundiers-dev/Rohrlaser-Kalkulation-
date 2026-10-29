@@ -2662,7 +2662,8 @@ def kapitel_optimieren(i):
         ["<b>Schneidgas N₂ [€/h]</b>, <b>Schneidgas O₂ [€/h]</b>", "Maschine", "Gaskosten je Stunde Laserzeit nach dem Gas der Schneiddaten, "
          "zusätzlich zum Stundensatz; eigene Kostenart <i>Schneidgas</i>. Stickstoff (Edelstahl, Alu) ist teurer als "
          "Sauerstoff. Genauer geht es über Düse und Gasdruck (nächste Zeilen); dieser Zuschlag gilt dann nur noch für "
-         "Schneiddaten ohne Düse."],
+         "Schneiddaten ohne Düse. Schneidgas zählt nur bei einem ermittelten Stundensatz oder mit <i>Gas zusätzlich "
+         "zum Stundensatz</i> = ja ([[stundensatz_ermitteln]]); ein Satz von Hand enthält das Gas sonst schon."],
         ["<b>Düse Ø [mm]</b>, <b>Gasdruck [bar]</b>", "Schneiddaten", "Düsendurchmesser und Gasdruck (Überdruck am "
          "Manometer) je Schneiddaten-Zeile. Daraus rechnet das Programm den Gasverbrauch in m³/h, z. B. N₂ mit Düse "
          "2,0 mm bei 15 bar ≈ 28,6 m³/h. Richtwerte: N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar."],
@@ -2689,6 +2690,33 @@ def kapitel_optimieren(i):
     i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Stundensatz ermitteln je Maschine", marke="stundensatz_ermitteln")
+    i.text("Der Stundensatz einer Maschine kann von Hand eingetragen oder ermittelt werden. In den Maschinen-"
+           "Stammdaten steht dafür die Spalte <b>Stundensatz von Hand/ermittelt</b>; leer heißt von Hand. Der Knopf "
+           "<i>Stundensatz ermitteln …</i> öffnet für die markierte Maschine einen Dialog mit dem Rechenweg.",
+           kurz=True)
+    i.tabelle(["Stundensatz", "Strom", "Schneidgas"], [
+        ["von Hand (leer)", "im eingetragenen Satz", "im Satz; nur mit <b>Gas zusätzlich zum Stundensatz</b> = ja "
+         "kommt das Schneidgas je Teil dazu"],
+        ["ermittelt", "Zeile Strom der Ermittlung", "kommt immer je Teil dazu (Düse und Druck bzw. €/h)"]], [40, 50, 95])
+    i.text("Rechenweg: feste Kosten je Jahr (Abschreibung = Anschaffung ÷ Nutzungsdauer, Zinsen auf den halben "
+           "Anschaffungswert, Raum, Instandhaltung, Wartung) ÷ genutzte Stunden, dazu Strom und Verschleiß je "
+           "Stunde, der Anteil des Bedieners und die Gemeinkosten. Genutzte Stunden = Stunden je Arbeitstag "
+           "(Maschine <i>Schicht</i>, sonst Einstellung) × Arbeitstage × Auslastung. Beispiel: 650.000 € über 10 "
+           "Jahre, 60 m², 30 kW, 2.475 h im Jahr ergeben 97,60 €/h.")
+    i.tabelle(["Wert", "Wo"], [
+        ["<b>Ermittlung: Anschaffung [€]</b>, <b>Ermittlung: Nutzungsdauer [Jahre]</b>, <b>Ermittlung: Fläche "
+         "[m²]</b>, <b>Ermittlung: Instandhaltung [% je Jahr]</b>, <b>Ermittlung: Wartung, Versicherung [€/Jahr]</b>, "
+         "<b>Ermittlung: Anschlussleistung [kW]</b>, <b>Ermittlung: Verschleiß [€/h]</b>, <b>Ermittlung: Bediener "
+         "[% Betreuung]</b>", "je Maschine (Dialog oder Tabelle)"],
+        ["<b>Stundensatz-Ermittlung: Strompreis [€/kWh]</b>, <b>Stundensatz-Ermittlung: Raumkosten [€/m² im "
+         "Monat]</b>, <b>Stundensatz-Ermittlung: Zinssatz [%]</b>, <b>Stundensatz-Ermittlung: Bedienerlohn [€/h]</b>, "
+         "<b>Stundensatz-Ermittlung: Gemeinkosten [%]</b>, <b>Stundensatz-Ermittlung: Arbeitstage je Jahr</b>, "
+         "<b>Stundensatz-Ermittlung: Auslastung [%]</b>", "Einstellungen, Kalkulation (für alle Maschinen)"]],
+        [130, 55])
+    i.text("<i>Übernehmen</i> stellt die Maschine auf ermittelt und trägt den Satz ein. Neue Angebote speichern den "
+           "Satz beim Anlegen; spätere Änderungen gelten nur für neue Angebote. Bisherige Maschinen bleiben von "
+           "Hand, ihre Preise ändern sich nicht.")
     i.genauer("Preis-Plausibilität im Angebots-Check")
     i.text("Der Angebots-Check ([[angebots_check]]) prüft die Preise auf Tippfehler: ein Stückpreis unter den "
            "Materialkosten ist eine WARNUNG; ein Preis je kg, der mehr als 3-mal höher oder niedriger ist als bei "

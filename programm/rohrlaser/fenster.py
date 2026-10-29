@@ -333,7 +333,7 @@ class Auswahl(QStyledItemDelegate):
         art, f = quelle.model().spalten[quelle.column()]
         if art == "feld" and f.art == "auswahl":
             cb = QComboBox(parent)
-            cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "materialherkunft",
+            cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "satzart", "materialherkunft",
                                               "zeugnis"))
             liste_fuellen(cb, quelle.model().k, f.auswahl)
             if f.auswahl == "profil":           # „40x3“ findet „QR 40x40x3“ (Plan Arbeitsabläufe W5)
@@ -399,6 +399,13 @@ class StammdatenSeite(QWidget):
                                 "Datensicherung. Orange Zellen weichen vom Standard ab.")
             standard.clicked.connect(lambda: self.schneiddaten_zuruecksetzen())
             leiste.addWidget(standard)
+        if tabelle.name == "maschinen":
+            satz = QPushButton("Stundensatz ermitteln …")
+            satz.setToolTip("Maschinenstundensatz der markierten Maschine aus Anschaffung, Nutzungsdauer, Raum, "
+                            "Instandhaltung, Wartung, Strom, Verschleiß und Bediener ermitteln; Übernehmen stellt "
+                            "die Maschine auf „ermittelt“ (Schneidgas kommt dann je Teil dazu)")
+            satz.clicked.connect(lambda: self.stundensatz_ermitteln())
+            leiste.addWidget(satz)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
@@ -614,6 +621,26 @@ class StammdatenSeite(QWidget):
             f = self.window()
             f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
         return d
+
+    def stundensatz_ermitteln(self, werte=None, zeile=None):
+        """Dialog „Stundensatz ermitteln …“ für die markierte Maschine (sonst die erste); werte = {Feld: Wert} ohne
+        Dialog (Tests). Speichert die Werte, satz_art = ermittelt und den Satz; Ergebnis die Werte oder None."""
+        from . import stundensatz_dialog
+        if zeile is None:
+            reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+            if not reihen and not self.modell.daten:
+                return None
+            zeile = self.modell.daten[reihen[0] if reihen else 0]
+        if werte is None:
+            werte = stundensatz_dialog.dialog_zeigen(self, zeile, self.db.einstellungen())
+            if werte is None:
+                return None
+        for n, w in werte.items():
+            self.db.aendern("maschinen", zeile["id"], n, w)
+        self.neu_laden()
+        self.meldung(f"Stundensatz {zeile.get('maschinen_id')}: {zahl_als_text(werte['stundensatz'], 2)} €/h "
+                     "ermittelt (gilt für neue Angebote).")
+        return werte
 
     def schneiddaten_zuruecksetzen(self, wahl=None):
         """Schneiddaten auf die mitgelieferten Standardwerte zurücksetzen (schneiddaten_standard.StandardDialog: alle

@@ -30,10 +30,13 @@ NEUERUNGEN = [
                 "unter</i>, z. B. 0,10 €): darunter steht der Preis je 100 Stück im "
                 "Angebot und in den Staffeln, ohne Rundungsverlust. <b>Preis-Plausibilität</b> im Angebots-Check: "
                 "Preis unter Material, Preis je kg gegen früher verschickte Angebote derselben Abmessung, Ertrag je "
-                "Laserstunde. Angebot und Staffel rechnen Gewinn und Fracht jetzt an einer gemeinsamen Stelle; ein "
+                "Laserstunde. <b>Stundensatz ermitteln</b> je Maschine ([[stundensatz_ermitteln]]): aus Anschaffung, "
+                "Nutzungsdauer, Raum, Instandhaltung, Wartung, Strom, Verschleiß und Bediener; ein Satz von Hand "
+                "enthält Gas und Strom (Gas nur mit <i>Gas zusätzlich zum Stundensatz</i>). Angebot und Staffel "
+                "rechnen Gewinn und Fracht jetzt an einer gemeinsamen Stelle; ein "
                 "Test prüft bei jedem Update, dass eine Stufe mit den Mengen des Angebots dessen Preis ergibt.",
      "Kalkulation genauer: Nebenzeit, Schneidgas aus Düse und Druck, Ausschuss, Schrotterlös, Profilwechsel; Preis je 100 Stück; "
-     "Preis-Plausibilität"],
+     "Preis-Plausibilität; Stundensatz ermitteln"],
     ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
                 "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "
                 "eigene Zeilen (z. B. je Werkstoff) behalten. Die Vorschau zeigt jeden Wert jetzt → Standard, welche "

@@ -375,7 +375,18 @@ MASCHINEN = Tabelle(
      Feld("gas_o2", "Schneidgas O₂ [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
      Feld("ruest_form", "Rüstzuschlag je weiterer Profilform [min]", "zahl", 0, 1440, stellen=0, breite=95),
      # Schichtkalender der Wochenauslastung (Plan 29.10.2026 2b, auslastung.py); leer = Einstellung
-     Feld("schicht_stunden", "Schicht: Stunden je Arbeitstag", "zahl", 0, 24, stellen=1, breite=90)),
+     Feld("schicht_stunden", "Schicht: Stunden je Arbeitstag", "zahl", 0, 24, stellen=1, breite=90),
+     # Stundensatz-Ermittlung je Maschine (Patrick 29.10.2026, stundensatz.py): von Hand (leer) oder ermittelt
+     Feld("satz_art", "Stundensatz von Hand/ermittelt", "auswahl", auswahl="satzart", breite=95),
+     Feld("gas_zusatz", "Gas zusätzlich zum Stundensatz", "auswahl", auswahl="janein", breite=90),
+     Feld("anschaffung", "Ermittlung: Anschaffung [€]", "zahl", 0, 1e8, stellen=0, breite=95),
+     Feld("nutzungsdauer", "Ermittlung: Nutzungsdauer [Jahre]", "zahl", 0, 50, stellen=0, breite=90),
+     Feld("flaeche", "Ermittlung: Fläche [m²]", "zahl", 0, 10000, stellen=0, breite=80),
+     Feld("instandhaltung", "Ermittlung: Instandhaltung [% je Jahr]", "zahl", 0, 50, stellen=1, breite=95),
+     Feld("wartung", "Ermittlung: Wartung, Versicherung [€/Jahr]", "zahl", 0, 1e7, stellen=0, breite=100),
+     Feld("leistung_kw", "Ermittlung: Anschlussleistung [kW]", "zahl", 0, 1000, stellen=1, breite=90),
+     Feld("verschleiss", "Ermittlung: Verschleiß [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
+     Feld("bediener_anteil", "Ermittlung: Bediener [% Betreuung]", "zahl", 0, 100, stellen=0, breite=90)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -398,9 +409,12 @@ MASCHINEN = Tabelle(
     "Rohrs dazwischen (jede Innenkontur und jedes Ende), leer = 0; mit echten Schnittzeiten abgleichen. "
     "Nebenzeit je Teil: Ausschieben, Abtrennen und Entnehmen jedes Teils, leer = 0. Schneidgas N₂/O₂: Gaskosten je "
     "Stunde Laserzeit zusätzlich zum Stundensatz, je nach Gas der Schneiddaten (Stickstoff für Edelstahl und Alu ist "
-    "teurer), leer = 0. Rüstzuschlag je weiterer Profilform: Spannbacken bzw. Spannmittel tauschen, wenn ein Angebot "
+    "teurer), leer = 0; nur bei Stundensatz 'ermittelt' oder 'Gas zusätzlich zum Stundensatz' = ja. Rüstzuschlag je weiterer Profilform: Spannbacken bzw. Spannmittel tauschen, wenn ein Angebot "
     "mehrere Profilformen hat (z. B. Rundrohr und Rechteckrohr), je Form ab der zweiten, leer = 0. "
-    "Schicht: Stunden je Arbeitstag für die Wochenauslastung (Datei → Maschinenauslastung …; leer = Einstellung).")
+    "Schicht: Stunden je Arbeitstag für die Wochenauslastung (Datei → Maschinenauslastung …; leer = Einstellung). "
+    "Stundensatz von Hand/ermittelt: leer bzw. 'von Hand' = der eingetragene Stundensatz gilt und enthält Gas und "
+    "Strom (Schneidgas nur mit 'Gas zusätzlich zum Stundensatz' = ja); 'ermittelt' = der Satz aus den Feldern "
+    "'Ermittlung: …' und den Einstellungen (Knopf 'Stundensatz ermitteln …'), Schneidgas kommt je Teil dazu.")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -906,6 +920,15 @@ EINSTELLUNGEN = (
     Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gas_faktor", "Korrekturfaktor Gasverbrauch", "Kalkulation", "zahl", 1.0, 0.1, 5),
+    # Stundensatz-Ermittlung je Maschine (Patrick 29.10.2026, stundensatz.py): für alle Maschinen gleich
+    Einstellung("strompreis", "Stundensatz-Ermittlung: Strompreis [€/kWh]", "Kalkulation", "zahl", 0.25, 0, 10),
+    Einstellung("raumkosten", "Stundensatz-Ermittlung: Raumkosten [€/m² im Monat]", "Kalkulation", "zahl", 8.0, 0,
+                1000),
+    Einstellung("zinssatz", "Stundensatz-Ermittlung: Zinssatz [%]", "Kalkulation", "anteil", 0.06, 0, 0.5),
+    Einstellung("bediener_satz", "Stundensatz-Ermittlung: Bedienerlohn [€/h]", "Kalkulation", "zahl", 38.0, 0, 1000),
+    Einstellung("gemeinkosten", "Stundensatz-Ermittlung: Gemeinkosten [%]", "Kalkulation", "anteil", 0.25, 0, 5),
+    Einstellung("arbeitstage", "Stundensatz-Ermittlung: Arbeitstage je Jahr", "Kalkulation", "zahl", 220.0, 0, 366),
+    Einstellung("auslastung_jahr", "Stundensatz-Ermittlung: Auslastung [%]", "Kalkulation", "anteil", 0.75, 0, 1),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
     # angehoben. 0 = keiner.
     # Kundenmaterial (Spalte Material: Kunde beigestellt): keine Materialkosten; optional Handling je m der
@@ -1393,7 +1416,7 @@ class Kontext:
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
-                         "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN),
+                         "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
@@ -1550,7 +1573,11 @@ def pruefen(t, z, k):
         return "WARNUNG: Kategorie fehlt"
     if t is WERKSTOFFE and z.get("tonnenpreis") is None:
         return "WARNUNG: kein Tonnenpreis (Preis nur über 'Preise')"
-    if t is MASCHINEN and z.get("stundensatz") is None:
+    if t is MASCHINEN and z.get("satz_art") == "ermittelt" and not any(
+            isinstance(z.get(n), (int, float)) and z.get(n) for n in ("anschaffung", "wartung", "leistung_kw",
+                                                                         "verschleiss", "bediener_anteil", "flaeche")):
+        return "WARNUNG: Stundensatz ermittelt, aber keine Werte 'Ermittlung: …' (es gilt der eingetragene Satz)"
+    if t is MASCHINEN and z.get("stundensatz") is None and z.get("satz_art") != "ermittelt":
         return "WARNUNG: Stundensatz fehlt"
     if t is MASCHINEN and k.schneiddaten:
         da = {s.get("kategorie") or (k.werkstoffe.get(s.get("werkstoff_id")) or {}).get("kategorie")

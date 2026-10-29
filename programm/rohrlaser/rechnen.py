@@ -2532,7 +2532,11 @@ def gas_verbrauch(duese, druck, gas, faktor=1.0):
 def gas_kosten(sd, m, einstellungen, sekunden_gas, sekunden_laser):
     """(€ je Teil, m³ je Teil, m³/h) Schneidgas: mit Düse und Gasdruck der Schneiddaten und Gaspreis €/m³ (Einstellung)
     der Verbrauch × Zeit mit Gas (Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit), sonst der Zuschlag €/h
-    der Maschine auf die ganze Laserzeit (gas_satz; m³ dann None)."""
+    der Maschine auf die ganze Laserzeit (gas_satz; m³ dann None). Stundensatz von Hand ohne 'Gas zusätzlich zum
+    Stundensatz' = ja: kein Gas (steckt im Satz)."""
+    from . import stundensatz
+    if not stundensatz.gas_rechnen(m):      # Stundensatz von Hand enthält das Gas (Plan Stundensatz, Frage 2b)
+        return 0.0, None, None
     gas = (sd or {}).get("gas")
     preis = _n((einstellungen or {}).get(GAS_PREIS.get(gas or "")))
     q = (gas_verbrauch((sd or {}).get("duese"), (sd or {}).get("gasdruck"), gas,
@@ -2691,7 +2695,7 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
 
 # ------------------------------------------------------------------ Stundensätze und Zeitvorgaben
 MASCHINE_ZEIT = ("stundensatz", "ruestzeit", "stangenwechsel", "stangenwechsel_sn", "ruest_sonder", "gas_n2", "gas_o2",
-                 "ruest_form")
+                 "ruest_form", "satz_art", "gas_zusatz")
 SCHRITT_FELDER = ("schritt", "satz", "art", "parallel", "ruestzeit", "ruest_bezug", "zeit", "bezug")
 
 
@@ -2699,7 +2703,10 @@ def zeitbasis_aus(maschinen_id, k, tabellen):
     """Stundensätze und Zeitvorgaben aus den Stammdaten (für den Snapshot im Angebot):
     {maschine: {maschinen_id, stundensatz, ruestzeit, stangenwechsel, stangenwechsel_sn}, saetze: {ID: €/h}, schritte: [Zeile]}."""
     m = k.maschinen.get(maschinen_id) or {}
-    return dict(maschine=dict({n: m.get(n) for n in MASCHINE_ZEIT}, maschinen_id=maschinen_id if m else None),
+    from . import stundensatz
+    # Stundensatz ermittelt (Patrick 29.10.2026): der gerechnete Satz kommt in den Snapshot
+    return dict(maschine=dict({n: m.get(n) for n in MASCHINE_ZEIT}, maschinen_id=maschinen_id if m else None,
+                              stundensatz=stundensatz.wirksam(m, tabellen.get("einstellungen"))),
                 saetze={z["satz_id"]: z.get("satz") for z in (tabellen.get("stundensaetze") or []) if z.get("satz_id")},
                 schritte=[{n: z.get(n) for n in SCHRITT_FELDER} for z in (tabellen.get("arbeitsschritte") or [])
                           if z.get("schritt")])

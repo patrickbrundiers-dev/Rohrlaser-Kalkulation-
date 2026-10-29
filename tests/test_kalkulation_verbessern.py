@@ -34,7 +34,7 @@ def nah(a, b, text="", eps=1e-6):
     assert abs(float(a) - float(b)) <= eps * max(1.0, abs(a), abs(b)), f"{text}: {a} != {b}"
 
 
-NEU = dict(zeit_teil=4.0, gas_n2=12.0, gas_o2=3.0, ruest_form=20)
+NEU = dict(zeit_teil=4.0, gas_n2=12.0, gas_o2=3.0, ruest_form=20, gas_zusatz="ja")
 
 
 def angebot(db, maschine=None, einst=None):
