@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
-from PySide6.QtCore import QBuffer, QByteArray
+from PySide6.QtCore import QBuffer, QByteArray, QPoint
 from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
@@ -2112,6 +2112,15 @@ class Hauptfenster(QMainWindow):
             aktion = ("Bericht …", lambda: bericht_zeigen(self, bericht[0], text, bericht[1]))
         if not self.stumm:                          # Selbsttest und Bildschirmfotos ohne Einblendung
             self.einblendung.zeigen(text, fehler, aktion)
+
+    def einblendung_grenze(self):
+        """Linker Rand der Übersicht des sichtbaren Angebots (Fensterkoordinaten) oder None: Einblendungen stehen
+        links davon, damit sie Preise und Zeiten nicht verdecken (Prüfung 29.10.2026, O2)."""
+        for s in self.offen.values():
+            r = getattr(s, "uebersicht_rahmen", None)
+            if s.isVisible() and r is not None and r.isVisible():
+                return r.mapTo(self, QPoint(0, 0)).x()
+        return None
 
     def resizeEvent(self, e):
         super().resizeEvent(e)

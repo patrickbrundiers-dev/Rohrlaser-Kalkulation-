@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDateEdit, QDialog,
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import feiertage, palettenschein, palettenschein_dialog, pdf
+from . import feiertage, leerhinweis, palettenschein, palettenschein_dialog, pdf
 
 SPALTEN = ("Angebot", "Kunde", "Bestellnummer", "Lieferdatum", "Paletten", "Stück", "Stand", "Gedruckt",
            "Versendet am")
@@ -70,6 +70,7 @@ class VersandSeite(QWidget):
         self.tabelle.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.tabelle.doubleClicked.connect(lambda _: self.schein_oeffnen())
         self.tabelle.verticalHeader().setVisible(False)
+        leerhinweis.setzen(self.tabelle, "Keine beauftragten Angebote für diese Auswahl.")
         self.info = QLabel()
         self.info.setWordWrap(True)
         lay = QVBoxLayout(self)

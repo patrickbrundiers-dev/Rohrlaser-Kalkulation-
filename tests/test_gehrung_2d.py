@@ -49,7 +49,7 @@ def nah(a, b, tol=1e-6):
 def umriss(rund, b, h, r):
     """Punkte der Außenkontur mit Normalen [(x, y, nx, ny)] gegen den Uhrzeigersinn (Rundrohr: Ø b)."""
     if rund:
-        n = 720
+        n = 180         # Sehnenfehler 0,004 mm bei Ø 48,3; mit 720 brauchte der Test ~10 min (Prüfung 29.10.2026)
         return [(b / 2 * math.cos(2 * math.pi * i / n), b / 2 * math.sin(2 * math.pi * i / n),
                  math.cos(2 * math.pi * i / n), math.sin(2 * math.pi * i / n)) for i in range(n)]
     out, cu, cv = [], b / 2 - r, h / 2 - r
