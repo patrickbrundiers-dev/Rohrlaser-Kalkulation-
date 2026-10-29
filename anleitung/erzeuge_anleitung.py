@@ -1725,7 +1725,12 @@ def kapitel_angebot(i):
             "Tab im Feld. Eine unfertige Rechnung ist rot umrandet; der Tooltip sagt, was fehlt. Ergebnisse über "
             "dem Höchstwert werden auf den Höchstwert begrenzt. Geht in Zahlenfeldern der Dialoge und Einstellungen "
             "und in den Zahlenspalten der Tabellen; im Teile-Editor zusätzlich mit Größen wie <i>L/2</i>.",
-            "Klickt man in ein Zahlenfeld, ist der alte Wert markiert und wird beim Tippen gleich ersetzt.")
+            "Klickt man in ein Zahlenfeld, ist der alte Wert markiert und wird beim Tippen gleich ersetzt.",
+            "<b>Enter schließt kein Fenster</b>: In jedem Dialog übernimmt Enter nur die Eingabe im Feld (Text, "
+            "Zahl, Rechnung, Datum, Auswahl), in einer Tabelle geht es eine Zeile weiter. Übernommen und "
+            "geschlossen wird mit dem Knopf (OK, Übernehmen) oder gezielt mit <b>Strg+Enter</b>. Ist ein Knopf "
+            "angewählt (z. B. mit Tab), drückt Enter diesen Knopf. Ausnahmen sind nur reine Ja/Nein-Fragen (Enter = "
+            "die vorgeschlagene Antwort), die Dateiauswahl und <i>Suchen und ausführen</i> (Strg+K).")
     i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
     i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
            "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "
@@ -3237,7 +3242,7 @@ def kapitel_optimieren(i):
     i.liste("<b>Abwicklung</b> (oben rechts, auf jedem Reiter sichtbar): beim Rohr der aufgerollte Umfang mit allen "
             "Konturen (ausgeschnitten), beim Blech der Zuschnitt mit Biegelinien. Das Fenster folgt jeder Eingabe, "
             "Klick wählt eine Kontur, Ziehen verschiebt sie, Mausrad zoomt, Doppelklick passt ein. Größe und Lage "
-            "merkt sich das Programm. Enter schließt auch die Fenster Baugruppe und Satz in 3D nicht mehr.",
+            "merkt sich das Programm. Enter schließt auch sonst kein Fenster ([[eingaben]]).",
             "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
@@ -7662,7 +7667,8 @@ def kapitel_tastenkuerzel(i):
            "[[rueckgaengig]] beschrieben.")
     i.tabelle(["Taste", "Wirkung", "Wo"], [list(z) for z in TASTENKUERZEL], [28, 170, 67])
     i.text("In Textfeldern wirken Strg+Z, Strg+C, Strg+V, Strg+X und Entf wie gewohnt im Text. Gespeichert wird jede "
-           "Eingabe sofort; Strg+S schließt nur eine offene Eingabe ab.")
+           "Eingabe sofort; Strg+S schließt nur eine offene Eingabe ab. Enter schließt in keinem Fenster den Dialog, "
+           "Strg+Enter übernimmt ([[eingaben]]).")
     i.abschnitt("Doppelklick", marke="doppelklick")
     i.text("Ein Doppelklick führt meist direkt dorthin, wo etwas zu tun ist. Wo er einen Dialog öffnet, bearbeitet "
            "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Der Tooltip (Maus kurz auf der Zelle lassen) "
