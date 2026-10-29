@@ -776,7 +776,8 @@ def kapitel_angebote(i):
         ["Status", "<i>Nicht optimiert</i> gelb · <i>Optimiert</i> grün · <i>Veraltet</i> rot (neu optimieren) · "
                    "<i>Nachkalkuliert</i> blau"],
         ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün "
-                    "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau · „Verschickt (abgelaufen)“ rot"]],
+                    "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau (fragt den Absagegrund, [[absage]]) · "
+                    "„Verschickt (abgelaufen)“ rot"]],
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
            "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
@@ -840,6 +841,22 @@ def kapitel_angebote(i):
     i.genauer()
     i.text("<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
            "Wiedervorlagen von Hand bleiben.")
+    i.abschnitt("Absagegrund und Angebots-Auswertung", marke="absage")
+    i.text("Wer ein Angebot auf <i>Abgelehnt</i> setzt, trägt den <b>Grund</b> ein (Preis zu hoch, Lieferzeit zu lang, "
+           "Kunde fertigt selbst …), wenn bekannt auch den Preis des Wettbewerbs. <i>Datei → Angebots-Auswertung …</i> "
+           "zeigt daraus die Trefferquote je Kunde, Werkstoff-Kategorie und Preisklasse.", kurz=True)
+    i.genauer()
+    i.liste("Grund, Preis Wettbewerb und Bemerkung stehen mit Datum im Versandverlauf (Mauszeiger auf <i>Preise "
+            "festgeschrieben</i> in der Übersicht) und als Tooltip auf dem Vorgang in der Angebotsliste. "
+            "<i>Abbrechen</i> lässt den Vorgang unverändert.",
+            "Die Auswertung braucht Admin-Rechte (wie die Kennzahlen der Startseite) und zählt die eigenen Angebote "
+            "der letzten 90 Tage, der letzten 12 Monate oder alle; ersetzte alte Fassungen zählen nicht. "
+            "<b>Trefferquote</b> = beauftragt ÷ (beauftragt + abgelehnt); offene Angebote zählen nicht mit.",
+            "Reiter: je Kunde, je Werkstoff-Kategorie (Angebote mit mehreren Kategorien = gemischt), je Preisklasse "
+            "(bis 500 €, bis 2.000 €, bis 10.000 €, darüber; Verkaufspreis netto), Absagegründe und Preis "
+            "Wettbewerb (unser Preis gegen den genannten, z. B. +20 % = wir waren 20 % teurer).",
+            "Viele Absagen „Preis zu hoch“ in einer Gruppe zeigen, wo es zu teuer ist; eine sehr hohe Trefferquote "
+            "kann heißen, dass die Preise dort Luft nach oben haben ([[preis_simulator]]).")
     i.abschnitt("Neue Fassung", marke="neue_fassung")
     i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
            "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "
@@ -4942,7 +4959,7 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
         (1, "<b>Angebot (PDF)</b> (Strg+P) für den Kunden, mit Staffelpreisen und Konditionen."),
         (2, "Menü <b>Ausgaben</b>: <b>Werkstattpapiere (PDF)</b> (Materialliste und Schnittpläne zum Abhaken, "
-            "Stangenbild), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
+            "Stangenbild), <b>Auftragsbestätigung (PDF)</b> ([[auftragsbestaetigung]]), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
             "<b>Materialanfrage (E-Mail)</b> (Stangenbedarf beim Lieferanten anfragen, [[materialanfrage]]), "
             "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen als einzelne Dateien in einen Ordner Ihrer Wahl, "
             "[[csv_export]]), "
@@ -4982,6 +4999,30 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile. Der Preis je Satz ist die "
            "Summe der ungerundeten Stückpreise × Stück je Satz, erst dann auf den Cent gerundet; so steht für "
            "dieselbe Menge derselbe Preis wie in der Staffel.")
+    i.abschnitt("Auftragsbestätigung", marke="auftragsbestaetigung")
+    i.text("Hat der Kunde bestellt, erstellt <i>Ausgaben → Auftragsbestätigung (PDF)</i> die Auftragsbestätigung im "
+           "Layout des Angebots, mit den Preisen des Angebots, der Bestellnummer des Kunden und dem Liefertermin.",
+           kurz=True)
+    i.genauer()
+    i.liste("Die Auftragsbestätigung gibt es nur für beauftragte Angebote. Steht das Angebot noch nicht auf "
+            "<i>Beauftragt</i>, fragt das Programm nach und öffnet das Fenster für Bestellnummer und Liefertermin "
+            "([[angebote]]).",
+            "Rechts oben stehen AB-Nr., Datum (heute), unser Angebot mit Datum, Kunden-Nr., <b>Ihre Bestellung</b> "
+            "(Auftragsnummer des Kunden) und <b>Liefertermin</b> mit Kalenderwoche, z. B. „15.11.2026 (KW 46)“. "
+            "Über den Positionen steht der Text der Einstellung <i>Angebots-PDF → Auftragsbestätigung: Text über den "
+            "Positionen</i> (Vorgabe „Vielen Dank für Ihren Auftrag …“).",
+            "Bestätigt werden die bestellten Mengen zu den Preisen des Angebots (festgeschrieben, "
+            "[[preise_festschreiben]]); Staffelpreise und „Gültig bis“ entfallen. In den Konditionen steht der "
+            "Liefertermin statt der Lieferzeit; ohne Termin die Lieferzeit des Angebots.",
+            "Weicht die Summe vom zuletzt verschickten Angebots-PDF ab (z. B. Positionen geändert), zeigt das "
+            "Programm beide Beträge und erstellt die Auftragsbestätigung nur nach Bestätigung.",
+            "<b>Nummer</b>: Vorgabe ist die Angebotsnummer. Mit der Einstellung <i>Auftragsbestätigung: Nummer</i> = "
+            "<i>eigener Nummernkreis</i> zählt das Programm AB-2026-00001, AB-2026-00002 … hoch, mit gemeinsamem "
+            "Ordner dort reserviert wie die Angebotsnummern ([[mehrere_arbeitsplaetze]]). Eine erneut erstellte "
+            "Auftragsbestätigung desselben Angebots behält ihre Nummer.",
+            "Die Datei <i>Nummer Auftragsbestätigung.pdf</i> liegt im Ordner des Angebots ([[angebotsordner]]); "
+            "Datum, AB-Nr. und Betrag stehen im Versandverlauf (Mauszeiger auf <i>Preise festgeschrieben</i>). Sie "
+            "zählt nicht als Versand des Angebots (Nachfassen bleibt unverändert).")
     i.abschnitt("Ordner je Angebot", marke="angebotsordner")
     i.text("Jedes Angebot hat in der Ablage einen eigenen Ordner <i>Nummer Kunde</i>, z. B. "
            "<i>2026-00042 Stahlbau Ostermann</i>. Alles, was das Programm zum Angebot speichert, kommt dort hinein: "
@@ -5254,6 +5295,26 @@ def kapitel_nachkalkulation(i):
             "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
+    i.abschnitt("Reklamationen", marke="reklamation")
+    i.text("Reklamiert der Kunde Teile eines Auftrags, erfassen Sie das im beauftragten Angebot unter <i>Ausgaben → "
+           "Reklamation erfassen …</i>. Die Kosten erscheinen in der Nachkalkulation als eigene Kostenart "
+           "<b>Reklamationen</b>; <i>Datei → Reklamationen …</i> zeigt alle offenen und die Quote.", kurz=True)
+    i.liste("Im Fenster <i>Reklamation</i>: <b>Position</b> (oder <i>ganzer Auftrag</i>, z. B. bei einem "
+            "Transportschaden), <b>Datum</b>, <b>Menge reklamiert</b> (bei einer Position Pflicht), <b>Fehlerart</b> "
+            "(Einstellung <i>Reklamationen: Fehlerarten</i>), <b>Ursache</b> (intern: Fertigung, intern: "
+            "Arbeitsvorbereitung / Programm, Material / Lieferant, Kunde, Transport, unbekannt), <b>Maßnahme</b> "
+            "(Nacharbeit, Neuteile, Gutschrift, Rücksendung, keine), <b>Kosten</b> (eigene Kosten: Nacharbeit, "
+            "Neuteile, Gutschrift, Fracht), <b>Status</b> offen/erledigt und eine Bemerkung. Nur für beauftragte "
+            "Angebote.",
+            "<b>Nachkalkulation</b>: Hat der Auftrag Reklamationen, steht dort die Zeile <i>Reklamationen</i> mit "
+            "Soll 0 und der Summe der Kosten als Ist; sie senkt den Deckungsbeitrag und zählt in der Auswertung "
+            "über alle Aufträge. Eine gespeicherte Nachkalkulation wird beim Erfassen gleich aktualisiert. Ohne "
+            "Reklamation bleibt die Nachkalkulation wie bisher.",
+            "<i>Datei → Reklamationen …</i>: Reiter <b>Liste</b> mit offenen bzw. allen Reklamationen (offene gelb), "
+            "<b>Bearbeiten …</b> (auch Doppelklick), <b>Erledigt</b> und <b>Angebot öffnen</b>. Oben die offenen und "
+            "für die letzten 12 Monate Anzahl, Stück, Kosten und die <b>Quote</b> = reklamierte ÷ gelieferte Stück "
+            "der beauftragten Angebote. Reiter <b>Je Fehlerart</b>, <b>Je Kunde</b> und <b>Je Werkstoff</b> zeigen, "
+            "wo es sich häuft.")
     i.abschnitt("Schweißbaugruppen nachkalkulieren")
     i.text("Hat das Angebot Schweißbaugruppen ([[schweissbaugruppe]]), erscheint unter den Ist-Werten die Tabelle "
            "<b>Schweißbaugruppen (leer = wie kalkuliert)</b>: je Baugruppe Soll und Ist für den ganzen Auftrag.",
@@ -5289,6 +5350,27 @@ def kapitel_nachkalkulation(i):
             "Vorschübe der Schneiddaten erst nach <i>Freigeben</i>, mit Verlauf und Rücknahme) und Rüsten (nur "
             "Vorschlag, ändert nichts). Unter 5 Aufträgen heißt es „zu wenig Daten“.")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
+    i.abschnitt("Preis-Simulator: was wäre, wenn …", marke="preis_simulator")
+    i.text("<i>Datei → Preis-Simulator …</i> rechnet alle offenen Angebote (Entwurf und Verschickt) einmal wie sie "
+           "sind und einmal mit geänderten Preisen, z. B. Edelstahl +8 % oder Stundensatz der Maschine +10 €/h. "
+           "Es wird nichts gespeichert.", kurz=True)
+    i.genauer("Eingaben und Ergebnis")
+    i.tabelle(["Eingabe", "Wirkung"], [
+        ["Material Stahl, Edelstahl, Aluminium, Buntmetall [%]",
+         "Materialpreise der Werkstoffe dieser Kategorie: Preise, Lieferlängen, Tonnenpreis, Materialpreis von Hand in "
+         "der Position und ein Teuerungszuschlag je kg ([[teuerungszuschlag]]); Oberflächen-Aufpreise bleiben"],
+        ["Stundensatz Maschine [€/h]", "auf den Stundensatz der Maschine des Angebots (Laserzeit, Rüsten, "
+                                       "Stangenwechsel)"],
+        ["weitere Stundensätze [%]", "alle übrigen Stundensätze, z. B. Programmierung und Schweißen"],
+        ["Zukaufteile (Einkauf) [%]", "Staffelpreise der Zukaufteile im Preisstand der Position; Bezugskosten bleiben"],
+        ["auch beauftragte Angebote", "zeigt zusätzlich die beauftragten Angebote, deren Preis schon zugesagt ist"]],
+        [70, 195])
+    i.text("Die Tabelle zeigt je Angebot den Verkaufspreis vorher und nachher und die Differenz (rot = teurer), "
+           "darunter die Summe. Mit Admin-Rechten kommen drei Margen dazu: vorher, <b>bei gleichem Preis</b> (der "
+           "Kunde hat das Angebot schon, die Kosten steigen) und mit neuem Preis. Gerechnet wird wie im Angebot: "
+           "mit den festgeschriebenen Preisen und Zeiten ([[preise_festschreiben]]), den Einstellungen des Angebots "
+           "und dem gespeicherten Schnittplan. Angebote ohne Schnittplan stehen mit „nicht optimiert“ in der Liste. "
+           "Doppelklick öffnet das Angebot.")
 
 
 def kapitel_versand(i):
@@ -5416,6 +5498,57 @@ def kapitel_fertigung(i):
             "die Positionen als CSV.",
             "Im Angebot <i>Weitere ▾ → <b>Fertigungsstatus …</b></i> springt zum Auftrag im Reiter Fertigung. "
             "Die Einstellung <i>Reiter Fertigung verwenden (Status beauftragter Angebote)</i> blendet alles aus.")
+    i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
+    i.text("Etiketten mit QR-Code je Position kommen an Bund, Kiste oder Teil. In der Werkstatt scannt man sie nach "
+           "jedem Arbeitsschritt mit einem Handscanner; der Reiter Fertigung zeigt dann je Position, was geschnitten, "
+           "entgratet und verpackt ist.", kurz=True)
+    i.liste("<b>Etiketten drucken</b>: im Angebot <i>Ausgaben → Etiketten mit QR-Code (PDF) …</i> oder im Reiter "
+            "Fertigung <b>Etiketten …</b>. Im Fenster Format wählen (A4-Bogen 3 × 8 mit 70 × 37 mm, 2 × 7 mit "
+            "105 × 42,3 mm, Etikettendrucker 100 × 50 oder 62 × 29 mm; das zuletzt gewählte bleibt), Etiketten je "
+            "Position oder <i>je Stück ein Etikett</i>, beim angebrochenen Bogen das <i>erste freie Feld</i> und auf "
+            "Wunsch <i>Rahmen um jedes Etikett (zum Ausschneiden auf Normalpapier)</i>. Die Datei <i>Nummer Etiketten.pdf</i> liegt im Ordner des "
+            "Angebots ([[angebotsordner]]).",
+            "Auf dem Etikett: QR-Code, Kunde, Auftrag mit Bestellnummer, <b>Position und Artikel</b>, Profil und "
+            "Werkstoff, Länge und Stückzahl, Liefertermin; klein darunter der Code, z. B. <i>RL202600042P20</i> "
+            "(Angebot 2026-00042, Pos. 20). Der Code hat nur Buchstaben und Ziffern, damit jeder Scanner ihn auch "
+            "mit deutscher Tastaturbelegung richtig eintippt.",
+            "<b>Scannen</b>: Reiter Fertigung → <b>Scannen …</b>, Arbeitsschritt wählen und Etiketten scannen. Ein "
+            "USB- oder Funk-Handscanner meldet sich wie eine Tastatur und tippt Code und Enter; das Fenster bleibt "
+            "offen, jede Rückmeldung steht mit Uhrzeit in der Liste (Fehler rot mit Signalton). Ohne Scanner den "
+            "Code eintippen und Enter.",
+            "Ein Scan zählt die ganze Stückzahl der Position; für eine Teilmenge vorher <b>Menge</b> eintragen (gilt "
+            "für einen Scan). Mehr als bestellt wird gemerkt und angezeigt. Nur beauftragte Angebote; Position und "
+            "Arbeitsschritt müssen passen.",
+            "Ist der Auftrag freigegeben und steht noch vor <i>In Fertigung</i>, setzt der erste Scan diesen Status "
+            "(Bemerkung „per Scan“). Sind alle Positionen im letzten Arbeitsschritt vollständig, weist der Scan "
+            "darauf hin; <i>Fertig gemeldet</i> setzen Sie selbst.",
+            "Unterreiter <b>Rückmeldungen</b>: je Position des markierten Auftrags die gemeldete Menge je "
+            "Arbeitsschritt („4 / 6“), vollständige grün, und der letzte Scan.",
+            "Die Arbeitsschritte stehen in der Einstellung <i>Rückmeldung per Scan: Arbeitsschritte</i> (eine Zeile "
+            "je Schritt, Vorgabe Geschnitten, Entgratet, Verpackt). Die Rückmeldungen liegen in der Datendatei des "
+            "Arbeitsplatzes, an dem gescannt wird, und werden mit dem Angebot gelöscht.")
+    i.abschnitt("Wochenauslastung je Maschine", marke="auslastung")
+    i.text("<i>Datei → Maschinenauslastung …</i> (oder <b>Auslastung …</b> im Reiter Fertigung) öffnet das Fenster "
+           "<i>Maschinenauslastung je Woche</i>: je Maschine und Woche, wie viele Laserstunden die Aufträge brauchen und wie viele der Schichtkalender hergibt.",
+           kurz=True)
+    i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "
+            "rot. Spalten: <i>überfällig</i>, die Wochen ab dieser (Zeitraum 2 bis 26 Wochen, Vorgabe 8), "
+            "<i>später</i> und <i>ohne Termin</i>. Eine Zelle wählen zeigt unten ihre Aufträge, Doppelklick öffnet "
+            "das Angebot.",
+            "<b>Bedarf</b>: je beauftragtes Angebot die Laserzeit aus der Kalkulation (Laser schneiden, Rüsten "
+            "Maschine, Rüsten je Abmessung, Stangenwechsel; wie unter Zeiten im Angebot) auf der Maschine des "
+            "Angebots. Sie zählt in der Woche des Liefertermins minus <i>Auslastung: Laserzeit so viele "
+            "Arbeitstage vor dem Liefertermin</i> (Vorgabe 2). Aufträge auf <i>Fertig gemeldet</i> zählen nicht; "
+            "schon gescannte Teile (erster Arbeitsschritt, [[etiketten]]) ziehen ihren Anteil ab. Nicht optimierte "
+            "Angebote stehen als Hinweis darüber.",
+            "<b>Kapazität</b>: Arbeitstage × <i>Stunden je Arbeitstag</i> (Maschine, Feld <i>Schicht: Stunden je "
+            "Arbeitstag</i>, sonst die Einstellung, Vorgabe 8) plus <i>Stunden am Samstag</i>, mal <i>nutzbarer "
+            "Anteil</i> (Vorgabe 85 % für Wartung und Störungen). Arbeitstage sind Montag bis Freitag ohne die "
+            "Feiertage des Bundeslands (Einstellung Versand) und ohne <i>Betriebsruhe</i> (z. B. "
+            "„24.12.2026-31.12.2026; 02.10.2026“).",
+            "<i>Verschickte Angebote gewichtet mit der Trefferquote</i>: offene Angebote zählen mit Laserzeit × "
+            "Trefferquote der letzten 12 Monate ([[absage]]); ihr Termin kommt aus der Lieferzeit ab heute. So "
+            "sieht man, ob eine Woche voll wird, wenn die üblichen Aufträge kommen.")
     i.abschnitt("Lager und Reststücke", marke="lager")
     i.text("Mit der Einstellung <i>Materialbestand verwenden (Reiter Lager)</i> = ja erscheint der Reiter "
            "<b>Lager</b>. Angebote und ihre Preise ändern sich dadurch nie; das Lager kommt erst beim beauftragten "
@@ -5708,6 +5841,9 @@ def kapitel_einstellungen(i):
                     "Absenderzeile über der Anschrift, alle Zeilen in der Fußzeile. Die Zahlungsbedingung (Skonto, "
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
                     "dieses Feld."],
+        ["Angebots-PDF", "Auftragsbestätigung: Nummer, Auftragsbestätigung: Text über den Positionen",
+         "<i>wie Angebot</i> (Vorgabe) oder <i>eigener Nummernkreis</i> AB-2026-00001; Dank-Text über den Positionen "
+         "der Auftragsbestätigung ([[auftragsbestaetigung]])"],
         ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export, darin je Angebot ein Ordner "
                                    "([[angebotsordner]]); leer = Ordner <i>Angebote</i> neben dem "
                                    "Programm (portabel) bzw. <i>Dokumente\\Rohrlaser Angebote</i> (installiert). "
@@ -5744,6 +5880,19 @@ def kapitel_einstellungen(i):
          "nein = Reiter Fertigung und Freigabe-Angaben in den Werkstattpapieren aus ([[fertigung]])"],
         ["Lager und Fertigung", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
          "eigene Status; die erste Zeile ist die Freigabe"],
+        ["Lager und Fertigung", "Etiketten: Format",
+         "A4-Bogen 3 × 8 oder 2 × 7 Etiketten oder Etikettendrucker 100 × 50 / 62 × 29 mm ([[etiketten]])"],
+        ["Lager und Fertigung", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte = fertig)",
+         "Vorgabe Geschnitten, Entgratet, Verpackt ([[etiketten]])"],
+        ["Lager und Fertigung", "Reklamationen: Fehlerarten (eine Zeile je Fehlerart)",
+         "Auswahl im Fenster Reklamation ([[reklamation]])"],
+        ["Lager und Fertigung", "Auslastung: Stunden je Arbeitstag und Maschine (Maschine leer = dieser Wert), "
+                                "Auslastung: Stunden am Samstag, Auslastung: nutzbarer Anteil der Schichtzeit "
+                                "(Wartung, Störungen), Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. "
+                                "24.12.2026-31.12.2026; 02.10.2026), Auslastung: Laserzeit so viele Arbeitstage vor "
+                                "dem Liefertermin",
+         "Schichtkalender der Wochenauslastung (Vorgabe 8 h, Samstag 0 h, 85 %, Vorlauf 2 Arbeitstage, "
+         "[[auslastung]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten (Admin-Passwort beim Start nur bei älterer Admin-Lizenz ohne eigenes); "
                                                     "verschlüsselt gespeichert, Feld bleibt leer; <b>Entfernen</b> = "
@@ -6261,6 +6410,9 @@ def kapitel_stammdaten(i):
         ["Laser-Hinweis", "Hinweis für Arbeitsvorbereitung und Bediener, z. B. „Zinkdampf, Absaugung prüfen“. Er "
                           "steht als Tooltip in der Werkstoffwahl, als HINWEIS im Angebots-Check ([[angebots_check]]) und "
                           "unter „Hinweise zum Werkstoff“ in der Kalkulation und den Werkstattpapieren"],
+        ["Teuerungszuschlag je, Teuerungszuschlag, Teuerung Stand",
+         "Legierungs- bzw. Materialteuerungszuschlag des Werkstoffs: <i>%</i> auf den Materialpreis oder <i>€/kg</i> "
+         "auf das Stangengewicht, mit Stichtag; leer = kein Zuschlag ([[teuerungszuschlag]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Vorbelegt sind 29 Werkstoffe mit Beispiel-Tonnenpreisen: Stahl (S235JRH, S355J2H nach EN 10219 und "
            "EN 10210, E195, E235, E355, DX51D+Z275 sendzimirverzinkt, P235TR1, P235GH nahtlos, S420MH, S460MH, "
@@ -6285,6 +6437,25 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
            "Werkstoff + Oberfläche + Stangenlänge. Leer und <i>roh</i> sind gleich.")
+    i.abschnitt("Teuerungszuschlag je Werkstoff", marke="teuerungszuschlag")
+    i.text("Schwanken die Preise eines Werkstoffs (Legierungszuschlag bei Edelstahl, Teuerung bei Aluminium), trägt man "
+           "den Zuschlag beim Werkstoff ein, statt alle Preise zu ändern: <i>Teuerungszuschlag je</i> = % oder €/kg, "
+           "<i>Teuerungszuschlag</i> = Wert, <i>Teuerung Stand</i> = Stichtag, z. B. der Monat des Lieferanten.",
+           kurz=True)
+    i.genauer("So wird gerechnet")
+    i.tabelle(["Art", "Wirkung"], [
+        ["%", "Prozent auf den Materialpreis der Stange aus Lieferlängen, Preisen oder Tonnenpreis, z. B. 8 % auf "
+              "62 € = 66,96 €. Der Aufpreis der Oberfläche bleibt ohne Zuschlag."],
+        ["€/kg", "Betrag je kg Stangengewicht (mit Händler-Mehrlänge wie der Materialpreis), z. B. 0,35 €/kg. "
+                 "Fehlt das Gewicht, meldet die Position „Gewicht fehlt“."],
+        ["leer oder 0", "kein Zuschlag, alles wie bisher"]], [40, 225])
+    i.text("Der Zuschlag gilt mit Verschnitt, weil er auf die ganze Stange kommt. Ein Materialpreis von Hand in der "
+           "Position ([[meterpreis]]) gilt unverändert ohne Zuschlag. Der Mauszeiger auf dem Materialpreis nennt ihn, "
+           "z. B. „zzgl. Teuerungszuschlag 8 % (Stand 01.10.2026)“. Ist der Stand leer oder älter als 3 Monate, "
+           "zeigt der Angebots-Check einen HINWEIS ([[angebots_check]]).")
+    i.text("Festgeschriebene Angebote ([[preise_festschreiben]]) behalten ihren Zuschlag; eine Änderung steht in der "
+           "Liste „Stammdaten seit dem Festschreiben geändert“. Angebote, die vor dem 29.10.2026 festgeschrieben "
+           "wurden, rechnen ohne Zuschlag weiter, bis man „Aktuelle Preise übernehmen“ wählt.")
     i.abschnitt("Preise und Lieferlängen")
     i.bild("stamm_preise", "Einstellungen, Preise je Profil und Werkstoff", hoehe=95 * mm)
     i.text("<b>Preise</b>: Materialpreis je Profil und Werkstoff in €/kg, €/m oder €/Stange. <b>Lieferlängen</b>: "
@@ -6383,6 +6554,8 @@ def kapitel_stammdaten(i):
         ["Kürzestes Teil [mm]", "kürzere Teile kann die Maschine nicht fertigen; sie bekommen die Stufe der "
                                 "Prüfregel <i>Teil zu kurz für die Maschine</i> ([[pruefregeln]]); leer = keine "
                                 "Grenze"],
+        ["Schicht: Stunden je Arbeitstag", "Kapazität der Maschine in der Wochenauslastung "
+                                           "([[auslastung]]); leer = Einstellung"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",

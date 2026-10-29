@@ -263,6 +263,12 @@ class AngeboteListe(Liste):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
             return QBrush(stil.farbe(farbe)) if farbe else None
+        if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][0] == "Vorgang":
+            from .absage import letzte
+            a = letzte(self.zeilen[index.row()]) if str(self.wert(index.row(), index.column())).startswith(
+                "Abgelehnt") else None
+            if a:
+                return f"Absagegrund: {a.get('grund')}" + (f" – {a['bemerkung']}" if a.get("bemerkung") else "")
         if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
             am = self.zeilen[index.row()].get("vk_am")
             return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
@@ -498,9 +504,10 @@ class AngeboteSeite(QWidget):
                        "Zum Weiterarbeiten „Kopieren“ (eigene Kopie mit eigener Nummer).", fehler=True)
         return True
 
-    def vorgang_setzen(self, v, angebot_id=None, auftrag=None):
+    def vorgang_setzen(self, v, angebot_id=None, auftrag=None, absage=None):
         """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …). Beauftragt: Fenster für Auftragsnummer
-        und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster."""
+        und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster. Abgelehnt: Fenster
+        für den Absagegrund (Plan 29.10.2026 1b); absage = (Grund, Bemerkung, Preis Wettbewerb) ohne Fenster."""
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "den Vorgang setzen"):
             return False
@@ -515,8 +522,16 @@ class AngeboteSeite(QWidget):
             auftrag = auftrag_fenster.abfragen(self, a, self.db.einstellung("versand_bundesland"))
             if auftrag is None:
                 return False
+        if v == "Abgelehnt" and absage is None and not self.f.stumm and not self.db.nur_lesen:
+            from . import absage_dialog
+            absage = absage_dialog.abfragen(self, a)
+            if absage is None:
+                return False
         self.db.vorgang_setzen(i, v)
         text = ""
+        if v == "Abgelehnt" and absage is not None:
+            self.db.absage_merken(i, *absage)
+            text = f", Grund: {absage[0]}"
         if v == "Beauftragt" and auftrag is not None:
             self.db.auftrag_setzen(i, *auftrag)
             text = "".join((f", Auftrag {auftrag[0]}" if auftrag[0] else "",
@@ -1800,7 +1815,11 @@ class AngebotSeite(QWidget):
         menue = QMenu(self.weitere)
         menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
         menue.addSeparator()
+        # Auftragsbestätigung (Plan 29.10.2026 1c): im Layout des Angebots, mit Bestellnummer und Liefertermin
+        menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf())
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
+        # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
+        menue.addAction("Etiketten mit QR-Code (PDF) …", lambda: self.etiketten_pdf())
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
         menue.aboutToShow.connect(lambda: self.palettenschein_aktion.setVisible(self.f.versand_an()))
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
@@ -1816,6 +1835,10 @@ class AngebotSeite(QWidget):
         menue.addAction("Varianten vergleichen …", lambda: self.varianten_vergleichen())
         # Arbeitsgänge je Position mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.py)
         menue.addAction("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen())
+        # Reklamationen je Auftrag/Position mit Kosten in der Nachkalkulation (Plan 29.10.2026 2c)
+        self.reklamation_aktion = menue.addAction("Reklamation erfassen …", lambda: self.reklamation_erfassen())
+        menue.aboutToShow.connect(lambda: self.reklamation_aktion.setEnabled(
+            (self.db.angebot(self.id) or {}).get("vorgang") == "Beauftragt" and not self.fremd()))
         menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
         menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
@@ -2584,7 +2607,8 @@ class AngebotSeite(QWidget):
             kunde=(self.db.kunde(kundennr) or {}) if kundennr else None, preis_abweichung=preis_abweichung,
             mindestmarge=self.db.einstellung("mindestmarge") or 0,
             admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin),
-            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k),
+            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k)
+            + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen))
 
     def _staffel_widersprueche(self, kalk_zeilen):
@@ -5244,9 +5268,9 @@ class AngebotSeite(QWidget):
                                                      self.einst)
         return copy.deepcopy(merken["ergebnis"])
 
-    def angebot_daten(self):
-        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen)."""
-        sp = self.staffelpreise_aktuell()
+    def angebot_daten(self, staffeln=True):
+        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen); staffeln=False: ohne."""
+        sp = self.staffelpreise_aktuell() if staffeln else ()
         if sp is None:
             return None
         zeilen, _ = self._rechnung()
@@ -5280,6 +5304,81 @@ class AngebotSeite(QWidget):
                 self.db.vorgang_setzen(self.id, "Verschickt")
                 self.f.angebote.neu_laden()
         return pfad
+
+    def auftragsbestaetigung_pdf(self, abweichung_ok=None):
+        """Auftragsbestätigung als PDF (Plan 29.10.2026 1c): Layout und Preise des Angebots (festgeschrieben),
+        bestellte Mengen ohne Staffelpreise, Bestellnummer und Liefertermin aus „Beauftragt“. Noch nicht beauftragt:
+        Rückfrage, dann Vorgang Beauftragt. Weicht die Summe vom zuletzt verschickten Angebot ab, fragt das Programm
+        nach (abweichung_ok: Antwort ohne Fenster). Vermerk im Versandverlauf (art 'ab') mit der AB-Nummer."""
+        if self.fremd():
+            self.f.meldung("Auftragsbestätigungen nur für eigene Angebote.", fehler=True)
+            return None
+        if not self.nummer_endgueltig("Auftragsbestätigung"):
+            return None
+        if not any(position_aktiv(p) for p in self.positionen):
+            self.f.meldung("Das Angebot hat keine Positionen.", fehler=True)
+            return None
+        kopf = self.db.angebot(self.id) or {}
+        if kopf.get("vorgang") != "Beauftragt":
+            if self.f.stumm:
+                self.f.meldung("Auftragsbestätigung: das Angebot ist noch nicht beauftragt.", fehler=True)
+                return None
+            if QMessageBox.question(self, "Auftragsbestätigung", "Das Angebot ist noch nicht beauftragt.\n\nJetzt "
+                                    "als beauftragt markieren (Bestellnummer und Liefertermin) und die "
+                                    "Auftragsbestätigung erstellen?") != QMessageBox.Yes:
+                return None
+            if not self.f.angebote.vorgang_setzen("Beauftragt", angebot_id=self.id):
+                return None
+            kopf = self.db.angebot(self.id) or {}
+        if not self._vor_ausgabe(weiter="Auftragsbestätigung erstellen"):
+            return None
+        ang = self.angebot_daten(staffeln=False)
+        if ang is None:
+            return None
+        verschickt = [e for e in kopf.get("versand") or () if isinstance(e, dict) and not e.get("art")
+                      and e.get("netto") is not None]
+        if verschickt and abs(verschickt[-1]["netto"] - ang["netto"]) > 0.005:
+            frage = (f"Die Summe weicht vom zuletzt verschickten Angebot ab:\n\nAngebot "
+                     f"{ausgabe.datum_text(verschickt[-1].get('datum'))}: {ausgabe.euro_text(verschickt[-1]['netto'])} € "
+                     f"netto\nAuftragsbestätigung: {ausgabe.euro_text(ang['netto'])} € netto\n\nTrotzdem erstellen?")
+            if abweichung_ok is None:
+                abweichung_ok = not self.f.stumm and QMessageBox.question(
+                    self, "Auftragsbestätigung", frage) == QMessageBox.Yes
+            if not abweichung_ok:
+                return None
+        try:
+            nr = angebotsnummern.ab_nummer(self.db, kopf)
+        except OSError as e:
+            QMessageBox.warning(self, "Auftragsbestätigung", f"Keine AB-Nummer: {e}")
+            return None
+        ab = dict(nummer=nr, datum=datetime.date.today().isoformat(), bestellung=kopf.get("auftragsnr"),
+                  liefertermin=kopf.get("liefertermin"), text=self.einst.get("ab_text") or "")
+        pfad = self._schreiben("Auftragsbestätigung", self._ziel("Auftragsbestätigung", ".pdf"),
+                               lambda p: pdf.auftragsbestaetigung_pdf(p, self.kopf, ang, self.einst, ab))
+        if pfad is not None:
+            self.db.versand_merken(self.id, dict(art="ab", datum=ab["datum"], nummer=nr, netto=ang["netto"],
+                                                 datei=Path(pfad).name))
+            self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand")
+            self.f.meldung(f"Auftragsbestätigung {nr} erstellt.")
+        return pfad
+
+    def reklamation_erfassen(self, dialog=None):
+        """Reklamation zu diesem Auftrag (reklamation_dialog.erfassen); die Nachkalkulation zeigt die Kosten gleich
+        mit und speichert sie, wenn schon Ist-Werte erfasst sind. Ergebnis: id oder None."""
+        from . import reklamation_dialog
+        i = reklamation_dialog.erfassen(self.f, self.id, self, dialog)
+        if i is not None:
+            self._nachkalk.neu_laden()
+            if self.kopf.get("nachkalkulation") and not self.db.nur_lesen:
+                self._nachkalk._speichern()
+        return i
+
+    def etiketten_pdf(self, dialog=None):
+        """Etiketten mit QR-Code je Position (etiketten_dialog.drucken). Ergebnis: Pfad oder None."""
+        if not self.nummer_endgueltig("Etiketten"):
+            return None
+        from . import etiketten_dialog
+        return etiketten_dialog.drucken(self.f, self.id, self, dialog)
 
     def preise_festschreiben(self):
         """Materialpreise und Schneiddaten, mit denen das Angebot gerade rechnet, im Angebot speichern (nach dem
