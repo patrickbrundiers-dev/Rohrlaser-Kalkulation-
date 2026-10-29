@@ -50,6 +50,13 @@ SEITEN = (
                                           "pauschale_abmessung programmierung_zeit programmierung_kontur "
                                           "pruefzeit_anbau"),
            _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"))),
+    Seite("e_kosten", "Kosten und Stundensatz",
+          "Weitere Kosten in der Rechnung und die Grundwerte, mit denen sich ein Maschinenstundensatz ermitteln "
+          "lässt. " + ALLE_PLAETZE,
+          (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss schrott_anteil preiseinheit_ab"),
+           _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 gas_faktor"),
+           _a("Stundensatz ermitteln", "strompreis raumkosten zinssatz bediener_satz gemeinkosten arbeitstage "
+                                       "auslastung_jahr", experte=True))),
     Seite("e_neue_angebote", "Neue Angebote", ALLE_PLAETZE,
           (_a("Grundwerte", "standard_maschine standard_stange staffeln_standard lieferzeit_art lieferzeit_wert "
                             "lieferzeit_zusatz"),
@@ -126,7 +133,7 @@ _VORSILBE = re.compile(
     r"Angebots-PDF|Paletten|Palettenschein|Auslastung|Reststücke|Etiketten|Reklamationen|Rückmeldung per Scan|"
     r"Messung|Kantbarkeit|Kanten|Tafel|Abwicklung|DXF-Import|DXF|Gravur|Biegerohr|Nachfassen|Experte|"
     r"Angebotsliste|Auftragsbestätigung|Lieferzeit neuer Angebote|Löschschutz|Automatisch optimieren|"
-    r"Angebots-Check|Standard-Staffeln|Normteile): ")
+    r"Angebots-Check|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
 EIGENE_TITEL = {
     "pdf_zeichnung": "Neue Position „Aus PDF-Zeichnung“ (Test)",
     "versand_aktiv": "Versand und Palettenschein (Reiter Versand)",
