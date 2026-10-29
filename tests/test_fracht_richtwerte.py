@@ -2,9 +2,13 @@
 
 - Knopf 'Richtwerte laden' ersetzt alle BEISPIEL-Zeilen, eigene Einträge bleiben, Absender-PLZ und Versandart werden
   gesetzt; unbekannte Absender-PLZ ändert nichts.
-- Preise ab 33129 Delbrück: 1 Palette je Ring 100 / 115 / 125 €, mehrere Paletten günstiger je Stück, schwere
+- Preise ab 33129 Delbrück: 1 Palette je Ring 65 (bis 50 km) / 80 (bis 100 km) / 100 / 115 / 125 €, mehrere Paletten günstiger je Stück, schwere
   Palette +40 € je Stellplatz, Langgut 6 m = 3 Stellplätze + Überlänge, Insel = teuerster Ring + Inselzuschlag;
   Diesel und Maut sind im Preis (keine eigenen Zuschläge).
+- Eigene Anlieferung (Versandart, bis 200 km): 20 € je Sendung + 2,00 € je km Entfernung (Hin- und Rückfahrt);
+  ohne Entfernung die typische Entfernung der Zone; weiter weg kein Tarif.
+- Einmalige Umstellung beim Start (Patrick 29.10.2026, 3b): alte Richtwerte ohne Nahbereich werden mit Sicherung neu
+  geladen, eigene Einträge bleiben.
 - Frachtzonen auf Standard zurücksetzen: Zonen und PLZ-Zuordnungen wie nach dem Laden, eigene weg, Sicherung vorher.
 """
 import os
@@ -50,7 +54,7 @@ for t in ("fracht_laender", "fracht_zonen", "fracht_plz", "fracht_tarife", "frac
           "fracht_zuschlaege", "fracht_dienstleister"):
     assert not [z for z in db.zeilen(t) if (z.get("bemerkung") or "").startswith("BEISPIEL")], t
 assert any(z["zone_id"] == "EIGEN" for z in db.zeilen("fracht_zonen"))
-assert [t["tarif_id"] for t in db.zeilen("fracht_tarife")] == [fracht_richtwerte.TARIF]
+assert sorted(t["tarif_id"] for t in db.zeilen("fracht_tarife")) == [fracht_richtwerte.TARIF_EIGEN, fracht_richtwerte.TARIF]
 assert db.einstellung("fracht_versandart") == "Palettenversand" and db.einstellung("absender_plz") == "33129"
 ids = {z["zuschlag_id"] for z in db.zeilen("fracht_zuschlaege")}
 assert not any(z["typ"] in ("Diesel", "Maut") for z in db.zeilen("fracht_zuschlaege")), ids
@@ -80,9 +84,26 @@ def eur(n):
 
 
 e1, e2, e3 = preis("33100", 190, eur(1)), preis("20095", 190, eur(1)), preis("80331", 190, eur(1))
-assert (e1["gesamt"], e2["gesamt"], e3["gesamt"]) == (100.0, 115.0, 125.0), (e1["gesamt"], e2["gesamt"], e3["gesamt"])
+assert (e1["gesamt"], e2["gesamt"], e3["gesamt"]) == (65.0, 115.0, 125.0), (e1["gesamt"], e2["gesamt"], e3["gesamt"])
 assert not any("teurere" in h for h in e1["hinweise"])
-ok("1 Europalette 190 kg ab Delbrück: Paderborn 100 €, Hamburg 115 €, München 125 € (Marktmedian 85/95/110 €)")
+ok("1 Europalette 190 kg ab Delbrück: Paderborn 65 €, Hamburg 115 €, München 125 € (Marktmedian 85/95/110 €)")
+
+n1, n2, n3 = preis("32052", 190, eur(1)), preis("48143", 190, eur(1)), preis("44135", 190, eur(1))
+assert (n1["gesamt"], n2["gesamt"], n3["gesamt"]) == (65.0, 80.0, 100.0), (n1["gesamt"], n2["gesamt"], n3["gesamt"])
+assert preis("33100", 190, eur(2))["gesamt"] == 2 * 55.25
+ok("Nahbereich: Herford (45 km) 65 €, Münster (80 km) 80 €, Dortmund (104 km) 100 €; 2 Paletten Paderborn 110,50 €")
+
+
+def eigen(plz, km=None):
+    return fracht.rechnen(fd, dict(datum="2026-10-29", land="DE", plz=plz, absender_plz="33129", absender_land="DE",
+                                   versandart="Eigene Anlieferung", netto=190, km=km, lht=eur(1), leistungen={}))
+
+
+a20, a0, weit = eigen("33100", 20), eigen("33100"), eigen("80331", 600)
+assert a20["gesamt"] == 60.0 and a20["snapshot"]["tarif"]["tarif_id"] == fracht_richtwerte.TARIF_EIGEN, a20
+assert a0["gesamt"] == 80.0, a0["gesamt"]
+assert weit["gesamt"] is None and weit["fehler"], weit
+ok("Eigene Anlieferung: 20 km 60 € (20 € + 40 km × 1,00 €), ohne Entfernung 30 km der Zone = 80 €, München kein Tarif")
 
 z3, z5 = preis("20095", 450, eur(3)), preis("20095", 900, eur(5))
 assert z3["gesamt"] == 3 * 97.75 and z5["gesamt"] == round(5 * 80.5, 2), (z3["gesamt"], z5["gesamt"])
@@ -123,7 +144,8 @@ weg, neu = fenster.fracht.zonen.zuruecksetzen()       # Knopf 'Auf Standard zur�
 assert weg > 0 and neu > 50, (weg, neu)
 assert len(set(sicherung.glob("*_vor_Frachtzonen_Standard*.db")) - vorher) == 1
 zonen = {z["zone_id"] for z in db.zeilen("fracht_zonen")}
-assert zonen == {"RW1", "RW2", "RW3", "RW4", "RW-INSEL"}, zonen
+assert zonen == {"RW0A", "RW0B", "RW1", "RW2", "RW3", "RW4", "RW-INSEL"}, zonen
+assert len([p for p in db.zeilen("fracht_preise") if p["tarif_id"] == fracht_richtwerte.TARIF_EIGEN]) == 2
 assert not [z for z in db.zeilen("fracht_plz") if z["zone_id"] == "EIGEN"]
 assert len(db.zeilen("fracht_plz")) == n_plz
 assert preis("80331", 190, eur(1))["gesamt"] == 125.0
@@ -131,5 +153,30 @@ ok("Frachtzonen auf Standard zurückgesetzt: eigene Zone und Zuordnung entfernt,
    "Sicherung vor_Frachtzonen_Standard angelegt, München wieder 125 €")
 
 fenster.close()
+
+# einmalige Umstellung beim Start: alter Stand (Ring bis 200 km ohne Nahbereich) wird neu geladen
+with db.con:
+    db.con.execute("DELETE FROM fracht_zonen WHERE zone_id IN ('RW0A', 'RW0B')")
+    db.con.execute("UPDATE fracht_plz SET zone_id='RW1' WHERE zone_id IN ('RW0A', 'RW0B')")
+    db.con.execute("DELETE FROM fracht_tarife WHERE tarif_id=?", (fracht_richtwerte.TARIF_EIGEN,))
+    db.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (fracht_richtwerte.TARIF_EIGEN,))
+    db.con.execute("DELETE FROM fracht_preise WHERE zone_id IN ('RW0A', 'RW0B')")
+db.neu("fracht_zonen", dict(zone_id="EIGEN2", bezeichnung="Eigene", land="DE", aktiv="ja", bemerkung="von Hand"))
+db.einstellung_setzen("fracht_nah_stand", "")
+fd = db.fracht_daten()
+assert preis("33100", 190, eur(1))["gesamt"] == 100.0
+pfad = db.pfad
+db.schliessen()
+vorher = set(sicherung.glob("*_vor_Fracht_Nahbereich*.db"))
+db = Datenbank(pfad)
+fd = db.fracht_daten()
+assert preis("33100", 190, eur(1))["gesamt"] == 65.0
+assert any(z["zone_id"] == "EIGEN2" for z in db.zeilen("fracht_zonen"))
+assert any(t["tarif_id"] == fracht_richtwerte.TARIF_EIGEN for t in db.zeilen("fracht_tarife"))
+assert len(set(sicherung.glob("*_vor_Fracht_Nahbereich*.db")) - vorher) == 1
+db.schliessen()
+db = Datenbank(pfad)               # nur einmal
+assert len(set(sicherung.glob("*_vor_Fracht_Nahbereich*.db")) - vorher) == 1
+ok("Beim Start einmalig umgestellt: Paderborn 100 € -> 65 €, eigene Zone bleibt, Sicherung vor_Fracht_Nahbereich")
 db.schliessen()
 print("OK: Richtwerte Palettenversand")

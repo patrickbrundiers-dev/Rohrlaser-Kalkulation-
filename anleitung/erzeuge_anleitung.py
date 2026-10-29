@@ -2684,6 +2684,78 @@ def kapitel_optimieren(i):
            "übernehmen …</b> stellt sie um (der Dialog nennt „Gewinn auf Herstellkosten → auf Selbstkosten“). Mit "
            "gleichem Gewinn-Prozentsatz steigen die Preise dadurch; bei den Prüfangeboten mit 25 % Gewinn um 1,6 bis "
            "8 %, bei kleinen Aufträgen am meisten.")
+    i.abschnitt("Nebenzeit, Schneidgas, Ausschuss, Schrotterlös und Preiseinheit", marke="kalkulation_genauer")
+    i.text("Diese Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
+           "Preise wie bisher. Auch die Preiseinheit für Kleinteile ist ab Werk aus.", kurz=True)
+    i.tabelle(["Wert", "Wo", "Wirkung"], [
+        ["<b>Nebenzeit je Teil [s]</b>", "Maschine", "Ausschieben, Abtrennen und Entnehmen jedes Teils; kommt zur "
+         "Laserzeit (Spalte <i>davon Nebenzeit je Teil</i>). Kleine Teile in großer Stückzahl werden sonst zu billig."],
+        ["<b>Schneidgas N₂ [€/h]</b>, <b>Schneidgas O₂ [€/h]</b>", "Maschine", "Gaskosten je Stunde Laserzeit nach dem Gas der Schneiddaten, "
+         "zusätzlich zum Stundensatz; eigene Kostenart <i>Schneidgas</i>. Stickstoff (Edelstahl, Alu) ist teurer als "
+         "Sauerstoff. Genauer geht es über Düse und Gasdruck (nächste Zeilen); dieser Zuschlag gilt dann nur noch für "
+         "Schneiddaten ohne Düse. Schneidgas zählt nur bei einem ermittelten Stundensatz oder mit <i>Gas zusätzlich "
+         "zum Stundensatz</i> = ja ([[stundensatz_ermitteln]]); ein Satz von Hand enthält das Gas sonst schon."],
+        ["<b>Düse Ø [mm]</b>, <b>Gasdruck [bar]</b>", "Schneiddaten", "Düsendurchmesser und Gasdruck (Überdruck am "
+         "Manometer) je Schneiddaten-Zeile. Daraus rechnet das Programm den Gasverbrauch in m³/h, z. B. N₂ mit Düse "
+         "2,0 mm bei 15 bar ≈ 28,6 m³/h. Richtwerte: N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar."],
+        ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kalkulation", "Preis je Norm-m³ aus "
+         "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
+         "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
+        ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kalkulation", "ein Schalter "
+         "für alle Maschinen: nein = kein Schneidgas, egal was an Maschine und Schneiddaten steht; Vorgabe ja."],
+        ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kalkulation", "gleicht die Rechnung an den "
+         "gemessenen Verbrauch an: Gasverbrauch laut Rechnung (m³ im Monat) geteilt durch den gerechneten Verbrauch "
+         "der Spalte <i>Gas je Teil [m³]</i> × Stückzahl derselben Aufträge; Vorgabe 1."],
+        ["<b>Rüstzuschlag je weiterer Profilform [min]</b>", "Maschine", "Spannbacken tauschen: hat ein Angebot "
+         "mehrere Profilformen (z. B. Rundrohr und Quadratrohr), kommt je Form ab der zweiten diese Zeit zu "
+         "<i>Rüsten je Abmessung</i>."],
+        ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kalkulation", "verworfene Teile: der Anteil auf Material und "
+         "Laserzeit (mit Gewinde und Schneidgas) der Rohrlaserteile, 0 = keiner; eigene Kostenart <i>Ausschuss</i>. Die "
+         "Nachkalkulation zeigt die gemessene Ausschussquote ([[nachkalkulation]])."],
+        ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kalkulation", "Gutschrift für den Verschnitt "
+         "(Stangenlänge ohne Teile und ohne Reste, die ins Lager gehen) in Prozent des Materialpreises, z. B. 20 %; "
+         "Kostenart <i>Schrotterlös Verschnitt</i> (negativ), 0 = aus. Kundenmaterial ohne Erlös."],
+        ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kalkulation", "Kleinteile stehen mit Preis je 100 "
+         "Stück im Angebot (unter einem Zehntel des Werts je 1000), z. B. 3,44 € je 100 statt 0,03 € je Stück. Ohne "
+         "Preiseinheit verliert die Rundung auf den Cent bei 0,034 € je Teil 12 %. Vorgabe 0 = aus, immer je Stück; "
+         "zum Einschalten z. B. 0,10 eintragen."]],
+        [48, 35, 182])
+    i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
+           "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
+           "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Stundensatz ermitteln je Maschine", marke="stundensatz_ermitteln")
+    i.text("Der Stundensatz einer Maschine kann von Hand eingetragen oder ermittelt werden. In den Maschinen-"
+           "Stammdaten steht dafür die Spalte <b>Stundensatz von Hand/ermittelt</b>; leer heißt von Hand. Der Knopf "
+           "<i>Stundensatz ermitteln …</i> öffnet für die markierte Maschine einen Dialog mit dem Rechenweg.",
+           kurz=True)
+    i.tabelle(["Stundensatz", "Strom", "Schneidgas"], [
+        ["von Hand (leer)", "im eingetragenen Satz", "im Satz; nur mit <b>Gas zusätzlich zum Stundensatz</b> = ja "
+         "kommt das Schneidgas je Teil dazu"],
+        ["ermittelt", "Zeile Strom der Ermittlung", "kommt immer je Teil dazu (Düse und Druck bzw. €/h)"]], [40, 50, 95])
+    i.text("Rechenweg: feste Kosten je Jahr (Abschreibung = Anschaffung ÷ Nutzungsdauer, Zinsen auf den halben "
+           "Anschaffungswert, Raum, Instandhaltung, Wartung) ÷ genutzte Stunden, dazu Strom und Verschleiß je "
+           "Stunde, der Anteil des Bedieners und die Gemeinkosten. Genutzte Stunden = Stunden je Arbeitstag "
+           "(Maschine <i>Schicht</i>, sonst Einstellung) × Arbeitstage × Auslastung. Beispiel: 650.000 € über 10 "
+           "Jahre, 60 m², 30 kW, 2.475 h im Jahr ergeben 97,60 €/h.")
+    i.tabelle(["Wert", "Wo"], [
+        ["<b>Ermittlung: Anschaffung [€]</b>, <b>Ermittlung: Nutzungsdauer [Jahre]</b>, <b>Ermittlung: Fläche "
+         "[m²]</b>, <b>Ermittlung: Instandhaltung [% je Jahr]</b>, <b>Ermittlung: Wartung, Versicherung [€/Jahr]</b>, "
+         "<b>Ermittlung: Anschlussleistung [kW]</b>, <b>Ermittlung: Verschleiß [€/h]</b>, <b>Ermittlung: Bediener "
+         "[% Betreuung]</b>", "je Maschine (Dialog oder Tabelle)"],
+        ["<b>Stundensatz-Ermittlung: Strompreis [€/kWh]</b>, <b>Stundensatz-Ermittlung: Raumkosten [€/m² im "
+         "Monat]</b>, <b>Stundensatz-Ermittlung: Zinssatz [%]</b>, <b>Stundensatz-Ermittlung: Bedienerlohn [€/h]</b>, "
+         "<b>Stundensatz-Ermittlung: Gemeinkosten [%]</b>, <b>Stundensatz-Ermittlung: Arbeitstage je Jahr</b>, "
+         "<b>Stundensatz-Ermittlung: Auslastung [%]</b>", "Einstellungen, Kalkulation (für alle Maschinen)"]],
+        [130, 55])
+    i.text("<i>Übernehmen</i> stellt die Maschine auf ermittelt und trägt den Satz ein. Neue Angebote speichern den "
+           "Satz beim Anlegen; spätere Änderungen gelten nur für neue Angebote. Bisherige Maschinen bleiben von "
+           "Hand, ihre Preise ändern sich nicht.")
+    i.genauer("Preis-Plausibilität im Angebots-Check")
+    i.text("Der Angebots-Check ([[angebots_check]]) prüft die Preise auf Tippfehler: ein Stückpreis unter den "
+           "Materialkosten ist eine WARNUNG; ein Preis je kg, der mehr als 3-mal höher oder niedriger ist als bei "
+           "derselben Abmessung in früher verschickten Angeboten, und ein Ertrag je Laserstunde unter dem "
+           "Stundensatz sind ein HINWEIS. Den Preis je kg jeder Position merkt sich das Programm beim Angebots-PDF; "
+           "der Vergleich wächst also mit jedem verschickten Angebot. Kein Preis wird geändert.")
     i.abschnitt("Zeiten & Arbeitskosten", marke="zeiten")
     i.bild("erg_zeiten", "Reiter Zeiten & Arbeitskosten mit Beispielzeiten (Beispielwerte, keine gemessenen Zeiten)",
            hoehe=95 * mm, legende=[
@@ -7514,12 +7586,16 @@ def kapitel_frachtkosten(i):
            "Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie, bis die Ziel-PLZ neu eingegeben "
            "oder der Haken neu gesetzt wird.")
     i.tabelle(["Zone (Straßen-km ab Versandort)", "1 Palette", "2–3 Paletten je Stück", "4–6 Paletten je Stück"], [
-        ["RW1 bis 200 km", "100,00 €", "85,00 €", "70,00 €"],
+        ["RW0A bis 50 km", "65,00 €", "55,25 €", "45,50 €"],
+        ["RW0B 50–100 km", "80,00 €", "68,00 €", "56,00 €"],
+        ["RW1 100–200 km", "100,00 €", "85,00 €", "70,00 €"],
         ["RW2 200–450 km", "115,00 €", "97,75 €", "80,50 €"],
         ["RW3 450–650 km", "125,00 €", "106,25 €", "87,50 €"],
         ["RW4 über 650 km und RW-INSEL", "140,00 €", "119,00 €", "98,00 €"]], [70, 45, 75, 75])
     i.liste("Die Zone kommt aus den ersten zwei Ziffern der Ziel-PLZ: Entfernung vom Versandort zum Mittelpunkt der "
-            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Bielefeld und Dortmund in RW1, Hamburg, "
+            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Paderborn, Bielefeld (33…) und Herford "
+            "(32…) im Nahbereich RW0A, Lippstadt (59…), Osnabrück (49…) und Münster (48…) in RW0B, Dortmund "
+            "und Hannover in RW1, Hamburg, "
             "Berlin, Frankfurt und Stuttgart in RW2, Dresden und München in RW3. Inseln ohne Brücke (Sylt, Föhr, "
             "Amrum, Pellworm, Halligen, Ostfriesische Inseln, Helgoland, Hiddensee) sind die Zone RW-INSEL.",
             "Mehr als 6 Stellplätze: Teilladung, Preis anfragen (das Programm rechnet nicht still weiter).",
@@ -7528,7 +7604,14 @@ def kapitel_frachtkosten(i):
             "Zuschläge: schwere Palette 40 € je Stellplatz ab 300 kg je Stellplatz, Überlänge (Teile über 2,40 m) "
             "60 €, Inselzuschlag 60 €; nur wenn gewählt: Avisierung 25 €, Hebebühne 40 €, Wartezeit 60 € je Stunde "
             "(Hebebühne und Wartezeit geschätzt). Kein Diesel- und kein Mautzuschlag, beide sind im Preis enthalten.",
-            "Beispiele ab Delbrück: 1 Palette 190 kg nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
+            "<b>Eigene Anlieferung</b> (eigener Lkw oder Transporter, bis 200 km): Versandart <i>Eigene "
+            "Anlieferung</i> im Frachtrechner wählen. Tarif RW-EIGEN: 20 € je Sendung für Laden und Abladen plus "
+            "1,00 € je gefahrenem km (Hin- und Rückfahrt, also 2,00 € je km Entfernung). Die Entfernung trägt man im "
+            "Feld <i>Entfernung [km]</i> ein; leer gilt die typische Entfernung der Zone (RW0A 30 km, RW0B 75 km, "
+            "RW1 150 km). Beispiel 20 km: 20 € + 40 km × 1,00 € = 60 €. Schätzwerte: die eigenen Kosten im Tarif "
+            "RW-EIGEN eintragen. Die automatische Fracht im Angebot nutzt weiter die Versandart aus den "
+            "Einstellungen (Palettenversand).",
+            "Beispiele ab Delbrück: 1 Palette 190 kg nach Paderborn 65 €, nach Münster 80 €, nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
             "nach Hamburg 155 €; Langgut 6 m mit 500 kg nach Hamburg 353,25 €; Sylt 200 €.",
             "Der Dienstleister SLH (Spedition u. Logistik Haaren, Keimeier u. Finke) ist angelegt; öffentliche "
             "Preise gibt es nicht. Liegt ein Angebot vor, die Preise als eigenen Tarif für SLH eintragen; er gilt "

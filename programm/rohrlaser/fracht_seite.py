@@ -814,7 +814,7 @@ class ZonenSeite(QWidget):
         fremd = self.db.fracht_zonen_fremd()
         text = (f"Alle {len(self.db.zeilen('fracht_zonen'))} Frachtzonen und {len(self.db.zeilen('fracht_plz'))} "
                 "PLZ-Zuordnungen werden gelöscht, auch eigene, und durch die Standardzonen ersetzt (Palette bis "
-                f"200 / 450 / 650 / über 650 km ab PLZ {plz.strip()} und Inseln). Die Preise des Richtwert-Tarifs "
+                f"50 / 100 / 200 / 450 / 650 / über 650 km ab PLZ {plz.strip()} und Inseln). Die Preise des Richtwert-Tarifs "
                 "werden passend neu geschrieben.\n\n"
                 + (f"{fremd} Preiszeile(n) anderer Tarife verweisen auf Zonen, die es danach nicht mehr gibt; "
                    "diese Preise gelten dann nicht mehr.\n\n" if fremd else "")

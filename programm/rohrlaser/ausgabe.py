@@ -22,6 +22,15 @@ def kaufm_runden(x, stellen=2):
     return float(Decimal(repr(float(x))).quantize(q, rounding=ROUND_HALF_UP))
 
 
+def preiseinheit(preis, ab):
+    """Preiseinheit eines Stückpreises (Plan „Kalkulation und Berechnung verbessern“ B3, Patrick 29.10.2026): 100
+    unter 'ab' €, 1000 unter einem Zehntel davon, sonst 1 (ab leer oder 0 = immer 1). Auf den Cent gerundete
+    Kleinteilpreise verlieren sonst viel (0,034 € → 0,03 € = 12 % weniger)."""
+    if not isinstance(ab, (int, float)) or isinstance(ab, bool) or ab <= 0 or preis is None or preis <= 0:
+        return 1
+    return 1000 if preis < ab / 10 else 100 if preis < ab else 1
+
+
 def aufrunden(x, stellen=2):
     """Auf die Stelle aufrunden (Cent), Gleitkommareste unter 1e-6 zählen nicht: 66,666… -> 66,67; 66,67000000001 -> 66,67.
     Für Preise, die einen Mindestpreis erreichen müssen."""
@@ -202,11 +211,13 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     mwst_satz, staffeln [{art, pos, satz, text, menge, bereich ('ab 10'), preis, gesamt}] (Stufen mit FEHLER fehlen;
     jede Stufe steht auch unter 'staffeln' ihrer Teil- bzw. Satzzeile, Stufen ohne passende Zeile nur hier),
     hinweise (Positionen mit Hinweis)."""
-    def preis(i):
+    def preis(i, pe=1):
         z = kalk_zeilen[i]
         if z and _wert(z.get("mindestpreis_teil")) > 0:      # auf Mindestpreis angehoben: aufrunden, damit die
-            return aufrunden(_wert(z["preis_teil"]))           # Summe den Mindestpreis nicht unterschreitet
-        return kaufm_runden(_wert(z["preis_teil"]) if z else 0, 2)
+            return aufrunden(_wert(z["preis_teil"]) * pe)      # Summe den Mindestpreis nicht unterschreitet
+        return kaufm_runden(_wert(z["preis_teil"]) * pe if z else 0, 2)
+
+    pe_ab = einst.get("preiseinheit_ab")
 
     def _zus(i):
         return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
@@ -224,13 +235,15 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             continue
         satz = _satz(p.get("satz"))
         if not satz:
-            pr, menge = preis(i), _wert(p.get("stueck"))
+            # Kleinteile: Preis je 100 bzw. 1000 Stück (Plan B3); Musterteile (Preis 0) je Stück
+            pe = preiseinheit(_wert((kalk_zeilen[i] or {}).get("preis_teil")), pe_ab)
+            pr, menge = preis(i, pe), _wert(p.get("stueck"))
             text = angebotstext(p, k, dezimal, _zus(i))
             if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
                 text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,
-                               menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge, 2),
-                               muster=(kalk_zeilen[i] or {}).get("muster") == "ja"))
+                               menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge / pe, 2),
+                               muster=(kalk_zeilen[i] or {}).get("muster") == "ja", preiseinheit=pe))
         elif satz not in erledigt:
             erledigt.add(satz)
             teile = [(j, q) for j, q in enumerate(positionen) if _satz(q.get("satz")) == satz]
@@ -291,10 +304,14 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         bg_einmal = _wert((z.get("preis") or {}).get("bg_einmalig"))   # Baugruppe: Einmalkosten als eigene Zeile
         bg_einmal += _wert((z.get("preis") or {}).get("muster_einmalig"))   # Musterkosten als eigene Zeile
         einmalig -= bg_einmal
-        pr = aufrunden((_wert(z["preis_gesamt"]) - bg_einmal) / menge) if einmalig else z["preis_einheit"]
+        pe = _wert((z.get("preis") or {}).get("preiseinheit")) or 1      # Kleinteile: je 100 bzw. 1000 Stück
+        if einmalig:
+            pr = aufrunden((_wert(z["preis_gesamt"]) - bg_einmal) / menge * pe)
+        else:
+            pr = (z.get("preis") or {}).get("preis_pe") if pe > 1 else z["preis_einheit"]
         eintrag = dict(menge=z["menge"], bereich=f"ab {z['menge']:.0f}", preis=pr,
-                       gesamt=kaufm_runden(pr * menge + bg_einmal, 2) if einmalig else z["preis_gesamt"],
-                       stufe=z.get("stufe_nr"), gemeinsam=bool(z.get("gemeinsam")), einmal=bg_einmal)
+                       gesamt=kaufm_runden(pr * menge / pe + bg_einmal, 2) if einmalig else z["preis_gesamt"],
+                       stufe=z.get("stufe_nr"), gemeinsam=bool(z.get("gemeinsam")), einmal=bg_einmal, preiseinheit=pe)
         if z.get("einheit") == "Satz":
             bez = z.get("bezeichnung") or ""
             staffeln.append(dict(art="satz", pos=None, satz=str(z["schluessel"]),
@@ -376,6 +393,9 @@ def staffel_widersprueche(ang, toleranz=0.005):
         menge, preis, st = _wert(z.get("menge")), z.get("preis"), z.get("staffeln") or []
         if not st or not menge or not isinstance(preis, (int, float)):
             continue
+        # Preiseinheit (je 100 bzw. 1000 Stück, Plan B3): auf die Preiseinheit der Zeile umrechnen
+        pe = z.get("preiseinheit") or 1
+        st = [dict(s, preis=s["preis"] / (s.get("preiseinheit") or 1) * pe) for s in st]
         tol = max(0.01, toleranz * preis)
         name = z.get("text") if z.get("art") == "satz" else f"Pos. {z.get('pos')}"
         einheit = "Satz" if z.get("art") == "satz" else "Stk"

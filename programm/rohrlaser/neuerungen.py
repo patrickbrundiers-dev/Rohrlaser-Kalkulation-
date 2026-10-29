@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.200", "<b>Pack-Logik im Frachtrechner</b>: Der Knopf <i>Aus Angebot laden …</i> (Frachtkosten › Fracht "
+    ["0.9.203", "<b>Pack-Logik im Frachtrechner</b>: Der Knopf <i>Aus Angebot laden …</i> (Frachtkosten › Fracht "
                 "kalkulieren) übernimmt die Ware eines Angebots und packt sie nach Maßen und Stückzahl wie der "
                 "Palettenschein, statt nur Gewicht ÷ 800 kg. Der Packvorschlag probiert jetzt alle Ladungsträger "
                 "(Europalette, Gitterbox, Industrie-, Sonderpalette …, lange Teile auf Langgut) und nimmt den "
@@ -29,6 +29,33 @@ NEUERUNGEN = [
                 "<b>Packliste</b> zeigt den Vergleich und je Palette Draufsicht, Seitenansicht mit Höhe und den "
                 "Aufbau; auch im Fenster <i>Fracht berechnen …</i> eines Angebots ([[pack_rechner]]).",
      "Frachtrechner: Ware aus Angebot laden, günstigste Ladungsträger, Packliste mit Skizze."],
+    ["0.9.201", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
+                "<i>bis 50 km</i> (1 Palette 65 €) und <i>50–100 km</i> (80 €); bisher kostete alles bis 200 km "
+                "100 €. Ab Delbrück z. B. Paderborn, Bielefeld und Herford 65 €, Münster und Osnabrück 80 €. Neu ist "
+                "die Versandart <b>Eigene Anlieferung</b> (eigener Lkw, bis 200 km): 20 € je Sendung plus 1,00 € je "
+                "gefahrenem km, die Entfernung im Frachtrechner eintragen (20 km = 60 €). Beim ersten Start werden "
+                "geladene Richtwerte einmalig neu geladen (vorher Datensicherung <i>vor_Fracht_Nahbereich</i>), "
+                "eigene Tarife und Einträge bleiben. Angebote mit gespeicherter Frachtberechnung behalten ihre "
+                "Tarifkopie, bis die Ziel-PLZ neu eingegeben wird; festgeschriebene Angebote bleiben unverändert "
+                "([[fracht_richtwerte]]).",
+     "Fracht: Nahbereich bis 50 km 65 €, bis 100 km 80 €; Versandart Eigene Anlieferung (€/km)."],
+    ["0.9.200", "<b>Kalkulation genauer</b> ([[kalkulation_genauer]]): neue Maschinenfelder <i>Nebenzeit je Teil</i> "
+                "(Ausschieben/Entnehmen), <i>Schneidgas N₂/O₂ [€/h]</i> (Gaskosten je Laserstunde nach dem Gas der "
+                "Schneiddaten; genauer über <i>Düse Ø</i> und <i>Gasdruck</i> in den Schneiddaten und <i>Gaspreis "
+                "€/m³</i> in den Einstellungen: das Programm rechnet den Gasverbrauch in m³ je Teil) und <i>Rüstzuschlag je weiterer Profilform</i>; in den Einstellungen <i>Ausschuss</i> "
+                "(auf Material und Laserzeit) und <i>Schrotterlös Verschnitt</i> (Gutschrift). Alles leer = Preise wie "
+                "bisher. <b>Preiseinheit für Kleinteile</b> (optional, ab Werk aus; Einstellung <i>Preis je 100 Stück "
+                "unter</i>, z. B. 0,10 €): darunter steht der Preis je 100 Stück im "
+                "Angebot und in den Staffeln, ohne Rundungsverlust. <b>Preis-Plausibilität</b> im Angebots-Check: "
+                "Preis unter Material, Preis je kg gegen früher verschickte Angebote derselben Abmessung, Ertrag je "
+                "Laserstunde. <b>Stundensatz ermitteln</b> je Maschine ([[stundensatz_ermitteln]]): aus Anschaffung, "
+                "Nutzungsdauer, Raum, Instandhaltung, Wartung, Strom, Verschleiß und Bediener; ein Satz von Hand "
+                "enthält Gas und Strom (Gas nur mit <i>Gas zusätzlich zum Stundensatz</i>); <i>Schneidgas rechnen</i> = nein "
+                "schaltet das Gas für alle Maschinen aus. Angebot und Staffel "
+                "rechnen Gewinn und Fracht jetzt an einer gemeinsamen Stelle; ein "
+                "Test prüft bei jedem Update, dass eine Stufe mit den Mengen des Angebots dessen Preis ergibt.",
+     "Kalkulation genauer: Nebenzeit, Schneidgas aus Düse und Druck, Ausschuss, Schrotterlös, Profilwechsel; Preis je 100 Stück; "
+     "Preis-Plausibilität; Stundensatz ermitteln"],
     ["0.9.199", "<b>Optimieren mit fester Schweißnaht an mehreren Positionen</b>: Hatten mehrere Positionen einer "
                 "Abmessung eine feste Naht (oder Gehrungen), konnte die Optimierung ein Teil doppelt und ein anderes "
                 "gar nicht einplanen; die Kontrolle meldete dann „Teile fehlen oder doppelt“. Ursache war ein "
