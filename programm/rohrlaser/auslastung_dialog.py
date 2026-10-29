@@ -116,7 +116,7 @@ class AuslastungDialog(QDialog):
         t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         voll = [(m, titel) for m in d["maschinen"] for s, titel, mo in d["spalten"]
                 if mo and (auslastung.quote(d["bedarf"].get((m, s), 0), d["kapazitaet"].get((m, s))) or 0) > 1]
-        text = ("Bedarf / Kapazität je Maschine und Woche: Maschinenzeit der beauftragten Aufträge in der Woche des "
+        text = ("Bedarf / Kapazität je Maschine und Woche: Laserzeit der beauftragten Aufträge in der Woche des "
                 "Liefertermins minus Vorlauf, Kapazität aus dem Schichtkalender (Einstellungen → Lager und "
                 "Fertigung, Maschinen).")
         if d["gewicht"] is not None:
@@ -135,7 +135,8 @@ class AuslastungDialog(QDialog):
             return
         m, (s, titel, _) = d["maschinen"][r], d["spalten"][c]
         liste = sorted(d["auftraege"].get((m, s), ()), key=lambda a: (str(a["termin"] or ""), str(a["nummer"])))
-        self.details_titel.setText(f"{m}, {titel}: {len(liste)} Aufträge, {_h(sum(a['h'] for a in liste))} h")
+        n = f"{len(liste)} Auftrag" if len(liste) == 1 else f"{len(liste)} Aufträge"
+        self.details_titel.setText(f"{m}, {titel}: {n}, {_h(sum(a['h'] for a in liste))} h")
         for a in liste:
             i = self.details.rowCount()
             self.details.insertRow(i)
