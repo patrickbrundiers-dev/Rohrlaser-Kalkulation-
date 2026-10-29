@@ -1643,6 +1643,8 @@ class Hauptfenster(QMainWindow):
                                   ("Alte Angebote archivieren …", self.archivieren, None),
                                   ("Archiv durchsuchen …", self.archiv_dialog, None),
                                   (None, None, None),
+                                  ("Preis-Simulator …", self.preis_simulator, None),
+                                  (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
                                   ("Daten importieren …", self.daten_importieren, None),
                                   (None, None, None),
@@ -2275,6 +2277,13 @@ class Hauptfenster(QMainWindow):
         d = ArchivDialog(self)
         if d.exec() and d.zurueckgeholt:
             self.angebot_oeffnen(d.zurueckgeholt)
+
+    def preis_simulator(self):
+        """Datei → Preis-Simulator: Was-wäre-wenn für die offenen Angebote (nichts wird gespeichert)."""
+        from .preis_simulator_dialog import PreisSimulatorDialog
+        d = PreisSimulatorDialog(self)
+        d.rechnen()
+        d.exec()
 
     def wiederherstellen_dialog(self):
         from .sicherung_dialog import WiederherstellenDialog

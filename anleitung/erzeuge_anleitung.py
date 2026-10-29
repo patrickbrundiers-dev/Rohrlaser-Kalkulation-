@@ -5258,6 +5258,27 @@ def kapitel_nachkalkulation(i):
             "Vorschübe der Schneiddaten erst nach <i>Freigeben</i>, mit Verlauf und Rücknahme) und Rüsten (nur "
             "Vorschlag, ändert nichts). Unter 5 Aufträgen heißt es „zu wenig Daten“.")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
+    i.abschnitt("Preis-Simulator: was wäre, wenn …", marke="preis_simulator")
+    i.text("<i>Datei → Preis-Simulator …</i> rechnet alle offenen Angebote (Entwurf und Verschickt) einmal wie sie "
+           "sind und einmal mit geänderten Preisen, z. B. Edelstahl +8 % oder Stundensatz der Maschine +10 €/h. "
+           "Es wird nichts gespeichert.", kurz=True)
+    i.genauer("Eingaben und Ergebnis")
+    i.tabelle(["Eingabe", "Wirkung"], [
+        ["Material Stahl, Edelstahl, Aluminium, Buntmetall [%]",
+         "Materialpreise der Werkstoffe dieser Kategorie: Preise, Lieferlängen, Tonnenpreis, Materialpreis von Hand in "
+         "der Position und ein Teuerungszuschlag je kg ([[teuerungszuschlag]]); Oberflächen-Aufpreise bleiben"],
+        ["Stundensatz Maschine [€/h]", "auf den Stundensatz der Maschine des Angebots (Laserzeit, Rüsten, "
+                                       "Stangenwechsel)"],
+        ["weitere Stundensätze [%]", "alle übrigen Stundensätze, z. B. Programmierung und Schweißen"],
+        ["Zukaufteile (Einkauf) [%]", "Staffelpreise der Zukaufteile im Preisstand der Position; Bezugskosten bleiben"],
+        ["auch beauftragte Angebote", "zeigt zusätzlich die beauftragten Angebote, deren Preis schon zugesagt ist"]],
+        [70, 195])
+    i.text("Die Tabelle zeigt je Angebot den Verkaufspreis vorher und nachher und die Differenz (rot = teurer), "
+           "darunter die Summe. Mit Admin-Rechten kommen drei Margen dazu: vorher, <b>bei gleichem Preis</b> (der "
+           "Kunde hat das Angebot schon, die Kosten steigen) und mit neuem Preis. Gerechnet wird wie im Angebot: "
+           "mit den festgeschriebenen Preisen und Zeiten ([[preise_festschreiben]]), den Einstellungen des Angebots "
+           "und dem gespeicherten Schnittplan. Angebote ohne Schnittplan stehen mit „nicht optimiert“ in der Liste. "
+           "Doppelklick öffnet das Angebot.")
 
 
 def kapitel_versand(i):
