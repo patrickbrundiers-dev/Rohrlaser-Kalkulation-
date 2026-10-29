@@ -834,6 +834,7 @@ class EinstellungenSeite(QScrollArea):
             sp.setSpacing(10)
             lay.addLayout(sp, 1)
         self.felder = {}
+        self.wert_schalter = {}     # Name -> Schalter vor einem Wert mit „0 = aus“ (einstellungen_ordnung.WERT_SCHALTER)
         self.boxen = []
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
         lokal = ordnung.lokal() if seite is not None and seite.schluessel != "e_arbeitsplatz" else ()
@@ -843,9 +844,11 @@ class EinstellungenSeite(QScrollArea):
             form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self.boxen.append(box)
             for e in liste:
-                w = self._eingabe(e)
-                self.felder[e.name] = w
-                text = self._kurztitel(e, w, ordnung.kurztitel(e) if seite is not None else e.titel)
+                w = feld = self._eingabe(e)
+                self.felder[e.name] = feld
+                text = self._kurztitel(e, feld, ordnung.kurztitel(e) if seite is not None else e.titel)
+                if seite is not None and e.name in ordnung.WERT_SCHALTER:     # Schalter vor dem Wert
+                    w = self._mit_schalter(e, feld)
                 if e.name in lokal:
                     text += " · nur dieser Arbeitsplatz"
                 titel = QLabel(text)
@@ -873,6 +876,36 @@ class EinstellungenSeite(QScrollArea):
         self.zweispaltig = None
         self._anordnen(False)
         self.setWidget(innen)
+        self.neu_laden()
+
+    def _mit_schalter(self, e, feld):
+        """Schalter an/aus vor dem Wert (Plan Funktionen Schritt 3): aus speichert 0 bzw. leer und merkt sich den
+        Wert, an holt ihn zurück. Das Feld bleibt in felder, der Schalter steht in wert_schalter."""
+        rahmen = QWidget()
+        lay = QHBoxLayout(rahmen)
+        lay.setContentsMargins(0, 0, 0, 0)
+        sw = Schalter(text_an="an", text_aus="aus")
+        sw.setToolTip("Aus: der Wert wird nicht verwendet, bleibt aber gemerkt und kommt beim Einschalten zurück")
+        lay.addWidget(sw)
+        lay.addWidget(feld, 1)
+        self.wert_schalter[e.name] = sw
+        sw.toggled.connect(lambda an, e=e: self._wert_schalten(e, an))
+        return rahmen
+
+    def _wert_schalten(self, e, an):
+        from .einstellungen_ordnung import WERT_GEMERKT, WERT_SCHALTER
+        if getattr(self, "_laden", False):
+            return
+        gemerkt = dict(self.db.einstellung(WERT_GEMERKT) or {})
+        if an:
+            wert = gemerkt.get(e.name) or WERT_SCHALTER[e.name]
+        else:
+            alt = self.db.einstellung(e.name)
+            if alt:
+                gemerkt[e.name] = alt
+                self.db.einstellung_setzen(WERT_GEMERKT, gemerkt)
+            wert = "" if e.art == "text" else 0
+        self._speichern(e, wert)
         self.neu_laden()
 
     def _experte(self, box, an):
@@ -1075,6 +1108,11 @@ class EinstellungenSeite(QScrollArea):
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
+        if e.name in self.wert_schalter and not getattr(self, "_laden", False):
+            self.wert_schalter[e.name].blockSignals(True)       # 0 bzw. leer von Hand: Schalter folgt
+            self.wert_schalter[e.name].setChecked(bool(wert))
+            self.wert_schalter[e.name].blockSignals(False)
+            self.felder[e.name].setEnabled(bool(wert))
         self.meldung(f"{e.titel} gespeichert.")
 
     def neu_laden(self):
@@ -1110,6 +1148,24 @@ class EinstellungenSeite(QScrollArea):
                 w.anzeigen(bool(v))
             else:
                 w.setText(v or "")
+        if self.wert_schalter:
+            from .einstellungen_ordnung import WERT_GEMERKT
+            gemerkt = self.db.einstellung(WERT_GEMERKT) or {}
+            for name, sw in self.wert_schalter.items():
+                e, w, v = EINSTELLUNG[name], self.felder[name], self.db.einstellung(name)
+                an = bool(v)
+                sw.setChecked(an)
+                w.setEnabled(an)
+                g = gemerkt.get(name)
+                if not an and g:            # aus: den gemerkten Wert grau zeigen (nicht gespeichert)
+                    if e.art == "anteil":
+                        w.setValue(g * 100)
+                    elif e.art == "ganz":
+                        w.setValue(int(g))
+                    elif e.art == "zahl":
+                        w.setValue(g)
+                    else:
+                        w.setText(str(g))
         self._laden = False
 
 

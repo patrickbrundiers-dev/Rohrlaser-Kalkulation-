@@ -30,7 +30,9 @@ NEUERUNGEN = [
                 "([[vorgaben]]). <b>Funktionen ein- und ausschalten</b>: Auf der neuen Seite <i>Funktionen</i> lassen "
                 "sich 15 Bereiche abschalten, z. B. Bleche, Zukaufteile, Frachtkosten, Schweißbaugruppen, "
                 "Nachkalkulation, Reklamationen oder Musterteile. Ausschalten blendet nur aus, Daten und Rechnung "
-                "bleiben; nach dem Update ist alles eingeschaltet ([[funktionen]]).",
+                "bleiben; nach dem Update ist alles eingeschaltet ([[funktionen]]). Werte mit „0 = aus“ wie Nachfassen, "
+                "automatisch optimieren, Mindestmarge oder Standard-Staffeln haben einen Schalter davor, der den "
+                "letzten Wert behält.",
      "Einstellungen nach Themen auf eigenen Seiten; Funktionen ein- und ausschalten."],
     ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
                 "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "

@@ -144,3 +144,32 @@ schalten("funktion_nachfassen", True)
 ok("Nachfassen aus: keine Wiedervorlage auf der Startseite")
 f.close()
 db.schliessen()
+
+# ---------------------------------------------------------------- Schalter vor Werten mit „0 = aus“ (Schritt 3)
+db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
+f = Hauptfenster(db, stumm=True)
+seite = f.einstellung_zeigen("nachfassen_tage")
+sw, feld = seite.wert_schalter["nachfassen_tage"], seite.felder["nachfassen_tage"]
+assert set(ordnung.WERT_SCHALTER) == {n for s in f.einstellungen.seiten for n in s.wert_schalter}
+assert sw.isChecked() and feld.isEnabled() and db.einstellung("nachfassen_tage") == 10
+feld.setValue(14)
+feld.editingFinished.emit()
+sw.setChecked(False)
+assert db.einstellung("nachfassen_tage") == 0 and not feld.isEnabled() and feld.value() == 14   # gemerkt, grau
+sw.setChecked(True)
+assert db.einstellung("nachfassen_tage") == 14 and feld.isEnabled()                         # kommt zurück
+m = f.einstellung_zeigen("mindestmarge")
+assert not m.wert_schalter["mindestmarge"].isChecked() and db.einstellung("mindestmarge") == 0   # Vorgabe 0 = aus
+m.wert_schalter["mindestmarge"].setChecked(True)
+assert db.einstellung("mindestmarge") == 0.10
+st = f.einstellung_zeigen("staffeln_standard")
+st.wert_schalter["staffeln_standard"].setChecked(False)
+assert db.einstellung("staffeln_standard") == "" and st.felder["staffeln_standard"].text() == "1; 2; 5"
+st.wert_schalter["staffeln_standard"].setChecked(True)
+assert db.einstellung("staffeln_standard") == "1; 2; 5"
+feld.setValue(0)
+feld.editingFinished.emit()
+assert not sw.isChecked() and not feld.isEnabled()                                          # 0 von Hand = aus
+ok("Werte mit „0 = aus“: Schalter davor, aus merkt den Wert, an holt ihn zurück")
+f.close()
+db.schliessen()

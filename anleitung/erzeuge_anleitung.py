@@ -5672,6 +5672,9 @@ def kapitel_einstellungen(i):
         ["Fertigung und Versand", "Lager, Fertigung, Auslastung, Versand und Paletten",
          "Reststücke, Fertigungsstatus, Etiketten, Reklamationen, Schichten, Paletten, Palettenschein"],
     ])
+    i.text("Einige Werte mit „0 = aus“ oder „leer = aus“ haben einen eigenen Schalter davor: Nachfassen, automatisch "
+           "optimieren, Mindestmarge, Standard-Staffeln, automatischer Abgleich und Stangenbild-Fenster. Aus "
+           "speichert 0 bzw. leer, der letzte Wert bleibt grau stehen und kommt beim Einschalten zurück.")
     i.text("Steht hinter einer Einstellung „· nur dieser Arbeitsplatz“, gleicht der gemeinsame Ordner sie nicht ab "
            "(z. B. die letzte Angebotsnummer). Alles andere gilt für alle Arbeitsplätze.")
     i.abschnitt("Funktionen ein- und ausschalten", marke="funktionen")

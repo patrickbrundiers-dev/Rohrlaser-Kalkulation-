@@ -109,6 +109,13 @@ SEITEN = (
 )
 SEITE = {s.schluessel: s for s in SEITEN}
 
+# Einstellungen mit „0 = aus“ bzw. „leer = aus“, die einen eigenen Schalter vor dem Wert bekommen (Plan Funktionen
+# Schritt 3): aus = 0 bzw. leer, der letzte Wert bleibt gemerkt (WERT_GEMERKT, nur dieser Arbeitsplatz) und kommt beim
+# Einschalten zurück; ohne gemerkten Wert gilt der Wert hier.
+WERT_SCHALTER = {"nachfassen_tage": 10, "auto_optimieren_bis": 100, "mindestmarge": 0.10, "staffeln_standard": "1; 2; 5",
+                 "teilen_takt": 2.0, "stangenbild_popup": 1.0}
+WERT_GEMERKT = "einstellungen_gemerkt"
+
 # Stehen auf keiner Seite: Frachtkosten im eigenen Reiter, csv_ordner merkt sich das Programm selbst
 EIGENER_REITER = "Frachtkosten"
 INTERN = {"csv_ordner"}
