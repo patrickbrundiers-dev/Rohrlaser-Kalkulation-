@@ -808,6 +808,9 @@ MUSTER_DARSTELLUNG = (MUSTER_UMLEGEN, MUSTER_ZEILE)
 # Löschschutz der Angebote (Patrick 28.10.2026): einmal optimierte Angebote lassen sich nicht mehr löschen (Admin schon)
 LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND = "aus", "immer", "nur von Hand"
 LOESCHSCHUTZ = (LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND)
+# Zeitraum der Angebotsliste (Patrick 29.10.2026): Angebote mit Datum oder Änderung in den letzten N Tagen
+ZEITRAUM_ALLE = "Alle"
+ZEITRAUM = {"30 Tage": 30, "60 Tage": 60, "100 Tage": 100, "150 Tage": 150, "365 Tage": 365, ZEITRAUM_ALLE: None}
 
 
 # ------------------------------------------------------------------ Einstellungen
@@ -1053,6 +1056,10 @@ EINSTELLUNGEN = (
     # Vorgabe aus; „von Hand“ zählt nur F9/Optimieren, nicht das automatische Optimieren der Entwürfe
     Einstellung("loeschschutz", "Löschschutz: optimierte Angebote nicht löschbar (immer = auch automatisch "
                 "optimierte)", "Angebot", "auswahl", LOESCHSCHUTZ_AUS, auswahl="loeschschutz"),
+    # Zeitraum der Angebotsliste (Patrick 29.10.2026, nur dieser Arbeitsplatz): ältere Angebote ausblenden; offene
+    # Wiedervorlagen, nicht versendete Aufträge und geöffnete bleiben, die Suche findet alle
+    Einstellung("angebote_zeitraum", "Angebotsliste: Zeitraum (Angebote mit Datum oder Änderung in den letzten Tagen)",
+                "Angebot", "auswahl", "150 Tage", auswahl="zeitraum"),
     # Plan Arbeitsabläufe W1: Entwürfe bis zu so vielen Positionen nach jeder Änderung selbst optimieren
     Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
                 100, 0, 10000),
@@ -1329,7 +1336,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN),
-                         "loeschschutz": list(LOESCHSCHUTZ), "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "loeschschutz": list(LOESCHSCHUTZ), "zeitraum": list(ZEITRAUM), "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
