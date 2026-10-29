@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
-from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+from . import abmessung, anbau, profil_neu, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -1134,7 +1134,26 @@ class PositionenModell(QAbstractTableModel):
         neu = self.s.profil_gewechselt(dict(p, profil_id=wert)) if f.name == "profil_id" else None
         self.s.f.meldung(f"{f.titel} gespeichert." + (f" {neu}" if neu else ""))
         self.geaendert.emit()
+        if f.name == "profil_id" and wert and wert not in self.k.profile:     # Abmessung fehlt: anlegen anbieten
+            QTimer.singleShot(0, lambda: self._abmessung_anbieten(p["id"], wert, index.column()))
         return True
+
+    def _abmessung_anbieten(self, pos_id, text, spalte):
+        """Profilspalte: getippte Abmessung fehlt in den Stammdaten -> Menü an der Zelle; angelegt mit anderer
+        Profil-ID (z. B. 'QR 50x4' -> 'QR 50x50x4') bekommt die Position die neue ID."""
+        ansicht = self.s.pos_ansicht
+        zeile = next((i for i, x in enumerate(self.daten) if x.get("id") == pos_id), None)
+        index = self.index(zeile, spalte) if zeile is not None else QModelIndex()
+        vi = ansicht.model().mapFromSource(index) if hasattr(ansicht.model(), "mapFromSource") else index
+        r = ansicht.visualRect(vi)
+
+        def weiter(pid):
+            if pid != text:
+                self.s.db.position_aendern(pos_id, "profil_id", pid)
+            self.s.neu_laden()
+        m = self.s.abmessung_neu_anbieten(text, None, weiter)
+        if m is not None and r.isValid():
+            m.move(ansicht.viewport().mapToGlobal(r.bottomLeft()))
 
 
 # ------------------------------------------------------------------ Stangenbild
@@ -2940,6 +2959,11 @@ class AngebotSeite(QWidget):
         zeilen = schnellzeile.lesen(quelle, self.k.profile, self.k.werkstoffe, self._schnell_bevorzugt())
         if not zeilen:
             return 0
+        for z in zeilen:        # eben neu angelegte Abmessung mit eigener Profil-ID (abmessung_neu)
+            pid = getattr(self, "abm_zuordnung", {}).get(z.get("rest"))
+            if pid in self.k.profile and not z.get("profil_id"):
+                z["profil_id"] = pid
+                z["fehler"] = [x for x in z["fehler"] if "nicht gefunden" not in x]
         letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
         vorgabe = letzter or self.db.einstellung("step_werkstoff") or None
         vorgabe = vorgabe if vorgabe in self.k.werkstoffe else None
@@ -2975,7 +2999,44 @@ class AngebotSeite(QWidget):
         else:
             self.f.meldung("Schnellzeile: " + "; ".join(f"„{z['text']}“: {', '.join(z['fehler'])}"
                                                         for z in schlecht[:3]), fehler=True, bericht=bericht)
+        # Abmessung der Zeile im Feld fehlt in den Stammdaten: Menü „neu anlegen …“ unter dem Feld (Patrick 28.10.)
+        erste = schlecht[0] if schlecht else None
+        if erste and erste.get("rest") and not erste.get("profil_id") and \
+                any("nicht gefunden" in x for x in erste["fehler"]):
+            self.abmessung_neu_anbieten(erste["rest"], self.schnell, lambda pid: self.schnellzeile())
         return len(gut)
+
+    def abmessung_neu_anbieten(self, text, feld=None, weiter=None):
+        """Getippte Abmessung fehlt in den Stammdaten (Schnellzeile, Profilspalte): Menü unter dem Feld mit
+        „Abmessung … neu anlegen …“ (profil_neu.anbieten). weiter(pid) läuft nach dem Anlegen. Ergebnis: Menü
+        oder None (nur ansehen, keine Zahl im Text)."""
+        if self.fremd() or self.db.nur_lesen:
+            return None
+        wo = feld.mapToGlobal(feld.rect().bottomLeft()) if feld is not None else None
+        self.abm_menue = profil_neu.anbieten(self, text, lambda t: self.abmessung_neu(t, weiter), wo)
+        return self.abm_menue
+
+    def abmessung_neu(self, text, weiter=None, dialog=None):
+        """Fenster „Neue Abmessung anlegen“ mit Form und Maßen aus text (profil_neu.vorschlag); bestätigt: Zeile in
+        den Stammdaten (Profile), danach weiter(pid). Den Materialpreis rät das Programm nicht: die Meldung weist
+        darauf hin, die Position zeigt ihn als fehlend. dialog(d) bedient das Fenster (Tests). Ergebnis: Profil-ID
+        oder None."""
+        d = profil_neu.ProfilNeuDialog(self, self.k.profile, None, self.k.profilformen, eingabe=text,
+                                       bemerkung=f"im Angebot angelegt ({datetime.date.today():%d.%m.%Y})")
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.fehler():
+            return None
+        werte = d.werte()
+        pid = werte["profil_id"]
+        self.db.profile_anlegen([werte])
+        zeile = next((z for z in self.db.zeilen("profile") if z.get("profil_id") == pid), werte)
+        for k in {id(x): x for x in (self.k, getattr(self, "k_aktuell", None)) if x is not None}.values():
+            k.profile[pid] = zeile
+        self.abm_zuordnung = dict(getattr(self, "abm_zuordnung", {}), **{" ".join(text.split()): pid})
+        if weiter:
+            weiter(pid)
+        self.f.meldung(f"Abmessung {pid} in den Stammdaten angelegt. Materialpreis fehlt noch: unter Einstellungen → "
+                       "Werkstoffe/Materialpreise oder im Angebot über „Material …“ als Meterpreis eintragen.")
+        return pid
 
     def _naechste_pos(self):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]

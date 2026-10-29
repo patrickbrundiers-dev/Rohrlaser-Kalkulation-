@@ -499,9 +499,12 @@ class SchneidwegDialog(QDialog):
         self.k_profil.completer().setCompletionMode(QCompleter.PopupCompletion)
         self.k_profil.setToolTip("Profil aus den Stammdaten (Eintippen sucht, z. B. 40x40)")
         self.k_profil.currentTextChanged.connect(self._profil_gewaehlt)
+        # getippte Abmessung fehlt in den Stammdaten: Menü „neu anlegen …“ unter dem Feld (Patrick 28.10.2026)
+        self.k_profil.lineEdit().editingFinished.connect(self._profil_fehlt)
         self.k_profil_neu = QPushButton("Neu …")
-        self.k_profil_neu.setToolTip("Profil fehlt in den Stammdaten: hier mit Form und Maßen anlegen")
-        self.k_profil_neu.clicked.connect(lambda: self.profil_neu())
+        self.k_profil_neu.setToolTip("Profil fehlt in den Stammdaten: hier mit Form und Maßen anlegen (eine "
+                                     "eingetippte Abmessung wie RE 70x30x3 füllt das Fenster vor)")
+        self.k_profil_neu.clicked.connect(lambda: self.profil_neu(eingabe=self._profil_getippt()))
         profil_feld = QWidget()
         pl = QHBoxLayout(profil_feld)
         pl.setContentsMargins(0, 0, 0, 0)
@@ -555,14 +558,28 @@ class SchneidwegDialog(QDialog):
         self.k_profil.addItems(liste)
         return liste
 
-    def profil_neu(self, werte=None, dialog=None):
+    def _profil_getippt(self):
+        """Eingetippter Text im Profilfeld, wenn er kein Profil der Stammdaten ist (sonst None)."""
+        t = self.k_profil.currentText().strip()
+        return t if t and t not in self.k.profile and profil_neu.vorschlag(t) else None
+
+    def _profil_fehlt(self):
+        """Eingabe im Profilfeld bestätigt, Abmessung fehlt in den Stammdaten: Menü „Abmessung … neu anlegen …“."""
+        t = self._profil_getippt()
+        if t and self.neu and getattr(self, "_fehlt_gezeigt", None) != t:
+            self._fehlt_gezeigt = t
+            self.abm_menue = profil_neu.anbieten(self, t, lambda x: self.profil_neu(eingabe=x),
+                                                 self.k_profil.mapToGlobal(self.k_profil.rect().bottomLeft()))
+
+    def profil_neu(self, werte=None, dialog=None, eingabe=None):
         """Fehlendes Profil anlegen (ProfilNeuDialog; werte = fertige Zeile ohne Dialog, dialog(d) bedient ihn in
-        Tests): in die Stammdaten schreiben und hier wählen. Ergebnis: Profil-ID oder None."""
+        Tests, eingabe = getippte Abmessung füllt ihn vor): in die Stammdaten schreiben und hier wählen. Ergebnis:
+        Profil-ID oder None."""
         interaktiv = werte is None and dialog is None
         if werte is None:
             form = self.k_form.currentText()
             d = profil_neu.ProfilNeuDialog(self, self.k.profile, form if form != profil_neu.ALLE else None,
-                                           self.k.profilformen)
+                                           self.k.profilformen, eingabe=eingabe)
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.fehler():
                 return None
             werte = d.werte()
