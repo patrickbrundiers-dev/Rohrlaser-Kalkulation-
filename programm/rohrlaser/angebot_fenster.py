@@ -32,7 +32,7 @@ from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
-    ist_zukaufteil, kein_laserteil
+    ist_muster, ist_zukaufteil, kein_laserteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
@@ -43,7 +43,7 @@ from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimie
 from .schritte import Schrittanzeige
 from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
-from . import stangen_abwicklung, vollmaterial
+from . import muster_haken, stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -697,13 +697,13 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
-            "laenge", "stueck",
+            "laenge", "stueck", "muster",
             "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang")
+                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -1850,6 +1850,7 @@ class AngebotSeite(QWidget):
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
+                ("Muster an/aus", lambda: self.muster_umschalten(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
                 ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
@@ -3076,6 +3077,7 @@ class AngebotSeite(QWidget):
             return False
         werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
+        werte["muster"] = d.muster_haken.wert()
         from . import bohrbild     # Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand: von Hand eingegeben = bestätigt
         bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
                                     rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"),
@@ -3202,7 +3204,7 @@ class AngebotSeite(QWidget):
         self.db.position_neu(self.id, dict(
             pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
             stueck=kopf["stueck"], technik=blech.speichern(dict(e, richtpreise=[dict(ab=1, preis=erg["richtpreis"])])),
-            gewicht_teil=round(erg["gewicht"], 3),
+            gewicht_teil=round(erg["gewicht"], 3), muster=kopf.get("muster"),
             zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False)))
         self.neu_laden()
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
@@ -3279,12 +3281,14 @@ class AngebotSeite(QWidget):
             zukauf.lieferant_vorgabe("Blechteile")
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
                         dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
-                             stueck=p.get("stueck")), neu=False)
+                             stueck=p.get("stueck"), muster=p.get("muster")), neu=False)
         self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.kopf_werte()))
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
         self._blech_uebernehmen(p, e, erg, kopf["lieferant"], kopf["stueck"])
+        if kopf.get("muster") != (p.get("muster") or None):     # Häkchen Muster (wie in allen Editoren)
+            self.db.position_aendern(p["id"], "muster", kopf.get("muster"))
         self.neu_laden()
         self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
         return True
@@ -4343,11 +4347,11 @@ class AngebotSeite(QWidget):
         if eingaben is None:
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
                                  step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
-            self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert()))
+            self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
-            naht_neu = d.naht_geaendert()
+            naht_neu = dict(d.naht_geaendert(), **d.muster_geaendert())
         else:
             naht_neu = {}
         profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
@@ -4514,6 +4518,33 @@ class AngebotSeite(QWidget):
             felder["zusatz"] = zu
         if fehlt:
             self.f.meldung(f"Zusatzarbeit '{virtuell.ZUSATZ_STEGE}' fehlt in den Stammdaten.", fehler=True)
+
+    def muster_umschalten(self, zeilen=None, an=None):
+        """Markierte Positionen als Musterteil kennzeichnen (an=True) oder wieder als Serienteil (False); None =
+        umschalten nach der ersten Zeile. Ein Satz wird immer ganz umgeschaltet. Musterteile stehen mit 0 € im
+        Angebot, ihre Kosten gehen auf die Serie (Patrick 28.10.2026). Ergebnis: Zahl geänderter Positionen."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen()) if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return 0
+        saetze = {self.positionen[r].get("satz") for r in zeilen if self.positionen[r].get("satz")}
+        zeilen = sorted(set(zeilen) | {r for r, q in enumerate(self.positionen) if q.get("satz") in saetze})
+        if an is None:
+            an = not ist_muster(self.positionen[zeilen[0]])
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            if ist_muster(p) != an:
+                self.db.position_aendern(p["id"], "muster", muster_haken.wert(an))
+                n += 1
+        if n:
+            self.neu_laden()
+            self.f.meldung(f"{n} Position(en) " + ("als Muster gekennzeichnet: 0 € im Angebot, Kosten auf die Serie."
+                                                   if an else "wieder als Serienteil gerechnet."))
+        return n
 
     def stege_abtrennen(self, zeilen=None, an=None):
         """Virtuelles Bauteil (Winkel aus größerem Profil, offenes Rohr): Stege 2 mm an den Enden abtrennen (an=True,
@@ -6005,6 +6036,9 @@ class AngebotSeite(QWidget):
             return False
         vorab = self.teilen_anwenden(d.ergebnis)
         self.naehte_schreiben(d.ergebnis["naehte"])
+        if "muster" in d.ergebnis:          # Häkchen „Satz als Muster“: alle Teile des Satzes
+            for q in teile:
+                self.db.position_aendern(q["id"], "muster", d.ergebnis["muster"])
         self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
         hinweise = vorab + self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()

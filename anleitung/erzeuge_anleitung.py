@@ -1242,6 +1242,33 @@ def kapitel_angebot(i):
             "Die Prüfung läuft bei jeder Änderung neu (Position, Stückzahl, Zuschläge, Staffelstufe, PDF). Die "
             "Werte des Angebots (Gewinn, Zuschläge …) bleiben dabei unverändert; steigt der Preis über den "
             "Mindestpreis, entfällt die Anhebung von selbst.")
+    i.abschnitt("Musterteile", marke="musterteile")
+    i.text("Positionen, die als <b>Muster</b> vorab gefertigt werden, stehen im Angebot mit 0,00 € und dem Vermerk "
+           "„Muster – im Serienpreis enthalten“. Ihre Kosten legt das Programm auf die Serienpositionen um; der "
+           "Gewinn bleibt erhalten, es entsteht keine Minusmarge.", kurz=True)
+    i.genauer()
+    i.liste("Markieren: Spalte <b>Muster</b> (ja/nein) in der Positionstabelle, Rechtsklick <b>Muster an/aus</b> "
+            "(gilt immer für den ganzen Satz) oder das Häkchen <b>Muster</b> im Rohr-Editor, Blech-Editor, "
+            "Baugruppen-Editor und in <i>Satz in 3D</i> (<i>Satz als Muster</i>).",
+            "Umlegen: Was umgelegt wird, sind die Selbstkosten der Muster mit dem normalen Gewinn; Zukaufteile und "
+            "Bleche nur mit ihrem Aufschlag, ohne Gewinn. Die Serienpositionen bekommen ihren Anteil nach ihrem Wert "
+            "(Selbstkosten); Spalte <i>Musterumlage je Teil</i> im Reiter Kalkulation. Der Angebotswert ist mit und "
+            "ohne Umlage gleich.",
+            "Eigener Lauf: Muster werden getrennt von der Serie gefertigt. Sie bekommen eigenes Rüsten (Kostenart "
+            "<i>Rüsten Maschine</i> nennt „2 Läufe: Muster getrennt“), Material nach belegter Länge der Stange. "
+            "Werkstattpapier und Stangenansicht führen die Muster als <i>MUSTER (eigener Lauf)</i>.",
+            "<b>Musterkosten im Angebot</b> (Karte <i>Kalkulation dieses Angebots</i>, Gruppe <i>Verkauf und "
+            "Gewinn</i>, nur sichtbar, wenn Muster im Angebot sind): <i>auf die Serie umlegen</i> (Vorgabe) oder "
+            "<i>eigene Zeile Musterkosten</i>; dann steht im Angebot eine Zeile „Musterkosten einmalig (Pos. …)“ "
+            "und die Muster zeigen „Muster – siehe Musterkosten einmalig“. Ohne Serienposition nimmt das Programm "
+            "von selbst die eigene Zeile.",
+            "Der [[mindestpreis]] bezieht die einmaligen Musterkosten mit ein.",
+            "Staffelpreise ([[staffeln]]): jede vorhandene Stufe trägt die Musterkosten einmal, wie das Rüsten; "
+            "Stufen werden dafür nicht angelegt.",
+            "Angebots-PDF: bei den Bedingungen steht der Hinweis aus der Einstellung <i>Angebots-PDF: Hinweis zu "
+            "Musterteilen</i> (leer = keiner), Vorgabe „Die Muster (Pos. 3) sind im Serienpreis enthalten. Wird bis … keine Serie "
+            "bestellt, berechnen wir die Muster mit … € netto.“ Platzhalter {pos}, {datum} (Angebotsdatum + "
+            "<i>Frist für die Serienbestellung</i>, Vorgabe 90 Tage) und {betrag}. Die CSV nennt Muster im Kommentar.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Werte, die 0 sind und nur optional etwas kosten würden, stehen im aufklappbaren Bereich <b>Erweiterte "
            "Einstellungen</b> (Titel z. B. „1 Wert auf 0“). Sobald ein Wert nicht 0 ist, steht er wieder oben.")
@@ -5441,6 +5468,10 @@ def kapitel_einstellungen(i):
          "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen, auch für "
          "die Hinweise in den Dialogen STEP prüfen, Bohrungen prüfen und Blech-Editor "
          "([[stammdaten]]) und die Staffeln."],
+        ["Angebots-PDF", "Angebots-PDF: Hinweis zu Musterteilen (leer = keiner) und Angebots-PDF: Frist für die "
+                         "Serienbestellung nach Musterlieferung [Tage]",
+         "Hinweis bei den Bedingungen, was die Muster kosten, wenn keine Serie bestellt wird; Platzhalter {pos}, "
+         "{datum} (Angebotsdatum + Frist, Vorgabe 90 Tage) und {betrag} ([[musterteile]])."],
         ["Ansicht", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)",
          "<i>Automatisch</i> (Vorgabe): die 3D-Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das "
          "kann und nicht über Remote-Desktop läuft, sonst wie bisher; <i>Software</i>: immer ohne Grafikkarte; "

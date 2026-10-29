@@ -46,7 +46,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 66     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 67     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -125,7 +125,9 @@ SCHEMA_VERSION = 66     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Fertigungsstatus (Tabelle auftrag_status, angebote.freigabe; fertigung.py), Prüfstatus der
                         #     STEP-Merkmale (positionen.step_merkmale), Arbeitsgangvorschläge (Tabelle
                         #     arbeitsgang_regeln mit Beispielregeln, positionen.arbeitsgaenge); ältere Daten leer
-                        # 66: Schnittplan (angebote.ergebnis) zlib-gepackt statt JSON-Text (ergebnis_packen), Datei
+                        # 66: Musterteile (positionen.muster, angebote.muster_darstellung; leer = Serienteil bzw.
+                        #     Musterkosten auf die Serie umlegen)
+                        # 67: Schnittplan (angebote.ergebnis) zlib-gepackt statt JSON-Text (ergebnis_packen), Datei
                         #     etwa halb so groß; ältere Programme könnten ihn nicht lesen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -461,7 +463,7 @@ class Datenbank:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
                 self._strahlen_ergaenzen()
-            if 0 < version < 66:              # Schnittpläne packen (danach VACUUM, siehe unten)
+            if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
                                          "SELECT id, ergebnis FROM angebote WHERE typeof(ergebnis)='text'")])
@@ -469,7 +471,7 @@ class Datenbank:
             lager.einrichten(self.con)
             fertigung.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-        if 0 < version < 66:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
+        if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
         self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
@@ -2650,13 +2652,13 @@ class SicherungLauf:
 
 
 def ergebnis_packen(text):
-    """Schnittplan-JSON (angebote.ergebnis) für die Datendatei: zlib-gepackt (Schema 66, Prüfung Datenbank bei vielen
+    """Schnittplan-JSON (angebote.ergebnis) für die Datendatei: zlib-gepackt (Schema 67, Prüfung Datenbank bei vielen
     Angeboten 4b), etwa ein Zehntel der Größe."""
     return zlib.compress(text.encode("utf-8"), 6) if text else None
 
 
 def ergebnis_text(wert):
-    """JSON-Text aus angebote.ergebnis, gepackt (Schema 66) oder noch als Text (ältere Datei, Kollegen-Angebot)."""
+    """JSON-Text aus angebote.ergebnis, gepackt (Schema 67) oder noch als Text (ältere Datei, Kollegen-Angebot)."""
     if isinstance(wert, (bytes, memoryview)):
         return zlib.decompress(bytes(wert)).decode("utf-8")
     return wert

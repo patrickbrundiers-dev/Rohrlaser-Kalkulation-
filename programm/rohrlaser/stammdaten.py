@@ -802,6 +802,9 @@ FLACH_ALS = ("Blech", "Flachstahl bis Breite (Einstellung darunter)")
 # Kundenmaterial: keine Materialkosten, eigene Stangengruppe, Bearbeitung wie sonst
 EIGENMATERIAL, KUNDENMATERIAL = "Eigenmaterial", "Kunde beigestellt"
 MATERIAL_HERKUNFT = (EIGENMATERIAL, KUNDENMATERIAL)
+# Musterkosten im Angebot (angebot.KOPF 'muster_darstellung'): leer = auf die Serie umlegen (Patrick 28.10.2026, F1 a)
+MUSTER_UMLEGEN, MUSTER_ZEILE = "auf die Serie umlegen", "eigene Zeile Musterkosten"
+MUSTER_DARSTELLUNG = (MUSTER_UMLEGEN, MUSTER_ZEILE)
 # Löschschutz der Angebote (Patrick 28.10.2026): einmal optimierte Angebote lassen sich nicht mehr löschen (Admin schon)
 LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND = "aus", "immer", "nur von Hand"
 LOESCHSCHUTZ = (LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND)
@@ -869,6 +872,13 @@ EINSTELLUNGEN = (
     # im Angebots-PDF: Hinweis, welche Stangen der Kunde beistellen muss
     Einstellung("beistellung_hinweis", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf", "Angebots-PDF",
                 "auswahl", "ja", auswahl="janein"),
+    # Musterteile (Patrick 28.10.2026, F6 a): Hinweis im Angebots-PDF, was die Muster ohne Serienbestellung kosten;
+    # {betrag} = Musterkosten netto, {datum} = Angebotsdatum + Frist, {pos} = Positionen der Muster. Leer = kein Hinweis
+    Einstellung("muster_hinweis", "Angebots-PDF: Hinweis zu Musterteilen (leer = keiner)", "Angebots-PDF", "mehrzeilig",
+                "Die Muster (Pos. {pos}) sind im Serienpreis enthalten. Wird bis {datum} keine Serie bestellt, "
+                "berechnen wir die Muster mit {betrag} € netto."),
+    Einstellung("muster_frist", "Angebots-PDF: Frist für die Serienbestellung nach Musterlieferung [Tage]",
+                "Angebots-PDF", "ganz", 90, 0, 3650),
     Einstellung("mindestpreis", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)", "Kalkulation", "zahl", 200.0, 0,
                 1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
@@ -1321,7 +1331,7 @@ class Kontext:
                          "lieferzeitart": list(LIEFERZEIT_ARTEN),
                          "loeschschutz": list(LOESCHSCHUTZ), "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

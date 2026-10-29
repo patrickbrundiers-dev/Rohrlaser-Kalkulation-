@@ -54,7 +54,7 @@ for t in TABELLEN:
     assert db.con.execute(f"SELECT COUNT(*) FROM {t} WHERE angebot_id=?", (a,)).fetchone()[0] == 0, t
 print("OK     Angebot löschen entfernt Staffeln, Mengenstufen und Protokoll")
 
-# Schnittplan gepackt (Schema 66): neu gespeichert gepackt, ältere Datei wird beim Öffnen umgestellt, geteilt als Text
+# Schnittplan gepackt (Schema 67): neu gespeichert gepackt, ältere Datei wird beim Öffnen umgestellt, geteilt als Text
 from rohrlaser import teilen  # noqa: E402
 
 erg = dict(stangen=[dict(laenge=6000, teile=[dict(ref="10", laenge=1250.0)] * 4)], auswertung=dict(stangen=1))
@@ -64,7 +64,7 @@ assert db.con.execute("SELECT typeof(ergebnis) FROM angebote WHERE id=?", (b,)).
 assert db.angebot(b)["ergebnis"] == erg
 inhalt, _ = teilen.angebot_inhalt(db.con, b)
 assert json.loads(inhalt["kopf"]["ergebnis"]) == erg
-db.con.execute("UPDATE angebote SET ergebnis=? WHERE id=?", (json.dumps(erg), b))     # Stand vor Schema 66
+db.con.execute("UPDATE angebote SET ergebnis=? WHERE id=?", (json.dumps(erg), b))     # Stand vor Schema 67
 db.con.execute("PRAGMA user_version=65")
 db.con.commit()
 db.schliessen()
