@@ -917,6 +917,8 @@ EINSTELLUNGEN = (
     Einstellung("preiseinheit_ab", "Preis je 100 Stück unter [€]", "Kalkulation", "zahl", 0.0, 0, 100),
     # Schneidgas aus Düse und Gasdruck der Schneiddaten (Patrick 29.10.2026): Preis je Norm-m³, 0 = Zuschlag €/h der
     # Maschine; Korrekturfaktor gleicht die Rechnung an den gemessenen Verbrauch an
+    Einstellung("gas_rechnen", "Schneidgas rechnen (nein = für alle Maschinen aus)", "Kalkulation", "auswahl", "ja",
+                auswahl="janein"),
     Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gas_faktor", "Korrekturfaktor Gasverbrauch", "Kalkulation", "zahl", 1.0, 0.1, 5),

@@ -2670,6 +2670,8 @@ def kapitel_optimieren(i):
         ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kalkulation", "Preis je Norm-m³ aus "
          "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
          "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
+        ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kalkulation", "ein Schalter "
+         "für alle Maschinen: nein = kein Schneidgas, egal was an Maschine und Schneiddaten steht; Vorgabe ja."],
         ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kalkulation", "gleicht die Rechnung an den "
          "gemessenen Verbrauch an: Gasverbrauch laut Rechnung (m³ im Monat) geteilt durch den gerechneten Verbrauch "
          "der Spalte <i>Gas je Teil [m³]</i> × Stückzahl derselben Aufträge; Vorgabe 1."],

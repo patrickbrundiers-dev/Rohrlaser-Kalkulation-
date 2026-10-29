@@ -2535,8 +2535,8 @@ def gas_kosten(sd, m, einstellungen, sekunden_gas, sekunden_laser):
     der Maschine auf die ganze Laserzeit (gas_satz; m³ dann None). Stundensatz von Hand ohne 'Gas zusätzlich zum
     Stundensatz' = ja: kein Gas (steckt im Satz)."""
     from . import stundensatz
-    if not stundensatz.gas_rechnen(m):      # Stundensatz von Hand enthält das Gas (Plan Stundensatz, Frage 2b)
-        return 0.0, None, None
+    if not stundensatz.gas_rechnen(m) or (einstellungen or {}).get("gas_rechnen") == "nein":
+        return 0.0, None, None      # Satz von Hand enthält das Gas (Plan Stundensatz 2b); Schalter für alle aus
     gas = (sd or {}).get("gas")
     preis = _n((einstellungen or {}).get(GAS_PREIS.get(gas or "")))
     q = (gas_verbrauch((sd or {}).get("duese"), (sd or {}).get("gasdruck"), gas,
@@ -2777,7 +2777,7 @@ EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendl
               "haendler_mehr_grenze", "zuschlag_fremdleistung", "gewinn", "ruesten_abmessung", "pauschale_abmessung",
               "programmierung_teil", "programmierung_zeit", "programmierung_kontur", "angebotsaufschlag",
               "handling_beistellung", "gewinn_basis", "zuschnitt_kosten", "preisregeln", "ausschuss", "schrott_anteil",
-              "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor")
+              "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor", "gas_rechnen")
 # Seit 29.10.2026 festgeschrieben (Plan „Kalkulation und Berechnung verbessern“): ältere Snapshots rechnen ohne
 # Ausschuss und Schrotterlös, zeigen jeden Preis je Stück und rechnen Schneidgas nur mit €/h der Maschine
 EINST_NEU = ("ausschuss", "schrott_anteil", "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2")

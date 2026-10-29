@@ -32,7 +32,8 @@ NEUERUNGEN = [
                 "Preis unter Material, Preis je kg gegen früher verschickte Angebote derselben Abmessung, Ertrag je "
                 "Laserstunde. <b>Stundensatz ermitteln</b> je Maschine ([[stundensatz_ermitteln]]): aus Anschaffung, "
                 "Nutzungsdauer, Raum, Instandhaltung, Wartung, Strom, Verschleiß und Bediener; ein Satz von Hand "
-                "enthält Gas und Strom (Gas nur mit <i>Gas zusätzlich zum Stundensatz</i>). Angebot und Staffel "
+                "enthält Gas und Strom (Gas nur mit <i>Gas zusätzlich zum Stundensatz</i>); <i>Schneidgas rechnen</i> = nein "
+                "schaltet das Gas für alle Maschinen aus. Angebot und Staffel "
                 "rechnen Gewinn und Fracht jetzt an einer gemeinsamen Stelle; ein "
                 "Test prüft bei jedem Update, dass eine Stufe mit den Mengen des Angebots dessen Preis ergibt.",
      "Kalkulation genauer: Nebenzeit, Schneidgas aus Düse und Druck, Ausschuss, Schrotterlös, Profilwechsel; Preis je 100 Stück; "

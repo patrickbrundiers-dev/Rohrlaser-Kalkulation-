@@ -81,6 +81,10 @@ _, _, (z_zus, s_zus) = angebot(dict(gas_zusatz="ja"))
 assert s_zus["schneidgas"] > 0 and s_zus["satz_maschine"] == 150
 db_e, a_e, (z_erm, s_erm) = angebot(dict(PLAN, satz_art="ermittelt"))
 assert s_erm["satz_maschine"] == 97.6 and s_erm["schneidgas"] > 0
+from rohrlaser.rechnen import gas_kosten  # noqa: E402
+assert gas_kosten(dict(gas="N₂", duese=2, gasdruck=15), dict(satz_art="ermittelt"), dict(gaspreis_n2=0.9), 60, 60)[0] > 0
+assert gas_kosten(dict(gas="N₂", duese=2, gasdruck=15), dict(satz_art="ermittelt"),
+                  dict(gaspreis_n2=0.9, gas_rechnen="nein"), 60, 60) == (0.0, None, None), "Schalter für alle aus"
 nah = abs(s_erm["schneidgas"] - s_zus["schneidgas"]) < 1e-9
 assert nah, "Gas je Teil unabhängig vom Satz"
 ok(f"von Hand 150 €/h: kein Gas; mit 'Gas zusätzlich' = ja: {s_zus['schneidgas']:.2f} € Gas; ermittelt 97,60 €/h "
