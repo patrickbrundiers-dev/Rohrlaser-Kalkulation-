@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
 
 from . import einblendung, hilfe, stil
 from . import blech, blech3d, blech_zeichnen as bz, dfm, dxf, gravur_text, schneidweg as sw, zukauf
+from .muster_haken import MusterHaken
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .teile_editor import EditorRahmen
@@ -604,6 +605,9 @@ class BlechDialog(QDialog):
         for r, c, n, titel, w in felder:
             raster.addWidget(QLabel(f"<span style='color:#595959'>{titel}</span>"), r, c, 1, n)
             raster.addWidget(w, r + 1, c, 1, n)
+        # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
+        self.muster_haken = MusterHaken(kopf)
+        raster.addWidget(self.muster_haken, 1, 4)
         for c in range(4):
             raster.setColumnStretch(c, 1)
         lay.addLayout(raster)
@@ -926,7 +930,7 @@ class BlechDialog(QDialog):
         return dict(bezeichnung=self.bezeichnung.text().strip() or self.bezeichnung.placeholderText(),
                     artikelnr=self.artikelnr.text().strip() or None,
                     lieferant=self.lieferant.currentText().strip() or zukauf.lieferant_vorgabe("Blechteile"),
-                    stueck=self.stueck.value())
+                    stueck=self.stueck.value(), muster=self.muster_haken.wert())
 
     def rechnen(self, *_):
         erg = self._rechnen()

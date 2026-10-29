@@ -244,7 +244,7 @@ def csv_exportieren(seite, db, pfad=None):
                                               "CSV (*.csv)")
         if not pfad:
             return None
-    Path(pfad).write_text(zukauf_csv.exportieren(db.zukauf_artikel_liste()), encoding="utf-8")
+    Path(pfad).write_text(zukauf_csv.exportieren(db.zukauf_artikel_liste()), encoding="utf-8", newline="")
     return pfad
 
 

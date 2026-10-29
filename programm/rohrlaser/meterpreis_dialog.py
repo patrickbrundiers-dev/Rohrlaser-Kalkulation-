@@ -364,7 +364,7 @@ class MeterpreisDialog(QDialog):
             stange = f["stange"] or self.kopf.get("stange") if "stange" in f else g["stange"]
             kunde = f["material_herkunft"] == KUNDENMATERIAL if "material_herkunft" in f else g["kunde"]
             gr = (g["profil"], f.get("werkstoff_id", g["werkstoff"]), "" if ob.lower() == ROH else ob, stange) + \
-                (("Kunde",) if kunde else ())
+                (("Kunde",) if kunde else ()) + ((rechnen.MUSTER,) if g["gruppe"][-1] == rechnen.MUSTER else ())
             neu[rechnen.laengen_schluessel(gr)] = [list(x) for x in v]
         return neu if neu != alt else None
 
