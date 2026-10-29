@@ -288,7 +288,7 @@ class _Rechnen:
         self._wert_vorher = self.value()
         super().focusInEvent(e)
         if e.reason() in (Qt.MouseFocusReason, Qt.TabFocusReason, Qt.BacktabFocusReason, Qt.ShortcutFocusReason):
-            QTimer.singleShot(0, self.selectAll)        # alten Wert gleich überschreiben
+            QTimer.singleShot(0, self, self.selectAll)        # alten Wert gleich überschreiben
 
     def focusOutEvent(self, e):
         getippt = self.lineEdit().text()

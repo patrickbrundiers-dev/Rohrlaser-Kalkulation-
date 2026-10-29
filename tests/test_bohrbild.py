@@ -78,7 +78,8 @@ def _():
     assert "0,5x" not in f["konturen"] and f["konturen"].count("7,3x22,9") == 2, f["konturen"]
     assert f["gravur"] is None and f["gewinde"] is None, f
     # Markierloch Ø0,5 ist gewollt kleiner als die Wand: keine Warnung 'Kontur kleiner als 0,7 × Wand'
-    assert rechnen.konturen_pruefen(dict(p, konturen="0,5x1,6", klein_n=1, klein_mm=1.6, schneidweg=10), 3) is None
+    assert rechnen.konturen_pruefen(dict(p, konturen="0,5x1,6", klein_n=1, klein_mm=1.6, mittel_mm=0, gross_mm=0,
+                                         schneidweg=10), 3) is None
     # von Hand eingetragene Gewinde bleiben stehen
     f = bohrbild.anwenden(dict(p, gewinde="2xM8; 1xM10"), neu)
     assert f["gewinde"] == "2xM8; 1xM10", f

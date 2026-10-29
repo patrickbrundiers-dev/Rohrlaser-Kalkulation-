@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.193", "<b>Reihenfolge der Positionen ändern</b>: markierte Positionen mit <b>Alt+↑ / Alt+↓</b>, "
+    ["0.9.197", "<b>Reihenfolge der Positionen ändern</b>: markierte Positionen mit <b>Alt+↑ / Alt+↓</b>, "
                 "Rechtsklick (Nach oben, Nach unten, An den Anfang, Ans Ende) oder durch Ziehen am Zeilenkopf "
                 "verschieben; Schweißbaugruppen wandern mit ihren Teilen, Sätze ganz. Kalkulation, Angebots-PDF und "
                 "Werkstattpapiere folgen, aufsteigende Positionsnummern bleiben aufsteigend, Staffeln je Position und "
@@ -30,6 +30,59 @@ NEUERUNGEN = [
                 "Doppelklick, F2 oder Rechtsklick; gleiche Nummer an zwei Teilen rot mit Hinweis, schon im Angebot "
                 "gelb, leeres Feld = wieder die Nummer aus der STEP ([[importprofile]]).",
      "Reihenfolge der Positionen verschieben (Alt+↑/↓, Ziehen); Artikelnummer im STEP-Import ändern."],
+    ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
+                "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "
+                "eigene Zeilen (z. B. je Werkstoff) behalten. Die Vorschau zeigt jeden Wert jetzt → Standard, welche "
+                "eigenen Zeilen entfallen und welche Standardzeilen fehlen; vorher legt das Programm eine "
+                "Datensicherung an, die letzte Rückfrage steht auf Nein. Werte, die vom Standard abweichen, sind in "
+                "der Tabelle orange, der Tooltip nennt den Standard ([[schneiddaten_standard]]). "
+                "<b>Schneidzeit genauer</b>: Anfangs- und Endschnitt aus dem Schneidweg-Rechner und aus "
+                "<i>Bohrungen prüfen</i> zählen wie beim STEP-Import nach ihrem Hüllmaß (bisher immer Vorschub groß, "
+                "die Einsparung gemeinsamer Schnitte zog aber mit der Klasse des Endes ab); Innenkonturen für "
+                "Programmierzeit und Regeln ohne die Enden. Standard <i>Zeit je Ecke</i> nach Wandstärke, 0,2 s + 0,05 s je mm (leere Richtwertzeilen "
+                "werden einmalig gefüllt). Neues Maschinenfeld <i>Zeit je Kontur (Anfahren/Drehen)</i>, leer = 0 "
+                "([[schneidzeit_genauer]]). Festgeschriebene Angebote rechnen unverändert.",
+     "Schneiddaten zurücksetzen mit Vorschau und Sicherung; Schneidzeit: Enden, Ecken, Anfahren genauer."],
+    ["0.9.195", "<b>Zeitraum in der Angebotsliste</b>: Neben dem Vorgang wählt man, welche Angebote die Liste zeigt "
+                "– mit Datum oder Änderung in den letzten 30, 60, 100, 150 oder 365 Tagen oder alle (Vorgabe 150 Tage, "
+                "Einstellungen → Angebot, nur dieser Arbeitsplatz). Fällige Wiedervorlagen, beauftragte und noch nicht "
+                "versendete Aufträge und geöffnete Angebote bleiben immer sichtbar, die Suche findet alle. Unter der "
+                "Liste steht, wie viele ältere ausgeblendet sind, mit „Alle zeigen“ ([[angebote]]).",
+     "Angebotsliste: Zeitraum 30/60/100/150/365 Tage oder alle, Suche findet weiter alle."],
+    ["0.9.194", "<b>Teuerungszuschlag je Werkstoff</b>: Bei den Werkstoffen gibt es neu die Spalten "
+                "<i>Teuerungszuschlag je</i> (% oder €/kg), <i>Teuerungszuschlag</i> und <i>Teuerung Stand</i>. "
+                "Der Zuschlag kommt auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis, nicht auf "
+                "Oberflächen-Aufpreise und Preise von Hand. Der Tooltip des Materialpreises nennt ihn, der "
+                "Angebots-Check meldet einen Zuschlag ohne Stand oder älter als 3 Monate, festgeschriebene Angebote "
+                "behalten ihren Zuschlag ([[teuerungszuschlag]]). Neu ist auch der <b>Preis-Simulator</b> "
+                "(Datei → Preis-Simulator …): Was wäre, wenn Material einer Kategorie oder Stundensätze teurer "
+                "werden? Er zeigt für alle offenen Angebote den Verkaufspreis vorher/nachher, mit Admin-Rechten "
+                "auch die Marge bei gleichem Preis, ohne etwas zu speichern ([[preis_simulator]]). Beim Vorgang "
+                "<b>Abgelehnt</b> fragt das Programm nach dem <b>Absagegrund</b> (optional Preis des Wettbewerbs); "
+                "<i>Datei → Angebots-Auswertung …</i> zeigt die Trefferquote je Kunde, Werkstoff-Kategorie, "
+                "Preisklasse und Absagegrund ([[absage]]). Für beauftragte Angebote gibt es die "
+                "<b>Auftragsbestätigung (PDF)</b> im Menü <i>Ausgaben</i>: Layout und Preise des Angebots, "
+                "Bestellnummer des Kunden, Liefertermin mit KW, Nummer wie das Angebot oder eigener Nummernkreis "
+                "AB-2026-00001 ([[auftragsbestaetigung]]). <b>Etiketten mit QR-Code</b> je Position "
+                "(Ausgaben bzw. Reiter Fertigung, A4-Bogen oder Etikettendrucker) und <b>Rückmeldung per Scan</b>: "
+                "Reiter Fertigung → Scannen …, Arbeitsschritt wählen, scannen; der Unterreiter Rückmeldungen zeigt "
+                "je Position, was geschnitten, entgratet und verpackt ist ([[etiketten]]). "
+                "<b>Maschinenauslastung je Woche</b> (Datei bzw. Reiter Fertigung): Laserstunden der Aufträge gegen "
+                "den Schichtkalender (Stunden je Tag und Maschine, Samstag, Feiertage, Betriebsruhe), auf Wunsch mit "
+                "verschickten Angeboten nach Trefferquote ([[auslastung]]). <b>Reklamationen</b> je Auftrag und "
+                "Position (Ausgaben → Reklamation erfassen …) mit Fehlerart, Ursache, Maßnahme und Kosten; die Kosten "
+                "stehen als eigene Kostenart in der Nachkalkulation, Datei → Reklamationen … zeigt offene und die "
+                "Quote je Fehlerart, Kunde und Werkstoff ([[reklamation]]).",
+     "Teuerungszuschlag je Werkstoff; Preis-Simulator; Absagegrund mit Trefferquote; Auftragsbestätigung als PDF; "
+     "QR-Etiketten mit Rückmeldung per Scan; Maschinenauslastung je Woche; Reklamationen."],
+    ["0.9.193", "<b>Prüfung Performance, System, Daten, Optik</b> (Berechnung und Import unverändert): Am "
+                "<b>Laptop</b> (Angebotsseite niedriger als 760 Punkte) sind die Karten oben flacher, Kalkulation und "
+                "Fracht stehen zugeklappt nebeneinander, so sind mehr Positionen sichtbar ([[angebot]]). "
+                "Zugeklappte Zeilen enden mit „…“ statt abgeschnitten, der Tooltip zeigt alles. Einblendungen stehen "
+                "links neben der Übersicht und verdecken keine Preise ([[meldungen]]). In den Zeiten der Übersicht "
+                "stehen Zeit und Betrag mit Abstand. Leere Listen in Fertigung, Versand und Lager zeigen einen "
+                "Hinweis ([[fertigung]]). Eine seltene Fehlermeldung beim Schließen eines Angebots ist behoben.",
+     "Laptop: mehr Positionen sichtbar, „…“ statt abgeschnitten, Einblendung neben der Übersicht, Hinweis in leeren Listen."],
     ["0.9.192", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
                 "Feld (Text, Zahl, Rechnung, Datum, Auswahl), in Tabellen geht es eine Zeile weiter. Übernehmen "
                 "und schließen nur mit dem Knopf oder gezielt mit <b>Strg+Enter</b>. Ausnahmen: reine Ja/Nein-"

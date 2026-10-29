@@ -79,7 +79,11 @@ class Einblendung(QFrame):
         if p is None:
             return
         unten = p.statusBar().height() if hasattr(p, "statusBar") else 0
-        self.move(max(8, p.width() - self.width() - 16), max(8, p.height() - unten - self.height() - 12))
+        rechts = p.width() - 16
+        grenze = p.einblendung_grenze() if hasattr(p, "einblendung_grenze") else None
+        if grenze:              # offenes Angebot: links neben der Übersicht, nicht über Preisen und Zeiten (O2)
+            rechts = min(rechts, grenze - 12)
+        self.move(max(8, rechts - self.width()), max(8, p.height() - unten - self.height() - 12))
 
     def mousePressEvent(self, _e):
         self.hide()

@@ -12,7 +12,7 @@ from . import stil
 from .datenbank import SCHEMA_VERSION, _geschuetzt, datei_info
 
 SPALTEN = ("Zeit", "Art", "Angebote", "Positionen", "Schema", "Ordner")
-ARTEN = {"update": "vor Update", "Schema": "vor Schema-Umstellung", "Wiederherstellung": "vor Wiederherstellung",
+ARTEN = {"update": "vor Update", "Schneiddaten_Standard": "vor Schneiddaten-Standard", "Schema": "vor Schema-Umstellung", "Wiederherstellung": "vor Wiederherstellung",
          "Import": "vor Import", "Uebernahme": "vor Übernahme",
          "Archiv": "vor Archivieren"}
 

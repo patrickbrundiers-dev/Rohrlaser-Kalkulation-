@@ -1309,7 +1309,8 @@ class SchneidwegDialog(QDialog):
         zeit = self.schneidzeit()
         teile = [f"<b>Schneidweg {rechnen.zahl(f['schneidweg'], 1)} mm</b>, {f['einstiche']} Einstiche "
                  f"(Enden {rechnen.zahl(f['a_schnitt'], 1)} + {rechnen.zahl(f['b_schnitt'], 1)} mm, Innenkonturen "
-                 f"{rechnen.zahl(f['innen'], 1)} mm: klein {f['klein_n']}, mittel {f['mittel_n']}, groß {f['gross_n']})",
+                 f"{rechnen.zahl(f['innen'], 1)} mm; Klassen mit Enden: klein {f['klein_n']}, mittel {f['mittel_n']}, "
+                 f"groß {f['gross_n']})",
                  f"Schneidzeit je Teil {rechnen.zahl(zeit, 1)} s (Schneiddaten der Maschine)" if zeit is not None
                  else "<span style='color:#7A5A00'>Keine Schneiddaten für Maschine, Werkstoff und Wandstärke: "
                       "Schneidzeit von Hand eintragen.</span>"]

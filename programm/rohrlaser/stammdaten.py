@@ -32,6 +32,9 @@ LASERARTEN = ("Faser + CO₂", "nur Faser")
 NUR_FASER = "nur Faser"
 ROHRARTEN = ("geschweißt", "nahtlos", "stranggepresst")
 OHNE_NAHT = ("nahtlos", "stranggepresst")
+# Teuerungs-/Legierungszuschlag je Werkstoff (Plan 29.10.2026 1a, Patrick „4c“: Prozent oder €/kg wählbar)
+TEUERUNG_PROZENT, TEUERUNG_KG = "%", "€/kg"
+TEUERUNG_ARTEN = (TEUERUNG_PROZENT, TEUERUNG_KG)
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
 ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
@@ -263,7 +266,11 @@ WERKSTOFFE = Tabelle(
      Feld("gas_vorgabe", "Schneidgas", "auswahl", auswahl="gasvorgabe", breite=90),
      Feld("vorschub_faktor", "Vorschub-Faktor", "zahl", 0.1, 3, stellen=2, breite=75),
      Feld("laser", "Laser", "auswahl", auswahl="laserart", breite=85),
-     Feld("laser_hinweis", "Laser-Hinweis", breite=220)),
+     Feld("laser_hinweis", "Laser-Hinweis", breite=220),
+     # Teuerungs-/Legierungszuschlag (Schema 68, leer = kein Zuschlag; Plan 29.10.2026 1a)
+     Feld("teuerung_art", "Teuerungszuschlag je", "auswahl", auswahl="teuerung", breite=95),
+     Feld("teuerung_wert", "Teuerungszuschlag", "zahl", -50, 10000, stellen=2, breite=85),
+     Feld("teuerung_stand", "Teuerung Stand", "datum", breite=95)),
     ("werkstoff_id",),
     "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Die Kategorie (Stahl, Edelstahl, "
     "Aluminium) ordnet die Auswahl im Angebot und liefert Schneiddaten und Oberflächen, wenn der Werkstoff keine "
@@ -274,7 +281,10 @@ WERKSTOFFE = Tabelle(
     "Stangenwechsel SN); Schneidgas 'nur N₂'/'nur O₂' nimmt nur die Schneiddaten-Zeilen dieses Gases; "
     "Vorschub-Faktor wirkt auf die Schneiddaten der Kategorie (nicht auf eigene Zeilen des Werkstoffs); Laser "
     "'nur Faser' warnt auf einer CO₂-Maschine; der Laser-Hinweis steht in Werkstoffwahl, Angebots-Check, "
-    "Kalkulation und Werkstattpapieren.")
+    "Kalkulation und Werkstattpapieren. Teuerungszuschlag (Legierungs-/Materialteuerungszuschlag, z. B. bei "
+    "Edelstahl und Aluminium): je '%' auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis oder je "
+    "'€/kg' auf das Stangengewicht; nicht auf Preise von Hand und Oberflächen-Aufpreise. Stand = Stichtag des "
+    "Zuschlags (z. B. Monat des Lieferanten); festgeschriebene Angebote behalten ihren Zuschlag.")
 
 OBERFLAECHEN = Tabelle(
     "oberflaechen", "Oberflächen",
@@ -357,7 +367,10 @@ MASCHINEN = Tabelle(
      Feld("sonder_spannbar", "RP-/Sonderprofile spannbar", "auswahl", auswahl="janein", breite=85),
      Feld("ruest_sonder", "Rüstzuschlag Sonderprofil [min je Abmessung]", "zahl", 0, 1440, stellen=0, breite=95),
      Feld("duese_min", "Mindestabstand Düse [mm]", "zahl", 0, 200, stellen=1, breite=85),
-     Feld("min_teil", "Kürzestes Teil [mm]", "zahl", 0, 20000, stellen=0, breite=80)),
+     Feld("min_teil", "Kürzestes Teil [mm]", "zahl", 0, 20000, stellen=0, breite=80),
+     Feld("zeit_kontur", "Zeit je Kontur (Anfahren/Drehen) [s]", "zahl", 0, 60, stellen=2, breite=95),
+     # Schichtkalender der Wochenauslastung (Plan 29.10.2026 2b, auslastung.py); leer = Einstellung
+     Feld("schicht_stunden", "Schicht: Stunden je Arbeitstag", "zahl", 0, 24, stellen=1, breite=90)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -376,7 +389,9 @@ MASCHINEN = Tabelle(
     "Mindestabstand Düse: tiefer als dieses Maß steht der Anschlag eines RP-Profils über; Innenkonturen können "
     "darunter liegen und bekommen WARNUNG (prüfen), leer = keine Prüfung. Kürzestes Teil: kürzere Teile kann die "
     "Maschine nicht fertigen; sie bekommen die Stufe der Prüfregel 'Teil zu kurz für die Maschine' (leer = keine "
-    "Grenze).")
+    "Grenze). Zeit je Kontur (Anfahren/Drehen): Zuschlag je Einstich für das Anfahren der Kontur und das Drehen des "
+    "Rohrs dazwischen (jede Innenkontur und jedes Ende), leer = 0; mit echten Schnittzeiten abgleichen. "
+    "Schicht: Stunden je Arbeitstag für die Wochenauslastung (Datei → Maschinenauslastung …; leer = Einstellung).")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -808,6 +823,9 @@ MUSTER_DARSTELLUNG = (MUSTER_UMLEGEN, MUSTER_ZEILE)
 # Löschschutz der Angebote (Patrick 28.10.2026): einmal optimierte Angebote lassen sich nicht mehr löschen (Admin schon)
 LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND = "aus", "immer", "nur von Hand"
 LOESCHSCHUTZ = (LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND)
+# Zeitraum der Angebotsliste (Patrick 29.10.2026): Angebote mit Datum oder Änderung in den letzten N Tagen
+ZEITRAUM_ALLE = "Alle"
+ZEITRAUM = {"30 Tage": 30, "60 Tage": 60, "100 Tage": 100, "150 Tage": 150, "365 Tage": 365, ZEITRAUM_ALLE: None}
 
 
 # ------------------------------------------------------------------ Einstellungen
@@ -1053,6 +1071,10 @@ EINSTELLUNGEN = (
     # Vorgabe aus; „von Hand“ zählt nur F9/Optimieren, nicht das automatische Optimieren der Entwürfe
     Einstellung("loeschschutz", "Löschschutz: optimierte Angebote nicht löschbar (immer = auch automatisch "
                 "optimierte)", "Angebot", "auswahl", LOESCHSCHUTZ_AUS, auswahl="loeschschutz"),
+    # Zeitraum der Angebotsliste (Patrick 29.10.2026, nur dieser Arbeitsplatz): ältere Angebote ausblenden; offene
+    # Wiedervorlagen, nicht versendete Aufträge und geöffnete bleiben, die Suche findet alle
+    Einstellung("angebote_zeitraum", "Angebotsliste: Zeitraum (Angebote mit Datum oder Änderung in den letzten Tagen)",
+                "Angebot", "auswahl", "150 Tage", auswahl="zeitraum"),
     # Plan Arbeitsabläufe W1: Entwürfe bis zu so vielen Positionen nach jeder Änderung selbst optimieren
     Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
                 100, 0, 10000),
@@ -1072,6 +1094,11 @@ EINSTELLUNGEN = (
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
+    # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001
+    Einstellung("ab_nummer", "Auftragsbestätigung: Nummer", "Angebots-PDF", "auswahl", "wie Angebot",
+                auswahl="abnummer"),
+    Einstellung("ab_text", "Auftragsbestätigung: Text über den Positionen", "Angebots-PDF", "mehrzeilig",
+                "Vielen Dank für Ihren Auftrag. Wir bestätigen ihn zu den folgenden Preisen und Bedingungen."),
     # Materialanfrage per Outlook: Vorlagen mit Platzhaltern, Signatur
     Einstellung("anfrage_betreff", "Materialanfrage: Betreff", "Materialanfrage", "text",
                 "Materialanfrage zu Angebot {angebot}"),
@@ -1135,6 +1162,27 @@ EINSTELLUNGEN = (
     Einstellung("fertigung_status", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
                 "Lager und Fertigung", "mehrzeilig", "Freigegeben\nArbeitsvorbereitung\nMaterial bereit\nIn Fertigung\n"
                 "Fremdvergabe\nQualitätsprüfung\nFertig gemeldet"),
+    # Etiketten mit QR-Code und Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
+    Einstellung("etikett_format", "Etiketten: Format", "Lager und Fertigung",
+                "auswahl", "A4, 3 × 8 Etiketten (70 × 37 mm)",
+                auswahl="etikettformat"),
+    Einstellung("rueckmeldung_schritte", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte "
+                "= fertig)", "Lager und Fertigung", "mehrzeilig", "Geschnitten\nEntgratet\nVerpackt"),
+    # Reklamationen (Plan 29.10.2026 2c, reklamation.py)
+    Einstellung("reklamation_fehlerarten", "Reklamationen: Fehlerarten (eine Zeile je Fehlerart)",
+                "Lager und Fertigung", "mehrzeilig", "Maß außerhalb der Toleranz\nKontur fehlt oder falsch\nGrat oder "
+                "Schlacke\nOberfläche, Kratzer, Anlauffarben\nFalscher Werkstoff oder falsches Profil\nFalsche "
+                "Menge\nTransportschaden\nSonstiges"),
+    # Wochenauslastung je Maschine mit Schichtkalender (Plan 29.10.2026 2b, auslastung.py)
+    Einstellung("schicht_stunden", "Auslastung: Stunden je Arbeitstag und Maschine (Maschine leer = dieser Wert)",
+                "Lager und Fertigung", "zahl", 8.0, 0, 24),
+    Einstellung("schicht_samstag", "Auslastung: Stunden am Samstag", "Lager und Fertigung", "zahl", 0.0, 0, 24),
+    Einstellung("schicht_verfuegbar", "Auslastung: nutzbarer Anteil der Schichtzeit (Wartung, Störungen)",
+                "Lager und Fertigung", "anteil", 0.85, 0.1, 1),
+    Einstellung("betriebsruhe", "Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. 24.12.2026-31.12.2026; "
+                "02.10.2026)", "Lager und Fertigung", "text", ""),
+    Einstellung("auslastung_vorlauf", "Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin",
+                "Lager und Fertigung", "ganz", 2, 0, 60),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
                 1200, 200, 3000),
     Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",
@@ -1318,7 +1366,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
@@ -1329,7 +1377,10 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN),
-                         "loeschschutz": list(LOESCHSCHUTZ), "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "loeschschutz": list(LOESCHSCHUTZ), "zeitraum": list(ZEITRAUM),
+                         "abnummer": ["wie Angebot", "eigener Nummernkreis"],
+                         "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
+                                           "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
@@ -1616,8 +1667,8 @@ def beispiel_blechlaser():
 def beispiel_werkstoffe():
     """Werkstoffe mit Kategorie (Beispiel-Tonnenpreise, bitte durch eigene ersetzen) und Lasereigenschaften
     (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis; Richtwerte, Patrick 24.10.2026). Je Zeile alle
-    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten leer)."""
-    return [w[:9] + (None, None, None) + w[9:] for w in _BEISPIEL_WERKSTOFFE]
+    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten und Teuerungszuschlag leer)."""
+    return [w[:9] + (None, None, None) + w[9:] + (None, None, None) for w in _BEISPIEL_WERKSTOFFE]
 
 
 _ST, _ES, _AL, _BM = "Stahl", "Edelstahl", "Aluminium", "Buntmetall"
@@ -1772,18 +1823,27 @@ _ALTE_RICHTWERTE = {
 GRAVUR = {"Faser": 3000, "CO₂": 3000}
 ALTE_GRAVUR = (15000, 10000)
 RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel: Richtwert CO₂-Laser"}
+# Zeit je Ecke im Anfangs- und Endschnitt (Patrick 29.10.2026, S2 „nach Wandstärke“): 0,2 s + 0,05 s je mm
+# 'Wandstärke bis' der Zeile (1 mm 0,25 s, 3 mm 0,35 s, 8 mm 0,6 s, 12 mm 0,8 s); bis 0.9.195 leer
+ECKE_GRUND, ECKE_JE_MM = 0.2, 0.05
+
+
+def zeit_ecke(wand_bis):
+    """Standard 'Zeit je Ecke' [s] einer Schneiddaten-Zeile mit dieser 'Wandstärke bis' [mm]."""
+    return round(ECKE_GRUND + ECKE_JE_MM * float(wand_bis), 2)
 
 
 def beispiel_schneiddaten():
     """Schneiddaten je Kategorie (Werkstoff-ID leer) für T03 (CO₂) sowie T11 und LT7 (Faser) aus den Richtwerten.
-    Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt am Rohr die Dynamik, nicht die Leistung."""
+    Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt am Rohr die Dynamik, nicht die Leistung.
+    Zeit je Ecke nach Wandstärke (zeit_ecke: Quadrat-/Rechteckrohr bremsen und drehen an jeder Ecke)."""
     out = []
     for m, laser in LASER.items():
         text = f"{RICHTWERT_TEXT[laser]} {zahl_als_text(LEISTUNG[m])} kW, Rohr"
         for (kat, gas), stufen in RICHTWERTE[m].items():
             for wand, v, ein in stufen:
                 out.append((m, None, kat, gas, wand, v, round(v * 0.6, -1), round(v * 0.3, -1), ein, GRAVUR[laser],
-                            text))
+                            text, zeit_ecke(wand)))
     return out
 
 

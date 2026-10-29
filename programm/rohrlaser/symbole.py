@@ -48,6 +48,7 @@ KNOPF_SYMBOL = {
     "Ablage öffnen": "ordner", "Ordner öffnen": "ordner", "Abgleichen": "abgleich", "STEP importieren …": "step", "Optimieren": "optimieren",
     "3D-Ansicht …": "ansicht3d",
     "Angebot (PDF)": "pdf", "Ausgaben": "ausgaben", "Werkstattpapiere (PDF)": "pdf", "Kalkulation (PDF)": "pdf",
+    "Auftragsbestätigung (PDF)": "pdf", "Etiketten mit QR-Code (PDF) …": "pdf",
     "Materialanfrage (E-Mail)": "mail", "Alle Angebote": "liste", "Datensicherung erstellen": "sichern",
     "Sicherung wiederherstellen …": "wiederherstellen", "Datenordner öffnen": "ordner",
     "Einstellungen öffnen": "einstellungen", "Staffelpreise rechnen": "staffel", "Neue Stufe …": "neu",

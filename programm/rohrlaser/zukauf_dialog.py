@@ -221,7 +221,7 @@ class ZukaufDialog(QDialog):
             e["je"] = je
         else:
             e.pop("je", None)
-        QTimer.singleShot(0, self._zeigen)      # erst nach dem Signal des Auswahlfelds neu zeigen
+        QTimer.singleShot(0, self, self._zeigen)      # erst nach dem Signal des Auswahlfelds neu zeigen
 
     def _geaendert(self, it):
         if self._fuellen or it.column() not in EDIT:

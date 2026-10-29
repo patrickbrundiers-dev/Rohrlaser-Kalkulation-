@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import baugruppe, stil
+from . import baugruppe, reklamation, stil
 from . import nachkalkulation as nk
 from .spaltenbreite import AutoGroesse
 from .stil import GRUEN, GRUEN_FLAECHE, ROT, ROT_FLAECHE
@@ -125,6 +125,11 @@ class NachkalkulationSeite(QWidget):
     def neu_laden(self):
         s = self.s
         self.ist = dict(s.kopf.get("nachkalkulation") or {})
+        rk = reklamation.kosten(s.db, s.id)      # Reklamationskosten immer aktuell (Plan 29.10.2026 2c)
+        if rk is None:
+            self.ist.pop("reklamation", None)
+        else:
+            self.ist["reklamation"] = rk
         self._laden = True
         if not s.ergebnis or not s.ergebnis.get("stangen"):
             self.stand.setText("<b style='color:#7A5A00'>Noch nicht optimiert: die Nachkalkulation vergleicht mit dem "
