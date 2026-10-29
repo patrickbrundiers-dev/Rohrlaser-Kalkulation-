@@ -1655,6 +1655,13 @@ def kapitel_angebot(i):
             "Das Fenster nennt die getroffene Seite: bei Rechteckrohr <i>Breitseite</i> (die längere Seite) oder "
             "<i>Schmalseite</i>, bei Quadratrohr nur die Richtung, bei Rundrohr nur den Winkel. Liegt der Winkel auf "
             "einer Ecke, ist die Seite nicht eindeutig (Warnung).",
+            "<b>Mehrere Positionen</b> markiert: das Fenster zeigt die Werte der ersten. Haben die Positionen "
+            "verschiedene Nahtwinkel (z. B. aus dem STEP-Import), behält jede ihren eigenen, solange der Winkel im "
+            "Fenster nicht geändert wird; Nahtvorgabe und Quelle gelten für alle. Ein geänderter Winkel gilt für "
+            "alle markierten Positionen. Die Querschnittslage bekommen nur Rechteckrohre; bei Quadrat- und "
+            "Rechteckrohr legt das Programm die Naht auf die Mitte der Seite, auf der sie liegt (ein Winkel von "
+            "50° eines Rundrohrs wird bei RE 60x40 zu 0°, bei QR 40x40 zu 90°). Mit genau dieser Seite rechnet "
+            "auch die Optimierung.",
             "<b>Naht der Lieferstange</b> (nur Rechteckrohr, bei fester Position): auf welcher Seite die bestellte "
             "Stange ihre Schweißnaht hat, <i>Breitseite</i> oder <i>Schmalseite</i>. Das ist eine Angabe des "
             "<b>Angebots</b>, nicht der Stammdaten: sie gilt in diesem Angebot für alle Positionen mit gleichem "
