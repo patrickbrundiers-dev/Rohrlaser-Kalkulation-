@@ -337,6 +337,11 @@ STAFFEL_HINWEIS_SATZ = "Staffelpreise bei Einzelbestellung dieses Satzes"
 STAFFEL_HINWEIS_STUFE = "Staffelpreise je Stufe bei gemeinsamer Bestellung aller Positionen dieser Stufe"
 
 
+def _preis_pe(preis, pe):
+    """Preis je Einheit, bei Kleinteilen mit Preiseinheit (Plan B3): '3,74 je 100'."""
+    return _z(preis) + (f" je {_z(pe, 0)}" if pe and pe > 1 else "")
+
+
 def _staffel_text(st, satz=False):
     n = _z(st["menge"], 0)
     stufe = f"Stufe {st['stufe']}: " if st.get("gemeinsam") and st.get("stufe") else ""
@@ -422,7 +427,8 @@ def _angebot_positionen(ang):
         # als eigener heller Kasten unter der Bezeichnung: nicht mit der Menge der Position zu verwechseln (C-9)
         von = len(daten)
         for st in liste:
-            r = zeile(["", "", _p(_staffel_text(st, satz), S_A_STAFFEL), "", "", _p(_z(st["preis"]), S_A_STAFFEL), ""])
+            r = zeile(["", "", _p(_staffel_text(st, satz), S_A_STAFFEL), "", "",
+                       _p(_preis_pe(st["preis"], st.get("preiseinheit")), S_A_STAFFEL), ""])
             stil.append(("SPAN", (2, r), (4, r)))
         if liste:           # jede Stufe ist eine eigene Bestellung (Rüsten, Pauschalen, Mindestpreis je Stufe)
             text = STAFFEL_HINWEIS_STUFE if all(st.get("gemeinsam") for st in liste) else \
@@ -450,7 +456,8 @@ def _angebot_positionen(ang):
             continue
         erste, _, rest = (z["text"] or "").partition("\n")
         zeile([_p(_z(z["pos"], 0)), _p(z["artikel"], S_A_ARTIKEL), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
-               _p(z.get("einheit") or ("Satz" if z["art"] == "satz" else "Stk.")), _p(_z(z["preis"]), S_A_RECHTS),
+               _p(z.get("einheit") or ("Satz" if z["art"] == "satz" else "Stk.")),
+               _p(_preis_pe(z["preis"], z.get("preiseinheit")), S_A_RECHTS),
                _p(_z(z["gesamt"]), S_A_RECHTS)])
         staffeln(z.get("staffeln") or (), z["art"] == "satz")
         text_zeilen(rest)
@@ -1068,7 +1075,8 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
            ("davon Anbauteile [s]", "zeit_gravur_anbau", 1, 12, False),
            ("Einstiche", "einstiche_teil", 0, 13, True), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 13, True),
            ("Mehrzeit 3D [s]", "zeit_d3", 1, 13, False), ("Ecken [s]", "zeit_ecken", 1, 12, False), ("Anfahren [s]", "zeit_anfahren", 1, 13, False),
-           ("Anschlag doppelt [s]", "zeit_doppel", 1, 14, False), ("Laser brutto [s]", "laser_brutto", 1, 14, True),
+           ("Anschlag doppelt [s]", "zeit_doppel", 1, 14, False), ("Nebenzeit [s]", "zeit_neben", 1, 13, False),
+           ("Laser brutto [s]", "laser_brutto", 1, 14, True),
            ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]
 S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
 

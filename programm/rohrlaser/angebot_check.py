@@ -52,13 +52,13 @@ def _n_pos(n):
 
 def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig_bis=None, heute=None, *,
            kalk_zeilen=None, kunde=None, preis_abweichung=(), mindestmarge=0, admin=False, laser_hinweise=(),
-           staffel_widersprueche=()):
+           staffel_widersprueche=(), plausibel=()):
     """Alle Punkte [Punkt], FEHLER zuerst. status = Status je Position, stand = Stand der Optimierung, summen =
     rechnen.kalkulation(...)[1], kalk_zeilen = deren Zeilen (Hinweise, Zukauf ohne EK je Position), kunde = Zeile des
     Kunden (None = nicht prüfen), preis_abweichung = rechnen.preisbasis_abweichung, mindestmarge = Anteil (0 = aus),
     admin = Marge mit Zahlen nennen (sonst ohne), laser_hinweise = rechnen.laser_hinweise (Werkstoff-Hinweise für den
     Rohrlaser, Patrick 24.10.2026 „5b“), staffel_widersprueche = ausgabe.staffel_widersprueche (Staffelpreise, die im
-    Angebots-PDF dem Preis der Zeile widersprechen)."""
+    Angebots-PDF dem Preis der Zeile widersprechen), plausibel = plausibel.punkte (Preis-Plausibilität, Plan C3)."""
     from .angebot import aktiv as position_aktiv
     from .rechnen import anbau_offen, bohrbild_offen, verschickt_abweichung
     from .stammdaten import zahl_als_text as zahl
@@ -115,6 +115,8 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         text = (f"Marge {zahl(100 * m, 1)} % unter der Mindestmarge {zahl(100 * mindestmarge, 1)} %"
                 if admin else "Marge unter der Mindestmarge (Einstellungen)")
         out.append(Punkt(WARNUNG, text, "kalkulation"))
+    for art, text, i in plausibel or ():
+        out.append(Punkt(art, text, f"pos:{i}" if i is not None else "kalkulation"))
     if staffel_widersprueche:
         n = len(staffel_widersprueche)
         out.append(Punkt(WARNUNG, f"Staffelpreis widerspricht dem Angebotspreis ({n} Zeile{'n' if n > 1 else ''}): "

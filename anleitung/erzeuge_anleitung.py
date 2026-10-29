@@ -2684,6 +2684,78 @@ def kapitel_optimieren(i):
            "übernehmen …</b> stellt sie um (der Dialog nennt „Gewinn auf Herstellkosten → auf Selbstkosten“). Mit "
            "gleichem Gewinn-Prozentsatz steigen die Preise dadurch; bei den Prüfangeboten mit 25 % Gewinn um 1,6 bis "
            "8 %, bei kleinen Aufträgen am meisten.")
+    i.abschnitt("Nebenzeit, Schneidgas, Ausschuss, Schrotterlös und Preiseinheit", marke="kalkulation_genauer")
+    i.text("Diese Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
+           "Preise wie bisher. Auch die Preiseinheit für Kleinteile ist ab Werk aus.", kurz=True)
+    i.tabelle(["Wert", "Wo", "Wirkung"], [
+        ["<b>Nebenzeit je Teil [s]</b>", "Maschine", "Ausschieben, Abtrennen und Entnehmen jedes Teils; kommt zur "
+         "Laserzeit (Spalte <i>davon Nebenzeit je Teil</i>). Kleine Teile in großer Stückzahl werden sonst zu billig."],
+        ["<b>Schneidgas N₂ [€/h]</b>, <b>Schneidgas O₂ [€/h]</b>", "Maschine", "Gaskosten je Stunde Laserzeit nach dem Gas der Schneiddaten, "
+         "zusätzlich zum Stundensatz; eigene Kostenart <i>Schneidgas</i>. Stickstoff (Edelstahl, Alu) ist teurer als "
+         "Sauerstoff. Genauer geht es über Düse und Gasdruck (nächste Zeilen); dieser Zuschlag gilt dann nur noch für "
+         "Schneiddaten ohne Düse. Schneidgas zählt nur bei einem ermittelten Stundensatz oder mit <i>Gas zusätzlich "
+         "zum Stundensatz</i> = ja ([[stundensatz_ermitteln]]); ein Satz von Hand enthält das Gas sonst schon."],
+        ["<b>Düse Ø [mm]</b>, <b>Gasdruck [bar]</b>", "Schneiddaten", "Düsendurchmesser und Gasdruck (Überdruck am "
+         "Manometer) je Schneiddaten-Zeile. Daraus rechnet das Programm den Gasverbrauch in m³/h, z. B. N₂ mit Düse "
+         "2,0 mm bei 15 bar ≈ 28,6 m³/h. Richtwerte: N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar."],
+        ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kalkulation", "Preis je Norm-m³ aus "
+         "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
+         "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
+        ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kalkulation", "ein Schalter "
+         "für alle Maschinen: nein = kein Schneidgas, egal was an Maschine und Schneiddaten steht; Vorgabe ja."],
+        ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kalkulation", "gleicht die Rechnung an den "
+         "gemessenen Verbrauch an: Gasverbrauch laut Rechnung (m³ im Monat) geteilt durch den gerechneten Verbrauch "
+         "der Spalte <i>Gas je Teil [m³]</i> × Stückzahl derselben Aufträge; Vorgabe 1."],
+        ["<b>Rüstzuschlag je weiterer Profilform [min]</b>", "Maschine", "Spannbacken tauschen: hat ein Angebot "
+         "mehrere Profilformen (z. B. Rundrohr und Quadratrohr), kommt je Form ab der zweiten diese Zeit zu "
+         "<i>Rüsten je Abmessung</i>."],
+        ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kalkulation", "verworfene Teile: der Anteil auf Material und "
+         "Laserzeit (mit Gewinde und Schneidgas) der Rohrlaserteile, 0 = keiner; eigene Kostenart <i>Ausschuss</i>. Die "
+         "Nachkalkulation zeigt die gemessene Ausschussquote ([[nachkalkulation]])."],
+        ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kalkulation", "Gutschrift für den Verschnitt "
+         "(Stangenlänge ohne Teile und ohne Reste, die ins Lager gehen) in Prozent des Materialpreises, z. B. 20 %; "
+         "Kostenart <i>Schrotterlös Verschnitt</i> (negativ), 0 = aus. Kundenmaterial ohne Erlös."],
+        ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kalkulation", "Kleinteile stehen mit Preis je 100 "
+         "Stück im Angebot (unter einem Zehntel des Werts je 1000), z. B. 3,44 € je 100 statt 0,03 € je Stück. Ohne "
+         "Preiseinheit verliert die Rundung auf den Cent bei 0,034 € je Teil 12 %. Vorgabe 0 = aus, immer je Stück; "
+         "zum Einschalten z. B. 0,10 eintragen."]],
+        [48, 35, 182])
+    i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
+           "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
+           "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Stundensatz ermitteln je Maschine", marke="stundensatz_ermitteln")
+    i.text("Der Stundensatz einer Maschine kann von Hand eingetragen oder ermittelt werden. In den Maschinen-"
+           "Stammdaten steht dafür die Spalte <b>Stundensatz von Hand/ermittelt</b>; leer heißt von Hand. Der Knopf "
+           "<i>Stundensatz ermitteln …</i> öffnet für die markierte Maschine einen Dialog mit dem Rechenweg.",
+           kurz=True)
+    i.tabelle(["Stundensatz", "Strom", "Schneidgas"], [
+        ["von Hand (leer)", "im eingetragenen Satz", "im Satz; nur mit <b>Gas zusätzlich zum Stundensatz</b> = ja "
+         "kommt das Schneidgas je Teil dazu"],
+        ["ermittelt", "Zeile Strom der Ermittlung", "kommt immer je Teil dazu (Düse und Druck bzw. €/h)"]], [40, 50, 95])
+    i.text("Rechenweg: feste Kosten je Jahr (Abschreibung = Anschaffung ÷ Nutzungsdauer, Zinsen auf den halben "
+           "Anschaffungswert, Raum, Instandhaltung, Wartung) ÷ genutzte Stunden, dazu Strom und Verschleiß je "
+           "Stunde, der Anteil des Bedieners und die Gemeinkosten. Genutzte Stunden = Stunden je Arbeitstag "
+           "(Maschine <i>Schicht</i>, sonst Einstellung) × Arbeitstage × Auslastung. Beispiel: 650.000 € über 10 "
+           "Jahre, 60 m², 30 kW, 2.475 h im Jahr ergeben 97,60 €/h.")
+    i.tabelle(["Wert", "Wo"], [
+        ["<b>Ermittlung: Anschaffung [€]</b>, <b>Ermittlung: Nutzungsdauer [Jahre]</b>, <b>Ermittlung: Fläche "
+         "[m²]</b>, <b>Ermittlung: Instandhaltung [% je Jahr]</b>, <b>Ermittlung: Wartung, Versicherung [€/Jahr]</b>, "
+         "<b>Ermittlung: Anschlussleistung [kW]</b>, <b>Ermittlung: Verschleiß [€/h]</b>, <b>Ermittlung: Bediener "
+         "[% Betreuung]</b>", "je Maschine (Dialog oder Tabelle)"],
+        ["<b>Stundensatz-Ermittlung: Strompreis [€/kWh]</b>, <b>Stundensatz-Ermittlung: Raumkosten [€/m² im "
+         "Monat]</b>, <b>Stundensatz-Ermittlung: Zinssatz [%]</b>, <b>Stundensatz-Ermittlung: Bedienerlohn [€/h]</b>, "
+         "<b>Stundensatz-Ermittlung: Gemeinkosten [%]</b>, <b>Stundensatz-Ermittlung: Arbeitstage je Jahr</b>, "
+         "<b>Stundensatz-Ermittlung: Auslastung [%]</b>", "Einstellungen, Kalkulation (für alle Maschinen)"]],
+        [130, 55])
+    i.text("<i>Übernehmen</i> stellt die Maschine auf ermittelt und trägt den Satz ein. Neue Angebote speichern den "
+           "Satz beim Anlegen; spätere Änderungen gelten nur für neue Angebote. Bisherige Maschinen bleiben von "
+           "Hand, ihre Preise ändern sich nicht.")
+    i.genauer("Preis-Plausibilität im Angebots-Check")
+    i.text("Der Angebots-Check ([[angebots_check]]) prüft die Preise auf Tippfehler: ein Stückpreis unter den "
+           "Materialkosten ist eine WARNUNG; ein Preis je kg, der mehr als 3-mal höher oder niedriger ist als bei "
+           "derselben Abmessung in früher verschickten Angeboten, und ein Ertrag je Laserstunde unter dem "
+           "Stundensatz sind ein HINWEIS. Den Preis je kg jeder Position merkt sich das Programm beim Angebots-PDF; "
+           "der Vergleich wächst also mit jedem verschickten Angebot. Kein Preis wird geändert.")
     i.abschnitt("Zeiten & Arbeitskosten", marke="zeiten")
     i.bild("erg_zeiten", "Reiter Zeiten & Arbeitskosten mit Beispielzeiten (Beispielwerte, keine gemessenen Zeiten)",
            hoehe=95 * mm, legende=[
@@ -6640,7 +6712,7 @@ def kapitel_stammdaten(i):
                              "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit. Standard "
                              "seit 0.9.196 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
-           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.9.200 sind sie mit veröffentlichten "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.9.201 sind sie mit veröffentlichten "
            "Schneidtabellen abgeglichen, und die <i>Bemerkung</i> jeder Zeile nennt die Herkunft: <i>GWEIKE Rohr 3 kW "
            "bzw. 4 kW</i> (Rohr-Schneidtabellen eines Rohrlaser-Herstellers), <i>Hypertherm 3 kW Flachbett</i> "
            "(Einstechzeiten Edelstahl) oder <i>Schätzung</i>. Trumpf und Adige veröffentlichen keine Vorschubtabellen; "
