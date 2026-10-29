@@ -442,6 +442,10 @@ class AngeboteSeite(QWidget):
         leiste.addWidget(self.abgleich_knopf)
         leiste.addSpacing(20)
         leiste.addWidget(self.wer_filter)
+        # schmale Fenster (1024 px): die Auswahlen dürfen schmaler werden als ihr längster Eintrag, damit der
+        # Zeitraum die Mindestbreite des Hauptfensters nicht erhöht
+        self.vorgang_filter.setMinimumWidth(120)
+        self.zeitraum_filter.setMinimumWidth(70)
         leiste.addWidget(self.vorgang_filter)
         leiste.addWidget(self.zeitraum_filter)
         leiste.addWidget(self.suche, 1)
