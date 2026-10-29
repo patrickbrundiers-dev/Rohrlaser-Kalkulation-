@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.187", "<b>PDF-Dokumente ohne Überlappungen</b>: Alle Ausgaben (Angebot, Werkstattpapiere, Kalkulation, "
+    ["0.9.191", "<b>PDF-Dokumente ohne Überlappungen</b>: Alle Ausgaben (Angebot, Werkstattpapiere, Kalkulation, "
                 "Nachkalkulation, Palettenschein, Verladeliste) mit langen Texten geprüft und korrigiert – langer "
                 "Briefkopf in der Fußzeile bis zu drei Zeilen statt über die Seitenzahl, Stundensatz in der "
                 "Kalkulation nicht mehr über der Gesamtzeit, Artikeltext im Palettenschein mit „…“ statt über der "
@@ -30,6 +30,40 @@ NEUERUNGEN = [
                 "20 % kürzer), Summe und Konditionen im Angebot zusammen, lange Artikelnummern kleiner und lesbarer "
                 "([[ausgabe]]).",
      "PDFs: keine Überlappungen bei langen Texten, Stangenbild kompakter, Summe und Konditionen zusammen."],
+    ["0.9.190", "<b>Staffeln rechnen sich nach Änderungen selbst neu</b>: Sind im Angebot Stufen angelegt, rechnet "
+                "das Programm sie nach jeder Änderung am Angebot (Positionen, Stückzahl, Material, Zusatzarbeiten, "
+                "Editoren, Rückgängig, Stammdaten, Einstellungen) 1,5 s nach der letzten Eingabe im Hintergrund neu, "
+                "vor dem Angebots-PDF sofort. Stufen legt es weiterhin nie selbst an; Mengen und Werte der Stufen "
+                "bleiben unverändert ([[staffeln_automatisch]]).",
+     "Angelegte Staffeln werden nach Änderungen am Angebot automatisch neu gerechnet."],
+    ["0.9.189", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
+                "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
+                "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "
+                "kürzer, die Innenkante bleibt maßhaltig, die Schnittlänge gleich. Eine in 3D übernommene ebene "
+                "STEP-Gehrung wird beim Umstellen auf 2D ebenso kürzer. Neu auch für offene Profile und Flachstahl: "
+                "der Schenkel, der zur langen Seite zeigt, wird um seine Dicke · tan(Winkel) kürzer "
+                "([[schneidweg_rechner]]).",
+     "Gehrung auf 2D umstellen: lange Seite überall um Wand · tan(Winkel) kürzer, auch offene Profile."],
+    ["0.9.188", "<b>DXF-Import robuster</b> für Bleche und Rohre: Papierbereich (Layout), Schriftfelder mit Attributen, "
+                "Mehrfach-Blöcke, Linientyp „VonLayer“, Sonderzeichen und Splines aus Stützpunkten werden gelesen. "
+                "Kleine Lücken (bis 0,5 mm) werden geschlossen, doppelte Linien und Bohrungen zählen einmal, Teile mit "
+                "gemeinsamer Kante werden beide erkannt. Gleiche Bleche werden ein Teil mit Stückzahl. Kreise auf der "
+                "Außenkante, sich schneidende Konturen und Zoll ohne Einheit meldet das Prüffenster "
+                "([[dxf_import]]). Im Rohr-Schriftfeld wird auch „Werkstoff: S235JR“ gelesen. <b>Rohr oder Blech</b> wird "
+                "sicherer erkannt: mehr Profiltexte (SHS, RHS, CHS, Profilrohr, QR40x40x3, mit Norm), eine "
+                "Rohrzeichnung braucht einen Beleg (Bemaßung, verdeckte Kanten, Schraffur, Profiltext), sonst fragt "
+                "das Zuordnungsfenster und bietet „Als Blech importieren“.",
+     "DXF-Import robuster: Layout, Attribute, Lücken, doppelte Linien, gleiche Teile, Rohr oder Blech sicherer."],
+    ["0.9.187", "<b>STEP-Import für typische Laserteile robuster</b> (Testreihe nach Beispielbildern: Profile mit "
+                "Lochbildern auf mehreren Seiten, Kerben, Ausklinkungen, C-Profile, Kantteile): <b>offene Profile</b> "
+                "(U, C, L, Kantprofil) zeigen Ausklinkungen am Ende (auch T-förmig), Kerben im Schenkel und "
+                "V-Ausschnitte mit dem echten Umriss wie in der STEP statt als Kreis; eine breite Kerbe über drei "
+                "Wände eines Rechteckrohrs lag im Editor auf der falschen Seite; schräg liegende Langlöcher und "
+                "Rechtecke werden Sonderkontur mit Umriss. <b>Senkungen</b> auch, wenn der Kegel durch die ganze Wand "
+                "geht, und Zylindersenkungen – geschnitten wird nur der Bohrungs-Ø (auch bei Blechen). <b>Gewinde</b>: "
+                "Vorschlag auch nach dem Kern-Ø nach ISO (M8 = 6,647) und für ausmodellierte Gewinde "
+                "([[bohrungen_pruefen]]).",
+     "STEP: offene Profile mit echtem Umriss, Senkung durch die Wand, Gewinde nach ISO-Kern-Ø und ausmodelliert."],
     ["0.9.186", "<b>Fehlende Abmessung gleich anlegen</b>: Steht eine getippte Abmessung (z. B. RE 70x30x3) nicht in "
                 "den Stammdaten, bietet ein Menü unter dem Feld <i>Abmessung … neu anlegen …</i> an – in der "
                 "Schnellzeile, in der Profilspalte und in der Kopfzeile des Rohr-Editors (Neue Position). Das Fenster "
