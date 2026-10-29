@@ -1,5 +1,6 @@
 """Spalten der Ergebnistabellen eines Angebots (Anzeige im Programm und Kalkulation-PDF):
 [(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
+from .stammdaten import zahl_als_text
 
 def _position(z, schluessel):
     """Betrag je Teil × Stückzahl (leer, wenn der Betrag fehlt)."""
@@ -30,6 +31,7 @@ KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130),
                 ("Aufschlag Zukaufteile je Teil [€]", "zukauf_aufschlag_teil", 3, 90),
                 ("Gewinn je Teil [€]", "gewinn_teil", 3, 75), ("Fracht je Teil [€]", "fracht_teil", 3, 75),
                 ("Skonto je Teil [€]", "skonto_teil", 3, 75),
+                ("Musterumlage je Teil [€]", "muster_teil", 3, 85),
                 ("Mindestpreis je Teil [€]", "mindestpreis_teil", 3, 85),
                 ("Verkaufspreis je Teil [€]", "preis_teil", 3, 85),
                 ("Verkaufspreis Position [€]", "preis_position", 2, 95), ("Herstellkosten Position [€]", "herstell_position", 2, 95),
@@ -97,7 +99,17 @@ KOMPAKT_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 13
                    ("Laserzeit genutzt je Teil [s]", "laser_netto", 1, 85), ("Schneidzeit manuell", "zeit_manuell", None, 70),
                    ("Laserzeit genutzt Position [min]", "laser_position_min", 1, 90),
                    ("Verkaufspreis je Teil [€]", "preis_teil", 3, 85), ("Verkaufspreis Position [€]", "preis_position", 2, 95),
-                   ("Hinweis", "hinweis", None, 190)]
+                   ("Muster", "muster", None, 150), ("Hinweis", "hinweis", None, 190)]
+
+
+def muster_info(z):
+    """Spalte Muster der Kompaktansicht: Musterteil mit seinem Wert, Serienteil mit dem umgelegten Anteil je Teil."""
+    z = z or {}
+    if z.get("muster") == "ja":
+        return f"Muster, Wert {zahl_als_text(round(z.get('muster_preis_position') or 0, 2), 2)} €"
+    if z.get("muster_teil"):
+        return f"+{zahl_als_text(round(z['muster_teil'], 3), 3)} € je Teil (Muster)"
+    return ""
 
 
 def kompakt_zeilen(positionen, zeilen):
@@ -120,5 +132,5 @@ def kompakt_zeilen(positionen, zeilen):
                         laser_netto=netto, zeit_manuell=z.get("zeit_manuell") or "",
                         laser_position_min=netto * stueck / 60 if isinstance(netto, (int, float)) else None,
                         preis_teil=z.get("preis_teil"), preis_position=z.get("preis_position"),
-                        hinweis=z.get("hinweis") or ""))
+                        muster=muster_info(z), hinweis=z.get("hinweis") or ""))
     return out

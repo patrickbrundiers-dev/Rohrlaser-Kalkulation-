@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.184", "<b>Musterteile</b>: Positionen lassen sich als <b>Muster</b> markieren (Spalte <i>Muster</i>, "
+                "Rechtsklick „Muster an/aus“, Häkchen in Rohr-, Blech-, Baugruppen-Editor und Satz in 3D). Muster "
+                "stehen im Angebot mit 0,00 € und dem Vermerk „Muster – im Serienpreis enthalten“; ihre Kosten "
+                "(Selbstkosten mit normalem Gewinn, Zukauf nur mit Aufschlag) werden nach Wert auf die "
+                "Serienpositionen umgelegt, so entsteht nie eine Minusmarge. Muster laufen als eigener Lauf mit "
+                "eigenem Rüsten, Material nach belegter Länge. Je Angebot umschaltbar auf eine eigene Zeile "
+                "„Musterkosten einmalig“ (ohne Serienposition automatisch). Staffelpreise legen die Muster je "
+                "Stufe einmal um; das Angebots-PDF nennt, dass die Muster berechnet werden, wenn keine Serie "
+                "folgt ([[musterteile]]).",
+                "Musterteile: 0 € im Angebot, Kosten auf die Serie umgelegt, keine Minusmarge"],
     ["0.9.183", "<b>Viele Angebote</b>: Staffeln, Mengenstufen und STEP-Protokoll eines Angebots findet die Datendatei "
                 "jetzt über einen Index. Öffnen, Rückgängig, Löschen und der Abgleich mit den Kollegen bleiben auch bei "
                 "Tausenden Angeboten gleich schnell; die Indizes entstehen beim ersten Start von selbst ([[datensicherung]]).",
