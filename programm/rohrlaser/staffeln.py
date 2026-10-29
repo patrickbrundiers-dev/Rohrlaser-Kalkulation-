@@ -472,7 +472,7 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
 
 # (Name, Feld je Teil, Erklärung) der Fertigung und des Rüstens je Satz bzw. Position
 _FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stundensatz Laser"),
-              ("Schneidgas", "schneidgas_teil", "Schneidzeit × Zuschlag Schneidgas der Maschine"),
+              ("Schneidgas", "schneidgas_teil", "Gas aus Düse und Druck × €/m³ bzw. Schneidzeit × Zuschlag €/h"),
               ("Gewinde", "gewinde_teil", "Gewindezeit × Stundensatz bzw. Festpreis"),
               ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
               ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),

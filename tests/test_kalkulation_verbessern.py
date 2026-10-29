@@ -6,7 +6,8 @@
 - C2 gemeinsame Preisschicht: rechnen.gewinn_fracht an allen Stellen; leere neue Werte = Preise bitgleich wie bisher.
 - A1 Nebenzeit je Teil, B1 Schneidgas je Gas, B2 Ausschuss, B4 Rüsten je weiterer Profilform, B5 Schrotterlös: jeder
   Wert von Hand nachgerechnet, Kostenarten addieren sich zum Verkaufspreis.
-- B3 Preiseinheit für Kleinteile: 0,034 € je Teil steht als 3,40 € je 100 im Angebot, Summe ohne Rundungsverlust.
+- Schneidgas aus Düse Ø und Gasdruck der Schneiddaten × Gaspreis €/m³ (Patrick 29.10.2026), sonst €/h.
+- B3 Preiseinheit für Kleinteile (optional, ab Werk aus): 0,034 € je Teil steht als 3,40 € je 100 im Angebot, Summe ohne Rundungsverlust.
 - C3 Preis-Plausibilität: Preis unter Material (WARNUNG), €/kg gegen frühere Angebote, Ertrag je Laserstunde.
 - Festgeschriebene Angebote rechnen ohne die neuen Werte.
 
@@ -146,9 +147,44 @@ assert "1 × 20 min weitere Profilform" in text["Rüsten je Abmessung"], text["R
 assert {x["schritt"] for x in s1["zeiten"]} >= {"Schneidgas", "Ausschuss"}
 ok(f"B4 Rüsten je weiterer Profilform: 1 × 20 min = {s1['ruesten_form']:.2f} €, in Kostenarten und Zeiten")
 
+# ------------------------------------------------------------------ Schneidgas aus Düse und Gasdruck
+# Handrechnung N₂, Düse 2,0 mm, 15 bar Überdruck (kritisch): ṁ = Cd·A·p0·√κ·(2/(κ+1))^((κ+1)/(2(κ−1))) / √(R·T)
+a_ = 3.141592653589793 * 0.002 ** 2 / 4
+m_ = 0.85 * a_ * 16.013e5 * 1.4 ** 0.5 * (2 / 2.4) ** 3 / (296.8 * 293.15) ** 0.5
+nah(rechnen.gas_verbrauch(2.0, 15, "N₂"), m_ / 1.2506 * 3600, "N₂ kritisch")
+nah(rechnen.gas_verbrauch(2.0, 15, "N₂"), 28.57, "N₂ ≈ 28,6 m³/h", eps=1e-3)
+nah(rechnen.gas_verbrauch(2.0, 15, "N₂", 1.2), 1.2 * rechnen.gas_verbrauch(2.0, 15, "N₂"), "Korrekturfaktor")
+q_o2 = rechnen.gas_verbrauch(1.5, 0.8, "O₂")      # unterkritisch
+assert 1.0 < q_o2 < 2.5 and rechnen.gas_verbrauch(1.5, 0.8, None) == 0 and rechnen.gas_verbrauch(0, 15, "N₂") == 0
+db2 = Datenbank(tmp / "gas.db")
+for x in db2.zeilen("schneiddaten"):
+    if x.get("gas") == "N₂":            # O₂-Zeilen ohne Düse: dort bleibt der Zuschlag €/h der Maschine
+        db2.aendern("schneiddaten", x["id"], "duese", 2.0)
+        db2.aendern("schneiddaten", x["id"], "gasdruck", 15.0)
+kopf, pos, k, tab, e = angebot(db2, NEU, dict(gaspreis_n2=0.9, gaspreis_o2=0.5, gas_faktor=1.1))
+z2, s2, _ = gegenprobe(kopf, pos, k, tab, e)
+gas_n2 = [z for i, z in enumerate(z2) if i in laser and z["gas"] == "N₂"]
+gas_o2 = [z for i, z in enumerate(z2) if i in laser and z["gas"] == "O₂"]
+assert gas_n2, [z["gas"] for i, z in enumerate(z2) if i in laser]
+for z in gas_n2:
+    q = rechnen.gas_verbrauch(2.0, 15, "N₂", 1.1)
+    nah(z["gas_m3h"], q, "m³/h")
+    assert 0 < z["zeit_gas"] <= z["laser_netto"] - z["zeit_neben"] + 1e-9, (z["zeit_gas"], z["laser_netto"])
+    nah(z["gas_m3_teil"], q * z["zeit_gas"] / 3600, "m³ je Teil")
+    nah(z["schneidgas_teil"], z["gas_m3_teil"] * 0.9, "€ je Teil = m³ × 0,90 €/m³")
+for z in gas_o2:
+    assert z["gas_m3_teil"] is None
+    nah(z["schneidgas_teil"], z["laser_netto"] / 3600 * 3.0, "O₂ ohne Düse: Zuschlag €/h")
+nah(s2["gas_m3"], sum(z["gas_m3_teil"] * z["stueck"] for z in gas_n2), "m³ gesamt")
+g = [x for x in s2["zeiten"] if x["schritt"] == "Schneidgas"][0]
+assert "m³ aus Düse und Gasdruck" in g["formel"], g
+ok(f"Schneidgas aus Düse 2,0 mm und 15 bar: {rechnen.gas_verbrauch(2.0, 15, 'N₂'):.1f} m³/h × Korrektur 1,1 × "
+   f"Zeit mit Gas × 0,90 €/m³; O₂ ohne Düse weiter €/h; Gegenprobe Staffel = Angebot {s2['verkauf']:.2f} €")
+
 # ------------------------------------------------------------------ B3 Preiseinheit
 assert ausgabe.preiseinheit(0.034, 0.1) == 100 and ausgabe.preiseinheit(0.004, 0.1) == 1000
 assert ausgabe.preiseinheit(0.5, 0.1) == 1 and ausgabe.preiseinheit(0.034, 0) == 1
+assert Datenbank(tmp / "pe.db").einstellungen()["preiseinheit_ab"] == 0, "Preiseinheit ab Werk aus (Patrick 29.10.)"
 zeilen = [dict(pos=10, preis_teil=0.0344, stueck=10000, hinweis="")]
 pos_k = [dict(pos=10, artikel="K", stueck=10000, profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=20)]
 ang = ausgabe.angebot({}, pos_k, zeilen, k, dict(preiseinheit_ab=0.1, mwst=0.19))

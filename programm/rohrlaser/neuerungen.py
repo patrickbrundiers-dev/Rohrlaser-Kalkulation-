@@ -23,14 +23,16 @@ def als_html(neuerungen=None):
 NEUERUNGEN = [
     ["0.9.197", "<b>Kalkulation genauer</b> ([[kalkulation_genauer]]): neue Maschinenfelder <i>Nebenzeit je Teil</i> "
                 "(Ausschieben/Entnehmen), <i>Schneidgas N₂/O₂ [€/h]</i> (Gaskosten je Laserstunde nach dem Gas der "
-                "Schneiddaten) und <i>Rüstzuschlag je weiterer Profilform</i>; in den Einstellungen <i>Ausschuss</i> "
+                "Schneiddaten; genauer über <i>Düse Ø</i> und <i>Gasdruck</i> in den Schneiddaten und <i>Gaspreis "
+                "€/m³</i> in den Einstellungen: das Programm rechnet den Gasverbrauch in m³ je Teil) und <i>Rüstzuschlag je weiterer Profilform</i>; in den Einstellungen <i>Ausschuss</i> "
                 "(auf Material und Laserzeit) und <i>Schrotterlös Verschnitt</i> (Gutschrift). Alles leer = Preise wie "
-                "bisher. <b>Preiseinheit für Kleinteile</b>: unter 0,10 € je Stück steht der Preis je 100 Stück im "
+                "bisher. <b>Preiseinheit für Kleinteile</b> (optional, ab Werk aus; Einstellung <i>Preis je 100 Stück "
+                "unter</i>, z. B. 0,10 €): darunter steht der Preis je 100 Stück im "
                 "Angebot und in den Staffeln, ohne Rundungsverlust. <b>Preis-Plausibilität</b> im Angebots-Check: "
                 "Preis unter Material, Preis je kg gegen früher verschickte Angebote derselben Abmessung, Ertrag je "
                 "Laserstunde. Angebot und Staffel rechnen Gewinn und Fracht jetzt an einer gemeinsamen Stelle; ein "
                 "Test prüft bei jedem Update, dass eine Stufe mit den Mengen des Angebots dessen Preis ergibt.",
-     "Kalkulation genauer: Nebenzeit, Schneidgas, Ausschuss, Schrotterlös, Profilwechsel; Preis je 100 Stück; "
+     "Kalkulation genauer: Nebenzeit, Schneidgas aus Düse und Druck, Ausschuss, Schrotterlös, Profilwechsel; Preis je 100 Stück; "
      "Preis-Plausibilität"],
     ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
                 "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "

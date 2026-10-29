@@ -415,7 +415,9 @@ SCHNEIDDATEN = Tabelle(
      Feld("einstechzeit", "Einstechzeit [s]", "zahl", 0, 60, stellen=1),
      Feld("vorschub_gravur", "Vorschub Gravur [mm/min]", "zahl", 1, 100000, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=160),
-     Feld("zeit_ecke", "Zeit je Ecke [s]", "zahl", 0, 60, stellen=2, breite=75)),
+     Feld("zeit_ecke", "Zeit je Ecke [s]", "zahl", 0, 60, stellen=2, breite=75),
+     Feld("duese", "Düse Ø [mm]", "zahl", 0.3, 10, stellen=1, breite=65),
+     Feld("gasdruck", "Gasdruck [bar]", "zahl", 0.1, 40, stellen=1, breite=70)),
     ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"),
     "Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärke: es gilt die Zeile mit der "
     "kleinsten 'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Zeilen mit Werkstoff-ID gehen "
@@ -423,7 +425,9 @@ SCHNEIDDATEN = Tabelle(
     "Schneidgas: N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂ (so endet N₂ ab einer "
     "gewissen Wandstärke). Leere Vorschübe mittel/klein/Gravur nehmen den nächstgrößeren. Zeit je Ecke: Zuschlag "
     "je Ecke im Anfangs- und Endschnitt (der Laser bremst ab): RP-Profile nach ihrer Kontur, Quadrat- und "
-    "Rechteckrohr 4, andere 0; leer = 0.")
+    "Rechteckrohr 4, andere 0; leer = 0. Düse Ø und Gasdruck (Überdruck): daraus rechnet das Programm den "
+    "Gasverbrauch in m³/h, wenn in den Einstellungen ein Gaspreis €/m³ für das Gas steht (Richtwerte N₂ 1,5-3 mm bei "
+    "10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar); leer = Schneidgas-Zuschlag €/h der Maschine.")
 
 GEWINDE = Tabelle(
     "gewinde", "Gewinde",
@@ -896,7 +900,12 @@ EINSTELLUNGEN = (
                 "anteil", 0, 0, 0.5),
     Einstellung("schrott_anteil", "Schrotterlös Verschnitt [%]",
                 "Kalkulation", "anteil", 0, 0, 1),
-    Einstellung("preiseinheit_ab", "Preis je 100 Stück unter [€]", "Kalkulation", "zahl", 0.1, 0, 100),
+    Einstellung("preiseinheit_ab", "Preis je 100 Stück unter [€]", "Kalkulation", "zahl", 0.0, 0, 100),
+    # Schneidgas aus Düse und Gasdruck der Schneiddaten (Patrick 29.10.2026): Preis je Norm-m³, 0 = Zuschlag €/h der
+    # Maschine; Korrekturfaktor gleicht die Rechnung an den gemessenen Verbrauch an
+    Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
+    Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
+    Einstellung("gas_faktor", "Korrekturfaktor Gasverbrauch", "Kalkulation", "zahl", 1.0, 0.1, 5),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
     # angehoben. 0 = keiner.
     # Kundenmaterial (Spalte Material: Kunde beigestellt): keine Materialkosten; optional Handling je m der

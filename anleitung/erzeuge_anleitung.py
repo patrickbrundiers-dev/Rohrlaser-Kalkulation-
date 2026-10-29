@@ -2654,14 +2654,24 @@ def kapitel_optimieren(i):
            "gleichem Gewinn-Prozentsatz steigen die Preise dadurch; bei den Prüfangeboten mit 25 % Gewinn um 1,6 bis "
            "8 %, bei kleinen Aufträgen am meisten.")
     i.abschnitt("Nebenzeit, Schneidgas, Ausschuss, Schrotterlös und Preiseinheit", marke="kalkulation_genauer")
-    i.text("Fünf Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
-           "Preise wie bisher. Nur die Preiseinheit für Kleinteile ist ab Werk an (unter 0,10 € je Stück).", kurz=True)
+    i.text("Diese Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
+           "Preise wie bisher. Auch die Preiseinheit für Kleinteile ist ab Werk aus.", kurz=True)
     i.tabelle(["Wert", "Wo", "Wirkung"], [
         ["<b>Nebenzeit je Teil [s]</b>", "Maschine", "Ausschieben, Abtrennen und Entnehmen jedes Teils; kommt zur "
          "Laserzeit (Spalte <i>davon Nebenzeit je Teil</i>). Kleine Teile in großer Stückzahl werden sonst zu billig."],
         ["<b>Schneidgas N₂ [€/h]</b>, <b>Schneidgas O₂ [€/h]</b>", "Maschine", "Gaskosten je Stunde Laserzeit nach dem Gas der Schneiddaten, "
          "zusätzlich zum Stundensatz; eigene Kostenart <i>Schneidgas</i>. Stickstoff (Edelstahl, Alu) ist teurer als "
-         "Sauerstoff."],
+         "Sauerstoff. Genauer geht es über Düse und Gasdruck (nächste Zeilen); dieser Zuschlag gilt dann nur noch für "
+         "Schneiddaten ohne Düse."],
+        ["<b>Düse Ø [mm]</b>, <b>Gasdruck [bar]</b>", "Schneiddaten", "Düsendurchmesser und Gasdruck (Überdruck am "
+         "Manometer) je Schneiddaten-Zeile. Daraus rechnet das Programm den Gasverbrauch in m³/h, z. B. N₂ mit Düse "
+         "2,0 mm bei 15 bar ≈ 28,6 m³/h. Richtwerte: N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar."],
+        ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kalkulation", "Preis je Norm-m³ aus "
+         "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
+         "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
+        ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kalkulation", "gleicht die Rechnung an den "
+         "gemessenen Verbrauch an: Gasverbrauch laut Rechnung (m³ im Monat) geteilt durch den gerechneten Verbrauch "
+         "der Spalte <i>Gas je Teil [m³]</i> × Stückzahl derselben Aufträge; Vorgabe 1."],
         ["<b>Rüstzuschlag je weiterer Profilform [min]</b>", "Maschine", "Spannbacken tauschen: hat ein Angebot "
          "mehrere Profilformen (z. B. Rundrohr und Quadratrohr), kommt je Form ab der zweiten diese Zeit zu "
          "<i>Rüsten je Abmessung</i>."],
@@ -2673,7 +2683,8 @@ def kapitel_optimieren(i):
          "Kostenart <i>Schrotterlös Verschnitt</i> (negativ), 0 = aus. Kundenmaterial ohne Erlös."],
         ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kalkulation", "Kleinteile stehen mit Preis je 100 "
          "Stück im Angebot (unter einem Zehntel des Werts je 1000), z. B. 3,44 € je 100 statt 0,03 € je Stück. Ohne "
-         "Preiseinheit verliert die Rundung auf den Cent bei 0,034 € je Teil 12 %. 0 = immer je Stück."]],
+         "Preiseinheit verliert die Rundung auf den Cent bei 0,034 € je Teil 12 %. Vorgabe 0 = aus, immer je Stück; "
+         "zum Einschalten z. B. 0,10 eintragen."]],
         [48, 35, 182])
     i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "

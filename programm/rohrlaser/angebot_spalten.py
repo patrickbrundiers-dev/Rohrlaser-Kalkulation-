@@ -62,6 +62,7 @@ KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130),
                 ("Material Position [€]", "material_position", 2, 85), ("Laser schneiden Position [€]", lambda z: _position(z, "laser_schneiden_teil"), 2, 85),
                 ("Gewinde Position [€]", lambda z: _position(z, "gewinde_teil"), 2, 80),
                 ("Schneidgas Position [€]", lambda z: _position(z, "schneidgas_teil"), 2, 85),
+                ("Gasverbrauch [m³/h]", "gas_m3h", 1, 75), ("Gas je Teil [m³]", "gas_m3_teil", 4, 75),
                 ("Ausschuss Position [€]", lambda z: _position(z, "ausschuss_teil"), 2, 85),
                 ("Schrotterlös Position [€]", lambda z: _position(z, "schrott_teil"), 2, 85),
                 ("Zusatzarbeiten Position [€]", "zusatz_position", 2, 85)]
