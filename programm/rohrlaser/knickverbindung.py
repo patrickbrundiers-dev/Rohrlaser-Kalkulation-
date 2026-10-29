@@ -344,7 +344,11 @@ def v_ausschnitte(m):
             continue
         if len(waende) != 3 or not waende <= set(SEITEN):
             continue
-        out.append(dict(x=float(d["z"]), breite=float(d["breite"]), steg=SEITEN[(set(SEITEN) - waende).pop()],
+        # Breite längs der Achse: aus dem abgewickelten Umriss (z-Ausdehnung); 'breite' der Messung ist die Seite des
+        # kleinsten Rechtecks und liegt bei der rautenförmigen Abwicklung eines V über drei Wände schräg
+        zs = [p[1] for p in d.get("umriss") or () if isinstance(p, (list, tuple)) and len(p) == 2]
+        breite = max(zs) - min(zs) if len(zs) >= 3 else float(d["breite"])
+        out.append(dict(x=float(d["z"]), breite=breite, steg=SEITEN[(set(SEITEN) - waende).pop()],
                         schnittlaenge=_z(d.get("schnittlaenge"))))
     return sorted(out, key=lambda v: v["x"])
 
