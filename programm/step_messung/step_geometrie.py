@@ -974,6 +974,7 @@ def _profilform(aussen, a, b, tol=0.05):
 
 
 TOL_WAND_GLEICH = 0.05  # mm: Einzelmessungen der Wandstärke, die weiter auseinanderliegen, gelten als widersprüchlich
+QUER_GLEICH = 1e-5      # relativ: Querschnitte (Netto-Fläche) so genau gleich gelten als der Profilquerschnitt
 OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl", "I-/H-Träger",
                   "T-Profil")
 
@@ -1968,20 +1969,32 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     # werden; krumme Anteile, damit die Ebene nicht genau auf einer Merkmalskante liegt. Von der Mitte nach außen;
     # sobald drei Lagen den größten Querschnitt zeigen, ist er gefunden (ein Schnitt durch ein Merkmal hat weniger
     # Fläche oder mehr Konturen). Die drei Lagen dienen auch als Messstellen der Wandstärke.
+    # Gleich heißt bis auf QUER_GLEICH genau: eine flache Gravur (0,3 mm tief) nimmt dem Querschnitt nur ~0,1 %; bei
+    # langer Schrift trifft fast jede Lage ein Zeichen, und die Außenkontur mit Kerbe machte die ganze Wand zur
+    # Schnittfläche (Patrick 29.10.2026: große Gravur, Stecknasen vorne/hinten -> halbes Teil weggeschnitten). Nur wenn
+    # keine zwei Lagen so genau gleich sind (Freiformflächen), zählen Lagen bis 0,1 % daneben. Vor dem Abbruch immer
+    # auch vier Lagen über die Länge verteilt (eine Gravur mit gleich tiefen Kerben über die halbe Länge gäbe sonst in
+    # der Mitte drei gleiche Lagen).
     def suche(n_konturen):
-        best, passend = None, []
-        for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
+        lagen, rest = [], [(i + 0.37) / 50 for i in range(1, 49)]
+        verteilt = [min(rest, key=lambda a: abs(a - v)) for v in (0.13, 0.33, 0.67, 0.87)]
+        reihe = [0.5037] + verteilt + sorted((a for a in rest if a not in verteilt), key=lambda a: abs(a - 0.5037))
+        for n_, anteil in enumerate(reihe):
             z = zmin + anteil * t.laenge
             ws = _schnitt(lok_q, z)
             if len(ws) != n_konturen or n_konturen >= 2 and not all(_innen_liegend(w[1], ws[0][1]) for w in ws[1:]):
                 continue
-            netto = ws[0][0] - sum(w[0] for w in ws[1:])
-            if best is None or netto > best[0] * 1.001:
-                best, passend = (netto, z, ws), [(z, ws)]
-            elif netto >= best[0] * 0.999:
-                passend.append((z, ws))
-            if len(passend) >= 3:
+            lagen.append((ws[0][0] - sum(w[0] for w in ws[1:]), z, ws))
+            gr = max(lg[0] for lg in lagen)
+            if n_ >= len(verteilt) and sum(1 for lg in lagen if lg[0] >= gr * (1 - QUER_GLEICH)) >= 3:
                 break
+        if not lagen:
+            return None, []
+        best = max(lagen, key=lambda lg: lg[0])
+        passend = [(z, ws) for n, z, ws in lagen if n >= best[0] * (1 - QUER_GLEICH)]
+        if len(passend) < 2:
+            passend = [(z, ws) for n, z, ws in lagen if n >= best[0] * 0.999]
+        passend.sort(key=lambda p: p[0] != best[1])        # die Lage von best zuerst
         return best, passend
 
     t.sicherheit["achse"] = t.sicherheit["laenge"] = \

@@ -27,7 +27,10 @@ NEUERUNGEN = [
                 "genau wie in der STEP, wie eingeprägte Schrift. Früher wurde jedes Zeichen als Blech vermessen "
                 "(24 Zeichen mehrere Minuten, jetzt wenige Sekunden), als Anbauteil ohne Innenkonturen gezählt oder bei Flächen "
                 "gar nicht als Gravur erkannt. Erhabene Schrift bis 0,5 mm gilt nicht mehr als Anbauteil-Verdacht "
-                "(rund dreimal schneller), und bei sehr viel eingeprägter Schrift sind die Querschnitte schneller "
+                "(rund dreimal schneller), und bei sehr viel eingeprägter Schrift sind die Querschnitte schneller. "
+                "Behoben: <b>lange Gravur mit Stecknasen vorne und hinten</b> – im Editor war das halbe Teil "
+                "weggeschnitten (der Querschnitt durch die Schrift galt als Profil, die Wand wurde Teil der Enden, "
+                "Messung mehrere Minuten). Jetzt Enden, Wand und Schneidweg wie ohne Gravur, wenige Sekunden "
                 "([[step_messung]]).",
      "STEP: Schrift als eigener Körper oder Fläche wird Gravur des Rohrs (statt Minuten nur Sekunden)."],
     ["0.9.195", "<b>Zeitraum in der Angebotsliste</b>: Neben dem Vorgang wählt man, welche Angebote die Liste zeigt "

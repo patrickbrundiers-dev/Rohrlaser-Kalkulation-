@@ -10,6 +10,10 @@ G3 Rundrohr: flache Schriftkörper auf dem Mantel ebenso.
 G4 Querschnitte bei vielen Flächen (eingeprägte Schrift): nur die Flächen auf der Höhe des Schnitts, Ergebnis gleich
    wie der Schnitt durch den ganzen Körper.
 G5 Editor: Gravurzeilen liegen genau auf den Gravurlinien der STEP; Übernehmen ergibt nur das Rohr.
+G6 Stecknasen vorne und hinten + lange Gravur (Patrick 29.10.2026: „im Editor war dann das halbe Teil
+   weggeschnitten“): fast jeder Querschnitt traf die Schrift, der Querschnitt mit Kerbe galt als Profil, die ganze
+   Wand wurde Schnittfläche und gehörte zu den Enden (Schneidweg ×6, Wand 1,7 statt 2 mm, keine Gravur, Minuten).
+   Jetzt: Enden und Wand wie ohne Gravur, die Gravur getrennt.
 
 Zeichen ohne Schriftart (läuft überall gleich): Ring „O“ (außen + innen), Balken „I“, Winkel „L“.
 Aufruf: python tests/test_step_gravur.py
@@ -110,8 +114,39 @@ def g4_schnitt():
     ok(f"G4 Querschnitt mit Flächenauswahl ({n} Flächen) gleich wie durch den ganzen Körper")
 
 
+def nasen(r, lg, b, nl=15.0, nb=14.0):
+    """An beiden Enden nl lang alles weg außer je einer Stecknase (Breite nb) in den Wänden ±X."""
+    for z0 in (-1.0, lg - nl):
+        weg = BRepPrimAPI_MakeBox(gp_Pnt(-b, -b, z0), 2 * b, 2 * b, nl + 1).Shape()
+        for sx in (-1, 1):
+            weg = et.cut(weg, BRepPrimAPI_MakeBox(gp_Pnt(sx * b / 2 - 5, -nb / 2, z0 - 1), 10, nb, nl + 3).Shape())
+        r = et.cut(r, weg)
+    return r
+
+
+def g6_nasen_gravur():
+    """Gravur 0,3 tief auf der Wand +Y von z = 30 bis 400 (Kerben 6,0/6,3/6,6 breit im Wechsel, wie eine lange
+    Schrift: jeder Querschnitt dort ist ~0,1 % kleiner), Stecknasen an beiden Enden."""
+    ohne = nasen(et.kastenrohr(40, 40, 2, 530, 4), 530, 40)
+    mit = ohne
+    for k, z in enumerate(range(30, 400, 2)):
+        w = 6 + 0.3 * (k % 3)
+        mit = et.cut(mit, BRepPrimAPI_MakeBox(gp_Pnt(-w / 2, 19.7, z), w, 2, 2).Shape())
+    a, b = g.analysiere(ohne), g.analysiere(mit)
+    assert b.profilform == "Quadratrohr" and abs(b.wandstaerke - 2) < 1e-6, (b.profilform, b.wandstaerke, b.hinweise)
+    assert abs(b.schneidweg - a.schneidweg) < 0.01, (b.schneidweg, a.schneidweg)
+    for ende in ("Ende A", "Ende B"):
+        ea, eb = ([d for d in t.konturen_liste if d["art"] == ende][0] for t in (a, b))
+        assert ea["form"] == eb["form"] and abs(ea["schnittlaenge"] - eb["schnittlaenge"]) < 0.01, (ende, ea, eb)
+    gr = [d for d in b.konturen_liste if d["art"] == "Gravur"]
+    assert len(gr) == 1 and gr[0]["z"] > 30 and b.gravur > 2 * 370, (len(gr), b.gravur)
+    assert not b.hinweise, b.hinweise
+    ok("G6 Stecknasen + lange Gravur: Enden, Wand und Schneidweg wie ohne Gravur, Gravur getrennt")
+
+
 def main():
     g4_schnitt()
+    g6_nasen_gravur()
     zaehler = {"n": 0}
     profil_messen = g._profil_messen
 

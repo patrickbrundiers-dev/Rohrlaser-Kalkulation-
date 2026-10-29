@@ -7706,6 +7706,10 @@ def kapitel_step_messung(i):
             "sein Rand Gravur dieses Rohrs, genau wie eingeprägte Schrift: gleiche Zeilen, Längen und Lage wie in "
             "der STEP. Der Körper selbst wird kein Teil und kein Anbauteil (Profilform <i>Gravurkörper</i>, im "
             "Import-Bericht „Schrift/Markierung auf Körper …, dort als Gravur“).",
+            "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
+            "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
+            "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "
+            "bleiben dadurch genau wie in der STEP, die Schrift ist eigene Gravur.",
             "<b>Innenmerkmal</b>: nur auf der Innenseite, von außen nicht sichtbar. Es wird gemeldet, aber nicht "
             "gerechnet.",
             "<b>Ende A / Ende B</b>: <i>gerade</i>, <i>Gehrung</i> (Neigung um eine Querachse), <i>Schrägschnitt "
