@@ -7,7 +7,7 @@ from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import etiketten, fertigung, lager, stil
+from . import etiketten, fertigung, lager, leerhinweis, stil
 from .lager_seite import _fuellen, _tabelle
 
 SPALTEN = (("Angebot", "nummer"), ("Kunde", "kunde"), ("Auftragsnr.", "auftragsnr"), ("Liefertermin", "liefertermin"),
@@ -27,6 +27,8 @@ class FertigungSeite(QWidget):
         self.db = fenster.db
         self.zeilen = []
         self.liste = _tabelle(SPALTEN)
+        leerhinweis.setzen(self.liste, "Noch keine beauftragten Angebote. Ein Angebot erscheint hier, sobald es "
+                                       "beauftragt ist.")
         self.liste.itemSelectionChanged.connect(self._auswahl)
         self.liste.doubleClicked.connect(lambda _i: self.oeffnen())
         self.status = QComboBox()
@@ -56,9 +58,12 @@ class FertigungSeite(QWidget):
         self.meldung = QLabel()
         self.meldung.setWordWrap(True)
         self.verlauf = _tabelle(VERLAUF)
+        leerhinweis.setzen(self.verlauf, "Oben ein Angebot wählen: hier steht dann jeder Statuswechsel.")
         self.zeiten = _tabelle(ZEITEN)
+        leerhinweis.setzen(self.zeiten, "Noch keine Durchlaufzeiten.")
         self.zeiten_info = QLabel()
         self.chargen = _tabelle(CHARGEN)
+        leerhinweis.setzen(self.chargen, "Noch kein Materialverbrauch mit Charge.")
         self.charge_suche = QLineEdit()
         self.charge_suche.setPlaceholderText("Charge oder Kennung suchen")
         self.charge_suche.textChanged.connect(lambda _t: self._chargen())
