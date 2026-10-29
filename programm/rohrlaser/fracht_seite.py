@@ -485,11 +485,12 @@ class RechnerSeite(QWidget):
         for i, x in enumerate(self.vergleich_liste):
             preis = fracht.euro(x["gesamt"]) if x["gesamt"] is not None else "kein Tarif"
             lht = ", ".join(f"{t['anzahl']} × {t['lht_id']}" for t in x["lht"]) or "–"
-            t = f"{html.escape(x['bezeichnung'])}: {html.escape(lht)} – {preis}"
+            t = f"{'Paket ' if x.get('paket') else ''}{html.escape(x['bezeichnung'])}: {html.escape(lht)} – {preis}"
             zeilen.append(f"<b>✓ {t} (günstigste, übernommen)</b>" if i == 0 else t)
         kopf = f"{paletten.kurz(self.packliste)}"
         self.vergleich.setText(f"<b>{html.escape(kopf)}</b>" + (
-            "<br>Verglichen (Standard-Ladungsträger, lange Teile auf Langgut):<br>" + "<br>".join(zeilen)
+            "<br>Verglichen (Standard-Ladungsträger, lange Teile auf Langgut; Paket je Kartongröße, wenn alles "
+            "hineinpasst):<br>" + "<br>".join(zeilen)
             if zeilen else ""))
         self.packliste_ansicht.setzen(self.packliste)
         self.packliste_box.show()
@@ -545,11 +546,20 @@ class RechnerSeite(QWidget):
         self.packvorschlag()
         return True
 
-    def _preis_mit(self, lht):
-        """Fracht (€ oder None) der aktuellen Eingaben mit diesen Ladungsträgern."""
+    def _preis_mit(self, lht, paket=False):
+        """Fracht (€ oder None) der aktuellen Eingaben mit diesen Ladungsträgern; paket: als Paketversand (Versandart
+        Paket, Tarif und Dienstleister automatisch), sonst ohne die Versandart Paket."""
+        from .fracht_richtwerte import PAKET
         s = self.sendung()
         s["lht"] = lht
+        if paket:
+            s.update(versandart=PAKET, tarif_id=None, dienstleister=None)
+        elif s.get("versandart") == PAKET:
+            s.update(versandart=None, tarif_id=None, dienstleister=None)
         return fracht.rechnen(self.daten, s).get("gesamt")
+
+    def _preis_paket(self, lht):
+        return self._preis_mit(lht, paket=True)
 
     def packvorschlag(self):
         """Ladungsträger vorschlagen (ersetzt die Liste): aus einem Angebot (ware = (Positionen, Werte), gesetzt vom
@@ -561,10 +571,17 @@ class RechnerSeite(QWidget):
             from . import fracht_angebot, paletten
             einst = {n: self.db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST}
             self.vergleich_liste = paletten.guenstigste(*self.ware, self.daten.get("lht", []), std, lg, einst,
-                                                        self._preis_mit)
+                                                        self._preis_mit, self._preis_paket)
             if self.vergleich_liste:
+                from .fracht_richtwerte import PAKET
                 beste = self.vergleich_liste[0]
                 vorschlag, hinweise, self.packliste = beste["lht"], beste["hinweise"], beste["packliste"]
+                if beste.get("paket") or self.versandart.currentText() == PAKET:     # Paket oder Palette
+                    self._laden = True
+                    self.versandart.setCurrentText(PAKET if beste.get("paket") else "")
+                    self.tarif.setCurrentText("automatisch")
+                    self.dienstleister.setCurrentText("")
+                    self._laden = False
             else:
                 vorschlag, hinweise = paletten.ladung(*self.ware, self.daten.get("lht", []), std, lg, einst)
                 self.packliste = paletten.packen(*self.ware, self.daten.get("lht", []), std, lg, einst)

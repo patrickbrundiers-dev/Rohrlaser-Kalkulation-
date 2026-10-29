@@ -54,7 +54,8 @@ for t in ("fracht_laender", "fracht_zonen", "fracht_plz", "fracht_tarife", "frac
           "fracht_zuschlaege", "fracht_dienstleister"):
     assert not [z for z in db.zeilen(t) if (z.get("bemerkung") or "").startswith("BEISPIEL")], t
 assert any(z["zone_id"] == "EIGEN" for z in db.zeilen("fracht_zonen"))
-assert sorted(t["tarif_id"] for t in db.zeilen("fracht_tarife")) == [fracht_richtwerte.TARIF_EIGEN, fracht_richtwerte.TARIF]
+assert sorted(t["tarif_id"] for t in db.zeilen("fracht_tarife")) == [fracht_richtwerte.TARIF_EIGEN, fracht_richtwerte.TARIF_PAKET,
+                                                                       fracht_richtwerte.TARIF]
 assert db.einstellung("fracht_versandart") == "Palettenversand" and db.einstellung("absender_plz") == "33129"
 ids = {z["zuschlag_id"] for z in db.zeilen("fracht_zuschlaege")}
 assert not any(z["typ"] in ("Diesel", "Maut") for z in db.zeilen("fracht_zuschlaege")), ids
@@ -82,6 +83,21 @@ def preis(plz, netto, lht, max_laenge=None):
 def eur(n):
     return [dict(lht_id="EUR", anzahl=n)]
 
+
+# Paketversand (Patrick 29.10.2026): je Karton nach Gewichtsklasse, überall in Deutschland gleich
+lht_fd = {z["lht_id"]: z for z in fd["lht"]}
+assert [(lht_fd[k]["laenge"], lht_fd[k]["breite"], lht_fd[k]["hoehe"]) for k in ("K-S", "K-M", "K-L")] == [
+    (400, 300, 200), (600, 400, 400), (1200, 200, 200)]
+assert lht_fd["EUR"]["max_laenge"] == lht_fd["EW"]["max_laenge"] == 3000 and lht_fd["IND"]["max_laenge"] == 1400
+for plz in ("33100", "80331", "25980"):
+    e = fracht.rechnen(fd, dict(datum="2026-10-21", land="DE", plz=plz, absender_plz="33129", absender_land="DE",
+                                versandart=fracht_richtwerte.PAKET, netto=40, lht=[
+                                    dict(lht_id="K-S", anzahl=2), dict(lht_id="K-M", anzahl=1),
+                                    dict(lht_id="K-L", anzahl=1)], leistungen={}))
+    assert e["tarif"]["tarif_id"] == fracht_richtwerte.TARIF_PAKET and abs(e["gesamt"] - 63.96) < 1e-6, (plz, e)
+assert preis("33100", 190, eur(1))["tarif"]["tarif_id"] == fracht_richtwerte.TARIF
+ok("Paket: 2 × Karton S + M + L = 2 × 10,49 + 18,99 + 23,99 = 63,96 € überall in Deutschland; Palette bleibt "
+   "beim Palettentarif; Europalette und Einwegpalette bis 3.000 mm")
 
 e1, e2, e3 = preis("33100", 190, eur(1)), preis("20095", 190, eur(1)), preis("80331", 190, eur(1))
 assert (e1["gesamt"], e2["gesamt"], e3["gesamt"]) == (65.0, 115.0, 125.0), (e1["gesamt"], e2["gesamt"], e3["gesamt"])
@@ -161,6 +177,8 @@ with db.con:
     db.con.execute("DELETE FROM fracht_tarife WHERE tarif_id=?", (fracht_richtwerte.TARIF_EIGEN,))
     db.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (fracht_richtwerte.TARIF_EIGEN,))
     db.con.execute("DELETE FROM fracht_preise WHERE zone_id IN ('RW0A', 'RW0B')")
+    db.con.execute("DELETE FROM fracht_lht WHERE art='Karton'")
+    db.con.execute("UPDATE fracht_lht SET max_laenge=1400 WHERE lht_id='EUR'")
 db.neu("fracht_zonen", dict(zone_id="EIGEN2", bezeichnung="Eigene", land="DE", aktiv="ja", bemerkung="von Hand"))
 db.einstellung_setzen("fracht_nah_stand", "")
 fd = db.fracht_daten()
@@ -173,10 +191,13 @@ fd = db.fracht_daten()
 assert preis("33100", 190, eur(1))["gesamt"] == 65.0
 assert any(z["zone_id"] == "EIGEN2" for z in db.zeilen("fracht_zonen"))
 assert any(t["tarif_id"] == fracht_richtwerte.TARIF_EIGEN for t in db.zeilen("fracht_tarife"))
+assert {z["lht_id"]: z["max_laenge"] for z in db.zeilen("fracht_lht")}["EUR"] == 3000
+assert {"K-S", "K-M", "K-L"} <= {z["lht_id"] for z in db.zeilen("fracht_lht")}
 assert len(set(sicherung.glob("*_vor_Fracht_Nahbereich*.db")) - vorher) == 1
 db.schliessen()
 db = Datenbank(pfad)               # nur einmal
 assert len(set(sicherung.glob("*_vor_Fracht_Nahbereich*.db")) - vorher) == 1
-ok("Beim Start einmalig umgestellt: Paderborn 100 € -> 65 €, eigene Zone bleibt, Sicherung vor_Fracht_Nahbereich")
+ok("Beim Start einmalig umgestellt: Paderborn 100 € -> 65 €, Europalette 3.000 mm, Kartons da, eigene Zone bleibt, "
+   "Sicherung vor_Fracht_Nahbereich")
 db.schliessen()
 print("OK: Richtwerte Palettenversand")

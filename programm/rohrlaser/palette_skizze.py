@@ -4,7 +4,8 @@ Stapels mit Höhe, dazu der Aufbau als Text (Patrick 29.10.2026, Pack-Logik im F
 Gezeichnet wird maßstäblich je Ladungsträger: Draufsicht Länge × Breite mit den Teilen der ersten Position
 (Reihen längs × Teile quer, Überstand über die Stirnseiten), Seitenansicht Länge × Höhe mit allen Positionen der
 Palette übereinander (Lagenhöhe aus dem Lagenplan, Zwischenlagen eingerechnet) und der zulässigen Höhe gestrichelt.
-Teile ohne Maße erscheinen schraffiert (nur nach Gewicht gepackt).
+Teile ohne Maße erscheinen schraffiert (nur nach Gewicht gepackt). Gitterbox und Karton (Paketversand) haben
+Innenmaße: die Ladung steht im Behälter, seine Wände sind als Rahmen gezeichnet.
 """
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QBrush, QFontMetrics, QPainter, QPen
@@ -16,6 +17,7 @@ from .stammdaten import zahl_als_text
 HOLZ = "#C8A675"
 ZEICHNUNG = 150          # Höhe der Zeichnungen [px]
 TITEL = 22
+INNEN = ("Gitterbox", "Karton")
 ABSTAND = 14
 
 
@@ -128,8 +130,8 @@ class PacklisteAnsicht(QWidget):
         s = min(flaeche.width() / gesamt_l, flaeche.height() / B)
         ox = flaeche.x() + (flaeche.width() - gesamt_l * s) / 2 + ueber / 2 * s
         oy = flaeche.y() + (flaeche.height() - B * s) / 2
-        p.setPen(QPen(stil.farbe("#7A5A30"), 1))
-        p.setBrush(stil.farbe(HOLZ, 140))
+        p.setPen(QPen(stil.farbe("#7A5A30"), 1.5 if pal.get("art") in INNEN else 1))
+        p.setBrush(stil.farbe(HOLZ, 60 if pal.get("art") in INNEN else 140))
         p.drawRect(QRectF(ox, oy, L * s, B * s))
         if geo:
             x, yq, _ = geo["teil"]
@@ -161,7 +163,7 @@ class PacklisteAnsicht(QWidget):
         p.drawText(QRectF(r.x(), r.y(), r.width(), 16), Qt.AlignLeft, "Seitenansicht (Stapel)")
         if not L:
             return
-        gitterbox = pal.get("art") == "Gitterbox"
+        gitterbox = pal.get("art") in INNEN
         boden = 0.0 if gitterbox else (hp or 0.0)
         hmax = max(pal.get("hoehe_max") or 0.0, pal.get("hoehe") or 0.0, boden + 1)
         schichten = schicht_hoehen(pal, stuecke)
@@ -201,7 +203,11 @@ class PacklisteAnsicht(QWidget):
             p.setPen(QPen(stil.farbe("#B42318"), 1, Qt.DashLine))
             p.drawLine(int(ox - 4), int(yh), int(ox + L * s + 4), int(yh))
         p.setPen(stil.farbe("#5F6B7A"))
+        frei = grund + 20
         for wert in sorted({0.0, pal.get("hoehe") or 0.0, pal.get("hoehe_max") or 0.0}):
             yh = grund - wert * s
+            if frei - yh < 14:          # Beschriftungen nicht übereinander
+                continue
             p.drawText(QRectF(r.x(), yh - 8, 42, 16), Qt.AlignRight | Qt.AlignVCenter, _mm(wert))
+            frei = yh
 

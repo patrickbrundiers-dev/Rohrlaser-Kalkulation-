@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.204", "<b>Paket und lange Teile auf der Europalette</b>: Der Packvorschlag im Frachtrechner rechnet jetzt "
+                "auch <b>Paketversand</b> mit drei Kartons (S 400 × 300 × 200 mm bis 10 kg 10,49 €, M 600 × 400 × "
+                "400 mm bis 20 kg 18,99 €, L 1.200 × 200 × 200 mm bis 31,5 kg 23,99 €, Richtwert DHL) und nimmt das "
+                "Paket, wenn es günstiger als jede Palette ist; die Packliste zeigt jeden Karton mit Draufsicht und "
+                "Seitenansicht. Kartons und Preise sind unter <i>Paletten und Ladehilfsmittel</i> bzw. Tarif "
+                "RW-PAKET änderbar. Europalette und Einwegpalette nehmen Teile bis 3.000 mm, Überstand nur längs "
+                "über die 1.200er Seite, quer nie ([[pack_rechner]]).",
+     "Frachtrechner: Paketversand mit Kartons S/M/L, Europalette bis 3.000 mm mit Überstand längs."],
     ["0.9.203", "<b>Pack-Logik im Frachtrechner</b>: Der Knopf <i>Aus Angebot laden …</i> (Frachtkosten › Fracht "
                 "kalkulieren) übernimmt die Ware eines Angebots und packt sie nach Maßen und Stückzahl wie der "
                 "Palettenschein, statt nur Gewicht ÷ 800 kg. Der Packvorschlag probiert jetzt alle Ladungsträger "

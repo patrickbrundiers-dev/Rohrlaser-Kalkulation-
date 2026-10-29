@@ -4324,6 +4324,17 @@ def kapitel_fracht(i):
             "max. Teillänge kommen wie bisher auf Langgut. Jede Variante wird mit dem Tarif der aktuellen Eingaben "
             "gerechnet (PLZ, Versandart, Zuschläge), die günstigste kommt in die Liste der Ladehilfsmittel. Bei "
             "gleichem Preis gilt der eingestellte Standard-Ladungsträger, dann die kleinere Anzahl.",
+            "<b>Europalette mit Überstand</b>: Europalette und Einwegpalette nehmen Teile bis 3.000 mm. Lange Teile "
+            "liegen längs und dürfen über die 1.200er Seite hinausragen (1 Reihe, Überstand je Seite die Hälfte), "
+            "über die 800er Seite nie. Erst längere Teile kommen auf Langgut. Die Grenze steht als <i>max. "
+            "Teillänge</i> unter <i>Paletten und Ladehilfsmittel</i>.",
+            "<b>Paket</b>: Zusätzlich wird jede Kartongröße allein durchgepackt (Karton S, M, L unter <i>Paletten "
+            "und Ladehilfsmittel</i>, Art <i>Karton</i>). Ein Karton zählt nur, wenn jedes Teil hineinpasst und "
+            "jedes Gewicht bekannt ist; je Karton höchstens seine Nutzlast. Gerechnet wird mit der Versandart "
+            "<i>Paket</i> (Tarif RW-PAKET, Preis je Karton). Ist das Paket günstiger als jede Palette, stellt der "
+            "Rechner die Versandart auf <i>Paket</i> und trägt die Kartons ein; die Packliste zeigt jeden Karton "
+            "wie eine Palette mit Draufsicht und Seitenansicht. Ist danach wieder eine Palette günstiger, wird die "
+            "Versandart zurückgesetzt.",
             "<b>Packliste</b>: oben die gewählte Ladung und der Vergleich aller Varianten mit Preis, darunter je "
             "Ladungsträger Gewicht und Höhe, die <b>Draufsicht</b> der untersten Lage (Reihen längs × Teile quer, "
             "Überstand) und die <b>Seitenansicht</b> des Stapels mit allen Positionen und der zulässigen Höhe "
@@ -7481,7 +7492,8 @@ def kapitel_frachtkosten(i):
                                "geht vor)"],
         ["<b>Bezugseinheit</b>", "Sendung, kg, 100 kg, Ladungsträger, Stellplatz, km oder Lademeter: worauf sich der "
                                  "Preis bezieht"],
-        ["Ladehilfsmittel", "Art, für die die Zeile gilt (z. B. Gitterbox mit eigenem Preis); leer = alle übrigen"],
+        ["Ladehilfsmittel", "Art, für die die Zeile gilt (z. B. Gitterbox mit eigenem Preis), oder ein einzelnes "
+                            "Ladehilfsmittel (z. B. Karton K-M), das dann vor seiner Art gilt; leer = alle übrigen"],
         ["bis Menge", "Obergrenze der Stufe in der Bezugseinheit (bei kg und 100 kg immer in kg, beide bilden eine "
                       "Gewichtsstaffel); leer = ohne Obergrenze. Es gilt die erste Stufe, in die die Menge fällt "
                       "(genau auf der Grenze gehört zur Stufe)."],
@@ -7501,11 +7513,13 @@ def kapitel_frachtkosten(i):
     i.genauer()
     i.tabelle(["Ladehilfsmittel", "Bedeutung"], [
         ["<b>Ladehilfsmittel</b>, Bezeichnung", "Kurzname und Klartext"],
-        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut oder "
-                       "Sonderladung"],
+        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut, "
+                       "Sonderladung oder Karton (Paketversand; Maße = Innenmaße wie bei der Gitterbox)"],
         ["Länge, Breite, Höhe [mm]", "für Volumen und Lademeter; fehlt ein Maß, rechnet das Programm ohne Volumen"],
-        ["Eigengewicht, Nutzlast [kg]", "Eigengewicht = Verpackungsgewicht; Nutzlast für Packvorschlag und Warnung"],
-        ["Max. Teillänge [mm]", "längere Teile kommen im Packvorschlag auf Langgut"],
+        ["Eigengewicht, Nutzlast [kg]", "Eigengewicht = Verpackungsgewicht; Nutzlast für Packvorschlag und Warnung "
+                                        "(Karton: Gewichtsklasse des Pakets − Kartongewicht, z. B. 10 − 0,3 = 9,7 kg)"],
+        ["Max. Teillänge [mm]", "längere Teile kommen im Packvorschlag auf Langgut; größer als die Länge = Überstand "
+                                "erlaubt, nur längs (Europalette 3.000 mm)"],
         ["Stapelbar, Stapelfaktor", "wie viele übereinander einen Stellplatz teilen"],
         ["Stellplätze je Stück", "z. B. 1 für eine Europalette, 3 für Langgut (leer = 1)"],
         ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
@@ -7599,8 +7613,14 @@ def kapitel_frachtkosten(i):
             "Berlin, Frankfurt und Stuttgart in RW2, Dresden und München in RW3. Inseln ohne Brücke (Sylt, Föhr, "
             "Amrum, Pellworm, Halligen, Ostfriesische Inseln, Helgoland, Hiddensee) sind die Zone RW-INSEL.",
             "Mehr als 6 Stellplätze: Teilladung, Preis anfragen (das Programm rechnet nicht still weiter).",
-            "Paletten: Europalette und Einwegpalette bis 800 kg Nutzlast im Packvorschlag, Industriepalette 1,25 "
-            "Stellplätze, Sonderpalette bis 2,40 m 2 Stellplätze, Langgut bis 6,5 m 3 Stellplätze.",
+            "Paletten: Europalette und Einwegpalette bis 800 kg Nutzlast im Packvorschlag, Teile bis 3.000 mm "
+            "(Überstand nur längs), Industriepalette 1,25 Stellplätze, Sonderpalette bis 2,40 m 2 Stellplätze, "
+            "Langgut bis 6,5 m 3 Stellplätze.",
+            "<b>Paket</b> (Tarif RW-PAKET, Versandart <i>Paket</i>, ganz Deutschland gleich): Karton S 400 × 300 × "
+            "200 mm bis 10 kg 10,49 €, Karton M 600 × 400 × 400 mm bis 20 kg 18,99 €, Karton L 1.200 × 200 × 200 "
+            "mm bis 31,5 kg 23,99 € je Karton (DHL Paket, online 10/2026; UPS und Hermes eher darüber). Maße, "
+            "Gewichtsklassen und Preise lassen sich ändern, weitere Kartons mit Art <i>Karton</i> anlegen und im "
+            "Tarif RW-PAKET eine Preiszeile mit dem Karton als Ladehilfsmittel ergänzen.",
             "Zuschläge: schwere Palette 40 € je Stellplatz ab 300 kg je Stellplatz, Überlänge (Teile über 2,40 m) "
             "60 €, Inselzuschlag 60 €; nur wenn gewählt: Avisierung 25 €, Hebebühne 40 €, Wartezeit 60 € je Stunde "
             "(Hebebühne und Wartezeit geschätzt). Kein Diesel- und kein Mautzuschlag, beide sind im Preis enthalten.",
