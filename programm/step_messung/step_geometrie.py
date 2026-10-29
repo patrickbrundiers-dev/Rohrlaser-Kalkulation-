@@ -629,9 +629,48 @@ def _z_bereich(shape):
     return box.CornerMin().Z(), box.CornerMax().Z()
 
 
+SCHNITT_FILTER_AB = 150     # Flächen: ab so vielen schneidet _schnitt nur die Flächen, deren Höhe z enthält
+_SCHNITT_FL = {}            # id(shape) -> (shape, [(z0, z1, Fläche), …]); Shapes werden nicht mehr geändert
+
+
+def _flaechen_z(shape):
+    """Flächen mit ihrem Bereich in Z (Hüllquader samt Toleranz, eher zu groß), je Shape einmal."""
+    e = _SCHNITT_FL.get(id(shape))
+    if e is not None and e[0] is shape:
+        return e[1]
+    out = []
+    for f in _liste(shape, TopAbs_FACE):
+        b = Bnd_Box()
+        BRepBndLib.Add_s(f, b, False)
+        if not b.IsVoid():
+            out.append((b.CornerMin().Z(), b.CornerMax().Z(), f))
+    if len(_SCHNITT_FL) > 40:
+        _SCHNITT_FL.clear()
+    _SCHNITT_FL[id(shape)] = (shape, out)
+    return out
+
+
+def _schnitt_flaechen(shape, z, tol=0.01):
+    """Bei vielen Flächen (Schrift-Gravur: Tausende kleine Flächen, Patrick 29.10.2026) nur die Flächen, die die
+    Ebene Z = z erreichen können, als Verbund – der Schnitt ist derselbe (die anderen Flächen liegen ganz darüber oder
+    darunter), aber ohne jede Fläche einzeln gegen die Ebene zu prüfen. Sonst das Shape selbst."""
+    fl = _flaechen_z(shape)
+    if len(fl) < SCHNITT_FILTER_AB:
+        return shape
+    from OCP.BRep import BRep_Builder
+    from OCP.TopoDS import TopoDS_Compound
+    c = TopoDS_Compound()
+    bb = BRep_Builder()
+    bb.MakeCompound(c)
+    for z0, z1, f in fl:
+        if z0 - tol <= z <= z1 + tol:
+            bb.Add(c, f)
+    return c
+
+
 def _schnitt(shape, z):
     """Konturen der Schnittebene Z = z, größte zuerst: Liste (Fläche, Draht, Schwerpunkt x, y)."""
-    sec = BRepAlgoAPI_Section(shape, gp_Pln(gp_Pnt(0, 0, z), gp_Dir(0, 0, 1)), False)
+    sec = BRepAlgoAPI_Section(_schnitt_flaechen(shape, z), gp_Pln(gp_Pnt(0, 0, z), gp_Dir(0, 0, 1)), False)
     sec.SetRunParallel(True)   # Freiformflächen schneiden ist langsam
     sec.Build()
     kanten = TopTools_HSequenceOfShape()
@@ -1221,6 +1260,7 @@ class _Abwicklung:
 
 
 GRAVUR_TIEFE = 0.5       # mm: flachere nicht durchgehende Merkmale sind immer Gravur (Prägung), nie Sackbohrung
+GRAVUR_DICKE = 0.5       # mm: so dünne eigene Körper können Schrift sein (step_gravurkoerper), ohne Flachstahl-Messung
 UMRISS_PUNKTE = 300      # höchstens so viele Punkte je Umriss (sonst gröber ausgedünnt)
 
 
@@ -2038,9 +2078,10 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
         else:
             art[i] = "S"
             # Anbauteil-Verdacht: Merkmalsfläche ragt über die Außenkontur hinaus (Bearbeitungen liegen immer innerhalb;
-            # y minimal versetzt, damit der Strahl der Innenprüfung nicht genau durch Teilungspunkte der Kontur läuft)
-            verdacht = verdacht or any(not _im_material(p.X(), p.Y() + 1.37e-6, s_aussen) and
-                                       _abstand_zug(p.X(), p.Y(), s_aussen) > TOL_WAND for p in pts)
+            # y minimal versetzt, damit der Strahl der Innenprüfung nicht genau durch Teilungspunkte der Kontur läuft).
+            # Erhabene Schrift bis GRAVUR_DICKE ist kein Anbauteil (Patrick 29.10.2026: sonst lange Trennversuche)
+            verdacht = verdacht or any(_abstand_zug(p.X(), p.Y(), s_aussen) > GRAVUR_DICKE and
+                                       not _im_material(p.X(), p.Y() + 1.37e-6, s_aussen) for p in pts)
         if art[i] != "S":
             b_ = Bnd_Box()
             BRepBndLib.AddOptimal_s(f, b_, False, False)
@@ -3076,7 +3117,9 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
         dicke_ok = fl["dicke"] <= BLECH_DICKE_ANTEIL * daten["breite"] + 1e-6
         if dicke_ok and not ist_flachstahl(daten["laenge"], daten["breite"], daten["laengsseiten_gerade"], flach_bis):
             b = _blech_teil(solid, datei, koerper, fl, volumen, netz, dict(daten))
-            b.alternative = _als_profil(solid, b, "Flachstahl")
+            # sehr dünn (Schrift/Markierung als eigener Körper, Patrick 29.10.2026): keine Profilmessung als
+            # Flachstahl, die bei Schriftzeichen Hunderte Querschnitte braucht; Ersatzwerte aus den Blechmaßen
+            b.alternative = _als_profil(solid, b, "Flachstahl", ersatz=fl["dicke"] <= GRAVUR_DICKE + 1e-6)
             return b
     t = fehler = None
     try:
@@ -3130,10 +3173,10 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     return t
 
 
-def _als_profil(solid, b, form=None, t=None):
+def _als_profil(solid, b, form=None, t=None, ersatz=False):
     """Ein als Blech gemessenes Teil als Profil (Flachstahl bzw. L-/U-/C-Profil): die Profilmessung, wenn sie diese
     Form liefert, sonst Ersatzwerte aus den Blechmaßen (Länge × Breite) mit Prüfstatus 'prüfen'."""
-    if t is None:
+    if t is None and not ersatz:
         try:
             t = _profil_messen(solid, b.datei, b.koerper, False)
         except Exception:  # nicht als Profil messbar: Ersatzwerte
@@ -4347,25 +4390,31 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
         naehte = []
     else:
         beginn = time.monotonic()
+        import step_gravurkoerper
+        try:        # Schrift/Markierung als eigener Körper: Gravur des Rohrs, kein Teil (Patrick 29.10.2026)
+            weg = step_gravurkoerper.zuordnen(out, koerper, netz, rahmen)
+        except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
+            weg = set()
+        teile_, koerper_ = step_gravurkoerper.ohne(out, koerper, weg)
         try:
-            _beruehrende_anbauteile(out, koerper, netz, rahmen)
+            _beruehrende_anbauteile(teile_, koerper_, netz, rahmen)
         except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
             pass
         try:
-            _verbund_pruefen(out, koerper)
+            _verbund_pruefen(teile_, koerper_)
         except Exception:  # wie oben
             pass
         stand = dict(vollstaendig=True)
         try:
-            naehte = _nahtkandidaten(out, koerper, info.get("struktur"), rahmen, stand)
+            naehte = _nahtkandidaten(teile_, koerper_, info.get("struktur"), rahmen, stand)
         except Exception:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
             naehte, stand["vollstaendig"] = [], False
         try:
-            _erreichbarkeit(naehte, out, koerper, stand, ERREICH_STUFE_MAX - (time.monotonic() - beginn))
+            _erreichbarkeit(naehte, teile_, koerper_, stand, ERREICH_STUFE_MAX - (time.monotonic() - beginn))
         except Exception:  # Erreichbarkeit ist ein Vorschlag: nie die Messung verhindern
             pass
-        if stand["vollstaendig"] and out:
-            out[0].ohne_naht = _ohne_naht(out, koerper, naehte)
+        if stand["vollstaendig"] and teile_:
+            teile_[0].ohne_naht = _ohne_naht(teile_, koerper_, naehte)
     for t in out:
         t.naehte = naehte
         if t.alternative is not None:

@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.194", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
+                "CAD als <b>eigene dünne Körper</b> (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf "
+                "dem Rohr liegen, werden jetzt Gravur des Rohrs – mit allen Konturen (auch innen in „O“, „A“, „B“), "
+                "genau wie in der STEP, wie eingeprägte Schrift. Früher wurde jedes Zeichen als Blech vermessen "
+                "(24 Zeichen fast 5 Minuten, jetzt 2 s), als Anbauteil ohne Innenkonturen gezählt oder bei Flächen "
+                "gar nicht als Gravur erkannt. Erhabene Schrift bis 0,5 mm gilt nicht mehr als Anbauteil-Verdacht "
+                "(rund dreimal schneller), und bei sehr viel eingeprägter Schrift sind die Querschnitte schneller "
+                "([[step_messung]]).",
+     "STEP: Schrift als eigener Körper oder Fläche wird Gravur des Rohrs (statt Minuten nur Sekunden)."],
     ["0.9.192", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
                 "Feld (Text, Zahl, Rechnung, Datum, Auswahl), in Tabellen geht es eine Zeile weiter. Übernehmen "
                 "und schließen nur mit dem Knopf oder gezielt mit <b>Strg+Enter</b>. Ausnahmen: reine Ja/Nein-"

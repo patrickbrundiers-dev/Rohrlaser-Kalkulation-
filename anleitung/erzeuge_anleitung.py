@@ -7506,7 +7506,15 @@ def kapitel_step_messung(i):
             "der Abwicklung (u, z; STEP-JSON 1.12). Komplexe Enden bekommen ebenfalls ihren Umriss.",
             "<b>Gravur</b>: Vertiefung bis 0,5 mm (z. B. eine Prägung von 0,2 mm), mit <i>Tiefe</i> und Lage, runde "
             "mit Durchmesser. Tiefere, nicht durchgehende Merkmale sind <b>Sackbohrungen</b> mit dem Hinweis, dass "
-            "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg.",
+            "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg. Schrift ist je Zeichen "
+            "eine Gravur mit echtem Umriss (bei „O“, „A“, „B“ auch die Innenkontur), auch wenn sie bis 0,5 mm "
+            "<b>erhaben</b> auf dem Rohr steht.",
+            "<b>Schrift als eigener Körper</b>: Viele CAD-Modelle legen Schrift oder Markierungen nicht in das Rohr, "
+            "sondern als eigene dünne Körper (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf die "
+            "Rohrwand. Liegt ein solcher Körper ganz auf dem Mantel eines Rohrs (höchstens 1 mm Abstand), wird "
+            "sein Rand Gravur dieses Rohrs, genau wie eingeprägte Schrift: gleiche Zeilen, Längen und Lage wie in "
+            "der STEP. Der Körper selbst wird kein Teil und kein Anbauteil (Profilform <i>Gravurkörper</i>, im "
+            "Import-Bericht „Schrift/Markierung auf Körper …, dort als Gravur“).",
             "<b>Innenmerkmal</b>: nur auf der Innenseite, von außen nicht sichtbar. Es wird gemeldet, aber nicht "
             "gerechnet.",
             "<b>Ende A / Ende B</b>: <i>gerade</i>, <i>Gehrung</i> (Neigung um eine Querachse), <i>Schrägschnitt "
