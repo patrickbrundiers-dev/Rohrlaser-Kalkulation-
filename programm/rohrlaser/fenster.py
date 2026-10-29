@@ -1643,6 +1643,11 @@ class Hauptfenster(QMainWindow):
                                   ("Alte Angebote archivieren …", self.archivieren, None),
                                   ("Archiv durchsuchen …", self.archiv_dialog, None),
                                   (None, None, None),
+                                  ("Angebots-Auswertung …", self.angebots_auswertung, None),
+                                  ("Preis-Simulator …", self.preis_simulator, None),
+                                  ("Maschinenauslastung …", self.maschinenauslastung, None),
+                                  ("Reklamationen …", self.reklamationen, None),
+                                  (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
                                   ("Daten importieren …", self.daten_importieren, None),
                                   (None, None, None),
@@ -2284,6 +2289,44 @@ class Hauptfenster(QMainWindow):
         d = ArchivDialog(self)
         if d.exec() and d.zurueckgeholt:
             self.angebot_oeffnen(d.zurueckgeholt)
+
+    def angebots_auswertung(self):
+        """Datei → Angebots-Auswertung: Trefferquote je Kunde, Kategorie, Preisklasse, Absagegründe (nur Admin, wie
+        die Kennzahlen der Startseite)."""
+        if not (getattr(self, "bereich", None) and self.bereich.admin):
+            self.meldung("Die Angebots-Auswertung zeigt Kennzahlen und braucht Admin-Rechte "
+                         "(Hilfe → Lizenz → Admin freischalten …).", fehler=True)
+            return None
+        from .absage_dialog import AuswertungDialog
+        d = AuswertungDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def preis_simulator(self):
+        """Datei → Preis-Simulator: Was-wäre-wenn für die offenen Angebote (nichts wird gespeichert)."""
+        from .preis_simulator_dialog import PreisSimulatorDialog
+        d = PreisSimulatorDialog(self)
+        d.rechnen()
+        d.exec()
+
+    def maschinenauslastung(self):
+        """Datei → Maschinenauslastung: Bedarf und Kapazität je Maschine und Woche (auslastung.py). Ergebnis: der
+        Dialog (im Selbsttest ohne exec)."""
+        from .auslastung_dialog import AuslastungDialog
+        d = AuslastungDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def reklamationen(self):
+        """Datei → Reklamationen: offene bzw. alle Reklamationen und Quote je Fehlerart, Kunde, Werkstoff
+        (reklamation.py). Ergebnis: der Dialog (im Selbsttest ohne exec)."""
+        from .reklamation_dialog import ReklamationenDialog
+        d = ReklamationenDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def wiederherstellen_dialog(self):
         from .sicherung_dialog import WiederherstellenDialog

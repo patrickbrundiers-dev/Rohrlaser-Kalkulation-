@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.194", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
+    ["0.9.196", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
                 "CAD als <b>eigene dünne Körper</b> (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf "
                 "dem Rohr liegen, werden jetzt Gravur des Rohrs – mit allen Konturen (auch innen in „O“, „A“, „B“), "
                 "genau wie in der STEP, wie eingeprägte Schrift. Früher wurde jedes Zeichen als Blech vermessen "
@@ -30,6 +30,38 @@ NEUERUNGEN = [
                 "(rund dreimal schneller), und bei sehr viel eingeprägter Schrift sind die Querschnitte schneller "
                 "([[step_messung]]).",
      "STEP: Schrift als eigener Körper oder Fläche wird Gravur des Rohrs (statt Minuten nur Sekunden)."],
+    ["0.9.195", "<b>Zeitraum in der Angebotsliste</b>: Neben dem Vorgang wählt man, welche Angebote die Liste zeigt "
+                "– mit Datum oder Änderung in den letzten 30, 60, 100, 150 oder 365 Tagen oder alle (Vorgabe 150 Tage, "
+                "Einstellungen → Angebot, nur dieser Arbeitsplatz). Fällige Wiedervorlagen, beauftragte und noch nicht "
+                "versendete Aufträge und geöffnete Angebote bleiben immer sichtbar, die Suche findet alle. Unter der "
+                "Liste steht, wie viele ältere ausgeblendet sind, mit „Alle zeigen“ ([[angebote]]).",
+     "Angebotsliste: Zeitraum 30/60/100/150/365 Tage oder alle, Suche findet weiter alle."],
+    ["0.9.194", "<b>Teuerungszuschlag je Werkstoff</b>: Bei den Werkstoffen gibt es neu die Spalten "
+                "<i>Teuerungszuschlag je</i> (% oder €/kg), <i>Teuerungszuschlag</i> und <i>Teuerung Stand</i>. "
+                "Der Zuschlag kommt auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis, nicht auf "
+                "Oberflächen-Aufpreise und Preise von Hand. Der Tooltip des Materialpreises nennt ihn, der "
+                "Angebots-Check meldet einen Zuschlag ohne Stand oder älter als 3 Monate, festgeschriebene Angebote "
+                "behalten ihren Zuschlag ([[teuerungszuschlag]]). Neu ist auch der <b>Preis-Simulator</b> "
+                "(Datei → Preis-Simulator …): Was wäre, wenn Material einer Kategorie oder Stundensätze teurer "
+                "werden? Er zeigt für alle offenen Angebote den Verkaufspreis vorher/nachher, mit Admin-Rechten "
+                "auch die Marge bei gleichem Preis, ohne etwas zu speichern ([[preis_simulator]]). Beim Vorgang "
+                "<b>Abgelehnt</b> fragt das Programm nach dem <b>Absagegrund</b> (optional Preis des Wettbewerbs); "
+                "<i>Datei → Angebots-Auswertung …</i> zeigt die Trefferquote je Kunde, Werkstoff-Kategorie, "
+                "Preisklasse und Absagegrund ([[absage]]). Für beauftragte Angebote gibt es die "
+                "<b>Auftragsbestätigung (PDF)</b> im Menü <i>Ausgaben</i>: Layout und Preise des Angebots, "
+                "Bestellnummer des Kunden, Liefertermin mit KW, Nummer wie das Angebot oder eigener Nummernkreis "
+                "AB-2026-00001 ([[auftragsbestaetigung]]). <b>Etiketten mit QR-Code</b> je Position "
+                "(Ausgaben bzw. Reiter Fertigung, A4-Bogen oder Etikettendrucker) und <b>Rückmeldung per Scan</b>: "
+                "Reiter Fertigung → Scannen …, Arbeitsschritt wählen, scannen; der Unterreiter Rückmeldungen zeigt "
+                "je Position, was geschnitten, entgratet und verpackt ist ([[etiketten]]). "
+                "<b>Maschinenauslastung je Woche</b> (Datei bzw. Reiter Fertigung): Laserstunden der Aufträge gegen "
+                "den Schichtkalender (Stunden je Tag und Maschine, Samstag, Feiertage, Betriebsruhe), auf Wunsch mit "
+                "verschickten Angeboten nach Trefferquote ([[auslastung]]). <b>Reklamationen</b> je Auftrag und "
+                "Position (Ausgaben → Reklamation erfassen …) mit Fehlerart, Ursache, Maßnahme und Kosten; die Kosten "
+                "stehen als eigene Kostenart in der Nachkalkulation, Datei → Reklamationen … zeigt offene und die "
+                "Quote je Fehlerart, Kunde und Werkstoff ([[reklamation]]).",
+     "Teuerungszuschlag je Werkstoff; Preis-Simulator; Absagegrund mit Trefferquote; Auftragsbestätigung als PDF; "
+     "QR-Etiketten mit Rückmeldung per Scan; Maschinenauslastung je Woche; Reklamationen."],
     ["0.9.193", "<b>Prüfung Performance, System, Daten, Optik</b> (Berechnung und Import unverändert): Am "
                 "<b>Laptop</b> (Angebotsseite niedriger als 760 Punkte) sind die Karten oben flacher, Kalkulation und "
                 "Fracht stehen zugeklappt nebeneinander, so sind mehr Positionen sichtbar ([[angebot]]). "

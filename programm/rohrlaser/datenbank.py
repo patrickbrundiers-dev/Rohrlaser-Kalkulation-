@@ -30,7 +30,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import fertigung, kennwerte, lager, nummern, passwort, step_pruefung, teilen, vollmaterial, zukauf
+from . import etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -46,7 +46,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 67     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 69     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -129,6 +129,11 @@ SCHEMA_VERSION = 67     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Musterkosten auf die Serie umlegen)
                         # 67: Schnittplan (angebote.ergebnis) zlib-gepackt statt JSON-Text (ergebnis_packen), Datei
                         #     etwa halb so groß; ältere Programme könnten ihn nicht lesen
+                        # 68: Teuerungszuschlag je Werkstoff (werkstoffe.teuerung_art, teuerung_wert, teuerung_stand;
+                        #     leer = kein Zuschlag; Plan 29.10.2026 1a)
+                        # 69: Rückmeldungen per Scan der Etiketten (Tabelle rueckmeldungen, etiketten.py; Plan
+                        #     29.10.2026 2a), Schichtstunden je Maschine (maschinen.schicht_stunden, 2b),
+                        #     Reklamationen (Tabelle reklamationen, reklamation.py, 2c)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -470,6 +475,8 @@ class Datenbank:
             teilen.einrichten(self.con)
             lager.einrichten(self.con)
             fertigung.einrichten(self.con)
+            etiketten.einrichten(self.con)
+            reklamation.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
@@ -479,7 +486,8 @@ class Datenbank:
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN
+                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN + etiketten.TABELLEN \
+        + reklamation.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
@@ -1771,18 +1779,29 @@ class Datenbank:
 
     # -------------------------------------------------------------- Angebote
     @liest
-    def angebote(self, suche=""):
-        """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
+    def angebote(self, suche="", seit=None, dazu=()):
+        """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung.
+        seit (ISO-Datum, Zeitraum der Angebotsliste, Patrick 29.10.2026): nur Angebote mit Datum oder Änderung ab
+        diesem Tag (_im_zeitraum) und dazu die, die trotzdem sichtbar bleiben können (Entwurf/Verschickt wegen der
+        Wiedervorlage, Beauftragt wegen des Versands, mit _schein; dazu: IDs, z. B. geöffnete); die Auswahl trifft
+        AngeboteSeite. Mit Suche: immer alle."""
+        zeitraum = bool(seit) and not suche
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
                "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
-               "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
+               + ("(a.datum >= ? OR a.geaendert >= ?) AS _im_zeitraum, a.palettenschein AS _schein, " if zeitraum else "")
+               + "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
-        werte = []
+        werte = [seit, seit] if zeitraum else []
         if suche:
             sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
                     "OR a.auftragsnr LIKE ? "
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
             werte = [f"%{suche}%"] * 7
+        elif zeitraum:
+            sql += (" WHERE a.datum >= ? OR a.geaendert >= ? OR (COALESCE(a.ersetzt_durch, '') = '' AND "
+                    "COALESCE(NULLIF(a.vorgang, ''), 'Entwurf') IN ('Entwurf', 'Verschickt', 'Beauftragt'))"
+                    + (f" OR a.id IN ({','.join('?' * len(dazu))})" if dazu else ""))
+            werte += [seit, seit, *dazu]
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
         from .nachkalkulation import erfasst
         zeilen = []
@@ -1795,8 +1814,14 @@ class Datenbank:
                 z["versand"] = []
             nk = z.pop("_nk")      # ist_erfasst: echte Ist-Werte (nicht nur eine Bemerkung), Filter Nachkalkulation offen
             z["ist_erfasst"] = bool(nk) and erfasst(json.loads(nk))
+            if zeitraum:
+                z["_im_zeitraum"] = bool(z["_im_zeitraum"])
             zeilen.append(z)
         return zeilen
+
+    @liest
+    def angebote_anzahl(self):
+        return self.con.execute("SELECT COUNT(*) FROM angebote").fetchone()[0]
 
     @liest
     def angebot(self, angebot_id):
@@ -1992,6 +2017,8 @@ class Datenbank:
             self.con.execute("UPDATE lager_reservierung SET angebot_id=NULL WHERE angebot_id=?", (angebot_id,))
             self.con.execute("DELETE FROM lager_auftraege WHERE angebot_id=?", (angebot_id,))
             fertigung.angebot_geloescht(self, angebot_id)          # Statusjournal gehört zum Angebot
+            etiketten.angebot_geloescht(self, angebot_id)          # Rückmeldungen per Scan ebenso
+            reklamation.angebot_geloescht(self, angebot_id)
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
     @schreibt
@@ -2026,6 +2053,21 @@ class Datenbank:
     def nachgefasst_merken(self, angebot_id, wie="E-Mail"):
         """Nachfassen (Plan A9) im Versandverlauf vermerken; das automatische Nachfassen zählt ab heute neu."""
         self.versand_merken(angebot_id, dict(art="nachgefasst", datum=datetime.date.today().isoformat(), wie=wie))
+
+    @schreibt
+    def absage_merken(self, angebot_id, grund, bemerkung="", preis=None):
+        """Absagegrund (Plan 29.10.2026 1b, absage.py) im Versandverlauf vermerken."""
+        from .absage import eintrag
+        self.versand_merken(angebot_id, eintrag(grund, bemerkung, preis))
+
+    @liest
+    def angebot_werkstoffe(self):
+        """{Angebot-ID: {Werkstoff-ID}} der Positionen aller Angebote (Auswertung je Werkstoff-Kategorie)."""
+        out = {}
+        for r in self.con.execute("SELECT DISTINCT angebot_id, werkstoff_id FROM positionen "
+                                  "WHERE werkstoff_id IS NOT NULL AND werkstoff_id != ''"):
+            out.setdefault(r[0], set()).add(r[1])
+        return out
 
     @schreibt
     def wiedervorlage_setzen(self, angebot_id, am):
