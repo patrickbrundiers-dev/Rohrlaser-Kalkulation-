@@ -975,6 +975,7 @@ def _profilform(aussen, a, b, tol=0.05):
 
 TOL_WAND_GLEICH = 0.05  # mm: Einzelmessungen der Wandstärke, die weiter auseinanderliegen, gelten als widersprüchlich
 QUER_GLEICH = 1e-5      # relativ: Querschnitte (Netto-Fläche) so genau gleich gelten als der Profilquerschnitt
+QUER_GRAVUR = 0.02      # relativ: so viel kleiner kann ein Querschnitt durch eine flache Gravur sein
 OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl", "I-/H-Träger",
                   "T-Profil")
 
@@ -1973,21 +1974,28 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     # langer Schrift trifft fast jede Lage ein Zeichen, und die Außenkontur mit Kerbe machte die ganze Wand zur
     # Schnittfläche (Patrick 29.10.2026: große Gravur, Stecknasen vorne/hinten -> halbes Teil weggeschnitten). Nur wenn
     # keine zwei Lagen so genau gleich sind (Freiformflächen), zählen Lagen bis 0,1 % daneben. Vor dem Abbruch immer
-    # auch vier Lagen über die Länge verteilt (eine Gravur mit gleich tiefen Kerben über die halbe Länge gäbe sonst in
-    # der Mitte drei gleiche Lagen).
+    # auch vier Lagen über die Länge verteilt: ist dort eine bis QUER_GRAVUR größer (eine Gravur mit gleich tiefen
+    # Kerben über die halbe Länge gäbe in der Mitte drei gleiche Lagen), wird weiter gesucht. Viel größer (tiefe Tasche
+    # über die Mitte, B08) bleibt es beim Querschnitt der Mitte wie bisher.
     def suche(n_konturen):
-        lagen, rest = [], [(i + 0.37) / 50 for i in range(1, 49)]
+        mitte, probe, rest = [], [], [(i + 0.37) / 50 for i in range(1, 49)]
         verteilt = [min(rest, key=lambda a: abs(a - v)) for v in (0.13, 0.33, 0.67, 0.87)]
-        reihe = [0.5037] + verteilt + sorted((a for a in rest if a not in verteilt), key=lambda a: abs(a - 0.5037))
-        for n_, anteil in enumerate(reihe):
+        reihe = verteilt + [0.5037] + sorted((a for a in rest if a not in verteilt), key=lambda a: abs(a - 0.5037))
+        fertig = False
+        for anteil in reihe:
             z = zmin + anteil * t.laenge
             ws = _schnitt(lok_q, z)
             if len(ws) != n_konturen or n_konturen >= 2 and not all(_innen_liegend(w[1], ws[0][1]) for w in ws[1:]):
                 continue
-            lagen.append((ws[0][0] - sum(w[0] for w in ws[1:]), z, ws))
-            gr = max(lg[0] for lg in lagen)
-            if n_ >= len(verteilt) and sum(1 for lg in lagen if lg[0] >= gr * (1 - QUER_GLEICH)) >= 3:
+            (probe if anteil in verteilt else mitte).append((ws[0][0] - sum(w[0] for w in ws[1:]), z, ws))
+            if not mitte:
+                continue
+            gr = max(lg[0] for lg in mitte)
+            veto = any(gr * (1 + QUER_GLEICH) < lg[0] <= gr * (1 + QUER_GRAVUR) for lg in probe)
+            if not veto and sum(1 for lg in mitte if lg[0] >= gr * (1 - QUER_GLEICH)) >= 3:
+                fertig = True
                 break
+        lagen = mitte if fertig else mitte + probe
         if not lagen:
             return None, []
         best = max(lagen, key=lambda lg: lg[0])
