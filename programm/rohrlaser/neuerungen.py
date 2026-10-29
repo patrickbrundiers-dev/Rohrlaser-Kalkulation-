@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.190", "<b>Teuerungszuschlag je Werkstoff</b>: Bei den Werkstoffen gibt es neu die Spalten "
+                "<i>Teuerungszuschlag je</i> (% oder €/kg), <i>Teuerungszuschlag</i> und <i>Teuerung Stand</i>. "
+                "Der Zuschlag kommt auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis, nicht auf "
+                "Oberflächen-Aufpreise und Preise von Hand. Der Tooltip des Materialpreises nennt ihn, der "
+                "Angebots-Check meldet einen Zuschlag ohne Stand oder älter als 3 Monate, festgeschriebene Angebote "
+                "behalten ihren Zuschlag ([[teuerungszuschlag]]).",
+     "Teuerungszuschlag je Werkstoff in % oder €/kg, mit Stichtag."],
     ["0.9.189", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
                 "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
                 "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "

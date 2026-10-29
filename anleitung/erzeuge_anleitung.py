@@ -6228,6 +6228,9 @@ def kapitel_stammdaten(i):
         ["Laser-Hinweis", "Hinweis für Arbeitsvorbereitung und Bediener, z. B. „Zinkdampf, Absaugung prüfen“. Er "
                           "steht als Tooltip in der Werkstoffwahl, als HINWEIS im Angebots-Check ([[angebots_check]]) und "
                           "unter „Hinweise zum Werkstoff“ in der Kalkulation und den Werkstattpapieren"],
+        ["Teuerungszuschlag je, Teuerungszuschlag, Teuerung Stand",
+         "Legierungs- bzw. Materialteuerungszuschlag des Werkstoffs: <i>%</i> auf den Materialpreis oder <i>€/kg</i> "
+         "auf das Stangengewicht, mit Stichtag; leer = kein Zuschlag ([[teuerungszuschlag]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Vorbelegt sind 29 Werkstoffe mit Beispiel-Tonnenpreisen: Stahl (S235JRH, S355J2H nach EN 10219 und "
            "EN 10210, E195, E235, E355, DX51D+Z275 sendzimirverzinkt, P235TR1, P235GH nahtlos, S420MH, S460MH, "
@@ -6252,6 +6255,25 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
            "Werkstoff + Oberfläche + Stangenlänge. Leer und <i>roh</i> sind gleich.")
+    i.abschnitt("Teuerungszuschlag je Werkstoff", marke="teuerungszuschlag")
+    i.text("Schwanken die Preise eines Werkstoffs (Legierungszuschlag bei Edelstahl, Teuerung bei Aluminium), trägt man "
+           "den Zuschlag beim Werkstoff ein, statt alle Preise zu ändern: <i>Teuerungszuschlag je</i> = % oder €/kg, "
+           "<i>Teuerungszuschlag</i> = Wert, <i>Teuerung Stand</i> = Stichtag, z. B. der Monat des Lieferanten.",
+           kurz=True)
+    i.genauer("So wird gerechnet")
+    i.tabelle(["Art", "Wirkung"], [
+        ["%", "Prozent auf den Materialpreis der Stange aus Lieferlängen, Preisen oder Tonnenpreis, z. B. 8 % auf "
+              "62 € = 66,96 €. Der Aufpreis der Oberfläche bleibt ohne Zuschlag."],
+        ["€/kg", "Betrag je kg Stangengewicht (mit Händler-Mehrlänge wie der Materialpreis), z. B. 0,35 €/kg. "
+                 "Fehlt das Gewicht, meldet die Position „Gewicht fehlt“."],
+        ["leer oder 0", "kein Zuschlag, alles wie bisher"]], [40, 225])
+    i.text("Der Zuschlag gilt mit Verschnitt, weil er auf die ganze Stange kommt. Ein Materialpreis von Hand in der "
+           "Position ([[meterpreis]]) gilt unverändert ohne Zuschlag. Der Mauszeiger auf dem Materialpreis nennt ihn, "
+           "z. B. „zzgl. Teuerungszuschlag 8 % (Stand 01.10.2026)“. Ist der Stand leer oder älter als 3 Monate, "
+           "zeigt der Angebots-Check einen HINWEIS ([[angebots_check]]).")
+    i.text("Festgeschriebene Angebote ([[preise_festschreiben]]) behalten ihren Zuschlag; eine Änderung steht in der "
+           "Liste „Stammdaten seit dem Festschreiben geändert“. Angebote, die vor dem 29.10.2026 festgeschrieben "
+           "wurden, rechnen ohne Zuschlag weiter, bis man „Aktuelle Preise übernehmen“ wählt.")
     i.abschnitt("Preise und Lieferlängen")
     i.bild("stamm_preise", "Einstellungen, Preise je Profil und Werkstoff", hoehe=95 * mm)
     i.text("<b>Preise</b>: Materialpreis je Profil und Werkstoff in €/kg, €/m oder €/Stange. <b>Lieferlängen</b>: "

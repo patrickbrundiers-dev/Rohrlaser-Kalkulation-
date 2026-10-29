@@ -2583,7 +2583,8 @@ class AngebotSeite(QWidget):
             kunde=(self.db.kunde(kundennr) or {}) if kundennr else None, preis_abweichung=preis_abweichung,
             mindestmarge=self.db.einstellung("mindestmarge") or 0,
             admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin),
-            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k),
+            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k)
+            + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen))
 
     def _staffel_widersprueche(self, kalk_zeilen):

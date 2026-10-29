@@ -32,6 +32,9 @@ LASERARTEN = ("Faser + CO₂", "nur Faser")
 NUR_FASER = "nur Faser"
 ROHRARTEN = ("geschweißt", "nahtlos", "stranggepresst")
 OHNE_NAHT = ("nahtlos", "stranggepresst")
+# Teuerungs-/Legierungszuschlag je Werkstoff (Plan 29.10.2026 1a, Patrick „4c“: Prozent oder €/kg wählbar)
+TEUERUNG_PROZENT, TEUERUNG_KG = "%", "€/kg"
+TEUERUNG_ARTEN = (TEUERUNG_PROZENT, TEUERUNG_KG)
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
 ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
@@ -263,7 +266,11 @@ WERKSTOFFE = Tabelle(
      Feld("gas_vorgabe", "Schneidgas", "auswahl", auswahl="gasvorgabe", breite=90),
      Feld("vorschub_faktor", "Vorschub-Faktor", "zahl", 0.1, 3, stellen=2, breite=75),
      Feld("laser", "Laser", "auswahl", auswahl="laserart", breite=85),
-     Feld("laser_hinweis", "Laser-Hinweis", breite=220)),
+     Feld("laser_hinweis", "Laser-Hinweis", breite=220),
+     # Teuerungs-/Legierungszuschlag (Schema 68, leer = kein Zuschlag; Plan 29.10.2026 1a)
+     Feld("teuerung_art", "Teuerungszuschlag je", "auswahl", auswahl="teuerung", breite=95),
+     Feld("teuerung_wert", "Teuerungszuschlag", "zahl", -50, 10000, stellen=2, breite=85),
+     Feld("teuerung_stand", "Teuerung Stand", "datum", breite=95)),
     ("werkstoff_id",),
     "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Die Kategorie (Stahl, Edelstahl, "
     "Aluminium) ordnet die Auswahl im Angebot und liefert Schneiddaten und Oberflächen, wenn der Werkstoff keine "
@@ -274,7 +281,10 @@ WERKSTOFFE = Tabelle(
     "Stangenwechsel SN); Schneidgas 'nur N₂'/'nur O₂' nimmt nur die Schneiddaten-Zeilen dieses Gases; "
     "Vorschub-Faktor wirkt auf die Schneiddaten der Kategorie (nicht auf eigene Zeilen des Werkstoffs); Laser "
     "'nur Faser' warnt auf einer CO₂-Maschine; der Laser-Hinweis steht in Werkstoffwahl, Angebots-Check, "
-    "Kalkulation und Werkstattpapieren.")
+    "Kalkulation und Werkstattpapieren. Teuerungszuschlag (Legierungs-/Materialteuerungszuschlag, z. B. bei "
+    "Edelstahl und Aluminium): je '%' auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis oder je "
+    "'€/kg' auf das Stangengewicht; nicht auf Preise von Hand und Oberflächen-Aufpreise. Stand = Stichtag des "
+    "Zuschlags (z. B. Monat des Lieferanten); festgeschriebene Angebote behalten ihren Zuschlag.")
 
 OBERFLAECHEN = Tabelle(
     "oberflaechen", "Oberflächen",
@@ -1318,7 +1328,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
@@ -1616,8 +1626,8 @@ def beispiel_blechlaser():
 def beispiel_werkstoffe():
     """Werkstoffe mit Kategorie (Beispiel-Tonnenpreise, bitte durch eigene ersetzen) und Lasereigenschaften
     (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis; Richtwerte, Patrick 24.10.2026). Je Zeile alle
-    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten leer)."""
-    return [w[:9] + (None, None, None) + w[9:] for w in _BEISPIEL_WERKSTOFFE]
+    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten und Teuerungszuschlag leer)."""
+    return [w[:9] + (None, None, None) + w[9:] + (None, None, None) for w in _BEISPIEL_WERKSTOFFE]
 
 
 _ST, _ES, _AL, _BM = "Stahl", "Edelstahl", "Aluminium", "Buntmetall"

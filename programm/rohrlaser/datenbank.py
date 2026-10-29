@@ -46,7 +46,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 67     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 68     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -129,6 +129,8 @@ SCHEMA_VERSION = 67     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Musterkosten auf die Serie umlegen)
                         # 67: Schnittplan (angebote.ergebnis) zlib-gepackt statt JSON-Text (ergebnis_packen), Datei
                         #     etwa halb so groß; ältere Programme könnten ihn nicht lesen
+                        # 68: Teuerungszuschlag je Werkstoff (werkstoffe.teuerung_art, teuerung_wert, teuerung_stand;
+                        #     leer = kein Zuschlag; Plan 29.10.2026 1a)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
