@@ -113,6 +113,16 @@ def _werte(summen):
                 material=_n(summen.get("material")), laser=_n(summen.get("laser")))
 
 
+def grundlage(db, a, aktuell=None, einst=None):
+    """(Kontext, Tabellen, Einstellungen) eines gespeicherten Angebots wie im Angebotsfenster: festgeschriebene Preise
+    und Zeiten, Einstellungen des Angebots (auch für auslastung.py)."""
+    k_akt, tab_akt = aktuell or (db.kontext(), db.tabellen())
+    k, tab = rechnen.preisbasis_anwenden(a, k_akt, tab_akt)
+    e = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(tab, einst if einst is not None
+                                                                     else db.einstellungen()))
+    return k, tab, e
+
+
 def angebot(db, angebot_id, sz, aktuell=None, einst=None):
     """Ein Angebot vorher/mit Szenario: dict(id, nummer, kunde, vorgang, datum, vorher, nachher) mit je dict(verkauf,
     selbst, material, laser), oder dict(..., fehlt=Text) ohne Schnittplan. aktuell = (k, tabellen) der Stammdaten,
@@ -125,10 +135,7 @@ def angebot(db, angebot_id, sz, aktuell=None, einst=None):
     pos = db.positionen(angebot_id)
     if not pos:
         return dict(kopf_info, fehlt="keine Positionen")
-    k_akt, tab_akt = aktuell or (db.kontext(), db.tabellen())
-    k, tab = rechnen.preisbasis_anwenden(a, k_akt, tab_akt)
-    e = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(tab, einst if einst is not None
-                                                                     else db.einstellungen()))
+    k, tab, e = grundlage(db, a, aktuell, einst)
     vorher = rechnen.kalkulation(a, pos, a["ergebnis"], k, tab, e)[1]
     kopf2, pos2, k2, tab2 = anwenden(a, pos, k, tab, sz)
     nachher = rechnen.kalkulation(kopf2, pos2, a["ergebnis"], k2, tab2, e)[1]

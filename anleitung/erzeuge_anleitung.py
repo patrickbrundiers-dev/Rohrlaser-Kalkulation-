@@ -5474,6 +5474,28 @@ def kapitel_fertigung(i):
             "Die Arbeitsschritte stehen in der Einstellung <i>Rückmeldung per Scan: Arbeitsschritte</i> (eine Zeile "
             "je Schritt, Vorgabe Geschnitten, Entgratet, Verpackt). Die Rückmeldungen liegen in der Datendatei des "
             "Arbeitsplatzes, an dem gescannt wird, und werden mit dem Angebot gelöscht.")
+    i.abschnitt("Wochenauslastung je Maschine", marke="auslastung")
+    i.text("<i>Datei → Maschinenauslastung …</i> (oder <b>Auslastung …</b> im Reiter Fertigung) öffnet das Fenster "
+           "<i>Maschinenauslastung je Woche</i>: je Maschine und Woche, wie viele Laserstunden die Aufträge brauchen und wie viele der Schichtkalender hergibt.",
+           kurz=True)
+    i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "
+            "rot. Spalten: <i>überfällig</i>, die Wochen ab dieser (Zeitraum 2 bis 26 Wochen, Vorgabe 8), "
+            "<i>später</i> und <i>ohne Termin</i>. Eine Zelle wählen zeigt unten ihre Aufträge, Doppelklick öffnet "
+            "das Angebot.",
+            "<b>Bedarf</b>: je beauftragtes Angebot die Laserzeit aus der Kalkulation (Laser schneiden, Rüsten "
+            "Maschine, Rüsten je Abmessung, Stangenwechsel; wie unter Zeiten im Angebot) auf der Maschine des "
+            "Angebots. Sie zählt in der Woche des Liefertermins minus <i>Auslastung: Laserzeit so viele "
+            "Arbeitstage vor dem Liefertermin</i> (Vorgabe 2). Aufträge auf <i>Fertig gemeldet</i> zählen nicht; "
+            "schon gescannte Teile (erster Arbeitsschritt, [[etiketten]]) ziehen ihren Anteil ab. Nicht optimierte "
+            "Angebote stehen als Hinweis darüber.",
+            "<b>Kapazität</b>: Arbeitstage × <i>Stunden je Arbeitstag</i> (Maschine, Feld <i>Schicht: Stunden je "
+            "Arbeitstag</i>, sonst die Einstellung, Vorgabe 8) plus <i>Stunden am Samstag</i>, mal <i>nutzbarer "
+            "Anteil</i> (Vorgabe 85 % für Wartung und Störungen). Arbeitstage sind Montag bis Freitag ohne die "
+            "Feiertage des Bundeslands (Einstellung Versand) und ohne <i>Betriebsruhe</i> (z. B. "
+            "„24.12.2026-31.12.2026; 02.10.2026“).",
+            "<i>Verschickte Angebote gewichtet mit der Trefferquote</i>: offene Angebote zählen mit Laserzeit × "
+            "Trefferquote der letzten 12 Monate ([[absage]]); ihr Termin kommt aus der Lieferzeit ab heute. So "
+            "sieht man, ob eine Woche voll wird, wenn die üblichen Aufträge kommen.")
     i.abschnitt("Lager und Reststücke", marke="lager")
     i.text("Mit der Einstellung <i>Materialbestand verwenden (Reiter Lager)</i> = ja erscheint der Reiter "
            "<b>Lager</b>. Angebote und ihre Preise ändern sich dadurch nie; das Lager kommt erst beim beauftragten "
@@ -5809,6 +5831,13 @@ def kapitel_einstellungen(i):
          "A4-Bogen 3 × 8 oder 2 × 7 Etiketten oder Etikettendrucker 100 × 50 / 62 × 29 mm ([[etiketten]])"],
         ["Lager und Fertigung", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte = fertig)",
          "Vorgabe Geschnitten, Entgratet, Verpackt ([[etiketten]])"],
+        ["Lager und Fertigung", "Auslastung: Stunden je Arbeitstag und Maschine (Maschine leer = dieser Wert), "
+                                "Auslastung: Stunden am Samstag, Auslastung: nutzbarer Anteil der Schichtzeit "
+                                "(Wartung, Störungen), Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. "
+                                "24.12.2026-31.12.2026; 02.10.2026), Auslastung: Laserzeit so viele Arbeitstage vor "
+                                "dem Liefertermin",
+         "Schichtkalender der Wochenauslastung (Vorgabe 8 h, Samstag 0 h, 85 %, Vorlauf 2 Arbeitstage, "
+         "[[auslastung]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten (Admin-Passwort beim Start nur bei älterer Admin-Lizenz ohne eigenes); "
                                                     "verschlüsselt gespeichert, Feld bleibt leer; <b>Entfernen</b> = "
@@ -6470,6 +6499,8 @@ def kapitel_stammdaten(i):
         ["Kürzestes Teil [mm]", "kürzere Teile kann die Maschine nicht fertigen; sie bekommen die Stufe der "
                                 "Prüfregel <i>Teil zu kurz für die Maschine</i> ([[pruefregeln]]); leer = keine "
                                 "Grenze"],
+        ["Schicht: Stunden je Arbeitstag", "Kapazität der Maschine in der Wochenauslastung "
+                                           "([[auslastung]]); leer = Einstellung"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",

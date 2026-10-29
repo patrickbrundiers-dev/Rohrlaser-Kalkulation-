@@ -1645,6 +1645,7 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
+                                  ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
                                   ("Daten importieren …", self.daten_importieren, None),
@@ -2298,6 +2299,15 @@ class Hauptfenster(QMainWindow):
         d = PreisSimulatorDialog(self)
         d.rechnen()
         d.exec()
+
+    def maschinenauslastung(self):
+        """Datei → Maschinenauslastung: Bedarf und Kapazität je Maschine und Woche (auslastung.py). Ergebnis: der
+        Dialog (im Selbsttest ohne exec)."""
+        from .auslastung_dialog import AuslastungDialog
+        d = AuslastungDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def wiederherstellen_dialog(self):
         from .sicherung_dialog import WiederherstellenDialog

@@ -367,7 +367,9 @@ MASCHINEN = Tabelle(
      Feld("sonder_spannbar", "RP-/Sonderprofile spannbar", "auswahl", auswahl="janein", breite=85),
      Feld("ruest_sonder", "Rüstzuschlag Sonderprofil [min je Abmessung]", "zahl", 0, 1440, stellen=0, breite=95),
      Feld("duese_min", "Mindestabstand Düse [mm]", "zahl", 0, 200, stellen=1, breite=85),
-     Feld("min_teil", "Kürzestes Teil [mm]", "zahl", 0, 20000, stellen=0, breite=80)),
+     Feld("min_teil", "Kürzestes Teil [mm]", "zahl", 0, 20000, stellen=0, breite=80),
+     # Schichtkalender der Wochenauslastung (Plan 29.10.2026 2b, auslastung.py); leer = Einstellung
+     Feld("schicht_stunden", "Schicht: Stunden je Arbeitstag", "zahl", 0, 24, stellen=1, breite=90)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -386,7 +388,8 @@ MASCHINEN = Tabelle(
     "Mindestabstand Düse: tiefer als dieses Maß steht der Anschlag eines RP-Profils über; Innenkonturen können "
     "darunter liegen und bekommen WARNUNG (prüfen), leer = keine Prüfung. Kürzestes Teil: kürzere Teile kann die "
     "Maschine nicht fertigen; sie bekommen die Stufe der Prüfregel 'Teil zu kurz für die Maschine' (leer = keine "
-    "Grenze).")
+    "Grenze). Schicht: Stunden je Arbeitstag für die Wochenauslastung (Datei → Maschinenauslastung …; leer = "
+    "Einstellung).")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -1156,6 +1159,16 @@ EINSTELLUNGEN = (
                 auswahl="etikettformat"),
     Einstellung("rueckmeldung_schritte", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte "
                 "= fertig)", "Lager und Fertigung", "mehrzeilig", "Geschnitten\nEntgratet\nVerpackt"),
+    # Wochenauslastung je Maschine mit Schichtkalender (Plan 29.10.2026 2b, auslastung.py)
+    Einstellung("schicht_stunden", "Auslastung: Stunden je Arbeitstag und Maschine (Maschine leer = dieser Wert)",
+                "Lager und Fertigung", "zahl", 8.0, 0, 24),
+    Einstellung("schicht_samstag", "Auslastung: Stunden am Samstag", "Lager und Fertigung", "zahl", 0.0, 0, 24),
+    Einstellung("schicht_verfuegbar", "Auslastung: nutzbarer Anteil der Schichtzeit (Wartung, Störungen)",
+                "Lager und Fertigung", "anteil", 0.85, 0.1, 1),
+    Einstellung("betriebsruhe", "Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. 24.12.2026-31.12.2026; "
+                "02.10.2026)", "Lager und Fertigung", "text", ""),
+    Einstellung("auslastung_vorlauf", "Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin",
+                "Lager und Fertigung", "ganz", 2, 0, 60),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
                 1200, 200, 3000),
     Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",

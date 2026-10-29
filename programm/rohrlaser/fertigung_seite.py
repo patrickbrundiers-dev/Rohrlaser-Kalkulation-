@@ -45,9 +45,12 @@ class FertigungSeite(QWidget):
         self.scan_knopf = QPushButton("Scannen …")
         self.scan_knopf.setToolTip("Rückmeldung per Handscanner: Arbeitsschritt wählen und Etiketten scannen")
         self.scan_knopf.clicked.connect(lambda: self.scannen())
+        auslastung = QPushButton("Auslastung …")       # Wochenauslastung je Maschine (Plan 29.10.2026 2b)
+        auslastung.setToolTip("Maschinenzeit der Aufträge je Woche gegen den Schichtkalender")
+        auslastung.clicked.connect(lambda: self.f.maschinenauslastung())
         zeile = QHBoxLayout()
         for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf,
-                  self.etiketten_knopf, self.scan_knopf):
+                  self.etiketten_knopf, self.scan_knopf, auslastung):
             zeile.addWidget(w)
         zeile.setStretch(2, 1)
         self.meldung = QLabel()
