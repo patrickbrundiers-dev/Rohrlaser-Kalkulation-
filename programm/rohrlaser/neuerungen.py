@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.189", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
+                "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
+                "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "
+                "kürzer, die Innenkante bleibt maßhaltig, die Schnittlänge gleich. Eine in 3D übernommene ebene "
+                "STEP-Gehrung wird beim Umstellen auf 2D ebenso kürzer. Neu auch für offene Profile und Flachstahl: "
+                "der Schenkel, der zur langen Seite zeigt, wird um seine Dicke · tan(Winkel) kürzer "
+                "([[schneidweg_rechner]]).",
+     "Gehrung auf 2D umstellen: lange Seite überall um Wand · tan(Winkel) kürzer, auch offene Profile."],
     ["0.9.188", "<b>DXF-Import robuster</b> für Bleche und Rohre: Papierbereich (Layout), Schriftfelder mit Attributen, "
                 "Mehrfach-Blöcke, Linientyp „VonLayer“, Sonderzeichen und Splines aus Stützpunkten werden gelesen. "
                 "Kleine Lücken (bis 0,5 mm) werden geschlossen, doppelte Linien und Bohrungen zählen einmal, Teile mit "
