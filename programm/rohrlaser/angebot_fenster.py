@@ -2219,6 +2219,7 @@ class AngebotSeite(QWidget):
         try:
             self._neu_laden()
             self._auto_planen()          # nutzt den eben geprüften Optimierungsstand mit (Plan C2)
+            self._st_seite.planen()      # angelegte Staffeln nach Änderungen selbst neu rechnen (28.10.2026)
         finally:
             self._kalk_merken = None
 
@@ -5134,7 +5135,7 @@ class AngebotSeite(QWidget):
         return self.st_seite.rechnen()
 
     def staffelpreise_aktuell(self):
-        """Staffelpreise fürs Angebot, ohne neuen Mengenlauf (nie automatisch): veraltete Stufen fehlen."""
+        """Staffelpreise fürs Angebot; veraltete Stufen werden vorher neu gerechnet. None = abgebrochen."""
         return self.st_seite.aktuell()
 
     # -------------------------------------------------------------- Ausgabe (PDF, CSV)

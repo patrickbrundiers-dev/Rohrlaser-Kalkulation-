@@ -328,7 +328,7 @@ def main():
             d = SchneidwegDialog(None, p, profil, dict(maschine="T11", stange=6000), k, db.tabellen(), db)
             e = d.eingaben()
             arten = [z.get("art") for z in e["konturen"]]
-            n, sn = d.ansicht3d.ansicht.netz, ansicht3d.entpacken(m["_netz"])
+            n, sn = wie.netz_wie_konstruiert(d), ansicht3d.entpacken(m["_netz"])  # ebene Gehrung wie konstruiert
             assert "sonstige Kontur" not in arten, (name, arten)
             if name in ("L2_C80_T_Ausklinkung_V", "L4_U_Kantprofil_Nasen"):
                 # Ende A mit Ausklinkung: der Editor zeichnet den Fuß der Ausklinkung als Ende, den Rest als Ausflug

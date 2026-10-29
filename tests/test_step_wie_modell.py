@@ -84,6 +84,24 @@ def _dseg(p, a, b):
     return math.dist(p, [a[i] + f * ab[i] for i in range(3)])
 
 
+def netz_wie_konstruiert(d):
+    """3D-Netz des Editors (SchneidwegDialog d) mit ebenen Gehrungen in 3D, also wie in der STEP konstruiert. In 2D
+    wird eine ebene STEP-Gehrung an der langen Seite um Wand · tan(Winkel) kürzer, wie gefertigt (Patrick
+    28.10.2026, Variante a); nur eine schon in der STEP 2D geschnittene Gehrung ('aussen_mass') steht in 2D wie dort."""
+    e = d.eingaben()
+    eben = [s for s in ("a", "b") if (e.get(s) or {}).get("winkel") and not e[s].get("aussen_mass")
+            and not e[s].get("d3")]
+    if eben:
+        d.d3.setChecked(True)
+        for s in eben:
+            d.ende_3d[s].setChecked(True)
+        d.rechnen()
+        if getattr(d, "editor", None) is not None:
+            d.editor.zeitgeber.stop()
+            d.editor.aktualisieren()        # sonst erst nach kurzer Ruhe (Zeitgeber)
+    return d.ansicht3d.ansicht.netz
+
+
 def _abstand(a, b):
     """Größter Abstand eines Punkts der Linien a (je 1 mm abgetastet) zu den Linien b."""
     sb, weit = _segs(b), 0.0

@@ -44,8 +44,9 @@ UEBERSICHT = [
     ("Eingabe", "Markiertes Angebot öffnen", "Angebote"),
     ("Esc", "Eingabe abbrechen; im Suchfeld: Suche leeren", "Tabellen, Suchfelder"),
     ("Esc", "Fenster Abwicklung bzw. Querschnitt schließen, der Editor bleibt offen", "Teile-Editor"),
-    ("Enter", "Eingabe im Feld bestätigen (schließt den Editor nicht; übernehmen mit dem Knopf unten)",
-     "Teile-Editor, Baugruppe, Satz in 3D"),
+    ("Enter", "Eingabe im Feld bestätigen – schließt nie das Fenster; in Tabellen eine Zeile weiter. Übernehmen "
+              "und schließen nur mit dem Knopf (Ausnahme: reine Ja/Nein-Fragen)", "alle Fenster und Dialoge"),
+    ("Strg+Enter", "Fenster übernehmen und schließen (wie der Knopf OK bzw. Übernehmen)", "alle Fenster und Dialoge"),
     ("Strg+W", "Geöffnetes Angebot schließen (auch Strg+F4)", "geöffnetes Angebot"),
     ("Strg+Tab", "Nächster Hauptreiter, z. B. zum nächsten offenen Angebot (Strg+Umschalt+Tab: vorheriger)",
      "überall"),
@@ -152,22 +153,108 @@ def suche_esc(feld):
     return k
 
 
-class _EnterSperre(QObject):
+TASTEN_ENTER = (Qt.Key_Return, Qt.Key_Enter)
+
+
+def enter_schliesst(dialog):
+    """Ausnahmen der Enter-Regel: reine Bestätigungen (Ja/Nein-Fragen, Hinweise mit OK), Dateiauswahl, Fortschritt und Fenster, deren
+    Sinn Enter ist (Klassenattribut ENTER_SCHLIESST = True, z. B. Suchen und ausführen)."""
+    from PySide6.QtWidgets import QColorDialog, QFileDialog, QFontDialog, QMessageBox, QProgressDialog
+    return isinstance(dialog, (QMessageBox, QFileDialog, QProgressDialog, QColorDialog, QFontDialog)) \
+        or bool(getattr(dialog, "ENTER_SCHLIESST", False))
+
+
+def dialog_von(w):
+    """Der nächste Dialog, in dem w steht (w selbst eingeschlossen; auch eingebettete Dialoge), sonst None."""
+    from PySide6.QtWidgets import QDialog, QWidget
+    while isinstance(w, QWidget):
+        if isinstance(w, QDialog):
+            return w
+        w = w.parentWidget()
+    return None
+
+
+def _geregelt(w):
+    """Der Dialog, in dem w steht und für den die Enter-Regel gilt, sonst None."""
+    d = dialog_von(w)
+    return d if d is not None and not enter_schliesst(d) else None
+
+
+def ok_knopf(dialog):
+    """Der Knopf, der den Dialog übernimmt: OK/Übernehmen/Ja der Knopfleiste, sonst der Standardknopf."""
+    from PySide6.QtWidgets import QDialogButtonBox, QPushButton
+    def bereit(b):
+        return dialog_von(b) is dialog and b.isVisible() and b.isEnabled()
+    for leiste in dialog.findChildren(QDialogButtonBox):
+        for b in leiste.buttons():
+            if leiste.buttonRole(b) in (QDialogButtonBox.AcceptRole, QDialogButtonBox.YesRole) and bereit(b):
+                return b
+    return next((b for b in dialog.findChildren(QPushButton) if b.isDefault() and bereit(b)), None)
+
+
+def _tabelle_weiter(dialog):
+    """Enter in einer bearbeitbaren Tabelle des Dialogs (ohne offene Zelle): eine Zeile weiter wie in Excel."""
+    from PySide6.QtWidgets import QApplication
+    t = QApplication.focusWidget()
+    if not isinstance(t, QAbstractItemView) or dialog_von(t) is not dialog \
+            or t.state() == QAbstractItemView.EditingState or t.editTriggers() == QAbstractItemView.NoEditTriggers:
+        return
+    i = t.currentIndex()
+    m = t.model()
+    if not i.isValid() or m is None:
+        return
+    r = i.row() + 1
+    while r < m.rowCount(i.parent()) and getattr(t, "isRowHidden", lambda _r: False)(r):
+        r += 1
+    if r < m.rowCount(i.parent()):
+        t.setCurrentIndex(m.index(r, i.column(), i.parent()))
+
+
+class EnterRegel(QObject):
+    """Enter nach einer Eingabe schließt kein Fenster (Patrick 25.10. und 28.10.2026, gilt für alle Dialoge).
+
+    Qt reicht ein Enter, das das Eingabefeld (Zahl, Text, Auswahl, Tabelle) nicht selbst verbraucht, an den Dialog
+    weiter, und der drückt dann den Standardknopf (OK) – das Fenster ging zu. Die Regel fängt dieses Enter am Dialog
+    ab: das Feld hat die Eingabe schon übernommen, in Tabellen geht es eine Zeile weiter, sonst passiert nichts.
+    Strg+Enter übernimmt gezielt (klickt OK). Ein Knopf mit dem Fokus reagiert weiter auf Enter (bewusst angewählt),
+    Felder, die Enter selbst nutzen (mehrzeiliger Text, Zeichnen, Suchen und ausführen), bleiben, wie sie sind."""
+
     def eventFilter(self, obj, e):
-        if obj is self.parent() and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Return, Qt.Key_Enter):
-            e.accept()
-            return True         # Eingabe bestätigt nur das Feld, nicht den Dialog
-        return False
+        if e.type() != QEvent.KeyPress or e.key() not in TASTEN_ENTER:
+            return False
+        strg = bool(e.modifiers() & Qt.ControlModifier)
+        dialog = _geregelt(obj)
+        if dialog is None:
+            return False
+        if strg:
+            knopf = ok_knopf(dialog)
+            if knopf is not None:
+                knopf.click()
+                return True
+            return False
+        if obj is not dialog:
+            return False        # erst das Feld: es übernimmt die Eingabe und reicht Enter ggf. weiter
+        e.accept()
+        _tabelle_weiter(dialog)
+        return True
+
+
+def einrichten(app):
+    """Einmal nach dem Anlegen der QApplication aufrufen: die Enter-Regel gilt dann in allen Dialogen."""
+    if getattr(app, "_enter_regel", None) is None:
+        app._enter_regel = EnterRegel(app)
+        app.installEventFilter(app._enter_regel)
+    return app._enter_regel
 
 
 def enter_sperren(dialog):
     """Editor-Fenster (Rohr, Blech, Baugruppe, Satz): Enter nach einer Eingabe schließt das Fenster nicht mehr
-    (Patrick 25.10.2026). Qt drückt sonst den Standardknopf (OK); geschlossen wird nur noch per Knopf.
-    Enter in Tabellen, Listen und beim Zeichnen wirkt weiter, weil diese Felder die Taste selbst verbrauchen."""
+    (Patrick 25.10.2026). Seit 28.10.2026 gilt das über einrichten() für alle Dialoge; hier zusätzlich am Dialog
+    selbst, damit die Editoren es auch ohne die Programmeinrichtung (Tests, Einbettung) einhalten."""
     from PySide6.QtWidgets import QPushButton
     for b in dialog.findChildren(QPushButton):
         b.setAutoDefault(False)
         b.setDefault(False)
-    sperre = _EnterSperre(dialog)
+    sperre = EnterRegel(dialog)
     dialog.installEventFilter(sperre)
     return sperre

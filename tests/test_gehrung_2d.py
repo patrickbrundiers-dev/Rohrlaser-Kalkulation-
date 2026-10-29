@@ -157,7 +157,7 @@ def main():
             m = ms[name]
             d = SchneidwegDialog(None, p, k.profile[p["profil_id"]], kopf, k, db.tabellen(), db)
             e = d.eingaben()
-            n = d.ansicht3d.ansicht.netz
+            n = wie.netz_wie_konstruiert(d)    # ebene Gehrungen wie konstruiert (in 2D kürzer)
             sn = ansicht3d.entpacken(m["_netz"])
             mod = [z for a in ("K", "EA", "EB") for z in n["l"].get(a, [])]
             st = [z for a in ("K", "EA", "EB") for z in sn["l"].get(a, [])]
@@ -171,7 +171,8 @@ def main():
                 soll = 30 if "30" in name else 45
                 assert b.get("form") == "Gehrung" and nah(b.get("winkel"), soll, 0.05) and not b.get("umriss"), \
                     (name, b)
-                assert b.get("aussen_mass") is True, (name, b.get("aussen_mass"))
+                # schon 2D in der STEP: wie die STEP; eben (Z5): in 2D wie gefertigt kürzer (Patrick 28.10., a)
+                assert b.get("aussen_mass") is (None if name.startswith("Z5") else True), (name, b.get("aussen_mass"))
             d.deleteLater()
         ok("G2 Gehrung schon 2D in der STEP (Außenkante auf der Ebene, Innenkante darunter) als Gehrung erkannt, "
            "Editor genau wie die STEP; lange Seite schon gekürzt bleibt komplex")
