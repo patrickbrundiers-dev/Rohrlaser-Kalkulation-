@@ -24,7 +24,7 @@ import beispiel_angebot  # noqa: E402
 import beispiel_baugruppe  # noqa: E402
 from rohrlaser import angebot_check, ausgabe, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
-from rohrlaser.stammdaten import EINSTELLUNG  # noqa: E402
+from rohrlaser.stammdaten import EINSTELLUNG, richtwerte_2110  # noqa: E402
 
 EPS = 1e-6
 
@@ -39,10 +39,15 @@ def nah(a, b, eps=EPS):
 
 def angebot(positionen=None, einst_extra=None, kopf_extra=None, ohne_ecke=False):
     """Beispielangebot rechnen: (kopf, positionen, k, tabellen, einst, ergebnis, zeilen, summen). ohne_ecke: Zeit je
-    Ecke leer wie in den Richtwerten bis 0.9.190 (Regression des alten Stands)."""
+    Ecke leer wie in den Richtwerten bis 0.9.190 und Vorschübe/Einstechzeiten wie bis 0.9.196 (Regression des alten
+    Stands)."""
     db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
     if ohne_ecke:
         db.con.execute("UPDATE schneiddaten SET zeit_ecke=NULL")
+        for (m, kat, gas, wand), werte in richtwerte_2110().items():
+            db.con.execute("UPDATE schneiddaten SET vorschub_gross=?, vorschub_mittel=?, vorschub_klein=?, einstechzeit=? "
+                           "WHERE maschinen_id=? AND kategorie=? AND gas=? AND wand_bis=? AND werkstoff_id IS NULL",
+                           (*werte, m, kat, gas, wand))
         db.con.commit()
     aid = db.angebot_neu(dict(beispiel_angebot.KOPF, **(kopf_extra or {})))
     for p in positionen or beispiel_angebot.POSITIONEN:

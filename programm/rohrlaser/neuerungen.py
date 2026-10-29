@@ -37,7 +37,7 @@ NEUERUNGEN = [
                 "<b>Packliste</b> zeigt den Vergleich und je Palette Draufsicht, Seitenansicht mit Höhe und den "
                 "Aufbau; auch im Fenster <i>Fracht berechnen …</i> eines Angebots ([[pack_rechner]]).",
      "Frachtrechner: Ware aus Angebot laden, günstigste Ladungsträger, Packliste mit Skizze."],
-    ["0.9.201", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
+    ["0.9.202", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
                 "<i>bis 50 km</i> (1 Palette 65 €) und <i>50–100 km</i> (80 €); bisher kostete alles bis 200 km "
                 "100 €. Ab Delbrück z. B. Paderborn, Bielefeld und Herford 65 €, Münster und Osnabrück 80 €. Neu ist "
                 "die Versandart <b>Eigene Anlieferung</b> (eigener Lkw, bis 200 km): 20 € je Sendung plus 1,00 € je "
@@ -47,6 +47,15 @@ NEUERUNGEN = [
                 "Tarifkopie, bis die Ziel-PLZ neu eingegeben wird; festgeschriebene Angebote bleiben unverändert "
                 "([[fracht_richtwerte]]).",
      "Fracht: Nahbereich bis 50 km 65 €, bis 100 km 80 €; Versandart Eigene Anlieferung (€/km)."],
+    ["0.9.201", "<b>Schneiddaten mit Schneidtabellen abgeglichen</b>: Die Richtwerte für T11 und LT7 sind mit "
+                "veröffentlichten Schneidtabellen verglichen; die Bemerkung jeder Zeile nennt jetzt die Herkunft "
+                "(Herstellerwert oder Schätzung). Stahl mit N₂ 3–4 mm langsamer (LT7 3.500 / 2.500, T11 4.000 / 3.000 "
+                "mm/min), Edelstahl LT7 3 mm 5.000 und 4 mm 4.500, T11 6 mm 2.200 mm/min, Einstechzeiten Edelstahl "
+                "nach Herstellertabelle (0,2 bis 2,0 s). T11 endet an der Grenze der TruLaser Tube 5000 fiber 4 kW "
+                "(Stahl 10, Edelstahl und Alu 6 mm); dickere Wände zeigen eine Warnung statt einer Zeit "
+                "([[maschinen_schneiddaten]]). Unveränderte Standardzeilen werden beim ersten Start angepasst "
+                "(mit Sicherung), eigene Werte bleiben; festgeschriebene Angebote rechnen unverändert.",
+     "Schneiddaten mit Schneidtabellen abgeglichen, Herkunft je Zeile, Warnung über der Maschinengrenze."],
     ["0.9.200", "<b>Kalkulation genauer</b> ([[kalkulation_genauer]]): neue Maschinenfelder <i>Nebenzeit je Teil</i> "
                 "(Ausschieben/Entnehmen), <i>Schneidgas N₂/O₂ [€/h]</i> (Gaskosten je Laserstunde nach dem Gas der "
                 "Schneiddaten; genauer über <i>Düse Ø</i> und <i>Gasdruck</i> in den Schneiddaten und <i>Gaspreis "
