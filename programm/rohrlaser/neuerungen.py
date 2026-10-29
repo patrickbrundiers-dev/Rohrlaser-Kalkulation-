@@ -21,12 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.192", "<b>Zeitraum in der Angebotsliste</b>: Neben dem Vorgang wählt man, welche Angebote die Liste zeigt "
+    ["0.9.193", "<b>Zeitraum in der Angebotsliste</b>: Neben dem Vorgang wählt man, welche Angebote die Liste zeigt "
                 "– mit Datum oder Änderung in den letzten 30, 60, 100, 150 oder 365 Tagen oder alle (Vorgabe 150 Tage, "
                 "Einstellungen → Angebot, nur dieser Arbeitsplatz). Fällige Wiedervorlagen, beauftragte und noch nicht "
                 "versendete Aufträge und geöffnete Angebote bleiben immer sichtbar, die Suche findet alle. Unter der "
                 "Liste steht, wie viele ältere ausgeblendet sind, mit „Alle zeigen“ ([[angebote]]).",
      "Angebotsliste: Zeitraum 30/60/100/150/365 Tage oder alle, Suche findet weiter alle."],
+    ["0.9.192", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
+                "Feld (Text, Zahl, Rechnung, Datum, Auswahl), in Tabellen geht es eine Zeile weiter. Übernehmen "
+                "und schließen nur mit dem Knopf oder gezielt mit <b>Strg+Enter</b>. Ausnahmen: reine Ja/Nein-"
+                "Fragen, Dateiauswahl und Suchen und ausführen ([[eingaben]]).",
+     "Enter schließt in keinem Dialog das Fenster; Strg+Enter übernimmt."],
     ["0.9.191", "<b>PDF-Dokumente ohne Überlappungen</b>: Alle Ausgaben (Angebot, Werkstattpapiere, Kalkulation, "
                 "Nachkalkulation, Palettenschein, Verladeliste) mit langen Texten geprüft und korrigiert – langer "
                 "Briefkopf in der Fußzeile bis zu drei Zeilen statt über die Seitenzahl, Stundensatz in der "
