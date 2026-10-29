@@ -39,6 +39,7 @@ def _menue_befehle(f):
 
 def eintraege(f):
     """Ziele der Palette im Hauptfenster f."""
+    from . import einstellungen_ordnung
     from .stammdaten import EINSTELLUNGEN
     aus = []
     for i in range(f.reiter.count()):
@@ -79,8 +80,11 @@ def eintraege(f):
                 aus.append(Eintrag("Einstellung", e.titel, "Frachtkosten → Historie, Einstellungen",
                                    lambda e=e: _fracht_einstellung(f, e.titel)))
             continue
-        aus.append(Eintrag("Einstellung", e.titel, f"Vorgaben, Gruppe {e.gruppe}",
-                           lambda e=e: _einstellung(f, e.titel)))
+        seiten = einstellungen_ordnung.seiten_von(e.name)
+        if not seiten:                      # intern (z. B. zuletzt gewählter CSV-Ordner)
+            continue
+        aus.append(Eintrag("Einstellung", e.titel, f"Einstellungen → {einstellungen_ordnung.SEITE[seiten[0]].titel}",
+                           lambda e=e: _einstellung(f, e.titel, e.name)))
     return aus
 
 
@@ -90,8 +94,9 @@ def _stammdaten(f, seite, wert):
         seite.suche.setText(wert)
 
 
-def _einstellung(f, titel):
-    f.zeigen(f.einstellungen)
+def _einstellung(f, titel, name=None):
+    if name is None or getattr(f, "einstellung_zeigen", lambda n: None)(name) is None:
+        f.zeigen(f.einstellungen)
     nav = f.bereich.unter
     if hasattr(nav, "suche"):
         nav.suche.setText(titel)

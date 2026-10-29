@@ -350,16 +350,17 @@ profile.nur_fehler.setChecked(False)
 assert profile.filter.rowCount() == len(profile.modell.daten) >= alle
 fenster.bereich.oeffnen(db.einstellung("passwort"))
 fenster.reiter.setCurrentWidget(fenster.bereich)
-fenster.bereich.zeigen(e)
+s = max(e.seiten, key=lambda s: len(s.boxen))         # Seite mit den meisten Karten (seit 0.9.202 Themenseiten)
+fenster.bereich.zeigen(s)
 fenster.resize(1920, 1040)
 QApplication.processEvents()
-assert e.zweispaltig and all(sp.count() > 1 for sp in e.spalten)
+assert s.zweispaltig and all(sp.count() > 1 for sp in s.spalten)
 fenster.resize(1100, 728)
 QApplication.processEvents()
-assert e.zweispaltig == (e.viewport().width() >= e.ZWEI_SPALTEN)
-e._anordnen(False)
-assert e.spalten[1].count() == 1 and e.spalten[0].count() == len(e.boxen) + 1     # rechts nur der Abstandhalter
-assert all(w.maximumWidth() <= e.BREITE_TEXT + 160 for n, w in e.felder.items() if n != "logo")
+assert s.zweispaltig == (s.viewport().width() >= s.ZWEI_SPALTEN)
+s._anordnen(False)
+assert s.spalten[1].count() == 1 and s.spalten[0].count() == len(s.boxen) + 1     # rechts nur der Abstandhalter
+assert all(w.maximumWidth() <= s.BREITE_TEXT + 160 for n, w in e.felder.items() if n != "logo")
 ok("Einstellungen: Hilfetext kurz mit ⓘ mehr (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
    "Warnungen, Vorgaben bei 1920 px zweispaltig, bei schmalem Fenster einspaltig")
 # Teil 5: Fracht, Zukauf, Dialoge mit kurzen Hilfetexten; Zukauf-Formular in Abschnitten zum Aufklappen

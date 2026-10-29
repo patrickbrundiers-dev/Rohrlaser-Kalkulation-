@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
+from . import funktionen
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
@@ -1078,6 +1079,8 @@ class KnickEditor:
         for k in (self.knick_knopf, self.knick_weg_knopf):
             k.setEnabled(not self.nur_lesen)
             zeile.addWidget(k)
+        if not funktionen.an("funktion_knick_steck"):      # Funktion ausgeschaltet: nur „lösen“ bleibt
+            self.knick_knopf.hide()
         if hasattr(self, "vorschlag_knopf"):        # Vorschläge (P1) in derselben Leiste
             zeile.addWidget(self.vorschlag_knopf())
             self.vorschlag_info = QLabel()
@@ -1847,7 +1850,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.reiter.addTab(self._seite_struktur(), "Struktur und Teile")
         self.reiter.addTab(self._seite_naehte(), "Nahtgruppen")
         self.reiter.addTab(self._seite_arbeitsgaenge(), "Arbeitsgänge und Vorrichtungen")
-        self.reiter.addTab(self._seite_stecken(), "Steckverbindungen")
+        i = self.reiter.addTab(self._seite_stecken(), "Steckverbindungen")
+        # Funktion Knickrahmen und Steckverbindung aus: Reiter nur, wenn die Baugruppe schon welche hat
+        self.reiter.setTabVisible(i, funktionen.an("funktion_knick_steck") or bool(self.bg.get("steckverbindungen")))
         self.reiter.addTab(self._seite_stamm(), "Stammdaten")
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
         self.reiter.addTab(self._seite_baum(), "Strukturbaum und 3D")

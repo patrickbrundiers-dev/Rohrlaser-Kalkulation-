@@ -25,13 +25,14 @@ from PySide6.QtWidgets import (
     QApplication, QSpinBox, QSplitter, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
-from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
+from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
+from . import einstellungen_nav
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
-from .stammdaten import TABELLEN, EINSTELLUNGEN, Feld, Kontext, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
+from .stammdaten import TABELLEN, EINSTELLUNG, EINSTELLUNGEN, Feld, Kontext, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
 from .eingabe import RechenSpin, RechenSpinGanz, Schalter, Segment, segment_passt
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
@@ -418,6 +419,7 @@ class StammdatenSeite(QWidget):
                               "freigeben oder frühere Freigaben zurücknehmen")
             lernen.clicked.connect(lambda: self.kennwerte_lernen())
             leiste.addWidget(lernen)
+            self.lernen_knopf = lernen
         if tabelle.name == "kunden":
             export = QPushButton("CSV exportieren")
             export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
@@ -468,6 +470,17 @@ class StammdatenSeite(QWidget):
         lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
         self.zaehlen()
+
+    def funktionen_anwenden(self):
+        """Funktionen ein/aus: „Kennwerte aus Nachkalkulation …“ (Nachkalkulation) und die Spalten Teuerungszuschlag
+        der Werkstoffe (Teuerung; eingetragene Zuschläge bleiben sichtbar)."""
+        if getattr(self, "lernen_knopf", None) is not None:
+            self.lernen_knopf.setVisible(funktionen.an("funktion_nachkalkulation"))
+        if self.t.name == "werkstoffe":
+            an = funktionen.an("funktion_teuerung") or any(z.get("teuerung_wert") for z in self.modell.daten)
+            for i, (art, f) in enumerate(self.modell.spalten):
+                if art == "feld" and f.name.startswith("teuerung_"):
+                    self.ansicht.setColumnHidden(i, not an)
 
     def doppelklick_setzen(self, aktion, tooltip):
         """Doppelklick auf eine Zeile ruft aktion(Zeile als dict) auf statt die Zelle zu bearbeiten (Tippen und F2
@@ -808,63 +821,138 @@ class OrdnerEingabe(QWidget):
 
 
 class EinstellungenSeite(QScrollArea):
-    """Einstellungen als Formular; gruppen = nur diese Gruppen, ohne = diese Gruppen nicht. Jede Gruppe ist eine
-    Karte; ab ZWEI_SPALTEN px Breite stehen die Karten in zwei Spalten (auf die kürzere Spalte verteilt)."""
+    """Einstellungen als Formular; gruppen = nur diese Gruppen, ohne = diese Gruppen nicht (je Gruppe eine Karte),
+    oder seite = eine Seite aus einstellungen_ordnung.SEITEN (je Abschnitt eine Karte, Expertenabschnitte eingeklappt).
+    Ab ZWEI_SPALTEN px Breite stehen die Karten in zwei Spalten (auf die kürzere Spalte verteilt)."""
     ZWEI_SPALTEN = 1150
     BREITE_ZAHL, BREITE_TEXT, BREITE_TITEL = 160, 380, 300
 
     admin = False           # Admin-Rechte: nur dann ist das Passwort der Einstellungen änderbar (admin_setzen)
+    schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
 
-    def __init__(self, db, meldung, gruppen=None, ohne=()):
+    def __init__(self, db, meldung, gruppen=None, ohne=(), seite=None):
+        from . import einstellungen_ordnung as ordnung
         super().__init__()
         self.db, self.meldung = db, meldung
-        self.liste = [e for e in EINSTELLUNGEN if (gruppen is None or e.gruppe in gruppen) and e.gruppe not in ohne]
+        self.seite = seite
+        if seite is not None:       # Plan „Einstellungen aufräumen“: eine Seite je Thema, Karten = Abschnitte
+            self.schluessel, self.titel = seite.schluessel, seite.titel
+            abschnitte = [(a.titel, [EINSTELLUNG[n] for n in a.namen], a.experte) for a in seite.abschnitte]
+        else:
+            abschnitte = []
+            for e in EINSTELLUNGEN:
+                if (gruppen is None or e.gruppe in gruppen) and e.gruppe not in ohne:
+                    if not abschnitte or abschnitte[-1][0] != e.gruppe:
+                        abschnitte.append((e.gruppe, [], False))
+                    abschnitte[-1][1].append(e)
+        self.liste = [e for _, liste, _ in abschnitte for e in liste]
         self.setWidgetResizable(True)
         innen = QWidget()
-        lay = QHBoxLayout(innen)
+        aussen = QVBoxLayout(innen)
+        if seite is not None and seite.hinweis:
+            self.hinweis = QLabel(seite.hinweis)
+            self.hinweis.setWordWrap(True)
+            self.hinweis.setStyleSheet("color: #5F6B7A;")
+            aussen.addWidget(self.hinweis)
+        lay = QHBoxLayout()
+        aussen.addLayout(lay, 1)
         self.spalten = [QVBoxLayout(), QVBoxLayout()]
         for sp in self.spalten:
             sp.setSpacing(10)
             lay.addLayout(sp, 1)
         self.felder = {}
-        gruppen = {}
+        self.wert_schalter = {}     # Name -> Schalter vor einem Wert mit „0 = aus“ (einstellungen_ordnung.WERT_SCHALTER)
         self.boxen = []
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
-        for e in self.liste:
-            if e.gruppe not in gruppen:
-                box = QGroupBox(e.gruppe)
-                gruppen[e.gruppe] = QFormLayout(box)
-                gruppen[e.gruppe].setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                self.boxen.append(box)
-            w = self._eingabe(e)
-            self.felder[e.name] = w
-            titel = QLabel(self._kurztitel(e, w))
-            titel.setToolTip(e.titel)
-            titel.setWordWrap(True)
-            titel.setFixedWidth(self.BREITE_TITEL)
-            form = gruppen[e.gruppe]
-            self.zeilen.append((e, form, form.rowCount(), form.parentWidget()))
-            gruppen[e.gruppe].addRow(titel, w)
-        if "STEP-Import" in gruppen:
+        lokal = ordnung.lokal() if seite is not None and seite.schluessel != "e_arbeitsplatz" else ()
+        for titel_karte, liste, experte in abschnitte:
+            box = QGroupBox(f"{titel_karte} (Experte)" if experte else titel_karte)
+            form = QFormLayout(box)
+            form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.boxen.append(box)
+            for e in liste:
+                w = feld = self._eingabe(e)
+                self.felder[e.name] = feld
+                text = self._kurztitel(e, feld, ordnung.kurztitel(e) if seite is not None else e.titel)
+                if seite is not None and e.name in ordnung.WERT_SCHALTER:     # Schalter vor dem Wert
+                    w = self._mit_schalter(e, feld)
+                if e.name in lokal:
+                    text += " · nur dieser Arbeitsplatz"
+                titel = QLabel(text)
+                titel.setToolTip(e.titel)
+                f = funktionen.FUNKTION.get(e.name)
+                if f is not None:           # Seite Funktionen: was beim Ausschalten verschwindet
+                    titel.setText(f"{text}<br><span style='color:#5F6B7A'>{f.text}</span>")
+                    titel.setToolTip(f.text)
+                titel.setWordWrap(True)
+                titel.setFixedWidth(self.BREITE_TITEL)
+                self.zeilen.append((e, form, form.rowCount(), box))
+                form.addRow(titel, w)
+            if experte:             # eingeklappt; Haken in der Kartenüberschrift klappt auf
+                box.setCheckable(True)
+                box.setChecked(False)
+                box.setToolTip("Selten geänderte Werte: Haken setzen zum Aufklappen")
+                box.toggled.connect(lambda an, box=box: self._experte(box, an))
+                self._experte(box, False)
+        if "step_cache" in self.felder:
             knopf = QPushButton("Zwischenspeicher leeren")
             knopf.setToolTip("Gemerkte Messungen löschen: der nächste STEP-Import misst alle Dateien neu")
             knopf.clicked.connect(self._step_cache_leeren)
             knopf.setMaximumWidth(self.BREITE_ZAHL + 60)
-            gruppen["STEP-Import"].addRow("", knopf)
+            next(form for e, form, _, _ in self.zeilen if e.name == "step_cache").addRow("", knopf)
         self.zweispaltig = None
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
 
-    schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
+    def _mit_schalter(self, e, feld):
+        """Schalter an/aus vor dem Wert (Plan Funktionen Schritt 3): aus speichert 0 bzw. leer und merkt sich den
+        Wert, an holt ihn zurück. Das Feld bleibt in felder, der Schalter steht in wert_schalter."""
+        rahmen = QWidget()
+        lay = QHBoxLayout(rahmen)
+        lay.setContentsMargins(0, 0, 0, 0)
+        sw = Schalter(text_an="an", text_aus="aus")
+        sw.setToolTip("Aus: der Wert wird nicht verwendet, bleibt aber gemerkt und kommt beim Einschalten zurück")
+        lay.addWidget(sw)
+        lay.addWidget(feld, 1)
+        self.wert_schalter[e.name] = sw
+        sw.toggled.connect(lambda an, e=e: self._wert_schalten(e, an))
+        return rahmen
+
+    def _wert_schalten(self, e, an):
+        from .einstellungen_ordnung import WERT_GEMERKT, WERT_SCHALTER
+        if getattr(self, "_laden", False):
+            return
+        gemerkt = dict(self.db.einstellung(WERT_GEMERKT) or {})
+        if an:
+            wert = gemerkt.get(e.name) or WERT_SCHALTER[e.name]
+        else:
+            alt = self.db.einstellung(e.name)
+            if alt:
+                gemerkt[e.name] = alt
+                self.db.einstellung_setzen(WERT_GEMERKT, gemerkt)
+            wert = "" if e.art == "text" else 0
+        self._speichern(e, wert)
+        self.neu_laden()
+
+    def _experte(self, box, an):
+        """Expertenabschnitt auf- oder zuklappen (zu: nur die Überschrift mit Haken)."""
+        box.setFlat(not an)
+        for e, form, zeile, b in self.zeilen:
+            if b is box:
+                form.setRowVisible(zeile, an)
 
     def filtern(self, suche):
-        """Suche der Einstellungen: nur passende Einstellungen und Karten zeigen (leer = alle)."""
+        """Suche der Einstellungen: nur passende Einstellungen und Karten zeigen (leer = alle). Ein Treffer in einem
+        eingeklappten Expertenabschnitt klappt ihn auf."""
+        from .einstellungen_ordnung import kurztitel
         from .einstellungen_nav import passt
         sichtbar = {}
         for e, form, zeile, box in self.zeilen:
-            ja = not suche.strip() or passt(f"{e.titel} {e.gruppe}", suche)
-            form.setRowVisible(zeile, ja)
+            ja = not suche.strip() or passt(f"{e.titel} {kurztitel(e)} {e.gruppe} {box.title()}", suche)
+            if ja and suche.strip() and box.isCheckable() and not box.isChecked():
+                box.setChecked(True)
+            form.setRowVisible(zeile, ja and (not box.isCheckable() or box.isChecked()))
             sichtbar[id(box)] = sichtbar.get(id(box), False) or ja
         for box in self.boxen:
             box.setVisible(sichtbar.get(id(box), True))
@@ -971,10 +1059,10 @@ class EinstellungenSeite(QScrollArea):
     EINHEIT = re.compile(r"\s*\[([^\]]{1,12})\]")
     SONDER = re.compile(r"\s*\((0|leer) = ([^);]+)\)")
 
-    def _kurztitel(self, e, w):
+    def _kurztitel(self, e, w, titel=None):
         """Vorgaben-Formular (Layout-Plan L12): Einheit als Suffix rechts im Feld statt im Titel, Sonderfall
         („0 = aus“, „leer = keiner“) als grauer Text im Feld. Der volle Titel bleibt Tooltip."""
-        titel = e.titel
+        titel = e.titel if titel is None else titel
         if isinstance(w, (QSpinBox, QDoubleSpinBox)) and e.art in ("zahl", "ganz"):
             m = self.EINHEIT.search(titel)
             if m:
@@ -1040,9 +1128,18 @@ class EinstellungenSeite(QScrollArea):
             haupt = self.window()
             if hasattr(haupt, "lager_anwenden"):
                 haupt.lager_anwenden()
+        if e.name in funktionen.FUNKTION:          # Funktionen ein/aus: Reiter, Menüs, Seiten, offene Angebote
+            haupt = self.window()
+            if hasattr(haupt, "funktionen_anwenden"):
+                haupt.funktionen_anwenden()
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
+        if e.name in self.wert_schalter and not getattr(self, "_laden", False):
+            self.wert_schalter[e.name].blockSignals(True)       # 0 bzw. leer von Hand: Schalter folgt
+            self.wert_schalter[e.name].setChecked(bool(wert))
+            self.wert_schalter[e.name].blockSignals(False)
+            self.felder[e.name].setEnabled(bool(wert))
         self.meldung(f"{e.titel} gespeichert.")
 
     def neu_laden(self):
@@ -1078,7 +1175,70 @@ class EinstellungenSeite(QScrollArea):
                 w.anzeigen(bool(v))
             else:
                 w.setText(v or "")
+        if self.wert_schalter:
+            from .einstellungen_ordnung import WERT_GEMERKT
+            gemerkt = self.db.einstellung(WERT_GEMERKT) or {}
+            for name, sw in self.wert_schalter.items():
+                e, w, v = EINSTELLUNG[name], self.felder[name], self.db.einstellung(name)
+                an = bool(v)
+                sw.setChecked(an)
+                w.setEnabled(an)
+                g = gemerkt.get(name)
+                if not an and g:            # aus: den gemerkten Wert grau zeigen (nicht gespeichert)
+                    if e.art == "anteil":
+                        w.setValue(g * 100)
+                    elif e.art == "ganz":
+                        w.setValue(int(g))
+                    elif e.art == "zahl":
+                        w.setValue(g)
+                    else:
+                        w.setText(str(g))
         self._laden = False
+
+
+class EinstellungenSammlung:
+    """Alle Seiten der Einstellungen zusammen (bis 0.9.196 eine Seite „Vorgaben“): Felder aller Seiten, Laden, Suche
+    und Admin-Rechte gemeinsam. Steht eine Einstellung auf zwei Seiten, zählt in felder die erste."""
+
+    def __init__(self, seiten):
+        self.seiten = list(seiten)
+        self.felder, self.liste = {}, []
+        for s in self.seiten:
+            for e in s.liste:
+                if e.name not in self.felder:
+                    self.felder[e.name] = s.felder[e.name]
+                    self.liste.append(e)
+
+    @property
+    def boxen(self):
+        return [b for s in self.seiten for b in s.boxen]
+
+    def seite_von(self, name):
+        """Erste Seite, auf der die Einstellung steht (oder None)."""
+        return next((s for s in self.seiten if name in s.felder), None)
+
+    def neu_laden(self):
+        for s in self.seiten:
+            s.neu_laden()
+
+    def filtern(self, suche):
+        for s in self.seiten:
+            s.filtern(suche)
+
+    def admin_setzen(self, an):
+        for s in self.seiten:
+            s.admin_setzen(an)
+
+    def findChildren(self, typ):
+        return [w for s in self.seiten for w in s.findChildren(typ)]
+
+    def setEnabled(self, an):
+        for s in self.seiten:
+            s.setEnabled(an)
+
+    def setToolTip(self, text):
+        for s in self.seiten:
+            s.setToolTip(text)
 
 
 class ZeitvorgabenSeite(QWidget):
@@ -1141,7 +1301,8 @@ class EinstellungenBereich(QWidget):
         # Inhalt
         inhalt = QWidget()
         self.unter = NavigationsReiter()     # Navigation links mit Suche (Layout-Plan L11)
-        self.unter.addTab(vorgaben, "Vorgaben")
+        for s in (vorgaben.seiten if isinstance(vorgaben, EinstellungenSammlung) else [vorgaben]):
+            self.unter.addTab(s, getattr(s, "titel", None) or "Vorgaben")
         for s in seiten:
             self.unter.addTab(s, getattr(s, "titel", None) or s.t.titel)
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
@@ -1422,8 +1583,10 @@ class StartSeite(QWidget):
         n = len(self.wiedervorlagen)
         self.wv_titel.setText(f"<b>Wiedervorlage</b> ({n})" if n else
                               "<b>Wiedervorlage:</b> nichts fällig")
-        self.wiedervorlage.setVisible(bool(n))
-        self.wv_knoepfe.setVisible(bool(n))
+        nachfassen = funktionen.an("funktion_nachfassen")     # Funktion ausgeschaltet: keine Wiedervorlage
+        self.wv_titel.setVisible(nachfassen)
+        self.wiedervorlage.setVisible(bool(n) and nachfassen)
+        self.wv_knoepfe.setVisible(bool(n) and nachfassen)
         self.notizen_laden()
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
         self.kennzahlen.setVisible(admin)
@@ -1562,7 +1725,11 @@ class Hauptfenster(QMainWindow):
                 self.kunden = s
                 s.doppelklick_setzen(lambda z: self.kunden_angebote(z.get("kundennr"), z.get("name")),
                                      "Doppelklick: Angebote dieses Kunden zeigen · Tippen oder F2: Wert ändern")
-        self.einstellungen = EinstellungenSeite(db, self.meldung, ohne=("Frachtkosten",))
+        # Einstellungen nach Themen (Plan „Einstellungen aufräumen“, 29.10.2026): je Seite der Ordnung ein Formular
+        from .einstellungen_ordnung import SEITEN as EINSTELLUNGS_SEITEN
+        funktionen.db_setzen(db)
+        self.einstellungen = EinstellungenSammlung(EinstellungenSeite(db, self.meldung, seite=s)
+                                                   for s in EINSTELLUNGS_SEITEN)
         seite = {s.t.name: s for s in self.seiten}
         self.zeitvorgaben = ZeitvorgabenSeite(seite["stundensaetze"], seite["arbeitsschritte"])
         # Zusatzarbeiten: eigene Verwaltung (Übersicht, Formular, Preisvorschau) statt der Stammdatentabelle
@@ -1583,6 +1750,7 @@ class Hauptfenster(QMainWindow):
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
         self._menue()
+        self.funktionen_anwenden()          # ausgeschaltete Funktionen gleich beim Start ausblenden
         self.lizenz_hinweis = QLabel()
         self.lizenz_hinweis.setTextFormat(Qt.PlainText)
         self.lizenz_hinweis.hide()
@@ -1664,7 +1832,9 @@ class Hauptfenster(QMainWindow):
     def abgleichen(self):
         """Knopf Abgleichen: Angebote und Stammdaten mit dem gemeinsamen Ordner abgleichen."""
         from . import teilen_fenster
-        return teilen_fenster.abgleichen(self)
+        erg = teilen_fenster.abgleichen(self)
+        self.funktionen_anwenden()          # Funktionen ein/aus gelten für alle Plätze und kommen mit dem Abgleich
+        return erg
 
     def konflikte_zeigen(self):
         """Datei → Abgleich-Konflikte: Stammdaten, die hier und bei einem Kollegen verschieden geändert wurden."""
@@ -2179,7 +2349,10 @@ class Hauptfenster(QMainWindow):
             self.einblendung.platzieren()
 
     def zeigen(self, seite):
-        """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage)."""
+        """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage). Die Sammlung
+        der Einstellungen zeigt ihre erste Seite (Funktionen)."""
+        if seite is self.einstellungen:
+            seite = self.einstellungen.seiten[0]
         if seite in (self.zeitvorgaben.saetze, self.zeitvorgaben.schritte):
             seite = self.zeitvorgaben
         if getattr(seite, "t", None) is not None and seite.t.name == "zusatzarbeiten":
@@ -2188,6 +2361,32 @@ class Hauptfenster(QMainWindow):
             self.bereich.zeigen(seite)
             seite = self.bereich
         self.reiter.setCurrentWidget(seite)
+
+    def einstellung_zeigen(self, name):
+        """Seite der Einstellungen mit dieser Einstellung zeigen (Befehlspalette, Hinweise)."""
+        seite = self.einstellungen.seite_von(name)
+        if seite is not None:
+            self.zeigen(seite)
+        return seite
+
+    def funktionen_anwenden(self):
+        """Funktionen ein/aus (funktionen.py) sofort anwenden: Hauptreiter, Menü Datei, Seiten der Einstellungen,
+        Startseite und offene Angebote."""
+        for f in funktionen.FUNKTIONEN:
+            if f.reiter and hasattr(self, f.reiter):
+                self.reiter.setTabVisible(self.reiter.indexOf(getattr(self, f.reiter)), funktionen.an(f.name))
+        for text, a in getattr(self, "datei_aktionen", {}).items():
+            a.setVisible(funktionen.datei_an(text))
+        nav = self.bereich.unter
+        for i in range(nav.count()):
+            nav.verbergen(i, not funktionen.seite_an(einstellungen_nav.schluessel(nav.widget(i))))
+        for s in self.seiten:
+            if hasattr(s, "funktionen_anwenden"):
+                s.funktionen_anwenden()
+        self.start.neu_laden()
+        for seite in list(getattr(self, "offen", {}).values()):
+            if hasattr(seite, "funktionen_anwenden"):
+                seite.funktionen_anwenden()
 
     def reiter_gewechselt(self, _):
         w = self.reiter.currentWidget()
