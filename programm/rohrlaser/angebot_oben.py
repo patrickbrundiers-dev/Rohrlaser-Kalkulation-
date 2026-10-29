@@ -5,7 +5,7 @@ nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer 
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
 from PySide6.QtCore import QDate, QEvent, QObject, Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
@@ -54,6 +54,7 @@ LIEFERZEIT_TOOLTIP = ("Arbeitstage und Wochen zählen ab Auftragseingang; Kalend
                       "Termine; „nur Text“ zeigt nur den Freitext")
 # Fracht rechts neben der Kalkulation ab dieser Breite der Angebotsseite (darunter steht sie unter der Kalkulation)
 FRACHT_RECHTS_AB = 1800
+KOMPAKT_UNTER = 760       # px Höhe der Angebotsseite (Laptop 1366 × 768): Karten flacher, Kalkulation + Fracht nebeneinander
 RUESTEN_EUR = ("ruesten_angebot_eur", "ruesten_abmessung_eur")     # leer = Rüsten in Minuten × Stundensatz
 
 from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
@@ -103,6 +104,67 @@ def karte(titel=None, rechts=None):
             zeile.addWidget(rechts)
         lay.addLayout(zeile)
     return k, lay
+
+
+class KurzZeile(QLabel):
+    """Einzeilige Kurzfassung neben einem Aufklapp-Knopf (Kopf, Kalkulation, Fracht): passt der Text nicht in die
+    Breite, endet er mit „…“ statt mitten im Wort abgeschnitten, und der Tooltip zeigt den ganzen Text (Prüfung
+    29.10.2026, O5). Rich Text (fett, Farbe) bleibt erhalten."""
+
+    def __init__(self):
+        super().__init__()
+        self._voll, self._tipp = "", ""
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
+    def setText(self, text):
+        self._voll = text or ""
+        self._kuerzen()
+
+    def text(self):             # immer der ganze Text (Tests, Dunkelmodus-Umfärben), angezeigt wird ggf. gekürzt
+        return self._voll
+
+    def setToolTip(self, text):
+        self._tipp = text or ""
+        self._kuerzen()
+
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self._kuerzen()
+
+    def _dokument(self, html):
+        doc = QTextDocument()
+        doc.setDefaultFont(self.font())
+        doc.setDocumentMargin(0)
+        doc.setHtml(html)
+        return doc
+
+    def _kuerzen(self):
+        breite = self.contentsRect().width() - 2
+        doc = self._dokument(self._voll)
+        if breite <= 0 or doc.idealWidth() <= breite:
+            QLabel.setText(self, self._voll)
+            QLabel.setToolTip(self, self._tipp)
+            return
+        n = doc.characterCount() - 1
+        lo, hi = 0, n               # größte Zeichenzahl, die mit „…“ noch passt (binäre Suche)
+        while lo < hi:
+            m = (lo + hi + 1) // 2
+            if self._teil(m).idealWidth() <= breite:
+                lo = m
+            else:
+                hi = m - 1
+        QLabel.setText(self, self._teil(lo).toHtml())
+        voll = doc.toPlainText().strip()
+        QLabel.setToolTip(self, voll if not self._tipp or self._tipp == voll else f"{voll}\n\n{self._tipp}")
+
+    def _teil(self, zeichen):
+        doc = self._dokument(self._voll)
+        c = QTextCursor(doc)
+        c.setPosition(zeichen)
+        c.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+        c.removeSelectedText()
+        c.insertText("…")
+        return doc
 
 
 class Doppelklick(QObject):
@@ -186,6 +248,8 @@ class KopfBereich(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
+        self._lay = lay
+        self.kompakt = False
 
         # Angebotskopf: Nummer, Kunde und Maschine vorn und hervorgehoben; ausgefüllt zugeklappt auf eine Zeile
         kopf, kl0 = karte()
@@ -198,8 +262,7 @@ class KopfBereich(QWidget):
         self.kopf_knopf.setAutoRaise(True)
         self.kopf_knopf.setToolTip("Angebotskopf ein- oder ausklappen (zugeklappt: Nummer, Kunde, Maschine, Stange)")
         self.kopf_knopf.clicked.connect(lambda offen: self.kopf_aufklappen(offen))
-        self.kopf_kurz = QLabel()
-        self.kopf_kurz.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.kopf_kurz = KurzZeile()
         self.kopf_kurz.setCursor(Qt.PointingHandCursor)
         self.kopf_kurz.mousePressEvent = lambda _e: self.kopf_aufklappen(True)
         titelzeile.addWidget(self.kopf_knopf, 0, Qt.AlignLeft)     # aufgeklappt (ohne Kurzzeile) links, nicht mittig
@@ -305,9 +368,8 @@ class KopfBereich(QWidget):
         self.kalk_knopf.setAutoRaise(True)
         self.kalk_knopf.setToolTip("Kalkulationswerte ein- oder ausklappen (zugeklappt: Kurzfassung der Werte)")
         self.kalk_knopf.clicked.connect(lambda offen: self.kalkulation_aufklappen(offen, merken=True))
-        self.kalk_kurz = QLabel()
+        self.kalk_kurz = KurzZeile()
         self.kalk_kurz.setStyleSheet(f"color: {GRAU};")
-        self.kalk_kurz.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         titelzeile.addWidget(self.kalk_knopf)
         titelzeile.addWidget(self.kalk_kurz, 1)
         titelzeile.addStretch(0)            # aufgeklappt (Kurzfassung weg): Knopf bleibt rechts und schmal
@@ -450,9 +512,8 @@ class KopfBereich(QWidget):
         self.fracht_klapp.setAutoRaise(True)
         self.fracht_klapp.setToolTip("Fracht ein- oder ausklappen (zugeklappt: Frachtart und Betrag)")
         self.fracht_klapp.clicked.connect(lambda offen: self.fracht_aufklappen(offen, merken=True))
-        self.fracht_kurz = QLabel()
+        self.fracht_kurz = KurzZeile()
         self.fracht_kurz.setStyleSheet(f"color: {GRAU};")
-        self.fracht_kurz.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         titelzeile.addWidget(self.fracht_klapp)
         titelzeile.addWidget(self.fracht_kurz, 1)
         titelzeile.addStretch(0)
@@ -524,6 +585,8 @@ class KopfBereich(QWidget):
         self.kalk_knopf.setArrowType(Qt.DownArrow if offen else Qt.RightArrow)
         self.kalk_inhalt.setVisible(offen)
         self.kalk_kurz.setVisible(not offen)
+        if self.kompakt:
+            self._karten_neu()
         if merken:
             self.s.db.einstellung_setzen(KALK_OFFEN_EINSTELLUNG, offen)
             self.s.oben_anpassen()
@@ -581,6 +644,8 @@ class KopfBereich(QWidget):
         self.fracht_klapp.setArrowType(Qt.DownArrow if offen else Qt.RightArrow)
         self.fracht_inhalt.setVisible(offen)
         self.fracht_kurz.setVisible(not offen)
+        if self.kompakt:
+            self._karten_neu()
         if merken:
             self.s.db.einstellung_setzen(FRACHT_OFFEN_EINSTELLUNG, offen)
             self.s.oben_anpassen()
@@ -635,7 +700,7 @@ class KopfBereich(QWidget):
         else:
             self.karten.addWidget(self.kalk_karte, 0, 0)
             self.karten.addWidget(self.fracht_karte, 1, 0)
-        self.karten.setColumnStretch(0, 3 if rechts else 1)
+        self.karten.setColumnStretch(0, (2 if self.kompakt else 3) if rechts else 1)
         self.karten.setColumnStretch(1, 1 if rechts else 0)
         # Felder der Fracht: rechts schmal untereinander, unten in zwei Zeilen nebeneinander
         art_t, art, umlage_t, umlage, auto, ziel_t, ziel = self._fracht_zellen
@@ -654,10 +719,26 @@ class KopfBereich(QWidget):
         for w, r, c, n in lage:
             self.fracht_raster.addWidget(w, r, c, 1, n)
 
-    def breite_anpassen(self, breite):
-        """Von der Angebotsseite bei Größenänderung aufgerufen (Breite der ganzen Seite)."""
+    def breite_anpassen(self, breite, hoehe=None):
+        """Von der Angebotsseite bei Größenänderung aufgerufen (Breite und Höhe der ganzen Seite). Niedrige Seite
+        (Laptop, Prüfung 29.10.2026 O1): Karten flacher und Kalkulation + Fracht zugeklappt nebeneinander, damit mehr
+        Positionen sichtbar sind."""
+        kompakt = hoehe is not None and hoehe < KOMPAKT_UNTER
+        if kompakt != self.kompakt:
+            self.kompakt = kompakt
+            self._lay.setSpacing(4 if kompakt else 8)
+            self.karten.setSpacing(4 if kompakt else 8)
+            for k in self.findChildren(QFrame, "karte"):
+                if k.layout() is not None:
+                    k.layout().setContentsMargins(12, 3 if kompakt else 8, 12, 3 if kompakt else 10)
+        self._breite = breite
         self._gruppen_anordnen(4 if breite >= 1600 else 2)
-        self.karten_anordnen(breite >= FRACHT_RECHTS_AB)
+        self._karten_neu()
+
+    def _karten_neu(self):
+        breite = getattr(self, "_breite", 0)
+        zu = not self.kalk_knopf.isChecked() and not self.fracht_klapp.isChecked()
+        self.karten_anordnen(breite >= FRACHT_RECHTS_AB or (self.kompakt and zu))
 
     # -------------------------------------------------------------- Eingaben
     def _eingabe(self, fd, ablage):
@@ -973,7 +1054,7 @@ class UebersichtRahmen(QScrollArea):
 
     def eventFilter(self, obj, ereignis):
         if obj is self.widget() and ereignis.type() == QEvent.LayoutRequest:
-            QTimer.singleShot(0, self._breite_anpassen)
+            QTimer.singleShot(0, self, self._breite_anpassen)     # mit self: entfällt, wenn das Angebot vorher geschlossen wird
         return False
 
     def _breite_anpassen(self):
@@ -1319,6 +1400,7 @@ class UebersichtBereich(QWidget):
         self._zeit_summen = k
         linie = "border-top:1px solid #C9D0D8"
         grau = f"color:{GRAU}"
+        ABSTAND = "&nbsp;&nbsp;&nbsp;"      # Zeit und Betrag nie ohne Abstand („9 h 20 min1.024,94 €“, Prüfung 29.10.)
         html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='3' style='{linie}'>"
                 f"<b>Zeiten</b></td></tr>")
         n = 0
@@ -1332,20 +1414,20 @@ class UebersichtBereich(QWidget):
             offen = art in self.offene_zeiten
             text = f"<a href='{art}' style='color:#1F2937;text-decoration:none'>{'▾' if offen else '▸'} {name}</a>"
             html += (f"<tr><td>{text}</td><td align='right'>{rechnen.zeit_text(minuten)}</td>"
-                     f"<td align='right'>{_z(kosten)} €</td></tr>")
+                     f"<td align='right'>{ABSTAND}{_z(kosten)} €</td></tr>")
             if offen:
                 for z in schritte:
                     zusatz = " (parallel)" if art == "Personal" and z["parallel"] else ""
                     html += (f"<tr><td style='{grau};padding-left:14px'>{z['schritt']}{zusatz}</td>"
                              f"<td align='right' style='{grau}'>{rechnen.zeit_text(z['gesamt_min'])}</td>"
-                             f"<td align='right' style='{grau}'>{_z(z['kosten'])} €</td></tr>")
+                             f"<td align='right' style='{grau}'>{ABSTAND}{_z(z['kosten'])} €</td></tr>")
             if sichtbar(ruest):
                 html += (f"<tr><td style='{grau};padding-left:14px'>davon Rüsten</td>"
                          f"<td align='right' style='{grau}'>{rechnen.zeit_text(ruest)}</td><td></td></tr>")
         if n:
             html += (f"<tr><td style='{linie}'><b>= Arbeitszeit gesamt</b></td>"
                      f"<td align='right' style='{linie}'><b>{rechnen.zeit_text(k['bearbeitung_min'])}</b></td>"
-                     f"<td align='right' style='{linie}'><b>{_z(k['arbeitskosten'])} €</b></td></tr>")
+                     f"<td align='right' style='{linie}'><b>{ABSTAND}{_z(k['arbeitskosten'])} €</b></td></tr>")
             parallel = (f" (ohne {rechnen.zeit_text(k['parallel_min'])} parallel)"
                         if sichtbar(k.get("parallel_min", 0)) else "")
             html += (f"<tr><td>Durchlaufzeit{parallel}</td><td align='right'>{rechnen.zeit_text(k['durchlauf_min'])}"
@@ -1355,7 +1437,7 @@ class UebersichtBereich(QWidget):
                          "</td><td></td></tr>")
             if sichtbar(k["sonstige"]):
                 html += (f"<tr><td style='{grau}'>Kosten ohne Zeit (Festpreise, Fremdleistung)</td><td></td>"
-                         f"<td align='right' style='{grau}'>{_z(k['sonstige'])} €</td></tr>")
+                         f"<td align='right' style='{grau}'>{ABSTAND}{_z(k['sonstige'])} €</td></tr>")
         self.zeiten.setText(html + "</table>")
         self.zeiten.setVisible(bool(n))
 
