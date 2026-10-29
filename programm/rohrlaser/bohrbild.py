@@ -399,7 +399,7 @@ def anwenden(p, neu, hand=None, katalog=None, saetze=None):
                                                 [(a, g, lg) for a, g, lg in liste if a]) or None
         grenzen = rechnen.grenzen_lesen(p.get("kontur_grenzen"))
         if grenzen:
-            out.update(rechnen.konturklassen([(g, lg) for a, g, lg in liste if not a], grenzen))
+            out.update(rechnen.konturklassen([(g, lg) for _, g, lg in liste], grenzen))     # Enden mit (wie STEP)
     hand = hand_gewinde(p, neu) if hand is None else str(hand).strip()
     out["gewinde"] = "; ".join(filter(None, [gewinde_text(neu), hand])) or None
     out["gewinde_vorschlag"] = vorschlag_text(neu)

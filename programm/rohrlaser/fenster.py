@@ -21,17 +21,17 @@ from PySide6.QtCore import QBuffer, QByteArray, QPoint
 from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
-    QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
+    QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QApplication, QSpinBox, QSplitter, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
-from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, hilfe, lizenzbedingungen, pdf, tabellen_eingabe, tastatur, teilen, update
+from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
-from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, Kontext, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
+from .stammdaten import TABELLEN, EINSTELLUNGEN, Feld, Kontext, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
 from .eingabe import RechenSpin, RechenSpinGanz, Schalter, Segment, segment_passt
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
@@ -39,6 +39,7 @@ ANLEITUNG_KOPIE = "Anleitung"     # Unterordner im Datenordner (anleitung_kopie)
 KURZANLEITUNG = "Kurzanleitung.pdf"
 FARBE_EINGABE = stil.farbe_fest("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
 FARBE_BERECHNET = stil.farbe_fest("#EDEDED")
+FARBE_ABWEICHUNG = stil.farbe_fest("#FCE4D6")    # Schneiddaten: Wert weicht vom mitgelieferten Standard ab
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
 FARBE_STATUS = {"FEHLER": stil.farbe_fest("#F8CBAD"), "WARNUNG": stil.farbe_fest("#FFD966"), "OK": FARBE_BERECHNET}
 
@@ -79,7 +80,21 @@ class StammdatenModell(QAbstractTableModel):
         self.beginResetModel()
         self.daten = self.db.zeilen(self.t.name)
         self.k = self.db.kontext()
+        if self.t.name == "schneiddaten" and not hasattr(self, "standard"):
+            self.standard = schneiddaten_standard.standard_je_schluessel()
         self.endResetModel()
+
+    def standard_wert(self, zeile, spalte):
+        """Schneiddaten: (True, Standardwert), wenn die Zelle vom mitgelieferten Richtwert abweicht, sonst None."""
+        if self.t.name != "schneiddaten":
+            return None
+        art, f = self.spalten[spalte]
+        if art != "feld" or f.name not in schneiddaten_standard.WERTE:
+            return None
+        std = self.standard.get(schneiddaten_standard.schluessel(self.daten[zeile]))
+        if std is None or schneiddaten_standard.gleich(self.daten[zeile].get(f.name), std.get(f.name)):
+            return None
+        return True, std.get(f.name)
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.daten)
@@ -110,6 +125,8 @@ class StammdatenModell(QAbstractTableModel):
             return None
         art, s = self.spalten[index.column()]
         w = self.roh(index.row(), index.column())
+        if rolle == Qt.ItemDataRole.ToolTipRole and (abw := self.standard_wert(index.row(), index.column())):
+            return f"{wert_als_text(s, w) or 'leer'} – Standard: {wert_als_text(s, abw[1]) or 'leer'}"
         if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             if art == "feld":
                 return wert_als_text(s, w)
@@ -126,6 +143,8 @@ class StammdatenModell(QAbstractTableModel):
         if rolle == Qt.ItemDataRole.BackgroundRole:
             if art == "pruefung":
                 return QBrush(FARBE_STATUS.get(str(w).split(":")[0], FARBE_BERECHNET))
+            if self.standard_wert(index.row(), index.column()):
+                return QBrush(FARBE_ABWEICHUNG)
             return QBrush(FARBE_EINGABE if art == "feld" else FARBE_BERECHNET)
         return None
 
@@ -375,9 +394,10 @@ class StammdatenSeite(QWidget):
             leiste.addWidget(w)
         if tabelle.name == "schneiddaten":
             standard = QPushButton("Auf Standard zurücksetzen …")
-            standard.setToolTip("Schneiddaten einer Maschine oder aller Maschinen durch die mitgelieferten "
-                                "Richtwerte ersetzen")
-            standard.clicked.connect(self.schneiddaten_zuruecksetzen)
+            standard.setToolTip("Schneiddaten aller Maschinen, einer Maschine oder nur der markierten Zeilen auf "
+                                "die mitgelieferten Richtwerte zurücksetzen: mit Vorschau und Rückfrage, vorher "
+                                "Datensicherung. Orange Zellen weichen vom Standard ab.")
+            standard.clicked.connect(lambda: self.schneiddaten_zuruecksetzen())
             leiste.addWidget(standard)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
@@ -595,29 +615,26 @@ class StammdatenSeite(QWidget):
             f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
         return d
 
-    def schneiddaten_zuruecksetzen(self):
-        """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage
-        auf die mitgelieferten Standardwerte zurücksetzen (Datenbank.schneiddaten_zuruecksetzen)."""
-        alle = f"Alle Maschinen ({', '.join(LASER)})"
-        wahl, ok = QInputDialog.getItem(
-            self, "Schneiddaten auf Standard zurücksetzen",
-            "Für welche Maschine sollen die mitgelieferten Standard-Schneiddaten wiederhergestellt werden?",
-            [alle] + [f"{m} ({laser}-Laser)" for m, laser in LASER.items()], 0, False)
-        if not ok:
-            return
-        maschinen = list(LASER) if wahl == alle else [wahl.split(" ")[0]]
-        n = sum(1 for z in self.modell.daten if z.get("maschinen_id") in maschinen)
-        text = (f"Alle {n} Schneiddaten-Zeilen von {', '.join(maschinen)} werden gelöscht, auch eigene Werte und "
-                "Zeilen je Werkstoff, und durch die mitgelieferten Standardwerte ersetzt.\n\n"
-                "Bereits gerechnete Angebote mit festgeschriebenen Preisen bleiben unverändert. "
-                "Das lässt sich nicht rückgängig machen (nur über eine Datensicherung).\n\nWirklich zurücksetzen?")
-        if QMessageBox.question(self, "Schneiddaten zurücksetzen", text,
-                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
-            return
-        weg, neu = self.db.schneiddaten_zuruecksetzen(maschinen)
+    def schneiddaten_zuruecksetzen(self, wahl=None):
+        """Schneiddaten auf die mitgelieferten Standardwerte zurücksetzen (schneiddaten_standard.StandardDialog: alle
+        Maschinen mit Richtwerten, eine Maschine oder die markierten Zeilen, mit Vorschau und Rückfrage; vorher
+        Datensicherung). wahl = dict(maschinen, ids, eigene_behalten) ohne Dialog (Tests). Ergebnis wie
+        Datenbank.schneiddaten_standard_setzen oder None."""
+        if wahl is None:
+            markiert = [self.modell.daten[r]["id"] for r in
+                        sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})]
+            wahl = schneiddaten_standard.dialog_zeigen(self, self.modell.daten, markiert)
+            if wahl is None:
+                return None
+        try:
+            r = self.db.schneiddaten_standard_setzen(**wahl)
+        except OSError as e:
+            self.meldung(f"Zurücksetzen abgebrochen, Datensicherung nicht möglich: {e}", fehler=True)
+            return None
         self.neu_laden()
-        self.meldung(f"Schneiddaten {', '.join(maschinen)} auf Standard zurückgesetzt: {weg} Zeile(n) entfernt, "
-                     f"{neu} Standardzeile(n) eingefügt.")
+        self.meldung(f"Schneiddaten auf Standard zurückgesetzt: {r['geaendert']} Zeile(n) geändert, {r['weg']} "
+                     f"entfernt, {r['neu']} ergänzt" + (f"; Sicherung {Path(r['pfad']).name}." if r["pfad"] else "."))
+        return r
 
 
 class MehrzeiligEingabe(QPlainTextEdit):
@@ -1686,6 +1703,8 @@ class Hauptfenster(QMainWindow):
                                    ("kalkulation", "Kalkulation (PDF)", ["Ctrl+Shift+K"]),
                                    ("staffeln", "Staffelpreise rechnen", ["F8"]),
                                    ("stueck", "Stückzahl ändern …", ["Ctrl+Shift+S"]),
+                                   ("hoch", "Position nach oben", ["Alt+Up"]),
+                                   ("runter", "Position nach unten", ["Alt+Down"]),
                                    ("material", "Materialanfrage (E-Mail) …", ["Ctrl+Shift+M"]),
                                    ("schliessen", "Angebot schließen", ["Ctrl+W", "Ctrl+F4"])):
             if name is None:
@@ -1974,7 +1993,7 @@ class Hauptfenster(QMainWindow):
 
     # -------------------------------------------------------------- Lizenz
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
-                           "optimieren", "importieren", "drucken", "staffeln", "stueck")
+                           "optimieren", "importieren", "drucken", "staffeln", "stueck", "hoch", "runter")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
                          "Alte Angebote archivieren …")
 

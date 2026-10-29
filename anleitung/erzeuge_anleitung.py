@@ -1428,7 +1428,8 @@ def kapitel_angebot(i):
     i.genauer()
     i.liste("Ein Satz sind alle Positionen mit demselben Namen in der Spalte <b>Satz</b>. Stehen sie im Angebot "
             "verstreut, zeigt die Liste sie direkt unter der ersten Position des Satzes; die Pos.-Nummern und die "
-            "Reihenfolge im Angebots-PDF ändern sich dadurch nicht.",
+            "Reihenfolge im Angebots-PDF ändern sich dadurch nicht (erst beim Umstellen der Reihenfolge gilt die "
+            "Anzeige auch dort, [[reihenfolge]]).",
             "Die Anzahl Sätze ist Stückzahl ÷ Stück je Satz der ersten Position. Zugeklappt steht dahinter, wie viele "
             "Positionen der Satz hat. Der Zustand gilt, bis das Angebot geschlossen wird.",
             "Doppelklick bzw. Tippen in die Spalte Satz ändert wie bisher nur den Namen.",
@@ -1437,6 +1438,23 @@ def kapitel_angebot(i):
             "Schweißbaugruppen ([[schweissbaugruppe]]) haben ihre eigene Gruppierung (▾/└ an der Baugruppe) und "
             "werden hier nicht zusätzlich gefärbt. Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit "
             "seinen Teilen darunter.")
+    i.abschnitt("Reihenfolge der Positionen ändern", marke="reihenfolge")
+    i.text("Positionen markieren → <b>Alt+↑ / Alt+↓</b> oder <i>Rechtsklick → Nach oben, Nach unten, An den Anfang, "
+           "Ans Ende</i>; oder den <b>Zeilenkopf</b> (Nummer links) an eine andere Stelle ziehen. Kalkulation, "
+           "Angebots-PDF und Werkstattpapiere folgen der neuen Reihenfolge.", kurz=True)
+    i.genauer()
+    i.liste("Eine <b>Schweißbaugruppe</b> wandert mit ihren Einzelteilen, ein <b>Satz</b> mit allen seinen "
+            "Positionen (die erste Zeile des Satzes mit ▾ steht für den ganzen Satz). Einzelteile derselben "
+            "Baugruppe bzw. die weiteren Positionen eines Satzes lassen sich innerhalb ihrer Gruppe umstellen.",
+            "<b>Positionsnummern</b>: Steigen sie in der Liste auf (10, 20, 30 …), bleiben sie es – die Nummern "
+            "bleiben auf ihrem Platz, die Teile wandern. Hat das Angebot ein eigenes Schema (z. B. Baugruppe 100 "
+            "über den Teilen 10–30), behält jede Position ihre Nummer. <i>Rechtsklick → Positionsnummern neu "
+            "vergeben (10, 20, 30 …)</i> zählt alle in der Reihenfolge der Liste neu.",
+            "Staffeln einer einzelnen Position ([[staffeln]]) ziehen mit ihrer Position mit. Ein aktueller "
+            "Schnittplan bleibt aktuell (gleiche Stangen, nur mit den neuen Nummern), auch in verschickten "
+            "Angeboten; der Preis ändert sich nicht.",
+            "Jede Umstellung ist ein Schritt für <b>Strg+Z</b>. In fremden Angeboten und im Lesemodus ist die "
+            "Reihenfolge gesperrt.")
     i.abschnitt("Zusatzarbeiten und Gewinde je Bauteil", marke="zusatzarbeiten_angebot")
     i.text("Positionen markieren → <b>Zusatzarbeiten …</b> (oder Doppelklick in die Spalte <i>Zusatzarbeiten</i>).",
            kurz=True)
@@ -1541,6 +1559,23 @@ def kapitel_angebot(i):
            "aus Zusatzarbeiten (Gravur extra) kommen weiterhin dazu. Der Status zeigt <b>HINWEIS: Schneidzeit "
            "manuell</b>, die Kalkulation in der Spalte <i>Schneidzeit manuell</i> ein „ja“. Feld leeren = wieder "
            "berechnet.")
+    i.abschnitt("So rechnet das Programm die Schneidzeit", marke="schneidzeit_genauer")
+    i.text("Schneidzeit je Teil = Schneidweg je Konturklasse ÷ Vorschub der Klasse + Gravur + Einstiche × "
+           "Einstechzeit + Anfahren + Ecken; gemeinsame Schnitte ziehen ihren Anteil wieder ab.", kurz=True)
+    i.genauer()
+    i.liste("<b>Konturklassen</b>: jede Innenkontur und auch der Anfangs- und Endschnitt kommen nach ihrem Hüllmaß "
+            "in klein, mittel oder groß (Grenzen der Maschine, zusätzlich nach Hüllmaß ÷ Wandstärke). Ein gerader "
+            "Schnitt an QR 40x40 ist also mittel, an RE 60x40 groß. Das gilt seit 0.9.196 gleich für STEP-Import, "
+            "Schneidweg-Rechner und <i>Bohrungen prüfen</i>.",
+            "<b>Gemeinsamer Schnitt</b>: zwei gerade Enden nebeneinander teilen sich einen Schnitt; abgezogen werden "
+            "genau die Zeit dieses Endes (Vorschub seiner Klasse), seine Einstiche, Anfahrzeit und Ecken.",
+            "<b>Ecken</b>: je Ende 4 Ecken an Quadrat- und Rechteckrohr (RP-Profile nach ihrer Kontur) × <i>Zeit je "
+            "Ecke</i> der Schneiddaten (Standard nach Wandstärke: 0,2 s + 0,05 s je mm, z. B. 3 mm 0,35 s, 8 mm 0,6 s).",
+            "<b>Anfahren/Drehen</b>: Einstiche × <i>Zeit je Kontur (Anfahren/Drehen)</i> der Maschine; leer = 0.",
+            "Die Kalkulation zeigt jeden Anteil in eigenen Spalten (<i>davon Einstiche</i>, <i>davon "
+            "Anfahren/Drehen</i>, <i>davon Ecken</i> …).")
+    i.hinweis("Festgeschriebene Angebote ([[preise_festschreiben]]) rechnen mit dem Stand beim Festschreiben weiter; "
+              "vor 0.9.196 festgeschriebene ohne Eckzeit und ohne Anfahrzeit.")
     i.abschnitt("Meterpreis anpassen", marke="meterpreis")
     i.text("Doppelklick in <b>Materialpreis [€/m]</b>, eigenen Preis eintragen: er steht fett und gilt für alle "
            "Positionen derselben Stangengruppe. Feld leeren = wieder berechnet. Der Mauszeiger zeigt die Herkunft "
@@ -1681,7 +1716,8 @@ def kapitel_angebot(i):
         ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
-        ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"]], [55, 210],
+        ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"],
+        ["Alt+↑ / Alt+↓", "markierte Positionen eine Zeile nach oben / unten ([[reihenfolge]])"]], [55, 210],
         kurz=True)
     i.genauer()
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
@@ -2374,9 +2410,14 @@ def kapitel_step(i):
             "<b>Im Prüfdialog</b> zeigt der Tooltip auf dem Teil die Herkunft (z. B. <i>Artikelnummer aus: "
             "Teilenummer der STEP-Datei</i> oder <i>Bauteilname; Revision „v2“ abgetrennt</i>). <b>Gelb</b> ist "
             "die Nummer, wenn sie unsicher ist: Dateiname statt eines CAD-Standardnamens, Nummer im Namen erkannt "
-            "oder Zusatz <i>-2</i>, weil der Name schon zu einem anderen Teil gehört. <b>Doppelklick</b> auf das "
-            "Teil ändert die Artikelnummer für alle gleichen Teile der Zeile; sie bleibt auch beim Wechsel des "
-            "Kunden.",
+            "oder Zusatz <i>-2</i>, weil der Name schon zu einem anderen Teil gehört.",
+            "<b>Artikelnummer ändern</b>: Die erste Spalte heißt <b>Artikelnummer ✎</b>. <b>Doppelklick</b>, "
+            "<b>F2</b> oder <i>Rechtsklick → Artikelnummer ändern …</i> öffnet das Feld; die neue Nummer gilt für "
+            "alle gleichen Teile der Zeile und bleibt auch beim Wechsel des Kunden. Feld leeren und Enter = wieder "
+            "die aus der STEP bestimmte Nummer (steht im Tooltip). <b>Rot</b> wird die Nummer, wenn ein anderes Teil "
+            "dieses Imports dieselbe hat – beim Übernehmen bekämen die weiteren Teile den Zusatz <i>-2</i>, "
+            "<i>-3</i> …; unter der Liste steht dazu ein roter Hinweis. <b>Gelb</b> mit Tooltip <i>steht schon im "
+            "Angebot</i> ist eine Nummer, die das Angebot schon hat (Häkchen unten: trotzdem noch einmal eintragen).",
             "Steht im Bauteilnamen ein Begriff aus der Einstellung <i>Normteile: Begriffe im Bauteilnamen (mit ; "
             "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "
             "ist das Teil ein Normteil. Es ist im Prüfdialog abgewählt (Hinweis <i>Normteil … – zum Übernehmen "
@@ -6565,6 +6606,9 @@ def kapitel_stammdaten(i):
         ["Kürzestes Teil [mm]", "kürzere Teile kann die Maschine nicht fertigen; sie bekommen die Stufe der "
                                 "Prüfregel <i>Teil zu kurz für die Maschine</i> ([[pruefregeln]]); leer = keine "
                                 "Grenze"],
+        ["Zeit je Kontur (Anfahren/Drehen) [s]", "Zuschlag je Einstich für das Anfahren der Kontur und das Drehen "
+                                                 "des Rohrs dazwischen (jede Innenkontur und jedes Ende); leer = 0. "
+                                                 "Mit echten Schnittzeiten abgleichen ([[schneidzeit_genauer]])"],
         ["Schicht: Stunden je Arbeitstag", "Kapazität der Maschine in der Wochenauslastung "
                                            "([[auslastung]]); leer = Einstellung"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -6586,7 +6630,8 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"],
         ["Zeit je Ecke [s]", "Zuschlag je Ecke im Anfangs- und Endschnitt (der Laser bremst in der Ecke): "
                              "RP-Profile nach der Zahl der Ecken ihrer Kontur, Quadrat- und Rechteckrohr 4 je Ende, "
-                             "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit"]], [75, 190])
+                             "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit. Standard "
+                             "seit 0.9.196 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
            "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.19 stammen die Faserlaser-Werte aus "
            "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "
@@ -6613,21 +6658,30 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Schneiddaten auf Standard zurücksetzen", marke="schneiddaten_standard")
     i.text("<b>Auf Standard zurücksetzen …</b> im Unterreiter Schneiddaten holt die mitgelieferten Richtwerte "
-           "zurück; eigene Werte der gewählten Maschine gehen dabei verloren.", kurz=True)
+           "zurück: für alle Maschinen, eine Maschine oder nur die markierten Zeilen, mit Vorschau, Rückfrage und "
+           "Datensicherung vorher. Orange Zellen weichen vom Standard ab.", kurz=True)
     i.genauer()
-    i.text("Im Unterreiter <i>Schneiddaten</i> stellt die Schaltfläche <b>Auf Standard zurücksetzen …</b> (rechts "
-           "neben <i>Zeilen löschen</i>) die mitgelieferten Richtwerte wieder her, z. B. wenn eigene Versuche die "
-           "Tabelle durcheinandergebracht haben:")
-    i.liste("In der Auswahl <i>Alle Maschinen (T03, T11, LT7)</i> oder eine einzelne Maschine wählen.",
-            "Die Sicherheitsabfrage nennt, wie viele Zeilen gelöscht werden. Erst mit <b>Ja</b> wird zurückgesetzt; "
-            "vorgewählt ist <b>Nein</b>.",
-            "Alle Zeilen der gewählten Maschine(n) werden gelöscht, auch eigene Werte und Zeilen je Werkstoff, und "
-            "durch die Richtwerte je Kategorie ersetzt. Die Statuszeile meldet, wie viele Zeilen entfernt und "
-            "eingefügt wurden.", nummeriert=True)
+    i.text("Im Unterreiter <i>Schneiddaten</i> öffnet die Schaltfläche <b>Auf Standard zurücksetzen …</b> (rechts "
+           "neben <i>Zeilen löschen</i>) einen Dialog, z. B. wenn eigene Versuche die Tabelle durcheinandergebracht "
+           "haben:")
+    i.liste("Umfang wählen: <i>Alle Maschinen (T03, T11, LT7)</i>, <i>Eine Maschine</i> oder <i>Nur die markierten "
+            "Zeilen</i> (vorgewählt, wenn vorher Zeilen markiert waren).",
+            "Bei alle/eine Maschine wahlweise <i>Eigene Zeilen behalten</i>: dann werden nur die Standardzeilen "
+            "zurückgesetzt, Zeilen je Werkstoff und andere eigene Zeilen bleiben.",
+            "Die Vorschau zeigt je Zeile jeden Wert <i>Jetzt</i> → <i>Standard</i>, welche eigenen Zeilen entfernt "
+            "und welche fehlenden Standardzeilen ergänzt werden. Ist nichts zu tun, bleibt <b>Zurücksetzen …</b> "
+            "grau.",
+            "<b>Zurücksetzen …</b> fragt ein letztes Mal nach; vorgewählt ist <b>Nein</b>. Mit <b>Ja</b> legt das "
+            "Programm zuerst eine Datensicherung <i>vor Schneiddaten-Standard</i> an und setzt dann zurück. Die "
+            "Statuszeile meldet geänderte, entfernte und ergänzte Zeilen und den Namen der Sicherung.",
+            nummeriert=True)
+    i.text("In der Tabelle sind Werte, die vom mitgelieferten Standard abweichen, <b>orange</b> hinterlegt; der "
+           "Mauszeiger auf der Zelle nennt den Standardwert. So ist auf einen Blick zu sehen, was selbst eingetragen "
+           "wurde.")
     i.hinweis("Schneiddaten anderer, selbst angelegter Maschinen bleiben unverändert, für sie gibt es keine "
               "Richtwerte. Angebote mit festgeschriebenen Preisen rechnen mit ihren Schneiddaten weiter "
-              "([[preise_festschreiben]]). Rückgängig machen geht nur über eine Datensicherung ([[datensicherung]]), "
-              "deshalb vor dem Zurücksetzen eigene Werte bei Bedarf sichern.")
+              "([[preise_festschreiben]]). Rückgängig machen: <i>Sicherung wiederherstellen …</i> mit der Sicherung "
+              "<i>vor Schneiddaten-Standard</i> ([[datensicherung]]).")
     i.abschnitt("Blech-Werkstoffe und Blechlaser (Richtwerte)", marke="blech_stammdaten")
     i.text("Die Unterreiter <i>Blech-Werkstoffe</i>, <i>Blechlaser (Richtwerte)</i> und <i>K-Faktoren "
            "(Abwicklung)</i> gehören nur zum "

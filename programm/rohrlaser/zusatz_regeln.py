@@ -62,7 +62,8 @@ def anzahl_bohrungen(p):
 
 
 def anzahl_innen(p):
-    return float(sum(int(p.get(n) or 0) for n in ("klein_n", "mittel_n", "gross_n")))
+    from . import rechnen
+    return float(rechnen.konturen_anzahl(p))
 
 
 def ist_blech(p):

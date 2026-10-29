@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.196", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
+    ["0.9.198", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
                 "CAD als <b>eigene dünne Körper</b> (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf "
                 "dem Rohr liegen, werden jetzt Gravur des Rohrs – mit allen Konturen (auch innen in „O“, „A“, „B“), "
                 "genau wie in der STEP, wie eingeprägte Schrift. Früher wurde jedes Zeichen als Blech vermessen "
@@ -33,6 +33,28 @@ NEUERUNGEN = [
                 "Messung mehrere Minuten). Jetzt Enden, Wand und Schneidweg wie ohne Gravur, wenige Sekunden "
                 "([[step_messung]]).",
      "STEP: Schrift als eigener Körper oder Fläche wird Gravur des Rohrs (statt Minuten nur Sekunden)."],
+    ["0.9.197", "<b>Reihenfolge der Positionen ändern</b>: markierte Positionen mit <b>Alt+↑ / Alt+↓</b>, "
+                "Rechtsklick (Nach oben, Nach unten, An den Anfang, Ans Ende) oder durch Ziehen am Zeilenkopf "
+                "verschieben; Schweißbaugruppen wandern mit ihren Teilen, Sätze ganz. Kalkulation, Angebots-PDF und "
+                "Werkstattpapiere folgen, aufsteigende Positionsnummern bleiben aufsteigend, Staffeln je Position und "
+                "ein aktueller Schnittplan ziehen mit; <i>Positionsnummern neu vergeben</i> zählt 10, 20, 30 … "
+                "([[reihenfolge]]). <b>Artikelnummer im STEP-Import ändern</b>: Spalte <i>Artikelnummer ✎</i> mit "
+                "Doppelklick, F2 oder Rechtsklick; gleiche Nummer an zwei Teilen rot mit Hinweis, schon im Angebot "
+                "gelb, leeres Feld = wieder die Nummer aus der STEP ([[importprofile]]).",
+     "Reihenfolge der Positionen verschieben (Alt+↑/↓, Ziehen); Artikelnummer im STEP-Import ändern."],
+    ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
+                "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "
+                "eigene Zeilen (z. B. je Werkstoff) behalten. Die Vorschau zeigt jeden Wert jetzt → Standard, welche "
+                "eigenen Zeilen entfallen und welche Standardzeilen fehlen; vorher legt das Programm eine "
+                "Datensicherung an, die letzte Rückfrage steht auf Nein. Werte, die vom Standard abweichen, sind in "
+                "der Tabelle orange, der Tooltip nennt den Standard ([[schneiddaten_standard]]). "
+                "<b>Schneidzeit genauer</b>: Anfangs- und Endschnitt aus dem Schneidweg-Rechner und aus "
+                "<i>Bohrungen prüfen</i> zählen wie beim STEP-Import nach ihrem Hüllmaß (bisher immer Vorschub groß, "
+                "die Einsparung gemeinsamer Schnitte zog aber mit der Klasse des Endes ab); Innenkonturen für "
+                "Programmierzeit und Regeln ohne die Enden. Standard <i>Zeit je Ecke</i> nach Wandstärke, 0,2 s + 0,05 s je mm (leere Richtwertzeilen "
+                "werden einmalig gefüllt). Neues Maschinenfeld <i>Zeit je Kontur (Anfahren/Drehen)</i>, leer = 0 "
+                "([[schneidzeit_genauer]]). Festgeschriebene Angebote rechnen unverändert.",
+     "Schneiddaten zurücksetzen mit Vorschau und Sicherung; Schneidzeit: Enden, Ecken, Anfahren genauer."],
     ["0.9.195", "<b>Zeitraum in der Angebotsliste</b>: Neben dem Vorgang wählt man, welche Angebote die Liste zeigt "
                 "– mit Datum oder Änderung in den letzten 30, 60, 100, 150 oder 365 Tagen oder alle (Vorgabe 150 Tage, "
                 "Einstellungen → Angebot, nur dieser Arbeitsplatz). Fällige Wiedervorlagen, beauftragte und noch nicht "
