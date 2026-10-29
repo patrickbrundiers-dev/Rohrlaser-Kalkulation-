@@ -260,6 +260,11 @@ class Plan:
     def __init__(self, je_lage, erste, abstand, lagen_max, text, hand=False):
         self.je_lage, self.erste, self.abstand, self.lagen_max = je_lage, erste, abstand, lagen_max
         self.text, self.hand = text, hand
+        self.geo = None         # für die Skizze: dict(teil (längs, quer, hoch) mm, reihen, quer_je, ueber, versetzt)
+
+    def geometrie(self):
+        """Lagenaufbau für die Skizze (palette_skizze.py) oder None (von Hand, größer als der Ladungsträger)."""
+        return dict(self.geo, erste=self.erste, abstand=self.abstand, je_lage=list(self.je_lage)) if self.geo else None
 
     def stueck(self, lagen):
         """Stück in so vielen vollen Lagen."""
@@ -319,6 +324,7 @@ def lagenplan(masse, rund, z, v):
             reihe = f"{reihen} Reihe{'n' if reihen != 1 else ''}" + (f", {_mm(ueber)} mm Überstand" if ueber else "")
             stk = "/".join(str(x) for x in je)
             p.text = f"{stk} Stück je Lage ({reihe}{art}; Teil {_mm(x)} × {_mm(y)} × {_mm(h)} mm)"
+            p.geo = dict(teil=(x, y, h), reihen=reihen, quer_je=list(quer_je), ueber=ueber, versetzt=bool(art))
             if best is None or p.voll > best.voll:
                 best = p
     if best is None:
@@ -405,6 +411,7 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
         last = nutzlast(z, v)
         s["lht_id"] = z["lht_id"]
         s["plan_text"] = plan.text if plan else ""
+        s["plan_geo"] = plan.geometrie() if plan else None
         voll = plan.voll if plan else math.inf
         if last is not None and s["gewicht"]:
             voll = min(voll, math.floor(last / s["gewicht"] + 1e-7))
@@ -461,7 +468,11 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
             hoehe = pal["hoehe"] + (_n(z.get("hoehe")) if z.get("art") != GITTERBOX else 0.0) if pal["hoehe"] else None
             paletten.append(dict(lht_id=lht_id, bezeichnung=z.get("bezeichnung") or lht_id,
                                  inhalt=[(k, n) for k, n in pal["inhalt"]], netto=netto,
-                                 brutto=netto + _n(z.get("eigengewicht")), hoehe=hoehe, aufbau=aufbau))
+                                 brutto=netto + _n(z.get("eigengewicht")), hoehe=hoehe, aufbau=aufbau,
+                                 schichten=[dict(k=k, stueck=n, lagen=lagen) for k, n, lagen in pal["aufbau"]],
+                                 masse=(_n(z.get("laenge")), _n(z.get("breite")), _n(z.get("hoehe"))),
+                                 art=z.get("art"), zwischenlage=v["zwischenlage"],
+                                 hoehe_max=v["hoehe_gesamt"]))
     for nr, pal in enumerate(paletten, start=1):
         pal["nr"] = nr
     gewichte = [s["gewicht"] for s in stuecke]
@@ -473,6 +484,33 @@ def ladung(positionen, werte, lht_zeilen, std_id, lg_id, einst=None):
     """Ladungsträger für die Fracht wie fracht.packvorschlag: ([{lht_id, anzahl}], hinweise)."""
     e = packen(positionen, werte, lht_zeilen, std_id, lg_id, einst)
     return [dict(lht_id=k, anzahl=n) for k, n in e["je_lht"].items() if n], e["hinweise"]
+
+
+# ------------------------------------------------------------------ günstigste Ladungsträger (Patrick 29.10.2026, 3a)
+OHNE_WAHL = ("Langgut", "Sonderladung")      # nie Standard-Ladungsträger: Langgut nur für lange Teile
+
+
+def kandidaten(lht_zeilen, lg_id):
+    """Ladungsträger, die als Standard in Frage kommen: aktiv, mit Länge und Breite, kein Langgut und keine
+    Sonderladung, nicht der Langgut-Träger selbst."""
+    return [z for z in lht_zeilen or () if z.get("lht_id") and (z.get("aktiv") or "ja") != "nein"
+            and z.get("art") not in OHNE_WAHL and z["lht_id"] != lg_id and _n(z.get("laenge")) and _n(z.get("breite"))]
+
+
+def guenstigste(positionen, werte, lht_zeilen, std_id, lg_id, einst, preis):
+    """Jeden möglichen Standard-Ladungsträger durchrechnen (lange Teile weiter auf Langgut lg_id) und nach Fracht
+    sortieren. preis([{lht_id, anzahl}]) -> € oder None (kein Tarif, Fehler). Ergebnis: Liste dict(std_id,
+    bezeichnung, lht, packliste, gesamt, hinweise), günstigste zuerst; ohne Preis am Ende; bei gleichem Preis der
+    eingestellte Standard, dann weniger Ladungsträger."""
+    out = []
+    for z in kandidaten(lht_zeilen, lg_id):
+        e = packen(positionen, werte, lht_zeilen, z["lht_id"], lg_id, einst)
+        lht = [dict(lht_id=k, anzahl=n) for k, n in e["je_lht"].items() if n]
+        out.append(dict(std_id=z["lht_id"], bezeichnung=z.get("bezeichnung") or z["lht_id"], lht=lht, packliste=e,
+                        gesamt=preis(lht) if lht else None, hinweise=e["hinweise"]))
+    out.sort(key=lambda x: (x["gesamt"] is None, round(x["gesamt"] or 0, 2), x["std_id"] != std_id,
+                            sum(t["anzahl"] for t in x["lht"]), x["std_id"]))
+    return out
 
 
 def kurz(e):

@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.200", "<b>Pack-Logik im Frachtrechner</b>: Der Knopf <i>Aus Angebot laden …</i> (Frachtkosten › Fracht "
+                "kalkulieren) übernimmt die Ware eines Angebots und packt sie nach Maßen und Stückzahl wie der "
+                "Palettenschein, statt nur Gewicht ÷ 800 kg. Der Packvorschlag probiert jetzt alle Ladungsträger "
+                "(Europalette, Gitterbox, Industrie-, Sonderpalette …, lange Teile auf Langgut) und nimmt den "
+                "günstigsten Frachtpreis, z. B. eine Sonderpalette 2,40 m statt Europalette + Langgut. Die neue "
+                "<b>Packliste</b> zeigt den Vergleich und je Palette Draufsicht, Seitenansicht mit Höhe und den "
+                "Aufbau; auch im Fenster <i>Fracht berechnen …</i> eines Angebots ([[pack_rechner]]).",
+     "Frachtrechner: Ware aus Angebot laden, günstigste Ladungsträger, Packliste mit Skizze."],
     ["0.9.199", "<b>Optimieren mit fester Schweißnaht an mehreren Positionen</b>: Hatten mehrere Positionen einer "
                 "Abmessung eine feste Naht (oder Gehrungen), konnte die Optimierung ein Teil doppelt und ein anderes "
                 "gar nicht einplanen; die Kontrolle meldete dann „Teile fehlen oder doppelt“. Ursache war ein "
