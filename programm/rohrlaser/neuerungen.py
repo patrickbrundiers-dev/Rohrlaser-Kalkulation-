@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.191", "<b>PDF-Dokumente ohne Überlappungen</b>: Alle Ausgaben (Angebot, Werkstattpapiere, Kalkulation, "
+                "Nachkalkulation, Palettenschein, Verladeliste) mit langen Texten geprüft und korrigiert – langer "
+                "Briefkopf in der Fußzeile bis zu drei Zeilen statt über die Seitenzahl, Stundensatz in der "
+                "Kalkulation nicht mehr über der Gesamtzeit, Artikeltext im Palettenschein mit „…“ statt über der "
+                "Stückzahl, Einheit „pausch.“ ohne Umbruch, Kopfangaben oben bündig und langer Kundenname breiter, "
+                "zu lange Tabellenwerte umbrochen. Dazu: Stangenbild mit drei Stangen je Seite (Werkstattpapiere rund "
+                "20 % kürzer), Summe und Konditionen im Angebot zusammen, lange Artikelnummern kleiner und lesbarer "
+                "([[ausgabe]]).",
+     "PDFs: keine Überlappungen bei langen Texten, Stangenbild kompakter, Summe und Konditionen zusammen."],
     ["0.9.190", "<b>Staffeln rechnen sich nach Änderungen selbst neu</b>: Sind im Angebot Stufen angelegt, rechnet "
                 "das Programm sie nach jeder Änderung am Angebot (Positionen, Stückzahl, Material, Zusatzarbeiten, "
                 "Editoren, Rückgängig, Stammdaten, Einstellungen) 1,5 s nach der letzten Eingabe im Hintergrund neu, "

@@ -5134,6 +5134,15 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Alle PDFs haben dasselbe Aussehen wie das Angebot: Firmenname und kleines Firmenlogo oben, Titel in "
            "Dunkelblau, darunter Angebot, Kunde, Maschine und Erstellzeit, Listen ohne Gitter mit feinen Linien und "
            "jeder zweiten Zeile leicht hinterlegt, Fußzeile mit Firmenname und Seitenzahl.")
+    i.text("<b>Lange Texte</b> bleiben lesbar und überdecken nichts: Ein langer Briefkopf steht in der Fußzeile "
+           "in bis zu drei Zeilen links neben „Seite x von y“ (notfalls etwas kleiner, als letztes mit „…“ gekürzt). "
+           "Ein langer Kundenname bekommt im Kopf der Werkstattpapiere, der Kalkulation und der Nachkalkulation den "
+           "Platz, den die kurzen Angaben nicht brauchen; alle Angaben stehen oben bündig, auch neben einer "
+           "mehrzeiligen Anfrage-Nr. im Angebot. Ist ein Wert breiter als seine Spalte, wird er in der Spalte "
+           "umbrochen statt in die Nachbarspalte zu laufen. Im Palettenschein wird ein zu langer Artikeltext oder "
+           "Kundenname mit „…“ gekürzt, die Stückzahl bleibt frei lesbar.")
+    i.text("Im Angebot bleiben Summe und Konditionen zusammen auf einer Seite; lange Artikelnummern stehen etwas "
+           "kleiner (8 pt) in einer breiteren Spalte. Das Stangenbild zeigt drei Stangen mit Abwicklung je Seite.")
     i.text("Je Stangenmuster steht eine Kopfzeile mit Stangennummern, Profil, Werkstoff und Anzahl gleicher "
            "Stangen, darunter Stangenlänge, Endbeschnitt, Greiferrest, Rest und Ausnutzung. In der Liste sind Pos. "
            "und Länge fett, die Spalte <i>erl.</i> hat ein Kästchen zum Abhaken.")
