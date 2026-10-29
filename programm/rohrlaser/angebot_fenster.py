@@ -1189,7 +1189,7 @@ class PositionenModell(QAbstractTableModel):
         self.s.f.meldung(f"{f.titel} gespeichert." + (f" {neu}" if neu else ""))
         self.geaendert.emit()
         if f.name == "profil_id" and wert and wert not in self.k.profile:     # Abmessung fehlt: anlegen anbieten
-            QTimer.singleShot(0, lambda: self._abmessung_anbieten(p["id"], wert, index.column()))
+            QTimer.singleShot(0, self, lambda: self._abmessung_anbieten(p["id"], wert, index.column()))
         return True
 
     def _abmessung_anbieten(self, pos_id, text, spalte):
@@ -2436,7 +2436,7 @@ class AngebotSeite(QWidget):
 
     def resizeEvent(self, ereignis):
         super().resizeEvent(ereignis)
-        self.kopf_bereich.breite_anpassen(ereignis.size().width())
+        self.kopf_bereich.breite_anpassen(ereignis.size().width(), ereignis.size().height())
 
     def showEvent(self, ereignis):
         super().showEvent(ereignis)
@@ -2453,7 +2453,7 @@ class AngebotSeite(QWidget):
         """Oberen Teil (Kopf, Kalkulation, Fracht) so hoch wie nötig, höchstens gut die Hälfte; nach dem Auf- oder
         Zuklappen des Angebotskopfs."""
         if getattr(self, "_teiler_gesetzt", False):
-            QTimer.singleShot(0, self._oben_anpassen_jetzt)      # erst nach dem Layout des Auf- oder Zuklappens
+            QTimer.singleShot(0, self, self._oben_anpassen_jetzt)      # erst nach dem Layout des Auf- oder Zuklappens
 
     def _oben_anpassen_jetzt(self):
         h = self.teiler.height()

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QPushButton, QSpinBox, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import lager, rechnen
+from . import lager, leerhinweis, rechnen
 from .stammdaten import zahl_als_text, zahl_aus_text
 
 SPALTEN = (("Kennung", "kennung"), ("Art", "art"), ("Profil-ID", "profil"), ("Werkstoff-ID", "werkstoff"),
@@ -114,7 +114,9 @@ class LagerSeite(QWidget):
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             oben.addWidget(b)
         self.tabelle = _tabelle(SPALTEN)
+        leerhinweis.setzen(self.tabelle, "Noch kein Material im Lager. „Zugang …“ bucht Stangen oder Reststücke ein.")
         self.buchungen = _tabelle(BUCHUNG_SPALTEN)
+        leerhinweis.setzen(self.buchungen, "Noch keine Buchungen.")
         self.reiter = QTabWidget()
         self.reiter.addTab(self.tabelle, "Bestand")
         self.reiter.addTab(self.buchungen, "Buchungen")
