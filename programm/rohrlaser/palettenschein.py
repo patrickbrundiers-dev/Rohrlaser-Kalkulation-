@@ -11,6 +11,7 @@ Daten (JSON in angebote.palettenschein, leer = noch nichts erfasst; Kopie und ne
   status         ['Auftrag vollständig', …] (STATUS); 'Versendet' = Abschluss, setzt versendet_am
   hinweis        Text (lange Hinweise werden kleiner gedruckt)
   gedruckt_am, versendet_am (ISO-Datum), archiviert (bool)
+  zurueckgeholt  True: von Hand aus dem Archiv geholt, wird nicht mehr automatisch archiviert (auto_archiviert)
 Auftrag = Angebotsnummer, Bestellnummer = Auftragsnummer des Kunden (Beauftragt), Lieferdatum = Liefertermin.
 """
 import datetime
@@ -29,7 +30,8 @@ TRENNER = "::"
 
 def leer():
     return dict(paletten_auto=True, paletten=None, unbekannt=False, stueck_text="", max_je={}, arbeiten=None,
-                status=[], hinweis="", gedruckt_am=None, versendet_am=None, archiviert=False)
+                status=[], hinweis="", gedruckt_am=None, versendet_am=None, archiviert=False,
+                zurueckgeholt=False)
 
 
 def lesen(text):
@@ -262,6 +264,25 @@ def _datum(iso):
         return None
 
 
+AUTO_ARCHIV_TAGE = 90       # Aufträge ohne Palettenschein: Liefertermin (sonst Angebotsdatum) so lange vorbei -> Archiv
+
+
+def auto_archiviert(z, d, heute=None):
+    """Alter Auftrag, für den nie ein Palettenschein bearbeitet wurde (kein Status, nicht gedruckt), z. B. aus der
+    Zeit vor dem Reiter Versand: gilt als archiviert, außer er wurde von Hand zurückgeholt (Prüfung Datenbank bei
+    vielen Angeboten, Vorschlag 3b)."""
+    if d.get("zurueckgeholt") or d.get("status") or d.get("gedruckt_am"):
+        return False
+    termin = _datum(z.get("liefertermin")) or _datum(z.get("datum"))
+    heute = heute or datetime.date.today()
+    return termin is not None and termin < heute - datetime.timedelta(days=AUTO_ARCHIV_TAGE)
+
+
+def archiviert(z, d, heute=None):
+    """Im Archiv: von Hand archiviert oder automatisch (auto_archiviert)."""
+    return bool(d.get("archiviert")) or auto_archiviert(z, d, heute)
+
+
 FILTER = ("Aktuell", "Überfällig", "Heute fällig", "Morgen", "Diese Woche", "In Bearbeitung", "Verladebereit",
           "Versendet", "Alle", "Archiviert")
 
@@ -272,8 +293,8 @@ def passt(z, d, filt, heute=None, morgen=None):
     termin = _datum(z.get("liefertermin"))
     versendet = ist_versendet(d)
     if filt == "Archiviert":
-        return bool(d.get("archiviert"))
-    if d.get("archiviert"):
+        return archiviert(z, d, heute)
+    if archiviert(z, d, heute):
         return False
     if filt == "Alle":
         return True

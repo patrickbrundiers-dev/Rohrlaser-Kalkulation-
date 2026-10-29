@@ -26,6 +26,7 @@ import re
 import shutil
 import sqlite3
 import tempfile
+import zlib
 import zipfile
 from pathlib import Path
 
@@ -45,7 +46,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 66     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 67     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -126,6 +127,8 @@ SCHEMA_VERSION = 66     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     arbeitsgang_regeln mit Beispielregeln, positionen.arbeitsgaenge); ältere Daten leer
                         # 66: Musterteile (positionen.muster, angebote.muster_darstellung; leer = Serienteil bzw.
                         #     Musterkosten auf die Serie umlegen)
+                        # 67: Schnittplan (angebote.ergebnis) zlib-gepackt statt JSON-Text (ergebnis_packen), Datei
+                        #     etwa halb so groß; ältere Programme könnten ihn nicht lesen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -133,7 +136,10 @@ UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokol
 UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), ("auftragsaufschlag", "angebotsaufschlag"))
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
-SICHERUNGEN_BEHALTEN = 30
+SICHERUNGEN_BEHALTEN = None   # None = gestaffelt (STAFFEL), sonst so viele laufende Sicherungen
+# Laufende Sicherungen gestaffelt behalten (Prüfung Datenbank bei vielen Angeboten, 4b): alle der letzten 7 Tage, dazu je
+# Woche (4) und je Monat (12) die neueste. Früher 30 tägliche: bei 10.000 Angeboten (2 GB je Sicherung) 60 GB.
+STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
@@ -320,6 +326,9 @@ class Datenbank:
             # bei 10.000 Angeboten je Angebot einige Millisekunden (Prüfung Datenbank bei vielen Angeboten 28.10.)
             for tabelle in ("staffeln", "staffel_stufen", "step_protokoll"):
                 self.con.execute(f"CREATE INDEX IF NOT EXISTS {tabelle}_angebot ON {tabelle} (angebot_id)")
+            # Wiederholteile (wiederholteile.laden): gleiche Abmessung und Länge, gleiche Artikelnummer
+            self.con.execute("CREATE INDEX IF NOT EXISTS positionen_profil_laenge ON positionen (profil_id, laenge)")
+            self.con.execute("CREATE INDEX IF NOT EXISTS positionen_artikel ON positionen (LOWER(TRIM(artikel)))")
             spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
@@ -454,10 +463,16 @@ class Datenbank:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
                 self._strahlen_ergaenzen()
+            if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
+                self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
+                                     [(ergebnis_packen(t), i) for i, t in self.con.execute(
+                                         "SELECT id, ergebnis FROM angebote WHERE typeof(ergebnis)='text'")])
             teilen.einrichten(self.con)
             lager.einrichten(self.con)
             fertigung.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
+            self.con.execute("VACUUM")
         self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
 
@@ -1789,7 +1804,7 @@ class Datenbank:
         if r is None:
             return None
         a = dict(r)
-        a["ergebnis"] = json.loads(a["ergebnis"]) if a["ergebnis"] else None
+        a["ergebnis"] = json.loads(ergebnis_text(a["ergebnis"])) if a["ergebnis"] else None
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
@@ -1987,8 +2002,8 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=?, optimiert_erstmals=COALESCE("
                              "optimiert_erstmals, ?), optimiert_hand=COALESCE(optimiert_hand, ?) WHERE id=?",
-                             (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None, jetzt, jetzt,
-                              jetzt if von_hand else None, angebot_id))
+                             (ergebnis_packen(json.dumps(ergebnis, ensure_ascii=False)) if ergebnis else None, jetzt,
+                              jetzt, jetzt if von_hand else None, angebot_id))
 
     @schreibt
     def kennzahlen_merken(self, angebot_id, vk_netto, stand):
@@ -2076,11 +2091,11 @@ class Datenbank:
 
     @liest
     def versand_auftraege(self):
-        """Eigene beauftragte Angebote für die Versandübersicht: [{id, nummer, kunde, kundennr, auftragsnr,
+        """Eigene beauftragte Angebote für die Versandübersicht: [{id, nummer, kunde, kundennr, datum, auftragsnr,
         liefertermin, bearbeiter, schein (palettenschein.lesen)}]."""
         from . import palettenschein
         out = []
-        for r in self.con.execute("SELECT id, nummer, kunde, kundennr, auftragsnr, liefertermin, bearbeiter, "
+        for r in self.con.execute("SELECT id, nummer, kunde, kundennr, datum, auftragsnr, liefertermin, bearbeiter, "
                                   "palettenschein FROM angebote WHERE vorgang='Beauftragt' AND "
                                   "COALESCE(fremd, '')='' AND COALESCE(ersetzt_durch, '')='' ORDER BY nummer"):
             z = dict(r)
@@ -2403,15 +2418,18 @@ class Datenbank:
 
     # -------------------------------------------------------------- Sicherung
     @liest
-    def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN, zusatz=None):
+    def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN, zusatz=None, con=None):
         """Kopie der Datendatei nach Daten/Sicherung (sqlite-Backup, auch bei offener Datei sicher), danach geprüft
         (Integrität, gleiche Anzahl Angebote und Positionen wie das Original) und mit einer Beschreibung
         <name>.json daneben (Version, Schema, Zeit, Anzahlen, Prüfsumme). Scheitert die Prüfung, wird die Kopie
         gelöscht und SicherungFehler (ein OSError) ausgelöst.
         zusatz: 'beenden' u. ä. = eine Datei je Tag, die überschrieben wird; 'vor_…' (vor_update, vor_Schema_N,
         vor_Wiederherstellung) = geschützte Sicherung mit Uhrzeit, wird nie überschrieben.
-        Aufräumen: von den laufenden Sicherungen bleiben `behalten`, von jeder Art geschützter Sicherungen
-        GESCHUETZT_BEHALTEN; die Datendatei selbst wird nie gelöscht. Ergebnis: Pfad der Sicherung."""
+        Aufräumen: von den laufenden Sicherungen bleiben `behalten` (None: gestaffelt, STAFFEL), von jeder Art
+        geschützter Sicherungen GESCHUETZT_BEHALTEN (vor_update: 3); die Datendatei selbst wird nie gelöscht.
+        con: eigene Verbindung zur Datendatei (Sicherung im Hintergrund, sicherung_heute): kopiert in kleinen
+        Schritten, damit das Programm weiter speichern kann; ändert sich dabei die Anzahl Angebote, wird einmal neu
+        kopiert. Ergebnis: Pfad der Sicherung."""
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
         ordner.mkdir(parents=True, exist_ok=True)
         jetzt = datetime.datetime.now()
@@ -2424,13 +2442,17 @@ class Datenbank:
             while ziel.exists():
                 ziel = ordner / f"{name}_{n}.db"
                 n += 1
-        kopie = sqlite3.connect(ziel)
-        try:
-            with kopie:
-                self.con.backup(kopie)
-        finally:
-            kopie.close()
-        soll = _anzahlen(self.con)
+        quelle = con or self.con
+        for versuch in range(2 if con is not None else 1):
+            kopie = sqlite3.connect(ziel)
+            try:
+                with kopie:
+                    quelle.backup(kopie, pages=1024 if con is not None else -1, sleep=0.005)
+            finally:
+                kopie.close()
+            soll = _anzahlen(quelle)
+            if con is None or _anzahlen_datei(ziel) == soll:
+                break
         try:
             info = datei_pruefen(ziel)
             if info["anzahl"] != soll:
@@ -2443,22 +2465,26 @@ class Datenbank:
         # nach Zeit (mehrere Sicherungen in einer Sekunde heißen _1, _2 … _10 und sortieren nach Namen falsch)
         alle = sorted(ordner.glob(f"{self.pfad.stem}_*.db"), key=lambda p: (p.stat().st_mtime_ns, p.name))
         laufend = [p for p in alle if _geschuetzt(p) is None]
-        weg = laufend[:max(0, len(laufend) - behalten)]
+        weg = laufend[:max(0, len(laufend) - behalten)] if behalten is not None else _gestaffelt_weg(laufend)
         for art in {_geschuetzt(p) for p in alle} - {None}:
             gleich = [p for p in alle if _geschuetzt(p) == art]
-            weg += gleich[:max(0, len(gleich) - GESCHUETZT_BEHALTEN)]
+            weg += gleich[:max(0, len(gleich) - GESCHUETZT_JE_ART.get(art, GESCHUETZT_BEHALTEN))]
         for p in weg:
             if p != ziel:
                 _sicherung_loeschen(p)
         return ziel
 
     @liest
-    def sicherung_heute(self, ordner=None):
-        """Beim Start: eine Sicherung je Tag."""
+    def sicherung_heute(self, ordner=None, hintergrund=False):
+        """Beim Start: eine Sicherung je Tag. hintergrund=True: in einem eigenen Thread mit eigener Verbindung (bei
+        großen Datendateien dauert sie, Prüfung Datenbank bei vielen Angeboten 4b); Ergebnis dann SicherungLauf
+        (oder None, wenn heute schon gesichert)."""
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
         if any(ordner.glob(f"{self.pfad.stem}_{datetime.date.today():%Y-%m-%d}_*.db")):
             return None
-        return self.sicherung(ordner)
+        if not hintergrund:
+            return self.sicherung(ordner)
+        return SicherungLauf(self, ordner)
 
     @liest
     def sicherungen(self, zusatz=None):
@@ -2546,6 +2572,28 @@ class Datenbank:
 
 
 GESCHUETZT_BEHALTEN = 10       # je Art geschützter Sicherungen (vor_update, vor_Schema, vor_Wiederherstellung …)
+GESCHUETZT_JE_ART = {"update": 3}       # vor jedem Update eine volle Kopie: die letzten 3 reichen (4b)
+
+
+def _gestaffelt_weg(laufend, heute=None):
+    """Laufende Sicherungen (alt -> neu), die nach STAFFEL wegfallen: behalten werden alle der letzten STAFFEL['tage']
+    Tage und je Kalenderwoche bzw. Monat die neueste, für die letzten STAFFEL['wochen'] Wochen und
+    STAFFEL['monate'] Monate mit Sicherung. Datum = Änderungszeit der Datei."""
+    heute = heute or datetime.date.today()
+    datum = {p: datetime.date.fromtimestamp(p.stat().st_mtime) for p in laufend}
+    behalten, wochen, monate = set(), [], []
+    for p in reversed(laufend):                     # neueste zuerst
+        d = datum[p]
+        if (heute - d).days < STAFFEL["tage"]:
+            behalten.add(p)
+        w, m = d.isocalendar()[:2], (d.year, d.month)
+        if w not in wochen and len(wochen) < STAFFEL["wochen"]:
+            wochen.append(w)
+            behalten.add(p)
+        if m not in monate and len(monate) < STAFFEL["monate"]:
+            monate.append(m)
+            behalten.add(p)
+    return [p for p in laufend if p not in behalten]
 EXPORT_DATEI = "rohrlaser.db"
 EXPORT_INFO = "info.json"
 
@@ -2574,6 +2622,54 @@ def _nur_lesen(pfad):
 def _sicherung_loeschen(pfad):
     Path(pfad).unlink(missing_ok=True)
     Path(pfad).with_suffix(".json").unlink(missing_ok=True)
+
+
+class SicherungLauf:
+    """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): fertig(), warten(), pfad oder fehler."""
+
+    def __init__(self, db, ordner):
+        import threading
+        self.pfad = self.fehler = None
+        self._thread = threading.Thread(target=self._lauf, args=(db, ordner), name="Sicherung", daemon=True)
+        self._thread.start()
+
+    def _lauf(self, db, ordner):
+        con = sqlite3.connect(db.pfad, timeout=30)
+        try:
+            self.pfad = db.sicherung(ordner, con=con)
+        except Exception as e:      # noqa: BLE001 – im Programm als Meldung
+            self.fehler = e
+        finally:
+            con.close()
+
+    def fertig(self):
+        return not self._thread.is_alive()
+
+    def warten(self, sekunden=None):
+        """Vor dem Beenden: Sicherung zu Ende schreiben lassen. Ergebnis: fertig?"""
+        self._thread.join(sekunden)
+        return self.fertig()
+
+
+def ergebnis_packen(text):
+    """Schnittplan-JSON (angebote.ergebnis) für die Datendatei: zlib-gepackt (Schema 67, Prüfung Datenbank bei vielen
+    Angeboten 4b), etwa ein Zehntel der Größe."""
+    return zlib.compress(text.encode("utf-8"), 6) if text else None
+
+
+def ergebnis_text(wert):
+    """JSON-Text aus angebote.ergebnis, gepackt (Schema 67) oder noch als Text (ältere Datei, Kollegen-Angebot)."""
+    if isinstance(wert, (bytes, memoryview)):
+        return zlib.decompress(bytes(wert)).decode("utf-8")
+    return wert
+
+
+def _anzahlen_datei(pfad):
+    con = sqlite3.connect(pfad)
+    try:
+        return _anzahlen(con)
+    finally:
+        con.close()
 
 
 def _anzahlen(con):

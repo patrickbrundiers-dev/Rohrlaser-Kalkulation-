@@ -1578,6 +1578,13 @@ class Hauptfenster(QMainWindow):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
                                                                                   "Mehr unter Hilfe → Lizenz …"))
 
+    def sicherung_beobachten(self, lauf):
+        """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): bei Fehler eine Meldung."""
+        if not lauf.fertig():
+            QTimer.singleShot(1000, lambda: self.sicherung_beobachten(lauf))
+        elif lauf.fehler is not None:
+            self.meldung(f"Die tägliche Sicherung ist fehlgeschlagen: {lauf.fehler}", fehler=True)
+
     def _start_teilen(self):
         from . import teilen_fenster
         try:
@@ -1632,6 +1639,9 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
+                                  (None, None, None),
+                                  ("Alte Angebote archivieren …", self.archivieren, None),
+                                  ("Archiv durchsuchen …", self.archiv_dialog, None),
                                   (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
                                   ("Daten importieren …", self.daten_importieren, None),
@@ -1960,7 +1970,8 @@ class Hauptfenster(QMainWindow):
     # -------------------------------------------------------------- Lizenz
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
                            "optimieren", "importieren", "drucken", "staffeln", "stueck")
-    SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …")
+    SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
+                         "Alte Angebote archivieren …")
 
     def lizenz_anwenden(self):
         """Lizenzzustand auf die Oberfläche: Hinweis in der Statusleiste, Fenstertitel, Admin-Rechte (Einstellungen
@@ -2253,6 +2264,17 @@ class Hauptfenster(QMainWindow):
     def datenort_text(self):
         """' (portabel)' bzw. ' (installiert)' hinter dem Pfad der Datendatei."""
         return f" ({self.orte.art})" if self.orte else ""
+
+    def archivieren(self):
+        """Datei → Alte Angebote archivieren (archiv_dialog.py, Vorschlag 5b)."""
+        from . import archiv_dialog
+        return archiv_dialog.archivieren(self)
+
+    def archiv_dialog(self):
+        from .archiv_dialog import ArchivDialog
+        d = ArchivDialog(self)
+        if d.exec() and d.zurueckgeholt:
+            self.angebot_oeffnen(d.zurueckgeholt)
 
     def wiederherstellen_dialog(self):
         from .sicherung_dialog import WiederherstellenDialog

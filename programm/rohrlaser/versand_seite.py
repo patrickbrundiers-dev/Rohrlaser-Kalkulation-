@@ -79,6 +79,11 @@ class VersandSeite(QWidget):
         lay.addWidget(self.info)
         self.neu_laden()
 
+    def showEvent(self, e):
+        super().showEvent(e)
+        if getattr(self, "_veraltet", False):
+            self.neu_laden()
+
     # ------------------------------------------------ Liste
     def _packliste(self, z, stamm):
         """Anzahl Paletten und Packliste je Auftrag."""
@@ -92,6 +97,10 @@ class VersandSeite(QWidget):
         return palettenschein.anzahl(d, alles["packliste"]), alles["packliste"]
 
     def neu_laden(self, *_):
+        if not self.f.stumm and not self.isVisible():      # Packlisten erst rechnen, wenn der Reiter gezeigt wird
+            self._veraltet = True
+            return
+        self._veraltet = False
         heute = datetime.date.today()
         alle = self.db.versand_auftraege()
         such = self.suche.text().strip().lower()
@@ -257,7 +266,7 @@ class VersandSeite(QWidget):
         zurueck = self.filter.currentData() == "Archiviert"
         for i in ids:
             d = self.db.palettenschein(i)
-            d["archiviert"] = not zurueck
+            d["archiviert"], d["zurueckgeholt"] = not zurueck, zurueck
             self.db.palettenschein_speichern(i, d)
         self.f.meldung(f"{len(ids)} Auftrag/Aufträge {'zurückgeholt' if zurueck else 'archiviert'}.")
         self.neu_laden()
