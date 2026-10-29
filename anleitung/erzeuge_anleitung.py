@@ -2698,24 +2698,24 @@ def kapitel_optimieren(i):
         ["<b>Düse Ø [mm]</b>, <b>Gasdruck [bar]</b>", "Schneiddaten", "Düsendurchmesser und Gasdruck (Überdruck am "
          "Manometer) je Schneiddaten-Zeile. Daraus rechnet das Programm den Gasverbrauch in m³/h, z. B. N₂ mit Düse "
          "2,0 mm bei 15 bar ≈ 28,6 m³/h. Richtwerte: N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar."],
-        ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kalkulation", "Preis je Norm-m³ aus "
+        ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kosten und Stundensatz", "Preis je Norm-m³ aus "
          "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
          "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
-        ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kalkulation", "ein Schalter "
+        ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kosten und Stundensatz", "ein Schalter "
          "für alle Maschinen: nein = kein Schneidgas, egal was an Maschine und Schneiddaten steht; Vorgabe ja."],
-        ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kalkulation", "gleicht die Rechnung an den "
+        ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kosten und Stundensatz", "gleicht die Rechnung an den "
          "gemessenen Verbrauch an: Gasverbrauch laut Rechnung (m³ im Monat) geteilt durch den gerechneten Verbrauch "
          "der Spalte <i>Gas je Teil [m³]</i> × Stückzahl derselben Aufträge; Vorgabe 1."],
         ["<b>Rüstzuschlag je weiterer Profilform [min]</b>", "Maschine", "Spannbacken tauschen: hat ein Angebot "
          "mehrere Profilformen (z. B. Rundrohr und Quadratrohr), kommt je Form ab der zweiten diese Zeit zu "
          "<i>Rüsten je Abmessung</i>."],
-        ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kalkulation", "verworfene Teile: der Anteil auf Material und "
+        ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kosten und Stundensatz", "verworfene Teile: der Anteil auf Material und "
          "Laserzeit (mit Gewinde und Schneidgas) der Rohrlaserteile, 0 = keiner; eigene Kostenart <i>Ausschuss</i>. Die "
          "Nachkalkulation zeigt die gemessene Ausschussquote ([[nachkalkulation]])."],
-        ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kalkulation", "Gutschrift für den Verschnitt "
+        ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kosten und Stundensatz", "Gutschrift für den Verschnitt "
          "(Stangenlänge ohne Teile und ohne Reste, die ins Lager gehen) in Prozent des Materialpreises, z. B. 20 %; "
          "Kostenart <i>Schrotterlös Verschnitt</i> (negativ), 0 = aus. Kundenmaterial ohne Erlös."],
-        ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kalkulation", "Kleinteile stehen mit Preis je 100 "
+        ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kosten und Stundensatz", "Kleinteile stehen mit Preis je 100 "
          "Stück im Angebot (unter einem Zehntel des Werts je 1000), z. B. 3,44 € je 100 statt 0,03 € je Stück. Ohne "
          "Preiseinheit verliert die Rundung auf den Cent bei 0,034 € je Teil 12 %. Vorgabe 0 = aus, immer je Stück; "
          "zum Einschalten z. B. 0,10 eintragen."]],
@@ -2745,7 +2745,7 @@ def kapitel_optimieren(i):
         ["<b>Stundensatz-Ermittlung: Strompreis [€/kWh]</b>, <b>Stundensatz-Ermittlung: Raumkosten [€/m² im "
          "Monat]</b>, <b>Stundensatz-Ermittlung: Zinssatz [%]</b>, <b>Stundensatz-Ermittlung: Bedienerlohn [€/h]</b>, "
          "<b>Stundensatz-Ermittlung: Gemeinkosten [%]</b>, <b>Stundensatz-Ermittlung: Arbeitstage je Jahr</b>, "
-         "<b>Stundensatz-Ermittlung: Auslastung [%]</b>", "Einstellungen, Kalkulation (für alle Maschinen)"]],
+         "<b>Stundensatz-Ermittlung: Auslastung [%]</b>", "Einstellungen, Seite Kosten und Stundensatz (für alle Maschinen)"]],
         [130, 55])
     i.text("<i>Übernehmen</i> stellt die Maschine auf ermittelt und trägt den Satz ein. Neue Angebote speichern den "
            "Satz beim Anlegen; spätere Änderungen gelten nur für neue Angebote. Bisherige Maschinen bleiben von "
