@@ -58,6 +58,7 @@ TESTS = [
     ("test_step_robust.py", QT),
     ("test_step_laserteile.py", QT),
     ("test_step_messung_robust.py", QT),
+    ("test_step_gravur.py", QT),
     ("test_step_struktur.py", {}),
     ("test_step_leistung.py", {}),
     ("test_ansicht_gl.py", {}),
