@@ -334,11 +334,16 @@ def anordnen(teile, g=None):
     if speicher is None:
         if len(_ANORDNUNG) > ANORDNUNG_MAX:
             _ANORDNUNG.clear()
-        nr = {id(t): i for i, t in enumerate(teile)}
+        # Index je Platz, nicht je Objekt: die Schnittmuster prüfen dasselbe Teil mehrfach ([Typ] * k); mit nur einem
+        # Index je Objekt stünde ein Index doppelt im Speicher, und jede spätere gleiche Folge bekäme ein Teil doppelt
+        # und eines gar nicht (Kontrolle „Teile fehlen oder doppelt“ bei fester Naht, 29.10.2026)
+        nr = {}
+        for i, t in enumerate(teile):
+            nr.setdefault(id(t), []).append(i)
         folge = _anordnen_gehrung(g, teile, gerade)
         if _mit_3d(g, teile):
             folge = _ende_3d(g, folge)
-        speicher = _ANORDNUNG[schluessel] = tuple((nr[id(t)], r) for t, r in folge)
+        speicher = _ANORDNUNG[schluessel] = tuple((nr[id(t)].pop(0), r) for t, r in folge)
     return [(teile[i], r) for i, r in speicher]
 
 
