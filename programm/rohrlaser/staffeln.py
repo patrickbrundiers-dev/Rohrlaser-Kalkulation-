@@ -450,6 +450,13 @@ def stufe_bepreisen(lz, stufe, mz, einst, alle=None, positionen=None):
         werte.append(w)
     ohne = dict(einst, mindestpreis=0)
     erste = [preise_anwenden(x, w, ohne, alle, positionen) for x, w in zip(lz, werte)]
+    if rechnen.gewinn_stufen(einst):
+        # gestaffelter Gewinn (Patrick 29.10.2026): ein Satz nach dem Wert der ganzen Stufe, wie im Angebot; Zeilen
+        # mit eigenem Gewinn der Stufe rechnen mit diesem und zählen nicht mit
+        basis = sum(x["preis"]["gewinn_basis"] for x in erste if x.get("preis") and x["wirksam"]["gewinn_stufen"])
+        einst = dict(einst, gewinn=gewinn_satz(basis, rechnen.gewinn_stufen(einst)), gewinn_bis_1=0)
+        ohne = dict(einst, mindestpreis=0)
+        erste = [preise_anwenden(x, w, ohne, alle, positionen) for x, w in zip(lz, werte)]
     mindest = _zahl(einst.get("mindestpreis"))
     netto = sum(x["preis"]["ware"] for x in erste if x.get("preis"))      # ab 26.10.2026 Ware, davor Verkaufspreis
     if not (mindest > 0 and 0 < netto < mindest):
@@ -727,6 +734,8 @@ def wirksam(stufe, einst):
                                     else _zahl(einst.get("zuschlag_fertigung"))),
                 zuschlag_fremdleistung=_zahl(einst.get("zuschlag_fremdleistung")),
                 gewinn=w("gewinn") / 100 if w("gewinn") is not None else _zahl(einst.get("gewinn")),
+                # gestaffelter Gewinn nach dem Wert der Stufe, nur ohne eigenen Gewinn der Stufe (Patrick 29.10.2026)
+                gewinn_stufen=[] if w("gewinn") is not None else rechnen.gewinn_stufen(einst),
                 ruesten=w("ruesten") or UMLEGEN, arbeitsgang=w("arbeitsgang"),
                 arbeitsgang_min=_zahl(w("arbeitsgang_min")), arbeitsgang_satz=w("arbeitsgang_satz"),
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
@@ -740,6 +749,11 @@ def marge(gewinn, anhebung, selbst):
     Anhebung), ohne Fracht und Skonto; anhebung ohne Skonto. None ohne Warenwert."""
     basis = selbst + gewinn + anhebung
     return (gewinn + anhebung) / basis if basis else None
+
+
+def gewinn_satz(basis, stufen):
+    """Einheitlicher Gewinnsatz für den gestaffelten Gewinn auf die Basis (rechnen.gewinn_gestaffelt)."""
+    return rechnen.gewinn_gestaffelt(basis, stufen) / basis if basis > 0 else stufen[0][1]
 
 
 def preise(b, menge, w, anhebung=None):
@@ -785,6 +799,9 @@ def preise(b, menge, w, anhebung=None):
     gs, gz, gf = b.get("muster_getrennt") or (0.0, 0.0, 0.0)
     selbst += ms + mz_ + gs + gz
     zk_e_g = zk_e + mz_ + gz            # ohne Gewinn
+    gb = selbst - zk_e_g - zk_a if w.get("neu", True) else selbst      # Basis des Gewinns
+    if w.get("gewinn_stufen"):          # gestaffelter Gewinn für diese Zeile allein (stufe_bepreisen: ganze Stufe)
+        w = dict(w, gewinn=gewinn_satz(gb, w["gewinn_stufen"]))
     if w.get("selbst_basis", True):
         # ab 26.10.2026: Zukaufteile ohne Gewinn, nur mit ihrem Aufschlag
         gewinn, ohne = rechnen.gewinn_fracht(selbst, selbst - zk_e_g - zk_a if w.get("neu", True) else selbst,
@@ -822,7 +839,7 @@ def preise(b, menge, w, anhebung=None):
     return dict(fehler=None, m_grund=m0, m_verlust=verlust, m_zuschlag=mz, m_gesamt=m1 + mz, fertigung=fert,
                 fert_gesamt=f_sum, ruesten=b["ruesten"], ruest_gesamt=r_sum, gk_fertigung=gk_f, fremd=b["fremd"],
                 gk_fremd=gk_fl, neben=neben, herstell=herstell, selbst=selbst, gewinn=gewinn,
-                marge=marge(gewinn, anhebung * (1 - sk), selbst), ware=ware, skonto_anteil=sk,
+                marge=marge(gewinn, anhebung * (1 - sk), selbst), ware=ware, gewinn_basis=gb, skonto_anteil=sk,
                 pauschalen=b["pauschalen"],
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,

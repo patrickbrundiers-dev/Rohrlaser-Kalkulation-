@@ -917,6 +917,17 @@ EINSTELLUNGEN = (
     Einstellung("preiseinheit_ab", "Preis je 100 Stück unter [€]", "Kalkulation", "zahl", 0.0, 0, 100),
     # Schneidgas aus Düse und Gasdruck der Schneiddaten (Patrick 29.10.2026): Preis je Norm-m³, 0 = Zuschlag €/h der
     # Maschine; Korrekturfaktor gleicht die Rechnung an den gemessenen Verbrauch an
+    # Gestaffelter Gewinn (Patrick 29.10.2026): bis Auftragswert (Selbstkosten des Angebots bzw. der Staffelstufe ohne
+    # Zukaufteile) Grenze 1 gilt Satz 1 usw.; Grenze 1 = 0 (Vorgabe) = aus, dann gilt der feste Gewinn
+    Einstellung("gewinn_bis_1", "Gewinn gestaffelt: Grenze 1 bis Auftragswert [€]", "Kalkulation", "zahl", 0.0, 0, 1e7),
+    Einstellung("gewinn_satz_1", "Gewinn gestaffelt: Satz 1 bis Grenze 1", "Kalkulation", "anteil", 0.0, 0, 5),
+    Einstellung("gewinn_bis_2", "Gewinn gestaffelt: Grenze 2 bis Auftragswert [€]", "Kalkulation", "zahl", 0.0, 0, 1e7),
+    Einstellung("gewinn_satz_2", "Gewinn gestaffelt: Satz 2 bis Grenze 2", "Kalkulation", "anteil", 0.0, 0, 5),
+    Einstellung("gewinn_bis_3", "Gewinn gestaffelt: Grenze 3 bis Auftragswert [€]", "Kalkulation", "zahl", 0.0, 0, 1e7),
+    Einstellung("gewinn_satz_3", "Gewinn gestaffelt: Satz 3 bis Grenze 3", "Kalkulation", "anteil", 0.0, 0, 5),
+    Einstellung("gewinn_bis_4", "Gewinn gestaffelt: Grenze 4 bis Auftragswert [€]", "Kalkulation", "zahl", 0.0, 0, 1e7),
+    Einstellung("gewinn_satz_4", "Gewinn gestaffelt: Satz 4 bis Grenze 4", "Kalkulation", "anteil", 0.0, 0, 5),
+    Einstellung("gewinn_satz_5", "Gewinn gestaffelt: Satz über der letzten Grenze", "Kalkulation", "anteil", 0.0, 0, 5),
     Einstellung("gas_rechnen", "Schneidgas rechnen (nein = für alle Maschinen aus)", "Kalkulation", "auswahl", "ja",
                 auswahl="janein"),
     Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),

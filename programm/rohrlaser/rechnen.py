@@ -2791,14 +2791,16 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil")
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
 # Angebots (angebot.KALKULATION) zählen mit, weil ältere Angebote ohne eigene Werte mit den Einstellungen rechnen.
+GEWINN_STUFEN = 5      # gestaffelter Gewinn: bis zu 4 Grenzen, 5 Sätze (Patrick 29.10.2026)
 EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendler_mehr_kurz", "haendler_mehr_lang",
               "haendler_mehr_grenze", "zuschlag_fremdleistung", "gewinn", "ruesten_abmessung", "pauschale_abmessung",
               "programmierung_teil", "programmierung_zeit", "programmierung_kontur", "angebotsaufschlag",
               "handling_beistellung", "gewinn_basis", "zuschnitt_kosten", "preisregeln", "ausschuss", "schrott_anteil",
-              "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor", "gas_rechnen")
+              "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor", "gas_rechnen",
+              *(f"gewinn_bis_{i}" for i in range(1, GEWINN_STUFEN)), *(f"gewinn_satz_{i}" for i in range(1, GEWINN_STUFEN + 1)))
 # Seit 29.10.2026 festgeschrieben (Plan „Kalkulation und Berechnung verbessern“): ältere Snapshots rechnen ohne
 # Ausschuss und Schrotterlös, zeigen jeden Preis je Stück und rechnen Schneidgas nur mit €/h der Maschine
-EINST_NEU = ("ausschuss", "schrott_anteil", "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2")
+EINST_NEU = ("ausschuss", "schrott_anteil", "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gewinn_bis_1")
 # Worauf der Gewinn rechnet (Einstellung gewinn_basis, nicht im Einstellungsdialog): seit 23.10.2026 auf die Selbstkosten
 # (Herstellkosten + Programmierung + Pauschale je Abmessung + Angebotsaufschlag + Zukaufteile; Fracht ohne Gewinn),
 # davor nur auf die Herstellkosten. Festgeschriebene Angebote ohne diesen Wert rechnen wie bisher (Patrick 23.10.2026).
@@ -3182,6 +3184,8 @@ def einstellungen_angebot(kopf, einst):
             out[f.name] = w / 100 if f.name in KALK_PROZENT else w
     if (kopf or {}).get("mindestpreis_anwenden") == "nein":
         out["mindestpreis"] = 0
+    if isinstance((kopf or {}).get("gewinn"), (int, float)):
+        out["gewinn_bis_1"] = 0         # eigener Gewinn des Angebots: kein gestaffelter Gewinn
     return out
 
 
@@ -3337,7 +3341,51 @@ def _muster_umlegen(zeilen, positionen, kopf, skonto):
                 ohne_serie=not serie or gewicht <= 0, positionen=muster)
 
 
+def gewinn_stufen(einst):
+    """Gestaffelter Gewinn (Patrick 29.10.2026 „Gewinn in 4 oder 5 Stufen … bis Preis x soviel %“): [(bis €, Anteil)],
+    die letzte Stufe mit bis = None; [] = aus (Grenze 1 leer oder 0, Vorgabe), dann gilt der feste Gewinn. Grenzen
+    gelten der Reihe nach, solange sie steigen; die Stufe danach gilt für alles darüber."""
+    e = einst or {}
+    out = []
+    for i in range(1, GEWINN_STUFEN):
+        bis = _n(e.get(f"gewinn_bis_{i}"))
+        if bis <= 0 or (out and bis <= out[-1][0]):
+            break
+        out.append((bis, _n(e.get(f"gewinn_satz_{i}"))))
+    if out:
+        out.append((None, _n(e.get(f"gewinn_satz_{len(out) + 1}"))))
+    return out
+
+
+def gewinn_gestaffelt(basis, stufen):
+    """Gewinn [€] auf die Gewinnbasis (Selbstkosten des Angebots bzw. der Staffelstufe ohne Zukaufteile) nach den
+    Stufen: Satz der Stufe, in die die Basis fällt. Preisboden: ein teurerer Auftrag wird nie billiger als einer an
+    der oberen Grenze einer niedrigeren Stufe (Basis + Gewinn ≥ Grenze × (1 + Satz) jeder tieferen Stufe)."""
+    if not stufen or basis <= 0:
+        return 0.0
+    boden = 0.0
+    for bis, satz in stufen:
+        if bis is None or basis <= bis:
+            return max(basis * satz, boden - basis)
+        boden = max(boden, bis * (1 + satz))
+    return 0.0
+
+
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
+    """Kalkulation wie _kalkulation; mit gestaffeltem Gewinn (gewinn_stufen) zuerst die Gewinnbasis des ganzen Angebots
+    (Lauf mit Gewinn 100 %), dann derselbe Satz für alle Positionen: Gewinn der Stufe ÷ Basis."""
+    stufen = gewinn_stufen(einstellungen)
+    if not stufen:
+        return _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+    _, s1 = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=1.0))
+    basis = _n(s1.get("gewinn"))
+    satz = gewinn_gestaffelt(basis, stufen) / basis if basis > 0 else stufen[0][1]
+    zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=satz))
+    summen.update(gewinn_satz=satz, gewinn_gestaffelt=True, gewinn_stufen_basis=basis)
+    return zeilen, summen
+
+
+def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation je Position und Summen. Ergebnis: (zeilen, summen); zeilen[i] ist None für
     Positionen ohne Profil.
 
@@ -4126,7 +4174,8 @@ def kostenarten(summen, einst):
         "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
         "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
         "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",
-        "gewinn": f" ({z(100 * _n(einst.get('gewinn')))} % auf "
+        "gewinn": f" ({z(100 * _n(summen['gewinn_satz'] if summen.get('gewinn_gestaffelt') else einst.get('gewinn')))} %"
+                  + (" gestaffelt" if summen.get("gewinn_gestaffelt") else "") + " auf "
                   + (f"Herstellkosten {z(summen.get('herstell', 0), 2)} €)" if summen.get("gewinn_basis") == GEWINN_HERSTELL
                      else f"Selbstkosten {z(summen.get('selbst', 0), 2)} €)"),
         "skonto": f" ({z(summen.get('skonto_satz', 0))} % eingerechnet)",

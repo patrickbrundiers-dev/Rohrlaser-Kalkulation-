@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.206", "<b>Gewinn gestaffelt nach Auftragswert</b> ([[gewinn_gestaffelt]]): in den Einstellungen "
+                "(Seite <i>Gewinn gestaffelt</i>) bis zu 4 Grenzen und 5 Sätze, z. B. 30 % bis 500 €, 20 % bis 2.000 €, 12 % bis "
+                "10.000 €, darüber 8 %. Auftragswert = Selbstkosten des Angebots ohne Zukaufteile und Fracht; ein "
+                "Satz für alle Positionen; an den Grenzen kein Preissprung nach unten. Ab Werk aus; ein eigener "
+                "Gewinn im Angebot oder in der Staffel-Stufe gilt statt der Stufen, festgeschriebene Angebote bleiben "
+                "gleich.",
+     "Gewinn gestaffelt nach Auftragswert (bis 5 Stufen, Vorgabe aus)"],
     ["0.9.205", "<b>Paket und lange Teile auf der Europalette</b>: Der Packvorschlag im Frachtrechner rechnet jetzt "
                 "auch <b>Paketversand</b> mit drei Kartons (S 400 × 300 × 200 mm bis 10 kg 10,49 €, M 600 × 400 × "
                 "400 mm bis 20 kg 18,99 €, L 1.200 × 200 × 200 mm bis 31,5 kg 23,99 €, Richtwert DHL) und nimmt das "
