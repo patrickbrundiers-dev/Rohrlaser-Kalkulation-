@@ -225,7 +225,8 @@ weg, neu = d.schneiddaten_zuruecksetzen(["T11"])
 std = [z for z in beispiel_schneiddaten() if z[0] == "T11"]
 assert (weg, neu) == (len(t11) + 1, len(std)), (weg, neu)
 werte = lambda m: sorted((z["kategorie"], z["gas"], z["wand_bis"], z["vorschub_gross"], z["vorschub_mittel"],
-                          z["vorschub_klein"], z["einstechzeit"], z["vorschub_gravur"], z["bemerkung"])
+                          z["vorschub_klein"], z["einstechzeit"], z["vorschub_gravur"], z["bemerkung"],
+                          z["zeit_ecke"])
                          for z in d.zeilen("schneiddaten") if z["maschinen_id"] == m)
 assert werte("T11") == sorted(z[2:] for z in std)
 assert 2 in [z[3] for z in werte("LT7")]                       # LT7 nicht angefasst

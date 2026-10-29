@@ -951,7 +951,9 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
     gravur = _z(eingaben.get("gravur")) + gravur_zeilen     # weitere Gravur + Gravur-Zeilen
     a_s, b_s = schritte[0]["laenge"], schritte[1]["laenge"]
     innen = sum(lg for _, lg in liste)
-    kl = konturklassen([(hk, lg) for hk, lg in liste], grenzen)
+    # Enden wie beim STEP-Import nach ihrem Hüllmaß in die Klassen (Patrick 20.10.2026; bis 0.9.19x im Rechner immer
+    # Vorschub groß, die Einsparung gemeinsamer Schnitte rechnete aber mit der Klasse des Endes)
+    kl = konturklassen([(hk, lg) for _, hk, lg in enden] + liste, grenzen)
     einstiche = 2 * n_ende + sum(s["einstiche"] for s in schritte[2:])
     felder = dict(schneidweg=round(a_s + b_s + innen, 1), einstiche=einstiche, a_schnitt=round(a_s, 1),
                   b_schnitt=round(b_s, 1), a_gerade="ja" if schritte[0]["gerade"] else "nein",

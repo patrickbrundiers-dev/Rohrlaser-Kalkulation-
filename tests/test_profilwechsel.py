@@ -140,6 +140,9 @@ def rechnung():
     return z[0], su, st
 
 
+# ohne Eckzeit beginnen (seit 0.9.191 haben die Richtwerte eine Zeit je Ecke nach Wandstärke)
+db.con.execute("UPDATE schneiddaten SET zeit_ecke=NULL WHERE maschinen_id='T03'")
+db.con.commit()
 z0, su0, st0 = rechnung()
 assert z0["zeit_ecken"] == 0 and st0.startswith(("OK", "HINWEIS")), st0
 v2 = rechnen.schneiddaten("T03", "S235-10219", 2, s.tabellen, "Stahl")["vorschub_gross"]

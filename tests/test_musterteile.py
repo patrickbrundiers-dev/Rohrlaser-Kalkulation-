@@ -150,7 +150,8 @@ eine = [p for p in pm if p["pos"] in M_POS | {10}]
 for kp in (kopf, kz):
     zs, ss, _ = kalk(eine, kp)
     st = staffeln.stufe_rechnen(kp, eine, "10", 24, k, tab, einst)
-    assert st["preis"] and abs(st["preis_gesamt"] - ss["verkauf"]) < 0.03 * 2, (st["preis_gesamt"], ss["verkauf"])
+    # Stufe: Stückpreis auf den Cent gerundet × 24 Stück, also bis 24 × 0,005 € Abstand zur Summe des Angebots
+    assert st["preis"] and abs(st["preis_gesamt"] - ss["verkauf"]) <= 0.005 * 24, (st["preis_gesamt"], ss["verkauf"])
     if kp is kz:
         assert st["preis"]["muster_einmalig"] > 0 and nah(st["preis"]["muster_einmalig"], ss["muster_einmalig"], 0.01)
     else:
