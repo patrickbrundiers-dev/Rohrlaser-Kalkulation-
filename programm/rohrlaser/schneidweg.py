@@ -113,7 +113,18 @@ def lesen(text):
     d.setdefault("a", {})
     d.setdefault("b", {})
     d.setdefault("konturen", [])
-    return d
+    return enden_2d(d)
+
+
+def enden_2d(e):
+    """Ohne Häkchen „3D-Schnittbearbeitung“ am Bauteil zählt „Gehrung in 3D“ an den Enden nicht: die Gehrung wird in
+    2D gerechnet (Innenkante maßhaltig, lange Seite kürzer, Patrick 28.10.2026: Umstellen auf 2D muss überall
+    ankommen). Ändert e (Enden ohne 'd3') und gibt es zurück."""
+    if isinstance(e, dict) and e.get("d3") is not True:
+        for s in ("a", "b"):
+            if isinstance(e.get(s), dict) and "d3" in e[s]:
+                e[s] = {k: v for k, v in e[s].items() if k != "d3"}
+    return e
 
 
 def ellipse(a, b):

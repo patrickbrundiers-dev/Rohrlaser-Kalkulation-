@@ -115,7 +115,7 @@ def main():
             profil = k.profile[p["profil_id"]]
             d = SchneidwegDialog(None, p, profil, kopf, k, db.tabellen(), db)
             e = d.eingaben()
-            n = d.ansicht3d.ansicht.netz
+            n = wie.netz_wie_konstruiert(d)    # ebene Gehrungen wie konstruiert (in 2D kürzer)
             sn = ansicht3d.entpacken(m["_netz"])
             mod = [z for a in ("K", "EA", "EB") for z in n["l"].get(a, [])]
             st = [z for a in ("K", "EA", "EB") for z in sn["l"].get(a, [])]

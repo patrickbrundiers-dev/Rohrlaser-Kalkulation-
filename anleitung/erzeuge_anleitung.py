@@ -1947,10 +1947,14 @@ def kapitel_step(i):
     i.text("Der STEP-Import und der Schneidweg-Rechner erkennen vier Arten von Bohrungen, die nach der Zeichnung "
            "geprüft werden müssen:")
     i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
-            "(z. B. Ø 5 → M6). Der Laser schneidet die Bohrung; das Gewinde wird erst nach dem Bestätigen gerechnet.",
-            "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4). Der Laser schneidet die Bohrung Ø 6,6, die "
-            "Senkung selbst ist Nacharbeit. Auf Wunsch wird der Senk-Ø als Gravur eingerechnet (Häkchen "
-            "<i>Senk-Ø gravieren</i>, je Senkung π × Senk-Ø).",
+            "(z. B. Ø 5 → M6) oder zum Kern-Ø nach ISO, mit dem viele CAD-Systeme die Gewindebohrung zeichnen "
+            "(z. B. Ø 6,647 → M8). Ist das Gewinde in der STEP ausmodelliert (Gewindegänge), erkennt der Import es "
+            "am Außen-Ø. Der Laser schneidet das Kernloch; das Gewinde wird erst nach dem Bestätigen gerechnet.",
+            "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4) oder Zylindersenkung (Bohrung mit Absatz). Der "
+            "Laser schneidet nur die Bohrung Ø 6,6, die Senkung selbst ist Nacharbeit. Geht der Kegel durch die "
+            "ganze Wand (dünne Wand, keine Bohrung mehr übrig), schneidet der Laser den kleinsten Ø an der "
+            "Innenseite, nie den Senk-Ø. Gilt für Rohre, offene Profile und Bleche. Auf Wunsch wird der Senk-Ø als "
+            "Gravur eingerechnet (Häkchen <i>Senk-Ø gravieren</i>, je Senkung π × Senk-Ø).",
             "<b>Flowdrill (Fließlochbohrung)</b>: Bohrung mit Kragen. Der Laser macht nur eine Markierung, je nach "
             "Auswahl eine <i>Gravur Ø0,5</i> oder ein <i>Loch Ø0,5</i> (Schneidweg und Einstich). Die Vorgabe steht in "
             "der Einstellung <i>STEP-Import: Flowdrill-Bohrung am Laser</i>. Das Gewinde wird nach dem "
@@ -2698,8 +2702,14 @@ def kapitel_optimieren(i):
             "über die Gehrungsfläche ragt, ist die Innenkante maßhaltig: die lange Seite (Spitze) wird um "
             "Wand · tan(Winkel) kürzer, z. B. 3 mm bei Wand 3 und 45°; die kurze Seite bleibt. Editor, Skizze, 3D und "
             "Stangenansicht zeigen das so, die Länge der Position bleibt das Maß bis zur Spitze der Gehrungsfläche, "
-            "die Schnittlänge bleibt wie bisher. Gehrungen aus der STEP stehen wie in der STEP (Außenkante auf der "
-            "Fläche), solange sie nicht geändert werden; in 3D ist die Fläche eben durch die Wand.",
+            "die Schnittlänge bleibt wie bisher. In 3D ist die Fläche eben durch die Wand. <b>Umstellen auf 2D</b> "
+            "(seit 0.9.189): Ohne Häkchen <i>3D-Schnittbearbeitung</i> am Bauteil gilt jede Gehrung als 2D, auch wenn "
+            "am Ende noch <i>Gehrung in 3D</i> steht; 3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export werden sofort "
+            "kürzer. Eine ebene Gehrung aus der STEP (Konstruktion, 3D) wird in 2D ebenso kürzer, auch wenn die STEP "
+            "ohne 3D eingelesen wird – so, wie der 2D-Laser sie schneidet. Nur eine Gehrung, die schon in der STEP "
+            "2D geschnitten ist, bleibt genau wie in der STEP. Offene Profile (L, U, C, T, I) und Flachstahl: der "
+            "Schenkel, der zur langen Seite zeigt und quer zur Kippachse dick ist, wird um seine Dicke · tan(Winkel) "
+            "kürzer; Schenkel, deren Dicke längs der Kippachse liegt, bleiben.",
             "<b>Gehrung schon 2D in der STEP</b> (seit 0.9.160): Ist eine Gehrung in der STEP bereits 90° zur "
             "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
             "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
@@ -4378,6 +4388,17 @@ def kapitel_zukauf_angebot(i):
             "weitere Layer ohne Schnitt</i>. Layer mit GRAV "
             "oder MARK im Namen (bzw. der Layer Gravur aus der Einstellung DXF-Layer) werden graviert, Texte darauf "
             "werden Text-Gravur. Offene Schnittlinien kommen als sonstige Kontur mit ihrer Länge und einem Hinweis.",
+            "<b>Dateien aus jedem CAD</b>: Rahmen und Schriftfeld im Papierbereich (Layout) werden nicht Teil, ihre "
+            "Texte liefern aber Werkstoff und Dicke; Schriftfelder als Block mit Attributen, Mehrfach-Blöcke, "
+            "Linientyp „VonLayer“ und Sonderzeichen (Ø, °, ±, Umlaute) werden gelesen. Lücken in einer Kontur bis "
+            "0,5 mm schließt das Programm gerade und meldet es, größere Lücken bleiben offen. Doppelt oder teilweise "
+            "doppelt gezeichnete Linien und Bohrungen zählen nur einmal, zwei Teile mit gemeinsamer Kante werden "
+            "beide erkannt. Ein Kreis auf der Außenkante (statt ausgeschnitten) oder sich schneidende Konturen "
+            "werden gemeldet und nicht angehakt, eine Zeichnung in Zoll ohne Einheit ebenso – das Programm rechnet "
+            "nie still etwas anderes als gezeichnet.",
+            "<b>Gleiche Teile</b>: Liegt dasselbe Blech mehrmals in der DXF (auch gedreht oder als Mehrfach-Block), "
+            "wird es ein Teil mit der Stückzahl (im Fenster „3× gleich“, Stückzahl änderbar). Gespiegelte Teile "
+            "und Teile mit anderen Bohrungen bleiben eigene Teile.",
             "<b>Zeichenblatt</b>: Rahmen und Schriftfeld werden erkannt und nicht übernommen. Liegen mehrere Bleche "
             "auf einer Zeichnung, zeigt das Fenster jedes mit Vorschaubild und Haken; ein Kästchen mit Text (z. B. "
             "aus dem Schriftfeld) ist nicht angehakt. Den <b>Maßstab</b> schlägt das Programm aus der Bemaßung oder "
@@ -4390,7 +4411,11 @@ def kapitel_zukauf_angebot(i):
             "<b>Rohrzeichnung</b>: Ist auf der Zeichnung ein Rohr (Schnitt mit gleichmäßiger Wand und eine Ansicht "
             "gleicher Breite), öffnet im Angebot statt des Fensters der Rohr-Editor mit allem aus der Zeichnung "
             "([[dxf_rohr]]). Im Blech-Editor meldet das Fenster das Rohr mit Profil und Länge (z. B. <i>QR 40 × 40 "
-            "× 3, Länge 150 mm</i>) und übernimmt nichts als Blech.",
+            "× 3, Länge 150 mm</i>) und übernimmt nichts als Blech. Als Rohr gilt die Zeichnung nur mit einem Beleg "
+            "(Bemaßung, verdeckte Kanten, Mittellinien, Schraffur, Schriftfeld oder Profiltext wie <i>SHS 40x40x3</i>, "
+            "<i>QR40x40x3</i>, <i>Rohr EN 10219 40x40x3</i>). Liegen nur Umrisse vor, etwa ein Ring neben einem "
+            "gleich breiten Streifen, fragt das Zuordnungsfenster nach; dort führt <b>Als Blech importieren</b> zum "
+            "Blech-Import, in dem die Teile dann angehakt sind.",
             "<b>Werkstoff und Dicke</b> stehen meist nicht als Wert in der DXF: Vorschlag aus dem Dateinamen (z. B. "
             "Halter_3mm_1.4301.dxf), sonst aus Texten der Zeichnung (t=3, 3 mm, S235, V2A), sonst wie beim letzten "
             "Import. Je Teil sind Bezeichnung, Werkstoff, Dicke und Stückzahl änderbar.",

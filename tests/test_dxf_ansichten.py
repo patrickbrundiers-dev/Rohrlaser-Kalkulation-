@@ -58,7 +58,7 @@ assert erg["rohr"] and erg["rohr"]["form"] == "Quadratrohr", erg["rohr"]
 assert (erg["rohr"]["a"], erg["rohr"]["b"], erg["rohr"]["wand"], erg["rohr"]["laenge"]) == (40, 40, 3, 150), erg["rohr"]
 assert erg["teile"] and not any(t["aktiv"] for t in erg["teile"])
 assert all(t["grund"] == "Rohrzeichnung, kein Blech" for t in erg["teile"])
-assert "QR 40 × 40 × 3, Länge 150 mm" in erg["warnungen"][0] and "3E-12" in erg["warnungen"][0]
+assert "QR 40 × 40 × 3, Länge 150 mm" in erg["warnungen"][0] and "Rohr-Editor" in erg["warnungen"][0]
 assert not any(t["zusammenfassung"].startswith("2.3 × 3.1") for t in erg["teile"])        # Maßpfeil (Layer MASSE)
 assert di.layer_art("MASSE") == di.layer_art("Maße") == di.layer_art("VERDECKT") == "weg"
 assert di.layer_art("SCHRAFFUR") == di.layer_art("Bemaßung") == "weg" and di.layer_art("KONTUR") == "schnitt"
