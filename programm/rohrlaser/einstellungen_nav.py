@@ -12,14 +12,20 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 # Thema -> Seiten (Name der Stammdatentabelle bzw. Schlüssel der eigenen Seiten); Unbekanntes landet unter WEITERE
+# Seiten der Einstellungen (einstellungen_ordnung.SEITEN, Schlüssel e_…) stehen beim Thema (Plan „Einstellungen
+# aufräumen“, 29.10.2026)
 GRUPPEN = (
-    ("Kalkulation", ("vorgaben", "zeitvorgaben", "zusatzarbeiten", "arbeitsgang_regeln")),
-    ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen")),
+    ("Allgemein", ("e_funktionen", "e_firma", "e_arbeitsplatz", "e_ablage")),
+    ("Kalkulation", ("e_zuschlaege", "e_kosten", "vorgaben", "zeitvorgaben", "zusatzarbeiten", "arbeitsgang_regeln")),
+    ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_materialanfrage")),
+    ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen", "e_lieferlaengen", "e_listen")),
     ("Maschinen", ("maschinen", "schneiddaten", "gewinde", "pruefregeln")),
-    ("Blech", ("blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
-    ("Schweißen", ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln")),
+    ("Blech", ("e_blech", "blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
+    ("Schweißen und Konstruktion", ("e_schweissen", "e_knick_steck", "schweissverfahren", "schweiss_kennwerte",
+                                    "schweiss_faktoren", "schweiss_regeln")),
     ("Kunden", ("kundenvorgaben",)),
-    ("STEP-Import", ("importprofile",)),
+    ("Import", ("e_step", "e_dxf", "importprofile")),
+    ("Fertigung und Versand", ("e_lager", "e_fertigung", "e_auslastung", "e_versand")),
 )
 WEITERE = "Weitere"
 SEITE = Qt.UserRole
@@ -75,6 +81,7 @@ class NavigationsReiter(QWidget):
         lay.addLayout(links)
         lay.addWidget(self.stapel, 1)
         self.gruppen = {}
+        self.verborgen = set()      # Indizes ausgeschalteter Seiten (Funktionen ein/aus): nie in Navigation/Suche
         fett = QFont()
         fett.setBold(True)
         for name, _ in GRUPPEN + ((WEITERE, ()),):
@@ -130,8 +137,21 @@ class NavigationsReiter(QWidget):
     def currentWidget(self):
         return self.stapel.currentWidget()
 
+    def verbergen(self, i, ja):
+        """Seite i aus- oder wieder einblenden (Funktion ausgeschaltet); die Gruppe verschwindet mit ihrer letzten
+        Seite. War sie gewählt, wird die erste sichtbare Seite gewählt."""
+        if ja:
+            self.verborgen.add(i)
+        else:
+            self.verborgen.discard(i)
+        self.filtern(self.suche.text())
+        if ja and self.currentIndex() == i:
+            frei = [j for j in range(len(self.items)) if j not in self.verborgen]
+            if frei:
+                self.setCurrentIndex(frei[0])
+
     def setCurrentIndex(self, i):
-        if 0 <= i < len(self.items):
+        if 0 <= i < len(self.items) and i not in self.verborgen:
             self.items[i].setHidden(False)
             self.items[i].parent().setHidden(False)
             self.baum.setCurrentItem(self.items[i])
@@ -155,8 +175,8 @@ class NavigationsReiter(QWidget):
 
     def treffer(self, suche):
         """Indizes der Seiten, die zur Suche passen (leer = alle)."""
-        return [i for i, (s, t) in enumerate(zip(self.seiten, self.titel))
-                if not suche.strip() or any(passt(x, suche) for x in suchtexte(s, t))]
+        return [i for i, (s, t) in enumerate(zip(self.seiten, self.titel)) if i not in self.verborgen
+                and (not suche.strip() or any(passt(x, suche) for x in suchtexte(s, t)))]
 
     def filtern(self, suche):
         gefunden = set(self.treffer(suche))

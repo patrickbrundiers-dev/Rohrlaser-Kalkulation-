@@ -32,7 +32,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
-from rohrlaser import NAME, VERSION  # noqa: E402
+from rohrlaser import NAME, VERSION, funktionen  # noqa: E402
 from rohrlaser.neuerungen import IN_ANLEITUNG, NEUERUNGEN  # noqa: E402
 from rohrlaser.systempruefung import VORAUSSETZUNGEN  # noqa: E402
 from rohrlaser.tastatur import UEBERSICHT as TASTENKUERZEL  # noqa: E402
@@ -2111,7 +2111,7 @@ def kapitel_step(i):
             "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt wie auf blankes Metall "
             "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "
             "Grafikkarte, mit demselben Licht je Dreieck. "
-            "Einstellen unter Vorgaben, Gruppe Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
+            "Einstellen unter <i>Mein Arbeitsplatz</i>, Abschnitt Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
               "Prozessorkernen gleichzeitig.")
     i.abschnitt("Biegerohre", marke="biegerohre")
@@ -2132,7 +2132,7 @@ def kapitel_step(i):
             "Außen-Ø und Wand kommen aus den Radien.",
             "<b>Gestreckte Länge</b> = Summe der Geraden + Faktor × Summe der Bögen (Radius × Winkel). Der Faktor ist "
             "die Lage der neutralen Faser, Vorgabe 1,0 = Rohrmitte. Einstellung <i>Biegerohr: Faktor neutrale Faser "
-            "für die gestreckte Länge (1,0 = Rohrmitte)</i> unter STEP-Import ([[einstellungen]]); er gilt beim "
+            "für die gestreckte Länge (1,0 = Rohrmitte)</i> auf der Seite STEP-Import ([[einstellungen]]); er gilt beim "
             "Übernehmen.",
             "<b>Konturen</b>: Lage x ab Ende A am gestreckten Rohr, Winkel um die Rohrachse (0° = Innenseite der "
             "ersten Biegung). Liegt eine Kontur in einem Bogen, meldet die Fertigungsprüfung <i>Kontur in der "
@@ -2698,24 +2698,24 @@ def kapitel_optimieren(i):
         ["<b>Düse Ø [mm]</b>, <b>Gasdruck [bar]</b>", "Schneiddaten", "Düsendurchmesser und Gasdruck (Überdruck am "
          "Manometer) je Schneiddaten-Zeile. Daraus rechnet das Programm den Gasverbrauch in m³/h, z. B. N₂ mit Düse "
          "2,0 mm bei 15 bar ≈ 28,6 m³/h. Richtwerte: N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar."],
-        ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kalkulation", "Preis je Norm-m³ aus "
+        ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kosten und Stundensatz", "Preis je Norm-m³ aus "
          "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
          "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
-        ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kalkulation", "ein Schalter "
+        ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kosten und Stundensatz", "ein Schalter "
          "für alle Maschinen: nein = kein Schneidgas, egal was an Maschine und Schneiddaten steht; Vorgabe ja."],
-        ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kalkulation", "gleicht die Rechnung an den "
+        ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kosten und Stundensatz", "gleicht die Rechnung an den "
          "gemessenen Verbrauch an: Gasverbrauch laut Rechnung (m³ im Monat) geteilt durch den gerechneten Verbrauch "
          "der Spalte <i>Gas je Teil [m³]</i> × Stückzahl derselben Aufträge; Vorgabe 1."],
         ["<b>Rüstzuschlag je weiterer Profilform [min]</b>", "Maschine", "Spannbacken tauschen: hat ein Angebot "
          "mehrere Profilformen (z. B. Rundrohr und Quadratrohr), kommt je Form ab der zweiten diese Zeit zu "
          "<i>Rüsten je Abmessung</i>."],
-        ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kalkulation", "verworfene Teile: der Anteil auf Material und "
+        ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kosten und Stundensatz", "verworfene Teile: der Anteil auf Material und "
          "Laserzeit (mit Gewinde und Schneidgas) der Rohrlaserteile, 0 = keiner; eigene Kostenart <i>Ausschuss</i>. Die "
          "Nachkalkulation zeigt die gemessene Ausschussquote ([[nachkalkulation]])."],
-        ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kalkulation", "Gutschrift für den Verschnitt "
+        ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kosten und Stundensatz", "Gutschrift für den Verschnitt "
          "(Stangenlänge ohne Teile und ohne Reste, die ins Lager gehen) in Prozent des Materialpreises, z. B. 20 %; "
          "Kostenart <i>Schrotterlös Verschnitt</i> (negativ), 0 = aus. Kundenmaterial ohne Erlös."],
-        ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kalkulation", "Kleinteile stehen mit Preis je 100 "
+        ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kosten und Stundensatz", "Kleinteile stehen mit Preis je 100 "
          "Stück im Angebot (unter einem Zehntel des Werts je 1000), z. B. 3,44 € je 100 statt 0,03 € je Stück. Ohne "
          "Preiseinheit verliert die Rundung auf den Cent bei 0,034 € je Teil 12 %. Vorgabe 0 = aus, immer je Stück; "
          "zum Einschalten z. B. 0,10 eintragen."]],
@@ -2745,7 +2745,7 @@ def kapitel_optimieren(i):
         ["<b>Stundensatz-Ermittlung: Strompreis [€/kWh]</b>, <b>Stundensatz-Ermittlung: Raumkosten [€/m² im "
          "Monat]</b>, <b>Stundensatz-Ermittlung: Zinssatz [%]</b>, <b>Stundensatz-Ermittlung: Bedienerlohn [€/h]</b>, "
          "<b>Stundensatz-Ermittlung: Gemeinkosten [%]</b>, <b>Stundensatz-Ermittlung: Arbeitstage je Jahr</b>, "
-         "<b>Stundensatz-Ermittlung: Auslastung [%]</b>", "Einstellungen, Kalkulation (für alle Maschinen)"]],
+         "<b>Stundensatz-Ermittlung: Auslastung [%]</b>", "Einstellungen, Seite Kosten und Stundensatz (für alle Maschinen)"]],
         [130, 55])
     i.text("<i>Übernehmen</i> stellt die Maschine auf ermittelt und trägt den Satz ein. Neue Angebote speichern den "
            "Satz beim Anlegen; spätere Änderungen gelten nur für neue Angebote. Bisherige Maschinen bleiben von "
@@ -4669,7 +4669,7 @@ def kapitel_zukauf_angebot(i):
             "<b>Freischnitt</b>: kreuzen sich Biegelinien eines mehrachsig gekanteten Rechtecks, fehlt der "
             "Freischnitt an den Biegeecken.",
             "Biegefolge und Werkzeugkollision prüft das Programm nicht; das steht bei jedem Befund dabei.",
-            "Die Faktoren stehen unter Einstellungen, Gruppe Blech-Richtpreis; Faktor 0 schaltet eine Regel ab "
+            "Die Faktoren stehen unter Einstellungen, Seite Blech-Richtpreis, Abschnitt Kantbarkeit (Experte, eingeklappt); Faktor 0 schaltet eine Regel ab "
             "([[einstellungen]]).")
     i.abschnitt("DXF der Abwicklung", marke="blech_dxf")
     i.text("<b>DXF speichern …</b> unten im Blech-Editor speichert den Zuschnitt als DXF-Datei (Format R12, Maße in "
@@ -4679,8 +4679,8 @@ def kapitel_zukauf_angebot(i):
     i.liste("Innenkonturen stehen an ihrer Mitte x/y. Fehlt die Lage, zeichnet die Datei sie nur verteilt auf der "
             "Mittellinie ein; eine Kontur mit Anzahl größer 1 steht nur einmal darin; eine sonstige Kontur ohne "
             "Form fehlt. Das meldet der Editor nach dem Speichern, damit die Datei vor der Weitergabe geprüft wird.",
-            "Layernamen und ob Biegelinien in die Datei kommen, stehen unter Einstellungen, Gruppe "
-            "Blech-Richtpreis ([[einstellungen]]).")
+            "Layernamen und ob Biegelinien in die Datei kommen, stehen unter Einstellungen, Seite "
+            "Blech-Richtpreis, Abschnitt DXF-Ausgabe ([[einstellungen]]).")
     i.abschnitt("Zeichnung des Blechteils als PDF", marke="blech_zeichnung")
     i.text("<b>Zeichnung als PDF …</b> unten im Blech-Editor (im Menüband unter <i>Ausgabe</i>) schreibt eine "
            "maßstäbliche Zeichnung (A4 quer) in den Ordner des Angebots und öffnet sie: Abwicklung bzw. Zuschnitt "
@@ -4860,7 +4860,7 @@ def kapitel_baugruppen(i):
                     (3, "<b>a-Maß nach Regel vorschlagen</b>: Kehlnaht mit a = Faktor × Wanddicke, bis zur "
                         "Bestätigung gelb.")])
     i.text("Mit dem Häkchen <b>a-Maß nach Regel vorschlagen</b> bekommt eine übernommene Kehlnaht ein a-Maß = Faktor × "
-           "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Vorgaben, Einstellung "
+           "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Schweißbaugruppen, Einstellung "
            "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>), mindestens "
            "<b>3 mm</b> (Einstellung <i>Schweißbaugruppen: a-Maß-Regel mindestens [mm] (EN 1993-1-8: 3 mm, höchstens "
            "die dünnere Wand; 0 = aus)</i>) und mindestens <b>√(dickere Wand) − 0,5</b> (EN 1993-1-8, wenn der "
@@ -5750,17 +5750,17 @@ def kapitel_fertigung(i):
 
 def kapitel_einstellungen(i):
     i.kapitel("Einstellungen", marke="einstellungen")
-    i.text("Der Reiter <i>Einstellungen</i> enthält alle Voreinstellungen: die Seite <i>Vorgaben</i> mit den "
-           "Werten, die für alle Angebote gelten, und die Stammdaten außer den Kunden ([[stammdaten]]). Links steht "
-           "die Navigation nach Themen: <i>Kalkulation</i> (Vorgaben, Stundensätze und Zeitvorgaben, Zusatzarbeiten), "
-           "<i>Material</i> (Profile, Werkstoffe, Oberflächen, Preise, Lieferlängen), <i>Maschinen</i> (Maschinen, "
-           "Schneiddaten, Gewinde, Prüfregeln), <i>Blech</i>, <i>Schweißen</i> und <i>STEP-Import</i>. Darüber das "
-           "<b>Suchfeld</b>: es zeigt nur die Seiten, deren Titel, Spalten oder Vorgaben zum Suchwort passen, und auf "
-           "der Seite Vorgaben nur die passenden Einstellungen (z. B. „gewinn“). Enter öffnet den ersten Treffer, "
+    i.text("Der Reiter <i>Einstellungen</i> enthält alle Voreinstellungen und die Stammdaten außer den Kunden "
+           "([[stammdaten]]). Links steht die Navigation nach Themen: <i>Allgemein</i> (Funktionen, Firma, Mein "
+           "Arbeitsplatz, Ablage und Teilen), <i>Kalkulation</i>, <i>Angebot</i>, <i>Material</i>, <i>Maschinen</i>, "
+           "<i>Blech</i>, <i>Schweißen und Konstruktion</i>, <i>Kunden</i>, <i>Import</i> und <i>Fertigung und "
+           "Versand</i>; jede Einstellung steht auf der Seite ihres Themas neben den passenden Stammdaten. Darüber das "
+           "<b>Suchfeld</b>: es zeigt nur die Seiten, deren Titel, Spalten oder Einstellungen zum Suchwort passen, und "
+           "auf diesen Seiten nur die passenden Einstellungen (z. B. „gewinn“). Enter öffnet den ersten Treffer, "
            "das × im Feld zeigt wieder alles. Unten links: <b>Einstellungen sperren</b>.", kurz=True)
     i.bild("einstellungen_suche", "Einstellungen: Suche nach „gewinn“", hoehe=60 * mm, legende=[
         (1, "<b>Suchfeld</b>"), (2, "Navigation: nur Seiten mit Treffern"),
-        (3, "Seite Vorgaben: nur die passenden Einstellungen")])
+        (3, "Seite Zuschläge und Preise: nur die passenden Einstellungen")])
     i.abschnitt("Passwort", marke="passwort")
     i.bild("einstellungen_gesperrt", "Reiter Einstellungen gesperrt", hoehe=45 * mm, legende=[
         (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
@@ -5769,26 +5769,76 @@ def kapitel_einstellungen(i):
     i.genauer()
     i.text("Der Reiter öffnet sich erst nach Eingabe des Passworts. Passwort eintippen und Enter oder "
            "<b>Einstellungen öffnen</b> drücken. Er bleibt offen, bis <b>Einstellungen sperren</b> gedrückt oder das "
-           "Programm beendet wird. Das Passwort steht unter Vorgaben, Gruppe Zugang (<i>Passwort für die "
+           "Programm beendet wird. Das Passwort steht unter <i>Firma</i>, Abschnitt Zugang (<i>Passwort für die "
            "Einstellungen</i>). Das Feld bleibt leer, auch wenn ein Passwort vergeben ist: Das Programm speichert das "
            "Passwort nur verschlüsselt (als Prüfwert, nicht lesbar). Zum Ändern das neue Passwort eintippen und das "
            "Feld verlassen; <b>Entfernen</b> = Einstellungen ohne Passwort. Setzen, Ändern und Entfernen geht nur mit "
            "Admin-Rechten ([[lizenz_laden]]), sonst ist das Feld gesperrt. Ein Passwort aus einer älteren Version gilt "
            "unverändert weiter. Das Passwort bitte beim Verantwortlichen erfragen.")
-    i.abschnitt("Vorgaben", marke="vorgaben")
-    i.bild("einstellungen", "Einstellungen, Seite Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
-        (1, "Seite Vorgaben in der Navigation links, darunter die Stammdaten nach Themen"),
+    i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
+    i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
+        (1, "Seite Funktionen in der Navigation links, darunter die Themen mit Einstellungen und Stammdaten"),
         (2, "<b>Einstellungen sperren</b>")])
-    i.text("Wert ändern, Feld verlassen: gespeichert. Er gilt ab der nächsten Rechnung für alle Angebote. Jede "
-           "Gruppe (Kalkulation, Angebot, STEP-Import, Ablage …) ist eine eigene Karte.", kurz=True)
-    i.bild("einstellungen_unten", "Einstellungen, Seite Vorgaben (unterer Teil): Briefkopf, Ablage, "
-           "Auswahllisten und Passwort", hoehe=110 * mm, kurz=False)
-    i.genauer("alle Vorgaben")
+    i.text("Wert ändern, Feld verlassen: gespeichert. Er gilt ab der nächsten Rechnung für alle Angebote. Jede Seite "
+           "hat Abschnitte als Karten; Abschnitte mit „(Experte)“ sind eingeklappt, der Haken in der Überschrift "
+           "klappt sie auf.", kurz=True)
+    i.bild("einstellungen_unten", "Einstellungen, Seite Zuschläge und Preise", hoehe=110 * mm, kurz=False)
+    i.genauer("die Seiten")
+    i.text("Bis Version 0.9.196 standen alle Einstellungen auf einer langen Seite <i>Vorgaben</i>. Jetzt hat jedes "
+           "Thema eine Seite; Werte, gespeicherte Angaben und Rechnung sind gleich geblieben, die Suche findet auch "
+           "die alten, längeren Titel. Der volle Titel steht im Tooltip über dem kurzen Titel.")
+    i.tabelle(["Navigation", "Seite", "Inhalt"], [
+        ["Allgemein", "Funktionen", "Bereiche und Funktionen ein- und ausschalten ([[funktionen]])"],
+        ["Allgemein", "Firma", "Briefkopf, Logo, Passwort"],
+        ["Allgemein", "Mein Arbeitsplatz", "Benutzer, Ansicht, Ordner, gemeinsamer Ordner, E-Mail-Signatur, Leistung "
+                                           "der STEP-Messung; gilt nur für diesen Arbeitsplatz ([[mehrere_arbeitsplaetze]])"],
+        ["Allgemein", "Ablage und Teilen", "was im gemeinsamen Ordner liegt, Archiv"],
+        ["Kalkulation", "Zuschläge und Preise", "Zuschläge, Gewinn, Rüsten, Programmieren, Beträge je Angebot, MwSt."],
+        ["Kalkulation", "Kosten und Stundensatz", "Ausschuss, Schrotterlös, Preiseinheit, Schneidgas; Grundwerte zum "
+         "Ermitteln des Stundensatzes (eingeklappt)."],
+        ["Angebot", "Neue Angebote", "Maschine, Stangenlänge, Staffeln, Lieferzeit, Zahlung, Gültigkeit, Nummern"],
+        ["Angebot", "Texte im PDF", "Hinweise im Angebot, Text der Auftragsbestätigung"],
+        ["Angebot", "Automatik und Prüfung", "automatisch optimieren, Löschschutz, Mindestmarge, Nachfassen"],
+        ["Angebot", "Materialanfrage", "Betreff und Text der E-Mail"],
+        ["Material", "Lieferlängen-Regeln, Auswahllisten", "Lieferlängen vergleichen, Zuschnitt, Händler-Mehrlänge; "
+                                                          "Profilformen und Werkstoff-Kategorien"],
+        ["Blech", "Blech-Richtpreis", "Kosten, Tafel, Kanten, Kantbarkeit (Experte), DXF-Ausgabe"],
+        ["Schweißen und Konstruktion", "Schweißbaugruppen, Knickrahmen und Steckverbindung",
+         "Vorkalkulation, a-Maß, Gravur; Vorgaben für Knickrahmen und Steckverbindungen"],
+        ["Import", "STEP-Import, DXF-Import", "Erkennung, Bohrungen, Dateien, Testfunktion, Toleranzen (Experte); "
+                                              "Layer und Splitter"],
+        ["Fertigung und Versand", "Lager, Fertigung, Auslastung, Versand und Paletten",
+         "Reststücke, Fertigungsstatus, Etiketten, Reklamationen, Schichten, Paletten, Palettenschein"],
+    ], [32 * mm, 50 * mm, BREITE - 82 * mm])
+    i.text("Einige Werte mit „0 = aus“ oder „leer = aus“ haben einen eigenen Schalter davor: Nachfassen, automatisch "
+           "optimieren, Mindestmarge, Standard-Staffeln, automatischer Abgleich und Stangenbild-Fenster. Aus "
+           "speichert 0 bzw. leer, der letzte Wert bleibt grau stehen und kommt beim Einschalten zurück.")
+    i.text("Steht hinter einer Einstellung „· nur dieser Arbeitsplatz“, gleicht der gemeinsame Ordner sie nicht ab "
+           "(z. B. die letzte Angebotsnummer). Alles andere gilt für alle Arbeitsplätze.")
+    i.abschnitt("Funktionen ein- und ausschalten", marke="funktionen")
+    i.bild("einstellungen_funktionen", "Seite Funktionen: Bereiche und Funktionen mit Schalter", hoehe=110 * mm,
+           legende=[(1, "Schalter je Funktion; darunter grau, was beim Ausschalten verschwindet")])
+    i.text("Was der Betrieb nicht braucht, schaltet er auf der Seite <i>Funktionen</i> ab: Reiter, Menüpunkte, Knöpfe "
+           "und die zugehörigen Seiten der Einstellungen verschwinden. Gespeicherte Daten bleiben, wieder einschalten "
+           "stellt alles her. Der Schalter gilt für alle Arbeitsplätze.", kurz=True)
+    i.genauer()
+    i.text("Angebote, die eine Funktion schon nutzen, zeigen und rechnen sie weiter; nur die Neuanlage fehlt. "
+           "Beispiele: Ein Angebot mit Zukaufteilen behält den Knopf <b>Zukaufteile …</b>, eine Musterposition ihr "
+           "Häkchen, eingetragene Teuerungszuschläge ihre Spalten, eine Baugruppe mit Steckverbindungen ihren Reiter. "
+           "Alle Funktionen sind nach dem Update eingeschaltet. Die schon vorhandenen Schalter (Versand, Fertigung, "
+           "Lager, Reststücke, PDF-Zeichnungen) stehen zusätzlich oben auf der Seite Funktionen; sie gelten an beiden "
+           "Stellen gleich. Die Zusammenarbeit mit Kollegen (Übergeben, Notiz) erscheint ohnehin nur mit gemeinsamem "
+           "Ordner. Ein reiner Rohrbetrieb schaltet zum Beispiel <b>Bleche und Kantteile</b> ab; wer nie Preise "
+           "durchspielt, auch <b>Preis-Simulator und Varianten</b>.")
+    i.tabelle(["Funktion", "Was beim Ausschalten verschwindet"],
+              [[f.titel, f.text] for f in funktionen.FUNKTIONEN], [55 * mm, BREITE - 55 * mm])
+    i.abschnitt("Alle Einstellungen", marke="alle_einstellungen")
     i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
            "Ausnahme: Stundensätze und Zeitvorgaben ([[stundensaetze]]) speichert jedes Angebot beim Anlegen. "
-           "Jede Gruppe steht in einer eigenen Karte; bei breitem Fenster (z. B. 1920 px) in zwei Spalten, bei "
-           "schmalem untereinander.")
-    i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
+           "Bei breitem Fenster (z. B. 1920 px) stehen die Karten in zwei Spalten, bei schmalem untereinander. Die "
+           "Spalte Thema ist zugleich Suchwort; die Seite zeigt die Tabelle oben ([[vorgaben]]).", kurz=True)
+    i.genauer()
+    i.tabelle(["Thema", "Einstellung", "Wirkung"], [
         ["Kalkulation", "Zuschlag Material, Zuschlag Fertigung, Zuschlag Fremdleistung, Gewinn",
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
          "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn). Zuschlag Material "
@@ -6023,7 +6073,7 @@ def kapitel_einstellungen(i):
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
         ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Versandart für automatische Fracht, "
                          "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
-                         "Einstellungen</i> ([[fracht_einstellungen]]), nicht unter Vorgaben"],
+                         "Einstellungen</i> ([[fracht_einstellungen]]), nicht unter den Seiten der Einstellungen"],
         ["Materialanfrage", "Materialanfrage: Betreff, Materialanfrage: Text der E-Mail",
          "Vorlagen der Materialanfrage mit Platzhaltern {angebot}, {kunde}, {positionen}, {datum}, {absender}; "
          "leer = Vorgabe ([[materialanfrage]])"],
@@ -6318,7 +6368,7 @@ def kapitel_stammdaten(i):
             "die Angebote des Kunden; dort wird durch Tippen oder F2 geändert.",
             "<b>Nur Fehler und Warnungen</b> (rechts neben der Suche) zeigt nur die Zeilen, die geprüft werden "
             "müssen; rechts daneben steht, wie viele Zeilen FEHLER und WARNUNG haben.",
-            "Hilfetexte: unter Vorgaben, Gruppe Ansicht, <i>Hilfetexte über Tabellen und Seiten</i> = "
+            "Hilfetexte: unter <i>Mein Arbeitsplatz</i>, Abschnitt Ansicht, <i>Hilfetexte über Tabellen und Seiten</i> = "
             "<i>aufklappbar</i> (erster Satz und ⓘ mehr) oder <i>nur Tooltip</i> (nur <b>ⓘ Hilfe</b>, der Text "
             "erscheint beim Zeigen mit der Maus) ([[vorgaben]]).",
             "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite und Zeilenhöhe passen sich dem Inhalt an "
@@ -8392,8 +8442,8 @@ STECKBRIEFE = {
                   "Reiter <i>Fertigung</i> und <i>Lager</i> (Einstellung); im Angebot <i>Weitere ▾</i>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
                         "Im Angebot Reiter <i>Nachkalkulation</i>"),
-    "einstellungen": ("Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
-                      "Reiter <i>Einstellungen</i> (Passwort) → <i>Vorgaben</i>"),
+    "einstellungen": ("Funktionen ein/aus, Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
+                      "Reiter <i>Einstellungen</i> (Passwort) → Seite nach Thema"),
     "stammdaten": ("Kunden (auch per CSV), Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen "
                    "pflegen.",
                    "Reiter <i>Kunden</i>; Reiter <i>Einstellungen</i> mit den Unterreitern"),
