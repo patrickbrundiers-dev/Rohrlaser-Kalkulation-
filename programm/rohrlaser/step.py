@@ -1241,7 +1241,8 @@ def profil_vorschlag(m, profile):
 # und Bleche", Frage 2 a); Vollmaterial und nicht erkannte offene Profile nicht.
 # Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
 BLECHE = ("Blech", "Blech gekantet")
-NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern") + BLECHE
+GRAVURKOERPER = "Gravurkörper"      # Schrift/Markierung als eigener Körper: Gravur des Rohrs (step_gravurkoerper)
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER) + BLECHE
 MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM)    # Formen mit Abmessung B
 
 
@@ -1985,6 +1986,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         elif m.get("_knick_von") is not None:
             hinweise.append(f"Schenkel des Knickrahmens {messwerte[m['_knick_von']].get('artikel')} (nicht einzeln "
                             "übernommen)")
+        elif m.get("profilform") == GRAVURKOERPER:
+            hinweise.append("nicht übernommen: kein eigenes Teil")
         elif m.get("_normteil") and m.get("_uebernehmen") is not True:
             hinweise.append(f"nicht übernommen: Normteil ({m.get('bauteil')}, Begriff {m['_normteil']})")
         elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):

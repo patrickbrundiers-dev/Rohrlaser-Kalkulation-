@@ -38,7 +38,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, \
+from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, reihenfolge, schritte, step_ablage, \
     step_einstellungen, stil, tabellen_eingabe, teile_editor, vorkalk
 from .schritte import Schrittanzeige
 from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
@@ -1799,7 +1799,8 @@ class AngebotSeite(QWidget):
                "rueckgaengig": "rueckgaengig", "wiederholen": "wiederholen", "einfuegen": "_einfuegen",
                "ausschneiden": "_ausschneiden", "optimieren": "optimieren", "drucken": "angebot_pdf",
                "importieren": "step_importieren", "staffeln": "staffelpreise_rechnen", "werkstatt": "werkstatt_pdf",
-               "kalkulation": "kalkulation_pdf", "material": "material_anfragen", "stueck": "stueck_aendern"}
+               "kalkulation": "kalkulation_pdf", "material": "material_anfragen", "stueck": "stueck_aendern",
+               "hoch": ("positionen_hoch", "pos_ansicht"), "runter": ("positionen_runter", "pos_ansicht")}
 
     def __init__(self, fenster, angebot_id):
         super().__init__()
@@ -1954,11 +1955,18 @@ class AngebotSeite(QWidget):
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
                 ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
+                ("Nach oben", lambda: self.positionen_verschieben(reihenfolge.OBEN), "Alt+↑"),
+                ("Nach unten", lambda: self.positionen_verschieben(reihenfolge.UNTEN), "Alt+↓"),
+                ("An den Anfang", lambda: self.positionen_verschieben(reihenfolge.ANFANG), ""),
+                ("Ans Ende", lambda: self.positionen_verschieben(reihenfolge.ENDE), ""),
+                ("Positionsnummern neu vergeben (10, 20, 30 …)", lambda: self.positionsnummern_vergeben(), ""),
                 ("Positionen löschen", self.positionen_loeschen, "Entf")):
             # Kürzel nur als Text rechts (Tabulator), die Kürzel selbst hängen am Menü Bearbeiten
             a = self.pos_menue.addAction(text + (f"\t{tasten}" if tasten else ""), lambda ziel=ziel: ziel())
             self.pos_aktionen[text] = a
         self.pos_menue.insertSeparator(self.pos_aktionen["Für markierte setzen …"])
+        self.pos_menue.insertSeparator(self.pos_aktionen["Nach oben"])
+        self.pos_menue.insertSeparator(self.pos_aktionen["Positionen löschen"])
         self.pos_menue.aboutToShow.connect(self._pos_menue_anpassen)
         self.pos_ansicht.customContextMenuRequested.connect(
             lambda punkt: self.fremd() or self._menue_zeile(punkt) or
@@ -1974,7 +1982,12 @@ class AngebotSeite(QWidget):
                                      lambda r: r < len(self.positionen) and self.zusatzarbeiten([r]), unter_an)
         self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
         self.pos_ansicht.verticalHeader().setToolTip("Klick auf ▾/▸ einer Schweißbaugruppe bzw. eines Satzes: "
-                                                     "Einzelteile bzw. Positionen des Satzes zu- bzw. aufklappen")
+                                                     "Einzelteile bzw. Positionen des Satzes zu- bzw. aufklappen. "
+                                                     "Zeilenkopf ziehen: Position an eine andere Stelle "
+                                                     "verschieben (auch Alt+↑/↓, Rechtsklick → Nach oben/unten)")
+        # Reihenfolge per Drag & Drop am Zeilenkopf (Patrick 29.10.2026, reihenfolge.py)
+        self.pos_ansicht.verticalHeader().setSectionsMovable(True)
+        self.pos_ansicht.verticalHeader().sectionMoved.connect(self._kopf_gezogen)
 
         self.kalk = Liste(KALK_SPALTEN, max_stellen=2)
         self.stangen = Liste(STANGEN_SPALTEN)
@@ -2396,9 +2409,13 @@ class AngebotSeite(QWidget):
         self.satz_zu &= set(self.satz_zeilen.values())
         self.pos_modell.satz, self.pos_modell.satz_zu = satzgruppen.info(self.positionen, saetze), self.satz_zu
         kopf = self.pos_ansicht.verticalHeader()
-        for v, logisch in enumerate(folge):
-            if kopf.visualIndex(logisch) != v:
-                kopf.moveSection(kopf.visualIndex(logisch), v)
+        self._kopf_ordnet = True        # eigenes Umsortieren ist kein Drag & Drop (_kopf_gezogen)
+        try:
+            for v, logisch in enumerate(folge):
+                if kopf.visualIndex(logisch) != v:
+                    kopf.moveSection(kopf.visualIndex(logisch), v)
+        finally:
+            self._kopf_ordnet = False
         self.bg_zeilen = {i: bg_id for bg_id, (i, _) in baugruppe.baugruppen(self.positionen).items()} if zu else {}
         self.bg_zu &= set(self.bg_zeilen.values())
         texte = {i: ("▸ " if b in self.bg_zu else "▾ ") + str(i + 1) for i, b in self.bg_zeilen.items()}
@@ -5042,6 +5059,83 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         self.rueckgaengig_anbieten(f"{len(zeilen)} Position(en) gelöscht.")
 
+    # -------------------------------------------------------------- Reihenfolge der Positionen (29.10.2026)
+    def positionen_hoch(self):
+        return self.positionen_verschieben(reihenfolge.OBEN)
+
+    def positionen_runter(self):
+        return self.positionen_verschieben(reihenfolge.UNTEN)
+
+    def positionen_verschieben(self, ziel, zeilen=None):
+        """Markierte Positionen eine Zeile nach oben/unten bzw. an den Anfang/ans Ende (reihenfolge.verschieben):
+        Baugruppen wandern mit ihren Teilen, Sätze mit ihren Positionen. Ergebnis: True = umgestellt."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return False
+        zeilen = self._markierte_zeilen() if zeilen is None else list(zeilen)
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Positionen markieren, die verschoben werden sollen.", fehler=True)
+            return False
+        return self._reihenfolge_setzen(reihenfolge.verschieben(self.positionen, zeilen, ziel), zeilen)
+
+    def _kopf_gezogen(self, logisch, _alt, neu):
+        """Zeilenkopf per Drag & Drop verschoben: Position vor die Zeile setzen, die jetzt darunter steht."""
+        if getattr(self, "_kopf_ordnet", False):
+            return
+        kopf = self.pos_ansicht.verticalHeader()
+        vor = next((kopf.logicalIndex(v) for v in range(neu + 1, kopf.count())
+                    if not self.pos_ansicht.isRowHidden(kopf.logicalIndex(v))), None)
+        folge = None if self.fremd() or self.db.nur_lesen else \
+            reihenfolge.einsetzen(self.positionen, logisch, vor)
+        if folge is None:               # nicht erlaubt bzw. unverändert: Anzeige wie vorher
+            QTimer.singleShot(0, self._gruppieren)
+            if self.fremd() or self.db.nur_lesen:
+                self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return
+        QTimer.singleShot(0, lambda: self._reihenfolge_setzen(folge, [logisch]))
+
+    def positionsnummern_vergeben(self):
+        """Positionsnummern neu vergeben: 10, 20, 30 … in der Reihenfolge der Liste (reihenfolge.nummern)."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return False
+        folge = reihenfolge.anzeige(self.positionen)
+        if [p.get("pos") for p in reihenfolge.anordnung(self.positionen, folge, True)[0]] == \
+                [self.positionen[i].get("pos") for i in folge] and folge == list(range(len(folge))):
+            self.f.meldung("Positionsnummern sind schon 10, 20, 30 … in der Reihenfolge der Liste.")
+            return False
+        return self._reihenfolge_setzen(folge, neu_vergeben=True)
+
+    def _reihenfolge_setzen(self, folge, markiert=(), neu_vergeben=False):
+        """Neue Reihenfolge speichern (Liste alter Indizes, reihenfolge.py): nr und Positionsnummern, Staffeln je
+        Position; ein aktueller Schnittplan bleibt aktuell (gleiche Stangen, neue Nummern). Ein Schritt für
+        Rückgängig. Ergebnis: True = umgestellt."""
+        if folge is None:
+            self.f.meldung("Reihenfolge unverändert (schon ganz oben bzw. ganz unten).")
+            return False
+        neu, pos_neu = reihenfolge.anordnung(self.positionen, folge, neu_vergeben)
+        geaendert = sum(self.positionen[i].get("pos") != p.get("pos") for i, p in zip(folge, neu))
+        ergebnis = False                # Schnittplan veraltet ohnehin: so lassen
+        if self.ergebnis and self.stand_optimierung() == "aktuell":
+            ergebnis = reihenfolge.ergebnis_umstellen(self.ergebnis, self.positionen, folge, pos_neu)
+            ergebnis["kennung"] = rechnen.eingabe_kennung(self.kopf, neu, self.k, self.tabellen, self.einst)
+        self.db.positionen_ordnen(self.id, [(p["id"], p["pos"]) for p in neu],
+                                  reihenfolge.staffel_schluessel(self.positionen, folge, pos_neu), ergebnis)
+        self.neu_laden()
+        neu_ix = {alt: k for k, alt in enumerate(folge)}
+        zeilen = sorted(neu_ix[i] for i in markiert if i in neu_ix)
+        if zeilen:                      # die verschobenen Positionen bleiben markiert
+            c = max(self.pos_ansicht.currentIndex().column(), 0)
+            self.pos_ansicht.setCurrentIndex(self.pos_modell.index(zeilen[0], c))
+            auswahl = self.pos_ansicht.selectionModel()
+            for r in zeilen:
+                auswahl.select(self.pos_modell.index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+            self.pos_ansicht.scrollTo(self.pos_modell.index(zeilen[0], c))
+        self.rueckgaengig_anbieten("Positionsnummern neu vergeben (10, 20, 30 …)." if neu_vergeben else
+                                   f"Reihenfolge geändert ({len(zeilen)} Position(en) verschoben"
+                                   + (f", {geaendert} Positionsnummer(n) mitgezogen)." if geaendert else ")."))
+        return True
+
     # ab so vielen Teilen rechnet die Optimierung im Hintergrund mit Fortschritt und Abbruch (Prüfbericht B-6)
     HINTERGRUND_AB_TEILEN = 150
 
@@ -6006,7 +6100,8 @@ class AngebotSeite(QWidget):
                                   zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
                                   referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
                                   or referenz else None, hinweis=hinweis,
-                                  pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu)
+                                  pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu,
+                                  vorhandene_artikel=[p.get("artikel") for p in self.positionen])
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None

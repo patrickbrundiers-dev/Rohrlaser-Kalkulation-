@@ -1428,7 +1428,8 @@ def kapitel_angebot(i):
     i.genauer()
     i.liste("Ein Satz sind alle Positionen mit demselben Namen in der Spalte <b>Satz</b>. Stehen sie im Angebot "
             "verstreut, zeigt die Liste sie direkt unter der ersten Position des Satzes; die Pos.-Nummern und die "
-            "Reihenfolge im Angebots-PDF ändern sich dadurch nicht.",
+            "Reihenfolge im Angebots-PDF ändern sich dadurch nicht (erst beim Umstellen der Reihenfolge gilt die "
+            "Anzeige auch dort, [[reihenfolge]]).",
             "Die Anzahl Sätze ist Stückzahl ÷ Stück je Satz der ersten Position. Zugeklappt steht dahinter, wie viele "
             "Positionen der Satz hat. Der Zustand gilt, bis das Angebot geschlossen wird.",
             "Doppelklick bzw. Tippen in die Spalte Satz ändert wie bisher nur den Namen.",
@@ -1437,6 +1438,23 @@ def kapitel_angebot(i):
             "Schweißbaugruppen ([[schweissbaugruppe]]) haben ihre eigene Gruppierung (▾/└ an der Baugruppe) und "
             "werden hier nicht zusätzlich gefärbt. Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit "
             "seinen Teilen darunter.")
+    i.abschnitt("Reihenfolge der Positionen ändern", marke="reihenfolge")
+    i.text("Positionen markieren → <b>Alt+↑ / Alt+↓</b> oder <i>Rechtsklick → Nach oben, Nach unten, An den Anfang, "
+           "Ans Ende</i>; oder den <b>Zeilenkopf</b> (Nummer links) an eine andere Stelle ziehen. Kalkulation, "
+           "Angebots-PDF und Werkstattpapiere folgen der neuen Reihenfolge.", kurz=True)
+    i.genauer()
+    i.liste("Eine <b>Schweißbaugruppe</b> wandert mit ihren Einzelteilen, ein <b>Satz</b> mit allen seinen "
+            "Positionen (die erste Zeile des Satzes mit ▾ steht für den ganzen Satz). Einzelteile derselben "
+            "Baugruppe bzw. die weiteren Positionen eines Satzes lassen sich innerhalb ihrer Gruppe umstellen.",
+            "<b>Positionsnummern</b>: Steigen sie in der Liste auf (10, 20, 30 …), bleiben sie es – die Nummern "
+            "bleiben auf ihrem Platz, die Teile wandern. Hat das Angebot ein eigenes Schema (z. B. Baugruppe 100 "
+            "über den Teilen 10–30), behält jede Position ihre Nummer. <i>Rechtsklick → Positionsnummern neu "
+            "vergeben (10, 20, 30 …)</i> zählt alle in der Reihenfolge der Liste neu.",
+            "Staffeln einer einzelnen Position ([[staffeln]]) ziehen mit ihrer Position mit. Ein aktueller "
+            "Schnittplan bleibt aktuell (gleiche Stangen, nur mit den neuen Nummern), auch in verschickten "
+            "Angeboten; der Preis ändert sich nicht.",
+            "Jede Umstellung ist ein Schritt für <b>Strg+Z</b>. In fremden Angeboten und im Lesemodus ist die "
+            "Reihenfolge gesperrt.")
     i.abschnitt("Zusatzarbeiten und Gewinde je Bauteil", marke="zusatzarbeiten_angebot")
     i.text("Positionen markieren → <b>Zusatzarbeiten …</b> (oder Doppelklick in die Spalte <i>Zusatzarbeiten</i>).",
            kurz=True)
@@ -1698,7 +1716,8 @@ def kapitel_angebot(i):
         ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
-        ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"]], [55, 210],
+        ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"],
+        ["Alt+↑ / Alt+↓", "markierte Positionen eine Zeile nach oben / unten ([[reihenfolge]])"]], [55, 210],
         kurz=True)
     i.genauer()
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
@@ -2391,9 +2410,14 @@ def kapitel_step(i):
             "<b>Im Prüfdialog</b> zeigt der Tooltip auf dem Teil die Herkunft (z. B. <i>Artikelnummer aus: "
             "Teilenummer der STEP-Datei</i> oder <i>Bauteilname; Revision „v2“ abgetrennt</i>). <b>Gelb</b> ist "
             "die Nummer, wenn sie unsicher ist: Dateiname statt eines CAD-Standardnamens, Nummer im Namen erkannt "
-            "oder Zusatz <i>-2</i>, weil der Name schon zu einem anderen Teil gehört. <b>Doppelklick</b> auf das "
-            "Teil ändert die Artikelnummer für alle gleichen Teile der Zeile; sie bleibt auch beim Wechsel des "
-            "Kunden.",
+            "oder Zusatz <i>-2</i>, weil der Name schon zu einem anderen Teil gehört.",
+            "<b>Artikelnummer ändern</b>: Die erste Spalte heißt <b>Artikelnummer ✎</b>. <b>Doppelklick</b>, "
+            "<b>F2</b> oder <i>Rechtsklick → Artikelnummer ändern …</i> öffnet das Feld; die neue Nummer gilt für "
+            "alle gleichen Teile der Zeile und bleibt auch beim Wechsel des Kunden. Feld leeren und Enter = wieder "
+            "die aus der STEP bestimmte Nummer (steht im Tooltip). <b>Rot</b> wird die Nummer, wenn ein anderes Teil "
+            "dieses Imports dieselbe hat – beim Übernehmen bekämen die weiteren Teile den Zusatz <i>-2</i>, "
+            "<i>-3</i> …; unter der Liste steht dazu ein roter Hinweis. <b>Gelb</b> mit Tooltip <i>steht schon im "
+            "Angebot</i> ist eine Nummer, die das Angebot schon hat (Häkchen unten: trotzdem noch einmal eintragen).",
             "Steht im Bauteilnamen ein Begriff aus der Einstellung <i>Normteile: Begriffe im Bauteilnamen (mit ; "
             "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "
             "ist das Teil ein Normteil. Es ist im Prüfdialog abgewählt (Hinweis <i>Normteil … – zum Übernehmen "
@@ -6609,7 +6633,7 @@ def kapitel_stammdaten(i):
                              "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit. Standard "
                              "seit 0.9.196 nach Wandstärke: 0,2 s + 0,05 s je mm"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
-           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.9.197 sind sie mit veröffentlichten "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.9.199 sind sie mit veröffentlichten "
            "Schneidtabellen abgeglichen, und die <i>Bemerkung</i> jeder Zeile nennt die Herkunft: <i>GWEIKE Rohr 3 kW "
            "bzw. 4 kW</i> (Rohr-Schneidtabellen eines Rohrlaser-Herstellers), <i>Hypertherm 3 kW Flachbett</i> "
            "(Einstechzeiten Edelstahl) oder <i>Schätzung</i>. Trumpf und Adige veröffentlichen keine Vorschubtabellen; "
@@ -7735,7 +7759,19 @@ def kapitel_step_messung(i):
             "der Abwicklung (u, z; STEP-JSON 1.12). Komplexe Enden bekommen ebenfalls ihren Umriss.",
             "<b>Gravur</b>: Vertiefung bis 0,5 mm (z. B. eine Prägung von 0,2 mm), mit <i>Tiefe</i> und Lage, runde "
             "mit Durchmesser. Tiefere, nicht durchgehende Merkmale sind <b>Sackbohrungen</b> mit dem Hinweis, dass "
-            "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg.",
+            "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg. Schrift ist je Zeichen "
+            "eine Gravur mit echtem Umriss (bei „O“, „A“, „B“ auch die Innenkontur), auch wenn sie bis 0,5 mm "
+            "<b>erhaben</b> auf dem Rohr steht.",
+            "<b>Schrift als eigener Körper</b>: Viele CAD-Modelle legen Schrift oder Markierungen nicht in das Rohr, "
+            "sondern als eigene dünne Körper (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf die "
+            "Rohrwand. Liegt ein solcher Körper ganz auf dem Mantel eines Rohrs (höchstens 1 mm Abstand), wird "
+            "sein Rand Gravur dieses Rohrs, genau wie eingeprägte Schrift: gleiche Zeilen, Längen und Lage wie in "
+            "der STEP. Der Körper selbst wird kein Teil und kein Anbauteil (Profilform <i>Gravurkörper</i>, im "
+            "Import-Bericht „Schrift/Markierung auf Körper …, dort als Gravur“).",
+            "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
+            "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
+            "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "
+            "bleiben dadurch genau wie in der STEP, die Schrift ist eigene Gravur.",
             "<b>Innenmerkmal</b>: nur auf der Innenseite, von außen nicht sichtbar. Es wird gemeldet, aber nicht "
             "gerechnet.",
             "<b>Ende A / Ende B</b>: <i>gerade</i>, <i>Gehrung</i> (Neigung um eine Querachse), <i>Schrägschnitt "

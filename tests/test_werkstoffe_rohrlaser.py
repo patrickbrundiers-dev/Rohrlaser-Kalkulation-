@@ -55,7 +55,7 @@ ok("R1 29 Werkstoffe, Buntmetall-Richtwerte nur Faser, Tooltip in der Werkstoffw
 
 # ------------------------------------------------------------------ R2 Schneiddaten
 sd = lambda m, w, s: rechnen.schneiddaten(m, w, s, tab, rechnen.kategorie(w, k), rechnen.werkstoff_zeile(w, k))
-assert sd("LT7", "S235-10219", 3)["vorschub_gross"] == 3500      # ab 0.9.197, bis 0.9.196 4.500
+assert sd("LT7", "S235-10219", 3)["vorschub_gross"] == 3500      # ab 0.9.199, bis 0.9.196 4.500
 z = sd("LT7", "DX51D+Z275", 3)
 assert (z["gas"], z["vorschub_gross"], z["vorschub_mittel"]) == ("N₂", 3150, 1890), z   # × 0,9; bis 0.9.196 4.050 / 2.430
 assert sd("LT7", "S235-10219", 5)["gas"] == "O₂" and sd("LT7", "DX51D+Z275", 5) is None      # nur N₂
