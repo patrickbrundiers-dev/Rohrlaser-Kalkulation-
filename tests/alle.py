@@ -80,7 +80,7 @@ TESTS = [
     "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_unterzeilen.py", "test_satz_optik.py", "test_kopf_kompakt.py", "test_spaltenbreite.py",
     "test_angebot_leistung.py", "test_zeiten.py",
     "test_staffelpreise.py", "test_gewinn_basis.py", "test_preisregeln.py", "test_quellcode_schutz.py", "test_update.py", "test_update_sperre.py", "test_update_haertung.py", "test_update_signatur.py", "test_update_testplan.py", "test_update_download.py", "test_daten_finden.py", "test_release_pruefen.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
-    "test_fracht_richtwerte.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
+    "test_fracht_richtwerte.py", "test_pack_rechner.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
     "test_angebot_vorgaben.py", "test_musterteile.py", "test_angebot_einstellungen.py", "test_kundenmaterial.py", "test_schneidweg.py",
     "test_blech_editor.py", "test_blech_dxf.py", "test_blech_kfaktor.py", "test_blech_kantbarkeit.py", "test_blech_tafel.py",
     "test_dfm.py", "test_teile_editor.py", "test_editor_ausbau.py", "test_editor_messen.py", "test_editor_abwicklung.py", "test_3d_ansicht.py", "test_drehpunkt.py", "test_blech_zeichnen.py",

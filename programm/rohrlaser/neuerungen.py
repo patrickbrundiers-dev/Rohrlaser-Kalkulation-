@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.204", "<b>Pack-Logik im Frachtrechner</b>: Der Knopf <i>Aus Angebot laden …</i> (Frachtkosten › Fracht "
+                "kalkulieren) übernimmt die Ware eines Angebots und packt sie nach Maßen und Stückzahl wie der "
+                "Palettenschein, statt nur Gewicht ÷ 800 kg. Der Packvorschlag probiert jetzt alle Ladungsträger "
+                "(Europalette, Gitterbox, Industrie-, Sonderpalette …, lange Teile auf Langgut) und nimmt den "
+                "günstigsten Frachtpreis, z. B. eine Sonderpalette 2,40 m statt Europalette + Langgut. Die neue "
+                "<b>Packliste</b> zeigt den Vergleich und je Palette Draufsicht, Seitenansicht mit Höhe und den "
+                "Aufbau; auch im Fenster <i>Fracht berechnen …</i> eines Angebots ([[pack_rechner]]).",
+     "Frachtrechner: Ware aus Angebot laden, günstigste Ladungsträger, Packliste mit Skizze."],
     ["0.9.203", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
                 "<i>bis 50 km</i> (1 Palette 65 €) und <i>50–100 km</i> (80 €); bisher kostete alles bis 200 km "
                 "100 €. Ab Delbrück z. B. Paderborn, Bielefeld und Herford 65 €, Münster und Osnabrück 80 €. Neu ist "

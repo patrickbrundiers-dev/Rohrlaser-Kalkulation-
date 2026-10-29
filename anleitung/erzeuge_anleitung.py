@@ -4286,15 +4286,17 @@ def kapitel_fracht(i):
         ["3", "Frachtzone", "erscheint sofort unter der PLZ: grün mit der verwendeten Regel, gelb <i>keiner Zone "
                             "zugeordnet – Standardzone …</i>, rot ohne Zone oder bei mehrdeutigen Regeln"],
         ["4", "Gewicht", "Nettogewicht der Ware; darunter das Gesamtbruttogewicht = Netto + Verpackung (Eigengewicht "
-                         "der Ladungsträger)"],
+                         "der Ladungsträger). <b>Aus Angebot laden …</b> übernimmt die Ware eines Angebots "
+                         "(Gewicht, längstes Teil, Kunde, Bezeichnung) und packt sie ([[pack_rechner]])"],
         ["5", "Ladehilfsmittel", "je Zeile Ladungsträger, Anzahl und optional Brutto je Stück (dann gilt die Summe als "
                                  "Bruttogewicht). <b>+ Ladungsträger</b> fügt eine Zeile an, <b>Ladungsträger "
                                  "entfernen</b> löscht die markierte. Darunter Anzahl, Stellplätze, Eigengewicht und "
                                  "Volumen."],
         ["6", "Packvorschlag", "füllt die Liste aus den Positionen mit derselben Lagenrechnung wie der "
                                "Palettenschein ([[paletten_rechnung]]): Höhe, Gewicht und Teillänge je Palette; Teile "
-                               "länger als die max. Teillänge des Ladungsträgers kommen auf Langgut. Ohne Positionen "
-                               "(freier Rechner): Anzahl = Gewicht ÷ Nutzlast. Danach von Hand änderbar."],
+                               "länger als die max. Teillänge des Ladungsträgers kommen auf Langgut; gewählt wird der "
+                               "günstigste Ladungsträger ([[pack_rechner]]). Ohne Positionen (freier Rechner ohne "
+                               "<i>Aus Angebot laden</i>): Anzahl = Gewicht ÷ Nutzlast. Danach von Hand änderbar."],
         ["7", "Zusatzleistungen", "Zuschläge mit der Bedingung „nur wenn gewählt“ zum Ankreuzen (im Beispiel "
                                   "Avisierung, Hebebühne, Wartezeit mit Stunden). Ohne solche Zuschläge ist der Bereich "
                                   "ausgeblendet."],
@@ -4310,6 +4312,26 @@ def kapitel_fracht(i):
            "Pixel ist alles ohne waagrechtes Scrollen bedienbar. Das Programm läuft unter Windows, nicht auf dem "
            "Smartphone.")
     i.bild("fracht_schmal", "Rechner im Fenster 1024 × 700", hoehe=95 * mm)
+    i.abschnitt("Packliste und günstigste Ladungsträger", marke="pack_rechner")
+    i.text("Mit Ware aus einem Angebot packt der Rechner nach Maßen und Stückzahl, probiert alle Ladungsträger und "
+           "nimmt den günstigsten; die Packliste zeigt jede Palette als Skizze.", kurz=True)
+    i.genauer()
+    i.liste("<b>Aus Angebot laden …</b> (Bereich Gewicht) wählt eines der zuletzt geänderten Angebote. Übernommen "
+            "werden Nettogewicht, längstes Teil, Kunde (mit PLZ) und die Bezeichnung „Angebot …“; danach läuft der "
+            "Packvorschlag. Im Fenster <i>Fracht berechnen …</i> eines Angebots ist die Ware schon geladen.",
+            "<b>Günstigste Kombination</b>: Jeder aktive Ladungsträger mit Maßen (Europalette, Einwegpalette, "
+            "Industriepalette, Gitterbox, Sonderpalette …) wird als Standard durchgepackt, Teile länger als seine "
+            "max. Teillänge kommen wie bisher auf Langgut. Jede Variante wird mit dem Tarif der aktuellen Eingaben "
+            "gerechnet (PLZ, Versandart, Zuschläge), die günstigste kommt in die Liste der Ladehilfsmittel. Bei "
+            "gleichem Preis gilt der eingestellte Standard-Ladungsträger, dann die kleinere Anzahl.",
+            "<b>Packliste</b>: oben die gewählte Ladung und der Vergleich aller Varianten mit Preis, darunter je "
+            "Ladungsträger Gewicht und Höhe, die <b>Draufsicht</b> der untersten Lage (Reihen längs × Teile quer, "
+            "Überstand) und die <b>Seitenansicht</b> des Stapels mit allen Positionen und der zulässigen Höhe "
+            "(rot gestrichelt), darunter der Aufbau je Position als Text. Gepackt wird wie im Palettenschein "
+            "([[paletten_rechnung]]).",
+            "Nach Änderungen an PLZ, Versandart oder Zuschlägen <b>Packvorschlag</b> erneut drücken, damit der "
+            "Vergleich neu rechnet. Die automatische Fracht im Angebot packt weiter mit dem eingestellten "
+            "Standard-Ladungsträger.")
     i.abschnitt("So rechnet das Programm")
     i.genauer()
     i.liste("<b>Zone</b> der Empfänger-PLZ aus den PLZ-Zuordnungen (Regeln unten), sonst die Standardzone des Landes "
