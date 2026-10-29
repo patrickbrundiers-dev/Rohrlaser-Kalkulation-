@@ -22,7 +22,7 @@ from . import abmessung, anbau, profil_neu, blech, dreid, fracht_angebot, ausgab
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
-from . import zusatz_dialog
+from . import plausibel, zusatz_dialog
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
@@ -2684,7 +2684,17 @@ class AngebotSeite(QWidget):
             admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin),
             laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k)
             + rechnen.teuerung_hinweise(self.positionen, self.k),
-            staffel_widersprueche=self._staffel_widersprueche(zeilen))
+            staffel_widersprueche=self._staffel_widersprueche(zeilen),
+            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich()))
+
+    def _preis_vergleich(self):
+        """€/kg je Abmessung aus früher verschickten Angeboten (Plan C3), einmal je geöffnetem Angebot gelesen."""
+        if getattr(self, "_preis_vergleich_cache", None) is None:
+            try:
+                self._preis_vergleich_cache = plausibel.vergleich_aus(self.db.versand_verlaeufe(self.id))
+            except Exception:       # Plausibilität ist nur ein Hinweis: nie das Angebot blockieren
+                self._preis_vergleich_cache = {}
+        return self._preis_vergleich_cache
 
     def _staffel_widersprueche(self, kalk_zeilen):
         """Staffelpreise (letzter gespeicherter Stand), die im Angebots-PDF dem Preis der Zeile widersprechen
@@ -5478,6 +5488,8 @@ class AngebotSeite(QWidget):
         if pfad is not None and not self.fremd():     # Angebot eines Kollegen: nur ansehen, nichts festschreiben
             self.preise_festschreiben()
             eintrag = dict(datum=datetime.date.today().isoformat(), netto=ang["netto"], datei=Path(pfad).name)
+            zeilen, _ = self._rechnung()        # Preis je kg je Position für die Plausibilität späterer Angebote
+            eintrag["kennwerte"] = plausibel.kennwerte(self.positionen, zeilen, self.k)
             if uebergangen:
                 eintrag["check"] = uebergangen
             self.db.versand_merken(self.id, eintrag)
