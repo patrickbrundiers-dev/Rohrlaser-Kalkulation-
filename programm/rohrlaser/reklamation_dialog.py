@@ -236,7 +236,8 @@ class ReklamationenDialog(QDialog):
         q = f"{g['quote'] * 100:.2f} %".replace(".", ",") if g["quote"] is not None else "–"
         self.kopf.setText(f"<b>{g['offen']} offen</b> · letzte 12 Monate: {g['anzahl']} Reklamationen, "
                           f"{_z(g['menge'])} Stück, Kosten {euro_text(g['kosten'])} € · <b>Quote {q}</b> "
-                          f"(reklamierte von {_z(g['geliefert'])} gelieferten Stück in {g['auftraege']} Aufträgen)")
+                          f"(reklamierte von {_z(g['geliefert'])} gelieferten Stück in {g['auftraege']} "
+                          f"{'Auftrag' if g['auftraege'] == 1 else 'Aufträgen'})")
         for name, t in self.auswertungen.items():
             t.setRowCount(len(a[name]))
             for r, z in enumerate(a[name]):
