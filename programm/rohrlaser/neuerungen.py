@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.188", "<b>DXF-Import robuster</b> für Bleche und Rohre: Papierbereich (Layout), Schriftfelder mit Attributen, "
+                "Mehrfach-Blöcke, Linientyp „VonLayer“, Sonderzeichen und Splines aus Stützpunkten werden gelesen. "
+                "Kleine Lücken (bis 0,5 mm) werden geschlossen, doppelte Linien und Bohrungen zählen einmal, Teile mit "
+                "gemeinsamer Kante werden beide erkannt. Gleiche Bleche werden ein Teil mit Stückzahl. Kreise auf der "
+                "Außenkante, sich schneidende Konturen und Zoll ohne Einheit meldet das Prüffenster "
+                "([[dxf_import]]). Im Rohr-Schriftfeld wird auch „Werkstoff: S235JR“ gelesen. <b>Rohr oder Blech</b> wird "
+                "sicherer erkannt: mehr Profiltexte (SHS, RHS, CHS, Profilrohr, QR40x40x3, mit Norm), eine "
+                "Rohrzeichnung braucht einen Beleg (Bemaßung, verdeckte Kanten, Schraffur, Profiltext), sonst fragt "
+                "das Zuordnungsfenster und bietet „Als Blech importieren“.",
+     "DXF-Import robuster: Layout, Attribute, Lücken, doppelte Linien, gleiche Teile, Rohr oder Blech sicherer."],
     ["0.9.187", "<b>STEP-Import für typische Laserteile robuster</b> (Testreihe nach Beispielbildern: Profile mit "
                 "Lochbildern auf mehreren Seiten, Kerben, Ausklinkungen, C-Profile, Kantteile): <b>offene Profile</b> "
                 "(U, C, L, Kantprofil) zeigen Ausklinkungen am Ende (auch T-förmig), Kerben im Schenkel und "

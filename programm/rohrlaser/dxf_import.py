@@ -12,12 +12,14 @@
 
 Hier nur die Rechnung (ohne Oberfläche); das Fenster ist dxf_import_dialog.DxfImportDialog.
 """
+import itertools
 import math
 import re
 
 from . import blech, dxf, dxf_ansichten as da, schneidweg as sw
 
 TOL = 0.05              # mm: Lücke, die beim Verketten noch als geschlossen gilt
+LUECKE = 0.5            # mm: größere Lücken einer Kontur werden gerade geschlossen (mit Hinweis), noch größere nicht
 FORM_TOL = 0.01         # mm: so genau muss eine Kontur Kreis, Langloch oder Rechteck sein
 EINHEITEN = {0: 1.0, 1: 25.4, 2: 304.8, 4: 1.0, 5: 10.0, 6: 1000.0, 8: 0.0000254, 9: 0.0254, 10: 914.4, 13: 0.001,
              14: 100.0}
@@ -37,7 +39,10 @@ class DxfFehler(ValueError):
 
 # ------------------------------------------------------------------ Lesen
 def _paare(text):
-    zeilen = text.splitlines()
+    text = re.sub(r"\r+\n", "\n", text)               # auch doppelt umgewandelte Zeilenenden (\r\r\n)
+    zeilen = text.split("\n") if "\n" in text else text.split("\r")
+    while zeilen and not zeilen[-1].strip():
+        zeilen.pop()
     if len(zeilen) < 2:
         raise DxfFehler("Die Datei ist leer oder keine DXF-Datei.")
     out = []
@@ -94,7 +99,8 @@ def roh_lesen(text):
     """{'einheit': mm je Zeichnungseinheit, 'layer': {Name: dict(aus, linientyp)}, 'bloecke': {Name: (Basis,
     Entitäten)}, 'entitaeten': [(Typ, Daten)]}."""
     paare = _paare(text)
-    erg = dict(einheit=1.0, layer={}, bloecke={}, entitaeten=[])
+    erg = dict(einheit=1.0, insunits=None, measurement=None, layer={}, bloecke={}, entitaeten=[], papier=0,
+               nur_papier=False, papier_texte=[], hinweise=set(), _zaehler=itertools.count())
     i = 0
     while i < len(paare):
         code, wert = paare[i]
@@ -103,11 +109,15 @@ def roh_lesen(text):
             i += 2
             if name == "HEADER":
                 while i < len(paare) and not (paare[i][0] == 0 and paare[i][1].strip() == "ENDSEC"):
-                    if paare[i] == (9, "$INSUNITS") or (paare[i][0] == 9 and paare[i][1].strip() == "$INSUNITS"):
+                    if paare[i][0] == 9 and paare[i][1].strip() in ("$INSUNITS", "$MEASUREMENT"):
                         try:
-                            erg["einheit"] = EINHEITEN.get(int(paare[i + 1][1].strip()), 1.0)
+                            v = int(paare[i + 1][1].strip())
                         except (ValueError, IndexError):
-                            pass
+                            v = None
+                        if v is not None and paare[i][1].strip() == "$INSUNITS":
+                            erg["einheit"], erg["insunits"] = EINHEITEN.get(v, 1.0), v
+                        elif v is not None:
+                            erg["measurement"] = v
                     i += 1
             elif name == "TABLES":
                 ents, i = _entitaeten(paare, i, ("ENDSEC",))
@@ -126,19 +136,59 @@ def roh_lesen(text):
                             d.append(paare[i])
                             i += 1
                         ents, i = _entitaeten(paare, i, ("ENDBLK",))
-                        erg["bloecke"][_wert(d, 2, "", str)] = ((_wert(d, 10, 0.0), _wert(d, 20, 0.0)), ents)
+                        erg["bloecke"][_wert(d, 2, "", str)] = ((_wert(d, 10, 0.0), _wert(d, 20, 0.0)),
+                                                              _polylinien_zusammen(ents))
                         continue
                     i += 1
             elif name == "ENTITIES":
                 ents, i = _entitaeten(paare, i, ("ENDSEC",))
-                erg["entitaeten"] = ents
+                modell, papier = _papierbereich(_polylinien_zusammen(ents))
+                if any(t not in NICHT_GEZEICHNET for t, _ in modell):
+                    erg["entitaeten"] = modell
+                    erg["papier"] = sum(1 for t, _ in papier if t not in NICHT_GEZEICHNET)
+                    if erg["papier"]:   # Schriftfeld im Layout: Texte für Werkstoff/Dicke/Profil, nie für den Maßstab
+                        erg["papier_texte"] = [el[1:6] for el in elemente(dict(erg, entitaeten=papier))
+                                               if el[0] == "T"]
+                else:
+                    erg["entitaeten"], erg["nur_papier"] = papier, bool(papier)
             continue
         i += 1
     return erg
 
 
+NICHT_GEZEICHNET = ("VIEWPORT", "ATTRIB", "VERTEX", "SEQEND", "DIMENSION", "POINT", "HATCH", "SOLID", "LEADER",
+                    "MULTILEADER", "IMAGE", "WIPEOUT", "OLE2FRAME")
+
+
+def _papierbereich(ents):
+    """(Modellbereich, Papierbereich): Elemente mit Code 67 = 1 liegen im Papierbereich (Layout mit Rahmen und
+    Schriftfeld; die Geometrie im Modellbereich ist dann immer 1:1)."""
+    modell, papier = [], []
+    for typ, d in ents:
+        (papier if _wert(d, 67, 0, int) == 1 else modell).append((typ, d))
+    return modell, papier
+
+
+def text_klar(t, mtext=False):
+    """Text ohne DXF-Steuerzeichen: \\U+00E4 -> ä, %%c -> Ø, %%d -> °, %%p -> ±; MTEXT ohne Formatierung (\\P = neue
+    Zeile -> Leerzeichen, \\S1^2; -> 1/2)."""
+    t = re.sub(r"\\U\+([0-9A-Fa-f]{4})", lambda m: chr(int(m.group(1), 16)), str(t or ""))
+    t = re.sub(r"%%(\d{3})", lambda m: chr(int(m.group(1))), t)
+    for a, b in (("%%c", "Ø"), ("%%d", "°"), ("%%p", "±"), ("%%%", "%")):
+        t = re.sub(re.escape(a), b, t, flags=re.IGNORECASE)
+    t = re.sub(r"%%[uok]", "", t, flags=re.IGNORECASE)
+    if mtext:
+        t = t.replace("\\P", " ").replace("\\~", " ").replace("\\\\", "\x00")
+        t = re.sub(r"\\S([^;]*?)[\^#/]([^;]*);", r"\1/\2", t)
+        t = re.sub(r"\\[ACFfHQTWp][^;]*;", "", t)
+        t = re.sub(r"\\[LlOoKkNX]", "", t)
+        t = re.sub(r"(?<!\\)[{}]", "", t).replace("\\{", "{").replace("\\}", "}").replace("\x00", "\\")
+    return t
+
+
 # ------------------------------------------------------------------ Elemente in mm, Weltsystem
-# Strecke: ("S", layer, p, q, bulge); Kreis: ("K", layer, c, r); Text: ("T", layer, p, hoehe, winkel, text)
+# Strecke: ("S", layer, p, q, bulge, gruppe); Kreis: ("K", layer, c, r); Text: ("T", layer, p, hoehe, winkel, text);
+# gruppe: Nummer des geschlossenen Elements (Polylinie, Spline, Ellipse), zu dem die Strecke gehört, sonst None
 
 class _Trafo:
     """p' = verschub + Drehung(w) · (Maßstab · (p − basis)); setzt sich bei verschachtelten Blöcken zusammen."""
@@ -190,7 +240,44 @@ def _ellipse_punkte(c, achse, verh, t0, t1, n_min=16):
             for k in range(n + 1)]
 
 
-def _spline_punkte(d):
+def _durch_punkte(pk, n_je=16):
+    """Kubischer Spline durch die Stützpunkte (natürliche Enden, Parameter = Sehnenlänge): Splines, die nur mit
+    Stützpunkten (Code 11/21) gespeichert sind."""
+    if len(pk) < 3:
+        return list(pk)
+    t = [0.0]
+    for a, b in zip(pk, pk[1:]):
+        t.append(t[-1] + max(math.dist(a, b), 1e-9))
+    n = len(pk)
+
+    def zweite(werte):             # zweite Ableitungen (Thomas-Verfahren)
+        h = [t[i + 1] - t[i] for i in range(n - 1)]
+        a, b, c, r = [0.0] * n, [1.0] * n, [0.0] * n, [0.0] * n
+        for i in range(1, n - 1):
+            a[i], b[i], c[i] = h[i - 1], 2 * (h[i - 1] + h[i]), h[i]
+            r[i] = 6 * ((werte[i + 1] - werte[i]) / h[i] - (werte[i] - werte[i - 1]) / h[i - 1])
+        for i in range(1, n):
+            m = a[i] / b[i - 1]
+            b[i] -= m * c[i - 1]
+            r[i] -= m * r[i - 1]
+        z = [0.0] * n
+        for i in range(n - 1, -1, -1):
+            z[i] = (r[i] - (c[i] * z[i + 1] if i < n - 1 else 0.0)) / b[i]
+        return z
+    xs, ys = [p[0] for p in pk], [p[1] for p in pk]
+    zx, zy = zweite(xs), zweite(ys)
+    out = [pk[0]]
+    for i in range(n - 1):
+        h = t[i + 1] - t[i]
+        for k in range(1, n_je + 1):
+            u = t[i] + h * k / n_je
+            A, B = (t[i + 1] - u) / h, (u - t[i]) / h
+            out.append(tuple(A * v[i] + B * v[i + 1] + ((A ** 3 - A) * z[i] + (B ** 3 - B) * z[i + 1]) * h * h / 6
+                             for v, z in ((xs, zx), (ys, zy))))
+    return out
+
+
+def _spline_punkte(d, hinweise=None):
     grad = int(_wert(d, 71, 3, int) or 3)
     knoten = _alle(d, 40)
     gew = _alle(d, 41)
@@ -218,6 +305,11 @@ def _spline_punkte(d):
             out.append((x / w, y / w) if w else (x, y))
         return out
     fit = list(zip(_alle(d, 11), _alle(d, 21)))
+    if len(fit) >= 3:
+        if hinweise is not None:
+            hinweise.add("Spline nur mit Stützpunkten gespeichert: Kurve durch die Punkte angenähert, bitte Kontur "
+                         "prüfen (im CAD besser als Polylinie oder mit Kontrollpunkten speichern).")
+        return _durch_punkte(fit)
     return fit if len(fit) >= 2 else ctrl
 
 
@@ -226,10 +318,12 @@ def _ocs(d):
     return (_wert(d, 230, 1.0) or 1.0) < 0
 
 
-def elemente(roh, trafo=None, tiefe=0, layer_vorgabe="0"):
-    """Elemente in mm im Weltsystem (Blöcke aufgelöst)."""
+def elemente(roh, trafo=None, tiefe=0, layer_vorgabe="0", lt_vorgabe=""):
+    """Elemente in mm im Weltsystem (Blöcke aufgelöst, auch Mehrfach-Blöcke MINSERT und sichtbare Attribute)."""
     s = roh["einheit"]
     trafo = trafo or _Trafo(s, 0, 0, s, 0, 0)
+    zaehler = roh.get("_zaehler") or itertools.count()
+    hinweise = roh.get("hinweise")
     out = []
     ents = roh["entitaeten"] if tiefe == 0 else roh["_block"]
     for typ, d in ents:
@@ -239,51 +333,76 @@ def elemente(roh, trafo=None, tiefe=0, layer_vorgabe="0"):
         info = roh["layer"].get(layer.upper(), {})
         if info.get("aus"):
             continue
-        lt = (_wert(d, 6, "", str) or info.get("linientyp") or "").upper()
+        lt = (_wert(d, 6, "", str) or "").upper()
+        if lt in ("", "BYLAYER"):                 # „VonLayer“: Linientyp des Layers
+            lt = info.get("linientyp") or ""
+        elif lt == "BYBLOCK":                     # „VonBlock“: Linientyp der Blockreferenz
+            lt = lt_vorgabe
         if typ == "INSERT":
             if tiefe > 8:
                 continue
+            for a in getattr(d, "attribute", ()):  # Attribute (Schriftfeld) liegen schon im Weltsystem der Referenz
+                if not int(_wert(a, 70, 0, int) or 0) & 1:
+                    a_layer = _wert(a, 8, layer, str) or layer
+                    tag = (_wert(a, 2, "", str) or "").strip()
+                    wert = (_wert(a, 1, "", str) or "").strip()
+                    if not wert:
+                        continue
+                    if re.fullmatch(r"[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß_.\-]{2,}", tag):  # Feldname als Beschriftung
+                        a = [(c, w) for c, w in a if c != 1] + [(1, f"{tag.replace('_', ' ')}: {wert}")]
+                    out += [(*el, False) for el in _element("TEXT", a, layer if a_layer == "0" else a_layer, trafo)]
             blk = roh["bloecke"].get(_wert(d, 2, "", str))
             if not blk:
                 continue
             (bx, by), bents = blk
             sx, sy = _wert(d, 41, 1.0) or 1.0, _wert(d, 42, 1.0) or 1.0
-            w = math.radians(_wert(d, 50, 0.0) or 0.0)
-            px, py = _wert(d, 10, 0.0), _wert(d, 20, 0.0)
-            if _ocs(d):
-                px, w, sx = -px, math.pi - w, -sx
-            cw, sn = math.cos(w), math.sin(w)
-            t = _Trafo(cw * sx, -sn * sy, sn * sx, cw * sy, px - (cw * sx * bx - sn * sy * by),
-                       py - (sn * sx * bx + cw * sy * by))
-            unter = dict(roh, _block=bents)
-            out += elemente(unter, trafo.mal(t), tiefe + 1, layer)
+            w0 = math.radians(_wert(d, 50, 0.0) or 0.0)
+            spalten, zeilen = max(1, int(_wert(d, 70, 1, int) or 1)), max(1, int(_wert(d, 71, 1, int) or 1))
+            ds, dz = _wert(d, 44, 0.0) or 0.0, _wert(d, 45, 0.0) or 0.0
+            for i_s, i_z in itertools.product(range(spalten), range(zeilen)):
+                ox, oy = i_s * ds, i_z * dz     # Mehrfach-Block: Raster im gedrehten System der Referenz
+                px = _wert(d, 10, 0.0) + ox * math.cos(w0) - oy * math.sin(w0)
+                py = _wert(d, 20, 0.0) + ox * math.sin(w0) + oy * math.cos(w0)
+                w, sx_ = w0, sx
+                if _ocs(d):
+                    px, w, sx_ = -px, math.pi - w0, -sx
+                cw, sn = math.cos(w), math.sin(w)
+                t = _Trafo(cw * sx_, -sn * sy, sn * sx_, cw * sy, px - (cw * sx_ * bx - sn * sy * by),
+                           py - (sn * sx_ * bx + cw * sy * by))
+                unter = dict(roh, _block=bents)
+                out += elemente(unter, trafo.mal(t), tiefe + 1, layer, lt)
             continue
         strich = any(w_ in lt for w_ in STRICH_LINIEN)
-        out += [(*el, strich) for el in _element(typ, d, layer, trafo)]
+        out += [(*el, strich) for el in _element(typ, d, layer, trafo, next(zaehler), hinweise)]
     return out
 
 
-def _strecken(pk, layer, trafo, geschlossen=False, bulges=None):
-    """Polylinie (Punkte im Objektsystem) -> Strecken im Weltsystem; Bögen bleiben, wenn die Abbildung sie erhält."""
+def _strecken(pk, layer, trafo, geschlossen=False, bulges=None, gruppe=None):
+    """Polylinie (Punkte im Objektsystem) -> Strecken im Weltsystem; Bögen bleiben, wenn die Abbildung sie erhält.
+    Geschlossene Züge (auch offen gespeichert mit gleichem Anfangs- und Endpunkt) tragen die Nummer gruppe."""
     out = []
     n = len(pk)
     bulges = bulges or [0.0] * n
     spiegel = trafo.spiegelt
+    if not geschlossen and n >= 3 and math.dist(pk[0], pk[-1]) <= 1e-6 * max(1.0, abs(pk[0][0]), abs(pk[0][1])):
+        g = gruppe
+    else:
+        g = gruppe if geschlossen else None
     for i in range(n if geschlossen else n - 1):
         p, q, b = pk[i], pk[(i + 1) % n], bulges[i]
         if b and not trafo.gleichmaessig:
             zug = [p] + sw.bogen_punkte(p, q, b)
-            out += [("S", layer, trafo(a), trafo(c), 0.0) for a, c in zip(zug, zug[1:])]
+            out += [("S", layer, trafo(a), trafo(c), 0.0, g) for a, c in zip(zug, zug[1:])]
         else:
-            out.append(("S", layer, trafo(p), trafo(q), -b if spiegel else b))
+            out.append(("S", layer, trafo(p), trafo(q), -b if spiegel else b, g))
     return out
 
 
-def _element(typ, d, layer, trafo):
+def _element(typ, d, layer, trafo, gruppe=None, hinweise=None):
     m = -1.0 if _ocs(d) else 1.0
     if typ == "LINE":
         return [("S", layer, trafo((m * _wert(d, 10, 0.0), _wert(d, 20, 0.0))),
-                 trafo((m * _wert(d, 11, 0.0), _wert(d, 21, 0.0))), 0.0)]
+                 trafo((m * _wert(d, 11, 0.0), _wert(d, 21, 0.0))), 0.0, None)]
     if typ in ("CIRCLE", "ARC"):
         c, r = (_wert(d, 10, 0.0), _wert(d, 20, 0.0)), _wert(d, 40, 0.0)
         if r <= 0:
@@ -293,7 +412,7 @@ def _element(typ, d, layer, trafo):
                 cc = trafo((m * c[0], c[1]))
                 return [("K", layer, cc, r * trafo.mass)]
             zug = _ellipse_punkte((m * c[0], c[1]), (r, 0.0), 1.0, 0.0, 2 * math.pi)
-            return _strecken(zug[:-1], layer, trafo, geschlossen=True)
+            return _strecken(zug[:-1], layer, trafo, geschlossen=True, gruppe=gruppe)
         a0, a1 = math.radians(_wert(d, 50, 0.0)), math.radians(_wert(d, 51, 0.0))
         auf = (a1 - a0) % (2 * math.pi)
         p = (c[0] + r * math.cos(a0), c[1] + r * math.sin(a0))
@@ -319,29 +438,32 @@ def _element(typ, d, layer, trafo):
         if m < 0:
             bulges = [-b for b in bulges]
         zu = bool(int(_wert(d, 70, 0, int) or 0) & 1)
-        return _strecken(pk, layer, trafo, geschlossen=zu, bulges=bulges) if len(pk) >= 2 else []
+        return _strecken(pk, layer, trafo, geschlossen=zu, bulges=bulges, gruppe=gruppe) if len(pk) >= 2 else []
     if typ == "_POLYLINE":
         pk, bulges, zu = d.poly
         pk = [(m * x, y) for x, y in pk]
         if m < 0:
             bulges = [-b for b in bulges]
-        return _strecken(pk, layer, trafo, geschlossen=zu, bulges=bulges) if len(pk) >= 2 else []
+        return _strecken(pk, layer, trafo, geschlossen=zu, bulges=bulges, gruppe=gruppe) if len(pk) >= 2 else []
     if typ == "ELLIPSE":
         c = (_wert(d, 10, 0.0), _wert(d, 20, 0.0))
         achse = (_wert(d, 11, 0.0), _wert(d, 21, 0.0))
         zug = _ellipse_punkte(c, achse, _wert(d, 40, 1.0), _wert(d, 41, 0.0), _wert(d, 42, 2 * math.pi))
         zug = [(m * x, y) for x, y in zug]
-        return _strecken(zug, layer, trafo)
+        return _strecken(zug, layer, trafo, gruppe=gruppe)
     if typ == "SPLINE":
-        zug = [(m * x, y) for x, y in _spline_punkte(d)]
+        zug = [(m * x, y) for x, y in _spline_punkte(d, hinweise)]
         zu = bool(int(_wert(d, 70, 0, int) or 0) & 1)
-        return _strecken(zug, layer, trafo, geschlossen=zu and math.dist(zug[0], zug[-1]) > TOL) if len(zug) >= 2 \
-            else []
+        if zu and len(zug) >= 2 and math.dist(zug[0], zug[-1]) <= TOL:
+            zug[-1] = zug[0]
+        return _strecken(zug, layer, trafo, geschlossen=zu and math.dist(zug[0], zug[-1]) > TOL, gruppe=gruppe) \
+            if len(zug) >= 2 else []
     if typ in ("TEXT", "MTEXT"):
         text = _wert(d, 1, "", str) or ""
         if typ == "MTEXT":
-            text = (text + "".join(w for c, w in d if c == 3)).replace("\\P", " ")
-            text = re.sub(r"\\[A-Za-z][^;]*;|[{}]", "", text)
+            text = text_klar("".join(w for c, w in d if c == 3) + text, mtext=True)
+        else:
+            text = text_klar(text)
         h = (_wert(d, 40, 0.0) or 0.0) * trafo.mass
         w = (_wert(d, 50, 0.0) or 0.0) + trafo.winkel
         if typ == "MTEXT" and _wert(d, 11) is not None:
@@ -370,12 +492,30 @@ def _polylinien_zusammen(ents):
             if i < len(ents) and ents[i][0] == "SEQEND":
                 i += 1
             if not flags & (16 | 64):        # keine Netze
-                kopf = [x for x in d if x[0] in (8, 6, 230)]
+                kopf = [x for x in d if x[0] in (8, 6, 67, 230)]
                 out.append(("_POLYLINE", _PolyDaten(kopf, (pk, bulges, bool(flags & 1)))))
+            continue
+        if typ == "INSERT" and not isinstance(d, _InsertDaten):
+            attribute = []
+            i += 1
+            while i < len(ents) and ents[i][0] == "ATTRIB":
+                attribute.append(ents[i][1])
+                i += 1
+            if attribute and i < len(ents) and ents[i][0] == "SEQEND":
+                i += 1
+            out.append((typ, _InsertDaten(d, attribute)))
             continue
         out.append((typ, d))
         i += 1
     return out
+
+
+class _InsertDaten(list):
+    """Daten einer Blockreferenz und .attribute = Daten der folgenden ATTRIB (Schriftfeld-Werte)."""
+
+    def __init__(self, daten, attribute):
+        super().__init__(daten)
+        self.attribute = attribute
 
 
 class _PolyDaten(list):
@@ -467,7 +607,7 @@ def verketten(strecken):
         if benutzt[start]:
             continue
         benutzt[start] = True
-        p, q, b, layer = strecken[start]
+        p, q, b, layer = strecken[start][:4]
         pk, bg = [p, q], [b]
         for richtung in (1, 0):               # erst vorwärts, dann am Anfang rückwärts verlängern
             while True:
@@ -479,7 +619,7 @@ def verketten(strecken):
                     break
                 _, j, e = n
                 benutzt[j] = True
-                p2, q2, b2, _l = strecken[j]
+                p2, q2, b2, _l = strecken[j][:4]
                 if richtung:
                     if e == 0:
                         pk.append(q2)
@@ -503,6 +643,166 @@ def verketten(strecken):
         else:
             zuege.append(Zug(layer, pk, bg + [0.0], False))
     return zuege
+
+
+# ------------------------------------------------------------------ Konturen robust bilden
+def _schluessel(p, q, b):
+    p, q, b = (round(p[0], 3), round(p[1], 3)), (round(q[0], 3), round(q[1], 3)), round(b, 6)
+    return (p, q, b) if (p, q) <= (q, p) else (q, p, -b)
+
+
+def _gruppe_als_zug(segs):
+    """Strecken eines geschlossenen Elements (in Reihenfolge) -> geschlossener Zug oder None (passt nicht)."""
+    if len(segs) < 2 or any(math.dist(a[1], b[0]) > TOL for a, b in zip(segs, segs[1:])) or \
+            math.dist(segs[-1][1], segs[0][0]) > TOL:
+        return None
+    return Zug(segs[0][3], [s_[0] for s_ in segs], [s_[2] for s_ in segs], True)
+
+
+def _zug_schluessel(z):
+    """Gleiche Kontur (auch anders herum oder mit anderem Startpunkt gezeichnet)."""
+    pk = z.dicht()
+    return (round(abs(z.flaeche), 1), round(z.laenge(), 1), round(min(x for x, _ in pk), 2),
+            round(min(y for _, y in pk), 2), round(max(x for x, _ in pk), 2), round(max(y for _, y in pk), 2))
+
+
+def _kreise_einmal(kreise):
+    """Gleiche Kreise (übereinander gezeichnet) nur einmal: (Kreise, Anzahl weggelassen)."""
+    gesehen, out = set(), []
+    for k in kreise:
+        s_ = (round(k[1][0], 3), round(k[1][1], 3), round(k[2], 3))
+        if s_ not in gesehen:
+            gesehen.add(s_)
+            out.append(k)
+    return out, len(kreise) - len(out)
+
+
+def _geraden_bucket(p, q):
+    """(Richtung, Abstand vom Ursprung, Einheitsvektor) der Geraden durch p, q."""
+    w = math.atan2(q[1] - p[1], q[0] - p[0]) % math.pi
+    if w > math.pi - 1e-4:
+        w -= math.pi
+    u = (math.cos(w), math.sin(w))
+    return w, p[1] * u[0] - p[0] * u[1], u
+
+
+def _ueberlappungen(lose, feste):
+    """Gerade lose Strecken, die eine Kante eines geschlossenen Elements oder einander teilweise überdecken (doppelt
+    gezeichnet, anders unterteilt): überdeckte Stücke weg, Überlappungen nur einmal (an allen Endpunkten geteilt).
+    lose/feste: [(p, q, b, layer, gruppe)]. Ergebnis: (lose Strecken, Anzahl entfernter Doppelstücke)."""
+    toepfe = {}
+    for art, liste in (("fest", feste), ("lose", lose)):
+        for i, s_ in enumerate(liste):
+            if s_[2]:
+                continue
+            w, d, u = _geraden_bucket(s_[0], s_[1])
+            toepfe.setdefault((round(w / 2e-4), round(d / TOL)), []).append((art, i, w, d, u))
+    weg, neu, n = set(), [], 0
+    for (kw, kd), eintraege in toepfe.items():
+        if not any(e[0] == "lose" for e in eintraege):
+            continue
+        nachbarn = [e for dw in (-1, 0, 1) for dd in (-1, 0, 1) for e in toepfe.get((kw + dw, kd + dd), ())]
+        for art, i, w, d, u in eintraege:
+            if art != "lose" or i in weg:
+                continue
+            p, q = lose[i][0], lose[i][1]
+            t0, t1 = sorted((p[0] * u[0] + p[1] * u[1], q[0] * u[0] + q[1] * u[1]))
+            andere = []
+            for a2, j, w2, d2, u2 in nachbarn:
+                if (a2, j) == ("lose", i) or abs(w2 - w) > 4e-4 or abs(d2 - d) > TOL or (a2 == "lose" and j in weg):
+                    continue
+                s2 = (feste if a2 == "fest" else lose)[j]
+                a, b = sorted((s2[0][0] * u[0] + s2[0][1] * u[1], s2[1][0] * u[0] + s2[1][1] * u[1]))
+                if min(t1, b) - max(t0, a) > TOL:
+                    andere.append((a2, j, a, b))
+            if not andere:
+                continue
+            # Stücke dieser Strecke, die nicht unter einer festen Kante oder einer früheren losen Strecke liegen
+            deck = sorted((a, b) for a2, j, a, b in andere if a2 == "fest" or j < i)
+            stuecke, t = [], t0
+            for a, b in deck:
+                if a > t + TOL:
+                    stuecke.append((t, min(a, t1)))
+                t = max(t, b)
+            if t1 > t + TOL:
+                stuecke.append((t, t1))
+            if stuecke == [(t0, t1)]:
+                continue
+            weg.add(i)
+            n += 1
+            nx, ny = -u[1], u[0]
+            for a, b in stuecke:
+                if b - a > TOL:
+                    neu.append(((a * u[0] + d * nx, a * u[1] + d * ny), (b * u[0] + d * nx, b * u[1] + d * ny), 0.0,
+                                lose[i][3], None))
+    return [s_ for i, s_ in enumerate(lose) if i not in weg] + neu, n
+
+
+def _luecken(zuege, groesste=LUECKE):
+    """Brücken über kleine Lücken zwischen Enden offener Züge (TOL < Abstand <= groesste), nächste zuerst:
+    [(p, q, 0, layer, None)]."""
+    enden = []
+    for nr, z in enumerate(zuege):
+        if not z.geschlossen and len(z.punkte) >= 2:
+            enden += [(nr, 0, z.punkte[0], z), (nr, 1, z.punkte[-1], z)]
+    raster = {}
+    for k, (_nr, _e, p, _z) in enumerate(enden):
+        raster.setdefault((math.floor(p[0] / groesste), math.floor(p[1] / groesste)), []).append(k)
+    paare = []
+    for k, (nr, e, p, z) in enumerate(enden):
+        gx, gy = math.floor(p[0] / groesste), math.floor(p[1] / groesste)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for j in raster.get((gx + dx, gy + dy), ()):
+                    if j <= k:
+                        continue
+                    nr2, _e2, q, _z2 = enden[j]
+                    d = math.dist(p, q)
+                    if TOL < d <= groesste and (nr2 != nr or z.laenge() > 4 * d and len(z.punkte) >= 3):
+                        paare.append((d, k, j))
+    benutzt, out = set(), []
+    for d, k, j in sorted(paare):
+        if k in benutzt or j in benutzt:
+            continue
+        benutzt |= {k, j}
+        out.append((enden[k][2], enden[j][2], 0.0, enden[k][3].layer, None))
+    return out
+
+
+def konturen_bilden(schnitt):
+    """Schnittstrecken [(p, q, b, layer, gruppe)] -> (Züge, Strecken (p, q, b, layer) ohne Doppelte, Anzahl doppelt
+    gezeichneter Konturen/Stücke, geschlossene Lücken [mm]). Geschlossene Elemente (Polylinie, Spline, Ellipse) bleiben
+    eigene Konturen, auch wenn sie eine Kante mit einem Nachbarteil teilen; lose Linien werden verkettet, doppelte und
+    teilweise überdeckte Stücke fallen weg, Lücken bis LUECKE werden gerade geschlossen."""
+    gruppen, lose = {}, []
+    for s_ in schnitt:
+        (gruppen.setdefault(s_[4], []) if s_[4] is not None else lose).append(s_)
+    feste, zuege, gesehen, n_doppelt = [], [], set(), 0
+    for segs in gruppen.values():
+        z = _gruppe_als_zug(segs)
+        if z is None:
+            lose += [(*s_[:4], None) for s_ in segs]
+            continue
+        k = _zug_schluessel(z)
+        if k in gesehen:
+            n_doppelt += 1
+            continue
+        gesehen.add(k)
+        zuege.append(z)
+        feste += segs
+    kanten = {_schluessel(*s_[:3]) for s_ in feste}
+    vorher = len(lose)
+    lose = [s_ for s_ in _ohne_doppelte(lose) if _schluessel(*s_[:3]) not in kanten]
+    n_doppelt += vorher - len(lose)
+    lose, n_ueber = _ueberlappungen(lose, feste)
+    n_doppelt += n_ueber
+    lose_zuege = verketten(lose)
+    bruecken = _luecken(lose_zuege)
+    if bruecken:
+        lose_zuege = verketten(lose + bruecken)
+    zuege += lose_zuege
+    luecken = [math.dist(b[0], b[1]) for b in bruecken]
+    return zuege, [s_[:4] for s_ in feste + lose + bruecken], n_doppelt, luecken
 
 
 # ------------------------------------------------------------------ Formen erkennen
@@ -815,9 +1115,14 @@ def _teile(konturen, texte, offene):
         if k.eltern is not None and k.eltern not in rahmen:
             continue
         n_text = sum(1 for t in texte if k.enthaelt(t))
-        offen_lg = sum(z.laenge() for z in offene if k.enthaelt(z.dicht()[0]))
+        # Linien eines Schriftfelds: mindestens zwei achsparallele Linienzüge, zusammen > 30 % des Umfangs (einzelne
+        # offene Schnittlinien in einem rechteckigen Blech machen es nicht zum Rahmen)
+        felder = [z for z in offene if k.enthaelt(z.dicht()[0]) and not any(z.bulges) and all(
+            abs(a[0] - b[0]) <= FORM_TOL or abs(a[1] - b[1]) <= FORM_TOL for a, b in zip(z.punkte, z.punkte[1:]))]
+        offen_lg = sum(z.laenge() for z in felder)
         umfang = 2 * (k.bb[2] - k.bb[0] + k.bb[3] - k.bb[1])
-        if any(c.kinder for c in k.kinder) or (k.rechteck and k.kinder and (n_text >= 3 or offen_lg > 0.3 * umfang)):
+        if any(c.kinder for c in k.kinder) or (k.rechteck and k.kinder and (
+                n_text >= 3 or (len(felder) >= 2 and offen_lg > 0.3 * umfang))):
             rahmen.add(k)
     out = []
     for k in konturen:
@@ -879,18 +1184,31 @@ def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=
         if el[0] == "K":
             (kreise if art == "schnitt" else gravur).append(("K", el[2], el[3]))
         elif math.dist(el[2], el[3]) > 1e-9:
-            (schnitt if art == "schnitt" else gravur).append((el[2], el[3], el[4], el[1]))
-    schnitt = _ohne_doppelte(schnitt)
-    zuege = verketten(schnitt)
+            (schnitt if art == "schnitt" else gravur).append((el[2], el[3], el[4], el[1], el[5]))
+    zuege, schnitt, n_doppelt, luecken = konturen_bilden(schnitt)
+    kreise, n_k = _kreise_einmal(kreise)
+    n_doppelt += n_k
     offen = [z for z in zuege if not z.geschlossen and z.laenge() > TOL]
     # geschlossene Züge ohne Fläche (Linie hin und zurück, z. B. aus Ansichten anderer CAD-Programme) fallen weg
     konturen = [_Kontur(z) for z in zuege if z.geschlossen and abs(z.flaeche) > 1e-6] + \
         [_Kontur(Zug("K", [(c[0] + r, c[1]), (c[0] - r, c[1])], [1.0, 1.0], True)) for _, c, r in kreise]
     if not konturen:
-        raise DxfFehler("In der DXF wurde keine geschlossene Außenkontur gefunden.")
+        raise DxfFehler("In der DXF wurde keine geschlossene Außenkontur gefunden."
+                        + (f" {len(offen)} offene Linienzüge (Lücken über {_zahl(LUECKE, 1)} mm?) bitte im CAD "
+                           "schließen." if offen else ""))
     text_punkte = [t[2] for t in texte if layer_art(t[1], namen, weg) != "gravur"]
     gefunden, n_rahmen = _teile(konturen, text_punkte, offen)
+    kreuz_grund, kreuz_warn = _ueberschneidungen(gefunden)
     ansichten, rohr = _ansichten(schnitt, kreise, gefunden)
+    rohr_zweifel = None
+    if rohr:                    # bestätigen mit der Rohr-Erkennung (dxf_rohr), sonst bleiben die Bleche angehakt
+        from . import dxf_rohr
+        try:
+            r_erg = dxf_rohr.erkennen(text, dateiname, namen, weg)
+        except (ValueError, KeyError, TypeError, ZeroDivisionError):
+            r_erg = dict(ok=False)
+        if not (r_erg.get("ok") and r_erg.get("belegt")):
+            rohr_zweifel, rohr = rohr, None
     stamm = re.sub(r"\.dxf$", "", str(dateiname or "").replace("\\", "/").split("/")[-1], flags=re.IGNORECASE)
     teile = []
     for nr, (k, innen, grund) in enumerate(gefunden, 1):
@@ -902,12 +1220,15 @@ def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=
                                                           or k.enthaelt(((b[0][0] + b[1][0]) / 2,
                                                                          (b[0][1] + b[1][1]) / 2))])
         beschr = [x[5] for x in texte if layer_art(x[1], namen, weg) != "gravur" and k.enthaelt(x[2])]
-        grund = grund or _grund(k, ansichten, rohr, t, splitter)
+        grund = grund or kreuz_grund.get(id(k)) or _grund(k, ansichten, rohr, t, splitter)
+        t["warnungen"] += kreuz_warn.get(id(k), [])
+        t["_kontur"] = (k, innen)
         t.update(name=(beschr[0] if len(beschr) == 1 and len(beschr[0]) <= 40 else
                        (stamm or "DXF") + (f" Teil {nr}" if len(gefunden) > 1 else "")),
                  aktiv=grund is None, grund=grund)
         t["e"]["dxf"] = dateiname or True
         teile.append(t)
+    teile, n_gleich = _gleiche_zusammen(teile)
     rest = sum(1 for z in offen if not any(k.enthaelt(z.dicht()[0]) for k, *_ in gefunden))
     if n_rahmen:
         warn.append(f"Zeichnungsrahmen erkannt ({n_rahmen}×): nicht übernommen.")
@@ -916,16 +1237,174 @@ def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=
                     "nicht übernommen.")
     if rohr:
         warn.insert(0, f"Die Zeichnung zeigt ein Rohr ({rohr['text']}), kein Blech: als Blech wird nichts "
-                       "übernommen. Den Import von Rohrzeichnungen bringt Schritt 3E-12.")
+                       "übernommen. Im Angebot öffnet „Neue Position → Aus DXF“ dafür den Rohr-Editor.")
+    elif rohr_zweifel:
+        warn.insert(0, f"Teile sehen aus wie Schnitt und Ansicht eines Rohrs ({rohr_zweifel['text']}), als "
+                       "Rohrzeichnung aber nicht belegt (keine Bemaßung, verdeckten Kanten, Schraffur oder "
+                       "Profiltext): als Bleche angehakt, bitte prüfen.")
     n_iso = sum(1 for a in ansichten if a.iso)
     if n_iso and not rohr:
         warn.append(f"Isometrische Ansicht erkannt ({n_iso}×): ihre Konturen sind nicht angehakt.")
-    dicke, d_quelle = dicke_aus([dateiname] + texte0), "Text"
+    warn += _lese_hinweise(roh, luecken, n_doppelt, n_gleich, teile)
+    papier = [t[4] for t in roh.get("papier_texte") or ()]
+    dicke, d_quelle = dicke_aus([dateiname] + texte0 + papier), "Text"
     seiten = sorted({a.seitenansicht for a in ansichten if a.seitenansicht})
     if dicke is None and len(seiten) == 1 and not rohr:
         dicke, d_quelle = seiten[0], "Seitenansicht"
-    return dict(teile=teile, texte=texte0, warnungen=warn, dicke=dicke, dicke_quelle=d_quelle if dicke else None,
+    return dict(teile=teile, texte=texte0 + papier, warnungen=warn, dicke=dicke, dicke_quelle=d_quelle if dicke else None,
                 massstab=massstab, massstab_quelle=quelle, rahmen=n_rahmen, rohr=rohr)
+
+
+def _lese_hinweise(roh, luecken, n_doppelt, n_gleich, teile):
+    """Hinweise zum Lesen der Datei (nie still anders rechnen als gezeichnet)."""
+    out = []
+    if luecken:
+        out.append(f"{len(luecken)} Lücke{'n' if len(luecken) > 1 else ''} in Konturen (bis "
+                   f"{_zahl(max(luecken), 2).replace('.', ',')} mm) gerade geschlossen: bitte Kontur prüfen.")
+    if n_doppelt:
+        out.append(f"{n_doppelt} doppelt gezeichnete Kontur{'en' if n_doppelt > 1 else ''} bzw. Linien nur einmal "
+                   "übernommen.")
+    if n_gleich:
+        out.append(f"{n_gleich} gleiche Teile zusammengefasst (Stückzahl im Teil, änderbar).")
+    if roh.get("papier"):
+        out.append(f"Papierbereich (Layout) mit {roh['papier']} Elementen nicht als Kontur übernommen "
+                   "(Rahmen/Schriftfeld); die Geometrie im Modellbereich gilt 1:1.")
+    if roh.get("nur_papier"):
+        out.append("Die Zeichnung liegt nur im Papierbereich (Layout): von dort übernommen, Maßstab bitte prüfen.")
+    iu = roh.get("insunits")
+    if iu is not None and iu not in EINHEITEN:
+        out.append(f"Unbekannte Zeichnungseinheit (Code {iu}): mm angenommen, bitte Maße prüfen.")
+    elif iu in (None, 0) and roh.get("measurement") == 0:
+        out.append("Die Zeichnung ist in Zoll angelegt und hat keine Einheit: mm angenommen. Sind die Maße in Zoll, "
+                   "Maßstab 1:25,4 eingeben.")
+    elif iu in (None, 0) and teile and max(max(t["e"].get("laenge") or 0, t["e"].get("breite") or 0)
+                                           for t in teile) < 20:
+        out.append("Alle Teile kleiner als 20 mm und keine Einheit in der DXF: Einheit (Zoll, cm?) bitte prüfen.")
+    out += sorted(roh.get("hinweise") or ())
+    return out
+
+
+def _abstand_rand(p, pk):
+    """Kleinster Abstand des Punkts p zum geschlossenen Polygon pk."""
+    best = math.inf
+    for a, b in zip(pk, pk[1:] + pk[:1]):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        lg = dx * dx + dy * dy
+        t = 0.0 if not lg else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lg))
+        best = min(best, math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy))
+    return best
+
+
+def _kreuzt(a, b):
+    """Liegt Kontur b teils deutlich innerhalb, teils deutlich außerhalb von Kontur a (Konturen überschneiden sich)?"""
+    if b.bb[0] > a.bb[2] or b.bb[2] < a.bb[0] or b.bb[1] > a.bb[3] or b.bb[3] < a.bb[1]:
+        return False
+    pk = b.dicht[:: max(1, len(b.dicht) // 200)]
+    innen = aussen = False
+    for p in pk:
+        if _abstand_rand(p, a.dicht) <= 2 * TOL:
+            continue
+        if a.enthaelt(p):
+            innen = True
+        else:
+            aussen = True
+        if innen and aussen:
+            return True
+    return False
+
+
+def _ueberschneidungen(gefunden):
+    """Konturen, die sich schneiden (z. B. Kreis auf der Außenkante gezeichnet statt ausgeschnitten): ({id(Kontur):
+    Grund}, {id(Kontur): [Warnungen]}). Die Form ergibt sich dann nicht eindeutig: nicht anhaken bzw. warnen."""
+    grund, warn = {}, {}
+    nach = sorted(gefunden, key=lambda t: -t[0].flaeche)
+    for i, (gross, innen, _g) in enumerate(nach):
+        for klein, _i2, _g2 in nach[i + 1:]:
+            if id(klein) not in grund and _kreuzt(gross, klein):
+                grund[id(klein)] = "überschneidet die Außenkontur eines anderen Teils: im CAD prüfen"
+                warn.setdefault(id(gross), []).append(
+                    "Eine Kontur überschneidet die Außenkontur (z. B. Kreis auf der Kante): sie ist nicht "
+                    "ausgeschnitten, bitte Kontur im CAD bereinigen.")
+        if any(_kreuzt(gross, c) for c in innen):
+            warn.setdefault(id(gross), []).append("Eine Innenkontur ragt über die Außenkontur: bitte prüfen.")
+        if any(_kreuzt(a, b) for j, a in enumerate(innen) for b in innen[j + 1:]):
+            warn.setdefault(id(gross), []).append("Innenkonturen überschneiden sich: bitte prüfen.")
+    return grund, warn
+
+
+def _form_merkmal(t):
+    """Grobe Kennung eines Teils, gleich bei Drehung: zum schnellen Vorsortieren gleicher Teile."""
+    k, innen = t["_kontur"]
+    return (round(k.flaeche, 1), round(k.zug.laenge(), 1), len(innen),
+            tuple(sorted(round(c.flaeche, 1) for c in innen)),
+            tuple(sorted((x["art"], round(x.get("laenge") or 0, 1), x.get("text") or "") for x in t["e"]["konturen"]
+                         if x["art"] in (sw.SONSTIGE, sw.GRAVUR, sw.TEXT_GRAVUR))),
+            len(t["biegelinien"]))
+
+
+def _punkte_teil(t):
+    """Punkte eines Teils zum Vergleich: Eckpunkte der Außenkontur und Mitten der Innenkonturen."""
+    k, innen = t["_kontur"]
+    return [p for p in k.dicht], [((c.bb[0] + c.bb[2]) / 2, (c.bb[1] + c.bb[3]) / 2) for c in innen]
+
+
+def _schwerpunkt(pk):
+    return sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
+
+
+def gleich_gedreht(t1, t2, tol=0.05):
+    """Ist Teil t2 dasselbe wie t1, nur verschoben und gedreht (nicht gespiegelt)?"""
+    a, ai = _punkte_teil(t1)
+    b, bi = _punkte_teil(t2)
+    if len(a) != len(b):
+        return False
+    ca, cb = _schwerpunkt(a), _schwerpunkt(b)
+    fern = max(a, key=lambda p: math.dist(p, ca))
+    r = math.dist(fern, ca)
+    wa = math.atan2(fern[1] - ca[1], fern[0] - ca[0])
+    raster = {}
+    for q in b + bi:
+        raster.setdefault((round(q[0] / (4 * tol)), round(q[1] / (4 * tol))), []).append(q)
+
+    def da(q):
+        gx, gy = round(q[0] / (4 * tol)), round(q[1] / (4 * tol))
+        return any(math.dist(q, z) <= tol for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                   for z in raster.get((gx + dx, gy + dy), ()))
+    for q in b:
+        if abs(math.dist(q, cb) - r) > tol:
+            continue
+        w = math.atan2(q[1] - cb[1], q[0] - cb[0]) - wa
+        c, s_ = math.cos(w), math.sin(w)
+
+        def dreh(p):
+            x, y = p[0] - ca[0], p[1] - ca[1]
+            return (cb[0] + x * c - y * s_, cb[1] + x * s_ + y * c)
+        if all(da(dreh(p)) for p in a + ai):
+            return True
+    return False
+
+
+def _gleiche_zusammen(teile):
+    """Gleiche angehakte Teile (auch gedreht, nicht gespiegelt; Patrick 28.10.2026 „a“) zu einem Teil mit Stückzahl:
+    (Teile, Anzahl zusammengefasster)."""
+    out, n = [], 0
+    for t in teile:
+        if t["aktiv"]:
+            m = _form_merkmal(t)
+            gleich = next((o for o in out if o["aktiv"] and o["_merkmal"] == m and gleich_gedreht(o, t)), None)
+            if gleich is not None:
+                gleich["anzahl"] += 1
+                n += 1
+                continue
+            t["_merkmal"] = m
+        t["anzahl"] = 1
+        out.append(t)
+    for t in out:
+        t.pop("_kontur", None)
+        t.pop("_merkmal", None)
+        if t["anzahl"] > 1:
+            t["zusammenfassung"] = f"{t['anzahl']}× gleich · " + t["zusammenfassung"]
+    return out, n + sum(1 for t in out if t["anzahl"] > 1)
 
 
 def _ohne_doppelte(schnitt):
