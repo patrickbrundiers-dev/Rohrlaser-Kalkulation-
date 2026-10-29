@@ -11,7 +11,7 @@ Stunden je Jahr = Stunden je Arbeitstag (Maschine 'Schicht', sonst Einstellung) 
 Strompreis, Raumkosten, Zinssatz, Bedienerlohn, Gemeinkosten, Arbeitstage und Auslastung stehen einmal in den
 Einstellungen (Frage 4a), alles andere je Maschine. Gas zählt nie mit: es wird je Teil gerechnet (rechnen.gas_kosten).
 
-Auswahl je Maschine 'Stundensatz': „von Hand“ (leer, alle Maschinen bis 0.9.197, Frage 5a) = das Feld Stundensatz
+Auswahl je Maschine 'Stundensatz': „von Hand“ (leer, alle Maschinen vor der Ermittlung, Frage 5a) = das Feld Stundensatz
 gilt und enthält Gas und Strom; Gas kommt nur mit 'Gas zusätzlich zum Stundensatz' = ja dazu (Frage 2b).
 „ermittelt“ = der hier gerechnete Satz gilt, Gas kommt immer dazu.
 """

@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.197", "<b>Kalkulation genauer</b> ([[kalkulation_genauer]]): neue Maschinenfelder <i>Nebenzeit je Teil</i> "
+    ["0.9.198", "<b>Kalkulation genauer</b> ([[kalkulation_genauer]]): neue Maschinenfelder <i>Nebenzeit je Teil</i> "
                 "(Ausschieben/Entnehmen), <i>Schneidgas N₂/O₂ [€/h]</i> (Gaskosten je Laserstunde nach dem Gas der "
                 "Schneiddaten; genauer über <i>Düse Ø</i> und <i>Gasdruck</i> in den Schneiddaten und <i>Gaspreis "
                 "€/m³</i> in den Einstellungen: das Programm rechnet den Gasverbrauch in m³ je Teil) und <i>Rüstzuschlag je weiterer Profilform</i>; in den Einstellungen <i>Ausschuss</i> "
@@ -38,6 +38,15 @@ NEUERUNGEN = [
                 "Test prüft bei jedem Update, dass eine Stufe mit den Mengen des Angebots dessen Preis ergibt.",
      "Kalkulation genauer: Nebenzeit, Schneidgas aus Düse und Druck, Ausschuss, Schrotterlös, Profilwechsel; Preis je 100 Stück; "
      "Preis-Plausibilität; Stundensatz ermitteln"],
+    ["0.9.197", "<b>Reihenfolge der Positionen ändern</b>: markierte Positionen mit <b>Alt+↑ / Alt+↓</b>, "
+                "Rechtsklick (Nach oben, Nach unten, An den Anfang, Ans Ende) oder durch Ziehen am Zeilenkopf "
+                "verschieben; Schweißbaugruppen wandern mit ihren Teilen, Sätze ganz. Kalkulation, Angebots-PDF und "
+                "Werkstattpapiere folgen, aufsteigende Positionsnummern bleiben aufsteigend, Staffeln je Position und "
+                "ein aktueller Schnittplan ziehen mit; <i>Positionsnummern neu vergeben</i> zählt 10, 20, 30 … "
+                "([[reihenfolge]]). <b>Artikelnummer im STEP-Import ändern</b>: Spalte <i>Artikelnummer ✎</i> mit "
+                "Doppelklick, F2 oder Rechtsklick; gleiche Nummer an zwei Teilen rot mit Hinweis, schon im Angebot "
+                "gelb, leeres Feld = wieder die Nummer aus der STEP ([[importprofile]]).",
+     "Reihenfolge der Positionen verschieben (Alt+↑/↓, Ziehen); Artikelnummer im STEP-Import ändern."],
     ["0.9.196", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
                 "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "
                 "eigene Zeilen (z. B. je Werkstoff) behalten. Die Vorschau zeigt jeden Wert jetzt → Standard, welche "
