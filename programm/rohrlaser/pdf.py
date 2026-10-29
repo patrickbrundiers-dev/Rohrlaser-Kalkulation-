@@ -5,6 +5,7 @@ Die Inhalte kommen aus ausgabe.py; hier wird nur gesetzt (reportlab, A4).
 import base64
 import datetime
 import io
+import re
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT
@@ -37,6 +38,8 @@ S_TITEL = ParagraphStyle("titel", parent=S, fontName=FETT, fontSize=18, leading=
 S_H2 = ParagraphStyle("h2", parent=S, fontName=FETT, fontSize=11, leading=14, spaceBefore=6, spaceAfter=3,
                       textColor=BLAU)
 S_ROT = ParagraphStyle("rot", parent=S_FETT, textColor=ROT)
+S_ZELLE = ParagraphStyle("zelle", parent=S, fontSize=8.5, leading=10)
+S_ZELLE_R = ParagraphStyle("zelle_r", parent=S_ZELLE, alignment=TA_RIGHT)
 ZEBRA = colors.HexColor("#F3F7FB")
 LINIE = colors.HexColor("#D9D9D9")
 GRAU = colors.HexColor("#595959")
@@ -59,27 +62,56 @@ def _p(text, stil=S):
 AUFDRUCK = ""        # quer über jede Seite, z. B. "TESTVERSION" bei einer Testlizenz (Hauptfenster.lizenz_anwenden)
 
 
-def fuss_zeilen(text, platz, groesse=7.5, kleinste=6.5):
+def _kuerzen(text, schrift, groesse, breite):
+    """text so weit kürzen (mit '…' am Ende), dass er in breite [pt] passt."""
+    if stringWidth(text, schrift, groesse) <= breite:
+        return text
+    while text and stringWidth(text + "…", schrift, groesse) > breite:
+        text = text[:-1]
+    return text.rstrip() + "…"
+
+
+def fuss_zeilen(text, platz, groesse=7.5, kleinste=6.5, max_zeilen=3):
     """Fußzeilentext so setzen, dass er links neben 'Seite x von y' Platz hat (platz in pt): erst die Schrift bis
-    kleinste verkleinern, sonst an einem Trenner (' | ' bzw. ' · ') in zwei Zeilen teilen. Ergebnis (Größe, Zeilen)."""
+    kleinste verkleinern, sonst an den Trennern (' | ' bzw. ' · ') in zwei, notfalls drei Zeilen teilen (möglichst
+    gleich lang); passt auch das nicht, wird jede Zeile mit '…' gekürzt. Ergebnis (Größe, Zeilen)."""
     text = text or ""
     g = groesse
     while g > kleinste and stringWidth(text, SCHRIFT, g) > platz:
         g = round(g - 0.5, 1)
     if stringWidth(text, SCHRIFT, g) <= platz:
         return g, [text]
-    for trenner in ("   |   ", " | ", " · "):
-        if trenner in text:
-            teile = text.split(trenner)
-            # Teilung, bei der die längere Zeile am kürzesten ist
-            beste = min(range(1, len(teile)), key=lambda j: max(
-                stringWidth(trenner.join(teile[:j]), SCHRIFT, g), stringWidth(trenner.join(teile[j:]), SCHRIFT, g)))
-            zwei = [trenner.join(teile[:beste]).strip(), trenner.join(teile[beste:]).strip()]
-            g2 = groesse
-            while g2 > kleinste and max(stringWidth(z, SCHRIFT, g2) for z in zwei) > platz:
-                g2 = round(g2 - 0.5, 1)
-            return g2, zwei
-    return g, [text]
+    teile = re.split(r"(   \|   | \| | · )", text)
+    stuecke, trenner = teile[0::2], teile[1::2]
+    if len(stuecke) < 2:
+        return g, [_kuerzen(text, SCHRIFT, g, platz)]
+
+    def zeile(a, b):
+        return "".join(stuecke[i] + (trenner[i] if i < b - 1 else "") for i in range(a, b)).strip()
+
+    def breite(z, gr):
+        return max(stringWidth(x, SCHRIFT, gr) for x in z)
+    n = len(stuecke)
+    beste = None
+    for anzahl in range(2, max_zeilen + 1):
+        if anzahl > n:
+            break
+        grenzen = [(j,) for j in range(1, n)] if anzahl == 2 else \
+            [(j, k) for j in range(1, n - 1) for k in range(j + 1, n)]
+        zeilen = min(([zeile(a, b) for a, b in zip((0,) + t, t + (n,))] for t in grenzen),
+                     key=lambda z: breite(z, groesse))
+        # drei Zeilen stehen enger (2,3 mm): höchstens 6 pt, notfalls bis 5,5 pt
+        g2, unten = (groesse, kleinste) if anzahl == 2 else (min(groesse, 6.0), min(kleinste, 5.5))
+        while g2 > unten and breite(zeilen, g2) > platz:
+            g2 = round(g2 - 0.5, 1)
+        if breite(zeilen, g2) <= platz:
+            return g2, zeilen
+        beste = (g2, zeilen)
+    g2, zeilen = beste
+    return g2, [_kuerzen(z, SCHRIFT, g2, platz) for z in zeilen]
+
+
+FUSS_HOEHEN = {1: (8,), 2: (9.3, 6.3), 3: (9.2, 6.9, 4.6)}     # Grundlinien der Fußzeilen [mm]
 
 
 class _Seitenzahlen(rl_canvas.Canvas):
@@ -100,19 +132,20 @@ class _Seitenzahlen(rl_canvas.Canvas):
         for i, zustand in enumerate(self._seiten, start=1):
             self.__dict__.update(zustand)
             breite = self._pagesize[0]
-            if self.linie is not None:
-                self.setStrokeColor(self.linie)
-                self.setLineWidth(0.5)
-                self.line(12 * mm, 11.5 * mm, breite - 12 * mm, 11.5 * mm)
-            self.setFont(SCHRIFT, 7.5)
-            self.setFillColor(colors.HexColor("#595959"))
             seite = f"Seite {i} von {n}"
-            self.drawRightString(breite - 12 * mm, 8 * mm, seite)
             platz = breite - 24 * mm - stringWidth(seite, SCHRIFT, 7.5) - 5 * mm
             groesse, zeilen = fuss_zeilen(self.fuss, platz)
+            if self.linie is not None:          # bei drei Fußzeilen etwas höher, damit die Linie frei bleibt
+                hoehe = (12.3 if len(zeilen) == 3 else 11.5) * mm
+                self.setStrokeColor(self.linie)
+                self.setLineWidth(0.5)
+                self.line(12 * mm, hoehe, breite - 12 * mm, hoehe)
+            self.setFont(SCHRIFT, 7.5)
+            self.setFillColor(colors.HexColor("#595959"))
+            self.drawRightString(breite - 12 * mm, 8 * mm, seite)
             self.setFont(SCHRIFT, groesse)
-            for k, zeile in enumerate(zeilen):
-                self.drawString(12 * mm, (8 if len(zeilen) == 1 else 9.3 - 3 * k) * mm, zeile)
+            for zeile, hoehe in zip(zeilen, FUSS_HOEHEN[len(zeilen)]):
+                self.drawString(12 * mm, hoehe * mm, zeile)
             self.setFont(SCHRIFT, 7.5)
             if AUFDRUCK:
                 self.saveState()
@@ -154,6 +187,11 @@ def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederhole
         for c in rechts:
             if isinstance(zeile[c], Paragraph):
                 zeile[c].style = ParagraphStyle(zeile[c].style.name + "_r", parent=zeile[c].style, alignment=TA_RIGHT)
+    for r, zeile in enumerate(daten[kopfzeilen:], kopfzeilen):
+        schrift = FETT if r in fett_zeilen else SCHRIFT
+        for c, zelle in enumerate(zeile):     # Text breiter als die Spalte: umbrechen statt in die Nachbarspalte
+            if isinstance(zelle, str) and c < len(breiten) and stringWidth(zelle, schrift, 8.5) > breiten[c] - 6:
+                zeile[c] = _p(zelle, S_ZELLE_R if c in rechts else S_ZELLE)
     t = LongTable(daten, colWidths=breiten, repeatRows=kopfzeilen if wiederholen else 0)
     stil = [("FONT", (0, 0), (-1, -1), SCHRIFT, 8.5), ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("TOPPADDING", (0, 0), (-1, -1), 2.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
@@ -191,13 +229,30 @@ def _dok_kopf(titel, kopf, einst, breite, angaben=None, warnung=None):
     if angaben:
         grau = ParagraphStyle("ag", parent=S, fontSize=7, leading=8.5, textColor=GRAU)
         a = Table([[_p(x, grau) for x, _ in angaben], [_p(y, S_FETT) for _, y in angaben]],
-                  colWidths=[min(55 * mm, breite / len(angaben))] * len(angaben), hAlign="LEFT")
+                  colWidths=angaben_breiten([str(y) for _, y in angaben], breite), hAlign="LEFT")
         a.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
-                               ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]))
+                               ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
         inhalt.append(a)
     if warnung:
         inhalt += [Spacer(1, 2 * mm), _p(warnung, S_ROT)]
     return inhalt + [Spacer(1, 4 * mm)]
+
+
+def angaben_breiten(werte, breite, ueblich=55 * mm):
+    """Spaltenbreiten der Kopfangaben: je Angabe üblich höchstens 55 mm (gleich breit); braucht ein Wert mehr (langer
+    Kundenname), bekommt er den Platz, den die kürzeren nicht brauchen."""
+    n = len(werte)
+    gleich = min(ueblich, breite / n)
+    bedarf = [stringWidth(w, FETT, 9) + 6 for w in werte]
+    if all(b <= gleich for b in bedarf):
+        return [gleich] * n
+    knapp = [max(min(b, gleich), 22 * mm) for b in bedarf]          # kurze Werte schmaler, mindestens 22 mm
+    frei = breite - sum(knapp)
+    mehr = [max(0.0, b - k) for b, k in zip(bedarf, knapp)]
+    if frei <= 0 or not sum(mehr):
+        return [breite / n] * n
+    f = min(1.0, frei / sum(mehr))
+    return [k + m * f for k, m in zip(knapp, mehr)]
 
 
 def _kacheln(werte, breite, je_zeile=None):
@@ -247,6 +302,8 @@ def _erstellt():
 S_A = ParagraphStyle("a", parent=S, fontSize=9, leading=11.5)
 S_A_FETT = ParagraphStyle("a_fett", parent=S_A, fontName=FETT)
 S_A_GRAU = ParagraphStyle("a_grau", parent=S_A, textColor=GRAU)
+S_A_ARTIKEL = ParagraphStyle("a_artikel", parent=S_A, fontSize=8, leading=10)       # lange Art.-Nr. lesbar (V3)
+S_A_ARTIKEL_GRAU = ParagraphStyle("a_artikel_grau", parent=S_A_ARTIKEL, textColor=GRAU)
 S_A_RECHTS = ParagraphStyle("a_rechts", parent=S_A, alignment=TA_RIGHT)
 S_A_STAFFEL = ParagraphStyle("a_staffel", parent=S_A_RECHTS, textColor=colors.HexColor("#404040"))
 S_A_KOPF = ParagraphStyle("a_kopf", parent=S_A, fontName=FETT, textColor=BLAU, fontSize=8.5)
@@ -322,7 +379,8 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
     daten += [("Ansprechpartner", ap.get("name")), ("Telefon", ap.get("telefon"))]
     zeilen = [[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")]
     stil = [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]
+            ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP")]          # Bezeichnung oben neben mehrzeiligem Wert (Ihre Anfrage)
     if ap.get("email"):         # E-Mail über die ganze Breite (lange Adressen ohne Umbruch)
         stil.append(("SPAN", (0, len(zeilen)), (1, len(zeilen))))
         zeilen.append([_p(ap["email"], S_A_RECHTS), ""])
@@ -387,11 +445,11 @@ def _angebot_positionen(ang):
                 gruppen.append((start, len(daten) - 1))
             start = len(daten)
         if z["art"] == "satzteil":
-            r = zeile([_p(_z(z["pos"], 0), S_A_GRAU), _p(z["artikel"], S_A_GRAU), _p(z["text"], S_A_GRAU), "", "", "", ""])
+            r = zeile([_p(_z(z["pos"], 0), S_A_GRAU), _p(z["artikel"], S_A_ARTIKEL_GRAU), _p(z["text"], S_A_GRAU), "", "", "", ""])
             stil.append(("SPAN", (2, r), (4, r)))
             continue
         erste, _, rest = (z["text"] or "").partition("\n")
-        zeile([_p(_z(z["pos"], 0)), _p(z["artikel"]), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
+        zeile([_p(_z(z["pos"], 0)), _p(z["artikel"], S_A_ARTIKEL), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
                _p(z.get("einheit") or ("Satz" if z["art"] == "satz" else "Stk.")), _p(_z(z["preis"]), S_A_RECHTS),
                _p(_z(z["gesamt"]), S_A_RECHTS)])
         staffeln(z.get("staffeln") or (), z["art"] == "satz")
@@ -410,7 +468,7 @@ def _angebot_positionen(ang):
         if i < len(gruppen) - 1:
             stil.append(("LINEBELOW", (0, bis), (-1, bis), 0.5, LINIE))
     stil.append(("LINEBELOW", (0, -1), (-1, -1), 1, BLAU))
-    breiten = [11 * mm, 25 * mm, 74 * mm, 16 * mm, 12 * mm, 24 * mm, 24 * mm]
+    breiten = [11 * mm, 30 * mm, 66 * mm, 16 * mm, 15 * mm, 24 * mm, 24 * mm]     # Einh. 'pausch.' passt
     t = LongTable(daten, colWidths=breiten, repeatRows=1)
     t.setStyle(TableStyle(stil))
     # Eine Position (Satz mit seinen Teilen) bleibt auf einer Seite zusammen, solange sie auf eine Seite passt. Ein
@@ -463,9 +521,10 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
     t = Table(summen, colWidths=[52 * mm, 30 * mm], hAlign="RIGHT")
     t.setStyle(TableStyle([("BACKGROUND", (0, 2), (-1, 2), HELLBLAU), ("TOPPADDING", (0, 2), (-1, 2), 4),
                            ("BOTTOMPADDING", (0, 2), (-1, 2), 4), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
-    inhalt += [Spacer(1, 3 * mm), KeepTogether(t)]
+    schluss = [t]
 
-    # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen
+    # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen.
+    # Summe und Konditionen bleiben zusammen auf einer Seite (Patrick 28.10.2026, V2)
     bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
     liefer = ang.get("lieferzeit")
     if ab is not None and ab.get("liefertermin"):       # AB: der vereinbarte Termin statt der Lieferzeit
@@ -473,8 +532,8 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
     texte = [t for t in (liefer, ang.get("beistellung"), ang.get("muster"), ang.get("fracht"),
                          ang.get("zahlung"), ang.get("mindestpreis"), bed) if t]
     if texte:
-        inhalt += [Spacer(1, 8 * mm), KeepTogether([_p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)]
-                                                   + [_p(t, S_A_GRAU) for t in texte])]
+        schluss += [Spacer(1, 8 * mm), _p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A_GRAU) for t in texte]
+    inhalt += [Spacer(1, 3 * mm), KeepTogether(schluss)]
     doc.build(inhalt, canvasmaker=leinwand)
 
 
@@ -491,7 +550,7 @@ class StangenBalken(Flowable):
     Rest hellgrau, Greiferrest rot. Schweißnaht als roter Strich auf jedem Teil; in der Titelzeile je Stange
     Querschnitt von Ende A mit rotem Punkt an der Naht, gedrehte Teile und die Ersparnis der Gehrungen ineinander
     (grüne Schnittkanten)."""
-    HOEHE = 31 * mm
+    HOEHE = 26 * mm         # 3 Stangen mit Abwicklung je Seite (Patrick 28.10.2026, V1)
     GRUEN = colors.HexColor("#1E7B34")
 
     def __init__(self, m, farben):
@@ -522,11 +581,11 @@ class StangenBalken(Flowable):
         c, m, s = self.canv, self.m, self.m["stange"]
         lang = s["stange"] or 1
         f = self.breite / lang
-        y, h = 10 * mm, 11 * mm
+        y, h = 5 * mm, 11 * mm
         c.setFont(FETT, 9)
         c.setFillColor(BLAU)
         titel = ausgabe.muster_titel(m)
-        c.drawString(0, 26.5 * mm, titel)
+        c.drawString(0, 21.5 * mm, titel)
         c.setFont(SCHRIFT, 8.5)
         c.setFillColor(colors.black)
         gespart = m.get("gespart") or 0
@@ -535,14 +594,14 @@ class StangenBalken(Flowable):
                      f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %"
                      + (f"  ·  Gehrungen ineinander {_z(gespart, 1)} mm gespart" if gespart > 0 else ""))
         x = c.stringWidth(titel, FETT, 9) + 4 * mm
-        c.drawString(x, 26.5 * mm, zeile)
+        c.drawString(x, 21.5 * mm, zeile)
         lage, q, zeichen = rechnen.stange_zeichen(s)
         if zeichen:                         # Naht und Drehung einmal je Stange
             x += c.stringWidth(zeile, SCHRIFT, 8.5) + 4 * mm
-            self._symbol(q, lage, x, 26 * mm)
+            self._symbol(q, lage, x, 21 * mm)
             c.setFont(SCHRIFT, 8.5)
             c.setFillColor(colors.black)
-            c.drawString(x + 4.2 * mm, 26.5 * mm, zeichen)
+            c.drawString(x + 4.2 * mm, 21.5 * mm, zeichen)
 
         def rechteck(von, bis, farbe, rand=0.3):
             c.setFillColor(farbe)
@@ -923,7 +982,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         tab = _tabelle(daten, [12 * mm, 33 * mm, 45 * mm, 69 * mm, 14 * mm, 13 * mm], rechts=(4,))
         tab.setStyle(TableStyle([("ALIGN", (5, 0), (5, -1), "CENTER")]))
         inhalt += [_p("Zukaufteile (nicht lasern, zum Auftrag bereitstellen)", S_H2), tab, Spacer(1, 4 * mm)]
-    breiten = [11 * mm, 12 * mm, 27 * mm, 35 * mm, 18 * mm, 17 * mm, 17 * mm, 16 * mm, 22 * mm, 11 * mm]
+    breiten = [11 * mm, 12 * mm, 30 * mm, 32 * mm, 18 * mm, 17 * mm, 17 * mm, 16 * mm, 22 * mm, 11 * mm]
     for m in wp["muster"]:
         s = m["stange"]
         daten = [_kopfzeile(["Platz", "Pos.", "Artikelnummer", "Bezeichnung", "Länge [mm]", "Von [mm]", "Bis [mm]",
@@ -1254,7 +1313,7 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
             daten.append([_p(z["schritt"], S_KLEIN), _p(art, S_KLEIN), *rechnen.schritt_texte(z),
                           _z(z["kosten"]), _p(z["quelle"], S_KLEIN), _p(z["formel"], S_KLEIN)])
     inhalt += [CondPageBreak(40 * mm), _p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2),
-               _tabelle(daten, [w * mm for w in (40, 20, 24, 18, 20, 20, 22, 20, 40, 49)], rechts=(2, 3, 4, 5, 6, 7)),
+               _tabelle(daten, [w * mm for w in (38, 20, 24, 17, 19, 20, 31, 19, 38, 47)], rechts=(2, 3, 4, 5, 6, 7)),
                Spacer(1, 1.5 * mm),
                _p(rechnen.zeiten_text(k), ParagraphStyle("zs", parent=S_KLEIN, textColor=GRAU)),
                Spacer(1, 5 * mm)]
@@ -1421,10 +1480,12 @@ class PalettenscheinSeite(Flowable):
         c.setLineWidth(0.8)
         c.rect(x, y, g, g, stroke=1, fill=0)
 
-    def _text(self, x, y, text, schrift=SCHRIFT, gr=10, farbe=PS_TINTE, breite=None, mitte=False, rechts=False):
+    def _text(self, x, y, text, schrift=SCHRIFT, gr=10, farbe=PS_TINTE, breite=None, mitte=False, rechts=False,
+              mindest=6):
         c = self.canv
         if breite:
-            gr = _passend(text, schrift, gr, breite)
+            gr = _passend(text, schrift, gr, breite, mindest)
+            text = _kuerzen(text, schrift, gr, breite)      # auch in der kleinsten Schrift zu lang: nicht überlappen
         c.setFont(schrift, gr)
         c.setFillColor(farbe)
         (c.drawCentredString if mitte else c.drawRightString if rechts else c.drawString)(x, y, text)
@@ -1524,7 +1585,7 @@ class PalettenscheinSeite(Flowable):
                 yy -= zh
                 self._text(x + 4 * mm, yy, str(pos if pos is not None else ""), FETT, gr)
                 text = " · ".join(t for t in (artikel, bez) if t) or "–"
-                self._text(x + 14 * mm, yy, text, SCHRIFT, gr, breite=w_i - 32 * mm)
+                self._text(x + 14 * mm, yy, text, SCHRIFT, gr, breite=w_i - 30 * mm, mindest=7)
                 self._text(x + w_i - 4 * mm, yy, zahl_als_text(n, 0), FETT, gr, rechts=True)
             if len(zeigen) < len(inhalt):
                 yy -= zh

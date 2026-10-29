@@ -357,8 +357,9 @@ def main(argv=None):
     app.setStyle("Fusion")
     from .stil import ziffern_tabellarisch
     ziffern_tabellarisch(app)
-    from . import mausrad
+    from . import mausrad, tastatur
     mausrad.einrichten(app)
+    tastatur.einrichten(app)            # Enter schließt in keinem Dialog das Fenster
     deutsch(app)
     if a.selbsttest:
         return selbsttest(app, a.ergebnis, a.step)

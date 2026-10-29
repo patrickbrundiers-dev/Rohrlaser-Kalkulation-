@@ -287,17 +287,39 @@ assert fenster_s.stangen_seite.stangen
 fenster_s.reject()
 ok("Schnittschema je Staffel: Stangen je Abmessung, Meter, €/m und Materialkosten je Stufe, im Ergebnis und im Fenster")
 
-# Menge geändert: Stufe veraltet, nichts rechnet automatisch; der Knopf rechnet nur sie neu
+# Menge geändert: Stufe veraltet; angelegte Stufen rechnet das Programm nach einer kurzen Pause selbst neu
+# (Patrick 28.10.2026), gebündelt im Hintergrund, nur die veraltete, Mengen bleiben wie eingetragen
 speichern(5, mengen=[("10", 200, None)])
 assert st.anzahl_veraltet() == 1 and "VERALTET" in s.staffel_info.text()
 assert st.zeilen[5]["preis_einheit"] is None and st.zeilen[0]["preis_einheit"]
-for _ in range(20):                                       # nie automatisch (Patrick 26.10.2026)
-    app.processEvents()
-assert st.anzahl_veraltet() == 1 and st.zeilen[5]["preis_einheit"] is None and "nicht automatisch" in s.staffel_info.text()
-assert all(z["schluessel"] != "10" or z["menge"] != 200 for z in s.staffelpreise_aktuell() if z.get("preis_einheit"))
-assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0 and "aktuell" in s.staffel_info.text()
+assert not st.laeuft()                                    # stummer Modus (Tests): kein Lauf ohne Freigabe
+st.im_stummen = True
+schritte, laeufe = len(s.verlauf.zurueck), st._lauf
+for _ in range(3):                                        # mehrere Änderungen kurz hintereinander: ein Lauf
+    s.neu_laden()
+assert st._timer.isActive() and st._lauf == laeufe and "neu gerechnet" in s.staffel_info.text()
+assert st.warten() and st._lauf == laeufe + 1
+assert st.anzahl_veraltet() == 0 and s.st_seite is st and "aktuell" in s.staffel_info.text()   # verdeckt: beim Zeigen
 assert st.zeilen[5]["menge"] == 200 and st.zeilen[5]["preis_einheit"] < sp[5]["preis_einheit"]
-ok("Menge geändert: Stufe VERALTET ohne Preis, nicht automatisch gerechnet; der Knopf rechnet nur sie neu")
+assert [z["menge"] for z in st.zeilen] == [z["menge"] for z in sp[:5]] + [200]       # keine Menge verändert
+assert len(s.verlauf.zurueck) == schritte and not s.verlauf.merken()   # kein eigener Rückgängig-Schritt
+s.neu_laden()                                             # nichts veraltet: der Lauf startet, rechnet aber nichts
+assert st.warten() and st._lauf == laeufe + 1
+ok("Menge geändert: Stufe VERALTET, nach kurzer Pause automatisch neu gerechnet (gebündelt, nur sie, Mengen bleiben)")
+
+# Lesemodus bzw. Angebot eines Kollegen: nichts automatisch, vor dem PDF fehlt die veraltete Stufe
+speichern(5, mengen=[("10", 300, None)])
+s.fremd = lambda: True
+s.neu_laden()
+s.reiter.setCurrentWidget(st)
+assert not st.laeuft() and st.anzahl_veraltet() == 1 and "Staffelpreise rechnen" in s.staffel_info.text()
+assert all(z["menge"] != 300 for z in s.staffelpreise_aktuell() if z.get("preis_einheit"))
+del s.fremd
+assert [z["menge"] for z in s.staffelpreise_aktuell()][5] == 300 and st.anzahl_veraltet() == 0   # vor dem PDF sofort
+st.im_stummen = False
+speichern(5, mengen=[("10", 200, None)])
+assert s.staffelpreise_aktuell() and st.anzahl_veraltet() == 0
+ok("Lesemodus/fremdes Angebot: kein automatischer Lauf; sonst rechnet das Angebot veraltete Stufen vor dem PDF")
 
 # Fehlerhafte Eingaben: gleiche Menge zweimal für Pos. 10 -> rot, ohne Preis, nicht im Angebot
 speichern(4, mengen=[("10", 24, None)])
@@ -305,7 +327,7 @@ assert m.data(m.index(4, 5)).startswith("FEHLER: Menge doppelt"), m.data(m.index
 ang = s.angebot_daten()
 assert [x["menge"] for x in ang["staffeln"] if x["pos"] == "10"] == [200]      # beide doppelten Stufen fehlen
 speichern(4, mengen=[("10", 50, None)])
-assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0      # nur auf Knopfdruck
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0
 ang = s.angebot_daten()
 assert [x["bereich"] for x in ang["staffeln"]] == ["ab 2", "ab 4", "ab 8", "ab 24", "ab 50", "ab 200"], ang["staffeln"]
 # jede Stufe steht unter ihrer Angebotszeile (Satz bzw. Pos.), aufsteigend nach Menge; Summe nur aus den Hauptzeilen
@@ -434,9 +456,8 @@ fenster = Hauptfenster(d, tmp / "alt", stumm=True)
 s = fenster.angebot_oeffnen(a)
 assert s.st_seite.anzahl_veraltet() == 3 and "VERALTET" in s.staffel_info.text()
 assert s.optimieren()
-assert not any(z.get("preis_einheit") for z in s.staffelpreise_aktuell())   # nie automatisch gerechnet
-assert s.st_seite.anzahl_veraltet() == 3
-neu = s.staffelpreise_rechnen()
+neu = s.staffelpreise_aktuell()             # veraltete Stufen rechnet das Angebot vorher selbst neu (28.10.2026)
+assert s.st_seite.anzahl_veraltet() == 0
 for z in neu:
     assert z["preis_einheit"] == ausgabe.kaufm_runden(z["bausteine"]["verkauf"] / z["menge"], 2)
 fenster.close()

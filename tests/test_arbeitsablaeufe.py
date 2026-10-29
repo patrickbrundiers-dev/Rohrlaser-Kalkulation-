@@ -67,7 +67,7 @@ for st, f in zip(stufen, (1, 2, 5)):
     zeilen = {z["schluessel"]: z["menge"] for z in s.stufen if z["stufe_id"] == st["id"]}
     assert zeilen == {schl: m * f for schl, m in mengen.items()}, (f, zeilen)
 assert not s.kopf.get("staffelpreise") and s.st_seite.anzahl_veraltet() == 3    # angelegt, nicht gerechnet
-assert s.angebot_pdf() and not s.kopf.get("staffelpreise")                    # auch das PDF rechnet sie nicht
+assert s.angebot_pdf() and s.st_seite.anzahl_veraltet() == 0                 # angelegte rechnet das PDF selbst (28.10.)
 assert len(s.staffelpreise_rechnen()) >= 3 and s.st_seite.anzahl_veraltet() == 0
 db.einstellung_setzen("staffeln_standard", "")
 assert s.st_seite.standard() == [] and len(db.staffel_stufen(a)) == 3

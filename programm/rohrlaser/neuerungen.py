@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.190", "<b>Teuerungszuschlag je Werkstoff</b>: Bei den Werkstoffen gibt es neu die Spalten "
+    ["0.9.193", "<b>Teuerungszuschlag je Werkstoff</b>: Bei den Werkstoffen gibt es neu die Spalten "
                 "<i>Teuerungszuschlag je</i> (% oder €/kg), <i>Teuerungszuschlag</i> und <i>Teuerung Stand</i>. "
                 "Der Zuschlag kommt auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis, nicht auf "
                 "Oberflächen-Aufpreise und Preise von Hand. Der Tooltip des Materialpreises nennt ihn, der "
@@ -47,6 +47,26 @@ NEUERUNGEN = [
                 "Quote je Fehlerart, Kunde und Werkstoff ([[reklamation]]).",
      "Teuerungszuschlag je Werkstoff; Preis-Simulator; Absagegrund mit Trefferquote; Auftragsbestätigung als PDF; "
      "QR-Etiketten mit Rückmeldung per Scan; Maschinenauslastung je Woche; Reklamationen."],
+    ["0.9.192", "<b>Enter schließt kein Fenster mehr</b>: In allen Dialogen übernimmt Enter nur die Eingabe im "
+                "Feld (Text, Zahl, Rechnung, Datum, Auswahl), in Tabellen geht es eine Zeile weiter. Übernehmen "
+                "und schließen nur mit dem Knopf oder gezielt mit <b>Strg+Enter</b>. Ausnahmen: reine Ja/Nein-"
+                "Fragen, Dateiauswahl und Suchen und ausführen ([[eingaben]]).",
+     "Enter schließt in keinem Dialog das Fenster; Strg+Enter übernimmt."],
+    ["0.9.191", "<b>PDF-Dokumente ohne Überlappungen</b>: Alle Ausgaben (Angebot, Werkstattpapiere, Kalkulation, "
+                "Nachkalkulation, Palettenschein, Verladeliste) mit langen Texten geprüft und korrigiert – langer "
+                "Briefkopf in der Fußzeile bis zu drei Zeilen statt über die Seitenzahl, Stundensatz in der "
+                "Kalkulation nicht mehr über der Gesamtzeit, Artikeltext im Palettenschein mit „…“ statt über der "
+                "Stückzahl, Einheit „pausch.“ ohne Umbruch, Kopfangaben oben bündig und langer Kundenname breiter, "
+                "zu lange Tabellenwerte umbrochen. Dazu: Stangenbild mit drei Stangen je Seite (Werkstattpapiere rund "
+                "20 % kürzer), Summe und Konditionen im Angebot zusammen, lange Artikelnummern kleiner und lesbarer "
+                "([[ausgabe]]).",
+     "PDFs: keine Überlappungen bei langen Texten, Stangenbild kompakter, Summe und Konditionen zusammen."],
+    ["0.9.190", "<b>Staffeln rechnen sich nach Änderungen selbst neu</b>: Sind im Angebot Stufen angelegt, rechnet "
+                "das Programm sie nach jeder Änderung am Angebot (Positionen, Stückzahl, Material, Zusatzarbeiten, "
+                "Editoren, Rückgängig, Stammdaten, Einstellungen) 1,5 s nach der letzten Eingabe im Hintergrund neu, "
+                "vor dem Angebots-PDF sofort. Stufen legt es weiterhin nie selbst an; Mengen und Werte der Stufen "
+                "bleiben unverändert ([[staffeln_automatisch]]).",
+     "Angelegte Staffeln werden nach Änderungen am Angebot automatisch neu gerechnet."],
     ["0.9.189", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
                 "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
                 "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "
