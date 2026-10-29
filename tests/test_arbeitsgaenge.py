@@ -134,6 +134,6 @@ con.execute("PRAGMA user_version=64")
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.anzahl("arbeitsgang_regeln") == 3
+assert db2.anzahl("arbeitsgang_regeln") == 6     # 3 Beispiele + 3 Strahlen (aus)
 db2.schliessen()
 print("test_arbeitsgaenge OK")

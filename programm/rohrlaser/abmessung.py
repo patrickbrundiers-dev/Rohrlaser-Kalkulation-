@@ -11,9 +11,8 @@ from .stammdaten import huellkreis, zahl_als_text
 
 
 def gruppe_der_stange(s):
-    """Gruppe einer Stange in der Schreibweise von material_abmessungen (Kundenmaterial als 'Kunde')."""
-    gr = rechnen.gruppe_der_stange(s)
-    return gr[:4] + (("Kunde",) if len(gr) > 4 else ())
+    """Gruppe einer Stange in der Schreibweise von material_abmessungen (Kundenmaterial als 'Kunde', Muster zuletzt)."""
+    return rechnen.gruppe_einheitlich(rechnen.gruppe_der_stange(s))
 
 
 def stangen(ergebnis, gruppe, sw=None):
