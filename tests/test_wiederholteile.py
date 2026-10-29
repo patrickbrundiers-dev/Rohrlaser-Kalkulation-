@@ -103,4 +103,30 @@ assert s.wiederholteile_suchen()[p10["id"]][0].werte["prog_zeit"] == 9.0
 db.angebot_loeschen(anderer)
 assert [t.art for t in s.wiederholteile_suchen()[p10["id"]]] == [wt.SICHER]
 ok("Zwischenspeicher: Änderung oder Löschen eines anderen Angebots wird beim Neuladen erkannt")
+
+# Anzeige mit Bildschirm: Datenbank filtert vor (Indizes), eingestuft wird im Thread, danach erscheint die Zeile
+from PySide6.QtTest import QTest  # noqa: E402
+
+plan = " ".join(str(r[-1]) for r in db.con.execute(
+    "EXPLAIN QUERY PLAN SELECT * FROM positionen p WHERE LOWER(TRIM(p.artikel)) IN ('x') OR "
+    "(p.profil_id = 'RR' AND p.laenge BETWEEN 1 AND 2)"))
+assert "positionen_artikel" in plan and "positionen_profil_laenge" in plan, plan
+soll = {k: [(t.art, t.position["id"]) for t in v] for k, v in s.wiederholteile_suchen().items()}
+f.stumm = False
+try:
+    s._wt_kennung = s._wt = None
+    s.uebersicht_bereich.wiederholteile_setzen([])
+    s.wiederholteile_anzeigen()
+    assert s._wt_lauf is not None and s._wt is None, "läuft im Thread"
+    assert not s.uebersicht_bereich.wiederholteile.text()
+    for _ in range(200):
+        if s._wt_lauf is None:
+            break
+        QTest.qWait(20)
+    assert s._wt_lauf is None
+    assert {k: [(t.art, t.position["id"]) for t in v] for k, v in s._wt.items()} == soll
+    assert "schon angeboten" in s.uebersicht_bereich.wiederholteile_bereich.knopf.text()
+finally:
+    f.stumm = True
+ok("Mit Bildschirm: Suche über Indizes, Einstufen im Hintergrund, gleiche Treffer, danach angezeigt")
 print("OK: Wiederholteile")

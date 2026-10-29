@@ -2,6 +2,7 @@
 
 Aufruf: python tests/test_sicherung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
+import datetime
 import json
 import os
 import shutil
@@ -9,6 +10,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -73,16 +75,27 @@ assert beschreibung["schema"] == SCHEMA_VERSION and beschreibung["anzahl"]["ange
 assert beschreibung["anzahl"]["positionen"] == 1 and beschreibung["art"] == "vor_update" and len(beschreibung["sha256"]) == 64
 schema_alt = vor.with_name(vor.name.replace("vor_update", "vor_Schema_14"))
 shutil.copyfile(vor, schema_alt)
-for _ in range(35):                     # mehr laufende Sicherungen, als behalten werden
+# gestaffelt (4b): 40 Sicherungen im Abstand von 10 Tagen (400 Tage) und 3 von heute
+jetzt = time.time()
+for i in range(40):
+    x = db.sicherung(behalten=1000)
+    os.utime(x, (jetzt - (40 - i) * 10 * 86400,) * 2)
+for _ in range(3):
     db.sicherung()
 ordner = vor.parent
 laufend = [x for x in ordner.glob("*.db") if "_vor_" not in x.name]
-assert len(laufend) == 30, len(laufend)
+tage = sorted(round((jetzt - x.stat().st_mtime) / 86400) for x in laufend)
+monate = {datetime.date.fromtimestamp(x.stat().st_mtime).strftime("%Y-%m") for x in laufend}
+assert tage[:4] == [0, 0, 0, 10], tage                  # alles von heute (letzte 7 Tage), dann 10 Tage alt
+assert len(monate) == 12 and max(tage) <= 370, (monate, tage)      # je Monat eine, ein Jahr zurück
+assert len(laufend) <= 3 + 4 + 12, len(laufend)
 assert vor.exists() and schema_alt.exists(), "geschützte Sicherung beim Aufräumen gelöscht"
-assert len(list(ordner.glob("*.json"))) == 31          # Beschreibungen gelöschter Sicherungen sind auch weg
-for _ in range(12):                     # von jeder geschützten Art bleiben die letzten 10
+assert len(list(ordner.glob("*.json"))) == len(laufend) + 1     # Beschreibungen gelöschter Sicherungen sind auch weg
+for _ in range(12):                     # von jeder geschützten Art bleiben die letzten 10, vor Update 3
+    db.sicherung(zusatz="vor_Import")
     db.sicherung(zusatz="vor_update")
-assert len([x for x in ordner.glob("*_vor_update*.db")]) == 10 and schema_alt.exists()
+assert len(list(ordner.glob("*_vor_update*.db"))) == 3 and schema_alt.exists()
+assert len(list(ordner.glob("*_vor_Import*.db"))) == 10
 assert db.anzahl("angebote") == 1, "Aufräumen darf nie Daten löschen"
 
 # 4) Wiederherstellen: Stand zurück, vorher Sicherung des jetzigen Stands; neuere und defekte Dateien abgelehnt
@@ -165,7 +178,7 @@ assert f.export_schreiben(tmp / "Export" / "zwei.zip")["anzahl"]["angebote"] == 
 dlg = WiederherstellenDialog(f)
 arten = {z["art"] for z in dlg.zeilen}
 assert {"vor Update", "vor Schema-Umstellung", "vor Wiederherstellung", "täglich / von Hand"} <= arten, arten
-assert dlg.tabelle.rowCount() == len(dlg.zeilen) > 40 and dlg.zeilen[0]["zeit"] >= dlg.zeilen[-1]["zeit"]
+assert dlg.tabelle.rowCount() == len(dlg.zeilen) > 15 and dlg.zeilen[0]["zeit"] >= dlg.zeilen[-1]["zeit"]
 assert art_text("rohrlaser_2026-10-20_beenden.db") == "beim Beenden"
 dlg.close()
 f.close()

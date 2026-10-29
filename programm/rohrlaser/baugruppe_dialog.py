@@ -20,13 +20,14 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton, QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, baugruppe_vorschlaege as bv, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
+from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
+from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
-from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
+from .stammdaten import KATEGORIEN, NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
 from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
 
 FEHLER_FARBE = "#B42318"
@@ -36,13 +37,21 @@ VORLAGEN = "baugruppen_vorlagen"
 RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
              "</span>")
 DIREKT = "(Baugruppe selbst)"
-NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet")    # neuer Stand, wenn geändert
+NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff", "dicke")    # neuer Stand, wenn geändert
 ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "Entgraten", "Bohren", "Gewindeschneiden",
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
 LANGTEXT = ("beschreibung", "bemerkung", "intern")
+STAMM_RECHNEN = {   # Felder der Stammdaten, die die Rechnung ändern: (Platzhalter, Tooltip)
+    "serie": ("leer = aus", "Lernkurve: je Verdopplung der Anzahl Baugruppen so viel % weniger Zeit für Schweißen und "
+                            "eigene Arbeitsgänge (z. B. 10). Gilt je Staffelstufe mit deren Menge; Fremdleistungen, "
+                            "Material und Einmalkosten bleiben"),
+    "serie_min": ("leer = 70", "Untergrenze des Serieneffekts in % der Zeit für 1 Stück"),
+    "los": ("leer = ein Los je Auftrag", "Rüstzeiten der Arbeitsgänge fallen je Los an: aufrunden(Anzahl ÷ Losgröße) "
+                                         "× Rüstzeit; Einmalbeträge (Vorrichtung) bleiben einmal je Auftrag")}
 HERKUNFT = {vorkalk.VORSCHLAG: "Vorschlag der Vorkalkulation (gelb, mit „Vorschläge bestätigen“ übernehmen)",
-            vorkalk.BESTAETIGT: "Vorschlag bestätigt", vorkalk.HAND: "von Hand (die Vorkalkulation lässt den Wert stehen)"}
+            vorkalk.BESTAETIGT: "Vorschlag bestätigt", vorkalk.HAND: "von Hand (die Vorkalkulation lässt den Wert stehen)",
+            bg_mengen.AUTO: "automatisch aus den Einzelteilen (Bezug; eine Menge von Hand stellt auf „von Hand“)"}
 
 
 def _text(w, stellen=None):
@@ -163,6 +172,24 @@ class ZeilenTabelle(QTableWidget):
         if s.frei:
             f.setEditText(str(w or ""))
         f.blockSignals(False)
+
+    def felder_neu(self, schluessel):
+        """Felder einer Spalte aus den Zeilen neu anzeigen (z. B. Menge aus den Einzelteilen), ohne die Tabelle neu
+        aufzubauen; ein Feld, in dem gerade getippt wird, bleibt."""
+        c = next((c for c, s in enumerate(self.spalten) if s.schluessel == schluessel), None)
+        if c is None:
+            return
+        s = self.spalten[c]
+        for r, z in enumerate(self.zeilen):
+            f = self.cellWidget(r, c)
+            if isinstance(f, QComboBox):
+                self._optionen_setzen(f, s, z.get(schluessel))
+            elif isinstance(f, QLineEdit) and not f.hasFocus():
+                t = _text(z.get(schluessel)) if s.typ in ("zahl", "ganz") else str(z.get(schluessel) or "")
+                if f.text() != t:
+                    f.blockSignals(True)
+                    f.setText(t)
+                    f.blockSignals(False)
 
     def optionen_neu(self):
         """Auswahllisten neu füllen (z. B. nach neuer Unterbaugruppe), gewählte Werte bleiben."""
@@ -1776,6 +1803,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         # Profile der Stammdaten {profil_id: Zeile} für die Steckverbindungen (ohne: die der Angebotsseite)
         self.profile = profile or getattr(getattr(parent, "k", None), "profile", None) or {}
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
+        self.k = getattr(parent, "k", None)     # Profile und Werkstoffe: Gewicht und Fläche der Teile (bg_mengen)
+        self.mengen = {}
         self.einstellungen = einstellungen or {}     # Stundensätze der Vorkalkulation (schweiss_vk_satz …)
         self.hilfe_vk, self.vk_ergebnis = {}, None
         self.netze = netze or {}    # {Positions-ID: Netz-Bytes} aus dem STEP-Import (3D im Strukturbaum, D1)
@@ -1808,6 +1837,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                  ("Anzahl Baugruppen", self.anzahl, 0)):
             kopf.addWidget(QLabel(titel))
             kopf.addWidget(w, streck)
+        # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
+        self.muster_haken = MusterHaken(p)
+        kopf.addWidget(self.muster_haken)
         self.bezeichnung.textChanged.connect(self.aktualisieren)
         self.anzahl.valueChanged.connect(self.aktualisieren)
         lay.addLayout(kopf)
@@ -2112,8 +2144,15 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("rundum", "rundum", "haken", 55, tipp="Umfangsnaht um ein Rohr (Mindestzahl Heftpunkte rundum)"),
             Spalte("lage", "Lage", "auswahl", 60, optionen=lambda: self._faktor_optionen("Schweißlage", baugruppe.LAGEN),
                    tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items())),
-            Spalte("zugang", "Zugänglichkeit", "auswahl", 95, optionen=lambda: self._faktor_optionen("Zugänglichkeit")),
+            Spalte("zugang", "Zugänglichkeit", "auswahl", 95, vk=True,
+                   optionen=lambda: self._faktor_optionen("Zugänglichkeit"),
+                   tipp="Zugänglichkeit für den Brenner (Faktor auf die Lichtbogenzeit und das Verputzen); die "
+                        "Vorkalkulation schlägt sie aus der Erreichbarkeit im STEP vor"),
             Spalte("qualitaet", "Qualität", "auswahl", 85, optionen=lambda: self._faktor_optionen("Qualität")),
+            Spalte("werkstoff", "Werkstoff", "auswahl", 90, vk=True,
+                   optionen=lambda: self._faktor_optionen("Werkstoff", KATEGORIEN),
+                   tipp="Werkstoff der Teile (Faktor Werkstoff auf die Lichtbogenzeit, Edelstahl: Beizen); leer = "
+                        "Stahl. Die Vorkalkulation schlägt ihn aus den Teilen vor"),
             Spalte("nacharbeit", "Nacharbeit", "auswahl", 120, vk=True,
                    optionen=[("", None)] + [(n, n) for n in NACHARBEIT_STUFEN],
                    tipp="Verputzen bzw. Schleifen der Naht (Arbeitsgang Verputzen der Vorkalkulation)"),
@@ -2305,6 +2344,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("knoten", "Unterbaugruppe", "auswahl", 130, optionen=lambda: self._knoten_optionen()),
             Spalte("satz_id", "Stundensatz", "auswahl", 150, optionen=self._satz_optionen),
             Spalte("menge", "Menge", "zahl", 55, tipp="Einheiten je Stück der Unterbaugruppe (leer = 1)", vk=True),
+            Spalte("bezug", "Menge aus", "auswahl", 95, optionen=[(b, None if b == bg_mengen.HAND else b)
+                                                                   for b in bg_mengen.BEZUEGE],
+                   tipp="Menge automatisch aus den Einzelteilen: Gewicht [kg], Oberfläche [m²], Länge [m], Naht [m] "
+                        "oder Anzahl Teile je Stück der Unterbaugruppe (z. B. Verzinken €/kg, Pulvern €/m²)"),
             Spalte("zeit_min", "Zeit je\nEinheit [min]", "zahl", 80, vk=True),
             Spalte("kosten_einheit", "Kosten je\nEinheit [€]", "zahl", 80, tipp="z. B. Fremdleistung, Material"),
             Spalte("ruest_min", "Rüstzeit\n[min]", "zahl", 70, tipp="einmal je Auftrag bzw. Staffelstufe", vk=True),
@@ -2319,6 +2362,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("_hinweis", "Hinweis", "anzeige", 160,
                    anzeige=lambda z, r: self._zeile_wert("Arbeitsgang", z, "hinweis"))],
             self.bg["arbeitsgaenge"], self.aktualisieren, self._ag_herkunft)
+        self.mengen_info = QLabel()
+        self.mengen_info.setStyleSheet(f"color: {GRAU};")
+        self.mengen_info.setToolTip("Mengen je Baugruppe aus den Einzelteilen (Gewicht, Außenfläche, Nahtlänge, Teile); "
+                                    "Arbeitsgänge mit „Menge aus“ rechnen damit")
+        lay.addWidget(self.mengen_info)
         lay.addWidget(self.ag_tab, 1)
         leiste = QHBoxLayout()
         neu = QPushButton("Arbeitsgang hinzufügen")
@@ -2344,6 +2392,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.wenden.setToolTip("Wie oft die Baugruppe beim Schweißen gewendet oder umgespannt wird (Vorkalkulation: "
                                "Zeit je Wenden × Faktor nach Gewicht aus den Stammdaten der Baugruppe)")
         self.wenden.valueChanged.connect(self._wenden_geaendert)
+        self._wenden_zeigen()
         leiste.addWidget(self.wenden)
         lay.addLayout(leiste)
         lay.addWidget(hilfe.Hinweis(
@@ -2358,7 +2407,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.bg["wenden"] = n
         else:
             self.bg.pop("wenden", None)
+        self._wenden_zeigen()
         self.aktualisieren()
+
+    def _wenden_zeigen(self):
+        """Wendevorgänge aus STEP als Vorschlag gelb mit Begründung (wie die Felder der Tabellen)."""
+        st = vorkalk.wenden_status(self.bg)
+        self.wenden.setStyleSheet(f"background: {GELB_FLAECHE}; color: {GELB_TEXT};" if st == vorkalk.VORSCHLAG else "")
+        grund = ((self.bg.get("vk") or {}).get("wenden") or {}).get("text")
+        tipp = ("Wie oft die Baugruppe beim Schweißen gewendet oder umgespannt wird (Vorkalkulation: Zeit je Wenden × "
+                "Faktor nach Gewicht; Vorschlag aus der Erreichbarkeit der Nähte im STEP)")
+        self.wenden.setToolTip(f"{HERKUNFT[st]}: {grund}\n\n{tipp}" if st and grund else tipp)
 
     def arbeitsgang_neu(self, werte=None):
         a = dict(id=baugruppe.neue_id(), name="Vorrichten", umlage=baugruppe.UMLAGE_AUFTRAG,
@@ -2387,7 +2446,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 return None
         if name not in katalog:
             return None
-        return self.arbeitsgang_neu(baugruppe.arbeitsgang_vorlage(katalog[name]))
+        from .zusatz_regeln import katalog_mit_regel      # Preis der passenden Arbeitsgang-Regel (Abrechnungsregeln)
+        z = katalog_mit_regel(katalog[name], self.p, None, self.k, self.tabellen) if self.k else katalog[name]
+        return self.arbeitsgang_neu(baugruppe.arbeitsgang_vorlage(z))
 
     def _kopieren(self, liste, tab):
         for r in tab.markierte():
@@ -2416,6 +2477,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 f.setFixedHeight(54)
             else:
                 f = QLineEdit(str(self.bg["stamm"].get(n) or ""))
+            if n in STAMM_RECHNEN:          # Serieneffekt, Losgröße: rechnen sofort mit
+                f.setPlaceholderText(STAMM_RECHNEN[n][0])
+                f.setToolTip(STAMM_RECHNEN[n][1])
+                f.textChanged.connect(self.aktualisieren)
             self.stamm_felder[n] = f
             form.addRow(titel, f)
         self.stamm_wahl = {}
@@ -2461,7 +2526,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
 
     def _position(self, bg=None):
         return dict(self.p, art=BAUGRUPPE, stueck=self.anzahl.value(), baugruppe=baugruppe.speichern(bg or self.daten()),
-                    bezeichnung=self.bezeichnung.text().strip() or None, artikel=self.artikel.text().strip() or None)
+                    bezeichnung=self.bezeichnung.text().strip() or None, artikel=self.artikel.text().strip() or None,
+                    muster=self.muster_haken.wert() if hasattr(self, "muster_haken") else self.p.get("muster"))
 
     def _positionen_neu(self, p):
         """Positionen des Angebots mit dieser Baugruppe und den Zuordnungen des Dialogs, abgeglichen (für den Status)."""
@@ -2511,7 +2577,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 teile.append(w["verbrauch_hinweis"])
             if w.get("spalt_faktor", 1) > 1:
                 teile.append(f"Spalt {_text(z.get('spalt'))} mm (Schweißgut ×{_text(round(w['spalt_faktor'], 2))})")
-            offen = (["a-Maß nach Regel"] if baugruppe.regel_offen(z) else []) + \
+            if w.get("lagen", 1) > 1:
+                teile.append(f"{w['lagen']} Lagen (+ {_text(round(w['zwischen_min'], 2))} min Zwischenzeit)")
+            regel_text = baugruppe.a_mass_text(z.get("dicke"), self._regel_faktor(), z.get("dicke_max"))
+            offen = ([f"a-Maß nach Regel ({regel_text})" if regel_text else "a-Maß nach Regel"]
+                     if baugruppe.regel_offen(z) else []) + \
                 (["Spalt"] if baugruppe.spalt_offen(z) else [])
             if offen:
                 return (", ".join(teile + [" und ".join(offen) + ", bitte bestätigen"]), WARNUNG)
@@ -2528,8 +2598,23 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self._vk_timer.start()      # Vorkalkulation automatisch: nach der Eingabe neu vorschlagen
         bg = self.daten()
         p = self._position(bg)
-        self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze)
         positionen = self._positionen_neu(p)
+        if not self.nur_lesen and bg_mengen.anwenden(self.bg, positionen, self.k):   # Menge aus den Einzelteilen
+            bg = self.daten()
+            p = self._position(bg)
+            positionen[-1] = dict(positionen[-1], baugruppe=p["baugruppe"])
+            if getattr(self, "ag_tab", None) is not None:
+                for n in ("menge", "bezug"):
+                    self.ag_tab.felder_neu(n)
+        self.mengen = bg_mengen.je_knoten(bg, positionen, self.k)
+        self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze, None, self.mengen)
+        m = bg_mengen.mengen(bg, positionen, self.k)
+        if getattr(self, "mengen_info", None) is not None:
+            self.mengen_info.setText("Je Baugruppe aus den Einzelteilen: " + bg_mengen.text(m))
+        g = getattr(self, "stamm_felder", {}).get("gewicht")
+        if g is not None:
+            g.setPlaceholderText(f"leer = aus den Einzelteilen {_text(round(m['gewicht'], 1))} kg" if m["gewicht"]
+                                 else "leer = aus den Einzelteilen (Gewicht unbekannt)")
         self.hilfe_vk = {positionen[i]["id"]: v for i, v in vorkalk.hilfen_vorschlag(bg, positionen, bg["id"]).items()}
         for tab in (getattr(self, "knoten_tab", None), getattr(self, "teile_tab", None),
                     getattr(self, "naht_tab", None), getattr(self, "ag_tab", None)):
@@ -2551,7 +2636,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             f"<b>Je Baugruppe:</b> Schweißen und Arbeitsgänge {_euro(e['eigen'])}, Fremdleistungen "
             f"{_euro(e['fremd'])}, davon Einmalkosten umgelegt {_euro(e['einmal'])} (gesamt "
             f"{_euro(e['einmal_gesamt'])} bei {anzahl} Stk.) · Zeit {_min(e['zeit_min'])}, davon Schweißen "
-            f"{_min(e['schweiss_min'])} · {n_teile} Einzelteil(e). <b>Status:</b> {self.status}")
+            f"{_min(e['schweiss_min'])} · {n_teile} Einzelteil(e)"
+            + (f" · {e['serie_text']}" if e.get("serie_text") else "")
+            + (f" · Rüsten {e['lose']} Lose" if e.get("lose", 1) > 1 else "")
+            + f". <b>Status:</b> {self.status}")
         self.summe.setTextFormat(Qt.RichText)
         self.balken.setzen(baugruppe.kostenaufteilung(e))
         naht = ", ".join(f"{v} {_text(round(m, 2))} m" for v, m in sorted(e["naht_m"].items())) or "keine"
@@ -2618,7 +2706,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         st = vorkalk.naht_status(z, feld)
         return (st, ((z.get("vk") or {}).get(feld) or {}).get("text")) if st else None
 
-    def _ag_herkunft(self, z, _feld):
+    def _ag_herkunft(self, z, feld):
+        if feld == "menge" and bg_mengen.bezug(z):
+            _, grund = bg_mengen.menge(z, (self.mengen or {}).get(z.get("knoten") or ""))
+            return bg_mengen.AUTO, grund
         st = vorkalk.ag_status(z)
         return (st, (z.get("vk") or {}).get("text")) if st else None
 
@@ -2652,7 +2743,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             n_neu = baugruppe.vorschlaege_anlegen(self.bg, self._regel_faktor(), verfahren)
             self._vorschlaege_zeigen()
         p = self._position()
-        r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen)
+        r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen, self.k)
         neu = {n.get("id"): n for n in r["bg"]["naehte"]}
         for n in self.bg["naehte"]:
             x = neu.get(n.get("id"))
@@ -2664,6 +2755,16 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 else:
                     n[feld] = x[feld]
         self.bg["arbeitsgaenge"][:] = r["bg"]["arbeitsgaenge"]       # gleiche Liste, die Tabelle zeigt sie
+        for feld in ("wenden", "vk"):                                  # Wendevorgänge aus STEP (Vorschlag)
+            if r["bg"].get(feld) is None:
+                self.bg.pop(feld, None)
+            else:
+                self.bg[feld] = r["bg"][feld]
+        if getattr(self, "wenden", None) is not None:
+            self.wenden.blockSignals(True)
+            self.wenden.setValue(int(self.bg.get("wenden") or 0))
+            self.wenden.blockSignals(False)
+            self._wenden_zeigen()
         self.vk_ergebnis = r
         self.naht_tab.aufbauen()
         self.ag_tab.aufbauen()
@@ -2680,6 +2781,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if self.nur_lesen:
             return 0
         n = vorkalk.bestaetigen(self.bg)
+        if getattr(self, "wenden", None) is not None:
+            self._wenden_zeigen()
         for t in self.teile:
             v = self.hilfe_vk.get(t["_id"])
             if t.get("drin") and not t.get("hilfe") and v:
@@ -2889,7 +2992,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
 
     def naht_linien(self, naht=None):
         """Schweißnähte für die 3D-Ansicht: {Art: [Linienzüge]} mit SN = Nahtgruppen, SV = noch offene Nahtvorschläge
-        aus dem STEP-Import, SH = Nahtgruppe naht (gewählt). Nur Nähte mit Nahtverlauf (STEP-JSON 1.16)."""
+        aus dem STEP-Import, SH = Nahtgruppe naht (gewählt), SX = laut STEP nicht erreichbar (orange). Nur Nähte mit Nahtverlauf (STEP-JSON 1.16)."""
         linien = {}
         for art, zuege, _, _ in self._naehte_3d(naht):
             linien.setdefault(art, []).extend(zuege)
@@ -2913,14 +3016,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 groesse = n.get("mass") if isinstance(n.get("mass"), (int, float)) and n["mass"] > 0 else \
                     (0.7 * n["dicke"] if n.get("nahtart") == "Kehlnaht" else n["dicke"]) \
                     if isinstance(n.get("dicke"), (int, float)) and n["dicke"] > 0 else None
-                out.append(("SH" if n.get("id") == naht else "SN", zuege, n.get("nahtart"), groesse))
+                art = "SH" if n.get("id") == naht else \
+                    "SX" if n.get("zugang_step") == baugruppe.NICHT_ERREICHBAR else "SN"
+                out.append((art, zuege, n.get("nahtart"), groesse))
         for v in self.bg.get("vorschlaege") or []:
             koerper = {str(k) for paar in v.get("teile") or () if isinstance(paar, (list, tuple)) for k in paar}
             if nur_koerper is not None and not koerper <= nur_koerper:
                 continue
             if v.get("linien"):
                 d = v.get("dicke") if isinstance(v.get("dicke"), (int, float)) and v["dicke"] > 0 else None
-                out.append(("SV", v["linien"], v.get("nahtart"),
+                out.append(("SX" if v.get("zugang") == baugruppe.NICHT_ERREICHBAR else "SV", v["linien"],
+                            v.get("nahtart"),
                             (0.7 * d if v.get("nahtart") == "Kehlnaht" else d) if d else None))
         return out
 
@@ -3322,7 +3428,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
-        return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel")},
+        return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
                     knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
                     lagen=dict(getattr(self, "steck_lagen", {})))

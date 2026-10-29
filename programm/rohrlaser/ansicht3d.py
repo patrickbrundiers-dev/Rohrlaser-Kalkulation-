@@ -39,6 +39,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen
     ("SV", "Nahtvorschläge (STEP)", "#D000D0", "#D000D0"),  # Teilfarben sichtbar), offene Nahtkandidaten magenta
     ("SH", "gewählte Naht", "#FF0000", "#FF0000"),
+    ("SX", "Naht nicht erreichbar (STEP)", "#FF8C00", "#FF8C00"),   # Brenner kommt nicht hin (Erreichbarkeit)
     ("NL", "Schweißnaht (Längsnaht)", "#E00000", "#E00000"),     # Rohr-Editor: Lage der Naht im Rohr
     ("GB", "3D über Grenze (begrenzt)", "#F2C200", "#C79A00"),  # Schnitt braucht mehr als die Schwenkgrenze
     ("HK", "Gegenrohr (Hilfskörper)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
@@ -71,7 +72,7 @@ TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", 
 FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
 FARBE["X"] = stil.farbe_fest("#D9DDE2")     # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
-NAEHTE, NAHT_BREITE = ("SN", "SV", "SH"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
+NAEHTE, NAHT_BREITE = ("SN", "SV", "SH", "SX"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
 HINTERGRUND = stil.farbe_fest("#FFFFFF")     # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
 HINTERGRUND_OBEN = stil.farbe_fest("#DCE3EA")
 # Licht (QPainter je Dreieck, OpenGL je Ecke, gleiche Formel): Hauptlicht links oben vorn, Fülllicht rechts unten;

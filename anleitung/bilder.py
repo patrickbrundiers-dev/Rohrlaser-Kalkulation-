@@ -648,9 +648,13 @@ def main(ziel):
                                       (d.naht_tab.cellWidget(1, sp.index("_hinweis")), 6)])
     d.reiter.setCurrentIndex(2)
     QApplication.processEvents()
-    foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, 2), 1), (d.ag_tab.cellWidget(1, 7), 2),
-                                             (d.ag_tab.cellWidget(1, 8), 3), (d.ag_tab.cellWidget(1, 10), 4),
-                                             (knopf(d, "Vorrichtung hinzufügen"), 5)])
+    sp = [x.schluessel for x in d.ag_tab.spalten]
+    foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, sp.index("satz_id")), 1),
+                                             (d.ag_tab.cellWidget(1, sp.index("einmal_eur")), 2),
+                                             (d.ag_tab.cellWidget(1, sp.index("umlage")), 3),
+                                             (d.ag_tab.cellWidget(1, sp.index("fremd")), 4),
+                                             (knopf(d, "Vorrichtung hinzufügen"), 5),
+                                             (d.ag_tab.cellWidget(0, sp.index("bezug")), 6), (d.mengen_info, 7)])
     # Vorkalkulation (Regeln aus den Richtwerten): Rüsten, Positionieren, Wenden, Verputzen als gelbe Vorschläge
     d.stamm_felder["gewicht"].setText("18")
     d.wenden.setValue(1)

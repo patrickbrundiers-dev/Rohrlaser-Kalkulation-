@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
-from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe
+from . import abmessung, anbau, profil_neu, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import zusatz_dialog
@@ -32,7 +32,7 @@ from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
-    ist_zukaufteil, kein_laserteil
+    ist_muster, ist_zukaufteil, kein_laserteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
@@ -43,7 +43,7 @@ from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimie
 from .schritte import Schrittanzeige
 from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
-from . import stangen_abwicklung, vollmaterial
+from . import muster_haken, stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -288,7 +288,7 @@ def step_neu_pfade(ereignis):
     Ordner werden hier nicht durchsucht (das stockt beim Ziehen), sondern erst nach dem Ablegen."""
     urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
     pfade = [u.toLocalFile() for u in urls if u.isLocalFile()]
-    mail = any(Path(p).suffix.lower() in (".msg", ".eml") for p in pfade)     # E-Mail mit STEP-Anhang (28.10.2026)
+    mail = any(Path(p).suffix.lower() in (".msg", ".eml", ".zip") for p in pfade)  # E-Mail/ZIP mit STEP (28.10.2026)
     return pfade if step.step_kandidaten(pfade) or mail else []
 
 
@@ -320,7 +320,8 @@ class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
-    SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Bearbeiter", lambda z: bearbeiter(z), None, 70),
+    SPALTEN = [("Angebotsnummer", "nummer", None, 120),
+               ("Bearbeiter", lambda z: bearbeiter(z) + (" ● geöffnet" if z.get("_offen") else ""), None, 70),
                ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
                ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
@@ -378,10 +379,15 @@ class AngeboteSeite(QWidget):
         menue.addSeparator()            # Plan A9
         menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen())
         menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
+        # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
+        self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
+        self.notiz_aktion = menue.addAction("Notiz an Kollegen …", lambda: self.notiz())
         trenner = menue.addSeparator()  # Plan Palettenbegleitschein (ausgeblendet, wenn Versand aus)
         ps = menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
         self.palettenschein_aktionen = (trenner, ps)
         menue.aboutToShow.connect(lambda: [a.setVisible(self.f.versand_an()) for a in self.palettenschein_aktionen])
+        menue.aboutToShow.connect(lambda: [a.setVisible(teilen.aktiv(self.db))
+                                           for a in (self.uebergeben_aktion, self.notiz_aktion)])
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -395,6 +401,9 @@ class AngeboteSeite(QWidget):
             if text == "Neues Angebot":
                 b.setToolTip("Neues Angebot anlegen. Aus STEP-Dateien: Dateien oder einen Ordner auf die Liste "
                              "ziehen oder Datei → Neues Angebot aus STEP …")
+            if text == "Löschen":
+                b.setToolTip("Markiertes Angebot mit allen Positionen löschen. Mit Löschschutz (Einstellungen → "
+                             "Angebot) lassen sich einmal optimierte Angebote nur mit Admin-Rechten löschen.")
             if text == "Ordner öffnen":
                 b.setToolTip("Ordner des markierten Angebots in der Ablage öffnen (PDFs, CSV, Materialanfrage, "
                              "STEP); ohne Markierung die ganze Ablage")
@@ -427,8 +436,10 @@ class AngeboteSeite(QWidget):
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
                                                              nachfassen=self.db.einstellung("nachfassen_tage"))}
         zeilen = []
+        geteilt = teilen.aktiv(self.db)
         for z in alle:
             z["_wv"] = faellig.get(id(z))
+            z["_offen"] = teilen.offen_bei(self.db, z.get("nummer")) if geteilt and z.get("fremd") else None
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
             if not passt(vorgang(z), z["_abgelaufen"], z):
                 continue
@@ -461,6 +472,22 @@ class AngeboteSeite(QWidget):
             self.wer_filter.setCurrentText(alt if alt in eintraege else ALLE if eintraege else "")
             self.wer_filter.blockSignals(False)
         return self.wer_filter.currentText() if sichtbar_jetzt else ALLE
+
+    def uebergeben(self, angebot_id=None, an=None, notiz=""):
+        """Vorgang → An Kollegen übergeben: das gewählte eigene Angebot gehört danach dem Kollegen."""
+        from . import teilen_fenster
+        i = angebot_id or self._gewaehlt()
+        if i is None or self._fremd(i, "Übergeben"):
+            return False
+        return teilen_fenster.uebergeben(self.f, i, an, notiz)
+
+    def notiz(self, angebot_id=None, an=None, text="", faellig=None):
+        """Vorgang → Notiz an Kollegen: zum gewählten Angebot (auch eines Kollegen), wahlweise mit Wiedervorlage."""
+        from . import teilen_fenster
+        i = angebot_id or self._gewaehlt()
+        if i is None:
+            return False
+        return teilen_fenster.notiz_senden(self.f, i, an, text, faellig)
 
     def _fremd(self, i, was):
         """Angebot eines Kollegen: Hinweis statt Ändern. Ergebnis: True = fremd (nichts tun)."""
@@ -529,7 +556,7 @@ class AngeboteSeite(QWidget):
 
     def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
         """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare,
-        vorschlag, hinweis, werkstoff_text (Anfrage-Ordner, E-Mail)."""
+        vorschlag, hinweis, werkstoff_text, neuer_kunde (Anfrage-Ordner, E-Mail)."""
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
@@ -629,10 +656,19 @@ class AngeboteSeite(QWidget):
         if not i or self._fremd(i, "löschen"):
             return
         a = self.db.angebot(i)
-        if QMessageBox.question(self, "Angebot löschen", f"Angebot {a['nummer']} mit allen Positionen löschen?\n\n"
-                                "Die tägliche Datensicherung enthält es weiterhin.") == QMessageBox.Yes:
+        grund = self.db.loeschschutz(i)         # Löschschutz (Patrick 28.10.2026): einmal optimiert = bleibt
+        admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
+        if grund and not admin:
+            QMessageBox.information(self, "Angebot löschen", grund)
+            self.f.meldung(f"Angebot {a['nummer']} ist gegen Löschen geschützt.", fehler=True)
+            return
+        frage = f"Angebot {a['nummer']} mit allen Positionen löschen?\n\nDie tägliche Datensicherung enthält es weiterhin."
+        if grund:
+            frage = (f"{grund}\n\nMit Admin-Rechten trotzdem löschen?\n\nDie tägliche Datensicherung enthält es "
+                     "weiterhin.")
+        if QMessageBox.question(self, "Angebot löschen", frage) == QMessageBox.Yes:
             self.f.angebot_schliessen(i)
-            self.db.angebot_loeschen(i)
+            self.db.angebot_loeschen(i, trotz_schutz=bool(grund))
             self.neu_laden()
 
 
@@ -661,13 +697,13 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
-            "laenge", "stueck",
+            "laenge", "stueck", "muster",
             "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang")
+                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -847,6 +883,16 @@ class PositionenModell(QAbstractTableModel):
         return x.titel if art in ("feld",) + EIGENE else {"status": "Status",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
 
+    def _zusatz_auto(self, p):
+        """Automatische Zusatzarbeiten der Position aus den Arbeitsgang-Regeln, z. B. „Strahlen (automatisch)“."""
+        tab = getattr(self.s, "tabellen", None) or {}
+        if not tab.get("arbeitsgang_regeln") or getattr(self.s, "k", None) is None:
+            return ""
+        from . import zusatz_regeln
+        vorhanden = {e["name"] for e in rechnen.zusatz_liste(p)}
+        return "; ".join(f"{a['name']} (automatisch)" for a in
+                         zusatz_regeln.automatische(p, getattr(self.s, "kopf", None), self.s.k, tab, vorhanden))
+
     def name(self, c):
         """Name einer Spalte (Feldname, 'status', 'abweichung' oder 'berechnet:' + Schlüssel)."""
         art, x = self.spalten[c]
@@ -860,7 +906,8 @@ class PositionenModell(QAbstractTableModel):
             return self.status[r]
         if art == "zusatz":         # V6: Gewinde und Zusatzarbeiten zusammen, z. B. „4xM6 · Senken; feuerverzinkt“
             p = self.daten[r]
-            return " · ".join(t for t in ((p.get("gewinde") or "").strip(), rechnen.zusatz_text(p)) if t)
+            return " · ".join(t for t in ((p.get("gewinde") or "").strip(), rechnen.zusatz_text(p),
+                                          self._zusatz_auto(p)) if t)
         if art == "zukauf":
             return zukauf.zukauf_text(self.daten[r])
         if art == "naht":
@@ -1087,7 +1134,26 @@ class PositionenModell(QAbstractTableModel):
         neu = self.s.profil_gewechselt(dict(p, profil_id=wert)) if f.name == "profil_id" else None
         self.s.f.meldung(f"{f.titel} gespeichert." + (f" {neu}" if neu else ""))
         self.geaendert.emit()
+        if f.name == "profil_id" and wert and wert not in self.k.profile:     # Abmessung fehlt: anlegen anbieten
+            QTimer.singleShot(0, lambda: self._abmessung_anbieten(p["id"], wert, index.column()))
         return True
+
+    def _abmessung_anbieten(self, pos_id, text, spalte):
+        """Profilspalte: getippte Abmessung fehlt in den Stammdaten -> Menü an der Zelle; angelegt mit anderer
+        Profil-ID (z. B. 'QR 50x4' -> 'QR 50x50x4') bekommt die Position die neue ID."""
+        ansicht = self.s.pos_ansicht
+        zeile = next((i for i, x in enumerate(self.daten) if x.get("id") == pos_id), None)
+        index = self.index(zeile, spalte) if zeile is not None else QModelIndex()
+        vi = ansicht.model().mapFromSource(index) if hasattr(ansicht.model(), "mapFromSource") else index
+        r = ansicht.visualRect(vi)
+
+        def weiter(pid):
+            if pid != text:
+                self.s.db.position_aendern(pos_id, "profil_id", pid)
+            self.s.neu_laden()
+        m = self.s.abmessung_neu_anbieten(text, None, weiter)
+        if m is not None and r.isValid():
+            m.move(ansicht.viewport().mapToGlobal(r.bottomLeft()))
 
 
 # ------------------------------------------------------------------ Stangenbild
@@ -1360,6 +1426,18 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst, nur=None):
         html.append("</table>")
         html.append(f"<p><span style='color:{farbe.get(b['empfehlung'], '#202020')}'><b>{b['titel']}</b></span><br>"
                     f"{b['begruendung']}</p>")
+        mi = b.get("mischung")
+        if mi:      # Vorschlag Mischen: nur zum Ansehen, der Schnittplan bleibt (Patrick 28.10.2026)
+            statt = " bzw. ".join(f"{_z(x)} € mit nur {rechnen.m_text(l)} m" for x, l in
+                                  ((mi["statt_basis"], vg["stange"]), (mi["statt_lang"], mi["laenge"])) if x is not None)
+            html.append(f"<p><span style='color:#1E5BA8'><b>Vorschlag Mischen: {mi['text']}</b></span><br>"
+                        f"Die am schlechtesten belegten {rechnen.m_text(mi['laenge'])}-m-Stangen werden durch "
+                        f"{rechnen.m_text(vg['stange'])}-m-Stangen ersetzt: {_z(mi['gesamt'])} € statt {statt} "
+                        f"(spart {_z(mi['ersparnis'])} €, Materiallänge {_z(mi['mischung']['material_mm'] / 1000, 1)} m, "
+                        f"{_z(mi['mischung']['werkstuecke'], 0)} Beladungen"
+                        + (f", Angaben fehlen: {', '.join(mi['fehlt'])}" if mi["fehlt"] else "")
+                        + f"). <a href='mischung:{i}:{mi['laenge']}'>Stangenbelegung ansehen …</a> <i>Nur ein "
+                        "Vorschlag zum Ansehen – der Schnittplan wird dadurch nicht geändert.</i></p>")
         links = [f"<a href='laenge:{i}:{v['laenge']}'>{rechnen.m_text(v['laenge'])}-m-Stangen übernehmen</a>"
                  for v in b["varianten"] if v["laenge"] != geplant and v["laenge"] != vg["stange"] and not v["fehler"]]
         if geplant != vg["stange"] and vg["basis_lieferbar"]:
@@ -1380,6 +1458,8 @@ def laengen_sinnvoll(erg, kopf, positionen, k, tabellen, einst):
             texte.append(f"{vg['profil']}: {rechnen.m_text(vg['gewaehlt'])} m geplant")
         elif b["empfehlung"] in (rechnen.LAENGE_ALTERNATIVE, rechnen.LAENGE_NUR_ALTERNATIVE):
             texte.append(f"{vg['profil']}: {b['titel']}")
+        if b.get("mischung") and not b["mischung"]["fehlt"]:
+            texte.append(f"{vg['profil']}: Vorschlag Mischen {b['mischung']['text']} spart {_z(b['mischung']['ersparnis'])} €")
     return " · ".join(texte) or None
 
 
@@ -1789,6 +1869,7 @@ class AngebotSeite(QWidget):
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
+                ("Muster an/aus", lambda: self.muster_umschalten(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
                 ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
@@ -2034,6 +2115,17 @@ class AngebotSeite(QWidget):
         kopie.setToolTip("Eigene Kopie mit eigener Nummer und heutigem Datum anlegen und öffnen")
         kopie.clicked.connect(lambda: self.als_kopie())
         fl.addWidget(kopie)
+        # Zusammenarbeit (Patrick 28.10.2026): Übernahme beim Bearbeiter anfragen, eigene Übergabe zurücknehmen
+        self.anfrage_knopf = QPushButton("Übernahme anfragen …")
+        self.anfrage_knopf.setToolTip("Den Bearbeiter fragen, ob er Ihnen das Angebot übergibt (er wird beim nächsten "
+                                      "Abgleich gefragt)")
+        self.anfrage_knopf.clicked.connect(lambda: self._anfragen())
+        fl.addWidget(self.anfrage_knopf)
+        self.zurueck_knopf = QPushButton("Übergabe zurücknehmen")
+        self.zurueck_knopf.setToolTip("Das Angebot wieder selbst bearbeiten (nur solange der Kollege es noch nicht "
+                                      "übernommen hat)")
+        self.zurueck_knopf.clicked.connect(lambda: self._zuruecknehmen())
+        fl.addWidget(self.zurueck_knopf)
         self.fremd_leiste.hide()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
@@ -2084,11 +2176,34 @@ class AngebotSeite(QWidget):
         if lesen and not k:
             self.fremd_text.setText(f"<b>Lesemodus</b> – {self.db.nur_lesen}. Das Angebot lässt sich ansehen, aber "
                                     "nicht ändern (Hilfe → Lizenz …).")
+        nr = (self.kopf or {}).get("nummer")
+        uebergabe = teilen.vorgang_offen(self.db, nr, teilen.UEBERGABE) if k else None
+        anfrage = teilen.vorgang_offen(self.db, nr, teilen.ANFRAGE) if k else None
+        self.zurueck_knopf.setVisible(bool(uebergabe) and not lesen)
+        self.anfrage_knopf.setVisible(bool(k) and not uebergabe and not lesen and teilen.aktiv(self.db))
+        self.anfrage_knopf.setEnabled(not anfrage)
+        self.anfrage_knopf.setText("Übernahme angefragt" if anfrage else "Übernahme anfragen …")
         if k:
             m = teilen.mitarbeiter(self.db, k)
             wer = f"{m.get('name')} ({k})" if m.get("name") else k
-            self.fremd_text.setText(f"<b>Angebot von {wer}</b> – nur zum Ansehen (Stand des letzten Abgleichs). "
-                                    "Ändern kann es nur der Bearbeiter; zum Weiterarbeiten als eigene Kopie übernehmen.")
+            if uebergabe:
+                self.fremd_text.setText(f"<b>An {wer} übergeben</b> – {k} übernimmt das Angebot beim nächsten Abgleich. "
+                                        "Bis dahin lässt sich die Übergabe zurücknehmen.")
+                return
+            offen = teilen.offen_bei(self.db, nr)
+            jetzt = (f" <b>{k} hat es gerade geöffnet</b> (seit {str(offen[1])[11:16] or offen[1]})."
+                     if offen else "")
+            self.fremd_text.setText(f"<b>Angebot von {wer}</b> – nur zum Ansehen (Stand des letzten Abgleichs).{jetzt} "
+                                    "Ändern kann es nur der Bearbeiter; zum Weiterarbeiten als eigene Kopie übernehmen "
+                                    "oder die Übernahme anfragen.")
+
+    def _anfragen(self, notiz=None):
+        from . import teilen_fenster
+        return teilen_fenster.anfragen(self.f, self.id, notiz)
+
+    def _zuruecknehmen(self):
+        from . import teilen_fenster
+        return teilen_fenster.zuruecknehmen(self.f, self.id)
 
     def als_kopie(self):
         """Fremdes (oder eigenes) Angebot kopieren: eigene Nummer, öffnet die Kopie."""
@@ -2844,6 +2959,11 @@ class AngebotSeite(QWidget):
         zeilen = schnellzeile.lesen(quelle, self.k.profile, self.k.werkstoffe, self._schnell_bevorzugt())
         if not zeilen:
             return 0
+        for z in zeilen:        # eben neu angelegte Abmessung mit eigener Profil-ID (abmessung_neu)
+            pid = getattr(self, "abm_zuordnung", {}).get(z.get("rest"))
+            if pid in self.k.profile and not z.get("profil_id"):
+                z["profil_id"] = pid
+                z["fehler"] = [x for x in z["fehler"] if "nicht gefunden" not in x]
         letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
         vorgabe = letzter or self.db.einstellung("step_werkstoff") or None
         vorgabe = vorgabe if vorgabe in self.k.werkstoffe else None
@@ -2879,7 +2999,44 @@ class AngebotSeite(QWidget):
         else:
             self.f.meldung("Schnellzeile: " + "; ".join(f"„{z['text']}“: {', '.join(z['fehler'])}"
                                                         for z in schlecht[:3]), fehler=True, bericht=bericht)
+        # Abmessung der Zeile im Feld fehlt in den Stammdaten: Menü „neu anlegen …“ unter dem Feld (Patrick 28.10.)
+        erste = schlecht[0] if schlecht else None
+        if erste and erste.get("rest") and not erste.get("profil_id") and \
+                any("nicht gefunden" in x for x in erste["fehler"]):
+            self.abmessung_neu_anbieten(erste["rest"], self.schnell, lambda pid: self.schnellzeile())
         return len(gut)
+
+    def abmessung_neu_anbieten(self, text, feld=None, weiter=None):
+        """Getippte Abmessung fehlt in den Stammdaten (Schnellzeile, Profilspalte): Menü unter dem Feld mit
+        „Abmessung … neu anlegen …“ (profil_neu.anbieten). weiter(pid) läuft nach dem Anlegen. Ergebnis: Menü
+        oder None (nur ansehen, keine Zahl im Text)."""
+        if self.fremd() or self.db.nur_lesen:
+            return None
+        wo = feld.mapToGlobal(feld.rect().bottomLeft()) if feld is not None else None
+        self.abm_menue = profil_neu.anbieten(self, text, lambda t: self.abmessung_neu(t, weiter), wo)
+        return self.abm_menue
+
+    def abmessung_neu(self, text, weiter=None, dialog=None):
+        """Fenster „Neue Abmessung anlegen“ mit Form und Maßen aus text (profil_neu.vorschlag); bestätigt: Zeile in
+        den Stammdaten (Profile), danach weiter(pid). Den Materialpreis rät das Programm nicht: die Meldung weist
+        darauf hin, die Position zeigt ihn als fehlend. dialog(d) bedient das Fenster (Tests). Ergebnis: Profil-ID
+        oder None."""
+        d = profil_neu.ProfilNeuDialog(self, self.k.profile, None, self.k.profilformen, eingabe=text,
+                                       bemerkung=f"im Angebot angelegt ({datetime.date.today():%d.%m.%Y})")
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.fehler():
+            return None
+        werte = d.werte()
+        pid = werte["profil_id"]
+        self.db.profile_anlegen([werte])
+        zeile = next((z for z in self.db.zeilen("profile") if z.get("profil_id") == pid), werte)
+        for k in {id(x): x for x in (self.k, getattr(self, "k_aktuell", None)) if x is not None}.values():
+            k.profile[pid] = zeile
+        self.abm_zuordnung = dict(getattr(self, "abm_zuordnung", {}), **{" ".join(text.split()): pid})
+        if weiter:
+            weiter(pid)
+        self.f.meldung(f"Abmessung {pid} in den Stammdaten angelegt. Materialpreis fehlt noch: unter Einstellungen → "
+                       "Werkstoffe/Materialpreise oder im Angebot über „Material …“ als Meterpreis eintragen.")
+        return pid
 
     def _naechste_pos(self):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
@@ -2981,6 +3138,7 @@ class AngebotSeite(QWidget):
             return False
         werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
+        werte["muster"] = d.muster_haken.wert()
         from . import bohrbild     # Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand: von Hand eingegeben = bestätigt
         bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
                                     rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"),
@@ -3107,7 +3265,7 @@ class AngebotSeite(QWidget):
         self.db.position_neu(self.id, dict(
             pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
             stueck=kopf["stueck"], technik=blech.speichern(dict(e, richtpreise=[dict(ab=1, preis=erg["richtpreis"])])),
-            gewicht_teil=round(erg["gewicht"], 3),
+            gewicht_teil=round(erg["gewicht"], 3), muster=kopf.get("muster"),
             zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False)))
         self.neu_laden()
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
@@ -3184,12 +3342,14 @@ class AngebotSeite(QWidget):
             zukauf.lieferant_vorgabe("Blechteile")
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
                         dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
-                             stueck=p.get("stueck")), neu=False)
+                             stueck=p.get("stueck"), muster=p.get("muster")), neu=False)
         self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.kopf_werte()))
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
         self._blech_uebernehmen(p, e, erg, kopf["lieferant"], kopf["stueck"])
+        if kopf.get("muster") != (p.get("muster") or None):     # Häkchen Muster (wie in allen Editoren)
+            self.db.position_aendern(p["id"], "muster", kopf.get("muster"))
         self.neu_laden()
         self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
         return True
@@ -3260,7 +3420,7 @@ class AngebotSeite(QWidget):
             if vorher is not None:
                 p = dict(p, gewinde=vorher[0] or "", zusatz=json.dumps(vorher[1], ensure_ascii=False))
             d = ZusatzDialog(self, p, len(zeilen), self.k, self.tabellen, self.db.zusatz_haeufigkeit(), weitere,
-                             gewinde_verschieden=vorher is not None and vorher[0] is None)
+                             gewinde_verschieden=vorher is not None and vorher[0] is None, kopf=self.kopf)
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
@@ -3504,7 +3664,8 @@ class AngebotSeite(QWidget):
             if not ist_baugruppe(p) or baugruppe.daten_fehler(p.get("baugruppe")):
                 continue
             saetze = saetze if saetze is not None else self._saetze()
-            r = baugruppe.rechnen(p, self.tabellen, saetze)
+            r = baugruppe.rechnen(p, self.tabellen, saetze, None,
+                                  bg_mengen.je_knoten(baugruppe.lesen(p.get("baugruppe")), self.positionen, self.k))
             out.append((f"Pos. {p.get('pos') or ''} {baugruppe.name(p)}".strip(), baugruppe.kostenaufteilung(r),
                         baugruppe.groesste_posten(r)))
         return out
@@ -3837,7 +3998,7 @@ class AngebotSeite(QWidget):
         schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
         einst = self._vk_einstellungen()
         for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
-            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst)
+            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst, self.k)
             if r["bg"] is None:
                 continue
             r["bg"]["stamm"]["vk_auto"] = True
@@ -3887,19 +4048,59 @@ class AngebotSeite(QWidget):
         return zelle.contains(maus) and maus.x() <= zelle.left() + self.pos_ansicht.iconSize().width() + 8
 
     # -------------------------------------------------------------- Wiederholteile (Plan A1, wiederholteile.py)
-    def wiederholteile_suchen(self):
+    def wiederholteile_suchen(self, warten=True):
         """{Positions-ID: [Treffer]}; gerechnet nur, wenn sich die suchrelevanten Werte oder andere Angebote geändert
-        haben."""
+        haben. warten=False (Anzeige): die Datenbank liefert die möglichen Treffer sofort, eingestuft wird in einem
+        eigenen Thread; bis dahin bleibt das bisherige Ergebnis (None, wenn es noch keines gibt), danach zeigt
+        _wt_fertig() das neue an. Ohne Bildschirm (stumm) wird immer gleich gerechnet."""
         from . import wiederholteile
         kennung = (wiederholteile.stand(self.db), self.kopf.get("kundennr"),
                    tuple(tuple(p.get(f) for f in wiederholteile.FELDER) for p in self.positionen))
-        if getattr(self, "_wt_kennung", None) != kennung:
-            self._wt_kennung = kennung
-            self._wt = wiederholteile.suchen(self.db, self.id, self.kopf.get("kundennr"), self.positionen)
-        return self._wt
+        if getattr(self, "_wt_kennung", None) == kennung:
+            return self._wt
+        zeilen = wiederholteile.laden(self.db, self.id, self.positionen)
+        if warten or self.f.stumm:
+            self._wt_kennung, self._wt_lauf = kennung, None
+            self._wt = wiederholteile.auswerten(zeilen, self.kopf.get("kundennr"), self.positionen)
+            return self._wt
+        lauf = getattr(self, "_wt_lauf", None)
+        if lauf is not None and lauf[0] == kennung:
+            return getattr(self, "_wt", None)
+        ende = {}
+        positionen, kundennr = [dict(p) for p in self.positionen], self.kopf.get("kundennr")
+
+        def rechnen_():
+            ende["treffer"] = wiederholteile.auswerten(zeilen, kundennr, positionen)
+
+        t = threading.Thread(target=rechnen_, name="Wiederholteile", daemon=True)
+        self._wt_lauf = (kennung, t, ende)
+        t.start()
+        if getattr(self, "_wt_zeitgeber", None) is None:
+            self._wt_zeitgeber = QTimer(self)
+            self._wt_zeitgeber.setInterval(50)
+            self._wt_zeitgeber.timeout.connect(self._wt_fertig)
+        self._wt_zeitgeber.start()
+        return getattr(self, "_wt", None)
+
+    def _wt_fertig(self):
+        """Zeitgeber: Einstufen im Thread fertig -> Ergebnis übernehmen und anzeigen (nur der neueste Lauf zählt)."""
+        lauf = getattr(self, "_wt_lauf", None)
+        if lauf is None:
+            self._wt_zeitgeber.stop()
+            return
+        kennung, t, ende = lauf
+        if t.is_alive():
+            return
+        self._wt_zeitgeber.stop()
+        self._wt_lauf = None
+        if "treffer" in ende:
+            self._wt_kennung, self._wt = kennung, ende["treffer"]
+        self.wiederholteile_anzeigen()
 
     def wiederholteile_anzeigen(self):
-        treffer = self.wiederholteile_suchen()
+        treffer = self.wiederholteile_suchen(warten=False)
+        if treffer is None:             # erstes Ergebnis kommt noch aus dem Thread
+            return
         self.uebersicht_bereich.wiederholteile_setzen(
             [(r, " · ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") is not None else None,
                                             p.get("artikel") or p.get("bezeichnung")) if x), treffer[p["id"]])
@@ -4207,11 +4408,11 @@ class AngebotSeite(QWidget):
         if eingaben is None:
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
                                  step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
-            self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert()))
+            self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
-            naht_neu = d.naht_geaendert()
+            naht_neu = dict(d.naht_geaendert(), **d.muster_geaendert())
         else:
             naht_neu = {}
         profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
@@ -4378,6 +4579,33 @@ class AngebotSeite(QWidget):
             felder["zusatz"] = zu
         if fehlt:
             self.f.meldung(f"Zusatzarbeit '{virtuell.ZUSATZ_STEGE}' fehlt in den Stammdaten.", fehler=True)
+
+    def muster_umschalten(self, zeilen=None, an=None):
+        """Markierte Positionen als Musterteil kennzeichnen (an=True) oder wieder als Serienteil (False); None =
+        umschalten nach der ersten Zeile. Ein Satz wird immer ganz umgeschaltet. Musterteile stehen mit 0 € im
+        Angebot, ihre Kosten gehen auf die Serie (Patrick 28.10.2026). Ergebnis: Zahl geänderter Positionen."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen()) if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return 0
+        saetze = {self.positionen[r].get("satz") for r in zeilen if self.positionen[r].get("satz")}
+        zeilen = sorted(set(zeilen) | {r for r, q in enumerate(self.positionen) if q.get("satz") in saetze})
+        if an is None:
+            an = not ist_muster(self.positionen[zeilen[0]])
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            if ist_muster(p) != an:
+                self.db.position_aendern(p["id"], "muster", muster_haken.wert(an))
+                n += 1
+        if n:
+            self.neu_laden()
+            self.f.meldung(f"{n} Position(en) " + ("als Muster gekennzeichnet: 0 € im Angebot, Kosten auf die Serie."
+                                                   if an else "wieder als Serienteil gerechnet."))
+        return n
 
     def stege_abtrennen(self, zeilen=None, an=None):
         """Virtuelles Bauteil (Winkel aus größerem Profil, offenes Rohr): Stege 2 mm an den Enden abtrennen (an=True,
@@ -4806,7 +5034,7 @@ class AngebotSeite(QWidget):
             self.db.profile_anlegen(erg["neue_profile"])
             erg["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.db.kontext(), self.tabellen,
                                                      self.einst)
-        self.db.ergebnis_speichern(self.id, erg)
+        self.db.ergebnis_speichern(self.id, erg, von_hand=not automatisch)
         self.neu_laden()
         n_teile = sum(len(s["teile"]) for s in erg["stangen"])
         text = f"{len(erg['stangen'])} Stangen, {n_teile} Teile eingeplant"
@@ -4829,7 +5057,10 @@ class AngebotSeite(QWidget):
 
     def laenge_waehlen(self, link):
         """Link 'laenge:<Gruppe>:<Länge>' aus dem Vergleich der Lieferlängen: Länge für die Gruppe übernehmen (0 = wieder
-        die Stangenlänge des Angebots), speichern und neu optimieren."""
+        die Stangenlänge des Angebots), speichern und neu optimieren. 'mischung:<Gruppe>:<Länge>': Stangenbelegung
+        des Vorschlags Mischen ansehen (mischung_zeigen)."""
+        if link.startswith("mischung:"):
+            return self.mischung_zeigen(link)
         try:
             _, i, laenge = link.split(":")
             vg = self.ergebnis["laengen"][int(i)]
@@ -4849,6 +5080,40 @@ class AngebotSeite(QWidget):
                 f"{rechnen.m_text(laenge)}-m-Stangen übernommen, Schnittplan neu optimiert." if laenge else
                 f"wieder mit {rechnen.m_text(vg['stange'])}-m-Stangen geplant, Schnittplan neu optimiert."))
         return ok
+
+    def mischung_zeigen(self, link):
+        """Stangenbelegung des Vorschlags Mischen (z. B. 10 × 12 m + 1 × 6 m) in einem eigenen Fenster, nur zum
+        Ansehen: der Schnittplan bleibt (Patrick 28.10.2026)."""
+        try:
+            _, i, laenge = link.split(":")
+            vg = self.ergebnis["laengen"][int(i)]
+            laenge = int(laenge)
+        except (ValueError, IndexError, KeyError, TypeError):
+            return False
+        stangen = rechnen.mischung_stangen(self.kopf, self.positionen, self.k, self.tabellen, self.einst, vg, laenge)
+        if not stangen:
+            self.f.meldung("Der Vorschlag Mischen gilt nicht mehr: bitte neu optimieren.", fehler=True)
+            return False
+        n_lang = sum(1 for s in stangen if s["stange"] == laenge)
+        titel = (f"Vorschlag Mischen {vg['profil']}: {n_lang} × {rechnen.m_text(laenge)} m + "
+                 f"{len(stangen) - n_lang} × {rechnen.m_text(vg['stange'])} m (nur Ansicht)")
+        d = QDialog(self)
+        d.setWindowTitle(titel)
+        d.resize(1250, 760)
+        lay = QVBoxLayout(d)
+        hinweis = QLabel(f"<b>{titel}</b><br>Zugeschnittene {rechnen.m_text(laenge)}-m-Stangen erscheinen als ihre "
+                         "Werkstücke. Nur ein Vorschlag: Schnittplan und Kalkulation bleiben unverändert.")
+        hinweis.setWordWrap(True)
+        lay.addWidget(hinweis)
+        seite = StangenSeite(STANGEN_UEBERSICHT)
+        seite.setzen([(s, None) for s in rechnen.anzeige_stangen(dict(stangen=stangen))])
+        lay.addWidget(seite, 1)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        self.mischung_dialog = d          # Verweis halten (nicht modal)
+        d.show()
+        return True
 
     # -------------------------------------------------------------- Staffeln (staffel_seite.py)
     def staffel_neu(self):
@@ -5495,9 +5760,10 @@ class AngebotSeite(QWidget):
         (neues Angebot aus STEP, Plan Bedienung B1); referenz = Vorschlag der Anfrage-Nr. des Kunden (aus dem
         Ordnernamen, Plan Angebotsablauf V5). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
         doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF.
-        Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus der E-Mail“ oben im Prüfdialog; werkstoff_text
+        Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus E-Mail/Formular“ oben im Prüfdialog; werkstoff_text
         = Mailtext, ein dort eindeutig genannter Werkstoff (mail.werkstoff) ersetzt die Vorgabe."""
         from . import importprofil
+        ws_aus_mail = False
         profil = self.importprofil()
         vorgaben = importprofil.vorgaben(profil)
         if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
@@ -5508,7 +5774,7 @@ class AngebotSeite(QWidget):
                 from . import mail
                 ws, wort, kandidaten = mail.werkstoff(werkstoff_text, self.db.zeilen("werkstoffe"), werkstoff)
                 if ws and ws in self.k.werkstoffe:
-                    werkstoff = ws
+                    werkstoff, ws_aus_mail = ws, True
                     hinweis.append(f"Werkstoff {ws} (aus „{wort}“)")
                 elif wort:
                     hinweis.append(f"Werkstoff „{wort}“ nicht eindeutig ({', '.join(kandidaten[:4])}) – bitte wählen")
@@ -5534,17 +5800,30 @@ class AngebotSeite(QWidget):
         for m in messwerte:             # Importprofil: Zusatzarbeiten für alle Teile (Plan Angebotsablauf V4)
             if self._step_zusatz:
                 m.setdefault("_zusatz", list(self._step_zusatz))
-        formular_bericht = None
+        formular_bericht, pdf_neu = None, None
         if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
-            from . import formular
-            namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
-            st = formular.stueck_aus(formulare, namen)
-            n = formular.stueck_setzen(messwerte, st)
-            unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
-            quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
-            formular_bericht = (f"Stückzahlen aus {quelle}: {n} Teil(e)"
-                                + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
-                                + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else ""))
+            from . import pdf_art
+            ws_zeilen = None if ws_aus_mail else self.db.zeilen("werkstoffe")
+            wahl = {}                   # Datei -> Wahl im Prüfdialog (pdf_art.AUTO, FORMULAR, ZEICHNUNG, NICHT)
+
+            def anwenden():
+                aktiv = [pdf_art.zusammen(f, wahl.get(f.get("datei"), f.get("wahl", pdf_art.AUTO))) if f.get("seiten") else f
+                         for f in formulare]
+                erg = pdf_art.anwenden(messwerte, aktiv, ws_zeilen)
+                n, unsicher = erg["formular"], erg["unsicher"]
+                quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
+                return (f"Stückzahlen aus {quelle}: {n} Teil(e)"
+                        + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
+                        + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else "")
+                        + (f"; aus Zeichnungen (Schriftfeld): {erg['zeichnung']} Teil(e), bitte prüfen"
+                           if erg["zeichnung"] else ""))
+
+            def pdf_neu(datei, w):      # im Prüfdialog umgeschaltet: neu zuordnen, nichts neu lesen
+                nonlocal formular_bericht
+                wahl[datei] = w
+                formular_bericht = anwenden()
+
+            formular_bericht = anwenden()
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
@@ -5568,7 +5847,8 @@ class AngebotSeite(QWidget):
                                   lernen=True, maschine=rechnen.maschine(self.kopf, self.k),
                                   zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
                                   referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
-                                  or referenz else None, hinweis=hinweis)
+                                  or referenz else None, hinweis=hinweis,
+                                  pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
@@ -5817,6 +6097,9 @@ class AngebotSeite(QWidget):
             return False
         vorab = self.teilen_anwenden(d.ergebnis)
         self.naehte_schreiben(d.ergebnis["naehte"])
+        if "muster" in d.ergebnis:          # Häkchen „Satz als Muster“: alle Teile des Satzes
+            for q in teile:
+                self.db.position_aendern(q["id"], "muster", d.ergebnis["muster"])
         self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
         hinweise = vorab + self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()

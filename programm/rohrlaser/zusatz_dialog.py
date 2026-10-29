@@ -16,6 +16,7 @@ from . import hilfe, rechnen
 from .angebot import POSITIONEN
 from .stammdaten import ZUSATZ_EINHEIT, wert_aus_text, zahl_als_text, zahl_aus_text
 from .eingabe import RechenSpinGanz
+from .stil import GELB_FLAECHE, GELB_TEXT
 
 SPALTEN = ("Zusatzarbeit", "Abrechnung", "Menge bzw. Sekunden je Teil", "Preis [€], Zeit [s] bzw. Stundensatz [€/h]",
            "Text (z. B. RAL-Farbe)")
@@ -71,10 +72,22 @@ def zusammenfuehren(p, vorher, ergebnis):
     return gewinde, (json.dumps(liste, ensure_ascii=False) if liste else None)
 
 
+def automatisch_text(p, k, tabellen, kopf=None):
+    """Hinweis auf automatische Zusatzarbeiten der Position (Arbeitsgang-Regeln mit Zuordnung automatisch), leer ohne."""
+    auto = [z for z in rechnen.zusatz_werte(p, k, tabellen, kopf) if z["auto"]] if k else []
+    if not auto:
+        return ""
+    teile = [f"{z['name']} (Regel „{z['regel']}“: {rechnen.zahl(z['menge'])} {z['einheit']} × "
+             f"{rechnen.zahl(z['preis'])} € = {rechnen.zahl(z['betrag'] + z['pauschal'])} € je Teil)" for z in auto]
+    return ("Automatisch aus den Regeln: " + "; ".join(teile) + ". Abwählen oder fest übernehmen: „Arbeitsgänge "
+            "vorschlagen …“. Wer sie hier hinzufügt, rechnet sie nur einmal (der eigene Eintrag gilt).")
+
+
 class ZusatzDialog(QDialog):
     """p: erste gewählte Position (für Vorgaben und automatische Mengen), anzahl: gewählte Positionen."""
 
-    def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None, weitere=None, gewinde_verschieden=False):
+    def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None, weitere=None, gewinde_verschieden=False,
+                 kopf=None):
         """weitere: {Knopftext: Funktion} für die übrige Bearbeitung der Position (Schweißnaht, Bohrungen), damit
         alles über einen Dialog erreichbar ist (Prüfbericht C-5). Mehrere Positionen: p zeigt nur, was alle gemeinsam
         haben (gemeinsam); gewinde_verschieden = die Gewinde unterscheiden sich, das Feld ergänzt dann nur."""
@@ -144,6 +157,12 @@ class ZusatzDialog(QDialog):
                 leiste.addWidget(b)
                 self.weitere_knoepfe[text] = b
         lay.addLayout(leiste)
+        # automatische Zusatzarbeiten aus den Arbeitsgang-Regeln (Plan Abrechnungsregeln): gelb, nur Anzeige
+        self.automatisch = QLabel(automatisch_text(p, k, tabellen, kopf) if anzahl == 1 else "")
+        self.automatisch.setWordWrap(True)
+        self.automatisch.setStyleSheet(f"background: {GELB_FLAECHE}; color: {GELB_TEXT}; padding: 4px;")
+        self.automatisch.setVisible(bool(self.automatisch.text()))
+        lay.addWidget(self.automatisch)
         text = ("Menge und Preis leer lassen = automatisch: Menge aus der Position (Gewicht, Außenfläche, Länge "
                 "oder 1 Stück), Preis aus den Stammdaten. Abrechnung s/Stück: Zeit wird zur Schneidzeit addiert. "
                 "Abrechnung €/h (z. B. Schweißen): Sekunden je Teil eintragen, gerechnet wird Sekunden ÷ 3600 × "
