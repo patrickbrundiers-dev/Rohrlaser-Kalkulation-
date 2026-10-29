@@ -73,8 +73,21 @@ def csv_exportieren(seite, db, pfad=None):
                                               "CSV (*.csv)")
         if not pfad:
             return None
-    Path(pfad).write_text(kunden_csv.exportieren(db.zeilen("kunden")), encoding="utf-8")
+    try:
+        Path(pfad).write_bytes(kunden_csv.exportieren(db.zeilen("kunden")).encode("utf-8"))
+    except OSError as e:
+        raise OSError(dateifehler(e, pfad)) from e
     return pfad
+
+
+def dateifehler(e, pfad):
+    """Verständlicher Text zu einem Dateifehler (Datei in Excel geöffnet, fehlt, kein Zugriff)."""
+    if isinstance(e, PermissionError):
+        return (f"Kein Zugriff auf {pfad}. Ist die Datei noch in Excel geöffnet oder schreibgeschützt? "
+                "Bitte schließen und noch einmal versuchen.")
+    if isinstance(e, FileNotFoundError):
+        return f"Datei oder Ordner nicht gefunden: {pfad}"
+    return f"{pfad}: {e.strerror or e}"
 
 
 def csv_importieren(seite, db, pfad=None, bestaetigt=None, nur_neue=False):
@@ -84,7 +97,11 @@ def csv_importieren(seite, db, pfad=None, bestaetigt=None, nur_neue=False):
         pfad, _ = QFileDialog.getOpenFileName(seite, "Kunden importieren", str(_ordner(seite)), "CSV (*.csv *.txt)")
         if not pfad:
             return None, None
-    roh, vorhandene, kontext = Path(pfad).read_bytes(), db.zeilen("kunden"), db.kontext()
+    try:
+        roh = Path(pfad).read_bytes()
+    except OSError as e:
+        raise OSError(dateifehler(e, pfad)) from e
+    vorhandene, kontext = db.zeilen("kunden"), db.kontext()
 
     def rechnen(nur):
         return kunden_csv.vorschau(roh, vorhandene, kontext, nur_neue=nur)

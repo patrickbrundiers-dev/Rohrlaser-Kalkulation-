@@ -70,11 +70,11 @@ ok("jede Stammdatenzeile hat eine Kennung (uid)")
 # ---------------------------------------------------------------- erster Arbeitsplatz schreibt
 assert teilen.aktiv(pb)
 b = teilen.abgleichen(pb)
-datei = gemeinsam / "Rohrlaser_PB.sqlite"
+datei = gemeinsam / "Rohrlaser_PB" / "haupt.sqlite"
 assert datei.exists() and b["eigene"] == 2, b
 info = teilen.info_lesen(datei)
 assert info["kuerzel"] == "PB" and info["name"] == "Patrick" and info["angebote"] == 2
-ok("eigene Datei Rohrlaser_PB.sqlite im gemeinsamen Ordner (2 Angebote, Stammdaten, Info)")
+ok("eigene Daten Rohrlaser_PB/haupt.sqlite im gemeinsamen Ordner (2 Angebote, Stammdaten, Info)")
 
 # ---------------------------------------------------------------- zweiter Arbeitsplatz: erster Abgleich
 mk = arbeitsplatz("Martin", "MK")
@@ -89,7 +89,7 @@ try:
     raise AssertionError("schreiben vor dem ersten Lesen")
 except teilen.ErstAbgleich:
     pass
-assert not (gemeinsam / "Rohrlaser_MK.sqlite").exists()
+assert not (gemeinsam / "Rohrlaser_MK" / "haupt.sqlite").exists()
 pb.aendern("preise", pb.zeilen("preise", True)[0]["id"], "preis", 9.99)
 teilen.schreiben(pb)
 b = teilen.abgleichen(mk, teilen.UEBERNEHMEN)
@@ -219,7 +219,7 @@ assert nummern.zaehler(pb2.angebot(pb2.angebot_neu())["nummer"]) > hoch
 ok("Kürzel schon belegt: Hinweis; auf neuem Rechner übernehmen holt die eigenen Angebote zurück, Zähler geht weiter")
 
 # ---------------------------------------------------------------- neuere Programmversion
-c = sqlite3.connect(gemeinsam / "Rohrlaser_MK.sqlite")
+c = sqlite3.connect(gemeinsam / "Rohrlaser_MK" / "haupt.sqlite")
 c.execute("UPDATE info SET wert='999' WHERE name='schema'")
 c.commit()
 c.close()

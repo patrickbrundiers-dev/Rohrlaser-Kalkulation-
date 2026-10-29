@@ -216,14 +216,21 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         return n if n >= 1 else 1
 
     zeilen, erledigt = [], set()
+    muster_ein = sum(_wert((z or {}).get("muster_einmal_position")) for z in kalk_zeilen)
+    muster_zeile = muster_ein > 0
+    muster_pos = [p.get("pos") for i, p in enumerate(positionen) if (kalk_zeilen[i] or {}).get("muster") == "ja"]
     for i, p in enumerate(positionen):
         if not position_aktiv(p):
             continue
         satz = _satz(p.get("satz"))
         if not satz:
             pr, menge = preis(i), _wert(p.get("stueck"))
-            zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=angebotstext(p, k, dezimal, _zus(i)),
-                               menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge, 2)))
+            text = angebotstext(p, k, dezimal, _zus(i))
+            if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
+                text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
+            zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,
+                               menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge, 2),
+                               muster=(kalk_zeilen[i] or {}).get("muster") == "ja"))
         elif satz not in erledigt:
             erledigt.add(satz)
             teile = [(j, q) for j, q in enumerate(positionen) if _satz(q.get("satz")) == satz]
@@ -239,14 +246,18 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 satzpreis = aufrunden(roh) if mindest_satz else kaufm_runden(roh, 2)
             else:
                 satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile) - (einmal / saetze), 2)
+            satz_muster = any((kalk_zeilen[j] or {}).get("muster") == "ja" for j, _ in teile)
+            vermerk = ("\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)) if satz_muster else ""
             if bg is None:
-                zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}", menge=saetze,
-                                   preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
+                zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}" + vermerk,
+                                   menge=saetze, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2),
+                                   muster=satz_muster))
             else:               # Schweißbaugruppe: eine Zeile, Einzelteile nur mit Häkchen 'Stückliste'
                 from . import baugruppe
                 zeilen.append(dict(art="satz", pos=bg[1].get("pos"), artikel=bg[1].get("artikel"), satz=satz,
-                                   text=baugruppe.zeile_angebot(bg[1]), menge=saetze, einheit="Stk.",
-                                   baugruppe=True, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
+                                   text=baugruppe.zeile_angebot(bg[1]) + vermerk, menge=saetze, einheit="Stk.",
+                                   baugruppe=True, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2),
+                                   muster=satz_muster))
                 if einmal:
                     zeilen.append(dict(art="einmal", pos=None, artikel=None, satz=satz, einheit="pausch.",
                                        text=f"Einmalkosten Schweißbaugruppe {satz} (Rüsten, Vorrichtungen), "
@@ -260,6 +271,11 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                    text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
                                                    angebotstext(q, k, dezimal, _zus(j))),
                                    menge=None, preis=None, gesamt=None))
+    if muster_zeile:        # Musterkosten als eigene Zeile (Patrick 28.10.2026, F1)
+        betrag = kaufm_runden(muster_ein, 2)
+        zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
+                           gesamt=betrag, text=f"Musterkosten einmalig (Pos. {_pos_text(muster_pos)}): Material, "
+                                               "Programmierung und Rüsten der Muster"))
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if position_aktiv(p) and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
     netto = kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2)    # Summe ohne Gleitkommareste
@@ -273,6 +289,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         # Menge x Preis den Stufenpreis nicht unterschreitet)
         einmalig, menge = ((z.get("preis") or {}).get("einmalig")) or 0, _wert(z["menge"]) or 1
         bg_einmal = _wert((z.get("preis") or {}).get("bg_einmalig"))   # Baugruppe: Einmalkosten als eigene Zeile
+        bg_einmal += _wert((z.get("preis") or {}).get("muster_einmalig"))   # Musterkosten als eigene Zeile
         einmalig -= bg_einmal
         pr = aufrunden((_wert(z["preis_gesamt"]) - bg_einmal) / menge) if einmalig else z["preis_einheit"]
         eintrag = dict(menge=z["menge"], bereich=f"ab {z['menge']:.0f}", preis=pr,
@@ -295,7 +312,37 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                               + (" (Warenwert ohne Fracht)." if rechnen.neue_preisregeln(einst) else ".")
                               if gilt and mindest > 0 else ""),
                 kundenreferenz=kopf.get("kundenreferenz") or "",
+                muster="" if muster_zeile else muster_hinweis(kopf, einst, muster_pos,
+                                                              sum(_wert((z or {}).get("muster_preis_position"))
+                                                                  for z in kalk_zeilen)),
                 beistellung=beistellung_text(positionen, ergebnis, k, einst, dezimal))
+
+
+MUSTER_VERMERK = "Muster – im Serienpreis enthalten"
+MUSTER_VERMERK_ZEILE = "Muster – siehe Musterkosten einmalig"
+
+
+def _pos_text(nummern):
+    return ", ".join(str(int(n)) if isinstance(n, float) and n.is_integer() else str(n) for n in nummern if n not in (None, ""))
+
+
+def muster_hinweis(kopf, einst, nummern, betrag):
+    """Hinweis im Angebots-PDF zu Musterteilen, deren Kosten auf die Serie umgelegt sind (Patrick 28.10.2026, F6 a):
+    Text der Einstellung 'muster_hinweis' mit {pos}, {betrag} (Verkaufswert der Muster netto) und {datum}
+    (Angebotsdatum + 'muster_frist' Tage). Leer ohne Muster oder ohne Text."""
+    vorlage = str((einst or {}).get("muster_hinweis") or "").strip()
+    if not nummern or not vorlage or betrag <= 0:
+        return ""
+    try:
+        d = datetime.date.fromisoformat(kopf.get("datum") or "")
+    except ValueError:
+        d = datetime.date.today()
+    d += datetime.timedelta(days=int(_wert(einst.get("muster_frist"))))
+    werte = dict(pos=_pos_text(nummern), betrag=euro_text(kaufm_runden(betrag, 2)), datum=d.strftime("%d.%m.%Y"))
+    try:
+        return vorlage.format(**werte)
+    except (KeyError, IndexError, ValueError):      # Platzhalter falsch geschrieben: Text wie eingegeben
+        return vorlage
 
 
 def _staffeln_zuordnen(zeilen, staffeln):
@@ -387,7 +434,7 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                    schweissplan, hinweise=rechnen.laser_hinweise)."""
     zk = [dict(pos=p.get("pos"), artikel=p.get("artikel"), bezeichnung=p.get("bezeichnung"), stueck=p.get("stueck"),
                text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
-    plan = schweissplan(positionen, tabellen)
+    plan = schweissplan(positionen, tabellen, k)
     hinweise = rechnen.laser_hinweise(positionen, k)      # Laser-Hinweise der Werkstoffe (24.10.2026)
     stege = stege_hinweise(positionen)
     if not ergebnis or not ergebnis.get("stangen"):
@@ -399,7 +446,8 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     for s, w in paare:
         m = material.setdefault((rechnen.gruppe_der_stange(s), s["stange"]),
                                 dict(profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], s.get("oberflaeche"))
-                                     + (" – Kundenmaterial" if s.get("beistellung") else ""),
+                                     + (" – Kundenmaterial" if s.get("beistellung") else "")
+                                     + (" – MUSTER (eigener Lauf)" if s.get("muster") else ""),
                                      stange=s["stange"], stangen=0, gewicht=0.0))
         m["stangen"] += 1
         m["gewicht"] += _wert(w["gewicht"])
@@ -444,10 +492,11 @@ def _abwicklung(s, positionen, profil_von, merker=None):
         return None
 
 
-def schweissplan(positionen, tabellen):
+def schweissplan(positionen, tabellen, k=None):
     """Schweißplan je Schweißbaugruppe für die Werkstattpapiere (Verbesserung P2), ohne Preise: Struktur mit Mengen,
-    Einzelteile mit Pos., Nahtgruppen, Arbeitsgänge in Reihenfolge, Vorrichtungen und Vorgabezeit je Baugruppe."""
-    from . import baugruppe
+    Einzelteile mit Pos., Nahtgruppen, Arbeitsgänge in Reihenfolge, Vorrichtungen und Vorgabezeit je Baugruppe.
+    Mit k: Mengen mit Bezug aus den aktuellen Einzelteilen (bg_mengen), wie im Preis."""
+    from . import baugruppe, bg_mengen
     out = []
     for p in positionen:
         bg = baugruppe.lesen(p.get("baugruppe")) if ist_baugruppe(p) else None
@@ -455,7 +504,12 @@ def schweissplan(positionen, tabellen):
             continue
         km = baugruppe.knoten_map(bg)
         kname = (lambda kid: (km.get(kid) or {}).get("name") or "Unterbaugruppe" if kid else "Baugruppe")
-        r = baugruppe.rechnen(p, tabellen, {})            # nur Zeiten (Stundensätze spielen hier keine Rolle)
+        mengen = None
+        if k is not None:                                 # Menge aus den Einzelteilen: aktueller Stand der Teile
+            bg_mengen.anwenden(bg, positionen, k)
+            mengen = bg_mengen.je_knoten(bg, positionen, k)
+        r = baugruppe.rechnen(dict(p, baugruppe=baugruppe.speichern(bg)), tabellen, {},  # nur Zeiten
+                              mengen=mengen)
         zeiten = {(x["art"], x["id"]): x for x in r["zeilen"]}
         struktur = [dict(name=k.get("name") or "Unterbaugruppe", menge=k.get("menge"),
                          unter=kname(k.get("parent") or ""), je_bg=baugruppe.faktor(bg, k["id"])) for k in bg["knoten"]]
@@ -481,5 +535,7 @@ def schweissplan(positionen, tabellen):
 
 
 def muster_titel(m):
+    """Titel eines Stangenmusters; Stangen mit Musterteilen (eigener Lauf) sind als MUSTERTEILE gekennzeichnet."""
     return (f"Stange {m['nummern_text']}" if m["anzahl"] == 1
-            else f"Stangen {m['nummern_text']}  ({m['anzahl']} Stück gleich)")
+            else f"Stangen {m['nummern_text']}  ({m['anzahl']} Stück gleich)") + \
+        ("  – MUSTERTEILE (eigener Lauf)" if (m.get("stange") or {}).get("muster") else "")

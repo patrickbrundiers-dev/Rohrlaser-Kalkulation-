@@ -4,6 +4,9 @@ Angebotspositionen.csv (eine Zeile je Position), einzeln oder zusammen als ZIP.
 Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF, Dezimalpunkt ohne Tausendertrennzeichen (wie die Beispieldatei, Patrick 23.10.2026), Beträge mit 2 Stellen,
 Zeiten HH:MM:SS, Datum TT.MM.JJJJ. Texte mit Semikolon, Anführungszeichen oder Zeilenumbruch stehen in
 Anführungszeichen (innere Anführungszeichen verdoppelt). Werte, die es im Programm nicht gibt, bleiben leer.
+Zahlenspalten enthalten nur Zahlen (das Zielprogramm liest sie als Zahl, Text dort gab 'double'-Fehler und ein leeres
+Angebot, Patrick 28.10.2026): Lieferzeit = Wochen als Zahl (Freitext steht im Angebot, nicht hier), Marge Netto% und
+Verschnitt ohne %-Zeichen; Schneidgas ohne tiefgestellte Ziffern (N2, O2).
 Der Export liest nur: alle Werte kommen aus der Kalkulation des Angebots (rechnen.kalkulation), nichts wird
 gespeichert. Die Zuordnung je Spalte steht in den Funktionen kopf_zeile und positions_zeilen.
 """
@@ -17,7 +20,7 @@ import zipfile
 from pathlib import Path
 
 from . import fracht_angebot, rechnen
-from .angebot import ist_zukaufteil, lieferzeit_text
+from .angebot import ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, WOCHEN, ist_zukaufteil
 from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, kaufm_runden, profiltext
 from .optimierung import umfang
 from .stammdaten import zahl_als_text
@@ -35,6 +38,13 @@ POSITION_SPALTEN = (
     "zum Schneiden", "Gesamt HK(€)", "Marge Netto%", "Kommentar", "Preis/Kg", "Einsatzgewicht", "HK()",
     "Marge Netto()", "Gesamt Einkauf()", "Gesamt Einkauf(Kg)", "Verschnitt", "Liste der Arbeitsgänge")
 assert len(KOPF_SPALTEN) == 26 and len(POSITION_SPALTEN) == 40
+# Spalten, die das Zielprogramm als Zahl (double) liest: nur Zahl mit Punkt oder leer, nie Text oder %-Zeichen
+KOPF_ZAHLEN = ("Versandkosten", "Lieferzeit", "%Kunde Mat", "%Kunde Arb.", "%Fremdarb.", "Restblech min.€", "Preis",
+               "%Aufschlag", "Rabatt(Euros)", "Aufrunden")
+POSITION_ZAHLEN = (
+    "Art", "Pos.", "Bestellt", "Anzahl Tafeln", "Format", "Anz. Baugruppe", "Menge", "Stückpr.", "Preis",
+    "Preis geändert", "Dicke", "Fläche", "Gew.", "Umfang", "L.", "B.", "zum Schneiden", "Gesamt HK(€)", "Marge Netto%",
+    "Preis/Kg", "Einsatzgewicht", "HK()", "Marge Netto()", "Gesamt Einkauf()", "Gesamt Einkauf(Kg)", "Verschnitt")
 KOPF_DATEI, POSITION_DATEI = "Angebotskopf.csv", "Angebotspositionen.csv"
 # Schweißbaugruppen (Verbesserung P3): eigene Datei im ZIP, nur wenn das Angebot Baugruppen hat; Kopf- und
 # Positionsdatei bleiben unverändert (festes Format)
@@ -44,6 +54,7 @@ BAUGRUPPE_SPALTEN = ("Pos", "Artikel", "Bezeichnung", "Anzahl", "Schweisszeit_mi
                      "Herstellkosten_EUR_je_BG", "Preis_EUR_je_BG", "Nahtgruppen", "Arbeitsgaenge", "Richtwerte")
 TRENNER = ";"
 DEZIMAL = "."             # Dezimaltrennzeichen der Zahlen
+TIEF = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
 
 
 # ------------------------------------------------------------------ Formate
@@ -107,16 +118,24 @@ def _werte(z, n):
 
 
 def _gesamtzeit_s(p, z, summen, teile_abm, profil):
-    """Zeit einer Position [s]: Laserzeit × Menge + Anteil Rüsten Maschine und Stangenwechsel (nach Teilen des
-    Angebots) + Rüsten je Abmessung (nach Teilen der Abmessung) + Programmierzeit der Position."""
+    """Zeit einer Position [s]: Laserzeit × Menge + Anteil Rüsten Maschine (nach Teilen des Laufs, Muster
+    eigener Lauf) und Stangenwechsel (nach Teilen des Angebots) + Rüsten je Abmessung (nach Teilen der Abmessung) + Programmierzeit der Position."""
     c = _werte(z, "stueck")
     if not c:
         return 0.0
     t = _werte(z, "laser_netto") * c
     teile = _zahl(summen.get("teile")) or 0
     if teile:
-        t += (_werte(summen, "ruestzeit") * 60 + _werte(summen, "stangenwechsel_s")) * c / teile
-    n_abm = teile_abm.get(p.get("profil_id")) or 0
+        t += _werte(summen, "stangenwechsel_s") * c / teile
+        ruest = _werte(summen, "ruestzeit") * 60
+        laeufe = _zahl(summen.get("laeufe")) or 1
+        if laeufe > 1:          # Muster und Serie je ein Lauf: Rüsten je Lauf auf dessen Teile
+            n_mu = _zahl(summen.get("teile_muster")) or 0
+            lauf = n_mu if (z or {}).get("muster") == "ja" else teile - n_mu
+            t += ruest / laeufe * c / lauf if lauf else 0
+        else:
+            t += ruest * c / teile
+    n_abm = teile_abm.get(rechnen.abm_schluessel(p)) or 0
     if n_abm:
         abm = _werte(summen, "ruestzeit_abmessung")
         if (profil or {}).get("form") in rechnen.SONDERFORMEN:
@@ -131,6 +150,13 @@ def _stueckpreis(z):
     if _werte(z, "mindestpreis_teil") > 0:
         return aufrunden(_werte(z, "preis_teil"))
     return kaufm_runden(_werte(z, "preis_teil"), 2)
+
+
+def _muster_text(z):
+    """Kommentar eines Musterteils (Preis 0): wohin seine Kosten gehen."""
+    if (z or {}).get("muster") != "ja":
+        return ""
+    return "Muster, Musterkosten einmalig" if _werte(z, "muster_einmal_position") > 0 else "Muster, im Serienpreis enthalten"
 
 
 def _arbeitsgaenge(p, z, k):
@@ -159,7 +185,7 @@ def kopf_zeile(kopf, kalk_zeilen, summen, einst, positionen, k, kunde=None, erst
     netto = angebot_inhalt(kopf, positionen, kalk_zeilen, k, einst)["netto"]
     fd = fracht_angebot.daten(kopf) or {}
     m = fracht_angebot.modus(kopf)
-    lz = lieferzeit_kurz(kopf)
+    lz = zahl(lieferzeit_wochen(kopf))
     pz = pos_zeilen or []
     bearb = sum(x["_bearbeitung_s"] for x in pz if x["_bearbeitung_s"] is not None)
     gesamt = sum(x["_gesamt_s"] for x in pz)
@@ -194,10 +220,29 @@ def kopf_zeile(kopf, kalk_zeilen, summen, einst, positionen, k, kunde=None, erst
     }
 
 
-def lieferzeit_kurz(kopf):
-    """Lieferzeit kurz, z. B. 'ca. 2 Wochen nach Auftragseingang' (ohne 'Lieferzeit:' und Schlusspunkt)."""
-    t = lieferzeit_text(kopf)
-    return re.sub(r"^Lieferzeit:\s*", "", t).rstrip(".")
+def lieferzeit_wochen(kopf):
+    """Lieferzeit in Wochen als Zahl (Spalte Lieferzeit): Wochen wie eingegeben, Arbeitstage / 5, Kalenderwoche und
+    Lieferdatum = Wochen ab Angebotsdatum (aufgerundet auf 0,5). None ohne Zahl (nur Freitext, 'nach Absprache')."""
+    kopf = kopf or {}
+    art, w = kopf.get("lieferzeit_art"), _text(kopf.get("lieferzeit_wert"))
+    if not w:
+        return None
+    try:
+        if art == WOCHEN:
+            return float(w)
+        if art == ARBEITSTAGE:
+            return float(w) / 5
+        ab = datetime.date.fromisoformat(str(kopf.get("datum") or "")[:10] or datetime.date.today().isoformat())
+        if art == KALENDERWOCHE:
+            kw, jahr = (int(x) for x in w.split("/"))
+            bis = datetime.date.fromisocalendar(jahr, kw, 1)
+        elif art == LIEFERDATUM:
+            bis = datetime.date.fromisoformat(w)
+        else:
+            return None
+    except ValueError:
+        return None
+    return max(0.0, -(-(bis - ab).days * 2 // 7) / 2)
 
 
 def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabellen):
@@ -214,7 +259,8 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
     teile_abm = {}
     for p, z in zip(positionen, kalk_zeilen):
         if z and not ist_zukaufteil(p):
-            teile_abm[p.get("profil_id")] = teile_abm.get(p.get("profil_id"), 0) + _werte(z, "stueck")
+            schl = rechnen.abm_schluessel(p)       # Musterteile: eigener Lauf, eigenes Rüsten je Abmessung
+            teile_abm[schl] = teile_abm.get(schl, 0) + _werte(z, "stueck")
     datum_angebot = datum(kopf.get("datum"))
     out = []
     for p, z in zip(positionen, kalk_zeilen):
@@ -235,8 +281,7 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             if g is not None:
                 einsatz = g * _werte(z, "anteil") / c
         einsatz_ges = einsatz * c if einsatz is not None else None
-        verschnitt = (f"{zahl(100 * (einsatz - kg_teil) / einsatz, 0)}%"
-                      if einsatz and kg_teil is not None else "")
+        verschnitt = zahl(100 * (einsatz - kg_teil) / einsatz, 0) if einsatz and kg_teil is not None else ""
         flaeche = None          # Mantelfläche außen [m²] = Umfang des Querschnitts × Teilelänge
         if pr and _zahl(p.get("laenge")):
             u = umfang(pr.get("form"), _zahl(pr.get("a")) or 0, _zahl(pr.get("b")), _zahl(pr.get("wand")),
@@ -270,7 +315,7 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             "Gew.": zahl(kg_teil, 3),
             "Umfang": "" if zk else zahl(p.get("schneidweg"), 0),
             "Maschine": "" if zk else _text(kopf.get("maschine")),
-            "Schneiden": "" if zk else _text(z.get("gas")),
+            "Schneiden": "" if zk else _text(z.get("gas")).translate(TIEF),
             "Date": datum_angebot,
             "L.": "" if zk else zahl(p.get("laenge")),
             "B.": "",
@@ -279,8 +324,8 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             "Gesamtzeit": "" if zk else zeit(gesamt_s),
             "zum Schneiden": "0",
             "Gesamt HK(€)": geld(hk),
-            "Marge Netto%": f"{zahl(100 * (preis - hk) / hk, 1)} %" if hk > 0 else "",
-            "Kommentar": _text(z.get("hinweis")),
+            "Marge Netto%": zahl(100 * (preis - hk) / hk, 1) if hk > 0 else "",
+            "Kommentar": "; ".join(t for t in (_text(z.get("hinweis")), _muster_text(z)) if t),
             "Preis/Kg": geld(einkauf / einsatz_ges) if einsatz_ges and _werte(z, "material_position") > 0 else "",
             "Einsatzgewicht": zahl(einsatz, 3),
             "HK()": geld(hk_teil),

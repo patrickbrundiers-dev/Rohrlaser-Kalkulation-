@@ -39,7 +39,7 @@ import json
 
 from . import blech, fracht_angebot, rechnen, zukauf
 from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
-from .angebot import aktiv as position_aktiv
+from .angebot import aktiv as position_aktiv, ist_muster
 from .ausgabe import aufrunden, kaufm_runden
 from .stammdaten import Feld, kontext_aus
 
@@ -284,7 +284,8 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
                      "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
                      "aufschlag_blech", "aufschlag_zukauf",      # Aufschlag Bleche bzw. Zukaufteile des Angebots
-                     "ruesten_abmessung_eur", "ruesten_angebot_eur")     # Rüsten als fester Betrag
+                     "ruesten_abmessung_eur", "ruesten_angebot_eur",     # Rüsten als fester Betrag
+                     "muster_darstellung")       # Musterkosten umlegen oder als eigene Zeile
     # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
     if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
         tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
@@ -500,7 +501,12 @@ def _bausteine_teil(kz, idx, summen):
                 programmierung=summe("programmierung_anteil"), angebotsaufschlag=summe("angebotsaufschlag_teil"),
                 fracht=summe("fracht_teil"), skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
                 zukauf_einstand=summe("zukauf_einstand_teil"), zukauf_aufschlag=summe("zukauf_aufschlag_teil"),
-                zukauf_fehlt=sum(_zahl(z.get("zukauf_fehlt")) for z in zeilen), verkauf=summe("preis_teil"))
+                zukauf_fehlt=sum(_zahl(z.get("zukauf_fehlt")) for z in zeilen), verkauf=summe("preis_teil"),
+                # Musterteile: umgelegter Anteil (Selbstkosten mit Gewinn, Zukaufteile ohne; Fracht steckt in
+                # fracht_teil) bzw. als eigene Zeile (Selbstkosten, Zukaufteile, Fracht)
+                muster=(summe("muster_selbst_teil"), summe("muster_zukauf_teil")),
+                muster_getrennt=(summe("muster_getrennt_selbst_teil"), summe("muster_getrennt_zukauf_teil"),
+                                 summe("muster_getrennt_fracht_teil")))
 
 
 def richtpreis_zeilen(e, p, daten):
@@ -581,6 +587,11 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         pos = ", ".join(sorted({txt(positionen[i].get("pos")) for i in doppelt}))
         return alle_mit(f"FEHLER: Pos. {pos} steht in der Stufe doppelt (als Satz und als Position)")
     lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
+    # Musterteile (Patrick 28.10.2026, F5 a): laufen in jeder Stufe mit der Stückzahl des Angebots mit, ihre Kosten
+    # gehen einmal je Stufe auf deren Menge wie Rüsten; eine Stufe für das Muster selbst rechnet es als Serienteil
+    for i, p in enumerate(positionen):
+        if ist_muster(p):
+            lauf[i] = dict(lauf[i], muster=None) if i in mengen else dict(lauf[i], stueck=p.get("stueck"))
     blech_text = {}
     for i, p in enumerate(positionen):          # Blechteile: EK aus dem Einkauf oder Richtpreis für die Stufe
         neu, text = blech_stand(p, mengen.get(i), tabellen.get("blech"))
@@ -763,14 +774,20 @@ def preise(b, menge, w, anhebung=None):
     # Selbstkosten = Herstellkosten + Pauschalen + Programmierung + Angebotsaufschlag + Zukaufteile; Gewinn darauf,
     # Fracht ohne Gewinn danach (festgeschrieben vor dem 23.10.2026: Gewinn nur auf die Herstellkosten, wie bisher)
     selbst = herstell + b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + zk_e + zk_a
+    # Musterteile: Selbstkosten der Muster einmal je Stufe (Gewinn darauf, Zukaufteile ohne); als eigene Zeile
+    # zusätzlich die Fracht der Muster, alles als einmaliger Betrag (fehlt in älteren Mengenläufen)
+    ms, mz_ = b.get("muster") or (0.0, 0.0)
+    gs, gz, gf = b.get("muster_getrennt") or (0.0, 0.0, 0.0)
+    selbst += ms + mz_ + gs + gz
+    zk_e_g = zk_e + mz_ + gz            # ohne Gewinn
     if w.get("selbst_basis", True):
         # ab 26.10.2026: Zukaufteile ohne Gewinn, nur mit ihrem Aufschlag
-        gewinn = (selbst - zk_e - zk_a if w.get("neu", True) else selbst) * w["gewinn"]
-        ohne = selbst + gewinn + b["fracht"]
+        gewinn = (selbst - zk_e_g - zk_a if w.get("neu", True) else selbst) * w["gewinn"]
+        ohne = selbst + gewinn + b["fracht"] + gf
     else:
         gewinn = herstell * w["gewinn"]
         weitere = b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + b["fracht"]
-        ohne = herstell + gewinn + weitere + zk_e + zk_a
+        ohne = herstell + gewinn + weitere + zk_e + zk_a + (ms + gs) * (1 + w["gewinn"]) + mz_ + gz + gf
     netto = ohne / (1 - sk)
     # Mindestpreis netto je Stufe (jede Stufe ist ein eigenes Angebot): Stückpreis anheben, auf den Cent aufgerundet;
     # ab 26.10.2026 für die Ware ohne Fracht nach Skonto (ware = Selbstkosten + Gewinn), davor für den Verkaufspreis
@@ -786,6 +803,9 @@ def preise(b, menge, w, anhebung=None):
     # Einmalkosten von Schweißbaugruppen mit eigener Zeile: immer einmalig, nicht im Stückpreis
     bg_einmalig = kaufm_runden(bg_selbst * (1 + w["gewinn"]) / (1 - sk), 2) if bg_selbst else 0.0
     einmalig += bg_einmalig
+    # Musterkosten als eigene Zeile: einmalig, nicht im Stückpreis
+    muster_einmalig = kaufm_runden((gs * (1 + w["gewinn"]) + gz + gf) / (1 - sk), 2) if gs or gz or gf else 0.0
+    einmalig += muster_einmalig
     preis_einheit = (aufrunden((netto - einmalig) / menge) if anhebung
                      else kaufm_runden((netto - einmalig) / menge, 2))
     gesamt = kaufm_runden(preis_einheit * menge + einmalig, 2)
@@ -798,7 +818,8 @@ def preise(b, menge, w, anhebung=None):
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
                 skonto=netto - anhebung - ohne, mindest_anhebung=anhebung, netto=netto, einmalig=einmalig,
-                bg_einmalig=bg_einmalig, preis_einheit=preis_einheit,
+                bg_einmalig=bg_einmalig, muster_einmalig=muster_einmalig, muster_umlage=(ms + mz_) and
+                (ms * (1 + w["gewinn"]) + mz_) / (1 - sk), preis_einheit=preis_einheit,
                 preis_gesamt=gesamt, mwst=mwst, brutto=kaufm_runden(gesamt + mwst, 2))
 
 

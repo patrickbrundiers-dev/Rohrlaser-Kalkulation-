@@ -1,5 +1,6 @@
 """Fenster „Arbeitsgänge vorschlagen“ (arbeitsgaenge.py): Arbeitsgänge je Position mit Status, Vorschläge der
-Arbeitsgang-Regeln annehmen oder ablehnen."""
+Arbeitsgang-Regeln annehmen oder ablehnen; automatische Zusatzarbeiten (Regel mit Zuordnung automatisch) abwählen
+(Ablehnen) oder fest übernehmen (Annehmen)."""
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout)
@@ -7,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHBoxLayout, QHeaderV
 from . import arbeitsgaenge as ag, stil
 from .rechnen import zahl
 
-FARBE = {ag.VORSCHLAG: "#FFF6DB", ag.ABGELEHNT: "#F2F2F2", ag.ZU_PRUEFEN: "#FDECEA"}
+FARBE = {ag.VORSCHLAG: "#FFF6DB", ag.ABGELEHNT: "#F2F2F2", ag.ZU_PRUEFEN: "#FDECEA", ag.AUTOMATISCH: "#FFF6DB"}
 SPALTEN = ("Pos.", "Artikel", "Arbeitsgang", "Menge je Teil", "Zeit je Teil [s]", "€ je Teil", "Kostenart",
            "Status", "Herkunft")
 
@@ -69,7 +70,7 @@ class ArbeitsgaengeDialog(QDialog):
         s = ag.summen(self.zeilen)
         n_v = sum(1 for z in self.zeilen if z["status"] == ag.VORSCHLAG)
         self.info.setText(
-            "Gerechnet werden nur Arbeitsgänge „im Angebot“ (Gewinde, Zusatzarbeiten je Teil: "
+            "Gerechnet werden Arbeitsgänge „im Angebot“ und „automatisch“ (Gewinde, Zusatzarbeiten je Teil: "
             + (", ".join(f"{k} {zahl(v)} €" for k, v in s[ag.IM_ANGEBOT].items()) or "keine") + "). "
             + (f"{n_v} Vorschlag/Vorschläge der Arbeitsgang-Regeln, voraussichtlich je Teil "
                + ", ".join(f"{k} {zahl(v)} €" for k, v in s[ag.VORSCHLAG].items())
@@ -84,8 +85,9 @@ class ArbeitsgaengeDialog(QDialog):
         z = self.markiert()
         st = z and z["status"]
         schreibbar = not self.seite.db.nur_lesen
-        self.annehmen_knopf.setEnabled(schreibbar and st in (ag.VORSCHLAG, ag.ABGELEHNT))
-        self.ablehnen_knopf.setEnabled(schreibbar and st == ag.VORSCHLAG)
+        self.annehmen_knopf.setEnabled(schreibbar and st in (ag.VORSCHLAG, ag.ABGELEHNT, ag.AUTOMATISCH))
+        self.ablehnen_knopf.setEnabled(schreibbar and st in (ag.VORSCHLAG, ag.AUTOMATISCH))
+        self.ablehnen_knopf.setText("Abwählen" if st == ag.AUTOMATISCH else "Ablehnen")
         self.zurueck_knopf.setEnabled(schreibbar and st == ag.ABGELEHNT)
 
     def waehlen(self, position_id, arbeitsgang):

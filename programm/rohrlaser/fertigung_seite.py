@@ -156,6 +156,6 @@ class FertigungSeite(QWidget):
         from pathlib import Path
         p = Path(pfad)
         p.write_text(json.dumps(daten, ensure_ascii=False, indent=2), encoding="utf-8")
-        p.with_suffix(".csv").write_text(fertigung.export_csv(daten), encoding="utf-8-sig")
+        p.with_suffix(".csv").write_text(fertigung.export_csv(daten), encoding="utf-8-sig", newline="")
         self.meldung.setText(f"Export gespeichert: {p.name} und {p.with_suffix('.csv').name}")
         return p

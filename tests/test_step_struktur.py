@@ -211,7 +211,9 @@ erg = step.uebernehmen(m3, [], k, db.zeilen("gewinde"), None, "S235-10219", None
                        zukauf_liste=[])
 g = baugruppe.lesen(next(p for p in erg["positionen"] if p.get("art") == BAUGRUPPE)["baugruppe"])
 assert not g["naehte"]
-vs = sorted((v["nahtart"], v["anzahl"], v["laenge"], v["knoten"]) for v in g["vorschlaege"])
-assert vs == [("Kehlnaht", 5, 152, ""), ("Stumpfnaht", 1, 152, "")], vs
+vs = sorted((v["nahtart"], v["anzahl"], v["laenge"], v["knoten"], v.get("zugang")) for v in g["vorschlaege"])
+# seit 0.9.176 trennt die Erreichbarkeit aus STEP: 4 der 5 Kehlnähte sind nur eingeschränkt erreichbar
+assert vs == [("Kehlnaht", 1, 152, "", "gut"), ("Kehlnaht", 4, 152, "", "eingeschränkt"),
+              ("Stumpfnaht", 1, 152, "", "gut")], vs
 assert any("6 Nahtkandidaten als Vorschlag" in b for b in erg["bericht"]), erg["bericht"]
-print("OK: Schweißbaugruppe aus S03: 6 Nahtkandidaten als 2 Vorschläge, keine Nahtgruppe automatisch")
+print("OK: Schweißbaugruppe aus S03: 6 Nahtkandidaten als 3 Vorschläge (nach Erreichbarkeit getrennt), keine Nahtgruppe automatisch")
