@@ -40,7 +40,7 @@ from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import LOESCHSCHUTZ_HAND, LOESCHSCHUTZ_JEDES
 from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
-                         alte_richtwerte, ALTE_GRAVUR, GRAVUR,
+                         alte_richtwerte, ALTE_GRAVUR, GRAVUR, zeit_ecke,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
                          strahl_zusatzarbeiten, strahl_regeln,
@@ -156,6 +156,7 @@ GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
+ECKE_STAND = "2026-10-29"         # Zeit je Ecke nach Wandstärke in leeren Richtwertzeilen (Datenbank._ecke_anpassen, S2)
 PAUSCHALE_STAND = "2026-10-26"     # Pauschale je Abmessung einmalig auf 0, Rüsten je Abmessung deckt sie (Patrick 26.10.2026)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
@@ -245,6 +246,7 @@ class Datenbank:
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
+            self.einstellung_setzen("ecke_stand", ECKE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
             self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
@@ -447,6 +449,8 @@ class Datenbank:
                 for n in ("zuschlag_material", "zuschlag_fertigung"):
                     self._einstellung_schreiben(n, 0)
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            if version > 0 and self.einstellung("ecke_stand") != ECKE_STAND:
+                self._ecke_anpassen()
             if version > 0 and self.einstellung("pauschale_stand") != PAUSCHALE_STAND:
                 self._einstellung_schreiben("pauschale_abmessung", 0)
                 self._einstellung_schreiben("pauschale_stand", PAUSCHALE_STAND)
@@ -746,6 +750,16 @@ class Datenbank:
                          (GRAVUR["Faser"],) + ALTE_GRAVUR)
         self._einstellung_schreiben("gravur_stand", GRAVUR_STAND)
 
+    def _ecke_anpassen(self):
+        """Einmalig (29.10.2026, S2): Zeit je Ecke der Richtwert-Zeilen (Werkstoff-ID leer, Bemerkung 'Beispiel:
+        Richtwert …'), in denen sie noch leer ist, nach Wandstärke (stammdaten.zeit_ecke); eingetragene Werte und
+        eigene Zeilen bleiben."""
+        for i, wand in self.con.execute(
+                "SELECT id, wand_bis FROM schneiddaten WHERE zeit_ecke IS NULL AND wand_bis IS NOT NULL AND "
+                "(werkstoff_id IS NULL OR werkstoff_id='') AND bemerkung LIKE 'Beispiel: Richtwert%'").fetchall():
+            self.con.execute("UPDATE schneiddaten SET zeit_ecke=? WHERE id=?", (zeit_ecke(wand), i))
+        self._einstellung_schreiben("ecke_stand", ECKE_STAND)
+
     def _richtwerte_anpassen(self):
         """Einmalig: Richtwert-Zeilen (Werkstoff-ID leer, Bemerkung 'Beispiel: Richtwert …') mit den Werten 0.5.13 bis
         0.6.18 bekommen die Rohr-Richtwerte vom 21.10.2026 (Vorschub groß, mittel, klein, Einstechzeit); von Hand
@@ -974,6 +988,28 @@ class Datenbank:
                                    ids).rowcount
             self._einfuegen("schneiddaten", standard)
         return weg, len(standard)
+
+    @schreibt
+    def schneiddaten_standard_setzen(self, maschinen=None, ids=None, eigene_behalten=False, sichern=True):
+        """Schneiddaten auf Standard zurücksetzen mit Umfang wie schneiddaten_standard.vergleich (Maschinen oder
+        markierte Zeilen, eigene Zeilen behalten): Standardzeilen bekommen die Richtwerte (Zeile bleibt, nur die
+        Werte ändern sich), eigene Zeilen werden entfernt (außer behalten bzw. markierte Zeilen), fehlende
+        Standardzeilen ergänzt. Vorher geschützte Sicherung 'vor_Schneiddaten_Standard' (sichern=False: ohne).
+        Ergebnis dict(geaendert, weg, neu, pfad)."""
+        from .schneiddaten_standard import WERTE, vergleich
+        v = vergleich(self.zeilen("schneiddaten"), maschinen, ids, eigene_behalten)
+        if not (v["aendern"] or v["entfernen"] or v["ergaenzen"]):
+            return dict(geaendert=0, weg=0, neu=0, pfad=None)
+        pfad = self.sicherung(zusatz="vor_Schneiddaten_Standard") if sichern else None
+        with self.con:
+            self._stammdaten_geaendert("schneiddaten")
+            for z, _, s in v["aendern"]:
+                self.con.execute(f'UPDATE schneiddaten SET {", ".join(chr(34) + f + chr(34) + "=?" for f in WERTE)} '
+                                 "WHERE id=?", [s.get(f) for f in WERTE] + [z["id"]])
+            self.con.executemany("DELETE FROM schneiddaten WHERE id=?", [(z["id"],) for z in v["entfernen"]])
+            if v["ergaenzen"]:
+                self._einfuegen("schneiddaten", v["ergaenzen"])
+        return dict(geaendert=len(v["aendern"]), weg=len(v["entfernen"]), neu=len(v["ergaenzen"]), pfad=pfad)
 
     # -------------------------------------------------------------- Zusatzarbeiten
     def _zusatz_positionen(self, name=None):

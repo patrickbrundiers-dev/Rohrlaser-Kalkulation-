@@ -368,6 +368,7 @@ MASCHINEN = Tabelle(
      Feld("ruest_sonder", "Rüstzuschlag Sonderprofil [min je Abmessung]", "zahl", 0, 1440, stellen=0, breite=95),
      Feld("duese_min", "Mindestabstand Düse [mm]", "zahl", 0, 200, stellen=1, breite=85),
      Feld("min_teil", "Kürzestes Teil [mm]", "zahl", 0, 20000, stellen=0, breite=80),
+     Feld("zeit_kontur", "Zeit je Kontur (Anfahren/Drehen) [s]", "zahl", 0, 60, stellen=2, breite=95),
      # Schichtkalender der Wochenauslastung (Plan 29.10.2026 2b, auslastung.py); leer = Einstellung
      Feld("schicht_stunden", "Schicht: Stunden je Arbeitstag", "zahl", 0, 24, stellen=1, breite=90)),
     ("maschinen_id",),
@@ -388,8 +389,9 @@ MASCHINEN = Tabelle(
     "Mindestabstand Düse: tiefer als dieses Maß steht der Anschlag eines RP-Profils über; Innenkonturen können "
     "darunter liegen und bekommen WARNUNG (prüfen), leer = keine Prüfung. Kürzestes Teil: kürzere Teile kann die "
     "Maschine nicht fertigen; sie bekommen die Stufe der Prüfregel 'Teil zu kurz für die Maschine' (leer = keine "
-    "Grenze). Schicht: Stunden je Arbeitstag für die Wochenauslastung (Datei → Maschinenauslastung …; leer = "
-    "Einstellung).")
+    "Grenze). Zeit je Kontur (Anfahren/Drehen): Zuschlag je Einstich für das Anfahren der Kontur und das Drehen des "
+    "Rohrs dazwischen (jede Innenkontur und jedes Ende), leer = 0; mit echten Schnittzeiten abgleichen. "
+    "Schicht: Stunden je Arbeitstag für die Wochenauslastung (Datei → Maschinenauslastung …; leer = Einstellung).")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -1821,18 +1823,27 @@ _ALTE_RICHTWERTE = {
 GRAVUR = {"Faser": 3000, "CO₂": 3000}
 ALTE_GRAVUR = (15000, 10000)
 RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel: Richtwert CO₂-Laser"}
+# Zeit je Ecke im Anfangs- und Endschnitt (Patrick 29.10.2026, S2 „nach Wandstärke“): 0,2 s + 0,05 s je mm
+# 'Wandstärke bis' der Zeile (1 mm 0,25 s, 3 mm 0,35 s, 8 mm 0,6 s, 12 mm 0,8 s); bis 0.9.195 leer
+ECKE_GRUND, ECKE_JE_MM = 0.2, 0.05
+
+
+def zeit_ecke(wand_bis):
+    """Standard 'Zeit je Ecke' [s] einer Schneiddaten-Zeile mit dieser 'Wandstärke bis' [mm]."""
+    return round(ECKE_GRUND + ECKE_JE_MM * float(wand_bis), 2)
 
 
 def beispiel_schneiddaten():
     """Schneiddaten je Kategorie (Werkstoff-ID leer) für T03 (CO₂) sowie T11 und LT7 (Faser) aus den Richtwerten.
-    Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt am Rohr die Dynamik, nicht die Leistung."""
+    Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt am Rohr die Dynamik, nicht die Leistung.
+    Zeit je Ecke nach Wandstärke (zeit_ecke: Quadrat-/Rechteckrohr bremsen und drehen an jeder Ecke)."""
     out = []
     for m, laser in LASER.items():
         text = f"{RICHTWERT_TEXT[laser]} {zahl_als_text(LEISTUNG[m])} kW, Rohr"
         for (kat, gas), stufen in RICHTWERTE[m].items():
             for wand, v, ein in stufen:
                 out.append((m, None, kat, gas, wand, v, round(v * 0.6, -1), round(v * 0.3, -1), ein, GRAVUR[laser],
-                            text))
+                            text, zeit_ecke(wand)))
     return out
 
 

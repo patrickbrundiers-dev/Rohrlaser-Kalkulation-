@@ -2466,18 +2466,26 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
         h = i_ = j = kv = l = None
     d3 = zeit_3d(p, kopf, wand, tabellen, k, (h, i_, j, kv, l))
     ez = zeit_enden(p, kopf, sd, tabellen, k, h)
-    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez)
+    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez, anfahrzeit(kopf, k))
     return sd, (h, i_, j, kv, l), sum(anteile.values()) if anteile else None
 
 
-ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "d3", "ecken", "doppel")
+ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "anfahren", "d3", "ecken", "doppel")
 
 
-def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None):
+def anfahrzeit(kopf, k):
+    """Zeit je Kontur für Anfahren und Drehen [s] der Maschine des Angebots (Maschinenfeld 'zeit_kontur', Patrick
+    29.10.2026 S3); leer = 0. Gilt je Einstich (jede Kontur und jedes Ende wird einmal angefahren)."""
+    m = maschine(kopf, k) if k else None
+    return _n((m or {}).get("zeit_kontur"))
+
+
+def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None, anfahr=0.0):
     """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur
     (ohne Anbauteile), gravur_anbau (Gravur der Anbauteile), einstiche, d3 (Mehrzeit der 3D-Bearbeitung gegenüber
     demselben Weg in 2D, zeit_3d), ecken und doppel (Eckzeit und Mehrzeit der Doppellage im Anfangs- und Endschnitt,
-    zeit_enden)}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
+    zeit_enden), anfahren (Einstiche × Zeit je Kontur für Anfahren/Drehen, anfahr)}; None ohne Vorschub groß.
+    vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
     h, i_, j, kv, l = vorschuebe
     if not h:
         return None
@@ -2485,7 +2493,8 @@ def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None):
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
                     klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p) + gravur_artikel(p)) / kv,
                     gravur_anbau=60 * gravur_anbau(p) / kv,
-                    einstiche=_n(p.get("einstiche")) * _n(l), d3=_n(mehr_3d),
+                    einstiche=_n(p.get("einstiche")) * _n(l), anfahren=_n(p.get("einstiche")) * _n(anfahr),
+                    d3=_n(mehr_3d),
                     ecken=_n((enden or {}).get("ecken")), doppel=_n((enden or {}).get("doppel")))
     except ZeroDivisionError:
         return None
@@ -2505,8 +2514,7 @@ def sonderprofil_pruefen(p, pr, m):
         return f"Maschine prüfen: {m.get('maschinen_id')} spannt keine RP-/Sonderprofile"
     duese = _n(m.get("duese_min"))
     e = rp_profile.daten(p.get("profil_id")) if pr.get("form") == rp_profile.FORM else None
-    if duese > 0 and e and _n(e.get("doppellage")) > duese and (_n(p.get("innen")) > 0 or any(
-            _n(p.get(f"{n}_n")) for n in ("klein", "mittel", "gross"))):
+    if duese > 0 and e and _n(e.get("doppellage")) > duese and (_n(p.get("innen")) > 0 or konturen_anzahl(p)):
         return (f"Innenkonturen unter dem Anschlag prüfen (Anschlag {zahl(_n(e['doppellage']), 1)} mm, Düse min. "
                 f"{zahl(duese, 1)} mm)")
     return None
@@ -2676,7 +2684,10 @@ def zeitbasis(kopf, k, tabellen):
 PREIS_FELDER = ("profil_id", "werkstoff_id", "basis", "preis", "lieferlaenge", "gueltig_ab", "lieferant")
 LIEFER_FELDER = ("profil_id", "werkstoff_id", "laenge", "basis", "preis", "gueltig_ab", "lieferant")
 SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis", "vorschub_gross", "vorschub_mittel",
-                  "vorschub_klein", "einstechzeit", "vorschub_gravur")
+                  "vorschub_klein", "einstechzeit", "vorschub_gravur", "zeit_ecke")
+# Seit 29.10.2026 festgeschrieben: Zeit je Ecke (Schneiddaten) und Zeit je Kontur (Maschine). Ältere Snapshots haben
+# sie nicht: sie rechnen ohne (Ecke leer = 0 s wie die Standardwerte bis dahin, Anfahren gab es noch nicht).
+MASCHINE_NEU = ("zeit_kontur",)
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
@@ -2842,7 +2853,7 @@ def preisbasis_anwenden(kopf, k, tabellen):
     of = {o: dict(z, aufpreis_m=pb["aufpreise"][o], aufpreis_basis=basen.get(o) or "€/m")
           if o in (pb.get("aufpreise") or {}) else z for o, z in k.oberflaechen.items()}
     pr = {pid: _fest(z, (pb.get("profile") or {}).get(pid)) for pid, z in k.profile.items()}
-    ma = {m: _fest(z, (pb.get("maschinen") or {}).get(m)) if m == kopf.get("maschine") else z
+    ma = {m: _maschine_fest(z, (pb.get("maschinen") or {}).get(m)) if m == kopf.get("maschine") else z
           for m, z in k.maschinen.items()}
     return dataclasses.replace(k, werkstoffe=ws, oberflaechen=of, profile=pr, maschinen=ma), tab
 
@@ -2865,6 +2876,23 @@ def _laser_werte(z):
 
 def _json_liste(zeilen):
     return sorted(json.dumps(z, sort_keys=True, default=str) for z in zeilen)
+
+
+def _maschine_fest(aktuell, fest):
+    """Maschinenzeile eines festgeschriebenen Angebots (_fest); Felder, die es beim Festschreiben noch nicht gab
+    (MASCHINE_NEU), gelten als leer."""
+    z = _fest(aktuell, fest)
+    if isinstance(fest, dict):
+        z = dict(z, **{n: None for n in MASCHINE_NEU if n not in fest})
+    return z
+
+
+def _ohne_spaetere(neu, alt):
+    """Zeile der aktuellen Stammdaten ohne leere Felder, die es in der festgeschriebenen Zeile noch nicht gab
+    (sonst meldet jedes ältere Angebot eine Änderung, nur weil ein Feld dazugekommen ist)."""
+    if not isinstance(neu, dict) or not isinstance(alt, dict):
+        return neu
+    return {n: v for n, v in neu.items() if n in alt or not _leer(v)}
 
 
 def _fest(aktuell, fest):
@@ -2923,7 +2951,13 @@ def preisbasis_abweichung(kopf, k, tabellen):
     umfang = ([dict(profil_id=z.get("profil_id"), werkstoff_id=z.get("werkstoff_id")) for z in pb.get("preise") or []]
               + [dict(werkstoff_id=w) for w in pb.get("tonnenpreise") or {}]
               + [dict(oberflaeche=o) for o in pb.get("aufpreise") or {}])
-    neu = _vergleich(preisbasis_aus(dict(kopf, maschine=pb.get("maschine")), umfang, k, tabellen))
+    neu_pb = preisbasis_aus(dict(kopf, maschine=pb.get("maschine")), umfang, k, tabellen)
+    alt_sd = pb.get("schneiddaten") or []
+    if alt_sd and not any("zeit_ecke" in z for z in alt_sd):     # vor dem 29.10.2026 ohne Zeit je Ecke
+        neu_pb["schneiddaten"] = [{n: v for n, v in z.items() if n != "zeit_ecke"} for z in neu_pb["schneiddaten"]]
+    neu_pb["maschinen"] = {m: _ohne_spaetere(z, (pb.get("maschinen") or {}).get(m))
+                           for m, z in neu_pb["maschinen"].items()}
+    neu = _vergleich(neu_pb)
     def text(z):
         return f"{zahl(z.get('preis'))} {z['basis']}" if z and z.get("basis") else "Tonnenpreis"
 
@@ -3050,7 +3084,11 @@ def _zahl(w):
 
 
 def konturen_anzahl(p):
-    """Innenkonturen einer Position (klein + mittel + groß aus STEP-Import bzw. Schneidweg-Rechner)."""
+    """Innenkonturen einer Position: Einträge der Konturliste ohne Anfangs- und Endschnitt (die Enden stehen seit
+    0.5.7 mit in den Konturklassen, zählen aber nicht als Innenkontur); ohne Konturliste klein + mittel + groß."""
+    liste = konturen_lesen(p.get("konturen"), True)
+    if liste:
+        return sum(1 for a, _, _ in liste if not a)
     return int(sum(_n(p.get(n)) for n in ("klein_n", "mittel_n", "gross_n")))
 
 
@@ -3116,12 +3154,13 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
     sd, (h, i_, j, kv, l), mz = schneidzeit(p, kopf, w["wand_schneiden"], tabellen, k)
     d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (h, i_, j, kv, l))
     ez = zeit_enden(p, kopf, sd, tabellen, k, h)
-    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez) or {}
+    ta = anfahrzeit(kopf, k)
+    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez, ta) or {}
     if h is None or c == 0 or not h:
         nz = 0
     else:
         nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_regel(maschine(kopf, k), w["wand_schneiden"]))
-              + ein[2] * einstiche_ende(w["profilform"]) * l + ein[2] * _n((ez or {}).get("je_ende"))) / c
+              + ein[2] * einstiche_ende(w["profilform"]) * (l + ta) + ein[2] * _n((ez or {}).get("je_ende"))) / c
     manuell = not _leer(p.get("zeit_manuell"))
     zeit_extra = sum(e["zeit"] for e in zus)
     # Prüfzeit je Teil mit unsicher erkannten Anbauteilen (Einstellung, min): eigener Zeitanteil der Laserzeit
