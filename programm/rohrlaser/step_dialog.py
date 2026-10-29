@@ -132,7 +132,7 @@ class StepPruefDialog(QDialog):
     VOLLGRUPPE = "Vollmaterial (Zukaufteile, gesägt)"
     AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
     # Hinweis gleich hinter dem Teil (Plan Angebotsablauf V2: bei 1366 px sichtbar, ganzer Text im Tooltip)
-    SPALTEN = ("Teil", "In Datei", "Hinweis", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl",
+    SPALTEN = ("Artikelnummer ✎", "In Datei", "Hinweis", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl",
                "Zusatzarbeiten", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Anbauteile")
     (SP_HINWEIS, SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_ZUSATZ, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN,
      SP_ANBAU) = range(2, 12)
@@ -140,7 +140,8 @@ class StepPruefDialog(QDialog):
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
-                 zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None):
+                 zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
+                 vorhandene_artikel=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -153,9 +154,11 @@ class StepPruefDialog(QDialog):
         Ergebnis in self.referenz_text(). hinweis = Zeilen, die aus der E-Mail der Anfrage übernommen wurden (Kunde,
         Lieferzeit, Werkstoff), stehen unter dem Kunden zum Prüfen. pdf_formulare = gelesene PDFs der Anfrage mit ihren
         Seiten (pdf_art): je Datei eine Zeile „Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl; pdf_neu(Datei, Wahl)
-        ordnet Stückzahlen und Werkstoffe danach neu zu (die Zeilen werden aufgefrischt)."""
+        ordnet Stückzahlen und Werkstoffe danach neu zu (die Zeilen werden aufgefrischt). vorhandene_artikel =
+        Artikelnummern, die schon im Angebot stehen (Spalte Artikelnummer gelb mit Hinweis)."""
         from . import step
         super().__init__(parent)
+        self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
         self.pdf_danach = False         # Knopf „Übernehmen und Angebot (PDF)“
         self.lernen, self.lernen_werte = lernen, None
@@ -309,6 +312,9 @@ class StepPruefDialog(QDialog):
         self.baum.itemDoubleClicked.connect(self._doppelklick)
         self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
         self.baum.customContextMenuRequested.connect(self._kontextmenue)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence("F2"), self.baum, activated=lambda: self.artikel_bearbeiten(self.baum.currentItem()),
+                  context=Qt.WidgetShortcut)
         self._baum_fuellen()
         for c, b in enumerate((220, 50, 150, 130, 120, 110, 70, 120, 80, 95, 65, 130)):
             self.baum.setColumnWidth(c, b)
@@ -425,6 +431,11 @@ class StepPruefDialog(QDialog):
             w.setStyleSheet("color: #7A5A00;")
             vz.addWidget(w)
         ll.addWidget(self.vor_zeile)
+        self.doppelt_info = QLabel()        # gleiche Artikelnummer an verschiedenen Teilen (artikel_pruefen)
+        self.doppelt_info.setStyleSheet(f"color: {stil.ROT};")
+        self.doppelt_info.setWordWrap(True)
+        ll.addWidget(self.doppelt_info)
+        self.artikel_pruefen()
         self.ansicht = Ansicht3DMitKnoepfen()
         teil = QSplitter(Qt.Horizontal)
         teil.addWidget(links)
@@ -432,7 +443,8 @@ class StepPruefDialog(QDialog):
         teil.setSizes([820, 530])
         lay = QVBoxLayout(self)
         lay.addWidget(teil, 1)
-        hinweis = hilfe.Hinweis("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
+        hinweis = hilfe.Hinweis("Häkchen = Teil übernehmen, Artikelnummer ändern: Doppelklick oder F2 auf die erste "
+                         "Spalte. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
                          "eintragen. Art: eine andere wählen, wenn das Teil falsch erkannt wurde. Nicht übernehmbare "
                          "Teile (in 3D magenta): darunter Profilform und Profil-ID wählen und „Nachtragen“. Anbauteile (aufgeschweißte Bolzen, Laschen …): Doppelklick auf "
                          "die Spalte Anbauteile = prüfen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
@@ -533,9 +545,6 @@ class StepPruefDialog(QDialog):
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
             it.setData(0, Qt.UserRole + 1, it.text(0))       # Artikelnummer beim Aufbau (Doppelklick ändert sie)
-            herkunft = "von Hand geändert" if m.get("_artikel_hand") else m.get("_artikel_herkunft")
-            if m.get("_artikel_unsicher") and not m.get("_artikel_hand"):
-                it.setBackground(0, QBrush(stil.farbe(stil.GELB_FLAECHE)))
             gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen" and not m.get("_normteil"))
                         is not False) if ist_blech \
                 else m.get("_uebernehmen", not m.get("_normteil")) is not False if ist_voll else step.gewaehlt(m)
@@ -577,13 +586,6 @@ class StepPruefDialog(QDialog):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
             if m.get("_normteil"):
                 hinweis.append(f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken")
-            tipp = [f"Artikelnummer aus: {herkunft}"] if herkunft else []
-            if m.get("_artikel_unsicher") and not m.get("_artikel_hand"):
-                tipp.append("Unsicher – bitte prüfen.")
-            if m.get("pfad") and "/" in str(m["pfad"]) and m.get("pfad") != m.get("artikel"):
-                tipp.append(f"In der Baugruppe: {m['pfad']}")
-            tipp.append("Doppelklick: Artikelnummer ändern")
-            it.setToolTip(0, "\n".join(tipp))
             if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
                 hinweis.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
             hinweis += [h for h in [m.get("hinweise")] if h]
@@ -732,6 +734,7 @@ class StepPruefDialog(QDialog):
         for g in self.fehler_gruppen.values():
             n = g.childCount()
             g.setText(0, f"Nicht übernehmbar – {n} Teil{'e' if n != 1 else ''} (in der 3D-Ansicht magenta)")
+        self.artikel_pruefen()
 
 
     def _knick_anzeigen(self):
@@ -753,6 +756,9 @@ class StepPruefDialog(QDialog):
         it = self.baum.itemAt(pos)
         z = self._zeile(it)
         menue = QMenu(self)
+        if z:
+            menue.addAction("Artikelnummer ändern …" + "\tF2", lambda: self.artikel_bearbeiten(it))
+            menue.addSeparator()
         if any(self.messwerte[i].get("_zusatz") for x in self._markiert() or ([z] if z else []) for i in x.liste):
             menue.addAction("Zusatzarbeiten entfernen", lambda: self.zusatz_setzen(
                 None, self._markiert() or [z]))
@@ -1324,33 +1330,106 @@ class StepPruefDialog(QDialog):
     def _doppelklick(self, it, spalte):
         z = self._zeile(it)
         if z and spalte == 0:           # Artikelnummer ändern (gilt für alle gleichen Teile der Zeile)
-            it.setFlags(it.flags() | Qt.ItemIsEditable)
-            self.baum.editItem(it, 0)
-            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            self.artikel_bearbeiten(it)
         elif z and spalte == self.SP_ANBAU and it.text(self.SP_ANBAU):
             self.anbau_pruefen(z.liste[0])
 
+    def artikel_bearbeiten(self, it):
+        """Artikelnummer der Zeile it in der Liste bearbeiten (Doppelklick, F2, Rechtsklick)."""
+        if self._zeile(it) is None:
+            return False
+        it.setFlags(it.flags() | Qt.ItemIsEditable)
+        self.baum.editItem(it, 0)
+        it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+        return True
+
     def _artikel_geaendert(self, it, spalte):
         z = self._zeile(it)
-        if z and spalte == 0 and it.text(0).strip() and it.text(0) != it.data(0, Qt.UserRole + 1):
-            self.baum.blockSignals(True)
+        if z and spalte == 0 and it.text(0) != it.data(0, Qt.UserRole + 1):
+            alt = self.baum.blockSignals(True)
             try:
                 self.artikel_setzen(z, it.text(0))
             finally:
-                self.baum.blockSignals(False)
+                self.baum.blockSignals(alt)
             self._vor_uhr.start()
 
     def artikel_setzen(self, z, text):
-        """Artikelnummer der Zeile z von Hand (Prüfdialog, Doppelklick): für alle gleichen Teile, bleibt beim
-        Kundenwechsel (importprofil.anwenden) erhalten; leer = wie gemessen."""
+        """Artikelnummer der Zeile z von Hand (Prüfdialog: Doppelklick, F2 oder Rechtsklick): für alle gleichen
+        Teile, bleibt beim Kundenwechsel (importprofil.anwenden) erhalten; leer = wieder die aus der STEP bestimmte
+        Nummer. Danach werden doppelte Nummern neu markiert (artikel_pruefen)."""
         text = (text or "").strip()
         for i in z.liste:
             m = self.messwerte[i]
-            if text and text != (m.get("artikel") or ""):
+            if not text:
+                if m.get("_artikel_hand"):
+                    m["artikel"] = m.pop("_artikel_auto", m.get("artikel"))
+                    m.pop("_artikel_hand", None)
+            elif text != (m.get("artikel") or ""):
+                if not m.get("_artikel_hand"):
+                    m["_artikel_auto"] = m.get("artikel")
                 m["artikel"], m["_artikel_hand"] = text, True
+        m = self.messwerte[z.liste[0]]
+        z.it.setText(0, m.get("artikel") or m.get("datei") or "")
         z.it.setData(0, Qt.UserRole + 1, z.it.text(0))
-        z.it.setBackground(0, QBrush())
-        z.it.setToolTip(0, "Artikelnummer aus: von Hand geändert\nDoppelklick: Artikelnummer ändern")
+        self.artikel_pruefen()
+
+    def artikel_doppelt(self):
+        """{Zeile: Text} der Zeilen, deren Artikelnummer ein anderes Teil dieses Imports trägt (beim Übernehmen
+        bekäme das zweite den Zusatz -2, step.eindeutige_artikel) bzw. die schon im Angebot steht."""
+        je_nr = {}
+        for z in self.zeilen:
+            nr = str(self.messwerte[z.liste[0]].get("artikel") or "")
+            if nr:
+                je_nr.setdefault(nr, []).append(z)
+        out = {}
+        for nr, zs in je_nr.items():
+            if len(zs) > 1:
+                for z in zs:
+                    dateien = sorted({str(x.datei) for x in zs if x is not z and x.datei})
+                    out[id(z)] = (f"Artikelnummer „{nr}“ hat auch ein anderes Teil"
+                                  + (f" ({', '.join(dateien)})" if dateien else "") + ": beim Übernehmen bekommen "
+                                  "die weiteren Teile den Zusatz -2, -3 … Bitte eine eigene Nummer eintragen.", True)
+            if nr in self.vorhandene_artikel:
+                for z in zs:
+                    out.setdefault(id(z), ("Artikelnummer steht schon im Angebot (Häkchen unten: trotzdem "
+                                           "noch einmal eintragen, sonst übersprungen).", False))
+        return out
+
+    def artikel_pruefen(self):
+        """Spalte Artikelnummer jeder Zeile nach dem Stand färben: rot = doppelt in diesem Import, gelb = unsicher
+        bestimmt oder schon im Angebot; Tooltip mit Herkunft. Ergebnis: Anzahl doppelt vergebener Zeilen."""
+        doppelt = self.artikel_doppelt()
+        n = 0
+        for z in self.zeilen:
+            m = self.messwerte[z.liste[0]]
+            herkunft = "von Hand geändert" if m.get("_artikel_hand") else m.get("_artikel_herkunft")
+            tipp = [f"Artikelnummer aus: {herkunft}"] if herkunft else []
+            if m.get("_artikel_hand") and m.get("_artikel_auto"):
+                tipp.append(f"Aus der STEP bestimmt: {m['_artikel_auto']} (Feld leeren = wieder diese)")
+            farbe = None
+            if m.get("_artikel_unsicher") and not m.get("_artikel_hand"):
+                tipp.append("Unsicher – bitte prüfen.")
+                farbe = stil.GELB_FLAECHE
+            text, rot = doppelt.get(id(z), (None, False))
+            if text:
+                tipp.append(text)
+                farbe = stil.ROT_FLAECHE if rot else farbe or stil.GELB_FLAECHE
+                n += rot
+            if m.get("pfad") and "/" in str(m["pfad"]) and m.get("pfad") != m.get("artikel"):
+                tipp.append(f"In der Baugruppe: {m['pfad']}")
+            tipp.append("Ändern: Doppelklick, F2 oder Rechtsklick → Artikelnummer ändern")
+            alt = self.baum.blockSignals(True)
+            try:
+                z.it.setBackground(0, QBrush(stil.farbe(farbe)) if farbe else QBrush())
+                z.it.setToolTip(0, "\n".join(tipp))
+            finally:
+                self.baum.blockSignals(alt)
+        if hasattr(self, "doppelt_info"):
+            self.doppelt_info.setText(f"{n} Teile haben dieselbe Artikelnummer wie ein anderes Teil (rot): beim "
+                                      "Übernehmen bekommt das zweite den Zusatz -2 – bitte prüfen."
+                                      if n else "")
+            self.doppelt_info.setVisible(bool(n))
+        return n
 
     def anbau_pruefen(self, index, dialog=False):
         """Dialog 'Anbauteile prüfen' für die Zeile mit dem Teil Nr. index; dialog=True: nur den Dialog zurückgeben

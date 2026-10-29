@@ -1873,6 +1873,8 @@ class Hauptfenster(QMainWindow):
                                    ("kalkulation", "Kalkulation (PDF)", ["Ctrl+Shift+K"]),
                                    ("staffeln", "Staffelpreise rechnen", ["F8"]),
                                    ("stueck", "Stückzahl ändern …", ["Ctrl+Shift+S"]),
+                                   ("hoch", "Position nach oben", ["Alt+Up"]),
+                                   ("runter", "Position nach unten", ["Alt+Down"]),
                                    ("material", "Materialanfrage (E-Mail) …", ["Ctrl+Shift+M"]),
                                    ("schliessen", "Angebot schließen", ["Ctrl+W", "Ctrl+F4"])):
             if name is None:
@@ -2161,7 +2163,7 @@ class Hauptfenster(QMainWindow):
 
     # -------------------------------------------------------------- Lizenz
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
-                           "optimieren", "importieren", "drucken", "staffeln", "stueck")
+                           "optimieren", "importieren", "drucken", "staffeln", "stueck", "hoch", "runter")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
                          "Alte Angebote archivieren …")
 
