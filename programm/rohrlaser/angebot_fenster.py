@@ -263,6 +263,12 @@ class AngeboteListe(Liste):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
             return QBrush(stil.farbe(farbe)) if farbe else None
+        if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][0] == "Vorgang":
+            from .absage import letzte
+            a = letzte(self.zeilen[index.row()]) if str(self.wert(index.row(), index.column())).startswith(
+                "Abgelehnt") else None
+            if a:
+                return f"Absagegrund: {a.get('grund')}" + (f" – {a['bemerkung']}" if a.get("bemerkung") else "")
         if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
             am = self.zeilen[index.row()].get("vk_am")
             return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
@@ -498,9 +504,10 @@ class AngeboteSeite(QWidget):
                        "Zum Weiterarbeiten „Kopieren“ (eigene Kopie mit eigener Nummer).", fehler=True)
         return True
 
-    def vorgang_setzen(self, v, angebot_id=None, auftrag=None):
+    def vorgang_setzen(self, v, angebot_id=None, auftrag=None, absage=None):
         """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …). Beauftragt: Fenster für Auftragsnummer
-        und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster."""
+        und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster. Abgelehnt: Fenster
+        für den Absagegrund (Plan 29.10.2026 1b); absage = (Grund, Bemerkung, Preis Wettbewerb) ohne Fenster."""
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "den Vorgang setzen"):
             return False
@@ -515,8 +522,16 @@ class AngeboteSeite(QWidget):
             auftrag = auftrag_fenster.abfragen(self, a, self.db.einstellung("versand_bundesland"))
             if auftrag is None:
                 return False
+        if v == "Abgelehnt" and absage is None and not self.f.stumm and not self.db.nur_lesen:
+            from . import absage_dialog
+            absage = absage_dialog.abfragen(self, a)
+            if absage is None:
+                return False
         self.db.vorgang_setzen(i, v)
         text = ""
+        if v == "Abgelehnt" and absage is not None:
+            self.db.absage_merken(i, *absage)
+            text = f", Grund: {absage[0]}"
         if v == "Beauftragt" and auftrag is not None:
             self.db.auftrag_setzen(i, *auftrag)
             text = "".join((f", Auftrag {auftrag[0]}" if auftrag[0] else "",

@@ -160,6 +160,11 @@ def _versand_text(v):
     Nachfassen und Wiedervorlage (Plan A9)."""
     if v.get("art") == "nachgefasst":
         return f"{datum_text(v.get('datum'))}: nachgefasst ({v.get('wie') or 'E-Mail'})"
+    if v.get("art") == "absage":        # Absagegrund (absage.py)
+        t = f"{datum_text(v.get('datum'))}: abgelehnt – {v.get('grund') or 'ohne Angabe'}"
+        if v.get("preis"):
+            t += f" (Wettbewerb {_z(v['preis'])} €)"
+        return t + (f": {v['bemerkung']}" if v.get("bemerkung") else "")
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
     if v.get("art") == "wiedervorlage":

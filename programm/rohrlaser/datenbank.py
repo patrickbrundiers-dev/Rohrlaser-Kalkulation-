@@ -2030,6 +2030,21 @@ class Datenbank:
         self.versand_merken(angebot_id, dict(art="nachgefasst", datum=datetime.date.today().isoformat(), wie=wie))
 
     @schreibt
+    def absage_merken(self, angebot_id, grund, bemerkung="", preis=None):
+        """Absagegrund (Plan 29.10.2026 1b, absage.py) im Versandverlauf vermerken."""
+        from .absage import eintrag
+        self.versand_merken(angebot_id, eintrag(grund, bemerkung, preis))
+
+    @liest
+    def angebot_werkstoffe(self):
+        """{Angebot-ID: {Werkstoff-ID}} der Positionen aller Angebote (Auswertung je Werkstoff-Kategorie)."""
+        out = {}
+        for r in self.con.execute("SELECT DISTINCT angebot_id, werkstoff_id FROM positionen "
+                                  "WHERE werkstoff_id IS NOT NULL AND werkstoff_id != ''"):
+            out.setdefault(r[0], set()).add(r[1])
+        return out
+
+    @schreibt
     def wiedervorlage_setzen(self, angebot_id, am):
         """Wiedervorlage von Hand (Datum oder None = keine) im Versandverlauf; ersetzt bis dahin das automatische
         Nachfassen."""

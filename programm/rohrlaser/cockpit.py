@@ -73,7 +73,7 @@ def verlauf(z):
             nachgefasst = max(nachgefasst, d) if nachgefasst and d else d or nachgefasst
         elif art == "wiedervorlage":
             wv = _datum(e.get("am"))
-        elif art == "csv":              # CSV-Export: kein Versand
+        elif art in ("csv", "absage"):  # CSV-Export, Absagegrund (absage.py): kein Versand
             continue
         elif d:
             versandt = max(versandt, d) if versandt else d

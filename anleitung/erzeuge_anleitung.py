@@ -776,7 +776,8 @@ def kapitel_angebote(i):
         ["Status", "<i>Nicht optimiert</i> gelb · <i>Optimiert</i> grün · <i>Veraltet</i> rot (neu optimieren) · "
                    "<i>Nachkalkuliert</i> blau"],
         ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün "
-                    "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau · „Verschickt (abgelaufen)“ rot"]],
+                    "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau (fragt den Absagegrund, [[absage]]) · "
+                    "„Verschickt (abgelaufen)“ rot"]],
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
            "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
@@ -840,6 +841,22 @@ def kapitel_angebote(i):
     i.genauer()
     i.text("<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
            "Wiedervorlagen von Hand bleiben.")
+    i.abschnitt("Absagegrund und Angebots-Auswertung", marke="absage")
+    i.text("Wer ein Angebot auf <i>Abgelehnt</i> setzt, trägt den <b>Grund</b> ein (Preis zu hoch, Lieferzeit zu lang, "
+           "Kunde fertigt selbst …), wenn bekannt auch den Preis des Wettbewerbs. <i>Datei → Angebots-Auswertung …</i> "
+           "zeigt daraus die Trefferquote je Kunde, Werkstoff-Kategorie und Preisklasse.", kurz=True)
+    i.genauer()
+    i.liste("Grund, Preis Wettbewerb und Bemerkung stehen mit Datum im Versandverlauf (Mauszeiger auf <i>Preise "
+            "festgeschrieben</i> in der Übersicht) und als Tooltip auf dem Vorgang in der Angebotsliste. "
+            "<i>Abbrechen</i> lässt den Vorgang unverändert.",
+            "Die Auswertung braucht Admin-Rechte (wie die Kennzahlen der Startseite) und zählt die eigenen Angebote "
+            "der letzten 90 Tage, der letzten 12 Monate oder alle; ersetzte alte Fassungen zählen nicht. "
+            "<b>Trefferquote</b> = beauftragt ÷ (beauftragt + abgelehnt); offene Angebote zählen nicht mit.",
+            "Reiter: je Kunde, je Werkstoff-Kategorie (Angebote mit mehreren Kategorien = gemischt), je Preisklasse "
+            "(bis 500 €, bis 2.000 €, bis 10.000 €, darüber; Verkaufspreis netto), Absagegründe und Preis "
+            "Wettbewerb (unser Preis gegen den genannten, z. B. +20 % = wir waren 20 % teurer).",
+            "Viele Absagen „Preis zu hoch“ in einer Gruppe zeigen, wo es zu teuer ist; eine sehr hohe Trefferquote "
+            "kann heißen, dass die Preise dort Luft nach oben haben ([[preis_simulator]]).")
     i.abschnitt("Neue Fassung", marke="neue_fassung")
     i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
            "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "

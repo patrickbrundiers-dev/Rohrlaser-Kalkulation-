@@ -1643,6 +1643,7 @@ class Hauptfenster(QMainWindow):
                                   ("Alte Angebote archivieren …", self.archivieren, None),
                                   ("Archiv durchsuchen …", self.archiv_dialog, None),
                                   (None, None, None),
+                                  ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
                                   (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
@@ -2277,6 +2278,19 @@ class Hauptfenster(QMainWindow):
         d = ArchivDialog(self)
         if d.exec() and d.zurueckgeholt:
             self.angebot_oeffnen(d.zurueckgeholt)
+
+    def angebots_auswertung(self):
+        """Datei → Angebots-Auswertung: Trefferquote je Kunde, Kategorie, Preisklasse, Absagegründe (nur Admin, wie
+        die Kennzahlen der Startseite)."""
+        if not (getattr(self, "bereich", None) and self.bereich.admin):
+            self.meldung("Die Angebots-Auswertung zeigt Kennzahlen und braucht Admin-Rechte "
+                         "(Hilfe → Lizenz → Admin freischalten …).", fehler=True)
+            return None
+        from .absage_dialog import AuswertungDialog
+        d = AuswertungDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def preis_simulator(self):
         """Datei → Preis-Simulator: Was-wäre-wenn für die offenen Angebote (nichts wird gespeichert)."""

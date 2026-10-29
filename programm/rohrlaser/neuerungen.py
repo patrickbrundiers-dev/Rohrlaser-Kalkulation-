@@ -29,8 +29,11 @@ NEUERUNGEN = [
                 "behalten ihren Zuschlag ([[teuerungszuschlag]]). Neu ist auch der <b>Preis-Simulator</b> "
                 "(Datei → Preis-Simulator …): Was wäre, wenn Material einer Kategorie oder Stundensätze teurer "
                 "werden? Er zeigt für alle offenen Angebote den Verkaufspreis vorher/nachher, mit Admin-Rechten "
-                "auch die Marge bei gleichem Preis, ohne etwas zu speichern ([[preis_simulator]]).",
-     "Teuerungszuschlag je Werkstoff in % oder €/kg, mit Stichtag; Preis-Simulator für offene Angebote."],
+                "auch die Marge bei gleichem Preis, ohne etwas zu speichern ([[preis_simulator]]). Beim Vorgang "
+                "<b>Abgelehnt</b> fragt das Programm nach dem <b>Absagegrund</b> (optional Preis des Wettbewerbs); "
+                "<i>Datei → Angebots-Auswertung …</i> zeigt die Trefferquote je Kunde, Werkstoff-Kategorie, "
+                "Preisklasse und Absagegrund ([[absage]]).",
+     "Teuerungszuschlag je Werkstoff in % oder €/kg, mit Stichtag; Preis-Simulator; Absagegrund mit Trefferquote."],
     ["0.9.189", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
                 "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
                 "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "
