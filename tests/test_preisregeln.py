@@ -37,9 +37,13 @@ def nah(a, b, eps=EPS):
     return abs(a - b) < eps
 
 
-def angebot(positionen=None, einst_extra=None, kopf_extra=None):
-    """Beispielangebot rechnen: (kopf, positionen, k, tabellen, einst, ergebnis, zeilen, summen)."""
+def angebot(positionen=None, einst_extra=None, kopf_extra=None, ohne_ecke=False):
+    """Beispielangebot rechnen: (kopf, positionen, k, tabellen, einst, ergebnis, zeilen, summen). ohne_ecke: Zeit je
+    Ecke leer wie in den Richtwerten bis 0.9.190 (Regression des alten Stands)."""
     db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
+    if ohne_ecke:
+        db.con.execute("UPDATE schneiddaten SET zeit_ecke=NULL")
+        db.con.commit()
     aid = db.angebot_neu(dict(beispiel_angebot.KOPF, **(kopf_extra or {})))
     for p in positionen or beispiel_angebot.POSITIONEN:
         db.position_neu(aid, p)
@@ -56,7 +60,8 @@ def angebot(positionen=None, einst_extra=None, kopf_extra=None):
 ALT = dict(preisregeln=rechnen.PREISREGELN_ALT)
 
 # Regression: Stand bis 25.10.2026 bitgleich (Werte vor der Änderung gemessen, Pauschale je Abmessung damals 22,50 €)
-kopf, pos, k, tab, einst, erg, zeilen, summen = angebot(einst_extra=ALT, kopf_extra=dict(pauschale_abmessung=22.5))
+kopf, pos, k, tab, einst, erg, zeilen, summen = angebot(einst_extra=ALT, kopf_extra=dict(pauschale_abmessung=22.5),
+                                                        ohne_ecke=True)
 assert summen["verkauf"] == 1271.197188369442, summen["verkauf"]
 assert ausgabe.angebot(kopf, pos, zeilen, k, einst)["netto"] == 1271.36
 assert [z["preis"] for z in ausgabe.angebot(kopf, pos, zeilen, k, einst)["zeilen"] if z["art"] == "satz"] == [168.49]

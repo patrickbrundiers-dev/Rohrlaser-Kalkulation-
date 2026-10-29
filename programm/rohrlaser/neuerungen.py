@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.191", "<b>Schneiddaten auf Standard zurücksetzen mit Vorschau</b>: Der Knopf <i>Auf Standard zurücksetzen "
+                "…</i> öffnet einen Dialog: alle Maschinen, eine Maschine oder nur die markierten Zeilen, wahlweise "
+                "eigene Zeilen (z. B. je Werkstoff) behalten. Die Vorschau zeigt jeden Wert jetzt → Standard, welche "
+                "eigenen Zeilen entfallen und welche Standardzeilen fehlen; vorher legt das Programm eine "
+                "Datensicherung an, die letzte Rückfrage steht auf Nein. Werte, die vom Standard abweichen, sind in "
+                "der Tabelle orange, der Tooltip nennt den Standard ([[schneiddaten_standard]]). "
+                "<b>Schneidzeit genauer</b>: Anfangs- und Endschnitt aus dem Schneidweg-Rechner und aus "
+                "<i>Bohrungen prüfen</i> zählen wie beim STEP-Import nach ihrem Hüllmaß (bisher immer Vorschub groß, "
+                "die Einsparung gemeinsamer Schnitte zog aber mit der Klasse des Endes ab); Innenkonturen für "
+                "Programmierzeit und Regeln ohne die Enden. Standard <i>Zeit je Ecke</i> nach Wandstärke, 0,2 s + 0,05 s je mm (leere Richtwertzeilen "
+                "werden einmalig gefüllt). Neues Maschinenfeld <i>Zeit je Kontur (Anfahren/Drehen)</i>, leer = 0 "
+                "([[schneidzeit_genauer]]). Festgeschriebene Angebote rechnen unverändert.",
+     "Schneiddaten zurücksetzen mit Vorschau und Sicherung; Schneidzeit: Enden, Ecken, Anfahren genauer."],
     ["0.9.190", "<b>Staffeln rechnen sich nach Änderungen selbst neu</b>: Sind im Angebot Stufen angelegt, rechnet "
                 "das Programm sie nach jeder Änderung am Angebot (Positionen, Stückzahl, Material, Zusatzarbeiten, "
                 "Editoren, Rückgängig, Stammdaten, Einstellungen) 1,5 s nach der letzten Eingabe im Hintergrund neu, "

@@ -1,11 +1,11 @@
 {
  "summen": {
-  "herstell": 377.273113,
-  "verkauf": 498.571862,
+  "herstell": 377.973113,
+  "verkauf": 499.357576,
   "baugruppe_eigen": 228.0,
   "baugruppe_fremd": 30.0,
   "material": 63.26001,
-  "laser": 1.013103
+  "laser": 1.713103
  },
  "zeilen": [
   {
@@ -15,13 +15,13 @@
   },
   {
    "pos": 10,
-   "herstell_teil": 11.950598,
-   "preis_teil": 19.727712
+   "herstell_teil": 12.02538,
+   "preis_teil": 19.811651
   },
   {
    "pos": 20,
-   "herstell_teil": 10.334165,
-   "preis_teil": 20.017941
+   "herstell_teil": 10.385038,
+   "preis_teil": 20.075042
   },
   {
    "pos": 30,
@@ -30,33 +30,33 @@
   }
  ],
  "angebot": {
-  "netto": 498.58,
+  "netto": 499.36,
   "zeilen": [
    [
     "satz",
     100,
     2,
-    249.29
+    249.68
    ]
   ]
  },
  "stufen": [
   {
    "menge": 1,
-   "preis_einheit": 383.98,
-   "preis_gesamt": 383.98,
+   "preis_einheit": 384.37,
+   "preis_gesamt": 384.37,
    "bg_einmalig": 0.0
   },
   {
    "menge": 5,
-   "preis_einheit": 168.47,
-   "preis_gesamt": 842.35,
+   "preis_einheit": 168.86,
+   "preis_gesamt": 844.3,
    "bg_einmalig": 0.0
   },
   {
    "menge": 20,
-   "preis_einheit": 122.55,
-   "preis_gesamt": 2451.0,
+   "preis_einheit": 122.94,
+   "preis_gesamt": 2458.8,
    "bg_einmalig": 0.0
   }
  ]
