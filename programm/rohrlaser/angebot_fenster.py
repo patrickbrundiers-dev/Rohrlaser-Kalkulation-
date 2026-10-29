@@ -4830,23 +4830,52 @@ class AngebotSeite(QWidget):
             self.f.meldung("Bitte zuerst die Rohrlaserteil-Position(en) markieren.", fehler=True)
             return False
         p = self.positionen[zeilen[0]]
+        eigene = False          # Nahtwinkel je Position behalten (mehrere Positionen, Winkel nicht geändert)
         if werte is None:
+            winkel = {(q.get("naht_winkel"), q.get("querschnitt_lage")) for q in (self.positionen[z] for z in zeilen)
+                      if naht.vorgabe(q) == naht.FEST}
             d = NahtDialog(self, p, self.k.profile.get(p.get("profil_id")), len(zeilen),
-                           naht.stange_eingetragen(self.kopf, p.get("profil_id"), p.get("werkstoff_id")))
+                           naht.stange_eingetragen(self.kopf, p.get("profil_id"), p.get("werkstoff_id")),
+                           unterschiedlich=len(winkel) > 1)
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return False
             werte = d.werte()
+            eigene = d.unterschiedlich and not d.winkel_geaendert
             if werte.get("naht_vorgabe") == naht.FEST and naht.form_von(d.profil) == "Rechteckrohr":
                 stange = d.stange_wert() or ""       # "" = aus den Teilen (Eintrag löschen)
-        if stange is not None:      # Nahtlage der Lieferstange gilt für die Gruppen der markierten Positionen
-            self.naht_stange_setzen({(self.positionen[z].get("profil_id"), self.positionen[z].get("werkstoff_id"))
-                                     for z in zeilen}, stange or None, laden=False)
+        if stange is not None:      # Nahtlage der Lieferstange gilt für die Rechteckrohr-Gruppen der Positionen
+            self.naht_stange_setzen({(q.get("profil_id"), q.get("werkstoff_id")) for q in
+                                     (self.positionen[z] for z in zeilen)
+                                     if naht.form_von(self.k.profile.get(q.get("profil_id"))) == "Rechteckrohr"},
+                                    stange or None, laden=False)
         for z in zeilen:
-            for name, wert in werte.items():
-                self.db.position_aendern(self.positionen[z]["id"], name, wert)
+            q = self.positionen[z]
+            for name, wert in self._naht_fuer(q, werte, eigene).items():
+                if q.get(name) != wert:
+                    self.db.position_aendern(q["id"], name, wert)
         self.f.meldung(f"Schweißnaht für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
+
+    def _naht_fuer(self, q, werte, eigene=False):
+        """Nahtfelder für Position q, wenn werte (aus dem Dialog der ersten markierten Position) für mehrere Positionen
+        gelten (29.10.2026): eigene = Winkel und Lage einer Position mit fester Naht bleiben unverändert; sonst gibt
+        es die Querschnittslage nur bei Rechteckrohr, und bei Quadrat- und Rechteckrohr liegt die Naht auf einer
+        Seitenmitte (0°, 90°, 180°, 270°), auch wenn der Winkel von einem Rundrohr kommt."""
+        w = dict(werte)
+        if w.get("naht_vorgabe") != naht.FEST:
+            return w
+        if eigene and naht.vorgabe(q) == naht.FEST and q.get("naht_winkel") is not None:
+            return dict(w, naht_winkel=q.get("naht_winkel"), querschnitt_lage=q.get("querschnitt_lage"))
+        profil = self.k.profile.get(q.get("profil_id"))
+        form = naht.form_von(profil)
+        if form != "Rechteckrohr":
+            w["querschnitt_lage"] = None
+        if form in ("Quadratrohr", "Rechteckrohr") and w.get("naht_winkel") is not None:
+            mitte = naht.wirksamer_winkel(profil, w["naht_winkel"])
+            w["naht_winkel"] = mitte if mitte is not None else naht.normieren(round(
+                naht.normieren(w["naht_winkel"]) / 90) * 90)
+        return w
 
     def naht_stange_setzen(self, gruppen, wert, laden=True):
         """Nahtlage der Lieferstange (Breitseite/Schmalseite, None = aus den Teilen) für Gruppen {(Profil, Werkstoff)}

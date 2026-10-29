@@ -119,10 +119,14 @@ class NahtDialog(QDialog):
 
     AUS_TEILEN = "aus den Teilen"
 
-    def __init__(self, parent, p, profil, anzahl=1, stange=None):
-        """stange = im Angebot eingetragene Nahtlage der Lieferstange dieser Gruppe (None = aus den Teilen)."""
+    def __init__(self, parent, p, profil, anzahl=1, stange=None, unterschiedlich=False):
+        """stange = im Angebot eingetragene Nahtlage der Lieferstange dieser Gruppe (None = aus den Teilen).
+        unterschiedlich: die markierten Positionen haben verschiedene Nahtwinkel; sie bleiben je Position erhalten,
+        solange der Winkel hier nicht geändert wird (winkel_geaendert)."""
         super().__init__(parent)
         self.profil = profil
+        self.unterschiedlich = unterschiedlich and anzahl > 1
+        self.winkel_geaendert = False
         titel = f"Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip() if anzahl == 1 else f"{anzahl} Positionen"
         self.setWindowTitle(f"Schweißnaht – {titel}")
         lay = QVBoxLayout(self)
@@ -195,6 +199,7 @@ class NahtDialog(QDialog):
             self.winkel.setValue(w)
             return
         self._bezug = naht.aus_ansicht(w, self.lage.currentText())
+        self.winkel_geaendert = True
         self._anzeigen()
 
     def _lage_geaendert(self):
@@ -214,6 +219,9 @@ class NahtDialog(QDialog):
             s = naht.seite(self.profil, self._bezug, self.lage.currentText())
             text = f"Naht: {s['text']}. " + ("" if s["eindeutig"] else "Bitte auf eine Seite legen. ")
             text += "Drehung um die Längsachse gesperrt (Kundenvorgabe)."
+            if self.unterschiedlich and not self.winkel_geaendert:
+                text = ("Die markierten Positionen haben verschiedene Nahtwinkel: jede behält ihren eigenen, solange "
+                        "der Winkel hier nicht geändert wird. Drehung um die Längsachse gesperrt (Kundenvorgabe).")
             pr = naht.pruefen(self.werte(), self.profil, self.stange_wert())
             if pr:
                 text += "\n" + pr

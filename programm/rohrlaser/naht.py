@@ -108,6 +108,7 @@ def seite(profil, winkel, lage=BREIT_OBEN):
         erg["text"] = f"{_z(erg['ansicht'])}° Ecke – nicht eindeutig"
         return erg
     nr = 0 if (w < grenzen[0] or w > grenzen[3]) else 1 if w < grenzen[1] else 2 if w < grenzen[2] else 3
+    erg["mitte"] = nr * 90.0
     if form == "Rechteckrohr":
         erg["flaeche"] = BREITSEITE if nr in (0, 2) else SCHMALSEITE
     else:
@@ -118,6 +119,20 @@ def seite(profil, winkel, lage=BREIT_OBEN):
     erg["text"] = f"{_z(erg['ansicht'])}° {erg['richtung']}" + (
         f", {erg['flaeche']}" if form == "Rechteckrohr" else "")
     return erg
+
+
+def wirksamer_winkel(profil, winkel):
+    """Nahtwinkel, mit dem die Optimierung rechnet: Rundrohr der Winkel selbst, Quadrat- und Rechteckrohr die Mitte
+    der Seite, auf der die Naht liegt (wie Spalte und Prüfung, naht.seite). None, wenn der Winkel fehlt oder die Naht
+    auf einer Ecke liegt (Seite nicht eindeutig: das Teil wird dann nicht gedreht). Andere Profile: der Winkel."""
+    try:
+        w = normieren(winkel)
+    except ValueError:
+        return None
+    if form_von(profil) not in ("Quadratrohr", "Rechteckrohr"):
+        return w
+    s = seite(profil, w)
+    return s.get("mitte") if s["eindeutig"] else None
 
 
 def vorgabe(p):

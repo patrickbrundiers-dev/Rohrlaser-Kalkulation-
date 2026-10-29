@@ -1690,6 +1690,13 @@ def kapitel_angebot(i):
             "Das Fenster nennt die getroffene Seite: bei Rechteckrohr <i>Breitseite</i> (die längere Seite) oder "
             "<i>Schmalseite</i>, bei Quadratrohr nur die Richtung, bei Rundrohr nur den Winkel. Liegt der Winkel auf "
             "einer Ecke, ist die Seite nicht eindeutig (Warnung).",
+            "<b>Mehrere Positionen</b> markiert: das Fenster zeigt die Werte der ersten. Haben die Positionen "
+            "verschiedene Nahtwinkel (z. B. aus dem STEP-Import), behält jede ihren eigenen, solange der Winkel im "
+            "Fenster nicht geändert wird; Nahtvorgabe und Quelle gelten für alle. Ein geänderter Winkel gilt für "
+            "alle markierten Positionen. Die Querschnittslage bekommen nur Rechteckrohre; bei Quadrat- und "
+            "Rechteckrohr legt das Programm die Naht auf die Mitte der Seite, auf der sie liegt (ein Winkel von "
+            "50° eines Rundrohrs wird bei RE 60x40 zu 0°, bei QR 40x40 zu 90°). Mit genau dieser Seite rechnet "
+            "auch die Optimierung.",
             "<b>Naht der Lieferstange</b> (nur Rechteckrohr, bei fester Position): auf welcher Seite die bestellte "
             "Stange ihre Schweißnaht hat, <i>Breitseite</i> oder <i>Schmalseite</i>. Das ist eine Angabe des "
             "<b>Angebots</b>, nicht der Stammdaten: sie gilt in diesem Angebot für alle Positionen mit gleichem "
@@ -7762,7 +7769,19 @@ def kapitel_step_messung(i):
             "der Abwicklung (u, z; STEP-JSON 1.12). Komplexe Enden bekommen ebenfalls ihren Umriss.",
             "<b>Gravur</b>: Vertiefung bis 0,5 mm (z. B. eine Prägung von 0,2 mm), mit <i>Tiefe</i> und Lage, runde "
             "mit Durchmesser. Tiefere, nicht durchgehende Merkmale sind <b>Sackbohrungen</b> mit dem Hinweis, dass "
-            "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg.",
+            "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg. Schrift ist je Zeichen "
+            "eine Gravur mit echtem Umriss (bei „O“, „A“, „B“ auch die Innenkontur), auch wenn sie bis 0,5 mm "
+            "<b>erhaben</b> auf dem Rohr steht.",
+            "<b>Schrift als eigener Körper</b>: Viele CAD-Modelle legen Schrift oder Markierungen nicht in das Rohr, "
+            "sondern als eigene dünne Körper (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf die "
+            "Rohrwand. Liegt ein solcher Körper ganz auf dem Mantel eines Rohrs (höchstens 1 mm Abstand), wird "
+            "sein Rand Gravur dieses Rohrs, genau wie eingeprägte Schrift: gleiche Zeilen, Längen und Lage wie in "
+            "der STEP. Der Körper selbst wird kein Teil und kein Anbauteil (Profilform <i>Gravurkörper</i>, im "
+            "Import-Bericht „Schrift/Markierung auf Körper …, dort als Gravur“).",
+            "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
+            "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
+            "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "
+            "bleiben dadurch genau wie in der STEP, die Schrift ist eigene Gravur.",
             "<b>Innenmerkmal</b>: nur auf der Innenseite, von außen nicht sichtbar. Es wird gemeldet, aber nicht "
             "gerechnet.",
             "<b>Ende A / Ende B</b>: <i>gerade</i>, <i>Gehrung</i> (Neigung um eine Querachse), <i>Schrägschnitt "

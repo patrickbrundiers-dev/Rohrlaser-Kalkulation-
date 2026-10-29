@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.198", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
+    ["0.9.201", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
                 "<i>bis 50 km</i> (1 Palette 65 €) und <i>50–100 km</i> (80 €); bisher kostete alles bis 200 km "
                 "100 €. Ab Delbrück z. B. Paderborn, Bielefeld und Herford 65 €, Münster und Osnabrück 80 €. Neu ist "
                 "die Versandart <b>Eigene Anlieferung</b> (eigener Lkw, bis 200 km): 20 € je Sendung plus 1,00 € je "
@@ -31,6 +31,27 @@ NEUERUNGEN = [
                 "Tarifkopie, bis die Ziel-PLZ neu eingegeben wird; festgeschriebene Angebote bleiben unverändert "
                 "([[fracht_richtwerte]]).",
      "Fracht: Nahbereich bis 50 km 65 €, bis 100 km 80 €; Versandart Eigene Anlieferung (€/km)."],
+    ["0.9.199", "<b>Optimieren mit fester Schweißnaht an mehreren Positionen</b>: Hatten mehrere Positionen einer "
+                "Abmessung eine feste Naht (oder Gehrungen), konnte die Optimierung ein Teil doppelt und ein anderes "
+                "gar nicht einplanen; die Kontrolle meldete dann „Teile fehlen oder doppelt“. Ursache war ein "
+                "Zwischenspeicher, der Teile nach der Reihenfolge der Schnittmuster vertauschte – behoben, die "
+                "Kontrolle bleibt. <b>Schweißnaht …</b> für mehrere Positionen: verschiedene Nahtwinkel bleiben je "
+                "Position, solange der Winkel nicht geändert wird; die Querschnittslage gilt nur für Rechteckrohre, "
+                "bei Quadrat- und Rechteckrohr liegt die Naht immer auf einer Seitenmitte, und die Optimierung "
+                "rechnet mit derselben Seite wie Spalte und Prüfung ([[schweissnaht]]).",
+     "Optimieren mit fester Naht an mehreren Positionen: kein Teil mehr doppelt/fehlend; Nahtwinkel je Position."],
+    ["0.9.198", "<b>STEP-Import mit größeren Gravuren schneller und richtig</b>: Schrift oder Markierungen, die im "
+                "CAD als <b>eigene dünne Körper</b> (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf "
+                "dem Rohr liegen, werden jetzt Gravur des Rohrs – mit allen Konturen (auch innen in „O“, „A“, „B“), "
+                "genau wie in der STEP, wie eingeprägte Schrift. Früher wurde jedes Zeichen als Blech vermessen "
+                "(24 Zeichen mehrere Minuten, jetzt wenige Sekunden), als Anbauteil ohne Innenkonturen gezählt oder bei Flächen "
+                "gar nicht als Gravur erkannt. Erhabene Schrift bis 0,5 mm gilt nicht mehr als Anbauteil-Verdacht "
+                "(rund dreimal schneller), und bei sehr viel eingeprägter Schrift sind die Querschnitte schneller. "
+                "Behoben: <b>lange Gravur mit Stecknasen vorne und hinten</b> – im Editor war das halbe Teil "
+                "weggeschnitten (der Querschnitt durch die Schrift galt als Profil, die Wand wurde Teil der Enden, "
+                "Messung mehrere Minuten). Jetzt Enden, Wand und Schneidweg wie ohne Gravur, wenige Sekunden "
+                "([[step_messung]]).",
+     "STEP: Schrift als eigener Körper oder Fläche wird Gravur des Rohrs (statt Minuten nur Sekunden)."],
     ["0.9.197", "<b>Reihenfolge der Positionen ändern</b>: markierte Positionen mit <b>Alt+↑ / Alt+↓</b>, "
                 "Rechtsklick (Nach oben, Nach unten, An den Anfang, Ans Ende) oder durch Ziehen am Zeilenkopf "
                 "verschieben; Schweißbaugruppen wandern mit ihren Teilen, Sätze ganz. Kalkulation, Angebots-PDF und "
