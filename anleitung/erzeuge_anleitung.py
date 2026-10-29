@@ -5690,7 +5690,8 @@ def kapitel_einstellungen(i):
            "Alle Funktionen sind nach dem Update eingeschaltet. Die schon vorhandenen Schalter (Versand, Fertigung, "
            "Lager, Reststücke, PDF-Zeichnungen) stehen zusätzlich oben auf der Seite Funktionen; sie gelten an beiden "
            "Stellen gleich. Die Zusammenarbeit mit Kollegen (Übergeben, Notiz) erscheint ohnehin nur mit gemeinsamem "
-           "Ordner.")
+           "Ordner. Ein reiner Rohrbetrieb schaltet zum Beispiel <b>Bleche und Kantteile</b> ab; wer nie Preise "
+           "durchspielt, auch <b>Preis-Simulator und Varianten</b>.")
     i.tabelle(["Funktion", "Was beim Ausschalten verschwindet"],
               [[f.titel, f.text] for f in funktionen.FUNKTIONEN])
     i.abschnitt("Alle Einstellungen", marke="alle_einstellungen")
