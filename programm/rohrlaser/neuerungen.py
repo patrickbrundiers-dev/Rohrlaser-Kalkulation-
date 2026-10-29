@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.202", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
+    ["0.9.203", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
                 "<i>bis 50 km</i> (1 Palette 65 €) und <i>50–100 km</i> (80 €); bisher kostete alles bis 200 km "
                 "100 €. Ab Delbrück z. B. Paderborn, Bielefeld und Herford 65 €, Münster und Osnabrück 80 €. Neu ist "
                 "die Versandart <b>Eigene Anlieferung</b> (eigener Lkw, bis 200 km): 20 € je Sendung plus 1,00 € je "
@@ -31,6 +31,19 @@ NEUERUNGEN = [
                 "Tarifkopie, bis die Ziel-PLZ neu eingegeben wird; festgeschriebene Angebote bleiben unverändert "
                 "([[fracht_richtwerte]]).",
      "Fracht: Nahbereich bis 50 km 65 €, bis 100 km 80 €; Versandart Eigene Anlieferung (€/km)."],
+    ["0.9.202", "<b>Einstellungen aufgeräumt</b>: Statt einer langen Seite <i>Vorgaben</i> mit allen Einstellungen "
+                "hat jedes Thema eine eigene Seite neben den passenden Stammdaten, z. B. <i>Zuschläge und Preise</i>, "
+                "<i>Neue Angebote</i>, <i>Blech-Richtpreis</i>, <i>STEP-Import</i>, <i>Versand und Paletten</i>. "
+                "Alles, was nur für diesen Arbeitsplatz gilt (Name, Farbschema, Ordner, Signatur), steht auf <i>Mein "
+                "Arbeitsplatz</i>. Titel ohne doppelte Vorsilbe (voller Titel im Tooltip), selten geänderte Toleranzen "
+                "und Faktoren eingeklappt; die Suche findet weiter alles und öffnet die richtige Seite "
+                "([[vorgaben]]). <b>Funktionen ein- und ausschalten</b>: Auf der neuen Seite <i>Funktionen</i> lassen "
+                "sich 15 Bereiche abschalten, z. B. Bleche, Zukaufteile, Frachtkosten, Schweißbaugruppen, "
+                "Nachkalkulation, Reklamationen oder Musterteile. Ausschalten blendet nur aus, Daten und Rechnung "
+                "bleiben; nach dem Update ist alles eingeschaltet ([[funktionen]]). Werte mit „0 = aus“ wie Nachfassen, "
+                "automatisch optimieren, Mindestmarge oder Standard-Staffeln haben einen Schalter davor, der den "
+                "letzten Wert behält.",
+     "Einstellungen nach Themen auf eigenen Seiten; Funktionen ein- und ausschalten."],
     ["0.9.201", "<b>Schneiddaten mit Schneidtabellen abgeglichen</b>: Die Richtwerte für T11 und LT7 sind mit "
                 "veröffentlichten Schneidtabellen verglichen; die Bemerkung jeder Zeile nennt jetzt die Herkunft "
                 "(Herstellerwert oder Schätzung). Stahl mit N₂ 3–4 mm langsamer (LT7 3.500 / 2.500, T11 4.000 / 3.000 "
