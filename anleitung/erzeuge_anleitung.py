@@ -4315,15 +4315,17 @@ def kapitel_fracht(i):
         ["3", "Frachtzone", "erscheint sofort unter der PLZ: grün mit der verwendeten Regel, gelb <i>keiner Zone "
                             "zugeordnet – Standardzone …</i>, rot ohne Zone oder bei mehrdeutigen Regeln"],
         ["4", "Gewicht", "Nettogewicht der Ware; darunter das Gesamtbruttogewicht = Netto + Verpackung (Eigengewicht "
-                         "der Ladungsträger)"],
+                         "der Ladungsträger). <b>Aus Angebot laden …</b> übernimmt die Ware eines Angebots "
+                         "(Gewicht, längstes Teil, Kunde, Bezeichnung) und packt sie ([[pack_rechner]])"],
         ["5", "Ladehilfsmittel", "je Zeile Ladungsträger, Anzahl und optional Brutto je Stück (dann gilt die Summe als "
                                  "Bruttogewicht). <b>+ Ladungsträger</b> fügt eine Zeile an, <b>Ladungsträger "
                                  "entfernen</b> löscht die markierte. Darunter Anzahl, Stellplätze, Eigengewicht und "
                                  "Volumen."],
         ["6", "Packvorschlag", "füllt die Liste aus den Positionen mit derselben Lagenrechnung wie der "
                                "Palettenschein ([[paletten_rechnung]]): Höhe, Gewicht und Teillänge je Palette; Teile "
-                               "länger als die max. Teillänge des Ladungsträgers kommen auf Langgut. Ohne Positionen "
-                               "(freier Rechner): Anzahl = Gewicht ÷ Nutzlast. Danach von Hand änderbar."],
+                               "länger als die max. Teillänge des Ladungsträgers kommen auf Langgut; gewählt wird der "
+                               "günstigste Ladungsträger ([[pack_rechner]]). Ohne Positionen (freier Rechner ohne "
+                               "<i>Aus Angebot laden</i>): Anzahl = Gewicht ÷ Nutzlast. Danach von Hand änderbar."],
         ["7", "Zusatzleistungen", "Zuschläge mit der Bedingung „nur wenn gewählt“ zum Ankreuzen (im Beispiel "
                                   "Avisierung, Hebebühne, Wartezeit mit Stunden). Ohne solche Zuschläge ist der Bereich "
                                   "ausgeblendet."],
@@ -4339,6 +4341,37 @@ def kapitel_fracht(i):
            "Pixel ist alles ohne waagrechtes Scrollen bedienbar. Das Programm läuft unter Windows, nicht auf dem "
            "Smartphone.")
     i.bild("fracht_schmal", "Rechner im Fenster 1024 × 700", hoehe=95 * mm)
+    i.abschnitt("Packliste und günstigste Ladungsträger", marke="pack_rechner")
+    i.text("Mit Ware aus einem Angebot packt der Rechner nach Maßen und Stückzahl, probiert alle Ladungsträger und "
+           "nimmt den günstigsten; die Packliste zeigt jede Palette als Skizze.", kurz=True)
+    i.genauer()
+    i.liste("<b>Aus Angebot laden …</b> (Bereich Gewicht) wählt eines der zuletzt geänderten Angebote. Übernommen "
+            "werden Nettogewicht, längstes Teil, Kunde (mit PLZ) und die Bezeichnung „Angebot …“; danach läuft der "
+            "Packvorschlag. Im Fenster <i>Fracht berechnen …</i> eines Angebots ist die Ware schon geladen.",
+            "<b>Günstigste Kombination</b>: Jeder aktive Ladungsträger mit Maßen (Europalette, Einwegpalette, "
+            "Industriepalette, Gitterbox, Sonderpalette …) wird als Standard durchgepackt, Teile länger als seine "
+            "max. Teillänge kommen wie bisher auf Langgut. Jede Variante wird mit dem Tarif der aktuellen Eingaben "
+            "gerechnet (PLZ, Versandart, Zuschläge), die günstigste kommt in die Liste der Ladehilfsmittel. Bei "
+            "gleichem Preis gilt der eingestellte Standard-Ladungsträger, dann die kleinere Anzahl.",
+            "<b>Europalette mit Überstand</b>: Europalette und Einwegpalette nehmen Teile bis 3.000 mm. Lange Teile "
+            "liegen längs und dürfen über die 1.200er Seite hinausragen (1 Reihe, Überstand je Seite die Hälfte), "
+            "über die 800er Seite nie. Erst längere Teile kommen auf Langgut. Die Grenze steht als <i>max. "
+            "Teillänge</i> unter <i>Paletten und Ladehilfsmittel</i>.",
+            "<b>Paket</b>: Zusätzlich wird jede Kartongröße allein durchgepackt (Karton S, M, L unter <i>Paletten "
+            "und Ladehilfsmittel</i>, Art <i>Karton</i>). Ein Karton zählt nur, wenn jedes Teil hineinpasst und "
+            "jedes Gewicht bekannt ist; je Karton höchstens seine Nutzlast. Gerechnet wird mit der Versandart "
+            "<i>Paket</i> (Tarif RW-PAKET, Preis je Karton). Ist das Paket günstiger als jede Palette, stellt der "
+            "Rechner die Versandart auf <i>Paket</i> und trägt die Kartons ein; die Packliste zeigt jeden Karton "
+            "wie eine Palette mit Draufsicht und Seitenansicht. Ist danach wieder eine Palette günstiger, wird die "
+            "Versandart zurückgesetzt.",
+            "<b>Packliste</b>: oben die gewählte Ladung und der Vergleich aller Varianten mit Preis, darunter je "
+            "Ladungsträger Gewicht und Höhe, die <b>Draufsicht</b> der untersten Lage (Reihen längs × Teile quer, "
+            "Überstand) und die <b>Seitenansicht</b> des Stapels mit allen Positionen und der zulässigen Höhe "
+            "(rot gestrichelt), darunter der Aufbau je Position als Text. Gepackt wird wie im Palettenschein "
+            "([[paletten_rechnung]]).",
+            "Nach Änderungen an PLZ, Versandart oder Zuschlägen <b>Packvorschlag</b> erneut drücken, damit der "
+            "Vergleich neu rechnet. Die automatische Fracht im Angebot packt weiter mit dem eingestellten "
+            "Standard-Ladungsträger.")
     i.abschnitt("So rechnet das Programm")
     i.genauer()
     i.liste("<b>Zone</b> der Empfänger-PLZ aus den PLZ-Zuordnungen (Regeln unten), sonst die Standardzone des Landes "
@@ -7548,7 +7581,8 @@ def kapitel_frachtkosten(i):
                                "geht vor)"],
         ["<b>Bezugseinheit</b>", "Sendung, kg, 100 kg, Ladungsträger, Stellplatz, km oder Lademeter: worauf sich der "
                                  "Preis bezieht"],
-        ["Ladehilfsmittel", "Art, für die die Zeile gilt (z. B. Gitterbox mit eigenem Preis); leer = alle übrigen"],
+        ["Ladehilfsmittel", "Art, für die die Zeile gilt (z. B. Gitterbox mit eigenem Preis), oder ein einzelnes "
+                            "Ladehilfsmittel (z. B. Karton K-M), das dann vor seiner Art gilt; leer = alle übrigen"],
         ["bis Menge", "Obergrenze der Stufe in der Bezugseinheit (bei kg und 100 kg immer in kg, beide bilden eine "
                       "Gewichtsstaffel); leer = ohne Obergrenze. Es gilt die erste Stufe, in die die Menge fällt "
                       "(genau auf der Grenze gehört zur Stufe)."],
@@ -7568,11 +7602,13 @@ def kapitel_frachtkosten(i):
     i.genauer()
     i.tabelle(["Ladehilfsmittel", "Bedeutung"], [
         ["<b>Ladehilfsmittel</b>, Bezeichnung", "Kurzname und Klartext"],
-        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut oder "
-                       "Sonderladung"],
+        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut, "
+                       "Sonderladung oder Karton (Paketversand; Maße = Innenmaße wie bei der Gitterbox)"],
         ["Länge, Breite, Höhe [mm]", "für Volumen und Lademeter; fehlt ein Maß, rechnet das Programm ohne Volumen"],
-        ["Eigengewicht, Nutzlast [kg]", "Eigengewicht = Verpackungsgewicht; Nutzlast für Packvorschlag und Warnung"],
-        ["Max. Teillänge [mm]", "längere Teile kommen im Packvorschlag auf Langgut"],
+        ["Eigengewicht, Nutzlast [kg]", "Eigengewicht = Verpackungsgewicht; Nutzlast für Packvorschlag und Warnung "
+                                        "(Karton: Gewichtsklasse des Pakets − Kartongewicht, z. B. 10 − 0,3 = 9,7 kg)"],
+        ["Max. Teillänge [mm]", "längere Teile kommen im Packvorschlag auf Langgut; größer als die Länge = Überstand "
+                                "erlaubt, nur längs (Europalette 3.000 mm)"],
         ["Stapelbar, Stapelfaktor", "wie viele übereinander einen Stellplatz teilen"],
         ["Stellplätze je Stück", "z. B. 1 für eine Europalette, 3 für Langgut (leer = 1)"],
         ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
@@ -7653,21 +7689,38 @@ def kapitel_frachtkosten(i):
            "Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie, bis die Ziel-PLZ neu eingegeben "
            "oder der Haken neu gesetzt wird.")
     i.tabelle(["Zone (Straßen-km ab Versandort)", "1 Palette", "2–3 Paletten je Stück", "4–6 Paletten je Stück"], [
-        ["RW1 bis 200 km", "100,00 €", "85,00 €", "70,00 €"],
+        ["RW0A bis 50 km", "65,00 €", "55,25 €", "45,50 €"],
+        ["RW0B 50–100 km", "80,00 €", "68,00 €", "56,00 €"],
+        ["RW1 100–200 km", "100,00 €", "85,00 €", "70,00 €"],
         ["RW2 200–450 km", "115,00 €", "97,75 €", "80,50 €"],
         ["RW3 450–650 km", "125,00 €", "106,25 €", "87,50 €"],
         ["RW4 über 650 km und RW-INSEL", "140,00 €", "119,00 €", "98,00 €"]], [70, 45, 75, 75])
     i.liste("Die Zone kommt aus den ersten zwei Ziffern der Ziel-PLZ: Entfernung vom Versandort zum Mittelpunkt der "
-            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Bielefeld und Dortmund in RW1, Hamburg, "
+            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Paderborn, Bielefeld (33…) und Herford "
+            "(32…) im Nahbereich RW0A, Lippstadt (59…), Osnabrück (49…) und Münster (48…) in RW0B, Dortmund "
+            "und Hannover in RW1, Hamburg, "
             "Berlin, Frankfurt und Stuttgart in RW2, Dresden und München in RW3. Inseln ohne Brücke (Sylt, Föhr, "
             "Amrum, Pellworm, Halligen, Ostfriesische Inseln, Helgoland, Hiddensee) sind die Zone RW-INSEL.",
             "Mehr als 6 Stellplätze: Teilladung, Preis anfragen (das Programm rechnet nicht still weiter).",
-            "Paletten: Europalette und Einwegpalette bis 800 kg Nutzlast im Packvorschlag, Industriepalette 1,25 "
-            "Stellplätze, Sonderpalette bis 2,40 m 2 Stellplätze, Langgut bis 6,5 m 3 Stellplätze.",
+            "Paletten: Europalette und Einwegpalette bis 800 kg Nutzlast im Packvorschlag, Teile bis 3.000 mm "
+            "(Überstand nur längs), Industriepalette 1,25 Stellplätze, Sonderpalette bis 2,40 m 2 Stellplätze, "
+            "Langgut bis 6,5 m 3 Stellplätze.",
+            "<b>Paket</b> (Tarif RW-PAKET, Versandart <i>Paket</i>, ganz Deutschland gleich): Karton S 400 × 300 × "
+            "200 mm bis 10 kg 10,49 €, Karton M 600 × 400 × 400 mm bis 20 kg 18,99 €, Karton L 1.200 × 200 × 200 "
+            "mm bis 31,5 kg 23,99 € je Karton (DHL Paket, online 10/2026; UPS und Hermes eher darüber). Maße, "
+            "Gewichtsklassen und Preise lassen sich ändern, weitere Kartons mit Art <i>Karton</i> anlegen und im "
+            "Tarif RW-PAKET eine Preiszeile mit dem Karton als Ladehilfsmittel ergänzen.",
             "Zuschläge: schwere Palette 40 € je Stellplatz ab 300 kg je Stellplatz, Überlänge (Teile über 2,40 m) "
             "60 €, Inselzuschlag 60 €; nur wenn gewählt: Avisierung 25 €, Hebebühne 40 €, Wartezeit 60 € je Stunde "
             "(Hebebühne und Wartezeit geschätzt). Kein Diesel- und kein Mautzuschlag, beide sind im Preis enthalten.",
-            "Beispiele ab Delbrück: 1 Palette 190 kg nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
+            "<b>Eigene Anlieferung</b> (eigener Lkw oder Transporter, bis 200 km): Versandart <i>Eigene "
+            "Anlieferung</i> im Frachtrechner wählen. Tarif RW-EIGEN: 20 € je Sendung für Laden und Abladen plus "
+            "1,00 € je gefahrenem km (Hin- und Rückfahrt, also 2,00 € je km Entfernung). Die Entfernung trägt man im "
+            "Feld <i>Entfernung [km]</i> ein; leer gilt die typische Entfernung der Zone (RW0A 30 km, RW0B 75 km, "
+            "RW1 150 km). Beispiel 20 km: 20 € + 40 km × 1,00 € = 60 €. Schätzwerte: die eigenen Kosten im Tarif "
+            "RW-EIGEN eintragen. Die automatische Fracht im Angebot nutzt weiter die Versandart aus den "
+            "Einstellungen (Palettenversand).",
+            "Beispiele ab Delbrück: 1 Palette 190 kg nach Paderborn 65 €, nach Münster 80 €, nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
             "nach Hamburg 155 €; Langgut 6 m mit 500 kg nach Hamburg 353,25 €; Sylt 200 €.",
             "Der Dienstleister SLH (Spedition u. Logistik Haaren, Keimeier u. Finke) ist angelegt; öffentliche "
             "Preise gibt es nicht. Liegt ein Angebot vor, die Preise als eigenen Tarif für SLH eintragen; er gilt "

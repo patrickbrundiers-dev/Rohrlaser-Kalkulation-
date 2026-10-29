@@ -34,6 +34,7 @@ ERLAUBT = {"Gewichtstarif": {"Sendung", "kg", "100 kg"},
            "Palettentarif": {"Sendung", "Ladungsträger", "Stellplatz"},
            "Gitterboxtarif": {"Sendung", "Ladungsträger", "Stellplatz"}}
 LHT_BEZUG = ("Ladungsträger", "Stellplatz")
+PAKET = "Paket"             # Versandart des Paketversands (fracht_richtwerte.PAKET)
 SONDERZONEN = ("Insel", "Randgebiet", "Sondergebiet")
 ZUSCHLAG_EBENE = ("Kunde", "Dienstleister", "Tarif", "allgemein")
 
@@ -393,6 +394,8 @@ def tarif_passt(t, s, zone):
         return "gilt nicht für diese Zone"
     if t.get("versandart") and s.get("versandart") and t["versandart"] != s["versandart"]:
         return f"Versandart {t['versandart']}"
+    if t.get("versandart") == PAKET and s.get("versandart") != PAKET:
+        return "nur bei Versandart Paket"        # Pakettarife nie für Paletten (Patrick 29.10.2026)
     if s.get("dienstleister") and t.get("dienstleister") != s["dienstleister"]:
         return "anderer Dienstleister"
     if t.get("kundennr") and t["kundennr"] != s.get("kundennr"):
@@ -464,15 +467,20 @@ def grundfracht(tarif, preise, zone, lw, kg, s):
             fehler.append(f"{modell}: keine Ladehilfsmittel angegeben")
         if not lht_gruppen:
             fehler.append(f"{modell} {tarif['tarif_id']} ohne Preise je Ladungsträger oder Stellplatz")
+    eigene = {a for b, a in gruppen if b in LHT_BEZUG and a}     # eigene Preise je Art oder Ladehilfsmittel
+
+    def preis_art(x):
+        """Preisgruppe eines Ladungsträgers: eigene Zeile des Ladehilfsmittels (z. B. Karton K-M) vor seiner Art,
+        sonst '' (alle übrigen)."""
+        return x["lht_id"] if x["lht_id"] in eigene else (x["art"] if x["art"] in eigene else "")
     if lht_gruppen:                 # jede Art in der Sendung braucht eine Preiszeile
         abgedeckt = {a for _, a in lht_gruppen}
         for x in lw["je"]:
-            if x["art"] not in abgedeckt and "" not in abgedeckt:
+            if preis_art(x) not in abgedeckt:
                 fehler.append(f"Tarif {tarif['tarif_id']} ohne Preis für {x['art']} ({x['anzahl']} Stück)")
     for (bezug, art), zeilen_g in sorted(gruppen.items(), key=lambda kv: (BEZUG_FOLGE.get(kv[0][0], 9), kv[0][1])):
         if bezug in LHT_BEZUG:
-            eigene = {a for b, a in gruppen if b in LHT_BEZUG and a}     # eigene Preise in einer LHT-Staffel
-            dabei = [x for x in lw["je"] if (x["art"] == art if art else x["art"] not in eigene)]
+            dabei = [x for x in lw["je"] if preis_art(x) == art]
             if not dabei:
                 continue
             m = sum(x["anzahl"] if bezug == "Ladungsträger" else x["stellplaetze"] for x in dabei)

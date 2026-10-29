@@ -239,6 +239,16 @@ class RechnerSeite(QWidget):
         self.brutto = QLabel()
         fg.addRow("Nettogewicht der Ware", self.netto)
         fg.addRow("Gesamtbruttogewicht", self.brutto)
+        self.ware_text = QLabel()
+        self.ware_text.setWordWrap(True)
+        self.laden_knopf = QPushButton("Aus Angebot laden …")
+        self.laden_knopf.setToolTip("Positionen eines Angebots übernehmen: Gewicht, längstes Teil und Packvorschlag "
+                                    "nach Maßen und Stückzahl (günstigster Ladungsträger)")
+        self.laden_knopf.clicked.connect(lambda: self.aus_angebot_laden())
+        zeile = QHBoxLayout()
+        zeile.addWidget(self.laden_knopf)
+        zeile.addWidget(self.ware_text, 1)
+        fg.addRow("Ware", zeile)
 
         # Ladehilfsmittel
         lh = QGroupBox("Ladehilfsmittel")
@@ -262,6 +272,20 @@ class RechnerSeite(QWidget):
         ll.addWidget(self.lht_tabelle)
         ll.addLayout(knoepfe)
         ll.addWidget(self.lht_summe)
+
+        # Packliste (nur mit Ware aus einem Angebot): Vergleich der Ladungsträger und Skizze je Palette
+        from .palette_skizze import PacklisteAnsicht
+        self.packliste_box = QGroupBox("Packliste")
+        pl = QVBoxLayout(self.packliste_box)
+        self.vergleich = QLabel()
+        self.vergleich.setWordWrap(True)
+        self.vergleich.setTextFormat(Qt.RichText)
+        self.packliste_ansicht = PacklisteAnsicht()
+        pl.addWidget(self.vergleich)
+        pl.addWidget(self.packliste_ansicht)
+        self.packliste_box.hide()
+        self.packliste = None
+        self.vergleich_liste = []
 
         # Zusatzleistungen (Zuschläge mit Bedingung 'nur wenn gewählt')
         self.leistungen_box = QGroupBox("Zusatzleistungen")
@@ -288,7 +312,7 @@ class RechnerSeite(QWidget):
 
         links = QWidget()
         lv = QVBoxLayout(links)
-        for w in (v, g, lh, self.leistungen_box, self.erweitert):
+        for w in (v, g, lh, self.packliste_box, self.leistungen_box, self.erweitert):
             lv.addWidget(w)
         lv.addStretch(1)
         self.links = QScrollArea()
@@ -452,6 +476,25 @@ class RechnerSeite(QWidget):
             self.lht_tabelle.removeRow(r)
             self.geaendert()
 
+    def _packliste_zeigen(self):
+        from . import paletten
+        if self.packliste is None:
+            self.packliste_box.hide()
+            return
+        zeilen = []
+        for i, x in enumerate(self.vergleich_liste):
+            preis = fracht.euro(x["gesamt"]) if x["gesamt"] is not None else "kein Tarif"
+            lht = ", ".join(f"{t['anzahl']} × {t['lht_id']}" for t in x["lht"]) or "–"
+            t = f"{'Paket ' if x.get('paket') else ''}{html.escape(x['bezeichnung'])}: {html.escape(lht)} – {preis}"
+            zeilen.append(f"<b>✓ {t} (günstigste, übernommen)</b>" if i == 0 else t)
+        kopf = f"{paletten.kurz(self.packliste)}"
+        self.vergleich.setText(f"<b>{html.escape(kopf)}</b>" + (
+            "<br>Verglichen (Standard-Ladungsträger, lange Teile auf Langgut; Paket je Kartongröße, wenn alles "
+            "hineinpasst):<br>" + "<br>".join(zeilen)
+            if zeilen else ""))
+        self.packliste_ansicht.setzen(self.packliste)
+        self.packliste_box.show()
+
     def lht_eintraege(self):
         out = []
         for r in range(self.lht_tabelle.rowCount()):
@@ -460,15 +503,89 @@ class RechnerSeite(QWidget):
                             gewicht=_zahl(self.lht_tabelle.cellWidget(r, 2).text())))
         return out
 
+    def aus_angebot_laden(self, angebot_id=None):
+        """Ware eines Angebots übernehmen (Patrick 29.10.2026, 1b): Positionen und Werte für den Packvorschlag,
+        Nettogewicht, längstes Teil, Kunde und Bezeichnung; danach Packvorschlag. Ohne angebot_id Auswahl der
+        zuletzt geänderten Angebote. Ergebnis: True, wenn geladen."""
+        from . import fracht_angebot, rechnen
+        if angebot_id is None:
+            alle = sorted(self.db.angebote(), key=lambda a: a.get("geaendert") or "", reverse=True)[:300]
+            if not alle:
+                self.f.meldung("Keine Angebote vorhanden.", fehler=True)
+                return False
+            texte = [f"{a.get('nummer') or a['id']} – {a.get('kunde') or a.get('kundennr') or ''} "
+                     f"({a.get('positionen') or 0} Pos., {zahl_als_text(a.get('teile') or 0, 0)} Teile)" for a in alle]
+            text, ok = QInputDialog.getItem(self, "Aus Angebot laden", "Angebot (zuletzt geänderte zuerst):", texte,
+                                            0, True)
+            if not ok or text not in texte:
+                return False
+            angebot_id = alle[texte.index(text)]["id"]
+        kopf = self.db.angebot(angebot_id)
+        if kopf is None:
+            return False
+        pos = self.db.positionen(angebot_id)
+        k, tab = self.db.kontext(), self.db.tabellen()
+        werte = [rechnen.position_werte(p, kopf, k, tab) if position_aktiv(p) else None for p in pos]
+        netto, laenge, fehlt = fracht_angebot.ware(pos, werte)
+        self._laden = True
+        nr = kopf.get("kundennr")
+        if nr and nr in self.kunden:
+            self.kunde.setCurrentText(f"{nr} – {self.kunden[nr].get('name') or ''}")
+            self._laden = False
+            self.kunde_gewaehlt(self.kunde.currentText())
+            self._laden = True
+        self.bezeichnung.setText(f"Angebot {kopf.get('nummer') or ''}")
+        self.netto.setValue(netto)
+        self.max_laenge.setText(zahl_als_text(laenge, 0) if laenge else "")
+        self._laden = False
+        self.ware = (pos, werte)
+        teile = sum(int(p.get("stueck") or 0) for p, w in zip(pos, werte) if w is not None)
+        self.ware_text.setText(f"Angebot {kopf.get('nummer') or ''}: {zahl_als_text(teile, 0)} Teile, "
+                               f"{zahl_als_text(netto, 1)} kg" + (f"; <span style='color:#B42318'>Gewicht fehlt bei "
+                                                                  f"Pos. {', '.join(fehlt)}</span>" if fehlt else ""))
+        self.packvorschlag()
+        return True
+
+    def _preis_mit(self, lht, paket=False):
+        """Fracht (€ oder None) der aktuellen Eingaben mit diesen Ladungsträgern; paket: als Paketversand (Versandart
+        Paket, Tarif und Dienstleister automatisch), sonst ohne die Versandart Paket."""
+        from .fracht_richtwerte import PAKET
+        s = self.sendung()
+        s["lht"] = lht
+        if paket:
+            s.update(versandart=PAKET, tarif_id=None, dienstleister=None)
+        elif s.get("versandart") == PAKET:
+            s.update(versandart=None, tarif_id=None, dienstleister=None)
+        return fracht.rechnen(self.daten, s).get("gesamt")
+
+    def _preis_paket(self, lht):
+        return self._preis_mit(lht, paket=True)
+
     def packvorschlag(self):
         """Ladungsträger vorschlagen (ersetzt die Liste): aus einem Angebot (ware = (Positionen, Werte), gesetzt vom
-        Dialog 'Fracht berechnen …') nach Gewicht und Packraum (paletten.py), sonst aus Nettogewicht und längstem
-        Teil."""
+        Dialog 'Fracht berechnen …' oder 'Aus Angebot laden …') nach Gewicht und Packraum (paletten.py) mit dem
+        günstigsten Standard-Ladungsträger (paletten.guenstigste, lange Teile auf Langgut), dazu Packliste und
+        Skizze; sonst aus Nettogewicht und längstem Teil."""
         std, lg = self.db.einstellung("fracht_lht_standard"), self.db.einstellung("fracht_lht_langgut")
         if self.ware is not None:
             from . import fracht_angebot, paletten
-            vorschlag, hinweise = paletten.ladung(*self.ware, self.daten.get("lht", []), std, lg,
-                                                  {n: self.db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST})
+            einst = {n: self.db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST}
+            self.vergleich_liste = paletten.guenstigste(*self.ware, self.daten.get("lht", []), std, lg, einst,
+                                                        self._preis_mit, self._preis_paket)
+            if self.vergleich_liste:
+                from .fracht_richtwerte import PAKET
+                beste = self.vergleich_liste[0]
+                vorschlag, hinweise, self.packliste = beste["lht"], beste["hinweise"], beste["packliste"]
+                if beste.get("paket") or self.versandart.currentText() == PAKET:     # Paket oder Palette
+                    self._laden = True
+                    self.versandart.setCurrentText(PAKET if beste.get("paket") else "")
+                    self.tarif.setCurrentText("automatisch")
+                    self.dienstleister.setCurrentText("")
+                    self._laden = False
+            else:
+                vorschlag, hinweise = paletten.ladung(*self.ware, self.daten.get("lht", []), std, lg, einst)
+                self.packliste = paletten.packen(*self.ware, self.daten.get("lht", []), std, lg, einst)
+            self._packliste_zeigen()
         else:
             vorschlag, hinweise = fracht.packvorschlag(
                 [(self.netto.value(), _zahl(self.max_laenge.text()) or 0)], self.daten.get("lht", []), std, lg)
@@ -591,6 +708,8 @@ class FrachtDialog(QDialog):
         r.netto.setValue(netto)
         r.max_laenge.setText(zahl_als_text(laenge, 0) if laenge else "")
         r.ware = (seite.positionen, werte)          # Packvorschlag nach Gewicht und Packraum (paletten.py)
+        r.laden_knopf.hide()                        # die Ware kommt aus diesem Angebot
+        r.ware_text.setText("aus diesem Angebot")
         if not (alt and alt.get("sendung", {}).get("lht")):
             r.packvorschlag()
         r.rechnen()
@@ -712,7 +831,7 @@ class ZonenSeite(QWidget):
         fremd = self.db.fracht_zonen_fremd()
         text = (f"Alle {len(self.db.zeilen('fracht_zonen'))} Frachtzonen und {len(self.db.zeilen('fracht_plz'))} "
                 "PLZ-Zuordnungen werden gelöscht, auch eigene, und durch die Standardzonen ersetzt (Palette bis "
-                f"200 / 450 / 650 / über 650 km ab PLZ {plz.strip()} und Inseln). Die Preise des Richtwert-Tarifs "
+                f"50 / 100 / 200 / 450 / 650 / über 650 km ab PLZ {plz.strip()} und Inseln). Die Preise des Richtwert-Tarifs "
                 "werden passend neu geschrieben.\n\n"
                 + (f"{fremd} Preiszeile(n) anderer Tarife verweisen auf Zonen, die es danach nicht mehr gibt; "
                    "diese Preise gelten dann nicht mehr.\n\n" if fremd else "")

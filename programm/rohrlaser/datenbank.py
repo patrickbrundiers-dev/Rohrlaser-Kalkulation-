@@ -165,6 +165,7 @@ KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickr
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
+FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
@@ -256,6 +257,7 @@ class Datenbank:
             self.einstellung_setzen("voll_stand", VOLL_STAND)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
+            self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -299,6 +301,8 @@ class Datenbank:
             self.sicherung(zusatz="vor_Maschinen_T03_T11_LT7")
         elif version > 0 and self.einstellung("richtwerte_stand") != RICHTWERTE_STAND:
             self.sicherung(zusatz="vor_Richtwerte_Rohr")
+        elif version > 0 and self.einstellung("fracht_nah_stand") != FRACHT_NAH_STAND and self._fracht_richtwerte_da():
+            self.sicherung(zusatz="vor_Fracht_Nahbereich")
         with self.con:
             if 0 < version < 6:
                 self._umbenennen()
@@ -472,6 +476,8 @@ class Datenbank:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
                 self._strahlen_ergaenzen()
+            if version > 0 and self.einstellung("fracht_nah_stand") != FRACHT_NAH_STAND:
+                self._fracht_nahbereich()
             if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
@@ -614,6 +620,47 @@ class Datenbank:
         self._einfuegen("zusatzarbeiten", strahl_zusatzarbeiten(), ergaenzen=True)
         self._einfuegen("arbeitsgang_regeln", strahl_regeln(), ergaenzen=True)
         self._einstellung_schreiben("strahlen_stand", STRAHLEN_STAND)
+
+    def _fracht_richtwerte_da(self):
+        """Sind die Fracht-Richtwerte geladen (Tarif RW-PALETTE vorhanden)?"""
+        from .fracht_richtwerte import TARIF
+        try:
+            return bool(self.con.execute("SELECT 1 FROM fracht_tarife WHERE tarif_id=?", (TARIF,)).fetchone())
+        except sqlite3.OperationalError:
+            return False
+
+    def _fracht_nahbereich(self):
+        """Einmalig (Patrick 29.10.2026, 3b): Sind die Fracht-Richtwerte geladen, werden sie neu geladen, mit den
+        Nahbereichs-Ringen bis 50 und 50–100 km, dem Tarif 'Eigene Anlieferung', Europalette bis 3.000 mm und dem
+        Paketversand mit drei Kartons (Stand 2026-10-29b; vorher Sicherung
+        vor_Fracht_Nahbereich). Eigene Einträge bleiben, gespeicherte Frachtberechnungen behalten ihre Tarifkopie.
+        Ohne Richtwerte oder ohne gültige Absender-PLZ ändert sich nichts."""
+        from .fracht_richtwerte import richtwerte
+        if self._fracht_richtwerte_da():
+            try:
+                self._richtwerte_schreiben(richtwerte(self.einstellung("absender_plz")))
+            except ValueError:
+                pass
+        self._einstellung_schreiben("fracht_nah_stand", FRACHT_NAH_STAND)
+
+    def _richtwerte_schreiben(self, daten):
+        """Zeilen mit BEISPIEL oder RICHTWERT in der Bemerkung und die Preise der Richtwert-Tarife durch daten
+        (fracht_richtwerte.richtwerte) ersetzen, ohne Transaktion. Ergebnis: (entfernt, eingefügt)."""
+        from .fracht_richtwerte import TARIF, TARIF_EIGEN, TARIF_PAKET
+        weg = neu = 0
+        for tabelle in KURZ:
+            if "bemerkung" in [f.name for f in ALLE_TABELLE[tabelle].felder]:
+                weg += self.con.execute(f'DELETE FROM "{tabelle}" WHERE bemerkung LIKE \'BEISPIEL%\' '
+                                        "OR bemerkung LIKE 'RICHTWERT%'").rowcount
+        weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id IN (?, ?, ?)",
+                                (TARIF, TARIF_EIGEN, TARIF_PAKET)).rowcount
+        for tabelle, zeilen in daten.items():
+            namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
+            for z in zeilen:
+                neu += self.con.execute(
+                    f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
+                    f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen]).rowcount
+        return weg, neu
 
     def _knick_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem
@@ -1537,22 +1584,11 @@ class Datenbank:
         der Bemerkung werden ersetzt, eigene Einträge bleiben (gleicher Schlüssel: der eigene gilt). Absender-PLZ
         (leer = Einstellung) muss eine deutsche PLZ sein; leere Absender-PLZ und Versandart werden gesetzt.
         Ergebnis: (entfernt, eingefügt)."""
-        from .fracht_richtwerte import TARIF, VERSANDART, richtwerte
+        from .fracht_richtwerte import VERSANDART, richtwerte
         absender_plz = (absender_plz or self.einstellung("absender_plz") or "").strip()
         daten = richtwerte(absender_plz)              # ValueError bei unbekannter PLZ, vor jeder Änderung
-        weg = neu = 0
         with self.con:
-            for tabelle in KURZ:
-                if "bemerkung" in [f.name for f in ALLE_TABELLE[tabelle].felder]:
-                    weg += self.con.execute(f'DELETE FROM "{tabelle}" WHERE bemerkung LIKE \'BEISPIEL%\' '
-                                            "OR bemerkung LIKE 'RICHTWERT%'").rowcount
-            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (TARIF,)).rowcount
-            for tabelle, zeilen in daten.items():
-                namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
-                for z in zeilen:
-                    neu += self.con.execute(
-                        f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
-                        f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen]).rowcount
+            weg, neu = self._richtwerte_schreiben(daten)
         if not self.einstellung("absender_plz"):
             self.einstellung_setzen("absender_plz", absender_plz)
         if (self.einstellung("fracht_versandart") or "Stückgut") == "Stückgut":
@@ -1561,13 +1597,13 @@ class Datenbank:
 
     @schreibt
     def fracht_zonen_zuruecksetzen(self, absender_plz=None):
-        """Frachtzonen und PLZ-Zuordnungen auf Standard (Richtwert-Zonen RW1–4 und Inseln ab der Absender-PLZ,
+        """Frachtzonen und PLZ-Zuordnungen auf Standard (Richtwert-Zonen RW0A–RW4 und Inseln ab der Absender-PLZ,
         fracht_richtwerte.py) zurücksetzen: vorher geschützte Sicherung 'vor_Frachtzonen_Standard', dann alle Zonen
         und PLZ-Zuordnungen löschen (auch eigene) und die Standardzeilen einfügen. Die Preise des Richtwert-Tarifs
         werden passend neu geschrieben (Land DE, Dienstleister und Tarif angelegt, falls sie fehlen); andere Tarife,
         Zuschläge, Ladehilfsmittel und Angebote mit gespeicherter Tarifkopie bleiben unverändert.
         Ergebnis: (entfernt, eingefügt, Pfad der Sicherung)."""
-        from .fracht_richtwerte import TARIF, richtwerte
+        from .fracht_richtwerte import TARIF, TARIF_EIGEN, TARIF_PAKET, richtwerte
         absender_plz = (absender_plz or self.einstellung("absender_plz") or "").strip()
         daten = richtwerte(absender_plz)              # ValueError bei unbekannter PLZ, vor jeder Änderung
         pfad = self.sicherung(zusatz="vor_Frachtzonen_Standard")
@@ -1581,7 +1617,8 @@ class Datenbank:
         with self.con:
             for tabelle in ("fracht_plz", "fracht_zonen"):
                 weg += self.con.execute(f'DELETE FROM "{tabelle}"').rowcount
-            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (TARIF,)).rowcount
+            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id IN (?, ?, ?)",
+                                    (TARIF, TARIF_EIGEN, TARIF_PAKET)).rowcount
             for tabelle in ("fracht_laender", "fracht_dienstleister", "fracht_tarife"):
                 einfuegen(tabelle, daten[tabelle])
             for tabelle in ("fracht_zonen", "fracht_plz", "fracht_preise"):

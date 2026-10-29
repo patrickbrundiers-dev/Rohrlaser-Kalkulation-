@@ -2,14 +2,31 @@
 
 Quelle der Preise: Medianwerte der Online-Frachtrechner für eine Europalette (Cargolo, Auswertung 10.09.–09.10.2026,
 netto inkl. Maut und Dieselzuschlag): bis 200 km 85 € (85–90), 200–450 km 95 € (85–105), 450–650 km 110 € (90–115),
-über 650 km 120 € (95–125); 2–3 Paletten 190 €, 4–6 Paletten 285 € je Sendung. Langgut 6 m (225–900 kg, 100–900 km)
+über 650 km 120 € (95–125); 2–3 Paletten 190 €, 4–6 Paletten 285 € je Sendung. Nahbereich (Patrick 29.10.2026:
+100 € für 20 km zu viel): bis 50 km 65 €, 50–100 km 80 € (regionale Spediteure fahren ohne Hauptlauf über ein
+Umschlaglager; Schätzwert unter dem Median bis 200 km). Langgut 6 m (225–900 kg, 100–900 km)
 laut veröffentlichter Händlertabelle etwa 230–390 € netto; Überlänge 2,40–3,00 m etwa 59 € netto; Avis 15–35 €;
 Inselzuschlag ab 25 €. Angesetzt: Obergrenze der üblichen Spanne + 10 % Puffer.
 
-Zonen: vier Ringe nach Straßenentfernung (Luftlinie × 1,25) vom Versandort zum Mittelpunkt der zweistelligen
+Zonen: sechs Ringe nach Straßenentfernung (Luftlinie × 1,25) vom Versandort zum Mittelpunkt der zweistelligen
 PLZ-Region, dazu eine Inselzone. Keine Speditionsangebote: alle Zeilen tragen RICHTWERT in der Bemerkung.
+
+Eigene Anlieferung (eigener Lkw oder Transporter, Versandart 'Eigene Anlieferung', bis 200 km): 20 € je Sendung für
+Laden und Abladen plus 1,00 € je gefahrenem km (Fahrzeug und Fahrer, Hin- und Rückfahrt = 2,00 € je km Entfernung).
+Entfernung aus dem Frachtrechner (Feld Entfernung) oder die typische Entfernung der Zone. Schätzwerte.
+
+Europalette und Einwegpalette: Teile bis 3.000 mm, Überstand nur längs über die 1.200er Seite, quer nie (Patrick
+29.10.2026, 1b); längere Teile kommen auf Langgut.
+
+Paketversand (Patrick 29.10.2026, 2a/3a): drei Kartons S 400 × 300 × 200 bis 10 kg, M 600 × 400 × 400 bis 20 kg,
+L 1.200 × 200 × 200 bis 31,5 kg (Innenmaße; Nutzlast = Gewichtsklasse − Kartongewicht). Preis je Karton nach der
+Gewichtsklasse: DHL Paket national online 10/2026 bis 10 kg 10,49 €, bis 20 kg 18,99 €, bis 31,5 kg 23,99 €
+(UPS Standard und Hermes liegen bei ähnlichen Maßen eher darüber; Mailboxes etc. verkauft DHL/UPS mit Aufschlag).
+Höchstmaß DHL 120 × 60 × 60 cm. Kartons und Preise sind änderbar (Ladehilfsmittel, Tarif RW-PAKET).
 """
 import math
+
+from .fracht import PAKET
 
 RICHTWERT = "RICHTWERT Recherche 10/2026 (Marktpreise + 10 % Puffer), kein Speditionsangebot"
 STRASSE = 1.25          # Straßen-km je Luftlinien-km (grob)
@@ -44,12 +61,24 @@ INSELN = (("25938", "25999", "Föhr, Amrum, Sylt"), ("25849", None, "Pellworm"),
           ("26571", None, "Juist"), ("26579", None, "Baltrum"), ("26757", None, "Borkum"),
           ("27498", None, "Helgoland"), ("27499", None, "Neuwerk"), ("18565", None, "Hiddensee"))
 
-# Ringe: (Zone, Bezeichnung, bis Straßen-km, Preis 1 Palette); 2–3 Paletten je 85 %, 4–6 je 70 % des Preises
-RINGE = (("RW1", "bis 200 km", 200, 100.0), ("RW2", "200–450 km", 450, 115.0), ("RW3", "450–650 km", 650, 125.0),
-         ("RW4", "über 650 km", None, 140.0))
+# Ringe: (Zone, Bezeichnung, bis Straßen-km, Preis 1 Palette, typische Entfernung km); 2–3 Paletten je 85 %, 4–6 je
+# 70 % des Preises
+RINGE = (("RW0A", "bis 50 km", 50, 65.0, 30), ("RW0B", "50–100 km", 100, 80.0, 75),
+         ("RW1", "100–200 km", 200, 100.0, 150), ("RW2", "200–450 km", 450, 115.0, 325),
+         ("RW3", "450–650 km", 650, 125.0, 550), ("RW4", "über 650 km", None, 140.0, 750))
 MENGEN = ((1, 1.0), (3, 0.85), (6, 0.70))
 TARIF = "RW-PALETTE"
 VERSANDART = "Palettenversand"
+TARIF_EIGEN = "RW-EIGEN"
+EIGEN = "Eigene Anlieferung"
+EIGEN_ZONEN = ("RW0A", "RW0B", "RW1")      # eigene Anlieferung bis 200 km
+EIGEN_SENDUNG = 20.0                       # € je Sendung: Laden und Abladen
+EIGEN_KM = 1.00                            # € je gefahrenem km (Fahrzeug und Fahrer)
+TARIF_PAKET = "RW-PAKET"
+# Kartons: (ID, Bezeichnung, Länge, Breite, Höhe innen [mm], Eigengewicht [kg], Gewichtsklasse [kg], Preis [€])
+KARTONS = (("K-S", "Karton S 400 × 300 × 200", 400, 300, 200, 0.3, 10.0, 10.49),
+           ("K-M", "Karton M 600 × 400 × 400", 600, 400, 400, 0.6, 20.0, 18.99),
+           ("K-L", "Karton L 1200 × 200 × 200", 1200, 200, 200, 0.7, 31.5, 23.99))
 
 
 def entfernung(a, b):
@@ -61,7 +90,7 @@ def entfernung(a, b):
 
 
 def ring(km):
-    for zone, _, bis, _ in RINGE:
+    for zone, _, bis, *_ in RINGE:
         if bis is None or km <= bis:
             return zone
     return RINGE[-1][0]
@@ -79,8 +108,9 @@ def richtwerte(absender_plz):
         raise ValueError(f"Versandort-PLZ {absender_plz or '(leer)'} unbekannt: zwei Ziffern einer deutschen PLZ nötig")
     r = RICHTWERT
     laender = [("DE", "Deutschland", 5, "EUR", "ja", r)]
-    zonen = [(z, f"Palette {text}", "DE", "normal", "ja" if bis is None else "nein", bis, "ja", r)
-             for z, text, bis, _ in RINGE]
+    zonen = [(z, f"Palette {text}", "DE", "normal", "ja" if bis is None else "nein", km, "ja",
+              r + "; Entfernung = typische Entfernung der Zone (für die eigene Anlieferung je km)")
+             for z, text, bis, _, km in RINGE]
     zonen.append(("RW-INSEL", "Inseln", "DE", "Insel", "nein", None, "ja", r + "; Preis wie über 650 km + Inselzuschlag"))
     plz = []
     for region, punkt in sorted(REGIONEN.items()):
@@ -89,19 +119,33 @@ def richtwerte(absender_plz):
     plz += [("DE", von, bis, "RW-INSEL", None, None, None, None, f"{r}; {name}") for von, bis, name in INSELN]
     dl = [("RICHTWERT", "Richtwert Palettenversand (Marktpreise)", VERSANDART, None, "ja", r),
           ("SLH", "Spedition u. Logistik Haaren, Keimeier u. Finke GmbH (Bad Wünnenberg, CTL-Partner)", VERSANDART,
-           None, "ja", "keine öffentlichen Preise gefunden; Tarif nach Angebot hier eintragen")]
+           None, "ja", "keine öffentlichen Preise gefunden; Tarif nach Angebot hier eintragen"),
+          ("EIGEN", "Eigener Lkw / Transporter", EIGEN, None, "ja", r + "; Schätzwert, eigene Kosten eintragen"),
+          ("PAKET", "Paketdienst (Richtwert DHL Paket)", PAKET, None, "ja", r + "; DHL, UPS, Hermes, GLS")]
     tarife = [(TARIF, "Palettenversand Deutschland (Richtwert, inkl. Maut und Diesel)", "RICHTWERT", "Standardtarif",
                "Palettentarif", VERSANDART, "DE", None, None, "2026-01-01", None, "EUR", None, None, None, None, None,
-               None, 50, "2026-10", "ja", r)]
-    preise = []
-    for zone, _, _, p in RINGE + (("RW-INSEL", "", None, RINGE[-1][3]),):
+               None, 50, "2026-10", "ja", r),
+              (TARIF_EIGEN, "Eigene Anlieferung bis 200 km (Schätzwert)", "EIGEN", "Standardtarif",
+               "Individueller Tarif", EIGEN, "DE", ", ".join(EIGEN_ZONEN), None, "2026-01-01", None, "EUR", None, None,
+               None, None, None, None, 60, "2026-10", "ja", r + "; Schätzwert, eigene Kosten eintragen"),
+              (TARIF_PAKET, "Paketversand Deutschland je Karton (Richtwert DHL)", "PAKET", "Standardtarif",
+               "Individueller Tarif", PAKET, "DE", None, None, "2026-01-01", None, "EUR", None, None, None, None, None,
+               None, 70, "2026-10", "ja", r + "; DHL Paket national online 10/2026, Preis je Karton")]
+    preise = [(TARIF_EIGEN, None, "Sendung", None, None, EIGEN_SENDUNG, "Festpreis",
+               r + "; Laden und Abladen (ca. 20 min)"),
+              (TARIF_EIGEN, None, "km", None, None, round(2 * EIGEN_KM, 2), "je Einheit",
+               r + f"; Hin- und Rückfahrt: {EIGEN_KM:.2f}".replace(".", ",") + " € je gefahrenem km (Fahrzeug und Fahrer)")]
+    preise += [(TARIF_PAKET, None, "Ladungsträger", k[0], None, k[7], "je Einheit",
+                r + f"; DHL Paket bis {k[6]:g} kg".replace(".", ",")) for k in KARTONS]
+    for zone, _, _, p, _ in RINGE + (("RW-INSEL", "", None, RINGE[-1][3], None),):
         for bis, f in MENGEN:
             preise.append((TARIF, zone, "Stellplatz", None, bis, round(p * f, 2), "je Einheit", r))
         preise.append((TARIF, zone, "Stellplatz", None, None, None, "je Einheit",
                        "mehr als 6 Stellplätze: Teilladung, Preis anfragen"))
-    lht = [("EUR", "Europalette 1200 × 800", "Europalette", 1200, 800, 144, 25, 800, 1400, "nein", None, 1, "ja",
-            r + "; Nutzlast im Packvorschlag 800 kg"),
-           ("EW", "Einwegpalette 1200 × 800", "Einwegpalette", 1200, 800, 140, 15, 800, 1400, "nein", None, 1, "ja", r),
+    lht = [("EUR", "Europalette 1200 × 800", "Europalette", 1200, 800, 144, 25, 800, 3000, "nein", None, 1, "ja",
+            r + "; Nutzlast im Packvorschlag 800 kg; Teile bis 3.000 mm, Überstand nur längs"),
+           ("EW", "Einwegpalette 1200 × 800", "Einwegpalette", 1200, 800, 140, 15, 800, 3000, "nein", None, 1, "ja",
+            r + "; Teile bis 3.000 mm, Überstand nur längs"),
            ("IND", "Industriepalette 1200 × 1000", "Industriepalette", 1200, 1000, 144, 30, 1000, 1400, "nein", None,
             1.25, "ja", r),
            ("GB", "Gitterbox 1240 × 835 × 970", "Gitterbox", 1240, 835, 970, 85, 1000, 1200, "ja", 4, 1, "ja", r),
@@ -111,6 +155,8 @@ def richtwerte(absender_plz):
             r + "; zählt als 3 Stellplätze"),
            ("SL", "Sonderladung (Maße je Sendung)", "Sonderladung", None, None, None, None, None, None, "nein", None,
             None, "ja", r)]
+    lht += [(i, text, "Karton", l, b, h, eg, round(kg - eg, 1), l, "nein", None, None, "ja",
+             r + f"; Innenmaße, Paket bis {kg:g} kg".replace(".", ",")) for i, text, l, b, h, eg, kg, _ in KARTONS]
     zus = [("RW-SCHWER", "Schwere Palette (über 300 kg je Stellplatz)", "Sonderhandling", "€ je Stellplatz", None,
             None, 40.0, None, None, None, None, None, None, TARIF, None, None, "Gewicht je Stellplatz über", 300, "ja",
             r + "; Marktpreis 300–600 kg ca. 140 € statt 100 €"),

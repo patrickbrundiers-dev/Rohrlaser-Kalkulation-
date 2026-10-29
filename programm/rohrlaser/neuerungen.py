@@ -21,13 +21,39 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.203", "<b>Gewinn gestaffelt nach Auftragswert</b> ([[gewinn_gestaffelt]]): in den Einstellungen "
+    ["0.9.206", "<b>Gewinn gestaffelt nach Auftragswert</b> ([[gewinn_gestaffelt]]): in den Einstellungen "
                 "(Seite <i>Gewinn gestaffelt</i>) bis zu 4 Grenzen und 5 Sätze, z. B. 30 % bis 500 €, 20 % bis 2.000 €, 12 % bis "
                 "10.000 €, darüber 8 %. Auftragswert = Selbstkosten des Angebots ohne Zukaufteile und Fracht; ein "
                 "Satz für alle Positionen; an den Grenzen kein Preissprung nach unten. Ab Werk aus; ein eigener "
                 "Gewinn im Angebot oder in der Staffel-Stufe gilt statt der Stufen, festgeschriebene Angebote bleiben "
                 "gleich.",
      "Gewinn gestaffelt nach Auftragswert (bis 5 Stufen, Vorgabe aus)"],
+    ["0.9.205", "<b>Paket und lange Teile auf der Europalette</b>: Der Packvorschlag im Frachtrechner rechnet jetzt "
+                "auch <b>Paketversand</b> mit drei Kartons (S 400 × 300 × 200 mm bis 10 kg 10,49 €, M 600 × 400 × "
+                "400 mm bis 20 kg 18,99 €, L 1.200 × 200 × 200 mm bis 31,5 kg 23,99 €, Richtwert DHL) und nimmt das "
+                "Paket, wenn es günstiger als jede Palette ist; die Packliste zeigt jeden Karton mit Draufsicht und "
+                "Seitenansicht. Kartons und Preise sind unter <i>Paletten und Ladehilfsmittel</i> bzw. Tarif "
+                "RW-PAKET änderbar. Europalette und Einwegpalette nehmen Teile bis 3.000 mm, Überstand nur längs "
+                "über die 1.200er Seite, quer nie ([[pack_rechner]]).",
+     "Frachtrechner: Paketversand mit Kartons S/M/L, Europalette bis 3.000 mm mit Überstand längs."],
+    ["0.9.204", "<b>Pack-Logik im Frachtrechner</b>: Der Knopf <i>Aus Angebot laden …</i> (Frachtkosten › Fracht "
+                "kalkulieren) übernimmt die Ware eines Angebots und packt sie nach Maßen und Stückzahl wie der "
+                "Palettenschein, statt nur Gewicht ÷ 800 kg. Der Packvorschlag probiert jetzt alle Ladungsträger "
+                "(Europalette, Gitterbox, Industrie-, Sonderpalette …, lange Teile auf Langgut) und nimmt den "
+                "günstigsten Frachtpreis, z. B. eine Sonderpalette 2,40 m statt Europalette + Langgut. Die neue "
+                "<b>Packliste</b> zeigt den Vergleich und je Palette Draufsicht, Seitenansicht mit Höhe und den "
+                "Aufbau; auch im Fenster <i>Fracht berechnen …</i> eines Angebots ([[pack_rechner]]).",
+     "Frachtrechner: Ware aus Angebot laden, günstigste Ladungsträger, Packliste mit Skizze."],
+    ["0.9.203", "<b>Fracht im Nahbereich günstiger</b>: Die Richtwerte für den Palettenversand haben zwei neue Ringe, "
+                "<i>bis 50 km</i> (1 Palette 65 €) und <i>50–100 km</i> (80 €); bisher kostete alles bis 200 km "
+                "100 €. Ab Delbrück z. B. Paderborn, Bielefeld und Herford 65 €, Münster und Osnabrück 80 €. Neu ist "
+                "die Versandart <b>Eigene Anlieferung</b> (eigener Lkw, bis 200 km): 20 € je Sendung plus 1,00 € je "
+                "gefahrenem km, die Entfernung im Frachtrechner eintragen (20 km = 60 €). Beim ersten Start werden "
+                "geladene Richtwerte einmalig neu geladen (vorher Datensicherung <i>vor_Fracht_Nahbereich</i>), "
+                "eigene Tarife und Einträge bleiben. Angebote mit gespeicherter Frachtberechnung behalten ihre "
+                "Tarifkopie, bis die Ziel-PLZ neu eingegeben wird; festgeschriebene Angebote bleiben unverändert "
+                "([[fracht_richtwerte]]).",
+     "Fracht: Nahbereich bis 50 km 65 €, bis 100 km 80 €; Versandart Eigene Anlieferung (€/km)."],
     ["0.9.202", "<b>Einstellungen aufgeräumt</b>: Statt einer langen Seite <i>Vorgaben</i> mit allen Einstellungen "
                 "hat jedes Thema eine eigene Seite neben den passenden Stammdaten, z. B. <i>Zuschläge und Preise</i>, "
                 "<i>Neue Angebote</i>, <i>Blech-Richtpreis</i>, <i>STEP-Import</i>, <i>Versand und Paletten</i>. "
