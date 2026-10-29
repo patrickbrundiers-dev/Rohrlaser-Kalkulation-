@@ -369,6 +369,11 @@ MASCHINEN = Tabelle(
      Feld("duese_min", "Mindestabstand Düse [mm]", "zahl", 0, 200, stellen=1, breite=85),
      Feld("min_teil", "Kürzestes Teil [mm]", "zahl", 0, 20000, stellen=0, breite=80),
      Feld("zeit_kontur", "Zeit je Kontur (Anfahren/Drehen) [s]", "zahl", 0, 60, stellen=2, breite=95),
+     # Plan „Kalkulation und Berechnung verbessern“ (Patrick 29.10.2026, alles a): Nebenzeit, Schneidgas, Profilwechsel
+     Feld("zeit_teil", "Nebenzeit je Teil (Ausschieben/Entnehmen) [s]", "zahl", 0, 600, stellen=1, breite=95),
+     Feld("gas_n2", "Schneidgas N₂ [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
+     Feld("gas_o2", "Schneidgas O₂ [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
+     Feld("ruest_form", "Rüstzuschlag je weiterer Profilform [min]", "zahl", 0, 1440, stellen=0, breite=95),
      # Schichtkalender der Wochenauslastung (Plan 29.10.2026 2b, auslastung.py); leer = Einstellung
      Feld("schicht_stunden", "Schicht: Stunden je Arbeitstag", "zahl", 0, 24, stellen=1, breite=90)),
     ("maschinen_id",),
@@ -391,6 +396,10 @@ MASCHINEN = Tabelle(
     "Maschine nicht fertigen; sie bekommen die Stufe der Prüfregel 'Teil zu kurz für die Maschine' (leer = keine "
     "Grenze). Zeit je Kontur (Anfahren/Drehen): Zuschlag je Einstich für das Anfahren der Kontur und das Drehen des "
     "Rohrs dazwischen (jede Innenkontur und jedes Ende), leer = 0; mit echten Schnittzeiten abgleichen. "
+    "Nebenzeit je Teil: Ausschieben, Abtrennen und Entnehmen jedes Teils, leer = 0. Schneidgas N₂/O₂: Gaskosten je "
+    "Stunde Laserzeit zusätzlich zum Stundensatz, je nach Gas der Schneiddaten (Stickstoff für Edelstahl und Alu ist "
+    "teurer), leer = 0. Rüstzuschlag je weiterer Profilform: Spannbacken bzw. Spannmittel tauschen, wenn ein Angebot "
+    "mehrere Profilformen hat (z. B. Rundrohr und Rechteckrohr), je Form ab der zweiten, leer = 0. "
     "Schicht: Stunden je Arbeitstag für die Wochenauslastung (Datei → Maschinenauslastung …; leer = Einstellung).")
 
 SCHNEIDDATEN = Tabelle(
@@ -881,6 +890,13 @@ EINSTELLUNGEN = (
     # Patrick 22.10.2026 (F4 a): eigene Zeit je Teil, dessen Anbauteile unsicher erkannt sind (Stundensatz Laser)
     Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
                 "zahl", 0.0, 0, 1000),
+    # Plan „Kalkulation und Berechnung verbessern“ (Patrick 29.10.2026): Ausschuss auf Material und Laserzeit,
+    # Schrotterlös des Verschnitts als Gutschrift, Preiseinheit 100/1000 Stück für Kleinteile im Angebots-PDF
+    Einstellung("ausschuss", "Ausschuss Rohrlaserteile [%]", "Kalkulation",
+                "anteil", 0, 0, 0.5),
+    Einstellung("schrott_anteil", "Schrotterlös Verschnitt [%]",
+                "Kalkulation", "anteil", 0, 0, 1),
+    Einstellung("preiseinheit_ab", "Preis je 100 Stück unter [€]", "Kalkulation", "zahl", 0.1, 0, 100),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
     # angehoben. 0 = keiner.
     # Kundenmaterial (Spalte Material: Kunde beigestellt): keine Materialkosten; optional Handling je m der

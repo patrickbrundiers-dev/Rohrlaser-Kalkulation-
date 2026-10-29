@@ -2653,6 +2653,37 @@ def kapitel_optimieren(i):
            "übernehmen …</b> stellt sie um (der Dialog nennt „Gewinn auf Herstellkosten → auf Selbstkosten“). Mit "
            "gleichem Gewinn-Prozentsatz steigen die Preise dadurch; bei den Prüfangeboten mit 25 % Gewinn um 1,6 bis "
            "8 %, bei kleinen Aufträgen am meisten.")
+    i.abschnitt("Nebenzeit, Schneidgas, Ausschuss, Schrotterlös und Preiseinheit", marke="kalkulation_genauer")
+    i.text("Fünf Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
+           "Preise wie bisher. Nur die Preiseinheit für Kleinteile ist ab Werk an (unter 0,10 € je Stück).", kurz=True)
+    i.tabelle(["Wert", "Wo", "Wirkung"], [
+        ["<b>Nebenzeit je Teil [s]</b>", "Maschine", "Ausschieben, Abtrennen und Entnehmen jedes Teils; kommt zur "
+         "Laserzeit (Spalte <i>davon Nebenzeit je Teil</i>). Kleine Teile in großer Stückzahl werden sonst zu billig."],
+        ["<b>Schneidgas N₂ [€/h]</b>, <b>Schneidgas O₂ [€/h]</b>", "Maschine", "Gaskosten je Stunde Laserzeit nach dem Gas der Schneiddaten, "
+         "zusätzlich zum Stundensatz; eigene Kostenart <i>Schneidgas</i>. Stickstoff (Edelstahl, Alu) ist teurer als "
+         "Sauerstoff."],
+        ["<b>Rüstzuschlag je weiterer Profilform [min]</b>", "Maschine", "Spannbacken tauschen: hat ein Angebot "
+         "mehrere Profilformen (z. B. Rundrohr und Quadratrohr), kommt je Form ab der zweiten diese Zeit zu "
+         "<i>Rüsten je Abmessung</i>."],
+        ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kalkulation", "verworfene Teile: der Anteil auf Material und "
+         "Laserzeit (mit Gewinde und Schneidgas) der Rohrlaserteile, 0 = keiner; eigene Kostenart <i>Ausschuss</i>. Die "
+         "Nachkalkulation zeigt die gemessene Ausschussquote ([[nachkalkulation]])."],
+        ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kalkulation", "Gutschrift für den Verschnitt "
+         "(Stangenlänge ohne Teile und ohne Reste, die ins Lager gehen) in Prozent des Materialpreises, z. B. 20 %; "
+         "Kostenart <i>Schrotterlös Verschnitt</i> (negativ), 0 = aus. Kundenmaterial ohne Erlös."],
+        ["<b>Preis je 100 Stück unter [€]</b>", "Einstellungen, Kalkulation", "Kleinteile stehen mit Preis je 100 "
+         "Stück im Angebot (unter einem Zehntel des Werts je 1000), z. B. 3,44 € je 100 statt 0,03 € je Stück. Ohne "
+         "Preiseinheit verliert die Rundung auf den Cent bei 0,034 € je Teil 12 %. 0 = immer je Stück."]],
+        [48, 35, 182])
+    i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
+           "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
+           "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.genauer("Preis-Plausibilität im Angebots-Check")
+    i.text("Der Angebots-Check ([[angebots_check]]) prüft die Preise auf Tippfehler: ein Stückpreis unter den "
+           "Materialkosten ist eine WARNUNG; ein Preis je kg, der mehr als 3-mal höher oder niedriger ist als bei "
+           "derselben Abmessung in früher verschickten Angeboten, und ein Ertrag je Laserstunde unter dem "
+           "Stundensatz sind ein HINWEIS. Den Preis je kg jeder Position merkt sich das Programm beim Angebots-PDF; "
+           "der Vergleich wächst also mit jedem verschickten Angebot. Kein Preis wird geändert.")
     i.abschnitt("Zeiten & Arbeitskosten", marke="zeiten")
     i.bild("erg_zeiten", "Reiter Zeiten & Arbeitskosten mit Beispielzeiten (Beispielwerte, keine gemessenen Zeiten)",
            hoehe=95 * mm, legende=[

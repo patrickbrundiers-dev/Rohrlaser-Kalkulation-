@@ -40,7 +40,7 @@ import json
 from . import blech, fracht_angebot, rechnen, zukauf
 from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
 from .angebot import aktiv as position_aktiv, ist_muster
-from .ausgabe import aufrunden, kaufm_runden
+from .ausgabe import aufrunden, kaufm_runden, preiseinheit
 from .stammdaten import Feld, kontext_aus
 
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
@@ -472,11 +472,13 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
 
 # (Name, Feld je Teil, Erklärung) der Fertigung und des Rüstens je Satz bzw. Position
 _FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stundensatz Laser"),
+              ("Schneidgas", "schneidgas_teil", "Schneidzeit × Zuschlag Schneidgas der Maschine"),
               ("Gewinde", "gewinde_teil", "Gewindezeit × Stundensatz bzw. Festpreis"),
               ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
               ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),
               ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"),
-              ("Schweißbaugruppe", "bg_laufend_eigen_teil", "Nahtgruppen und Arbeitsgänge der Baugruppe"))
+              ("Schweißbaugruppe", "bg_laufend_eigen_teil", "Nahtgruppen und Arbeitsgänge der Baugruppe"),
+              ("Ausschuss", "ausschuss_fert_teil", "Ausschuss auf Laserzeit, Gewinde und Schneidgas"))
 _RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschine, auf alle Teile der Stufe umgelegt"),
             ("Rüsten je Abmessung", "ruesten_abm_teil", "Rüstzeit je Abmessung, auf deren Teile umgelegt"),
             ("Stangenwechsel", "stangenwechsel_teil", "Stangenwechsel der Stufe, auf alle Teile umgelegt"),
@@ -494,7 +496,9 @@ def _bausteine_teil(kz, idx, summen):
     ruest = [(n, summe(f), e) for n, f, e in _RUESTEN if n == "Rüsten Maschine" or abs(summe(f)) >= 0.005]
     ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil") and not z.get("baugruppe")
                      and not (z.get("kundenmaterial") and z["eingeplant"]))      # Kundenmaterial: 0 € ist richtig
-    return dict(material=summe("material_teil"), material_fehlt=ohne_preis, fertigung=fert, ruesten=ruest,
+    # Material mit Schrotterlös (Gutschrift, negativ) und Ausschuss wie in der Kalkulation (Plan B2, B5)
+    material = summe("material_teil") + summe("schrott_teil") + summe("ausschuss_mat_teil")
+    return dict(material=material, material_fehlt=ohne_preis, fertigung=fert, ruesten=ruest,
                 fremd=summe("zusatz_fremd_teil") + summe("bg_fremd_staffel_teil"),
                 bg_getrennt=(summe("bg_getrennt_eigen_teil"), summe("bg_getrennt_fremd_teil")),
                 pauschalen=summe("pauschale_abm_teil"),
@@ -697,7 +701,8 @@ def bausteine(summen, ohne_materialpreis=0):
     if abs(summen.get("baugruppe_einmal_ruesten", 0)) >= 0.005:
         ruest.append(("Schweißbaugruppen einmalig", summen["baugruppe_einmal_ruesten"],
                       "Rüstzeit und Einmalbeträge der Arbeitsgänge"))
-    return dict(material=summen["material"], material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
+    material = summen["material"] + summen.get("schrott", 0.0) + summen.get("ausschuss_material", 0.0)
+    return dict(material=material, material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
                 fremd=summen["zusatz_fremd"] + summen.get("baugruppe_fremd_staffel", 0.0),
                 bg_getrennt=(summen.get("baugruppe_getrennt_eigen", 0.0), summen.get("baugruppe_getrennt_fremd", 0.0)),
                 pauschalen=summen["pauschalen"],
@@ -726,7 +731,7 @@ def wirksam(stufe, einst):
                 arbeitsgang_min=_zahl(w("arbeitsgang_min")), arbeitsgang_satz=w("arbeitsgang_satz"),
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
                 neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")),
-                mindestpreis=_zahl(einst.get("mindestpreis")),
+                mindestpreis=_zahl(einst.get("mindestpreis")), preiseinheit_ab=_zahl(einst.get("preiseinheit_ab")),
                 selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst))
 
 
@@ -782,8 +787,9 @@ def preise(b, menge, w, anhebung=None):
     zk_e_g = zk_e + mz_ + gz            # ohne Gewinn
     if w.get("selbst_basis", True):
         # ab 26.10.2026: Zukaufteile ohne Gewinn, nur mit ihrem Aufschlag
-        gewinn = (selbst - zk_e_g - zk_a if w.get("neu", True) else selbst) * w["gewinn"]
-        ohne = selbst + gewinn + b["fracht"] + gf
+        gewinn, ohne = rechnen.gewinn_fracht(selbst, selbst - zk_e_g - zk_a if w.get("neu", True) else selbst,
+                                             b["fracht"], w["gewinn"])
+        ohne += gf
     else:
         gewinn = herstell * w["gewinn"]
         weitere = b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + b["fracht"]
@@ -806,9 +812,12 @@ def preise(b, menge, w, anhebung=None):
     # Musterkosten als eigene Zeile: einmalig, nicht im Stückpreis
     muster_einmalig = kaufm_runden((gs * (1 + w["gewinn"]) + gz + gf) / (1 - sk), 2) if gs or gz or gf else 0.0
     einmalig += muster_einmalig
-    preis_einheit = (aufrunden((netto - einmalig) / menge) if anhebung
-                     else kaufm_runden((netto - einmalig) / menge, 2))
-    gesamt = kaufm_runden(preis_einheit * menge + einmalig, 2)
+    # Preiseinheit für Kleinteile (Plan B3): Preis je 100 bzw. 1000 Stück, auf den Cent gerundet
+    pe = preiseinheit((netto - einmalig) / menge, w.get("preiseinheit_ab"))
+    preis_pe = (aufrunden((netto - einmalig) / menge * pe) if anhebung
+                else kaufm_runden((netto - einmalig) / menge * pe, 2))
+    preis_einheit = preis_pe / pe if pe > 1 else preis_pe
+    gesamt = kaufm_runden(preis_pe * menge / pe + einmalig, 2) if pe > 1 else kaufm_runden(preis_einheit * menge + einmalig, 2)
     mwst = kaufm_runden(gesamt * w["mwst"], 2)
     return dict(fehler=None, m_grund=m0, m_verlust=verlust, m_zuschlag=mz, m_gesamt=m1 + mz, fertigung=fert,
                 fert_gesamt=f_sum, ruesten=b["ruesten"], ruest_gesamt=r_sum, gk_fertigung=gk_f, fremd=b["fremd"],
@@ -818,7 +827,7 @@ def preise(b, menge, w, anhebung=None):
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
                 skonto=netto - anhebung - ohne, mindest_anhebung=anhebung, netto=netto, einmalig=einmalig,
-                bg_einmalig=bg_einmalig, muster_einmalig=muster_einmalig, muster_umlage=(ms + mz_) and
+                bg_einmalig=bg_einmalig, muster_einmalig=muster_einmalig, preiseinheit=pe, preis_pe=preis_pe, muster_umlage=(ms + mz_) and
                 (ms * (1 + w["gewinn"]) + mz_) / (1 - sk), preis_einheit=preis_einheit,
                 preis_gesamt=gesamt, mwst=mwst, brutto=kaufm_runden(gesamt + mwst, 2))
 

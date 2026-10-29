@@ -2078,6 +2078,21 @@ class Datenbank:
                              (vk_netto, self._jetzt(), vk_netto, stand, angebot_id, vk_netto, stand))
 
     @schreibt
+    def versand_verlaeufe(self, ausser_id=None, anzahl=300):
+        """Versandverläufe der letzten eigenen Angebote (neueste zuerst, ohne ausser_id) für die Preis-Plausibilität
+        (plausibel.vergleich_aus): [[Eintrag]]."""
+        out = []
+        for i, v in self.con.execute(
+                "SELECT id, versand FROM angebote WHERE versand IS NOT NULL AND versand LIKE '%kennwerte%' AND "
+                "COALESCE(fremd, '')='' ORDER BY datum DESC, id DESC LIMIT ?", (anzahl,)):
+            if i == ausser_id:
+                continue
+            try:
+                out.append(json.loads(v) or [])
+            except (TypeError, ValueError):
+                continue
+        return out
+
     def versand_merken(self, angebot_id, eintrag):
         """Verschicktes Angebots-PDF merken ({datum, netto, datei}); Verlauf je Angebot, ändert 'geändert am' nicht."""
         alt = (self.angebot(angebot_id) or {}).get("versand") or []
