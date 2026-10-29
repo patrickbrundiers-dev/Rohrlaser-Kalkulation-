@@ -1818,6 +1818,8 @@ class AngebotSeite(QWidget):
         # Auftragsbestätigung (Plan 29.10.2026 1c): im Layout des Angebots, mit Bestellnummer und Liefertermin
         menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf())
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
+        # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
+        menue.addAction("Etiketten mit QR-Code (PDF) …", lambda: self.etiketten_pdf())
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
         menue.aboutToShow.connect(lambda: self.palettenschein_aktion.setVisible(self.f.versand_an()))
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
@@ -5354,6 +5356,13 @@ class AngebotSeite(QWidget):
             self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand")
             self.f.meldung(f"Auftragsbestätigung {nr} erstellt.")
         return pfad
+
+    def etiketten_pdf(self, dialog=None):
+        """Etiketten mit QR-Code je Position (etiketten_dialog.drucken). Ergebnis: Pfad oder None."""
+        if not self.nummer_endgueltig("Etiketten"):
+            return None
+        from . import etiketten_dialog
+        return etiketten_dialog.drucken(self.f, self.id, self, dialog)
 
     def preise_festschreiben(self):
         """Materialpreise und Schneiddaten, mit denen das Angebot gerade rechnet, im Angebot speichern (nach dem

@@ -35,8 +35,12 @@ NEUERUNGEN = [
                 "Preisklasse und Absagegrund ([[absage]]). Für beauftragte Angebote gibt es die "
                 "<b>Auftragsbestätigung (PDF)</b> im Menü <i>Ausgaben</i>: Layout und Preise des Angebots, "
                 "Bestellnummer des Kunden, Liefertermin mit KW, Nummer wie das Angebot oder eigener Nummernkreis "
-                "AB-2026-00001 ([[auftragsbestaetigung]]).",
-     "Teuerungszuschlag je Werkstoff; Preis-Simulator; Absagegrund mit Trefferquote; Auftragsbestätigung als PDF."],
+                "AB-2026-00001 ([[auftragsbestaetigung]]). <b>Etiketten mit QR-Code</b> je Position "
+                "(Ausgaben bzw. Reiter Fertigung, A4-Bogen oder Etikettendrucker) und <b>Rückmeldung per Scan</b>: "
+                "Reiter Fertigung → Scannen …, Arbeitsschritt wählen, scannen; der Unterreiter Rückmeldungen zeigt "
+                "je Position, was geschnitten, entgratet und verpackt ist ([[etiketten]]).",
+     "Teuerungszuschlag je Werkstoff; Preis-Simulator; Absagegrund mit Trefferquote; Auftragsbestätigung als PDF; "
+     "QR-Etiketten mit Rückmeldung per Scan."],
     ["0.9.189", "<b>Gehrung auf 2D umstellen</b>: Wird im Editor das Häkchen <i>3D-Schnittbearbeitung</i> "
                 "abgewählt, gilt jede Gehrung sofort als 2D, auch wenn am Ende noch <i>Gehrung in 3D</i> stand: "
                 "3D-Ansicht, Skizze, Zeichnung/PDF und STEP-Export zeigen die lange Seite um Wand · tan(Winkel) "

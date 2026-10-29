@@ -1,18 +1,20 @@
 """Reiter „Fertigung“ (fertigung.py): beauftragte Angebote mit Freigabe und Fertigungsstatus, Verlauf, Durchlaufzeiten,
-Materialverbrauch je Charge und Export des Fertigungsauftrags (JSON/CSV). Nur mit Einstellung 'fertigung_aktiv'."""
+Materialverbrauch je Charge und Export des Fertigungsauftrags (JSON/CSV); Etiketten mit QR-Code und Rückmeldung per
+Scan (etiketten.py). Nur mit Einstellung 'fertigung_aktiv'."""
 import json
 
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                               QTabWidget, QVBoxLayout, QWidget)
+                               QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import fertigung, lager, stil
+from . import etiketten, fertigung, lager, stil
 from .lager_seite import _fuellen, _tabelle
 
 SPALTEN = (("Angebot", "nummer"), ("Kunde", "kunde"), ("Auftragsnr.", "auftragsnr"), ("Liefertermin", "liefertermin"),
            ("Status", "status"), ("seit", "am"), ("Freigabe-Version", "version"), ("Hinweis", "hinweis"))
 VERLAUF = (("Zeitpunkt", "am"), ("Status", "status"), ("Kürzel", "wer"), ("Freigabe-Version", "version"),
            ("Bemerkung", "bemerkung"))
+RUECKMELDUNG = (("Pos.", "pos"), ("Artikel", "artikel"), ("Stück", "stueck"))
 ZEITEN = (("Angebot", "nummer"), ("Status", "status"), ("Stunden", "h"))
 CHARGEN = (("Charge", "charge"), ("Kennung", "kennung"), ("Profil-ID", "profil"), ("Werkstoff-ID", "werkstoff"),
            ("Angebot", "nummer"), ("Anzahl", "anzahl"), ("Länge [mm]", "laenge"), ("Zeit", "zeit"))
@@ -36,8 +38,16 @@ class FertigungSeite(QWidget):
         oeffnen.clicked.connect(self.oeffnen)
         self.export_knopf = QPushButton("Export (JSON/CSV) …")
         self.export_knopf.clicked.connect(lambda: self.exportieren())
+        # Etiketten mit QR-Code und Rückmeldung per Scan (Plan 29.10.2026 2a)
+        self.etiketten_knopf = QPushButton("Etiketten …")
+        self.etiketten_knopf.setToolTip("Etiketten mit QR-Code für die Positionen des markierten Auftrags (PDF)")
+        self.etiketten_knopf.clicked.connect(lambda: self.etiketten())
+        self.scan_knopf = QPushButton("Scannen …")
+        self.scan_knopf.setToolTip("Rückmeldung per Handscanner: Arbeitsschritt wählen und Etiketten scannen")
+        self.scan_knopf.clicked.connect(lambda: self.scannen())
         zeile = QHBoxLayout()
-        for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf):
+        for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf,
+                  self.etiketten_knopf, self.scan_knopf):
             zeile.addWidget(w)
         zeile.setStretch(2, 1)
         self.meldung = QLabel()
@@ -51,6 +61,8 @@ class FertigungSeite(QWidget):
         self.charge_suche.textChanged.connect(lambda _t: self._chargen())
         unten = QTabWidget()
         unten.addTab(self.verlauf, "Verlauf")
+        self.rueckmeldungen = _tabelle(RUECKMELDUNG)
+        unten.addTab(self.rueckmeldungen, "Rückmeldungen")
         z = QWidget()
         lz = QVBoxLayout(z)
         lz.addWidget(self.zeiten_info)
@@ -97,9 +109,51 @@ class FertigungSeite(QWidget):
     def _auswahl(self):
         z = self.markiert()
         _fuellen(self.verlauf, VERLAUF, list(reversed(fertigung.verlauf(self.db, z["id"]))) if z else [])
+        self._rueckmeldungen(z)
         schreibbar = not self.db.nur_lesen
         self.setzen_knopf.setEnabled(bool(z) and schreibbar)
         self.export_knopf.setEnabled(bool(z))
+        self.etiketten_knopf.setEnabled(bool(z))
+        self.scan_knopf.setEnabled(schreibbar)
+
+    def _rueckmeldungen(self, z):
+        """Je Position die gemeldete Menge je Arbeitsschritt ('8 / 10'), vollständige grün."""
+        schritte = etiketten.schritte(self.db)
+        t = self.rueckmeldungen
+        t.setColumnCount(3 + len(schritte) + 1)
+        t.setHorizontalHeaderLabels(["Pos.", "Artikel", "Stück", *schritte, "zuletzt"])
+        stand = etiketten.stand_je_position(self.db, z["id"]) if z else []
+        t.setRowCount(len(stand))
+        gruen = QBrush(stil.farbe("#E3F4E8"))
+        for r, p in enumerate(stand):
+            werte = [p["pos"], p["artikel"] or "", etiketten._z(p["stueck"] or 0)]
+            werte += [f"{etiketten._z(p['schritte'].get(s, 0))} / {etiketten._z(p['stueck'] or 0)}"
+                      if p["schritte"].get(s) else "" for s in schritte]
+            werte.append((p["zuletzt"] or "").replace("T", " "))
+            for c, w in enumerate(werte):
+                it = QTableWidgetItem(str(w))
+                s = schritte[c - 3] if 3 <= c < 3 + len(schritte) else None
+                if s and p["schritte"].get(s, 0) >= (p["stueck"] or 0) > 0:
+                    it.setBackground(gruen)
+                t.setItem(r, c, it)
+        t.resizeColumnsToContents()
+
+    def etiketten(self, dialog=None):
+        """Etiketten des markierten Auftrags (etiketten_dialog.drucken). Ergebnis: Pfad oder None."""
+        z = self.markiert()
+        if not z:
+            return None
+        from . import etiketten_dialog
+        return etiketten_dialog.drucken(self.f, z["id"], self, dialog)
+
+    def scannen(self):
+        """Fenster für die Rückmeldung per Scan (bleibt offen; Ergebnis: der Dialog)."""
+        from .etiketten_dialog import ScanDialog
+        d = ScanDialog(self.f)
+        d.finished.connect(lambda _r: self.neu_laden())
+        if not self.f.stumm:
+            d.show()
+        return d
 
     def setzen(self, status=None, bemerkung=None):
         """Status des markierten Auftrags setzen. Ergebnis: True oder False (Grund in self.meldung)."""

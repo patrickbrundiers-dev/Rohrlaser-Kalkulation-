@@ -1150,6 +1150,12 @@ EINSTELLUNGEN = (
     Einstellung("fertigung_status", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
                 "Lager und Fertigung", "mehrzeilig", "Freigegeben\nArbeitsvorbereitung\nMaterial bereit\nIn Fertigung\n"
                 "Fremdvergabe\nQualitätsprüfung\nFertig gemeldet"),
+    # Etiketten mit QR-Code und Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
+    Einstellung("etikett_format", "Etiketten: Format", "Lager und Fertigung",
+                "auswahl", "A4, 3 × 8 Etiketten (70 × 37 mm)",
+                auswahl="etikettformat"),
+    Einstellung("rueckmeldung_schritte", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte "
+                "= fertig)", "Lager und Fertigung", "mehrzeilig", "Geschnitten\nEntgratet\nVerpackt"),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
                 1200, 200, 3000),
     Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",
@@ -1346,7 +1352,8 @@ class Kontext:
                          "lieferzeitart": list(LIEFERZEIT_ARTEN),
                          "loeschschutz": list(LOESCHSCHUTZ),
                          "abnummer": ["wie Angebot", "eigener Nummernkreis"],
-                         "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
+                                           "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),

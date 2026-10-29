@@ -5445,6 +5445,35 @@ def kapitel_fertigung(i):
             "die Positionen als CSV.",
             "Im Angebot <i>Weitere ▾ → <b>Fertigungsstatus …</b></i> springt zum Auftrag im Reiter Fertigung. "
             "Die Einstellung <i>Reiter Fertigung verwenden (Status beauftragter Angebote)</i> blendet alles aus.")
+    i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
+    i.text("Etiketten mit QR-Code je Position kommen an Bund, Kiste oder Teil. In der Werkstatt scannt man sie nach "
+           "jedem Arbeitsschritt mit einem Handscanner; der Reiter Fertigung zeigt dann je Position, was geschnitten, "
+           "entgratet und verpackt ist.", kurz=True)
+    i.liste("<b>Etiketten drucken</b>: im Angebot <i>Ausgaben → Etiketten mit QR-Code (PDF) …</i> oder im Reiter "
+            "Fertigung <b>Etiketten …</b>. Im Fenster Format wählen (A4-Bogen 3 × 8 mit 70 × 37 mm, 2 × 7 mit "
+            "105 × 42,3 mm, Etikettendrucker 100 × 50 oder 62 × 29 mm; das zuletzt gewählte bleibt), Etiketten je "
+            "Position oder <i>je Stück ein Etikett</i>, beim angebrochenen Bogen das <i>erste freie Feld</i> und auf "
+            "Wunsch <i>Rahmen um jedes Etikett (zum Ausschneiden auf Normalpapier)</i>. Die Datei <i>Nummer Etiketten.pdf</i> liegt im Ordner des "
+            "Angebots ([[angebotsordner]]).",
+            "Auf dem Etikett: QR-Code, Kunde, Auftrag mit Bestellnummer, <b>Position und Artikel</b>, Profil und "
+            "Werkstoff, Länge und Stückzahl, Liefertermin; klein darunter der Code, z. B. <i>RL202600042P20</i> "
+            "(Angebot 2026-00042, Pos. 20). Der Code hat nur Buchstaben und Ziffern, damit jeder Scanner ihn auch "
+            "mit deutscher Tastaturbelegung richtig eintippt.",
+            "<b>Scannen</b>: Reiter Fertigung → <b>Scannen …</b>, Arbeitsschritt wählen und Etiketten scannen. Ein "
+            "USB- oder Funk-Handscanner meldet sich wie eine Tastatur und tippt Code und Enter; das Fenster bleibt "
+            "offen, jede Rückmeldung steht mit Uhrzeit in der Liste (Fehler rot mit Signalton). Ohne Scanner den "
+            "Code eintippen und Enter.",
+            "Ein Scan zählt die ganze Stückzahl der Position; für eine Teilmenge vorher <b>Menge</b> eintragen (gilt "
+            "für einen Scan). Mehr als bestellt wird gemerkt und angezeigt. Nur beauftragte Angebote; Position und "
+            "Arbeitsschritt müssen passen.",
+            "Ist der Auftrag freigegeben und steht noch vor <i>In Fertigung</i>, setzt der erste Scan diesen Status "
+            "(Bemerkung „per Scan“). Sind alle Positionen im letzten Arbeitsschritt vollständig, weist der Scan "
+            "darauf hin; <i>Fertig gemeldet</i> setzen Sie selbst.",
+            "Unterreiter <b>Rückmeldungen</b>: je Position des markierten Auftrags die gemeldete Menge je "
+            "Arbeitsschritt („4 / 6“), vollständige grün, und der letzte Scan.",
+            "Die Arbeitsschritte stehen in der Einstellung <i>Rückmeldung per Scan: Arbeitsschritte</i> (eine Zeile "
+            "je Schritt, Vorgabe Geschnitten, Entgratet, Verpackt). Die Rückmeldungen liegen in der Datendatei des "
+            "Arbeitsplatzes, an dem gescannt wird, und werden mit dem Angebot gelöscht.")
     i.abschnitt("Lager und Reststücke", marke="lager")
     i.text("Mit der Einstellung <i>Materialbestand verwenden (Reiter Lager)</i> = ja erscheint der Reiter "
            "<b>Lager</b>. Angebote und ihre Preise ändern sich dadurch nie; das Lager kommt erst beim beauftragten "
@@ -5737,6 +5766,9 @@ def kapitel_einstellungen(i):
                     "Absenderzeile über der Anschrift, alle Zeilen in der Fußzeile. Die Zahlungsbedingung (Skonto, "
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
                     "dieses Feld."],
+        ["Angebots-PDF", "Auftragsbestätigung: Nummer, Auftragsbestätigung: Text über den Positionen",
+         "<i>wie Angebot</i> (Vorgabe) oder <i>eigener Nummernkreis</i> AB-2026-00001; Dank-Text über den Positionen "
+         "der Auftragsbestätigung ([[auftragsbestaetigung]])"],
         ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export, darin je Angebot ein Ordner "
                                    "([[angebotsordner]]); leer = Ordner <i>Angebote</i> neben dem "
                                    "Programm (portabel) bzw. <i>Dokumente\\Rohrlaser Angebote</i> (installiert). "
@@ -5773,6 +5805,10 @@ def kapitel_einstellungen(i):
          "nein = Reiter Fertigung und Freigabe-Angaben in den Werkstattpapieren aus ([[fertigung]])"],
         ["Lager und Fertigung", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",
          "eigene Status; die erste Zeile ist die Freigabe"],
+        ["Lager und Fertigung", "Etiketten: Format",
+         "A4-Bogen 3 × 8 oder 2 × 7 Etiketten oder Etikettendrucker 100 × 50 / 62 × 29 mm ([[etiketten]])"],
+        ["Lager und Fertigung", "Rückmeldung per Scan: Arbeitsschritte (eine Zeile je Schritt, der letzte = fertig)",
+         "Vorgabe Geschnitten, Entgratet, Verpackt ([[etiketten]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten (Admin-Passwort beim Start nur bei älterer Admin-Lizenz ohne eigenes); "
                                                     "verschlüsselt gespeichert, Feld bleibt leer; <b>Entfernen</b> = "
