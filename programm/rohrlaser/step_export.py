@@ -42,6 +42,7 @@ BULGE_90 = math.tan(math.radians(22.5))
 ZEITLIMIT = 300             # Sekunden für das Schreiben, dazu ZEIT_JE_WERKZEUG je Werkzeug (Performance-Update 4a)
 ZEIT_JE_WERKZEUG = 0.1
 SCHAETZ_GRUND, SCHAETZ_JE_WERKZEUG = 2.0, 0.03      # erwartete Dauer [s] (gemessen 25.10.: 1.000 Bohrungen 18 s)
+VERGLEICH_ZEIT = 150        # Sekunden mehr für die Prüfung gegen die Mutter-STEP (step_vergleich.ZEIT + Lesen)
 ANZEIGE_AB = 15             # ab so viel erwarteten Sekunden Fenster mit Dauer und Abbrechen
 
 
@@ -718,6 +719,81 @@ def blech_teil(e, zs, name="Teil"):
     return dict(name=str(name or "Teil"), koerper=koerper, werkzeuge=[], rillen=gravur, meldungen=meldungen)
 
 
+def erwartet_rohr(e):
+    """Änderungen gegenüber der Mutter-STEP, die der Export eines Rohrs mit Absicht hat (Text für die Prüfung)."""
+    e = e or {}
+    out = []
+    if any(str(z.get("quelle") or "").startswith("Steckverbindung") for z in e.get("konturen") or ()):
+        out.append("Schlitze der Steckverbindung")
+    if any(isinstance(e.get(s), dict) and e[s].get("nasen") for s in ("a", "b")):
+        out.append("Nasen der Steckverbindung")
+    if e.get("d3") is not True and any(isinstance(e.get(s), dict) and e[s].get("form") == "Gehrung"
+                                       and _z(e[s].get("schwenk")) >= 0.5 for s in ("a", "b")):
+        out.append("Gehrung in 2D wie gelasert (Innenkante maßhaltig)")
+    return out
+
+
+def mutter_einzelteil(plan, netz, rohr_versatz=None):
+    """Prüfung gegen die Mutter-STEP für ein Einzelteil aus dem Rohr- oder Blech-Editor: der Körper wird dafür (nur
+    zum Vergleich) in die Lage des ersten Körpers der Datei gebracht. rohr_versatz = Verschiebung entlang der Achse
+    (Nasen an Ende A), None = Blech (Ausrichten am Netz). Ergebnis: Bauplan (dict) mit 'mutter', sonst die Liste
+    [plan] wie bisher."""
+    from pathlib import Path as P_
+    from .baugruppe_step import _dreiecke, _lagen, lage_achsen, lage_matrix, netz_in_lage
+    pfad = (netz or {}).get("mutter")
+    lagen = _lagen(netz)
+    if not pfad or not P_(pfad).is_file() or not lagen:
+        return [plan]
+    if rohr_versatz is not None:
+        plan["vergleich"] = [dict(lage=lage_matrix(lagen[0], rohr_versatz), mutter=0)]
+    elif netz.get("p") and _dreiecke(netz):
+        plan["vergleich"] = [dict(ausrichten=dict(p=netz_in_lage(netz, lagen[0]), t=_dreiecke(netz),
+                                                  achsen=lage_achsen(lagen[0])), mutter=0)]
+    else:
+        return [plan]
+    return dict(name=plan.get("name"), teile=[plan], mutter=[str(pfad)])
+
+
+def _k_text(x):
+    return f" (Körper {x['koerper_mutter']})" if x.get("koerper_mutter") else ""
+
+
+def vergleich_text(v):
+    """Zeilen für die Meldung nach dem Export: Prüfung gegen die Mutter-STEP (step_vergleich). Ergebnis (Text,
+    Warnung ja/nein)."""
+    if not v:
+        return "", False
+    zeilen, warnen = [], False
+    k = v.get("koerper") or []
+    lage = [x for x in k if x.get("status") == "lage"]
+    geaendert = [x for x in k if x.get("status") == "geändert"]
+    gleich = [x for x in k if x.get("status") == "gleich"]
+    if lage:
+        warnen = True
+        zeilen.append(f"ACHTUNG: {len(lage)} Körper {'liegt' if len(lage) == 1 else 'liegen'} nicht dort, wo "
+                      f"{'er' if len(lage) == 1 else 'sie'} in der Mutter-STEP {'liegt' if len(lage) == 1 else 'liegen'}"
+                      f", oder {'weicht' if len(lage) == 1 else 'weichen'} stark ab:")
+        for x in lage[:8]:
+            sp = "" if x.get("schwerpunkt") is None else f", Schwerpunkt {x['schwerpunkt']:.1f} mm daneben"
+            zeilen.append(f"  – {x['name']}{_k_text(x)}: {x['anteil'] * 100:.1f} % abweichend{sp}")
+    if geaendert:
+        zeilen.append(f"{len(geaendert)} Körper örtlich geändert, Lage wie in der Mutter-STEP:")
+        for x in geaendert[:8]:
+            grund = "; ".join(x.get("erwartet") or ()) or "im Editor geändert – bitte prüfen, ob gewollt"
+            zeilen.append(f"  – {x['name']}{_k_text(x)}: {x['abweichung'] / 1000:.2f} cm³ ({grund})")
+    if gleich:
+        zeilen.append(f"{len(gleich)} Körper genau wie in der Mutter-STEP.")
+    for datei, n in v.get("fehlen") or ():
+        zeilen.append(f"{n} Körper aus {datei} nicht im Export (abgewählt, Zukauf oder Normteil?)")
+    if v.get("nicht_geprueft"):
+        zeilen.append(f"{v['nicht_geprueft']} Körper aus Zeitgründen nicht geprüft")
+    for f in v.get("fehler") or ():
+        zeilen.append(f"Mutter-STEP nicht geprüft: {f}")
+    if not zeilen:
+        return "", False
+    return "Prüfung gegen die Mutter-STEP:\n" + "\n".join(zeilen), warnen
+
+
 def teilname(p):
     """Name des Teils in der STEP-Datei: Artikelnummer, sonst Pos."""
     return str(p.get("artikel") or "").strip() or f"Pos {p.get('pos') or ''}".strip()
@@ -746,8 +822,9 @@ def werkzeug_zahl(teile):
 
 
 def zeitlimit_fuer(teile, grund=ZEITLIMIT):
-    """Zeitlimit [s]: grund + ZEIT_JE_WERKZEUG je Werkzeug."""
-    return grund + ZEIT_JE_WERKZEUG * werkzeug_zahl(teile)
+    """Zeitlimit [s]: grund + ZEIT_JE_WERKZEUG je Werkzeug (+ VERGLEICH_ZEIT für die Prüfung gegen die Mutter-STEP)."""
+    plan = teile if isinstance(teile, dict) else {}
+    return grund + ZEIT_JE_WERKZEUG * werkzeug_zahl(teile) + (VERGLEICH_ZEIT if plan.get("mutter") else 0)
 
 
 def dauer_schaetzen(teile):
@@ -834,6 +911,9 @@ def ergebnis_text(erg, ziel=None):
         text += "\nAchtung: Die Prüfung des Volumenkörpers meldet Fehler, bitte im CAD kontrollieren."
     if erg.get("meldungen"):
         text += "\n" + "\n".join(f"• {m}" for m in erg["meldungen"])
+    vt = vergleich_text(erg.get("vergleich"))[0]
+    if vt:
+        text += "\n\n" + vt
     return text
 
 
@@ -891,18 +971,22 @@ def mit_anzeige(widget, plan, pfad, name=None, zeitlimit=None):
             fenster.close()
 
 
-def speichern_dialog(widget, bauplan, name, pfad=None):
+def speichern_dialog(widget, bauplan, name, pfad=None, netz=None, rohr_versatz=None):
     """Ziel wählen (Dateidialog mit Vorschlag), Bauplan als STEP schreiben und das Ergebnis melden. Ergebnis: Pfad
-    oder None. widget.step_ergebnis = Ergebnis des Exports (für Tests)."""
+    oder None. widget.step_ergebnis = Ergebnis des Exports (für Tests). netz (Netz der Position mit 'mutter'):
+    danach mit der Mutter-STEP vergleichen (mutter_einzelteil)."""
     from PySide6.QtWidgets import QFileDialog, QMessageBox
     if pfad is None:
         pfad, _ = QFileDialog.getSaveFileName(widget, "STEP speichern", vorschlag(widget, name),
                                               "STEP-Datei (*.step *.stp)")
         if not pfad:
             return None
-    erg = mit_anzeige(widget, [bauplan], pfad, name=bauplan.get("name"))
+    plan = mutter_einzelteil(bauplan, netz, rohr_versatz) if netz else [bauplan]
+    erg = mit_anzeige(widget, plan, pfad, name=bauplan.get("name"))
     widget.step_ergebnis = erg
     gut = bool(erg.get("teile")) and not erg.get("fehler")
     if not getattr(widget, "stumm", False):
-        (QMessageBox.information if gut else QMessageBox.warning)(widget, "STEP speichern", ergebnis_text(erg, pfad))
+        warnen = not gut or vergleich_text(erg.get("vergleich"))[1]
+        (QMessageBox.warning if warnen else QMessageBox.information)(widget, "STEP speichern",
+                                                                     ergebnis_text(erg, pfad))
     return pfad if gut else None

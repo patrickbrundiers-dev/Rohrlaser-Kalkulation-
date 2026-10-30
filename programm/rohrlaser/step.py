@@ -124,6 +124,7 @@ def netz_mit_lagen(messwerte, gruppe):
     Baugruppen-Editor die ganze Baugruppe in 3D zeigt und Nahtgruppen ihren Teilen zuordnet (D1). Ergebnis: gepackte
     Bytes wie '_netz'."""
     from .ansicht3d import entpacken, packen
+    from .lage_abgleich import passende_lage
     m0 = messwerte[gruppe[0]]
     netz = entpacken(m0["_netz"])
     if not netz:
@@ -133,7 +134,12 @@ def netz_mit_lagen(messwerte, gruppe):
         m = messwerte[j]
         if m.get("datei") != m0.get("datei"):
             continue
-        lage = (entpacken(m["_netz"]) or {}).get("lage") if j != gruppe[0] and m.get("_netz") else netz.get("lage")
+        lage = netz.get("lage")
+        if j != gruppe[0] and m.get("_netz"):
+            # eigene Lage des Körpers, passend zum Netz des ersten gemacht (gedreht/gewendet eingebaut, z. B.
+            # gegenüberliegende Gehrungsseite eines Rahmens: sonst gespiegelt in 3D und STEP-Export)
+            eigen = entpacken(m["_netz"]) or {}
+            lage = passende_lage(netz, eigen)[0] if eigen.get("p") else eigen.get("lage")
         if lage and len(lage) == 9:
             lagen.append(lage)
         if m.get("koerper") not in (None, ""):
@@ -142,7 +148,19 @@ def netz_mit_lagen(messwerte, gruppe):
         netz["lagen"] = lagen
     if koerper:
         netz["koerper"] = koerper
+    if m0.get("_pfad"):         # Mutter-STEP: der STEP-Export vergleicht seine Körper damit (step_vergleich)
+        netz["mutter"] = str(m0["_pfad"])
     return packen(netz)
+
+
+def mit_mutter(netz, pfad):
+    """Gepacktes Netz mit dem Pfad der Mutter-STEP (Prüfung im STEP-Export, step_vergleich)."""
+    from .ansicht3d import entpacken, packen
+    n = entpacken(netz) if pfad else None
+    if not n:
+        return netz
+    n["mutter"] = str(pfad)
+    return packen(n)
 
 
 def _z(m, name):
@@ -2345,7 +2363,7 @@ def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, ma
     p.update(laenge=erg["laenge"], technik=json.dumps(eing, ensure_ascii=False))
     netz = knickverbindung.netz_gefaltet(messwerte, m)
     if netz:
-        p["_netz"] = netz
+        p["_netz"] = mit_mutter(netz, m.get("_pfad"))
     zu, fehlt = knickrahmen.zusatz_eintragen(p.get("zusatz"), knickrahmen.anzahl(eing), zusatz_katalog or [],
                                              schneidweg.QUELLE_STEP)
     if zu:
