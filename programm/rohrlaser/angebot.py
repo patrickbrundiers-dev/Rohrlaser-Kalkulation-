@@ -41,6 +41,16 @@ KOPF = (
     # Musterteile (Patrick 28.10.2026): leer = Musterkosten auf die Serienpositionen umlegen, MUSTER_ZEILE = als
     # eigene Zeile „Musterkosten einmalig“ (ohne Serienposition immer so)
     Feld("muster_darstellung", "Musterkosten im Angebot", "auswahl", auswahl="musterdarstellung"),
+    # Abruf-/Rahmenangebot (Schema 70, Patrick 30.10.2026; abruf.py): Haken, Jahresmenge und Abrufmenge von–bis,
+    # Laufzeit, Material je Abruf (leer, Materialklausel) oder bevorratet mit Lagerzins
+    Feld("abruf", "Abruf-/Rahmenangebot", "auswahl", auswahl="janein"),
+    Feld("abruf_jahr_von", "Jahresmenge von [Stk.]", "ganz", 1, 100000000),
+    Feld("abruf_jahr_bis", "Jahresmenge bis [Stk.]", "ganz", 1, 100000000),
+    Feld("abruf_von", "Abrufmenge von [Stk.]", "ganz", 1, 10000000),
+    Feld("abruf_bis", "Abrufmenge bis [Stk.]", "ganz", 1, 10000000),
+    Feld("abruf_laufzeit", "Laufzeit / Preisbindung [Monate]", "ganz", 1, 120),
+    Feld("abruf_material", "Material", "auswahl", auswahl="abrufmaterial"),
+    Feld("abruf_lagerzins", "Lagerzins [% p. a.]", "zahl", 0, 100, stellen=1),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;

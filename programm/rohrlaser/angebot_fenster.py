@@ -2547,6 +2547,38 @@ class AngebotSeite(QWidget):
             meldung += f" {preis_aenderung(vorher, self._verkauf())}"
         self.f.meldung(meldung)
 
+    def abruf_bearbeiten(self, werte=None):
+        """Fenster „Abruf-/Rahmenangebot“ (abruf_dialog); werte = Kopffelder ohne Fenster übernehmen (Tests).
+        Ergebnis: True, wenn gespeichert."""
+        from .abruf_dialog import AbrufDialog
+        if werte is None:
+            stueck = max((rechnen._n(p.get("stueck")) for p in self.positionen if position_aktiv(p)), default=0)
+            d = AbrufDialog(self, self.kopf, self.db.einstellungen(), stueck=stueck or None)
+            if self.f.stumm or not d.exec():
+                self._kopf_anzeigen()
+                return False
+            werte = d.werte()
+        vorher = self._verkauf()
+        try:
+            for n, w in werte.items():
+                if w != self.kopf.get(n):
+                    self.db.angebot_aendern(self.id, n, w)
+        except ValueError as e:
+            self.f.meldung(str(e), fehler=True)
+            self._kopf_anzeigen()
+            return False
+        self.neu_laden()
+        self.f.meldung("Abruf-/Rahmenangebot gespeichert. " + (preis_aenderung(vorher, self._verkauf())
+                                                                 if vorher is not None else ""))
+        return True
+
+    def abruf_umschalten(self, an):
+        """Haken „Abruf-/Rahmenangebot“: an ohne Jahres-/Abrufmenge öffnet das Fenster, aus behält die Werte."""
+        from . import abruf
+        if an and not abruf.daten(dict(self.kopf, abruf="ja")):
+            return self.abruf_bearbeiten()
+        return self.abruf_bearbeiten({"abruf": "ja" if an else None})
+
     def _verkauf(self):
         """Verkaufspreis netto des Angebots mit den gespeicherten Werten (None ohne Positionen)."""
         if not any(position_aktiv(p) for p in self.positionen):
@@ -3479,6 +3511,7 @@ class AngebotSeite(QWidget):
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
                         dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
                              stueck=p.get("stueck"), muster=p.get("muster")), neu=False)
+        d.p = p                 # STEP speichern: Netz der Position für die Prüfung gegen die Mutter-STEP
         self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.kopf_werte()))
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
@@ -4169,8 +4202,9 @@ class AngebotSeite(QWidget):
             pid = self.db.position_neu(self.id, werte)
             netz = entpacken(gr[0]["netz"]) if gr[0].get("netz") else None
             if netz:
-                if len(gr) > 1:
-                    netz["lagen"] = [(entpacken(k["netz"]) or {}).get("lage") for k in gr]
+                if len(gr) > 1:         # Lage je Körper passend zum Netz des ersten (gedreht/gewendet eingebaut)
+                    from .lage_abgleich import lagen_abgleichen
+                    netz["lagen"] = lagen_abgleichen(netz, [entpacken(k["netz"]) or {} for k in gr])
                 nummern = [x for k in gr for x in k.get("nummern") or ()]
                 if nummern:             # Körper der Schenkel: Nahtgruppen und Stöße finden das Teil
                     netz["koerper"] = nummern

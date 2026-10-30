@@ -538,6 +538,8 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
         liefer = f"Liefertermin: {ab_termin_text(ab['liefertermin'])}."
     texte = [t for t in (liefer, ang.get("beistellung"), ang.get("muster"), ang.get("fracht"),
                          ang.get("zahlung"), ang.get("mindestpreis"), bed) if t]
+    if ang.get("rahmen"):       # Abruf-/Rahmenangebot (Patrick 30.10.2026, 6a): eigener Block vor den Konditionen
+        schluss += [Spacer(1, 8 * mm), _p("Rahmenbedingungen", S_A_KOPF), Spacer(1, 1.5 * mm), _p(ang["rahmen"], S_A_GRAU)]
     if texte:
         schluss += [Spacer(1, 8 * mm), _p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A_GRAU) for t in texte]
     inhalt += [Spacer(1, 3 * mm), KeepTogether(schluss)]
