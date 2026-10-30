@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.208", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
+                "haben eine feste Kennung (bleibt bei der endgültigen Nummer und beim Kollegen gleich), ein "
+                "Änderungsprotokoll merkt sich jede Änderung an Stammdaten, gemeinsamen Einstellungen und Angeboten, "
+                "und Ordner, Nummern und gemeinsame Dateien laufen über eine gemeinsame Schnittstelle. Für die Arbeit "
+                "ändert sich nichts: gemeinsamer Ordner, Dateien und Abgleich bleiben gleich.",
+     "Vorbereitung Server-Synchronisation: feste Kennungen, Änderungsprotokoll, eine Stelle für den Austausch"],
     ["0.9.207", "<b>Bedienungsanleitung, Kurzanleitung und Präsentation auf dem Stand 0.9.206</b>: neue "
                 "Bildschirmfotos für Preis-Simulator ([[preis_simulator]]), Maschinenauslastung je Woche "
                 "([[auslastung]]), Reklamationen ([[reklamation]]), Stundensatz ermitteln ([[stundensatz_ermitteln]]) "
