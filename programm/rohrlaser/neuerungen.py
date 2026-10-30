@@ -21,13 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.212", "<b>Position als neue Position kopieren</b> ([[position_kopieren]]): <i>Rechtsklick → Position "
+    ["0.9.213", "<b>Position als neue Position kopieren</b> ([[position_kopieren]]): <i>Rechtsklick → Position "
                 "duplizieren</i> (Strg+Umschalt+D) legt eine Kopie mit allen Eingaben, Technik, Zusatzarbeiten, "
                 "Gravur, Zukauf, 3D und Staffeln an, mit eindeutiger Artikelnummer direkt hinter dem Original; "
                 "Schweißbaugruppe mit allen Teilen, erste Satzzeile mit dem ganzen Satz. <i>Positionen aus anderem "
                 "Angebot übernehmen …</i> (auch unter Neue Position) holt Positionen aus jedem Angebot, auch von "
                 "Kollegen oder festgeschrieben, ans Ende; das andere Angebot bleibt unverändert.",
      "Position duplizieren (Strg+Umschalt+D) und Positionen aus anderem Angebot übernehmen"],
+    ["0.9.212", "<b>Hauptadmin und weitere Admins</b> ([[admin_rechte]]): Neue Seite <i>Allgemein → Arbeitsplätze und "
+                "Rechte</i> mit allen Arbeitsplätzen (Name und Kürzel vom ersten Start, Rechner, Lizenz mit Ampel, "
+                "Version, zuletzt da). Der Hauptadmin (Passwort der Admin-Lizenz) gibt dort Mitarbeitern das Recht "
+                "<b>Admin</b> mit Startpasswort, sperrt Admins oder vergibt ein neues Startpasswort. Ein Admin schaltet "
+                "sich mit seinem eigenen Passwort frei, an jedem Arbeitsplatz mit gültiger Lizenz, und ändert alle "
+                "Seiten mit 🔒, aber nicht Admin-Schutz und Rechte. Der Verlauf zeigt, welcher Admin was geändert hat.",
+     "Hauptadmin und weitere Admins mit eigenem Passwort, Seite Arbeitsplätze und Rechte"],
     ["0.9.211", "<b>Admin-Schutz für Einstellungen</b> ([[passwort]]): Der Reiter Einstellungen öffnet für alle; "
                 "Seiten mit 🔒 (Vorschlag: Preise, Gewinn, Kosten, Maschinen, Schneiddaten, Firma, Funktionen, "
                 "Frachtkosten …) ändert nur der Admin, andere sehen die Werte grau. <b>Als Admin freischalten …</b> "

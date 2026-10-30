@@ -5948,6 +5948,26 @@ def kapitel_einstellungen(i):
            "der nächste Abgleich den Wert des Admins wieder her; Änderungen von Nicht-Admins an geschützten Werten "
            "kommen bei den anderen nicht an. Freie Werte gleichen wie bisher ab. Der Aufbau ist für einen späteren "
            "Abgleich über einen Server vorbereitet. Deshalb alle Arbeitsplätze gleichzeitig updaten.")
+    i.abschnitt("Hauptadmin und weitere Admins", marke="admin_rechte")
+    i.bild("arbeitsplaetze_rechte", "Seite Arbeitsplätze und Rechte", hoehe=95 * mm, legende=[
+        (1, "Recht je Mitarbeiter: Mitarbeiter, Admin oder Admin gesperrt"), (2, "<b>Neues Startpasswort …</b>"),
+        (3, "Verlauf: welcher Admin wann was geändert hat")])
+    i.text("Hauptadmin ist, wer das Passwort der Admin-Lizenz eingibt. Unter <i>Allgemein → Arbeitsplätze und "
+           "Rechte</i> stehen alle Arbeitsplätze mit Name und Kürzel vom ersten Start, Rechner, Lizenz (grün gültig, "
+           "gelb läuft bald ab, rot abgelaufen) und Version. Dort gibt der Hauptadmin einem Mitarbeiter das Recht "
+           "<b>Admin</b> und vergibt ein Startpasswort.", kurz=True)
+    i.genauer()
+    i.text("Ein Admin schaltet sich mit <b>seinem eigenen Passwort</b> frei, in derselben Leiste wie oben, an jedem "
+           "Arbeitsplatz mit gültiger Lizenz. Beim ersten Mal legt er statt des Startpassworts ein eigenes fest "
+           "(mindestens 6 Zeichen); später ändert er es mit <b>Mein Passwort ändern …</b>. Er ändert alle Seiten mit "
+           "🔒; <i>Admin-Schutz</i> und <i>Arbeitsplätze und Rechte</i> bleiben dem Hauptadmin. Die Rechte kommen wie "
+           "die Admin-Vorgaben über den gemeinsamen Ordner an alle Plätze.")
+    i.text("<b>Admin gesperrt</b>: Der Admin kann sich nicht mehr freischalten; ist er gerade freigeschaltet, sperrt "
+           "ihn der nächste Abgleich. <b>Mitarbeiter</b> nimmt das Recht ganz weg. <b>Passwort vergessen</b>: Admin "
+           "wählen, <b>Neues Startpasswort …</b>. Vergisst der Hauptadmin sein Passwort, hilft der Notfallcode aus "
+           "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
+           "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
+           "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
     i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
         (1, "Seite Funktionen in der Navigation links, darunter die Themen mit Einstellungen und Stammdaten"),

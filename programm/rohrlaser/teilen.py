@@ -779,7 +779,8 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
                         schema=con.execute("PRAGMA user_version").fetchone()[0], version=VERSION, format=FORMAT,
                         stand=datetime.datetime.now().isoformat(timespec="seconds"), angebote=len(eigene),
                         letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}),
-                        erledigt=sorted(db.einstellung(ERLEDIGT) or {}))
+                        erledigt=sorted(db.einstellung(ERLEDIGT) or {}),
+                        lizenz=db.einstellung("lizenz_info") or {})     # Übersicht Arbeitsplätze und Rechte
             sc.executemany("INSERT OR REPLACE INTO info (name, wert) VALUES (?, ?)",
                            [(n, json.dumps(w, ensure_ascii=False)) for n, w in info.items()])
     finally:
@@ -1001,7 +1002,8 @@ def lesen(db, modus=None):
             fc = quelle.verbinden()
             try:
                 info = {n: json.loads(w) for n, w in fc.execute("SELECT name, wert FROM info")}
-                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen")}
+                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen",
+                                                         "rechner", "lizenz")}
                 bericht["mitarbeiter"].append(k2)
                 if int(info.get("format") or 0) > FORMAT or int(info.get("schema") or 0) > schema:
                     bericht["hinweise"].append(
