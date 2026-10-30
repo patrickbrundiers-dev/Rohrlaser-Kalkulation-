@@ -1378,7 +1378,7 @@ class EinstellungenBereich(QWidget):
         namen = admin_schutz.einstellungen_geschuetzt(self.db) if zu else set()
         for i in range(self.unter.count()):
             seite = self.unter.widget(i)
-            k = schluessel(seite)
+            k = getattr(seite, "schutz_bereich", None) or schluessel(seite)
             gesch = k in schutz
             self.unter.setTabText(i, f"{self.grundtitel[i]} {SCHLOSS}" if aktiv and gesch else self.grundtitel[i])
             if hasattr(seite, "schutz_setzen") and isinstance(seite, EinstellungenSeite):
@@ -1390,7 +1390,8 @@ class EinstellungenBereich(QWidget):
         admin = aktiv and not zu
         if isinstance(self.vorgaben, EinstellungenSammlung):
             self.vorgaben.admin_setzen(not zu and not self.passwort_in_lizenz)
-        aktuell = schluessel(self.unter.currentWidget()) if self.unter.currentWidget() is not None else ""
+        w = self.unter.currentWidget()
+        aktuell = (getattr(w, "schutz_bereich", None) or schluessel(w)) if w is not None else ""
         self.leiste.anzeigen(aktiv, admin, zu and aktuell in schutz)
         if self.nach_schutz:
             self.nach_schutz()
@@ -1788,12 +1789,13 @@ class Hauptfenster(QMainWindow):
         # Admin-Schutz (Plan 30.10.2026): Seite mit den Häkchen je Bereich
         from .admin_schutz_fenster import AdminSchutzSeite, EingabeWaechter
         self.admin_seite = AdminSchutzSeite(db, self.meldung, lambda: self.bereich.schutz_anwenden())
-        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite])
-        if self.lizenz is not None:
-            self.bereich.pruefer = self.lizenz.passwort_gilt
+        # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.208)
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
-        self.bereich.nach_schutz = self.fracht.schutz_anwenden
+        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite]
+                                            + self.fracht.pflege)
+        if self.lizenz is not None:
+            self.bereich.pruefer = self.lizenz.passwort_gilt
         self.reiter.addTab(self.fracht, "Frachtkosten")
         # Zukaufartikel: eigener Reiter (Artikel, Kategorien, Lieferanten), tägliche Arbeit ohne Passwort
         from .zukauf_seite import ZukaufBereich

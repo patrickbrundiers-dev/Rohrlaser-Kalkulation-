@@ -26,6 +26,8 @@ GRUPPEN = (
     ("Kunden", ("kundenvorgaben",)),
     ("Import", ("e_step", "e_dxf", "importprofile")),
     ("Fertigung und Versand", ("e_lager", "e_fertigung", "e_auslastung", "e_versand")),
+    ("Fracht", ("fracht_zonen", "fracht_tarife", "fracht_lht", "fracht_zuschlaege", "fracht_dienstleister",
+                "fracht_historie")),
 )
 WEITERE = "Weitere"
 SEITE = Qt.UserRole
@@ -166,7 +168,7 @@ class NavigationsReiter(QWidget):
 
     def eintrag_rect(self, titel):
         """(Widget, Rechteck) des Eintrags in der Navigation (für die Bilder der Anleitung)."""
-        i = self.titel.index(titel)
+        i = next(j for j, t in enumerate(self.titel) if t == titel or t.removesuffix(" 🔒") == titel)
         return self.baum.viewport(), self.baum.visualItemRect(self.items[i])
 
     # -------------------------------------------------- Auswahl und Suche

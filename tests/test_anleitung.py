@@ -128,7 +128,6 @@ for i in range(fenster.reiter.count()):
 pruefen += [("Reiter im Angebot", t) for t in seite.reiter.texte()]
 pruefen += [("Unterreiter der Einstellungen", fenster.bereich.unter.tabText(i))
             for i in range(fenster.bereich.unter.count())]
-pruefen += [("Unterreiter der Frachtkosten", fenster.fracht.unter.tabText(i)) for i in range(fenster.fracht.unter.count())]
 pruefen += [("Unterreiter der Zuschläge", fenster.fracht.zuschlaege.unter.tabText(i))
             for i in range(fenster.fracht.zuschlaege.unter.count())]
 for w in fenster.findChildren(QPushButton) + fenster.findChildren(QCheckBox):

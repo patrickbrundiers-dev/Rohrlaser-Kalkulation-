@@ -4254,11 +4254,11 @@ def kapitel_staffeln(i):
 def kapitel_fracht(i):
     i.kapitel("Fracht im Angebot", marke="fracht")
     i.text("Fracht kommt über die Karte <b>Fracht</b> ins Angebot: manuell, berechnet oder automatisch. "
-           "Gerechnet wird mit den Tarifen aus dem Reiter <i>Frachtkosten</i> ([[frachtkosten]]).", kurz=True)
+           "Gerechnet wird mit den Tarifen unter <i>Einstellungen → Fracht</i> ([[frachtkosten]]).", kurz=True)
     i.genauer()
     i.text("Die Fracht kommt auf zwei Wegen ins Angebot: über die Karte <b>Fracht</b> im Angebot (manuell, "
            "berechnet oder automatisch) und über den Frachtrechner im Reiter <i>Frachtkosten</i>. Zonen, Tarife, "
-           "Ladehilfsmittel und Zuschläge, mit denen gerechnet wird, werden im Reiter <i>Frachtkosten</i> gepflegt "
+           "Ladehilfsmittel und Zuschläge, mit denen gerechnet wird, werden unter <i>Einstellungen → Fracht</i> gepflegt "
            "([[frachtkosten]]).")
     i.abschnitt("Karte Fracht im Angebot", marke="fracht_angebot")
     i.bild("angebot_fracht", "Karte Fracht: Frachtart berechnet, verteilt nach Gewicht", hoehe=40 * mm, legende=[
@@ -4330,7 +4330,7 @@ def kapitel_fracht(i):
     i.abschnitt("Frachtrechner (Fracht kalkulieren)", marke="fracht_rechner")
     i.bild("fracht_rechner", "Fracht kalkulieren: Eingabe links, aufgeschlüsselte Kostenübersicht rechts "
            "(Beispieltarif)", hoehe=115 * mm, legende=[
-        (1, "Unterreiter <i>Fracht kalkulieren</i>"), (2, "Versanddaten"), (3, "erkannte Frachtzone"),
+        (1, "<b>Frachtdaten pflegen …</b>: zu Einstellungen → Fracht"), (2, "Versanddaten"), (3, "erkannte Frachtzone"),
         (4, "Gewicht"), (5, "Ladehilfsmittel"), (6, "<b>Packvorschlag</b>"), (7, "Zusatzleistungen"),
         (8, "Ergebnis"), (9, "<b>In Historie speichern</b>")])
     i.text("<b>Fracht berechnen …</b>: PLZ, Versandart und Ladehilfsmittel wählen, das Programm sucht den Tarif und "
@@ -6141,8 +6141,8 @@ def kapitel_einstellungen(i):
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
         ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Versandart für automatische Fracht, "
-                         "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
-                         "Einstellungen</i> ([[fracht_einstellungen]]), nicht unter den Seiten der Einstellungen"],
+                         "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen unter Einstellungen → Fracht → <i>Historie und "
+                         "Einstellungen</i> ([[fracht_einstellungen]])"],
         ["Materialanfrage", "Materialanfrage: Betreff, Materialanfrage: Text der E-Mail",
          "Vorlagen der Materialanfrage mit Platzhaltern {angebot}, {kunde}, {positionen}, {datum}, {absender}; "
          "leer = Vorgabe ([[materialanfrage]])"],
@@ -7514,20 +7514,22 @@ def kapitel_zukauf(i):
 
 def kapitel_frachtkosten(i):
     i.kapitel("Frachtkosten verwalten", marke="frachtkosten")
-    i.text("Der Reiter <i>Frachtkosten</i> rechnet Frachtkosten aus Postleitzahl, Gewicht, Ladehilfsmitteln, Tarif und "
+    i.text("Der Reiter <i>Frachtkosten</i> ist der Frachtrechner: er rechnet Frachtkosten aus Postleitzahl, Gewicht, Ladehilfsmitteln, Tarif und "
            "Zuschlägen. Alle Preise, Zonen und Zuschläge werden selbst gepflegt; das Programm erfindet keine Tarife und "
            "holt keine Dieselpreise aus dem Internet. Eine neue Datendatei bringt Beispielwerte mit, die mit "
            "<b>BEISPIEL</b> gekennzeichnet sind; jede Rechnung damit zeigt die Warnung <i>Beispieltarif – keine "
            "echten Preise</i>. Ältere Datendateien bekommen die Frachttabellen leer.")
-    i.text("Hier stehen Zonen, Tarife, Paletten und Zuschläge, mit denen die Fracht gerechnet wird. Der Rechner ist "
-           "frei; die Pflege ändert nur der Admin ([[passwort]]): Admin-Passwort, <b>Frachtdaten öffnen</b>.", kurz=True)
-    i.text("Der Reiter hat sieben Unterreiter: <i>Fracht kalkulieren</i>, <i>Frachtzonen und Postleitzahlen</i>, "
+    i.text("Im Reiter <i>Frachtkosten</i> steht nur der Rechner, frei für alle. Zonen, Tarife, Paletten, Zuschläge, "
+           "Dienstleister und Historie stehen unter <i>Einstellungen → Fracht</i>; <b>Frachtdaten pflegen …</b> "
+           "springt dorthin. Sie ändert nur der Admin ([[passwort]]).", kurz=True)
+    i.text("Unter <i>Einstellungen → Fracht</i> stehen sechs Seiten: <i>Frachtzonen und Postleitzahlen</i>, "
            "<i>Tarifverwaltung</i>, <i>Paletten und Ladehilfsmittel</i>, <i>Zuschläge</i>, <i>Dienstleister und "
-           "Kundentarife</i> sowie <i>Historie und Einstellungen</i>. Der Rechner ist frei; die übrigen sechs pflegt "
-           "nur der Admin, solange die Frachtkosten Admin-Schutz haben (Admin-Passwort eintippen, <b>Frachtdaten "
-           "öffnen</b>). Freigeschaltet gilt das auch für die Einstellungen, bis <i>Admin sperren</i> gedrückt wird.")
-    i.bild("fracht_gesperrt", "Pflegebereich der Frachtkosten gesperrt", hoehe=45 * mm, legende=[
-        (1, "Reiter Frachtkosten"), (2, "Admin-Passwort"), (3, "<b>Frachtdaten öffnen</b>")])
+           "Kundentarife</i> sowie <i>Historie und Einstellungen</i>. Die Suche der Einstellungen findet sie mit. "
+           "Solange die Frachtkosten Admin-Schutz haben (Häkchen auf der Seite Admin-Schutz), sind die Werte für "
+           "Nicht-Admins grau; <b>Als Admin freischalten …</b> in der Leiste oben gibt sie frei. Bis 0.9.207 standen "
+           "die sechs Seiten als Unterreiter im Reiter Frachtkosten.")
+    i.bild("fracht_gesperrt", "Einstellungen → Fracht, für Nicht-Admins gesperrt", hoehe=60 * mm, legende=[
+        (1, "Gruppe <i>Fracht</i> in der Navigation"), (2, "Admin-Passwort"), (3, "<b>Als Admin freischalten …</b>")])
     i.abschnitt("Frachtzonen und Postleitzahlen", marke="frachtzonen")
     i.bild("fracht_zonen", "Frachtzonen und Postleitzahlen (Beispielwerte)", hoehe=110 * mm, legende=[
         (1, "<b>PLZ testen</b>: Land und PLZ eintippen, daneben steht die Zone und die Regel."),
@@ -7576,7 +7578,7 @@ def kapitel_frachtkosten(i):
            "Sicherung an.", kurz=True)
     i.genauer()
     i.text("Sind die Zonen oder PLZ-Zuordnungen durcheinandergeraten, stellt <b>Auf Standard zurücksetzen …</b> "
-           "(oben rechts auf dem Unterreiter <i>Frachtzonen und Postleitzahlen</i>) den mitgelieferten Stand wieder "
+           "(oben rechts auf der Seite <i>Frachtzonen und Postleitzahlen</i>) den mitgelieferten Stand wieder "
            "her. Der Standard sind die Zonen der Richtwerte Palettenversand ([[fracht_richtwerte]]): vier Zonen nach "
            "Entfernung vom Versandort (Absender-PLZ in den Einstellungen) und die Inselzone.")
     i.liste("Vorher fragt das Programm nach und nennt, wie viele Zonen und PLZ-Zuordnungen gelöscht werden. Auch "
@@ -8323,7 +8325,7 @@ def kapitel_fragen(i):
          "geändert; das Angebot rechnet weiter mit den "
          "alten Werten. Gewollt? Dann nichts tun. Sonst <b>Aktuelle Preise übernehmen …</b> ([[preise_festschreiben]])."],
         ["Frachtkosten: <b>keiner Zone zugeordnet</b>", "Für die PLZ gibt es keine PLZ-Zuordnung. Mit Standardzone "
-         "rechnet das Programm weiter (gelb), ohne nicht (rot). Zuordnung im Unterreiter Frachtzonen und "
+         "rechnet das Programm weiter (gelb), ohne nicht (rot). Zuordnung unter Einstellungen → Fracht → Frachtzonen und "
          "Postleitzahlen ergänzen ([[frachtzonen]])."],
         ["Frachtkosten: <b>Tarif wählen</b> / <b>mehrdeutig</b>", "Mehrere Tarife oder PLZ-Regeln passen gleich gut. "
          "Tarif im Rechner von Hand wählen oder eine Priorität vergeben."],

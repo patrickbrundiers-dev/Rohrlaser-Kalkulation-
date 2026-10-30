@@ -28,6 +28,9 @@ def sperren(seite, an):
         modell.admin_gesperrt = an
     for unter in getattr(seite, "teilseiten", ()):
         sperren(unter, an)
+    for formular in seite.findChildren(QScrollArea):     # eingebettete Einstellungen (Fracht: Historie)
+        if hasattr(formular, "schutz_setzen") and hasattr(formular, "felder"):
+            formular.schutz_setzen(set(formular.felder) if an else ())
     if an:
         alt = seite.__dict__.setdefault("_admin_alt", {})
         for k in seite.findChildren(QPushButton):
@@ -199,7 +202,7 @@ class SchlossLeiste(QWidget):
             self.fehler.clear()
             self.text.setText(f"Als Admin freigeschaltet: auch die Seiten mit {SCHLOSS} sind änderbar. Sperrt nach "
                               f"{admin_schutz.MINUTEN} Minuten ohne Eingabe.")
-            self.setStyleSheet("#schlossleiste { background: #E8F5E9; } #schlossleiste QLabel { color: #1B5E20; }")
+            self.setStyleSheet("#schlossleiste { background: #E8F5E9; } #schlossleiste QLabel { color: #2E7D32; }")
         elif seite_gesperrt:
             self.text.setText(f"{SCHLOSS} <b>Nur Admin</b>: diese Seite ändert nur der Admin. Ansehen geht.")
             self.setStyleSheet("#schlossleiste { background: #FFF4D6; } #schlossleiste QLabel { color: #7A5B00; } "

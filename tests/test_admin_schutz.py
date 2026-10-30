@@ -83,14 +83,16 @@ n = len(db.zeilen("preise"))
 st["preise"].zeile_neu()
 assert len(db.zeilen("preise")) == n, "Tastenkürzel neue Zeile gesperrt"
 assert f.zusatz.admin_gesperrt and f.zusatz.neu() is None
-assert f.fracht.gesperrt[f.fracht.zonen].stapel.currentIndex() == 0, "Frachtpflege gesperrt"
+assert f.fracht.zonen.admin_gesperrt and f.fracht.historie.admin_gesperrt, "Frachtpflege gesperrt"
+assert not f.fracht.historie.einstellungen.felder[next(iter(f.fracht.historie.einstellungen.felder))].isEnabled()
+assert f.fracht.pflegen_knopf.isEnabled(), "Rechner und Sprung in die Pflege frei"
 ok("Nicht-Admin: Einstellungen offen, geschützte Seiten mit Schloss grau, Tabellen nicht bearbeitbar")
 
 assert not b.oeffnen("falsch") and b.fehler.text() == "Passwort falsch."
 assert b.oeffnen("geheim") and b.offen and not b.gesperrt()
 assert seite["e_zuschlaege"].felder["gewinn"].isEnabled() and not st["preise"].admin_gesperrt and neu.isEnabled()
 assert st["preise"].modell.flags(i) & Qt.ItemIsEditable
-assert f.fracht.gesperrt[f.fracht.zonen].stapel.currentIndex() == 1
+assert not f.fracht.zonen.admin_gesperrt
 b.sperren()
 assert b.gesperrt() and not seite["e_zuschlaege"].felder["gewinn"].isEnabled() and not neu.isEnabled()
 ok("Als Admin freischalten mit dem Admin-Passwort, Admin sperren")

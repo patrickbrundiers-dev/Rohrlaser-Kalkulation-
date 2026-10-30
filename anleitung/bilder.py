@@ -1213,9 +1213,9 @@ def main(ziel):
     f.bereich.sperren()
     fb.zeigen(fb.zonen)
     bereit()
-    foto.foto("fracht_gesperrt", f, [(tab_rect(f.reiter, "Frachtkosten"), 1), (fb.gesperrt[fb.zonen].passwort, 2),
-                                     (knopf(fb.gesperrt[fb.zonen], "Frachtdaten öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 820, fb.gesperrt[fb.zonen].passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("fracht_gesperrt", f, [(f.bereich.unter.eintrag_rect(f.bereich.unter.tabText(
+                                         f.bereich.unter.indexOf(fb.zonen))), 1), (f.bereich.passwort, 2),
+                                     (knopf(f.bereich, "Als Admin freischalten …"), 3)])
     f.bereich.oeffnen(db.einstellung("passwort"))
     db.einstellung_setzen("absender_plz", "34117")
     fb.zeigen(fb.rechner)
@@ -1231,7 +1231,7 @@ def main(ziel):
     r.leistungen["AVIS-BSP"][0].setChecked(True)
     r.rechnen()
     bereit()
-    foto.foto("fracht_rechner", f, [(tab_rect(fb.unter, "Fracht kalkulieren"), 1), (r.plz, 2), (r.zone, 3),
+    foto.foto("fracht_rechner", f, [(fb.pflegen_knopf, 1), (r.plz, 2), (r.zone, 3),
                                     (r.netto, 4), (r.lht_tabelle, 5), (knopf(r, "Packvorschlag"), 6),
                                     (r.leistungen_box, 7), (r.anzeige, 8), (r.speichern_knopf, 9)])
     r.speichern()

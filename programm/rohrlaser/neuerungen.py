@@ -28,9 +28,11 @@ NEUERUNGEN = [
                 "oder 15 Minuten ohne Eingabe. Welche Seiten geschützt sind, legt der Admin unter Allgemein → "
                 "Admin-Schutz mit Häkchen fest. Was der Admin dort einstellt, gilt als Admin-Vorgaben an jedem "
                 "Arbeitsplatz (gemeinsamer Ordner, für einen späteren Server vorbereitet); ein Nicht-Admin kann es "
-                "nicht überschreiben. Das bisherige Passwort für den ganzen Reiter entfällt. Bitte alle "
-                "Arbeitsplätze gleichzeitig updaten.",
-     "Admin-Schutz: geschützte Einstellungen nur für den Admin, gelten an allen Arbeitsplätzen"],
+                "nicht überschreiben. Das bisherige Passwort für den ganzen Reiter entfällt. <b>Frachtdaten</b> "
+                "(Zonen, Tarife, Paletten, Zuschläge, Dienstleister, Historie) stehen jetzt unter Einstellungen → "
+                "Fracht ([[frachtkosten]]); im Reiter Frachtkosten bleibt der Rechner mit <b>Frachtdaten pflegen "
+                "…</b>. Bitte alle Arbeitsplätze gleichzeitig updaten.",
+     "Admin-Schutz für Einstellungen (gilt an allen Arbeitsplätzen); Frachtdaten unter Einstellungen → Fracht"],
     ["0.9.207", "<b>Bedienungsanleitung, Kurzanleitung und Präsentation auf dem Stand 0.9.206</b>: neue "
                 "Bildschirmfotos für Preis-Simulator ([[preis_simulator]]), Maschinenauslastung je Woche "
                 "([[auslastung]]), Reklamationen ([[reklamation]]), Stundensatz ermitteln ([[stundensatz_ermitteln]]) "

@@ -148,6 +148,7 @@ db.schliessen()
 # ---------------------------------------------------------------- Schalter vor Werten mit „0 = aus“ (Schritt 3)
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 f = Hauptfenster(db, stumm=True)
+f.bereich.oeffnen("av")             # Admin-Schutz: Automatik und Prüfung ändert nur der Admin
 seite = f.einstellung_zeigen("nachfassen_tage")
 sw, feld = seite.wert_schalter["nachfassen_tage"], seite.felder["nachfassen_tage"]
 assert set(ordnung.WERT_SCHALTER) == {n for s in f.einstellungen.seiten for n in s.wert_schalter}

@@ -179,7 +179,7 @@ assert haupt == ["Start", "Angebote", "Versand", "Fertigung", "Lager", "Kunden",
                  "Einstellungen"], haupt
 b = fenster.bereich
 from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
-assert [b.unter.tabText(i) for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
+assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)",
@@ -187,21 +187,26 @@ assert [b.unter.tabText(i) for i in range(b.unter.count())] == [s.titel for s in
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren", "Schweiß-Vorkalkulation",
                                                                  "Importprofile (STEP)", "Kundenvorgaben",
-                                                                 "Arbeitsgang-Regeln", "Stundensätze und Zeitvorgaben"]
-assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
+                                                                 "Arbeitsgang-Regeln", "Stundensätze und Zeitvorgaben",
+                                                                 "Admin-Schutz", "Frachtzonen und Postleitzahlen",
+                                                                 "Tarifverwaltung", "Paletten und Ladehilfsmittel",
+                                                                 "Zuschläge", "Dienstleister und Kundentarife",
+                                                                 "Historie und Einstellungen"]
+# Admin-Schutz (0.9.208): Einstellungen offen, geschützte Seiten erst nach dem Admin-Passwort
+assert db.einstellung("passwort") == "av" and b.gesperrt() and b.leiste.isVisibleTo(b)
 fenster.zeigen(seite)
-assert fenster.reiter.currentWidget() is b and b.stapel.currentIndex() == 0       # erst die Passwortabfrage
+assert fenster.reiter.currentWidget() is b and b.unter.currentWidget() is seite   # Seite gleich sichtbar
 b.passwort.setText("falsch")
 assert not b.oeffnen() and b.gesperrt() and "falsch" in b.fehler.text()
 b.passwort.setText("av")
 b.passwort.returnPressed.emit()
-assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is seite
+assert not b.gesperrt() and b.unter.currentWidget() is seite
 b.sperren()
-assert b.gesperrt() and b.stapel.currentIndex() == 0
+assert b.gesperrt()
 db.einstellung_setzen("passwort", "")             # leer = ohne Passwort
 fenster.reiter.setCurrentWidget(fenster.start)
 fenster.zeigen(fenster.einstellungen)
-assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is fenster.einstellungen.seiten[0]
+assert not b.gesperrt() and b.unter.currentWidget() is fenster.einstellungen.seiten[0]
 db.einstellung_setzen("passwort", "av")
 fenster.close()
 db.schliessen()
