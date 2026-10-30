@@ -3474,6 +3474,7 @@ class AngebotSeite(QWidget):
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
                         dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
                              stueck=p.get("stueck"), muster=p.get("muster")), neu=False)
+        d.p = p                 # STEP speichern: Netz der Position für die Prüfung gegen die Mutter-STEP
         self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.kopf_werte()))
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
@@ -4057,8 +4058,9 @@ class AngebotSeite(QWidget):
             pid = self.db.position_neu(self.id, werte)
             netz = entpacken(gr[0]["netz"]) if gr[0].get("netz") else None
             if netz:
-                if len(gr) > 1:
-                    netz["lagen"] = [(entpacken(k["netz"]) or {}).get("lage") for k in gr]
+                if len(gr) > 1:         # Lage je Körper passend zum Netz des ersten (gedreht/gewendet eingebaut)
+                    from .lage_abgleich import lagen_abgleichen
+                    netz["lagen"] = lagen_abgleichen(netz, [entpacken(k["netz"]) or {} for k in gr])
                 nummern = [x for k in gr for x in k.get("nummern") or ()]
                 if nummern:             # Körper der Schenkel: Nahtgruppen und Stöße finden das Teil
                     netz["koerper"] = nummern

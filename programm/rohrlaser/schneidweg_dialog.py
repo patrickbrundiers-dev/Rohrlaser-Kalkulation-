@@ -925,7 +925,21 @@ class SchneidwegDialog(QDialog):
         if self.knick:
             plan["meldungen"].append("Knickrahmen: als gestrecktes Rohr mit V-Ausschnitten (vor dem Knicken)")
         name = f"Pos {self.p.get('pos') or ''} {self.p.get('artikel') or ''}".strip()
-        return step_export.speichern_dialog(self, plan, name, pfad)
+        netz, versatz = self._mutter_netz(), None
+        if netz:                # Prüfung gegen die Mutter-STEP: Ende A wie in der Datei (Nasen ragen davor hinaus)
+            from . import steckverbindung as stv
+            plan["erwartet"] = step_export.erwartet_rohr(self.eingaben())
+            nb = stv.nasen((self.eingaben() or {}).get("a"))
+            versatz = -float(nb.get("laenge_plus") or 0) if nb else 0.0
+        return step_export.speichern_dialog(self, plan, name, pfad, netz=netz, rohr_versatz=versatz)
+
+    def _mutter_netz(self):
+        """Netz der Position aus dem STEP-Import (mit der Mutter-STEP), sonst None."""
+        if getattr(self, "knick", None) or self.db is None or not self.p.get("id") or not hasattr(self.db, "netz"):
+            return None
+        from .ansicht3d import entpacken
+        netz = entpacken(self.db.netz(self.p["id"])) or {}
+        return netz if netz.get("mutter") else None
 
     def dxf_importieren(self, pfad=None, zuordnung=None):
         """Rohrteil aus einer DXF-Zeichnung mit Ansichten übernehmen (Plan 3E-12, dxf_rohr): Enden, Konturen und
