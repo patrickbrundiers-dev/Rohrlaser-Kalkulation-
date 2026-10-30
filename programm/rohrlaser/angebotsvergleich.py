@@ -60,7 +60,7 @@ EIGEN = dict(pos="Pos.", artikel="ArtikelNr.", bezeichnung="Artikeltext", menge=
 VORLAGEN = "vergleich_vorlagen"        # Einstellung (intern): {Name: {spalten: [...], zuordnung: {feld: Spalte}}}
 SUMMENZEILE = re.compile(r"^\s*(zwischen)?summe|^\s*gesamt|^\s*netto|^\s*brutto|^\s*mwst|^\s*ust|^\s*übertrag|"
                          r"^\s*rabatt|^\s*fracht|^\s*versand", re.I)
-ART = {"artikel": "Artikelnummer", "bezeichnung": "Bezeichnung", "pos": "Position", "hand": "von Hand"}
+ART = {"artikel": "Artikel-Nr.", "bezeichnung": "Bezeichnung", "pos": "Position", "hand": "von Hand"}
 
 
 class VergleichFehler(ValueError):
