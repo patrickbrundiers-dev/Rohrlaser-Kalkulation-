@@ -1370,6 +1370,17 @@ def art_wechseln(m):
     return True
 
 
+def gleiches_profil(m, profil, tol=0.1):
+    """Hat das Profil der Position dieselbe Form und dieselben Außenmaße wie gemessen (Breite/Höhe in beliebiger
+    Reihenfolge, ± tol mm)?"""
+    if not profil or profil.get("form") != m.get("profilform"):
+        return False
+    a, b = _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a")
+    pa = float(profil.get("a") or 0)
+    pb = float(profil.get("b") or 0) or pa
+    return min(abs(a - pa) + abs(b - pb), abs(a - pb) + abs(b - pa)) <= 2 * tol
+
+
 def rohr_geschlossen(m):
     """True, wenn die Messwerte das offen gezeichnete Rohr als Rohr sind (step_offenes_rohr): Spalt geschlossen bzw.
     aus dem Rohr mit je einem Steg an den Enden."""
@@ -2177,6 +2188,15 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     if abs(d_g) >= 0.05:
                         p["gravur"] = round(max(p["gravur"] + d_g, 0.0), 1)
                     hinweise += h_k
+                elif not neu_enden and not neu_fenster and gleiches_profil(m, profile[pid]):
+                    # Gegenprobe: das Modell des Editors liegt wie die STEP (Patrick 30.10.2026, Übergabe absichern)
+                    from . import step_gegenprobe
+                    ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
+                    if ab:
+                        p["_step_abweichung"] = round(ab[0], 2)
+                        h = step_gegenprobe.hinweis(*ab)
+                        if h:
+                            hinweise.append(h)
             n_ges = (stk or 0) * (int(m.get("_je_satz") or len(gruppen[i])) if satz else 1)
             sch = schalen(m) if schalen_gewaehlt(m) and n_ges >= 2 else None      # nur wenn die Stückzahl reicht
             if sch and (neu_enden or neu_fenster):  # anderes Rohr gewählt: Schalenschnitt passt nicht mehr zur Messung

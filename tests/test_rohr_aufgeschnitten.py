@@ -14,6 +14,12 @@ A3    Quadratrohr, Oberseite zwischen den Enden offen (Ringe in der STEP), Fenst
       U-Querschnitt galt als Regelquerschnitt, Rohrachse im Schwerpunkt des U – Editor 13 mm neben der STEP. Jetzt wie
       beim langen Fenster: die geschlossenen Querschnitte an den Enden sind der Regelquerschnitt.
 Teile-Editor: ein komplexes Ende aus der STEP hieß in den Merkmalen „gerade“, jetzt „komplex (Umriss wie STEP)“.
+B03   Schlitz, der über den Eckradius in eine Ausklinkung am Ende läuft: der Knick des Endes wurde auf den nächsten
+      Punkt der Sehne gelegt statt in derselben Richtung von der Bogenmitte – 0,5 mm daneben.
+B04   Quadratrohr mit Gehrung an beiden Enden und Fenster oben: die Probeschnitte an den Enden lagen in den
+      Gehrungen, der offene Querschnitt des Fensters wurde Regelquerschnitt – alles 3 mm daneben.
+L     Winkel/U mit Ausklinkung am Ende: das freie Schenkelende (s = Umfang) bekam die Tiefe der Ausklinkung (s = 0).
+Gegenprobe (step_gegenprobe): beim Übernehmen kein Hinweis; eine um 2 mm verschobene Kontur gibt den Hinweis.
 A2/A4/A6 (Ausschnitt mit Schlitzen und Nase, Seitenwand halb weg, U-Form mit Ring an einem Ende) waren schon richtig.
 
 Aufruf: python tests/test_rohr_aufgeschnitten.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -36,7 +42,7 @@ from OCP.gp import gp_Pnt, gp_Vec  # noqa: E402
 import erzeuge_testteile as et  # noqa: E402
 import step_messen  # noqa: E402
 import test_step_wie_modell as wie  # noqa: E402
-from rohrlaser import ansicht3d, knickverbindung, rohr3d, step  # noqa: E402
+from rohrlaser import ansicht3d, knickverbindung, rohr3d, skizze as sk, step, step_gegenprobe  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.teile_editor import ende_text  # noqa: E402
 
@@ -77,11 +83,18 @@ def teile():
     f["A5_RE_Gehrung_Trapez"] = et.cut(g, prisma(TRAPEZ, "yz", -60, 120))
     r = et.kastenrohr(60, 40, 3, 100, 4)                               # Foto 2: Oberseite fast ganz weg, Seite halb
     f["A6_RE_U_Ring_einseitig"] = et.cut(et.cut(r, box(-26, 10, -1, 52, 20, 81)), box(-40, -5, -1, 15, 30, 61))
+    # Reihe B (weitere Problemteile): Ausklinkung über die Ecke bis Ende A mit Längsschlitz, der über den Eckradius
+    # läuft; Quadratrohr mit Gehrung an beiden Enden und Fenster oben
+    f["B03_RE_Ecke_Ende_Schlitz"] = et.cut(et.cut(re, box(20, 0, -1, 40, 40, 41)), box(30, 20, 30, 40, 10, 100))
+    qr = et.kastenrohr(40, 40, 3, 500, 4)
+    q = et.schraeg_ende(et.schraeg_ende(qr, 480, 0, 45), 20, 0, -45, ende_b=False)
+    f["B04_QR_Gehrung2_Fenster"] = et.cut(q, box(-10, 10, 150, 20, 20, 200))
     return f
 
 
-FORM = {"A3": "Quadratrohr"}
-SONDER = {"A1": 1, "A2": 1, "A3": 1, "A4": 1, "A5": 1, "A6": 0}    # Ausschnitt als Sonderkontur (A6: Teil von Ende A)
+FORM = {"A3": "Quadratrohr", "B04": "Quadratrohr"}
+SONDER = {"A1": 1, "A2": 1, "A3": 1, "A4": 1, "A5": 1, "A6": 0,     # Ausschnitt als Sonderkontur (A6: Teil von Ende A)
+          "B03": 0, "B04": 0}
 
 
 def main():
@@ -102,7 +115,7 @@ def main():
         k = db.kontext()
         step.offene_rohre_vorbelegen(list(ms.values()), k.profile, None)      # wie der Prüfdialog
         for name, m in ms.items():
-            kurz = name[:2]
+            kurz = name.split("_")[0]
             assert m["profilform"] == FORM.get(kurz, "Rechteckrohr"), (name, m["profilform"], m.get("hinweise"))
             assert not knickverbindung.v_ausschnitte(m), (name, "Ausschnitt als V-Ausschnitt (Knickrahmen) gedeutet")
             assert not knickverbindung.koerper_vorbereiten(m, {}) and not m.get("_knickrahmen"), name
@@ -117,6 +130,16 @@ def main():
         for p in erg["positionen"]:
             name = p["artikel"]
             gesehen.add(name)
+            # Gegenprobe beim Übernehmen: kein Hinweis, Abweichung gemessen; eine verschobene Kontur fällt auf
+            assert p.get("_step_abweichung") is not None and p["_step_abweichung"] <= step_gegenprobe.GRENZE, \
+                (name, p.get("_step_abweichung"), p.get("hinweis"))
+            assert "weicht" not in (p.get("hinweis") or ""), (name, p.get("hinweis"))
+            tech = json.loads(p["technik"])
+            if tech.get("konturen"):
+                tech["konturen"][0]["x"] = float(tech["konturen"][0].get("x") or 0) + 2
+                ab = step_gegenprobe.abweichung(ms[name], k.profile[p["profil_id"]], tech, p["laenge"])
+                h = step_gegenprobe.hinweis(*ab)
+                assert h and h.startswith("Editor weicht bis 1,"), (name, ab, h)
             d = SchneidwegDialog(None, p, k.profile[p["profil_id"]], kopf, k, db.tabellen(), db)
             e = d.eingaben()
             assert not any(z.get("art") == "V-Ausschnitt" for z in e["konturen"]), (name, e["konturen"])
@@ -134,6 +157,11 @@ def main():
                 print(f"OK     {name}: {weit:+.3f} mm")
             d.deleteLater()
         assert gesehen == set(f), sorted(set(f) - gesehen)
+    # offenes Profil mit Ausklinkung am Ende: s = 0 und s = Umfang sind die beiden Schenkelenden (nicht verbunden)
+    qs = sk.Querschnitt(dict(form="L-Profil", a=50.0, b=50.0, wand=5.0))
+    d = sk._ende_umriss(qs, [[0.0, 39.0], [29.999, 39.0], [30.001, 0.0], [qs.umfang - 0.05, 0.0]])
+    assert d(0.0) == 39.0 and d(qs.umfang) == 0.0 and d(qs.umfang - 0.01) == 0.0, (d(0.0), d(qs.umfang))
+    print("OK     L-Profil mit Ausklinkung am Ende: freies Schenkelende gerade")
     print("Alle Tests OK" if not fehler else f"{fehler} Test(s) fehlgeschlagen")
     return fehler
 

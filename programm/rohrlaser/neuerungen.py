@@ -27,9 +27,12 @@ NEUERUNGEN = [
                 "gezeichnet; ein V ist es nur noch, wenn die Seitenwände bis an die Stegwand durchgeschnitten sind "
                 "([[knickrahmen]]). Quadrat-/Rechteckrohr, oben zwischen den Enden offen und mit Fenster in einer "
                 "Seitenwand: die Rohrachse lag im Schwerpunkt des offenen Stücks (13 mm daneben), jetzt aus den "
-                "geschlossenen Querschnitten. Teile-Editor: ein komplexes Ende aus der STEP heißt nicht mehr "
-                "„gerade“.",
-     "Aufgeschnittene Rohre (großer Ausschnitt, U-Form) im Editor genau wie in der STEP"],
+                "geschlossenen Querschnitten. Ebenso behoben: Quadratrohr mit Gehrung an beiden Enden und Fenster "
+                "(3 mm daneben), Schlitz über den Eckradius ins Ende (0,5 mm), Winkel/U mit Ausklinkung am Ende (freies "
+                "Schenkelende schräg). Teile-Editor: ein komplexes Ende aus der STEP heißt nicht mehr „gerade“. "
+                "<b>Gegenprobe beim Übernehmen</b> ([[schneidweg_rechner]]): das 3D-Modell des Editors wird mit den "
+                "Linien der STEP verglichen, ab 0,1 mm Abweichung bekommt die Position einen Hinweis.",
+     "Aufgeschnittene Rohre im Editor genau wie in der STEP, Gegenprobe Editor gegen STEP beim Übernehmen"],
     ["0.9.207", "<b>Bedienungsanleitung, Kurzanleitung und Präsentation auf dem Stand 0.9.206</b>: neue "
                 "Bildschirmfotos für Preis-Simulator ([[preis_simulator]]), Maschinenauslastung je Woche "
                 "([[auslastung]]), Reklamationen ([[reklamation]]), Stundensatz ermitteln ([[stundensatz_ermitteln]]) "

@@ -2943,6 +2943,18 @@ def kapitel_optimieren(i):
             "Seite, Ausschnitte, deren Schnittlänge genau ein Rechteck oder Langloch ergibt, stehen als Rechteck bzw. "
             "Langloch (längs oder quer wie gemessen) statt als Kreis. C-Profile zeigen die gemessene Abkantung "
             "(Lippe) in Skizze und 3D. Ältere Importe: STEP neu einlesen.",
+            "<b>Gegenprobe beim Übernehmen</b> (seit 0.9.208): Für jedes Quadrat-, Rechteck- und Rundrohr baut das "
+            "Programm beim Übernehmen das 3D-Modell des Schneidweg-Rechners und legt es auf die Linien der STEP "
+            "(Konturen und Enden, in beiden Richtungen). Liegt etwas mehr als 0,1 mm daneben, bekommt die Position "
+            "den Hinweis <i>Editor weicht bis … mm von der STEP ab (bei … mm ab Ende A) – Konturen und Enden im "
+            "Schneidweg-Rechner prüfen</i>; er steht im Bericht nach dem Übernehmen und an der Position. Nicht "
+            "geprüft werden offene Profile, offen gezeichnete Rohre mit Ringen, Knickrahmen, Biegerohre und Teile, "
+            "deren Profil im Prüfdialog geändert wurde (dort ist die Abweichung gewollt). Ebene Gehrungen werden wie "
+            "konstruiert verglichen.",
+            "<b>Weitere Fälle wie in der STEP</b> (seit 0.9.208): Quadrat-/Rechteckrohr mit Gehrung an beiden Enden "
+            "und Fenster (lag 3 mm daneben), Schlitz, der über den Eckradius ins Ende läuft (0,5 mm), und Winkel "
+            "bzw. U-Profil mit Ausklinkung am Ende (das freie Schenkelende stand schräg bis auf die Tiefe der "
+            "Ausklinkung) stehen jetzt genau wie gezeichnet im Editor.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
