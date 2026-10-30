@@ -1176,7 +1176,7 @@ def _material_tabelle(material, profile):
     """Materialeinsatz je Abmessung (rechnen.material_abmessungen) mit Querschnitt; Meterpreis von Hand fett."""
     kopf = ["", "Abmessung", "Werkstoff · Oberfläche", "Lieferlänge", "Pos.", "Stangen", "Meter", "Gewicht [kg]",
             "Ausnutzung", "Meterpreis [€/m]", "Material [€]"]
-    daten, fett = [_kopfzeile(kopf)], []
+    daten, fett, erp = [_kopfzeile(kopf)], [], []
     rechts = (5, 6, 7, 8, 9, 10)
     for g in material:
         plan = g["stangen"] > 0
@@ -1188,6 +1188,9 @@ def _material_tabelle(material, profile):
         if g["manuell"] is not None and not g["kunde"]:
             fett.append(len(daten))
             preis += " *"
+        elif g.get("erp") and not g["kunde"]:
+            preis += " ⓔ"
+            erp.append(f"ⓔ {g['profil']}: {g['erp']['bemerkung']}")
         daten.append([QuerschnittBild(profile.get(g["profil"])), _p(g["profil"], S_FETT),
                       _p(rechnen.material_text(g["werkstoff"], g["oberflaeche"]), S_KLEIN), _p(laenge, S_KLEIN),
                       _p(", ".join(_z(p, 0) for p in g["positionen"] if p is not None), S_KLEIN),
@@ -1202,7 +1205,7 @@ def _material_tabelle(material, profile):
                    fett_zeilen=[len(daten) - 1])
     tab.setStyle(TableStyle([("VALIGN", (0, 1), (-1, -1), "MIDDLE")]
                             + [("FONT", (9, r), (9, r), FETT, 8.5) for r in fett]))
-    return tab, bool(fett)
+    return tab, bool(fett), erp
 
 
 def _baugruppen_abschnitt(zeilen, breite):
@@ -1302,12 +1305,14 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                            ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
     inhalt += [t, Spacer(1, 5 * mm)]
     if material:            # Materialeinsatz je Abmessung (Patrick 22.10.2026), eingestellt im Fenster 'Material …'
-        tab, hand = _material_tabelle(material, profile or {})
+        tab, hand, erp = _material_tabelle(material, profile or {})
         inhalt += [CondPageBreak(40 * mm), _p("Materialeinsatz je Abmessung", S_H2), tab]
         hinweis = ("Meterpreis = womit das Angebot rechnet (Lieferlängen, Preise bzw. Tonnenpreis mit Aufpreis der "
                    "Oberfläche); Material € je Stange mit Händler-Mehrlänge. Ausnutzung = Teilelängen / Stangenlänge.")
         if hand:
             hinweis += " * = Meterpreis von Hand (Fenster 'Material …' bzw. Spalte Materialpreis [€/m])."
+        if erp:             # ERP-Preis je Abmessung (Patrick 30.10.2026), nur intern
+            hinweis += " " + "; ".join(erp) + "."
         inhalt += [Spacer(1, 1.5 * mm), _p(hinweis, ParagraphStyle("mh", parent=S_KLEIN, textColor=GRAU)),
                    Spacer(1, 5 * mm)]
     if hinweise:

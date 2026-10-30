@@ -1,5 +1,6 @@
 """Fenster „Materialpreise aus ERP-CSV“ (erp_preise.py, Plan 30.10.2026): Spaltenzuordnung, Prüfliste der ERP-Artikel
-mit Ampel, Preise je Profil + Werkstoff mit Verlauf und Übernahme per Haken (vorher Datensicherung)."""
+mit Ampel und Übersicht der Preise je Profil + Werkstoff mit Verlauf. Die Stammdaten-Preise bleiben unberührt; die
+Angebote wählen ihren ERP-Preis nach dem Optimieren selbst (erp_preise.angebot_vorschlag)."""
 import datetime
 from pathlib import Path
 
@@ -170,16 +171,14 @@ class VerlaufDialog(QDialog):
 
 
 class ErpPreiseDialog(QDialog):
-    """Prüfliste und Preise aus allen gespeicherten Käufen; Änderungen an der Zuordnung werden sofort gemerkt."""
+    """Prüfliste und Übersicht aus allen gespeicherten Käufen; Änderungen an der Zuordnung werden sofort gemerkt."""
     ARTIKEL = ("Ampel", "Artikelnummer", "EK-Artikel", "Käufe", "Meter", "Profil", "Werkstoff", "Oberfläche", "Hinweis")
-    PREISE = ("Übernehmen", "Profil", "Werkstoff", "Oberfläche", "Käufe", "Meter", "Ø €/m (Vorschlag)", "≙ €/kg",
+    PREISE = ("Profil", "Werkstoff", "Oberfläche", "Käufe", "Meter", "Ø €/m", "≙ €/kg",
               "letzter €/m", "Min – Max", "Ausreißer", "heute €/m", "Abweichung")
 
     def __init__(self, parent, db, meldung="", heute=None):
         super().__init__(parent)
         self.db, self.heute = db, heute
-        self.haken_hand = {}            # (Profil, Werkstoff, Oberfläche) -> True/False von Hand
-        self.ergebnis = None
         self.setWindowTitle("Materialpreise aus ERP-CSV")
         self.resize(1400, 720)
         lay = QVBoxLayout(self)
@@ -187,9 +186,9 @@ class ErpPreiseDialog(QDialog):
             "Je ERP-Artikel erkennt das Programm Profil, Werkstoff und Oberfläche aus der Bezeichnung. Grün = "
             "eindeutig, gelb = bitte Werkstoff bzw. Oberfläche wählen, rot = Profil fehlt (anlegen oder "
             "überspringen). Jede Wahl wird je ERP-Artikel gemerkt. Unter „Preise“ steht je Profil + Werkstoff der "
-            "gewichtete Durchschnitt nach Menge; Doppelklick zeigt den Verlauf. „Übernehmen“ schreibt die "
-            "angehakten Preise als €/m in die Stammdaten (vorher Datensicherung); verschickte Angebote behalten "
-            "ihre festgeschriebenen Preise. Die Käufe bleiben nur an diesem Arbeitsplatz.", schluessel="erp_preise"))
+            "gewichtete Durchschnitt nach Menge; Doppelklick zeigt den Verlauf. Die Stammdaten bleiben unverändert: "
+            "jedes Angebot nimmt nach dem Optimieren je Abmessung den Kauf mit passender Menge, ohne Kauf rechnet "
+            "es wie bisher. Die Käufe bleiben nur an diesem Arbeitsplatz.", schluessel="erp_preise"))
         self.kopf = QLabel(meldung)
         self.kopf.setWordWrap(True)
         lay.addWidget(self.kopf)
@@ -214,9 +213,9 @@ class ErpPreiseDialog(QDialog):
         la.addLayout(leiste)
         seite_p = QWidget()
         lp = QVBoxLayout(seite_p)
-        self.preis_tab = _tabelle(self.PREISE, (85, 120, 110, 95, 50, 60, 130, 60, 140, 110, 75, 75))
+        self.preis_tab = _tabelle(self.PREISE, (120, 110, 95, 50, 60, 130, 60, 140, 110, 75, 75))
+        self.preis_tab.setToolTip("Doppelklick: Einkaufsverlauf mit allen Käufen")
         self.preis_tab.cellDoubleClicked.connect(lambda r, _c: self.verlauf(r))
-        self.preis_tab.itemChanged.connect(self._preis_haken)
         lp.addWidget(self.preis_tab, 1)
         self.aufpreis = QLabel()
         self.aufpreis.setWordWrap(True)
@@ -226,10 +225,6 @@ class ErpPreiseDialog(QDialog):
         lay.addWidget(self.reiter, 1)
         k = QDialogButtonBox(QDialogButtonBox.Close)
         k.button(QDialogButtonBox.Close).setText("Schließen")
-        self.uebernehmen_knopf = k.addButton("Übernehmen", QDialogButtonBox.AcceptRole)
-        self.uebernehmen_knopf.setToolTip("Angehakte Preise als €/m in Stammdaten → Preise schreiben, vorher "
-                                          "Datensicherung")
-        self.uebernehmen_knopf.clicked.connect(lambda: self.uebernehmen())
         k.rejected.connect(self.reject)
         lay.addWidget(k)
         self.neu_rechnen()
@@ -242,12 +237,7 @@ class ErpPreiseDialog(QDialog):
         self.kaeufe = E.gespeicherte(self.db)
         self.artikel = E.artikel(self.kaeufe, E.zuordnungen(self.db), self.k)
         self.gruppen = E.auswerten(self.kaeufe, self.artikel, self.k, self.tabellen, self.heute,
-                                   monate=e.get("erp_monate") or 12, grenze=e.get("erp_ausreisser") or 0.25,
-                                   schwelle=e.get("erp_schwelle") or 0.02)
-        for g in self.gruppen:
-            schl = (g["profil_id"], g["werkstoff_id"], g["oberflaeche"])
-            if schl in self.haken_hand and not g["oberflaeche"] and g["durchschnitt"]:
-                g["haken"] = self.haken_hand[schl]
+                                   monate=e.get("erp_monate") or 12, grenze=e.get("erp_ausreisser") or 0.25)
         self._artikel_zeigen()
         self._preise_zeigen()
 
@@ -287,50 +277,31 @@ class ErpPreiseDialog(QDialog):
 
     def _preise_zeigen(self):
         t = self.preis_tab
-        t.blockSignals(True)
         t.setRowCount(0)
-        _fuellen(t, [("", g["profil_id"], g["werkstoff_id"], g["oberflaeche"] or ROH, g["anzahl"], _t(g["meter"], 0),
+        _fuellen(t, [(g["profil_id"], g["werkstoff_id"], g["oberflaeche"] or ROH, g["anzahl"], _t(g["meter"], 0),
                       _t(g["durchschnitt"]), _t(g["durchschnitt"] / g["kg_m"], 2) if g["durchschnitt"] and g["kg_m"]
                       else "", f"{_t(g['letzter'])} ({_d(g['letzter_datum'])})",
                       f"{_t(g['min'])} – {_t(g['max'])}" if g["min"] is not None else "", g["ausreisser"] or "",
                       _t(g["heute"]), f"{g['abweichung'] * 100:+.1f} %".replace(".", ",")
-                      if g["abweichung"] is not None else ("" if g["oberflaeche"] else "neu"))
+                      if g["abweichung"] is not None else "")
                      for g in self.gruppen],
-                 rechts=(4, 5, 6, 7, 8, 10, 11, 12))
+                 rechts=(3, 4, 5, 6, 7, 9, 10, 11))
         for r, g in enumerate(self.gruppen):
-            it = t.item(r, 0)
-            if g["oberflaeche"] or not g["durchschnitt"]:
-                it.setText("nur Info" if g["oberflaeche"] else "keine Käufe im Zeitraum")
-                it.setToolTip("Preise mit Oberfläche gehen nicht in „Preise“ (nur Rohware); sie ergeben den "
-                              "Aufpreis-Vorschlag unten" if g["oberflaeche"] else "")
-            else:
-                it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-                it.setCheckState(Qt.Checked if g["haken"] else Qt.Unchecked)
-            t.item(r, 11).setToolTip(g["herkunft"])
+            t.item(r, 10).setToolTip(g["herkunft"])
             if g["abweichung"] is not None and abs(g["abweichung"]) > 0.10:
-                t.item(r, 12).setForeground(QBrush(stil.farbe("#B42318")))
-        t.blockSignals(False)
+                t.item(r, 11).setForeground(QBrush(stil.farbe("#B42318")))
         auf = E.aufpreise(self.gruppen, self.k)
         self.aufpreis.setText(
-            "Aufpreis-Vorschlag aus Käufen mit Oberfläche (nur Hinweis, Stammdaten → Oberflächen bleiben): " +
+            "Aufpreis aus Käufen mit Oberfläche gegenüber Rohware (nur Hinweis, zum Vergleich mit Stammdaten → "
+            "Oberflächen): " +
             "; ".join(f"<b>{a['oberflaeche']}</b> {_t(a['aufpreis_kg'])} €/kg aus {a['profile']} Profil(en), "
                       f"{_t(a['meter'], 0)} m" + (f" (heute {a['heute']})" if a["heute"] else "") for a in auf)
             if auf else "")
-        self.uebernehmen_knopf.setEnabled(any(g["haken"] for g in self.gruppen if not g["oberflaeche"]))
-        self.reiter.setTabText(1, f"Preise ({sum(1 for g in self.gruppen if g['haken'] and not g['oberflaeche'])} "
-                                  f"angehakt)")
+        self.reiter.setTabText(1, f"Preise ({len(self.gruppen)})")
         offen = sum(1 for a in self.artikel if a["ampel"] != E.GRUEN)
         self.reiter.setTabText(0, "Prüfliste ERP-Artikel" + (f" ({offen} offen)" if offen else ""))
 
     # ---------------------------------------------------------------- Aktionen
-    def _preis_haken(self, it):
-        if it.column() != 0 or not (it.flags() & Qt.ItemIsUserCheckable):
-            return
-        g = self.gruppen[it.row()]
-        g["haken"] = it.checkState() == Qt.Checked
-        self.haken_hand[(g["profil_id"], g["werkstoff_id"], g["oberflaeche"])] = g["haken"]
-        self.uebernehmen_knopf.setEnabled(any(x["haken"] for x in self.gruppen if not x["oberflaeche"]))
-
     def zuordnung_geaendert(self, r):
         a = self.artikel[r]
         t = self.artikel_tab
@@ -389,25 +360,6 @@ class ErpPreiseDialog(QDialog):
         if d.geaendert or not zeigen:
             self.neu_rechnen()
         return d
-
-    def uebernehmen(self, frage=True):
-        wahl = [g for g in self.gruppen if g["haken"] and not g["oberflaeche"] and g["durchschnitt"]]
-        if not wahl:
-            return None
-        if frage and QMessageBox.question(
-                self, "Preise übernehmen", f"{len(wahl)} Preis(e) als €/m in Stammdaten → Preise schreiben? Vorher "
-                "wird eine Datensicherung angelegt.") != QMessageBox.Yes:
-            return None
-        for a in self.artikel:          # erkannte (grüne) Zuordnungen merken: nächster Import ohne Rückfrage
-            if a["ampel"] == E.GRUEN and not a["gemerkt"] and a["profil_id"] and a["werkstoff_id"]:
-                E.zuordnung_merken(self.db, a["schluessel"], a["artikelnr"], a["bezeichnung"], a["profil_id"],
-                                   a["werkstoff_id"], a["oberflaeche"])
-        self.ergebnis = E.uebernehmen(self.db, wahl, self.heute)
-        self.haken_hand.clear()
-        self.neu_rechnen()
-        self.kopf.setText(f"Übernommen: {self.ergebnis[0]} Preis(e) neu, {self.ergebnis[1]} geändert. Sicherung "
-                          f"vorher: {self.ergebnis[2]}")
-        return self.ergebnis
 
 
 def importieren(seite, db, pfad=None, zuordnung=None, zeigen=True, heute=None):

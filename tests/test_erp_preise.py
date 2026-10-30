@@ -1,10 +1,12 @@
 """Materialpreise aus ERP-CSV (Plan 30.10.2026, Freigabe „Alle Empfehlungen“):
 - E1 Lesen: Kodierung, Titelzeile, Spaltenköpfe, deutsche Zahlen und Datumsformate, Gutschrift/Summe übersprungen.
 - E2 Zerlegen: Profil, Werkstoff, Oberfläche aus der EK-Bezeichnung mit Ampel.
-- E3 Fenster: Prüfliste (Werkstoff wählen, Profil anlegen, überspringen, gemerkt), Preise (gewichteter Ø über
-  12 Monate, Ausreißer, Verlauf mit Haken je Kauf), Aufpreis-Vorschlag, Übernahme als €/m mit Sicherung, zweiter
-  Import ohne Doppelte und ohne Rückfrage.
-- E4 Funktion (Vorgabe aus), Einstellungsseite, Hinweis im Material-Fenster.
+- E3 Fenster: Prüfliste (Werkstoff wählen, Profil anlegen, überspringen, gemerkt), Übersicht (gewichteter Ø über
+  12 Monate, Ausreißer, Verlauf mit Haken je Kauf), Aufpreis-Hinweis, zweiter Import ohne Doppelte; Stammdaten-Preise
+  bleiben unverändert.
+- E4 Angebot (Patrick 30.10.2026 17:39): Kauf zum Bedarf wählen (neuester mit 0,5- bis 2-facher Menge, sonst
+  neuester, nur 12 Monate), nach dem Optimieren als Preis der Abmessung mit Bemerkung, Preis von Hand geht vor, ohne
+  Kauf wie bisher, festgeschrieben und Funktion aus ohne neuen Vorschlag.
 Alle Preise sind Testwerte; die Kaufdaten liegen relativ zu heute, damit der 12-Monats-Zeitraum immer passt.
 
 Aufruf: python tests/test_erp_preise.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -117,6 +119,7 @@ assert any("e_erp_preise" in seiten for _, seiten in einstellungen_nav.GRUPPEN)
 assert funktionen.seite_an("e_erp_preise", db)
 ok("Funktion „Materialpreise aus ERP-CSV“: Vorgabe aus, Knopf bei den Preisen, Seite ERP-Preisimport")
 
+preise_vorher = db.zeilen("preise")
 d = seite.erp_preise(str(csv_datei), zeigen=False)
 assert d is not None and d.meldungen and "12 Käufe gelesen, davon 12 neu" in d.kopf.text(), d.kopf.text()
 art = {a["artikelnr"]: a for a in d.artikel}
@@ -148,12 +151,11 @@ assert rr["anzahl"] == 3 and rr["ausreisser"] == 1 and rr["letzter"] == 4.9 and 
 assert [x["im_zeitraum"] for x in rr["kaeufe"]] == [False, True, True, True, True]
 heute_rr = rechnen.kg_je_m("RR 42,4x2,0", "S235-10219", d.k) * 1.45
 nah(rr["heute"], heute_rr, "heutiger Preis aus €/kg")
-assert rr["haken"] and abs(rr["abweichung"]) > 0.02
 qr = g[("QR 40x40x3", "S235-10219", "")]
 nah(qr["durchschnitt"], round((90 * 5.4 + 120 * 5.6) / 210, 2), "Ø QR")
 es = g[("RR 42,4x2,0", "1.4301", "")]
 nah(es["heute"], 62 / 6, "heute aus €/Stange")
-assert ("QR 50x50x4", "S235-10219", "") in g and g[("QR 40x40x3", "S235-10219", "feuerverzinkt")]["haken"] is False
+assert ("QR 50x50x4", "S235-10219", "") in g and g[("QR 40x40x3", "S235-10219", "feuerverzinkt")]["abweichung"] is None
 ok(f"Preise: RR 42,4x2,0 Ø {rr['durchschnitt']} €/m (heute {rr['heute']:.2f}), Ausreißer und alte Käufe zählen nicht")
 
 auf = E.aufpreise(d.gruppen, d.k)
@@ -176,29 +178,13 @@ rr3 = next(x for x in d.gruppen if (x["profil_id"], x["werkstoff_id"], x["oberfl
 assert rr3["durchschnitt"] == rr["durchschnitt"]
 ok("Verlauf: Ausreißer per Haken mitrechnen und wieder automatisch")
 
-zeile = next(i for i, x in enumerate(d.gruppen) if x["werkstoff_id"] == "1.4301")
-d.preis_tab.item(zeile, 0).setCheckState(Qt.Unchecked)            # Edelstahl nicht übernehmen
-vorher = {(z["profil_id"], z["werkstoff_id"]): z for z in db.zeilen("preise")}
-neu, geaendert, sicherung = d.uebernehmen(frage=False)
-assert Path(sicherung).exists() and "vor_ERP_Preisimport" in Path(sicherung).name
-nachher = {(z["profil_id"], z["werkstoff_id"]): z for z in db.zeilen("preise")}
-z = nachher[("RR 42,4x2,0", "S235-10219")]
-assert z["basis"] == "€/m" and z["preis"] == rr["durchschnitt"] and z["lieferant"] == "ERP"
-assert z["gueltig_ab"] == HEUTE.isoformat() and z["lieferlaenge"] == 6000 and z["bemerkung"].startswith("ERP: Ø 3 Käufe")
-assert nachher[("RR 42,4x2,0", "1.4301")] == vorher[("RR 42,4x2,0", "1.4301")], "nicht angehakt = unverändert"
-assert nachher[("QR 50x50x4", "S235-10219")]["preis"] == 7.2
-assert (neu, geaendert) == (1, 3), (neu, geaendert)
-assert ("QR 40x40x3", "S235-10219") in nachher and nachher[("QR 40x40x3", "S235-10219")]["basis"] == "€/m"
-g = {(x["profil_id"], x["werkstoff_id"], x["oberflaeche"]): x for x in d.gruppen}
-nah(g[("RR 42,4x2,0", "S235-10219", "")]["abweichung"], 0, "nach Übernahme gleich", 1e-9)
-assert not g[("RR 42,4x2,0", "S235-10219", "")]["haken"], "10a: gleicher Preis nicht mehr angehakt"
-ok(f"Übernahme: {neu} neu, {geaendert} geändert als €/m, Lieferlänge bleibt, Edelstahl unverändert, Sicherung")
+assert db.zeilen("preise") == preise_vorher, "Stammdaten-Preise bleiben unverändert"
+ok("Übersicht ohne Übernahme: Stammdaten-Preise unverändert")
 
 d2 = seite.erp_preise(str(csv_datei), zeigen=False)
 assert "davon 0 neu gespeichert (12 schon vorhanden)" in d2.kopf.text(), d2.kopf.text()
-assert all(a["gemerkt"] for a in d2.artikel), [a for a in d2.artikel if not a["gemerkt"]]
-assert len(E.gespeicherte(db)) == 12
-ok("Zweiter Import: keine doppelten Käufe, alle Zuordnungen gemerkt (auch die erkannten)")
+assert all(a["ampel"] == E.GRUEN for a in d2.artikel) and len(E.gespeicherte(db)) == 12
+ok("Zweiter Import: keine doppelten Käufe, gewählte Zuordnungen gemerkt")
 
 r = next(i for i, a in enumerate(d2.artikel) if a["artikelnr"] == "100431")
 d2.vergessen(r)
@@ -214,11 +200,38 @@ sd._ok()
 assert "mehrfach" in sd.fehler.text()
 ok("Spalten zuordnen: Pflichtfelder und doppelte Spalten geprüft")
 
-# ------------------------------------------------------------------ E4 Material-Fenster (9b)
+# ------------------------------------------------------------------ E4 Angebot
+def k_(tage, menge, preis, rechnen=None, i=0):
+    return dict(id=i, datum=HEUTE - datetime.timedelta(days=tage), menge=menge, preis=preis, rechnen=rechnen)
+
+
+KS = [k_(420, 60, 2.7, i=1), k_(290, 120, 3.1, i=2), k_(190, 60, 3.2, i=3), k_(80, 240, 3.05, i=4), k_(28, 6, 4.9, i=5)]
+assert E.kauf_waehlen(KS, 100, HEUTE)[0]["preis"] == 3.2, "neuester mit 50-200 m"
+assert E.kauf_waehlen(KS, 200, HEUTE) == (KS[3], True)
+assert E.kauf_waehlen(KS, 5000, HEUTE) == (KS[4], False), "keine ähnliche Menge: der neueste"
+assert E.kauf_waehlen(KS[:1], 60, HEUTE) is None, "älter als 12 Monate"
+assert E.kauf_waehlen(KS[:4] + [k_(10, 100, 3.0, rechnen=0, i=6)], 100, HEUTE)[0]["preis"] == 3.2, "von Hand aus"
+ok("Kauf zum Bedarf: ähnliche Menge (0,5- bis 2-fach), sonst neuester, nur 12 Monate, von Hand ausgeschlossene nicht")
+
+db.einstellung_setzen("funktion_erp_preise", "ja")
 an = beispiel_angebot.anlegen(db)
 s = f.angebot_oeffnen(an)
-hin = s._erp_hinweise()
-assert ("RR 42,4x2,0", "S235-10219", "") in hin
+assert s.optimieren()
+erp = db.angebot(an)["erp_preise"]
+schl = rechnen.erp_schluessel("RR 42,4x2,0", "S235-10219", "")
+assert schl in erp and rechnen.erp_schluessel("RR 48,3x2,6", "S235-10219", "") not in erp, erp
+assert erp[schl]["bemerkung"].startswith("ERP-Preis vom ") and "Stangen à 6 m" in erp[schl]["bemerkung"], erp[schl]
+assert s.stand_optimierung() == "aktuell", "ERP-Preis ändert den Schnittplan nicht"
+gr = {(g["profil"], g["werkstoff"]): g for g in rechnen.material_abmessungen(s.kopf, s.positionen, s.ergebnis, s.k,
+                                                                             s.tabellen)}
+g = gr[("RR 42,4x2,0", "S235-10219")]
+assert g["erp"] and abs(g["berechnet"] - erp[schl]["preis"]) < 1e-9 and abs(g["wirksam"] - g["berechnet"]) < 1e-9
+assert gr[("RR 48,3x2,6", "S235-10219")]["erp"] is None, "ohne Kauf wie bisher"
+herkunft = rechnen.preis_herkunft(next(p for p in s.positionen if p["profil_id"] == "RR 42,4x2,0"), s.kopf, s.k,
+                                  s.tabellen)
+assert "ERP-Preis vom" in herkunft
+ok(f"Nach dem Optimieren: RR 42,4x2,0 mit {erp[schl]['preis']} €/m ({erp[schl]['bemerkung']}), RR 48,3 wie bisher")
+
 gesehen = {}
 
 
@@ -229,11 +242,17 @@ def schauen(dlg):
 
 
 s.material_einstellen(schauen)
-assert "ERP Ø" in gesehen["tipp"] and "ⓔ" not in gesehen["text"], gesehen
+assert "ERP-Preis vom" in gesehen["tipp"] and "ⓔ" in gesehen["text"], gesehen
+ok("Material-Fenster: ERP-Preis grau mit ⓔ, Bemerkung im Tooltip")
+
+pos = next(p for p in s.positionen if p["profil_id"] == "RR 42,4x2,0")
+hand = [dict(p, preis_m=9.99) if p["id"] == pos["id"] else p for p in s.positionen]
+assert abs(rechnen.meterpreis(pos, s.kopf, hand, s.k, s.tabellen)[1] - 9.99) < 1e-9, "Preis von Hand geht vor"
+s.kopf["preisbasis"] = {"x": 1}
+assert s.erp_vorschlagen() == 0, "festgeschrieben: kein neuer Vorschlag"
+s.kopf["preisbasis"] = None
 db.einstellung_setzen("funktion_erp_preise", "nein")
-assert s._erp_hinweise() == {}
-s.material_einstellen(schauen)
-assert "ERP Ø" not in gesehen["tipp"]
-ok("Material-Fenster: Hinweis „ERP Ø …“ am berechneten Meterpreis, nur mit Funktion")
+assert s.erp_vorschlagen() == 0 and db.angebot(an)["erp_preise"] == erp, "Funktion aus: gewählte Preise bleiben"
+ok("Preis von Hand geht vor; festgeschrieben bzw. Funktion aus: kein neuer Vorschlag, gewählte Preise bleiben")
 
 print("Alle Tests ERP-Preise bestanden.")

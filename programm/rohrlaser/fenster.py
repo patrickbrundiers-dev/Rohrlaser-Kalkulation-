@@ -434,8 +434,9 @@ class StammdatenSeite(QWidget):
             # Plan Materialpreise aus ERP-CSV (30.10.2026): nur mit Funktion „Materialpreise aus ERP-CSV“ (Vorgabe aus)
             erp = QPushButton("Preise aus ERP-CSV …")
             erp.setToolTip("Einkaufsdaten aus dem ERP (Kaufdatum, Menge, Meterpreis, Artikelnummer, EK-Artikel) "
-                           "laden: Profil, Werkstoff und Oberfläche erkennen, Durchschnittspreis je Profil + "
-                           "Werkstoff zeigen und angehakte Preise als €/m übernehmen (vorher Datensicherung)")
+                           "laden: Profil, Werkstoff und Oberfläche erkennen und die Preise je Profil + Werkstoff "
+                           "zeigen. Die Preise hier bleiben unverändert; Angebote nehmen nach dem Optimieren je "
+                           "Abmessung den Kauf mit passender Menge.")
             erp.clicked.connect(lambda: self.erp_preise())
             leiste.addWidget(erp)
             self.erp_knopf = erp
@@ -595,11 +596,8 @@ class StammdatenSeite(QWidget):
         except (OSError, ErpFehler) as e:
             self.meldung(f"ERP-Preise: {e}", fehler=True)
             return None
-        if d is not None and d.ergebnis:
-            f = self.window()
-            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
-            self.meldung(f"ERP-Preise: {d.ergebnis[0]} neu, {d.ergebnis[1]} geändert. Sicherung vorher: "
-                         f"{d.ergebnis[2]}")
+        if d is not None:
+            self.neu_laden()            # im Fenster angelegte Profile
         return d
 
     def rp_laden(self, pfade=None):

@@ -8,14 +8,17 @@ Die CSV enthält je Kauf Kaufdatum, Menge [m], Meterpreis [€/m], Artikelnummer
 2. zerlegen(): Profil, Werkstoff und Oberfläche aus der Bezeichnung; Ampel grün (eindeutig), gelb (Werkstoff
    mehrdeutig/fehlt, Oberfläche unbekannt), rot (Profil fehlt oder nicht erkannt). Bestätigte Zuordnungen stehen je
    ERP-Artikel in erp_zuordnung (7a), auch „überspringen“.
-3. auswerten(): je Profil + Werkstoff + Oberfläche gewichteter Durchschnitt nach Menge über die letzten
-   erp_monate Monate (1a, 2a), Ausreißer über ±erp_ausreisser vom Median zählen nicht (3a, je Kauf änderbar), dazu
-   letzter Preis, Min/Max und der heutige Preis aus den Stammdaten.
-4. uebernehmen(): Preis-Zeile mit Basis €/m (4a) nach Sicherung; nur Rohware (5a), Käufe mit Oberfläche ergeben
-   einen Aufpreis-Vorschlag €/kg (aufpreise, nur Anzeige).
+3. auswerten(): Übersicht je Profil + Werkstoff + Oberfläche: gewichteter Durchschnitt nach Menge über die letzten
+   erp_monate Monate, Ausreißer über ±erp_ausreisser vom Median zählen nicht (je Kauf änderbar), dazu letzter Preis,
+   Min/Max und der heutige Preis aus den Stammdaten. Nur Anzeige: die Stammdaten-Preise bleiben unberührt.
+4. angebot_vorschlag() (Patrick 30.10.2026 17:39, Freigabe „Alle Empfehlungen“ 17:44): nach dem Optimieren wählt das Angebot
+   je Profil + Werkstoff + Oberfläche den passenden Kauf zur benötigten Menge (1a: neuester Kauf mit 0,5- bis
+   2-facher Menge, sonst der neueste; 3a: nur Käufe der letzten erp_monate Monate) und speichert ihn mit Bemerkung
+   in angebote.erp_preise. rechnen.lieferstange_preis nimmt ihn nach dem Preis von Hand (2a: eigener Wert geht vor),
+   ohne passenden Kauf wie bisher Lieferlängen/Preise/Tonnenpreis. Die Bemerkung steht nur intern (4a).
 
-Die Käufe stehen nur in der eigenen Datendatei (erp_kaeufe) und werden nicht mit den Kollegen abgeglichen (6a);
-übernommene Preise sind normale Stammdaten und gehen wie jede Preisänderung an alle Plätze. Ohne Qt."""
+Die Käufe stehen nur in der eigenen Datendatei (erp_kaeufe) und werden nicht mit den Kollegen abgeglichen; die im
+Angebot gewählten Preise gehen mit dem Angebot an alle Plätze. Ohne Qt-Fenster."""
 import csv
 import datetime
 import io
@@ -29,7 +32,6 @@ FELDER = (("datum", "Kaufdatum"), ("menge", "Menge [m]"), ("preis", "Meterpreis 
 FELD_TITEL = dict(FELDER)
 PFLICHT = ("datum", "menge", "preis", "bezeichnung")      # Artikelnummer darf fehlen (dann zählt die Bezeichnung)
 VORLAGEN = "erp_vorlagen"       # Einstellung (intern): {Spaltenkopf mit | getrennt: {Feld: Spaltennummer}}
-LIEFERANT = "ERP"
 GRUEN, GELB, ROT = "grün", "gelb", "rot"
 
 # Spaltenköpfe je Feld, normalisiert (klein, nur Buchstaben/Ziffern): erst gleich, dann enthalten
@@ -331,6 +333,8 @@ TABELLEN_SQL = (
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
+    if "erp_preise" not in {r[1] for r in con.execute("PRAGMA table_info(angebote)")}:
+        con.execute("ALTER TABLE angebote ADD COLUMN erp_preise TEXT")      # gewählte ERP-Preise je Angebot (JSON)
 
 
 def _jetzt():
@@ -443,13 +447,12 @@ def _t(x, stellen=2):
     return f"{x:,.{stellen}f}".replace(",", " ").replace(".", ",").replace(" ", ".")
 
 
-def auswerten(kauf_liste, artikel_liste, k, tabellen, heute=None, monate=12, grenze=0.25, schwelle=0.02):
+def auswerten(kauf_liste, artikel_liste, k, tabellen, heute=None, monate=12, grenze=0.25):
     """Je Profil + Werkstoff + Oberfläche eine Gruppe aus den Käufen der zugeordneten Artikel (grün, nicht
     übersprungen): dict(profil_id, werkstoff_id, oberflaeche, kaeufe [Kauf + ausreisser, im_zeitraum, gerechnet],
     anzahl, meter, durchschnitt (gewichtet, = Vorschlag), letzter, letzter_datum, min, max, von, bis, heute,
-    herkunft, abweichung, kg_m, haken). Zeitraum = die letzten monate Monate vor heute; Ausreißer = mehr als grenze
-    vom Median des Zeitraums (mit rechnen 1/0 je Kauf von Hand übersteuert); haken (10a) = Rohware mit Vorschlag und
-    Abweichung über schwelle zum heutigen Preis."""
+    herkunft, abweichung, kg_m). Zeitraum = die letzten monate Monate vor heute; Ausreißer = mehr als grenze vom
+    Median des Zeitraums (mit rechnen 1/0 je Kauf von Hand übersteuert)."""
     from .rechnen import kg_je_m
     heute = heute or datetime.date.today()
     ab = _monate_zurueck(heute, monate)
@@ -486,8 +489,7 @@ def auswerten(kauf_liste, artikel_liste, k, tabellen, heute=None, monate=12, gre
                         min=min((x["preis"] for x in im), default=None), max=max((x["preis"] for x in im), default=None),
                         von=rech[0]["datum"] if rech else None, bis=rech[-1]["datum"] if rech else None,
                         ausreisser=sum(1 for x in kaeufe_g if x["ausreisser"]), heute=hp, herkunft=herkunft,
-                        abweichung=abw, kg_m=kg_je_m(pid, wid, k),
-                        haken=bool(roh and schnitt and (abw is None or abs(abw) > schwelle))))
+                        abweichung=abw, kg_m=kg_je_m(pid, wid, k)))
     return sorted(out, key=lambda g: (g["oberflaeche"] != "", g["profil_id"].lower(), g["werkstoff_id"].lower(),
                                       g["oberflaeche"].lower()))
 
@@ -524,51 +526,75 @@ def aufpreise(gruppen, k):
     return out
 
 
-# ------------------------------------------------------------------ 4. Übernehmen
-def bemerkung(g):
-    zeit = f"{g['von'].strftime('%m/%Y')}–{g['bis'].strftime('%m/%Y')}" if g.get("von") else ""
-    return f"ERP: Ø {g['anzahl']} Käufe, {_t(g['meter'], 0)} m, {zeit}".strip(", ")
+# ------------------------------------------------------------------ 4. Vorschlag im Angebot
+AEHNLICH = (0.5, 2.0)       # „ähnliche Menge“: 0,5- bis 2-fache der benötigten Meter (1a)
 
 
-def uebernehmen(db, gruppen, heute=None):
-    """Durchschnitt der angehakten Gruppen (nur Rohware) als Preis-Zeile €/m (4a) schreiben, vorher geschützte
-    Sicherung '_vor_ERP_Preisimport'. Vorhandene Zeile Profil + Werkstoff: Basis, Preis, Gültig ab, Lieferant und
-    Bemerkung werden ersetzt (Liefer-Stangenlänge bleibt). Ergebnis (neu, geändert, Pfad der Sicherung)."""
-    wahl = [g for g in gruppen if g.get("haken") and not g["oberflaeche"] and g.get("durchschnitt")]
-    if not wahl:
-        return 0, 0, None
-    pfad = db.sicherung(zusatz="vor_ERP_Preisimport")
-    ab = (heute or datetime.date.today()).isoformat()
-    vorhanden = {(z.get("profil_id"), z.get("werkstoff_id")): z for z in db.zeilen("preise")}
-    neu = geaendert = 0
-    for g in wahl:
-        werte = dict(basis="€/m", preis=g["durchschnitt"], gueltig_ab=ab, lieferant=LIEFERANT, bemerkung=bemerkung(g))
-        z = vorhanden.get((g["profil_id"], g["werkstoff_id"]))
-        if z is None:
-            db.neu("preise", dict(werte, profil_id=g["profil_id"], werkstoff_id=g["werkstoff_id"]))
-            neu += 1
-        else:
-            for feld, wert in werte.items():
-                if z.get(feld) != wert:
-                    db.aendern("preise", z["id"], feld, wert)
-            geaendert += 1
-    return neu, geaendert, pfad
+def kauf_waehlen(kaeufe_gruppe, bedarf_m, heute=None, monate=12):
+    """Bestmöglicher Kauf für den Bedarf [m]: der neueste Kauf der letzten monate Monate mit ähnlicher Menge, sonst der
+    neueste im Zeitraum; Käufe, die im Verlauf von Hand ausgeschlossen sind (rechnen = 0), zählen nicht. None, wenn
+    keiner passt (dann rechnet das Angebot wie bisher)."""
+    ab = _monate_zurueck(heute or datetime.date.today(), monate)
+    im = sorted((x for x in kaeufe_gruppe if x["datum"] >= ab and x.get("rechnen") != 0),
+                key=lambda x: (x["datum"], x.get("id") or 0))
+    if not im:
+        return None
+    aehnlich = [x for x in im if bedarf_m and AEHNLICH[0] * bedarf_m <= x["menge"] <= AEHNLICH[1] * bedarf_m]
+    return (aehnlich or im)[-1], bool(aehnlich)
 
 
-# ------------------------------------------------------------------ Hinweis im Material-Fenster (9b)
-def hinweise(db, k, tabellen, heute=None):
-    """{(Profil, Werkstoff, Oberfläche): Gruppe aus auswerten()} aus den gespeicherten Käufen und Zuordnungen, für den
-    Hinweis „ERP Ø …“ im Material-Fenster; leer ohne Käufe."""
+def _stangen_text(meter, stange_mm):
+    if not stange_mm:
+        return ""
+    n = meter * 1000 / stange_mm
+    return f" (≈ {n:.0f} Stangen à {_t(stange_mm / 1000, 0 if float(stange_mm / 1000).is_integer() else 1)} m)" \
+        if n >= 0.95 else ""
+
+
+def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
+    """ERP-Preise für das Angebot: je Profil + Werkstoff + Oberfläche (eigenes Material) der Kauf zum Bedarf (Meter
+    laut Schnittplan, ohne Plan die Teilelängen). Ergebnis {rechnen.erp_schluessel: dict(preis, datum, menge,
+    artikelnr, bezeichnung, aehnlich, bedarf, bemerkung)}; leer ohne Käufe."""
+    from . import rechnen
     liste = gespeicherte(db)
     if not liste:
         return {}
-    e = db.einstellungen()
-    gruppen = auswerten(liste, artikel(liste, zuordnungen(db), k), k, tabellen, heute,
-                        monate=e.get("erp_monate") or 12, grenze=e.get("erp_ausreisser") or 0.25,
-                        schwelle=e.get("erp_schwelle") or 0.02)
-    return {(g["profil_id"], g["werkstoff_id"], g["oberflaeche"]): g for g in gruppen if g["durchschnitt"]}
+    monate = db.einstellung("erp_monate") or 12
+    gemerkt = zuordnungen(db)
+    zu = {a["schluessel"]: a for a in artikel(liste, gemerkt, k)
+          if a["ampel"] == GRUEN and not a.get("ignorieren") and a.get("profil_id") and a.get("werkstoff_id")}
+    je = {}
+    for kauf in liste:
+        a = zu.get(kauf["schluessel"])
+        if a is not None:
+            je.setdefault(rechnen.erp_schluessel(a["profil_id"], a["werkstoff_id"], a["oberflaeche"]), []).append(kauf)
+    bedarf, stange = {}, {}
+    ohne_erp = dict(kopf, erp_preise=None)
+    for g in rechnen.material_abmessungen(ohne_erp, positionen, ergebnis, k, tabellen):
+        if g["kunde"]:
+            continue
+        s = rechnen.erp_schluessel(g["profil"], g["werkstoff"], g["oberflaeche"])
+        bedarf[s] = bedarf.get(s, 0.0) + (g["meter"] if g["stangen"] else g["teile_m"])
+        stange.setdefault(s, g["stange"])
+    out = {}
+    for s, m in bedarf.items():
+        w = kauf_waehlen(je.get(s, ()), m, heute, monate)
+        if w is None:
+            continue
+        kauf, aehnlich = w
+        bem = (f"ERP-Preis vom {kauf['datum'].strftime('%d.%m.%Y')}, {_t(kauf['menge'], 0)} m"
+               f"{_stangen_text(kauf['menge'], stange.get(s))}"
+               + (f", Artikel {kauf['artikelnr']}" if kauf.get("artikelnr") else "")
+               + ("" if aehnlich else f"; kein Kauf mit ähnlicher Menge (Bedarf {_t(m, 0)} m)"))
+        out[s] = dict(preis=kauf["preis"], datum=kauf["datum"].isoformat(), menge=kauf["menge"],
+                      artikelnr=kauf.get("artikelnr") or "", bezeichnung=kauf["bezeichnung"], aehnlich=aehnlich,
+                      bedarf=round(m, 1), bemerkung=bem)
+    return out
 
 
-def hinweis_text(g):
-    return (f"ERP Ø {_t(g['durchschnitt'])} €/m aus {g['anzahl']} Käufen ({_t(g['meter'], 0)} m, bis "
-            f"{g['bis'].strftime('%d.%m.%Y')})" if g and g.get("durchschnitt") else "")
+def angebot_speichern(db, angebot_id, daten):
+    """Gewählte ERP-Preise am Angebot speichern (leer = keine, das Angebot rechnet wie bisher)."""
+    import json
+    with db.con:
+        db.con.execute("UPDATE angebote SET erp_preise=? WHERE id=?",
+                       (json.dumps(daten, ensure_ascii=False) if daten else None, angebot_id))

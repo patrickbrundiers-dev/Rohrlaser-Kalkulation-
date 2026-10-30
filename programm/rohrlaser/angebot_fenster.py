@@ -5308,6 +5308,7 @@ class AngebotSeite(QWidget):
             erg["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.db.kontext(), self.tabellen,
                                                      self.einst)
         self.db.ergebnis_speichern(self.id, erg, von_hand=not automatisch)
+        self.erp_vorschlagen(erg)
         self.neu_laden()
         n_teile = sum(len(s["teile"]) for s in erg["stangen"])
         text = f"{len(erg['stangen'])} Stangen, {n_teile} Teile eingeplant"
@@ -5317,6 +5318,22 @@ class AngebotSeite(QWidget):
             text += f", {len(erg['neue_profile'])} Profil(e) aus dem Namen angelegt"
         self.f.meldung(("Automatisch optimiert: " if automatisch else "") + text + ".")
         return True
+
+    def erp_vorschlagen(self, erg=None):
+        """ERP-Preise je Abmessung zum Bedarf laut Schnittplan wählen und am Angebot speichern (erp_preise.py, Plan
+        30.10.2026); nur mit Funktion, nie bei festgeschriebenen Preisen. Ergebnis: Anzahl gewählter Preise."""
+        if not funktionen.an("funktion_erp_preise") or self.kopf.get("preisbasis") is not None:
+            return 0
+        from . import erp_preise
+        try:
+            daten = erp_preise.angebot_vorschlag(self.db, self.kopf, self.positionen, erg or self.ergebnis,
+                                                 self.db.kontext(), self.db.tabellen())
+        except Exception as e:      # der Vorschlag darf das Optimieren nie verhindern
+            self.f.meldung(f"ERP-Preise: {e}", fehler=True)
+            return 0
+        if daten != (self.kopf.get("erp_preise") or {}):
+            erp_preise.angebot_speichern(self.db, self.id, daten)
+        return len(daten)
 
     def laengen_zeigen(self, nur=None):
         """Vergleich der Lieferlängen im großen Fenster öffnen; nur = Indizes der Gruppen (eine Abmessung aus dem
@@ -5822,16 +5839,6 @@ class AngebotSeite(QWidget):
         return self.csv_export("positionen", ordner)
 
     # -------------------------------------------------------------- Material je Abmessung
-    def _erp_hinweise(self):
-        """ERP-Durchschnittspreise je Abmessung für das Material-Fenster (Plan ERP-Preise 9b), nur mit Funktion."""
-        if not funktionen.an("funktion_erp_preise"):
-            return {}
-        from . import erp_preise
-        try:
-            return erp_preise.hinweise(self.db, self.k, self.tabellen)
-        except Exception:           # Hinweis darf das Material-Fenster nie verhindern
-            return {}
-
     def material_einstellen(self, dialog=None):
         """Fenster 'Material …': Materialeinsatz und Materialwerte je Abmessung (Werkstoff, Oberfläche, Lieferlänge, Eigen-/
         Kundenmaterial, Meterpreis) und Handling Kundenmaterial; Änderungen werden an allen Positionen der Abmessung
@@ -5851,7 +5858,7 @@ class AngebotSeite(QWidget):
                                                                                    self.tabellen, auto=False)
                                         if rechnen._n(z.get("laenge")) > 0],
                              self.einst, veraltet=not ohne_plan and self.stand_optimierung() != "aktuell",
-                             ohne_plan=ohne_plan, seite=self, erp=self._erp_hinweise())
+                             ohne_plan=ohne_plan, seite=self)
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
             return 0
         n = len(d.aenderungen) + len(d.kopf_aenderungen) + (d.vorgaben is not None)

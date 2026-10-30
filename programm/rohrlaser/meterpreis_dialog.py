@@ -94,8 +94,7 @@ class MeterpreisDialog(QDialog):
     die von Hand vorgegebenen Stangen geändert, self.vorgaben = {Gruppenschlüssel: [[Länge, Anzahl], …]} für das ganze
     Angebot (sonst None)."""
 
-    def __init__(self, parent, gruppen, k, kopf, laengen=None, einst=None, veraltet=False, ohne_plan=False, seite=None,
-                 erp=None):
+    def __init__(self, parent, gruppen, k, kopf, laengen=None, einst=None, veraltet=False, ohne_plan=False, seite=None):
         super().__init__(parent)
         self.gruppen, self.kopf = gruppen, kopf
         self.aenderungen, self.kopf_aenderungen, self.vorgaben = [], {}, None
@@ -147,8 +146,9 @@ class MeterpreisDialog(QDialog):
                     it.setForeground(stil.farbe(GRAU))
                     if g["fehlt"]:
                         it.setToolTip(g["fehlt"])
-                    self._erp_hinweis(it, g, (erp or {}).get((g["profil"], g["werkstoff"], g["oberflaeche"] or "")),
-                                      einst)
+                    if g.get("erp"):        # ERP-Preis des Angebots (erp_preise.py): Bemerkung nur intern
+                        it.setText(it.text() + " ⓔ")
+                        it.setToolTip((it.toolTip() + "\n" if it.toolTip() else "") + g["erp"]["bemerkung"])
                 if c == 1:
                     it.setFont(fett)
                     it.setToolTip(f"Teile {_z(g['teile_m'], 1)} m"
@@ -246,20 +246,6 @@ class MeterpreisDialog(QDialog):
         knoepfe.accepted.connect(self.annehmen)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
-
-    @staticmethod
-    def _erp_hinweis(it, g, erp, einst):
-        """Plan ERP-Preise 9b: Durchschnitt der ERP-Käufe im Tooltip des berechneten Meterpreises; weicht er mehr als
-        die Schwelle (Einstellung erp_schwelle) ab, steht ein ⓔ dahinter (nur Anzeige, gerechnet wird wie bisher)."""
-        from . import erp_preise
-        text = erp_preise.hinweis_text(erp)
-        if not text:
-            return
-        it.setToolTip((it.toolTip() + "\n" if it.toolTip() else "") + text)
-        schwelle = rechnen._n((einst or {}).get("erp_schwelle")) or 0.02
-        if g["berechnet"] and abs(erp["durchschnitt"] / g["berechnet"] - 1) > schwelle:
-            it.setText(it.text() + " ⓔ")
-            it.setForeground(stil.farbe("#C55A11"))
 
     @staticmethod
     def _fett(feld):

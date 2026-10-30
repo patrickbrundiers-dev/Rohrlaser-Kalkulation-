@@ -50,8 +50,8 @@ FUNKTIONEN = (
              "Haken „Abruf-/Rahmenangebot“ im Angebotskopf (vorhandene Abruf-Angebote bleiben)"),
     # Plan Materialpreise aus ERP-CSV (Patrick 30.10.2026, 11a): optional, Vorgabe aus
     Funktion("funktion_erp_preise", "Materialpreise aus ERP-CSV",
-             "Knopf „Preise aus ERP-CSV …“ bei den Preisen, ERP-Hinweis im Material-Fenster und die Seite "
-             "ERP-Preisimport (gespeicherte Käufe bleiben)", seiten=("e_erp_preise",), vorgabe="nein"),
+             "Knopf „Preise aus ERP-CSV …“ bei den Preisen, ERP-Preis je Abmessung nach dem Optimieren und die "
+             "Seite ERP-Preisimport (gespeicherte Käufe und gewählte Preise in Angeboten bleiben)", seiten=("e_erp_preise",), vorgabe="nein"),
 )
 FUNKTION = {f.name: f for f in FUNKTIONEN}
 
