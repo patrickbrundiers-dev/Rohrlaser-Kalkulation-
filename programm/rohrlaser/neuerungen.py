@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.210", "<b>Lizenzpflicht ab 20.11.2026</b> ([[lesemodus]]): Bis zum 19.11. zeigt das Programm ohne gültige "
+    ["0.9.211", "<b>Lizenzpflicht ab 20.11.2026</b> ([[lesemodus]]): Bis zum 19.11. zeigt das Programm ohne gültige "
                 "Lizenz nur den Hinweis mit dem Termin, ab dem 20.11.2026 schaltet es in den Lesemodus (ansehen, "
                 "exportieren, sichern und Updates gehen weiter, Daten bleiben erhalten). <b>Schutz der "
                 "Programmdateien</b>: Beim Start prüft das Programm seine eigenen Dateien gegen die signierte "
@@ -29,6 +29,18 @@ NEUERUNGEN = [
                 "unerwartet ab, startet das Programm ab dem 20.11. im Lesemodus statt ohne Prüfung. Das "
                 "Lizenz-Werkzeug liegt nicht mehr im öffentlichen Download.",
      "Lizenzpflicht ab 20.11.2026; Programm prüft beim Start seine eigenen Dateien"],
+    ["0.9.210", "<b>Aufgeschnittene Rohre aus der STEP</b> ([[offene_rohre]]): Rechteckrohr mit großem Ausschnitt über "
+                "Oberseite und Seitenwände (Trapez), der die Seitenwände nur teilweise wegnimmt, galt als V-Ausschnitt "
+                "eines Knickrahmens und stand im Editor bis 16 mm neben der STEP – jetzt Sonderkontur genau wie "
+                "gezeichnet; ein V ist es nur noch, wenn die Seitenwände bis an die Stegwand durchgeschnitten sind "
+                "([[knickrahmen]]). Quadrat-/Rechteckrohr, oben zwischen den Enden offen und mit Fenster in einer "
+                "Seitenwand: die Rohrachse lag im Schwerpunkt des offenen Stücks (13 mm daneben), jetzt aus den "
+                "geschlossenen Querschnitten. Ebenso behoben: Quadratrohr mit Gehrung an beiden Enden und Fenster "
+                "(3 mm daneben), Schlitz über den Eckradius ins Ende (0,5 mm), Winkel/U mit Ausklinkung am Ende (freies "
+                "Schenkelende schräg). Teile-Editor: ein komplexes Ende aus der STEP heißt nicht mehr „gerade“. "
+                "<b>Gegenprobe beim Übernehmen</b> ([[schneidweg_rechner]]): das 3D-Modell des Editors wird mit den "
+                "Linien der STEP verglichen, ab 0,1 mm Abweichung bekommt die Position einen Hinweis.",
+     "Aufgeschnittene Rohre im Editor genau wie in der STEP, Gegenprobe Editor gegen STEP beim Übernehmen"],
     ["0.9.209", "<b>STEP-Export gegen die Mutter-STEP geprüft</b> ([[step_mutter]]): Nach jedem STEP speichern "
                 "(Rohr-Editor, Blech-Editor, Schweißbaugruppe, Satz in 3D) vergleicht das Programm jeden Körper mit "
                 "dem Körper der eingelesenen Kundendatei – genau gleich, örtlich geändert (Schlitze/Nasen der "
