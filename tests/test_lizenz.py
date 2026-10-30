@@ -171,7 +171,23 @@ pruefe(z.stufe == "lesemodus" and not z.nur_lesen and z.darf() and "braucht das 
        and z.farbe == "gelb", "Stufe 1: keine Sperre, nur Hinweis")
 z = zustand(lizenzdatei(bis=HEUTE - datetime.timedelta(days=60)), durchsetzung=False)
 pruefe(not z.nur_lesen and z.darf(), "Stufe 1: abgelaufene Lizenz sperrt nicht")
-pruefe(lizenz.DURCHSETZUNG is False, "Auslieferung in Stufe 1 (DURCHSETZUNG aus)")
+pruefe(lizenz.DURCHSETZUNG is True and lizenz.DURCHSETZUNG_AB == datetime.date(2026, 11, 20)
+       and lizenz.STICHTAG == "20.11.2026", "Stufe 2 ab 20.11.2026 (Patrick 30.10.: b)")
+pruefe(not lizenz.durchsetzung_aktiv(datetime.date(2026, 11, 19)) and lizenz.durchsetzung_aktiv(datetime.date(2026, 11, 20)),
+       "Stufe 1 bis 19.11., Stufe 2 ab 20.11.")
+pruefe(lizenz.durchsetzung_aktiv(datetime.date(2026, 11, 1), datetime.date(2026, 12, 1)),
+       "Uhr zurückgestellt: das späteste gesehene Datum zählt")
+z = lizenz.ermitteln(None, datetime.date(2026, 11, 19), RECHNER, SCHL)
+pruefe(not z.nur_lesen and "Ab 20.11.2026 braucht das Programm eine Lizenz" in z.hinweis, "19.11. ohne Lizenz: Hinweis mit Termin")
+z = lizenz.ermitteln(None, datetime.date(2026, 11, 20), RECHNER, SCHL)
+pruefe(z.nur_lesen and z.durchsetzung, "20.11. ohne Lizenz: Lesemodus")
+for art in ("benutzer", "admin"):
+    z = lizenz.ermitteln(lizenzdatei(art=art, bis=None if art == "admin" else HEUTE + datetime.timedelta(days=100)),
+                         HEUTE, RECHNER, SCHL, durchsetzung=True, veraendert="lizenz geändert")
+    pruefe(z.stufe == "lesemodus" and "Programmdateien verändert (lizenz geändert)" in z.nur_lesen,
+           f"veränderte Programmdateien: Lesemodus auch mit gültiger Lizenz ({art})")
+z = lizenz.ermitteln(lizenzdatei(), HEUTE, RECHNER, SCHL, durchsetzung=False, veraendert="lizenz geändert")
+pruefe(not z.nur_lesen and z.darf(), "veränderte Programmdateien in Stufe 1: nur Hinweis")
 
 # ------------------------------------------------------------------ L15 Lizenz laden
 o = tmp / "laden"

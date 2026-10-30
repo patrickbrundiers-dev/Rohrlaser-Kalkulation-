@@ -9,7 +9,8 @@ Lizenzarten: admin (unbefristet, Rechner Pflicht), benutzer und test (Ablaufdatu
 ermitteln(). Eine Admin-Lizenz kann das Admin-Passwort als Hash enthalten (Feld admin_passwort, passwort.py): Dann gilt
 nur dieses (ändern = neue Admin-Lizenz), sonst wie bisher das Passwort der Einstellungen. Passwort vergessen: ein
 Notfallcode aus dem Lizenz-Werkzeug (signiert, nur für einen Rechner, Ausstelltag und Folgetag) schaltet einmal frei. Eine abgelaufene oder fehlende Lizenz sperrt nie die Daten, sondern schaltet in den Lesemodus –
-und das auch erst, wenn DURCHSETZUNG eingeschaltet ist (Einführung in zwei Stufen, Plan Abschnitt 13).
+und das auch erst ab DURCHSETZUNG_AB (Einführung in zwei Stufen, Plan Abschnitt 13). Sind eigene Programmdateien
+verändert (echtheit.py), gilt dasselbe wie ohne Lizenz.
 
 Gegen eine zurückgestellte Uhr merkt sich das Programm das späteste gesehene Datum (Lizenz/zeit.json und die
 Einstellung lizenz_zuletzt in der Datendatei, es zählt der größere Wert). Die Sperrliste (Widerruf) kommt signiert
@@ -40,10 +41,13 @@ STANDARD_MONATE = 3        # Vorgabe-Laufzeit einer Benutzerlizenz im Lizenz-Wer
 TEST_TAGE = 30             # Vorgabe-Laufzeit einer Testlizenz
 ADMIN_RECHNER_MAX = 3      # Admin-Lizenz: bis zu 3 Rechner (Entscheidung E6)
 
-# Einführung in zwei Stufen: False = Stufe 1 (nur Hinweis, keine Sperre). True = Stufe 2 (Lesemodus ohne gültige
-# Lizenz). Geht etwas schief, schaltet ein Update sie wieder aus.
-DURCHSETZUNG = False
-STICHTAG = ""              # Stufe 1: ab wann eine Lizenz nötig ist (Text im Hinweis), leer = „demnächst“
+# Einführung in zwei Stufen: vor DURCHSETZUNG_AB Stufe 1 (nur Hinweis, keine Sperre), ab diesem Tag Stufe 2
+# (Lesemodus ohne gültige Lizenz; Patrick 30.10.2026 „b“, Termin aus E10: frühestens 4 Wochen nach Stufe 1). Es zählt
+# das späteste je gesehene Datum, eine zurückgestellte Uhr verschiebt den Tag nicht. DURCHSETZUNG = False schaltet
+# die Stufe 2 ganz ab, falls etwas schiefgeht (per Update).
+DURCHSETZUNG = True
+DURCHSETZUNG_AB = datetime.date(2026, 11, 20)
+STICHTAG = DURCHSETZUNG_AB.strftime("%d.%m.%Y")   # Text im Hinweis der Stufe 1
 
 ORDNER = "Lizenz"
 AKTIV = "aktiv.lizenz"
@@ -325,7 +329,7 @@ class Zustand:
     farbe: str = ""
     tage_rest: int = None    # bis Ablauf (negativ: abgelaufen seit)
     start_hinweis: bool = False
-    durchsetzung: bool = DURCHSETZUNG
+    durchsetzung: bool = False
     admin_aus: bool = False  # Admin-Lizenz, aber Passwort beim Start nicht eingegeben: wie eine Benutzerlizenz
 
     @property
@@ -356,14 +360,21 @@ def _datum_text(d):
     return d.strftime("%d.%m.%Y")
 
 
+def durchsetzung_aktiv(heute=None, spaetestes=None):
+    """True ab Stufe 2: DURCHSETZUNG an und das heutige bzw. späteste gesehene Datum ab DURCHSETZUNG_AB."""
+    tage = [d for d in (heute or datetime.date.today(), spaetestes) if d is not None]
+    return bool(DURCHSETZUNG) and max(tage) >= DURCHSETZUNG_AB
+
+
 def ermitteln(quelle, heute=None, rechner=None, schluessel=None, sperrliste=None, spaetestes=None,
-              durchsetzung=None):
+              durchsetzung=None, veraendert=""):
     """Lizenzzustand. quelle: Lizenzdatei (Pfad/Text/dict) oder None (keine Lizenz). heute: datetime.date.
     rechner: Rechner-ID dieses Rechners. sperrliste: geprüfte Sperrliste (dict) oder None. spaetestes: spätestes
-    gesehenes Datum (Uhr-Prüfung). durchsetzung: Vorgabe DURCHSETZUNG (Stufe 2)."""
+    gesehenes Datum (Uhr-Prüfung). durchsetzung: Vorgabe durchsetzung_aktiv() (Stufe 2). veraendert: Befund der
+    Prüfung der eigenen Programmdateien (echtheit.pruefen), dann Lesemodus wie ohne Lizenz, auch für Admin."""
     heute = heute or datetime.date.today()
     rechner = rechner_id() if rechner is None else rechner
-    durch = DURCHSETZUNG if durchsetzung is None else durchsetzung
+    durch = durchsetzung_aktiv(heute, spaetestes) if durchsetzung is None else durchsetzung
 
     def lesemodus(grund, inhalt=None):
         if durch:
@@ -375,6 +386,8 @@ def ermitteln(quelle, heute=None, rechner=None, schluessel=None, sperrliste=None
         return Zustand("lesemodus", rechner, inhalt or {}, grund, hinweis, "rot" if durch else "gelb",
                        start_hinweis=durch, durchsetzung=durch)
 
+    if veraendert:
+        return lesemodus(f"Programmdateien verändert ({veraendert}) – bitte das Programm neu installieren")
     if quelle is None:
         return lesemodus(f"keine Lizenz geladen, Rechner-ID {rechner or 'unbekannt'}")
     try:
@@ -474,7 +487,7 @@ def lizenz_laden(ordner_, quelle, heute=None, rechner=None, schluessel=None):
 
 
 def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zuletzt=None, durchsetzung=None,
-                      merken=True):
+                      merken=True, veraendert=""):
     """Zustand für einen Datenordner: aktive Lizenz, gespeicherte Sperrliste, Uhr-Prüfung. merken: spätestes Datum
     fortschreiben (nur befristete Lizenzen werten es aus). Ergebnis: (Zustand, neues spätestes Datum als Text)."""
     heute = heute or datetime.date.today()
@@ -485,7 +498,7 @@ def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zul
     ers = ersetzte(o)
     if ers:                         # ersetzte Lizenzen (neues Admin-Passwort) gelten wie gesperrt
         sperr = dict(sperr or {}, gesperrt=sorted(set((sperr or {}).get("gesperrt") or []) | ers))
-    z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung)
+    z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert)
     neu = None
     if merken and not uhr_zurueck(heute, spaet):
         neu = zeit_merken(o, heute, spaet)
@@ -496,8 +509,9 @@ class LizenzStelle:
     """Lizenz eines laufenden Programms: Ordner Lizenz im Datenordner und die Datendatei (Einstellung
     lizenz_zuletzt, Lesemodus). pruefen() ermittelt den Zustand und schaltet den Lesemodus der Datenbank."""
 
-    def __init__(self, ordner_, db=None, schluessel=None, rechner=None, durchsetzung=None):
+    def __init__(self, ordner_, db=None, schluessel=None, rechner=None, durchsetzung=None, veraendert=""):
         self.ordner = Path(ordner_)
+        self.veraendert = veraendert    # Befund echtheit.pruefen beim Start ('' = Programmdateien unverändert)
         self.db = db
         self.schluessel = schluessel
         self.rechner = rechner_id() if rechner is None else rechner
@@ -510,7 +524,8 @@ class LizenzStelle:
 
     def pruefen(self, heute=None):
         db_wert = self.db.einstellung(EINSTELLUNG_ZULETZT) if self.db is not None else None
-        z, neu = zustand_im_ordner(self.ordner, heute, self.rechner, self.schluessel, db_wert, self.durchsetzung)
+        z, neu = zustand_im_ordner(self.ordner, heute, self.rechner, self.schluessel, db_wert, self.durchsetzung,
+                                   veraendert=self.veraendert)
         if self.db is not None:
             if self.db.nur_lesen:
                 self.db.lesemodus("")

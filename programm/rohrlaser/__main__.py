@@ -21,6 +21,7 @@ import argparse
 import json
 import sys
 import tempfile
+import time
 import traceback
 from pathlib import Path
 
@@ -97,6 +98,10 @@ def selbsttest(app, ergebnis, step_dateien=()):
     from .fenster import Hauptfenster
     protokoll = []
     try:
+        befund = echtheit_pruefen()
+        if befund:
+            raise RuntimeError(f"Programmdateien: {befund}")
+        protokoll.append("Programmdateien: " + ("unverändert" if getattr(sys, "frozen", False) else "nicht geprüft"))
         with tempfile.TemporaryDirectory() as tmp:
             db = Datenbank(Path(tmp) / "rohrlaser.db")
             f = Hauptfenster(db, programmordner(), stumm=True)
@@ -318,17 +323,35 @@ def oeffnen_fehlgeschlagen(orte_, fehler):
         return False
 
 
+def echtheit_pruefen():
+    """Befund der Prüfung der eigenen Programmdateien (echtheit.py); nur im ausgelieferten Programm (.exe)."""
+    from . import echtheit, protokoll
+    if not getattr(sys, "frozen", False):
+        return ""
+    start = time.perf_counter()
+    befund = echtheit.pruefen(programmordner())
+    protokoll.info(f"Programmdateien: {'keine Dateiliste' if befund is None else befund or 'unverändert'} "
+                   f"({time.perf_counter() - start:.2f} s)")
+    return befund or ""
+
+
 def lizenz_pruefen(orte_, db):
     """Lizenzzustand beim Start (schaltet die Datenbank ggf. in den Lesemodus). Ein unerwarteter Fehler der Prüfung
-    sperrt nie aus: er wird protokolliert, das Programm startet ohne Lizenzprüfung."""
+    wird protokolliert; vor Stufe 2 startet das Programm dann ohne Lizenzprüfung, ab Stufe 2 im Lesemodus (sonst
+    ließe sich die Lizenz umgehen, indem man die Prüfung zum Absturz bringt). Daten bleiben immer lesbar."""
     from . import lizenz, protokoll
     try:
-        stelle = lizenz.LizenzStelle(lizenz.ordner(orte_.daten), db)
+        stelle = lizenz.LizenzStelle(lizenz.ordner(orte_.daten), db, veraendert=echtheit_pruefen())
         z = stelle.pruefen()
         protokoll.info(f"Lizenz: {z.stufe} – {stelle.text()}")
         return stelle
     except Exception:       # noqa: BLE001
         protokoll.info("Lizenzprüfung fehlgeschlagen:\n" + traceback.format_exc())
+        try:
+            if lizenz.durchsetzung_aktiv():
+                db.lesemodus("Lizenzprüfung fehlgeschlagen – bitte Patrick melden (Hilfe → Lizenz …)")
+        except Exception:   # noqa: BLE001
+            protokoll.info("Lesemodus nach fehlgeschlagener Lizenzprüfung nicht gesetzt:\n" + traceback.format_exc())
         return None
 
 
