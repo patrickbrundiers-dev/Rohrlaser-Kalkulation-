@@ -1331,8 +1331,8 @@ def kapitel_angebot(i):
            "<b>Abruf-/Rahmenangebot</b>. Die Stückzahlen der Positionen sind der kleinste Abruf; Programmierung und "
            "Muster werden auf die Jahresmenge verteilt, Rüsten und Fracht zählen je Abruf.", kurz=True)
     i.genauer()
-    i.liste("Fenster <b>Abrufdaten …</b>: Jahresmenge von/bis, Abrufmenge von/bis, Laufzeit/Preisbindung in Monaten "
-            "(Vorgabe aus den Einstellungen, 12) und Material. Neben dem Knopf steht die Kurzfassung, z. B. „4.000 "
+    i.liste("Fenster <b>Abrufdaten …</b>: Jahresmenge von, Jahresmenge bis, Abrufmenge von, Abrufmenge bis, "
+            "Laufzeit / Preisbindung [Monate] (Vorgabe aus den Einstellungen, 12), Material und Lagerzins. Neben dem Knopf steht die Kurzfassung, z. B. „4.000 "
             "bis 6.000 Stk./Jahr, Abruf 400 bis 600 Stk., ca. 7 bis 15 Abrufe, 12 Monate“.",
             "Einmalkosten: Die Programmierung einer Position geht nur anteilig in den Abruf, Stückzahl ÷ Jahresmenge "
             "(Jahresmenge der Position = Stückzahl × Jahresmenge von ÷ Abrufmenge von, im Beispiel 400 von 4.000 "
@@ -1357,8 +1357,9 @@ def kapitel_angebot(i):
             "Laufzeit, Lieferzeit je Abruf, Materialklausel bzw. Bevorratung, Muster vorab (nur mit Musterteilen) "
             "und dem Vorbehalt der Nachberechnung, wenn die Mindestjahresmenge nicht abgenommen wird. Die Texte "
             "stehen in den Einstellungen (Seite <i>Texte im PDF</i>).",
-            "Haken aus: das Angebot rechnet wieder normal, die Abrufdaten bleiben gespeichert. Die Funktion lässt "
-            "sich auf der Seite <i>Funktionen</i> ausblenden; vorhandene Abruf-Angebote bleiben.")
+            "Haken aus: das Angebot rechnet wieder normal, die Abrufdaten bleiben gespeichert. Die Funktion "
+            "<i>Abruf-/Rahmenangebote</i> lässt sich auf der Seite <i>Funktionen</i> ausblenden; vorhandene "
+            "Abruf-Angebote bleiben.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Werte, die 0 sind und nur optional etwas kosten würden, stehen im aufklappbaren Bereich <b>Erweiterte "
            "Einstellungen</b> (Titel z. B. „1 Wert auf 0“). Sobald ein Wert nicht 0 ist, steht er wieder oben.")
@@ -5977,13 +5978,14 @@ def kapitel_einstellungen(i):
                          "Serienbestellung nach Musterlieferung [Tage]",
          "Hinweis bei den Bedingungen, was die Muster kosten, wenn keine Serie bestellt wird; Platzhalter {pos}, "
          "{datum} (Angebotsdatum + Frist, Vorgabe 90 Tage) und {betrag} ([[musterteile]])."],
-        ["Angebots-PDF", "Abruf-Angebot: Rahmenbedingungen im PDF, Text Material je Abruf (Materialklausel), "
-                         "Materialklausel ab Preisänderung [%], Text Material bevorratet, Text Muster vorab",
+        ["Angebots-PDF", "Abruf-Angebot: Rahmenbedingungen im PDF; Abruf-Angebot: Text Material je Abruf "
+                         "(Materialklausel); Abruf-Angebot: Materialklausel ab Preisänderung [%]; Abruf-Angebot: Text "
+                         "Material bevorratet; Abruf-Angebot: Text Muster vorab",
          "Block „Rahmenbedingungen“ im Abruf-Angebot. Platzhalter {jahr}, {abruf}, {abrufe}, {laufzeit}, "
          "{material} (Materialtext) und {muster} (Mustertext, nur mit Musterteilen); im Materialtext {klausel} "
          "(Vorgabe 5 %) und {datum} ([[abruf_angebot]])."],
-        ["Kalkulation", "Abruf-Angebot: Lagerzins bei bevorratetem Material [% p. a.] und Laufzeit und Preisbindung "
-                        "[Monate]",
+        ["Kalkulation", "Abruf-Angebot: Lagerzins bei bevorratetem Material [% p. a.]; Abruf-Angebot: Laufzeit und "
+                        "Preisbindung [Monate]",
          "Vorgaben für neue Abruf-Angebote (8 % und 12 Monate), je Angebot im Fenster <i>Abrufdaten</i> änderbar "
          "([[abruf_angebot]])."],
         ["Ansicht", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)",
