@@ -109,6 +109,7 @@ for falsch in ("6000/", "abc", "2**3"):
 ok("Zahlenfelder und Tabellen: rechnen wie im Teile-Editor, Tausenderpunkt, Grenzen, unfertige Rechnung rot")
 
 # ---------------------------------------------------------------- E1/E2 Einstellungen
+f.bereich.oeffnen("av")             # Admin-Schutz: Lieferlängen-Regeln ändert nur der Admin
 e = f.einstellungen
 sw = e.felder["laenge_vergleich"]
 assert isinstance(sw, Schalter) and sw.currentText() == "nein" and not sw.isChecked()

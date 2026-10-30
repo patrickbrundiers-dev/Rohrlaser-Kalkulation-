@@ -208,11 +208,14 @@ def _neu_laden(fenster, bericht, voll):
         for seite in fenster.offen.values():
             if (getattr(seite, "kopf", None) or {}).get("fremd"):
                 seite._fremd_anzeigen()
-    if bericht.get("stammdaten"):
+    if bericht.get("stammdaten") or bericht.get("admin_vorgaben"):
         for s in fenster.seiten:
             s.neu_laden()
         for s in (fenster.zukauf, fenster.zusatz, fenster.einstellungen, fenster.fracht):
             s.neu_laden()
+    if bericht.get("admin_vorgaben"):       # Schutzliste und Funktionen können sich geändert haben
+        fenster.funktionen_anwenden()
+        fenster.bereich.schutz_anwenden()
 
 
 def _vorgaenge_zeigen(fenster, bericht, leise):
@@ -628,7 +631,7 @@ def abgleichen(fenster, lesen=True, schreiben=True, leise=False, beenden=False, 
     bericht["nummern"] = umnummeriert
     if lesen or uebernehmen or umnummeriert:
         _neu_laden(fenster, bericht, voll=not auto)
-    neues = any(bericht.get(n) for n in ("angebote_neu", "angebote_geaendert", "angebote_weg", "stammdaten",
+    neues = any(bericht.get(n) for n in ("angebote_neu", "angebote_geaendert", "angebote_weg", "stammdaten", "admin_vorgaben",
                                          "uebernommen", "konflikte", "nummern", "notizen"))
     if not auto or neues:
         fenster.meldung(teilen.bericht_text(bericht),

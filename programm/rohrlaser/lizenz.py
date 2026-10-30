@@ -556,6 +556,17 @@ class LizenzStelle:
         z = self.zustand or self.pruefen()
         return z.admin_aus
 
+    def passwort_gilt(self, passwort, heute=None):
+        """Admin-Schutz der Einstellungen (admin_schutz.py): True, wenn passwort das Admin-Passwort (Admin-Lizenz oder
+        Einstellung 'passwort') oder ein gültiger Notfallcode ist. Ändert die Admin-Rechte der Lizenz nicht."""
+        if pruefen_passwort(passwort, self.admin_passwort()):
+            return True
+        if self.db is not None and self.db.einstellung("passwort") and pruefen_passwort(passwort,
+                                                                                          self.db.einstellung("passwort")):
+            return True
+        return notfallcode_gueltig(passwort, getattr(self, "rechner", ""), heute, getattr(self, "schluessel", None),
+                                   self._spaetestes())
+
     def admin_freigeben(self, passwort, heute=None):
         """Admin-Rechte mit dem Passwort (oder einem Notfallcode) freischalten. Ergebnis: True = Admin-Rechte an."""
         if pruefen_passwort(passwort, self.admin_passwort()):

@@ -22,7 +22,7 @@ from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequenc
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QApplication, QSpinBox, QSplitter, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QApplication, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
@@ -149,14 +149,16 @@ class StammdatenModell(QAbstractTableModel):
             return QBrush(FARBE_EINGABE if art == "feld" else FARBE_BERECHNET)
         return None
 
+    admin_gesperrt = False      # Admin-Schutz (admin_schutz_fenster.sperren): ansehen ja, ändern nein
+
     def flags(self, index):
         f = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-        if self.spalten[index.column()][0] == "feld":
+        if self.spalten[index.column()][0] == "feld" and not self.admin_gesperrt:
             f |= Qt.ItemIsEditable
         return f
 
     def setData(self, index, text, rolle=Qt.ItemDataRole.EditRole):
-        if rolle != Qt.ItemDataRole.EditRole or not index.isValid():
+        if rolle != Qt.ItemDataRole.EditRole or not index.isValid() or self.admin_gesperrt:
             return False
         art, f = self.spalten[index.column()]
         if art != "feld":
@@ -526,6 +528,9 @@ class StammdatenSeite(QWidget):
         return self.modell.daten[self.filter.mapToSource(idx).row()]
 
     def zeile_neu(self):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):
+            return
         self.suche.clear()
         try:
             r = self.modell.zeile_neu(self.vorgabe or None)
@@ -538,6 +543,9 @@ class StammdatenSeite(QWidget):
         self.ansicht.edit(idx)
 
     def zeilen_loeschen(self):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):
+            return
         zeilen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
         if not zeilen:
             self.meldung("Bitte zuerst die Zeilen markieren, die gelöscht werden sollen.", fehler=True)
@@ -828,6 +836,7 @@ class EinstellungenSeite(QScrollArea):
     BREITE_ZAHL, BREITE_TEXT, BREITE_TITEL = 160, 380, 300
 
     admin = False           # Admin-Rechte: nur dann ist das Passwort der Einstellungen änderbar (admin_setzen)
+    gesperrte = frozenset()     # Admin-Schutz: diese Einstellungen grau (schutz_setzen)
     schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
 
     def __init__(self, db, meldung, gruppen=None, ohne=(), seite=None):
@@ -1194,6 +1203,22 @@ class EinstellungenSeite(QScrollArea):
                     else:
                         w.setText(str(g))
         self._laden = False
+        self._schutz_anwenden()
+
+    def schutz_setzen(self, namen):
+        """Admin-Schutz: Einstellungen namen sind gesperrt (grau, nicht änderbar), alle anderen frei."""
+        self.gesperrte = frozenset(namen)
+        self._schutz_anwenden()
+
+    def _schutz_anwenden(self):
+        for name, w in self.felder.items():
+            zu = name in self.gesperrte
+            sw = self.wert_schalter.get(name)
+            if sw is not None:
+                sw.setEnabled(not zu)
+                w.setEnabled(not zu and sw.isChecked())
+            else:
+                w.setEnabled(not zu)
 
 
 class EinstellungenSammlung:
@@ -1268,94 +1293,118 @@ class ZeitvorgabenSeite(QWidget):
 
 
 class EinstellungenBereich(QWidget):
-    """Reiter Einstellungen: erst Passwort, dann Unterreiter Vorgaben und Stammdaten (ohne Kunden).
-    Einmal geöffnet bleibt er offen, bis 'Sperren' gedrückt oder das Programm beendet wird."""
+    """Reiter Einstellungen: Unterreiter Vorgaben und Stammdaten (ohne Kunden), frei zugänglich. Seiten mit Admin-
+    Schutz (admin_schutz.py, Plan 30.10.2026) ändert nur der Admin: oben die Schlossleiste mit Admin-Passwort und
+    „Als Admin freischalten …“. Freigeschaltet bleibt es bis 'Admin sperren', Programmende oder 15 Minuten ohne
+    Eingabe. Bis 0.9.207 war der ganze Reiter mit einem Passwort gesperrt (Frage 5a: entfällt)."""
 
     def __init__(self, db, vorgaben, seiten):
+        from . import admin_schutz
+        from .admin_schutz_fenster import SchlossLeiste
         super().__init__()
         self.db = db
-        self.stapel = QStackedWidget()
-        # Sperre
-        sperre = QWidget()
-        self.passwort = QLineEdit()
-        self.passwort.setEchoMode(QLineEdit.Password)
-        self.passwort.setPlaceholderText("Passwort")
-        self.passwort.setMaximumWidth(220)
-        self.passwort.returnPressed.connect(self.oeffnen)
-        oeffnen = QPushButton("Einstellungen öffnen")
-        oeffnen.clicked.connect(self.oeffnen)
-        self.fehler = QLabel()
-        self.fehler.setStyleSheet("color: #B42318;")
-        zeile = QHBoxLayout()
-        zeile.addWidget(self.passwort)
-        zeile.addWidget(oeffnen)
-        zeile.addStretch(1)
-        ls = QVBoxLayout(sperre)
-        text = QLabel("<h3>Einstellungen</h3><p>Vorgaben und Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, "
-                      "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) sind mit einem Passwort geschützt.</p>")
-        text.setWordWrap(True)
-        ls.addWidget(text)
-        ls.addLayout(zeile)
-        ls.addWidget(self.fehler)
-        ls.addStretch(1)
-        # Inhalt
-        inhalt = QWidget()
+        self.sitzung = admin_schutz.Sitzung()
+        admin_schutz.SITZUNG = self.sitzung
+        self.pruefer = db.passwort_pruefen      # Hauptfenster: Lizenz (Admin-Lizenz, Notfallcode)
+        self.passwort_in_lizenz = False         # Admin-Passwort steht in der Admin-Lizenz (Lizenz-Werkzeug)
+        self.nach_schutz = None                 # Rückruf nach jeder Änderung des Schutzes (Frachtkosten)
+        self.vorgaben = vorgaben
+        self.leiste = SchlossLeiste(self)
+        self.passwort, self.fehler = self.leiste.passwort, self.leiste.fehler
         self.unter = NavigationsReiter()     # Navigation links mit Suche (Layout-Plan L11)
         for s in (vorgaben.seiten if isinstance(vorgaben, EinstellungenSammlung) else [vorgaben]):
             self.unter.addTab(s, getattr(s, "titel", None) or "Vorgaben")
         for s in seiten:
             self.unter.addTab(s, getattr(s, "titel", None) or s.t.titel)
+        self.grundtitel = [self.unter.tabText(i) for i in range(self.unter.count())]
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
-        sperren = QPushButton("Einstellungen sperren")
-        sperren.clicked.connect(self.sperren)
-        sperren.setMinimumWidth(90)                 # schmale Fenster (1024 px): Navigation darf schmaler werden
-        self.unter.links.addWidget(sperren)         # unter der Navigation: oben bleibt keine Leerzeile
-        li = QVBoxLayout(inhalt)
-        li.setContentsMargins(0, 0, 0, 0)
-        li.addWidget(self.unter, 1)
-        self.stapel.addWidget(sperre)
-        self.stapel.addWidget(inhalt)
+        self.sperren_knopf = self.leiste.sperren
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(self.stapel)
-        self.offen = False
-        self.sperren()
+        lay.addWidget(self.leiste)
+        lay.addWidget(self.unter, 1)
+        self.schutz_anwenden()
 
-    admin = False           # Admin-Lizenz: ohne Passwort (Hauptfenster.lizenz_anwenden)
+    admin = False           # Admin-Lizenz: Kennzahlen, Auswertung (Hauptfenster.lizenz_anwenden)
+
+    @property
+    def offen(self):
+        """Als Admin freigeschaltet (oder kein Admin-Passwort gesetzt)."""
+        return not self.gesperrt()
+
+    @offen.setter
+    def offen(self, an):
+        if an:
+            self.sitzung.freischalten()
+        else:
+            self.sitzung.sperren()
 
     def gesperrt(self):
-        return not self.offen and not self.admin and bool(self.db.einstellung("passwort"))
+        """True, wenn die geschützten Seiten gerade gesperrt sind (Admin-Passwort gesetzt, nicht freigeschaltet)."""
+        from . import admin_schutz
+        return not admin_schutz.ist_admin(self.db, self.sitzung)
+
+    def bereich_gesperrt(self, schluessel):
+        """True, wenn der Bereich (Seite oder Tabelle, admin_schutz.bereiche) für diesen Platz gerade gesperrt ist."""
+        from . import admin_schutz
+        return self.gesperrt() and schluessel in admin_schutz.geschuetzt_liste(self.db)
 
     def oeffnen(self, passwort=None):
-        """Mit dem Passwort aus dem Eingabefeld (oder dem übergebenen) öffnen. Ergebnis: geöffnet ja/nein."""
+        """Als Admin freischalten mit dem Passwort aus der Schlossleiste (oder dem übergebenen): Admin-Passwort der
+        Admin-Lizenz, das Passwort der Einstellungen oder ein Notfallcode. Ergebnis: freigeschaltet ja/nein."""
         text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
         self.passwort.clear()
-        if not self.db.passwort_pruefen(text):
+        if not self.pruefer(text):
             self.fehler.setText("Passwort falsch.")
             return False
-        self.offen = True
+        self.sitzung.freischalten()
         self.fehler.clear()
-        self.stapel.setCurrentIndex(1)
         self.neu_laden()
         return True
 
     def sperren(self):
-        self.offen = False
-        self.stapel.setCurrentIndex(1 if not self.gesperrt() else 0)
+        self.sitzung.sperren()
+        self.schutz_anwenden()
+
+    def schutz_anwenden(self):
+        """Schutz auf alle Seiten: geschützte Einstellungen grau, geschützte Tabellen nicht änderbar, Schloss vor den
+        geschützten Seiten in der Navigation, Schlossleiste passend zur gewählten Seite."""
+        from . import admin_schutz
+        from .admin_schutz_fenster import SCHLOSS, sperren
+        from .einstellungen_nav import schluessel
+        aktiv = admin_schutz.aktiv(self.db)
+        zu = self.gesperrt()
+        schutz = admin_schutz.geschuetzt_liste(self.db)
+        namen = admin_schutz.einstellungen_geschuetzt(self.db) if zu else set()
+        for i in range(self.unter.count()):
+            seite = self.unter.widget(i)
+            k = getattr(seite, "schutz_bereich", None) or schluessel(seite)
+            gesch = k in schutz
+            self.unter.setTabText(i, f"{self.grundtitel[i]} {SCHLOSS}" if aktiv and gesch else self.grundtitel[i])
+            if hasattr(seite, "schutz_setzen") and isinstance(seite, EinstellungenSeite):
+                seite.schutz_setzen(namen)
+            elif hasattr(seite, "schutz_setzen"):
+                seite.schutz_setzen(zu)
+            else:
+                sperren(seite, zu and gesch)
+        admin = aktiv and not zu
+        if isinstance(self.vorgaben, EinstellungenSammlung):
+            self.vorgaben.admin_setzen(not zu and not self.passwort_in_lizenz)
+        w = self.unter.currentWidget()
+        aktuell = (getattr(w, "schutz_bereich", None) or schluessel(w)) if w is not None else ""
+        self.leiste.anzeigen(aktiv, admin, zu and aktuell in schutz)
+        if self.nach_schutz:
+            self.nach_schutz()
 
     def zeigen(self, seite):
         """Unterreiter auswählen (z. B. Vorgaben oder eine Stammdatenseite)."""
         self.unter.setCurrentWidget(seite)
 
     def neu_laden(self):
-        if self.gesperrt():
-            self.stapel.setCurrentIndex(0)
-            self.passwort.setFocus()
-            return
-        self.stapel.setCurrentIndex(1)
         w = self.unter.currentWidget()
         if hasattr(w, "neu_laden"):
             w.neu_laden()
+        self.schutz_anwenden()
 
 
 class StartSeite(QWidget):
@@ -1737,9 +1786,16 @@ class Hauptfenster(QMainWindow):
         self.zusatz = ZusatzVerwaltung(db, self.meldung)
         unter = [self.zusatz if s.t.name == "zusatzarbeiten" else s for s in self.seiten
                  if s.t.name not in ("kunden", "stundensaetze", "arbeitsschritte")]
-        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben])
+        # Admin-Schutz (Plan 30.10.2026): Seite mit den Häkchen je Bereich
+        from .admin_schutz_fenster import AdminSchutzSeite, EingabeWaechter
+        self.admin_seite = AdminSchutzSeite(db, self.meldung, lambda: self.bereich.schutz_anwenden())
+        # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.211)
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
+        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite]
+                                            + self.fracht.pflege)
+        if self.lizenz is not None:
+            self.bereich.pruefer = self.lizenz.passwort_gilt
         self.reiter.addTab(self.fracht, "Frachtkosten")
         # Zukaufartikel: eigener Reiter (Artikel, Kategorien, Lieferanten), tägliche Arbeit ohne Passwort
         from .zukauf_seite import ZukaufBereich
@@ -1770,6 +1826,12 @@ class Hauptfenster(QMainWindow):
             zuletzt_quelle = db.zuletzt_benutzt
             from . import fenster_platz     # Fenster passen auf den Bildschirm, offenes Fenster bleibt vorne (E3/E6)
             self.fenster_platz = fenster_platz.einrichten(self)
+            self.eingabe_waechter = EingabeWaechter(self.bereich.sitzung)  # Admin sperrt nach 15 min ohne Eingabe
+            QApplication.instance().installEventFilter(self.eingabe_waechter)
+            self.admin_uhr = QTimer(self)
+            self.admin_uhr.setInterval(30_000)
+            self.admin_uhr.timeout.connect(self.admin_ablauf)
+            self.admin_uhr.start()
             from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
             self.fenster_merker = FensterMerker(db, self)
             QApplication.instance().installEventFilter(self.fenster_merker)
@@ -2213,10 +2275,13 @@ class Hauptfenster(QMainWindow):
                                           .get(farbe, ""))
         self.lizenz_hinweis.setVisible(bool(self.lizenz_hinweis.text()) and not z.admin)
         self.bereich.admin = z.admin
-        self.einstellungen.admin_setzen(z.admin)
-        if z.admin and not self.bereich.offen:
-            self.bereich.offen = True
-            self.bereich.neu_laden()
+        lizenz_pw = (z.inhalt or {}).get("admin_passwort") if z.stufe == "admin" else ""
+        self.bereich.passwort_in_lizenz = bool(lizenz_pw)
+        if z.admin and lizenz_pw and self.db.einstellung("passwort") != lizenz_pw and not self.db.nur_lesen:
+            self.db.einstellung_setzen("passwort", lizenz_pw)   # nur der Hash: gilt so an allen Plätzen (Frage 3a)
+        if z.admin and not self.bereich.sitzung.jemals:
+            self.bereich.offen = True           # Admin-Passwort beim Start eingegeben
+        self.bereich.neu_laden()
         pdf.AUFDRUCK = "TESTVERSION" if z.test else ""
         titel = f"{NAME} {update.stand_text(self.updater.lokal)}"
         self.setWindowTitle(titel + (" – Lesemodus" if z.nur_lesen else " – TESTVERSION" if z.test else ""))
@@ -2243,6 +2308,12 @@ class Hauptfenster(QMainWindow):
             lesemodus_anwenden(w)
         self.einstellungen.setEnabled(False)
         self.einstellungen.setToolTip(LESEMODUS_TIPP)
+
+    def admin_ablauf(self):
+        """Uhr alle 30 s: nach admin_schutz.MINUTEN ohne Eingabe die geschützten Seiten wieder sperren."""
+        if self.bereich.sitzung.ablauf_pruefen():
+            self.bereich.schutz_anwenden()
+            self.meldung("Admin gesperrt (15 Minuten ohne Eingabe).")
 
     def lizenz_zusatz(self, zusatz):
         """Vom Update-Check: neue Sperrliste übernehmen und Zeit abgleichen, dann den Zustand neu anzeigen."""
