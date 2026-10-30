@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.212", "<b>Kalkulations-PDF überarbeitet</b> ([[ausgabe]]): Seite 1 bleibt nicht mehr leer, Kostenarten und "
+    ["0.9.213", "<b>Kalkulations-PDF überarbeitet</b> ([[ausgabe]]): Seite 1 bleibt nicht mehr leer, Kostenarten und "
                 "neue <b>Kennzahlen</b> (Stundensatz von Hand/ermittelt, Zeitbasis, Gewinn, Preis je kg, Ertrag je "
                 "Maschinenstunde, Fracht, Abruf) stehen nebeneinander; der doppelte Kasten „Rüsten und Mengen“ ist "
                 "weg. Neu: Datum, Kunden-Nr. und Stundensatz im Kopf, Kachel Selbstkosten, Gewinn in %, greifende "
@@ -31,6 +31,13 @@ NEUERUNGEN = [
                 "Bezeichnung und den fehlenden Spalten (Schweißen, Fremdleistung, Gas, Ausschuss, Schrott, Lagerzins), "
                 "Zahlen brechen nicht mehr um. Die Rechnung selbst ist unverändert.",
      "Kalkulations-PDF: Kennzahlen, Stundensatz, Gewinnstufe, Fracht, Abruf, Staffeln, Zukaufteile; Seite 1 nicht mehr leer"],
+    ["0.9.212", "<b>Hauptadmin und weitere Admins</b> ([[admin_rechte]]): Neue Seite <i>Allgemein → Arbeitsplätze und "
+                "Rechte</i> mit allen Arbeitsplätzen (Name und Kürzel vom ersten Start, Rechner, Lizenz mit Ampel, "
+                "Version, zuletzt da). Der Hauptadmin (Passwort der Admin-Lizenz) gibt dort Mitarbeitern das Recht "
+                "<b>Admin</b> mit Startpasswort, sperrt Admins oder vergibt ein neues Startpasswort. Ein Admin schaltet "
+                "sich mit seinem eigenen Passwort frei, an jedem Arbeitsplatz mit gültiger Lizenz, und ändert alle "
+                "Seiten mit 🔒, aber nicht Admin-Schutz und Rechte. Der Verlauf zeigt, welcher Admin was geändert hat.",
+     "Hauptadmin und weitere Admins mit eigenem Passwort, Seite Arbeitsplätze und Rechte"],
     ["0.9.211", "<b>Admin-Schutz für Einstellungen</b> ([[passwort]]): Der Reiter Einstellungen öffnet für alle; "
                 "Seiten mit 🔒 (Vorschlag: Preise, Gewinn, Kosten, Maschinen, Schneiddaten, Firma, Funktionen, "
                 "Frachtkosten …) ändert nur der Admin, andere sehen die Werte grau. <b>Als Admin freischalten …</b> "
