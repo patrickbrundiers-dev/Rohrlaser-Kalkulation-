@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
-from . import fracht_angebot, hilfe, rechnen, teilen, zukauf
+from . import abruf, fracht_angebot, funktionen, hilfe, rechnen, teilen, zukauf
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
@@ -420,6 +420,27 @@ class KopfBereich(QWidget):
         self.muster_darstellung.currentTextChanged.connect(
             lambda t: seite._kopf_speichern(KOPF_FELD["muster_darstellung"], None if t == MUSTER_UMLEGEN else t))
         ml.addWidget(self.muster_darstellung, 1)
+        # Abruf-/Rahmenangebot (Patrick 30.10.2026): Haken, Fenster mit Jahres-/Abrufmenge, Kurzfassung
+        self.abruf_wahl = QWidget()
+        av = QVBoxLayout(self.abruf_wahl)
+        av.setContentsMargins(0, 0, 0, 0)
+        av.setSpacing(2)
+        al = QHBoxLayout()
+        self.abruf_an = QCheckBox("Abruf-/Rahmenangebot")
+        self.abruf_an.setToolTip("Jahresmenge in Abrufen: Stückzahlen = kleinster Abruf, Rüsten und Fracht je Abruf, "
+                                 "Programmierung und Musterteile auf die Jahresmenge verteilt, Rahmenbedingungen im "
+                                 "Angebots-PDF")
+        self.abruf_an.toggled.connect(lambda an: seite.abruf_umschalten(an))
+        self.abruf_knopf = QPushButton("Abrufdaten …")
+        self.abruf_knopf.clicked.connect(lambda: seite.abruf_bearbeiten())
+        self.abruf_kurz = QLabel()
+        self.abruf_kurz.setWordWrap(True)
+        self.abruf_kurz.setStyleSheet(f"color: {GRAU};")
+        al.addWidget(self.abruf_an)
+        al.addWidget(self.abruf_knopf)
+        al.addStretch(1)
+        av.addLayout(al)
+        av.addWidget(self.abruf_kurz)
         gruppen = QGridLayout()
         gruppen.setHorizontalSpacing(18)
         self.gruppen_leer = {}
@@ -465,6 +486,7 @@ class KopfBereich(QWidget):
             if titel == "Verkauf und Gewinn":  # Mindestauftragswert ein/aus gehört zum Verkauf, spart eine Zeile
                 form.addWidget(self.mindest_an, r + 1, 0, 1, 2)
                 form.addWidget(self.muster_wahl, r + 2, 0, 1, 2)
+                form.addWidget(self.abruf_wahl, r + 3, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -676,6 +698,8 @@ class KopfBereich(QWidget):
                     teile.append(f"{titel.strip()} {_z(v, fd.stellen if fd.stellen is not None else (0 if fd.art == "ganz" else 2))} {einheit}".strip())
         if self.s.kopf.get("mindestpreis_anwenden") == "nein":
             teile.append("ohne Mindestauftragswert")
+        if abruf.aktiv(self.s.kopf):
+            teile.append("Abruf: " + abruf.kurz(self.s.kopf))
         n = getattr(self, "_n_abweichend", 0)
         self.kalk_kurz.setText("   " + " · ".join(teile)
                                + (f"   <b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>" if n else ""))
@@ -845,6 +869,12 @@ class KopfBereich(QWidget):
         self.muster_darstellung.setCurrentText(s.kopf.get("muster_darstellung") or MUSTER_UMLEGEN)
         self.muster_darstellung.blockSignals(False)
         self.muster_wahl.setVisible(any(p.get("muster") == "ja" for p in getattr(s, "positionen", None) or ()))
+        self.abruf_an.blockSignals(True)
+        self.abruf_an.setChecked(abruf.aktiv(s.kopf))
+        self.abruf_an.blockSignals(False)
+        self.abruf_knopf.setVisible(abruf.aktiv(s.kopf))
+        self.abruf_kurz.setText(abruf.kurz(s.kopf))
+        self.abruf_wahl.setVisible(abruf.aktiv(s.kopf) or funktionen.an("funktion_abruf"))
         self._abweichungen_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()

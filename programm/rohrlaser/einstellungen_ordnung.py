@@ -66,9 +66,11 @@ SEITEN = (
           (_a("Grundwerte", "standard_maschine standard_stange staffeln_standard lieferzeit_art lieferzeit_wert "
                             "lieferzeit_zusatz"),
            _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit bedingungen"),
-           _a("Nummern", "letzte_angebotsnummer ab_nummer"))),
+           _a("Nummern", "letzte_angebotsnummer ab_nummer"),
+           _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
           (_a("Angebot", "beistellung_hinweis muster_hinweis muster_frist"),
+           _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
            _a("Auftragsbestätigung", "ab_text"))),
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
