@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.208", "<b>Rohranschluss aus der STEP erkennen und im 3D bearbeiten</b> ([[schneidweg_rechner]]): Ein Ende, "
+    ["0.9.211", "<b>Rohranschluss aus der STEP erkennen und im 3D bearbeiten</b> ([[schneidweg_rechner]]): Ein Ende, "
                 "das mit Sattel- bzw. Fischmaulschnitt auf einem runden Gegenrohr sitzt (rechtwinklig, schräg, mit "
                 "Versatz, in beliebiger Lage am Umfang), kommt jetzt als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und "
                 "Drehung in den Editor statt als nicht änderbares komplexes Ende – Rund-, Quadrat- und Rechteckrohr, "
@@ -29,6 +29,32 @@ NEUERUNGEN = [
                 "Versatz und Drehung direkt rechts; die Schnittkurve wird sofort neu gerechnet. Der Gegenrohr-Dialog "
                 "hat beim Rundrohr das neue Feld <i>Drehung um die Rohrachse</i>.",
      "Rohranschluss (Sattel/Fischmaul) aus der STEP als Gegenrohr, im 3D-Editor änderbar"],
+    ["0.9.210", "<b>Aufgeschnittene Rohre aus der STEP</b> ([[offene_rohre]]): Rechteckrohr mit großem Ausschnitt über "
+                "Oberseite und Seitenwände (Trapez), der die Seitenwände nur teilweise wegnimmt, galt als V-Ausschnitt "
+                "eines Knickrahmens und stand im Editor bis 16 mm neben der STEP – jetzt Sonderkontur genau wie "
+                "gezeichnet; ein V ist es nur noch, wenn die Seitenwände bis an die Stegwand durchgeschnitten sind "
+                "([[knickrahmen]]). Quadrat-/Rechteckrohr, oben zwischen den Enden offen und mit Fenster in einer "
+                "Seitenwand: die Rohrachse lag im Schwerpunkt des offenen Stücks (13 mm daneben), jetzt aus den "
+                "geschlossenen Querschnitten. Ebenso behoben: Quadratrohr mit Gehrung an beiden Enden und Fenster "
+                "(3 mm daneben), Schlitz über den Eckradius ins Ende (0,5 mm), Winkel/U mit Ausklinkung am Ende (freies "
+                "Schenkelende schräg). Teile-Editor: ein komplexes Ende aus der STEP heißt nicht mehr „gerade“. "
+                "<b>Gegenprobe beim Übernehmen</b> ([[schneidweg_rechner]]): das 3D-Modell des Editors wird mit den "
+                "Linien der STEP verglichen, ab 0,1 mm Abweichung bekommt die Position einen Hinweis.",
+     "Aufgeschnittene Rohre im Editor genau wie in der STEP, Gegenprobe Editor gegen STEP beim Übernehmen"],
+    ["0.9.209", "<b>STEP-Export gegen die Mutter-STEP geprüft</b> ([[step_mutter]]): Nach jedem STEP speichern "
+                "(Rohr-Editor, Blech-Editor, Schweißbaugruppe, Satz in 3D) vergleicht das Programm jeden Körper mit "
+                "dem Körper der eingelesenen Kundendatei – genau gleich, örtlich geändert (Schlitze/Nasen der "
+                "Steckverbindung, 2D-Gehrung, im Editor geändert) oder <b>ACHTUNG: liegt nicht dort</b> (Warnung). "
+                "Behoben: gleiche Rohre, die gedreht oder gewendet eingebaut sind (gegenüberliegende Seiten eines "
+                "Rahmens mit Gehrungen), lagen in 3D und im STEP-Export gespiegelt; ältere Angebote: STEP neu einlesen.",
+     "STEP-Export wird mit der Mutter-STEP verglichen (Warnung bei falscher Lage); gespiegelte Gehrungsrahmen behoben"],
+    ["0.9.208", "<b>Abruf-/Rahmenangebot</b> ([[abruf_angebot]]): Haken im Angebotskopf mit Jahresmenge und "
+                "Abrufmenge von–bis, Laufzeit und Material. Die Stückzahlen sind der kleinste Abruf; Programmierung "
+                "und Musterteile werden auf die kleinste Jahresmenge verteilt, Rüsten und Fracht zählen je Abruf. "
+                "Material wahlweise je Abruf mit Materialklausel oder für die Jahresmenge bevorratet mit Lagerzins. "
+                "Knopf „Abrufstufen anlegen“ im Reiter Staffeln (Mitte und größter Abruf), im Angebots-PDF ein Block "
+                "„Rahmenbedingungen“ aus Textbausteinen der Einstellungen. Schema 70.",
+     "Abruf-/Rahmenangebot: Jahresmenge in Abrufen, Einmalkosten auf die Jahresmenge, Rahmenbedingungen im PDF"],
     ["0.9.207", "<b>Bedienungsanleitung, Kurzanleitung und Präsentation auf dem Stand 0.9.206</b>: neue "
                 "Bildschirmfotos für Preis-Simulator ([[preis_simulator]]), Maschinenauslastung je Woche "
                 "([[auslastung]]), Reklamationen ([[reklamation]]), Stundensatz ermitteln ([[stundensatz_ermitteln]]) "

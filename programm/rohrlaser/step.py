@@ -124,6 +124,7 @@ def netz_mit_lagen(messwerte, gruppe):
     Baugruppen-Editor die ganze Baugruppe in 3D zeigt und Nahtgruppen ihren Teilen zuordnet (D1). Ergebnis: gepackte
     Bytes wie '_netz'."""
     from .ansicht3d import entpacken, packen
+    from .lage_abgleich import passende_lage
     m0 = messwerte[gruppe[0]]
     netz = entpacken(m0["_netz"])
     if not netz:
@@ -133,7 +134,12 @@ def netz_mit_lagen(messwerte, gruppe):
         m = messwerte[j]
         if m.get("datei") != m0.get("datei"):
             continue
-        lage = (entpacken(m["_netz"]) or {}).get("lage") if j != gruppe[0] and m.get("_netz") else netz.get("lage")
+        lage = netz.get("lage")
+        if j != gruppe[0] and m.get("_netz"):
+            # eigene Lage des Körpers, passend zum Netz des ersten gemacht (gedreht/gewendet eingebaut, z. B.
+            # gegenüberliegende Gehrungsseite eines Rahmens: sonst gespiegelt in 3D und STEP-Export)
+            eigen = entpacken(m["_netz"]) or {}
+            lage = passende_lage(netz, eigen)[0] if eigen.get("p") else eigen.get("lage")
         if lage and len(lage) == 9:
             lagen.append(lage)
         if m.get("koerper") not in (None, ""):
@@ -142,7 +148,19 @@ def netz_mit_lagen(messwerte, gruppe):
         netz["lagen"] = lagen
     if koerper:
         netz["koerper"] = koerper
+    if m0.get("_pfad"):         # Mutter-STEP: der STEP-Export vergleicht seine Körper damit (step_vergleich)
+        netz["mutter"] = str(m0["_pfad"])
     return packen(netz)
+
+
+def mit_mutter(netz, pfad):
+    """Gepacktes Netz mit dem Pfad der Mutter-STEP (Prüfung im STEP-Export, step_vergleich)."""
+    from .ansicht3d import entpacken, packen
+    n = entpacken(netz) if pfad else None
+    if not n:
+        return netz
+    n["mutter"] = str(pfad)
+    return packen(n)
 
 
 def _z(m, name):
@@ -1426,6 +1444,17 @@ def art_wechseln(m):
     return True
 
 
+def gleiches_profil(m, profil, tol=0.1):
+    """Hat das Profil der Position dieselbe Form und dieselben Außenmaße wie gemessen (Breite/Höhe in beliebiger
+    Reihenfolge, ± tol mm)?"""
+    if not profil or profil.get("form") != m.get("profilform"):
+        return False
+    a, b = _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a")
+    pa = float(profil.get("a") or 0)
+    pb = float(profil.get("b") or 0) or pa
+    return min(abs(a - pa) + abs(b - pb), abs(a - pb) + abs(b - pa)) <= 2 * tol
+
+
 def rohr_geschlossen(m):
     """True, wenn die Messwerte das offen gezeichnete Rohr als Rohr sind (step_offenes_rohr): Spalt geschlossen bzw.
     aus dem Rohr mit je einem Steg an den Enden."""
@@ -2233,6 +2262,15 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     if abs(d_g) >= 0.05:
                         p["gravur"] = round(max(p["gravur"] + d_g, 0.0), 1)
                     hinweise += h_k
+                elif not neu_enden and not neu_fenster and gleiches_profil(m, profile[pid]):
+                    # Gegenprobe: das Modell des Editors liegt wie die STEP (Patrick 30.10.2026, Übergabe absichern)
+                    from . import step_gegenprobe
+                    ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
+                    if ab:
+                        p["_step_abweichung"] = round(ab[0], 2)
+                        h = step_gegenprobe.hinweis(*ab)
+                        if h:
+                            hinweise.append(h)
             n_ges = (stk or 0) * (int(m.get("_je_satz") or len(gruppen[i])) if satz else 1)
             sch = schalen(m) if schalen_gewaehlt(m) and n_ges >= 2 else None      # nur wenn die Stückzahl reicht
             if sch and (neu_enden or neu_fenster):  # anderes Rohr gewählt: Schalenschnitt passt nicht mehr zur Messung
@@ -2401,7 +2439,7 @@ def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, ma
     p.update(laenge=erg["laenge"], technik=json.dumps(eing, ensure_ascii=False))
     netz = knickverbindung.netz_gefaltet(messwerte, m)
     if netz:
-        p["_netz"] = netz
+        p["_netz"] = mit_mutter(netz, m.get("_pfad"))
     zu, fehlt = knickrahmen.zusatz_eintragen(p.get("zusatz"), knickrahmen.anzahl(eing), zusatz_katalog or [],
                                              schneidweg.QUELLE_STEP)
     if zu:

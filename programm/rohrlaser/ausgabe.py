@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
-from . import fracht_angebot, normprofile, rechnen, stangen_abwicklung, virtuell, zukauf
+from . import abruf, fracht_angebot, normprofile, rechnen, stangen_abwicklung, virtuell, zukauf
 from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
@@ -332,7 +332,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 muster="" if muster_zeile else muster_hinweis(kopf, einst, muster_pos,
                                                               sum(_wert((z or {}).get("muster_preis_position"))
                                                                   for z in kalk_zeilen)),
-                beistellung=beistellung_text(positionen, ergebnis, k, einst, dezimal))
+                beistellung=beistellung_text(positionen, ergebnis, k, einst, dezimal),
+                rahmen=abruf.rahmentext(kopf, einst, muster=bool(muster_pos), datum=datum_text(kopf.get("datum"))))
 
 
 MUSTER_VERMERK = "Muster – im Serienpreis enthalten"
