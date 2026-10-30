@@ -1533,6 +1533,49 @@ def _ende_flaechen(flaechen, kanten, cx, cy, ref, z_ref, tol=0.1):
     return dict(flaechen=out, huelle=beste[1]) if beste else None
 
 
+def _gegenrohr(flaechen, cx, cy, ref, ende, r_rohr, tol=0.05):
+    """Rohranschluss (Sattel-/Fischmaulschnitt, Patrick 30.10.2026, STEP-JSON 1.24): alle Schnittflächen des Endes
+    liegen auf einem Zylinder, dessen Achse das Rohr kreuzt (rechtwinklig oder schräg, auch mit Versatz) und der das
+    Rohr quer ganz umfasst = das Ende sitzt auf einem runden Gegenrohr. Ergebnis dict(d = Ø des Gegenrohrs,
+    richtung = Umfangswinkel (Zählung wie _Abwicklung.theta) der Gegenrohrachse quer gesehen, zu dem hin das Teil
+    länger ist, winkel = Neigung der Achsen gegen rechtwinklig [≥ 0°], versatz = Abstand der Gegenrohrachse von der
+    Rohrachse in Richtung richtung + 90°) oder None (andere Flächen, mehrere Zylinder, Achse längs, zu klein)."""
+    zyl = None
+    for f in flaechen:
+        sf = BRepAdaptor_Surface(TopoDS.Face(f))
+        if sf.GetType() != GeomAbs_Cylinder:
+            return None
+        z = sf.Cylinder()
+        d, p = z.Axis().Direction(), z.Axis().Location()
+        if zyl is None:
+            zyl = (z.Radius(), gp_Vec(d.X(), d.Y(), d.Z()), p)
+            continue
+        r0, d0, p0 = zyl
+        if abs(z.Radius() - r0) > tol or abs(abs(d0.Dot(gp_Vec(d.X(), d.Y(), d.Z()))) - 1) > 1e-6 or \
+                gp_Vec(p0, p).Crossed(d0).Magnitude() > tol:
+            return None
+    if zyl is None:
+        return None
+    r, ax, p = zyl
+    hx, hy, az = ax.X(), ax.Y(), ax.Z() * (1 if ende == "B" else -1)    # az: Achse zum Teilende hin
+    h = math.hypot(hx, hy)
+    if h < math.sin(math.radians(10)):          # Achse fast längs zum Rohr: kein Anschluss
+        return None
+    if az < -1e-9 or abs(az) <= 1e-9 and (math.degrees(math.atan2(-hx, hy)) - ref) % 360 >= 180:
+        hx, hy, az = -hx, -hy, -az
+    richtung = (math.degrees(math.atan2(-hx, hy)) - ref) % 360
+    # Versatz: Lage der Achse quer, in Richtung (richtung + 90°) = (−cos, −sin) im Messsystem gedreht um ref
+    nx, ny = -hy / h, hx / h                    # quer zur Achse in der Querschnittsebene
+    th_n = (math.degrees(math.atan2(-nx, ny)) - ref) % 360
+    versatz = (p.X() - cx) * nx + (p.Y() - cy) * ny
+    if abs((th_n - richtung) % 360 - 90) > 1:   # nx, ny zeigt auf richtung − 90°: umdrehen
+        versatz = -versatz
+    if abs(versatz) + r_rohr > r + tol:         # Rohr ragt seitlich über das Gegenrohr: kein voller Anschluss
+        return None
+    return dict(d=round(2 * r, 3), richtung=round(richtung, 3) % 360,
+                winkel=round(math.degrees(math.atan2(az, h)), 3), versatz=round(versatz, 3))
+
+
 def _endform(flaechen, laenge, ref=0.0, ende="B"):
     """Form eines Endes aus seinen Schnittflächen: gerade, Gehrung (Neigung um eine Querachse), Schrägschnitt zwei-
     achsig oder komplex (mehrere Ebenen, gekrümmt: Ausklinkung, Sattel …). Winkel in Grad gegen den geraden Schnitt:
@@ -2457,6 +2500,9 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
 
         if e["form"] == "komplex" and kt:
             e.update(_ende_flaechen(fl, kt, abw.cx, abw.cy, ref, zmin + z) or {})
+            gg = _gegenrohr(fl, abw.cx, abw.cy, ref, art_[1], t.abm_a / 2 if t.profilform == "Rundrohr" else 0.0)
+            if gg:
+                e["gegenrohr"] = gg
             um = _umriss_uv(kt, abw, zmin)      # z. B. Ausklinkung am Ende: echter Umriss für die Darstellung
             if um:
                 e["umriss"] = um

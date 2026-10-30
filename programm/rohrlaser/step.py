@@ -765,6 +765,57 @@ def gehrung_aus_umriss(qs, umriss):
     return e if fehler(e) <= GEHRUNG_2D_TOL else None
 
 
+ROHRANSCHLUSS = "Rohranschluss"     # Form eines Endes, das auf einem Gegenrohr sitzt (aus der STEP erkannt)
+GEGEN_TOL = 0.1           # mm: so genau muss das Gegenrohr den gemessenen Umriss treffen (wie GEHRUNG_2D_TOL)
+
+
+def gegen_aus_messung(qs, gm, umriss):
+    """Rohranschluss der Messung (Ende "gegenrohr": d, richtung, winkel, versatz; Patrick 30.10.2026) als Gegenrohr
+    des Rohr-Editors (durchdringung: d, winkel, versatz, lage bzw. drehung beim Rundrohr). Die Achse liegt in der
+    Skizze in Richtung (sin θ, cos θ) wie eine Gehrungsrichtung, der Versatz der Messung zeigt auf θ + 90°.
+    Ergebnis dict oder None, wenn das Gegenrohr den gemessenen Umriss nicht überall auf GEGEN_TOL trifft (dann
+    bleibt das Ende komplex, genau wie gemessen) – Grundregel: Kontur 100 % wie in der STEP."""
+    from . import durchdringung as dd, skizze as sk
+    if not isinstance(gm, dict) or _z(gm, "d") <= 0 or qs.form not in dd.GESCHLOSSEN:
+        return None
+    th, w, vm = _z(gm, "richtung") % 360, _z(gm, "winkel"), _z(gm, "versatz")
+    if qs.r:
+        d = (90.0 - th + 180) % 360 - 180          # Achse (cos d, sin d) = (sin θ, cos θ)
+        if d > 90 or d <= -90:                      # Achse andersherum: Winkel und Versatz drehen das Vorzeichen
+            d, w, vm = (d + 180 + 180) % 360 - 180, -w, -vm
+        g = dict(d=round(_z(gm, "d"), 3), winkel=round(w, 2), versatz=round(-vm, 2), drehung=round(d, 2))
+    else:
+        q = round(th / 90) % 4
+        if abs(th - round(th / 90) * 90) > 0.5:     # Rechteckrohr: Achse nur längs einer Seite
+            return None
+        # 90° (+u) / 270° (−u): waagerecht, y = v; 0° (+v) / 180° (−v): senkrecht, y = u
+        vz = 1 if q in (0, 1) else -1
+        g = dict(d=round(_z(gm, "d"), 3), winkel=round(vz * w, 2),
+                 versatz=round(-vz * vm if q in (1, 3) else vz * vm, 2))
+        if q in (0, 2):
+            g["lage"] = dd.SENKRECHT
+    lage = g.pop("lage", None)
+    g = {k: v for k, v in g.items() if k == "d" or abs(v) >= 0.005}
+    if lage:
+        g["lage"] = lage
+    if abs(_z(g, "winkel")) > 80:
+        return None
+    um = sk._ende_umriss(qs, umriss) if umriss else None
+    if um is None:
+        return None
+    n = max(200, int(qs.umfang))
+    try:
+        dd.ende_gegen(qs, g)
+        for i in range(n):
+            (u, v), _ = qs.s_zu_uv(qs.umfang * i / n)
+            ur, vr, _ = sk.rund_ort(qs, u, v)
+            if abs(dd.schnitt_x(qs, g, ur, vr) - um(sk.uv_zu_s(qs, ur, vr))) > GEGEN_TOL:
+                return None
+    except (ValueError, ZeroDivisionError):
+        return None
+    return g
+
+
 def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -883,8 +934,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 u_umf = math.pi * ma if mform == "Rundrohr" else 2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)
                 um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), s_von, s_umfang, ausflug=ausflug,
                                   u_umfang=u_umf)
-                g2 = None
-                if um and not ausflug:      # schon 2D geschnittene Gehrung (oder ebene): als Gehrung übernehmen
+                g2 = gg = None
+                if um and not ausflug and d.get("gegenrohr"):  # Rohranschluss: als Gegenrohr bearbeitbar
+                    gg = gegen_aus_messung(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), d["gegenrohr"], um)
+                if gg:
+                    e.update(gegen=gg, form=ROHRANSCHLUSS)
+                    e.pop("schwenk", None)
+                elif um and not ausflug:    # schon 2D geschnittene Gehrung (oder ebene): als Gehrung übernehmen
                     try:
                         g2 = gehrung_aus_umriss(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um)
                     except (ValueError, TypeError, ZeroDivisionError):
@@ -893,7 +949,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     quer = mschmal if g2["richtung"] % 180 == 0 else mbreit
                     e.update(g2, form="Gehrung", achse=ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1])
                     e.pop("schwenk", None)
-                elif um:
+                elif um and not gg:
                     e["umriss"] = um
                     for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
                         k = _ende_ausflug(zug, art[-1], m, mform, s_von, s_umfang, mbreit, mschmal, bool(r_mess))

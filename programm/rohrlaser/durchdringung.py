@@ -131,7 +131,9 @@ def durchbruch(rohr, gegen, alpha=90.0, versatz=0.0, durchgehend=False):
 # ---------------------------------------------------------------------- im Rohr-Editor (3E-7)
 # Gegenrohr am Ende (Eingabe des Endes 'gegen'): dict(d = Ø bzw. Breite quer, t = Tiefe (leer/0 = rund), r =
 # Eckradius, winkel = Abweichung der Achsen von rechtwinklig [°] (+ = länger zur Seite +x), versatz [mm] quer,
-# lage = WAAGERECHT (Achse des Gegenrohrs liegt quer in u, Sattel in der Seitenansicht) oder SENKRECHT (Achse in v)).
+# lage = WAAGERECHT (Achse des Gegenrohrs liegt quer in u, Sattel in der Seitenansicht) oder SENKRECHT (Achse in v),
+# drehung = nur Rundrohr: Achse des Gegenrohrs um die Rohrachse gedreht [°, von u zu v], z. B. aus dem STEP-Import
+# (Rohranschluss in beliebiger Lage am Umfang, Patrick 30.10.2026)).
 WAAGERECHT, SENKRECHT = "waagerecht", "senkrecht"
 LAGEN = (WAAGERECHT, SENKRECHT)
 GESCHLOSSEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
@@ -179,6 +181,26 @@ def _xy(u, v, lage):
     return (v, u) if lage == SENKRECHT else (u, v)
 
 
+def drehung(qs, g):
+    """Drehung der Gegenrohrachse um die Rohrachse [rad]; nur beim Rundrohr (sonst 0)."""
+    return math.radians(_f(g.get("drehung"))) if qs.r else 0.0
+
+
+def _ins_gegen(u, v, d):
+    """Punkt (u, v) des Querschnitts in das um d gedrehte System der Gegenrohrachse."""
+    if not d:
+        return u, v
+    c, s = math.cos(d), math.sin(d)
+    return u * c + v * s, -u * s + v * c
+
+
+def _aus_gegen(u, v, d):
+    if not d:
+        return u, v
+    c, s = math.cos(d), math.sin(d)
+    return u * c - v * s, u * s + v * c
+
+
 def ende_gegen(qs, g):
     """Ende auf dem Gegenrohr g: dict(laenge, tiefe, kurve) wie ende(); ValueError bei unmöglichen Maßen."""
     if qs.form not in GESCHLOSSEN:
@@ -208,7 +230,7 @@ def schnitt_x(qs, g, u, v):
         _SPITZE[schl] = max(z(x, y) for x, y in r.umriss(360))
         if len(_SPITZE) > 200:
             _SPITZE.pop(next(iter(_SPITZE)))
-    return max(0.0, _SPITZE[schl] - z(*_xy(u, v, lage)))
+    return max(0.0, _SPITZE[schl] - z(*_xy(*_ins_gegen(u, v, drehung(qs, g)), lage)))
 
 
 def gegen_koerper(qs, g, L, seite, laenge=None, n=48):
@@ -238,10 +260,11 @@ def gegen_koerper(qs, g, L, seite, laenge=None, n=48):
     for i in range(0, n, max(1, n // 8)):
         zuege.append([ringe[0][i], ringe[1][i]])
     out = []
+    dr = drehung(qs, g)
     for zug in zuege:
         pts = []
         for x, y, zz in zug:
-            u, v = _xy(x, y, lage)      # (x, y) ↔ (u, v) ist symmetrisch
+            u, v = _aus_gegen(*_xy(x, y, lage), dr)      # (x, y) ↔ (u, v) ist symmetrisch
             x_teil = z_max - zz         # < 0 = hinter der Spitze, außerhalb des Teils
             pts.append((x_teil if seite == "a" else L - x_teil, u, v))
         out.append(pts)

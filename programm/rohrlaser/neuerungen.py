@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.217", "<b>Rohranschluss aus der STEP erkennen und im 3D bearbeiten</b> ([[schneidweg_rechner]]): Ein Ende, "
+                "das mit Sattel- bzw. Fischmaulschnitt auf einem runden Gegenrohr sitzt (rechtwinklig, schräg, mit "
+                "Versatz, in beliebiger Lage am Umfang), kommt jetzt als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und "
+                "Drehung in den Editor statt als nicht änderbares komplexes Ende – Rund-, Quadrat- und Rechteckrohr, "
+                "Ende A und B, genau wie in der STEP. Im 3D-Editor stehen beim gewählten Ende die Felder Ø, Winkel, "
+                "Versatz und Drehung direkt rechts; die Schnittkurve wird sofort neu gerechnet. Der Gegenrohr-Dialog "
+                "hat beim Rundrohr das neue Feld <i>Drehung um die Rohrachse</i>.",
+     "Rohranschluss (Sattel/Fischmaul) aus der STEP als Gegenrohr, im 3D-Editor änderbar"],
     ["0.9.216", "<b>Lizenzpflicht ab 20.11.2026</b> ([[lesemodus]]): Bis zum 19.11. zeigt das Programm ohne gültige "
                 "Lizenz nur den Hinweis mit dem Termin, ab dem 20.11.2026 schaltet es in den Lesemodus (ansehen, "
                 "exportieren, sichern und Updates gehen weiter, Daten bleiben erhalten). <b>Schutz der "
