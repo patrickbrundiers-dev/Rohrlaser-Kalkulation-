@@ -5743,10 +5743,17 @@ class AngebotSeite(QWidget):
         material = rechnen.material_abmessungen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
         muster = ausgabe.werkstatt(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)["muster"] \
             if self.ergebnis and self.ergebnis.get("stangen") else None
+        # Kalkulations-PDF 30.10.2026: gespeicherte Staffeln (nicht neu rechnen), Warnungen der Preis-Gegenprobe,
+        # Maschine für den Rechenweg des ermittelten Stundensatzes
+        staffel = (self.kopf.get("staffelpreise") or {}).get("zeilen") if self.stufen else None
+        plausi = plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
+        maschine = self.k.maschinen.get(self.kopf.get("maschine"))
         return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
                                lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell,
                                                              material, muster, self.k.profile,
-                                                             rechnen.laser_hinweise(self.positionen, self.k)))
+                                                             rechnen.laser_hinweise(self.positionen, self.k),
+                                                             positionen=self.positionen, staffel=staffel,
+                                                             plausi=plausi, maschine=maschine))
 
     CSV_ARTEN = {"kopf": "Angebotskopf", "positionen": "Angebotspositionen", "baugruppen": "Schweissbaugruppen"}
 

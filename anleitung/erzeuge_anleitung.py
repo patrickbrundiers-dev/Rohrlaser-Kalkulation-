@@ -5264,12 +5264,20 @@ def kapitel_ausgabe(i, seiten, ablage):
            "genau die Summe der Zeilen.",
            "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan mit Kästchen zum "
            "Abhaken, danach das Stangenbild.",
-           "<b>Kalkulation (PDF)</b>: oben die Kennzahlen (Verkaufspreis, Herstellkosten, Gewinn, Material, "
-           "Maschinenzeit, Stangen, Teile), darunter die Kostenarten mit Anteil am Verkaufspreis in % und als Balken "
-           "(ohne 0,00 €, Herstellkosten und Verkaufspreis hervorgehoben), der Materialeinsatz je Abmessung mit "
-           "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
-           "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
-           "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
+           "<b>Kalkulation (PDF)</b>: Kopf mit Datum, Kunden-Nr., Maschine und Stundensatz (von Hand oder "
+           "ermittelt); rot darunter die Warnungen der Preis-Gegenprobe, wenn es welche gibt. Kacheln Verkaufspreis, "
+           "Selbstkosten, Herstellkosten, Gewinn (€ und %), Material, Maschinenzeit, Stangen/Teile; darunter die "
+           "Kostenarten mit Anteil am Verkaufspreis (Gewinn mit der greifenden Gewinnstufe, Schneidgas in m³, Fracht "
+           "mit Art und Umlage) und daneben die <b>Kennzahlen</b> (Stundensatz, Zeitbasis, Gewinn, Materialgewicht, "
+           "Preis je kg, Ertrag je Maschinenstunde, Fracht, Abruf). Danach – nur wenn vorhanden – der Rechenweg des "
+           "ermittelten Stundensatzes und der Abschnitt Abruf-/Rahmenangebot, der Materialeinsatz je Abmessung mit "
+           "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt (Schritte ohne Zeit grau unter einem "
+           "Strich), die Position in zwei Tabellen <i>Kosten je Teil</i> und <i>Preisaufbau</i> (mit Bezeichnung, "
+           "Musterteile gekennzeichnet), die Zukaufteile einzeln, je Schweißbaugruppe ihre Zeiten, die Staffelpreise "
+           "je Mengenstufe und die Schneidzeit je Teil mit den Schneiddaten (Gas, Wandstärke-Stufe, Zeile des "
+           "Werkstoffs bzw. der Kategorie); zum Schluss das Stangenbild wie in den Werkstattpapieren. Spalten ohne "
+           "Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet, bei vielen Spalten werden die Zahlen "
+           "kleiner statt umgebrochen.",
            "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
            "([[csv_export]]); <b>Ordner öffnen</b> (im Menü Ausgaben) zeigt den Ordner des Angebots im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
