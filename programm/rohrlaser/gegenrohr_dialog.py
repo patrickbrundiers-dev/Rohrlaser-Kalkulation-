@@ -1,8 +1,9 @@
 """Dialog 'Gegenrohr …' (Plan 3D-Editor G2, Schritt 3E-7): ein Ende des Rohrs auf ein Gegenrohr setzen – rund oder
-rechteckig, schräg, mit Versatz, Achse waagerecht oder senkrecht. Das Programm rechnet die Schnittkurve
-(durchdringung.py) und zeigt sie sofort; das Gegenrohr erscheint im 3D als pinker Hilfskörper.
+rechteckig, schräg, mit Versatz, Achse waagerecht oder senkrecht, beim Rundrohr auch um die Rohrachse gedreht (z. B.
+ein Rohranschluss aus dem STEP-Import, Patrick 30.10.2026). Das Programm rechnet die Schnittkurve (durchdringung.py)
+und zeigt sie sofort; das Gegenrohr erscheint im 3D als pinker Hilfskörper.
 
-Ergebnis (Eingabe des Endes 'gegen'): dict(d, t, r, winkel, versatz, lage) bzw. None (kein Gegenrohr).
+Ergebnis (Eingabe des Endes 'gegen'): dict(d, t, r, winkel, versatz, lage, drehung) bzw. None (kein Gegenrohr).
 """
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
                                QPushButton, QVBoxLayout)
@@ -49,13 +50,17 @@ class GegenrohrDialog(QDialog):
         self.winkel = _spin(-80, 80, sw._z(g.get("winkel")), "°", "Abweichung der Achsen von rechtwinklig")
         self.versatz = _spin(-2500, 2500, sw._z(g.get("versatz")), "mm",
                              "Achse des Gegenrohrs quer zur Rohrachse verschoben (0 = mittig)")
+        self.drehung = _spin(-180, 180, sw._z(g.get("drehung")), "°",
+                             "Nur Rundrohr: Achse des Gegenrohrs um die Rohrachse gedreht (0 = waagerecht bzw. senkrecht "
+                             "wie gewählt), z. B. wie in der STEP gemessen")
+        self.drehung.setEnabled(bool(self.qs.r))
         self.lage = QComboBox()
         for k, text in LAGE_TEXT.items():
             self.lage.addItem(text, k)
         self.lage.setCurrentIndex(max(0, self.lage.findData(g.get("lage") or dd.WAAGERECHT)))
         for titel_, f in (("Form", self.form), ("Ø bzw. Breite quer", self.d), ("Tiefe", self.t),
                           ("Eckradius", self.r), ("Winkel", self.winkel), ("Versatz", self.versatz),
-                          ("Lage der Achse", self.lage)):
+                          ("Lage der Achse", self.lage), ("Drehung um die Rohrachse", self.drehung)):
             form.addRow(titel_, f)
         lay.addLayout(form)
         self.ergebnis = QLabel()
@@ -71,7 +76,7 @@ class GegenrohrDialog(QDialog):
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
         self.ok = knoepfe.button(QDialogButtonBox.Ok)
-        for f in (self.d, self.t, self.r, self.winkel, self.versatz):
+        for f in (self.d, self.t, self.r, self.winkel, self.versatz, self.drehung):
             f.valueChanged.connect(self._rechnen)
         self.form.currentTextChanged.connect(self._rechnen)
         self.lage.currentIndexChanged.connect(self._rechnen)
@@ -86,6 +91,8 @@ class GegenrohrDialog(QDialog):
                 g[k] = round(v, 3)
         if self.lage.currentData() == dd.SENKRECHT:
             g["lage"] = dd.SENKRECHT
+        if self.qs.r and self.drehung.value():
+            g["drehung"] = round(self.drehung.value(), 3)
         return g
 
     def _rechnen(self, *_):

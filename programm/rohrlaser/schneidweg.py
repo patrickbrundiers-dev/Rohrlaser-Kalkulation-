@@ -343,6 +343,11 @@ def ende_neu(profil, e):
     if e.get("flaechen"):
         lg = ende_3d(profil, e["flaechen"], e.get("huelle"))
         return (lg, "3D") if lg else None
+    if isinstance(e.get("gegen"), dict) and _z(e["gegen"].get("d")):      # Rohranschluss: Gegenrohr neu gerechnet
+        try:
+            return ende(profil, gegen=e["gegen"])[0], form
+        except ValueError:
+            return None
     if form in ("Gehrung", "Schrägschnitt zweiachsig") and _z(e.get("winkel")):
         try:
             return ende(profil, e.get("winkel"), e.get("achse") or ACHSEN[0], None,
@@ -1083,6 +1088,8 @@ def gegen_text(g):
         text += f", Versatz {zahl(_z(g['versatz']), 1)}"
     if g.get("lage") == "senkrecht":
         text += ", senkrecht"
+    if _z(g.get("drehung")):
+        text += f", gedreht {zahl(_z(g['drehung']), 1)}°"
     return text
 
 
