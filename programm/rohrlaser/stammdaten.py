@@ -1280,7 +1280,8 @@ EINSTELLUNGEN = (
     # (Patrick 26.10.2026: „Zeit einstellbar machen“)
     Einstellung("stangenbild_popup", "Stangenbild: Detail-Fenster nach so vielen Sekunden auf einer Stange (0 = aus)",
                 "Ansicht", "zahl", 1.0, 0, 10),
-    Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
+    Einstellung("passwort", "Admin-Passwort (gilt an allen Arbeitsplätzen; leer = kein Admin-Schutz)", "Zugang",
+                "passwort", "av"),
     # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel zeigt den Bearbeiter (die Nummer ist
     # seit 23.10.2026 ohne Kürzel, nummern.py); über den gemeinsamen Ordner sehen alle die Angebote der anderen und
     # teilen die Stammdaten.

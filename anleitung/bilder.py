@@ -217,14 +217,19 @@ def main(ziel):
                                  lieferant="Beispiel-Lieferant", bemerkung="geschnitten nach Werkstücklängen"))
     f.alles_neu_laden()
 
-    # 3) Einstellungen gesperrt, dann mit Passwort geöffnet; Stammdaten als Unterreiter (Kunden eigener Reiter)
+    # 3) Admin-Schutz: geschützte Seite für Nicht-Admins, dann als Admin freigeschaltet; Stammdaten als Unterreiter
     f.bereich.sperren()
     f.reiter.setCurrentWidget(f.bereich)
+    f.bereich.zeigen(next(s for s in f.einstellungen.seiten if s.schluessel == "e_zuschlaege"))
     QApplication.processEvents()
-    foto.foto("einstellungen_gesperrt", f, [(tab_rect(f.reiter, "Einstellungen"), 1), (f.bereich.passwort, 2),
-                                            (knopf(f.bereich, "Einstellungen öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 760, f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("einstellungen_gesperrt", f, [(f.bereich.leiste.text, 1), (f.bereich.passwort, 2),
+                                            (knopf(f.bereich, "Als Admin freischalten …"), 3)],
+              ausschnitt=QRect(0, 0, f.width(), f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 260))
     f.bereich.oeffnen(db.einstellung("passwort"))
+    f.bereich.zeigen(f.admin_seite)
+    QApplication.processEvents()
+    foto.foto("admin_schutz", f, [(f.admin_seite.haken["e_zuschlaege"], 1),
+                                  (knopf(f.admin_seite, "Vorschlag wiederherstellen"), 2)])
     # Schweiß-Stammdaten werden leer ausgeliefert: wie mit dem Knopf 'Richtwerte laden' füllen
     next(s for s in f.seiten if s.t.name == "schweissverfahren").schweiss_richtwerte(bestaetigt=True)
     for seite in f.seiten:
@@ -317,7 +322,7 @@ def main(ziel):
     f.zeigen(f.einstellungen)
     QApplication.processEvents()
     foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Funktionen"), 1),
-                                   (knopf(f.bereich, "Einstellungen sperren"), 2)])
+                                   (knopf(f.bereich, "Admin sperren"), 2)])
     funktionen_seite = f.einstellungen.seiten[0]
     foto.foto("einstellungen_funktionen", f, [(funktionen_seite.felder["funktion_blech"], 1)])
     zuschlaege = f.einstellung_zeigen("gewinn")

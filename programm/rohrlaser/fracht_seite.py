@@ -1,8 +1,9 @@
 """Reiter Frachtkosten: Rechner und Pflege der Frachtdaten in sieben Unterreitern.
 
 1 Fracht kalkulieren (frei), 2 Frachtzonen und Postleitzahlen, 3 Tarifverwaltung, 4 Paletten und Ladehilfsmittel,
-5 Zuschläge, 6 Dienstleister und Kundentarife, 7 Historie und Einstellungen. Die Unterreiter 2–7 öffnen mit dem
-Passwort der Einstellungen (einmal geöffnet gilt es für beide Reiter, bis 'Einstellungen sperren').
+5 Zuschläge, 6 Dienstleister und Kundentarife, 7 Historie und Einstellungen. Die Unterreiter 2–7 ändert nur der
+Admin, wenn der Bereich Frachtkosten Admin-Schutz hat (admin_schutz.py; freigeschaltet gilt es auch für die
+Einstellungen, bis 'Admin sperren').
 
 Ab 1024 × 700 Pixel ohne waagrechtes Scrollen bedienbar: im schmalen Fenster rutscht das Ergebnis des Rechners unter
 die Eingabe.
@@ -124,7 +125,7 @@ class Gesperrt(QWidget):
         sperre = QWidget()
         self.passwort = QLineEdit()
         self.passwort.setEchoMode(QLineEdit.Password)
-        self.passwort.setPlaceholderText("Passwort")
+        self.passwort.setPlaceholderText("Admin-Passwort")
         self.passwort.setMaximumWidth(220)
         self.passwort.returnPressed.connect(self.oeffnen)
         knopf = QPushButton("Frachtdaten öffnen")
@@ -135,9 +136,9 @@ class Gesperrt(QWidget):
         zeile.addWidget(self.passwort)
         zeile.addWidget(knopf)
         zeile.addStretch(1)
-        text = QLabel("<h3>Frachtdaten</h3><p>Zonen, Tarife, Ladehilfsmittel, Zuschläge, Dienstleister und die "
-                      "Historie sind mit dem Passwort der Einstellungen geschützt. Der Rechner im Unterreiter "
-                      "„Fracht kalkulieren“ ist frei.</p>")
+        text = QLabel("<h3>🔒 Frachtdaten – nur Admin</h3><p>Zonen, Tarife, Ladehilfsmittel, Zuschläge, Dienstleister "
+                      "und die Historie pflegt nur der Admin (Einstellungen → Admin-Schutz). Der Rechner im "
+                      "Unterreiter „Fracht kalkulieren“ ist frei.</p>")
         text.setWordWrap(True)
         ls = QVBoxLayout(sperre)
         ls.addWidget(text)
@@ -158,7 +159,8 @@ class Gesperrt(QWidget):
         return ok
 
     def neu_laden(self):
-        if self.f.bereich.gesperrt():
+        from .admin_schutz import FRACHT
+        if self.f.bereich.bereich_gesperrt(FRACHT):
             self.stapel.setCurrentIndex(0)
             return
         self.stapel.setCurrentIndex(1)
@@ -1237,6 +1239,16 @@ class FrachtBereich(QWidget):
         w = self.unter.currentWidget()
         if hasattr(w, "neu_laden"):
             w.neu_laden()
+
+    def schutz_anwenden(self):
+        """Admin-Schutz geändert (freigeschaltet, gesperrt, Häkchen): Pflegeseiten sperren oder freigeben."""
+        from .admin_schutz import FRACHT
+        zu = self.f.bereich.bereich_gesperrt(FRACHT)
+        for g in self.gesperrt.values():
+            vorher = g.stapel.currentIndex()
+            g.stapel.setCurrentIndex(0 if zu else 1)
+            if vorher == 0 and not zu and g is self.unter.currentWidget() and hasattr(g.inhalt, "neu_laden"):
+                g.inhalt.neu_laden()
 
     def neu_laden_alle(self):
         self.rechner.neu_laden()
