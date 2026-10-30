@@ -1325,7 +1325,13 @@ EINSTELLUNGEN = (
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
 ) + tuple(
     # Funktionen ein/aus (funktionen.py, Patrick 29.10.2026): ja = sichtbar, nein = ausgeblendet, Daten bleiben
-    Einstellung(f.name, f.titel, "Funktionen", "auswahl", "ja", auswahl="janein") for f in funktionen.FUNKTIONEN)
+    Einstellung(f.name, f.titel, "Funktionen", "auswahl", f.vorgabe, auswahl="janein") for f in funktionen.FUNKTIONEN)
+EINSTELLUNGEN += (
+    # Materialpreise aus ERP-CSV (erp_preise.py, Plan 30.10.2026): Zeitraum der Käufe, Ausreißer der Übersicht
+    Einstellung("erp_monate", "ERP-Preise: Zeitraum der Käufe [Monate]", "ERP-Preisimport", "ganz", 12, 1, 120),
+    Einstellung("erp_ausreisser", "ERP-Preise: Ausreißer ab Abweichung vom Median", "ERP-Preisimport", "anteil",
+                0.25, 0.01, 5),
+)
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 
 

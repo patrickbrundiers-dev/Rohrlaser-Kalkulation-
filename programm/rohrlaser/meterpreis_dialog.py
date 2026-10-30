@@ -146,6 +146,9 @@ class MeterpreisDialog(QDialog):
                     it.setForeground(stil.farbe(GRAU))
                     if g["fehlt"]:
                         it.setToolTip(g["fehlt"])
+                    if g.get("erp"):        # ERP-Preis des Angebots (erp_preise.py): Bemerkung nur intern
+                        it.setText(it.text() + " ⓔ")
+                        it.setToolTip((it.toolTip() + "\n" if it.toolTip() else "") + g["erp"]["bemerkung"])
                 if c == 1:
                     it.setFont(fett)
                     it.setToolTip(f"Teile {_z(g['teile_m'], 1)} m"

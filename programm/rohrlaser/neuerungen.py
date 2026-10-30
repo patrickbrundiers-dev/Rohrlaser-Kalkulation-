@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.211", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+                "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
+                "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
+                "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
+                "Angebot nach dem Optimieren je Abmessung der neueste Kauf mit ähnlicher Menge als Meterpreis, mit "
+                "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
+                "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
+     "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
     ["0.9.210", "<b>Aufgeschnittene Rohre aus der STEP</b> ([[offene_rohre]]): Rechteckrohr mit großem Ausschnitt über "
                 "Oberseite und Seitenwände (Trapez), der die Seitenwände nur teilweise wegnimmt, galt als V-Ausschnitt "
                 "eines Knickrahmens und stand im Editor bis 16 mm neben der STEP – jetzt Sonderkontur genau wie "

@@ -30,7 +30,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
+from . import erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -486,6 +486,7 @@ class Datenbank:
                                          "SELECT id, ergebnis FROM angebote WHERE typeof(ergebnis)='text'")])
             teilen.einrichten(self.con)
             lager.einrichten(self.con)
+            erp_preise.einrichten(self.con)
             fertigung.einrichten(self.con)
             etiketten.einrichten(self.con)
             reklamation.einrichten(self.con)
@@ -1920,6 +1921,7 @@ class Datenbank:
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
         a["stangen_vorgabe"] = json.loads(a["stangen_vorgabe"]) if a.get("stangen_vorgabe") else None
+        a["erp_preise"] = json.loads(a["erp_preise"]) if a.get("erp_preise") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []

@@ -5952,7 +5952,8 @@ def kapitel_einstellungen(i):
     i.text("Angebote, die eine Funktion schon nutzen, zeigen und rechnen sie weiter; nur die Neuanlage fehlt. "
            "Beispiele: Ein Angebot mit Zukaufteilen behält den Knopf <b>Zukaufteile …</b>, eine Musterposition ihr "
            "Häkchen, eingetragene Teuerungszuschläge ihre Spalten, eine Baugruppe mit Steckverbindungen ihren Reiter. "
-           "Alle Funktionen sind nach dem Update eingeschaltet. Die schon vorhandenen Schalter (Versand, Fertigung, "
+           "Alle Funktionen sind nach dem Update eingeschaltet, nur der optionale <b>ERP-Preisimport</b> "
+           "([[erp_preise]]) ist ab Werk aus. Die schon vorhandenen Schalter (Versand, Fertigung, "
            "Lager, Reststücke, PDF-Zeichnungen) stehen zusätzlich oben auf der Seite Funktionen; sie gelten an beiden "
            "Stellen gleich. Die Zusammenarbeit mit Kollegen (Übergeben, Notiz) erscheint ohnehin nur mit gemeinsamem "
            "Ordner. Ein reiner Rohrbetrieb schaltet zum Beispiel <b>Bleche und Kantteile</b> ab; wer nie Preise "
@@ -6837,6 +6838,50 @@ def kapitel_stammdaten(i):
             "Programm keine künstliche 6-m-Variante.",
             "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
             "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Stangenlängen zu.")
+    i.abschnitt("Materialpreise aus ERP-CSV", marke="erp_preise")
+    i.text("Wer seine Einkäufe im ERP hat, lädt sie als CSV: Knopf <b>Preise aus ERP-CSV …</b> unter Preise. Die "
+           "Käufe werden nur aufgelistet, Preise in den Stammdaten bleiben unverändert. Im Angebot nimmt das Programm "
+           "nach dem Optimieren je Abmessung den passenden Kauf als Meterpreis, mit der Bemerkung „ERP-Preis vom "
+           "…, 60 m (≈ 10 Stangen à 6 m)“. Ab Werk aus; einschalten auf der Seite <i>Funktionen</i> "
+           "([[funktionen]]).", kurz=True)
+    i.genauer()
+    i.liste("<b>Datei</b>: je Kauf Kaufdatum, Menge in Meter, Meterpreis, Artikelnummer und EK-Artikel (Bezeichnung "
+            "mit Abmessung, Güte und ggf. Oberfläche, z. B. „Quadratrohr 40x40x3 S235JRH EN 10219“). Semikolon, Komma "
+            "oder Tab, deutsche Zahlen und Datumsformate, eine Titelzeile über dem Kopf stört nicht. Erkennt das "
+            "Programm die Spalten nicht, fragt es einmal nach (Fenster <i>Spalten der ERP-CSV zuordnen</i>); die "
+            "Zuordnung gilt danach für Dateien mit gleichem Spaltenkopf. Gutschriften (Menge oder Preis ≤ 0) und "
+            "Summenzeilen werden übersprungen und gemeldet. Ein Kauf, der schon geladen ist, kommt nicht doppelt.",
+            "<b>Prüfliste ERP-Artikel</b>: je Artikel Profil, Werkstoff und Oberfläche aus der Bezeichnung. Grün = "
+            "eindeutig. Gelb = Werkstoff wählen (S235JRH passt zu EN 10219 und EN 10210; steht die Norm in der "
+            "Bezeichnung, entscheidet sie) oder Oberfläche fehlt in den Stammdaten. Rot = Profil fehlt: <b>Profil "
+            "anlegen …</b> öffnet das Fenster Neue Abmessung mit den erkannten Maßen, oder „– überspringen –“ "
+            "(z. B. Schrauben). Jede Wahl wird je ERP-Artikel gemerkt, der nächste Import ist grün; "
+            "<b>Zuordnung vergessen</b> nimmt sie zurück. <b>Nur gelbe und rote</b> blendet die fertigen aus.",
+            "<b>Übersicht</b>: je Profil + Werkstoff + Oberfläche Käufe, Meter, Durchschnitt nach Menge (120 m zu "
+            "3,10 € zählen mehr als 6 m zu 4,90 €) über die letzten 12 Monate, letzter Preis, Min – Max und der "
+            "heutige Preis aus den Stammdaten (Mauszeiger: Herkunft). Ausreißer (mehr als 25 % vom Median, z. B. "
+            "Kleinmengen) zählen nicht. Doppelklick zeigt den Verlauf mit allen Käufen; dort lässt sich jeder Kauf "
+            "per Haken mitrechnen oder weglassen (<b>Ausreißer automatisch</b> nimmt die eigenen Haken zurück). Ein "
+            "weggelassener Kauf wird auch im Angebot nicht genommen. Unter der Tabelle steht der Aufpreis der "
+            "Oberflächen in €/kg gegenüber der Rohware, nur zum Vergleich.",
+            "<b>Im Angebot</b>: nach jedem <b>Optimieren</b> sucht das Programm je Abmessung (Profil, Werkstoff, "
+            "Oberfläche) den Kauf zum Bedarf laut Schnittplan: den neuesten Kauf mit ähnlicher Menge (halb bis "
+            "doppelt so viele Meter), sonst den neuesten überhaupt. Es zählen nur Käufe der letzten 12 Monate. Der "
+            "Meterpreis dieses Kaufs gilt dann für die Abmessung im Angebot; ohne passenden Kauf rechnet das Angebot "
+            "wie bisher (Lieferlängen, Preise bzw. Tonnenpreis).",
+            "<b>Material-Fenster</b> ([[material_fenster]]): der ERP-Preis steht grau als berechneter Meterpreis mit "
+            "ⓔ, der Mauszeiger zeigt die Bemerkung (Datum, Menge, Stangen, Artikel). Ein eigener Meterpreis von Hand "
+            "geht immer vor. Die Bemerkung ist nur intern (Material-Fenster, Preis-Aufbau, Kalkulations-PDF), nicht "
+            "im Angebots-PDF für den Kunden.",
+            "Ein festgeschriebenes Angebot ([[preise_festschreiben]]) und ein Angebot bei ausgeschalteter Funktion "
+            "bekommen keinen neuen Vorschlag; gewählte Preise bleiben am Angebot.",
+            "Die Käufe bleiben nur an diesem Arbeitsplatz; der gewählte Preis gehört zum Angebot und geht mit ihm "
+            "an die anderen Plätze.")
+    i.tabelle(["Einstellung (Seite ERP-Preisimport)", "Vorgabe"], [
+        ["ERP-Preise: Zeitraum der Käufe [Monate]", "12: nur Käufe der letzten 12 Monate zählen (Übersicht und "
+                                                    "Angebot); ältere rechnen über den Tonnenpreis"],
+        ["ERP-Preise: Ausreißer ab Abweichung vom Median", "25 %"]],
+        [110, 155])
     i.abschnitt("Maschinen, Schneiddaten und Gewinde", marke="maschinen_schneiddaten")
     i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)

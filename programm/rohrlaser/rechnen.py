@@ -1377,7 +1377,8 @@ def haendler_mehrlaenge(laenge, einst=None, tabellen=None):
 
 def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst=None, mehr=True):
     """Materialkosten einer Stange der Länge laenge für die Gruppe gr (Profil, Werkstoff, Oberfläche, Stangenlänge
-    des Angebots): Preis €/m im Angebot > Zeile in 'Lieferlängen' mit dieser Länge und Preis > 'Preise' >
+    des Angebots): Preis €/m im Angebot > ERP-Preis des Angebots (erp_preis) > Zeile in 'Lieferlängen' mit dieser
+    Länge und Preis > 'Preise' >
     Tonnenpreis; zu den drei letzten kommt der Aufpreis der Oberfläche je m. Nach Länge oder Gewicht berechnete
     Preise gelten für die Länge + Händler-Mehrlänge (mehr=False: ohne, für den €/m). Ergebnis (€, fehlt): fehlt = Text,
     wenn der Preis nicht belastbar ist (kein Preis; Lieferlänge ohne eigenen Preis bei 'Preise' in €/Stange einer
@@ -1389,6 +1390,9 @@ def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst
     ab = [p["preis_m"] for p in positionen if _n(p.get("preis_m")) and ohne_muster(gruppe_von(p, kopf)) == ohne_muster(gr)]
     if ab and max(ab) > 0:
         return max(ab) * lb / 1000, None
+    e = erp_preis(kopf, gr)
+    if e is not None:          # ERP-Einkaufspreis des Angebots (erp_preise.py): echter €/m, ohne Aufpreis und Teuerung
+        return e["preis"] * lb / 1000, None
     aufpreis_m = oberflaeche_aufpreis_m(ob, profil, werkstoff, k)
     aufpreis = aufpreis_m * lb / 1000
 
@@ -1417,6 +1421,24 @@ def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst
     tonne = (k.werkstoffe.get(werkstoff) or {}).get("tonnenpreis")
     return mit_teuerung(_n(gb) * _n(tonne) / 1000, aufpreis, None if _n(tonne) > 0 and gewicht is not None
                         else f"kein Materialpreis für {profil} / {werkstoff}")
+
+
+def erp_schluessel(profil, werkstoff, oberflaeche):
+    return f"{profil}|{werkstoff}|{oberflaeche or ''}"
+
+
+def erp_preis(kopf, gr):
+    """ERP-Einkaufspreis, den das Angebot nach dem Optimieren für Profil + Werkstoff + Oberfläche gewählt hat (Plan
+    ERP-Preise 30.10.2026: Vorschlag nach Bedarf, angebote.erp_preise): dict(preis €/m, datum, menge, stangen,
+    artikelnr, bemerkung) oder None (dann wie bisher Lieferlängen/Preise/Tonnenpreis). Nie bei Kundenmaterial."""
+    e = (kopf or {}).get("erp_preise")
+    if not e or "Kunde" in tuple(gr[4:]):
+        return None
+    if isinstance(e, str):
+        import json
+        e = json.loads(e)
+    z = e.get(erp_schluessel(gr[0], gr[1], gr[2]))
+    return z if z and _n(z.get("preis")) > 0 else None
 
 
 def teuerung(werkstoff_id, k, zeile=None):
@@ -1511,7 +1533,7 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
     Kundenmaterial) für den Dialog 'Meterpreise' und das Kalkulation-PDF, in der Reihenfolge der Positionen.
     Je Gruppe dict(gruppe, profil, werkstoff, oberflaeche, stange, kunde, positionen [Pos.-Nr.], ids, teile_m
     (Teilelängen × Rohrstücke [m]), berechnet, wirksam, fehlt (wie meterpreis), manuell (Preis von Hand €/m oder None),
-    kg_m) und aus dem Schnittplan (ergebnis, sonst 0): stangen, laengen {Lieferlänge: Anzahl}, meter, kg, kosten,
+    kg_m, erp (ERP-Preis des Angebots, erp_preis)) und aus dem Schnittplan (ergebnis, sonst 0): stangen, laengen {Lieferlänge: Anzahl}, meter, kg, kosten,
     nutz_m (eingeplante Teile [m]), ausnutzung (None ohne Stangen)."""
     out = {}
     for p in positionen:
@@ -1526,7 +1548,7 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
             g = out[gr] = dict(gruppe=gr, profil=gr[0], werkstoff=gr[1], oberflaeche=gr[2], stange=gr[3],
                                kunde=beigestellt(p), positionen=[], ids=[], teile_m=0.0, berechnet=berechnet,
                                wirksam=wirksam, fehlt=fehlt, manuell=max(hand) if hand else None,
-                               kg_m=kg_je_m(gr[0], gr[1], k), stangen=0, laengen={}, meter=0.0, kg=0.0, kosten=0.0,
+                               kg_m=kg_je_m(gr[0], gr[1], k), erp=erp_preis(kopf, gr), stangen=0, laengen={}, meter=0.0, kg=0.0, kosten=0.0,
                                nutz_m=0.0, ausnutzung=None)
         g["positionen"].append(p.get("pos"))
         g["ids"].append(p.get("id"))
@@ -1558,6 +1580,9 @@ def preis_herkunft(p, kopf, k, tabellen, heute=None):
     Werkstoff oder bei Zukaufteilen."""
     if kein_laserteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
         return None
+    e = erp_preis(kopf, gruppe_von(p, kopf))
+    if e is not None:
+        return f"Herkunft: {e.get('bemerkung') or 'ERP-Preis'}"
     pid, wid, laenge = p["profil_id"], p["werkstoff_id"], gruppe_von(p, kopf)[3]
     text = _preis_herkunft_text(pid, wid, laenge, k, tabellen, heute)
     tz = teuerung_text(wid, k)
