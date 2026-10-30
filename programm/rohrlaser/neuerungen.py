@@ -21,12 +21,24 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.211", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
+    ["0.9.212", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
                 "haben eine feste Kennung (bleibt bei der endgültigen Nummer und beim Kollegen gleich), ein "
                 "Änderungsprotokoll merkt sich jede Änderung an Stammdaten, gemeinsamen Einstellungen und Angeboten, "
                 "und Ordner, Nummern und gemeinsame Dateien laufen über eine gemeinsame Schnittstelle. Für die Arbeit "
                 "ändert sich nichts: gemeinsamer Ordner, Dateien und Abgleich bleiben gleich.",
      "Vorbereitung Server-Synchronisation: feste Kennungen, Änderungsprotokoll, eine Stelle für den Austausch"],
+    ["0.9.211", "<b>Admin-Schutz für Einstellungen</b> ([[passwort]]): Der Reiter Einstellungen öffnet für alle; "
+                "Seiten mit 🔒 (Vorschlag: Preise, Gewinn, Kosten, Maschinen, Schneiddaten, Firma, Funktionen, "
+                "Frachtkosten …) ändert nur der Admin, andere sehen die Werte grau. <b>Als Admin freischalten …</b> "
+                "mit dem Admin-Passwort geht an jedem Arbeitsplatz und gilt bis <b>Admin sperren</b>, Programmende "
+                "oder 15 Minuten ohne Eingabe. Welche Seiten geschützt sind, legt der Admin unter Allgemein → "
+                "Admin-Schutz mit Häkchen fest. Was der Admin dort einstellt, gilt als Admin-Vorgaben an jedem "
+                "Arbeitsplatz (gemeinsamer Ordner, für einen späteren Server vorbereitet); ein Nicht-Admin kann es "
+                "nicht überschreiben. Das bisherige Passwort für den ganzen Reiter entfällt. <b>Frachtdaten</b> "
+                "(Zonen, Tarife, Paletten, Zuschläge, Dienstleister, Historie) stehen jetzt unter Einstellungen → "
+                "Fracht ([[frachtkosten]]); im Reiter Frachtkosten bleibt der Rechner mit <b>Frachtdaten pflegen "
+                "…</b>. Bitte alle Arbeitsplätze gleichzeitig updaten.",
+     "Admin-Schutz für Einstellungen (gilt an allen Arbeitsplätzen); Frachtdaten unter Einstellungen → Fracht"],
     ["0.9.210", "<b>Aufgeschnittene Rohre aus der STEP</b> ([[offene_rohre]]): Rechteckrohr mit großem Ausschnitt über "
                 "Oberseite und Seitenwände (Trapez), der die Seitenwände nur teilweise wegnimmt, galt als V-Ausschnitt "
                 "eines Knickrahmens und stand im Editor bis 16 mm neben der STEP – jetzt Sonderkontur genau wie "

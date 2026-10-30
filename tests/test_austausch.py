@@ -72,6 +72,11 @@ for p in ("Rohrlaser_AB.sqlite", "Rohrlaser_CD/haupt.sqlite"):
     (gemeinsam / p).unlink()
 ok("Unterordner wie bisher (nur angelegt, wenn verlangt; nicht erreichbar = None)")
 
+assert w.datei_lesen("Admin", "admin_vorgaben.json") is None
+w.datei_schreiben(b"{}", "Admin", "admin_vorgaben.json")
+assert w.datei_lesen("Admin", "admin_vorgaben.json") == b"{}" and not list((gemeinsam / "Admin").glob("*.neu"))
+ok("Einzelne Datei (Admin-Vorgaben) über den Austauschweg lesen und atomar schreiben")
+
 
 # ---------------------------------------------------------------- zwei Arbeitsplätze
 def arbeitsplatz(name, k):

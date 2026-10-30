@@ -6,7 +6,8 @@ Dateien und Verhalten sind dieselben wie vorher. Später kommt ein Server als zw
 
 - Daten der Mitarbeiter: eigene Hauptdatei finden, die der Kollegen auflisten und lokal holen, eigene Daten ablegen
 - Nummern: höchsten belegten Zählerstand eines Bereichs (Nummern, AB-Nummern) lesen und einen Zählerstand exklusiv belegen
-- Dateien: Unterordner für Anfragen, Angebotsordner und Sicherungen
+- Dateien: Unterordner für Anfragen, Angebotsordner und Sicherungen; einzelne Dateien lesen und atomar schreiben
+  (Admin-Vorgaben, admin_schutz.py)
 """
 import json
 import os
@@ -158,6 +159,21 @@ class OrdnerWeg:
         return True
 
     # -------------------------------------------------------------- Dateien
+    def datei_lesen(self, *teile):
+        """Inhalt (bytes) einer Datei im gemeinsamen Ordner, z. B. ("Admin", "admin_vorgaben.json"); None = fehlt."""
+        try:
+            return self.pfad.joinpath(*teile).read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def datei_schreiben(self, daten, *teile):
+        """Datei atomar ersetzen (erst daneben schreiben, dann umbenennen); fehlende Unterordner werden angelegt."""
+        ziel = self.pfad.joinpath(*teile)
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ziel.with_name(f"{ziel.name}.{os.getpid()}.neu")
+        tmp.write_bytes(daten)
+        os.replace(tmp, ziel)
+
     def unterordner(self, name, anlegen=False):
         """Unterordner (Anfragen, Angebote, Sicherungen) oder None, wenn der Ordner nicht erreichbar ist."""
         if not self.erreichbar():

@@ -162,6 +162,7 @@ def _protokoll_einrichten(con):
     con.execute(f"CREATE TABLE IF NOT EXISTS {PROTOKOLL} (nr INTEGER PRIMARY KEY AUTOINCREMENT, tabelle TEXT, "
                 "uid TEXT, art TEXT, zeit TEXT, herkunft TEXT, platz TEXT)")
     con.execute(f"CREATE TABLE IF NOT EXISTS {HERKUNFT} (wert TEXT)")
+    con.execute(f"DELETE FROM {HERKUNFT}")      # nach einem abgebrochenen Abgleich: wieder „hier geändert“
     tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%\\_protokoll' "
                                "ESCAPE '\\'").fetchall():
@@ -746,6 +747,11 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
     con = db.con
     if not con.execute("SELECT 1 FROM teilen_basis LIMIT 1").fetchone() and andere_dateien(db):
         raise ErstAbgleich(sorted(andere_dateien(db)))     # erst lesen: sonst gälten die eigenen Werte als neuer
+    from . import admin_schutz
+    try:                            # als Admin: geänderte Werte der geschützten Bereiche für alle Arbeitsplätze
+        admin_schutz.paket_schreiben(db, wer=k)
+    except OSError:
+        pass                        # beim nächsten Schreiben wieder
     with con:
         erfassen(con, jetzt(k))
         lokal = lokale_zeilen(con)
@@ -1072,6 +1078,11 @@ def lesen(db, modus=None):
                 bericht["hinweise"].append(f"Datei von {k2} nicht lesbar: {e}")
             finally:
                 fc.close()
+        from . import admin_schutz          # Admin-Vorgaben: geschützte Werte kommen nur aus dem Paket des Admins
+        paket = admin_schutz.paket_lesen(db)
+        if paket and paket.get("hinweis"):
+            bericht["hinweise"].append(paket["hinweis"])
+        entfernt = admin_schutz.ausfiltern(entfernt, paket)
         bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"])
         _konflikte_merken(db, bericht["konflikte"])
         db._einstellung_schreiben("teilen_mitarbeiter", bekannt)
@@ -1113,6 +1124,10 @@ def lesen(db, modus=None):
         db._einstellung_schreiben("teilen_gelesen", datetime.datetime.now().isoformat(timespec="seconds"))
         db._einstellung_schreiben("teilen_lese_zeit", lese_zeit)
         _herkunft(con, None)
+    with con:
+        _herkunft(con, "abgleich")          # Admin-Vorgaben kommen vom Admin, nicht von hier
+        bericht["admin_vorgaben"] = admin_schutz.nach_lesen(db, paket)
+        _herkunft(con, None)
     return bericht
 
 
@@ -1137,6 +1152,8 @@ def bericht_text(b):
         teile.append(f"{b['stammdaten']} Stammdaten übernommen")
     if b.get("uebernommen"):
         teile.append("übernommen: " + ", ".join(f"{u['nummer']} von {u['von']}" for u in b["uebernommen"]))
+    if b.get("admin_vorgaben"):
+        teile.append("Admin-Vorgaben übernommen")
     if b.get("notizen"):
         teile.append(f"{len(b['notizen'])} Notiz(en) von Kollegen")
     if b.get("konflikte"):
