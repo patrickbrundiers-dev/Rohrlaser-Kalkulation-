@@ -30,7 +30,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
+from . import erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -486,6 +486,7 @@ class Datenbank:
                                          "SELECT id, ergebnis FROM angebote WHERE typeof(ergebnis)='text'")])
             teilen.einrichten(self.con)
             lager.einrichten(self.con)
+            erp_preise.einrichten(self.con)
             fertigung.einrichten(self.con)
             etiketten.einrichten(self.con)
             reklamation.einrichten(self.con)

@@ -82,6 +82,10 @@ SEITEN = (
                                           "laenge_auto_huellkreis laenge_auto"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
            _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"))),
+    Seite("e_erp_preise", "ERP-Preisimport",
+          "Materialpreise aus der Einkaufs-CSV des ERP (Stammdaten → Preise → „Preise aus ERP-CSV …“): gewichteter "
+          "Durchschnitt nach Menge über den Zeitraum, Ausreißer zählen nicht. " + ALLE_PLAETZE,
+          (_a("Auswertung", "erp_monate erp_ausreisser erp_schwelle"),)),
     Seite("e_listen", "Auswahllisten", ALLE_PLAETZE,
           (_a("Listen", "profilformen kategorien"),)),
     Seite("e_blech", "Blech-Richtpreis", ALLE_PLAETZE,

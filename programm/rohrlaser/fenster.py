@@ -430,6 +430,15 @@ class StammdatenSeite(QWidget):
             einlesen.clicked.connect(self.kunden_importieren)
             leiste.addWidget(export)
             leiste.addWidget(einlesen)
+        if tabelle.name == "preise":
+            # Plan Materialpreise aus ERP-CSV (30.10.2026): nur mit Funktion „Materialpreise aus ERP-CSV“ (Vorgabe aus)
+            erp = QPushButton("Preise aus ERP-CSV …")
+            erp.setToolTip("Einkaufsdaten aus dem ERP (Kaufdatum, Menge, Meterpreis, Artikelnummer, EK-Artikel) "
+                           "laden: Profil, Werkstoff und Oberfläche erkennen, Durchschnittspreis je Profil + "
+                           "Werkstoff zeigen und angehakte Preise als €/m übernehmen (vorher Datensicherung)")
+            erp.clicked.connect(lambda: self.erp_preise())
+            leiste.addWidget(erp)
+            self.erp_knopf = erp
         if tabelle.name == "profile":
             rp = QPushButton("RP-Profile aus MegaCAD laden …")
             rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
@@ -476,6 +485,8 @@ class StammdatenSeite(QWidget):
         der Werkstoffe (Teuerung; eingetragene Zuschläge bleiben sichtbar)."""
         if getattr(self, "lernen_knopf", None) is not None:
             self.lernen_knopf.setVisible(funktionen.an("funktion_nachkalkulation"))
+        if getattr(self, "erp_knopf", None) is not None:
+            self.erp_knopf.setVisible(funktionen.an("funktion_erp_preise"))
         if self.t.name == "werkstoffe":
             an = funktionen.an("funktion_teuerung") or any(z.get("teuerung_wert") for z in self.modell.daten)
             for i, (art, f) in enumerate(self.modell.spalten):
@@ -574,6 +585,22 @@ class StammdatenSeite(QWidget):
             f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
             self.meldung(f"CSV-Import: {erg[0]} Kunden neu, {erg[1]} geändert. Sicherung vorher: {erg[2]}")
         return erg
+
+    def erp_preise(self, pfad=None, **kw):
+        """Materialpreise aus ERP-CSV (erp_preise_dialog.importieren). Ergebnis: das Fenster oder None."""
+        from .erp_preise import ErpFehler
+        from .erp_preise_dialog import importieren
+        try:
+            d = importieren(self, self.db, pfad, **kw)
+        except (OSError, ErpFehler) as e:
+            self.meldung(f"ERP-Preise: {e}", fehler=True)
+            return None
+        if d is not None and d.ergebnis:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+            self.meldung(f"ERP-Preise: {d.ergebnis[0]} neu, {d.ergebnis[1]} geändert. Sicherung vorher: "
+                         f"{d.ergebnis[2]}")
+        return d
 
     def rp_laden(self, pfade=None):
         """MegaCAD-Makros als RP-Profile einlesen (rp_dialog.makros_laden). Ergebnis: (neu, geändert, Meldungen)."""

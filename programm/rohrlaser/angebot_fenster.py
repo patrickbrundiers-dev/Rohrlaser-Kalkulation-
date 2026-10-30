@@ -5822,6 +5822,16 @@ class AngebotSeite(QWidget):
         return self.csv_export("positionen", ordner)
 
     # -------------------------------------------------------------- Material je Abmessung
+    def _erp_hinweise(self):
+        """ERP-Durchschnittspreise je Abmessung für das Material-Fenster (Plan ERP-Preise 9b), nur mit Funktion."""
+        if not funktionen.an("funktion_erp_preise"):
+            return {}
+        from . import erp_preise
+        try:
+            return erp_preise.hinweise(self.db, self.k, self.tabellen)
+        except Exception:           # Hinweis darf das Material-Fenster nie verhindern
+            return {}
+
     def material_einstellen(self, dialog=None):
         """Fenster 'Material …': Materialeinsatz und Materialwerte je Abmessung (Werkstoff, Oberfläche, Lieferlänge, Eigen-/
         Kundenmaterial, Meterpreis) und Handling Kundenmaterial; Änderungen werden an allen Positionen der Abmessung
@@ -5841,7 +5851,7 @@ class AngebotSeite(QWidget):
                                                                                    self.tabellen, auto=False)
                                         if rechnen._n(z.get("laenge")) > 0],
                              self.einst, veraltet=not ohne_plan and self.stand_optimierung() != "aktuell",
-                             ohne_plan=ohne_plan, seite=self)
+                             ohne_plan=ohne_plan, seite=self, erp=self._erp_hinweise())
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
             return 0
         n = len(d.aenderungen) + len(d.kopf_aenderungen) + (d.vorgaben is not None)

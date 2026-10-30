@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.209", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+                "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
+                "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Je "
+                "Profil + Werkstoff der Durchschnitt nach Menge über 12 Monate ohne Ausreißer, Verlauf je Kauf, "
+                "Übernahme als €/m per Haken mit Datensicherung; Aufpreis-Vorschlag für Oberflächen und Hinweis im "
+                "Material-Fenster. Funktion ab Werk aus (Seite Funktionen).",
+     "Materialpreise aus ERP-CSV: Durchschnittspreis je Profil aus den Einkäufen, Übernahme per Haken"],
     ["0.9.208", "<b>Abruf-/Rahmenangebot</b> ([[abruf_angebot]]): Haken im Angebotskopf mit Jahresmenge und "
                 "Abrufmenge von–bis, Laufzeit und Material. Die Stückzahlen sind der kleinste Abruf; Programmierung "
                 "und Musterteile werden auf die kleinste Jahresmenge verteilt, Rüsten und Fracht zählen je Abruf. "
