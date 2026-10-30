@@ -180,7 +180,7 @@ def _dokument(pfad, titel, fuss, quer=False, auch_quer=False):
     return doc, leinwand
 
 
-def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederholen=True, zebra=True):
+def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederholen=True, zebra=True, groesse=8.5):
     """Liste im Stil des Angebots: ohne Gitter, Kopf dunkelblau mit Linie, feine Linien zwischen den Zeilen, jede
     zweite Zeile leicht hinterlegt; fett_zeilen (Summen) hellblau."""
     for zeile in daten[:kopfzeilen]:       # Kopf über Zahlenspalten rechtsbündig wie die Werte
@@ -190,10 +190,10 @@ def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederhole
     for r, zeile in enumerate(daten[kopfzeilen:], kopfzeilen):
         schrift = FETT if r in fett_zeilen else SCHRIFT
         for c, zelle in enumerate(zeile):     # Text breiter als die Spalte: umbrechen statt in die Nachbarspalte
-            if isinstance(zelle, str) and c < len(breiten) and stringWidth(zelle, schrift, 8.5) > breiten[c] - 6:
+            if isinstance(zelle, str) and c < len(breiten) and stringWidth(zelle, schrift, groesse) > breiten[c] - 6:
                 zeile[c] = _p(zelle, S_ZELLE_R if c in rechts else S_ZELLE)
     t = LongTable(daten, colWidths=breiten, repeatRows=kopfzeilen if wiederholen else 0)
-    stil = [("FONT", (0, 0), (-1, -1), SCHRIFT, 8.5), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    stil = [("FONT", (0, 0), (-1, -1), SCHRIFT, groesse), ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("TOPPADDING", (0, 0), (-1, -1), 2.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
             ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
             ("LINEBELOW", (0, kopfzeilen), (-1, -1), 0.3, LINIE)]
@@ -1045,10 +1045,15 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
 # Spalten der Tabellen: (Kopf, Schlüssel, Nachkommastellen (None = Text), Breite [mm], immer zeigen). Spalten, die in
 # keiner Zeile einen Wert haben (alles 0 bzw. leer), blendet das PDF aus; die übrigen werden auf die volle Breite
 # verteilt (Patrick 22.10.2026: Kalkulation übersichtlicher). Beträge und Zeiten je Teil, außer 'Position'.
-KALK = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True), ("Stück", "stueck", 0, 10, True),
-        ("Material [€]", "material_teil", 3, 16, True), ("Laser netto [s]", "laser_netto", 1, 15, True),
+KALK = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True),
+        ("Bezeichnung", "bezeichnung", None, 24, False), ("Stück", "stueck", 0, 10, True),
+        ("Material [€]", "material_teil", 3, 16, True), ("Schrott [€]", "schrott_teil", 3, 13, False),
+        ("Lager- zins [€]", "lagerzins_teil", 3, 13, False), ("Laser netto [s]", "laser_netto", 1, 15, True),
         ("Gewinde [s]", "gewindezeit", 1, 14, False), ("Laser [€]", "laser_schneiden_teil", 3, 14, True),
+        ("Schneid- gas [€]", "schneidgas_teil", 3, 13, False),
         ("Gewinde [€]", "gewinde_teil", 3, 14, False), ("Zusatz [€]", "zusatz_teil", 3, 14, False),
+        ("Schwei- ßen BG [€]", "bg_eigen_teil", 3, 14, False), ("Fremd- leist. BG [€]", "bg_fremd_teil", 3, 14, False),
+        ("Aus- schuss [€]", "ausschuss_teil", 3, 13, False),
         ("Arbeits- schritte [€]", "arbeit_teil", 3, 14, False), ("Handling [€]", "handling_teil", 3, 13, False),
         ("Rüsten Masch. [€]", "ruesten_maschine_teil", 3, 14, False),
         ("Rüsten Abm. [€]", "ruesten_abm_teil", 3, 14, False),
@@ -1066,7 +1071,14 @@ KALK = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True
         ("Skonto [€]", "skonto_teil", 3, 13, False), ("Mindest- preis [€]", "mindestpreis_teil", 3, 14, False),
         ("Preis je Teil [€]", "preis_teil", 3, 17, True), ("Preis Position [€]", "preis_position", 2, 18, True),
         ("Herstellkosten Position [€]", "herstell_position", 2, 19, True), ("Hinweis", "hinweis", None, 30, False)]
+# Kalkulations-PDF 30.10.2026: die Positionstabelle in zwei Tabellen (passt sonst nicht mehr in die Breite):
+# Kosten je Teil bis zu den Herstellkosten, danach der Preisaufbau bis zum Preis
+_PREIS_AB = [s[1] for s in KALK].index("programmierung_anteil")
+_KOPF = [s for s in KALK if s[1] in ("pos", "artikel", "bezeichnung", "stueck")]
+KALK_KOSTEN = [s for s in KALK[:_PREIS_AB] if s[1] != "bezeichnung"]
+KALK_PREIS = _KOPF + [("Herstellkosten [€]", "herstell_teil", 3, 17, True)] + KALK[_PREIS_AB:]
 SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True),
+           ("Schneiddaten", "schneiddaten", None, 30, False),
            ("groß + Rest [mm]", "mm_gross", 1, 15, True), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 15, True),
            ("Zeit groß [s]", "zeit_gross", 1, 12, True),
            ("Kontur mittel [mm]", "mm_mittel", 1, 14, False), ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 15, False),
@@ -1083,9 +1095,11 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
 S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
 
 
-def spalten_waehlen(spalten, zeilen, breite):
+def spalten_waehlen(spalten, zeilen, breite, fett=(), groesse=None):
     """Spalten mit Wert in mindestens einer Zeile (bzw. 'immer zeigen'), Breiten auf breite [pt] verteilt; jede Spalte
-    mindestens so breit wie das längste Wort ihres Kopfs, damit kein Wort getrennt wird. [(Spalte, Breite)]."""
+    mindestens so breit wie das längste Wort ihres Kopfs, damit kein Wort getrennt wird. Mit groesse (Schrift der
+    Werte) auch so breit wie die längste Zahl, damit keine Zahl umbricht (Kalkulations-PDF 30.10.2026).
+    [(Spalte, Breite)]."""
     def hat_wert(s):
         for z in zeilen:
             w = z.get(s[1])
@@ -1097,6 +1111,10 @@ def spalten_waehlen(spalten, zeilen, breite):
     gewaehlt = [s for s in spalten if s[4] or hat_wert(s)]
     rl = rl_canvas.Canvas(io.BytesIO())
     minimum = [max(rl.stringWidth(w, FETT, 7) for w in s[0].split()) + 7 for s in gewaehlt]
+    if groesse:
+        minimum = [max(m, max((rl.stringWidth(_z(z.get(s[1]), s[2]), FETT if s[1] in fett else SCHRIFT, groesse) + 7
+                               for z in zeilen), default=0)) if s[2] is not None else m
+                   for s, m in zip(gewaehlt, minimum)]
     w = [max(s[3] * mm, m) for s, m in zip(gewaehlt, minimum)]
     f = breite / sum(w)
     if f < 1:           # zu breit: nur über das Minimum hinaus kürzen
@@ -1109,13 +1127,19 @@ def spalten_waehlen(spalten, zeilen, breite):
 
 
 def _spalten_tabelle(spalten, zeilen, breite, fett=()):
-    sp = spalten_waehlen(spalten, zeilen, breite)
+    """Tabelle der belegten Spalten; viele Spalten: Werte kleiner (bis 6,5 pt), damit keine Zahl umbricht."""
+    for groesse in (8.5, 7.5, 7, 6.5):
+        sp = spalten_waehlen(spalten, zeilen, breite, fett, groesse)
+        if sum(b for _, b in sp) <= breite + 0.5:
+            break
+    klein = ParagraphStyle(f"sk{groesse}", parent=S_KLEIN, fontSize=min(8, groesse), leading=min(8, groesse) + 1.5)
     daten = [[_p(s[0], S_KOPF7) for s, _ in sp]]
     for z in zeilen:
-        daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s, _ in sp])
-    tab = _tabelle(daten, [b for _, b in sp], rechts=[i for i, (s, _) in enumerate(sp) if s[2] is not None])
+        daten.append([_p(z.get(s[1]), klein) if s[2] is None else _z(z.get(s[1]), s[2]) for s, _ in sp])
+    tab = _tabelle(daten, [b for _, b in sp], rechts=[i for i, (s, _) in enumerate(sp) if s[2] is not None],
+                   groesse=groesse)
     spalten_fett = [i for i, (s, _) in enumerate(sp) if s[1] in fett]
-    tab.setStyle(TableStyle([("FONT", (c, 1), (c, -1), FETT, 8.5) for c in spalten_fett]))
+    tab.setStyle(TableStyle([("FONT", (c, 1), (c, -1), FETT, groesse) for c in spalten_fett]))
     return tab
 
 
@@ -1260,26 +1284,269 @@ def _stege_hinweise(stege):
             _tabelle(daten, [w * mm for w in (14, 40, 14, 22, 96)], rechts=(2,), zebra=False), Spacer(1, 4 * mm)]
 
 
+# Kalkulations-PDF überarbeitet (Patrick 30.10.2026, „Alle Empfehlungen umsetzten“): Kennzahlen statt „Rüsten und
+# Mengen“, Kopf mit Datum/Kunden-Nr./Stundensatz, Warnungen der Preis-Gegenprobe, Stundensatz-Rechenweg, Abruf,
+# Zukaufteile, Staffeln, Schneiddaten je Teil. Die Rechnung bleibt unverändert, nur die Darstellung.
+def _f(w):
+    """Zahl (auch Decimal) als float, sonst 0."""
+    try:
+        return float(w)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _satz_text(kopf, summen):
+    """'97,60 €/h ermittelt' bzw. '150,00 €/h von Hand' (+ ' + Gas je Teil')."""
+    m = ((kopf.get("zeitbasis") or {}) if isinstance(kopf.get("zeitbasis"), dict) else {}).get("maschine") or {}
+    satz = summen.get("satz_maschine")
+    if satz is None:
+        return ""
+    art = "ermittelt" if m.get("satz_art") == "ermittelt" else "von Hand"
+    gas = " + Gas je Teil" if m.get("satz_art") == "ermittelt" or m.get("gas_zusatz") == "ja" else ""
+    return f"{_z(satz)} €/h {art}{gas}"
+
+
+def gewinn_stufe_text(summen, einst):
+    """' · Basis 1.300,46 €, Stufe bis 2.000 € = 20 %' (gestaffelter Gewinn), sonst leer."""
+    if not summen.get("gewinn_gestaffelt"):
+        return ""
+    basis = summen.get("gewinn_stufen_basis") or 0
+    stufen = rechnen.gewinn_stufen(einst)
+    for i, (bis, satz) in enumerate(stufen):
+        if bis is None or basis <= bis:
+            von = f"über {_z(stufen[i - 1][0], 0)} €" if bis is None and i else f"bis {_z(bis, 0)} €"
+            return f"; Stufe {von} = {_z(100 * satz, 1)} % nach Basis ohne Zukaufteile {_z(basis)} €"
+    return ""
+
+
+def fracht_text(kopf, summen):
+    """Wie die Fracht entstand: Art, Text der Berechnung, Umlage, Hinweis (leer ohne Fracht)."""
+    from . import fracht_angebot as fa
+    m = summen.get("fracht_modus") or fa.MANUELL
+    if summen.get("fracht_fehler"):
+        return f"{summen['fracht_fehler']} (Kalkulation ohne Fracht)"
+    if not summen.get("fracht") and m in (fa.MANUELL, fa.BERECHNET):
+        return ""
+    if m == fa.BERECHNET:
+        d = fa.daten(kopf) or {}
+        t = "berechnet" + (f": {summen.get('fracht_text') or d.get('text')}" if summen.get("fracht_text") or d.get("text")
+                           else "")
+    elif m == fa.MANUELL:
+        t = "von Hand eingetragen"
+    else:
+        return m
+    t += f", umgelegt {summen.get('fracht_umlage') or fa.JE_STUECK}"
+    if summen.get("fracht_hinweis"):
+        t += f"; {summen['fracht_hinweis']}"
+    return t
+
+
+def _kostenarten_pdf(summen, einst, kopf):
+    """kostenarten mit den Zusätzen des PDFs: greifende Gewinnstufe, Gas in m³, Herkunft der Fracht."""
+    out = []
+    for (t, w, f), (_, n, _) in zip(kostenarten(summen, einst), rechnen.KOSTENARTEN):
+        if n == "gewinn" and gewinn_stufe_text(summen, einst) and t.endswith(")"):
+            t = t[:-1] + gewinn_stufe_text(summen, einst) + ")"
+        elif n == "schneidgas" and w:
+            t += (f" ({_z(summen.get('gas_m3') or 0, 1)} m³ aus Düse und Gasdruck × €/m³)" if summen.get("gas_rechnung")
+                  else " (Zuschlag €/h der Maschine)")
+        elif n == "fracht" and w:
+            ft = fracht_text(kopf, summen)
+            t += f" ({ft})" if ft else ""
+        out.append((t, w, f))
+    return out
+
+
+def kennzahlen(kopf, summen, einst, material=None):
+    """[(Bezeichnung, Wert)] für den Kasten Kennzahlen auf Seite 1 (ersetzt „Rüsten und Mengen“, Plan U1)."""
+    from . import abruf
+    k = rechnen.zeit_summen(summen["zeiten"], summen.get("teile"))
+    verkauf = summen.get("verkauf") or 0
+    skonto = (summen.get("skonto_satz") or 0) / 100
+    out = []
+    satz = _satz_text(kopf, summen)
+    if satz:
+        out.append(("Stundensatz Maschine", satz))
+    if summen.get("satz_laser") and summen.get("satz_maschine") and \
+            round(summen["satz_laser"], 2) != round(summen["satz_maschine"], 2):
+        out.append(("Stundensatz Laser", f"{_z(summen['satz_laser'])} €/h"))
+    out.append(("Zeitbasis", "im Angebot festgeschrieben" if summen.get("zeitbasis_gespeichert") else
+                "aktuelle Stammdaten"))
+    satz_g = summen["gewinn_satz"] if summen.get("gewinn_gestaffelt") else _f(einst.get("gewinn"))
+    out.append(("Gewinn", f"{_z(100 * satz_g, 1)} % " + ("gestaffelt" if summen.get("gewinn_gestaffelt") else "fest")
+                + " auf " + ("Herstellkosten" if summen.get("gewinn_basis") == rechnen.GEWINN_HERSTELL
+                             else "Selbstkosten")))
+    kg = sum(_f(g.get("kg")) for g in material or ())
+    if kg > 0:
+        out.append(("Materialgewicht Rohr", f"{_z(kg, 1)} kg"))
+        out.append(("Verkaufspreis je kg Rohr", f"{_z(verkauf / kg)} €/kg"))
+    std = (k.get("maschine_min") or 0) / 60
+    ertrag = verkauf * (1 - skonto) - _f(summen.get("material")) - _f(summen.get("zukauf_einstand")) \
+        - _f(summen.get("zukauf_aufschlag")) - _f(summen.get("fracht"))
+    if std > 0:
+        out.append(("Ertrag je Maschinenstunde (ohne Material, Zukauf, Fracht)", f"{_z(ertrag / std)} €/h"))
+    out.append(("Positionen / Stangen / Teile", f"{_z(summen.get('positionen') or 0, 0)} / {_z(summen['stangen'], 0)} / "
+                                                f"{_z(summen['teile'], 0)}"))
+    if summen.get("laeufe", 1) > 1:
+        out.append(("Läufe an der Maschine", f"{summen['laeufe']} (Muster getrennt)"))
+    if summen.get("fracht") or summen.get("fracht_fehler"):
+        out.append(("Fracht", fracht_text(kopf, summen) or _z(summen.get("fracht") or 0) + " €"))
+    if abruf.aktiv(kopf):
+        out.append(("Abruf-/Rahmenangebot", abruf.kurz(kopf)))
+    return out
+
+
+def _stundensatz_abschnitt(kopf, summen, einst, maschine):
+    """Rechenweg des ermittelten Stundensatzes (Plan M3), leer bei Stundensatz von Hand."""
+    from . import stundensatz
+    zb = kopf.get("zeitbasis") if isinstance(kopf.get("zeitbasis"), dict) else {}
+    if (zb.get("maschine") or {}).get("satz_art") != "ermittelt" and (maschine or {}).get("satz_art") != "ermittelt":
+        return []
+    zeilen, h, satz = stundensatz.posten(maschine or {}, einst or {})
+    if satz is None:
+        return []
+    daten, fett = [_kopfzeile(["Posten", "Eingabe", "€ je Jahr", "€ je Stunde"])], []
+    for t, e, j, s in zeilen:
+        if e is None:
+            fett.append(len(daten))
+        daten.append([_p(t, S_FETT if e is None else S), _p(e or "", S_KLEIN), _z(j) if j is not None else "", _z(s)])
+    hinweis = f"Stunden je Jahr: {_z(h, 0)} h (Arbeitstage × Schichtstunden × Auslastung)."
+    if summen.get("satz_maschine") is not None and round(summen["satz_maschine"], 2) != round(satz, 2):
+        hinweis += (f" Das Angebot rechnet mit dem festgeschriebenen Satz {_z(summen['satz_maschine'])} €/h; der "
+                    "Rechenweg zeigt die heutigen Maschinendaten.")
+    tab = _tabelle(daten, [w * mm for w in (60, 110, 30, 30)], rechts=(2, 3), fett_zeilen=fett, zebra=False)
+    tab.hAlign = "LEFT"
+    return [CondPageBreak(50 * mm), _p("Stundensatz Maschine: Rechenweg", S_H2), tab,
+            Spacer(1, 1.5 * mm), _p(hinweis, ParagraphStyle("sth", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 5 * mm)]
+
+
+def _abruf_abschnitt(kopf, summen):
+    """Abruf-/Rahmenangebot (Plan M6), leer ohne Abruf."""
+    from . import abruf
+    ab = abruf.daten(kopf)
+    if not ab:
+        return []
+    w, m = abruf.abrufe(ab)
+    menge = lambda a, b: _z(a, 0) if round(a) == round(b) else f"{_z(a, 0)} bis {_z(b, 0)}"
+    zeilen = [("Jahresmenge", f"{menge(ab['jahr_von'], ab['jahr_bis'])} Stück"),
+              ("Abrufmenge", f"{menge(ab['von'], ab['bis'])} Stück"),
+              ("Abrufe je Jahr", f"ca. {menge(w, m)} (Kalkulation mit {_z(summen.get('abruf_n') or ab['n'], 1)} Abrufen: "
+                                 "kleinste Jahresmenge ÷ kleinster Abruf)"),
+              ("Laufzeit", f"{_z(ab['laufzeit'], 0)} Monate"),
+              ("Material", f"Jahresbedarf bevorratet, Lagerzins {_z(100 * ab['zins'], 1)} % p. a. = "
+                           f"{_z(summen.get('lagerzins') or 0)} € in diesem Abruf" if ab["bevorraten"]
+               else "je Abruf zum Tagespreis (Materialklausel)")]
+    if summen.get("programmierung_voll"):
+        zeilen.append(("Programmierung", f"{_z(summen['programmierung_voll'])} € einmalig, je Abruf "
+                                         f"{_z(summen.get('programmierung') or 0)} €"))
+    if summen.get("muster_positionen"):
+        zeilen.append(("Musterteile", f"{_z(summen.get('muster_betrag') or 0)} € einmalig, je Abruf "
+                                      f"{_z(summen.get('muster_umgelegt') or 0)} €"))
+    tab = _tabelle([[_p(a), _p(b)] for a, b in zeilen], [55 * mm, 175 * mm], kopfzeilen=0, zebra=False)
+    tab.hAlign = "LEFT"
+    return [CondPageBreak(40 * mm), _p("Abruf-/Rahmenangebot", S_H2), tab, Spacer(1, 5 * mm)]
+
+
+def _zukauf_abschnitt(summen):
+    """Zukaufteile einzeln (Plan M9): Artikel, Menge, Einstand, Aufschlag, Verkauf; leer ohne Zukaufteile."""
+    gruppen = [g for g in summen.get("zukauf") or () if g]
+    if not gruppen:
+        return []
+    daten = [_kopfzeile(["Artikel", "Bezeichnung", "Menge", "Lieferant", "EK [€]", "Einstand [€]", "Aufschlag",
+                         "Aufschlag [€]", "Betrag [€]", "Hinweis"])]
+    for g in gruppen:
+        st, b = g.get("stand") or {}, g.get("bestellung") or {}
+        menge = _f(b.get("bestellt") or b.get("verbrauch"))
+        daten.append([_p(st.get("artikelnr") or "", S_FETT), _p(st.get("bezeichnung") or "", S_KLEIN),
+                      f"{_z(menge, 0 if menge == int(menge) else 2)} {st.get('einheit') or ''}".strip(),
+                      _p(b.get("lieferant") or "", S_KLEIN), _z(_f(b.get("ek")), 3), _z(_f(g.get("einstand"))),
+                      _p(g.get("regel") or "", S_KLEIN), _z(_f(g.get("aufschlag"))), _z(_f(g.get("vk"))),
+                      _p(g.get("fehler") or g.get("warnung") or "", S_KLEIN)])
+    daten.append([_p("Summe", S_FETT), "", "", "", "", _z(_f(summen.get("zukauf_einstand"))), "",
+                  _z(_f(summen.get("zukauf_aufschlag"))),
+                  _z(_f(summen.get("zukauf_einstand")) + _f(summen.get("zukauf_aufschlag"))), ""])
+    return [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Zukaufteile", S_H2),
+            _tabelle(daten, [w * mm for w in (24, 46, 20, 24, 17, 22, 46, 22, 20, 32)], rechts=(2, 4, 5, 7, 8),
+                     fett_zeilen=[len(daten) - 1])]
+
+
+def _staffel_abschnitt(staffel):
+    """Staffelpreise je Mengenstufe (Plan M7) aus den gespeicherten Mengenläufen; leer ohne Staffeln."""
+    zeilen = [z for z in staffel or () if z and z.get("menge")]
+    if not zeilen:
+        return []
+    daten = [_kopfzeile(["Stufe", "Menge", "Material [€]", "Fertigung [€]", "Rüsten [€]", "Herstell- kosten [€]",
+                         "Selbst- kosten [€]", "Gewinn [€]", "Fracht [€]", "Preis je Einheit [€]",
+                         "Preis gesamt [€]", "Hinweis"])]
+    for z in zeilen:
+        pr = z.get("preis") or {}
+        daten.append([_p(z.get("schluessel") or z.get("bezeichnung") or "", S_FETT),
+                      f"{_z(z['menge'], 0)} {z.get('einheit') or ''}".strip(), _z(z.get("material")),
+                      _z(z.get("laser")), _z(z.get("ruesten")), _z(z.get("herstell")), _z(pr.get("selbst")),
+                      _z(pr.get("gewinn")), _z(pr.get("fracht")), _z(z.get("preis_einheit")),
+                      _z(z.get("preis_gesamt")), _p(z.get("hinweis") or "", S_KLEIN)])
+    return [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Staffelpreise je Mengenstufe", S_H2),
+            _tabelle(daten, [w * mm for w in (32, 18, 18, 19, 17, 19, 19, 18, 16, 20, 20, 57)],
+                     rechts=tuple(range(1, 11))),
+            Spacer(1, 1.5 * mm),
+            _p("Je Stufe ein eigener Mengenlauf (eigener Schnittplan, Rüsten und Fracht der Stufe). Beträge der Stufe "
+               "gesamt, Preis je Einheit wie im Angebot.", ParagraphStyle("sth2", parent=S_KLEIN, textColor=GRAU))]
+
+
+def _zeilen_kalk(zeilen, positionen, summen):
+    """Kopien der Kalkulationszeilen mit Bezeichnung, Schneiddaten-Text und Muster-Hinweis für die Tabellen."""
+    out = []
+    for i, z in enumerate(zeilen):
+        if z is None:
+            continue
+        p = positionen[i] if positionen and i < len(positionen) else {}
+        z = dict(z, bezeichnung=p.get("bezeichnung"))
+        if z.get("wand_stufe") is not None or z.get("gas"):
+            z["schneiddaten"] = " · ".join(x for x in ((z.get("gas") or "ohne Gas").replace("₂", "2"),
+                                                       f"bis {_z(z['wand_stufe'], 1)} mm" if z.get("wand_stufe") else "",
+                                                       z.get("sd_quelle") or "") if x)
+        if p.get("muster") == "ja":
+            wie = ("als Musterkosten einmalig" if summen.get("muster_zeile") else
+                   "je Abruf umgelegt" if summen.get("abruf") else "auf die Serie umgelegt")
+            z["hinweis"] = "; ".join(x for x in (f"Musterteil, {wie}", z.get("hinweis")) if x)
+        out.append(z)
+    return out
+
+
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,
-                    hinweise=None):
+                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None):
     """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
     ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
-    Querschnitte, hinweise = rechnen.laser_hinweise (Laser-Hinweise der Werkstoffe)."""
+    Querschnitte, hinweise = rechnen.laser_hinweise (Laser-Hinweise der Werkstoffe), positionen = Positionen des
+    Angebots (Bezeichnung, Muster), staffel = gespeicherte Staffelzeilen, plausi = plausibel.punkte (Warnungen),
+    maschine = Stammdaten der Maschine (Rechenweg des ermittelten Stundensatzes)."""
+    einst = einst or {}
     nr = kopf.get("nummer") or ""
     doc, leinwand = _dokument(pfad, f"Kalkulation {nr}", _fuss(einst, f"Kalkulation {nr}"), quer=True)
     breite = 273 * mm
     achtung = "ACHTUNG: Kalkulation passt nicht zum aktuellen Angebot (Optimierung veraltet)."
-    inhalt = _dok_kopf("Kalkulation", kopf, einst, breite, warnung=None if aktuell else achtung)
+    angaben = [("Angebot", nr), ("Datum", _datum_text(kopf.get("datum"))), ("Kunde", kopf.get("kunde")),
+               ("Kunden-Nr.", kopf.get("kundennr")), ("Maschine", kopf.get("maschine")),
+               ("Stundensatz", _satz_text(kopf, summen)), ("erstellt", _erstellt())]
+    inhalt = _dok_kopf("Kalkulation", kopf, einst, breite, angaben, warnung=None if aktuell else achtung)
+    for art, text, _ in plausi or ():       # Preis-Gegenprobe (Plan M10): nur wenn sie etwas meldet
+        inhalt += [_p(f"{art}: {text}", S_ROT if art == "WARNUNG" else
+                      ParagraphStyle("pl", parent=S_FETT, textColor=colors.HexColor("#8A5A00"))), Spacer(1, 1 * mm)]
+    if plausi:
+        inhalt.append(Spacer(1, 2 * mm))
     k = rechnen.zeit_summen(summen["zeiten"], summen.get("teile"))
     verkauf, herstell = summen.get("verkauf") or 0, summen.get("herstell") or 0
-    inhalt += [_kacheln([("Verkaufspreis netto", _z(verkauf) + " €"), ("Herstellkosten", _z(herstell) + " €"),
-                         ("Gewinn", _z(summen.get("gewinn") or 0) + " €"), ("Material", _z(summen.get("material") or 0) + " €"),
+    satz_g = summen["gewinn_satz"] if summen.get("gewinn_gestaffelt") else _f(einst.get("gewinn"))
+    inhalt += [_kacheln([("Verkaufspreis netto", _z(verkauf) + " €"), ("Selbstkosten", _z(summen.get("selbst") or 0) + " €"),
+                         ("Herstellkosten", _z(herstell) + " €"),
+                         (f"Gewinn · {_z(100 * satz_g, 1)} %", _z(summen.get("gewinn") or 0) + " €"),
+                         ("Material", _z(summen.get("material") or 0) + " €"),
                          ("Maschinenzeit", rechnen.zeit_text(k["maschine_min"])),
-                         ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0))], breite),
+                         ("Stangen / Teile", f"{_z(summen['stangen'], 0)} / {_z(summen['teile'], 0)}")], breite),
                Spacer(1, 5 * mm)]
     # Kostenarten ohne 0,00 € (Summenzeilen immer), Anteil am Verkaufspreis als Zahl und Balken, Summen hellblau
     daten, fett = [_kopfzeile(["Kostenart", "Betrag [€]", "Anteil", ""])], []
-    for t, w, f in kostenarten(summen, einst):
+    for t, w, f in _kostenarten_pdf(summen, einst, kopf):
         if not f and not round(w or 0, 2):
             continue
         if f:
@@ -1287,20 +1554,33 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
         anteil = (w or 0) / verkauf if verkauf else 0
         daten.append([_p(t, S_FETT if f else S), _z(w), f"{_z(100 * anteil, 1)} %" if verkauf else "",
                       AnteilBalken(anteil, 30 * mm, BLAU if f else colors.HexColor("#5B9BD5")) if verkauf else ""])
-    kosten = _tabelle(daten, [88 * mm, 25 * mm, 16 * mm, 33 * mm], rechts=(1, 2), fett_zeilen=fett, zebra=False)
-    kosten.setStyle(TableStyle([("VALIGN", (0, 1), (-1, -1), "MIDDLE")]))
-    angebot = [_kopfzeile(["Rüsten und Mengen", ""]),
-               [_p("Rüstzeit Maschine [min]"), _z(summen["ruestzeit"], 0)],
-               [_p("Abmessungen × Rüstzeit [min]"), f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"],
-               [_p("Stangenwechsel [s]"), _z(summen["stangenwechsel"], 0)],
-               *([[_p(f"Stangenwechsel SN [s] ({summen['beladungen_sn']} Stangen mit Schweißnaht)"),
-                   _z(summen["stangenwechsel_sn"], 0)]] if summen.get("beladungen_sn") else []),
-               [_p("Stangen"), _z(summen["stangen"], 0)], [_p("Teile"), _z(summen["teile"], 0)]]
-    t = Table([[kosten, "", _tabelle(angebot, [70 * mm, 30 * mm], rechts=(1,), zebra=False)]],
-              colWidths=[162 * mm, 11 * mm, 100 * mm], hAlign="LEFT")
-    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                           ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
-    inhalt += [t, Spacer(1, 5 * mm)]
+    kz = [_kopfzeile(["Kennzahlen", ""])] + [[_p(a, S_KLEIN), _p(b, S_KLEIN)]
+                                            for a, b in kennzahlen(kopf, summen, einst, material)]
+
+    def seite1(kompakt):
+        kosten = _tabelle([list(z) for z in daten], [100 * mm, 22 * mm, 15 * mm, 30 * mm], rechts=(1, 2),
+                          fett_zeilen=fett, zebra=False)
+        kosten.setStyle(TableStyle([("VALIGN", (0, 1), (-1, -1), "MIDDLE")] + (
+            [("TOPPADDING", (0, 1), (-1, -1), 1.2), ("BOTTOMPADDING", (0, 1), (-1, -1), 1.2)] if kompakt else [])))
+        kasten = _tabelle([list(z) for z in kz], [42 * mm, 58 * mm], zebra=False)
+        kosten.hAlign = kasten.hAlign = "LEFT"
+        t = Table([[kosten, "", kasten]], colWidths=[167 * mm, 6 * mm, 100 * mm], hAlign="LEFT")
+        t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                               ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+        return kosten, kasten, t
+    # Plan F1: Kostenarten und Kennzahlen nebeneinander auf Seite 1, notfalls mit engeren Zeilen; passt auch das
+    # nicht, laufen die Kostenarten über die Seite (die Tabelle darf umbrechen) und die Kennzahlen folgen darunter,
+    # statt dass Seite 1 leer bleibt
+    vorher = sum(x.wrap(breite, doc.height)[1] for x in inhalt)
+    for kompakt in (False, True):
+        kosten, kasten, t = seite1(kompakt)
+        if vorher + t.wrap(breite, doc.height)[1] <= doc.height - 2 * mm:
+            inhalt += [t, Spacer(1, 5 * mm)]
+            break
+    else:
+        inhalt += [kosten, Spacer(1, 4 * mm), CondPageBreak(30 * mm), kasten, Spacer(1, 5 * mm)]
+    inhalt += _stundensatz_abschnitt(kopf, summen, einst, maschine)
+    inhalt += _abruf_abschnitt(kopf, summen)
     if material:            # Materialeinsatz je Abmessung (Patrick 22.10.2026), eingestellt im Fenster 'Material …'
         tab, hand = _material_tabelle(material, profile or {})
         inhalt += [CondPageBreak(40 * mm), _p("Materialeinsatz je Abmessung", S_H2), tab]
@@ -1312,34 +1592,62 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                    Spacer(1, 5 * mm)]
     if hinweise:
         inhalt += [CondPageBreak(30 * mm)] + _laser_hinweise(hinweise)
-    # Zeiten und Kosten je Arbeitsschritt, nach Maschine, Personal und ohne Zeit geordnet (Schritte ohne Zeit und
-    # Kosten ausgeblendet); parallele Personalzeit gekennzeichnet
+    # Zeiten und Kosten je Arbeitsschritt, nach Maschine und Personal geordnet (Schritte ohne Zeit und Kosten
+    # ausgeblendet); parallele Personalzeit gekennzeichnet. Schritte ohne Zeit (Festpreis, Fremdleistung, Gas) grau
+    # unter einem eigenen Strich (Plan U2)
     daten = [[_p(t, S_KOPF7) for t in ("Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit",
                                        "Stundensatz [€/h]", "Kosten [€]", "Quelle", "Berechnung")]]
     reihe = {"Maschine": 0, "Personal": 1}
-    for z in sorted(summen["zeiten"], key=lambda z: reihe.get(z["art"], 2) if z["gesamt_min"] is not None else 2):
+    mit, ohne = [], []
+    for z in sorted(summen["zeiten"], key=lambda z: reihe.get(z["art"], 2)):
         if rechnen.schritt_sichtbar(z):
-            art = z["art"] + (" (parallel)" if z["art"] != "Maschine" and z["parallel"] and z["gesamt_min"] else "")
-            daten.append([_p(z["schritt"], S_KLEIN), _p(art, S_KLEIN), *rechnen.schritt_texte(z),
-                          _z(z["kosten"]), _p(z["quelle"], S_KLEIN), _p(z["formel"], S_KLEIN)])
-    inhalt += [CondPageBreak(40 * mm), _p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2),
-               _tabelle(daten, [w * mm for w in (38, 20, 24, 17, 19, 20, 31, 19, 38, 47)], rechts=(2, 3, 4, 5, 6, 7)),
+            (mit if z["gesamt_min"] is not None else ohne).append(z)
+    grau = ParagraphStyle("zg", parent=S_KLEIN, textColor=GRAU)
+    stil, trenn, ohne_ids = [], None, {id(z) for z in ohne}
+    for z in mit + ohne:
+        if z is (ohne[0] if ohne else None):
+            trenn = len(daten)
+            daten.append([_p("ohne Zeit (Festpreis, Fremdleistung, Gas)", ParagraphStyle(
+                "zt", parent=S_KOPF7, textColor=GRAU))] + [""] * 9)
+        s_ = grau if id(z) in ohne_ids else S_KLEIN
+        art = z["art"] + (" (parallel)" if z["art"] != "Maschine" and z["parallel"] and z["gesamt_min"] else "")
+        texte = rechnen.schritt_texte(z)
+        if id(z) in ohne_ids:
+            texte = ["", "", "", "", ""]
+            stil.append(("TEXTCOLOR", (0, len(daten)), (-1, len(daten)), GRAU))
+        daten.append([_p(z["schritt"], s_), _p(art, s_), *texte, _z(z["kosten"]), _p(z["quelle"], s_),
+                      _p(z["formel"], s_)])
+    zt = _tabelle(daten, [w * mm for w in (38, 20, 24, 17, 19, 20, 31, 19, 38, 47)], rechts=(2, 3, 4, 5, 6, 7))
+    if trenn is not None:
+        stil += [("SPAN", (0, trenn), (-1, trenn)), ("LINEABOVE", (0, trenn), (-1, trenn), 0.8, GRAU),
+                 ("BACKGROUND", (0, trenn), (-1, trenn), colors.white)]
+    zt.setStyle(TableStyle(stil))
+    inhalt += [CondPageBreak(40 * mm), _p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2), zt,
                Spacer(1, 1.5 * mm),
                _p(rechnen.zeiten_text(k), ParagraphStyle("zs", parent=S_KLEIN, textColor=GRAU)),
                Spacer(1, 5 * mm)]
-    liste = [z for z in zeilen if z is not None]
-    inhalt += [CondPageBreak(40 * mm), _p("Kalkulation je Position", S_H2),
-               _spalten_tabelle(KALK, liste, breite, fett=("pos", "preis_teil", "preis_position")),
+    liste = _zeilen_kalk(zeilen, positionen, summen)
+    inhalt += [CondPageBreak(40 * mm), _p("Kalkulation je Position: Kosten je Teil", S_H2),
+               _spalten_tabelle(KALK_KOSTEN, liste, breite, fett=("pos", "herstell_teil")),
                Spacer(1, 1.5 * mm),
-               _p("Beträge und Zeiten je Teil, außer den Spalten 'Position'. Spalten ohne Wert sind ausgeblendet.",
-                  ParagraphStyle("kh", parent=S_KLEIN, textColor=GRAU))]
+               _p("Beträge und Zeiten je Teil. Schrott = Gutschrift für den Verschnitt (negativ). Spalten ohne Wert "
+                  "sind ausgeblendet.", ParagraphStyle("kh", parent=S_KLEIN, textColor=GRAU)),
+               Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Kalkulation je Position: Preisaufbau", S_H2),
+               _spalten_tabelle(KALK_PREIS, liste, breite, fett=("pos", "preis_teil", "preis_position")),
+               Spacer(1, 1.5 * mm),
+               _p("Beträge je Teil, außer den Spalten 'Position'. Spalten ohne Wert sind ausgeblendet.",
+                  ParagraphStyle("kh2", parent=S_KLEIN, textColor=GRAU))]
+    inhalt += _zukauf_abschnitt(summen)
     inhalt += _baugruppen_abschnitt(zeilen, breite)
-    # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse
-    liste = [z for z in zeilen if z is not None and not z.get("zukaufteil")]
+    inhalt += _staffel_abschnitt(staffel)
+    # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse (ohne Zukaufteile und
+    # Schweißbaugruppen, die nicht geschnitten werden, Plan F3)
+    liste = [z for z in liste if not z.get("zukaufteil") and not z.get("baugruppe")]
     if liste:
         inhalt += [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Schneidzeit je Teil nach Konturklassen", S_H2),
                    _spalten_tabelle(SCHNEID, liste, breite), Spacer(1, 1.5 * mm),
-                   _p("Zeit je Klasse = Schneidweg der Klasse / Vorschub der Klasse × 60. Anfangs- und Endschnitt sind "
+                   _p("Schneiddaten = Schneidgas · Wandstärke-Stufe · Zeile des Werkstoffs bzw. seiner Kategorie. Zeit "
+                      "je Klasse = Schneidweg der Klasse / Vorschub der Klasse × 60. Anfangs- und Endschnitt sind "
                       "wie die Innenkonturen nach Hüllmaß eingeteilt. groß + Rest = Schneidweg − Konturen klein und "
                       "mittel. Netto = brutto − Einsparung gemeinsamer Schnitte (mit dem Vorschub der Klasse des "
                       "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit. Spalten ohne Wert "

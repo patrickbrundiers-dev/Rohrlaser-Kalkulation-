@@ -1515,6 +1515,32 @@ def kapitel_angebot(i):
             "Angeboten; der Preis ändert sich nicht.",
             "Jede Umstellung ist ein Schritt für <b>Strg+Z</b>. In fremden Angeboten und im Lesemodus ist die "
             "Reihenfolge gesperrt.")
+    i.abschnitt("Position kopieren: duplizieren oder aus einem anderen Angebot", marke="position_kopieren")
+    i.text("Position markieren → <i>Rechtsklick → Position duplizieren</i> (<b>Strg+Umschalt+D</b>): eine neue "
+           "Position mit allen Eingaben, direkt hinter dem Original. Aus einem anderen Angebot: <i>Rechtsklick → "
+           "Positionen aus anderem Angebot übernehmen …</i> oder <i>Neue Position → Aus anderem Angebot</i>.",
+           kurz=True)
+    i.genauer()
+    i.liste("Kopiert wird <b>alles, was zur Position gehört</b>: Profil, Werkstoff, Länge, Stückzahl, Enden, "
+            "Konturen und Schneidweg-Rechner, Zusatzarbeiten, Gravur, Zukaufteile, Schweißnaht, STEP-Merkmale, die "
+            "3D-Ansicht, die Staffeln der Position bzw. des Satzes ([[staffeln]]) und die Steckverbindungen aus "
+            "„Satz in 3D“. Der Preis wird immer neu kalkuliert.",
+            "<b>Was mitkommt</b> folgt der Positionsliste wie beim Verschieben ([[reihenfolge]]): eine markierte "
+            "<b>Schweißbaugruppe</b> mit allen Einzelteilen (neue Baugruppe), die <b>erste Zeile eines Satzes</b> "
+            "(mit ▾) mit allen Positionen des Satzes. Ein einzeln markiertes Einzelteil bzw. eine weitere Position "
+            "eines Satzes wird eine eigenständige Position. Mehrere Positionen lassen sich auf einmal markieren.",
+            "<b>Im selben Angebot</b> bekommt die Kopie eine eindeutige Artikelnummer (4711-001 → 4711-001-2), ein "
+            "kopierter Satz bzw. eine kopierte Baugruppe einen neuen Namen („Rahmen (2)“). Sind hinter dem Original "
+            "Positionsnummern frei (10 und 20 → 15), steht die Kopie direkt darunter, sonst am Ende mit der nächsten "
+            "Nummer; mit Alt+↑/↓ lässt sie sich weiter verschieben.",
+            "<b>Aus einem anderen Angebot</b>: links das Angebot wählen (Suche nach Nummer, Kunde, Artikel oder "
+            "Bezeichnung), rechts die Positionen markieren (Strg/Umschalt für mehrere), <b>Übernehmen</b>. Die "
+            "Positionen kommen ans Ende (letzte Nummer + 10 …), Artikelnummern bleiben. Auch Angebote der Kollegen, "
+            "verschickte und festgeschriebene lassen sich als Vorlage nehmen; sie werden nur gelesen und bleiben "
+            "unverändert. Der Haken <i>Staffeln der Positionen mitkopieren</i> lässt die Staffeln weg.",
+            "Jede Kopie ist ein Schritt für <b>Strg+Z</b>. In fremden Angeboten und im Lesemodus geht kein "
+            "Kopieren in das Angebot. Eine ganze Baugruppe in ein <i>anderes</i> Angebot schicken: <i>Rechtsklick → "
+            "Baugruppe in anderes Angebot kopieren …</i>; ein ganzes Angebot: <i>Angebote → Kopieren</i>.")
     i.abschnitt("Zusatzarbeiten und Gewinde je Bauteil", marke="zusatzarbeiten_angebot")
     i.text("Positionen markieren → <b>Zusatzarbeiten …</b> (oder Doppelklick in die Spalte <i>Zusatzarbeiten</i>).",
            kurz=True)
@@ -1784,6 +1810,7 @@ def kapitel_angebot(i):
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
         ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"],
+        ["Strg+Umschalt+D", "markierte Position duplizieren ([[position_kopieren]])"],
         ["Alt+↑ / Alt+↓", "markierte Positionen eine Zeile nach oben / unten ([[reihenfolge]])"]], [55, 210],
         kurz=True)
     i.genauer()
@@ -5283,12 +5310,20 @@ def kapitel_ausgabe(i, seiten, ablage):
            "genau die Summe der Zeilen.",
            "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan mit Kästchen zum "
            "Abhaken, danach das Stangenbild.",
-           "<b>Kalkulation (PDF)</b>: oben die Kennzahlen (Verkaufspreis, Herstellkosten, Gewinn, Material, "
-           "Maschinenzeit, Stangen, Teile), darunter die Kostenarten mit Anteil am Verkaufspreis in % und als Balken "
-           "(ohne 0,00 €, Herstellkosten und Verkaufspreis hervorgehoben), der Materialeinsatz je Abmessung mit "
-           "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
-           "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
-           "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
+           "<b>Kalkulation (PDF)</b>: Kopf mit Datum, Kunden-Nr., Maschine und Stundensatz (von Hand oder "
+           "ermittelt); rot darunter die Warnungen der Preis-Gegenprobe, wenn es welche gibt. Kacheln Verkaufspreis, "
+           "Selbstkosten, Herstellkosten, Gewinn (€ und %), Material, Maschinenzeit, Stangen/Teile; darunter die "
+           "Kostenarten mit Anteil am Verkaufspreis (Gewinn mit der greifenden Gewinnstufe, Schneidgas in m³, Fracht "
+           "mit Art und Umlage) und daneben die <b>Kennzahlen</b> (Stundensatz, Zeitbasis, Gewinn, Materialgewicht, "
+           "Preis je kg, Ertrag je Maschinenstunde, Fracht, Abruf). Danach – nur wenn vorhanden – der Rechenweg des "
+           "ermittelten Stundensatzes und der Abschnitt Abruf-/Rahmenangebot, der Materialeinsatz je Abmessung mit "
+           "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt (Schritte ohne Zeit grau unter einem "
+           "Strich), die Position in zwei Tabellen <i>Kosten je Teil</i> und <i>Preisaufbau</i> (mit Bezeichnung, "
+           "Musterteile gekennzeichnet), die Zukaufteile einzeln, je Schweißbaugruppe ihre Zeiten, die Staffelpreise "
+           "je Mengenstufe und die Schneidzeit je Teil mit den Schneiddaten (Gas, Wandstärke-Stufe, Zeile des "
+           "Werkstoffs bzw. der Kategorie); zum Schluss das Stangenbild wie in den Werkstattpapieren. Spalten ohne "
+           "Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet, bei vielen Spalten werden die Zahlen "
+           "kleiner statt umgebrochen.",
            "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
            "([[csv_export]]); <b>Ordner öffnen</b> (im Menü Ausgaben) zeigt den Ordner des Angebots im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
@@ -6520,6 +6555,17 @@ def kapitel_mehrere(i):
     i.hinweis("Das Kürzel ist eine Kennung, kein Zugriffsschutz: wer den gemeinsamen Ordner öffnen kann, sieht alle "
               "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
               "letzten Abgleichs (von selbst alle 2 Minuten), nicht live.")
+
+    i.abschnitt("Vorbereitet für einen Server", marke="server_vorbereitung")
+    i.genauer()
+    i.text("Seit 0.9.213 ist das Programm für einen späteren Abgleich über einen Server vorbereitet. Für die Arbeit "
+           "ändert sich nichts: der gemeinsame Ordner bleibt der Weg, Dateien und Abgleich sind dieselben.")
+    i.liste("Jedes Angebot und jede Position hat eine feste Kennung; sie bleibt, wenn eine vorläufige Nummer "
+            "endgültig wird, und ist beim Kollegen dieselbe. Eine Kopie bekommt eine neue.",
+            "Das Programm führt ein Änderungsprotokoll (was wann geändert wurde, hier oder beim Abgleich), um später "
+            "nur Neues über den Server zu schicken. Einträge älter als 90 Tage fallen weg.",
+            "Ordner, Nummern und gemeinsame Dateien laufen intern über eine Stelle, hinter der später auch ein "
+            "Server stehen kann.")
 
 
 def kapitel_stammdaten(i):

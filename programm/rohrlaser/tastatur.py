@@ -33,6 +33,8 @@ UEBERSICHT = [
     ("F8", "Staffelpreise rechnen", "geöffnetes Angebot"),
     ("Strg+Umschalt+S", "Stückzahl ändern: markierte (ohne Markierung alle) Positionen × Faktor oder = Wert",
      "geöffnetes Angebot"),
+    ("Strg+Umschalt+D", "Position duplizieren: markierte Positionen als neue Positionen kopieren (Baugruppe mit "
+                        "Teilen, erste Zeile eines Satzes = ganzer Satz; Artikelnummer eindeutig)", "Positionsliste"),
     ("Alt+↑", "Markierte Positionen eine Zeile nach oben (Baugruppe mit ihren Teilen, Satz mit seinen Positionen; "
               "Positionsnummern werden der neuen Reihenfolge nach vergeben)", "Positionsliste"),
     ("Alt+↓", "Markierte Positionen eine Zeile nach unten", "Positionsliste"),

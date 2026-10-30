@@ -498,8 +498,8 @@ class Datenbank:
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN + etiketten.TABELLEN \
-        + reklamation.TABELLEN
+                         "staffel_stufen", "teilen_basis", teilen.PROTOKOLL, teilen.HERKUNFT) + lager.TABELLEN \
+        + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
@@ -1913,6 +1913,7 @@ class Datenbank:
         if r is None:
             return None
         a = dict(r)
+        a.pop("uid", None)                  # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
         a["ergebnis"] = json.loads(ergebnis_text(a["ergebnis"])) if a["ergebnis"] else None
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
@@ -2332,6 +2333,7 @@ class Datenbank:
         out = [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
                                                  (angebot_id,))]
         for p in out:
+            p.pop("uid", None)              # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
             for f in ZAHLFELDER:
                 w = p.get(f)
                 if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))):
