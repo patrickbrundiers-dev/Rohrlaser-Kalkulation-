@@ -21,13 +21,23 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.214", "<b>Position als neue Position kopieren</b> ([[position_kopieren]]): <i>Rechtsklick → Position "
+    ["0.9.215", "<b>Position als neue Position kopieren</b> ([[position_kopieren]]): <i>Rechtsklick → Position "
                 "duplizieren</i> (Strg+Umschalt+D) legt eine Kopie mit allen Eingaben, Technik, Zusatzarbeiten, "
                 "Gravur, Zukauf, 3D und Staffeln an, mit eindeutiger Artikelnummer direkt hinter dem Original; "
                 "Schweißbaugruppe mit allen Teilen, erste Satzzeile mit dem ganzen Satz. <i>Positionen aus anderem "
                 "Angebot übernehmen …</i> (auch unter Neue Position) holt Positionen aus jedem Angebot, auch von "
                 "Kollegen oder festgeschrieben, ans Ende; das andere Angebot bleibt unverändert.",
      "Position duplizieren (Strg+Umschalt+D) und Positionen aus anderem Angebot übernehmen"],
+    ["0.9.214", "<b>Kalkulations-PDF überarbeitet</b> ([[ausgabe]]): Seite 1 bleibt nicht mehr leer, Kostenarten und "
+                "neue <b>Kennzahlen</b> (Stundensatz von Hand/ermittelt, Zeitbasis, Gewinn, Preis je kg, Ertrag je "
+                "Maschinenstunde, Fracht, Abruf) stehen nebeneinander; der doppelte Kasten „Rüsten und Mengen“ ist "
+                "weg. Neu: Datum, Kunden-Nr. und Stundensatz im Kopf, Kachel Selbstkosten, Gewinn in %, greifende "
+                "Gewinnstufe, Schneidgas in m³, Fracht mit Art und Umlage, Warnungen der Preis-Gegenprobe, Rechenweg "
+                "des ermittelten Stundensatzes, Abschnitte Abruf-/Rahmenangebot, Zukaufteile und Staffelpreise, "
+                "Schneiddaten je Teil. Die Positionstabelle steht in zwei Teilen (Kosten je Teil, Preisaufbau) mit "
+                "Bezeichnung und den fehlenden Spalten (Schweißen, Fremdleistung, Gas, Ausschuss, Schrott, Lagerzins), "
+                "Zahlen brechen nicht mehr um. Die Rechnung selbst ist unverändert.",
+     "Kalkulations-PDF: Kennzahlen, Stundensatz, Gewinnstufe, Fracht, Abruf, Staffeln, Zukaufteile; Seite 1 nicht mehr leer"],
     ["0.9.213", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
                 "haben eine feste Kennung (bleibt bei der endgültigen Nummer und beim Kollegen gleich), ein "
                 "Änderungsprotokoll merkt sich jede Änderung an Stammdaten, gemeinsamen Einstellungen und Angeboten, "
