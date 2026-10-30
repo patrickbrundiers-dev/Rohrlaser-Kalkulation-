@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QApplication, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import stil
+from . import admin_schutz, stil
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
@@ -1296,7 +1296,9 @@ class EinstellungenBereich(QWidget):
     """Reiter Einstellungen: Unterreiter Vorgaben und Stammdaten (ohne Kunden), frei zugänglich. Seiten mit Admin-
     Schutz (admin_schutz.py, Plan 30.10.2026) ändert nur der Admin: oben die Schlossleiste mit Admin-Passwort und
     „Als Admin freischalten …“. Freigeschaltet bleibt es bis 'Admin sperren', Programmende oder 15 Minuten ohne
-    Eingabe. Bis 0.9.207 war der ganze Reiter mit einem Passwort gesperrt (Frage 5a: entfällt)."""
+    Eingabe. Bis 0.9.207 war der ganze Reiter mit einem Passwort gesperrt (Frage 5a: entfällt). Weitere Admins
+    (Seite Arbeitsplätze und Rechte) schalten sich mit dem eigenen Passwort frei; Admin-Schutz und Rechte bleiben
+    dann für den Hauptadmin."""
 
     def __init__(self, db, vorgaben, seiten):
         from . import admin_schutz
@@ -1307,6 +1309,9 @@ class EinstellungenBereich(QWidget):
         admin_schutz.SITZUNG = self.sitzung
         self.pruefer = db.passwort_pruefen      # Hauptfenster: Lizenz (Admin-Lizenz, Notfallcode)
         self.passwort_in_lizenz = False         # Admin-Passwort steht in der Admin-Lizenz (Lizenz-Werkzeug)
+        self.lizenz_gueltig = lambda: True      # Hauptfenster: weitere Admins nur mit gültiger Lizenz an diesem Platz
+        self.stumm = False                      # Tests: kein Dialog für das neue Passwort nach dem Startpasswort
+        self.neues_passwort_noetig = ""         # Kürzel des Admins, der noch sein Startpasswort hat
         self.nach_schutz = None                 # Rückruf nach jeder Änderung des Schutzes (Frachtkosten)
         self.vorgaben = vorgaben
         self.leiste = SchlossLeiste(self)
@@ -1347,19 +1352,58 @@ class EinstellungenBereich(QWidget):
     def bereich_gesperrt(self, schluessel):
         """True, wenn der Bereich (Seite oder Tabelle, admin_schutz.bereiche) für diesen Platz gerade gesperrt ist."""
         from . import admin_schutz
+        if schluessel in admin_schutz.HAUPT_SEITEN:
+            return not admin_schutz.ist_haupt(self.db, self.sitzung)
         return self.gesperrt() and schluessel in admin_schutz.geschuetzt_liste(self.db)
 
     def oeffnen(self, passwort=None):
-        """Als Admin freischalten mit dem Passwort aus der Schlossleiste (oder dem übergebenen): Admin-Passwort der
-        Admin-Lizenz, das Passwort der Einstellungen oder ein Notfallcode. Ergebnis: freigeschaltet ja/nein."""
+        """Freischalten mit dem Passwort aus der Schlossleiste (oder dem übergebenen): als Hauptadmin mit dem Admin-
+        Passwort der Admin-Lizenz, dem Passwort der Einstellungen oder einem Notfallcode; als weiterer Admin mit dem
+        eigenen Passwort (Seite Arbeitsplätze und Rechte, nur mit gültiger Lizenz). Ergebnis: freigeschaltet ja/nein."""
+        from . import admin_schutz
         text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
         self.passwort.clear()
-        if not self.pruefer(text):
-            self.fehler.setText("Passwort falsch.")
-            return False
-        self.sitzung.freischalten()
+        if self.pruefer(text):
+            self.sitzung.freischalten(admin_schutz.HAUPTADMIN)
+        else:
+            k, e = admin_schutz.admin_finden(self.db, text)
+            if k is None:
+                self.fehler.setText(e or "Passwort falsch.")
+                return False
+            if not self.lizenz_gueltig():
+                self.fehler.setText("Für Admin-Rechte braucht dieser Arbeitsplatz eine gültige Lizenz.")
+                return False
+            self.sitzung.freischalten(k)
+            self.neues_passwort_noetig = k if e.get("neu") else ""
         self.fehler.clear()
         self.neu_laden()
+        if self.neues_passwort_noetig and not self.stumm:
+            self.mein_passwort(erstes=True)
+        return True
+
+    def mein_passwort(self, neu=None, erstes=False):
+        """Weiterer Admin ändert sein Passwort (Pflicht nach dem Startpasswort: Abbrechen sperrt wieder)."""
+        from . import admin_schutz
+        k = self.sitzung.wer if self.sitzung.freigeschaltet else ""
+        if not k or k == admin_schutz.HAUPTADMIN:
+            return False
+        if neu is None:
+            from .admin_schutz_fenster import passwort_fragen
+            neu = passwort_fragen(self, "Eigenes Admin-Passwort",
+                                  ("Bitte jetzt ein eigenes Passwort festlegen (statt des Startpassworts), mindestens 6 "
+                                   "Zeichen:") if erstes else "Neues Passwort (mindestens 6 Zeichen):")
+            if neu is None:
+                if erstes:
+                    self.sperren()
+                    self.fehler.setText("Erst mit eigenem Passwort freigeschaltet.")
+                return False
+        fehler = admin_schutz.passwort_aendern(self.db, k, neu)
+        if fehler:
+            self.fehler.setText(fehler)
+            if erstes:
+                self.sperren()
+            return False
+        self.neues_passwort_noetig = ""
         return True
 
     def sperren(self):
@@ -1376,6 +1420,7 @@ class EinstellungenBereich(QWidget):
         zu = self.gesperrt()
         schutz = admin_schutz.geschuetzt_liste(self.db)
         namen = admin_schutz.einstellungen_geschuetzt(self.db) if zu else set()
+        haupt = admin_schutz.ist_haupt(self.db, self.sitzung)
         for i in range(self.unter.count()):
             seite = self.unter.widget(i)
             k = getattr(seite, "schutz_bereich", None) or schluessel(seite)
@@ -1384,15 +1429,20 @@ class EinstellungenBereich(QWidget):
             if hasattr(seite, "schutz_setzen") and isinstance(seite, EinstellungenSeite):
                 seite.schutz_setzen(namen)
             elif hasattr(seite, "schutz_setzen"):
-                seite.schutz_setzen(zu)
+                seite.schutz_setzen((not haupt) if k in admin_schutz.HAUPT_SEITEN else zu)
             else:
                 sperren(seite, zu and gesch)
         admin = aktiv and not zu
         if isinstance(self.vorgaben, EinstellungenSammlung):
-            self.vorgaben.admin_setzen(not zu and not self.passwort_in_lizenz)
+            self.vorgaben.admin_setzen(haupt and not self.passwort_in_lizenz)
         w = self.unter.currentWidget()
         aktuell = (getattr(w, "schutz_bereich", None) or schluessel(w)) if w is not None else ""
-        self.leiste.anzeigen(aktiv, admin, zu and aktuell in schutz)
+        wer = ""
+        if admin and self.sitzung.freigeschaltet:
+            k = self.sitzung.wer
+            wer = k if k == admin_schutz.HAUPTADMIN else (admin_schutz.admins(self.db).get(k) or {}).get("name") or k
+        gesperrt = (not haupt) if aktuell in admin_schutz.HAUPT_SEITEN else (zu and aktuell in schutz)
+        self.leiste.anzeigen(aktiv, admin, gesperrt, wer)
         if self.nach_schutz:
             self.nach_schutz()
 
@@ -1787,15 +1837,20 @@ class Hauptfenster(QMainWindow):
         unter = [self.zusatz if s.t.name == "zusatzarbeiten" else s for s in self.seiten
                  if s.t.name not in ("kunden", "stundensaetze", "arbeitsschritte")]
         # Admin-Schutz (Plan 30.10.2026): Seite mit den Häkchen je Bereich
-        from .admin_schutz_fenster import AdminSchutzSeite, EingabeWaechter
+        from .admin_schutz_fenster import AdminSchutzSeite, EingabeWaechter, PlaetzeSeite
         self.admin_seite = AdminSchutzSeite(db, self.meldung, lambda: self.bereich.schutz_anwenden())
+        self.plaetze_seite = PlaetzeSeite(db, self.meldung, lambda: self.bereich.schutz_anwenden())
+        self.plaetze_seite.stumm = stumm
         # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.211)
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
-        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite]
-                                            + self.fracht.pflege)
+        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite,
+                                                                         self.plaetze_seite] + self.fracht.pflege)
         if self.lizenz is not None:
             self.bereich.pruefer = self.lizenz.passwort_gilt
+            self.bereich.lizenz_gueltig = lambda: admin_schutz.lizenz_gueltig(
+                admin_schutz.lizenz_info(self.lizenz.zustand or self.lizenz.pruefen()))
+        self.bereich.stumm = stumm
         self.reiter.addTab(self.fracht, "Frachtkosten")
         # Zukaufartikel: eigener Reiter (Artikel, Kategorien, Lieferanten), tägliche Arbeit ohne Passwort
         from .zukauf_seite import ZukaufBereich
@@ -2275,6 +2330,9 @@ class Hauptfenster(QMainWindow):
                                           .get(farbe, ""))
         self.lizenz_hinweis.setVisible(bool(self.lizenz_hinweis.text()) and not z.admin)
         self.bereich.admin = z.admin
+        info = admin_schutz.lizenz_info(z)       # für die Seite Arbeitsplätze und Rechte (über den Ordner)
+        if self.db.einstellung(admin_schutz.LIZENZ_INFO) != info and not self.db.nur_lesen:
+            self.db.einstellung_setzen(admin_schutz.LIZENZ_INFO, info)
         lizenz_pw = (z.inhalt or {}).get("admin_passwort") if z.stufe == "admin" else ""
         self.bereich.passwort_in_lizenz = bool(lizenz_pw)
         if z.admin and lizenz_pw and self.db.einstellung("passwort") != lizenz_pw and not self.db.nur_lesen:

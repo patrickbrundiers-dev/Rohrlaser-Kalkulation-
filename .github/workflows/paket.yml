@@ -466,7 +466,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Lizenz-Werkzeug.exe: seit 0.9.212 nicht mehr im öffentlichen Release, nur noch als Build-Artefakt
+          # Lizenz-Werkzeug.exe: seit 0.9.213 nicht mehr im öffentlichen Release, nur noch als Build-Artefakt
           foreach ($datei in @("Rohrlaser-Kalkulation.zip", "Rohrlaser-Programm.zip", "Lizenz-Werkzeug.exe")) {
             gh release delete-asset aktuell $datei --yes --repo "${{ github.repository }}" 2>$null
           }
