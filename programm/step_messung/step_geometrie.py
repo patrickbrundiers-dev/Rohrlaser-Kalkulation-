@@ -739,14 +739,17 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
         # die Achse aus drei gleichen Querschnitten sicher ist
         dicht = _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
         if len(dicht) > len(beste):
-            return dicht
-    if len(beste[0][1]) == 1 and n < REGEL_DICHT and any(
-            len(_schnitt(lok, zmin + f * (zmax - zmin)) or ()) >= 2 for f in (0.01, 0.03, 0.97, 0.99)):
+            beste = dicht       # weiter unten trotzdem prüfen, ob es nur der offene Querschnitt eines Fensters ist
+    if len(beste[0][1]) == 1 and n < REGEL_DICHT and (
+            any(len(g[0][1]) >= 2 and g[0][2] > beste[0][2] * 1.002 for g in gruppen) or any(
+            len(_schnitt(lok, zmin + f * (zmax - zmin)) or ()) >= 2 for f in (0.01, 0.03, 0.97, 0.99))):
         # offener Querschnitt: auch ein Rohr mit einem langen Fenster (Patrick 27.10.2026, größere Ausschnitte) – alle
         # Schnitte treffen das Fenster, der Schwerpunkt liegt neben der Rohrmitte. Gibt es an anderer Stelle (meist
         # nahe den Enden) mindestens zwei gleiche geschlossene Querschnitte mit größerer Fläche, sind sie der Regel-
         # querschnitt (ein Ausschnitt nimmt nur Werkstoff weg). Dicht gesucht wird nur, wenn ein Probeschnitt nahe
-        # den Enden geschlossen ist (offene Profile und Vollmaterial sonst ohne Mehraufwand)
+        # den Enden geschlossen ist (offene Profile und Vollmaterial sonst ohne Mehraufwand) oder schon einer der
+        # Schnitte (Patrick 30.10.2026: Quadratrohr mit Gehrungen an beiden Enden und Fenster – die Probeschnitte
+        # an den Enden liegen in den Gehrungen, alles lag 3 mm daneben)
         zu = [g for g in _querschnitt_gruppen(lok, zmin, zmax, REGEL_DICHT)
               if len(g) >= 2 and len(g[0][1]) >= 2 and g[0][2] > beste[0][2] * 1.002]
         if zu:

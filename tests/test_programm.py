@@ -192,7 +192,7 @@ assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())
                                                                  "Tarifverwaltung", "Paletten und Ladehilfsmittel",
                                                                  "Zuschläge", "Dienstleister und Kundentarife",
                                                                  "Historie und Einstellungen"]
-# Admin-Schutz (0.9.210): Einstellungen offen, geschützte Seiten erst nach dem Admin-Passwort
+# Admin-Schutz (0.9.211): Einstellungen offen, geschützte Seiten erst nach dem Admin-Passwort
 assert db.einstellung("passwort") == "av" and b.gesperrt() and b.leiste.isVisibleTo(b)
 fenster.zeigen(seite)
 assert fenster.reiter.currentWidget() is b and b.unter.currentWidget() is seite   # Seite gleich sichtbar

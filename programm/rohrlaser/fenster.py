@@ -1789,7 +1789,7 @@ class Hauptfenster(QMainWindow):
         # Admin-Schutz (Plan 30.10.2026): Seite mit den Häkchen je Bereich
         from .admin_schutz_fenster import AdminSchutzSeite, EingabeWaechter
         self.admin_seite = AdminSchutzSeite(db, self.meldung, lambda: self.bereich.schutz_anwenden())
-        # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.210)
+        # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.211)
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
         self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite]
