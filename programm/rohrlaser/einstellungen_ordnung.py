@@ -72,7 +72,8 @@ SEITEN = (
            _a("Auftragsbestätigung", "ab_text"))),
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
-           _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"))),
+           _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"),
+           _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"))),
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
           (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),)),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
@@ -138,7 +139,7 @@ _VORSILBE = re.compile(
     r"Angebots-PDF|Paletten|Palettenschein|Auslastung|Reststücke|Etiketten|Reklamationen|Rückmeldung per Scan|"
     r"Messung|Kantbarkeit|Kanten|Tafel|Abwicklung|DXF-Import|DXF|Gravur|Biegerohr|Nachfassen|Experte|"
     r"Angebotsliste|Auftragsbestätigung|Lieferzeit neuer Angebote|Löschschutz|Automatisch optimieren|"
-    r"Angebots-Check|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
+    r"Angebots-Check|Angebotsvergleich|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
 EIGENE_TITEL = {
     "pdf_zeichnung": "Neue Position „Aus PDF-Zeichnung“ (Test)",
     "versand_aktiv": "Versand und Palettenschein (Reiter Versand)",

@@ -48,7 +48,7 @@ assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
 assert all(EINSTELLUNG[f.name].vorgabe == "ja" and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 15
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 16
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
 ok("15 neue Funktionsschalter, Vorgabe ja (nach dem Update ändert sich nichts)")
 

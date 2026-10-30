@@ -1859,6 +1859,7 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
+                                  ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
                                   (None, None, None),
@@ -2554,6 +2555,20 @@ class Hauptfenster(QMainWindow):
         d = PreisSimulatorDialog(self)
         d.rechnen()
         d.exec()
+
+    def angebote_vergleichen(self, a=None, b=None):
+        """Datei → Angebote vergleichen (angebotsvergleich_dialog): zwei Angebote aus CSV/ZIP oder der Angebotsliste
+        Position für Position; a, b = IDs aus der Angebotsliste (Kontextmenü „Vergleichen …“). Ergebnis: der Dialog
+        (im Selbsttest ohne exec)."""
+        from .angebotsvergleich_dialog import AngebotsvergleichDialog
+        d = AngebotsvergleichDialog(self)
+        if a is not None:
+            d.angebot_waehlen("A", a)
+        if b is not None:
+            d.angebot_waehlen("B", b)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def maschinenauslastung(self):
         """Datei → Maschinenauslastung: Bedarf und Kapazität je Maschine und Woche (auslastung.py). Ergebnis: der

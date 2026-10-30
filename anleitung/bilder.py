@@ -1331,6 +1331,23 @@ def main(ziel):
     sim.rechnen()
     fenster_foto("preis_simulator", sim, lambda d: [(d.material["Edelstahl"], 1), (d.maschine, 2), (d.knopf, 3),
                                                      (d.tabelle, 4)])
+    # Angebotsvergleich: eigenes Angebot (A) gegen ein Konkurrenzangebot als CSV (B, Preise teils höher/niedriger)
+    from rohrlaser import angebotsvergleich as av
+    from rohrlaser.angebotsvergleich_dialog import AngebotsvergleichDialog
+    vgl = AngebotsvergleichDialog(f)
+    vgl.angebot_waehlen("A", haupt)
+    eigen_pos = av.positionen(vgl.quellen["A"])[0]
+    faktoren = (1.12, 0.97, 1.0, 1.04, 0.9, 1.08)
+    fremd = [[p["pos"], p["artikel"], p["bezeichnung"][:40], av._t(p["menge"]),
+              av.euro(p["stueckpreis"] * faktoren[i % len(faktoren)]), ""] for i, p in enumerate(eigen_pos[:-1])]
+    fremd.append(["99", "ZK-100", "Montagewinkel", "4", "3,80", ""])
+    vgl.quelle_setzen("B", dict(name="Wettbewerber.csv", titel="Wettbewerber", eigen=False, kopf={},
+                                spalten=["Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Preis", "Gesamt"], zeilen=fremd),
+                      dict(pos="Pos.", artikel="Art.-Nr.", bezeichnung="Bezeichnung", menge="Menge",
+                           stueckpreis="Preis"))
+    vgl.resize(1250, 640)
+    fenster_foto("angebotsvergleich", vgl, lambda d: [(d.titel["A"], 1), (d.titel["B"], 2), (d.ergebnis_text, 3),
+                                                       (d.tabelle, 4), (d.pdf_knopf, 5)])
     heute = datetime.date(2026, 10, 21)
     for angebot, auftragsnr, termin in ((rahmen, "AB-26-0815", "2026-10-30"), (haupt, "AB-26-0821", "2026-11-06")):
         db.vorgang_setzen(angebot, "Beauftragt")
