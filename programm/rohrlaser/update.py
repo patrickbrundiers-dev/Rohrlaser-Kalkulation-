@@ -53,7 +53,7 @@ ADRESSE = f"https://github.com/{UPDATE_REPO}/releases/download/update-dateien/" 
 GROSS = 1 << 20                     # ab 1 MB eigenes Paket
 PAKET_MAX = 8 << 20                 # kleine Dateien eines Ordners (3 Ebenen) bis etwa 8 MB je Paket
 # nie in der Dateiliste, nie angefasst; Portabel.ini liegt nur im ZIP (installiert fehlt sie, siehe orte.py)
-NIE = (DATEILISTE, ARBEITSORDNER, "Daten", "Angebote", "Portabel.ini")
+NIE = (DATEILISTE, DATEILISTE + ".sig", ARBEITSORDNER, "Daten", "Angebote", "Portabel.ini")
 STUECK = 1 << 16
 # Download der Pakete (Firmennetz 26.10.2026: Abbruch nach ein paar Prozent): Wartezeiten in s zwischen neuen
 # Versuchen nach einem Verbindungsabbruch (fortgesetzt an der Abbruchstelle), Zeitlimit je Lesevorgang
@@ -478,24 +478,34 @@ def online_liste(quelle=ADRESSE, timeout=15, schluessel=None):
     sie nur mit gültiger Signatur Update.json.sig – geprüft vor jeder Verwendung ihres Inhalts. Passen Liste und
     Signatur nicht zusammen, wird einmal neu geladen (der Build lädt beide gerade hoch)."""
     schluessel = update_schluessel() if schluessel is None else schluessel
+    signatur = None
     for versuch in range(2):
         daten = holen(quelle, timeout=timeout, grenze=LISTE_MAX)
         if not schluessel:
             break
         try:
-            signatur_pruefen(daten, holen(daneben(quelle, SIGNATUR), timeout=timeout, grenze=SIGNATUR_MAX),
-                             schluessel)
+            signatur = holen(daneben(quelle, SIGNATUR), timeout=timeout, grenze=SIGNATUR_MAX)
+            signatur_pruefen(daten, signatur, schluessel)
             break
         except UpdateFehler:
             if versuch:
                 raise
             time.sleep(3 if _ist_url(quelle) else 0)
     try:
-        liste = json.loads(daten)
-    except ValueError as e:
+        liste = Dateiliste(json.loads(daten))
+    except (ValueError, TypeError) as e:
         raise UpdateFehler(f"Die Dateiliste {quelle} ist beschädigt: {e}") from e
     liste_pruefen(liste, quelle)
+    liste.roh, liste.signatur = bytes(daten), signatur
     return liste
+
+
+class Dateiliste(dict):
+    """Geladene Dateiliste mit ihren exakten Bytes (roh) und der Signatur dazu (Bytes oder None): einspielen legt
+    beide unverändert in den Programmordner, damit echtheit.py die eigenen Dateien beim Start gegen eine signierte
+    Liste prüfen kann."""
+    roh = None
+    signatur = None
 
 
 def _ganzzahl(wert, hoechstens):
@@ -778,8 +788,13 @@ def einspielen(ordner, online, plan, neu_ordner):
             ziel = ordner / rel
             getan.append([ziel, wegschieben(ziel), False])
         tmp = ordner / (DATEILISTE + ".neu")
-        tmp.write_text(json.dumps(online, indent=1, ensure_ascii=False), encoding="utf-8")
+        roh = getattr(online, "roh", None)
+        if roh:
+            tmp.write_bytes(roh)
+        else:
+            tmp.write_text(json.dumps(online, indent=1, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, ordner / DATEILISTE)
+        _signatur_ablegen(ordner, getattr(online, "signatur", None) if roh else None)
     except OSError as e:
         fehler = []
         for ziel, b, angelegt in reversed(getan):
@@ -904,6 +919,19 @@ def aufraeumen(ordner):
     else:
         shutil.rmtree(arbeit, ignore_errors=True)
     (Path(ordner) / (DATEILISTE + ".neu")).unlink(missing_ok=True)
+
+
+def _signatur_ablegen(ordner, signatur):
+    """Update.json.sig im Programmordner zur eben geschriebenen Update.json: die Signatur oder – ohne – keine (eine
+    alte passt nicht mehr). Fehler hier brechen das Update nicht ab, die Prüfung beim Start fällt dann auf die
+    unsignierte Liste zurück."""
+    try:
+        if signatur:
+            (Path(ordner) / SIGNATUR).write_bytes(bytes(signatur))
+        else:
+            (Path(ordner) / SIGNATUR).unlink(missing_ok=True)
+    except OSError:
+        _log.warning("Update.json.sig im Programmordner nicht geschrieben", exc_info=True)
 
 
 def neuere_liste(quelle, online):

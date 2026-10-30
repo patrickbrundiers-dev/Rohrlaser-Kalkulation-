@@ -452,13 +452,22 @@ jobs:
             Rohrlaser-Angebotskalkulation-Setup.exe
             Rohrlaser-Angebotskalkulation.zip
             update_dateien/Update.json
-      - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP)
+      - name: Lizenz-Werkzeug.exe als Artefakt (nur für Patrick, angemeldet unter Actions → Lauf → Artifacts)
+        if: env.VEROEFFENTLICHEN
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Lizenz-Werkzeug
+          path: dist_werkzeug/Lizenz-Werkzeug.exe
+          retention-days: 30
+      - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP, Lizenz-Werkzeug)
         if: github.ref == 'refs/heads/main' && inputs.kanal != 'test'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          foreach ($datei in @("Rohrlaser-Kalkulation.zip", "Rohrlaser-Programm.zip")) {
+          # Lizenz-Werkzeug.exe: seit 0.9.216 nicht mehr im öffentlichen Release, nur noch als Build-Artefakt
+          foreach ($datei in @("Rohrlaser-Kalkulation.zip", "Rohrlaser-Programm.zip", "Lizenz-Werkzeug.exe")) {
             gh release delete-asset aktuell $datei --yes --repo "${{ github.repository }}" 2>$null
           }
           $global:LASTEXITCODE = 0
@@ -486,7 +495,6 @@ jobs:
             Online-Update (Hilfe → Nach Updates suchen): ab Version 0.5.5 holt das Programm Dateiliste und Pakete ohne
             Anmeldung aus dem öffentlichen Repository Rohrlaser-Updates und lädt nur geänderte Dateien. Ältere
             Versionen einmal mit diesem Setup bzw. ZIP ersetzen.
-            Lizenz-Werkzeug.exe: nur für Patrick zum Ausstellen der Lizenzen; ohne den privaten Schlüssel wertlos.
             Systemvoraussetzungen (mindestens / empfohlen; im Programm: Hilfe → Systemprüfung):
             Windows 10 (22H2) oder 11, 64 Bit / 11; Prozessor 4 Kerne, 2 GHz / 6–8 Kerne, 3 GHz;
             Arbeitsspeicher 8 GB / 16 GB (große STEP-Dateien etwa 1,2 GB je 1.000 Bohrungen); Grafik beliebig / OpenGL 2.0;
@@ -500,7 +508,6 @@ jobs:
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
             Windows-Vertrauen-einrichten.cmd
-            dist_werkzeug/Lizenz-Werkzeug.exe
             Release-Zusammenfassung.md
             Release-Zusammenfassung.json
           make_latest: true
@@ -591,7 +598,7 @@ jobs:
       - name: Download für Kunden (Repository Rohrlaser-Updates, Release "download"; ohne Zugriff auf den Quellcode)
         # Plan „Quellcode schützen“ Q2: Setup, ZIP und Anleitungen auch im öffentlichen Update-Repository, damit
         # Kunden und Kollegen nichts aus diesem Repository brauchen (auch wenn es privat ist). Nur fertige, signierte
-        # Programmdateien; Release-Zusammenfassung (Commit) und Lizenz-Werkzeug bleiben im Release „aktuell“.
+        # Programmdateien; Release-Zusammenfassung (Commit) bleibt im Release „aktuell“, das Lizenz-Werkzeug ist ein Build-Artefakt.
         if: github.ref == 'refs/heads/main' && inputs.kanal != 'test'
         shell: pwsh
         env:

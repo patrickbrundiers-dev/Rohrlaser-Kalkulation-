@@ -2998,7 +2998,7 @@ def kapitel_optimieren(i):
             "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
             "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
             "STEP. Ist die lange Seite in der STEP schon gekürzt, bleibt das Ende komplex, genau wie gemessen.",
-            "<b>Rohranschluss aus der STEP</b> (seit 0.9.216): Sitzt ein Ende mit einem Sattel- bzw. "
+            "<b>Rohranschluss aus der STEP</b> (seit 0.9.217): Sitzt ein Ende mit einem Sattel- bzw. "
             "Fischmaulschnitt auf einem runden Gegenrohr (rechtwinklig oder schräg, mit Versatz, in beliebiger Lage "
             "am Umfang), erkennt der Import das als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und Drehung statt als "
             "komplexes Ende – beim Rundrohr wie beim Quadrat- und Rechteckrohr, an Ende A und B. Im Editor steht am "
@@ -3043,7 +3043,7 @@ def kapitel_optimieren(i):
             "rechteckig (Breite quer, Tiefe, Eckradius), steht rechtwinklig oder schräg (<i>Winkel</i> = Abweichung "
             "von rechtwinklig, + = Rohr vorne bzw. oben länger), kann quer versetzt sein (<i>Versatz</i>) und liegt "
             "<i>waagerecht</i> (Sattel von vorne sichtbar) oder <i>senkrecht</i>, beim Rundrohr zusätzlich um die "
-            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.216). Das Programm rechnet die echte "
+            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.217). Das Programm rechnet die echte "
             "Schnittkurve, ihre Länge und wie tief der Ausschnitt ist; im 3D steht das Gegenrohr als pinker "
             "Hilfskörper. Ein Gegenrohr ersetzt Gehrung und Ausklinkung dieses Endes (Gehrung von Hand eintragen = "
             "Gegenrohr fällt weg; <i>Kein Gegenrohr</i> im Dialog entfernt es). Zu kleine Gegenrohre (Rohr ragt seitlich heraus) meldet der Dialog rot. Die alte "
@@ -8445,7 +8445,7 @@ def kapitel_lizenz(i):
         ["Gültig", "mehr als 30 Tage Restlaufzeit", "alles frei"],
         ["Läuft bald ab", "30 Tage oder weniger", "alles frei, gelber Hinweis unten rechts; ab 7 Tagen auch beim Start"],
         ["Kulanz", "bis 14 Tage nach Ablauf", "alles frei, roter Hinweis mit dem Datum des Lesemodus"],
-        ["Lesemodus", "länger abgelaufen, keine oder falsche Lizenz, gesperrt, Uhr zurückgestellt",
+        ["Lesemodus", "länger abgelaufen, keine oder falsche Lizenz, gesperrt, Uhr zurückgestellt, Programmdateien verändert (ab 20.11.2026)",
          "nur ansehen, mit Begründung unten rechts"]], [28, 55, 95])
     i.text("Im <b>Lesemodus</b> lassen sich alle Angebote, Positionen, Kalkulationen und Stammdaten ansehen. Daten "
            "exportieren, Sicherungen anlegen und wiederherstellen, nach Updates suchen und eine Lizenz laden geht "
@@ -8458,9 +8458,13 @@ def kapitel_lizenz(i):
             "Beim Update-Check holt das Programm die Sperrliste mit. Eine gesperrte Lizenz (z. B. bei einem verlorenen "
             "Laptop) geht dann in den Lesemodus.",
             "Updates gehen auch mit abgelaufener Lizenz ([[updates]]).",
-            "Einführung: Zuerst zeigt das Programm ohne Lizenz nur einen Hinweis (<i>Demnächst braucht das Programm "
-            "eine Lizenz</i>) und sperrt nichts. Erst eine spätere Version schaltet den Lesemodus ein; bis dahin bitte "
-            "die Rechner-ID an Patrick senden.")
+            "Einführung: Bis zum 19.11.2026 zeigt das Programm ohne Lizenz nur einen Hinweis (<i>Ab 20.11.2026 braucht "
+            "das Programm eine Lizenz</i>) und sperrt nichts. Ab dem <b>20.11.2026</b> gilt der Lesemodus; bis dahin "
+            "bitte die Rechner-ID an Patrick senden. Eine zurückgestellte Uhr verschiebt diesen Tag nicht.",
+            "<b>Programmdateien verändert</b>: Beim Start vergleicht das Programm seine eigenen Dateien mit der "
+            "signierten Dateiliste des letzten Updates. Wurde eine davon ausgetauscht oder gelöscht, geht es in den "
+            "Lesemodus (Grund unten rechts). Abhilfe: das Programm neu installieren bzw. das ZIP neu entpacken, die "
+            "Daten bleiben dabei erhalten. Ältere Installationen bekommen die Signatur mit dem nächsten Update.")
 
 
 def kapitel_fragen(i):
