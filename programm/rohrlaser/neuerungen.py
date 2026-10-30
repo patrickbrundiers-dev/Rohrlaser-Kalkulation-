@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.209", "<b>Admin-Schutz für Einstellungen</b> ([[passwort]]): Der Reiter Einstellungen öffnet für alle; "
+    ["0.9.210", "<b>Admin-Schutz für Einstellungen</b> ([[passwort]]): Der Reiter Einstellungen öffnet für alle; "
                 "Seiten mit 🔒 (Vorschlag: Preise, Gewinn, Kosten, Maschinen, Schneiddaten, Firma, Funktionen, "
                 "Frachtkosten …) ändert nur der Admin, andere sehen die Werte grau. <b>Als Admin freischalten …</b> "
                 "mit dem Admin-Passwort geht an jedem Arbeitsplatz und gilt bis <b>Admin sperren</b>, Programmende "
@@ -33,6 +33,13 @@ NEUERUNGEN = [
                 "Fracht ([[frachtkosten]]); im Reiter Frachtkosten bleibt der Rechner mit <b>Frachtdaten pflegen "
                 "…</b>. Bitte alle Arbeitsplätze gleichzeitig updaten.",
      "Admin-Schutz für Einstellungen (gilt an allen Arbeitsplätzen); Frachtdaten unter Einstellungen → Fracht"],
+    ["0.9.209", "<b>STEP-Export gegen die Mutter-STEP geprüft</b> ([[step_mutter]]): Nach jedem STEP speichern "
+                "(Rohr-Editor, Blech-Editor, Schweißbaugruppe, Satz in 3D) vergleicht das Programm jeden Körper mit "
+                "dem Körper der eingelesenen Kundendatei – genau gleich, örtlich geändert (Schlitze/Nasen der "
+                "Steckverbindung, 2D-Gehrung, im Editor geändert) oder <b>ACHTUNG: liegt nicht dort</b> (Warnung). "
+                "Behoben: gleiche Rohre, die gedreht oder gewendet eingebaut sind (gegenüberliegende Seiten eines "
+                "Rahmens mit Gehrungen), lagen in 3D und im STEP-Export gespiegelt; ältere Angebote: STEP neu einlesen.",
+     "STEP-Export wird mit der Mutter-STEP verglichen (Warnung bei falscher Lage); gespiegelte Gehrungsrahmen behoben"],
     ["0.9.208", "<b>Abruf-/Rahmenangebot</b> ([[abruf_angebot]]): Haken im Angebotskopf mit Jahresmenge und "
                 "Abrufmenge von–bis, Laufzeit und Material. Die Stückzahlen sind der kleinste Abruf; Programmierung "
                 "und Musterteile werden auf die kleinste Jahresmenge verteilt, Rüsten und Fracht zählen je Abruf. "
