@@ -64,9 +64,10 @@ def bauplan(name, eintraege, knoten=()):
     """Bauplan der STEP-Baugruppe. eintraege: je Position dict(pid, q (Position), netz (entpackt), knoten (Knoten-ID
     oder ''), rohr (Eingaben, Länge, Profil, Nasenwinkel) oder None, gravur_h); knoten: Unterbaugruppen [dict(id,
     name, parent)]. Ergebnis (Bauplan, Hinweise)."""
-    teile, hinweise, einsatz = [], [], {}
+    teile, hinweise, einsatz, mutter = [], [], {}, []
     for x in eintraege:
         q, netz = x["q"], x.get("netz") or {}
+        m_nr = _mutter_nr(mutter, x.get("mutter") or netz.get("mutter"))
         name_t = step_export.teilname(q)
         lagen, plan, art = _lagen(netz), None, None
         ohne = virtuell.ARTEN_ROT if x.get("virtuell") else ()
@@ -107,16 +108,20 @@ def bauplan(name, eintraege, knoten=()):
             hinweise.append(f"{name_t}: kein 3D-Modell, nicht in der STEP-Datei")
             continue
         nr = len(teile)
+        if x.get("rohr") and art and art[0] == "lage" and not x.get("virtuell_step"):
+            plan["erwartet"] = step_export.erwartet_rohr(x["rohr"][0])
+        elif "facettiert" in (hinweise[-1] if hinweise else "") and plan["koerper"].get("art") == "netz":
+            plan["erwartet"] = ["facettiert (Netz der Messung)"]
         teile.append(plan)
         liste = einsatz.setdefault(x.get("knoten") or "", [])
         if not lagen:
             liste.append(dict(teil=nr, daneben=True))
         for lage in lagen:
             if art[0] == "lage":
-                liste.append(dict(teil=nr, lage=lage_matrix(lage, art[1])))
+                liste.append(dict(teil=nr, lage=lage_matrix(lage, art[1]), mutter=m_nr))
             elif netz.get("p") and _dreiecke(netz):
                 liste.append(dict(teil=nr, ausrichten=dict(p=netz_in_lage(netz, lage), t=_dreiecke(netz),
-                                                           achsen=lage_achsen(lage))))
+                                                           achsen=lage_achsen(lage)), mutter=m_nr))
             else:
                 liste.append(dict(teil=nr, daneben=True))
     ids = {k.get("id") for k in knoten}
@@ -129,7 +134,21 @@ def bauplan(name, eintraege, knoten=()):
     for kid, liste in einsatz.items():          # Knoten, den es nicht mehr gibt: direkt in die Baugruppe
         if kid and kid not in ids:
             wurzel["einsatz"] += liste
-    return dict(name=name, teile=teile, baugruppe=wurzel), hinweise
+    plan = dict(name=name, teile=teile, baugruppe=wurzel)
+    if mutter:
+        plan["mutter"] = mutter
+    return plan, hinweise
+
+
+def _mutter_nr(mutter, pfad):
+    """Index der Mutter-STEP (Kundendatei des Imports) in der Liste; None, wenn unbekannt oder nicht mehr da."""
+    from pathlib import Path
+    if not pfad or not Path(pfad).is_file():
+        return None
+    pfad = str(pfad)
+    if pfad not in mutter:
+        mutter.append(pfad)
+    return mutter.index(pfad)
 
 
 def ergebnis_text(erg, ziel=None, hinweise=()):
@@ -143,6 +162,9 @@ def ergebnis_text(erg, ziel=None, hinweise=()):
     alles = list(hinweise) + list(erg.get("hinweise") or ()) + list(erg.get("meldungen") or ())
     if alles:
         text += "\n" + "\n".join(f"• {m}" for m in dict.fromkeys(alles))
+    vt = step_export.vergleich_text(erg.get("vergleich"))[0]
+    if vt:
+        text += "\n\n" + vt
     return text
 
 
@@ -215,7 +237,8 @@ class StepBaugruppe:
         self.step_ergebnis = erg
         gut = bool(erg.get("teile")) and not erg.get("fehler")
         if not getattr(self, "stumm", False):
-            (QMessageBox.information if gut else QMessageBox.warning)(self, "STEP speichern",
-                                                                      ergebnis_text(erg, pfad))
+            warnen = not gut or step_export.vergleich_text(erg.get("vergleich"))[1]
+            (QMessageBox.warning if warnen else QMessageBox.information)(self, "STEP speichern",
+                                                                         ergebnis_text(erg, pfad))
         return pfad if gut else None
 

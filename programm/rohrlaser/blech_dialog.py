@@ -1077,7 +1077,12 @@ class BlechDialog(QDialog):
             if not getattr(self, "stumm", False):
                 einblendung.melden(self, str(x))
             return None
-        return step_export.speichern_dialog(self, plan, name, pfad)
+        netz = None
+        db, pid = getattr(self, "db", None), (getattr(self, "p", None) or {}).get("id")
+        if db is not None and pid and hasattr(db, "netz"):      # Prüfung gegen die Mutter-STEP
+            from .ansicht3d import entpacken
+            netz = entpacken(db.netz(pid)) or None
+        return step_export.speichern_dialog(self, plan, name, pfad, netz=netz)
 
     def zeichnung_pdf(self, pfad=None):
         """Zeichnung als PDF (zeichnung.blech_pdf). Ohne pfad: in die Ablage des Angebots schreiben und öffnen (ohne
