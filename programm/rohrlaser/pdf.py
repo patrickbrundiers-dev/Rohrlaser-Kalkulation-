@@ -1426,6 +1426,72 @@ def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True, einst=None):
     doc.build(inhalt, canvasmaker=leinwand)
 
 
+
+def angebotsvergleich_pdf(pfad, titel_a, titel_b, zeilen, s, einst=None, schwellen=(0.05, 50.0)):
+    """Angebotsvergleich (angebotsvergleich.vergleichen) auf A4 quer: Kennzahlen, größte Abweichungen, Tabelle je
+    Position (Differenz B − A, markierte Positionen gelb, nur in einem Angebot grau)."""
+    from . import angebotsvergleich as av
+    titel = "Angebotsvergleich"
+    doc, leinwand = _dokument(pfad, titel, _fuss(einst, f"{titel}: {titel_a} gegen {titel_b}"), quer=True)
+    breite = 273 * mm
+    inhalt = _dok_kopf(titel, {}, einst, breite, angaben=[("A", titel_a), ("B", titel_b), ("erstellt", _erstellt())])
+
+    def farbe(x):
+        return None if not x or abs(x) < 0.005 else (ROT if x > 0 else GRUEN)
+    inhalt += [_kacheln([("Summe A (zugeordnet)", av.euro(s["paar_a"]) + " €"),
+                         ("Summe B auf Mengen von A", av.euro(s["paar_b"]) + " €"),
+                         ("Differenz B − A", f"{av.euro(s['diff'], True)} € ({av.prozent(s['anteil'])})",
+                          farbe(s["diff"])),
+                         ("B teurer / günstiger / gleich", f"{s['teurer']} / {s['guenstiger']} / {s['gleich']}"),
+                         ("nur in A / nur in B", f"{s['nur_a']} / {s['nur_b']}")], breite),
+               Spacer(1, 2 * mm), _p(av.ergebnis_text(s), S_FETT)]
+    anteil, eur = schwellen
+    teile = [t for t in (f"ab {av.prozent(anteil, False)} im Stückpreis" if anteil else "",
+                         f"ab {av.euro(eur)} € je Position" if eur else "") if t]
+    inhalt.append(_p(f"Summe laut Datei: A {av.euro(s['summe_a'])} €, B {av.euro(s['summe_b_datei'])} €. "
+                     "Mengen verschieden: verglichen wird der Stückpreis, B wird auf die Mengen von A hochgerechnet. "
+                     "Gelb markiert " + (" oder ".join(teile) or "nichts") + "; grau = nur in einem Angebot.",
+                     ParagraphStyle("vh", parent=S_KLEIN, textColor=GRAU)))
+    if s["groesste"]:
+        inhalt += [Spacer(1, 3 * mm), _p("Größte Abweichungen", S_H2)]
+        daten = [_kopfzeile(["Artikel / Bezeichnung", "Stückpreis A [€]", "Stückpreis B [€]", "Differenz [%]",
+                             "Differenz Gesamt [€]"])]
+        stil = []
+        for z in s["groesste"]:
+            r = len(daten)
+            daten.append([_p(av.kennung(z)), av.euro(z["stk_a"]), av.euro(z["stk_b"]), av.prozent(z["anteil"]),
+                          av.euro(z["diff_ges"], True)])
+            f = farbe(z["diff_ges"])
+            if f is not None:
+                stil.append(("TEXTCOLOR", (3, r), (4, r), f))
+        tab = _tabelle(daten, [137 * mm, 34 * mm, 34 * mm, 30 * mm, 38 * mm], rechts=(1, 2, 3, 4))
+        tab.setStyle(TableStyle(stil))
+        inhalt.append(tab)
+    inhalt += [Spacer(1, 4 * mm), _p("Alle Positionen", S_H2)]
+    daten = [_kopfzeile(["Pos. A", "Pos. B", "Artikel / Bezeichnung", "Zuordnung", "Menge A", "Menge B",
+                         "Stück A [€]", "Stück B [€]", "Diff. Stück [€]", "Diff. [%]", "Gesamt A [€]",
+                         "Gesamt B [€]", "Diff. Gesamt [€]", "Hinweise"])]
+    stil = []
+    for z in zeilen:
+        a, b = z["a"] or {}, z["b"] or {}
+        r = len(daten)
+        daten.append([a.get("pos", ""), b.get("pos", ""), _p(av.kennung(z), S_ZELLE), z["zuordnung"],
+                      av._t(z.get("menge_a")), av._t(z.get("menge_b")), av.euro(z.get("stk_a")),
+                      av.euro(z.get("stk_b")), av.euro(z.get("diff_stk"), True), av.prozent(z.get("anteil")),
+                      av.euro(z.get("ges_a")), av.euro(z.get("ges_b")), av.euro(z.get("diff_ges"), True),
+                      _p("; ".join(z["hinweise"]), S_KLEIN)])
+        if z["markiert"]:
+            stil.append(("BACKGROUND", (0, r), (-1, r),
+                         colors.HexColor("#EDEDED" if z["art"] != "paar" else "#FFF2CC")))
+        f = farbe(z.get("diff_stk"))
+        if f is not None:
+            stil += [("TEXTCOLOR", (8, r), (9, r), f), ("TEXTCOLOR", (12, r), (12, r), f)]
+    tab = _tabelle(daten, [11 * mm, 11 * mm, 52 * mm, 20 * mm, 13 * mm, 13 * mm, 17 * mm, 17 * mm, 17 * mm,
+                           15 * mm, 19 * mm, 19 * mm, 20 * mm, 29 * mm], rechts=tuple(range(4, 13)), zebra=False)
+    tab.setStyle(TableStyle(stil))
+    inhalt.append(tab)
+    doc.build(inhalt, canvasmaker=leinwand)
+
 # ------------------------------------------------------------------ Palettenbegleitschein
 PS_LINIE = colors.HexColor("#A9CCE8")
 PS_FLAECHE = colors.HexColor("#EEF7FC")

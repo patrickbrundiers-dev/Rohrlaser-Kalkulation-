@@ -1142,6 +1142,12 @@ EINSTELLUNGEN = (
     # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
+    # Angebotsvergleich (Plan CSV-Angebotsvergleich 30.10.2026, 5a): Position markiert ab dieser Abweichung des
+    # Stückpreises oder des Positionspreises (0 = dieses Merkmal aus)
+    Einstellung("vergleich_schwelle_anteil", "Angebotsvergleich: markieren ab Abweichung Stückpreis (0 = aus)",
+                "Angebot", "anteil", 0.05, 0, 1),
+    Einstellung("vergleich_schwelle_eur", "Angebotsvergleich: markieren ab Abweichung je Position [€] (0 = aus)",
+                "Angebot", "zahl", 50.0, 0, 1000000),
     # Standard-Staffeln (Plan Arbeitsabläufe W3): Faktoren auf die Bestellmenge, angelegt per Knopf
     Einstellung("staffeln_standard", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
                 "Angebot", "text", "1; 2; 5"),

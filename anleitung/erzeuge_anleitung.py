@@ -893,6 +893,44 @@ def kapitel_angebote(i):
            "mit den festgeschriebenen Preisen und Zeiten ([[preise_festschreiben]]), den Einstellungen des Angebots "
            "und dem gespeicherten Schnittplan. Angebote ohne Schnittplan stehen mit „nicht optimiert“ in der Liste. "
            "Doppelklick öffnet das Angebot.")
+    i.abschnitt("Angebote vergleichen", marke="angebotsvergleich")
+    i.bild("angebotsvergleich", "Angebotsvergleich: eigenes Angebot (A) gegen ein Konkurrenzangebot als CSV (B)",
+           hoehe=105 * mm, legende=[(1, "Angebot A: aus der Angebotsliste oder eine CSV/ZIP-Datei"),
+                                    (2, "Angebot B, hier eine fremde CSV mit Spaltenzuordnung"),
+                                    (3, "Ergebnis: Differenz B − A in € und %, wie viele Positionen teurer/günstiger"),
+                                    (4, "Vergleich je Position, gelb = Abweichung über der Schwelle, grau = nur in "
+                                        "einem Angebot"), (5, "Vergleich als PDF oder CSV speichern")])
+    i.text("<i>Datei → Angebote vergleichen …</i> stellt zwei Angebote Position für Position gegenüber: zwei eigene "
+           "Angebote oder Fassungen, ein eigenes gegen ein Konkurrenz- oder Lieferantenangebot als CSV. In der "
+           "Angebotsliste geht es auch mit zwei markierten Angeboten (Strg+Klick) und der rechten Maustaste → "
+           "<i>Vergleichen …</i>. Es wird nichts gespeichert.", kurz=True)
+    i.genauer("Quellen, Zuordnung und Ergebnis")
+    i.liste("<b>Eigener CSV-Export</b> (Angebotspositionen.csv oder das ZIP, [[csv_export]]) und <b>Angebote aus "
+            "der Liste</b> liest das Programm ohne Rückfrage. Angebote aus der Liste müssen optimiert sein; sie "
+            "haben dieselben Werte wie ihr CSV-Export. Je Seite wählt <i>CSV/ZIP-Datei …</i> eine Datei und "
+            "<i>Aus Angebotsliste …</i> ein Angebot.",
+            "<b>Fremde CSV</b>: das Fenster <i>Spalten zuordnen</i> schlägt die Zuordnung aus den Spaltentiteln vor "
+            "(Artikelnummer, Bezeichnung, Menge, Stückpreis, Gesamtpreis, Werkstoff, Abmessung, Länge, Zeit, "
+            "Herstellkosten, Marge). Nötig sind ein Preis und eine Kennung. Mit <i>als Vorlage speichern</i> bekommt "
+            "die nächste Datei mit denselben Spaltentiteln (z. B. vom selben Wettbewerber) die Zuordnung gleich. "
+            "Gelesen wird wie beim Kunden-CSV: Semikolon, Komma oder Tab, Zahlen mit Komma oder Punkt, mit € oder "
+            "%, Titelzeilen über der Kopfzeile; Summenzeilen werden übersprungen. Excel-Dateien vorher in Excel als "
+            "<i>CSV UTF-8</i> speichern.",
+            "<b>Zuordnung der Positionen</b>: gleiche Artikelnummer (Groß-/Kleinschreibung, Leerzeichen und "
+            "Bindestriche egal), sonst gleiche Bezeichnung mit passender Abmessung und Länge, sonst gleiche "
+            "Positionsnummer. Der Rest steht als <i>nur in A</i> / <i>nur in B</i>; eine Zeile von jeder Art "
+            "markieren und <b>Zuordnen</b> wählen, <b>Zuordnung lösen</b> trennt ein Paar wieder.",
+            "<b>Vergleich</b>: Differenz immer B − A (rot = B teurer, grün = B günstiger). Verglichen wird der "
+            "Stückpreis; bei verschiedenen Mengen rechnet das Programm B auf die Mengen von A hoch. In <i>Hinweise</i> "
+            "stehen abweichende Mengen, Werkstoffe, Abmessungen, Längen und, wo beide Dateien sie haben, "
+            "Bearbeitungszeit, Herstellkosten und Marge.",
+            "<b>Markiert</b> (gelb) wird eine Position ab 5 % Abweichung im Stückpreis oder ab 50 € auf die Position; "
+            "beides lässt sich unter Einstellungen → Automatik und Prüfung ändern: <i>Angebotsvergleich: markieren ab "
+            "Abweichung Stückpreis (0 = aus)</i> und <i>Angebotsvergleich: markieren ab Abweichung je Position [€] "
+            "(0 = aus)</i>. "
+            "<i>nur Abweichungen</i> blendet den Rest aus.",
+            "<b>PDF …</b> speichert den Vergleich (A4 quer, mit den größten Abweichungen), <b>CSV …</b> als Tabelle "
+            "für Excel. Ausblenden lässt sich der Vergleich unter Einstellungen → Funktionen ([[funktionen]]).")
     i.abschnitt("Neue Fassung", marke="neue_fassung")
     i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
            "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "
@@ -5846,7 +5884,7 @@ def kapitel_einstellungen(i):
          "Ermitteln des Stundensatzes (eingeklappt)."],
         ["Angebot", "Neue Angebote", "Maschine, Stangenlänge, Staffeln, Lieferzeit, Zahlung, Gültigkeit, Nummern"],
         ["Angebot", "Texte im PDF", "Hinweise im Angebot, Text der Auftragsbestätigung"],
-        ["Angebot", "Automatik und Prüfung", "automatisch optimieren, Löschschutz, Mindestmarge, Nachfassen"],
+        ["Angebot", "Automatik und Prüfung", "automatisch optimieren, Löschschutz, Mindestmarge, Nachfassen, Angebotsvergleich"],
         ["Angebot", "Materialanfrage", "Betreff und Text der E-Mail"],
         ["Material", "Lieferlängen-Regeln, Auswahllisten", "Lieferlängen vergleichen, Zuschnitt, Händler-Mehrlänge; "
                                                           "Profilformen und Werkstoff-Kategorien"],

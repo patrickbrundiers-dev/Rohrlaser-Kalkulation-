@@ -362,6 +362,9 @@ class AngeboteSeite(QWidget):
         self.ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
         _breiten(self.ansicht, self.SPALTEN)
         self.ansicht.doubleClicked.connect(lambda i: self.oeffnen.emit(self._id(i)))
+        # Angebotsvergleich (Plan 30.10.2026, 7a): zwei markierte Angebote über die rechte Maustaste vergleichen
+        self.ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ansicht.customContextMenuRequested.connect(lambda p: self.kontextmenue(p))
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel, Auftragsnummer …")
         self.suche.setClearButtonEnabled(True)
@@ -616,6 +619,27 @@ class AngeboteSeite(QWidget):
 
     def _id(self, index):
         return self.modell.zeilen[self.filter.mapToSource(index).row()]["id"]
+
+    def markierte_ids(self):
+        """IDs der markierten Angebote in der Reihenfolge der Liste."""
+        zeilen = sorted({i.row() for i in self.ansicht.selectionModel().selectedRows()})
+        return [self._id(self.filter.index(r, 0)) for r in zeilen]
+
+    def kontextmenue(self, punkt=None, zeigen=True):
+        """Rechte Maustaste in der Angebotsliste: Öffnen und „Vergleichen …“ (genau zwei markierte Angebote).
+        Ergebnis: das Menü (zeigen=False für Tests)."""
+        menue = QMenu(self.ansicht)
+        ids = self.markierte_ids()
+        menue.addAction("Öffnen", self.oeffnen_gewaehlt).setEnabled(bool(ids))
+        if funktionen.an("funktion_vergleich"):
+            a = menue.addAction("Vergleichen …" if len(ids) == 2 else "Vergleichen … (zwei Angebote markieren)",
+                                lambda: self.f.angebote_vergleichen(*ids[:2]))
+            a.setEnabled(len(ids) == 2)
+            a.setToolTip("Die zwei markierten Angebote Position für Position vergleichen (Strg+Klick markiert ein "
+                         "zweites Angebot)")
+        if zeigen and punkt is not None:
+            menue.exec(self.ansicht.viewport().mapToGlobal(punkt))
+        return menue
 
     def _gewaehlt(self):
         i = self.ansicht.currentIndex()
