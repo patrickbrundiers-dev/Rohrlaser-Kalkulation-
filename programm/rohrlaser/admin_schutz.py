@@ -29,7 +29,6 @@ Ohne Qt, damit teilen.py und die Tests es nutzen können.
 import datetime
 import hashlib
 import json
-import os
 import time
 from pathlib import Path
 
@@ -329,30 +328,26 @@ def _was(alt, neu):
 
 # ------------------------------------------------------------------ Admin-Vorgaben für alle Arbeitsplätze
 class OrdnerAblage:
-    """Admin-Vorgaben im gemeinsamen Ordner (Datei Admin/admin_vorgaben.json, atomar ersetzt). Eine spätere Server-
-    Ablage braucht dieselben zwei Methoden."""
+    """Admin-Vorgaben über den Austauschweg (austausch.py): heute Datei Admin/admin_vorgaben.json im gemeinsamen
+    Ordner, atomar ersetzt; ein späterer Server-Weg liefert dieselben Dateien."""
 
-    def __init__(self, ordner):
-        self.pfad = Path(ordner) / ORDNER / DATEI
+    def __init__(self, weg):
+        from . import austausch
+        self.weg = weg if hasattr(weg, "datei_lesen") else austausch.OrdnerWeg(weg)
+        self.pfad = Path(str(self.weg)) / ORDNER / DATEI
 
     def lesen(self):
-        try:
-            return self.pfad.read_bytes()
-        except FileNotFoundError:
-            return None
+        return self.weg.datei_lesen(ORDNER, DATEI)
 
     def schreiben(self, daten):
-        self.pfad.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.pfad.with_name(f"{DATEI}.{os.getpid()}.neu")
-        tmp.write_bytes(daten)
-        os.replace(tmp, self.pfad)
+        self.weg.datei_schreiben(daten, ORDNER, DATEI)
 
 
 def ablage(db):
     """Ablage der Admin-Vorgaben oder None (kein gemeinsamer Ordner)."""
     from . import teilen
-    o = teilen.ordner(db)
-    return OrdnerAblage(o) if o is not None else None
+    w = teilen.weg(db)
+    return OrdnerAblage(w) if w is not None else None
 
 
 def _hash(inhalt):

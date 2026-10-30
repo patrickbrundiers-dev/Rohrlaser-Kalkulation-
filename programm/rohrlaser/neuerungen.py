@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.213", "<b>Kalkulations-PDF überarbeitet</b> ([[ausgabe]]): Seite 1 bleibt nicht mehr leer, Kostenarten und "
+    ["0.9.214", "<b>Kalkulations-PDF überarbeitet</b> ([[ausgabe]]): Seite 1 bleibt nicht mehr leer, Kostenarten und "
                 "neue <b>Kennzahlen</b> (Stundensatz von Hand/ermittelt, Zeitbasis, Gewinn, Preis je kg, Ertrag je "
                 "Maschinenstunde, Fracht, Abruf) stehen nebeneinander; der doppelte Kasten „Rüsten und Mengen“ ist "
                 "weg. Neu: Datum, Kunden-Nr. und Stundensatz im Kopf, Kachel Selbstkosten, Gewinn in %, greifende "
@@ -31,6 +31,12 @@ NEUERUNGEN = [
                 "Bezeichnung und den fehlenden Spalten (Schweißen, Fremdleistung, Gas, Ausschuss, Schrott, Lagerzins), "
                 "Zahlen brechen nicht mehr um. Die Rechnung selbst ist unverändert.",
      "Kalkulations-PDF: Kennzahlen, Stundensatz, Gewinnstufe, Fracht, Abruf, Staffeln, Zukaufteile; Seite 1 nicht mehr leer"],
+    ["0.9.213", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
+                "haben eine feste Kennung (bleibt bei der endgültigen Nummer und beim Kollegen gleich), ein "
+                "Änderungsprotokoll merkt sich jede Änderung an Stammdaten, gemeinsamen Einstellungen und Angeboten, "
+                "und Ordner, Nummern und gemeinsame Dateien laufen über eine gemeinsame Schnittstelle. Für die Arbeit "
+                "ändert sich nichts: gemeinsamer Ordner, Dateien und Abgleich bleiben gleich.",
+     "Vorbereitung Server-Synchronisation: feste Kennungen, Änderungsprotokoll, eine Stelle für den Austausch"],
     ["0.9.212", "<b>Hauptadmin und weitere Admins</b> ([[admin_rechte]]): Neue Seite <i>Allgemein → Arbeitsplätze und "
                 "Rechte</i> mit allen Arbeitsplätzen (Name und Kürzel vom ersten Start, Rechner, Lizenz mit Ampel, "
                 "Version, zuletzt da). Der Hauptadmin (Passwort der Admin-Lizenz) gibt dort Mitarbeitern das Recht "
