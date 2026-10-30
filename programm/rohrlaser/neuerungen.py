@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.214", "<b>Kalkulations-PDF überarbeitet</b> ([[ausgabe]]): Seite 1 bleibt nicht mehr leer, Kostenarten und "
+                "neue <b>Kennzahlen</b> (Stundensatz von Hand/ermittelt, Zeitbasis, Gewinn, Preis je kg, Ertrag je "
+                "Maschinenstunde, Fracht, Abruf) stehen nebeneinander; der doppelte Kasten „Rüsten und Mengen“ ist "
+                "weg. Neu: Datum, Kunden-Nr. und Stundensatz im Kopf, Kachel Selbstkosten, Gewinn in %, greifende "
+                "Gewinnstufe, Schneidgas in m³, Fracht mit Art und Umlage, Warnungen der Preis-Gegenprobe, Rechenweg "
+                "des ermittelten Stundensatzes, Abschnitte Abruf-/Rahmenangebot, Zukaufteile und Staffelpreise, "
+                "Schneiddaten je Teil. Die Positionstabelle steht in zwei Teilen (Kosten je Teil, Preisaufbau) mit "
+                "Bezeichnung und den fehlenden Spalten (Schweißen, Fremdleistung, Gas, Ausschuss, Schrott, Lagerzins), "
+                "Zahlen brechen nicht mehr um. Die Rechnung selbst ist unverändert.",
+     "Kalkulations-PDF: Kennzahlen, Stundensatz, Gewinnstufe, Fracht, Abruf, Staffeln, Zukaufteile; Seite 1 nicht mehr leer"],
     ["0.9.213", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
                 "haben eine feste Kennung (bleibt bei der endgültigen Nummer und beim Kollegen gleich), ein "
                 "Änderungsprotokoll merkt sich jede Änderung an Stammdaten, gemeinsamen Einstellungen und Angeboten, "
