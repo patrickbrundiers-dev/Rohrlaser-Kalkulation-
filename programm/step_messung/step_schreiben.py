@@ -988,7 +988,7 @@ def baugruppe_schreiben(bauplan, ziel):
             if formen[nr] is None:
                 continue
             if e.get("lage"):
-                gesetzt.append((lab, nr, _trsf(e["lage"])))
+                gesetzt.append((lab, nr, _trsf(e["lage"]), e))
             elif e.get("ausrichten"):
                 try:
                     m, fehler = ausrichten(formen[nr], e["ausrichten"]["p"], e["ausrichten"]["t"],
@@ -1001,7 +1001,7 @@ def baugruppe_schreiben(bauplan, ziel):
                 if fehler > grenze:
                     hinweise.append(f"{teile[nr]['name']}: Lage aus der STEP-Messung geschätzt (Abweichung "
                                     f"{fehler:.1f} mm), bitte prüfen")
-                gesetzt.append((lab, nr, _trsf(m)))
+                gesetzt.append((lab, nr, _mutter_genau(formen[nr], _trsf(m), bauplan, e), e))
             else:
                 daneben.append((lab, nr))
         for kind in spec.get("kinder") or ():
@@ -1011,10 +1011,13 @@ def baugruppe_schreiben(bauplan, ziel):
         return lab
 
     knoten(bauplan["baugruppe"], None)
-    platziert = []
-    for lab, nr, tr in gesetzt:
+    platziert, pruefen = [], []
+    for lab, nr, tr, e in gesetzt:
         st.AddComponent(lab, labels[nr], TopLoc_Location(tr))
         platziert.append(formen[nr].Moved(TopLoc_Location(tr)))
+        if e.get("mutter") is not None:
+            pruefen.append(dict(name=teile[nr]["name"], form=platziert[-1], mutter=e["mutter"],
+                                erwartet=bauplan["teile"][nr].get("erwartet")))
     box = _box(platziert) or [0.0] * 6
     x = box[3] + ABSTAND_DANEBEN if platziert else 0.0
     for lab, nr in daneben:
@@ -1030,8 +1033,40 @@ def baugruppe_schreiben(bauplan, ziel):
         raise ValueError("keine Teile in der Baugruppe")
     st.UpdateAssemblies()
     _step_schreiben(doc, ziel, bauplan["baugruppe"].get("name"))
-    return dict(ok=all(t.get("gueltig") for t in teile), teile=teile, einsaetze=len(platziert), hinweise=hinweise,
-                box=[round(c, 3) for c in _box(platziert)], volumen=round(sum(_volumen(f) for f in platziert), 3))
+    erg = dict(ok=all(t.get("gueltig") for t in teile), teile=teile, einsaetze=len(platziert), hinweise=hinweise,
+               box=[round(c, 3) for c in _box(platziert)], volumen=round(sum(_volumen(f) for f in platziert), 3))
+    return _mit_vergleich(erg, bauplan, pruefen)
+
+
+def _mutter_genau(k, tr, bauplan, e):
+    """Lage eines am Netz ausgerichteten Teils exakt auf seinen Körper der Mutter-STEP nachführen (Netz-Schwerpunkt
+    weicht durch die Facetten um einige hundertstel mm ab; Patrick: Lage 100 % wie STEP)."""
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.gp import gp_Trsf, gp_Vec
+    if e.get("mutter") is None or not bauplan.get("mutter"):
+        return tr
+    import step_vergleich
+    try:
+        d = step_vergleich.nachfuehren(k.Moved(TopLoc_Location(tr)), bauplan["mutter"][e["mutter"]])
+    except Exception:
+        return tr
+    if not d:
+        return tr
+    schieben = gp_Trsf()
+    schieben.SetTranslation(gp_Vec(*d))
+    return schieben.Multiplied(tr)
+
+
+def _mit_vergleich(erg, bauplan, pruefen):
+    """Prüfung gegen die Mutter-STEP (step_vergleich) ins Ergebnis, wenn der Bauplan sie kennt."""
+    if bauplan.get("mutter") and pruefen:
+        import step_vergleich
+        try:
+            erg["vergleich"] = step_vergleich.vergleichen(pruefen, bauplan["mutter"],
+                                                          float(bauplan.get("vergleich_zeit") or step_vergleich.ZEIT))
+        except Exception as ex:             # die Prüfung darf das Schreiben nie verhindern
+            erg["vergleich"] = dict(koerper=[], fehlen=[], nicht_geprueft=0, fehler=[str(ex)])
+    return erg
 
 
 def _step_schreiben(doc, ziel, produkt):
@@ -1073,16 +1108,34 @@ def schreiben(bauplan, ziel):
     from OCP.XCAFDoc import XCAFDoc_DocumentTool
     doc = TDocStd_Document(TCollection_ExtendedString("XmlOcaf"))
     werkzeug_formen = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
-    teile = []
+    teile, pruefen = [], []
     for teil in bauplan.get("teile") or ():
         k, meldungen = teil_bauen(teil)
         lab = werkzeug_formen.AddShape(k, False)
         TDataStd_Name.Set_s(lab, TCollection_ExtendedString(str(teil.get("name") or "Teil"), True))
         teile.append(dict(name=teil.get("name"), meldungen=meldungen, **_kennwerte(k)))
+        for e in teil.get("vergleich") or ():  # Einzelteil: in die Lage der Mutter-STEP gebracht nur zum Prüfen
+            pruefen.append(dict(name=teil.get("name"), form=_in_mutterlage(k, e), mutter=e.get("mutter", 0),
+                                erwartet=teil.get("erwartet")))
     if not teile:
         raise ValueError("keine Teile im Bauplan")
     _step_schreiben(doc, ziel, bauplan.get("name") or teile[0]["name"])
-    return dict(ok=all(t["gueltig"] for t in teile), teile=teile)
+    return _mit_vergleich(dict(ok=all(t["gueltig"] for t in teile), teile=teile), bauplan,
+                          [x for x in pruefen if x["form"] is not None])
+
+
+def _in_mutterlage(k, e):
+    """Körper eines Einzelteils in die Lage der Mutter-STEP: e = {lage: 3 × 4} oder {ausrichten: {p, t, achsen}}."""
+    from OCP.TopLoc import TopLoc_Location
+    if e.get("lage"):
+        return k.Moved(TopLoc_Location(_trsf(e["lage"])))
+    if e.get("ausrichten"):
+        try:
+            m, _ = ausrichten(k, e["ausrichten"]["p"], e["ausrichten"]["t"], e["ausrichten"].get("achsen"))
+        except Exception:
+            return None
+        return k.Moved(TopLoc_Location(_trsf(m)))
+    return None
 
 
 def main(argv=None):
