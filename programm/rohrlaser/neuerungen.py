@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.213", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
+                "haben eine feste Kennung (bleibt bei der endgültigen Nummer und beim Kollegen gleich), ein "
+                "Änderungsprotokoll merkt sich jede Änderung an Stammdaten, gemeinsamen Einstellungen und Angeboten, "
+                "und Ordner, Nummern und gemeinsame Dateien laufen über eine gemeinsame Schnittstelle. Für die Arbeit "
+                "ändert sich nichts: gemeinsamer Ordner, Dateien und Abgleich bleiben gleich.",
+     "Vorbereitung Server-Synchronisation: feste Kennungen, Änderungsprotokoll, eine Stelle für den Austausch"],
     ["0.9.212", "<b>Hauptadmin und weitere Admins</b> ([[admin_rechte]]): Neue Seite <i>Allgemein → Arbeitsplätze und "
                 "Rechte</i> mit allen Arbeitsplätzen (Name und Kürzel vom ersten Start, Rechner, Lizenz mit Ampel, "
                 "Version, zuletzt da). Der Hauptadmin (Passwort der Admin-Lizenz) gibt dort Mitarbeitern das Recht "

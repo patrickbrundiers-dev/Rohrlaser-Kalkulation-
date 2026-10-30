@@ -6521,6 +6521,17 @@ def kapitel_mehrere(i):
               "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
               "letzten Abgleichs (von selbst alle 2 Minuten), nicht live.")
 
+    i.abschnitt("Vorbereitet für einen Server", marke="server_vorbereitung")
+    i.genauer()
+    i.text("Seit 0.9.213 ist das Programm für einen späteren Abgleich über einen Server vorbereitet. Für die Arbeit "
+           "ändert sich nichts: der gemeinsame Ordner bleibt der Weg, Dateien und Abgleich sind dieselben.")
+    i.liste("Jedes Angebot und jede Position hat eine feste Kennung; sie bleibt, wenn eine vorläufige Nummer "
+            "endgültig wird, und ist beim Kollegen dieselbe. Eine Kopie bekommt eine neue.",
+            "Das Programm führt ein Änderungsprotokoll (was wann geändert wurde, hier oder beim Abgleich), um später "
+            "nur Neues über den Server zu schicken. Einträge älter als 90 Tage fallen weg.",
+            "Ordner, Nummern und gemeinsame Dateien laufen intern über eine Stelle, hinter der später auch ein "
+            "Server stehen kann.")
+
 
 def kapitel_stammdaten(i):
     i.kapitel("Stammdaten und Kunden", marke="stammdaten")
