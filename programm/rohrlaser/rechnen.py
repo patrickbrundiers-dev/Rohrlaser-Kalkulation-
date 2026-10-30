@@ -18,7 +18,7 @@ from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
-from . import anbau, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
+from . import abruf, anbau, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -3302,7 +3302,7 @@ def abm_profil(schl):
     return schl[0] if isinstance(schl, tuple) else schl
 
 
-def _muster_umlegen(zeilen, positionen, kopf, skonto):
+def _muster_umlegen(zeilen, positionen, kopf, skonto, ab=None):
     """Musterteile (Patrick 28.10.2026, Plan „Musterteile im Angebot“, alle a): Musterpositionen sind voll gerechnet
     (Material nach Länge, eigenes Rüsten, Programmierung, Zusatzarbeiten, Zukaufteile), stehen aber mit Preis 0 im
     Angebot. Ihr Verkaufswert (Selbstkosten + Gewinn, Zukaufteile nur mit Aufschlag, Fracht, Skonto) wird nach den
@@ -3311,10 +3311,12 @@ def _muster_umlegen(zeilen, positionen, kopf, skonto):
     Angebot. Summe des Angebots und Gewinn bleiben gleich. Ändert zeilen; Ergebnis: dict(betrag, ware (ohne Fracht
     nach Skonto), einmalig, zeile, ohne_serie, positionen). Je Serienposition die Anteile je Teil (muster_selbst_teil
     mit Gewinn, muster_zukauf_teil ohne, muster_fracht_teil) für die Staffeln, bei eigener Zeile als
-    muster_getrennt_*."""
+    muster_getrennt_*.
+    ab (Abruf-Angebot, 5a): je Serienposition nur der Anteil Stückzahl ÷ Jahresmenge (abruf.anteil), der Rest
+    verteilt sich auf die übrigen Abrufe des Jahres; umgelegt = Betrag, der in diesem Angebot steckt."""
     muster = [i for i, z in enumerate(zeilen) if z and ist_muster(positionen[i]) and z["stueck"]]
     if not muster:
-        return dict(betrag=0.0, ware=0.0, einmalig=0.0, zeile=False, ohne_serie=False, positionen=[])
+        return dict(betrag=0.0, ware=0.0, einmalig=0.0, zeile=False, ohne_serie=False, positionen=[], umgelegt=0.0)
     serie = [i for i, z in enumerate(zeilen) if z and i not in muster and z["stueck"] and z["selbst_position"] > 0]
     gewicht = sum(zeilen[i]["selbst_position"] for i in serie)
     betrag = sum(zeilen[i]["preis_position"] for i in muster)
@@ -3326,19 +3328,23 @@ def _muster_umlegen(zeilen, positionen, kopf, skonto):
         z = zeilen[i]
         z.update(muster="ja", muster_preis_teil=z["preis_teil"], muster_preis_position=z["preis_position"],
                  muster_fracht_teil=z["fracht_teil"], preis_teil=0.0, preis_position=0.0, fracht_teil=0.0)
+    umgelegt = 0.0
     for i in serie:
         z = zeilen[i]
         a, c = z["selbst_position"] / gewicht, z["stueck"]
+        if ab and not zeile:
+            a *= abruf.anteil(positionen[i], ab)
         anteile = dict(selbst_teil=(selbst - zk) * a / c, zukauf_teil=zk * a / c, fracht_teil=fr * a / c)
         if zeile:
             z.update({f"muster_getrennt_{n}": w for n, w in anteile.items()})
             continue
         plus = betrag * a / c
+        umgelegt += plus * c
         z.update({f"muster_{n}": w for n, w in anteile.items()})
         z.update(muster_teil=plus, preis_teil=z["preis_teil"] + plus, preis_position=(z["preis_teil"] + plus) * c,
                  fracht_teil=z["fracht_teil"] + anteile["fracht_teil"])
     return dict(betrag=betrag, ware=betrag * (1 - skonto) - fr, einmalig=betrag if zeile else 0.0, zeile=zeile,
-                ohne_serie=not serie or gewicht <= 0, positionen=muster)
+                ohne_serie=not serie or gewicht <= 0, positionen=muster, umgelegt=umgelegt)
 
 
 def gewinn_stufen(einst):
@@ -3485,6 +3491,13 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     prog_pos = {i: (_n(positionen[i].get("stueck")) > 0) * (m * s_prog / 60 if m is not None
                                                              else _n(einstellungen.get("programmierung_teil")))
                 for i, (m, _) in prog_zeit.items()}
+    # Abruf-/Rahmenangebot (Patrick 30.10.2026, 2a): Programmierung einmalig auf die kleinste Jahresmenge, je Abruf
+    # nur der Anteil Stückzahl ÷ Jahresmenge; Musterteile tragen sie voll (sie gehen als Ganzes in die Umlage)
+    ab = abruf.daten(kopf)
+    prog_voll = sum(prog_pos.values())
+    if ab:
+        prog_pos = {i: w if ist_muster(positionen[i]) else w * abruf.anteil(positionen[i], ab)
+                    for i, w in prog_pos.items()}
     handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
     pruefzeit_anbau = _n(einstellungen.get("pruefzeit_anbau"))      # min je Teil mit unsicher erkannten Anbauteilen
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
@@ -3566,6 +3579,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         f = d * e / c if c else 0
         sch = sum(schrott_gr.get(gr, ())) * e / c if c else 0      # Schrotterlös des Verschnitts (Plan B5)
         hz = dh * e / c if c else 0
+        # Abruf-Angebot mit bevorratetem Material (4b): Lagerzins auf das Material der Serie
+        fl = f * ab["lagerzins"] if ab and not beigestellt(p) and not ist_muster(p) else 0.0
         v = vorab[i]
         sd, (h, i_, j, kv, l), mz = v["sd"], v["vorschuebe"], v["mz"]
         d3, anteile, ein, nz = v["d3"], v["anteile"], v["ein"], v["nz"]
@@ -3604,7 +3619,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
         # Ausschuss (Plan B2): verworfene Teile kosten Material und Laserzeit noch einmal anteilig
         fa, qa = f * ausschuss, qz * ausschuss
-        s_ = (f - sch + fa) * (1 + zm) + (qz + qa + rz + az + ze + hz) * (1 + zf) + zfr * (1 + zfl)
+        s_ = (f - sch + fa + fl) * (1 + zm) + (qz + qa + rz + az + ze + hz) * (1 + zf) + zfr * (1 + zfl)
         # Selbstkosten: Herstellkosten + Programmierung, Pauschale, Angebotsaufschlag und Zukaufteile (ohne Fracht)
         wz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) \
             + (prog_pos[i] / c if c else 0)
@@ -3659,7 +3674,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  gravur_anbau_teil=0.0 if manuell else _n(anteile.get("gravur_anbau")) / 3600 * s_laser)
         z.update(laser_schneiden_teil=_n(oz) / 3600 * s_laser, gewinde_teil=pz / 3600 * s_gew + gp,
                  gewinde_zeit_teil=pz / 3600 * s_gew, arbeit_teil=az,
-                 zuschlag_material_teil=(f - sch + fa) * zm, zuschlag_fertigung_teil=(qz + qa + rz + az + ze + hz) * zf,
+                 zuschlag_material_teil=(f - sch + fa + fl) * zm, lagerzins_teil=fl, zuschlag_fertigung_teil=(qz + qa + rz + az + ze + hz) * zf,
                  schneidgas_teil=gz, gas_m3_teil=gas_m3, gas_m3h=gas_m3h,
                  zeit_gas=v["gas_s"] if gas_m3h else None, schrott_teil=-sch, ausschuss_mat_teil=fa, ausschuss_fert_teil=qa,
                  ausschuss_teil=fa + qa,
@@ -3682,7 +3697,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         zeilen[i] = z
     n_abm = len(teile_abm)
     # Musterteile (Patrick 28.10.2026): Preis 0, Kosten mit Gewinn auf die Serie bzw. als Musterkosten einmalig
-    mu = _muster_umlegen(zeilen, positionen, kopf, skonto)
+    mu = _muster_umlegen(zeilen, positionen, kopf, skonto, ab)
     # Mindestpreis netto je Angebot (nach Skonto, vor MwSt): liegt die Summe darunter, steigen alle Stückpreise
     # im gleichen Verhältnis, bis der Mindestpreis erreicht ist (einmal je Angebot, keine zusätzliche Position)
     mindest = _n(einstellungen.get("mindestpreis"))
@@ -3774,7 +3789,12 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   baugruppen=sum(1 for i in bg_pos if _n(positionen[i].get("stueck")) > 0))
     summen.update(muster_betrag=mu["betrag"], muster_einmalig=mu["einmalig"], muster_zeile=mu["zeile"],
                   muster_ohne_serie=mu["ohne_serie"], muster_positionen=len(mu["positionen"]),
-                  muster_pos=[positionen[i].get("pos") for i in mu["positionen"]])
+                  muster_pos=[positionen[i].get("pos") for i in mu["positionen"]], muster_umgelegt=mu["umgelegt"],
+                  # Abruf-Angebot: der Musterwert, der auf die übrigen Abrufe des Jahres entfällt (Kosten gehen auf)
+                  muster_spaeter=-(mu["betrag"] - mu["umgelegt"]) if ab and mu["positionen"] and not mu["zeile"] else 0.0)
+    # Abruf-/Rahmenangebot: Kennzahlen für Kostenübersicht, PDF und Staffeln
+    summen.update(abruf=bool(ab), abruf_n=ab["n"] if ab else None, programmierung_voll=prog_voll,
+                  lagerzins=_summe("lagerzins_teil"), lagerzins_satz=100 * ab["zins"] if ab else 0.0)
     summen.update(verkauf_kalkuliert=kalkuliert, mindestpreis=mindest, mindestpreis_gilt=faktor > 1,
                   mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
@@ -4128,18 +4148,19 @@ KOSTENARTEN = (
     ("Zusatzarbeiten", "zusatz", False), ("Handling Kundenmaterial", "handling_beistellung", False),
     ("Schweißbaugruppen: Schweißen und Arbeitsgänge", "baugruppe_eigen", False),
     ("Schweißbaugruppen: Fremdleistungen", "baugruppe_fremd", False), ("Ausschuss", "ausschuss", False),
-    ("Zuschlag Material", "zuschlag_material", False), ("Zuschlag Fertigung", "zuschlag_fertigung", False),
+    ("Lagerzins bevorratetes Material", "lagerzins", False), ("Zuschlag Material", "zuschlag_material", False), ("Zuschlag Fertigung", "zuschlag_fertigung", False),
     ("Zuschlag Fremdleistung", "zuschlag_fremdleistung", False), ("Herstellkosten", "herstell", True),
     ("Programmierkosten", "programmierung", False), ("Pauschale je Abmessung", "pauschalen", False),
     ("Angebotsaufschlag", "angebotsaufschlag", False), ("Zukaufteile (Einstand)", "zukauf_einstand", False),
     ("Aufschlag Zukaufteile", "zukauf_aufschlag", False), ("Selbstkosten", "selbst", True),
     ("Gewinn", "gewinn", False), ("Fracht", "fracht", False), ("Skonto", "skonto", False),
-    ("Anhebung auf Mindestpreis", "mindestpreis_anhebung", False), ("Verkaufspreis", "verkauf", True))
+    ("Anhebung auf Mindestpreis", "mindestpreis_anhebung", False),
+    ("Musterkosten weiterer Abrufe", "muster_spaeter", False), ("Verkaufspreis", "verkauf", True))
 
 
 # Kostenübersicht im Angebot: Gruppen aus Kostenarten (Titel, Schlüssel, Summenzeile); jede Kostenart genau einmal
 KOSTEN_GRUPPEN = (
-    ("Material", ("material", "schrott"), False), ("Laser schneiden", ("laser_schneiden", "schneidgas"), False),
+    ("Material", ("material", "schrott", "lagerzins"), False), ("Laser schneiden", ("laser_schneiden", "schneidgas"), False),
     ("Rüsten", ("ruesten_maschine", "ruesten_abmessungen", "stangenwechsel_kosten"), False),
     ("Zusätzliche Bearbeitung", ("gewinde", "arbeitsschritte", "zusatz", "handling_beistellung"), False),
     ("Schweißbaugruppen", ("baugruppe_eigen", "baugruppe_fremd"), False), ("Ausschuss", ("ausschuss",), False),
@@ -4149,7 +4170,7 @@ KOSTEN_GRUPPEN = (
     ("Zukaufteile", ("zukauf_einstand", "zukauf_aufschlag"), False),
     ("Selbstkosten", ("selbst",), True), ("Gewinn", ("gewinn",), False), ("Fracht", ("fracht",), False),
     ("Skonto", ("skonto",), False), ("Mindestpreis", ("mindestpreis_anhebung",), False),
-    ("Verkaufspreis", ("verkauf",), True))
+    ("Muster: Anteil weiterer Abrufe", ("muster_spaeter",), False), ("Verkaufspreis", ("verkauf",), True))
 assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n, _ in KOSTENARTEN)
 
 
@@ -4170,6 +4191,9 @@ def kostenarten(summen, einst):
                                   "Profilform" if summen.get("formen_weitere") else "") + ")",
         "ausschuss": f" ({z(summen.get('ausschuss_satz', 0))} % auf Material und Laserzeit)",
         "schrott": " (Gutschrift für den Verschnitt)",
+        "lagerzins": f" ({z(summen.get('lagerzins_satz', 0))} % p. a., Abruf-Angebot mit Jahresbedarf)",
+        "programmierung": (f" (Anteil je Abruf von {z(summen.get('programmierung_voll', 0), 2)} € einmalig, auf die "
+                           "Jahresmenge umgelegt)" if summen.get("abruf") and summen.get("programmierung_voll") else ""),
         "stangenwechsel_kosten": f" ({summen['beladungen']} × {z(summen['stangenwechsel'])} s)",
         "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
         "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
@@ -4180,6 +4204,7 @@ def kostenarten(summen, einst):
                      else f"Selbstkosten {z(summen.get('selbst', 0), 2)} €)"),
         "skonto": f" ({z(summen.get('skonto_satz', 0))} % eingerechnet)",
         "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)",
+        "muster_spaeter": " (Musterwert, der mit den übrigen Abrufen der Jahresmenge bezahlt wird)",
         "mindestpreis_anhebung": (f" (kalkuliert {z(summen.get('verkauf_kalkuliert', 0), 2)} €, Mindestpreis "
                                   f"{z(summen.get('mindestpreis', 0), 2)} € netto)" if summen.get("mindestpreis_gilt")
                                   else ""),
@@ -4192,7 +4217,9 @@ def muster_text(summen):
     if not summen.get("muster_positionen"):
         return ""
     wie = ("als eigene Zeile Musterkosten einmalig" + (" (keine Serienposition)" if summen.get("muster_ohne_serie") else "")
-           if summen.get("muster_zeile") else "auf die Serie umgelegt")
+           if summen.get("muster_zeile") else
+           f"je Abruf {zahl(summen.get('muster_umgelegt', 0), 2)} € auf die Jahresmenge umgelegt" if summen.get("abruf")
+           else "auf die Serie umgelegt")
     return f" (davon Musterteile {zahl(summen.get('muster_betrag', 0), 2)} €, {wie})"
 
 

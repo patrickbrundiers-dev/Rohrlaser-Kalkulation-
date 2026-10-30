@@ -39,6 +39,7 @@ import json
 
 from . import blech, fracht_angebot, rechnen, zukauf
 from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
+ABRUF_FELDER = tuple(f.name for f in ANGEBOT_KOPF if f.name == "abruf" or f.name.startswith("abruf_"))
 from .angebot import aktiv as position_aktiv, ist_muster
 from .ausgabe import aufrunden, kaufm_runden, preiseinheit
 from .stammdaten import Feld, kontext_aus
@@ -285,7 +286,8 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
                      "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
                      "aufschlag_blech", "aufschlag_zukauf",      # Aufschlag Bleche bzw. Zukaufteile des Angebots
                      "ruesten_abmessung_eur", "ruesten_angebot_eur",     # Rüsten als fester Betrag
-                     "muster_darstellung")       # Musterkosten umlegen oder als eigene Zeile
+                     "muster_darstellung",       # Musterkosten umlegen oder als eigene Zeile
+                     *ABRUF_FELDER)              # Abruf-/Rahmenangebot: Einmalkosten auf die Jahresmenge, Lagerzins
     # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
     if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
         tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
@@ -504,7 +506,7 @@ def _bausteine_teil(kz, idx, summen):
     ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil") and not z.get("baugruppe")
                      and not (z.get("kundenmaterial") and z["eingeplant"]))      # Kundenmaterial: 0 € ist richtig
     # Material mit Schrotterlös (Gutschrift, negativ) und Ausschuss wie in der Kalkulation (Plan B2, B5)
-    material = summe("material_teil") + summe("schrott_teil") + summe("ausschuss_mat_teil")
+    material = summe("material_teil") + summe("schrott_teil") + summe("ausschuss_mat_teil") + summe("lagerzins_teil")
     return dict(material=material, material_fehlt=ohne_preis, fertigung=fert, ruesten=ruest,
                 fremd=summe("zusatz_fremd_teil") + summe("bg_fremd_staffel_teil"),
                 bg_getrennt=(summe("bg_getrennt_eigen_teil"), summe("bg_getrennt_fremd_teil")),
@@ -597,7 +599,8 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     if doppelt:
         pos = ", ".join(sorted({txt(positionen[i].get("pos")) for i in doppelt}))
         return alle_mit(f"FEHLER: Pos. {pos} steht in der Stufe doppelt (als Satz und als Position)")
-    lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
+    # abruf_basis: Stückzahl des Angebots; im Abruf-Angebot bleibt die Jahresmenge der Position in jeder Stufe gleich
+    lauf = [dict(p, stueck=mengen.get(i), abruf_basis=p.get("stueck")) for i, p in enumerate(positionen)]
     # Musterteile (Patrick 28.10.2026, F5 a): laufen in jeder Stufe mit der Stückzahl des Angebots mit, ihre Kosten
     # gehen einmal je Stufe auf deren Menge wie Rüsten; eine Stufe für das Muster selbst rechnet es als Serienteil
     for i, p in enumerate(positionen):
@@ -708,7 +711,8 @@ def bausteine(summen, ohne_materialpreis=0):
     if abs(summen.get("baugruppe_einmal_ruesten", 0)) >= 0.005:
         ruest.append(("Schweißbaugruppen einmalig", summen["baugruppe_einmal_ruesten"],
                       "Rüstzeit und Einmalbeträge der Arbeitsgänge"))
-    material = summen["material"] + summen.get("schrott", 0.0) + summen.get("ausschuss_material", 0.0)
+    material = summen["material"] + summen.get("schrott", 0.0) + summen.get("ausschuss_material", 0.0) \
+        + summen.get("lagerzins", 0.0)
     return dict(material=material, material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
                 fremd=summen["zusatz_fremd"] + summen.get("baugruppe_fremd_staffel", 0.0),
                 bg_getrennt=(summen.get("baugruppe_getrennt_eigen", 0.0), summen.get("baugruppe_getrennt_fremd", 0.0)),
