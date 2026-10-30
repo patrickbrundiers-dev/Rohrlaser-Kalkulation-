@@ -230,6 +230,31 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("admin_schutz", f, [(f.admin_seite.haken["e_zuschlaege"], 1),
                                   (knopf(f.admin_seite, "Vorschlag wiederherstellen"), 2)])
+    # Arbeitsplätze und Rechte: drei Plätze aus dem gemeinsamen Ordner (Beispiel), ein weiterer Admin
+    from rohrlaser import VERSION, admin_schutz
+    heute = datetime.date.today()
+    db.einstellung_setzen("teilen_mitarbeiter", {
+        "MA": {"name": "Max Arnold", "rechner": "PC-FERTIGUNG", "version": VERSION,
+               "stand": f"{heute.isoformat()}T07:42:00",
+               "lizenz": {"art": "benutzer", "stufe": "gueltig", "gueltig_bis": (heute + datetime.timedelta(days=80)).isoformat()}},
+        "SK": {"name": "Sabine Krüger", "rechner": "PC-BUERO2", "version": VERSION,
+               "stand": f"{heute.isoformat()}T08:15:00",
+               "lizenz": {"art": "benutzer", "stufe": "bald", "gueltig_bis": (heute + datetime.timedelta(days=12)).isoformat()}}})
+    db.einstellung_setzen(admin_schutz.LIZENZ_INFO, {"art": "admin", "stufe": "admin"})
+    kuerzel_vorher = (db.einstellung("benutzer_kuerzel"), db.einstellung("benutzer_name"))
+    db.einstellung_setzen("benutzer_kuerzel", "PB")
+    db.einstellung_setzen("benutzer_name", "Paul Berger")
+    admin_schutz.recht_setzen(db, "SK", admin_schutz.ADMIN, "Sabine Krüger", "Start-2026")
+    db.einstellung_setzen(admin_schutz.VERLAUF, [
+        {"zeit": f"{heute.isoformat()}T08:31:12", "wer": "Sabine Krüger (SK)", "was": "Tabellen: Preise"},
+        {"zeit": f"{heute.isoformat()}T09:02:40", "wer": "Hauptadmin (PB)", "was": "Einstellungen: Rechte"}])
+    ps = f.plaetze_seite
+    f.bereich.zeigen(ps)
+    QApplication.processEvents()
+    foto.foto("arbeitsplaetze_rechte", f, [(ps.wahl["SK"], 1), (knopf(ps, "Neues Startpasswort …"), 2),
+                                           (ps.verlauf, 3)])
+    db.einstellung_setzen("benutzer_kuerzel", kuerzel_vorher[0])
+    db.einstellung_setzen("benutzer_name", kuerzel_vorher[1])
     # Schweiß-Stammdaten werden leer ausgeliefert: wie mit dem Knopf 'Richtwerte laden' füllen
     next(s for s in f.seiten if s.t.name == "schweissverfahren").schweiss_richtwerte(bestaetigt=True)
     for seite in f.seiten:

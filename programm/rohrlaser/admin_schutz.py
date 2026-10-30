@@ -16,6 +16,14 @@ gemeinsame Ordner (OrdnerAblage, Datei Admin/admin_vorgaben.json); für einen sp
 zweite Ablage mit lesen()/schreiben(). Der Schutz liegt im Programm: die Prüfsumme erkennt beschädigte Dateien, ist
 aber keine Verschlüsselung.
 
+Hauptadmin und weitere Admins (Patrick 30.10.2026, Freigabe „1a 2a 3a 4a 5a“ + Seite „Arbeitsplätze und Rechte“):
+Hauptadmin ist, wer das Admin-Passwort der Admin-Lizenz (oder einen Notfallcode) eingibt. Er vergibt auf der Seite
+Arbeitsplätze und Rechte je Mitarbeiter (Kürzel) das Recht Mitarbeiter, Admin oder gesperrt (Liste ADMINS, kommt mit
+den Admin-Vorgaben an alle Plätze). Ein Admin schaltet sich mit seinem eigenen Passwort frei – an jedem Arbeitsplatz
+mit gültiger Lizenz –, ändert alle geschützten Seiten, aber nicht Admin-Schutz und Rechte (HAUPT_SEITEN). Das
+Startpasswort vom Hauptadmin ändert er beim ersten Freischalten. Wer gesperrt wird, verliert die Freischaltung beim
+nächsten Abgleich. Jedes Paket trägt im Verlauf, welcher Admin was geändert hat.
+
 Ohne Qt, damit teilen.py und die Tests es nutzen können.
 """
 import datetime
@@ -26,10 +34,20 @@ import time
 from pathlib import Path
 
 from . import einstellungen_ordnung as ordnung
+from . import passwort as pw
 
 ADMIN_SEITEN = "admin_seiten"           # Liste der geschützten Bereiche (None = VORGABE); kommt mit dem Paket
 STAND = "admin_vorgaben_stand"          # lokal: {stand, von, hash} des zuletzt übernommenen/geschriebenen Pakets
 SEITE_ADMIN = "e_admin"                 # die Seite Admin-Schutz selbst: immer geschützt
+SEITE_PLAETZE = "e_plaetze"             # Seite Arbeitsplätze und Rechte: nur der Hauptadmin
+HAUPT_SEITEN = (SEITE_ADMIN, SEITE_PLAETZE)
+ADMINS = "admin_liste"                  # {Kürzel: {name, recht, hash, neu, stand}}; kommt mit dem Paket
+VERLAUF = "admin_verlauf"               # lokal: [{zeit, wer, was}] aus dem Paket (wer hat was geändert)
+VERLAUF_MAX = 300
+LIZENZ_INFO = "lizenz_info"             # lokal: Lizenz dieses Platzes für die Übersicht (Hauptfenster)
+MITARBEITER, ADMIN, GESPERRT = "mitarbeiter", "admin", "gesperrt"
+RECHTE = ((MITARBEITER, "Mitarbeiter"), (ADMIN, "Admin"), (GESPERRT, "Admin gesperrt"))
+HAUPTADMIN = "Hauptadmin"
 FRACHT = "fracht"                       # Pflege der Frachtdaten (alle Tabellen aus fracht_daten)
 ZEITVORGABEN = "zeitvorgaben"           # Stundensätze und Arbeitsschritte
 MINUTEN = 15                            # ohne Eingabe so lange freigeschaltet (Frage 4b)
@@ -44,7 +62,7 @@ VORGABE = ("e_funktionen", "e_firma", "e_ablage", "e_zuschlaege", "e_gewinn_gest
            "arbeitsgang_regeln", FRACHT)
 # immer frei: eigener Arbeitsplatz; Profile, damit „Unbekannte Abmessung anlegen“ im Popup weiter geht
 NIE = ("e_arbeitsplatz", "kunden")
-IMMER = (SEITE_ADMIN,)
+IMMER = HAUPT_SEITEN
 
 
 def bereiche():
@@ -93,7 +111,7 @@ def einstellungen_geschuetzt(db, seiten=None):
     auf zwei Seiten, reicht eine geschützte), dazu Passwort und Schutzliste. Nie die Werte nur dieses Arbeitsplatzes."""
     from .teilen import LOKAL
     schutz = geschuetzt_liste(db, seiten)
-    namen = {"passwort", ADMIN_SEITEN}
+    namen = {"passwort", ADMIN_SEITEN, ADMINS}
     for s in ordnung.SEITEN:
         if s.schluessel in schutz:
             for a in s.abschnitte:
@@ -122,14 +140,21 @@ class Sitzung:
         self.uhr = uhr
         self.freigeschaltet = False
         self.jemals = False
+        self.wer = ""               # HAUPTADMIN (Lizenz-Passwort, Notfallcode) oder das Kürzel des Admins
         self.letzte = uhr()
 
-    def freischalten(self):
+    def freischalten(self, wer=HAUPTADMIN):
         self.freigeschaltet = self.jemals = True
+        self.wer = wer
         self.letzte = self.uhr()
 
     def sperren(self):
         self.freigeschaltet = False
+
+    @property
+    def haupt(self):
+        """Gerade als Hauptadmin freigeschaltet."""
+        return self.freigeschaltet and self.wer == HAUPTADMIN
 
     def eingabe(self):
         self.letzte = self.uhr()
@@ -146,9 +171,160 @@ SITZUNG = None          # Sitzung des Hauptfensters (ohne Fenster, z. B. Tests v
 
 
 def ist_admin(db, sitzung=None):
-    """Darf hier gerade Geschütztes ändern: kein Admin-Passwort gesetzt oder Admin freigeschaltet."""
+    """Darf hier gerade Geschütztes ändern: kein Admin-Passwort gesetzt oder Admin freigeschaltet. Ein Admin, den der
+    Hauptadmin inzwischen gesperrt oder entfernt hat, verliert die Freischaltung hier."""
     s = sitzung if sitzung is not None else SITZUNG
-    return not aktiv(db) or bool(s and s.freigeschaltet)
+    if not aktiv(db):
+        return True
+    if s and s.freigeschaltet and not s.haupt and recht(db, s.wer) != ADMIN:
+        s.sperren()
+    return bool(s and s.freigeschaltet)
+
+
+def ist_haupt(db, sitzung=None):
+    """Darf Admin-Schutz und Rechte ändern: kein Admin-Passwort gesetzt oder als Hauptadmin freigeschaltet."""
+    s = sitzung if sitzung is not None else SITZUNG
+    return not aktiv(db) or bool(s and s.haupt)
+
+
+# ------------------------------------------------------------------ Hauptadmin und weitere Admins
+def admins(db):
+    """{Kürzel: {name, recht, hash, neu, stand}} – nur Admins und gesperrte Admins, Mitarbeiter fehlen."""
+    return {k: dict(v) for k, v in (db.einstellung(ADMINS) or {}).items() if isinstance(v, dict)}
+
+
+def recht(db, kuerzel):
+    """Recht eines Mitarbeiters: ADMIN, GESPERRT oder MITARBEITER."""
+    return (admins(db).get(kuerzel) or {}).get("recht") or MITARBEITER
+
+
+def _jetzt():
+    return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def recht_setzen(db, kuerzel, neu, name="", startpasswort=None):
+    """Hauptadmin: Recht vergeben. Admin braucht ein Passwort (beim ersten Mal das Startpasswort, das der Admin beim
+    Freischalten ändert); gesperrt behält das Passwort, Mitarbeiter entfernt den Eintrag. Ergebnis: Fehlertext oder ''."""
+    liste = admins(db)
+    e = dict(liste.get(kuerzel) or {})
+    if neu == MITARBEITER:
+        liste.pop(kuerzel, None)
+    else:
+        if startpasswort:
+            if len(startpasswort) < 6:
+                return "Das Startpasswort braucht mindestens 6 Zeichen."
+            e.update(hash=pw.hash_bilden(startpasswort), neu=True)
+        if neu == ADMIN and not e.get("hash"):
+            return "Für einen Admin bitte ein Startpasswort vergeben."
+        e.update(recht=neu, name=name or e.get("name") or "", stand=_jetzt())
+        liste[kuerzel] = e
+    db.einstellung_setzen(ADMINS, liste)
+    return ""
+
+
+def admin_finden(db, passwort):
+    """Weiterer Admin zum Passwort: (Kürzel, Eintrag) oder (None, Grund), Grund '' = kein Admin mit diesem Passwort."""
+    if not passwort:
+        return None, ""
+    gesperrt = False
+    for k, e in sorted(admins(db).items()):
+        if e.get("hash") and pw.pruefen(passwort, e["hash"]):
+            if e.get("recht") == ADMIN:
+                return k, e
+            gesperrt = True
+    return None, ("Dieser Admin ist gesperrt (Hauptadmin)." if gesperrt else "")
+
+
+def passwort_aendern(db, kuerzel, neu):
+    """Admin ändert sein Passwort (Startpasswort beim ersten Freischalten). Ergebnis: Fehlertext oder ''."""
+    liste = admins(db)
+    if kuerzel not in liste:
+        return "Kein Admin."
+    if not neu or len(neu) < 6:
+        return "Das Passwort braucht mindestens 6 Zeichen."
+    liste[kuerzel].update(hash=pw.hash_bilden(neu), neu=False, stand=_jetzt())
+    db.einstellung_setzen(ADMINS, liste)
+    return ""
+
+
+def plaetze(db):
+    """Übersicht für die Seite Arbeitsplätze und Rechte: je Mitarbeiter (Kürzel aus dem gemeinsamen Ordner und dieser
+    Platz) Name, Rechner, Lizenz, Version, zuletzt gesehen und Recht. Sortiert nach Name."""
+    from . import teilen
+    liste = admins(db)
+    aus = []
+    import socket
+    from . import VERSION
+    ich = teilen.kuerzel(db)
+    for k, m in teilen.mitarbeiter(db).items():
+        m = dict(m or {})
+        if k == ich:                    # dieser Platz: aktuell statt aus der eigenen Datei
+            m.update(rechner=socket.gethostname(), version=VERSION, stand=_jetzt(),
+                     lizenz=db.einstellung(LIZENZ_INFO) or {})
+        aus.append(dict(kuerzel=k, name=m.get("name") or (liste.get(k) or {}).get("name") or "",
+                        rechner=m.get("rechner") or "", version=m.get("version") or "", stand=m.get("stand") or "",
+                        lizenz=dict(m.get("lizenz") or {}), recht=recht(db, k), ich=k == ich))
+    bekannt = {p["kuerzel"] for p in aus}
+    for k, e in liste.items():          # Admin ohne Datei im Ordner (z. B. noch nie abgeglichen)
+        if k not in bekannt:
+            aus.append(dict(kuerzel=k, name=e.get("name") or "", rechner="", version="", stand="", lizenz={},
+                            recht=e.get("recht") or MITARBEITER, ich=False))
+    return sorted(aus, key=lambda p: ((p["name"] or p["kuerzel"]).lower(), p["kuerzel"]))
+
+
+def lizenz_info(zustand):
+    """Lizenz eines Platzes für die Übersicht (Einstellung LIZENZ_INFO, geht mit der Datei im Ordner an alle)."""
+    if zustand is None:
+        return {}
+    i = zustand.inhalt or {}
+    return {"art": i.get("art") or "", "lizenz_id": i.get("lizenz_id") or "", "inhaber": i.get("inhaber") or "",
+            "gueltig_bis": i.get("gueltig_bis") or "", "stufe": zustand.stufe, "rechner_id": zustand.rechner_id or ""}
+
+
+def lizenz_text(info):
+    """(Text, Ampel 'gruen' | 'gelb' | 'rot' | '') für eine Lizenz aus lizenz_info()."""
+    if not info:
+        return "unbekannt", ""
+    st = info.get("stufe")
+    if st == "admin":
+        return "Admin-Lizenz (unbefristet)", "gruen"
+    bis = info.get("gueltig_bis") or ""
+    datum = ".".join(reversed(bis.split("-"))) if bis else ""
+    art = "Testlizenz" if info.get("art") == "test" else "Lizenz"
+    if st == "gueltig":
+        return f"{art} bis {datum}", "gruen"
+    if st in ("bald", "kulanz"):
+        return f"{art} bis {datum}" + (" (abgelaufen, Kulanz)" if st == "kulanz" else " (läuft bald ab)"), "gelb"
+    return ("abgelaufen" + (f" am {datum}" if datum else "")) if bis else "keine Lizenz", "rot"
+
+
+def lizenz_gueltig(info):
+    """Admin-Recht nur an einem Platz mit gültiger Lizenz (Admin-, Benutzer- oder Testlizenz, auch Kulanz)."""
+    return bool(info) and info.get("stufe") in ("admin", "gueltig", "bald", "kulanz")
+
+
+def verlauf(db):
+    return list(db.einstellung(VERLAUF) or [])
+
+
+def _was(alt, neu):
+    """Was sich zwischen zwei Paket-Inhalten geändert hat (Text für den Verlauf)."""
+    from .stammdaten import EINSTELLUNG, TABELLE
+    alt = alt or {}
+    teile = []
+    ea, en = alt.get("einstellungen") or {}, neu.get("einstellungen") or {}
+    namen = sorted(n for n in set(ea) | set(en) if ea.get(n) != en.get(n) and n != "passwort")
+    if namen:
+        titel = [(EINSTELLUNG[n].titel if n in EINSTELLUNG else {ADMINS: "Rechte"}.get(n, n)) for n in namen]
+        teile.append("Einstellungen: " + ", ".join(titel[:6]) + (f" und {len(titel) - 6} weitere" if len(titel) > 6
+                                                                    else ""))
+    ta, tn = alt.get("tabellen") or {}, neu.get("tabellen") or {}
+    tab = sorted(t for t in set(ta) | set(tn) if ta.get(t) != tn.get(t))
+    if tab:
+        teile.append("Tabellen: " + ", ".join(TABELLE[t].titel if t in TABELLE else t for t in tab))
+    if sorted(alt.get("seiten") or ()) != sorted(neu.get("seiten") or ()) and alt:
+        teile.append("Admin-Schutz (Häkchen)")
+    return "; ".join(teile) or ("erste Admin-Vorgaben" if not alt else "")
 
 
 # ------------------------------------------------------------------ Admin-Vorgaben für alle Arbeitsplätze
@@ -280,7 +456,10 @@ def paket_anwenden(db, p):
                     teilen._zeile_setzen(db, t, u, werte)
                 except Exception:       # noqa: BLE001 – eine Zeile passt nicht (Schlüssel doppelt): nächstes Mal
                     continue
-    db.einstellung_setzen(STAND, {"stand": p.get("stand"), "von": p.get("von"), "hash": _lokal_hash(db, seiten)})
+    db.einstellung_setzen(STAND, {"stand": p.get("stand"), "von": p.get("von"), "hash": _lokal_hash(db, seiten),
+                                  "paket": p.get("hash")})
+    if isinstance(p.get("verlauf"), list):
+        db.einstellung_setzen(VERLAUF, p["verlauf"][-VERLAUF_MAX:])
 
 
 def paket_schreiben(db, sitzung=None, abl=None, wer=""):
@@ -299,10 +478,20 @@ def paket_schreiben(db, sitzung=None, abl=None, wer=""):
         return False
     from . import VERSION
     stand = datetime.datetime.now().isoformat(timespec="seconds")
-    p = {"format": FORMAT, "stand": stand, "von": wer, "version": VERSION, "schema": schema(db), "hash": h,
-         "inhalt": inh}
+    alt = paket_lesen(db, abl)
+    alt = alt if gueltig(alt) else None
+    liste = list((alt or {}).get("verlauf") or verlauf(db))
+    was = _was((alt or {}).get("inhalt"), inh)
+    haupt = s.wer in (HAUPTADMIN, "")
+    wer_text = (f"{HAUPTADMIN} ({wer})" if haupt and wer else HAUPTADMIN if haupt
+                else f"{(admins(db).get(s.wer) or {}).get('name') or s.wer} ({s.wer})" if s.wer else wer)
+    if was:
+        liste = (liste + [{"zeit": stand, "wer": wer_text, "was": was}])[-VERLAUF_MAX:]
+    p = {"format": FORMAT, "stand": stand, "von": wer_text, "version": VERSION, "schema": schema(db), "hash": h,
+         "inhalt": inh, "verlauf": liste}
     abl.schreiben(json.dumps(p, ensure_ascii=False, default=str).encode("utf-8"))
-    db.einstellung_setzen(STAND, {"stand": stand, "von": wer, "hash": h})
+    db.einstellung_setzen(STAND, {"stand": stand, "von": wer_text, "hash": h, "paket": h})
+    db.einstellung_setzen(VERLAUF, liste)
     return True
 
 
@@ -318,7 +507,7 @@ def nach_lesen(db, p, sitzung=None):
     lokal = _lokal_hash(db, seiten)
     if s is not None and s.jemals and st.get("hash") and lokal != st.get("hash"):
         return False                    # eigene Admin-Änderungen: nicht überschreiben
-    if p.get("stand") == st.get("stand") and lokal == st.get("hash"):
+    if p.get("stand") == st.get("stand") and p.get("hash") == st.get("paket", p.get("hash")) and lokal == st.get("hash"):
         return False                    # schon übernommen, hier unverändert
     paket_anwenden(db, p)
     return True

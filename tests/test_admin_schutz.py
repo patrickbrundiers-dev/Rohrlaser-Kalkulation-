@@ -1,7 +1,8 @@
 """Admin-Schutz der Einstellungen (Plan 30.10.2026, Freigabe „1c 2a 3a 4b 5a 6a 7a 8a“): Einstellungen frei, geschützte
 Seiten und Tabellen ändert nur der Admin (grau bzw. nicht bearbeitbar, Schloss), Freischalten mit dem Admin-Passwort
 an jedem Platz, Sperre nach 15 Minuten ohne Eingabe, Häkchen je Bereich; Admin-Vorgaben gelten an allen Plätzen
-über den gemeinsamen Ordner, ein Nicht-Admin kann sie nicht überschreiben.
+über den gemeinsamen Ordner, ein Nicht-Admin kann sie nicht überschreiben. Hauptadmin und weitere Admins mit eigenem Passwort (Seite Arbeitsplätze
+und Rechte).
 
 Aufruf: QT_QPA_PLATFORM=offscreen python tests/test_admin_schutz.py
 """
@@ -44,7 +45,7 @@ assert "teilen_ordner" not in namen and "letzte_angebotsnummer" not in namen and
 assert {"preise", "maschinen", "schneiddaten", "stundensaetze"} <= admin_schutz.tabellen_geschuetzt(db0)
 assert "profile" not in admin_schutz.tabellen_geschuetzt(db0)
 db0.einstellung_setzen(admin_schutz.ADMIN_SEITEN, ["profile"])
-assert admin_schutz.geschuetzt_liste(db0) == {"profile", admin_schutz.SEITE_ADMIN}
+assert admin_schutz.geschuetzt_liste(db0) == {"profile", *admin_schutz.HAUPT_SEITEN}
 ok("Bereiche: Vorschlag nach Risiko, Häkchen je Bereich, Mein Arbeitsplatz und Kunden nie geschützt")
 
 uhr = [0.0]
@@ -106,7 +107,7 @@ assert not seite["e_step"].felder["step_kopieren"].isEnabled() and not st["preis
 assert not f.admin_seite.haken["e_step"].isEnabled(), "Seite Admin-Schutz immer geschützt"
 b.oeffnen("geheim")
 f.admin_seite.vorschlag_setzen()
-assert admin_schutz.geschuetzt_liste(db) == set(admin_schutz.VORGABE) | {admin_schutz.SEITE_ADMIN}
+assert admin_schutz.geschuetzt_liste(db) == set(admin_schutz.VORGABE) | set(admin_schutz.HAUPT_SEITEN)
 ok("Häkchen je Bereich (Seite Admin-Schutz), Vorschlag wiederherstellen")
 
 ohne = Datenbank(tmp / "ohne" / "rohrlaser.db")
@@ -143,7 +144,7 @@ preis = pb.zeilen("preise")[0]
 pb.aendern("preise", preis["id"], "preis", 9.99)
 teilen.abgleichen(pb)
 paket = json.loads((gemeinsam / admin_schutz.ORDNER / admin_schutz.DATEI).read_text("utf-8"))
-assert paket["von"] == "PB" and "gewinn" in paket["inhalt"]["einstellungen"]
+assert paket["von"] == "Hauptadmin (PB)" and "gewinn" in paket["inhalt"]["einstellungen"]
 admin_schutz.SITZUNG = kein
 bericht = teilen.abgleichen(ma)
 assert ma.einstellung("gewinn") == 0.21, "Admin-Wert gilt am anderen Platz"
@@ -171,5 +172,68 @@ p = admin_schutz.paket_lesen(ma)
 assert p and p.get("hinweis") and not admin_schutz.gueltig(p)
 assert admin_schutz.ausfiltern({("einstellungen", "gewinn"): (1, {})}, p) == {("einstellungen", "gewinn"): (1, {})}
 ok("Schutzliste kommt mit, beschädigtes Paket wird übergangen")
+
+# ---------------------------------------------------------------- Hauptadmin und weitere Admins (Freigabe 1a-5a)
+admin_schutz.SITZUNG = kein
+ma.einstellung_setzen(admin_schutz.LIZENZ_INFO, {"art": "benutzer", "stufe": "gueltig", "gueltig_bis": "2027-01-31"})
+teilen.abgleichen(ma)
+admin_schutz.SITZUNG = admin
+assert admin_schutz.recht_setzen(pb, "MA", admin_schutz.ADMIN, "Max") == "Für einen Admin bitte ein Startpasswort vergeben."
+assert admin_schutz.recht_setzen(pb, "MA", admin_schutz.ADMIN, "Max", "kurz") .startswith("Das Startpasswort")
+assert admin_schutz.recht_setzen(pb, "MA", admin_schutz.ADMIN, "Max", "Start-123") == ""
+teilen.abgleichen(pb)
+pl = {p["kuerzel"]: p for p in admin_schutz.plaetze(pb)}
+assert pl["MA"]["name"] == "Max" and pl["MA"]["recht"] == admin_schutz.ADMIN and pl["PB"]["ich"]
+assert admin_schutz.lizenz_text(pl["MA"]["lizenz"]) == ("Lizenz bis 31.01.2027", "gruen")
+assert admin_schutz.lizenz_text({"stufe": "lesemodus", "gueltig_bis": "2026-01-01"})[1] == "rot"
+v = admin_schutz.verlauf(pb)
+assert v and v[-1]["wer"].startswith("Hauptadmin") and "Rechte" in v[-1]["was"], v
+admin_schutz.SITZUNG = kein
+teilen.abgleichen(ma)
+assert admin_schutz.recht(ma, "MA") == admin_schutz.ADMIN, "Rechte kommen über den Ordner"
+ok("Hauptadmin vergibt Admin mit Startpasswort; Übersicht mit Name, Lizenz-Ampel, Recht; Verlauf")
+
+fm = Hauptfenster(ma, stumm=True)
+bm = fm.bereich
+assert bm.gesperrt()
+bm.lizenz_gueltig = lambda: False
+assert not bm.oeffnen("Start-123") and "gültige Lizenz" in bm.fehler.text()
+bm.lizenz_gueltig = lambda: True
+assert bm.oeffnen("Start-123") and bm.neues_passwort_noetig == "MA" and bm.sitzung.wer == "MA"
+assert not bm.sitzung.haupt and not bm.gesperrt()
+assert bm.bereich_gesperrt(admin_schutz.SEITE_PLAETZE) and bm.bereich_gesperrt(admin_schutz.SEITE_ADMIN)
+assert not bm.bereich_gesperrt("e_zuschlaege") and fm.plaetze_seite.admin_gesperrt
+assert not fm.admin_seite.haken["e_step"].isEnabled(), "Admin-Schutz nur Hauptadmin"
+assert not fm.plaetze_seite.recht_waehlen("MA", admin_schutz.GESPERRT), "Rechte nur Hauptadmin"
+assert bm.mein_passwort("Mein-Pass-1") and not bm.neues_passwort_noetig
+assert not admin_schutz.admins(ma)["MA"]["neu"]
+ma.einstellung_setzen("gewinn", 0.3)
+admin_schutz.SITZUNG = bm.sitzung
+teilen.abgleichen(ma)
+paket = json.loads((gemeinsam / admin_schutz.ORDNER / admin_schutz.DATEI).read_text("utf-8"))
+assert paket["von"] == "Max (MA)" and paket["verlauf"][-1]["wer"] == "Max (MA)", paket["verlauf"][-1]
+bm.sperren()
+assert not bm.oeffnen("Start-123") and bm.oeffnen("Mein-Pass-1"), "Startpasswort gilt nicht mehr"
+ok("Weiterer Admin: eigenes Passwort, nur mit gültiger Lizenz, ändert geschützte Seiten, nicht Admin-Schutz/Rechte")
+
+admin_schutz.SITZUNG = admin
+teilen.abgleichen(pb)
+assert pb.einstellung("gewinn") == 0.3, "Admin-Wert des weiteren Admins gilt beim Hauptadmin"
+fp = Hauptfenster(pb, stumm=True)
+assert fp.bereich.oeffnen("geheim") and fp.bereich.sitzung.haupt
+assert not fp.bereich.bereich_gesperrt(admin_schutz.SEITE_PLAETZE) and not fp.plaetze_seite.admin_gesperrt
+fp.plaetze_seite.neu_laden()
+assert fp.plaetze_seite.recht_waehlen("MA", admin_schutz.GESPERRT)
+admin_schutz.SITZUNG = fp.bereich.sitzung
+teilen.abgleichen(pb)
+admin_schutz.SITZUNG = bm.sitzung
+teilen.abgleichen(ma)
+assert bm.gesperrt() and not bm.sitzung.freigeschaltet, "gesperrter Admin verliert die Freischaltung"
+assert not bm.oeffnen("Mein-Pass-1") and "gesperrt" in bm.fehler.text()
+assert fp.plaetze_seite.startpasswort("MA", "Neu-Start-9")
+assert fp.plaetze_seite.recht_waehlen("MA", admin_schutz.ADMIN)
+assert admin_schutz.admins(pb)["MA"]["neu"], "Passwort vergessen: neues Startpasswort"
+assert fp.plaetze_seite.recht_waehlen("MA", admin_schutz.MITARBEITER) and "MA" not in admin_schutz.admins(pb)
+ok("Hauptadmin sperrt Admins (gilt nach dem Abgleich), neues Startpasswort, Recht entziehen")
 admin_schutz.SITZUNG = None
 print("Alle Prüfungen bestanden.")
