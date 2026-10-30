@@ -847,6 +847,10 @@ MATERIAL_HERKUNFT = (EIGENMATERIAL, KUNDENMATERIAL)
 # Musterkosten im Angebot (angebot.KOPF 'muster_darstellung'): leer = auf die Serie umlegen (Patrick 28.10.2026, F1 a)
 MUSTER_UMLEGEN, MUSTER_ZEILE = "auf die Serie umlegen", "eigene Zeile Musterkosten"
 MUSTER_DARSTELLUNG = (MUSTER_UMLEGEN, MUSTER_ZEILE)
+# Abruf-/Rahmenangebot (angebot.KOPF 'abruf_material', Patrick 30.10.2026, 4 a und b): leer = Material je Abruf zum
+# Tagespreis mit Materialklausel, ABRUF_LAGER = Jahresbedarf bevorraten mit Lagerzins
+ABRUF_JE, ABRUF_LAGER = "je Abruf (Materialklausel)", "Jahresbedarf bevorraten"
+ABRUF_MATERIAL = (ABRUF_JE, ABRUF_LAGER)
 # Löschschutz der Angebote (Patrick 28.10.2026): einmal optimierte Angebote lassen sich nicht mehr löschen (Admin schon)
 LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND = "aus", "immer", "nur von Hand"
 LOESCHSCHUTZ = (LOESCHSCHUTZ_AUS, LOESCHSCHUTZ_JEDES, LOESCHSCHUTZ_HAND)
@@ -958,6 +962,27 @@ EINSTELLUNGEN = (
                 "berechnen wir die Muster mit {betrag} € netto."),
     Einstellung("muster_frist", "Angebots-PDF: Frist für die Serienbestellung nach Musterlieferung [Tage]",
                 "Angebots-PDF", "ganz", 90, 0, 3650),
+    # Abruf-/Rahmenangebot (Patrick 30.10.2026, 4 und 6a): Vorgaben für neue Abruf-Angebote und Textbausteine des
+    # Blocks „Rahmenbedingungen“ im Angebots-PDF. Platzhalter siehe abruf.rahmentext
+    Einstellung("abruf_lagerzins", "Abruf-Angebot: Lagerzins bei bevorratetem Material [% p. a.]", "Kalkulation",
+                "zahl", 8.0, 0, 100),
+    Einstellung("abruf_laufzeit", "Abruf-Angebot: Laufzeit und Preisbindung [Monate]", "Kalkulation", "ganz", 12, 1,
+                120),
+    Einstellung("abruf_klausel", "Abruf-Angebot: Materialklausel ab Preisänderung [%]", "Angebots-PDF", "zahl", 5.0, 0,
+                100),
+    Einstellung("abruf_text", "Abruf-Angebot: Rahmenbedingungen im PDF", "Angebots-PDF", "mehrzeilig",
+                "Rahmenangebot über {jahr} Stück je Jahr, Abruf in Losen von {abruf} Stück (ca. {abrufe} Abrufe je "
+                "Jahr). Die Preise gelten {laufzeit} Monate ab Auftrag je Abruf ab der kleinsten Abrufmenge; die "
+                "Lieferzeit gilt je Abruf. {material} {muster} Wird die Mindestjahresmenge bis zum Ende der Laufzeit "
+                "nicht abgenommen, behalten wir uns vor, die anteiligen Einmalkosten nachzuberechnen."),
+    Einstellung("abruf_text_klausel", "Abruf-Angebot: Text Material je Abruf (Materialklausel)", "Angebots-PDF",
+                "mehrzeilig", "Die Preise beruhen auf den Materialpreisen vom {datum}; ändern sich diese um mehr als "
+                "{klausel} %, passen wir die Preise entsprechend an."),
+    Einstellung("abruf_text_lager", "Abruf-Angebot: Text Material bevorratet", "Angebots-PDF", "mehrzeilig",
+                "Das Material für die Mindestjahresmenge kaufen wir nach Auftrag ein und halten es für Ihre Abrufe "
+                "vor; die Materialpreise sind für die Laufzeit fest."),
+    Einstellung("abruf_text_muster", "Abruf-Angebot: Text Muster vorab", "Angebots-PDF", "mehrzeilig",
+                "Die Muster liefern wir vorab; die Serie fertigen wir nach Ihrer Musterfreigabe."),
     Einstellung("mindestpreis", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)", "Kalkulation", "zahl", 200.0, 0,
                 1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
@@ -1446,7 +1471,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

@@ -1,4 +1,4 @@
-"""Frachtkosten: Rechner (Reiter Frachtkosten) und sechs Pflegeseiten (Einstellungen → Fracht, seit 0.9.208).
+"""Frachtkosten: Rechner (Reiter Frachtkosten) und sechs Pflegeseiten (Einstellungen → Fracht, seit 0.9.209).
 
 Reiter Frachtkosten: Fracht kalkulieren (frei). Einstellungen → Fracht: Frachtzonen und Postleitzahlen,
 Tarifverwaltung, Paletten und Ladehilfsmittel, Zuschläge, Dienstleister und Kundentarife, Historie und Einstellungen;
@@ -1147,7 +1147,7 @@ class HistorieSeite(QWidget):
 # ------------------------------------------------------------------ Reiter
 class FrachtBereich(QWidget):
     """Hauptreiter Frachtkosten: nur der Rechner (Fracht kalkulieren). Die sechs Pflegeseiten (Zonen, Tarife, Paletten,
-    Zuschläge, Dienstleister, Historie und Einstellungen) stehen seit 0.9.208 unter Einstellungen → Fracht
+    Zuschläge, Dienstleister, Historie und Einstellungen) stehen seit 0.9.209 unter Einstellungen → Fracht
     (Patrick 30.10.2026); Knopf „Frachtdaten pflegen …“ springt dorthin. Admin-Schutz: Bereich admin_schutz.FRACHT."""
 
     def __init__(self, fenster):
