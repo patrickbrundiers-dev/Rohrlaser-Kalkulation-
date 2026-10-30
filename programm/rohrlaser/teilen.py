@@ -46,26 +46,25 @@ import datetime
 import hashlib
 import json
 import os
-import shutil
 import socket
 import sqlite3
 import uuid
 from pathlib import Path
 
-from . import VERSION, zukauf
+from . import VERSION, austausch, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, TABELLEN, VERWEISE
 
 FORMAT = 2                      # Aufbau der geteilten Daten: 1 = eine Datei, 2 = Ordner mit Hauptdatei und Monatsdateien
-HAUPT = "haupt.sqlite"
-MONAT_PRAEFIX = "Angebote_"
+HAUPT = austausch.HAUPT
+MONAT_PRAEFIX = austausch.MONAT_PRAEFIX
 OHNE_DATUM = "ohne-Datum"
 GEAENDERT = "teilen_geaendert"  # lokale Merker: seit dem letzten Schreiben geänderte Angebote (Trigger)
 # Tabellen eines Angebots, deren Änderung es neu packen lässt (Spalte angebot_id); netze über die Position
 JE_ANGEBOT = ("positionen", "staffeln", "staffel_stufen", "step_protokoll")
-PRAEFIX = "Rohrlaser_"
-ENDUNG = ".sqlite"
+PRAEFIX = austausch.PRAEFIX
+ENDUNG = austausch.ENDUNG
 GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN) + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN)  # Artikel vor Bezug
 GETEILT_NAME = {t.name: t for t in GETEILT}
 # Verweise über die Zeilen-ID: in der geteilten Datei steht statt der ID die Kennung (uid) der Zielzeile
@@ -87,6 +86,12 @@ NOTIZEN = "teilen_notizen"      # erhaltene Notizen der Kollegen (lokal)
 NOTIZEN_MAX = 200
 FRISCH_MIN = 20                 # geöffnete Angebote eines Kollegen gelten so lange nach seinem letzten Schreiben
 KONFLIKTE_MAX = 100
+# Vorbereitung Server-Synchronisation (Plan 30.10.2026, Schritt 1): Änderungsprotokoll und feste Kennungen. Beides wird
+# nur mitgeschrieben; der Abgleich über den gemeinsamen Ordner liest es (noch) nicht.
+PROTOKOLL = "teilen_aenderungen"    # lfd. Nummer, Tabelle, Kennung, Art, Zeit (UTC), Herkunft, Arbeitsplatz
+HERKUNFT = "teilen_herkunft"        # eine Zeile, solange ein Abgleich fremde Daten einträgt: Herkunft „abgleich“
+PROTOKOLL_TAGE = 90
+MIT_KENNUNG = ("angebote", "positionen")      # feste Kennung uid, bleibt bei Umnummerierung und über den Abgleich
 
 
 class TeilenFehler(Exception):
@@ -128,6 +133,103 @@ def einrichten(con):
         if n not in spalten:
             con.execute(f"ALTER TABLE angebote ADD COLUMN {n} TEXT")
     _merker_einrichten(con)
+    con.execute("INSERT OR IGNORE INTO einstellungen (name, wert) VALUES ('teilen_installation', ?)",
+                (json.dumps(uuid.uuid4().hex),))        # Arbeitsplatz-Kennung gleich vergeben: steht im Protokoll
+    _kennungen_einrichten(con)
+    _protokoll_einrichten(con)
+
+
+def _kennungen_einrichten(con):
+    """Feste Kennung uid für Angebote und Positionen. Eine Kopie (gleiche Kennung schon vergeben) bekommt eine neue."""
+    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    for t in MIT_KENNUNG:
+        if t not in tabellen:
+            continue
+        if "uid" not in {r[1] for r in con.execute(f"PRAGMA table_info({t})")}:
+            con.execute(f"ALTER TABLE {t} ADD COLUMN uid TEXT")
+        con.execute(f"CREATE TRIGGER IF NOT EXISTS {t}_uid AFTER INSERT ON {t} WHEN NEW.uid IS NULL OR EXISTS "
+                    f"(SELECT 1 FROM {t} WHERE uid = NEW.uid AND rowid <> NEW.rowid) "
+                    f"BEGIN UPDATE {t} SET uid = lower(hex(randomblob(16))) WHERE rowid = NEW.rowid; END")
+        con.execute(f"UPDATE {t} SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL")
+        con.execute(f"CREATE INDEX IF NOT EXISTS {t}_uid_index ON {t} (uid)")
+
+
+def _protokoll_einrichten(con):
+    """Änderungsprotokoll per Trigger: jede Änderung an geteilten Stammdaten, gemeinsamen Einstellungen und Angeboten
+    (samt Positionen, Staffeln, STEP-Protokoll) bekommt eine laufende Nummer. Ein Server kann damit später „alles seit
+    Nummer X“ abholen. Die Trigger werden bei jedem Öffnen neu angelegt (neue Tabellen und Einstellungen kommen dazu);
+    Einträge älter als PROTOKOLL_TAGE fallen weg."""
+    con.execute(f"CREATE TABLE IF NOT EXISTS {PROTOKOLL} (nr INTEGER PRIMARY KEY AUTOINCREMENT, tabelle TEXT, "
+                "uid TEXT, art TEXT, zeit TEXT, herkunft TEXT, platz TEXT)")
+    con.execute(f"CREATE TABLE IF NOT EXISTS {HERKUNFT} (wert TEXT)")
+    con.execute(f"DELETE FROM {HERKUNFT}")      # nach einem abgebrochenen Abgleich: wieder „hier geändert“
+    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%\\_protokoll' "
+                               "ESCAPE '\\'").fetchall():
+        con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
+    platz = "(SELECT trim(wert, '\"') FROM einstellungen WHERE name='teilen_installation')"
+    werte = (f"strftime('%Y-%m-%dT%H:%M:%f', 'now'), (SELECT wert FROM {HERKUNFT} LIMIT 1), {platz}")
+
+    def trigger(name, tabelle, art, tabelle_text, uid, wann="", als=None):
+        """als: Art im Protokoll (Vorgabe nach art). Mehrere Änderungen derselben Zeile hintereinander ergeben einen
+        Eintrag mit neuer Nummer (der vorige wird ersetzt): so bleibt das Protokoll klein und nichts geht verloren."""
+        als = als or ART[art]
+        weg = (f"DELETE FROM {PROTOKOLL} WHERE nr = (SELECT MAX(nr) FROM {PROTOKOLL}) AND tabelle = {tabelle_text} "
+               f"AND uid IS {uid} AND art = 'geaendert' AND herkunft IS (SELECT wert FROM {HERKUNFT} LIMIT 1); "
+               if als == "geaendert" else "")
+        con.execute(f'CREATE TRIGGER "{name}_protokoll" AFTER {art} ON "{tabelle}" {wann}BEGIN {weg}'
+                    f"INSERT INTO {PROTOKOLL} (tabelle, uid, art, zeit, herkunft, platz) "
+                    f"SELECT {tabelle_text}, k, '{als}', {werte} FROM (SELECT {uid} AS k) WHERE k IS NOT NULL; END")
+
+    for t in GETEILT:
+        if t.name not in tabellen:
+            continue
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"{t.name}_{art.lower()}", t.name, art, f"'{t.name}'", f"{zeile}.uid")
+    namen = ", ".join("'" + n.replace("'", "''") + "'" for n in EINSTELLUNGEN_GETEILT)
+    for art, zeile in (("INSERT", "NEW"), ("DELETE", "OLD")):     # Ändern = INSERT OR REPLACE
+        trigger(f"einstellungen_{art.lower()}", "einstellungen", art, f"'{EINST}'", f"{zeile}.name",
+                f"WHEN {zeile}.name IN ({namen}) ")
+    if "angebote" in tabellen:
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"angebote_{art.lower()}", "angebote", art, "'angebote'", f"{zeile}.uid")
+    for t in JE_ANGEBOT:          # Positionen, Staffeln, STEP-Protokoll: das Angebot hat sich geändert
+        if t not in tabellen:
+            continue
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"{t}_{art.lower()}", t, art, "'angebote'",
+                    f"(SELECT uid FROM angebote WHERE id = {zeile}.angebot_id)", als="geaendert")
+    if "netze" in tabellen:
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"netze_{art.lower()}", "netze", art, "'angebote'",
+                    f"(SELECT a.uid FROM angebote a JOIN positionen p ON p.angebot_id = a.id "
+                    f"WHERE p.id = {zeile}.position_id)", als="geaendert")
+    con.execute(f"DELETE FROM {PROTOKOLL} WHERE zeit < strftime('%Y-%m-%dT%H:%M:%f', 'now', '-{PROTOKOLL_TAGE} days')")
+
+
+ART = {"INSERT": "neu", "UPDATE": "geaendert", "DELETE": "geloescht"}
+
+
+def protokoll_stand(con):
+    """Laufende Nummer der letzten erfassten Änderung (0 = keine)."""
+    r = con.execute(f"SELECT MAX(nr) FROM {PROTOKOLL}").fetchone()
+    return r[0] or 0
+
+
+def protokoll(con, seit=0):
+    """Änderungen nach der laufenden Nummer seit, älteste zuerst: [dict(nr, tabelle, uid, art, zeit, herkunft, platz)]."""
+    cur = con.execute(f"SELECT nr, tabelle, uid, art, zeit, herkunft, platz FROM {PROTOKOLL} WHERE nr > ? ORDER BY nr",
+                      (seit,))
+    namen = [d[0] for d in cur.description]
+    return [dict(zip(namen, r)) for r in cur]
+
+
+def _herkunft(con, wert):
+    """Herkunft der folgenden Änderungen im Protokoll: „abgleich“ (fremde Daten eingetragen) oder None (hier geändert).
+    Läuft in der Transaktion des Abgleichs: bricht er ab, ist auch die Herkunft wieder weg."""
+    con.execute(f"DELETE FROM {HERKUNFT}")
+    if wert:
+        con.execute(f"INSERT INTO {HERKUNFT} (wert) VALUES (?)", (wert,))
 
 
 def _merker_einrichten(con):
@@ -172,6 +274,11 @@ def ordner(db):
     return Path(o) if o else None
 
 
+def weg(db):
+    """Austauschweg (austausch.py) zum eingetragenen gemeinsamen Ordner oder None."""
+    return austausch.weg(ordner(db))
+
+
 def aktiv(db):
     """Teilen eingerichtet: Kürzel und gemeinsamer Ordner eingetragen."""
     return bool(kuerzel(db) and ordner(db))
@@ -185,20 +292,11 @@ def unterordner(db, name, einstellung, anlegen=False):
     ist und der Ordner erreichbar ist; sonst None. anlegen: fehlenden Unterordner anlegen."""
     if not aktiv(db) or db.einstellung(einstellung) != "ja":
         return None
-    o = ordner(db)
-    if not o.is_dir():
-        return None
-    u = o / name
-    if anlegen:
-        try:
-            u.mkdir(exist_ok=True)
-        except OSError:
-            return None
-    return u
+    return weg(db).unterordner(name, anlegen)
 
 
 def datei_name(k):
-    return f"{PRAEFIX}{k}{ENDUNG}"
+    return austausch.datei_name(k)
 
 
 def installation(db):
@@ -391,7 +489,8 @@ def angebot_einsetzen(con, inhalt, netze, fremd, stand, angebot_id=None, artikel
     if angebot_id is None:
         angebot_id = _einfuegen(con, "angebote", kopf, spalten["angebote"])
     else:
-        leer = {n: None for n in spalten["angebote"] if n not in kopf and n not in ("id", "vk_netto", "stand", "vk_am")}
+        leer = {n: None for n in spalten["angebote"]
+                if n not in kopf and n not in ("id", "uid", "vk_netto", "stand", "vk_am")}
         werte = dict(leer, **kopf)
         con.execute(f'UPDATE angebote SET {", ".join(chr(34) + n + chr(34) + "=?" for n in werte)} WHERE id=?',
                     list(werte.values()) + [angebot_id])
@@ -437,16 +536,12 @@ def _monat_anlegen(con):
 
 
 def ordner_name(k):
-    return f"{PRAEFIX}{k}"
+    return austausch.ordner_name(k)
 
 
 def haupt_datei(o, k):
     """Hauptdatei des Kürzels k im Ordner o (Format 2), sonst die alte Einzeldatei (Format 1), sonst None."""
-    neu = Path(o) / ordner_name(k) / HAUPT
-    if neu.is_file():
-        return neu
-    alt = Path(o) / datei_name(k)
-    return alt if alt.is_file() else None
+    return austausch.OrdnerWeg(o).haupt(k)
 
 
 def monat_datei(monat):
@@ -486,46 +581,24 @@ def _cache(db):
     return o
 
 
-def _ordner_pruefen(db):
-    o = ordner(db)
-    if o is None:
+def _weg_pruefen(db):
+    w = weg(db)
+    if w is None:
         raise TeilenFehler("Kein gemeinsamer Ordner eingetragen (Datei → Benutzer und gemeinsamer Ordner …).")
-    if not o.is_dir():
-        raise TeilenFehler(f"Der gemeinsame Ordner ist nicht erreichbar:\n{o}")
-    return o
+    if not w.erreichbar():
+        raise TeilenFehler(f"Der gemeinsame Ordner ist nicht erreichbar:\n{w}")
+    return w
 
 
 def andere_dateien(db):
     """{Kürzel: Hauptdatei} der anderen Mitarbeiter im gemeinsamen Ordner (Format 2 vor der alten Einzeldatei)."""
-    o, ich = _ordner_pruefen(db), kuerzel(db)
-    out = {}
-    for p in sorted(o.glob(f"{PRAEFIX}*")):
-        name = p.name[len(PRAEFIX):]
-        if name.endswith(ENDUNG):
-            name = name[:-len(ENDUNG)]
-        k = kuerzel_sauber(name)
-        if not k or k == ich or k in out or p.name not in (datei_name(k), ordner_name(k)):
-            continue
-        h = haupt_datei(o, k)
-        if h is not None:
-            out[k] = h
-    return out
+    return _weg_pruefen(db).mitarbeiter(kuerzel(db), kuerzel_sauber)
 
 
 def _lokal_kopieren(db, quelle, ziel=None):
-    """Fremde Datei in den Zwischenspeicher kopieren (nur wenn neu oder geändert): so liest das Programm nie eine
-    Datei, die gerade ausgetauscht oder synchronisiert wird."""
-    ziel = ziel or _cache(db) / ("fremd_" + quelle.name)
-    st = quelle.stat()
-    merk = ziel.with_suffix(".stand")
-    stand = f"{st.st_size}|{st.st_mtime_ns}"
-    if ziel.exists() and merk.exists() and merk.read_text() == stand:
-        return ziel
-    tmp = ziel.with_name(ziel.name + ".neu")
-    shutil.copyfile(quelle, tmp)
-    os.replace(tmp, ziel)
-    merk.write_text(stand)
-    return ziel
+    """Fremde Datei über den Austauschweg in den Zwischenspeicher holen (nur wenn neu oder geändert)."""
+    w = weg(db) or austausch.OrdnerWeg(quelle.parent)
+    return w.holen(quelle, ziel or _cache(db) / ("fremd_" + quelle.name))
 
 
 class Quelle:
@@ -538,6 +611,7 @@ class Quelle:
             ziel = _cache(db) / "fremd" / k
             ziel.mkdir(parents=True, exist_ok=True)
             self.haupt = _lokal_kopieren(db, haupt, ziel / HAUPT)
+            self.haupt_quelle = haupt
             self.ordner, self.lokal = haupt.parent, ziel
             alt = _cache(db) / ("fremd_" + datei_name(k))     # Kopie der alten Einzeldatei (Format 1) aufräumen
             alt.unlink(missing_ok=True)
@@ -583,8 +657,9 @@ class Quelle:
             finally:
                 con.close()
         else:
+            w = weg(self._db) or austausch.OrdnerWeg(self.ordner)
             for name, stand in teile.items():
-                quelle = self.ordner / name
+                quelle = w.teil(self.haupt_quelle, name)
                 try:
                     for versuch in (1, 2):          # 2: Zeitstempel grob (Netzlaufwerk), Datei sicher neu kopieren
                         lokal = _lokal_kopieren(self._db, quelle, self.lokal / name)
@@ -647,13 +722,7 @@ def _spiegel_lesen(spiegel):
 
 
 def _hinlegen(quelle, ziel):
-    tmp = ziel.with_name(ziel.name + ".neu")
-    try:
-        shutil.copy2(quelle, tmp)
-        os.replace(tmp, ziel)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
+    austausch.hinlegen(quelle, ziel)
 
 
 def schreiben(db, uebernehmen=False, offen=None, voll=False):
@@ -663,12 +732,11 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
     eigene Angebote herein. offen: {Nummer: seit} der hier gerade geöffneten eigenen Angebote (für die Kollegen).
     voll: alle Angebote neu packen (sonst nur die seit dem letzten Schreiben geänderten). Ergebnis: Anzahl Angebote."""
     from . import nummern
-    k, o = kuerzel(db), _ordner_pruefen(db)
+    k, w = kuerzel(db), _weg_pruefen(db)
     if not k:
         raise TeilenFehler("Kein Kürzel eingetragen.")
     nummern.endgueltig(db)          # vorläufige Nummern (Ordner war nicht erreichbar) jetzt endgültig vergeben
-    ziel_ordner = o / ordner_name(k)
-    vorhanden = haupt_datei(o, k)
+    vorhanden = w.haupt(k)
     ich = installation(db)
     if vorhanden is not None:
         info = info_lesen(vorhanden)
@@ -779,31 +847,15 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
                         schema=con.execute("PRAGMA user_version").fetchone()[0], version=VERSION, format=FORMAT,
                         stand=datetime.datetime.now().isoformat(timespec="seconds"), angebote=len(eigene),
                         letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}),
-                        erledigt=sorted(db.einstellung(ERLEDIGT) or {}))
+                        erledigt=sorted(db.einstellung(ERLEDIGT) or {}), protokoll=protokoll_stand(con),
+                        uhr=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                        lizenz=db.einstellung("lizenz_info") or {})     # Übersicht Arbeitsplätze und Rechte
             sc.executemany("INSERT OR REPLACE INTO info (name, wert) VALUES (?, ?)",
                            [(n, json.dumps(w, ensure_ascii=False)) for n, w in info.items()])
     finally:
         sc.close()
-    merk = spiegel / "hingelegt.json"                           # {Monatsdatei: Prüfsumme} im gemeinsamen Ordner
     try:
-        hingelegt = json.loads(merk.read_text()) if merk.exists() else {}
-    except ValueError:
-        hingelegt = {}
-    if str(hingelegt.pop("_ordner", "")) != str(ziel_ordner):
-        hingelegt = {}
-    try:
-        ziel_ordner.mkdir(exist_ok=True)
-        for name, (stand, _) in teile.items():                  # Monate zuerst, nur geänderte (oder dort fehlende)
-            if hingelegt.get(name) != stand or not (ziel_ordner / name).is_file():
-                hingelegt.pop(name, None)
-                _hinlegen(spiegel / name, ziel_ordner / name)
-                hingelegt[name] = stand
-                merk.write_text(json.dumps(dict(hingelegt, _ordner=str(ziel_ordner))))
-        _hinlegen(haupt, ziel_ordner / HAUPT)                   # Hauptdatei zuletzt: verweist auf die Monate
-        for p in ziel_ordner.glob(f"{MONAT_PRAEFIX}*.sqlite"):
-            if p.name not in teile:
-                p.unlink(missing_ok=True)
-        (o / datei_name(k)).unlink(missing_ok=True)             # alte Einzeldatei (Format 1) ist abgelöst
+        w.ablegen(k, spiegel, {name: stand for name, (stand, _) in teile.items()})
     except OSError as e:
         raise TeilenFehler(f"Die eigenen Daten ließen sich nicht in den gemeinsamen Ordner schreiben:\n{e}") from e
     (_cache(db) / datei_name(k)).unlink(missing_ok=True)
@@ -826,6 +878,7 @@ def _eigene_holen(db, quelle):
         fc.close()
     angebote = quelle.angebote() or {}
     with db.con:
+        _herkunft(db.con, "abgleich")
         if nummern.zaehler(letzte) > nummern.zaehler(db.einstellung("letzte_angebotsnummer")):
             db._einstellung_schreiben("letzte_angebotsnummer", letzte)    # Zähler geht dort weiter
         zusammenfuehren(db, entfernt)          # Stammdaten dieses Kürzels (z. B. allein mit dem Teilen begonnen)
@@ -834,6 +887,7 @@ def _eigene_holen(db, quelle):
                 continue
             inhalt, netze = quelle.inhalt(nummer)
             angebot_einsetzen(db.con, inhalt, netze, None, None)
+        _herkunft(db.con, None)
 
 
 # ------------------------------------------------------------------ Lesen und zusammenführen
@@ -985,6 +1039,7 @@ def lesen(db, modus=None):
         raise ErstAbgleich(sorted(gelesen))
     schema = con.execute("PRAGMA user_version").fetchone()[0]
     with con:
+        _herkunft(con, "abgleich")
         if erstmals and gelesen and modus == UEBERNEHMEN:
             for t in GETEILT:            # Zukaufartikel bleiben (Angebote verweisen über die ID), sie werden zusammengeführt
                 if t.schluessel:
@@ -1001,7 +1056,8 @@ def lesen(db, modus=None):
             fc = quelle.verbinden()
             try:
                 info = {n: json.loads(w) for n, w in fc.execute("SELECT name, wert FROM info")}
-                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen")}
+                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen",
+                                                         "rechner", "lizenz")}
                 bericht["mitarbeiter"].append(k2)
                 if int(info.get("format") or 0) > FORMAT or int(info.get("schema") or 0) > schema:
                     bericht["hinweise"].append(
@@ -1069,7 +1125,11 @@ def lesen(db, modus=None):
                     bericht["entfernte_ids"].append(i)
         db._einstellung_schreiben("teilen_gelesen", datetime.datetime.now().isoformat(timespec="seconds"))
         db._einstellung_schreiben("teilen_lese_zeit", lese_zeit)
-    bericht["admin_vorgaben"] = admin_schutz.nach_lesen(db, paket)
+        _herkunft(con, None)
+    with con:
+        _herkunft(con, "abgleich")          # Admin-Vorgaben kommen vom Admin, nicht von hier
+        bericht["admin_vorgaben"] = admin_schutz.nach_lesen(db, paket)
+        _herkunft(con, None)
     return bericht
 
 
@@ -1430,11 +1490,7 @@ def _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id, quitti
 
 def dateien_stand(db):
     """Größe und Zeit der Dateien der Kollegen: unverändert = nichts Neues zu lesen."""
-    out = []
-    for k, p in andere_dateien(db).items():
-        st = p.stat()
-        out.append((k, st.st_size, st.st_mtime_ns))
-    return tuple(out)
+    return _weg_pruefen(db).stand(andere_dateien(db))
 
 
 # ------------------------------------------------------------------ Notizen an Kollegen

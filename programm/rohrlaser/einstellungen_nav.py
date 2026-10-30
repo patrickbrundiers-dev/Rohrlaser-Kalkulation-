@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QStackedWidget, QTreeWidge
 # Seiten der Einstellungen (einstellungen_ordnung.SEITEN, Schlüssel e_…) stehen beim Thema (Plan „Einstellungen
 # aufräumen“, 29.10.2026)
 GRUPPEN = (
-    ("Allgemein", ("e_funktionen", "e_firma", "e_admin", "e_arbeitsplatz", "e_ablage")),
+    ("Allgemein", ("e_funktionen", "e_firma", "e_admin", "e_plaetze", "e_arbeitsplatz", "e_ablage")),
     ("Kalkulation", ("e_zuschlaege", "e_gewinn_gestaffelt", "e_kosten", "vorgaben", "zeitvorgaben", "zusatzarbeiten", "arbeitsgang_regeln")),
     ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_materialanfrage")),
     ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen", "e_lieferlaengen", "e_listen")),

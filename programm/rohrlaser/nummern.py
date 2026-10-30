@@ -8,7 +8,6 @@ vor dem Angebots-PDF. Ohne gemeinsamen Ordner zählt der Arbeitsplatz lokal im g
 wird nie wieder vergeben, auch wenn das Angebot gelöscht wird."""
 import datetime
 import json
-import os
 import re
 import socket
 
@@ -49,33 +48,21 @@ def hoechster_lokal(db):
     return max((zaehler(n) for n in werte), default=0)
 
 
-def reservierungen(o):
-    """Höchster reservierter Zählerstand im Ordner Nummern."""
-    return max((int(p.stem) for p in o.iterdir() if p.suffix == ENDUNG and p.stem.isdigit()), default=0)
-
-
 def reservieren(db, jahr=None):
     """Nächste freie Nummer im gemeinsamen Ordner reservieren. OSError: Ordner nicht erreichbar."""
-    basis = teilen.ordner(db)
-    if basis is None or not basis.is_dir():
-        raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {basis}")
-    o = basis / ORDNER
-    o.mkdir(exist_ok=True)
+    w = teilen.weg(db)
+    if w is None or not w.erreichbar():
+        raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {w}")
     jahr = jahr or _jahr()
-    n = max(reservierungen(o), hoechster_lokal(db))
+    n = max(w.nummer_hoechste(ORDNER), hoechster_lokal(db))
     while True:
         n += 1
         nr = nummer(jahr, n)
         if _vergeben(db, nr):
             continue
-        try:                       # exklusiv: zwei Arbeitsplätze können dieselbe Datei nicht beide anlegen
-            fd = os.open(o / f"{n:05d}{ENDUNG}", os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            continue
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(f"{nr}\n{teilen.kuerzel(db)}\n{socket.gethostname()}\n"
-                    f"{datetime.datetime.now().isoformat(timespec='seconds')}\n")
-        return nr
+        if w.nummer_belegen(ORDNER, n, f"{nr}\n{teilen.kuerzel(db)}\n{socket.gethostname()}\n"
+                                       f"{datetime.datetime.now().isoformat(timespec='seconds')}\n"):
+            return nr
 
 
 def _vorlaeufige(db):
@@ -188,22 +175,16 @@ def ab_nummer(db, kopf, datum=None):
     jahr = _jahr(datum)
     n = _ab_hoechster_lokal(db)
     if teilen.aktiv(db):
-        basis = teilen.ordner(db)
-        if basis is None or not basis.is_dir():
-            raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {basis}")
-        o = basis / AB_ORDNER
-        o.mkdir(exist_ok=True)
-        n = max(n, reservierungen(o))
+        w = teilen.weg(db)
+        if w is None or not w.erreichbar():
+            raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {w}")
+        n = max(n, w.nummer_hoechste(AB_ORDNER))
         while True:
             n += 1
-            try:
-                fd = os.open(o / f"{n:05d}{ENDUNG}", os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            except FileExistsError:
-                continue
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(f"AB-{jahr}-{n:05d}\n{kopf.get('nummer') or ''}\n{teilen.kuerzel(db)}\n"
-                        f"{datetime.datetime.now().isoformat(timespec='seconds')}\n")
-            break
+            if w.nummer_belegen(AB_ORDNER, n, f"AB-{jahr}-{n:05d}\n{kopf.get('nummer') or ''}\n"
+                                              f"{teilen.kuerzel(db)}\n"
+                                              f"{datetime.datetime.now().isoformat(timespec='seconds')}\n"):
+                break
     else:
         n += 1
     nr = f"AB-{jahr}-{n:05d}"

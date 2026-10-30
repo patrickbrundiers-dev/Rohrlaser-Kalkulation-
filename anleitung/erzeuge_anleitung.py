@@ -2971,7 +2971,7 @@ def kapitel_optimieren(i):
             "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
             "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
             "STEP. Ist die lange Seite in der STEP schon gekürzt, bleibt das Ende komplex, genau wie gemessen.",
-            "<b>Rohranschluss aus der STEP</b> (seit 0.9.212): Sitzt ein Ende mit einem Sattel- bzw. "
+            "<b>Rohranschluss aus der STEP</b> (seit 0.9.215): Sitzt ein Ende mit einem Sattel- bzw. "
             "Fischmaulschnitt auf einem runden Gegenrohr (rechtwinklig oder schräg, mit Versatz, in beliebiger Lage "
             "am Umfang), erkennt der Import das als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und Drehung statt als "
             "komplexes Ende – beim Rundrohr wie beim Quadrat- und Rechteckrohr, an Ende A und B. Im Editor steht am "
@@ -3016,7 +3016,7 @@ def kapitel_optimieren(i):
             "rechteckig (Breite quer, Tiefe, Eckradius), steht rechtwinklig oder schräg (<i>Winkel</i> = Abweichung "
             "von rechtwinklig, + = Rohr vorne bzw. oben länger), kann quer versetzt sein (<i>Versatz</i>) und liegt "
             "<i>waagerecht</i> (Sattel von vorne sichtbar) oder <i>senkrecht</i>, beim Rundrohr zusätzlich um die "
-            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.212). Das Programm rechnet die echte "
+            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.215). Das Programm rechnet die echte "
             "Schnittkurve, ihre Länge und wie tief der Ausschnitt ist; im 3D steht das Gegenrohr als pinker "
             "Hilfskörper. Ein Gegenrohr ersetzt Gehrung und Ausklinkung dieses Endes (Gehrung von Hand eintragen = "
             "Gegenrohr fällt weg; <i>Kein Gegenrohr</i> im Dialog entfernt es). Zu kleine Gegenrohre (Rohr ragt seitlich heraus) meldet der Dialog rot. Die alte "
@@ -5294,12 +5294,20 @@ def kapitel_ausgabe(i, seiten, ablage):
            "genau die Summe der Zeilen.",
            "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan mit Kästchen zum "
            "Abhaken, danach das Stangenbild.",
-           "<b>Kalkulation (PDF)</b>: oben die Kennzahlen (Verkaufspreis, Herstellkosten, Gewinn, Material, "
-           "Maschinenzeit, Stangen, Teile), darunter die Kostenarten mit Anteil am Verkaufspreis in % und als Balken "
-           "(ohne 0,00 €, Herstellkosten und Verkaufspreis hervorgehoben), der Materialeinsatz je Abmessung mit "
-           "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
-           "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
-           "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
+           "<b>Kalkulation (PDF)</b>: Kopf mit Datum, Kunden-Nr., Maschine und Stundensatz (von Hand oder "
+           "ermittelt); rot darunter die Warnungen der Preis-Gegenprobe, wenn es welche gibt. Kacheln Verkaufspreis, "
+           "Selbstkosten, Herstellkosten, Gewinn (€ und %), Material, Maschinenzeit, Stangen/Teile; darunter die "
+           "Kostenarten mit Anteil am Verkaufspreis (Gewinn mit der greifenden Gewinnstufe, Schneidgas in m³, Fracht "
+           "mit Art und Umlage) und daneben die <b>Kennzahlen</b> (Stundensatz, Zeitbasis, Gewinn, Materialgewicht, "
+           "Preis je kg, Ertrag je Maschinenstunde, Fracht, Abruf). Danach – nur wenn vorhanden – der Rechenweg des "
+           "ermittelten Stundensatzes und der Abschnitt Abruf-/Rahmenangebot, der Materialeinsatz je Abmessung mit "
+           "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt (Schritte ohne Zeit grau unter einem "
+           "Strich), die Position in zwei Tabellen <i>Kosten je Teil</i> und <i>Preisaufbau</i> (mit Bezeichnung, "
+           "Musterteile gekennzeichnet), die Zukaufteile einzeln, je Schweißbaugruppe ihre Zeiten, die Staffelpreise "
+           "je Mengenstufe und die Schneidzeit je Teil mit den Schneiddaten (Gas, Wandstärke-Stufe, Zeile des "
+           "Werkstoffs bzw. der Kategorie); zum Schluss das Stangenbild wie in den Werkstattpapieren. Spalten ohne "
+           "Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet, bei vielen Spalten werden die Zahlen "
+           "kleiner statt umgebrochen.",
            "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
            "([[csv_export]]); <b>Ordner öffnen</b> (im Menü Ausgaben) zeigt den Ordner des Angebots im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
@@ -5932,6 +5940,26 @@ def kapitel_einstellungen(i):
            "der nächste Abgleich den Wert des Admins wieder her; Änderungen von Nicht-Admins an geschützten Werten "
            "kommen bei den anderen nicht an. Freie Werte gleichen wie bisher ab. Der Aufbau ist für einen späteren "
            "Abgleich über einen Server vorbereitet. Deshalb alle Arbeitsplätze gleichzeitig updaten.")
+    i.abschnitt("Hauptadmin und weitere Admins", marke="admin_rechte")
+    i.bild("arbeitsplaetze_rechte", "Seite Arbeitsplätze und Rechte", hoehe=95 * mm, legende=[
+        (1, "Recht je Mitarbeiter: Mitarbeiter, Admin oder Admin gesperrt"), (2, "<b>Neues Startpasswort …</b>"),
+        (3, "Verlauf: welcher Admin wann was geändert hat")])
+    i.text("Hauptadmin ist, wer das Passwort der Admin-Lizenz eingibt. Unter <i>Allgemein → Arbeitsplätze und "
+           "Rechte</i> stehen alle Arbeitsplätze mit Name und Kürzel vom ersten Start, Rechner, Lizenz (grün gültig, "
+           "gelb läuft bald ab, rot abgelaufen) und Version. Dort gibt der Hauptadmin einem Mitarbeiter das Recht "
+           "<b>Admin</b> und vergibt ein Startpasswort.", kurz=True)
+    i.genauer()
+    i.text("Ein Admin schaltet sich mit <b>seinem eigenen Passwort</b> frei, in derselben Leiste wie oben, an jedem "
+           "Arbeitsplatz mit gültiger Lizenz. Beim ersten Mal legt er statt des Startpassworts ein eigenes fest "
+           "(mindestens 6 Zeichen); später ändert er es mit <b>Mein Passwort ändern …</b>. Er ändert alle Seiten mit "
+           "🔒; <i>Admin-Schutz</i> und <i>Arbeitsplätze und Rechte</i> bleiben dem Hauptadmin. Die Rechte kommen wie "
+           "die Admin-Vorgaben über den gemeinsamen Ordner an alle Plätze.")
+    i.text("<b>Admin gesperrt</b>: Der Admin kann sich nicht mehr freischalten; ist er gerade freigeschaltet, sperrt "
+           "ihn der nächste Abgleich. <b>Mitarbeiter</b> nimmt das Recht ganz weg. <b>Passwort vergessen</b>: Admin "
+           "wählen, <b>Neues Startpasswort …</b>. Vergisst der Hauptadmin sein Passwort, hilft der Notfallcode aus "
+           "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
+           "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
+           "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
     i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
         (1, "Seite Funktionen in der Navigation links, darunter die Themen mit Einstellungen und Stammdaten"),
@@ -6511,6 +6539,17 @@ def kapitel_mehrere(i):
     i.hinweis("Das Kürzel ist eine Kennung, kein Zugriffsschutz: wer den gemeinsamen Ordner öffnen kann, sieht alle "
               "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
               "letzten Abgleichs (von selbst alle 2 Minuten), nicht live.")
+
+    i.abschnitt("Vorbereitet für einen Server", marke="server_vorbereitung")
+    i.genauer()
+    i.text("Seit 0.9.213 ist das Programm für einen späteren Abgleich über einen Server vorbereitet. Für die Arbeit "
+           "ändert sich nichts: der gemeinsame Ordner bleibt der Weg, Dateien und Abgleich sind dieselben.")
+    i.liste("Jedes Angebot und jede Position hat eine feste Kennung; sie bleibt, wenn eine vorläufige Nummer "
+            "endgültig wird, und ist beim Kollegen dieselbe. Eine Kopie bekommt eine neue.",
+            "Das Programm führt ein Änderungsprotokoll (was wann geändert wurde, hier oder beim Abgleich), um später "
+            "nur Neues über den Server zu schicken. Einträge älter als 90 Tage fallen weg.",
+            "Ordner, Nummern und gemeinsame Dateien laufen intern über eine Stelle, hinter der später auch ein "
+            "Server stehen kann.")
 
 
 def kapitel_stammdaten(i):

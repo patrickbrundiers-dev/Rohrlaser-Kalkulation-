@@ -3586,7 +3586,10 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         d3, anteile, ein, nz = v["d3"], v["anteile"], v["ein"], v["nz"]
         manuell, zeit_extra, pruef, oz = v["manuell"], v["zeit_extra"], v["pruef"], v["oz"]
         z = dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, material_gruppe=d, anteil=e,
-                 material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None)
+                 material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None,
+                 # Herkunft der Schneiddaten-Zeile (nur Anzeige im Kalkulations-PDF)
+                 sd_quelle=(None if not sd else "Werkstoff" if not _leer(sd.get("werkstoff_id"))
+                            else f"Kategorie {sd.get('kategorie') or ''}".strip()))
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
         z.update({f"zeit_{n}": anteile.get(n) for n in ZEITANTEILE})
         if anteile:     # Anzeige: Gravur gesamt, die Anbauteile als 'davon'
