@@ -1515,6 +1515,32 @@ def kapitel_angebot(i):
             "Angeboten; der Preis ändert sich nicht.",
             "Jede Umstellung ist ein Schritt für <b>Strg+Z</b>. In fremden Angeboten und im Lesemodus ist die "
             "Reihenfolge gesperrt.")
+    i.abschnitt("Position kopieren: duplizieren oder aus einem anderen Angebot", marke="position_kopieren")
+    i.text("Position markieren → <i>Rechtsklick → Position duplizieren</i> (<b>Strg+Umschalt+D</b>): eine neue "
+           "Position mit allen Eingaben, direkt hinter dem Original. Aus einem anderen Angebot: <i>Rechtsklick → "
+           "Positionen aus anderem Angebot übernehmen …</i> oder <i>Neue Position → Aus anderem Angebot</i>.",
+           kurz=True)
+    i.genauer()
+    i.liste("Kopiert wird <b>alles, was zur Position gehört</b>: Profil, Werkstoff, Länge, Stückzahl, Enden, "
+            "Konturen und Schneidweg-Rechner, Zusatzarbeiten, Gravur, Zukaufteile, Schweißnaht, STEP-Merkmale, die "
+            "3D-Ansicht, die Staffeln der Position bzw. des Satzes ([[staffeln]]) und die Steckverbindungen aus "
+            "„Satz in 3D“. Der Preis wird immer neu kalkuliert.",
+            "<b>Was mitkommt</b> folgt der Positionsliste wie beim Verschieben ([[reihenfolge]]): eine markierte "
+            "<b>Schweißbaugruppe</b> mit allen Einzelteilen (neue Baugruppe), die <b>erste Zeile eines Satzes</b> "
+            "(mit ▾) mit allen Positionen des Satzes. Ein einzeln markiertes Einzelteil bzw. eine weitere Position "
+            "eines Satzes wird eine eigenständige Position. Mehrere Positionen lassen sich auf einmal markieren.",
+            "<b>Im selben Angebot</b> bekommt die Kopie eine eindeutige Artikelnummer (4711-001 → 4711-001-2), ein "
+            "kopierter Satz bzw. eine kopierte Baugruppe einen neuen Namen („Rahmen (2)“). Sind hinter dem Original "
+            "Positionsnummern frei (10 und 20 → 15), steht die Kopie direkt darunter, sonst am Ende mit der nächsten "
+            "Nummer; mit Alt+↑/↓ lässt sie sich weiter verschieben.",
+            "<b>Aus einem anderen Angebot</b>: links das Angebot wählen (Suche nach Nummer, Kunde, Artikel oder "
+            "Bezeichnung), rechts die Positionen markieren (Strg/Umschalt für mehrere), <b>Übernehmen</b>. Die "
+            "Positionen kommen ans Ende (letzte Nummer + 10 …), Artikelnummern bleiben. Auch Angebote der Kollegen, "
+            "verschickte und festgeschriebene lassen sich als Vorlage nehmen; sie werden nur gelesen und bleiben "
+            "unverändert. Der Haken <i>Staffeln der Positionen mitkopieren</i> lässt die Staffeln weg.",
+            "Jede Kopie ist ein Schritt für <b>Strg+Z</b>. In fremden Angeboten und im Lesemodus geht kein "
+            "Kopieren in das Angebot. Eine ganze Baugruppe in ein <i>anderes</i> Angebot schicken: <i>Rechtsklick → "
+            "Baugruppe in anderes Angebot kopieren …</i>; ein ganzes Angebot: <i>Angebote → Kopieren</i>.")
     i.abschnitt("Zusatzarbeiten und Gewinde je Bauteil", marke="zusatzarbeiten_angebot")
     i.text("Positionen markieren → <b>Zusatzarbeiten …</b> (oder Doppelklick in die Spalte <i>Zusatzarbeiten</i>).",
            kurz=True)
@@ -1784,6 +1810,7 @@ def kapitel_angebot(i):
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
         ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"],
+        ["Strg+Umschalt+D", "markierte Position duplizieren ([[position_kopieren]])"],
         ["Alt+↑ / Alt+↓", "markierte Positionen eine Zeile nach oben / unten ([[reihenfolge]])"]], [55, 210],
         kurz=True)
     i.genauer()
@@ -2971,7 +2998,7 @@ def kapitel_optimieren(i):
             "Oberfläche geschnitten (Fläche nicht eben, Innenkante unter der Außenkante), erkennt der Import sie "
             "trotzdem als Gehrung mit Winkel und Richtung statt als komplexes Ende; sie steht im Editor wie in der "
             "STEP. Ist die lange Seite in der STEP schon gekürzt, bleibt das Ende komplex, genau wie gemessen.",
-            "<b>Rohranschluss aus der STEP</b> (seit 0.9.215): Sitzt ein Ende mit einem Sattel- bzw. "
+            "<b>Rohranschluss aus der STEP</b> (seit 0.9.216): Sitzt ein Ende mit einem Sattel- bzw. "
             "Fischmaulschnitt auf einem runden Gegenrohr (rechtwinklig oder schräg, mit Versatz, in beliebiger Lage "
             "am Umfang), erkennt der Import das als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und Drehung statt als "
             "komplexes Ende – beim Rundrohr wie beim Quadrat- und Rechteckrohr, an Ende A und B. Im Editor steht am "
@@ -3016,7 +3043,7 @@ def kapitel_optimieren(i):
             "rechteckig (Breite quer, Tiefe, Eckradius), steht rechtwinklig oder schräg (<i>Winkel</i> = Abweichung "
             "von rechtwinklig, + = Rohr vorne bzw. oben länger), kann quer versetzt sein (<i>Versatz</i>) und liegt "
             "<i>waagerecht</i> (Sattel von vorne sichtbar) oder <i>senkrecht</i>, beim Rundrohr zusätzlich um die "
-            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.215). Das Programm rechnet die echte "
+            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.216). Das Programm rechnet die echte "
             "Schnittkurve, ihre Länge und wie tief der Ausschnitt ist; im 3D steht das Gegenrohr als pinker "
             "Hilfskörper. Ein Gegenrohr ersetzt Gehrung und Ausklinkung dieses Endes (Gehrung von Hand eintragen = "
             "Gegenrohr fällt weg; <i>Kein Gegenrohr</i> im Dialog entfernt es). Zu kleine Gegenrohre (Rohr ragt seitlich heraus) meldet der Dialog rot. Die alte "
