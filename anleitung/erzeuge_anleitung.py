@@ -2388,6 +2388,12 @@ def kapitel_step(i):
             "Rand), ist es ein Rohr mit Ausschnitt: Rund-, Quadrat- oder Rechteckrohr, der Ausschnitt als "
             "Innenkontur <b>genau wie in der STEP</b>. Es kommt nichts dazu, auch ein Ring schmaler als 2 mm bleibt "
             "so schmal; der Hinweis lautet <i>Enden in der STEP geschlossen</i>.",
+            "<b>Aufgeschnittene Rohre</b> (großer Ausschnitt über Oberseite und Seitenwände, Trapez- oder "
+            "Schrägschnitt, Schlitze an der Kante, Nase am Ende, Oberseite bis auf einen Ring an einem Ende weg): "
+            "Sie bleiben Quadrat- bzw. Rechteckrohr. Die Rohrachse kommt aus den geschlossenen Querschnitten, nicht "
+            "aus dem offenen Stück dazwischen; der Ausschnitt steht als Sonderkontur, reicht er bis ans Ende, gehört "
+            "er zum Ende (<i>komplex (Umriss wie STEP)</i> im Teile-Editor). Konturen und Enden liegen im Editor "
+            "genau wie in der STEP.",
             "<b>Spalt bis 2 mm</b>: Stoßen die Kanten mit einem schmalen Spalt aneinander, wird der Spalt ganz "
             "geschlossen (kein Fenster); Art <i>… – Spalt geschlossen</i>.",
             "<b>Vorbelegung</b>: immer als Rohr, auch wenn ein U- oder C-Profil der Stammdaten passt; als Kantteil "
@@ -2972,6 +2978,18 @@ def kapitel_optimieren(i):
             "Seite, Ausschnitte, deren Schnittlänge genau ein Rechteck oder Langloch ergibt, stehen als Rechteck bzw. "
             "Langloch (längs oder quer wie gemessen) statt als Kreis. C-Profile zeigen die gemessene Abkantung "
             "(Lippe) in Skizze und 3D. Ältere Importe: STEP neu einlesen.",
+            "<b>Gegenprobe beim Übernehmen</b> (seit 0.9.210): Für jedes Quadrat-, Rechteck- und Rundrohr baut das "
+            "Programm beim Übernehmen das 3D-Modell des Schneidweg-Rechners und legt es auf die Linien der STEP "
+            "(Konturen und Enden, in beiden Richtungen). Liegt etwas mehr als 0,1 mm daneben, bekommt die Position "
+            "den Hinweis <i>Editor weicht bis … mm von der STEP ab (bei … mm ab Ende A) – Konturen und Enden im "
+            "Schneidweg-Rechner prüfen</i>; er steht im Bericht nach dem Übernehmen und an der Position. Nicht "
+            "geprüft werden offene Profile, offen gezeichnete Rohre mit Ringen, Knickrahmen, Biegerohre und Teile, "
+            "deren Profil im Prüfdialog geändert wurde (dort ist die Abweichung gewollt). Ebene Gehrungen werden wie "
+            "konstruiert verglichen.",
+            "<b>Weitere Fälle wie in der STEP</b> (seit 0.9.210): Quadrat-/Rechteckrohr mit Gehrung an beiden Enden "
+            "und Fenster (lag 3 mm daneben), Schlitz, der über den Eckradius ins Ende läuft (0,5 mm), und Winkel "
+            "bzw. U-Profil mit Ausklinkung am Ende (das freie Schenkelende stand schräg bis auf die Tiefe der "
+            "Ausklinkung) stehen jetzt genau wie gezeichnet im Editor.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
@@ -3245,8 +3263,9 @@ def kapitel_optimieren(i):
             "Laufrichtung, Freistich, Knickzugabe, K-Faktor und Innenwand schräg. Lösen gibt es hier nicht, der "
             "Körper ist ja ein Teil.",
             "<b>Gestreckt gezeichnet</b> (gerades Rohr mit V-Ausschnitten, Rahmen vor dem Knicken): Jeder Ausschnitt "
-            "durch drei Wände, der die vierte (Stegwand) stehen lässt und dessen Schnittlänge zur Formel passt, wird "
-            "ein Knick. Knickwinkel aus der Breite des V, Schenkel so, dass die Knicke an den gezeichneten Stellen "
+            "durch drei Wände, der die vierte (Stegwand) stehen lässt, die Seitenwände bis an die Stegwand "
+            "durchschneidet und dessen Schnittlänge zur Formel passt, wird ein Knick. Ein großer Ausschnitt, der die "
+            "Seitenwände nur teilweise wegnimmt (z. B. Trapez), bleibt eine Sonderkontur genau wie in der STEP. Knickwinkel aus der Breite des V, Schenkel so, dass die Knicke an den gezeichneten Stellen "
             "liegen; die gestreckte Länge bleibt wie gezeichnet. Bearbeiten danach im Schneidweg-Rechner "
             "([[knickrahmen]]).",
             "<b>Nicht erkannt</b> werden ein räumlicher Rahmen, unterschiedliche Eckwinkel oder Ecken mit Spalt; sie "
@@ -3712,7 +3731,8 @@ def kapitel_optimieren(i):
             "Bohrungen etwa 20 Sekunden.",
             "Nach dem Speichern zeigt eine Meldung Volumen und Flächenzahl. Das Programm prüft den Körper mit "
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
-            "Länge und Konturen wie im Editor da.")
+            "Länge und Konturen wie im Editor da. Stammt das Teil aus einer STEP-Datei, vergleicht es den Körper "
+            "außerdem mit dieser Mutter-STEP ([[step_mutter]]).")
     i.abschnitt("Rohrteil aus einer DXF-Zeichnung", marke="dxf_rohr")
     i.text("Eine DXF-Zeichnung eines Rohrlaserteils mit Ansichten (Vorderansicht, Draufsicht, Schnitt, wie das CAD "
            "sie ableitet) wird ein Rohrteil im Rohr-Editor: im Angebot <i>Neue Position → Aus DXF</i> oder die DXF "
@@ -5195,6 +5215,30 @@ def kapitel_baugruppen(i):
             "Beides mit Hinweis, Lage wie in der STEP-Datei.",
             "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "
             "mit Hinweis.")
+    i.abschnitt("Prüfung gegen die Mutter-STEP", marke="step_mutter")
+    i.text("Nach jedem <b>STEP speichern</b> (Rohr-Editor, Blech-Editor, Editor der Schweißbaugruppe, Satz in 3D) "
+           "vergleicht das Programm jeden Körper mit dem Körper der eingelesenen Kundendatei (<b>Mutter-STEP</b>), aus "
+           "dem er stammt: Liegt er an derselben Stelle, hat er dieselbe Form? Die Meldung nach dem Speichern sagt es "
+           "je Körper; liegt ein Körper nicht dort, wo er in der Mutter-STEP liegt, kommt sie als <b>Warnung</b> "
+           "(ACHTUNG).", kurz=True)
+    i.genauer()
+    i.liste("<b>genau wie in der Mutter-STEP</b>: Abweichung höchstens 0,05 % des Volumens.",
+            "<b>örtlich geändert, Lage wie in der Mutter-STEP</b>: gewollte Änderungen, mit Grund in Klammern – "
+            "Schlitze und Nasen der Steckverbindung, Gehrung in 2D wie gelasert (Innenkante maßhaltig, lange "
+            "Seite um Wand × tan kürzer), facettierte Teile. Ohne bekannten Grund steht „im Editor geändert – bitte prüfen, ob "
+            "gewollt“ (z. B. eine zusätzliche Bohrung).",
+            "<b>ACHTUNG – liegt nicht dort</b>: weniger als 95 % des Körpers decken sich mit der Mutter-STEP oder der "
+            "Schwerpunkt liegt mehr als 1 mm daneben (verschoben, verdreht, gespiegelt oder stark geändert). Dann "
+            "die STEP nicht weitergeben, sondern das Teil prüfen bzw. die STEP neu einlesen.",
+            "Körper der Mutter-STEP, die nicht im Export sind (abgewählt, Normteil, Zukauf), nennt die Meldung mit "
+            "Anzahl.",
+            "Die Prüfung braucht die Kundendatei an ihrem Ort beim Einlesen. Ist sie verschoben oder gelöscht, oder "
+            "wurde das Teil vor 0.9.209 eingelesen, wird ohne Prüfung gespeichert. Sie dauert je Körper etwa eine "
+            "Sekunde, höchstens 2 Minuten.",
+            "<b>Gleiche Rohre gedreht oder gewendet eingebaut</b> (z. B. die gegenüberliegenden Seiten eines Rahmens "
+            "mit Gehrungen): Seit 0.9.209 passt das Programm beim Einlesen die Einbaulage jedes gleichen Körpers an "
+            "das 3D-Netz des ersten an. Vorher lagen solche Rohre in 3D und im STEP-Export gespiegelt (Gehrung nach "
+            "innen statt nach außen). Ältere Angebote: STEP neu einlesen.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
     i.text("Wiederkehrende Baugruppen nicht jedes Mal neu erfassen: <b>Als Vorlage speichern …</b> unten im Editor "
            "merkt Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) unter einem Namen; "
