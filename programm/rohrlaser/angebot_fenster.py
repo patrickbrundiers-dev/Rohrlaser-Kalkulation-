@@ -47,7 +47,7 @@ from . import funktionen, muster_haken, stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
-from . import satzgruppen, unterzeilen
+from . import position_kopie, satzgruppen, unterzeilen
 from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
 from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text
@@ -1802,7 +1802,7 @@ class AngebotSeite(QWidget):
                "ausschneiden": "_ausschneiden", "optimieren": "optimieren", "drucken": "angebot_pdf",
                "importieren": "step_importieren", "staffeln": "staffelpreise_rechnen", "werkstatt": "werkstatt_pdf",
                "kalkulation": "kalkulation_pdf", "material": "material_anfragen", "stueck": "stueck_aendern",
-               "hoch": ("positionen_hoch", "pos_ansicht"), "runter": ("positionen_runter", "pos_ansicht")}
+               "duplizieren": "position_duplizieren", "hoch": ("positionen_hoch", "pos_ansicht"), "runter": ("positionen_runter", "pos_ansicht")}
 
     def __init__(self, fenster, angebot_id):
         super().__init__()
@@ -1962,6 +1962,8 @@ class AngebotSeite(QWidget):
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
+                ("Position duplizieren", lambda: self.position_duplizieren(), "Strg+Umschalt+D"),
+                ("Positionen aus anderem Angebot übernehmen …", lambda: self.positionen_uebernehmen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
                 ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
@@ -1974,6 +1976,7 @@ class AngebotSeite(QWidget):
             # Kürzel nur als Text rechts (Tabulator), die Kürzel selbst hängen am Menü Bearbeiten
             a = self.pos_menue.addAction(text + (f"\t{tasten}" if tasten else ""), lambda ziel=ziel: ziel())
             self.pos_aktionen[text] = a
+        self.pos_menue.insertSeparator(self.pos_aktionen["Position duplizieren"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Für markierte setzen …"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Nach oben"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Positionen löschen"])
@@ -3013,7 +3016,7 @@ class AngebotSeite(QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, DXF, LEER, PDF, RAHMEN, ROHR, SCHWEISS, ZUKAUF, TypDialog
+        from .neue_position import BLECH, DXF, LEER, PDF, RAHMEN, ROHR, SCHWEISS, UEBERNEHMEN, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -3038,6 +3041,8 @@ class AngebotSeite(QWidget):
             return typ if self.baugruppe_neu(dialog=dialog) else None
         if typ == RAHMEN:
             return typ if self.rahmen_assistent(dialog=dialog) else None
+        if typ == UEBERNEHMEN:
+            return typ if self.positionen_uebernehmen(dialog=dialog) else None
         self.db.position_neu(self.id, {"pos": self._naechste_pos()})
         self.neu_laden()
         r = len(self.positionen) - 1
@@ -3689,6 +3694,8 @@ class AngebotSeite(QWidget):
                 sichtbar = mit_virtuell
             elif text == "Für markierte setzen …":
                 sichtbar = len(zeilen) > 1 and "rohr" in arten
+            elif text in ("Position duplizieren", "Positionen aus anderem Angebot übernehmen …"):
+                sichtbar = text != "Position duplizieren" or bool(zeilen)
             elif text == "Muster an/aus" and not funktionen.an("funktion_muster"):
                 sichtbar = any(ist_muster(self.positionen[r]) for r in zeilen)     # vorhandene Muster zurücknehmen
             elif text == "Schweißnaht …" and not funktionen.an("funktion_schweissen"):
@@ -3791,6 +3798,111 @@ class AngebotSeite(QWidget):
         nummer = (self.db.angebot(ziel) or {}).get("nummer") or ziel
         self.f.meldung(f"Schweißbaugruppe mit {len(neu) - 1} Einzelteil(en) in Angebot {nummer} kopiert.")
         return len(neu)
+
+    # -------------------------------------------------------------- Position als neue Position kopieren (30.10.2026)
+    def position_duplizieren(self, zeilen=None):
+        """Markierte Positionen im selben Angebot als neue Positionen kopieren (position_kopie.py): alles, was zur
+        Position gehört, eindeutige Artikelnummer; eine Position bzw. Gruppe direkt hinter das Original, wenn dort
+        Positionsnummern frei sind, sonst ans Ende. Ergebnis: Anzahl neuer Positionen (0 = nichts kopiert)."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen. Zum Weiterarbeiten das Angebot kopieren.",
+                           fehler=True)
+            return 0
+        zeilen = self._markierte_zeilen() if zeilen is None else list(zeilen)
+        einheiten = position_kopie.einheiten(self.positionen, zeilen)
+        if not einheiten:
+            self.f.meldung("Bitte zuerst die Position markieren, die kopiert werden soll.", fehler=True)
+            return 0
+        return self._kopien_einfuegen(self.id, self.positionen, einheiten, gleiches=True)
+
+    def positionen_uebernehmen(self, quelle=None, zeilen=None, staffeln=True, dialog=None):
+        """Positionen aus einem anderen Angebot (auch eines Kollegen oder festgeschrieben, wird nur gelesen) als neue
+        Positionen ans Ende übernehmen. Ohne quelle: Auswahl im Fenster (position_kopie_dialog); dialog(d) bedient es
+        statt exec (Tests). Ergebnis: Anzahl neuer Positionen (0 = nichts übernommen)."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        if quelle is None:
+            from .position_kopie_dialog import UebernehmenDialog
+            d = UebernehmenDialog(self, self.db, self.id)
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.quelle:
+                return 0
+            quelle, zeilen, staffeln = d.quelle, d.zeilen, d.staffeln
+        if quelle == self.id:
+            return self.position_duplizieren(zeilen)
+        positionen = self.db.positionen(quelle)
+        einheiten = position_kopie.einheiten(positionen, zeilen or [])
+        if not einheiten:
+            self.f.meldung("Keine Position gewählt.", fehler=True)
+            return 0
+        return self._kopien_einfuegen(quelle, positionen, einheiten, gleiches=False, staffeln=staffeln)
+
+    def _kopien_einfuegen(self, quelle_id, quelle, einheiten, gleiches, staffeln=True):
+        """Kopien der Einheiten (position_kopie.einheiten) aus dem Angebot quelle_id anlegen: Positionen, 3D-Netze,
+        Daten „Satz in 3D“, Staffeln; ein Schritt für Rückgängig. Ergebnis: Anzahl neuer Positionen."""
+        paare, saetze = position_kopie.kopien(quelle, einheiten, self.positionen, gleiches)
+        if not paare:
+            return 0
+        original = None
+        if gleiches and len(einheiten) == 1 and reihenfolge.aufsteigend(self.positionen):
+            i0 = einheiten[0][1][0]
+            block = next((ix for _, ix in reihenfolge.bloecke(self.positionen) if i0 in ix), [i0])
+            nummern = [self.positionen[i].get("pos") for i in block
+                       if isinstance(self.positionen[i].get("pos"), (int, float))]
+            frei = position_kopie.luecke(self.positionen, max(nummern), len(paare)) if nummern else None
+            if frei:
+                for (_, w), n in zip(paare, frei):
+                    w["pos"] = n
+                original = self.positionen[i0]["id"]
+        self.verlauf.pause += 1         # Anlegen und Einordnen: ein Schritt für Rückgängig
+        try:
+            neue = self._kopien_schreiben(quelle_id, paare, saetze, staffeln, original)
+        finally:
+            self.verlauf.pause -= 1
+        zeilen = [k for k, p in enumerate(self.positionen) if p["id"] in set(neue)]
+        if zeilen:
+            self.zur_position(zeile=zeilen[0])
+            auswahl = self.pos_ansicht.selectionModel()
+            for r in zeilen:
+                auswahl.select(self.pos_modell.index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        if gleiches:
+            artikel = [w.get("artikel") for _, w in paare if w.get("artikel")]
+            text = (f"{position_kopie.text(paare)} als Kopie angelegt"
+                    + (f" (Artikel {', '.join(artikel[:3])}{' …' if len(artikel) > 3 else ''})" if artikel else "")
+                    + (", direkt hinter dem Original." if original is not None else ", am Ende."))
+        else:
+            nummer = (self.db.angebot(quelle_id) or {}).get("nummer") or quelle_id
+            text = f"{position_kopie.text(paare)} aus Angebot {nummer} übernommen."
+        self.rueckgaengig_anbieten(text)
+        return len(paare)
+
+    def _kopien_schreiben(self, quelle_id, paare, saetze, staffeln, original):
+        """Teil von _kopien_einfuegen: Positionen, Netze, Satz in 3D und Staffeln schreiben, dann (original = ID)
+        hinter das Original einordnen. Ergebnis: neue Positions-IDs."""
+        netze = self.db.netze(quelle_id)
+        neue = []
+        for alt, w in paare:
+            pid = self.db.position_neu(self.id, w)
+            neue.append(pid)
+            if alt.get("id") in netze:
+                self.db.netz_speichern(pid, netze[alt["id"]])
+        daten = self.db.satz_daten(quelle_id)
+        for alt_name, neu_name in saetze.items():
+            if daten.get(alt_name):
+                self.db.satz_daten_speichern(self.id, neu_name, daten[alt_name])
+        if staffeln:
+            for stufe, mengen in position_kopie.staffeln_kopieren(self.db.staffeln(quelle_id),
+                                                                  self.db.staffel_stufen(quelle_id), paare, saetze):
+                sid = self.db.staffel_stufe_neu(self.id, stufe)
+                for z in mengen:
+                    self.db.staffel_neu(self.id, dict(z, stufe_id=sid))
+        self.neu_laden()
+        if original is not None:
+            ix = {p["id"]: k for k, p in enumerate(self.positionen)}
+            folge = position_kopie.folge_dahinter(self.positionen, neue, ix[original])
+            self.db.positionen_ordnen(self.id, [(pid, self.positionen[ix[pid]].get("pos")) for pid in folge])
+            self.neu_laden()
+        return neue
 
     def _baugruppen_kosten(self):
         """Kostenbalken je Schweißbaugruppe für die Übersicht (D2): Titel, Kostenteile und größte Posten je Baugruppe."""

@@ -1900,6 +1900,7 @@ class Hauptfenster(QMainWindow):
                                    ("kalkulation", "Kalkulation (PDF)", ["Ctrl+Shift+K"]),
                                    ("staffeln", "Staffelpreise rechnen", ["F8"]),
                                    ("stueck", "Stückzahl ändern …", ["Ctrl+Shift+S"]),
+                                   ("duplizieren", "Position duplizieren", ["Ctrl+Shift+D"]),
                                    ("hoch", "Position nach oben", ["Alt+Up"]),
                                    ("runter", "Position nach unten", ["Alt+Down"]),
                                    ("material", "Materialanfrage (E-Mail) …", ["Ctrl+Shift+M"]),

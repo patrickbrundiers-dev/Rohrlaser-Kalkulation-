@@ -1,7 +1,8 @@
 """Fenster 'Neue Position': zuerst der Typ (Patrick 22.10.2026), danach öffnet das Angebot das passende Fenster:
 Rohr / Profil = Schneidweg-Rechner mit Kopfzeile (Artikel, Profil, Werkstoff, Länge, Stückzahl), Blech / Kantteil =
 Schnellanlage eines Zukaufartikels (Kategorie Blechteile), Aus DXF = DXF-Import (Bleche: dxf_import_dialog, Rohrzeichnung: Rohr-Editor), Zukaufteil = dieselbe Schnellanlage ohne Kategorie,
-Schweißbaugruppe = Editor der Baugruppe (baugruppe_dialog), Rahmen-Assistent = rahmen_dialog, leere
+Schweißbaugruppe = Editor der Baugruppe (baugruppe_dialog), Rahmen-Assistent = rahmen_dialog, Aus anderem
+Angebot = Positionen übernehmen (position_kopie_dialog), leere
 Zeile = wie bisher alles in der Positionsliste eintragen."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QPushButton, QVBoxLayout
@@ -10,6 +11,7 @@ ROHR, BLECH, ZUKAUF, LEER = "Rohr / Profil", "Blech / Kantteil", "Zukaufteil", "
 DXF = "Aus DXF (Blech oder Rohr)"
 SCHWEISS = "Schweißbaugruppe"
 RAHMEN = "Rahmen-Assistent"
+UEBERNEHMEN = "Aus anderem Angebot"
 PDF = "Aus PDF-Zeichnung (Test)"       # nur mit Einstellung pdf_zeichnung = ja (Plan W7 Stufe 1)
 TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und Stückzahl, dazu Enden, Bohrungen und "
                "Konturen im Schneidweg-Rechner mit Skizze.",
@@ -26,11 +28,15 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
                    "Vorrichtungen. Markierte Positionen sind als Einzelteile vorgewählt.",
          RAHMEN: "Rechteckrahmen oder Quader aus Quadrat-, Rechteck- oder Rundrohr ohne STEP-Datei: Maße, Profil "
                  "und Ecken (Gehrung, stumpf, gesteckt) eingeben, die Rohre werden ein Satz mit 3D.",
+         UEBERNEHMEN: "Positionen aus einem anderen Angebot (auch eines Kollegen) als neue Positionen kopieren: mit "
+                      "allen Eingaben, Technik, Zusatzarbeiten, Baugruppe bzw. Satz und 3D; der Preis wird neu "
+                      "kalkuliert.",
          LEER: "Leere Zeile in der Positionsliste, alle Werte von Hand eintragen."}
 
 
 class TypDialog(QDialog):
-    """Auswahl des Typs; nach OK steht er in self.typ (ROHR, BLECH, DXF, PDF, ZUKAUF, SCHWEISS, RAHMEN oder LEER);
+    """Auswahl des Typs; nach OK steht er in self.typ (ROHR, BLECH, DXF, PDF, ZUKAUF, SCHWEISS, RAHMEN,
+    UEBERNEHMEN oder LEER);
     pdf: Typ PDF anbieten (Einstellung pdf_zeichnung); ohne: diese Typen nicht anbieten (Funktion ausgeschaltet)."""
 
     def __init__(self, parent=None, pdf=False, ohne=()):
