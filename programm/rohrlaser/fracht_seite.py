@@ -1,8 +1,8 @@
-"""Reiter Frachtkosten: Rechner und Pflege der Frachtdaten in sieben Unterreitern.
+"""Frachtkosten: Rechner (Reiter Frachtkosten) und sechs Pflegeseiten (Einstellungen → Fracht, seit 0.9.211).
 
-1 Fracht kalkulieren (frei), 2 Frachtzonen und Postleitzahlen, 3 Tarifverwaltung, 4 Paletten und Ladehilfsmittel,
-5 Zuschläge, 6 Dienstleister und Kundentarife, 7 Historie und Einstellungen. Die Unterreiter 2–7 öffnen mit dem
-Passwort der Einstellungen (einmal geöffnet gilt es für beide Reiter, bis 'Einstellungen sperren').
+Reiter Frachtkosten: Fracht kalkulieren (frei). Einstellungen → Fracht: Frachtzonen und Postleitzahlen,
+Tarifverwaltung, Paletten und Ladehilfsmittel, Zuschläge, Dienstleister und Kundentarife, Historie und Einstellungen;
+die ändert nur der Admin, solange der Bereich Frachtkosten Admin-Schutz hat (admin_schutz.py).
 
 Ab 1024 × 700 Pixel ohne waagrechtes Scrollen bedienbar: im schmalen Fenster rutscht das Ergebnis des Rechners unter
 die Eingabe.
@@ -15,7 +15,7 @@ from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QScrollArea, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget,
+    QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
     QTextBrowser, QVBoxLayout, QWidget)
 
 from . import fracht, hilfe
@@ -112,58 +112,6 @@ def _zahl(text):
         return zahl_aus_text(t)
     except ValueError:
         return None
-
-
-class Gesperrt(QWidget):
-    """Pflegebereich hinter dem Passwort der Einstellungen."""
-
-    def __init__(self, fenster, inhalt):
-        super().__init__()
-        self.f, self.inhalt = fenster, inhalt
-        self.stapel = QStackedWidget()
-        sperre = QWidget()
-        self.passwort = QLineEdit()
-        self.passwort.setEchoMode(QLineEdit.Password)
-        self.passwort.setPlaceholderText("Passwort")
-        self.passwort.setMaximumWidth(220)
-        self.passwort.returnPressed.connect(self.oeffnen)
-        knopf = QPushButton("Frachtdaten öffnen")
-        knopf.clicked.connect(self.oeffnen)
-        self.fehler = QLabel()
-        self.fehler.setStyleSheet("color: #B42318;")
-        zeile = QHBoxLayout()
-        zeile.addWidget(self.passwort)
-        zeile.addWidget(knopf)
-        zeile.addStretch(1)
-        text = QLabel("<h3>Frachtdaten</h3><p>Zonen, Tarife, Ladehilfsmittel, Zuschläge, Dienstleister und die "
-                      "Historie sind mit dem Passwort der Einstellungen geschützt. Der Rechner im Unterreiter "
-                      "„Fracht kalkulieren“ ist frei.</p>")
-        text.setWordWrap(True)
-        ls = QVBoxLayout(sperre)
-        ls.addWidget(text)
-        ls.addLayout(zeile)
-        ls.addWidget(self.fehler)
-        ls.addStretch(1)
-        self.stapel.addWidget(sperre)
-        self.stapel.addWidget(inhalt)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(self.stapel)
-
-    def oeffnen(self):
-        ok = self.f.bereich.oeffnen(self.passwort.text())
-        self.passwort.clear()
-        self.fehler.setText("" if ok else "Passwort falsch.")
-        self.neu_laden()
-        return ok
-
-    def neu_laden(self):
-        if self.f.bereich.gesperrt():
-            self.stapel.setCurrentIndex(0)
-            return
-        self.stapel.setCurrentIndex(1)
-        if hasattr(self.inhalt, "neu_laden"):
-            self.inhalt.neu_laden()
 
 
 def _box(titel, w):
@@ -1198,9 +1146,12 @@ class HistorieSeite(QWidget):
 
 # ------------------------------------------------------------------ Reiter
 class FrachtBereich(QWidget):
-    """Hauptreiter Frachtkosten mit sieben Unterreitern."""
+    """Hauptreiter Frachtkosten: nur der Rechner (Fracht kalkulieren). Die sechs Pflegeseiten (Zonen, Tarife, Paletten,
+    Zuschläge, Dienstleister, Historie und Einstellungen) stehen seit 0.9.211 unter Einstellungen → Fracht
+    (Patrick 30.10.2026); Knopf „Frachtdaten pflegen …“ springt dorthin. Admin-Schutz: Bereich admin_schutz.FRACHT."""
 
     def __init__(self, fenster):
+        from .admin_schutz import FRACHT
         super().__init__()
         self.f = fenster
         self.rechner = RechnerSeite(fenster)
@@ -1212,33 +1163,39 @@ class FrachtBereich(QWidget):
         self.dienstleister = DienstleisterSeite(fenster, self.tarife)
         self.historie = HistorieSeite(fenster)
         self.pflege = [self.zonen, self.tarife, self.lht, self.zuschlaege, self.dienstleister, self.historie]
-        self.gesperrt = {s: Gesperrt(fenster, s) for s in self.pflege}
-        self.unter = QTabWidget()
-        self.unter.setStyleSheet("QTabBar::tab { padding: 4px 7px; }")      # alle sieben ab 1024 px sichtbar
-        self.unter.addTab(self.rechner, self.rechner.titel)
-        for s in self.pflege:
-            self.unter.addTab(self.gesperrt[s], s.titel)
-        # alle sieben immer sichtbar, unabhängig von der Schrift: zu lange Titel werden gekürzt (voller Titel im Tooltip)
-        self.unter.setUsesScrollButtons(False)
-        self.unter.setElideMode(Qt.ElideRight)
-        for i in range(self.unter.count()):
-            self.unter.setTabToolTip(i, self.unter.tabText(i))
-        self.unter.currentChanged.connect(lambda _: self.neu_laden())
+        for s, k in zip(self.pflege, ("zonen", "tarife", "lht", "zuschlaege", "dienstleister", "historie")):
+            s.schluessel = f"fracht_{k}"        # Navigation der Einstellungen (einstellungen_nav.GRUPPEN, Fracht)
+            s.schutz_bereich = FRACHT           # alle sechs zusammen unter dem Admin-Schutz der Frachtkosten
+        oben = QHBoxLayout()
+        oben.setContentsMargins(8, 4, 8, 0)
+        hinweis = QLabel("Zonen, Tarife, Paletten, Zuschläge, Dienstleister und Historie stehen unter "
+                         "Einstellungen → Fracht.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet("color: #5F6B7A;")
+        self.pflegen_knopf = QPushButton("Frachtdaten pflegen …")
+        self.pflegen_knopf.setToolTip("Einstellungen → Fracht öffnen (Frachtzonen und Postleitzahlen)")
+        self.pflegen_knopf.clicked.connect(lambda: self.zeigen(self.zonen))
+        oben.addWidget(hinweis, 1)
+        oben.addWidget(self.pflegen_knopf)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(self.unter)
+        lay.addLayout(oben)
+        lay.addWidget(self.rechner, 1)
 
     def zeigen(self, seite):
-        self.f.reiter.setCurrentWidget(self)
-        self.unter.setCurrentWidget(self.gesperrt.get(seite, seite))
-        self.neu_laden()
+        """Rechner im Reiter Frachtkosten, eine Pflegeseite unter Einstellungen → Fracht."""
+        if seite is self.rechner or seite is self:
+            self.f.reiter.setCurrentWidget(self)
+            self.rechner.neu_laden()
+            return
+        self.f.reiter.setCurrentWidget(self.f.bereich)
+        self.f.bereich.zeigen(seite)
 
     def neu_laden(self):
-        w = self.unter.currentWidget()
-        if hasattr(w, "neu_laden"):
-            w.neu_laden()
+        self.rechner.neu_laden()
 
     def neu_laden_alle(self):
         self.rechner.neu_laden()
-        for g in self.gesperrt.values():
-            g.neu_laden()
+        for s in self.pflege:
+            if hasattr(s, "neu_laden"):
+                s.neu_laden()

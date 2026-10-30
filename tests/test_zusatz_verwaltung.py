@@ -374,6 +374,7 @@ assert [{k: v for k, v in z.items() if k not in NEU} for z in nachher] == vorher
 assert all(z[n] is None for z in nachher for n in NEU)
 assert all(rechnen.zusatz_preis(z)["preis"] == z["preis"] for z in nachher if z["art"] != "€/h")   # €/h (Schweißen) gibt es erst ab 0.8.36
 f = Hauptfenster(d, tmp / "alt", stumm=True)
+f.bereich.oeffnen(d.einstellung("passwort"))     # Admin-Schutz: Zusatzarbeiten ändert nur der Admin
 assert all(x == "aktiv" for x in [f.zusatz.zellen(z)["status"] for z in f.zusatz.daten])
 fo = f.zusatz.bearbeiten(nachher[0]["id"])
 assert fo.name.text() == nachher[0]["name"] and fo.preis.text() == "0,65" and fo.mindest.text() == "120,00"
