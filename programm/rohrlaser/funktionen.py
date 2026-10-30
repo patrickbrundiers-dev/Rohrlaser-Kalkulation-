@@ -45,6 +45,8 @@ FUNKTIONEN = (
              "Spalten Teuerungszuschlag bei den Werkstoffen (eingetragene Zuschläge bleiben sichtbar und gelten)"),
     Funktion("funktion_muster", "Musterteile",
              "Häkchen „Muster“ in den Editoren und „Muster an/aus“ (vorhandene Muster bleiben)"),
+    Funktion("funktion_abruf", "Abruf-/Rahmenangebote",
+             "Haken „Abruf-/Rahmenangebot“ im Angebotskopf (vorhandene Abruf-Angebote bleiben)"),
 )
 FUNKTION = {f.name: f for f in FUNKTIONEN}
 
