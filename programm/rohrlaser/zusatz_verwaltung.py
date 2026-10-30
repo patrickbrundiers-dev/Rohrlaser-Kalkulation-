@@ -913,6 +913,9 @@ class ZusatzVerwaltung(QWidget):
         return True
 
     def _oeffnen(self, z, zeilen_id, titel):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):           # Admin-Schutz: ansehen ja, ändern nur als Admin
+            return None
         if not self._verwerfen_ok():
             return None
         self._formular_zu()
@@ -975,6 +978,9 @@ class ZusatzVerwaltung(QWidget):
         return self._oeffnen(kopie, None, f"Kopie von {z.get('name')} (wird erst mit Speichern angelegt)")
 
     def aktiv_umschalten(self, zeilen_id=None):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):           # Admin-Schutz: ansehen ja, ändern nur als Admin
+            return None
         z = self.zeile(zeilen_id or self.gewaehlt())
         if not z:
             return
@@ -986,6 +992,9 @@ class ZusatzVerwaltung(QWidget):
     def loeschen(self, zeilen_id=None):
         """Sicherheitsabfrage; wird die Zusatzarbeit in Angeboten verwendet, wird Deaktivieren empfohlen.
         Ergebnis: 'gelöscht', 'deaktiviert' oder None."""
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):           # Admin-Schutz: ansehen ja, ändern nur als Admin
+            return None
         z = self.zeile(zeilen_id or self.gewaehlt())
         if not z:
             self.meldung("Bitte zuerst eine Zusatzarbeit markieren.", fehler=True)

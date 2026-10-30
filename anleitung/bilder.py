@@ -217,14 +217,19 @@ def main(ziel):
                                  lieferant="Beispiel-Lieferant", bemerkung="geschnitten nach Werkstücklängen"))
     f.alles_neu_laden()
 
-    # 3) Einstellungen gesperrt, dann mit Passwort geöffnet; Stammdaten als Unterreiter (Kunden eigener Reiter)
+    # 3) Admin-Schutz: geschützte Seite für Nicht-Admins, dann als Admin freigeschaltet; Stammdaten als Unterreiter
     f.bereich.sperren()
     f.reiter.setCurrentWidget(f.bereich)
+    f.bereich.zeigen(next(s for s in f.einstellungen.seiten if s.schluessel == "e_zuschlaege"))
     QApplication.processEvents()
-    foto.foto("einstellungen_gesperrt", f, [(tab_rect(f.reiter, "Einstellungen"), 1), (f.bereich.passwort, 2),
-                                            (knopf(f.bereich, "Einstellungen öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 760, f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("einstellungen_gesperrt", f, [(f.bereich.leiste.text, 1), (f.bereich.passwort, 2),
+                                            (knopf(f.bereich, "Als Admin freischalten …"), 3)],
+              ausschnitt=QRect(0, 0, f.width(), f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 260))
     f.bereich.oeffnen(db.einstellung("passwort"))
+    f.bereich.zeigen(f.admin_seite)
+    QApplication.processEvents()
+    foto.foto("admin_schutz", f, [(f.admin_seite.haken["e_zuschlaege"], 1),
+                                  (knopf(f.admin_seite, "Vorschlag wiederherstellen"), 2)])
     # Schweiß-Stammdaten werden leer ausgeliefert: wie mit dem Knopf 'Richtwerte laden' füllen
     next(s for s in f.seiten if s.t.name == "schweissverfahren").schweiss_richtwerte(bestaetigt=True)
     for seite in f.seiten:
@@ -317,7 +322,7 @@ def main(ziel):
     f.zeigen(f.einstellungen)
     QApplication.processEvents()
     foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Funktionen"), 1),
-                                   (knopf(f.bereich, "Einstellungen sperren"), 2)])
+                                   (knopf(f.bereich, "Admin sperren"), 2)])
     funktionen_seite = f.einstellungen.seiten[0]
     foto.foto("einstellungen_funktionen", f, [(funktionen_seite.felder["funktion_blech"], 1)])
     zuschlaege = f.einstellung_zeigen("gewinn")
@@ -1208,9 +1213,9 @@ def main(ziel):
     f.bereich.sperren()
     fb.zeigen(fb.zonen)
     bereit()
-    foto.foto("fracht_gesperrt", f, [(tab_rect(f.reiter, "Frachtkosten"), 1), (fb.gesperrt[fb.zonen].passwort, 2),
-                                     (knopf(fb.gesperrt[fb.zonen], "Frachtdaten öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 820, fb.gesperrt[fb.zonen].passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("fracht_gesperrt", f, [(f.bereich.unter.eintrag_rect(f.bereich.unter.tabText(
+                                         f.bereich.unter.indexOf(fb.zonen))), 1), (f.bereich.passwort, 2),
+                                     (knopf(f.bereich, "Als Admin freischalten …"), 3)])
     f.bereich.oeffnen(db.einstellung("passwort"))
     db.einstellung_setzen("absender_plz", "34117")
     fb.zeigen(fb.rechner)
@@ -1226,7 +1231,7 @@ def main(ziel):
     r.leistungen["AVIS-BSP"][0].setChecked(True)
     r.rechnen()
     bereit()
-    foto.foto("fracht_rechner", f, [(tab_rect(fb.unter, "Fracht kalkulieren"), 1), (r.plz, 2), (r.zone, 3),
+    foto.foto("fracht_rechner", f, [(fb.pflegen_knopf, 1), (r.plz, 2), (r.zone, 3),
                                     (r.netto, 4), (r.lht_tabelle, 5), (knopf(r, "Packvorschlag"), 6),
                                     (r.leistungen_box, 7), (r.anzeige, 8), (r.speichern_knopf, 9)])
     r.speichern()
