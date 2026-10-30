@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.210", "<b>Lizenzpflicht ab 20.11.2026</b> ([[lesemodus]]): Bis zum 19.11. zeigt das Programm ohne gültige "
+                "Lizenz nur den Hinweis mit dem Termin, ab dem 20.11.2026 schaltet es in den Lesemodus (ansehen, "
+                "exportieren, sichern und Updates gehen weiter, Daten bleiben erhalten). <b>Schutz der "
+                "Programmdateien</b>: Beim Start prüft das Programm seine eigenen Dateien gegen die signierte "
+                "Dateiliste des Updates; sind sie verändert, gilt dasselbe wie ohne Lizenz. Bricht die Lizenzprüfung "
+                "unerwartet ab, startet das Programm ab dem 20.11. im Lesemodus statt ohne Prüfung. Das "
+                "Lizenz-Werkzeug liegt nicht mehr im öffentlichen Download.",
+     "Lizenzpflicht ab 20.11.2026; Programm prüft beim Start seine eigenen Dateien"],
     ["0.9.209", "<b>STEP-Export gegen die Mutter-STEP geprüft</b> ([[step_mutter]]): Nach jedem STEP speichern "
                 "(Rohr-Editor, Blech-Editor, Schweißbaugruppe, Satz in 3D) vergleicht das Programm jeden Körper mit "
                 "dem Körper der eingelesenen Kundendatei – genau gleich, örtlich geändert (Schlitze/Nasen der "

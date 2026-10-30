@@ -8326,7 +8326,7 @@ def kapitel_lizenz(i):
         ["Gültig", "mehr als 30 Tage Restlaufzeit", "alles frei"],
         ["Läuft bald ab", "30 Tage oder weniger", "alles frei, gelber Hinweis unten rechts; ab 7 Tagen auch beim Start"],
         ["Kulanz", "bis 14 Tage nach Ablauf", "alles frei, roter Hinweis mit dem Datum des Lesemodus"],
-        ["Lesemodus", "länger abgelaufen, keine oder falsche Lizenz, gesperrt, Uhr zurückgestellt",
+        ["Lesemodus", "länger abgelaufen, keine oder falsche Lizenz, gesperrt, Uhr zurückgestellt, Programmdateien verändert (ab 20.11.2026)",
          "nur ansehen, mit Begründung unten rechts"]], [28, 55, 95])
     i.text("Im <b>Lesemodus</b> lassen sich alle Angebote, Positionen, Kalkulationen und Stammdaten ansehen. Daten "
            "exportieren, Sicherungen anlegen und wiederherstellen, nach Updates suchen und eine Lizenz laden geht "
@@ -8339,9 +8339,13 @@ def kapitel_lizenz(i):
             "Beim Update-Check holt das Programm die Sperrliste mit. Eine gesperrte Lizenz (z. B. bei einem verlorenen "
             "Laptop) geht dann in den Lesemodus.",
             "Updates gehen auch mit abgelaufener Lizenz ([[updates]]).",
-            "Einführung: Zuerst zeigt das Programm ohne Lizenz nur einen Hinweis (<i>Demnächst braucht das Programm "
-            "eine Lizenz</i>) und sperrt nichts. Erst eine spätere Version schaltet den Lesemodus ein; bis dahin bitte "
-            "die Rechner-ID an Patrick senden.")
+            "Einführung: Bis zum 19.11.2026 zeigt das Programm ohne Lizenz nur einen Hinweis (<i>Ab 20.11.2026 braucht "
+            "das Programm eine Lizenz</i>) und sperrt nichts. Ab dem <b>20.11.2026</b> gilt der Lesemodus; bis dahin "
+            "bitte die Rechner-ID an Patrick senden. Eine zurückgestellte Uhr verschiebt diesen Tag nicht.",
+            "<b>Programmdateien verändert</b>: Beim Start vergleicht das Programm seine eigenen Dateien mit der "
+            "signierten Dateiliste des letzten Updates. Wurde eine davon ausgetauscht oder gelöscht, geht es in den "
+            "Lesemodus (Grund unten rechts). Abhilfe: das Programm neu installieren bzw. das ZIP neu entpacken, die "
+            "Daten bleiben dabei erhalten. Ältere Installationen bekommen die Signatur mit dem nächsten Update.")
 
 
 def kapitel_fragen(i):

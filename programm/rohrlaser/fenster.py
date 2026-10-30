@@ -2199,6 +2199,11 @@ class Hauptfenster(QMainWindow):
         ohne Passwort), Aufdruck TESTVERSION, im Lesemodus ändernde Aktionen aus."""
         z = self.lizenz.zustand if self.lizenz else None
         if z is None:
+            if self.db.nur_lesen:           # Lizenzprüfung fehlgeschlagen (Stufe 2): Lesemodus mit Grund anzeigen
+                self.lizenz_hinweis.setText(f"Lesemodus: {self.db.nur_lesen}")
+                self.lizenz_hinweis.setStyleSheet("background: #FDECEA; color: #B42318; padding: 1px 8px;")
+                self.lizenz_hinweis.setVisible(True)
+                self.lesemodus_anwenden()
             return
         farbe = "rot" if z.nur_lesen else z.farbe
         self.lizenz_hinweis.setText(z.hinweis if not z.nur_lesen else f"Lesemodus: {z.nur_lesen}")
