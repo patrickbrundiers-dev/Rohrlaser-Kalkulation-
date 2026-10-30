@@ -53,6 +53,7 @@ TESTS = [
     ("test_step_importfehler.py", QT),
     ("test_step_pruefung.py", QT),
     ("test_step_editor_wie_step.py", QT),
+    ("test_rohr_aufgeschnitten.py", QT),
     ("test_gehrung_2d.py", QT),
     ("test_gehrung_2d_umstellen.py", QT),
     ("test_step_robust.py", QT),

@@ -739,7 +739,7 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
         # die Achse aus drei gleichen Querschnitten sicher ist
         dicht = _regelquerschnitt(lok, zmin, zmax, REGEL_DICHT)
         if len(dicht) > len(beste):
-            return dicht
+            beste = dicht       # weiter unten trotzdem prüfen, ob es nur der offene Querschnitt eines Fensters ist
     if len(beste[0][1]) == 1 and n < REGEL_DICHT and any(
             len(_schnitt(lok, zmin + f * (zmax - zmin)) or ()) >= 2 for f in (0.01, 0.03, 0.97, 0.99)):
         # offener Querschnitt: auch ein Rohr mit einem langen Fenster (Patrick 27.10.2026, größere Ausschnitte) – alle

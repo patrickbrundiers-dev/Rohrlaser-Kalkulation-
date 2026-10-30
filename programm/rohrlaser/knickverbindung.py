@@ -325,10 +325,14 @@ TOL_V = 0.03            # Anteil: Schnittlänge eines V-Ausschnitts gegen die Fo
 
 def v_ausschnitte(m):
     """Gestreckt gezeichneter Knickrahmen: V-Ausschnitte eines geraden Quadrat- oder Rechteckrohrs = durchgehende
-    Sonderkonturen durch drei Wände (die vierte, die Stegwand, bleibt). Ergebnis [dict(x, breite, steg,
+    Sonderkonturen durch drei Wände (die vierte, die Stegwand, bleibt), die Seitenwände bis an die Stegwand
+    durchgeschnitten (Spitzen an deren Innenseite). Ein großer Ausschnitt, der die Seitenwände nur teilweise wegnimmt
+    (Patrick 30.10.2026: Rechteckrohr mit Trapez-Ausschnitt), ist kein V. Ergebnis [dict(x, breite, steg,
     schnittlaenge)] nach x."""
     if m.get("profilform") not in kn.FORMEN or m.get("biegerohr") or m.get("knick_schenkel"):
         return []
+    profil = dict(form=m.get("profilform"), a=_z(m.get("abm_a")), b=_z(m.get("abm_b")) or _z(m.get("abm_a")),
+                  wand=_z(m.get("wandstaerke")))
     try:
         liste = json.loads(m.get("konturen_liste") or "[]")
     except (TypeError, ValueError):
@@ -346,8 +350,18 @@ def v_ausschnitte(m):
             continue
         # Breite längs der Achse: aus dem abgewickelten Umriss (z-Ausdehnung); 'breite' der Messung ist die Seite des
         # kleinsten Rechtecks und liegt bei der rautenförmigen Abwicklung eines V über drei Wände schräg
-        zs = [p[1] for p in d.get("umriss") or () if isinstance(p, (list, tuple)) and len(p) == 2]
+        um = [p for p in d.get("umriss") or () if isinstance(p, (list, tuple)) and len(p) == 2]
+        zs = [p[1] for p in um]
         breite = max(zs) - min(zs) if len(zs) >= 3 else float(d["breite"])
+        if len(um) >= 3:
+            # Umfang des Umrisses: Gegenwand + beide Seitenwände bis an die Innenseite der Stegwand (b + 2 · (h − s))
+            try:
+                b, h, s = kn.querschnitt(profil, SEITEN[(set(SEITEN) - waende).pop()])
+            except ValueError:
+                continue
+            ss = [_z(p[0]) for p in um]
+            if max(ss) - min(ss) < b + 2 * (h - s) - max(2 * s, 3.0):
+                continue
         out.append(dict(x=float(d["z"]), breite=breite, steg=SEITEN[(set(SEITEN) - waende).pop()],
                         schnittlaenge=_z(d.get("schnittlaenge"))))
     return sorted(out, key=lambda v: v["x"])

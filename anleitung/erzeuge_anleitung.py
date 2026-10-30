@@ -2353,6 +2353,12 @@ def kapitel_step(i):
             "Rand), ist es ein Rohr mit Ausschnitt: Rund-, Quadrat- oder Rechteckrohr, der Ausschnitt als "
             "Innenkontur <b>genau wie in der STEP</b>. Es kommt nichts dazu, auch ein Ring schmaler als 2 mm bleibt "
             "so schmal; der Hinweis lautet <i>Enden in der STEP geschlossen</i>.",
+            "<b>Aufgeschnittene Rohre</b> (großer Ausschnitt über Oberseite und Seitenwände, Trapez- oder "
+            "Schrägschnitt, Schlitze an der Kante, Nase am Ende, Oberseite bis auf einen Ring an einem Ende weg): "
+            "Sie bleiben Quadrat- bzw. Rechteckrohr. Die Rohrachse kommt aus den geschlossenen Querschnitten, nicht "
+            "aus dem offenen Stück dazwischen; der Ausschnitt steht als Sonderkontur, reicht er bis ans Ende, gehört "
+            "er zum Ende (<i>komplex (Umriss wie STEP)</i> im Teile-Editor). Konturen und Enden liegen im Editor "
+            "genau wie in der STEP.",
             "<b>Spalt bis 2 mm</b>: Stoßen die Kanten mit einem schmalen Spalt aneinander, wird der Spalt ganz "
             "geschlossen (kein Fenster); Art <i>… – Spalt geschlossen</i>.",
             "<b>Vorbelegung</b>: immer als Rohr, auch wenn ein U- oder C-Profil der Stammdaten passt; als Kantteil "
@@ -3210,8 +3216,9 @@ def kapitel_optimieren(i):
             "Laufrichtung, Freistich, Knickzugabe, K-Faktor und Innenwand schräg. Lösen gibt es hier nicht, der "
             "Körper ist ja ein Teil.",
             "<b>Gestreckt gezeichnet</b> (gerades Rohr mit V-Ausschnitten, Rahmen vor dem Knicken): Jeder Ausschnitt "
-            "durch drei Wände, der die vierte (Stegwand) stehen lässt und dessen Schnittlänge zur Formel passt, wird "
-            "ein Knick. Knickwinkel aus der Breite des V, Schenkel so, dass die Knicke an den gezeichneten Stellen "
+            "durch drei Wände, der die vierte (Stegwand) stehen lässt, die Seitenwände bis an die Stegwand "
+            "durchschneidet und dessen Schnittlänge zur Formel passt, wird ein Knick. Ein großer Ausschnitt, der die "
+            "Seitenwände nur teilweise wegnimmt (z. B. Trapez), bleibt eine Sonderkontur genau wie in der STEP. Knickwinkel aus der Breite des V, Schenkel so, dass die Knicke an den gezeichneten Stellen "
             "liegen; die gestreckte Länge bleibt wie gezeichnet. Bearbeiten danach im Schneidweg-Rechner "
             "([[knickrahmen]]).",
             "<b>Nicht erkannt</b> werden ein räumlicher Rahmen, unterschiedliche Eckwinkel oder Ecken mit Spalt; sie "
