@@ -22,6 +22,10 @@ Dach, V-Kerbe, Zapfen, Rundkerbe, Gabel, Stufe, zwei Ausklinkungen, Gehrung mit 
 Steckschlitz, Fischmaul auf Rundrohr gerade/schräg/mit Versatz/gleicher Ø, Rechteck- und Quadratrohr auf Rundrohr,
 beide Enden verdreht): alle wie in der STEP, kein Fehler gefunden. Die Auswahl E… sichert sie; gekrümmte Enden (Sattel,
 Rundrohr-Gehrung) bis TOL_ENDE, weil beide Linien Netze sind (Sehnenfehler).
+K6 Rechteck mit Eckradien (dritte Probe, Patrick 31.10.2026 „Noch weiter Konturen finden und verbessern“; 18 Teile,
+   alle wie in der STEP): ein Rechteckausschnitt mit R2/R3/R5 an den Ecken wurde Sonderkontur (nicht mit Maßen
+   bearbeitbar). Jetzt Zeile Rechteck mit Eckradius aus der Schnittlänge (step._eckradius), wenn der Umriss damit auf
+   0,05 mm passt; über eine Ecke bleibt es Sonderkontur.
 K5 Gegenprobe beim Übernehmen (step_gegenprobe) auch für offene Profile (L, U, C, Flachstahl): Modell an Ende A
    ausgerichtet; eine um 2 mm verschobene Kontur gibt den Hinweis.
 
@@ -67,6 +71,25 @@ def langloch(p, achse, laenge, breite, richtung, tiefe=60):
     return BRepAlgoAPI_Fuse(t, k).Shape()
 
 
+def rrect(x0, y0, z0, dx, dy, dz, r, achse="y"):
+    """Quader mit gerundeten Kanten parallel zur achse (Werkzeug für ein Rechteck mit Eckradius)."""
+    from OCP.BRepAdaptor import BRepAdaptor_Curve
+    from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
+    from OCP.TopAbs import TopAbs_EDGE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
+    b = box(x0, y0, z0, dx, dy, dz)
+    f, ex = BRepFilletAPI_MakeFillet(b), TopExp_Explorer(b, TopAbs_EDGE)
+    i = "xyz".index(achse)
+    while ex.More():
+        e = TopoDS.Edge(ex.Current())
+        d = BRepAdaptor_Curve(e).Line().Direction()
+        if abs(abs((d.X(), d.Y(), d.Z())[i]) - 1) < 1e-9:
+            f.Add(r, e)
+        ex.Next()
+    return f.Shape()
+
+
 def teile():
     f = {}
     re = et.kastenrohr(80, 40, 3, 600, 5)
@@ -78,6 +101,12 @@ def teile():
     f["K2_RR_Bohrung_aussermittig_durch"] = et.cut(rr, et.zylinder((10, 40, 350), (0, -1, 0), 8, 80))
     f["K3_RE_Schraegbohrung_30"] = et.cut(re, dreh(et.zylinder((0, 30, 300), (0, -1, 0), 12, 20), 30, (1, 0, 0),
                                                    (0, 20, 300)))
+    # K6 Rechteck mit Eckradius: oben längs, oben quer, Seitenwand, im Raum gedreht; über die Ecke bleibt Sonderkontur
+    f["K6a_RE_Rechteck_R3"] = et.cut(re, rrect(-15, 10, 200, 30, 20, 50, 3))
+    f["K6b_RE_Rechteck_R5_quer"] = et.cut(re, rrect(-25, 10, 300, 50, 20, 20, 5))
+    f["K6c_RE_Rechteck_R2_Seite"] = et.cut(re, rrect(35, -10, 420, 10, 20, 40, 2, "x"))
+    f["K6d_RE_im_Raum_Rechteck_R3"] = et.drehe_beliebig(et.cut(re, rrect(-15, 10, 200, 30, 20, 50, 3)))
+    f["K6e_RE_Rechteck_R3_Ecke"] = et.cut(re, rrect(25, 5, 300, 30, 30, 40, 3, "z"))
     # waren schon richtig, bleiben so (Auswahl der Probe)
     f["R01_RE_Langloch_laengs"] = et.cut(re, langloch((0, 20, 200), (0, -1, 0), 60, 12, (0, 0, 1)))
     f["R02_RE_Langloch_Seite_schraeg"] = et.cut(re, langloch((40, 0, 300), (-1, 0, 0), 40, 8,
@@ -144,7 +173,8 @@ ENDEN = {"E01": ("Gehrung", "Gehrung"), "E03": ("Gehrung", "Gehrung"),
 GEKRUEMMT = ("E09", "E10", "E23", "E24", "E25", "E31", "E32", "E33", "E34", "E35", "E36", "R10")   # Sattel, Bögen
 
 
-SONDER = {"K1": "Sonderkontur", "K2": "Sonderkontur", "K3": "Sonderkontur"}
+SONDER = {"K1": "Sonderkontur", "K2": "Sonderkontur", "K3": "Sonderkontur", "K6e": "Sonderkontur"}
+ECKRADIUS = {"K6a": (50, 30, 3), "K6b": (20, 50, 5), "K6c": (40, 20, 2), "K6d": (50, 30, 3)}   # b längs, h, r
 
 
 def editor_pruefen(ms, d3, nur=None):
@@ -244,6 +274,13 @@ def grundform():
     re_ = [(-15, -5), (15, -5), (15, 5), (-15, 5)]
     assert step._grundform_abweichung(re_, "Rechteckausschnitt", 30, 10, True) < 1e-6
     assert step._grundform_abweichung([(y, x) for x, y in re_], "Rechteckausschnitt", 30, 10, False) < 1e-6
+    rr = [(7 + 3 * math.cos(math.radians(a)), 2 + 3 * math.sin(math.radians(a))) for a in range(0, 91, 5)]
+    rr += [(-x, y) for x, y in reversed(rr)]
+    rr += [(-x, -y) for x, y in rr]                 # Rechteck 20 × 10 mit R3
+    assert step._grundform_abweichung(rr, "Rechteckausschnitt", 20, 10, True) > 0.5
+    assert step._grundform_abweichung(rr, "Rechteckausschnitt", 20, 10, True, r=3) < 0.02
+    assert abs(step._eckradius(dict(laenge=20, breite=10, schnittlaenge=60 - (8 - 2 * math.pi) * 3)) - 3) < 1e-9
+    assert step._eckradius(dict(laenge=20, breite=10, schnittlaenge=60)) == 0
     assert abs(step._bohrung_ellipse(12, 30) - 6 * (1 / math.cos(math.radians(30)) - 1)) < 1e-9
     print("OK     Grundform-Vergleich Langloch/Rechteck/Ellipse")
 
@@ -270,6 +307,11 @@ def main():
             soll = SONDER.get(name.split("_")[0])
             if soll:
                 assert [z.get("art") for z in konturen] == [soll] * len(konturen), (name, konturen)
+            soll = ECKRADIUS.get(name.split("_")[0])
+            if soll:
+                assert len(konturen) == 1 and konturen[0].get("art") == "Rechteck", (name, konturen)
+                ist = tuple(float(konturen[0].get(x) or 0) for x in ("b", "h", "r"))
+                assert all(abs(i_ - s_) < 0.15 for i_, s_ in zip(ist, soll)), (name, ist)
         k3 = out["K3_RE_Schraegbohrung_30"][0][0]
         assert (k3.get("text") or "").startswith("schräge Bohrung Ø12 (30°)"), k3
         assert abs(float(k3["laenge"]) - 40.67) < 0.1, k3

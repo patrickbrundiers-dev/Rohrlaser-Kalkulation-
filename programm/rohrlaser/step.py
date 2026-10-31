@@ -1070,10 +1070,18 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
         umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess)) if mform == "Rundrohr" or mkasten else None
+        eck_r = 0
         if umriss and art in ("Langloch", "Rechteckausschnitt") and min(lage % 90, 90 - lage % 90) > SCHRAEG_LAGE:
             # schräg liegendes Langloch/Rechteck (z. B. 30° zur Achse, Patrick 28.10.2026): die Zeilen Langloch und
             # Rechteck kennen nur längs/quer – als Sonderkontur mit dem gemessenen Umriss, sonst bis 8 mm daneben
             art = "Sonderkontur"
+        elif umriss and art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite") and \
+                _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]), laengs) > GRUNDFORM_TOL \
+                and _eckradius(d) and _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]),
+                                                            laengs, r=_eckradius(d)) <= GRUNDFORM_TOL:
+            # Rechteck mit Eckradien (z. B. R3 gelasert/gefräst, Patrick 31.10.2026): Zeile Rechteck mit Radius statt
+            # Sonderkontur, bleibt im Editor mit Maßen bearbeitbar
+            eck_r = round(_eckradius(d), 1)
         elif umriss and art in ("Langloch", "Rechteckausschnitt") and d.get("laenge") and d.get("breite") and \
                 _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]), laengs) > GRUNDFORM_TOL:
             # Umriss ist kein echtes Langloch/Rechteck der Abwicklung (z. B. Langloch quer um ein Rundrohr: die
@@ -1137,7 +1145,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
         elif art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite"):
             lg, br = float(d["laenge"]), float(d["breite"])
-            k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
+            k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=eck_r)
         else:
             k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
         if umriss and mform == "Rundrohr" and d.get("winkel") is not None:
@@ -1193,17 +1201,21 @@ def _bohrung_ellipse(d, schraeg):
     return d / 2 * (1 / c - 1)
 
 
-def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5):
+def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
     """Größter Abstand zwischen dem gemessenen Umriss [[dx längs, ds am Umfang]] (um die Mitte) und dem Langloch bzw.
-    Rechteck lg × br der Abwicklung, in beide Richtungen [mm]. laengs: Längsrichtung entlang der Rohrachse."""
+    Rechteck lg × br (Eckradius r) der Abwicklung, in beide Richtungen [mm]. laengs: Längsrichtung entlang der
+    Rohrachse."""
     a, b = (lg / 2, br / 2) if laengs else (br / 2, lg / 2)      # Halbmaße in dx, ds
     pts = [(float(x), float(y)) for x, y in umriss]
-    if art == "Langloch":
-        r = min(a, b)
+    if art == "Langloch" or r > 0:
+        r = min(a, b) if art == "Langloch" else min(r, a, b)
         hx, hy = a - r, b - r
 
         def abst(x, y):
-            return abs(math.hypot(max(abs(x) - hx, 0.0), max(abs(y) - hy, 0.0)) - r)
+            ux, uy = abs(x) - hx, abs(y) - hy
+            if ux > 0 and uy > 0 or art == "Langloch":
+                return abs(math.hypot(max(ux, 0.0), max(uy, 0.0)) - r)
+            return abs(max(ux, uy) - r)                          # an den geraden Kanten des Rechtecks
         n = max(16, int(4 * (hx + hy + math.pi * r / 2) / schritt))
         soll = []
         for i in range(n):
@@ -1232,6 +1244,13 @@ def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5):
             best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
         return best
     return max(hin, max(zum_zug(x, y) for x, y in soll))
+
+
+def _eckradius(d):
+    """Eckradius eines Rechteckausschnitts aus Hüllmaßen und Schnittlänge: 2 · (L + B) − (8 − 2π) · r [mm]."""
+    lg, br, sl = float(d["laenge"]), float(d["breite"]), float(d.get("schnittlaenge") or 0)
+    r = (2 * (lg + br) - sl) / (8 - 2 * math.pi) if sl else 0.0
+    return min(r, lg / 2, br / 2) if r > 0.2 else 0.0
 
 
 def _umfang_form(d, tol=0.01):

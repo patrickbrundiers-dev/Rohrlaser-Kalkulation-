@@ -3063,7 +3063,9 @@ def kapitel_optimieren(i):
             "(außen eine Ellipse, Text <i>schräge Bohrung Ø … (…°): Umriss wie STEP</i>). Mit "
             "3D-Schnittbearbeitung bleibt die schräge Bohrung eine geneigte Bohrung; im Rundrohr zeichnet sie den "
             "gemessenen Umriss, solange Ø und Neigung wie gemessen bleiben. Ein scharfkantiges U-, L- oder "
-            "C-Profil, das so in den Stammdaten steht, bleibt auch mit Ausklinkung Profil (vorher Kantteil).",
+            "C-Profil, das so in den Stammdaten steht, bleibt auch mit Ausklinkung Profil (vorher Kantteil). "
+            "Ein Rechteck mit gerundeten Ecken wird seit 0.9.224 eine Zeile <i>Rechteck</i> mit Eckradius (aus der "
+            "Schnittlänge), wenn es damit auf 0,05 mm passt, und bleibt so mit Maßen änderbar.",
             "<b>Weitere Fälle wie in der STEP</b> (seit 0.9.210): Quadrat-/Rechteckrohr mit Gehrung an beiden Enden "
             "und Fenster (lag 3 mm daneben), Schlitz, der über den Eckradius ins Ende läuft (0,5 mm), und Winkel "
             "bzw. U-Profil mit Ausklinkung am Ende (das freie Schenkelende stand schräg bis auf die Tiefe der "
