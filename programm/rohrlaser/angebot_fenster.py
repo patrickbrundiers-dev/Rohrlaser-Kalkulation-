@@ -1877,9 +1877,11 @@ class AngebotSeite(QWidget):
         self.weitere.setToolTip("Werkstattpapiere, Kalkulation, Materialanfrage, CSV-Export und weitere Aktionen")
         menue = QMenu(self.weitere)
         menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
+        fa = self.funktion_aktionen = []          # (Aktion, Funktion): ausgeblendet, wenn die Funktion aus ist
+        # Angebot per E-Mail (Vorschlag V1, 31.10.2026): PDF + Outlook, als Antwort auf die Anfrage-Mail
+        fa.append((menue.addAction("Angebot per E-Mail …", lambda: self.angebot_mail()), "funktion_angebot_mail"))
         menue.addSeparator()
         # Auftragsbestätigung (Plan 29.10.2026 1c): im Layout des Angebots, mit Bestellnummer und Liefertermin
-        fa = self.funktion_aktionen = []          # (Aktion, Funktion): ausgeblendet, wenn die Funktion aus ist
         fa.append((menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf()), "funktion_ab"))
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
         # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
@@ -5618,8 +5620,8 @@ class AngebotSeite(QWidget):
             QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
             return None
 
-    def _schreiben(self, art, pfad, schreiben):
-        """Datei schreiben und öffnen. Ergebnis: Pfad oder None."""
+    def _schreiben(self, art, pfad, schreiben, oeffnen=True):
+        """Datei schreiben und öffnen (oeffnen=False: nur schreiben). Ergebnis: Pfad oder None."""
         if pfad is None:
             return None
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -5632,7 +5634,8 @@ class AngebotSeite(QWidget):
             return None
         QApplication.restoreOverrideCursor()
         self.f.meldung(f"{art} gespeichert: {pfad}")
-        self.f.datei_oeffnen(pfad)
+        if oeffnen:
+            self.f.datei_oeffnen(pfad)
         return pfad
 
     def _kalk_info_setzen(self):
@@ -5704,7 +5707,9 @@ class AngebotSeite(QWidget):
         ang["ansprechpartner"] = teilen.mitarbeiter(self.db, self.kopf["bearbeiter"]) if self.kopf.get("bearbeiter") else {}
         return ang
 
-    def angebot_pdf(self):
+    def angebot_pdf(self, oeffnen=True, daten=None):
+        """Angebots-PDF schreiben (oeffnen=False: nicht anzeigen), im Versandverlauf merken. daten = {} bekommt
+        'netto'. Ergebnis: Pfad oder None."""
         if not self.nummer_endgueltig("Angebots-PDF"):
             return None
         if not any(position_aktiv(p) for p in self.positionen):
@@ -5718,7 +5723,9 @@ class AngebotSeite(QWidget):
         if ang is None:
             return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
-                               lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
+                               lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst), oeffnen)
+        if daten is not None:
+            daten["netto"] = ang.get("netto")
         if pfad is not None and not self.fremd():     # Angebot eines Kollegen: nur ansehen, nichts festschreiben
             self.preise_festschreiben()
             eintrag = dict(datum=datetime.date.today().isoformat(), netto=ang["netto"], datei=Path(pfad).name)
@@ -5731,6 +5738,42 @@ class AngebotSeite(QWidget):
                 self.db.vorgang_setzen(self.id, "Verschickt")
                 self.f.angebote.neu_laden()
         return pfad
+
+    def angebot_mail(self, dialog=None, ausfuehren=None):
+        """Angebot per E-Mail (Vorschlag V1, 31.10.2026): Angebots-PDF erstellen, dann Fenster mit Empfänger, Betreff
+        und Text; „In Outlook öffnen“ (als Antwort auf die Anfrage-Mail, wenn sie als .msg im Angebotsordner liegt)
+        oder E-Mail-Datei. Vermerk im Versandverlauf (art 'mail'). dialog(d) bedient das Fenster statt exec,
+        ausfuehren ersetzt den Outlook-Aufruf (Tests)."""
+        from . import angebot_mail
+        from . import mail as mail_
+        from .angebot_mail_dialog import AngebotMailDialog
+        if self.fremd():
+            self.f.meldung("Angebot per E-Mail nur für eigene Angebote.", fehler=True)
+            return None
+        daten = {}
+        pfad = self.angebot_pdf(oeffnen=False, daten=daten)
+        if pfad is None:
+            return None
+        try:
+            ordner = self.f.angebot_ordner(self.kopf)
+        except OSError:
+            ordner = Path(pfad).parent
+        anfrage = None
+        for p in angebot_mail.anfrage_mails(ordner):
+            m = mail_.lesen(p)
+            if m is not None:
+                anfrage = (p, m)
+                break
+        d = AngebotMailDialog(self, self.kopf, self.db.kunde(self.kopf.get("kundennr")), self.einst, pfad, anfrage,
+                              self._ziel("Angebot E-Mail", ".eml"), self.f.datei_oeffnen, ausfuehren,
+                              netto=daten.get("netto"))
+        (dialog(d) if dialog else d.exec())
+        if d.eintrag:
+            self.db.versand_merken(self.id, d.eintrag)
+            self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand") or []
+        if d.meldung:
+            self.f.meldung(d.meldung)
+        return d
 
     def auftragsbestaetigung_pdf(self, abweichung_ok=None):
         """Auftragsbestätigung als PDF (Plan 29.10.2026 1c): Layout und Preise des Angebots (festgeschrieben),

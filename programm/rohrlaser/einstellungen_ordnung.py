@@ -75,6 +75,10 @@ SEITEN = (
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
            _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"))),
+    Seite("e_angebot_mail", "Angebot per E-Mail",
+          "Platzhalter: {anrede} {angebot} {referenz} {kunde} {gueltig} {lieferzeit} {netto} {datum} {absender}. "
+          + ALLE_PLAETZE,
+          (_a("E-Mail an den Kunden", "angebot_mail_betreff angebot_mail_text"),)),
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
           (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),)),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,

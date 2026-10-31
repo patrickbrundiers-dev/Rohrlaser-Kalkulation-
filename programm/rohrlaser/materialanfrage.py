@@ -232,11 +232,18 @@ OUTLOOK_PS = r"""
 $ErrorActionPreference = 'Stop'
 $d = Get-Content -Raw -Encoding UTF8 -LiteralPath $args[0] | ConvertFrom-Json
 $o = New-Object -ComObject Outlook.Application
-$m = $o.CreateItem(0)
-$m.To = $d.an
+if ($d.antwort) {
+    # Antwort auf die gespeicherte Anfrage-Mail (.msg): „Allen antworten“, der Verlauf bleibt darunter
+    $orig = $o.Session.OpenSharedItem($d.antwort)
+    $m = $orig.ReplyAll()
+    if ($d.an) { $m.To = $d.an }
+} else {
+    $m = $o.CreateItem(0)
+    $m.To = $d.an
+}
 $m.Subject = $d.betreff
 foreach ($a in $d.anhaenge) { [void]$m.Attachments.Add($a) }
-if ($d.signatur) {
+if ($d.signatur -or $d.antwort) {
     # Erst anzeigen: dabei setzt Outlook die Standardsignatur ein; der Text kommt davor
     $m.Display($false)
     $h = $m.HTMLBody
@@ -249,20 +256,22 @@ if ($d.signatur) {
 """
 
 
-def outlook_daten(an, betreff_, text_, anhaenge=(), signatur_=False):
+def outlook_daten(an, betreff_, text_, anhaenge=(), signatur_=False, antwort=None):
     return dict(an=an or "", betreff=betreff_, text=text_, html=text_html(text_), signatur=bool(signatur_),
-                anhaenge=[str(Path(a)) for a in anhaenge])
+                anhaenge=[str(Path(a)) for a in anhaenge], antwort=str(Path(antwort)) if antwort else "")
 
 
-def outlook_oeffnen(an, betreff_, text_, anhaenge=(), ausfuehren=None, signatur_=False):
+def outlook_oeffnen(an, betreff_, text_, anhaenge=(), ausfuehren=None, signatur_=False, antwort=None):
     """E-Mail im klassischen Outlook anzeigen (nicht senden). signatur_ = True: Text vor die Standardsignatur von
-    Outlook setzen. ausfuehren(befehl) ersetzt subprocess.run (Tests). Ergebnis: (True, '') oder (False, Fehlertext)."""
+    Outlook setzen. antwort = Pfad einer .msg: als „Allen antworten“ auf diese Mail (Text vor den Verlauf).
+    ausfuehren(befehl) ersetzt subprocess.run (Tests). Ergebnis: (True, '') oder (False, Fehlertext)."""
     if ausfuehren is None and sys.platform != "win32":
         return False, "Outlook gibt es nur unter Windows."
     with tempfile.TemporaryDirectory() as tmp:
         skript, daten = Path(tmp) / "outlook.ps1", Path(tmp) / "mail.json"
         skript.write_text(OUTLOOK_PS, encoding="utf-8-sig")
-        daten.write_text(json.dumps(outlook_daten(an, betreff_, text_, anhaenge, signatur_), ensure_ascii=False), encoding="utf-8")
+        daten.write_text(json.dumps(outlook_daten(an, betreff_, text_, anhaenge, signatur_, antwort),
+                                    ensure_ascii=False), encoding="utf-8")
         befehl = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(skript), str(daten)]
         try:
             if ausfuehren:

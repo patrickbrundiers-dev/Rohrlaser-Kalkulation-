@@ -230,6 +230,9 @@ def _versand_text(v):
     if v.get("art") == "ab":            # Auftragsbestätigung (Plan 29.10.2026 1c)
         return (f"{datum_text(v.get('datum'))}: Auftragsbestätigung {v.get('nummer') or ''} – {_z(v.get('netto'))} € "
                 f"netto ({v.get('datei') or 'PDF'})")
+    if v.get("art") == "mail":          # Angebot per E-Mail (angebot_mail.py)
+        from .angebot_mail import verlauf_text
+        return verlauf_text(v)
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
     if v.get("art") == "wiedervorlage":

@@ -28,6 +28,8 @@ FUNKTIONEN = (
     Funktion("funktion_materialanfrage", "Materialanfrage per E-Mail",
              "„Materialanfrage (E-Mail)“ unter Ausgaben und die Seite mit Betreff und Text",
              seiten=("e_materialanfrage",)),
+    Funktion("funktion_angebot_mail", "Angebot per E-Mail",
+             "„Angebot per E-Mail …“ unter Ausgaben und die Seite mit Betreff und Text", seiten=("e_angebot_mail",)),
     Funktion("funktion_nachfassen", "Nachfassen und Wiedervorlage",
              "„Nachfassen vermerken …“, „Wiedervorlage …“ und die Wiedervorlage auf der Startseite"),
     Funktion("funktion_nachkalkulation", "Nachkalkulation",

@@ -1196,6 +1196,13 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
+    # Angebot per E-Mail an den Kunden (Vorschlag V1, 31.10.2026, angebot_mail.py): Vorlagen mit Platzhaltern
+    Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff (neue E-Mail; Antwort behält den Betreff)",
+                "Angebot per E-Mail", "text", "Angebot {angebot}{referenz}"),
+    Einstellung("angebot_mail_text", "Angebot per E-Mail: Text", "Angebot per E-Mail", "mehrzeilig",
+                "{anrede}\n\nvielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot {angebot}{referenz}.\n\n"
+                "Das Angebot gilt bis {gueltig}. Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n"
+                "Mit freundlichen Grüßen"),
     # Nachfassen verschickter Angebote (Plan A9): Wiedervorlage nach Tagen ohne Entscheidung
     Einstellung("nachfassen_tage", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)", "Nachfassen",
                 "ganz", 10, 0, 365),
