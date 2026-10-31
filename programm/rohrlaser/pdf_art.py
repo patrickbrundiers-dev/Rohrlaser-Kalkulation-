@@ -194,7 +194,17 @@ def zusammen(gelesen, wahl=AUTO):
     return dict(gelesen, wahl=wahl, text="\n".join(s["text"] for s in formular_s),
                 ocr=any(s["ocr"] for s in formular_s) if formular_s else gelesen.get("ocr", False),
                 unsicher=set().union(*[s.get("unsicher") or set() for s in formular_s]) if formular_s else set(),
-                zeichnungen=[dict(schriftfeld(s), seite=s["nr"], datei=gelesen.get("datei")) for s in zeichnung_s])
+                zeichnungen=[dict(schriftfeld(s), seite=s["nr"], datei=gelesen.get("datei")) for s in zeichnung_s],
+                tabelle=[z for s in formular_s for z in _tabelle(s)])
+
+
+def _tabelle(seite):
+    """Positionen der Tabelle einer Formularseite (formular.tabelle, über die Lage der Textstücke)."""
+    from .formular import tabelle
+    try:
+        return tabelle(seite.get("segmente"))
+    except Exception:       # nie am Lesen der Tabelle scheitern: dann gilt die Zeilenlogik
+        return []
 
 
 def lesen(pfad, programmordner=None):
@@ -317,9 +327,10 @@ def mails_vergleichen(messwerte, mails, namen, formulare=()):
             m["_stueck_anders"] = "; ".join(dict.fromkeys(anders))
 
 
-def anwenden(messwerte, formulare, werkstoffe=None):
-    """Stückzahlen aus Formularen/Mail (formular.stueck_aus, gehen vor) und danach Schriftfelder der Zeichnungen
-    (zeichnung_zu_teilen) in die Messwerte; vorher gesetzte Werte aus einer früheren Wahl werden zurückgenommen
+def anwenden(messwerte, formulare, werkstoffe=None, ws_formular=None):
+    """Stückzahlen aus Formularen/Mail (formular.stueck_aus, gehen vor), Werkstoff je Teil aus dem Formular
+    (ws_formular = Werkstoffzeilen, werkstoff_setzen) und danach Schriftfelder der Zeichnungen (zeichnung_zu_teilen) in
+    die Messwerte; vorher gesetzte Werte aus einer früheren Wahl werden zurückgenommen
     (Umschalten im Prüfdialog). werkstoffe = Werkstoffzeilen (None: kein Werkstoff aus Zeichnungen, z. B. weil die
     Mail einen nennt). Ergebnis dict(formular, unsicher, zeichnung) = Anzahl Teile."""
     from . import formular
@@ -335,5 +346,25 @@ def anwenden(messwerte, formulare, werkstoffe=None):
     mails_vergleichen(messwerte, [f for f in formulare if f.get("mail") and f.get("text")], namen,
                       [f for f in formulare if not f.get("mail") and f.get("text")])
     unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
+    w = werkstoff_setzen(messwerte, formulare, namen, ws_formular) if ws_formular else 0
     z = zeichnung_zu_teilen(messwerte, [z for f in formulare for z in f.get("zeichnungen") or ()], werkstoffe)
-    return dict(formular=n, unsicher=unsicher, zeichnung=z)
+    erg = dict(formular=n, unsicher=unsicher, zeichnung=z)
+    if ws_formular:
+        erg["werkstoff"] = w
+    return erg
+
+
+def werkstoff_setzen(messwerte, formulare, namen, werkstoffe):
+    """Werkstoff je Teil aus dem Anfrageformular (31.10.2026, F1 a): gelb mit Quelle, geht vor der Zeichnung; nie bei
+    Blechen. Ergebnis: Anzahl Teile."""
+    from . import formular, step
+    je = {formular._schluessel(k): v for k, v in formular.werkstoff_je_teil(formulare, namen, werkstoffe).items()}
+    n = 0
+    for m in messwerte:
+        if m.get("_saetze") or "_werkstoff" in m or step.blech(m) is not None:
+            continue
+        w = next((je[k] for k in (formular._schluessel(m.get(x)) for x in ("artikel", "datei")) if k in je), None)
+        if w:
+            m["_werkstoff"], m["_werkstoff_quelle"] = w
+            n += 1
+    return n

@@ -958,15 +958,28 @@ def kapitel_angebote(i):
     i.text("<b>Anfrageformular</b>: Liegt ein PDF mit Text bei (aus einem ERP oder Word erzeugt), liest das "
            "Programm beim Öffnen daraus:")
     i.liste("die <b>Anfragenummer</b> (nach Wörtern wie <i>Anfrage-Nr.</i>, <i>Anfragenummer</i>, <i>Bestell-Nr.</i>, "
-            "<i>Projekt-Nr.</i>, <i>RFQ</i>): sie steht danach im Feld <b>Ihre Anfrage / Zeichen</b>, und der "
-            "Unterordner heißt <i>Kunde – Anfragenummer</i>;",
+            "<i>Projekt-Nr.</i>, <i>RFQ</i>, <i>Beleg-Nr.</i>, <i>Vorgang</i>, <i>Unser Zeichen</i>): sie steht danach im "
+            "Feld <b>Ihre Anfrage / Zeichen</b>, und der Unterordner heißt <i>Kunde – Anfragenummer</i>. Steht der "
+            "Wert in einer Kopftabelle rechts neben oder unter der Beschriftung, findet das Programm ihn über die Lage "
+            "(seit 0.9.226); ein Datum ist nie die Anfragenummer;",
             "den <b>Kunden</b> (ein Name aus der Kundenliste im Text, nie die eigene Firma aus Briefkopf Zeile 1); "
             "er steht im Prüfdialog oben als Vorschlag;",
             "die <b>Stückzahlen</b>: Steht in einer Zeile des Formulars die Artikelnummer (Bauteilname in der STEP) "
             "oder der Dateiname, gilt die Menge dahinter (<i>20 Stk</i>, <i>25 Stück</i>) für dieses Teil – das "
             "Formular geht der STEP vor. Eine Zahl ohne <i>Stk</i> ist unsicher erkannt: das Feld Stückzahl im "
             "Prüfdialog ist dann gelb. Teile ohne Treffer behalten die Vorgabe; der Bericht nach dem Import nennt "
-            "die Anzahl.")
+            "die Anzahl.",
+            "<b>Tabellen</b> (seit 0.9.226): Hat das Formular eine Positionstabelle mit Kopfzeile (<i>Pos.</i>, "
+            "<i>Artikel-Nr.</i>/<i>Zeichnungs-Nr.</i>, <i>Bezeichnung</i>, <i>Werkstoff</i>/<i>Material</i>, "
+            "<i>Menge</i>/<i>Anzahl</i>, <i>ME</i>), liest das Programm sie über die Lage der Wörter, auch im Scan: "
+            "die Menge kommt aus der Mengenspalte (sicher), eine Zelle über zwei Zeilen gehört zur selben Position. "
+            "<i>1.000 Stk</i> sind 1000 Stück, <i>20,000 ST</i> 20 Stück; Positionsnummern, Abmessungen und Längen "
+            "(<i>40x40x3</i>, <i>L = 1250 mm</i>) sind nie die Menge. Nennt das Formular nur <i>MG-01</i> und die STEP "
+            "heißt <i>MG-01 Stiel</i>, gilt die Menge, wenn genau ein Teil passt – gelb zum Prüfen.",
+            "den <b>Werkstoff je Position</b> (seit 0.9.226): aus der Werkstoffspalte bzw. der Zeile des Teils, nur "
+            "wenn genau ein Werkstoff der Stammdaten passt (<i>S235JRH</i> passt zu zwei Normen und bleibt offen). "
+            "Das Feld Werkstoff im Prüfdialog ist dann gelb, der Tooltip nennt Formular und Position; das Formular "
+            "geht der Zeichnung vor, Bleche bekommen nie einen Werkstoff.")
     i.text("<b>Scans und Fotos</b>: Ein gescanntes PDF (ohne Text), ein Fax oder ein Handyfoto (JPG, PNG, TIFF) "
            "liest das Programm mit der mitgelieferten Texterkennung <i>Tesseract</i> (Deutsch und Englisch). Das "
            "geschieht schon im Hintergrund, sobald die Anfrage in der Liste steht; solange zeigt die Liste "

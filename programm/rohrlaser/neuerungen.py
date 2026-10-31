@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.226", "<b>PDF-Anfrageformular besser ausgewertet</b> ([[anfragen]]): Positionstabellen liest das Programm "
+                "über die Lage der Wörter (PDF mit Text und Scan) – Menge aus der Mengenspalte, Zellen über zwei "
+                "Zeilen, <i>1.000 Stk</i> = 1000, Positionsnummern und Längen nie als Menge; nennt das Formular nur "
+                "<i>MG-01</i>, passt die Menge zur STEP <i>MG-01 Stiel</i> (gelb). Die <b>Anfrage-Nr.</b> steht auch "
+                "in Kopftabellen oder heißt <i>Beleg-Nr.</i>, <i>Vorgang</i>, <i>Unser Zeichen</i>; ein Datum zählt "
+                "nie. Neu: <b>Werkstoff je Position</b> aus dem Formular (nur eindeutig, gelb mit Quelle).",
+     "PDF-Formular: Tabellen über die Lage, Anfrage-Nr. aus Kopftabellen, Werkstoff je Position"],
     ["0.9.225", "<b>U-Profile als Standard</b> ([[profile]]): Die U-Profile nach DIN 1026-1 von UPN 30x15 bis UPN 200 "
                 "stehen in den Stammdaten Profile (Steg, Flansch, Normfläche und Gewicht je Meter, ohne Preis); "
                 "<i>UNP 100</i> oder <i>U 100</i> beim Tippen findet UPN 100, auch in der Schnellzeile. "
