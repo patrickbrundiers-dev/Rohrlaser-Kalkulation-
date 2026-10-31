@@ -8,6 +8,7 @@ Zuordnung (zuordnen): nur wenn h und b auf ±0,5 mm, Steg- und Flanschdicke auf 
 und die gemessene Querschnittsfläche auf 3 % zur Tabelle passen. Sonst bleibt es ein Profil mit den gemessenen Maßen.
 Die Datei hat keine Abhängigkeiten: die STEP-Messung (STEP-Import.exe) nutzt sie mit.
 """
+import re
 
 TOL_HB = 0.5        # mm
 TOL_T = 0.3         # mm
@@ -58,7 +59,11 @@ _IPN = {80: (80, 42, 3.9, 5.9, 3.9, 7.57), 100: (100, 50, 4.5, 6.8, 4.5, 10.6), 
         380: (380, 149, 13.7, 20.5, 13.7, 107.0), 400: (400, 155, 14.4, 21.6, 14.4, 118.0),
         450: (450, 170, 16.2, 24.3, 16.2, 147.0), 500: (500, 185, 18.0, 27.0, 18.0, 179.0),
         550: (550, 200, 19.0, 30.0, 19.0, 212.0), 600: (600, 215, 21.6, 32.4, 21.6, 254.0)}
-_UPN = {50: (50, 38, 5.0, 7.0, 7.0, 7.12), 65: (65, 42, 5.5, 7.5, 7.5, 9.03), 80: (80, 45, 6.0, 8.0, 8.0, 11.0),
+# UPN nach DIN 1026-1 / EN 10365, kleine Größen (U 30x15 … U 60) nach DIN 1026-1 (Patrick 31.10.2026: „U-Profile als
+# Standard bis UNP 200“; Name wie bisher 'UPN …', 'UNP …' und 'U …' werden beim Tippen ebenso erkannt, normname)
+_UPN = {"30x15": (30, 15, 4.0, 4.5, 4.5, 2.21), 30: (30, 33, 5.0, 7.0, 7.0, 5.44), "40x20": (40, 20, 5.0, 5.5, 5.5, 3.66),
+        40: (40, 35, 5.0, 7.0, 7.0, 6.21), "50x25": (50, 25, 5.0, 6.0, 6.0, 4.92), 50: (50, 38, 5.0, 7.0, 7.0, 7.12),
+        60: (60, 30, 6.0, 6.0, 6.0, 6.46), 65: (65, 42, 5.5, 7.5, 7.5, 9.03), 80: (80, 45, 6.0, 8.0, 8.0, 11.0),
         100: (100, 50, 6.0, 8.5, 8.5, 13.5), 120: (120, 55, 7.0, 9.0, 9.0, 17.0), 140: (140, 60, 7.0, 10.0, 10.0, 20.4),
         160: (160, 65, 7.5, 10.5, 10.5, 24.0), 180: (180, 70, 8.0, 11.0, 11.0, 28.0),
         200: (200, 75, 8.5, 11.5, 11.5, 32.2), 220: (220, 80, 9.0, 12.5, 12.5, 37.4),
@@ -95,7 +100,7 @@ def alle():
     out = {}
     for reihe, form, geneigt, tab in REIHEN:
         for g, (h, b, tw, tf, r, a) in tab.items():
-            out[_name(reihe, g)] = dict(reihe=reihe, form=form, h=h, b=b, tw=tw, tf=tf, r=r, flaeche=a * 100,
+            out[_name(reihe, g)] = dict(reihe=reihe, form=form, h=h, b=b, tw=tw, tf=tf, r=r, flaeche=round(a * 100, 2),
                                         geneigt=geneigt)
     for a, b, t in WINKEL:
         n = f"L {a:g}x{b:g}x{t:g}"
@@ -106,9 +111,41 @@ def alle():
 NORM = alle()
 
 
+# andere Schreibweisen der U-Profile (Patrick schreibt „UNP“, Lieferanten oft „U 100“)
+_U_ALIAS = re.compile(r"(?:UPN|UNP|U)\s*(\d+(?:\s*[x×]\s*\d+)?)", re.IGNORECASE)
+# Reihe, die in den Stammdaten „Profile“ als Standard steht (Patrick 31.10.2026: „U-Profile als Standard bis UNP
+# 200“, Plan 1a: ganze Reihe DIN 1026-1 bis UPN 200); Datenbank._normprofile_anpassen trägt fehlende einmal ein
+STANDARD_STAMMDATEN = tuple(f"UPN {g}" for g in _UPN if not isinstance(g, int) or g <= 200)
+STANDARD_BEMERKUNG = "Normprofil DIN 1026-1 (Standard)"
+
+
+def normname(name):
+    """Name der Normtabelle zu einer Eingabe: 'UNP 100', 'U100', 'upn 100', 'U 30 x 15' -> 'UPN 100' bzw.
+    'UPN 30x15'; sonst die Eingabe mit einfachen Leerzeichen."""
+    t = " ".join(str(name or "").split())
+    if t in NORM:
+        return t
+    m = _U_ALIAS.fullmatch(t)
+    if m:
+        n = "UPN " + re.sub(r"\s*[x×]\s*", "x", m.group(1))
+        if n in NORM:
+            return n
+    return t
+
+
 def daten(name):
-    """Normprofil zum Namen (z. B. 'IPE 200', 'HEB 160', 'UPN 100', 'T 50') oder None."""
-    return NORM.get(" ".join(str(name or "").split()))
+    """Normprofil zum Namen (z. B. 'IPE 200', 'HEB 160', 'UPN 100', 'T 50'; auch 'UNP 100', 'U 100') oder None."""
+    return NORM.get(normname(name))
+
+
+def stammdaten_zeile(name):
+    """Zeile der Stammdaten „Profile“ für ein Normprofil: Wandstärke = Steg, Wandstärke max. = Flansch, Fläche aus der
+    Tabelle (Gewicht je Meter); None ohne Normprofil."""
+    n = daten(name)
+    if n is None:
+        return None
+    return dict(profil_id=normname(name), form=n["form"], a=n["h"], b=n["b"], wand=n["tw"], wand_max=n["tf"],
+                flaeche_manuell=n["flaeche"], bemerkung=STANDARD_BEMERKUNG)
 
 
 def zuordnen(form, h, b, tw, tf, flaeche=None):

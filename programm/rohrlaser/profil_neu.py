@@ -61,6 +61,8 @@ def vorschlag(text):
     from .optimierung import profil_aus_name
     n = profil_aus_name(t)
     if n is not None and n["form"] in TRAEGER + ("U-Profil",) and n.get("flaeche_manuell"):    # IPE 200, UPN 100
+        if normprofile.daten(t) is not None:                  # 'UNP 100', 'U 100' -> 'UPN 100' wie die Normtabelle
+            return dict(n, profil_id=normprofile.normname(t))
         kurz, _, rest = t.partition(" ")
         return dict(n, profil_id=f"{kurz.upper()} {rest}".strip())     # 'I 100x55x5x8' behält die Flanschdicke
     m = re.fullmatch(rf"(Ø|[A-Za-zÄÖÜäöü]+)?\.?\s*({_ZAHL}(?:x{_ZAHL})+)", t)
