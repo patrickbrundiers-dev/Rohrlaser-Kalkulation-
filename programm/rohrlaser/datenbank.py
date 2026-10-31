@@ -46,7 +46,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 70     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 71     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -136,6 +136,8 @@ SCHEMA_VERSION = 70     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Reklamationen (Tabelle reklamationen, reklamation.py, 2c)
                         # 70: Abruf-/Rahmenangebot (angebote.abruf, abruf_jahr_von/bis, abruf_von/bis, abruf_laufzeit,
                         #     abruf_material, abruf_lagerzins; leer = normales Angebot)
+                        # 71: Rohrart je Profil + Werkstoff im Angebot (angebote.rohrarten, JSON, leer = Rohrart des
+                        #     Werkstoffs; Patrick 31.10.2026 Plan 6a)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -156,6 +158,7 @@ ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
+NORMPROFILE_STAND = "2026-10-31"   # U-Profile DIN 1026-1 bis UPN 200 in den Profilen (Datenbank._normprofile_anpassen)
 RICHTWERTE_STAND = "2026-10-29"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen); bis 0.9.196 2026-10-21
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 ECKE_STAND = "2026-10-29"         # Zeit je Ecke nach Wandstärke in leeren Richtwertzeilen (Datenbank._ecke_anpassen, S2)
@@ -261,6 +264,7 @@ class Datenbank:
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
         self._rp_anpassen()
+        self._normprofile_anpassen()
         self._passwort_umstellen()
 
     def _passwort_umstellen(self):
@@ -366,6 +370,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
             if "radien" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN radien TEXT")          # vor Schema 54: leer
+            if "rohrarten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN rohrarten TEXT")       # vor Schema 71: leer
             if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
@@ -886,6 +892,28 @@ class Datenbank:
                     self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
                                      list(z.values()))
             self._einstellung_schreiben("rp_stand", RP_STAND)
+
+    def _normprofile_anpassen(self):
+        """Normprofile als Standard in den Stammdaten „Profile“ (Patrick 31.10.2026: „U-Profile als Standard bis UNP
+        200“): einmal je Stand die fehlenden Profile aus normprofile.STANDARD_STAMMDATEN eintragen, mit Fläche aus der
+        Normtabelle (Gewicht), Steg als Wandstärke und Flansch als Wandstärke max.; ohne Materialpreis. Vorhandene
+        Zeilen (auch in anderer Schreibweise wie 'UNP 100') bleiben unverändert, gelöschte kommen erst mit einem neuen
+        Stand wieder; die Stammdaten gelten dadurch nicht als von Hand geändert."""
+        from . import normprofile
+        if self.nur_lesen or self.einstellung("normprofile_stand") == NORMPROFILE_STAND:
+            return
+        with self.con:
+            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+            if formen and "U-Profil" not in formen:
+                self._einstellung_schreiben("profilformen", "\n".join(formen + ["U-Profil"]))
+            da = {normprofile.normname(r[0]) for r in self.con.execute("SELECT profil_id FROM profile")}
+            for name in normprofile.STANDARD_STAMMDATEN:
+                if name in da:
+                    continue
+                z = normprofile.stammdaten_zeile(name)
+                self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                 list(z.values()))
+            self._einstellung_schreiben("normprofile_stand", NORMPROFILE_STAND)
 
     @schreibt
     def rp_laden(self, eintraege):
@@ -1560,6 +1588,16 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET radien=?, geaendert=? WHERE id=?",
                              (json.dumps(radien, ensure_ascii=False) if radien else None, self._jetzt(), angebot_id))
 
+    @schreibt
+    def rohrarten_speichern(self, angebot_id, rohrarten):
+        """Rohrart je Profil + Werkstoff im Angebot {naht.gruppe_schluessel: Rohrart} (fehlt = Rohrart des Werkstoffs)."""
+        from .stammdaten import ROHRARTEN
+        rohrarten = {g: r for g, r in (rohrarten or {}).items() if r in ROHRARTEN}
+        with self.con:
+            self.con.execute("UPDATE angebote SET rohrarten=?, geaendert=? WHERE id=?",
+                             (json.dumps(rohrarten, ensure_ascii=False) if rohrarten else None, self._jetzt(),
+                              angebot_id))
+
     # -------------------------------------------------------------- Frachtkosten
     @liest
     def fracht_daten(self):
@@ -1923,6 +1961,7 @@ class Datenbank:
         a["stangen_vorgabe"] = json.loads(a["stangen_vorgabe"]) if a.get("stangen_vorgabe") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
+        a["rohrarten"] = json.loads(a["rohrarten"]) if a.get("rohrarten") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
         return a
 
@@ -2035,6 +2074,8 @@ class Datenbank:
             self.naht_stangen_speichern(neu, a["naht_stangen"])
         if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso
             self.radien_speichern(neu, a["radien"])
+        if a.get("rohrarten"):                      # Rohrart je Profil + Werkstoff ebenso
+            self.rohrarten_speichern(neu, a["rohrarten"])
         for satz, d in self.satz_daten(angebot_id).items():     # Steckverbindungen je Satz (über die Kennung)
             self.satz_daten_speichern(neu, satz, d)
         netze = self.netze(angebot_id)

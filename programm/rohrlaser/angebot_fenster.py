@@ -1984,6 +1984,7 @@ class AngebotSeite(AusgabeMixin, QWidget):
                 ("Positionen aus anderem Angebot übernehmen …", lambda: self.positionen_uebernehmen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
+                ("Wandstärke ändern …", lambda: self.wand_aendern(), ""),
                 ("Stückzahl ändern …", lambda: self.stueck_aendern(), "Strg+Umschalt+S"),
                 ("Nach oben", lambda: self.positionen_verschieben(reihenfolge.OBEN), "Alt+↑"),
                 ("Nach unten", lambda: self.positionen_verschieben(reihenfolge.UNTEN), "Alt+↓"),
@@ -3712,7 +3713,7 @@ class AngebotSeite(AusgabeMixin, QWidget):
     MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
-                   "STEP-Merkmale prüfen …": {"rohr"}}
+                   "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"}}
 
     def _markierte_zeilen(self):
         return sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()
@@ -3798,6 +3799,59 @@ class AngebotSeite(AusgabeMixin, QWidget):
                 sichtbar = False
             a.setVisible(sichtbar)
         return [t for t, a in self.pos_aktionen.items() if a.isVisible()]
+
+    def wand_aendern(self, zeilen=None, wand=None, alle=False, ids=None, dialog=None):
+        """Wandstärke der markierten Rohrlaserteile ändern (Patrick 31.10.2026, Plan 5a, wand_dialog.py): gleiche Form
+        und gleiches Außenmaß, Profil aus den Stammdaten oder neu angelegt; alle = alle Positionen der Abmessung
+        (Profil-ID) im Angebot. ids = Positionen aus dem Material-Fenster (eine Abmessung, dann alle). Ohne wand fragt
+        das Fenster; dialog(d) bedient es statt exec (Tests). Ein Schritt für Rückgängig. Ergebnis: Anzahl geänderter
+        Positionen oder None (abgebrochen, nicht möglich)."""
+        from . import wand_dialog
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return None
+        if ids is not None:
+            zeilen, alle = [r for r, p in enumerate(self.positionen) if p.get("id") in set(ids)], True
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen())
+                  if self.position_art(self.positionen[r]) == "rohr"]
+        pids = {self.positionen[r].get("profil_id") for r in zeilen}
+        if not zeilen or len(pids) != 1:
+            self.f.meldung("Wandstärke ändern: bitte Rohrlaserteile einer Abmessung markieren." if zeilen else
+                           "Wandstärke ändern: bitte zuerst Rohrlaserteile markieren.", fehler=True)
+            return None
+        pid = pids.pop()
+        profil = dict(self.k.profile.get(pid) or {}, profil_id=pid) if pid in self.k.profile else None
+        grund = wand_dialog.aenderbar(pid, profil)
+        if grund:
+            self.f.meldung("Wandstärke ändern: " + grund, fehler=True)
+            return None
+        gruppe = [r for r, p in enumerate(self.positionen) if p.get("profil_id") == pid
+                  and self.position_art(p) == "rohr"]
+        if wand is None:
+            d = wand_dialog.WandDialog(self, profil, self.k.profile, 0 if ids is not None else len(zeilen), len(gruppe))
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return None
+            wand, alle = d.wand, d.alle
+        neu, zeile = wand_dialog.ziel_profil(profil, float(wand), self.k.profile)
+        if zeile is not None:
+            self.db.profile_anlegen([zeile])
+            z = next((x for x in self.db.zeilen("profile") if x.get("profil_id") == neu), zeile)
+            for k in {id(x): x for x in (self.k, getattr(self, "k_aktuell", None)) if x is not None}.values():
+                k.profile[neu] = z
+        hinweise = []
+        for r in (gruppe if alle else zeilen):
+            p = self.positionen[r]
+            self.db.position_aendern(p["id"], "profil_id", neu)
+            h = self.profil_gewechselt(dict(p, profil_id=neu))       # STEP-Teil: Enden und Konturen neu rechnen
+            if h:
+                hinweise.append(h)
+        n = len(gruppe if alle else zeilen)
+        self.neu_laden()
+        self.rueckgaengig_anbieten(f"Wandstärke {wand_dialog._z(wand)} mm: {n} Position(en) von {pid} auf {neu} "
+                                   "geändert." + (" Abmessung neu in den Stammdaten angelegt, Materialpreis fehlt noch."
+                                                  if zeile is not None else "")
+                                   + (" Bitte neu optimieren." if self.ergebnis else ""))
+        return n
 
     def fuer_markierte_setzen(self, zeilen=None, werkstoff=None, oberflaeche=None, dialog=None):
         """Werkstoff und/oder Oberfläche für alle markierten Rohrlaserteile auf einmal setzen (B5), ein Schritt für

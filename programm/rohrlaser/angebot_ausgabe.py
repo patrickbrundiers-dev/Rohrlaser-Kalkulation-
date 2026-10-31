@@ -462,11 +462,16 @@ class AusgabeMixin:
                 for feld, wert in felder.items():
                     self.db.position_aendern(pid, feld, wert)
         for feld, wert in d.kopf_aenderungen.items():
+            if feld == "rohrarten":         # Rohrart je Abmessung (JSON wie radien, Plan 6a)
+                self.db.rohrarten_speichern(self.id, wert)
+                self.kopf["rohrarten"] = wert or None
+                continue
             self.db.angebot_aendern(self.id, feld, wert)
         self.neu_laden()
-        plan = any(set(f) & {"werkstoff_id", "oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen)
+        plan = any(set(f) & {"werkstoff_id", "oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen) \
+            or "rohrarten" in d.kopf_aenderungen
         self.f.meldung(f"Material: {n} Änderung(en) gespeichert. {preis_aenderung(vorher, self._verkauf())}"
-                       + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else
+                       + (" Werkstoff, Lieferlänge, Oberfläche, Material oder Rohrart geändert: bitte neu optimieren." if plan else
                           " Vorgegebene Stangen geändert: bitte neu optimieren." if d.vorgaben is not None else ""))
 
     def _material_nachher(self, aktion, wert=None):
@@ -498,6 +503,8 @@ class AusgabeMixin:
             return self.laengen_zeigen(wert)
         if aktion == "anfrage":
             return self.material_anfragen(gruppe=wert)
+        if aktion == "wand":
+            return self.wand_aendern(ids=wert["ids"])
         return None
 
     # -------------------------------------------------------------- Materialanfrage
