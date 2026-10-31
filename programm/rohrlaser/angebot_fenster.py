@@ -564,6 +564,17 @@ class AngeboteSeite(QWidget):
                        "Zum Weiterarbeiten „Kopieren“ (eigene Kopie mit eigener Nummer).", fehler=True)
         return True
 
+    def _termin_frueh(self, angebot_id):
+        """Frühester Liefertermin nach Auslastung (Vorschlag V2) für das Fenster „Beauftragt“, None ohne
+        Schnittplan oder ohne Funktion Maschinenauslastung."""
+        from . import funktionen, terminplan
+        if not funktionen.an("funktion_auslastung", self.db):
+            return None
+        try:
+            return terminplan.fruehester(self.db, angebot_id)
+        except Exception:           # Vorschlag darf das Beauftragen nie verhindern
+            return None
+
     def vorgang_setzen(self, v, angebot_id=None, auftrag=None, absage=None):
         """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …). Beauftragt: Fenster für Auftragsnummer
         und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster. Abgelehnt: Fenster
@@ -579,7 +590,8 @@ class AngeboteSeite(QWidget):
                 return False
         if v == "Beauftragt" and auftrag is None and not self.f.stumm and not self.db.nur_lesen:
             from . import auftrag as auftrag_fenster
-            auftrag = auftrag_fenster.abfragen(self, a, self.db.einstellung("versand_bundesland"))
+            auftrag = auftrag_fenster.abfragen(self, a, self.db.einstellung("versand_bundesland"),
+                                               frueh=self._termin_frueh(i))
             if auftrag is None:
                 return False
         if v == "Abgelehnt" and absage is None and not self.f.stumm and not self.db.nur_lesen:
@@ -2551,6 +2563,42 @@ class AngebotSeite(QWidget):
         if vorher is not None:          # Kalkulationswert: was sich am Preis ändert, in der Statuszeile
             meldung += f" {preis_aenderung(vorher, self._verkauf())}"
         self.f.meldung(meldung)
+
+    def termin_pruefen(self, antwort=None):
+        """Knopf „Termin prüfen …“ (Vorschlag V2, terminplan.py): frühester Liefertermin nach Maschinenauslastung und
+        Material-Lieferzeit; „Als Lieferzeit übernehmen“ setzt die Lieferzeit auf diese Kalenderwoche. antwort: True =
+        übernehmen, False = nur ansehen (Tests ohne Fenster). Ergebnis: terminplan.Termin oder None."""
+        from . import auftrag, terminplan
+        from .stammdaten import KALENDERWOCHE
+        if not self.ergebnis:
+            self.f.meldung("Termin prüfen: bitte zuerst optimieren (die Laserzeit kommt aus dem Schnittplan).",
+                           fehler=True)
+            return None
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            t = terminplan.fruehester(self.db, self.id)
+        finally:
+            QApplication.restoreOverrideCursor()
+        zugesagt = auftrag.termin_vorschlag(self.kopf) if self.kopf.get("lieferzeit_art") and \
+            self.kopf.get("lieferzeit_wert") or self.kopf.get("liefertermin") else None
+        text = terminplan.text(t, zugesagt)
+        if t is None or t.datum is None:
+            self.f.meldung(text, fehler=t is None)
+            return t
+        if antwort is None and not self.f.stumm:
+            box = QMessageBox(QMessageBox.Information, "Liefertermin nach Auslastung", text, parent=self)
+            ja = box.addButton(f"Als Lieferzeit übernehmen (KW {t.datum.isocalendar()[1]})", QMessageBox.AcceptRole)
+            box.addButton("Schließen", QMessageBox.RejectRole)
+            box.exec()
+            antwort = box.clickedButton() is ja
+        if antwort:
+            self.db.angebot_aendern(self.id, "lieferzeit_art", KALENDERWOCHE)
+            self.db.angebot_aendern(self.id, "lieferzeit_wert", terminplan.kw_wert(t.datum))
+            self.neu_laden()
+            self.f.meldung(f"Lieferzeit auf KW {terminplan.kw_wert(t.datum)} gesetzt. {text}")
+        else:
+            self.f.meldung(text)
+        return t
 
     def abruf_bearbeiten(self, werte=None):
         """Fenster „Abruf-/Rahmenangebot“ (abruf_dialog); werte = Kopffelder ohne Fenster übernehmen (Tests).

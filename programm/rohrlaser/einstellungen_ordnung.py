@@ -119,7 +119,8 @@ SEITEN = (
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
-                                        "auslastung_vorlauf versand_bundesland"),)),
+                                        "auslastung_vorlauf versand_bundesland"),
+           _a("Liefertermin nach Auslastung", "termin_material_tage"))),
     Seite("e_versand", "Versand und Paletten", ALLE_PLAETZE,
           (_a("Versand", "versand_aktiv palettenschein_werkstatt versand_schritte"),
            _a("Paletten", "palette_hoehe_gesamt palette_max_brutto palette_mischen palette_fuellgrad "

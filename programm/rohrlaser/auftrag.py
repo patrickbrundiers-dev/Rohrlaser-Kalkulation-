@@ -8,7 +8,7 @@ import datetime
 
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, \
-    QLineEdit, QVBoxLayout
+    QLineEdit, QPushButton, QVBoxLayout
 
 from . import feiertage
 from .stammdaten import ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, WOCHEN
@@ -48,7 +48,8 @@ def termin_vorschlag(kopf, heute=None, land=None):
 class AuftragDialog(QDialog):
     """Auftragsnummer des Kunden und Liefertermin (Häkchen aus = noch kein Termin)."""
 
-    def __init__(self, parent, angebot, land=None):
+    def __init__(self, parent, angebot, land=None, frueh=None):
+        """frueh = terminplan.Termin (frühester Termin nach Auslastung, Vorschlag V2) oder None."""
         super().__init__(parent)
         self.setWindowTitle(f"Angebot {angebot.get('nummer') or ''} beauftragt")
         lay = QVBoxLayout(self)
@@ -72,10 +73,26 @@ class AuftragDialog(QDialog):
         zeile.addWidget(self.termin, 1)
         form.addRow("Liefertermin", zeile)
         lay.addLayout(form)
+        self.frueh = frueh
+        if frueh is not None and frueh.datum is not None:
+            from . import terminplan
+            vorschlag = termin_vorschlag(angebot, land=land)
+            t = QLabel(terminplan.text(frueh, vorschlag))
+            t.setWordWrap(True)
+            if vorschlag < frueh.datum:
+                t.setStyleSheet("color: #A33A00;")
+            uebernehmen = QPushButton(f"Frühesten Termin übernehmen ({frueh.datum.strftime('%d.%m.%Y')})")
+            uebernehmen.clicked.connect(lambda: self.frueh_uebernehmen())
+            lay.addWidget(t)
+            lay.addWidget(uebernehmen)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
+
+    def frueh_uebernehmen(self):
+        self.mit_termin.setChecked(True)
+        self.termin.setDate(QDate(self.frueh.datum))
 
     def werte(self):
         """(Auftragsnummer oder None, Liefertermin als ISO-Datum oder None)"""
@@ -83,7 +100,7 @@ class AuftragDialog(QDialog):
         return self.nummer.text().strip() or None, t
 
 
-def abfragen(parent, angebot, land=None):
+def abfragen(parent, angebot, land=None, frueh=None):
     """Fenster zeigen. Ergebnis: (Auftragsnummer, Liefertermin) oder None (abgebrochen)."""
-    d = AuftragDialog(parent, angebot, land)
+    d = AuftragDialog(parent, angebot, land, frueh)
     return d.werte() if d.exec() == QDialog.Accepted else None

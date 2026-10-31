@@ -1274,6 +1274,8 @@ EINSTELLUNGEN = (
                 "Lager und Fertigung", "anteil", 0.85, 0.1, 1),
     Einstellung("betriebsruhe", "Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. 24.12.2026-31.12.2026; "
                 "02.10.2026)", "Lager und Fertigung", "text", ""),
+    Einstellung("termin_material_tage", "Termin nach Auslastung: Material-Lieferzeit [Arbeitstage] (0 = vorrätig)",
+                "Lager und Fertigung", "ganz", 3, 0, 120),
     Einstellung("auslastung_vorlauf", "Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin",
                 "Lager und Fertigung", "ganz", 2, 0, 60),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
