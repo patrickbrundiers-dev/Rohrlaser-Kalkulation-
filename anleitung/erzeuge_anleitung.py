@@ -3084,9 +3084,19 @@ def kapitel_optimieren(i):
             "(Konturen und Enden, in beiden Richtungen). Liegt etwas mehr als 0,1 mm daneben, bekommt die Position "
             "den Hinweis <i>Editor weicht bis … mm von der STEP ab (bei … mm ab Ende A) – Konturen und Enden im "
             "Schneidweg-Rechner prüfen</i>; er steht im Bericht nach dem Übernehmen und an der Position. Nicht "
-            "geprüft werden offene Profile, offen gezeichnete Rohre mit Ringen, Knickrahmen, Biegerohre und Teile, "
-            "deren Profil im Prüfdialog geändert wurde (dort ist die Abweichung gewollt). Ebene Gehrungen werden wie "
-            "konstruiert verglichen.",
+            "geprüft werden offen gezeichnete Rohre mit Ringen, Knickrahmen, Biegerohre und Teile, deren Profil im "
+            "Prüfdialog geändert wurde (dort ist die Abweichung gewollt). Ebene Gehrungen werden wie konstruiert "
+            "verglichen. Offene Profile (L, U, C, Flachstahl, seit 0.9.223) liegen im Editor anders im Raum: ihr "
+            "Modell wird zuerst an Ende A auf die STEP gelegt; weil die Skizze Walz- und Biegeradien nicht zeichnet, "
+            "zählt an den Enden erst eine Abweichung über die Wandstärke, an den Konturen ab 0,25 mm.",
+            "<b>Kritische Konturen</b> (seit 0.9.223): Langloch, Rechteck und Bohrung übernimmt das Programm nur als "
+            "solche Zeile, wenn der gemessene Umriss auf 0,05 mm dazu passt. Sonst wird es eine <i>Sonderkontur</i> "
+            "mit dem Umriss der STEP, z. B. ein Langloch quer um ein Rundrohr (abgewickelt sind die Enden keine "
+            "Halbkreise), eine außermittige Bohrung im Rundrohr oder eine Schrägbohrung in einer ebenen Wand "
+            "(außen eine Ellipse, Text <i>schräge Bohrung Ø … (…°): Umriss wie STEP</i>). Mit "
+            "3D-Schnittbearbeitung bleibt die schräge Bohrung eine geneigte Bohrung; im Rundrohr zeichnet sie den "
+            "gemessenen Umriss, solange Ø und Neigung wie gemessen bleiben. Ein scharfkantiges U-, L- oder "
+            "C-Profil, das so in den Stammdaten steht, bleibt auch mit Ausklinkung Profil (vorher Kantteil).",
             "<b>Weitere Fälle wie in der STEP</b> (seit 0.9.210): Quadrat-/Rechteckrohr mit Gehrung an beiden Enden "
             "und Fenster (lag 3 mm daneben), Schlitz, der über den Eckradius ins Ende läuft (0,5 mm), und Winkel "
             "bzw. U-Profil mit Ausklinkung am Ende (das freie Schenkelende stand schräg bis auf die Tiefe der "

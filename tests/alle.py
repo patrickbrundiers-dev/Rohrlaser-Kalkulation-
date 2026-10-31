@@ -57,6 +57,7 @@ TESTS = [
     ("test_step_rohranschluss.py", QT),
     ("test_step_durchbruch.py", QT),
     ("test_rohr_aufgeschnitten.py", QT),
+    ("test_step_kritisch.py", QT),
     ("test_gehrung_2d.py", QT),
     ("test_gehrung_2d_umstellen.py", QT),
     ("test_step_robust.py", QT),

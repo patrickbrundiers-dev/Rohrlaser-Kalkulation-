@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.223", "<b>U-Profile als Standard</b> ([[profile]]): Die U-Profile nach DIN 1026-1 von UPN 30x15 bis UPN 200 "
+    ["0.9.224", "<b>U-Profile als Standard</b> ([[profile]]): Die U-Profile nach DIN 1026-1 von UPN 30x15 bis UPN 200 "
                 "stehen in den Stammdaten Profile (Steg, Flansch, Normfläche und Gewicht je Meter, ohne Preis); "
                 "<i>UNP 100</i> oder <i>U 100</i> beim Tippen findet UPN 100, auch in der Schnellzeile. "
                 "<b>Wandstärke ändern …</b> ([[wand_aendern]]): Rechtsklick auf Positionen oder im Fenster Material "
@@ -29,6 +29,15 @@ NEUERUNGEN = [
                 "Abmessung</b> ([[rohrart_angebot]]): im Fenster Material … geschweißt, nahtlos, stranggepresst oder "
                 "neu <i>Naht innen geschabt</i>, steht in Materialanfrage, Angebot und Werkstattpapieren.",
      "U-Profile UPN 30x15 bis 200 als Standard, Wandstärke ändern, Rohrart je Abmessung (auch Naht innen geschabt)"],
+    ["0.9.223", "<b>STEP-Import: weitere kritische Konturen wie in der STEP</b> ([[schneidweg_rechner]]): Ein Langloch "
+                "quer um ein Rundrohr stand als Rechteck im Editor (1,9 mm daneben), eine außermittige Bohrung im "
+                "Rundrohr und eine Schrägbohrung in einer ebenen Wand als Kreis statt Ellipse (0,6–0,9 mm). Weicht der "
+                "gemessene Umriss mehr als 0,05 mm vom Langloch, Rechteck oder Kreis ab, kommt die Zeile jetzt als "
+                "<i>Sonderkontur</i> mit dem Umriss der STEP; mit 3D-Schnittbearbeitung bleibt die schräge Bohrung "
+                "eine geneigte Bohrung. Ein scharfkantiges U, das so in den Stammdaten steht, bleibt auch mit "
+                "Ausklinkung am Flanschende U-Profil statt Kantteil. Die <i>Gegenprobe beim Übernehmen</i> prüft "
+                "jetzt auch offene Profile (L, U, C, Flachstahl). Ältere Importe: STEP neu einlesen.",
+     "STEP-Import: Langloch quer im Rundrohr, außermittige und schräge Bohrungen wie STEP; Gegenprobe auch für L/U/C"],
     ["0.9.222", "<b>Mitarbeiter ausgeschieden</b> ([[mitarbeiter_ausgeschieden]]): In <i>Datei → Kollegen im "
                 "gemeinsamen Ordner …</i> trägt der Admin einen Kollegen mit <b>Ausgeschieden …</b> aus: seine Angebote "
                 "übernimmt der Admin oder ein Kollege (für alle oder je Angebot), sein Ordner kommt ins Archiv des "
