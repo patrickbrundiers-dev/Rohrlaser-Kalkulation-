@@ -82,6 +82,10 @@ class AnfragenKarte:
                 "ORDER BY id")}
         except Exception:
             angebote = {}
+        try:            # intern weitergeleitete Mails: Absender des Kunden zum Zusammenfassen (31.10.2026)
+            anfragen.EIGENE = anfragen.eigene_domains(self.f.db)
+        except Exception:
+            anfragen.EIGENE = set()
         neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote)
         st = (anfragen.stand(neu), tuple(ohne))
         if st == self._stand and not erzwingen:
