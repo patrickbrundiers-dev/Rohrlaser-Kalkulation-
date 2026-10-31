@@ -16,6 +16,12 @@ K2 außermittige Bohrung im Rundrohr (Achse nicht durch die Rohrmitte) und K3 Sc
    und Neigung wie gemessen bleiben (sonst Grundform, Schneidweg-Rechner).
 K4 scharfkantiges U, das so in den Stammdaten steht, mit Ausklinkung am Flanschende: wurde Kantteil (passt in kein
    Rohr ganz), ohne Ausklinkung blieb es U-Profil. Jetzt wie kantteile_vorbelegen: in den Stammdaten = Profil.
+Enden (Patrick 31.10.2026: „Gibt es noch mehr Konturen/Geometrie an Rohrende und -anfang? Bitte prüfen“): zweite
+Probe mit 32 Enden (Gehrungen über Breite/Höhe/Eck, parallel und gegenläufig, Rundrohr 30/45/60°, zweiachsig, Spitze,
+Dach, V-Kerbe, Zapfen, Rundkerbe, Gabel, Stufe, zwei Ausklinkungen, Gehrung mit Ausklinkung bzw. Bohrung an der Ecke,
+Steckschlitz, Fischmaul auf Rundrohr gerade/schräg/mit Versatz/gleicher Ø, Rechteck- und Quadratrohr auf Rundrohr,
+beide Enden verdreht): alle wie in der STEP, kein Fehler gefunden. Die Auswahl E… sichert sie; gekrümmte Enden (Sattel,
+Rundrohr-Gehrung) bis TOL_ENDE, weil beide Linien Netze sind (Sehnenfehler).
 K5 Gegenprobe beim Übernehmen (step_gegenprobe) auch für offene Profile (L, U, C, Flachstahl): Modell an Ende A
    ausgerichtet; eine um 2 mm verschobene Kontur gibt den Hinweis.
 
@@ -43,6 +49,7 @@ from rohrlaser import ansicht3d, rohr3d, step, step_gegenprobe  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 TOL = 0.06          # mm wie tests/test_step_wie_modell.py
+TOL_ENDE = 0.1      # mm gekrümmte Enden (Sattel, Rundrohr-Gehrung): = step_gegenprobe.GRENZE
 box, dreh = wie.box, wie.dreh
 
 
@@ -93,7 +100,48 @@ def teile():
     f["R14_RR_Fischmaul_beide_Bohrung"] = et.cut(et.cut(et.cut(
         rr, et.zylinder((-60, 0, -20), (1, 0, 0), 60.3, 120)), et.zylinder((-60, 0, 620), (1, 0, 0), 60.3, 120)),
         et.zylinder((0, 40, 300), (0, -1, 0), 10, 20))
+    # Enden (zweite Probe)
+    def fm(shape, cz, d, winkel=0, versatz=0, achse=(1, 0, 0)):
+        """Fischmaul: Gegenrohr Ø d quer (achse), Mitte bei z = cz, dahinter alles weg; schräg um winkel."""
+        q = (0, 1, 0) if achse == (1, 0, 0) else (1, 0, 0)
+        z = et.zylinder(tuple(-200 * achse[i] + versatz * q[i] + (cz if i == 2 else 0) for i in range(3)), achse, d, 400)
+        t = BRepAlgoAPI_Fuse(z, box(-200, -200, cz, 400, 400, 400)).Shape()
+        return et.cut(shape, dreh(t, winkel, q, (0, 0, cz)) if winkel else t)
+    f["E01_RE_Gehrung45_gegenlaeufig"] = et.schraeg_ende(et.schraeg_ende(re, 560, 0, 45), 40, 0, 45, ende_b=False)
+    f["E03_QR_Gehrung_parallel"] = et.schraeg_ende(et.schraeg_ende(qr, 475, 0, 45), 25, 0, -45, ende_b=False)
+    f["E05_RE_zweiachsig_beide"] = et.schraeg_ende(et.schraeg_ende(re, 560, 20, 30), 40, -15, 25, ende_b=False)
+    f["E06_RE_Spitze"] = et.schraeg_ende(et.schraeg_ende(re, 580, 0, 30), 580, 0, -30)
+    f["E07_RE_V_Kerbe"] = et.cut(re, wie_prisma([(-15, 601), (15, 601), (0, 575)], 30))
+    f["E08_RE_Zapfen"] = et.cut(et.cut(re, box(-50, -30, 570, 30, 60, 40)), box(20, -30, 570, 30, 60, 40))
+    f["E09_RE_Rundkerbe"] = et.cut(re, et.zylinder((0, -30, 600), (0, 1, 0), 30, 60))
+    f["E10_RR_Gabel"] = et.cut(rr, box(-40, -4, 550, 80, 8, 60))
+    f["E15_RE_Stufe"] = et.cut(re, box(-50, 0, 580, 100, 30, 30))
+    f["E19_QR_Gehrung_ueber_Eck"] = et.schraeg_ende(qr, 470, 30, 30)
+    f["E22_RE_Gehrung_Ausklinkung"] = et.cut(et.schraeg_ende(re, 560, 0, 30), box(-20, 10, 520, 40, 20, 60))
+    f["E23_RR_Steckschlitz"] = et.cut(rr, box(-1.5, 0, 540, 3, 40, 70))
+    f["E24_RE_Dach"] = et.schraeg_ende(et.schraeg_ende(re, 590, 30, 0), 590, -30, 0)
+    f["E25_RR_Spitze"] = et.schraeg_ende(et.schraeg_ende(rr, 580, 0, 30), 580, 0, -30)
+    f["E31_RR_Fischmaul_30_D80"] = fm(rr, 600, 80, 30)
+    f["E32_RE_auf_RR100"] = fm(re, 600, 100, achse=(0, 1, 0))
+    f["E33_RR_Fischmaul_Versatz"] = fm(rr, 600, 88.9, versatz=10)
+    f["E34_RR_Gehrung45"] = et.schraeg_ende(rr, 569, 0, 45)
+    f["E35_QR_auf_RR60"] = fm(qr, 500, 60)
+    f["E36_RR_Fischmaul_beide_verdreht"] = fm(dreh(fm(rr, 600, 60.3), 180, (1, 0, 0), (0, 0, 300)), 600, 60.3,
+                                              achse=(0, 1, 0))
     return f
+
+
+def wie_prisma(punkte, dicke):
+    """Dreieck o. ä. (x, z) quer durch die Oberseite (y von 0 bis dicke)."""
+    from test_rohr_aufgeschnitten import prisma
+    return prisma(punkte, "xz", 0, dicke)
+
+
+ENDEN = {"E01": ("Gehrung", "Gehrung"), "E03": ("Gehrung", "Gehrung"),
+         "E05": ("Schrägschnitt zweiachsig", "Schrägschnitt zweiachsig"), "E19": (None, "Schrägschnitt zweiachsig"),
+         "E34": (None, "Gehrung"), "E31": (None, "Rohranschluss"), "E32": (None, "Rohranschluss"),
+         "E33": (None, "Rohranschluss"), "E35": (None, "Rohranschluss"), "E36": ("Rohranschluss", "Rohranschluss")}
+GEKRUEMMT = ("E09", "E10", "E23", "E24", "E25", "E31", "E32", "E33", "E34", "E35", "E36", "R10")   # Sattel, Bögen
 
 
 SONDER = {"K1": "Sonderkontur", "K2": "Sonderkontur", "K3": "Sonderkontur"}
@@ -121,15 +169,24 @@ def editor_pruefen(ms, d3, nur=None):
             e = d.eingaben()
             n = wie.netz_wie_konstruiert(d)
             sn = ansicht3d.entpacken(ms[name]["_netz"])
-            mod = [z for a in ("K", "EA", "EB") for z in n["l"].get(a, [])]
-            st = [z for a in ("K", "EA", "EB") for z in sn["l"].get(a, [])]
-            weit = max(wie._abstand(mod, st), wie._abstand(st, mod)) - rohr3d.ABSTAND
-            if weit > TOL:
+            # Konturen liegen im Modell um rohr3d.ABSTAND über der Wand, Enden auf der Kante: getrennt messen
+            weit = -1.0
+            for arten, ab in ((("K",), rohr3d.ABSTAND), (("EA", "EB"), 0.0)):
+                mod = [z for a in arten for z in n["l"].get(a, [])]
+                st = [z for a in arten for z in sn["l"].get(a, [])]
+                if mod or st:
+                    assert mod and st, (name, arten, len(mod), len(st))
+                    weit = max(weit, max(wie._abstand(mod, st), wie._abstand(st, mod)) - ab)
+            if weit > (TOL_ENDE if name.startswith(GEKRUEMMT) else TOL):
                 fehler += 1
                 print(f"FEHLER {name}{' (3D)' if d3 else ''}: im Editor {weit:.3f} mm neben der STEP")
             else:
                 print(f"OK     {name}{' (3D)' if d3 else ''}: {weit:+.3f} mm")
             out[name] = (e["konturen"], d)
+            soll = ENDEN.get(name.split("_")[0])
+            if soll:
+                ist = (e["a"].get("form"), e["b"].get("form"))
+                assert all(s_ is None or s_ == i_ for s_, i_ in zip(soll, ist)), (name, ist)
         return out, fehler
 
 
