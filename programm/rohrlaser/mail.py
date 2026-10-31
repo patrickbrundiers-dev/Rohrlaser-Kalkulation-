@@ -1006,7 +1006,8 @@ class _Ebene:
     betreff, text (ab Ende ihres Kopfes bis zum Ende)."""
 
     def __init__(self, beginn, ende, felder, text):
-        self.beginn, self.name, self.absender = beginn, *_von(felder.get("von", ""))
+        self.beginn = beginn
+        self.name, self.absender = _von(felder.get("von", ""))
         self.datum = kopf_zeit(felder.get("zeit", ""))
         self.betreff = felder.get("betreff", "")
         self.text = text[ende:].lstrip("\n")
