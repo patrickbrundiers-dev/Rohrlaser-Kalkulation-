@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.224", "<b>Outlook-Import: intern weitergeleitete Mails</b> ([[anfrage_mail]]): Leitet ein Kollege eine "
+                "Kundenanfrage weiter (WG:/FW:, im Text, als .msg/.eml-Anhang oder mehrfach), kommen Kunde, "
+                "Ansprechpartner, Signatur (neuer Kunde mit Adresse), Anfragedatum, Staffelmengen, Zusatzarbeiten, "
+                "Termin und Bemerkung aus der Mail des Kunden statt vom Kollegen; ein späterer Nachtrag direkt vom "
+                "Kunden kommt dazu. Der Prüfdialog zeigt <i>Intern weitergeleitet von …</i> und die Notiz des "
+                "Kollegen; ein Termin oder Werkstoff in der Notiz gilt (Hinweis auf den Kundenwert). Neu unter "
+                "Einstellungen → Firma: <i>Weitere eigene E-Mail-Domains</i>; die Adressen der Arbeitsplätze im "
+                "gemeinsamen Ordner zählen automatisch als intern, die eigene Firma wird nie als Kunde angelegt.",
+     "Outlook-Import: intern weitergeleitete Mails erkannt, Kunde und Anfragetext vom ursprünglichen Absender"],
     ["0.9.223", "<b>STEP-Import: weitere kritische Konturen wie in der STEP</b> ([[schneidweg_rechner]]): Ein Langloch "
                 "quer um ein Rundrohr stand als Rechteck im Editor (1,9 mm daneben), eine außermittige Bohrung im "
                 "Rundrohr und eine Schrägbohrung in einer ebenen Wand als Kreis statt Ellipse (0,6–0,9 mm). Weicht der "
