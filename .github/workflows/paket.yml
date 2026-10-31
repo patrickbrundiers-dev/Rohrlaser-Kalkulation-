@@ -46,7 +46,8 @@ jobs:
   tests:
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    timeout-minutes: 30            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen
+    timeout-minutes: 40            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen (31.10.2026: Lauf
+                                   # dauert inzwischen 25-30 min, zweimal am 30-min-Limit abgebrochen)
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

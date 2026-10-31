@@ -30,8 +30,13 @@ KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium", "Buntmetall")
 GAS_VORGABEN = ("automatisch", "nur N₂", "nur O₂")
 LASERARTEN = ("Faser + CO₂", "nur Faser")
 NUR_FASER = "nur Faser"
-ROHRARTEN = ("geschweißt", "nahtlos", "stranggepresst")
+# „Naht innen geschabt“ (Patrick 31.10.2026, Plan 7a): geschweißt mit innen entfernter Naht – die Naht bleibt für
+# Nahtlage und Drehen wie bei geschweißt, die Angabe steht in Materialanfrage, Angebot und Werkstattpapier
+GESCHABT = "Naht innen geschabt"
+ROHRARTEN = ("geschweißt", "nahtlos", "stranggepresst", GESCHABT)
 OHNE_NAHT = ("nahtlos", "stranggepresst")
+# Rohrart je Abmessung im Angebot (angebote.rohrarten, Plan 6a): nur Hohlprofile, leer = wie der Werkstoff
+ROHR_FORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
 # Teuerungs-/Legierungszuschlag je Werkstoff (Plan 29.10.2026 1a, Patrick „4c“: Prozent oder €/kg wählbar)
 TEUERUNG_PROZENT, TEUERUNG_KG = "%", "€/kg"
 TEUERUNG_ARTEN = (TEUERUNG_PROZENT, TEUERUNG_KG)
@@ -1771,7 +1776,7 @@ def beispiel_werkstoffe():
 _ST, _ES, _AL, _BM = "Stahl", "Edelstahl", "Aluminium", "Buntmetall"
 _ROHR_S, _PRAEZ = "EN 10219 kaltgefertigt, geschweißt", "EN 10305-3 Präzisionsstahlrohr, geschweißt, maßgewalzt"
 _ROHR_W, _ROHR_E = "EN 10210 warmgefertigt", "EN 10217-7 / ASTM A554"
-_GS, _NL, _SP = ROHRARTEN
+_GS, _NL, _SP = ROHRARTEN[:3]
 _N2, _O2 = GAS_VORGABEN[1:]
 _ZINK = "verzinkt: Zinkdampf, Absaugung prüfen; nur N₂ (O₂ brennt die Zinkschicht ab), leichter Grat innen"
 _ZUNDER = "warmgefertigt: Zunder auf der Oberfläche, Vorschub etwas geringer, Einstich unruhiger"
