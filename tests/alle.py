@@ -81,7 +81,7 @@ TESTS = [
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
     "test_step_bleche.py", "test_werkstoffe.py", "test_werkstoffe_rohrlaser.py", "test_meterpreis.py", "test_teuerung.py", "test_kalkulation_verbessern.py", "test_stundensatz.py", "test_gewinn_gestaffelt.py", "test_preis_simulator.py", "test_absage.py", "test_auftragsbestaetigung.py", "test_etiketten.py", "test_auslastung.py", "test_reklamation.py", "test_material_fenster.py", "test_stangen_vorgabe.py", "test_abmessung_fenster.py", "test_stangen_ansicht.py",
     "test_maschinen.py", "test_schneiddaten_standard.py", "test_lager.py", "test_nachkalk_auswertung.py", "test_arbeitsgaenge.py", "test_abrechnungsregeln.py", "test_varianten.py", "test_fertigung.py",
-    "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_unterzeilen.py", "test_satz_optik.py", "test_kopf_kompakt.py", "test_spaltenbreite.py",
+    "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_unterzeilen.py", "test_satz_optik.py", "test_satz_menge.py", "test_kopf_kompakt.py", "test_spaltenbreite.py",
     "test_angebot_leistung.py", "test_zeiten.py",
     "test_staffelpreise.py", "test_gewinn_basis.py", "test_preisregeln.py", "test_quellcode_schutz.py", "test_update.py", "test_update_sperre.py", "test_update_haertung.py", "test_update_signatur.py", "test_echtheit.py", "test_update_testplan.py", "test_update_download.py", "test_daten_finden.py", "test_release_pruefen.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
     "test_fracht_richtwerte.py", "test_pack_rechner.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
