@@ -41,6 +41,8 @@ FUNKTIONEN = (
              "„Reklamation erfassen …“ und Datei → Reklamationen", datei=("Reklamationen …",)),
     Funktion("funktion_etiketten", "Etiketten mit QR-Code", "„Etiketten mit QR-Code (PDF) …“ unter Ausgaben"),
     Funktion("funktion_ab", "Auftragsbestätigung", "„Auftragsbestätigung (PDF)“ unter Ausgaben"),
+    Funktion("funktion_schnellpreis", "Schnellpreis", "Datei → Schnellpreis (Richtpreis für Telefonanfragen)",
+             datei=("Schnellpreis …",)),
     Funktion("funktion_simulator", "Preis-Simulator und Varianten",
              "Datei → Preis-Simulator und „Varianten vergleichen …“", datei=("Preis-Simulator …",)),
     Funktion("funktion_teuerung", "Teuerungszuschlag",

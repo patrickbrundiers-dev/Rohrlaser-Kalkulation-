@@ -2001,6 +2001,7 @@ class Hauptfenster(QMainWindow):
                                   ("Alte Angebote archivieren …", self.archivieren, None),
                                   ("Archiv durchsuchen …", self.archiv_dialog, None),
                                   (None, None, None),
+                                  ("Schnellpreis …", self.schnellpreis, "Ctrl+Alt+P"),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
@@ -2711,6 +2712,15 @@ class Hauptfenster(QMainWindow):
             return None
         from .absage_dialog import AuswertungDialog
         d = AuswertungDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def schnellpreis(self):
+        """Datei → Schnellpreis (Vorschlag V5): Richtpreis für Telefonanfragen, nichts wird gespeichert. Ergebnis:
+        der Dialog (im Selbsttest ohne exec)."""
+        from .schnellpreis_dialog import SchnellpreisDialog
+        d = SchnellpreisDialog(self)
         if not self.stumm:
             d.exec()
         return d
