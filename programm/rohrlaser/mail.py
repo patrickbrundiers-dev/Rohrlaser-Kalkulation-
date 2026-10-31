@@ -286,7 +286,9 @@ def _auspacken(m, tiefe):
             neu.append((name, daten))
         if innen is not None:
             von = " ".join(x for x in (innen.absender_name, f"<{innen.absender}>" if innen.absender else "") if x)
-            m.text += f"\n\n----- Weitergeleitete Nachricht -----\nVon: {von}\nBetreff: {innen.betreff}\n{innen.text}"
+            zeit = f"\nGesendet: {innen.datum.strftime('%d.%m.%Y %H:%M')}" if innen.datum else ""
+            m.text += (f"\n\n----- Weitergeleitete Nachricht -----\nVon: {von}{zeit}\nBetreff: {innen.betreff}\n\n"
+                       f"{innen.text}")
             neu.extend(innen.anhaenge)
     m.anhaenge = neu
 
@@ -613,8 +615,12 @@ def zusatz_erwaehnt(text, namen):
     return out
 
 
-def bemerkung(m):
-    """Interne Bemerkung zum Angebot: 'E-Mail von Name <adresse> vom 28.10.2026 10:15: Betreff'."""
+def bemerkung(m, weiter=None):
+    """Interne Bemerkung zum Angebot: 'E-Mail von Name <adresse> vom 28.10.2026 10:15: Betreff'. Intern
+    weitergeleitet (weiter = Weiterleitung, Patrick 31.10.2026 F3 a): die Mail des Kunden und dahinter
+    „(weitergeleitet von Max Kollege am 28.10.2026 08:00)“."""
+    if weiter is not None and weiter.original is not None:
+        return bemerkung(weiter.original) + f" ({weiter.text()})"
     von = " ".join(x for x in (m.absender_name, f"<{m.absender}>" if m.absender else "") if x)
     zeit = f" vom {m.datum.strftime('%d.%m.%Y %H:%M')}" if m.datum else ""
     return f"E-Mail{' von ' + von if von else ''}{zeit}" + (f": {m.betreff}" if m.betreff else "")
@@ -917,3 +923,195 @@ def neue_kundennr(vorhandene):
     while (neu := f"{beste.group(1)}{str(n).zfill(len(beste.group(2)))}") in vorh:
         n += 1
     return neu
+
+
+# ---------------------------------------------------------------- intern weitergeleitete Mail (Patrick 31.10.2026)
+# „Wenn die Mail intern weitergeleitet wird, muss das erkannt werden“ (Freigabe „Alle a“): Kommt die Mail von einem
+# Kollegen (eigene Domain bzw. Signatur mit dem eigenen Firmennamen), gilt die Mail des Kunden darin – eingebettet
+# (.msg/.eml-Anhang, steht nach dem Auspacken mit Kopf im Text) oder im Text weitergeleitet (Outlook, Gmail,
+# Thunderbird, Apple, auch mehrfach). Leitet der Kunde selbst intern weiter, bleibt er der Absender (F4 a).
+
+WEITER_PRAEFIX = re.compile(r"^\s*(?:(?:AW|RE|WG|FW|FWD|TR|WTR|VS|SV|Antw(?:ort)?|Weiterleitung)\s*(?:\[\d+\])?\s*:\s*)+",
+                            re.I)
+WEITERGELEITET = re.compile(r"^\s*(?:WG|FW|FWD|TR|WTR|Weiterleitung)\s*(?:\[\d+\])?\s*:", re.I)
+KOPF_FELD = re.compile(r"^\s*[*>]*\s*(Von|From|Gesendet|Sent|Datum|Date|An|To|Cc|Kopie|Betreff|Subject|Wichtigkeit|"
+                       r"Importance|Priorität)\s*[*]*\s*:\s*(.*?)\s*$", re.I)
+SCHRIEB = re.compile(r"^\s*(?:Am|On)\s+(.{5,80}?)\s+(?:um\s+(\d{1,2}[:.]\d{2})\s+)?(?:schrieb|wrote)\s+(.{2,120}?)\s*:\s*$",
+                     re.I)
+_MONATE = {m: i + 1 for i, ms in enumerate((("januar", "january", "jan", "jänner"), ("februar", "february", "feb"),
+                                            ("märz", "maerz", "march", "mar", "mär", "mrz"), ("april", "apr"),
+                                            ("mai", "may"), ("juni", "june", "jun"), ("juli", "july", "jul"),
+                                            ("august", "aug"), ("september", "sept", "sep"),
+                                            ("oktober", "october", "okt", "oct"), ("november", "nov"),
+                                            ("dezember", "december", "dez", "dec")))
+           for m in ms}
+
+
+def betreff_ohne(betreff):
+    """Betreff ohne WG:/FW:/Fwd:/TR:/AW:/RE: davor."""
+    return WEITER_PRAEFIX.sub("", betreff or "").strip()
+
+
+def kopf_zeit(text):
+    """Zeit aus einer Kopfzeile „Gesendet:/Date:“: 27.10.2026 09:12, Dienstag, 27. Oktober 2026 09:12, Tuesday,
+    October 27, 2026 9:12 AM, Tue, Oct 27, 2026 at 9:12 AM oder RFC 2822. Sonst None."""
+    t = str(text or "").strip()
+    if not t:
+        return None
+    d = _kopf_datum(t) if re.search(r"\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d", t) else None
+    if d:
+        return d
+    jmt = None
+    if (z := re.search(r"(?<!\d)(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})(?!\d)", t)):
+        jmt = (int(z.group(3)), int(z.group(2)), int(z.group(1)))
+    elif (z := re.search(r"(?<!\d)(\d{4})-(\d{2})-(\d{2})", t)):
+        jmt = (int(z.group(1)), int(z.group(2)), int(z.group(3)))
+    elif (z := re.search(r"(?<!\d)(\d{1,2})\.?\s+([A-Za-zÄÖÜäöü]{3,9})\.?\s+(\d{4})", t)) and z.group(2).lower() in _MONATE:
+        jmt = (int(z.group(3)), _MONATE[z.group(2).lower()], int(z.group(1)))
+    elif (z := re.search(r"([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})", t)) and z.group(1).lower() in _MONATE:
+        jmt = (int(z.group(3)), _MONATE[z.group(1).lower()], int(z.group(2)))
+    if not jmt:
+        return None
+    j, mo, ta = jmt
+    j += 2000 if j < 100 else 0
+    h = mi = 0
+    uhr = re.search(r"(?<![\d.])(\d{1,2})[:.](\d{2})(?:[:.]\d{2})?\s*([AaPp]\.?\s?[Mm]\.?)?(?![\d.])", t[z.end():])
+    if uhr:
+        h, mi = int(uhr.group(1)), int(uhr.group(2))
+        if uhr.group(3):
+            pm = uhr.group(3).lower().startswith("p")
+            h = (h % 12) + (12 if pm else 0)
+    try:
+        return datetime.datetime(j, mo, ta, h, mi)
+    except ValueError:
+        return None
+
+
+def _von(wert):
+    """(Name, Adresse) aus „Hans Neumann <h.neumann@x.de>“, „Neumann, Hans [mailto:h.neumann@x.de]“ oder nur Name."""
+    wert = str(wert or "")
+    a = ADRESSE.search(wert)
+    adresse = a.group(0).lower() if a else ""
+    name = re.split(r"[<\[(]", wert)[0] if a and a.start() > 0 else ("" if a else wert)
+    name = name.strip(" \t\"'")
+    if "," in name and name.count(",") == 1 and "@" not in name:      # „Neumann, Hans“ (Outlook)
+        n, v = (x.strip() for x in name.split(","))
+        if n and v and " " not in n:
+            name = f"{v} {n}"
+    return name, adresse
+
+
+class _Ebene:
+    """Eine ältere Nachricht im Text (weitergeleitet bzw. zitiert): beginn (Zeichen im Text), name, absender, datum,
+    betreff, text (ab Ende ihres Kopfes bis zum Ende)."""
+
+    def __init__(self, beginn, ende, felder, text):
+        self.beginn, self.name, self.absender = beginn, *_von(felder.get("von", ""))
+        self.datum = kopf_zeit(felder.get("zeit", ""))
+        self.betreff = felder.get("betreff", "")
+        self.text = text[ende:].lstrip("\n")
+
+
+def ebenen(text):
+    """Ältere Nachrichten im Text, oberste zuerst: Kopfblöcke aus mindestens zwei Zeilen „Von:/Gesendet:/An:/
+    Betreff:“ (beliebige Reihenfolge, Englisch wie Deutsch) mit Von/From, oder eine Zeile „Am … schrieb X <a>:“."""
+    text = text or ""
+    zeilen = text.split("\n")
+    pos, p = [], 0
+    for z in zeilen:
+        pos.append(p)
+        p += len(z) + 1
+    out, i = [], 0
+    while i < len(zeilen):
+        felder, j = {}, i
+        while j < len(zeilen) and (f := KOPF_FELD.match(zeilen[j])):
+            art = f.group(1).lower()
+            schl = {"von": "von", "from": "von", "gesendet": "zeit", "sent": "zeit", "datum": "zeit", "date": "zeit",
+                    "betreff": "betreff", "subject": "betreff"}.get(art, art)
+            felder.setdefault(schl, f.group(2))
+            j += 1
+        if "von" in felder and j - i >= 2 and ({"zeit", "betreff", "an", "to"} & set(felder)):
+            out.append(_Ebene(pos[i], pos[j] if j < len(zeilen) else len(text), felder, text))
+            i = j
+            continue
+        if (s := SCHRIEB.match(zeilen[i])) and ("@" in s.group(3) or len(s.group(3).split()) <= 4):
+            zeit = s.group(1) + (" " + s.group(2) if s.group(2) else "")
+            out.append(_Ebene(pos[i], pos[i + 1] if i + 1 < len(zeilen) else len(text),
+                              dict(von=s.group(3), zeit=zeit), text))
+        i += 1
+    return out
+
+
+def _kollege_text(text, firma):
+    """Steht der eigene Firmenname (ab 5 Zeichen, ohne Rechtsform) in der Signatur der neuesten Nachricht?"""
+    kern = _kompakt(re.sub(FIRMA, "", firma or ""))
+    return len(kern) >= 5 and kern in _kompakt(_signatur(text))
+
+
+def ist_intern(adresse, eigene=()):
+    return bool(adresse) and _domain(adresse) in set(eigene or ())
+
+
+class Weiterleitung:
+    """Intern weitergeleitete Mail: original = Mail des Kunden (Absender, Datum, Betreff, Text ab ihrer Nachricht,
+    Anhänge der ganzen Mail) oder None (Kunde nicht erkennbar); weiterleiter = [(Name, Adresse, Datum)] der Kollegen,
+    oberster zuerst; notiz = Text des obersten Kollegen ohne Gruß und Signatur."""
+
+    def __init__(self, original, weiterleiter, notiz):
+        self.original, self.weiterleiter, self.notiz = original, weiterleiter, notiz
+
+    def text(self):
+        """„weitergeleitet von Max Kollege am 28.10.2026 08:00, davor Eva Vertrieb“."""
+        if not self.weiterleiter:
+            return "intern weitergeleitet"
+        name, adresse, zeit = self.weiterleiter[0]
+        out = f"weitergeleitet von {name or adresse}" + (f" am {zeit.strftime('%d.%m.%Y %H:%M')}" if zeit else "")
+        davor = [n or a for n, a, _ in self.weiterleiter[1:] if (n or a) != (name or adresse)]
+        return out + (f", davor {', '.join(dict.fromkeys(davor))}" if davor else "")
+
+    def __repr__(self):
+        return f"Weiterleitung({self.original!r}, {self.weiterleiter!r})"
+
+
+def _notiz(text):
+    teil = neuester_teil(text)
+    g = GRUSS.search(teil)
+    if g:
+        teil = teil[:g.start()]
+    teil = re.sub(r"^\s*(?:hallo|hi|moin|servus|guten\s+(?:morgen|tag))\b[^\n]*\n", "", teil.strip(), flags=re.I)
+    return re.sub(r"\s+", " ", teil).strip(" -_")
+
+
+def weiterleitung(m, eigene=(), firma=""):
+    """Weiterleitung, wenn m von einem Kollegen kommt (Absender mit eigener Domain oder Signatur mit dem eigenen
+    Firmennamen) und eine ältere Nachricht enthält bzw. mit WG:/FW: beginnt; sonst None. Die oberste ältere Nachricht
+    von außen ist die des Kunden (der Kunde leitet selbst weiter: er bleibt Absender, F4 a); Nachrichten weiterer
+    Kollegen dazwischen werden übersprungen."""
+    if m is None:
+        return None
+    eigene = set(eigene or ())
+    alle = ebenen(m.text)
+    if ist_intern(m.absender, eigene):
+        intern = True
+    elif m.absender and _domain(m.absender) in FREEMAIL:
+        intern = False
+    else:
+        intern = bool(alle) and _kollege_text(m.text, firma)
+    if not intern or not (alle or WEITERGELEITET.match(m.betreff or "")):
+        return None
+    kollegen = [(m.absender_name, m.absender, m.datum)]
+    namen = {_kompakt(m.absender_name)} - {""}
+    for e in alle:
+        if ist_intern(e.absender, eigene) or (e.absender and _domain(e.absender) not in FREEMAIL
+                                              and _kollege_text(e.text, firma)):
+            if e.absender:
+                eigene.add(_domain(e.absender))     # Kollege mit zweiter Domain: gilt für diese Mail als intern
+            kollegen.append((e.name, e.absender, e.datum))
+            namen.add(_kompakt(e.name))
+            continue
+        if not e.absender and (not e.name or _kompakt(e.name) in namen):
+            continue        # nur Name, und der eines Kollegen (Outlook zeigt interne Absender ohne Adresse)
+        orig = Mail(e.name, e.absender, e.datum, e.betreff or betreff_ohne(m.betreff), e.text, m.anhaenge)
+        orig.datei_zeit = m.datei_zeit
+        return Weiterleitung(orig, kollegen, _notiz(m.text))
+    return Weiterleitung(None, kollegen, _notiz(m.text))

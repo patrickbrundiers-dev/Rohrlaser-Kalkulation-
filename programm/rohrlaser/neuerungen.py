@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.224", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
+    ["0.9.225", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
                 "und öffnet in Outlook die E-Mail an den Kunden mit Anhang, als Antwort auf die Anfrage-Mail, wenn sie "
                 "im Angebotsordner liegt; Vorlagen unter Einstellungen → Angebot per E-Mail, Vermerk im Versandverlauf. "
                 "<b>Termin prüfen …</b> im Angebotskopf ([[termin_auslastung]]): frühester Liefertermin nach freier "
@@ -31,6 +31,15 @@ NEUERUNGEN = [
                 "([[laufzeit_teil]]): ergibt die Ist-Laserzeit und schlägt Vorschübe je Schneiddaten-Zeile "
                 "(Werkstoff, Wandstärke) vor.",
      "Angebot per E-Mail (Outlook, Antwort auf die Anfrage); Termin nach Auslastung; Schnellpreis; Laufzeit je Teil"],
+    ["0.9.224", "<b>Outlook-Import: intern weitergeleitete Mails</b> ([[anfrage_mail]]): Leitet ein Kollege eine "
+                "Kundenanfrage weiter (WG:/FW:, im Text, als .msg/.eml-Anhang oder mehrfach), kommen Kunde, "
+                "Ansprechpartner, Signatur (neuer Kunde mit Adresse), Anfragedatum, Staffelmengen, Zusatzarbeiten, "
+                "Termin und Bemerkung aus der Mail des Kunden statt vom Kollegen; ein späterer Nachtrag direkt vom "
+                "Kunden kommt dazu. Der Prüfdialog zeigt <i>Intern weitergeleitet von …</i> und die Notiz des "
+                "Kollegen; ein Termin oder Werkstoff in der Notiz gilt (Hinweis auf den Kundenwert). Neu unter "
+                "Einstellungen → Firma: <i>Weitere eigene E-Mail-Domains</i>; die Adressen der Arbeitsplätze im "
+                "gemeinsamen Ordner zählen automatisch als intern, die eigene Firma wird nie als Kunde angelegt.",
+     "Outlook-Import: intern weitergeleitete Mails erkannt, Kunde und Anfragetext vom ursprünglichen Absender"],
     ["0.9.223", "<b>STEP-Import: weitere kritische Konturen wie in der STEP</b> ([[schneidweg_rechner]]): Ein Langloch "
                 "quer um ein Rundrohr stand als Rechteck im Editor (1,9 mm daneben), eine außermittige Bohrung im "
                 "Rundrohr und eine Schrägbohrung in einer ebenen Wand als Kreis statt Ellipse (0,6–0,9 mm). Weicht der "

@@ -29,6 +29,7 @@ SEITEN = (
            Abschnitt("Funktionen", tuple(f.name for f in funktionen.FUNKTIONEN)))),
     Seite("e_firma", "Firma", ALLE_PLAETZE,
           (_a("Briefkopf und Logo", "briefkopf_1 briefkopf_2 briefkopf_3 briefkopf_4 logo"),
+           _a("E-Mail", "eigene_domains"),
            _a("Zugang", "passwort"))),
     Seite("e_arbeitsplatz", "Mein Arbeitsplatz",
           "Gilt nur für diesen Arbeitsplatz; der Abgleich mit den Kollegen ändert diese Werte nicht.",

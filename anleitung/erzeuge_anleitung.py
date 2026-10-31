@@ -1036,10 +1036,25 @@ def kapitel_angebote(i):
             "<b>Kunde</b>: Die Absenderadresse wird mit dem Feld <i>E-Mail</i> der Kunden verglichen ([[kunden]]) – "
             "erst genau, dann nur die Domain (<i>@kunde.de</i>). Bei Freemail-Adressen (gmail, web.de, gmx …) zählt "
             "nur die genaue Adresse; passt eine Domain zu mehreren Kunden, entscheidet das Programm nicht. Mails "
-            "aus der eigenen Firma (Domain aus Briefkopf oder Benutzer-E-Mail) zählen nicht: Hat ein Kollege die "
-            "Anfrage weitergeleitet, gilt der ursprüngliche Absender. Ohne Treffer gilt der Name im Text, dann ein "
+            "aus der eigenen Firma zählen nicht (siehe <i>Intern weitergeleitet</i>). Ohne Treffer gilt der Name im Text, dann ein "
             "Kunde, dessen Name in der Domain steckt (<i>@schmitz-stahlbau.de</i> → <i>Schmitz Stahlbau GmbH</i>, nur "
             "wenn genau einer passt; der Hinweis sagt <i>bitte prüfen</i>), sonst der Ordnername.",
+            "<b>Intern weitergeleitet</b> (seit 0.9.224): Kommt die Mail von einem Kollegen (<i>WG:</i>/<i>FW:</i>), "
+            "nimmt das Programm die Mail des Kunden darin – im Text weitergeleitet (Outlook, Gmail, Thunderbird, "
+            "Apple), als <i>.msg</i>/<i>.eml</i> im Anhang oder mehrfach weitergeleitet (Kunde → Max → Eva). Kunde, "
+            "Ansprechpartner, Signatur, Anfragedatum, Betreff, Staffel, Zusatzarbeiten und Termin kommen dann vom "
+            "Kunden; die Mail kommt auch mit einem späteren Nachtrag direkt vom Kunden zusammen. Der Prüfdialog "
+            "zeigt oben <i>Intern weitergeleitet von Max Kollege am 28.10. – Anfrage von Hans Neumann … vom "
+            "27.10.</i> und die <b>Notiz des Kollegen</b> (<i>bitte anbieten, eilt</i>). Nennt die Notiz einen "
+            "Termin oder Werkstoff, gilt der (neuester Stand); der Hinweis nennt den abweichenden Wert des "
+            "Kunden. Ist in der Mail kein Kunde zu erkennen (z. B. Kunde hat angerufen), sagt der Hinweis <i>Kunde "
+            "bitte selbst wählen</i>. Leitet der Kunde selbst intern weiter (Einkauf leitet die Mail des "
+            "Konstrukteurs weiter), bleibt der oberste Absender beim Kunden der Ansprechpartner.",
+            "<b>Wer ist intern?</b> Die Domains aus Briefkopf und Benutzer-E-Mail, die E-Mail-Adressen aller "
+            "Arbeitsplätze im gemeinsamen Ordner und das Feld <i>Weitere eigene E-Mail-Domains</i> unter "
+            "Einstellungen → Firma (z. B. <i>firma-gruppe.de, firma-service.de</i>, mit Komma getrennt). Ein Kollege "
+            "mit anderer Domain wird auch an seiner Signatur mit dem eigenen Firmennamen (Briefkopf Zeile 1) "
+            "erkannt. Die eigene Firma legt das Programm nie als neuen Kunden an.",
             "<b>Neuer Kunde</b>: Ist der Absender bei keinem Kunden bekannt, legt das Programm ihn an – mit der "
             "nächsten freien Kundennummer, Firmenname, Ansprechpartner, Straße, PLZ/Ort, Telefon und E-Mail aus der "
             "Signatur bzw. dem Kopf des Anfrageformulars und der Bemerkung <i>Kunde prüfen</i>. Bei <b>Abbrechen</b> "
@@ -1052,7 +1067,8 @@ def kapitel_angebote(i):
             "verschiedene Termine übernimmt das Programm nicht. Auch eine Dauer zählt (<i>Lieferung in 3 Wochen</i>, "
             "<i>innerhalb von 10 Arbeitstagen</i>). Bei einer Antwort mit Verlauf gilt die neueste Nachricht zuerst.",
             "<b>Bemerkung</b> (intern, nicht im Angebots-PDF): <i>E-Mail von Name &lt;Adresse&gt; vom Datum: "
-            "Betreff</i>.",
+            "Betreff</i>; intern weitergeleitet die Mail des Kunden mit <i>(weitergeleitet von Max Kollege am "
+            "28.10.2026 08:00)</i> dahinter.",
             "<b>Werkstoff</b>: Steht ein Werkstoff im Text (<i>1.4301</i>, <i>V2A</i>, <i>S355J2H</i>, "
             "<i>AW-6060</i>), wird er für Rohre und Profile vorgewählt – aber nur, wenn genau ein Werkstoff der "
             "Stammdaten passt. Passen mehrere (z. B. <i>S235</i> zu zwei Normen) und die Vorgabe des Kunden ist "
