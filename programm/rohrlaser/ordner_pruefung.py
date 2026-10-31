@@ -2,8 +2,8 @@
 
 Eine Prüfung ohne Qt: Ordner erreichbar, Schreiben/Lesen und Geschwindigkeit, Uhr gegenüber dem Ordner, eigenes
 Kürzel, Programmversion und letzter Abgleich der Kollegen, alte Dateien (Format 1), Konfliktkopien (OneDrive,
-SharePoint, Dropbox, Nextcloud), doppelt reservierte Nummern, vorläufige Nummern, liegengebliebene Zwischendateien und
-freier Platz. Ergebnis: Liste von Befunden {stufe, titel, text, tun} mit stufe OK, HINWEIS oder FEHLER. kurz() liefert
+SharePoint, Dropbox, Nextcloud), doppelt reservierte Nummern, Lizenzen der aktiven Plätze (Paket C), vorläufige
+Nummern, liegengebliebene Zwischendateien und freier Platz. Ergebnis: Liste von Befunden {stufe, titel, text, tun} mit stufe OK, HINWEIS oder FEHLER. kurz() liefert
 die wichtigsten Warnungen für die Statuszeile, ohne den Ordner zu beschreiben.
 """
 import datetime
@@ -178,6 +178,17 @@ def pruefen(db, geschwindigkeit=True):
     if not kopien:
         out.append(_befund(OK, "Konfliktkopien", "Keine Konfliktkopien im gemeinsamen Ordner."))
 
+    # ---- Lizenzen der aktiven Plätze (Paket C)
+    try:
+        lizenz = teilen.lizenz_hinweise(db)
+    except (ValueError, TypeError):
+        lizenz = []
+    for t in lizenz:
+        out.append(_befund(HINWEIS, "Lizenz", t + ".", "Lizenz für diesen Rechner ausstellen (Lizenz-Werkzeug); "
+                                                      "jede Lizenz gilt für einen Rechner."))
+    if not lizenz and andere:
+        out.append(_befund(OK, "Lizenzen", "Alle aktiven Plätze melden eine eigene gültige Lizenz."))
+
     # ---- Zwischendateien, vorläufige Nummern, Platz
     try:
         reste = w.reste()
@@ -223,6 +234,10 @@ def kurz(db):
         out.append(f"{doppelt} doppelte Nummer" + ("n" if doppelt > 1 else ""))
     if fremde:
         out.append(f"{fremde} Konfliktkopie" + ("n" if fremde > 1 else ""))
+    if admin_schutz.ist_admin(db) and admin_schutz.aktiv(db):
+        n = len(teilen.lizenz_hinweise(db))
+        if n:
+            out.append(f"{n} Lizenzhinweis" + ("e" if n > 1 else ""))
     return out
 
 

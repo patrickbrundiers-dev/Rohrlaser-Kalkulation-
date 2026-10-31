@@ -23,6 +23,7 @@ ENDUNG = ".sqlite"
 HAUPT = "haupt.sqlite"
 MONAT_PRAEFIX = "Angebote_"
 NUMMER_ENDUNG = ".nummer"
+ARCHIV = "Archiv"               # Ordner ausgeschiedener Mitarbeiter (Paket C), werden nicht mehr gelesen
 UHR_DATEI = "uhr.pruef"         # Prüfdatei je Mitarbeiter: ihren Zeitstempel setzt das Netzlaufwerk (Ordner-Uhr)
 TEST_DATEI = "ordner_test.tmp"  # Geschwindigkeitsprüfung (Ordner prüfen), wird gleich wieder gelöscht
 NEU = ".neu"                    # Zwischendateien beim Austauschen; bleiben nur nach einem Abbruch liegen
@@ -280,6 +281,22 @@ class OrdnerWeg:
                 except OSError:
                     pass
         return out
+
+    # -------------------------------------------------------------- Ausgeschiedene Mitarbeiter (Paket C)
+    def archivieren(self, k, stempel):
+        """Ordner (und alte Einzeldatei) des Kürzels k nach Archiv/Rohrlaser_<K>_<stempel> verschieben: er wird
+        nicht mehr gelesen, bleibt aber erhalten. Ergebnis: Zielordner. OSError."""
+        ziel = self.pfad / ARCHIV / f"{ordner_name(k)}_{stempel}"
+        ziel.mkdir(parents=True, exist_ok=False)
+        for q in (self.pfad / ordner_name(k), self.pfad / datei_name(k)):
+            if q.exists():
+                shutil.move(str(q), str(ziel / q.name))
+        return ziel
+
+    def archiviert(self, k):
+        """Wurde das Kürzel k als ausgeschieden archiviert (Archiv/Rohrlaser_<K>_…)?"""
+        a = self.pfad / ARCHIV
+        return a.is_dir() and any(a.glob(f"{ordner_name(k)}_*"))
 
     def unterordner(self, name, anlegen=False):
         """Unterordner (Anfragen, Angebote, Sicherungen) oder None, wenn der Ordner nicht erreichbar ist."""
