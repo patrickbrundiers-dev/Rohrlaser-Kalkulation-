@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.219", "<b>Anzahl Sätze und Stück je Satz ändern</b> ([[satz_bearbeiten]]): Doppelklick auf die Spalte Satz "
+                "oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i> öffnet ein Fenster mit der Anzahl Sätze "
+                "(− / +) und Stück je Satz je Position; die Stückzahlen rechnen sich live mit, OK ist ein Schritt für "
+                "Rückgängig. In der Liste ziehen die Spalten mit: Stück je Satz geändert → Stückzahl folgt, Stückzahl "
+                "einer Satzposition geändert → Stück je Satz folgt (geht es nicht ganz auf, bleibt alles wie getippt "
+                "mit Hinweis). Dasselbe Feld <i>Anzahl Sätze</i> im Fenster Satz in 3D; der Blech-Editor folgt der "
+                "gleichen Regel.",
+     "Anzahl Sätze mit − / + ändern, Stück je Satz und Stückzahl ziehen mit"],
     ["0.9.218", "<b>Durchbruch für einen Stutzen aus der STEP</b> ([[schneidweg_rechner]]): Ein rundes Loch in der "
                 "Rohrwand für ein abgehendes Rohr (rechtwinklig, schräg, mit Versatz, in beliebiger Lage am Umfang) "
                 "kommt jetzt als <i>Durchbruch</i> mit Gegenrohr Ø, Winkel, Versatz, Seite und Lage in den Editor "

@@ -1207,6 +1207,8 @@ class PositionenModell(QAbstractTableModel):
         if f.name in ("konturen", "kontur_grenzen"):     # Konturliste geändert: beim Neuladen neu einteilen
             self.s.db.position_aendern(p["id"], "kontur_grenzen", None)
         neu = self.s.profil_gewechselt(dict(p, profil_id=wert)) if f.name == "profil_id" else None
+        if f.name in ("stueck", "je_satz"):     # Satz (Patrick 31.10.2026): Stückzahl und Stück je Satz passen zusammen
+            neu = self.s.satz_nachziehen(p, f.name, wert)
         self.s.f.meldung(f"{f.titel} gespeichert." + (f" {neu}" if neu else ""))
         self.geaendert.emit()
         if f.name == "profil_id" and wert and wert not in self.k.profile:     # Abmessung fehlt: anlegen anbieten
@@ -1959,6 +1961,7 @@ class AngebotSeite(QWidget):
                 ("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
+                ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
@@ -3537,6 +3540,10 @@ class AngebotSeite(QWidget):
                            ("gewicht_teil", round(erg["gewicht"], 3)),
                            ("zukauf", json.dumps(liste, ensure_ascii=False))):
             self.db.position_aendern(p["id"], feld, wert)
+        if stueck != p.get("stueck") and p.get("id"):     # Satzposition: Stück je Satz folgt (31.10.2026)
+            h = self.satz_nachziehen(p, "stueck", stueck)
+            if h:
+                self.f.meldung(h)
 
     def blech_gravur(self, p, hoehe):
         """Text-Gravur der Artikelnummer im Blechteil p setzen (hoehe > 0, Lage automatisch bzw. wie bisher) oder
@@ -3618,6 +3625,11 @@ class AngebotSeite(QWidget):
         if ist_baugruppe(p) and art != "zukauf":
             self.baugruppe_bearbeiten([r])
             return
+        if name == "satz" and p.get("satz") and not self.fremd():     # Satz (31.10.2026): Anzahl Sätze …
+            from . import satz_menge
+            if satz_menge.gehoert_zum_satz(p, self.positionen):
+                self.satz_bearbeiten(r)
+                return
         ziel = {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile, "naht": self.schweissnaht,
                 "bohrbild": self.bohrungen_pruefen, "anbau": self.anbauteile_pruefen}.get(art)
         if ziel:
@@ -3719,7 +3731,7 @@ class AngebotSeite(QWidget):
         for text, a in self.pos_aktionen.items():
             noetig = self.MENUE_ARTEN.get(text)
             sichtbar = not zeilen or noetig is None or bool(arten & noetig)
-            if text == "Satz in 3D …":
+            if text in ("Satz in 3D …", "Satz bearbeiten (Anzahl Sätze) …"):
                 sichtbar = mit_satz
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
@@ -5259,6 +5271,57 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"Stückzahl in {n} Position(en) geändert." if n else "Keine Stückzahl geändert.", fehler=not n)
         return n
 
+    # -------------------------------------------------------------- Sätze (Patrick 31.10.2026)
+    def satz_nachziehen(self, p, feld, wert):
+        """Nach einer Eingabe in Stückzahl bzw. Stück je Satz einer Satzposition p (Stand vor der Eingabe): Stück je
+        Satz bzw. Stückzahl ziehen mit (satz_menge). Ergebnis: Hinweis für die Meldung oder None."""
+        from . import satz_menge
+        if feld == "stueck":
+            aend, hinweis = satz_menge.stueck_geaendert(p, self.positionen, wert)
+        else:
+            aend, hinweis = satz_menge.je_satz_geaendert(p, self.positionen, wert)
+        for pid, f, w in aend:
+            self.db.position_aendern(pid, f, w)
+        return hinweis
+
+    def saetze_anwenden(self, satz, n, je=None):
+        """n Sätze (und Stück je Satz je = {Positions-ID: Wert}) in die Positionen des Satzes schreiben, ohne neu zu
+        laden. Ergebnis: Anzahl geänderter Positionen."""
+        from . import satz_menge
+        aend = satz_menge.saetze_setzen(self.positionen, satz, n, je)
+        for pid, f, w in aend:
+            self.db.position_aendern(pid, f, w)
+        return len({pid for pid, _, _ in aend})
+
+    def satz_bearbeiten(self, zeile=None, satz=None, dialog=None):
+        """Fenster „Satz bearbeiten“ (satz_dialog.py) für den Satz der Zeile: Anzahl Sätze und Stück je Satz, die
+        Stückzahlen folgen; ein Schritt für Rückgängig. dialog(d) bedient das Fenster statt exec (Tests).
+        Ergebnis: True = gespeichert."""
+        from . import satz_menge
+        from .satz_dialog import SatzDialog
+        if satz is None:
+            if zeile is None:
+                zeilen = self._markierte_zeilen()
+                zeile = zeilen[0] if zeilen else None
+            p = self.positionen[zeile] if zeile is not None and 0 <= zeile < len(self.positionen) else None
+            satz = satz_menge.name(p)
+        if not satz or not satz_menge.satz_positionen(self.positionen, satz):
+            r = zeile if zeile is not None else -1
+            if 0 <= r < len(self.positionen) and baugruppe.zuordnung(self.positionen[r])[0]:
+                return self.baugruppe_bearbeiten([r], dialog=dialog)    # Schweißbaugruppe: Anzahl Baugruppen dort
+            self.f.meldung("Satz bearbeiten: Bitte eine Position markieren, die in einem Satz steht (Spalte Satz).",
+                           fehler=True)
+            return False
+        d = SatzDialog(self, satz, self.positionen, nur_lesen=bool(self.fremd() or self.db.nur_lesen))
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.saetze is None:
+            return False
+        n = self.saetze_anwenden(satz, d.saetze, d.je)
+        if n:
+            self.neu_laden()
+        self.f.meldung(f"Satz {satz}: {d.saetze} {'Satz' if d.saetze == 1 else 'Sätze'}, {n} Position(en) geändert."
+                       if n else f"Satz {satz}: nichts geändert.")
+        return True
+
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
         if not zeilen:
@@ -6574,6 +6637,11 @@ class AngebotSeite(QWidget):
                 self.db.position_aendern(q["id"], "muster", d.ergebnis["muster"])
         self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
         hinweise = vorab + self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
+        if d.ergebnis.get("saetze"):        # Anzahl Sätze geändert (31.10.2026): Stückzahlen folgen
+            self.neu_laden()
+            n = d.ergebnis["saetze"]
+            if self.saetze_anwenden(satz, n):
+                hinweise.append(f"Anzahl Sätze: {n}, Stückzahlen angepasst.")
         self.neu_laden()
         n = len(d.ergebnis["naehte"])
         self.f.meldung(f"Satz {satz} gespeichert." + (f" Längsnaht für {n} Teil(e) gesetzt." if n else "")
