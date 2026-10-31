@@ -1316,7 +1316,7 @@ EINSTELLUNGEN = (
     Einstellung("benutzer_email", "E-Mail (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),
-    Einstellung("teilen_takt", "Automatischer Abgleich alle [min] (0 = aus)", "Benutzer", "zahl", 2.0, 0, 60),
+    Einstellung("teilen_takt", "Automatischer Abgleich alle [min] (0 = aus)", "Benutzer", "zahl", 1.0, 0, 60),
     # Was zusätzlich im gemeinsamen Ordner liegt (Patrick 28.10.2026 „Alle“); gilt für alle Mitarbeiter
     Einstellung("teilen_anfragen", "Anfrage-Ordner im gemeinsamen Ordner (wenn oben keiner eingetragen ist)",
                 "Benutzer", "auswahl", "ja", auswahl="janein"),

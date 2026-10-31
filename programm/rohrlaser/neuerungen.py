@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.221", "<b>Kollegen im gemeinsamen Ordner</b> ([[kollegen_uebersicht]]): <i>Datei → Kollegen im gemeinsamen "
+                "Ordner …</i> zeigt je Mitarbeiter, ob er gerade da ist, Rechner, Version, letzten Abgleich, Zahl der "
+                "Angebote, gerade geöffnete Angebote, offene Übergaben/Notizen an ihn und seine PC-Uhr; "
+                "<b>Notiz an …</b> direkt aus der Liste. <b>Schneller abgleichen</b> ([[mehrere_arbeitsplaetze]]): "
+                "Ein Lebenszeichen alle 30 Sekunden zeigt den Kollegen fast sofort, wer woran arbeitet; Änderungen "
+                "gehen gleich nach der Eingabe in den Ordner, der automatische Abgleich läuft jede Minute "
+                "(vorher alle 2 Minuten).",
+     "Übersicht der Kollegen; Lebenszeichen alle 30 s; Änderungen gleich in den Ordner; Abgleich jede Minute"],
+    ["0.9.218", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
     ["0.9.220", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
                 "zeigt, ob der gemeinsame Ordner richtig arbeitet: erreichbar, Geschwindigkeit, Uhr, eigenes Kürzel, "
                 "Programmversion und letzter Abgleich der Kollegen, Konfliktkopien von OneDrive/SharePoint, doppelt "

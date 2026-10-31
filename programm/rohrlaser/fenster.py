@@ -1930,6 +1930,17 @@ class Hauptfenster(QMainWindow):
         self.teilen_takt = QTimer(self)
         self.teilen_takt.timeout.connect(self._teilen_takt)
         self._teilen_takt(starten=True)
+        # Lebenszeichen und Sofort-Schreiben (Paket B, Patrick 31.10.2026)
+        self.teilen_puls = QTimer(self)
+        self.teilen_puls.timeout.connect(self._teilen_puls)
+        self.teilen_puls.start(teilen_fenster.PULS_TICK_MS)
+
+    def _teilen_puls(self):
+        from . import teilen_fenster
+        try:
+            teilen_fenster.puls(self)
+        except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            self.teilen_puls.stop()
 
     def _teilen_takt(self, starten=False):
         from . import teilen_fenster
@@ -1958,6 +1969,11 @@ class Hauptfenster(QMainWindow):
         from . import teilen_fenster
         return teilen_fenster.konflikte_zeigen(self)
 
+    def kollegen_zeigen(self):
+        """Datei → Kollegen im gemeinsamen Ordner: wer ist da, Version, letzter Abgleich, geöffnete Angebote."""
+        from . import kollegen_dialog
+        return kollegen_dialog.zeigen(self)
+
     def ordner_pruefen(self):
         """Datei → Gemeinsamen Ordner prüfen: Erreichbarkeit, Uhr, Konfliktkopien, Versionen der Kollegen …"""
         from . import ordner_pruefung_dialog
@@ -1977,6 +1993,7 @@ class Hauptfenster(QMainWindow):
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
                                   ("Gemeinsamen Ordner prüfen …", self.ordner_pruefen, None),
+                                  ("Kollegen im gemeinsamen Ordner …", self.kollegen_zeigen, None),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
@@ -2320,7 +2337,7 @@ class Hauptfenster(QMainWindow):
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
                            "optimieren", "importieren", "drucken", "staffeln", "stueck", "hoch", "runter")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
-                         "Gemeinsamen Ordner prüfen …",
+                         "Gemeinsamen Ordner prüfen …", "Kollegen im gemeinsamen Ordner …",
                          "Alte Angebote archivieren …")
 
     def lizenz_anwenden(self):
@@ -2652,6 +2669,10 @@ class Hauptfenster(QMainWindow):
                     "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
                 ereignis.ignore()
                 return
+            try:
+                teilen.lebenszeichen_schreiben(self.db, ende=True)      # Kollegen sehen gleich: nicht mehr da
+            except OSError:
+                pass
         if not self.stumm:
             from . import fenster_merken
             fenster_merken.sitzung_merken(self)     # offene Angebote für den nächsten Start (B4)

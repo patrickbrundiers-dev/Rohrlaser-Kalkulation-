@@ -6422,8 +6422,8 @@ def kapitel_mehrere(i):
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
-            "Abgeglichen wird von selbst (alle 2 Minuten, beim Start und Beenden); <b>Abgleichen</b> im Reiter "
-            "Angebote tut es sofort.", nummeriert=True, kurz=True)
+            "Abgeglichen wird von selbst (jede Minute, nach jeder Eingabe, beim Start und Beenden); <b>Abgleichen</b> "
+            "im Reiter Angebote tut es sofort.", nummeriert=True, kurz=True)
     i.abschnitt("Benutzer und Kürzel")
     i.genauer()
     i.liste("<b>Datei → Benutzer und gemeinsamer Ordner …</b> (beim ersten Start von selbst): Name, Kürzel, E-Mail "
@@ -6479,7 +6479,12 @@ def kapitel_mehrere(i):
            "sehen die neuen Ordner nicht: <b>alle Arbeitsplätze auf dieselbe Version aktualisieren</b>.")
     i.tabelle(["Wann", "Was passiert"], [
         ["Programmstart", "holt Angebote und Stammdaten der Kollegen (ohne Fenster; Fehler nur in der Statuszeile)"],
-        ["Alle 2 Minuten (von selbst)", "holt Neues der Kollegen und legt eigene Änderungen in den Ordner; nur wenn "
+        ["Nach einer Eingabe (von selbst)", "ruht die Eingabe etwa 15 Sekunden, legt das Programm die Änderungen "
+                                           "gleich in den Ordner (nur die geänderten Monate)"],
+        ["Alle 30 Sekunden (von selbst)", "<b>Lebenszeichen</b>: eine kleine Datei <i>online.json</i> im eigenen "
+                                          "Ordner sagt den Kollegen, dass das Programm läuft und welche Angebote "
+                                          "gerade offen sind; die der Kollegen werden gelesen"],
+        ["Jede Minute (von selbst)", "holt Neues der Kollegen und legt eigene Änderungen in den Ordner; nur wenn "
                                         "sich etwas geändert hat, nicht während ein Dialog offen ist. Der Abstand "
                                         "steht in den Einstellungen, Gruppe Benutzer: <i>Automatischer Abgleich alle [min] "
                                         "(0 = aus)</i>"],
@@ -6599,7 +6604,27 @@ def kapitel_mehrere(i):
             "erst nach dem eigenen Update (Hinweis beim Abgleich); seine Angebote kommen trotzdem.")
     i.hinweis("Das Kürzel ist eine Kennung, kein Zugriffsschutz: wer den gemeinsamen Ordner öffnen kann, sieht alle "
               "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
-              "letzten Abgleichs (von selbst alle 2 Minuten), nicht live.")
+              "letzten Abgleichs (von selbst jede Minute und nach jeder Eingabe); wer welches Angebot offen hat, "
+              "sehen sie nach höchstens 30 Sekunden.")
+
+    i.abschnitt("Kollegen im gemeinsamen Ordner", marke="kollegen_uebersicht")
+    i.text("<i>Datei → Kollegen im gemeinsamen Ordner …</i> zeigt, wer gerade da ist und woran er arbeitet.", kurz=True)
+    i.genauer()
+    i.tabelle(["Spalte", "Bedeutung"], [
+        ["Status", "<b>● da</b>: das Programm läuft dort und hat sich in den letzten 2 Minuten gemeldet; sonst "
+                   "<i>zuletzt vor 10 min</i>. Der eigene Platz steht oben mit <i>● hier</i>"],
+        ["Rechner, Version", "Name des PCs und Programmversion (älter: aktualisieren, [[ordner_pruefen]])"],
+        ["Letzter Abgleich", "wann seine Angebote und Stammdaten zuletzt im Ordner abgelegt wurden"],
+        ["Angebote", "Zahl seiner eigenen Angebote"],
+        ["Gerade geöffnet", "Nummern der Angebote, die er gerade offen hat"],
+        ["Offene Vorgänge an ihn", "eigene Übergaben, Anfragen und Notizen an ihn, die er noch nicht umgesetzt hat"],
+        ["PC-Uhr", "Abweichung seiner PC-Uhr vom gemeinsamen Ordner (wird herausgerechnet)"]],
+        [40, 225])
+    i.liste("<b>Notiz an …</b> schickt dem markierten Kollegen eine Notiz, <b>Aktualisieren</b> liest die "
+            "Lebenszeichen neu.",
+            "Beim Beenden meldet sich das Programm sofort ab; die Kollegen sehen dann <i>zuletzt gerade eben</i>.",
+            "Hat ein Kollege eine ältere Programmversion ohne Lebenszeichen, zeigt die Liste den Stand seines "
+            "letzten Abgleichs, geöffnete Angebote wie bisher bis 20 Minuten danach.")
 
     i.abschnitt("Gemeinsamen Ordner prüfen", marke="ordner_pruefen")
     i.text("<i>Datei → Gemeinsamen Ordner prüfen …</i> zeigt in einer Liste, ob der gemeinsame Ordner richtig "
