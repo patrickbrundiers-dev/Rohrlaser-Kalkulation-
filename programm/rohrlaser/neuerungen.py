@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.220", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
+                "zeigt, ob der gemeinsame Ordner richtig arbeitet: erreichbar, Geschwindigkeit, Uhr, eigenes Kürzel, "
+                "Programmversion und letzter Abgleich der Kollegen, Konfliktkopien von OneDrive/SharePoint, doppelt "
+                "reservierte Nummern, abgebrochene Schreibvorgänge und vorläufige Nummern, jeweils mit <i>Was tun</i>. "
+                "Eine falsch gehende PC-Uhr wird bei jedem Abgleich gegen die Uhr des Ordners gemessen und "
+                "herausgerechnet, damit sie keinen Konflikt mehr falsch entscheidet. Eigene Konfliktkopien räumt der "
+                "Abgleich in den lokalen Ordner Konfliktkopien. Die Statusleiste warnt bei falscher Uhr und doppelten "
+                "Nummern.",
+     "Gemeinsamen Ordner prüfen; falsche PC-Uhr wird herausgerechnet; Konfliktkopien aufgeräumt"],
     ["0.9.219", "<b>Anzahl Sätze und Stück je Satz ändern</b> ([[satz_bearbeiten]]): Doppelklick auf die Spalte Satz "
                 "oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i> öffnet ein Fenster mit der Anzahl Sätze "
                 "(− / +) und Stück je Satz je Position; die Stückzahlen rechnen sich live mit, OK ist ein Schritt für "

@@ -41,11 +41,20 @@ arbeitet woran). Vorgänge zwischen zwei Mitarbeitern stehen in der Tabelle vorg
 Erledigte Vorgänge anderer merkt sich jeder Arbeitsplatz (teilen_erledigt), eigene verschwinden, sobald der Empfänger
 sie umgesetzt hat. Konflikte (dieselbe Stammdatenzeile hier und bei einem Kollegen seit dem letzten Lesen geändert)
 werden gemerkt (teilen_konflikte) und lassen sich ansehen und umkehren.
+
+Gemeinsamen Ordner ausbauen (Patrick 31.10.2026, Paket A, Freigabe „Alle Empfehlungen“):
+- Uhr: Bei jedem Schreiben ersetzt der Arbeitsplatz eine kleine Prüfdatei (Rohrlaser_<K>/uhr.pruef); ihren
+  Zeitstempel setzt der Datei-Server. Die Abweichung zur PC-Uhr wird gemerkt (teilen_uhr). Stimmen die letzten beiden
+  Messungen überein und sind es mindestens 5 s, verschiebt der Abgleich die Zeitpunkte der eigenen Änderungen um die
+  Abweichung: so entscheidet eine falsch gehende PC-Uhr keinen Konflikt mehr falsch. Ab 2 min Hinweis.
+- Konfliktkopien (OneDrive „haupt-PC01.sqlite“, „00042 (1).nummer“ …): eigene kommen beim Schreiben in den lokalen
+  Ordner Daten/Teilen/Konfliktkopien, fremde und doppelt reservierte Nummern zeigt „Gemeinsamen Ordner prüfen“.
 """
 import datetime
 import hashlib
 import json
 import os
+import shutil
 import socket
 import sqlite3
 import uuid
@@ -321,9 +330,106 @@ def mitarbeiter(db, k=None):
     return alle
 
 
-def jetzt(k):
-    """Zeitpunkt einer Änderung als Text, der sich richtig sortiert; das Kürzel entscheidet bei Gleichstand."""
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "|" + (k or "")
+def jetzt(k, versatz=0):
+    """Zeitpunkt einer Änderung als Text, der sich richtig sortiert; das Kürzel entscheidet bei Gleichstand.
+    versatz: Sekunden, um die die PC-Uhr von der Uhr des gemeinsamen Ordners abweicht (uhr_versatz)."""
+    t = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=versatz or 0)
+    return t.strftime("%Y-%m-%dT%H:%M:%S.%f") + "|" + (k or "")
+
+
+# ------------------------------------------------------------------ Uhr des gemeinsamen Ordners (Paket A, 31.10.2026)
+UHR = "teilen_uhr"              # lokal: {"messungen": [Sekunden …], "zeit": ISO} – letzte Messungen gegen den Ordner
+UHR_KORREKTUR_AB = 5            # ab so vielen Sekunden Abweichung rechnet der Abgleich sie heraus
+UHR_HINWEIS_AB = 120            # ab so vielen Sekunden steht ein Hinweis in der Statuszeile
+UHR_HOECHSTENS = 86400          # mehr als einen Tag: Messung unglaubwürdig, nur Hinweis, keine Korrektur
+UHR_EINIG = 5                   # die letzten beiden Messungen müssen so genau übereinstimmen
+
+
+def uhr_merken(db, wert):
+    """Messung der Abweichung (Sekunden, Ordner minus PC) merken; None (nicht messbar) ändert nichts."""
+    if wert is None:
+        return
+    alt = (db.einstellung(UHR) or {}).get("messungen") or []
+    db._einstellung_schreiben(UHR, {"messungen": (list(alt) + [round(float(wert), 2)])[-3:],
+                                    "zeit": datetime.datetime.now().isoformat(timespec="seconds")})
+
+
+def uhr_abweichung(db):
+    """Zuletzt gemessene Abweichung in Sekunden (positiv: die PC-Uhr geht nach) oder None (nie gemessen)."""
+    m = (db.einstellung(UHR) or {}).get("messungen") or []
+    return m[-1] if m else None
+
+
+def uhr_versatz(db):
+    """Sekunden, um die der Abgleich die Zeitpunkte der eigenen Änderungen verschiebt, damit eine falsch gehende
+    PC-Uhr keinen Konflikt falsch entscheidet: Mittel der letzten beiden Messungen, wenn sie übereinstimmen und die
+    Abweichung mindestens UHR_KORREKTUR_AB und höchstens UHR_HOECHSTENS ist; sonst 0."""
+    m = (db.einstellung(UHR) or {}).get("messungen") or []
+    if len(m) < 2 or abs(m[-1] - m[-2]) > UHR_EINIG:
+        return 0
+    v = (m[-1] + m[-2]) / 2
+    return round(v, 1) if UHR_KORREKTUR_AB <= abs(v) <= UHR_HOECHSTENS else 0
+
+
+def uhr_text(sekunden):
+    """„3 min 20 s vor“ / „45 s nach“: wie die PC-Uhr gegenüber dem gemeinsamen Ordner geht."""
+    s = abs(int(round(sekunden)))
+    if s >= 86400:
+        t = f"{s // 86400} Tage" if s >= 2 * 86400 else "1 Tag"
+    elif s >= 3600:
+        t = f"{s // 3600} h {s % 3600 // 60} min"
+    elif s >= 60:
+        t = f"{s // 60} min {s % 60} s" if s % 60 else f"{s // 60} min"
+    else:
+        t = f"{s} s"
+    return f"{t} {'nach' if sekunden > 0 else 'vor'}"
+
+
+# ------------------------------------------------------------------ Konfliktkopien (Paket A, 31.10.2026)
+KOPIEN = "Konfliktkopien"       # lokaler Ordner neben dem Zwischenspeicher: dorthin kommen eigene Konfliktkopien
+
+
+def konfliktkopien(db):
+    """Konfliktkopien im gemeinsamen Ordner (OneDrive/SharePoint, Dropbox, Nextcloud): [{pfad, original, bereich,
+    kuerzel, eigene}]. eigene: liegt im eigenen Mitarbeiter-Ordner bzw. ist eine Kopie des eigenen Ordners."""
+    w = weg(db)
+    if w is None or not w.erreichbar():
+        return []
+    k = kuerzel(db)
+    out = []
+    for c in w.konfliktkopien(kuerzel_sauber):
+        c["eigene"] = bool(k) and c["kuerzel"] == k and c["bereich"] in ("", ordner_name(k))
+        out.append(c)
+    return out
+
+
+def kopien_aufraeumen(db):
+    """Eigene Konfliktkopien und alte Zwischendateien aus dem gemeinsamen Ordner nehmen: Kopien in den lokalen Ordner
+    Daten/Teilen/Konfliktkopien (nichts wird gelöscht), Zwischendateien (*.neu, älter als 1 h) löschen. Die eigenen
+    Daten stehen in der eigenen Datendatei, die Kopien sind nur veraltete Stände. Ergebnis: Anzahl."""
+    w = weg(db)
+    k = kuerzel(db)
+    if w is None or not k or not w.erreichbar():
+        return 0
+    n = 0
+    ziel = _cache(db) / KOPIEN
+    for c in konfliktkopien(db):
+        if not c["eigene"]:
+            continue
+        ziel.mkdir(exist_ok=True)
+        stempel = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        try:
+            shutil.move(str(c["pfad"]), str(ziel / f"{stempel}_{c['pfad'].name}"))
+            n += 1
+        except OSError:
+            pass
+    for q in w.reste(k):
+        try:
+            q.unlink()
+            n += 1
+        except OSError:
+            pass
+    return n
 
 
 # ------------------------------------------------------------------ Zeilen als Werte
@@ -752,8 +858,9 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         admin_schutz.paket_schreiben(db, wer=k)
     except OSError:
         pass                        # beim nächsten Schreiben wieder
+    uhr_merken(db, w.uhr_messen(k))     # Uhr des gemeinsamen Ordners: falsch gehende PC-Uhr herausrechnen
     with con:
-        erfassen(con, jetzt(k))
+        erfassen(con, jetzt(k, uhr_versatz(db)))
         lokal = lokale_zeilen(con)
         stand_basis = basis(con)
     spiegel = _cache(db) / ordner_name(k)
@@ -849,6 +956,7 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
                         letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}),
                         erledigt=sorted(db.einstellung(ERLEDIGT) or {}), protokoll=protokoll_stand(con),
                         uhr=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                        uhr_abweichung=uhr_abweichung(db), uhr_versatz=uhr_versatz(db),
                         lizenz=db.einstellung("lizenz_info") or {})     # Übersicht Arbeitsplätze und Rechte
             sc.executemany("INSERT OR REPLACE INTO info (name, wert) VALUES (?, ?)",
                            [(n, json.dumps(w, ensure_ascii=False)) for n, w in info.items()])
@@ -859,6 +967,10 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
     except OSError as e:
         raise TeilenFehler(f"Die eigenen Daten ließen sich nicht in den gemeinsamen Ordner schreiben:\n{e}") from e
     (_cache(db) / datei_name(k)).unlink(missing_ok=True)
+    try:
+        kopien_aufraeumen(db)       # eigene Konfliktkopien (OneDrive …) und liegengebliebene Zwischendateien
+    except OSError:
+        pass
     with con:
         con.executemany(f"DELETE FROM {GEAENDERT} WHERE angebot_id=?", [(i,) for i in geaendert])
     db.einstellung_setzen("teilen_geschrieben", info["stand"])
@@ -1045,7 +1157,7 @@ def lesen(db, modus=None):
                 if t.schluessel:
                     con.execute(f'DELETE FROM "{t.name}"')
         seit = None if erstmals else db.einstellung("teilen_lese_zeit")
-        lese_zeit = jetzt(k)
+        lese_zeit = jetzt(k, uhr_versatz(db))
         erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit)
         entfernt = {}
         vorgaenge = {}          # Kürzel -> [Vorgang] aus den Dateien der anderen
