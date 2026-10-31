@@ -6626,6 +6626,29 @@ def kapitel_mehrere(i):
             "Hat ein Kollege eine ältere Programmversion ohne Lebenszeichen, zeigt die Liste den Stand seines "
             "letzten Abgleichs, geöffnete Angebote wie bisher bis 20 Minuten danach.")
 
+    i.abschnitt("Mitarbeiter ausgeschieden", marke="mitarbeiter_ausgeschieden")
+    i.text("Der Admin markiert den Kollegen in <i>Datei → Kollegen im gemeinsamen Ordner …</i> und klickt "
+           "<b>Ausgeschieden …</b>: seine Angebote bekommt ein neuer Bearbeiter, sein Ordner kommt ins Archiv.",
+           kurz=True)
+    i.genauer()
+    i.liste("Das Fenster listet alle Angebote des Kollegen. Oben <b>Alle an</b> wählt den neuen Bearbeiter für alle, "
+            "in der Spalte <i>Neuer Bearbeiter</i> lässt er sich je Angebot ändern (z. B. Kunden von Nord an MK).",
+            "<b>Austragen</b> (mit Rückfrage): Der Ordner <i>Rohrlaser_SK</i> wandert in den Ordner <i>Archiv</i> des "
+            "gemeinsamen Ordners (mit Datum, nichts wird gelöscht) und wird nicht mehr gelesen. Angebote für den "
+            "Admin sind sofort seine eigenen; Angebote für einen Kollegen gehen als Übergabe hinaus und kommen bei "
+            "dessen nächstem Abgleich an. Alle anderen sehen die Angebote danach unter dem neuen Bearbeiter, mit "
+            "derselben Nummer.",
+            "Läuft das Programm des Kollegen noch, warnt das Fenster: erst dort beenden. Startet es später noch "
+            "einmal, legt es nichts mehr in den Ordner und bittet um ein neues Kürzel.",
+            "Den Knopf sieht nur der Admin (bei eingeschaltetem Admin-Schutz nach dem Freischalten, "
+            "[[passwort]]).")
+    i.abschnitt("Lizenzen der Arbeitsplätze")
+    i.genauer()
+    i.text("Jede Lizenz gilt für einen Rechner. <i>Gemeinsamen Ordner prüfen</i> ([[ordner_pruefen]]) meldet "
+           "Plätze, die in den letzten 30 Tagen abgeglichen haben und keine gültige Lizenz haben, und Lizenzen, die "
+           "an mehreren Kürzeln hängen (kopierte Lizenzdatei). Der Admin sieht die Zahl dieser Hinweise auch in der "
+           "Statusleiste. Plätze mit einem Programm vor 0.9.212 melden ihre Lizenz nicht und fehlen in der Prüfung.")
+
     i.abschnitt("Gemeinsamen Ordner prüfen", marke="ordner_pruefen")
     i.text("<i>Datei → Gemeinsamen Ordner prüfen …</i> zeigt in einer Liste, ob der gemeinsame Ordner richtig "
            "arbeitet, und in der Spalte <i>Was tun</i>, wie es weitergeht.", kurz=True)

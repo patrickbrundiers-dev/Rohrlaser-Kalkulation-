@@ -843,8 +843,12 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
     k, w = kuerzel(db), _weg_pruefen(db)
     if not k:
         raise TeilenFehler("Kein Kürzel eingetragen.")
-    nummern.endgueltig(db)          # vorläufige Nummern (Ordner war nicht erreichbar) jetzt endgültig vergeben
     vorhanden = w.haupt(k)
+    if vorhanden is None and w.archiviert(k):
+        raise TeilenFehler(f"Das Kürzel {k} hat der Admin als ausgeschieden archiviert (Ordner Archiv im gemeinsamen "
+                           "Ordner). Bitte ein neues Kürzel eintragen (Datei → Benutzer und gemeinsamer Ordner …) "
+                           "oder den Admin fragen.")
+    nummern.endgueltig(db)          # vorläufige Nummern (Ordner war nicht erreichbar) jetzt endgültig vergeben
     ich = installation(db)
     if vorhanden is not None:
         info = info_lesen(vorhanden)
@@ -1202,6 +1206,10 @@ def lesen(db, modus=None):
         entfernt = admin_schutz.ausfiltern(entfernt, paket)
         bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"])
         _konflikte_merken(db, bericht["konflikte"])
+        w_ = weg(db)
+        for k3 in [k3 for k3 in bekannt if k3 not in dateien and k3 != k]:
+            if w_.archiviert(k3):           # ausgeschieden (Paket C): nicht mehr unter den Kollegen
+                bekannt.pop(k3)
         db._einstellung_schreiben("teilen_mitarbeiter", bekannt)
         karte = _uid_karte(con, "zukauf_artikel")
         karte_id = {u: i for i, u in karte.items()}
@@ -1503,6 +1511,89 @@ def offene_vorgaenge(db):
     for v in _vorgaenge(db).values():
         if v.get("an"):
             out[v["an"]] = out.get(v["an"], 0) + 1
+    return out
+
+
+# ------------------------------------------------------------------ Ausgeschiedene Mitarbeiter (Paket C, 31.10.2026)
+def angebote_von(db, k2):
+    """Angebote des Kollegen k2 hier (fremde Kopien): [dict(id, nummer, kunde, datum)], neueste zuerst."""
+    cur = db.con.execute("SELECT id, nummer, kunde, datum FROM angebote WHERE fremd=? ORDER BY datum DESC, nummer DESC",
+                         (k2,))
+    return [dict(id=r[0], nummer=r[1], kunde=r[2] or "", datum=r[3] or "") for r in cur]
+
+
+def ausgeschieden(db, k2, zuordnung, ich_admin=None):
+    """Mitarbeiter k2 ist ausgeschieden: seine Angebote übernehmen und seinen Ordner archivieren (nur Admin).
+    zuordnung: {Angebots-ID: neuer Bearbeiter (Kürzel)}; das eigene Kürzel übernimmt hier gleich, ein Kollege
+    bekommt das Angebot als Übergabe (beim nächsten Abgleich). Angebote ohne Eintrag übernimmt der Admin selbst.
+    Reihenfolge: erst den Ordner archivieren (sonst gäbe es die Nummern zweimal), dann übernehmen, dann ablegen.
+    Ergebnis: dict(uebernommen, uebergeben, archiv)."""
+    from . import admin_schutz
+    k, w = kuerzel(db), _weg_pruefen(db)
+    k2 = kuerzel_sauber(k2)
+    if not (admin_schutz.ist_admin(db) if ich_admin is None else ich_admin):
+        raise TeilenFehler("Nur der Admin kann einen Mitarbeiter als ausgeschieden austragen.")
+    if not k2 or k2 == k:
+        raise TeilenFehler("Bitte einen Kollegen wählen.")
+    if w.haupt(k2) is None:
+        raise TeilenFehler(f"Im gemeinsamen Ordner gibt es keine Daten von {k2}.")
+    ids = [a["id"] for a in angebote_von(db, k2)]
+    stempel = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+    try:
+        archiv = w.archivieren(k2, stempel)
+    except OSError as e:
+        raise TeilenFehler(f"Der Ordner von {k2} ließ sich nicht archivieren:\n{e}") from e
+    uebernommen, uebergeben_ = 0, 0
+    with db.con:
+        for i in ids:
+            db.con.execute("UPDATE angebote SET fremd=NULL, fremd_stand=NULL, bearbeiter=? WHERE id=? AND fremd=?",
+                           (k, i, k2))
+            uebernommen += 1
+    for i in ids:
+        neu = kuerzel_sauber(zuordnung.get(i) or k)
+        if neu != k:
+            try:
+                uebergeben(db, i, neu, notiz=f"von {k2} (ausgeschieden)")
+                uebergeben_ += 1
+            except TeilenFehler:
+                pass                    # z. B. vorläufige Nummer: bleibt beim Admin, er kann es später übergeben
+    bekannt = dict(db.einstellung("teilen_mitarbeiter") or {})
+    bekannt.pop(k2, None)
+    db.einstellung_setzen("teilen_mitarbeiter", bekannt)
+    schreiben(db)
+    return dict(uebernommen=uebernommen - uebergeben_, uebergeben=uebergeben_, archiv=archiv)
+
+
+# ------------------------------------------------------------------ Lizenzen der Plätze (Paket C, 31.10.2026)
+AKTIV_TAGE = 30
+
+
+def lizenz_hinweise(db, jetzt_=None):
+    """Hinweise zu den Lizenzen der aktiven Plätze (letzter Abgleich in den letzten AKTIV_TAGE Tagen): ohne gültige
+    Lizenz; dieselbe Lizenz an mehreren Kürzeln. Jede Lizenz gilt für einen Rechner. [Text …]"""
+    from . import admin_schutz
+    jetzt_ = jetzt_ or datetime.datetime.now()
+    ich = kuerzel(db)
+    out, je_lizenz = [], {}
+    for k2, m in sorted(mitarbeiter(db).items()):
+        info = (db.einstellung(admin_schutz.LIZENZ_INFO) or {}) if k2 == ich else dict(m.get("lizenz") or {})
+        if k2 != ich:
+            try:
+                stand = datetime.datetime.fromisoformat(m.get("stand") or "")
+            except ValueError:
+                continue
+            if (jetzt_ - stand).days >= AKTIV_TAGE:
+                continue
+        if not info:
+            continue                    # Platz mit älterem Programm: meldet seine Lizenz nicht
+        if not admin_schutz.lizenz_gueltig(info):
+            text, _ = admin_schutz.lizenz_text(info)
+            out.append(f"{k2} arbeitet ohne gültige Lizenz ({text})")
+        if info.get("lizenz_id"):
+            je_lizenz.setdefault(info["lizenz_id"], []).append(k2)
+    for lid, wer in sorted(je_lizenz.items()):
+        if len(wer) > 1:
+            out.append(f"{' und '.join(wer)} nutzen dieselbe Lizenz ({lid})")
     return out
 
 

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.222", "<b>Mitarbeiter ausgeschieden</b> ([[mitarbeiter_ausgeschieden]]): In <i>Datei → Kollegen im "
+                "gemeinsamen Ordner …</i> trägt der Admin einen Kollegen mit <b>Ausgeschieden …</b> aus: seine Angebote "
+                "übernimmt der Admin oder ein Kollege (für alle oder je Angebot), sein Ordner kommt ins Archiv des "
+                "gemeinsamen Ordners und wird nicht mehr gelesen; die Nummern bleiben. <b>Lizenzen der Plätze</b>: "
+                "<i>Gemeinsamen Ordner prüfen</i> meldet aktive Plätze ohne gültige Lizenz und dieselbe Lizenz an "
+                "mehreren Kürzeln; der Admin sieht das in der Statusleiste.",
+     "Ausgeschiedene Mitarbeiter austragen (Angebote verteilen, Ordner ins Archiv); Lizenzhinweise der Plätze"],
     ["0.9.221", "<b>Kollegen im gemeinsamen Ordner</b> ([[kollegen_uebersicht]]): <i>Datei → Kollegen im gemeinsamen "
                 "Ordner …</i> zeigt je Mitarbeiter, ob er gerade da ist, Rechner, Version, letzten Abgleich, Zahl der "
                 "Angebote, gerade geöffnete Angebote, offene Übergaben/Notizen an ihn und seine PC-Uhr; "
