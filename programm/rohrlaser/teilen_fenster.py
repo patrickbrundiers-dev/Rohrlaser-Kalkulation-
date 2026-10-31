@@ -179,8 +179,16 @@ def _status_nach(fenster, bericht):
         if k != teilen.kuerzel(db):
             wer.append(f"{k} {m.get('name') or ''}: Stand {(m.get('stand') or '?').replace('T', ' ')}")
     offen = len(teilen.konflikte(db, offen_nur=True))
-    status_setzen(fenster, f"⇄ abgeglichen {datetime.datetime.now():%H:%M}" + (f" · {offen} Konflikte" if offen else ""),
-                  "Gemeinsamer Ordner: " + str(teilen.ordner(db)) + ("\n" + "\n".join(wer) if wer else ""))
+    from . import ordner_pruefung       # Uhr, doppelte Nummern, Konfliktkopien (Paket A, 31.10.2026)
+    try:
+        warnung = ordner_pruefung.kurz(db)
+    except OSError:
+        warnung = []
+    tipp = "Gemeinsamer Ordner: " + str(teilen.ordner(db)) + ("\n" + "\n".join(wer) if wer else "")
+    if warnung:
+        tipp += "\n\n⚠ " + "\n⚠ ".join(warnung) + "\nEinzelheiten: Datei → Gemeinsamen Ordner prüfen …"
+    status_setzen(fenster, f"⇄ abgeglichen {datetime.datetime.now():%H:%M}" + (f" · {offen} Konflikte" if offen else "")
+                  + (" · ⚠ " + ", ".join(warnung) if warnung else ""), tipp)
 
 
 def _neu_laden(fenster, bericht, voll):

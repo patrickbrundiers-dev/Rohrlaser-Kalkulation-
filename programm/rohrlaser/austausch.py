@@ -8,10 +8,14 @@ Dateien und Verhalten sind dieselben wie vorher. Später kommt ein Server als zw
 - Nummern: höchsten belegten Zählerstand eines Bereichs (Nummern, AB-Nummern) lesen und einen Zählerstand exklusiv belegen
 - Dateien: Unterordner für Anfragen, Angebotsordner und Sicherungen; einzelne Dateien lesen und atomar schreiben
   (Admin-Vorgaben, admin_schutz.py)
+
+Gemeinsamen Ordner ausbauen (Patrick 31.10.2026, Paket A): Uhr des Ordners messen (Prüfdatei), Konfliktkopien von
+OneDrive/SharePoint, Dropbox oder Nextcloud finden, Geschwindigkeit und Reste abgebrochener Schreibvorgänge prüfen.
 """
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 
 PRAEFIX = "Rohrlaser_"
@@ -19,6 +23,11 @@ ENDUNG = ".sqlite"
 HAUPT = "haupt.sqlite"
 MONAT_PRAEFIX = "Angebote_"
 NUMMER_ENDUNG = ".nummer"
+UHR_DATEI = "uhr.pruef"         # Prüfdatei je Mitarbeiter: ihren Zeitstempel setzt das Netzlaufwerk (Ordner-Uhr)
+TEST_DATEI = "ordner_test.tmp"  # Geschwindigkeitsprüfung (Ordner prüfen), wird gleich wieder gelöscht
+NEU = ".neu"                    # Zwischendateien beim Austauschen; bleiben nur nach einem Abbruch liegen
+GEPRUEFTE_BEREICHE = ("Nummern", "AB-Nummern", "Admin")    # Unterordner, in denen Konfliktkopien gesucht werden
+KOPIE_TRENNER = (" ", "-", "(", "_")    # OneDrive „name-PC.ext“, „name (1).ext“, Dropbox/Nextcloud „name (… Kopie …).ext“
 
 
 def datei_name(k):
@@ -174,6 +183,104 @@ class OrdnerWeg:
         tmp.write_bytes(daten)
         os.replace(tmp, ziel)
 
+    # -------------------------------------------------------------- Prüfungen (Ordner prüfen, Uhr)
+    def uhr_messen(self, k):
+        """Abweichung der Ordner-Uhr von der PC-Uhr in Sekunden (positiv: die PC-Uhr geht nach) oder None, wenn nicht
+        messbar (zu langsam, Fehler). Eine kleine Datei wird ersetzt; ihren Zeitstempel setzt der Datei-Server (NAS,
+        Windows-Server). Bei einem lokal synchronisierten Ordner (OneDrive) ist es die PC-Uhr selbst: Abweichung 0."""
+        try:
+            t0 = time.time()
+            self.datei_schreiben(json.dumps({"kuerzel": k, "pc": t0}).encode(), ordner_name(k), UHR_DATEI)
+            st = (self.pfad / ordner_name(k) / UHR_DATEI).stat()
+            t1 = time.time()
+        except OSError:
+            return None
+        if t1 - t0 > 3:
+            return None         # zu langsam: die Messung wäre ungenau
+        return st.st_mtime - (t0 + t1) / 2
+
+    def geschwindigkeit(self, k, groesse=1 << 20):
+        """Schreiben, Lesen und Löschen einer Testdatei im eigenen Ordner: {schreiben_s, lesen_s, mb_s}. OSError."""
+        ordner = self.pfad / ordner_name(k)
+        ordner.mkdir(exist_ok=True)
+        p = ordner / TEST_DATEI
+        daten = os.urandom(groesse)
+        try:
+            t0 = time.perf_counter()
+            with open(p, "wb") as f:
+                f.write(daten)
+                f.flush()
+                os.fsync(f.fileno())
+            t1 = time.perf_counter()
+            gelesen = p.read_bytes()
+            t2 = time.perf_counter()
+        finally:
+            p.unlink(missing_ok=True)
+        if gelesen != daten:
+            raise OSError("Die Testdatei kam verändert zurück.")
+        s = max(t1 - t0, 1e-6)
+        return dict(schreiben_s=t1 - t0, lesen_s=t2 - t1, mb_s=groesse / (1 << 20) / s)
+
+    def konfliktkopien(self, sauber):
+        """Konfliktkopien im gemeinsamen Ordner: [{pfad, original, bereich, kuerzel}]. Gesucht wird in der obersten
+        Ebene (Ordner/Dateien der Mitarbeiter), in jedem Mitarbeiter-Ordner und in Nummern, AB-Nummern, Admin.
+        kuerzel: wem die Kopie gehört (Mitarbeiter-Ordner, Kürzel im Namen bzw. in der Nummern-Datei), sonst ""."""
+        out = []
+        if not self.erreichbar():
+            return out
+        oben = [p for p in self.pfad.iterdir()]
+        namen = [p.name for p in oben]
+        for p in oben:
+            if not p.name.startswith(PRAEFIX):
+                continue
+            o = kopie_von(p, namen)
+            if o is not None:
+                k = sauber(o[len(PRAEFIX):].removesuffix(ENDUNG))
+                out.append(dict(pfad=p, original=o, bereich="", kuerzel=k))
+            elif p.is_dir():
+                k = sauber(p.name[len(PRAEFIX):])
+                drin = [q.name for q in p.iterdir()]
+                for q in p.iterdir():
+                    o = kopie_von(q, drin)
+                    if o is not None:
+                        out.append(dict(pfad=q, original=o, bereich=p.name, kuerzel=k))
+        for b in GEPRUEFTE_BEREICHE:
+            o_ = self.pfad / b
+            if not o_.is_dir():
+                continue
+            drin = [q.name for q in o_.iterdir()]
+            for q in o_.iterdir():
+                o = kopie_von(q, drin)
+                if o is None:
+                    continue
+                k = ""
+                if q.suffix == NUMMER_ENDUNG:
+                    try:
+                        zeilen = q.read_text(encoding="utf-8", errors="replace").splitlines()
+                        k = sauber(zeilen[1]) if len(zeilen) > 1 else ""
+                    except OSError:
+                        pass
+                out.append(dict(pfad=q, original=o, bereich=b, kuerzel=k))
+        return out
+
+    def reste(self, k=None, alter_s=3600):
+        """Zwischendateien (*.neu) älter als alter_s in den Mitarbeiter-Ordnern (k: nur dessen) und in Admin."""
+        out = []
+        if not self.erreichbar():
+            return out
+        jetzt = time.time()
+        ordner = [self.pfad / ordner_name(k)] if k else [p for p in self.pfad.glob(f"{PRAEFIX}*") if p.is_dir()]
+        for o in ordner + [self.pfad / "Admin"]:
+            if not o.is_dir():
+                continue
+            for q in o.glob(f"*{NEU}"):
+                try:
+                    if jetzt - q.stat().st_mtime > alter_s:
+                        out.append(q)
+                except OSError:
+                    pass
+        return out
+
     def unterordner(self, name, anlegen=False):
         """Unterordner (Anfragen, Angebote, Sicherungen) oder None, wenn der Ordner nicht erreichbar ist."""
         if not self.erreichbar():
@@ -185,6 +292,23 @@ class OrdnerWeg:
             except OSError:
                 return None
         return u
+
+
+def kopie_von(p, namen):
+    """Name der Originaldatei, von der p eine Konfliktkopie ist (OneDrive „haupt-PC01.sqlite“, „00042 (1).nummer“,
+    Dropbox „haupt (Konflikt-Kopie …).sqlite“), oder None. namen: Namen im selben Ordner; das Original muss dabei sein
+    (eine Kopie entsteht nur neben dem Original), die Endung gleich und der Zusatz durch Leerzeichen, - , ( oder _
+    abgetrennt."""
+    for n in namen:
+        if n == p.name:
+            continue
+        stamm, endung = (n[:-len(Path(n).suffix)], Path(n).suffix) if Path(n).suffix else (n, "")
+        if endung != (p.suffix if endung else "") or not p.name.startswith(stamm):
+            continue
+        rest = p.name[len(stamm):len(p.name) - len(endung)] if endung else p.name[len(stamm):]
+        if rest and rest[0] in KOPIE_TRENNER and not rest.endswith(NEU):
+            return n
+    return None
 
 
 def weg(ordner):

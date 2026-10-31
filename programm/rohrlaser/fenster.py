@@ -1958,6 +1958,15 @@ class Hauptfenster(QMainWindow):
         from . import teilen_fenster
         return teilen_fenster.konflikte_zeigen(self)
 
+    def ordner_pruefen(self):
+        """Datei → Gemeinsamen Ordner prüfen: Erreichbarkeit, Uhr, Konfliktkopien, Versionen der Kollegen …"""
+        from . import ordner_pruefung_dialog
+        d = ordner_pruefung_dialog.zeigen(self)
+        from . import teilen_fenster
+        if teilen.aktiv(self.db):
+            teilen_fenster._status_nach(self, {})
+        return d
+
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
@@ -1967,6 +1976,7 @@ class Hauptfenster(QMainWindow):
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
+                                  ("Gemeinsamen Ordner prüfen …", self.ordner_pruefen, None),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
@@ -2310,6 +2320,7 @@ class Hauptfenster(QMainWindow):
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
                            "optimieren", "importieren", "drucken", "staffeln", "stueck", "hoch", "runter")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
+                         "Gemeinsamen Ordner prüfen …",
                          "Alte Angebote archivieren …")
 
     def lizenz_anwenden(self):

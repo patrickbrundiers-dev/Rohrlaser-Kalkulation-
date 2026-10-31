@@ -6548,8 +6548,9 @@ def kapitel_mehrere(i):
             "wessen Änderung gilt und wessen verloren ging; der Tipp zeigt die abweichenden Werte.",
             "<b>Andere Fassung wiederherstellen</b> trägt die verlorene Fassung wieder ein; sie geht beim nächsten "
             "Abgleich an alle. <b>So lassen (gesehen)</b> markiert den Konflikt als erledigt.",
-            "Beide Seiten sehen den Konflikt. Die Zeit der Rechner sollte ungefähr stimmen (Windows stellt sie "
-            "selbst), sonst gewinnt im Zweifel der Rechner mit der späteren Uhr.")
+            "Beide Seiten sehen den Konflikt. Welche Änderung jünger ist, entscheidet die Uhr des gemeinsamen "
+            "Ordners: geht die Uhr eines PCs falsch, rechnet der Abgleich die Abweichung heraus "
+            "([[ordner_pruefen]]).")
     i.abschnitt("Erster Abgleich, neuer Rechner")
     i.genauer()
     i.liste("Liegen im Ordner schon Dateien von Kollegen, fragt der erste Abgleich: <b>Übernehmen</b> (empfohlen "
@@ -6566,6 +6567,36 @@ def kapitel_mehrere(i):
     i.hinweis("Das Kürzel ist eine Kennung, kein Zugriffsschutz: wer den gemeinsamen Ordner öffnen kann, sieht alle "
               "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
               "letzten Abgleichs (von selbst alle 2 Minuten), nicht live.")
+
+    i.abschnitt("Gemeinsamen Ordner prüfen", marke="ordner_pruefen")
+    i.text("<i>Datei → Gemeinsamen Ordner prüfen …</i> zeigt in einer Liste, ob der gemeinsame Ordner richtig "
+           "arbeitet, und in der Spalte <i>Was tun</i>, wie es weitergeht.", kurz=True)
+    i.genauer()
+    i.tabelle(["Prüfung", "Was das Programm prüft"], [
+        ["Gemeinsamer Ordner", "eingetragen und erreichbar"],
+        ["Geschwindigkeit", "eine Testdatei (1 MB) im eigenen Ordner schreiben, lesen, löschen; unter 0,5 MB/s "
+                            "Hinweis (VPN, WLAN)"],
+        ["Uhr", "PC-Uhr gegenüber der Uhr des gemeinsamen Ordners"],
+        ["Kürzel", "die Daten des eigenen Kürzels gehören diesem Arbeitsplatz"],
+        ["Kollegen", "Programmversion, altes Dateiformat, seit 30 Tagen nicht abgeglichen, falsche Uhr"],
+        ["Konfliktkopien", "Kopien, die OneDrive, SharePoint, Dropbox oder Nextcloud bei gleichzeitigem Schreiben "
+                           "anlegen (z. B. <i>haupt-PC01.sqlite</i>, <i>00042 (1).nummer</i>)"],
+        ["Doppelte Nummer", "dieselbe Angebots- oder AB-Nummer zweimal reserviert (Kopie im Ordner Nummern)"],
+        ["Weitere", "abgebrochene Schreibvorgänge (<i>*.neu</i>), vorläufige Nummern, freier Speicherplatz"]],
+        [40, 225])
+    i.liste("Symbole: ✓ in Ordnung, ⚠ Hinweis, ✗ Fehler. <b>Erneut prüfen</b>, <b>Ordner öffnen</b> und "
+            "<b>Bericht kopieren</b> (z. B. für die IT) stehen unten.",
+            "<b>Uhr</b>: Bei jedem Abgleich ersetzt das Programm eine kleine Prüfdatei im eigenen Ordner "
+            "(<i>uhr.pruef</i>); ihre Uhrzeit setzt der Datei-Server. Weichen zwei Messungen hintereinander gleich "
+            "und um mindestens 5 Sekunden ab, verschiebt der Abgleich die Zeit der eigenen Änderungen entsprechend. "
+            "So entscheidet eine falsch gehende PC-Uhr keinen Konflikt mehr falsch. Ab 2 Minuten steht ein Hinweis "
+            "in der Statusleiste (<i>⚠ PC-Uhr geht 3 min vor</i>); mehr als ein Tag wird nicht herausgerechnet. "
+            "Bei einem OneDrive-Ordner ist die Uhr des Ordners die des PCs; dann zeigt die Prüfung keine Abweichung.",
+            "<b>Konfliktkopien</b>: Eigene legt das Programm beim nächsten Abgleich (oder mit <b>Eigene "
+            "aufräumen</b>) in den Ordner <i>Daten\\Teilen\\Konfliktkopien</i> des Arbeitsplatzes; gelöscht wird "
+            "nichts. Fremde räumt der Kollege selbst auf. Der Admin sieht sie in der Statusleiste.",
+            "<b>Doppelte Nummer</b>: Das sieht jeder in der Statusleiste. Prüfen, welches Angebot die Nummer behält, "
+            "das andere neu anlegen und die Kopie im Ordner <i>Nummern</i> löschen.")
 
     i.abschnitt("Vorbereitet für einen Server", marke="server_vorbereitung")
     i.genauer()
