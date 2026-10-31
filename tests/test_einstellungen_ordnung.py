@@ -33,13 +33,13 @@ auf_seiten = {n for s in ordnung.SEITEN for a in s.abschnitte for n in a.namen}
 fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
-assert len(ordnung.SEITEN) == 22 and len({s.schluessel for s in ordnung.SEITEN}) == 22
+assert len(ordnung.SEITEN) == 23 and len({s.schluessel for s in ordnung.SEITEN}) == 23
 assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN) <= 25
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for a in ordnung.SEITE["e_arbeitsplatz"].abschnitte for n in a.namen}
 assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "csv_ordner"}, arbeitsplatz ^ LOKAL
-ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 22 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
+ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 23 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"
 assert ordnung.kurztitel(EINSTELLUNG["schweiss_a_regel"]).startswith("a-Maß-Regel")
@@ -48,7 +48,7 @@ assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
 assert all(EINSTELLUNG[f.name].vorgabe == "ja" and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 16
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 18
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
 ok("16 Funktionsschalter (seit 0.9.208 mit Abruf-/Rahmenangebote), Vorgabe ja (nach dem Update ändert sich nichts)")
 

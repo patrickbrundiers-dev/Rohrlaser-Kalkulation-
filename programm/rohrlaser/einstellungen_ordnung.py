@@ -76,6 +76,10 @@ SEITEN = (
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
            _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"))),
+    Seite("e_angebot_mail", "Angebot per E-Mail",
+          "Platzhalter: {anrede} {angebot} {referenz} {kunde} {gueltig} {lieferzeit} {netto} {datum} {absender}. "
+          + ALLE_PLAETZE,
+          (_a("E-Mail an den Kunden", "angebot_mail_betreff angebot_mail_text"),)),
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
           (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),)),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
@@ -116,7 +120,8 @@ SEITEN = (
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
-                                        "auslastung_vorlauf versand_bundesland"),)),
+                                        "auslastung_vorlauf versand_bundesland"),
+           _a("Liefertermin nach Auslastung", "termin_material_tage"))),
     Seite("e_versand", "Versand und Paletten", ALLE_PLAETZE,
           (_a("Versand", "versand_aktiv palettenschein_werkstatt versand_schritte"),
            _a("Paletten", "palette_hoehe_gesamt palette_max_brutto palette_mischen palette_fuellgrad "

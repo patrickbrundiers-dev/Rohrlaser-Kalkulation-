@@ -1205,6 +1205,13 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
+    # Angebot per E-Mail an den Kunden (Vorschlag V1, 31.10.2026, angebot_mail.py): Vorlagen mit Platzhaltern
+    Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff",
+                "Angebot per E-Mail", "text", "Angebot {angebot}{referenz}"),
+    Einstellung("angebot_mail_text", "Angebot per E-Mail: Text", "Angebot per E-Mail", "mehrzeilig",
+                "{anrede}\n\nvielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot {angebot}{referenz}.\n\n"
+                "Das Angebot gilt bis {gueltig}. Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n"
+                "Mit freundlichen Grüßen"),
     # Nachfassen verschickter Angebote (Plan A9): Wiedervorlage nach Tagen ohne Entscheidung
     Einstellung("nachfassen_tage", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)", "Nachfassen",
                 "ganz", 10, 0, 365),
@@ -1276,6 +1283,8 @@ EINSTELLUNGEN = (
                 "Lager und Fertigung", "anteil", 0.85, 0.1, 1),
     Einstellung("betriebsruhe", "Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. 24.12.2026-31.12.2026; "
                 "02.10.2026)", "Lager und Fertigung", "text", ""),
+    Einstellung("termin_material_tage", "Termin nach Auslastung: Material-Lieferzeit [Arbeitstage] (0 = vorrätig)",
+                "Lager und Fertigung", "ganz", 3, 0, 120),
     Einstellung("auslastung_vorlauf", "Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin",
                 "Lager und Fertigung", "ganz", 2, 0, 60),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",

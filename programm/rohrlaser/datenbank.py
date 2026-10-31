@@ -1968,14 +1968,12 @@ class Datenbank:
     def _jetzt(self):
         return datetime.datetime.now().isoformat(timespec="seconds")
 
-    @schreibt
-    def angebot_neu(self, kopf=None, zaehler=True):
-        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
-        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
+    @liest
+    def neuer_kopf(self, kopf=None):
+        """Angebotskopf mit den Vorgaben für ein neues Angebot (Bearbeiter, Datum, Kundenvorgaben, Maschine, Stange,
+        Zahlung, Kalkulation, Lieferzeit), ohne zu speichern und ohne Nummer (auch für den Schnellpreis)."""
         kopf = dict(kopf or {})
         kuerzel = kuerzel_sauber(self.einstellung("benutzer_kuerzel"))
-        if not kopf.get("nummer"):
-            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         if kuerzel:
             kopf.setdefault("bearbeiter", kuerzel)
         kopf.setdefault("datum", datetime.date.today().isoformat())
@@ -1994,6 +1992,16 @@ class Datenbank:
         for n, w in self.lieferzeit_vorgabe(kopf.get("datum")).items():
             kopf.setdefault(n, w)
         kopf.setdefault("fracht_umlage", UMLAGE_NEU)     # neue Angebote: nach Gewicht; Kopien behalten ihren Wert
+        return kopf
+
+    @schreibt
+    def angebot_neu(self, kopf=None, zaehler=True):
+        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
+        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
+        kopf = dict(kopf or {})
+        if not kopf.get("nummer"):
+            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
+        kopf = self.neuer_kopf(kopf)
         namen = [f.name for f in KOPF if f.name in kopf]
         zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
         try:
