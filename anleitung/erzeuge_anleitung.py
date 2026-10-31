@@ -3029,6 +3029,16 @@ def kapitel_optimieren(i):
             "und beim Rundrohr <i>Drehung um die Rohrachse</i> eintragen – die Schnittkurve wird sofort neu "
             "gerechnet. Trifft das Gegenrohr die STEP nicht überall auf 0,1 mm (z. B. Gegenrohr kleiner als das "
             "Rohr), bleibt das Ende komplex, genau wie gemessen.",
+            "<b>Durchbruch für einen Stutzen aus der STEP</b> (seit 0.9.218): Ein rundes Loch in der Wand, durch "
+            "das ein abgehendes Rohr gesteckt wird (rechtwinklig oder schräg, mit Versatz, in beliebiger Lage am "
+            "Umfang), kommt als Zeile <i>Durchbruch</i> mit Gegenrohr Ø, Winkel zur Wand, Versatz, Seite und Lage "
+            "(Kreuzungspunkt der Achsen) in die Konturtabelle statt als Bohrung – beim Rundrohr wie beim Quadrat- und "
+            "Rechteckrohr. Vorher lag so ein Loch im Rundrohr als flacher Kreis im Editor, bis 5 mm neben der STEP; "
+            "jetzt liegt es genau wie in der STEP. Gerechnet wird mit der gemessenen Länge, solange der Durchbruch "
+            "unverändert bleibt. Ändern lässt er sich in der Tabelle oder im 3D-Editor: Loch anklicken, rechts Ø, "
+            "Winkel und beim Rundrohr <i>Versatz</i> eintragen. Kleine Löcher (unter 15 mm bzw. unter 30 % des "
+            "Rohr-Ø bzw. der Seite) bleiben Bohrungen (Gewinde, Bohren, Preis je Stück); trifft der Durchbruch die "
+            "STEP nicht überall auf 0,1 mm, bleibt das Loch ebenfalls eine Bohrung.",
             "<b>STEP-Import robuster</b> (seit 0.9.163): Fließlochbohrungen (Flowdrill) stehen jetzt als Zeile "
             "<i>Flowdrill</i> mit Kernloch Ø an der gemessenen Stelle in der Konturtabelle (vorher fehlten sie im "
             "Editor); eine Senkung zeigt im 3D zusätzlich den Senkrand Ø D wie die STEP, geschnitten wird weiter nur "
