@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.218", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
+    ["0.9.219", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
                 "zeigt, ob der gemeinsame Ordner richtig arbeitet: erreichbar, Geschwindigkeit, Uhr, eigenes Kürzel, "
                 "Programmversion und letzter Abgleich der Kollegen, Konfliktkopien von OneDrive/SharePoint, doppelt "
                 "reservierte Nummern, abgebrochene Schreibvorgänge und vorläufige Nummern, jeweils mit <i>Was tun</i>. "
@@ -30,6 +30,12 @@ NEUERUNGEN = [
                 "Abgleich in den lokalen Ordner Konfliktkopien. Die Statusleiste warnt bei falscher Uhr und doppelten "
                 "Nummern.",
      "Gemeinsamen Ordner prüfen; falsche PC-Uhr wird herausgerechnet; Konfliktkopien aufgeräumt"],
+    ["0.9.218", "<b>Durchbruch für einen Stutzen aus der STEP</b> ([[schneidweg_rechner]]): Ein rundes Loch in der "
+                "Rohrwand für ein abgehendes Rohr (rechtwinklig, schräg, mit Versatz, in beliebiger Lage am Umfang) "
+                "kommt jetzt als <i>Durchbruch</i> mit Gegenrohr Ø, Winkel, Versatz, Seite und Lage in den Editor "
+                "statt als Bohrung – genau wie in der STEP (vorher im Rundrohr bis 5 mm daneben). Im 3D-Editor "
+                "lassen sich Ø, Winkel und Versatz direkt rechts ändern. Kleine Löcher bleiben Bohrungen.",
+     "Stutzen-Loch aus der STEP als Durchbruch, genau wie in der STEP und im 3D-Editor änderbar"],
     ["0.9.217", "<b>Rohranschluss aus der STEP erkennen und im 3D bearbeiten</b> ([[schneidweg_rechner]]): Ein Ende, "
                 "das mit Sattel- bzw. Fischmaulschnitt auf einem runden Gegenrohr sitzt (rechtwinklig, schräg, mit "
                 "Versatz, in beliebiger Lage am Umfang), kommt jetzt als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und "
