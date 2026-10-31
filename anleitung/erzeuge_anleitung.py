@@ -1723,6 +1723,11 @@ def kapitel_angebot(i):
     i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert (ohne "
             "Meldung im Status).",
             "Spalte <b>Stangen vorgegeben</b>: welche Stangen für die Abmessung da sind ([[stangen_vorgabe]]).",
+            "Spalte <b>Rohrart</b> (ganz rechts, nur Rund-, Quadrat- und Rechteckrohr): <i>wie Werkstoff</i> (Vorgabe, "
+            "die Rohrart aus den Stammdaten Werkstoffe) oder für dieses Angebot <i>geschweißt</i>, <i>nahtlos</i>, "
+            "<i>stranggepresst</i> bzw. <i>Naht innen geschabt</i> ([[rohrart_angebot]]).",
+            "Rechtsklick › <b>Wandstärke ändern …</b>: andere Wandstärke für alle Positionen der Abmessung "
+            "([[wand_aendern]]).",
             "Ohne Optimierung stehen Stangen, Meter und Gewicht auf „–“; passt der Schnittplan nicht mehr zu den "
             "Positionen, steht oben ein roter Hinweis.",
             "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
@@ -1819,7 +1824,7 @@ def kapitel_angebot(i):
             "Maschine in den Stammdaten ([[stammdaten]]); der Reiter Zeiten zeigt die Aufteilung, z. B. "
             "„3 × 24 s + 2 × 29 s (SN)“ ([[zeiten]]).",
             "<b>Werkstoff ohne Naht</b>: hat der Werkstoff die Rohrart <i>nahtlos</i> oder <i>stranggepresst</i> "
-            "([[werkstoffe]]), entfällt eine Nahtvorgabe: die Position meldet <b>HINWEIS: Werkstoff … ohne "
+            "([[werkstoffe]]) oder ist sie im Angebot so gewählt ([[rohrart_angebot]]), entfällt eine Nahtvorgabe: die Position meldet <b>HINWEIS: Werkstoff … ohne "
             "Schweißnaht – Nahtvorgabe entfällt</b>, das Teil dreht frei, es gibt keinen Stangenwechsel SN und keine "
             "Naht der Lieferstange in der Materialanfrage.")
     i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
@@ -1959,6 +1964,34 @@ def kapitel_angebot(i):
             "Einen Materialpreis rät das Programm nicht: Die Meldung erinnert daran, ihn unter Einstellungen → "
             "Werkstoffe/Materialpreise oder im Angebot über <b>Material …</b> als Meterpreis einzutragen "
             "([[material_fenster]]); bis dahin zeigt die Position ihn als fehlend.")
+    i.abschnitt("Wandstärke ändern", marke="wand_aendern")
+    i.text("Rechtsklick auf Rohrlaserteile › <b>Wandstärke ändern …</b> (oder im Fenster <b>Material …</b> auf eine "
+           "Abmessung): neue Wandstärke wählen oder eintippen, dazu <i>nur markierte Positionen</i> oder <i>alle "
+           "Positionen dieser Abmessung</i>. Außenmaß, Konturen und Schnitte bleiben.", kurz=True)
+    i.genauer()
+    i.liste("Zur Wahl stehen die Profile der Stammdaten mit gleicher Form und gleichem Außenmaß, z. B. QR 40x40x2, "
+            "QR 40x40x3 und QR 40x40x4. Eine andere Wandstärke legt das Programm wie bei <i>Fehlende Abmessung gleich "
+            "anlegen</i> ([[abmessung_neu]]) als neues Profil an (Endbeschnitt, Greiferrest und Außenradius wie das "
+            "bisherige Profil); einen Materialpreis rät es nicht.",
+            "Gewicht, Schneiddaten (Vorschub, Einstechen, Gas) und Preis rechnen mit der neuen Wandstärke; bei "
+            "Teilen aus dem STEP-Import rechnet das Programm Enden und Konturen wie beim Profilwechsel in der "
+            "Profilspalte neu. Danach neu optimieren.",
+            "Normprofile (UPN, IPE, HEB …) und RP-Profile haben feste Maße: dort meldet das Programm, dass ein "
+            "anderes Profil zu wählen ist. Sind Positionen verschiedener Abmessungen markiert, bitte nur eine "
+            "Abmessung markieren.",
+            "Die Änderung ist ein Schritt für <b>Rückgängig</b> (Strg+Z).")
+    i.abschnitt("Rohrart je Abmessung im Angebot", marke="rohrart_angebot")
+    i.text("Im Fenster <b>Material …</b> legt die Spalte <b>Rohrart</b> für eine Abmessung in diesem Angebot fest, ob "
+           "das Rohr <i>geschweißt</i>, <i>nahtlos</i>, <i>stranggepresst</i> oder geschweißt mit <i>Naht innen "
+           "geschabt</i> ist; <i>wie Werkstoff</i> nimmt die Rohrart aus den Stammdaten.", kurz=True)
+    i.genauer()
+    i.liste("<b>nahtlos</b> und <b>stranggepresst</b>: ohne Schweißnaht, die Nahtvorgabe der Teile entfällt "
+            "([[schweissnaht]]), die Teile drehen frei, kein Stangenwechsel SN. Danach neu optimieren.",
+            "<b>Naht innen geschabt</b>: die Naht bleibt für Nahtlage und Drehen wie bei geschweißt; die Angabe steht "
+            "in der Materialanfrage, im Angebotstext und in den Werkstattpapieren. Einen Aufpreis tragen Sie bei "
+            "Bedarf als Meterpreis ein.",
+            "Im Angebot gewählte Rohrarten stehen im Angebotstext als eigene Zeile (z. B. <i>Rohr nahtlos</i>); eine "
+            "Kopie des Angebots übernimmt sie.")
     i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
     i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
         ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],
@@ -6864,7 +6897,8 @@ def kapitel_stammdaten(i):
          "wiederholen."]], [170, 130])
     i.abschnitt("Profile", marke="profile")
     i.text("Profil-ID, Form, Maße und Wandstärke. Unbekannte Rohre im Angebot oder STEP-Import legt das Programm "
-           "selbst an.", kurz=True)
+           "selbst an. Die U-Profile nach DIN 1026-1 von <i>UPN 30x15</i> bis <i>UPN 200</i> stehen als Standard "
+           "schon drin.", kurz=True)
     i.genauer("Felder")
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
@@ -6883,6 +6917,12 @@ def kapitel_stammdaten(i):
         ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten; bei offenen "
                                    "Profilen die Blechdicke, bei Flachstahl die Dicke, bei Trägern und T-Profilen die "
                                    "Stegdicke"],
+        ["<b>U-Profile (Standard)</b>", "UPN 30x15, 30, 40x20, 40, 50x25, 50, 60, 65, 80, 100, 120, 140, 160, 180 "
+                                       "und 200 nach DIN 1026-1: Wandstärke = Steg, Wandstärke max. = Flansch, "
+                                       "Fläche manuell = Normquerschnitt (daraus das Gewicht je Meter). Das Programm "
+                                       "trägt fehlende einmal ein, eigene Zeilen bleiben; einen Materialpreis bitte "
+                                       "selbst hinterlegen. <i>UNP 100</i> oder <i>U 100</i> beim Tippen findet "
+                                       "<i>UPN 100</i>."],
         ["Fläche manuell [mm²]", "Querschnitt vom Hersteller (Eckradien, Sonderprofile); leer = aus den Maßen. "
                                  "Beim C-Profil Pflicht, weil die Abkantung nicht in den Maßen steht (der STEP-Import "
                                  "trägt die gemessene Fläche ein). Bei I-/H-Trägern und T-Profilen kommt der "
@@ -6958,9 +6998,11 @@ def kapitel_stammdaten(i):
         ["Anfrage: Prüfbescheinigung, Anfrage: Herkunft EU, Anfrage: Maßtoleranzen nach Norm",
          "Anforderungen, die in der Materialanfrage unter dem Werkstoff stehen: Prüfbescheinigung 2.2, 3.1 oder 3.2 "
          "nach EN 10204, ja/nein für Herkunft EU und Maßtoleranzen nach Norm; leer = keine ([[materialanfrage]])"],
-        ["Rohrart", "geschweißt, nahtlos oder stranggepresst. Nahtlos und stranggepresst = ohne Schweißnaht: eine "
-                    "Nahtvorgabe der Teile entfällt (HINWEIS in der Position), die Teile drehen frei und die Stangen "
-                    "rechnen ohne Stangenwechsel SN; die Materialanfrage nennt die Rohrart ([[schweissnaht]])"],
+        ["Rohrart", "geschweißt, nahtlos, stranggepresst oder Naht innen geschabt. Nahtlos und stranggepresst = ohne "
+                    "Schweißnaht: eine Nahtvorgabe der Teile entfällt (HINWEIS in der Position), die Teile drehen frei "
+                    "und die Stangen rechnen ohne Stangenwechsel SN; die Materialanfrage nennt die Rohrart "
+                    "([[schweissnaht]]). Naht innen geschabt behält die Naht. Im Angebot je Abmessung änderbar "
+                    "([[rohrart_angebot]])"],
         ["Schneidgas", "automatisch (leer) = N₂, solange es eine N₂-Zeile gibt, darüber O₂; <i>nur N₂</i> bzw. "
                        "<i>nur O₂</i> nimmt nur Schneiddaten dieses Gases, z. B. verzinkt nur N₂, Kupfer nur O₂. Gibt "
                        "es für die Wandstärke keine Zeile mit diesem Gas, meldet die Position „keine Schneiddaten“"],

@@ -319,7 +319,7 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             "Date": datum_angebot,
             "L.": "" if zk else zahl(p.get("laenge")),
             "B.": "",
-            "Artikeltext": _einzeilig(angebotstext(p, k, ",", z.get("zusatzarbeiten") or ())),
+            "Artikeltext": _einzeilig(angebotstext(p, k, ",", z.get("zusatzarbeiten") or (), kopf)),
             "Bearbeitungszeit": zeit(bearb),
             "Gesamtzeit": "" if zk else zeit(gesamt_s),
             "zum Schneiden": "0",
