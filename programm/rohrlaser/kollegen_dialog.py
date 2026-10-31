@@ -4,6 +4,7 @@ Je Mitarbeiter: Kürzel, Name, ob er gerade da ist (Lebenszeichen, sonst „zule
 letzter Abgleich, Zahl der Angebote, gerade geöffnete Angebote, eigene Vorgänge an ihn, die er noch nicht umgesetzt
 hat, und die Abweichung seiner PC-Uhr. Der eigene Arbeitsplatz steht oben."""
 import datetime
+import socket
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton,
@@ -36,7 +37,7 @@ def zeilen(db):
         p = puls.get(k)
         if k == ich:
             status, online = "● hier", True
-            version, rechner = VERSION, ""
+            version, rechner = VERSION, socket.gethostname()
             stand = _datum(db.einstellung("teilen_geschrieben"))
             anzahl = db.con.execute("SELECT COUNT(*) FROM angebote WHERE fremd IS NULL OR fremd=''").fetchone()[0]
             uhr = teilen.uhr_abweichung(db)
