@@ -1074,6 +1074,21 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             # schräg liegendes Langloch/Rechteck (z. B. 30° zur Achse, Patrick 28.10.2026): die Zeilen Langloch und
             # Rechteck kennen nur längs/quer – als Sonderkontur mit dem gemessenen Umriss, sonst bis 8 mm daneben
             art = "Sonderkontur"
+        elif umriss and art in ("Langloch", "Rechteckausschnitt") and d.get("laenge") and d.get("breite") and \
+                _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]), laengs) > GRUNDFORM_TOL:
+            # Umriss ist kein echtes Langloch/Rechteck der Abwicklung (z. B. Langloch quer um ein Rundrohr: die
+            # Enden sind abgewickelt keine Halbkreise, galt als Rechteck, 1,9 mm daneben; Rechteck mit Eckradien;
+            # Patrick 31.10.2026): Sonderkontur mit dem gemessenen Umriss
+            art = "Sonderkontur"
+        elif art == "Bohrung" and umriss and d.get("durchmesser") and not (d3 and float(d.get("schraeg") or 0)
+                                                                          >= SCHRAEG_3D) and \
+                _bohrung_ellipse(float(d["durchmesser"]), float(d.get("schraeg") or 0)) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):    # Stutzen: Durchbruch trifft die STEP
+            # schräge oder außermittige Bohrung ohne 3D-Schnitt (Patrick 31.10.2026): außen eine Ellipse, kein Kreis –
+            # als Sonderkontur mit dem gemessenen Umriss (wie in der STEP), sonst bis 0,6 mm daneben
+            art = "Sonderkontur"
+            k["text"] = f"schräge Bohrung Ø{dez(float(d['durchmesser']))} ({dez(round(float(d['schraeg']), 1))}°): " \
+                        "Umriss wie STEP"
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -1097,6 +1112,10 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 if d.get("neigung_l") is not None:
                     k.update(d3=True, neigung_l=round(float(d["neigung_l"]), 1),
                              neigung_q=round(float(d.get("neigung_q") or 0), 1))
+                    if umriss and mform == "Rundrohr":
+                        # schräge Bohrung im Rundrohr (z. B. außermittig, Patrick 31.10.2026): abgewickelt keine
+                        # Ellipse um die Mitte – gemessener Umriss, solange Maße und Neigung bleiben (0,2 mm)
+                        k["umriss"] = umriss
                 else:                       # Messung vor STEP-JSON 1.5: Richtung unbekannt
                     k.update(d3=True, neigung_l=round(schraeg, 1), text=f"schräg {schraeg:g}°, 3D prüfen")
         elif art == "Fließloch":
@@ -1162,6 +1181,57 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     if eing.get("stege_virtuell"):
         _laengsschnitte_zeigen(eing)
     return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
+
+
+GRUNDFORM_TOL = 0.05     # mm: so weit darf der gemessene Umriss von Langloch/Rechteck/Bohrung abweichen
+
+
+def _bohrung_ellipse(d, schraeg):
+    """Wie weit die Außenkante einer um schraeg [°] gegen die Wandnormale geneigten Bohrung Ø d vom Kreis abweicht
+    [mm]: große Halbachse d/2 / cos(schraeg) gegen d/2."""
+    c = math.cos(math.radians(min(abs(schraeg), 89.0)))
+    return d / 2 * (1 / c - 1)
+
+
+def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5):
+    """Größter Abstand zwischen dem gemessenen Umriss [[dx längs, ds am Umfang]] (um die Mitte) und dem Langloch bzw.
+    Rechteck lg × br der Abwicklung, in beide Richtungen [mm]. laengs: Längsrichtung entlang der Rohrachse."""
+    a, b = (lg / 2, br / 2) if laengs else (br / 2, lg / 2)      # Halbmaße in dx, ds
+    pts = [(float(x), float(y)) for x, y in umriss]
+    if art == "Langloch":
+        r = min(a, b)
+        hx, hy = a - r, b - r
+
+        def abst(x, y):
+            return abs(math.hypot(max(abs(x) - hx, 0.0), max(abs(y) - hy, 0.0)) - r)
+        n = max(16, int(4 * (hx + hy + math.pi * r / 2) / schritt))
+        soll = []
+        for i in range(n):
+            t = 2 * math.pi * i / n
+            cx, cy = math.cos(t), math.sin(t)
+            soll.append((math.copysign(hx, cx) + r * cx, math.copysign(hy, cy) + r * cy))
+    else:
+        def abst(x, y):
+            dx, dy = abs(x) - a, abs(y) - b
+            return math.hypot(max(dx, 0), max(dy, 0)) if dx > 0 or dy > 0 else -max(dx, dy)
+        ecken = [(-a, -b), (a, -b), (a, b), (-a, b)]
+        soll = []
+        for i, (x0, y0) in enumerate(ecken):
+            x1, y1 = ecken[(i + 1) % 4]
+            n = max(1, int(math.hypot(x1 - x0, y1 - y0) / schritt))
+            soll += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n) for k in range(n)]
+    hin = max(abst(x, y) for x, y in pts)
+
+    def zum_zug(x, y):
+        best = math.inf
+        for i, (x0, y0) in enumerate(pts):
+            x1, y1 = pts[(i + 1) % len(pts)]
+            vx, vy = x1 - x0, y1 - y0
+            lq = vx * vx + vy * vy
+            f = 0.0 if lq < 1e-12 else max(0.0, min(1.0, ((x - x0) * vx + (y - y0) * vy) / lq))
+            best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
+        return best
+    return max(hin, max(zum_zug(x, y) for x, y in soll))
 
 
 def _umfang_form(d, tol=0.01):
@@ -1549,6 +1619,9 @@ def gleiches_profil(m, profil, tol=0.1):
     Reihenfolge, ± tol mm)?"""
     if not profil or profil.get("form") != m.get("profilform"):
         return False
+    if profil.get("form") == "Flachstahl":      # Breite × Dicke (das Profil führt die Dicke als Wand)
+        return abs(_z(m, "abm_a") - float(profil.get("a") or 0)) <= tol and \
+            abs(_wand(m) - float(profil.get("wand") or 0)) <= tol
     a, b = _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a")
     pa = float(profil.get("a") or 0)
     pb = float(profil.get("b") or 0) or pa
@@ -1663,8 +1736,12 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
             grund = "Teil liegt nicht ganz im Rohr"
         if grund:
             text = f"Offenes Rohr: {pid} – {grund}, bleibt " + (
-                "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet" else "offen")
-            if m.get("profilform") != "Blech gekantet" and (alternative(m) or {}).get("profilform") == "Blech gekantet":
+                "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet"
+                and not finde_profil(m, profile) else "offen")
+            if m.get("profilform") != "Blech gekantet" and (alternative(m) or {}).get("profilform") == "Blech gekantet" \
+                    and not finde_profil(m, profile):
+                # L/U/C, das so in den Stammdaten steht, bleibt Profil (wie kantteile_vorbelegen; U mit Ausklinkung am
+                # Flanschende wurde sonst Kantteil, ohne Ausklinkung nicht, Patrick 31.10.2026)
                 art_wechseln(m)
             m["hinweise"] = "; ".join(filter(None, [m.get("hinweise"), text]))
             continue

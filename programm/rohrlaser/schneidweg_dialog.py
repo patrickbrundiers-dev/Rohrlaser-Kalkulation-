@@ -1064,6 +1064,7 @@ class SchneidwegDialog(QDialog):
         extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle", "ende_teil", "muendung")
                  if z.get(k_) is not None}
         art.extra = (art.currentText(), extra) if extra else None
+        art.umriss_bezug = self._umriss_bezug(r)
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
             art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
                                                                  if z.get(k_) is not None})
@@ -1079,6 +1080,11 @@ class SchneidwegDialog(QDialog):
         self.tabelle.blockSignals(False)
         if rechnen_:
             self.rechnen()
+
+    def _umriss_bezug(self, r):
+        """Maße und Neigung einer Zeile, für die ein gemessener Umriss gilt."""
+        nw = [self.tabelle.cellWidget(r, sp) for sp in (NL_SPALTE, NQ_SPALTE)]
+        return self._mass_texte(r) + tuple(w.currentText() if w is not None else "" for w in nw)
 
     def _mass_texte(self, r):
         return tuple(self.tabelle.item(r, 2 + i).text() for i in range(3))
@@ -1232,6 +1238,11 @@ class SchneidwegDialog(QDialog):
             extra = getattr(combo, "extra", None)
             if extra and extra[0] == art:
                 z.update(extra[1])
+                if art not in (sw.SONDERKONTUR,) + sw.GRAVUREN and "umriss" in z and \
+                        getattr(combo, "umriss_bezug", None) != self._umriss_bezug(r):
+                    # gemessener Umriss einer Bohrung (schräg in 3D, Patrick 31.10.2026): gilt nur, solange Maße und
+                    # Neigung wie gemessen bleiben, sonst zeichnet die Skizze wieder die Grundform
+                    z.pop("umriss")
             konturen.append(z)
         enden = {s: dict(winkel=self.winkel[s].value(), achse=self.achse[s].currentText(),
                          sattel=self.sattel[s].value() or None,
