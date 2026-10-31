@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.218", "<b>Durchbruch für einen Stutzen aus der STEP</b> ([[schneidweg_rechner]]): Ein rundes Loch in der "
+                "Rohrwand für ein abgehendes Rohr (rechtwinklig, schräg, mit Versatz, in beliebiger Lage am Umfang) "
+                "kommt jetzt als <i>Durchbruch</i> mit Gegenrohr Ø, Winkel, Versatz, Seite und Lage in den Editor "
+                "statt als Bohrung – genau wie in der STEP (vorher im Rundrohr bis 5 mm daneben). Im 3D-Editor "
+                "lassen sich Ø, Winkel und Versatz direkt rechts ändern. Kleine Löcher bleiben Bohrungen.",
+     "Stutzen-Loch aus der STEP als Durchbruch, genau wie in der STEP und im 3D-Editor änderbar"],
     ["0.9.217", "<b>Rohranschluss aus der STEP erkennen und im 3D bearbeiten</b> ([[schneidweg_rechner]]): Ein Ende, "
                 "das mit Sattel- bzw. Fischmaulschnitt auf einem runden Gegenrohr sitzt (rechtwinklig, schräg, mit "
                 "Versatz, in beliebiger Lage am Umfang), kommt jetzt als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und "
