@@ -868,6 +868,20 @@ def kapitel_angebote(i):
             "Wettbewerb (unser Preis gegen den genannten, z. B. +20 % = wir waren 20 % teurer).",
             "Viele Absagen „Preis zu hoch“ in einer Gruppe zeigen, wo es zu teuer ist; eine sehr hohe Trefferquote "
             "kann heißen, dass die Preise dort Luft nach oben haben ([[preis_simulator]]).")
+    i.abschnitt("Schnellpreis für Telefonanfragen", marke="schnellpreis")
+    i.text("<i>Datei → Schnellpreis …</i> (Strg+Alt+P) gibt in wenigen Sekunden einen Richtpreis je Stück, ohne ein "
+           "Angebot anzulegen.", kurz=True)
+    i.liste("Oben eine Zeile wie in der Schnellzeile, z. B. „QR 40x3 S235 1250 20“ = Profil, Werkstoff, Länge, "
+            "Stückzahl; darunter Bohrungen (Anzahl und Ø), weitere Konturen (Anzahl und Schnittlänge zusammen), "
+            "Enden (gerade oder Gehrung 45°) und auf Wunsch der Kunde (seine Vorgaben gelten). Enter oder "
+            "<b>Rechnen</b>.",
+            "Gerechnet wird genau wie ein Angebot mit den Vorgaben eines neuen Angebots: Stangen optimiert, "
+            "Kalkulation mit Rüsten, Programmieren, Zuschlägen und Gewinn. Schneidweg je Teil = zwei gerade "
+            "Trennschnitte + Bohrungen π × Ø + weitere Konturen; Einstiche = 2 + Bohrungen + Konturen.",
+            "Ergebnis: Preis je Stück groß, darunter Gesamtpreis, Stangen, Schneidweg und eine kleine Staffel für 1, "
+            "10, 50, 100 und 500 Stück. Gespeichert wird nichts, der Nummernkreis bleibt.",
+            "<b>Als Angebot übernehmen</b> legt ein neues Angebot mit genau dieser Position an, optimiert es und "
+            "öffnet es. Ausschaltbar unter <i>Einstellungen → Funktionen</i>.")
     i.abschnitt("Preis-Simulator: was wäre, wenn …", marke="preis_simulator")
     i.bild("preis_simulator", "Preis-Simulator: Edelstahl +8 %, Maschine +10 €/h für alle offenen Angebote",
            hoehe=105 * mm, legende=[(1, "Änderung der Materialpreise je Werkstoff-Kategorie"),
@@ -5379,6 +5393,25 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile. Der Preis je Satz ist die "
            "Summe der ungerundeten Stückpreise × Stück je Satz, erst dann auf den Cent gerundet; so steht für "
            "dieselbe Menge derselbe Preis wie in der Staffel.")
+    i.abschnitt("Angebot per E-Mail", marke="angebot_mail")
+    i.text("<i>Ausgaben → Angebot per E-Mail …</i> erstellt das Angebots-PDF und zeigt die E-Mail an den Kunden mit dem "
+           "PDF im Anhang; <b>In Outlook öffnen</b> zeigt sie in Outlook, gesendet wird dort.", kurz=True)
+    i.liste("Liegt die Anfrage-Mail des Kunden als Outlook-Datei (.msg) im Ordner des Angebots (Unterordner "
+            "<i>Anfrage</i>, so legt sie der Anfrage-Ordner ab, [[anfrage_mail]]), ist <b>Als Antwort auf die "
+            "Anfrage-Mail</b> angehakt: Outlook öffnet „Allen antworten“ auf diese Mail, der Verlauf bleibt darunter, "
+            "der Betreff „AW: …“. Ohne Anfrage-Mail geht eine neue E-Mail an die E-Mail-Adresse des Kunden "
+            "(Stammdaten Kunden); eine .eml-Anfrage wird zur neuen E-Mail an ihren Absender.",
+            "Betreff und Text kommen aus den Vorlagen unter <i>Einstellungen → Angebot per E-Mail</i> (<i>Angebot per "
+            "E-Mail: Betreff</i> für eine neue E-Mail, eine Antwort behält ihren Betreff; <i>Angebot per E-Mail: "
+            "Text</i>) mit den "
+            "Platzhaltern {anrede} (aus dem Ansprechpartner: „Sehr geehrte Frau Schulz,“, sonst „Sehr geehrte Damen "
+            "und Herren,“), {angebot}, {referenz} („zu Ihrer Anfrage …“), {gueltig}, {lieferzeit}, {netto}, {kunde}, "
+            "{datum}, {absender}. Alles bleibt im Fenster änderbar. Die Signatur setzt Outlook oder die eigene "
+            "Signatur wie bei der Materialanfrage ([[materialanfrage]]).",
+            "Ohne klassisches Outlook entsteht eine E-Mail-Datei (.eml) mit dem PDF im Ordner des Angebots und öffnet "
+            "sich im Standard-Mailprogramm.",
+            "Im Versandverlauf steht „per E-Mail an …“; das zählt für das Nachfassen wie ein verschicktes Angebot. "
+            "Schließen ohne Outlook vermerkt nur das PDF. Ausschaltbar unter <i>Einstellungen → Funktionen</i>.")
     i.abschnitt("Auftragsbestätigung", marke="auftragsbestaetigung")
     i.text("Hat der Kunde bestellt, erstellt <i>Ausgaben → Auftragsbestätigung (PDF)</i> die Auftragsbestätigung im "
            "Layout des Angebots, mit den Preisen des Angebots, der Bestellnummer des Kunden und dem Liefertermin.",
@@ -5732,6 +5765,16 @@ def kapitel_nachkalkulation(i):
             "Daraus kommen <b>Kennwert-Vorschläge</b>: Laserzeit je Maschine und Werkstoff-Kategorie (ändert die "
             "Vorschübe der Schneiddaten erst nach <i>Freigeben</i>, mit Verlauf und Rücknahme) und Rüsten (nur "
             "Vorschlag, ändert nichts). Unter 5 Aufträgen heißt es „zu wenig Daten“.")
+    i.abschnitt("Laufzeit je Teil: Schneiddaten lernen", marke="laufzeit_teil")
+    i.text("Unter den Ist-Werten steht je Laserteil die Soll-Laufzeit je Teil [s] und die Schneiddaten-Zeile, aus der "
+           "sie kommt; in <b>Ist [s/Teil]</b> die Laufzeit laut Maschine eintragen (freiwillig).", kurz=True)
+    i.liste("Sind alle Teile eingetragen, ergibt sich die Ist-Laserzeit daraus (Laufzeit × Stück), das Feld "
+            "<i>Laserzeit Ist</i> kann leer bleiben; <i>Rest wie geplant</i> übernimmt diesen Wert.",
+            "Jedes eingetragene Teil ist ein Fall für den Kennwert-Vorschlag <b>Laufzeit je Teil (Maschine, "
+            "Werkstoff, Wandstärke bis, Gas)</b>: genauer als die Laserzeit des ganzen Auftrags, weil gemischte "
+            "Aufträge mitzählen und jede Wandstärken-Zeile ihren eigenen Faktor bekommt. Ab 5 Fällen lässt er sich "
+            "freigeben; geändert werden nur die Vorschübe dieser einen Schneiddaten-Zeile, mit Verlauf und "
+            "Rücknahme.")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
 
 
@@ -5917,6 +5960,21 @@ def kapitel_fertigung(i):
             "<i>Verschickte Angebote gewichtet mit der Trefferquote</i>: offene Angebote zählen mit Laserzeit × "
             "Trefferquote der letzten 12 Monate ([[absage]]); ihr Termin kommt aus der Lieferzeit ab heute. So "
             "sieht man, ob eine Woche voll wird, wenn die üblichen Aufträge kommen.")
+    i.abschnitt("Liefertermin nach Auslastung", marke="termin_auslastung")
+    i.text("Im Angebotskopf rechnet <b>Termin prüfen …</b> neben der Lieferzeit den frühesten Liefertermin nach der "
+           "freien Kapazität der Maschine und der Material-Lieferzeit und vergleicht ihn mit der Lieferzeit des "
+           "Angebots.", kurz=True)
+    i.liste("Das Material ist nach <i>Termin nach Auslastung: Material-Lieferzeit</i> Arbeitstagen da (Einstellungen "
+            "→ Auslastung, Vorgabe 3; 0 = vorrätig; reines Kundenmaterial ab heute). Ab dieser Woche legt das "
+            "Programm die Laserzeit des Angebots in die freien Stunden der Maschine: Kapazität minus beauftragte "
+            "Aufträge wie in der Maschinenauslastung, überfällige Laserzeit zuerst. Ab Freitag der Woche, in der die "
+            "letzte Stunde Platz findet, kommt der Vorlauf (Entgraten, Verpacken, Versand) dazu.",
+            "Das Fenster zeigt „Frühestens KW 47 (24.11.2026)“ mit Laserzeit, Material-Termin und ausgebuchten "
+            "Wochen; ist die Lieferzeit des Angebots früher, steht dort „nicht zu halten“. <b>Als Lieferzeit "
+            "übernehmen</b> setzt die Lieferzeit auf diese Kalenderwoche.",
+            "Beim Setzen auf <i>Beauftragt</i> steht der früheste Termin im Fenster für Bestellnummer und "
+            "Liefertermin; <b>Frühesten Termin übernehmen</b> trägt ihn ein. Der Knopf erscheint nur mit der Funktion "
+            "Maschinenauslastung; ohne Schnittplan heißt es „erst optimieren“.")
     i.abschnitt("Lager und Reststücke", marke="lager")
     i.text("Mit der Einstellung <i>Materialbestand verwenden (Reiter Lager)</i> = ja erscheint der Reiter "
            "<b>Lager</b>. Angebote und ihre Preise ändern sich dadurch nie; das Lager kommt erst beim beauftragten "

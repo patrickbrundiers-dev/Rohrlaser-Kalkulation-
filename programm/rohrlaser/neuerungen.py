@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.224", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
+                "und öffnet in Outlook die E-Mail an den Kunden mit Anhang, als Antwort auf die Anfrage-Mail, wenn sie "
+                "im Angebotsordner liegt; Vorlagen unter Einstellungen → Angebot per E-Mail, Vermerk im Versandverlauf. "
+                "<b>Termin prüfen …</b> im Angebotskopf ([[termin_auslastung]]): frühester Liefertermin nach freier "
+                "Maschinenkapazität und Material-Lieferzeit, auch beim Beauftragen. <b>Schnellpreis</b> "
+                "([[schnellpreis]]): Datei → Schnellpreis … (Strg+Alt+P) gibt einen Richtpreis mit kleiner Staffel "
+                "für Telefonanfragen, „Als Angebot übernehmen“. <b>Laufzeit je Teil</b> in der Nachkalkulation "
+                "([[laufzeit_teil]]): ergibt die Ist-Laserzeit und schlägt Vorschübe je Schneiddaten-Zeile "
+                "(Werkstoff, Wandstärke) vor.",
+     "Angebot per E-Mail (Outlook, Antwort auf die Anfrage); Termin nach Auslastung; Schnellpreis; Laufzeit je Teil"],
     ["0.9.222", "<b>Mitarbeiter ausgeschieden</b> ([[mitarbeiter_ausgeschieden]]): In <i>Datei → Kollegen im "
                 "gemeinsamen Ordner …</i> trägt der Admin einen Kollegen mit <b>Ausgeschieden …</b> aus: seine Angebote "
                 "übernimmt der Admin oder ein Kollege (für alle oder je Angebot), sein Ordner kommt ins Archiv des "

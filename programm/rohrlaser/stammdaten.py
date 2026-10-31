@@ -1197,7 +1197,7 @@ EINSTELLUNGEN = (
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
     # Angebot per E-Mail an den Kunden (Vorschlag V1, 31.10.2026, angebot_mail.py): Vorlagen mit Platzhaltern
-    Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff (neue E-Mail; Antwort behält den Betreff)",
+    Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff",
                 "Angebot per E-Mail", "text", "Angebot {angebot}{referenz}"),
     Einstellung("angebot_mail_text", "Angebot per E-Mail: Text", "Angebot per E-Mail", "mehrzeilig",
                 "{anrede}\n\nvielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot {angebot}{referenz}.\n\n"
