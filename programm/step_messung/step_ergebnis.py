@@ -128,11 +128,15 @@ Versionen von SCHEMA_VERSION:
   Rohr quer ganz umfasst (Sattel-/Fischmaulschnitt auf ein rundes Gegenrohr), trägt "gegenrohr" = {d (Ø), richtung
   (Umfangswinkel der Gegenrohrachse, zu dem hin das Teil länger ist), winkel (Neigung gegen rechtwinklig, ≥ 0),
   versatz (Achse quer zur Rohrachse, in Richtung richtung + 90°)}. Felder aus 1.23 unverändert.
+- 1.25 (31.10.2026): Stutzen: eine "Bohrung" (Zylinderwand) eines geschlossenen Rohrs, deren Achse quer durch die Wand
+  geht, trägt "stutzen" = {d, richtung (Umfangswinkel der Achse nach außen), winkel (Neigung gegen rechtwinklig zur
+  Rohrachse, + = außen zu Ende B), versatz (Achse quer zur Rohrachse, in Richtung richtung + 90°), x (Kreuzung der
+  Achsen längs ab Ende A)} – der Import macht daraus einen Durchbruch. Felder aus 1.24 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.24"
+SCHEMA_VERSION = "1.25"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

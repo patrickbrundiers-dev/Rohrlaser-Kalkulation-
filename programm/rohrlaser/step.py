@@ -816,6 +816,99 @@ def gegen_aus_messung(qs, gm, umriss):
     return g
 
 
+STUTZEN_MIN_D = 15.0       # mm: kleinere Bohrungen bleiben Bohrungen (Gewinde, Bohren, Preis je Stück)
+STUTZEN_MIN_ANTEIL = 0.3   # Anteil an Rohr-Ø bzw. Breite der Fläche, ab dem ein rundes Loch ein Stutzen-Durchbruch ist
+
+
+def _punkte_3d(pts, schritt=0.25):
+    """Geschlossenen Linienzug [(x, u, v)] fein unterteilen (Vergleich zweier Umrisse auf GEGEN_TOL)."""
+    out = []
+    for i, a in enumerate(pts):
+        b = pts[(i + 1) % len(pts)]
+        n = max(1, math.ceil(math.dist(a, b) / schritt))
+        out += [tuple(a[j] + (b[j] - a[j]) * k / n for j in range(3)) for k in range(n)]
+    return out
+
+
+def _umriss_abstand(p, q):
+    """Größter Abstand zweier geschlossener Linienzüge [(x, u, v)] in beide Richtungen (Hausdorff) [mm]: Punkte alle
+    0,5 mm gegen den anderen Zug alle 0,02 mm (Fehler der Abtastung unter 0,01 mm)."""
+    import numpy as np
+    w = 0.0
+    for x, y in ((p, q), (q, p)):
+        a, b = np.asarray(_punkte_3d(x, 0.5), float), np.asarray(_punkte_3d(y, 0.02), float)
+        for i in range(0, len(a), 50):
+            dd = np.sqrt(((a[i:i + 50, None, :] - b[None, :, :]) ** 2).sum(-1)).min(1)
+            w = max(w, float(dd.max()))
+    return w
+
+
+def durchbruch_aus_messung(qs, profil, d, s_von):
+    """Rundes Loch der Messung mit Gegenrohrachse (Kontur "stutzen", STEP-JSON 1.25; Patrick 31.10.2026) als Zeile
+    Durchbruch (Stutzen eines abgehenden Rohrs: d, winkel, versatz bzw. q, seite, x) – nur wenn der Umriss des
+    Durchbruchs den gemessenen Umriss überall auf GEGEN_TOL trifft (Grundregel: Kontur 100 % wie in der STEP), sonst
+    None (bleibt Bohrung). Vorzeichen von Winkel und Versatz: die erste Variante, die die Messung trifft."""
+    from . import durchdringung as dd, skizze as sk
+    from .schneidweg import DURCHBRUCH, durchbruch_ergaenzen
+    st = d.get("stutzen")
+    um = d.get("umriss")
+    if not isinstance(st, dict) or _z(st, "d") <= 0 or not um or len(um) < 3 or qs.form not in dd.GESCHLOSSEN:
+        return None
+    dm, th, w, vm = _z(st, "d"), _z(st, "richtung") % 360, _z(st, "winkel"), _z(st, "versatz")
+    if abs(w) > 60:
+        return None
+    mess = []
+    for u, z in um:
+        (pu, pv), _ = qs.s_zu_uv(s_von(float(u)) % qs.umfang)
+        mess.append((float(z), *sk.rund_ort(qs, pu, pv)[:2]))
+    kandidaten = []
+    if qs.r:
+        if abs(vm) >= qs.r:
+            return None
+        dq = math.degrees(math.asin(vm / qs.r))
+        for s1 in (1, -1):
+            for s2 in (1, -1) if w else (1,):
+                for s3 in (1, -1) if vm else (1,):
+                    kandidaten.append(dict(seite=round((th + s1 * dq) % 360, 2), winkel=round(s2 * w, 2),
+                                           versatz=round(s3 * vm, 2)))
+    else:
+        if abs(th - round(th / 90) * 90) > 0.5:
+            return None
+        seite, q0 = _kasten_seite(s_von(float(d["u"])), max(qs.B, qs.H), min(qs.B, qs.H)) if d.get("u") is not None \
+            else ("oben", 0.0)
+        for q in dict.fromkeys((round(vm, 2), round(-vm, 2), round(q0, 2))):
+            for s2 in (1, -1) if w else (1,):
+                k = dict(seite=seite, winkel=round(s2 * w, 2))
+                if abs(q) > 0.005:
+                    k["q"] = q
+                kandidaten.append(k)
+    for k in kandidaten:        # erste passende Variante (die direkte zuerst), sonst bleibt es eine Bohrung
+        z = dict(art=DURCHBRUCH, anzahl=1, x=round(_z(st, "x"), 2), d=round(dm, 3), **k)
+        z = {k_: v for k_, v in z.items() if k_ not in ("winkel", "versatz") or abs(v) >= 0.005}
+        e = durchbruch_ergaenzen(z, profil)
+        if not e.get("umriss"):
+            continue
+        pts, _ = sk.platzieren(qs, dict(x=e["x"], eingabe=e))
+        if _umriss_abstand(mess, pts) <= GEGEN_TOL:
+            return e            # mit Umriss, Länge und Hüllmaß (3D und Skizze ohne erneutes Ergänzen)
+    return None
+
+
+def _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):
+    """Zeile Durchbruch für eine große runde Bohrung mit Gegenrohrachse (durchbruch_aus_messung) oder None."""
+    if not isinstance(d.get("stutzen"), dict) or mform not in ("Rundrohr", "Quadratrohr", "Rechteckrohr"):
+        return None
+    dm = float(d["durchmesser"])
+    breite = ma if mform == "Rundrohr" else min(ma, mb)
+    if dm < STUTZEN_MIN_D or dm < STUTZEN_MIN_ANTEIL * breite:
+        return None
+    profil = dict(form=mform, a=ma, b=mb if mform != "Rundrohr" else None, wand=_wand(m), r_aussen=r_mess)
+    try:
+        return durchbruch_aus_messung(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), profil, d, s_von)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+
+
 def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -990,6 +1083,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k["umriss"] = umriss
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
+        elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)):
+            # Loch für ein abgehendes Rohr (Stutzen): Durchbruch wie in der STEP, im Editor änderbar (Patrick 31.10.2026)
+            k.update(dbr)
+            if mp:
+                k["messprofil"] = mp
+            eing["konturen"].append(k)
+            continue
         elif art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
             schraeg = float(d.get("schraeg") or 0)

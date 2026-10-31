@@ -1576,6 +1576,33 @@ def _gegenrohr(flaechen, cx, cy, ref, ende, r_rohr, tol=0.05):
                 winkel=round(math.degrees(math.atan2(az, h)), 3), versatz=round(versatz, 3))
 
 
+def _stutzen(ax, d, abw, ref, zmin):
+    """Achse einer Rundbohrung als Gegenrohr (Durchbruch für einen Stutzen, Patrick 31.10.2026, STEP-JSON 1.25):
+    dict(d, richtung = Umfangswinkel (wie _Abwicklung.theta) der Achse quer gesehen, nach außen, winkel = Neigung
+    gegen die Senkrechte zur Rohrachse [°, + = außen zu Ende B], versatz = Abstand der Achse von der Rohrachse in
+    Richtung richtung + 90° [mm], x = Kreuzungsstelle der Achsen längs ab Ende A [mm]) oder None (Achse fast längs)."""
+    da, pa = ax.Direction(), ax.Location()
+    hx, hy, hz = da.X(), da.Y(), da.Z()
+    h = math.hypot(hx, hy)
+    if h < math.sin(math.radians(10)):
+        return None
+    w = math.radians((d.get("winkel") or 0.0) + ref)
+    if hx * -math.sin(w) + hy * math.cos(w) < 0:      # Achse nach außen, zur Bohrung hin
+        hx, hy, hz = -hx, -hy, -hz
+    richtung = (math.degrees(math.atan2(-hx, hy)) - ref) % 360
+    nx, ny = -hy / h, hx / h                        # quer zur Achse in der Querschnittsebene
+    th_n = (math.degrees(math.atan2(-nx, ny)) - ref) % 360
+    if abs((th_n - richtung) % 360 - 90) > 1:
+        nx, ny = -nx, -ny
+    px, py = pa.X() - abw.cx, pa.Y() - abw.cy
+    versatz = px * nx + py * ny
+    # Kreuzungsstelle: Punkt der Gegenrohrachse über der Rohrachse (Abstand quer = versatz), dort z
+    s = -(px * hx + py * hy) / (h * h)
+    x = pa.Z() + s * hz - zmin
+    return dict(d=d.get("durchmesser"), richtung=round(richtung, 3) % 360, winkel=round(math.degrees(math.atan2(hz, h)), 3) + 0.0,
+                versatz=round(versatz, 3) + 0.0, x=round(x, 3))
+
+
 def _endform(flaechen, laenge, ref=0.0, ende="B"):
     """Form eines Endes aus seinen Schnittflächen: gerade, Gehrung (Neigung um eine Querachse), Schrägschnitt zwei-
     achsig oder komplex (mehrere Ebenen, gekrümmt: Ausklinkung, Sattel …). Winkel in Grad gegen den geraden Schnitt:
@@ -2458,6 +2485,10 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
                         d["neigung_l"], d["neigung_q"] = neigung(rund[0], normale)
                     ax = rund[0].Axis()
                     d["_achse"] = (ax.Location(), ax.Direction())
+                    st = _stutzen(ax, d, abw, ref, zmin) if t.profilform in ("Rundrohr", "Quadratrohr", "Rechteckrohr") \
+                        else None
+                    if st:
+                        d["stutzen"] = st
                 elif form[0] == "Kreis":
                     d.update(art="Bohrung", durchmesser=round(form[1], 2))
                 elif form[0] == "Langloch":
