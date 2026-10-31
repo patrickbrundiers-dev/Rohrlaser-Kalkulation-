@@ -29,7 +29,6 @@ NEUERUNGEN = [
                 "gehen gleich nach der Eingabe in den Ordner, der automatische Abgleich läuft jede Minute "
                 "(vorher alle 2 Minuten).",
      "Übersicht der Kollegen; Lebenszeichen alle 30 s; Änderungen gleich in den Ordner; Abgleich jede Minute"],
-    ["0.9.218", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
     ["0.9.220", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
                 "zeigt, ob der gemeinsame Ordner richtig arbeitet: erreichbar, Geschwindigkeit, Uhr, eigenes Kürzel, "
                 "Programmversion und letzter Abgleich der Kollegen, Konfliktkopien von OneDrive/SharePoint, doppelt "
