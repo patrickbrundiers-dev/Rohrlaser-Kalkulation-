@@ -1082,7 +1082,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             art = "Sonderkontur"
         elif art == "Bohrung" and umriss and d.get("durchmesser") and not (d3 and float(d.get("schraeg") or 0)
                                                                           >= SCHRAEG_3D) and \
-                _bohrung_ellipse(float(d["durchmesser"]), float(d.get("schraeg") or 0)) > GRUNDFORM_TOL:
+                _bohrung_ellipse(float(d["durchmesser"]), float(d.get("schraeg") or 0)) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):    # Stutzen: Durchbruch trifft die STEP
             # schräge oder außermittige Bohrung ohne 3D-Schnitt (Patrick 31.10.2026): außen eine Ellipse, kein Kreis –
             # als Sonderkontur mit dem gemessenen Umriss (wie in der STEP), sonst bis 0,6 mm daneben
             art = "Sonderkontur"
