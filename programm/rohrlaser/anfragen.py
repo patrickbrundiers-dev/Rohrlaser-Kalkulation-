@@ -576,6 +576,7 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     kunden = db.zeilen("kunden")
     eigen_name = db.einstellung("briefkopf_1") or ""
     e = formular.auswerten("\n".join(g["text"] for g in gelesen), kunden, eigene=[eigen_name])
+    e["nummer"] = formular.nummer_aus([g for g in gelesen if not g.get("mail")]) or e["nummer"]   # Kopftabelle
     kunde_mail, hinweis = None, []
     domains = eigene_domains(db)
     # intern weitergeleitet (Patrick 31.10.2026): Kunde, Signatur und Anfragetext aus der Mail des Kunden darin

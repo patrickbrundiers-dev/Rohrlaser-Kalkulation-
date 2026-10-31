@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.226", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
+    ["0.9.227", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
                 "und öffnet in Outlook die E-Mail an den Kunden mit Anhang, als Antwort auf die Anfrage-Mail, wenn sie "
                 "im Angebotsordner liegt; Vorlagen unter Einstellungen → Angebot per E-Mail, Vermerk im Versandverlauf. "
                 "<b>Termin prüfen …</b> im Angebotskopf ([[termin_auslastung]]): frühester Liefertermin nach freier "
@@ -31,6 +31,13 @@ NEUERUNGEN = [
                 "([[laufzeit_teil]]): ergibt die Ist-Laserzeit und schlägt Vorschübe je Schneiddaten-Zeile "
                 "(Werkstoff, Wandstärke) vor.",
      "Angebot per E-Mail (Outlook, Antwort auf die Anfrage); Termin nach Auslastung; Schnellpreis; Laufzeit je Teil"],
+    ["0.9.226", "<b>PDF-Anfrageformular besser ausgewertet</b> ([[anfragen]]): Positionstabellen liest das Programm "
+                "über die Lage der Wörter (PDF mit Text und Scan) – Menge aus der Mengenspalte, Zellen über zwei "
+                "Zeilen, <i>1.000 Stk</i> = 1000, Positionsnummern und Längen nie als Menge; nennt das Formular nur "
+                "<i>MG-01</i>, passt die Menge zur STEP <i>MG-01 Stiel</i> (gelb). Die <b>Anfrage-Nr.</b> steht auch "
+                "in Kopftabellen oder heißt <i>Beleg-Nr.</i>, <i>Vorgang</i>, <i>Unser Zeichen</i>; ein Datum zählt "
+                "nie. Neu: <b>Werkstoff je Position</b> aus dem Formular (nur eindeutig, gelb mit Quelle).",
+     "PDF-Formular: Tabellen über die Lage, Anfrage-Nr. aus Kopftabellen, Werkstoff je Position"],
     ["0.9.225", "<b>U-Profile als Standard</b> ([[profile]]): Die U-Profile nach DIN 1026-1 von UPN 30x15 bis UPN 200 "
                 "stehen in den Stammdaten Profile (Steg, Flansch, Normfläche und Gewicht je Meter, ohne Preis); "
                 "<i>UNP 100</i> oder <i>U 100</i> beim Tippen findet UPN 100, auch in der Schnellzeile. "

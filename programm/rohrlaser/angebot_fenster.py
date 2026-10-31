@@ -5966,17 +5966,20 @@ class AngebotSeite(AusgabeMixin, QWidget):
         if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
             from . import pdf_art
             ws_zeilen = None if ws_aus_mail else self.db.zeilen("werkstoffe")
+            ws_formular = self.db.zeilen("werkstoffe")      # Werkstoff je Position aus dem Formular (31.10.2026)
             wahl = {}                   # Datei -> Wahl im Prüfdialog (pdf_art.AUTO, FORMULAR, ZEICHNUNG, NICHT)
 
             def anwenden():
                 aktiv = [pdf_art.zusammen(f, wahl.get(f.get("datei"), f.get("wahl", pdf_art.AUTO))) if f.get("seiten") else f
                          for f in formulare]
-                erg = pdf_art.anwenden(messwerte, aktiv, ws_zeilen)
+                erg = pdf_art.anwenden(messwerte, aktiv, ws_zeilen, ws_formular)
                 n, unsicher = erg["formular"], erg["unsicher"]
                 quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
                 return (f"Stückzahlen aus {quelle}: {n} Teil(e)"
                         + (f", davon {unsicher} unsicher (bitte prüfen)" if unsicher else "")
                         + (f"; ohne Treffer: {len(messwerte) - n}" if n < len(messwerte) else "")
+                        + (f"; Werkstoff aus dem Formular: {erg['werkstoff']} Teil(e), bitte prüfen"
+                           if erg.get("werkstoff") else "")
                         + (f"; aus Zeichnungen (Schriftfeld): {erg['zeichnung']} Teil(e), bitte prüfen"
                            if erg["zeichnung"] else ""))
 
