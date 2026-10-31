@@ -19,7 +19,7 @@ VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", No
                      ("Abweichung [%]", "prozent", 1, 90), ("Ist erfasst", "erfasst", None, 70)]
 GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
                  "EK-Meterpreis Soll [€/m]", "EK-Meterpreis Ist [€/m]")
-TEILE_TITEL = ("Pos.", "Artikel", "Profil-ID", "Schneiddaten", "Soll [s/Teil]", "Ist [s/Teil]")
+TEILE_TITEL = ("Pos.", "Ist [s/Teil]", "Soll [s/Teil]", "Profil-ID", "Schneiddaten")
 EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalten: (Schlüssel in ist, ganze Zahl)
 # Schweißbaugruppen: Spalte -> (Feld in ist['baugruppen'][ID] oder None, Titel); Ist-Spalten und Grund editierbar
 BG_SPALTEN = [(None, "Baugruppe")] + [x for n, titel, e, _ in nk.BG_FELDER
@@ -322,17 +322,19 @@ class NachkalkulationSeite(QWidget):
         self.teile.setRowCount(len(teile))
         for r, t in enumerate(teile):
             m, wer, wand, gas = t["schluessel"]
-            for c, w in enumerate((str(t["pos"] or ""), t["artikel"], t["profil"],
-                                   f"{wer}, bis {_z(wand, 1)} mm{', ' + gas if gas else ''}", _z(t["soll_s"], 1),
-                                   _z(je.get(str(t["id"])), 1))):
+            sd = f"{str(wer).removeprefix('Kategorie ')} ≤ {_z(wand, 1)} mm{' ' + gas if gas else ''}"
+            for c, w in enumerate((str(t["pos"] or ""), _z(je.get(str(t["id"])), 1), _z(t["soll_s"], 1), t["profil"],
+                                   sd)):
                 it = QTableWidgetItem(w)
                 it.setData(Qt.UserRole, t["id"])
-                if c == 5:
+                it.setToolTip(f"{t['artikel']} · Schneiddaten {wer}, Wandstärke bis {_z(wand, 1)} mm"
+                              + (f", {gas}" if gas else ""))
+                if c == 1:
                     it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 else:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     it.setBackground(QBrush(stil.farbe("#F2F2F2")))
-                if c >= 4:
+                if c in (1, 2):
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 self.teile.setItem(r, c, it)
         kopf = self.teile.horizontalHeader().sizeHint().height()
@@ -340,7 +342,7 @@ class NachkalkulationSeite(QWidget):
         self.teile.setVisible(bool(teile))
 
     def _teil_geaendert(self, it):
-        if self._laden or it.column() != 5:
+        if self._laden or it.column() != 1:
             return
         try:
             w = self._zahl(it.text())

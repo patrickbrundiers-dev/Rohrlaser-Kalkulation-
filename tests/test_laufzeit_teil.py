@@ -40,13 +40,13 @@ teile = s.nachkalk._teile_soll()
 assert teile and all(t["soll_s"] > 0 and len(t["schluessel"]) == 4 for t in teile)
 s.nachkalk.neu_laden()
 assert s.nachkalk.teile.rowCount() == len(teile)
-assert "bis" in s.nachkalk.teile.item(0, 3).text()
+assert "≤" in s.nachkalk.teile.item(0, 4).text()
 ok(f"L1 {len(teile)} Laserteile mit Soll je Teil und Schneiddaten-Zeile")
 
 # ------------------------------------------------------------------ L2 Ist-Laserzeit aus den Teilen
 v0 = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, {}, kalk=s._rechnung())
 laser0 = next(z for z in v0["zeilen"] if z["text"] == "Laserzeit")
-it = s.nachkalk.teile.item(0, 5)
+it = s.nachkalk.teile.item(0, 1)
 it.setText("1")                                         # nur ein Teil: Laserzeit bleibt wie geplant
 v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, s.nachkalk.ist, kalk=s._rechnung())
 assert next(z for z in v["zeilen"] if z["text"] == "Laserzeit")["erfasst"] == "nein"
