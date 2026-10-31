@@ -48,11 +48,11 @@ teilen.lesen(mk, teilen.UEBERNEHMEN)
 assert teilen_fenster.abgleichen(f_mk) is not None
 assert teilen_fenster.abgleichen(f_pb) is not None
 assert f_pb.teilen_status.text().startswith("⇄ abgeglichen") and "MK" in f_pb.teilen_status.toolTip()
-assert teilen_fenster.takt_ms(pb) == 120_000
+assert teilen_fenster.takt_ms(pb) == 60_000
 pb.einstellung_setzen("teilen_takt", 0)
 assert teilen_fenster.takt_ms(pb) == 0
 pb.einstellung_setzen("teilen_takt", 2)
-ok("Statusleiste „⇄ abgeglichen 14:32“ mit Kollegen im Tipp; Abgleich alle 2 Minuten (Einstellung, 0 = aus)")
+ok("Statusleiste „⇄ abgeglichen 14:32“ mit Kollegen im Tipp; Abgleich jede Minute (Einstellung, 0 = aus)")
 
 # ---------------------------------------------------------------- automatischer Abgleich
 teilen_fenster.auto_abgleich(f_pb)

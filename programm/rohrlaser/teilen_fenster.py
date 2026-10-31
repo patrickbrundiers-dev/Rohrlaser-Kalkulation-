@@ -573,6 +573,56 @@ def auto_abgleich(fenster):
 
 
 HERZSCHLAG_S = 10 * 60      # spätestens so oft schreiben (geöffnete Angebote gelten FRISCH_MIN lang)
+PULS_TICK_MS = 15_000       # Takt für Lebenszeichen und Sofort-Schreiben (Paket B, 31.10.2026)
+
+
+def puls(fenster, jetzt_=None):
+    """Alle PULS_TICK_MS (Paket B): eigenes Lebenszeichen höchstens alle teilen.PULS_S schreiben und die der Kollegen
+    lesen (wer ist da, wer hat welches Angebot offen); hat sich dabei etwas geändert, die Angebotsliste neu zeichnen.
+    Sofort schreiben: gibt es hier Änderungen, die noch nicht im Ordner liegen, und ruht die Eingabe seit dem letzten
+    Takt, werden sie gleich abgelegt (nur geänderte Monatsdateien), nicht erst beim nächsten Abgleich.
+    Ergebnis: dict(lebenszeichen, geschrieben) oder None (nichts zu tun)."""
+    db = fenster.db
+    if db.nur_lesen or not teilen.aktiv(db) or not teilen.kuerzel(db) or getattr(fenster, "step_drop_laeuft", False):
+        return None
+    merk = fenster.__dict__.setdefault("_teilen_puls", {})
+    jetzt_ = time.monotonic() if jetzt_ is None else jetzt_
+    erg = dict(lebenszeichen=False, geschrieben=False)
+    auto = fenster.__dict__.setdefault("_teilen_auto", {})
+    vorher_c = db.con.total_changes
+    if jetzt_ - merk.get("zeichen", -1e9) >= teilen.PULS_S - 1:
+        try:
+            vorher = teilen.kollegen_offen(db)
+            erg["lebenszeichen"] = teilen.lebenszeichen_schreiben(db, offen_nummern(fenster))
+            online = teilen.lebenszeichen_lesen(db)
+            merk["zeichen"] = jetzt_
+            stand = {k: v["online"] for k, v in online.items()}
+            if teilen.kollegen_offen(db) != vorher or stand != merk.get("online"):
+                merk["online"] = stand
+                liste = getattr(fenster, "angebote", None)
+                if liste is not None and hasattr(liste, "neu_laden"):
+                    liste.neu_laden()
+        except (teilen.TeilenFehler, OSError):
+            pass
+    eigen = db.con.total_changes - vorher_c     # nur eigene Merker (gelesene Lebenszeichen): keine Änderung
+    if eigen:
+        for d, n in ((auto, "aenderungen"), (merk, "letzter")):
+            if d.get(n) is not None:
+                d[n] += eigen
+    if auto.get("aenderungen") is None:         # Ausgangsstand: was bis hier geändert war, holt der Abgleich ab
+        auto["aenderungen"] = db.con.total_changes
+    # Sofort schreiben, sobald die Eingabe ruht (Dialoge nicht stören)
+    if QApplication.activeModalWidget() is not None or QApplication.activePopupWidget() is not None:
+        merk["letzter"] = db.con.total_changes
+        return erg
+    stand = db.con.total_changes
+    if stand != auto["aenderungen"] and stand == merk.get("letzter"):
+        bericht = abgleichen(fenster, lesen=False, schreiben=True, leise=True, auto=True)
+        if bericht is not None:
+            auto.update(aenderungen=db.con.total_changes, offen=offen_nummern(fenster), geschrieben=time.monotonic())
+            erg["geschrieben"] = True
+    merk["letzter"] = db.con.total_changes
+    return erg
 
 
 def takt_ms(db):

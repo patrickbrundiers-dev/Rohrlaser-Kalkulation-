@@ -49,6 +49,8 @@ Gemeinsamen Ordner ausbauen (Patrick 31.10.2026, Paket A, Freigabe „Alle Empfe
   Abweichung: so entscheidet eine falsch gehende PC-Uhr keinen Konflikt mehr falsch. Ab 2 min Hinweis.
 - Konfliktkopien (OneDrive „haupt-PC01.sqlite“, „00042 (1).nummer“ …): eigene kommen beim Schreiben in den lokalen
   Ordner Daten/Teilen/Konfliktkopien, fremde und doppelt reservierte Nummern zeigt „Gemeinsamen Ordner prüfen“.
+Paket B: Lebenszeichen Rohrlaser_<K>/online.json alle 30 s (wer ist da, welche Angebote sind offen; gilt 2 min),
+Sofort-Schreiben nach einer Eingabe (teilen_fenster.puls), Übersicht der Kollegen (kollegen_dialog).
 """
 import datetime
 import hashlib
@@ -1168,7 +1170,8 @@ def lesen(db, modus=None):
             fc = quelle.verbinden()
             try:
                 info = {n: json.loads(w) for n, w in fc.execute("SELECT name, wert FROM info")}
-                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen",
+                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen", "angebote",
+                                                         "uhr_abweichung",
                                                          "rechner", "lizenz")}
                 bericht["mitarbeiter"].append(k2)
                 if int(info.get("format") or 0) > FORMAT or int(info.get("schema") or 0) > schema:
@@ -1386,12 +1389,21 @@ def offen_bei(db, nummer, jetzt_=None):
 
 
 def kollegen_offen(db, jetzt_=None):
-    """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben (nur frische Dateien)."""
+    """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben. Mit Lebenszeichen (ab 0.9.219)
+    gilt nur dessen Stand (höchstens ONLINE_S alt), sonst die Hauptdatei (FRISCH_MIN nach dem letzten Schreiben)."""
     jetzt_ = jetzt_ or datetime.datetime.now()
     ich = kuerzel(db)
     out = {}
+    puls = lebenszeichen(db)
     for k, m in (db.einstellung("teilen_mitarbeiter") or {}).items():
-        if k == ich or not m.get("offen"):
+        if k == ich:
+            continue
+        if k in puls:
+            if puls[k]["online"]:
+                for nummer, seit in (puls[k].get("offen") or {}).items():
+                    out.setdefault(nummer, (k, seit))
+            continue
+        if not m.get("offen"):
             continue
         try:
             stand = datetime.datetime.fromisoformat(m.get("stand") or "")
@@ -1400,6 +1412,97 @@ def kollegen_offen(db, jetzt_=None):
         if jetzt_ - stand <= datetime.timedelta(minutes=FRISCH_MIN):
             for nummer, seit in m["offen"].items():
                 out.setdefault(nummer, (k, seit))
+    return out
+
+
+# ------------------------------------------------------------------ Lebenszeichen (Paket B, 31.10.2026)
+ONLINE_DATEI = "online.json"    # je Mitarbeiter-Ordner: wer ist da, welche Angebote sind gerade offen
+ONLINE = "_teilen_online"       # nur im Speicher (an der Datenbank): {Kürzel: online.json der Kollegen, gelesen};
+                                # nicht in der Datendatei, sonst gälte jedes gelesene Lebenszeichen als Änderung
+PULS_S = 30                     # so oft schreibt das Programm sein Lebenszeichen
+ONLINE_S = 120                  # so lange gilt ein Kollege nach seinem letzten Lebenszeichen als da
+
+
+def _utc(versatz=0):
+    return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=versatz or 0)
+
+
+def lebenszeichen_schreiben(db, offen=None, ende=False):
+    """Eigenes Lebenszeichen in den gemeinsamen Ordner (klein, atomar): Zeit (Ordner-Uhr), geöffnete eigene
+    Angebote, Version. ende: Programm wird beendet (dann gleich „nicht mehr da“). Nur, wenn der eigene Ordner schon
+    diesem Arbeitsplatz gehört (nach dem ersten Abgleich). Ergebnis: True = geschrieben."""
+    k, w = kuerzel(db), weg(db)
+    if not k or w is None or not w.erreichbar():
+        return False
+    haupt = w.haupt(k)
+    if haupt is None or haupt.name != HAUPT:
+        return False
+    if (info_lesen(haupt) or {}).get("installation") not in (None, installation(db)):
+        return False
+    daten = dict(kuerzel=k, name=db.einstellung("benutzer_name") or "", installation=installation(db),
+                 rechner=socket.gethostname(), version=VERSION, zeit=_utc(uhr_versatz(db)).isoformat(timespec="seconds"),
+                 offen=dict(offen or {}), ende=bool(ende))
+    w.datei_schreiben(json.dumps(daten, ensure_ascii=False).encode("utf-8"), ordner_name(k), ONLINE_DATEI)
+    return True
+
+
+def lebenszeichen_lesen(db):
+    """Lebenszeichen der Kollegen lesen und merken (teilen_online). Ergebnis: {Kürzel: dict} wie lebenszeichen."""
+    k, w = kuerzel(db), weg(db)
+    if w is None or not w.erreichbar():
+        return {}
+    alle = {}
+    for k2, haupt in w.mitarbeiter(k, kuerzel_sauber).items():
+        if haupt.name != HAUPT:
+            continue
+        roh = w.datei_lesen(ordner_name(k2), ONLINE_DATEI)
+        if roh is None:
+            continue
+        try:
+            d = json.loads(roh.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if isinstance(d, dict):
+            alle[k2] = {n: d.get(n) for n in ("name", "rechner", "version", "zeit", "offen", "ende")}
+    setattr(db, ONLINE, alle)
+    return lebenszeichen(db)
+
+
+def lebenszeichen(db, jetzt_=None):
+    """{Kürzel: {name, rechner, version, zeit, offen, online, vor_s}} aus den zuletzt gelesenen Lebenszeichen.
+    online: höchstens ONLINE_S alt (gegen die Ordner-Uhr) und nicht beendet; vor_s: Alter in Sekunden."""
+    jetzt_ = jetzt_ or _utc(uhr_versatz(db))
+    out = {}
+    for k2, d in (getattr(db, ONLINE, None) or {}).items():
+        try:
+            zeit = datetime.datetime.fromisoformat(d.get("zeit") or "")
+        except ValueError:
+            continue
+        if zeit.tzinfo is None:
+            zeit = zeit.replace(tzinfo=datetime.timezone.utc)
+        vor = (jetzt_ - zeit).total_seconds()
+        out[k2] = dict(d, vor_s=vor, online=not d.get("ende") and vor <= ONLINE_S)
+    return out
+
+
+def zuletzt_text(sekunden):
+    """„gerade eben“, „vor 5 min“, „vor 3 h“, „vor 2 Tagen“."""
+    s = max(0, int(sekunden or 0))
+    if s < 90:
+        return "gerade eben"
+    if s < 3600:
+        return f"vor {s // 60} min"
+    if s < 2 * 86400:
+        return f"vor {s // 3600} h"
+    return f"vor {s // 86400} Tagen"
+
+
+def offene_vorgaenge(db):
+    """{Kürzel: Anzahl} eigener Vorgänge (Übergabe, Anfrage, Notiz), die der Kollege noch nicht umgesetzt hat."""
+    out = {}
+    for v in _vorgaenge(db).values():
+        if v.get("an"):
+            out[v["an"]] = out.get(v["an"], 0) + 1
     return out
 
 
