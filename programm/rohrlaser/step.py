@@ -867,8 +867,8 @@ def durchbruch_aus_messung(qs, profil, d, s_von):
             return None
         dq = math.degrees(math.asin(vm / qs.r))
         for s1 in (1, -1):
-            for s2 in (1, -1) if w else (1,):
-                for s3 in (1, -1) if vm else (1,):
+            for s2 in ([1, -1] if w else [1]):
+                for s3 in ([1, -1] if vm else [1]):
                     kandidaten.append(dict(seite=round((th + s1 * dq) % 360, 2), winkel=round(s2 * w, 2),
                                            versatz=round(s3 * vm, 2)))
     else:
@@ -877,7 +877,7 @@ def durchbruch_aus_messung(qs, profil, d, s_von):
         seite, q0 = _kasten_seite(s_von(float(d["u"])), max(qs.B, qs.H), min(qs.B, qs.H)) if d.get("u") is not None \
             else ("oben", 0.0)
         for q in dict.fromkeys((round(vm, 2), round(-vm, 2), round(q0, 2))):
-            for s2 in (1, -1) if w else (1,):
+            for s2 in ([1, -1] if w else [1]):
                 k = dict(seite=seite, winkel=round(s2 * w, 2))
                 if abs(q) > 0.005:
                     k["q"] = q
