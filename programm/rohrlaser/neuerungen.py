@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.230", "<b>Gemeinsamer Ordner</b> ([[ordner_einrichten]]): rote Leiste oben, solange der Ordner nicht "
+                "erreichbar ist (seit wann, Änderungen bleiben hier); ist er wieder da, gleicht das Programm gleich ab "
+                "und meldet die endgültigen Nummern. <b>Datei → Arbeitsplatz einrichten (Assistent) …</b>: Ordner, "
+                "Kürzel, erster Abgleich in drei Schritten. <b>Datei → Gemeinsamen Ordner umziehen …</b> (Admin): "
+                "alles kopieren und prüfen, die Kollegen stellen mit einem Klick um. Schneller schreiben: unveränderte "
+                "Daten bleiben liegen, nur geänderte Stammdaten-Zeilen werden neu geschrieben.",
+     "Leiste bei Ordner-Ausfall; Assistent für neue Arbeitsplätze; Ordner umziehen (Admin); schneller schreiben"],
     ["0.9.229", "<b>Gleichzeitig ändern</b> ([[zeile_sperre]]): Ändert ein Kollege gerade dieselbe Stammdaten-Zeile "
                 "(Kunde, Material, Preis …), fragt das Programm „Trotzdem ändern?“ (weiche Sperre, 2 Minuten nach "
                 "seiner Änderung). <b>Windows-Meldung</b> unten rechts bei Übergaben, Anfragen, Notizen und fälligen "

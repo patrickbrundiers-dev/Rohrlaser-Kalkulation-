@@ -652,6 +652,10 @@ def puls(fenster, jetzt_=None):
     db = fenster.db
     if db.nur_lesen or not teilen.aktiv(db) or not teilen.kuerzel(db) or getattr(fenster, "step_drop_laeuft", False):
         return None
+    from . import ordner_assistent
+    ordner = ordner_assistent.zustand(fenster)      # Paket F1: Leiste, solange der Ordner weg ist; danach abgleichen
+    if ordner in ("weg", "umzug"):
+        return dict(lebenszeichen=False, geschrieben=False, ordner=ordner)
     merk = fenster.__dict__.setdefault("_teilen_puls", {})
     jetzt_ = time.monotonic() if jetzt_ is None else jetzt_
     erg = dict(lebenszeichen=False, geschrieben=False)

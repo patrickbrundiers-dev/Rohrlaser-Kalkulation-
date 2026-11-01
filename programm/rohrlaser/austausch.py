@@ -12,6 +12,7 @@ Dateien und Verhalten sind dieselben wie vorher. Später kommt ein Server als zw
 Gemeinsamen Ordner ausbauen (Patrick 31.10.2026, Paket A): Uhr des Ordners messen (Prüfdatei), Konfliktkopien von
 OneDrive/SharePoint, Dropbox oder Nextcloud finden, Geschwindigkeit und Reste abgebrochener Schreibvorgänge prüfen.
 """
+import datetime
 import json
 import os
 import shutil
@@ -27,6 +28,7 @@ ARCHIV = "Archiv"               # Ordner ausgeschiedener Mitarbeiter (Paket C), 
 UHR_DATEI = "uhr.pruef"         # Prüfdatei je Mitarbeiter: ihren Zeitstempel setzt das Netzlaufwerk (Ordner-Uhr)
 TEST_DATEI = "ordner_test.tmp"  # Geschwindigkeitsprüfung (Ordner prüfen), wird gleich wieder gelöscht
 NEU = ".neu"                    # Zwischendateien beim Austauschen; bleiben nur nach einem Abbruch liegen
+UMZUG_DATEI = "UMGEZOGEN.json"  # im alten gemeinsamen Ordner nach dem Umzug (Paket F2): wohin, wer, wann, fertig
 GEPRUEFTE_BEREICHE = ("Nummern", "AB-Nummern", "Admin")    # Unterordner, in denen Konfliktkopien gesucht werden
 KOPIE_TRENNER = (" ", "-", "(", "_")    # OneDrive „name-PC.ext“, „name (1).ext“, Dropbox/Nextcloud „name (… Kopie …).ext“
 
@@ -54,6 +56,13 @@ def lokal_kopieren(quelle, ziel):
     return ziel
 
 
+def hinlegen_text(ziel, text):
+    """Kleine Textdatei atomar ersetzen."""
+    tmp = ziel.with_name(ziel.name + NEU)
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, ziel)
+
+
 def hinlegen(quelle, ziel):
     """Datei in einem Schritt austauschen: erst daneben kopieren, dann umbenennen."""
     tmp = ziel.with_name(ziel.name + ".neu")
@@ -77,7 +86,57 @@ class OrdnerWeg:
         return str(self.pfad)
 
     def erreichbar(self):
-        return self.pfad.is_dir()
+        """Ordner da und nicht umgezogen (nach dem Umzug gilt der alte Ordner als nicht erreichbar: nichts wird mehr
+        hineingeschrieben, neue Angebote bekommen vorläufige Nummern, bis der Arbeitsplatz umgestellt ist)."""
+        return self.pfad.is_dir() and not (self.pfad / UMZUG_DATEI).is_file()
+
+    def umgezogen(self):
+        """Hinweis des Admins nach dem Umzug (dict: neu, von, zeit, fertig) oder None."""
+        try:
+            d = json.loads((self.pfad / UMZUG_DATEI).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return d if isinstance(d, dict) and d.get("neu") else None
+
+    def umziehen(self, ziel, von="", fortschritt=None):
+        """Ganzen gemeinsamen Ordner nach ziel kopieren (Paket F2). Zuerst kommt der Hinweis UMGEZOGEN.json in den
+        alten Ordner (ab da schreibt niemand mehr hinein), dann wird kopiert und geprüft (Anzahl und Größe der Dateien),
+        zuletzt der Hinweis auf „fertig“ gesetzt. Geht etwas schief, verschwindet der Hinweis wieder (der alte Ordner
+        gilt weiter). ziel muss leer sein oder fehlen. fortschritt(n, gesamt). Ergebnis: dict(dateien, bytes)."""
+        ziel = Path(ziel)
+        quelle = self.pfad.resolve()
+        z = ziel.resolve() if ziel.exists() else ziel.absolute()
+        if z == quelle or quelle in z.parents or z in quelle.parents:
+            raise OSError("Der neue Ordner darf nicht im alten liegen (und umgekehrt).")
+        if ziel.exists() and any(ziel.iterdir()):
+            raise OSError(f"Der neue Ordner ist nicht leer: {ziel}")
+        if self.umgezogen():
+            raise OSError(f"Der Ordner ist schon umgezogen nach {self.umgezogen()['neu']}.")
+        merk = self.pfad / UMZUG_DATEI
+        hinweis = dict(neu=str(ziel), von=von, zeit=datetime.datetime.now().isoformat(timespec="seconds"), fertig=False)
+        hinlegen_text(merk, json.dumps(hinweis, ensure_ascii=False))
+        try:
+            dateien = [p for p in self.pfad.rglob("*") if p.is_file() and p.name != UMZUG_DATEI
+                       and not p.name.endswith(NEU)]
+            ziel.mkdir(parents=True, exist_ok=True)
+            summe = 0
+            for i, p in enumerate(dateien, 1):
+                d = ziel / p.relative_to(self.pfad)
+                d.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, d)
+                summe += p.stat().st_size
+                if fortschritt:
+                    fortschritt(i, len(dateien))
+            for p in dateien:                   # prüfen: alles da, gleich groß
+                d = ziel / p.relative_to(self.pfad)
+                if not d.is_file() or d.stat().st_size != p.stat().st_size:
+                    raise OSError(f"Nach dem Kopieren fehlt oder unterscheidet sich: {d}")
+        except BaseException:
+            merk.unlink(missing_ok=True)
+            raise
+        hinweis["fertig"] = True
+        hinlegen_text(merk, json.dumps(hinweis, ensure_ascii=False))
+        return dict(dateien=len(dateien), bytes=summe)
 
     # -------------------------------------------------------------- Daten der Mitarbeiter
     def haupt(self, k):
