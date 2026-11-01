@@ -4105,6 +4105,10 @@ class AngebotSeite(AusgabeMixin, QWidget):
     def baugruppe_bearbeiten(self, zeilen, dialog=None, fokus=None):
         """Editor der Schweißbaugruppe in der Zeile; bei einem Einzelteil der Editor seiner Baugruppe.
         fokus: Status, dessen Zeile der Editor zeigt (Doppelklick auf den Status). Ergebnis: True = gespeichert."""
+        zeilen = [z for z in (zeilen or ()) if 0 <= z < len(self.positionen)]
+        if not zeilen:      # Rechtsklick ins Leere ohne Markierung (Fehler-Durchgang 01.11.2026): Hinweis statt Absturz
+            self.f.meldung("Bitte zuerst die Baugruppe oder eines ihrer Einzelteile markieren.", fehler=True)
+            return False
         p = self.positionen[zeilen[0]]
         if fokus and not ist_baugruppe(p):
             fokus = f"Pos. {p.get('pos') or ''}: {fokus}"
