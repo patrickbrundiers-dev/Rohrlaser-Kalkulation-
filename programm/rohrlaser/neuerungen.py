@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.228", "<b>Verlauf: wer hat was geändert</b> ([[aenderungsverlauf]]): <i>Vorgang → Verlauf …</i> in der "
+                "Angebotsliste zeigt je Angebot, wer wann welches Feld von welchem auf welchen Wert geändert hat (Kopf, "
+                "Positionen, Staffeln), über alle Arbeitsplätze im gemeinsamen Ordner; <i>Kollegen im gemeinsamen "
+                "Ordner → Verlauf Stammdaten …</i> dasselbe für Kunden, Material, Preise und gemeinsame "
+                "Einstellungen. <b>Alten Wert zurückholen</b> für eigene Angebote und eigene Änderungen, der Admin "
+                "auch für die Stammdaten der Kollegen. Der Verlauf reicht 12 Monate zurück.",
+     "Verlauf je Angebot und für Stammdaten (wer, wann, vorher, nachher); alten Wert zurückholen"],
     ["0.9.227", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
                 "und öffnet in Outlook die E-Mail an den Kunden mit Anhang, als Antwort auf die Anfrage-Mail, wenn sie "
                 "im Angebotsordner liegt; Vorlagen unter Einstellungen → Angebot per E-Mail, Vermerk im Versandverlauf. "

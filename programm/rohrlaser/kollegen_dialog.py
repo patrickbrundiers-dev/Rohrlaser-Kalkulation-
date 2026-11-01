@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDial
                                QHeaderView, QLabel, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
                                QVBoxLayout)
 
-from . import VERSION, admin_schutz, stil, teilen
+from . import VERSION, admin_schutz, aenderungsverlauf_dialog, stil, teilen
 
 SPALTEN = ("Kürzel", "Name", "Status", "Rechner", "Version", "Letzter Abgleich", "Angebote", "Gerade geöffnet",
            "Offene Vorgänge an ihn", "PC-Uhr")
@@ -99,10 +99,15 @@ class KollegenDialog(QDialog):
         self.weg.setToolTip("Nur Admin: Angebote des markierten Kollegen übernehmen bzw. verteilen, seinen Ordner "
                             "ins Archiv legen")
         self.weg.clicked.connect(self._ausgeschieden)
+        self.verlauf = QPushButton("Verlauf Stammdaten …")
+        self.verlauf.setToolTip("Wer hat wann Kunden, Material, Preise oder gemeinsame Einstellungen geändert "
+                                "(Paket D); alte Werte zurückholen")
+        self.verlauf.clicked.connect(lambda: aenderungsverlauf_dialog.zeigen(self.f))
         zu = QPushButton("Schließen")
         zu.clicked.connect(self.accept)
         zeile.addWidget(self.neu)
         zeile.addWidget(self.notiz)
+        zeile.addWidget(self.verlauf)
         zeile.addWidget(self.weg)
         zeile.addStretch(1)
         zeile.addWidget(zu)
