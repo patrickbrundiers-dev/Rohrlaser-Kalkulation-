@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtCore import QDate
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
                                QPushButton, QVBoxLayout, QWidget)
 
@@ -240,6 +240,12 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
     for a in bericht.get("abgelehnt", ()):
         texte.append(f"{_name(db, a['von'])} gibt Angebot {a['nummer']} nicht ab" +
                      (f": „{a['notiz']}“" if a.get("notiz") else "."))
+    ziel = next((x.get("nummer") for x in list(bericht.get("uebernommen", ())) + list(bericht.get("anfragen", ()))
+                 + list(bericht.get("notizen", ())) if x.get("nummer")), None)
+    meldung_w = texte + [f"{_name(db, a['von'])} möchte Angebot {a['nummer']} übernehmen."
+                         for a in bericht.get("anfragen", ())]
+    if meldung_w:
+        windows_meldung(fenster, "Kollegen", meldung_w, ziel)
     if texte:
         fenster.meldung(" ".join(texte))
         if not (leise or fenster.stumm):
@@ -262,6 +268,67 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
         except (teilen.TeilenFehler, OSError) as e:
             fenster.meldung(f"Antwort kommt beim nächsten Abgleich an: {e}", fehler=True)
         fenster.alles_neu_laden()
+
+
+# ------------------------------------------------------------------ Windows-Meldung (Paket E2, 01.11.2026)
+def _tray(fenster):
+    """Symbol im Windows-Infobereich (einmal je Fenster) oder None, wenn es keinen Infobereich gibt."""
+    t = fenster.__dict__.get("_tray")
+    if t is None and QSystemTrayIcon.isSystemTrayAvailable():
+        t = QSystemTrayIcon(fenster.windowIcon(), fenster)
+        t.setToolTip(fenster.windowTitle())
+        t.messageClicked.connect(lambda: meldung_geklickt(fenster))
+        t.activated.connect(lambda _grund: meldung_geklickt(fenster, nur_zeigen=True))
+        t.show()
+        fenster._tray = t
+    return t
+
+
+def windows_meldung(fenster, titel, texte, nummer=None):
+    """Meldung unten rechts im Windows-Infobereich, wenn das Programm nicht im Vordergrund ist (minimiert oder ein
+    anderes Programm aktiv); ein Klick darauf holt das Programm nach vorn und öffnet das Angebot nummer. Abschaltbar
+    (Einstellung teilen_meldung, Frage 5a). Ergebnis: True = gemeldet."""
+    db = fenster.db
+    if (db.einstellung("teilen_meldung") or "ja") == "nein" or not texte:
+        return False
+    if fenster.isActiveWindow() and not fenster.isMinimized() and not getattr(fenster, "meldung_immer", False):
+        return False                    # im Vordergrund reicht die Meldung im Programm
+    text = texte[0] + (f"\n… und {len(texte) - 1} weitere" if len(texte) > 1 else "")
+    fenster._meldung_ziel = nummer
+    fenster.__dict__.setdefault("windows_meldungen", []).append((titel, text, nummer))
+    t = _tray(fenster)
+    if t is not None:
+        t.showMessage(titel, text, QSystemTrayIcon.Information, 15000)
+    return True
+
+
+def meldung_geklickt(fenster, nur_zeigen=False):
+    """Klick auf die Windows-Meldung: Programm nach vorn, das genannte Angebot öffnen."""
+    if fenster.isMinimized():
+        fenster.showNormal()
+    fenster.raise_()
+    fenster.activateWindow()
+    nummer = None if nur_zeigen else fenster.__dict__.get("_meldung_ziel")
+    if nummer:
+        r = fenster.db.con.execute("SELECT id FROM angebote WHERE nummer=?", (nummer,)).fetchone()
+        if r:
+            fenster.angebot_oeffnen(r[0])
+
+
+def wiedervorlagen_melden(fenster, heute=None):
+    """Fällige Wiedervorlagen aus Notizen der Kollegen einmal je Tag melden (beim Puls). Ergebnis: Anzahl."""
+    heute = (heute or datetime.date.today()).isoformat()
+    gemeldet = fenster.__dict__.setdefault("_wiedervorlagen_gemeldet", set())
+    neu = [n for n in teilen.notizen(fenster.db, offen_nur=True, heute=datetime.date.fromisoformat(heute))
+           if n.get("faellig") and n["faellig"] <= heute and (n.get("id"), heute) not in gemeldet]
+    if not neu:
+        return 0
+    for n in neu:
+        gemeldet.add((n.get("id"), heute))
+    texte = [f"Wiedervorlage von {_name(fenster.db, n['von'])}" + (f" zu Angebot {n['nummer']}" if n.get("nummer")
+             else "") + f": „{n['notiz']}“" for n in neu]
+    windows_meldung(fenster, "Wiedervorlage fällig", texte, next((n["nummer"] for n in neu if n.get("nummer")), None))
+    return len(neu)
 
 
 def _datum(iso):
@@ -604,6 +671,7 @@ def puls(fenster, jetzt_=None):
                     liste.neu_laden()
         except (teilen.TeilenFehler, OSError):
             pass
+        wiedervorlagen_melden(fenster)
     eigen = db.con.total_changes - vorher_c     # nur eigene Merker (gelesene Lebenszeichen): keine Änderung
     if eigen:
         for d, n in ((auto, "aenderungen"), (merk, "letzter")):
