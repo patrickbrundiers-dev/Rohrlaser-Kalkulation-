@@ -31,7 +31,8 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
+from . import aenderungsverlauf, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
+from . import teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -507,7 +508,8 @@ class Datenbank:
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis", teilen.PROTOKOLL, teilen.HERKUNFT) + lager.TABELLEN \
+                         "staffel_stufen", "teilen_basis", teilen.PROTOKOLL, teilen.HERKUNFT,
+                         aenderungsverlauf.TABELLE, aenderungsverlauf.STAND) + lager.TABELLEN \
         + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN
 
     def _stand_einrichten(self):

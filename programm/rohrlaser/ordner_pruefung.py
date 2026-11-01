@@ -50,6 +50,12 @@ def pruefen(db, geschwindigkeit=True):
         return [_befund(FEHLER, "Gemeinsamer Ordner", "Es ist kein gemeinsamer Ordner eingetragen.",
                         "Datei → Benutzer und gemeinsamer Ordner …")]
     w = teilen.weg(db)
+    u = teilen.umzug(db)
+    if u:
+        return [_befund(FEHLER, "Gemeinsamer Ordner", f"Umgezogen nach {u.get('neu')} (von {u.get('von') or 'Admin'})"
+                        + ("" if u.get("fertig") else ", Umzug läuft noch"),
+                        "Leiste oben: „Auf neuen Ordner umstellen …“" if u.get("fertig") else "Warten, bis der Admin "
+                        "fertig ist.")]
     if not w.erreichbar():
         return [_befund(FEHLER, "Gemeinsamer Ordner", f"Nicht erreichbar: {ordner}",
                         "Netzlaufwerk verbinden bzw. OneDrive starten, dann erneut prüfen.")]

@@ -414,12 +414,14 @@ class AngeboteSeite(QWidget):
         # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
         self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
         self.notiz_aktion = menue.addAction("Notiz an Kollegen …", lambda: self.notiz())
+        # Änderungsverlauf (Patrick 01.11.2026, Paket D): wer hat wann was geändert
+        self.verlauf_aktion = menue.addAction("Verlauf (wer hat was geändert) …", lambda: self.verlauf_zeigen())
         trenner = menue.addSeparator()  # Plan Palettenbegleitschein (ausgeblendet, wenn Versand aus)
         ps = menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
         self.palettenschein_aktionen = (trenner, ps)
         menue.aboutToShow.connect(lambda: [a.setVisible(self.f.versand_an()) for a in self.palettenschein_aktionen])
         menue.aboutToShow.connect(lambda: [a.setVisible(teilen.aktiv(self.db))
-                                           for a in (self.uebergeben_aktion, self.notiz_aktion)])
+                                           for a in (self.uebergeben_aktion, self.notiz_aktion, self.verlauf_aktion)])
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -555,6 +557,14 @@ class AngeboteSeite(QWidget):
         if i is None:
             return False
         return teilen_fenster.notiz_senden(self.f, i, an, text, faellig)
+
+    def verlauf_zeigen(self, angebot_id=None):
+        """Vorgang → Verlauf: Änderungen am gewählten Angebot (alle Arbeitsplätze), alte Werte zurückholen."""
+        from . import aenderungsverlauf_dialog
+        i = angebot_id or self._gewaehlt()
+        if i is None:
+            return None
+        return aenderungsverlauf_dialog.zeigen(self.f, i)
 
     def _fremd(self, i, was):
         """Angebot eines Kollegen: Hinweis statt Ändern. Ergebnis: True = fremd (nichts tun)."""

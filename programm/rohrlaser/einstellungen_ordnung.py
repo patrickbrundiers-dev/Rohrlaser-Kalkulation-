@@ -37,7 +37,7 @@ SEITEN = (
            _a("Ansicht", "ansicht_thema ansicht_schrift ansicht_dichte ansicht_hilfe ansicht_3d eingabe_richtung "
                          "stangenbild_popup angebote_zeitraum"),
            _a("Ordner", "ablageordner step_ordner anfrage_ordner sicherung_ordner2"),
-           _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt"),
+           _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt teilen_meldung"),
            _a("E-Mail-Signatur", "anfrage_outlook_signatur anfrage_signatur"),
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,

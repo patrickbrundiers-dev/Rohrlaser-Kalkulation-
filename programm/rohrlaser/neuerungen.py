@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.228", "<b>Fehler-Durchgang</b>: Die <b>Optimierung</b> überspringt volle Stangen und schon geprüfte gleiche "
+    ["0.9.231", "<b>Fehler-Durchgang</b>: Die <b>Optimierung</b> überspringt volle Stangen und schon geprüfte gleiche "
      "Teile ([[optimieren]]); der Schnittplan bleibt Stange für Stange gleich, aber große Stückzahlen gehen viel "
      "schneller (20.000 gleiche Teile vorher über 10 Minuten, jetzt unter 1 Sekunde; 6.000 gemischte Teile mit "
      "Gehrungen vorher rund 80 s, jetzt etwa 7 s). Rechtsklick unter den Positionen ohne Markierung und dann "
@@ -29,6 +29,26 @@ NEUERUNGEN = [
      "<i>1e999</i> in Zahlen- und Rechenfeldern werden abgelehnt ([[eingaben]]), statt einen Preis „nan“ zu "
      "ergeben.",
      "Fehler-Durchgang: Optimierung großer Stückzahlen viel schneller, zwei Abstürze behoben"],
+    ["0.9.230", "<b>Gemeinsamer Ordner</b> ([[ordner_einrichten]]): rote Leiste oben, solange der Ordner nicht "
+                "erreichbar ist (seit wann, Änderungen bleiben hier); ist er wieder da, gleicht das Programm gleich ab "
+                "und meldet die endgültigen Nummern. <b>Datei → Arbeitsplatz einrichten (Assistent) …</b>: Ordner, "
+                "Kürzel, erster Abgleich in drei Schritten. <b>Datei → Gemeinsamen Ordner umziehen …</b> (Admin): "
+                "alles kopieren und prüfen, die Kollegen stellen mit einem Klick um. Schneller schreiben: unveränderte "
+                "Daten bleiben liegen, nur geänderte Stammdaten-Zeilen werden neu geschrieben.",
+     "Leiste bei Ordner-Ausfall; Assistent für neue Arbeitsplätze; Ordner umziehen (Admin); schneller schreiben"],
+    ["0.9.229", "<b>Gleichzeitig ändern</b> ([[zeile_sperre]]): Ändert ein Kollege gerade dieselbe Stammdaten-Zeile "
+                "(Kunde, Material, Preis …), fragt das Programm „Trotzdem ändern?“ (weiche Sperre, 2 Minuten nach "
+                "seiner Änderung). <b>Windows-Meldung</b> unten rechts bei Übergaben, Anfragen, Notizen und fälligen "
+                "Wiedervorlagen, wenn das Programm nicht vorn ist; Klick öffnet das Angebot. Abschaltbar unter "
+                "Einstellungen → Mein Arbeitsplatz → Gemeinsamer Ordner.",
+     "Weiche Sperre für gleichzeitig geänderte Stammdaten-Zeilen; Windows-Meldung bei Nachrichten der Kollegen"],
+    ["0.9.228", "<b>Verlauf: wer hat was geändert</b> ([[aenderungsverlauf]]): <i>Vorgang → Verlauf …</i> in der "
+                "Angebotsliste zeigt je Angebot, wer wann welches Feld von welchem auf welchen Wert geändert hat (Kopf, "
+                "Positionen, Staffeln), über alle Arbeitsplätze im gemeinsamen Ordner; <i>Kollegen im gemeinsamen "
+                "Ordner → Verlauf Stammdaten …</i> dasselbe für Kunden, Material, Preise und gemeinsame "
+                "Einstellungen. <b>Alten Wert zurückholen</b> für eigene Angebote und eigene Änderungen, der Admin "
+                "auch für die Stammdaten der Kollegen. Der Verlauf reicht 12 Monate zurück.",
+     "Verlauf je Angebot und für Stammdaten (wer, wann, vorher, nachher); alten Wert zurückholen"],
     ["0.9.227", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
                 "und öffnet in Outlook die E-Mail an den Kunden mit Anhang, als Antwort auf die Anfrage-Mail, wenn sie "
                 "im Angebotsordner liegt; Vorlagen unter Einstellungen → Angebot per E-Mail, Vermerk im Versandverlauf. "
