@@ -2003,6 +2003,16 @@ class Hauptfenster(QMainWindow):
         from . import kollegen_dialog
         return kollegen_dialog.zeigen(self)
 
+    def arbeitsplatz_einrichten(self):
+        """Datei → Arbeitsplatz einrichten (Assistent): Ordner, Kürzel, erster Abgleich (Paket F2)."""
+        from . import ordner_assistent
+        return ordner_assistent.assistent(self)
+
+    def ordner_umziehen(self, ziel=None):
+        """Datei → Gemeinsamen Ordner umziehen (nur Admin, Paket F2)."""
+        from . import ordner_assistent
+        return ordner_assistent.umziehen(self, ziel)
+
     def ordner_pruefen(self):
         """Datei → Gemeinsamen Ordner prüfen: Erreichbarkeit, Uhr, Konfliktkopien, Versionen der Kollegen …"""
         from . import ordner_pruefung_dialog
@@ -2023,6 +2033,8 @@ class Hauptfenster(QMainWindow):
                                   ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
                                   ("Gemeinsamen Ordner prüfen …", self.ordner_pruefen, None),
                                   ("Kollegen im gemeinsamen Ordner …", self.kollegen_zeigen, None),
+                                  ("Arbeitsplatz einrichten (Assistent) …", self.arbeitsplatz_einrichten, None),
+                                  ("Gemeinsamen Ordner umziehen …", self.ordner_umziehen, None),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
@@ -2368,6 +2380,7 @@ class Hauptfenster(QMainWindow):
                            "optimieren", "importieren", "drucken", "staffeln", "stueck", "hoch", "runter")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
                          "Gemeinsamen Ordner prüfen …", "Kollegen im gemeinsamen Ordner …",
+                         "Arbeitsplatz einrichten (Assistent) …", "Gemeinsamen Ordner umziehen …",
                          "Alte Angebote archivieren …")
 
     def lizenz_anwenden(self):

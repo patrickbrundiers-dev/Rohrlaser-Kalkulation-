@@ -296,6 +296,53 @@ def aktiv(db):
     return bool(kuerzel(db) and ordner(db))
 
 
+# ------------------------------------------------------------------ Ordner umziehen (Paket F2, 01.11.2026)
+def umzug(db):
+    """Hinweis UMGEZOGEN.json im eingetragenen gemeinsamen Ordner (dict: neu, von, zeit, fertig) oder None."""
+    w = weg(db)
+    if w is None or not hasattr(w, "umgezogen"):
+        return None
+    try:
+        return w.umgezogen()
+    except OSError:
+        return None
+
+
+def umziehen(db, ziel, ich_admin=None, fortschritt=None):
+    """Admin (Frage 6a): gemeinsamen Ordner nach ziel umziehen. Erst die eigenen Daten ablegen, dann alles kopieren
+    (austausch.OrdnerWeg.umziehen), dann diesen Arbeitsplatz umstellen. Die Kollegen sehen den Hinweis im alten
+    Ordner und stellen um (umstellen). Ergebnis: dict(dateien, bytes)."""
+    from . import admin_schutz
+    if not (admin_schutz.ist_admin(db) if ich_admin is None else ich_admin):
+        raise TeilenFehler("Den gemeinsamen Ordner zieht nur der Admin um (Admin-Passwort, Datei → Als Admin "
+                           "freischalten …).")
+    w = _weg_pruefen(db)
+    ziel = Path(str(ziel or "").strip())
+    if not str(ziel) or str(ziel) == ".":
+        raise TeilenFehler("Bitte den neuen Ordner wählen.")
+    schreiben(db)                               # eigener Stand zuletzt noch in den alten Ordner
+    try:
+        erg = w.umziehen(ziel, von=kuerzel(db), fortschritt=fortschritt)
+    except OSError as e:
+        raise TeilenFehler(f"Umzug nicht möglich, der alte Ordner gilt weiter:\n{e}") from e
+    db.einstellung_setzen("teilen_ordner", str(ziel))
+    return erg
+
+
+def umstellen(db, neu):
+    """Diesen Arbeitsplatz auf den neuen gemeinsamen Ordner umstellen (nach dem Umzug durch den Admin)."""
+    neu = Path(str(neu or "").strip())
+    w = austausch.OrdnerWeg(neu)
+    if not w.erreichbar():
+        raise TeilenFehler(f"Der neue Ordner ist von diesem Rechner aus nicht erreichbar:\n{neu}\nBitte den Pfad "
+                           "wählen, unter dem er hier zu finden ist (z. B. anderer Laufwerksbuchstabe).")
+    if not w.mitarbeiter("", kuerzel_sauber) and w.haupt(kuerzel(db)) is None:
+        raise TeilenFehler(f"Im Ordner {neu} liegen keine Daten der Mitarbeiter (Rohrlaser_…). Ist das der richtige "
+                           "Ordner?")
+    db.einstellung_setzen("teilen_ordner", str(neu))
+    return True
+
+
 ANFRAGEN, ANGEBOTE, SICHERUNGEN = "Anfragen", "Angebote", "Sicherungen"     # Unterordner im gemeinsamen Ordner
 
 
@@ -698,6 +745,11 @@ def _weg_pruefen(db):
     if w is None:
         raise TeilenFehler("Kein gemeinsamer Ordner eingetragen (Datei → Benutzer und gemeinsamer Ordner …).")
     if not w.erreichbar():
+        u = umzug(db)
+        if u:
+            raise TeilenFehler(f"Der gemeinsame Ordner ist umgezogen nach {u.get('neu')} ({u.get('von') or 'Admin'}, "
+                               f"{str(u.get('zeit') or '')[:16].replace('T', ' ')})." +
+                               (" Bitte umstellen (Leiste oben)." if u.get("fertig") else " Der Umzug läuft noch."))
         raise TeilenFehler(f"Der gemeinsame Ordner ist nicht erreichbar:\n{w}")
     return w
 
@@ -941,18 +993,37 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
             teile[p.name] = (stand, n)
         else:
             p.unlink()
+    # Schneller schreiben (Paket F3): hat sich seit dem letzten Ablegen nichts geändert, was die Kollegen lesen, bleibt
+    # die Hauptdatei liegen (spätestens nach SPAETESTENS_S wird sie trotzdem neu abgelegt, für ältere Versionen)
+    abdruck = _hash(dict(basis=sorted([f"{t}|{u}", h, z] for (t, u), (h, z) in stand_basis.items()), teile=teile,
+                         vorgaenge=_vorgaenge(db), erledigt=sorted(db.einstellung(ERLEDIGT) or {}),
+                         verlauf=list(con.execute(f"SELECT COUNT(*), MAX(zeit) FROM {verlauf.TABELLE} WHERE wer=?",
+                                                  (k,)).fetchone()),
+                         info=[db.einstellung(n) for n in ("benutzer_name", "benutzer_email", "benutzer_telefon",
+                                                           "letzte_angebotsnummer", "lizenz_info")],
+                         version=VERSION, format=FORMAT, angebote=len(eigene), ordner=str(w), ich=ich,
+                         offen=dict(offen or {})))
+    if (not voll and not uebernehmen and _unveraendert(spiegel / GESCHRIEBEN, abdruck) and vorhanden is not None
+            and vorhanden.name == HAUPT and (not teile or (spiegel / "hingelegt.json").is_file())):
+        with con:
+            con.executemany(f"DELETE FROM {GEAENDERT} WHERE angebot_id=?", [(i,) for i in geaendert])
+        return len(eigene)
     sc = sqlite3.connect(haupt)
     try:
         with sc:
             _datei_anlegen(sc)
-            sc.execute("DELETE FROM stammdaten")
             zeilen = []
             for (t, u), (h, zeit) in stand_basis.items():
                 daten = lokal.get((t, u)) if h is not None else None
                 if h is not None and daten is None:
                     continue
                 zeilen.append((t, u, zeit, json.dumps(daten, ensure_ascii=False) if daten is not None else None))
-            sc.executemany("INSERT INTO stammdaten (tabelle, uid, zeit, daten) VALUES (?, ?, ?, ?)", zeilen)
+            # nur geänderte Zeilen (Paket F3): Zeitstempel je Zeile vergleichen, entfallene löschen
+            vorher = {(t, u): z for t, u, z in sc.execute("SELECT tabelle, uid, zeit FROM stammdaten")}
+            schluessel = {(z[0], z[1]) for z in zeilen}
+            sc.executemany("DELETE FROM stammdaten WHERE tabelle=? AND uid=?", [x for x in vorher if x not in schluessel])
+            sc.executemany("INSERT OR REPLACE INTO stammdaten (tabelle, uid, zeit, daten) VALUES (?, ?, ?, ?)",
+                           [z for z in zeilen if vorher.get((z[0], z[1]), "\0") != z[2]])
             sc.execute("DELETE FROM angebote")
             sc.execute("DELETE FROM netze")
             _vorgaenge_schreiben(db, sc, karte)
@@ -980,6 +1051,10 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         raise TeilenFehler(f"Die eigenen Daten ließen sich nicht in den gemeinsamen Ordner schreiben:\n{e}") from e
     (_cache(db) / datei_name(k)).unlink(missing_ok=True)
     try:
+        (spiegel / GESCHRIEBEN).write_text(json.dumps(dict(abdruck=abdruck, zeit=datetime.datetime.now().timestamp())))
+    except OSError:
+        pass
+    try:
         kopien_aufraeumen(db)       # eigene Konfliktkopien (OneDrive …) und liegengebliebene Zwischendateien
     except OSError:
         pass
@@ -987,6 +1062,19 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         con.executemany(f"DELETE FROM {GEAENDERT} WHERE angebot_id=?", [(i,) for i in geaendert])
     db.einstellung_setzen("teilen_geschrieben", info["stand"])
     return len(eigene)
+
+
+GESCHRIEBEN = "geschrieben.json"     # im lokalen Spiegel: Fingerabdruck und Zeit des letzten Ablegens (Paket F3)
+SPAETESTENS_S = 10 * 60              # so lange darf die Hauptdatei ohne Änderung liegen bleiben
+
+
+def _unveraendert(merk, abdruck):
+    try:
+        d = json.loads(merk.read_text())
+    except (OSError, ValueError):
+        return False
+    return (isinstance(d, dict) and d.get("abdruck") == abdruck
+            and 0 <= datetime.datetime.now().timestamp() - float(d.get("zeit") or 0) < SPAETESTENS_S)
 
 
 def _eigene_holen(db, quelle):

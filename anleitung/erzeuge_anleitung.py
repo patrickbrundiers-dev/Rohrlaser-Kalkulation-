@@ -6756,6 +6756,33 @@ def kapitel_mehrere(i):
             "Hat ein Kollege eine ältere Programmversion ohne Lebenszeichen, zeigt die Liste den Stand seines "
             "letzten Abgleichs, geöffnete Angebote wie bisher bis 20 Minuten danach.")
 
+    i.abschnitt("Arbeitsplatz einrichten, Ordner weg, Ordner umziehen", marke="ordner_einrichten")
+    i.text("<i>Datei → Arbeitsplatz einrichten (Assistent) …</i> richtet einen neuen Arbeitsplatz in drei Schritten "
+           "ein: gemeinsamer Ordner, Benutzer und Kürzel, erster Abgleich.", kurz=True)
+    i.genauer()
+    i.liste("<b>1. Gemeinsamer Ordner</b>: Ordner wählen; der Assistent prüft, ob er erreichbar ist, und zeigt, wer "
+            "dort schon arbeitet. <b>2. Benutzer und Kürzel</b>: Name, Kürzel, E-Mail, Telefon; ist das Kürzel schon "
+            "belegt, geht es nur weiter mit dem Haken <i>Das bin ich – neuer Rechner oder Neuinstallation</i> (dann "
+            "kommen die eigenen Angebote von dort hierher). <b>3. Erster Abgleich</b>: <i>Gemeinsame Stammdaten "
+            "übernehmen</i> (empfohlen, die eigenen werden vorher gesichert) oder <i>Mit den eigenen Stammdaten "
+            "zusammenführen</i>; <b>Fertig</b> "
+            "speichert und gleicht ab.",
+            "<b>Ordner nicht erreichbar</b> (VPN getrennt, NAS aus, OneDrive hängt): oben erscheint eine rote Leiste "
+            "<i>„Gemeinsamer Ordner nicht erreichbar seit 10:42 …“</i>. Weiterarbeiten geht: Änderungen bleiben hier, "
+            "neue Angebote bekommen vorläufige Nummern (V-PB-1). Ist der Ordner wieder da (spätestens nach 15 "
+            "Sekunden geprüft, sofort mit <b>Erneut versuchen</b>), verschwindet die Leiste, das Programm gleicht ab "
+            "und meldet die endgültigen Nummern.",
+            "<b>Gemeinsamen Ordner umziehen</b> (nur Admin, [[passwort]]): <i>Datei → Gemeinsamen Ordner umziehen "
+            "…</i>, neuen leeren Ordner wählen. Das Programm legt zuerst einen Hinweis in den alten Ordner (ab da "
+            "schreibt niemand mehr hinein), kopiert alles, prüft Anzahl und Größe der Dateien und stellt diesen "
+            "Arbeitsplatz um. Die Kollegen sehen die Leiste <i>„umgezogen nach …“</i> und die Frage <i>Gemeinsamer "
+            "Ordner umgezogen</i>: <b>Jetzt umstellen</b>, <b>Anderen Pfad wählen …</b> (anderer Laufwerksbuchstabe) "
+            "oder <b>Später</b> (dann über <b>Auf neuen Ordner umstellen …</b> in der Leiste). Der alte Ordner bleibt "
+            "zur Sicherheit liegen und kann gelöscht werden, wenn alle umgestellt sind (Datei → Kollegen im "
+            "gemeinsamen Ordner zeigt, wer schon im neuen arbeitet).",
+            "Schneller: Hat sich nichts geändert, bleibt die eigene Datei im Ordner liegen (spätestens alle 10 Minuten "
+            "wird sie neu abgelegt); sonst werden nur geänderte Stammdaten-Zeilen neu geschrieben.")
+
     i.abschnitt("Gleichzeitig ändern und Windows-Meldung", marke="zeile_sperre")
     i.text("Ändert ein Kollege gerade dieselbe Stammdaten-Zeile (z. B. denselben Kunden oder Materialpreis), fragt das "
            "Programm vor der eigenen Änderung: <i>„MK hat diese Zeile gerade geändert … Trotzdem ändern?“</i>",
