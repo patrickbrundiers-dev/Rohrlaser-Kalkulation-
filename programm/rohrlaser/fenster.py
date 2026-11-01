@@ -66,6 +66,24 @@ def anleitung_kopie(pfad, ordner):
     except OSError:
         return ziel if ziel.is_file() else Path(pfad)
 
+def zeile_trotzdem(db, titel, k, vor_s):
+    """Weiche Sperre (Paket E1, Frage 2a): ein Kollege hat diese Stammdaten-Zeile gerade geändert. Ergebnis: True =
+    trotzdem ändern. In Tests (ZEILE_ANTWORT gesetzt) ohne Fenster."""
+    if ZEILE_ANTWORT is not None:
+        return ZEILE_ANTWORT
+    m = teilen.mitarbeiter(db, k) or {}
+    wer = f"{m.get('name')} ({k})" if m.get("name") else k
+    knopf = QMessageBox.question(
+        QApplication.activeWindow(), "Zeile wird gerade geändert",
+        f"{wer} hat diese Zeile in „{titel}“ {teilen.zuletzt_text(vor_s)} geändert und arbeitet vermutlich gerade "
+        "daran.\n\nTrotzdem ändern? Es gilt die neueste Änderung; der Verlauf zeigt beide.",
+        QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+    return knopf == QMessageBox.Yes
+
+
+ZEILE_ANTWORT = None        # Tests: True/False statt der Rückfrage
+
+
 class StammdatenModell(QAbstractTableModel):
     """Eine Stammdatentabelle: Eingabefelder, berechnete Spalten, Prüfung. Jede Änderung wird sofort
     gespeichert."""
@@ -168,13 +186,24 @@ class StammdatenModell(QAbstractTableModel):
             wert = wert_aus_text(f, text)
             if wert == z.get(f.name):
                 return False
+            uid = self._uid(z) if teilen.aktiv(self.db) else None
+            bei = teilen.zeile_bei_kollegen(self.db, self.t.name, uid) if uid else None
+            if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
+                self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
+                return False
             self.db.aendern(self.t.name, z["id"], f.name, wert)
+            if uid:
+                teilen.zeile_merken(self.db, self.t.name, uid)
         except ValueError as e:
             self.meldung(str(e), fehler=True)
             return False
         self.neu_laden()   # berechnete Spalten und Prüfung der übrigen Zeilen können sich ändern
         self.meldung(f"{f.titel} gespeichert.")
         return True
+
+    def _uid(self, z):
+        r = self.db.con.execute(f'SELECT uid FROM "{self.t.name}" WHERE id=?', (z["id"],)).fetchone()
+        return r[0] if r else None
 
     def zeile_neu(self, werte=None):
         self.db.neu(self.t.name, werte)

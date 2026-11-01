@@ -85,7 +85,7 @@ LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefo
          "letzte_angebotsnummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
          "anfrage_signatur", "anfrage_outlook_signatur", "step_prozesse", "step_cache", "step_cache_mb", "ansicht_3d",
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
-         "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum"}
+         "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum", "teilen_meldung"}
 EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL)
 EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsamen Einstellungen (uid = Name)
 # Spalten eines Angebots, die nur die Anzeige merkt (Liste) oder die nur hier gelten
@@ -1468,9 +1468,12 @@ def lebenszeichen_schreiben(db, offen=None, ende=False):
         return False
     if (info_lesen(haupt) or {}).get("installation") not in (None, installation(db)):
         return False
+    if offen is not None:
+        setattr(db, OFFEN_ZULETZT, dict(offen))      # für zeile_merken (ohne Fenster)
+    jetzt_ = _utc(uhr_versatz(db))
     daten = dict(kuerzel=k, name=db.einstellung("benutzer_name") or "", installation=installation(db),
-                 rechner=socket.gethostname(), version=VERSION, zeit=_utc(uhr_versatz(db)).isoformat(timespec="seconds"),
-                 offen=dict(offen or {}), ende=bool(ende))
+                 rechner=socket.gethostname(), version=VERSION, zeit=jetzt_.isoformat(timespec="seconds"),
+                 offen=dict(offen or {}), ende=bool(ende), zeilen={} if ende else _zeilen_frisch(db, jetzt_))
     w.datei_schreiben(json.dumps(daten, ensure_ascii=False).encode("utf-8"), ordner_name(k), ONLINE_DATEI)
     return True
 
@@ -1492,9 +1495,74 @@ def lebenszeichen_lesen(db):
         except (ValueError, UnicodeDecodeError):
             continue
         if isinstance(d, dict):
-            alle[k2] = {n: d.get(n) for n in ("name", "rechner", "version", "zeit", "offen", "ende")}
+            alle[k2] = {n: d.get(n) for n in ("name", "rechner", "version", "zeit", "offen", "ende", "zeilen")}
     setattr(db, ONLINE, alle)
+    setattr(db, ONLINE_GELESEN, datetime.datetime.now().timestamp())
     return lebenszeichen(db)
+
+
+# ------------------------------------------------------------------ Weiche Sperre für Stammdaten-Zeilen (Paket E1)
+ZEILEN = "_teilen_zeilen"       # nur im Speicher: {"Tabelle|Kennung": Zeit (Ordner-Uhr)} selbst geänderte Zeilen
+ZEILE_S = 120                   # so lange gilt eine Zeile nach der letzten Änderung als „wird gerade geändert“
+OFFEN_ZULETZT = "_teilen_offen"     # zuletzt gemeldete geöffnete Angebote (für das Lebenszeichen ohne Fenster)
+ONLINE_GELESEN = "_teilen_online_gelesen"
+FRISCH_LESEN_S = 5              # Lebenszeichen vor einer Stammdaten-Änderung höchstens so alt, sonst neu lesen
+
+
+def _zeit_utc(text):
+    try:
+        t = datetime.datetime.fromisoformat(str(text or ""))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=datetime.timezone.utc)
+
+
+def _zeilen_frisch(db, jetzt_):
+    out = {}
+    for schl, zeit in (getattr(db, ZEILEN, None) or {}).items():
+        t = _zeit_utc(zeit)
+        if t is not None and (jetzt_ - t).total_seconds() <= ZEILE_S:
+            out[schl] = zeit
+    setattr(db, ZEILEN, out)
+    return out
+
+
+def zeile_merken(db, tabelle, uid):
+    """Diese Stammdaten-Zeile wurde hier gerade geändert: gleich ins Lebenszeichen, damit ein Kollege, der dieselbe
+    Zeile ändern will, gefragt wird (weiche Sperre, Frage 2a). Ergebnis: True = Lebenszeichen geschrieben."""
+    if not uid or not aktiv(db) or not kuerzel(db):
+        return False
+    m = dict(getattr(db, ZEILEN, None) or {})
+    m[f"{tabelle}|{uid}"] = _utc(uhr_versatz(db)).isoformat(timespec="seconds")
+    setattr(db, ZEILEN, m)
+    try:
+        return lebenszeichen_schreiben(db, getattr(db, OFFEN_ZULETZT, None))
+    except (TeilenFehler, OSError):
+        return False
+
+
+def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
+    """(Kürzel, Sekunden) wenn ein Kollege diese Stammdaten-Zeile in den letzten ZEILE_S Sekunden geändert hat und
+    noch da ist, sonst None. Liest die Lebenszeichen neu, wenn sie älter als FRISCH_LESEN_S sind."""
+    if not uid or not aktiv(db):
+        return None
+    if jetzt_ is None and datetime.datetime.now().timestamp() - (getattr(db, ONLINE_GELESEN, 0) or 0) > FRISCH_LESEN_S:
+        try:
+            lebenszeichen_lesen(db)
+        except (TeilenFehler, OSError):
+            pass
+    jetzt_ = jetzt_ or _utc(uhr_versatz(db))
+    treffer = None
+    for k2, d in lebenszeichen(db, jetzt_).items():
+        if not d.get("online"):
+            continue
+        t = _zeit_utc((d.get("zeilen") or {}).get(f"{tabelle}|{uid}"))
+        if t is None:
+            continue
+        vor = max(0.0, (jetzt_ - t).total_seconds())
+        if vor <= ZEILE_S and (treffer is None or vor < treffer[1]):
+            treffer = (k2, vor)
+    return treffer
 
 
 def lebenszeichen(db, jetzt_=None):

@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.229", "<b>Gleichzeitig ändern</b> ([[zeile_sperre]]): Ändert ein Kollege gerade dieselbe Stammdaten-Zeile "
+                "(Kunde, Material, Preis …), fragt das Programm „Trotzdem ändern?“ (weiche Sperre, 2 Minuten nach "
+                "seiner Änderung). <b>Windows-Meldung</b> unten rechts bei Übergaben, Anfragen, Notizen und fälligen "
+                "Wiedervorlagen, wenn das Programm nicht vorn ist; Klick öffnet das Angebot. Abschaltbar unter "
+                "Einstellungen → Mein Arbeitsplatz → Gemeinsamer Ordner.",
+     "Weiche Sperre für gleichzeitig geänderte Stammdaten-Zeilen; Windows-Meldung bei Nachrichten der Kollegen"],
     ["0.9.228", "<b>Verlauf: wer hat was geändert</b> ([[aenderungsverlauf]]): <i>Vorgang → Verlauf …</i> in der "
                 "Angebotsliste zeigt je Angebot, wer wann welches Feld von welchem auf welchen Wert geändert hat (Kopf, "
                 "Positionen, Staffeln), über alle Arbeitsplätze im gemeinsamen Ordner; <i>Kollegen im gemeinsamen "

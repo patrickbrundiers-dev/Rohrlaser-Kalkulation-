@@ -6756,6 +6756,23 @@ def kapitel_mehrere(i):
             "Hat ein Kollege eine ältere Programmversion ohne Lebenszeichen, zeigt die Liste den Stand seines "
             "letzten Abgleichs, geöffnete Angebote wie bisher bis 20 Minuten danach.")
 
+    i.abschnitt("Gleichzeitig ändern und Windows-Meldung", marke="zeile_sperre")
+    i.text("Ändert ein Kollege gerade dieselbe Stammdaten-Zeile (z. B. denselben Kunden oder Materialpreis), fragt das "
+           "Programm vor der eigenen Änderung: <i>„MK hat diese Zeile gerade geändert … Trotzdem ändern?“</i>",
+           kurz=True)
+    i.genauer()
+    i.liste("Jede Änderung einer Stammdaten-Zeile steht sofort im Lebenszeichen ([[kollegen_uebersicht]]); zwei "
+            "Minuten lang gilt die Zeile als „wird gerade geändert“. <b>Nein</b> lässt den Wert stehen, <b>Ja</b> "
+            "ändert trotzdem (die neueste Änderung gilt, der Verlauf [[aenderungsverlauf]] zeigt beide). Andere "
+            "Zeilen und Kollegen, die nicht mehr da sind, fragen nicht.",
+            "Angebote eines Kollegen sind ohnehin nur zum Ansehen; dort hilft <i>Übernahme anfragen …</i>.",
+            "<b>Windows-Meldung</b>: Kommt eine Übergabe, eine Anfrage oder eine Notiz eines Kollegen an oder wird "
+            "eine Wiedervorlage aus einer Notiz fällig, während das Programm minimiert oder ein anderes Programm "
+            "vorn ist, erscheint unten rechts eine Meldung. Ein Klick darauf holt das Programm nach vorn und öffnet "
+            "das Angebot. Fällige Wiedervorlagen meldet es einmal am Tag, bis die Notiz erledigt ist.",
+            "Abschalten unter <i>Einstellungen → Mein Arbeitsplatz → Gemeinsamer Ordner → Windows-Meldung bei "
+            "Übergaben, Anfragen, Notizen und fälligen Wiedervorlagen</i> (gilt nur für diesen Arbeitsplatz).")
+
     i.abschnitt("Verlauf: wer hat was geändert", marke="aenderungsverlauf")
     i.text("<i>Vorgang → Verlauf (wer hat was geändert) …</i> in der Angebotsliste zeigt je Angebot, wer wann welches "
            "Feld von welchem auf welchen Wert geändert hat; <i>Datei → Kollegen im gemeinsamen Ordner … → Verlauf "
