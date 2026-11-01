@@ -62,7 +62,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from . import VERSION, austausch, zukauf
+from . import VERSION, aenderungsverlauf as verlauf, austausch, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, TABELLEN, VERWEISE
@@ -148,6 +148,7 @@ def einrichten(con):
                 (json.dumps(uuid.uuid4().hex),))        # Arbeitsplatz-Kennung gleich vergeben: steht im Protokoll
     _kennungen_einrichten(con)
     _protokoll_einrichten(con)
+    verlauf.einrichten(con)         # Änderungsverlauf (Paket D, 01.11.2026)
 
 
 def _kennungen_einrichten(con):
@@ -489,12 +490,12 @@ def _basis_setzen(con, tabelle, u, h, zeit):
                 (tabelle, u, h, zeit))
 
 
-def erfassen(con, zeit):
+def erfassen(con, zeit, lokal=None):
     """Schritt 1: Änderungen seit dem letzten Abgleich mit dem Zeitpunkt zeit merken (neu, geändert, gelöscht).
-    Ergebnis: Anzahl erfasster Änderungen."""
+    lokal: schon gelesene lokale_zeilen. Ergebnis: Anzahl erfasster Änderungen."""
     b = basis(con)
     n = 0
-    lokal = lokale_zeilen(con)
+    lokal = lokale_zeilen(con) if lokal is None else lokal
     for schl, daten in lokal.items():
         h = _hash(daten)
         if b.get(schl, (None, None))[0] != h:
@@ -575,6 +576,9 @@ def angebot_inhalt(con, angebot_id, artikel_uid=None):
     inhalt = dict(kopf=kopf, positionen=positionen, stufen=stufen, staffeln=staffeln, protokoll=protokoll,
                   netze={str(i): hashlib.sha1(d).hexdigest() for i, d in sorted(netze.items())})
     return inhalt, netze
+
+
+_inhalt_fuer_verlauf = angebot_inhalt      # Änderungsverlauf: eigener Verweis (zählt nicht als Packen)
 
 
 def _einfuegen(con, tabelle, werte, spalten):
@@ -866,8 +870,9 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         pass                        # beim nächsten Schreiben wieder
     uhr_merken(db, w.uhr_messen(k))     # Uhr des gemeinsamen Ordners: falsch gehende PC-Uhr herausrechnen
     with con:
-        erfassen(con, jetzt(k, uhr_versatz(db)))
         lokal = lokale_zeilen(con)
+        erfassen(con, jetzt(k, uhr_versatz(db)), lokal)
+        _verlauf_erfassen(con, k, lokal, uhr_versatz(db))
         stand_basis = basis(con)
     spiegel = _cache(db) / ordner_name(k)
     spiegel.mkdir(parents=True, exist_ok=True)
@@ -951,6 +956,7 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
             sc.execute("DELETE FROM angebote")
             sc.execute("DELETE FROM netze")
             _vorgaenge_schreiben(db, sc, karte)
+            verlauf.in_datei(sc, verlauf.fuer_datei(con, k))      # eigener Änderungsverlauf für die Kollegen
             sc.execute("DELETE FROM teile")
             sc.executemany("INSERT INTO teile (name, stand, anzahl) VALUES (?, ?, ?)",
                            [(n, st, a) for n, (st, a) in teile.items()])
@@ -1164,7 +1170,9 @@ def lesen(db, modus=None):
                     con.execute(f'DELETE FROM "{t.name}"')
         seit = None if erstmals else db.einstellung("teilen_lese_zeit")
         lese_zeit = jetzt(k, uhr_versatz(db))
-        erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit)
+        lokal0 = lokale_zeilen(con)
+        erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit, lokal0)
+        _verlauf_erfassen(con, k, lokal0, uhr_versatz(db))     # eigene Änderungen, bevor fremde dazukommen
         entfernt = {}
         vorgaenge = {}          # Kürzel -> [Vorgang] aus den Dateien der anderen
         quittiert = {}          # Kürzel -> Kennungen der Vorgänge, die er erledigt hat
@@ -1188,6 +1196,7 @@ def lesen(db, modus=None):
                             entfernt[(t, u)] = (zeit, json.loads(daten) if daten is not None else None)
                 angebote[k2] = quelle.angebote()        # None: wird gerade geschrieben, beim nächsten Mal
                 quittiert[k2] = set(info.get("erledigt") or ())
+                bericht["verlauf"] = bericht.get("verlauf", 0) + verlauf.aus_datei(con, fc, k2)
                 if fc.execute("SELECT 1 FROM sqlite_master WHERE name='vorgaenge'").fetchone():
                     cur = fc.execute("SELECT id, art, nummer, an, zeit, notiz, bezug, CASE WHEN art=? THEN inhalt END "
                                      "AS extra FROM vorgaenge", (NOTIZ,))
@@ -1253,7 +1262,19 @@ def lesen(db, modus=None):
         _herkunft(con, "abgleich")          # Admin-Vorgaben kommen vom Admin, nicht von hier
         bericht["admin_vorgaben"] = admin_schutz.nach_lesen(db, paket)
         _herkunft(con, None)
+    with con:                               # Änderungen der Kollegen still in den Stand des Verlaufs
+        ids = list(bericht["geaenderte_ids"]) + [u["id"] for u in bericht["uebernommen"] if u.get("id")]
+        verlauf.angleichen(con, lokale_zeilen(con) if bericht["stammdaten"] or bericht["admin_vorgaben"] else None,
+                           ids)
     return bericht
+
+
+def _verlauf_erfassen(con, k, lokal, versatz=0):
+    """Eigene Änderungen in den Änderungsverlauf (Paket D): Stammdaten und die seit dem letzten Schreiben geänderten
+    eigenen Angebote."""
+    ids = [r[0] for r in con.execute(f"SELECT g.angebot_id FROM {GEAENDERT} g JOIN angebote a ON a.id = g.angebot_id "
+                                     "WHERE a.fremd IS NULL")]
+    return verlauf.erfassen(con, k, lokal, ids, versatz)
 
 
 def abgleichen(db, modus=None, uebernehmen=False):

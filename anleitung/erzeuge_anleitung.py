@@ -6756,6 +6756,23 @@ def kapitel_mehrere(i):
             "Hat ein Kollege eine ältere Programmversion ohne Lebenszeichen, zeigt die Liste den Stand seines "
             "letzten Abgleichs, geöffnete Angebote wie bisher bis 20 Minuten danach.")
 
+    i.abschnitt("Verlauf: wer hat was geändert", marke="aenderungsverlauf")
+    i.text("<i>Vorgang → Verlauf (wer hat was geändert) …</i> in der Angebotsliste zeigt je Angebot, wer wann welches "
+           "Feld von welchem auf welchen Wert geändert hat; <i>Datei → Kollegen im gemeinsamen Ordner … → Verlauf "
+           "Stammdaten …</i> öffnet das Fenster <i>Verlauf Stammdaten und Einstellungen</i>: dasselbe für "
+           "Kunden, Material, Preise und gemeinsame Einstellungen.", kurz=True)
+    i.genauer()
+    i.liste("Spalten: Zeit, Kürzel, Was (Angebotskopf, Position, Staffeln bzw. die Stammdatenzeile), Feld, Vorher, "
+            "Nachher. Neue und gelöschte Positionen und Zeilen stehen mit ihrem Namen da. Das Suchfeld filtert nach "
+            "Kürzel, Feld, Kunde oder Wert.",
+            "Jeder Arbeitsplatz vermerkt seine eigenen Änderungen beim Abgleich (also gleich nach der Eingabe, "
+            "[[kollegen_uebersicht]]) und legt sie in seinen Ordner; die Kollegen sehen sie nach ihrem nächsten "
+            "Abgleich. Der Verlauf beginnt mit dem ersten Abgleich nach dem Update und reicht 12 Monate zurück.",
+            "<b>Alten Wert zurückholen</b>: setzt ein geändertes Feld wieder auf den Wert aus <i>Vorher</i>. Das geht "
+            "für die eigenen Angebote und die eigenen Änderungen an Stammdaten; der Admin darf auch die Stammdaten-"
+            "Änderungen der Kollegen zurückholen. Bei Angeboten eines Kollegen nur ansehen, bei Bereichen mit "
+            "Admin-Schutz nur als Admin ([[passwort]]). Das Zurückholen erscheint selbst wieder im Verlauf.")
+
     i.abschnitt("Mitarbeiter ausgeschieden", marke="mitarbeiter_ausgeschieden")
     i.text("Der Admin markiert den Kollegen in <i>Datei → Kollegen im gemeinsamen Ordner …</i> und klickt "
            "<b>Ausgeschieden …</b>: seine Angebote bekommt ein neuer Bearbeiter, sein Ordner kommt ins Archiv.",
