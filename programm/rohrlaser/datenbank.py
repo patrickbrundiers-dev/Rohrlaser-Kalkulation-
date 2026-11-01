@@ -21,6 +21,7 @@ import datetime
 import functools
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -183,6 +184,8 @@ def _zahl_pruefen(feld, wert):
     """Zahlenfelder der Positionen nehmen nur Zahlen (oder leer) an; Text löst ValueError mit Meldung aus."""
     if feld in ZAHLFELDER and wert not in (None, "") and (isinstance(wert, bool) or not isinstance(wert, (int, float))):
         raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine Zahl eingeben (nicht '{wert}').")
+    if feld in ZAHLFELDER and isinstance(wert, float) and math.isinf(wert):   # Fehler-Durchgang 01.11.2026
+        raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine endliche Zahl eingeben (nicht '{wert}').")
 
 
 class Lesemodus(PermissionError):

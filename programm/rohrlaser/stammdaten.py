@@ -1354,7 +1354,10 @@ def zahl_aus_text(text):
     t = str(text).strip().replace(" ", "").replace(" ", "")
     if "," in t or re.fullmatch(r"-?\d{1,3}(\.\d{3})+", t):
         t = t.replace(".", "").replace(",", ".")
-    return float(t)
+    w = float(t)
+    if not math.isfinite(w):        # „inf“, „nan“, „1e999“ (Fehler-Durchgang 01.11.2026): sonst Preise „nan“
+        raise ValueError(f"'{text}' ist keine endliche Zahl.")
+    return w
 
 
 def rechnung_aus_text(text):

@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.228", "<b>Fehler-Durchgang</b>: Die <b>Optimierung</b> überspringt volle Stangen und schon geprüfte gleiche "
+     "Teile ([[optimieren]]); der Schnittplan bleibt Stange für Stange gleich, aber große Stückzahlen gehen viel "
+     "schneller (20.000 gleiche Teile vorher über 10 Minuten, jetzt unter 1 Sekunde; 6.000 gemischte Teile mit "
+     "Gehrungen vorher rund 80 s, jetzt etwa 7 s). Rechtsklick unter den Positionen ohne Markierung und dann "
+     "<i>Baugruppe bearbeiten …</i> zeigt einen Hinweis statt einer Fehlermeldung. <i>inf</i>, <i>nan</i> oder "
+     "<i>1e999</i> in Zahlen- und Rechenfeldern werden abgelehnt ([[eingaben]]), statt einen Preis „nan“ zu "
+     "ergeben.",
+     "Fehler-Durchgang: Optimierung großer Stückzahlen viel schneller, zwei Abstürze behoben"],
     ["0.9.227", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
                 "und öffnet in Outlook die E-Mail an den Kunden mit Anhang, als Antwort auf die Anfrage-Mail, wenn sie "
                 "im Angebotsordner liegt; Vorlagen unter Einstellungen → Angebot per E-Mail, Vermerk im Versandverlauf. "

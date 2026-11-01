@@ -1956,7 +1956,8 @@ def kapitel_angebot(i):
             "Rechnen: + − × ÷ (auch * / x :) und Klammern, Komma oder Punkt; das Ergebnis steht nach Eingabe oder "
             "Tab im Feld. Eine unfertige Rechnung ist rot umrandet; der Tooltip sagt, was fehlt. Ergebnisse über "
             "dem Höchstwert werden auf den Höchstwert begrenzt. Geht in Zahlenfeldern der Dialoge und Einstellungen "
-            "und in den Zahlenspalten der Tabellen; im Teile-Editor zusätzlich mit Größen wie <i>L/2</i>.",
+            "und in den Zahlenspalten der Tabellen; im Teile-Editor zusätzlich mit Größen wie <i>L/2</i>. "
+            "Unendlich große Werte (<i>inf</i>, <i>1e999</i>) gelten als keine Zahl und werden abgelehnt.",
             "Klickt man in ein Zahlenfeld, ist der alte Wert markiert und wird beim Tippen gleich ersetzt.",
             "<b>Enter schließt kein Fenster</b>: In jedem Dialog übernimmt Enter nur die Eingabe im Feld (Text, "
             "Zahl, Rechnung, Datum, Auswahl), in einer Tabelle geht es eine Zeile weiter. Übernommen und "
@@ -2759,7 +2760,10 @@ def kapitel_optimieren(i):
             "auch bei großen Aufträgen. Bei Gruppen bis 60 Teile folgt bei Bedarf noch eine exakte Suche. Alle "
             "Suchen sind nach Schritten begrenzt, nicht nach Zeit: dasselbe Angebot ergibt auf jedem Rechner "
             "denselben Schnittplan. Große Angebote (ab etwa 1.500 Teilen) rechnet das Programm auf mehreren "
-            "Prozessorkernen gleichzeitig, je Profilgruppe ein Hilfsprozess; der Schnittplan ist derselbe.",
+            "Prozessorkernen gleichzeitig, je Profilgruppe ein Hilfsprozess; der Schnittplan ist derselbe. Volle "
+            "Stangen und schon geprüfte gleiche Teile überspringt die Optimierung, deshalb gehen auch sehr große "
+            "Stückzahlen schnell (20.000 gleiche Teile unter einer Sekunde, 6.000 gemischte Teile mit Gehrungen "
+            "wenige Sekunden).",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
