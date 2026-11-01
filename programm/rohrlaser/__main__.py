@@ -138,6 +138,13 @@ def selbsttest(app, ergebnis, step_dateien=()):
                 if not datei or Path(datei).stat().st_size < (300 if art == "CSV-Export" else 1000):    # CSV ist klein
                     raise RuntimeError(f"{art} nicht geschrieben")
                 protokoll.append(f"{art}: {Path(datei).name} ({Path(datei).stat().st_size // 1024} KB)")
+            # Etiketten mit QR-Code: reportlab lädt die Barcode-Module erst beim Import (0.9.231 fehlte code128)
+            from . import etiketten
+            datei = Path(tmp) / "Etiketten.pdf"
+            n = etiketten.etiketten_pdf(datei, etiketten.etiketten(seite.kopf, seite.positionen))
+            if not n or datei.stat().st_size < 1000:
+                raise RuntimeError("Etiketten nicht geschrieben")
+            protokoll.append(f"Etiketten: {n} ({datei.stat().st_size // 1024} KB)")
             protokoll.append(f"Angebot {seite.kopf['nummer']}: {len(seite.positionen)} Positionen, "
                              f"{len(e['stangen'])} Stangen, Stand {seite.stand_optimierung()}, "
                              f"Verkaufspreis {seite.kalk.zeilen and sum(z['preis_position'] or 0 for z in seite.kalk.zeilen):.2f}")

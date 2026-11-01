@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.232", "<b>Etiketten mit QR-Code</b> ([[etiketten]]): Im Windows-Programm brach <i>Ausgaben → Etiketten mit "
+     "QR-Code (PDF) …</i> mit „No module named reportlab.graphics.barcode.code128“ ab, weil ein Teil der "
+     "Barcode-Bausteine im Programmpaket fehlte. Jetzt sind alle dabei, und der Selbsttest jedes Windows-Pakets "
+     "erzeugt zur Kontrolle ein Etiketten-PDF.",
+     "Etiketten mit QR-Code: Fehler „No module named …code128“ im Windows-Programm behoben."],
     ["0.9.231", "<b>Fehler-Durchgang</b>: Die <b>Optimierung</b> überspringt volle Stangen und schon geprüfte gleiche "
      "Teile ([[optimieren]]); der Schnittplan bleibt Stange für Stange gleich, aber große Stückzahlen gehen viel "
      "schneller (20.000 gleiche Teile vorher über 10 Minuten, jetzt unter 1 Sekunde; 6.000 gemischte Teile mit "
