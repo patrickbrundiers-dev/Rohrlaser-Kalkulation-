@@ -230,6 +230,9 @@ def _versand_text(v):
     if v.get("art") == "ab":            # Auftragsbestätigung (Plan 29.10.2026 1c)
         return (f"{datum_text(v.get('datum'))}: Auftragsbestätigung {v.get('nummer') or ''} – {_z(v.get('netto'))} € "
                 f"netto ({v.get('datei') or 'PDF'})")
+    if v.get("art") == "mail":          # Angebot per E-Mail (angebot_mail.py)
+        from .angebot_mail import verlauf_text
+        return verlauf_text(v)
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
     if v.get("art") == "wiedervorlage":
@@ -320,6 +323,12 @@ class KopfBereich(QWidget):
         lz.addWidget(self.lz_art)
         lz.addWidget(self.lz_wert)
         lz.addWidget(self.lz_zusatz, 1)
+        # Liefertermin nach freier Kapazität (Vorschlag V2, terminplan.py): nur mit Funktion Maschinenauslastung
+        self.termin_knopf = QPushButton("Termin prüfen …")
+        self.termin_knopf.setToolTip("Frühesten Liefertermin nach der Maschinenauslastung und der Material-Lieferzeit "
+                                     "rechnen und mit der Lieferzeit des Angebots vergleichen")
+        self.termin_knopf.clicked.connect(lambda: seite.termin_pruefen())
+        lz.addWidget(self.termin_knopf)
         g.addWidget(QLabel("Lieferzeit"), 3, 0)
         g.addLayout(lz, 3, 1, 1, 3)
         self.lz_vorschau = QLabel()
@@ -924,6 +933,8 @@ class KopfBereich(QWidget):
                 w.setText(v)
             w.blockSignals(False)
         self.lz_wert.setEnabled(art not in ("", NUR_TEXT))
+        from . import funktionen
+        self.termin_knopf.setVisible(funktionen.an("funktion_auslastung"))
         self.lz_wert.setPlaceholderText(LIEFERZEIT_HILFE.get(art, ""))
         self.lz_wert.setToolTip(LIEFERZEIT_HILFE.get(art, ""))
         text = lieferzeit_text(k)

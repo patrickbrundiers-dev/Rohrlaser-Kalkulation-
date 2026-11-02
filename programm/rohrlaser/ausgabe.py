@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import abruf, fracht_angebot, normprofile, rechnen, stangen_abwicklung, virtuell, zukauf
 from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
+from .stammdaten import GESCHABT, ROHR_FORMEN
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -120,7 +121,18 @@ def profiltext(pid, k, dezimal=","):
         form, str(pid))
 
 
-def angebotstext(p, k, dezimal=",", zusatz=()):
+def rohrart_text(p, k, kopf=None):
+    """Rohrart für Angebot und Werkstattpapier (Patrick 31.10.2026, Plan 7a): die im Angebot gewählte Rohrart des
+    Hohlprofils bzw. „Naht innen geschabt“ aus dem Werkstoff; '' = nichts zu nennen."""
+    if (k.profile.get(p.get("profil_id")) or {}).get("form") not in ROHR_FORMEN:
+        return ""
+    ra = rechnen.rohrart_angebot(kopf, p.get("profil_id"), p.get("werkstoff_id"))
+    if ra:
+        return ra
+    return GESCHABT if rechnen.rohrart(p.get("werkstoff_id"), k) == GESCHABT else ""
+
+
+def angebotstext(p, k, dezimal=",", zusatz=(), kopf=None):
     """Bezeichnung einer Position im Angebot, jede Angabe in einer eigenen Zeile, z. B.
     'Rechteckrohr 80 x 40 x 5\nL = 1500 mm\ninkl. Material S235 EN10219\nfeuerverzinkt\ninkl. Gewinde 4xM6\n
     inkl. Gravur'. zusatz: Zusatzarbeiten der Position aus der Kalkulation (Text im Angebot aus den Stammdaten, dazu
@@ -136,6 +148,9 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     w = k.werkstoffe.get(p.get("werkstoff_id"))
     material = (w or {}).get("angebotstext") or str(p.get("werkstoff_id") or "")
     zeilen.append(f"Material {material} vom Kunden beigestellt" if rechnen.beigestellt(p) else "inkl. Material " + material)
+    ra = rohrart_text(p, k, kopf)
+    if ra:
+        zeilen.append(ra if ra == GESCHABT else f"Rohr {ra}")
     ob = rechnen.oberflaeche_von(p)
     if ob:
         zeilen.append((k.oberflaechen.get(ob) or {}).get("angebotstext") or ob)
@@ -238,7 +253,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             # Kleinteile: Preis je 100 bzw. 1000 Stück (Plan B3); Musterteile (Preis 0) je Stück
             pe = preiseinheit(_wert((kalk_zeilen[i] or {}).get("preis_teil")), pe_ab)
             pr, menge = preis(i, pe), _wert(p.get("stueck"))
-            text = angebotstext(p, k, dezimal, _zus(i))
+            text = angebotstext(p, k, dezimal, _zus(i), kopf)
             if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
                 text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,
@@ -282,7 +297,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
                                    text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
-                                                   angebotstext(q, k, dezimal, _zus(j))),
+                                                   angebotstext(q, k, dezimal, _zus(j), kopf)),
                                    menge=None, preis=None, gesamt=None))
     if muster_zeile:        # Musterkosten als eigene Zeile (Patrick 28.10.2026, F1)
         betrag = kaufm_runden(muster_ein, 2)
@@ -467,6 +482,9 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     for s, w in paare:
         m = material.setdefault((rechnen.gruppe_der_stange(s), s["stange"]),
                                 dict(profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], s.get("oberflaeche"))
+                                     + (f" – {ra}" if (ra := rohrart_text(dict(profil_id=s["profil"],
+                                                                                werkstoff_id=s["werkstoff"]), k, kopf))
+                                        else "")
                                      + (" – Kundenmaterial" if s.get("beistellung") else "")
                                      + (" – MUSTER (eigener Lauf)" if s.get("muster") else ""),
                                      stange=s["stange"], stangen=0, gewicht=0.0))

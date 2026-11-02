@@ -29,6 +29,7 @@ SEITEN = (
            Abschnitt("Funktionen", tuple(f.name for f in funktionen.FUNKTIONEN)))),
     Seite("e_firma", "Firma", ALLE_PLAETZE,
           (_a("Briefkopf und Logo", "briefkopf_1 briefkopf_2 briefkopf_3 briefkopf_4 logo"),
+           _a("E-Mail", "eigene_domains"),
            _a("Zugang", "passwort"))),
     Seite("e_arbeitsplatz", "Mein Arbeitsplatz",
           "Gilt nur für diesen Arbeitsplatz; der Abgleich mit den Kollegen ändert diese Werte nicht.",
@@ -36,7 +37,7 @@ SEITEN = (
            _a("Ansicht", "ansicht_thema ansicht_schrift ansicht_dichte ansicht_hilfe ansicht_3d eingabe_richtung "
                          "stangenbild_popup angebote_zeitraum"),
            _a("Ordner", "ablageordner step_ordner anfrage_ordner sicherung_ordner2"),
-           _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt"),
+           _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt teilen_meldung"),
            _a("E-Mail-Signatur", "anfrage_outlook_signatur anfrage_signatur"),
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
@@ -75,6 +76,10 @@ SEITEN = (
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
            _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"))),
+    Seite("e_angebot_mail", "Angebot per E-Mail",
+          "Platzhalter: {anrede} {angebot} {referenz} {kunde} {gueltig} {lieferzeit} {netto} {datum} {absender}. "
+          + ALLE_PLAETZE,
+          (_a("E-Mail an den Kunden", "angebot_mail_betreff angebot_mail_text"),)),
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
           (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),)),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
@@ -115,7 +120,8 @@ SEITEN = (
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
-                                        "auslastung_vorlauf versand_bundesland"),)),
+                                        "auslastung_vorlauf versand_bundesland"),
+           _a("Liefertermin nach Auslastung", "termin_material_tage"))),
     Seite("e_versand", "Versand und Paletten", ALLE_PLAETZE,
           (_a("Versand", "versand_aktiv palettenschein_werkstatt versand_schritte"),
            _a("Paletten", "palette_hoehe_gesamt palette_max_brutto palette_mischen palette_fuellgrad "

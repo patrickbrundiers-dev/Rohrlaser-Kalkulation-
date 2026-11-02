@@ -17,6 +17,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
+from rohrlaser import normprofile  # noqa: E402
 from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, beispieldaten, flaeche_berechnet,  # noqa: E402
                                   preis_je_m_automatisch, pruefen, wert_aus_text, wert_als_text)
 
@@ -34,7 +35,8 @@ db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"
 for name, zeilen in beispieldaten().items():
     gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)
-               if not (name == "profile" and z["form"] == "RP-Profil")]     # RP-Bibliothek kommt dazu (rp_profile)
+               if not (name == "profile" and (z["form"] == "RP-Profil"      # RP-Bibliothek kommt dazu (rp_profile)
+                                              or z.get("bemerkung") == normprofile.STANDARD_BEMERKUNG))]  # U-Profile
     assert gelesen == zeilen, name
 assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_material") == 0 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19

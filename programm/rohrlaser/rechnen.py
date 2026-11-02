@@ -12,7 +12,7 @@ import math
 import json
 import re
 
-from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
+from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
@@ -294,15 +294,28 @@ def vorschub_faktor(werkstoff):
     return float(f) if isinstance(f, (int, float)) and not isinstance(f, bool) and 0 < f <= 3 else 1.0
 
 
-def ohne_naht(werkstoff_id, k):
-    """Werkstoff ohne Schweißnaht (Rohrart nahtlos oder stranggepresst): eine Nahtvorgabe der Teile entfällt, sie
-    drehen frei und rechnen ohne Stangenwechsel SN (Patrick „4b“)."""
-    return werkstoff_zeile(werkstoff_id, k).get("rohrart") in OHNE_NAHT
+def rohrart_angebot(kopf, profil_id, werkstoff_id):
+    """Rohrart, die das Angebot für Profil + Werkstoff festlegt (angebote.rohrarten, Patrick 31.10.2026 Plan 6a), oder
+    None (dann die Rohrart des Werkstoffs)."""
+    r = ((kopf or {}).get("rohrarten") or {}).get(naht.gruppe_schluessel(profil_id, werkstoff_id))
+    return r if r in ROHRARTEN else None
 
 
-def naht_wirksam(p, k):
-    """Nahtvorgabe der Position, wie sie gilt: bei Werkstoff ohne Naht 'keine Vorgabe'."""
-    return naht.KEINE if ohne_naht(p.get("werkstoff_id"), k) else naht.vorgabe(p)
+def rohrart(werkstoff_id, k, kopf=None, profil_id=None):
+    """Wirksame Rohrart: die des Angebots für Profil + Werkstoff, sonst die des Werkstoffs; '' = nicht angegeben."""
+    return rohrart_angebot(kopf, profil_id, werkstoff_id) or werkstoff_zeile(werkstoff_id, k).get("rohrart") or ""
+
+
+def ohne_naht(werkstoff_id, k, kopf=None, profil_id=None):
+    """Rohr ohne Schweißnaht (Rohrart nahtlos oder stranggepresst, aus dem Angebot oder dem Werkstoff): eine
+    Nahtvorgabe der Teile entfällt, sie drehen frei und rechnen ohne Stangenwechsel SN (Patrick „4b“). „Naht innen
+    geschabt“ hat eine Naht."""
+    return rohrart(werkstoff_id, k, kopf, profil_id) in OHNE_NAHT
+
+
+def naht_wirksam(p, k, kopf=None):
+    """Nahtvorgabe der Position, wie sie gilt: bei Rohr ohne Naht 'keine Vorgabe'."""
+    return naht.KEINE if ohne_naht(p.get("werkstoff_id"), k, kopf, p.get("profil_id")) else naht.vorgabe(p)
 
 
 def laser_pruefen(p, m, k):
@@ -473,7 +486,7 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     nutz = max(w["nutz"], w.get("nutz_lang") or 0) if w["nutz"] is not None else None
     if nutz is None or p["laenge"] + _n(m.get("schnittverlust")) > nutz:
         return "FEHLER: Teil länger als Nutzlänge"
-    nahtlos = ohne_naht(p.get("werkstoff_id"), k)     # Werkstoff ohne Naht: Vorgabe entfällt (HINWEIS unten)
+    nahtlos = ohne_naht(p.get("werkstoff_id"), k, kopf, p.get("profil_id"))     # ohne Naht: Vorgabe entfällt (HINWEIS)
     naht_status = None if nahtlos else naht.pruefen(p, k.profile.get(p.get("profil_id")),
                                                     naht.stange_eingetragen(kopf, p.get("profil_id"), p.get("werkstoff_id")))
     if naht_status and naht_status.startswith("FEHLER"):
@@ -533,7 +546,9 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     if w["vorschub"] is None and not manuell:
         return "HINWEIS: keine Schneiddaten"
     if nahtlos and naht.vorgabe(p) != naht.KEINE:
-        return f"HINWEIS: Werkstoff {p.get('werkstoff_id')} ohne Schweißnaht – Nahtvorgabe entfällt"
+        ra = rohrart_angebot(kopf, p.get("profil_id"), p.get("werkstoff_id"))
+        return f"HINWEIS: Rohr {ra} (im Angebot) – Nahtvorgabe entfällt" if ra else \
+            f"HINWEIS: Werkstoff {p.get('werkstoff_id')} ohne Schweißnaht – Nahtvorgabe entfällt"
     if "bohrungen" in pr:
         return "HINWEIS: Bohrungen prüfen (Doppelklick)"
     if "anbau" in pr:
@@ -674,7 +689,7 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
         b_s = p.get("b_schnitt") or u
         geh = dict(a_gehrung=None if a_ger else naht.ende_lesen(p.get("a_ende")),
                    b_gehrung=None if b_ger else naht.ende_lesen(p.get("b_ende")),
-                   drehung={naht.FEST: opt.FEST, naht.UNBEKANNT: opt.UNBEKANNT}.get(naht_wirksam(p, k), opt.FREI))
+                   drehung={naht.FEST: opt.FEST, naht.UNBEKANNT: opt.UNBEKANNT}.get(naht_wirksam(p, k, kopf), opt.FREI))
         if geh["drehung"] == opt.FEST:
             # Kasten: Mitte der Seite wie Spalte und Prüfung (ein Winkel wie 50° aus einem Rundrohr, für mehrere
             # Positionen gesetzt, zählte sonst gerundet zur anderen Seite)

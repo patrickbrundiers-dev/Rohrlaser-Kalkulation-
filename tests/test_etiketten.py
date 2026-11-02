@@ -60,6 +60,18 @@ for falsch in ("", "4006381333931", "RL202600042", "RLP20"):
         pass
 ok("E1 Code RL…P…, tolerant gelesen, fremde Codes abgewiesen")
 
+# E6 Windows-Paket (0.9.231 fehlte reportlab.graphics.barcode.code128): reportlab lädt die Barcode-Module über Namen
+# nach, die .spec nimmt darum alle mit; der Selbsttest des Pakets schreibt ein Etiketten-PDF
+spec = (HIER.parent / "programm" / "rohrlaser.spec").read_text(encoding="utf-8")
+assert 'collect_submodules("reportlab.graphics.barcode")' in spec and "hiddenimports=BARCODE" in spec
+import importlib  # noqa: E402
+import re  # noqa: E402
+widgets = (Path(importlib.import_module("reportlab.graphics.barcode").__file__).parent / "widgets.py").read_text()
+for m in set(re.findall(r"'(reportlab\.graphics\.barcode\.\w+)'", widgets)):
+    importlib.import_module(m)          # gibt es das Modul, nimmt collect_submodules es mit
+assert "etiketten.etiketten_pdf(" in (HIER.parent / "programm" / "rohrlaser" / "__main__.py").read_text(encoding="utf-8")
+ok("E6 Windows-Paket: alle Barcode-Module, Selbsttest mit Etiketten-PDF")
+
 # Angebot mit zwei Positionen
 a = db.angebot_neu(dict(kunde="Gestellbau Weber KG", skonto=0, stange=6000))
 db.position_neu(a, dict(pos=10, artikel="GR-100", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1250,

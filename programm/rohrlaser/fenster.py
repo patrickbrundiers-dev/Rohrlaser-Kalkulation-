@@ -66,6 +66,24 @@ def anleitung_kopie(pfad, ordner):
     except OSError:
         return ziel if ziel.is_file() else Path(pfad)
 
+def zeile_trotzdem(db, titel, k, vor_s):
+    """Weiche Sperre (Paket E1, Frage 2a): ein Kollege hat diese Stammdaten-Zeile gerade geändert. Ergebnis: True =
+    trotzdem ändern. In Tests (ZEILE_ANTWORT gesetzt) ohne Fenster."""
+    if ZEILE_ANTWORT is not None:
+        return ZEILE_ANTWORT
+    m = teilen.mitarbeiter(db, k) or {}
+    wer = f"{m.get('name')} ({k})" if m.get("name") else k
+    knopf = QMessageBox.question(
+        QApplication.activeWindow(), "Zeile wird gerade geändert",
+        f"{wer} hat diese Zeile in „{titel}“ {teilen.zuletzt_text(vor_s)} geändert und arbeitet vermutlich gerade "
+        "daran.\n\nTrotzdem ändern? Es gilt die neueste Änderung; der Verlauf zeigt beide.",
+        QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+    return knopf == QMessageBox.Yes
+
+
+ZEILE_ANTWORT = None        # Tests: True/False statt der Rückfrage
+
+
 class StammdatenModell(QAbstractTableModel):
     """Eine Stammdatentabelle: Eingabefelder, berechnete Spalten, Prüfung. Jede Änderung wird sofort
     gespeichert."""
@@ -168,13 +186,24 @@ class StammdatenModell(QAbstractTableModel):
             wert = wert_aus_text(f, text)
             if wert == z.get(f.name):
                 return False
+            uid = self._uid(z) if teilen.aktiv(self.db) else None
+            bei = teilen.zeile_bei_kollegen(self.db, self.t.name, uid) if uid else None
+            if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
+                self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
+                return False
             self.db.aendern(self.t.name, z["id"], f.name, wert)
+            if uid:
+                teilen.zeile_merken(self.db, self.t.name, uid)
         except ValueError as e:
             self.meldung(str(e), fehler=True)
             return False
         self.neu_laden()   # berechnete Spalten und Prüfung der übrigen Zeilen können sich ändern
         self.meldung(f"{f.titel} gespeichert.")
         return True
+
+    def _uid(self, z):
+        r = self.db.con.execute(f'SELECT uid FROM "{self.t.name}" WHERE id=?', (z["id"],)).fetchone()
+        return r[0] if r else None
 
     def zeile_neu(self, werte=None):
         self.db.neu(self.t.name, werte)
@@ -1974,6 +2003,16 @@ class Hauptfenster(QMainWindow):
         from . import kollegen_dialog
         return kollegen_dialog.zeigen(self)
 
+    def arbeitsplatz_einrichten(self):
+        """Datei → Arbeitsplatz einrichten (Assistent): Ordner, Kürzel, erster Abgleich (Paket F2)."""
+        from . import ordner_assistent
+        return ordner_assistent.assistent(self)
+
+    def ordner_umziehen(self, ziel=None):
+        """Datei → Gemeinsamen Ordner umziehen (nur Admin, Paket F2)."""
+        from . import ordner_assistent
+        return ordner_assistent.umziehen(self, ziel)
+
     def ordner_pruefen(self):
         """Datei → Gemeinsamen Ordner prüfen: Erreichbarkeit, Uhr, Konfliktkopien, Versionen der Kollegen …"""
         from . import ordner_pruefung_dialog
@@ -1994,6 +2033,8 @@ class Hauptfenster(QMainWindow):
                                   ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
                                   ("Gemeinsamen Ordner prüfen …", self.ordner_pruefen, None),
                                   ("Kollegen im gemeinsamen Ordner …", self.kollegen_zeigen, None),
+                                  ("Arbeitsplatz einrichten (Assistent) …", self.arbeitsplatz_einrichten, None),
+                                  ("Gemeinsamen Ordner umziehen …", self.ordner_umziehen, None),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
@@ -2001,6 +2042,7 @@ class Hauptfenster(QMainWindow):
                                   ("Alte Angebote archivieren …", self.archivieren, None),
                                   ("Archiv durchsuchen …", self.archiv_dialog, None),
                                   (None, None, None),
+                                  ("Schnellpreis …", self.schnellpreis, "Ctrl+Alt+P"),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
@@ -2338,6 +2380,7 @@ class Hauptfenster(QMainWindow):
                            "optimieren", "importieren", "drucken", "staffeln", "stueck", "hoch", "runter")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
                          "Gemeinsamen Ordner prüfen …", "Kollegen im gemeinsamen Ordner …",
+                         "Arbeitsplatz einrichten (Assistent) …", "Gemeinsamen Ordner umziehen …",
                          "Alte Angebote archivieren …")
 
     def lizenz_anwenden(self):
@@ -2711,6 +2754,15 @@ class Hauptfenster(QMainWindow):
             return None
         from .absage_dialog import AuswertungDialog
         d = AuswertungDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def schnellpreis(self):
+        """Datei → Schnellpreis (Vorschlag V5): Richtpreis für Telefonanfragen, nichts wird gespeichert. Ergebnis:
+        der Dialog (im Selbsttest ohne exec)."""
+        from .schnellpreis_dialog import SchnellpreisDialog
+        d = SchnellpreisDialog(self)
         if not self.stumm:
             d.exec()
         return d

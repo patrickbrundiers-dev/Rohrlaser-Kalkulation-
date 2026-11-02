@@ -30,8 +30,13 @@ KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium", "Buntmetall")
 GAS_VORGABEN = ("automatisch", "nur N₂", "nur O₂")
 LASERARTEN = ("Faser + CO₂", "nur Faser")
 NUR_FASER = "nur Faser"
-ROHRARTEN = ("geschweißt", "nahtlos", "stranggepresst")
+# „Naht innen geschabt“ (Patrick 31.10.2026, Plan 7a): geschweißt mit innen entfernter Naht – die Naht bleibt für
+# Nahtlage und Drehen wie bei geschweißt, die Angabe steht in Materialanfrage, Angebot und Werkstattpapier
+GESCHABT = "Naht innen geschabt"
+ROHRARTEN = ("geschweißt", "nahtlos", "stranggepresst", GESCHABT)
 OHNE_NAHT = ("nahtlos", "stranggepresst")
+# Rohrart je Abmessung im Angebot (angebote.rohrarten, Plan 6a): nur Hohlprofile, leer = wie der Werkstoff
+ROHR_FORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
 # Teuerungs-/Legierungszuschlag je Werkstoff (Plan 29.10.2026 1a, Patrick „4c“: Prozent oder €/kg wählbar)
 TEUERUNG_PROZENT, TEUERUNG_KG = "%", "€/kg"
 TEUERUNG_ARTEN = (TEUERUNG_PROZENT, TEUERUNG_KG)
@@ -1171,6 +1176,10 @@ EINSTELLUNGEN = (
     Einstellung("staffeln_standard", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
                 "Angebot", "text", "1; 2; 5"),
     Einstellung("briefkopf_1", "Briefkopf Zeile 1 (Firma)", "Angebots-PDF", "text", "Firmenname"),
+    # intern weitergeleitete Anfrage-Mails erkennen (Patrick 31.10.2026, F1 a): zusätzlich zu Briefkopf, Benutzer-E-Mail
+    # und den Adressen der Arbeitsplätze im gemeinsamen Ordner
+    Einstellung("eigene_domains", "Weitere eigene E-Mail-Domains (z. B. firma-gruppe.de; mehrere mit Komma)",
+                "Angebots-PDF", "text", ""),
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
     Einstellung("briefkopf_4", "Briefkopf Zeile 4", "Angebots-PDF", "text", "Telefon / E-Mail"),
@@ -1196,6 +1205,13 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
+    # Angebot per E-Mail an den Kunden (Vorschlag V1, 31.10.2026, angebot_mail.py): Vorlagen mit Platzhaltern
+    Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff",
+                "Angebot per E-Mail", "text", "Angebot {angebot}{referenz}"),
+    Einstellung("angebot_mail_text", "Angebot per E-Mail: Text", "Angebot per E-Mail", "mehrzeilig",
+                "{anrede}\n\nvielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot {angebot}{referenz}.\n\n"
+                "Das Angebot gilt bis {gueltig}. Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n"
+                "Mit freundlichen Grüßen"),
     # Nachfassen verschickter Angebote (Plan A9): Wiedervorlage nach Tagen ohne Entscheidung
     Einstellung("nachfassen_tage", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)", "Nachfassen",
                 "ganz", 10, 0, 365),
@@ -1267,6 +1283,8 @@ EINSTELLUNGEN = (
                 "Lager und Fertigung", "anteil", 0.85, 0.1, 1),
     Einstellung("betriebsruhe", "Auslastung: Betriebsruhe (Tage und Zeiträume, z. B. 24.12.2026-31.12.2026; "
                 "02.10.2026)", "Lager und Fertigung", "text", ""),
+    Einstellung("termin_material_tage", "Termin nach Auslastung: Material-Lieferzeit [Arbeitstage] (0 = vorrätig)",
+                "Lager und Fertigung", "ganz", 3, 0, 120),
     Einstellung("auslastung_vorlauf", "Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin",
                 "Lager und Fertigung", "ganz", 2, 0, 60),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
@@ -1317,6 +1335,8 @@ EINSTELLUNGEN = (
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),
     Einstellung("teilen_takt", "Automatischer Abgleich alle [min] (0 = aus)", "Benutzer", "zahl", 1.0, 0, 60),
+    Einstellung("teilen_meldung", "Windows-Meldung bei Übergaben, Anfragen, Notizen und fälligen Wiedervorlagen",
+                "Benutzer", "auswahl", "ja", auswahl="janein"),
     # Was zusätzlich im gemeinsamen Ordner liegt (Patrick 28.10.2026 „Alle“); gilt für alle Mitarbeiter
     Einstellung("teilen_anfragen", "Anfrage-Ordner im gemeinsamen Ordner (wenn oben keiner eingetragen ist)",
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
@@ -1336,7 +1356,10 @@ def zahl_aus_text(text):
     t = str(text).strip().replace(" ", "").replace(" ", "")
     if "," in t or re.fullmatch(r"-?\d{1,3}(\.\d{3})+", t):
         t = t.replace(".", "").replace(",", ".")
-    return float(t)
+    w = float(t)
+    if not math.isfinite(w):        # „inf“, „nan“, „1e999“ (Fehler-Durchgang 01.11.2026): sonst Preise „nan“
+        raise ValueError(f"'{text}' ist keine endliche Zahl.")
+    return w
 
 
 def rechnung_aus_text(text):
@@ -1767,7 +1790,7 @@ def beispiel_werkstoffe():
 _ST, _ES, _AL, _BM = "Stahl", "Edelstahl", "Aluminium", "Buntmetall"
 _ROHR_S, _PRAEZ = "EN 10219 kaltgefertigt, geschweißt", "EN 10305-3 Präzisionsstahlrohr, geschweißt, maßgewalzt"
 _ROHR_W, _ROHR_E = "EN 10210 warmgefertigt", "EN 10217-7 / ASTM A554"
-_GS, _NL, _SP = ROHRARTEN
+_GS, _NL, _SP = ROHRARTEN[:3]
 _N2, _O2 = GAS_VORGABEN[1:]
 _ZINK = "verzinkt: Zinkdampf, Absaugung prüfen; nur N₂ (O₂ brennt die Zinkschicht ab), leichter Grat innen"
 _ZUNDER = "warmgefertigt: Zunder auf der Oberfläche, Vorschub etwas geringer, Einstich unruhiger"

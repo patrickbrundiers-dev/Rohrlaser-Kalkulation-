@@ -243,6 +243,15 @@ if __name__ == "__main__":
     schreibe(baugruppe(q, verschiebe(q, 100, 0, 0), BRepBuilderAPI_Transform(verschiebe(q, 200, 0, 0), gespiegelt, True).Shape(),
                        drehe_beliebig(rundrohr(42.4, 2.0, 900))),
              "T08_Gestell_Baugruppe", ZIEL.parent / "step_satz")
+    # Selbsttest des Windows-Pakets (eigener Ordner step_selbsttest): Rundrohr 88,9x3 L600 mit Durchbruch für einen
+    #   Stutzen Ø42,4, 20° geneigt, 10 mm versetzt bei z = 320 (läuft in step.durchbruch_aus_messung; 0.9.231 fehlte
+    #   dort numpy im Paket)
+    st = zylinder((10, 0, 0), (0, 1, 0), 42.4, 200)
+    t = gp_Trsf(); t.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.radians(-20))
+    st = BRepBuilderAPI_Transform(st, t, True).Shape()
+    t = gp_Trsf(); t.SetTranslation(gp_Vec(0, 0, 320))
+    st = BRepBuilderAPI_Transform(st, t, True).Shape()
+    schreibe(cut(rundrohr(88.9, 3, 600), st), "S01_RR88-9x3_L600_Stutzen", ZIEL.parent / "step_selbsttest")
     # Regressionsteile (eigener Ordner step_regression): Fehler, die die Messung früher hatte
     reg = ZIEL.parent / "step_regression"
     # R01 Rechteckrohr als Freiformflächen: früher Achse falsch, Außenmantel als Schnittkontur gerechnet
