@@ -1909,6 +1909,9 @@ class AngebotSeite(AusgabeMixin, QWidget):
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
         # Prüfplan und Messprotokoll aus den Sollmaßen der STEP (Vorschlag S1, pruefplan.py)
         menue.addAction("Prüfplan / Messprotokoll (PDF) …", lambda: self.pruefplan_pdf())
+        # Fassungen vergleichen (Vorschlag F2): nur sichtbar, wenn es eine vorige Fassung gibt
+        self.fassung_aktion = menue.addAction("Mit voriger Fassung vergleichen …", lambda: self.fassung_vergleichen())
+        menue.aboutToShow.connect(lambda: self.fassung_aktion.setVisible(self._vorige_fassung() is not None))
         # Übergabeordner fürs Rohr-CAM: STEP je Position, Stückliste, Schnittplan (Vorschlag S4, cam_paket.py)
         menue.addAction("Übergabe an CAM (Ordner) …", lambda: self.cam_paket())
         # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
@@ -2580,6 +2583,102 @@ class AngebotSeite(AusgabeMixin, QWidget):
             meldung += f" {preis_aenderung(vorher, self._verkauf())}"
         self.f.meldung(meldung)
 
+    def _vorige_fassung(self):
+        from . import fassung_vergleich
+        try:
+            return fassung_vergleich.vorgaenger(self.db, self.id)
+        except Exception:
+            return None
+
+    def fassung_vergleichen(self, zeigen=True):
+        """Ausgaben → Mit voriger Fassung vergleichen … (Vorschlag F2). Ergebnis: Vergleich oder None."""
+        from . import fassung_vergleich
+        alt = self._vorige_fassung()
+        if alt is None:
+            self.f.meldung("Es gibt keine vorige Fassung dieses Angebots.", fehler=True)
+            return None
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            v = fassung_vergleich.vergleich(self.db, alt, self.id)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if zeigen and not self.f.stumm:
+            from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout as VBox
+            d = QDialog(self)
+            d.setWindowTitle(f"Fassungen vergleichen: {v['alt']} → {v['neu']}")
+            d.resize(980, 460)
+            text = QTextBrowser()
+            nur = QCheckBox("Nur Änderungen")
+            nur.setChecked(True)
+            text.setHtml(fassung_vergleich.html(v, True))
+            nur.toggled.connect(lambda an: text.setHtml(fassung_vergleich.html(v, an)))
+            k = QDialogButtonBox(QDialogButtonBox.Close)
+            k.rejected.connect(d.reject)
+            lay = VBox(d)
+            lay.addWidget(nur)
+            lay.addWidget(text)
+            lay.addWidget(k)
+            d.exec()
+        return v
+
+    def maschinen_vergleich_liste(self):
+        """Ergebnis von maschinen_vergleich.vergleich für dieses Angebot (ohne Speichern)."""
+        from . import maschinen_vergleich
+        return maschinen_vergleich.vergleich(self.kopf, self.positionen, self.k_aktuell, self.tabellen_aktuell,
+                                             self.db.einstellungen(), self.db.zeitbasis_vorgabe)
+
+    def maschinen_vergleichen(self, waehlen=None):
+        """Knopf „Maschinen vergleichen …“ (Vorschlag F1). waehlen = Maschine ohne Fenster übernehmen (Tests), False =
+        nur rechnen. Ergebnis: Liste je Maschine."""
+        from . import terminplan
+        from .angebot import KOPF
+        if not any(position_aktiv(p) and p.get("profil_id") for p in self.positionen):
+            self.f.meldung("Maschinen vergleichen: keine Rohrlaserteile im Angebot.", fehler=True)
+            return []
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            liste = self.maschinen_vergleich_liste()
+            termine = {}
+            if self.ergebnis and funktionen.an("funktion_auslastung", self.db):
+                try:
+                    from . import auslastung
+                    aus = auslastung.berechnen(self.db, wochen=terminplan.WOCHEN)
+                    for z in liste:
+                        if z["moeglich"]:
+                            t = terminplan.fruehester(self.db, self.id, auslast=aus, maschine=z["maschine"],
+                                                      laser_h=z["laser_h"])
+                            termine[z["maschine"]] = (f"KW {t.datum.isocalendar()[1]} ({t.datum:%d.%m.})"
+                                                      if t and t.datum else "nicht frei")
+                except Exception:          # Termin ist Zusatz; der Preisvergleich zählt
+                    termine = {}
+        finally:
+            QApplication.restoreOverrideCursor()
+        if waehlen is None and not self.f.stumm:
+            from .maschinen_vergleich_dialog import MaschinenVergleich
+            d = MaschinenVergleich(self, liste, self.kopf.get("maschine"), termine)
+            waehlen = d.gewaehlt if d.exec() else None
+        if waehlen and waehlen != self.kopf.get("maschine") and not (self.fremd() or self.db.nur_lesen):
+            self._kopf_speichern(next(f for f in KOPF if f.name == "maschine"), waehlen)
+            self.optimieren(automatisch=True)
+        return liste
+
+    def _maschinen_punkt(self):
+        """Angebots-Check: Hinweis, wenn eine andere Maschine mehr als 5 % günstiger ist (Vorschlag F1b)."""
+        from . import maschinen_vergleich
+        if len(self.k_aktuell.maschinen) < 2 or not self.ergebnis or len(self.positionen) > 80:
+            return []
+        schluessel = json.dumps([self.kopf.get("maschine"), self.kopf.get("geaendert"), self.positionen,
+                                 self.db.einstellung("stammdaten_stand")], default=str, sort_keys=True)
+        alt = getattr(self, "_mv_cache", None)
+        if alt and alt[0] == schluessel:
+            return alt[1]
+        try:
+            p = maschinen_vergleich.check_punkt(self.maschinen_vergleich_liste(), self.kopf.get("maschine"))
+        except Exception:
+            p = None
+        self._mv_cache = (schluessel, [p] if p else [])
+        return self._mv_cache[1]
+
     def termin_pruefen(self, antwort=None):
         """Knopf „Termin prüfen …“ (Vorschlag V2, terminplan.py): frühester Liefertermin nach Maschinenauslastung und
         Material-Lieferzeit; „Als Lieferzeit übernehmen“ setzt die Lieferzeit auf diese Kalenderwoche. antwort: True =
@@ -2856,7 +2955,7 @@ class AngebotSeite(AusgabeMixin, QWidget):
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
             plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
-            + self._wiederholteil_punkte())
+            + self._wiederholteil_punkte() + self._maschinen_punkt())
 
     def _preis_vergleich(self):
         """€/kg je Abmessung aus früher verschickten Angeboten (Plan C3), einmal je geöffnetem Angebot gelesen."""

@@ -471,6 +471,11 @@ class StammdatenSeite(QWidget):
             anonym.clicked.connect(lambda: self.anonymisieren())
             leiste.addWidget(auskunft)
             leiste.addWidget(anonym)
+            katalog = QPushButton("Teilekatalog …")
+            katalog.setToolTip("Alle Teile des gewählten Kunden mit letztem Preis, Datum und Vorgang; CSV und "
+                               "neues Angebot aus der Auswahl")
+            katalog.clicked.connect(lambda: self.teilekatalog())
+            leiste.addWidget(katalog)
         if tabelle.name == "profile":
             rp = QPushButton("RP-Profile aus MegaCAD laden …")
             rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
@@ -634,6 +639,72 @@ class StammdatenSeite(QWidget):
         if not getattr(self.window(), "stumm", False):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad)))
         return pfad
+
+    def teilekatalog(self, kundennr=None, zeigen=True):
+        """Kunden → Teilekatalog … (Vorschlag F3a): Fenster mit allen Teilen des Kunden. zeigen=False: nur den Dialog
+        bauen (Tests). Ergebnis: der Dialog oder None."""
+        from . import teilekatalog
+        from .tabelle_dialog import TabellenDialog
+        z = self.ausgewaehlt() or {}
+        kundennr = kundennr or z.get("kundennr")
+        if not kundennr:
+            self.meldung("Bitte zuerst einen Kunden wählen.", fehler=True)
+            return None
+        liste = teilekatalog.katalog(self.db, kundennr)
+        zeilen = [[("" if r[n] is None else (zahl_als_text(r[n], 2) if n in ("preis", "laenge") else r[n]))
+                   for _, n in teilekatalog.SPALTEN] for r in liste]
+        d = TabellenDialog(self, f"Teilekatalog {kundennr} {z.get('name') or ''}".strip(),
+                           f"{len(liste)} Teile aus allen Angeboten des Kunden (ohne abgelöste Fassungen). Preis = "
+                           "letzter Preis je Stück aus den Staffelpreisen, Menge am nächsten an der angefragten.",
+                           [t for t, _ in teilekatalog.SPALTEN], zeilen, rechts=(4, 5, 6, 10, 11),
+                           knoepfe=[("CSV exportieren …", lambda m: self._katalog_csv(liste, kundennr)),
+                                    ("Neues Angebot aus Auswahl", lambda m: self.katalog_angebot(
+                                        kundennr, [liste[i] for i in m], d))])
+        d.liste = liste
+        if zeigen:
+            d.exec()
+        return d
+
+    def _katalog_csv(self, liste, kundennr, pfad=None):
+        from PySide6.QtWidgets import QFileDialog
+        from . import teilekatalog
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Teilekatalog speichern",
+                                                  str(Path.home() / f"Teilekatalog_{kundennr}.csv"), "CSV (*.csv)")
+            if not pfad:
+                return None
+        try:
+            Path(pfad).write_text(teilekatalog.csv_text(liste), encoding="utf-8-sig")
+        except OSError as e:
+            self.meldung(f"Teilekatalog: {e}", fehler=True)
+            return None
+        self.meldung(f"Teilekatalog gespeichert: {pfad}")
+        return pfad
+
+    def katalog_angebot(self, kundennr, auswahl, dialog=None):
+        """Neues Angebot für den Kunden mit den gewählten Katalog-Teilen (Positionen der neuesten Angebote werden
+        kopiert, ohne Staffeln). Ergebnis: ID des neuen Angebots oder None."""
+        from . import position_kopie, teilekatalog
+        if not auswahl:
+            self.meldung("Bitte im Teilekatalog Teile markieren.", fehler=True)
+            return None
+        if self.db.nur_lesen:
+            self.meldung("Die Datendatei ist nur zum Lesen geöffnet.", fehler=True)
+            return None
+        f = self.window()
+        i = self.db.angebot_neu(dict(kundennr=kundennr))
+        seite = f.angebot_oeffnen(i)
+        for quelle, ids in teilekatalog.nach_angebot(auswahl).items():
+            pos = self.db.positionen(quelle)
+            zeilen = [n for n, p in enumerate(pos) if p["id"] in ids]
+            if position_kopie.einheiten(pos, zeilen):
+                seite.positionen_uebernehmen(quelle, zeilen, staffeln=False)
+        if hasattr(f, "angebote"):
+            f.angebote.neu_laden()
+        if dialog is not None:
+            dialog.accept()
+        self.meldung(f"Neues Angebot mit {len(auswahl)} Teilen aus dem Teilekatalog angelegt.")
+        return i
 
     def anonymisieren(self, kundennr=None, alles=None):
         """Kunden → Anonymisieren … (nur Admin, Vorschlag S3a). alles: True/False = ohne Rückfrage (Tests).

@@ -332,6 +332,12 @@ class KopfBereich(QWidget):
                                      "rechnen und mit der Lieferzeit des Angebots vergleichen")
         self.termin_knopf.clicked.connect(lambda: seite.termin_pruefen())
         lz.addWidget(self.termin_knopf)
+        # Maschinenvergleich (Vorschlag F1): das Angebot auf allen Maschinen rechnen
+        self.maschinen_knopf = QPushButton("Maschinen vergleichen …")
+        self.maschinen_knopf.setToolTip("Das Angebot auf jeder Maschine rechnen (Laserzeit, Preis, Termin) und auf "
+                                        "Wunsch umstellen")
+        self.maschinen_knopf.clicked.connect(lambda: seite.maschinen_vergleichen())
+        lz.addWidget(self.maschinen_knopf)
         g.addWidget(QLabel("Lieferzeit"), 3, 0)
         g.addLayout(lz, 3, 1, 1, 3)
         self.lz_vorschau = QLabel()

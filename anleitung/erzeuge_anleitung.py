@@ -936,6 +936,12 @@ def kapitel_angebote(i):
            "der Startseite in keinem Vorgang, erscheint nicht in der Wiedervorlage und nicht unter <i>Offen</i>; der "
            "Filter <i>Ersetzt (alte Fassungen)</i> zeigt alle alten Fassungen. Ihr Reiter schließt sich, öffnen und "
            "ansehen lässt sie sich weiter. Angebote der Kollegen bekommen keine Fassung, dort hilft <b>Kopieren</b>.")
+    i.abschnitt("Mit voriger Fassung vergleichen", marke="fassung_vergleich")
+    i.text("Im Menü <b>Ausgaben</b> einer neuen Fassung (-2, -3 …) zeigt <b>Mit voriger Fassung vergleichen …</b> "
+           "beide Fassungen nebeneinander: je Position neu, entfällt, geändert (welche Werte: Stück, Länge, Werkstoff, "
+           "Konturen …) oder gleich, mit Stückpreis alt und neu und der Netto-Summe beider Fassungen. Der Haken "
+           "<b>Nur Änderungen</b> blendet gleiche Positionen aus. Der Eintrag erscheint nur, wenn es eine vorige "
+           "Fassung gibt ([[neue_fassung]]).", kurz=True)
     i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
     i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <i>Datei → Neues "
            "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): das Programm legt das Angebot an und startet gleich "
@@ -5693,6 +5699,24 @@ def kapitel_ausgabe(i, seiten, ablage):
             "(Stahl 2,0, Edelstahl 4,5, Aluminium 8,6).",
             "Einstellungen → Kosten → CO₂-Bilanz: <i>CO₂-Bilanz: Strommix [kg CO₂ je kWh]</i> (Vorgabe 0,38) und "
             "<i>CO₂-Bilanz: Leistung der Maschine, wenn dort keine steht [kW]</i> (Vorgabe 20).")
+    i.abschnitt("Maschinen vergleichen", marke="maschinen_vergleich")
+    i.text("Im Angebotskopf neben <b>Termin prüfen …</b> rechnet <b>Maschinen vergleichen …</b> das Angebot auf "
+           "jeder Maschine der Stammdaten, so wie nach einem Wechsel der Maschine: Stundensatz und Zeitvorgaben der "
+           "Maschine, Konturklassen nach ihren Grenzen, neu optimiert. Die Tabelle zeigt je Maschine Laserzeit, "
+           "Netto-Preis, Unterschied zur aktuellen Maschine und – bei eingeschalteter Auslastung – den frühesten "
+           "Liefertermin. Maschinen, auf denen Teile nicht eingeplant werden können, stehen als „nicht möglich“ "
+           "mit Grund.", kurz=True)
+    i.liste("<b>Diese Maschine nehmen</b> stellt das Angebot auf die markierte Maschine um und optimiert neu; "
+            "gespeichert wird nur das, sonst ändert der Vergleich nichts.",
+            "Ist eine andere Maschine mehr als 5 % günstiger, nennt der Angebots-Check einen HINWEIS "
+            "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]).",
+            "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.")
+    i.abschnitt("Sperrtage je Maschine", marke="sperrtage")
+    i.text("Wartung oder Stillstand einer einzelnen Maschine trägt man in den Maschinen-Stammdaten im Feld "
+           "<i>Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)</i> ein. Die "
+           "Auslastung zählt diese Tage ohne Kapazität (grau), <b>Termin prüfen …</b> verschiebt den frühesten "
+           "Termin und nennt die Woche ([[termin_auslastung]]). Für alle Maschinen gilt weiter die "
+           "<i>Betriebsruhe</i> der Einstellungen.", kurz=True)
     i.abschnitt("Angebots-Check vor dem Versand", marke="angebots_check")
     i.text("Vor dem <b>Angebot (PDF)</b> und vor dem Vorgang <i>Verschickt</i> prüft das Programm das Angebot. Nur "
            "wenn ein FEHLER oder eine WARNUNG offen ist, kommt <b>eine</b> Rückfrage mit allen Punkten; Hinweise "
@@ -6101,7 +6125,10 @@ def kapitel_fertigung(i):
             "Arbeitstag</i>, sonst die Einstellung, Vorgabe 8) plus <i>Stunden am Samstag</i>, mal <i>nutzbarer "
             "Anteil</i> (Vorgabe 85 % für Wartung und Störungen). Arbeitstage sind Montag bis Freitag ohne die "
             "Feiertage des Bundeslands (Einstellung Versand) und ohne <i>Betriebsruhe</i> (z. B. "
-            "„24.12.2026-31.12.2026; 02.10.2026“).",
+            "„24.12.2026-31.12.2026; 02.10.2026“). Je Maschine sperrt das Feld <i>Schicht: Sperrtage (Wartung, "
+            "Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)</i> einzelne Tage (Wartung, Stillstand). Gesperrte "
+            "Tage stehen grau in der Auslastung; auch <b>Termin prüfen …</b> und der Eilzuschlag rechnen Betriebsruhe "
+            "und Sperrtage heraus und nennen sie (z. B. „KW 46: Sperrtag T11“) ([[sperrtage]]).",
             "<i>Verschickte Angebote gewichtet mit der Trefferquote</i>: offene Angebote zählen mit Laserzeit × "
             "Trefferquote der letzten 12 Monate ([[absage]]); ihr Termin kommt aus der Lieferzeit ab heute. So "
             "sieht man, ob eine Woche voll wird, wenn die üblichen Aufträge kommen.")
@@ -7067,6 +7094,14 @@ def kapitel_stammdaten(i):
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
          "den Preis eingerechnet ([[kalkulation]])."],
         ["Bemerkung", "freier Text"]], [75, 190])
+    i.abschnitt("Teilekatalog je Kunde", marke="teilekatalog")
+    i.text("Im Reiter Kunden zeigt <b>Teilekatalog …</b> alle Teile, die der gewählte Kunde je angefragt hat: eine "
+           "Zeile je Artikel (ohne Artikelnummer: Bezeichnung, Profil und Länge) mit dem letzten Preis je Stück aus "
+           "den Staffelpreisen, Datum, Angebot, Vorgang, Anzahl Angebote und Aufträge und ob es eine Nachkalkulation "
+           "gibt. Abgelöste Fassungen zählen nicht.", kurz=True)
+    i.liste("<b>CSV exportieren …</b> speichert den Katalog für Excel (Semikolon).",
+            "<b>Neues Angebot aus Auswahl</b> legt ein Angebot für den Kunden an und übernimmt die markierten Teile aus "
+            "ihrem neuesten Angebot (wie <i>Positionen aus anderem Angebot</i>, ohne Staffeln) ([[position_kopieren]]).")
     i.abschnitt("Datenschutz: Auskunft und Anonymisieren", marke="datenschutz")
     i.text("Im Reiter Kunden gibt es für den gewählten Kunden <b>Datenauskunft (PDF) …</b> (welche Daten gespeichert "
            "sind) und <b>Anonymisieren …</b> (nur Admin): Ansprechpartner, Telefon und Mail sowie die Mail-Adressen im "
@@ -7422,6 +7457,8 @@ def kapitel_stammdaten(i):
                                                  "Mit echten Schnittzeiten abgleichen ([[schneidzeit_genauer]])"],
         ["Schicht: Stunden je Arbeitstag", "Kapazität der Maschine in der Wochenauslastung "
                                            "([[auslastung]]); leer = Einstellung"],
+        ["Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)",
+         "Tage ohne Kapazität nur für diese Maschine; Tage und Zeiträume mit „;“ getrennt ([[sperrtage]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
