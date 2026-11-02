@@ -832,14 +832,27 @@ def _punkte_3d(pts, schritt=0.25):
 
 def _umriss_abstand(p, q):
     """Größter Abstand zweier geschlossener Linienzüge [(x, u, v)] in beide Richtungen (Hausdorff) [mm]: Punkte alle
-    0,5 mm gegen den anderen Zug alle 0,02 mm (Fehler der Abtastung unter 0,01 mm)."""
-    import numpy as np
+    0,5 mm gegen die Strecken des anderen Zugs (genau). Ohne numpy: das Windows-Paket enthält es nicht (0.9.231
+    brach der STEP-Import mit „No module named numpy“ ab)."""
     w = 0.0
     for x, y in ((p, q), (q, p)):
-        a, b = np.asarray(_punkte_3d(x, 0.5), float), np.asarray(_punkte_3d(y, 0.02), float)
-        for i in range(0, len(a), 50):
-            dd = np.sqrt(((a[i:i + 50, None, :] - b[None, :, :]) ** 2).sum(-1)).min(1)
-            w = max(w, float(dd.max()))
+        strecken = []
+        for i, a in enumerate(y):
+            b = y[(i + 1) % len(y)]
+            d = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            strecken.append((a, d, d[0] * d[0] + d[1] * d[1] + d[2] * d[2]))
+        for pt in _punkte_3d(x, 0.5):
+            best = math.inf
+            for a, d, ll in strecken:
+                e0, e1, e2 = pt[0] - a[0], pt[1] - a[1], pt[2] - a[2]
+                t = 0.0 if ll <= 0 else min(1.0, max(0.0, (e0 * d[0] + e1 * d[1] + e2 * d[2]) / ll))
+                f0, f1, f2 = e0 - t * d[0], e1 - t * d[1], e2 - t * d[2]
+                q2 = f0 * f0 + f1 * f1 + f2 * f2
+                if q2 < best:
+                    best = q2
+                    if best <= w * w:       # trägt nicht mehr zum Maximum bei
+                        break
+            w = max(w, math.sqrt(best))
     return w
 
 

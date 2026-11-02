@@ -138,6 +138,13 @@ def selbsttest(app, ergebnis, step_dateien=()):
                 if not datei or Path(datei).stat().st_size < (300 if art == "CSV-Export" else 1000):    # CSV ist klein
                     raise RuntimeError(f"{art} nicht geschrieben")
                 protokoll.append(f"{art}: {Path(datei).name} ({Path(datei).stat().st_size // 1024} KB)")
+            # Etiketten mit QR-Code: reportlab lädt die Barcode-Module erst beim Import (0.9.231 fehlte code128)
+            from . import etiketten
+            datei = Path(tmp) / "Etiketten.pdf"
+            n = etiketten.etiketten_pdf(datei, etiketten.etiketten(seite.kopf, seite.positionen))
+            if not n or datei.stat().st_size < 1000:
+                raise RuntimeError("Etiketten nicht geschrieben")
+            protokoll.append(f"Etiketten: {n} ({datei.stat().st_size // 1024} KB)")
             protokoll.append(f"Angebot {seite.kopf['nummer']}: {len(seite.positionen)} Positionen, "
                              f"{len(e['stangen'])} Stangen, Stand {seite.stand_optimierung()}, "
                              f"Verkaufspreis {seite.kalk.zeilen and sum(z['preis_position'] or 0 for z in seite.kalk.zeilen):.2f}")
@@ -147,6 +154,13 @@ def selbsttest(app, ergebnis, step_dateien=()):
                     raise RuntimeError("STEP-Import ohne Ergebnis")
                 protokoll.append(f"STEP-Import: {len(erg['positionen'])} Positionen, "
                                  f"Protokoll {len(seite.prot.zeilen)} Zeilen")
+                # Stutzen-Durchbruch (tests/step_selbsttest): rechnet in step.durchbruch_aus_messung (0.9.231 fehlte
+                # numpy im Paket, der STEP-Import brach ab)
+                stutzen = [p for p in seite.positionen if "Stutzen" in str(p.get("artikel") or "")]
+                if any("Stutzen" in Path(d).name for d in step_dateien):
+                    if not stutzen or not any('"Durchbruch"' in str(p.get("technik") or "") for p in stutzen):
+                        raise RuntimeError("STEP-Import: Stutzen nicht als Durchbruch erkannt")
+                    protokoll.append(f"STEP-Import: Durchbruch für Stutzen erkannt ({stutzen[0]['artikel']})")
                 seite.optimieren()
                 protokoll.append(f"Neu optimiert: {len(seite.ergebnis['stangen'])} Stangen")
             f.angebot_schliessen(aid)

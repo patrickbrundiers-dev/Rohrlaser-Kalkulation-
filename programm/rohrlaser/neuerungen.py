@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.232", "Zwei Fehler im Windows-Programm 0.9.231 behoben: <b>Etiketten mit QR-Code</b> ([[etiketten]]) brachen "
+     "mit „No module named reportlab.graphics.barcode.code128“ ab, weil ein Teil der Barcode-Bausteine im "
+     "Programmpaket fehlte. Der <b>STEP-Import</b> ([[step]]) brach bei Rohren mit großem rundem Loch (Durchbruch für "
+     "einen Stutzen) mit „No module named numpy“ ab; die Prüfung des Durchbruchs gegen die STEP rechnet jetzt ohne "
+     "numpy, genauso genau. Der Selbsttest jedes Windows-Pakets erzeugt nun ein Etiketten-PDF und importiert ein "
+     "Rohr mit Stutzen-Durchbruch, ein Test prüft, dass jedes benutzte Modul im Paket ist.",
+     "Etiketten mit QR-Code und STEP-Import mit Stutzen-Durchbruch: Abbrüche im Windows-Programm behoben."],
     ["0.9.231", "<b>Fehler-Durchgang</b>: Die <b>Optimierung</b> überspringt volle Stangen und schon geprüfte gleiche "
      "Teile ([[optimieren]]); der Schnittplan bleibt Stange für Stange gleich, aber große Stückzahlen gehen viel "
      "schneller (20.000 gleiche Teile vorher über 10 Minuten, jetzt unter 1 Sekunde; 6.000 gemischte Teile mit "
