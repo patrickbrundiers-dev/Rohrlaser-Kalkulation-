@@ -8806,6 +8806,9 @@ def kapitel_fragen(i):
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
          "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben."],
+        ["<b>Unerwarteter Fehler</b> mit <i>No module named …</i>", "Dem Programmpaket fehlt ein Baustein (so in "
+         "0.9.231 beim Etiketten-PDF und beim STEP-Import mit Stutzen-Durchbruch, behoben in 0.9.232). Nach "
+         "Updates suchen (Hilfe → Nach Updates suchen …) und, wenn es bleibt, die Meldung mit Details melden."],
         ["Übersicht: <b>Preise festgeschrieben am …, Stammdaten seitdem geändert</b>",
          "Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile oder Maschine wurden nach dem Angebots-PDF "
          "geändert; das Angebot rechnet weiter mit den "
