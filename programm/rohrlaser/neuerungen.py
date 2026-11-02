@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.233", "Neun Verbesserungen für Kalkulation und System: <b>Gleitklausel Material</b> bei Abruf-Angeboten "
+     "([[gleitklausel]]): festgeschriebene gegen aktuelle Materialpreise, ab ±5 % fällig, nur Material gleitet, "
+     "Übernehmen mit Vermerk im Versandverlauf. <b>Eilzuschlag</b> ([[eilzuschlag]]): Feld im Kopf und Vorschlag aus "
+     "<i>Termin prüfen …</i> nach Arbeitstagen zu früh (15 %/30 %). <b>CO₂-Bilanz</b> intern im Preisaufbau und "
+     "Kalkulations-PDF ([[co2_bilanz]], Funktion, Vorgabe aus). <b>Wiederholteile</b> zeigen, wie der letzte "
+     "Auftrag lief, der Angebots-Check weist auf große Abweichungen hin ([[wiederholteil_nachkalk]]). "
+     "<b>Ertrag je Laserstunde je Kunde</b> in der Angebots-Auswertung ([[ertrag_laserstunde]]). <b>Prüfplan / "
+     "Messprotokoll</b> als PDF mit ISO 2768 und Zusatzarbeit Erstmusterprüfung ([[pruefplan]]). <b>Support-Paket</b> "
+     "als ZIP ([[support_paket]]). <b>Datenschutz</b>: Datenauskunft als PDF, Kunden anonymisieren (nur Admin), "
+     "Frist für abgelehnte Angebote (Vorgabe aus) ([[datenschutz]]). <b>Übergabe an CAM</b>: Ordner mit STEP je "
+     "Teil, Stückliste und Schnittplan ([[cam_paket]]).",
+     "Gleitklausel, Eilzuschlag, CO₂, Wiederholteil-Rückblick, Ertrag/Laserstunde, Prüfplan, Support-Paket, "
+     "Datenschutz, CAM-Ordner"],
     ["0.9.232", "Zwei Fehler im Windows-Programm 0.9.231 behoben: <b>Etiketten mit QR-Code</b> ([[etiketten]]) brachen "
      "mit „No module named reportlab.graphics.barcode.code128“ ab, weil ein Teil der Barcode-Bausteine im "
      "Programmpaket fehlte. Der <b>STEP-Import</b> ([[step]]) brach bei Rohren mit großem rundem Loch (Durchbruch für "

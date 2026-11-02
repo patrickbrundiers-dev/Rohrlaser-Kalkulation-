@@ -47,8 +47,9 @@ assert ordnung.kurztitel(EINSTELLUNG["gewinn"]) == "Gewinn"
 assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
-assert all(EINSTELLUNG[f.name].vorgabe == "ja" and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 18
+assert all(EINSTELLUNG[f.name].vorgabe == f.vorgabe and EINSTELLUNG[f.name].gruppe == "Funktionen"
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 19
+assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_co2"]      # CO₂ (K3b): Vorgabe aus
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
 ok("16 Funktionsschalter (seit 0.9.208 mit Abruf-/Rahmenangebote), Vorgabe ja (nach dem Update ändert sich nichts)")
 

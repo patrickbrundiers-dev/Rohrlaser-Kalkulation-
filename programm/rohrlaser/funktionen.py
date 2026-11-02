@@ -9,7 +9,8 @@ from collections import namedtuple
 
 # name = Einstellung, seiten = Seiten der Einstellungen (einstellungen_nav.GRUPPEN), die mit ausgeblendet werden,
 # datei = Einträge im Menü Datei, reiter = Hauptreiter (Attribut des Hauptfensters)
-Funktion = namedtuple("Funktion", "name titel text seiten datei reiter", defaults=((), (), None))
+# vorgabe = Wert für neue Dateien (fast alle „ja“; neue Zusatzfunktionen wie die CO₂-Bilanz „nein“)
+Funktion = namedtuple("Funktion", "name titel text seiten datei reiter vorgabe", defaults=((), (), None, "ja"))
 
 FUNKTIONEN = (
     Funktion("funktion_blech", "Bleche und Kantteile",
@@ -51,6 +52,9 @@ FUNKTIONEN = (
              "Häkchen „Muster“ in den Editoren und „Muster an/aus“ (vorhandene Muster bleiben)"),
     Funktion("funktion_abruf", "Abruf-/Rahmenangebote",
              "Haken „Abruf-/Rahmenangebot“ im Angebotskopf (vorhandene Abruf-Angebote bleiben)"),
+    # Vorschlag K3 (Patrick 02.11.2026 „K3b“): nur intern, Vorgabe aus
+    Funktion("funktion_co2", "CO₂-Bilanz (intern)",
+             "CO₂ je Teil im Preisaufbau und im Kalkulations-PDF, Spalte CO₂ bei den Werkstoffen", vorgabe="nein"),
 )
 FUNKTION = {f.name: f for f in FUNKTIONEN}
 

@@ -735,7 +735,8 @@ def wirksam(stufe, einst):
     return dict(mat_art=art, mat_zuschlag=mz / 100 if art == PROZENT else mz,
                 verlust=_zahl(w("verlust")) / 100, mat_grundpreis=w("mat_grundpreis"),
                 zuschlag_fertigung=(w("zuschlag_fertigung") / 100 if w("zuschlag_fertigung") is not None
-                                    else _zahl(einst.get("zuschlag_fertigung"))),
+                                    else _zahl(einst.get("zuschlag_fertigung")))
+                + _zahl(einst.get("eilzuschlag")),      # Eilzuschlag des Angebots (Vorschlag K2)
                 zuschlag_fremdleistung=_zahl(einst.get("zuschlag_fremdleistung")),
                 gewinn=w("gewinn") / 100 if w("gewinn") is not None else _zahl(einst.get("gewinn")),
                 # gestaffelter Gewinn nach dem Wert der Stufe, nur ohne eigenen Gewinn der Stufe (Patrick 29.10.2026)

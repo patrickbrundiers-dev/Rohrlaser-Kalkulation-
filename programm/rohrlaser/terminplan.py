@@ -125,3 +125,26 @@ def haltbar(t, zugesagt):
     if t is None or zugesagt is None:
         return None
     return t.datum is not None and zugesagt >= t.datum
+
+
+def arbeitstage_zwischen(von, bis, land=None):
+    """Arbeitstage nach von bis einschließlich bis (0, wenn bis nicht nach von liegt)."""
+    n, d = 0, von
+    while d < bis:
+        d += datetime.timedelta(days=1)
+        if feiertage.ist_arbeitstag(d, land):
+            n += 1
+    return n
+
+
+def eil_vorschlag(t, zugesagt, einst, land=None):
+    """Eilzuschlag (Vorschlag K2): liegt der Wunschtermin vor dem frühesten freien Termin, (Arbeitstage zu früh,
+    Zuschlag als Anteil): bis 'eil_tage' Arbeitstage Stufe 1 ('eil_zuschlag_1'), darüber Stufe 2 ('eil_zuschlag_2').
+    None, wenn der Termin hält, nicht prüfbar ist oder der Zuschlag 0 ist."""
+    if t is None or t.datum is None or zugesagt is None or zugesagt >= t.datum:
+        return None
+    e = einst or {}
+    tage = max(1, arbeitstage_zwischen(zugesagt, t.datum, land))
+    stufe1 = int(_f(e.get("eil_tage"), 2))
+    satz = _f(e.get("eil_zuschlag_1"), 0.15) if tage <= stufe1 else _f(e.get("eil_zuschlag_2"), 0.30)
+    return (tage, satz) if satz > 0 else None

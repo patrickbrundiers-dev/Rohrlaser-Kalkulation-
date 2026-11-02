@@ -600,6 +600,13 @@ def kapitel_start(i):
            "etwa 1,2 GB Arbeitsspeicher und rund eine Minute, Rohr-Editor und STEP speichern je etwa 20 Sekunden. "
            "Ohne OpenGL (alte Grafik, Fernwartung) zeichnet die 3D-Ansicht in Software, große Baugruppen drehen "
            "sich dann zäh ([[step_3d_ansicht]]).")
+    i.abschnitt("Support-Paket", marke="support_paket")
+    i.text("<b>Hilfe → Support-Paket erstellen …</b> (auch Knopf in der Meldung <i>Unerwarteter Fehler</i>) legt in "
+           "<i>Daten/Support</i> eine ZIP-Datei an mit Fehlerprotokoll, Version, Lizenzstand, Systemprüfung und "
+           "Einstellungen, ohne Kunden, Preise und Passwörter, und öffnet den Ordner. Die Datei schickt man selbst "
+           "per Mail an den Support.", kurz=True)
+    i.liste("Haken <i>Offenes Angebot beilegen</i> (Vorgabe aus): Kopf und Positionen des gerade offenen Angebots "
+            "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -867,7 +874,15 @@ def kapitel_angebote(i):
             "(bis 500 €, bis 2.000 €, bis 10.000 €, darüber; Verkaufspreis netto), Absagegründe und Preis "
             "Wettbewerb (unser Preis gegen den genannten, z. B. +20 % = wir waren 20 % teurer).",
             "Viele Absagen „Preis zu hoch“ in einer Gruppe zeigen, wo es zu teuer ist; eine sehr hohe Trefferquote "
-            "kann heißen, dass die Preise dort Luft nach oben haben ([[preis_simulator]]).")
+            "kann heißen, dass die Preise dort Luft nach oben haben ([[preis_simulator]]).",
+            "Reiter <i>je Kunde</i>: Spalten <b>Laser-h beauftragt</b>, <b>Ertrag €/h Soll</b> und <b>Ertrag €/h Ist</b> "
+            "([[ertrag_laserstunde]]). Ertrag = Verkaufspreis nach Skonto ohne Material, Zukaufteile und Fracht, "
+            "geteilt durch die Laserstunden der beauftragten Angebote; Ist aus der Nachkalkulation, nur wenn die "
+            "Laserzeit erfasst ist. So sieht man, welcher Kunde die Maschine gut oder schlecht bezahlt.")
+    i.abschnitt("Ertrag je Laserstunde je Kunde", marke="ertrag_laserstunde")
+    i.text("Die Angebots-Auswertung zeigt je Kunde den Ertrag je Laserstunde (Soll aus der Kalkulation, Ist aus der "
+           "Nachkalkulation). Der Angebots-Check nutzt dieselbe Rechnung für den Hinweis „Ertrag je Laserstunde unter "
+           "dem Stundensatz“.", kurz=True)
     i.abschnitt("Schnellpreis für Telefonanfragen", marke="schnellpreis")
     i.text("<i>Datei → Schnellpreis …</i> (Strg+Alt+P) gibt in wenigen Sekunden einen Richtpreis je Stück, ohne ein "
            "Angebot anzulegen.", kurz=True)
@@ -1403,6 +1418,21 @@ def kapitel_angebot(i):
             "Haken aus: das Angebot rechnet wieder normal, die Abrufdaten bleiben gespeichert. Die Funktion "
             "<i>Abruf-/Rahmenangebote</i> lässt sich auf der Seite <i>Funktionen</i> ausblenden; vorhandene "
             "Abruf-Angebote bleiben.")
+    i.abschnitt("Gleitklausel Material bei Abrufen", marke="gleitklausel")
+    i.text("Bei einem Abruf-Angebot mit <i>Material je Abruf</i> prüft der Knopf <b>Gleitklausel prüfen …</b> neben "
+           "<i>Abrufdaten …</i>, ob sich die Materialpreise seit dem Angebots-PDF geändert haben. Ändern sich die "
+           "Materialkosten um mehr als die Schwelle (Einstellung <i>Materialklausel</i>, Vorgabe ±5 %), ist die "
+           "Anpassung fällig; übernommen wird nur nach Bestätigung.", kurz=True)
+    i.genauer()
+    i.liste("Verglichen werden die festgeschriebenen Materialpreise (Preise je Profil und Werkstoff, Tonnenpreise, "
+            "Lieferlängen, Teuerungszuschlag) mit den aktuellen Stammdaten. Schneiddaten, Stundensätze, Zuschläge und "
+            "Gewinn bleiben festgeschrieben, es gleitet also nur der Materialanteil.",
+            "Das Fenster zeigt die Materialkosten alt und neu in %, je Werkstoff, je Position den Preis je Teil und "
+            "das Angebot netto alt und neu. Unter der Schwelle bleibt der Preis laut Klausel.",
+            "<b>Neue Materialpreise übernehmen</b> schreibt die neuen Materialpreise in die Preisbasis des Angebots "
+            "und vermerkt die Anpassung mit Datum, % und Netto alt/neu im Versandverlauf.",
+            "Der Knopf ist erst nach dem Angebots-PDF aktiv (dann sind die Preise festgeschrieben) und fehlt bei "
+            "<i>Material bevorratet</i>, denn dann gleitet nichts.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Werte, die 0 sind und nur optional etwas kosten würden, stehen im aufklappbaren Bereich <b>Erweiterte "
            "Einstellungen</b> (Titel z. B. „1 Wert auf 0“). Sobald ein Wert nicht 0 ist, steht er wieder oben.")
@@ -1469,6 +1499,13 @@ def kapitel_angebot(i):
             "Auch bei vielen tausend Angeboten bleibt das Angebot flüssig: die Datendatei sucht über einen Index nur "
             "Positionen mit gleicher Artikelnummer oder gleichem Profil und passender Länge heraus, das Einstufen läuft "
             "im Hintergrund. Angebote im Archiv ([[archiv]]) zählen nicht mit.")
+    i.abschnitt("Wiederholteile: wie lief es letztes Mal?", marke="wiederholteil_nachkalk")
+    i.text("Ist das alte Angebot eines Wiederholteils nachkalkuliert, steht beim Treffer, wie es lief, z. B. "
+           "„nachkalkuliert (letztes Mal: Laser +18 % je Teil, Rüsten +25 min, Ausschuss 3 %, DB 96 €/h Laser "
+           "(Soll 140))“. Der Preis ändert sich dadurch nie.", kurz=True)
+    i.liste("Laser je Teil, wenn die Laufzeit je Teil erfasst ist, sonst für den ganzen Auftrag.",
+            "Weicht die Laserzeit um mehr als 10 % ab oder lag der Deckungsbeitrag je Laserstunde mehr als 10 % unter "
+            "dem Soll, nennt der Angebots-Check ([[angebots_check]]) einen HINWEIS: Zeit bzw. Preis prüfen.")
     i.abschnitt("Positionen", marke="positionen")
     i.text("Eine Zeile je Teil. Pflicht sind <b>Profil-ID</b>, <b>Werkstoff-ID</b>, <b>Teilelänge</b> und "
            "<b>Stückzahl</b>; gelbe Felder sind Eingaben, graue rechnet das Programm. Optionale Spalten erscheinen, "
@@ -5624,6 +5661,38 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Eine <b>Kopie</b> eines Angebots rechnet mit den aktuellen Stammdaten.",
             "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert ("
             "[[zeiten]]), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")
+    i.abschnitt("Prüfplan / Messprotokoll", marke="pruefplan")
+    i.text("<i>Ausgaben → Prüfplan / Messprotokoll (PDF) …</i> erstellt je Rohrlaserteil eine Seite mit den "
+           "Prüfmerkmalen, Sollmaß, Toleranz und leerer Spalte <i>Ist</i>, dazu Feld für Ergebnis, Datum und "
+           "Unterschrift (Erstmusterprüfung, Prüfbericht für den Kunden).", kurz=True)
+    i.genauer()
+    i.liste("Sollmaße unverändert aus der Position (STEP-Messung bzw. Schneidweg-Rechner): Teilelänge, Gehrung an "
+            "Anfang und Ende, je Kontur Maß (Ø, Länge × Breite), Lage x ab Ende A, bei Mustern die Teilung. "
+            "Gravuren sind keine Prüfmerkmale. Nichts wird umgerechnet oder verschoben.",
+            "Toleranzen nach ISO 2768 fein, mittel oder grob (Einstellungen → Fertigung → Prüfplan und Erstmuster, "
+            "Einstellung <i>Prüfplan: Toleranzen</i>, Vorgabe mittel) oder <i>nach Kundenvorgabe</i> = Spalte leer "
+            "zum Eintragen.",
+            "Ist ein Preis für die <b>Erstmusterprüfung</b> eingestellt (<i>Prüfplan: Preis Erstmusterprüfung je "
+            "Angebot [€] (0 = nicht anbieten)</i>, Vorgabe 85 €), fragt das Programm, ob sie als "
+            "Zusatzarbeit (€ je Angebot) ins Angebot kommt; sie hängt an der ersten Position.")
+    i.abschnitt("Übergabe an CAM", marke="cam_paket")
+    i.text("<i>Ausgaben → Übergabe an CAM (Ordner) …</i> legt im Ordner des Angebots einen Unterordner "
+           "„Nummer_CAM“ an: je Rohrlaserteil bzw. Blech eine STEP-Datei „Artikel_Stück_Werkstoff.stp“, die "
+           "<b>Stueckliste.csv</b> (Pos., Artikel, Profil, Werkstoff, Länge, Stück, Stangenlänge, Schweißnaht, "
+           "Gravur, STEP-Datei) und den <b>Schnittplan.pdf</b>. Danach öffnet sich der Ordner.", kurz=True)
+    i.liste("Die STEP-Dateien entstehen wie <i>STEP speichern</i> im Editor aus den Eingaben der Position (Ende A bei "
+            "Z = 0, Konturen wie aus der STEP). Biegerohre, virtuelle Bauteile und Teile ohne Eingaben bekommen "
+            "keine eigene Datei; dafür liegen die Kundendateien unverändert im Unterordner <i>Kundendateien</i>.",
+            "Ein eigenes Format für die CAM-Software kommt später; der Ordner wird bei jedem Aufruf neu gefüllt.")
+    i.abschnitt("CO₂-Bilanz (intern)", marke="co2_bilanz")
+    i.text("Mit der Funktion <b>CO₂-Bilanz (intern)</b> (Einstellungen → Funktionen, Vorgabe aus) zeigen der "
+           "Preisaufbau und das Kalkulations-PDF einen Richtwert in kg CO₂: Material (Gewicht × Faktor des "
+           "Werkstoffs) und Strom (Laserzeit × Leistung der Maschine × Strom-Faktor). Nicht im Angebot für den "
+           "Kunden.", kurz=True)
+    i.liste("Faktor je Werkstoff in der Spalte <i>CO₂ [kg/kg]</i> der Werkstoffe; leer = Vorgabe der Kategorie "
+            "(Stahl 2,0, Edelstahl 4,5, Aluminium 8,6).",
+            "Einstellungen → Kosten → CO₂-Bilanz: <i>CO₂-Bilanz: Strommix [kg CO₂ je kWh]</i> (Vorgabe 0,38) und "
+            "<i>CO₂-Bilanz: Leistung der Maschine, wenn dort keine steht [kW]</i> (Vorgabe 20).")
     i.abschnitt("Angebots-Check vor dem Versand", marke="angebots_check")
     i.text("Vor dem <b>Angebot (PDF)</b> und vor dem Vorgang <i>Verschickt</i> prüft das Programm das Angebot. Nur "
            "wenn ein FEHLER oder eine WARNUNG offen ist, kommt <b>eine</b> Rückfrage mit allen Punkten; Hinweise "
@@ -6051,6 +6120,20 @@ def kapitel_fertigung(i):
             "Beim Setzen auf <i>Beauftragt</i> steht der früheste Termin im Fenster für Bestellnummer und "
             "Liefertermin; <b>Frühesten Termin übernehmen</b> trägt ihn ein. Der Knopf erscheint nur mit der Funktion "
             "Maschinenauslastung; ohne Schnittplan heißt es „erst optimieren“.")
+    i.abschnitt("Eilzuschlag", marke="eilzuschlag")
+    i.text("Wünscht der Kunde einen Termin vor dem frühesten freien Termin, bietet <b>Termin prüfen …</b> den Knopf "
+           "<b>Termin halten mit Eilzuschlag X %</b> an. Der Eilzuschlag steht auch als Feld <i>Eilzuschlag "
+           "Fertigung [%]</i> in der Karte <i>Kalkulation dieses Angebots</i> (Gruppe Verkauf und Gewinn).", kurz=True)
+    i.genauer()
+    i.liste("Stufen nach Arbeitstagen zu früh (Einstellungen → Zuschläge und Preise → Eilzuschlag): bis "
+            "<i>eil_tage</i> Arbeitstage (Vorgabe 2) Stufe 1 (Vorgabe 15 %), darüber Stufe 2 (Vorgabe 30 %). "
+            "Feiertage zählen wie im Terminplan nicht. Die Einstellungen heißen <i>Eilzuschlag: Stufe 1 bis so viele "
+            "Arbeitstage zu früh</i>, <i>Eilzuschlag Stufe 1 (auf die Fertigung)</i> und <i>Eilzuschlag Stufe 2 (mehr "
+            "Arbeitstage zu früh)</i>.",
+            "Der Eilzuschlag kommt auf den Fertigungszuschlag (Laser, Rüsten, Programmierung, Zusatzarbeiten), nicht "
+            "auf Material; er gilt auch in den Staffeln. Im Preisaufbau steht er beim Zuschlag Fertigung "
+            "(„+ Eilzuschlag 15 % = … €“).",
+            "Feld leeren oder 0 = kein Eilzuschlag.")
     i.abschnitt("Lager und Reststücke", marke="lager")
     i.text("Mit der Einstellung <i>Materialbestand verwenden (Reiter Lager)</i> = ja erscheint der Reiter "
            "<b>Lager</b>. Angebote und ihre Preise ändern sich dadurch nie; das Lager kommt erst beim beauftragten "
@@ -6984,6 +7067,21 @@ def kapitel_stammdaten(i):
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
          "den Preis eingerechnet ([[kalkulation]])."],
         ["Bemerkung", "freier Text"]], [75, 190])
+    i.abschnitt("Datenschutz: Auskunft und Anonymisieren", marke="datenschutz")
+    i.text("Im Reiter Kunden gibt es für den gewählten Kunden <b>Datenauskunft (PDF) …</b> (welche Daten gespeichert "
+           "sind) und <b>Anonymisieren …</b> (nur Admin): Ansprechpartner, Telefon und Mail sowie die Mail-Adressen im "
+           "Versandverlauf seiner Angebote werden endgültig entfernt. Preise, Mengen und Positionen bleiben für "
+           "Auswertungen.", kurz=True)
+    i.genauer()
+    i.liste("Die Auskunft listet Kundenstamm, alle Angebote mit Datum, Vorgang und Netto, die Mail-Adressen aus dem "
+            "Versandverlauf, Kundenvorgaben und Importprofile. Archivierte Angebote stehen im Archiv.",
+            "Haken <i>Auch Name und Anschrift (Privatperson)</i>: zusätzlich Name, Straße, PLZ/Ort; der Kundenname "
+            "in den Angeboten wird „anonymisiert Kundennummer“.",
+            "Frist (Einstellungen → Ablage und Teilen → <i>Datenschutz: abgelehnte Angebote nach so vielen Jahren "
+            "anonymisieren (0 = aus)</i>, Vorgabe 0 = aus): abgelehnte Angebote älter als "
+            "so viele Jahre verlieren beim Start die Mail-Adressen; hat ein Kunde nur solche Angebote, wird er "
+            "anonymisiert. Läuft höchstens einmal am Tag.",
+            "Rückgängig nur über eine Datensicherung. Die Änderung gilt über den gemeinsamen Ordner an allen Plätzen.")
     i.abschnitt("Kundenvorgaben", marke="kundenvorgaben")
     i.text("Einstellungen → <b>Kundenvorgaben</b>: je Kunde Maschine, Stangenlänge, Gewinn, Lieferzeit, Material und "
            "Standard-Staffeln. Wählen Sie den Kunden im Angebot, sind diese Kopffelder gleich richtig gefüllt.",
@@ -8805,7 +8903,8 @@ def kapitel_fragen(i):
          "Fenster, die bestätigt werden müssen."],
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
-         "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben."],
+         "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben, am einfachsten mit dem Knopf "
+         "<b>Support-Paket …</b> in der Meldung bzw. <i>Hilfe → Support-Paket erstellen …</i> ([[support_paket]])."],
         ["<b>Unerwarteter Fehler</b> mit <i>No module named …</i>", "Dem Programmpaket fehlt ein Baustein (so in "
          "0.9.231 beim Etiketten-PDF und beim STEP-Import mit Stutzen-Durchbruch, behoben in 0.9.232). Nach "
          "Updates suchen (Hilfe → Nach Updates suchen …) und, wenn es bleibt, die Meldung mit Details melden."],

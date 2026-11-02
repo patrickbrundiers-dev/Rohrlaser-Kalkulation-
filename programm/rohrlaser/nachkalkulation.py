@@ -409,6 +409,64 @@ def auswertung(db, merkmal="kostenart"):
                 ausschuss=dict(teile=teile, stueck=stk, quote=stk / teile if teile else None))
 
 
+# ------------------------------------------------------------------ Rückblick für Wiederholteile (Vorschlag K4)
+RUECKBLICK_GRENZE = 0.10        # ab so viel Abweichung der Laserzeit meldet der Angebots-Check einen Hinweis
+
+
+def rueckblick(nk, position_id):
+    """Wie es beim letzten Auftrag lief (Vorschlag K4, Patrick 02.11.2026 „K4a“): aus der gespeicherten
+    Nachkalkulation eines Angebots (angebote.nachkalkulation) für eine Position dict(laser_soll_s, laser_ist_s,
+    laser_abw (Anteil, Ist ÷ Soll − 1; je Teil, sonst der ganze Auftrag), laser_quelle ('Teil'/'Auftrag'),
+    ruesten_abw_min, ausschuss_quote, db_h_soll, db_h_ist) oder None ohne Ist-Werte. Ändert keinen Preis."""
+    if not isinstance(nk, dict) or not isinstance(nk.get("soll"), dict):
+        return None
+    soll = nk["soll"]
+    out = dict(laser_soll_s=None, laser_ist_s=None, laser_abw=None, laser_quelle=None, ruesten_abw_min=None,
+               ausschuss_quote=None, db_h_soll=None, db_h_ist=None)
+    je = nk.get("laufzeit") or {}
+    for pid, soll_s, _ in soll.get("laufzeit") or ():
+        if str(pid) == str(position_id) and _n(soll_s) and _n(je.get(str(pid))) is not None:
+            out.update(laser_soll_s=soll_s, laser_ist_s=_n(je[str(pid)]), laser_abw=_n(je[str(pid)]) / soll_s - 1,
+                       laser_quelle="Teil")
+    laser = _zeile(soll, "Laserzeit")
+    if out["laser_abw"] is None and laser and laser[7] and _n(laser[3]) and _n(laser[4]) is not None:
+        out.update(laser_abw=laser[4] / laser[3] - 1, laser_quelle="Auftrag")
+    r = _zeile(soll, "Rüsten + Stangenwechsel")
+    if r and r[7] and _n(r[3]) is not None and _n(r[4]) is not None:
+        out["ruesten_abw_min"] = r[4] - r[3]
+    a_stk, teile = _n(nk.get("ausschuss_stk")), _n(soll.get("teile"))
+    if a_stk is not None and teile:
+        out["ausschuss_quote"] = a_stk / teile
+    dbw = soll.get("db") or [None, None]
+    if laser and _n(laser[3]):
+        out["db_h_soll"] = _n(dbw[0]) / laser[3] if _n(dbw[0]) is not None else None
+        h_ist = _n(laser[4]) if laser[7] else None
+        if h_ist and _n(dbw[1]) is not None:
+            out["db_h_ist"] = dbw[1] / h_ist
+    if all(out[n] is None for n in ("laser_abw", "ruesten_abw_min", "ausschuss_quote", "db_h_ist")):
+        return None
+    return out
+
+
+def rueckblick_text(r):
+    """Kurztext, z. B. 'letztes Mal: Laser +18 % je Teil, Rüsten +25 min, Ausschuss 3 %, DB 96 €/h Laser (Soll 140)'."""
+    from .stammdaten import zahl_als_text as zahl
+    if not r:
+        return ""
+    teile = []
+    if r["laser_abw"] is not None:
+        teile.append(f"Laser {'+' if r['laser_abw'] >= 0 else '−'}{zahl(abs(100 * r['laser_abw']), 0)} %"
+                     + (" je Teil" if r["laser_quelle"] == "Teil" else ""))
+    if r["ruesten_abw_min"] is not None and abs(r["ruesten_abw_min"]) >= 0.5:
+        teile.append(f"Rüsten {'+' if r['ruesten_abw_min'] >= 0 else '−'}{zahl(abs(r['ruesten_abw_min']), 0)} min")
+    if r["ausschuss_quote"]:
+        teile.append(f"Ausschuss {zahl(100 * r['ausschuss_quote'], 1)} %")
+    if r["db_h_ist"] is not None:
+        teile.append(f"DB {zahl(r['db_h_ist'], 0)} €/h Laser"
+                     + (f" (Soll {zahl(r['db_h_soll'], 0)})" if r["db_h_soll"] is not None else ""))
+    return "letztes Mal: " + ", ".join(teile) if teile else ""
+
+
 # ------------------------------------------------------------------ Kennwert-Quellen (kennwerte.py)
 def _zeile(s, text):
     return next((z for z in s.get("zeilen") or () if z[0] == text), None)

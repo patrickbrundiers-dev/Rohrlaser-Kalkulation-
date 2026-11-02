@@ -1514,12 +1514,13 @@ def _zeilen_kalk(zeilen, positionen, summen):
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,
-                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None):
+                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None):
     """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
     ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
     Querschnitte, hinweise = rechnen.laser_hinweise (Laser-Hinweise der Werkstoffe), positionen = Positionen des
     Angebots (Bezeichnung, Muster), staffel = gespeicherte Staffelzeilen, plausi = plausibel.punkte (Warnungen),
-    maschine = Stammdaten der Maschine (Rechenweg des ermittelten Stundensatzes)."""
+    maschine = Stammdaten der Maschine (Rechenweg des ermittelten Stundensatzes), co2 = co2.angebot(...) (CO₂-Bilanz,
+    nur mit Funktion „CO₂-Bilanz“)."""
     einst = einst or {}
     nr = kopf.get("nummer") or ""
     doc, leinwand = _dokument(pfad, f"Kalkulation {nr}", _fuss(einst, f"Kalkulation {nr}"), quer=True)
@@ -1581,6 +1582,22 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
         inhalt += [kosten, Spacer(1, 4 * mm), CondPageBreak(30 * mm), kasten, Spacer(1, 5 * mm)]
     inhalt += _stundensatz_abschnitt(kopf, summen, einst, maschine)
     inhalt += _abruf_abschnitt(kopf, summen)
+    if co2 and co2.get("positionen"):        # CO₂-Bilanz (Vorschlag K3, intern)
+        daten_c = [_kopfzeile(["Pos.", "Bezeichnung", "Werkstoff", "Stück", "Gewicht je Teil [kg]",
+                               "CO₂ je Teil [kg]", "CO₂ Position [kg]"])]
+        for z in co2["positionen"]:
+            daten_c.append([_p(str(z["pos"] if z["pos"] is not None else ""), S_KLEIN), _p(z["bezeichnung"], S_KLEIN),
+                            _p(str(z["werkstoff"] or ""), S_KLEIN), _z(z["stueck"], 0), _z(z["je_teil"]["gewicht"], 3),
+                            _z(z["je_teil"]["gesamt"], 3), _z(z["position"], 1)])
+        daten_c.append([_p("<b>Summe</b>", S_KLEIN), "", "", "", "", "", _z(co2["gesamt"], 1)])
+        inhalt += [CondPageBreak(40 * mm), _p("CO₂-Bilanz (Richtwert)", S_H2),
+                   _tabelle(daten_c, [w * mm for w in (14, 80, 40, 20, 38, 35, 38)], rechts=(3, 4, 5, 6),
+                            fett_zeilen=[len(daten_c) - 1]),
+                   Spacer(1, 1.5 * mm),
+                   _p(f"Material {_z(co2['material'], 1)} kg + Strom Laser {_z(co2['strom'], 1)} kg. Teilgewicht × "
+                      "Faktor des Werkstoffs (Stammdaten Werkstoffe, Spalte CO₂, leer = Richtwert der Kategorie) + "
+                      "Laserzeit × Leistung × Strommix (Einstellungen). Richtwert, keine zertifizierte Bilanz.",
+                      ParagraphStyle("co", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 5 * mm)]
     if material:            # Materialeinsatz je Abmessung (Patrick 22.10.2026), eingestellt im Fenster 'Material …'
         tab, hand = _material_tabelle(material, profile or {})
         inhalt += [CondPageBreak(40 * mm), _p("Materialeinsatz je Abmessung", S_H2), tab]

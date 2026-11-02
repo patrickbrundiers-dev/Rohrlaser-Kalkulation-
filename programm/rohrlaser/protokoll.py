@@ -15,6 +15,7 @@ DATEI = "fehler.log"
 _log = logging.getLogger("rohrlaser")
 _zeigen = None          # Funktion(text, details) für die Meldung, None = keine Meldung (Tests, ohne Oberfläche)
 _in_meldung = False
+SUPPORT = None          # Funktion() für den Knopf „Support-Paket“ in der Meldung (Hauptfenster.support_paket), None = ohne
 
 
 def einrichten(ordner, zeigen=None):
@@ -109,4 +110,8 @@ def meldung_dialog(text, details):
                     "ausgeführt. Bereits gespeicherte Daten bleiben erhalten, das Programm läuft weiter.\n\n" + text
                     + (f"\n\nDetails stehen im Protokoll:\n{pfad}" if pfad else ""))
     m.setDetailedText(details)
+    knopf = m.addButton("Support-Paket …", QMessageBox.ActionRole) if SUPPORT is not None else None
+    m.addButton(QMessageBox.Ok)
     m.exec()
+    if knopf is not None and m.clickedButton() is knopf:
+        SUPPORT()

@@ -461,6 +461,16 @@ class StammdatenSeite(QWidget):
             einlesen.clicked.connect(self.kunden_importieren)
             leiste.addWidget(export)
             leiste.addWidget(einlesen)
+            auskunft = QPushButton("Datenauskunft (PDF) …")
+            auskunft.setToolTip("Datenschutz: PDF mit allen gespeicherten Daten zum gewählten Kunden (Kundenstamm, "
+                                "Angebote, Mail-Adressen)")
+            auskunft.clicked.connect(lambda: self.datenauskunft())
+            anonym = QPushButton("Anonymisieren …")
+            anonym.setToolTip("Datenschutz (nur Admin): Ansprechpartner, Telefon und Mails des gewählten Kunden "
+                              "entfernen; Preise und Zahlen bleiben")
+            anonym.clicked.connect(lambda: self.anonymisieren())
+            leiste.addWidget(auskunft)
+            leiste.addWidget(anonym)
         if tabelle.name == "profile":
             rp = QPushButton("RP-Profile aus MegaCAD laden …")
             rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
@@ -512,6 +522,10 @@ class StammdatenSeite(QWidget):
             for i, (art, f) in enumerate(self.modell.spalten):
                 if art == "feld" and f.name.startswith("teuerung_"):
                     self.ansicht.setColumnHidden(i, not an)
+            co2 = funktionen.an("funktion_co2") or any(z.get("co2_faktor") for z in self.modell.daten)
+            for i, (art, f) in enumerate(self.modell.spalten):
+                if art == "feld" and f.name == "co2_faktor":
+                    self.ansicht.setColumnHidden(i, not co2)
 
     def doppelklick_setzen(self, aktion, tooltip):
         """Doppelklick auf eine Zeile ruft aktion(Zeile als dict) auf statt die Zelle zu bearbeiten (Tippen und F2
@@ -597,6 +611,57 @@ class StammdatenSeite(QWidget):
         if pfad:
             self.meldung(f"Kunden exportiert: {pfad}")
         return pfad
+
+    def datenauskunft(self, kundennr=None, pfad=None):
+        """Kunden → Datenauskunft (PDF) … (Vorschlag S3a). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import datenschutz
+        kundennr = kundennr or (self.ausgewaehlt() or {}).get("kundennr")
+        if not kundennr:
+            self.meldung("Bitte zuerst einen Kunden wählen.", fehler=True)
+            return None
+        if pfad is None:
+            vorschlag = str(Path.home() / f"Datenauskunft_{kundennr}.pdf")
+            pfad, _ = QFileDialog.getSaveFileName(self, "Datenauskunft speichern", vorschlag, "PDF (*.pdf)")
+            if not pfad:
+                return None
+        try:
+            datenschutz.auskunft_pdf(pfad, datenschutz.auskunft(self.db, kundennr), self.db.einstellungen())
+        except OSError as e:
+            self.meldung(f"Datenauskunft: {e}", fehler=True)
+            return None
+        self.meldung(f"Datenauskunft gespeichert: {pfad}")
+        if not getattr(self.window(), "stumm", False):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad)))
+        return pfad
+
+    def anonymisieren(self, kundennr=None, alles=None):
+        """Kunden → Anonymisieren … (nur Admin, Vorschlag S3a). alles: True/False = ohne Rückfrage (Tests).
+        Ergebnis: dict wie datenschutz.anonymisieren oder None."""
+        from . import datenschutz
+        if not admin_schutz.ist_admin(self.db):
+            self.meldung("Anonymisieren darf nur der Admin (Schloss oben in den Einstellungen).", fehler=True)
+            return None
+        z = self.ausgewaehlt() or {}
+        kundennr = kundennr or z.get("kundennr")
+        if not kundennr:
+            self.meldung("Bitte zuerst einen Kunden wählen.", fehler=True)
+            return None
+        if alles is None:
+            m = QMessageBox(QMessageBox.Warning, "Kunde anonymisieren",
+                            f"Ansprechpartner, Telefon und Mail von {kundennr} {z.get('name') or ''} sowie die "
+                            "Mail-Adressen im Versandverlauf seiner Angebote endgültig entfernen? Preise, Mengen und "
+                            "Positionen bleiben für Auswertungen. Das lässt sich nicht rückgängig machen (nur über "
+                            "eine Datensicherung).", QMessageBox.Yes | QMessageBox.Cancel, self)
+            haken = QCheckBox("Auch Name und Anschrift (Privatperson)")
+            m.setCheckBox(haken)
+            if m.exec() != QMessageBox.Yes:
+                return None
+            alles = haken.isChecked()
+        e = datenschutz.anonymisieren(self.db, kundennr, alles=alles)
+        self.neu_laden()
+        self.meldung(datenschutz.text(e))
+        return e
 
     def kunden_importieren(self, pfad=None, bestaetigt=None, nur_neue=False):
         """CSV-Import mit Vorschau (kunden_csv_dialog). Ergebnis: (neu, geändert, Sicherung) oder None."""
@@ -1808,6 +1873,8 @@ class Hauptfenster(QMainWindow):
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
+        from . import protokoll
+        protokoll.SUPPORT = lambda: self.support_paket()     # Knopf „Support-Paket …“ in der Fehlermeldung (S2a)
         try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.28 entfernt)
             db.zeichnungen_entfernen(self.ablage_lokal())
         except OSError:
@@ -1931,6 +1998,7 @@ class Hauptfenster(QMainWindow):
             fenster_merken.sitzung_wiederherstellen(self)
             QTimer.singleShot(200, self._start_teilen)
             QTimer.singleShot(800, self._start_systempruefung)
+            QTimer.singleShot(1500, self._start_datenschutz)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
@@ -2130,6 +2198,9 @@ class Hauptfenster(QMainWindow):
         a = QAction("Systemprüfung …", self)
         a.triggered.connect(lambda: self.systempruefung_zeigen())
         hilfe.addAction(a)
+        a = QAction("Support-Paket erstellen …", self)
+        a.triggered.connect(lambda: self.support_paket())
+        hilfe.addAction(a)
         a = QAction("Lizenz …", self)
         a.triggered.connect(lambda: self.lizenz_zeigen())
         hilfe.addAction(a)
@@ -2295,6 +2366,41 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
+    def support_paket(self, mit_angebot=None, oeffnen=True):
+        """Hilfe → Support-Paket erstellen … (Vorschlag S2a): ZIP in Daten/Support, danach den Ordner öffnen.
+        mit_angebot: True/False = ohne Rückfrage (Tests); None = fragen (Haken „offenes Angebot beilegen“, Vorgabe
+        aus). Ergebnis: dict wie support.erstellen oder None (abgebrochen)."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtWidgets import QCheckBox
+        from . import support
+        w = self.reiter.currentWidget()
+        offen = next((aid for aid, s in self.offen.items() if s is w), None)
+        if mit_angebot is None:
+            m = QMessageBox(QMessageBox.Question, "Support-Paket erstellen",
+                            "ZIP mit Fehlerprotokoll, Version, Lizenzstand, Systemprüfung und Einstellungen (ohne "
+                            "Kunden, Preise und Passwörter) erstellen? Den Versand an den Support machst du selbst.",
+                            QMessageBox.Ok | QMessageBox.Cancel, self)
+            haken = QCheckBox("Offenes Angebot beilegen")
+            haken.setEnabled(offen is not None)
+            m.setCheckBox(haken)
+            if m.exec() != QMessageBox.Ok:
+                return None
+            mit_angebot = haken.isChecked()
+        try:
+            lt = self.lizenz.text() if self.lizenz is not None else "ohne Lizenzprüfung"
+        except Exception as f:
+            lt = f"nicht lesbar ({type(f).__name__})"
+        try:
+            e = support.erstellen(self.db, lizenz_text=lt, angebot_id=offen if mit_angebot else None)
+        except OSError as f:
+            QMessageBox.warning(self, "Support-Paket", f"Das Support-Paket ließ sich nicht schreiben: {f}")
+            return None
+        if oeffnen:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(e["pfad"]).parent)))
+            QMessageBox.information(self, "Support-Paket", support.text(e))
+        return e
+
     def systempruefung_zeigen(self, zeilen=None):
         """Hilfe → Systemprüfung …: dieser Rechner gegen die Systemvoraussetzungen (systempruefung.py)."""
         from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser
@@ -2323,6 +2429,18 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def _start_datenschutz(self):
+        """Datenschutz-Frist (Einstellung datenschutz_jahre, Vorgabe aus) höchstens einmal am Tag (S3a)."""
+        from . import datenschutz
+        try:
+            erg = datenschutz.beim_start(self.db)
+        except (sqlite3.Error, OSError):
+            return None
+        if erg and (erg["mails"] or erg["kunden"]):
+            self.meldung(f"Datenschutz-Frist: {erg['mails']} Mail-Adresse(n) in {erg['angebote']} abgelehnten "
+                         f"Angeboten entfernt, {erg['kunden']} Kunde(n) anonymisiert.")
+        return erg
 
     def _start_systempruefung(self):
         """7a: einmal nach Installation bzw. Update prüfen und nur warnen, wenn etwas unter dem Minimum liegt."""

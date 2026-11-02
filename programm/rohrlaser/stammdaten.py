@@ -275,7 +275,9 @@ WERKSTOFFE = Tabelle(
      # Teuerungs-/Legierungszuschlag (Schema 68, leer = kein Zuschlag; Plan 29.10.2026 1a)
      Feld("teuerung_art", "Teuerungszuschlag je", "auswahl", auswahl="teuerung", breite=95),
      Feld("teuerung_wert", "Teuerungszuschlag", "zahl", -50, 10000, stellen=2, breite=85),
-     Feld("teuerung_stand", "Teuerung Stand", "datum", breite=95)),
+     Feld("teuerung_stand", "Teuerung Stand", "datum", breite=95),
+     # CO₂-Bilanz (Vorschlag K3, Schema 72, leer = Richtwert der Kategorie; co2.py)
+     Feld("co2_faktor", "CO₂ [kg/kg]", "zahl", 0, 100, stellen=2, breite=80)),
     ("werkstoff_id",),
     "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Die Kategorie (Stahl, Edelstahl, "
     "Aluminium) ordnet die Auswahl im Angebot und liefert Schneiddaten und Oberflächen, wenn der Werkstoff keine "
@@ -289,7 +291,8 @@ WERKSTOFFE = Tabelle(
     "Kalkulation und Werkstattpapieren. Teuerungszuschlag (Legierungs-/Materialteuerungszuschlag, z. B. bei "
     "Edelstahl und Aluminium): je '%' auf den Materialpreis aus Lieferlängen, Preisen oder Tonnenpreis oder je "
     "'€/kg' auf das Stangengewicht; nicht auf Preise von Hand und Oberflächen-Aufpreise. Stand = Stichtag des "
-    "Zuschlags (z. B. Monat des Lieferanten); festgeschriebene Angebote behalten ihren Zuschlag.")
+    "Zuschlags (z. B. Monat des Lieferanten); festgeschriebene Angebote behalten ihren Zuschlag. CO₂ [kg/kg]: "
+    "kg CO₂ je kg Material für die CO₂-Bilanz (Funktion CO₂-Bilanz), leer = Richtwert der Kategorie.")
 
 OBERFLAECHEN = Tabelle(
     "oberflaechen", "Oberflächen",
@@ -943,6 +946,10 @@ EINSTELLUNGEN = (
     Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gas_faktor", "Korrekturfaktor Gasverbrauch", "Kalkulation", "zahl", 1.0, 0.1, 5),
     # Stundensatz-Ermittlung je Maschine (Patrick 29.10.2026, stundensatz.py): für alle Maschinen gleich
+    # CO₂-Bilanz je Teil (Vorschlag K3, co2.py)
+    Einstellung("co2_strom", "CO₂-Bilanz: Strommix [kg CO₂ je kWh]", "Kalkulation", "zahl", 0.38, 0, 2),
+    Einstellung("co2_kw", "CO₂-Bilanz: Leistung der Maschine, wenn dort keine steht [kW]", "Kalkulation", "zahl", 20.0,
+                0, 500),
     Einstellung("strompreis", "Stundensatz-Ermittlung: Strompreis [€/kWh]", "Kalkulation", "zahl", 0.25, 0, 10),
     Einstellung("raumkosten", "Stundensatz-Ermittlung: Raumkosten [€/m² im Monat]", "Kalkulation", "zahl", 8.0, 0,
                 1000),
@@ -1227,6 +1234,9 @@ EINSTELLUNGEN = (
     # Archiv alter Angebote (archiv.py, Vorschlag 5b 28.10.2026): Angebote älter als so viele volle Jahre
     Einstellung("archiv_jahre", "Archiv: archivierbar ab Alter in Jahren",
                 "Ablage", "ganz", 2, 1, 20),
+    # Datenschutz (datenschutz.py, Vorschlag S3a 02.11.2026): abgelehnte Angebote ab so vielen Jahren ohne Mail-Adressen
+    Einstellung("datenschutz_jahre", "Datenschutz: abgelehnte Angebote nach so vielen Jahren anonymisieren "
+                "(0 = aus)", "Ablage", "ganz", 0, 0, 30),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(PROFILFORMEN)),
     Einstellung("kategorien", "Werkstoff-Kategorien (eine je Zeile)", "Auswahllisten", "mehrzeilig",
@@ -1285,6 +1295,17 @@ EINSTELLUNGEN = (
                 "02.10.2026)", "Lager und Fertigung", "text", ""),
     Einstellung("termin_material_tage", "Termin nach Auslastung: Material-Lieferzeit [Arbeitstage] (0 = vorrätig)",
                 "Lager und Fertigung", "ganz", 3, 0, 120),
+    # Eilzuschlag (Vorschlag K2, Patrick 02.11.2026): Vorschlag bei „Termin prüfen …“, wenn der Wunschtermin vor dem
+    # frühesten freien Termin liegt; gilt erst, wenn er im Angebot übernommen ist
+    Einstellung("eil_tage", "Eilzuschlag: Stufe 1 bis so viele Arbeitstage zu früh", "Kalkulation", "ganz", 2, 1, 60),
+    Einstellung("eil_zuschlag_1", "Eilzuschlag Stufe 1 (auf die Fertigung)", "Kalkulation", "anteil", 0.15, 0, 5),
+    Einstellung("eil_zuschlag_2", "Eilzuschlag Stufe 2 (mehr Arbeitstage zu früh)", "Kalkulation", "anteil", 0.30, 0,
+                5),
+    # Prüfplan und Messprotokoll (Vorschlag S1, pruefplan.py)
+    Einstellung("pruef_toleranz", "Prüfplan: Toleranzen", "Lager und Fertigung", "auswahl", "ISO 2768-m",
+                auswahl="prueftoleranz"),
+    Einstellung("erstmuster_preis", "Prüfplan: Preis Erstmusterprüfung je Angebot [€] (0 = nicht anbieten)",
+                "Lager und Fertigung", "zahl", 85.0, 0, 100000),
     Einstellung("auslastung_vorlauf", "Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin",
                 "Lager und Fertigung", "ganz", 2, 0, 60),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
@@ -1346,7 +1367,7 @@ EINSTELLUNGEN = (
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
 ) + tuple(
     # Funktionen ein/aus (funktionen.py, Patrick 29.10.2026): ja = sichtbar, nein = ausgeblendet, Daten bleiben
-    Einstellung(f.name, f.titel, "Funktionen", "auswahl", "ja", auswahl="janein") for f in funktionen.FUNKTIONEN)
+    Einstellung(f.name, f.titel, "Funktionen", "auswahl", f.vorgabe, auswahl="janein") for f in funktionen.FUNKTIONEN)
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 
 
@@ -1491,6 +1512,7 @@ class Kontext:
                          "lieferzeitart": list(LIEFERZEIT_ARTEN),
                          "loeschschutz": list(LOESCHSCHUTZ), "zeitraum": list(ZEITRAUM),
                          "abnummer": ["wie Angebot", "eigener Nummernkreis"],
+                         "prueftoleranz": ["ISO 2768-f", "ISO 2768-m", "ISO 2768-c", "nach Kundenvorgabe"],
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),

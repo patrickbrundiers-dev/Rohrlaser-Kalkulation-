@@ -3449,6 +3449,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     stangen = ergebnis["stangen"] if ergebnis else []
     sw = stangen_werte(ergebnis, kopf, positionen, k, tabellen) if ergebnis else []
     zm, zf, gew = (_n(einstellungen.get(n)) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn"))
+    eil = _n(einstellungen.get("eilzuschlag"))     # Eilzuschlag des Angebots auf die Fertigung (Vorschlag K2)
+    zf += eil
     selbst_basis = gewinn_auf_selbstkosten(einstellungen)
     neu = neue_preisregeln(einstellungen)
     ruest = _n(zb["maschine"].get("ruestzeit"))
@@ -3813,6 +3815,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # Abruf-/Rahmenangebot: Kennzahlen für Kostenübersicht, PDF und Staffeln
     summen.update(abruf=bool(ab), abruf_n=ab["n"] if ab else None, programmierung_voll=prog_voll,
                   lagerzins=_summe("lagerzins_teil"), lagerzins_satz=100 * ab["zins"] if ab else 0.0)
+    summen.update(eilzuschlag_satz=100 * eil,
+                  eilzuschlag=summen["zuschlag_fertigung"] * eil / zf if eil > 0 and zf > 0 else 0.0)
     summen.update(verkauf_kalkuliert=kalkuliert, mindestpreis=mindest, mindestpreis_gilt=faktor > 1,
                   mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
@@ -4214,7 +4218,9 @@ def kostenarten(summen, einst):
                            "Jahresmenge umgelegt)" if summen.get("abruf") and summen.get("programmierung_voll") else ""),
         "stangenwechsel_kosten": f" ({summen['beladungen']} × {z(summen['stangenwechsel'])} s)",
         "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
-        "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
+        "zuschlag_fertigung": (f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %"
+                               + (f" + Eilzuschlag {z(summen.get('eilzuschlag_satz', 0))} % = "
+                                  f"{z(summen.get('eilzuschlag', 0), 2)} €" if summen.get("eilzuschlag") else "") + ")"),
         "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",
         "gewinn": f" ({z(100 * _n(summen['gewinn_satz'] if summen.get('gewinn_gestaffelt') else einst.get('gewinn')))} %"
                   + (" gestaffelt" if summen.get("gewinn_gestaffelt") else "") + " auf "

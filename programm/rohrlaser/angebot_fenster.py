@@ -1907,6 +1907,10 @@ class AngebotSeite(AusgabeMixin, QWidget):
         # Auftragsbestätigung (Plan 29.10.2026 1c): im Layout des Angebots, mit Bestellnummer und Liefertermin
         fa.append((menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf()), "funktion_ab"))
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
+        # Prüfplan und Messprotokoll aus den Sollmaßen der STEP (Vorschlag S1, pruefplan.py)
+        menue.addAction("Prüfplan / Messprotokoll (PDF) …", lambda: self.pruefplan_pdf())
+        # Übergabeordner fürs Rohr-CAM: STEP je Position, Stückliste, Schnittplan (Vorschlag S4, cam_paket.py)
+        menue.addAction("Übergabe an CAM (Ordner) …", lambda: self.cam_paket())
         # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
         fa.append((menue.addAction("Etiketten mit QR-Code (PDF) …", lambda: self.etiketten_pdf()), "funktion_etiketten"))
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
@@ -2597,12 +2601,24 @@ class AngebotSeite(AusgabeMixin, QWidget):
         if t is None or t.datum is None:
             self.f.meldung(text, fehler=t is None)
             return t
+        land = self.db.einstellung("versand_bundesland") or None
+        eil = terminplan.eil_vorschlag(t, zugesagt, self.db.einstellungen(), land)
+        if eil:
+            text += (f" Wunschtermin {eil[0]} Arbeitstag{'e' if eil[0] > 1 else ''} zu früh: Vorschlag Eilzuschlag "
+                     f"{rechnen.zahl(100 * eil[1], 0)} % auf die Fertigung.")
         if antwort is None and not self.f.stumm:
             box = QMessageBox(QMessageBox.Information, "Liefertermin nach Auslastung", text, parent=self)
             ja = box.addButton(f"Als Lieferzeit übernehmen (KW {t.datum.isocalendar()[1]})", QMessageBox.AcceptRole)
+            eil_knopf = box.addButton(f"Termin halten mit Eilzuschlag {rechnen.zahl(100 * eil[1], 0)} %",
+                                      QMessageBox.YesRole) if eil and not self.fremd() else None
             box.addButton("Schließen", QMessageBox.RejectRole)
             box.exec()
             antwort = box.clickedButton() is ja
+            if eil_knopf is not None and box.clickedButton() is eil_knopf:
+                antwort = "eil"
+        if antwort == "eil" and eil:
+            self.eilzuschlag_setzen(100 * eil[1])
+            return t
         if antwort:
             self.db.angebot_aendern(self.id, "lieferzeit_art", KALENDERWOCHE)
             self.db.angebot_aendern(self.id, "lieferzeit_wert", terminplan.kw_wert(t.datum))
@@ -2610,6 +2626,16 @@ class AngebotSeite(AusgabeMixin, QWidget):
             self.f.meldung(f"Lieferzeit auf KW {terminplan.kw_wert(t.datum)} gesetzt. {text}")
         else:
             self.f.meldung(text)
+        return t
+
+    def eilzuschlag_setzen(self, prozent):
+        """Eilzuschlag des Angebots [%] setzen (Vorschlag K2; 0/None = keiner). Ergebnis: Meldungstext."""
+        vorher = self._verkauf()
+        self.db.angebot_aendern(self.id, "eilzuschlag", prozent or None)
+        self.neu_laden()
+        t = (f"Eilzuschlag {rechnen.zahl(prozent, 1)} % auf die Fertigung gesetzt. " if prozent else
+             "Eilzuschlag entfernt. ") + (preis_aenderung(vorher, self._verkauf()) if vorher is not None else "")
+        self.f.meldung(t)
         return t
 
     def abruf_bearbeiten(self, werte=None):
@@ -2636,6 +2662,31 @@ class AngebotSeite(AusgabeMixin, QWidget):
         self.f.meldung("Abruf-/Rahmenangebot gespeichert. " + (preis_aenderung(vorher, self._verkauf())
                                                                  if vorher is not None else ""))
         return True
+
+    def gleitklausel_pruefen(self, antwort=None):
+        """Knopf „Gleitklausel prüfen …“ (Vorschlag K1, gleitklausel.py): festgeschriebene Materialpreise gegen die
+        aktuellen; „Neue Materialpreise übernehmen“ setzt sie in die Preisbasis (nur Material) und vermerkt die
+        Anpassung im Versandverlauf. antwort: True = übernehmen, False = nur ansehen (Tests). Ergebnis: Vergleich."""
+        from . import gleitklausel
+        v = gleitklausel.pruefen(self.kopf, self.positionen, self.ergebnis, self.k_aktuell, self.tabellen_aktuell,
+                                 self.einst)
+        if v.get("fehlt"):
+            self.f.meldung(v["fehlt"], fehler=True)
+            return v
+        if antwort is None and not self.f.stumm:
+            box = QMessageBox(QMessageBox.Information, "Gleitklausel Material", gleitklausel.text(v), parent=self)
+            ja = box.addButton("Neue Materialpreise übernehmen", QMessageBox.AcceptRole)
+            box.addButton("Schließen", QMessageBox.RejectRole)
+            if self.fremd() or self.db.nur_lesen:
+                ja.setEnabled(False)
+            box.exec()
+            antwort = box.clickedButton() is ja
+        if antwort and not (self.fremd() or self.db.nur_lesen):
+            self.db.preisbasis_speichern(self.id, v["preisbasis"])
+            self.db.versand_merken(self.id, gleitklausel.eintrag(v))
+            self.neu_laden()
+            self.f.meldung(gleitklausel.verlauf_text(gleitklausel.eintrag(v)).split(": ", 1)[1])
+        return v
 
     def abruf_umschalten(self, an):
         """Haken „Abruf-/Rahmenangebot“: an ohne Jahres-/Abrufmenge öffnet das Fenster, aus behält die Werte."""
@@ -2804,7 +2855,8 @@ class AngebotSeite(AusgabeMixin, QWidget):
             laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k)
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
-            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich()))
+            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
+            + self._wiederholteil_punkte())
 
     def _preis_vergleich(self):
         """€/kg je Abmessung aus früher verschickten Angeboten (Plan C3), einmal je geöffnetem Angebot gelesen."""
@@ -2904,7 +2956,10 @@ class AngebotSeite(AusgabeMixin, QWidget):
         self._punkte = punkte
         self._schritte_setzen()
         kosten = rechnen.kostenarten(summen, self.einst)
-        self.uebersicht_bereich.kosten_setzen(kosten)
+        from . import co2
+        self.uebersicht_bereich.kosten_setzen(kosten, co2.text(co2.angebot(self.kopf, self.positionen, zeilen, self.k,
+                                                                         self.einst))
+                                              if funktionen.an("funktion_co2", self.db) else None)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
         stand = self.stand_optimierung()
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
@@ -4508,6 +4563,15 @@ class AngebotSeite(AusgabeMixin, QWidget):
         if "treffer" in ende:
             self._wt_kennung, self._wt = kennung, ende["treffer"]
         self.wiederholteile_anzeigen()
+
+    def _wiederholteil_punkte(self):
+        """Hinweise aus der Nachkalkulation von Wiederholteilen für den Angebots-Check (Vorschlag K4)."""
+        from . import wiederholteile
+        try:
+            treffer = self.wiederholteile_suchen(warten=False) or getattr(self, "_wt", None) or {}
+        except Exception:           # Prüfhinweis nie wichtiger als der Check selbst
+            return []
+        return wiederholteile.check_punkte(treffer, self.positionen)
 
     def wiederholteile_anzeigen(self):
         treffer = self.wiederholteile_suchen(warten=False)

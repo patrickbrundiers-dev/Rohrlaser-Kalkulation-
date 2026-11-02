@@ -80,10 +80,13 @@ KALKULATION = (
     # die Spalte angebote.mindestpreis älterer Dateien wird nicht mehr gelesen.
     # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je m der beigestellten Stangen; 0 = keins
     Feld("handling_beistellung", "Handling Kundenmaterial [€/m]", "zahl", 0, 1000, stellen=3),
+    # Eilzuschlag (Vorschlag K2, Patrick 02.11.2026): zusätzlich zum Zuschlag Fertigung auf Laser, Rüsten, Arbeitsgänge
+    # und eigene Zusatzarbeiten, wenn der Wunschtermin vor dem frühesten freien Termin liegt; leer/0 = keiner
+    Feld("eilzuschlag", "Eilzuschlag Fertigung [%]", "zahl", 0, 500, stellen=1),
 )
-KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn")
+KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn", "eilzuschlag")
 # Kalkulationswerte, bei denen leer nicht „wie Einstellungen“ heißt, sondern „wie vor dem Feld“ (ältere Angebote)
-KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur", "ruesten_angebot_eur")
+KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur", "ruesten_angebot_eur", "eilzuschlag")
 KOPF = KOPF + KALKULATION
 
 

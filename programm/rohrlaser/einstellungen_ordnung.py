@@ -42,7 +42,8 @@ SEITEN = (
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
-           _a("Archiv", "archiv_jahre"))),
+           _a("Archiv", "archiv_jahre"),
+           _a("Datenschutz", "datenschutz_jahre"))),
     Seite("e_zuschlaege", "Zuschläge und Preise",
           "Vorgaben für neue Angebote; im Angebot lassen sie sich je Angebot ändern. " + ALLE_PLAETZE,
           (_a("Zuschläge und Gewinn", "zuschlag_material zuschlag_fertigung zuschlag_fremdleistung aufschlag_blech "
@@ -50,7 +51,8 @@ SEITEN = (
            _a("Rüsten und Programmieren", "ruesten_abmessung ruesten_abmessung_eur ruesten_angebot_eur "
                                           "pauschale_abmessung programmierung_zeit programmierung_kontur "
                                           "pruefzeit_anbau"),
-           _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"))),
+           _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"),
+           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"))),
     Seite("e_gewinn_gestaffelt", "Gewinn gestaffelt",
           "Gewinn in bis zu 5 Stufen nach dem Auftragswert statt des festen Gewinns; Grenze 1 leer = aus. "
           + ALLE_PLAETZE,
@@ -61,6 +63,7 @@ SEITEN = (
           "lässt. " + ALLE_PLAETZE,
           (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss schrott_anteil preiseinheit_ab"),
            _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 gas_faktor"),
+           _a("CO₂-Bilanz", "co2_strom co2_kw"),
            _a("Stundensatz ermitteln", "strompreis raumkosten zinssatz bediener_satz gemeinkosten arbeitstage "
                                        "auslastung_jahr", experte=True))),
     Seite("e_neue_angebote", "Neue Angebote", ALLE_PLAETZE,
@@ -117,7 +120,8 @@ SEITEN = (
           (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),)),
     Seite("e_fertigung", "Fertigung", ALLE_PLAETZE,
           (_a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
-           _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"))),
+           _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
+           _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
                                         "auslastung_vorlauf versand_bundesland"),

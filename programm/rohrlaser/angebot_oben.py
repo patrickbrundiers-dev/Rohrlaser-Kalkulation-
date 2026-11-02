@@ -29,7 +29,7 @@ GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung", "ruesten_abmessung_eur", "ruesten_angebot_eur", "programmierung_zeit",
                          "programmierung_kontur")),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht")),
+    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht", "eilzuschlag")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)
@@ -232,6 +232,9 @@ def _versand_text(v):
                 f"netto ({v.get('datei') or 'PDF'})")
     if v.get("art") == "mail":          # Angebot per E-Mail (angebot_mail.py)
         from .angebot_mail import verlauf_text
+        return verlauf_text(v)
+    if v.get("art") == "gleitklausel":  # Materialpreis-Gleitklausel (gleitklausel.py)
+        from .gleitklausel import verlauf_text
         return verlauf_text(v)
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
@@ -447,6 +450,11 @@ class KopfBereich(QWidget):
         self.abruf_kurz.setStyleSheet(f"color: {GRAU};")
         al.addWidget(self.abruf_an)
         al.addWidget(self.abruf_knopf)
+        self.gleit_knopf = QPushButton("Gleitklausel prüfen …")
+        self.gleit_knopf.setToolTip("Materialklausel (Vorschlag K1): festgeschriebene Materialpreise gegen die aktuellen; "
+                                    "über der Schwelle (Einstellung Materialklausel) neue Materialpreise übernehmen")
+        self.gleit_knopf.clicked.connect(lambda: seite.gleitklausel_pruefen())
+        al.addWidget(self.gleit_knopf)
         al.addStretch(1)
         av.addLayout(al)
         av.addWidget(self.abruf_kurz)
@@ -882,6 +890,9 @@ class KopfBereich(QWidget):
         self.abruf_an.setChecked(abruf.aktiv(s.kopf))
         self.abruf_an.blockSignals(False)
         self.abruf_knopf.setVisible(abruf.aktiv(s.kopf))
+        ab = abruf.daten(s.kopf)
+        self.gleit_knopf.setVisible(bool(ab) and not ab["bevorraten"])
+        self.gleit_knopf.setEnabled(isinstance(s.kopf.get("preisbasis"), dict))
         self.abruf_kurz.setText(abruf.kurz(s.kopf))
         self.abruf_wahl.setVisible(abruf.aktiv(s.kopf) or funktionen.an("funktion_abruf"))
         self._abweichungen_anzeigen()
@@ -1397,13 +1408,13 @@ class UebersichtBereich(QWidget):
         for name, text in werte.items():
             self.kennzahl[name].setText(text)
 
-    def kosten_setzen(self, kosten):
+    def kosten_setzen(self, kosten, co2=None):
         """kosten: rechnen.kostenarten(...). Oben die Gruppen (rechnen.KOSTEN_GRUPPEN), aufklappbar jede Kostenart
         einzeln. Zeilen mit 0,00 € sind ausgeblendet, Herstellkosten und Verkaufspreis immer sichtbar."""
         betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
         for name, w in self.preis.items():
             w.setText(f"{_z(betrag[name][1])} €")
-        self._kosten = kosten
+        self._kosten, self._co2 = kosten, co2
         linie = "border-top:1px solid #C9D0D8"
         html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>"
                 f"<b>Preisaufbau</b></td></tr>")
@@ -1428,6 +1439,8 @@ class UebersichtBereich(QWidget):
                     for n in einzeln:
                         html += (f"<tr><td style='color:{GRAU};padding-left:14px'>{betrag[n][0]}</td>"
                                  f"<td align='right' style='color:{GRAU}'>{_z(betrag[n][1])} €</td></tr>")
+        if co2:          # CO₂-Bilanz (Vorschlag K3, nur mit Funktion „CO₂-Bilanz“)
+            html += f"<tr><td colspan='2' style='color:{GRAU};{linie}'>{co2}</td></tr>"
         self.uebersicht.setText(html + "</table>")
         html = "<table width='100%' cellpadding='1' cellspacing='0'>"
         for t, w, fett in kosten:
@@ -1442,7 +1455,7 @@ class UebersichtBereich(QWidget):
         """Klick auf eine Gruppe im Preisaufbau: ihre Kostenarten auf- oder zuklappen."""
         self.offene_gruppen ^= {titel}
         if self._kosten is not None:
-            self.kosten_setzen(self._kosten)
+            self.kosten_setzen(self._kosten, getattr(self, "_co2", None))
 
     def zeiten_setzen(self, k):
         """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten aufgeschlüsselt: Maschine und Personal aufklappbar je
