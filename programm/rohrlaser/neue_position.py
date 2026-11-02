@@ -12,6 +12,7 @@ DXF = "Aus DXF (Blech oder Rohr)"
 SCHWEISS = "Schweißbaugruppe"
 RAHMEN = "Rahmen-Assistent"
 UEBERNEHMEN = "Aus anderem Angebot"
+VORLAGE = "Aus Vorlage"                # Positionsvorlagen (Vorschlag H6a, positionsvorlagen.py)
 PDF = "Aus PDF-Zeichnung (Test)"       # nur mit Einstellung pdf_zeichnung = ja (Plan W7 Stufe 1)
 TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und Stückzahl, dazu Enden, Bohrungen und "
                "Konturen im Schneidweg-Rechner mit Skizze.",
@@ -31,6 +32,8 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
          UEBERNEHMEN: "Positionen aus einem anderen Angebot (auch eines Kollegen) als neue Positionen kopieren: mit "
                       "allen Eingaben, Technik, Zusatzarbeiten, Baugruppe bzw. Satz und 3D; der Preis wird neu "
                       "kalkuliert.",
+         VORLAGE: "Position aus einer gespeicherten Positionsvorlage (für alle Arbeitsplätze): Profil, Werkstoff, Länge, "
+                  "Eingaben, Zusatzarbeiten, Gewinde und Naht; Stückzahl und Preis kommen neu.",
          LEER: "Leere Zeile in der Positionsliste, alle Werte von Hand eintragen."}
 
 

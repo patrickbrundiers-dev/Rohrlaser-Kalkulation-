@@ -10,7 +10,8 @@ from .stammdaten import zahl_als_text, zahl_aus_text
 
 SPALTEN = (("Kennung", "kennung"), ("Art", "art"), ("Profil-ID", "profil"), ("Werkstoff-ID", "werkstoff"),
            ("Oberfläche", "oberflaeche"), ("Länge [mm]", "laenge"), ("Bestand", "anzahl"), ("reserviert", "reserviert"),
-           ("verfügbar", "verfuegbar"), ("Charge", "charge"), ("Lagerort", "lagerort"), ("Herkunft", "herkunft"))
+           ("verfügbar", "verfuegbar"), ("Charge", "charge"), ("Lagerort", "lagerort"), ("Herkunft", "herkunft"),
+           ("Werkszeugnis", "zeugnis_name"))
 BUCHUNG_SPALTEN = (("Zeit", "zeit"), ("Buchung", "art"), ("Kennung", "kennung"), ("Angebot", "nummer"),
                    ("Anzahl", "anzahl"), ("Länge [mm]", "laenge"), ("Text", "text"), ("Kürzel", "kuerzel"))
 PLAN_SPALTEN = (("Stange", "nr"), ("Profil-ID", "profil"), ("Werkstoff-ID", "werkstoff"), ("Länge Plan [mm]", "stange"),
@@ -108,7 +109,9 @@ class LagerSeite(QWidget):
         for text, ziel, tip in (("Zugang …", self.zugang, "Stangen oder Reststücke ins Lager buchen"),
                                 ("Bestand korrigieren …", self.korrigieren, "Bestand des markierten Postens setzen "
                                  "(Inventur)"),
-                                ("Ausbuchen …", self.ausbuchen, "Markierten Posten ganz ausbuchen (Schrott, verkauft)")):
+                                ("Ausbuchen …", self.ausbuchen, "Markierten Posten ganz ausbuchen (Schrott, verkauft)"),
+                                ("Werkszeugnis …", self.zeugnis, "Werkszeugnis (PDF) an den markierten Posten hängen; "
+                                 "beim Lieferschein mit „Werkszeugnis 3.1 verlangt“ wird es mitgesammelt")):
             b = QPushButton(text)
             b.setToolTip(tip)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
@@ -177,6 +180,24 @@ class LagerSeite(QWidget):
         self.neu_laden()
         self.f.meldung(f"Lager: {z['kennung']} auf {anzahl} gesetzt.")
         return True
+
+    def zeugnis(self, pfad=None):
+        """Werkszeugnis (PDF) an den markierten Posten hängen (Vorschlag F5a). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        z = self._gewaehlt()
+        if z is None:
+            return self.f.meldung("Lager: bitte einen Posten markieren.", fehler=True)
+        if pfad is None:
+            pfad, _ = QFileDialog.getOpenFileName(self, f"Werkszeugnis für {z['kennung']}", "", "PDF (*.pdf)")
+            if not pfad:
+                return None
+        try:
+            lager.zeugnis_setzen(self.db, z["id"], str(pfad))
+        except (ValueError, PermissionError) as e:
+            return self.f.meldung(str(e), fehler=True)
+        self.neu_laden()
+        self.f.meldung(f"Lager: Werkszeugnis an {z['kennung']} gehängt.")
+        return pfad
 
     def ausbuchen(self, grund=None):
         z = self._gewaehlt()

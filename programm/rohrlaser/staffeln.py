@@ -82,7 +82,7 @@ EINSTELLUNG_FELDER = (
     Feld("bezeichnung", "Bezeichnung", breite=160),
     STUFE_FELD["gewinn"],
     *[f for f in KALKULATION if f.name not in ("gewinn", "aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur",
-                                               "ruesten_angebot_eur")],
+                                               "ruesten_angebot_eur", "rabatt", "frachtfrei_ab", "mindestwert")],
     _KOPF_FELD["fracht"], _KOPF_FELD["skonto"],
     *(STUFE_FELD[n] for n in ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten",
                               "arbeitsgang", "arbeitsgang_min", "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit",

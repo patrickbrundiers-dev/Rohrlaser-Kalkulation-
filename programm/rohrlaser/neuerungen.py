@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.234", "Weitere Vorschläge für Kalkulation und Ablauf: <b>Maschinen vergleichen</b> im Kopf "
+     "([[maschinen_vergleich]]), <b>Sperrtage je Maschine</b> ([[sperrtage]]), <b>Fassungsvergleich</b> "
+     "([[fassung_vergleich]]), <b>Teilekatalog je Kunde</b> ([[teilekatalog]]). <b>Preisregeln</b> (alle aus, bis man "
+     "sie einschaltet): Runden von Stück- oder Gesamtpreis, Kundenkonditionen Rabatt, frachtfrei ab Warenwert und "
+     "Mindestauftragswert, Verpackung aus den Stammdaten, Finanzierung über das Zahlungsziel ([[preisregeln]]), "
+     "Neuteil-Zuschlag und mannlose Laufzeit je Maschine ([[neuteil_mannlos]]). <b>Preisuntergrenze und Zielpreis "
+     "rückwärts</b> ([[zielpreis]]), Hinweise zu Auslastung und Marktpreis aus Absagen ([[kalk_hinweise]]), "
+     "<b>Vier-Augen-Freigabe</b> ([[freigabe]]), <b>Rückfrage an Kunden</b> ([[rueckfrage]]), <b>Positionsvorlagen</b> "
+     "([[positionsvorlagen]]), <b>Offene Angebote prüfen</b> und <b>Monatsbericht</b> ([[offene_pruefen]]), "
+     "<b>Lieferantenangebote</b> mit Bewertung ([[lieferantenangebote]]), <b>Lieferschein</b> mit Teillieferung und "
+     "Werkszeugnissen ([[lieferschein]]), <b>Laserzeit per Scan</b> für die Nachkalkulation ([[laserzeit_scan]]).",
+     "Maschinenvergleich, Preisregeln, Zielpreis, Freigabe, Rückfrage, Vorlagen, Lieferschein, Lieferantenangebote, "
+     "Scan-Zeit"],
     ["0.9.233", "Neun Verbesserungen für Kalkulation und System: <b>Gleitklausel Material</b> bei Abruf-Angeboten "
      "([[gleitklausel]]): festgeschriebene gegen aktuelle Materialpreise, ab ±5 % fällig, nur Material gleitet, "
      "Übernehmen mit Vermerk im Versandverlauf. <b>Eilzuschlag</b> ([[eilzuschlag]]): Feld im Kopf und Vorschlag aus "

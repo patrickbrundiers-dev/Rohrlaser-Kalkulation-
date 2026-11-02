@@ -60,6 +60,9 @@ class LagerFehler(ValueError):
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
+    # Werkszeugnis je Posten (Vorschlag F5, 02.11.2026): Pfad der PDF-Datei, leer = keins
+    if "zeugnis" not in {r[1] for r in con.execute("PRAGMA table_info(lager_bestand)")}:
+        con.execute("ALTER TABLE lager_bestand ADD COLUMN zeugnis TEXT")
 
 
 def _jetzt():
@@ -114,6 +117,7 @@ def bestand(db, mit_leeren=False):
     for r in rows:
         z = dict(r)
         z["verfuegbar"] = (z["anzahl"] or 0) - z["reserviert"]
+        z["zeugnis_name"] = str(z.get("zeugnis") or "").replace("\\", "/").rsplit("/", 1)[-1]
         if mit_leeren or (z["anzahl"] or 0) > 0:
             out.append(z)
     return out
@@ -430,6 +434,22 @@ def angebot_geloescht(db, angebot_id):
     a = auftrag(db, angebot_id)
     if a and a["status"] == "reserviert":
         freigeben(db, angebot_id, "Angebot gelöscht")
+
+
+def zeugnis_setzen(db, bestand_id, pfad):
+    """Werkszeugnis (PDF) an einen Posten hängen; pfad None = entfernen (Vorschlag F5)."""
+    _schreiben(db)
+    with db.con:
+        db.con.execute("UPDATE lager_bestand SET zeugnis=?, geaendert=? WHERE id=?", (pfad or None, _jetzt(), bestand_id))
+
+
+def zeugnisse(db, angebot_id):
+    """Posten, die für das Angebot reserviert oder verbraucht sind: [dict(kennung, charge, profil, werkstoff, zeugnis)]
+    (ohne freigegebene Reservierungen)."""
+    sql = ("SELECT DISTINCT b.kennung, b.charge, b.profil, b.werkstoff, b.zeugnis FROM lager_reservierung r "
+           "JOIN lager_bestand b ON b.id = r.bestand_id WHERE r.angebot_id=? AND COALESCE(r.status, '') != "
+           "'freigegeben' ORDER BY b.kennung")
+    return [dict(r) for r in db.con.execute(sql, (angebot_id,))]
 
 
 def verbrauch_je_charge(db):

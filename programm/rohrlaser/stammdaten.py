@@ -387,6 +387,10 @@ MASCHINEN = Tabelle(
      # Sperrtage je Maschine (Vorschlag F7, 02.11.2026): Wartung, Umbau, Stillstand wie die Betriebsruhe
      Feld("sperrtage", "Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)",
           breite=170),
+     # Mannlose Laufzeit (Vorschlag J3, 02.11.2026): ab so vielen Laserstunden je Los läuft die Maschine allein
+     # (Bundlader, Nacht) mit dem kleineren Satz; leer = aus
+     Feld("mannlos_ab", "Mannlos: ab Laufzeit je Los [h] (leer = aus)", "zahl", 0, 1000, stellen=1, breite=90),
+     Feld("mannlos_satz", "Mannlos: Stundensatz [€/h]", "zahl", 0, 10000, stellen=2, breite=85),
      # Stundensatz-Ermittlung je Maschine (Patrick 29.10.2026, stundensatz.py): von Hand (leer) oder ermittelt
      Feld("satz_art", "Stundensatz von Hand/ermittelt", "auswahl", auswahl="satzart", breite=95),
      Feld("gas_zusatz", "Gas zusätzlich zum Stundensatz", "auswahl", auswahl="janein", breite=90),
@@ -781,10 +785,14 @@ KUNDENVORGABEN = Tabelle(
      Feld("lieferzeit_zusatz", "Lieferbedingungen (Freitext)", breite=170),
      Feld("material_vorgabe", "Material neuer Positionen", "auswahl", auswahl="materialherkunft", breite=120),
      Feld("staffeln", "Standard-Staffeln (Faktoren, 0 = keine)", breite=120),
+     # Kundenkonditionen (Vorschlag G7, 02.11.2026)
+     Feld("rabatt", "Rabatt [%]", "zahl", 0, 50, stellen=1, breite=70),
+     Feld("frachtfrei_ab", "Frachtfrei ab Warenwert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
+     Feld("mindestwert", "Mindestauftragswert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("kundennr",),
     "Vorgaben je Kunde für neue Angebote: Wählen Sie im Angebot den Kunden, übernimmt das Programm Maschine, "
-    "Stangenlänge, Gewinn, Lieferzeit, Material und Standard-Staffeln von hier. Ein Feld im Angebot wird nur "
+    "Stangenlänge, Gewinn, Lieferzeit, Material, Standard-Staffeln, Rabatt, Frachtfrei ab und Mindestauftragswert von hier. Ein Feld im Angebot wird nur "
     "ersetzt, solange es noch die Vorgabe aus den Einstellungen (oder des vorher gewählten Kunden) hat. Leere "
     "Felder = Einstellungen.")
 
@@ -817,11 +825,38 @@ KONTUR_VORLAGEN = Tabelle(
     ("name", "art", "kunde"),
     "Kontur-Vorlagen (z. B. Bohrbild, Steckverbindung): im Teile-Editor speichern und in andere Teile einsetzen.")
 
+# Verpackung (Vorschlag G2, 02.11.2026): Packmittel mit Preis; die Kalkulation nimmt das billigste passende
+# (längstes Teil ≤ max. Länge, Anzahl = Gewicht ÷ max. Gewicht), preisschicht.py
+VERPACKUNG = Tabelle(
+    "verpackung", "Verpackung",
+    (Feld("name", "Packmittel", pflicht=True, breite=170),
+     Feld("preis", "Preis je Stück [€]", "zahl", 0, 100000, stellen=2, breite=85),
+     Feld("max_kg", "Max. Gewicht [kg]", "zahl", 0, 100000, stellen=1, breite=85),
+     Feld("max_laenge", "Max. Teillänge [mm]", "zahl", 0, 100000, stellen=0, breite=85),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("name",),
+    "Packmittel für die Kostenart Verpackung im Angebot (z. B. Europalette, Einwegpalette, Karton S/M/L). Das "
+    "Programm nimmt je Angebot das billigste Packmittel, in das das längste Teil passt; Anzahl = Gewicht ÷ max. "
+    "Gewicht. Leere Tabelle = keine Verpackungskosten. Im Angebot abschaltbar (Verpackung berechnen = nein).")
+
+# Positionsvorlagen (Vorschlag H6a, 02.11.2026): eine Position ohne Stückzahl und Preis als Vorlage (JSON in 'daten'),
+# für alle Arbeitsplätze (mit den Stammdaten geteilt), kein eigener Reiter (positionsvorlagen.py)
+POSITIONSVORLAGEN = Tabelle(
+    "positionsvorlagen", "Positionsvorlagen",
+    (Feld("name", "Vorlage", pflicht=True, breite=200),
+     Feld("inhalt", "Inhalt", breite=260),
+     Feld("daten", "Daten", breite=100),
+     Feld("angelegt", "Angelegt", breite=130),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("name",),
+    "Positionsvorlagen: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
+
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             PRUEFREGELN, SCHWEISSVERFAHREN,
             SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN,
-            ARBEITSGANG_REGELN)
+            ARBEITSGANG_REGELN, VERPACKUNG)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -1304,6 +1339,21 @@ EINSTELLUNGEN = (
     Einstellung("eil_zuschlag_1", "Eilzuschlag Stufe 1 (auf die Fertigung)", "Kalkulation", "anteil", 0.15, 0, 5),
     Einstellung("eil_zuschlag_2", "Eilzuschlag Stufe 2 (mehr Arbeitstage zu früh)", "Kalkulation", "anteil", 0.30, 0,
                 5),
+    # Vorschläge vom 02.11.2026 (F/G/H/J): Preisschicht (preisschicht.py), Freigabe, Auslastung
+    Einstellung("finanz_zins", "Finanzierung: Kalkulationszins p. a. (0 = aus)", "Kalkulation", "anteil", 0, 0, 1),
+    Einstellung("runden_stueck", "Runden: Stückpreis aufwärts auf [€] (0 = aus)", "Kalkulation", "zahl", 0, 0, 1000),
+    Einstellung("runden_gesamt", "Runden: Gesamtpreis aufwärts auf [€] (0 = aus, nur ohne Stückrundung)",
+                "Kalkulation", "zahl", 0, 0, 100000),
+    Einstellung("untergrenze_variabel", "Preisuntergrenze: variabler Anteil der Laserkosten (Strom, Gas, Verschleiß)",
+                "Kalkulation", "anteil", 0.30, 0, 1),
+    Einstellung("neuteil_zuschlag", "Neuteil-Zuschlag auf Material und Laser (0 = aus)", "Kalkulation", "anteil", 0,
+                0, 2),
+    Einstellung("freigabe_ab", "Vier-Augen-Freigabe ab Netto [€] (0 = aus)", "Kalkulation", "zahl", 0, 0, 100000000),
+    Einstellung("freigabe_marge", "Vier-Augen-Freigabe unter Marge (0 = aus)", "Kalkulation", "anteil", 0, 0, 1),
+    Einstellung("auslastung_hoch", "Gewinn nach Auslastung: Hinweis „voll“ ab Belegung", "Kalkulation", "anteil",
+                0.90, 0, 5),
+    Einstellung("auslastung_niedrig", "Gewinn nach Auslastung: Hinweis „Spielraum“ unter Belegung", "Kalkulation",
+                "anteil", 0.50, 0, 5),
     # Prüfplan und Messprotokoll (Vorschlag S1, pruefplan.py)
     Einstellung("pruef_toleranz", "Prüfplan: Toleranzen", "Lager und Fertigung", "auswahl", "ISO 2768-m",
                 auswahl="prueftoleranz"),

@@ -40,7 +40,7 @@ from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL
                       lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import LOESCHSCHUTZ_HAND, LOESCHSCHUTZ_JEDES
-from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, richtwerte_2110, ALTE_GRAVUR, GRAVUR, zeit_ecke,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
@@ -48,7 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 72     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 73     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -142,6 +142,9 @@ SCHEMA_VERSION = 72     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Werkstoffs; Patrick 31.10.2026 Plan 6a)
                         # 72: Eilzuschlag je Angebot (angebote.eilzuschlag, Vorschlag K2), CO₂-Faktor je Werkstoff
                         #     (werkstoffe.co2_faktor, K3); leer = kein Zuschlag bzw. Richtwert der Kategorie
+                        # 73: Vorschläge F/G/H/J (02.11.2026): angebote.zusatz (JSON: Lieferscheine, Freigabe,
+                        #     Rückfragen, Lieferantenangebote), Kundenkonditionen und Verpackung im Kopf, Tabellen
+                        #     verpackung und positionsvorlagen, Maschinen mannlos_ab/mannlos_satz; alles leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -154,8 +157,10 @@ SICHERUNGEN_BEHALTEN = None   # None = gestaffelt (STAFFEL), sonst so viele lauf
 # Woche (4) und je Monat (12) die neueste. Früher 30 tägliche: bei 10.000 Angeboten (2 GB je Sicherung) 60 GB.
 STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
-ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE)
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
+                                                                POSITIONSVORLAGEN)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
+                POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
                 kennwerte.HISTORIE.name: kennwerte.HISTORIE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
@@ -378,6 +383,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN radien TEXT")          # vor Schema 54: leer
             if "rohrarten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN rohrarten TEXT")       # vor Schema 71: leer
+            if "zusatz" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN zusatz TEXT")          # vor Schema 73: leer
             if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
@@ -1518,7 +1525,7 @@ class Datenbank:
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
                                            "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln",
-                                           "arbeitsgang_regeln")}
+                                           "arbeitsgang_regeln", "verpackung")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
@@ -1970,6 +1977,10 @@ class Datenbank:
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
         a["rohrarten"] = json.loads(a["rohrarten"]) if a.get("rohrarten") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
+        try:
+            a["zusatz"] = json.loads(a["zusatz"]) if a.get("zusatz") else {}
+        except ValueError:
+            a["zusatz"] = {}
         return a
 
     def _jetzt(self):
@@ -2205,6 +2216,30 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
                              (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
+
+    @liest
+    def zusatz(self, angebot_id, schluessel=None, vorgabe=None):
+        """Zusatzdaten eines Angebots (Schema 73, JSON: Lieferscheine, Freigabe, Rückfragen, Lieferantenangebote …):
+        ganz oder ein Eintrag."""
+        r = self.con.execute("SELECT zusatz FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        try:
+            d = json.loads(r[0]) if r and r[0] else {}
+        except ValueError:
+            d = {}
+        return d if schluessel is None else d.get(schluessel, vorgabe)
+
+    @schreibt
+    def zusatz_setzen(self, angebot_id, schluessel, wert):
+        """Einen Eintrag der Zusatzdaten setzen (None = entfernen); ändert 'geändert am', damit der Abgleich ihn
+        mitnimmt."""
+        d = self.zusatz(angebot_id)
+        if wert is None:
+            d.pop(schluessel, None)
+        else:
+            d[schluessel] = wert
+        with self.con:
+            self.con.execute("UPDATE angebote SET zusatz=?, geaendert=? WHERE id=?",
+                             (json.dumps(d, ensure_ascii=False) if d else None, self._jetzt(), angebot_id))
 
     @schreibt
     def versand_setzen(self, angebot_id, liste):

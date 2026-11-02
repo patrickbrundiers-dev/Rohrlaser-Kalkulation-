@@ -64,6 +64,8 @@ SEITEN = (
           (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss schrott_anteil preiseinheit_ab"),
            _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 gas_faktor"),
            _a("CO₂-Bilanz", "co2_strom co2_kw"),
+           _a("Runden, Neuteile, Finanzierung", "runden_stueck runden_gesamt neuteil_zuschlag finanz_zins"),
+           _a("Preisuntergrenze", "untergrenze_variabel", experte=True),
            _a("Stundensatz ermitteln", "strompreis raumkosten zinssatz bediener_satz gemeinkosten arbeitstage "
                                        "auslastung_jahr", experte=True))),
     Seite("e_neue_angebote", "Neue Angebote", ALLE_PLAETZE,
@@ -78,7 +80,9 @@ SEITEN = (
            _a("Auftragsbestätigung", "ab_text"))),
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
-           _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"))),
+           _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"),
+           _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
+           _a("Gewinn nach Auslastung", "auslastung_hoch auslastung_niedrig", experte=True))),
     Seite("e_angebot_mail", "Angebot per E-Mail",
           "Platzhalter: {anrede} {angebot} {referenz} {kunde} {gueltig} {lieferzeit} {netto} {datum} {absender}. "
           + ALLE_PLAETZE,
@@ -137,7 +141,10 @@ SEITE = {s.schluessel: s for s in SEITEN}
 # Schritt 3): aus = 0 bzw. leer, der letzte Wert bleibt gemerkt (WERT_GEMERKT, nur dieser Arbeitsplatz) und kommt beim
 # Einschalten zurück; ohne gemerkten Wert gilt der Wert hier.
 WERT_SCHALTER = {"nachfassen_tage": 10, "auto_optimieren_bis": 100, "mindestmarge": 0.10, "staffeln_standard": "1; 2; 5",
-                 "teilen_takt": 1.0, "stangenbild_popup": 1.0}
+                 "teilen_takt": 1.0, "stangenbild_popup": 1.0,
+                 # Vorschläge vom 02.11.2026 (Vorgabe aus)
+                 "finanz_zins": 0.06, "runden_stueck": 0.05, "runden_gesamt": 5.0, "neuteil_zuschlag": 0.05,
+                 "freigabe_ab": 25000.0, "freigabe_marge": 0.10}
 WERT_GEMERKT = "einstellungen_gemerkt"
 
 # Stehen auf keiner Seite: Frachtkosten im eigenen Reiter, csv_ordner merkt sich das Programm selbst

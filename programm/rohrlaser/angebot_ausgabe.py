@@ -92,6 +92,8 @@ class AusgabeMixin:
         # Angebots-Check (Plan A2/W7): eine Sammelrückfrage, nur wenn FEHLER oder WARNUNG offen sind
         if not self._vor_ausgabe(pruefen=not self.fremd(), weiter="Angebot erstellen"):
             return None
+        if not self._freigabe_vor_pdf():        # Vier-Augen-Freigabe (Vorschlag H2), Vorgabe aus
+            return None
         uebergangen = self.check_uebergangen
         ang = self.angebot_daten()
         if ang is None:

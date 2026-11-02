@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from . import abmessung, anbau, profil_neu, blech, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .angebot_ausgabe import AusgabeMixin
+from .vorschlaege_mixin import VorschlaegeMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import plausibel, zusatz_dialog
@@ -1820,7 +1821,7 @@ def _ids_ersetzen(x, karte):
     return x
 
 
-class AngebotSeite(AusgabeMixin, QWidget):
+class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
                "rueckgaengig": "rueckgaengig", "wiederholen": "wiederholen", "einfuegen": "_einfuegen",
@@ -1911,6 +1912,15 @@ class AngebotSeite(AusgabeMixin, QWidget):
         menue.addAction("Prüfplan / Messprotokoll (PDF) …", lambda: self.pruefplan_pdf())
         # Fassungen vergleichen (Vorschlag F2): nur sichtbar, wenn es eine vorige Fassung gibt
         self.fassung_aktion = menue.addAction("Mit voriger Fassung vergleichen …", lambda: self.fassung_vergleichen())
+        # Vorschläge vom 02.11.2026: Lieferschein (F6), Freigabe (H2), Rückfrage (H5), Positionsvorlage (H6)
+        self.lieferschein_aktion = menue.addAction("Lieferschein …", lambda: self.lieferschein())
+        menue.aboutToShow.connect(lambda: self.lieferschein_aktion.setEnabled(
+            (self.db.angebot(self.id) or {}).get("vorgang") == "Beauftragt" and not self.fremd()))
+        self.freigabe_aktion = menue.addAction("Freigeben (Admin) …", lambda: self.freigeben())
+        menue.aboutToShow.connect(lambda: self.freigabe_aktion.setVisible(
+            bool(rechnen._n(self.db.einstellung("freigabe_ab")) or rechnen._n(self.db.einstellung("freigabe_marge")))))
+        menue.addAction("Rückfrage an Kunden …", lambda: self.rueckfrage())
+        menue.addAction("Position als Vorlage speichern …", lambda: self.als_vorlage_speichern())
         menue.aboutToShow.connect(lambda: self.fassung_aktion.setVisible(self._vorige_fassung() is not None))
         # Übergabeordner fürs Rohr-CAM: STEP je Position, Stückliste, Schnittplan (Vorschlag S4, cam_paket.py)
         menue.addAction("Übergabe an CAM (Ordner) …", lambda: self.cam_paket())
@@ -1922,6 +1932,9 @@ class AngebotSeite(AusgabeMixin, QWidget):
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
         fa.append((self.anfrage_aktion, "funktion_materialanfrage"))
+        # Antworten der Lieferanten erfassen, vergleichen, übernehmen; Bewertung (Vorschläge F4/H7)
+        fa.append((menue.addAction("Lieferantenangebote …", lambda: self.lieferantenangebote()),
+                   "funktion_materialanfrage"))
         # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
         self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())
         menue.aboutToShow.connect(lambda: self.lager_aktion.setVisible(self.f.lager_an()))
@@ -2743,7 +2756,11 @@ class AngebotSeite(AusgabeMixin, QWidget):
         from .abruf_dialog import AbrufDialog
         if werte is None:
             stueck = max((rechnen._n(p.get("stueck")) for p in self.positionen if position_aktiv(p)), default=0)
-            d = AbrufDialog(self, self.kopf, self.db.einstellungen(), stueck=stueck or None)
+            try:
+                los = self.losgroesse()
+            except (ValueError, KeyError, ZeroDivisionError, TypeError):
+                los = None
+            d = AbrufDialog(self, self.kopf, self.db.einstellungen(), stueck=stueck or None, losgroesse=los)
             if self.f.stumm or not d.exec():
                 self._kopf_anzeigen()
                 return False
@@ -2955,7 +2972,12 @@ class AngebotSeite(AusgabeMixin, QWidget):
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
             plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
-            + self._wiederholteil_punkte() + self._maschinen_punkt())
+            + self._wiederholteil_punkte() + self._maschinen_punkt() + self._kalk_punkte(summen)
+            + self._freigabe_punkte(summen))
+
+    def _freigabe_punkte(self, summen):
+        g = self.freigabe_offen(summen)
+        return [("WARNUNG", f"Vier-Augen-Freigabe nötig ({g}) – Ausgaben → Freigeben (Admin) …", None)] if g else []
 
     def _preis_vergleich(self):
         """€/kg je Abmessung aus früher verschickten Angeboten (Plan C3), einmal je geöffnetem Angebot gelesen."""
@@ -3267,7 +3289,7 @@ class AngebotSeite(AusgabeMixin, QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, DXF, LEER, PDF, RAHMEN, ROHR, SCHWEISS, UEBERNEHMEN, ZUKAUF, TypDialog
+        from .neue_position import BLECH, DXF, LEER, PDF, RAHMEN, ROHR, SCHWEISS, UEBERNEHMEN, VORLAGE, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -3294,6 +3316,8 @@ class AngebotSeite(AusgabeMixin, QWidget):
             return typ if self.rahmen_assistent(dialog=dialog) else None
         if typ == UEBERNEHMEN:
             return typ if self.positionen_uebernehmen(dialog=dialog) else None
+        if typ == VORLAGE:
+            return typ if self.position_aus_vorlage() else None
         self.db.position_neu(self.id, {"pos": self._naechste_pos()})
         self.neu_laden()
         r = len(self.positionen) - 1
@@ -4675,6 +4699,8 @@ class AngebotSeite(AusgabeMixin, QWidget):
     def wiederholteile_anzeigen(self):
         treffer = self.wiederholteile_suchen(warten=False)
         if treffer is None:             # erstes Ergebnis kommt noch aus dem Thread
+            return
+        if self.neuteile_aktualisieren(treffer):      # Neuteil-Zuschlag (J6): rechnet neu
             return
         self.uebersicht_bereich.wiederholteile_setzen(
             [(r, " · ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") is not None else None,

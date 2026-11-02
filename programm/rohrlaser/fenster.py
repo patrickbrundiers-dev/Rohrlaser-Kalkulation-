@@ -2184,6 +2184,8 @@ class Hauptfenster(QMainWindow):
                                   ("Schnellpreis …", self.schnellpreis, "Ctrl+Alt+P"),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
+                                  ("Offene Angebote prüfen …", self.offene_pruefen, None),
+                                  ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
                                   (None, None, None),
@@ -2955,6 +2957,82 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def offene_pruefen(self, zeigen=True):
+        """Datei → Offene Angebote prüfen … (Vorschlag H1a): verschickte, gültige Angebote mit festgeschriebenen
+        Preisen gegen die aktuellen Stammdaten; neue Fassung für markierte. Ergebnis: der Dialog."""
+        from PySide6.QtGui import QColor
+        from . import sammel_preis
+        from .tabelle_dialog import TabellenDialog
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            liste = sammel_preis.pruefen(self.db)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        def fassungen(m):
+            if not m:
+                return self.meldung("Bitte Angebote markieren.", fehler=True)
+            if self.db.nur_lesen:
+                return self.meldung("Die Datendatei ist nur zum Lesen geöffnet.", fehler=True)
+            neu = sammel_preis.neue_fassungen(self.db, [liste[r]["id"] for r in m])
+            self.angebote.neu_laden()
+            self.meldung(f"{len(neu)} neue Fassung(en) mit aktuellen Preisen angelegt.")
+            d.accept()
+
+        zeilen = [[r["nummer"], r["kunde"], r["datum"], r["gueltig_bis"], zahl_als_text(r["alt"], 2),
+                   zahl_als_text(r["neu"], 2), zahl_als_text(r["abweichung"], 2),
+                   (zahl_als_text(100 * r["prozent"], 1) + " %") if r["prozent"] is not None else ""] for r in liste]
+        farben = {i: QColor("#B42318") for i, r in enumerate(liste) if (r["prozent"] or 0) > 0.02}
+        d = TabellenDialog(self, "Offene Angebote prüfen",
+                           f"{len(liste)} verschickte, noch gültige Angebote mit festgeschriebenen Preisen, gerechnet "
+                           "mit den aktuellen Stammdaten. Rot = heute mehr als 2 % teurer.",
+                           ["Angebot", "Kunde", "Datum", "gültig bis", "Netto fest [€]", "Netto heute [€]",
+                            "Abweichung [€]", "Abweichung"], zeilen, rechts=(4, 5, 6, 7), farben=farben,
+                           knoepfe=[("Neue Fassung für markierte", fassungen)])
+        d.liste = liste
+        if zeigen and not self.stumm:
+            d.exec()
+        return d
+
+    def monatsbericht(self, jahr=None, monat=None, pfad=None):
+        """Datei → Monatsbericht … (Vorschlag H3b, nur Admin): PDF eines Monats (Vorgabe: Vormonat).
+        Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import monatsbericht
+        if not admin_schutz.ist_admin(self.db):
+            self.meldung("Den Monatsbericht erstellt nur ein Admin (Schloss oben in den Einstellungen).", fehler=True)
+            return None
+        if jahr is None or monat is None:
+            h = datetime.date.today().replace(day=1) - datetime.timedelta(days=1)
+            jahr, monat = jahr or h.year, monat or h.month
+            if not self.stumm:
+                from PySide6.QtWidgets import QInputDialog
+                text, ok = QInputDialog.getText(self, "Monatsbericht", "Monat (MM.JJJJ):", text=f"{monat:02d}.{jahr}")
+                if not ok:
+                    return None
+                try:
+                    monat, jahr = (int(x) for x in text.strip().split("."))
+                except ValueError:
+                    self.meldung("Bitte den Monat als MM.JJJJ eingeben.", fehler=True)
+                    return None
+        if pfad is None:
+            vorschlag = str(Path(self.db.einstellung("ablageordner") or Path.home()) / f"Monatsbericht_{jahr}-{monat:02d}.pdf")
+            if self.stumm:
+                pfad = vorschlag
+            else:
+                pfad, _ = QFileDialog.getSaveFileName(self, "Monatsbericht speichern", vorschlag, "PDF (*.pdf)")
+                if not pfad:
+                    return None
+        try:
+            monatsbericht.pdf(pfad, monatsbericht.bericht(self.db, jahr, monat), self.db.einstellungen())
+        except OSError as e:
+            self.meldung(f"Monatsbericht: {e}", fehler=True)
+            return None
+        self.meldung(f"Monatsbericht gespeichert: {pfad}")
+        if not self.stumm:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad)))
+        return pfad
 
     def preis_simulator(self):
         """Datei → Preis-Simulator: Was-wäre-wenn für die offenen Angebote (nichts wird gespeichert)."""

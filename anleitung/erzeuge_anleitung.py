@@ -5717,6 +5717,78 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Auslastung zählt diese Tage ohne Kapazität (grau), <b>Termin prüfen …</b> verschiebt den frühesten "
            "Termin und nennt die Woche ([[termin_auslastung]]). Für alle Maschinen gilt weiter die "
            "<i>Betriebsruhe</i> der Einstellungen.", kurz=True)
+    i.abschnitt("Preisregeln: Runden, Kundenkonditionen, Verpackung, Finanzierung", marke="preisregeln")
+    i.text("Nach der Kalkulation wendet das Programm die Preisregeln an. Alle sind aus, solange die Einstellung 0 "
+           "bzw. das Feld leer ist; dann bleibt jeder Preis genau wie bisher. Was eine Regel ändert, steht im "
+           "Preisaufbau und im Kalkulations-PDF als eigene Zeile (Kostenarten <i>Verpackung</i>, <i>Finanzierung</i>, "
+           "<i>Frachtfrei</i>, <i>Rabatt</i>, <i>Rundung</i>).", kurz=True)
+    i.liste("<b>Runden</b>: Einstellungen → Kosten → Runden, Neuteile, Finanzierung: <i>Runden: Stückpreis aufwärts "
+            "auf [€] (0 = aus)</i> (z. B. 0,05) rundet jeden Stückpreis auf; <i>Runden: Gesamtpreis aufwärts auf [€] "
+            "(0 = aus, nur ohne Stückrundung)</i> rundet den Netto-Preis des Angebots (z. B. auf 5 €).",
+            "<b>Kundenkonditionen</b> im Angebotskopf (Vorgabe aus den Kundenvorgaben [[kundenvorgaben]]): "
+            "<i>Rabatt [%]</i> auf den Verkaufspreis, <i>Frachtfrei ab Warenwert [€ netto]</i> (ab diesem Warenwert "
+            "trägt der Betrieb die Fracht, sie wird herausgerechnet) und <i>Mindestauftragswert des Kunden [€ "
+            "netto]</i> (geht vor den Mindestpreis der Einstellungen).",
+            "<b>Verpackung</b>: In den Stammdaten <i>Verpackung</i> je Packmittel <i>Packmittel</i> (Name), <i>Preis je "
+            "Stück [€]</i>, <i>Max. Gewicht [kg]</i>, <i>Max. Teillänge [mm]</i> und <i>Aktiv</i>. Das Programm nimmt "
+            "das günstigste Packmittel, in das das längste Teil passt, so oft wie das Gewicht es verlangt. Das "
+            "Häkchen <b>Verpackung berechnen</b> im Angebotskopf (unter Verkauf und Gewinn) schaltet es je Angebot "
+            "ab, z. B. bei Abholung in Gitterboxen des Kunden. Ohne Packmittel in den Stammdaten keine Verpackung.",
+            "<b>Finanzierung</b>: <i>Finanzierung: Kalkulationszins p. a. (0 = aus)</i> rechnet die Kapitalbindung "
+            "dazu: Selbstkosten × Zins × (Zahlungsziel + Materialvorlauf) ÷ 360.")
+    i.abschnitt("Neuteil-Zuschlag und mannlose Laufzeit", marke="neuteil_mannlos")
+    i.text("<i>Neuteil-Zuschlag auf Material und Laser (0 = aus)</i> (Einstellungen → Kosten, z. B. 5 %) gilt für "
+           "Positionen, die noch nie beauftragt wurden: Beim Öffnen sucht das Programm Wiederholteile "
+           "([[wiederholteile]]); Positionen ohne beauftragtes Wiederholteil stehen im Feld <i>Neuteile (für den "
+           "Neuteil-Zuschlag)</i> des Angebots und bekommen den Zuschlag (Kostenart <i>Neuteil-Zuschlag</i>). Nur "
+           "im Entwurf; verschickte Preise bleiben.", kurz=True)
+    i.text("Mannlose Laufzeit: In den Maschinen-Stammdaten <i>Mannlos: ab Laufzeit je Los [h] (leer = aus)</i> und "
+           "<i>Mannlos: Stundensatz [€/h]</i>. Läuft ein Los länger als die Grenze, wird die Zeit darüber mit dem "
+           "kleineren Satz gerechnet; der Unterschied steht als Kostenart <i>Mannlose Laufzeit</i> (negativ) im "
+           "Preisaufbau.", kurz=True)
+    i.abschnitt("Preisuntergrenze und Zielpreis", marke="zielpreis")
+    i.text("Jede Kalkulation rechnet zwei Preisuntergrenzen: <b>langfristig</b> = Selbstkosten (darunter verliert "
+           "der Betrieb auf Dauer Geld) und <b>kurzfristig</b> = Material, Zukauf und der variable Teil der "
+           "Laserkosten (<i>Preisuntergrenze: variabler Anteil der Laserkosten (Strom, Gas, Verschleiß)</i>, Vorgabe "
+           "0,30). Liegt der Preis oder der Zielpreis darunter, warnt der Angebots-Check ([[angebots_check]]).",
+           kurz=True)
+    i.liste("<b>Zielpreis …</b> im Angebotskopf: den Zielpreis netto für das ganze Angebot eingeben (z. B. was der "
+            "Kunde nennt). Das Programm rechnet rückwärts, welcher Gewinn dafür nötig ist, nennt die Marge (unter "
+            "der Mindestmarge mit Hinweis) und stellt den Gewinn auf Wunsch so ein. Der Zielpreis bleibt im Angebot "
+            "gespeichert.",
+            "Abruf-Angebote ([[abruf_angebot]]): Das Fenster nennt die <i>Wirtschaftliche Abrufmenge (Andler)</i> aus "
+            "Rüsten und Fracht je Abruf gegen den Lagerzins auf die Stückkosten (nur Hinweis).")
+    i.abschnitt("Hinweise: Auslastung und Marktpreis", marke="kalk_hinweise")
+    i.text("Der Angebots-Check nennt zwei Hinweise, ohne etwas zu ändern: Ist die Maschine in der Lieferwoche "
+           "voll (<i>Gewinn nach Auslastung: Hinweis „voll“ ab Belegung</i>, Vorgabe 0,90), braucht es keinen "
+           "Nachlass; ist sie leer (<i>Gewinn nach Auslastung: Hinweis „Spielraum“ unter Belegung</i>, Vorgabe "
+           "0,50), gibt es Spielraum bis zur Mindestmarge ([[auslastung]]). Gibt es mindestens drei Absagen mit "
+           "Wettbewerbspreis bei ähnlichen Angeboten (gleiche Werkstoff-Kategorie und Preisklasse), nennt er den "
+           "mittleren Abstand zum Wettbewerb ([[absage]]).", kurz=True)
+    i.abschnitt("Vier-Augen-Freigabe", marke="freigabe")
+    i.text("Einstellungen → Automatik → Vier-Augen-Freigabe: <i>Vier-Augen-Freigabe ab Netto [€] (0 = aus)</i> und "
+           "<i>Vier-Augen-Freigabe unter Marge (0 = aus)</i>. Ein Angebot darüber bzw. darunter erstellt das "
+           "Angebots-PDF erst nach der Freigabe eines Admins: Ausgaben → <b>Freigeben (Admin) …</b> (Schloss in den "
+           "Einstellungen [[admin_rechte]]). Die Freigabe steht im Versandverlauf; ändert sich der Netto-Preis "
+           "danach um mehr als 0,5 %, ist sie neu nötig.", kurz=True)
+    i.abschnitt("Rückfrage an den Kunden", marke="rueckfrage")
+    i.text("Ausgaben → <b>Rückfrage an Kunden …</b> schreibt einen Mail-Entwurf mit den offenen Punkten des "
+           "Angebots (FEHLER und WARNUNGEN des Angebots-Checks, Hinweise der Positionen), in Outlook als Antwort auf "
+           "die Anfrage-Mail ([[anfrage_mail]]), sonst als E-Mail-Datei. Danach steht <i>Rückfrage</i> im "
+           "Versandverlauf und eine Wiedervorlage in 3 Tagen.", kurz=True)
+    i.abschnitt("Positionsvorlagen", marke="positionsvorlagen")
+    i.text("Ausgaben → <b>Position als Vorlage speichern …</b> merkt die markierte Position ohne Stückzahl, "
+           "Positionsnummer, Satz und Preis unter einem Namen (für alle Arbeitsplätze im gemeinsamen Ordner). "
+           "<b>Neue Position</b> → <i>Aus Vorlage</i> setzt sie in ein Angebot ein; danach nur noch die Stückzahl "
+           "eintragen. Gleicher Name ersetzt die alte Vorlage.", kurz=True)
+    i.abschnitt("Offene Angebote prüfen und Monatsbericht", marke="offene_pruefen")
+    i.liste("Datei → <b>Offene Angebote prüfen …</b>: alle verschickten, noch gültigen Angebote mit "
+            "festgeschriebenen Preisen, gerechnet mit den heutigen Stammdaten (Materialpreise, Schneiddaten, "
+            "Stundensätze). Rot = heute mehr als 2 % teurer. <b>Neue Fassung für markierte</b> legt je Angebot eine "
+            "neue Fassung mit aktuellen Preisen an ([[neue_fassung]]).",
+            "Datei → <b>Monatsbericht …</b> (nur Admin): PDF eines Monats mit Anzahl und Netto der Angebote, "
+            "Trefferquote, Auftragseingang, Deckungsbeitrag Soll/Ist der Nachkalkulationen, Laserstunden je "
+            "Maschine, Top-5-Kunden und Absagegründen.", kurz=True)
     i.abschnitt("Angebots-Check vor dem Versand", marke="angebots_check")
     i.text("Vor dem <b>Angebot (PDF)</b> und vor dem Vorgang <i>Verschickt</i> prüft das Programm das Angebot. Nur "
            "wenn ein FEHLER oder eine WARNUNG offen ist, kommt <b>eine</b> Rückfrage mit allen Punkten; Hinweise "
@@ -5843,6 +5915,16 @@ def kapitel_ausgabe(i, seiten, ablage):
 
 
 def kapitel_nachkalkulation(i):
+    i.abschnitt("Lieferantenangebote vergleichen", marke="lieferantenangebote")
+    i.text("Ausgaben → <b>Lieferantenangebote …</b>: die Antworten der Lieferanten auf die Materialanfrage "
+           "([[materialanfrage]]) erfassen und vergleichen. <b>Antwort erfassen …</b> fragt Lieferant, Profil und "
+           "Werkstoff, Preisbasis (€/kg, €/m, €/Stange), Preis, Stangenlänge, Lieferzeit und Gültigkeit. Die Tabelle "
+           "rechnet alles auf €/m um; grün = günstigste je Abmessung.", kurz=True)
+    i.liste("<b>Übernehmen</b> schreibt den markierten Preis mit Lieferant und <i>Gültig ab</i> heute in die "
+            "Stammdaten Preise ([[stammdaten]]).",
+            "<b>Wareneingang</b> trägt das Lieferdatum ein.",
+            "Die Spalte <i>Bewertung</i> fasst alle Angebote zusammen: mittlerer Preisrang, Termintreue (Wareneingang "
+            "bis Antwortdatum + Lieferzeit) und Reklamationen mit Ursache Material.")
     i.kapitel("Nachkalkulation", marke="nachkalkulation")
     i.bild("nachkalkulation", "Reiter Nachkalkulation nach dem Auftrag", hoehe=95 * mm, legende=[
         (1, "<b>Stangen Ist</b> je Profil, Werkstoff und Stangenlänge: tatsächlich verbrauchte Stangen. Daneben "
@@ -6161,6 +6243,21 @@ def kapitel_fertigung(i):
             "auf Material; er gilt auch in den Staffeln. Im Preisaufbau steht er beim Zuschlag Fertigung "
             "(„+ Eilzuschlag 15 % = … €“).",
             "Feld leeren oder 0 = kein Eilzuschlag.")
+    i.abschnitt("Lieferschein und Werkszeugnisse", marke="lieferschein")
+    i.text("Für beauftragte Angebote erstellt Ausgaben → <b>Lieferschein …</b> einen Lieferschein (PDF, Nummer "
+           "LS-JJJJ-00001): je Position die Menge dieser Lieferung, vorgegeben ist die noch offene Menge. So gehen "
+           "Teillieferungen; der Lieferschein nennt, was noch offen ist.", kurz=True)
+    i.liste("Im Lager hängt <b>Werkszeugnis …</b> das Zeugnis (PDF) an den markierten Posten; die Spalte "
+            "<i>Werkszeugnis</i> zeigt es ([[lager]]).",
+            "Ist im Angebotskopf <i>Werkszeugnis 3.1 verlangt</i> gesetzt, kopiert der Lieferschein die Zeugnisse "
+            "der für den Auftrag reservierten Posten in den Ordner <i>Werkszeugnisse</i> neben dem PDF und warnt, "
+            "wenn eins fehlt.")
+    i.abschnitt("Laserzeit per Scan", marke="laserzeit_scan")
+    i.text("Im Fenster <i>Rückmeldung per Scan</i> ([[etiketten]]) stehen immer zusätzlich die Schritte "
+           "<i>Laser Start</i> und <i>Laser Ende</i>: beim Einlegen des ersten und nach dem letzten Teil ein Etikett "
+           "des Auftrags scannen. Sie zählen keine Menge. In der Nachkalkulation steht dann die Summe aller Läufe "
+           "als Vorschlag; <b>Scan-Zeit übernehmen</b> trägt sie als Ist-Laserzeit ein ([[nachkalkulation]]).",
+           kurz=True)
     i.abschnitt("Lager und Reststücke", marke="lager")
     i.text("Mit der Einstellung <i>Materialbestand verwenden (Reiter Lager)</i> = ja erscheint der Reiter "
            "<b>Lager</b>. Angebote und ihre Preise ändern sich dadurch nie; das Lager kommt erst beim beauftragten "
@@ -7140,6 +7237,9 @@ def kapitel_stammdaten(i):
         ["Standard-Staffeln (Faktoren, 0 = keine)", "Faktoren wie in der Einstellung <i>Standard-Staffeln</i>, z. B. "
                                                     "1; 3; 10; 0 = für diesen Kunden keine Standard-Staffeln "
                                                     "([[staffeln]])"],
+        ["Rabatt [%], Frachtfrei ab Warenwert [€ netto], Mindestauftragswert [€ netto]",
+         "Konditionen des Kunden für neue Angebote, im Angebotskopf unter <i>Kundenkonditionen</i> änderbar "
+         "([[preisregeln]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
     i.liste("<b>CSV exportieren</b>: alle Kunden als Datei für Excel.",
@@ -7459,6 +7559,9 @@ def kapitel_stammdaten(i):
                                            "([[auslastung]]); leer = Einstellung"],
         ["Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)",
          "Tage ohne Kapazität nur für diese Maschine; Tage und Zeiträume mit „;“ getrennt ([[sperrtage]])"],
+        ["Mannlos: ab Laufzeit je Los [h] (leer = aus), Mannlos: Stundensatz [€/h]",
+         "läuft ein Los länger, rechnet die Laserzeit über dieser Grenze mit dem kleineren Stundensatz "
+         "(Nachtschicht ohne Bediener) ([[neuteil_mannlos]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",

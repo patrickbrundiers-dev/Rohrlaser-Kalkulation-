@@ -31,6 +31,7 @@ GRUPPEN = (
                          "programmierung_kontur")),
     ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht", "eilzuschlag")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
+    ("Kundenkonditionen", ("rabatt", "frachtfrei_ab", "mindestwert")),        # Vorschlag G7, 02.11.2026
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)
 MASCHINENPARAMETER = (
@@ -338,6 +339,12 @@ class KopfBereich(QWidget):
                                         "Wunsch umstellen")
         self.maschinen_knopf.clicked.connect(lambda: seite.maschinen_vergleichen())
         lz.addWidget(self.maschinen_knopf)
+        # Zielpreis rückwärts (Vorschlag G1a): nötiger Gewinn, Marge, „Auf Zielpreis setzen“
+        self.ziel_knopf = QPushButton("Zielpreis …")
+        self.ziel_knopf.setToolTip("Zielpreis netto eingeben: das Programm zeigt den nötigen Gewinn, ob die "
+                                   "Mindestmarge und die Preisuntergrenze halten, und stellt den Gewinn auf Wunsch um")
+        self.ziel_knopf.clicked.connect(lambda: seite.zielpreis())
+        lz.addWidget(self.ziel_knopf)
         g.addWidget(QLabel("Lieferzeit"), 3, 0)
         g.addLayout(lz, 3, 1, 1, 3)
         self.lz_vorschau = QLabel()
@@ -424,6 +431,12 @@ class KopfBereich(QWidget):
                                    "Mindestauftragswert.")
         self.mindest_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["mindestpreis_anwenden"], None if an else "nein"))
+        # Verpackung (Vorschlag G2): Kosten aus den Stammdaten Verpackung, je Angebot abschaltbar
+        self.verpackung_an = QCheckBox("Verpackung berechnen")
+        self.verpackung_an.setToolTip("Packmittel aus Einstellungen → Verpackung als eigene Kostenart (ohne Gewinn). "
+                                      "Ohne Haken (Kunde holt ab, eigene Gitterbox) keine Verpackungskosten.")
+        self.verpackung_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["verpackung"], None if an else "nein"))
         # Musterteile (Patrick 28.10.2026): Kosten auf die Serie umlegen oder als eigene Zeile; nur mit Musterteilen
         self.muster_wahl = QWidget()
         ml = QHBoxLayout(self.muster_wahl)
@@ -510,6 +523,7 @@ class KopfBereich(QWidget):
                 form.addWidget(self.mindest_an, r + 1, 0, 1, 2)
                 form.addWidget(self.muster_wahl, r + 2, 0, 1, 2)
                 form.addWidget(self.abruf_wahl, r + 3, 0, 1, 2)
+                form.addWidget(self.verpackung_an, r + 4, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -882,6 +896,9 @@ class KopfBereich(QWidget):
         self.mat_vorgabe.setCurrentText(s.kopf.get("material_vorgabe") or EIGENMATERIAL)
         self.mat_vorgabe.blockSignals(False)
         betrag = rechnen.einstellungen_fest(s.tabellen, s.db.einstellungen()).get("mindestpreis")
+        self.verpackung_an.blockSignals(True)
+        self.verpackung_an.setChecked(s.kopf.get("verpackung") != "nein")
+        self.verpackung_an.blockSignals(False)
         self.mindest_an.blockSignals(True)
         self.mindest_an.setChecked(s.kopf.get("mindestpreis_anwenden") != "nein")
         self.mindest_an.setText(f"Mindestauftragswert anwenden ({_z(betrag)} € netto)"
