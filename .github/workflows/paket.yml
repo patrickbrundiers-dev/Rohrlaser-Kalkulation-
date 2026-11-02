@@ -288,7 +288,8 @@ jobs:
           Copy-Item Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           Copy-Item Kurzanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           Copy-Item Windows-Vertrauen-einrichten.cmd dist/Rohrlaser-Angebotskalkulation/
-          $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
+          # tests/step_selbsttest: Stutzen-Durchbruch (0.9.231 fehlte numpy im Paket)
+          $step = (Get-ChildItem tests/step/*.step, tests/step_selbsttest/*.step | ForEach-Object { '"' + $_.FullName + '"' })
           $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe" `
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt

@@ -154,6 +154,13 @@ def selbsttest(app, ergebnis, step_dateien=()):
                     raise RuntimeError("STEP-Import ohne Ergebnis")
                 protokoll.append(f"STEP-Import: {len(erg['positionen'])} Positionen, "
                                  f"Protokoll {len(seite.prot.zeilen)} Zeilen")
+                # Stutzen-Durchbruch (tests/step_selbsttest): rechnet in step.durchbruch_aus_messung (0.9.231 fehlte
+                # numpy im Paket, der STEP-Import brach ab)
+                stutzen = [p for p in seite.positionen if "Stutzen" in str(p.get("artikel") or "")]
+                if any("Stutzen" in Path(d).name for d in step_dateien):
+                    if not stutzen or not any('"Durchbruch"' in str(p.get("technik") or "") for p in stutzen):
+                        raise RuntimeError("STEP-Import: Stutzen nicht als Durchbruch erkannt")
+                    protokoll.append(f"STEP-Import: Durchbruch für Stutzen erkannt ({stutzen[0]['artikel']})")
                 seite.optimieren()
                 protokoll.append(f"Neu optimiert: {len(seite.ergebnis['stangen'])} Stangen")
             f.angebot_schliessen(aid)
