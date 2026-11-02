@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.233", "<b>STEP-Import: Rechteck mit Eckradius bleibt Rechteck</b> ([[schneidweg_rechner]]): Ein "
+                "Rechteckausschnitt mit gerundeten Ecken (z. B. R3) kam bisher als <i>Sonderkontur</i> und war im "
+                "Editor nicht mit Maßen änderbar. Jetzt wird er eine Zeile <i>Rechteck</i> mit dem Eckradius aus der "
+                "gemessenen Schnittlänge, wenn der Umriss damit auf 0,05 mm wie in der STEP liegt; über eine Rohrecke "
+                "bleibt er Sonderkontur. Dritte Probe mit 18 weiteren Teilen (Sechskant-, Schlüssel- und Kreuzloch, "
+                "Lochkranz, Langloch über Ecke und nah am Ende, gedrehte und Freiform-STEP): alle wie in der STEP.",
+     "STEP: Rechteck mit Eckradius wird Rechteck-Zeile mit Radius statt Sonderkontur"],
     ["0.9.232", "Zwei Fehler im Windows-Programm 0.9.231 behoben: <b>Etiketten mit QR-Code</b> ([[etiketten]]) brachen "
      "mit „No module named reportlab.graphics.barcode.code128“ ab, weil ein Teil der Barcode-Bausteine im "
      "Programmpaket fehlte. Der <b>STEP-Import</b> ([[step]]) brach bei Rohren mit großem rundem Loch (Durchbruch für "
