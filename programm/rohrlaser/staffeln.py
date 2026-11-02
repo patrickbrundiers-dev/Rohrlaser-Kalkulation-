@@ -519,7 +519,9 @@ def _bausteine_teil(kz, idx, summen):
                 # fracht_teil) bzw. als eigene Zeile (Selbstkosten, Zukaufteile, Fracht)
                 muster=(summe("muster_selbst_teil"), summe("muster_zukauf_teil")),
                 muster_getrennt=(summe("muster_getrennt_selbst_teil"), summe("muster_getrennt_zukauf_teil"),
-                                 summe("muster_getrennt_fracht_teil")))
+                                 summe("muster_getrennt_fracht_teil")),
+                # Material der Muster für den Gewinn auf Material (Prüfung Kalkulationsbasis 8)
+                muster_mat=(summe("muster_mat_teil"), summe("muster_getrennt_mat_teil")))
 
 
 def richtpreis_zeilen(e, p, daten):
@@ -746,7 +748,8 @@ def wirksam(stufe, einst):
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
                 neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")),
                 mindestpreis=_zahl(einst.get("mindestpreis")), preiseinheit_ab=_zahl(einst.get("preiseinheit_ab")),
-                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst))
+                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst),
+                gewinn_material=rechnen.gewinn_material(einst))      # Prüfung Kalkulationsbasis 8 (leer = wie Gewinn)
 
 
 def marge(gewinn, anhebung, selbst):
@@ -811,6 +814,10 @@ def preise(b, menge, w, anhebung=None):
         # ab 26.10.2026: Zukaufteile ohne Gewinn, nur mit ihrem Aufschlag
         gewinn, ohne = rechnen.gewinn_fracht(selbst, selbst - zk_e_g - zk_a if w.get("neu", True) else selbst,
                                              b["fracht"], w["gewinn"])
+        if w.get("gewinn_material") is not None:      # eigener Gewinnsatz auf das Material (wie rechnen._kalkulation)
+            mm, mg_ = b.get("muster_mat") or (0.0, 0.0)
+            plus = (m1 + mz + mm + mg_) * (w["gewinn_material"] - w["gewinn"])
+            gewinn, ohne = gewinn + plus, ohne + plus
         ohne += gf
     else:
         gewinn = herstell * w["gewinn"]
@@ -832,7 +839,10 @@ def preise(b, menge, w, anhebung=None):
     bg_einmalig = kaufm_runden(bg_selbst * (1 + w["gewinn"]) / (1 - sk), 2) if bg_selbst else 0.0
     einmalig += bg_einmalig
     # Musterkosten als eigene Zeile: einmalig, nicht im Stückpreis
-    muster_einmalig = kaufm_runden((gs * (1 + w["gewinn"]) + gz + gf) / (1 - sk), 2) if gs or gz or gf else 0.0
+    gm_plus = ((b.get("muster_mat") or (0.0, 0.0))[1] * (w["gewinn_material"] - w["gewinn"])
+               if w.get("gewinn_material") is not None and w.get("selbst_basis", True) else 0.0)
+    muster_einmalig = (kaufm_runden((gs * (1 + w["gewinn"]) + gm_plus + gz + gf) / (1 - sk), 2) if gs or gz or gf
+                       else 0.0)
     einmalig += muster_einmalig
     # Preiseinheit für Kleinteile (Plan B3): Preis je 100 bzw. 1000 Stück, auf den Cent gerundet
     pe = preiseinheit((netto - einmalig) / menge, w.get("preiseinheit_ab"))

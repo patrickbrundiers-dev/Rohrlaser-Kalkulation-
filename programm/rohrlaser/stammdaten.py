@@ -401,7 +401,9 @@ MASCHINEN = Tabelle(
      Feld("wartung", "Ermittlung: Wartung, Versicherung [€/Jahr]", "zahl", 0, 1e7, stellen=0, breite=100),
      Feld("leistung_kw", "Ermittlung: Anschlussleistung [kW]", "zahl", 0, 1000, stellen=1, breite=90),
      Feld("verschleiss", "Ermittlung: Verschleiß [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
-     Feld("bediener_anteil", "Ermittlung: Bediener [% Betreuung]", "zahl", 0, 100, stellen=0, breite=90)),
+     Feld("bediener_anteil", "Ermittlung: Bediener [% Betreuung]", "zahl", 0, 100, stellen=0, breite=90),
+     # Prüfung Kalkulationsbasis 7 (Patrick 02.11.2026): Strom nach mittlerer Last statt voller Anschlussleistung
+     Feld("last_anteil", "Ermittlung: mittlere Last [% der Anschlussleistung]", "zahl", 1, 100, stellen=0, breite=95)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -956,6 +958,14 @@ EINSTELLUNGEN = (
     Einstellung("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "Kalkulation", "zahl", 0.5, 0, 1440),
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
     # Patrick 22.10.2026 (F4 a): eigene Zeit je Teil, dessen Anbauteile unsicher erkannt sind (Stundensatz Laser)
+    # Prüfung Kalkulationsbasis (Patrick 02.11.2026 „Alle Empfehlungen“): eigener Gewinn auf Material (8), weniger
+    # Rüsten bei gleicher Außenkontur mit anderer Wand (4), Programmierung von Wiederholteilen (3); leer = wie bisher
+    Einstellung("gewinn_material", "Gewinn auf Material [%] (leer = wie Gewinn)", "Kalkulation", "zahl_leer", None, 0,
+                500),
+    Einstellung("ruesten_abmessung_wand", "Rüstzeit je Abmessung, nur Wand anders [min] (leer = volle Rüstzeit)",
+                "Kalkulation", "zahl_leer", None, 0, 1440),
+    Einstellung("programmierung_wiederholteil", "Programmierzeit Wiederholteil mit Programm [min] (leer = volle Zeit)",
+                "Kalkulation", "zahl_leer", 1.0, 0, 1440),
     Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
                 "zahl", 0.0, 0, 1000),
     # Plan „Kalkulation und Berechnung verbessern“ (Patrick 29.10.2026): Ausschuss auf Material und Laserzeit,

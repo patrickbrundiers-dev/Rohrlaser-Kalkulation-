@@ -47,10 +47,10 @@ SEITEN = (
     Seite("e_zuschlaege", "Zuschläge und Preise",
           "Vorgaben für neue Angebote; im Angebot lassen sie sich je Angebot ändern. " + ALLE_PLAETZE,
           (_a("Zuschläge und Gewinn", "zuschlag_material zuschlag_fertigung zuschlag_fremdleistung aufschlag_blech "
-                                      "aufschlag_zukauf zukauf_aufschlag gewinn"),
+                                      "aufschlag_zukauf zukauf_aufschlag gewinn gewinn_material"),
            _a("Rüsten und Programmieren", "ruesten_abmessung ruesten_abmessung_eur ruesten_angebot_eur "
-                                          "pauschale_abmessung programmierung_zeit programmierung_kontur "
-                                          "pruefzeit_anbau"),
+                                          "ruesten_abmessung_wand pauschale_abmessung programmierung_zeit "
+                                          "programmierung_kontur programmierung_wiederholteil pruefzeit_anbau"),
            _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"),
            _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"))),
     Seite("e_gewinn_gestaffelt", "Gewinn gestaffelt",

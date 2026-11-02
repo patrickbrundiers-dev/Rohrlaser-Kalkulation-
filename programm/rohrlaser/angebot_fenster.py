@@ -950,7 +950,8 @@ class PositionenModell(QAbstractTableModel):
             self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand_schneiden"), s.tabellen, s.k)[2])   # berechnet [s]
             # Programmierzeit ohne Eintrag von Hand: Grundzeit + Zeit je Innenkontur [min] (Zukaufteile: keine)
             self.prog_zeiten.append(None if kein_laserteil(p) else
-                                    rechnen.programmier_zeit(dict(p, prog_zeit=None), s.einst)[0])
+                                    rechnen.programmier_zeit(dict(p, prog_zeit=None), s.einst,
+                                                             p.get("id") in rechnen.wiederholt_ids(s.kopf))[0])
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
             w["eingeplant"] = ein if p.get("profil_id") and not kein_laserteil(p) else None
             if kein_laserteil(p):
@@ -4700,7 +4701,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         treffer = self.wiederholteile_suchen(warten=False)
         if treffer is None:             # erstes Ergebnis kommt noch aus dem Thread
             return
-        if self.neuteile_aktualisieren(treffer):      # Neuteil-Zuschlag (J6): rechnet neu
+        geaendert = self.wiederholt_aktualisieren(treffer)     # Programmierzeit Wiederholteile (Kalkulationsbasis 3)
+        if self.neuteile_aktualisieren(treffer) or geaendert:      # Neuteil-Zuschlag (J6): rechnet neu
             return
         self.uebersicht_bereich.wiederholteile_setzen(
             [(r, " · ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") is not None else None,

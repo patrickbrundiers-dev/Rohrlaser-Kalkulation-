@@ -120,10 +120,11 @@ for i in laser:
     nah(b["laser_brutto"], a["laser_brutto"] + 4.0, "Laser brutto + Nebenzeit")
     gas = 12.0 if b["gas"] == "N₂" else 3.0
     nah(b["schneidgas_teil"], b["laser_netto"] / 3600 * gas, f"Schneidgas Pos. {b['pos']}")
-    nah(b["ausschuss_teil"], 0.03 * b["material_teil"] + 0.03 * b["laser_teil"], "Ausschuss")
+    a_ = 0.03 / 0.97            # im Hundert (Prüfung Kalkulationsbasis 6, 02.11.2026)
+    nah(b["ausschuss_teil"], a_ * b["material_teil"] + a_ * b["laser_teil"], "Ausschuss")
     assert b["schrott_teil"] <= 0
 ok("A1 Nebenzeit 4 s je Teil in der Laserzeit, B1 Schneidgas = Laserzeit × 12 €/h (N₂) bzw. 3 €/h (O₂), "
-   "B2 Ausschuss 3 % auf Material und Laserzeit")
+   "B2 Ausschuss 3 % im Hundert auf Material und Laserzeit")
 
 # B5 Schrotterlös: (Stangenlänge − Teile − Lagerrest) × Preis je mm × 20 %
 sw = rechnen.stangen_werte(kopf["ergebnis"], kopf, pos, k, tab)
