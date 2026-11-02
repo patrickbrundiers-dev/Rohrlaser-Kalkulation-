@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.234", "Weitere Vorschläge für Kalkulation und Ablauf: <b>Maschinen vergleichen</b> im Kopf "
+    ["0.9.235", "Weitere Vorschläge für Kalkulation und Ablauf: <b>Maschinen vergleichen</b> im Kopf "
      "([[maschinen_vergleich]]), <b>Sperrtage je Maschine</b> ([[sperrtage]]), <b>Fassungsvergleich</b> "
      "([[fassung_vergleich]]), <b>Teilekatalog je Kunde</b> ([[teilekatalog]]). <b>Preisregeln</b> (alle aus, bis man "
      "sie einschaltet): Runden von Stück- oder Gesamtpreis, Kundenkonditionen Rabatt, frachtfrei ab Warenwert und "
@@ -34,7 +34,7 @@ NEUERUNGEN = [
      "Werkszeugnissen ([[lieferschein]]), <b>Laserzeit per Scan</b> für die Nachkalkulation ([[laserzeit_scan]]).",
      "Maschinenvergleich, Preisregeln, Zielpreis, Freigabe, Rückfrage, Vorlagen, Lieferschein, Lieferantenangebote, "
      "Scan-Zeit"],
-    ["0.9.233", "Neun Verbesserungen für Kalkulation und System: <b>Gleitklausel Material</b> bei Abruf-Angeboten "
+    ["0.9.234", "Neun Verbesserungen für Kalkulation und System: <b>Gleitklausel Material</b> bei Abruf-Angeboten "
      "([[gleitklausel]]): festgeschriebene gegen aktuelle Materialpreise, ab ±5 % fällig, nur Material gleitet, "
      "Übernehmen mit Vermerk im Versandverlauf. <b>Eilzuschlag</b> ([[eilzuschlag]]): Feld im Kopf und Vorschlag aus "
      "<i>Termin prüfen …</i> nach Arbeitstagen zu früh (15 %/30 %). <b>CO₂-Bilanz</b> intern im Preisaufbau und "
@@ -47,6 +47,13 @@ NEUERUNGEN = [
      "Teil, Stückliste und Schnittplan ([[cam_paket]]).",
      "Gleitklausel, Eilzuschlag, CO₂, Wiederholteil-Rückblick, Ertrag/Laserstunde, Prüfplan, Support-Paket, "
      "Datenschutz, CAM-Ordner"],
+    ["0.9.233", "<b>STEP-Import: Rechteck mit Eckradius bleibt Rechteck</b> ([[schneidweg_rechner]]): Ein "
+                "Rechteckausschnitt mit gerundeten Ecken (z. B. R3) kam bisher als <i>Sonderkontur</i> und war im "
+                "Editor nicht mit Maßen änderbar. Jetzt wird er eine Zeile <i>Rechteck</i> mit dem Eckradius aus der "
+                "gemessenen Schnittlänge, wenn der Umriss damit auf 0,05 mm wie in der STEP liegt; über eine Rohrecke "
+                "bleibt er Sonderkontur. Dritte Probe mit 18 weiteren Teilen (Sechskant-, Schlüssel- und Kreuzloch, "
+                "Lochkranz, Langloch über Ecke und nah am Ende, gedrehte und Freiform-STEP): alle wie in der STEP.",
+     "STEP: Rechteck mit Eckradius wird Rechteck-Zeile mit Radius statt Sonderkontur"],
     ["0.9.232", "Zwei Fehler im Windows-Programm 0.9.231 behoben: <b>Etiketten mit QR-Code</b> ([[etiketten]]) brachen "
      "mit „No module named reportlab.graphics.barcode.code128“ ab, weil ein Teil der Barcode-Bausteine im "
      "Programmpaket fehlte. Der <b>STEP-Import</b> ([[step]]) brach bei Rohren mit großem rundem Loch (Durchbruch für "
