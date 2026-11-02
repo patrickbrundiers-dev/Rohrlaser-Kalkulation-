@@ -1858,8 +1858,8 @@ def beispiel_blechlaser():
 def beispiel_werkstoffe():
     """Werkstoffe mit Kategorie (Beispiel-Tonnenpreise, bitte durch eigene ersetzen) und Lasereigenschaften
     (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis; Richtwerte, Patrick 24.10.2026). Je Zeile alle
-    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten und Teuerungszuschlag leer)."""
-    return [w[:9] + (None, None, None) + w[9:] + (None, None, None) for w in _BEISPIEL_WERKSTOFFE]
+    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten, Teuerungszuschlag und CO₂-Faktor leer)."""
+    return [w[:9] + (None, None, None) + w[9:] + (None, None, None, None) for w in _BEISPIEL_WERKSTOFFE]
 
 
 _ST, _ES, _AL, _BM = "Stahl", "Edelstahl", "Aluminium", "Buntmetall"

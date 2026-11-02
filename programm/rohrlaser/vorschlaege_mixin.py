@@ -9,7 +9,7 @@ import os
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QInputDialog, QLabel,
                                QMessageBox, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import funktionen, rechnen
+from . import funktionen, rechnen, stil
 from .stammdaten import zahl_als_text as zahl
 
 
@@ -403,7 +403,6 @@ class VorschlaegeMixin:
         """Ausgaben → „Lieferantenangebote …“: Antworten auf die Materialanfrage, Vergleich (günstigste je Abmessung
         grün) mit Bewertung der Lieferanten; Antwort erfassen, Übernehmen in die Stammdaten, Wareneingang.
         zeigen=False: nur den Dialog bauen (Tests). Ergebnis: der Dialog."""
-        from PySide6.QtGui import QColor
         from . import lieferantenangebote as la
         from .tabelle_dialog import TabellenDialog
         antworten = la.liste(self.db, self.id)
@@ -417,7 +416,7 @@ class VorschlaegeMixin:
                            e.get("gueltig_bis") or "", la.bewertung_text(bew.get(e["lieferant"])),
                            "übernommen" if e.get("gewaehlt") else "", e.get("eingang") or ""])
             if z["bester"]:
-                farben[r] = QColor("#1B7F3B")
+                farben[r] = stil.farbe(stil.GRUEN)
 
         def neu_zeigen(d_alt):
             d_alt.accept()

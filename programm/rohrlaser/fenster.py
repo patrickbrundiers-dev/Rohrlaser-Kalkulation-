@@ -469,13 +469,15 @@ class StammdatenSeite(QWidget):
             anonym.setToolTip("Datenschutz (nur Admin): Ansprechpartner, Telefon und Mails des gewählten Kunden "
                               "entfernen; Preise und Zahlen bleiben")
             anonym.clicked.connect(lambda: self.anonymisieren())
-            leiste.addWidget(auskunft)
-            leiste.addWidget(anonym)
             katalog = QPushButton("Teilekatalog …")
             katalog.setToolTip("Alle Teile des gewählten Kunden mit letztem Preis, Datum und Vorgang; CSV und "
                                "neues Angebot aus der Auswahl")
             katalog.clicked.connect(lambda: self.teilekatalog())
-            leiste.addWidget(katalog)
+            # zweite Zeile: sonst wird der Reiter Kunden breiter als ein 1024er-Bildschirm
+            zweite = QHBoxLayout()
+            for k_ in (katalog, auskunft, anonym):
+                zweite.addWidget(k_)
+            zweite.addStretch(1)
         if tabelle.name == "profile":
             rp = QPushButton("RP-Profile aus MegaCAD laden …")
             rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
@@ -513,6 +515,8 @@ class StammdatenSeite(QWidget):
         lay = QVBoxLayout(self)
         lay.addWidget(self.hinweis)
         lay.addLayout(leiste)
+        if tabelle.name == "kunden":
+            lay.addLayout(zweite)
         lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
         self.zaehlen()
@@ -2961,7 +2965,6 @@ class Hauptfenster(QMainWindow):
     def offene_pruefen(self, zeigen=True):
         """Datei → Offene Angebote prüfen … (Vorschlag H1a): verschickte, gültige Angebote mit festgeschriebenen
         Preisen gegen die aktuellen Stammdaten; neue Fassung für markierte. Ergebnis: der Dialog."""
-        from PySide6.QtGui import QColor
         from . import sammel_preis
         from .tabelle_dialog import TabellenDialog
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -2983,7 +2986,7 @@ class Hauptfenster(QMainWindow):
         zeilen = [[r["nummer"], r["kunde"], r["datum"], r["gueltig_bis"], zahl_als_text(r["alt"], 2),
                    zahl_als_text(r["neu"], 2), zahl_als_text(r["abweichung"], 2),
                    (zahl_als_text(100 * r["prozent"], 1) + " %") if r["prozent"] is not None else ""] for r in liste]
-        farben = {i: QColor("#B42318") for i, r in enumerate(liste) if (r["prozent"] or 0) > 0.02}
+        farben = {i: stil.farbe(stil.ROT) for i, r in enumerate(liste) if (r["prozent"] or 0) > 0.02}
         d = TabellenDialog(self, "Offene Angebote prüfen",
                            f"{len(liste)} verschickte, noch gültige Angebote mit festgeschriebenen Preisen, gerechnet "
                            "mit den aktuellen Stammdaten. Rot = heute mehr als 2 % teurer.",

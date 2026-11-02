@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout)
 
+from . import stil
 from .stammdaten import zahl_als_text as zahl
 
 SPALTEN = ("Maschine", "Laserzeit [h]", "Preis netto [€]", "Abweichung", "frühester Termin", "Hinweis")
@@ -39,7 +40,7 @@ class MaschinenVergleich(QDialog):
                 if c in (1, 2, 3):
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if not z["moeglich"]:
-                    it.setForeground(Qt.gray)
+                    it.setForeground(stil.farbe(stil.TEXT_GRAU))
                 t.setItem(r, c, it)
         t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         t.horizontalHeader().setStretchLastSection(True)

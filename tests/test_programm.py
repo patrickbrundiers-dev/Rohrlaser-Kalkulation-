@@ -189,7 +189,7 @@ assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren", "Schweiß-Vorkalkulation",
                                                                  "Importprofile (STEP)", "Kundenvorgaben",
-                                                                 "Arbeitsgang-Regeln", "Stundensätze und Zeitvorgaben",
+                                                                 "Arbeitsgang-Regeln", "Verpackung", "Stundensätze und Zeitvorgaben",
                                                                  "Admin-Schutz", "Arbeitsplätze und Rechte", "Frachtzonen und Postleitzahlen",
                                                                  "Tarifverwaltung", "Paletten und Ladehilfsmittel",
                                                                  "Zuschläge", "Dienstleister und Kundentarife",
