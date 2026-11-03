@@ -2,7 +2,7 @@
 alle a, ohne Beispiel-STEPs: Testteile werden hier gebaut):
 - D1 Messung: Stufenwelle, Bolzen mit Einstich, Bundbuchse, Buchse, Fräsblock mit Tasche, Platte mit Tasche,
   Winkelblock werden Dreh- bzw. Frästeil; glatter Rundstahl, Vierkant mit Bohrung, Normrohre und ein Normprofil
-  bleiben wie bisher. Die alte Messung steht als Alternative, JSON-Block 'drehfraes' (Schema 1.26).
+  bleiben wie bisher. Die alte Messung steht als Alternative, JSON-Block 'drehfraes' (Schema 1.27).
 - D2 Übernahme: Zukaufteil-Position mit Artikel der Kategorie Drehteile bzw. Frästeile ohne EK, gleiche Teile einer
   Datei eine Position, ein gleiches Teil aus einer früheren Anfrage nimmt den vorhandenen Artikel (Frage 6 a).
 - D3 Buchse nur nach Maßen erkannt: Prüfstatus prüfen (erst nach Anhaken); steht das Rohr in den Stammdaten, wird
@@ -109,7 +109,7 @@ MW, JS = messen(*TEILE)
 JE = {Path(m["datei"]).stem: m for m in MW}
 
 
-@fall("D1 Messung: Dreh-/Frästeile erkannt, Laserteile unverändert, alte Messung als Alternative, JSON 1.26")
+@fall("D1 Messung: Dreh-/Frästeile erkannt, Laserteile unverändert, alte Messung als Alternative, JSON 1.27")
 def _():
     ist = {n: JE[n]["profilform"] for n in TEILE}
     soll = {n: art for n, (_, art) in TEILE.items()}
@@ -126,7 +126,7 @@ def _():
     f = drehfraes.daten(JE["D06_Platte_Tasche"])
     assert (f["laenge"], f["breite"], f["hoehe"]) == (100, 60, 20) and "Absatz/Tasche" in f["merkmale"], f
     assert all(not m.get("drehfraes") for n, m in JE.items() if n.startswith("N")), "Laserteile ohne Block"
-    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.26"
+    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.27"
     k = next(x for dt in JS["dateien"] if dt["datei"].startswith("D01") for x in dt["koerper"])
     assert k["bauteiltyp"] == "Drehteil" and k["drehfraes"]["art"] == "Drehteil" and k["alternative"]["profiltyp"] \
         == "Rundstahl", k["drehfraes"]

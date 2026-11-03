@@ -228,7 +228,19 @@ class VersandSeite(QWidget):
             d = self.db.palettenschein(i)
             palettenschein.status_setzen(d, status, True)
             self.db.palettenschein_speichern(i, d)
-        self.f.meldung(f"{len(ids)} Auftrag/Aufträge: {status}.")
+        vorbelegt = 0
+        if status == palettenschein.VERSENDET:      # Nachkalkulation vorbelegen (Automationen 03.11.2026, 10a)
+            from . import nachkalk_vorbelegen
+            for i in ids:
+                try:
+                    vorbelegt += bool(nachkalk_vorbelegen.vorbelegen(self.db, i))
+                except Exception:
+                    pass
+        self.f.meldung(f"{len(ids)} Auftrag/Aufträge: {status}."
+                       + (f" Nachkalkulation bei {vorbelegt} Auftrag/Aufträgen vorbelegt (Laserzeit aus den Scans, "
+                          "Rest wie geplant)." if vorbelegt else ""))
+        if vorbelegt:
+            self.f.start.neu_laden()
         self.neu_laden()
         self.waehlen(ids)
         return len(ids)

@@ -1,8 +1,9 @@
 """Auftragsnummer und Liefertermin beim Setzen auf „Beauftragt“ (Plan Arbeitsabläufe W8, Freigabe F6b).
 
 Ein kleines Fenster fragt die Auftragsnummer des Kunden und den Liefertermin ab (beides freiwillig); gespeichert in
-angebote.auftragsnr und angebote.liefertermin (ISO-Datum) und gezeigt in der Angebotsliste. Werkstattpapiere und
-Materialanfrage bleiben wie bisher eigene Schritte.
+angebote.auftragsnr und angebote.liefertermin (ISO-Datum) und gezeigt in der Angebotsliste. Darunter Häkchen für die
+Schritte danach (Auftragsbestätigung, Materialbestellung, Werkstattpapiere, CAM, Etiketten; auftrag_start.py,
+Automationen 03.11.2026 2a), die das Programm nach OK nacheinander erledigt.
 """
 import datetime
 
@@ -48,8 +49,9 @@ def termin_vorschlag(kopf, heute=None, land=None):
 class AuftragDialog(QDialog):
     """Auftragsnummer des Kunden und Liefertermin (Häkchen aus = noch kein Termin)."""
 
-    def __init__(self, parent, angebot, land=None, frueh=None):
-        """frueh = terminplan.Termin (frühester Termin nach Auslastung, Vorschlag V2) oder None."""
+    def __init__(self, parent, angebot, land=None, frueh=None, schritte=None):
+        """frueh = terminplan.Termin (frühester Termin nach Auslastung, Vorschlag V2) oder None. schritte = gemerkte
+        Schritte nach dem Auftrag (auftrag_start, Automationen 03.11.2026 2a) oder None (keine Häkchen)."""
         super().__init__(parent)
         self.setWindowTitle(f"Angebot {angebot.get('nummer') or ''} beauftragt")
         lay = QVBoxLayout(self)
@@ -85,6 +87,17 @@ class AuftragDialog(QDialog):
             uebernehmen.clicked.connect(lambda: self.frueh_uebernehmen())
             lay.addWidget(t)
             lay.addWidget(uebernehmen)
+        self.schritte = {}
+        if schritte is not None:       # Auftrag starten in einem Schritt (2a)
+            from .auftrag_start import SCHRITTE
+            t = QLabel("<b>Danach gleich erledigen</b> (das Programm merkt die Auswahl; gesendet wird nur in Outlook):")
+            t.setWordWrap(True)
+            lay.addWidget(t)
+            for name, text in SCHRITTE:
+                c = QCheckBox(text)
+                c.setChecked(name in schritte)
+                self.schritte[name] = c
+                lay.addWidget(c)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
@@ -99,8 +112,16 @@ class AuftragDialog(QDialog):
         t = self.termin.date().toPython().isoformat() if self.mit_termin.isChecked() else None
         return self.nummer.text().strip() or None, t
 
+    def gewaehlte_schritte(self):
+        return [n for n, c in self.schritte.items() if c.isChecked()]
 
-def abfragen(parent, angebot, land=None, frueh=None):
-    """Fenster zeigen. Ergebnis: (Auftragsnummer, Liefertermin) oder None (abgebrochen)."""
-    d = AuftragDialog(parent, angebot, land, frueh)
-    return d.werte() if d.exec() == QDialog.Accepted else None
+
+def abfragen(parent, angebot, land=None, frueh=None, schritte=None):
+    """Fenster zeigen. Ergebnis: (Auftragsnummer, Liefertermin) oder None (abgebrochen). schritte (Liste): gemerkte
+    Schritte zum Anhaken; die Liste enthält danach die gewählten."""
+    d = AuftragDialog(parent, angebot, land, frueh, schritte)
+    if d.exec() != QDialog.Accepted:
+        return None
+    if schritte is not None:
+        schritte[:] = d.gewaehlte_schritte()
+    return d.werte()

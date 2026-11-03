@@ -239,6 +239,15 @@ def _versand_text(v):
         return verlauf_text(v)
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
+    if v.get("art") == "nachtrag":      # Nachtrag des Kunden einsortiert (Automationen 03.11.2026, 5a)
+        return (f"{datum_text(v.get('datum'))}: Nachtrag des Kunden ({v.get('datei') or 'Mail'})"
+                + (f" – {v['text']}" if v.get("text") else ""))
+    if v.get("art") == "bestellung":    # Bestellung des Kunden zugeordnet (1a)
+        return (f"{datum_text(v.get('datum'))}: Bestellung des Kunden {v.get('bestellnr') or ''}".rstrip()
+                + f" ({v.get('datei') or 'Mail'})" + (f" – {v['abweichungen']} Abweichung(en)"
+                                                      if v.get("abweichungen") else ""))
+    if v.get("art") == "bestellung_material":   # Material beim Lieferanten bestellt (8a)
+        return f"{datum_text(v.get('datum'))}: Material bestellt bei {v.get('lieferant') or 'Lieferant'}"
     if v.get("art") == "wiedervorlage":
         return (f"{datum_text(v.get('datum'))}: Wiedervorlage am {datum_text(v['am'])}" if v.get("am") else
                 f"{datum_text(v.get('datum'))}: Wiedervorlage entfernt")
@@ -1144,6 +1153,13 @@ class UebersichtRahmen(QScrollArea):
         if self.widget() is not None and self.minimumWidth() != (b := self.noetige_breite()):
             self.setMinimumWidth(b)
 
+    def jetzt_anpassen(self):
+        """Breite sofort an den neuen Inhalt anpassen (nach neuen Beträgen): sonst sind lange Beträge bis zum
+        nächsten Durchlauf rechts abgeschnitten (Patrick 03.11.2026 „Werte unsichtbar“)."""
+        if self.widget() is not None:
+            self.widget().layout().activate()
+            self._breite_anpassen()
+
 
 class UebersichtBereich(QWidget):
     """Rechte Seite: Stand der Optimierung, Meldungen, Kennzahlen und Kostenübersicht."""
@@ -1411,7 +1427,9 @@ class UebersichtBereich(QWidget):
         from .kostenbalken import Kostenbalken
         while self.bg_lay.count():
             w = self.bg_lay.takeAt(0).widget()
-            if w is not None:
+            if w is not None:       # sofort weg: sonst liegen die alten Balken bis zum Löschen über den neuen
+                w.hide()
+                w.setParent(None)
                 w.deleteLater()
         self.bg_balken = []
         for titel, teile, posten in gruppen:

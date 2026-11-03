@@ -319,6 +319,8 @@ class NachkalkulationSeite(QWidget):
             self.ist["soll"] = nk.soll_stand(v, s.kopf, s.positionen, s.ergebnis, s.k, teile=self._teile_soll())
         self.s.db.nachkalkulation_speichern(self.s.id, self.ist or None)
         self.s.kopf["nachkalkulation"] = self.ist or None
+        from . import nachkalk_vorbelegen
+        nachkalk_vorbelegen.geprueft(self.s.db, self.s.id)     # nicht mehr unter „Nachkalkulation prüfen“
         self.s.f.meldung("Nachkalkulation gespeichert.")
         self.s.verlauf.merken()
         self._platzhalter(self._rechnen())

@@ -192,7 +192,8 @@ from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.stil import GELB_FLAECHE  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
-assert db.einstellung("schweiss_vk_step") == "nein"                     # Vorgabe: nur per Knopf
+assert db.einstellung("schweiss_vk_step") == "ja"      # Vorgabe seit 03.11.2026: automatisch
+db.einstellung_setzen("schweiss_vk_step", "nein")                      # hier: erst per Knopf (wie bisher geprüft)
 for t_, zeilen_ in baugruppe.richtwerte_fehlend(db.tabellen()).items():   # Verfahren, Kennwerte (Richtwerte)
     for z_ in zeilen_:
         db.neu(t_, z_)

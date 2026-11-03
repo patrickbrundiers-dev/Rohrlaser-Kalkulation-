@@ -315,7 +315,7 @@ class EditorRahmen(QObject):
         rechts.addWidget(erg_rollen)
         rechts.setStretchFactor(0, 3)
         rechts.setStretchFactor(1, 2)
-        rechts.setSizes([420, 280])
+        rechts.setSizes([420, 280] if rohr else [300, 620])     # Blech: Richtwerte und Tafelbelegung brauchen Platz
         self.rechts = rechts
         if rohr:
             d.skizze_kopf.hide()
@@ -359,7 +359,7 @@ class EditorRahmen(QObject):
         self.waagerecht.setStretchFactor(1, 1)
         self.waagerecht.setStretchFactor(2, 0)
         breite = max(900, d.width())
-        links_b, rechts_b = (240, 340) if rohr else (500, 320)
+        links_b, rechts_b = (240, 340) if rohr else (470, 380)
         self.waagerecht.setSizes([links_b, breite - links_b - rechts_b, rechts_b])
         if rohr:
             hoehe = max(500, d.height() - 260)

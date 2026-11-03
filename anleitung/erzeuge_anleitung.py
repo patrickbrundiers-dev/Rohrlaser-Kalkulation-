@@ -1630,14 +1630,22 @@ def kapitel_angebot(i):
             "Reihenfolge im Angebots-PDF ändern sich dadurch nicht (erst beim Umstellen der Reihenfolge gilt die "
             "Anzeige auch dort, [[reihenfolge]]).",
             "Die Anzahl Sätze ist Stückzahl ÷ Stück je Satz der ersten Position. Zugeklappt steht dahinter, wie viele "
-            "Positionen der Satz hat. Der Zustand gilt, bis das Angebot geschlossen wird.",
+            "Positionen der Satz hat. Der Zustand wird je Angebot gemerkt.",
             "Tippen in die Spalte Satz (oder F2) ändert den Namen; ein <b>Doppelklick</b> auf den Satz öffnet "
             "<i>Satz bearbeiten</i> ([[satz_bearbeiten]]).",
             "Im Reiter <i>Kalkulation</i> (kompakt und alle Spalten) steht die Spalte <b>Satz</b> hinter der "
             "Artikelnummer, die Zeilen haben dieselbe Farbe. Ohne Sätze im Angebot ist die Spalte ausgeblendet.",
-            "Schweißbaugruppen ([[schweissbaugruppe]]) haben ihre eigene Gruppierung (▾/└ an der Baugruppe) und "
-            "werden hier nicht zusätzlich gefärbt. Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit "
-            "seinen Teilen darunter.")
+            "Schweißbaugruppen ([[schweissbaugruppe]]) sind <b>grün</b> hinterlegt: in der Spalte Satz steht an der "
+            "Baugruppe fett <i>⚙ Name · Anzahl Stk.</i>, darunter an jedem Einzelteil der Name; Klick auf ▾ klappt "
+            "die Einzelteile zu.",
+            "Die Kalkulation (kompakt und alle Spalten) steht in derselben Reihenfolge wie die Positionsliste: "
+            "Schweißbaugruppe mit Bezeichnung und Profil <i>Schweißbaugruppe</i>, ihre Einzelteile direkt darunter, "
+            "Sätze zusammen. Der Zeilenkopf zeigt dieselbe Klammer; ein Klick klappt auch hier zu.",
+            "<b>▸ Alle Gruppen zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
+            "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle Gruppen aufklappen</b>. Welche Gruppen zu sind, merkt "
+            "sich das Programm je Angebot (auch nach dem Schließen).",
+            "Der Status steht in einer Zeile (lange Texte gekürzt mit …); der ganze Text steht im Tooltip.",
+            "Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit seinen Teilen darunter.")
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
            "die <b>Anzahl Sätze</b> mit − und +, darunter jede Position mit <b>Stück je Satz</b>. Die Stückzahlen "
@@ -1793,13 +1801,32 @@ def kapitel_angebot(i):
             "schon im Materialpreis.",
             "Neue Dateien bekommen Erkennungswörter für Feuerverzinken, Galvanisch verzinken, Pulverbeschichten, "
             "Strahlen und Entgraten; bestehende Dateien bekommen sie einmalig nur dort, wo das Feld leer ist.")
+    i.abschnitt("Zusatzarbeiten rund um den Rohrlaser", marke="zusatz_rohrlaser")
+    i.text("Neben Verzinken, Pulvern, Entgraten, Bohren, Senken, Schweißen, Biegen, Sägen und Strahlen stehen diese "
+           "Zusatzarbeiten mit Beispielpreis fest in der Auswahl (Preise bitte unter Einstellungen → Zusatzarbeiten "
+           "anpassen; nicht gebrauchte auf <i>aus</i> stellen):", kurz=True)
+    i.liste("<b>Nachbearbeitung</b>: <i>Innengrat entfernen</i> (je Teil), <i>Schweißfase anfasen</i> (je Ende, "
+            "Menge = Enden je Teil), <i>Schlacke/Spritzer innen entfernen</i>, <i>Richten</i>, <i>Drehen/Fräsen</i> "
+            "(Fremdleistung, Preis je Teil laut Dreherei).",
+            "<b>Laser</b>: <i>Trennmittel innen</i> – Trennmittel vor dem Lasern ins Rohr, damit Spritzer nicht an der "
+            "Gegenwand haften (je Teil).",
+            "<b>Oberfläche</b>: <i>Brünieren</i> (€/kg, Fremdleistung, Mindestbetrag), <i>Ölen/Konservieren</i> "
+            "(€/m²), <i>Grundieren</i> (€/m², Fremdleistung).",
+            "<b>Montage und Verpackung</b>: <i>Endkappen/Stopfen einsetzen</i> und <i>Einpressmuttern setzen</i> (je "
+            "Stück, Menge je Teil), <i>Etikettieren/Beschriften</i> (je Teil).",
+            "<b>Prüfung</b>: <i>Erstmusterprüfbericht</i> und <i>Prüfbericht 3.1</i> (einmal je Angebot).",
+            "Alle haben Erkennungswörter, z. B. <i>innen entgratet</i>, <i>brüniert</i>, <i>Trennmittel</i>, "
+            "<i>angefast</i>, <i>gedreht</i>, <i>EMPB</i>, <i>Zeugnis 3.1</i>, <i>Endkappe</i>: steht so ein Wort in "
+            "Bezeichnung, Bemerkung oder Zeichnung, schlägt das Programm die Arbeit gelb vor ([[zusatz_erkennen]]).",
+            "Bestehende Dateien bekommen sie einmalig dazu; eine eigene Zusatzarbeit gleichen Namens bleibt "
+            "unverändert, gelöschte kommen nicht wieder.")
     i.abschnitt("Neue Zusatzarbeit im Angebot anlegen", marke="zusatz_neu")
     i.text("Im Fenster Zusatzarbeiten <b>＋ Neue Zusatzarbeit …</b> oder Rechtsklick → <i>Zusatzarbeit hinzufügen → "
            "Neue Zusatzarbeit …</i>: Name, Abrechnung in Worten (je Stück, je kg, je m², je m, je Stunde, einmal je "
            "Angebot), Preis, optional Fremdleistung, Kategorie und Erkennungswörter. Die Vorschau zeigt sofort den "
            "Betrag je Teil.", kurz=True)
     i.liste("<b>Vorlage</b>: fertige Einträge (Eloxieren, Beizen und Passivieren, Glasperlstrahlen, Schleifen / "
-            "Bürsten, Richten, Einpressmuttern, Nieten, Gewindeformen, Reinigen, Prüfbericht 3.1, Sonderverpackung) "
+            "Bürsten, Nieten, Gewindeformen, Reinigen, Sonderverpackung) "
             "füllen das Formular mit Beispielpreisen aus; die Preise bitte prüfen.",
             "Häkchen <b>Fremdleistung: Zuschlag Fremdleistung statt Fertigung</b>, wenn ein Fremdbetrieb (z. B. "
             "Verzinkerei, Eloxal) die Arbeit macht.",
@@ -1849,6 +1876,8 @@ def kapitel_angebot(i):
             "Zusatzarbeit hebt den Preis an; bei Abrechnung € je Angebot steht der Pauschalbetrag und der auf das Teil "
             "umgelegte Anteil.",
             "Rot: eine Zusatzarbeit fehlt in den Stammdaten oder Schweißen hat keine Zeit (wie die Warnung im Status).",
+            "Hat eine Position außer dem Programmieren keinen Arbeitsschritt, bekommt sie keine Unterzeile (die "
+            "Programmierzeit steht in ihrer Spalte); von Hand geändertes Programmieren steht immer da.",
             "Die Zeilen sind nur Anzeige. Ein Klick wählt die Position, ein Doppelklick öffnet ihre "
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
@@ -2543,7 +2572,7 @@ def kapitel_step(i):
     i.text("Bleche erkennt der Import selbst. Sie werden nicht gelasert, sondern <b>Zukaufteil-Positionen</b> mit "
            "einem Blechartikel; im Prüfdialog stehen sie in der grünen Gruppe <b>Bleche (Zukaufteile, nicht "
            "lasern)</b>. Werkstoff wählen, dann gibt es einen Richtpreis. Rund- und Vierkantstahl werden ebenso "
-           "Zukaufteile (Gruppe <b>Vollmaterial (Zukaufteile, gesägt)</b>). Seit 0.9.245 sind alle Zukaufteile "
+           "Zukaufteile (Gruppe <b>Vollmaterial (Zukaufteile, gesägt)</b>). Seit 0.9.249 sind alle Zukaufteile "
            "(Bleche, Vollmaterial, Dreh- und Frästeile) nur dann <b>angehakt</b>, wenn die Datei <i>als "
            "Schweißbaugruppe</i> kommt; sonst entscheidet man selbst mit dem Haken, ob sie ins Angebot kommen. "
            "Einen von Hand gesetzten Haken ändert das Umschalten der Baugruppe nicht.")
@@ -2569,7 +2598,7 @@ def kapitel_step(i):
             "Vierkant bleibt Vollmaterial). <b>Flachstahl</b> steht in der Spalte <b>Art</b> nur zur Wahl, wenn das "
             "Blech von der Größe her ein Flachstahl sein kann: gerade Längsseiten, höchstens so breit wie <i>STEP-"
             "Import: Flachstahl bis Breite</i> (Vorgabe 150 mm) und mindestens dreimal so lang wie breit (seit "
-            "0.9.245); gewählt wird er wie ein Rohr übernommen und kalkuliert. Steht die Einstellung auf <i>Flachstahl bis Breite</i>, gilt die alte "
+            "0.9.249); gewählt wird er wie ein Rohr übernommen und kalkuliert. Steht die Einstellung auf <i>Flachstahl bis Breite</i>, gilt die alte "
             "Abgrenzung: Flachstahl, wenn das Teil höchstens so breit ist wie in <i>STEP-Import: Flachstahl bis "
             "Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang wie breit ist und gerade Längsseiten hat; alles "
             "andere Flache ist ein Blech.",
@@ -2577,7 +2606,7 @@ def kapitel_step(i):
             "gekantet</i>, immer mit Prüfstatus <i>prüfen</i>. Der Import wickelt das Teil ab (k = 0,33, scharfe "
             "Kante: Innenradius = Blechdicke): Zuschnitt, Schenkel-Außenmaße, Biegelinien, alle Innenkonturen und "
             "der Schneidweg kommen aus der Abwicklung. Auch mehrachsig gekantete Teile (Schale, Kasten) werden "
-            "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Seit 0.9.245 ist ein "
+            "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Seit 0.9.249 ist ein "
             "Kantteil <b>mit Biegeradien</b> (außen = innen + Blechdicke) auch bei gleichbleibendem Querschnitt ein "
             "<i>Blech gekantet</i>; das L-, U- oder C-Profil steht in der Spalte Art zur Wahl. Es bleibt ein "
             "<b>Profil</b>, wenn seine Maße ein <b>Standard-Kantprofil</b> sind (U-Stahl nach unserer Liste, Kant-C, "
@@ -2616,7 +2645,7 @@ def kapitel_step(i):
             "(Dubletten: gleiche Maße, Dicke, Werkstoff und Kontur) oder legt einen neuen ohne Einkaufspreis an; "
             "darunter stehen gleiche und ähnliche Artikel zur Wahl. Die Hinweis-Spalte nennt <i>vorhanden</i>, "
             "<i>ähnlich</i> oder <i>neuer Zukaufartikel, EK fehlt</i>.",
-            "Der <b>Werkstoff</b> eines Blechs passt sich den übrigen Bauteilen an (seit 0.9.245): es gilt der "
+            "Der <b>Werkstoff</b> eines Blechs passt sich den übrigen Bauteilen an (seit 0.9.249): es gilt der "
             "häufigste Werkstoff der Rohre und Profile derselben Datei (ohne Rohre die Vorgabe aus Importprofil bzw. "
             "Einstellung), als passender <b>Blech-Werkstoff</b> des Blech-Editors ([[blech_stammdaten]]): gleiche "
             "Werkstoff-Nr. (1.4301 → 1.4301 2B), gleiche Stahlsorte (S235JRH → S235JR, S355J2H → S355MC), sonst "
@@ -2661,7 +2690,7 @@ def kapitel_step(i):
     i.abschnitt("Dreh- und Frästeile", marke="drehfraesteile")
     i.text("<b>Drehteile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse) und <b>Frästeile</b> "
            "(Block oder Platte mit Tasche, Absatz, aus dem Vollen gefräster Winkel) werden nicht gelasert, sondern "
-           "<b>Zukaufteil-Positionen</b> ohne Einkaufspreis, den der Lieferant nennt (seit 0.9.245).", kurz=True)
+           "<b>Zukaufteil-Positionen</b> ohne Einkaufspreis, den der Lieferant nennt (seit 0.9.249).", kurz=True)
     i.genauer()
     i.liste("<b>Drehteil</b>: fast alle Flächen liegen drehsymmetrisch um eine Achse (Zylinder, Kegel, Radien, "
             "Stirnflächen); Querbohrungen, Schlüsselflächen und Gewinde sind erlaubt. Drehteil wird es mit mehreren "
@@ -2687,7 +2716,7 @@ def kapitel_step(i):
             "Anfrage nimmt den vorhandenen Artikel mit seinem EK; gleiche Teile einer Datei sind eine Position.",
             "Kalkulation wie alle Zukaufteile: kein Gewinn, nur der Aufschlag der Zukaufregel, Fracht ja, Rüsten, "
             "Pauschalen und Programmierung nein ([[zukauf_positionen]]).",
-            "Im JSON-Messergebnis (ab Version 1.26) heißen <i>bauteiltyp</i> und <i>profiltyp</i> dann Drehteil "
+            "Im JSON-Messergebnis (ab Version 1.27) heißen <i>bauteiltyp</i> und <i>profiltyp</i> dann Drehteil "
             "bzw. Frästeil, der Block <i>drehfraes</i> enthält Maße und Merkmale, <i>alternative</i> die Messung "
             "als Rohr/Profil.")
     i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
@@ -2700,7 +2729,7 @@ def kapitel_step(i):
            "sind (z. B. 60 × 40) und das Rohr genau die Außenmaße des Teils hat. Ein U mit Biegeradien, für das "
            "das Rohr größer sein müsste (U 60 × 40 würde RE 60 × 50), ein krummes Außenmaß wie 30,8 und ein C mit "
            "Lippen und mehr als 20 mm Schlitz sind ein <i>Blech gekantet</i>; das Rohr steht dann in der Spalte Art "
-           "zur Wahl (<i>… – Ringe an den Enden (aus dem Rohr)</i>, seit 0.9.245).", kurz=True)
+           "zur Wahl (<i>… – Ringe an den Enden (aus dem Rohr)</i>, seit 0.9.249).", kurz=True)
     i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: in der Spalte Art aus dem Rohr gewählt, mit "
            "Ringen an den Enden",
            hoehe=95 * mm, legende=[
@@ -5174,6 +5203,45 @@ def kapitel_zukauf_angebot(i):
             "ihre Mitte, + = gegen den Uhrzeiger. Skizze, 3D, DXF, Zeichnung und der Abstand zu den Biegelinien "
             "rechnen gedreht; die Schnittlänge bleibt gleich.",
             "Jede Änderung lässt sich mit Strg+Z zurücknehmen.")
+    i.abschnitt("Richtwerte ändern, Angebotspreis, Tafelbelegung", marke="blech_richtwerte")
+    i.text("Rechts im Blech-Editor stehen alle <b>Richtwerte</b> des Blechs mit einer Spalte <b>eigener Wert</b>. "
+           "Der Richtpreis wird immer daraus berechnet; einen eingeholten Preis des Lieferanten trägt man im Angebot "
+           "in der Spalte <b>EK Blech</b> ein.", kurz=True)
+    i.genauer()
+    i.liste("<b>Richtwerte</b>: Gewicht je Teil, Material mit Verschnitt, Materialpreis (€/kg), Schneidweg, "
+            "Einstiche, Laserzeit, Stundensatz, Kantungen, Preis je Kantung, Rüsten je Los und Aufschlag. Die Spalte "
+            "<i>berechnet</i> zeigt den Wert aus Eingaben und Einstellungen. Ein <b>eigener Wert</b> gilt nur für "
+            "dieses Teil (gelb), die Einstellungen bleiben; <b>↺</b> setzt auf den Richtwert zurück. Der Richtpreis "
+            "rechnet sofort neu. Ein eigener Schneidweg ändert die Schneidzeit im Verhältnis, eigene Einstiche die "
+            "Einstechzeit; eine eigene Laserzeit gilt so, wie sie eingetragen ist (auch ohne Blechlaser-Richtwerte "
+            "für die Dicke).",
+            "<b>Aus der STEP</b> (fett blau): Bei Blechen aus dem STEP-Import kommt das <i>Gewicht</i> aus dem "
+            "gemessenen Volumen und der <i>Schneidweg</i> aus dem gemessenen Außen- und Innenumfang, die Laserzeit "
+            "daraus. Das gilt, solange die Form im Editor nicht geändert wird (eine Text-Gravur zählt nicht); danach "
+            "rechnet der Editor wieder aus den Eingaben. Der Schneidweg ist immer die volle Außenkontur plus alle "
+            "Innenkonturen; gemeinsame Schnitte benachbarter Teile werden nicht abgezogen.",
+            "<b>Tafelbelegung</b>: unter den Richtwerten zeigt ein Bild die günstigste Tafel mit den Teilen (Außenkontur "
+            "und Innenkonturen wie Bohrungen und Ausbrüche in Rot, im Hüllrechteck, Steg und Rand aus den Einstellungen); die letzte Tafel zählt nur mit der belegten "
+            "Fläche (rot gestrichelt). Doppelklick zeigt das Bild groß.",
+            "<b>Spalte EK Blech</b> in der Positionsliste: grau = berechneter Richtpreis. Einen <b>Angebotspreis</b> "
+            "des Lieferanten anklicken und eintragen; er wird im Zukaufartikel als Preis ab Stückzahl gespeichert, "
+            "steht fett und gilt im Angebot statt des Richtpreises (kein Gewinn auf Bleche, nur der Aufschlag der "
+            "Zukaufteile). Wird das Blech danach im Editor geändert, bleibt der Angebotspreis; der neue Richtpreis "
+            "steht im Tooltip zum Vergleich. Zelle leeren = wieder der Richtpreis.",
+            "<b>Zukaufteile … → Bleche: Richtwerte, Angebotspreise, Tafelbelegung …</b>: alle Bleche des Angebots mit "
+            "Werkstoff, Dicke, Zuschnitt, Gewicht, Laserzeit, eigenen Werten, Richtpreis sowie <i>Angebotspreis</i> und "
+            "<i>Lieferant</i> zum Eintragen; Doppelklick auf eine andere Spalte öffnet den Blech-Editor. Der Reiter "
+            "<i>Tafelbelegung (Ansicht)</i> legt je Werkstoff und Dicke alle Bleche gemeinsam auf Tafeln (Nummer = "
+            "Pos.). Das ist nur eine Ansicht: gerechnet wird weiter je Teil.",
+            "Im <b>Prüfdialog</b> des STEP- bzw. E-Mail-Imports steht bei jedem Blech mit Werkstoff gleich Gewicht und "
+            "Richtpreis aus den STEP-Daten; ein anderer Werkstoff rechnet sie neu. Ronden, Flansche und Knotenbleche "
+            "werden automatisch als Blech erkannt.",
+            "<b>Gewinde in Blechen</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes (z. B. Ø6,8 = M8) werden beim "
+            "STEP-Import ein gelber <i>Gewinde-Vorschlag</i>, Gewinde aus der Zeichnung hängen sich an die passende "
+            "Bohrung. Bis zur Prüfung warnt der Status. Doppelklick auf <i>Gewinde</i> bzw. <i>Bohrungen</i> öffnet "
+            "<b>Bohrungen prüfen</b>; bestätigte Gewinde schneiden wir selbst: Preis je Stück aus <i>Einstellungen › "
+            "Gewinde</i> (bzw. je Position im Dialog), zusätzlich zum Blech-EK als eigene Fertigung mit Gewinn. Der "
+            "EK des Blechs (Richtpreis oder Angebotspreis) bleibt unverändert.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
@@ -5318,7 +5386,7 @@ def kapitel_baugruppen(i):
         (3, "<b>Unterbaugruppen</b> mit <b>Menge</b> je übergeordneter Baugruppe (<b>Unterbaugruppe hinzufügen</b>,"
             " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
         (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "
-            "das Stück je Baugruppe."),
+            "das Stück je Baugruppe. Darüber <b>Suchen</b> und <b>Alle Positionen zeigen</b>."),
         (5, "Kosten je Baugruppe, Zeit und <b>Status</b>, bei jeder Eingabe neu gerechnet.")])
     i.text("Die Einzelteile bleiben normale Positionen: sie werden optimiert und kalkuliert wie bisher. Die Baugruppe "
            "rechnet nur ihre eigenen Leistungen dazu, nichts doppelt.", kurz=True)
@@ -5328,7 +5396,10 @@ def kapitel_baugruppen(i):
            "Baugruppen. Das Programm hält diese Werte selbst aktuell: Ändert man die Stückzahl der Baugruppe in der "
            "Positionsliste, ziehen die Teile nach (Meldung unten). Ein Teil kann nur zu einer Baugruppe gehören; "
            "Teile anderer Baugruppen fehlen in der Liste des Editors. Nimmt man ein Teil heraus (Haken weg), verliert "
-           "es Satz und Stück je Satz der Baugruppe. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
+           "es Satz und Stück je Satz der Baugruppe. Die Liste zeigt zuerst nur die Teile dieser Baugruppe; "
+           "<b>Alle Positionen zeigen</b> blendet die freien Positionen des Angebots dazu ein (nach Satz geordnet, "
+           "ohne Satz zuletzt), um Teile hinzuzufügen. Das Suchfeld filtert nach Pos., Artikel, Bezeichnung, Profil "
+           "oder Satz. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
            "Editor weist das sofort ab. <b>Unterbaugruppe entfernen</b> hängt ihre Teile, Nähte und Arbeitsgänge "
            "eine Ebene höher.")
     i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
@@ -5441,8 +5512,12 @@ def kapitel_baugruppen(i):
         (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
         (4, "<b>Lage</b> (PA … PG), Zugänglichkeit, Qualität und Werkstoff: Faktoren auf die Lichtbogenzeit."),
         (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
-        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Etikett "
-            "<i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
+        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe), <b>Rechenweg</b> und <b>Hinweis</b>: "
+            "Nahtlänge, Etikett <i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
+    i.text("Die Spalte <b>Rechenweg</b> zeigt, wie die Zeit je Stück der Unterbaugruppe entsteht, z. B. <i>0,96 m × "
+           "1,33 min/m ÷ 35 % Lichtbogen = 3,6 min + Heften 24 × 8 s = 3,2 min</i>: Naht [m] × Lichtbogenzeit je m "
+           "(× Faktoren Lage, Zugänglichkeit, Qualität, Werkstoff, Spalt) ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit "
+           "je Heftpunkt (+ Zusatzlagen). Fehlen Heftpunkte, steht dort <i>ohne Heftpunkte</i>.")
     i.genauer()
     i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
            "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
@@ -5502,6 +5577,30 @@ def kapitel_baugruppen(i):
     i.text("Steckt ein Rohr durch ein Loch im Blech, schlägt der Import eine Kehlnaht rundum mit dem Außenumfang des "
            "Rohrs vor und hakt <b>beidseitig</b> an (oben und unten am Blech geschweißt); wird nur eine Seite "
            "geschweißt, das Häkchen in der Nahtgruppe entfernen.")
+    i.abschnitt("Nahtlänge: aus STEP, aus einem Teil, Stichnaht", marke="naht_laenge")
+    i.text("Wie lang eine Naht ist, entscheidet über die Schweißzeit. Das Programm rechnet sie aus der STEP-Datei, "
+           "aus einem Einzelteil oder nimmt deine Eingabe.", kurz=True)
+    i.tabelle(["Stoß (aus STEP)", "Länge je Naht"], [
+        ["Rohrende auf Rohr oder Platte", "rundum = Schnittlänge des Rohrendes, z. B. QR 40 auf RE 60x40: 152 mm"],
+        ["Kastenrohr quer auf schmalerem Kastenrohr (steht über)", "nur die zwei aufliegenden Wände: 2 × Breite des "
+         "schmaleren Rohrs, z. B. QR 60 auf QR 40: 2 × 40 = 80 mm statt 232 mm rundum"],
+        ["zwei Rohre (oder Flachstahl, Lasche) längs nebeneinander", "nur die Längsnähte ohne die kurzen "
+         "Stirnseiten, z. B. 2 × QR 40 L500: 2 × 500 = 1.000 mm; ab 300 mm je Naht mit Hinweis <i>Stichnaht "
+         "möglich</i>"],
+        ["Lasche hochkant", "ohne die Stirnseiten in Blechdicke, z. B. 2 × 80 mm statt 170 mm"],
+        ["Rohr durch ein Blech", "rundum = Außenumfang, beidseitig"],
+        ["sonst (z. B. Blech flach auf dem Rohr)", "Umfang der Berührfläche"]], [70 * mm, BREITE - 70 * mm])
+    i.text("Die Nahtkandidaten aus STEP zeigen in der Spalte <b>Aufteilung der Länge</b>, wie die Länge entsteht; "
+           "nach dem Übernehmen steht sie im Hinweis der Nahtgruppe (<i>Länge aus STEP: …</i>).")
+    i.text("<b>Länge aus</b> (Reiter Nahtgruppen) rechnet die Länge ohne STEP aus einem Einzelteil, das du in der "
+           "Spalte <b>Teil</b> wählst: <i>rundum Teil</i> = Außenumfang des Profils (QR 40x3: 152 mm), "
+           "<i>Längsnaht Teil</i> = Länge des Teils, <i>2 Seiten</i> = 2 × Breite des Profils. Ändert sich das Teil, "
+           "zieht die Länge mit. Trägst du die Länge selbst ein, steht <i>Länge aus</i> wieder auf <i>frei</i>.")
+    i.text("<b>geschweißt [%]</b> ist für Stichnähte: 50 heißt, die Hälfte der Länge wird geschweißt (z. B. 50/100). "
+           "Naht [m], Verputzen und Prüfen rechnen mit der geschweißten Länge. Dafür kommt je weiteren Stich ein "
+           "Ansatz mit der Zeit je Heftpunkt dazu; die Stichlänge steht in der Regel <i>Stichnaht, Länge je "
+           "Stich</i> (Richtwert 50 mm). Leer heißt 100 %. Der Rechenweg zeigt z. B. <i>1 m (Stichnaht 50 %) × … "
+           "+ Stiche 18 Ansätze × 8 s</i>.")
     i.abschnitt("a-Maß und Stückliste aus der Zeichnung", marke="zeichnung_baugruppe")
     i.text("<b>Aus Zeichnung …</b> (Reiter Nahtgruppen) liest die Zeichnung der Baugruppe (PDF aus dem CAD, DXF oder "
            "Scan) und setzt die a-Maße der Schweißangaben in die Kehlnähte. Die Zeichnung ist maßgebend.", kurz=True)
@@ -5594,8 +5693,11 @@ def kapitel_baugruppen(i):
     i.tabelle(["Wert", "Rechnung (Werte aus Einstellungen → Schweiß-Vorkalkulation)"], [
         ["Rüsten (einmalig)", "Grundrüstzeit + Zeit je Teilenummer × Einzelteil-Positionen, mit Arbeitsgang "
                               "Vorrichtung + Rüsten Vorrichtung; Umlage je Auftrag"],
-        ["Positionieren", "je Unterbaugruppe das erste Teil als Basisteil, jedes weitere Stück × Zeit seiner "
-                          "Positionierhilfe; eingebaute Unterbaugruppen zählen als Teil <i>frei</i>"],
+        ["Positionieren", "je Unterbaugruppe das <b>schwerste</b> Teil als Basisteil, jedes weitere Stück × Zeit "
+                          "seiner Positionierhilfe × <b>Faktor nach Stückgewicht</b> (Richtwerte: bis 1 kg × 0,5, bis "
+                          "5 kg × 1,0, bis 20 kg × 1,5, darüber × 3 für den Kran; Regeln <i>Faktor bis … kg</i>, "
+                          "fehlen sie, Faktor 1); eingebaute Unterbaugruppen zählen als Teil <i>frei</i> mit ihrem "
+                          "Gewicht. Der Hinweis nennt z. B. <i>3 × 2 (frei) × 0,5 (bis 1 kg)</i>"],
         ["Positionierhilfe", "Steckverbindung (Teil einer Steckverbindung der Baugruppe), Vorrichtung (Arbeitsgang "
                              "Vorrichtung an seiner Unterbaugruppe), Gravur (Zukaufteil, dessen Lage auf dem Rohr "
                              "graviert ist: Anbauteil mit Umriss oder Marke), sonst frei"],
@@ -5633,8 +5735,10 @@ def kapitel_baugruppen(i):
            "Bestätigung) und schlägt Schweißen, Heften, Verputzen, Rüsten, Positionieren und Wenden bei jeder "
            "Änderung neu vor, spätestens beim OK; Werte von Hand und bestätigte bleiben. Die Einstellung "
            "<i>Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim STEP-Import: "
-           "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)</i> gibt das Häkchen für "
-           "Baugruppen ohne eigene Wahl vor; auf <i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
+           "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Positionieren, Wenden, Verputzen, Rüsten)</i> gibt "
+           "das Häkchen für Baugruppen ohne eigene Wahl vor; Vorgabe ist seit Version 0.9.246 <i>ja</i>, weil ohne "
+           "Vorkalkulation nur die reine Schweißzeit zählt (keine Heftpunkte, kein Positionieren und Wenden). Auf "
+           "<i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
            "STEP-Import gleich durch ([[step]]), der Bericht nennt das Ergebnis. Nimmt man das Häkchen bei einer "
            "Baugruppe heraus, bleibt es dort aus, auch wenn die Einstellung ja ist.", kurz=True)
     i.abschnitt("Erreichbarkeit der Nähte aus STEP: Zugänglichkeit und Wenden", marke="baugruppe_erreichbar")
@@ -6217,6 +6321,92 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Standardsignatur für neue Nachrichten gewählt sein. Die E-Mail-Datei (neues Outlook, kein Outlook) "
            "erreicht die Outlook-Signatur nicht; sie bekommt die <i>eigene Signatur</i> aus den Einstellungen "
            "(leer = Briefkopf). Mit <i>nein</i> gilt die eigene Signatur auch in Outlook.")
+
+
+def kapitel_automatik(i):
+    """Automationen vom 03.11.2026 (Pakete A–D)."""
+    i.kapitel("Automationen", marke="automatik")
+    i.text("Das Programm erledigt wiederkehrende Schritte von selbst. Dabei gilt immer: Was es tut, ist sichtbar (gelb "
+           "oder als Einblendung) und lässt sich zurücknehmen; gesendet wird nur in Outlook; Staffeln und Sätze legt "
+           "es nie von allein an, und Konturen bleiben wie in der STEP. Alle Schritte stehen unter <b>Datei → "
+           "Automatik-Protokoll …</b>; dort nimmt <b>Rückgängig</b> einen markierten Schritt zurück. Ein- und "
+           "ausschalten lassen sich die Automationen unter Einstellungen → <i>Automationen im Arbeitsablauf</i>.",
+           kurz=True)
+    i.abschnitt("Neue Anfragen", marke="automatik_anfragen")
+    i.liste("<b>Vormessen</b>: Liegt eine Anfrage im Anfrage-Ordner ([[anfragen]]), misst das Programm ihre "
+            "STEP-Dateien im Hintergrund (auch aus Mails und ZIPs). Die Liste zeigt dann z. B. <i>12 Teile · 4 "
+            "Profile (1 fehlt in den Stammdaten) · Richtpreis ca. 3.400 € · 2 Wiederholteile</i>. Beim Öffnen ist die "
+            "Messung schon da. Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>.",
+            "<b>Ampel</b>: Jede Anfrage hat eine Antwortfrist in Arbeitstagen (Einstellung <i>Anfrage beantworten "
+            "in</i>, je Kunde unter Kundenvorgaben). Grüner Punkt = Zeit, gelb = heute fällig, rot = überfällig. "
+            "Die Liste steht nach Dringlichkeit.",
+            "<b>Nachtrag</b>: Eine Mail ohne STEP mit der Anfrage-Nr. eines vorhandenen Angebots vom selben Kunden "
+            "legt das Programm selbst in den Angebotsordner (Unterordner <i>Anfrage</i>). Ändert sie Stückzahlen, "
+            "Termin oder Werkstoff, erscheint beim Öffnen des Angebots eine gelbe Leiste mit <b>Übernehmen</b> "
+            "(mit Rückgängig) und <b>Ablehnen</b>.",
+            "<b>Bestellung</b>: Eine Mail, die nach Bestellung klingt und eine Angebots- oder Anfrage-Nr. nennt, "
+            "erscheint als Zeile <i>Bestellung zu Angebot …</i>. <b>Bestellung prüfen …</b> zeigt Bestellnummer, "
+            "Wunschtermin und je Position Menge und Preis gegen das Angebot (Abweichungen gelb, fehlende rot). "
+            "<b>Beauftragen</b> setzt das Angebot auf Beauftragt, legt die Mail in den Angebotsordner und erledigt "
+            "die angehakten Schritte (siehe unten). Bestellte Mengen übernimmt es nur mit Häkchen.",
+            "<b>Wiederholanfrage</b>: Nennt ein bekannter Kunde nur Artikelnummern und Mengen, findet das Programm "
+            "sie in seinem Teilekatalog. <b>Artikel übernehmen …</b> legt ein neues Angebot mit den Positionen des "
+            "letzten Angebots und den Mengen aus der Mail an; die Preise rechnet es mit den aktuellen Stammdaten.",
+            "<b>Kundendaten aus der Signatur</b>: Fehlen beim Kunden Telefon, Ansprechpartner, Straße oder PLZ Ort, "
+            "ergänzt das Programm sie beim Öffnen der Anfrage aus der Signatur der Mail (Protokoll: Rückgängig). "
+            "Abweichende Angaben stehen nur als Hinweis im Prüfdialog.",
+            "<b>Zuweisen</b> (gemeinsamer Ordner): Neue Anfragen bekommt der Zuständige des Kunden (Kundenstamm, "
+            "Spalte <i>Zuständig</i>), sonst wer am wenigsten offene Anfragen hat.")
+    i.abschnitt("Angebot erstellen", marke="automatik_angebot")
+    i.liste("Nach dem STEP-Import eines neuen Angebots: Nennt die Mail <i>Material wird beigestellt</i> oder "
+            "<i>Kundenmaterial</i>, steht Material = Kunde; nennt sie eine Oberfläche der Stammdaten eindeutig "
+            "(z. B. <i>gebeizt</i>), wird sie gesetzt. Ist eine andere Maschine mehr als 5 % günstiger und kann alle "
+            "Teile, stellt das Programm sie ein (Einblendung <b>Rückgängig</b>). Nennt der Kunde keinen Termin, "
+            "kommt die Lieferzeit aus der Maschinenauslastung und der Material-Lieferzeit (KW); ist sein Wunschtermin "
+            "nicht machbar, steht das in der Einblendung. Fehlen Angaben, bietet die Einblendung <b>Rückfrage "
+            "öffnen …</b> an.",
+            "<b>Übernehmen und fertigstellen</b> (Prüfdialog) bzw. Ausgaben → <b>Fertigstellen …</b>: Angebots-PDF "
+            "(mit Optimieren und Angebots-Check), Antwort auf die Anfrage-Mail mit PDF in Outlook, Vorgang "
+            "Verschickt und Wiedervorlage nach den Nachfass-Tagen. Bei einem Fehler im Check hält die Kette an. "
+            "Danach bietet die Einblendung <b>Nächste Anfrage</b> die dringendste offene Anfrage an.",
+            "<b>Aus Nacharbeit lernen</b>: Ändern Sie beim selben Kunden nach dem Import in drei Angeboten dasselbe "
+            "(Werkstoff, Zusatzarbeit, Stangenlänge), fragt das Programm einmal, ob es das ins Importprofil bzw. "
+            "die Kundenvorgaben übernehmen soll.")
+    i.abschnitt("Auftrag und Material", marke="automatik_auftrag")
+    i.liste("<b>Auftrag starten</b>: Das Fenster <i>Beauftragt</i> hat Häkchen für die Schritte danach: "
+            "Auftragsbestätigung, Materialbestellung, Werkstattpapiere, Übergabe an CAM, Etiketten. Das Programm "
+            "merkt die Auswahl je Arbeitsplatz und erledigt sie nach OK nacheinander; die Einblendung zeigt, was "
+            "entstanden ist.",
+            "<b>Lieferantenantwort einlesen</b>: In den Lieferantenangeboten ([[lieferantenangebote]]) liest "
+            "<b>Mail/PDF einlesen …</b> Preise je Abmessung (€/kg, je 100 kg, €/t, €/m, €/Stange), Lieferzeit und "
+            "Bindefrist aus der Antwort. Die Zeilen sind gelb, bis Sie sie mit <b>Übernehmen</b> bestätigen.",
+            "<b>Material bestellen …</b> schreibt die Bestellung beim gewählten Lieferanten (Vorlage "
+            "<i>Materialbestellung</i>, je Zeile der Preis aus seinem Angebot) und merkt den erwarteten Wareneingang. "
+            "Ist er fällig und noch nicht eingetragen, steht er auf der Startseite.",
+            "<b>Preiswächter</b>: Ändern sich Materialpreise, Schneiddaten, Maschinen oder Stundensätze, prüft das "
+            "Programm die offenen Angebote einmal von selbst. Liegen welche mehr als 3 % unter dem aktuellen Preis, "
+            "meldet die Startseite das (Doppelklick: <i>Offene Angebote prüfen …</i>). Angebote ändern sich nie von "
+            "allein.",
+            "<b>Nachkalkulation vorbelegen</b>: Setzen Sie einen Auftrag im Reiter Versand auf <i>Versendet</i>, "
+            "füllt das Programm die Nachkalkulation vor: Laserzeit aus den Scans, alles andere wie geplant. Weicht "
+            "der Deckungsbeitrag mehr als 10 % ab, steht der Auftrag auf der Startseite unter <i>Nachkalkulation "
+            "prüfen</i>, bis Sie die Nachkalkulation speichern.")
+    i.abschnitt("Einstellungen der Automationen", marke="automatik_einstellungen")
+    i.text("Einstellungen → <i>Automationen im Arbeitsablauf</i> bzw. <i>Bestellung beim Lieferanten</i> "
+           "([[einstellungen]]):")
+    i.liste("<i>Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den Kundenvorgaben)</i>, "
+            "Vorgabe 2.",
+            "<i>Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)</i>.",
+            "<i>Neue Anfragen automatisch zuweisen (gemeinsamer Ordner)</i>: an den Zuständigen des Kunden, sonst an "
+            "den, der am wenigsten offene Anfragen hat.",
+            "<i>Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)</i>: günstigste Maschine, Lieferzeit "
+            "nach Auslastung, Beistellung und Oberfläche aus der Mail, Rückfrage vorbereiten.",
+            "<i>Preiswächter: offene Angebote melden ab Abweichung</i>, Vorgabe 3 %.",
+            "<i>Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung</i>, Vorgabe 10 %.",
+            "<i>Auftrag starten: Schritte beim Beauftragen (gemerkt je Arbeitsplatz)</i> – setzt das Fenster "
+            "Beauftragt von selbst.",
+            "<i>Materialbestellung: Betreff</i> und <i>Materialbestellung: Text der E-Mail</i> mit den Platzhaltern "
+            "der Materialanfrage; <i>{positionen}</i> enthält je Zeile den Preis aus dem Angebot des Lieferanten.")
 
 
 def kapitel_nachkalkulation(i):
@@ -7599,7 +7789,7 @@ def kapitel_stammdaten(i):
     i.abschnitt("Profile", marke="profile")
     i.text("Profil-ID, Form, Maße und Wandstärke. Unbekannte Rohre im Angebot oder STEP-Import legt das Programm "
            "selbst an. Die U-Profile nach DIN 1026-1 von <i>UPN 30x15</i> bis <i>UPN 200</i> stehen als Standard "
-           "schon drin, seit 0.9.245 auch die <b>Kantprofile</b>: <i>U-Stahl</i> rund- und scharfkantig von "
+           "schon drin, seit 0.9.249 auch die <b>Kantprofile</b>: <i>U-Stahl</i> rund- und scharfkantig von "
            "<i>U-Stahl 15x15x1,5</i> bis <i>U-Stahl 120x60x6</i> (Höhe × Breite × Dicke, Gewicht je Meter aus "
            "unserer Liste), <i>Kant-C</i> (Höhe × Breite × Abkantung × Dicke) und <i>Kant-L</i>. Ein gekantetes "
            "U oder C mit diesen Maßen erkennt der STEP-Import als Profil für den Rohrlaser, andere Kantteile mit "
@@ -9558,6 +9748,9 @@ STECKBRIEFE = {
                   "Reiter <i>Fertigung</i> und <i>Lager</i> (Einstellung); im Angebot <i>Weitere ▾</i>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
                         "Im Angebot Reiter <i>Nachkalkulation</i>"),
+    "automatik": ("Was das Programm von selbst erledigt: Anfragen vorbereiten, Nachträge und Bestellungen zuordnen, "
+                  "Auftrag starten, Angebote fertigstellen – sichtbar und zurücknehmbar.",
+                  "Startseite, <i>Datei → Automatik-Protokoll …</i>, Einstellungen → <i>Automationen</i>"),
     "einstellungen": ("Funktionen ein/aus, Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
                       "Reiter <i>Einstellungen</i> (Passwort) → Seite nach Thema"),
     "stammdaten": ("Kunden (auch per CSV), Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen "
@@ -9592,7 +9785,7 @@ TEILE = [
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
       kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_versand,
-      kapitel_fertigung, kapitel_nachkalkulation]),
+      kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,

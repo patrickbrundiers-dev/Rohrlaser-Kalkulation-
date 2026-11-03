@@ -142,9 +142,13 @@ def naht_text(z):
     return f"Schweißnaht auf der {z['naht']}" if z.get("naht") in naht.NAHT_STANGE else ""
 
 
-def zeile_block(z, k, stangen=None, zuschnitt=True):
-    """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt, Schweißnaht und Anforderungen."""
+def zeile_block(z, k, stangen=None, zuschnitt=True, preis=None):
+    """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt, Schweißnaht und Anforderungen;
+    preis = gewählte Lieferantenantwort (Bestellung, Automationen 03.11.2026 8a): Zeile „Preis lt. Ihrem Angebot“."""
     zeilen = [f"- {zeile_text(z, k, stangen)}"]
+    if preis:
+        from .lieferantenangebote import preis_text
+        zeilen.append(f"  {preis_text(preis)}")
     if zuschnitt and zuschnitt_text(z):
         zeilen.append(f"  {zuschnitt_text(z)}")
     if naht_text(z):
@@ -191,17 +195,22 @@ def _werte(kopf, einst, positionen=""):
                 datum=date.today().strftime("%d.%m.%Y"), absender=absender(einst))
 
 
-def betreff(kopf, einst=None):
-    return _vorlage(_einst(einst, "anfrage_betreff"), _werte(kopf, einst)).strip()
+def betreff(kopf, einst=None, bestellung=False):
+    return _vorlage(_einst(einst, "bestellung_betreff" if bestellung else "anfrage_betreff"),
+                    _werte(kopf, einst)).strip()
 
 
-def anschreiben(kopf, zeilen, einst, k, mengen=None, zuschnitt=None):
+def anschreiben(kopf, zeilen, einst, k, mengen=None, zuschnitt=None, preise=None):
     """Text der E-Mail aus der Vorlage (Einstellung anfrage_text), ohne Signatur. mengen = {Zeilenindex: Stangen}
-    überschreibt die Anzahl, zuschnitt = Zeilenindizes mit Zuschnitt (None = alle, die einen haben)."""
+    überschreibt die Anzahl, zuschnitt = Zeilenindizes mit Zuschnitt (None = alle, die einen haben). preise =
+    {(Profil, Werkstoff): gewählte Lieferantenantwort} macht daraus die Bestellung (Vorlage bestellung_text, je Zeile
+    der Preis lt. Angebot des Lieferanten)."""
     mengen = mengen or {}
-    liste_ = "\n".join(zeile_block(z, k, mengen.get(i), zuschnitt is None or i in zuschnitt)
+    liste_ = "\n".join(zeile_block(z, k, mengen.get(i), zuschnitt is None or i in zuschnitt,
+                                   (preise or {}).get((z.get("profil"), z.get("werkstoff"))))
                        for i, z in enumerate(zeilen))
-    return _vorlage(_einst(einst, "anfrage_text"), _werte(kopf, einst, liste_))
+    return _vorlage(_einst(einst, "bestellung_text" if preise is not None else "anfrage_text"),
+                    _werte(kopf, einst, liste_))
 
 
 def mit_signatur(text_, sig):

@@ -468,7 +468,7 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
     return erg
 
 
-def zukaufteil_status(p, positionen=None, pruefregeln=None, einst=None):
+def zukaufteil_status(p, positionen=None, pruefregeln=None, einst=None, gewinde=None):
     """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht); Blechteile
     aus dem Blech-Editor zusätzlich mit der Fertigungsprüfung (dfm.blech_position, Tabelle pruefregeln)."""
     if _leer(p.get("stueck")) or p["stueck"] < 1:
@@ -482,10 +482,18 @@ def zukaufteil_status(p, positionen=None, pruefregeln=None, einst=None):
     befunde = dfm.blech_position(p, pruefregeln, einst)
     if befunde and befunde[0].stufe == dfm.FEHLER:
         return dfm.status(befunde)
-    pr = pruefungen(p, positionen=positionen)
+    from . import blech
+    gewinde = gewinde if blech.lesen(p.get("technik")) is not None else None     # Gewinde nur bei Blechen
+    pr = pruefungen(p, positionen=positionen, gewinde=gewinde)
     for schluessel in ("satz_vielfach", "satz", "baugruppe"):
         if schluessel in pr:
             return "WARNUNG: " + pr[schluessel]
+    if "gewinde" in pr:
+        return f"WARNUNG: Gewinde '{pr['gewinde']}' nicht erkannt (Format 4xM6; 2xM8)"
+    if "gewinde_preis" in pr:
+        return f"WARNUNG: Gewinde {pr['gewinde_preis']} ohne Preis je Stück (Einstellungen › Gewinde)"
+    if gewinde is not None and bohrbild_offen(p):
+        return "WARNUNG: Gewinde-Vorschlag ungeprüft (Bohrungen prüfen)"
     return dfm.status(befunde) or "OK"
 
 
@@ -493,7 +501,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None), positionen = alle
     Positionen des Angebots (Prüfung der Sätze)."""
     if ist_zukaufteil(p):
-        return zukaufteil_status(p, positionen, *((w.get("pruefregeln"), w.get("einstellungen")) if w else ()))
+        return zukaufteil_status(p, positionen, *((w.get("pruefregeln"), w.get("einstellungen"), w.get("gewinde_stamm"))
+                                                  if w else ()))
     if ist_baugruppe(p):
         return baugruppe.status(p, w, positionen)
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
@@ -3695,7 +3704,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                           fracht_je[i] if c else 0, skonto,
                                           satz_abweichung(p, positionen), gew=gew if selbst_basis else 0.0,
                                           zk_gewinn=not neu,
-                                          zus=zus[i], zuschlaege=(zf, zfl))
+                                          zus=zus[i], zuschlaege=(zf, zfl),
+                                          gewinde=blech_gewinde_preis(p, tabellen.get("gewinde") or ()))
             continue
         if i in bg_pos:
             zeilen[i] = _baugruppe_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
@@ -3959,19 +3969,32 @@ def gewinn_fracht(selbst, basis, fracht, gewinn):
     return gw, selbst + gw + fracht
 
 
-def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zuschlaege=(0.0, 0.0), zk_gewinn=True):
+def blech_gewinde_preis(p, gewinde):
+    """Gewinde eines Blechs (Zukaufteil aus dem Blech-Editor bzw. der STEP) in € je Teil: Gewinde geprüft × Preis je
+    Stück (Einstellungen › Gewinde bzw. Bohrungen prüfen). Wir schneiden sie selbst (Patrick 03.11.2026), sie kommen
+    zum Blech-EK als Fertigung dazu. Andere Zukaufteile 0."""
+    from . import blech
+    if _leer(p.get("gewinde")) or blech.lesen(p.get("technik")) is None:
+        return 0.0
+    return gewinde_preis(p.get("gewinde"), gewinde, gewinde_preise_position(p))
+
+
+def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zuschlaege=(0.0, 0.0), zk_gewinn=True,
+                      gewinde=0.0):
     """Kalkulationszeile einer Zukaufteil-Position: alle Fertigungswerte 0, Preis je Teil = (Einstand + Aufschlag der
     Zukaufteile + Zusatzarbeiten mit Zuschlag Fertigung bzw. Fremdleistung) × (1 + Gewinn) + Frachtanteil, mit Skonto
     (gew = 0: ohne Gewinn, festgeschrieben vor dem 23.10.2026). Zusatzarbeiten (zus, Einträge aus _zusatz_umlegen,
     z. B. Sägen von Vollmaterial) zählen seit 25.10.2026; ohne sie bleibt alles wie bisher. Fehlt der Einkaufspreis,
     rechnet sie ohne ihn und meldet es. zk_gewinn=False (Preisregeln ab 26.10.2026): Gewinn nur auf die
-    Zusatzarbeiten, die Zukaufteile tragen nur ihren Aufschlag."""
+    Zusatzarbeiten, die Zukaufteile tragen nur ihren Aufschlag. gewinde = Gewinde eines Blechs in € je Teil
+    (blech_gewinde_preis), eigene Fertigung mit Zuschlag Fertigung und Gewinn wie die Zusatzarbeiten."""
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
     zf, zfl = zuschlaege
     ze = sum(e["teil"] for e in zus if not e["fremd"])
     zfr = sum(e["teil"] for e in zus if e["fremd"])
-    herstell = ze * (1 + zf) + zfr * (1 + zfl)
+    gp = float(gewinde or 0.0)
+    herstell = (ze + gp) * (1 + zf) + zfr * (1 + zfl)
     sk_ = zk_einst + zk_auf + herstell
     if zk_gewinn:       # bis 25.10.2026 (bitgleich wie bisher)
         gw = sk_ * gew
@@ -4014,6 +4037,9 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zus
                  zusatz_arbeit_teil=sum(e["teil"] for e in zus if e.get("arbeit_s")),
                  zuschlag_fertigung_teil=ze * zf, zuschlag_fremdleistung_teil=zfr * zfl,
                  herstell_teil=herstell, herstell_position=herstell * c)
+    if gp:
+        z.update(gewinde_preis=gp, gewinde_teil=gp, zuschlag_fertigung_teil=(ze + gp) * zf, herstell_teil=herstell,
+                 herstell_position=herstell * c)
     return z
 
 

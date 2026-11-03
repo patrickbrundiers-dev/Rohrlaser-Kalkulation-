@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.245", "STEP-Import: <b>Dreh- und Frästeile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse, "
+    ["0.9.249", "STEP-Import: <b>Dreh- und Frästeile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse, "
      "Block mit Tasche, ausgefräster Winkel) werden erkannt und <b>Zukaufteile</b> ohne EK statt gelaserter Rohre "
      "oder Profile, mit Kategorie Drehteile bzw. Frästeile; gleiche Teile aus früheren Anfragen nehmen den vorhandenen "
      "Artikel ([[drehfraesteile]]). <b>Bleche</b>: dicke schmale flache Teile sind jetzt auch Bleche, Flachstahl steht "
@@ -38,6 +38,51 @@ NEUERUNGEN = [
      "umgelegt ([[satz_bearbeiten]]). Sicherere Erkennung: Rolle mit Radius, Flansch mit Absatz, Teile schräg im Raum, "
      "gleichschenkliger Kant-Winkel; eine Testreihe mit über 50 gebauten Teilen prüft das.",
      "Dreh- und Frästeile als Zukauf, Kantprofile Standard, Zukauf-Haken, Einkauf je Satz"],
+    ["0.9.248", "<b>Automationen</b> ([[automatik]]): Neue Anfragen werden im Hintergrund <b>vorgemessen</b> (Teile, "
+     "Profile, Richtpreis) und stehen nach einer <b>Ampel</b> für die Antwortfrist sortiert. <b>Nachträge</b> legt das "
+     "Programm selbst in den Angebotsordner (gelbe Leiste <i>Übernehmen</i> im Angebot), <b>Bestellungen</b> erkennt es "
+     "und gleicht sie mit dem Angebot ab (<i>Bestellung prüfen …</i>), <b>Wiederholanfragen</b> ohne STEP werden aus "
+     "dem Teilekatalog ein neues Angebot, fehlende Kundendaten kommen aus der Signatur. <b>Auftrag starten</b>: "
+     "Häkchen im Fenster Beauftragt für AB, Materialbestellung, Werkstattpapiere, CAM und Etiketten. "
+     "<b>Lieferantenantwort einlesen</b> (Mail/PDF), <b>Material bestellen</b> beim gewählten Lieferanten mit "
+     "Wareneingang auf der Startseite, <b>Preiswächter</b> für offene Angebote, <b>Nachkalkulation vorbelegt</b> beim "
+     "Versand. Beim Angebot: <b>Übernehmen und fertigstellen</b> (PDF, Outlook-Antwort, Verschickt, Wiedervorlage, "
+     "nächste Anfrage), günstigste Maschine, Lieferzeit nach Auslastung, Beistellung und Oberfläche aus der Mail, "
+     "Rückfrage vorbereitet, Lernen aus Nacharbeit, Anfragen automatisch zuweisen. Alles steht unter <i>Datei → "
+     "Automatik-Protokoll …</i> und lässt sich zurücknehmen.",
+     "Automationen: Anfragen vormessen und Ampel, Nachtrag/Bestellung zuordnen, Auftrag starten, Angebot fertigstellen"],
+    ["0.9.247", "<b>Weitere Zusatzarbeiten rund um den Rohrlaser</b> ([[zusatz_rohrlaser]]) fest in der Auswahl, mit "
+     "Beispielpreis und Erkennungswörtern: Innengrat entfernen, Schweißfase anfasen, Schlacke/Spritzer innen "
+     "entfernen, <b>Trennmittel innen</b> gegen Spritzer, Richten, <b>Drehen/Fräsen</b>, <b>Brünieren</b>, "
+     "Ölen/Konservieren, Grundieren, Endkappen/Stopfen einsetzen, Einpressmuttern setzen, Etikettieren/Beschriften, "
+     "Erstmusterprüfbericht und Prüfbericht 3.1. Bestehende Dateien bekommen sie einmalig dazu.",
+     "14 weitere Zusatzarbeiten (u. a. Brünieren, Trennmittel innen, Drehen/Fräsen)"],
+    ["0.9.246", "Sätze und Schweißbaugruppen übersichtlicher: Schweißbaugruppen sind <b>grün</b> hinterlegt (⚙ Name · "
+     "Anzahl in der Spalte Satz), die <b>Kalkulation</b> steht in der Reihenfolge der Positionsliste mit Baugruppe "
+     "und Einzelteilen darunter und lässt sich am Zeilenkopf zuklappen, <b>Alle Gruppen zuklappen</b> klappt alle "
+     "Sätze und Baugruppen auf eine Zeile (je Angebot gemerkt) ([[saetze_abheben]]). Der Status steht in einer Zeile, "
+     "die Unterzeile <i>Programmieren</i> nur noch mit echten Arbeitsschritten. Die Übersicht rechts schneidet "
+     "Beträge bei schmalem Fenster nicht mehr ab, die Balken <i>Kosten je Baugruppe</i> überlappen nicht mehr. Im "
+     "Editor der Schweißbaugruppe zeigt die Teileliste nur die Teile der Baugruppe (<b>Alle Positionen zeigen</b>, "
+     "Suche), die Nahtgruppen haben eine Spalte <b>Rechenweg</b>, und die <b>Vorkalkulation automatisch</b> "
+     "(Heftpunkte, Positionieren, Wenden) ist jetzt Vorgabe ([[schweissbaugruppe]]). Nahtlänge genauer: aus STEP "
+     "zählen zwei parallele Rohre nur die Längsnähte, ein Rohr, das über ein schmaleres Rohr übersteht, nur die "
+     "aufliegenden Wände, eine Lasche ohne Stirnseiten (Spalte <i>Aufteilung der Länge</i>); ohne STEP rechnet "
+     "<b>Länge aus</b> die Länge aus einem Teil (rundum, Längsnaht, 2 Seiten); neue Spalte <b>geschweißt %</b> für "
+     "Stichnähte. <b>Positionieren</b> nach Stückgewicht (Basisteil = schwerstes Teil, Faktor bis 1, 5, 20 kg, "
+     "darüber Kran; Richtwerte laden) ([[naht_laenge]]).",
+     "Sätze/Baugruppen grün und zuklappbar, Kalkulation gruppiert, Rechenweg Naht, Nahtlänge genauer, Stichnaht, "
+     "Positionieren nach Gewicht"],
+    ["0.9.245", "<b>Bleche mit Richtwerten, die man ändern kann</b> ([[blech_richtwerte]]): Der Blech-Editor zeigt "
+     "Gewicht, Material, €/kg, Schneidweg, Einstiche, Laserzeit, Stundensatz, Kantungen, Rüsten und Aufschlag als "
+     "Tabelle; ein <i>eigener Wert</i> gilt nur für dieses Teil (↺ zurück), der Richtpreis wird immer daraus "
+     "berechnet. Bleche aus der STEP rechnen mit Gewicht aus dem Volumen und dem gemessenen Schneidweg. Neue Spalte "
+     "<b>EK Blech</b> im Angebot: Angebotspreis des Lieferanten per Klick eintragen, er gilt statt des Richtpreises "
+     "(leer = Richtpreis). <b>Tafelbelegung</b> als Bild im Editor und gemeinsam je Werkstoff/Dicke in der neuen "
+     "Übersicht <i>Bleche</i> (nur Ansicht). Prüfdialog zeigt Gewicht und Richtpreis je Blech. Innenkonturen rot auf der Tafelbelegung. <b>Gewinde in "
+     "Blechen</b>: Kernlöcher aus der STEP werden Gewinde-Vorschläge (Bohrungen prüfen); bestätigt kosten sie € je "
+     "Stück aus Einstellungen › Gewinde zusätzlich zum Blech-EK.",
+     "Bleche: Richtwerte änderbar, Angebotspreis per Klick, Tafelbelegung als Bild, Gewinde erkannt"],
     ["0.9.244", "<b>Bohrungsart nachträglich ändern</b>: In <i>Bohrungen prüfen</i> hat jede Bohrung die Spalte "
      "<b>Ausführung</b> (Gewinde schneiden, Flowdrill + Gewinde formen, Einnietmutter, Senkung, Bohren, nur lasern) "
      "mit ★-Vorschlag nach Gewindegröße, Wandstärke und Werkstoff und dem Grund (z. B. „Wand 2 mm = 1,6 Gänge M8 – "

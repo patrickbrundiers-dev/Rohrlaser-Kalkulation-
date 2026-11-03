@@ -3210,7 +3210,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
         t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]
         t.sicherheit.update(profil="sicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
-        # laengsseiten_gerade bleibt (ab 0.9.245): das Programm bietet Flachstahl nur an, wenn die Größe passt
+        # laengsseiten_gerade bleibt (ab 0.9.249): das Programm bietet Flachstahl nur an, wenn die Größe passt
     else:
         # Außenmaße im System der Hauptfläche: Grundriss = kleinstes umschreibendes Rechteck, Höhe = senkrecht dazu
         ax0 = gp_Ax3(fl["mitte"], fl["richtung"])
@@ -4138,6 +4138,80 @@ def _naht_linie(c, laenge):
     return out
 
 
+NAHT_STICH_AB = 300.0       # mm: gerade Längsnaht ab hier: Hinweis "Stichnaht möglich" (Patrick 03.11.2026)
+NAHT_PARALLEL = 0.999       # |cos| der Achsen: Rohre liegen parallel
+NAHT_KANTE_PARALLEL = 0.99  # |cos| Kante zu Achse: Kante läuft längs
+
+
+def _kasten(t):
+    return _ist_rohr(t) and t.profilform in ("Quadratrohr", "Rechteckrohr") and t.achse_global and t.x_global
+
+
+def _breite_in(t, q):
+    """Außenmaß eines Kastenrohrs in Richtung q (Einheitsvektor quer zur Achse)."""
+    x = t.x_global
+    y = [t.achse_global[1] * x[2] - t.achse_global[2] * x[1], t.achse_global[2] * x[0] - t.achse_global[0] * x[2],
+         t.achse_global[0] * x[1] - t.achse_global[1] * x[0]]
+    return abs(sum(a * b for a, b in zip(q, x))) * t.abm_a + abs(sum(a * b for a, b in zip(q, y))) * (t.abm_b or t.abm_a)
+
+
+def _ueberstand(ta, tb, ea, eb):
+    """Kastenrohr steht mit dem Ende quer auf einem schmaleren Kastenrohr (Patrick 03.11.2026): geschweißt werden nur
+    die beiden Wände, die quer über das andere Rohr laufen, je über dessen Breite. (Länge, Aufteilung) oder None."""
+    if bool(ea) == bool(eb):
+        return None
+    st, auf = (ta, tb) if ea else (tb, ta)
+    if not (_kasten(st) and _kasten(auf)):
+        return None
+    a, s = auf.achse_global, st.achse_global
+    q = [a[1] * s[2] - a[2] * s[1], a[2] * s[0] - a[0] * s[2], a[0] * s[1] - a[1] * s[0]]
+    n = math.sqrt(sum(v * v for v in q))
+    if n < 0.99:                  # nur rechtwinklig aufgesetzt
+        return None
+    q = [v / n for v in q]
+    breit_auf, breit_st = _breite_in(auf, q), _breite_in(st, q)
+    if breit_st <= breit_auf + 1.0:
+        return None
+    return 2 * breit_auf, (f"2 × {_mm(breit_auf)} mm (Rohr {_mm(breit_st)} mm steht über, nur die aufliegenden "
+                           f"Wände)")
+
+
+def _laengsnaht(ta, tb, zug):
+    """Berührung längs (Patrick 03.11.2026): zwei parallele Rohre nebeneinander = nur die Längsnähte ohne die kurzen
+    Stirnseiten; Blech hochkant (Lasche) = ohne die Stirnseiten in Blechdicke. zug: Linienzüge des längsten
+    Berührungszugs. (Länge, Aufteilung, Stichnaht möglich) oder None."""
+    kanten = []
+    for z in zug or ():
+        p = [z[i:i + 3] for i in range(0, len(z) - 2, 3)]
+        lg = sum(math.dist(u, v) for u, v in zip(p, p[1:]))
+        gerade = len(p) == 2 and lg > 0
+        kanten.append((lg, [(p[-1][i] - p[0][i]) / lg for i in range(3)] if gerade else None))
+    if len(kanten) < 3:
+        return None
+    if _ist_rohr(ta) and _ist_rohr(tb) and ta.achse_global and tb.achse_global and \
+            abs(sum(x * y for x, y in zip(ta.achse_global, tb.achse_global))) > NAHT_PARALLEL:
+        laengs = [lg for lg, d in kanten if d and abs(sum(x * y for x, y in zip(d, ta.achse_global))) >
+                  NAHT_KANTE_PARALLEL]
+        if not laengs or len(laengs) == len(kanten):
+            return None
+        lg = sum(laengs)
+        text = f"{len(laengs)} × {_mm(lg / len(laengs))} mm Längsnaht (ohne Stirnseiten)"
+        stich = min(laengs) >= NAHT_STICH_AB
+        return lg, text + (", Stichnaht möglich" if stich else ""), stich
+    for blech in (ta, tb):
+        d = _naht_dicke(blech) if not _ist_rohr(blech) and blech.bauteiltyp in ("Blech", "Blech gekantet") else None
+        if not d:
+            continue
+        stirn = [lg for lg, r in kanten if r and abs(lg - d) < 0.3]
+        rest = [lg for lg, r in kanten if not (r and abs(lg - d) < 0.3)]
+        if stirn and rest:
+            lg = sum(rest)
+            return lg, (f"{len(rest)} × {_mm(lg / len(rest))} mm (Stirnseiten {len(stirn)} × {_mm(d)} mm ohne Naht)"
+                        if len(set(round(x) for x in rest)) == 1 else
+                        f"{_mm(lg)} mm (Stirnseiten {len(stirn)} × {_mm(d)} mm ohne Naht)"), False
+    return None
+
+
 def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
     """Mögliche Schweißnähte einer Baugruppe: je Paar sich berührender Volumenkörper ein Kandidat
     {teile [a, b] (Körpernummern), knoten, laenge_mm, stossart, dicke_mm, status 'prüfen', linien (Nahtverlauf:
@@ -4231,8 +4305,19 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
             schwer = [v / gesamt for v in schwer] if gesamt else schwer
             durch = next((t for t, e, o in ((ta, ea, tb), (tb, eb, ta)) if not e and not _ist_rohr(o)
                           and _auf_achse(t, schwer)), None)
+            aufteilung, stich = None, False
             if durch is not None and not ea and not eb:
                 laenge = durch.kontur_umfang
+                aufteilung = f"rundum {_mm(laenge)} mm je Seite (Rohr durch Blech)"
+            elif enden:
+                aufteilung = f"rundum {_mm(laenge)} mm (Rohrende)"
+                ueber = _ueberstand(ta, tb, ea, eb)
+                if ueber:
+                    laenge, aufteilung = ueber
+            else:
+                genauer = _laengsnaht(ta, tb, zuege[laengen.index(max(laengen))])
+                if genauer:
+                    laenge, aufteilung, stich = genauer
             dicken = [d for d in (_naht_dicke(ta), _naht_dicke(tb)) if d]
             k_ = dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
                       laenge_mm=round(laenge, 1), stossart=stossart,
@@ -4244,6 +4329,10 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
                 k_["spalt_mm"] = round(spalt, 2)
             if durch is not None and not ea and not eb:
                 k_["beidseitig"] = True
+            if aufteilung:            # Aufteilung der Länge (STEP-JSON 1.26, Patrick 03.11.2026)
+                k_["aufteilung"] = aufteilung
+            if stich:
+                k_["stichnaht_moeglich"] = True
             if stossart == "Kehlnaht" and bool(ea) != bool(eb):
                 try:
                     st = _stoss(tb if eb else ta, eb or ea, ta if eb else tb, mitte, rahmen)

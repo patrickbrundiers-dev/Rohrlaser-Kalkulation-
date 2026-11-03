@@ -170,7 +170,7 @@ class StepPruefDialog(QDialog):
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
                  zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
-                 vorhandene_artikel=None, flach_grenzen=None):
+                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -186,13 +186,15 @@ class StepPruefDialog(QDialog):
         ordnet Stückzahlen und Werkstoffe danach neu zu (die Zeilen werden aufgefrischt). vorhandene_artikel =
         Artikelnummern, die schon im Angebot stehen (Spalte Artikelnummer gelb mit Hinweis). flach_grenzen =
         (Flachstahl bis Breite, Länge ab × Breite) aus den Einstellungen: nur Bleche in dieser Größe bieten
-        „Flachstahl“ als andere Art an (Patrick 03.11.2026; None = Vorgabe 150 mm, 3 × Breite)."""
+        „Flachstahl“ als andere Art an (Patrick 03.11.2026; None = Vorgabe 150 mm, 3 × Breite). blech_daten
+        (werkstoffe, laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten."""
         from . import step
         super().__init__(parent)
         self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
         self.flach_grenzen = tuple(flach_grenzen or (None, None))
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
         self.pdf_danach = False         # Knopf „Übernehmen und Angebot (PDF)“
+        self.fertig_danach = False      # Knopf „Übernehmen und fertigstellen“ (Paket D, E1)
         self.lernen, self.lernen_werte = lernen, None
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
@@ -204,6 +206,7 @@ class StepPruefDialog(QDialog):
         if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
             step.kantteile_vorbelegen(messwerte, k.profile)
         self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
+        self.blech_daten = blech_daten
         self.werkstoff, self.stueck, self.zukauf_liste = werkstoff, stueck, zukauf_liste
         mit_blechen = zukauf_liste is not None
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
@@ -505,6 +508,11 @@ class StepPruefDialog(QDialog):
         self.pdf_knopf = knoepfe.addButton("Übernehmen und Angebot (PDF)", QDialogButtonBox.ActionRole)
         self.pdf_knopf.setToolTip("Übernehmen, optimieren, prüfen und gleich das Angebots-PDF schreiben (Strg+Eingabe)")
         self.pdf_knopf.clicked.connect(self.mit_pdf)
+        # Paket D (E1): Übernehmen und das Angebot in einem Zug fertigstellen (PDF, Outlook-Antwort, Verschickt)
+        self.fertig_knopf = knoepfe.addButton("Übernehmen und fertigstellen", QDialogButtonBox.ActionRole)
+        self.fertig_knopf.setToolTip("Übernehmen, optimieren, prüfen, Angebots-PDF, Antwort auf die Anfrage-Mail in "
+                                     "Outlook, Vorgang Verschickt und Wiedervorlage. Gesendet wird nur in Outlook.")
+        self.fertig_knopf.clicked.connect(self.mit_fertigstellen)
         knoepfe.addButton("Abbrechen", QDialogButtonBox.RejectRole)
         from PySide6.QtGui import QKeySequence, QShortcut
         QShortcut(QKeySequence("Ctrl+Return"), self, activated=self.mit_pdf)
@@ -651,7 +659,7 @@ class StepPruefDialog(QDialog):
             if m.get("_kp_zurueck"):
                 hinweis.append("Kantprofil steht in den Stammdaten: als Profil statt Blech gekantet (Art umstellbar)")
             if ist_blech:
-                hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
+                hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil" + self._blech_richtwerte(m))
                 if m.get("pruefstatus") == "prüfen":
                     hinweis.append("PRÜFEN – zum Übernehmen anhaken")
             if step.unsicher(m):
@@ -727,6 +735,12 @@ class StepPruefDialog(QDialog):
                 pr.setCurrentText(m.get("_profil") or vorschlag or "")
                 ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
             it.setText(self.SP_HINWEIS, "; ".join(hinweis))
+            if ist_blech and self.blech_daten:      # anderer Werkstoff: Gewicht und Richtpreis neu
+                i_bl = next(i for i, h in enumerate(hinweis) if h.startswith(f"{step.blech_text(m)}: wird Zukaufteil"))
+                ws.currentTextChanged.connect(
+                    lambda t, it=it, m=m, h=list(hinweis), i=i_bl: it.setText(self.SP_HINWEIS, "; ".join(
+                        h[:i] + [f"{step.blech_text(m)}: wird Zukaufteil"
+                                 + self._blech_richtwerte(dict(m, _werkstoff=t or None))] + h[i + 1:])))
             if not ist_zk:          # anderes Profil gewählt: WARNUNG, wenn der STEP-Querschnitt davon abweicht
                 pr.currentTextChanged.connect(lambda t, it=it, m=m, h="; ".join(hinweis), v=vorschlag:
                                               self._profil_warnung(it, m, t, h, v))
@@ -1410,6 +1424,21 @@ class StepPruefDialog(QDialog):
         """Anfrage-Nr. des Kunden aus dem Feld oben (V5), None = kein Feld bzw. leer."""
         return (self.referenz.text().strip() or None) if self.referenz is not None else None
 
+    def _blech_richtwerte(self, m):
+        """Gewicht und Richtpreis eines Blechs aus den STEP-Daten (Patrick 03.11.2026), z. B. ', 2,81 kg, Richtpreis
+        5,70 €/St'; '' ohne Werkstoff oder Daten."""
+        from . import rechnen, step
+        b, wst = step.blech(m), m.get("_werkstoff")
+        if not b or not wst or not self.blech_daten:
+            return ""
+        g = step.blech_gewicht(b, wst, self.k, self.blech_werkstoffe)
+        try:
+            rp = step.blech_richtpreis(b, wst, self.blech_daten, m.get("_stueck") or self.stueck)
+        except (ValueError, TypeError, ZeroDivisionError):
+            rp = None
+        return "".join(t for t in ((f", {rechnen.zahl(g, 2)} kg" if g else ""),
+                                   (f", Richtpreis {rechnen.zahl(rp, 2)} €/St" if rp else "")))
+
     def _blech_werkstoffe_fuellen(self, cb):
         """Blech-Werkstoffe (Einstellungen → Blech-Werkstoffe) nach Kategorie, davor leer = offen."""
         cb.addItem("")
@@ -1795,6 +1824,11 @@ class StepPruefDialog(QDialog):
     def mit_pdf(self):
         """Übernehmen und danach gleich das Angebots-PDF (B1)."""
         self.pdf_danach = True
+        self.accept()
+
+    def mit_fertigstellen(self):
+        """Übernehmen und das Angebot fertigstellen (Paket D, E1)."""
+        self.fertig_danach = True
         self.accept()
 
     def neue_profile_anlegen(self):

@@ -210,6 +210,8 @@ KUNDEN = Tabelle(
      Feld("liefer_land", "Lieferland abweichend", muster=(r"^[A-Z]{2}$", "Land als zweistelliger Ländercode, z. B. DE"),
           breite=70),
      Feld("lieferbedingung", "Lieferbedingung", "auswahl", auswahl="lieferbedingung", breite=110),
+     # Anfragen automatisch zuweisen (Paket D, E7): Kürzel des zuständigen Kollegen (gemeinsamer Ordner)
+     Feld("zustaendig", "Zuständig (Kürzel)", breite=80),
      Feld("bemerkung", "Bemerkung", breite=200)),
     ("kundennr",),
     "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
@@ -682,7 +684,8 @@ SCHWEISS_FAKTOREN = Tabelle(
 # 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
 SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit",
                        "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
-                       "Heftzeit", "Mehrlagig")                       # Plan 28.10.2026, Schritt 5
+                       "Heftzeit", "Mehrlagig",                       # Plan 28.10.2026, Schritt 5
+                       "Stichnaht")                                   # Patrick 03.11.2026
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -698,7 +701,8 @@ SCHWEISS_REGELN = Tabelle(
     ("art", "wert"),
     "Regeln der Vorkalkulation im Baugruppen-Editor (Knopf 'Vorkalkulation rechnen'): Rüsten einmalig je Auftrag = "
     "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
-    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
+    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das schwerste Teil jeder Unterbaugruppe als "
+    "Basisteil) × Faktor nach Stückgewicht ('Faktor bis … kg'); Stichnaht: Länge je Stich (Ansätze); "
     "Heftpunkte je Naht = größer von Mindestzahl und aufrunden(Nahtlänge ÷ Heftabstand) + 1 für die Enden (nach "
     "kleinerer Wanddicke, gesteckt bzw. Edelstahl/Aluminium × Faktor; rundum ohne + 1, mindestens Umfang ÷ Umfang je "
     "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
@@ -795,6 +799,8 @@ KUNDENVORGABEN = Tabelle(
      Feld("rabatt", "Rabatt [%]", "zahl", 0, 50, stellen=1, breite=70),
      Feld("frachtfrei_ab", "Frachtfrei ab Warenwert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
      Feld("mindestwert", "Mindestauftragswert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
+     # Anfrage-Ampel (Automationen 03.11.2026, Vorschlag 4): leer = Einstellung anfrage_frist
+     Feld("antwort_frist", "Anfrage beantworten in [Arbeitstagen]", "ganz", 0, 60, breite=95),
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("kundennr",),
     "Vorgaben je Kunde für neue Angebote: Wählen Sie im Angebot den Kunden, übernimmt das Programm Maschine, "
@@ -1137,8 +1143,9 @@ EINSTELLUNGEN = (
     Einstellung("schweiss_vk_satz_nacharbeit", "Schweißbaugruppen: Stundensatz für Verputzen und Schleifen",
                 "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
     Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim "
-                "STEP-Import: Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)",
-                "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
+                "STEP-Import: Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Positionieren, Wenden, Verputzen, "
+                "Rüsten)",
+                "Schweißbaugruppen", "auswahl", "ja", auswahl="janein"),
     # Positionsgravur (gravur_text.py): Artikelnummer auf Bleche und Rohre gravieren, Höhe je Teil änderbar
     Einstellung("gravur_artikel", "Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
                 "(Vorgabe des Häkchens im Baugruppen-Editor)", "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
@@ -1273,6 +1280,13 @@ EINSTELLUNGEN = (
                 "Sehr geehrte Damen und Herren,\n\nbitte senden Sie uns ein Angebot für folgendes Material "
                 "(unser Angebot {angebot}):\n\n{positionen}\n\nBitte mit Preis, Lieferzeit und Angabe der "
                 "Lieferlänge.\n\nMit freundlichen Grüßen"),
+    # Materialbestellung beim gewählten Lieferanten (Automationen 03.11.2026, Vorschlag 8)
+    Einstellung("bestellung_betreff", "Materialbestellung: Betreff", "Materialanfrage", "text",
+                "Bestellung Material zu Auftrag {angebot}"),
+    Einstellung("bestellung_text", "Materialbestellung: Text der E-Mail", "Materialanfrage", "mehrzeilig",
+                "Sehr geehrte Damen und Herren,\n\nhiermit bestellen wir zu Ihrem Angebot folgendes Material "
+                "(unser Auftrag {angebot}):\n\n{positionen}\n\nBitte bestätigen Sie uns den Liefertermin.\n\n"
+                "Mit freundlichen Grüßen"),
     Einstellung("anfrage_outlook_signatur", "Materialanfrage: Signatur aus Outlook verwenden", "Materialanfrage",
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
@@ -1284,6 +1298,19 @@ EINSTELLUNGEN = (
                 "{anrede}\n\nvielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot {angebot}{referenz}.\n\n"
                 "Das Angebot gilt bis {gueltig}. Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n"
                 "Mit freundlichen Grüßen"),
+    # Automationen im Arbeitsablauf (Patrick 03.11.2026 „Alle Empfehlungen“, automatik.py)
+    Einstellung("anfrage_frist", "Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den "
+                "Kundenvorgaben)", "Automatik", "ganz", 2, 0, 60),
+    Einstellung("anfrage_zuweisen", "Neue Anfragen automatisch zuweisen (gemeinsamer Ordner)", "Automatik", "auswahl", "ja", auswahl="janein"),
+    Einstellung("angebot_automatik", "Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)", "Automatik", "auswahl", "ja", auswahl="janein"),
+    Einstellung("anfrage_vormessen", "Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)",
+                "Automatik", "auswahl", "ja", auswahl="janein"),
+    Einstellung("preiswaechter_schwelle", "Preiswächter: offene Angebote melden ab Abweichung", "Automatik",
+                "anteil", 0.03, 0, 1),
+    Einstellung("nachkalk_schwelle", "Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung",
+                "Automatik", "anteil", 0.10, 0, 1),
+    Einstellung("auftrag_schritte", "Auftrag starten: Schritte beim Beauftragen (gemerkt je Arbeitsplatz)",
+                "Automatik", "text", "ab werkstatt material"),
     # Nachfassen verschickter Angebote (Plan A9): Wiedervorlage nach Tagen ohne Entscheidung
     Einstellung("nachfassen_tage", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)", "Nachfassen",
                 "ganz", 10, 0, 365),
@@ -2195,7 +2222,7 @@ def beispiel_zusatzarbeiten():
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     zeilen = [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
         + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
-        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten() + niet_zusatzarbeiten()
+        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten() + niet_zusatzarbeiten() + rohrlaser_zusatzarbeiten()
     for z in zeilen:
         z["erkennung"] = z.get("erkennung") or ERKENNUNG_VORGABE.get(z["name"])
     return zeilen
@@ -2220,15 +2247,10 @@ ZUSATZ_VORLAGEN = (
      "gebeizt; beizen; passiviert; passivieren"),
     ("Glasperlstrahlen", "€/m²", 9.00, "ja", "Oberfläche", "glasperlgestrahlt", "glasperl; glasperlgestrahlt"),
     ("Schleifen / Bürsten", "€/m²", 12.00, "nein", "Oberfläche", "geschliffen", "geschliffen; gebürstet; K240; K320"),
-    ("Richten", "€/Stück", 2.50, "nein", "Nachbearbeitung", "gerichtet", "gerichtet; richten"),
-    ("Einpressmuttern setzen", "€/Stück", 0.45, "nein", "Montage", "mit Einpressmuttern",
-     "einpressmutter; einpressmuttern; PEM"),
     ("Nieten", "€/Stück", 0.35, "nein", "Montage", "genietet", "genietet; blindniet; popniet"),
     ("Gewindeformen", "€/Stück", 0.60, "nein", "Nachbearbeitung", "Gewinde geformt", "gewindeformen; geformt"),
     ("Reinigen / Entfetten", "€/kg", 0.30, "nein", "Oberfläche", "gereinigt und entfettet",
      "entfettet; gereinigt; ölfrei"),
-    ("Prüfbericht 3.1", "€/Angebot", 35.00, "nein", "Prüfung", "mit Prüfbericht 3.1",
-     "3.1; abnahmeprüfzeugnis; prüfbericht"),
     ("Sonderverpackung", "€/Angebot", 45.00, "nein", "Verpackung", "Sonderverpackung", "seemäßig; sonderverpackung"),
 )
 
@@ -2310,6 +2332,50 @@ def niet_zusatzarbeiten():
                  bemerkung="Beispielpreis je Mutter; Menge = Muttern je Teil. Vorschlag bei Sechskantlöchern und "
                            "Senkungen", erkennung="einnietmutter; einnietmuttern; nietmutter; blindnietmutter; "
                                               "rivkle; Nietmuttern")]
+
+
+# Weitere Zusatzarbeiten rund um den Rohrlaser (Patrick 03.11.2026 „Alle Empfehlungen“ + Brünieren, Trennmittel,
+# Drehen/Fräsen): fest in der Auswahl, Beispielpreise, bitte anpassen. Richten, Einpressmuttern und Prüfbericht 3.1
+# waren bis 0.9.242 nur Vorlagen.
+# (Name, Abrechnung, Beispielpreis, Mindest, Fremdleistung, Kategorie, Angebotstext, Bemerkung, Erkennungswörter)
+ROHRLASER_ZUSATZ = (
+    ("Innengrat entfernen", "€/Stück", 0.60, None, "nein", "Nachbearbeitung", "innen entgratet",
+     "Beispielpreis je Teil; Innengrat/Schweißnaht im Rohr entfernen", "innen entgratet; Innengrat; innengratfrei"),
+    ("Schweißfase anfasen", "€/Stück", 0.80, None, "nein", "Nachbearbeitung", "mit Schweißfase",
+     "Beispielpreis je Ende; Menge = angefaste Enden je Teil", "angefast; Schweißfase; Schweißfasen; Fase für Naht"),
+    ("Schlacke/Spritzer innen entfernen", "€/Stück", 0.30, None, "nein", "Nachbearbeitung", "innen spritzerfrei",
+     "Beispielpreis je Teil; Schlacke und Spritzer an der Innenwand entfernen", "spritzerfrei; schlackefrei"),
+    ("Trennmittel innen", "€/Stück", 0.20, None, "nein", "Laser", "mit Trennmittel gegen Spritzer im Rohr",
+     "Beispielpreis je Teil; Trennmittel vor dem Lasern ins Rohr, damit Spritzer nicht an der Gegenwand haften",
+     "Trennmittel; Antispritz; Anti-Spritz; Spritzschutz"),
+    ("Richten", "€/Stück", 2.50, None, "nein", "Nachbearbeitung", "gerichtet", "Beispielpreis je Teil",
+     "gerichtet; richten"),
+    ("Drehen/Fräsen", "€/Stück", 5.00, None, "ja", "Nachbearbeitung", "gedreht/gefräst",
+     "Beispielpreis je Teil; Preis laut Angebot der Dreherei/Fräserei eintragen", "gedreht; gefräst; drehen; fräsen"),
+    ("Brünieren", "€/kg", 1.50, 60.0, "ja", "Oberfläche", "brüniert",
+     "Beispielpreis; Mindestbetrag des Brünierers", "brüniert; brünieren; schwarz brüniert; schwarzoxidiert"),
+    ("Ölen/Konservieren", "€/m²", 0.80, None, "nein", "Oberfläche", "geölt",
+     "Beispielpreis; Korrosionsschutzöl auf blanken Teilen", "geölt; eingeölt; konserviert; Korrosionsschutzöl"),
+    ("Grundieren", "€/m²", 6.00, 60.0, "ja", "Oberfläche", "grundiert", "Beispielpreis",
+     "grundiert; Grundierung; Primer; Grundanstrich"),
+    ("Endkappen/Stopfen einsetzen", "€/Stück", 0.25, None, "nein", "Montage", "mit Endkappen",
+     "Beispielpreis je Kappe ohne Material; Menge = Kappen je Teil", "Endkappe; Endkappen; Stopfen; Lamellenstopfen"),
+    ("Einpressmuttern setzen", "€/Stück", 0.45, None, "nein", "Montage", "mit Einpressmuttern",
+     "Beispielpreis je Mutter; Menge = Muttern je Teil", "einpressmutter; einpressmuttern; Einpressbolzen; PEM"),
+    ("Etikettieren/Beschriften", "€/Stück", 0.15, None, "nein", "Verpackung", "etikettiert",
+     "Beispielpreis je Teil; Etikett oder Beschriftung mit Artikelnummer", "etikettiert; beschriftet; Etikett"),
+    ("Erstmusterprüfbericht", "€/Angebot", 45.00, None, "nein", "Prüfung", "mit Erstmusterprüfbericht (EMPB)",
+     "Beispielpreis je Angebot", "EMPB; Erstmuster; Erstmusterprüfbericht; Erstbemusterung"),
+    ("Prüfbericht 3.1", "€/Angebot", 25.00, None, "nein", "Prüfung", "mit Abnahmeprüfzeugnis 3.1",
+     "Beispielpreis je Angebot", "Prüfbericht 3.1; Abnahmeprüfzeugnis; APZ 3.1; Zeugnis 3.1; EN 10204"),
+)
+
+
+def rohrlaser_zusatzarbeiten():
+    """Vorbelegung der weiteren Zusatzarbeiten rund um den Rohrlaser (ROHRLASER_ZUSATZ, Beispielpreise)."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=n, art=art, preis=preis, mindest=mindest,
+                 fremd=fremd, kategorie=kat, angebotstext=text, bemerkung=bem, erkennung=worte, aktiv="ja")
+            for n, art, preis, mindest, fremd, kat, text, bem, worte in ROHRLASER_ZUSATZ]
 
 
 def strahl_zusatzarbeiten():

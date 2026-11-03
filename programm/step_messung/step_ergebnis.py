@@ -132,15 +132,19 @@ Versionen von SCHEMA_VERSION:
   geht, trägt "stutzen" = {d, richtung (Umfangswinkel der Achse nach außen), winkel (Neigung gegen rechtwinklig zur
   Rohrachse, + = außen zu Ende B), versatz (Achse quer zur Rohrachse, in Richtung richtung + 90°), x (Kreuzung der
   Achsen längs ab Ende A)} – der Import macht daraus einen Durchbruch. Felder aus 1.24 unverändert.
-- 1.26 (03.11.2026): Dreh- und Frästeile: "bauteiltyp" und "profiltyp" = "Drehteil" bzw. "Frästeil", Block
+- 1.26 (03.11.2026): Nahtkandidaten genauer: zwei parallele Rohre (auch Flachstahl/Lasche längs) = nur die
+  Längsnähte ohne die kurzen Stirnseiten, Kastenrohr quer auf schmalerem Kastenrohr = 2 × Breite des schmaleren
+  Rohrs; neu "aufteilung" (Text, wie sich die Länge zusammensetzt) und "stichnaht_moeglich" (gerade Längsnähte ab
+  300 mm). Felder aus 1.25 unverändert.
+- 1.27 (03.11.2026): Dreh- und Frästeile: "bauteiltyp" und "profiltyp" = "Drehteil" bzw. "Frästeil", Block
   "drehfraes" = {art, durchmesser/innen/laenge (Drehteil) bzw. laenge/breite/hoehe (Frästeil), merkmale, zusatz, text,
   nur_abmessung (nur nach den Maßen verdächtig: prüfen), volumen, fingerabdruck}; die Messung als Rohr/Profil steht in
-  "alternative". Felder aus 1.25 unverändert.
+  "alternative". Felder aus 1.26 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.26"
+SCHEMA_VERSION = "1.27"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

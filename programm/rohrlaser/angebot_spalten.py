@@ -129,8 +129,10 @@ def kompakt_zeilen(positionen, zeilen):
         netto = z.get("laser_netto")
         stueck = z.get("stueck") or 0
         zukauf = not p.get("profil_id")
+        bg = z.get("satz_ton") == 2 and str(z.get("satz") or "").startswith("⚙")    # Schweißbaugruppe (03.11.2026)
         out.append(dict(zeile=i, pos=z.get("pos"), artikel=z.get("artikel"), satz=z.get("satz") or "",
-                        satz_ton=z.get("satz_ton"), profil=p.get("profil_id") or "",
+                        satz_ton=z.get("satz_ton"),
+                        profil=p.get("profil_id") or ("Schweißbaugruppe" if bg else ""),
                         stueck=z.get("stueck"), laenge=None if zukauf else p.get("laenge"),
                         material=p.get("werkstoff_id") or "",
                         oberflaeche="" if zukauf else (p.get("oberflaeche") or "roh"),

@@ -458,6 +458,26 @@ if __name__ == "__main__":
     fase = profil([(0, 0), (300, 0), (300, 3), (298, 5), (0, 5)], 200)
     schreibe(fase, "B12_Blech_300x200x5_Fase", bl)
     schreibe(blech(30, 20, 3), "B13_Blech_30x20x3_Rest", bl)
+    # Ronde, Flansch und Knotenblech (Patrick 03.11.2026: „Werden Ronden, Knotenbleche usw. als Blech erkannt?“)
+    def scheibe(d, t, x=0.0, y=0.0, z=0.0):
+        return BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(x, y, z), gp_Dir(0, 0, 1)), d / 2, t).Shape()
+    flansch = cut(scheibe(150, 8), scheibe(40, 10, z=-1))
+    for x, y in ((50, 0), (-50, 0), (0, 50), (0, -50)):
+        flansch = cut(flansch, scheibe(11, 10, x, y, -1))
+    schreibe(flansch, "B15_Flansch_150x8_Loch40_4xD11", bl)
+    knoten = profil([(0, 0), (300, 0), (300, 80), (120, 250), (0, 250)], 10)
+    for x, y in ((40, 40), (260, 40), (40, 210)):
+        knoten = cut(knoten, scheibe(17, 20, x, y, -5))
+    schreibe(knoten, "B16_Knotenblech_10mm", bl)
+    schreibe(scheibe(200, 5), "B17_Ronde_200x5", bl)
+    # Blech mit Kernlöchern: 4 × M8 (Ø6,8), 2 × M12 (Ø10,2), 1 × Ø20 (Patrick 03.11.2026: Gewinde in Blechen)
+    gew = blech(200, 120, 6)
+    for x, y in ((20, 20), (180, 20), (20, 100), (180, 100)):
+        gew = cut(gew, scheibe(6.8, 10, x, y, -2))
+    for x in (70, 130):
+        gew = cut(gew, scheibe(10.2, 10, x, 60, -2))
+    gew = cut(gew, scheibe(20, 10, 100, 60, -2))
+    schreibe(gew, "B18_Blech_200x120x6_4xM8_2xM12", bl)
     # Baugruppe: Rechteckrohr mit zwei Fußplatten
     schreibe(baugruppe(kastenrohr(60, 40, 2, 800, 4), verschiebe(blech(150, 150, 8), -75, -75, -8),
                        verschiebe(blech(150, 150, 8), -75, -75, 800)), "B14_Baugruppe_Rohr_2Bleche", bl)
