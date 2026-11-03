@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.237", "Sätze und Schweißbaugruppen übersichtlicher: Schweißbaugruppen sind <b>grün</b> hinterlegt (⚙ Name · "
+    ["0.9.240", "Sätze und Schweißbaugruppen übersichtlicher: Schweißbaugruppen sind <b>grün</b> hinterlegt (⚙ Name · "
      "Anzahl in der Spalte Satz), die <b>Kalkulation</b> steht in der Reihenfolge der Positionsliste mit Baugruppe "
      "und Einzelteilen darunter und lässt sich am Zeilenkopf zuklappen, <b>Alle Gruppen zuklappen</b> klappt alle "
      "Sätze und Baugruppen auf eine Zeile (je Angebot gemerkt) ([[saetze_abheben]]). Der Status steht in einer Zeile, "
@@ -37,6 +37,35 @@ NEUERUNGEN = [
      "darüber Kran; Richtwerte laden) ([[naht_laenge]]).",
      "Sätze/Baugruppen grün und zuklappbar, Kalkulation gruppiert, Rechenweg Naht, Nahtlänge genauer, Stichnaht, "
      "Positionieren nach Gewicht"],
+    ["0.9.239", "STEP-Import aus einer E-Mail mit <b>vielen Teilen</b>: Die PDFs der Anfrage stehen im Prüfdialog ab vier "
+     "Dateien in <b>einer Zeile</b> (<i>26 PDF-Dateien: 1 mit Formular, 25 Zeichnungen</i>), <b>Einzeln anzeigen</b> "
+     "klappt sie mit Bildlauf auf. Die Teileliste mit ihren Auswahlfeldern bleibt immer mindestens acht Zeilen hoch, "
+     "das Fenster passt auf 1366×768 ([[anfragen]]). Steht <i>Satz</i> bzw. <i>geschweißt</i>/<i>SBG</i> im "
+     "Datei- oder Baugruppennamen der STEP, sind <b>Als Satz</b> bzw. <b>als Schweißbaugruppe</b> schon gewählt "
+     "(abwählbar, [[step_satz]]). <b>Zeichnungen</b>: Gewinde (<i>4x M8</i>), Flowdrill, Einnietmuttern, Senkungen "
+     "und Blindniete werden mit Anzahl aus dem Zeichnungstext gelesen; Gewinde/Flowdrill hängen sich gelb an die "
+     "passende Bohrung (Bohrungen prüfen), Einnietmuttern und Zusatzarbeiten-Wörter werden Vorschläge, Abweichungen "
+     "zum STEP ein Hinweis ([[anfragen]]).",
+     "Prüfdialog bei vielen Teilen/PDFs übersichtlich; Satz/Schweißbaugruppe am Namen vorgewählt; Gewinde, "
+     "Flowdrill, Nieten aus der Zeichnung"],
+    ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
+     "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
+     "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "
+     "Rundung von Quadrat-/Rechteckrohren (0,9 mm) und Sechskante in Flachstahl/Winkel (wurden Langloch) stimmen "
+     "jetzt. <b>Bleche</b>: Rechteck mit Eckradius bekommt den Radius, Rechteck mit Fasen wird Polygon, Polygone "
+     "auf 0,02 mm, Lage auf 0,01 mm, keine Kontur geht verloren, neue <i>Blech-Gegenprobe</i> mit Hinweis.",
+     "STEP: jede Kontur gegen den Umriss geprüft (Doppelbohrung, Bohrung auf Rundung, Bleche mit Radius/Fasen)"],
+    ["0.9.237", "<b>Zusatzarbeiten erkennen und wählen</b>: Jede Zusatzarbeit hat Erkennungswörter (z. B. „verzinkt; "
+     "fvz; tZn“). Stehen sie in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail oder Zeichnung, erscheint "
+     "gelb „＋ Feuerverzinken ?“ in der Positionsliste; der gelbe Knopf übernimmt alle oder einzeln, RAL-Farbe als Text "
+     "([[zusatz_erkennen]]). Neues <b>Auswahlfenster</b> mit Suche, Häkchen, Gruppen (häufig, beim Kunden, Kategorie), "
+     "€ je Teil und ohne Doppel; <b>Rechtsklick → Zusatzarbeit hinzufügen</b> mit den häufigsten. <b>＋ Neue "
+     "Zusatzarbeit …</b> als Kurzformular mit Vorlagen (Eloxieren, Richten, Prüfbericht 3.1 …): Admin legt sie in den "
+     "Einstellungen an, sonst gilt sie nur in diesem Angebot und der Admin übernimmt sie später ([[zusatz_neu]]). "
+     "<b>Einnietmuttern</b>: Sechskantlöcher und Senkungen im Teil schlagen <i>Einnietmuttern setzen</i> mit der "
+     "Anzahl je Teil vor.",
+     "Zusatzarbeiten erkennen (gelbe Vorschläge, Einnietmuttern aus Sechskantlöchern/Senkungen), neues "
+     "Auswahlfenster, Schnellmenü, Kurzformular mit Vorlagen"],
     ["0.9.236", "Prüfung der Kalkulationsbasis: <b>Grundwerte prüfen …</b> unter Stammdaten → Maschinen und im "
      "Angebots-Check zeigt leere Nebenzeiten, Beispiel-Stundensätze und doppelt gezählte Zuschläge mit der Wirkung in € "
      "([[kalkulationsbasis]]). <b>Schneiddaten</b> zwischen zwei Wandstufen werden interpoliert (2,6 mm nicht mehr mit "

@@ -2546,15 +2546,22 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return {z["name"]: z for z in self.tabellen.get("zusatzarbeiten") or ()
                 if z.get("name") and z.get("aktiv") != "nein" and z.get("art") != "s/Stück"}
 
-    def arbeitsgang_aus_katalog(self, name=None):
-        """Arbeitsgang aus einer Zusatzarbeit anlegen (name vorgegeben: ohne Auswahlfenster). Ergebnis: ID oder None."""
+    def arbeitsgang_aus_katalog(self, name=None, dialog=None):
+        """Arbeitsgang aus einer Zusatzarbeit anlegen (name vorgegeben: ohne Auswahlfenster). Ohne name: Auswahl mit
+        Suche und Häkchen wie im Fenster Zusatzarbeiten (Plan 03.11.2026), oben die an der Bezeichnung der Baugruppe
+        erkannten; mehrere auf einmal. dialog(d) bedient die Auswahl statt exec (Tests). Ergebnis: ID (bei mehreren
+        die letzte) oder None."""
         katalog = self._katalog()
         if name is None:
-            from PySide6.QtWidgets import QInputDialog
-            name, ok = QInputDialog.getItem(self, "Arbeitsgang aus Zusatzarbeiten", "Zusatzarbeit:",
-                                            sorted(katalog, key=str.lower), 0, False)
-            if not ok:
+            from . import zusatz_erkennung
+            from .zusatz_dialog import ZusatzWahl
+            da = {a.get("name") for a in self.bg.get("arbeitsgaenge") or ()}
+            vs = [e["name"] for e in zusatz_erkennung.erkannt(self.p or {}, list(katalog.values())) if e["name"] not in da]
+            d = ZusatzWahl(self, katalog, vs, "Arbeitsgang aus Zusatzarbeiten")
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return None
+            ids = [self.arbeitsgang_aus_katalog(n) for n in d.gewaehlt()]
+            return ids[-1] if ids else None
         if name not in katalog:
             return None
         from .zusatz_regeln import katalog_mit_regel      # Preis der passenden Arbeitsgang-Regel (Abrechnungsregeln)

@@ -507,7 +507,9 @@ ZUSATZARBEITEN = Tabelle(
      # Plan Abrechnungsregeln 28.10.2026 (leer = wie bisher): Menge aus (Bezug), Faktor, Mindestbetrag je Teil
      Feld("bezug", "Menge aus", "auswahl", auswahl="regelmenge", breite=120),
      Feld("faktor", "Faktor Menge", "zahl", 0.01, 100, stellen=3, breite=70),
-     Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90)),
+     Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90),
+     # Plan Zusatzarbeiten erkennen 03.11.2026: Wörter, an denen das Programm die Zusatzarbeit erkennt (Vorschlag)
+     Feld("erkennung", "Erkennungswörter (; getrennt)", breite=200)),
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
     "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
@@ -518,7 +520,9 @@ ZUSATZARBEITEN = Tabelle(
     "Fremdleistung, sonst Zuschlag Fertigung. Menge aus: leer = nach der Abrechnung, sonst z. B. Innen- + "
     "Außenfläche (Strahlen, Verzinken innen) oder Anzahl Bohrungen; Faktor: Menge × Faktor (z. B. 1,05 für "
     "Gehänge); Mindestbetrag je Teil: ein Teil kostet mindestens diesen Betrag. Abweichende Preise je Werkstoff, "
-    "Profil oder Kunde und automatisches Zuordnen: Arbeitsgang-Regeln. Gewinde, Senken, Flowdrill und Bohren "
+    "Profil oder Kunde und automatisches Zuordnen: Arbeitsgang-Regeln. Erkennungswörter (z. B. verzinkt; fvz): steht "
+    "eines in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail oder Zeichnung, schlägt das Programm die "
+    "Zusatzarbeit gelb vor (gerechnet erst nach Übernehmen). Gewinde, Senken, Flowdrill und Bohren "
     "rechnen nur € je Stück.",
     pruefung=_pruefung_zusatz)
 
@@ -2179,9 +2183,54 @@ def beispiel_zusatzarbeiten():
              ("Entgraten", "€/Stück", 0.50, None, "nein", "entgratet", "Beispielpreis", "Nachbearbeitung"),
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
-    return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
+    zeilen = [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
         + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
-        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten()
+        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten() + niet_zusatzarbeiten()
+    for z in zeilen:
+        z["erkennung"] = z.get("erkennung") or ERKENNUNG_VORGABE.get(z["name"])
+    return zeilen
+
+
+# Erkennungswörter der Beispiel-Zusatzarbeiten (Plan Zusatzarbeiten erkennen 03.11.2026, Freigabe 1a 2a): steht eines
+# im Text, schlägt das Programm die Zusatzarbeit vor; das längere Wort gewinnt („galvanisch verzinkt“ vor „verzinkt“)
+ERKENNUNG_VORGABE = {
+    "Feuerverzinken": "verzinkt; feuerverzinkt; feuerverzinken; fvz; tZn; ISO 1461",
+    "Galvanisch verzinken": "galvanisch verzinkt; galv. verzinkt; galvanisiert; elektrolytisch verzinkt; Zn-Ni; ZnNi",
+    "Pulverbeschichten": "pulver; pulverbeschichtet; RAL; beschichtet; lackiert",
+    "Strahlen": "gestrahlt; strahlen; SA 2,5; SA2,5; Sa 2½; Sa2½; Sa 2 1/2",
+    "Entgraten": "entgratet; entgraten; gratfrei; Kanten gebrochen; scharfkantig gebrochen",
+}
+
+# Vorlagen typischer Zusatzarbeiten (Plan Zusatzarbeiten erkennen 03.11.2026, 5a): im Kurzformular „Neue
+# Zusatzarbeit …“ und in den Einstellungen per Klick einfügen; erst danach stehen sie in der Auswahl.
+# (Name, Abrechnung, Beispielpreis, Fremdleistung, Kategorie, Angebotstext, Erkennungswörter)
+ZUSATZ_VORLAGEN = (
+    ("Eloxieren", "€/m²", 14.50, "ja", "Oberfläche", "eloxiert", "eloxiert; eloxieren; anodisiert; E6; EV1"),
+    ("Beizen und Passivieren", "€/kg", 1.80, "ja", "Oberfläche", "gebeizt und passiviert",
+     "gebeizt; beizen; passiviert; passivieren"),
+    ("Glasperlstrahlen", "€/m²", 9.00, "ja", "Oberfläche", "glasperlgestrahlt", "glasperl; glasperlgestrahlt"),
+    ("Schleifen / Bürsten", "€/m²", 12.00, "nein", "Oberfläche", "geschliffen", "geschliffen; gebürstet; K240; K320"),
+    ("Richten", "€/Stück", 2.50, "nein", "Nachbearbeitung", "gerichtet", "gerichtet; richten"),
+    ("Einpressmuttern setzen", "€/Stück", 0.45, "nein", "Montage", "mit Einpressmuttern",
+     "einpressmutter; einpressmuttern; PEM"),
+    ("Nieten", "€/Stück", 0.35, "nein", "Montage", "genietet", "genietet; blindniet; popniet"),
+    ("Gewindeformen", "€/Stück", 0.60, "nein", "Nachbearbeitung", "Gewinde geformt", "gewindeformen; geformt"),
+    ("Reinigen / Entfetten", "€/kg", 0.30, "nein", "Oberfläche", "gereinigt und entfettet",
+     "entfettet; gereinigt; ölfrei"),
+    ("Prüfbericht 3.1", "€/Angebot", 35.00, "nein", "Prüfung", "mit Prüfbericht 3.1",
+     "3.1; abnahmeprüfzeugnis; prüfbericht"),
+    ("Sonderverpackung", "€/Angebot", 45.00, "nein", "Verpackung", "Sonderverpackung", "seemäßig; sonderverpackung"),
+)
+
+
+def zusatz_vorlage(name):
+    """Stammdatenzeile der Vorlage name (alle Felder, aktiv) oder None."""
+    for n, art, preis, fremd, kat, text, worte in ZUSATZ_VORLAGEN:
+        if n == name:
+            return dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=n, art=art, preis=preis, fremd=fremd,
+                        kategorie=kat, angebotstext=text, erkennung=worte, aktiv="ja",
+                        bemerkung="Vorlage, Beispielpreis: bitte anpassen")
+    return None
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -2238,6 +2287,19 @@ def stege_zusatzarbeiten():
 
 # Strahlen (Patrick 28.10.2026, Plan Abrechnungsregeln): der Strahler rechnet nach Gewicht, also € je kg Fertigteil
 ZUSATZ_STRAHLEN = "Strahlen"
+
+
+ZUSATZ_EINNIETMUTTERN = "Einnietmuttern setzen"
+
+
+def niet_zusatzarbeiten():
+    """Vorbelegung Einnietmuttern (Patrick 03.11.2026): € je Mutter, Menge je Teil. Vorschlag auch aus der Geometrie:
+    Sechskantloch und Senkung im STEP bzw. Editor (zusatz_erkennung.geometrie). Beispielpreis, bitte anpassen."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_EINNIETMUTTERN, art="€/Stück",
+                 preis=0.60, fremd="nein", angebotstext="mit Einnietmuttern", kategorie="Montage", aktiv="ja",
+                 bemerkung="Beispielpreis je Mutter; Menge = Muttern je Teil. Vorschlag bei Sechskantlöchern und "
+                           "Senkungen", erkennung="einnietmutter; einnietmuttern; nietmutter; blindnietmutter; "
+                                              "rivkle; Nietmuttern")]
 
 
 def strahl_zusatzarbeiten():
