@@ -176,6 +176,9 @@ class StepPruefDialog(QDialog):
         mit_blechen = zukauf_liste is not None
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
         self.resize(1350, 720)
+        bild = self.screen().availableGeometry() if self.screen() else None
+        if bild is not None and bild.height() >= 600:      # Laptop 1366×768: Fenster nie höher als der Bildschirm
+            self.resize(min(1350, bild.width() - 16), min(720, bild.height() - 40))
         self.dateien = list(dict.fromkeys(m.get("datei") for m in messwerte))
         self.mehrteilig = step.mehrteilig(messwerte, mit_blechen)
         # eigene Körper, die an ein Rohr geschweißt sind: standardmäßig nicht übernehmen (nur Gravur auf dem Rohr)
@@ -279,15 +282,20 @@ class StepPruefDialog(QDialog):
         kunde_zeile.addStretch(1)
         self.mail_hinweis = None
         if hinweis:                     # E-Mail der Anfrage (28.10.2026): was vorbelegt wurde
-            self.mail_hinweis = QLabel("✉ Aus E-Mail/Formular: " + " · ".join(hinweis))
+            text = "✉ Aus E-Mail/Formular: " + " · ".join(hinweis)
+            self.mail_hinweis = QLabel(text)
             self.mail_hinweis.setWordWrap(True)
             self.mail_hinweis.setStyleSheet("color: #595959;")
+            # höchstens zwei Zeilen hoch (MSG mit vielen Teilen 03.11.2026), ganzer Text im Tooltip
+            self.mail_hinweis.setMaximumHeight(2 * self.mail_hinweis.fontMetrics().lineSpacing() + 4)
             self.mail_hinweis.setToolTip("Vorschläge aus der E-Mail im Anfrage-Ordner. Kunde, Werkstoff und Stückzahlen "
-                                         "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.")
+                                         "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.\n\n"
+                                         + "\n".join(hinweis))
             kopf_lay.insertWidget(1, self.mail_hinweis)
         self.pdf_wahl = {}              # Datei -> QComboBox (Zeichnung oder Formular, 28.10.2026)
-        for nr, g in enumerate(pdf_formulare or ()):
-            kopf_lay.insertLayout(1 + (self.mail_hinweis is not None) + nr, self._pdf_zeile(g, pdf_neu))
+        self.pdf_block = self._pdf_block(list(pdf_formulare or ()), pdf_neu)
+        if self.pdf_block is not None:
+            kopf_lay.insertWidget(1 + (self.mail_hinweis is not None), self.pdf_block)
         self.dateien_info = QLabel()
         self.dateien_info.setStyleSheet("color: #595959;")
         kl.addWidget(self.zurueck)
@@ -307,6 +315,8 @@ class StepPruefDialog(QDialog):
         self.baum.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.baum.setUniformRowHeights(True)
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
+        # Teileliste schrumpft nie unter TEILE_MIN Zeilen (MSG mit vielen Teilen, 03.11.2026): Kopf und PDF-Liste geben nach
+        self.baum.setMinimumHeight(self.TEILE_MIN * 26 + 44)
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
         self.baum.currentItemChanged.connect(lambda it, *_: self._markiert_datei(it))
         self.baum.itemDoubleClicked.connect(self._doppelklick)
@@ -851,6 +861,95 @@ class StepPruefDialog(QDialog):
             z.ws.setStyleSheet(gelb if m.get("_werkstoff_quelle") else "")
             z.ws.setToolTip(f"Werkstoff aus {m['_werkstoff_quelle']} – bitte prüfen" if m.get("_werkstoff_quelle")
                             else z.ws.toolTip())
+
+    TEILE_MIN = 8       # Teileliste mindestens so viele Zeilen hoch
+    PDF_EINZELN = 3     # bis zu so vielen PDFs stehen sie einzeln im Kopf, darüber zusammengefasst
+    PDF_ZEILEN = 4      # aufgeklappt: so viele PDF-Zeilen sichtbar, der Rest per Bildlauf
+
+    def _pdf_block(self, formulare, pdf_neu):
+        """PDFs der Anfrage im Kopf (MSG mit vielen Teilen, 03.11.2026): bis PDF_EINZELN je PDF eine Zeile; bei mehr
+        eine Zusammenfassung „📄 26 PDF-Dateien: …“ mit Knopf „Einzeln anzeigen“, die Zeilen stehen dann in einem
+        Bereich mit Bildlauf (höchstens PDF_ZEILEN hoch), damit die Teileliste lesbar bleibt. Unklare PDFs klappen
+        die Liste auf. None ohne PDFs."""
+        from PySide6.QtWidgets import QFrame, QScrollArea, QToolButton
+        if not formulare:
+            return None
+        zeilen = QWidget()
+        zl = QVBoxLayout(zeilen)
+        zl.setContentsMargins(0, 0, 0, 0)
+        zl.setSpacing(4)
+        for g in formulare:
+            zl.addLayout(self._pdf_zeile(g, pdf_neu))
+        if len(formulare) <= self.PDF_EINZELN:
+            self.pdf_info = self.pdf_knopf_einzeln = None
+            return zeilen
+        block = QWidget()
+        bl = QVBoxLayout(block)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(2)
+        kopf = QHBoxLayout()
+        self.pdf_info = QLabel()
+        self.pdf_info.setWordWrap(True)
+        self.pdf_knopf_einzeln = QToolButton()
+        self.pdf_knopf_einzeln.setCheckable(True)
+        self.pdf_knopf_einzeln.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.pdf_knopf_einzeln.setToolTip("Jede PDF mit ihrer Einordnung zeigen und einzeln umschalten "
+                                          "(automatisch / alles Formular / alles Zeichnung / nicht verwenden).")
+        kopf.addWidget(self.pdf_info, 1)
+        kopf.addWidget(self.pdf_knopf_einzeln)
+        bl.addLayout(kopf)
+        self.pdf_bereich = QScrollArea()
+        self.pdf_bereich.setWidget(zeilen)
+        self.pdf_bereich.setWidgetResizable(True)
+        self.pdf_bereich.setFrameShape(QFrame.StyledPanel)
+        self.pdf_bereich.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        zeile_h = max(zeilen.layout().itemAt(0).sizeHint().height(), 22) + zl.spacing()
+        self.pdf_bereich.setMaximumHeight(self.PDF_ZEILEN * zeile_h + 6)
+        self.pdf_bereich.setMinimumHeight(2 * zeile_h + 6)      # bei wenig Platz schrumpft dieser Bereich, nicht die Teile
+        bl.addWidget(self.pdf_bereich)
+        self._pdf_formulare = formulare
+
+        def auf(an):
+            self.pdf_bereich.setVisible(an)
+            self.pdf_knopf_einzeln.setText("Einzeln ausblenden ▴" if an else "Einzeln anzeigen ▾")
+
+        self.pdf_knopf_einzeln.toggled.connect(auf)
+        for w in self.pdf_wahl.values():
+            w.currentIndexChanged.connect(lambda *_: self._pdf_info_zeigen())
+        unklar = self._pdf_info_zeigen()
+        self.pdf_knopf_einzeln.setChecked(unklar)
+        auf(unklar)
+        return block
+
+    def _pdf_info_zeigen(self):
+        """Zusammenfassung der PDFs (Anzahl Formular / nur Zeichnung / unklar / von Hand / nicht verwendet).
+        Ergebnis: True, wenn eine PDF automatisch eingeordnet und unklar ist (dann gelb)."""
+        from . import pdf_art
+        n = dict(form=0, zeich=0, unklar=0, hand=0, nicht=0)
+        for g in self._pdf_formulare:
+            w = self.pdf_wahl[g.get("datei")].currentData()
+            arten = {s["art"] for s in g.get("seiten") or ()}
+            if w == pdf_art.NICHT:
+                n["nicht"] += 1
+            elif w != pdf_art.AUTO:
+                n["hand"] += 1
+            elif pdf_art.UNKLAR in arten:
+                n["unklar"] += 1
+            elif pdf_art.FORMULAR in arten:
+                n["form"] += 1
+            else:
+                n["zeich"] += 1
+        teile = [t for t in (f"{n['form']} mit Formular" if n["form"] else "",
+                             f"{n['zeich']} Zeichnung{'en' if n['zeich'] != 1 else ''}" if n["zeich"] else "",
+                             f"{n['unklar']} unklar – bitte prüfen" if n["unklar"] else "",
+                             f"{n['hand']} von Hand eingeordnet" if n["hand"] else "",
+                             f"{n['nicht']} nicht verwendet" if n["nicht"] else "") if t]
+        self.pdf_info.setText(f"📄 {len(self._pdf_formulare)} PDF-Dateien: " + ", ".join(teile))
+        self.pdf_info.setStyleSheet(f"color: {stil.farbe(stil.GELB_TEXT).name()};" if n["unklar"]
+                                    else "color: #595959;")
+        self.pdf_info.setToolTip("Formular: Stückzahlen, Anfrage-Nr. und Termin daraus lesen. Zeichnung: nur das "
+                                 "Schriftfeld für das passende Teil. „Einzeln anzeigen“ zeigt jede PDF.")
+        return bool(n["unklar"])
 
     def _pdf_zeile(self, g, pdf_neu):
         """Zeile „📄 Datei: Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl automatisch / alles Formular / alles
