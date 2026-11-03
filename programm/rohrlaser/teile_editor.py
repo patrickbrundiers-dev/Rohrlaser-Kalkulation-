@@ -36,6 +36,7 @@ from .eingabe import RechenSpin
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
+OEFFNEN, IMPORT = "oeffnen", "import"       # Zurücksetzen auf den Ursprung (Patrick 03.11.2026)
 GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Knicke", "Biegungen", "Anbauteile", "Schweißnaht", "Gravur")
 FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, VORGABE: stil.TEXT_GRAU}
 FARBE_STUFE = {dfm.FEHLER: stil.ROT, dfm.WARNUNG: stil.GELB_TEXT, dfm.HINWEIS: stil.TEXT_GRAU}
@@ -254,6 +255,7 @@ class EditorRahmen(QObject):
         self.enter_sperre = tastatur.enter_sperren(dialog)
         self.start = self.d.eingaben() if art == "blech" and getattr(dialog, "neu", False) else None
         self._letzter = self.zustand()
+        self.oeffnen = copy.deepcopy(self._letzter)        # Stand beim Öffnen (Zurücksetzen, Patrick 03.11.2026)
         dialog.editor = self
         self.aktualisieren()
         self.eigenschaften.zeigen("teil")
@@ -445,6 +447,21 @@ class EditorRahmen(QObject):
             knopf.setDefaultAction(aktion)
             knopf.setText(text)
             setattr(self, attr, knopf)
+        menue = QMenu(self.band)
+        self.ursprung_aktionen = {}
+        for wie, text, tipp in ((OEFFNEN, "Alles wie beim Öffnen",
+                                 "Alle Änderungen seit dem Öffnen dieses Fensters verwerfen"),
+                                (IMPORT, "Alles wie aus STEP/DXF importiert",
+                                 "Das ganze Teil wieder so setzen, wie es aus der STEP- bzw. DXF-Datei kam (auch "
+                                 "gelöschte Konturen kommen zurück)")):
+            a = menue.addAction(symbole.symbol("wiederherstellen"), text)
+            a.setToolTip(tipp)
+            a.triggered.connect(lambda _=False, wie=wie: self.ursprung(wie))
+            self.ursprung_aktionen[wie] = a
+        menue.aboutToShow.connect(self._ursprung_pruefen)
+        self.ursprung_knopf = g.knopf("Zurücksetzen", "wiederherstellen", menue=menue,
+                                      tipp="Ganzes Teil auf den Ursprung zurücksetzen: wie beim Öffnen oder wie aus "
+                                           "STEP/DXF importiert (Strg+Z holt es wieder)")
         self.zurueck_knopf = g.knopf("Auf STEP-Wert", "wiederherstellen", lambda: self.zuruecksetzen(), gross=False,
                                      tipp="Das gewählte Merkmal wieder so setzen, wie es im STEP-Import gemessen wurde")
         g.knopf("Duplizieren", "duplizieren", lambda: self._gewaehlte_zeile() is not None and
@@ -1420,6 +1437,83 @@ class EditorRahmen(QObject):
         if beste is None or (ende[0] < 5 and ende[0] < beste[0]):
             beste = ende
         self.waehlen(beste[1])
+
+    # -------------------------------------------------------------- Zurücksetzen auf den Ursprung
+    def ursprung_import(self):
+        """Eingaben wie aus STEP/DXF importiert (beim Import in der Position gemerkt) oder None. Blech ohne
+        Importstand: die Werte des STEP-Imports (step_werte)."""
+        d = self.d
+        if self.art == "blech":
+            u = getattr(d, "ursprung", None) or getattr(d, "step_werte", None)
+            return copy.deepcopy(u) if isinstance(u, dict) else None
+        u = (getattr(d, "_mess_extra", None) or {}).get("ursprung")
+        return copy.deepcopy(u) if isinstance(u, dict) else None
+
+    def _ursprung_alt(self):
+        """Ältere Position ohne gemerkten Importstand: Merkmale mit STEP-Wert, die geändert wurden."""
+        return [m.id for m in self.merkmale if m.herkunft == GEAENDERT]
+
+    def _ursprung_pruefen(self):
+        a = self.ursprung_aktionen
+        a[OEFFNEN].setEnabled(self.zustand() != self.oeffnen)
+        imp = self.ursprung_import() is not None
+        a[IMPORT].setEnabled(imp or bool(self._ursprung_alt()))
+        a[IMPORT].setText("Alles wie aus STEP/DXF importiert" if imp or not self._ursprung_alt() else
+                          "Alle Merkmale auf STEP-Wert")
+        a[IMPORT].setToolTip(a[IMPORT].toolTip() if imp else
+                             "Kein Importstand gespeichert (Position vor Version 0.9.243 importiert oder von Hand "
+                             "angelegt): setzt alle geänderten Merkmale mit STEP-Wert zurück; gelöschte Konturen "
+                             "kommen nur mit „STEP neu einlesen“ zurück")
+
+    def ursprung(self, wie=OEFFNEN, fragen=True):
+        """Ganzes Teil zurücksetzen: OEFFNEN = Stand beim Öffnen des Fensters, IMPORT = wie aus STEP/DXF
+        importiert. Vorher Rückfrage (fragen=False in Tests), danach ein Schritt für Rückgängig."""
+        d = self.d
+        u = self.ursprung_import() if wie == IMPORT else None
+        alt = self._ursprung_alt() if wie == IMPORT and u is None else []
+        if wie == IMPORT and u is None and not alt:
+            einblendung.melden(d, "Für dieses Teil ist kein Stand aus STEP oder DXF gespeichert.")
+            return False
+        if wie == OEFFNEN and self.zustand() == self.oeffnen:
+            return False
+        if fragen:
+            text = ("Alle Änderungen seit dem Öffnen dieses Fensters verwerfen?" if wie == OEFFNEN else
+                    "Das ganze Teil wieder so setzen, wie es aus der STEP- bzw. DXF-Datei importiert wurde? Alle "
+                    "Änderungen von Hand gehen verloren." if u is not None else
+                    f"{len(alt)} geänderte Merkmal(e) auf den STEP-Wert zurücksetzen?")
+            if QMessageBox.question(d, "Auf Ursprung zurücksetzen", text + "\n\nRückgängig (Strg+Z) holt den "
+                                    "jetzigen Stand wieder.", QMessageBox.Yes | QMessageBox.No,
+                                    QMessageBox.No) != QMessageBox.Yes:
+                return False
+        self.zeitgeber.stop()
+        self.aktualisieren()                # offene Eingaben vorher als eigener Schritt
+        self._still = True
+        try:
+            if wie == OEFFNEN:
+                if self.art == "blech":
+                    d.eingaben_setzen(copy.deepcopy(self.oeffnen["e"]))
+                else:
+                    self._rohr_setzen(copy.deepcopy(self.oeffnen))
+            elif u is not None and self.art == "blech":
+                d.eingaben_setzen(dict(u, stueck=d.stueck.value()))
+            elif u is not None:
+                d.aus_position = False
+                d.eingaben_setzen(u, mit_messung=True)
+                d.d3.setChecked(u.get("d3") is True)
+                for s in ("a", "b"):
+                    d.ende_3d[s].setChecked(bool((u.get(s) or {}).get("d3")))
+                self._rohr_farben()
+                d.rechnen()
+            else:
+                for mid in alt:
+                    self.zuruecksetzen(mid)
+        finally:
+            self._still = False
+        self.zeitgeber.stop()
+        self.aktualisieren()                # ein Schritt für Rückgängig
+        einblendung.melden(d, "Teil wie beim Öffnen." if wie == OEFFNEN else "Teil wie aus STEP/DXF importiert."
+                           if u is not None else "Geänderte Merkmale auf STEP-Wert zurückgesetzt.")
+        return True
 
     # -------------------------------------------------------------- Zurücksetzen
     def zuruecksetzen(self, mid=None):

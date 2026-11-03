@@ -27,6 +27,7 @@ Kennwerte, Faktoren und Lichtbogenzeitfaktor kommen aus dem Stand der Nahtgruppe
 aus den Stammdaten; Stundensätze aus der Zeitbasis des Angebots. Nichts wird erfunden: fehlt ein Kennwert oder
 Stundensatz, gibt es keine Zeit bzw. keine Kosten und eine Warnung.
 """
+import copy
 import json
 import math
 import uuid
@@ -123,6 +124,17 @@ def daten_fehler(text):
                 return f"Baugruppendaten: {titel} {ort} hat eine doppelte Kennung ({kenn})"
             ids.add(kenn)
     return None
+
+
+URSPRUNG = "ursprung"       # Stand aus dem STEP-Import (Editor: Zurücksetzen auf den Ursprung, 03.11.2026)
+
+
+def import_stand(bg, teile=()):
+    """Importstand einer Schweißbaugruppe zum Merken unter bg['ursprung']: die Baugruppe ohne sich selbst und die
+    Zuordnung der Teile [[Pos., Artikel, bg_knoten, je_knoten]] (teile: Positionen der Baugruppe)."""
+    stand = copy.deepcopy({k: v for k, v in bg.items() if k != URSPRUNG})
+    stand["teile"] = [[p.get("pos"), p.get("artikel"), p.get("bg_knoten"), p.get("je_knoten")] for p in teile]
+    return stand
 
 
 def speichern(bg):

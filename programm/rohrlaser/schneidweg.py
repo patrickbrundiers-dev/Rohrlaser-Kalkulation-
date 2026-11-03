@@ -1131,7 +1131,22 @@ def v_ergaenzen(eingaben, profil):
 
 # Messwerte des STEP-Imports ohne eigenes Feld im Schneidweg-Rechner: bleiben beim Speichern erhalten
 DURCHREICHEN = ("l_step", "schenkel_mess", "stege_virtuell", "offen_virtuell", "volumen_teil", "volumen_gezeichnet",
-                "step_datei", "step_koerper", "c_lippe", "c_lippe_profil")
+                "step_datei", "step_koerper", "c_lippe", "c_lippe_profil", "ursprung")
+URSPRUNG = "ursprung"       # Eingaben wie aus STEP/DXF importiert (Editor: Zurücksetzen auf den Ursprung, 03.11.2026)
+
+
+def ursprung_merken(technik, neu=False):
+    """technik (JSON-Text oder dict) mit dem Importstand unter 'ursprung' (ohne ihn selbst und ohne Quelle); neu=True
+    ersetzt einen vorhandenen (neuer Import). Ergebnis im selben Typ wie technik."""
+    text = isinstance(technik, str)
+    try:
+        d = json.loads(technik) if text else dict(technik or {})
+    except (TypeError, ValueError):
+        return technik
+    if not isinstance(d, dict) or (URSPRUNG in d and not neu):
+        return technik
+    d[URSPRUNG] = json.loads(json.dumps({k: v for k, v in d.items() if k not in (URSPRUNG, "quelle")}))
+    return json.dumps(d, ensure_ascii=False) if text else d
 
 
 def speichern(eingaben):
