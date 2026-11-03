@@ -329,7 +329,7 @@ for _z in BLECHE:
     _blech_fall(*_z)
 
 
-@fall("BL08", "dünne Platte mit Tasche ist kein Blech, sondern ein Frästeil (seit 0.9.243)",
+@fall("BL08", "dünne Platte mit Tasche ist kein Blech, sondern ein Frästeil (seit 0.9.244)",
       BL / "B08_Platte_mit_Tasche.step")
 def _(f, p):
     (t,) = analysiere_datei(p)
