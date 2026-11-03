@@ -3,12 +3,13 @@
 Position). Bestätigte Senkungen, Flowdrill und Bohren werden als Zusatzarbeit vorgeschlagen. Rechnet nichts selbst:
 bohrbild.py."""
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import hilfe
-from . import bohrbild, rechnen
+from . import bohrbild, rechnen, stil
 from .stammdaten import zahl_als_text
 
 KEIN_GEWINDE = "kein Gewinde"
@@ -58,10 +59,16 @@ class BohrbildDialog(QDialog):
             art = {"Bohrung": "Bohrung (Kernloch)", "Fließloch": "Flowdrill",
                    bohrbild.BOHREN: "Bohren (< 0,7 × Wand)"}.get(z["art"], z["art"])
             masse = bohrbild.dez(z.get("d")) + (f" / {bohrbild.dez(z.get('D'))}" if z.get("D") else "")
+            if z.get("zeichnung"):      # Vorschlag aus der Zeichnung (zeichnung_hinweise, 03.11.2026)
+                art += " · Zeichnung"
             for c, text in ((0, art), (1, masse), (2, str(z.get("anzahl") or ""))):
                 it = QTableWidgetItem(text)
                 if c:
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                if z.get("zeichnung"):
+                    it.setBackground(QBrush(QColor(stil.GELB_FLAECHE)))
+                    it.setToolTip(z["zeichnung"] + ("\nDie gelaserte Bohrung entfällt erst nach „Bestätigen“."
+                                                    if z.get("aus_bohrung") else ""))
                 self.tabelle.setItem(r, c, it)
             gw = None
             if z["art"] in ("Bohrung", "Fließloch"):
