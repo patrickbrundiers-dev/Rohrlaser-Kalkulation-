@@ -102,9 +102,10 @@ class ArbeitsgaengeDialog(QDialog):
         z = self.markiert()
         if not z:
             return False
+        name = z.get("name") or z["arbeitsgang"]       # erkannte mit RAL-Farbe: „Pulverbeschichten RAL 7016“
         if was == "annehmen":
-            ok = self.seite.arbeitsgang_annehmen(z["position_id"], z["arbeitsgang"])
+            ok = self.seite.arbeitsgang_annehmen(z["position_id"], name)
         else:
-            ok = self.seite.arbeitsgang_ablehnen(z["position_id"], z["arbeitsgang"], zurueck=was == "zurueck")
+            ok = self.seite.arbeitsgang_ablehnen(z["position_id"], name, zurueck=was == "zurueck")
         self.laden()
         return ok

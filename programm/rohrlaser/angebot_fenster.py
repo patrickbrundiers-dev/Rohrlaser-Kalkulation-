@@ -24,7 +24,7 @@ from .angebot_ausgabe import AusgabeMixin
 from .vorschlaege_mixin import VorschlaegeMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
-from . import plausibel, zusatz_dialog
+from . import plausibel, zusatz_dialog, zusatz_erkennung
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
@@ -364,6 +364,9 @@ class AngeboteSeite(QWidget):
         self.ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
         _breiten(self.ansicht, self.SPALTEN)
         self.ansicht.doubleClicked.connect(lambda i: self.oeffnen.emit(self._id(i)))
+        # Angebotsvergleich (Plan 30.10.2026, 7a): zwei markierte Angebote über die rechte Maustaste vergleichen
+        self.ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ansicht.customContextMenuRequested.connect(lambda p: self.kontextmenue(p))
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel, Auftragsnummer …")
         self.suche.setClearButtonEnabled(True)
@@ -640,6 +643,27 @@ class AngeboteSeite(QWidget):
 
     def _id(self, index):
         return self.modell.zeilen[self.filter.mapToSource(index).row()]["id"]
+
+    def markierte_ids(self):
+        """IDs der markierten Angebote in der Reihenfolge der Liste."""
+        zeilen = sorted({i.row() for i in self.ansicht.selectionModel().selectedRows()})
+        return [self._id(self.filter.index(r, 0)) for r in zeilen]
+
+    def kontextmenue(self, punkt=None, zeigen=True):
+        """Rechte Maustaste in der Angebotsliste: Öffnen und „Vergleichen …“ (genau zwei markierte Angebote).
+        Ergebnis: das Menü (zeigen=False für Tests)."""
+        menue = QMenu(self.ansicht)
+        ids = self.markierte_ids()
+        menue.addAction("Öffnen", self.oeffnen_gewaehlt).setEnabled(bool(ids))
+        if funktionen.an("funktion_vergleich"):
+            a = menue.addAction("Vergleichen …" if len(ids) == 2 else "Vergleichen … (zwei Angebote markieren)",
+                                lambda: self.f.angebote_vergleichen(*ids[:2]))
+            a.setEnabled(len(ids) == 2)
+            a.setToolTip("Die zwei markierten Angebote Position für Position vergleichen (Strg+Klick markiert ein "
+                         "zweites Angebot)")
+        if zeigen and punkt is not None:
+            menue.exec(self.ansicht.viewport().mapToGlobal(punkt))
+        return menue
 
     def _gewaehlt(self):
         i = self.ansicht.currentIndex()
@@ -944,6 +968,8 @@ class PositionenModell(QAbstractTableModel):
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
         self.werte, self.status, self.zeiten, self.meterpreise, self.prog_zeiten = [], [], [], [], []
+        # offene Vorschläge je Position (Erkennungswörter, Regeln mit Zuordnung Vorschlag; Plan 03.11.2026)
+        self.vorschlaege = [zusatz_erkennung.offen(p, s.kopf, s.k, s.tabellen) for p in self.daten]
         for i, p in enumerate(self.daten):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
             self.meterpreise.append(rechnen.meterpreis(p, s.kopf, self.daten, s.k, s.tabellen))  # (berechnet, wirksam, fehlt)
@@ -1006,8 +1032,9 @@ class PositionenModell(QAbstractTableModel):
             return self.status[r]
         if art == "zusatz":         # V6: Gewinde und Zusatzarbeiten zusammen, z. B. „4xM6 · Senken; feuerverzinkt“
             p = self.daten[r]
+            vorschlag = zusatz_erkennung.kurz(self.vorschlaege[r]) if r < len(getattr(self, "vorschlaege", ())) else ""
             return " · ".join(t for t in ((p.get("gewinde") or "").strip(), rechnen.zusatz_text(p),
-                                          self._zusatz_auto(p)) if t)
+                                          self._zusatz_auto(p), vorschlag) if t)
         if art == "zukauf":
             return zukauf.zukauf_text(self.daten[r])
         if art == "naht":
@@ -1162,7 +1189,11 @@ class PositionenModell(QAbstractTableModel):
                             "Innenkonturen laut STEP." if w is not None else "Schneidweg wie aus STEP gemessen.")
                 return _z(w, 1) if w is not None else ""
             if art == "zusatz" and rolle == Qt.ItemDataRole.ToolTipRole:
-                return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
+                vs = self.vorschlaege[index.row()] if index.row() < len(getattr(self, "vorschlaege", ())) else ()
+                return (w + "\n" if w else "") + "".join(
+                    f"Vorschlag {v['name']} ({v['herkunft']}) – noch nicht gerechnet\n" for v in vs) + \
+                    "Doppelklick: Gewinde und Zusatzarbeiten wählen" + \
+                    (" · Rechtsklick → Zusatzarbeit hinzufügen → Vorschläge übernehmen" if vs else "")
             if art == "zukauf" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Zukaufteile wählen"
             if art == "anbau" and rolle == Qt.ItemDataRole.ToolTipRole:
@@ -1187,6 +1218,8 @@ class PositionenModell(QAbstractTableModel):
                 return QBrush(_farbe_status(w) or (stil.farbe("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
             if art == "abweichung" and w is not None:
                 return QBrush(stil.farbe("#FFF2CC"))
+            if art == "zusatz" and index.row() < len(getattr(self, "vorschlaege", ())) and self.vorschlaege[index.row()]:
+                return QBrush(stil.farbe("#FFF2CC"))      # gelb: Vorschlag offen, wird noch nicht gerechnet
             return QBrush(FARBE_EINGABE if art in ("feld",) + EIGENE else FARBE_BERECHNET)
         if rolle == Qt.ItemDataRole.ForegroundRole and art == "status":
             return QBrush(stil.farbe({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
@@ -1876,6 +1909,20 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         zusatz = QPushButton("Zusatzarbeiten …")
         zusatz.clicked.connect(lambda: self.zusatzarbeiten())
         leiste.addWidget(zusatz)
+        # erkannte bzw. vorgeschlagene Zusatzarbeiten (Plan Zusatzarbeiten erkennen 03.11.2026, 1a): gelb, nur mit
+        # offenen Vorschlägen sichtbar; gerechnet wird erst nach Übernehmen
+        self.vorschlag_knopf = QPushButton()
+        self.vorschlag_knopf.setStyleSheet(f"QPushButton {{ background: {stil.GELB_FLAECHE}; color: {stil.GELB_TEXT}; }}")
+        self.vorschlag_knopf.setToolTip("Erkannte Zusatzarbeiten (Erkennungswörter in Bezeichnung, Artikelnummer, "
+                                        "STEP-Name, Anfrage-Mail, Zeichnung) und Vorschläge der Arbeitsgang-Regeln: "
+                                        "noch nicht gerechnet")
+        menue = QMenu(self.vorschlag_knopf)
+        menue.addAction("Alle Vorschläge übernehmen", lambda: self.vorschlaege_uebernehmen())
+        menue.addAction("Einzeln prüfen …", lambda: self.arbeitsgaenge_vorschlagen())
+        menue.addAction("Alle Vorschläge ablehnen", lambda: self.vorschlaege_ablehnen())
+        self.vorschlag_knopf.setMenu(menue)
+        self.vorschlag_knopf.hide()
+        leiste.addWidget(self.vorschlag_knopf)
         self.zukauf_knopf = QPushButton("Zukaufteile …")      # Auswahlmenü statt weiterer Knöpfe
         menue = QMenu(self.zukauf_knopf)
         menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
@@ -2026,6 +2073,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             # Kürzel nur als Text rechts (Tabulator), die Kürzel selbst hängen am Menü Bearbeiten
             a = self.pos_menue.addAction(text + (f"\t{tasten}" if tasten else ""), lambda ziel=ziel: ziel())
             self.pos_aktionen[text] = a
+            if text == "Zusatzarbeiten …":        # Schnellmenü (Plan Zusatzarbeiten erkennen 03.11.2026, 6a)
+                self.zusatz_schnellmenue = QMenu("Zusatzarbeit hinzufügen", self.pos_menue)
+                self.zusatz_schnellmenue.aboutToShow.connect(self._zusatz_schnellmenue_fuellen)
+                self.pos_aktionen["Zusatzarbeit hinzufügen"] = self.pos_menue.addMenu(self.zusatz_schnellmenue)
         self.pos_menue.insertSeparator(self.pos_aktionen["Position duplizieren"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Für markierte setzen …"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Nach oben"])
@@ -2460,6 +2511,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
+        n_vorschlag = sum(len(v) for v in self.pos_modell.vorschlaege)
+        self.vorschlag_knopf.setText("1 Vorschlag" if n_vorschlag == 1 else f"{n_vorschlag or ''} Vorschläge".strip())
+        self.vorschlag_knopf.setVisible(bool(n_vorschlag) and not self.fremd())
         self._gruppieren()
         leer = not self.positionen
         self.ablage_gross.setVisible(leer)
@@ -3563,6 +3617,17 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             werte["laenge"] = erg["laenge"]
         self._knicken_eintragen(werte, werte, erg)
         self._stege_eintragen(werte, werte)
+        if dxf and (dxf[1].get("werkstoff_text") or dxf[1].get("text")):
+            # Zeichnung (PDF/DXF): erkannte Zusatzarbeiten als Vorschlag (2a); ganzer Text: Flowdrill, Senken,
+            # Einnietmuttern mit Anzahl, Gewinde als Gewinde-Vorschlag (Patrick 03.11.2026, 3a)
+            from . import zeichnung_hinweise
+            zh = zeichnung_hinweise.lesen(dxf[1].get("text"))
+            werte["arbeitsgaenge"] = zusatz_erkennung.text_merken(
+                werte.get("arbeitsgaenge"),
+                " ".join(str(dxf[1].get(n) or "") for n in ("werkstoff_text", "name", "text")),
+                self.db.zeilen("zusatzarbeiten"), "Zeichnung", zeichnung_hinweise.zusatz_mengen(zh, mit_bohrbild=False))
+            if not werte.get("gewinde_vorschlag") and zeichnung_hinweise.gewinde_vorschlag(zh):
+                werte["gewinde_vorschlag"] = zeichnung_hinweise.gewinde_vorschlag(zh)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self._radius_uebernehmen(dict(werte, id=pid_neu), eingaben)
         self.neu_laden()
@@ -3837,7 +3902,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if vorher is not None:
                 p = dict(p, gewinde=vorher[0] or "", zusatz=json.dumps(vorher[1], ensure_ascii=False))
             d = ZusatzDialog(self, p, len(zeilen), self.k, self.tabellen, self.db.zusatz_haeufigkeit(), weitere,
-                             gewinde_verschieden=vorher is not None and vorher[0] is None, kopf=self.kopf)
+                             gewinde_verschieden=vorher is not None and vorher[0] is None, kopf=self.kopf,
+                             kunde_haeufig=self.db.zusatz_haeufigkeit((self.kopf or {}).get("kundennr"))
+                             if (self.kopf or {}).get("kundennr") else None, positionen=self.positionen,
+                             neu=None if self.fremd() or self.db.nur_lesen else lambda: self._zusatz_neu_eintrag(p))
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
@@ -3849,6 +3917,144 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.f.meldung(f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
+
+    # ------------------------------------------------------- Vorschläge und Schnellmenü (Plan 03.11.2026)
+    def _vorschlag_zeilen(self, zeilen):
+        return [r for r in (range(len(self.positionen)) if zeilen is None else zeilen) if r < len(self.positionen)]
+
+    def vorschlaege_uebernehmen(self, zeilen=None, namen=None):
+        """Offene Vorschläge (Erkennung, Regeln) der Positionen (alle oder zeilen) übernehmen, mit Preisstand und
+        Herkunft; namen = nur diese Zusatzarbeiten. Ergebnis: Anzahl übernommener Zusatzarbeiten."""
+        if self.fremd() or self.db.nur_lesen:
+            return 0
+        n = 0
+        for r in self._vorschlag_zeilen(zeilen):
+            p = self.positionen[r]
+            vs = [v for v in self.pos_modell.vorschlaege[r] if namen is None or v["name"] in namen]
+            if not vs:
+                continue
+            neu = zusatz_erkennung.uebernehmen(p, vs, self.tabellen)
+            if neu != p.get("zusatz"):
+                self.db.position_aendern(p["id"], "zusatz", neu)
+                n += len(rechnen.zusatz_liste(dict(zusatz=neu))) - len(rechnen.zusatz_liste(p))
+        self.f.meldung(f"{n} Vorschlag übernommen, wird jetzt gerechnet." if n == 1 else
+                       f"{n} Vorschläge übernommen, werden jetzt gerechnet." if n else "Keine offenen Vorschläge.")
+        self.neu_laden()
+        return n
+
+    def vorschlaege_ablehnen(self, zeilen=None):
+        """Alle offenen Vorschläge der Positionen ablehnen (gemerkt je Position, in „Arbeitsgänge vorschlagen …“
+        zurücknehmbar). Ergebnis: Anzahl."""
+        from . import arbeitsgaenge
+        if self.fremd() or self.db.nur_lesen:
+            return 0
+        n = 0
+        for r in self._vorschlag_zeilen(zeilen):
+            p = dict(self.positionen[r])
+            for v in self.pos_modell.vorschlaege[r]:
+                p["arbeitsgaenge"] = arbeitsgaenge.ablehnen(p, v["name"])
+                n += 1
+            if p.get("arbeitsgaenge") != self.positionen[r].get("arbeitsgaenge"):
+                self.db.position_aendern(p["id"], "arbeitsgaenge", p["arbeitsgaenge"])
+        self.f.meldung(f"{n} Vorschläge abgelehnt (zurücknehmen: „Arbeitsgänge vorschlagen …“).")
+        self.neu_laden()
+        return n
+
+    def zusatz_schnell(self, name, zeilen=None):
+        """Zusatzarbeit name (Stammdaten oder nur in diesem Angebot) an die markierten Positionen hängen, mit
+        Preisstand; Positionen, die sie schon haben, bleiben. Ergebnis: Anzahl geänderter Positionen."""
+        zeilen = [r for r in (self._markierte_zeilen() if zeilen is None else zeilen)
+                  if r < len(self.positionen) and not ist_baugruppe(self.positionen[r])]
+        if not zeilen or self.fremd() or self.db.nur_lesen:
+            return 0
+        e0 = zusatz_dialog.neuer_eintrag(name, self.tabellen, self.positionen)
+        if e0 is None:
+            self.f.meldung(f"„{name}“ ist keine Zusatzarbeit.", fehler=True)
+            return 0
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            liste = rechnen.zusatz_liste(p)
+            if name in {e["name"] for e in liste}:
+                continue
+            v = next((x for x in self.pos_modell.vorschlaege[r] if x["name"] == name), None)
+            e = dict(e0, text=v.get("text"), quelle=v["herkunft"]) if v else dict(e0)
+            self.db.position_aendern(p["id"], "zusatz", json.dumps(liste + [e], ensure_ascii=False))
+            n += 1
+        self.f.meldung(f"{name} bei {n} Position(en) hinzugefügt." if n else f"{name} ist schon überall eingetragen.")
+        self.neu_laden()
+        return n
+
+    def _zusatz_schnellmenue_fuellen(self):
+        """Rechtsklick → Zusatzarbeit hinzufügen: Vorschläge der markierten Positionen, die 8 häufigsten, die nur in
+        diesem Angebot angelegten, „Weitere …“ und „Neue Zusatzarbeit …“."""
+        m = self.zusatz_schnellmenue
+        m.clear()
+        zeilen = self._markierte_zeilen()
+        vs = {}
+        for r in zeilen:
+            for v in self.pos_modell.vorschlaege[r] if r < len(self.pos_modell.vorschlaege) else ():
+                vs.setdefault(v["name"], v)
+        if vs:
+            m.addAction(f"Vorschläge übernehmen ({', '.join(vs)})", lambda: self.vorschlaege_uebernehmen(zeilen))
+            m.addSeparator()
+        for name in zusatz_dialog.haeufigste(self.tabellen, self.db.zusatz_haeufigkeit(), 8):
+            m.addAction(name, lambda name=name: self.zusatz_schnell(name, zeilen))
+        eigene = zusatz_dialog.angebot_eigene(self.positionen, self.tabellen)
+        if eigene:
+            m.addSeparator()
+            for name in eigene:
+                m.addAction(f"{name} (nur dieses Angebot)", lambda name=name: self.zusatz_schnell(name, zeilen))
+        m.addSeparator()
+        m.addAction("Weitere …", lambda: self.zusatzarbeiten(zeilen))
+        m.addAction("Neue Zusatzarbeit …", lambda: self.zusatz_neu_anlegen(zeilen))
+
+    def zusatz_gesperrt(self):
+        """True, wenn die Zusatzarbeiten der Einstellungen an diesem Platz gerade nur der Admin ändert."""
+        bereich = getattr(self.f, "bereich", None)
+        return bool(self.db.nur_lesen or bereich is not None and bereich.bereich_gesperrt("zusatzarbeiten"))
+
+    def _zusatz_neu_eintrag(self, p, dialog=None):
+        """Kurzformular öffnen; Ergebnis: Eintrag für positionen.zusatz (mit Preisstand; 'stammdaten' = Zeile, wenn
+        sie in die Einstellungen übernommen wurde) oder None."""
+        from .zusatz_neu_dialog import ZusatzNeuDialog
+        d = ZusatzNeuDialog(self, self.db, p, self.k, self.tabellen, self.positionen, self.zusatz_gesperrt())
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return None
+        name, zeile, stammdaten = d.ergebnis
+        if stammdaten:
+            self.db.zusatz_speichern(None, zeile)
+            self.tabellen = self.db.tabellen()
+        e = dict(name=name, menge=None, preis=None, text=None, quelle=None if stammdaten else zusatz_dialog.EIGEN,
+                 stand=rechnen.zusatz_stand(zeile, rechnen.stundensaetze(self.tabellen)))
+        if stammdaten:
+            e["stammdaten"] = zeile
+        else:               # für „Aus Angeboten übernehmen“ in den Einstellungen: alle Felder des Kurzformulars
+            e["stand"]["vorlage"] = {n: zeile.get(n) for n in ("kategorie", "erkennung", "art", "preis", "satz",
+                                                                "zeit_einheit", "fremd", "mindest", "angebotstext")}
+        return e
+
+    def zusatz_neu_anlegen(self, zeilen=None, dialog=None):
+        """Kurzformular „Neue Zusatzarbeit“ (zusatz_neu_dialog.py, Plan 3c): gilt erst nur in diesem Angebot (Eintrag
+        mit Preisstand an den markierten Positionen), ein Admin kann sie gleich in die Einstellungen übernehmen.
+        dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Name oder None."""
+        if self.fremd() or self.db.nur_lesen:
+            return None
+        zeilen = [r for r in (self._markierte_zeilen() if zeilen is None else zeilen) if r < len(self.positionen)]
+        e = self._zusatz_neu_eintrag(self.positionen[zeilen[0]] if zeilen else {}, dialog)
+        if e is None:
+            return None
+        stammdaten = bool(e.pop("stammdaten", None))
+        name = e["name"]
+        for r in zeilen:
+            q = self.positionen[r]
+            liste = rechnen.zusatz_liste(q)
+            if name not in {x["name"] for x in liste} and not ist_baugruppe(q):
+                self.db.position_aendern(q["id"], "zusatz", json.dumps(liste + [e], ensure_ascii=False))
+        self.f.meldung(f"Zusatzarbeit „{name}“ angelegt" + (" und in die Einstellungen übernommen" if stammdaten else
+                       " (nur in diesem Angebot)") + (f", bei {len(zeilen)} Position(en) eingetragen." if zeilen else "."))
+        self.neu_laden()
+        return name
 
     def _doppelklick(self, i, auf_bild=None):
         """Doppelklick in der Positionsliste: Spalten mit eigenem Dialog; Status führt zur Lösung (STATUS_ZIELE);
@@ -3986,6 +4192,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 sichtbar = any(ist_muster(self.positionen[r]) for r in zeilen)     # vorhandene Muster zurücknehmen
             elif text == "Schweißnaht …" and not funktionen.an("funktion_schweissen"):
                 sichtbar = False
+            elif text == "Zusatzarbeit hinzufügen":
+                sichtbar = bool(zeilen) and arten != {"baugruppe"}
             a.setVisible(sichtbar)
         return [t for t, a in self.pos_aktionen.items() if a.isVisible()]
 
@@ -6280,7 +6488,22 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 f", {ohne_ek} ohne EK (Blech-Werkstoff offen): bitte unter Zukaufartikel mit 'EK eintragen …' "
                 "nachtragen." if ohne_ek else ", EK = Blech-Richtpreis (bitte durch das Angebot des Lieferanten "
                                               "ersetzen)."))
+        katalog_erk = self.db.zeilen("zusatzarbeiten") \
+            if werkstoff_text or any(p.get("_zeichnung_text") for p in erg["positionen"]) else ()
+        from . import zeichnung_hinweise
         for p in erg["positionen"]:
+            z_text, z_quelle = p.pop("_zeichnung_text", None), p.pop("_zeichnung_quelle", None)
+            if z_text and not ist_baugruppe(p):     # Zeichnung des Teils: Zusatzarbeiten + Einnietmuttern mit Anzahl
+                zh = zeichnung_hinweise.lesen(z_text)
+                p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), z_text, katalog_erk,
+                                                                  z_quelle or "Zeichnung",
+                                                                  zeichnung_hinweise.zusatz_mengen(zh))
+                fehlt = zeichnung_hinweise.nicht_abgedeckt(zh)
+                if fehlt:
+                    erg["bericht"].append(f"{p.get('artikel') or p.get('bezeichnung') or ''}: {fehlt}")
+            if werkstoff_text and not ist_baugruppe(p):     # Anfrage-Mail: erkannte Zusatzarbeiten als Vorschlag (2a)
+                p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), werkstoff_text, katalog_erk,
+                                                                  "E-Mail")
             verweis = p.pop("_zukauf", None)
             if verweis:
                 aid = verweis.get("artikel_id") or neue_ids.get(verweis.get("neu"))

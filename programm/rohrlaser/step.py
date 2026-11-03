@@ -457,7 +457,9 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
 
 
 AUSFLUG_TOL = 0.2       # mm hinter der äußersten Kante: ab da läuft der Schnitt ins Teil (Ausflug)
-AUSFLUG_BREITE = 0.5    # mm am Umfang mindestens (senkrechte Kanten einer Ausklinkung sind kein Ausflug)
+AUSFLUG_BREITE = 0.12   # mm am Umfang mindestens (senkrechte Kanten einer Ausklinkung sind kein Ausflug; bis
+#                         0.9.237 0,5 mm – eine Bohrung halb über das Ende mit 0,4 mm Hinterschnitt fiel weg)
+MUENDUNG_RAND = 0.05    # mm: Mündung so viel breiter, damit die senkrechte Stufe des Endumrisses sicher darin liegt
 
 
 def _ausfluege(zug, feld, ring=True):
@@ -521,7 +523,9 @@ def _ende_ausflug(zug, ende, m, mform, s_von, s_umfang, mbreit, mschmal, rund, s
     s0, s1 = s_von(zug[0][0]), s_von(zug[-1][0])      # offene Mündung am Ende: dort keine Schnittkante
     if (s1 - s0) % s_umfang > s_umfang / 2:
         s0, s1 = s1, s0
-    k["muendung"] = [round(s0, 2), round(s1, 2)]
+    # die Stufe des Endumrisses liegt 0,001 mm neben der Rasterstelle; die Mündung aus den gemessenen Punkten kann
+    # 0,01 mm daneben liegen – dann blieb die Stufe ganz gezeichnet (T-Schlitz am Ende 3 mm daneben, Patrick 03.11.2026)
+    k["muendung"] = [round((s0 - MUENDUNG_RAND) % s_umfang, 2), round((s1 + MUENDUNG_RAND) % s_umfang, 2)]
     h = max(max(us) - min(us), max(zs) - min(zs))
     k["huelle_gemessen"] = k["huelle"] = round(h, 2)
     if mform == "Rundrohr":
@@ -1110,6 +1114,14 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             art = "Sonderkontur"
             k["text"] = f"schräge Bohrung Ø{dez(float(d['durchmesser']))} ({dez(round(float(d['schraeg']), 1))}°): " \
                         "Umriss wie STEP"
+        elif art == "Bohrung" and umriss and mkasten and d.get("durchmesser") and \
+                not (d3 and float(d.get("schraeg") or 0) >= SCHRAEG_3D) and \
+                _kreis_abweichung(umriss, float(d["durchmesser"])) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):
+            # Bohrung ganz oder teilweise im Eckradius eines Quadrat-/Rechteckrohrs (Patrick 03.11.2026: „wirklich
+            # jede Kontur“): abgewickelt kein Kreis – Sonderkontur mit dem Umriss der STEP, sonst bis 0,9 mm daneben
+            art = "Sonderkontur"
+            k["text"] = f"Bohrung Ø{dez(float(d['durchmesser']))} auf der Rundung: Umriss wie STEP"
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -1183,6 +1195,21 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
             if abs(q) > 0.05:
                 k["q"] = round(q, 1)
+            if k.get("art") in ("Langloch", "Rechteck") and d.get("zuege") and d.get("laenge") and d.get("breite"):
+                # Grundform nur aus Hüllmaß und Schnittlänge: gegen den gemessenen Umriss prüfen (Patrick 03.11.2026:
+                # ein Sechskant hatte die Schnittlänge eines Langlochs und wurde eines, 0,6 mm daneben)
+                um_ = _offen_umriss(d, k, offen, _z(m, "wandstaerke") or _wand(m))
+                um_ = um_[0] if um_ and not um_[1] else None
+                if um_:     # um die eigene Mitte (der Lauf kann auf der Gegenseite der Wand liegen)
+                    mx_ = (max(p_[0] for p_ in um_) + min(p_[0] for p_ in um_)) / 2
+                    my_ = (max(p_[1] for p_ in um_) + min(p_[1] for p_ in um_)) / 2
+                    um_ = [(p_[0] - mx_, p_[1] - my_) for p_ in um_]
+                if um_ and _grundform_abweichung(
+                        um_, "Langloch" if k["art"] == "Langloch" else "Rechteckausschnitt", float(d["laenge"]),
+                        float(d["breite"]), laengs) > GRUNDFORM_TOL:
+                    for x_ in ("l", "b", "h", "r", "quer"):
+                        k.pop(x_, None)
+                    k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
             if k.get("art") == "sonstige Kontur" and d.get("zuege"):
                 # Ausschnitt ohne Grundform (Kerbe im Schenkel, V-Ausschnitt, Patrick 28.10.2026): echter Umriss wie
                 # in der STEP statt eines Kreises mit dem Hüllmaß
@@ -1257,6 +1284,19 @@ def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
             best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
         return best
     return max(hin, max(zum_zug(x, y) for x, y in soll))
+
+
+def _kreis_abweichung(umriss, d):
+    """Größter Abstand des gemessenen Umrisses [[dx, ds]] (um die Mitte) vom Kreis Ø d [mm], beide Richtungen
+    (Lücken zwischen den Umrisspunkten über den Kreis gezählt)."""
+    pts = [(float(x), float(y)) for x, y in umriss]
+    if len(pts) < 3:
+        return 0.0
+    r = d / 2
+    hin = max(abs(math.hypot(x, y) - r) for x, y in pts)
+    winkel = sorted(math.atan2(y, x) for x, y in pts)
+    luecke = max([b - a for a, b in zip(winkel, winkel[1:])] + [winkel[0] + 2 * math.pi - winkel[-1]])
+    return max(hin, r * (1 - math.cos(min(luecke, math.pi) / 2)))
 
 
 def _eckradius(d):
@@ -1882,6 +1922,29 @@ def von_hand_zuruecknehmen(m):
             pass
         m["_netz"] = netz
     return True
+
+
+BLECH_GRENZE = 0.1      # mm: so weit darf eine Innenkontur im Blech-Editor neben der STEP liegen (wie step_gegenprobe)
+
+
+def blech_gegenprobe(b):
+    """Gegenprobe Blech (Patrick 03.11.2026: „wirklich jede Kontur“): Hinweistext, wenn eine Innenkontur nicht wie in
+    der STEP übernommen ist (Abweichung der Messung über BLECH_GRENZE, Form nicht erkannt, oder weniger Konturen mit
+    Lage als gemessen), sonst None. Messungen vor 0.9.237 haben keine Abweichung (nur die Zahl wird verglichen)."""
+    kl = [k for k in (b or {}).get("konturen_lage") or () if isinstance(k, dict)]
+    n = int(float((b or {}).get("innen") or 0))
+    if not kl:
+        return None
+    weit = max((float(k.get("abweichung") or 0) for k in kl), default=0.0)
+    offen = sum(1 for k in kl if k.get("art") == "Kontur")
+    teile = []
+    if weit > BLECH_GRENZE:
+        teile.append(f"Kontur bis {dez(round(weit, 2))} mm neben der STEP")
+    if offen:
+        teile.append(f"{offen} Kontur{'en' if offen > 1 else ''} ohne erkannte Form (nur Schnittlänge)")
+    if n > len(kl):
+        teile.append(f"{n - len(kl)} von {n} Innenkonturen ohne Lage")
+    return "Blech-Gegenprobe: " + ", ".join(teile) + " – im Blech-Editor prüfen" if teile else None
 
 
 def blech_text(m):
@@ -2550,6 +2613,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
+            gp = blech_gegenprobe(b)
+            if gp:
+                hinweise.append(gp)
             if not wst:
                 hinweise.append("Werkstoff offen")
             elif wst == m.get("_ws_auto") and m.get("_ws_grund"):
@@ -2781,6 +2847,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             # (bohrbild.py), erst dann die Zusatzarbeiten Senken, Flowdrill, Bohren
             bild = bohrbild.aus_messung(m_bild, gewinde, fliessloch_laser or bohrbild.GRAVUR,
                                         regel[4] if len(regel) >= 5 else None, bohren_laser)
+            if m.get("_zeichnung_text"):        # Zeichnung: Gewinde/Flowdrill an die Bohrungen (Patrick 03.11.2026)
+                from . import zeichnung_hinweise as zh
+                zh_liste = zh.lesen(m["_zeichnung_text"])
+                hinweise.extend(zh.bohrbild_abgleich(bild, zh_liste, m_bild, gewinde,
+                                                    m.get("_zeichnung_quelle") or "Zeichnung"))
+                p["_zeichnung_text"], p["_zeichnung_quelle"] = m["_zeichnung_text"], m.get("_zeichnung_quelle")
             if bild:
                 p.update(bohrbild.anwenden(p, bild))
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
