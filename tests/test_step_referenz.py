@@ -367,6 +367,8 @@ def _(f, p):
     for q in sorted(list(p.glob("*.step")) + list((HIER / "step_profile").glob("*.step"))):
         if q.stem.startswith("REF18"):  # scharfkantiges Z ist seit STEP-JSON 1.12 ein Kantteil (Fall REF18)
             continue
+        if q.stem == "P02_U50x30x3_Radien_L600":    # Kantteil mit Biegeradien ohne Standardmaß: Blech gekantet
+            continue                                # (Patrick 03.11.2026, test_step_profile.GEKANTET)
         try:
             teile = analysiere_datei(q)
         except ValueError:
