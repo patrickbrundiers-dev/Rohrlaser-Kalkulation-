@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
+     "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
+     "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "
+     "Rundung von Quadrat-/Rechteckrohren (0,9 mm) und Sechskante in Flachstahl/Winkel (wurden Langloch) stimmen "
+     "jetzt. <b>Bleche</b>: Rechteck mit Eckradius bekommt den Radius, Rechteck mit Fasen wird Polygon, Polygone "
+     "auf 0,02 mm, Lage auf 0,01 mm, keine Kontur geht verloren, neue <i>Blech-Gegenprobe</i> mit Hinweis.",
+     "STEP: jede Kontur gegen den Umriss geprüft (Doppelbohrung, Bohrung auf Rundung, Bleche mit Radius/Fasen)"],
     ["0.9.237", "<b>Zusatzarbeiten erkennen und wählen</b>: Jede Zusatzarbeit hat Erkennungswörter (z. B. „verzinkt; "
      "fvz; tZn“). Stehen sie in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail oder Zeichnung, erscheint "
      "gelb „＋ Feuerverzinken ?“ in der Positionsliste; der gelbe Knopf übernimmt alle oder einzeln, RAL-Farbe als Text "
