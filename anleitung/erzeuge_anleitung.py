@@ -6095,6 +6095,76 @@ def kapitel_ausgabe(i, seiten, ablage):
            "(leer = Briefkopf). Mit <i>nein</i> gilt die eigene Signatur auch in Outlook.")
 
 
+def kapitel_automatik(i):
+    """Automationen vom 03.11.2026 (Pakete A–D)."""
+    i.kapitel("Automationen", marke="automatik")
+    i.text("Das Programm erledigt wiederkehrende Schritte von selbst. Dabei gilt immer: Was es tut, ist sichtbar (gelb "
+           "oder als Einblendung) und lässt sich zurücknehmen; gesendet wird nur in Outlook; Staffeln und Sätze legt "
+           "es nie von allein an, und Konturen bleiben wie in der STEP. Alle Schritte stehen unter <b>Datei → "
+           "Automatik-Protokoll …</b>; dort nimmt <b>Rückgängig</b> einen markierten Schritt zurück. Ein- und "
+           "ausschalten lassen sich die Automationen unter Einstellungen → <i>Automationen im Arbeitsablauf</i>.",
+           kurz=True)
+    i.abschnitt("Neue Anfragen", marke="automatik_anfragen")
+    i.liste("<b>Vormessen</b>: Liegt eine Anfrage im Anfrage-Ordner ([[anfragen]]), misst das Programm ihre "
+            "STEP-Dateien im Hintergrund (auch aus Mails und ZIPs). Die Liste zeigt dann z. B. <i>12 Teile · 4 "
+            "Profile (1 fehlt in den Stammdaten) · Richtpreis ca. 3.400 € · 2 Wiederholteile</i>. Beim Öffnen ist die "
+            "Messung schon da. Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>.",
+            "<b>Ampel</b>: Jede Anfrage hat eine Antwortfrist in Arbeitstagen (Einstellung <i>Anfrage beantworten "
+            "in</i>, je Kunde unter Kundenvorgaben). Grüner Punkt = Zeit, gelb = heute fällig, rot = überfällig. "
+            "Die Liste steht nach Dringlichkeit.",
+            "<b>Nachtrag</b>: Eine Mail ohne STEP mit der Anfrage-Nr. eines vorhandenen Angebots vom selben Kunden "
+            "legt das Programm selbst in den Angebotsordner (Unterordner <i>Anfrage</i>). Ändert sie Stückzahlen, "
+            "Termin oder Werkstoff, erscheint beim Öffnen des Angebots eine gelbe Leiste mit <b>Übernehmen</b> "
+            "(mit Rückgängig) und <b>Ablehnen</b>.",
+            "<b>Bestellung</b>: Eine Mail, die nach Bestellung klingt und eine Angebots- oder Anfrage-Nr. nennt, "
+            "erscheint als Zeile <i>Bestellung zu Angebot …</i>. <b>Bestellung prüfen …</b> zeigt Bestellnummer, "
+            "Wunschtermin und je Position Menge und Preis gegen das Angebot (Abweichungen gelb, fehlende rot). "
+            "<b>Beauftragen</b> setzt das Angebot auf Beauftragt, legt die Mail in den Angebotsordner und erledigt "
+            "die angehakten Schritte (siehe unten). Bestellte Mengen übernimmt es nur mit Häkchen.",
+            "<b>Wiederholanfrage</b>: Nennt ein bekannter Kunde nur Artikelnummern und Mengen, findet das Programm "
+            "sie in seinem Teilekatalog. <b>Artikel übernehmen …</b> legt ein neues Angebot mit den Positionen des "
+            "letzten Angebots und den Mengen aus der Mail an; die Preise rechnet es mit den aktuellen Stammdaten.",
+            "<b>Kundendaten aus der Signatur</b>: Fehlen beim Kunden Telefon, Ansprechpartner, Straße oder PLZ Ort, "
+            "ergänzt das Programm sie beim Öffnen der Anfrage aus der Signatur der Mail (Protokoll: Rückgängig). "
+            "Abweichende Angaben stehen nur als Hinweis im Prüfdialog.",
+            "<b>Zuweisen</b> (gemeinsamer Ordner): Neue Anfragen bekommt der Zuständige des Kunden (Kundenstamm, "
+            "Spalte <i>Zuständig</i>), sonst wer am wenigsten offene Anfragen hat.")
+    i.abschnitt("Angebot erstellen", marke="automatik_angebot")
+    i.liste("Nach dem STEP-Import eines neuen Angebots: Nennt die Mail <i>Material wird beigestellt</i> oder "
+            "<i>Kundenmaterial</i>, steht Material = Kunde; nennt sie eine Oberfläche der Stammdaten eindeutig "
+            "(z. B. <i>gebeizt</i>), wird sie gesetzt. Ist eine andere Maschine mehr als 5 % günstiger und kann alle "
+            "Teile, stellt das Programm sie ein (Einblendung <b>Rückgängig</b>). Nennt der Kunde keinen Termin, "
+            "kommt die Lieferzeit aus der Maschinenauslastung und der Material-Lieferzeit (KW); ist sein Wunschtermin "
+            "nicht machbar, steht das in der Einblendung. Fehlen Angaben, bietet die Einblendung <b>Rückfrage "
+            "öffnen …</b> an.",
+            "<b>Übernehmen und fertigstellen</b> (Prüfdialog) bzw. Ausgaben → <b>Fertigstellen …</b>: Angebots-PDF "
+            "(mit Optimieren und Angebots-Check), Antwort auf die Anfrage-Mail mit PDF in Outlook, Vorgang "
+            "Verschickt und Wiedervorlage nach den Nachfass-Tagen. Bei einem Fehler im Check hält die Kette an. "
+            "Danach bietet die Einblendung <b>Nächste Anfrage</b> die dringendste offene Anfrage an.",
+            "<b>Aus Nacharbeit lernen</b>: Ändern Sie beim selben Kunden nach dem Import in drei Angeboten dasselbe "
+            "(Werkstoff, Zusatzarbeit, Stangenlänge), fragt das Programm einmal, ob es das ins Importprofil bzw. "
+            "die Kundenvorgaben übernehmen soll.")
+    i.abschnitt("Auftrag und Material", marke="automatik_auftrag")
+    i.liste("<b>Auftrag starten</b>: Das Fenster <i>Beauftragt</i> hat Häkchen für die Schritte danach: "
+            "Auftragsbestätigung, Materialbestellung, Werkstattpapiere, Übergabe an CAM, Etiketten. Das Programm "
+            "merkt die Auswahl je Arbeitsplatz und erledigt sie nach OK nacheinander; die Einblendung zeigt, was "
+            "entstanden ist.",
+            "<b>Lieferantenantwort einlesen</b>: In den Lieferantenangeboten ([[lieferantenangebote]]) liest "
+            "<b>Mail/PDF einlesen …</b> Preise je Abmessung (€/kg, je 100 kg, €/t, €/m, €/Stange), Lieferzeit und "
+            "Bindefrist aus der Antwort. Die Zeilen sind gelb, bis Sie sie mit <b>Übernehmen</b> bestätigen.",
+            "<b>Material bestellen …</b> schreibt die Bestellung beim gewählten Lieferanten (Vorlage "
+            "<i>Materialbestellung</i>, je Zeile der Preis aus seinem Angebot) und merkt den erwarteten Wareneingang. "
+            "Ist er fällig und noch nicht eingetragen, steht er auf der Startseite.",
+            "<b>Preiswächter</b>: Ändern sich Materialpreise, Schneiddaten, Maschinen oder Stundensätze, prüft das "
+            "Programm die offenen Angebote einmal von selbst. Liegen welche mehr als 3 % unter dem aktuellen Preis, "
+            "meldet die Startseite das (Doppelklick: <i>Offene Angebote prüfen …</i>). Angebote ändern sich nie von "
+            "allein.",
+            "<b>Nachkalkulation vorbelegen</b>: Setzen Sie einen Auftrag im Reiter Versand auf <i>Versendet</i>, "
+            "füllt das Programm die Nachkalkulation vor: Laserzeit aus den Scans, alles andere wie geplant. Weicht "
+            "der Deckungsbeitrag mehr als 10 % ab, steht der Auftrag auf der Startseite unter <i>Nachkalkulation "
+            "prüfen</i>, bis Sie die Nachkalkulation speichern.")
+
+
 def kapitel_nachkalkulation(i):
     i.abschnitt("Lieferantenangebote vergleichen", marke="lieferantenangebote")
     i.text("Ausgaben → <b>Lieferantenangebote …</b>: die Antworten der Lieferanten auf die Materialanfrage "
@@ -9427,6 +9497,9 @@ STECKBRIEFE = {
                   "Reiter <i>Fertigung</i> und <i>Lager</i> (Einstellung); im Angebot <i>Weitere ▾</i>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
                         "Im Angebot Reiter <i>Nachkalkulation</i>"),
+    "automatik": ("Was das Programm von selbst erledigt: Anfragen vorbereiten, Nachträge und Bestellungen zuordnen, "
+                  "Auftrag starten, Angebote fertigstellen – sichtbar und zurücknehmbar.",
+                  "Startseite, <i>Datei → Automatik-Protokoll …</i>, Einstellungen → <i>Automationen</i>"),
     "einstellungen": ("Funktionen ein/aus, Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
                       "Reiter <i>Einstellungen</i> (Passwort) → Seite nach Thema"),
     "stammdaten": ("Kunden (auch per CSV), Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen "
@@ -9461,7 +9534,7 @@ TEILE = [
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
       kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_versand,
-      kapitel_fertigung, kapitel_nachkalkulation]),
+      kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,
