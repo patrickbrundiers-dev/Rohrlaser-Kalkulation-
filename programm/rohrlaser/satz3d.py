@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialog
                                QVBoxLayout, QWidget)
 
 from . import schneidweg as sw, steckverbindung, tastatur
+from .editor_ursprung import UrsprungEditor
 from .angebot import ist_muster
 from .muster_haken import MusterHaken
 from .angebot import ist_baugruppe
@@ -73,7 +74,7 @@ class _Teile(QTableWidget):
 
 
 class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, AuswahlEditor,
-                   StepBaugruppe, QDialog):
+                   StepBaugruppe, UrsprungEditor, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -165,6 +166,33 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
         self.vorschlaege_info_neu()
+        self.ursprung_merken()
+
+    # -------------------------------------------------------------- Zurücksetzen auf den Ursprung (editor_ursprung)
+    def _ursprung_kopf(self):
+        return dict(saetze=self.saetze_feld.value(), muster=self.muster_haken.isChecked())
+
+    def _ursprung_kopf_setzen(self, k):
+        self.saetze_feld.setValue(k["saetze"])
+        self.muster_haken.setChecked(k["muster"])
+
+    def _ursprung_anzeigen(self):
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        self.vorschlaege_info_neu()
+
+    def ursprung_import(self):
+        """Satz wie aus STEP: ohne Steckverbindungen, neue Knickrahmen und per Klick gewählte Längsnähte (schon
+        angelegte Knickrahmen sind eigene Positionen und bleiben). Nur für Sätze aus einer STEP-Datei."""
+        if not (self.bg.get("stoesse") or self.netze):
+            return None
+        bg = dict(copy.deepcopy(self.bg), steckverbindungen=[])
+        return dict(bg=bg, teile=[dict(t) for t in self.teile], knicke=[], laengsnaehte={}, getrennt=[], lagen={},
+                    kopf=self._ursprung_kopf())
+
+    def _ursprung_frage(self):
+        return ("Satz wie aus STEP: alle Steckverbindungen, neuen Knickrahmen und per Klick gewählten Längsnähte "
+                "verwerfen? Schon angelegte Knickrahmen bleiben (eigene Positionen).")
 
     # -------------------------------------------------------------- Teile
     def _seite_teile(self):
@@ -180,6 +208,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         lay.addWidget(self.teile_tab, 1)
         zeile = self.knick_knoepfe()
         zeile.insertWidget(zeile.count() - 1, self.step_knopf())
+        zeile.insertWidget(zeile.count() - 1, self.ursprung_knopf())
         lay.addLayout(zeile)
         return w
 
