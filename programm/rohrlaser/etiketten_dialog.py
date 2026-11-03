@@ -104,7 +104,7 @@ class ScanDialog(QDialog):
         self.setWindowTitle("Rückmeldung per Scan")
         self.resize(760, 480)
         self.schritt = QComboBox()
-        self.schritt.addItems(etiketten.schritte(self.db))
+        self.schritt.addItems(etiketten.scan_schritte(self.db))
         self.menge = QDoubleSpinBox()
         self.menge.setRange(0, 1_000_000)
         self.menge.setDecimals(0)

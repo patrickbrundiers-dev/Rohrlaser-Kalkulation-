@@ -71,6 +71,16 @@ class NachkalkulationSeite(QWidget):
         self.bemerkung.editingFinished.connect(self._bemerkung_geaendert)
         form.addRow("Bemerkung Nachkalkulation", self.bemerkung)
         el.addLayout(form)
+        # H4b: Laserzeit aus den Scans „Laser Start“/„Laser Ende“ als Vorschlag, übernommen nur auf Knopfdruck
+        scan = QHBoxLayout()
+        self.scan_text = QLabel()
+        self.scan_text.setWordWrap(True)
+        self.scan_knopf = QPushButton("Scan-Zeit übernehmen")
+        self.scan_knopf.clicked.connect(lambda: self.scan_uebernehmen())
+        el.addWidget(self.scan_text)
+        scan.addWidget(self.scan_knopf)
+        scan.addStretch(1)
+        el.addLayout(scan)
         # Laufzeit je Teil von der Maschine (Vorschlag V3b): daraus lernen die Schneiddaten je Werkstoff und Wandstärke
         tt = QLabel("Laufzeit je Teil laut Maschine [s] (freiwillig): sind alle Teile eingetragen, ergibt sich die "
                     "Ist-Laserzeit daraus; jede Zeile wird ein Fall für die Kennwert-Vorschläge der Schneiddaten "
@@ -146,6 +156,7 @@ class NachkalkulationSeite(QWidget):
             self.ist.pop("reklamation", None)
         else:
             self.ist["reklamation"] = rk
+        self._scan_zeigen()
         self._laden = True
         if not s.ergebnis or not s.ergebnis.get("stangen"):
             self.stand.setText("<b style='color:#7A5A00'>Noch nicht optimiert: die Nachkalkulation vergleicht mit dem "
@@ -383,6 +394,27 @@ class NachkalkulationSeite(QWidget):
         if w < 0 or (ganz and w != int(w)):
             raise ValueError("Bitte eine " + ("ganze " if ganz else "") + "Zahl ab 0 eingeben.")
         return int(w) if ganz else w
+
+    def _scan_zeigen(self):
+        from . import etiketten
+        try:
+            self.scan = etiketten.laserzeit(self.s.db, self.s.id) if self.s.id else None
+        except Exception:       # ohne Rückmeldungstabelle (alte Datenbank) kein Vorschlag
+            self.scan = None
+        sc = self.scan
+        self.scan_text.setText("" if not sc else
+                               f"Laserzeit laut Scan: <b>{_z(sc['stunden'])} h</b> ({sc['laeufe']} "
+                               f"{'Lauf' if sc['laeufe'] == 1 else 'Läufe'} Laser Start bis Laser Ende)"
+                               + (" – ein Start hat noch kein Ende" if sc["offen"] else ""))
+        self.scan_text.setVisible(bool(sc))
+        self.scan_knopf.setVisible(bool(sc))
+
+    def scan_uebernehmen(self):
+        """Vorschlag aus den Scans als Ist-Laserzeit eintragen (H4b)."""
+        if not getattr(self, "scan", None):
+            return False
+        self.setzen({"laser_h": round(self.scan["stunden"], 2)})
+        return True
 
     def _feld_geaendert(self, name, w):
         if self._laden:

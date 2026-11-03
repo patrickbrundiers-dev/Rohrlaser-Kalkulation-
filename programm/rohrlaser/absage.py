@@ -128,3 +128,55 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
     return dict(gesamt=_fertig({"Gesamt": gesamt})[0], kunde=_fertig(kunde), kategorie=_fertig(kat),
                 preisklasse=sorted(_fertig(klasse), key=lambda g: reihenfolge.index(g["name"])),
                 grund=_fertig(grund), wettbewerb=wettbewerb, zeitraum=zeitraum)
+
+
+# ------------------------------------------------------------------ Ertrag je Laserstunde je Kunde (Vorschlag K5)
+def _zeile_nk(soll, text):
+    return next((z for z in (soll or {}).get("zeilen") or () if z[0] == text), None)
+
+
+def ertrag_ist(nk):
+    """(Laserstunden Ist, Ertrag Ist €) aus der Nachkalkulation oder None (Laserzeit nicht erfasst): Erlös ohne
+    Material, Zukaufteile und Fracht (Ist bzw. wie geplant)."""
+    soll = (nk or {}).get("soll") if isinstance(nk, dict) else None
+    laser = _zeile_nk(soll, "Laserzeit")
+    if not soll or not laser or not laser[7] or not isinstance(laser[4], (int, float)) or laser[4] <= 0:
+        return None
+    abzug = sum((_zeile_nk(soll, t) or [0] * 7)[6] or 0.0 for t in ("Material", "Zukaufteile (Einstand)", "Fracht"))
+    erloes = (soll.get("erloes") or [None, None])[1]
+    if not isinstance(erloes, (int, float)):
+        return None
+    return laser[4], erloes - abzug
+
+
+def ertrag_je_kunde(db, zeilen, heute=None, zeitraum=90):
+    """{Kunde: dict(laser_h, ertrag, eur_h, laser_h_ist, ertrag_ist, eur_h_ist, auftraege)} über die beauftragten
+    Angebote des Zeitraums mit Schnittplan (Soll aus der Kalkulation wie im Angebot, Ist aus der Nachkalkulation, nur
+    wenn die Laserzeit erfasst ist). Nur für die Auswertung (rechnet jedes beauftragte Angebot einmal)."""
+    from . import plausibel, preis_simulator, rechnen
+    aktuell, einst = (db.kontext(), db.tabellen()), db.einstellungen()
+    out = {}
+    for z in auswahl(zeilen, heute, zeitraum):
+        if _vorgang(z) != "Beauftragt":
+            continue
+        a = db.angebot(z["id"]) or {}
+        pos = db.positionen(z["id"]) if a.get("ergebnis") else []
+        if not pos:
+            continue
+        k, tab, e = preis_simulator.grundlage(db, a, aktuell, einst)
+        kz, summen = rechnen.kalkulation(a, pos, a["ergebnis"], k, tab, e)
+        h, ertrag = plausibel.ertrag_laser(kz, summen)
+        g = out.setdefault((z.get("kunde") or "").strip() or "ohne Kunde",
+                           dict(laser_h=0.0, ertrag=0.0, laser_h_ist=0.0, ertrag_ist=0.0, auftraege=0, ist=0))
+        g["laser_h"] += h
+        g["ertrag"] += ertrag
+        g["auftraege"] += 1
+        ist = ertrag_ist(a.get("nachkalkulation"))
+        if ist:
+            g["laser_h_ist"] += ist[0]
+            g["ertrag_ist"] += ist[1]
+            g["ist"] += 1
+    for g in out.values():
+        g["eur_h"] = g["ertrag"] / g["laser_h"] if g["laser_h"] > 0 else None
+        g["eur_h_ist"] = g["ertrag_ist"] / g["laser_h_ist"] if g["laser_h_ist"] > 0 else None
+    return out

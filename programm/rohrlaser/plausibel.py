@@ -81,11 +81,19 @@ def punkte(positionen, zeilen, summen, k, vergleich=None):
                 out.append(("HINWEIS", f"Pos. {zeilen[i].get('pos')}: {zahl(w['eur_kg'], 2)} €/kg, frühere Angebote "
                                        f"{w['profil_id']} {w['werkstoff_id']} im Mittel {zahl(median, 2)} €/kg "
                                        "(Stückzahl, Länge und Preis prüfen)", i))
-    laser_h = sum(_n(z.get("laser_netto")) * _n(z.get("stueck")) for z in zeilen if z) / 3600
+    laser_h, ertrag = ertrag_laser(zeilen, summen)
     satz = _n(summen.get("satz_laser"))
-    ertrag = (_n(summen.get("verkauf")) * (1 - skonto) - _n(summen.get("material")) - _n(summen.get("zukauf_einstand"))
-              - _n(summen.get("zukauf_aufschlag")) - _n(summen.get("fracht")))
     if laser_h > 0 and satz > 0 and ertrag < laser_h * satz - 0.005:
         out.append(("HINWEIS", f"Ertrag je Laserstunde {zahl(ertrag / laser_h, 2)} € liegt unter dem Stundensatz "
                                f"{zahl(satz, 2)} €/h (Verkaufspreis ohne Material, Zukaufteile und Fracht)", None))
     return out
+
+
+def ertrag_laser(zeilen, summen):
+    """(Laserstunden, Ertrag €) eines Angebots: Verkaufspreis nach Skonto ohne Material, Zukaufteile und Fracht; der
+    Ertrag je Laserstunde ist Ertrag ÷ Laserstunden (auch in der Angebots-Auswertung je Kunde, Vorschlag K5)."""
+    skonto = _n(summen.get("skonto_satz")) / 100
+    laser_h = sum(_n(z.get("laser_netto")) * _n(z.get("stueck")) for z in zeilen if z) / 3600
+    ertrag = (_n(summen.get("verkauf")) * (1 - skonto) - _n(summen.get("material")) - _n(summen.get("zukauf_einstand"))
+              - _n(summen.get("zukauf_aufschlag")) - _n(summen.get("fracht")))
+    return laser_h, ertrag

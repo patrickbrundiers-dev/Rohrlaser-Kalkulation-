@@ -3197,6 +3197,8 @@ def einstellungen_angebot(kopf, einst):
         w = (kopf or {}).get(f.name)
         if isinstance(w, (int, float)) and not isinstance(w, bool):
             out[f.name] = w / 100 if f.name in KALK_PROZENT else w
+    if _n((kopf or {}).get("mindestwert")) > 0:      # Mindestauftragswert des Kunden (G7) statt der Einstellung
+        out["mindestpreis"] = _n(kopf["mindestwert"])
     if (kopf or {}).get("mindestpreis_anwenden") == "nein":
         out["mindestpreis"] = 0
     if isinstance((kopf or {}).get("gewinn"), (int, float)):
@@ -3395,14 +3397,18 @@ def gewinn_gestaffelt(basis, stufen):
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation wie _kalkulation; mit gestaffeltem Gewinn (gewinn_stufen) zuerst die Gewinnbasis des ganzen Angebots
     (Lauf mit Gewinn 100 %), dann derselbe Satz für alle Positionen: Gewinn der Stufe ÷ Basis."""
+    from . import preisschicht      # letzte Preisschicht (Vorschläge 02.11.2026), ohne Einstellungen bitgleich
     stufen = gewinn_stufen(einstellungen)
     if not stufen:
-        return _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+        zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+        preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, einstellungen)
+        return zeilen, summen
     _, s1 = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=1.0))
     basis = _n(s1.get("gewinn"))
     satz = gewinn_gestaffelt(basis, stufen) / basis if basis > 0 else stufen[0][1]
     zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=satz))
     summen.update(gewinn_satz=satz, gewinn_gestaffelt=True, gewinn_stufen_basis=basis)
+    preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, dict(einstellungen, gewinn=satz))
     return zeilen, summen
 
 
@@ -3449,6 +3455,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     stangen = ergebnis["stangen"] if ergebnis else []
     sw = stangen_werte(ergebnis, kopf, positionen, k, tabellen) if ergebnis else []
     zm, zf, gew = (_n(einstellungen.get(n)) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn"))
+    eil = _n(einstellungen.get("eilzuschlag"))     # Eilzuschlag des Angebots auf die Fertigung (Vorschlag K2)
+    zf += eil
     selbst_basis = gewinn_auf_selbstkosten(einstellungen)
     neu = neue_preisregeln(einstellungen)
     ruest = _n(zb["maschine"].get("ruestzeit"))
@@ -3813,6 +3821,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # Abruf-/Rahmenangebot: Kennzahlen für Kostenübersicht, PDF und Staffeln
     summen.update(abruf=bool(ab), abruf_n=ab["n"] if ab else None, programmierung_voll=prog_voll,
                   lagerzins=_summe("lagerzins_teil"), lagerzins_satz=100 * ab["zins"] if ab else 0.0)
+    summen.update(eilzuschlag_satz=100 * eil,
+                  eilzuschlag=summen["zuschlag_fertigung"] * eil / zf if eil > 0 and zf > 0 else 0.0)
     summen.update(verkauf_kalkuliert=kalkuliert, mindestpreis=mindest, mindestpreis_gilt=faktor > 1,
                   mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
@@ -4171,7 +4181,10 @@ KOSTENARTEN = (
     ("Programmierkosten", "programmierung", False), ("Pauschale je Abmessung", "pauschalen", False),
     ("Angebotsaufschlag", "angebotsaufschlag", False), ("Zukaufteile (Einstand)", "zukauf_einstand", False),
     ("Aufschlag Zukaufteile", "zukauf_aufschlag", False), ("Selbstkosten", "selbst", True),
-    ("Gewinn", "gewinn", False), ("Fracht", "fracht", False), ("Skonto", "skonto", False),
+    ("Mannlose Laufzeit", "mannlos", False), ("Neuteil-Zuschlag", "neuteil", False),
+    ("Verpackung", "verpackung", False), ("Finanzierung", "finanzierung", False),
+    ("Gewinn", "gewinn", False), ("Fracht", "fracht", False), ("Frachtfrei", "frachtfrei", False),
+    ("Rabatt", "rabatt", False), ("Rundung", "rundung", False), ("Skonto", "skonto", False),
     ("Anhebung auf Mindestpreis", "mindestpreis_anhebung", False),
     ("Musterkosten weiterer Abrufe", "muster_spaeter", False), ("Verkaufspreis", "verkauf", True))
 
@@ -4186,7 +4199,10 @@ KOSTEN_GRUPPEN = (
     ("Herstellkosten", ("herstell",), True), ("Programmierkosten", ("programmierung",), False),
     ("Pauschalen und Aufschläge", ("pauschalen", "angebotsaufschlag"), False),
     ("Zukaufteile", ("zukauf_einstand", "zukauf_aufschlag"), False),
-    ("Selbstkosten", ("selbst",), True), ("Gewinn", ("gewinn",), False), ("Fracht", ("fracht",), False),
+    ("Selbstkosten", ("selbst",), True),
+    ("Laufzeit, Neuteil, Verpackung, Finanzierung", ("mannlos", "neuteil", "verpackung", "finanzierung"), False),
+    ("Gewinn", ("gewinn",), False), ("Fracht", ("fracht",), False),
+    ("Kundenkonditionen und Rundung", ("frachtfrei", "rabatt", "rundung"), False),
     ("Skonto", ("skonto",), False), ("Mindestpreis", ("mindestpreis_anhebung",), False),
     ("Muster: Anteil weiterer Abrufe", ("muster_spaeter",), False), ("Verkaufspreis", ("verkauf",), True))
 assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n, _ in KOSTENARTEN)
@@ -4214,13 +4230,25 @@ def kostenarten(summen, einst):
                            "Jahresmenge umgelegt)" if summen.get("abruf") and summen.get("programmierung_voll") else ""),
         "stangenwechsel_kosten": f" ({summen['beladungen']} × {z(summen['stangenwechsel'])} s)",
         "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
-        "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
+        "zuschlag_fertigung": (f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %"
+                               + (f" + Eilzuschlag {z(summen.get('eilzuschlag_satz', 0))} % = "
+                                  f"{z(summen.get('eilzuschlag', 0), 2)} €" if summen.get("eilzuschlag") else "") + ")"),
         "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",
         "gewinn": f" ({z(100 * _n(summen['gewinn_satz'] if summen.get('gewinn_gestaffelt') else einst.get('gewinn')))} %"
                   + (" gestaffelt" if summen.get("gewinn_gestaffelt") else "") + " auf "
                   + (f"Herstellkosten {z(summen.get('herstell', 0), 2)} €)" if summen.get("gewinn_basis") == GEWINN_HERSTELL
                      else f"Selbstkosten {z(summen.get('selbst', 0), 2)} €)"),
         "skonto": f" ({z(summen.get('skonto_satz', 0))} % eingerechnet)",
+        "mannlos": (f" ({z(summen.get('mannlos_h', 0), 1)} h mit {z(summen.get('mannlos_satz', 0), 2)} €/h)"
+                    if summen.get("mannlos") else ""),
+        "neuteil": f" ({z(summen.get('neuteil_satz', 0))} % auf Material und Laser)" if summen.get("neuteil") else "",
+        "verpackung": f" ({summen.get('verpackung_text')})" if summen.get("verpackung") else "",
+        "finanzierung": (f" ({z(summen.get('finanzierung_satz', 0))} % p. a. für "
+                         f"{z(summen.get('finanzierung_tage', 0), 0)} Tage)" if summen.get("finanzierung") else ""),
+        "frachtfrei": (f" (frei ab {z(summen.get('frachtfrei_ab', 0), 2)} € Warenwert)" if summen.get("frachtfrei")
+                       else ""),
+        "rabatt": f" ({z(summen.get('rabatt_satz', 0))} %)" if summen.get("rabatt") else "",
+        "rundung": f" ({summen.get('rundung_art')})" if summen.get("rundung") else "",
         "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)",
         "muster_spaeter": " (Musterwert, der mit den übrigen Abrufen der Jahresmenge bezahlt wird)",
         "mindestpreis_anhebung": (f" (kalkuliert {z(summen.get('verkauf_kalkuliert', 0), 2)} €, Mindestpreis "

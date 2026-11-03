@@ -12,7 +12,8 @@ Lieferzeit des Angebots ab heute (auftrag.termin_vorschlag).
 Kapazität je Woche und Maschine = Arbeitstage × Stunden je Arbeitstag (Maschine 'schicht_stunden', sonst Einstellung
 'schicht_stunden') + Samstag ('schicht_samstag') × nutzbarer Anteil ('schicht_verfuegbar'). Arbeitstage: Montag bis
 Freitag ohne die Feiertage des Bundeslands ('versand_bundesland') und ohne Betriebsruhe ('betriebsruhe': Daten und
-Zeiträume, z. B. '24.12.2026-31.12.2026; 02.10.2026')."""
+Zeiträume, z. B. '24.12.2026-31.12.2026; 02.10.2026') und ohne die Sperrtage der Maschine (Spalte 'sperrtage': Wartung,
+Stillstand; Vorschlag F7)."""
 import datetime
 import re
 
@@ -133,10 +134,12 @@ def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None):
                + [(m, f"KW {m.isocalendar()[1]}", m) for m in montage] + [(SPAETER, SPAETER, None), (OHNE, OHNE, None)])
     maschinen = sorted(k.maschinen)
     kap = {}
+    sperre = {}
     for m in maschinen:
         st = _f(k.maschinen[m].get("schicht_stunden"), std)
+        sperre[m] = betriebsruhe(k.maschinen[m].get("sperrtage"))
         for mo in montage:
-            kap[(m, mo)] = kapazitaet(mo, st, sa, anteil, land, ruhe)
+            kap[(m, mo)] = kapazitaet(mo, st, sa, anteil, land, ruhe | sperre[m])
     from . import fertigung
     letzter = fertigung.status_liste(db)[-1]
     liste = [(a, "Auftrag", 1.0) for a in db.angebote() if a.get("vorgang") == "Beauftragt" and not a.get("fremd")
@@ -176,7 +179,20 @@ def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None):
                                                     termin=a.get("liefertermin"), art=art, gewicht=g,
                                                     geschnitten=fertig))
     return dict(spalten=spalten, maschinen=maschinen, kapazitaet=kap, bedarf=bedarf, auftraege=auftraege,
-                fehlt=fehlt, gewicht=gewicht)
+                fehlt=fehlt, gewicht=gewicht, ruhe=ruhe, sperre=sperre)
+
+
+def gesperrt_text(ruhe, sperre, montag_):
+    """Kurztext der gesperrten Tage einer Woche (Betriebsruhe und Sperrtage der Maschine), '' ohne."""
+    tage = [montag_ + datetime.timedelta(days=i) for i in range(6)]
+    teile = []
+    b = [d for d in tage if d in (ruhe or ())]
+    s = [d for d in tage if d in (sperre or ()) and d not in b]
+    if b:
+        teile.append("Betriebsruhe " + ", ".join(d.strftime("%d.%m.") for d in b))
+    if s:
+        teile.append("Sperrtag " + ", ".join(d.strftime("%d.%m.") for d in s))
+    return "; ".join(teile)
 
 
 def quote(bedarf, kapazitaet):

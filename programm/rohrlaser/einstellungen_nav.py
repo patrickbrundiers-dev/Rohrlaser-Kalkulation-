@@ -45,7 +45,8 @@ def suchtexte(seite, titel):
     if t is not None:
         texte += [f.titel for f in getattr(t, "felder", ())]
     for e in getattr(seite, "liste", ()):          # EinstellungenSeite: alle Einstellungen
-        texte += [e.titel, e.gruppe]
+        if hasattr(e, "titel"):                     # andere Seiten haben eine liste aus dicts (Arbeitsplätze)
+            texte += [e.titel, getattr(e, "gruppe", "")]
     for unter in getattr(seite, "teilseiten", ()):  # z. B. Stundensätze + Arbeitsschritte
         texte += suchtexte(unter, "")
     return [x for x in texte if x]

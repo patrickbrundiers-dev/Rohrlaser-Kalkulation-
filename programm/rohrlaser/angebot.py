@@ -51,6 +51,11 @@ KOPF = (
     Feld("abruf_laufzeit", "Laufzeit / Preisbindung [Monate]", "ganz", 1, 120),
     Feld("abruf_material", "Material", "auswahl", auswahl="abrufmaterial"),
     Feld("abruf_lagerzins", "Lagerzins [% p. a.]", "zahl", 0, 100, stellen=1),
+    # Vorschläge vom 02.11.2026: Verpackung je Angebot abschaltbar (G2, leer = ja), Neuteile für den Neuteil-Zuschlag
+    # (J6, JSON-Liste der Positions-IDs, vom Angebotsfenster aus den Wiederholteilen gesetzt), Werkszeugnis (F5)
+    Feld("verpackung", "Verpackung berechnen", "auswahl", auswahl="janein"),
+    Feld("neuteile", "Neuteile (für den Neuteil-Zuschlag)"),
+    Feld("zeugnis_31", "Werkszeugnis 3.1 verlangt", "auswahl", auswahl="janein"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
@@ -80,10 +85,18 @@ KALKULATION = (
     # die Spalte angebote.mindestpreis älterer Dateien wird nicht mehr gelesen.
     # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je m der beigestellten Stangen; 0 = keins
     Feld("handling_beistellung", "Handling Kundenmaterial [€/m]", "zahl", 0, 1000, stellen=3),
+    # Eilzuschlag (Vorschlag K2, Patrick 02.11.2026): zusätzlich zum Zuschlag Fertigung auf Laser, Rüsten, Arbeitsgänge
+    # und eigene Zusatzarbeiten, wenn der Wunschtermin vor dem frühesten freien Termin liegt; leer/0 = keiner
+    Feld("eilzuschlag", "Eilzuschlag Fertigung [%]", "zahl", 0, 500, stellen=1),
+    # Kundenkonditionen (Vorschlag G7): aus den Kundenvorgaben, je Angebot änderbar; leer/0 = keine
+    Feld("rabatt", "Rabatt [%]", "zahl", 0, 50, stellen=1),
+    Feld("frachtfrei_ab", "Frachtfrei ab Warenwert [€ netto]", "zahl", 0, 10000000, stellen=2),
+    Feld("mindestwert", "Mindestauftragswert des Kunden [€ netto]", "zahl", 0, 10000000, stellen=2),
 )
-KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn")
+KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn", "eilzuschlag", "rabatt")
 # Kalkulationswerte, bei denen leer nicht „wie Einstellungen“ heißt, sondern „wie vor dem Feld“ (ältere Angebote)
-KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur", "ruesten_angebot_eur")
+KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur", "ruesten_angebot_eur", "eilzuschlag",
+                     "rabatt", "frachtfrei_ab", "mindestwert")
 KOPF = KOPF + KALKULATION
 
 

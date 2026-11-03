@@ -24,9 +24,23 @@ def _f(v, vorgabe=0.0):
         return vorgabe
 
 
-def material_ab(heute, tage, land):
+def _arbeitstag(d, land, ruhe=()):
+    return feiertage.ist_arbeitstag(d, land) and d not in ruhe
+
+
+def arbeitstage_spaeter(start, n, land, ruhe=()):
+    """Datum n Arbeitstage nach start, ohne Feiertage und ohne Betriebsruhe (Vorschlag F7)."""
+    d = start
+    while n > 0:
+        d += datetime.timedelta(days=1)
+        if _arbeitstag(d, land, ruhe):
+            n -= 1
+    return d
+
+
+def material_ab(heute, tage, land, ruhe=()):
     """Tag, an dem das Material da ist: heute + tage Arbeitstage."""
-    return feiertage.arbeitstage_spaeter(heute, int(tage), land) if tage and tage > 0 else heute
+    return arbeitstage_spaeter(heute, int(tage), land, ruhe) if tage and tage > 0 else heute
 
 
 def verteilen(laser_h, frei, ab_montag):
@@ -44,12 +58,16 @@ def verteilen(laser_h, frei, ab_montag):
     return None, belegt
 
 
-def fruehester(db, angebot_id, heute=None, auslast=None):
+def fruehester(db, angebot_id, heute=None, auslast=None, maschine=None, laser_h=None):
     """Frühester Liefertermin des Angebots (Termin) oder None, wenn das Angebot keinen Schnittplan hat.
-    auslast = Ergebnis von auslastung.berechnen (Tests, mehrfaches Prüfen)."""
+    auslast = Ergebnis von auslastung.berechnen (Tests, mehrfaches Prüfen); maschine/laser_h = auf einer anderen
+    Maschine mit dieser Laserzeit (Maschinenvergleich F1)."""
     heute = heute or datetime.date.today()
     a = db.angebot(angebot_id) or {}
-    laser_h, _ = auslastung.maschinenzeit(db, a)
+    if maschine:
+        a = dict(a, maschine=maschine)
+    if laser_h is None:
+        laser_h, _ = auslastung.maschinenzeit(db, a)
     if laser_h is None:
         return None
     land = db.einstellung("versand_bundesland") or feiertage.VORGABE
@@ -59,7 +77,8 @@ def fruehester(db, angebot_id, heute=None, auslast=None):
     pos = [p for p in db.positionen(angebot_id) if aktiv(p) and p.get("profil_id")]
     if pos and all(p.get("material_herkunft") == KUNDENMATERIAL for p in pos):
         tage = 0                     # Kundenmaterial: kein Einkauf
-    mat = material_ab(heute, tage, land)
+    ruhe = auslastung.betriebsruhe(db.einstellung("betriebsruhe"))
+    mat = material_ab(heute, tage, land, ruhe)
     aus = auslast or auslastung.berechnen(db, heute, wochen=WOCHEN)
     m = a.get("maschine") or "?"
     frei = []
@@ -86,13 +105,17 @@ def fruehester(db, angebot_id, heute=None, auslast=None):
         hinweise.append(f"{auslastung_text(ueberfaellig)} überfällige Laserzeit vorgezogen")
     woche, belegt = verteilen(laser_h, frei, auslastung.montag(mat))
     voll = [mo for mo, h, _ in belegt if h <= 0.05]
+    for mo, _, _ in belegt:
+        gesperrt = auslastung.gesperrt_text(aus.get("ruhe") or ruhe, (aus.get("sperre") or {}).get(m), mo)
+        if gesperrt:
+            hinweise.append(f"KW {mo.isocalendar()[1]}: {gesperrt}")
     if voll:
         hinweise.append("ausgebucht: " + ", ".join(f"KW {mo.isocalendar()[1]}" for mo in voll[:6]))
     if woche is None:
         hinweise.append(f"passt nicht in die nächsten {WOCHEN} Wochen")
         return Termin(None, mat, laser_h, belegt, hinweise)
     fertig = max(mat, woche + datetime.timedelta(days=4))       # Freitag der Woche, nicht vor dem Material
-    datum = feiertage.arbeitstage_spaeter(fertig, vorlauf, land) if vorlauf > 0 else fertig
+    datum = arbeitstage_spaeter(fertig, vorlauf, land, ruhe) if vorlauf > 0 else fertig
     return Termin(datum, mat, laser_h, belegt, hinweise)
 
 
@@ -125,3 +148,26 @@ def haltbar(t, zugesagt):
     if t is None or zugesagt is None:
         return None
     return t.datum is not None and zugesagt >= t.datum
+
+
+def arbeitstage_zwischen(von, bis, land=None, ruhe=()):
+    """Arbeitstage nach von bis einschließlich bis (0, wenn bis nicht nach von liegt), ohne Betriebsruhe."""
+    n, d = 0, von
+    while d < bis:
+        d += datetime.timedelta(days=1)
+        if _arbeitstag(d, land, ruhe):
+            n += 1
+    return n
+
+
+def eil_vorschlag(t, zugesagt, einst, land=None):
+    """Eilzuschlag (Vorschlag K2): liegt der Wunschtermin vor dem frühesten freien Termin, (Arbeitstage zu früh,
+    Zuschlag als Anteil): bis 'eil_tage' Arbeitstage Stufe 1 ('eil_zuschlag_1'), darüber Stufe 2 ('eil_zuschlag_2').
+    None, wenn der Termin hält, nicht prüfbar ist oder der Zuschlag 0 ist."""
+    if t is None or t.datum is None or zugesagt is None or zugesagt >= t.datum:
+        return None
+    e = einst or {}
+    tage = max(1, arbeitstage_zwischen(zugesagt, t.datum, land, auslastung.betriebsruhe(e.get("betriebsruhe"))))
+    stufe1 = int(_f(e.get("eil_tage"), 2))
+    satz = _f(e.get("eil_zuschlag_1"), 0.15) if tage <= stufe1 else _f(e.get("eil_zuschlag_2"), 0.30)
+    return (tage, satz) if satz > 0 else None

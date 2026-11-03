@@ -21,6 +21,32 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.235", "Weitere Vorschläge für Kalkulation und Ablauf: <b>Maschinen vergleichen</b> im Kopf "
+     "([[maschinen_vergleich]]), <b>Sperrtage je Maschine</b> ([[sperrtage]]), <b>Fassungsvergleich</b> "
+     "([[fassung_vergleich]]), <b>Teilekatalog je Kunde</b> ([[teilekatalog]]). <b>Preisregeln</b> (alle aus, bis man "
+     "sie einschaltet): Runden von Stück- oder Gesamtpreis, Kundenkonditionen Rabatt, frachtfrei ab Warenwert und "
+     "Mindestauftragswert, Verpackung aus den Stammdaten, Finanzierung über das Zahlungsziel ([[preisregeln]]), "
+     "Neuteil-Zuschlag und mannlose Laufzeit je Maschine ([[neuteil_mannlos]]). <b>Preisuntergrenze und Zielpreis "
+     "rückwärts</b> ([[zielpreis]]), Hinweise zu Auslastung und Marktpreis aus Absagen ([[kalk_hinweise]]), "
+     "<b>Vier-Augen-Freigabe</b> ([[freigabe]]), <b>Rückfrage an Kunden</b> ([[rueckfrage]]), <b>Positionsvorlagen</b> "
+     "([[positionsvorlagen]]), <b>Offene Angebote prüfen</b> und <b>Monatsbericht</b> ([[offene_pruefen]]), "
+     "<b>Lieferantenangebote</b> mit Bewertung ([[lieferantenangebote]]), <b>Lieferschein</b> mit Teillieferung und "
+     "Werkszeugnissen ([[lieferschein]]), <b>Laserzeit per Scan</b> für die Nachkalkulation ([[laserzeit_scan]]).",
+     "Maschinenvergleich, Preisregeln, Zielpreis, Freigabe, Rückfrage, Vorlagen, Lieferschein, Lieferantenangebote, "
+     "Scan-Zeit"],
+    ["0.9.234", "Neun Verbesserungen für Kalkulation und System: <b>Gleitklausel Material</b> bei Abruf-Angeboten "
+     "([[gleitklausel]]): festgeschriebene gegen aktuelle Materialpreise, ab ±5 % fällig, nur Material gleitet, "
+     "Übernehmen mit Vermerk im Versandverlauf. <b>Eilzuschlag</b> ([[eilzuschlag]]): Feld im Kopf und Vorschlag aus "
+     "<i>Termin prüfen …</i> nach Arbeitstagen zu früh (15 %/30 %). <b>CO₂-Bilanz</b> intern im Preisaufbau und "
+     "Kalkulations-PDF ([[co2_bilanz]], Funktion, Vorgabe aus). <b>Wiederholteile</b> zeigen, wie der letzte "
+     "Auftrag lief, der Angebots-Check weist auf große Abweichungen hin ([[wiederholteil_nachkalk]]). "
+     "<b>Ertrag je Laserstunde je Kunde</b> in der Angebots-Auswertung ([[ertrag_laserstunde]]). <b>Prüfplan / "
+     "Messprotokoll</b> als PDF mit ISO 2768 und Zusatzarbeit Erstmusterprüfung ([[pruefplan]]). <b>Support-Paket</b> "
+     "als ZIP ([[support_paket]]). <b>Datenschutz</b>: Datenauskunft als PDF, Kunden anonymisieren (nur Admin), "
+     "Frist für abgelehnte Angebote (Vorgabe aus) ([[datenschutz]]). <b>Übergabe an CAM</b>: Ordner mit STEP je "
+     "Teil, Stückliste und Schnittplan ([[cam_paket]]).",
+     "Gleitklausel, Eilzuschlag, CO₂, Wiederholteil-Rückblick, Ertrag/Laserstunde, Prüfplan, Support-Paket, "
+     "Datenschutz, CAM-Ordner"],
     ["0.9.233", "<b>STEP-Import: Rechteck mit Eckradius bleibt Rechteck</b> ([[schneidweg_rechner]]): Ein "
                 "Rechteckausschnitt mit gerundeten Ecken (z. B. R3) kam bisher als <i>Sonderkontur</i> und war im "
                 "Editor nicht mit Maßen änderbar. Jetzt wird er eine Zeile <i>Rechteck</i> mit dem Eckradius aus der "

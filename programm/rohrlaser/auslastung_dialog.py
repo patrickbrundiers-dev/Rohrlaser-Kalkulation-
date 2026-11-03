@@ -109,7 +109,12 @@ class AuslastungDialog(QDialog):
                 if farbe:
                     it.setBackground(QBrush(stil.farbe(FARBEN[farbe])))
                 n = len(d["auftraege"].get((m, s), ()))
-                it.setToolTip(f"{n} Auftrag/Aufträge" if n else "")
+                gesperrt = auslastung.gesperrt_text(d.get("ruhe"), (d.get("sperre") or {}).get(m), mo) if mo else ""
+                if gesperrt:                    # Betriebsruhe/Sperrtage (F7): Zelle grau, Tage im Text
+                    it.setText(text + "\n" + gesperrt.split(" ")[0])
+                    if not farbe:
+                        it.setBackground(QBrush(stil.farbe(FARBEN["grau"])))
+                it.setToolTip("; ".join(x for x in (f"{n} Auftrag/Aufträge" if n else "", gesperrt) if x))
                 t.setItem(r, c, it)
         t.resizeColumnsToContents()
         t.resizeRowsToContents()
