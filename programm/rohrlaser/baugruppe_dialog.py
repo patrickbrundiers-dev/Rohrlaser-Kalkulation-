@@ -26,6 +26,7 @@ from . import funktionen
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
+from .editor_ursprung import URSPRUNG, UrsprungEditor
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import KATEGORIEN, NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
@@ -1802,7 +1803,7 @@ class LaengsnahtEditor:
 
 
 class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, AuswahlEditor,
-                      StepBaugruppe, QDialog):
+                      StepBaugruppe, UrsprungEditor, QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
@@ -1914,6 +1915,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             unten.addWidget(einsetzen)
             unten.addWidget(merken)
         unten.addWidget(self.step_knopf())
+        unten.addWidget(self.ursprung_knopf())
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
@@ -1922,6 +1924,73 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if self.vk_auto.isChecked() and not nur_lesen:
             self.vorkalkulation()
         self.vorschlaege_info_neu()
+        self.ursprung_merken()
+
+    # -------------------------------------------------------------- Zurücksetzen auf den Ursprung (editor_ursprung)
+    def _ursprung_kopf(self):
+        return dict(bezeichnung=self.bezeichnung.text(), artikel=self.artikel.text(), anzahl=self.anzahl.value(),
+                    muster=self.muster_haken.isChecked(), vk_auto=self.vk_auto.isChecked(),
+                    stamm={n: f.toPlainText() if isinstance(f, QPlainTextEdit) else f.text()
+                           for n, f in self.stamm_felder.items()},
+                    wahl={n: f.isChecked() for n, f in self.stamm_wahl.items()})
+
+    def _ursprung_kopf_setzen(self, k):
+        felder = [self.bezeichnung, self.artikel, self.anzahl, self.muster_haken, self.vk_auto,
+                  *self.stamm_felder.values(), *self.stamm_wahl.values()]
+        for f in felder:
+            f.blockSignals(True)
+        try:
+            self.bezeichnung.setText(k["bezeichnung"])
+            self.artikel.setText(k["artikel"])
+            self.anzahl.setValue(k["anzahl"])
+            self.muster_haken.setChecked(k["muster"])
+            self.vk_auto.setChecked(k["vk_auto"])
+            for n, f in self.stamm_felder.items():
+                w = k["stamm"].get(n) or ""
+                f.setPlainText(w) if isinstance(f, QPlainTextEdit) else f.setText(w)
+            for n, f in self.stamm_wahl.items():
+                f.setChecked(bool(k["wahl"].get(n)))
+        finally:
+            for f in felder:
+                f.blockSignals(False)
+
+    def _ursprung_anzeigen(self):
+        for tab in (self.knoten_tab, self.teile_tab, self.naht_tab, self.ag_tab, self.steck_tab):
+            tab.aufbauen()
+        self.wahl_3d = []
+        self._vorschlaege_zeigen()
+        self.aktualisieren()
+        self.vorschlaege_info_neu()
+
+    def ursprung_import(self):
+        """Stand aus dem STEP-Import (bg['ursprung'], beim Import gemerkt) oder None."""
+        u = self.bg.get(URSPRUNG)
+        if not isinstance(u, dict):
+            return None
+        bg = copy.deepcopy({k: v for k, v in u.items() if k not in ("teile", "kopf")})
+        bg.update(id=self.bg["id"], ursprung=copy.deepcopy(u))
+        for n in ("knoten", "arbeitsgaenge", "naehte"):
+            bg[n] = [x for x in bg.get(n) or () if isinstance(x, dict)]
+        bg["stamm"] = bg.get("stamm") if isinstance(bg.get("stamm"), dict) else {}
+        bg["steckverbindungen"] = [self._steck_flach(v) for v in steckverbindung.liste(bg)]
+        zuordnung = {(z[0], z[1]): z for z in u.get("teile") or () if isinstance(z, list) and len(z) == 4}
+        teile, gefunden = [], set()
+        for t in self.teile:
+            t = dict(t)
+            z = zuordnung.get((t["_q"].get("pos"), t["_q"].get("artikel")))
+            if z is not None:
+                gefunden.add((z[0], z[1]))
+                t.update(drin=True, knoten=baugruppe.zuordnung(dict(bg_knoten=z[2]))[1] or "", je=z[3] or 1,
+                         hilfe=None)
+            teile.append(t)
+        if zuordnung and len(gefunden) == len(zuordnung):       # alle wiedergefunden: von Hand dazu = wieder raus
+            for t in teile:
+                if (t["_q"].get("pos"), t["_q"].get("artikel")) not in gefunden:
+                    t["drin"] = False
+        kopf = dict(self._ursprung_kopf(), stamm={n: str(v) for n, v in bg["stamm"].items() if not isinstance(v, bool)},
+                    wahl={n: v for n, v in bg["stamm"].items() if isinstance(v, bool)})
+        kopf.update({k: v for k, v in (u.get("kopf") or {}).items() if k in ("bezeichnung", "anzahl")})
+        return dict(bg=bg, teile=teile, knicke=[], laengsnaehte={}, getrennt=[], lagen={}, kopf=kopf)
 
     # -------------------------------------------------------------- Struktur und Teile
     def _teile_aufbauen(self, vorwahl):

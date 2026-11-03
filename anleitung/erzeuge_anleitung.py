@@ -3255,8 +3255,8 @@ def kapitel_optimieren(i):
                (9, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
                (10, "<b>Kennzahlen</b>: Schneidweg, Einstiche, Schneidzeit und Konturklassen."),
                (11, "<b>Prüfmeldungen</b>: Zähler nach Fehlern, Warnungen und Hinweisen; Klick klappt die Liste auf."),
-               (12, "<b>Rückgängig</b>, <b>Wiederholen</b>, <b>Auf STEP-Wert</b>, <b>Duplizieren</b> und "
-                    "<b>Entfernen</b>.")])
+               (12, "<b>Rückgängig</b>, <b>Wiederholen</b>, <b>Zurücksetzen</b> (wie beim Öffnen oder wie aus "
+                    "STEP/DXF), <b>Auf STEP-Wert</b>, <b>Duplizieren</b> und <b>Entfernen</b>.")])
     i.text("Für Teile ohne STEP-Datei: Position markieren, Doppelklick auf Schneidweg oder das kleine Bild. Enden, "
            "Bohrungen und Ausschnitte eintragen, das Programm rechnet Schneidweg, Einstiche und Konturklassen.", kurz=True)
     i.genauer()
@@ -3847,6 +3847,10 @@ def kapitel_optimieren(i):
             "gespeicherten.",
             "<b>STEP speichern …</b> (Reiter Teile) schreibt den ganzen Satz als STEP-Baugruppe wie im Editor der "
             "Schweißbaugruppe ([[step_baugruppe]]).",
+            "<b>Zurücksetzen</b> (Reiter Teile, neben STEP speichern): <i>Alles wie beim Öffnen</i> oder <i>Alles wie "
+            "aus STEP importiert</i> (ohne Steckverbindungen, neue Knickrahmen und per Klick gewählte Längsnähte; schon "
+            "angelegte Knickrahmen sind eigene Positionen und bleiben). Mit Rückfrage, Strg+Z holt den Stand davor "
+            "wieder ([[baugruppe_ursprung]]).",
             "<b>OK</b> schreibt Schlitze, Nasen, Länge, Schneidweg und Längsnähte in die Teile; die Verbindungen "
             "speichert das Angebot je Satz (sie bleiben beim Kopieren des Angebots erhalten). Ist der Satz eine "
             "Schweißbaugruppe, öffnet der Knopf ihren Editor.",
@@ -3902,7 +3906,7 @@ def kapitel_optimieren(i):
             "Konturen (ausgeschnitten), beim Blech der Zuschnitt mit Biegelinien. Das Fenster folgt jeder Eingabe, "
             "Klick wählt eine Kontur, Ziehen verschiebt sie, Mausrad zoomt, Doppelklick passt ein. Größe und Lage "
             "merkt sich das Programm. Enter schließt auch sonst kein Fenster ([[eingaben]]).",
-            "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
+            "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Zurücksetzen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
             "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen, DXF importieren "
@@ -3972,6 +3976,13 @@ def kapitel_optimieren(i):
             "<b>Auf STEP-Wert zurücksetzen</b>: setzt das gewählte Merkmal mit Herkunft <i>manuell (STEP "
             "geändert)</i> wieder auf die Messung, z. B. eine Bohrung oder ein Ende; die gemessene Schnittlänge gilt "
             "dann wieder.",
+            "<b>Zurücksetzen auf den Ursprung</b>: Knopf <i>Zurücksetzen</i> im Menüband (neben Rückgängig) mit "
+            "<i>Alles wie beim Öffnen</i> (verwirft alle Änderungen seit dem Öffnen des Fensters) und <i>Alles wie aus "
+            "STEP/DXF importiert</i> (das ganze Teil wieder so, wie es aus der Datei kam, auch gelöschte Konturen). "
+            "Vorher kommt eine Rückfrage, Strg+Z holt den Stand davor wieder. Den Importstand merkt sich die Position "
+            "beim Einlesen (ab Version 0.9.243; <i>STEP neu einlesen</i> und DXF-Import setzen ihn neu). Bei älteren "
+            "Positionen setzt der Eintrag alle geänderten Merkmale auf den STEP-Wert. Dasselbe gibt es im Editor der "
+            "Schweißbaugruppe und im Fenster Satz in 3D (Knopf <i>Zurücksetzen</i> unten).",
             "<b>Prüfmeldungen</b>: die Befunde der Fertigungsprüfung ([[pruefregeln]]) sowie Fehler und Hinweise der "
             "Rechnung, Fehler zuerst. Ein Klick wählt das betroffene Merkmal; bei einem zu schmalen Steg sind beide "
             "Konturen markiert, in der Skizze blau und in der 3D-Ansicht grün hervorgehoben.",
@@ -5564,7 +5575,7 @@ def kapitel_baugruppen(i):
            "Änderung neu vor, spätestens beim OK; Werte von Hand und bestätigte bleiben. Die Einstellung "
            "<i>Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim STEP-Import: "
            "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Positionieren, Wenden, Verputzen, Rüsten)</i> gibt "
-           "das Häkchen für Baugruppen ohne eigene Wahl vor; Vorgabe ist seit Version 0.9.243 <i>ja</i>, weil ohne "
+           "das Häkchen für Baugruppen ohne eigene Wahl vor; Vorgabe ist seit Version 0.9.244 <i>ja</i>, weil ohne "
            "Vorkalkulation nur die reine Schweißzeit zählt (keine Heftpunkte, kein Positionieren und Wenden). Auf "
            "<i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
            "STEP-Import gleich durch ([[step]]), der Bericht nennt das Ergebnis. Nimmt man das Häkchen bei einer "
@@ -5679,6 +5690,16 @@ def kapitel_baugruppen(i):
            "Stammdaten und werden beim Speichern wie immer gemerkt. Danach die Einzelteile per Häkchen zuordnen. "
            "Gibt es den Namen schon, fragt das Programm vor dem Überschreiben. Vorlagen werden mit den übrigen "
            "Stammdaten zwischen Arbeitsplätzen geteilt.")
+    i.abschnitt("Auf Ursprung zurücksetzen", marke="baugruppe_ursprung")
+    i.text("Knopf <b>Zurücksetzen</b> unten im Editor der Schweißbaugruppe: <i>Alles wie beim Öffnen</i> verwirft "
+           "alle Änderungen seit dem Öffnen, <i>Alles wie aus STEP importiert</i> setzt Struktur, Einzelteile, "
+           "Nahtgruppen, Arbeitsgänge, Steckverbindungen, Bezeichnung und Anzahl wieder wie beim Einlesen.", kurz=True)
+    i.text("Vorher kommt eine Rückfrage; <i>Zurücksetzen rückgängig</i> (oder Strg+Z) holt den Stand davor wieder. "
+           "Erst OK schreibt ins Angebot, Abbrechen verwirft auch das Zurücksetzen. Den Importstand merkt sich die "
+           "Baugruppe beim Einlesen (ab Version 0.9.243), samt Zuordnung der Teile nach Pos. und Artikel; von Hand "
+           "dazugenommene Teile fallen wieder heraus. Ältere oder von Hand angelegte Baugruppen haben nur <i>wie beim "
+           "Öffnen</i>. Im Fenster Satz in 3D ([[satz_3d]]) und in den Teile-Editoren ([[teile_editor]]) gibt es "
+           "denselben Knopf.")
     i.text("Für Folgeaufträge mit anderem Kunden: Rechtsklick auf die Baugruppe oder eines ihrer Teile → <b>Baugruppe "
            "in anderes Angebot kopieren …</b> und das Ziel wählen. Die Baugruppe kommt mit allen Einzelteilen, ihren "
            "Stückzahlen und 3D-Modellen ans Ende des anderen Angebots, mit eigener Kennung; das Original bleibt "
