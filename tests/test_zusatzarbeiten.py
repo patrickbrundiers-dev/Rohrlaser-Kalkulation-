@@ -28,7 +28,7 @@ db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert [z["name"] for z in db.zeilen("zusatzarbeiten")] == ["Feuerverzinken", "Galvanisch verzinken", "Pulverbeschichten",
                                                              "Entgraten", "Gravur extra", "Senken", "Flowdrill",
                                                              "Bohren", "Schweißen", "Biegen", "Knicken", "Sägen",
-                                                             "Stege abtrennen", "Strahlen"]
+                                                             "Stege abtrennen", "Strahlen", "Einnietmuttern setzen"]
 a = db.angebot_neu(dict(kunde="Test", skonto=0))
 p1 = db.position_neu(a, dict(pos=10, artikel="A", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,
                              stueck=10, schneidweg=300, einstiche=2))
@@ -149,7 +149,7 @@ con.execute("PRAGMA user_version=4")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 14 and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert d.anzahl("zusatzarbeiten") == 15 and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 d.schliessen()
 
 # 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt;
@@ -188,7 +188,7 @@ dlg.gewinde.setText("2xM8")
 r = dlg.zeile_neu()
 dlg.tabelle.cellWidget(r, 0).setCurrentText("Pulverbeschichten")
 assert dlg.tabelle.cellWidget(r, 1).text() == "€/m²" and "auto:" in dlg.tabelle.cellWidget(r, 2).placeholderText()
-dlg.tabelle.cellWidget(r, 4).setText("RAL 9005")
+dlg.tabelle.cellWidget(r, 5).setText("RAL 9005")      # Spalte Text (seit 03.11.2026 nach € je Teil)
 r = dlg.zeile_neu()
 dlg.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
 dlg.tabelle.cellWidget(r, 3).setText("12,5")
