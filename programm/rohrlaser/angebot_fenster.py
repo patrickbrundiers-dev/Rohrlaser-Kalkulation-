@@ -364,6 +364,9 @@ class AngeboteSeite(QWidget):
         self.ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
         _breiten(self.ansicht, self.SPALTEN)
         self.ansicht.doubleClicked.connect(lambda i: self.oeffnen.emit(self._id(i)))
+        # Angebotsvergleich (Plan 30.10.2026, 7a): zwei markierte Angebote über die rechte Maustaste vergleichen
+        self.ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ansicht.customContextMenuRequested.connect(lambda p: self.kontextmenue(p))
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel, Auftragsnummer …")
         self.suche.setClearButtonEnabled(True)
@@ -640,6 +643,27 @@ class AngeboteSeite(QWidget):
 
     def _id(self, index):
         return self.modell.zeilen[self.filter.mapToSource(index).row()]["id"]
+
+    def markierte_ids(self):
+        """IDs der markierten Angebote in der Reihenfolge der Liste."""
+        zeilen = sorted({i.row() for i in self.ansicht.selectionModel().selectedRows()})
+        return [self._id(self.filter.index(r, 0)) for r in zeilen]
+
+    def kontextmenue(self, punkt=None, zeigen=True):
+        """Rechte Maustaste in der Angebotsliste: Öffnen und „Vergleichen …“ (genau zwei markierte Angebote).
+        Ergebnis: das Menü (zeigen=False für Tests)."""
+        menue = QMenu(self.ansicht)
+        ids = self.markierte_ids()
+        menue.addAction("Öffnen", self.oeffnen_gewaehlt).setEnabled(bool(ids))
+        if funktionen.an("funktion_vergleich"):
+            a = menue.addAction("Vergleichen …" if len(ids) == 2 else "Vergleichen … (zwei Angebote markieren)",
+                                lambda: self.f.angebote_vergleichen(*ids[:2]))
+            a.setEnabled(len(ids) == 2)
+            a.setToolTip("Die zwei markierten Angebote Position für Position vergleichen (Strg+Klick markiert ein "
+                         "zweites Angebot)")
+        if zeigen and punkt is not None:
+            menue.exec(self.ansicht.viewport().mapToGlobal(punkt))
+        return menue
 
     def _gewaehlt(self):
         i = self.ansicht.currentIndex()
@@ -3648,10 +3672,17 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             werte["laenge"] = erg["laenge"]
         self._knicken_eintragen(werte, werte, erg)
         self._stege_eintragen(werte, werte)
-        if dxf and dxf[1].get("werkstoff_text"):     # Zeichnung (PDF/DXF): erkannte Zusatzarbeiten als Vorschlag (2a)
+        if dxf and (dxf[1].get("werkstoff_text") or dxf[1].get("text")):
+            # Zeichnung (PDF/DXF): erkannte Zusatzarbeiten als Vorschlag (2a); ganzer Text: Flowdrill, Senken,
+            # Einnietmuttern mit Anzahl, Gewinde als Gewinde-Vorschlag (Patrick 03.11.2026, 3a)
+            from . import zeichnung_hinweise
+            zh = zeichnung_hinweise.lesen(dxf[1].get("text"))
             werte["arbeitsgaenge"] = zusatz_erkennung.text_merken(
-                werte.get("arbeitsgaenge"), " ".join(str(dxf[1].get(n) or "") for n in ("werkstoff_text", "name")),
-                self.db.zeilen("zusatzarbeiten"), "Zeichnung")
+                werte.get("arbeitsgaenge"),
+                " ".join(str(dxf[1].get(n) or "") for n in ("werkstoff_text", "name", "text")),
+                self.db.zeilen("zusatzarbeiten"), "Zeichnung", zeichnung_hinweise.zusatz_mengen(zh, mit_bohrbild=False))
+            if not werte.get("gewinde_vorschlag") and zeichnung_hinweise.gewinde_vorschlag(zh):
+                werte["gewinde_vorschlag"] = zeichnung_hinweise.gewinde_vorschlag(zh)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self._radius_uebernehmen(dict(werte, id=pid_neu), eingaben)
         self.neu_laden()
@@ -6592,8 +6623,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 f", {ohne_ek} ohne EK (Blech-Werkstoff offen): bitte unter Zukaufartikel mit 'EK eintragen …' "
                 "nachtragen." if ohne_ek else ", EK = Blech-Richtpreis (bitte durch das Angebot des Lieferanten "
                                               "ersetzen)."))
-        katalog_erk = self.db.zeilen("zusatzarbeiten") if werkstoff_text else ()
+        katalog_erk = self.db.zeilen("zusatzarbeiten") \
+            if werkstoff_text or any(p.get("_zeichnung_text") for p in erg["positionen"]) else ()
+        from . import zeichnung_hinweise
         for p in erg["positionen"]:
+            z_text, z_quelle = p.pop("_zeichnung_text", None), p.pop("_zeichnung_quelle", None)
+            if z_text and not ist_baugruppe(p):     # Zeichnung des Teils: Zusatzarbeiten + Einnietmuttern mit Anzahl
+                zh = zeichnung_hinweise.lesen(z_text)
+                p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), z_text, katalog_erk,
+                                                                  z_quelle or "Zeichnung",
+                                                                  zeichnung_hinweise.zusatz_mengen(zh))
+                fehlt = zeichnung_hinweise.nicht_abgedeckt(zh)
+                if fehlt:
+                    erg["bericht"].append(f"{p.get('artikel') or p.get('bezeichnung') or ''}: {fehlt}")
             if werkstoff_text and not ist_baugruppe(p):     # Anfrage-Mail: erkannte Zusatzarbeiten als Vorschlag (2a)
                 p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), werkstoff_text, katalog_erk,
                                                                   "E-Mail")

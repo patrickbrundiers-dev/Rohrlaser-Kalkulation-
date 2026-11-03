@@ -15,6 +15,14 @@ J3 Flachstahl/L: Ausschnitt nur nach Hüllmaß und Schnittlänge eingeteilt – 
 J4 Bleche: Rechteck mit R3 ohne Radius (1,2 mm), Rechteck mit Fasen als Rechteck (3,5 mm), Polygone auf 0,05 mm
    genähert, Lage im Editor auf 0,1 mm gerundet, Kontur bei Fehler still weggelassen. Jetzt Rechteck mit Radius
    bzw. Polygon (0,02 mm), Lage auf 0,01 mm, keine Kontur geht verloren, und eine Blech-Gegenprobe (Hinweis).
+Runde 5 (Patrick 03.11.2026 „Noch weitere kritische Konturen finden“, 28 Teile):
+J5 Bohrung bis an die Rundung bzw. in einer Lochreihe mit Steg 0,5 mm galt als Fließloch (Schnittlänge 0, bis 3 mm
+   daneben): Restflächen quer zur Achse lagen näher an der Achse als das Kernloch. Ein Fließloch braucht jetzt Kragen
+   bzw. Ringfläche ganz um das Kernloch (step_geometrie.bohrung_art).
+J6 Enden mit Hinterschnitt (T-Schlitz, Schlüsselloch-Schlitz, Schwalbenschwanz, Haken, Bohrung halb über das Ende):
+   0,4 bis 3 mm daneben. Die Mündung des Ausflugs lag 0,01 mm neben der Stufe des Endumrisses (Stufe ganz
+   gezeichnet), Hinterschnitte unter 0,5 mm Breite fielen weg (jetzt ab 0,12 mm), und die Gegenprobe verglich die
+   Sonderkontur „Teil von Ende“ (um ABSTAND über der Wand) nur gegen Konturen, nicht gegen die Kanten des Endes.
 
 Aufruf: python tests/test_step_jede_kontur.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -116,6 +124,25 @@ def messen(f, tmp):
     return ms
 
 
+def runde5():
+    re = et.kastenrohr(80, 40, 3, 600, 5)
+    rr = et.rundrohr(60.3, 3, 600)
+    qr = et.kastenrohr(50, 50, 3, 500, 6)
+    s = re
+    for i in range(6):                      # Steg 0,5 mm, die letzte Bohrung reicht in die Rundung
+        s = et.cut(s, zyl_y(19 + i * 3.5, 200, 3))
+
+    def oben(pts):
+        return prisma(pts, "xz", 10, 40)
+    return {"J5a_RE_Lochreihe_bis_Rundung": s,
+            "J5b_RE_Bohrung_bis_Seite": et.cut(re, zyl_y(-35, 300, 10)),
+            "J6a_RE_Bohrung_halb_ueber_Ende": et.cut(re, zyl_y(0, 598, 10)),
+            "J6b_RE_T_Schlitz_Ende": et.cut(re, fuse(box(-3, 10, 580, 6, 20, 30), box(-10, 10, 570, 20, 20, 10))),
+            "J6c_RR_Schluesselschlitz_Ende": et.cut(rr, fuse(box(-3, 15, 580, 6, 30, 30), zyl_y(0, 578, 12, 15, 30))),
+            "J6d_RE_Schwalbenschwanz_Ende": et.cut(re, oben([(-5, 601), (5, 601), (10, 585), (-10, 585)])),
+            "J6e_QR_Haken_Ende": et.cut(qr, oben([(-5, 501), (0, 501), (0, 490), (10, 490), (10, 480), (-5, 480)]))}
+
+
 def editor(ms, offen=False):
     """Übernehmen, Editor öffnen; Gegenprobe (alle) und Linien gegen die STEP (geschlossene Rohre)."""
     from PySide6.QtWidgets import QApplication
@@ -189,6 +216,17 @@ def main():
             kn = next(v for k_, v in out.items() if k_.startswith(n))
             assert [z.get("art") for z in kn] == ["Sonderkontur"], (n, kn)
         assert [z.get("art") for z in out["R4_RR_Bohrung_auf_Naht"]] == ["Bohrung"], out["R4_RR_Bohrung_auf_Naht"]
+        (tmp / "r5").mkdir()
+        ms = messen(runde5(), tmp / "r5")
+        for n, m in ms.items():
+            arten = [x["art"] for x in json.loads(m["konturen_liste"])]
+            assert "Fließloch" not in arten, (n, arten)
+        out, fe = editor(ms, offen=True)        # Gegenprobe (Konturen und Enden zusammen)
+        fehler += fe
+        assert len(out["J5a_RE_Lochreihe_bis_Rundung"]) == 6, out["J5a_RE_Lochreihe_bis_Rundung"]
+        for n in ("J6b", "J6c", "J6e"):
+            kn = next(v for k_, v in out.items() if k_.startswith(n))
+            assert kn and all(z.get("ende_teil") == "B" for z in kn), (n, kn)
         (tmp / "o").mkdir()
         ms = messen(offene(), tmp / "o")
         out, fe = editor(ms, offen=True)

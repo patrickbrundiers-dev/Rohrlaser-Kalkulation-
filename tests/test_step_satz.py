@@ -259,6 +259,36 @@ else:
     d.satz_spin.setValue(6)
     assert [z.sp.value() for z in d.zeilen] == [6, 6, 6] and not d.saetze["G.step"]
     d.reject()
+    # „Satz“ bzw. „schweiß…“ im Datei- oder Baugruppennamen: Als Satz (und Schweißbaugruppe) vorgewählt (03.11.2026)
+    from rohrlaser.step_dialog import satz_aus_namen
+    assert satz_aus_namen("Satz 4711.step") == ("satz", "Satz")
+    assert satz_aus_namen("Rahmen_Satz-A.stp") == ("satz", "Satz")
+    assert satz_aus_namen("Rahmen geschweißt.step") == ("schweiss", "geschweißt")
+    assert satz_aus_namen("G.step", ["Schweissbaugruppe Tor/Pfosten/QR40"]) == ("schweiss", "Schweissbaugruppe")
+    assert satz_aus_namen("G.step", ["SBG-120/QR40"]) == ("schweiss", "SBG")
+    for name in ("Zusatzblech.step", "Ansatz.step", "Einsatz 3.step", "Gestell.step"):
+        assert satz_aus_namen(name) == (None, None), name
+    assert satz_aus_namen("G.step", ["QR40 Satz"]) == (None, None)               # nur Teilname, keine Baugruppe
+
+    def mit_namen(datei, pfad=""):
+        return [dict(koerper(n, laenge=600 + n), datei=datei, pfad=pfad, _stueck=4) for n in (1, 2, 3)]
+
+    d = StepPruefDialog(None, mit_namen("Satz Geländer.step"), k, "S235-10219", 1)
+    assert d.saetze["Satz Geländer.step"] == 4 and d.satz_knopf.isChecked() and not d.bg_haken.isChecked()
+    assert "vorgewählt: „Satz“" in d.satz_info.text()
+    d.reject()
+    d = StepPruefDialog(None, mit_namen("G7.step", "Tor geschweisst/Pfosten/QR"), k, "S235-10219", 1)
+    assert d.saetze["G7.step"] == 4 and d.bg_haken.isChecked() and d.bg_haken.isEnabled()
+    assert d.baugruppen["G7.step"].text(0).endswith("4 Sätze als Schweißbaugruppe (vorgewählt: „geschweisst“ im Namen)"), d.baugruppen["G7.step"].text(0)
+    d.satz_knopf.setChecked(False)                                         # abwählbar wie bisher
+    assert not d.saetze["G7.step"]
+    d.reject()
+    d = StepPruefDialog(None, mit_namen("Gestell.step"), k, "S235-10219", 1)
+    assert not d.saetze["Gestell.step"] and not d.satz_knopf.isChecked()      # sonst nie automatisch ein Satz
+    d.reject()
+    d = StepPruefDialog(None, [dict(m, _saetze=0) for m in mit_namen("Satz 2.step")], k, "S235-10219", 1)
+    assert not d.saetze["Satz 2.step"]                                       # gespeicherte Wahl geht vor
+    d.reject()
     fenster.close()
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)
