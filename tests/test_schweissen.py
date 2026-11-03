@@ -111,8 +111,8 @@ ok("S3 ohne Sekunden: 0 € und WARNUNG; Vorgabezeit 30 s der Stammdaten gilt oh
 
 # ------------------------------------------------------------------ S4 Dialog und Verwaltung
 dlg = ZusatzDialog(s, s.positionen[1], 1, s.k, s.tabellen)
-r = dlg.zeile_neu()
-dlg.tabelle.cellWidget(r, 0).setCurrentText("Schweißen")
+r = dlg.hinzufuegen("Schweißen")        # jede Zusatzarbeit nur einmal: vorhandene Zeile (Plan 03.11.2026)
+dlg.stand_verwerfen()
 assert dlg.tabelle.cellWidget(r, 1).text() == "€/h"
 assert dlg.tabelle.cellWidget(r, 2).placeholderText() == "Sekunden je Teil eingeben"
 assert dlg.tabelle.cellWidget(r, 3).placeholderText() == "Stammdaten: 75 €/h"

@@ -476,14 +476,13 @@ def main(ziel):
     s.zusatzarbeiten(list(range(len(s.positionen))), (None, json.dumps([dict(name="Feuerverzinken")])))
 
     def zusatz_ausfuellen(d):
+        from rohrlaser.zusatz_dialog import TEXT
         d.gewinde.setText("2xM8")
-        r = d.zeile_neu()
-        d.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
-        d.tabelle.cellWidget(r, 4).setText("Logo")
+        r = d.hinzufuegen("Gravur extra")
+        d.tabelle.cellWidget(r, TEXT).setText("Logo")
         QApplication.processEvents()
-        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.tabelle.cellWidget(r, 0), 2),
-                                       (d.tabelle.cellWidget(0, 2), 3), (d.tabelle.cellWidget(r, 4), 4),
-                                       (knopf(d, "Zusatzarbeit hinzufügen"), 5)])
+        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.liste, 2), (d.tabelle.cellWidget(0, 2), 3),
+                                       (d.tabelle.cellWidget(r, TEXT), 4), (d.neu_knopf, 5), (d.summe, 6)])
         d._ok()
     QTimer.singleShot(100, lambda: _warte_modal(zusatz_ausfuellen))
     s.zusatzarbeiten([0])

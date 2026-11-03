@@ -16,6 +16,7 @@ bleibt die der Zusatzarbeiten. Abgelehnte Vorschläge stehen in positionen.arbei
 import json
 
 from . import rechnen, zukauf
+from . import zusatz_erkennung as ze
 from . import zusatz_regeln as zr
 from .angebot import ist_baugruppe, ist_zukaufteil, kein_laserteil
 
@@ -100,6 +101,24 @@ def position(p, kopf, k, tabellen, regeln):
                           FREMD if katalog[name].get("fremd") == "ja" else FERTIGUNG,
                           ", ".join(QUELLE + r["name"] for r in rs), z and z["menge"], z and z["einheit"] or "",
                           z["arbeit_s"] if z else 0.0, z and (z["betrag"] + z["pauschal"]), [r["name"] for r in rs]))
+    # Erkennungswörter der Zusatzarbeiten (Plan Zusatzarbeiten erkennen 03.11.2026): Bezeichnung, Artikel, STEP-Name,
+    # Anfrage-Mail, Zeichnung; wie Regel-Vorschläge erst nach Annehmen gerechnet, Ablehnen merkt sich die Position
+    if not ist_baugruppe(p):
+        for e in ze.erkannt(p, tabellen.get("zusatzarbeiten") or ()):
+            name = e["name"]
+            if name in vorhanden or name in vorschlaege or name not in katalog or katalog[name].get("aktiv") == "nein":
+                continue
+            v = dict(name=name, herkunft=ze.herkunft(e), text=e.get("text"), regel=None)
+            probe = dict(p, zusatz=json.dumps([ze.eintrag(v, katalog.values(), tabellen)], ensure_ascii=False),
+                         arbeitsgaenge=None)
+            z = (rechnen.zusatz_werte(probe, k, dict(tabellen, arbeitsgang_regeln=[r for r in tabellen.get(
+                "arbeitsgang_regeln") or () if zr.zuordnung(r) != zr.AUTOMATISCH]), kopf) or [None])[0]
+            out.append(_zeile(p, name + (f" {e['text']}" if e.get("text") else ""),
+                              ABGELEHNT if name in abgelehnt else VORSCHLAG,
+                              FREMD if katalog[name].get("fremd") == "ja" else FERTIGUNG, v["herkunft"],
+                              z and z["menge"], z and z["einheit"] or "", z["arbeit_s"] if z else 0.0,
+                              z and (z["betrag"] + z["pauschal"])))
+            out[-1]["name"] = name
     return out
 
 
@@ -125,9 +144,16 @@ def annehmen(p, name, regeln, tabellen, kopf=None, k=None):
         return None
     gewinde = tabellen.get("gewinde") or ()
     passend = [r for r in regeln or () if r.get("zusatzarbeit") == name]
+    erk = next((e for e in ze.erkannt(p, katalog.values()) if e["name"] == name), None)
+    if erk and not any(k is None or trifft(r, p, kopf, k, gewinde) for r in passend):
+        v = dict(name=name, herkunft=ze.herkunft(erk), text=erk.get("text"), regel=None)
+        return json.dumps(liste + [ze.eintrag(v, katalog.values(), tabellen)], ensure_ascii=False)
     regel = next((r for r in passend if k is None or trifft(r, p, kopf, k, gewinde)), None)
     menge = regel_menge(regel or {}, p, gewinde)
-    return json.dumps(liste + [eintrag(name, regel, menge, katalog, tabellen)], ensure_ascii=False)
+    e = eintrag(name, regel, menge, katalog, tabellen)
+    if erk and erk.get("text"):             # RAL-Farbe aus der Bezeichnung (Plan 03.11.2026)
+        e["text"] = erk["text"]
+    return json.dumps(liste + [e], ensure_ascii=False)
 
 
 def ablehnen(p, name, zurueck=False):

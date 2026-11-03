@@ -48,7 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 74     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 75     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -147,6 +147,8 @@ SCHEMA_VERSION = 74     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     verpackung und positionsvorlagen, Maschinen mannlos_ab/mannlos_satz; alles leer = wie bisher
                         # 74: Prüfung Kalkulationsbasis (02.11.2026): angebote.wiederholt (JSON, Wiederholteile mit
                         #     Programm), maschinen.last_anteil (mittlere Last für den Strom); leer = wie bisher
+                        # 75: Zusatzarbeiten erkennen (03.11.2026): zusatzarbeiten.erkennung (Erkennungswörter; die
+                        #     Beispiel-Zusatzarbeiten werden einmalig vorbelegt, ERKENNUNG_STAND), leer = keine Erkennung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -183,6 +185,7 @@ VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmater
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
+ERKENNUNG_STAND = "2026-11-03"     # Erkennungswörter der Beispiel-Zusatzarbeiten (_erkennung_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -276,6 +279,7 @@ class Datenbank:
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
+            self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
         self._rp_anpassen()
         self._normprofile_anpassen()
         self._passwort_umstellen()
@@ -501,6 +505,8 @@ class Datenbank:
                 self._strahlen_ergaenzen()
             if version > 0 and self.einstellung("fracht_nah_stand") != FRACHT_NAH_STAND:
                 self._fracht_nahbereich()
+            if version > 0 and self.einstellung("erkennung_stand") != ERKENNUNG_STAND:
+                self._erkennung_ergaenzen()
             if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
@@ -644,6 +650,15 @@ class Datenbank:
         self._einfuegen("zusatzarbeiten", strahl_zusatzarbeiten(), ergaenzen=True)
         self._einfuegen("arbeitsgang_regeln", strahl_regeln(), ergaenzen=True)
         self._einstellung_schreiben("strahlen_stand", STRAHLEN_STAND)
+
+    def _erkennung_ergaenzen(self):
+        """Einmalig (Schema 75): Erkennungswörter der Beispiel-Zusatzarbeiten (dem Namen nach) eintragen, wo das Feld
+        leer ist. Rechnet nichts anders: die Wörter erzeugen nur gelbe Vorschläge."""
+        from .stammdaten import ERKENNUNG_VORGABE
+        for name, worte in ERKENNUNG_VORGABE.items():
+            self.con.execute("UPDATE zusatzarbeiten SET erkennung=? WHERE name=? AND (erkennung IS NULL OR "
+                             "erkennung='')", (worte, name))
+        self._einstellung_schreiben("erkennung_stand", ERKENNUNG_STAND)
 
     def _fracht_richtwerte_da(self):
         """Sind die Fracht-Richtwerte geladen (Tarif RW-PALETTE vorhanden)?"""
@@ -1138,13 +1153,59 @@ class Datenbank:
         return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer), ohne_stand=ohne)
 
     @liest
-    def zusatz_haeufigkeit(self):
-        """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten)."""
+    def zusatz_haeufigkeit(self, kundennr=None):
+        """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten); mit
+        kundennr nur die Angebote dieses Kunden („Bei diesem Kunden“ im Fenster Zusatzarbeiten)."""
         n = {}
-        for *_, liste in self._zusatz_positionen():
+        if kundennr:
+            ids = {r[0] for r in self.con.execute("SELECT id FROM angebote WHERE kundennr=?", (kundennr,))}
+            daten = [x for x in self._zusatz_positionen() if x[1] in ids]
+        else:
+            daten = self._zusatz_positionen()
+        for *_, liste in daten:
             for name in {e.get("name") for e in liste if isinstance(e, dict) and e.get("name")}:
                 n[name] = n.get(name, 0) + 1
         return n
+
+    @liest
+    def zusatz_eigene(self):
+        """Zusatzarbeiten, die nur in Angeboten angelegt sind (Kurzformular, Plan Zusatzarbeiten erkennen 3c):
+        {Name: (Preisstand, Anzahl Positionen)} ohne Namen, die es in den Stammdaten gibt."""
+        namen = {str(z.get("name") or "").lower() for z in self.zeilen("zusatzarbeiten")}
+        out = {}
+        for *_, liste in self._zusatz_positionen():
+            for e in liste:
+                if isinstance(e, dict) and e.get("name") and str(e["name"]).lower() not in namen \
+                        and e.get("quelle") == "nur in diesem Angebot" and isinstance(e.get("stand"), dict):
+                    stand, n = out.get(e["name"], (e["stand"], 0))
+                    out[e["name"]] = (stand, n + 1)
+        return out
+
+    @schreibt
+    def zusatz_aus_angebot(self, name):
+        """Zusatzarbeit name aus einem Angebot (zusatz_eigene) in die Stammdaten übernehmen; die Einträge in den
+        Positionen behalten ihren Preisstand und zählen danach als Stammdaten-Zusatzarbeit. Ergebnis: ID."""
+        stand, _ = self.zusatz_eigene()[name]
+        v = dict(stand.get("vorlage") or {})
+        werte = {f.name: None for f in TABELLE["zusatzarbeiten"].felder}
+        werte.update(name=name, art=v.get("art") or stand.get("art"), fremd=v.get("fremd") or stand.get("fremd"),
+                     mindest=v.get("mindest", stand.get("mindest")),
+                     angebotstext=v.get("angebotstext") or stand.get("angebotstext"),
+                     kategorie=v.get("kategorie"), erkennung=v.get("erkennung"), aktiv="ja",
+                     bemerkung="aus einem Angebot übernommen (Kurzformular)")
+        if werte["art"] == "€/h":
+            werte.update(satz=v.get("satz") or stand.get("preis"), zeit_einheit="s")
+        else:
+            werte["preis"] = v.get("preis") if v.get("preis") is not None else stand.get("preis")
+        i = self.zusatz_speichern(None, werte)
+        with self.con:          # Herkunft „nur in diesem Angebot“ entfällt, der Name steht jetzt in den Stammdaten
+            for pid, _, _, liste in self._zusatz_positionen(name):
+                for e in liste:
+                    if isinstance(e, dict) and e.get("name") == name and e.get("quelle") == "nur in diesem Angebot":
+                        e.pop("quelle", None)
+                self.con.execute("UPDATE positionen SET zusatz=? WHERE id=?", (json.dumps(liste, ensure_ascii=False),
+                                                                               pid))
+        return i
 
     @schreibt
     def zusatz_speichern(self, zeilen_id, werte):

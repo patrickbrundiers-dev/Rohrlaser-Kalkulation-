@@ -159,7 +159,7 @@ r = d.zeile_neu()
 eintraege = [d.tabelle.cellWidget(r, 0).itemText(i) for i in range(d.tabelle.cellWidget(r, 0).count())]
 assert kopie["name"] not in eintraege and "Entgraten von Hand" in eintraege
 assert "— Häufig verwendet —" in eintraege and eintraege.index("Entgraten") < eintraege.index("Feuerverzinken")
-assert d.tabelle.cellWidget(r, 0).currentText() == eintraege[1]          # Überschrift nicht gewählt
+assert d.tabelle.cellWidget(r, 0).currentText() == ""      # nichts vorgewählt (03.11.2026: sonst leicht doppelt)
 d.tabelle.cellWidget(r, 0).setCurrentText("Entgraten von Hand")
 assert seite.zusatzarbeiten([0], d.werte())
 p = seite.positionen[0]
