@@ -11,9 +11,9 @@ Rundrohr …), erscheinen nicht.
 """
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                               QScrollArea, QVBoxLayout, QWidget)
+                               QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
-from . import blech, massbild, optimierung as opt, rechenfeld as rf, schneidweg as sw, skizze as sk, stil
+from . import blech, bohrbild, massbild, optimierung as opt, rechenfeld as rf, schneidweg as sw, skizze as sk, stil
 
 BEZUG = {"mitte_a": "Mitte ab Ende A", "kante_a": "Kante ab Ende A", "mitte_b": "Mitte ab Ende B",
          "kante_b": "Kante ab Ende B"}
@@ -233,6 +233,8 @@ class Eigenschaften(QWidget):
             self._rohr_eigenschaften(combo, art)
             if art in sw.MIT_GEWINDE:
                 self._combo("Gewinde", t.cellWidget(r, ROHR_SPALTEN["gewinde"]))
+            if art in (sw.BOHRUNG, sw.FLOWDRILL, sw.SENKUNG):
+                self._ausfuehrung(r, combo, art)
             self._zelle("Bemerkung", t, r, ROHR_SPALTEN["text"], text=True,
                         tipp="erscheint in Skizze und Zeichnung")
         else:
@@ -245,8 +247,77 @@ class Eigenschaften(QWidget):
                              lambda v: self._eig_setzen(combo, "drehung", round(v, 3) % 360 if v else None), "°",
                              "Drehung der Kontur um ihre Mitte, + = gegen den Uhrzeiger; 0 = Länge waagerecht in der "
                              "Abwicklung", schluessel="Drehwinkel")
+            if art in blech.BOHR_ARTEN:
+                self._ausfuehrung(r, combo, art)
         self._knoepfe(r)
         return f"{art} · Zeile {r + 1} von {t.rowCount()}"
+
+    # -------------------------------------------------------------- Ausführung einer Bohrung (Patrick 03.11.2026)
+    def _bohr_zeile(self, r, combo, art):
+        """Konturzeile als Bohrbild-Zeile für die Vorschläge (bohrbild.vorschlaege): Ø, Senk-Ø, Gewindegröße."""
+        t = self.d.tabelle
+        eig = getattr(combo, "eig", None) or {}
+        z = dict(art={sw.FLOWDRILL: "Fließloch", sw.SENKUNG: "Senkung"}.get(art, "Bohrung"), anzahl=1,
+                 d=_zelle_zahl(t, r, 2) or 0, status=bohrbild.BESTAETIGT)
+        if art == sw.SENKUNG and _zelle_zahl(t, r, 3):
+            z["D"] = _zelle_zahl(t, r, 3)
+        g = None
+        if self.art == "rohr" and art in sw.MIT_GEWINDE:
+            w = t.cellWidget(r, ROHR_SPALTEN["gewinde"]).currentText()
+            g = w if w and w[:1].upper() == "M" else None
+        g = g or eig.get("groesse") or bohrbild.groesse(z, self._gewinde_tab())
+        if g:
+            z["gewinde"] = g
+        return z
+
+    def _gewinde_tab(self):
+        return [(n, k) for n, k in (getattr(self.d, "gewinde", None) or ()) if isinstance(k, (int, float))]
+
+    def _ausfuehrung(self, r, combo, art):
+        """Auswahl Ausführung (★ = Vorschlag nach Gewindegröße, Wandstärke, Werkstoff) und Gewindegröße; gespeichert
+        als Eigenschaft aus/groesse der Konturzeile, wirkt über das Bohrbild auf Schneidweg und Zusatzarbeiten (Rohr)
+        bzw. auf den Richtpreis (Blech). Die Kontur selbst bleibt."""
+        eig = getattr(combo, "eig", None) or {}
+        z = self._bohr_zeile(r, combo, art)
+        wand = self.groessen().get("S")
+        werkstoff = (getattr(self.d, "p", None) or {}).get("werkstoff_id") if self.art == "rohr" else \
+            (self.d.werkstoff.currentText() if hasattr(self.d, "werkstoff") else None)
+        v = bohrbild.vorschlaege(z, wand, werkstoff, self._gewinde_tab())
+        f = QComboBox()
+        f.addItem("wie Konturart", "")
+        for x in v:
+            f.addItem(("★ " if x["rang"] == 0 else "") + x["aus"] + (" (nicht empfohlen)" if x["rang"] == 2 else ""),
+                      x["aus"])
+            f.setItemData(f.count() - 1, x["grund"], Qt.ToolTipRole)
+        if eig.get("aus") and f.findData(eig["aus"]) < 0:
+            f.addItem(eig["aus"], eig["aus"])
+        f.setCurrentIndex(max(0, f.findData(eig.get("aus") or "")))
+        f.setToolTip("Was aus der Bohrung wird: Gewinde schneiden, Flowdrill + Gewinde formen, Einnietmutter, Senkung "
+                     "oder nur lasern. ★ = Vorschlag; die Kontur (STEP) bleibt, gerechnet wird mit der Ausführung")
+        f.activated.connect(lambda _=None: self._eig_setzen(combo, "aus", f.currentData() or None))
+        self._form.addRow("Ausführung", f)
+        self.felder["Ausführung"] = f
+        stern = next((x for x in v if x["rang"] == 0), None)
+        if stern:
+            hinweis = QLabel(f"★ {bohrbild.KURZ[stern['aus']]}: {stern['grund']}")
+            hinweis.setWordWrap(True)
+            hinweis.setStyleSheet("color: #1B6E2E")
+            hinweis.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Minimum)     # umbrechen statt verbreitern
+            hinweis.setMinimumHeight(hinweis.fontMetrics().lineSpacing() * 3)
+            self._form.addRow("", hinweis)
+            self.felder["Vorschlag"] = hinweis
+        aus = eig.get("aus")
+        if aus in bohrbild.MIT_GROESSE + (bohrbild.SENKEN,) and (self.art == "blech" or art not in sw.MIT_GEWINDE):
+            g = QComboBox()
+            g.addItem("automatisch", "")
+            for n in sorted(set(bohrbild.STEIGUNG) | {n for n, _ in self._gewinde_tab()},
+                            key=lambda x: bohrbild._gr_zahl(x) or 0):
+                g.addItem(n, n)
+            g.setCurrentIndex(max(0, g.findData(eig.get("groesse") or "")))
+            g.setToolTip(f"Gewindegröße (automatisch: {z.get('gewinde') or 'nicht erkannt'})")
+            g.activated.connect(lambda _=None: self._eig_setzen(combo, "groesse", g.currentData() or None))
+            self._form.addRow("Gewindegröße", g)
+            self.felder["Gewindegröße"] = g
 
     # -------------------------------------------------------------- Eigenschaften je Kontur (3E-4, wie AlmaCAM)
     def _eig_setzen(self, combo, schl, wert):
