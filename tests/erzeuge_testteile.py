@@ -470,6 +470,14 @@ if __name__ == "__main__":
         knoten = cut(knoten, scheibe(17, 20, x, y, -5))
     schreibe(knoten, "B16_Knotenblech_10mm", bl)
     schreibe(scheibe(200, 5), "B17_Ronde_200x5", bl)
+    # Blech mit Kernlöchern: 4 × M8 (Ø6,8), 2 × M12 (Ø10,2), 1 × Ø20 (Patrick 03.11.2026: Gewinde in Blechen)
+    gew = blech(200, 120, 6)
+    for x, y in ((20, 20), (180, 20), (20, 100), (180, 100)):
+        gew = cut(gew, scheibe(6.8, 10, x, y, -2))
+    for x in (70, 130):
+        gew = cut(gew, scheibe(10.2, 10, x, 60, -2))
+    gew = cut(gew, scheibe(20, 10, 100, 60, -2))
+    schreibe(gew, "B18_Blech_200x120x6_4xM8_2xM12", bl)
     # Baugruppe: Rechteckrohr mit zwei Fußplatten
     schreibe(baugruppe(kastenrohr(60, 40, 2, 800, 4), verschiebe(blech(150, 150, 8), -75, -75, -8),
                        verschiebe(blech(150, 150, 8), -75, -75, 800)), "B14_Baugruppe_Rohr_2Bleche", bl)

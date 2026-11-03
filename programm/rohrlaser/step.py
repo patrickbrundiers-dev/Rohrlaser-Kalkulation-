@@ -1547,6 +1547,26 @@ def finde_profil(m, profile):
     return None
 
 
+def _blech_gewinde(p, m, gewinde, hinweise):
+    """Gewinde in Blechen (Patrick 03.11.2026: „In Blechen auch Gewinde erkennen“, Entscheidung: wir schneiden sie
+    selbst, € je Stück aus Einstellungen › Gewinde zusätzlich zum Blech-EK): Bohrungen mit Kernloch-Ø eines Gewindes
+    werden wie beim Rohr offene Gewinde-Vorschläge im Bohrbild, bestätigt im Angebot mit „Bohrungen prüfen“; Gewinde,
+    Flowdrill und Senkungen aus dem Zeichnungstext hängen sich an die passende Bohrung. Senkungen, Fließlöcher und
+    Bohren übernimmt das Blech nicht (der Lieferant lasert die Kontur der STEP)."""
+    bild = [z for z in bohrbild.aus_messung(dict(bohrungen=m.get("bohrungen")), gewinde) if z.get("gewinde")]
+    if m.get("_zeichnung_text"):
+        from . import zeichnung_hinweise as zh
+        hinweise.extend(zh.bohrbild_abgleich(bild, zh.lesen(m["_zeichnung_text"]), m, gewinde,
+                                            m.get("_zeichnung_quelle") or "Zeichnung"))
+        p["_zeichnung_text"], p["_zeichnung_quelle"] = m["_zeichnung_text"], m.get("_zeichnung_quelle")
+    p["bohrungen"] = bohrungen_text(m.get("bohrungen")) or None
+    if not bild:
+        return
+    p.update(bohrbild=bohrbild.schreiben(bild), gewinde_vorschlag=bohrbild.vorschlag_text(bild) or None)
+    hinweise.append(f"Gewinde-Vorschlag {bohrbild.text(bild)}: im Angebot mit 'Bohrungen prüfen' bestätigen "
+                    "(€ je Stück, zusätzlich zum Blech-EK)")
+
+
 def profil_vorschlag(m, profile):
     """Profil-ID für ein gemessenes Teil: passendes Profil der Stammdaten, sonst der Vorschlag der Messung."""
     return finde_profil(m, profile) or m.get("profil_id_vorschlag") or None
@@ -2384,6 +2404,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
+            _blech_gewinde(p, m, gewinde, hinweise)
             gp = blech_gegenprobe(b)
             if gp:
                 hinweise.append(gp)

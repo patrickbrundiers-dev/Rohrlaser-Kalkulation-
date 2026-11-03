@@ -836,6 +836,12 @@ RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelkli
 # Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
 VORSCHAU_FELDER = ("technik", "laenge", "profil_id", "art", "konturen", "a_ende", "b_ende", "a_schnitt", "b_schnitt")
 BOHRBILD_SPALTEN = ("gewinde", "bohrungen", "gewinde_vorschlag")     # Doppelklick: Bohrungen prüfen
+
+
+def bohrbild_moeglich(p):
+    """Bohrungen prüfen für Laserteile und Bleche (Gewinde in Blechen, Patrick 03.11.2026), nicht für andere
+    Zukaufteile und Schweißbaugruppen."""
+    return not kein_laserteil(p) or (p.get("art") == ZUKAUFTEIL and blech.lesen(p.get("technik")) is not None)
 # Doppelklick auf den Status: (Stichwort im Status, Ziel, Tooltip); erstes passendes gilt. Ziel = Methode der
 # Angebotsseite (bekommt die Zeile) oder "feld:" + Spalte (Zelle zum Eintragen öffnen, Spalte notfalls einblenden).
 STATUS_ZIELE = (
@@ -5174,7 +5180,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return False
         gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
         if werte is None and len(zeilen) > 1:       # mehrere markiert: ein Fenster für alle (Plan Angebotsablauf V3)
-            mit = [r for r in zeilen if not kein_laserteil(self.positionen[r]) and bohrbild.aus_position(
+            mit = [r for r in zeilen if bohrbild_moeglich(self.positionen[r]) and bohrbild.aus_position(
                 self.positionen[r], gewinde, rechnen.wand_position(self.positionen[r], self.k))]
             if len(mit) > 1:
                 return self.bohrungen_alle_pruefen(mit)
@@ -5207,7 +5213,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Zeilen der Positionen mit ungeprüften Gewinde-Vorschlägen, Senkungen, Flowdrill oder Bohren."""
         from . import bohrbild
         gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
-        return [r for r, p in enumerate(self.positionen) if not kein_laserteil(p) and bohrbild.offen(
+        return [r for r, p in enumerate(self.positionen) if bohrbild_moeglich(p) and bohrbild.offen(
             bohrbild.aus_position(p, gewinde, rechnen.wand_position(p, self.k)))]
 
     def bohrungen_alle_pruefen(self, zeilen=None, werte=None, dialog=None):

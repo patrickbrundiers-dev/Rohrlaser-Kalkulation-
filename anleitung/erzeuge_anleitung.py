@@ -5077,7 +5077,13 @@ def kapitel_zukauf_angebot(i):
             "Pos.). Das ist nur eine Ansicht: gerechnet wird weiter je Teil.",
             "Im <b>Prüfdialog</b> des STEP- bzw. E-Mail-Imports steht bei jedem Blech mit Werkstoff gleich Gewicht und "
             "Richtpreis aus den STEP-Daten; ein anderer Werkstoff rechnet sie neu. Ronden, Flansche und Knotenbleche "
-            "werden automatisch als Blech erkannt.")
+            "werden automatisch als Blech erkannt.",
+            "<b>Gewinde in Blechen</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes (z. B. Ø6,8 = M8) werden beim "
+            "STEP-Import ein gelber <i>Gewinde-Vorschlag</i>, Gewinde aus der Zeichnung hängen sich an die passende "
+            "Bohrung. Bis zur Prüfung warnt der Status. Doppelklick auf <i>Gewinde</i> bzw. <i>Bohrungen</i> öffnet "
+            "<b>Bohrungen prüfen</b>; bestätigte Gewinde schneiden wir selbst: Preis je Stück aus <i>Einstellungen › "
+            "Gewinde</i> (bzw. je Position im Dialog), zusätzlich zum Blech-EK als eigene Fertigung mit Gewinn. Der "
+            "EK des Blechs (Richtpreis oder Angebotspreis) bleibt unverändert.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "

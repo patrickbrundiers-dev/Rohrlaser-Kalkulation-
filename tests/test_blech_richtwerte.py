@@ -8,6 +8,9 @@
   Tafelbild zeigt die Belegung.
 - R6 STEP-Import: Position bekommt die Messung, Richtwerte aus der STEP; Prüfdialog zeigt Gewicht und Richtpreis
   (neu bei anderem Werkstoff).
+- R7 Gewinde in Blechen (Patrick 03.11.2026, wir schneiden selbst): Kernlöcher der STEP werden offene
+  Gewinde-Vorschläge, Status warnt, „Bohrungen prüfen“ bestätigt sie; € je Stück aus Einstellungen › Gewinde kommen
+  zum Blech-EK als Fertigung dazu (Gewinn nur darauf), der Blech-EK bleibt.
 - R5 Angebot: Spalte „EK Blech“ zeigt den Richtpreis; Angebotspreis per Klick eintragen gilt statt des Richtpreises,
   bleibt beim erneuten Übernehmen aus dem Editor, leeren = wieder Richtpreis; Übersicht Bleche ändert Preis und
   Lieferant.
@@ -244,4 +247,41 @@ r2 = blech.rechnen(e2, werkstoffe, laser, einst)
 assert set(r2["aus_step"]) == {"gewicht", "schneidweg", "zeit"}
 assert nah(r2["gewicht"], e2["messung"]["volumen"] * werkstoffe["S235JR"]["dichte"] / 1e6, 1e-6)
 ok("R6 STEP-Import: Messung an der Position, Richtwerte aus der STEP, Prüfdialog mit Gewicht und Richtpreis")
+
+# ------------------------------------------------------------------ R7 Gewinde in Blechen
+from rohrlaser import bohrbild, rechnen  # noqa: E402
+s3 = fenster.angebot_oeffnen(db.angebot_neu(dict(kunde="Test")))
+gem3 = s3.step_messen([str(HIER / "step_bleche" / "B18_Blech_200x120x6_4xM8_2xM12.step")])
+s3.step_messen = lambda *a, **k: (gem3, None)
+for m_ in gem3:
+    m_["_werkstoff"] = "S235JR"
+s3.step_importieren(["B18"], stueck=100)
+p = db.positionen(s3.id)[0]
+assert p["gewinde_vorschlag"] == "4xM8; 2xM12" and not p.get("gewinde"), p
+assert bohrbild.offen(bohrbild.lesen(p["bohrbild"])) == 2 and s3.bohrungen_offen() == [0]
+k3 = db.kontext()
+
+
+def zeile3():
+    kopf, pos = db.angebot(s3.id), db.positionen(s3.id)
+    einst3 = rechnen.einstellungen_angebot(kopf, db.einstellungen())
+    return rechnen.kalkulation(kopf, pos, rechnen.optimieren(kopf, pos, k3), k3, db.tabellen(), einst3)[0][0], pos[0]
+
+
+z0, p = zeile3()
+w3 = rechnen.position_werte(p, s3.kopf, s3.k, s3.tabellen)
+assert "Gewinde-Vorschlag ungeprüft" in rechnen.status(p, w3, s3.kopf, s3.k, None, [p])
+assert z0["gewinde_teil"] == 0
+assert s3.bohrungen_pruefen([0], werte=([dict(x, status=bohrbild.BESTAETIGT) for x in bohrbild.lesen(p["bohrbild"])],
+                                        ""))
+z1, p = zeile3()
+preise = {g["gewinde"]: g["preis"] for g in db.zeilen("gewinde")}
+gp = 4 * preise["M8"] + 2 * preise["M12"]
+assert p["gewinde"] == "4xM8; 2xM12" and nah(z1["gewinde_teil"], gp, 1e-9)
+assert nah(z1["zukauf_teil"], z0["zukauf_teil"], 1e-9)                 # Blech-EK bleibt, Gewinde kommen dazu
+assert nah(z1["selbst_teil"] - z0["selbst_teil"], z1["herstell_teil"] - z0["herstell_teil"], 1e-9)
+assert z1["preis_teil"] > z0["preis_teil"] + gp * 0.99
+w3 = rechnen.position_werte(p, s3.kopf, s3.k, s3.tabellen)
+assert "Gewinde" not in rechnen.status(p, w3, s3.kopf, s3.k, None, [p])
+ok("R7 Gewinde in Blechen: Vorschlag aus der STEP, Bohrungen prüfen, € je Stück zusätzlich zum Blech-EK")
 print("Alle Prüfungen bestanden.")

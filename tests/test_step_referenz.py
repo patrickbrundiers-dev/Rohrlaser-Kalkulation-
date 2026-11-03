@@ -311,6 +311,8 @@ BLECHE = [  # Nr, Datei, Typ, Länge, Breite, Dicke, Kontur, Bohrungen {Ø: Anza
     ("BL16", "B15_Flansch_150x8_Loch40_4xD11", "Blech", 150, 150, 8, "frei", {11.0: 4, 40.0: 1}, 5, "plausibel"),
     ("BL17", "B16_Knotenblech_10mm", "Blech", 300, 250, 10, "frei", {17.0: 3}, 3, "plausibel"),
     ("BL18", "B17_Ronde_200x5", "Blech", 200, 200, 5, "frei", {}, 0, "plausibel"),
+    ("BL19", "B18_Blech_200x120x6_4xM8_2xM12", "Blech", 200, 120, 6, "rechteckig", {6.8: 4, 10.2: 2, 20.0: 1}, 7,
+     "plausibel"),
 ]
 
 
