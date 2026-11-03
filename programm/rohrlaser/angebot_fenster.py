@@ -2488,7 +2488,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
         n_vorschlag = sum(len(v) for v in self.pos_modell.vorschlaege)
-        self.vorschlag_knopf.setText(f"{n_vorschlag} Vorschlag" if n_vorschlag == 1 else f"{n_vorschlag} Vorschläge")
+        self.vorschlag_knopf.setText("1 Vorschlag" if n_vorschlag == 1 else f"{n_vorschlag or ''} Vorschläge".strip())
         self.vorschlag_knopf.setVisible(bool(n_vorschlag) and not self.fremd())
         self._gruppieren()
         leer = not self.positionen

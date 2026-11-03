@@ -1733,8 +1733,10 @@ def kapitel_angebot(i):
     i.liste("<b>Vorlage</b>: fertige Einträge (Eloxieren, Beizen und Passivieren, Glasperlstrahlen, Schleifen / "
             "Bürsten, Richten, Einpressmuttern, Nieten, Gewindeformen, Reinigen, Prüfbericht 3.1, Sonderverpackung) "
             "füllen das Formular mit Beispielpreisen aus; die Preise bitte prüfen.",
-            "Ist der Platz Admin (oder ist kein Admin-Schutz gesetzt), legt <i>Auch in den Einstellungen anlegen</i> "
-            "die Zusatzarbeit für alle Angebote an. Sonst gilt sie <b>nur in diesem Angebot</b>: sie rechnet mit dem "
+            "Häkchen <b>Fremdleistung: Zuschlag Fremdleistung statt Fertigung</b>, wenn ein Fremdbetrieb (z. B. "
+            "Verzinkerei, Eloxal) die Arbeit macht.",
+            "Ist der Platz Admin (oder ist kein Admin-Schutz gesetzt), legt <b>Auch in die Einstellungen übernehmen "
+            "(für alle Angebote)</b> die Zusatzarbeit für alle Angebote an. Sonst gilt sie <b>nur in diesem Angebot</b>: sie rechnet mit dem "
             "eingegebenen Preis und lässt sich in anderen Positionen dieses Angebots wählen (Gruppe „Nur in diesem "
             "Angebot“).",
             "Der Admin holt solche Arbeiten unter Einstellungen → Zusatzarbeiten → <b>Übernehmen … → Aus Angeboten</b> "
