@@ -30,7 +30,9 @@ NEUERUNGEN = [
      "Zeiten von Hand änderbar, Staffeln rechnen je Stufe neu; Werte unter Einstellungen → Dreh-/Frästeil-Richtpreis "
      "([[drehfraes_richtpreis]]). Neu <b>Fräsen nach Bearbeitung …</b> (Rechtsklick): Teil oder Schweißbaugruppe "
      "danach planfräsen, bohren, Gewinde, reiben, Taschen; Preis je Stück als Zusatzarbeit, eigene Maschine oder "
-     "Lohnfertiger ([[fraesen_nach]]).",
+     "Lohnfertiger ([[fraesen_nach]]). STEP-Import erkennt jetzt auch <b>Flansche mit Lochkreis</b>, <b>Ringe mit "
+     "Lasche</b> und <b>gebohrte Verteilerblöcke</b> als Dreh-/Frästeil; Messing CW…; Rohling bei Alu/Messing als "
+     "Rund-/Flachmaterial.",
      "Richtpreis für Dreh-/Frästeile mit Arbeitsgängen, Machbarkeit und Skizze; Fräsen nach Bearbeitung"],
     ["0.9.237", "STEP-Import: <b>Dreh- und Frästeile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse, "
      "Block mit Tasche, ausgefräster Winkel) werden erkannt und <b>Zukaufteile</b> ohne EK statt gelaserter Rohre "

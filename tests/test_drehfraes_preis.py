@@ -10,6 +10,10 @@ test_drehfraes.py, ohne echte STEP-Dateien):
   (Funktion aus) wie bisher ohne EK.
 - R5 Staffeln: Richtpreis für die Stückzahl der Stufe neu, EK aus dem Einkauf geht vor.
 - R6 Angebot: Rechtsklick „Richtpreis Dreh-/Frästeil …“, Dialog mit Ampel und Skizze, Zeit von Hand, EK ab Stückzahl.
+- R7 Fräsen nach Bearbeitung: Planfläche, Bohrungen, Gewinde, Lohnfertiger mit Aufschlag, Machbarkeit.
+- R8 Teile wie auf Patricks Fotos (03.11. 18:02): Flansch mit Absatz und Lochkreis = Drehteil (Bohrungen axial),
+  Ring mit Lasche = Dreh-Fräs-Teil (Rohling über die Lasche), gebohrter Messing-Verteilerblock = Frästeil (kein
+  Quadratrohr), Quadratrohr mit Loch bleibt Rohr, glatte Scheibe mit Löchern kein Drehteil; Messing CW614N erkannt.
 
 Aufruf: python tests/test_drehfraes_preis.py   (ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -32,6 +36,7 @@ from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt  # noqa: E402
 from rohrlaser import drehfraes, drehfraes_preis as dp, fraesen_nach as fn, rechnen, staffeln, step, zukauf  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 import step_messen  # noqa: E402
+import step_geometrie as geo  # noqa: E402
 
 fehler = 0
 
@@ -338,6 +343,42 @@ def _():
     assert fn.rechnen(dict(e, bearbeitungen=[]))["fehler"]
     z = fn.eintrag(e, eigen)
     assert z["stand"]["art"] == "€/Stück" and z["stand"]["fremd"] == "nein" and "4× Gewindebohrung 6,8 × 15" in z["text"]
+
+
+
+@fall("R8 Fotos: Flansch mit Lochkreis, Ring mit Lasche, Verteilerblock; Rohr und Scheibe bleiben")
+def _():
+    import math
+    flansch = ohne(vereint(zyl(60, 15), zyl(40, 5, 15)), zyl(30, 30, -1),
+                   *[zyl(4.5, 17, -1, 47.5 * math.cos(i * math.pi / 3), 47.5 * math.sin(i * math.pi / 3))
+                     for i in range(6)])
+    t = geo.analysiere(flansch, datei="Flansch")
+    assert t.profilform == drehfraes.DREHTEIL and "Bohrungen axial/Lochkreis" in t.drehfraes["zusatz"], t.profilform
+    q = t.drehfraes["kennwerte"]["querbohrungen"]
+    assert len(q) == 6 and all(a["axial"] and a["d"] == 9 for a in q), q
+    erg = dp.rechnen(dp.aus_step(dict(t.drehfraes), "AlMgSi1", 20), dp.einstellungen({}))
+    assert any(g["name"] == "Bohrungen axial/Lochkreis (6×)" for g in erg["arbeitsgaenge"]), erg["arbeitsgaenge"]
+    assert erg["rohling"]["text"].startswith("Rundmaterial Ø130"), erg["rohling"]
+    ring = ohne(vereint(zyl(30, 20), quader(30, 24, 20, 25, -12)), zyl(25, 22, -1), zyl(5, 30, 10, 45, -15, (0, 1, 0)))
+    t = geo.analysiere(ring, datei="Ring")
+    assert t.profilform == drehfraes.DREHTEIL, t.profilform
+    k = t.drehfraes["kennwerte"]
+    assert "Lasche/Anbau außerhalb Ø (gefräst)" in t.drehfraes["merkmale"] and k["anbau_d"] > 110, k
+    erg = dp.rechnen(dp.aus_step(dict(t.drehfraes), "S235JR", 20), dp.einstellungen({}))
+    assert erg["rohling"]["d"] >= 120 and not erg["fehler"], erg["rohling"]
+    block = quader(40, 40, 120)
+    for z in (25, 60, 95):
+        block = ohne(block, zyl(8, 22, z, 20, -1, (0, 1, 0)), zyl(8, 22, z, -1, 20, (1, 0, 0)))
+    t = geo.analysiere(ohne(block, zyl(5, 122, -1, 20, 20)), datei="Verteilerblock")
+    assert t.profilform == drehfraes.FRAESTEIL and "Bohrungen aus mehreren Richtungen" in t.drehfraes["merkmale"], \
+        t.profilform
+    tab = dp.schnittwerte(dp.SCHNITTWERTE_VORGABE)
+    assert dp.gruppe("CW614N", tab)["gruppe"] == "Messing" and dp.gruppe("CuZn39Pb3", tab)["gruppe"] == "Messing"
+    rohr = ohne(quader(40, 40, 300), quader(34, 34, 302, 3, 3, -1), zyl(5, 50, 150, 20, -5, (0, 1, 0)))
+    assert geo.analysiere(rohr, datei="Rohr").profilform == "Quadratrohr"
+    scheibe = ohne(zyl(60, 8), zyl(30, 10, -1), *[zyl(4.5, 10, -1, 47.5 * math.cos(i * math.pi / 2),
+                                                        47.5 * math.sin(i * math.pi / 2)) for i in range(4)])
+    assert geo.analysiere(scheibe, datei="Scheibe").profilform != drehfraes.DREHTEIL
 
 
 sys.exit(1 if fehler else 0)

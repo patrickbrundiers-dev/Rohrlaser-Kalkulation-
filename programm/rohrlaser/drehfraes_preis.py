@@ -57,7 +57,7 @@ SCHNITTWERTE_VORGABE = """\
 # Gruppe; Dichte; €/kg; Drehen vc; f; ap; Schlichten vc; f; Fräsen vc; fz; Schlichten fz; Bohren vc; Reihe; Sägen cm²/min; Erkennung
 Edelstahl; 7,9; 5,00; 140; 0,20; 2,0; 180; 0,10; 90; 0,045; 0,03; 60; D; 20; 1.43,1.44,1.45,1.40,1.41,V2A,V4A,Edelstahl,Niro,X5Cr,X2Cr,X6Cr,AISI
 Aluminium; 2,7; 5,50; 600; 0,30; 3,0; 700; 0,12; 450; 0,12; 0,08; 250; C; 150; Al,EN AW,3.3,3.4,Alu
-Messing; 8,5; 9,50; 300; 0,25; 2,5; 350; 0,10; 300; 0,08; 0,05; 150; C; 100; CuZn,Messing,2.0,Ms58,Bronze,CuSn,Kupfer
+Messing; 8,5; 9,50; 300; 0,25; 2,5; 350; 0,10; 300; 0,08; 0,05; 150; C; 100; CuZn,Messing,2.0,Ms58,Bronze,CuSn,Kupfer,CW0,CW1,CW4,CW5,CW6,CW7
 Kunststoff; 1,4; 10,00; 400; 0,30; 3,0; 500; 0,15; 500; 0,10; 0,06; 150; C; 200; POM,PA6,PE,PVC,PTFE,PEEK,Kunststoff
 Vergütungsstahl; 7,85; 2,20; 130; 0,20; 1,5; 160; 0,10; 110; 0,06; 0,04; 70; B; 35; C45,42Cr,34Cr,16Mn,20Mn,1.0503,1.7225,11SMn,Automat
 Stahl; 7,85; 1,60; 220; 0,30; 2,5; 260; 0,12; 200; 0,09; 0,05; 90; A; 45; *
@@ -267,6 +267,21 @@ def _fmin(x):
     return f"{x:.2f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
+def _stab(sw, rund):
+    """Name des Stangenmaterials: Rund-/Flachstahl bei Stahl, sonst Rund-/Flachmaterial (Alu, Messing, Kunststoff)."""
+    stahl = "stahl" in str(sw.get("gruppe") or "Stahl").lower()
+    return ("Rund" if rund else "Flach") + ("stahl" if stahl else "material")
+
+
+def _bohrliste(liste):
+    """Bohrungen als Text, gleiche zusammengefasst: „6× Ø9 × 15, Ø6 × 24“."""
+    anz = {}
+    for a in liste:
+        k = f"Ø{_fmm(_z(a['d']))} × {_fmm(_z(a['l']))}"
+        anz[k] = anz.get(k, 0) + 1
+    return ", ".join((f"{n}× " if n > 1 else "") + k for k, n in anz.items())
+
+
 def _kennwerte(d):
     k = d.get("kennwerte")
     return k if isinstance(k, dict) else {}
@@ -277,7 +292,8 @@ def _drehen(d, sw, w, rohling_art, gaenge, hinweise):
     k = _kennwerte(d)
     da, di, lg = _z(d.get("durchmesser")), _z(d.get("innen")), _z(d.get("laenge"))
     v_fertig = _z(d.get("volumen")) or (math.pi / 4 * (da ** 2 - di ** 2) * lg)
-    d_roh = lagermass(da + w["df_aufmass_d"], RUND_LAGER, 10)
+    # Lasche/Anbau außerhalb des Drehdurchmessers: Rohling über den Anbau, der Rest wird gefräst (Dreh-Fräs-Teil)
+    d_roh = lagermass(max(da, _z(k.get("anbau_d"))) + w["df_aufmass_d"], RUND_LAGER, 10)
     stange = d_roh <= w["df_stange_bis"]
     l_bearb = lg + w["df_aufmass_l"] * (1 if stange else 2)         # gesägt: an beiden Enden plandrehen
     l_roh = l_bearb + (w["df_abstich"] if stange else 2.0)          # Abstich bzw. Sägeschnitt
@@ -358,9 +374,11 @@ def _drehen(d, sw, w, rohling_art, gaenge, hinweise):
     if quer:
         t = sum(bohrzeit(_z(a["d"]), _z(a["l"]), sw) + 0.1 for a in quer)
         werkzeuge += len({round(_z(a["d"]), 1) for a in quer})
-        _gang(gaenge, f"Querbohrungen ({len(quer)}×)", verf_zus, t,
-              ", ".join(f"Ø{_fmm(_z(a['d']))} × {_fmm(_z(a['l']))}" for a in quer)
-              + ("" if angetrieben else "; eigener Fräsgang (keine angetriebenen Werkzeuge)"))
+        n_ax = sum(1 for a in quer if a.get("axial"))
+        name = ("Bohrungen axial/Lochkreis" if n_ax == len(quer) else "Querbohrungen" if not n_ax
+                else "Quer- und Lochkreisbohrungen")
+        _gang(gaenge, f"{name} ({len(quer)}×)", verf_zus, t,
+              _bohrliste(quer) + ("" if angetrieben else "; eigener Fräsgang (keine angetriebenen Werkzeuge)"))
     if schl_a:
         fr = w["df_fraeser"]
         n = sw["fraes_vc"] * 1000 / (math.pi * fr)
@@ -381,7 +399,7 @@ def _drehen(d, sw, w, rohling_art, gaenge, hinweise):
     _gang(gaenge, "Entgraten", DREHEN, w["df_entgraten"], "")
     elemente = 2 + n_einst + n_kont + n_abs + len(quer) + bool(schl_a)
     return dict(art=ROHLING_ROHR if di_roh else ROHLING_VOLL, d=d_roh, innen=di_roh, laenge=l_roh,
-                gewicht=gew, text=f"{'Rohr' if di_roh else 'Rundstahl'} Ø{_fmm(d_roh)}"
+                gewicht=gew, text=f"{'Rohr' if di_roh else _stab(sw, True)} Ø{_fmm(d_roh)}"
                 + (f"/Ø{_fmm(di_roh)}" if di_roh else "") + f" × {_fmm(l_roh)} mm"
                 + (" (von der Stange)" if stange else " (gesägt)"), elemente=elemente,
                 zweiter=FRAESEN if (quer or schl_a) and not angetrieben else None)
@@ -434,8 +452,7 @@ def _fraesen(d, sw, w, gaenge, hinweise):
         t = sum(bohrzeit(_z(x["d"]), _z(x["l"]), sw) + 0.15 for x in bohr)     # + Zentrieren/Positionieren
         werkzeuge += 1 + len({round(_z(x["d"]), 1) for x in bohr})
         _gang(gaenge, f"Bohren ({len(bohr)}×)", FRAESEN, t,
-              ", ".join(f"Ø{_fmm(_z(x['d']))} × {_fmm(_z(x['l']))}" for x in bohr[:8])
-              + (" …" if len(bohr) > 8 else "") + "; mit Zentrieren")
+              _bohrliste(bohr) + "; mit Zentrieren")
     n_fase = int(_z(k.get("fasen")))
     n_rad = int(_z(k.get("radien")) + _z(k.get("innenradien")))
     if n_fase:
@@ -449,7 +466,7 @@ def _fraesen(d, sw, w, gaenge, hinweise):
     _gang(gaenge, "Entgraten, Messen", FRAESEN, w["df_entgraten"] + w["df_handhabung"], "")
     elemente = 3 + len(bohr) + n_fase + int(_z(k.get("stufen")))
     return dict(art="Flachstahl", breite=b_roh, hoehe=h_roh, laenge=l_roh, gewicht=gew,
-                text=f"Flachstahl {_fmm(b_roh)} × {_fmm(h_roh)} × {_fmm(l_roh)} mm (gesägt)", elemente=elemente,
+                text=f"{_stab(sw, False)} {_fmm(b_roh)} × {_fmm(h_roh)} × {_fmm(l_roh)} mm (gesägt)", elemente=elemente,
                 aufspannungen=aufsp, zweiter=None)
 
 

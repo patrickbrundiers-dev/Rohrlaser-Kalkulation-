@@ -24,7 +24,8 @@ import math
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import (GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane, GeomAbs_Sphere, GeomAbs_SurfaceOfRevolution,
                          GeomAbs_Torus)
-from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
+from OCP.BRep import BRep_Tool
+from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED, TopAbs_VERTEX
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopoDS import TopoDS
 
@@ -38,6 +39,11 @@ WAND_DICK = 0.2         # offenes Profil: Wand ab so viel × kleineres Außenma�
 BUCHSE_WAND = 0.12      # Rohr: Wand ab so viel × Durchmesser (und kurz) gilt als Buchse (Drehteil-Verdacht)
 WINKEL_TOL = 0.5        # Grad: Achsen gelten als gleich
 ACHS_TOL = 0.05         # mm: Achse liegt auf der Hauptachse
+DREHFRAES_ANTEIL = 0.6  # mit Lasche/Anbau außerhalb des Drehdurchmessers (Dreh-Fräs-Teil) genügt so viel
+ANBAU_LAENGE = 1.5      # Dreh-Fräs-Teil mit Anbau: Rohr höchstens so viel × Ø lang (Ring, Flansch) oder dickwandig
+ANBAU_MIN = 1.0         # mm: so weit muss ein Anbau über den größten Außendurchmesser hinausragen
+BOHR_VOLL = 0.6         # Innenzylinder ab so viel des vollen Umfangs ist eine Bohrung (auch angeschnitten durch eine
+                        # Querbohrung); weniger: Hohlkehle/Taschenecke
 SACK = 0.8              # Bohrung auf der Achse kürzer als so viel × Länge: Sackbohrung
 FORMEN_DREH = ("Rundstahl", "Rundrohr", "Sonderprofil", "offenes Sonderprofil", "")
 FORMEN_FRAES_VOLL = ("Vierkantstahl", "Flachstahl", "offenes Sonderprofil", "Sonderprofil", "")
@@ -133,6 +139,18 @@ def _koaxial(e, o, d):
     return ax is not None and _parallel(ax[1], d) and _abstand_achse(ax[0], o, d) <= ACHS_TOL
 
 
+def _radius_max(flaechen_, o, d):
+    """Größter Abstand der Eckpunkte der Flächen von der Achse (Lasche/Anbau außerhalb des Drehdurchmessers)."""
+    r = 0.0
+    for e in flaechen_:
+        ex = TopExp_Explorer(e["face"], TopAbs_VERTEX)
+        while ex.More():
+            p = BRep_Tool.Pnt_s(TopoDS.Vertex(ex.Current()))
+            ex.Next()
+            r = max(r, _abstand_achse((p.X(), p.Y(), p.Z()), o, d))
+    return r
+
+
 def drehteil(fl, t=None):
     """Merkmale eines Drehteils (dict) oder None. fl = flaechen(solid), t = bisherige Messung (für das Glatt-Rohr)."""
     gesamt = sum(e["flaeche"] for e in fl)
@@ -147,15 +165,26 @@ def drehteil(fl, t=None):
     stirn = [e for e in fl if e["typ"] == "eben" and _parallel(e["normale"], d)]
     anteil = (sum(e["flaeche"] for e in dreh) + sum(e["flaeche"] for e in stirn)) / gesamt
     frei = sum(e["flaeche"] for e in fl if e["typ"] == "frei") / gesamt
-    if anteil < DREH_ANTEIL or frei > FREI_MAX:
-        return None
-    if sum(e["flaeche"] for e in dreh) < 0.4 * gesamt:       # z. B. Scheibe: Stirnflächen groß, aber kein Drehteil?
-        if not any(e["typ"] in ("kegel", "torus") for e in dreh):
-            return None
     aussen = sorted({round(e["radius"], 2) for e in dreh if e["typ"] == "zylinder" and e["konvex"]})
     innen = sorted({round(e["radius"], 2) for e in dreh if e["typ"] == "zylinder" and not e["konvex"]})
-    if not aussen:
+    if not aussen or frei > FREI_MAX:
         return None
+    # Lasche/Anbau über den größten Außendurchmesser hinaus (Ring mit Lasche, Flansch mit Ohr): Dreh-Fräs-Teil
+    # Eine flache Kontur (nur zwei Stirnebenen, alles andere parallel zur Achse) ist ein Blech (lasern), kein Anbau.
+    hoehen = {round(_dot(e["punkt"], d), 1) for e in stirn}
+    prisma = len(hoehen) <= 2 and all(
+        (e["typ"] == "eben" and _senkrecht(e["normale"], d)) or (e["typ"] == "zylinder" and _parallel(e["achse"][1], d))
+        for e in fl if e not in stirn)
+    r_anbau = 0.0 if prisma else _radius_max([e for e in fl if e not in dreh], o, d)
+    anbau = r_anbau > aussen[-1] + ANBAU_MIN
+    if anteil < (DREHFRAES_ANTEIL if anbau else DREH_ANTEIL):
+        return None
+    if sum(e["flaeche"] for e in dreh) < 0.4 * gesamt:       # z. B. Scheibe: Stirnflächen groß, aber kein Drehteil?
+        # Flansch/Scheibe mit Absatz (zwei Außen- oder Innendurchmesser) oder Anbau ist gedreht, eine glatte Scheibe
+        # mit Löchern bleibt Blech bzw. Laserteil
+        if not any(e["typ"] in ("kegel", "torus") for e in dreh) and len(aussen) < 2 and len(innen) < 2 \
+                and not anbau:
+            return None
     zs = [z for e in dreh if e["typ"] == "zylinder" for z in e["z"]]
     z0, z1 = min(zs), max(zs)
     for e in stirn:
@@ -163,6 +192,13 @@ def drehteil(fl, t=None):
         z0, z1 = min(z0, z), max(z1, z)
     laenge = z1 - z0
     merkmale = []
+    if anbau and innen and laenge > ANBAU_LAENGE * 2 * aussen[-1] and aussen[-1] - innen[-1] < BUCHSE_WAND * 2 * aussen[-1]:
+        # langes dünnwandiges Rohr mit angeschweißtem Blech/Lasche: Rohr mit Anbauteil (step_anbau), kein Drehteil
+        if anteil < DREH_ANTEIL:
+            return None
+        anbau = False
+    if anbau:
+        merkmale.append("Lasche/Anbau außerhalb Ø (gefräst)")
     if len(aussen) >= 2:
         merkmale.append(f"{len(aussen)} Außendurchmesser (Absatz/Einstich)")
     if len(innen) >= 2:
@@ -181,8 +217,11 @@ def drehteil(fl, t=None):
     if any(e["typ"] == "rotation" for e in dreh):
         merkmale.append("Drehkontur")
     zusatz = []
-    if any(e["typ"] == "zylinder" and not e["konvex"] for e in rest):
+    bohr_rest = [e for e in rest if e["typ"] == "zylinder" and not e["konvex"]]
+    if any(not _parallel(e["achse"][1], d) for e in bohr_rest):
         zusatz.append("Querbohrung")
+    if any(_parallel(e["achse"][1], d) for e in bohr_rest):
+        zusatz.append("Bohrungen axial/Lochkreis")
     if any(e["typ"] == "eben" and _senkrecht(e["normale"], d) for e in rest):
         zusatz.append("Schlüsselfläche/Abflachung")
     if any(e["typ"] == "frei" for e in rest):
@@ -206,7 +245,8 @@ def drehteil(fl, t=None):
     return dict(art=DREHTEIL, durchmesser=round(2 * aussen[-1], 2), laenge=round(laenge, 2),
                 innen=round(2 * innen[0], 2) if innen else 0.0,
                 durchmesser_liste=[round(2 * r, 2) for r in aussen], merkmale=merkmale, zusatz=zusatz,
-                nur_abmessung=nur_abmessung, achse=list(d), kennwerte=_kennwerte_dreh(fl, dreh, stirn, rest, d))
+                nur_abmessung=nur_abmessung, achse=list(d), kennwerte=_kennwerte_dreh(fl, dreh, stirn, rest, d,
+                                                                         2 * r_anbau if anbau else None))
 
 
 def _zylinder_gruppen(flaechen_):
@@ -239,14 +279,17 @@ def _cm2(x):
     return round(x / 100, 2)
 
 
-def _kennwerte_dreh(fl, dreh, stirn, rest, d):
+def _kennwerte_dreh(fl, dreh, stirn, rest, d, anbau_d=None):
     """Kennwerte für den Richtpreis (drehfraes_preis): Abschnitte außen/innen, Einstiche, Fasen, Radien,
-    Stirnflächen, Querbohrungen, Schlüsselflächen und Flächen [cm²]."""
+    Stirnflächen, Querbohrungen (axial = parallel zur Drehachse, z. B. Lochkreis), Schlüsselflächen, Durchmesser über
+    eine Lasche/einen Anbau (anbau_d) und Flächen [cm²]."""
     aussen = _abschnitte(_zylinder_gruppen([e for e in dreh if e["typ"] == "zylinder" and e["konvex"]]))
     innen = _abschnitte(_zylinder_gruppen([e for e in dreh if e["typ"] == "zylinder" and not e["konvex"]]))
     einstiche = sum(1 for i in range(1, len(aussen) - 1)
                     if aussen[i]["d"] < aussen[i - 1]["d"] - 0.1 and aussen[i]["d"] < aussen[i + 1]["d"] - 0.1)
-    quer = _abschnitte(_zylinder_gruppen([e for e in rest if e["typ"] == "zylinder" and not e["konvex"]]))
+    bohr = [e for e in rest if e["typ"] == "zylinder" and not e["konvex"]]
+    quer = [dict(a, axial=True) for a in _abschnitte(_zylinder_gruppen([e for e in bohr if _parallel(e["achse"][1], d)]))]
+    quer += _abschnitte(_zylinder_gruppen([e for e in bohr if not _parallel(e["achse"][1], d)]))
     schluessel = [e for e in rest if e["typ"] == "eben" and _senkrecht(e["normale"], d)]
     wand = None                     # dünnste Wand zwischen Außen- und Innendurchmesser (Machbarkeit)
     for a in aussen:
@@ -260,7 +303,7 @@ def _kennwerte_dreh(fl, dreh, stirn, rest, d):
                 konturen=sum(1 for e in dreh if e["typ"] == "rotation"),
                 stirn=len(stirn), stirn_flaeche=_cm2(sum(e["flaeche"] for e in stirn)),
                 dreh_flaeche=_cm2(sum(e["flaeche"] for e in dreh)),
-                querbohrungen=quer, schluessel=len(schluessel),
+                querbohrungen=quer, schluessel=len(schluessel), anbau_d=round(anbau_d, 2) if anbau_d else None,
                 schluessel_flaeche=_cm2(sum(e["flaeche"] for e in schluessel)),
                 frei_flaeche=_cm2(sum(e["flaeche"] for e in rest if e["typ"] == "frei")),
                 flaeche=_cm2(sum(e["flaeche"] for e in fl)))
@@ -274,7 +317,7 @@ def _kennwerte_fraes(fl, richtungen, stufen):
     bohr, ecken = [], []
     for x in _zylinder_gruppen([e for e in fl if e["typ"] == "zylinder" and not e["konvex"]]):
         voll = 2 * math.pi * x["radius"] * (x["z1"] - x["z0"])
-        (bohr if voll > 0 and x["flaeche"] >= 0.9 * voll else ecken).append(x)
+        (bohr if voll > 0 and x["flaeche"] >= BOHR_VOLL * voll else ecken).append(x)
     tiefe = 0.0                     # tiefste Tasche/Absatz bis zur Außenfläche auf der offenen Seite (Machbarkeit)
     for r in richtungen:
         ebenen = []                 # (Höhe entlang r, Seite: +1 = Fläche zeigt nach +r)
@@ -308,12 +351,37 @@ def _mm(x):
     return f"{x:.2f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
-def fraesteil(fl, t, huelle):
-    """Merkmale eines Frästeils (dict) oder None. huelle = drei Hüllmaße (beliebige Lage, sortiert groß -> klein)."""
-    if t is not None and (t.kammern or t.profilform in ("Rundrohr", "Rundstahl", "Quadratrohr", "Rechteckrohr",
+def _bohr_richtungen(fl):
+    """Richtungen der Bohrungen (ganze Zylinder innen, keine Hohlkehlen/Taschenecken), je Richtung einmal."""
+    innen = [e for e in fl if e["typ"] == "zylinder" and not e["konvex"]]
+    out = []
+    for e in innen:
+        o, d = e["achse"]
+        z = sorted(e["z"])
+        gruppe = [x for x in innen if abs(x["radius"] - e["radius"]) < 0.05 and _koaxial(x, o, d)
+                  and abs(sorted(x["z"])[0] - z[0]) < 0.1]
+        voll = 2 * math.pi * e["radius"] * (z[1] - z[0])
+        if voll > 0 and sum(x["flaeche"] for x in gruppe) >= BOHR_VOLL * voll and not any(_parallel(d, r) for r in out):
+            out.append(d)
+    return out
+
+
+def _block_mit_bohrung(fl):
+    """Als Quadrat-/Rechteckrohr gemessen, aber innen nur Bohrungen und keine Innenwände (höchstens 6 größere Ebenen;
+    kleine Reste wie flache Bohrungsgründe zählen nicht): ein gebohrter Block (Verteilerblock), kein Rohr."""
+    gesamt = sum(e["flaeche"] for e in fl)
+    gross = sum(1 for e in fl if e["typ"] == "eben" and e["flaeche"] >= 0.03 * gesamt)
+    return gross <= 6 and bool(_bohr_richtungen(fl))
+
+
+def fraesteil(fl, t, huelle, form=None):
+    """Merkmale eines Frästeils (dict) oder None. huelle = drei Hüllmaße (beliebige Lage, sortiert groß -> klein);
+    form = Profilform, als die das Teil gilt (sonst die der Messung t)."""
+    if t is not None and form is None and (t.kammern or t.profilform in ("Rundrohr", "Rundstahl", "Quadratrohr", "Rechteckrohr",
                                                          "Blech", "Blech gekantet")):
         return None
-    form = t.profilform if t is not None else ""
+    if form is None:
+        form = t.profilform if t is not None else ""
     gesamt = sum(e["flaeche"] for e in fl)
     if gesamt <= 0 or len(huelle) != 3:
         return None
@@ -331,8 +399,11 @@ def fraesteil(fl, t, huelle):
         if not any(_parallel(e["normale"], r) for r in richtungen):
             richtungen.append(e["normale"])
     if form in FORMEN_FRAES_VOLL:
-        if len(eben) <= 6:
-            return None             # Quader (auch mit Bohrungen): Vollmaterial gesägt bzw. Blech
+        mehrseitig = len(_bohr_richtungen(fl)) >= 2
+        if len(eben) <= 6 and not mehrseitig:
+            return None             # Quader (auch mit Bohrungen von einer Seite): Vollmaterial gesägt bzw. Blech
+        if mehrseitig:
+            merkmale.append("Bohrungen aus mehreren Richtungen")
         for r in richtungen:
             hoehen = {round(_dot(e["punkt"], r) * (1 if _dot(e["normale"], r) > 0 else -1), 1)
                       for e in eben if _parallel(e["normale"], r)}
@@ -379,16 +450,23 @@ def pruefen(solid, t, datei="", koerper=1):
                           or t.profilform in ("Blech", "Blech gekantet")):
         return t
     form = t.profilform if t is not None else ""
-    if form not in FORMEN_DREH + FORMEN_FRAES_VOLL + FORMEN_FRAES_OFFEN:
+    block = None
+    if form in ("Quadratrohr", "Rechteckrohr") and t is not None:
+        fl = flaechen(solid)
+        if not _block_mit_bohrung(fl):
+            return t
+        block = "Vierkantstahl"     # gebohrter Block: als Vollmaterial prüfen
+    elif form not in FORMEN_DREH + FORMEN_FRAES_VOLL + FORMEN_FRAES_OFFEN:
         return t
-    fl = flaechen(solid)
+    else:
+        fl = flaechen(solid)
     info = drehteil(fl, t) if form in FORMEN_DREH else None
     huelle = None
     if info is None:
         # Hüllmaße im System der Messung (Länge × Querschnitt), sonst der kleinste umschreibende Quader
         huelle = sorted((t.laenge, t.abm_a, t.abm_b or t.abm_a), reverse=True) if t is not None and t.laenge > 0 \
             and t.abm_a > 0 else _huelle(solid)
-        info = fraesteil(fl, t, huelle)
+        info = fraesteil(fl, t, huelle, block)
     if info is None:
         return t
     if info["art"] == DREHTEIL and info["nur_abmessung"] and form != "Rundrohr":

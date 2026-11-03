@@ -2477,11 +2477,16 @@ def kapitel_step(i):
     i.liste("<b>Drehteil</b>: fast alle Flächen liegen drehsymmetrisch um eine Achse (Zylinder, Kegel, Radien, "
             "Stirnflächen); Querbohrungen, Schlüsselflächen und Gewinde sind erlaubt. Drehteil wird es mit mehreren "
             "Außen- oder Innendurchmessern, Einstich, Sackbohrung, Fase, Kegel oder Radius. Ein glatter Rundstahl mit "
-            "geraden Enden bleibt Vollmaterial ([[vollmaterial]]), ein Rohr mit Schrägschnitt oder Gehrung bleibt Rohr.",
+            "geraden Enden bleibt Vollmaterial ([[vollmaterial]]), ein Rohr mit Schrägschnitt oder Gehrung bleibt Rohr. "
+            "Seit 0.9.240 auch: <b>Flansch</b> bzw. Scheibe mit Absatz und Lochkreis (Bohrungen parallel zur Achse), "
+            "<b>Ring oder Buchse mit Lasche</b> (Dreh-Fräs-Teil: Rohling über die Lasche, die Lasche wird gefräst). "
+            "Eine glatte Scheibe mit Löchern bleibt Blech.",
             "<b>Frästeil</b>: ein gedrungener Körper (höchstens dreimal so lang wie breit) überwiegend aus Ebenen, "
             "der kein Blech, Rohr oder Rundstahl ist, mit Absatz, Tasche oder Fase, oder ein L-/U-/C-/T-Profil ohne "
             "Normmaß mit sehr dicker Wand (ab einem Fünftel des kleineren Außenmaßes). Ein Quader mit Bohrungen "
-            "bleibt Vierkant bzw. Blech, Normprofile bleiben Profile.",
+            "von einer Seite bleibt Vierkant bzw. Blech, Normprofile bleiben Profile. Ein Quader mit Bohrungen "
+            "<b>aus mehreren Richtungen</b> (Verteilerblock, auch mit Längsbohrung, die sonst wie ein Vierkantrohr "
+            "aussieht) ist ein Frästeil (seit 0.9.240).",
             "<b>Nur nach den Maßen verdächtig</b> (kurzes dickwandiges Rohr wie eine Buchse Ø40/Ø25, dickes Profil "
             "ohne Normmaß): Prüfstatus <i>prüfen</i>, erst nach Anhaken übernommen. Steht das Rohr bzw. Profil in den "
             "Stammdaten, bleibt es ein Rohr/Profil (Hinweis <i>Profil steht in den Stammdaten</i>).",
@@ -2526,7 +2531,8 @@ def kapitel_step(i):
             "Werkstoffgruppe plus Materialzuschlag (Stangenrest, Sägeverlust).",
             "<b>Arbeitsgänge Drehen</b>: Sägen, Bohren innen (bis <i>Größter Bohrer</i>, darüber ausdrehen), "
             "Schruppen = Spanvolumen ÷ (vc × f × ap × Nutzungsgrad), Schlichten = gedrehte Fläche ÷ (vc × f), "
-            "Einstechen je Einstich, Absätze/Fasen/Radien, Abstechen bzw. Umspannen, Querbohrungen und "
+            "Einstechen je Einstich, Absätze/Fasen/Radien, Abstechen bzw. Umspannen, Querbohrungen, Bohrungen "
+            "axial/Lochkreis und "
             "Schlüsselflächen (mit angetriebenen Werkzeugen, sonst eigener Fräsgang), Werkzeugwechsel, Handhabung, "
             "Entgraten.",
             "<b>Arbeitsgänge Fräsen</b>: Sägen, Planfräsen des Aufmaßes, Schruppen der Taschen und Kontur (ae 0,4 × "
@@ -2547,7 +2553,7 @@ def kapitel_step(i):
             "<b>Rechtsklick → Richtpreis Dreh-/Frästeil …</b> bzw. Doppelklick auf die Position öffnet den Dialog. "
             "<b>Als EK übernehmen</b> trägt den Preis als Staffelzeile ab der Stückzahl im Artikel ein; "
             "<b>Zeiten zurücksetzen</b> nimmt die Minuten von Hand zurück.",
-            "<b>Machbarkeit</b> (Grenzen unter Einstellungen → Dreh-/Frästeil-Richtpreis): Bohrung tiefer als 5 × Ø "
+            "<b>Machbarkeit</b> (Grenzen unter Einstellungen → Dreh-/Frästeil-Zeiten und Machbarkeit): Bohrung tiefer als 5 × Ø "
             "gelb (+50 % Bohrzeit), über 10 × Ø rot (Tieflochbohren); Drehteil länger als 4 × Ø gelb (Reitstock, "
             "+30 %), über 12 × Ø rot (Lünette, Langdreher); Wand unter 2 mm gelb, unter 1 mm rot; Innenradius "
             "kleiner als der Fräser gelb (+30 % Schlichten), unter 0,5 mm rot (Erodieren); Tasche tiefer als 4 × "
@@ -6782,7 +6788,7 @@ def kapitel_einstellungen(i):
                                       "(darüber gesägt), Abstechbreite [mm], Materialzuschlag (Stangenrest, "
                                       "Sägeverlust)",
          "Rohling (Vorgabe 2 mm, 2 mm, 1,5 mm, Ø65, 3 mm, 5 %)."],
-        ["Dreh-/Frästeil-Richtpreis", "Nutzungsgrad der Schnittwerte (Anfahren, wechselnde Zustellung), "
+        ["Dreh-/Frästeil-Zeiten und Machbarkeit", "Nutzungsgrad der Schnittwerte (Anfahren, wechselnde Zustellung), "
                                       "Werkzeugwechsel je Werkzeug [min], Handhabung/Messen je Stück [min], "
                                       "Entgraten je Stück [min], Einstechen je Einstich [min], Je Fase/Radius/Absatz "
                                       "[min], Fräsen: Aufspannen je Aufspannung und Stück [min], Mindestzeit je Stück "
@@ -6790,7 +6796,7 @@ def kapitel_einstellungen(i):
                                       "[mm], Drehmaschine mit angetriebenen Werkzeugen (Querbohrung, Schlüsselfläche)",
          "Zeiten (Vorgabe 60 %, 0,15, 0,5, 0,3, 0,25, 0,05, 1, 0,5 min, Bohrer bis 32 mm, Fräser Ø16, angetriebene "
          "Werkzeuge ja)."],
-        ["Dreh-/Frästeil-Richtpreis", "Machbarkeit: größter Drehdurchmesser [mm], Machbarkeit: größte Drehlänge "
+        ["Dreh-/Frästeil-Zeiten und Machbarkeit", "Machbarkeit: größter Drehdurchmesser [mm], Machbarkeit: größte Drehlänge "
                                       "[mm], Machbarkeit: Verfahrweg Fräsen X [mm], Machbarkeit: Verfahrweg Fräsen Y "
                                       "[mm], Machbarkeit: Verfahrweg Fräsen Z [mm], Machbarkeit: Bohrung tiefer als × "
                                       "Ø = Mehraufwand, Machbarkeit: Bohrung tiefer als × Ø = Tieflochbohren, "
