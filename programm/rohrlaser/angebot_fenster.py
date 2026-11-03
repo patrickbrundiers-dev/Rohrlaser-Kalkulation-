@@ -3593,10 +3593,17 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             werte["laenge"] = erg["laenge"]
         self._knicken_eintragen(werte, werte, erg)
         self._stege_eintragen(werte, werte)
-        if dxf and dxf[1].get("werkstoff_text"):     # Zeichnung (PDF/DXF): erkannte Zusatzarbeiten als Vorschlag (2a)
+        if dxf and (dxf[1].get("werkstoff_text") or dxf[1].get("text")):
+            # Zeichnung (PDF/DXF): erkannte Zusatzarbeiten als Vorschlag (2a); ganzer Text: Flowdrill, Senken,
+            # Einnietmuttern mit Anzahl, Gewinde als Gewinde-Vorschlag (Patrick 03.11.2026, 3a)
+            from . import zeichnung_hinweise
+            zh = zeichnung_hinweise.lesen(dxf[1].get("text"))
             werte["arbeitsgaenge"] = zusatz_erkennung.text_merken(
-                werte.get("arbeitsgaenge"), " ".join(str(dxf[1].get(n) or "") for n in ("werkstoff_text", "name")),
-                self.db.zeilen("zusatzarbeiten"), "Zeichnung")
+                werte.get("arbeitsgaenge"),
+                " ".join(str(dxf[1].get(n) or "") for n in ("werkstoff_text", "name", "text")),
+                self.db.zeilen("zusatzarbeiten"), "Zeichnung", zeichnung_hinweise.zusatz_mengen(zh, mit_bohrbild=False))
+            if not werte.get("gewinde_vorschlag") and zeichnung_hinweise.gewinde_vorschlag(zh):
+                werte["gewinde_vorschlag"] = zeichnung_hinweise.gewinde_vorschlag(zh)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self._radius_uebernehmen(dict(werte, id=pid_neu), eingaben)
         self.neu_laden()
@@ -6446,8 +6453,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 f", {ohne_ek} ohne EK (Blech-Werkstoff offen): bitte unter Zukaufartikel mit 'EK eintragen …' "
                 "nachtragen." if ohne_ek else ", EK = Blech-Richtpreis (bitte durch das Angebot des Lieferanten "
                                               "ersetzen)."))
-        katalog_erk = self.db.zeilen("zusatzarbeiten") if werkstoff_text else ()
+        katalog_erk = self.db.zeilen("zusatzarbeiten") \
+            if werkstoff_text or any(p.get("_zeichnung_text") for p in erg["positionen"]) else ()
+        from . import zeichnung_hinweise
         for p in erg["positionen"]:
+            z_text, z_quelle = p.pop("_zeichnung_text", None), p.pop("_zeichnung_quelle", None)
+            if z_text and not ist_baugruppe(p):     # Zeichnung des Teils: Zusatzarbeiten + Einnietmuttern mit Anzahl
+                zh = zeichnung_hinweise.lesen(z_text)
+                p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), z_text, katalog_erk,
+                                                                  z_quelle or "Zeichnung",
+                                                                  zeichnung_hinweise.zusatz_mengen(zh))
+                fehlt = zeichnung_hinweise.nicht_abgedeckt(zh)
+                if fehlt:
+                    erg["bericht"].append(f"{p.get('artikel') or p.get('bezeichnung') or ''}: {fehlt}")
             if werkstoff_text and not ist_baugruppe(p):     # Anfrage-Mail: erkannte Zusatzarbeiten als Vorschlag (2a)
                 p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), werkstoff_text, katalog_erk,
                                                                   "E-Mail")
