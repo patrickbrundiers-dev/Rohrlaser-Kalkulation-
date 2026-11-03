@@ -231,7 +231,7 @@ mw = [dict(m) for m in gemessen]
 bd = dict(werkstoffe=werkstoffe, laserdaten=laser, einst=einst)
 dlg = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste(), werkstoffe, blech_daten=bd)
 zb = next(z for z in dlg.zeilen if z.blech)
-assert "Richtpreis" not in zb.it.text(dlg.SP_HINWEIS)                  # Werkstoff offen: noch kein Richtpreis
+assert "Richtpreis" in zb.it.text(dlg.SP_HINWEIS)      # Werkstoff wie die Rohre bzw. S235 vorbelegt (#383): schon da
 zb.ws.setCurrentText("S235JR")
 text = zb.it.text(dlg.SP_HINWEIS)
 assert " kg, Richtpreis " in text and "€/St" in text, text

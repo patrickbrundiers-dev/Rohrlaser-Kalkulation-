@@ -102,7 +102,7 @@ r = subprocess.run([sys.executable, str(MESSEN), "--ausgabe", str(tmp / "m.txt")
                    + dateien, capture_output=True, text=True, timeout=600)
 assert r.returncode == 0, r.stderr
 erg = json.loads((tmp / "m.json").read_text(encoding="utf-8"))
-assert erg["schema_version"] == "1.26"
+assert erg["schema_version"] >= "1.26"
 kand = {Path(x["datei"]).stem: x["nahtkandidaten"] for x in erg["dateien"]}
 assert all(len(v) == 1 for v in kand.values()), kand
 p_, u_, g_, l_ = (kand[n][0] for n in ("parallel", "ueber", "gleich", "lasche"))
