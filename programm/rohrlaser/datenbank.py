@@ -1611,7 +1611,11 @@ class Datenbank:
     def blech_einstellungen(self):
         """Sätze des Blech-Editors (Einstellungen 'blech_…') und die K-Faktor-Tabelle (Schlüssel 'kfaktoren')."""
         from . import blech
-        return dict({n: self.einstellung(n) for n in blech.EINSTELLUNGEN}, kfaktoren=self.zeilen("blech_kfaktoren"))
+        # Ausführung der Bohrungen (bohrbild.py): Arbeiten € je Stück für den Richtpreis
+        arbeiten = {z["name"]: z.get("preis") for z in self.zeilen("zusatzarbeiten")
+                    if z.get("name") and z.get("art") == "€/Stück"}
+        return dict({n: self.einstellung(n) for n in blech.EINSTELLUNGEN}, kfaktoren=self.zeilen("blech_kfaktoren"),
+                    bohr_preise=arbeiten)
 
     @liest
     def zeitbasis_vorgabe(self, maschinen_id):

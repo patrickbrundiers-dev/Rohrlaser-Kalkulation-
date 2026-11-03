@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.244", "<b>Automationen</b> ([[automatik]]): Neue Anfragen werden im Hintergrund <b>vorgemessen</b> (Teile, "
+    ["0.9.245", "<b>Automationen</b> ([[automatik]]): Neue Anfragen werden im Hintergrund <b>vorgemessen</b> (Teile, "
      "Profile, Richtpreis) und stehen nach einer <b>Ampel</b> für die Antwortfrist sortiert. <b>Nachträge</b> legt das "
      "Programm selbst in den Angebotsordner (gelbe Leiste <i>Übernehmen</i> im Angebot), <b>Bestellungen</b> erkennt es "
      "und gleicht sie mit dem Angebot ab (<i>Bestellung prüfen …</i>), <b>Wiederholanfragen</b> ohne STEP werden aus "
@@ -34,6 +34,14 @@ NEUERUNGEN = [
      "Rückfrage vorbereitet, Lernen aus Nacharbeit, Anfragen automatisch zuweisen. Alles steht unter <i>Datei → "
      "Automatik-Protokoll …</i> und lässt sich zurücknehmen.",
      "Automationen: Anfragen vormessen und Ampel, Nachtrag/Bestellung zuordnen, Auftrag starten, Angebot fertigstellen"],
+    ["0.9.244", "<b>Bohrungsart nachträglich ändern</b>: In <i>Bohrungen prüfen</i> hat jede Bohrung die Spalte "
+     "<b>Ausführung</b> (Gewinde schneiden, Flowdrill + Gewinde formen, Einnietmutter, Senkung, Bohren, nur lasern) "
+     "mit ★-Vorschlag nach Gewindegröße, Wandstärke und Werkstoff und dem Grund (z. B. „Wand 2 mm = 1,6 Gänge M8 – "
+     "zu wenig“). Laser-Ø, Schneidweg, Einstiche, Gewinde und Zusatzarbeiten (€/Stück) folgen der Ausführung; die "
+     "STEP-Kontur bleibt (Hinweis „weicht von STEP ab“). <b>Alle M8 → …</b> und <b>★ Vorschläge übernehmen</b>, auch "
+     "für das ganze Angebot; in allen Editoren als Eigenschaft <i>Ausführung</i>, beim Blech die Arbeit im "
+     "Richtpreis ([[bohrung_ausfuehrung]]).",
+     "Bohrungsart ändern (Gewinde ↔ Flowdrill ↔ Einnietmutter …) mit ★-Vorschlägen"],
     ["0.9.243", "<b>Auf Ursprung zurücksetzen</b> in allen Editoren: Rohr- und Blech-Editor haben im Menüband neben "
      "Rückgängig den Knopf <b>Zurücksetzen</b> mit <i>Alles wie beim Öffnen</i> und <i>Alles wie aus STEP/DXF "
      "importiert</i> (auch gelöschte Konturen kommen zurück); dasselbe im Editor der Schweißbaugruppe und im Fenster "

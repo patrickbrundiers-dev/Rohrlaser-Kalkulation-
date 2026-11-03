@@ -1170,6 +1170,13 @@ EINSTELLUNGEN = (
     # den Ø trotzdem schneiden, ohne Bohren (bohrbild.SCHNEIDEN)
     Einstellung("bohren_laser", "Bohrung kleiner als 0,7 × Wandstärke am Laser", "STEP-Import", "auswahl",
                 BOHREN_LASER[0], auswahl="bohrenlaser"),
+    # Vorschläge für die Ausführung einer Bohrung (Bohrungen prüfen, Eigenschaft Ausführung in den Editoren;
+    # Patrick 03.11.2026): Grenzen der Richtwerte, bohrbild.vorschlaege
+    Einstellung("bohr_gewinde_gaenge", "Vorschlag Gewinde schneiden: trägt ab so vielen Gewindegängen in der Wand "
+                "(Alu × 1,5)", "STEP-Import", "zahl", 3.0, 0.5, 20),
+    Einstellung("bohr_flowdrill_min", "Vorschlag Flowdrill: ab Wandstärke [mm]", "STEP-Import", "zahl", 1.0, 0, 20),
+    Einstellung("bohr_flowdrill_faktor", "Vorschlag Flowdrill: bis Wandstärke = Faktor × Gewinde-Nenn-Ø",
+                "STEP-Import", "zahl", 0.5, 0.05, 5),
     # Teile mit diesen Wörtern im Bauteilnamen sind Normteile: im Prüfdialog abgewählt (importprofil.py)
     Einstellung("step_normteile", "Normteile: Begriffe im Bauteilnamen (mit ; getrennt)", "STEP-Import", "text",
                 "ISO; DIN; Schraube; Mutter; Scheibe; Stift; Niet; Normteil"),
