@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton, QSplitter,
                                QTableWidget, QVBoxLayout, QWidget)
 
-from . import hilfe, rechnen, zusatz_erkennung
+from . import hilfe, rechnen, stil, zusatz_erkennung
 from .angebot import POSITIONEN
 from .stammdaten import ZUSATZ_EINHEIT, wert_aus_text, zahl_als_text, zahl_aus_text
 from .eingabe import RechenSpinGanz
@@ -140,13 +140,16 @@ class ZusatzDialog(QDialog):
     """p: erste gewählte Position (für Vorgaben und automatische Mengen), anzahl: gewählte Positionen."""
 
     def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None, weitere=None, gewinde_verschieden=False,
-                 kopf=None, kunde_haeufig=None, positionen=None, neu=None):
+                 kopf=None, kunde_haeufig=None, positionen=None, neu=None, satz=None):
         """weitere: {Knopftext: Funktion} für die übrige Bearbeitung der Position (Schweißnaht, Bohrungen), damit
         alles über einen Dialog erreichbar ist (Prüfbericht C-5). Mehrere Positionen: p zeigt nur, was alle gemeinsam
         haben (gemeinsam); gewinde_verschieden = die Gewinde unterscheiden sich, das Feld ergänzt dann nur.
         kunde_haeufig: {Name: Anzahl} beim Kunden dieses Angebots; positionen: alle Positionen des Angebots (für die
-        Zusatzarbeiten nur dieses Angebots); neu(): Kurzformular, Ergebnis Eintrag für die Position oder None."""
+        Zusatzarbeiten nur dieses Angebots); neu(): Kurzformular, Ergebnis Eintrag für die Position oder None.
+        satz: dict(name, positionen, mengen) = ganzer Satz (Rechtsklick „Zusatzarbeit für ganzen Satz …“): oben Fläche
+        und Gewicht je Satz (satz_flaeche), Spalte und Summe € je Satz."""
         super().__init__(parent)
+        self.satz = satz
         self.p, self.k, self.tabellen, self.kopf = p, k, tabellen, kopf
         self.anzahl = anzahl
         self.katalog = {z["name"]: z for z in tabellen.get("zusatzarbeiten") or () if z.get("name")}
@@ -221,8 +224,24 @@ class ZusatzDialog(QDialog):
         rechts = QWidget()
         rl = QVBoxLayout(rechts)
         rl.setContentsMargins(0, 0, 0, 0)
+        self.satz_info = QLabel()
+        self.satz_info.setWordWrap(True)
+        self.satz_info.setStyleSheet(stil.umsetzen("background: #E4EEFA; color: #285F9E; padding: 4px 8px; "
+                                                   "border-radius: 3px;"))
+        self.satz_info.setVisible(bool(satz))
+        if satz:
+            from . import satz_flaeche
+            m = satz["mengen"]
+            f = satz_flaeche.fehlt_text(m)
+            self.satz_info.setText(f"<b>Satz {satz['name']}</b> · {len(satz['positionen'])} Positionen · "
+                                   + satz_flaeche.text(m) + (f"<br><i>{f}</i>" if f else "")
+                                   + "<br>Pulverbeschichten (m²) und Verzinken (kg) rechnen je Teil; die Summe je "
+                                     "Satz steht unten.")
+        rl.addWidget(self.satz_info)
         self.tabelle = QTableWidget(0, len(SPALTEN))
         self.tabelle.setHorizontalHeaderLabels(SPALTEN)
+        if satz:
+            self.tabelle.horizontalHeaderItem(BETRAG).setText("€ je Satz")
         for i, tipp in enumerate(TIPPS):
             self.tabelle.horizontalHeaderItem(i).setToolTip(tipp)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -607,6 +626,8 @@ class ZusatzDialog(QDialog):
             werte = {z["name"]: z for z in rechnen.zusatz_werte(probe, self.k, self.tabellen, self.kopf)}
         except (TypeError, ValueError, KeyError, ZeroDivisionError):
             werte = {}
+        if self.satz:
+            return self._betraege_satz([e for _, e in zeilen], probe)
         summe = 0.0
         for r in range(self.tabelle.rowCount()):
             lab = self.tabelle.cellWidget(r, BETRAG)
@@ -629,6 +650,29 @@ class ZusatzDialog(QDialog):
         self.summe.setText(f"Summe je Teil {_euro(summe)}" + (
             f" · Position ({stk:g} Stk) {_euro(summe * stk)}" if isinstance(stk, (int, float)) and stk
             else "") + " (ohne Zuschläge und Gewinn)")
+
+    def _betraege_satz(self, eintraege, probe):
+        """Ganzer Satz: € je Satz je Zeile = Σ über die Positionen des Satzes (€ je Teil × Stück je Satz)."""
+        from . import satz_menge
+        je_name = {}
+        for p in self.satz["positionen"]:
+            pp = dict(p, zusatz=json.dumps(eintraege, ensure_ascii=False), arbeitsgaenge=probe["arbeitsgaenge"])
+            try:
+                werte = rechnen.zusatz_werte(pp, self.k, self.tabellen, self.kopf)
+            except (TypeError, ValueError, KeyError, ZeroDivisionError):
+                werte = []
+            for z in werte:
+                if z["art"] not in ("s/Stück", "€/Angebot"):
+                    je_name[z["name"]] = je_name.get(z["name"], 0.0) + z["betrag"] * satz_menge.je_satz(p)
+        summe = 0.0
+        for r in range(self.tabelle.rowCount()):
+            name = self.tabelle.cellWidget(r, 0).currentText()
+            lab = self.tabelle.cellWidget(r, BETRAG)
+            lab.setText(_euro(je_name[name]) if name in je_name else "")
+            summe += je_name.get(name, 0.0)
+        n = self.satz["mengen"].get("saetze") or 0
+        self.summe.setText(f"Summe je Satz {_euro(summe)}" + (f" · {n:g} Sätze {_euro(summe * n)}" if n else "")
+                           + " (ohne Gewinde, Zuschläge und Gewinn)")
 
     def _entfernen(self):
         for r in sorted({i.row() for i in self.tabelle.selectedIndexes()}, reverse=True):

@@ -24,7 +24,7 @@ from .angebot_ausgabe import AusgabeMixin
 from .vorschlaege_mixin import VorschlaegeMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
-from . import plausibel, zusatz_dialog, zusatz_erkennung
+from . import plausibel, satz_flaeche, zusatz_dialog, zusatz_erkennung
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
@@ -946,6 +946,7 @@ class PositionenModell(QAbstractTableModel):
         self.mit_netz, self.bilder = set(), {}
         self.kopf_text = {}         # Zeilenkopf gruppierter Baugruppen (D3): ▾/▸ an der Baugruppe, └ an den Teilen
         self.satz, self.satz_zu = {}, set()     # Sätze (satzgruppen.info) und zugeklappte Sätze, von _gruppieren
+        self.satz_flaeche = {}                  # {Satz: satz_flaeche.mengen} (Fläche/Gewicht je Satz, 03.11.2026)
 
     def vorschau(self, r):
         """Kleines Bild der Position: 3D aus dem STEP-Import, sonst selbst angelegt die Draufsicht des Rohrs
@@ -1100,12 +1101,20 @@ class PositionenModell(QAbstractTableModel):
                 return (f"Satz {s['name']}: {s['teile']} Position(en)"
                         + (f", {s['saetze']} {'Satz' if s['saetze'] == 1 else 'Sätze'}" if s["saetze"] else "")
                         + (".\nKlick auf ▾/▸ im Zeilenkopf: Positionen des Satzes zu- bzw. aufklappen."
-                           if s["teile"] > 1 else "."))
+                           if s["teile"] > 1 else ".") + self._satz_flaeche_tipp(s["name"]))
         w = self._data_zelle(index, rolle)
         if rolle == Qt.ItemDataRole.BackgroundRole and isinstance(w, QBrush) and art != "status" \
                 and w.color() in (FARBE_EINGABE, FARBE_BERECHNET):
             return QBrush(satzgruppen.mischen(w.color(), stil.farbe(satzgruppen.FLAECHEN[s["ton"]])))
         return w
+
+    def _satz_flaeche_tipp(self, satz):
+        m = self.satz_flaeche.get(satz)
+        if not m:
+            return ""
+        f = satz_flaeche.fehlt_text(m)
+        return ("\nPulverbeschichten/Verzinken: " + satz_flaeche.text(m) + (f"\n({f})" if f else "")
+                + "\nRechtsklick → Zusatzarbeit für ganzen Satz …")
 
     def _data_zelle(self, index, rolle):
         art, x = self.spalten[index.column()]
@@ -2116,6 +2125,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
+                ("Zusatzarbeit für ganzen Satz …", lambda: self.zusatz_satz(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
@@ -2595,6 +2605,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.satz_zeilen = {ix[0]: n for n, ix in saetze.items() if len(ix) > 1}
         self.satz_zu &= set(self.satz_zeilen.values())
         self.pos_modell.satz, self.pos_modell.satz_zu = satzgruppen.info(self.positionen, saetze), self.satz_zu
+        self.pos_modell.satz_flaeche = {n: satz_flaeche.mengen(self.positionen, n, self.k) for n in saetze}
         kopf = self.pos_ansicht.verticalHeader()
         self._kopf_ordnet = True        # eigenes Umsortieren ist kein Drag & Drop (_kopf_gezogen)
         try:
@@ -4032,9 +4043,26 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._blech_uebernehmen(p, e, erg, lief, stueck)
         return "; ".join(f"Pos. {p.get('pos') or ''}: {h}" for h in erg["hinweise"] if "Gravur" in h) or None
 
-    def zusatzarbeiten(self, zeilen=None, werte=None):
+    def zusatz_satz(self, zeile=None, werte=None):
+        """Zusatzarbeiten für alle Positionen des Satzes der Zeile (Rechtsklick „Zusatzarbeit für ganzen Satz …“,
+        Patrick 03.11.2026): das Fenster zeigt Fläche und Gewicht je Satz und € je Satz. Ergebnis wie zusatzarbeiten."""
+        from . import satz_menge
+        if zeile is None:
+            zeilen = self._markierte_zeilen()
+            zeile = zeilen[0] if zeilen else None
+        p = self.positionen[zeile] if zeile is not None and 0 <= zeile < len(self.positionen) else None
+        satz = satz_menge.name(p)
+        zeilen = satz_menge.satz_positionen(self.positionen, satz) if satz else []
+        if not zeilen:
+            self.f.meldung("Zusatzarbeit für ganzen Satz: Bitte eine Position markieren, die in einem Satz steht "
+                           "(Spalte Satz).", fehler=True)
+            return False
+        return self.zusatzarbeiten(zeilen, werte, satz=satz)
+
+    def zusatzarbeiten(self, zeilen=None, werte=None, satz=None):
         """Gewinde und Zusatzarbeiten der markierten Positionen wählen (Dialog). werte = (Gewinde, JSON) setzt
-        sie ohne Dialog (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
+        sie ohne Dialog (Tests, Bildschirmfotos); satz = Name, wenn zeilen alle Positionen eines Satzes sind (das
+        Fenster zeigt dann Fläche, Gewicht und € je Satz). Ergebnis: True = gespeichert."""
         if zeilen is None:
             zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
         if not zeilen:
@@ -4054,7 +4082,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                              gewinde_verschieden=vorher is not None and vorher[0] is None, kopf=self.kopf,
                              kunde_haeufig=self.db.zusatz_haeufigkeit((self.kopf or {}).get("kundennr"))
                              if (self.kopf or {}).get("kundennr") else None, positionen=self.positionen,
-                             neu=None if self.fremd() or self.db.nur_lesen else lambda: self._zusatz_neu_eintrag(p))
+                             neu=None if self.fremd() or self.db.nur_lesen else lambda: self._zusatz_neu_eintrag(p),
+                             satz=dict(name=satz, positionen=[self.positionen[r] for r in zeilen],
+                                       mengen=satz_flaeche.mengen(self.positionen, satz, self.k)) if satz else None)
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
@@ -4063,7 +4093,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             gewinde, zusatz = werte if vorher is None else zusatz_dialog.zusammenfuehren(p, vorher, werte)
             self.db.position_aendern(p["id"], "gewinde", gewinde)
             self.db.position_aendern(p["id"], "zusatz", zusatz)
-        self.f.meldung(f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
+        self.f.meldung(f"Zusatzarbeiten für Satz {satz} ({len(zeilen)} Positionen) gespeichert." if satz else
+                       f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
 
@@ -4331,6 +4362,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             sichtbar = not zeilen or noetig is None or bool(arten & noetig)
             if text in ("Satz in 3D …", "Satz bearbeiten (Anzahl Sätze) …"):
                 sichtbar = mit_satz
+            elif text == "Zusatzarbeit für ganzen Satz …":
+                sichtbar = mit_satz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
             elif text in ("Virtuelles Bauteil als STEP …", "Stege abtrennen an/aus"):
