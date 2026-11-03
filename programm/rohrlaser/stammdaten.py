@@ -210,6 +210,8 @@ KUNDEN = Tabelle(
      Feld("liefer_land", "Lieferland abweichend", muster=(r"^[A-Z]{2}$", "Land als zweistelliger Ländercode, z. B. DE"),
           breite=70),
      Feld("lieferbedingung", "Lieferbedingung", "auswahl", auswahl="lieferbedingung", breite=110),
+     # Anfragen automatisch zuweisen (Paket D, E7): Kürzel des zuständigen Kollegen (gemeinsamer Ordner)
+     Feld("zustaendig", "Zuständig (Kürzel)", breite=80),
      Feld("bemerkung", "Bemerkung", breite=200)),
     ("kundennr",),
     "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
@@ -1289,6 +1291,10 @@ EINSTELLUNGEN = (
     # Automationen im Arbeitsablauf (Patrick 03.11.2026 „Alle Empfehlungen“, automatik.py)
     Einstellung("anfrage_frist", "Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den "
                 "Kundenvorgaben)", "Automatik", "ganz", 2, 0, 60),
+    Einstellung("anfrage_zuweisen", "Neue Anfragen automatisch zuweisen (Zuständiger des Kunden, sonst wer am "
+                "wenigsten offen hat; nur mit gemeinsamem Ordner)", "Automatik", "janein", "ja"),
+    Einstellung("angebot_automatik", "Nach dem Import: günstigste Maschine, Lieferzeit nach Auslastung, Beistellung "
+                "und Oberfläche aus der Mail, Rückfrage vorbereiten", "Automatik", "janein", "ja"),
     Einstellung("anfrage_vormessen", "Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)",
                 "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("preiswaechter_schwelle", "Preiswächter: offene Angebote melden ab Abweichung", "Automatik",

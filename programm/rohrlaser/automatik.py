@@ -32,7 +32,8 @@ MAX = 5000                  # danach fallen die ältesten Einträge weg
 ARTEN = {"vormessen": "Anfrage vorbereitet", "nachtrag": "Nachtrag einsortiert", "kontakt": "Kundendaten ergänzt",
          "bestellung": "Bestellung zugeordnet", "auftrag": "Auftrag gestartet", "materialbestellung": "Material bestellt",
          "lieferantenantwort": "Lieferantenantwort eingelesen", "preiswaechter": "Preiswächter",
-         "nachkalk": "Nachkalkulation vorbelegt", "wiederholanfrage": "Wiederholanfrage übernommen"}
+         "nachkalk": "Nachkalkulation vorbelegt", "wiederholanfrage": "Wiederholanfrage übernommen",
+         "angebot_auto": "Angebot automatisch", "zuweisung": "Anfrage zugewiesen", "nacharbeit": "Importprofil gelernt"}
 
 
 class AutomatikFehler(ValueError):
@@ -131,6 +132,16 @@ def rueckgaengig(db, eintrag_id):
         alt_zusatz = r.get("zusatz_alt")
         db.zusatz_setzen(r["angebot_id"], "nachkalk_vorbelegt", alt_zusatz)
         text = "Nachkalkulation zurückgesetzt"
+    elif art == "kopf":             # Kopffelder des Angebots (Maschine, Lieferzeit; Paket D)
+        for feld, wert in (r.get("alt") or {}).items():
+            db.angebot_aendern(r["angebot_id"], feld, wert)
+        text = ", ".join(r.get("alt") or {}) + " wie vorher"
+    elif art == "positionen":       # ein Feld an mehreren Positionen (Material, Oberfläche; Paket D)
+        vorhanden = {p["id"] for p in db.positionen(r["angebot_id"])}
+        for pid, wert in r.get("alt") or ():
+            if pid in vorhanden:
+                db.position_aendern(pid, r["feld"], wert)
+        text = f"{r['feld']} wie vorher"
     elif art == "vorgang":
         db.vorgang_setzen(r["angebot_id"], r.get("alt") or "Entwurf")
         db.auftrag_setzen(r["angebot_id"], r.get("auftragsnr"), r.get("liefertermin"))

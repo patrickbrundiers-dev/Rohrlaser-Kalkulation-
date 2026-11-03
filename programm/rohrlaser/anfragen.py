@@ -818,3 +818,28 @@ def kunde_text(kunden, nr):
         if str(k.get("kundennr")) == str(nr):
             return str(k.get("name") or nr)
     return str(nr or "")
+
+
+def zuweisung_vorschlag(liste, kunden, kollegen, ich=""):
+    """Anfragen automatisch zuweisen (Paket D, E7): [(Anfrage, Kürzel)] für offene, nicht gesperrte, noch nicht
+    zugewiesene Anfragen: zuständiger Bearbeiter aus dem Kundenstamm (Feld zustaendig), sonst wer die wenigsten offenen
+    Anfragen hat (Kollegen und ich; bei Gleichstand alphabetisch)."""
+    alle = sorted({k for k in list(kollegen) + [ich] if k})
+    if not alle:
+        return []
+    zustaendig = {str(k.get("kundennr")): str(k.get("zustaendig") or "").strip().upper() for k in kunden or ()}
+    offen = {k: 0 for k in alle}
+    for a in liste:
+        an = (a.zugewiesen or {}).get("an")
+        if an in offen and not a.gesperrt:
+            offen[an] += 1
+    out = []
+    for a in liste:
+        if a.gesperrt or (a.zugewiesen or {}).get("an"):
+            continue
+        an = zustaendig.get(str(a.kunde)) if a.kunde else None
+        if an not in offen:
+            an = min(alle, key=lambda k: (offen[k], k))
+        offen[an] += 1
+        out.append((a, an))
+    return out

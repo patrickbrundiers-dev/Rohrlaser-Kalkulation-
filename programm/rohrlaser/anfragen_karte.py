@@ -105,6 +105,7 @@ class AnfragenKarte:
         auto_zeilen, verschoben = self._ohne_step(dateien, angebote, kunden)
         if verschoben:          # Nachträge liegen jetzt im Angebotsordner: nicht mehr als „ohne STEP“ melden
             ohne = [t for t in ohne if not any(t.startswith(n) for n in verschoben)]
+        self._zuweisen_auto(neu, kunden)
         neu = self._ampel_sortieren(neu)
         self.anfragen, self._stand, self._kunden = neu, st, kunden
         self.liste.clear()
@@ -154,6 +155,24 @@ class AnfragenKarte:
         self._knoepfe_setzen()
 
     # ------------------------------------------------------------------ Automationen 03.11.2026
+    def _zuweisen_auto(self, liste, kunden):
+        """Paket D (E7): neue Anfragen dem Zuständigen des Kunden zuweisen, sonst dem Kollegen mit den wenigsten
+        offenen Anfragen. Nur mit gemeinsamem Ordner; Einstellung 'anfrage_zuweisen' = nein schaltet es aus."""
+        from . import automatik, teilen
+        db = self.f.db
+        if db.nur_lesen or not teilen.aktiv(db) or (db.einstellung("anfrage_zuweisen") or "ja") != "ja":
+            return 0
+        n = 0
+        for a, an in anfragen.zuweisung_vorschlag(liste, kunden, teilen.kollegen(db), teilen.kuerzel(db)):
+            try:
+                neu = anfragen.zuweisen(a, self.ordner(), an, "Automatik", "automatisch zugewiesen")
+            except OSError:
+                continue
+            a.ordner, a.dateien, a.zugewiesen = neu.ordner, neu.dateien, neu.zugewiesen
+            automatik.merken(db, "zuweisung", f"Anfrage „{a.name}“ an {an}")
+            n += 1
+        return n
+
     def _ampel_sortieren(self, liste):
         """Anfrage-Ampel (4a): Frist je Anfrage merken (self._ampeln) und nach Dringlichkeit sortieren; gesperrte
         (in Bearbeitung) ans Ende."""

@@ -81,7 +81,7 @@ SEITEN = (
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
            _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
-                                               "nachkalk_schwelle"),
+                                               "nachkalk_schwelle anfrage_zuweisen angebot_automatik"),
            _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
