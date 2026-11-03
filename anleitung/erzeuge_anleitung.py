@@ -1037,6 +1037,16 @@ def kapitel_angebote(i):
             "Anfrage-Nr. oder Stückzahl gelesen.",
             "<b>Unklare Seiten</b> liest das Programm wie ein Formular; die Zeile im Prüfdialog steht dann in "
             "Gelb mit <i>bitte prüfen</i>.",
+            "<b>Bearbeitungshinweise auf der Zeichnung</b> werden mit Anzahl gelesen: Gewinde (<i>4x M8</i>, "
+            "<i>M10 (2x)</i>), Flowdrill (<i>Flowdrill M8</i>, <i>FDS</i>, <i>Fließloch</i>), Einnietmuttern "
+            "(<i>2 Stk Einnietmutter M6</i>), Senkungen (<i>Senkung DIN 74</i>) und Blindniete. Gewinde und Flowdrill "
+            "hängen sich gelb an die passende Bohrung des STEP-Teils (Fenster <i>Bohrungen prüfen</i>, Art "
+            "<i>… · Zeichnung</i>, Tooltip mit der Fundstelle); bestätigt wird wie bisher. Flowdrill auf einer "
+            "normalen Bohrung (z. B. Ø7,3 für M8) wird erst nach <i>Bestätigen</i> nur noch markiert statt "
+            "geschnitten. Steht keine Anzahl da, gilt die Anzahl der passenden Bohrungen; fehlt die Bohrung oder "
+            "weicht die Anzahl ab, steht ein Hinweis beim Teil. Einnietmuttern und alle Erkennungswörter der "
+            "Zusatzarbeiten (verzinkt, entgratet …) werden gelbe Vorschläge ([[zusatz_erkennen]]). Für Blindniete "
+            "gibt es keine Zusatzarbeit: der Bericht nennt sie zum Ergänzen.",
             "Aus Zeichnungen entstehen <b>keine Positionen</b>: Ein Ordner nur mit Zeichnungen (ohne STEP) erscheint "
             "nicht in der Liste, darunter steht nur ein Hinweis <i>Ohne STEP …</i>. Die Teile dann von Hand anlegen "
             "oder die STEP-Dateien dazulegen.")
@@ -1710,7 +1720,7 @@ def kapitel_angebot(i):
     i.abschnitt("Zusatzarbeiten erkennen (gelbe Vorschläge)", marke="zusatz_erkennen")
     i.text("Jede Zusatzarbeit hat <b>Erkennungswörter</b> (Einstellungen → Zusatzarbeiten, z. B. Feuerverzinken: "
            "„verzinkt; fvz; tZn“). Steht eines davon in der <i>Bezeichnung</i>, der <i>Artikelnummer</i>, dem "
-           "<i>STEP-Namen</i>, der Anfrage-Mail oder der Zeichnung, zeigt die Spalte <i>Zusatzarbeiten</i> gelb "
+           "<i>STEP-Namen</i>, der Anfrage-Mail oder im ganzen Text der Zeichnung, zeigt die Spalte <i>Zusatzarbeiten</i> gelb "
            "„＋ Feuerverzinken ?“. Ein Vorschlag kostet nichts, bis Sie ihn übernehmen.", kurz=True)
     i.liste("Der gelbe Knopf <b>N Vorschläge</b> in der Leiste: <i>Alle Vorschläge übernehmen</i>, <i>Einzeln "
             "prüfen …</i> (Fenster „Arbeitsgänge vorschlagen“ mit Betrag je Teil) oder <i>Alle Vorschläge "
@@ -1726,6 +1736,9 @@ def kapitel_angebot(i):
             "inaktive Zusatzarbeiten, Zukaufteile (dort beschreibt „verzinkt“ das gekaufte Teil) und Schweißbaugruppen "
             "(Arbeitsgänge im Editor). Schlägt eine Regel ([[abrechnungsregeln]]) dieselbe Arbeit vor, steht sie "
             "einmal da, mit der Herkunft der Regel.",
+            "<b>Aus der Zeichnung mit Anzahl</b>: <i>2 Stk Einnietmutter M6</i> schlägt <i>Einnietmuttern setzen</i> "
+            "mit 2 je Teil vor. Ohne STEP (Neue Position <i>Aus PDF-Zeichnung</i>) kommen auch Flowdrill und Senken "
+            "mit ihrer Anzahl als Vorschlag, Gewinde wie <i>4x M8</i> stehen im Gewinde-Vorschlag.",
             "<b>Einnietmuttern aus der Geometrie</b>: Hat das Teil Sechskantlöcher (aus dem STEP-Import oder im "
             "Rohr- bzw. Blech-Editor als Polygon) oder Senkungen, schlägt das Programm <i>Einnietmuttern setzen</i> "
             "vor, Menge = Sechskantlöcher + Senkungen je Teil (Herkunft z. B. „Erkannt: Geometrie 4 Sechskantlöcher, "

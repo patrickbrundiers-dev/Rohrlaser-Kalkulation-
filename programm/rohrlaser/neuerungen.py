@@ -26,8 +26,12 @@ NEUERUNGEN = [
      "klappt sie mit Bildlauf auf. Die Teileliste mit ihren Auswahlfeldern bleibt immer mindestens acht Zeilen hoch, "
      "das Fenster passt auf 1366×768 ([[anfragen]]). Steht <i>Satz</i> bzw. <i>geschweißt</i>/<i>SBG</i> im "
      "Datei- oder Baugruppennamen der STEP, sind <b>Als Satz</b> bzw. <b>als Schweißbaugruppe</b> schon gewählt "
-     "(abwählbar, [[step_satz]]).",
-     "Prüfdialog bei vielen Teilen/PDFs übersichtlich; Satz/Schweißbaugruppe am Namen vorgewählt"],
+     "(abwählbar, [[step_satz]]). <b>Zeichnungen</b>: Gewinde (<i>4x M8</i>), Flowdrill, Einnietmuttern, Senkungen "
+     "und Blindniete werden mit Anzahl aus dem Zeichnungstext gelesen; Gewinde/Flowdrill hängen sich gelb an die "
+     "passende Bohrung (Bohrungen prüfen), Einnietmuttern und Zusatzarbeiten-Wörter werden Vorschläge, Abweichungen "
+     "zum STEP ein Hinweis ([[anfragen]]).",
+     "Prüfdialog bei vielen Teilen/PDFs übersichtlich; Satz/Schweißbaugruppe am Namen vorgewählt; Gewinde, "
+     "Flowdrill, Nieten aus der Zeichnung"],
     ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
      "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
      "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "
