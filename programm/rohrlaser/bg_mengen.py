@@ -7,7 +7,7 @@ Leer bzw. 'von Hand' = Menge wie eingetragen. Rechenweg je Teil wie bei den Zusa
   Gewicht     Rohrlaserteil Metergewicht × Länge (virtuelles Bauteil aus dem Volumen), Zukaufteil 'Gewicht je Teil'
   Oberfläche  Rohrlaserteil Umfang × Länge (ohne Stirnflächen und Innenseite), Blech zweimal die Zuschnittfläche
   Länge       Rohrlaserteile
-  Naht        Nahtgruppen: Länge × Anzahl × (2 bei beidseitig) / 1000
+  Naht        Nahtgruppen: Länge × Anzahl × (2 bei beidseitig) × geschweißt % / 1000
 Menge eines Teils je Stück der (Unter-)Baugruppe = Stück je Knoten × Menge der Knoten dazwischen. Fehlt ein Wert
 (Teil ohne Gewicht), zählt das Teil 0 und 'fehlt' nennt es; nichts wird erfunden.
 Gewicht der Baugruppe für die Vorkalkulation (Wenden): Gewicht von Hand in den Stammdaten, sonst die Summe hier.
@@ -113,8 +113,7 @@ def mengen(bg, positionen, k, knoten_id=""):
         f = baugruppe.faktor(bg, kn)
         if not f:
             continue
-        anzahl = _n(nt.get("anzahl")) if _zahl(nt.get("anzahl")) else 1
-        out["naht"] += _n(nt.get("laenge")) * anzahl * (2 if nt.get("beidseitig") else 1) / 1000 * f / f0
+        out["naht"] += baugruppe.naht_meter(nt, f / f0)
     for s in ("gewicht", "oberflaeche", "laenge", "naht", "teile"):
         out[s] = round(out[s], 4)
     return out
@@ -204,3 +203,38 @@ def text(m):
 
 
 __all__ = ["mengen", "je_knoten", "menge", "gewicht", "anwenden", "text", "BEZUEGE", "BEZUG_ART"]
+
+
+# ------------------------------------------------------------------ Nahtlänge aus einem Teil (Patrick 03.11.2026)
+RUNDUM, LAENGS, ZWEI_SEITEN = "rundum Teil", "Längsnaht Teil", "2 Seiten"
+LAENGE_AUS = (RUNDUM, LAENGS, ZWEI_SEITEN)
+
+
+def naht_laenge_aus(art, p, k):
+    """Länge je Naht [mm] aus einem Einzelteil: rundum = Außenumfang des Profils, Längsnaht = Länge des Teils, 2 Seiten
+    = 2 × Breite (erstes Maß) des Profils. (Länge, Rechenweg) oder (None, was fehlt)."""
+    from . import optimierung as opt
+    from . import rechnen
+    if art not in LAENGE_AUS or not p:
+        return None, None
+    if art == LAENGS:
+        return (round(float(p["laenge"]), 1), f"Länge Pos. {p.get('pos') or ''}") if _zahl(p.get("laenge")) \
+            and p["laenge"] > 0 else (None, "Länge des Teils fehlt")
+    pr = (k.profile.get(p.get("profil_id")) if k is not None else None) or {}
+    if pr.get("a") is None:
+        return None, f"Profil {p.get('profil_id') or ''} unbekannt".replace("  ", " ")
+    if art == ZWEI_SEITEN:
+        return round(2 * float(pr["a"]), 1), f"2 × {_text(pr['a'])} mm ({p.get('profil_id')})"
+    try:
+        u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), rechnen.flaeche_wirksam(pr),
+                       p.get("profil_id"), rechnen.profil_im_angebot(pr, None, p.get("profil_id"),
+                                                                     p.get("werkstoff_id"), k).get("r_aussen"))
+    except (TypeError, ValueError, KeyError, ZeroDivisionError, AttributeError):
+        u = None
+    if not _zahl(u) or u <= 0:
+        return None, f"Umfang von {p.get('profil_id')} unbekannt"
+    return round(float(u), 1), f"Umfang {p.get('profil_id')}"
+
+
+def _text(w):
+    return baugruppe._text(w)

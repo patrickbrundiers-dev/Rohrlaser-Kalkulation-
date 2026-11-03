@@ -1153,6 +1153,13 @@ class UebersichtRahmen(QScrollArea):
         if self.widget() is not None and self.minimumWidth() != (b := self.noetige_breite()):
             self.setMinimumWidth(b)
 
+    def jetzt_anpassen(self):
+        """Breite sofort an den neuen Inhalt anpassen (nach neuen Beträgen): sonst sind lange Beträge bis zum
+        nächsten Durchlauf rechts abgeschnitten (Patrick 03.11.2026 „Werte unsichtbar“)."""
+        if self.widget() is not None:
+            self.widget().layout().activate()
+            self._breite_anpassen()
+
 
 class UebersichtBereich(QWidget):
     """Rechte Seite: Stand der Optimierung, Meldungen, Kennzahlen und Kostenübersicht."""
@@ -1420,7 +1427,9 @@ class UebersichtBereich(QWidget):
         from .kostenbalken import Kostenbalken
         while self.bg_lay.count():
             w = self.bg_lay.takeAt(0).widget()
-            if w is not None:
+            if w is not None:       # sofort weg: sonst liegen die alten Balken bis zum Löschen über den neuen
+                w.hide()
+                w.setParent(None)
                 w.deleteLater()
         self.bg_balken = []
         for titel, teile, posten in gruppen:

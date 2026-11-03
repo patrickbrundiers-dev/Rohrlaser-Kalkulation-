@@ -113,9 +113,12 @@ class Liste(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.spalten)
 
+    kopf_text = {}          # Zeilenkopf gruppierter Zeilen (Kalkulation wie Positionsliste: ▾ ▸ │ └)
+
     def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
         if rolle == Qt.ItemDataRole.DisplayRole:
-            return self.spalten[abschnitt][0] if richtung == Qt.Horizontal else str(abschnitt + 1)
+            return self.spalten[abschnitt][0] if richtung == Qt.Horizontal else \
+                (self.kopf_text.get(abschnitt) or str(abschnitt + 1))
         return None
 
     def wert(self, r, c):
@@ -1095,7 +1098,21 @@ class PositionenModell(QAbstractTableModel):
             return self._data_zelle(index, rolle)
         # Positionen eines Satzes (Patrick 27.10.2026): getönt, an der ersten fett Name und Anzahl Sätze
         art, x = self.spalten[index.column()]
-        if art == "feld" and x.name == "satz":
+        if art == "feld" and x.name == "satz" and s.get("bg"):
+            # Schweißbaugruppe (Patrick 03.11.2026): grün, an der Baugruppe ⚙ Name und Anzahl
+            if rolle == Qt.ItemDataRole.DisplayRole:
+                return satzgruppen.bg_zelltext(s, s["zu"])
+            if rolle == Qt.ItemDataRole.ForegroundRole:
+                return QBrush(stil.farbe(satzgruppen.TEXTE[s["ton"]] if s["erste"] else "#5F6B7A"))
+            if rolle == Qt.ItemDataRole.FontRole and s["erste"]:
+                f = QFont()
+                f.setBold(True)
+                return f
+            if rolle == Qt.ItemDataRole.ToolTipRole:
+                return (f"Schweißbaugruppe {s['name']}: {s['teile']} Einzelteil(e)"
+                        + (f", {s['saetze']} Stk." if s["saetze"] else "")
+                        + (".\nKlick auf ▾/▸ im Zeilenkopf: Einzelteile zu- bzw. aufklappen." if s["teile"] else "."))
+        elif art == "feld" and x.name == "satz":
             if rolle == Qt.ItemDataRole.DisplayRole:
                 return satzgruppen.zelltext(s, s["name"] in self.satz_zu)
             if rolle == Qt.ItemDataRole.ForegroundRole:
@@ -1210,6 +1227,8 @@ class PositionenModell(QAbstractTableModel):
                     " · Tippen oder F2: Artikelnummer ändern"
             if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
+        if rolle == Qt.ItemDataRole.DisplayRole and art == "status":
+            return satzgruppen.kurz(w)          # eine Zeile; ganzer Text im Tooltip (Patrick 03.11.2026)
         if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             if art == "bohrbild" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (wert_als_text(x, w) + "\n" if w not in (None, "") else "") + \
@@ -2172,6 +2191,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
         self.bg_zu, self.bg_zeilen = set(), {}
         self.satz_zu, self.satz_zeilen = set(), {}
+        self._gruppen_laden()               # zugeklappte Gruppen dieses Angebots (03.11.2026)
         # Zusatzarbeiten unter der Position (Patrick 26.10.2026): je Arbeitsschritt eine eingerückte Zeile
         self.unter_texte = {}            # Index der Position -> [(Text, Warnung)] (unterzeilen.schritte)
         unter_an = self.db.einstellung(unterzeilen.EINSTELLUNG) is not False
@@ -2209,6 +2229,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kompakt_unter = Unterzeilen(self.kompakt_ansicht, self._kompakt_unter_texte, 1, an=unter_an)
         self.kompakt_ansicht.setToolTip("Doppelklick: zur Position")
         self.kompakt_ansicht.doubleClicked.connect(self._kompakt_doppelklick)
+        for ansicht, liste in ((self.kompakt_ansicht, self.kompakt), (kalk_ansicht, self.kalk)):
+            ansicht.verticalHeader().sectionClicked.connect(
+                lambda r, a=ansicht, li=liste: self._kalk_kopf_klick(a, li, r))
+            ansicht.verticalHeader().setToolTip("Klick auf ▾/▸: Schweißbaugruppe bzw. Satz zu- oder aufklappen")
         self.kalk_kompakt = QCheckBox("Kompakt")
         self.kalk_kompakt.setToolTip("Kompakt: Profil, Stückzahl, Länge, Material, Oberfläche, Laserzeit berechnet und "
                                      "genutzt, Verkaufspreis je Bauteil.\nOhne Häkchen: alle Spalten der Kalkulation.")
@@ -2220,6 +2244,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         kz = QHBoxLayout()
         kz.addWidget(self.kalk_info, 1)
         self.unter_haken_kalk = self._unter_haken(unter_an)
+        kz.addWidget(self._gruppen_knopf())
         kz.addWidget(self.unter_haken_kalk)
         kz.addWidget(self.kalk_kompakt)
         kl.addLayout(kz)
@@ -2372,7 +2397,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                         "Vorschub, eingeplante Teile usw.")
         el.addWidget(self.pos_info, 1)
         self.unter_haken_pos = self._unter_haken(self.pos_unter.an)
-        for w in (self.unter_haken_pos, self.spalten_knopf, self.zeige_step, self.zeige_berechnet):
+        for w in (self._gruppen_knopf(), self.unter_haken_pos, self.spalten_knopf, self.zeige_step,
+                  self.zeige_berechnet):
             el.addWidget(w)
         for c in (self.zeige_berechnet, self.zeige_step):
             c.toggled.connect(self._spalten_zeigen)
@@ -2644,6 +2670,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self._kopf_ordnet = False
         self.bg_zeilen = {i: bg_id for bg_id, (i, _) in baugruppe.baugruppen(self.positionen).items()} if zu else {}
         self.bg_zu &= set(self.bg_zeilen.values())
+        # Schweißbaugruppen grün wie die Sätze (Patrick 03.11.2026)
+        self.pos_modell.satz.update(satzgruppen.bg_info(self.positionen, self.bg_zu))
         texte = {i: ("▸ " if b in self.bg_zu else "▾ ") + str(i + 1) for i, b in self.bg_zeilen.items()}
         texte.update({j: "└ " + str(j + 1) for j in zu})
         texte.update(satzgruppen.kopf_texte(saetze, self.satz_zu))
@@ -2656,6 +2684,81 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.pos_modell.dataChanged.emit(self.pos_modell.index(0, 0),
                                              self.pos_modell.index(len(self.positionen) - 1,
                                                                    len(self.pos_modell.spalten) - 1))
+        self._kalk_gruppieren()
+        self._gruppen_knopf_setzen()
+
+    def gruppen_alle(self, zu):
+        """Alle Sätze und Schweißbaugruppen zu- bzw. aufklappen (Positionsliste und Kalkulation)."""
+        self.satz_zu = set(self.satz_zeilen.values()) if zu else set()
+        self.bg_zu = set(self.bg_zeilen.values()) if zu else set()
+        self._gruppieren()
+        self._gruppen_merken()
+
+    def _gruppen_knopf_setzen(self):
+        n = len(self.satz_zeilen) + len(self.bg_zeilen)
+        alle_zu = n > 0 and len(self.satz_zu) + len(self.bg_zu) >= n
+        for knopf in getattr(self, "gruppen_knoepfe", ()):
+            knopf.setVisible(n > 0)
+            knopf.setText("▾ Alle Gruppen aufklappen" if alle_zu else "▸ Alle Gruppen zuklappen")
+
+    def _gruppen_knopf(self):
+        """Knopf „Alle Gruppen zu-/aufklappen“ (Sätze und Schweißbaugruppen, Positionsliste und Kalkulation)."""
+        b = QPushButton("▸ Alle Gruppen zuklappen")
+        b.setToolTip("Alle Sätze und Schweißbaugruppen auf eine Zeile zuklappen bzw. wieder aufklappen. Einzeln: "
+                     "Klick auf ▾/▸ im Zeilenkopf. Wird je Angebot gemerkt.")
+        b.clicked.connect(self._gruppen_klick)
+        b.setVisible(False)
+        self.gruppen_knoepfe = getattr(self, "gruppen_knoepfe", []) + [b]
+        return b
+
+    def _gruppen_klick(self):
+        n = len(self.satz_zeilen) + len(self.bg_zeilen)
+        self.gruppen_alle(len(self.satz_zu) + len(self.bg_zu) < n)
+
+    def _gruppen_merken(self):
+        """Zugeklappte Gruppen je Angebot merken (Einstellung ansicht_gruppen_zu, nur dieser Arbeitsplatz)."""
+        if self.db.nur_lesen or not self.id:
+            return
+        alle = dict(self.db.einstellung("ansicht_gruppen_zu") or {})
+        eintrag = dict(satz=sorted(self.satz_zu), bg=sorted(self.bg_zu))
+        if eintrag["satz"] or eintrag["bg"]:
+            alle[str(self.id)] = eintrag
+        else:
+            alle.pop(str(self.id), None)
+        if len(alle) > 200:                 # nur die letzten Angebote merken
+            alle = dict(list(alle.items())[-200:])
+        self.db.einstellung_setzen("ansicht_gruppen_zu", alle)
+
+    def _gruppen_laden(self):
+        try:
+            e = (self.db.einstellung("ansicht_gruppen_zu") or {}).get(str(self.id)) or {}
+        except AttributeError:
+            e = {}
+        self.satz_zu, self.bg_zu = set(e.get("satz") or ()), set(e.get("bg") or ())
+
+    def _kalk_gruppieren(self):
+        """Kalkulation (kompakt und alle Spalten) wie die Positionsliste: zugeklappte Gruppen ausblenden, Zeilenkopf
+        mit ▾ ▸ │ └ (Patrick 03.11.2026)."""
+        kopf = getattr(self.pos_modell, "kopf_text", {}) or {}
+        versteckt = {r for r in range(len(self.positionen)) if self.pos_ansicht.isRowHidden(r)}
+        for liste, ansicht in ((getattr(self, "kalk", None), getattr(self, "kalk_ansicht", None)),
+                               (getattr(self, "kompakt", None), getattr(self, "kompakt_ansicht", None))):
+            if liste is None or ansicht is None:
+                continue
+            liste.kopf_text = {r: kopf[z["zeile"]] for r, z in enumerate(liste.zeilen)
+                               if isinstance(z, dict) and z.get("zeile") in kopf}
+            modell = ansicht.model()
+            for r, z in enumerate(liste.zeilen):
+                q = modell.mapFromSource(liste.index(r, 0)).row() if hasattr(modell, "mapFromSource") else r
+                ansicht.setRowHidden(q, isinstance(z, dict) and z.get("zeile") in versteckt)
+            if liste.zeilen:
+                liste.headerDataChanged.emit(Qt.Vertical, 0, len(liste.zeilen) - 1)
+
+    def _kalk_kopf_klick(self, ansicht, liste, r):
+        modell = ansicht.model()
+        q = modell.mapToSource(modell.index(r, 0)).row() if hasattr(modell, "mapToSource") else r
+        if 0 <= q < len(liste.zeilen) and isinstance(liste.zeilen[q], dict) and liste.zeilen[q].get("zeile") is not None:
+            self._kopf_klick(liste.zeilen[q]["zeile"])
 
     def _kopf_klick(self, zeile):
         """Zeilenkopf einer Schweißbaugruppe: ihre Einzelteile zu- bzw. aufklappen (D3)."""
@@ -2664,9 +2767,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if bg_id:
             self.bg_zu ^= {bg_id}
             self._gruppieren()
+            self._gruppen_merken()
         elif satz:
             self.satz_zu ^= {satz}
             self._gruppieren()
+            self._gruppen_merken()
 
     def _baugruppen_abgleichen(self):
         """Satz, Stück je Satz und Stückzahl der Schweißbaugruppen und ihrer Teile folgen der Struktur
@@ -3224,7 +3329,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")),
             self.kopf.get("versand"))
         markiert = satzgruppen.zeilen_markieren(self.positionen, zeilen)      # Sätze getönt (27.10.2026)
-        self.kalk.setzen([z for z in markiert if z])
+        folge = satzgruppen.anzeige_folge(self.positionen)                    # wie die Positionsliste (03.11.2026)
+        self.kalk.setzen([markiert[i] for i in folge if i < len(markiert) and markiert[i]])
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
@@ -3249,13 +3355,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
+        self.uebersicht_rahmen.jetzt_anpassen()
         self.wiederholteile_anzeigen()
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
-        self.kompakt.setzen(kompakt_zeilen(self.positionen, markiert))
+        self.kompakt.setzen(sorted(kompakt_zeilen(self.positionen, markiert),
+                                   key=lambda z, rang={i: n for n, i in enumerate(folge)}: rang.get(z["zeile"], 0)))
         self.kompakt_ansicht.setColumnHidden(next(c for c, sp in enumerate(KOMPAKT_SPALTEN) if sp[1] == "satz"),
                                              not any(z.get("satz") for z in self.kompakt.zeilen))
         katalog = self.tabellen.get("zusatzarbeiten") or ()
@@ -3264,6 +3372,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.pos_unter.aktualisieren()
         self.kompakt_unter.aktualisieren()
         leere_ausblenden(self.kompakt_ansicht, self.kompakt, KOMPAKT_IMMER)
+        self._kalk_gruppieren()
         self._kalk_info_setzen()
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)

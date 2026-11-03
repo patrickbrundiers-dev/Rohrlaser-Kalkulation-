@@ -198,25 +198,25 @@ z = next(z for z in db.zeilen("zusatzarbeiten") if z["name"] == "Eloxieren E6")
 assert z["art"] == "€/m²" and z["preis"] == 14.5 and z["erkennung"] == "eloxiert; E6"
 assert rechnen.zusatz_liste(s.positionen[r2])[-1]["name"] == "Eloxieren E6"
 s.zusatz_gesperrt = lambda: True                    # Platz nicht als Admin freigeschaltet
-assert s.zusatz_neu_anlegen([r2], ausfuellen(None, None, vorlage="Richten", haken=False)) == "Richten"
-assert "Richten" not in {z["name"] for z in db.zeilen("zusatzarbeiten")}
+assert s.zusatz_neu_anlegen([r2], ausfuellen(None, None, vorlage="Gewindeformen", haken=False)) == "Gewindeformen"
+assert "Gewindeformen" not in {z["name"] for z in db.zeilen("zusatzarbeiten")}
 e = rechnen.zusatz_liste(s.positionen[r2])[-1]
-assert e["name"] == "Richten" and e["quelle"] == EIGEN and e["stand"]["preis"] == 2.5
-assert next(z for z in s._rechnung()[0][r2]["zusatzarbeiten"] if z["name"] == "Richten")["betrag"] == 2.5
-assert "Richten" in db.zusatz_eigene()
+assert e["name"] == "Gewindeformen" and e["quelle"] == EIGEN and e["stand"]["preis"] == 0.6
+assert next(z for z in s._rechnung()[0][r2]["zusatzarbeiten"] if z["name"] == "Gewindeformen")["betrag"] == 0.6
+assert "Gewindeformen" in db.zusatz_eigene()
 dl = ZusatzDialog(s, s.positionen[r1], 1, s.k, s.tabellen, positionen=s.positionen)
 assert "Nur in diesem Angebot" in [dl.liste.item(i).text() for i in range(dl.liste.count())]
-dl.hinzufuegen("Richten")
+dl.hinzufuegen("Gewindeformen")
 dl.stand_verwerfen()                                # behält den Stand (keine Stammdaten)
-assert json.loads(dl.werte()[1])[-1]["stand"]["preis"] == 2.5
-assert s.zusatz_schnell("Richten", [r1]) == 1
-i = db.zusatz_aus_angebot("Richten")
+assert json.loads(dl.werte()[1])[-1]["stand"]["preis"] == 0.6
+assert s.zusatz_schnell("Gewindeformen", [r1]) == 1
+i = db.zusatz_aus_angebot("Gewindeformen")
 z = next(z for z in db.zeilen("zusatzarbeiten") if z["id"] == i)
-assert z["art"] == "€/Stück" and z["preis"] == 2.5 and "gerichtet" in z["erkennung"] and z["kategorie"] == "Nachbearbeitung"
-assert "Richten" not in db.zusatz_eigene()
+assert z["art"] == "€/Stück" and z["preis"] == 0.6 and "geformt" in z["erkennung"] and z["kategorie"] == "Nachbearbeitung"
+assert "Gewindeformen" not in db.zusatz_eigene()
 assert all(e.get("quelle") != EIGEN for p in db.positionen(aid) for e in rechnen.zusatz_liste(p))
 ok("E8 Kurzformular: Admin legt in den Einstellungen an, sonst nur in diesem Angebot (rechnet mit Preisstand, in "
-   "anderen Positionen wählbar); Vorlage Richten; „Aus Angeboten übernehmen“ legt die Stammdaten an")
+   "anderen Positionen wählbar); Vorlage Gewindeformen; „Aus Angeboten übernehmen“ legt die Stammdaten an")
 
 # ------------------------------------------------------------------ E9 Baugruppen-Editor: gleiche Auswahl
 w = ZusatzWahl(None, {z["name"]: z for z in db.zeilen("zusatzarbeiten")}, ["Strahlen"])

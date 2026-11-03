@@ -188,6 +188,7 @@ STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielre
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
+ROHRLASER_ZUSATZ_STAND = "2026-11-03"  # weitere Zusatzarbeiten rund um den Rohrlaser (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -282,6 +283,7 @@ class Datenbank:
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
             self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
+            self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
         self._rp_anpassen()
         self._normprofile_anpassen()
         self._passwort_umstellen()
@@ -509,6 +511,8 @@ class Datenbank:
                 self._fracht_nahbereich()
             if version > 0 and self.einstellung("erkennung_stand") != ERKENNUNG_STAND:
                 self._erkennung_ergaenzen()
+            if version > 0 and self.einstellung("rohrlaser_zusatz_stand") != ROHRLASER_ZUSATZ_STAND:
+                self._rohrlaser_zusatz_ergaenzen()
             if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
@@ -664,6 +668,13 @@ class Datenbank:
             self.con.execute("UPDATE zusatzarbeiten SET erkennung=? WHERE name=? AND (erkennung IS NULL OR "
                              "erkennung='')", (worte, name))
         self._einstellung_schreiben("erkennung_stand", ERKENNUNG_STAND)
+
+    def _rohrlaser_zusatz_ergaenzen(self):
+        """Einmalig: die weiteren Zusatzarbeiten rund um den Rohrlaser (stammdaten.ROHRLASER_ZUSATZ) anlegen, wenn es
+        sie (dem Namen nach) noch nicht gibt; eigene gleichen Namens bleiben. Rechnet nichts anders."""
+        from .stammdaten import rohrlaser_zusatzarbeiten
+        self._einfuegen("zusatzarbeiten", rohrlaser_zusatzarbeiten(), ergaenzen=True)
+        self._einstellung_schreiben("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
 
     def _fracht_richtwerte_da(self):
         """Sind die Fracht-Richtwerte geladen (Tarif RW-PALETTE vorhanden)?"""
