@@ -5267,7 +5267,7 @@ def kapitel_baugruppen(i):
          "möglich</i>"],
         ["Lasche hochkant", "ohne die Stirnseiten in Blechdicke, z. B. 2 × 80 mm statt 170 mm"],
         ["Rohr durch ein Blech", "rundum = Außenumfang, beidseitig"],
-        ["sonst (z. B. Blech flach auf dem Rohr)", "Umfang der Berührfläche"]])
+        ["sonst (z. B. Blech flach auf dem Rohr)", "Umfang der Berührfläche"]], [70 * mm, BREITE - 70 * mm])
     i.text("Die Nahtkandidaten aus STEP zeigen in der Spalte <b>Aufteilung der Länge</b>, wie die Länge entsteht; "
            "nach dem Übernehmen steht sie im Hinweis der Nahtgruppe (<i>Länge aus STEP: …</i>).")
     i.text("<b>Länge aus</b> (Reiter Nahtgruppen) rechnet die Länge ohne STEP aus einem Einzelteil, das du in der "
