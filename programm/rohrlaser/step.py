@@ -1110,6 +1110,14 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             art = "Sonderkontur"
             k["text"] = f"schräge Bohrung Ø{dez(float(d['durchmesser']))} ({dez(round(float(d['schraeg']), 1))}°): " \
                         "Umriss wie STEP"
+        elif art == "Bohrung" and umriss and mkasten and d.get("durchmesser") and \
+                not (d3 and float(d.get("schraeg") or 0) >= SCHRAEG_3D) and \
+                _kreis_abweichung(umriss, float(d["durchmesser"])) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):
+            # Bohrung ganz oder teilweise im Eckradius eines Quadrat-/Rechteckrohrs (Patrick 03.11.2026: „wirklich
+            # jede Kontur“): abgewickelt kein Kreis – Sonderkontur mit dem Umriss der STEP, sonst bis 0,9 mm daneben
+            art = "Sonderkontur"
+            k["text"] = f"Bohrung Ø{dez(float(d['durchmesser']))} auf der Rundung: Umriss wie STEP"
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -1183,6 +1191,21 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
             if abs(q) > 0.05:
                 k["q"] = round(q, 1)
+            if k.get("art") in ("Langloch", "Rechteck") and d.get("zuege") and d.get("laenge") and d.get("breite"):
+                # Grundform nur aus Hüllmaß und Schnittlänge: gegen den gemessenen Umriss prüfen (Patrick 03.11.2026:
+                # ein Sechskant hatte die Schnittlänge eines Langlochs und wurde eines, 0,6 mm daneben)
+                um_ = _offen_umriss(d, k, offen, _z(m, "wandstaerke") or _wand(m))
+                um_ = um_[0] if um_ and not um_[1] else None
+                if um_:     # um die eigene Mitte (der Lauf kann auf der Gegenseite der Wand liegen)
+                    mx_ = (max(p_[0] for p_ in um_) + min(p_[0] for p_ in um_)) / 2
+                    my_ = (max(p_[1] for p_ in um_) + min(p_[1] for p_ in um_)) / 2
+                    um_ = [(p_[0] - mx_, p_[1] - my_) for p_ in um_]
+                if um_ and _grundform_abweichung(
+                        um_, "Langloch" if k["art"] == "Langloch" else "Rechteckausschnitt", float(d["laenge"]),
+                        float(d["breite"]), laengs) > GRUNDFORM_TOL:
+                    for x_ in ("l", "b", "h", "r", "quer"):
+                        k.pop(x_, None)
+                    k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
             if k.get("art") == "sonstige Kontur" and d.get("zuege"):
                 # Ausschnitt ohne Grundform (Kerbe im Schenkel, V-Ausschnitt, Patrick 28.10.2026): echter Umriss wie
                 # in der STEP statt eines Kreises mit dem Hüllmaß
@@ -1257,6 +1280,19 @@ def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
             best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
         return best
     return max(hin, max(zum_zug(x, y) for x, y in soll))
+
+
+def _kreis_abweichung(umriss, d):
+    """Größter Abstand des gemessenen Umrisses [[dx, ds]] (um die Mitte) vom Kreis Ø d [mm], beide Richtungen
+    (Lücken zwischen den Umrisspunkten über den Kreis gezählt)."""
+    pts = [(float(x), float(y)) for x, y in umriss]
+    if len(pts) < 3:
+        return 0.0
+    r = d / 2
+    hin = max(abs(math.hypot(x, y) - r) for x, y in pts)
+    winkel = sorted(math.atan2(y, x) for x, y in pts)
+    luecke = max([b - a for a, b in zip(winkel, winkel[1:])] + [winkel[0] + 2 * math.pi - winkel[-1]])
+    return max(hin, r * (1 - math.cos(min(luecke, math.pi) / 2)))
 
 
 def _eckradius(d):
@@ -1882,6 +1918,29 @@ def von_hand_zuruecknehmen(m):
     return True
 
 
+BLECH_GRENZE = 0.1      # mm: so weit darf eine Innenkontur im Blech-Editor neben der STEP liegen (wie step_gegenprobe)
+
+
+def blech_gegenprobe(b):
+    """Gegenprobe Blech (Patrick 03.11.2026: „wirklich jede Kontur“): Hinweistext, wenn eine Innenkontur nicht wie in
+    der STEP übernommen ist (Abweichung der Messung über BLECH_GRENZE, Form nicht erkannt, oder weniger Konturen mit
+    Lage als gemessen), sonst None. Messungen vor 0.9.237 haben keine Abweichung (nur die Zahl wird verglichen)."""
+    kl = [k for k in (b or {}).get("konturen_lage") or () if isinstance(k, dict)]
+    n = int(float((b or {}).get("innen") or 0))
+    if not kl:
+        return None
+    weit = max((float(k.get("abweichung") or 0) for k in kl), default=0.0)
+    offen = sum(1 for k in kl if k.get("art") == "Kontur")
+    teile = []
+    if weit > BLECH_GRENZE:
+        teile.append(f"Kontur bis {dez(round(weit, 2))} mm neben der STEP")
+    if offen:
+        teile.append(f"{offen} Kontur{'en' if offen > 1 else ''} ohne erkannte Form (nur Schnittlänge)")
+    if n > len(kl):
+        teile.append(f"{n - len(kl)} von {n} Innenkonturen ohne Lage")
+    return "Blech-Gegenprobe: " + ", ".join(teile) + " – im Blech-Editor prüfen" if teile else None
+
+
 def blech_text(m):
     """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
     b = blech(m) or {}
@@ -2321,6 +2380,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
+            gp = blech_gegenprobe(b)
+            if gp:
+                hinweise.append(gp)
             if not wst:
                 hinweise.append("Werkstoff offen")
             if satz:

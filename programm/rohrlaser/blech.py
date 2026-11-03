@@ -704,7 +704,7 @@ def _konturen_mit_lage(liste):
     for k in liste:
         if not isinstance(k, dict) or k.get("x") is None or k.get("y") is None:
             continue
-        z = dict(anzahl=1, x=round(_z(k["x"]), 1), y=round(_z(k["y"]), 1))
+        z = dict(anzahl=1, x=round(_z(k["x"]), 2), y=round(_z(k["y"]), 2))   # 0,01 mm: Lage wie STEP
         art = k.get("art")
         if art == "Bohrung" and _z(k.get("durchmesser")) > 0:
             z.update(art=sw.BOHRUNG, d=round(_z(k["durchmesser"]), 2))
@@ -714,7 +714,8 @@ def _konturen_mit_lage(liste):
                 z["quer"] = True
         elif art == "Rechteck" and _z(k.get("laenge")) > 0:
             lg, br = round(_z(k["laenge"]), 2), round(_z(k.get("breite")), 2)
-            z.update(art=sw.RECHTECK, b=br if k.get("quer") else lg, h=lg if k.get("quer") else br, r=0)
+            z.update(art=sw.RECHTECK, b=br if k.get("quer") else lg, h=lg if k.get("quer") else br,
+                     r=round(_z(k.get("radius")), 2))
         elif art == "Polygon" and len(k.get("punkte") or ()) >= 3:
             z.update(art=sw.POLYGON, punkte="; ".join(f"{_zahl(x)},{_zahl(y)}" for x, y in k["punkte"]))
         else:
