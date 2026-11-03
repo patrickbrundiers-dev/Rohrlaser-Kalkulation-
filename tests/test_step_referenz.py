@@ -329,11 +329,13 @@ for _z in BLECHE:
     _blech_fall(*_z)
 
 
-@fall("BL08", "dünne Platte mit Tasche ist kein Blech (prüfen)", BL / "B08_Platte_mit_Tasche.step")
+@fall("BL08", "dünne Platte mit Tasche ist kein Blech, sondern ein Frästeil (seit 0.9.237)",
+      BL / "B08_Platte_mit_Tasche.step")
 def _(f, p):
     (t,) = analysiere_datei(p)
     f.gleich("kein Blech", t.bauteiltyp in ("Blech", "Blech gekantet"), False)
-    f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
+    f.gleich("Frästeil (Zukaufteil)", t.bauteiltyp, "Frästeil")
+    f.gleich("Merkmal Tasche", "Absatz/Tasche" in (t.drehfraes or {}).get("merkmale", []), True)
 
 
 @fall("BL09", "Flachstahl 100x10 L 800 bleibt Flachstahl", BL / "B09_FL100x10_L800.step")

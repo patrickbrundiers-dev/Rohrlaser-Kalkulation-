@@ -180,6 +180,7 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
+DREHFRAES_STAND = "2026-11-03"     # Zukauf-Kategorien Drehteile und Frästeile (_drehfraes_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
@@ -273,6 +274,7 @@ class Datenbank:
             self.einstellung_setzen("steck_stand", STECK_STAND)
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
+            self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
@@ -495,6 +497,8 @@ class Datenbank:
                 self._werkstoffe_rohrlaser()
             if version > 0 and self.einstellung("voll_stand") != VOLL_STAND:
                 self._voll_ergaenzen()
+            if version > 0 and self.einstellung("drehfraes_stand") != DREHFRAES_STAND:
+                self._drehfraes_ergaenzen()
             if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
@@ -627,6 +631,14 @@ class Datenbank:
         self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                          (vollmaterial.KATEGORIE,))
         self._einstellung_schreiben("voll_stand", VOLL_STAND)
+
+    def _drehfraes_ergaenzen(self):
+        """Einmalig: Zukauf-Kategorien 'Drehteile' und 'Frästeile' anlegen, wenn es sie (dem Namen nach) noch nicht
+        gibt (Dreh- und Frästeile aus dem STEP-Import, Patrick 03.11.2026)."""
+        from . import drehfraes
+        for name in drehfraes.KATEGORIE.values():
+            self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')", (name,))
+        self._einstellung_schreiben("drehfraes_stand", DREHFRAES_STAND)
 
     def _stege_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Stege abtrennen' (€ je Teil) und Prüfregel 'Virtuelles Bauteil prüfen' anlegen,

@@ -150,6 +150,7 @@ class Teil:
     knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
     offene_seite: dict = None   # offenes Rohr geschlossen (step_offenes_rohr): Seite, Lücken, Länge; sonst None
     geschlossen: object = None  # offen gezeichnetes Rohr: Messung mit ergänzter Wand (Teil); sonst None
+    drehfraes: dict = None      # Dreh- oder Frästeil (step_drehfraes): Art, Maße, Merkmale, Fingerabdruck; sonst None
 
     @property
     def pruefstatus(self):
@@ -2622,6 +2623,7 @@ def nach_bezug_drehen(t):
 FLACHSTAHL_BIS = 150.0          # mm
 FLACHSTAHL_LAENGE = 3.0         # Länge mindestens 3 × Breite
 BLECH_DICKE_ANTEIL = 0.2        # Dicke höchstens 1/5 der Breite
+BLECH_DICKE_BLECHMODUS = 0.5    # mit „Flache Teile als: Blech“: Dicke höchstens halbe Breite (Patrick 03.11.2026)
 TOL_BLECH_VOLUMEN = 0.03        # Volumen = Hauptfläche × Dicke auf 3 %
 TOL_EBENE = 0.01                # mm: Flächen in derselben Ebene
 # Gleich dicke, gekantete Körper mit gleichbleibendem Querschnitt bleiben Profile (L, U, C, Kantprofil). Als
@@ -3099,7 +3101,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
         t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]
         t.sicherheit.update(profil="sicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
-        b.pop("laengsseiten_gerade", None)
+        # laengsseiten_gerade bleibt (ab 0.9.237): das Programm bietet Flachstahl nur an, wenn die Größe passt
     else:
         # Außenmaße im System der Hauptfläche: Grundriss = kleinstes umschreibendes Rechteck, Höhe = senkrecht dazu
         ax0 = gp_Ax3(fl["mitte"], fl["richtung"])
@@ -3170,7 +3172,16 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
-    t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    try:
+        t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    except Exception:
+        t = _drehfraes(solid, None, datei, koerper)     # nicht messbar: vielleicht ein Frästeil
+        if t is None:
+            raise
+        return t
+    d = _drehfraes(solid, t, datei, koerper)     # Dreh- oder Frästeil: Zukaufteil (Patrick 03.11.2026)
+    if d is not None and d is not t:
+        return d
     if STEGE:           # vom Programm gewähltes größeres Profil: Winkel/U als virtuelles Bauteil mit Stegen
         try:
             from step_schenkel import mit_stegen, ziel_lesen
@@ -3185,6 +3196,17 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     except Exception:  # Schließen darf die Messung nie verhindern
         t.geschlossen = None
     return t
+
+
+def _drehfraes(solid, t, datei, koerper):
+    """Dreh- oder Frästeil (step_drehfraes.pruefen): das neue Teil, sonst t (ohne Messung: None). Ein Fehler der
+    Prüfung lässt die Messung unverändert."""
+    try:
+        from step_drehfraes import pruefen
+        n = pruefen(solid, t, datei, koerper)
+    except Exception:  # Dreh-/Fräs-Erkennung darf die Messung nie verhindern
+        return t
+    return n if n is not None and (t is not None or n.drehfraes) else t
 
 
 def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
@@ -3216,6 +3238,11 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     if fl and fl["art"] == "eben":
         daten = _blech_daten(solid, fl)
         dicke_ok = fl["dicke"] <= BLECH_DICKE_ANTEIL * daten["breite"] + 1e-6
+        # Patrick 03.11.2026: mit „Flache Teile als: Blech“ (flach_bis 0) ist jedes ebene flache Teil ein Blech, auch
+        # ein dickes schmales (FL 30 × 8, Platte 50 × 50 × 15); Flachstahl bleibt nur als Auswahl im Prüfdialog, wenn
+        # die Größe passt (step.flachstahl_passt). Vierkant (Dicke = Breite) bleibt Vollmaterial.
+        if flach_bis <= 0 and not dicke_ok:
+            dicke_ok = fl["dicke"] <= BLECH_DICKE_BLECHMODUS * daten["breite"] + 1e-6
         if dicke_ok and not ist_flachstahl(daten["laenge"], daten["breite"], daten["laengsseiten_gerade"], flach_bis):
             b = _blech_teil(solid, datei, koerper, fl, volumen, netz, dict(daten))
             # sehr dünn (Schrift/Markierung als eigener Körper, Patrick 29.10.2026): keine Profilmessung als

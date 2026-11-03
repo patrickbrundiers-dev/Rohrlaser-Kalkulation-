@@ -43,7 +43,7 @@ KATEGORIE, INDIVIDUELL, STANDARD = QUELLEN
 POSITION = "Position"
 # Startliste der Kategorien (nur Namen, ohne Aufschläge: die trägt der Anwender selbst ein)
 KATEGORIEN_START = ("Blechteile", "Schrauben und Muttern", "Normteile", "Kaufteile", "Fremdfertigung",
-                    "Profile und Rohre", "Vollmaterial", "Sonstige Zukaufartikel")
+                    "Profile und Rohre", "Vollmaterial", "Drehteile", "Frästeile", "Sonstige Zukaufartikel")
 # Menge eines Zukaufteils gilt je Teil der Position oder je Satz (z. B. 20 Bleche je Rahmen)
 JE_TEIL, JE_SATZ = "Teil", "Satz"
 

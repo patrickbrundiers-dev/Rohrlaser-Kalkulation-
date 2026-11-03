@@ -132,11 +132,15 @@ Versionen von SCHEMA_VERSION:
   geht, trägt "stutzen" = {d, richtung (Umfangswinkel der Achse nach außen), winkel (Neigung gegen rechtwinklig zur
   Rohrachse, + = außen zu Ende B), versatz (Achse quer zur Rohrachse, in Richtung richtung + 90°), x (Kreuzung der
   Achsen längs ab Ende A)} – der Import macht daraus einen Durchbruch. Felder aus 1.24 unverändert.
+- 1.26 (03.11.2026): Dreh- und Frästeile: "bauteiltyp" und "profiltyp" = "Drehteil" bzw. "Frästeil", Block
+  "drehfraes" = {art, durchmesser/innen/laenge (Drehteil) bzw. laenge/breite/hoehe (Frästeil), merkmale, zusatz, text,
+  nur_abmessung (nur nach den Maßen verdächtig: prüfen), volumen, fingerabdruck}; die Messung als Rohr/Profil steht in
+  "alternative". Felder aus 1.25 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.25"
+SCHEMA_VERSION = "1.26"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -170,7 +174,7 @@ def koerper(t):
     if blech:
         aussen = dict(laenge=_r(t.blech.get("laenge")), breite=_r(t.blech.get("breite")),
                       dicke=_r(t.blech.get("dicke")))
-    elif t.profilform in ("Rundrohr", "Rundstahl"):
+    elif t.profilform in ("Rundrohr", "Rundstahl", "Drehteil"):
         aussen = dict(durchmesser=_r(t.abm_a))
     elif t.profilform in ("Quadratrohr", "Vierkantstahl"):
         aussen = dict(a=_r(t.abm_a), b=_r(t.abm_a))
@@ -181,7 +185,7 @@ def koerper(t):
                                                                                          b=_r(t.innen_b))
     else:
         innen = None
-    if gemessen and t.profilform not in VOLL and not blech:
+    if gemessen and t.profilform not in VOLL + ("Drehteil", "Frästeil") and not blech:
         wand = dict(wert=_r(t.wandstaerke), minimum=_r(min([m[3] for m in t.wand_messungen] + [t.wandstaerke])),
                     maximum=_r(max([m[3] for m in t.wand_messungen] + [t.wandstaerke])),
                     einzelmessungen=[dict(z=_r(z), x=_r(x), y=_r(y), wert=_r(w), seite=s)
@@ -244,6 +248,7 @@ def koerper(t):
         if t.knick_schenkel else None,
         "offene_seite": dict(t.offene_seite) if t.offene_seite else None,
         "geschlossen": {k: v for k, v in koerper(t.geschlossen).items() if k != "nr"} if t.geschlossen else None,
+        "drehfraes": dict(t.drehfraes) if t.drehfraes else None,
     }
 
 
