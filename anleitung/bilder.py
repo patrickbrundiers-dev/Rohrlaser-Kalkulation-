@@ -998,6 +998,9 @@ def main(ziel):
     step_messen.main(["--ausgabe", str(offen_tmp / "m.txt"), "--netze", str(offen_tmp / "netze"),
                       str(WURZEL / "tests" / "step_offen" / "OR1_U_offen_RE60x40x3.step")])
     mw = step_.lade_netze(step_.lies_messwerte(offen_tmp / "m.txt"), offen_tmp / "netze")
+    for m_ in mw:   # U mit scharfen Schenkelenden ist seit 0.9.249 ein Kantteil: in der Spalte Art aus dem Rohr gewählt
+        if m_.get("profilform") == "Blech gekantet" and step_.geschlossen(m_):
+            step_.rohr_wechseln(m_)
     d = StepPruefDialog(f, mw, db.kontext(), "S235-10219", 1)
     d.resize(1300, 560)
     d.show()

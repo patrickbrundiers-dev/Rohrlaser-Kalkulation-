@@ -142,6 +142,7 @@ class _Zeile:
         self.it, self.liste, self.pr, self.ws, self.sp, self.vorschlag, self.datei = it, liste, pr, ws, sp, vorschlag, datei
         self.werte = {"einzeln": stueck or 0, "satz": je_satz}
         self.blech = blech      # Blech, Vollmaterial: pr = Wahl des Zukaufartikels (Artikel-ID, None = automatisch)
+        self.haken_hand = False     # Häkchen von Hand gesetzt (folgt dann nicht mehr „als Schweißbaugruppe“)
 
 
 class StepPruefDialog(QDialog):
@@ -157,6 +158,7 @@ class StepPruefDialog(QDialog):
     leer (offen), bis er gewählt wird, und Bleche mit Prüfstatus 'prüfen' sind erst nach Anhaken gewählt."""
     BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
     VOLLGRUPPE = "Vollmaterial (Zukaufteile, gesägt)"
+    DREHGRUPPE = "Dreh- und Frästeile (Zukaufteile, nicht lasern)"
     AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
     # Hinweis gleich hinter dem Teil (Plan Angebotsablauf V2: bei 1366 px sichtbar, ganzer Text im Tooltip)
     SPALTEN = ("Artikelnummer ✎", "In Datei", "Hinweis", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl",
@@ -168,7 +170,7 @@ class StepPruefDialog(QDialog):
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
                  zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
-                 vorhandene_artikel=None, blech_daten=None):
+                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -182,11 +184,14 @@ class StepPruefDialog(QDialog):
         Lieferzeit, Werkstoff), stehen unter dem Kunden zum Prüfen. pdf_formulare = gelesene PDFs der Anfrage mit ihren
         Seiten (pdf_art): je Datei eine Zeile „Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl; pdf_neu(Datei, Wahl)
         ordnet Stückzahlen und Werkstoffe danach neu zu (die Zeilen werden aufgefrischt). vorhandene_artikel =
-        Artikelnummern, die schon im Angebot stehen (Spalte Artikelnummer gelb mit Hinweis). blech_daten (werkstoffe,
-        laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten."""
+        Artikelnummern, die schon im Angebot stehen (Spalte Artikelnummer gelb mit Hinweis). flach_grenzen =
+        (Flachstahl bis Breite, Länge ab × Breite) aus den Einstellungen: nur Bleche in dieser Größe bieten
+        „Flachstahl“ als andere Art an (Patrick 03.11.2026; None = Vorgabe 150 mm, 3 × Breite). blech_daten
+        (werkstoffe, laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten."""
         from . import step
         super().__init__(parent)
         self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
+        self.flach_grenzen = tuple(flach_grenzen or (None, None))
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
         self.pdf_danach = False         # Knopf „Übernehmen und Angebot (PDF)“
         self.fertig_danach = False      # Knopf „Übernehmen und fertigstellen“ (Paket D, E1)
@@ -266,7 +271,8 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setToolTip("Den Satz als Schweißbaugruppe anlegen: Unterbaugruppen mit Menge aus der STEP-Datei, "
                                  "Einzelteile zugeordnet. Nahtgruppen und Arbeitsgänge danach im Editor ergänzen.")
         self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)) or
-                                      self.ziel_wahl.setEnabled(bool(an)) or self._satz_anzeigen())
+                                      self.ziel_wahl.setEnabled(bool(an)) or self._zukauf_haken(self.datei, an) or
+                                      self._satz_anzeigen())
         sl.addSpacing(12)
         sl.addWidget(self.bg_haken)
         # P8: Datei als Unterbaugruppe in die Schweißbaugruppe einer anderen Datei dieses Imports einhängen
@@ -557,10 +563,14 @@ class StepPruefDialog(QDialog):
     def _baum_fuellen(self):
         """Rohrliste aufbauen (auch nach einem Wechsel der Art): je Datei und Profil eine Gruppe, je Gruppe gleicher
         Teile eine Zeile; Eingaben stehen in den Messwerten (_uebernehmen, _werkstoff, _stueck …)."""
-        from . import anbau, step, zukauf
+        from . import anbau, drehfraes, step, zukauf
         messwerte, k, werkstoff, stueck, zukauf_liste = (self.messwerte, self.k, self.werkstoff, self.stueck,
                                                          self.zukauf_liste)
         mit_blechen = zukauf_liste is not None
+        if mit_blechen:     # Werkstoff der Bleche wie die Rohre der Datei, sonst S235 (Patrick 03.11.2026)
+            step.drehfraes_vorbelegen(messwerte, k.profile)    # Buchse u. ä. mit Profil in den Stammdaten: Rohr
+            step.kantprofil_vorbelegen(messwerte, k.profile)   # Kantteil mit Profil in den Stammdaten: Profil
+            step.bleche_werkstoff_vorbelegen(messwerte, werkstoff, k.werkstoffe, self.blech_werkstoffe)
         self.baum.clear()
         self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
         self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
@@ -585,8 +595,10 @@ class StepPruefDialog(QDialog):
             datei = m.get("datei")
             ist_blech = step.blech(m) is not None
             ist_voll = mit_blechen and not ist_blech and step.ist_voll(m)     # Rund-/Vierkantstahl: Zukaufteil
-            ist_zk = ist_blech or ist_voll
+            ist_df = mit_blechen and not ist_blech and drehfraes.ist(m)      # Dreh-/Frästeil: Zukaufteil
+            ist_zk = ist_blech or ist_voll or ist_df
             vorschlag = self.BLECHGRUPPE if ist_blech else self.VOLLGRUPPE if ist_voll else \
+                self.DREHGRUPPE if ist_df else \
                 step.profil_vorschlag(m, k.profile)
             fehlt = not ist_zk and vorschlag not in k.profile
             g = self.gruppen.get((datei, vorschlag))
@@ -602,9 +614,10 @@ class StepPruefDialog(QDialog):
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
             it.setData(0, Qt.UserRole + 1, it.text(0))       # Artikelnummer beim Aufbau (Doppelklick ändert sie)
-            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen" and not m.get("_normteil"))
-                        is not False) if ist_blech \
-                else m.get("_uebernehmen", not m.get("_normteil")) is not False if ist_voll else step.gewaehlt(m)
+            # Zukaufteile (Bleche, Vollmaterial, Dreh-/Frästeile; Patrick 03.11.2026): nur mit „als Schweißbaugruppe“
+            # automatisch angehakt, sonst entscheidest du selbst (nicht angehakt)
+            gewaehlt = m.get("_uebernehmen", bool(self.baugruppe.get(datei)) and not m.get("_normteil")) \
+                is not False if ist_zk else step.gewaehlt(m)
             anbauteil = self.anbau_von.get(erster) if self.anbau_weglassen else None
             if anbauteil is not None and "_uebernehmen" not in m:
                 gewaehlt = False
@@ -624,6 +637,8 @@ class StepPruefDialog(QDialog):
                 if anbau.offen(anbauteile):
                     it.setBackground(self.SP_ANBAU, QBrush(stil.farbe("#FFEB9C")))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if step.kant_grund(m):
+                hinweis.append(step.kant_grund(m))
             if m.get("_knickrahmen"):
                 from . import knickverbindung
                 hinweis.append(knickverbindung.text(m) + (
@@ -635,6 +650,14 @@ class StepPruefDialog(QDialog):
                 hinweis.append(f"Anbauteil von {anbauteil}: nicht übernehmen (nur Gravur auf dem Rohr)")
             if ist_voll:
                 hinweis.append(f"{step.voll_text(m)}: wird Zukaufteil (EK aus Gewicht × €/kg, Sägen als Zusatzarbeit)")
+            if ist_df:
+                hinweis.append(f"{drehfraes.text(m)}: wird Zukaufteil, nicht gelasert (EK beim Lieferanten anfragen)")
+                if m.get("pruefstatus") == "prüfen":
+                    hinweis.append("PRÜFEN – nur nach den Maßen erkannt, zum Übernehmen anhaken (sonst Art: Rohr/Profil)")
+            if m.get("_df_zurueck"):
+                hinweis.append("Profil steht in den Stammdaten: als Rohr/Profil statt Dreh-/Frästeil (Art umstellbar)")
+            if m.get("_kp_zurueck"):
+                hinweis.append("Kantprofil steht in den Stammdaten: als Profil statt Blech gekantet (Art umstellbar)")
             if ist_blech:
                 hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil" + self._blech_richtwerte(m))
                 if m.get("pruefstatus") == "prüfen":
@@ -672,9 +695,25 @@ class StepPruefDialog(QDialog):
                 pr.setCurrentIndex(max(pr.findData(m.get("_blech_artikel")), 0) if m.get("_blech_artikel") else 0)
                 pr.setToolTip("Zukaufartikel des Blechs: automatisch = gleicher vorhandener Artikel, sonst neu anlegen "
                               "(ohne Einkaufspreis)")
-                ws.setCurrentText(m.get("_werkstoff") or "")     # Werkstoff wird bei Blechen nie angenommen
-                ws.setToolTip("Blech-Werkstoff (wie im Blech-Editor); leer = offen (wird nicht angenommen). Mit "
-                              "Werkstoff bekommt ein neuer Zukaufartikel den Blech-Richtpreis als EK.")
+                ws.setCurrentText(m.get("_werkstoff") or "")     # wie die Rohre der Datei, sonst S235
+                ws.setToolTip("Blech-Werkstoff (wie im Blech-Editor): ohne eigene Wahl wie die Rohre der Datei, "
+                              "sonst S235 (gelb = automatisch); leer = offen. Mit Werkstoff bekommt ein neuer "
+                              "Zukaufartikel den Blech-Richtpreis als EK.")
+                if m.get("_ws_grund") and m.get("_werkstoff") == m.get("_ws_auto"):
+                    hinweis.append(f"{m['_ws_grund']}: {m['_werkstoff']}")
+            elif ist_df:                    # Zukaufartikel: automatisch oder ein gleicher vorhandener Artikel
+                pr.addItem(self.AUTOMATISCH, None)
+                ws_m = m.get("_werkstoff", werkstoff) or None
+                gleich, aehnlich = drehfraes.dubletten(drehfraes.daten(m), ws_m, zukauf_liste)
+                for a, art_ in [(a, "gleich") for a in gleich] + [(a, "ähnlich") for a in aehnlich]:
+                    pr.addItem(f"{a.get('bezeichnung')} ({art_}" + (", EK fehlt)" if zukauf.ek_fehlt(a) else ")"),
+                               a["id"])
+                hinweis.append(f"vorhanden: {gleich[0].get('bezeichnung')}" if gleich else
+                               f"neuer Zukaufartikel (Kategorie {drehfraes.KATEGORIE[m['profilform']]}), EK fehlt")
+                pr.setCurrentIndex(max(pr.findData(m.get("_blech_artikel")), 0) if m.get("_blech_artikel") else 0)
+                pr.setToolTip("Zukaufartikel des Dreh-/Frästeils: automatisch = gleiches Teil aus einer früheren Anfrage "
+                              "(Geometrie und Werkstoff gleich, mit seinem EK), sonst neu anlegen (EK fehlt)")
+                ws.setCurrentText(ws_m or "")
             elif ist_voll:                  # Zukaufartikel: automatisch oder ein vorhandener Vollmaterial-Artikel
                 from . import vollmaterial
                 pr.addItem(self.AUTOMATISCH, None)
@@ -717,7 +756,10 @@ class StepPruefDialog(QDialog):
             art = QComboBox()
             art.addItem(step.art_text(m, alt) + (f" – {step.VON_HAND}" if m.get("_original") else ""), None)
             zu = step.geschlossen(m)
-            if alt and not step.rohr_geschlossen(m):     # die andere Messung gehört zum offenen Teil
+            # Flachstahl bei Blechen nur, wenn die Größe passt (Patrick 03.11.2026: Bleche immer als Blech)
+            flach_nein = ist_blech and (alt or {}).get("profilform") == "Flachstahl" and \
+                not step.flachstahl_passt(m, *self.flach_grenzen)
+            if alt and not step.rohr_geschlossen(m) and not flach_nein:     # die andere Messung gehört zum offenen Teil
                 art.addItem(step.art_text(alt, m), "alt")
             if step.schalen(m):     # Halbschalen: mehrere je Rohrumfang ↔ eine je Rohr mit Ringen
                 art.addItem(step.art_text(dict(m, _schalen=not step.schalen_gewaehlt(m))), "schalen")
@@ -743,8 +785,13 @@ class StepPruefDialog(QDialog):
             z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
                        m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
                        m.get("_je_satz") or len(liste), ist_zk)
+            z.haken_letzt = it.checkState(0)
             sp.setValue(z.werte[self._modus(datei)])
             self._vorschlag_faerben(z, m)
+            if ist_blech:       # gelb nur, solange der automatische Werkstoff gilt
+                ws.currentTextChanged.connect(lambda t, z=z, m=m: self._blech_ws_faerben(z, m))
+            elif not ist_zk:    # Werkstoff eines Rohrs geändert: automatische Blech-Werkstoffe der Datei nachziehen
+                ws.currentTextChanged.connect(lambda t, d=datei: self._bleche_nachziehen(d))
             sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
             if datei in self.baugruppen:       # Farbe des Teils in der Baugruppen-Ansicht
                 punkt = QPixmap(12, 12)
@@ -910,10 +957,50 @@ class StepPruefDialog(QDialog):
         else:
             z.sp.setToolTip("")
             z.sp.setStyleSheet("")
+        from . import step
+        if z.ws is not None and step.blech(m) is not None:
+            self._blech_ws_faerben(z, m)
         if z.ws is not None and not z.blech:
             z.ws.setStyleSheet(gelb if m.get("_werkstoff_quelle") else "")
             z.ws.setToolTip(f"Werkstoff aus {m['_werkstoff_quelle']} – bitte prüfen" if m.get("_werkstoff_quelle")
                             else z.ws.toolTip())
+
+    def _blech_ws_faerben(self, z, m):
+        """Werkstoff eines Blechs gelb, solange er automatisch gesetzt ist (wie die Rohre bzw. Vorgabe S235)."""
+        auto = bool(m.get("_ws_auto")) and z.ws.currentText() == m.get("_ws_auto")
+        z.ws.setStyleSheet(f"background: {stil.farbe(stil.GELB_FLAECHE).name()};" if auto else "")
+
+    def _bleche_nachziehen(self, datei):
+        """Werkstoff eines Rohrs der Datei geändert: Bleche mit automatischem Werkstoff neu anpassen (selbst gewählte
+        bleiben)."""
+        from . import step
+        if self.zukauf_liste is None or getattr(self, "_ziehe_nach", False):
+            return
+        bleche = [z for z in self.zeilen if z.datei == datei and step.blech(self.messwerte[z.liste[0]]) is not None]
+        if not bleche:
+            return
+        for z in self.zeilen:
+            if z.datei != datei or z.blech:
+                continue
+            for i in z.liste:
+                self.messwerte[i]["_werkstoff"] = z.ws.currentText() or None
+        for z in bleche:            # eigene Wahl im Feld übernehmen, damit sie bleibt
+            for i in z.liste:
+                m = self.messwerte[i]
+                if (z.ws.currentText() or None) != m.get("_ws_auto"):
+                    m["_werkstoff"] = z.ws.currentText() or None
+        step.bleche_werkstoff_vorbelegen(self.messwerte, self.werkstoff, self.k.werkstoffe, self.blech_werkstoffe)
+        self._ziehe_nach = True
+        try:
+            for z in bleche:
+                m = self.messwerte[z.liste[0]]
+                if m.get("_werkstoff") == m.get("_ws_auto") and z.ws.currentText() != m["_werkstoff"]:
+                    z.ws.setCurrentText(m["_werkstoff"] or "")
+                    alt = [h for h in z.it.text(self.SP_HINWEIS).split("; ") if not h.startswith("Werkstoff ")]
+                    z.it.setText(self.SP_HINWEIS, "; ".join(alt + [f"{m['_ws_grund']}: {m['_werkstoff']}"]))
+                self._blech_ws_faerben(z, m)
+        finally:
+            self._ziehe_nach = False
 
     TEILE_MIN = 8       # Teileliste mindestens so viele Zeilen hoch
     PDF_EINZELN = 3     # bis zu so vielen PDFs stehen sie einzeln im Kopf, darüber zusammengefasst
@@ -1103,7 +1190,7 @@ class StepPruefDialog(QDialog):
             vorn = "" if datei in self.baugruppen or n == 1 else f"{Path(str(datei)).stem} · "
             g.setText(0, f"{vorn}{vorschlag or 'ohne Profil'} – {anz} Teil{'e' if anz != 1 else ''}"
                       + ("  (Profil fehlt in den Stammdaten)" if vorschlag not in self.k.profile
-                         and vorschlag not in (self.BLECHGRUPPE, self.VOLLGRUPPE) else ""))
+                         and vorschlag not in (self.BLECHGRUPPE, self.VOLLGRUPPE, self.DREHGRUPPE) else ""))
         if springen:
             ziel = self.baugruppen.get(d) or next((g for (datei, _), g in self.gruppen.items() if datei == d),
                                                   None) or self.fehler_gruppen.get(d)
@@ -1284,7 +1371,8 @@ class StepPruefDialog(QDialog):
                 self.ansicht.setzen(knickverbindung.netz_gefaltet(self.messwerte, m) or m.get("_netz"),
                                     m.get("artikel") or "", knickverbindung.text(m))
                 return
-            self.ansicht.setzen(m.get("_netz"), m.get("artikel") or "", _messinfo(m))
+            from . import step
+            self.ansicht.setzen(step.netz_der_art(m), m.get("artikel") or "", _messinfo(m))
         elif it is not None and it.data(1, Qt.UserRole) is not None:   # nicht übernehmbar: Grund und wo es sitzt
             i = it.data(1, Qt.UserRole)
             m = self.messwerte[i]
@@ -1522,8 +1610,30 @@ class StepPruefDialog(QDialog):
         it.setFlags(it.flags() & ~Qt.ItemIsEditable)
         return True
 
+    def _zukauf_haken(self, datei, an):
+        """„als Schweißbaugruppe“ umgeschaltet: die Zukaufteile der Datei (Bleche, Vollmaterial, Dreh-/Frästeile)
+        folgen (an = angehakt), außer ihr Häkchen wurde von Hand gesetzt oder es ist ein Normteil."""
+        if not hasattr(self, "zeilen"):
+            return
+        alt = self.baum.blockSignals(True)
+        try:
+            for z in self.zeilen:
+                if z.datei != datei or not z.blech or z.haken_hand:
+                    continue
+                if any(self.messwerte[i].get("_normteil") for i in z.liste):
+                    continue
+                z.it.setCheckState(0, Qt.Checked if an else Qt.Unchecked)
+                z.haken_letzt = z.it.checkState(0)
+        finally:
+            self.baum.blockSignals(alt)
+        self._vor_uhr.start()
+
     def _artikel_geaendert(self, it, spalte):
         z = self._zeile(it)
+        if z and spalte == 0 and z.blech and it.checkState(0) != getattr(z, "haken_letzt", it.checkState(0)):
+            z.haken_hand = True         # nur ein geändertes Häkchen zählt als von Hand
+        if z:
+            z.haken_letzt = it.checkState(0)
         if z and spalte == 0 and it.text(0) != it.data(0, Qt.UserRole + 1):
             alt = self.baum.blockSignals(True)
             try:

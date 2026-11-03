@@ -6182,11 +6182,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.db.position_aendern(pid, f, w)
         return hinweis
 
-    def saetze_anwenden(self, satz, n, je=None):
+    def saetze_anwenden(self, satz, n, je=None, kosten=None):
         """n Sätze (und Stück je Satz je = {Positions-ID: Wert}) in die Positionen des Satzes schreiben, ohne neu zu
-        laden. Ergebnis: Anzahl geänderter Positionen."""
-        from . import satz_menge
+        laden; kosten {Art: € je Satz} legt die Zukaufkosten je Satz auf die Teile um (satz_kosten.py). Ergebnis:
+        Anzahl geänderter Positionen."""
+        from . import satz_kosten, satz_menge
         aend = satz_menge.saetze_setzen(self.positionen, satz, n, je)
+        if kosten:
+            aend = list(aend) + satz_kosten.verteilen(self.positionen, satz, kosten, je)
         for pid, f, w in aend:
             self.db.position_aendern(pid, f, w)
         return len({pid for pid, _, _ in aend})
@@ -6213,7 +6216,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = SatzDialog(self, satz, self.positionen, nur_lesen=bool(self.fremd() or self.db.nur_lesen))
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.saetze is None:
             return False
-        n = self.saetze_anwenden(satz, d.saetze, d.je)
+        n = self.saetze_anwenden(satz, d.saetze, d.je, d.kosten)
         if n:
             self.neu_laden()
         self.f.meldung(f"Satz {satz}: {d.saetze} {'Satz' if d.saetze == 1 else 'Sätze'}, {n} Position(en) geändert."
@@ -6803,6 +6806,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                   or referenz else None, hinweis=hinweis,
                                   pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu,
                                   vorhandene_artikel=[p.get("artikel") for p in self.positionen],
+                                  flach_grenzen=(self.db.einstellung("flachstahl_bis") or 150,
+                                                 self.db.einstellung("step_flach_laenge") or 3.0),
                                   blech_daten=blech_daten)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
@@ -6843,8 +6848,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.db.profile_anlegen(erg["profile"])
         neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
                     for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
-        bleche_neu = [b for w, b in erg["zukauf_neu"].values() if not vollmaterial.ist_voll(w)]
-        voll_neu = len(erg["zukauf_neu"]) - len(bleche_neu)
+        from . import drehfraes
+        df_neu = [w for w, _ in erg["zukauf_neu"].values() if w.get("artikeltyp") in drehfraes.ARTEN]
+        bleche_neu = [b for w, b in erg["zukauf_neu"].values() if not vollmaterial.ist_voll(w)
+                      and w.get("artikeltyp") not in drehfraes.ARTEN]
+        voll_neu = len(erg["zukauf_neu"]) - len(bleche_neu) - len(df_neu)
+        if df_neu:
+            erg["bericht"].append(f"{len(df_neu)} Zukaufartikel (Dreh-/Frästeil) neu angelegt, ohne EK: bitte beim "
+                                  "Lieferanten anfragen und unter Zukaufartikel mit 'EK eintragen …' nachtragen.")
         ohne_ek = sum(not any(b.get("preise") for b in bezuege) for bezuege in bleche_neu)
         if voll_neu:
             erg["bericht"].append(f"{voll_neu} Zukaufartikel (Vollmaterial) neu angelegt, EK = Gewicht × €/kg "

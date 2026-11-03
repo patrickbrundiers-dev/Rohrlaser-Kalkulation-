@@ -1649,8 +1649,9 @@ def kapitel_angebot(i):
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
            "die <b>Anzahl Sätze</b> mit − und +, darunter jede Position mit <b>Stück je Satz</b>. Die Stückzahlen "
-           "rechnen sich sofort mit (Sätze × Stück je Satz); OK schreibt alles als einen Schritt für Strg+Z.",
-           kurz=True)
+           "rechnen sich sofort mit (Sätze × Stück je Satz); OK schreibt alles als einen Schritt für Strg+Z. "
+           "Hat der Satz Zukaufteile, steht darunter <b>Einkauf je Satz</b>: je ein Feld für <b>Bleche</b>, "
+           "<b>Vollmaterial</b> und <b>Dreh-/Frästeile</b> (EK in € für einen ganzen Satz).", kurz=True)
     i.genauer()
     i.liste("Auch direkt in der Liste passen die beiden Spalten zusammen: Wer <b>Stück je Satz</b> ändert, bekommt "
             "die Stückzahl passend zur Anzahl Sätze dazu. Wer die <b>Stückzahl</b> einer Satzposition ändert, bekommt "
@@ -1658,6 +1659,10 @@ def kapitel_angebot(i):
             "Geht das nicht in ganzen Stück auf (z. B. 7 Stück bei 3 Sätzen), wird nichts gerundet: Die Stückzahl "
             "bleibt wie getippt, Stück je Satz bleibt, und ein Hinweis erscheint (z. B. für Ersatzteile). Die Prüfung "
             "zeigt dann „unterschiedliche Anzahl Sätze“; das Angebot rechnet wie bisher mit der größten Anzahl.",
+            "<b>Einkauf je Satz</b>: Der Betrag × Anzahl Sätze wird auf die Positionen dieser Art umgelegt, nach "
+            "Gewicht (fehlt bei einem Teil das Gewicht: nach Stück). Er ersetzt den EK aus den Artikeln nur in diesem "
+            "Angebot; die Artikel bleiben unverändert. Auf Zukaufteile kommt wie immer nur der Aufschlag, kein "
+            "Gewinn. Feld leer (<i>aus den Artikeln</i>) = wieder der EK der Artikel.",
             "Hatten die Positionen eines Satzes bisher unterschiedlich viele Sätze, sagt es das Fenster; mit OK haben "
             "alle die Anzahl oben. Geänderte Stückzahlen stehen fett, darunter die Teile gesamt vorher und nachher.",
             "Im Fenster <i>Satz in 3D</i> ([[satz_3d]]) steht dasselbe Feld <b>Anzahl Sätze</b> neben „Satz als "
@@ -2567,7 +2572,10 @@ def kapitel_step(i):
     i.text("Bleche erkennt der Import selbst. Sie werden nicht gelasert, sondern <b>Zukaufteil-Positionen</b> mit "
            "einem Blechartikel; im Prüfdialog stehen sie in der grünen Gruppe <b>Bleche (Zukaufteile, nicht "
            "lasern)</b>. Werkstoff wählen, dann gibt es einen Richtpreis. Rund- und Vierkantstahl werden ebenso "
-           "Zukaufteile (Gruppe <b>Vollmaterial (Zukaufteile, gesägt)</b>).")
+           "Zukaufteile (Gruppe <b>Vollmaterial (Zukaufteile, gesägt)</b>). Seit 0.9.249 sind alle Zukaufteile "
+           "(Bleche, Vollmaterial, Dreh- und Frästeile) nur dann <b>angehakt</b>, wenn die Datei <i>als "
+           "Schweißbaugruppe</i> kommt; sonst entscheidet man selbst mit dem Haken, ob sie ins Angebot kommen. "
+           "Einen von Hand gesetzten Haken ändert das Umschalten der Baugruppe nicht.")
     i.genauer()
     i.text("Vor der Profilmessung prüft der STEP-Import, ob ein Körper ein <b>Blech</b> ist. Ein Blech hat zwei "
            "parallele Hauptflächen, ist überall gleich dick (das Volumen entspricht Hauptfläche × Dicke) und ist "
@@ -2585,9 +2593,12 @@ def kapitel_step(i):
             "eigene Zeile erhalten. Liegt eine Kontur mehr als 0,1 mm neben der STEP, bekommt die Position den "
             "Hinweis <i>Blech-Gegenprobe: …</i>.",
             "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
-            "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech). "
-            "Flachstahl ist in der Spalte <b>Art</b> bei jedem flachen Teil wählbar und wird dann wie ein Rohr "
-            "übernommen und kalkuliert. Steht die Einstellung auf <i>Flachstahl bis Breite</i>, gilt die alte "
+            "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech), "
+            "auch dicke schmale Teile wie 30 × 8 oder eine Platte 50 × 50 × 15 (Dicke bis halbe Breite; ein "
+            "Vierkant bleibt Vollmaterial). <b>Flachstahl</b> steht in der Spalte <b>Art</b> nur zur Wahl, wenn das "
+            "Blech von der Größe her ein Flachstahl sein kann: gerade Längsseiten, höchstens so breit wie <i>STEP-"
+            "Import: Flachstahl bis Breite</i> (Vorgabe 150 mm) und mindestens dreimal so lang wie breit (seit "
+            "0.9.249); gewählt wird er wie ein Rohr übernommen und kalkuliert. Steht die Einstellung auf <i>Flachstahl bis Breite</i>, gilt die alte "
             "Abgrenzung: Flachstahl, wenn das Teil höchstens so breit ist wie in <i>STEP-Import: Flachstahl bis "
             "Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang wie breit ist und gerade Längsseiten hat; alles "
             "andere Flache ist ein Blech.",
@@ -2595,18 +2606,31 @@ def kapitel_step(i):
             "gekantet</i>, immer mit Prüfstatus <i>prüfen</i>. Der Import wickelt das Teil ab (k = 0,33, scharfe "
             "Kante: Innenradius = Blechdicke): Zuschnitt, Schenkel-Außenmaße, Biegelinien, alle Innenkonturen und "
             "der Schneidweg kommen aus der Abwicklung. Auch mehrachsig gekantete Teile (Schale, Kasten) werden "
-            "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Ein Kantteil mit "
-            "gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder C-Profil, weil es als "
-            "Stangenmaterial auf dem Rohrlaser geschnitten werden kann; als Art lässt sich <i>Kantteil</i> wählen. "
-            "Ist es scharfkantig gezeichnet (ohne Biegeradien), ist im Prüfdialog das Profil nur vorbelegt, wenn "
-            "ein passendes Profil in den Stammdaten steht, sonst das Kantteil. Ein <b>geschlossenes Rohr</b> "
+            "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Seit 0.9.249 ist ein "
+            "Kantteil <b>mit Biegeradien</b> (außen = innen + Blechdicke) auch bei gleichbleibendem Querschnitt ein "
+            "<i>Blech gekantet</i>; das L-, U- oder C-Profil steht in der Spalte Art zur Wahl. Es bleibt ein "
+            "<b>Profil</b>, wenn seine Maße ein <b>Standard-Kantprofil</b> sind (U-Stahl nach unserer Liste, Kant-C, "
+            "siehe [[profile]]) oder sein U-/C-Profil in den Stammdaten steht (Hinweis <i>Kantprofil steht in den "
+            "Stammdaten</i>). <b>Winkel</b>: mit Biegeradius (außen = innen + Dicke) immer ein Kantteil, auch in "
+            "Kant-L-Maßen; scharfkantig oder außen scharf mit Innenradius immer ein <b>L-Profil</b>. Ein gewalztes Profil (scharfe Außenecke) oder Normprofil bleibt Profil. Ein "
+            "Standard-Kantprofil wird auch mit anderem Biegeradius erkannt. <b>Hut-, Z-, Dachwinkel, Wanne, C mit Sicke "
+            "oder U mit Saum</b> sind immer Blech gekantet; als Auswahl steht dann <i>offenes Sonderprofil</i>, nie "
+            "ein L-Profil oder Träger. Hat ein Teil Laschen in einer zweiten Biegerichtung (Halter, Chassis), ist es "
+            "mehrachsig gekantet; liegt mehr Material außerhalb des Profils, als Querschnitt × Länge erlaubt, ist das "
+            "Profil <i>unsicher</i> (Hinweis „Material außerhalb des Profils“). In der Hinweisspalte steht immer der "
+            "Grund, z. B. <i>Standard-Kantprofil U-Stahl 80x50x4</i>, <i>Winkel mit Biegeradius: immer "
+            "Kantteil</i> oder <i>Blech gekantet: kein Standard-Kantprofil</i>. "
+            "Ist ein U oder C scharfkantig gezeichnet (ohne Biegeradien), ist im Prüfdialog das Profil nur "
+            "vorbelegt, wenn ein passendes Profil in den Stammdaten steht, sonst das Kantteil. Wird die Art in der "
+            "Spalte Art umgestellt, zeigt die <b>3D-Ansicht</b> sie gleich mit: Bleche und Kantteile ganz "
+            "<b>blau</b> (Zukauf, nicht gelasert), Rohre und Profile grau mit Anfangs- und Endschnitt. Ein <b>geschlossenes Rohr</b> "
             "(Rund-, Quadrat-, Rechteckrohr, Sonder- oder Mehrkammerprofil) ist immer ein Rohr, nie ein Kantteil, "
             "auch mit vielen Langlöchern oder Ausschnitten; alle Schnitte werden übernommen.",
             "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
             "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
             "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "
             "dem Erkannten. Wird die andere Art gewählt, wandert die Zeile in die passende Gruppe. Profil bzw. "
-            "Zukaufartikel und Werkstoff werden neu vorbelegt (Blech: Werkstoff leer), die Stückzahl bleibt. Lässt "
+            "Zukaufartikel und Werkstoff werden neu vorbelegt (Blech: Werkstoff wie die Rohre), die Stückzahl bleibt. Lässt "
             "sich ein Teil in der anderen Art nicht messen, z. B. ein Kantteil mit ungleichen Schenkeln als "
             "L-Profil, steht <i>Ersatzwerte</i> dabei. Die Werte kommen dann aus den Blechmaßen (Länge × Breite, "
             "Schnitte nur an den Enden), das Teil ist nicht angehakt und muss geprüft werden.",
@@ -2621,12 +2645,17 @@ def kapitel_step(i):
             "(Dubletten: gleiche Maße, Dicke, Werkstoff und Kontur) oder legt einen neuen ohne Einkaufspreis an; "
             "darunter stehen gleiche und ähnliche Artikel zur Wahl. Die Hinweis-Spalte nennt <i>vorhanden</i>, "
             "<i>ähnlich</i> oder <i>neuer Zukaufartikel, EK fehlt</i>.",
-            "Der <b>Werkstoff</b> eines Blechs ist leer (offen), bis er in der Zeile gewählt wird; die Vorgabe für "
-            "die Rohre gilt nicht für Bleche. Zur Wahl stehen die <b>Blech-Werkstoffe</b> des Blech-Editors "
-            "([[blech_stammdaten]]), nicht die Rohr-Werkstoffe. Mit Werkstoff bekommt ein neuer Blechartikel den "
-            "<b>Blech-Richtpreis</b> als EK (gerechnet wie im Blech-Editor, [[blech_editor]]). Ohne Werkstoff heißt "
-            "der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm (Werkstoff offen)</i>, die Position hat kein Gewicht "
-            "und der EK fehlt.",
+            "Der <b>Werkstoff</b> eines Blechs passt sich den übrigen Bauteilen an (seit 0.9.249): es gilt der "
+            "häufigste Werkstoff der Rohre und Profile derselben Datei (ohne Rohre die Vorgabe aus Importprofil bzw. "
+            "Einstellung), als passender <b>Blech-Werkstoff</b> des Blech-Editors ([[blech_stammdaten]]): gleiche "
+            "Werkstoff-Nr. (1.4301 → 1.4301 2B), gleiche Stahlsorte (S235JRH → S235JR, S355J2H → S355MC), sonst "
+            "derselbe Kategorie (Aluminium → AlMg3). Passt nichts, gilt <b>S235</b>. Der automatische Werkstoff ist "
+            "gelb, die Hinweis-Spalte sagt <i>Werkstoff wie Rohre (…)</i> bzw. <i>Werkstoff Vorgabe S235</i>; ein "
+            "Haken ist nicht nötig. Wird der Werkstoff eines Rohrs in der Liste geändert, ziehen die automatischen "
+            "Bleche der Datei mit; ein selbst gewählter Werkstoff bleibt. Mit Werkstoff bekommt ein neuer "
+            "Blechartikel den <b>Blech-Richtpreis</b> als EK (gerechnet wie im Blech-Editor, [[blech_editor]]). "
+            "Wird der Werkstoff in der Zeile geleert, heißt der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm "
+            "(Werkstoff offen)</i>, die Position hat kein Gewicht und der EK fehlt.",
             "Jedes übernommene Blech trägt seine Maße als Eingaben des Blech-Editors: Zuschnitt (Hüllrechteck, "
             "freie Außenkontur als Polygon, gekantet mit der Abwicklungsfläche) und jede Innenkontur als eigene "
             "Zeile an ihrer Stelle (Mitte x/y), so wie sie im Modell sitzt; Skizze und Vorschaubild zeigen das Teil "
@@ -2658,19 +2687,57 @@ def kapitel_step(i):
             "Rohr erkannt ist, bleibt bei <i>Anbauteile nicht übernehmen</i> weiter außen vor. Bohrungen und "
             "Gewinde im Vollmaterial misst der Import nicht: Der Bericht sagt <i>Bohrungen/Gewinde nicht "
             "ausgewertet, bitte prüfen</i>; sie bei Bedarf als Zusatzarbeit an der Position ergänzen.")
+    i.abschnitt("Dreh- und Frästeile", marke="drehfraesteile")
+    i.text("<b>Drehteile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse) und <b>Frästeile</b> "
+           "(Block oder Platte mit Tasche, Absatz, aus dem Vollen gefräster Winkel) werden nicht gelasert, sondern "
+           "<b>Zukaufteil-Positionen</b> ohne Einkaufspreis, den der Lieferant nennt (seit 0.9.249).", kurz=True)
+    i.genauer()
+    i.liste("<b>Drehteil</b>: fast alle Flächen liegen drehsymmetrisch um eine Achse (Zylinder, Kegel, Radien, "
+            "Stirnflächen); Querbohrungen, Schlüsselflächen und Gewinde sind erlaubt. Drehteil wird es mit mehreren "
+            "Außen- oder Innendurchmessern, Einstich, Sackbohrung, Fase, Kegel oder Radius. Ein glatter Rundstahl mit "
+            "geraden Enden bleibt Vollmaterial ([[vollmaterial]]), ein Rohr mit Schrägschnitt oder Gehrung bleibt Rohr.",
+            "<b>Frästeil</b>: ein gedrungener Körper (höchstens dreimal so lang wie breit) überwiegend aus Ebenen, "
+            "der kein Blech, Rohr oder Rundstahl ist, mit Absatz, Tasche oder Fase, oder ein L-/U-/C-/T-Profil ohne "
+            "Normmaß mit sehr dicker Wand (ab einem Fünftel des kleineren Außenmaßes). Ein Quader mit Bohrungen "
+            "bleibt Vierkant bzw. Blech, Normprofile bleiben Profile.",
+            "<b>Nur nach den Maßen verdächtig</b> (kurzes dickwandiges Rohr wie eine Buchse Ø40/Ø25, dickes Profil "
+            "ohne Normmaß): Prüfstatus <i>prüfen</i>, erst nach Anhaken übernommen. Steht das Rohr bzw. Profil in den "
+            "Stammdaten, bleibt es ein Rohr/Profil (Hinweis <i>Profil steht in den Stammdaten</i>).",
+            "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
+            "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
+            "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
+            "wird. Der Werkstoff ist die Vorgabe der Rohre und in der Zeile änderbar.",
+            "Zukaufartikel vom Typ <b>Drehteil</b> bzw. <b>Frästeil</b>, Kategorie <i>Drehteile</i> bzw. "
+            "<i>Frästeile</i>, mit Maßen, Werkstoff, STEP-Datei, Geometrie-Kennung und Rohgewicht (Drehteil: "
+            "Rundstahl Ø max × Länge, Frästeil: Hüllquader) zur Information. Der EK fehlt: beim Lieferanten anfragen "
+            "und mit <b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>). Die Position trägt das Gewicht des "
+            "fertigen Teils (für die Fracht).",
+            "<b>Wiederholteile</b>: ein gleiches Teil (gleiche Geometrie-Kennung und Werkstoff) aus einer früheren "
+            "Anfrage nimmt den vorhandenen Artikel mit seinem EK; gleiche Teile einer Datei sind eine Position.",
+            "Kalkulation wie alle Zukaufteile: kein Gewinn, nur der Aufschlag der Zukaufregel, Fracht ja, Rüsten, "
+            "Pauschalen und Programmierung nein ([[zukauf_positionen]]).",
+            "Im JSON-Messergebnis (ab Version 1.27) heißen <i>bauteiltyp</i> und <i>profiltyp</i> dann Drehteil "
+            "bzw. Frästeil, der Block <i>drehfraes</i> enthält Maße und Merkmale, <i>alternative</i> die Messung "
+            "als Rohr/Profil.")
     i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
     i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech mit einer offenen Seite</b>: "
            "U offen, C mit Längsschlitz, U mit nur einer Lasche oder eine <b>Halbschale</b> eines Rundrohrs. "
            "Gefertigt wird das Teil auf dem Rohrlaser <b>aus dem geschlossenen Rohr</b>: An Ende A und Ende B bleibt "
            "<b>je ein Ring 2 mm</b> des ganzen Rohrs (mit Außenradius) stehen, damit das Teil ein Rohr bleibt; "
            "dazwischen wird die offene Seite als Fenster ausgeschnitten. Die Datei selbst bleibt unverändert; was "
-           "dazukommt, ist im 3D <b>rot</b>.", kurz=True)
-    i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: aus RE 60×40×3 mit Ringen an den Enden",
+           "dazukommt, ist im 3D <b>rot</b>. Als Rohr gilt das Teil nur, wenn seine <b>Außenmaße ganze Zahlen</b> "
+           "sind (z. B. 60 × 40) und das Rohr genau die Außenmaße des Teils hat. Ein U mit Biegeradien, für das "
+           "das Rohr größer sein müsste (U 60 × 40 würde RE 60 × 50), ein krummes Außenmaß wie 30,8 und ein C mit "
+           "Lippen und mehr als 20 mm Schlitz sind ein <i>Blech gekantet</i>; das Rohr steht dann in der Spalte Art "
+           "zur Wahl (<i>… – Ringe an den Enden (aus dem Rohr)</i>, seit 0.9.249).", kurz=True)
+    i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: in der Spalte Art aus dem Rohr gewählt, mit "
+           "Ringen an den Enden",
            hoehe=95 * mm, legende=[
                (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Ringe an den Enden (aus dem Rohr)</i>; zur Auswahl stehen "
                    "immer auch das offene Teil (<i>… – offen (ohne Ringe)</i>, mit passendem U/C der Stammdaten) und "
                    "das <b>Kantteil</b>."),
-               (2, "Profil (hier RE 60×40×3). Ein anderes Rohr wählen, wenn das vorgeschlagene nicht passt: Enden "
+               (2, "Profil (hier RE 60×50×3: die scharf gezeichneten Schenkelenden passen nicht in RE 60×40, darum "
+                   "ist das Teil zuerst ein Kantteil). Ein anderes Rohr wählen, wenn das vorgeschlagene nicht passt: Enden "
                    "und Fenster werden für das gewählte Rohr umgerechnet."),
                (3, "3D: die Ringe rot; bleibt das Teil offen, sind sie blassrot (werden nicht gefertigt). "
                    "<b>Orange</b>: was über den Rohrquerschnitt ragt (z. B. scharf gezeichnete Schenkelenden), "
@@ -6978,7 +7045,8 @@ def kapitel_einstellungen(i):
                                              "([[mehrere_arbeitsplaetze]])."],
         ["STEP-Import", "STEP-Import: ebene flache Teile vorgeben als",
          "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
-         "Spalte Art wählbar. Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
+         "Spalte Art wählbar, wenn die Größe passt (Breite bis zur nächsten Einstellung, Länge ab 3 × Breite). "
+         "Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
         ["STEP-Import", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
          "Nur bei <i>ebene flache Teile vorgeben als: Flachstahl bis Breite</i>. Grenze zwischen Flachstahl und "
          "Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
@@ -7721,7 +7789,13 @@ def kapitel_stammdaten(i):
     i.abschnitt("Profile", marke="profile")
     i.text("Profil-ID, Form, Maße und Wandstärke. Unbekannte Rohre im Angebot oder STEP-Import legt das Programm "
            "selbst an. Die U-Profile nach DIN 1026-1 von <i>UPN 30x15</i> bis <i>UPN 200</i> stehen als Standard "
-           "schon drin.", kurz=True)
+           "schon drin, seit 0.9.249 auch die <b>Kantprofile</b>: <i>U-Stahl</i> rund- und scharfkantig von "
+           "<i>U-Stahl 15x15x1,5</i> bis <i>U-Stahl 120x60x6</i> (Höhe × Breite × Dicke, Gewicht je Meter aus "
+           "unserer Liste), <i>Kant-C</i> (Höhe × Breite × Abkantung × Dicke) und <i>Kant-L</i>. Ein gekantetes "
+           "U oder C mit diesen Maßen erkennt der STEP-Import als Profil für den Rohrlaser, andere Kantteile mit "
+           "Biegeradien als Blech gekantet ([[bleche]]); ein Winkel mit Biegeradius ist immer ein Kantteil, "
+           "<i>Kant-L</i> nur von Hand wählbar. UPN 50 bis 160 erkennt er auch mit den dünneren Steg- und "
+           "Flanschdicken mancher Händlertabellen.", kurz=True)
     i.genauer("Felder")
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "

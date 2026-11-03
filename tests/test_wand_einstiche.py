@@ -80,7 +80,8 @@ def _():
         db = Datenbank(pfad)
         wm = {z["profil_id"]: z.get("wand_max") for z in db.zeilen("profile")}
         assert wm["IPE 200"] == 8.5 and wm["UPN 100"] == 8.5 and wm["HEB 160"] == 14, wm
-        assert all(v is None for p, v in wm.items() if p not in ("IPE 200", "UPN 100", "HEB 160")), wm
+        assert all(v is None for p, v in wm.items() if p not in ("IPE 200", "UPN 100", "HEB 160")
+                   and not p.startswith(normprofile.KANT_REIHEN)), wm      # Kantprofile: Wand = Wand max.
         db.con.close()
 
 

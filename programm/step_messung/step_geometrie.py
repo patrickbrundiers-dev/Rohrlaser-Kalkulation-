@@ -150,6 +150,7 @@ class Teil:
     knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
     offene_seite: dict = None   # offenes Rohr geschlossen (step_offenes_rohr): Seite, Lücken, Länge; sonst None
     geschlossen: object = None  # offen gezeichnetes Rohr: Messung mit ergänzter Wand (Teil); sonst None
+    drehfraes: dict = None      # Dreh- oder Frästeil (step_drehfraes): Art, Maße, Merkmale, Fingerabdruck; sonst None
 
     @property
     def pruefstatus(self):
@@ -172,7 +173,8 @@ class Teil:
             return f"QR {f(self.abm_a)}x{f(self.abm_a)}x{f(self.wandstaerke)}"
         if self.profilform == "Rechteckrohr":
             return f"RE {f(self.abm_a)}x{f(self.abm_b)}x{f(self.wandstaerke)}"
-        if self.normprofil and self.profilform in ("U-Profil", rp_profile.FORM) + TRAEGER:
+        if self.normprofil and (self.profilform in ("U-Profil", rp_profile.FORM) + TRAEGER
+                                or self.normprofil.startswith(("Kant-", "U-Stahl"))):
             return self.normprofil
         if self.profilform == "I-/H-Träger":
             return f"I {f(self.abm_a)}x{f(self.abm_b)}x{f(self.stegdicke)}x{f(self.flanschdicke)}"
@@ -760,8 +762,12 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
 REGEL_DICHT = 41      # Schnitte, wenn bei 7 Schnitten keine drei gleichen Regelquerschnitte gefunden werden
 
 
-def _min_rechteck(pts):
-    """Drehwinkel des flächenkleinsten umschreibenden Rechtecks (über die konvexe Hülle)."""
+MIN_RECHTECK_TOL = 0.08     # Anteil: so viel größer darf das umschreibende Rechteck einer kantenparallelen Lage sein
+
+
+def _min_rechteck(pts, kanten_lage=False):
+    """Drehwinkel des flächenkleinsten umschreibenden Rechtecks (über die konvexe Hülle); kanten_lage (nur
+    Profilquerschnitt): bei fast gleicher Fläche die Lage an den Hüllkanten."""
     pts = sorted(set((round(x, 6), round(y, 6)) for x, y in pts))
     if len(pts) < 3:
         return 0.0
@@ -778,17 +784,33 @@ def _min_rechteck(pts):
             oben.pop()
         oben.append(p)
     huelle = unten[:-1] + oben[:-1]
-    best = None
-    for i in range(len(huelle)):
-        (x1, y1), (x2, y2) = huelle[i], huelle[(i + 1) % len(huelle)]
+    kanten = [(huelle[i], huelle[(i + 1) % len(huelle)]) for i in range(len(huelle))]
+    lagen = []
+    for (x1, y1), (x2, y2) in kanten:
         w = math.atan2(y2 - y1, x2 - x1)
         c, s = math.cos(w), math.sin(w)
         us = [x * c + y * s for x, y in huelle]
         vs = [-x * s + y * c for x, y in huelle]
         du, dv = max(us) - min(us), max(vs) - min(vs)
-        fl = du * dv
-        if best is None or fl < best[0] - 1e-9:
-            best = (fl, w if du >= dv else w + math.pi / 2)
+        lagen.append((du * dv, w if du >= dv else w + math.pi / 2, w))
+    best = min(lagen, key=lambda x: x[0])
+    # fast gleich klein (MIN_RECHTECK_TOL): die Lage, an der die meisten Hüllkanten parallel/senkrecht anliegen. Ein
+    # gleichschenkliger Winkel mit Biegeradius (Kant-L 50x50x3) hat diagonal ein etwas kleineres Rechteck (70,7 × 35)
+    # als in Schenkelrichtung (50 × 50); gemessen wird er in Schenkelrichtung (Patrick 03.11.2026, Kantprofile).
+    def anliegend(w):
+        n = 0.0
+        for (x1, y1), (x2, y2) in kanten:
+            lg = math.hypot(x2 - x1, y2 - y1)
+            if lg > 0 and abs(math.sin(2 * (math.atan2(y2 - y1, x2 - x1) - w))) < 1e-3:
+                n += lg
+        return n
+    nah = [x for x in lagen if x[0] <= best[0] * (1 + MIN_RECHTECK_TOL)]
+    if kanten_lage and len(nah) > 1:
+        wahl = max(nah, key=lambda x: (anliegend(x[2]), -x[0]))
+        umfang = sum(math.hypot(x2 - x1, y2 - y1) for (x1, y1), (x2, y2) in kanten)
+        # nur bei echten geraden Seiten (mind. ein Viertel des Umfangs; ein Rundrohr bleibt wie bisher)
+        if anliegend(wahl[2]) > max(anliegend(best[2]) + 1e-6, 0.25 * umfang):
+            best = wahl
     return best[1]
 
 
@@ -962,7 +984,7 @@ def _lage(solid, start=None):
     mitte_g = min(gruppe, key=lambda s: abs(s[0] - (gruppe[0][0] + gruppe[-1][0]) / 2))
     z, ws, _, cx, cy = mitte_g
     pts = [(s[0], s[1]) for s in _strecken(ws[0][1])]
-    w = _min_rechteck(pts)
+    w = _min_rechteck(pts, kanten_lage=True)
     o = _global(ax3, cx, cy, z)
     xr = _vec(ax3.XDirection()).Multiplied(math.cos(w)).Added(_vec(ax3.YDirection()).Multiplied(math.sin(w)))
     ax3 = gp_Ax3(o, ax3.Direction(), gp_Dir(xr.X(), xr.Y(), xr.Z()))
@@ -1702,7 +1724,7 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
         t.hinweise = [h for h in t.hinweise if not h.startswith("Wandstärke")]
         t.wandstaerke = t.stegdicke
         t.sicherheit["wandstaerke"] = "sicher"
-    if t.profilform in ("U-Profil", "L-Profil") + TRAEGER:
+    if t.profilform in ("U-Profil", "L-Profil", "C-Profil") + TRAEGER:   # C: Kantprofile (Patrick 03.11.2026)
         tf = t.flanschdicke or t.wandstaerke
         if t.profilform == "U-Profil" and len(je_seite) == 2:      # Steg dünner als die Flansche (UPN)
             tf = max(je_seite.values())
@@ -2641,6 +2663,11 @@ def nach_bezug_drehen(t):
 FLACHSTAHL_BIS = 150.0          # mm
 FLACHSTAHL_LAENGE = 3.0         # Länge mindestens 3 × Breite
 BLECH_DICKE_ANTEIL = 0.2        # Dicke höchstens 1/5 der Breite
+BLECH_DICKE_BLECHMODUS = 0.5    # mit „Flache Teile als: Blech“: Dicke höchstens halbe Breite (Patrick 03.11.2026)
+# Patrick 03.11.2026 („Blech-Erkennung weiter verbessern“): ein Kantteil mit echten Biegeradien (außen = innen + Dicke,
+# gleich dick) ist ein Blech gekantet, auch bei gleichbleibendem Querschnitt; das L-/U-/C-Profil bleibt als Auswahl.
+# Ein Walzprofil (scharfe Außenecke) oder ein Normprofil bleibt Profil.
+KANTRADIEN_BLECH = True
 TOL_BLECH_VOLUMEN = 0.03        # Volumen = Hauptfläche × Dicke auf 3 %
 TOL_EBENE = 0.01                # mm: Flächen in derselben Ebene
 # Gleich dicke, gekantete Körper mit gleichbleibendem Querschnitt bleiben Profile (L, U, C, Kantprofil). Als
@@ -2810,7 +2837,7 @@ def _flach_pruefen(solid, volumen):
         return None
     g, e1, e2 = max(kandidaten, key=lambda k: k[1][1])
     # die zweite Hauptfläche: die größte parallele Ebene in einem anderen Abstand
-    dicke = abs(e1[0] - e2[0])
+    dicke = round(abs(e1[0] - e2[0]), 3)     # schräg im Raum: 3.9999999 -> 4.0 (Rundungsrest der Lage)
     if dicke < 0.05:
         return None
     haupt = max(e1[2], key=_flaeche)
@@ -2842,7 +2869,7 @@ def _flach_pruefen(solid, volumen):
     if richtungen < 2:
         return None
     if biegungen > 0 and abs(volumen - paare / 2 * dicke) <= TOL_BLECH_VOLUMEN * 1.5 * volumen:
-        return dict(erg, art="gekantet")
+        return dict(erg, art="gekantet", biegungen=biegungen)
     # scharfkantig gezeichnet (Patrick 23.10.2026, Frage 1 a): Kantteil, wenn sich zwei Blechhäute mit Schenkeln
     # finden (ein T-Stoß oder Walzprofil ungleicher Dicke nicht; step_abwicklung)
     if biegungen == 0 and abs(volumen - paare / 2 * dicke) <= 0.15 * volumen:
@@ -3183,7 +3210,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
         t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]
         t.sicherheit.update(profil="sicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
-        b.pop("laengsseiten_gerade", None)
+        # laengsseiten_gerade bleibt (ab 0.9.249): das Programm bietet Flachstahl nur an, wenn die Größe passt
     else:
         # Außenmaße im System der Hauptfläche: Grundriss = kleinstes umschreibendes Rechteck, Höhe = senkrecht dazu
         ax0 = gp_Ax3(fl["mitte"], fl["richtung"])
@@ -3254,7 +3281,16 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
-    t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    try:
+        t = _analysiere(solid, datei, koerper, netz, flach_bis)
+    except Exception:
+        t = _drehfraes(solid, None, datei, koerper)     # nicht messbar: vielleicht ein Frästeil
+        if t is None:
+            raise
+        return t
+    d = _drehfraes(solid, t, datei, koerper)     # Dreh- oder Frästeil: Zukaufteil (Patrick 03.11.2026)
+    if d is not None and d is not t:
+        return d
     if STEGE:           # vom Programm gewähltes größeres Profil: Winkel/U als virtuelles Bauteil mit Stegen
         try:
             from step_schenkel import mit_stegen, ziel_lesen
@@ -3268,7 +3304,105 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         schliessen(solid, t, datei, koerper, netz)
     except Exception:  # Schließen darf die Messung nie verhindern
         t.geschlossen = None
+    return _alternative_form(_kantteil(t))
+
+
+ROHR_GANZ_TOL = 0.02    # mm: Außenmaß gilt als ganze Zahl (Rohrmaß 30, nicht 30,8)
+
+
+def _rohrmass(g):
+    """Außenmaße eines offen gezeichneten Rohrs sind Rohrmaße: beide ganze Zahlen (Patrick 03.11.2026: 30,8 außen ist
+    kein Rohr, sondern ein Kantteil)."""
+    return all(abs(v - round(v)) <= ROHR_GANZ_TOL for v in (g.abm_a, g.abm_b))
+
+
+C_SCHLITZ_ROHR = 20.0    # mm: ein C mit Lippen ist nur bis zu diesem Schlitz ein offen gezeichnetes Rohr
+
+
+def rohr_grund(t):
+    """Warum ein offen gezeichnetes Rohr (t.geschlossen) kein Rohr ist (Patrick 03.11.2026), sonst '': krumme
+    Außenmaße (30,8), das Rohr wäre größer als das Teil (U 60×40 mit Radien würde RE 60×50), C mit Lippen und
+    Schlitz über 20 mm."""
+    g = t.geschlossen
+    if g is None:
+        return "kein Rohr"
+    if not _rohrmass(t):
+        return "Außenmaß keine ganze Zahl (kein Rohrmaß)"
+    if any(abs(x - y) > 0.5 for x, y in zip(sorted((t.abm_a, t.abm_b)), sorted((g.abm_a, g.abm_b)))):
+        return f"Rohr wäre größer als das Teil ({g.abm_a:g} × {g.abm_b:g} statt {t.abm_a:g} × {t.abm_b:g})"
+    if t.profilform == "C-Profil" and (g.offene_seite or {}).get("breite", 0) > C_SCHLITZ_ROHR + 1e-6:
+        return f"C mit Lippen, Schlitz über {C_SCHLITZ_ROHR:g} mm"
+    return ""
+
+
+VOLUMEN_UEBER_PROFIL = 0.02     # Anteil: so viel mehr Volumen als Querschnitt × Länge heißt Material außerhalb
+
+
+KANTUNGEN_FORM = {"L-Profil": 1, "U-Profil": 2, "C-Profil": 4}
+
+
+def _alternative_form(t):
+    """Blech gekantet: die Auswahl „Profil“ trägt die Form, die zu den Kantungen passt (Patrick 03.11.2026: ein
+    Hutprofil, Z oder Dachwinkel heißt nicht „L-Profil“, sondern offenes Sonderprofil)."""
+    b = t.alternative
+    k = ((t.blech or {}).get("abwicklung") or {}).get("kantungen") if isinstance(t.blech, dict) else None
+    if (t.bauteiltyp == "Blech gekantet" and b is not None and b.bauteiltyp == "Profil" and k
+            and (b.profilform in TRAEGER or b.profilform in KANTUNGEN_FORM and KANTUNGEN_FORM[b.profilform] != k)
+            and not b.normprofil):
+        b.hinweise.append(f"gemessen als {b.profilform}, passt nicht zu {k} Kantungen: offenes Sonderprofil")
+        b.profilform = "offenes Sonderprofil"
     return t
+
+
+def _kantteil(t):
+    """Kantteil mit Biegeradien (außen = innen + Dicke) ohne Standardmaß: Blech gekantet, das L-/U-/C-Profil als
+    Auswahl (Patrick 03.11.2026, KANTRADIEN_BLECH). Ein offen gezeichnetes Rohr (t.geschlossen) bleibt wie gemessen,
+    wenn rohr_grund nichts findet; ebenso Normprofile und Standard-Kantprofile (t.normprofil). Das Rohr bleibt beim
+    Kantteil als Auswahl (b.geschlossen). Umgekehrt wird ein als Blech gekantet gemessenes Teil, dessen Profil ein
+    Standard-Kantprofil ist (auch mit größerem Biegeradius), das Profil. Winkel: scharfkantig = L-Profil, mit
+    Biegeradien immer Kantteil (normprofile.zuordnen gibt für L kein Kant-L)."""
+    b = t.alternative
+    if (t.bauteiltyp == "Blech gekantet" and b is not None and b.bauteiltyp == "Profil" and not b.ersatz
+            and b.profilform in ("L-Profil", "U-Profil", "C-Profil")):
+        if b.profilform == "L-Profil":
+            # Winkel (Patrick 03.11.2026): scharfkantig gezeichnet (oder außen scharf, innen Radius) ist ein L-Profil;
+            # mit Biegeradius außen = innen + Dicke immer ein Kantteil (auch in Kant-L-Maßen)
+            abw = (t.blech or {}).get("abwicklung") or {}
+            if abw.get("scharf") and abw.get("kantungen") == 1 and not abw.get("mehrachsig"):
+                t.alternative, b.alternative = None, t
+                return b
+            return t
+        n = b.normprofil or normprofile.zuordnen(b.profilform, b.abm_a, b.abm_b, b.wandstaerke,
+                                                 b.flanschdicke or b.wandstaerke, b.flaeche) or ""
+        if n.startswith(normprofile.KANT_REIHEN):
+            b.normprofil, t.alternative, b.alternative = n, None, t
+            return b
+    if not (KANTRADIEN_BLECH and getattr(t, "_kantradien", False) and t.bauteiltyp == "Profil"
+            and t.profilform in ("L-Profil", "U-Profil", "C-Profil", "offenes Sonderprofil") + TRAEGER
+            and not t.normprofil       # Träger/Sonderprofil mit Biegeradien und gleicher Dicke: Kantteil (C mit Sicke)
+            and not (t.geschlossen is not None and not rohr_grund(t))
+            and b is not None and b.bauteiltyp == "Blech gekantet"):
+        return t
+    t.alternative = None
+    b.alternative = t
+    if t.geschlossen is not None:
+        b.geschlossen = t.geschlossen
+        if t.netz:      # 3D mit offener Seite (Art EO): beim Wechsel auf das Rohr werden Ringe/Wand rot
+            b.netz = t.netz
+        b.hinweise.append(f"Offenes Rohr als Auswahl: {t.geschlossen.profil_id_vorschlag or t.geschlossen.profilform}"
+                          f" – {rohr_grund(t)}")
+    return b
+
+
+def _drehfraes(solid, t, datei, koerper):
+    """Dreh- oder Frästeil (step_drehfraes.pruefen): das neue Teil, sonst t (ohne Messung: None). Ein Fehler der
+    Prüfung lässt die Messung unverändert."""
+    try:
+        from step_drehfraes import pruefen
+        n = pruefen(solid, t, datei, koerper)
+    except Exception:  # Dreh-/Fräs-Erkennung darf die Messung nie verhindern
+        return t
+    return n if n is not None and (t is not None or n.drehfraes) else t
 
 
 def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
@@ -3300,6 +3434,11 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     if fl and fl["art"] == "eben":
         daten = _blech_daten(solid, fl)
         dicke_ok = fl["dicke"] <= BLECH_DICKE_ANTEIL * daten["breite"] + 1e-6
+        # Patrick 03.11.2026: mit „Flache Teile als: Blech“ (flach_bis 0) ist jedes ebene flache Teil ein Blech, auch
+        # ein dickes schmales (FL 30 × 8, Platte 50 × 50 × 15); Flachstahl bleibt nur als Auswahl im Prüfdialog, wenn
+        # die Größe passt (step.flachstahl_passt). Vierkant (Dicke = Breite) bleibt Vollmaterial.
+        if flach_bis <= 0 and not dicke_ok:
+            dicke_ok = fl["dicke"] <= BLECH_DICKE_BLECHMODUS * daten["breite"] + 1e-6
         if dicke_ok and not ist_flachstahl(daten["laenge"], daten["breite"], daten["laengsseiten_gerade"], flach_bis):
             b = _blech_teil(solid, datei, koerper, fl, volumen, netz, dict(daten))
             # sehr dünn (Schrift/Markierung als eigener Körper, Patrick 29.10.2026): keine Profilmessung als
@@ -3348,8 +3487,17 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
         b.alternative = _als_profil(solid, b, None, t)
         return b
+    if t.profilform and not rohr and t.flaeche > 0 and t.laenge > 0 and \
+            volumen > (1 + VOLUMEN_UEBER_PROFIL) * t.flaeche * t.laenge:
+        # mehr Material als Querschnitt × Länge: Laschen/Kantungen an den Enden (Chassis, Patrick 03.11.2026) – das
+        # Teil ist so kein Profil; ohne Abwicklung bleibt es unsicher (nur nach Anhaken übernommen)
+        t.sicherheit["profil"] = "unsicher"
+        t.hinweise.append(f"Material außerhalb des Profils ({volumen / (t.flaeche * t.laenge) - 1:.0%} mehr als "
+                          "Querschnitt × Länge, z. B. gekantete Laschen an den Enden): kein Profil, als Kantteil "
+                          "prüfen")
     if t.profilform:
         t.bauteiltyp = "Profil"
+        t._kantradien = bool(fl and fl["art"] == "gekantet" and fl.get("biegungen", 0) > 0)
         if fl and t.alternative is None and not rohr and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
             try:      # Grenzfall: auch als (gekantetes) Blech messen, im Prüfdialog wählbar
                 t.alternative = _blech_teil(solid, datei, koerper, fl, volumen, False, daten and dict(daten))
@@ -4587,7 +4735,8 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
         t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
                           + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
     _koerper_daten(t, k, art)
-    if netz and not t.netz:
+    if netz and not t.netz and not (t.bauteiltyp in ("Blech", "Blech gekantet") and t.alternative is not None
+                                    and t.alternative.netz):     # sonst Netz der Profilmessung (step_messen)
         _rohnetz(t, k)
     if t.alternative is not None:       # Importdaten gelten für beide Arten
         for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",

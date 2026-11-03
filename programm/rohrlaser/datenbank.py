@@ -174,6 +174,7 @@ MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Rich
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 NORMPROFILE_STAND = "2026-10-31"   # U-Profile DIN 1026-1 bis UPN 200 in den Profilen (Datenbank._normprofile_anpassen)
+KANTPROFILE_STAND = "2026-11-03"   # Kantprofile U/C/L DIN EN 10162 in den Profilen (Datenbank._normprofile_anpassen)
 RICHTWERTE_STAND = "2026-10-29"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen); bis 0.9.196 2026-10-21
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 ECKE_STAND = "2026-10-29"         # Zeit je Ecke nach Wandstärke in leeren Richtwertzeilen (Datenbank._ecke_anpassen, S2)
@@ -184,6 +185,7 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
+DREHFRAES_STAND = "2026-11-03"     # Zukauf-Kategorien Drehteile und Frästeile (_drehfraes_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
@@ -279,6 +281,7 @@ class Datenbank:
             self.einstellung_setzen("steck_stand", STECK_STAND)
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
+            self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
@@ -503,6 +506,8 @@ class Datenbank:
                 self._werkstoffe_rohrlaser()
             if version > 0 and self.einstellung("voll_stand") != VOLL_STAND:
                 self._voll_ergaenzen()
+            if version > 0 and self.einstellung("drehfraes_stand") != DREHFRAES_STAND:
+                self._drehfraes_ergaenzen()
             if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
@@ -640,6 +645,14 @@ class Datenbank:
         self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                          (vollmaterial.KATEGORIE,))
         self._einstellung_schreiben("voll_stand", VOLL_STAND)
+
+    def _drehfraes_ergaenzen(self):
+        """Einmalig: Zukauf-Kategorien 'Drehteile' und 'Frästeile' anlegen, wenn es sie (dem Namen nach) noch nicht
+        gibt (Dreh- und Frästeile aus dem STEP-Import, Patrick 03.11.2026)."""
+        from . import drehfraes
+        for name in drehfraes.KATEGORIE.values():
+            self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')", (name,))
+        self._einstellung_schreiben("drehfraes_stand", DREHFRAES_STAND)
 
     def _stege_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Stege abtrennen' (€ je Teil) und Prüfregel 'Virtuelles Bauteil prüfen' anlegen,
@@ -947,20 +960,29 @@ class Datenbank:
         Zeilen (auch in anderer Schreibweise wie 'UNP 100') bleiben unverändert, gelöschte kommen erst mit einem neuen
         Stand wieder; die Stammdaten gelten dadurch nicht als von Hand geändert."""
         from . import normprofile
-        if self.nur_lesen or self.einstellung("normprofile_stand") == NORMPROFILE_STAND:
+        if self.nur_lesen:
+            return
+        # je Reihe ein eigener Stand: U-Profile (31.10.) und Kantprofile U/C/L (Patrick 03.11.2026)
+        reihen = [(k, stand, namen, formen_neu) for k, stand, namen, formen_neu in (
+            ("normprofile_stand", NORMPROFILE_STAND, normprofile.STANDARD_STAMMDATEN, ["U-Profil"]),
+            ("kantprofile_stand", KANTPROFILE_STAND, normprofile.KANT_STAMMDATEN, ["U-Profil", "C-Profil", "L-Profil"]))
+            if self.einstellung(k) != stand]
+        if not reihen:
             return
         with self.con:
-            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
-            if formen and "U-Profil" not in formen:
-                self._einstellung_schreiben("profilformen", "\n".join(formen + ["U-Profil"]))
-            da = {normprofile.normname(r[0]) for r in self.con.execute("SELECT profil_id FROM profile")}
-            for name in normprofile.STANDARD_STAMMDATEN:
-                if name in da:
-                    continue
-                z = normprofile.stammdaten_zeile(name)
-                self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
-                                 list(z.values()))
-            self._einstellung_schreiben("normprofile_stand", NORMPROFILE_STAND)
+            for k, stand, namen, formen_neu in reihen:
+                formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+                fehlt = [f for f in formen_neu if f not in formen]
+                if formen and fehlt:
+                    self._einstellung_schreiben("profilformen", "\n".join(formen + fehlt))
+                da = {normprofile.normname(r[0]) for r in self.con.execute("SELECT profil_id FROM profile")}
+                for name in namen:
+                    if name in da:
+                        continue
+                    z = normprofile.stammdaten_zeile(name)
+                    self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                     list(z.values()))
+                self._einstellung_schreiben(k, stand)
 
     @schreibt
     def rp_laden(self, eintraege):

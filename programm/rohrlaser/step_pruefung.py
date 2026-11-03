@@ -76,6 +76,14 @@ def merkmale(m, gewinde_vorschlag=None):
 
     def neu(merkmal, wert, status, grund=""):
         out.append(dict(merkmal=merkmal, wert=wert, status=status, grund=grund))
+    if form in ("Drehteil", "Frästeil"):     # Zukaufteil: keine Laser-Merkmale (Wand, Enden, Konturen)
+        from . import drehfraes
+        d = drehfraes.daten(m) or {}
+        st = _status(si.get("profil"))
+        neu("Art", form, st, "" if st == SICHER else "nur nach den Maßen erkannt: prüfen, ob es gelasert wird")
+        neu("Maße", drehfraes.masse_text(d), SICHER)
+        neu("Merkmale", ", ".join((d.get("merkmale") or []) + (d.get("zusatz") or [])), SICHER)
+        return out
     if not form:
         neu("Profilform", "", NICHT, "kein Profilquerschnitt gefunden")
     elif "Sonderprofil" in form:

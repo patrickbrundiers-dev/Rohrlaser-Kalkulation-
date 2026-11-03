@@ -335,11 +335,13 @@ for _z in BLECHE:
     _blech_fall(*_z)
 
 
-@fall("BL08", "dünne Platte mit Tasche ist kein Blech (prüfen)", BL / "B08_Platte_mit_Tasche.step")
+@fall("BL08", "dünne Platte mit Tasche ist kein Blech, sondern ein Frästeil (seit 0.9.249)",
+      BL / "B08_Platte_mit_Tasche.step")
 def _(f, p):
     (t,) = analysiere_datei(p)
     f.gleich("kein Blech", t.bauteiltyp in ("Blech", "Blech gekantet"), False)
-    f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
+    f.gleich("Frästeil (Zukaufteil)", t.bauteiltyp, "Frästeil")
+    f.gleich("Merkmal Tasche", "Absatz/Tasche" in (t.drehfraes or {}).get("merkmale", []), True)
 
 
 @fall("BL09", "Flachstahl 100x10 L 800 bleibt Flachstahl", BL / "B09_FL100x10_L800.step")
@@ -371,6 +373,8 @@ def _(f, p):
     for q in sorted(list(p.glob("*.step")) + list((HIER / "step_profile").glob("*.step"))):
         if q.stem.startswith("REF18"):  # scharfkantiges Z ist seit STEP-JSON 1.12 ein Kantteil (Fall REF18)
             continue
+        if q.stem == "P02_U50x30x3_Radien_L600":    # Kantteil mit Biegeradien ohne Standardmaß: Blech gekantet
+            continue                                # (Patrick 03.11.2026, test_step_profile.GEKANTET)
         try:
             teile = analysiere_datei(q)
         except ValueError:
