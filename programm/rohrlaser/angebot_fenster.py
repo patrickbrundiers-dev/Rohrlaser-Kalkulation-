@@ -3815,7 +3815,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
             stueck=kopf["stueck"], technik=blech.speichern(dict(e, richtpreise=[dict(ab=1, preis=erg["richtpreis"])])),
             gewicht_teil=round(erg["gewicht"], 3), muster=kopf.get("muster"),
-            zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False)))
+            zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False),
+            **self._blech_gewinde_felder({}, (erg.get("bohrungen") or {}).get("gewinde"))))
         self.neu_laden()
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
                        "je Stück als EK (Zukaufteil).")
@@ -4008,10 +4009,31 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                            ("gewicht_teil", round(erg["gewicht"], 3)),
                            ("zukauf", json.dumps(liste, ensure_ascii=False))):
             self.db.position_aendern(p["id"], feld, wert)
+        for feld, wert in self._blech_gewinde_felder(p, (erg.get("bohrungen") or {}).get("gewinde")).items():
+            self.db.position_aendern(p["id"], feld, wert)
         if stueck != p.get("stueck") and p.get("id"):     # Satzposition: Stück je Satz folgt (31.10.2026)
             h = self.satz_nachziehen(p, "stueck", stueck)
             if h:
                 self.f.meldung(h)
+
+    def _blech_gewinde_felder(self, p, gewinde):
+        """Im Blech-Editor gewählte Gewinde ({Gewinde: Anzahl je Teil}, Ausführung „Gewinde schneiden“) ins Bohrbild der
+        Position, bestätigt: sie kosten € je Stück zusätzlich zum Blech-EK, nicht im Richtpreis (Patrick 03.11.2026).
+        Zeilen gleichen Gewindes aus dem STEP-Import werden bestätigt, fehlende angehängt. Ergebnis: Feldänderungen."""
+        if not gewinde:
+            return {}
+        from . import bohrbild
+        kern = {g["gewinde"]: g.get("kernloch") for g in self.tabellen.get("gewinde") or () if g.get("gewinde")}
+        liste = [dict(z) for z in bohrbild.lesen(p.get("bohrbild"))]
+        for g, n in gewinde.items():
+            zeilen = [z for z in liste if z.get("art") == "Bohrung" and z.get("gewinde") == g]
+            for z in zeilen:
+                z["status"] = bohrbild.BESTAETIGT
+            if not zeilen:
+                liste.append(dict(art="Bohrung", d=float(kern.get(g) or 0), anzahl=int(n), gewinde=g,
+                                  status=bohrbild.BESTAETIGT))
+        felder = bohrbild.anwenden(p, liste)
+        return {n: felder[n] for n in ("gewinde", "gewinde_vorschlag", "bohrbild") if felder.get(n) != p.get(n)}
 
     def blech_gravur(self, p, hoehe):
         """Text-Gravur der Artikelnummer im Blechteil p setzen (hoehe > 0, Lage automatisch bzw. wie bisher) oder

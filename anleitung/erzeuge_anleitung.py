@@ -5145,7 +5145,9 @@ def kapitel_zukauf_angebot(i):
             "Bohrung. Bis zur Prüfung warnt der Status. Doppelklick auf <i>Gewinde</i> bzw. <i>Bohrungen</i> öffnet "
             "<b>Bohrungen prüfen</b>; bestätigte Gewinde schneiden wir selbst: Preis je Stück aus <i>Einstellungen › "
             "Gewinde</i> (bzw. je Position im Dialog), zusätzlich zum Blech-EK als eigene Fertigung mit Gewinn. Der "
-            "EK des Blechs (Richtpreis oder Angebotspreis) bleibt unverändert.")
+            "EK des Blechs (Richtpreis oder Angebotspreis) bleibt unverändert. Im Blech-Editor mit der Ausführung "
+            "<i>Gewinde schneiden</i> gewählte Bohrungen kommen beim Übernehmen bestätigt in die Position, ebenfalls "
+            "nicht in den Richtpreis.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
