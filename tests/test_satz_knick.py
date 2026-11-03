@@ -83,6 +83,7 @@ assert len(mw) == 5
 for x in mw:
     x.update(_saetze=1, _stueck=1, _uebernehmen=True)             # Satz, keine Knickverbindung im Prüfdialog
 db = Datenbank(tmp / "knick.db")
+db.einstellung_setzen("schweiss_vk_step", "nein")     # Nahtvorschläge offen lassen (Vorgabe seit 03.11.2026 ja)
 k = db.kontext()
 erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True, zukauf_liste=[])
 satz = step.satzname(datei)

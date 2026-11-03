@@ -924,7 +924,8 @@ def _schweissplan(plan):
                                  "Länge [mm]", "Anzahl", "Lage", "Heftp.", "Zeit je BG [min]", "erl."])]
             for n in b["naehte"]:
                 daten.append([_p(str(n["nr"] or ""), S_FETT), _p(n["knoten"], S_KLEIN), _p(n["verfahren"] or "", S_KLEIN),
-                              _p((n["nahtart"] or "") + (" beidseitig" if n["beidseitig"] else ""), S_KLEIN),
+                              _p((n["nahtart"] or "") + (" beidseitig" if n["beidseitig"] else "")
+                                 + (f" Stichnaht {_z(n['geschweisst'], 0)} %" if n.get("geschweisst") else ""), S_KLEIN),
                               _z(n["mass"], 1) if n["mass"] is not None else "fehlt", _z(n["laenge"], 0),
                               _z(n["anzahl"], 0), _p(n["lage"] or "", S_KLEIN), _z(n["heftpunkte"], 0)
                               if n["heftpunkte"] else "", _z(n["zeit_min"], 1), Kaestchen()])
