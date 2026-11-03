@@ -2378,8 +2378,9 @@ def kapitel_step(i):
            "<b>Ablehnen</b>, dann <b>Übernehmen</b>. Erst bestätigte Gewinde und Arbeiten werden gerechnet.", kurz=True)
     i.bild("bohrbild_dialog", "Fenster Bohrungen prüfen: Senkung und Flowdrill eines Rechteckrohrs", hoehe=70 * mm,
            legende=[
-               (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), Preis je Gewinde und je Arbeit (grau = "
-                   "Einstellungen, änderbar), was der Laser macht und Bestätigen/Ablehnen."),
+               (1, "Je Zeile Art (wie im STEP), Ø, Anzahl je Teil, <b>Ausführung</b> mit ★-Vorschlag und Grund, "
+                   "Gewinde (änderbar), Preis je Gewinde und je Arbeit (grau = Einstellungen, änderbar), was der "
+                   "Laser macht und Bestätigen/Ablehnen."),
                (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
                (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
                (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
@@ -2409,12 +2410,47 @@ def kapitel_step(i):
             "<b>Bohren</b>: Bohrung kleiner als 0,7 × Wandstärke (z. B. Ø 5 in 8 mm Wand, Grenze 5,6 mm), die der "
             "Laser kaum sauber schneidet ([[konturklassen]]). <b>Bestätigen</b> heißt: der Laser markiert nur "
             "(Gravur Ø0,5 oder Loch Ø0,5 wie beim Flowdrill, die Bohrung fällt aus Schneidweg und Konturliste), "
-            "danach wird aufgebohrt. Als dritte Wahl in der Spalte <i>Laser</i> schneidet <i>Ø schneiden (ohne "
-            "Bohren)</i> den vollen Lochdurchmesser trotzdem: Schneidweg, Einstich und Konturliste bleiben wie "
+            "danach wird aufgebohrt. Die Ausführung <i>nur lasern (Ø schneiden)</i> (früher dritte Wahl "
+            "<i>Ø schneiden (ohne Bohren)</i> in der Spalte <i>Laser</i>) schneidet den vollen Lochdurchmesser trotzdem: Schneidweg, Einstich und Konturliste bleiben wie "
             "gemessen, es gibt keine Zusatzarbeit <i>Bohren</i> und keine Warnung. Die Vorgabe für neue Zeilen "
             "(STEP-Import und alle Editoren) steht in der Einstellung <i>Bohrung kleiner als 0,7 × Wandstärke am "
             "Laser</i>. <b>Ablehnen</b> heißt: der Laser schneidet die Bohrung trotzdem, die Warnung "
             "<i>Kontur kleiner als 0,7 × Wandstärke</i> entfällt. Die Markierung Ø0,5 selbst wird nie vorgeschlagen.")
+    i.abschnitt("Bohrungsart ändern: Gewinde, Flowdrill, Einnietmutter …", marke="bohrung_ausfuehrung")
+    i.text("In der Spalte <b>Ausführung</b> lässt sich jede Bohrung nachträglich umstellen, z. B. ein Gewinde in "
+           "Flowdrill oder umgekehrt. ★ markiert den Vorschlag, die Spalte <i>Vorschlag</i> nennt den Grund "
+           "(z. B. „Wand 2 mm = 1,6 Gänge M8 – zu wenig“).", kurz=True)
+    i.liste("<b>Gewinde schneiden</b>: der Laser schneidet das Kernloch nach Einstellungen › Gewinde (M8: Ø 6,8), "
+            "das Gewinde rechnet € je Stück.",
+            "<b>Flowdrill + Gewinde formen</b>: der Laser markiert nur (Gravur oder Loch Ø0,5), dazu die "
+            "Zusatzarbeit <i>Flowdrill</i> und das Gewinde.",
+            "<b>Einnietmutter</b>: der Laser schneidet das Loch für die Mutter (M6: Ø 9, M8: Ø 11, M10: Ø 13), "
+            "Zusatzarbeit <i>Einnietmuttern setzen</i> mit Größe im Angebotstext (z. B. „mit Einnietmuttern 4× M8“), "
+            "kein Gewinde.",
+            "<b>Senkung</b>: Durchgangsloch nach ISO 273 (M8: Ø 9) und Senk-Ø nach ISO 15065 (M8: 16,4), auf Wunsch "
+            "graviert, Zusatzarbeit <i>Senken</i>.",
+            "<b>Bohren (markieren, aufbohren)</b> und <b>nur lasern (Ø schneiden)</b> wie oben.")
+    i.text("<b>So entsteht der Vorschlag:</b> Gewindegröße (Spalte Gewinde, sonst aus dem Ø geschätzt), Wandstärke "
+           "und Werkstoff. Gewinde schneiden trägt ab 3 Gewindegängen in der Wand (Alu × 1,5), Flowdrill passt ab "
+           "1 mm Wand bis 0,5 × Nenn-Ø (M8: bis 4 mm), Einnietmuttern im Klemmbereich (M8: 0,5–5,5 mm). ★ ist die "
+           "Ausführung aus dem STEP, wenn sie passt, sonst die erste passende aus Gewinde, Flowdrill, Einnietmutter. "
+           "Nicht empfohlene Ausführungen bleiben wählbar (Zusatz „nicht empfohlen“). Die Grenzen stehen unter "
+           "Einstellungen › STEP-Import › Bohrungen: <i>Vorschlag Gewinde schneiden: trägt ab so vielen "
+           "Gewindegängen in der Wand (Alu × 1,5)</i>, <i>Vorschlag Flowdrill: ab Wandstärke [mm]</i> und "
+           "<i>Vorschlag Flowdrill: bis Wandstärke = Faktor × Gewinde-Nenn-Ø</i>.")
+    i.text("<b>Mehrere auf einmal:</b> unten <b>Alle [M8] → [Ausführung] Umstellen</b> stellt alle Bohrungen dieser "
+           "Größe um, <b>★ Vorschläge übernehmen</b> setzt jede Zeile auf ihren Vorschlag und bestätigt sie. Im "
+           "Fenster für mehrere Positionen (alle Positionen markieren, Rechtsklick <i>Bohrungen prüfen …</i>) gilt "
+           "das für das ganze Angebot. Eine selbst gewählte Ausführung gilt als bestätigt.")
+    i.text("<b>STEP bleibt:</b> Die Kontur im STEP-Export und in der Zeichnung bleibt, wie sie im STEP steht; nur "
+           "Schneidweg, Einstiche, Konturklassen, Gewinde und Zusatzarbeiten folgen der Ausführung. Die Spalte "
+           "<i>Bohrungen</i>, die Meldung nach dem Übernehmen und das Fenster zeigen dann <i>weicht von STEP ab</i>, "
+           "z. B. „4x Flowdrill M8 statt Gewinde“.")
+    i.text("<b>In den Editoren:</b> Im Rohr-, Blech-, Baugruppen- und Satz-Editor hat jede Bohrung, Senkung und "
+           "jeder Flowdrill im Eigenschaften-Feld die Auswahl <b>Ausführung</b> mit denselben ★-Vorschlägen (Blech und "
+           "Senkung zusätzlich <i>Gewindegröße</i>). Beim Rohr wirkt sie beim Übernehmen über <i>Bohrungen prüfen</i> "
+           "auf die Position, beim Blech direkt im Richtpreis (Kosten <i>Nacharbeit</i> € je Stück aus "
+           "Einstellungen › Zusatzarbeiten); Gewinde im Blech zählen nicht im Richtpreis.")
     i.text("<b>Arbeitsschritte als Zusatzarbeit:</b> Bestätigte Senkungen, Flowdrill und Bohren trägt "
            "<b>Übernehmen</b> als Zusatzarbeit <i>Senken</i>, <i>Flowdrill</i> bzw. <i>Bohren</i> mit der Anzahl je "
            "Teil in die Position ein (Spalte <i>Zusatzarbeiten</i>, Preisstand der Stammdaten, "
@@ -5575,7 +5611,7 @@ def kapitel_baugruppen(i):
            "Änderung neu vor, spätestens beim OK; Werte von Hand und bestätigte bleiben. Die Einstellung "
            "<i>Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim STEP-Import: "
            "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Positionieren, Wenden, Verputzen, Rüsten)</i> gibt "
-           "das Häkchen für Baugruppen ohne eigene Wahl vor; Vorgabe ist seit Version 0.9.244 <i>ja</i>, weil ohne "
+           "das Häkchen für Baugruppen ohne eigene Wahl vor; Vorgabe ist seit Version 0.9.245 <i>ja</i>, weil ohne "
            "Vorkalkulation nur die reine Schweißzeit zählt (keine Heftpunkte, kein Positionieren und Wenden). Auf "
            "<i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
            "STEP-Import gleich durch ([[step]]), der Bericht nennt das Ergebnis. Nimmt man das Häkchen bei einer "

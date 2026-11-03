@@ -818,7 +818,8 @@ class BlechDialog(QDialog):
         art.setCurrentText(z.get("art") or sw.BOHRUNG)
         art.quer = bool(z.get("quer"))      # Langloch quer (STEP-Import); bleibt beim Speichern erhalten
         art.artikel = bool(z.get("artikel"))    # Text-Gravur der Artikelnummer aus dem Baugruppen-Editor
-        art.eig = {"drehung": z["drehung"]} if z.get("drehung") else {}     # Drehwinkel (Teile-Editor)
+        # Drehwinkel (Teile-Editor), Ausführung einer Bohrung und Gewindegröße (bohrbild.py, Eigenschaften-Feld)
+        art.eig = {k: z[k] for k in ("drehung", "aus", "groesse") if z.get(k)}
         art.linien = z.get("linien")        # Linien einer Gravur bzw. offenen Schnittlinie aus dem DXF-Import
         art.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, 0, art)
@@ -873,6 +874,8 @@ class BlechDialog(QDialog):
             eig = getattr(self.tabelle.cellWidget(r, 0), "eig", None) or {}
             if eig.get("drehung") and art in blech.DREH_ARTEN:
                 z["drehung"] = eig["drehung"]
+            if art in blech.BOHR_ARTEN:
+                z.update({k: eig[k] for k in ("aus", "groesse") if eig.get(k)})
             if getattr(self.tabelle.cellWidget(r, 0), "linien", None) and art in (sw.GRAVUR, sw.SONSTIGE):
                 z["linien"] = self.tabelle.cellWidget(r, 0).linien
             konturen.append(z)

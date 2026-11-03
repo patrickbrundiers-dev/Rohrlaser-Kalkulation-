@@ -5184,7 +5184,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             from .bohrbild_dialog import BohrbildDialog
             d = BohrbildDialog(self, p, gewinde, rechnen.wand_position(p, self.k),
                                self.db.einstellung("bohren_laser"), katalog, rechnen.stundensaetze(self.tabellen),
-                               {g["gewinde"]: g.get("preis") for g in self.tabellen["gewinde"] if g.get("gewinde")})
+                               {g["gewinde"]: g.get("preis") for g in self.tabellen["gewinde"] if g.get("gewinde")},
+                               grenzen=bohrbild.grenzen_aus(self.db.einstellung))
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
@@ -5194,9 +5195,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         arbeiten = bohrbild.arbeiten_text(liste)
+        hinweis = bohrbild.step_hinweis(liste)
         self.f.meldung(f"Bohrungen von Pos. {p.get('pos') or ''} gespeichert"
                        + (f", Zusatzarbeiten {arbeiten}" if arbeiten else "")
                        + (f", {bohrbild.offen(liste)} noch offen" if bohrbild.offen(liste) else "") + "."
+                       + (f" {hinweis}." if hinweis else "")
                        + (f" Zusatzarbeit {', '.join(fehlt)} fehlt in den Stammdaten (Einstellungen › Zusatzarbeiten)."
                           if fehlt else ""), fehler=bool(fehlt))
         self.neu_laden()
@@ -5223,7 +5226,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             from .bohrbild_dialog import BohrbildSammelDialog
             gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
             d = BohrbildSammelDialog(self, [(r, self.positionen[r], rechnen.wand_position(self.positionen[r], self.k))
-                                            for r in zeilen], gewinde, self.db.einstellung("bohren_laser"))
+                                            for r in zeilen], gewinde, self.db.einstellung("bohren_laser"),
+                                      bohrbild.grenzen_aus(self.db.einstellung))
             if dialog is not None:
                 dialog(d)
             elif d.exec() != QDialog.Accepted:
