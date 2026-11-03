@@ -682,7 +682,8 @@ SCHWEISS_FAKTOREN = Tabelle(
 # 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
 SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit",
                        "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
-                       "Heftzeit", "Mehrlagig")                       # Plan 28.10.2026, Schritt 5
+                       "Heftzeit", "Mehrlagig",                       # Plan 28.10.2026, Schritt 5
+                       "Stichnaht")                                   # Patrick 03.11.2026
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -698,7 +699,8 @@ SCHWEISS_REGELN = Tabelle(
     ("art", "wert"),
     "Regeln der Vorkalkulation im Baugruppen-Editor (Knopf 'Vorkalkulation rechnen'): Rüsten einmalig je Auftrag = "
     "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
-    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
+    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das schwerste Teil jeder Unterbaugruppe als "
+    "Basisteil) × Faktor nach Stückgewicht ('Faktor bis … kg'); Stichnaht: Länge je Stich (Ansätze); "
     "Heftpunkte je Naht = größer von Mindestzahl und aufrunden(Nahtlänge ÷ Heftabstand) + 1 für die Enden (nach "
     "kleinerer Wanddicke, gesteckt bzw. Edelstahl/Aluminium × Faktor; rundum ohne + 1, mindestens Umfang ÷ Umfang je "
     "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
@@ -1137,8 +1139,9 @@ EINSTELLUNGEN = (
     Einstellung("schweiss_vk_satz_nacharbeit", "Schweißbaugruppen: Stundensatz für Verputzen und Schleifen",
                 "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
     Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim "
-                "STEP-Import: Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)",
-                "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
+                "STEP-Import: Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Positionieren, Wenden, Verputzen, "
+                "Rüsten)",
+                "Schweißbaugruppen", "auswahl", "ja", auswahl="janein"),
     # Positionsgravur (gravur_text.py): Artikelnummer auf Bleche und Rohre gravieren, Höhe je Teil änderbar
     Einstellung("gravur_artikel", "Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
                 "(Vorgabe des Häkchens im Baugruppen-Editor)", "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
@@ -1166,6 +1169,13 @@ EINSTELLUNGEN = (
     # den Ø trotzdem schneiden, ohne Bohren (bohrbild.SCHNEIDEN)
     Einstellung("bohren_laser", "Bohrung kleiner als 0,7 × Wandstärke am Laser", "STEP-Import", "auswahl",
                 BOHREN_LASER[0], auswahl="bohrenlaser"),
+    # Vorschläge für die Ausführung einer Bohrung (Bohrungen prüfen, Eigenschaft Ausführung in den Editoren;
+    # Patrick 03.11.2026): Grenzen der Richtwerte, bohrbild.vorschlaege
+    Einstellung("bohr_gewinde_gaenge", "Vorschlag Gewinde schneiden: trägt ab so vielen Gewindegängen in der Wand "
+                "(Alu × 1,5)", "STEP-Import", "zahl", 3.0, 0.5, 20),
+    Einstellung("bohr_flowdrill_min", "Vorschlag Flowdrill: ab Wandstärke [mm]", "STEP-Import", "zahl", 1.0, 0, 20),
+    Einstellung("bohr_flowdrill_faktor", "Vorschlag Flowdrill: bis Wandstärke = Faktor × Gewinde-Nenn-Ø",
+                "STEP-Import", "zahl", 0.5, 0.05, 5),
     # Teile mit diesen Wörtern im Bauteilnamen sind Normteile: im Prüfdialog abgewählt (importprofil.py)
     Einstellung("step_normteile", "Normteile: Begriffe im Bauteilnamen (mit ; getrennt)", "STEP-Import", "text",
                 "ISO; DIN; Schraube; Mutter; Scheibe; Stift; Niet; Normteil"),

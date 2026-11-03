@@ -12,7 +12,8 @@ einen Satz behandeln.
 
 Rechenweg je Baugruppe (alle Beträge je Baugruppe, ungerundet):
   Menge eines Knotens  m(k) = Menge des Knotens × Menge seiner übergeordneten Knoten (Baugruppe selbst: 1)
-  Nahtgruppe           Naht [m] = Länge je Naht × Anzahl × (2 bei beidseitig) / 1000
+  Nahtgruppe           Naht [m] = Länge je Naht × Anzahl × (2 bei beidseitig) × geschweißt % / 1000 (Stichnaht:
+                       je weiteren Stich ein Ansatz mit der Zeit je Heftpunkt)
                        Lichtbogenzeit = Naht × Kennwert [min/m] × Faktor Schweißlage × Zugänglichkeit × Qualität
                                         × Werkstoff
                        Schweißzeit = Lichtbogenzeit ÷ Lichtbogenzeitfaktor + Heftpunkte × Anzahl × Zeit je Heftpunkt
@@ -27,6 +28,7 @@ Kennwerte, Faktoren und Lichtbogenzeitfaktor kommen aus dem Stand der Nahtgruppe
 aus den Stammdaten; Stundensätze aus der Zeitbasis des Angebots. Nichts wird erfunden: fehlt ein Kennwert oder
 Stundensatz, gibt es keine Zeit bzw. keine Kosten und eine Warnung.
 """
+import copy
 import json
 import math
 import uuid
@@ -123,6 +125,17 @@ def daten_fehler(text):
                 return f"Baugruppendaten: {titel} {ort} hat eine doppelte Kennung ({kenn})"
             ids.add(kenn)
     return None
+
+
+URSPRUNG = "ursprung"       # Stand aus dem STEP-Import (Editor: Zurücksetzen auf den Ursprung, 03.11.2026)
+
+
+def import_stand(bg, teile=()):
+    """Importstand einer Schweißbaugruppe zum Merken unter bg['ursprung']: die Baugruppe ohne sich selbst und die
+    Zuordnung der Teile [[Pos., Artikel, bg_knoten, je_knoten]] (teile: Positionen der Baugruppe)."""
+    stand = copy.deepcopy({k: v for k, v in bg.items() if k != URSPRUNG})
+    stand["teile"] = [[p.get("pos"), p.get("artikel"), p.get("bg_knoten"), p.get("je_knoten")] for p in teile]
+    return stand
 
 
 def speichern(bg):
@@ -480,6 +493,11 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
         linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
         if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
             v["linien"] = linien
+        auf = next((x["aufteilung"] for x in liste if isinstance(x.get("aufteilung"), str) and x["aufteilung"]), None)
+        if auf:                                             # Aufteilung der Länge (STEP-JSON 1.26)
+            v["aufteilung"] = auf
+        if any(x.get("stichnaht_moeglich") for x in liste):
+            v["stichnaht_moeglich"] = True
         out.append(v)
     return out
 
@@ -535,6 +553,8 @@ def vorschlag_naht(v, regel=None):
         n["spalt"] = v["spalt"]
     if v.get("beidseitig"):                             # Rohr durch Blech gesteckt: rundum auf beiden Seiten
         n["beidseitig"] = True
+    if v.get("aufteilung"):                             # wie sich die Länge zusammensetzt (STEP-JSON 1.26)
+        n["aufteilung"] = v["aufteilung"]
     if v.get("zugang") in ZUGANG_STUFEN:                # Erreichbarkeit aus STEP: Vorschlag Zugänglichkeit, Wenden
         n["zugang_step"] = v["zugang"]
         if v.get("seiten"):
@@ -656,6 +676,9 @@ def naht_stand(naht, tabellen, datum=None):
     lage_a, zusatz = regeln.wert("Mehrlagig", "a je Lage"), regeln.wert("Mehrlagig", "Zeit je Zusatzlage")
     f_heft = regeln.stufe("Heftzeit", wand(naht))[0] if wand(naht) is not None else None
     extra = dict(lage_a=lage_a, zusatzlage_min_m=zusatz) if lage_a and lage_a > 0 and zusatz is not None else {}
+    stich = regeln.wert("Stichnaht", "Länge je Stich")
+    if stich and stich > 0:
+        extra["stich_mm"] = stich
     if f_heft:
         extra["f_heft"] = f_heft
     return dict(verfahren=bool(v), min_m=round(min_m, 4) if min_m is not None else None,
@@ -700,6 +723,31 @@ def verbrauch(naht, st, naht_m, lichtbogen_min):
     return out
 
 
+STICH_MM = 50.0           # mm je Stich einer Stichnaht, wenn die Regel Stichnaht 'Länge je Stich' fehlt
+
+
+def stich_anteil(naht):
+    """Geschweißter Anteil einer Nahtgruppe (Spalte 'geschweißt %', Stichnaht; Patrick 03.11.2026): 0..1, leer = 1."""
+    w = naht.get("geschweisst")
+    return w / 100 if _zahl(w) and 0 < w < 100 else 1.0
+
+
+def naht_meter(naht, faktor=1):
+    """Geschweißte Naht [m] einer Nahtgruppe je Stück ihres Knotens × faktor: Länge × Anzahl × (2 bei beidseitig) ×
+    geschweißter Anteil / 1000."""
+    anzahl = _n(naht.get("anzahl")) if _zahl(naht.get("anzahl")) else 1
+    return _n(naht.get("laenge")) * anzahl * (2 if naht.get("beidseitig") else 1) * stich_anteil(naht) / 1000 * faktor
+
+
+def stiche(naht, st=None):
+    """Stiche je Naht einer Stichnaht (aufrunden(geschweißte Länge ÷ Länge je Stich)), 1 ohne Stichnaht."""
+    if stich_anteil(naht) >= 1 or not _zahl(naht.get("laenge")) or naht["laenge"] <= 0:
+        return 1
+    je = (st or {}).get("stich_mm")
+    je = je if _zahl(je) and je > 0 else STICH_MM
+    return max(1, math.ceil(naht["laenge"] * stich_anteil(naht) / je - 1e-9))
+
+
 def naht_rechnen(naht, tabellen, saetze):
     """Zeit und Kosten einer Nahtgruppe je Stück ihres Knotens: dict(naht_m, lichtbogen_min, heft_min, zeit_min,
     satz, kosten, hand, richtwert, fehlt). Stand der Nahtgruppe, sonst Stammdaten. fehlt = Grund, warum keine Zeit
@@ -707,7 +755,7 @@ def naht_rechnen(naht, tabellen, saetze):
     st = naht.get("stand") if isinstance(naht.get("stand"), dict) else naht_stand(naht, tabellen)
     anzahl = _n(naht.get("anzahl")) if _zahl(naht.get("anzahl")) else 1
     seiten = 2 if naht.get("beidseitig") else 1
-    naht_m = _n(naht.get("laenge")) * anzahl * seiten / 1000
+    naht_m = naht_meter(naht)
     satz_id = st.get("satz_id")
     satz = saetze.get(satz_id) if satz_id else None
     f_spalt = spalt_faktor(naht)            # Spalt der Teile: mehr Schweißgut (Zeit und Zusatz)
@@ -729,10 +777,34 @@ def naht_rechnen(naht, tabellen, saetze):
             lb = naht_m * st["min_m"] * _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) \
                 * _n(st.get("f_qualitaet") or 1) * _n(st.get("f_werkstoff") or 1) * f_spalt
             heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60 * _n(st.get("f_heft") or 1)
+            # Stichnaht: je weiteren Stich ein Ansatz wie ein Heftpunkt (Patrick 03.11.2026)
+            ansaetze = (stiche(naht, st) - 1) * anzahl * seiten
+            stich_min = ansaetze * _n(st.get("heft_s")) / 60
             lagen = lagen_zahl(naht, st)            # mehrlagig: je Zusatzlage Zwischenzeit (Reinigen, Ansetzen)
             zwischen = naht_m * (lagen - 1) * _n(st.get("zusatzlage_min_m")) if lagen > 1 else 0.0
-            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen,
-                       lagen=lagen, zwischen_min=zwischen)
+            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen
+                       + stich_min, lagen=lagen, zwischen_min=zwischen, stich_min=stich_min)
+            # Rechenweg zum Nachvollziehen im Editor (Patrick 03.11.2026), je Stück des Knotens
+            faktoren = _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) * _n(st.get("f_qualitaet") or 1) \
+                * _n(st.get("f_werkstoff") or 1) * f_spalt
+            weg = f"{_zt(naht_m, 2)} m"
+            if stich_anteil(naht) < 1:
+                weg += f" (Stichnaht {_zt(stich_anteil(naht) * 100, 0)} %)"
+            weg += f" × {_zt(st['min_m'], 2)} min/m"
+            if abs(faktoren - 1) > 1e-9:
+                weg += f" × {_zt(faktoren, 2)} (Faktoren)"
+            weg += f" ÷ {_zt(st['lichtbogen'], 0)} % Lichtbogen = {_zt(lb / (st['lichtbogen'] / 100), 1)} min"
+            if heft:
+                weg += (f" + Heften {_zt(_n(naht.get('heftpunkte')) * anzahl, 0)} × {_zt(st.get('heft_s'), 0)} s"
+                        + (f" × {_zt(st['f_heft'], 1)}" if _n(st.get("f_heft") or 1) != 1 else "")
+                        + f" = {_zt(heft, 1)} min")
+            elif not _zahl(naht.get("heftpunkte")):
+                weg += " · ohne Heftpunkte"
+            if zwischen:
+                weg += f" + {lagen - 1} Zusatzlage(n) {_zt(zwischen, 1)} min"
+            if stich_min:
+                weg += f" + Stiche {_zt(ansaetze, 0)} Ansätze × {_zt(st.get('heft_s'), 0)} s = {_zt(stich_min, 1)} min"
+            out["rechenweg"] = weg
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
     vb = verbrauch(naht, st, naht_m * f_spalt, out["lichtbogen_min"])
@@ -745,6 +817,16 @@ def _text(w):
     if not _zahl(w):
         return ""
     return f"{w:g}".replace(".", ",")
+
+
+def _zt(w, stellen):
+    """Zahl für den Rechenweg: höchstens stellen Nachkommastellen, deutsches Komma, ohne Nullen am Ende."""
+    if not _zahl(w):
+        return "?"
+    t = f"{round(float(w), stellen):.{stellen}f}"
+    if "." in t:
+        t = t.rstrip("0").rstrip(".")
+    return t.replace(".", ",")
 
 
 # ------------------------------------------------------------------ Arbeitsgänge

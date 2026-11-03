@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, profil_neu, blech, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
-    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
+    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen, blech_preis
 from .angebot_ausgabe import AusgabeMixin
 from .vorschlaege_mixin import VorschlaegeMixin
 from .nachkalk_seite import NachkalkulationSeite
@@ -52,7 +52,7 @@ from .spaltenbreite import AutoGroesse
 from . import position_kopie, satzgruppen, unterzeilen
 from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
-from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text
+from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
 
 def preis_aenderung(vorher, nachher):
@@ -113,9 +113,12 @@ class Liste(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.spalten)
 
+    kopf_text = {}          # Zeilenkopf gruppierter Zeilen (Kalkulation wie Positionsliste: ▾ ▸ │ └)
+
     def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
         if rolle == Qt.ItemDataRole.DisplayRole:
-            return self.spalten[abschnitt][0] if richtung == Qt.Horizontal else str(abschnitt + 1)
+            return self.spalten[abschnitt][0] if richtung == Qt.Horizontal else \
+                (self.kopf_text.get(abschnitt) or str(abschnitt + 1))
         return None
 
     def wert(self, r, c):
@@ -826,7 +829,7 @@ SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster")
+                     "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -836,6 +839,12 @@ RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelkli
 # Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
 VORSCHAU_FELDER = ("technik", "laenge", "profil_id", "art", "konturen", "a_ende", "b_ende", "a_schnitt", "b_schnitt")
 BOHRBILD_SPALTEN = ("gewinde", "bohrungen", "gewinde_vorschlag")     # Doppelklick: Bohrungen prüfen
+
+
+def bohrbild_moeglich(p):
+    """Bohrungen prüfen für Laserteile und Bleche (Gewinde in Blechen, Patrick 03.11.2026), nicht für andere
+    Zukaufteile und Schweißbaugruppen."""
+    return not kein_laserteil(p) or (p.get("art") == ZUKAUFTEIL and blech.lesen(p.get("technik")) is not None)
 # Doppelklick auf den Status: (Stichwort im Status, Ziel, Tooltip); erstes passendes gilt. Ziel = Methode der
 # Angebotsseite (bekommt die Zeile) oder "feld:" + Spalte (Zelle zum Eintragen öffnen, Spalte notfalls einblenden).
 STATUS_ZIELE = (
@@ -930,6 +939,12 @@ class PositionenModell(QAbstractTableModel):
                         + [("berechnet", b) for b in BERECHNET]
                         + [(art(f), f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
                         + [("abweichung", None)])
+        # EK der Bleche gleich hinter der Stückzahl (auch bei schmalem Fenster sichtbar): Richtpreis grau,
+        # Angebotspreis schwarz (Patrick 03.11.2026)
+        c = next((i for i, (a, x) in enumerate(self.spalten) if a == "feld" and x.name == "stueck"),
+                 len(self.spalten) - 1)
+        self.spalten.insert(c + 1, ("ek_blech", None))
+        self.blech_ek = []
         self.daten, self.werte, self.status = [], [], []
         self.mit_netz, self.bilder = set(), {}
         self.kopf_text = {}         # Zeilenkopf gruppierter Baugruppen (D3): ▾/▸ an der Baugruppe, └ an den Teilen
@@ -987,6 +1002,8 @@ class PositionenModell(QAbstractTableModel):
                 else None
             self.werte.append(w)
             self.status.append(rechnen.status(p, w, s.kopf, s.k, ein, self.daten))
+        daten = getattr(s, "blech_daten", None)
+        self.blech_ek = [blech_preis.stand(p, daten) if blech.lesen(p.get("technik")) else None for p in self.daten]
         self.endResetModel()
 
     def rowCount(self, parent=QModelIndex()):
@@ -1007,7 +1024,7 @@ class PositionenModell(QAbstractTableModel):
         art, x = self.spalten[abschnitt]
         if art == "zusatz":
             return "Gewinde · Zusatzarbeiten"
-        return x.titel if art in ("feld",) + EIGENE else {"status": "Status",
+        return x.titel if art in ("feld",) + EIGENE else {"status": "Status", "ek_blech": "EK Blech [€/St]",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
 
     def _zusatz_auto(self, p):
@@ -1044,6 +1061,9 @@ class PositionenModell(QAbstractTableModel):
             return anbau.kurz(anbau.lesen(self.daten[r].get("anbauteile")))
         if art == "abweichung":
             return schneidweg_abweichung(self.daten[r])
+        if art == "ek_blech":
+            st = self.blech_ek[r] if r < len(self.blech_ek) else None
+            return st["ek"] if st else None
         w = self.werte[r].get(x[1])
         return {True: "ja", False: "nein"}.get(w, w) if isinstance(w, bool) else w
 
@@ -1071,7 +1091,21 @@ class PositionenModell(QAbstractTableModel):
             return self._data_zelle(index, rolle)
         # Positionen eines Satzes (Patrick 27.10.2026): getönt, an der ersten fett Name und Anzahl Sätze
         art, x = self.spalten[index.column()]
-        if art == "feld" and x.name == "satz":
+        if art == "feld" and x.name == "satz" and s.get("bg"):
+            # Schweißbaugruppe (Patrick 03.11.2026): grün, an der Baugruppe ⚙ Name und Anzahl
+            if rolle == Qt.ItemDataRole.DisplayRole:
+                return satzgruppen.bg_zelltext(s, s["zu"])
+            if rolle == Qt.ItemDataRole.ForegroundRole:
+                return QBrush(stil.farbe(satzgruppen.TEXTE[s["ton"]] if s["erste"] else "#5F6B7A"))
+            if rolle == Qt.ItemDataRole.FontRole and s["erste"]:
+                f = QFont()
+                f.setBold(True)
+                return f
+            if rolle == Qt.ItemDataRole.ToolTipRole:
+                return (f"Schweißbaugruppe {s['name']}: {s['teile']} Einzelteil(e)"
+                        + (f", {s['saetze']} Stk." if s["saetze"] else "")
+                        + (".\nKlick auf ▾/▸ im Zeilenkopf: Einzelteile zu- bzw. aufklappen." if s["teile"] else "."))
+        elif art == "feld" and x.name == "satz":
             if rolle == Qt.ItemDataRole.DisplayRole:
                 return satzgruppen.zelltext(s, s["name"] in self.satz_zu)
             if rolle == Qt.ItemDataRole.ForegroundRole:
@@ -1102,6 +1136,8 @@ class PositionenModell(QAbstractTableModel):
     def _data_zelle(self, index, rolle):
         art, x = self.spalten[index.column()]
         w = self.roh(index.row(), index.column())
+        if art == "ek_blech":
+            return self._data_ek_blech(index.row(), rolle)
         if art == "feld" and x.name == "zeit_manuell":      # Schneidzeit: berechnet, von Hand überschreibbar
             berechnet = self.zeiten[index.row()]
             if rolle == Qt.ItemDataRole.DisplayRole and w is None:
@@ -1184,6 +1220,8 @@ class PositionenModell(QAbstractTableModel):
                     " · Tippen oder F2: Artikelnummer ändern"
             if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
+        if rolle == Qt.ItemDataRole.DisplayRole and art == "status":
+            return satzgruppen.kurz(w)          # eine Zeile; ganzer Text im Tooltip (Patrick 03.11.2026)
         if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             if art == "bohrbild" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (wert_als_text(x, w) + "\n" if w not in (None, "") else "") + \
@@ -1234,9 +1272,36 @@ class PositionenModell(QAbstractTableModel):
             return QBrush(stil.farbe({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
         return None
 
+    def _data_ek_blech(self, r, rolle):
+        """Spalte „EK Blech“: Richtpreis grau, Angebotspreis des Lieferanten fett schwarz; leer bei anderen Teilen."""
+        st = self.blech_ek[r] if r < len(self.blech_ek) else None
+        if st is None:
+            return None
+        if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            return blech_preis.text(st)
+        if rolle == Qt.ItemDataRole.ToolTipRole:
+            return blech_preis.tooltip(st)
+        if rolle == Qt.ItemDataRole.ForegroundRole:
+            return QBrush(stil.farbe("#000000" if st["angebot"] else "#5F6B7A"))
+        if rolle == Qt.ItemDataRole.FontRole and st["angebot"]:
+            f = QFont()
+            f.setBold(True)
+            return f
+        if rolle == Qt.ItemDataRole.TextAlignmentRole:
+            return int(Qt.AlignRight | Qt.AlignVCenter)
+        if rolle == Qt.ItemDataRole.BackgroundRole:
+            return QBrush(FARBE_EINGABE)
+        if rolle == Qt.ItemDataRole.UserRole:
+            return st["ek"]
+        return None
+
     def flags(self, index):
         f = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-        if self.spalten[index.column()][0] == "feld" and not (self.s.kopf or {}).get("fremd"):
+        art = self.spalten[index.column()][0]
+        if art == "feld" and not (self.s.kopf or {}).get("fremd"):
+            f |= Qt.ItemIsEditable
+        if art == "ek_blech" and index.row() < len(self.blech_ek) and self.blech_ek[index.row()] is not None \
+                and not (self.s.kopf or {}).get("fremd"):
             f |= Qt.ItemIsEditable
         return f
 
@@ -1244,6 +1309,20 @@ class PositionenModell(QAbstractTableModel):
         if rolle != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
         art, f = self.spalten[index.column()]
+        if art == "ek_blech":
+            st = self.blech_ek[index.row()] if index.row() < len(self.blech_ek) else None
+            try:
+                wert = zahl_aus_text(text) if str(text or "").strip() else None
+            except ValueError as e:
+                self.s.f.meldung(str(e), fehler=True)
+                return False
+            if wert is not None and wert <= 0:
+                wert = None
+            if st is None or (wert is not None and st["ek"] is not None and abs(wert - st["ek"]) < 0.005) \
+                    or (wert is None and not st["angebot"]):
+                return False            # unverändert bestätigt bzw. Richtpreis gilt schon
+            QTimer.singleShot(0, self, lambda r=index.row(), w=wert: self.s.blech_preis_setzen(r, w))
+            return True
         if art != "feld":
             return False
         p = self.daten[index.row()]
@@ -1937,6 +2016,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
         menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
         menue.addAction("EK eintragen …", lambda: self.zukauf_ek())
+        menue.addAction("Bleche: Richtwerte, Angebotspreise, Tafelbelegung …", lambda: self.bleche_uebersicht())
         self.zukauf_knopf.setMenu(menue)
         self.zukauf_knopf.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
         leiste.addWidget(self.zukauf_knopf)
@@ -2098,6 +2178,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
         self.bg_zu, self.bg_zeilen = set(), {}
         self.satz_zu, self.satz_zeilen = set(), {}
+        self._gruppen_laden()               # zugeklappte Gruppen dieses Angebots (03.11.2026)
         # Zusatzarbeiten unter der Position (Patrick 26.10.2026): je Arbeitsschritt eine eingerückte Zeile
         self.unter_texte = {}            # Index der Position -> [(Text, Warnung)] (unterzeilen.schritte)
         unter_an = self.db.einstellung(unterzeilen.EINSTELLUNG) is not False
@@ -2135,6 +2216,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kompakt_unter = Unterzeilen(self.kompakt_ansicht, self._kompakt_unter_texte, 1, an=unter_an)
         self.kompakt_ansicht.setToolTip("Doppelklick: zur Position")
         self.kompakt_ansicht.doubleClicked.connect(self._kompakt_doppelklick)
+        for ansicht, liste in ((self.kompakt_ansicht, self.kompakt), (kalk_ansicht, self.kalk)):
+            ansicht.verticalHeader().sectionClicked.connect(
+                lambda r, a=ansicht, li=liste: self._kalk_kopf_klick(a, li, r))
+            ansicht.verticalHeader().setToolTip("Klick auf ▾/▸: Schweißbaugruppe bzw. Satz zu- oder aufklappen")
         self.kalk_kompakt = QCheckBox("Kompakt")
         self.kalk_kompakt.setToolTip("Kompakt: Profil, Stückzahl, Länge, Material, Oberfläche, Laserzeit berechnet und "
                                      "genutzt, Verkaufspreis je Bauteil.\nOhne Häkchen: alle Spalten der Kalkulation.")
@@ -2146,6 +2231,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         kz = QHBoxLayout()
         kz.addWidget(self.kalk_info, 1)
         self.unter_haken_kalk = self._unter_haken(unter_an)
+        kz.addWidget(self._gruppen_knopf())
         kz.addWidget(self.unter_haken_kalk)
         kz.addWidget(self.kalk_kompakt)
         kl.addLayout(kz)
@@ -2298,7 +2384,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                         "Vorschub, eingeplante Teile usw.")
         el.addWidget(self.pos_info, 1)
         self.unter_haken_pos = self._unter_haken(self.pos_unter.an)
-        for w in (self.unter_haken_pos, self.spalten_knopf, self.zeige_step, self.zeige_berechnet):
+        for w in (self._gruppen_knopf(), self.unter_haken_pos, self.spalten_knopf, self.zeige_step,
+                  self.zeige_berechnet):
             el.addWidget(w)
         for c in (self.zeige_berechnet, self.zeige_step):
             c.toggled.connect(self._spalten_zeigen)
@@ -2555,6 +2642,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self._kopf_ordnet = False
         self.bg_zeilen = {i: bg_id for bg_id, (i, _) in baugruppe.baugruppen(self.positionen).items()} if zu else {}
         self.bg_zu &= set(self.bg_zeilen.values())
+        # Schweißbaugruppen grün wie die Sätze (Patrick 03.11.2026)
+        self.pos_modell.satz.update(satzgruppen.bg_info(self.positionen, self.bg_zu))
         texte = {i: ("▸ " if b in self.bg_zu else "▾ ") + str(i + 1) for i, b in self.bg_zeilen.items()}
         texte.update({j: "└ " + str(j + 1) for j in zu})
         texte.update(satzgruppen.kopf_texte(saetze, self.satz_zu))
@@ -2567,6 +2656,81 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.pos_modell.dataChanged.emit(self.pos_modell.index(0, 0),
                                              self.pos_modell.index(len(self.positionen) - 1,
                                                                    len(self.pos_modell.spalten) - 1))
+        self._kalk_gruppieren()
+        self._gruppen_knopf_setzen()
+
+    def gruppen_alle(self, zu):
+        """Alle Sätze und Schweißbaugruppen zu- bzw. aufklappen (Positionsliste und Kalkulation)."""
+        self.satz_zu = set(self.satz_zeilen.values()) if zu else set()
+        self.bg_zu = set(self.bg_zeilen.values()) if zu else set()
+        self._gruppieren()
+        self._gruppen_merken()
+
+    def _gruppen_knopf_setzen(self):
+        n = len(self.satz_zeilen) + len(self.bg_zeilen)
+        alle_zu = n > 0 and len(self.satz_zu) + len(self.bg_zu) >= n
+        for knopf in getattr(self, "gruppen_knoepfe", ()):
+            knopf.setVisible(n > 0)
+            knopf.setText("▾ Alle Gruppen aufklappen" if alle_zu else "▸ Alle Gruppen zuklappen")
+
+    def _gruppen_knopf(self):
+        """Knopf „Alle Gruppen zu-/aufklappen“ (Sätze und Schweißbaugruppen, Positionsliste und Kalkulation)."""
+        b = QPushButton("▸ Alle Gruppen zuklappen")
+        b.setToolTip("Alle Sätze und Schweißbaugruppen auf eine Zeile zuklappen bzw. wieder aufklappen. Einzeln: "
+                     "Klick auf ▾/▸ im Zeilenkopf. Wird je Angebot gemerkt.")
+        b.clicked.connect(self._gruppen_klick)
+        b.setVisible(False)
+        self.gruppen_knoepfe = getattr(self, "gruppen_knoepfe", []) + [b]
+        return b
+
+    def _gruppen_klick(self):
+        n = len(self.satz_zeilen) + len(self.bg_zeilen)
+        self.gruppen_alle(len(self.satz_zu) + len(self.bg_zu) < n)
+
+    def _gruppen_merken(self):
+        """Zugeklappte Gruppen je Angebot merken (Einstellung ansicht_gruppen_zu, nur dieser Arbeitsplatz)."""
+        if self.db.nur_lesen or not self.id:
+            return
+        alle = dict(self.db.einstellung("ansicht_gruppen_zu") or {})
+        eintrag = dict(satz=sorted(self.satz_zu), bg=sorted(self.bg_zu))
+        if eintrag["satz"] or eintrag["bg"]:
+            alle[str(self.id)] = eintrag
+        else:
+            alle.pop(str(self.id), None)
+        if len(alle) > 200:                 # nur die letzten Angebote merken
+            alle = dict(list(alle.items())[-200:])
+        self.db.einstellung_setzen("ansicht_gruppen_zu", alle)
+
+    def _gruppen_laden(self):
+        try:
+            e = (self.db.einstellung("ansicht_gruppen_zu") or {}).get(str(self.id)) or {}
+        except AttributeError:
+            e = {}
+        self.satz_zu, self.bg_zu = set(e.get("satz") or ()), set(e.get("bg") or ())
+
+    def _kalk_gruppieren(self):
+        """Kalkulation (kompakt und alle Spalten) wie die Positionsliste: zugeklappte Gruppen ausblenden, Zeilenkopf
+        mit ▾ ▸ │ └ (Patrick 03.11.2026)."""
+        kopf = getattr(self.pos_modell, "kopf_text", {}) or {}
+        versteckt = {r for r in range(len(self.positionen)) if self.pos_ansicht.isRowHidden(r)}
+        for liste, ansicht in ((getattr(self, "kalk", None), getattr(self, "kalk_ansicht", None)),
+                               (getattr(self, "kompakt", None), getattr(self, "kompakt_ansicht", None))):
+            if liste is None or ansicht is None:
+                continue
+            liste.kopf_text = {r: kopf[z["zeile"]] for r, z in enumerate(liste.zeilen)
+                               if isinstance(z, dict) and z.get("zeile") in kopf}
+            modell = ansicht.model()
+            for r, z in enumerate(liste.zeilen):
+                q = modell.mapFromSource(liste.index(r, 0)).row() if hasattr(modell, "mapFromSource") else r
+                ansicht.setRowHidden(q, isinstance(z, dict) and z.get("zeile") in versteckt)
+            if liste.zeilen:
+                liste.headerDataChanged.emit(Qt.Vertical, 0, len(liste.zeilen) - 1)
+
+    def _kalk_kopf_klick(self, ansicht, liste, r):
+        modell = ansicht.model()
+        q = modell.mapToSource(modell.index(r, 0)).row() if hasattr(modell, "mapToSource") else r
+        if 0 <= q < len(liste.zeilen) and isinstance(liste.zeilen[q], dict) and liste.zeilen[q].get("zeile") is not None:
+            self._kopf_klick(liste.zeilen[q]["zeile"])
 
     def _kopf_klick(self, zeile):
         """Zeilenkopf einer Schweißbaugruppe: ihre Einzelteile zu- bzw. aufklappen (D3)."""
@@ -2575,9 +2739,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if bg_id:
             self.bg_zu ^= {bg_id}
             self._gruppieren()
+            self._gruppen_merken()
         elif satz:
             self.satz_zu ^= {satz}
             self._gruppieren()
+            self._gruppen_merken()
 
     def _baugruppen_abgleichen(self):
         """Satz, Stück je Satz und Stückzahl der Schweißbaugruppen und ihrer Teile folgen der Struktur
@@ -3129,7 +3295,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")),
             self.kopf.get("versand"))
         markiert = satzgruppen.zeilen_markieren(self.positionen, zeilen)      # Sätze getönt (27.10.2026)
-        self.kalk.setzen([z for z in markiert if z])
+        folge = satzgruppen.anzeige_folge(self.positionen)                    # wie die Positionsliste (03.11.2026)
+        self.kalk.setzen([markiert[i] for i in folge if i < len(markiert) and markiert[i]])
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
@@ -3154,13 +3321,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
+        self.uebersicht_rahmen.jetzt_anpassen()
         self.wiederholteile_anzeigen()
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
-        self.kompakt.setzen(kompakt_zeilen(self.positionen, markiert))
+        self.kompakt.setzen(sorted(kompakt_zeilen(self.positionen, markiert),
+                                   key=lambda z, rang={i: n for n, i in enumerate(folge)}: rang.get(z["zeile"], 0)))
         self.kompakt_ansicht.setColumnHidden(next(c for c, sp in enumerate(KOMPAKT_SPALTEN) if sp[1] == "satz"),
                                              not any(z.get("satz") for z in self.kompakt.zeilen))
         katalog = self.tabellen.get("zusatzarbeiten") or ()
@@ -3169,6 +3338,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.pos_unter.aktualisieren()
         self.kompakt_unter.aktualisieren()
         leere_ausblenden(self.kompakt_ansicht, self.kompakt, KOMPAKT_IMMER)
+        self._kalk_gruppieren()
         self._kalk_info_setzen()
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
@@ -3332,7 +3502,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             name = m.name(i)
             if name not in OPTIONALE_SPALTEN:
                 continue
-            a = menue.addAction(x.titel + ("" if self._spalte_hat_werte(i) else "  (leer)"))
+            a = menue.addAction(str(m.headerData(i, Qt.Horizontal)) + ("" if self._spalte_hat_werte(i) else "  (leer)"))
             a.setCheckable(True)
             a.setChecked(not self.pos_ansicht.isColumnHidden(i))
             a.toggled.connect(lambda an, name=name: self.spalte_waehlen(name, an))
@@ -3804,6 +3974,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                    or ["kein Richtpreis"]), fehler=True)
                     continue
                 bez = kopf.get("bezeichnung") or blech.bezeichnung_vorschlag(e, erg["zuschnitt"])
+                # Stand aus der DXF merken (Blech-Editor: Zurücksetzen → wie aus STEP/DXF, Patrick 03.11.2026)
+                e = dict(e, ursprung={k_: v for k_, v in e.items() if k_ not in ("stueck", "step", "ursprung")})
                 if self._blech_anlegen(e, erg, dict(bezeichnung=bez, artikelnr=None, stueck=kopf["stueck"],
                                                     lieferant=zukauf.lieferant_vorgabe("Blechteile"))):
                     n += 1
@@ -3840,16 +4012,104 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if kopf.get("muster") != (p.get("muster") or None):     # Häkchen Muster (wie in allen Editoren)
             self.db.position_aendern(p["id"], "muster", kopf.get("muster"))
         self.neu_laden()
-        self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
+        st = blech_preis.stand(self.positionen[zeile]) if zeile < len(self.positionen) else None
+        if st and st["angebot"]:
+            self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück berechnet; es gilt weiter der "
+                           f"Angebotspreis {blech_preis.text(st)} € (Spalte EK Blech leeren = Richtpreis).")
+        else:
+            self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
         return True
 
-    def _blech_uebernehmen(self, p, e, erg, lieferant, stueck):
-        """Eingaben e und Richtpreis erg des Blech-Editors in die Position p und als EK ab stueck in den Artikel."""
+    def blech_preis_setzen(self, zeile, preis, lieferant=None):
+        """EK eines Blechteils im Angebot (Spalte „EK Blech“, Übersicht Bleche; Patrick 03.11.2026): preis > 0 =
+        eingeholter Angebotspreis des Lieferanten (lieferant, sonst der des Preisstands) als Staffelzeile ab Verbrauch im
+        Artikel, er gilt statt des Richtpreises; preis None = wieder der berechnete Richtpreis. Ergebnis: True =
+        geändert."""
+        if self.fremd() or not 0 <= zeile < len(self.positionen):
+            return False
+        p = self.positionen[zeile]
+        st = blech_preis.stand(p, getattr(self, "blech_daten", None))
+        e = blech.lesen(p.get("technik"))
+        if st is None or e is None:
+            return False
+        liste = zukauf.json_liste(p.get("zukauf"))
+        aid = st["artikel_id"]
+        pos = p.get("pos") or zeile + 1
+        alt = e.get("angebotspreis") or {}
+        vorher = alt.get("vorher") or st["lieferant"] or zukauf.lieferant_vorgabe("Blechteile")
+        if preis:
+            menge = float(st["menge"] or p.get("stueck") or 1)
+            menge = int(menge) if menge.is_integer() else menge
+            lief = (lieferant or "").strip() or st["lieferant"] or zukauf.lieferant_vorgabe("Blechteile")
+            try:
+                self.db.zukauf_ek_eintragen(aid, preis, lief, ab=menge, bemerkung=(
+                    f"Angebot {lief} für Angebot {self.kopf.get('nummer') or ''} (ab {menge} St)").replace("  ", " "))
+            except ValueError as x:
+                self.f.meldung(str(x), fehler=True)
+                return False
+            liste[0]["stand"] = self.db.zukauf_stand(aid, lief)
+            e = dict(e, angebotspreis=dict(preis=round(float(preis), 4), lieferant=lief, ab=menge, vorher=vorher,
+                                           datum=datetime.date.today().strftime("%d.%m.%Y")))
+            self.db.position_aendern(p["id"], "technik", blech.speichern(e))
+            self.db.position_aendern(p["id"], "zukauf", json.dumps(liste, ensure_ascii=False))
+            self.neu_laden()
+            rp = f" (Richtpreis {rechnen.zahl(st['richtpreis'], 2)} €)" if st.get("richtpreis") else ""
+            self.f.meldung(f"Pos. {pos}: Angebotspreis {rechnen.zahl(preis, 2)} € je Stück von {lief} gilt{rp}.")
+            return True
+        daten = getattr(self, "blech_daten", None) or self.db.blech_daten()
+        stueck = p.get("stueck") or e.get("stueck")
+        erg = blech.rechnen(dict(e, stueck=stueck), daten["werkstoffe"], daten["laser"], daten["einst"])
+        if not erg.get("richtpreis"):
+            self.f.meldung(f"Pos. {pos}: kein Richtpreis – " + "; ".join(erg["fehler"]), fehler=True)
+            return False
+        self._blech_uebernehmen(p, e, erg, vorher, stueck, richtpreis_eintragen=True)
+        self.neu_laden()
+        self.f.meldung(f"Pos. {pos}: wieder Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück.")
+        return True
+
+    def bleche_uebersicht(self, dialog=None):
+        """Alle Bleche des Angebots mit Richtwerten, Richtpreis und Angebotspreis (änderbar) und je Werkstoff und
+        Dicke die Tafelbelegung zum Ansehen (Patrick 03.11.2026). dialog(d) bedient das Fenster statt exec (Tests).
+        Ergebnis: Anzahl geänderter Preise."""
+        from .blech_uebersicht import BlecheDialog
+        zeilen = [r for r, p in enumerate(self.positionen) if blech.lesen(p.get("technik"))
+                  and blech_preis.stand(p) is not None]
+        if not zeilen:
+            self.f.meldung("Im Angebot stehen keine Bleche aus dem Blech-Editor oder der STEP.", fehler=True)
+            return 0
+        d = BlecheDialog(self, [(r, self.positionen[r]) for r in zeilen], getattr(self, "blech_daten", None)
+                         or self.db.blech_daten(), nur_lesen=bool(self.fremd() or self.db.nur_lesen))
+        from .blech_uebersicht import OEFFNEN
+        antwort = dialog(d) if dialog else d.exec()
+        if antwort not in (QDialog.Accepted, OEFFNEN):
+            return 0
+        aenderungen = d.aenderungen()
+        ids = {r: self.positionen[r].get("id") for r, _, _ in aenderungen}
+        n = 0
+        for r, preis, lief in aenderungen:       # nach jedem Setzen neu geladen: Zeile über die ID suchen
+            zeile = next((i for i, p in enumerate(self.positionen) if p.get("id") == ids[r]), None)
+            if zeile is not None:
+                n += bool(self.blech_preis_setzen(zeile, preis, lief))
+        if antwort == OEFFNEN and d.oeffnen_zeile is not None and not dialog:
+            self.blech_bearbeiten(d.oeffnen_zeile)
+        return n
+
+    def _blech_uebernehmen(self, p, e, erg, lieferant, stueck, richtpreis_eintragen=None):
+        """Eingaben e und Richtpreis erg des Blech-Editors in die Position p und als EK ab stueck in den Artikel.
+        Gilt ein Angebotspreis des Lieferanten (blech_preis), bleibt er der EK (richtpreis_eintragen=True erzwingt den
+        Richtpreis, z. B. beim Zurücksetzen)."""
         liste = zukauf.json_liste(p.get("zukauf"))
         aid = liste[0].get("artikel_id")
-        self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lieferant, ab=stueck,
-                                    bemerkung=f"Richtpreis Blech-Editor (ab {stueck} St)")
-        liste[0]["stand"] = self.db.zukauf_stand(aid, lieferant)
+        st = blech_preis.stand(p)
+        if richtpreis_eintragen is None:
+            richtpreis_eintragen = not (st and st["angebot"])
+        if richtpreis_eintragen:
+            self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lieferant, ab=stueck,
+                                        bemerkung=f"Richtpreis Blech-Editor (ab {stueck} St)")
+            liste[0]["stand"] = self.db.zukauf_stand(aid, lieferant)
+            e = {n: v for n, v in e.items() if n != "angebotspreis"}
+        elif (blech.lesen(p.get("technik")) or {}).get("angebotspreis"):
+            e = dict(e, angebotspreis=blech.lesen(p.get("technik"))["angebotspreis"])
         ab = max(1, float(stueck or 1))      # gemerkte Richtpreise: so unterscheiden die Stufen sie vom EK
         merk = [r for r in (blech.lesen(p.get("technik")) or {}).get("richtpreise") or ()
                 if isinstance(r, dict) and r.get("ab") != ab] + [dict(ab=ab, preis=erg["richtpreis"])]
@@ -4112,6 +4372,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 "bohrbild": self.bohrungen_pruefen, "anbau": self.anbauteile_pruefen}.get(art)
         if ziel:
             ziel([r])
+        elif art == "ek_blech" and self.pos_modell.flags(i) & Qt.ItemIsEditable:
+            self.pos_ansicht.edit(i)            # EK Blech: Angebotspreis eintragen (Patrick 03.11.2026)
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
                 name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
             self.blech_bearbeiten(r)            # Blech (auch aus STEP): Editor; Nummer mit 3D-Modell: 3D-Ansicht
@@ -5062,7 +5324,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return False
         gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
         if werte is None and len(zeilen) > 1:       # mehrere markiert: ein Fenster für alle (Plan Angebotsablauf V3)
-            mit = [r for r in zeilen if not kein_laserteil(self.positionen[r]) and bohrbild.aus_position(
+            mit = [r for r in zeilen if bohrbild_moeglich(self.positionen[r]) and bohrbild.aus_position(
                 self.positionen[r], gewinde, rechnen.wand_position(self.positionen[r], self.k))]
             if len(mit) > 1:
                 return self.bohrungen_alle_pruefen(mit)
@@ -5073,7 +5335,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             from .bohrbild_dialog import BohrbildDialog
             d = BohrbildDialog(self, p, gewinde, rechnen.wand_position(p, self.k),
                                self.db.einstellung("bohren_laser"), katalog, rechnen.stundensaetze(self.tabellen),
-                               {g["gewinde"]: g.get("preis") for g in self.tabellen["gewinde"] if g.get("gewinde")})
+                               {g["gewinde"]: g.get("preis") for g in self.tabellen["gewinde"] if g.get("gewinde")},
+                               grenzen=bohrbild.grenzen_aus(self.db.einstellung))
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
@@ -5083,9 +5346,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         arbeiten = bohrbild.arbeiten_text(liste)
+        hinweis = bohrbild.step_hinweis(liste)
         self.f.meldung(f"Bohrungen von Pos. {p.get('pos') or ''} gespeichert"
                        + (f", Zusatzarbeiten {arbeiten}" if arbeiten else "")
                        + (f", {bohrbild.offen(liste)} noch offen" if bohrbild.offen(liste) else "") + "."
+                       + (f" {hinweis}." if hinweis else "")
                        + (f" Zusatzarbeit {', '.join(fehlt)} fehlt in den Stammdaten (Einstellungen › Zusatzarbeiten)."
                           if fehlt else ""), fehler=bool(fehlt))
         self.neu_laden()
@@ -5095,7 +5360,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Zeilen der Positionen mit ungeprüften Gewinde-Vorschlägen, Senkungen, Flowdrill oder Bohren."""
         from . import bohrbild
         gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
-        return [r for r, p in enumerate(self.positionen) if not kein_laserteil(p) and bohrbild.offen(
+        return [r for r, p in enumerate(self.positionen) if bohrbild_moeglich(p) and bohrbild.offen(
             bohrbild.aus_position(p, gewinde, rechnen.wand_position(p, self.k)))]
 
     def bohrungen_alle_pruefen(self, zeilen=None, werte=None, dialog=None):
@@ -5112,7 +5377,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             from .bohrbild_dialog import BohrbildSammelDialog
             gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
             d = BohrbildSammelDialog(self, [(r, self.positionen[r], rechnen.wand_position(self.positionen[r], self.k))
-                                            for r in zeilen], gewinde, self.db.einstellung("bohren_laser"))
+                                            for r in zeilen], gewinde, self.db.einstellung("bohren_laser"),
+                                      bohrbild.grenzen_aus(self.db.einstellung))
             if dialog is not None:
                 dialog(d)
             elif d.exec() != QDialog.Accepted:
@@ -6460,7 +6726,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                   referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
                                   or referenz else None, hinweis=hinweis,
                                   pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu,
-                                  vorhandene_artikel=[p.get("artikel") for p in self.positionen])
+                                  vorhandene_artikel=[p.get("artikel") for p in self.positionen],
+                                  blech_daten=blech_daten)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
