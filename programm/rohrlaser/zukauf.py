@@ -505,8 +505,10 @@ def rechnen(eintraege_mit_menge, heute=None):
     gruppen = {}
     for schl, e, stueck in eintraege_mit_menge:
         st = e.get("stand") or {}
-        g = gruppen.setdefault((e.get("artikel_id"), stand_kennung(st)), dict(stand=st, artikel_id=e.get("artikel_id"),
-                                                                             teile=[]))
+        fest = dez(e.get("ek_fest"))       # EK aus den Kosten je Satz (satz_kosten.py, Patrick 03.11.2026)
+        fest = fest if fest is not None and fest > 0 else None
+        g = gruppen.setdefault((e.get("artikel_id"), stand_kennung(st), str(fest) if fest else None),
+                               dict(stand=st, artikel_id=e.get("artikel_id"), teile=[], fest=fest))
         menge = _d(e.get("menge")) * _d(stueck)
         g["teile"].append((schl, e, menge))
     je, ergebnis = {}, []
@@ -514,6 +516,10 @@ def rechnen(eintraege_mit_menge, heute=None):
         st = g["stand"]
         verbrauch = sum((m for _, _, m in g["teile"]), NULL)
         bs = bestellung(st, verbrauch, heute)
+        if g["fest"] is not None and verbrauch > 0:     # Kosten je Satz: fester EK je Einheit, ohne Staffel/Bezug
+            ek = g["fest"]
+            bs = dict(bs, bestellt=verbrauch, mehrmenge=NULL, ek=ek, staffel=None, einkauf=ek * verbrauch,
+                      bezug_einzeln={}, bezug=NULL, einstand=ek * verbrauch, fehler="", warnung="", satzkosten=True)
         regeln = st.get("regeln") or []
         ohne_pos = [(s, e, m) for s, e, m in g["teile"] if dez(e.get("aufschlag")) is None]
         v_ohne = sum((m for _, _, m in ohne_pos), NULL)

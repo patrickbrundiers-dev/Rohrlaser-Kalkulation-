@@ -2144,6 +2144,28 @@ def drehfraes_vorbelegen(messwerte, profile):
     return n
 
 
+KANT_FORMEN = ("U-Profil", "C-Profil", "L-Profil")
+
+
+def kantprofil_vorbelegen(messwerte, profile):
+    """Kantteile mit Biegeradien (Blech gekantet) werden wieder Profil, wenn ihr Profil (L/U/C aus der Messung, keine
+    Ersatzwerte) in den Stammdaten steht, z. B. ein Standard-Kantprofil 'U-Stahl 80x50x4' (Patrick 03.11.2026: „Kant-U/
+    C/L als Standard“). Nur einmal je Teil (_kp_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl."""
+    n = 0
+    for m in messwerte:
+        if m.get("_kp_vorbelegt") or m.get("fehler") or m.get("profilform") != "Blech gekantet":
+            continue
+        m["_kp_vorbelegt"] = True
+        alt = alternative(m)
+        if not alt or alt.get("profilform") not in KANT_FORMEN or str(alt.get("ersatz") or "") in ("1", "True"):
+            continue
+        if finde_profil(alt, profile) and art_wechseln(m):
+            m["_kp_vorbelegt"] = True
+            m["_kp_zurueck"] = True
+            n += 1
+    return n
+
+
 def teile_gruppen(messwerte, mit_blechen=True):
     """Rohrteile (gleiche_teile) und, mit_blechen, Bleche (gleiche_bleche), Vollmaterial (gleiche_voll) sowie Dreh- und
     Frästeile (gleiche_drehfraes) zusammen, nach erstem Index sortiert."""
@@ -2413,6 +2435,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     mit_blechen = zukauf_liste is not None
     if mit_blechen:         # Werkstoff der Bleche wie die Rohre der Datei, sonst S235 (ohne Prüfdialog genauso)
         drehfraes_vorbelegen(messwerte, profile)
+        kantprofil_vorbelegen(messwerte, profile)
         bleche_werkstoff_vorbelegen(messwerte, werkstoff, k.werkstoffe, (blech_daten or {}).get("werkstoffe"))
     neue_artikel = {}
     satz_teile = {}         # Datei -> [(Position eines Satzes, Knoten je Körper)] für Schweißbaugruppen

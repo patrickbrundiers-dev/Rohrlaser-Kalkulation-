@@ -73,7 +73,7 @@ TEILE = {
     # nicht geschlossen
     "G_Rohr_fenster": cut(rohr, box(-25, 15, 50, 50, 10, 100)),
     "H_L_profil": profil([(0, 0), (50, 0), (50, 3), (3, 3), (3, 40), (0, 40)], L),
-    # nächstes Normrohr: 59,4 × 39,4 -> RE 60x40; 58 × 38: Sondermaß
+    # nächstes Normrohr: 59,4 × 39,4 -> RE 60x40 (nur als Auswahl, Teil ist Blech gekantet); 58 × 38: Sondermaß
     "S_U_59": profil([(-29.7, -19.7), (29.7, -19.7), (29.7, 19.7), (27.7, 19.7), (27.7, -17.7), (-27.7, -17.7),
                       (-27.7, 19.7), (-29.7, 19.7)], L, {(-29.7, -19.7): 4, (29.7, -19.7): 4, (27.7, -17.7): 2,
                                                           (-27.7, -17.7): 2}),
@@ -199,7 +199,9 @@ def ringe():
     s = g.datei_lesen(str(tmp / "M_C_schlitz_20.step")).koerper[0][1]
     dazu = g._volumen(zu) - g._volumen(s)
     assert abs(dazu - 2 * 2 * 20 * 2) < 0.5, dazu
-    s59, s58 = ERG["S_U_59"].geschlossen, ERG["T_U_58"].geschlossen
+    # 59,4 × 39,4 außen ist kein Rohrmaß (Patrick 03.11.2026): Blech gekantet, als Auswahl das U mit dem Normrohr
+    assert ERG["S_U_59"].profilform == "Blech gekantet", ERG["S_U_59"].profilform
+    s59, s58 = ERG["S_U_59"].alternative.geschlossen, ERG["T_U_58"].geschlossen
     assert s59 is not None and (s59.abm_a, s59.abm_b) == (60.0, 50.0) and s59.offene_seite["normrohr"], s59
     assert s59.profil_id_vorschlag == "RE 60x50x2", s59.profil_id_vorschlag
     assert s58 is not None and abs(s58.abm_a - 58) < 0.01 and not s58.offene_seite["normrohr"], s58

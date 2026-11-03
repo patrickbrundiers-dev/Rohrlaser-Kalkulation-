@@ -1588,8 +1588,9 @@ def kapitel_angebot(i):
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
            "die <b>Anzahl Sätze</b> mit − und +, darunter jede Position mit <b>Stück je Satz</b>. Die Stückzahlen "
-           "rechnen sich sofort mit (Sätze × Stück je Satz); OK schreibt alles als einen Schritt für Strg+Z.",
-           kurz=True)
+           "rechnen sich sofort mit (Sätze × Stück je Satz); OK schreibt alles als einen Schritt für Strg+Z. "
+           "Hat der Satz Zukaufteile, steht darunter <b>Einkauf je Satz</b>: je ein Feld für <b>Bleche</b>, "
+           "<b>Vollmaterial</b> und <b>Dreh-/Frästeile</b> (EK in € für einen ganzen Satz).", kurz=True)
     i.genauer()
     i.liste("Auch direkt in der Liste passen die beiden Spalten zusammen: Wer <b>Stück je Satz</b> ändert, bekommt "
             "die Stückzahl passend zur Anzahl Sätze dazu. Wer die <b>Stückzahl</b> einer Satzposition ändert, bekommt "
@@ -1597,6 +1598,10 @@ def kapitel_angebot(i):
             "Geht das nicht in ganzen Stück auf (z. B. 7 Stück bei 3 Sätzen), wird nichts gerundet: Die Stückzahl "
             "bleibt wie getippt, Stück je Satz bleibt, und ein Hinweis erscheint (z. B. für Ersatzteile). Die Prüfung "
             "zeigt dann „unterschiedliche Anzahl Sätze“; das Angebot rechnet wie bisher mit der größten Anzahl.",
+            "<b>Einkauf je Satz</b>: Der Betrag × Anzahl Sätze wird auf die Positionen dieser Art umgelegt, nach "
+            "Gewicht (fehlt bei einem Teil das Gewicht: nach Stück). Er ersetzt den EK aus den Artikeln nur in diesem "
+            "Angebot; die Artikel bleiben unverändert. Auf Zukaufteile kommt wie immer nur der Aufschlag, kein "
+            "Gewinn. Feld leer (<i>aus den Artikeln</i>) = wieder der EK der Artikel.",
             "Hatten die Positionen eines Satzes bisher unterschiedlich viele Sätze, sagt es das Fenster; mit OK haben "
             "alle die Anzahl oben. Geänderte Stückzahlen stehen fett, darunter die Teile gesamt vorher und nachher.",
             "Im Fenster <i>Satz in 3D</i> ([[satz_3d]]) steht dasselbe Feld <b>Anzahl Sätze</b> neben „Satz als "
@@ -2375,7 +2380,10 @@ def kapitel_step(i):
     i.text("Bleche erkennt der Import selbst. Sie werden nicht gelasert, sondern <b>Zukaufteil-Positionen</b> mit "
            "einem Blechartikel; im Prüfdialog stehen sie in der grünen Gruppe <b>Bleche (Zukaufteile, nicht "
            "lasern)</b>. Werkstoff wählen, dann gibt es einen Richtpreis. Rund- und Vierkantstahl werden ebenso "
-           "Zukaufteile (Gruppe <b>Vollmaterial (Zukaufteile, gesägt)</b>).")
+           "Zukaufteile (Gruppe <b>Vollmaterial (Zukaufteile, gesägt)</b>). Seit 0.9.237 sind alle Zukaufteile "
+           "(Bleche, Vollmaterial, Dreh- und Frästeile) nur dann <b>angehakt</b>, wenn die Datei <i>als "
+           "Schweißbaugruppe</i> kommt; sonst entscheidet man selbst mit dem Haken, ob sie ins Angebot kommen. "
+           "Einen von Hand gesetzten Haken ändert das Umschalten der Baugruppe nicht.")
     i.genauer()
     i.text("Vor der Profilmessung prüft der STEP-Import, ob ein Körper ein <b>Blech</b> ist. Ein Blech hat zwei "
            "parallele Hauptflächen, ist überall gleich dick (das Volumen entspricht Hauptfläche × Dicke) und ist "
@@ -2401,9 +2409,12 @@ def kapitel_step(i):
             "gekantet</i>, immer mit Prüfstatus <i>prüfen</i>. Der Import wickelt das Teil ab (k = 0,33, scharfe "
             "Kante: Innenradius = Blechdicke): Zuschnitt, Schenkel-Außenmaße, Biegelinien, alle Innenkonturen und "
             "der Schneidweg kommen aus der Abwicklung. Auch mehrachsig gekantete Teile (Schale, Kasten) werden "
-            "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Ein Kantteil mit "
-            "gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder C-Profil, weil es als "
-            "Stangenmaterial auf dem Rohrlaser geschnitten werden kann; als Art lässt sich <i>Kantteil</i> wählen. "
+            "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Seit 0.9.237 ist ein "
+            "Kantteil <b>mit Biegeradien</b> (außen = innen + Blechdicke) auch bei gleichbleibendem Querschnitt ein "
+            "<i>Blech gekantet</i>; das L-, U- oder C-Profil steht in der Spalte Art zur Wahl. Es bleibt ein "
+            "<b>Profil</b>, wenn seine Maße ein <b>Standard-Kantprofil</b> sind (U-Stahl nach unserer Liste, Kant-C, "
+            "Kant-L, siehe [[profile]]) oder sein Profil in den Stammdaten steht (Hinweis <i>Kantprofil steht in den "
+            "Stammdaten</i>). Ein gewalztes Profil (scharfe Außenecke) oder Normprofil bleibt Profil. "
             "Ist es scharfkantig gezeichnet (ohne Biegeradien), ist im Prüfdialog das Profil nur vorbelegt, wenn "
             "ein passendes Profil in den Stammdaten steht, sonst das Kantteil. Ein <b>geschlossenes Rohr</b> "
             "(Rund-, Quadrat-, Rechteckrohr, Sonder- oder Mehrkammerprofil) ist immer ein Rohr, nie ein Kantteil, "
@@ -2507,7 +2518,9 @@ def kapitel_step(i):
            "Gefertigt wird das Teil auf dem Rohrlaser <b>aus dem geschlossenen Rohr</b>: An Ende A und Ende B bleibt "
            "<b>je ein Ring 2 mm</b> des ganzen Rohrs (mit Außenradius) stehen, damit das Teil ein Rohr bleibt; "
            "dazwischen wird die offene Seite als Fenster ausgeschnitten. Die Datei selbst bleibt unverändert; was "
-           "dazukommt, ist im 3D <b>rot</b>.", kurz=True)
+           "dazukommt, ist im 3D <b>rot</b>. Als Rohr gilt das Teil nur, wenn seine <b>Außenmaße ganze Zahlen</b> "
+           "sind (z. B. 60 × 40); ein Kantteil mit Biegeradien und krummem Außenmaß wie 30,8 ist ein <i>Blech "
+           "gekantet</i>, das Rohr steht dann in der Spalte Art zur Wahl (seit 0.9.237).", kurz=True)
     i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: aus RE 60×40×3 mit Ringen an den Enden",
            hoehe=95 * mm, legende=[
                (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Ringe an den Enden (aus dem Rohr)</i>; zur Auswahl stehen "
@@ -7365,7 +7378,12 @@ def kapitel_stammdaten(i):
     i.abschnitt("Profile", marke="profile")
     i.text("Profil-ID, Form, Maße und Wandstärke. Unbekannte Rohre im Angebot oder STEP-Import legt das Programm "
            "selbst an. Die U-Profile nach DIN 1026-1 von <i>UPN 30x15</i> bis <i>UPN 200</i> stehen als Standard "
-           "schon drin.", kurz=True)
+           "schon drin, seit 0.9.237 auch die <b>Kantprofile</b>: <i>U-Stahl</i> rund- und scharfkantig von "
+           "<i>U-Stahl 15x15x1,5</i> bis <i>U-Stahl 120x60x6</i> (Höhe × Breite × Dicke, Gewicht je Meter aus "
+           "unserer Liste), <i>Kant-C</i> (Höhe × Breite × Abkantung × Dicke) und <i>Kant-L</i>. Ein gekantetes "
+           "Profil mit diesen Maßen erkennt der STEP-Import als Profil für den Rohrlaser, andere Kantteile mit "
+           "Biegeradien als Blech gekantet ([[bleche]]). UPN 50 bis 160 erkennt er auch mit den dünneren Steg- und "
+           "Flanschdicken mancher Händlertabellen.", kurz=True)
     i.genauer("Felder")
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "

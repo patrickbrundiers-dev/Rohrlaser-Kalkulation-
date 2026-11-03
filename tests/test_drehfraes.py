@@ -197,7 +197,7 @@ def _():
         z = next(z for z in d.zeilen if z.liste == [0])
         assert z.blech and z.it.parent().data(0, 0x0100) == d.DREHGRUPPE, z.it.parent().data(0, 0x0100)
         assert z.pr.itemText(0) == d.AUTOMATISCH and z.ws.currentText() == "S235-10219"
-        assert "Drehteil Ø30 × 120 mm" in z.it.text(d.SP_HINWEIS) and z.it.checkState(0).name == "Checked"
+        assert "Drehteil Ø30 × 120 mm" in z.it.text(d.SP_HINWEIS) and z.it.checkState(0).name == "Unchecked"  # Zukauf: von Hand
         d.datei_waehlen(1)
         zb = next(z for z in d.zeilen if z.liste == [1])
         assert zb.it.checkState(0).name == "Unchecked" and "PRÜFEN" in zb.it.text(d.SP_HINWEIS)

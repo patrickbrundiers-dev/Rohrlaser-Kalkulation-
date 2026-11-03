@@ -26,8 +26,14 @@ NEUERUNGEN = [
      "oder Profile, mit Kategorie Drehteile bzw. Frästeile; gleiche Teile aus früheren Anfragen nehmen den vorhandenen "
      "Artikel ([[drehfraesteile]]). <b>Bleche</b>: dicke schmale flache Teile sind jetzt auch Bleche, Flachstahl steht "
      "nur noch zur Wahl, wenn die Größe passt; der <b>Werkstoff</b> der Bleche passt sich den Rohren der Datei an, "
-     "sonst S235 ([[bleche]]).",
-     "Dreh- und Frästeile als Zukauf, Bleche: Flachstahl nur passend, Werkstoff wie Rohre"],
+     "sonst S235 ([[bleche]]). <b>Kantteile mit Biegeradien</b> sind Blech gekantet, außer ihre Maße sind ein "
+     "<b>Standard-Kantprofil</b>: U-Stahl (rund-/scharfkantig nach unserer Liste), Kant-C und Kant-L stehen jetzt in "
+     "den Stammdaten ([[profile]]). Ein offen gezeichnetes Rohr gilt nur mit ganzen Außenmaßen als Rohr "
+     "([[offene_rohre]]). <b>Zukaufteile</b> im Import nur bei Schweißbaugruppe angehakt, sonst von Hand; "
+     "im Fenster Satz bearbeiten <b>Einkauf je Satz</b> für Bleche, Vollmaterial und Dreh-/Frästeile, nach Gewicht "
+     "umgelegt ([[satz_bearbeiten]]). Sicherere Erkennung: Rolle mit Radius, Flansch mit Absatz, Teile schräg im Raum, "
+     "gleichschenkliger Kant-Winkel; eine Testreihe mit über 50 gebauten Teilen prüft das.",
+     "Dreh- und Frästeile als Zukauf, Kantprofile Standard, Zukauf-Haken, Einkauf je Satz"],
     ["0.9.236", "Prüfung der Kalkulationsbasis: <b>Grundwerte prüfen …</b> unter Stammdaten → Maschinen und im "
      "Angebots-Check zeigt leere Nebenzeiten, Beispiel-Stundensätze und doppelt gezählte Zuschläge mit der Wirkung in € "
      "([[kalkulationsbasis]]). <b>Schneiddaten</b> zwischen zwei Wandstufen werden interpoliert (2,6 mm nicht mehr mit "

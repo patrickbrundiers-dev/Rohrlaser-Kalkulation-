@@ -39,6 +39,7 @@ SOLL = {  # Form, A, B, Wand, Fläche, Länge, Sicherheit Wand, erwarteter Hinwe
                                    "Wandstärke nicht einheitlich"),
 }
 OFFEN = ("U-Profil", "L-Profil", "C-Profil", "Flachstahl")
+GEKANTET = ()     # Kantteile mit Biegeradien ohne Standardmaß (U/C schließbar: offen gezeichnetes Rohr, bleibt Profil)
 
 
 def nah(ist, soll, tol, was, name):
@@ -49,6 +50,11 @@ fehler = 0
 for name, (form, a, b, w, fl, lg, sich, hinweis) in SOLL.items():
     try:
         (t,) = analysiere_datei(ORDNER / f"{name}.step")
+        if name in GEKANTET:
+            # Patrick 03.11.2026: Kantteil mit Biegeradien ohne Standardmaß = Blech gekantet, die Profilmessung als
+            # Auswahl (Spalte Art); geprüft wird die Profilmessung
+            assert t.profilform == "Blech gekantet" and t.pruefstatus == "prüfen", f"{name}: {t.profilform!r}"
+            t = t.alternative
         assert t.profilform == form, f"{name}: Profilform {t.profilform!r}"
         nah(t.abm_a, a, 0.01, "Abm. A", name)
         nah(t.abm_b, b, 0.01, "Abm. B", name)

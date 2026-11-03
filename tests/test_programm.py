@@ -36,7 +36,8 @@ assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"
 for name, zeilen in beispieldaten().items():
     gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)
                if not (name == "profile" and (z["form"] == "RP-Profil"      # RP-Bibliothek kommt dazu (rp_profile)
-                                              or z.get("bemerkung") == normprofile.STANDARD_BEMERKUNG))]  # U-Profile
+                                              or z.get("bemerkung") == normprofile.STANDARD_BEMERKUNG
+                                              or str(z.get("profil_id") or "").startswith(normprofile.KANT_REIHEN)))]  # U-/Kantprofile
     assert gelesen == zeilen, name
 assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_material") == 0 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19

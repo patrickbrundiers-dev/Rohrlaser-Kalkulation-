@@ -5594,11 +5594,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.db.position_aendern(pid, f, w)
         return hinweis
 
-    def saetze_anwenden(self, satz, n, je=None):
+    def saetze_anwenden(self, satz, n, je=None, kosten=None):
         """n Sätze (und Stück je Satz je = {Positions-ID: Wert}) in die Positionen des Satzes schreiben, ohne neu zu
-        laden. Ergebnis: Anzahl geänderter Positionen."""
-        from . import satz_menge
+        laden; kosten {Art: € je Satz} legt die Zukaufkosten je Satz auf die Teile um (satz_kosten.py). Ergebnis:
+        Anzahl geänderter Positionen."""
+        from . import satz_kosten, satz_menge
         aend = satz_menge.saetze_setzen(self.positionen, satz, n, je)
+        if kosten:
+            aend = list(aend) + satz_kosten.verteilen(self.positionen, satz, kosten, je)
         for pid, f, w in aend:
             self.db.position_aendern(pid, f, w)
         return len({pid for pid, _, _ in aend})
@@ -5625,7 +5628,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = SatzDialog(self, satz, self.positionen, nur_lesen=bool(self.fremd() or self.db.nur_lesen))
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.saetze is None:
             return False
-        n = self.saetze_anwenden(satz, d.saetze, d.je)
+        n = self.saetze_anwenden(satz, d.saetze, d.je, d.kosten)
         if n:
             self.neu_laden()
         self.f.meldung(f"Satz {satz}: {d.saetze} {'Satz' if d.saetze == 1 else 'Sätze'}, {n} Position(en) geändert."

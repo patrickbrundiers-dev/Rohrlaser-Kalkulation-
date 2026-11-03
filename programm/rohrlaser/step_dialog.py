@@ -115,6 +115,7 @@ class _Zeile:
         self.it, self.liste, self.pr, self.ws, self.sp, self.vorschlag, self.datei = it, liste, pr, ws, sp, vorschlag, datei
         self.werte = {"einzeln": stueck or 0, "satz": je_satz}
         self.blech = blech      # Blech, Vollmaterial: pr = Wahl des Zukaufartikels (Artikel-ID, None = automatisch)
+        self.haken_hand = False     # Häkchen von Hand gesetzt (folgt dann nicht mehr „als Schweißbaugruppe“)
 
 
 class StepPruefDialog(QDialog):
@@ -237,7 +238,7 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setToolTip("Den Satz als Schweißbaugruppe anlegen: Unterbaugruppen mit Menge aus der STEP-Datei, "
                                  "Einzelteile zugeordnet. Nahtgruppen und Arbeitsgänge danach im Editor ergänzen.")
         self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)) or
-                                      self.ziel_wahl.setEnabled(bool(an)))
+                                      self.ziel_wahl.setEnabled(bool(an)) or self._zukauf_haken(self.datei, an))
         sl.addSpacing(12)
         sl.addWidget(self.bg_haken)
         # P8: Datei als Unterbaugruppe in die Schweißbaugruppe einer anderen Datei dieses Imports einhängen
@@ -510,6 +511,7 @@ class StepPruefDialog(QDialog):
         mit_blechen = zukauf_liste is not None
         if mit_blechen:     # Werkstoff der Bleche wie die Rohre der Datei, sonst S235 (Patrick 03.11.2026)
             step.drehfraes_vorbelegen(messwerte, k.profile)    # Buchse u. ä. mit Profil in den Stammdaten: Rohr
+            step.kantprofil_vorbelegen(messwerte, k.profile)   # Kantteil mit Profil in den Stammdaten: Profil
             step.bleche_werkstoff_vorbelegen(messwerte, werkstoff, k.werkstoffe, self.blech_werkstoffe)
         self.baum.clear()
         self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
@@ -554,9 +556,10 @@ class StepPruefDialog(QDialog):
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
             it.setData(0, Qt.UserRole + 1, it.text(0))       # Artikelnummer beim Aufbau (Doppelklick ändert sie)
-            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen" and not m.get("_normteil"))
-                        is not False) if ist_blech or ist_df \
-                else m.get("_uebernehmen", not m.get("_normteil")) is not False if ist_voll else step.gewaehlt(m)
+            # Zukaufteile (Bleche, Vollmaterial, Dreh-/Frästeile; Patrick 03.11.2026): nur mit „als Schweißbaugruppe“
+            # automatisch angehakt, sonst entscheidest du selbst (nicht angehakt)
+            gewaehlt = m.get("_uebernehmen", bool(self.baugruppe.get(datei)) and not m.get("_normteil")) \
+                is not False if ist_zk else step.gewaehlt(m)
             anbauteil = self.anbau_von.get(erster) if self.anbau_weglassen else None
             if anbauteil is not None and "_uebernehmen" not in m:
                 gewaehlt = False
@@ -593,6 +596,8 @@ class StepPruefDialog(QDialog):
                     hinweis.append("PRÜFEN – nur nach den Maßen erkannt, zum Übernehmen anhaken (sonst Art: Rohr/Profil)")
             if m.get("_df_zurueck"):
                 hinweis.append("Profil steht in den Stammdaten: als Rohr/Profil statt Dreh-/Frästeil (Art umstellbar)")
+            if m.get("_kp_zurueck"):
+                hinweis.append("Kantprofil steht in den Stammdaten: als Profil statt Blech gekantet (Art umstellbar)")
             if ist_blech:
                 hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
                 if m.get("pruefstatus") == "prüfen":
@@ -714,6 +719,7 @@ class StepPruefDialog(QDialog):
             z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
                        m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
                        m.get("_je_satz") or len(liste), ist_zk)
+            z.haken_letzt = it.checkState(0)
             sp.setValue(z.werte[self._modus(datei)])
             self._vorschlag_faerben(z, m)
             if ist_blech:       # gelb nur, solange der automatische Werkstoff gilt
@@ -1421,8 +1427,30 @@ class StepPruefDialog(QDialog):
         it.setFlags(it.flags() & ~Qt.ItemIsEditable)
         return True
 
+    def _zukauf_haken(self, datei, an):
+        """„als Schweißbaugruppe“ umgeschaltet: die Zukaufteile der Datei (Bleche, Vollmaterial, Dreh-/Frästeile)
+        folgen (an = angehakt), außer ihr Häkchen wurde von Hand gesetzt oder es ist ein Normteil."""
+        if not hasattr(self, "zeilen"):
+            return
+        alt = self.baum.blockSignals(True)
+        try:
+            for z in self.zeilen:
+                if z.datei != datei or not z.blech or z.haken_hand:
+                    continue
+                if any(self.messwerte[i].get("_normteil") for i in z.liste):
+                    continue
+                z.it.setCheckState(0, Qt.Checked if an else Qt.Unchecked)
+                z.haken_letzt = z.it.checkState(0)
+        finally:
+            self.baum.blockSignals(alt)
+        self._vor_uhr.start()
+
     def _artikel_geaendert(self, it, spalte):
         z = self._zeile(it)
+        if z and spalte == 0 and z.blech and it.checkState(0) != getattr(z, "haken_letzt", it.checkState(0)):
+            z.haken_hand = True         # nur ein geändertes Häkchen zählt als von Hand
+        if z:
+            z.haken_letzt = it.checkState(0)
         if z and spalte == 0 and it.text(0) != it.data(0, Qt.UserRole + 1):
             alt = self.baum.blockSignals(True)
             try:
