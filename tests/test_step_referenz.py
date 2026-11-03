@@ -307,6 +307,10 @@ BLECHE = [  # Nr, Datei, Typ, Länge, Breite, Dicke, Kontur, Bohrungen {Ø: Anza
     ("BL11", "B11_Blech_100x40x8", "Blech", 100, 40, 8, "rechteckig", {}, 0, "plausibel"),
     ("BL12", "B12_Blech_300x200x5_Fase", "Blech", 300, 200, 5, "rechteckig", {}, 0, "plausibel"),
     ("BL13", "B13_Blech_30x20x3_Rest", "Blech", 30, 20, 3, "rechteckig", {}, 0, "plausibel"),
+    # Ronden, Flansche und Knotenbleche sind Bleche (Patrick 03.11.2026)
+    ("BL16", "B15_Flansch_150x8_Loch40_4xD11", "Blech", 150, 150, 8, "frei", {11.0: 4, 40.0: 1}, 5, "plausibel"),
+    ("BL17", "B16_Knotenblech_10mm", "Blech", 300, 250, 10, "frei", {17.0: 3}, 3, "plausibel"),
+    ("BL18", "B17_Ronde_200x5", "Blech", 200, 200, 5, "frei", {}, 0, "plausibel"),
 ]
 
 

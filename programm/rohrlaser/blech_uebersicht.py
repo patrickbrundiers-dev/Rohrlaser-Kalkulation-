@@ -39,7 +39,7 @@ def zeilen(positionen, daten):
 
 
 def tafel_gruppen(liste, einst):
-    """Gemeinsame Tafelbelegung je (Werkstoff, Dicke): [(Titel, Belegung oder None)]."""
+    """Gemeinsame Tafelbelegung je (Werkstoff, Dicke): [(Titel, Belegung oder None, {Pos.: Umriss})]."""
     w = dict(blech.EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     gruppen = {}
     for z in liste:
@@ -48,9 +48,10 @@ def tafel_gruppen(liste, einst):
             continue
         schl = (z["e"].get("werkstoff") or "?", float(z["e"].get("dicke") or 0))
         gruppen.setdefault(schl, []).append((zs["laenge"], zs["breite"], z["p"].get("stueck") or 1,
-                                             str(z["p"].get("pos") or z["zeile"] + 1)))
+                                             str(z["p"].get("pos") or z["zeile"] + 1), blech.form_bild(z["e"], zs)))
     out = []
-    for (wst, s), teile in sorted(gruppen.items()):
+    for (wst, s), liste_g in sorted(gruppen.items()):
+        teile = [x[:4] for x in liste_g]
         t = blech.tafel_gemischt(teile, blech.tafelformate(w.get("blech_tafeln")), blech._z(w.get("blech_tafel_rand")),
                                  blech._z(w.get("blech_tafel_steg")))
         n = sum(int(x[2]) for x in teile)
@@ -60,7 +61,7 @@ def tafel_gruppen(liste, einst):
                       f"{zahl_als_text(t['ausnutzung'] * 100, 0)} %")
             if t["fehlt"]:
                 titel += f" · passt auf keine Tafel: Pos. {', '.join(sorted(set(t['fehlt'])))}"
-        out.append((titel, t))
+        out.append((titel, t, {x[3]: x[4] for x in liste_g}))
     return out
 
 
@@ -142,7 +143,7 @@ class BlecheDialog(QDialog):
         rollen.setWidgetResizable(True)
         innen = QWidget()
         lay = QVBoxLayout(innen)
-        for titel, t in tafel_gruppen(self.liste, self.daten.get("einst")):
+        for titel, t, formen in tafel_gruppen(self.liste, self.daten.get("einst")):
             box = QGroupBox(titel)
             bl = QVBoxLayout(box)
             if not t:
@@ -151,7 +152,7 @@ class BlecheDialog(QDialog):
                 tb = TafelBild()
                 verh = t["format"][1] / t["format"][0]
                 tb.setMinimumHeight(int(min(420, max(160, 900 * verh + 44))))
-                tb.setzen(dict(t, bilder=[dict(bild, titel=f"Tafel {i + 1}: {len(bild['teile'])} Teile")]), None,
+                tb.setzen(dict(t, bilder=[dict(bild, titel=f"Tafel {i + 1}: {len(bild['teile'])} Teile")]), formen,
                           f"Tafel {i + 1} von {t['tafeln']}")
                 bl.addWidget(tb)
             lay.addWidget(box)

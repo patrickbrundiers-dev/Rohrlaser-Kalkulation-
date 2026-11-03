@@ -548,19 +548,16 @@ class TafelBild(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.belegung, self.punkte, self.text = None, None, ""
+        self.belegung, self.formen, self.text = None, None, ""
         self.setMinimumHeight(150)
         self.setToolTip("Tafelbelegung wie im Richtpreis gerechnet: Teile als Hüllrechteck mit Steg auf dem günstigsten "
                         "Tafelformat; die letzte Tafel zählt nur mit der belegten Fläche (gestrichelt). Doppelklick: groß "
                         "anzeigen.")
 
-    def setzen(self, belegung, zuschnitt, text=""):
+    def setzen(self, belegung, formen=None, text=""):
+        """formen: Umriss aus blech.form_bild (ein Teil) oder {Beschriftung: Umriss} (gemeinsame Tafel)."""
         self.belegung, self.text = belegung, text
-        pk = (zuschnitt or {}).get("punkte")
-        self.punkte = None
-        if pk and len(pk) >= 3:
-            x0, y0 = min(x for x, _ in pk), min(y for _, y in pk)
-            self.punkte = [(x - x0, y - y0) for x, y in pk]
+        self.formen = formen if formen is None or "innen" not in formen else {None: formen}
         self.update()
 
     def mouseDoubleClickEvent(self, _):
@@ -572,7 +569,7 @@ class TafelBild(QWidget):
         d.setWindowTitle("Tafelbelegung")
         lay = QVBoxLayout(d)
         bild = TafelBild()
-        bild.belegung, bild.punkte, bild.text = self.belegung, self.punkte, self.text
+        bild.belegung, bild.formen, bild.text = self.belegung, self.formen, self.text
         lay.addWidget(bild, 1)
         k = QDialogButtonBox(QDialogButtonBox.Close)
         k.rejected.connect(d.reject)
@@ -606,7 +603,7 @@ class TafelBild(QWidget):
             p.setBrush(stil.farbe("#EEF1F4"))
             p.drawRect(QRectF(ox, oy, l * m, b * m))
             for x, y, tl, tb, gedreht, *text in bild["teile"]:
-                self._teil(p, ox + x * m, oy + (b - y - tb) * m, tl * m, tb * m, gedreht)
+                self._teil(p, ox + x * m, oy + (b - y - tb) * m, tl * m, tb * m, text[0] if text else None)
                 if text and text[0] and min(tl, tb) * m >= 9:     # gemeinsame Tafel: Pos. im Teil
                     p.setPen(stil.farbe("#1F2937"))
                     p.drawText(QRectF(ox + x * m, oy + (b - y - tb) * m, tl * m, tb * m), Qt.AlignCenter,
@@ -623,24 +620,40 @@ class TafelBild(QWidget):
                       f"{bild['rest'][1]:.0f} mm")
             p.drawText(QRectF(ox, oy + b * m + 2, l * m, 16), Qt.AlignLeft | Qt.AlignVCenter, beschr)
 
-    def _teil(self, p, x, y, w, h, gedreht):
+    def _teil(self, p, x, y, w, h, beschriftung=None):
+        """Ein Teil in seiner Zelle: Außenkontur (sonst Hüllrechteck) und Innenkonturen rot; um 90° gedreht, wenn die
+        Zelle anders liegt als der Zuschnitt."""
+        f = (self.formen or {}).get(beschriftung) or (self.formen or {}).get(None)
         p.setPen(QPen(stil.farbe(FARBE_LINIE), 1))
         p.setBrush(stil.farbe("#B9D3EA"))
-        if not self.punkte:
+        if not f:
             p.drawRect(QRectF(x, y, w, h))
             return
-        xs, ys = [a for a, _ in self.punkte], [c for _, c in self.punkte]
-        pl, pb = (max(xs) or 1), (max(ys) or 1)
-        pfad = QPainterPath()
-        for i, (a, c) in enumerate(self.punkte):
-            if gedreht:                 # 90° gedreht (gegen den Uhrzeiger)
-                a, c, sl, sb = pb - c, a, pb, pl
-            else:
-                sl, sb = pl, pb
-            pt = QPointF(x + a / sl * w, y + h - c / sb * h)
-            pfad.moveTo(pt) if i == 0 else pfad.lineTo(pt)
-        pfad.closeSubpath()
-        p.drawPath(pfad)
+        fl, fb = f["laenge"] or 1, f["breite"] or 1
+        dreh = abs(fl - fb) > 1e-6 and (w > h) != (fl > fb)
+        sl, sb = (fb, fl) if dreh else (fl, fb)
+
+        def pt(a, c):
+            if dreh:                    # 90° gegen den Uhrzeiger
+                a, c = fb - c, a
+            return QPointF(x + a / sl * w, y + h - c / sb * h)
+        if f.get("punkte"):
+            pfad = QPainterPath()
+            for i, (a, c) in enumerate(f["punkte"]):
+                pfad.moveTo(pt(a, c)) if i == 0 else pfad.lineTo(pt(a, c))
+            pfad.closeSubpath()
+            p.drawPath(pfad)
+        else:
+            p.drawRect(QRectF(x, y, w, h))
+        if f.get("innen") and min(w, h) >= 6:
+            p.setPen(QPen(stil.farbe(FARBE_KONTUR), 0.8))
+            p.setBrush(stil.farbe("#FFFFFF"))
+            for zug in f["innen"]:
+                pfad = QPainterPath()
+                for i, (a, c) in enumerate(zug):
+                    pfad.moveTo(pt(a, c)) if i == 0 else pfad.lineTo(pt(a, c))
+                pfad.closeSubpath()
+                p.drawPath(pfad)
 
 
 class RichtwerteTabelle(QTableWidget):
@@ -1219,7 +1232,7 @@ class BlechDialog(QDialog):
         text = (f"Tafelbelegung {t['format'][0]:g} × {t['format'][1]:g} mm: {t['je_tafel']} je Tafel, Bedarf "
                 f"{zahl_als_text(t['tafeln'], 2)} Tafeln für {self.stueck.value()} Stück, Ausnutzung "
                 f"{zahl_als_text(t['ausnutzung'] * 100, 0)} %") if t else "Tafelbelegung"
-        self.tafel_bild.setzen(t, zs, text)
+        self.tafel_bild.setzen(t, blech.form_bild(self.eingaben(), zs) if zs else None, text)
         self.tafel_belegung = t
 
     def pruefung(self, e=None, zs=None):

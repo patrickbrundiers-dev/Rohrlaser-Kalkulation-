@@ -641,6 +641,30 @@ def tafel_belegung(laenge, breite, stueck, tafeln, rand=10.0, steg=5.0):
     return dict(t, bilder=[x for x in bilder if x["anzahl"] > 0 and x["teile"]])
 
 
+def form_bild(e, zs):
+    """Umriss für die Tafelbelegung: dict(punkte (Außenkontur ab der Ecke des Hüllrechtecks oder None = Rechteck),
+    innen [Linienzüge der Innenkonturen mit Lage], laenge, breite) im selben System wie der Zuschnitt zs."""
+    pk = zs.get("punkte") or None
+    x0 = min((x for x, _ in pk), default=0.0) if pk else 0.0
+    y0 = min((y for _, y in pk), default=0.0) if pk else 0.0
+    innen = []
+    for z in e.get("konturen") or ():
+        if z.get("x") is None or z.get("y") is None or z.get("art") in sw.GRAVUREN:
+            continue
+        cx, cy = _z(z["x"]) - x0, _z(z["y"]) - y0
+        if z.get("art") in (sw.BOHRUNG, sw.SENKUNG):
+            r = _z(z.get("d")) / 2
+            if r <= 0:
+                continue
+            zug = [(r * math.cos(math.radians(w)), r * math.sin(math.radians(w))) for w in range(0, 361, 15)]
+        else:
+            zug = kontur_umriss(z)
+        if zug:
+            innen.append([(cx + x, cy + y) for x, y in zug])
+    return dict(punkte=[(x - x0, y - y0) for x, y, *_ in pk] if pk else None, innen=innen,
+                laenge=_z(zs.get("laenge")), breite=_z(zs.get("breite")))
+
+
 def tafel_gemischt(teile, tafeln, rand=10.0, steg=5.0):
     """Gemeinsame Tafelbelegung verschiedener Bleche gleichen Werkstoffs und gleicher Dicke, nur zum Ansehen (Patrick
     03.11.2026: „erst nur visuell“; die Rechnung bleibt je Teil). teile: [(Länge, Breite, Stückzahl, Beschriftung)] der

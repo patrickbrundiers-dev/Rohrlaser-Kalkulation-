@@ -3,7 +3,7 @@
   € je Kantung, Rüsten, Aufschlag) ersetzen den Richtwert; der Richtpreis wird immer daraus berechnet.
 - R2 Blech aus der STEP: Gewicht aus dem Volumen, Schneidweg aus dem gemessenen Umfang, solange die Form unverändert
   ist; geänderte Form = wieder aus den Eingaben. Keine gemeinsamen Schnitte.
-- R3 Tafelbelegung je Teil (Lage ohne Überlappung, innerhalb des Rands) und gemeinsam je Werkstoff/Dicke (nur Ansicht).
+- R3 Tafelbelegung je Teil (mit Innenkonturen an ihrer Lage) (Lage ohne Überlappung, innerhalb des Rands) und gemeinsam je Werkstoff/Dicke (nur Ansicht).
 - R4 Blech-Editor: Tabelle der Richtwerte, eigener Wert gelb, ↺ setzt zurück, gespeichert in den Eingaben;
   Tafelbild zeigt die Belegung.
 - R6 STEP-Import: Position bekommt die Messung, Richtwerte aus der STEP; Prüfdialog zeigt Gewicht und Richtpreis
@@ -115,6 +115,13 @@ g = blech.tafel_gemischt([(400, 300, 25, "1"), (1200, 200, 10, "2"), (100, 50, 4
 assert g["fehlt"] == ["4"] and sum(len(b["teile"]) for b in g["bilder"]) == 75 and 0 < g["ausnutzung"] <= 1
 ohne_ueberlappung(g)
 assert blech.tafel_gemischt([], formate) is None
+fb = blech.form_bild(dict(konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=10, x=50, y=40),
+                                     dict(art=sw.LANGLOCH, anzahl=1, l=30, b=10, x=150, y=40),
+                                     dict(art=sw.BOHRUNG, anzahl=2, d=8),                     # ohne Lage: nicht
+                                     dict(art=sw.TEXT_GRAVUR, anzahl=1, text="A", hoehe=5, x=1, y=1)]),
+                     dict(laenge=200, breite=100, punkte=[(10, 20), (210, 20), (210, 120), (10, 120)]))
+assert fb["punkte"][0] == (0, 0) and len(fb["innen"]) == 2 and (fb["laenge"], fb["breite"]) == (200, 100)
+assert all(nah(sum(x for x, _ in z[:-1]) / (len(z) - 1), c, 0.5) for z, c in zip(fb["innen"], (40, 140)))
 ok("R3 Tafelbelegung je Teil und gemeinsam je Werkstoff/Dicke ohne Überlappung, im Rand, alle Teile")
 
 # ------------------------------------------------------------------ R4 Blech-Editor

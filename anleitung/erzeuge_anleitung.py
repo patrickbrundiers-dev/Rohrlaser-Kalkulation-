@@ -4993,7 +4993,7 @@ def kapitel_zukauf_angebot(i):
             "rechnet der Editor wieder aus den Eingaben. Der Schneidweg ist immer die volle Außenkontur plus alle "
             "Innenkonturen; gemeinsame Schnitte benachbarter Teile werden nicht abgezogen.",
             "<b>Tafelbelegung</b>: unter den Richtwerten zeigt ein Bild die günstigste Tafel mit den Teilen (Außenkontur "
-            "im Hüllrechteck, Steg und Rand aus den Einstellungen); die letzte Tafel zählt nur mit der belegten "
+            "und Innenkonturen wie Bohrungen und Ausbrüche in Rot, im Hüllrechteck, Steg und Rand aus den Einstellungen); die letzte Tafel zählt nur mit der belegten "
             "Fläche (rot gestrichelt). Doppelklick zeigt das Bild groß.",
             "<b>Spalte EK Blech</b> in der Positionsliste: grau = berechneter Richtpreis. Einen <b>Angebotspreis</b> "
             "des Lieferanten anklicken und eintragen; er wird im Zukaufartikel als Preis ab Stückzahl gespeichert, "
@@ -5006,7 +5006,8 @@ def kapitel_zukauf_angebot(i):
             "<i>Tafelbelegung (Ansicht)</i> legt je Werkstoff und Dicke alle Bleche gemeinsam auf Tafeln (Nummer = "
             "Pos.). Das ist nur eine Ansicht: gerechnet wird weiter je Teil.",
             "Im <b>Prüfdialog</b> des STEP- bzw. E-Mail-Imports steht bei jedem Blech mit Werkstoff gleich Gewicht und "
-            "Richtpreis aus den STEP-Daten; ein anderer Werkstoff rechnet sie neu.")
+            "Richtpreis aus den STEP-Daten; ein anderer Werkstoff rechnet sie neu. Ronden, Flansche und Knotenbleche "
+            "werden automatisch als Blech erkannt.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
