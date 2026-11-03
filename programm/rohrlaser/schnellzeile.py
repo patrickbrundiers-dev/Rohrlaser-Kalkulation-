@@ -46,6 +46,17 @@ def werkstoff_finden(wort, werkstoffe, bevorzugt=()):
 PROFIL_MASS = re.compile(rf"(^\s*|\s[A-Za-zÄÖÜäöü]+\.?\s*)({ZAHL}(?:\s*[x×*]\s*{ZAHL})+)(?=\s)")
 
 
+# Normprofil aus Kürzel und Größe ('UNP 100', 'U 30 x 15', 'IPE 200', 'HEB 160'): ein Wort bis zum Profil-Text
+NORM_KURZ = re.compile(r"(?<=\s)(UPN|UNP|U|IPE|IPN|HEA|HEB|HEM|T)\s*(\d+(?:\s*[x×]\s*\d+)?)(?=\s)", re.IGNORECASE)
+NORM_TRENNER = "_"     # hält das Wort zusammen, bis es zum Profil-Text wird
+
+
+def _norm_wort(m):
+    from . import normprofile
+    name = normprofile.normname(f"{m.group(1).upper()} {m.group(2)}")
+    return name.replace(" ", NORM_TRENNER) if name in normprofile.NORM else m.group(0)
+
+
 def zeile_lesen(text, profile, werkstoffe, bevorzugt=()):
     """Eine Zeile lesen. Ergebnis: dict(profil_id, werkstoff_id, laenge, stueck, artikel, rest, fehler) – nur
     erkannte Werte; fehler = Liste der Hinweise (fehlt Profil/Länge …). bevorzugt: Werkstoff-IDs für ein mehrdeutiges
@@ -57,6 +68,8 @@ def zeile_lesen(text, profile, werkstoffe, bevorzugt=()):
     if m:
         erg["artikel"] = m.group(1)
         t = t[:m.start()] + " " + t[m.end():]
+    # Normprofile mit Leerzeichen ('UNP 100', 'IPE 200') zusammenhalten, damit die Größe keine Länge wird
+    t = NORM_KURZ.sub(lambda m: _norm_wort(m), t)
     # Profilmaße mit Leerzeichen zusammenziehen, damit „x“ darin keine Stückzahl wird
     t = PROFIL_MASS.sub(lambda m: m.group(1) + re.sub(r"\s+", "", m.group(2)), t, count=1)
     # eindeutige Länge und Stückzahl
@@ -103,7 +116,7 @@ def zeile_lesen(text, profile, werkstoffe, bevorzugt=()):
         rest += [str(z).rstrip("0").rstrip(".") for z in zahlen]
     if "stueck" in erg:
         erg["stueck"] = max(1, int(round(erg["stueck"])))
-    profil_text = " ".join(rest).strip()
+    profil_text = " ".join(rest).replace(NORM_TRENNER, " ").strip()
     if profil_text:
         treffer = tabellen_eingabe.profil_treffer(profil_text, list(profile))
         if treffer:

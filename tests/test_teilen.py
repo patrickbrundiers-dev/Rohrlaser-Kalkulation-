@@ -231,6 +231,8 @@ ok("Datei einer neueren Programmversion: Stammdaten nicht übernommen, Hinweis")
 alt = tmp / "alt.db"
 pb.con.execute(f"VACUUM INTO '{alt}'")
 c = sqlite3.connect(alt)
+for (name,) in c.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%protokoll'").fetchall():
+    c.execute(f'DROP TRIGGER "{name}"')         # Änderungsprotokoll gab es in Schema 43 noch nicht
 for t in teilen.GETEILT:
     c.execute(f'DROP TRIGGER IF EXISTS "{t.name}_uid"')
     c.execute(f'DROP INDEX IF EXISTS "{t.name}_uid_index"')

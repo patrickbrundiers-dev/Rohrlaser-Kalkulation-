@@ -91,6 +91,7 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
         g["soll_kosten"] = g["kosten"]
         g["ist_kosten"] = (n if n is not None else g["soll"]) * g["kosten_stange_ist"]
     laser_h = sum((z["laser_netto"] or 0) * z["stueck"] for z in zeilen_k if z) / 3600
+    laser_ist_teile = teile_ist_h(positionen, zeilen_k, ist)      # Laufzeit je Teil, alle Teile erfasst (V3b)
     ruest_min = summen["ruestzeit"] + summen["abmessungen"] * summen["ruestzeit_abmessung"] \
         + summen.get("stangenwechsel_s", summen.get("beladungen", summen["stangen"]) * summen["stangenwechsel"]) / 60
 
@@ -111,6 +112,8 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
              (summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"]) / ruest_min
              if ruest_min else satz / 60)):
         m = _n(ist.get(name))
+        if name == "laser_h" and m is None:
+            m = laser_ist_teile
         zeilen.append(zeile(text, einheit, soll_menge, m if m is not None else soll_menge, soll,
                             m * faktor if m is not None else soll, m is not None))
     for name, text, soll in (("zusatz", "Gewinde und Zusatzarbeiten", summen["gewinde"] + summen["zusatz"]),
@@ -249,7 +252,7 @@ def rest_wie_geplant(v, ist):
     if stangen:
         ist["stangen"] = stangen
     z = {x["text"]: x for x in v["zeilen"]}
-    setzen(ist, "laser_h", z["Laserzeit"]["soll_menge"])
+    setzen(ist, "laser_h", z["Laserzeit"].get("ist_menge", z["Laserzeit"]["soll_menge"]))   # V3b: aus den Teilen
     setzen(ist, "ruest_min", z["Rüsten + Stangenwechsel"]["soll_menge"])
     setzen(ist, "zusatz", z["Gewinde und Zusatzarbeiten"]["soll"])
     setzen(ist, "zukauf", z["Zukaufteile (Einstand)"]["soll"])
@@ -274,7 +277,8 @@ def rest_wie_geplant(v, ist):
 def erfasst(ist):
     """True, wenn mindestens ein Ist-Wert eingetragen ist."""
     ist = ist or {}
-    return any(_n(ist.get(n)) is not None for n, _, _ in FELDER) or \
+    return any(_n(v) is not None for v in (ist.get("laufzeit") or {}).values()) or \
+        any(_n(ist.get(n)) is not None for n, _, _ in FELDER) or \
         any(_n(v) is not None for n in ("stangen", "meterpreis") for v in (ist.get(n) or {}).values()) or \
         any(_n(e.get(n)) is not None or e.get("grund") for e in (ist.get("baugruppen") or {}).values()
             for n in [x[0] for x in BG_FELDER] + ["grund"])
@@ -292,7 +296,53 @@ def mengen_klasse(teile):
             return text
 
 
-def soll_stand(v, kopf, positionen, ergebnis, k=None):
+# ------------------------------------------------------------------ Laufzeit je Teil (Vorschlag V3b, 31.10.2026)
+def sd_schluessel(maschine, sd):
+    """Schlüssel einer Schneiddaten-Zeile für die Kennwerte: (Maschine, Werkstoff-ID oder 'Kategorie …', Wandstärke
+    bis, Gas)."""
+    wer = sd.get("werkstoff_id") or f"Kategorie {sd.get('kategorie') or '?'}"
+    return [maschine or "", wer, sd.get("wand_bis"), sd.get("gas") or ""]
+
+
+def teile_soll(kopf, positionen, kalk_zeilen, k, tabellen):
+    """Laserteile mit Soll-Laufzeit je Teil [s] (laser_netto der Kalkulation) und der Schneiddaten-Zeile, aus der die
+    Zeit stammt: [dict(id, pos, artikel, profil, werkstoff, soll_s, schluessel)]."""
+    out = []
+    m = kopf.get("maschine")
+    for p, z in zip(positionen, kalk_zeilen or ()):
+        if not z or not p.get("profil_id") or not p.get("id") or not _n(z.get("laser_netto")):
+            continue
+        w = rechnen.position_werte(p, kopf, k, tabellen)
+        if w.get("wand_schneiden") is None:
+            continue
+        sd = rechnen.schneiddaten(m, p.get("werkstoff_id"), w["wand_schneiden"], tabellen,
+                                  rechnen.kategorie(p.get("werkstoff_id"), k), rechnen.werkstoff_zeile(p.get("werkstoff_id"), k))
+        if not sd:
+            continue
+        out.append(dict(id=p["id"], pos=p.get("pos"), artikel=p.get("artikel") or "", profil=p["profil_id"],
+                        werkstoff=p.get("werkstoff_id") or "", soll_s=z["laser_netto"], stueck=z.get("stueck"),
+                        schluessel=sd_schluessel(m, sd)))
+    return out
+
+
+def teile_ist_h(positionen, kalk_zeilen, ist):
+    """Ist-Laserzeit [h] aus der Laufzeit je Teil, nur wenn sie für alle Laserteile eingetragen ist, sonst None."""
+    je = (ist or {}).get("laufzeit") or {}
+    if not je:
+        return None
+    h, alle = 0.0, True
+    for p, z in zip(positionen, kalk_zeilen or ()):
+        if not z or not _n(z.get("laser_netto")):
+            continue
+        s = _n(je.get(str(p.get("id"))))
+        if s is None:
+            alle = False
+            break
+        h += s * (z.get("stueck") or 0) / 3600
+    return h if alle else None
+
+
+def soll_stand(v, kopf, positionen, ergebnis, k=None, teile=None):
     """Soll und Ist der Nachkalkulation, wie sie beim Speichern gerechnet waren (Grundlage der Auswertung und der
     Kennwert-Vorschläge, ohne die Angebote neu zu rechnen): Maschine, Werkstoffe, Kategorien, Profile, Teile, je
     Kostenart [Text, Feld, Einheit, Menge Soll, Menge Ist, Soll €, Ist €, erfasst], Erlös und Deckungsbeitrag."""
@@ -305,7 +355,8 @@ def soll_stand(v, kopf, positionen, ergebnis, k=None):
                 zeilen=[[z["text"], z.get("feld") or z.get("bg_feld") or "", z["einheit"], z["soll_menge"],
                          z["ist_menge"], z["soll"], z["ist"], z["erfasst"] == "ja"] for z in v["zeilen"]],
                 erloes=[v["erloes"]["soll"], v["erloes"]["ist"], v["erloes"]["erfasst"] == "ja"],
-                db=[v["db"]["soll"], v["db"]["ist"]])
+                db=[v["db"]["soll"], v["db"]["ist"]],
+                laufzeit=[[t["id"], t["soll_s"], t["schluessel"]] for t in teile or ()])
 
 
 def faelle(db):
@@ -358,6 +409,64 @@ def auswertung(db, merkmal="kostenart"):
                 ausschuss=dict(teile=teile, stueck=stk, quote=stk / teile if teile else None))
 
 
+# ------------------------------------------------------------------ Rückblick für Wiederholteile (Vorschlag K4)
+RUECKBLICK_GRENZE = 0.10        # ab so viel Abweichung der Laserzeit meldet der Angebots-Check einen Hinweis
+
+
+def rueckblick(nk, position_id):
+    """Wie es beim letzten Auftrag lief (Vorschlag K4, Patrick 02.11.2026 „K4a“): aus der gespeicherten
+    Nachkalkulation eines Angebots (angebote.nachkalkulation) für eine Position dict(laser_soll_s, laser_ist_s,
+    laser_abw (Anteil, Ist ÷ Soll − 1; je Teil, sonst der ganze Auftrag), laser_quelle ('Teil'/'Auftrag'),
+    ruesten_abw_min, ausschuss_quote, db_h_soll, db_h_ist) oder None ohne Ist-Werte. Ändert keinen Preis."""
+    if not isinstance(nk, dict) or not isinstance(nk.get("soll"), dict):
+        return None
+    soll = nk["soll"]
+    out = dict(laser_soll_s=None, laser_ist_s=None, laser_abw=None, laser_quelle=None, ruesten_abw_min=None,
+               ausschuss_quote=None, db_h_soll=None, db_h_ist=None)
+    je = nk.get("laufzeit") or {}
+    for pid, soll_s, _ in soll.get("laufzeit") or ():
+        if str(pid) == str(position_id) and _n(soll_s) and _n(je.get(str(pid))) is not None:
+            out.update(laser_soll_s=soll_s, laser_ist_s=_n(je[str(pid)]), laser_abw=_n(je[str(pid)]) / soll_s - 1,
+                       laser_quelle="Teil")
+    laser = _zeile(soll, "Laserzeit")
+    if out["laser_abw"] is None and laser and laser[7] and _n(laser[3]) and _n(laser[4]) is not None:
+        out.update(laser_abw=laser[4] / laser[3] - 1, laser_quelle="Auftrag")
+    r = _zeile(soll, "Rüsten + Stangenwechsel")
+    if r and r[7] and _n(r[3]) is not None and _n(r[4]) is not None:
+        out["ruesten_abw_min"] = r[4] - r[3]
+    a_stk, teile = _n(nk.get("ausschuss_stk")), _n(soll.get("teile"))
+    if a_stk is not None and teile:
+        out["ausschuss_quote"] = a_stk / teile
+    dbw = soll.get("db") or [None, None]
+    if laser and _n(laser[3]):
+        out["db_h_soll"] = _n(dbw[0]) / laser[3] if _n(dbw[0]) is not None else None
+        h_ist = _n(laser[4]) if laser[7] else None
+        if h_ist and _n(dbw[1]) is not None:
+            out["db_h_ist"] = dbw[1] / h_ist
+    if all(out[n] is None for n in ("laser_abw", "ruesten_abw_min", "ausschuss_quote", "db_h_ist")):
+        return None
+    return out
+
+
+def rueckblick_text(r):
+    """Kurztext, z. B. 'letztes Mal: Laser +18 % je Teil, Rüsten +25 min, Ausschuss 3 %, DB 96 €/h Laser (Soll 140)'."""
+    from .stammdaten import zahl_als_text as zahl
+    if not r:
+        return ""
+    teile = []
+    if r["laser_abw"] is not None:
+        teile.append(f"Laser {'+' if r['laser_abw'] >= 0 else '−'}{zahl(abs(100 * r['laser_abw']), 0)} %"
+                     + (" je Teil" if r["laser_quelle"] == "Teil" else ""))
+    if r["ruesten_abw_min"] is not None and abs(r["ruesten_abw_min"]) >= 0.5:
+        teile.append(f"Rüsten {'+' if r['ruesten_abw_min'] >= 0 else '−'}{zahl(abs(r['ruesten_abw_min']), 0)} min")
+    if r["ausschuss_quote"]:
+        teile.append(f"Ausschuss {zahl(100 * r['ausschuss_quote'], 1)} %")
+    if r["db_h_ist"] is not None:
+        teile.append(f"DB {zahl(r['db_h_ist'], 0)} €/h Laser"
+                     + (f" (Soll {zahl(r['db_h_soll'], 0)})" if r["db_h_soll"] is not None else ""))
+    return "letztes Mal: " + ", ".join(teile) if teile else ""
+
+
 # ------------------------------------------------------------------ Kennwert-Quellen (kennwerte.py)
 def _zeile(s, text):
     return next((z for z in s.get("zeilen") or () if z[0] == text), None)
@@ -403,8 +512,41 @@ def faelle_ruesten(db):
     return out
 
 
+def faelle_laserzeit_teil(db):
+    """Laufzeit je Teil Soll/Ist [s] je Schneiddaten-Zeile (Maschine, Werkstoff/Kategorie, Wandstärke, Gas); jedes
+    Laserteil mit eingetragener Ist-Laufzeit ist ein Fall (V3b: genauer als die Laserzeit des ganzen Auftrags)."""
+    out = []
+    for f in faelle(db)[0]:
+        je = f["ist"].get("laufzeit") or {}
+        for pid, soll_s, schl in f["soll"].get("laufzeit") or ():
+            ist_s = _n(je.get(str(pid)))
+            if ist_s is not None and _n(soll_s):
+                out.append(dict(schluessel=tuple(schl), soll=soll_s, ist=ist_s, angebot=f["nummer"], datum=f["datum"]))
+    return out
+
+
+def anwenden_laserzeit_teil(db, schluessel, faktor):
+    """Vorschübe genau dieser Schneiddaten-Zeile(n) ÷ Faktor (Ist länger als Soll = langsamer)."""
+    maschine, wer, wand_bis, gas = schluessel
+    kat = wer[len("Kategorie "):] if str(wer).startswith("Kategorie ") else None
+    aend = []
+    for z in db.zeilen("schneiddaten"):
+        passt = (z.get("maschinen_id") == maschine and z.get("wand_bis") == wand_bis and (z.get("gas") or "") == gas
+                 and (z.get("werkstoff_id") == wer if kat is None else not z.get("werkstoff_id") and z.get("kategorie") == kat))
+        if not passt:
+            continue
+        for feld in rechnen.VORSCHUB_FELDER:
+            if isinstance(z.get(feld), (int, float)):
+                neu = max(1.0, round(z[feld] / faktor))
+                db.aendern("schneiddaten", z["id"], feld, neu)
+                aend.append(["schneiddaten", z["id"], feld, z[feld], neu])
+    return aend
+
+
 def _quellen():
     from . import kennwerte
+    kennwerte.register_quelle("laserzeit_teil", "Laufzeit je Teil (Maschine, Werkstoff, Wandstärke bis, Gas) → "
+                              "Vorschübe dieser Schneiddaten", faelle_laserzeit_teil, anwenden_laserzeit_teil)
     kennwerte.register_quelle("laserzeit", "Laserzeit (Maschine, Kategorie) → Vorschübe", faelle_laserzeit,
                               anwenden_laserzeit)
     kennwerte.register_quelle("ruesten", "Rüsten + Stangenwechsel (Maschine), nur Vorschlag", faelle_ruesten)

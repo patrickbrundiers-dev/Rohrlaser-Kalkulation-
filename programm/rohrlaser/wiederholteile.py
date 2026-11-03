@@ -33,6 +33,7 @@ class Treffer:
     preis: tuple = None         # (Menge, Preis je Einheit) aus den Staffelpreisen, sonst None
     nachkalkuliert: bool = False
     werte: dict = field(default_factory=dict)       # übernehmbare Werte, die sich von der neuen Position unterscheiden
+    rueckblick: dict = None     # Ist gegen Soll des alten Auftrags (nachkalkulation.rueckblick, Vorschlag K4)
 
 
 def _txt(w):
@@ -123,7 +124,8 @@ def laden(db, angebot_id, positionen):
         return []
     spalten = ", ".join(f'p."{f}"' for f in FELDER)
     sql = (f"SELECT {spalten}, a.nummer AS _nummer, a.kunde AS _kunde, a.kundennr AS _kundennr, a.datum AS _datum, "
-           "a.vorgang AS _vorgang, a.fremd AS _fremd, a.staffelpreise AS _sp, a.nachkalkulation IS NOT NULL AS _nk "
+           "a.vorgang AS _vorgang, a.fremd AS _fremd, a.staffelpreise AS _sp, a.nachkalkulation IS NOT NULL AS _nk, "
+           "a.nachkalkulation AS _nkj "
            f"FROM positionen p JOIN angebote a ON a.id = p.angebot_id WHERE p.angebot_id != ? AND ({' OR '.join(bedingung)})")
     return [dict(r) for r in db.con.execute(sql, [angebot_id] + werte)]
 
@@ -131,8 +133,9 @@ def laden(db, angebot_id, positionen):
 def auswerten(zeilen, kundennr, positionen):
     """Treffer aus den Zeilen von laden() einstufen (ohne Datenbank, darf in einem eigenen Thread laufen)."""
     import json
+    from .nachkalkulation import rueckblick
     kandidaten = [p for p in positionen if _txt(p.get("artikel")) or _txt(p.get("profil_id"))]
-    staffeln = {}
+    staffeln, nachkalk = {}, {}
     aus = {}
     nach_artikel, nach_profil = {}, {}          # nur Zeilen vergleichen, die überhaupt passen können
     for i, z in enumerate(zeilen):
@@ -154,8 +157,14 @@ def auswerten(zeilen, kundennr, positionen):
             angebot = dict(id=z["angebot_id"], nummer=z["_nummer"], kunde=z["_kunde"], kundennr=z["_kundennr"],
                            datum=z["_datum"], vorgang=z["_vorgang"] or "Entwurf", fremd=bool(z["_fremd"]))
             alt = {f: z[f] for f in FELDER}
+            if z["angebot_id"] not in nachkalk:
+                try:
+                    nachkalk[z["angebot_id"]] = json.loads(z["_nkj"]) if z.get("_nkj") else None
+                except ValueError:
+                    nachkalk[z["angebot_id"]] = None
             liste.append(Treffer(art, alt, angebot, preis_aus_staffeln(staffeln[z["angebot_id"]], z["pos"], z["stueck"]),
-                                 bool(z["_nk"]), unterschiede(p, alt)))
+                                 bool(z["_nk"]), unterschiede(p, alt),
+                                 rueckblick(nachkalk[z["angebot_id"]], z["id"])))
         if liste:
             # bester zuerst: Art, beauftragt vor anderen, darin das neueste Datum
             liste.sort(key=lambda t: str(t.angebot["datum"] or ""), reverse=True)
@@ -176,7 +185,25 @@ def text(treffer_liste):
         s += f": {zahl_als_text(t.preis[1], 2)} €/Stk bei {zahl_als_text(t.preis[0], 0)} Stk"
     s += f" – {t.angebot['vorgang'].lower()}"
     if t.nachkalkuliert:
-        s += " · nachkalkuliert"
+        from .nachkalkulation import rueckblick_text
+        s += " · nachkalkuliert" + (f" ({rueckblick_text(t.rueckblick)})" if t.rueckblick else "")
     if t.art != SICHER:
         s += f" ({t.art}: " + ("anderer Kunde" if t.art == PRUEFEN else "gleiche Geometrie") + ")"
     return s
+
+
+def check_punkte(treffer, positionen):
+    """Hinweise für den Angebots-Check (Vorschlag K4): bester sicherer bzw. zu prüfender Treffer mit Nachkalkulation,
+    deren Laserzeit um mehr als RUECKBLICK_GRENZE vom Soll abwich. [(Art, Text, Zeile)]."""
+    from .nachkalkulation import RUECKBLICK_GRENZE, rueckblick_text
+    out = []
+    for i, p in enumerate(positionen):
+        t = next((t for t in (treffer or {}).get(p.get("id")) or () if t.rueckblick and t.art != AEHNLICH), None)
+        if t is None:
+            continue
+        r = t.rueckblick
+        if r["laser_abw"] is not None and abs(r["laser_abw"]) > RUECKBLICK_GRENZE or \
+                r["db_h_ist"] is not None and r["db_h_soll"] and r["db_h_ist"] < r["db_h_soll"] * (1 - RUECKBLICK_GRENZE):
+            out.append(("HINWEIS", f"Pos. {p.get('pos')}: Wiederholteil aus {t.angebot['nummer']}, "
+                                   f"{rueckblick_text(r)} – Zeit bzw. Preis prüfen", i))
+    return out

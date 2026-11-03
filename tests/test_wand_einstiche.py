@@ -14,7 +14,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from rohrlaser import rechnen, step  # noqa: E402
+from rohrlaser import normprofile, rechnen, step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import PROFILE, pruefen, wand_schneiden  # noqa: E402
 
@@ -66,6 +66,9 @@ def _():
     with tempfile.TemporaryDirectory() as tmp:
         pfad = Path(tmp) / "rohrlaser.db"
         db = Datenbank(pfad)
+        # U-Profile als Standard (31.10.2026) gab es in Dateien vor Schema 22 nicht
+        db.con.execute("DELETE FROM profile WHERE bemerkung=?", (normprofile.STANDARD_BEMERKUNG,))
+        db.con.commit()
         db.neu("profile", dict(IPE))
         db.neu("profile", dict(profil_id="UPN 100", form="U-Profil", a=100, b=50, wand=6))
         db.neu("profile", dict(profil_id="HEB 160", form="I-/H-Träger", a=160, b=160, wand=8, wand_max=14))

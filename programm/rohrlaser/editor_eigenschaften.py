@@ -378,9 +378,36 @@ class Eigenschaften(QWidget):
             b.clicked.connect(lambda: d.gegenrohr(s))
             self._form.addRow("Gegenrohr", b)
             self.felder["Gegenrohr"] = b
+            if d.gegen.get(s):
+                self._gegen_felder(s)
         if d.d3.isChecked():
             self._haken("Gehrung in 3D", d.ende_3d[s])
         return "Anfangsschnitt (Ende A)" if s == "a" else "Endschnitt (Ende B)"
+
+    def _gegen_felder(self, s):
+        """Gegenrohr direkt im 3D-Editor ändern (Rohranschluss aus der STEP oder von Hand, Patrick 30.10.2026): Ø,
+        Winkel, Versatz und beim Rundrohr die Drehung um die Rohrachse; jede Änderung rechnet die Schnittkurve neu."""
+        d = self.d
+        g = d.gegen.get(s) or {}
+
+        def setzen(schl, v):
+            neu = dict(d.gegen.get(s) or {})
+            if schl == "d" and not v:
+                return
+            if v:
+                neu[schl] = round(v, 3)
+            else:
+                neu.pop(schl, None)
+            d.gegenrohr(s, neu)
+        felder = [("d", "Ø Gegenrohr", "mm", "Ø (bzw. Breite quer) des Gegenrohrs"),
+                  ("winkel", "Winkel zum Gegenrohr", "°", "Abweichung der Achsen von rechtwinklig (0 = rechtwinklig)"),
+                  ("versatz", "Versatz", "mm", "Achse des Gegenrohrs quer zur Rohrachse verschoben (0 = mittig)")]
+        if d.qs.r:
+            felder.append(("drehung", "Drehung um die Rohrachse", "°",
+                           "Lage des Gegenrohrs am Umfang (0 = Achse waagerecht bzw. senkrecht wie gewählt)"))
+        for schl, titel, einheit, tipp in felder:
+            self._rechen(titel, sw._z(g.get(schl)) or (None if schl == "d" else 0.0),
+                         lambda v, k_=schl: setzen(k_, v), einheit, tipp, schluessel=f"gegen_{schl}")
 
     def _teil(self):
         d = self.d

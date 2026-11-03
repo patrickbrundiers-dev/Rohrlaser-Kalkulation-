@@ -10,7 +10,11 @@ Rückmeldung: Im Reiter Fertigung „Scannen …“ den Arbeitsschritt wählen (
 Vorgabe Geschnitten, Entgratet, Verpackt) und Etiketten scannen. Jeder Scan steht in der Tabelle rueckmeldungen
 (Angebot, Position, Schritt, Menge, Zeitpunkt, Kürzel); ohne Menge zählt die ganze Stückzahl der Position. Der erste
 Scan eines freigegebenen Auftrags setzt den Fertigungsstatus auf „In Fertigung“, wenn er davor steht. Sind alle
-Positionen im letzten Schritt vollständig, meldet der Scan das (Fertigmeldung bleibt ein eigener Schritt)."""
+Positionen im letzten Schritt vollständig, meldet der Scan das (Fertigmeldung bleibt ein eigener Schritt).
+
+Laserzeit per Scan (Vorschlag H4b, 02.11.2026): Die Schritte „Laser Start“ und „Laser Ende“ stehen immer zusätzlich im
+Scan-Fenster (zählen keine Menge). Die Summe der Zeiten von jedem Start bis zum nächsten Ende eines Auftrags ist in
+der Nachkalkulation der Vorschlag für die Ist-Laserzeit („Scan-Zeit übernehmen“); übernommen wird nur auf Knopfdruck."""
 import datetime
 import re
 
@@ -26,6 +30,7 @@ TABELLEN_SQL = (
     "CREATE INDEX IF NOT EXISTS rueckmeldungen_angebot ON rueckmeldungen (angebot_id, id)",
 )
 SCHRITTE = ("Geschnitten", "Entgratet", "Verpackt")
+LASER_START, LASER_ENDE = "Laser Start", "Laser Ende"
 IN_FERTIGUNG = "In Fertigung"
 
 # Formate: Name -> (Seite (Breite, Höhe) oder None = Seite so groß wie das Etikett, Spalten, Zeilen, Etikett
@@ -91,6 +96,32 @@ def schritte(db):
     return out or list(SCHRITTE)
 
 
+def scan_schritte(db):
+    """Schritte des Scan-Fensters: die Arbeitsschritte und dazu Laser Start/Ende (H4b)."""
+    return schritte(db) + [x for x in (LASER_START, LASER_ENDE) if x not in schritte(db)]
+
+
+def laserzeit(db, angebot_id):
+    """Ist-Laserzeit aus den Scans (H4b): dict(stunden, laeufe, offen) – Summe von jedem „Laser Start“ bis zum
+    nächsten „Laser Ende“; offen = Start ohne Ende. None ohne vollständigen Lauf."""
+    start, summe, laeufe = None, 0.0, 0
+    for schritt, am in db.con.execute("SELECT schritt, am FROM rueckmeldungen WHERE angebot_id=? AND schritt IN (?, ?) "
+                                      "ORDER BY am, id", (angebot_id, LASER_START, LASER_ENDE)):
+        try:
+            t = datetime.datetime.fromisoformat(str(am))
+        except (TypeError, ValueError):
+            continue
+        if schritt == LASER_START:
+            start = start or t
+        elif start is not None and t > start:
+            summe += (t - start).total_seconds()
+            laeufe += 1
+            start = None
+    if not laeufe:
+        return None
+    return dict(stunden=summe / 3600, laeufe=laeufe, offen=start is not None)
+
+
 def _jetzt():
     return datetime.datetime.now().isoformat(timespec="seconds")
 
@@ -119,11 +150,12 @@ def rueckmelden(db, text, schritt, menge=None, wer=None):
     if db.nur_lesen:
         raise Lesemodus(f"Lesemodus – {db.nur_lesen}.")
     liste = schritte(db)
-    if schritt not in liste:
+    laser = schritt in (LASER_START, LASER_ENDE) and schritt not in liste
+    if schritt not in liste and not laser:
         raise ScanFehler(f"Arbeitsschritt „{schritt}“ steht nicht in der Liste (Einstellungen → Rückmeldung).")
     a, p = finden(db, text)
     stueck = p.get("stueck") or 0
-    menge = stueck if not menge else menge
+    menge = 0 if laser else (stueck if not menge else menge)
     wer = wer if wer is not None else (db.einstellung("benutzer_kuerzel") or "")
     with db.con:
         db.con.execute("INSERT INTO rueckmeldungen (angebot_id, position_id, pos, schritt, menge, am, wer, code) "
@@ -140,8 +172,11 @@ def rueckmelden(db, text, schritt, menge=None, wer=None):
     summe = next((z["schritte"].get(schritt, 0) for z in stand if z["id"] == p["id"]), menge)
     fertig = bool(stand) and all(z["schritte"].get(liste[-1], 0) >= (z["stueck"] or 0) for z in stand)
     t = f"{a.get('nummer')} Pos. {_pos_text(p.get('pos'))} {p.get('artikel') or ''}".strip()
-    t += f": {schritt} {_z(menge)} Stk (gesamt {_z(summe)} von {_z(stueck)})"
-    if summe > stueck:
+    if laser:
+        t += f": {schritt} {_jetzt()[11:16]} Uhr"
+    else:
+        t += f": {schritt} {_z(menge)} Stk (gesamt {_z(summe)} von {_z(stueck)})"
+    if summe > stueck and not laser:
         t += " – mehr als bestellt"
     if status:
         t += f"; Auftrag jetzt „{status}“"

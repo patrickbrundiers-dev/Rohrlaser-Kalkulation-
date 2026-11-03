@@ -41,6 +41,16 @@ arbeitet woran). Vorgänge zwischen zwei Mitarbeitern stehen in der Tabelle vorg
 Erledigte Vorgänge anderer merkt sich jeder Arbeitsplatz (teilen_erledigt), eigene verschwinden, sobald der Empfänger
 sie umgesetzt hat. Konflikte (dieselbe Stammdatenzeile hier und bei einem Kollegen seit dem letzten Lesen geändert)
 werden gemerkt (teilen_konflikte) und lassen sich ansehen und umkehren.
+
+Gemeinsamen Ordner ausbauen (Patrick 31.10.2026, Paket A, Freigabe „Alle Empfehlungen“):
+- Uhr: Bei jedem Schreiben ersetzt der Arbeitsplatz eine kleine Prüfdatei (Rohrlaser_<K>/uhr.pruef); ihren
+  Zeitstempel setzt der Datei-Server. Die Abweichung zur PC-Uhr wird gemerkt (teilen_uhr). Stimmen die letzten beiden
+  Messungen überein und sind es mindestens 5 s, verschiebt der Abgleich die Zeitpunkte der eigenen Änderungen um die
+  Abweichung: so entscheidet eine falsch gehende PC-Uhr keinen Konflikt mehr falsch. Ab 2 min Hinweis.
+- Konfliktkopien (OneDrive „haupt-PC01.sqlite“, „00042 (1).nummer“ …): eigene kommen beim Schreiben in den lokalen
+  Ordner Daten/Teilen/Konfliktkopien, fremde und doppelt reservierte Nummern zeigt „Gemeinsamen Ordner prüfen“.
+Paket B: Lebenszeichen Rohrlaser_<K>/online.json alle 30 s (wer ist da, welche Angebote sind offen; gilt 2 min),
+Sofort-Schreiben nach einer Eingabe (teilen_fenster.puls), Übersicht der Kollegen (kollegen_dialog).
 """
 import datetime
 import hashlib
@@ -52,21 +62,22 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from . import VERSION, zukauf
+from . import VERSION, aenderungsverlauf as verlauf, austausch, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
-from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, TABELLEN, VERWEISE
+from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, VERWEISE
 
 FORMAT = 2                      # Aufbau der geteilten Daten: 1 = eine Datei, 2 = Ordner mit Hauptdatei und Monatsdateien
-HAUPT = "haupt.sqlite"
-MONAT_PRAEFIX = "Angebote_"
+HAUPT = austausch.HAUPT
+MONAT_PRAEFIX = austausch.MONAT_PRAEFIX
 OHNE_DATUM = "ohne-Datum"
 GEAENDERT = "teilen_geaendert"  # lokale Merker: seit dem letzten Schreiben geänderte Angebote (Trigger)
 # Tabellen eines Angebots, deren Änderung es neu packen lässt (Spalte angebot_id); netze über die Position
 JE_ANGEBOT = ("positionen", "staffeln", "staffel_stufen", "step_protokoll")
-PRAEFIX = "Rohrlaser_"
-ENDUNG = ".sqlite"
-GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN) + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN)  # Artikel vor Bezug
+PRAEFIX = austausch.PRAEFIX
+ENDUNG = austausch.ENDUNG
+GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN) + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN,
+                                                                             POSITIONSVORLAGEN)  # Artikel vor Bezug
 GETEILT_NAME = {t.name: t for t in GETEILT}
 # Verweise über die Zeilen-ID: in der geteilten Datei steht statt der ID die Kennung (uid) der Zielzeile
 ID_VERWEISE = {"zukauf_bezug": {"artikel_id": "zukauf_artikel"}, "zukauf_historie": {"artikel_id": "zukauf_artikel"}}
@@ -75,7 +86,7 @@ LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefo
          "letzte_angebotsnummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
          "anfrage_signatur", "anfrage_outlook_signatur", "step_prozesse", "step_cache", "step_cache_mb", "ansicht_3d",
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
-         "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum"}
+         "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum", "teilen_meldung"}
 EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL)
 EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsamen Einstellungen (uid = Name)
 # Spalten eines Angebots, die nur die Anzeige merkt (Liste) oder die nur hier gelten
@@ -87,6 +98,12 @@ NOTIZEN = "teilen_notizen"      # erhaltene Notizen der Kollegen (lokal)
 NOTIZEN_MAX = 200
 FRISCH_MIN = 20                 # geöffnete Angebote eines Kollegen gelten so lange nach seinem letzten Schreiben
 KONFLIKTE_MAX = 100
+# Vorbereitung Server-Synchronisation (Plan 30.10.2026, Schritt 1): Änderungsprotokoll und feste Kennungen. Beides wird
+# nur mitgeschrieben; der Abgleich über den gemeinsamen Ordner liest es (noch) nicht.
+PROTOKOLL = "teilen_aenderungen"    # lfd. Nummer, Tabelle, Kennung, Art, Zeit (UTC), Herkunft, Arbeitsplatz
+HERKUNFT = "teilen_herkunft"        # eine Zeile, solange ein Abgleich fremde Daten einträgt: Herkunft „abgleich“
+PROTOKOLL_TAGE = 90
+MIT_KENNUNG = ("angebote", "positionen")      # feste Kennung uid, bleibt bei Umnummerierung und über den Abgleich
 
 
 class TeilenFehler(Exception):
@@ -128,6 +145,104 @@ def einrichten(con):
         if n not in spalten:
             con.execute(f"ALTER TABLE angebote ADD COLUMN {n} TEXT")
     _merker_einrichten(con)
+    con.execute("INSERT OR IGNORE INTO einstellungen (name, wert) VALUES ('teilen_installation', ?)",
+                (json.dumps(uuid.uuid4().hex),))        # Arbeitsplatz-Kennung gleich vergeben: steht im Protokoll
+    _kennungen_einrichten(con)
+    _protokoll_einrichten(con)
+    verlauf.einrichten(con)         # Änderungsverlauf (Paket D, 01.11.2026)
+
+
+def _kennungen_einrichten(con):
+    """Feste Kennung uid für Angebote und Positionen. Eine Kopie (gleiche Kennung schon vergeben) bekommt eine neue."""
+    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    for t in MIT_KENNUNG:
+        if t not in tabellen:
+            continue
+        if "uid" not in {r[1] for r in con.execute(f"PRAGMA table_info({t})")}:
+            con.execute(f"ALTER TABLE {t} ADD COLUMN uid TEXT")
+        con.execute(f"CREATE TRIGGER IF NOT EXISTS {t}_uid AFTER INSERT ON {t} WHEN NEW.uid IS NULL OR EXISTS "
+                    f"(SELECT 1 FROM {t} WHERE uid = NEW.uid AND rowid <> NEW.rowid) "
+                    f"BEGIN UPDATE {t} SET uid = lower(hex(randomblob(16))) WHERE rowid = NEW.rowid; END")
+        con.execute(f"UPDATE {t} SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL")
+        con.execute(f"CREATE INDEX IF NOT EXISTS {t}_uid_index ON {t} (uid)")
+
+
+def _protokoll_einrichten(con):
+    """Änderungsprotokoll per Trigger: jede Änderung an geteilten Stammdaten, gemeinsamen Einstellungen und Angeboten
+    (samt Positionen, Staffeln, STEP-Protokoll) bekommt eine laufende Nummer. Ein Server kann damit später „alles seit
+    Nummer X“ abholen. Die Trigger werden bei jedem Öffnen neu angelegt (neue Tabellen und Einstellungen kommen dazu);
+    Einträge älter als PROTOKOLL_TAGE fallen weg."""
+    con.execute(f"CREATE TABLE IF NOT EXISTS {PROTOKOLL} (nr INTEGER PRIMARY KEY AUTOINCREMENT, tabelle TEXT, "
+                "uid TEXT, art TEXT, zeit TEXT, herkunft TEXT, platz TEXT)")
+    con.execute(f"CREATE TABLE IF NOT EXISTS {HERKUNFT} (wert TEXT)")
+    con.execute(f"DELETE FROM {HERKUNFT}")      # nach einem abgebrochenen Abgleich: wieder „hier geändert“
+    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%\\_protokoll' "
+                               "ESCAPE '\\'").fetchall():
+        con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
+    platz = "(SELECT trim(wert, '\"') FROM einstellungen WHERE name='teilen_installation')"
+    werte = (f"strftime('%Y-%m-%dT%H:%M:%f', 'now'), (SELECT wert FROM {HERKUNFT} LIMIT 1), {platz}")
+
+    def trigger(name, tabelle, art, tabelle_text, uid, wann="", als=None):
+        """als: Art im Protokoll (Vorgabe nach art). Mehrere Änderungen derselben Zeile hintereinander ergeben einen
+        Eintrag mit neuer Nummer (der vorige wird ersetzt): so bleibt das Protokoll klein und nichts geht verloren."""
+        als = als or ART[art]
+        weg = (f"DELETE FROM {PROTOKOLL} WHERE nr = (SELECT MAX(nr) FROM {PROTOKOLL}) AND tabelle = {tabelle_text} "
+               f"AND uid IS {uid} AND art = 'geaendert' AND herkunft IS (SELECT wert FROM {HERKUNFT} LIMIT 1); "
+               if als == "geaendert" else "")
+        con.execute(f'CREATE TRIGGER "{name}_protokoll" AFTER {art} ON "{tabelle}" {wann}BEGIN {weg}'
+                    f"INSERT INTO {PROTOKOLL} (tabelle, uid, art, zeit, herkunft, platz) "
+                    f"SELECT {tabelle_text}, k, '{als}', {werte} FROM (SELECT {uid} AS k) WHERE k IS NOT NULL; END")
+
+    for t in GETEILT:
+        if t.name not in tabellen:
+            continue
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"{t.name}_{art.lower()}", t.name, art, f"'{t.name}'", f"{zeile}.uid")
+    namen = ", ".join("'" + n.replace("'", "''") + "'" for n in EINSTELLUNGEN_GETEILT)
+    for art, zeile in (("INSERT", "NEW"), ("DELETE", "OLD")):     # Ändern = INSERT OR REPLACE
+        trigger(f"einstellungen_{art.lower()}", "einstellungen", art, f"'{EINST}'", f"{zeile}.name",
+                f"WHEN {zeile}.name IN ({namen}) ")
+    if "angebote" in tabellen:
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"angebote_{art.lower()}", "angebote", art, "'angebote'", f"{zeile}.uid")
+    for t in JE_ANGEBOT:          # Positionen, Staffeln, STEP-Protokoll: das Angebot hat sich geändert
+        if t not in tabellen:
+            continue
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"{t}_{art.lower()}", t, art, "'angebote'",
+                    f"(SELECT uid FROM angebote WHERE id = {zeile}.angebot_id)", als="geaendert")
+    if "netze" in tabellen:
+        for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            trigger(f"netze_{art.lower()}", "netze", art, "'angebote'",
+                    f"(SELECT a.uid FROM angebote a JOIN positionen p ON p.angebot_id = a.id "
+                    f"WHERE p.id = {zeile}.position_id)", als="geaendert")
+    con.execute(f"DELETE FROM {PROTOKOLL} WHERE zeit < strftime('%Y-%m-%dT%H:%M:%f', 'now', '-{PROTOKOLL_TAGE} days')")
+
+
+ART = {"INSERT": "neu", "UPDATE": "geaendert", "DELETE": "geloescht"}
+
+
+def protokoll_stand(con):
+    """Laufende Nummer der letzten erfassten Änderung (0 = keine)."""
+    r = con.execute(f"SELECT MAX(nr) FROM {PROTOKOLL}").fetchone()
+    return r[0] or 0
+
+
+def protokoll(con, seit=0):
+    """Änderungen nach der laufenden Nummer seit, älteste zuerst: [dict(nr, tabelle, uid, art, zeit, herkunft, platz)]."""
+    cur = con.execute(f"SELECT nr, tabelle, uid, art, zeit, herkunft, platz FROM {PROTOKOLL} WHERE nr > ? ORDER BY nr",
+                      (seit,))
+    namen = [d[0] for d in cur.description]
+    return [dict(zip(namen, r)) for r in cur]
+
+
+def _herkunft(con, wert):
+    """Herkunft der folgenden Änderungen im Protokoll: „abgleich“ (fremde Daten eingetragen) oder None (hier geändert).
+    Läuft in der Transaktion des Abgleichs: bricht er ab, ist auch die Herkunft wieder weg."""
+    con.execute(f"DELETE FROM {HERKUNFT}")
+    if wert:
+        con.execute(f"INSERT INTO {HERKUNFT} (wert) VALUES (?)", (wert,))
 
 
 def _merker_einrichten(con):
@@ -172,9 +287,61 @@ def ordner(db):
     return Path(o) if o else None
 
 
+def weg(db):
+    """Austauschweg (austausch.py) zum eingetragenen gemeinsamen Ordner oder None."""
+    return austausch.weg(ordner(db))
+
+
 def aktiv(db):
     """Teilen eingerichtet: Kürzel und gemeinsamer Ordner eingetragen."""
     return bool(kuerzel(db) and ordner(db))
+
+
+# ------------------------------------------------------------------ Ordner umziehen (Paket F2, 01.11.2026)
+def umzug(db):
+    """Hinweis UMGEZOGEN.json im eingetragenen gemeinsamen Ordner (dict: neu, von, zeit, fertig) oder None."""
+    w = weg(db)
+    if w is None or not hasattr(w, "umgezogen"):
+        return None
+    try:
+        return w.umgezogen()
+    except OSError:
+        return None
+
+
+def umziehen(db, ziel, ich_admin=None, fortschritt=None):
+    """Admin (Frage 6a): gemeinsamen Ordner nach ziel umziehen. Erst die eigenen Daten ablegen, dann alles kopieren
+    (austausch.OrdnerWeg.umziehen), dann diesen Arbeitsplatz umstellen. Die Kollegen sehen den Hinweis im alten
+    Ordner und stellen um (umstellen). Ergebnis: dict(dateien, bytes)."""
+    from . import admin_schutz
+    if not (admin_schutz.ist_admin(db) if ich_admin is None else ich_admin):
+        raise TeilenFehler("Den gemeinsamen Ordner zieht nur der Admin um (Admin-Passwort, Datei → Als Admin "
+                           "freischalten …).")
+    w = _weg_pruefen(db)
+    ziel = Path(str(ziel or "").strip())
+    if not str(ziel) or str(ziel) == ".":
+        raise TeilenFehler("Bitte den neuen Ordner wählen.")
+    schreiben(db)                               # eigener Stand zuletzt noch in den alten Ordner
+    try:
+        erg = w.umziehen(ziel, von=kuerzel(db), fortschritt=fortschritt)
+    except OSError as e:
+        raise TeilenFehler(f"Umzug nicht möglich, der alte Ordner gilt weiter:\n{e}") from e
+    db.einstellung_setzen("teilen_ordner", str(ziel))
+    return erg
+
+
+def umstellen(db, neu):
+    """Diesen Arbeitsplatz auf den neuen gemeinsamen Ordner umstellen (nach dem Umzug durch den Admin)."""
+    neu = Path(str(neu or "").strip())
+    w = austausch.OrdnerWeg(neu)
+    if not w.erreichbar():
+        raise TeilenFehler(f"Der neue Ordner ist von diesem Rechner aus nicht erreichbar:\n{neu}\nBitte den Pfad "
+                           "wählen, unter dem er hier zu finden ist (z. B. anderer Laufwerksbuchstabe).")
+    if not w.mitarbeiter("", kuerzel_sauber) and w.haupt(kuerzel(db)) is None:
+        raise TeilenFehler(f"Im Ordner {neu} liegen keine Daten der Mitarbeiter (Rohrlaser_…). Ist das der richtige "
+                           "Ordner?")
+    db.einstellung_setzen("teilen_ordner", str(neu))
+    return True
 
 
 ANFRAGEN, ANGEBOTE, SICHERUNGEN = "Anfragen", "Angebote", "Sicherungen"     # Unterordner im gemeinsamen Ordner
@@ -185,20 +352,11 @@ def unterordner(db, name, einstellung, anlegen=False):
     ist und der Ordner erreichbar ist; sonst None. anlegen: fehlenden Unterordner anlegen."""
     if not aktiv(db) or db.einstellung(einstellung) != "ja":
         return None
-    o = ordner(db)
-    if not o.is_dir():
-        return None
-    u = o / name
-    if anlegen:
-        try:
-            u.mkdir(exist_ok=True)
-        except OSError:
-            return None
-    return u
+    return weg(db).unterordner(name, anlegen)
 
 
 def datei_name(k):
-    return f"{PRAEFIX}{k}{ENDUNG}"
+    return austausch.datei_name(k)
 
 
 def installation(db):
@@ -223,9 +381,106 @@ def mitarbeiter(db, k=None):
     return alle
 
 
-def jetzt(k):
-    """Zeitpunkt einer Änderung als Text, der sich richtig sortiert; das Kürzel entscheidet bei Gleichstand."""
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "|" + (k or "")
+def jetzt(k, versatz=0):
+    """Zeitpunkt einer Änderung als Text, der sich richtig sortiert; das Kürzel entscheidet bei Gleichstand.
+    versatz: Sekunden, um die die PC-Uhr von der Uhr des gemeinsamen Ordners abweicht (uhr_versatz)."""
+    t = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=versatz or 0)
+    return t.strftime("%Y-%m-%dT%H:%M:%S.%f") + "|" + (k or "")
+
+
+# ------------------------------------------------------------------ Uhr des gemeinsamen Ordners (Paket A, 31.10.2026)
+UHR = "teilen_uhr"              # lokal: {"messungen": [Sekunden …], "zeit": ISO} – letzte Messungen gegen den Ordner
+UHR_KORREKTUR_AB = 5            # ab so vielen Sekunden Abweichung rechnet der Abgleich sie heraus
+UHR_HINWEIS_AB = 120            # ab so vielen Sekunden steht ein Hinweis in der Statuszeile
+UHR_HOECHSTENS = 86400          # mehr als einen Tag: Messung unglaubwürdig, nur Hinweis, keine Korrektur
+UHR_EINIG = 5                   # die letzten beiden Messungen müssen so genau übereinstimmen
+
+
+def uhr_merken(db, wert):
+    """Messung der Abweichung (Sekunden, Ordner minus PC) merken; None (nicht messbar) ändert nichts."""
+    if wert is None:
+        return
+    alt = (db.einstellung(UHR) or {}).get("messungen") or []
+    db._einstellung_schreiben(UHR, {"messungen": (list(alt) + [round(float(wert), 2)])[-3:],
+                                    "zeit": datetime.datetime.now().isoformat(timespec="seconds")})
+
+
+def uhr_abweichung(db):
+    """Zuletzt gemessene Abweichung in Sekunden (positiv: die PC-Uhr geht nach) oder None (nie gemessen)."""
+    m = (db.einstellung(UHR) or {}).get("messungen") or []
+    return m[-1] if m else None
+
+
+def uhr_versatz(db):
+    """Sekunden, um die der Abgleich die Zeitpunkte der eigenen Änderungen verschiebt, damit eine falsch gehende
+    PC-Uhr keinen Konflikt falsch entscheidet: Mittel der letzten beiden Messungen, wenn sie übereinstimmen und die
+    Abweichung mindestens UHR_KORREKTUR_AB und höchstens UHR_HOECHSTENS ist; sonst 0."""
+    m = (db.einstellung(UHR) or {}).get("messungen") or []
+    if len(m) < 2 or abs(m[-1] - m[-2]) > UHR_EINIG:
+        return 0
+    v = (m[-1] + m[-2]) / 2
+    return round(v, 1) if UHR_KORREKTUR_AB <= abs(v) <= UHR_HOECHSTENS else 0
+
+
+def uhr_text(sekunden):
+    """„3 min 20 s vor“ / „45 s nach“: wie die PC-Uhr gegenüber dem gemeinsamen Ordner geht."""
+    s = abs(int(round(sekunden)))
+    if s >= 86400:
+        t = f"{s // 86400} Tage" if s >= 2 * 86400 else "1 Tag"
+    elif s >= 3600:
+        t = f"{s // 3600} h {s % 3600 // 60} min"
+    elif s >= 60:
+        t = f"{s // 60} min {s % 60} s" if s % 60 else f"{s // 60} min"
+    else:
+        t = f"{s} s"
+    return f"{t} {'nach' if sekunden > 0 else 'vor'}"
+
+
+# ------------------------------------------------------------------ Konfliktkopien (Paket A, 31.10.2026)
+KOPIEN = "Konfliktkopien"       # lokaler Ordner neben dem Zwischenspeicher: dorthin kommen eigene Konfliktkopien
+
+
+def konfliktkopien(db):
+    """Konfliktkopien im gemeinsamen Ordner (OneDrive/SharePoint, Dropbox, Nextcloud): [{pfad, original, bereich,
+    kuerzel, eigene}]. eigene: liegt im eigenen Mitarbeiter-Ordner bzw. ist eine Kopie des eigenen Ordners."""
+    w = weg(db)
+    if w is None or not w.erreichbar():
+        return []
+    k = kuerzel(db)
+    out = []
+    for c in w.konfliktkopien(kuerzel_sauber):
+        c["eigene"] = bool(k) and c["kuerzel"] == k and c["bereich"] in ("", ordner_name(k))
+        out.append(c)
+    return out
+
+
+def kopien_aufraeumen(db):
+    """Eigene Konfliktkopien und alte Zwischendateien aus dem gemeinsamen Ordner nehmen: Kopien in den lokalen Ordner
+    Daten/Teilen/Konfliktkopien (nichts wird gelöscht), Zwischendateien (*.neu, älter als 1 h) löschen. Die eigenen
+    Daten stehen in der eigenen Datendatei, die Kopien sind nur veraltete Stände. Ergebnis: Anzahl."""
+    w = weg(db)
+    k = kuerzel(db)
+    if w is None or not k or not w.erreichbar():
+        return 0
+    n = 0
+    ziel = _cache(db) / KOPIEN
+    for c in konfliktkopien(db):
+        if not c["eigene"]:
+            continue
+        ziel.mkdir(exist_ok=True)
+        stempel = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        try:
+            shutil.move(str(c["pfad"]), str(ziel / f"{stempel}_{c['pfad'].name}"))
+            n += 1
+        except OSError:
+            pass
+    for q in w.reste(k):
+        try:
+            q.unlink()
+            n += 1
+        except OSError:
+            pass
+    return n
 
 
 # ------------------------------------------------------------------ Zeilen als Werte
@@ -283,12 +538,12 @@ def _basis_setzen(con, tabelle, u, h, zeit):
                 (tabelle, u, h, zeit))
 
 
-def erfassen(con, zeit):
+def erfassen(con, zeit, lokal=None):
     """Schritt 1: Änderungen seit dem letzten Abgleich mit dem Zeitpunkt zeit merken (neu, geändert, gelöscht).
-    Ergebnis: Anzahl erfasster Änderungen."""
+    lokal: schon gelesene lokale_zeilen. Ergebnis: Anzahl erfasster Änderungen."""
     b = basis(con)
     n = 0
-    lokal = lokale_zeilen(con)
+    lokal = lokale_zeilen(con) if lokal is None else lokal
     for schl, daten in lokal.items():
         h = _hash(daten)
         if b.get(schl, (None, None))[0] != h:
@@ -371,6 +626,9 @@ def angebot_inhalt(con, angebot_id, artikel_uid=None):
     return inhalt, netze
 
 
+_inhalt_fuer_verlauf = angebot_inhalt      # Änderungsverlauf: eigener Verweis (zählt nicht als Packen)
+
+
 def _einfuegen(con, tabelle, werte, spalten):
     namen = [n for n in werte if n in spalten]
     return con.execute(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
@@ -391,7 +649,8 @@ def angebot_einsetzen(con, inhalt, netze, fremd, stand, angebot_id=None, artikel
     if angebot_id is None:
         angebot_id = _einfuegen(con, "angebote", kopf, spalten["angebote"])
     else:
-        leer = {n: None for n in spalten["angebote"] if n not in kopf and n not in ("id", "vk_netto", "stand", "vk_am")}
+        leer = {n: None for n in spalten["angebote"]
+                if n not in kopf and n not in ("id", "uid", "vk_netto", "stand", "vk_am")}
         werte = dict(leer, **kopf)
         con.execute(f'UPDATE angebote SET {", ".join(chr(34) + n + chr(34) + "=?" for n in werte)} WHERE id=?',
                     list(werte.values()) + [angebot_id])
@@ -437,16 +696,12 @@ def _monat_anlegen(con):
 
 
 def ordner_name(k):
-    return f"{PRAEFIX}{k}"
+    return austausch.ordner_name(k)
 
 
 def haupt_datei(o, k):
     """Hauptdatei des Kürzels k im Ordner o (Format 2), sonst die alte Einzeldatei (Format 1), sonst None."""
-    neu = Path(o) / ordner_name(k) / HAUPT
-    if neu.is_file():
-        return neu
-    alt = Path(o) / datei_name(k)
-    return alt if alt.is_file() else None
+    return austausch.OrdnerWeg(o).haupt(k)
 
 
 def monat_datei(monat):
@@ -486,46 +741,29 @@ def _cache(db):
     return o
 
 
-def _ordner_pruefen(db):
-    o = ordner(db)
-    if o is None:
+def _weg_pruefen(db):
+    w = weg(db)
+    if w is None:
         raise TeilenFehler("Kein gemeinsamer Ordner eingetragen (Datei → Benutzer und gemeinsamer Ordner …).")
-    if not o.is_dir():
-        raise TeilenFehler(f"Der gemeinsame Ordner ist nicht erreichbar:\n{o}")
-    return o
+    if not w.erreichbar():
+        u = umzug(db)
+        if u:
+            raise TeilenFehler(f"Der gemeinsame Ordner ist umgezogen nach {u.get('neu')} ({u.get('von') or 'Admin'}, "
+                               f"{str(u.get('zeit') or '')[:16].replace('T', ' ')})." +
+                               (" Bitte umstellen (Leiste oben)." if u.get("fertig") else " Der Umzug läuft noch."))
+        raise TeilenFehler(f"Der gemeinsame Ordner ist nicht erreichbar:\n{w}")
+    return w
 
 
 def andere_dateien(db):
     """{Kürzel: Hauptdatei} der anderen Mitarbeiter im gemeinsamen Ordner (Format 2 vor der alten Einzeldatei)."""
-    o, ich = _ordner_pruefen(db), kuerzel(db)
-    out = {}
-    for p in sorted(o.glob(f"{PRAEFIX}*")):
-        name = p.name[len(PRAEFIX):]
-        if name.endswith(ENDUNG):
-            name = name[:-len(ENDUNG)]
-        k = kuerzel_sauber(name)
-        if not k or k == ich or k in out or p.name not in (datei_name(k), ordner_name(k)):
-            continue
-        h = haupt_datei(o, k)
-        if h is not None:
-            out[k] = h
-    return out
+    return _weg_pruefen(db).mitarbeiter(kuerzel(db), kuerzel_sauber)
 
 
 def _lokal_kopieren(db, quelle, ziel=None):
-    """Fremde Datei in den Zwischenspeicher kopieren (nur wenn neu oder geändert): so liest das Programm nie eine
-    Datei, die gerade ausgetauscht oder synchronisiert wird."""
-    ziel = ziel or _cache(db) / ("fremd_" + quelle.name)
-    st = quelle.stat()
-    merk = ziel.with_suffix(".stand")
-    stand = f"{st.st_size}|{st.st_mtime_ns}"
-    if ziel.exists() and merk.exists() and merk.read_text() == stand:
-        return ziel
-    tmp = ziel.with_name(ziel.name + ".neu")
-    shutil.copyfile(quelle, tmp)
-    os.replace(tmp, ziel)
-    merk.write_text(stand)
-    return ziel
+    """Fremde Datei über den Austauschweg in den Zwischenspeicher holen (nur wenn neu oder geändert)."""
+    w = weg(db) or austausch.OrdnerWeg(quelle.parent)
+    return w.holen(quelle, ziel or _cache(db) / ("fremd_" + quelle.name))
 
 
 class Quelle:
@@ -538,6 +776,7 @@ class Quelle:
             ziel = _cache(db) / "fremd" / k
             ziel.mkdir(parents=True, exist_ok=True)
             self.haupt = _lokal_kopieren(db, haupt, ziel / HAUPT)
+            self.haupt_quelle = haupt
             self.ordner, self.lokal = haupt.parent, ziel
             alt = _cache(db) / ("fremd_" + datei_name(k))     # Kopie der alten Einzeldatei (Format 1) aufräumen
             alt.unlink(missing_ok=True)
@@ -583,8 +822,9 @@ class Quelle:
             finally:
                 con.close()
         else:
+            w = weg(self._db) or austausch.OrdnerWeg(self.ordner)
             for name, stand in teile.items():
-                quelle = self.ordner / name
+                quelle = w.teil(self.haupt_quelle, name)
                 try:
                     for versuch in (1, 2):          # 2: Zeitstempel grob (Netzlaufwerk), Datei sicher neu kopieren
                         lokal = _lokal_kopieren(self._db, quelle, self.lokal / name)
@@ -647,13 +887,7 @@ def _spiegel_lesen(spiegel):
 
 
 def _hinlegen(quelle, ziel):
-    tmp = ziel.with_name(ziel.name + ".neu")
-    try:
-        shutil.copy2(quelle, tmp)
-        os.replace(tmp, ziel)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
+    austausch.hinlegen(quelle, ziel)
 
 
 def schreiben(db, uebernehmen=False, offen=None, voll=False):
@@ -663,12 +897,15 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
     eigene Angebote herein. offen: {Nummer: seit} der hier gerade geöffneten eigenen Angebote (für die Kollegen).
     voll: alle Angebote neu packen (sonst nur die seit dem letzten Schreiben geänderten). Ergebnis: Anzahl Angebote."""
     from . import nummern
-    k, o = kuerzel(db), _ordner_pruefen(db)
+    k, w = kuerzel(db), _weg_pruefen(db)
     if not k:
         raise TeilenFehler("Kein Kürzel eingetragen.")
+    vorhanden = w.haupt(k)
+    if vorhanden is None and w.archiviert(k):
+        raise TeilenFehler(f"Das Kürzel {k} hat der Admin als ausgeschieden archiviert (Ordner Archiv im gemeinsamen "
+                           "Ordner). Bitte ein neues Kürzel eintragen (Datei → Benutzer und gemeinsamer Ordner …) "
+                           "oder den Admin fragen.")
     nummern.endgueltig(db)          # vorläufige Nummern (Ordner war nicht erreichbar) jetzt endgültig vergeben
-    ziel_ordner = o / ordner_name(k)
-    vorhanden = haupt_datei(o, k)
     ich = installation(db)
     if vorhanden is not None:
         info = info_lesen(vorhanden)
@@ -679,9 +916,16 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
     con = db.con
     if not con.execute("SELECT 1 FROM teilen_basis LIMIT 1").fetchone() and andere_dateien(db):
         raise ErstAbgleich(sorted(andere_dateien(db)))     # erst lesen: sonst gälten die eigenen Werte als neuer
+    from . import admin_schutz
+    try:                            # als Admin: geänderte Werte der geschützten Bereiche für alle Arbeitsplätze
+        admin_schutz.paket_schreiben(db, wer=k)
+    except OSError:
+        pass                        # beim nächsten Schreiben wieder
+    uhr_merken(db, w.uhr_messen(k))     # Uhr des gemeinsamen Ordners: falsch gehende PC-Uhr herausrechnen
     with con:
-        erfassen(con, jetzt(k))
         lokal = lokale_zeilen(con)
+        erfassen(con, jetzt(k, uhr_versatz(db)), lokal)
+        _verlauf_erfassen(con, k, lokal, uhr_versatz(db))
         stand_basis = basis(con)
     spiegel = _cache(db) / ordner_name(k)
     spiegel.mkdir(parents=True, exist_ok=True)
@@ -750,21 +994,41 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
             teile[p.name] = (stand, n)
         else:
             p.unlink()
+    # Schneller schreiben (Paket F3): hat sich seit dem letzten Ablegen nichts geändert, was die Kollegen lesen, bleibt
+    # die Hauptdatei liegen (spätestens nach SPAETESTENS_S wird sie trotzdem neu abgelegt, für ältere Versionen)
+    abdruck = _hash(dict(basis=sorted([f"{t}|{u}", h, z] for (t, u), (h, z) in stand_basis.items()), teile=teile,
+                         vorgaenge=_vorgaenge(db), erledigt=sorted(db.einstellung(ERLEDIGT) or {}),
+                         verlauf=list(con.execute(f"SELECT COUNT(*), MAX(zeit) FROM {verlauf.TABELLE} WHERE wer=?",
+                                                  (k,)).fetchone()),
+                         info=[db.einstellung(n) for n in ("benutzer_name", "benutzer_email", "benutzer_telefon",
+                                                           "letzte_angebotsnummer", "lizenz_info")],
+                         version=VERSION, format=FORMAT, angebote=len(eigene), ordner=str(w), ich=ich,
+                         offen=dict(offen or {})))
+    if (not voll and not uebernehmen and _unveraendert(spiegel / GESCHRIEBEN, abdruck) and vorhanden is not None
+            and vorhanden.name == HAUPT and (not teile or (spiegel / "hingelegt.json").is_file())):
+        with con:
+            con.executemany(f"DELETE FROM {GEAENDERT} WHERE angebot_id=?", [(i,) for i in geaendert])
+        return len(eigene)
     sc = sqlite3.connect(haupt)
     try:
         with sc:
             _datei_anlegen(sc)
-            sc.execute("DELETE FROM stammdaten")
             zeilen = []
             for (t, u), (h, zeit) in stand_basis.items():
                 daten = lokal.get((t, u)) if h is not None else None
                 if h is not None and daten is None:
                     continue
                 zeilen.append((t, u, zeit, json.dumps(daten, ensure_ascii=False) if daten is not None else None))
-            sc.executemany("INSERT INTO stammdaten (tabelle, uid, zeit, daten) VALUES (?, ?, ?, ?)", zeilen)
+            # nur geänderte Zeilen (Paket F3): Zeitstempel je Zeile vergleichen, entfallene löschen
+            vorher = {(t, u): z for t, u, z in sc.execute("SELECT tabelle, uid, zeit FROM stammdaten")}
+            schluessel = {(z[0], z[1]) for z in zeilen}
+            sc.executemany("DELETE FROM stammdaten WHERE tabelle=? AND uid=?", [x for x in vorher if x not in schluessel])
+            sc.executemany("INSERT OR REPLACE INTO stammdaten (tabelle, uid, zeit, daten) VALUES (?, ?, ?, ?)",
+                           [z for z in zeilen if vorher.get((z[0], z[1]), "\0") != z[2]])
             sc.execute("DELETE FROM angebote")
             sc.execute("DELETE FROM netze")
             _vorgaenge_schreiben(db, sc, karte)
+            verlauf.in_datei(sc, verlauf.fuer_datei(con, k))      # eigener Änderungsverlauf für die Kollegen
             sc.execute("DELETE FROM teile")
             sc.executemany("INSERT INTO teile (name, stand, anzahl) VALUES (?, ?, ?)",
                            [(n, st, a) for n, (st, a) in teile.items()])
@@ -774,38 +1038,44 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
                         schema=con.execute("PRAGMA user_version").fetchone()[0], version=VERSION, format=FORMAT,
                         stand=datetime.datetime.now().isoformat(timespec="seconds"), angebote=len(eigene),
                         letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}),
-                        erledigt=sorted(db.einstellung(ERLEDIGT) or {}))
+                        erledigt=sorted(db.einstellung(ERLEDIGT) or {}), protokoll=protokoll_stand(con),
+                        uhr=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                        uhr_abweichung=uhr_abweichung(db), uhr_versatz=uhr_versatz(db),
+                        lizenz=db.einstellung("lizenz_info") or {})     # Übersicht Arbeitsplätze und Rechte
             sc.executemany("INSERT OR REPLACE INTO info (name, wert) VALUES (?, ?)",
                            [(n, json.dumps(w, ensure_ascii=False)) for n, w in info.items()])
     finally:
         sc.close()
-    merk = spiegel / "hingelegt.json"                           # {Monatsdatei: Prüfsumme} im gemeinsamen Ordner
     try:
-        hingelegt = json.loads(merk.read_text()) if merk.exists() else {}
-    except ValueError:
-        hingelegt = {}
-    if str(hingelegt.pop("_ordner", "")) != str(ziel_ordner):
-        hingelegt = {}
-    try:
-        ziel_ordner.mkdir(exist_ok=True)
-        for name, (stand, _) in teile.items():                  # Monate zuerst, nur geänderte (oder dort fehlende)
-            if hingelegt.get(name) != stand or not (ziel_ordner / name).is_file():
-                hingelegt.pop(name, None)
-                _hinlegen(spiegel / name, ziel_ordner / name)
-                hingelegt[name] = stand
-                merk.write_text(json.dumps(dict(hingelegt, _ordner=str(ziel_ordner))))
-        _hinlegen(haupt, ziel_ordner / HAUPT)                   # Hauptdatei zuletzt: verweist auf die Monate
-        for p in ziel_ordner.glob(f"{MONAT_PRAEFIX}*.sqlite"):
-            if p.name not in teile:
-                p.unlink(missing_ok=True)
-        (o / datei_name(k)).unlink(missing_ok=True)             # alte Einzeldatei (Format 1) ist abgelöst
+        w.ablegen(k, spiegel, {name: stand for name, (stand, _) in teile.items()})
     except OSError as e:
         raise TeilenFehler(f"Die eigenen Daten ließen sich nicht in den gemeinsamen Ordner schreiben:\n{e}") from e
     (_cache(db) / datei_name(k)).unlink(missing_ok=True)
+    try:
+        (spiegel / GESCHRIEBEN).write_text(json.dumps(dict(abdruck=abdruck, zeit=datetime.datetime.now().timestamp())))
+    except OSError:
+        pass
+    try:
+        kopien_aufraeumen(db)       # eigene Konfliktkopien (OneDrive …) und liegengebliebene Zwischendateien
+    except OSError:
+        pass
     with con:
         con.executemany(f"DELETE FROM {GEAENDERT} WHERE angebot_id=?", [(i,) for i in geaendert])
     db.einstellung_setzen("teilen_geschrieben", info["stand"])
     return len(eigene)
+
+
+GESCHRIEBEN = "geschrieben.json"     # im lokalen Spiegel: Fingerabdruck und Zeit des letzten Ablegens (Paket F3)
+SPAETESTENS_S = 10 * 60              # so lange darf die Hauptdatei ohne Änderung liegen bleiben
+
+
+def _unveraendert(merk, abdruck):
+    try:
+        d = json.loads(merk.read_text())
+    except (OSError, ValueError):
+        return False
+    return (isinstance(d, dict) and d.get("abdruck") == abdruck
+            and 0 <= datetime.datetime.now().timestamp() - float(d.get("zeit") or 0) < SPAETESTENS_S)
 
 
 def _eigene_holen(db, quelle):
@@ -821,6 +1091,7 @@ def _eigene_holen(db, quelle):
         fc.close()
     angebote = quelle.angebote() or {}
     with db.con:
+        _herkunft(db.con, "abgleich")
         if nummern.zaehler(letzte) > nummern.zaehler(db.einstellung("letzte_angebotsnummer")):
             db._einstellung_schreiben("letzte_angebotsnummer", letzte)    # Zähler geht dort weiter
         zusammenfuehren(db, entfernt)          # Stammdaten dieses Kürzels (z. B. allein mit dem Teilen begonnen)
@@ -829,6 +1100,7 @@ def _eigene_holen(db, quelle):
                 continue
             inhalt, netze = quelle.inhalt(nummer)
             angebot_einsetzen(db.con, inhalt, netze, None, None)
+        _herkunft(db.con, None)
 
 
 # ------------------------------------------------------------------ Lesen und zusammenführen
@@ -980,13 +1252,16 @@ def lesen(db, modus=None):
         raise ErstAbgleich(sorted(gelesen))
     schema = con.execute("PRAGMA user_version").fetchone()[0]
     with con:
+        _herkunft(con, "abgleich")
         if erstmals and gelesen and modus == UEBERNEHMEN:
             for t in GETEILT:            # Zukaufartikel bleiben (Angebote verweisen über die ID), sie werden zusammengeführt
                 if t.schluessel:
                     con.execute(f'DELETE FROM "{t.name}"')
         seit = None if erstmals else db.einstellung("teilen_lese_zeit")
-        lese_zeit = jetzt(k)
-        erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit)
+        lese_zeit = jetzt(k, uhr_versatz(db))
+        lokal0 = lokale_zeilen(con)
+        erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit, lokal0)
+        _verlauf_erfassen(con, k, lokal0, uhr_versatz(db))     # eigene Änderungen, bevor fremde dazukommen
         entfernt = {}
         vorgaenge = {}          # Kürzel -> [Vorgang] aus den Dateien der anderen
         quittiert = {}          # Kürzel -> Kennungen der Vorgänge, die er erledigt hat
@@ -996,7 +1271,9 @@ def lesen(db, modus=None):
             fc = quelle.verbinden()
             try:
                 info = {n: json.loads(w) for n, w in fc.execute("SELECT name, wert FROM info")}
-                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen")}
+                bekannt[k2] = {n: info.get(n) for n in ("name", "email", "telefon", "stand", "version", "offen", "angebote",
+                                                         "uhr_abweichung",
+                                                         "rechner", "lizenz")}
                 bericht["mitarbeiter"].append(k2)
                 if int(info.get("format") or 0) > FORMAT or int(info.get("schema") or 0) > schema:
                     bericht["hinweise"].append(
@@ -1008,6 +1285,7 @@ def lesen(db, modus=None):
                             entfernt[(t, u)] = (zeit, json.loads(daten) if daten is not None else None)
                 angebote[k2] = quelle.angebote()        # None: wird gerade geschrieben, beim nächsten Mal
                 quittiert[k2] = set(info.get("erledigt") or ())
+                bericht["verlauf"] = bericht.get("verlauf", 0) + verlauf.aus_datei(con, fc, k2)
                 if fc.execute("SELECT 1 FROM sqlite_master WHERE name='vorgaenge'").fetchone():
                     cur = fc.execute("SELECT id, art, nummer, an, zeit, notiz, bezug, CASE WHEN art=? THEN inhalt END "
                                      "AS extra FROM vorgaenge", (NOTIZ,))
@@ -1019,8 +1297,17 @@ def lesen(db, modus=None):
                 bericht["hinweise"].append(f"Datei von {k2} nicht lesbar: {e}")
             finally:
                 fc.close()
+        from . import admin_schutz          # Admin-Vorgaben: geschützte Werte kommen nur aus dem Paket des Admins
+        paket = admin_schutz.paket_lesen(db)
+        if paket and paket.get("hinweis"):
+            bericht["hinweise"].append(paket["hinweis"])
+        entfernt = admin_schutz.ausfiltern(entfernt, paket)
         bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"])
         _konflikte_merken(db, bericht["konflikte"])
+        w_ = weg(db)
+        for k3 in [k3 for k3 in bekannt if k3 not in dateien and k3 != k]:
+            if w_.archiviert(k3):           # ausgeschieden (Paket C): nicht mehr unter den Kollegen
+                bekannt.pop(k3)
         db._einstellung_schreiben("teilen_mitarbeiter", bekannt)
         karte = _uid_karte(con, "zukauf_artikel")
         karte_id = {u: i for i, u in karte.items()}
@@ -1059,7 +1346,24 @@ def lesen(db, modus=None):
                     bericht["entfernte_ids"].append(i)
         db._einstellung_schreiben("teilen_gelesen", datetime.datetime.now().isoformat(timespec="seconds"))
         db._einstellung_schreiben("teilen_lese_zeit", lese_zeit)
+        _herkunft(con, None)
+    with con:
+        _herkunft(con, "abgleich")          # Admin-Vorgaben kommen vom Admin, nicht von hier
+        bericht["admin_vorgaben"] = admin_schutz.nach_lesen(db, paket)
+        _herkunft(con, None)
+    with con:                               # Änderungen der Kollegen still in den Stand des Verlaufs
+        ids = list(bericht["geaenderte_ids"]) + [u["id"] for u in bericht["uebernommen"] if u.get("id")]
+        verlauf.angleichen(con, lokale_zeilen(con) if bericht["stammdaten"] or bericht["admin_vorgaben"] else None,
+                           ids)
     return bericht
+
+
+def _verlauf_erfassen(con, k, lokal, versatz=0):
+    """Eigene Änderungen in den Änderungsverlauf (Paket D): Stammdaten und die seit dem letzten Schreiben geänderten
+    eigenen Angebote."""
+    ids = [r[0] for r in con.execute(f"SELECT g.angebot_id FROM {GEAENDERT} g JOIN angebote a ON a.id = g.angebot_id "
+                                     "WHERE a.fremd IS NULL")]
+    return verlauf.erfassen(con, k, lokal, ids, versatz)
 
 
 def abgleichen(db, modus=None, uebernehmen=False):
@@ -1083,6 +1387,8 @@ def bericht_text(b):
         teile.append(f"{b['stammdaten']} Stammdaten übernommen")
     if b.get("uebernommen"):
         teile.append("übernommen: " + ", ".join(f"{u['nummer']} von {u['von']}" for u in b["uebernommen"]))
+    if b.get("admin_vorgaben"):
+        teile.append("Admin-Vorgaben übernommen")
     if b.get("notizen"):
         teile.append(f"{len(b['notizen'])} Notiz(en) von Kollegen")
     if b.get("konflikte"):
@@ -1201,12 +1507,21 @@ def offen_bei(db, nummer, jetzt_=None):
 
 
 def kollegen_offen(db, jetzt_=None):
-    """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben (nur frische Dateien)."""
+    """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben. Mit Lebenszeichen (ab 0.9.219)
+    gilt nur dessen Stand (höchstens ONLINE_S alt), sonst die Hauptdatei (FRISCH_MIN nach dem letzten Schreiben)."""
     jetzt_ = jetzt_ or datetime.datetime.now()
     ich = kuerzel(db)
     out = {}
+    puls = lebenszeichen(db)
     for k, m in (db.einstellung("teilen_mitarbeiter") or {}).items():
-        if k == ich or not m.get("offen"):
+        if k == ich:
+            continue
+        if k in puls:
+            if puls[k]["online"]:
+                for nummer, seit in (puls[k].get("offen") or {}).items():
+                    out.setdefault(nummer, (k, seit))
+            continue
+        if not m.get("offen"):
             continue
         try:
             stand = datetime.datetime.fromisoformat(m.get("stand") or "")
@@ -1215,6 +1530,248 @@ def kollegen_offen(db, jetzt_=None):
         if jetzt_ - stand <= datetime.timedelta(minutes=FRISCH_MIN):
             for nummer, seit in m["offen"].items():
                 out.setdefault(nummer, (k, seit))
+    return out
+
+
+# ------------------------------------------------------------------ Lebenszeichen (Paket B, 31.10.2026)
+ONLINE_DATEI = "online.json"    # je Mitarbeiter-Ordner: wer ist da, welche Angebote sind gerade offen
+ONLINE = "_teilen_online"       # nur im Speicher (an der Datenbank): {Kürzel: online.json der Kollegen, gelesen};
+                                # nicht in der Datendatei, sonst gälte jedes gelesene Lebenszeichen als Änderung
+PULS_S = 30                     # so oft schreibt das Programm sein Lebenszeichen
+ONLINE_S = 120                  # so lange gilt ein Kollege nach seinem letzten Lebenszeichen als da
+
+
+def _utc(versatz=0):
+    return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=versatz or 0)
+
+
+def lebenszeichen_schreiben(db, offen=None, ende=False):
+    """Eigenes Lebenszeichen in den gemeinsamen Ordner (klein, atomar): Zeit (Ordner-Uhr), geöffnete eigene
+    Angebote, Version. ende: Programm wird beendet (dann gleich „nicht mehr da“). Nur, wenn der eigene Ordner schon
+    diesem Arbeitsplatz gehört (nach dem ersten Abgleich). Ergebnis: True = geschrieben."""
+    k, w = kuerzel(db), weg(db)
+    if not k or w is None or not w.erreichbar():
+        return False
+    haupt = w.haupt(k)
+    if haupt is None or haupt.name != HAUPT:
+        return False
+    if (info_lesen(haupt) or {}).get("installation") not in (None, installation(db)):
+        return False
+    if offen is not None:
+        setattr(db, OFFEN_ZULETZT, dict(offen))      # für zeile_merken (ohne Fenster)
+    jetzt_ = _utc(uhr_versatz(db))
+    daten = dict(kuerzel=k, name=db.einstellung("benutzer_name") or "", installation=installation(db),
+                 rechner=socket.gethostname(), version=VERSION, zeit=jetzt_.isoformat(timespec="seconds"),
+                 offen=dict(offen or {}), ende=bool(ende), zeilen={} if ende else _zeilen_frisch(db, jetzt_))
+    w.datei_schreiben(json.dumps(daten, ensure_ascii=False).encode("utf-8"), ordner_name(k), ONLINE_DATEI)
+    return True
+
+
+def lebenszeichen_lesen(db):
+    """Lebenszeichen der Kollegen lesen und merken (teilen_online). Ergebnis: {Kürzel: dict} wie lebenszeichen."""
+    k, w = kuerzel(db), weg(db)
+    if w is None or not w.erreichbar():
+        return {}
+    alle = {}
+    for k2, haupt in w.mitarbeiter(k, kuerzel_sauber).items():
+        if haupt.name != HAUPT:
+            continue
+        roh = w.datei_lesen(ordner_name(k2), ONLINE_DATEI)
+        if roh is None:
+            continue
+        try:
+            d = json.loads(roh.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if isinstance(d, dict):
+            alle[k2] = {n: d.get(n) for n in ("name", "rechner", "version", "zeit", "offen", "ende", "zeilen")}
+    setattr(db, ONLINE, alle)
+    setattr(db, ONLINE_GELESEN, datetime.datetime.now().timestamp())
+    return lebenszeichen(db)
+
+
+# ------------------------------------------------------------------ Weiche Sperre für Stammdaten-Zeilen (Paket E1)
+ZEILEN = "_teilen_zeilen"       # nur im Speicher: {"Tabelle|Kennung": Zeit (Ordner-Uhr)} selbst geänderte Zeilen
+ZEILE_S = 120                   # so lange gilt eine Zeile nach der letzten Änderung als „wird gerade geändert“
+OFFEN_ZULETZT = "_teilen_offen"     # zuletzt gemeldete geöffnete Angebote (für das Lebenszeichen ohne Fenster)
+ONLINE_GELESEN = "_teilen_online_gelesen"
+FRISCH_LESEN_S = 5              # Lebenszeichen vor einer Stammdaten-Änderung höchstens so alt, sonst neu lesen
+
+
+def _zeit_utc(text):
+    try:
+        t = datetime.datetime.fromisoformat(str(text or ""))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=datetime.timezone.utc)
+
+
+def _zeilen_frisch(db, jetzt_):
+    out = {}
+    for schl, zeit in (getattr(db, ZEILEN, None) or {}).items():
+        t = _zeit_utc(zeit)
+        if t is not None and (jetzt_ - t).total_seconds() <= ZEILE_S:
+            out[schl] = zeit
+    setattr(db, ZEILEN, out)
+    return out
+
+
+def zeile_merken(db, tabelle, uid):
+    """Diese Stammdaten-Zeile wurde hier gerade geändert: gleich ins Lebenszeichen, damit ein Kollege, der dieselbe
+    Zeile ändern will, gefragt wird (weiche Sperre, Frage 2a). Ergebnis: True = Lebenszeichen geschrieben."""
+    if not uid or not aktiv(db) or not kuerzel(db):
+        return False
+    m = dict(getattr(db, ZEILEN, None) or {})
+    m[f"{tabelle}|{uid}"] = _utc(uhr_versatz(db)).isoformat(timespec="seconds")
+    setattr(db, ZEILEN, m)
+    try:
+        return lebenszeichen_schreiben(db, getattr(db, OFFEN_ZULETZT, None))
+    except (TeilenFehler, OSError):
+        return False
+
+
+def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
+    """(Kürzel, Sekunden) wenn ein Kollege diese Stammdaten-Zeile in den letzten ZEILE_S Sekunden geändert hat und
+    noch da ist, sonst None. Liest die Lebenszeichen neu, wenn sie älter als FRISCH_LESEN_S sind."""
+    if not uid or not aktiv(db):
+        return None
+    if jetzt_ is None and datetime.datetime.now().timestamp() - (getattr(db, ONLINE_GELESEN, 0) or 0) > FRISCH_LESEN_S:
+        try:
+            lebenszeichen_lesen(db)
+        except (TeilenFehler, OSError):
+            pass
+    jetzt_ = jetzt_ or _utc(uhr_versatz(db))
+    treffer = None
+    for k2, d in lebenszeichen(db, jetzt_).items():
+        if not d.get("online"):
+            continue
+        t = _zeit_utc((d.get("zeilen") or {}).get(f"{tabelle}|{uid}"))
+        if t is None:
+            continue
+        vor = max(0.0, (jetzt_ - t).total_seconds())
+        if vor <= ZEILE_S and (treffer is None or vor < treffer[1]):
+            treffer = (k2, vor)
+    return treffer
+
+
+def lebenszeichen(db, jetzt_=None):
+    """{Kürzel: {name, rechner, version, zeit, offen, online, vor_s}} aus den zuletzt gelesenen Lebenszeichen.
+    online: höchstens ONLINE_S alt (gegen die Ordner-Uhr) und nicht beendet; vor_s: Alter in Sekunden."""
+    jetzt_ = jetzt_ or _utc(uhr_versatz(db))
+    out = {}
+    for k2, d in (getattr(db, ONLINE, None) or {}).items():
+        try:
+            zeit = datetime.datetime.fromisoformat(d.get("zeit") or "")
+        except ValueError:
+            continue
+        if zeit.tzinfo is None:
+            zeit = zeit.replace(tzinfo=datetime.timezone.utc)
+        vor = (jetzt_ - zeit).total_seconds()
+        out[k2] = dict(d, vor_s=vor, online=not d.get("ende") and vor <= ONLINE_S)
+    return out
+
+
+def zuletzt_text(sekunden):
+    """„gerade eben“, „vor 5 min“, „vor 3 h“, „vor 2 Tagen“."""
+    s = max(0, int(sekunden or 0))
+    if s < 90:
+        return "gerade eben"
+    if s < 3600:
+        return f"vor {s // 60} min"
+    if s < 2 * 86400:
+        return f"vor {s // 3600} h"
+    return f"vor {s // 86400} Tagen"
+
+
+def offene_vorgaenge(db):
+    """{Kürzel: Anzahl} eigener Vorgänge (Übergabe, Anfrage, Notiz), die der Kollege noch nicht umgesetzt hat."""
+    out = {}
+    for v in _vorgaenge(db).values():
+        if v.get("an"):
+            out[v["an"]] = out.get(v["an"], 0) + 1
+    return out
+
+
+# ------------------------------------------------------------------ Ausgeschiedene Mitarbeiter (Paket C, 31.10.2026)
+def angebote_von(db, k2):
+    """Angebote des Kollegen k2 hier (fremde Kopien): [dict(id, nummer, kunde, datum)], neueste zuerst."""
+    cur = db.con.execute("SELECT id, nummer, kunde, datum FROM angebote WHERE fremd=? ORDER BY datum DESC, nummer DESC",
+                         (k2,))
+    return [dict(id=r[0], nummer=r[1], kunde=r[2] or "", datum=r[3] or "") for r in cur]
+
+
+def ausgeschieden(db, k2, zuordnung, ich_admin=None):
+    """Mitarbeiter k2 ist ausgeschieden: seine Angebote übernehmen und seinen Ordner archivieren (nur Admin).
+    zuordnung: {Angebots-ID: neuer Bearbeiter (Kürzel)}; das eigene Kürzel übernimmt hier gleich, ein Kollege
+    bekommt das Angebot als Übergabe (beim nächsten Abgleich). Angebote ohne Eintrag übernimmt der Admin selbst.
+    Reihenfolge: erst den Ordner archivieren (sonst gäbe es die Nummern zweimal), dann übernehmen, dann ablegen.
+    Ergebnis: dict(uebernommen, uebergeben, archiv)."""
+    from . import admin_schutz
+    k, w = kuerzel(db), _weg_pruefen(db)
+    k2 = kuerzel_sauber(k2)
+    if not (admin_schutz.ist_admin(db) if ich_admin is None else ich_admin):
+        raise TeilenFehler("Nur der Admin kann einen Mitarbeiter als ausgeschieden austragen.")
+    if not k2 or k2 == k:
+        raise TeilenFehler("Bitte einen Kollegen wählen.")
+    if w.haupt(k2) is None:
+        raise TeilenFehler(f"Im gemeinsamen Ordner gibt es keine Daten von {k2}.")
+    ids = [a["id"] for a in angebote_von(db, k2)]
+    stempel = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+    try:
+        archiv = w.archivieren(k2, stempel)
+    except OSError as e:
+        raise TeilenFehler(f"Der Ordner von {k2} ließ sich nicht archivieren:\n{e}") from e
+    uebernommen, uebergeben_ = 0, 0
+    with db.con:
+        for i in ids:
+            db.con.execute("UPDATE angebote SET fremd=NULL, fremd_stand=NULL, bearbeiter=? WHERE id=? AND fremd=?",
+                           (k, i, k2))
+            uebernommen += 1
+    for i in ids:
+        neu = kuerzel_sauber(zuordnung.get(i) or k)
+        if neu != k:
+            try:
+                uebergeben(db, i, neu, notiz=f"von {k2} (ausgeschieden)")
+                uebergeben_ += 1
+            except TeilenFehler:
+                pass                    # z. B. vorläufige Nummer: bleibt beim Admin, er kann es später übergeben
+    bekannt = dict(db.einstellung("teilen_mitarbeiter") or {})
+    bekannt.pop(k2, None)
+    db.einstellung_setzen("teilen_mitarbeiter", bekannt)
+    schreiben(db)
+    return dict(uebernommen=uebernommen - uebergeben_, uebergeben=uebergeben_, archiv=archiv)
+
+
+# ------------------------------------------------------------------ Lizenzen der Plätze (Paket C, 31.10.2026)
+AKTIV_TAGE = 30
+
+
+def lizenz_hinweise(db, jetzt_=None):
+    """Hinweise zu den Lizenzen der aktiven Plätze (letzter Abgleich in den letzten AKTIV_TAGE Tagen): ohne gültige
+    Lizenz; dieselbe Lizenz an mehreren Kürzeln. Jede Lizenz gilt für einen Rechner. [Text …]"""
+    from . import admin_schutz
+    jetzt_ = jetzt_ or datetime.datetime.now()
+    ich = kuerzel(db)
+    out, je_lizenz = [], {}
+    for k2, m in sorted(mitarbeiter(db).items()):
+        info = (db.einstellung(admin_schutz.LIZENZ_INFO) or {}) if k2 == ich else dict(m.get("lizenz") or {})
+        if k2 != ich:
+            try:
+                stand = datetime.datetime.fromisoformat(m.get("stand") or "")
+            except ValueError:
+                continue
+            if (jetzt_ - stand).days >= AKTIV_TAGE:
+                continue
+        if not info:
+            continue                    # Platz mit älterem Programm: meldet seine Lizenz nicht
+        if not admin_schutz.lizenz_gueltig(info):
+            text, _ = admin_schutz.lizenz_text(info)
+            out.append(f"{k2} arbeitet ohne gültige Lizenz ({text})")
+        if info.get("lizenz_id"):
+            je_lizenz.setdefault(info["lizenz_id"], []).append(k2)
+    for lid, wer in sorted(je_lizenz.items()):
+        if len(wer) > 1:
+            out.append(f"{' und '.join(wer)} nutzen dieselbe Lizenz ({lid})")
     return out
 
 
@@ -1417,11 +1974,7 @@ def _vorgaenge_lesen(db, gelesen, vorgaenge, angebote, bericht, karte_id, quitti
 
 def dateien_stand(db):
     """Größe und Zeit der Dateien der Kollegen: unverändert = nichts Neues zu lesen."""
-    out = []
-    for k, p in andere_dateien(db).items():
-        st = p.stat()
-        out.append((k, st.st_size, st.st_mtime_ns))
-    return tuple(out)
+    return _weg_pruefen(db).stand(andere_dateien(db))
 
 
 # ------------------------------------------------------------------ Notizen an Kollegen

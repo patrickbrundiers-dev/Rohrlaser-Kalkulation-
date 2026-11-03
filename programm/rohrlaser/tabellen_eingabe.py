@@ -12,7 +12,7 @@ import re
 from PySide6.QtCore import QObject, QEvent, QStringListModel, Qt, QTimer
 from PySide6.QtWidgets import QAbstractItemDelegate, QAbstractItemView, QCompleter
 
-from . import tastatur
+from . import normprofile, tastatur
 from .stammdaten import EINGABE_RICHTUNGEN
 
 UNTEN, RECHTS = EINGABE_RICHTUNGEN
@@ -36,7 +36,10 @@ def _ohne_doppelte(nz):
 def profil_treffer(text, namen, hoechstens=TREFFER_HOECHSTENS):
     """Profilnamen zur Eingabe, beste zuerst: gleiche Maße (doppelte Maße dürfen fehlen: 40x3 = 40x40x3), dann Maße
     am Anfang (40 → 40x40x3, 40x60x4 …), dann Text irgendwo im Namen. Buchstaben am Anfang der Eingabe (QR, RE …)
-    müssen am Anfang des Namens stehen."""
+    müssen am Anfang des Namens stehen. U-Profile auch als 'UNP 100' oder 'U 100' (= UPN 100)."""
+    norm = normprofile.normname(text)
+    if norm != " ".join(str(text or "").split()) and norm in namen:
+        return [norm]
     t = _kurz(text)
     if not t:
         return []
@@ -64,6 +67,8 @@ def profil_aufloesen(text, namen):
     gleichen Maßen bzw. der einzige Treffer überhaupt, sonst die Eingabe unverändert (die Prüfung meldet sie)."""
     t = str(text or "").strip()
     genau = next((n for n in namen if n.lower() == t.lower()), None)
+    if genau is None and normprofile.normname(t) in namen:      # 'UNP 100', 'U 100' = 'UPN 100'
+        genau = normprofile.normname(t)
     if genau or not t:
         return genau or t
     treffer = profil_treffer(t, namen)

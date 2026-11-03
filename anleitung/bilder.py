@@ -217,14 +217,44 @@ def main(ziel):
                                  lieferant="Beispiel-Lieferant", bemerkung="geschnitten nach Werkstücklängen"))
     f.alles_neu_laden()
 
-    # 3) Einstellungen gesperrt, dann mit Passwort geöffnet; Stammdaten als Unterreiter (Kunden eigener Reiter)
+    # 3) Admin-Schutz: geschützte Seite für Nicht-Admins, dann als Admin freigeschaltet; Stammdaten als Unterreiter
     f.bereich.sperren()
     f.reiter.setCurrentWidget(f.bereich)
+    f.bereich.zeigen(next(s for s in f.einstellungen.seiten if s.schluessel == "e_zuschlaege"))
     QApplication.processEvents()
-    foto.foto("einstellungen_gesperrt", f, [(tab_rect(f.reiter, "Einstellungen"), 1), (f.bereich.passwort, 2),
-                                            (knopf(f.bereich, "Einstellungen öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 760, f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("einstellungen_gesperrt", f, [(f.bereich.leiste.text, 1), (f.bereich.passwort, 2),
+                                            (knopf(f.bereich, "Als Admin freischalten …"), 3)],
+              ausschnitt=QRect(0, 0, f.width(), f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 260))
     f.bereich.oeffnen(db.einstellung("passwort"))
+    f.bereich.zeigen(f.admin_seite)
+    QApplication.processEvents()
+    foto.foto("admin_schutz", f, [(f.admin_seite.haken["e_zuschlaege"], 1),
+                                  (knopf(f.admin_seite, "Vorschlag wiederherstellen"), 2)])
+    # Arbeitsplätze und Rechte: drei Plätze aus dem gemeinsamen Ordner (Beispiel), ein weiterer Admin
+    from rohrlaser import VERSION, admin_schutz
+    heute = datetime.date.today()
+    db.einstellung_setzen("teilen_mitarbeiter", {
+        "MA": {"name": "Max Arnold", "rechner": "PC-FERTIGUNG", "version": VERSION,
+               "stand": f"{heute.isoformat()}T07:42:00",
+               "lizenz": {"art": "benutzer", "stufe": "gueltig", "gueltig_bis": (heute + datetime.timedelta(days=80)).isoformat()}},
+        "SK": {"name": "Sabine Krüger", "rechner": "PC-BUERO2", "version": VERSION,
+               "stand": f"{heute.isoformat()}T08:15:00",
+               "lizenz": {"art": "benutzer", "stufe": "bald", "gueltig_bis": (heute + datetime.timedelta(days=12)).isoformat()}}})
+    db.einstellung_setzen(admin_schutz.LIZENZ_INFO, {"art": "admin", "stufe": "admin"})
+    kuerzel_vorher = (db.einstellung("benutzer_kuerzel"), db.einstellung("benutzer_name"))
+    db.einstellung_setzen("benutzer_kuerzel", "PB")
+    db.einstellung_setzen("benutzer_name", "Paul Berger")
+    admin_schutz.recht_setzen(db, "SK", admin_schutz.ADMIN, "Sabine Krüger", "Start-2026")
+    db.einstellung_setzen(admin_schutz.VERLAUF, [
+        {"zeit": f"{heute.isoformat()}T08:31:12", "wer": "Sabine Krüger (SK)", "was": "Tabellen: Preise"},
+        {"zeit": f"{heute.isoformat()}T09:02:40", "wer": "Hauptadmin (PB)", "was": "Einstellungen: Rechte"}])
+    ps = f.plaetze_seite
+    f.bereich.zeigen(ps)
+    QApplication.processEvents()
+    foto.foto("arbeitsplaetze_rechte", f, [(ps.wahl["SK"], 1), (knopf(ps, "Neues Startpasswort …"), 2),
+                                           (ps.verlauf, 3)])
+    db.einstellung_setzen("benutzer_kuerzel", kuerzel_vorher[0])
+    db.einstellung_setzen("benutzer_name", kuerzel_vorher[1])
     # Schweiß-Stammdaten werden leer ausgeliefert: wie mit dem Knopf 'Richtwerte laden' füllen
     next(s for s in f.seiten if s.t.name == "schweissverfahren").schweiss_richtwerte(bestaetigt=True)
     for seite in f.seiten:
@@ -317,7 +347,7 @@ def main(ziel):
     f.zeigen(f.einstellungen)
     QApplication.processEvents()
     foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Funktionen"), 1),
-                                   (knopf(f.bereich, "Einstellungen sperren"), 2)])
+                                   (knopf(f.bereich, "Admin sperren"), 2)])
     funktionen_seite = f.einstellungen.seiten[0]
     foto.foto("einstellungen_funktionen", f, [(funktionen_seite.felder["funktion_blech"], 1)])
     zuschlaege = f.einstellung_zeigen("gewinn")
@@ -446,14 +476,13 @@ def main(ziel):
     s.zusatzarbeiten(list(range(len(s.positionen))), (None, json.dumps([dict(name="Feuerverzinken")])))
 
     def zusatz_ausfuellen(d):
+        from rohrlaser.zusatz_dialog import TEXT
         d.gewinde.setText("2xM8")
-        r = d.zeile_neu()
-        d.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
-        d.tabelle.cellWidget(r, 4).setText("Logo")
+        r = d.hinzufuegen("Gravur extra")
+        d.tabelle.cellWidget(r, TEXT).setText("Logo")
         QApplication.processEvents()
-        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.tabelle.cellWidget(r, 0), 2),
-                                       (d.tabelle.cellWidget(0, 2), 3), (d.tabelle.cellWidget(r, 4), 4),
-                                       (knopf(d, "Zusatzarbeit hinzufügen"), 5)])
+        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.liste, 2), (d.tabelle.cellWidget(0, 2), 3),
+                                       (d.tabelle.cellWidget(r, TEXT), 4), (d.neu_knopf, 5), (d.summe, 6)])
         d._ok()
     QTimer.singleShot(100, lambda: _warte_modal(zusatz_ausfuellen))
     s.zusatzarbeiten([0])
@@ -1208,9 +1237,9 @@ def main(ziel):
     f.bereich.sperren()
     fb.zeigen(fb.zonen)
     bereit()
-    foto.foto("fracht_gesperrt", f, [(tab_rect(f.reiter, "Frachtkosten"), 1), (fb.gesperrt[fb.zonen].passwort, 2),
-                                     (knopf(fb.gesperrt[fb.zonen], "Frachtdaten öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 820, fb.gesperrt[fb.zonen].passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("fracht_gesperrt", f, [(f.bereich.unter.eintrag_rect(f.bereich.unter.tabText(
+                                         f.bereich.unter.indexOf(fb.zonen))), 1), (f.bereich.passwort, 2),
+                                     (knopf(f.bereich, "Als Admin freischalten …"), 3)])
     f.bereich.oeffnen(db.einstellung("passwort"))
     db.einstellung_setzen("absender_plz", "34117")
     fb.zeigen(fb.rechner)
@@ -1226,7 +1255,7 @@ def main(ziel):
     r.leistungen["AVIS-BSP"][0].setChecked(True)
     r.rechnen()
     bereit()
-    foto.foto("fracht_rechner", f, [(tab_rect(fb.unter, "Fracht kalkulieren"), 1), (r.plz, 2), (r.zone, 3),
+    foto.foto("fracht_rechner", f, [(fb.pflegen_knopf, 1), (r.plz, 2), (r.zone, 3),
                                     (r.netto, 4), (r.lht_tabelle, 5), (knopf(r, "Packvorschlag"), 6),
                                     (r.leistungen_box, 7), (r.anzeige, 8), (r.speichern_knopf, 9)])
     r.speichern()

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
-from . import fracht_angebot, hilfe, rechnen, teilen, zukauf
+from . import abruf, fracht_angebot, funktionen, hilfe, rechnen, teilen, zukauf
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
@@ -29,8 +29,9 @@ GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung", "ruesten_abmessung_eur", "ruesten_angebot_eur", "programmierung_zeit",
                          "programmierung_kontur")),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht")),
+    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht", "eilzuschlag")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
+    ("Kundenkonditionen", ("rabatt", "frachtfrei_ab", "mindestwert")),        # Vorschlag G7, 02.11.2026
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)
 MASCHINENPARAMETER = (
@@ -230,6 +231,12 @@ def _versand_text(v):
     if v.get("art") == "ab":            # Auftragsbestätigung (Plan 29.10.2026 1c)
         return (f"{datum_text(v.get('datum'))}: Auftragsbestätigung {v.get('nummer') or ''} – {_z(v.get('netto'))} € "
                 f"netto ({v.get('datei') or 'PDF'})")
+    if v.get("art") == "mail":          # Angebot per E-Mail (angebot_mail.py)
+        from .angebot_mail import verlauf_text
+        return verlauf_text(v)
+    if v.get("art") == "gleitklausel":  # Materialpreis-Gleitklausel (gleitklausel.py)
+        from .gleitklausel import verlauf_text
+        return verlauf_text(v)
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
     if v.get("art") == "wiedervorlage":
@@ -320,6 +327,24 @@ class KopfBereich(QWidget):
         lz.addWidget(self.lz_art)
         lz.addWidget(self.lz_wert)
         lz.addWidget(self.lz_zusatz, 1)
+        # Liefertermin nach freier Kapazität (Vorschlag V2, terminplan.py): nur mit Funktion Maschinenauslastung
+        self.termin_knopf = QPushButton("Termin prüfen …")
+        self.termin_knopf.setToolTip("Frühesten Liefertermin nach der Maschinenauslastung und der Material-Lieferzeit "
+                                     "rechnen und mit der Lieferzeit des Angebots vergleichen")
+        self.termin_knopf.clicked.connect(lambda: seite.termin_pruefen())
+        lz.addWidget(self.termin_knopf)
+        # Maschinenvergleich (Vorschlag F1): das Angebot auf allen Maschinen rechnen
+        self.maschinen_knopf = QPushButton("Maschinen vergleichen …")
+        self.maschinen_knopf.setToolTip("Das Angebot auf jeder Maschine rechnen (Laserzeit, Preis, Termin) und auf "
+                                        "Wunsch umstellen")
+        self.maschinen_knopf.clicked.connect(lambda: seite.maschinen_vergleichen())
+        lz.addWidget(self.maschinen_knopf)
+        # Zielpreis rückwärts (Vorschlag G1a): nötiger Gewinn, Marge, „Auf Zielpreis setzen“
+        self.ziel_knopf = QPushButton("Zielpreis …")
+        self.ziel_knopf.setToolTip("Zielpreis netto eingeben: das Programm zeigt den nötigen Gewinn, ob die "
+                                   "Mindestmarge und die Preisuntergrenze halten, und stellt den Gewinn auf Wunsch um")
+        self.ziel_knopf.clicked.connect(lambda: seite.zielpreis())
+        lz.addWidget(self.ziel_knopf)
         g.addWidget(QLabel("Lieferzeit"), 3, 0)
         g.addLayout(lz, 3, 1, 1, 3)
         self.lz_vorschau = QLabel()
@@ -406,6 +431,12 @@ class KopfBereich(QWidget):
                                    "Mindestauftragswert.")
         self.mindest_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["mindestpreis_anwenden"], None if an else "nein"))
+        # Verpackung (Vorschlag G2): Kosten aus den Stammdaten Verpackung, je Angebot abschaltbar
+        self.verpackung_an = QCheckBox("Verpackung berechnen")
+        self.verpackung_an.setToolTip("Packmittel aus Einstellungen → Verpackung als eigene Kostenart (ohne Gewinn). "
+                                      "Ohne Haken (Kunde holt ab, eigene Gitterbox) keine Verpackungskosten.")
+        self.verpackung_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["verpackung"], None if an else "nein"))
         # Musterteile (Patrick 28.10.2026): Kosten auf die Serie umlegen oder als eigene Zeile; nur mit Musterteilen
         self.muster_wahl = QWidget()
         ml = QHBoxLayout(self.muster_wahl)
@@ -420,6 +451,32 @@ class KopfBereich(QWidget):
         self.muster_darstellung.currentTextChanged.connect(
             lambda t: seite._kopf_speichern(KOPF_FELD["muster_darstellung"], None if t == MUSTER_UMLEGEN else t))
         ml.addWidget(self.muster_darstellung, 1)
+        # Abruf-/Rahmenangebot (Patrick 30.10.2026): Haken, Fenster mit Jahres-/Abrufmenge, Kurzfassung
+        self.abruf_wahl = QWidget()
+        av = QVBoxLayout(self.abruf_wahl)
+        av.setContentsMargins(0, 0, 0, 0)
+        av.setSpacing(2)
+        al = QHBoxLayout()
+        self.abruf_an = QCheckBox("Abruf-/Rahmenangebot")
+        self.abruf_an.setToolTip("Jahresmenge in Abrufen: Stückzahlen = kleinster Abruf, Rüsten und Fracht je Abruf, "
+                                 "Programmierung und Musterteile auf die Jahresmenge verteilt, Rahmenbedingungen im "
+                                 "Angebots-PDF")
+        self.abruf_an.toggled.connect(lambda an: seite.abruf_umschalten(an))
+        self.abruf_knopf = QPushButton("Abrufdaten …")
+        self.abruf_knopf.clicked.connect(lambda: seite.abruf_bearbeiten())
+        self.abruf_kurz = QLabel()
+        self.abruf_kurz.setWordWrap(True)
+        self.abruf_kurz.setStyleSheet(f"color: {GRAU};")
+        al.addWidget(self.abruf_an)
+        al.addWidget(self.abruf_knopf)
+        self.gleit_knopf = QPushButton("Gleitklausel prüfen …")
+        self.gleit_knopf.setToolTip("Materialklausel (Vorschlag K1): festgeschriebene Materialpreise gegen die aktuellen; "
+                                    "über der Schwelle (Einstellung Materialklausel) neue Materialpreise übernehmen")
+        self.gleit_knopf.clicked.connect(lambda: seite.gleitklausel_pruefen())
+        al.addWidget(self.gleit_knopf)
+        al.addStretch(1)
+        av.addLayout(al)
+        av.addWidget(self.abruf_kurz)
         gruppen = QGridLayout()
         gruppen.setHorizontalSpacing(18)
         self.gruppen_leer = {}
@@ -465,6 +522,8 @@ class KopfBereich(QWidget):
             if titel == "Verkauf und Gewinn":  # Mindestauftragswert ein/aus gehört zum Verkauf, spart eine Zeile
                 form.addWidget(self.mindest_an, r + 1, 0, 1, 2)
                 form.addWidget(self.muster_wahl, r + 2, 0, 1, 2)
+                form.addWidget(self.abruf_wahl, r + 3, 0, 1, 2)
+                form.addWidget(self.verpackung_an, r + 4, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -676,6 +735,8 @@ class KopfBereich(QWidget):
                     teile.append(f"{titel.strip()} {_z(v, fd.stellen if fd.stellen is not None else (0 if fd.art == "ganz" else 2))} {einheit}".strip())
         if self.s.kopf.get("mindestpreis_anwenden") == "nein":
             teile.append("ohne Mindestauftragswert")
+        if abruf.aktiv(self.s.kopf):
+            teile.append("Abruf: " + abruf.kurz(self.s.kopf))
         n = getattr(self, "_n_abweichend", 0)
         self.kalk_kurz.setText("   " + " · ".join(teile)
                                + (f"   <b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>" if n else ""))
@@ -835,6 +896,9 @@ class KopfBereich(QWidget):
         self.mat_vorgabe.setCurrentText(s.kopf.get("material_vorgabe") or EIGENMATERIAL)
         self.mat_vorgabe.blockSignals(False)
         betrag = rechnen.einstellungen_fest(s.tabellen, s.db.einstellungen()).get("mindestpreis")
+        self.verpackung_an.blockSignals(True)
+        self.verpackung_an.setChecked(s.kopf.get("verpackung") != "nein")
+        self.verpackung_an.blockSignals(False)
         self.mindest_an.blockSignals(True)
         self.mindest_an.setChecked(s.kopf.get("mindestpreis_anwenden") != "nein")
         self.mindest_an.setText(f"Mindestauftragswert anwenden ({_z(betrag)} € netto)"
@@ -845,6 +909,15 @@ class KopfBereich(QWidget):
         self.muster_darstellung.setCurrentText(s.kopf.get("muster_darstellung") or MUSTER_UMLEGEN)
         self.muster_darstellung.blockSignals(False)
         self.muster_wahl.setVisible(any(p.get("muster") == "ja" for p in getattr(s, "positionen", None) or ()))
+        self.abruf_an.blockSignals(True)
+        self.abruf_an.setChecked(abruf.aktiv(s.kopf))
+        self.abruf_an.blockSignals(False)
+        self.abruf_knopf.setVisible(abruf.aktiv(s.kopf))
+        ab = abruf.daten(s.kopf)
+        self.gleit_knopf.setVisible(bool(ab) and not ab["bevorraten"])
+        self.gleit_knopf.setEnabled(isinstance(s.kopf.get("preisbasis"), dict))
+        self.abruf_kurz.setText(abruf.kurz(s.kopf))
+        self.abruf_wahl.setVisible(abruf.aktiv(s.kopf) or funktionen.an("funktion_abruf"))
         self._abweichungen_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()
@@ -894,6 +967,8 @@ class KopfBereich(QWidget):
                 w.setText(v)
             w.blockSignals(False)
         self.lz_wert.setEnabled(art not in ("", NUR_TEXT))
+        from . import funktionen
+        self.termin_knopf.setVisible(funktionen.an("funktion_auslastung"))
         self.lz_wert.setPlaceholderText(LIEFERZEIT_HILFE.get(art, ""))
         self.lz_wert.setToolTip(LIEFERZEIT_HILFE.get(art, ""))
         text = lieferzeit_text(k)
@@ -1356,13 +1431,13 @@ class UebersichtBereich(QWidget):
         for name, text in werte.items():
             self.kennzahl[name].setText(text)
 
-    def kosten_setzen(self, kosten):
+    def kosten_setzen(self, kosten, co2=None):
         """kosten: rechnen.kostenarten(...). Oben die Gruppen (rechnen.KOSTEN_GRUPPEN), aufklappbar jede Kostenart
         einzeln. Zeilen mit 0,00 € sind ausgeblendet, Herstellkosten und Verkaufspreis immer sichtbar."""
         betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
         for name, w in self.preis.items():
             w.setText(f"{_z(betrag[name][1])} €")
-        self._kosten = kosten
+        self._kosten, self._co2 = kosten, co2
         linie = "border-top:1px solid #C9D0D8"
         html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>"
                 f"<b>Preisaufbau</b></td></tr>")
@@ -1387,6 +1462,8 @@ class UebersichtBereich(QWidget):
                     for n in einzeln:
                         html += (f"<tr><td style='color:{GRAU};padding-left:14px'>{betrag[n][0]}</td>"
                                  f"<td align='right' style='color:{GRAU}'>{_z(betrag[n][1])} €</td></tr>")
+        if co2:          # CO₂-Bilanz (Vorschlag K3, nur mit Funktion „CO₂-Bilanz“)
+            html += f"<tr><td colspan='2' style='color:{GRAU};{linie}'>{co2}</td></tr>"
         self.uebersicht.setText(html + "</table>")
         html = "<table width='100%' cellpadding='1' cellspacing='0'>"
         for t, w, fett in kosten:
@@ -1401,7 +1478,7 @@ class UebersichtBereich(QWidget):
         """Klick auf eine Gruppe im Preisaufbau: ihre Kostenarten auf- oder zuklappen."""
         self.offene_gruppen ^= {titel}
         if self._kosten is not None:
-            self.kosten_setzen(self._kosten)
+            self.kosten_setzen(self._kosten, getattr(self, "_co2", None))
 
     def zeiten_setzen(self, k):
         """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten aufgeschlüsselt: Maschine und Personal aufklappbar je

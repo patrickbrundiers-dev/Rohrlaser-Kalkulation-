@@ -92,8 +92,8 @@ def ende_text(x):
     if x.get("achse") == sw.ACHSE_ZWEI:
         return f"Schrägschnitt {_z(x.get('winkel_h'))}° / {_z(x.get('winkel_b'))}°"
     w = sw._z(x.get("winkel"))
-    if not w:
-        return "gerade"
+    if not w:      # komplexes Ende aus der STEP (z. B. Ausschnitt bis ans Ende, Ecke schräg): nicht „gerade“ nennen
+        return "gerade" if x.get("form") in (None, "", "gerade") else f"{x['form']} (Umriss wie STEP)"
     return f"Gehrung {_z(w)}°" + (f" {x['achse']}" if x.get("achse") else "") + (" 3D" if x.get("d3") else "")
 
 

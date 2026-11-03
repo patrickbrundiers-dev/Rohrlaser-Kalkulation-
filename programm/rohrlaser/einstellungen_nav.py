@@ -15,9 +15,9 @@ from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QStackedWidget, QTreeWidge
 # Seiten der Einstellungen (einstellungen_ordnung.SEITEN, Schlüssel e_…) stehen beim Thema (Plan „Einstellungen
 # aufräumen“, 29.10.2026)
 GRUPPEN = (
-    ("Allgemein", ("e_funktionen", "e_firma", "e_arbeitsplatz", "e_ablage")),
+    ("Allgemein", ("e_funktionen", "e_firma", "e_admin", "e_plaetze", "e_arbeitsplatz", "e_ablage")),
     ("Kalkulation", ("e_zuschlaege", "e_gewinn_gestaffelt", "e_kosten", "vorgaben", "zeitvorgaben", "zusatzarbeiten", "arbeitsgang_regeln")),
-    ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_materialanfrage")),
+    ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_angebot_mail", "e_materialanfrage")),
     ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen", "e_lieferlaengen", "e_listen")),
     ("Maschinen", ("maschinen", "schneiddaten", "gewinde", "pruefregeln")),
     ("Blech", ("e_blech", "blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
@@ -26,6 +26,8 @@ GRUPPEN = (
     ("Kunden", ("kundenvorgaben",)),
     ("Import", ("e_step", "e_dxf", "importprofile")),
     ("Fertigung und Versand", ("e_lager", "e_fertigung", "e_auslastung", "e_versand")),
+    ("Fracht", ("fracht_zonen", "fracht_tarife", "fracht_lht", "fracht_zuschlaege", "fracht_dienstleister",
+                "fracht_historie")),
 )
 WEITERE = "Weitere"
 SEITE = Qt.UserRole
@@ -43,7 +45,8 @@ def suchtexte(seite, titel):
     if t is not None:
         texte += [f.titel for f in getattr(t, "felder", ())]
     for e in getattr(seite, "liste", ()):          # EinstellungenSeite: alle Einstellungen
-        texte += [e.titel, e.gruppe]
+        if hasattr(e, "titel"):                     # andere Seiten haben eine liste aus dicts (Arbeitsplätze)
+            texte += [e.titel, getattr(e, "gruppe", "")]
     for unter in getattr(seite, "teilseiten", ()):  # z. B. Stundensätze + Arbeitsschritte
         texte += suchtexte(unter, "")
     return [x for x in texte if x]
@@ -125,6 +128,11 @@ class NavigationsReiter(QWidget):
     def tabText(self, i):
         return self.titel[i]
 
+    def setTabText(self, i, titel):
+        """Titel einer Seite ändern (z. B. Schloss vor geschützten Seiten); die Suche nutzt den neuen Titel."""
+        self.titel[i] = titel
+        self.items[i].setText(0, titel)
+
     def widget(self, i):
         return self.seiten[i] if 0 <= i < len(self.seiten) else None
 
@@ -161,7 +169,7 @@ class NavigationsReiter(QWidget):
 
     def eintrag_rect(self, titel):
         """(Widget, Rechteck) des Eintrags in der Navigation (für die Bilder der Anleitung)."""
-        i = self.titel.index(titel)
+        i = next(j for j, t in enumerate(self.titel) if t == titel or t.removesuffix(" 🔒") == titel)
         return self.baum.viewport(), self.baum.visualItemRect(self.items[i])
 
     # -------------------------------------------------- Auswahl und Suche

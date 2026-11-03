@@ -23,6 +23,8 @@ Gruppen die exakte Suche. Alle Grenzen sind Schrittzahlen, keine Zeiten: das Erg
 Mit Gehrungen, die sich ineinanderlegen lassen, gilt die Schranke der Schnittmuster nicht (die Muster rechnen ohne
 Ineinanderlegen); die Untergrenze zieht dann je Teil die größtmögliche Überlappung ab.
 """
+import bisect
+import itertools
 import math
 import threading
 from dataclasses import dataclass, field, replace
@@ -465,32 +467,99 @@ def sortiert(teile):
     return sorted(teile, key=lambda t: (-t.laenge, t.zeile, t.nr))
 
 
+# Volle Stangen überspringen (Fehler-Durchgang 01.11.2026): First-Fit, Best-Fit und Auflösen prüften jedes Teil gegen
+# jede Stange, auch gegen längst volle – bei 8.000 gleichen Teilen 100 s, bei 20.000 über 10 Minuten. Eine Stange gilt
+# als voll, wenn nicht einmal das kleinste noch einzuplanende Teil ihre Untergrenze (Endbeschnitt + Mindestbedarf aller
+# Teile, dieselbe Schranke wie in passt) unter nutzbar_bis lässt; solche Stangen nähmen ohnehin kein Teil mehr. Das
+# Ergebnis bleibt Stange für Stange gleich (Test test_optimierung_gross), nur ohne die vergeblichen Prüfungen.
+VOLL_MARGE = 1e-4       # Sicherheitsabstand [mm] zur Rundung, damit nie eine Stange zu früh als voll gilt
+
+
+def _grenze(g):
+    return g.nutzbar_bis + EPS + VOLL_MARGE
+
+
+def _grund(g, teile, mb=None):
+    """Untergrenze der Belegung: Endbeschnitt + Mindestbedarf der Teile (wie die Vorprüfung in passt)."""
+    return g.endbeschnitt + sum((mb or (lambda t: mindestbedarf(g, t)))(t) for t in teile)
+
+
+def _bedarf(g):
+    """mindestbedarf mit Zwischenspeicher je Teil (gleiche Teile kommen tausendfach vor)."""
+    speicher = {}
+
+    def mb(t):
+        k = id(t)
+        if k not in speicher:
+            speicher[k] = mindestbedarf(g, t)
+        return speicher[k]
+    return mb
+
+
+def _kleinste_danach(teile, mb):
+    """Je Platz in teile der kleinste Mindestbedarf dieses und aller folgenden Teile."""
+    out, m = [0.0] * len(teile), math.inf
+    for i in range(len(teile) - 1, -1, -1):
+        m = min(m, mb(teile[i]))
+        out[i] = m
+    return out
+
+
 def first_fit(g, teile):
-    stangen = []
-    for t in sortiert(teile):
-        for s in stangen:
-            if passt(g, s + [t]):
-                s.append(t)
+    stangen, grund, offen = [], [], []      # offen: Nummern der Stangen, die noch ein Teil aufnehmen könnten
+    folge, mb = sortiert(teile), _bedarf(g)
+    kleinst, grenze = _kleinste_danach(folge, mb), _grenze(g)
+    art, ab = None, 0       # gleiches Teil wie zuvor: die Stangen davor haben es schon abgelehnt (unverändert)
+    for i, t in enumerate(folge):
+        if offen and any(grund[j] + kleinst[i] > grenze for j in offen):
+            offen = [j for j in offen if grund[j] + kleinst[i] <= grenze]
+        bedarf = mb(t)
+        if (_enden(t), t.laenge) != art:
+            art, ab = (_enden(t), t.laenge), 0
+        for j in offen:
+            if j >= ab and grund[j] + bedarf <= grenze and passt(g, stangen[j] + [t]):
+                stangen[j].append(t)
+                grund[j] += bedarf
+                ab = j
                 break
         else:
             stangen.append([t])
+            grund.append(g.endbeschnitt + bedarf)
+            offen.append(len(stangen) - 1)
+            ab = len(stangen) - 1
     return stangen
 
 
 def best_fit(g, teile):
-    stangen = []
-    for t in sortiert(teile):
+    stangen, grund, offen = [], [], []
+    folge, mb = sortiert(teile), _bedarf(g)
+    kleinst, grenze = _kleinste_danach(folge, mb), _grenze(g)
+    art, merk = None, {}    # Belegung je Stange für die aktuelle Teileart (gilt, solange die Stange unverändert ist)
+    for i, t in enumerate(folge):
+        if offen and any(grund[j] + kleinst[i] > grenze for j in offen):
+            offen = [j for j in offen if grund[j] + kleinst[i] <= grenze]
+        bedarf = mb(t)
+        if (_enden(t), t.laenge) != art:
+            art, merk = (_enden(t), t.laenge), {}
         beste, rest_min = None, None
-        for s in stangen:
-            if not vertraeglich(g, s + [t]):
+        for j in offen:
+            if j not in merk:
+                s = stangen[j]
+                merk[j] = None if grund[j] + bedarf > grenze or not vertraeglich(g, s + [t]) else \
+                    belegt(g, anordnen(s + [t], g))
+            v = merk[j]
+            if v is None:
                 continue
-            v = belegt(g, anordnen(s + [t], g))
             if v <= g.nutzbar_bis + EPS and (rest_min is None or g.nutzbar_bis - v < rest_min):
-                beste, rest_min = s, g.nutzbar_bis - v
+                beste, rest_min = j, g.nutzbar_bis - v
         if beste is None:
             stangen.append([t])
+            grund.append(g.endbeschnitt + bedarf)
+            offen.append(len(stangen) - 1)
         else:
-            beste.append(t)
+            stangen[beste].append(t)
+            grund[beste] += bedarf
+            merk.pop(beste, None)
     return stangen
 
 
@@ -498,6 +567,7 @@ def aufloesen(g, stangen):
     """Schwach belegte Stangen auflösen, wenn alle ihre Teile in andere Stangen passen."""
     stangen = [list(s) for s in stangen]
     belegt_ = {}        # Belegung je Zusammenstellung (wird sonst je Teil für jede Stange neu gerechnet)
+    grenze, mb = _grenze(g), _bedarf(g)
 
     def vb(x):
         k = tuple(id(t) for t in x)
@@ -507,12 +577,29 @@ def aufloesen(g, stangen):
     geaendert = True
     while geaendert and len(stangen) > 1:
         geaendert = False
+        # Vorprüfung: die Teile einer Stange brauchen mindestens ihren Mindestbedarf an freier Länge in den anderen
+        # Stangen (Untergrenze wie in passt); reicht die freie Länge aller anderen zusammen nicht, kann sie nicht
+        # aufgelöst werden – ohne jedes Teil einzeln zu probieren (gleiches Ergebnis). Gezählt werden nur Stangen, in
+        # die wenigstens das kleinste ihrer Teile noch passen könnte.
+        grund = {id(s): _grund(g, s, mb) for s in stangen}
+        frei = {k: max(0.0, grenze - v) for k, v in grund.items()}
+        werte = sorted(frei.values())
+        summen = list(itertools.accumulate(reversed(werte)))[::-1] + [0.0]     # summen[i] = sum(werte[i:])
         for s in sorted(stangen, key=lambda s: sum(t.laenge for t in s)):
+            kleinst = min(mb(t) for t in s)
+            i = bisect.bisect_left(werte, kleinst - VOLL_MARGE)
+            verfuegbar = summen[i] - (frei[id(s)] if frei[id(s)] >= kleinst - VOLL_MARGE else 0.0)
+            if sum(mb(t) for t in s) > verfuegbar + VOLL_MARGE:
+                continue
             andere = [list(x) for x in stangen if x is not s]
+            g_andere = {id(neu): grund[id(x)] for neu, x in zip(andere, (x for x in stangen if x is not s))}
             ok = True
             for t in sortiert(s):
                 ziel = None
-                for x in sorted(andere, key=lambda x: -vb(x)):
+                # Stangen, deren Untergrenze das Teil nicht mehr zulässt, scheitern ohnehin an passt
+                bedarf = mb(t)
+                moeglich = [x for x in andere if g_andere[id(x)] + bedarf <= grenze]
+                for x in sorted(moeglich, key=lambda x: -vb(x)):
                     if passt(g, x + [t]):
                         ziel = x
                         break
@@ -520,6 +607,7 @@ def aufloesen(g, stangen):
                     ok = False
                     break
                 ziel.append(t)
+                g_andere[id(ziel)] += bedarf
             if ok:
                 stangen = andere
                 geaendert = True

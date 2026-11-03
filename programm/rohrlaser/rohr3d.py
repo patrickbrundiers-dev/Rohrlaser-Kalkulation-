@@ -63,21 +63,26 @@ def _knick_anteile(qs, poly, enden, extra=()):
     orte = []
     for s in stellen:
         (u, v), n_ = qs.s_zu_uv(s % qs.umfang)
-        orte.append(sk.rund_ort(qs, u, v)[:2])
+        ru, rv, rn = sk.rund_ort(qs, u, v)
+        # im Bogen einer Ecke: Mitte des Bogens, der Punkt der Sehne liegt in derselben Richtung von ihr (wie
+        # uv_zu_s zurückrechnet; der nächste Punkt der Sehne lag bis 0,5 mm daneben, Patrick 30.10.2026)
+        orte.append((ru, rv, (ru - qs.radius * rn[0], rv - qs.radius * rn[1]) if rn else None))
         if len(qs.umriss) == 1 and not qs.r and qs.wand:
             # offenes Profil: ein Umriss für beide Seiten der Wand, der Knick gehört auch auf die Innenseite
             # (gegenüber, um die Wand nach innen; sonst läuft die Kante dort schräg, Patrick 28.10.2026)
-            orte.append((u - qs.wand * n_[0], v - qs.wand * n_[1]))
-    for u, v in orte:
+            orte.append((u - qs.wand * n_[0], v - qs.wand * n_[1], None))
+    for u, v, mitte in orte:
         beste = None
         for i, a in enumerate(poly):
             b = poly[(i + 1) % len(poly)]
             du, dv = b[0] - a[0], b[1] - a[1]
-            if qs.r:        # Rundrohr: Punkt der Sehne in derselben Richtung von der Mitte (gleiches s wie uv_zu_s)
-                det = u * dv - v * du
+            if qs.r or mitte:   # Rundrohr bzw. Eckbogen: Punkt der Sehne in derselben Richtung von der Mitte
+                m0, m1 = mitte or (0.0, 0.0)
+                pu, pv, au, av = u - m0, v - m1, a[0] - m0, a[1] - m1
+                det = pu * dv - pv * du
                 if abs(det) > 1e-12:
-                    f = (u * a[1] - v * a[0]) / -det
-                    if -1e-9 <= f <= 1 + 1e-9 and (a[0] + f * du) * u + (a[1] + f * dv) * v > 0:
+                    f = (pu * av - pv * au) / -det
+                    if -1e-9 <= f <= 1 + 1e-9 and (au + f * du) * pu + (av + f * dv) * pv > 0:
                         beste = (0.0, i, min(max(f, 0.0), 1.0))
                         break
                 continue

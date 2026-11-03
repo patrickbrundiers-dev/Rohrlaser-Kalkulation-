@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtCore import QDate
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
                                QPushButton, QVBoxLayout, QWidget)
 
@@ -179,8 +179,16 @@ def _status_nach(fenster, bericht):
         if k != teilen.kuerzel(db):
             wer.append(f"{k} {m.get('name') or ''}: Stand {(m.get('stand') or '?').replace('T', ' ')}")
     offen = len(teilen.konflikte(db, offen_nur=True))
-    status_setzen(fenster, f"⇄ abgeglichen {datetime.datetime.now():%H:%M}" + (f" · {offen} Konflikte" if offen else ""),
-                  "Gemeinsamer Ordner: " + str(teilen.ordner(db)) + ("\n" + "\n".join(wer) if wer else ""))
+    from . import ordner_pruefung       # Uhr, doppelte Nummern, Konfliktkopien (Paket A, 31.10.2026)
+    try:
+        warnung = ordner_pruefung.kurz(db)
+    except OSError:
+        warnung = []
+    tipp = "Gemeinsamer Ordner: " + str(teilen.ordner(db)) + ("\n" + "\n".join(wer) if wer else "")
+    if warnung:
+        tipp += "\n\n⚠ " + "\n⚠ ".join(warnung) + "\nEinzelheiten: Datei → Gemeinsamen Ordner prüfen …"
+    status_setzen(fenster, f"⇄ abgeglichen {datetime.datetime.now():%H:%M}" + (f" · {offen} Konflikte" if offen else "")
+                  + (" · ⚠ " + ", ".join(warnung) if warnung else ""), tipp)
 
 
 def _neu_laden(fenster, bericht, voll):
@@ -208,11 +216,14 @@ def _neu_laden(fenster, bericht, voll):
         for seite in fenster.offen.values():
             if (getattr(seite, "kopf", None) or {}).get("fremd"):
                 seite._fremd_anzeigen()
-    if bericht.get("stammdaten"):
+    if bericht.get("stammdaten") or bericht.get("admin_vorgaben"):
         for s in fenster.seiten:
             s.neu_laden()
         for s in (fenster.zukauf, fenster.zusatz, fenster.einstellungen, fenster.fracht):
             s.neu_laden()
+    if bericht.get("admin_vorgaben"):       # Schutzliste und Funktionen können sich geändert haben
+        fenster.funktionen_anwenden()
+        fenster.bereich.schutz_anwenden()
 
 
 def _vorgaenge_zeigen(fenster, bericht, leise):
@@ -229,6 +240,12 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
     for a in bericht.get("abgelehnt", ()):
         texte.append(f"{_name(db, a['von'])} gibt Angebot {a['nummer']} nicht ab" +
                      (f": „{a['notiz']}“" if a.get("notiz") else "."))
+    ziel = next((x.get("nummer") for x in list(bericht.get("uebernommen", ())) + list(bericht.get("anfragen", ()))
+                 + list(bericht.get("notizen", ())) if x.get("nummer")), None)
+    meldung_w = texte + [f"{_name(db, a['von'])} möchte Angebot {a['nummer']} übernehmen."
+                         for a in bericht.get("anfragen", ())]
+    if meldung_w:
+        windows_meldung(fenster, "Kollegen", meldung_w, ziel)
     if texte:
         fenster.meldung(" ".join(texte))
         if not (leise or fenster.stumm):
@@ -251,6 +268,67 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
         except (teilen.TeilenFehler, OSError) as e:
             fenster.meldung(f"Antwort kommt beim nächsten Abgleich an: {e}", fehler=True)
         fenster.alles_neu_laden()
+
+
+# ------------------------------------------------------------------ Windows-Meldung (Paket E2, 01.11.2026)
+def _tray(fenster):
+    """Symbol im Windows-Infobereich (einmal je Fenster) oder None, wenn es keinen Infobereich gibt."""
+    t = fenster.__dict__.get("_tray")
+    if t is None and QSystemTrayIcon.isSystemTrayAvailable():
+        t = QSystemTrayIcon(fenster.windowIcon(), fenster)
+        t.setToolTip(fenster.windowTitle())
+        t.messageClicked.connect(lambda: meldung_geklickt(fenster))
+        t.activated.connect(lambda _grund: meldung_geklickt(fenster, nur_zeigen=True))
+        t.show()
+        fenster._tray = t
+    return t
+
+
+def windows_meldung(fenster, titel, texte, nummer=None):
+    """Meldung unten rechts im Windows-Infobereich, wenn das Programm nicht im Vordergrund ist (minimiert oder ein
+    anderes Programm aktiv); ein Klick darauf holt das Programm nach vorn und öffnet das Angebot nummer. Abschaltbar
+    (Einstellung teilen_meldung, Frage 5a). Ergebnis: True = gemeldet."""
+    db = fenster.db
+    if (db.einstellung("teilen_meldung") or "ja") == "nein" or not texte:
+        return False
+    if fenster.isActiveWindow() and not fenster.isMinimized() and not getattr(fenster, "meldung_immer", False):
+        return False                    # im Vordergrund reicht die Meldung im Programm
+    text = texte[0] + (f"\n… und {len(texte) - 1} weitere" if len(texte) > 1 else "")
+    fenster._meldung_ziel = nummer
+    fenster.__dict__.setdefault("windows_meldungen", []).append((titel, text, nummer))
+    t = _tray(fenster)
+    if t is not None:
+        t.showMessage(titel, text, QSystemTrayIcon.Information, 15000)
+    return True
+
+
+def meldung_geklickt(fenster, nur_zeigen=False):
+    """Klick auf die Windows-Meldung: Programm nach vorn, das genannte Angebot öffnen."""
+    if fenster.isMinimized():
+        fenster.showNormal()
+    fenster.raise_()
+    fenster.activateWindow()
+    nummer = None if nur_zeigen else fenster.__dict__.get("_meldung_ziel")
+    if nummer:
+        r = fenster.db.con.execute("SELECT id FROM angebote WHERE nummer=?", (nummer,)).fetchone()
+        if r:
+            fenster.angebot_oeffnen(r[0])
+
+
+def wiedervorlagen_melden(fenster, heute=None):
+    """Fällige Wiedervorlagen aus Notizen der Kollegen einmal je Tag melden (beim Puls). Ergebnis: Anzahl."""
+    heute = (heute or datetime.date.today()).isoformat()
+    gemeldet = fenster.__dict__.setdefault("_wiedervorlagen_gemeldet", set())
+    neu = [n for n in teilen.notizen(fenster.db, offen_nur=True, heute=datetime.date.fromisoformat(heute))
+           if n.get("faellig") and n["faellig"] <= heute and (n.get("id"), heute) not in gemeldet]
+    if not neu:
+        return 0
+    for n in neu:
+        gemeldet.add((n.get("id"), heute))
+    texte = [f"Wiedervorlage von {_name(fenster.db, n['von'])}" + (f" zu Angebot {n['nummer']}" if n.get("nummer")
+             else "") + f": „{n['notiz']}“" for n in neu]
+    windows_meldung(fenster, "Wiedervorlage fällig", texte, next((n["nummer"] for n in neu if n.get("nummer")), None))
+    return len(neu)
 
 
 def _datum(iso):
@@ -562,6 +640,61 @@ def auto_abgleich(fenster):
 
 
 HERZSCHLAG_S = 10 * 60      # spätestens so oft schreiben (geöffnete Angebote gelten FRISCH_MIN lang)
+PULS_TICK_MS = 15_000       # Takt für Lebenszeichen und Sofort-Schreiben (Paket B, 31.10.2026)
+
+
+def puls(fenster, jetzt_=None):
+    """Alle PULS_TICK_MS (Paket B): eigenes Lebenszeichen höchstens alle teilen.PULS_S schreiben und die der Kollegen
+    lesen (wer ist da, wer hat welches Angebot offen); hat sich dabei etwas geändert, die Angebotsliste neu zeichnen.
+    Sofort schreiben: gibt es hier Änderungen, die noch nicht im Ordner liegen, und ruht die Eingabe seit dem letzten
+    Takt, werden sie gleich abgelegt (nur geänderte Monatsdateien), nicht erst beim nächsten Abgleich.
+    Ergebnis: dict(lebenszeichen, geschrieben) oder None (nichts zu tun)."""
+    db = fenster.db
+    if db.nur_lesen or not teilen.aktiv(db) or not teilen.kuerzel(db) or getattr(fenster, "step_drop_laeuft", False):
+        return None
+    from . import ordner_assistent
+    ordner = ordner_assistent.zustand(fenster)      # Paket F1: Leiste, solange der Ordner weg ist; danach abgleichen
+    if ordner in ("weg", "umzug"):
+        return dict(lebenszeichen=False, geschrieben=False, ordner=ordner)
+    merk = fenster.__dict__.setdefault("_teilen_puls", {})
+    jetzt_ = time.monotonic() if jetzt_ is None else jetzt_
+    erg = dict(lebenszeichen=False, geschrieben=False)
+    auto = fenster.__dict__.setdefault("_teilen_auto", {})
+    vorher_c = db.con.total_changes
+    if jetzt_ - merk.get("zeichen", -1e9) >= teilen.PULS_S - 1:
+        try:
+            vorher = teilen.kollegen_offen(db)
+            erg["lebenszeichen"] = teilen.lebenszeichen_schreiben(db, offen_nummern(fenster))
+            online = teilen.lebenszeichen_lesen(db)
+            merk["zeichen"] = jetzt_
+            stand = {k: v["online"] for k, v in online.items()}
+            if teilen.kollegen_offen(db) != vorher or stand != merk.get("online"):
+                merk["online"] = stand
+                liste = getattr(fenster, "angebote", None)
+                if liste is not None and hasattr(liste, "neu_laden"):
+                    liste.neu_laden()
+        except (teilen.TeilenFehler, OSError):
+            pass
+        wiedervorlagen_melden(fenster)
+    eigen = db.con.total_changes - vorher_c     # nur eigene Merker (gelesene Lebenszeichen): keine Änderung
+    if eigen:
+        for d, n in ((auto, "aenderungen"), (merk, "letzter")):
+            if d.get(n) is not None:
+                d[n] += eigen
+    if auto.get("aenderungen") is None:         # Ausgangsstand: was bis hier geändert war, holt der Abgleich ab
+        auto["aenderungen"] = db.con.total_changes
+    # Sofort schreiben, sobald die Eingabe ruht (Dialoge nicht stören)
+    if QApplication.activeModalWidget() is not None or QApplication.activePopupWidget() is not None:
+        merk["letzter"] = db.con.total_changes
+        return erg
+    stand = db.con.total_changes
+    if stand != auto["aenderungen"] and stand == merk.get("letzter"):
+        bericht = abgleichen(fenster, lesen=False, schreiben=True, leise=True, auto=True)
+        if bericht is not None:
+            auto.update(aenderungen=db.con.total_changes, offen=offen_nummern(fenster), geschrieben=time.monotonic())
+            erg["geschrieben"] = True
+    merk["letzter"] = db.con.total_changes
+    return erg
 
 
 def takt_ms(db):
@@ -628,7 +761,7 @@ def abgleichen(fenster, lesen=True, schreiben=True, leise=False, beenden=False, 
     bericht["nummern"] = umnummeriert
     if lesen or uebernehmen or umnummeriert:
         _neu_laden(fenster, bericht, voll=not auto)
-    neues = any(bericht.get(n) for n in ("angebote_neu", "angebote_geaendert", "angebote_weg", "stammdaten",
+    neues = any(bericht.get(n) for n in ("angebote_neu", "angebote_geaendert", "angebote_weg", "stammdaten", "admin_vorgaben",
                                          "uebernommen", "konflikte", "nummern", "notizen"))
     if not auto or neues:
         fenster.meldung(teilen.bericht_text(bericht),

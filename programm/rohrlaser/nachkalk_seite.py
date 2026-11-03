@@ -19,6 +19,7 @@ VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", No
                      ("Abweichung [%]", "prozent", 1, 90), ("Ist erfasst", "erfasst", None, 70)]
 GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
                  "EK-Meterpreis Soll [€/m]", "EK-Meterpreis Ist [€/m]")
+TEILE_TITEL = ("Pos.", "Ist [s/Teil]", "Soll [s/Teil]", "Profil-ID", "Schneiddaten")
 EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalten: (Schlüssel in ist, ganze Zahl)
 # Schweißbaugruppen: Spalte -> (Feld in ist['baugruppen'][ID] oder None, Titel); Ist-Spalten und Grund editierbar
 BG_SPALTEN = [(None, "Baugruppe")] + [x for n, titel, e, _ in nk.BG_FELDER
@@ -70,6 +71,31 @@ class NachkalkulationSeite(QWidget):
         self.bemerkung.editingFinished.connect(self._bemerkung_geaendert)
         form.addRow("Bemerkung Nachkalkulation", self.bemerkung)
         el.addLayout(form)
+        # H4b: Laserzeit aus den Scans „Laser Start“/„Laser Ende“ als Vorschlag, übernommen nur auf Knopfdruck
+        scan = QHBoxLayout()
+        self.scan_text = QLabel()
+        self.scan_text.setWordWrap(True)
+        self.scan_knopf = QPushButton("Scan-Zeit übernehmen")
+        self.scan_knopf.clicked.connect(lambda: self.scan_uebernehmen())
+        el.addWidget(self.scan_text)
+        scan.addWidget(self.scan_knopf)
+        scan.addStretch(1)
+        el.addLayout(scan)
+        # Laufzeit je Teil von der Maschine (Vorschlag V3b): daraus lernen die Schneiddaten je Werkstoff und Wandstärke
+        tt = QLabel("Laufzeit je Teil laut Maschine [s] (freiwillig): sind alle Teile eingetragen, ergibt sich die "
+                    "Ist-Laserzeit daraus; jede Zeile wird ein Fall für die Kennwert-Vorschläge der Schneiddaten "
+                    "(Datei → Kennwerte).")
+        tt.setWordWrap(True)
+        el.addWidget(tt)
+        self.teile = QTableWidget(0, len(TEILE_TITEL))
+        self.teile.setHorizontalHeaderLabels(TEILE_TITEL)
+        self.teile.verticalHeader().setVisible(False)
+        self.teile.verticalHeader().setDefaultSectionSize(22)
+        self.teile.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
+                                   | QAbstractItemView.AnyKeyPressed)
+        self.teile.itemChanged.connect(self._teil_geaendert)
+        AutoGroesse(self.teile)
+        el.addWidget(self.teile)
         self.bg_rahmen = QGroupBox("Schweißbaugruppen (leer = wie kalkuliert)")
         bl = QVBoxLayout(self.bg_rahmen)
         hinweis = QLabel("Tatsächliche Zeiten und Kosten je Baugruppe für den ganzen Auftrag. Die Schweißzeit je Meter "
@@ -130,6 +156,7 @@ class NachkalkulationSeite(QWidget):
             self.ist.pop("reklamation", None)
         else:
             self.ist["reklamation"] = rk
+        self._scan_zeigen()
         self._laden = True
         if not s.ergebnis or not s.ergebnis.get("stangen"):
             self.stand.setText("<b style='color:#7A5A00'>Noch nicht optimiert: die Nachkalkulation vergleicht mit dem "
@@ -169,6 +196,7 @@ class NachkalkulationSeite(QWidget):
             w = self.ist.get(name)
             self.felder[name].setText(_z(w, stellen) if w is not None else "")
         self.bemerkung.setText(self.ist.get("bemerkung") or "")
+        self._teile_zeigen()
         self._bg_zeigen(v)
         self._platzhalter(v)
         self._laden = False
@@ -288,16 +316,66 @@ class NachkalkulationSeite(QWidget):
             s = self.s
             self.ist.pop("soll", None)
             v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
-            self.ist["soll"] = nk.soll_stand(v, s.kopf, s.positionen, s.ergebnis, s.k)
+            self.ist["soll"] = nk.soll_stand(v, s.kopf, s.positionen, s.ergebnis, s.k, teile=self._teile_soll())
         self.s.db.nachkalkulation_speichern(self.s.id, self.ist or None)
         self.s.kopf["nachkalkulation"] = self.ist or None
         self.s.f.meldung("Nachkalkulation gespeichert.")
         self.s.verlauf.merken()
         self._platzhalter(self._rechnen())
 
-    def setzen(self, werte=None, stangen=None, meterpreis=None):
+    def _teile_soll(self):
+        s = self.s
+        return nk.teile_soll(s.kopf, s.positionen, s._rechnung()[0], s.k, s.tabellen)
+
+    def _teile_zeigen(self):
+        je = self.ist.get("laufzeit") or {}
+        teile = self._teile_soll()
+        self.teile.setRowCount(len(teile))
+        for r, t in enumerate(teile):
+            m, wer, wand, gas = t["schluessel"]
+            sd = f"{str(wer).removeprefix('Kategorie ')} ≤ {_z(wand, 1)} mm{' ' + gas if gas else ''}"
+            for c, w in enumerate((str(t["pos"] or ""), _z(je.get(str(t["id"])), 1), _z(t["soll_s"], 1), t["profil"],
+                                   sd)):
+                it = QTableWidgetItem(w)
+                it.setData(Qt.UserRole, t["id"])
+                it.setToolTip(f"{t['artikel']} · Schneiddaten {wer}, Wandstärke bis {_z(wand, 1)} mm"
+                              + (f", {gas}" if gas else ""))
+                if c == 1:
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
+                else:
+                    it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
+                if c in (1, 2):
+                    it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                self.teile.setItem(r, c, it)
+        kopf = self.teile.horizontalHeader().sizeHint().height()
+        self.teile.setMinimumHeight(kopf + 6 + 22 * max(1, min(len(teile), 5)))
+        self.teile.setVisible(bool(teile))
+
+    def _teil_geaendert(self, it):
+        if self._laden or it.column() != 1:
+            return
+        try:
+            w = self._zahl(it.text())
+        except ValueError as e:
+            self.s.f.meldung(str(e), fehler=True)
+            self.neu_laden()
+            return
+        je = dict(self.ist.get("laufzeit") or {})
+        schl = str(it.data(Qt.UserRole))
+        if w is None:
+            je.pop(schl, None)
+        else:
+            je[schl] = w
+        self.ist["laufzeit"] = je
+        self._speichern()
+        self.neu_laden()
+
+    def setzen(self, werte=None, stangen=None, meterpreis=None, teile=None):
         """Ist-Werte ohne Oberfläche setzen (Tests, Bildschirmfotos): werte {Feld: Zahl}, stangen {Gruppe: Anzahl},
-        meterpreis {Gruppe: €/m}."""
+        meterpreis {Gruppe: €/m}, teile {Positions-ID: Laufzeit je Teil [s]}."""
+        if teile:
+            self.ist.setdefault("laufzeit", {}).update({str(i): v for i, v in teile.items()})
         self.ist.update(werte or {})
         self.ist.setdefault("stangen", {}).update(stangen or {})
         if meterpreis:
@@ -316,6 +394,27 @@ class NachkalkulationSeite(QWidget):
         if w < 0 or (ganz and w != int(w)):
             raise ValueError("Bitte eine " + ("ganze " if ganz else "") + "Zahl ab 0 eingeben.")
         return int(w) if ganz else w
+
+    def _scan_zeigen(self):
+        from . import etiketten
+        try:
+            self.scan = etiketten.laserzeit(self.s.db, self.s.id) if self.s.id else None
+        except Exception:       # ohne Rückmeldungstabelle (alte Datenbank) kein Vorschlag
+            self.scan = None
+        sc = self.scan
+        self.scan_text.setText("" if not sc else
+                               f"Laserzeit laut Scan: <b>{_z(sc['stunden'])} h</b> ({sc['laeufe']} "
+                               f"{'Lauf' if sc['laeufe'] == 1 else 'Läufe'} Laser Start bis Laser Ende)"
+                               + (" – ein Start hat noch kein Ende" if sc["offen"] else ""))
+        self.scan_text.setVisible(bool(sc))
+        self.scan_knopf.setVisible(bool(sc))
+
+    def scan_uebernehmen(self):
+        """Vorschlag aus den Scans als Ist-Laserzeit eintragen (H4b)."""
+        if not getattr(self, "scan", None):
+            return False
+        self.setzen({"laser_h": round(self.scan["stunden"], 2)})
+        return True
 
     def _feld_geaendert(self, name, w):
         if self._laden:

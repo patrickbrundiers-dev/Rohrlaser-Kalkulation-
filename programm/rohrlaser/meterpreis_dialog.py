@@ -15,13 +15,16 @@ from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
                                QLabel, QLineEdit, QMenu, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import hilfe, querschnitt, rechnen, stil
-from .stammdaten import EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, zahl_als_text, zahl_aus_text
+from . import hilfe, naht, querschnitt, rechnen, stil, wand_dialog
+from .stammdaten import (EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, ROHR_FORMEN, ROHRARTEN, zahl_als_text,
+                         zahl_aus_text)
 
 GRAU = "#5F6B7A"
 SPALTEN = ("", "Abmessung", "Werkstoff", "Oberfläche", "Lieferlänge [mm]", "Material", "Pos.", "Stangen", "Meter",
-           "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]", "Stangen vorgegeben")
+           "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]", "Stangen vorgegeben", "Rohrart")
 VORGABE = 13        # Spalte mit dem Knopf für die von Hand vorgegebenen Stangen (stangen_vorgabe_dialog.py)
+ROHRART = 14        # Rohrart je Abmessung (Patrick 31.10.2026, Plan 6a), nur Rund-, Quadrat- und Rechteckrohr
+WIE_WERKSTOFF = "wie Werkstoff"
 BILD = 44
 # Doppelklick je Spalte: (Ziel, Tooltip); Ziel = Fenster ('abmessung:<Fokus>', 'preis', 'profil')
 DOPPELKLICK = {0: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Maschinen"),
@@ -96,7 +99,7 @@ class MeterpreisDialog(QDialog):
 
     def __init__(self, parent, gruppen, k, kopf, laengen=None, einst=None, veraltet=False, ohne_plan=False, seite=None):
         super().__init__(parent)
-        self.gruppen, self.kopf = gruppen, kopf
+        self.gruppen, self.kopf, self.k = gruppen, kopf, k
         self.aenderungen, self.kopf_aenderungen, self.vorgaben = [], {}, None
         # von Hand vorgegebene Stangen je Zeile [(Länge, Anzahl)] (rechnen.stangen_vorgabe), Knöpfe in Spalte VORGABE
         self.max_laenge = (rechnen.maschine(kopf, k) or {}).get("max_stange") if getattr(k, "maschinen", None) else None
@@ -113,7 +116,8 @@ class MeterpreisDialog(QDialog):
             "Meterpreis gelten für alle Positionen der Abmessung und gehen nach 'Übernehmen' in die Kalkulation ein. "
             "Meterpreis grau = berechnet aus Lieferlängen, Preisen bzw. Tonnenpreis (mit Aufpreis der Oberfläche); ein "
             "eigener Wert steht fett, Feld leeren = wieder berechnet. Stangen, Meter, Gewicht und Material € kommen "
-            "aus dem Schnittplan; nach einem anderen Werkstoff, einer anderen Lieferlänge oder Oberfläche bitte neu optimieren.",
+            "aus dem Schnittplan; nach einem anderen Werkstoff, einer anderen Lieferlänge oder Oberfläche bitte neu optimieren. "
+            "Rohrart (ganz rechts): geschweißt, nahtlos, stranggepresst oder Naht innen geschabt für dieses Angebot.",
             schluessel="meterpreise"))
         if ohne_plan or veraltet:
             t = QLabel("Noch nicht optimiert: Stangen, Meter und Gewicht folgen nach dem Optimieren." if ohne_plan else
@@ -129,6 +133,7 @@ class MeterpreisDialog(QDialog):
         self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabelle.setSelectionMode(QAbstractItemView.NoSelection)
         self.felder, self.werkstoffe, self.oberflaechen, self.laengen, self.herkunft = [], [], [], [], []
+        self.rohrarten = []         # je Zeile QComboBox oder None (kein Hohlprofil)
         fett = QFont()
         fett.setBold(True)
         ob_liste = [ROH] + sorted(o for o in k.oberflaechen if o.lower() != ROH)
@@ -199,8 +204,9 @@ class MeterpreisDialog(QDialog):
             self.vorrat_knoepfe.append(kv)
             self.tabelle.setCellWidget(r, VORGABE, kv)
             self._vorgabe_text(r)
+            self.rohrarten.append(self._rohrart_feld(r, g, k))
         kopf_z = self.tabelle.horizontalHeader()
-        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115, 175)):
+        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115, 175, 175)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopf_z.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -243,6 +249,39 @@ class MeterpreisDialog(QDialog):
         knoepfe.accepted.connect(self.annehmen)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
+
+    def _rohrart_feld(self, r, g, k):
+        """Auswahl der Rohrart dieser Abmessung (Spalte ROHRART): „wie Werkstoff (…)“ oder eine Rohrart für dieses
+        Angebot; ohne Hohlprofil ein Strich. Ergebnis: QComboBox oder None."""
+        if (k.profile.get(g["profil"]) or {}).get("form") not in ROHR_FORMEN:
+            self.tabelle.setItem(r, ROHRART, QTableWidgetItem("–"))
+            return None
+        ra = QComboBox()
+        vom_werkstoff = (k.werkstoffe.get(g["werkstoff"]) or {}).get("rohrart") or "nicht angegeben"
+        ra.addItem(f"{WIE_WERKSTOFF} ({vom_werkstoff})", None)
+        for x in ROHRARTEN:
+            ra.addItem(x, x)
+        jetzt = rechnen.rohrart_angebot(self.kopf, g["profil"], g["werkstoff"])
+        ra.setCurrentIndex(max(0, ra.findData(jetzt)) if jetzt else 0)
+        ra.setToolTip("Rohrart dieser Abmessung in diesem Angebot (geschweißt, nahtlos, stranggepresst, Naht innen "
+                      "geschabt); „wie Werkstoff“ = aus den Stammdaten Werkstoffe. Ohne Naht entfällt die Nahtvorgabe "
+                      "der Teile; die Angabe steht in Materialanfrage, Angebot und Werkstattpapieren.")
+        self.tabelle.setCellWidget(r, ROHRART, ra)
+        return ra
+
+    def rohrarten_neu(self):
+        """{Gruppe Profil|Werkstoff: Rohrart} nach den Eingaben oder None (unverändert)."""
+        alt = dict(self.kopf.get("rohrarten") or {})
+        neu = dict(alt)
+        for g, ra in zip(self.gruppen, self.rohrarten):
+            if ra is None:
+                continue
+            schl = naht.gruppe_schluessel(g["profil"], g["werkstoff"])
+            if ra.currentData():
+                neu[schl] = ra.currentData()
+            else:
+                neu.pop(schl, None)
+        return neu if neu != alt else None
 
     @staticmethod
     def _fett(feld):
@@ -308,6 +347,9 @@ class MeterpreisDialog(QDialog):
         h = self._zahl(t, "Handling Kundenmaterial") if t else None
         if (h or None) != (self.kopf.get("handling_beistellung") or None):
             kopf["handling_beistellung"] = h or None
+        ra = self.rohrarten_neu()
+        if ra is not None:
+            kopf["rohrarten"] = ra
         return out, kopf
 
     def annehmen(self):
@@ -405,6 +447,8 @@ class MeterpreisDialog(QDialog):
                 ("Preis-Aufbau …", lambda: self.preis(r), True),
                 ("Profil-Info …", lambda: self.profil(r), True),
                 ("Stangen vorgeben …", lambda: self.vorgabe_bearbeiten(r), True),
+                ("Wandstärke ändern …", lambda: self.schliessen_mit("wand", g),
+                 not wand_dialog.aenderbar(g["profil"], self.k.profile.get(g["profil"]))),
                 (None, None, None),
                 ("12-m-Lösung für diese Abmessung …",
                  lambda: self.schliessen_mit("laengen", abmessung.laengen_indizes(self.seite.ergebnis, g)),

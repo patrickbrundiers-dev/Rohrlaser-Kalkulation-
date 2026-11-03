@@ -591,7 +591,14 @@ def uv_zu_s(qs, u, v):
         if beste is None or d < beste[0] - 1e-9:
             beste = (d, s0 + t)
         s0 += f.breite
+    if _offen(qs):
+        return beste[1]         # offenes Profil: s = Umfang ist das zweite Schenkelende, nicht s = 0
     return beste[1] % qs.umfang
+
+
+def _offen(qs):
+    """Offenes Profil (U, C, L, Flachstahl …): ein Umriss für beide Seiten der Wand, Abwicklung mit zwei Rändern."""
+    return len(qs.umriss) == 1 and not qs.r and bool(qs.wand)
 
 
 def _ende_umriss(qs, umriss):
@@ -603,11 +610,18 @@ def _ende_umriss(qs, umriss):
         return None
     if len(pk) < 2:
         return None
-    pk = [(pk[-1][0] - qs.umfang, pk[-1][1])] + pk + [(pk[0][0] + qs.umfang, pk[0][1])]
+    offen = _offen(qs)
+    if offen:
+        # offenes Profil: s = 0 und s = Umfang sind die beiden Schenkelenden, nicht dieselbe Stelle – nicht über die
+        # Naht verbinden (sonst stand das freie Schenkelende einer Ausklinkung am anderen Schenkel im Editor
+        # schräg bis auf deren Tiefe, Patrick 30.10.2026)
+        pk = [(pk[0][0] - qs.umfang, pk[0][1])] + pk + [(pk[-1][0] + qs.umfang, pk[-1][1])]
+    else:
+        pk = [(pk[-1][0] - qs.umfang, pk[-1][1])] + pk + [(pk[0][0] + qs.umfang, pk[0][1])]
     ss = [p[0] for p in pk]
 
     def d(s):
-        s %= qs.umfang
+        s = min(max(s, 0.0), qs.umfang) if offen else s % qs.umfang
         i = min(max(bisect.bisect_right(ss, s), 1), len(pk) - 1)
         (s0, d0), (s1, d1) = pk[i - 1], pk[i]
         return d0 + (d1 - d0) * ((s - s0) / (s1 - s0) if s1 > s0 else 0)

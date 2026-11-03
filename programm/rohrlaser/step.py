@@ -124,6 +124,7 @@ def netz_mit_lagen(messwerte, gruppe):
     Baugruppen-Editor die ganze Baugruppe in 3D zeigt und Nahtgruppen ihren Teilen zuordnet (D1). Ergebnis: gepackte
     Bytes wie '_netz'."""
     from .ansicht3d import entpacken, packen
+    from .lage_abgleich import passende_lage
     m0 = messwerte[gruppe[0]]
     netz = entpacken(m0["_netz"])
     if not netz:
@@ -133,7 +134,12 @@ def netz_mit_lagen(messwerte, gruppe):
         m = messwerte[j]
         if m.get("datei") != m0.get("datei"):
             continue
-        lage = (entpacken(m["_netz"]) or {}).get("lage") if j != gruppe[0] and m.get("_netz") else netz.get("lage")
+        lage = netz.get("lage")
+        if j != gruppe[0] and m.get("_netz"):
+            # eigene Lage des Körpers, passend zum Netz des ersten gemacht (gedreht/gewendet eingebaut, z. B.
+            # gegenüberliegende Gehrungsseite eines Rahmens: sonst gespiegelt in 3D und STEP-Export)
+            eigen = entpacken(m["_netz"]) or {}
+            lage = passende_lage(netz, eigen)[0] if eigen.get("p") else eigen.get("lage")
         if lage and len(lage) == 9:
             lagen.append(lage)
         if m.get("koerper") not in (None, ""):
@@ -142,7 +148,19 @@ def netz_mit_lagen(messwerte, gruppe):
         netz["lagen"] = lagen
     if koerper:
         netz["koerper"] = koerper
+    if m0.get("_pfad"):         # Mutter-STEP: der STEP-Export vergleicht seine Körper damit (step_vergleich)
+        netz["mutter"] = str(m0["_pfad"])
     return packen(netz)
+
+
+def mit_mutter(netz, pfad):
+    """Gepacktes Netz mit dem Pfad der Mutter-STEP (Prüfung im STEP-Export, step_vergleich)."""
+    from .ansicht3d import entpacken, packen
+    n = entpacken(netz) if pfad else None
+    if not n:
+        return netz
+    n["mutter"] = str(pfad)
+    return packen(n)
 
 
 def _z(m, name):
@@ -747,6 +765,163 @@ def gehrung_aus_umriss(qs, umriss):
     return e if fehler(e) <= GEHRUNG_2D_TOL else None
 
 
+ROHRANSCHLUSS = "Rohranschluss"     # Form eines Endes, das auf einem Gegenrohr sitzt (aus der STEP erkannt)
+GEGEN_TOL = 0.1           # mm: so genau muss das Gegenrohr den gemessenen Umriss treffen (wie GEHRUNG_2D_TOL)
+
+
+def gegen_aus_messung(qs, gm, umriss):
+    """Rohranschluss der Messung (Ende "gegenrohr": d, richtung, winkel, versatz; Patrick 30.10.2026) als Gegenrohr
+    des Rohr-Editors (durchdringung: d, winkel, versatz, lage bzw. drehung beim Rundrohr). Die Achse liegt in der
+    Skizze in Richtung (sin θ, cos θ) wie eine Gehrungsrichtung, der Versatz der Messung zeigt auf θ + 90°.
+    Ergebnis dict oder None, wenn das Gegenrohr den gemessenen Umriss nicht überall auf GEGEN_TOL trifft (dann
+    bleibt das Ende komplex, genau wie gemessen) – Grundregel: Kontur 100 % wie in der STEP."""
+    from . import durchdringung as dd, skizze as sk
+    if not isinstance(gm, dict) or _z(gm, "d") <= 0 or qs.form not in dd.GESCHLOSSEN:
+        return None
+    th, w, vm = _z(gm, "richtung") % 360, _z(gm, "winkel"), _z(gm, "versatz")
+    if qs.r:
+        d = (90.0 - th + 180) % 360 - 180          # Achse (cos d, sin d) = (sin θ, cos θ)
+        if d > 90 or d <= -90:                      # Achse andersherum: Winkel und Versatz drehen das Vorzeichen
+            d, w, vm = (d + 180 + 180) % 360 - 180, -w, -vm
+        g = dict(d=round(_z(gm, "d"), 3), winkel=round(w, 2), versatz=round(-vm, 2), drehung=round(d, 2))
+    else:
+        q = round(th / 90) % 4
+        if abs(th - round(th / 90) * 90) > 0.5:     # Rechteckrohr: Achse nur längs einer Seite
+            return None
+        # 90° (+u) / 270° (−u): waagerecht, y = v; 0° (+v) / 180° (−v): senkrecht, y = u
+        vz = 1 if q in (0, 1) else -1
+        g = dict(d=round(_z(gm, "d"), 3), winkel=round(vz * w, 2),
+                 versatz=round(-vz * vm if q in (1, 3) else vz * vm, 2))
+        if q in (0, 2):
+            g["lage"] = dd.SENKRECHT
+    lage = g.pop("lage", None)
+    g = {k: v for k, v in g.items() if k == "d" or abs(v) >= 0.005}
+    if lage:
+        g["lage"] = lage
+    if abs(_z(g, "winkel")) > 80:
+        return None
+    um = sk._ende_umriss(qs, umriss) if umriss else None
+    if um is None:
+        return None
+    n = max(200, int(qs.umfang))
+    try:
+        dd.ende_gegen(qs, g)
+        for i in range(n):
+            (u, v), _ = qs.s_zu_uv(qs.umfang * i / n)
+            ur, vr, _ = sk.rund_ort(qs, u, v)
+            if abs(dd.schnitt_x(qs, g, ur, vr) - um(sk.uv_zu_s(qs, ur, vr))) > GEGEN_TOL:
+                return None
+    except (ValueError, ZeroDivisionError):
+        return None
+    return g
+
+
+STUTZEN_MIN_D = 15.0       # mm: kleinere Bohrungen bleiben Bohrungen (Gewinde, Bohren, Preis je Stück)
+STUTZEN_MIN_ANTEIL = 0.3   # Anteil an Rohr-Ø bzw. Breite der Fläche, ab dem ein rundes Loch ein Stutzen-Durchbruch ist
+
+
+def _punkte_3d(pts, schritt=0.25):
+    """Geschlossenen Linienzug [(x, u, v)] fein unterteilen (Vergleich zweier Umrisse auf GEGEN_TOL)."""
+    out = []
+    for i, a in enumerate(pts):
+        b = pts[(i + 1) % len(pts)]
+        n = max(1, math.ceil(math.dist(a, b) / schritt))
+        out += [tuple(a[j] + (b[j] - a[j]) * k / n for j in range(3)) for k in range(n)]
+    return out
+
+
+def _umriss_abstand(p, q):
+    """Größter Abstand zweier geschlossener Linienzüge [(x, u, v)] in beide Richtungen (Hausdorff) [mm]: Punkte alle
+    0,5 mm gegen die Strecken des anderen Zugs (genau). Ohne numpy: das Windows-Paket enthält es nicht (0.9.231
+    brach der STEP-Import mit „No module named numpy“ ab)."""
+    w = 0.0
+    for x, y in ((p, q), (q, p)):
+        strecken = []
+        for i, a in enumerate(y):
+            b = y[(i + 1) % len(y)]
+            d = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            strecken.append((a, d, d[0] * d[0] + d[1] * d[1] + d[2] * d[2]))
+        for pt in _punkte_3d(x, 0.5):
+            best = math.inf
+            for a, d, ll in strecken:
+                e0, e1, e2 = pt[0] - a[0], pt[1] - a[1], pt[2] - a[2]
+                t = 0.0 if ll <= 0 else min(1.0, max(0.0, (e0 * d[0] + e1 * d[1] + e2 * d[2]) / ll))
+                f0, f1, f2 = e0 - t * d[0], e1 - t * d[1], e2 - t * d[2]
+                q2 = f0 * f0 + f1 * f1 + f2 * f2
+                if q2 < best:
+                    best = q2
+                    if best <= w * w:       # trägt nicht mehr zum Maximum bei
+                        break
+            w = max(w, math.sqrt(best))
+    return w
+
+
+def durchbruch_aus_messung(qs, profil, d, s_von):
+    """Rundes Loch der Messung mit Gegenrohrachse (Kontur "stutzen", STEP-JSON 1.25; Patrick 31.10.2026) als Zeile
+    Durchbruch (Stutzen eines abgehenden Rohrs: d, winkel, versatz bzw. q, seite, x) – nur wenn der Umriss des
+    Durchbruchs den gemessenen Umriss überall auf GEGEN_TOL trifft (Grundregel: Kontur 100 % wie in der STEP), sonst
+    None (bleibt Bohrung). Vorzeichen von Winkel und Versatz: die erste Variante, die die Messung trifft."""
+    from . import durchdringung as dd, skizze as sk
+    from .schneidweg import DURCHBRUCH, durchbruch_ergaenzen
+    st = d.get("stutzen")
+    um = d.get("umriss")
+    if not isinstance(st, dict) or _z(st, "d") <= 0 or not um or len(um) < 3 or qs.form not in dd.GESCHLOSSEN:
+        return None
+    dm, th, w, vm = _z(st, "d"), _z(st, "richtung") % 360, _z(st, "winkel"), _z(st, "versatz")
+    if abs(w) > 60:
+        return None
+    mess = []
+    for u, z in um:
+        (pu, pv), _ = qs.s_zu_uv(s_von(float(u)) % qs.umfang)
+        mess.append((float(z), *sk.rund_ort(qs, pu, pv)[:2]))
+    kandidaten = []
+    if qs.r:
+        if abs(vm) >= qs.r:
+            return None
+        dq = math.degrees(math.asin(vm / qs.r))
+        for s1 in (1, -1):
+            for s2 in ([1, -1] if w else [1]):
+                for s3 in ([1, -1] if vm else [1]):
+                    kandidaten.append(dict(seite=round((th + s1 * dq) % 360, 2), winkel=round(s2 * w, 2),
+                                           versatz=round(s3 * vm, 2)))
+    else:
+        if abs(th - round(th / 90) * 90) > 0.5:
+            return None
+        seite, q0 = _kasten_seite(s_von(float(d["u"])), max(qs.B, qs.H), min(qs.B, qs.H)) if d.get("u") is not None \
+            else ("oben", 0.0)
+        for q in dict.fromkeys((round(vm, 2), round(-vm, 2), round(q0, 2))):
+            for s2 in ([1, -1] if w else [1]):
+                k = dict(seite=seite, winkel=round(s2 * w, 2))
+                if abs(q) > 0.005:
+                    k["q"] = q
+                kandidaten.append(k)
+    for k in kandidaten:        # erste passende Variante (die direkte zuerst), sonst bleibt es eine Bohrung
+        z = dict(art=DURCHBRUCH, anzahl=1, x=round(_z(st, "x"), 2), d=round(dm, 3), **k)
+        z = {k_: v for k_, v in z.items() if k_ not in ("winkel", "versatz") or abs(v) >= 0.005}
+        e = durchbruch_ergaenzen(z, profil)
+        if not e.get("umriss"):
+            continue
+        pts, _ = sk.platzieren(qs, dict(x=e["x"], eingabe=e))
+        if _umriss_abstand(mess, pts) <= GEGEN_TOL:
+            return e            # mit Umriss, Länge und Hüllmaß (3D und Skizze ohne erneutes Ergänzen)
+    return None
+
+
+def _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):
+    """Zeile Durchbruch für eine große runde Bohrung mit Gegenrohrachse (durchbruch_aus_messung) oder None."""
+    if not isinstance(d.get("stutzen"), dict) or mform not in ("Rundrohr", "Quadratrohr", "Rechteckrohr"):
+        return None
+    dm = float(d["durchmesser"])
+    breite = ma if mform == "Rundrohr" else min(ma, mb)
+    if dm < STUTZEN_MIN_D or dm < STUTZEN_MIN_ANTEIL * breite:
+        return None
+    profil = dict(form=mform, a=ma, b=mb if mform != "Rundrohr" else None, wand=_wand(m), r_aussen=r_mess)
+    try:
+        return durchbruch_aus_messung(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), profil, d, s_von)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+
+
 def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -865,8 +1040,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 u_umf = math.pi * ma if mform == "Rundrohr" else 2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)
                 um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), s_von, s_umfang, ausflug=ausflug,
                                   u_umfang=u_umf)
-                g2 = None
-                if um and not ausflug:      # schon 2D geschnittene Gehrung (oder ebene): als Gehrung übernehmen
+                g2 = gg = None
+                if um and not ausflug and d.get("gegenrohr"):  # Rohranschluss: als Gegenrohr bearbeitbar
+                    gg = gegen_aus_messung(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), d["gegenrohr"], um)
+                if gg:
+                    e.update(gegen=gg, form=ROHRANSCHLUSS)
+                    e.pop("schwenk", None)
+                elif um and not ausflug:    # schon 2D geschnittene Gehrung (oder ebene): als Gehrung übernehmen
                     try:
                         g2 = gehrung_aus_umriss(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um)
                     except (ValueError, TypeError, ZeroDivisionError):
@@ -875,7 +1055,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     quer = mschmal if g2["richtung"] % 180 == 0 else mbreit
                     e.update(g2, form="Gehrung", achse=ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1])
                     e.pop("schwenk", None)
-                elif um:
+                elif um and not gg:
                     e["umriss"] = um
                     for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
                         k = _ende_ausflug(zug, art[-1], m, mform, s_von, s_umfang, mbreit, mschmal, bool(r_mess))
@@ -903,10 +1083,41 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
         umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess)) if mform == "Rundrohr" or mkasten else None
+        eck_r = 0
         if umriss and art in ("Langloch", "Rechteckausschnitt") and min(lage % 90, 90 - lage % 90) > SCHRAEG_LAGE:
             # schräg liegendes Langloch/Rechteck (z. B. 30° zur Achse, Patrick 28.10.2026): die Zeilen Langloch und
             # Rechteck kennen nur längs/quer – als Sonderkontur mit dem gemessenen Umriss, sonst bis 8 mm daneben
             art = "Sonderkontur"
+        elif umriss and art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite") and \
+                _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]), laengs) > GRUNDFORM_TOL \
+                and _eckradius(d) and _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]),
+                                                            laengs, r=_eckradius(d)) <= GRUNDFORM_TOL:
+            # Rechteck mit Eckradien (z. B. R3 gelasert/gefräst, Patrick 31.10.2026): Zeile Rechteck mit Radius statt
+            # Sonderkontur, bleibt im Editor mit Maßen bearbeitbar
+            eck_r = round(_eckradius(d), 1)
+        elif umriss and art in ("Langloch", "Rechteckausschnitt") and d.get("laenge") and d.get("breite") and \
+                _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]), laengs) > GRUNDFORM_TOL:
+            # Umriss ist kein echtes Langloch/Rechteck der Abwicklung (z. B. Langloch quer um ein Rundrohr: die
+            # Enden sind abgewickelt keine Halbkreise, galt als Rechteck, 1,9 mm daneben; Rechteck mit Eckradien;
+            # Patrick 31.10.2026): Sonderkontur mit dem gemessenen Umriss
+            art = "Sonderkontur"
+        elif art == "Bohrung" and umriss and d.get("durchmesser") and not (d3 and float(d.get("schraeg") or 0)
+                                                                          >= SCHRAEG_3D) and \
+                _bohrung_ellipse(float(d["durchmesser"]), float(d.get("schraeg") or 0)) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):    # Stutzen: Durchbruch trifft die STEP
+            # schräge oder außermittige Bohrung ohne 3D-Schnitt (Patrick 31.10.2026): außen eine Ellipse, kein Kreis –
+            # als Sonderkontur mit dem gemessenen Umriss (wie in der STEP), sonst bis 0,6 mm daneben
+            art = "Sonderkontur"
+            k["text"] = f"schräge Bohrung Ø{dez(float(d['durchmesser']))} ({dez(round(float(d['schraeg']), 1))}°): " \
+                        "Umriss wie STEP"
+        elif art == "Bohrung" and umriss and mkasten and d.get("durchmesser") and \
+                not (d3 and float(d.get("schraeg") or 0) >= SCHRAEG_3D) and \
+                _kreis_abweichung(umriss, float(d["durchmesser"])) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):
+            # Bohrung ganz oder teilweise im Eckradius eines Quadrat-/Rechteckrohrs (Patrick 03.11.2026: „wirklich
+            # jede Kontur“): abgewickelt kein Kreis – Sonderkontur mit dem Umriss der STEP, sonst bis 0,9 mm daneben
+            art = "Sonderkontur"
+            k["text"] = f"Bohrung Ø{dez(float(d['durchmesser']))} auf der Rundung: Umriss wie STEP"
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -916,6 +1127,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k["umriss"] = umriss
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
+        elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)):
+            # Loch für ein abgehendes Rohr (Stutzen): Durchbruch wie in der STEP, im Editor änderbar (Patrick 31.10.2026)
+            k.update(dbr)
+            if mp:
+                k["messprofil"] = mp
+            eing["konturen"].append(k)
+            continue
         elif art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
             schraeg = float(d.get("schraeg") or 0)
@@ -923,6 +1141,10 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 if d.get("neigung_l") is not None:
                     k.update(d3=True, neigung_l=round(float(d["neigung_l"]), 1),
                              neigung_q=round(float(d.get("neigung_q") or 0), 1))
+                    if umriss and mform == "Rundrohr":
+                        # schräge Bohrung im Rundrohr (z. B. außermittig, Patrick 31.10.2026): abgewickelt keine
+                        # Ellipse um die Mitte – gemessener Umriss, solange Maße und Neigung bleiben (0,2 mm)
+                        k["umriss"] = umriss
                 else:                       # Messung vor STEP-JSON 1.5: Richtung unbekannt
                     k.update(d3=True, neigung_l=round(schraeg, 1), text=f"schräg {schraeg:g}°, 3D prüfen")
         elif art == "Fließloch":
@@ -944,7 +1166,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
         elif art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite"):
             lg, br = float(d["laenge"]), float(d["breite"])
-            k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
+            k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=eck_r)
         else:
             k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
         if umriss and mform == "Rundrohr" and d.get("winkel") is not None:
@@ -969,6 +1191,21 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
             if abs(q) > 0.05:
                 k["q"] = round(q, 1)
+            if k.get("art") in ("Langloch", "Rechteck") and d.get("zuege") and d.get("laenge") and d.get("breite"):
+                # Grundform nur aus Hüllmaß und Schnittlänge: gegen den gemessenen Umriss prüfen (Patrick 03.11.2026:
+                # ein Sechskant hatte die Schnittlänge eines Langlochs und wurde eines, 0,6 mm daneben)
+                um_ = _offen_umriss(d, k, offen, _z(m, "wandstaerke") or _wand(m))
+                um_ = um_[0] if um_ and not um_[1] else None
+                if um_:     # um die eigene Mitte (der Lauf kann auf der Gegenseite der Wand liegen)
+                    mx_ = (max(p_[0] for p_ in um_) + min(p_[0] for p_ in um_)) / 2
+                    my_ = (max(p_[1] for p_ in um_) + min(p_[1] for p_ in um_)) / 2
+                    um_ = [(p_[0] - mx_, p_[1] - my_) for p_ in um_]
+                if um_ and _grundform_abweichung(
+                        um_, "Langloch" if k["art"] == "Langloch" else "Rechteckausschnitt", float(d["laenge"]),
+                        float(d["breite"]), laengs) > GRUNDFORM_TOL:
+                    for x_ in ("l", "b", "h", "r", "quer"):
+                        k.pop(x_, None)
+                    k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
             if k.get("art") == "sonstige Kontur" and d.get("zuege"):
                 # Ausschnitt ohne Grundform (Kerbe im Schenkel, V-Ausschnitt, Patrick 28.10.2026): echter Umriss wie
                 # in der STEP statt eines Kreises mit dem Hüllmaß
@@ -988,6 +1225,81 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     if eing.get("stege_virtuell"):
         _laengsschnitte_zeigen(eing)
     return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
+
+
+GRUNDFORM_TOL = 0.05     # mm: so weit darf der gemessene Umriss von Langloch/Rechteck/Bohrung abweichen
+
+
+def _bohrung_ellipse(d, schraeg):
+    """Wie weit die Außenkante einer um schraeg [°] gegen die Wandnormale geneigten Bohrung Ø d vom Kreis abweicht
+    [mm]: große Halbachse d/2 / cos(schraeg) gegen d/2."""
+    c = math.cos(math.radians(min(abs(schraeg), 89.0)))
+    return d / 2 * (1 / c - 1)
+
+
+def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
+    """Größter Abstand zwischen dem gemessenen Umriss [[dx längs, ds am Umfang]] (um die Mitte) und dem Langloch bzw.
+    Rechteck lg × br (Eckradius r) der Abwicklung, in beide Richtungen [mm]. laengs: Längsrichtung entlang der
+    Rohrachse."""
+    a, b = (lg / 2, br / 2) if laengs else (br / 2, lg / 2)      # Halbmaße in dx, ds
+    pts = [(float(x), float(y)) for x, y in umriss]
+    if art == "Langloch" or r > 0:
+        r = min(a, b) if art == "Langloch" else min(r, a, b)
+        hx, hy = a - r, b - r
+
+        def abst(x, y):
+            ux, uy = abs(x) - hx, abs(y) - hy
+            if ux > 0 and uy > 0 or art == "Langloch":
+                return abs(math.hypot(max(ux, 0.0), max(uy, 0.0)) - r)
+            return abs(max(ux, uy) - r)                          # an den geraden Kanten des Rechtecks
+        n = max(16, int(4 * (hx + hy + math.pi * r / 2) / schritt))
+        soll = []
+        for i in range(n):
+            t = 2 * math.pi * i / n
+            cx, cy = math.cos(t), math.sin(t)
+            soll.append((math.copysign(hx, cx) + r * cx, math.copysign(hy, cy) + r * cy))
+    else:
+        def abst(x, y):
+            dx, dy = abs(x) - a, abs(y) - b
+            return math.hypot(max(dx, 0), max(dy, 0)) if dx > 0 or dy > 0 else -max(dx, dy)
+        ecken = [(-a, -b), (a, -b), (a, b), (-a, b)]
+        soll = []
+        for i, (x0, y0) in enumerate(ecken):
+            x1, y1 = ecken[(i + 1) % 4]
+            n = max(1, int(math.hypot(x1 - x0, y1 - y0) / schritt))
+            soll += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n) for k in range(n)]
+    hin = max(abst(x, y) for x, y in pts)
+
+    def zum_zug(x, y):
+        best = math.inf
+        for i, (x0, y0) in enumerate(pts):
+            x1, y1 = pts[(i + 1) % len(pts)]
+            vx, vy = x1 - x0, y1 - y0
+            lq = vx * vx + vy * vy
+            f = 0.0 if lq < 1e-12 else max(0.0, min(1.0, ((x - x0) * vx + (y - y0) * vy) / lq))
+            best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
+        return best
+    return max(hin, max(zum_zug(x, y) for x, y in soll))
+
+
+def _kreis_abweichung(umriss, d):
+    """Größter Abstand des gemessenen Umrisses [[dx, ds]] (um die Mitte) vom Kreis Ø d [mm], beide Richtungen
+    (Lücken zwischen den Umrisspunkten über den Kreis gezählt)."""
+    pts = [(float(x), float(y)) for x, y in umriss]
+    if len(pts) < 3:
+        return 0.0
+    r = d / 2
+    hin = max(abs(math.hypot(x, y) - r) for x, y in pts)
+    winkel = sorted(math.atan2(y, x) for x, y in pts)
+    luecke = max([b - a for a, b in zip(winkel, winkel[1:])] + [winkel[0] + 2 * math.pi - winkel[-1]])
+    return max(hin, r * (1 - math.cos(min(luecke, math.pi) / 2)))
+
+
+def _eckradius(d):
+    """Eckradius eines Rechteckausschnitts aus Hüllmaßen und Schnittlänge: 2 · (L + B) − (8 − 2π) · r [mm]."""
+    lg, br, sl = float(d["laenge"]), float(d["breite"]), float(d.get("schnittlaenge") or 0)
+    r = (2 * (lg + br) - sl) / (8 - 2 * math.pi) if sl else 0.0
+    return min(r, lg / 2, br / 2) if r > 0.2 else 0.0
 
 
 def _umfang_form(d, tol=0.01):
@@ -1370,6 +1682,20 @@ def art_wechseln(m):
     return True
 
 
+def gleiches_profil(m, profil, tol=0.1):
+    """Hat das Profil der Position dieselbe Form und dieselben Außenmaße wie gemessen (Breite/Höhe in beliebiger
+    Reihenfolge, ± tol mm)?"""
+    if not profil or profil.get("form") != m.get("profilform"):
+        return False
+    if profil.get("form") == "Flachstahl":      # Breite × Dicke (das Profil führt die Dicke als Wand)
+        return abs(_z(m, "abm_a") - float(profil.get("a") or 0)) <= tol and \
+            abs(_wand(m) - float(profil.get("wand") or 0)) <= tol
+    a, b = _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a")
+    pa = float(profil.get("a") or 0)
+    pb = float(profil.get("b") or 0) or pa
+    return min(abs(a - pa) + abs(b - pb), abs(a - pb) + abs(b - pa)) <= 2 * tol
+
+
 def rohr_geschlossen(m):
     """True, wenn die Messwerte das offen gezeichnete Rohr als Rohr sind (step_offenes_rohr): Spalt geschlossen bzw.
     aus dem Rohr mit je einem Steg an den Enden."""
@@ -1478,8 +1804,12 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
             grund = "Teil liegt nicht ganz im Rohr"
         if grund:
             text = f"Offenes Rohr: {pid} – {grund}, bleibt " + (
-                "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet" else "offen")
-            if m.get("profilform") != "Blech gekantet" and (alternative(m) or {}).get("profilform") == "Blech gekantet":
+                "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet"
+                and not finde_profil(m, profile) else "offen")
+            if m.get("profilform") != "Blech gekantet" and (alternative(m) or {}).get("profilform") == "Blech gekantet" \
+                    and not finde_profil(m, profile):
+                # L/U/C, das so in den Stammdaten steht, bleibt Profil (wie kantteile_vorbelegen; U mit Ausklinkung am
+                # Flanschende wurde sonst Kantteil, ohne Ausklinkung nicht, Patrick 31.10.2026)
                 art_wechseln(m)
             m["hinweise"] = "; ".join(filter(None, [m.get("hinweise"), text]))
             continue
@@ -1586,6 +1916,29 @@ def von_hand_zuruecknehmen(m):
             pass
         m["_netz"] = netz
     return True
+
+
+BLECH_GRENZE = 0.1      # mm: so weit darf eine Innenkontur im Blech-Editor neben der STEP liegen (wie step_gegenprobe)
+
+
+def blech_gegenprobe(b):
+    """Gegenprobe Blech (Patrick 03.11.2026: „wirklich jede Kontur“): Hinweistext, wenn eine Innenkontur nicht wie in
+    der STEP übernommen ist (Abweichung der Messung über BLECH_GRENZE, Form nicht erkannt, oder weniger Konturen mit
+    Lage als gemessen), sonst None. Messungen vor 0.9.237 haben keine Abweichung (nur die Zahl wird verglichen)."""
+    kl = [k for k in (b or {}).get("konturen_lage") or () if isinstance(k, dict)]
+    n = int(float((b or {}).get("innen") or 0))
+    if not kl:
+        return None
+    weit = max((float(k.get("abweichung") or 0) for k in kl), default=0.0)
+    offen = sum(1 for k in kl if k.get("art") == "Kontur")
+    teile = []
+    if weit > BLECH_GRENZE:
+        teile.append(f"Kontur bis {dez(round(weit, 2))} mm neben der STEP")
+    if offen:
+        teile.append(f"{offen} Kontur{'en' if offen > 1 else ''} ohne erkannte Form (nur Schnittlänge)")
+    if n > len(kl):
+        teile.append(f"{n - len(kl)} von {n} Innenkonturen ohne Lage")
+    return "Blech-Gegenprobe: " + ", ".join(teile) + " – im Blech-Editor prüfen" if teile else None
 
 
 def blech_text(m):
@@ -2027,6 +2380,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
+            gp = blech_gegenprobe(b)
+            if gp:
+                hinweise.append(gp)
             if not wst:
                 hinweise.append("Werkstoff offen")
             if satz:
@@ -2177,6 +2533,15 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     if abs(d_g) >= 0.05:
                         p["gravur"] = round(max(p["gravur"] + d_g, 0.0), 1)
                     hinweise += h_k
+                elif not neu_enden and not neu_fenster and gleiches_profil(m, profile[pid]):
+                    # Gegenprobe: das Modell des Editors liegt wie die STEP (Patrick 30.10.2026, Übergabe absichern)
+                    from . import step_gegenprobe
+                    ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
+                    if ab:
+                        p["_step_abweichung"] = round(ab[0], 2)
+                        h = step_gegenprobe.hinweis(*ab)
+                        if h:
+                            hinweise.append(h)
             n_ges = (stk or 0) * (int(m.get("_je_satz") or len(gruppen[i])) if satz else 1)
             sch = schalen(m) if schalen_gewaehlt(m) and n_ges >= 2 else None      # nur wenn die Stückzahl reicht
             if sch and (neu_enden or neu_fenster):  # anderes Rohr gewählt: Schalenschnitt passt nicht mehr zur Messung
@@ -2345,7 +2710,7 @@ def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, ma
     p.update(laenge=erg["laenge"], technik=json.dumps(eing, ensure_ascii=False))
     netz = knickverbindung.netz_gefaltet(messwerte, m)
     if netz:
-        p["_netz"] = netz
+        p["_netz"] = mit_mutter(netz, m.get("_pfad"))
     zu, fehlt = knickrahmen.zusatz_eintragen(p.get("zusatz"), knickrahmen.anzahl(eing), zusatz_katalog or [],
                                              schneidweg.QUELLE_STEP)
     if zu:

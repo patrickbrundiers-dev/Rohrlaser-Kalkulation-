@@ -59,7 +59,7 @@ pb.netz_speichern(pb.positionen(ids["2026-09-10"])[0]["id"], b"NETZ" * 50)
 teilen.abgleichen(pb)
 ordner = gemeinsam / "Rohrlaser_PB"
 assert sorted(p.name for p in ordner.iterdir()) == ["Angebote_2026-08.sqlite", "Angebote_2026-09.sqlite",
-                                                     "Angebote_2026-10.sqlite", "haupt.sqlite"]
+                                                     "Angebote_2026-10.sqlite", "haupt.sqlite", "uhr.pruef"]
 assert teilen.info_lesen(ordner)["format"] == 2 and len(gepackt) == 4
 ok("je Monat des Angebotsdatums eine Datei, Hauptdatei mit Info und Stammdaten")
 

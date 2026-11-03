@@ -17,6 +17,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
+from rohrlaser import normprofile  # noqa: E402
 from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, beispieldaten, flaeche_berechnet,  # noqa: E402
                                   preis_je_m_automatisch, pruefen, wert_aus_text, wert_als_text)
 
@@ -34,7 +35,8 @@ db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"
 for name, zeilen in beispieldaten().items():
     gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)
-               if not (name == "profile" and z["form"] == "RP-Profil")]     # RP-Bibliothek kommt dazu (rp_profile)
+               if not (name == "profile" and (z["form"] == "RP-Profil"      # RP-Bibliothek kommt dazu (rp_profile)
+                                              or z.get("bemerkung") == normprofile.STANDARD_BEMERKUNG))]  # U-Profile
     assert gelesen == zeilen, name
 assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_material") == 0 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19
@@ -179,7 +181,7 @@ assert haupt == ["Start", "Angebote", "Versand", "Fertigung", "Lager", "Kunden",
                  "Einstellungen"], haupt
 b = fenster.bereich
 from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
-assert [b.unter.tabText(i) for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
+assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)",
@@ -187,21 +189,26 @@ assert [b.unter.tabText(i) for i in range(b.unter.count())] == [s.titel for s in
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren", "Schweiß-Vorkalkulation",
                                                                  "Importprofile (STEP)", "Kundenvorgaben",
-                                                                 "Arbeitsgang-Regeln", "Stundensätze und Zeitvorgaben"]
-assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
+                                                                 "Arbeitsgang-Regeln", "Verpackung", "Stundensätze und Zeitvorgaben",
+                                                                 "Admin-Schutz", "Arbeitsplätze und Rechte", "Frachtzonen und Postleitzahlen",
+                                                                 "Tarifverwaltung", "Paletten und Ladehilfsmittel",
+                                                                 "Zuschläge", "Dienstleister und Kundentarife",
+                                                                 "Historie und Einstellungen"]
+# Admin-Schutz (0.9.211): Einstellungen offen, geschützte Seiten erst nach dem Admin-Passwort
+assert db.einstellung("passwort") == "av" and b.gesperrt() and b.leiste.isVisibleTo(b)
 fenster.zeigen(seite)
-assert fenster.reiter.currentWidget() is b and b.stapel.currentIndex() == 0       # erst die Passwortabfrage
+assert fenster.reiter.currentWidget() is b and b.unter.currentWidget() is seite   # Seite gleich sichtbar
 b.passwort.setText("falsch")
 assert not b.oeffnen() and b.gesperrt() and "falsch" in b.fehler.text()
 b.passwort.setText("av")
 b.passwort.returnPressed.emit()
-assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is seite
+assert not b.gesperrt() and b.unter.currentWidget() is seite
 b.sperren()
-assert b.gesperrt() and b.stapel.currentIndex() == 0
+assert b.gesperrt()
 db.einstellung_setzen("passwort", "")             # leer = ohne Passwort
 fenster.reiter.setCurrentWidget(fenster.start)
 fenster.zeigen(fenster.einstellungen)
-assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is fenster.einstellungen.seiten[0]
+assert not b.gesperrt() and b.unter.currentWidget() is fenster.einstellungen.seiten[0]
 db.einstellung_setzen("passwort", "av")
 fenster.close()
 db.schliessen()
@@ -348,7 +355,7 @@ assert db.staffeln(a4)[5]["menge"] == 200
 assert "VERALTET" in s4.staffel_info.text()
 ang = s4.angebot_daten()      # angelegte, veraltete Stufe rechnet das Angebot vorher selbst neu (28.10.2026)
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 1000.52) < 1e-9 and ang["mwst"] == 190.1, ang   # Referenzwerte (Schneiddaten-Abgleich ab 0.9.201, bis 0.9.196: 995,32 / 189,11; Zeit je Ecke nach Wandstärke ab 0.9.196, bis 0.9.195: 992,08 / 188,50; Preisregeln 26.10.2026: Rüsten/Stangenwechsel verteilt, Satz ungerundet, bis 0.9.14x: 992,32 / 188,54; Außenradius nach Norm ab 0.9.62, bis 0.9.61: 992,20 / 188,52; T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
+assert abs(ang["netto"] - 999.2) < 1e-9 and ang["mwst"] == 189.85, ang   # Referenzwerte (Schneiddaten zwischen Wandstufen interpoliert ab 0.9.236, bis 0.9.235: 1000,52 / 190,10; Schneiddaten-Abgleich ab 0.9.201, bis 0.9.196: 995,32 / 189,11; Zeit je Ecke nach Wandstärke ab 0.9.196, bis 0.9.195: 992,08 / 188,50; Preisregeln 26.10.2026: Rüsten/Stangenwechsel verteilt, Satz ungerundet, bis 0.9.14x: 992,32 / 188,54; Außenradius nach Norm ab 0.9.62, bis 0.9.61: 992,20 / 188,52; T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),

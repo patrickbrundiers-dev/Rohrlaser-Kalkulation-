@@ -39,6 +39,7 @@ import json
 
 from . import blech, fracht_angebot, rechnen, zukauf
 from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
+ABRUF_FELDER = tuple(f.name for f in ANGEBOT_KOPF if f.name == "abruf" or f.name.startswith("abruf_"))
 from .angebot import aktiv as position_aktiv, ist_muster
 from .ausgabe import aufrunden, kaufm_runden, preiseinheit
 from .stammdaten import Feld, kontext_aus
@@ -81,7 +82,7 @@ EINSTELLUNG_FELDER = (
     Feld("bezeichnung", "Bezeichnung", breite=160),
     STUFE_FELD["gewinn"],
     *[f for f in KALKULATION if f.name not in ("gewinn", "aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur",
-                                               "ruesten_angebot_eur")],
+                                               "ruesten_angebot_eur", "rabatt", "frachtfrei_ab", "mindestwert")],
     _KOPF_FELD["fracht"], _KOPF_FELD["skonto"],
     *(STUFE_FELD[n] for n in ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten",
                               "arbeitsgang", "arbeitsgang_min", "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit",
@@ -285,7 +286,8 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
                      "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
                      "aufschlag_blech", "aufschlag_zukauf",      # Aufschlag Bleche bzw. Zukaufteile des Angebots
                      "ruesten_abmessung_eur", "ruesten_angebot_eur",     # Rüsten als fester Betrag
-                     "muster_darstellung")       # Musterkosten umlegen oder als eigene Zeile
+                     "muster_darstellung",       # Musterkosten umlegen oder als eigene Zeile
+                     *ABRUF_FELDER)              # Abruf-/Rahmenangebot: Einmalkosten auf die Jahresmenge, Lagerzins
     # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
     if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
         tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
@@ -504,7 +506,7 @@ def _bausteine_teil(kz, idx, summen):
     ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil") and not z.get("baugruppe")
                      and not (z.get("kundenmaterial") and z["eingeplant"]))      # Kundenmaterial: 0 € ist richtig
     # Material mit Schrotterlös (Gutschrift, negativ) und Ausschuss wie in der Kalkulation (Plan B2, B5)
-    material = summe("material_teil") + summe("schrott_teil") + summe("ausschuss_mat_teil")
+    material = summe("material_teil") + summe("schrott_teil") + summe("ausschuss_mat_teil") + summe("lagerzins_teil")
     return dict(material=material, material_fehlt=ohne_preis, fertigung=fert, ruesten=ruest,
                 fremd=summe("zusatz_fremd_teil") + summe("bg_fremd_staffel_teil"),
                 bg_getrennt=(summe("bg_getrennt_eigen_teil"), summe("bg_getrennt_fremd_teil")),
@@ -517,7 +519,9 @@ def _bausteine_teil(kz, idx, summen):
                 # fracht_teil) bzw. als eigene Zeile (Selbstkosten, Zukaufteile, Fracht)
                 muster=(summe("muster_selbst_teil"), summe("muster_zukauf_teil")),
                 muster_getrennt=(summe("muster_getrennt_selbst_teil"), summe("muster_getrennt_zukauf_teil"),
-                                 summe("muster_getrennt_fracht_teil")))
+                                 summe("muster_getrennt_fracht_teil")),
+                # Material der Muster für den Gewinn auf Material (Prüfung Kalkulationsbasis 8)
+                muster_mat=(summe("muster_mat_teil"), summe("muster_getrennt_mat_teil")))
 
 
 def richtpreis_zeilen(e, p, daten):
@@ -597,7 +601,8 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     if doppelt:
         pos = ", ".join(sorted({txt(positionen[i].get("pos")) for i in doppelt}))
         return alle_mit(f"FEHLER: Pos. {pos} steht in der Stufe doppelt (als Satz und als Position)")
-    lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
+    # abruf_basis: Stückzahl des Angebots; im Abruf-Angebot bleibt die Jahresmenge der Position in jeder Stufe gleich
+    lauf = [dict(p, stueck=mengen.get(i), abruf_basis=p.get("stueck")) for i, p in enumerate(positionen)]
     # Musterteile (Patrick 28.10.2026, F5 a): laufen in jeder Stufe mit der Stückzahl des Angebots mit, ihre Kosten
     # gehen einmal je Stufe auf deren Menge wie Rüsten; eine Stufe für das Muster selbst rechnet es als Serienteil
     for i, p in enumerate(positionen):
@@ -708,7 +713,8 @@ def bausteine(summen, ohne_materialpreis=0):
     if abs(summen.get("baugruppe_einmal_ruesten", 0)) >= 0.005:
         ruest.append(("Schweißbaugruppen einmalig", summen["baugruppe_einmal_ruesten"],
                       "Rüstzeit und Einmalbeträge der Arbeitsgänge"))
-    material = summen["material"] + summen.get("schrott", 0.0) + summen.get("ausschuss_material", 0.0)
+    material = summen["material"] + summen.get("schrott", 0.0) + summen.get("ausschuss_material", 0.0) \
+        + summen.get("lagerzins", 0.0)
     return dict(material=material, material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
                 fremd=summen["zusatz_fremd"] + summen.get("baugruppe_fremd_staffel", 0.0),
                 bg_getrennt=(summen.get("baugruppe_getrennt_eigen", 0.0), summen.get("baugruppe_getrennt_fremd", 0.0)),
@@ -731,7 +737,8 @@ def wirksam(stufe, einst):
     return dict(mat_art=art, mat_zuschlag=mz / 100 if art == PROZENT else mz,
                 verlust=_zahl(w("verlust")) / 100, mat_grundpreis=w("mat_grundpreis"),
                 zuschlag_fertigung=(w("zuschlag_fertigung") / 100 if w("zuschlag_fertigung") is not None
-                                    else _zahl(einst.get("zuschlag_fertigung"))),
+                                    else _zahl(einst.get("zuschlag_fertigung")))
+                + _zahl(einst.get("eilzuschlag")),      # Eilzuschlag des Angebots (Vorschlag K2)
                 zuschlag_fremdleistung=_zahl(einst.get("zuschlag_fremdleistung")),
                 gewinn=w("gewinn") / 100 if w("gewinn") is not None else _zahl(einst.get("gewinn")),
                 # gestaffelter Gewinn nach dem Wert der Stufe, nur ohne eigenen Gewinn der Stufe (Patrick 29.10.2026)
@@ -741,7 +748,8 @@ def wirksam(stufe, einst):
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
                 neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")),
                 mindestpreis=_zahl(einst.get("mindestpreis")), preiseinheit_ab=_zahl(einst.get("preiseinheit_ab")),
-                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst))
+                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst),
+                gewinn_material=rechnen.gewinn_material(einst))      # Prüfung Kalkulationsbasis 8 (leer = wie Gewinn)
 
 
 def marge(gewinn, anhebung, selbst):
@@ -806,6 +814,10 @@ def preise(b, menge, w, anhebung=None):
         # ab 26.10.2026: Zukaufteile ohne Gewinn, nur mit ihrem Aufschlag
         gewinn, ohne = rechnen.gewinn_fracht(selbst, selbst - zk_e_g - zk_a if w.get("neu", True) else selbst,
                                              b["fracht"], w["gewinn"])
+        if w.get("gewinn_material") is not None:      # eigener Gewinnsatz auf das Material (wie rechnen._kalkulation)
+            mm, mg_ = b.get("muster_mat") or (0.0, 0.0)
+            plus = (m1 + mz + mm + mg_) * (w["gewinn_material"] - w["gewinn"])
+            gewinn, ohne = gewinn + plus, ohne + plus
         ohne += gf
     else:
         gewinn = herstell * w["gewinn"]
@@ -827,7 +839,10 @@ def preise(b, menge, w, anhebung=None):
     bg_einmalig = kaufm_runden(bg_selbst * (1 + w["gewinn"]) / (1 - sk), 2) if bg_selbst else 0.0
     einmalig += bg_einmalig
     # Musterkosten als eigene Zeile: einmalig, nicht im Stückpreis
-    muster_einmalig = kaufm_runden((gs * (1 + w["gewinn"]) + gz + gf) / (1 - sk), 2) if gs or gz or gf else 0.0
+    gm_plus = ((b.get("muster_mat") or (0.0, 0.0))[1] * (w["gewinn_material"] - w["gewinn"])
+               if w.get("gewinn_material") is not None and w.get("selbst_basis", True) else 0.0)
+    muster_einmalig = (kaufm_runden((gs * (1 + w["gewinn"]) + gm_plus + gz + gf) / (1 - sk), 2) if gs or gz or gf
+                       else 0.0)
     einmalig += muster_einmalig
     # Preiseinheit für Kleinteile (Plan B3): Preis je 100 bzw. 1000 Stück, auf den Cent gerundet
     pe = preiseinheit((netto - einmalig) / menge, w.get("preiseinheit_ab"))

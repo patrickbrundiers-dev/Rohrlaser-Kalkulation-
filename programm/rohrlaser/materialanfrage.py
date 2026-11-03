@@ -25,7 +25,7 @@ from pathlib import Path
 import mimetypes
 
 from . import naht, rechnen
-from .stammdaten import EINSTELLUNG, OHNE_NAHT
+from .stammdaten import EINSTELLUNG, GESCHABT, OHNE_NAHT
 from .ausgabe import kaufm_runden, profiltext
 from .angebot import ist_zukaufteil
 
@@ -73,8 +73,9 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
     out = list(zeilen.values())
     for z in out:
         z.setdefault("zuschnitte", [])
-        z["anforderungen"] = anforderungen(z["werkstoff"], k)
-        nahtlos = (k.werkstoffe.get(z["werkstoff"]) or {}).get("rohrart") in OHNE_NAHT    # ohne Naht: keine Lage
+        ra = rechnen.rohrart(z["werkstoff"], k, kopf, z["profil"])      # Angebot vor Werkstoff (31.10.2026)
+        z["anforderungen"] = anforderungen(z["werkstoff"], k, ra)
+        nahtlos = ra in OHNE_NAHT    # ohne Naht: keine Lage
         z["naht_noetig"] = not nahtlos and bool(naht.stange_gefordert(positionen, z["profil"], z["werkstoff"], k.profile))
         z["naht"] = None if nahtlos else naht.stange_lage(kopf, positionen, z["profil"], z["werkstoff"], k.profile)[0]
         z["text"] = zeile_text(z, k)
@@ -96,17 +97,19 @@ ZEUGNISSE = {"2.2": "Werkszeugnis 2.2 nach EN 10204", "3.1": "Abnahmeprüfzeugni
              "3.2": "Abnahmeprüfzeugnis 3.2 nach EN 10204"}
 
 
-def anforderungen(werkstoff, k):
-    """Anforderungen des Werkstoffs für die Anfrage (Stammdaten Werkstoffe, Spalten 'Anfrage: …', Rohrart ohne Naht),
-    '' = keine."""
+def anforderungen(werkstoff, k, rohrart=None):
+    """Anforderungen des Werkstoffs für die Anfrage (Stammdaten Werkstoffe, Spalten 'Anfrage: …', Rohrart ohne Naht
+    bzw. „Naht innen geschabt“), '' = keine. rohrart: wirksame Rohrart (Angebot vor Werkstoff), None = des
+    Werkstoffs."""
     w = k.werkstoffe.get(werkstoff) or {}
     teile = [ZEUGNISSE[w["anfrage_zeugnis"]]] if w.get("anfrage_zeugnis") in ZEUGNISSE else []
     if (w.get("anfrage_herkunft_eu") or "").strip().lower() == "ja":
         teile.append("Herkunft EU")
     if (w.get("anfrage_toleranz") or "").strip().lower() == "ja":
         teile.append("Maßtoleranzen nach Norm")
-    if w.get("rohrart") in OHNE_NAHT:        # Rohrart aus den Werkstoffen (24.10.2026)
-        teile.append(str(w["rohrart"]))
+    ra = w.get("rohrart") if rohrart is None else rohrart
+    if ra in OHNE_NAHT + (GESCHABT,):       # Rohrart aus den Werkstoffen (24.10.2026) bzw. dem Angebot (31.10.2026)
+        teile.append(str(ra))
     return ", ".join(teile)
 
 
@@ -232,11 +235,18 @@ OUTLOOK_PS = r"""
 $ErrorActionPreference = 'Stop'
 $d = Get-Content -Raw -Encoding UTF8 -LiteralPath $args[0] | ConvertFrom-Json
 $o = New-Object -ComObject Outlook.Application
-$m = $o.CreateItem(0)
-$m.To = $d.an
+if ($d.antwort) {
+    # Antwort auf die gespeicherte Anfrage-Mail (.msg): „Allen antworten“, der Verlauf bleibt darunter
+    $orig = $o.Session.OpenSharedItem($d.antwort)
+    $m = $orig.ReplyAll()
+    if ($d.an) { $m.To = $d.an }
+} else {
+    $m = $o.CreateItem(0)
+    $m.To = $d.an
+}
 $m.Subject = $d.betreff
 foreach ($a in $d.anhaenge) { [void]$m.Attachments.Add($a) }
-if ($d.signatur) {
+if ($d.signatur -or $d.antwort) {
     # Erst anzeigen: dabei setzt Outlook die Standardsignatur ein; der Text kommt davor
     $m.Display($false)
     $h = $m.HTMLBody
@@ -249,20 +259,22 @@ if ($d.signatur) {
 """
 
 
-def outlook_daten(an, betreff_, text_, anhaenge=(), signatur_=False):
+def outlook_daten(an, betreff_, text_, anhaenge=(), signatur_=False, antwort=None):
     return dict(an=an or "", betreff=betreff_, text=text_, html=text_html(text_), signatur=bool(signatur_),
-                anhaenge=[str(Path(a)) for a in anhaenge])
+                anhaenge=[str(Path(a)) for a in anhaenge], antwort=str(Path(antwort)) if antwort else "")
 
 
-def outlook_oeffnen(an, betreff_, text_, anhaenge=(), ausfuehren=None, signatur_=False):
+def outlook_oeffnen(an, betreff_, text_, anhaenge=(), ausfuehren=None, signatur_=False, antwort=None):
     """E-Mail im klassischen Outlook anzeigen (nicht senden). signatur_ = True: Text vor die Standardsignatur von
-    Outlook setzen. ausfuehren(befehl) ersetzt subprocess.run (Tests). Ergebnis: (True, '') oder (False, Fehlertext)."""
+    Outlook setzen. antwort = Pfad einer .msg: als „Allen antworten“ auf diese Mail (Text vor den Verlauf).
+    ausfuehren(befehl) ersetzt subprocess.run (Tests). Ergebnis: (True, '') oder (False, Fehlertext)."""
     if ausfuehren is None and sys.platform != "win32":
         return False, "Outlook gibt es nur unter Windows."
     with tempfile.TemporaryDirectory() as tmp:
         skript, daten = Path(tmp) / "outlook.ps1", Path(tmp) / "mail.json"
         skript.write_text(OUTLOOK_PS, encoding="utf-8-sig")
-        daten.write_text(json.dumps(outlook_daten(an, betreff_, text_, anhaenge, signatur_), ensure_ascii=False), encoding="utf-8")
+        daten.write_text(json.dumps(outlook_daten(an, betreff_, text_, anhaenge, signatur_, antwort),
+                                    ensure_ascii=False), encoding="utf-8")
         befehl = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(skript), str(daten)]
         try:
             if ausfuehren:

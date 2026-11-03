@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.208", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
+    ["0.9.239", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
                 "mit zwei markierten Angeboten in der Angebotsliste (rechte Maustaste → <i>Vergleichen …</i>) zwei "
                 "Angebote Position für Position gegenüberstellen. Quellen: Angebote aus der Liste, der eigene "
                 "CSV-Export (auch als ZIP) oder eine fremde CSV, z. B. ein Konkurrenz- oder Lieferantenangebot, mit "
@@ -31,6 +31,264 @@ NEUERUNGEN = [
                 "und Marge; markiert ab 5 % oder 50 € (Einstellungen → Automatik und Prüfung). Ausgabe als PDF und "
                 "CSV; in den Angeboten wird nichts gespeichert. Abschaltbar unter Einstellungen → Funktionen.",
      "Angebote vergleichen: zwei Angebote aus Liste oder CSV Position für Position, mit PDF und CSV"],
+    ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
+     "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
+     "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "
+     "Rundung von Quadrat-/Rechteckrohren (0,9 mm) und Sechskante in Flachstahl/Winkel (wurden Langloch) stimmen "
+     "jetzt. <b>Bleche</b>: Rechteck mit Eckradius bekommt den Radius, Rechteck mit Fasen wird Polygon, Polygone "
+     "auf 0,02 mm, Lage auf 0,01 mm, keine Kontur geht verloren, neue <i>Blech-Gegenprobe</i> mit Hinweis.",
+     "STEP: jede Kontur gegen den Umriss geprüft (Doppelbohrung, Bohrung auf Rundung, Bleche mit Radius/Fasen)"],
+    ["0.9.237", "<b>Zusatzarbeiten erkennen und wählen</b>: Jede Zusatzarbeit hat Erkennungswörter (z. B. „verzinkt; "
+     "fvz; tZn“). Stehen sie in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail oder Zeichnung, erscheint "
+     "gelb „＋ Feuerverzinken ?“ in der Positionsliste; der gelbe Knopf übernimmt alle oder einzeln, RAL-Farbe als Text "
+     "([[zusatz_erkennen]]). Neues <b>Auswahlfenster</b> mit Suche, Häkchen, Gruppen (häufig, beim Kunden, Kategorie), "
+     "€ je Teil und ohne Doppel; <b>Rechtsklick → Zusatzarbeit hinzufügen</b> mit den häufigsten. <b>＋ Neue "
+     "Zusatzarbeit …</b> als Kurzformular mit Vorlagen (Eloxieren, Richten, Prüfbericht 3.1 …): Admin legt sie in den "
+     "Einstellungen an, sonst gilt sie nur in diesem Angebot und der Admin übernimmt sie später ([[zusatz_neu]]). "
+     "<b>Einnietmuttern</b>: Sechskantlöcher und Senkungen im Teil schlagen <i>Einnietmuttern setzen</i> mit der "
+     "Anzahl je Teil vor.",
+     "Zusatzarbeiten erkennen (gelbe Vorschläge, Einnietmuttern aus Sechskantlöchern/Senkungen), neues "
+     "Auswahlfenster, Schnellmenü, Kurzformular mit Vorlagen"],
+    ["0.9.236", "Prüfung der Kalkulationsbasis: <b>Grundwerte prüfen …</b> unter Stammdaten → Maschinen und im "
+     "Angebots-Check zeigt leere Nebenzeiten, Beispiel-Stundensätze und doppelt gezählte Zuschläge mit der Wirkung in € "
+     "([[kalkulationsbasis]]). <b>Schneiddaten</b> zwischen zwei Wandstufen werden interpoliert (2,6 mm nicht mehr mit "
+     "den 3-mm-Werten). <b>Wiederholteile</b> mit Programm rechnen nur 1 min Programmierung. Neu einstellbar: weniger "
+     "Rüstzeit, wenn sich nur die Wand ändert, <b>Gewinn auf Material</b> getrennt, mittlere Last für den Strom im "
+     "ermittelten Stundensatz. Ausschuss rechnet im Hundert. Festgeschriebene Angebote bleiben unverändert.",
+     "Grundwerte prüfen, Schneiddaten interpoliert, Wiederholteile, Gewinn auf Material"],
+    ["0.9.235", "Weitere Vorschläge für Kalkulation und Ablauf: <b>Maschinen vergleichen</b> im Kopf "
+     "([[maschinen_vergleich]]), <b>Sperrtage je Maschine</b> ([[sperrtage]]), <b>Fassungsvergleich</b> "
+     "([[fassung_vergleich]]), <b>Teilekatalog je Kunde</b> ([[teilekatalog]]). <b>Preisregeln</b> (alle aus, bis man "
+     "sie einschaltet): Runden von Stück- oder Gesamtpreis, Kundenkonditionen Rabatt, frachtfrei ab Warenwert und "
+     "Mindestauftragswert, Verpackung aus den Stammdaten, Finanzierung über das Zahlungsziel ([[preisregeln]]), "
+     "Neuteil-Zuschlag und mannlose Laufzeit je Maschine ([[neuteil_mannlos]]). <b>Preisuntergrenze und Zielpreis "
+     "rückwärts</b> ([[zielpreis]]), Hinweise zu Auslastung und Marktpreis aus Absagen ([[kalk_hinweise]]), "
+     "<b>Vier-Augen-Freigabe</b> ([[freigabe]]), <b>Rückfrage an Kunden</b> ([[rueckfrage]]), <b>Positionsvorlagen</b> "
+     "([[positionsvorlagen]]), <b>Offene Angebote prüfen</b> und <b>Monatsbericht</b> ([[offene_pruefen]]), "
+     "<b>Lieferantenangebote</b> mit Bewertung ([[lieferantenangebote]]), <b>Lieferschein</b> mit Teillieferung und "
+     "Werkszeugnissen ([[lieferschein]]), <b>Laserzeit per Scan</b> für die Nachkalkulation ([[laserzeit_scan]]).",
+     "Maschinenvergleich, Preisregeln, Zielpreis, Freigabe, Rückfrage, Vorlagen, Lieferschein, Lieferantenangebote, "
+     "Scan-Zeit"],
+    ["0.9.234", "Neun Verbesserungen für Kalkulation und System: <b>Gleitklausel Material</b> bei Abruf-Angeboten "
+     "([[gleitklausel]]): festgeschriebene gegen aktuelle Materialpreise, ab ±5 % fällig, nur Material gleitet, "
+     "Übernehmen mit Vermerk im Versandverlauf. <b>Eilzuschlag</b> ([[eilzuschlag]]): Feld im Kopf und Vorschlag aus "
+     "<i>Termin prüfen …</i> nach Arbeitstagen zu früh (15 %/30 %). <b>CO₂-Bilanz</b> intern im Preisaufbau und "
+     "Kalkulations-PDF ([[co2_bilanz]], Funktion, Vorgabe aus). <b>Wiederholteile</b> zeigen, wie der letzte "
+     "Auftrag lief, der Angebots-Check weist auf große Abweichungen hin ([[wiederholteil_nachkalk]]). "
+     "<b>Ertrag je Laserstunde je Kunde</b> in der Angebots-Auswertung ([[ertrag_laserstunde]]). <b>Prüfplan / "
+     "Messprotokoll</b> als PDF mit ISO 2768 und Zusatzarbeit Erstmusterprüfung ([[pruefplan]]). <b>Support-Paket</b> "
+     "als ZIP ([[support_paket]]). <b>Datenschutz</b>: Datenauskunft als PDF, Kunden anonymisieren (nur Admin), "
+     "Frist für abgelehnte Angebote (Vorgabe aus) ([[datenschutz]]). <b>Übergabe an CAM</b>: Ordner mit STEP je "
+     "Teil, Stückliste und Schnittplan ([[cam_paket]]).",
+     "Gleitklausel, Eilzuschlag, CO₂, Wiederholteil-Rückblick, Ertrag/Laserstunde, Prüfplan, Support-Paket, "
+     "Datenschutz, CAM-Ordner"],
+    ["0.9.233", "<b>STEP-Import: Rechteck mit Eckradius bleibt Rechteck</b> ([[schneidweg_rechner]]): Ein "
+                "Rechteckausschnitt mit gerundeten Ecken (z. B. R3) kam bisher als <i>Sonderkontur</i> und war im "
+                "Editor nicht mit Maßen änderbar. Jetzt wird er eine Zeile <i>Rechteck</i> mit dem Eckradius aus der "
+                "gemessenen Schnittlänge, wenn der Umriss damit auf 0,05 mm wie in der STEP liegt; über eine Rohrecke "
+                "bleibt er Sonderkontur. Dritte Probe mit 18 weiteren Teilen (Sechskant-, Schlüssel- und Kreuzloch, "
+                "Lochkranz, Langloch über Ecke und nah am Ende, gedrehte und Freiform-STEP): alle wie in der STEP.",
+     "STEP: Rechteck mit Eckradius wird Rechteck-Zeile mit Radius statt Sonderkontur"],
+    ["0.9.232", "Zwei Fehler im Windows-Programm 0.9.231 behoben: <b>Etiketten mit QR-Code</b> ([[etiketten]]) brachen "
+     "mit „No module named reportlab.graphics.barcode.code128“ ab, weil ein Teil der Barcode-Bausteine im "
+     "Programmpaket fehlte. Der <b>STEP-Import</b> ([[step]]) brach bei Rohren mit großem rundem Loch (Durchbruch für "
+     "einen Stutzen) mit „No module named numpy“ ab; die Prüfung des Durchbruchs gegen die STEP rechnet jetzt ohne "
+     "numpy, genauso genau. Der Selbsttest jedes Windows-Pakets erzeugt nun ein Etiketten-PDF und importiert ein "
+     "Rohr mit Stutzen-Durchbruch, ein Test prüft, dass jedes benutzte Modul im Paket ist.",
+     "Etiketten mit QR-Code und STEP-Import mit Stutzen-Durchbruch: Abbrüche im Windows-Programm behoben."],
+    ["0.9.231", "<b>Fehler-Durchgang</b>: Die <b>Optimierung</b> überspringt volle Stangen und schon geprüfte gleiche "
+     "Teile ([[optimieren]]); der Schnittplan bleibt Stange für Stange gleich, aber große Stückzahlen gehen viel "
+     "schneller (20.000 gleiche Teile vorher über 10 Minuten, jetzt unter 1 Sekunde; 6.000 gemischte Teile mit "
+     "Gehrungen vorher rund 80 s, jetzt etwa 7 s). Rechtsklick unter den Positionen ohne Markierung und dann "
+     "<i>Baugruppe bearbeiten …</i> zeigt einen Hinweis statt einer Fehlermeldung. <i>inf</i>, <i>nan</i> oder "
+     "<i>1e999</i> in Zahlen- und Rechenfeldern werden abgelehnt ([[eingaben]]), statt einen Preis „nan“ zu "
+     "ergeben.",
+     "Fehler-Durchgang: Optimierung großer Stückzahlen viel schneller, zwei Abstürze behoben"],
+    ["0.9.230", "<b>Gemeinsamer Ordner</b> ([[ordner_einrichten]]): rote Leiste oben, solange der Ordner nicht "
+                "erreichbar ist (seit wann, Änderungen bleiben hier); ist er wieder da, gleicht das Programm gleich ab "
+                "und meldet die endgültigen Nummern. <b>Datei → Arbeitsplatz einrichten (Assistent) …</b>: Ordner, "
+                "Kürzel, erster Abgleich in drei Schritten. <b>Datei → Gemeinsamen Ordner umziehen …</b> (Admin): "
+                "alles kopieren und prüfen, die Kollegen stellen mit einem Klick um. Schneller schreiben: unveränderte "
+                "Daten bleiben liegen, nur geänderte Stammdaten-Zeilen werden neu geschrieben.",
+     "Leiste bei Ordner-Ausfall; Assistent für neue Arbeitsplätze; Ordner umziehen (Admin); schneller schreiben"],
+    ["0.9.229", "<b>Gleichzeitig ändern</b> ([[zeile_sperre]]): Ändert ein Kollege gerade dieselbe Stammdaten-Zeile "
+                "(Kunde, Material, Preis …), fragt das Programm „Trotzdem ändern?“ (weiche Sperre, 2 Minuten nach "
+                "seiner Änderung). <b>Windows-Meldung</b> unten rechts bei Übergaben, Anfragen, Notizen und fälligen "
+                "Wiedervorlagen, wenn das Programm nicht vorn ist; Klick öffnet das Angebot. Abschaltbar unter "
+                "Einstellungen → Mein Arbeitsplatz → Gemeinsamer Ordner.",
+     "Weiche Sperre für gleichzeitig geänderte Stammdaten-Zeilen; Windows-Meldung bei Nachrichten der Kollegen"],
+    ["0.9.228", "<b>Verlauf: wer hat was geändert</b> ([[aenderungsverlauf]]): <i>Vorgang → Verlauf …</i> in der "
+                "Angebotsliste zeigt je Angebot, wer wann welches Feld von welchem auf welchen Wert geändert hat (Kopf, "
+                "Positionen, Staffeln), über alle Arbeitsplätze im gemeinsamen Ordner; <i>Kollegen im gemeinsamen "
+                "Ordner → Verlauf Stammdaten …</i> dasselbe für Kunden, Material, Preise und gemeinsame "
+                "Einstellungen. <b>Alten Wert zurückholen</b> für eigene Angebote und eigene Änderungen, der Admin "
+                "auch für die Stammdaten der Kollegen. Der Verlauf reicht 12 Monate zurück.",
+     "Verlauf je Angebot und für Stammdaten (wer, wann, vorher, nachher); alten Wert zurückholen"],
+    ["0.9.227", "<b>Angebot per E-Mail</b> ([[angebot_mail]]): <i>Ausgaben → Angebot per E-Mail …</i> erstellt das PDF "
+                "und öffnet in Outlook die E-Mail an den Kunden mit Anhang, als Antwort auf die Anfrage-Mail, wenn sie "
+                "im Angebotsordner liegt; Vorlagen unter Einstellungen → Angebot per E-Mail, Vermerk im Versandverlauf. "
+                "<b>Termin prüfen …</b> im Angebotskopf ([[termin_auslastung]]): frühester Liefertermin nach freier "
+                "Maschinenkapazität und Material-Lieferzeit, auch beim Beauftragen. <b>Schnellpreis</b> "
+                "([[schnellpreis]]): Datei → Schnellpreis … (Strg+Alt+P) gibt einen Richtpreis mit kleiner Staffel "
+                "für Telefonanfragen, „Als Angebot übernehmen“. <b>Laufzeit je Teil</b> in der Nachkalkulation "
+                "([[laufzeit_teil]]): ergibt die Ist-Laserzeit und schlägt Vorschübe je Schneiddaten-Zeile "
+                "(Werkstoff, Wandstärke) vor.",
+     "Angebot per E-Mail (Outlook, Antwort auf die Anfrage); Termin nach Auslastung; Schnellpreis; Laufzeit je Teil"],
+    ["0.9.226", "<b>PDF-Anfrageformular besser ausgewertet</b> ([[anfragen]]): Positionstabellen liest das Programm "
+                "über die Lage der Wörter (PDF mit Text und Scan) – Menge aus der Mengenspalte, Zellen über zwei "
+                "Zeilen, <i>1.000 Stk</i> = 1000, Positionsnummern und Längen nie als Menge; nennt das Formular nur "
+                "<i>MG-01</i>, passt die Menge zur STEP <i>MG-01 Stiel</i> (gelb). Die <b>Anfrage-Nr.</b> steht auch "
+                "in Kopftabellen oder heißt <i>Beleg-Nr.</i>, <i>Vorgang</i>, <i>Unser Zeichen</i>; ein Datum zählt "
+                "nie. Neu: <b>Werkstoff je Position</b> aus dem Formular (nur eindeutig, gelb mit Quelle).",
+     "PDF-Formular: Tabellen über die Lage, Anfrage-Nr. aus Kopftabellen, Werkstoff je Position"],
+    ["0.9.225", "<b>U-Profile als Standard</b> ([[profile]]): Die U-Profile nach DIN 1026-1 von UPN 30x15 bis UPN 200 "
+                "stehen in den Stammdaten Profile (Steg, Flansch, Normfläche und Gewicht je Meter, ohne Preis); "
+                "<i>UNP 100</i> oder <i>U 100</i> beim Tippen findet UPN 100, auch in der Schnellzeile. "
+                "<b>Wandstärke ändern …</b> ([[wand_aendern]]): Rechtsklick auf Positionen oder im Fenster Material "
+                "…, andere Wandstärke bei gleichem Außenmaß, fehlendes Profil wird angelegt. <b>Rohrart je "
+                "Abmessung</b> ([[rohrart_angebot]]): im Fenster Material … geschweißt, nahtlos, stranggepresst oder "
+                "neu <i>Naht innen geschabt</i>, steht in Materialanfrage, Angebot und Werkstattpapieren.",
+     "U-Profile UPN 30x15 bis 200 als Standard, Wandstärke ändern, Rohrart je Abmessung (auch Naht innen geschabt)"],
+    ["0.9.224", "<b>Outlook-Import: intern weitergeleitete Mails</b> ([[anfrage_mail]]): Leitet ein Kollege eine "
+                "Kundenanfrage weiter (WG:/FW:, im Text, als .msg/.eml-Anhang oder mehrfach), kommen Kunde, "
+                "Ansprechpartner, Signatur (neuer Kunde mit Adresse), Anfragedatum, Staffelmengen, Zusatzarbeiten, "
+                "Termin und Bemerkung aus der Mail des Kunden statt vom Kollegen; ein späterer Nachtrag direkt vom "
+                "Kunden kommt dazu. Der Prüfdialog zeigt <i>Intern weitergeleitet von …</i> und die Notiz des "
+                "Kollegen; ein Termin oder Werkstoff in der Notiz gilt (Hinweis auf den Kundenwert). Neu unter "
+                "Einstellungen → Firma: <i>Weitere eigene E-Mail-Domains</i>; die Adressen der Arbeitsplätze im "
+                "gemeinsamen Ordner zählen automatisch als intern, die eigene Firma wird nie als Kunde angelegt.",
+     "Outlook-Import: intern weitergeleitete Mails erkannt, Kunde und Anfragetext vom ursprünglichen Absender"],
+    ["0.9.223", "<b>STEP-Import: weitere kritische Konturen wie in der STEP</b> ([[schneidweg_rechner]]): Ein Langloch "
+                "quer um ein Rundrohr stand als Rechteck im Editor (1,9 mm daneben), eine außermittige Bohrung im "
+                "Rundrohr und eine Schrägbohrung in einer ebenen Wand als Kreis statt Ellipse (0,6–0,9 mm). Weicht der "
+                "gemessene Umriss mehr als 0,05 mm vom Langloch, Rechteck oder Kreis ab, kommt die Zeile jetzt als "
+                "<i>Sonderkontur</i> mit dem Umriss der STEP; mit 3D-Schnittbearbeitung bleibt die schräge Bohrung "
+                "eine geneigte Bohrung. Ein scharfkantiges U, das so in den Stammdaten steht, bleibt auch mit "
+                "Ausklinkung am Flanschende U-Profil statt Kantteil. Die <i>Gegenprobe beim Übernehmen</i> prüft "
+                "jetzt auch offene Profile (L, U, C, Flachstahl). Ältere Importe: STEP neu einlesen.",
+     "STEP-Import: Langloch quer im Rundrohr, außermittige und schräge Bohrungen wie STEP; Gegenprobe auch für L/U/C"],
+    ["0.9.222", "<b>Mitarbeiter ausgeschieden</b> ([[mitarbeiter_ausgeschieden]]): In <i>Datei → Kollegen im "
+                "gemeinsamen Ordner …</i> trägt der Admin einen Kollegen mit <b>Ausgeschieden …</b> aus: seine Angebote "
+                "übernimmt der Admin oder ein Kollege (für alle oder je Angebot), sein Ordner kommt ins Archiv des "
+                "gemeinsamen Ordners und wird nicht mehr gelesen; die Nummern bleiben. <b>Lizenzen der Plätze</b>: "
+                "<i>Gemeinsamen Ordner prüfen</i> meldet aktive Plätze ohne gültige Lizenz und dieselbe Lizenz an "
+                "mehreren Kürzeln; der Admin sieht das in der Statusleiste.",
+     "Ausgeschiedene Mitarbeiter austragen (Angebote verteilen, Ordner ins Archiv); Lizenzhinweise der Plätze"],
+    ["0.9.221", "<b>Kollegen im gemeinsamen Ordner</b> ([[kollegen_uebersicht]]): <i>Datei → Kollegen im gemeinsamen "
+                "Ordner …</i> zeigt je Mitarbeiter, ob er gerade da ist, Rechner, Version, letzten Abgleich, Zahl der "
+                "Angebote, gerade geöffnete Angebote, offene Übergaben/Notizen an ihn und seine PC-Uhr; "
+                "<b>Notiz an …</b> direkt aus der Liste. <b>Schneller abgleichen</b> ([[mehrere_arbeitsplaetze]]): "
+                "Ein Lebenszeichen alle 30 Sekunden zeigt den Kollegen fast sofort, wer woran arbeitet; Änderungen "
+                "gehen gleich nach der Eingabe in den Ordner, der automatische Abgleich läuft jede Minute "
+                "(vorher alle 2 Minuten).",
+     "Übersicht der Kollegen; Lebenszeichen alle 30 s; Änderungen gleich in den Ordner; Abgleich jede Minute"],
+    ["0.9.220", "<b>Gemeinsamen Ordner prüfen</b> ([[ordner_pruefen]]): <i>Datei → Gemeinsamen Ordner prüfen …</i> "
+                "zeigt, ob der gemeinsame Ordner richtig arbeitet: erreichbar, Geschwindigkeit, Uhr, eigenes Kürzel, "
+                "Programmversion und letzter Abgleich der Kollegen, Konfliktkopien von OneDrive/SharePoint, doppelt "
+                "reservierte Nummern, abgebrochene Schreibvorgänge und vorläufige Nummern, jeweils mit <i>Was tun</i>. "
+                "Eine falsch gehende PC-Uhr wird bei jedem Abgleich gegen die Uhr des Ordners gemessen und "
+                "herausgerechnet, damit sie keinen Konflikt mehr falsch entscheidet. Eigene Konfliktkopien räumt der "
+                "Abgleich in den lokalen Ordner Konfliktkopien. Die Statusleiste warnt bei falscher Uhr und doppelten "
+                "Nummern.",
+     "Gemeinsamen Ordner prüfen; falsche PC-Uhr wird herausgerechnet; Konfliktkopien aufgeräumt"],
+    ["0.9.219", "<b>Anzahl Sätze und Stück je Satz ändern</b> ([[satz_bearbeiten]]): Doppelklick auf die Spalte Satz "
+                "oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i> öffnet ein Fenster mit der Anzahl Sätze "
+                "(− / +) und Stück je Satz je Position; die Stückzahlen rechnen sich live mit, OK ist ein Schritt für "
+                "Rückgängig. In der Liste ziehen die Spalten mit: Stück je Satz geändert → Stückzahl folgt, Stückzahl "
+                "einer Satzposition geändert → Stück je Satz folgt (geht es nicht ganz auf, bleibt alles wie getippt "
+                "mit Hinweis). Dasselbe Feld <i>Anzahl Sätze</i> im Fenster Satz in 3D; der Blech-Editor folgt der "
+                "gleichen Regel.",
+     "Anzahl Sätze mit − / + ändern, Stück je Satz und Stückzahl ziehen mit"],
+    ["0.9.218", "<b>Durchbruch für einen Stutzen aus der STEP</b> ([[schneidweg_rechner]]): Ein rundes Loch in der "
+                "Rohrwand für ein abgehendes Rohr (rechtwinklig, schräg, mit Versatz, in beliebiger Lage am Umfang) "
+                "kommt jetzt als <i>Durchbruch</i> mit Gegenrohr Ø, Winkel, Versatz, Seite und Lage in den Editor "
+                "statt als Bohrung – genau wie in der STEP (vorher im Rundrohr bis 5 mm daneben). Im 3D-Editor "
+                "lassen sich Ø, Winkel und Versatz direkt rechts ändern. Kleine Löcher bleiben Bohrungen.",
+     "Stutzen-Loch aus der STEP als Durchbruch, genau wie in der STEP und im 3D-Editor änderbar"],
+    ["0.9.217", "<b>Rohranschluss aus der STEP erkennen und im 3D bearbeiten</b> ([[schneidweg_rechner]]): Ein Ende, "
+                "das mit Sattel- bzw. Fischmaulschnitt auf einem runden Gegenrohr sitzt (rechtwinklig, schräg, mit "
+                "Versatz, in beliebiger Lage am Umfang), kommt jetzt als <i>Gegenrohr</i> mit Ø, Winkel, Versatz und "
+                "Drehung in den Editor statt als nicht änderbares komplexes Ende – Rund-, Quadrat- und Rechteckrohr, "
+                "Ende A und B, genau wie in der STEP. Im 3D-Editor stehen beim gewählten Ende die Felder Ø, Winkel, "
+                "Versatz und Drehung direkt rechts; die Schnittkurve wird sofort neu gerechnet. Der Gegenrohr-Dialog "
+                "hat beim Rundrohr das neue Feld <i>Drehung um die Rohrachse</i>.",
+     "Rohranschluss (Sattel/Fischmaul) aus der STEP als Gegenrohr, im 3D-Editor änderbar"],
+    ["0.9.216", "<b>Lizenzpflicht ab 20.11.2026</b> ([[lesemodus]]): Bis zum 19.11. zeigt das Programm ohne gültige "
+                "Lizenz nur den Hinweis mit dem Termin, ab dem 20.11.2026 schaltet es in den Lesemodus (ansehen, "
+                "exportieren, sichern und Updates gehen weiter, Daten bleiben erhalten). <b>Schutz der "
+                "Programmdateien</b>: Beim Start prüft das Programm seine eigenen Dateien gegen die signierte "
+                "Dateiliste des Updates; sind sie verändert, gilt dasselbe wie ohne Lizenz. Bricht die Lizenzprüfung "
+                "unerwartet ab, startet das Programm ab dem 20.11. im Lesemodus statt ohne Prüfung. Das "
+                "Lizenz-Werkzeug liegt nicht mehr im öffentlichen Download.",
+     "Lizenzpflicht ab 20.11.2026; Programm prüft beim Start seine eigenen Dateien"],
+    ["0.9.215", "<b>Position als neue Position kopieren</b> ([[position_kopieren]]): <i>Rechtsklick → Position "
+                "duplizieren</i> (Strg+Umschalt+D) legt eine Kopie mit allen Eingaben, Technik, Zusatzarbeiten, "
+                "Gravur, Zukauf, 3D und Staffeln an, mit eindeutiger Artikelnummer direkt hinter dem Original; "
+                "Schweißbaugruppe mit allen Teilen, erste Satzzeile mit dem ganzen Satz. <i>Positionen aus anderem "
+                "Angebot übernehmen …</i> (auch unter Neue Position) holt Positionen aus jedem Angebot, auch von "
+                "Kollegen oder festgeschrieben, ans Ende; das andere Angebot bleibt unverändert.",
+     "Position duplizieren (Strg+Umschalt+D) und Positionen aus anderem Angebot übernehmen"],
+    ["0.9.214", "<b>Kalkulations-PDF überarbeitet</b> ([[ausgabe]]): Seite 1 bleibt nicht mehr leer, Kostenarten und "
+                "neue <b>Kennzahlen</b> (Stundensatz von Hand/ermittelt, Zeitbasis, Gewinn, Preis je kg, Ertrag je "
+                "Maschinenstunde, Fracht, Abruf) stehen nebeneinander; der doppelte Kasten „Rüsten und Mengen“ ist "
+                "weg. Neu: Datum, Kunden-Nr. und Stundensatz im Kopf, Kachel Selbstkosten, Gewinn in %, greifende "
+                "Gewinnstufe, Schneidgas in m³, Fracht mit Art und Umlage, Warnungen der Preis-Gegenprobe, Rechenweg "
+                "des ermittelten Stundensatzes, Abschnitte Abruf-/Rahmenangebot, Zukaufteile und Staffelpreise, "
+                "Schneiddaten je Teil. Die Positionstabelle steht in zwei Teilen (Kosten je Teil, Preisaufbau) mit "
+                "Bezeichnung und den fehlenden Spalten (Schweißen, Fremdleistung, Gas, Ausschuss, Schrott, Lagerzins), "
+                "Zahlen brechen nicht mehr um. Die Rechnung selbst ist unverändert.",
+     "Kalkulations-PDF: Kennzahlen, Stundensatz, Gewinnstufe, Fracht, Abruf, Staffeln, Zukaufteile; Seite 1 nicht mehr leer"],
+    ["0.9.213", "<b>Vorbereitet für die Server-Synchronisation</b> ([[server_vorbereitung]]): Angebote und Positionen "
+                "haben eine feste Kennung (bleibt bei der endgültigen Nummer und beim Kollegen gleich), ein "
+                "Änderungsprotokoll merkt sich jede Änderung an Stammdaten, gemeinsamen Einstellungen und Angeboten, "
+                "und Ordner, Nummern und gemeinsame Dateien laufen über eine gemeinsame Schnittstelle. Für die Arbeit "
+                "ändert sich nichts: gemeinsamer Ordner, Dateien und Abgleich bleiben gleich.",
+     "Vorbereitung Server-Synchronisation: feste Kennungen, Änderungsprotokoll, eine Stelle für den Austausch"],
+    ["0.9.212", "<b>Hauptadmin und weitere Admins</b> ([[admin_rechte]]): Neue Seite <i>Allgemein → Arbeitsplätze und "
+                "Rechte</i> mit allen Arbeitsplätzen (Name und Kürzel vom ersten Start, Rechner, Lizenz mit Ampel, "
+                "Version, zuletzt da). Der Hauptadmin (Passwort der Admin-Lizenz) gibt dort Mitarbeitern das Recht "
+                "<b>Admin</b> mit Startpasswort, sperrt Admins oder vergibt ein neues Startpasswort. Ein Admin schaltet "
+                "sich mit seinem eigenen Passwort frei, an jedem Arbeitsplatz mit gültiger Lizenz, und ändert alle "
+                "Seiten mit 🔒, aber nicht Admin-Schutz und Rechte. Der Verlauf zeigt, welcher Admin was geändert hat.",
+     "Hauptadmin und weitere Admins mit eigenem Passwort, Seite Arbeitsplätze und Rechte"],
+    ["0.9.211", "<b>Admin-Schutz für Einstellungen</b> ([[passwort]]): Der Reiter Einstellungen öffnet für alle; "
+                "Seiten mit 🔒 (Vorschlag: Preise, Gewinn, Kosten, Maschinen, Schneiddaten, Firma, Funktionen, "
+                "Frachtkosten …) ändert nur der Admin, andere sehen die Werte grau. <b>Als Admin freischalten …</b> "
+                "mit dem Admin-Passwort geht an jedem Arbeitsplatz und gilt bis <b>Admin sperren</b>, Programmende "
+                "oder 15 Minuten ohne Eingabe. Welche Seiten geschützt sind, legt der Admin unter Allgemein → "
+                "Admin-Schutz mit Häkchen fest. Was der Admin dort einstellt, gilt als Admin-Vorgaben an jedem "
+                "Arbeitsplatz (gemeinsamer Ordner, für einen späteren Server vorbereitet); ein Nicht-Admin kann es "
+                "nicht überschreiben. Das bisherige Passwort für den ganzen Reiter entfällt. <b>Frachtdaten</b> "
+                "(Zonen, Tarife, Paletten, Zuschläge, Dienstleister, Historie) stehen jetzt unter Einstellungen → "
+                "Fracht ([[frachtkosten]]); im Reiter Frachtkosten bleibt der Rechner mit <b>Frachtdaten pflegen "
+                "…</b>. Bitte alle Arbeitsplätze gleichzeitig updaten.",
+     "Admin-Schutz für Einstellungen (gilt an allen Arbeitsplätzen); Frachtdaten unter Einstellungen → Fracht"],
+    ["0.9.210", "<b>Aufgeschnittene Rohre aus der STEP</b> ([[offene_rohre]]): Rechteckrohr mit großem Ausschnitt über "
+                "Oberseite und Seitenwände (Trapez), der die Seitenwände nur teilweise wegnimmt, galt als V-Ausschnitt "
+                "eines Knickrahmens und stand im Editor bis 16 mm neben der STEP – jetzt Sonderkontur genau wie "
+                "gezeichnet; ein V ist es nur noch, wenn die Seitenwände bis an die Stegwand durchgeschnitten sind "
+                "([[knickrahmen]]). Quadrat-/Rechteckrohr, oben zwischen den Enden offen und mit Fenster in einer "
+                "Seitenwand: die Rohrachse lag im Schwerpunkt des offenen Stücks (13 mm daneben), jetzt aus den "
+                "geschlossenen Querschnitten. Ebenso behoben: Quadratrohr mit Gehrung an beiden Enden und Fenster "
+                "(3 mm daneben), Schlitz über den Eckradius ins Ende (0,5 mm), Winkel/U mit Ausklinkung am Ende (freies "
+                "Schenkelende schräg). Teile-Editor: ein komplexes Ende aus der STEP heißt nicht mehr „gerade“. "
+                "<b>Gegenprobe beim Übernehmen</b> ([[schneidweg_rechner]]): das 3D-Modell des Editors wird mit den "
+                "Linien der STEP verglichen, ab 0,1 mm Abweichung bekommt die Position einen Hinweis.",
+     "Aufgeschnittene Rohre im Editor genau wie in der STEP, Gegenprobe Editor gegen STEP beim Übernehmen"],
+    ["0.9.209", "<b>STEP-Export gegen die Mutter-STEP geprüft</b> ([[step_mutter]]): Nach jedem STEP speichern "
+                "(Rohr-Editor, Blech-Editor, Schweißbaugruppe, Satz in 3D) vergleicht das Programm jeden Körper mit "
+                "dem Körper der eingelesenen Kundendatei – genau gleich, örtlich geändert (Schlitze/Nasen der "
+                "Steckverbindung, 2D-Gehrung, im Editor geändert) oder <b>ACHTUNG: liegt nicht dort</b> (Warnung). "
+                "Behoben: gleiche Rohre, die gedreht oder gewendet eingebaut sind (gegenüberliegende Seiten eines "
+                "Rahmens mit Gehrungen), lagen in 3D und im STEP-Export gespiegelt; ältere Angebote: STEP neu einlesen.",
+     "STEP-Export wird mit der Mutter-STEP verglichen (Warnung bei falscher Lage); gespiegelte Gehrungsrahmen behoben"],
+    ["0.9.208", "<b>Abruf-/Rahmenangebot</b> ([[abruf_angebot]]): Haken im Angebotskopf mit Jahresmenge und "
+                "Abrufmenge von–bis, Laufzeit und Material. Die Stückzahlen sind der kleinste Abruf; Programmierung "
+                "und Musterteile werden auf die kleinste Jahresmenge verteilt, Rüsten und Fracht zählen je Abruf. "
+                "Material wahlweise je Abruf mit Materialklausel oder für die Jahresmenge bevorratet mit Lagerzins. "
+                "Knopf „Abrufstufen anlegen“ im Reiter Staffeln (Mitte und größter Abruf), im Angebots-PDF ein Block "
+                "„Rahmenbedingungen“ aus Textbausteinen der Einstellungen. Schema 70.",
+     "Abruf-/Rahmenangebot: Jahresmenge in Abrufen, Einmalkosten auf die Jahresmenge, Rahmenbedingungen im PDF"],
     ["0.9.207", "<b>Bedienungsanleitung, Kurzanleitung und Präsentation auf dem Stand 0.9.206</b>: neue "
                 "Bildschirmfotos für Preis-Simulator ([[preis_simulator]]), Maschinenauslastung je Woche "
                 "([[auslastung]]), Reklamationen ([[reklamation]]), Stundensatz ermitteln ([[stundensatz_ermitteln]]) "

@@ -219,6 +219,12 @@ class ZusatzFormular(QWidget):
         for a in ARTEN:
             self.art.addItem(art_text(a), a)
         self.aktiv = QCheckBox("aktiv (im Angebot auswählbar)")
+        # Plan Zusatzarbeiten erkennen 03.11.2026: Wörter für die gelben Vorschläge im Angebot
+        self.erkennung = QLineEdit()
+        self.erkennung.setPlaceholderText("z. B. verzinkt; fvz; tZn (mit ; getrennt)")
+        self.erkennung.setToolTip("Steht eines dieser Wörter in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail "
+                                  "oder Zeichnung, schlägt das Programm die Zusatzarbeit im Angebot gelb vor "
+                                  "(gerechnet erst nach Übernehmen). Das längere Wort gewinnt.")
         # Bereich 2: Arbeitszeit und Kosten
         self.preis = self._zahl("0,00")
         self.preis_einheit = QLabel("€")
@@ -284,6 +290,7 @@ class ZusatzFormular(QWidget):
         f1.addRow("Beschreibung", self.beschreibung)
         f1.addRow("Abrechnung *", self.art)
         f1.addRow("", self.aktiv)
+        f1.addRow("Erkennungswörter", self.erkennung)
         self.f2 = self._bereich(lay, "Arbeitszeit und Kosten")
         self.preis_titel = QLabel("Festpreis je Einheit")
         self.f2.addRow(self.preis_titel, self._zeile(self.preis, self.preis_einheit))
@@ -333,7 +340,7 @@ class ZusatzFormular(QWidget):
         aussen.addLayout(knoepfe)
         self.setMinimumWidth(420)
 
-        for w in (self.name, self.beschreibung, self.preis, self.zeit, self.satz, self.material,
+        for w in (self.name, self.beschreibung, self.erkennung, self.preis, self.zeit, self.satz, self.material,
                   self.zuschlag_material, self.zuschlag_weitere, self.mindest, self.angebotstext, self.faktor,
                   self.mindest_teil):
             w.textEdited.connect(self._geaendert)
@@ -420,6 +427,7 @@ class ZusatzFormular(QWidget):
         self.satz_id.setCurrentIndex(max(i, 0))
         self.name.setText(z.get("name") or "")
         self.beschreibung.setText(z.get("bemerkung") or "")
+        self.erkennung.setText(z.get("erkennung") or "")
         self.art.setCurrentIndex(max(self.art.findData(z.get("art") or "€/Stück"), 0))
         self.aktiv.setChecked(aktiv(z))
         for n, stellen in (("preis", 2), ("satz", 2), ("material", 2), ("mindest", 2), ("zeit", None),
@@ -456,6 +464,7 @@ class ZusatzFormular(QWidget):
         werte["name"] = self.name.text().strip() or None
         werte["kategorie"] = self.kategorie.currentText().strip() or None
         werte["bemerkung"] = self.beschreibung.text().strip() or None
+        werte["erkennung"] = "; ".join(w.strip() for w in self.erkennung.text().split(";") if w.strip()) or None
         werte["art"] = self.art.currentData()
         werte["aktiv"] = "ja" if self.aktiv.isChecked() else "nein"
         werte["fremd"] = "ja" if self.fremd.isChecked() else "nein"
@@ -630,8 +639,24 @@ class ZusatzVerwaltung(QWidget):
             cb.currentIndexChanged.connect(self.anzeigen)
         self.anzahl = QLabel()
         self.anzahl.setStyleSheet(f"color: {GRAU};")
+        # Plan Zusatzarbeiten erkennen 03.11.2026: Vorlagen typischer Zusatzarbeiten (5a) und Zusatzarbeiten, die im
+        # Angebot nur für dieses Angebot angelegt wurden (3c), mit einem Klick übernehmen
+        self.uebernehmen_knopf = QPushButton("Übernehmen …")
+        self.uebernehmen_knopf.setToolTip("Aus Vorlage: typische Zusatzarbeit mit Beispielpreis anlegen (Formular öffnet "
+                                          "zum Prüfen). Aus Angeboten: Zusatzarbeiten, die im Angebot mit „＋ Neue "
+                                          "Zusatzarbeit …“ nur für ein Angebot angelegt wurden, in die Stammdaten "
+                                          "übernehmen.")
+        menue = QMenu(self.uebernehmen_knopf)
+        self.vorlage_menue = menue.addMenu("Aus Vorlage")
+        self.vorlage_menue.aboutToShow.connect(self._vorlagen_fuellen)
+        self.angebot_menue = menue.addMenu("Aus Angeboten")
+        self.angebot_menue.aboutToShow.connect(self._angebote_fuellen)
+        self.uebernehmen_knopf.setMenu(menue)
         leiste = QGridLayout()
-        leiste.addWidget(neu, 0, 0)
+        oben = QHBoxLayout()
+        oben.addWidget(neu)
+        oben.addWidget(self.uebernehmen_knopf)
+        leiste.addLayout(oben, 0, 0)
         leiste.addWidget(self.suche, 0, 1, 1, 3)
         for i, (t, w) in enumerate((("Kategorie", self.kat_filter), ("Status", self.status_filter),
                                     ("Sortieren nach", self.sortierung))):
@@ -913,6 +938,9 @@ class ZusatzVerwaltung(QWidget):
         return True
 
     def _oeffnen(self, z, zeilen_id, titel):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):           # Admin-Schutz: ansehen ja, ändern nur als Admin
+            return None
         if not self._verwerfen_ok():
             return None
         self._formular_zu()
@@ -958,6 +986,47 @@ class ZusatzVerwaltung(QWidget):
     def neu(self):
         return self._oeffnen(None, None, "Neue Zusatzarbeit")
 
+    def _vorlagen_fuellen(self):
+        from .stammdaten import ZUSATZ_VORLAGEN
+        self.vorlage_menue.clear()
+        da = {str(z.get("name") or "").lower() for z in self.db.zeilen("zusatzarbeiten")}
+        for v in ZUSATZ_VORLAGEN:
+            a = self.vorlage_menue.addAction(f"{v[0]} ({v[1]}, {euro(v[2])})", lambda n=v[0]: self.aus_vorlage(n))
+            a.setEnabled(v[0].lower() not in da)
+
+    def aus_vorlage(self, name):
+        """Formular mit der Vorlage name öffnen (neu, Beispielpreis; Speichern legt an). Ergebnis: Formular."""
+        from .stammdaten import zusatz_vorlage
+        z = zusatz_vorlage(name)
+        if z is None:
+            return None
+        self._oeffnen(z, None, f"Neue Zusatzarbeit aus Vorlage: {name}")
+        return self.aktives_formular()
+
+    def _angebote_fuellen(self):
+        self.angebot_menue.clear()
+        eigene = self.db.zusatz_eigene()
+        if not eigene:
+            self.angebot_menue.addAction("(keine – im Angebot angelegte sind schon übernommen)").setEnabled(False)
+        for name, (stand, n) in sorted(eigene.items()):
+            self.angebot_menue.addAction(f"{name} ({stand.get('art')}, {n} Position(en))",
+                                         lambda name=name: self.aus_angebot(name))
+
+    def aus_angebot(self, name):
+        """Zusatzarbeit aus einem Angebot in die Stammdaten übernehmen. Ergebnis: ID oder None."""
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):           # Admin-Schutz: ändern nur als Admin
+            return None
+        try:
+            i = self.db.zusatz_aus_angebot(name)
+        except (KeyError, ValueError, PermissionError) as e:
+            self.meldung(f"„{name}“ nicht übernommen: {e}", fehler=True)
+            return None
+        self.neu_laden()
+        self.auswaehlen(i)
+        self.meldung(f"Zusatzarbeit „{name}“ aus dem Angebot in die Einstellungen übernommen.")
+        return i
+
     def bearbeiten(self, zeilen_id=None):
         z = self.zeile(zeilen_id or self.gewaehlt())
         if not z:
@@ -975,6 +1044,9 @@ class ZusatzVerwaltung(QWidget):
         return self._oeffnen(kopie, None, f"Kopie von {z.get('name')} (wird erst mit Speichern angelegt)")
 
     def aktiv_umschalten(self, zeilen_id=None):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):           # Admin-Schutz: ansehen ja, ändern nur als Admin
+            return None
         z = self.zeile(zeilen_id or self.gewaehlt())
         if not z:
             return
@@ -986,6 +1058,9 @@ class ZusatzVerwaltung(QWidget):
     def loeschen(self, zeilen_id=None):
         """Sicherheitsabfrage; wird die Zusatzarbeit in Angeboten verwendet, wird Deaktivieren empfohlen.
         Ergebnis: 'gelöscht', 'deaktiviert' oder None."""
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):           # Admin-Schutz: ansehen ja, ändern nur als Admin
+            return None
         z = self.zeile(zeilen_id or self.gewaehlt())
         if not z:
             self.meldung("Bitte zuerst eine Zusatzarbeit markieren.", fehler=True)

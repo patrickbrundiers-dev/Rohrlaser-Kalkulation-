@@ -22,8 +22,8 @@ naht_vorgabe, naht_winkel und naht_quelle."""
 import copy
 
 from PySide6.QtCore import QItemSelectionModel, Qt
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QHeaderView,
-                               QLabel, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QHBoxLayout,
+                               QHeaderView, QLabel, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QVBoxLayout, QWidget)
 
 from . import schneidweg as sw, steckverbindung, tastatur
@@ -116,7 +116,25 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
             ist_muster(t["_q"]) for t in self.teile) else None)
         self.muster_haken.setText("Satz als Muster")
         self.muster_haken.setEnabled(not nur_lesen)
-        lay.addWidget(self.muster_haken)
+        # Anzahl Sätze (Patrick 31.10.2026): wie im Fenster „Satz bearbeiten“, die Stückzahlen folgen mit OK
+        from . import satz_menge
+        from .eingabe import RechenSpinGanz
+        from .mengen_dialog import STUECK_MAX
+        zeile = QHBoxLayout()
+        zeile.addWidget(self.muster_haken)
+        zeile.addSpacing(24)
+        zeile.addWidget(QLabel("Anzahl Sätze:"))
+        n = satz_menge.anzahl(positionen, satz)
+        self.saetze_alt = int(round(n)) if n else None
+        self.saetze_feld = RechenSpinGanz()
+        self.saetze_feld.setRange(1, STUECK_MAX)
+        self.saetze_feld.setValue(self.saetze_alt or 1)
+        self.saetze_feld.setSuffix(" Sätze")
+        self.saetze_feld.setToolTip("Stückzahl aller Teile des Satzes = Sätze × Stück je Satz (mit OK).")
+        self.saetze_feld.setEnabled(not nur_lesen)
+        zeile.addWidget(self.saetze_feld)
+        zeile.addStretch(1)
+        lay.addLayout(zeile)
         teilung = QSplitter(Qt.Horizontal)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
@@ -330,7 +348,12 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
                     teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
                     daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]),
-                    **self.muster_haken.geaendert())
+                    **self.muster_haken.geaendert(), **self.saetze_geaendert())
+
+    def saetze_geaendert(self):
+        """{'saetze': n}, wenn die Anzahl Sätze geändert wurde, sonst {}."""
+        n = self.saetze_feld.value()
+        return {} if n == self.saetze_alt else dict(saetze=n)
 
     def _ok(self):
         if self.nur_lesen:

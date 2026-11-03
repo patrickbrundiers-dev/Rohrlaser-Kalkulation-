@@ -33,13 +33,13 @@ auf_seiten = {n for s in ordnung.SEITEN for a in s.abschnitte for n in a.namen}
 fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
-assert len(ordnung.SEITEN) == 22 and len({s.schluessel for s in ordnung.SEITEN}) == 22
+assert len(ordnung.SEITEN) == 23 and len({s.schluessel for s in ordnung.SEITEN}) == 23
 assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN) <= 25
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for a in ordnung.SEITE["e_arbeitsplatz"].abschnitte for n in a.namen}
 assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "csv_ordner"}, arbeitsplatz ^ LOKAL
-ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 22 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
+ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 23 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"
 assert ordnung.kurztitel(EINSTELLUNG["schweiss_a_regel"]).startswith("a-Maß-Regel")
@@ -47,10 +47,11 @@ assert ordnung.kurztitel(EINSTELLUNG["gewinn"]) == "Gewinn"
 assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
-assert all(EINSTELLUNG[f.name].vorgabe == "ja" and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 16
+assert all(EINSTELLUNG[f.name].vorgabe == f.vorgabe and EINSTELLUNG[f.name].gruppe == "Funktionen"
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 20
+assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_co2"]      # CO₂ (K3b): Vorgabe aus
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
-ok("15 neue Funktionsschalter, Vorgabe ja (nach dem Update ändert sich nichts)")
+ok("20 Funktionsschalter (seit 0.9.239 mit Angebotsvergleich), Vorgabe ja außer CO₂ (nach dem Update ändert sich nichts)")
 
 # ---------------------------------------------------------------- Seiten im Programm
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
@@ -148,6 +149,7 @@ db.schliessen()
 # ---------------------------------------------------------------- Schalter vor Werten mit „0 = aus“ (Schritt 3)
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 f = Hauptfenster(db, stumm=True)
+f.bereich.oeffnen("av")             # Admin-Schutz: Automatik und Prüfung ändert nur der Admin
 seite = f.einstellung_zeigen("nachfassen_tage")
 sw, feld = seite.wert_schalter["nachfassen_tage"], seite.felder["nachfassen_tage"]
 assert set(ordnung.WERT_SCHALTER) == {n for s in f.einstellungen.seiten for n in s.wert_schalter}

@@ -21,6 +21,7 @@ import datetime
 import functools
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -30,7 +31,8 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
+from . import aenderungsverlauf, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
+from . import teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -38,7 +40,7 @@ from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL
                       lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import LOESCHSCHUTZ_HAND, LOESCHSCHUTZ_JEDES
-from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, richtwerte_2110, ALTE_GRAVUR, GRAVUR, zeit_ecke,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
@@ -46,7 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 69     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 75     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -134,6 +136,19 @@ SCHEMA_VERSION = 69     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 69: Rückmeldungen per Scan der Etiketten (Tabelle rueckmeldungen, etiketten.py; Plan
                         #     29.10.2026 2a), Schichtstunden je Maschine (maschinen.schicht_stunden, 2b),
                         #     Reklamationen (Tabelle reklamationen, reklamation.py, 2c)
+                        # 70: Abruf-/Rahmenangebot (angebote.abruf, abruf_jahr_von/bis, abruf_von/bis, abruf_laufzeit,
+                        #     abruf_material, abruf_lagerzins; leer = normales Angebot)
+                        # 71: Rohrart je Profil + Werkstoff im Angebot (angebote.rohrarten, JSON, leer = Rohrart des
+                        #     Werkstoffs; Patrick 31.10.2026 Plan 6a)
+                        # 72: Eilzuschlag je Angebot (angebote.eilzuschlag, Vorschlag K2), CO₂-Faktor je Werkstoff
+                        #     (werkstoffe.co2_faktor, K3); leer = kein Zuschlag bzw. Richtwert der Kategorie
+                        # 73: Vorschläge F/G/H/J (02.11.2026): angebote.zusatz (JSON: Lieferscheine, Freigabe,
+                        #     Rückfragen, Lieferantenangebote), Kundenkonditionen und Verpackung im Kopf, Tabellen
+                        #     verpackung und positionsvorlagen, Maschinen mannlos_ab/mannlos_satz; alles leer = wie bisher
+                        # 74: Prüfung Kalkulationsbasis (02.11.2026): angebote.wiederholt (JSON, Wiederholteile mit
+                        #     Programm), maschinen.last_anteil (mittlere Last für den Strom); leer = wie bisher
+                        # 75: Zusatzarbeiten erkennen (03.11.2026): zusatzarbeiten.erkennung (Erkennungswörter; die
+                        #     Beispiel-Zusatzarbeiten werden einmalig vorbelegt, ERKENNUNG_STAND), leer = keine Erkennung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -146,14 +161,17 @@ SICHERUNGEN_BEHALTEN = None   # None = gestaffelt (STAFFEL), sonst so viele lauf
 # Woche (4) und je Monat (12) die neueste. Früher 30 tägliche: bei 10.000 Angeboten (2 GB je Sicherung) 60 GB.
 STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
-ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE)
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
+                                                                POSITIONSVORLAGEN)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
+                POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
                 kennwerte.HISTORIE.name: kennwerte.HISTORIE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
+NORMPROFILE_STAND = "2026-10-31"   # U-Profile DIN 1026-1 bis UPN 200 in den Profilen (Datenbank._normprofile_anpassen)
 RICHTWERTE_STAND = "2026-10-29"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen); bis 0.9.196 2026-10-21
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 ECKE_STAND = "2026-10-29"         # Zeit je Ecke nach Wandstärke in leeren Richtwertzeilen (Datenbank._ecke_anpassen, S2)
@@ -167,6 +185,7 @@ VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmater
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
+ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -178,6 +197,8 @@ def _zahl_pruefen(feld, wert):
     """Zahlenfelder der Positionen nehmen nur Zahlen (oder leer) an; Text löst ValueError mit Meldung aus."""
     if feld in ZAHLFELDER and wert not in (None, "") and (isinstance(wert, bool) or not isinstance(wert, (int, float))):
         raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine Zahl eingeben (nicht '{wert}').")
+    if feld in ZAHLFELDER and isinstance(wert, float) and math.isinf(wert):   # Fehler-Durchgang 01.11.2026
+        raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine endliche Zahl eingeben (nicht '{wert}').")
 
 
 class Lesemodus(PermissionError):
@@ -258,7 +279,9 @@ class Datenbank:
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
+            self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
         self._rp_anpassen()
+        self._normprofile_anpassen()
         self._passwort_umstellen()
 
     def _passwort_umstellen(self):
@@ -364,6 +387,10 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
             if "radien" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN radien TEXT")          # vor Schema 54: leer
+            if "rohrarten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN rohrarten TEXT")       # vor Schema 71: leer
+            if "zusatz" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN zusatz TEXT")          # vor Schema 73: leer
             if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
@@ -478,6 +505,8 @@ class Datenbank:
                 self._strahlen_ergaenzen()
             if version > 0 and self.einstellung("fracht_nah_stand") != FRACHT_NAH_STAND:
                 self._fracht_nahbereich()
+            if version > 0 and self.einstellung("erkennung_stand") != ERKENNUNG_STAND:
+                self._erkennung_ergaenzen()
             if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
@@ -496,8 +525,9 @@ class Datenbank:
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN + etiketten.TABELLEN \
-        + reklamation.TABELLEN
+                         "staffel_stufen", "teilen_basis", teilen.PROTOKOLL, teilen.HERKUNFT,
+                         aenderungsverlauf.TABELLE, aenderungsverlauf.STAND) + lager.TABELLEN \
+        + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
@@ -620,6 +650,17 @@ class Datenbank:
         self._einfuegen("zusatzarbeiten", strahl_zusatzarbeiten(), ergaenzen=True)
         self._einfuegen("arbeitsgang_regeln", strahl_regeln(), ergaenzen=True)
         self._einstellung_schreiben("strahlen_stand", STRAHLEN_STAND)
+
+    def _erkennung_ergaenzen(self):
+        """Einmalig (Schema 75): Erkennungswörter der Beispiel-Zusatzarbeiten (dem Namen nach) eintragen, wo das Feld
+        leer ist, und die Zusatzarbeit Einnietmuttern setzen anlegen, wenn es sie (dem Namen nach) noch nicht gibt.
+        Rechnet nichts anders: die Wörter und Sechskantlöcher erzeugen nur gelbe Vorschläge."""
+        from .stammdaten import ERKENNUNG_VORGABE, niet_zusatzarbeiten
+        self._einfuegen("zusatzarbeiten", niet_zusatzarbeiten(), ergaenzen=True)
+        for name, worte in ERKENNUNG_VORGABE.items():
+            self.con.execute("UPDATE zusatzarbeiten SET erkennung=? WHERE name=? AND (erkennung IS NULL OR "
+                             "erkennung='')", (worte, name))
+        self._einstellung_schreiben("erkennung_stand", ERKENNUNG_STAND)
 
     def _fracht_richtwerte_da(self):
         """Sind die Fracht-Richtwerte geladen (Tarif RW-PALETTE vorhanden)?"""
@@ -885,6 +926,28 @@ class Datenbank:
                                      list(z.values()))
             self._einstellung_schreiben("rp_stand", RP_STAND)
 
+    def _normprofile_anpassen(self):
+        """Normprofile als Standard in den Stammdaten „Profile“ (Patrick 31.10.2026: „U-Profile als Standard bis UNP
+        200“): einmal je Stand die fehlenden Profile aus normprofile.STANDARD_STAMMDATEN eintragen, mit Fläche aus der
+        Normtabelle (Gewicht), Steg als Wandstärke und Flansch als Wandstärke max.; ohne Materialpreis. Vorhandene
+        Zeilen (auch in anderer Schreibweise wie 'UNP 100') bleiben unverändert, gelöschte kommen erst mit einem neuen
+        Stand wieder; die Stammdaten gelten dadurch nicht als von Hand geändert."""
+        from . import normprofile
+        if self.nur_lesen or self.einstellung("normprofile_stand") == NORMPROFILE_STAND:
+            return
+        with self.con:
+            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+            if formen and "U-Profil" not in formen:
+                self._einstellung_schreiben("profilformen", "\n".join(formen + ["U-Profil"]))
+            da = {normprofile.normname(r[0]) for r in self.con.execute("SELECT profil_id FROM profile")}
+            for name in normprofile.STANDARD_STAMMDATEN:
+                if name in da:
+                    continue
+                z = normprofile.stammdaten_zeile(name)
+                self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                 list(z.values()))
+            self._einstellung_schreiben("normprofile_stand", NORMPROFILE_STAND)
+
     @schreibt
     def rp_laden(self, eintraege):
         """Selbst geladene RP-Profile (rp_profile.laden) speichern: Kontur in der Einstellung 'rp_eigene', Zeile in den
@@ -1092,13 +1155,59 @@ class Datenbank:
         return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer), ohne_stand=ohne)
 
     @liest
-    def zusatz_haeufigkeit(self):
-        """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten)."""
+    def zusatz_haeufigkeit(self, kundennr=None):
+        """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten); mit
+        kundennr nur die Angebote dieses Kunden („Bei diesem Kunden“ im Fenster Zusatzarbeiten)."""
         n = {}
-        for *_, liste in self._zusatz_positionen():
+        if kundennr:
+            ids = {r[0] for r in self.con.execute("SELECT id FROM angebote WHERE kundennr=?", (kundennr,))}
+            daten = [x for x in self._zusatz_positionen() if x[1] in ids]
+        else:
+            daten = self._zusatz_positionen()
+        for *_, liste in daten:
             for name in {e.get("name") for e in liste if isinstance(e, dict) and e.get("name")}:
                 n[name] = n.get(name, 0) + 1
         return n
+
+    @liest
+    def zusatz_eigene(self):
+        """Zusatzarbeiten, die nur in Angeboten angelegt sind (Kurzformular, Plan Zusatzarbeiten erkennen 3c):
+        {Name: (Preisstand, Anzahl Positionen)} ohne Namen, die es in den Stammdaten gibt."""
+        namen = {str(z.get("name") or "").lower() for z in self.zeilen("zusatzarbeiten")}
+        out = {}
+        for *_, liste in self._zusatz_positionen():
+            for e in liste:
+                if isinstance(e, dict) and e.get("name") and str(e["name"]).lower() not in namen \
+                        and e.get("quelle") == "nur in diesem Angebot" and isinstance(e.get("stand"), dict):
+                    stand, n = out.get(e["name"], (e["stand"], 0))
+                    out[e["name"]] = (stand, n + 1)
+        return out
+
+    @schreibt
+    def zusatz_aus_angebot(self, name):
+        """Zusatzarbeit name aus einem Angebot (zusatz_eigene) in die Stammdaten übernehmen; die Einträge in den
+        Positionen behalten ihren Preisstand und zählen danach als Stammdaten-Zusatzarbeit. Ergebnis: ID."""
+        stand, _ = self.zusatz_eigene()[name]
+        v = dict(stand.get("vorlage") or {})
+        werte = {f.name: None for f in TABELLE["zusatzarbeiten"].felder}
+        werte.update(name=name, art=v.get("art") or stand.get("art"), fremd=v.get("fremd") or stand.get("fremd"),
+                     mindest=v.get("mindest", stand.get("mindest")),
+                     angebotstext=v.get("angebotstext") or stand.get("angebotstext"),
+                     kategorie=v.get("kategorie"), erkennung=v.get("erkennung"), aktiv="ja",
+                     bemerkung="aus einem Angebot übernommen (Kurzformular)")
+        if werte["art"] == "€/h":
+            werte.update(satz=v.get("satz") or stand.get("preis"), zeit_einheit="s")
+        else:
+            werte["preis"] = v.get("preis") if v.get("preis") is not None else stand.get("preis")
+        i = self.zusatz_speichern(None, werte)
+        with self.con:          # Herkunft „nur in diesem Angebot“ entfällt, der Name steht jetzt in den Stammdaten
+            for pid, _, _, liste in self._zusatz_positionen(name):
+                for e in liste:
+                    if isinstance(e, dict) and e.get("name") == name and e.get("quelle") == "nur in diesem Angebot":
+                        e.pop("quelle", None)
+                self.con.execute("UPDATE positionen SET zusatz=? WHERE id=?", (json.dumps(liste, ensure_ascii=False),
+                                                                               pid))
+        return i
 
     @schreibt
     def zusatz_speichern(self, zeilen_id, werte):
@@ -1481,7 +1590,7 @@ class Datenbank:
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
                                            "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln",
-                                           "arbeitsgang_regeln")}
+                                           "arbeitsgang_regeln", "verpackung")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
@@ -1557,6 +1666,16 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET radien=?, geaendert=? WHERE id=?",
                              (json.dumps(radien, ensure_ascii=False) if radien else None, self._jetzt(), angebot_id))
+
+    @schreibt
+    def rohrarten_speichern(self, angebot_id, rohrarten):
+        """Rohrart je Profil + Werkstoff im Angebot {naht.gruppe_schluessel: Rohrart} (fehlt = Rohrart des Werkstoffs)."""
+        from .stammdaten import ROHRARTEN
+        rohrarten = {g: r for g, r in (rohrarten or {}).items() if r in ROHRARTEN}
+        with self.con:
+            self.con.execute("UPDATE angebote SET rohrarten=?, geaendert=? WHERE id=?",
+                             (json.dumps(rohrarten, ensure_ascii=False) if rohrarten else None, self._jetzt(),
+                              angebot_id))
 
     # -------------------------------------------------------------- Frachtkosten
     @liest
@@ -1911,6 +2030,7 @@ class Datenbank:
         if r is None:
             return None
         a = dict(r)
+        a.pop("uid", None)                  # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
         a["ergebnis"] = json.loads(ergebnis_text(a["ergebnis"])) if a["ergebnis"] else None
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
@@ -1920,20 +2040,23 @@ class Datenbank:
         a["stangen_vorgabe"] = json.loads(a["stangen_vorgabe"]) if a.get("stangen_vorgabe") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
+        a["rohrarten"] = json.loads(a["rohrarten"]) if a.get("rohrarten") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
+        try:
+            a["zusatz"] = json.loads(a["zusatz"]) if a.get("zusatz") else {}
+        except ValueError:
+            a["zusatz"] = {}
         return a
 
     def _jetzt(self):
         return datetime.datetime.now().isoformat(timespec="seconds")
 
-    @schreibt
-    def angebot_neu(self, kopf=None, zaehler=True):
-        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
-        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
+    @liest
+    def neuer_kopf(self, kopf=None):
+        """Angebotskopf mit den Vorgaben für ein neues Angebot (Bearbeiter, Datum, Kundenvorgaben, Maschine, Stange,
+        Zahlung, Kalkulation, Lieferzeit), ohne zu speichern und ohne Nummer (auch für den Schnellpreis)."""
         kopf = dict(kopf or {})
         kuerzel = kuerzel_sauber(self.einstellung("benutzer_kuerzel"))
-        if not kopf.get("nummer"):
-            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         if kuerzel:
             kopf.setdefault("bearbeiter", kuerzel)
         kopf.setdefault("datum", datetime.date.today().isoformat())
@@ -1952,6 +2075,16 @@ class Datenbank:
         for n, w in self.lieferzeit_vorgabe(kopf.get("datum")).items():
             kopf.setdefault(n, w)
         kopf.setdefault("fracht_umlage", UMLAGE_NEU)     # neue Angebote: nach Gewicht; Kopien behalten ihren Wert
+        return kopf
+
+    @schreibt
+    def angebot_neu(self, kopf=None, zaehler=True):
+        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
+        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
+        kopf = dict(kopf or {})
+        if not kopf.get("nummer"):
+            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
+        kopf = self.neuer_kopf(kopf)
         namen = [f.name for f in KOPF if f.name in kopf]
         zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
         try:
@@ -2024,6 +2157,8 @@ class Datenbank:
             self.naht_stangen_speichern(neu, a["naht_stangen"])
         if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso
             self.radien_speichern(neu, a["radien"])
+        if a.get("rohrarten"):                      # Rohrart je Profil + Werkstoff ebenso
+            self.rohrarten_speichern(neu, a["rohrarten"])
         for satz, d in self.satz_daten(angebot_id).items():     # Steckverbindungen je Satz (über die Kennung)
             self.satz_daten_speichern(neu, satz, d)
         netze = self.netze(angebot_id)
@@ -2146,6 +2281,38 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
                              (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
+
+    @liest
+    def zusatz(self, angebot_id, schluessel=None, vorgabe=None):
+        """Zusatzdaten eines Angebots (Schema 73, JSON: Lieferscheine, Freigabe, Rückfragen, Lieferantenangebote …):
+        ganz oder ein Eintrag."""
+        r = self.con.execute("SELECT zusatz FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        try:
+            d = json.loads(r[0]) if r and r[0] else {}
+        except ValueError:
+            d = {}
+        return d if schluessel is None else d.get(schluessel, vorgabe)
+
+    @schreibt
+    def zusatz_setzen(self, angebot_id, schluessel, wert):
+        """Einen Eintrag der Zusatzdaten setzen (None = entfernen); ändert 'geändert am', damit der Abgleich ihn
+        mitnimmt."""
+        d = self.zusatz(angebot_id)
+        if wert is None:
+            d.pop(schluessel, None)
+        else:
+            d[schluessel] = wert
+        with self.con:
+            self.con.execute("UPDATE angebote SET zusatz=?, geaendert=? WHERE id=?",
+                             (json.dumps(d, ensure_ascii=False) if d else None, self._jetzt(), angebot_id))
+
+    @schreibt
+    def versand_setzen(self, angebot_id, liste):
+        """Versandverlauf ganz ersetzen (Datenschutz: Mail-Adressen entfernen, datenschutz.py); ändert 'geändert am'
+        nicht."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
+                             (json.dumps(list(liste), ensure_ascii=False), angebot_id))
 
     @schreibt
     def nachgefasst_merken(self, angebot_id, wie="E-Mail"):
@@ -2330,6 +2497,7 @@ class Datenbank:
         out = [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
                                                  (angebot_id,))]
         for p in out:
+            p.pop("uid", None)              # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
             for f in ZAHLFELDER:
                 w = p.get(f)
                 if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))):

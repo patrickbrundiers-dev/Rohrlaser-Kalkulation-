@@ -422,27 +422,27 @@ ok("Tarif als neue Version (alter gilt bis Vortag, Preise kopiert), CSV über di
 # ------------------------------------------------------------------ F16 Oberfläche Desktop und schmales Fenster
 fenster.bereich.sperren()
 fb.zeigen(fb.zonen)
-assert fb.gesperrt[fb.zonen].stapel.currentIndex() == 0, "Pflege gesperrt"
-assert fb.unter.currentIndex() == 1
-fb.unter.setCurrentIndex(0)
-assert fb.rechner.isVisible(), "Rechner frei"
+assert fenster.reiter.currentWidget() is fenster.bereich and fenster.bereich.unter.currentWidget() is fb.zonen
+assert fb.zonen.admin_gesperrt, "Pflege unter Einstellungen → Fracht gesperrt"
+assert "🔒" in fenster.bereich.unter.tabText(fenster.bereich.unter.indexOf(fb.zonen))
+fb.zeigen(fb.rechner)
+assert fenster.reiter.currentWidget() is fb and fb.rechner.isVisible(), "Rechner frei"
 fenster.bereich.oeffnen("av")
+assert not fb.zonen.admin_gesperrt
 for breite, hoehe in ((1024, 700), (1920, 1080)):
     fenster.resize(breite, hoehe)
     app.processEvents()
-    tb = fb.unter.tabBar()
-    assert sum(tb.tabRect(i).width() for i in range(tb.count())) <= tb.width() + 1, "alle Unterreiter sichtbar"
-    for i in range(fb.unter.count()):
-        fb.unter.setCurrentIndex(i)
+    for seite in fb.pflege:
+        fb.zeigen(seite)
         app.processEvents()
-        for sa in fb.unter.currentWidget().findChildren(QScrollArea):
+        for sa in seite.findChildren(QScrollArea):
             if sa.isVisible() and sa.widgetResizable():
-                assert not sa.horizontalScrollBar().isVisible(), (breite, fb.unter.tabText(i))
-    fb.unter.setCurrentIndex(0)
+                assert not sa.horizontalScrollBar().isVisible(), (breite, seite.titel)
+    fb.zeigen(fb.rechner)
     app.processEvents()
     soll = r.teiler.orientation().name == "Vertical"
     assert soll == (r.width() < 1100), (breite, r.width(), r.teiler.orientation())
-ok("F16 Oberfläche bei 1024 × 700 und 1920 × 1080: alle sieben Unterreiter sichtbar, kein waagrechtes Scrollen, "
+ok("F16 Oberfläche bei 1024 × 700 und 1920 × 1080: Pflegeseiten unter Einstellungen → Fracht ohne waagrechtes Scrollen, "
    "im schmalen Fenster Ergebnis unter der Eingabe; Pflege gesperrt, Rechner frei")
 
 # ------------------------------------------------------------------ alte Datei (Schema 14) öffnen

@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDial
                                QSplitter, QTableView, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import fracht_angebot, hilfe, rechnen, staffeln, stil
+from . import abruf, fracht_angebot, hilfe, rechnen, staffeln, stil
 from .fenster import FARBE_BERECHNET, FARBE_STATUS
 from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
@@ -931,6 +931,7 @@ class StaffelSeite(QWidget):
         self.knoepfe = {}
         leiste = QHBoxLayout()
         for text, ziel in (("Neue Stufe …", self.neu), ("Standard-Staffeln", self.standard),
+                           ("Abrufstufen anlegen", self.abrufstufen),
                            ("Stufe bearbeiten …", self.bearbeiten),
                            ("Stufen löschen", self.loeschen), ("Staffelpreise rechnen", self.rechnen),
                            ("Schnittschema …", self.schnittschema)):
@@ -941,6 +942,10 @@ class StaffelSeite(QWidget):
         self.knoepfe["Standard-Staffeln"].setToolTip(
             "Je Faktor aus Einstellungen → Angebot („Standard-Staffeln“) eine Stufe mit Menge des Angebots × Faktor. "
             "Angelegt werden sie nur mit diesem Knopf; gerechnet werden sie danach automatisch.")
+        self.knoepfe["Abrufstufen anlegen"].setToolTip(
+            "Abruf-/Rahmenangebot: je größerem Abruf (Mitte und größter Abruf) eine Stufe mit den Mengen des Angebots "
+            "× Abrufmenge ÷ kleinster Abruf, ohne Musterteile. Programmierung und Muster bleiben auf die Jahresmenge "
+            "des Angebots verteilt.")
         self.knoepfe["Schnittschema …"].setToolTip(
             "Schnittplan je Stufe: Stangen je Abmessung, Verschnitt, €/m und Materialkosten – daraus kommt der "
             "Materialpreis der Staffel")
@@ -1014,6 +1019,7 @@ class StaffelSeite(QWidget):
         self.zeilen = staffeln.rechnen_alle(*self._args(), alt=alt, ohne_lauf=True, stufen_daten=self._daten()) \
             if staffeln.gueltige(self.s.stufen) else []
         self.modell.setzen(list(self._daten() or []))
+        self.knoepfe["Abrufstufen anlegen"].setVisible(abruf.aktiv(self.s.kopf))
         offen = self.anzahl_veraltet()
         if speichern and sp and not offen:
             self.speichern(self.zeilen, am=sp.get("am"))
@@ -1129,6 +1135,47 @@ class StaffelSeite(QWidget):
         self.s.neu_laden()
         self.s.f.meldung(f"{len(ids)} Standard-Staffeln angelegt (Menge × " + "; ".join(
             zahl_als_text(f, 2 if f != int(f) else 0) for f in faktoren) + "). Preise mit „Staffelpreise rechnen“.")
+        return ids
+
+    def abrufstufen(self):
+        """Abrufstufen (Patrick 30.10.2026, 1a; Knopf, nie automatisch): je Abrufmenge aus abruf.stufen_mengen eine
+        Stufe „Abruf … Stk.“ mit den Mengen des Angebots × Abrufmenge ÷ kleinster Abruf; Sätze und Positionen nur
+        aus Musterteilen bleiben draußen, schon vorhandene Abrufstufen werden nicht doppelt angelegt. Ergebnis: IDs."""
+        ab = abruf.daten(self.s.kopf)
+        if not ab:
+            self.s.f.meldung("Bitte zuerst im Angebotskopf „Abruf-/Rahmenangebot“ mit Jahres- und Abrufmenge "
+                             "eintragen.", fehler=True)
+            return []
+        abrufe = abruf.stufen_mengen(self.s.kopf)
+        muster = {rechnen.ist_muster(p) for p in self.s.positionen}
+        nur_muster = set()
+        if True in muster:
+            je = {}
+            for p in self.s.positionen:
+                je.setdefault(staffeln.txt(p.get("satz")) or staffeln.txt(p.get("pos")), set()).add(rechnen.ist_muster(p))
+            nur_muster = {schl for schl, w in je.items() if w == {True}}
+        mengen = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.s.positionen)
+                  if menge and schl not in nur_muster]
+        if not abrufe or not mengen:
+            self.s.f.meldung("Kleinster und größter Abruf sind gleich: keine Abrufstufen nötig." if not abrufe else
+                             "Im Angebot hat noch kein Satz und keine Position eine Stückzahl.", fehler=not mengen)
+            return []
+        da = {str(st.get("bezeichnung") or "") for st in self._daten() or ()}
+        ids = []
+        for m in abrufe:
+            name = f"Abruf {zahl_als_text(m, 0)} Stk."
+            if name in da:
+                continue
+            sid = self.s.db.staffel_stufe_neu(self.s.id, dict(bezeichnung=name))
+            for schl, menge in mengen:
+                self.s.db.staffel_neu(self.s.id, dict(schluessel=schl, menge=staffeln.standard_menge(menge, m / ab["von"]),
+                                                      stufe_id=sid))
+            ids.append(sid)
+        self.s.neu_laden()
+        self.s.f.meldung(f"{len(ids)} Abrufstufe(n) angelegt ({', '.join(zahl_als_text(m, 0) for m in abrufe)} Stk.)."
+                         if ids else "Die Abrufstufen sind schon angelegt.")
+        if ids:
+            self.s.verlauf.merken()
         return ids
 
     def schnittschema(self, zeile=None):
