@@ -149,7 +149,14 @@ def abweichung(m, profil, eingaben, laenge):
     # in der STEP zur Kontur und im Editor zum Ende gehören (Ausklinkung) – darum gegen beide Arten
     zurueck, wo_z = _weitester(sk_ + se, mk, me, weite, ab)            # Linie der STEP fehlt im Editor
     senkung = any(k.get("art") == "Senkung" for k in eingaben.get("konturen") or ())
-    hin, wo_h = (0.0, None) if senkung else _weitester(mk + me, sk_, se, weite, ab)     # Senkung: Bohrung unter dem Kegel
+    if senkung:                                                         # Senkung: Bohrung unter dem Kegel
+        hin, wo_h = 0.0, None
+    else:
+        # Konturlinien des Editors (um ABSTAND über der Wand) dürfen auch auf einer Kante des Endes der STEP liegen:
+        # Hinterschnitt am Ende (T-Schlitz, Schlüsselloch-Schlitz) ist im Editor eine Sonderkontur „Teil von Ende“
+        # (Patrick 03.11.2026), in der STEP Teil des Endes
+        hin, wo_h = max(_weitester(mk, sk_ + se, [], weite, ab), _weitester(me, sk_, se, weite, ab),
+                        key=lambda x: x[0])
     wo = wo_z if zurueck >= hin else wo_h
     return max(hin, zurueck), (round(wo[2], 1) if wo else None)
 

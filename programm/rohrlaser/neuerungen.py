@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.240", "Sätze und Schweißbaugruppen übersichtlicher: Schweißbaugruppen sind <b>grün</b> hinterlegt (⚙ Name · "
+    ["0.9.242", "Sätze und Schweißbaugruppen übersichtlicher: Schweißbaugruppen sind <b>grün</b> hinterlegt (⚙ Name · "
      "Anzahl in der Spalte Satz), die <b>Kalkulation</b> steht in der Reihenfolge der Positionsliste mit Baugruppe "
      "und Einzelteilen darunter und lässt sich am Zeilenkopf zuklappen, <b>Alle Gruppen zuklappen</b> klappt alle "
      "Sätze und Baugruppen auf eine Zeile (je Angebot gemerkt) ([[saetze_abheben]]). Der Status steht in einer Zeile, "
@@ -37,6 +37,21 @@ NEUERUNGEN = [
      "darüber Kran; Richtwerte laden) ([[naht_laenge]]).",
      "Sätze/Baugruppen grün und zuklappbar, Kalkulation gruppiert, Rechenweg Naht, Nahtlänge genauer, Stichnaht, "
      "Positionieren nach Gewicht"],
+    ["0.9.241", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
+                "mit zwei markierten Angeboten in der Angebotsliste (rechte Maustaste → <i>Vergleichen …</i>) zwei "
+                "Angebote Position für Position gegenüberstellen. Quellen: Angebote aus der Liste, der eigene "
+                "CSV-Export (auch als ZIP) oder eine fremde CSV, z. B. ein Konkurrenz- oder Lieferantenangebot, mit "
+                "Spaltenzuordnung, die sich je Quelle als Vorlage speichern lässt. Zuordnung der Positionen über "
+                "Artikelnummer, Bezeichnung mit Abmessung und Länge oder Position, der Rest von Hand. Differenz B − A "
+                "je Stück, in % und auf die Mengen von A, Hinweise zu Menge, Werkstoff, Länge, Zeit, Herstellkosten "
+                "und Marge; markiert ab 5 % oder 50 € (Einstellungen → Automatik und Prüfung). Ausgabe als PDF und "
+                "CSV; in den Angeboten wird nichts gespeichert. Abschaltbar unter Einstellungen → Funktionen.",
+     "Angebote vergleichen: zwei Angebote aus Liste oder CSV Position für Position, mit PDF und CSV"],
+    ["0.9.240", "<b>STEP-Import: Enden mit Hinterschnitt</b> ([[schneidweg_rechner]]): T-Schlitz, Schlüsselloch-Schlitz, "
+     "Schwalbenschwanz, Haken und Bohrungen halb über das Ende stehen jetzt genau wie in der STEP im Editor (vorher "
+     "0,4 bis 3 mm daneben). Eine Bohrung bis an die Rundung oder in einer dichten Lochreihe (Steg 0,5 mm) wurde als "
+     "Fließloch mit Schnittlänge 0 erkannt – jetzt gelaserte Bohrung bzw. Sonderkontur.",
+     "STEP: Enden mit Hinterschnitt wie STEP, Bohrung an der Rundung kein Fließloch mehr"],
     ["0.9.239", "STEP-Import aus einer E-Mail mit <b>vielen Teilen</b>: Die PDFs der Anfrage stehen im Prüfdialog ab vier "
      "Dateien in <b>einer Zeile</b> (<i>26 PDF-Dateien: 1 mit Formular, 25 Zeichnungen</i>), <b>Einzeln anzeigen</b> "
      "klappt sie mit Bildlauf auf. Die Teileliste mit ihren Auswahlfeldern bleibt immer mindestens acht Zeilen hoch, "

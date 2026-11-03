@@ -2771,7 +2771,10 @@ def bohrung_art(flaechen, aussenkanten, rohr=True):
             abs(max(abst) - radien[1]) < 0.05 and abs(min(abst) - radien[1]) < 0.05:
         # Zylindersenkung: außen nur der große Ø, innen die Bohrung
         return ("Senkung", round(2 * radien[0], 2), round(2 * radien[1], 1))
-    if zyl and abs(min(abst) - min(radien)) < 0.05 and (len(radien) > 1 or sonst):
+    if zyl and abs(min(abst) - min(radien)) < 0.05 and (len(radien) > 1 or sonst) and r_min > min(radien) - 0.05:
+        # Kragen/Ringfläche liegen ganz um das Kernloch herum (nichts näher an der Achse als das Kernloch); eine
+        # Bohrung bis an den Eckradius oder mit Steg 0,5 mm zur Nachbarbohrung hat Restflächen quer zur Achse näher
+        # an der Achse – das ist eine gelaserte Bohrung, kein Fließloch (Patrick 03.11.2026, war Schnittlänge 0)
         return ("Fließloch", round(2 * min(radien), 2), round(2 * max(radien), 2))
     return None
 
