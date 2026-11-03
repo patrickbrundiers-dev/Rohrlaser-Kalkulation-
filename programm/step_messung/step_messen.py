@@ -73,7 +73,7 @@ OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "k
 # gemessen, JSON {Spalte: Wert} wie "alternative"; leer = kein offenes Rohr
 # Spalte "offene_seite": offen gezeichnetes Rohr als Rohr gemessen (in "geschlossen" bzw. nach dem Umschalten), JSON
 # {seite, luecken, breite, laenge, vorher, steg, radius, ueberstand, normrohr, …}; leer = keins
-# Spalte "drehfraes": Dreh- oder Frästeil (step_drehfraes, ab 0.9.242), JSON {art, Maße, merkmale, zusatz, text,
+# Spalte "drehfraes": Dreh- oder Frästeil (step_drehfraes, ab 0.9.243), JSON {art, Maße, merkmale, zusatz, text,
 # nur_abmessung, volumen, fingerabdruck}; leer = keins (das Teil ist dann Rohr, Profil, Blech o. ä.)
 # Spalte "knick_schenkel": Knickrahmen aus einem Körper (step_knickrahmen), die geraden Rohrstücke in Reihenfolge als
 # JSON-Liste [{Spalte: Wert, "lage": [Ende A, Achse, X-Richtung in der Datei]}] (ohne OHNE_ALTERNATIVE); leer = keiner
