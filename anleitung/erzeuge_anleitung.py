@@ -6190,10 +6190,10 @@ def kapitel_automatik(i):
     i.liste("<i>Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den Kundenvorgaben)</i>, "
             "Vorgabe 2.",
             "<i>Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)</i>.",
-            "<i>Neue Anfragen automatisch zuweisen (Zuständiger des Kunden, sonst wer am wenigsten offen hat; nur mit "
-            "gemeinsamem Ordner)</i>.",
-            "<i>Nach dem Import: günstigste Maschine, Lieferzeit nach Auslastung, Beistellung und Oberfläche aus der "
-            "Mail, Rückfrage vorbereiten</i>.",
+            "<i>Neue Anfragen automatisch zuweisen (gemeinsamer Ordner)</i>: an den Zuständigen des Kunden, sonst an "
+            "den, der am wenigsten offene Anfragen hat.",
+            "<i>Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)</i>: günstigste Maschine, Lieferzeit "
+            "nach Auslastung, Beistellung und Oberfläche aus der Mail, Rückfrage vorbereiten.",
             "<i>Preiswächter: offene Angebote melden ab Abweichung</i>, Vorgabe 3 %.",
             "<i>Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung</i>, Vorgabe 10 %.",
             "<i>Auftrag starten: Schritte beim Beauftragen (gemerkt je Arbeitsplatz)</i> – setzt das Fenster "

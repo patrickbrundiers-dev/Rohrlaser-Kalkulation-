@@ -38,7 +38,7 @@ assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN) <= 2
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for a in ordnung.SEITE["e_arbeitsplatz"].abschnitte for n in a.namen}
-assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "csv_ordner"}, arbeitsplatz ^ LOKAL
+assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "csv_ordner", "auftrag_schritte"}, arbeitsplatz ^ LOKAL
 ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 23 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"

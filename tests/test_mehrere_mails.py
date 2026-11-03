@@ -129,7 +129,10 @@ assert any("nennt Werkstoff S355J2H" in x and "es gilt 1.4301" in x for x in h),
 assert mail.werkstoff(kw["werkstoff_text"], db.zeilen("werkstoffe"))[1] == "1.4301", kw["werkstoff_text"][:80]
 ziel = fenster.angebot_ordner(seite.kopf)
 assert sorted(p.name for p in (ziel / "STEP").iterdir()) == ["Riegel.stp", "Teil1 (alt).stp", "Teil1.stp"]
-assert len(list((ziel / anfragen.ZIEL_FORMULAR).glob("*.msg"))) == 3
+# 3 Mails der Anfrage; die spätere Mail ohne STEP mit derselben Anfrage-Nr. legt die Automatik (Nachtrag, 03.11.2026)
+# nach dem Öffnen gleich dazu
+assert sorted(p.name for p in (ziel / anfragen.ZIEL_FORMULAR).glob("*.msg"))[-1] == "5 Viel spaeter.msg"
+assert len(list((ziel / anfragen.ZIEL_FORMULAR).glob("*.msg"))) == 4
 ok("Öffnen: Lieferzeit und Werkstoff aus der neuesten Mail, ältere Angaben als Hinweis; nur die neue STEP wird "
    "importiert, alle Mails und die alte Version wandern in den Angebotsordner")
 
@@ -169,14 +172,13 @@ schreiben(eingang, "7 Nachtrag spaeter.msg", bau.msg(
     "AW: Anfrage A-5000 Gestell", "Bitte noch Pulverbeschichtung mit anbieten.", *VON,
     datetime.datetime.now() - datetime.timedelta(hours=1)))
 karte.neu_laden(erzwingen=True)
-assert f"Nachtrag zu Angebot <b>{seite.kopf['nummer']}</b>: 7 Nachtrag spaeter.msg" in karte.hinweis.text(), \
-    karte.hinweis.text()
-nr = seite.kopf["nummer"]
-assert f"Nachtrag zu Angebot <b>{nr}</b>: 5 Viel spaeter.msg" in karte.hinweis.text()
+# Automationen 03.11.2026 (5a): der Nachtrag liegt gleich im Angebotsordner statt „von Hand dazulegen“
+assert not (eingang / "7 Nachtrag spaeter.msg").exists() and (ziel / "Anfrage" / "7 Nachtrag spaeter.msg").exists()
+assert "Nachtrag zu Angebot" not in karte.hinweis.text(), karte.hinweis.text()
 assert "Ohne STEP (nicht in der Liste, z. B. nur Zeichnung als PDF): 6 Freemail.msg –" in karte.hinweis.text(), \
     karte.hinweis.text()       # gleiche Nummer, aber nicht vom Kunden des Angebots
-ok("Nachtrag ohne STEP zu einem schon übernommenen Angebot (nur vom Kunden des Angebots): Hinweis „Nachtrag zu "
-   "Angebot …“ auf der Startseite")
+ok("Nachtrag ohne STEP zu einem schon übernommenen Angebot (nur vom Kunden des Angebots): liegt gleich im "
+   "Angebotsordner")
 
 # ------------------------------------------------------------------ Mails aufs Programm gezogen
 ordner = tmp / "Kunden" / "Krüger"

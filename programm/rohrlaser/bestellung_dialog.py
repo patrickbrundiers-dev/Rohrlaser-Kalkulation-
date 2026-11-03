@@ -56,7 +56,7 @@ class BestellungDialog(QDialog):
         tab.setHorizontalHeaderLabels(SPALTEN)
         tab.verticalHeader().setVisible(False)
         tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        farbe = {bestellung.ABWEICHUNG: stil.farbe("#FFF4D6"), bestellung.FEHLT: stil.farbe("#FDE2E1")}
+        farbe = {bestellung.ABWEICHUNG: stil.farbe("#FFF4D6"), bestellung.FEHLT: stil.farbe("#FDECEA")}
         for r, z in enumerate(abgleich):
             werte = (z["pos"], z["artikel"], z["stueck"], z["bestellt"] if z["bestellt"] is not None else "–",
                      _euro(z["preis"]), _euro(z["preis_bestellt"]), z["hinweis"] or "passt")

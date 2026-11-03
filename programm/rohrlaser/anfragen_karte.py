@@ -249,7 +249,8 @@ class AnfragenKarte:
         for d in dateien:
             if d.suffix.lower() not in anfragen.MAIL:
                 continue
-            k = _schluessel(d)
+            nr = anfragen.nachtrag_zu(d, angebote, kunden)      # neu prüfen: das Angebot kann später entstehen
+            k = (_schluessel(d), nr)
             if k not in self._ohne:
                 self._ohne[k] = info = dict(art=None)
                 try:
@@ -259,7 +260,6 @@ class AnfragenKarte:
                 if m is None:
                     continue
                 text = m.volltext()
-                nr = anfragen.nachtrag_zu(d, angebote, kunden)
                 if nr and not db.nur_lesen:
                     row = db.con.execute("SELECT id FROM angebote WHERE nummer=? ORDER BY id DESC", (nr,)).fetchone()
                     if row:
