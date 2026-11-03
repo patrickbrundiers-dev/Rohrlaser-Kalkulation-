@@ -21,12 +21,30 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.238", "<b>Zusatzarbeit für ganzen Satz</b> ([[zusatz_satz]]): Rechtsklick auf eine Position eines Satzes → "
+    ["0.9.240", "<b>Zusatzarbeit für ganzen Satz</b> ([[zusatz_satz]]): Rechtsklick auf eine Position eines Satzes → "
      "<i>Zusatzarbeit für ganzen Satz …</i> belegt alle Positionen des Satzes auf einmal, z. B. mit Pulverbeschichten "
      "oder Verzinken. Das Fenster und der Tooltip der Spalte Satz zeigen <b>Fläche (m²) und Gewicht (kg) je Satz</b> "
      "und für alle Sätze, die Tabelle € je Satz. Gerechnet wird weiter je Teil (Summe gleich). <b>Bleche</b> haben "
      "beim Pulverbeschichten jetzt ihre Fläche (beide Seiten ohne Löcher) statt 0 m².",
      "Zusatzarbeit für ganzen Satz mit Fläche und Gewicht je Satz; Bleche mit Fläche beim Pulvern"],
+    ["0.9.239", "STEP-Import aus einer E-Mail mit <b>vielen Teilen</b>: Die PDFs der Anfrage stehen im Prüfdialog ab vier "
+     "Dateien in <b>einer Zeile</b> (<i>26 PDF-Dateien: 1 mit Formular, 25 Zeichnungen</i>), <b>Einzeln anzeigen</b> "
+     "klappt sie mit Bildlauf auf. Die Teileliste mit ihren Auswahlfeldern bleibt immer mindestens acht Zeilen hoch, "
+     "das Fenster passt auf 1366×768 ([[anfragen]]). Steht <i>Satz</i> bzw. <i>geschweißt</i>/<i>SBG</i> im "
+     "Datei- oder Baugruppennamen der STEP, sind <b>Als Satz</b> bzw. <b>als Schweißbaugruppe</b> schon gewählt "
+     "(abwählbar, [[step_satz]]). <b>Zeichnungen</b>: Gewinde (<i>4x M8</i>), Flowdrill, Einnietmuttern, Senkungen "
+     "und Blindniete werden mit Anzahl aus dem Zeichnungstext gelesen; Gewinde/Flowdrill hängen sich gelb an die "
+     "passende Bohrung (Bohrungen prüfen), Einnietmuttern und Zusatzarbeiten-Wörter werden Vorschläge, Abweichungen "
+     "zum STEP ein Hinweis ([[anfragen]]).",
+     "Prüfdialog bei vielen Teilen/PDFs übersichtlich; Satz/Schweißbaugruppe am Namen vorgewählt; Gewinde, "
+     "Flowdrill, Nieten aus der Zeichnung"],
+    ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
+     "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
+     "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "
+     "Rundung von Quadrat-/Rechteckrohren (0,9 mm) und Sechskante in Flachstahl/Winkel (wurden Langloch) stimmen "
+     "jetzt. <b>Bleche</b>: Rechteck mit Eckradius bekommt den Radius, Rechteck mit Fasen wird Polygon, Polygone "
+     "auf 0,02 mm, Lage auf 0,01 mm, keine Kontur geht verloren, neue <i>Blech-Gegenprobe</i> mit Hinweis.",
+     "STEP: jede Kontur gegen den Umriss geprüft (Doppelbohrung, Bohrung auf Rundung, Bleche mit Radius/Fasen)"],
     ["0.9.237", "<b>Zusatzarbeiten erkennen und wählen</b>: Jede Zusatzarbeit hat Erkennungswörter (z. B. „verzinkt; "
      "fvz; tZn“). Stehen sie in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail oder Zeichnung, erscheint "
      "gelb „＋ Feuerverzinken ?“ in der Positionsliste; der gelbe Knopf übernimmt alle oder einzeln, RAL-Farbe als Text "

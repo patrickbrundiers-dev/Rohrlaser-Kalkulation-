@@ -1037,13 +1037,28 @@ def kapitel_angebote(i):
             "Anfrage-Nr. oder Stückzahl gelesen.",
             "<b>Unklare Seiten</b> liest das Programm wie ein Formular; die Zeile im Prüfdialog steht dann in "
             "Gelb mit <i>bitte prüfen</i>.",
+            "<b>Bearbeitungshinweise auf der Zeichnung</b> werden mit Anzahl gelesen: Gewinde (<i>4x M8</i>, "
+            "<i>M10 (2x)</i>), Flowdrill (<i>Flowdrill M8</i>, <i>FDS</i>, <i>Fließloch</i>), Einnietmuttern "
+            "(<i>2 Stk Einnietmutter M6</i>), Senkungen (<i>Senkung DIN 74</i>) und Blindniete. Gewinde und Flowdrill "
+            "hängen sich gelb an die passende Bohrung des STEP-Teils (Fenster <i>Bohrungen prüfen</i>, Art "
+            "<i>… · Zeichnung</i>, Tooltip mit der Fundstelle); bestätigt wird wie bisher. Flowdrill auf einer "
+            "normalen Bohrung (z. B. Ø7,3 für M8) wird erst nach <i>Bestätigen</i> nur noch markiert statt "
+            "geschnitten. Steht keine Anzahl da, gilt die Anzahl der passenden Bohrungen; fehlt die Bohrung oder "
+            "weicht die Anzahl ab, steht ein Hinweis beim Teil. Einnietmuttern und alle Erkennungswörter der "
+            "Zusatzarbeiten (verzinkt, entgratet …) werden gelbe Vorschläge ([[zusatz_erkennen]]). Für Blindniete "
+            "gibt es keine Zusatzarbeit: der Bericht nennt sie zum Ergänzen.",
             "Aus Zeichnungen entstehen <b>keine Positionen</b>: Ein Ordner nur mit Zeichnungen (ohne STEP) erscheint "
             "nicht in der Liste, darunter steht nur ein Hinweis <i>Ohne STEP …</i>. Die Teile dann von Hand anlegen "
             "oder die STEP-Dateien dazulegen.")
     i.text("Im Prüfdialog steht oben je PDF eine Zeile wie <i>📄 Anfrage.pdf: Formular (S. 1), Zeichnung (S. 2–3)</i> "
            "(Tooltip: Merkmale je Seite). Rechts daneben lässt sich die Einordnung ändern: <b>automatisch</b>, "
            "<b>alles Formular</b>, <b>alles Zeichnung</b> oder <b>nicht verwenden</b>; Stückzahlen und Werkstoffe "
-           "werden dann sofort neu zugeordnet, ohne die Datei neu zu lesen.")
+           "werden dann sofort neu zugeordnet, ohne die Datei neu zu lesen. Bei <b>mehr als drei PDFs</b> (z. B. eine "
+           "E-Mail mit vielen Teilen und je einer Zeichnung) steht dort nur eine Zeile wie <i>📄 26 PDF-Dateien: 1 mit "
+           "Formular, 25 Zeichnungen</i>; der Knopf <b>Einzeln anzeigen</b> klappt die PDFs in einem Bereich mit "
+           "Bildlaufleiste auf. Ist eine PDF <i>unklar</i>, ist die Liste gleich aufgeklappt und die Zeile gelb. Die "
+           "Teileliste bleibt immer mindestens acht Zeilen hoch, der Hinweis aus der E-Mail höchstens zwei Zeilen "
+           "(ganzer Text im Tooltip).")
 
     i.abschnitt("E-Mail aus Outlook auslesen", marke="anfrage_mail")
     i.text("Die ganze E-Mail aus Outlook in den Anfrage-Ordner ziehen (wird zur <i>.msg</i>-Datei) – die Anhänge muss "
@@ -1705,7 +1720,7 @@ def kapitel_angebot(i):
     i.abschnitt("Zusatzarbeiten erkennen (gelbe Vorschläge)", marke="zusatz_erkennen")
     i.text("Jede Zusatzarbeit hat <b>Erkennungswörter</b> (Einstellungen → Zusatzarbeiten, z. B. Feuerverzinken: "
            "„verzinkt; fvz; tZn“). Steht eines davon in der <i>Bezeichnung</i>, der <i>Artikelnummer</i>, dem "
-           "<i>STEP-Namen</i>, der Anfrage-Mail oder der Zeichnung, zeigt die Spalte <i>Zusatzarbeiten</i> gelb "
+           "<i>STEP-Namen</i>, der Anfrage-Mail oder im ganzen Text der Zeichnung, zeigt die Spalte <i>Zusatzarbeiten</i> gelb "
            "„＋ Feuerverzinken ?“. Ein Vorschlag kostet nichts, bis Sie ihn übernehmen.", kurz=True)
     i.liste("Der gelbe Knopf <b>N Vorschläge</b> in der Leiste: <i>Alle Vorschläge übernehmen</i>, <i>Einzeln "
             "prüfen …</i> (Fenster „Arbeitsgänge vorschlagen“ mit Betrag je Teil) oder <i>Alle Vorschläge "
@@ -1721,6 +1736,9 @@ def kapitel_angebot(i):
             "inaktive Zusatzarbeiten, Zukaufteile (dort beschreibt „verzinkt“ das gekaufte Teil) und Schweißbaugruppen "
             "(Arbeitsgänge im Editor). Schlägt eine Regel ([[abrechnungsregeln]]) dieselbe Arbeit vor, steht sie "
             "einmal da, mit der Herkunft der Regel.",
+            "<b>Aus der Zeichnung mit Anzahl</b>: <i>2 Stk Einnietmutter M6</i> schlägt <i>Einnietmuttern setzen</i> "
+            "mit 2 je Teil vor. Ohne STEP (Neue Position <i>Aus PDF-Zeichnung</i>) kommen auch Flowdrill und Senken "
+            "mit ihrer Anzahl als Vorschlag, Gewinde wie <i>4x M8</i> stehen im Gewinde-Vorschlag.",
             "<b>Einnietmuttern aus der Geometrie</b>: Hat das Teil Sechskantlöcher (aus dem STEP-Import oder im "
             "Rohr- bzw. Blech-Editor als Polygon) oder Senkungen, schlägt das Programm <i>Einnietmuttern setzen</i> "
             "vor, Menge = Sechskantlöcher + Senkungen je Teil (Herkunft z. B. „Erkannt: Geometrie 4 Sechskantlöcher, "
@@ -2225,7 +2243,8 @@ def kapitel_step(i):
             "im Ordner des Angebots ([[angebotsordner]]; Vorgabe in den Einstellungen).",
             "Enthält eine STEP mehrere Teile, steht sie als <b>Baugruppe</b> in der Liste und die 3D-Ansicht zeigt "
             "sie zusammengebaut. Jedes Teil wird eine Einzelposition; das Feld <b>Anzahl</b> oben setzt die Stückzahl "
-            "aller Teile. Einen Satz gibt es nur mit dem Knopf <b>Als Satz</b> (siehe Baugruppen als Satz).",
+            "aller Teile. Einen Satz gibt es mit dem Knopf <b>Als Satz</b> (siehe Baugruppen als Satz); steht "
+            "<i>Satz</i> oder <i>geschweißt</i> im Datei- bzw. Baugruppennamen, ist er schon gedrückt.",
             "Fehlen Profile in den Stammdaten, steht unter der Liste ein Häkchen <b>Fehlende Profile aus den "
             "Messwerten anlegen</b> (vorbelegt; danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im "
             "Angebot, steht dort <b>… trotzdem noch einmal eintragen</b> (Vorgabe aus = überspringen). Nach dem "
@@ -2456,7 +2475,12 @@ def kapitel_step(i):
             "<b>Länge und Breite</b> = kleinstes Rechteck, das die Außenkontur umschließt. Die Kontur heißt "
             "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen die Innenkonturen mit Art "
             "(Bohrung, Langloch, Rechteck, sonst Polygon), Maßen und <b>Lage</b> (Mitte x längs ab der linken, y "
-            "quer ab der unteren Kante des Zuschnitts) und bei freier Kontur ihre Eckpunkte.",
+            "quer ab der unteren Kante des Zuschnitts) und bei freier Kontur ihre Eckpunkte. Seit 0.9.238 wird jede "
+            "Innenkontur gegen die STEP geprüft: ein Rechteck mit gerundeten Ecken bekommt seinen Eckradius, ein "
+            "Rechteck mit Fasen oder zwei überlappende Bohrungen werden ein <i>Polygon</i> (auf 0,02 mm genau), die "
+            "Lage steht auf 0,01 mm. Eine Kontur, deren Form nicht erkannt wird, bleibt mit ihrer Schnittlänge als "
+            "eigene Zeile erhalten. Liegt eine Kontur mehr als 0,1 mm neben der STEP, bekommt die Position den "
+            "Hinweis <i>Blech-Gegenprobe: …</i>.",
             "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
             "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech). "
             "Flachstahl ist in der Spalte <b>Art</b> bei jedem flachen Teil wählbar und wird dann wie ein Rohr "
@@ -2644,7 +2668,7 @@ def kapitel_step(i):
             "Im Messergebnis steht das Rohr in der Spalte <i>geschlossen</i> bzw. im JSON (ab Version 1.19) im Block "
             "<i>geschlossen</i> mit <i>offene_seite</i> (Seite, Lücken, Breite, Länge, Steg, Radius, vergrößert, "
             "Normrohr, Schalen je Umfang, vorher); die Spalte <i>offene_seite</i> der Messwerte enthält dasselbe.")
-    i.abschnitt("Baugruppen als Satz")
+    i.abschnitt("Baugruppen als Satz", marke="step_satz")
     i.text("Mehrere Teile in einer STEP-Datei = <b>Baugruppe</b>, Vorgabe: jedes Teil einzeln, <b>Anzahl</b> = "
            "Stückzahl. Erst mit dem Knopf <b>Als Satz</b> werden gleiche Teile eine Position mit <b>Stück je Satz</b>.",
            kurz=True)
@@ -2662,7 +2686,8 @@ def kapitel_step(i):
             "Gleiche Teile haben dieselbe Farbe; das farbige Quadrat vor dem Teil in der Liste zeigt sie.",
             "Klick auf eine Profilgruppe: die Baugruppe mit diesen Teilen blau, den Rest hellgrau. Klick auf ein "
             "Teil: das Einzelteil mit Schnitten und Konturen. Klick auf die Baugruppen-Zeile: wieder alles.")
-    i.text("Eine STEP mit mehreren Teilen wird nicht von selbst ein Satz: jedes Teil wird eine Einzelposition. Das "
+    i.text("Eine STEP mit mehreren Teilen wird nur dann von selbst ein Satz, wenn ihr Name es sagt (siehe unten), "
+           "sonst wird jedes Teil eine Einzelposition. Das "
            "Feld <b>Anzahl</b> oben setzt dann die Stückzahl aller Teile der Datei (z. B. 5 Gestelle = jedes Teil "
            "5 Stück) und macht <i>keinen</i> Satz. Als Satz anlegen: Knopf <b>Als Satz</b> drücken; <b>Anzahl</b> "
            "ist dann die Anzahl Sätze. Ist der Knopf gedrückt:")
@@ -2675,6 +2700,12 @@ def kapitel_step(i):
     i.text("Ist der Knopf <b>Als Satz</b> nicht gedrückt, wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
            "der Rohrliste. Bei mehreren Dateien gilt das Feld je Datei. Staffelpreise und Angebot rechnen den Satz "
            "wie einen von Hand angelegten ([[staffeln]]).")
+    i.text("<b>Vorwahl am Namen:</b> Steht im Dateinamen oder im Namen einer Baugruppe der STEP-Struktur das Wort "
+           "<i>Satz</i> (z. B. <i>Satz Geländer.step</i>), ist <b>Als Satz</b> schon gedrückt. Steht dort "
+           "<i>schweiß…</i>, <i>schweiss…</i>, <i>geschweißt</i> oder <i>SBG</i> (z. B. <i>Tor geschweißt.step</i>), "
+           "ist zusätzlich <b>als Schweißbaugruppe</b> angehakt. Die Baugruppen-Zeile zeigt dann <i>(vorgewählt: "
+           "„geschweißt“ im Namen)</i>. Wörter wie <i>Zusatz</i>, <i>Ansatz</i> oder <i>Einsatz</i> zählen nicht. "
+           "Wer es anders will, löst den Knopf einfach wieder.")
     i.text("Daneben steht das Häkchen <b>als Schweißbaugruppe</b> (nur mit <i>Als Satz</i>, Vorgabe aus). Damit wird "
            "der Satz zusätzlich eine Position der Art Schweißbaugruppe ([[schweissbaugruppe]]): die Unterbaugruppen "
            "mit ihrer Menge kommen aus der Struktur der STEP-Datei, jedes Teil steht in seiner Unterbaugruppe mit "
@@ -3287,6 +3318,11 @@ def kapitel_optimieren(i):
             "C-Profil, das so in den Stammdaten steht, bleibt auch mit Ausklinkung Profil (vorher Kantteil). "
             "Ein Rechteck mit gerundeten Ecken wird seit 0.9.233 eine Zeile <i>Rechteck</i> mit Eckradius (aus der "
             "Schnittlänge), wenn es damit auf 0,05 mm passt, und bleibt so mit Maßen änderbar.",
+            "<b>Jede Kontur wie in der STEP</b> (seit 0.9.238): Jede Grundform wird gegen den gemessenen Umriss "
+            "geprüft und wird sonst eine <i>Sonderkontur</i> mit dem Umriss der STEP. So kommen zwei überlappende "
+            "Bohrungen gleichen Ø (Doppelbohrung, lag als eine Bohrung bis 3 mm daneben), eine Bohrung auf der "
+            "Rundung eines Quadrat-/Rechteckrohrs (Text <i>Bohrung Ø … auf der Rundung: Umriss wie STEP</i>) und "
+            "bei Flachstahl und Winkeln z. B. ein Sechskant (wurde Langloch) genau wie gezeichnet in den Editor.",
             "<b>Weitere Fälle wie in der STEP</b> (seit 0.9.210): Quadrat-/Rechteckrohr mit Gehrung an beiden Enden "
             "und Fenster (lag 3 mm daneben), Schlitz, der über den Eckradius ins Ende läuft (0,5 mm), und Winkel "
             "bzw. U-Profil mit Ausklinkung am Ende (das freie Schenkelende stand schräg bis auf die Tiefe der "
