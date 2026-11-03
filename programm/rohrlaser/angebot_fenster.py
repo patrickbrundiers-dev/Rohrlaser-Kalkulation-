@@ -6314,14 +6314,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
         Vorgabe, oder Importprofil des Kunden; kundennr = anderer Kunde als im Angebot), Flachstahl bleibt im
         Prüfdialog als andere Art wählbar."""
-        from .stammdaten import FLACH_ALS
-        from . import importprofil
         kundennr = kundennr if kundennr is not None else (getattr(self, "kopf", None) or {}).get("kundennr")
-        profil = importprofil.fuer_kunde(self.db, kundennr)
-        flach_als = (profil or {}).get("flach_als") or self.db.einstellung("flach_als") or FLACH_ALS[0]
-        if flach_als == FLACH_ALS[0]:
-            return 0
-        return self.db.einstellung("flachstahl_bis") or 150
+        return step_einstellungen.flach_bis(self.db, kundennr)
 
     def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen"):
         """STEP-Dateien wählen (ohne dateien) und mit STEP-Import.exe messen. Ergebnis: Messwerte (mit_ablage:

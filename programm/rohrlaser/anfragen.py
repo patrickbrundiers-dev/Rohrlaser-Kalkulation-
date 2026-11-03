@@ -244,14 +244,15 @@ def sperre_lesen(ordner, jetzt=None):
     return text.split("|")[0].strip() or "?"
 
 
-def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None):
+def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None, ohne_dateien=None):
     """Anfragen im Ordner, älteste zuerst. kunden = Zeilen der Kundentabelle (für den Kunden aus dem Ordnernamen).
     Anfragen ohne STEP-Datei und Dateien, die gerade noch geschrieben werden, fehlen; ohne_step (Liste) bekommt die
     Namen der Ordner bzw. Dateien, die nur Zeichnungen/Formulare haben (Hinweis, Patrick 28.10.2026: aus Zeichnungen
     nichts automatisch anlegen). Mails zur selben Anfrage (gleiche_anfrage) kommen zusammen, auch ein Nachtrag ohne
     STEP (lose Dateien auch zu einem nicht gesperrten Unterordner). angebote = {Anfrage-Nr.: (Angebotsnummer,
     Kundennummer)}: ein Nachtrag des Kunden zu einer schon übernommenen Anfrage steht in ohne_step als
-    'Mail (Nachtrag zu Angebot …)'."""
+    'Mail (Nachtrag zu Angebot …)'. ohne_dateien (Liste) bekommt die Mails und PDFs dieser Anfragen ohne STEP
+    (Automationen 03.11.2026: Nachtrag einsortieren, Bestellung, Wiederholanfrage)."""
     from .step_neu import kunde_aus_ordner
     jetzt = jetzt or datetime.datetime.now()
     wurzel = Path(ordner) if ordner else None
@@ -305,6 +306,8 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
         if not _hat_step(g):
             if ohne_step is not None:
                 ohne_step += [o.name] if o else _ohne_step_namen(g, angebote, kunden)
+            if ohne_dateien is not None:
+                ohne_dateien += [d for d in g if d.suffix.lower() in MAIL | {".pdf"} and not d.name.startswith(".")]
             continue
         if o:
             name = o.name
@@ -354,6 +357,15 @@ def _ohne_step_namen(dateien, angebote=None, kunden=()):
                                             None)
             out.append(f"{d.name} (Nachtrag zu Angebot {nr[0]})" if nr else d.name)
     return out
+
+
+def nachtrag_zu(d, angebote=None, kunden=()):
+    """Angebotsnummer, wenn die Mail d ein Nachtrag zu einem vorhandenen Angebot ist (Anfrage-Nr. des Angebots, vom
+    Kunden des Angebots), sonst None."""
+    k = mail_kopf(d)
+    nr = k and k["nummer"] and next((v for n, v in (angebote or {}).items()
+                                     if str(n).lower() == k["nummer"].lower() and _vom_kunden(k, v[1], kunden)), None)
+    return nr[0] if nr else None
 
 
 def _vom_kunden(kopf, kundennr, kunden):
