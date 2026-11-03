@@ -453,8 +453,12 @@ class VorschlaegeMixin:
             zeilen.append([e["profil_id"], e["werkstoff_id"], e["lieferant"], zahl(e["preis"], 2), e["basis"],
                            zahl(z["je_m"], 2) if z["je_m"] is not None else "", e.get("lieferzeit") or "",
                            e.get("gueltig_bis") or "", la.bewertung_text(bew.get(e["lieferant"])),
-                           "übernommen" if e.get("gewaehlt") else "", e.get("eingang") or ""])
-            if z["bester"]:
+                           "übernommen" + (f", bestellt {e['bestellt']}" if e.get("bestellt") else "")
+                           if e.get("gewaehlt") else ("eingelesen – prüfen" if e.get("eingelesen") else ""),
+                           e.get("eingang") or ""])
+            if e.get("eingelesen") and not e.get("gewaehlt"):     # aus Mail/PDF gelesen (7a): erst prüfen
+                farben[r] = stil.farbe("#A66A00")
+            elif z["bester"]:
                 farben[r] = stil.farbe(stil.GRUEN)
 
         def neu_zeigen(d_alt):
@@ -482,18 +486,75 @@ class VorschlaegeMixin:
                 self.f.meldung("Wareneingang mit heutigem Datum eingetragen.")
                 neu_zeigen(d)
 
+        def einlesen(_m):
+            if self.antwort_einlesen():
+                neu_zeigen(d)
+
+        def bestellen(_m):
+            if not any(e.get("gewaehlt") for e in antworten):
+                self.f.meldung("Materialbestellung: bitte zuerst eine Antwort markieren und „Übernehmen“.", fehler=True)
+                return
+            d.accept()
+            self.material_bestellen()
+
         d = TabellenDialog(self, "Lieferantenangebote",
                            "Antworten der Lieferanten auf die Materialanfrage. Grün = günstigste je Abmessung (in €/m "
-                           "umgerechnet). Bewertung aus allen Angeboten: Preisrang, Termintreue, Reklamationen.",
+                           "umgerechnet), gelb = aus Mail/PDF eingelesen, bitte prüfen. Bewertung aus allen Angeboten: "
+                           "Preisrang, Termintreue, Reklamationen.",
                            ["Profil", "Werkstoff", "Lieferant", "Preis", "Basis", "€/m", "Lieferzeit [Tage]",
                             "gültig bis", "Bewertung", "Stand", "Wareneingang"], zeilen, rechts=(3, 5, 6),
                            farben=farben, breite=1100,
-                           knoepfe=[("Antwort erfassen …", erfassen), ("Übernehmen", uebernehmen),
+                           knoepfe=[("Mail/PDF einlesen …", einlesen), ("Antwort erfassen …", erfassen),
+                                    ("Übernehmen", uebernehmen), ("Material bestellen …", bestellen),
                                     ("Wareneingang", eingang)])
         d.vergleich = v
         if zeigen and not self.f.stumm:
             d.exec()
         return d
+
+    def antwort_einlesen(self, pfad=None):
+        """Lieferantenantwort aus Mail (.msg/.eml) oder PDF einlesen (Automationen 03.11.2026, 7a): Preise je
+        Abmessung des Angebots, Lieferzeit und Bindefrist; die Zeilen erscheinen gelb zum Prüfen. Ergebnis: Anzahl
+        eingelesener Preise oder None."""
+        from pathlib import Path
+        from PySide6.QtWidgets import QFileDialog
+        from . import formular, lieferantenantwort, mail
+        if self.db.nur_lesen:
+            self.f.meldung("Die Datendatei ist nur zum Lesen geöffnet.", fehler=True)
+            return None
+        if pfad is None:
+            if self.f.stumm:
+                return None
+            pfad, _ = QFileDialog.getOpenFileName(self, "Antwort des Lieferanten einlesen", "",
+                                                  "Mail oder PDF (*.msg *.eml *.pdf);;Alle Dateien (*)")
+            if not pfad:
+                return None
+        p = Path(pfad)
+        absender, text = "", ""
+        if p.suffix.lower() == ".pdf":
+            g = formular.datei_lesen(p, getattr(self.f, "programmordner", None))
+            text = (g or {}).get("text") or ""
+        else:
+            m = mail.lesen(p)
+            if m is not None:
+                absender, text = m.absender, m.volltext()
+                import tempfile
+                for n, b in m.anhaenge:         # Angebot des Lieferanten als PDF-Anhang
+                    if n.lower().endswith(".pdf"):
+                        with tempfile.TemporaryDirectory() as tmp:
+                            ziel = Path(tmp) / Path(n).name
+                            ziel.write_bytes(b)
+                            g = formular.datei_lesen(ziel, getattr(self.f, "programmordner", None))
+                            text += "\n" + ((g or {}).get("text") or "")
+        paare = sorted({(q["profil_id"], q["werkstoff_id"]) for q in self.positionen
+                        if q.get("profil_id") and q.get("werkstoff_id")})
+        try:
+            lief, neu = lieferantenantwort.einlesen(self.db, self.id, text, absender, paare, self.k.profile)
+        except ValueError as e:
+            self.f.meldung(f"{p.name}: {e}", fehler=True)
+            return None
+        self.f.meldung(f"{lief}: {len(neu)} Preis(e) aus {p.name} eingelesen – bitte prüfen und „Übernehmen“.")
+        return len(neu)
 
     def _antwort_erfassen(self, werte=None):
         """Formular für eine Lieferantenantwort; werte = dict ohne Fenster (Tests). Ergebnis: Index oder None."""

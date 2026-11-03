@@ -575,6 +575,46 @@ def werte(db, gelesen, mails, ordner_kunde=None):
         return ordner_kunde, None, weitere
 
 
+KONTAKT = {"ansprechpartner": "Ansprechpartner", "telefon": "Telefon", "email": "E-Mail", "strasse": "Straße",
+           "plz_ort": "PLZ Ort"}
+
+
+def kontakt_ergaenzen(kunde, daten):
+    """Kontaktdaten aus der Signatur gegen den Kundenstamm (12a): dict(neu={Feld: Wert} für leere Felder,
+    anders={Feld: (alt, neu)}). E-Mail: neue Adresse kommt dazu, wenn der Kunde noch keine hat."""
+    out = dict(neu={}, anders={})
+    if not kunde or not daten:
+        return out
+    for f in KONTAKT:
+        neu, alt = str(daten.get(f) or "").strip(), str(kunde.get(f) or "").strip()
+        if not neu:
+            continue
+        if not alt:
+            out["neu"][f] = neu
+        elif f == "email":
+            continue                # weitere Adressen der Firma: nicht melden (Domain passt ohnehin)
+        elif re.sub(r"\W", "", neu).casefold() != re.sub(r"\W", "", alt).casefold() and f != "ansprechpartner":
+            out["anders"][f] = (alt, neu)
+    return out
+
+
+def kontakt_uebernehmen(db, kontakt):
+    """Ergänzte Kundendaten speichern, im Automatik-Protokoll mit Rückgängig. Ergebnis: Anzahl Felder."""
+    from . import automatik
+    if not kontakt or db.nur_lesen:
+        return 0
+    z = next((k for k in db.zeilen("kunden") if str(k.get("kundennr")) == str(kontakt["kundennr"])), None)
+    if z is None:
+        return 0
+    alt = {f: z.get(f) for f in kontakt["felder"]}
+    for f, w in kontakt["felder"].items():
+        db.aendern("kunden", z["id"], f, w)
+    automatik.merken(db, "kontakt", f"Kunde {kontakt['kundennr']} ({z.get('name') or ''}): "
+                     + ", ".join(f"{KONTAKT.get(f, f)} {w}" for f, w in kontakt["felder"].items()),
+                     rueck=dict(art="kunde", kundennr=kontakt["kundennr"], alt=alt))
+    return len(kontakt["felder"])
+
+
 def _werte(db, gelesen, mails, ordner_kunde=None):
     from . import formular, mail
     formular_text = "\n".join(g["text"] for g in gelesen if g.get("text"))
@@ -627,7 +667,17 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         if daten and not _eigene_firma(daten, eigen_name, domains):
             weitere["neuer_kunde"] = daten
             hinweis.append(f"Neuer Kunde „{daten['name']}“ angelegt (Bemerkung „Kunde prüfen“)")
-    elif mails and not kunde_mail:
+    elif kunde_mail:        # Signatur des bekannten Kunden (Automationen 03.11.2026, 12a): leere Felder ergänzen
+        absender = next((m for m in vom_kunden if mail.adressen(m, domains)), None)
+        k = kontakt_ergaenzen(next((z for z in kunden if str(z.get("kundennr")) == str(kunde_mail)), None),
+                              mail.kunde_daten(absender, "", domains) if absender else None)
+        if k["neu"]:
+            weitere["kontakt"] = dict(kundennr=kunde_mail, felder=k["neu"])
+            hinweis.append("Kundendaten aus der Signatur ergänzt: " + ", ".join(
+                f"{KONTAKT[f]} {w}" for f, w in k["neu"].items()))
+        for f, (alt, neu) in k["anders"].items():
+            hinweis.append(f"Signatur nennt {KONTAKT[f]} {neu} (im Kundenstamm {alt}) – bei Bedarf beim Kunden ändern")
+    if mails and not kunde_mail and kunde:
         fremd = next((a for m in vom_kunden for a in mail.adressen(m, domains)), None)
         if fremd:
             hinweis.append(f"Absender {fremd} steht bei keinem Kunden – beim Kunden unter E-Mail eintragen, dann "

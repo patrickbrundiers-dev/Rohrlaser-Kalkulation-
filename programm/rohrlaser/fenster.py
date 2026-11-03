@@ -1753,6 +1753,17 @@ class StartSeite(QWidget):
             nk.addWidget(b)
         nk.addStretch(1)
         hl.addWidget(self.notiz_knoepfe)
+        # Was die Automationen melden (03.11.2026): Wareneingang, Nachkalkulation prüfen, Preiswächter
+        self.auto_titel = QLabel()
+        self.auto_titel.setTextFormat(Qt.RichText)
+        self.auto_titel.linkActivated.connect(lambda _: fenster.automatik_protokoll())
+        hl.addWidget(self.auto_titel)
+        self.automatik = QListWidget()
+        self.automatik.setToolTip("Hinweise der Automationen; Doppelklick öffnet das Angebot bzw. die Prüfung der "
+                                  "offenen Angebote")
+        self.automatik.setMaximumHeight(100)
+        self.automatik.itemActivated.connect(self._automatik_oeffnen)
+        hl.addWidget(self.automatik)
         self.kennzahlen = QLabel()
         self.kennzahlen.setTextFormat(Qt.RichText)
         self.kennzahlen.setWordWrap(True)
@@ -1892,6 +1903,7 @@ class StartSeite(QWidget):
         self.wiedervorlage.setVisible(bool(n) and nachfassen)
         self.wv_knoepfe.setVisible(bool(n) and nachfassen)
         self.notizen_laden()
+        self.automatik_laden()
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
         self.kennzahlen.setVisible(admin)
         if admin:
@@ -1902,6 +1914,31 @@ class StartSeite(QWidget):
                 f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
                 f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+
+    def automatik_laden(self):
+        """Hinweise der Automationen (automatik.aufgaben) unter „Heute“."""
+        from . import automatik
+        try:
+            self.automatik_aufgaben = automatik.aufgaben(self.f.db)
+        except Exception:
+            self.automatik_aufgaben = []
+        self.automatik.clear()
+        for a in self.automatik_aufgaben:
+            it = QListWidgetItem(a["text"])
+            it.setData(Qt.ItemDataRole.UserRole, a)
+            self.automatik.addItem(it)
+        n = len(self.automatik_aufgaben)
+        self.auto_titel.setText(f"<b>Automatik</b> ({n}) · <a href='p'>Protokoll …</a>" if n else
+                                "<span style='color:#5F6B7A'>Automatik: nichts zu prüfen · <a href='p'>Protokoll …"
+                                "</a></span>")
+        self.automatik.setVisible(bool(n))
+
+    def _automatik_oeffnen(self, it):
+        a = it.data(Qt.ItemDataRole.UserRole) or {}
+        if a.get("angebot_id"):
+            self.f.angebot_oeffnen(a["angebot_id"])
+        elif a.get("art") == "preiswaechter":
+            self.f.offene_pruefen()
 
     def notizen_laden(self):
         """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""
@@ -2110,6 +2147,11 @@ class Hauptfenster(QMainWindow):
             QTimer.singleShot(200, self._start_teilen)
             QTimer.singleShot(800, self._start_systempruefung)
             QTimer.singleShot(1500, self._start_datenschutz)
+            # Preiswächter (Automationen 03.11.2026, 9a): beim Start und alle 10 Minuten
+            QTimer.singleShot(20_000, self.preiswaechter)
+            self.preis_uhr = QTimer(self)
+            self.preis_uhr.timeout.connect(self.preiswaechter)
+            self.preis_uhr.start(600_000)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
@@ -2226,6 +2268,7 @@ class Hauptfenster(QMainWindow):
                                   ("Preis-Simulator …", self.preis_simulator, None),
                                   ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
                                   ("Offene Angebote prüfen …", self.offene_pruefen, None),
+                                  ("Automatik-Protokoll …", self.automatik_protokoll, None),
                                   ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
@@ -2600,6 +2643,8 @@ class Hauptfenster(QMainWindow):
             self.offen[angebot_id] = seite
             self.lesemodus_anwenden(seite)
             self.reiter.addTab(seite, seite.titel())
+        if hasattr(seite, "nachtraege_melden"):     # Nachtrag des Kunden (Automationen 03.11.2026, 5a)
+            seite.nachtraege_melden()
         self._frisch = seite if neu else None           # gerade geladen: beim Reiterwechsel nicht noch einmal
         try:
             self.reiter.setCurrentWidget(seite)
@@ -2998,6 +3043,28 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def automatik_protokoll(self, dialog=None):
+        """Datei → Automatik-Protokoll … (Automationen 03.11.2026, 14a): was das Programm von selbst erledigt hat,
+        mit Rückgängig."""
+        from . import automatik_dialog
+        return automatik_dialog.zeigen(self, dialog)
+
+    def preiswaechter(self):
+        """Preiswächter (9a): haben sich Preis-Stammdaten geändert, einmal die Sammel-Preisprüfung rechnen; das
+        Ergebnis zeigt die Startseite. Läuft beim Start und alle paar Minuten; ändert nie ein Angebot."""
+        from . import preiswaechter
+        if self.db.nur_lesen:
+            return None
+        try:
+            if not preiswaechter.noetig(self.db):
+                return None
+            erg = preiswaechter.pruefen(self.db)
+        except Exception:
+            return None
+        if erg.get("angebote"):
+            self.start.neu_laden()
+        return erg
 
     def offene_pruefen(self, zeigen=True):
         """Datei → Offene Angebote prüfen … (Vorschlag H1a): verschickte, gültige Angebote mit festgeschriebenen

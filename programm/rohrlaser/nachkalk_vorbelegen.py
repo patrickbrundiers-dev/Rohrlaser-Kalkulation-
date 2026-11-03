@@ -36,6 +36,10 @@ def vorbelegen(db, angebot_id):
         v2 = nk.vergleich(a, pos, a["ergebnis"], k, tab, e, ist)
     except (ValueError, KeyError, TypeError, ZeroDivisionError, AttributeError):
         return None
+    try:            # Soll-Stand wie beim Speichern im Angebot (Auswertung, Kennwert-Vorschläge)
+        ist["soll"] = nk.soll_stand(v2, a, pos, a["ergebnis"], k)
+    except Exception:
+        pass
     soll_db, ist_db = v2["db"]["soll"], v2["db"]["ist"]
     abw = (ist_db - soll_db) / abs(soll_db) if soll_db else None
     alt_zusatz = db.zusatz(angebot_id, SCHLUESSEL)

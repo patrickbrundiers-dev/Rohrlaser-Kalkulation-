@@ -73,7 +73,7 @@ def verlauf(z):
             nachgefasst = max(nachgefasst, d) if nachgefasst and d else d or nachgefasst
         elif art == "wiedervorlage":
             wv = _datum(e.get("am"))
-        elif art in ("csv", "absage", "ab", "nachtrag", "bestellung"):     # CSV-Export, Absagegrund, Auftrags-
+        elif art in ("csv", "absage", "ab", "nachtrag", "bestellung", "bestellung_material"):     # CSV-Export, Absagegrund, Auftrags-
             # bestätigung, Nachtrag und Bestellung des Kunden (Automationen 03.11.2026): kein Versand
             continue
         elif d:

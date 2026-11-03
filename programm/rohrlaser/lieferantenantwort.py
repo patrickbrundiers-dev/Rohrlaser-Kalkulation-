@@ -48,8 +48,11 @@ def _profil_muster(profil_id, profil):
     """Schreibweisen einer Abmessung im Text: 'QR 40x40x3', '40 x 40 x 3', '40x3' (Rundrohr 'RR 48,3x2,6')."""
     a, b, w = profil.get("a"), profil.get("b"), profil.get("wand")
 
-    def z(x):
-        return f"{float(x):g}".replace(".", "[.,]") if x not in (None, "") else None
+    def z(x):           # 2 passt auf „2“, „2,0“, „2.00“; 42.4 auf „42,4“ und „42,40“
+        if x in (None, ""):
+            return None
+        t = f"{float(x):g}"
+        return t.replace(".", "[.,]") + "0*" if "." in t else t + "(?:[.,]0+)?"
     muster = [re.escape(str(profil_id)).replace(r"\ ", r"\s*")]
     if a and w:
         teile = [z(a)] + ([z(b)] if b and float(b) != float(a) else []) + [z(w)]

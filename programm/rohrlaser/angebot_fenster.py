@@ -590,10 +590,11 @@ class AngeboteSeite(QWidget):
         except Exception:           # Vorschlag darf das Beauftragen nie verhindern
             return None
 
-    def vorgang_setzen(self, v, angebot_id=None, auftrag=None, absage=None):
+    def vorgang_setzen(self, v, angebot_id=None, auftrag=None, absage=None, schritte=None):
         """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …). Beauftragt: Fenster für Auftragsnummer
         und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster. Abgelehnt: Fenster
-        für den Absagegrund (Plan 29.10.2026 1b); absage = (Grund, Bemerkung, Preis Wettbewerb) ohne Fenster."""
+        für den Absagegrund (Plan 29.10.2026 1b); absage = (Grund, Bemerkung, Preis Wettbewerb) ohne Fenster.
+        schritte = Schritte nach dem Auftrag (auftrag_start, Automationen 03.11.2026 2a), sonst aus dem Fenster."""
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "den Vorgang setzen"):
             return False
@@ -604,11 +605,14 @@ class AngeboteSeite(QWidget):
             if seite is None or not seite.vor_verschickt():
                 return False
         if v == "Beauftragt" and auftrag is None and not self.f.stumm and not self.db.nur_lesen:
-            from . import auftrag as auftrag_fenster
+            from . import auftrag as auftrag_fenster, auftrag_start
+            gewaehlt = auftrag_start.gewaehlt(self.db) if schritte is None else list(schritte)
             auftrag = auftrag_fenster.abfragen(self, a, self.db.einstellung("versand_bundesland"),
-                                               frueh=self._termin_frueh(i))
+                                               frueh=self._termin_frueh(i), schritte=gewaehlt)
             if auftrag is None:
                 return False
+            auftrag_start.merken(self.db, gewaehlt)
+            schritte = gewaehlt
         if v == "Abgelehnt" and absage is None and not self.f.stumm and not self.db.nur_lesen:
             from . import absage_dialog
             absage = absage_dialog.abfragen(self, a)
@@ -628,6 +632,9 @@ class AngeboteSeite(QWidget):
             text += " – Palettenschein und Versand im Reiter Versand"
             self.f.versand.neu_laden()
         self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}{text}.")
+        if v == "Beauftragt" and schritte and not self.db.nur_lesen:
+            from . import auftrag_start
+            auftrag_start.ausfuehren(self.f, i, schritte)
         return True
 
     def nachfassen(self, angebot_id=None, dialog=None):
@@ -2345,9 +2352,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.zurueck_knopf.clicked.connect(lambda: self._zuruecknehmen())
         fl.addWidget(self.zurueck_knopf)
         self.fremd_leiste.hide()
+        # Nachtrag des Kunden (Automationen 03.11.2026, 5a): Änderungen aus der Mail übernehmen oder ablehnen
+        self.nachtrag_leiste = QFrame()
+        self.nachtrag_leiste.setStyleSheet(self.fremd_leiste.styleSheet())
+        nl = QHBoxLayout(self.nachtrag_leiste)
+        nl.setContentsMargins(10, 6, 10, 6)
+        self.nachtrag_text = QLabel()
+        self.nachtrag_text.setWordWrap(True)
+        nl.addWidget(self.nachtrag_text, 1)
+        for text, ziel in (("Übernehmen", lambda: self.nachtrag_entscheiden(True)),
+                           ("Ablehnen", lambda: self.nachtrag_entscheiden(False))):
+            b = QPushButton(text)
+            b.clicked.connect(ziel)
+            nl.addWidget(b)
+        self.nachtrag_leiste.hide()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
         lay.addWidget(self.fremd_leiste)
+        lay.addWidget(self.nachtrag_leiste)
         lay.addWidget(self.spalten, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()
@@ -5728,6 +5750,40 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return len(paare)
 
     # -------------------------------------------------------------- Rückgängig, Einfügen (Tastenkürzel)
+    def nachtraege_melden(self):
+        """Offenen Nachtrag des Kunden (nachtrag.py) als gelbe Leiste zeigen. Ergebnis: (Index, Eintrag) oder None."""
+        from . import nachtrag
+        try:
+            offen = [] if self.fremd() else nachtrag.offene(self.db, self.id)
+        except Exception:
+            offen = []
+        self.nachtrag_leiste.setVisible(bool(offen))
+        if not offen:
+            return None
+        i, e = offen[0]
+        self.nachtrag_text.setText(f"<b>Nachtrag des Kunden</b> ({e.get('betreff') or ''}): {nachtrag.text(e)}"
+                                   + (f" – noch {len(offen) - 1} weiterer" if len(offen) > 1 else ""))
+        return i, e
+
+    def nachtrag_entscheiden(self, uebernehmen):
+        """Ältesten offenen Nachtrag übernehmen (ins Angebot, mit Rückgängig) oder ablehnen."""
+        from . import nachtrag
+        offen = nachtrag.offene(self.db, self.id)
+        if not offen or self.db.nur_lesen:
+            return None
+        i, e = offen[0]
+        if uebernehmen:
+            self.verlauf.merken()
+            n = nachtrag.anwenden(self.db, self.id, e)
+            nachtrag.status_setzen(self.db, self.id, i, nachtrag.UEBERNOMMEN)
+            self.neu_laden()
+            self.rueckgaengig_anbieten(f"Nachtrag übernommen: {nachtrag.text(e)} ({n} Änderung(en)).")
+        else:
+            nachtrag.status_setzen(self.db, self.id, i, nachtrag.ABGELEHNT)
+            self.f.meldung("Nachtrag abgelehnt; das Angebot bleibt, wie es ist.")
+        self.nachtraege_melden()
+        return True
+
     def rueckgaengig_anbieten(self, text, bericht=None):
         """Meldung nach einer Änderung ohne Rückfrage (Plan Bedienung B2) mit Knopf „Rückgängig“. Der Knopf nimmt
         nur genau diese Änderung zurück: kam inzwischen eine weitere dazu, verweist er auf Strg+Z."""
