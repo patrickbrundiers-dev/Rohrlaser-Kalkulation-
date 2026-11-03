@@ -764,6 +764,8 @@ class BlechDialog(QDialog):
         self.step_werte = e.get("step") if isinstance(e.get("step"), dict) else None
         if e.get("step") is True:
             self.step_werte = {k: v for k, v in self.eingaben().items() if k not in ("stueck", "step")}
+        # Stand aus dem DXF-Import (Teile-Editor: Zurücksetzen → wie aus STEP/DXF; STEP: step_werte)
+        self.ursprung = e.get("ursprung") if isinstance(e.get("ursprung"), dict) else None
         self.editor = None
         self.rechnen()
         EditorRahmen(self, "blech")
@@ -890,6 +892,8 @@ class BlechDialog(QDialog):
             e.update(kantungen=self.kantungen.value(), biegelinien=self.biegelinien)
         if getattr(self, "step_werte", None):
             e["step"] = self.step_werte
+        if getattr(self, "ursprung", None):
+            e["ursprung"] = self.ursprung
         return e
 
     def eingaben_setzen(self, e):
@@ -1026,6 +1030,7 @@ class BlechDialog(QDialog):
         neu.update(e)
         neu["stueck"] = kopf["stueck"] or alt.get("stueck")
         self.eingaben_setzen(neu)
+        self.ursprung = {k: v for k, v in self.eingaben().items() if k not in ("stueck", "step", "ursprung")}
         if kopf.get("bezeichnung") and not self.bezeichnung.text().strip():
             self.bezeichnung.setText(kopf["bezeichnung"])
             self._bez_von_hand = True

@@ -840,6 +840,11 @@ class SchneidwegDialog(QDialog):
             "frei: Optimierung darf um die eigene Achse drehen") + "</span>")
         return None
 
+    def _ursprung_neu(self):
+        """Nach einem Import (STEP neu einlesen, DXF): dieser Stand ist der neue Ursprung zum Zurücksetzen."""
+        self._mess_extra.pop(sw.URSPRUNG, None)
+        self._mess_extra[sw.URSPRUNG] = sw.ursprung_merken(self.eingaben(), neu=True)[sw.URSPRUNG]
+
     def step_einlesen(self, messwerte=None):
         """STEP-Datei messen (oder fertige Messwerte) und die Eingaben daraus setzen. Mehrere Rohrteile: Auswahl,
         das Teil mit der Artikelnummer der Position zuerst. Ergebnis: True = übernommen."""
@@ -867,6 +872,7 @@ class SchneidwegDialog(QDialog):
             return False
         self.aus_position = False
         self.eingaben_setzen(e, mit_messung=True)
+        self._ursprung_neu()
         laenge = float(m.get("laenge") or 0)
         if isinstance(self.p.get("laenge"), (int, float)) and abs(laenge - self.p["laenge"]) > 0.5:
             einblendung.melden(self, f"Hinweis: Die Datei misst {rechnen.zahl(laenge, 1)} mm, "
@@ -996,6 +1002,7 @@ class SchneidwegDialog(QDialog):
         self.aus_position = False
         self._dxf_bericht = "<br>".join(zeilen)
         self.eingaben_setzen(erg["eingaben"])
+        self._ursprung_neu()
         if erg.get("laenge"):           # PDF-Zeichnung (W7) ohne Längenangabe: von Hand eintragen
             self.laenge_setzen(erg["laenge"])
 
@@ -1634,7 +1641,7 @@ def step_eingaben(m, profil):
 def ohne_messung(e):
     """Eingaben ohne gemessene Werte des STEP-Imports (Vorlagen und kopierte Konturen rechnen mit den Formeln)."""
     weg = ("gemessen", "huelle_gemessen", "form")
-    out = {k_: v for k_, v in e.items() if k_ not in ("a", "b", "konturen", "quelle")}
+    out = {k_: v for k_, v in e.items() if k_ not in ("a", "b", "konturen", "quelle", sw.URSPRUNG)}
     for s in ("a", "b"):
         if isinstance(e.get(s), dict):
             out[s] = {k_: v for k_, v in e[s].items() if k_ not in weg}
