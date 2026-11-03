@@ -5738,6 +5738,7 @@ def kapitel_ausgabe(i, seiten, ablage):
             "ab, z. B. bei Abholung in Gitterboxen des Kunden. Ohne Packmittel in den Stammdaten keine Verpackung.",
             "<b>Finanzierung</b>: <i>Finanzierung: Kalkulationszins p. a. (0 = aus)</i> rechnet die Kapitalbindung "
             "dazu: Selbstkosten × Zins × (Zahlungsziel + Materialvorlauf) ÷ 360.")
+    i.bild("stamm_verpackung", "Einstellungen, Verpackung: je Packmittel Preis, Gewicht und Teillänge", hoehe=60 * mm)
     i.abschnitt("Neuteil-Zuschlag und mannlose Laufzeit", marke="neuteil_mannlos")
     i.text("<i>Neuteil-Zuschlag auf Material und Laser (0 = aus)</i> (Einstellungen → Kosten, z. B. 5 %) gilt für "
            "Positionen, die noch nie beauftragt wurden: Beim Öffnen sucht das Programm Wiederholteile "
