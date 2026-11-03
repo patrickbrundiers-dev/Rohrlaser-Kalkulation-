@@ -131,11 +131,11 @@ class VorschlaegeMixin:
 
     def _grundwerte_punkte(self, summen):
         """Prüfung Kalkulationsbasis 1 und 5: leere Zeitfelder der Maschine mit €-Wirkung und Doppelzählungen; die
-        Wirkung rechnet zweimal, daher je Stand einmal."""
+        Wirkung rechnet zweimal, daher je Stand und Preis einmal (Neuladen rechnet sonst dreimal)."""
         from . import grundwerte
         stufen = list(getattr(self, "stufen_daten", None) or ()) + list(getattr(self, "stufen", None) or ())
         schluessel = (self.db.einstellung("stammdaten_stand"), self.kopf.get("maschine"),
-                      round(rechnen._n(summen.get("verkauf")), 2), id(self.ergebnis))
+                      round(rechnen._n(summen.get("verkauf")), 2), len(self.positionen), bool(self.ergebnis))
         alt = getattr(self, "_gw_cache", None)
         if alt and alt[0] == schluessel:
             w = alt[1]
