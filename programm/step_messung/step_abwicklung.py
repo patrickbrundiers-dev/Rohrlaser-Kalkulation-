@@ -537,9 +537,19 @@ def _daten(erg, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T,
         if dm is not None:
             bohrungen[dm] = bohrungen.get(dm, 0) + 1
         try:
-            kk = g._blech_kontur([zu(p) for p in g._draht_punkte(dr)])
+            pk = [zu(p) for p in g._draht_punkte(dr)]
+            kk = g._blech_kontur(pk, lg)
+            ab = g.blech_kontur_abweichung(kk, pk)
+            if ab is not None:
+                kk["abweichung"] = round(ab, 3)
         except (ValueError, ZeroDivisionError, IndexError):
-            continue
+            # nie still weglassen (Patrick 03.11.2026): sonstige Kontur mit Schnittlänge an ihrer Stelle
+            try:
+                pk = [zu(p) for p in g._draht_punkte(dr)]
+                kk = dict(x=round(sum(x for x, _ in pk) / len(pk), 2), y=round(sum(y for _, y in pk) / len(pk), 2))
+            except (ValueError, ZeroDivisionError, IndexError):
+                kk = dict(x=0.0, y=0.0)
+            kk.update(art="Kontur", hinweis="Form nicht erkannt, nur Schnittlänge übernommen – bitte prüfen")
         kk["schnittlaenge"] = round(lg, 2)
         konturen_lage.append(kk)
         hm = max(kk.get("durchmesser") or 0, kk.get("laenge") or 0, kk.get("breite") or 0,
