@@ -172,6 +172,8 @@ UMSETZUNG = {
         "#E8F0FA": "#22324A",
         # Sätze in Positionsliste und Kalkulation (satzgruppen.py, 27.10.2026): Tönung Blau/Violett und Satzname
         "#E4EEFA": "#1E3550", "#EEE6F7": "#35284A", "#285F9E": "#8BBBE8", "#6E3FA3": "#C7A6F0",
+        # Schweißbaugruppen grün getönt (03.11.2026)
+        "#E2F2E4": "#1E3A24",
     },
     "Hoher Kontrast": {
         "#1F2937": "#000000", "#111827": "#000000", "#3A4656": "#111111", "#5F6B7A": "#2F3742", "#9AA3AF": "#5F6B7A",

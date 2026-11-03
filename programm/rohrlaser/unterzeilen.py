@@ -114,6 +114,11 @@ def schritte(p, z, katalog=()):
             if x.get("fehler"):
                 teile.append(x["fehler"])
             neu("Montage", TRENNER.join(t for t in teile if t), bool(x.get("fehler")))
+    # Programmieren allein (Standard je Position, steht in der Spalte Programmierzeit) ist keine eigene Zeile wert:
+    # sonst hat jede Position eine Unterzeile und Sätze/Baugruppen gehen unter (Patrick 03.11.2026). Von Hand
+    # geändert oder zusammen mit echten Arbeitsschritten bleibt sie.
+    if len(out) == 1 and out[0][0] == STUFEN.index("Programmieren") and not z.get("prog_hand"):
+        out = []
     return [(text, warnung) for _, _, text, warnung in sorted(out)]
 
 

@@ -1577,14 +1577,22 @@ def kapitel_angebot(i):
             "Reihenfolge im Angebots-PDF ändern sich dadurch nicht (erst beim Umstellen der Reihenfolge gilt die "
             "Anzeige auch dort, [[reihenfolge]]).",
             "Die Anzahl Sätze ist Stückzahl ÷ Stück je Satz der ersten Position. Zugeklappt steht dahinter, wie viele "
-            "Positionen der Satz hat. Der Zustand gilt, bis das Angebot geschlossen wird.",
+            "Positionen der Satz hat. Der Zustand wird je Angebot gemerkt.",
             "Tippen in die Spalte Satz (oder F2) ändert den Namen; ein <b>Doppelklick</b> auf den Satz öffnet "
             "<i>Satz bearbeiten</i> ([[satz_bearbeiten]]).",
             "Im Reiter <i>Kalkulation</i> (kompakt und alle Spalten) steht die Spalte <b>Satz</b> hinter der "
             "Artikelnummer, die Zeilen haben dieselbe Farbe. Ohne Sätze im Angebot ist die Spalte ausgeblendet.",
-            "Schweißbaugruppen ([[schweissbaugruppe]]) haben ihre eigene Gruppierung (▾/└ an der Baugruppe) und "
-            "werden hier nicht zusätzlich gefärbt. Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit "
-            "seinen Teilen darunter.")
+            "Schweißbaugruppen ([[schweissbaugruppe]]) sind <b>grün</b> hinterlegt: in der Spalte Satz steht an der "
+            "Baugruppe fett <i>⚙ Name · Anzahl Stk.</i>, darunter an jedem Einzelteil der Name; Klick auf ▾ klappt "
+            "die Einzelteile zu.",
+            "Die Kalkulation (kompakt und alle Spalten) steht in derselben Reihenfolge wie die Positionsliste: "
+            "Schweißbaugruppe mit Bezeichnung und Profil <i>Schweißbaugruppe</i>, ihre Einzelteile direkt darunter, "
+            "Sätze zusammen. Der Zeilenkopf zeigt dieselbe Klammer; ein Klick klappt auch hier zu.",
+            "<b>▸ Alle Gruppen zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
+            "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle Gruppen aufklappen</b>. Welche Gruppen zu sind, merkt "
+            "sich das Programm je Angebot (auch nach dem Schließen).",
+            "Der Status steht in einer Zeile (lange Texte gekürzt mit …); der ganze Text steht im Tooltip.",
+            "Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit seinen Teilen darunter.")
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
            "die <b>Anzahl Sätze</b> mit − und +, darunter jede Position mit <b>Stück je Satz</b>. Die Stückzahlen "
@@ -1718,6 +1726,8 @@ def kapitel_angebot(i):
             "Zusatzarbeit hebt den Preis an; bei Abrechnung € je Angebot steht der Pauschalbetrag und der auf das Teil "
             "umgelegte Anteil.",
             "Rot: eine Zusatzarbeit fehlt in den Stammdaten oder Schweißen hat keine Zeit (wie die Warnung im Status).",
+            "Hat eine Position außer dem Programmieren keinen Arbeitsschritt, bekommt sie keine Unterzeile (die "
+            "Programmierzeit steht in ihrer Spalte); von Hand geändertes Programmieren steht immer da.",
             "Die Zeilen sind nur Anzeige. Ein Klick wählt die Position, ein Doppelklick öffnet ihre "
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
@@ -5054,7 +5064,7 @@ def kapitel_baugruppen(i):
         (3, "<b>Unterbaugruppen</b> mit <b>Menge</b> je übergeordneter Baugruppe (<b>Unterbaugruppe hinzufügen</b>,"
             " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
         (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "
-            "das Stück je Baugruppe."),
+            "das Stück je Baugruppe. Darüber <b>Suchen</b> und <b>Alle Positionen zeigen</b>."),
         (5, "Kosten je Baugruppe, Zeit und <b>Status</b>, bei jeder Eingabe neu gerechnet.")])
     i.text("Die Einzelteile bleiben normale Positionen: sie werden optimiert und kalkuliert wie bisher. Die Baugruppe "
            "rechnet nur ihre eigenen Leistungen dazu, nichts doppelt.", kurz=True)
@@ -5064,7 +5074,10 @@ def kapitel_baugruppen(i):
            "Baugruppen. Das Programm hält diese Werte selbst aktuell: Ändert man die Stückzahl der Baugruppe in der "
            "Positionsliste, ziehen die Teile nach (Meldung unten). Ein Teil kann nur zu einer Baugruppe gehören; "
            "Teile anderer Baugruppen fehlen in der Liste des Editors. Nimmt man ein Teil heraus (Haken weg), verliert "
-           "es Satz und Stück je Satz der Baugruppe. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
+           "es Satz und Stück je Satz der Baugruppe. Die Liste zeigt zuerst nur die Teile dieser Baugruppe; "
+           "<b>Alle Positionen zeigen</b> blendet die freien Positionen des Angebots dazu ein (nach Satz geordnet, "
+           "ohne Satz zuletzt), um Teile hinzuzufügen. Das Suchfeld filtert nach Pos., Artikel, Bezeichnung, Profil "
+           "oder Satz. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
            "Editor weist das sofort ab. <b>Unterbaugruppe entfernen</b> hängt ihre Teile, Nähte und Arbeitsgänge "
            "eine Ebene höher.")
     i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
@@ -5177,8 +5190,12 @@ def kapitel_baugruppen(i):
         (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
         (4, "<b>Lage</b> (PA … PG), Zugänglichkeit, Qualität und Werkstoff: Faktoren auf die Lichtbogenzeit."),
         (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
-        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Etikett "
-            "<i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
+        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe), <b>Rechenweg</b> und <b>Hinweis</b>: "
+            "Nahtlänge, Etikett <i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
+    i.text("Die Spalte <b>Rechenweg</b> zeigt, wie die Zeit je Stück der Unterbaugruppe entsteht, z. B. <i>0,96 m × "
+           "1,33 min/m ÷ 35 % Lichtbogen = 3,6 min + Heften 24 × 8 s = 3,2 min</i>: Naht [m] × Lichtbogenzeit je m "
+           "(× Faktoren Lage, Zugänglichkeit, Qualität, Werkstoff, Spalt) ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit "
+           "je Heftpunkt (+ Zusatzlagen). Fehlen Heftpunkte, steht dort <i>ohne Heftpunkte</i>.")
     i.genauer()
     i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
            "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
@@ -5369,8 +5386,10 @@ def kapitel_baugruppen(i):
            "Bestätigung) und schlägt Schweißen, Heften, Verputzen, Rüsten, Positionieren und Wenden bei jeder "
            "Änderung neu vor, spätestens beim OK; Werte von Hand und bestätigte bleiben. Die Einstellung "
            "<i>Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim STEP-Import: "
-           "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)</i> gibt das Häkchen für "
-           "Baugruppen ohne eigene Wahl vor; auf <i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
+           "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Positionieren, Wenden, Verputzen, Rüsten)</i> gibt "
+           "das Häkchen für Baugruppen ohne eigene Wahl vor; Vorgabe ist seit Version 0.9.237 <i>ja</i>, weil ohne "
+           "Vorkalkulation nur die reine Schweißzeit zählt (keine Heftpunkte, kein Positionieren und Wenden). Auf "
+           "<i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
            "STEP-Import gleich durch ([[step]]), der Bericht nennt das Ergebnis. Nimmt man das Häkchen bei einer "
            "Baugruppe heraus, bleibt es dort aus, auch wenn die Einstellung ja ist.", kurz=True)
     i.abschnitt("Erreichbarkeit der Nähte aus STEP: Zugänglichkeit und Wenden", marke="baugruppe_erreichbar")

@@ -349,6 +349,23 @@ def verputzen(bg, regeln, tabellen):
 
 
 # ------------------------------------------------------------------ Werkstoff, Beizen, Richten, Prüfen (Schritt 2)
+def teile_wand(bg, positionen, k, knoten_id=""):
+    """Kleinste Wanddicke der Rohre einer (Unter-)Baugruppe aus den Profil-Stammdaten (k), wenn die Nahtgruppe
+    keine Dicke hat (Patrick 03.11.2026: sonst keine Heftpunkte); None ohne Teile oder Stammdaten."""
+    if k is None:
+        return None
+    bereich = bg_mengen._unter(bg, knoten_id)
+    waende = []
+    for i in baugruppe.teile(positionen, bg["id"]):
+        p = positionen[i]
+        if bereich is not None and baugruppe.zuordnung(p)[1] not in bereich:
+            continue
+        w = (k.profile.get(p.get("profil_id")) or {}).get("wand")
+        if _zahl(w) and w > 0:
+            waende.append(float(w))
+    return min(waende) if waende else None
+
+
 def werkstoff_vorschlag(bg, positionen, k, knoten_id=""):
     """(Kategorie, Begründung) der Teile einer (Unter-)Baugruppe: häufigste Werkstoff-Kategorie (Stück je Baugruppe)
     der Teile darin; None bei Stahl, ohne Teile oder ohne Stammdaten (k)."""
@@ -552,7 +569,10 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
     vorschlag = hilfen_vorschlag(bg, positionen, bg["id"])
     hilfen = {i: hilfe(positionen[i], v) for i, v in vorschlag.items()}
     for nt in bg["naehte"]:
-        n, text = heftpunkte(nt, regeln)
+        wand = None if dicke(nt) is not None else teile_wand(bg, positionen, k, nt.get("knoten") or "")
+        n, text = heftpunkte(dict(nt, dicke=wand) if wand else nt, regeln)
+        if wand and n is not None:
+            text += f" (Wand der Teile {_text(wand)} mm)"
         if n is None and not _zahl(nt.get("heftpunkte")):
             hinweise.append(f"Nahtgruppe {nt.get('nr') or ''}: Heftpunkte ohne Vorschlag, {text}".replace("  ", " "))
         _naht_setzen(nt, "heftpunkte", n, text, out)

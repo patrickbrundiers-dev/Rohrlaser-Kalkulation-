@@ -733,6 +733,22 @@ def naht_rechnen(naht, tabellen, saetze):
             zwischen = naht_m * (lagen - 1) * _n(st.get("zusatzlage_min_m")) if lagen > 1 else 0.0
             out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen,
                        lagen=lagen, zwischen_min=zwischen)
+            # Rechenweg zum Nachvollziehen im Editor (Patrick 03.11.2026), je Stück des Knotens
+            faktoren = _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) * _n(st.get("f_qualitaet") or 1) \
+                * _n(st.get("f_werkstoff") or 1) * f_spalt
+            weg = f"{_zt(naht_m, 2)} m × {_zt(st['min_m'], 2)} min/m"
+            if abs(faktoren - 1) > 1e-9:
+                weg += f" × {_zt(faktoren, 2)} (Faktoren)"
+            weg += f" ÷ {_zt(st['lichtbogen'], 0)} % Lichtbogen = {_zt(lb / (st['lichtbogen'] / 100), 1)} min"
+            if heft:
+                weg += (f" + Heften {_zt(_n(naht.get('heftpunkte')) * anzahl, 0)} × {_zt(st.get('heft_s'), 0)} s"
+                        + (f" × {_zt(st['f_heft'], 1)}" if _n(st.get("f_heft") or 1) != 1 else "")
+                        + f" = {_zt(heft, 1)} min")
+            elif not _zahl(naht.get("heftpunkte")):
+                weg += " · ohne Heftpunkte"
+            if zwischen:
+                weg += f" + {lagen - 1} Zusatzlage(n) {_zt(zwischen, 1)} min"
+            out["rechenweg"] = weg
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
     vb = verbrauch(naht, st, naht_m * f_spalt, out["lichtbogen_min"])
@@ -745,6 +761,16 @@ def _text(w):
     if not _zahl(w):
         return ""
     return f"{w:g}".replace(".", ",")
+
+
+def _zt(w, stellen):
+    """Zahl für den Rechenweg: höchstens stellen Nachkommastellen, deutsches Komma, ohne Nullen am Ende."""
+    if not _zahl(w):
+        return "?"
+    t = f"{round(float(w), stellen):.{stellen}f}"
+    if "." in t:
+        t = t.rstrip("0").rstrip(".")
+    return t.replace(".", ",")
 
 
 # ------------------------------------------------------------------ Arbeitsgänge

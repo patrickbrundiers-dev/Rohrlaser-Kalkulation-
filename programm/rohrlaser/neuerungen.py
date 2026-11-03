@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.237", "Sätze und Schweißbaugruppen übersichtlicher: Schweißbaugruppen sind <b>grün</b> hinterlegt (⚙ Name · "
+     "Anzahl in der Spalte Satz), die <b>Kalkulation</b> steht in der Reihenfolge der Positionsliste mit Baugruppe "
+     "und Einzelteilen darunter und lässt sich am Zeilenkopf zuklappen, <b>Alle Gruppen zuklappen</b> klappt alle "
+     "Sätze und Baugruppen auf eine Zeile (je Angebot gemerkt) ([[saetze_abheben]]). Der Status steht in einer Zeile, "
+     "die Unterzeile <i>Programmieren</i> nur noch mit echten Arbeitsschritten. Die Übersicht rechts schneidet "
+     "Beträge bei schmalem Fenster nicht mehr ab, die Balken <i>Kosten je Baugruppe</i> überlappen nicht mehr. Im "
+     "Editor der Schweißbaugruppe zeigt die Teileliste nur die Teile der Baugruppe (<b>Alle Positionen zeigen</b>, "
+     "Suche), die Nahtgruppen haben eine Spalte <b>Rechenweg</b>, und die <b>Vorkalkulation automatisch</b> "
+     "(Heftpunkte, Positionieren, Wenden) ist jetzt Vorgabe ([[schweissbaugruppe]]).",
+     "Sätze/Baugruppen grün und zuklappbar, Kalkulation gruppiert, Rechenweg Naht, Vorkalkulation als Vorgabe"],
     ["0.9.236", "Prüfung der Kalkulationsbasis: <b>Grundwerte prüfen …</b> unter Stammdaten → Maschinen und im "
      "Angebots-Check zeigt leere Nebenzeiten, Beispiel-Stundensätze und doppelt gezählte Zuschläge mit der Wirkung in € "
      "([[kalkulationsbasis]]). <b>Schneiddaten</b> zwischen zwei Wandstufen werden interpoliert (2,6 mm nicht mehr mit "

@@ -88,6 +88,7 @@ class ZeilenTabelle(QTableWidget):
         super().__init__(0, len(spalten))
         self.spalten, self.zeilen, self.geaendert, self.herkunft = spalten, zeilen, geaendert, herkunft
         self.ungueltig = set()
+        self.verstecken = None      # z -> True: Zeile ausblenden (Filter, z. B. nur Teile der Baugruppe)
         self.setHorizontalHeaderLabels([s.titel for s in spalten])
         for c, s in enumerate(spalten):
             self.setColumnWidth(c, s.breite)
@@ -109,6 +110,12 @@ class ZeilenTabelle(QTableWidget):
                 self._zeile_klick(f)
                 self.setCellWidget(r, c, f)
         self.auffrischen()
+        self.filtern()
+
+    def filtern(self):
+        """Zeilen nach self.verstecken aus- bzw. einblenden."""
+        for r, z in enumerate(self.zeilen):
+            self.setRowHidden(r, bool(self.verstecken and self.verstecken(z)))
 
     def _zeile_klick(self, f):
         """Klick oder Fokus in ein Feld markiert seine Zeile (die Felder fangen den Klick sonst ab; Patrick 26.10.2026:
@@ -1933,6 +1940,32 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                    je=q.get("je_knoten") if drin and bg_id else
                                    (q.get("je_satz") or 1) if drin else 1,
                                    hilfe=q.get("bg_hilfe") if drin and bg_id else None, **self._gravur_vorgabe(q)))
+        # Übersicht bei vielen Positionen (Patrick 03.11.2026): zuerst die Teile dieser Baugruppe, dann die freien
+        # Positionen nach Satz zusammen (ohne Satz zuletzt), sonst wie im Angebot
+        satz_rang = {}
+        for t in self.teile:
+            satz_rang.setdefault(str(t["_q"].get("satz") or "").strip() or None, len(satz_rang))
+        self.teile.sort(key=lambda t: (not t["drin"], satz_rang[str(t["_q"].get("satz") or "").strip() or None]
+                                       if str(t["_q"].get("satz") or "").strip() else len(satz_rang)))
+
+    def _teil_verstecken(self, z):
+        """Filter der Einzelteile: ohne „Alle Positionen zeigen“ nur die Teile der Baugruppe (keine drin: alle);
+        Suchtext in Pos., Artikel, Bezeichnung, Profil oder Satz."""
+        alle = getattr(self, "teile_alle", None)
+        if alle is not None and not alle.isChecked() and not z.get("drin") and any(t.get("drin") for t in self.teile):
+            return True
+        such = getattr(self, "teile_suche", None)
+        text = such.text().strip().lower() if such is not None else ""
+        if not text:
+            return False
+        q = z["_q"]
+        return not any(text in str(q.get(n) or "").lower() for n in ("pos", "artikel", "bezeichnung", "profil_id",
+                                                                       "satz"))
+
+    def _teile_filter_geaendert(self, *_):
+        self.teile_tab.filtern()
+        frei = sum(1 for t in self.teile if not t.get("drin"))
+        self.teile_alle.setText(f"Alle Positionen zeigen (+{frei} freie)" if frei else "Alle Positionen zeigen")
 
     def _gravur_vorgabe(self, q):
         """Häkchen und Schrifthöhe der Artikelnummer-Gravur: gespeichert (Spalte bg_gravur), sonst nach den
@@ -1983,7 +2016,20 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         links.addLayout(leiste)
         lay.addLayout(links, 2)
         rechts = QVBoxLayout()
-        rechts.addWidget(QLabel("<b>Einzelteile</b> (Positionen des Angebots)"))
+        kopf = QHBoxLayout()
+        kopf.addWidget(QLabel("<b>Einzelteile</b> (Positionen des Angebots)"))
+        kopf.addStretch(1)
+        self.teile_suche = QLineEdit()
+        self.teile_suche.setPlaceholderText("Suchen: Pos., Artikel, Profil, Satz …")
+        self.teile_suche.setClearButtonEnabled(True)
+        self.teile_suche.setMaximumWidth(260)
+        kopf.addWidget(self.teile_suche)
+        self.teile_alle = QCheckBox("Alle Positionen zeigen")
+        self.teile_alle.setToolTip("Ohne Häkchen stehen nur die Teile dieser Baugruppe in der Liste. Mit Häkchen auch "
+                                   "die freien Positionen des Angebots (nach Satz geordnet), um Teile hinzuzufügen. "
+                                   "Teile anderer Baugruppen stehen nie hier.")
+        kopf.addWidget(self.teile_alle)
+        rechts.addLayout(kopf)
         self.teile_tab = ZeilenTabelle([
             Spalte("drin", "in Bau-\ngruppe", "haken", 60),
             Spalte("_pos", "Pos.", "anzeige", 50, anzeige=lambda z, r: str(z["_q"].get("pos") or "")),
@@ -2002,6 +2048,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("_gravur_info", "Gravur", "anzeige", 140, anzeige=self._gravur_text),
             Spalte("_hilfe_vk", "Vorschlag", "anzeige", 200, anzeige=self._hilfe_text)],
             self.teile, self.aktualisieren, self._teil_herkunft)
+        self.teile_tab.verstecken = self._teil_verstecken
+        self.teile_suche.textChanged.connect(self._teile_filter_geaendert)
+        self.teile_alle.toggled.connect(self._teile_filter_geaendert)
+        self._teile_filter_geaendert()
         rechts.addWidget(self.teile_tab, 1)
         leiste = QHBoxLayout()
         for text, an in (("Alle gravieren", True), ("Keine gravieren", False)):
@@ -2165,9 +2215,19 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("_zeit", "Zeit je\nBaugruppe", "anzeige", 95, anzeige=lambda z, r: self._zeile_wert("Naht", z, "zeit")),
             Spalte("_kosten", "Kosten je\nBaugruppe", "anzeige", 95,
                    anzeige=lambda z, r: self._zeile_wert("Naht", z, "kosten")),
+            Spalte("_rechenweg", "Rechenweg (je Stück der Unterbaugruppe)", "anzeige", 330,
+                   anzeige=lambda z, r: self._naht_ergebnis(z).get("rechenweg") or "",
+                   tipp="Naht [m] × Lichtbogenzeit je m × Faktoren ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit je "
+                        "Heftpunkt (+ Zusatzlagen)"),
             Spalte("_hinweis", "Hinweis", "anzeige", 200, anzeige=lambda z, r: self._zeile_wert("Naht", z, "hinweis"))],
             self.bg["naehte"], self.aktualisieren, self._naht_herkunft)
         lay.addWidget(self.naht_tab, 1)
+        # Rechenweg je Nahtgruppe sichtbar ohne Scrollen (Patrick 03.11.2026)
+        self.naht_weg = QLabel()
+        self.naht_weg.setWordWrap(True)
+        self.naht_weg.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.naht_weg.setStyleSheet("color: #3A4656;")
+        lay.addWidget(self.naht_weg)
         leiste = QHBoxLayout()
         neu = QPushButton("Nahtgruppe hinzufügen")
         neu.clicked.connect(lambda: self.naht_neu())
@@ -2625,6 +2685,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     getattr(self, "naht_tab", None), getattr(self, "ag_tab", None)):
             if tab is not None:
                 tab.auffrischen()
+        if getattr(self, "naht_weg", None) is not None:
+            zeilen = [f"Nahtgruppe {n.get('nr') or i + 1}: {w}" for i, n in enumerate(self.bg["naehte"])
+                      if (w := self._naht_ergebnis(n).get("rechenweg"))]
+            self.naht_weg.setText(("<b>Rechenweg</b> (je Stück der Unterbaugruppe)<br>" + "<br>".join(zeilen[:6])
+                                   + ("<br>…" if len(zeilen) > 6 else "")) if zeilen else "")
         if getattr(self, "knick_info", None) is not None:
             pos = {t_["_id"]: t_["_q"].get("pos") for t_ in self.teile}
             self.knick_info.setText("; ".join(
