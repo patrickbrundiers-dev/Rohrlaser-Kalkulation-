@@ -17,7 +17,9 @@ FUNKTIONEN = (
              "Neue Position „Blech / Kantteil“, Blech-Richtpreis, Blech-Werkstoffe, Blechlaser und K-Faktoren",
              seiten=("e_blech", "blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
     Funktion("funktion_zukauf", "Zukaufteile",
-             "Reiter Zukaufartikel, Knopf „Zukaufteile …“ und neue Position „Zukaufteil“", reiter="zukauf"),
+             "Reiter Zukaufartikel, Knopf „Zukaufteile …“, neue Position „Zukaufteil“ und der Richtpreis für Dreh- und "
+             "Frästeile mit seinen Einstellungen", reiter="zukauf",
+             seiten=("e_drehfraes", "e_drehfraes_grenzen", "drehfraes_werkstoffe")),
     Funktion("funktion_fracht", "Frachtkosten",
              "Reiter Frachtkosten und Knopf „Fracht berechnen …“ (der Frachtbetrag von Hand bleibt)",
              reiter="fracht"),
@@ -56,9 +58,6 @@ FUNKTIONEN = (
     Funktion("funktion_abruf", "Abruf-/Rahmenangebote",
              "Haken „Abruf-/Rahmenangebot“ im Angebotskopf (vorhandene Abruf-Angebote bleiben)"),
     # Vorschlag K3 (Patrick 02.11.2026 „K3b“): nur intern, Vorgabe aus
-    Funktion("funktion_drehfraes_preis", "Richtpreis für Dreh- und Frästeile",
-             "Richtpreis als EK-Vorschlag für Dreh-/Frästeile aus dem STEP-Import, „Richtpreis Dreh-/Frästeil …“ "
-             "und die Seite mit Stundensätzen und Schnittwerten", seiten=("e_drehfraes", "e_drehfraes_grenzen", "drehfraes_werkstoffe")),
     Funktion("funktion_co2", "CO₂-Bilanz (intern)",
              "CO₂ je Teil im Preisaufbau und im Kalkulations-PDF, Spalte CO₂ bei den Werkstoffen", vorgabe="nein"),
 )

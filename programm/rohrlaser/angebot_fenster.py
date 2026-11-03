@@ -6929,7 +6929,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                biegerohr_faktor=self.db.einstellung("biegerohr_faktor"),
                                zusatz_katalog=self.db.zeilen("zusatzarbeiten"),
                                drehfraes_einst=self.db.drehfraes_einstellungen()
-                               if funktionen.an("funktion_drehfraes_preis", self.db) else None)
+                               if funktionen.an("funktion_zukauf", self.db) else None)
         self.db.profile_anlegen(erg["profile"])
         neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
                     for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
