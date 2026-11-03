@@ -322,8 +322,8 @@ def _():
         assert w["menge"] == 2 and nah(w["betrag"], 2 * 0.40, 0.001), w
         # 3. Option im Dialog: Ø schneiden (ohne Bohren) -> Schneidweg zurück, Zusatzarbeit Bohren weg
         d = BohrbildDialog(None, p, gew, 3, bohrbild.SCHNEIDEN, db.zeilen("zusatzarbeiten"))
-        ls = d.laser[0]
-        assert [ls.itemText(i) for i in range(ls.count())] == list(bohrbild.LASER_BOHREN)
+        au = d.ausfuehrung[0]          # Ø schneiden (ohne Bohren) ist seit 0.9.238 die Ausführung „nur lasern“
+        assert {au.itemData(i) for i in range(au.count())} >= {bohrbild.AUFBOHREN, bohrbild.NUR_LASER}
         d.setzen(0, "bestätigt", laser=bohrbild.SCHNEIDEN)
         d.accept()
         assert seite.bohrungen_pruefen([0], werte=d.ergebnis)
@@ -373,8 +373,8 @@ def _():
         gp = {g["gewinde"]: g.get("preis") for g in tab["gewinde"]}
         d = BohrbildDialog(None, p, [(g["gewinde"], g["kernloch"]) for g in tab["gewinde"]], 3, None,
                            tab["zusatzarbeiten"], rechnen.stundensaetze(tab), gp)
-        assert d.preise[0][0].placeholderText() == "0,90" and d.preise[0][1] is None
-        assert d.preise[1][0] is None and d.preise[1][1].placeholderText() == "0,40"
+        assert d.preise[0][0].placeholderText() == "0,90" and not d.preise[0][1].isEnabled()
+        assert not d.preise[1][0].isEnabled() and d.preise[1][1].placeholderText() == "0,40"
         d.setzen(0, "bestätigt", gewinde_preis="1,25")
         d.setzen(1, "bestätigt", preis="0,75")
         t = d.auswirkung.text()

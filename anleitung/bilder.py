@@ -1129,7 +1129,7 @@ def main(ziel):
         if not isinstance(d, BohrbildDialog):
             QTimer.singleShot(50, bohrbild_ausfuellen)
             return
-        d.resize(1050, 330)
+        d.resize(1500, 400)
         d.setzen(0, "bestätigt", gravur=True)            # Senkung bestätigt, Senk-Ø gravieren
         d.setzen(1, "bestätigt")                         # Flowdrill M8 bestätigt
         bereit()
