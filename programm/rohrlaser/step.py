@@ -129,6 +129,7 @@ def netz_mit_lagen(messwerte, gruppe):
     netz = entpacken(m0["_netz"])
     if not netz:
         return m0["_netz"]
+    netz = netz_der_art(dict(m0, _netz=netz))      # Blech/Kantteil blau wie im Prüfdialog
     lagen, koerper = [], []
     for j in gruppe:
         m = messwerte[j]
@@ -1530,6 +1531,8 @@ def finde_profil(m, profile):
     for pid, p in profile.items():
         if p.get("form") != form or abs((p.get("wand") or 0) - t) > TOL_MASS:
             continue
+        if form == "L-Profil" and str(pid).startswith("Kant-L"):
+            continue    # Kant-L ist ein Kantteil (Patrick 03.11.2026): scharfkantige L nie automatisch Kant-L
         pa, pb = p.get("a") or 0, p.get("b") or 0
         if form in ("Rundrohr", "Quadratrohr"):
             if abs(pa - a) <= TOL_MASS:
@@ -1573,6 +1576,26 @@ def blech(m):
         return json.loads(m["blech"])
     except ValueError:
         return None
+
+
+BLECH_NETZ_ARTEN = ("A", "I", "EA", "EB", "N", "EW", "EO", "UW", "UO", "ES")
+
+
+def netz_der_art(m):
+    """Netz der 3D-Ansicht im Prüfdialog passend zur Art (Patrick 03.11.2026: eine Umstellung in der Spalte Art muss
+    man auch im 3D sehen): Bleche und Kantteile ganz blau ('KB', Zukauf, ohne Anfangs-/Endschnitt), Innenkonturen
+    und Gravur bleiben; Rohre und Profile wie gemessen. Ergebnis: Netz (dict/Bytes) oder None."""
+    netz = m.get("_netz")
+    if not netz or m.get("profilform") not in BLECHE:
+        return netz
+    from .ansicht3d import entpacken
+    n = entpacken(bytes(netz)) if isinstance(netz, (bytes, bytearray, memoryview)) else netz
+    if not n or not n.get("t"):
+        return netz
+    t = {}
+    for art, idx in n["t"].items():
+        t.setdefault("KB" if art in BLECH_NETZ_ARTEN else art, []).extend(idx)
+    return dict(n, t=t, l={a: z for a, z in (n.get("l") or {}).items() if a not in BLECH_NETZ_ARTEN})
 
 
 def alternative(m):
@@ -1787,11 +1810,19 @@ def kant_grund(m):
     n = str(m.get("normprofil") or "")
     if m.get("profilform") in ("L-Profil", "U-Profil", "C-Profil") and n.startswith(normprofile.KANT_REIHEN):
         return f"Standard-Kantprofil {n}: Profil für den Rohrlaser"
+    if m.get("profilform") == "L-Profil" and (alternative(m) or {}).get("profilform") == "Blech gekantet":
+        if ((blech(alternative(m)) or {}).get("abwicklung") or {}).get("scharf"):
+            return "Winkel scharfkantig: L-Profil (Kantteil als Auswahl in der Spalte Art)"
+        return "Winkel mit Biegeradius, von Hand als L-Profil (Kantteil als Auswahl in der Spalte Art)"
     if m.get("profilform") != "Blech gekantet":
         return ""
+    alt = alternative(m) or {}
+    if alt.get("profilform") == "L-Profil":     # Winkel (Patrick 03.11.2026)
+        scharf = ((blech(m) or {}).get("abwicklung") or {}).get("scharf")
+        return ("Winkel scharfkantig, von Hand als Kantteil (L-Profil als Auswahl)" if scharf else
+                "Winkel mit Biegeradius (außen = innen + Dicke): immer Kantteil (L-Profil als Auswahl)")
     if geschlossen(m):
         return "Blech gekantet (Rohr als Auswahl in der Spalte Art)"
-    alt = alternative(m) or {}
     if alt.get("profilform") in ("L-Profil", "U-Profil", "C-Profil"):
         return f"Blech gekantet: kein Standard-Kantprofil ({alt['profilform']} als Auswahl)"
     if alt.get("profilform"):
@@ -1854,14 +1885,16 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
 def kantteile_vorbelegen(messwerte, profile):
     """Grenzfall Profil/Kantteil (scharfkantig gezeichnetes L-, U- oder C-Profil, Patrick 23.10.2026): Profil, wenn
     ein passendes Profil in den Stammdaten steht, sonst Kantteil (Blech gekantet mit Abwicklung). Nur einmal je Teil
-    (_art_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl umgestellter Teile."""
+    (_art_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl umgestellter Teile. Ein Winkel bleibt
+    L-Profil (Patrick 03.11.2026), der Kantteil steht in der Spalte Art zur Wahl."""
     n = 0
     for m in messwerte:
         if m.get("_art_vorbelegt"):
             continue
         m["_art_vorbelegt"] = True
         alt = alternative(m)
-        if (m.get("profilform") in ("L-Profil", "U-Profil", "C-Profil") and alt
+        # Winkel (Patrick 03.11.2026): scharfkantig bzw. außen scharf, innen Radius ist immer ein L-Profil
+        if (m.get("profilform") in ("U-Profil", "C-Profil") and alt
                 and alt.get("profilform") == "Blech gekantet" and not finde_profil(m, profile)):
             n += art_wechseln(m)
     return n
@@ -2248,7 +2281,9 @@ def kantprofil_vorbelegen(messwerte, profile):
             continue
         m["_kp_vorbelegt"] = True
         alt = alternative(m)
-        if not alt or alt.get("profilform") not in KANT_FORMEN or str(alt.get("ersatz") or "") in ("1", "True"):
+        # Winkel mit Biegeradius sind immer Kantteile (Patrick 03.11.2026 19:01), auch wenn das L in den Stammdaten steht
+        if not alt or alt.get("profilform") not in ("U-Profil", "C-Profil") or \
+                str(alt.get("ersatz") or "") in ("1", "True"):
             continue
         if finde_profil(alt, profile) and art_wechseln(m):
             m["_kp_vorbelegt"] = True

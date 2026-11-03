@@ -31,7 +31,9 @@ NEUERUNGEN = [
      "den Stammdaten ([[profile]]). Ein offen gezeichnetes Rohr gilt nur mit ganzen Außenmaßen als Rohr, "
      "wenn das Rohr genau so groß ist wie das Teil, ein C mit Lippen nur bis 20 mm Schlitz; sonst Kantteil, das Rohr in "
      "der Spalte Art wählbar ([[offene_rohre]]). <b>Kantteile</b>: Hut, Z, Dachwinkel, Sicke, Saum und mehrachsige "
-     "Halter sicher Blech gekantet, Grund in der Hinweisspalte, Abwicklung schräg im Raum richtig. <b>Zukaufteile</b> im Import nur bei Schweißbaugruppe angehakt, sonst von Hand; "
+     "Halter sicher Blech gekantet, Grund in der Hinweisspalte, Abwicklung schräg im Raum richtig. <b>Winkel</b>: "
+     "mit Biegeradius (außen = innen + Dicke) immer Kantteil, scharfkantig oder nur innen Radius immer L-Profil; "
+     "die 3D-Ansicht zeigt die gewählte Art (Kantteil blau, Profil mit Anfangs-/Endschnitt). <b>Zukaufteile</b> im Import nur bei Schweißbaugruppe angehakt, sonst von Hand; "
      "im Fenster Satz bearbeiten <b>Einkauf je Satz</b> für Bleche, Vollmaterial und Dreh-/Frästeile, nach Gewicht "
      "umgelegt ([[satz_bearbeiten]]). Sicherere Erkennung: Rolle mit Radius, Flansch mit Absatz, Teile schräg im Raum, "
      "gleichschenkliger Kant-Winkel; eine Testreihe mit über 50 gebauten Teilen prüft das.",

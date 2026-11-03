@@ -9,8 +9,8 @@
 - V5 17 Bleche in beiden Einstellungen „Flache Teile als“: Lochbleche, Ausschnitte, Kleinteile, Laschen, Ronde, Ring,
   Senkungen, Dreieck, Knotenblech, dicke Platte, Schweißfase, schräg im Raum (Dicke ohne Rundungsrest); Kantteile mit
   Biegeradien sind Blech gekantet (Profil als Auswahl), ein scharfkantiger Winkel bleibt L-Profil.
-- V6 Kantprofile mit Standardmaß (U-Stahl nach Patricks Liste, Kant-C, Kant-L) bleiben Profil; ein Kantteil, dessen Profil in den Stammdaten steht,
-  wird im Programm wieder Profil.
+- V6 Kantprofile mit Standardmaß (U-Stahl nach Patricks Liste, Kant-C) bleiben Profil; ein U/C-Kantteil, dessen Profil in
+  den Stammdaten steht, wird im Programm wieder Profil; ein Winkel mit Biegeradius bleibt immer Kantteil.
 - V7 Datenbank: Kantprofile als Standard in den Profilen.
 
 Aufruf: python tests/test_erkennung_vielfalt.py
@@ -141,8 +141,6 @@ KANT = {        # Standard-Kantprofile (Patrick 03.11.2026): bleiben Profil mit 
                                            (47, 80), (50, 80), (50, 100), (0, 100)], 600,
                                           {(0, 0): 6, (50, 0): 6, (50, 100): 6, (0, 100): 6, (3, 3): 3, (47, 3): 3,
                                            (47, 97): 3, (3, 97): 3}), "C-Profil", "Kant-C 100x50x20x3"),
-    "KV03_Kant_L_50x50x3": (et.profil([(0, 0), (50, 0), (50, 3), (3, 3), (3, 50), (0, 50)], 600, {(0, 0): 6, (3, 3): 3}),
-                            "L-Profil", "Kant-L 50x50x3"),
 }
 TMP = Path(tempfile.mkdtemp())
 schreibe({**DREH, **FRAES, **{n: f for n, (f, _) in LASER.items()}, **{n: v[0] for n, v in BLECH.items()},
@@ -230,7 +228,7 @@ def _():
     assert m("BV06_Ronde_200x5").blech["dicke"] == 5.0 and m("BV13_Platte15_300x300", 0).blech["dicke"] == 15.0
 
 
-@fall("V6 Kantprofile: Standardmaße bleiben Profil (Kant-U/C/L), andere Kantteile Blech gekantet; Stammdaten")
+@fall("V6 Kantprofile: Standardmaße bleiben Profil (U-Stahl, Kant-C), andere Kantteile Blech gekantet; Stammdaten")
 def _():
     for n, (_, form, norm) in KANT.items():
         t = m(n)
@@ -246,9 +244,14 @@ def _():
     (mw,) = step.lies_messwerte(aus)
     assert mw["profilform"] == "Blech gekantet" and step.alternative(mw)["profilform"] == "L-Profil"
     assert step.kantprofil_vorbelegen([dict(mw)], {}) == 0
+    # Winkel mit Biegeradius bleibt Kantteil, auch wenn das L in den Stammdaten steht (Patrick 03.11.2026 19:01)
     profile = {"L 100x50x3": dict(form="L-Profil", a=100, b=50, wand=3)}
-    assert step.kantprofil_vorbelegen([mw], profile) == 1 and mw["profilform"] == "L-Profil" and mw["_kp_zurueck"]
-    assert step.kantprofil_vorbelegen([mw], profile) == 0, "nur einmal"
+    assert step.kantprofil_vorbelegen([dict(mw)], profile) == 0
+    # ein U, das in den Stammdaten steht, wird wieder Profil (einmal, Wahl bleibt)
+    mu = dict(mw, alternative=json.dumps(dict(step.alternative(mw), profilform="U-Profil")))
+    profile = {"U 100x50x3": dict(form="U-Profil", a=100, b=50, wand=3)}
+    assert step.kantprofil_vorbelegen([mu], profile) == 1 and mu["profilform"] == "U-Profil" and mu["_kp_zurueck"]
+    assert step.kantprofil_vorbelegen([mu], profile) == 0, "nur einmal"
     json.loads(js.read_text(encoding="utf-8"))
 
 

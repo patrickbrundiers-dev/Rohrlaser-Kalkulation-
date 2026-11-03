@@ -215,6 +215,8 @@ def zuordnen(form, h, b, tw, tf, flaeche=None):
         if n["form"] != form:
             continue
         if form == "L-Profil":
+            if n.get("kant"):   # Winkel mit Biegeradien (außen = innen + Dicke) sind immer Kantteile (Patrick 03.11.)
+                continue
             ok = abs(max(h, b) - n["h"]) <= TOL_HB and abs(min(h, b) - n["b"]) <= TOL_HB and abs(tw - n["tw"]) <= TOL_T
         else:
             tol_t = TOL_T_GENEIGT if n["geneigt"] else TOL_T

@@ -1,7 +1,8 @@
 """Testreihe Kantteile U/C/L (Patrick 03.11.2026: „U-, C-, L-Kantteile Erkennung deutlich verbessern, dass es hier nicht
 zu Missverständnissen kommt“, Bilder typischer Kantteile; Freigabe „Alle Empfehlungen“ 17:22). Alle Teile hier gebaut:
-- K1 Standard-Kantprofile (Kant-L, U-Stahl, Kant-C) bleiben Profil, auch mit Löchern, Ausklinkung, schräg im Raum,
-  kurz, mit größerem Biegeradius (R6) oder scharfkantig gezeichnet; das Walz-L bleibt L 50x50x5.
+- K1 Standard-Kantprofile (U-Stahl, Kant-C) bleiben Profil, auch mit Löchern, Ausklinkung, schräg im Raum oder
+  scharfkantig gezeichnet; das Walz-L bleibt L 50x50x5. Winkel (Patrick 03.11.2026 19:01): scharfkantig oder außen
+  scharf/innen Radius = L-Profil, mit Biegeradius außen = innen + Dicke immer Kantteil (auch in Kant-L-Maßen, R1,5/R6).
 - K2 andere Kantteile werden Blech gekantet: L ohne Standardmaß, U mit ungleichen Schenkeln, flaches U, C ohne
   Standardmaß, U mit krummem Maß.
 - K3 offen gezeichnetes Rohr nur, wenn das Rohr genau die Außenmaße hat; C mit Lippen nur bis 20 mm Schlitz; das Rohr
@@ -9,7 +10,8 @@ zu Missverständnissen kommt“, Bilder typischer Kantteile; Freigabe „Alle Em
 - K4 Kantteile nach Patricks Bildern (Hut, Z, Dachwinkel, Wanne, C mit Sicke, dickes S, Saum, mehrachsige Halter und
   Chassis) sind Blech gekantet; die Auswahl „Profil“ zeigt die echte Form (offenes Sonderprofil statt L, nie Träger).
 - K5 Abwicklung: Hutprofil in 25 Lagen im Raum gleicher Zuschnitt (vorher 113–117 statt 172,7 mm).
-- K6 Programm: Grund in der Hinweisspalte (step.kant_grund), Rohr in der Spalte Art wählbar.
+- K6 Programm: Grund in der Hinweisspalte (step.kant_grund), Rohr in der Spalte Art wählbar; scharfkantiger Winkel
+  bleibt L-Profil; die 3D-Ansicht zeigt die gewählte Art (Kantteil blau, Profil mit Anfangs-/Endschnitt).
 
 Aufruf: python tests/test_kantteile_vielfalt.py
 """
@@ -102,16 +104,10 @@ def kant(mitte, t, R=None, lg=500):
 HUT = [(-50, 0), (-30, 0), (-30, 40), (30, 40), (30, 0), (50, 0)]
 WALZ_L = et.profil([(0, 0), (50, 0), (50, 5), (5, 5), (5, 50), (0, 50)], 500, {(5, 5): 5})
 PROFIL = {      # bleibt Profil: Name -> (Körper, Form, Normprofil)
-    "L01_KantL_50x50x3": (L(50, 50, 3), "L-Profil", "Kant-L 50x50x3"),
-    "L02_KantL_60x40x3": (L(60, 40, 3), "L-Profil", "Kant-L 60x40x3"),
+    "L04_L_scharf": (L(50, 50, 3, 0), "L-Profil", ""),
     "L05_Walz_L50x50x5": (WALZ_L, "L-Profil", "L 50x50x5"),
-    "L06_KantL_Bohrungen": (ohne(L(50, 50, 3), zyl(4.5, 10, 100, 25, -2, (0, 1, 0)), zyl(4.5, 10, 400, 25, -2, (0, 1, 0))),
-                            "L-Profil", "Kant-L 50x50x3"),
-    "L07_KantL_schraeg": (lage(L(40, 40, 2)), "L-Profil", "Kant-L 40x40x2"),
-    "L08_KantL_Ausklinkung": (ohne(L(50, 50, 3), quader(30, 10, 20, 20, -1, -1)), "L-Profil", "Kant-L 50x50x3"),
-    "L09_KantL_R1,5": (L(50, 50, 3, 1.5), "L-Profil", "Kant-L 50x50x3"),
-    "L10_KantL_R6": (L(50, 50, 3, 6), "L-Profil", "Kant-L 50x50x3"),
-    "L12_KantL_kurz60": (L(50, 50, 3, lg=60), "L-Profil", "Kant-L 50x50x3"),
+    "L13_L_innen_R": (et.profil([(0, 0), (60, 0), (60, 4), (4, 4), (4, 40), (0, 40)], 500, {(4, 4): 4}), "L-Profil", ""),
+    "L16_L_scharf_schraeg": (lage(L(40, 40, 3, 0)), "L-Profil", ""),
     "U01_UStahl_80x50x4": (U(80, 50, 4), "U-Profil", "U-Stahl 80x50x4"),
     "U05_UStahl_schraeg": (lage(U(40, 20, 3)), "U-Profil", "U-Stahl 40x20x3"),
     "U06_UStahl_Bohr_Ausklinkung": (ohne(U(80, 50, 4), zyl(5, 10, 250, 40, -2, (0, 1, 0)), quader(20, 30, 30, -1, 25, -1)),
@@ -130,6 +126,15 @@ M5 = plus(quader(200, 100, t), quader(200, t, 40), quader(200, t, 40, 0, 100 - t
           quader(t, 95, 20, -t, t + 0.5, 0), quader(t, 95, 20, 200, t + 0.5, 0))
 KANT = {        # Blech gekantet: Name -> (Körper, Form der Auswahl „Profil“ oder None)
     "K03_L_70x45x3": (L(70, 45, 3), "L-Profil"),
+    "L01_KantL_50x50x3": (L(50, 50, 3), "L-Profil"),        # Winkel mit Biegeradius: immer Kantteil
+    "L02_KantL_60x40x3": (L(60, 40, 3), "L-Profil"),
+    "L06_KantL_Bohrungen": (ohne(L(50, 50, 3), zyl(4.5, 10, 100, 25, -2, (0, 1, 0)),
+                                 zyl(4.5, 10, 400, 25, -2, (0, 1, 0))), None),
+    "L07_KantL_schraeg": (lage(L(40, 40, 2)), "L-Profil"),
+    "L08_KantL_Ausklinkung": (ohne(L(50, 50, 3), quader(30, 10, 20, 20, -1, -1)), None),
+    "L09_KantL_R1,5": (L(50, 50, 3, 1.5), "L-Profil"),
+    "L10_KantL_R6": (L(50, 50, 3, 6), "L-Profil"),
+    "L12_KantL_kurz60": (L(50, 50, 3, lg=60), "L-Profil"),
     "K04_U_85x40,8x3": (U(85, 40.8, 3), "U-Profil"),
     "K07_U_ungleich": (U(80, 50, 3, b2=30), None),
     "K08_U_flach_200x20": (U(200, 20, 3), None),
@@ -167,7 +172,7 @@ def m(name):
     return M[name]
 
 
-@fall("K1 Standard-Kantprofile bleiben Profil (Löcher, Ausklinkung, schräg, kurz, R1,5/R6, scharfkantig), Walz-L")
+@fall("K1 Standard-Kantprofile bleiben Profil (Löcher, Ausklinkung, schräg, scharfkantig), Walz-L, Winkel scharf = L")
 def _():
     falsch = {n: (m(n).profilform, m(n).normprofil) for n, (_, f, norm) in PROFIL.items()
               if (m(n).profilform, m(n).normprofil) != (f, norm)}
@@ -220,12 +225,32 @@ def _():
     from rohrlaser.step_dialog import StepPruefDialog
     app = QApplication.instance() or QApplication([])
     aus, js = TMP / "k.txt", TMP / "k.json"
-    namen = ("L01_KantL_50x50x3", "K03_L_70x45x3", "O1_U_60x40x3_R")
+    namen = ("L01_KantL_50x50x3", "K03_L_70x45x3", "O1_U_60x40x3_R", "L04_L_scharf")
+    netze = TMP / "netze"
+    netze.mkdir(exist_ok=True)
     with contextlib.redirect_stdout(io.StringIO()):
-        step_messen.main(["--ausgabe", str(aus), "--json", str(js)] + [str(TMP / f"{n}.step") for n in namen])
-    mw = step.lies_messwerte(aus)
-    assert step.kant_grund(mw[0]).startswith("Standard-Kantprofil Kant-L 50x50x3"), step.kant_grund(mw[0])
-    assert "kein Standard-Kantprofil (L-Profil als Auswahl)" in step.kant_grund(mw[1]), step.kant_grund(mw[1])
+        step_messen.main(["--ausgabe", str(aus), "--json", str(js), "--netze", str(netze)]
+                         + [str(TMP / f"{n}.step") for n in namen])
+    mw = step.lade_netze(step.lies_messwerte(aus), netze)
+    assert step.kant_grund(mw[0]).startswith("Winkel mit Biegeradius (außen = innen + Dicke): immer Kantteil"), \
+        step.kant_grund(mw[0])
+    assert "immer Kantteil (L-Profil als Auswahl)" in step.kant_grund(mw[1]), step.kant_grund(mw[1])
+    assert step.kantteile_vorbelegen(mw, {}) == 0 and mw[3]["profilform"] == "L-Profil"    # Winkel scharf: L
+    assert step.kant_grund(mw[3]).startswith("Winkel scharfkantig: L-Profil"), step.kant_grund(mw[3])
+    from rohrlaser.ansicht3d import entpacken
+
+    def arten(m):
+        n = step.netz_der_art(m)
+        return set((entpacken(n) if isinstance(n, bytes) else n)["t"])
+    for x in (mw[0], mw[3]):            # 3D zeigt die Art: Kantteil blau, Profil mit Anfangs-/Endschnitt
+        ist = arten(x)
+        assert ("KB" in ist and not ist & {"A", "EA", "EB", "N"}) if x["profilform"] == "Blech gekantet" else \
+            {"A", "EA", "EB"} <= ist, (x["datei"], x["profilform"], ist)
+        assert step.art_wechseln(x)
+        ist = arten(x)
+        assert ("KB" in ist) == (x["profilform"] == "Blech gekantet") and ("EA" in ist) != ("KB" in ist), \
+            (x["datei"], x["profilform"], ist)
+        assert step.art_wechseln(x)
     assert "Rohr als Auswahl" in step.kant_grund(mw[2]) and step.geschlossen(mw[2]), step.kant_grund(mw[2])
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "r.db")
@@ -236,7 +261,7 @@ def _():
         daten = [art.itemData(i) for i in range(art.count())]
         assert "zu" in daten and "Ringe an den Enden" in art.itemText(daten.index("zu")), \
             [art.itemText(i) for i in range(art.count())]
-        assert "Standard-Kantprofil" in next(x for x in d.zeilen if x.datei.startswith("L01")).it.text(d.SP_HINWEIS)
+        assert "immer Kantteil" in next(x for x in d.zeilen if x.datei.startswith("L01")).it.text(d.SP_HINWEIS)
         art.setCurrentIndex(daten.index("zu"))                 # aus dem Rohr schneiden
         z = next(z for z in d.zeilen if z.datei.startswith("O1"))
         assert d.baum.itemWidget(z.it, d.SP_ART).currentText().startswith("Rechteckrohr"), \

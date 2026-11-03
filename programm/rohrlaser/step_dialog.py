@@ -1357,7 +1357,8 @@ class StepPruefDialog(QDialog):
                 self.ansicht.setzen(knickverbindung.netz_gefaltet(self.messwerte, m) or m.get("_netz"),
                                     m.get("artikel") or "", knickverbindung.text(m))
                 return
-            self.ansicht.setzen(m.get("_netz"), m.get("artikel") or "", _messinfo(m))
+            from . import step
+            self.ansicht.setzen(step.netz_der_art(m), m.get("artikel") or "", _messinfo(m))
         elif it is not None and it.data(1, Qt.UserRole) is not None:   # nicht übernehmbar: Grund und wo es sitzt
             i = it.data(1, Qt.UserRole)
             m = self.messwerte[i]

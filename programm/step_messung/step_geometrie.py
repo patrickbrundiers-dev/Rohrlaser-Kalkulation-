@@ -3359,10 +3359,19 @@ def _kantteil(t):
     Auswahl (Patrick 03.11.2026, KANTRADIEN_BLECH). Ein offen gezeichnetes Rohr (t.geschlossen) bleibt wie gemessen,
     wenn rohr_grund nichts findet; ebenso Normprofile und Standard-Kantprofile (t.normprofil). Das Rohr bleibt beim
     Kantteil als Auswahl (b.geschlossen). Umgekehrt wird ein als Blech gekantet gemessenes Teil, dessen Profil ein
-    Standard-Kantprofil ist (auch mit größerem Biegeradius), das Profil."""
+    Standard-Kantprofil ist (auch mit größerem Biegeradius), das Profil. Winkel: scharfkantig = L-Profil, mit
+    Biegeradien immer Kantteil (normprofile.zuordnen gibt für L kein Kant-L)."""
     b = t.alternative
     if (t.bauteiltyp == "Blech gekantet" and b is not None and b.bauteiltyp == "Profil" and not b.ersatz
             and b.profilform in ("L-Profil", "U-Profil", "C-Profil")):
+        if b.profilform == "L-Profil":
+            # Winkel (Patrick 03.11.2026): scharfkantig gezeichnet (oder außen scharf, innen Radius) ist ein L-Profil;
+            # mit Biegeradius außen = innen + Dicke immer ein Kantteil (auch in Kant-L-Maßen)
+            abw = (t.blech or {}).get("abwicklung") or {}
+            if abw.get("scharf") and abw.get("kantungen") == 1 and not abw.get("mehrachsig"):
+                t.alternative, b.alternative = None, t
+                return b
+            return t
         n = b.normprofil or normprofile.zuordnen(b.profilform, b.abm_a, b.abm_b, b.wandstaerke,
                                                  b.flanschdicke or b.wandstaerke, b.flaeche) or ""
         if n.startswith(normprofile.KANT_REIHEN):
@@ -4637,7 +4646,8 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
         t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
                           + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
     _koerper_daten(t, k, art)
-    if netz and not t.netz:
+    if netz and not t.netz and not (t.bauteiltyp in ("Blech", "Blech gekantet") and t.alternative is not None
+                                    and t.alternative.netz):     # sonst Netz der Profilmessung (step_messen)
         _rohnetz(t, k)
     if t.alternative is not None:       # Importdaten gelten für beide Arten
         for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
