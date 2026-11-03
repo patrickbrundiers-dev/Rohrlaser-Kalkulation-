@@ -1,4 +1,5 @@
 """Dialoge mit 3D-Ansicht: Prüfen der STEP-Messung vor dem Übernehmen und Ansehen der Positionen eines Angebots."""
+import re
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
@@ -73,6 +74,32 @@ def _messinfo(m):
             + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else "")
             + "<br>" + step_pruefung.html(step_pruefung.merkmale(m, step.gewinde_vorschlag(m.get("bohrungen"),
                                                                                            step.KERNLOCH))))
+
+
+_BUCHST = "a-zäöüß"
+SATZ_WOERTER = re.compile(rf"(?<![{_BUCHST}])(satz|sätze|saetze)(?![{_BUCHST}])", re.I)
+SCHWEISS_WOERTER = re.compile(r"schwei(ß|ss|s)|geschwei|(?<![a-z])(sbg|weld(ed|ment)?)(?![a-z])", re.I)
+
+
+def satz_aus_namen(datei, pfade=()):
+    """Satz oder Schweißbaugruppe am Namen erkennen (Patrick 03.11.2026): Dateiname und die Baugruppen-Ebenen der
+    STEP-Struktur (pfad ohne das Teil selbst). Ergebnis ("schweiss" | "satz" | None, gefundenes Wort). „Satz“ nur als
+    eigenes Wort (nicht Zusatz, Ansatz, Einsatz)."""
+    texte = [Path(str(datei or "")).stem]
+    for p in pfade or ():
+        teile = [t for t in str(p or "").split("/") if t]
+        texte += teile[:-1]
+    for muster, art in ((SCHWEISS_WOERTER, "schweiss"), (SATZ_WOERTER, "satz")):
+        for t in texte:
+            treffer = muster.search(t.replace("_", " "))
+            if treffer:         # ganzes Wort zeigen (geschweißt, Schweißbaugruppe …)
+                a, e = treffer.start(), treffer.end()
+                while a > 0 and t[a - 1].isalpha():
+                    a -= 1
+                while e < len(t) and t[e].isalpha():
+                    e += 1
+                return art, t[a:e]
+    return None, None
 
 
 class _Mit3D(QDialog):
@@ -176,6 +203,9 @@ class StepPruefDialog(QDialog):
         mit_blechen = zukauf_liste is not None
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
         self.resize(1350, 720)
+        bild = self.screen().availableGeometry() if self.screen() else None
+        if bild is not None and bild.height() >= 600:      # Laptop 1366×768: Fenster nie höher als der Bildschirm
+            self.resize(min(1350, bild.width() - 16), min(720, bild.height() - 40))
         self.dateien = list(dict.fromkeys(m.get("datei") for m in messwerte))
         self.mehrteilig = step.mehrteilig(messwerte, mit_blechen)
         # eigene Körper, die an ein Rohr geschweißt sind: standardmäßig nicht übernehmen (nur Gravur auf dem Rohr)
@@ -233,7 +263,7 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setToolTip("Den Satz als Schweißbaugruppe anlegen: Unterbaugruppen mit Menge aus der STEP-Datei, "
                                  "Einzelteile zugeordnet. Nahtgruppen und Arbeitsgänge danach im Editor ergänzen.")
         self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)) or
-                                      self.ziel_wahl.setEnabled(bool(an)))
+                                      self.ziel_wahl.setEnabled(bool(an)) or self._satz_anzeigen())
         sl.addSpacing(12)
         sl.addWidget(self.bg_haken)
         # P8: Datei als Unterbaugruppe in die Schweißbaugruppe einer anderen Datei dieses Imports einhängen
@@ -279,15 +309,20 @@ class StepPruefDialog(QDialog):
         kunde_zeile.addStretch(1)
         self.mail_hinweis = None
         if hinweis:                     # E-Mail der Anfrage (28.10.2026): was vorbelegt wurde
-            self.mail_hinweis = QLabel("✉ Aus E-Mail/Formular: " + " · ".join(hinweis))
+            text = "✉ Aus E-Mail/Formular: " + " · ".join(hinweis)
+            self.mail_hinweis = QLabel(text)
             self.mail_hinweis.setWordWrap(True)
             self.mail_hinweis.setStyleSheet("color: #595959;")
+            # höchstens zwei Zeilen hoch (MSG mit vielen Teilen 03.11.2026), ganzer Text im Tooltip
+            self.mail_hinweis.setMaximumHeight(2 * self.mail_hinweis.fontMetrics().lineSpacing() + 4)
             self.mail_hinweis.setToolTip("Vorschläge aus der E-Mail im Anfrage-Ordner. Kunde, Werkstoff und Stückzahlen "
-                                         "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.")
+                                         "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.\n\n"
+                                         + "\n".join(hinweis))
             kopf_lay.insertWidget(1, self.mail_hinweis)
         self.pdf_wahl = {}              # Datei -> QComboBox (Zeichnung oder Formular, 28.10.2026)
-        for nr, g in enumerate(pdf_formulare or ()):
-            kopf_lay.insertLayout(1 + (self.mail_hinweis is not None) + nr, self._pdf_zeile(g, pdf_neu))
+        self.pdf_block = self._pdf_block(list(pdf_formulare or ()), pdf_neu)
+        if self.pdf_block is not None:
+            kopf_lay.insertWidget(1 + (self.mail_hinweis is not None), self.pdf_block)
         self.dateien_info = QLabel()
         self.dateien_info.setStyleSheet("color: #595959;")
         kl.addWidget(self.zurueck)
@@ -297,7 +332,8 @@ class StepPruefDialog(QDialog):
         kl.addWidget(self.dateien_info)
         satz_zeile = QHBoxLayout()      # Baugruppe: Anzahl, Als Satz, Schweißbaugruppe in eigener Zeile
         satz_zeile.addWidget(self.satz_feld)
-        satz_zeile.addWidget(self.satz_info)
+        self.satz_info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)    # macht das Fenster nicht breiter
+        satz_zeile.addWidget(self.satz_info, 1)
         satz_zeile.addStretch(1)
         kopf_lay.addLayout(satz_zeile)
 
@@ -307,6 +343,8 @@ class StepPruefDialog(QDialog):
         self.baum.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.baum.setUniformRowHeights(True)
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
+        # Teileliste schrumpft nie unter TEILE_MIN Zeilen (MSG mit vielen Teilen, 03.11.2026): Kopf und PDF-Liste geben nach
+        self.baum.setMinimumHeight(self.TEILE_MIN * 26 + 44)
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
         self.baum.currentItemChanged.connect(lambda it, *_: self._markiert_datei(it))
         self.baum.itemDoubleClicked.connect(self._doppelklick)
@@ -481,6 +519,17 @@ class StepPruefDialog(QDialog):
             stk = {z.werte["einzeln"] for z in self.zeilen if z.datei == d}
             if not self.saetze.get(d) and len(stk) == 1 and stk != {0}:
                 self.anzahl[d] = int(stk.pop())
+        # Satz/Schweißbaugruppe aus dem Namen vorwählen (Patrick 03.11.2026): „Satz“ bzw. „schweiß…“ im Dateinamen
+        # oder Baugruppennamen der STEP; nur beim ersten Öffnen (gespeicherte Wahl _saetze geht vor)
+        self.satz_grund = {}
+        for d in self.mehrteilig:
+            if any("_saetze" in m for m in messwerte if m.get("datei") == d):
+                continue
+            art, wort = satz_aus_namen(d, [m.get("pfad") for m in messwerte if m.get("datei") == d])
+            if art:
+                self.saetze_setzen(self.anzahl.get(d, 1), d)
+                self.baugruppe[d] = self.baugruppe.get(d) or art == "schweiss"
+                self.satz_grund[d] = (art, wort)
         self.datei_waehlen(0)
         # Häkchen der Vorprüfung nach Änderungen auffrischen, gesammelt (nicht während die Liste aufgebaut wird)
         self._vor_uhr = QTimer(self)
@@ -852,6 +901,95 @@ class StepPruefDialog(QDialog):
             z.ws.setToolTip(f"Werkstoff aus {m['_werkstoff_quelle']} – bitte prüfen" if m.get("_werkstoff_quelle")
                             else z.ws.toolTip())
 
+    TEILE_MIN = 8       # Teileliste mindestens so viele Zeilen hoch
+    PDF_EINZELN = 3     # bis zu so vielen PDFs stehen sie einzeln im Kopf, darüber zusammengefasst
+    PDF_ZEILEN = 4      # aufgeklappt: so viele PDF-Zeilen sichtbar, der Rest per Bildlauf
+
+    def _pdf_block(self, formulare, pdf_neu):
+        """PDFs der Anfrage im Kopf (MSG mit vielen Teilen, 03.11.2026): bis PDF_EINZELN je PDF eine Zeile; bei mehr
+        eine Zusammenfassung „📄 26 PDF-Dateien: …“ mit Knopf „Einzeln anzeigen“, die Zeilen stehen dann in einem
+        Bereich mit Bildlauf (höchstens PDF_ZEILEN hoch), damit die Teileliste lesbar bleibt. Unklare PDFs klappen
+        die Liste auf. None ohne PDFs."""
+        from PySide6.QtWidgets import QFrame, QScrollArea, QToolButton
+        if not formulare:
+            return None
+        zeilen = QWidget()
+        zl = QVBoxLayout(zeilen)
+        zl.setContentsMargins(0, 0, 0, 0)
+        zl.setSpacing(4)
+        for g in formulare:
+            zl.addLayout(self._pdf_zeile(g, pdf_neu))
+        if len(formulare) <= self.PDF_EINZELN:
+            self.pdf_info = self.pdf_knopf_einzeln = None
+            return zeilen
+        block = QWidget()
+        bl = QVBoxLayout(block)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(2)
+        kopf = QHBoxLayout()
+        self.pdf_info = QLabel()
+        self.pdf_info.setWordWrap(True)
+        self.pdf_knopf_einzeln = QToolButton()
+        self.pdf_knopf_einzeln.setCheckable(True)
+        self.pdf_knopf_einzeln.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.pdf_knopf_einzeln.setToolTip("Jede PDF mit ihrer Einordnung zeigen und einzeln umschalten "
+                                          "(automatisch / alles Formular / alles Zeichnung / nicht verwenden).")
+        kopf.addWidget(self.pdf_info, 1)
+        kopf.addWidget(self.pdf_knopf_einzeln)
+        bl.addLayout(kopf)
+        self.pdf_bereich = QScrollArea()
+        self.pdf_bereich.setWidget(zeilen)
+        self.pdf_bereich.setWidgetResizable(True)
+        self.pdf_bereich.setFrameShape(QFrame.StyledPanel)
+        self.pdf_bereich.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        zeile_h = max(zeilen.layout().itemAt(0).sizeHint().height(), 22) + zl.spacing()
+        self.pdf_bereich.setMaximumHeight(self.PDF_ZEILEN * zeile_h + 6)
+        self.pdf_bereich.setMinimumHeight(2 * zeile_h + 6)      # bei wenig Platz schrumpft dieser Bereich, nicht die Teile
+        bl.addWidget(self.pdf_bereich)
+        self._pdf_formulare = formulare
+
+        def auf(an):
+            self.pdf_bereich.setVisible(an)
+            self.pdf_knopf_einzeln.setText("Einzeln ausblenden ▴" if an else "Einzeln anzeigen ▾")
+
+        self.pdf_knopf_einzeln.toggled.connect(auf)
+        for w in self.pdf_wahl.values():
+            w.currentIndexChanged.connect(lambda *_: self._pdf_info_zeigen())
+        unklar = self._pdf_info_zeigen()
+        self.pdf_knopf_einzeln.setChecked(unklar)
+        auf(unklar)
+        return block
+
+    def _pdf_info_zeigen(self):
+        """Zusammenfassung der PDFs (Anzahl Formular / nur Zeichnung / unklar / von Hand / nicht verwendet).
+        Ergebnis: True, wenn eine PDF automatisch eingeordnet und unklar ist (dann gelb)."""
+        from . import pdf_art
+        n = dict(form=0, zeich=0, unklar=0, hand=0, nicht=0)
+        for g in self._pdf_formulare:
+            w = self.pdf_wahl[g.get("datei")].currentData()
+            arten = {s["art"] for s in g.get("seiten") or ()}
+            if w == pdf_art.NICHT:
+                n["nicht"] += 1
+            elif w != pdf_art.AUTO:
+                n["hand"] += 1
+            elif pdf_art.UNKLAR in arten:
+                n["unklar"] += 1
+            elif pdf_art.FORMULAR in arten:
+                n["form"] += 1
+            else:
+                n["zeich"] += 1
+        teile = [t for t in (f"{n['form']} mit Formular" if n["form"] else "",
+                             f"{n['zeich']} Zeichnung{'en' if n['zeich'] != 1 else ''}" if n["zeich"] else "",
+                             f"{n['unklar']} unklar – bitte prüfen" if n["unklar"] else "",
+                             f"{n['hand']} von Hand eingeordnet" if n["hand"] else "",
+                             f"{n['nicht']} nicht verwendet" if n["nicht"] else "") if t]
+        self.pdf_info.setText(f"📄 {len(self._pdf_formulare)} PDF-Dateien: " + ", ".join(teile))
+        self.pdf_info.setStyleSheet(f"color: {stil.farbe(stil.GELB_TEXT).name()};" if n["unklar"]
+                                    else "color: #595959;")
+        self.pdf_info.setToolTip("Formular: Stückzahlen, Anfrage-Nr. und Termin daraus lesen. Zeichnung: nur das "
+                                 "Schriftfeld für das passende Teil. „Einzeln anzeigen“ zeigt jede PDF.")
+        return bool(n["unklar"])
+
     def _pdf_zeile(self, g, pdf_neu):
         """Zeile „📄 Datei: Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl automatisch / alles Formular / alles
         Zeichnung / nicht verwenden."""
@@ -982,7 +1120,8 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setChecked(bool(self.baugruppe.get(d)))
         self.bg_haken.blockSignals(False)
         self.bg_haken.setEnabled(satz)
-        from .step import satzname as _sn
+        from .step import satzname
+        _sn = satzname
         self.ziel_wahl.blockSignals(True)
         self.ziel_wahl.clear()
         self.ziel_wahl.addItem("eigene Baugruppe", None)
@@ -996,12 +1135,23 @@ class StepPruefDialog(QDialog):
         self.ziel_wahl.setEnabled(satz and bool(self.baugruppe.get(d)))
         self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
-            koerper, verschieden = self.mehrteilig[d]
-            from .step import satzname
-            n = self.saetze[d]
-            self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"{koerper} Einzelteile")
-            self.baugruppen[d].setText(0, f"Baugruppe „{satzname(d)}“ – {koerper} Teile, {verschieden} verschieden – "
-                                       + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if satz else "als Einzelteile"))
+            koerper, _ = self.mehrteilig[d]
+            grund = self.satz_grund.get(d)
+            self.satz_info.setText((f"Satz „{satzname(d)}“" if satz else f"{koerper} Einzelteile")
+                                   + (f" – vorgewählt: „{grund[1]}“" if grund and satz else ""))
+            self.satz_info.setStyleSheet(f"color: {stil.farbe(stil.GELB_TEXT).name()};" if grund and satz else "")
+            self.satz_info.setToolTip("Im Datei- bzw. Baugruppennamen steht „Satz“ (→ Als Satz) oder „schweiß…“ "
+                                      "(→ Als Satz und als Schweißbaugruppe). Mit dem Knopf „Als Satz“ abwählbar."
+                                      if grund else "")
+        for datei in self.mehrteilig:       # Kopfzeile jeder Baugruppe, auch der nicht gezeigten Dateien
+            koerper, verschieden = self.mehrteilig[datei]
+            n = self.saetze.get(datei) or 0
+            self.baugruppen[datei].setText(0, f"Baugruppe „{satzname(datei)}“ – {koerper} Teile, {verschieden} "
+                                           "verschieden – " + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if n
+                                                               else "als Einzelteile")
+                                           + (" als Schweißbaugruppe" if n and self.baugruppe.get(datei) else "")
+                                           + (f" (vorgewählt: „{self.satz_grund[datei][1]}“ im Namen)"
+                                              if n and datei in self.satz_grund else ""))
 
     def _ziel_setzen(self, ziel, datei=None):
         """Datei als Unterbaugruppe in die Schweißbaugruppe der Datei ziel einhängen (None = eigene Baugruppe, P8).

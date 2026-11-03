@@ -8,12 +8,13 @@ Einnietmutter, Senkung, Bohren, nur lasern) mit ★ für den Vorschlag (bohrbild
 Vorschlag; unten „Alle M8 → …“ und „★ Vorschläge übernehmen“ (auch im Fenster für mehrere Positionen = ganzes
 Angebot). Eine geänderte Ausführung gilt als bestätigt."""
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDialog, QDialogButtonBox,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import hilfe
-from . import bohrbild, rechnen
+from . import bohrbild, rechnen, stil
 from .stammdaten import zahl_als_text
 
 KEIN_GEWINDE = "kein Gewinde"
@@ -333,10 +334,17 @@ class BohrbildDialog(QDialog):
         self.zeilen = []
         for r, z in enumerate(self.liste):
             masse = bohrbild.dez(z.get("d")) + (f" / {bohrbild.dez(z.get('D'))}" if z.get("D") else "")
-            for c, text in ((0, ART_TEXT.get(z["art"], z["art"])), (1, masse), (2, str(z.get("anzahl") or ""))):
+            art = ART_TEXT.get(z["art"], z["art"])
+            if z.get("zeichnung"):      # Vorschlag aus der Zeichnung (zeichnung_hinweise, 03.11.2026)
+                art += " · Zeichnung"
+            for c, text in ((0, art), (1, masse), (2, str(z.get("anzahl") or ""))):
                 it = QTableWidgetItem(text)
                 if c:
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                if z.get("zeichnung"):
+                    it.setBackground(QBrush(QColor(stil.GELB_FLAECHE)))
+                    it.setToolTip(z["zeichnung"] + ("\nDie gelaserte Bohrung entfällt erst nach „Bestätigen“."
+                                                    if z.get("aus_bohrung") else ""))
                 self.tabelle.setItem(r, c, it)
             zl = _Zeile(z, gewinde, wand, werkstoff or p.get("werkstoff_id"), grenzen, laser, self._auswirkung,
                         self.stamm_arbeit)

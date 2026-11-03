@@ -163,6 +163,8 @@ def wirkung(z):
     schneidet der Laser wie gemessen (wie bisher)."""
     if z.get("status") == ABGELEHNT:
         return NUR_LASER
+    if z.get("aus_bohrung") and z.get("status") != BESTAETIGT:
+        return NUR_LASER        # Flowdrill aus der Zeichnung auf gemessener Bohrung: erst bestätigt fällt sie weg
     if z.get("status", OFFEN) == OFFEN and z.get("art") == BOHREN and not z.get("aus"):
         return NUR_LASER
     return ausfuehrung(z)
@@ -176,8 +178,9 @@ def abweichend(z):
 
 
 def _basis(z):
-    """Ø, den der gemessene Schneidweg enthält (Fließlochbohrungen misst der STEP-Import ohne Schnitt), oder None."""
-    return None if z.get("art") == "Fließloch" else float(z.get("d") or 0)
+    """Ø, den der gemessene Schneidweg enthält (Fließlochbohrungen misst der STEP-Import ohne Schnitt, außer Flowdrill
+    aus der Zeichnung auf einer gemessenen Bohrung, aus_bohrung), oder None."""
+    return None if z.get("art") == "Fließloch" and not z.get("aus_bohrung") else float(z.get("d") or 0)
 
 
 def _ziel(z):
