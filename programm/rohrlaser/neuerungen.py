@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.236", "Prüfung der Kalkulationsbasis: <b>Grundwerte prüfen …</b> unter Stammdaten → Maschinen und im "
+     "Angebots-Check zeigt leere Nebenzeiten, Beispiel-Stundensätze und doppelt gezählte Zuschläge mit der Wirkung in € "
+     "([[kalkulationsbasis]]). <b>Schneiddaten</b> zwischen zwei Wandstufen werden interpoliert (2,6 mm nicht mehr mit "
+     "den 3-mm-Werten). <b>Wiederholteile</b> mit Programm rechnen nur 1 min Programmierung. Neu einstellbar: weniger "
+     "Rüstzeit, wenn sich nur die Wand ändert, <b>Gewinn auf Material</b> getrennt, mittlere Last für den Strom im "
+     "ermittelten Stundensatz. Ausschuss rechnet im Hundert. Festgeschriebene Angebote bleiben unverändert.",
+     "Grundwerte prüfen, Schneiddaten interpoliert, Wiederholteile, Gewinn auf Material"],
     ["0.9.235", "Weitere Vorschläge für Kalkulation und Ablauf: <b>Maschinen vergleichen</b> im Kopf "
      "([[maschinen_vergleich]]), <b>Sperrtage je Maschine</b> ([[sperrtage]]), <b>Fassungsvergleich</b> "
      "([[fassung_vergleich]]), <b>Teilekatalog je Kunde</b> ([[teilekatalog]]). <b>Preisregeln</b> (alle aus, bis man "

@@ -55,6 +55,9 @@ KOPF = (
     # (J6, JSON-Liste der Positions-IDs, vom Angebotsfenster aus den Wiederholteilen gesetzt), Werkszeugnis (F5)
     Feld("verpackung", "Verpackung berechnen", "auswahl", auswahl="janein"),
     Feld("neuteile", "Neuteile (für den Neuteil-Zuschlag)"),
+    # Prüfung Kalkulationsbasis 3 (02.11.2026): Wiederholteile mit vorhandenem Programm (JSON-Liste der Positions-IDs,
+    # vom Angebotsfenster aus den Wiederholteilen gesetzt: gleich und aus einem beauftragten Angebot)
+    Feld("wiederholt", "Wiederholteile mit Programm (für die Programmierzeit)"),
     Feld("zeugnis_31", "Werkszeugnis 3.1 verlangt", "auswahl", auswahl="janein"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")

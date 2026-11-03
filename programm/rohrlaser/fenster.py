@@ -438,6 +438,11 @@ class StammdatenSeite(QWidget):
                             "die Maschine auf „ermittelt“ (Schneidgas kommt dann je Teil dazu)")
             satz.clicked.connect(lambda: self.stundensatz_ermitteln())
             leiste.addWidget(satz)
+            gw = QPushButton("Grundwerte prüfen …")
+            gw.setToolTip("Zeigt leere Grundwerte (Nebenzeit je Teil, Zeit je Kontur, Beispiel-Stundensätze, "
+                          "Zuschlag Material, Schneidgas) und doppelt gezählte Zuschläge; ändert nichts")
+            gw.clicked.connect(lambda: self.grundwerte_pruefen())
+            leiste.addWidget(gw)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
@@ -811,6 +816,37 @@ class StammdatenSeite(QWidget):
             f = self.window()
             f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
         return d
+
+    def grundwerte_pruefen(self, zeigen=True):
+        """Grundwerte-Check (Prüfung Kalkulationsbasis 1 und 5): Liste der leeren Grundwerte und Doppelzählungen;
+        zeigen=False nur die Punkte (Tests). Ergebnis [(Art, Bereich, Text)]."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHeaderView, QTableWidget, QTableWidgetItem, QVBoxLayout
+        from . import grundwerte
+        punkte = grundwerte.punkte(self.db.kontext(), self.db.tabellen(), self.db.einstellungen())
+        if not zeigen:
+            return punkte
+        d = QDialog(self)
+        d.setWindowTitle("Grundwerte prüfen")
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel("Leere Grundwerte rechnen nicht mit, doppelte Zuschläge zählen zweimal. Geändert wird "
+                             "nichts; die Werte trägst du in den Stammdaten bzw. Einstellungen ein."
+                             if punkte else "Alle geprüften Grundwerte sind eingetragen, nichts zählt doppelt."))
+        if punkte:
+            t = QTableWidget(len(punkte), 3)
+            t.setHorizontalHeaderLabels(["Art", "Bereich", "Hinweis"])
+            for r, zeile in enumerate(punkte):
+                for c, w in enumerate(zeile):
+                    t.setItem(r, c, QTableWidgetItem(w))
+            t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            t.setWordWrap(True)
+            t.resizeRowsToContents()
+            t.setMinimumWidth(820)
+            lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.exec()
+        return punkte
 
     def stundensatz_ermitteln(self, werte=None, zeile=None):
         """Dialog „Stundensatz ermitteln …“ für die markierte Maschine (sonst die erste); werte = {Feld: Wert} ohne

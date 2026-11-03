@@ -35,6 +35,25 @@ class VorschlaegeMixin:
         self._kopf_speichern(_kopf_feld("neuteile"), json.dumps(neu) if neu else None)
         return True
 
+    def wiederholt_aktualisieren(self, treffer):
+        """Wiederholteile mit vorhandenem Programm = Positionen mit sicherem Treffer aus einem beauftragten Angebot
+        (Prüfung Kalkulationsbasis 3, Patrick 02.11.2026); ihre Programmierzeit ist dann die Einstellung
+        'Programmierzeit Wiederholteil'. Nur mit dieser Einstellung und nur im Entwurf. Ergebnis: True = geändert
+        (der Aufrufer rechnet neu)."""
+        from . import wiederholteile
+        if not isinstance(self.db.einstellung("programmierung_wiederholteil"), (int, float)) or self.fremd() \
+                or self.db.nur_lesen:
+            return False
+        if (self.db.angebot(self.id) or {}).get("vorgang") not in (None, "", "Entwurf"):
+            return False
+        neu = sorted(p["id"] for p in self.positionen if p.get("profil_id") and p.get("id") and any(
+            t.art == wiederholteile.SICHER and t.angebot.get("vorgang") == "Beauftragt"
+            for t in (treffer or {}).get(p["id"], ())))
+        if neu == sorted(rechnen.wiederholt_ids(self.kopf)):
+            return False
+        self._kopf_speichern(_kopf_feld("wiederholt"), json.dumps(neu) if neu else None)
+        return True
+
     # ------------------------------------------------------------------ G1 Zielpreis
     def zielpreis(self, ziel=None, setzen=None):
         """Kopf „Zielpreis …“: nötigen Gewinn für den Zielpreis (netto gesamt) zeigen; setzen=True stellt den Gewinn
@@ -104,7 +123,27 @@ class VorschlaegeMixin:
             out += [p for p in (self._auslastung_punkt(summen), self._markt_punkt(summen)) if p]
         except Exception:           # Hinweise nie wichtiger als der Check selbst
             pass
+        try:
+            out += self._grundwerte_punkte(summen)
+        except Exception:
+            pass
         return out
+
+    def _grundwerte_punkte(self, summen):
+        """Prüfung Kalkulationsbasis 1 und 5: leere Zeitfelder der Maschine mit €-Wirkung und Doppelzählungen; die
+        Wirkung rechnet zweimal, daher je Stand und Preis einmal (Neuladen rechnet sonst dreimal)."""
+        from . import grundwerte
+        stufen = list(getattr(self, "stufen_daten", None) or ()) + list(getattr(self, "stufen", None) or ())
+        schluessel = (self.db.einstellung("stammdaten_stand"), self.kopf.get("maschine"),
+                      round(rechnen._n(summen.get("verkauf")), 2), len(self.positionen), bool(self.ergebnis))
+        alt = getattr(self, "_gw_cache", None)
+        if alt and alt[0] == schluessel:
+            w = alt[1]
+        else:
+            w = grundwerte.wirkung(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+            self._gw_cache = (schluessel, w or {})
+        return grundwerte.angebot_punkte(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
+                                         stufen, wirkung_=w)
 
     def _auslastung_punkt(self, summen):
         """G4b: Belegung der Lieferwoche der Maschine (mit diesem Angebot), nur Hinweis."""

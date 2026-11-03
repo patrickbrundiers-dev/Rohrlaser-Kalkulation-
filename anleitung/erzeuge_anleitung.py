@@ -2989,6 +2989,33 @@ def kapitel_optimieren(i):
     i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Grundwerte prüfen und Feinheiten der Rechnung", marke="kalkulationsbasis")
+    i.text("Stammdaten → Maschinen → <b>Grundwerte prüfen …</b> zeigt, welche Grundwerte leer sind und deshalb nicht "
+           "mitrechnen (Nebenzeit je Teil, Zeit je Kontur, Stundensätze mit Beispielwert, Zuschlag Material 0, "
+           "Schneidgas ohne Preis), und wo dieselben Kosten doppelt zählen. Der Angebots-Check ([[angebots_check]]) "
+           "nennt dazu, was das Angebot mit den Richtwerten 8 s je Teil und 1,5 s je Kontur kosten würde. Geändert "
+           "wird dabei nichts.", kurz=True)
+    i.tabelle(["Thema", "Was das Programm rechnet", "Einstellung"], [
+        ["Schneiddaten zwischen den Stufen", "Eine Wand zwischen zwei Zeilen desselben Gases (z. B. 2,6 mm "
+         "zwischen 2 und 3 mm) rechnet mit linear dazwischen liegenden Vorschüben, Einstech- und Eckzeiten, nicht "
+         "mehr mit der nächstgrößeren Stufe; über die letzte Zeile hinaus nie", "immer (neue Angebote)"],
+        ["Wiederholteile", "Position als Wiederholteil aus einem beauftragten Angebot erkannt (sicher): das "
+         "Programm gibt es schon, Programmierzeit nur für Laden und Prüfen ([[wiederholteile]]); welche Positionen das sind, merkt sich das "
+         "Angebot im Feld <i>Wiederholteile mit Programm (für die Programmierzeit)</i>",
+         "<i>Programmierzeit Wiederholteil mit Programm [min]</i>, Vorgabe 1, leer = volle Zeit"],
+        ["Rüsten, nur Wand anders", "Gleiche Profilform und Außenmaße, andere Wand (z. B. QR 40×40×2 und ×3): "
+         "die zweite Abmessung mit der kürzeren Rüstzeit; RP- und Sonderprofile nie",
+         "<i>Rüstzeit je Abmessung, nur Wand anders [min]</i>, leer = volle Rüstzeit"],
+        ["Ausschuss", "im Hundert: 3 % Ausschuss heißt 3 ÷ 97 = 3,09 % mehr Material und Laserzeit",
+         "<i>Ausschuss Rohrlaserteile</i>"],
+        ["Gewinn auf Material", "eigener Gewinnsatz auf das Material (mit Zuschlag Material), der Gewinn gilt "
+         "für den Rest; Zukaufteile und Bleche bleiben ohne Gewinn, Staffeln rechnen gleich",
+         "<i>Gewinn auf Material [%]</i>, leer = wie Gewinn"],
+        ["Doppelt gezählt", "Warnung bei Gemeinkosten im ermittelten Stundensatz und zusätzlich Zuschlag "
+         "Fertigung, bei Materialverlust in Staffelstufen und zusätzlich Ausschuss, bei Zusatzarbeit Entgraten "
+         "und Arbeitsschritt Entgraten mit Zeit", "nur Hinweis"]], [38, 95, 52])
+    i.text("Festgeschriebene Angebote ([[preise_festschreiben]]) von vor dem 02.11.2026 rechnen weiter mit der "
+           "Stufe der Schneiddaten, dem einfachen Ausschuss und ohne die neuen Werte.")
     i.abschnitt("Stundensatz ermitteln je Maschine", marke="stundensatz_ermitteln")
     i.bild("stundensatz_ermitteln", "Stundensatz ermitteln: Eingaben links, Rechenweg rechts (Beispielwerte)",
            hoehe=100 * mm, legende=[(1, "Werte der Maschine: Anschaffung, Nutzungsdauer, Fläche, Leistung …"),
@@ -3004,7 +3031,8 @@ def kapitel_optimieren(i):
         ["ermittelt", "Zeile Strom der Ermittlung", "kommt immer je Teil dazu (Düse und Druck bzw. €/h)"]], [40, 50, 95])
     i.text("Rechenweg: feste Kosten je Jahr (Abschreibung = Anschaffung ÷ Nutzungsdauer, Zinsen auf den halben "
            "Anschaffungswert, Raum, Instandhaltung, Wartung) ÷ genutzte Stunden, dazu Strom und Verschleiß je "
-           "Stunde, der Anteil des Bedieners und die Gemeinkosten. Genutzte Stunden = Stunden je Arbeitstag "
+           "Stunde (Strom = Anschlussleistung × <i>Ermittlung: mittlere Last [%]</i>, leer = 100 %), der Anteil des "
+           "Bedieners und die Gemeinkosten. Genutzte Stunden = Stunden je Arbeitstag "
            "(Maschine <i>Schicht</i>, sonst Einstellung) × Arbeitstage × Auslastung. Beispiel: 650.000 € über 10 "
            "Jahre, 60 m², 30 kW, 2.475 h im Jahr ergeben 97,60 €/h.")
     i.tabelle(["Wert", "Wo"], [

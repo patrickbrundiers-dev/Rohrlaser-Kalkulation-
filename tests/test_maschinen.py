@@ -318,7 +318,9 @@ assert (z["vorschub_gross"], z["einstechzeit"]) == (5000, 0.5), z
 assert "GWEIKE Rohr 3 kW" in z["bemerkung"] and "Hypertherm" in z["bemerkung"], z["bemerkung"]
 assert rechnen.schneiddaten("LT7", "1.4301", 4, tb, "Edelstahl")["vorschub_gross"] == 4444      # von Hand
 assert rechnen.schneiddaten("T11", "1.4301", 6, tb, "Edelstahl")["vorschub_gross"] == 2200
-assert rechnen.schneiddaten("T11", "1.4301", 8, tb, "Edelstahl")["vorschub_gross"] == 555       # von Hand, bleibt
+assert rechnen.schneiddaten("T11", "1.4301", 10, tb, "Edelstahl")["vorschub_gross"] == 555      # von Hand, bleibt
+# 8 mm liegt zwischen 6 mm (2200) und der Zeile von Hand 10 mm (555): interpoliert (Kalkulationsbasis 2, 02.11.2026)
+assert rechnen.schneiddaten("T11", "1.4301", 8, tb, "Edelstahl")["vorschub_gross"] == 2200 + 0.5 * (555 - 2200)
 assert rechnen.schneiddaten("T11", "S355-10219", 12, tb, "Stahl") is None
 assert rechnen.schneiddaten("T11", "AlMgSi0,5", 8, tb, "Aluminium") is None
 assert rechnen.schneiddaten("LT7", "AlMgSi0,5", 8, tb, "Aluminium")["vorschub_gross"] == 550   # LT7 ohne Grenze
