@@ -1461,7 +1461,7 @@ class EditorRahmen(QObject):
         a[IMPORT].setText("Alles wie aus STEP/DXF importiert" if imp or not self._ursprung_alt() else
                           "Alle Merkmale auf STEP-Wert")
         a[IMPORT].setToolTip(a[IMPORT].toolTip() if imp else
-                             "Kein Importstand gespeichert (Position vor Version 0.9.242 importiert oder von Hand "
+                             "Kein Importstand gespeichert (Position vor Version 0.9.243 importiert oder von Hand "
                              "angelegt): setzt alle geänderten Merkmale mit STEP-Wert zurück; gelöschte Konturen "
                              "kommen nur mit „STEP neu einlesen“ zurück")
 

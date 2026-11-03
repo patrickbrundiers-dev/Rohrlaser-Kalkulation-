@@ -102,7 +102,7 @@ class UrsprungEditor:
         st = self._oeffnen_stand if wie == OEFFNEN else self.ursprung_import()
         if st is None:
             einblendung.melden(self, "Für diese Teile ist kein Stand aus dem STEP-Import gespeichert (vor Version "
-                                     "0.9.242 eingelesen oder von Hand angelegt).")
+                                     "0.9.243 eingelesen oder von Hand angelegt).")
             return False
         if wie == OEFFNEN and not self._ursprung_geaendert():
             return False

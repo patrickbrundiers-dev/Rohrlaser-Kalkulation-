@@ -1807,6 +1807,21 @@ def kapitel_angebot(i):
             "direkt an.",
             "Im Baugruppen-Editor öffnet <i>Aus Zusatzarbeiten …</i> dieselbe Auswahl mit Suche und Häkchen, erkannte "
             "Arbeiten oben.")
+    i.abschnitt("Zusatzarbeit für einen ganzen Satz (Fläche und Gewicht)", marke="zusatz_satz")
+    i.text("Rechtsklick auf eine Position eines Satzes → <b>Zusatzarbeit für ganzen Satz …</b>: das Fenster "
+           "Zusatzarbeiten gilt für alle Positionen des Satzes und zeigt oben die <b>Fläche</b> (m², fürs "
+           "Pulverbeschichten) und das <b>Gewicht</b> (kg, fürs Verzinken) je Satz und für alle Sätze, in der Tabelle "
+           "<b>€ je Satz</b>. Der Tooltip der Spalte <i>Satz</i> zeigt dieselben Werte.", kurz=True)
+    i.liste("Fläche je Satz = Außenfläche je Teil × Stück je Satz, über alle Positionen des Satzes; Gewicht ebenso "
+            "mit dem Teilegewicht. Bleche zählen mit beiden Seiten ohne die Löcher, Zukaufteile mit ihrem Gewicht je "
+            "Teil. Positionen ohne bekannte Fläche bzw. Gewicht stehen als Hinweis darunter (z. B. „ohne Fläche: "
+            "Pos. 60“).",
+            "Gerechnet wird weiter je Teil: Pulverbeschichten €/m² × Fläche des Teils, Verzinken €/kg × Gewicht des "
+            "Teils. Über den Satz addiert ergibt das genau Fläche bzw. Gewicht je Satz × Preis; der Mindestbetrag der "
+            "Zusatzarbeit gilt wie bisher einmal je Angebot.",
+            "Schweißbaugruppen und ihre Teile gehören nicht dazu (Arbeitsgänge im Baugruppen-Editor).",
+            "Wie bei mehreren markierten Positionen ändert das Fenster nur, was alle gemeinsam haben; eigene "
+            "Zusatzarbeiten einzelner Positionen bleiben.")
     i.abschnitt("Zusatzarbeiten unter der Position", marke="zusatz_unterzeilen")
     i.bild("zusatz_unterzeilen", "Häkchen „Zusatzarbeiten unter Position“: je Arbeitsschritt eine Zeile", hoehe=62 * mm,
            legende=[
@@ -3955,7 +3970,7 @@ def kapitel_optimieren(i):
             "<i>Alles wie beim Öffnen</i> (verwirft alle Änderungen seit dem Öffnen des Fensters) und <i>Alles wie aus "
             "STEP/DXF importiert</i> (das ganze Teil wieder so, wie es aus der Datei kam, auch gelöschte Konturen). "
             "Vorher kommt eine Rückfrage, Strg+Z holt den Stand davor wieder. Den Importstand merkt sich die Position "
-            "beim Einlesen (ab Version 0.9.242; <i>STEP neu einlesen</i> und DXF-Import setzen ihn neu). Bei älteren "
+            "beim Einlesen (ab Version 0.9.243; <i>STEP neu einlesen</i> und DXF-Import setzen ihn neu). Bei älteren "
             "Positionen setzt der Eintrag alle geänderten Merkmale auf den STEP-Wert. Dasselbe gibt es im Editor der "
             "Schweißbaugruppe und im Fenster Satz in 3D (Knopf <i>Zurücksetzen</i> unten).",
             "<b>Prüfmeldungen</b>: die Befunde der Fertigungsprüfung ([[pruefregeln]]) sowie Fehler und Hinweise der "
@@ -5635,7 +5650,7 @@ def kapitel_baugruppen(i):
            "Nahtgruppen, Arbeitsgänge, Steckverbindungen, Bezeichnung und Anzahl wieder wie beim Einlesen.", kurz=True)
     i.text("Vorher kommt eine Rückfrage; <i>Zurücksetzen rückgängig</i> (oder Strg+Z) holt den Stand davor wieder. "
            "Erst OK schreibt ins Angebot, Abbrechen verwirft auch das Zurücksetzen. Den Importstand merkt sich die "
-           "Baugruppe beim Einlesen (ab Version 0.9.242), samt Zuordnung der Teile nach Pos. und Artikel; von Hand "
+           "Baugruppe beim Einlesen (ab Version 0.9.243), samt Zuordnung der Teile nach Pos. und Artikel; von Hand "
            "dazugenommene Teile fallen wieder heraus. Ältere oder von Hand angelegte Baugruppen haben nur <i>wie beim "
            "Öffnen</i>. Im Fenster Satz in 3D ([[satz_3d]]) und in den Teile-Editoren ([[teile_editor]]) gibt es "
            "denselben Knopf.")
