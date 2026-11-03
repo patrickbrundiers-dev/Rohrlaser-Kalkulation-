@@ -40,7 +40,7 @@ try:  # OCP >= 7.8
 except ImportError:
     from OCP.TopTools import TopTools_ListOfShape
 from OCP.TopoDS import TopoDS
-from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+from OCP.gp import gp_Ax1, gp_Ax3, gp_Dir, gp_Pln, gp_Pnt, gp_Trsf, gp_Vec
 
 import step_geometrie as g
 
@@ -303,7 +303,17 @@ def _abwickeln(solid, s, k):
             teile.append(st)
     w = haut[schenkel[wurzel][0]]
     teile = [_ausrichten(x, w.n) for x in teile]
-    flaeche = _vereinigen(teile)
+    # in der Ebene der Wurzel vereinigen (lokales System, Ebene z = 0): schräg im Raum liegende Teile zerfielen sonst
+    # durch Rundungsfehler in mehrere Flächen (Hutprofil gekippt: Zuschnitt 117 statt 173 mm, Patrick 03.11.2026)
+    lokal = gp_Trsf()
+    nx = d0.Subtracted(w.n.Multiplied(d0.Dot(w.n))) if d0 is not None else None
+    lokal.SetTransformation(gp_Ax3(w.p, gp_Dir(w.n.X(), w.n.Y(), w.n.Z()), gp_Dir(nx.X(), nx.Y(), nx.Z()))
+                            if nx is not None and nx.Magnitude() > 1e-6 else gp_Ax3(w.p, gp_Dir(w.n.X(), w.n.Y(), w.n.Z())))
+    flaeche = _vereinigen([_eben(_ausrichten(BRepBuilderAPI_Transform(x, lokal, True).Shape(), gp_Vec(0, 0, 1)))
+                           for x in teile])
+    if flaeche is not None:
+        f0, nf = flaeche if isinstance(flaeche, tuple) else (flaeche, 1)
+        flaeche = (TopoDS.Face(BRepBuilderAPI_Transform(f0, lokal.Inverted(), True).Shape()), nf)
     if flaeche is None:
         return dict(fehler="Zuschnitt nicht bildbar")
     erg = _daten(flaeche, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T, haut, solid, k)
@@ -434,6 +444,24 @@ def _punkt_flaeche(f):
                   sum(p.Z() for p in pts) / len(pts))
 
 
+def _eben(f):
+    """Fläche im lokalen System neu auf der Ebene z = 0 aufbauen (gleiche Kanten): Flächen aus schräg liegenden
+    Schenkeln haben sonst leicht verschiedene Ebenen und werden beim Vereinigen nicht eine Fläche."""
+    f = TopoDS.Face(f)
+    try:
+        aussen = BRepTools.OuterWire_s(f)
+        mf = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), aussen, True)
+        for d in g._liste(f, TopAbs_WIRE):
+            if not d.IsSame(aussen):
+                mf.Add(TopoDS.Wire(d))
+        if not mf.IsDone():
+            return f
+        n = mf.Face()
+        return n if abs(g._flaeche(n) - g._flaeche(f)) <= 1e-3 * max(g._flaeche(f), 1.0) else f
+    except Exception:  # dann die Fläche wie sie ist
+        return f
+
+
 def _vereinigen(teile):
     if len(teile) == 1:
         return TopoDS.Face(teile[0])
@@ -444,7 +472,7 @@ def _vereinigen(teile):
     fu = BRepAlgoAPI_Fuse()
     fu.SetArguments(a)
     fu.SetTools(t)
-    fu.SetFuzzyValue(1e-3)
+    fu.SetFuzzyValue(1e-2)
     fu.Build()
     if not fu.IsDone():
         return None
@@ -461,9 +489,9 @@ def _daten(erg, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T,
     o, n = w.p, w.n
     # Achsen des Zuschnitts: Kette x = Biegekante, y = quer (vom freien Ende von Schenkel 1 weg); sonst beliebig,
     # danach kleinstes umschreibendes Rechteck
-    if d0 is not None:
+    if d0 is not None and d0.Subtracted(n.Multiplied(d0.Dot(n))).Magnitude() > 1e-6:
         ex = d0.Subtracted(n.Multiplied(d0.Dot(n))).Normalized()
-    else:
+    else:       # mehrachsig: die erste Biegeachse kann senkrecht zur Wurzel stehen
         ex = gp_Vec(1, 0, 0) if abs(n.X()) < 0.9 else gp_Vec(0, 1, 0)
         ex = ex.Subtracted(n.Multiplied(ex.Dot(n))).Normalized()
     ey = n.Crossed(ex)
@@ -574,3 +602,4 @@ def _schenkel_kette(bieg_baum, ordnung, zu, breite, s):
     lg = breite - pos + (streifen[-1][2]["setback"] if streifen else 0.0)
     out.append(dict(laenge=round(lg, 2), winkel=0.0, radius=None))
     return out
+

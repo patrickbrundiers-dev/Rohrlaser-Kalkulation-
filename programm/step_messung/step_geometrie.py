@@ -762,7 +762,7 @@ def _regelquerschnitt(lok, zmin, zmax, n=7):
 REGEL_DICHT = 41      # Schnitte, wenn bei 7 Schnitten keine drei gleichen Regelquerschnitte gefunden werden
 
 
-MIN_RECHTECK_TOL = 0.03     # Anteil: so viel größer darf das umschreibende Rechteck einer kantenparallelen Lage sein
+MIN_RECHTECK_TOL = 0.08     # Anteil: so viel größer darf das umschreibende Rechteck einer kantenparallelen Lage sein
 
 
 def _min_rechteck(pts, kanten_lage=False):
@@ -3220,7 +3220,7 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         schliessen(solid, t, datei, koerper, netz)
     except Exception:  # Schließen darf die Messung nie verhindern
         t.geschlossen = None
-    return _kantteil(t)
+    return _alternative_form(_kantteil(t))
 
 
 ROHR_GANZ_TOL = 0.02    # mm: Außenmaß gilt als ganze Zahl (Rohrmaß 30, nicht 30,8)
@@ -3232,18 +3232,72 @@ def _rohrmass(g):
     return all(abs(v - round(v)) <= ROHR_GANZ_TOL for v in (g.abm_a, g.abm_b))
 
 
+C_SCHLITZ_ROHR = 20.0    # mm: ein C mit Lippen ist nur bis zu diesem Schlitz ein offen gezeichnetes Rohr
+
+
+def rohr_grund(t):
+    """Warum ein offen gezeichnetes Rohr (t.geschlossen) kein Rohr ist (Patrick 03.11.2026), sonst '': krumme
+    Außenmaße (30,8), das Rohr wäre größer als das Teil (U 60×40 mit Radien würde RE 60×50), C mit Lippen und
+    Schlitz über 20 mm."""
+    g = t.geschlossen
+    if g is None:
+        return "kein Rohr"
+    if not _rohrmass(t):
+        return "Außenmaß keine ganze Zahl (kein Rohrmaß)"
+    if any(abs(x - y) > 0.5 for x, y in zip(sorted((t.abm_a, t.abm_b)), sorted((g.abm_a, g.abm_b)))):
+        return f"Rohr wäre größer als das Teil ({g.abm_a:g} × {g.abm_b:g} statt {t.abm_a:g} × {t.abm_b:g})"
+    if t.profilform == "C-Profil" and (g.offene_seite or {}).get("breite", 0) > C_SCHLITZ_ROHR + 1e-6:
+        return f"C mit Lippen, Schlitz über {C_SCHLITZ_ROHR:g} mm"
+    return ""
+
+
+VOLUMEN_UEBER_PROFIL = 0.02     # Anteil: so viel mehr Volumen als Querschnitt × Länge heißt Material außerhalb
+
+
+KANTUNGEN_FORM = {"L-Profil": 1, "U-Profil": 2, "C-Profil": 4}
+
+
+def _alternative_form(t):
+    """Blech gekantet: die Auswahl „Profil“ trägt die Form, die zu den Kantungen passt (Patrick 03.11.2026: ein
+    Hutprofil, Z oder Dachwinkel heißt nicht „L-Profil“, sondern offenes Sonderprofil)."""
+    b = t.alternative
+    k = ((t.blech or {}).get("abwicklung") or {}).get("kantungen") if isinstance(t.blech, dict) else None
+    if (t.bauteiltyp == "Blech gekantet" and b is not None and b.bauteiltyp == "Profil" and k
+            and (b.profilform in TRAEGER or b.profilform in KANTUNGEN_FORM and KANTUNGEN_FORM[b.profilform] != k)
+            and not b.normprofil):
+        b.hinweise.append(f"gemessen als {b.profilform}, passt nicht zu {k} Kantungen: offenes Sonderprofil")
+        b.profilform = "offenes Sonderprofil"
+    return t
+
+
 def _kantteil(t):
     """Kantteil mit Biegeradien (außen = innen + Dicke) ohne Standardmaß: Blech gekantet, das L-/U-/C-Profil als
     Auswahl (Patrick 03.11.2026, KANTRADIEN_BLECH). Ein offen gezeichnetes Rohr (t.geschlossen) bleibt wie gemessen,
-    wenn die gemessenen Außenmaße ganze Zahlen sind (_rohrmass); ebenso Normprofile und Standard-Kantprofile (t.normprofil)."""
+    wenn rohr_grund nichts findet; ebenso Normprofile und Standard-Kantprofile (t.normprofil). Das Rohr bleibt beim
+    Kantteil als Auswahl (b.geschlossen). Umgekehrt wird ein als Blech gekantet gemessenes Teil, dessen Profil ein
+    Standard-Kantprofil ist (auch mit größerem Biegeradius), das Profil."""
     b = t.alternative
+    if (t.bauteiltyp == "Blech gekantet" and b is not None and b.bauteiltyp == "Profil" and not b.ersatz
+            and b.profilform in ("L-Profil", "U-Profil", "C-Profil")):
+        n = b.normprofil or normprofile.zuordnen(b.profilform, b.abm_a, b.abm_b, b.wandstaerke,
+                                                 b.flanschdicke or b.wandstaerke, b.flaeche) or ""
+        if n.startswith(normprofile.KANT_REIHEN):
+            b.normprofil, t.alternative, b.alternative = n, None, t
+            return b
     if not (KANTRADIEN_BLECH and getattr(t, "_kantradien", False) and t.bauteiltyp == "Profil"
-            and t.profilform in ("L-Profil", "U-Profil", "C-Profil") and not t.normprofil
-            and not (t.geschlossen is not None and _rohrmass(t))
+            and t.profilform in ("L-Profil", "U-Profil", "C-Profil", "offenes Sonderprofil") + TRAEGER
+            and not t.normprofil       # Träger/Sonderprofil mit Biegeradien und gleicher Dicke: Kantteil (C mit Sicke)
+            and not (t.geschlossen is not None and not rohr_grund(t))
             and b is not None and b.bauteiltyp == "Blech gekantet"):
         return t
     t.alternative = None
     b.alternative = t
+    if t.geschlossen is not None:
+        b.geschlossen = t.geschlossen
+        if t.netz:      # 3D mit offener Seite (Art EO): beim Wechsel auf das Rohr werden Ringe/Wand rot
+            b.netz = t.netz
+        b.hinweise.append(f"Offenes Rohr als Auswahl: {t.geschlossen.profil_id_vorschlag or t.geschlossen.profilform}"
+                          f" – {rohr_grund(t)}")
     return b
 
 
@@ -3340,6 +3394,14 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
         b.alternative = _als_profil(solid, b, None, t)
         return b
+    if t.profilform and not rohr and t.flaeche > 0 and t.laenge > 0 and \
+            volumen > (1 + VOLUMEN_UEBER_PROFIL) * t.flaeche * t.laenge:
+        # mehr Material als Querschnitt × Länge: Laschen/Kantungen an den Enden (Chassis, Patrick 03.11.2026) – das
+        # Teil ist so kein Profil; ohne Abwicklung bleibt es unsicher (nur nach Anhaken übernommen)
+        t.sicherheit["profil"] = "unsicher"
+        t.hinweise.append(f"Material außerhalb des Profils ({volumen / (t.flaeche * t.laenge) - 1:.0%} mehr als "
+                          "Querschnitt × Länge, z. B. gekantete Laschen an den Enden): kein Profil, als Kantteil "
+                          "prüfen")
     if t.profilform:
         t.bauteiltyp = "Profil"
         t._kantradien = bool(fl and fl["art"] == "gekantet" and fl.get("biegungen", 0) > 0)

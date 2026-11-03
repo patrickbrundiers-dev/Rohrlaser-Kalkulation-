@@ -39,7 +39,7 @@ SOLL = {  # Form, A, B, Wand, Fläche, Länge, Sicherheit Wand, erwarteter Hinwe
                                    "Wandstärke nicht einheitlich"),
 }
 OFFEN = ("U-Profil", "L-Profil", "C-Profil", "Flachstahl")
-GEKANTET = ()     # Kantteile mit Biegeradien ohne Standardmaß (U/C schließbar: offen gezeichnetes Rohr, bleibt Profil)
+GEKANTET = ("P02_U50x30x3_Radien_L600",)     # Kantteil mit Biegeradien ohne Standardmaß; das Rohr wäre größer (RE 50x35)
 
 
 def nah(ist, soll, tol, was, name):

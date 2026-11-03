@@ -163,7 +163,9 @@ def stege():
     # U mit scharfen Schenkelenden: nichts fällt weg, das Rohr wird quer zur offenen Seite größer (60 × 50, der Radius
     # beginnt erst nach den Schenkelenden); eine Lasche auf der offenen Seite läge dann nicht in der Wand: 60 × 40 mit
     # Überstand (wird Kantteil, siehe vorbelegen)
-    for name, vorher, luecke, fenster, b in (("K_U_offen", "U-Profil", 56.0, 745.13, 50),
+    # Patrick 03.11.2026: wird das Rohr größer als das Teil (60 × 50 statt 60 × 40), ist das Teil Blech gekantet; das
+    # Rohr bleibt als Auswahl (t.geschlossen)
+    for name, vorher, luecke, fenster, b in (("K_U_offen", "Blech gekantet", 56.0, 745.13, 50),
                                              ("M_C_schlitz_20", "C-Profil", 20.0, 632.0, 40),
                                              ("N_spalt_25", "C-Profil", 2.5, 597.0, 40),
                                              ("O_eine_lasche", "Blech gekantet", 38.0, 668.0, 40)):
@@ -176,7 +178,8 @@ def stege():
         assert z.offene_seite["steg"] == 2.0 and abs(z.offene_seite["breite"] - luecke) < 0.01, (name, z.offene_seite)
         assert abs(z.innen - fenster) < 0.05 and z.innen_konturen == 1, (name, z.innen, z.innen_konturen)
         assert any("Ring 2 mm an Ende A und B" in h for h in z.hinweise), z.hinweise
-        assert "EO" in t.netz["t"] and len(t.netz["t"]["EO"]) >= 12, (name, list(t.netz["t"]))
+        assert t.profilform == "Blech gekantet" or "EO" in t.netz["t"] and len(t.netz["t"]["EO"]) >= 12, \
+            (name, list(t.netz["t"]))
     # Enden: Umfang des Rohrs 60 × 50, Radius aus der STEP (R4) an allen Ecken
     umfang = 2 * (60 + 50) - 4 * (2 - math.pi / 2) * 4
     z = ERG["K_U_offen"].geschlossen
@@ -270,7 +273,7 @@ def spalten():
     mw.extend(step.lade_netze(step.lies_messwerte(aus), netze))
     a, c, h, _ = mw
     assert a["profilform"] == "C-Profil" and step.geschlossen(a)["profil_id_vorschlag"] == "RE 60x40x2"
-    assert c["profilform"] == "U-Profil" and step.geschlossen(c)["profil_id_vorschlag"] == "RE 60x50x2"
+    assert c["profilform"] == "Blech gekantet" and step.geschlossen(c)["profil_id_vorschlag"] == "RE 60x50x2"  # Rohr größer
     assert not h["geschlossen"] and step._stege(step.geschlossen(c)) and not step._stege(step.geschlossen(a))
     js = json.loads((tmp / "m.json").read_text(encoding="utf-8"))
     k = js["dateien"][0]["koerper"][0]
@@ -301,8 +304,10 @@ def vorbelegen():
     # kein Rohrmaß (Sondermaß) bzw. liegt nicht ganz im Rohr: automatisch Kantteil (Patrick)
     for schluessel, text in (("normrohr", "kein Rohrmaß"), ("ueberstand", "nicht ganz im Rohr")):
         u = dict(mw[1])
+        assert u["profilform"] == "Blech gekantet" and step.art_wechseln(u) and u["profilform"] == "U-Profil"
         zu = step.geschlossen(u)
         os_ = json.loads(zu["offene_seite"])
+        os_.update(vergroessert=0)          # hier: Rohr so groß wie das Teil
         os_.update(normrohr=False) if schluessel == "normrohr" else os_.update(ueberstand=3.0)
         u["geschlossen"] = json.dumps(dict(zu, offene_seite=json.dumps(os_)))
         n = step.offene_rohre_vorbelegen([u], RE)
@@ -316,9 +321,12 @@ def vorbelegen():
         step.art_text(step.geschlossen(a), a).endswith("mit Spalt (nicht geschlossen)")
     assert step.rohr_wechseln(a) and a["profilform"] == "C-Profil" and not step.rohr_geschlossen(a)
     assert "EO" in entpacken(a["_netz"])["t"] and step.geschlossen(a)["profilform"] == "Rechteckrohr"
-    c = dict(mw[1])                         # U offen: aus dem Rohr mit Stegen
-    n = step.offene_rohre_vorbelegen([c], RE)
-    assert n == 1 and c["profilform"] == "Rechteckrohr", (n, c["profilform"])
+    c = dict(mw[1])                         # U offen mit Radien: Rohr 60 × 50 größer als das Teil -> Kantteil
+    assert step.offene_rohre_vorbelegen([dict(c)], RE) == 0
+    u = dict(c)
+    assert step.art_wechseln(u) and step.offene_rohre_vorbelegen([u], RE) == 0 and u["profilform"] == "Blech gekantet"
+    assert "Rohr wäre größer als das Teil" in u["hinweise"], u["hinweise"]
+    assert step.rohr_wechseln(c) and c["profilform"] == "Rechteckrohr", c["profilform"]   # aus dem Rohr gewählt
     assert step.art_text(c).endswith("Ringe an den Enden (aus dem Rohr)") and \
         step.art_text(step.geschlossen(c), c).endswith("offen (ohne Ringe)")
     assert "EW" in entpacken(c["_netz"])["t"]

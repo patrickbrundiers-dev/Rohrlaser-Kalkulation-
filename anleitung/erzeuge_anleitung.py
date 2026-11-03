@@ -2414,7 +2414,14 @@ def kapitel_step(i):
             "<i>Blech gekantet</i>; das L-, U- oder C-Profil steht in der Spalte Art zur Wahl. Es bleibt ein "
             "<b>Profil</b>, wenn seine Maße ein <b>Standard-Kantprofil</b> sind (U-Stahl nach unserer Liste, Kant-C, "
             "Kant-L, siehe [[profile]]) oder sein Profil in den Stammdaten steht (Hinweis <i>Kantprofil steht in den "
-            "Stammdaten</i>). Ein gewalztes Profil (scharfe Außenecke) oder Normprofil bleibt Profil. "
+            "Stammdaten</i>). Ein gewalztes Profil (scharfe Außenecke) oder Normprofil bleibt Profil. Ein "
+            "Standard-Kantprofil wird auch mit anderem Biegeradius erkannt. <b>Hut-, Z-, Dachwinkel, Wanne, C mit Sicke "
+            "oder U mit Saum</b> sind immer Blech gekantet; als Auswahl steht dann <i>offenes Sonderprofil</i>, nie "
+            "ein L-Profil oder Träger. Hat ein Teil Laschen in einer zweiten Biegerichtung (Halter, Chassis), ist es "
+            "mehrachsig gekantet; liegt mehr Material außerhalb des Profils, als Querschnitt × Länge erlaubt, ist das "
+            "Profil <i>unsicher</i> (Hinweis „Material außerhalb des Profils“). In der Hinweisspalte steht immer der "
+            "Grund, z. B. <i>Standard-Kantprofil Kant-L 50x50x3</i> oder <i>Blech gekantet: kein "
+            "Standard-Kantprofil</i>. "
             "Ist es scharfkantig gezeichnet (ohne Biegeradien), ist im Prüfdialog das Profil nur vorbelegt, wenn "
             "ein passendes Profil in den Stammdaten steht, sonst das Kantteil. Ein <b>geschlossenes Rohr</b> "
             "(Rund-, Quadrat-, Rechteckrohr, Sonder- oder Mehrkammerprofil) ist immer ein Rohr, nie ein Kantteil, "
@@ -2519,8 +2526,10 @@ def kapitel_step(i):
            "<b>je ein Ring 2 mm</b> des ganzen Rohrs (mit Außenradius) stehen, damit das Teil ein Rohr bleibt; "
            "dazwischen wird die offene Seite als Fenster ausgeschnitten. Die Datei selbst bleibt unverändert; was "
            "dazukommt, ist im 3D <b>rot</b>. Als Rohr gilt das Teil nur, wenn seine <b>Außenmaße ganze Zahlen</b> "
-           "sind (z. B. 60 × 40); ein Kantteil mit Biegeradien und krummem Außenmaß wie 30,8 ist ein <i>Blech "
-           "gekantet</i>, das Rohr steht dann in der Spalte Art zur Wahl (seit 0.9.237).", kurz=True)
+           "sind (z. B. 60 × 40) und das Rohr genau die Außenmaße des Teils hat. Ein U mit Biegeradien, für das "
+           "das Rohr größer sein müsste (U 60 × 40 würde RE 60 × 50), ein krummes Außenmaß wie 30,8 und ein C mit "
+           "Lippen und mehr als 20 mm Schlitz sind ein <i>Blech gekantet</i>; das Rohr steht dann in der Spalte Art "
+           "zur Wahl (<i>… – Ringe an den Enden (aus dem Rohr)</i>, seit 0.9.237).", kurz=True)
     i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: aus RE 60×40×3 mit Ringen an den Enden",
            hoehe=95 * mm, legende=[
                (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Ringe an den Enden (aus dem Rohr)</i>; zur Auswahl stehen "

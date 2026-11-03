@@ -28,8 +28,10 @@ NEUERUNGEN = [
      "nur noch zur Wahl, wenn die Größe passt; der <b>Werkstoff</b> der Bleche passt sich den Rohren der Datei an, "
      "sonst S235 ([[bleche]]). <b>Kantteile mit Biegeradien</b> sind Blech gekantet, außer ihre Maße sind ein "
      "<b>Standard-Kantprofil</b>: U-Stahl (rund-/scharfkantig nach unserer Liste), Kant-C und Kant-L stehen jetzt in "
-     "den Stammdaten ([[profile]]). Ein offen gezeichnetes Rohr gilt nur mit ganzen Außenmaßen als Rohr "
-     "([[offene_rohre]]). <b>Zukaufteile</b> im Import nur bei Schweißbaugruppe angehakt, sonst von Hand; "
+     "den Stammdaten ([[profile]]). Ein offen gezeichnetes Rohr gilt nur mit ganzen Außenmaßen als Rohr, "
+     "wenn das Rohr genau so groß ist wie das Teil, ein C mit Lippen nur bis 20 mm Schlitz; sonst Kantteil, das Rohr in "
+     "der Spalte Art wählbar ([[offene_rohre]]). <b>Kantteile</b>: Hut, Z, Dachwinkel, Sicke, Saum und mehrachsige "
+     "Halter sicher Blech gekantet, Grund in der Hinweisspalte, Abwicklung schräg im Raum richtig. <b>Zukaufteile</b> im Import nur bei Schweißbaugruppe angehakt, sonst von Hand; "
      "im Fenster Satz bearbeiten <b>Einkauf je Satz</b> für Bleche, Vollmaterial und Dreh-/Frästeile, nach Gewicht "
      "umgelegt ([[satz_bearbeiten]]). Sicherere Erkennung: Rolle mit Radius, Flansch mit Absatz, Teile schräg im Raum, "
      "gleichschenkliger Kant-Winkel; eine Testreihe mit über 50 gebauten Teilen prüft das.",

@@ -579,6 +579,8 @@ class StepPruefDialog(QDialog):
                 if anbau.offen(anbauteile):
                     it.setBackground(self.SP_ANBAU, QBrush(stil.farbe("#FFEB9C")))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if step.kant_grund(m):
+                hinweis.append(step.kant_grund(m))
             if m.get("_knickrahmen"):
                 from . import knickverbindung
                 hinweis.append(knickverbindung.text(m) + (
