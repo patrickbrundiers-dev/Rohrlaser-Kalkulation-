@@ -40,8 +40,8 @@ RECHTECK, POLYGON = "Rechteck", "Polygon"
 FORMEN = (RECHTECK, POLYGON)
 KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE, sw.TEXT_GRAVUR, sw.GRAVUR)
 # Bohrungen mit Eigenschaft Ausführung (Patrick 03.11.2026, bohrbild.py): Gewinde schneiden, Flowdrill, Einnietmutter,
-# Senkung, nur lasern – Laser schneidet den Ø der Ausführung bzw. markiert nur, Gewinde und Arbeit € je Stück im
-# Richtpreis (Kosten Gewinde, Nacharbeit). Die Kontur der Zeichnung bleibt.
+# Senkung, nur lasern – Laser schneidet den Ø der Ausführung bzw. markiert nur, Arbeit € je Stück im Richtpreis
+# (Kosten Nacharbeit); Gewinde zählen extra zum Blech-EK. Die Kontur der Zeichnung bleibt.
 BOHR_ARTEN = (sw.BOHRUNG, sw.SENKUNG)
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
@@ -666,12 +666,9 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
                      "Laser": erg["zeit"] / 3600 * _z(w["blech_stundensatz"]),
                      "Kanten": erg["kantungen"] * _z(w["blech_kantung"]),
                      "Rüsten": ruesten / stueck}
-    gp, ap = w.get("gewinde_preise") or {}, w.get("bohr_preise") or {}
-    if gew_n:
-        erg["kosten"]["Gewinde"] = sum(n * _z(gp.get(g)) for g, n in gew_n.items())
-        fehlt = [g for g in gew_n if _z(gp.get(g)) <= 0]
-        if fehlt:
-            erg["hinweise"].append(f"Gewinde {', '.join(fehlt)} ohne Preis (Einstellungen › Gewinde)")
+    # Gewinde nicht im Richtpreis: sie werden selbst geschnitten und kommen € je Stück zum Blech-EK der Position
+    # (Patrick 03.11.2026, Blech-Thread); hier nur gezählt (erg['bohrungen']['gewinde'])
+    ap = w.get("bohr_preise") or {}
     if arbeit_n:
         erg["kosten"]["Nacharbeit"] = sum(n * _z(ap.get(name)) for name, n in arbeit_n.items())
         fehlt = [name for name in arbeit_n if _z(ap.get(name)) <= 0]

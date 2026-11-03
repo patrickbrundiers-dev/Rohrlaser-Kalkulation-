@@ -118,14 +118,15 @@ r0 = blech.rechnen(e0, wst, laser, einst)
 assert not r0["fehler"] and "Gewinde" not in r0["kosten"], r0
 e1 = dict(e0, konturen=[dict(e0["konturen"][0], aus=bb.FLOWDRILL)])
 r1 = blech.rechnen(e1, wst, laser, einst)
-assert nah(r1["kosten"]["Gewinde"], 4 * 0.9) and nah(r1["kosten"]["Nacharbeit"], 4 * 0.6), r1["kosten"]
+assert "Gewinde" not in r1["kosten"] and r1["bohrungen"]["gewinde"] == {"M8": 4}    # Gewinde zum Blech-EK
+assert nah(r1["kosten"]["Nacharbeit"], 4 * 0.6), r1["kosten"]
 assert nah(r0["schneidweg"] - r1["schneidweg"], 4 * PI * 6.8, 0.01) and r1["einstiche"] == r0["einstiche"] - 4
 assert r1["richtpreis"] > r0["richtpreis"] and nah(r1["gravur"], 4 * PI * 0.5)
 e2 = dict(e0, konturen=[dict(e0["konturen"][0], aus=bb.EINNIET, groesse="M8")])
 r2 = blech.rechnen(e2, wst, laser, einst)
 assert "Gewinde" not in r2["kosten"] and nah(r2["kosten"]["Nacharbeit"], 2.0)
 assert nah(r2["schneidweg"] - r0["schneidweg"], 4 * PI * (11 - 6.8), 0.01)
-ok("Blech: Ausführung im Richtpreis (Gewinde, Nacharbeit), Flowdrill markiert, Einnietmutter Ø11")
+ok("Blech: Ausführung im Richtpreis (Nacharbeit, Gewinde nur gezählt), Flowdrill markiert, Einnietmutter Ø11")
 
 # ------------------------------------------------------------------ 2 Oberfläche
 from PySide6.QtWidgets import QApplication  # noqa: E402

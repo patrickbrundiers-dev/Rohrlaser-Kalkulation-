@@ -26,8 +26,8 @@ NEUERUNGEN = [
      "mit ★-Vorschlag nach Gewindegröße, Wandstärke und Werkstoff und dem Grund (z. B. „Wand 2 mm = 1,6 Gänge M8 – "
      "zu wenig“). Laser-Ø, Schneidweg, Einstiche, Gewinde und Zusatzarbeiten (€/Stück) folgen der Ausführung; die "
      "STEP-Kontur bleibt (Hinweis „weicht von STEP ab“). <b>Alle M8 → …</b> und <b>★ Vorschläge übernehmen</b>, auch "
-     "für das ganze Angebot; in allen Editoren als Eigenschaft <i>Ausführung</i>, beim Blech im Richtpreis "
-     "([[bohrung_ausfuehrung]]).",
+     "für das ganze Angebot; in allen Editoren als Eigenschaft <i>Ausführung</i>, beim Blech die Arbeit im "
+     "Richtpreis ([[bohrung_ausfuehrung]]).",
      "Bohrungsart ändern (Gewinde ↔ Flowdrill ↔ Einnietmutter …) mit ★-Vorschlägen"],
     ["0.9.241", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
                 "mit zwei markierten Angeboten in der Angebotsliste (rechte Maustaste → <i>Vergleichen …</i>) zwei "

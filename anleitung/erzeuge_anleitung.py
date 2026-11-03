@@ -2424,8 +2424,8 @@ def kapitel_step(i):
     i.text("<b>In den Editoren:</b> Im Rohr-, Blech-, Baugruppen- und Satz-Editor hat jede Bohrung, Senkung und "
            "jeder Flowdrill im Eigenschaften-Feld die Auswahl <b>Ausführung</b> mit denselben ★-Vorschlägen (Blech und "
            "Senkung zusätzlich <i>Gewindegröße</i>). Beim Rohr wirkt sie beim Übernehmen über <i>Bohrungen prüfen</i> "
-           "auf die Position, beim Blech direkt im Richtpreis (Kosten <i>Gewinde</i> und <i>Nacharbeit</i> € je "
-           "Stück aus Einstellungen › Gewinde bzw. › Zusatzarbeiten).")
+           "auf die Position, beim Blech direkt im Richtpreis (Kosten <i>Nacharbeit</i> € je Stück aus "
+           "Einstellungen › Zusatzarbeiten); Gewinde im Blech zählen nicht im Richtpreis.")
     i.text("<b>Arbeitsschritte als Zusatzarbeit:</b> Bestätigte Senkungen, Flowdrill und Bohren trägt "
            "<b>Übernehmen</b> als Zusatzarbeit <i>Senken</i>, <i>Flowdrill</i> bzw. <i>Bohren</i> mit der Anzahl je "
            "Teil in die Position ein (Spalte <i>Zusatzarbeiten</i>, Preisstand der Stammdaten, "
