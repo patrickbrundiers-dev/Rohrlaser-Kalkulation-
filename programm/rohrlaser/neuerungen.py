@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.245", "<b>Bleche mit Richtwerten, die man ändern kann</b> ([[blech_richtwerte]]): Der Blech-Editor zeigt "
+     "Gewicht, Material, €/kg, Schneidweg, Einstiche, Laserzeit, Stundensatz, Kantungen, Rüsten und Aufschlag als "
+     "Tabelle; ein <i>eigener Wert</i> gilt nur für dieses Teil (↺ zurück), der Richtpreis wird immer daraus "
+     "berechnet. Bleche aus der STEP rechnen mit Gewicht aus dem Volumen und dem gemessenen Schneidweg. Neue Spalte "
+     "<b>EK Blech</b> im Angebot: Angebotspreis des Lieferanten per Klick eintragen, er gilt statt des Richtpreises "
+     "(leer = Richtpreis). <b>Tafelbelegung</b> als Bild im Editor und gemeinsam je Werkstoff/Dicke in der neuen "
+     "Übersicht <i>Bleche</i> (nur Ansicht). Prüfdialog zeigt Gewicht und Richtpreis je Blech. Innenkonturen rot auf der Tafelbelegung. <b>Gewinde in "
+     "Blechen</b>: Kernlöcher aus der STEP werden Gewinde-Vorschläge (Bohrungen prüfen); bestätigt kosten sie € je "
+     "Stück aus Einstellungen › Gewinde zusätzlich zum Blech-EK.",
+     "Bleche: Richtwerte änderbar, Angebotspreis per Klick, Tafelbelegung als Bild, Gewinde erkannt"],
     ["0.9.244", "<b>Bohrungsart nachträglich ändern</b>: In <i>Bohrungen prüfen</i> hat jede Bohrung die Spalte "
      "<b>Ausführung</b> (Gewinde schneiden, Flowdrill + Gewinde formen, Einnietmutter, Senkung, Bohren, nur lasern) "
      "mit ★-Vorschlag nach Gewindegröße, Wandstärke und Werkstoff und dem Grund (z. B. „Wand 2 mm = 1,6 Gänge M8 – "
