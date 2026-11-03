@@ -1778,6 +1778,27 @@ def _ergaenzte_wand_zeigen(m):
         m["_netz"] = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
 
 
+C_SCHLITZ_ROHR = 20.0    # mm, wie step_geometrie.C_SCHLITZ_ROHR
+
+
+def kant_grund(m):
+    """Grund der Art bei Kantteilen für die Hinweisspalte (Patrick 03.11.2026: keine Missverständnisse) oder ''."""
+    from . import normprofile
+    n = str(m.get("normprofil") or "")
+    if m.get("profilform") in ("L-Profil", "U-Profil", "C-Profil") and n.startswith(normprofile.KANT_REIHEN):
+        return f"Standard-Kantprofil {n}: Profil für den Rohrlaser"
+    if m.get("profilform") != "Blech gekantet":
+        return ""
+    if geschlossen(m):
+        return "Blech gekantet (Rohr als Auswahl in der Spalte Art)"
+    alt = alternative(m) or {}
+    if alt.get("profilform") in ("L-Profil", "U-Profil", "C-Profil"):
+        return f"Blech gekantet: kein Standard-Kantprofil ({alt['profilform']} als Auswahl)"
+    if alt.get("profilform"):
+        return f"Blech gekantet: {alt['profilform']} als Auswahl"
+    return ""
+
+
 def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
     """Offen gezeichnete Quadrat-/Rechteck-/Rundrohre (U offen, C mit Schlitz, Kantteil mit Lasche, Halbschale;
     Patrick 25.10.2026): immer als Rohr aus dem nächstgrößeren Normrohr (Messung; Freigabe „c: immer Rohr, Kantteil
@@ -1794,6 +1815,8 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
         if m.get("_rohr_vorbelegt") or zu is None or rohr_geschlossen(m):
             continue
         m["_rohr_vorbelegt"] = True
+        if m.get("profilform") == "Blech gekantet":     # Kantteil (Messung, rohr_grund): das Rohr nur als Auswahl
+            continue
         pid = finde_profil(zu, profile) or zu.get("profil_id_vorschlag")
         if not pid:
             continue
@@ -1806,6 +1829,11 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
             os_ = {}
         if not grund and os_.get("normrohr") is False and not finde_profil(zu, profile):
             grund = "kein Rohrmaß (Sondermaß)"     # Patrick: „wenn die Maße keine Rohrmaße sind, automatisch Kantteil“
+        if not grund and m.get("profilform") == "C-Profil" and _z(os_, "breite") > C_SCHLITZ_ROHR + 1e-6 \
+                and not finde_profil(zu, profile):
+            grund = f"C mit Lippen, Schlitz über {C_SCHLITZ_ROHR:g} mm"     # Patrick 03.11.2026
+        if not grund and _z(os_, "vergroessert") > 0 and not finde_profil(zu, profile):
+            grund = "Rohr wäre größer als das Teil"     # Patrick 03.11.2026: nur mit den Außenmaßen des Teils
         if not grund and os_.get("ueberstand"):     # liegt in keinem Rohr ganz (Patrick: „es soll nichts wegfallen“)
             grund = "Teil liegt nicht ganz im Rohr"
         if grund:

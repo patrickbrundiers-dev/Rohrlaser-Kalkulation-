@@ -116,7 +116,8 @@ BLECH = {       # Name: (Form, Blech-Modus, Vorgabe 150 mm)
                            "Blech gekantet", "Blech gekantet"),
     "BV10_Kantteil_U_Loecher": (ohne(et.profil([(0, 0), (85, 0), (85, 40), (82, 40), (82, 3), (3, 3), (3, 40), (0, 40)],
                                                150, {(0, 0): 5, (85, 0): 5, (3, 3): 2, (82, 3): 2}),
-                                     zyl(4, 100, 75, -10, 20, (1, 0, 0))), "U-Profil", "U-Profil"),
+                                     zyl(4, 100, 75, -10, 20, (1, 0, 0))), "Blech gekantet", "Blech gekantet"),
+    # (Rohr wäre 85 × 45 statt 85 × 40: kein offenes Rohr, Patrick 03.11.2026 17:22)
     "BV18_Kantteil_U_85x40,8": (et.profil([(0, 0), (85, 0), (85, 40.8), (82, 40.8), (82, 3), (3, 3), (3, 40.8),
                                            (0, 40.8)], 150, {(0, 0): 5, (85, 0): 5, (3, 3): 2, (82, 3): 2}),
                                 "Blech gekantet", "Blech gekantet"),    # krummes Außenmaß: kein Rohr (Patrick 03.11.)
@@ -221,11 +222,10 @@ def _():
     assert m("BV12_Blech_schraeg_im_Raum", 0).blech["dicke"] == 4.0, m("BV12_Blech_schraeg_im_Raum", 0).blech["dicke"]
     t = m("BV09_Kantteil_L_R3")
     assert t.pruefstatus == "prüfen" and t.alternative and t.alternative.profilform == "L-Profil", t.alternative
-    # U-Kantteil, das sich zum Rechteckrohr schließen lässt: offen gezeichnetes Rohr (Regel 25.10.), Blech gekantet
-    # als Auswahl
+    # U-Kantteil mit Radien: das Rohr wäre größer als das Teil (85 × 45) -> Blech gekantet, U-Profil und Rohr als
+    # Auswahl (Patrick 03.11.2026 17:22)
     t = m("BV10_Kantteil_U_Loecher")
-    assert t.geschlossen and t.alternative and t.alternative.profilform == "Blech gekantet", (t.geschlossen,
-                                                                                            t.alternative)
+    assert t.geschlossen and t.alternative and t.alternative.profilform == "U-Profil", (t.geschlossen, t.alternative)
     assert m("BV16_Winkel_scharfkantig").alternative.profilform == "Blech gekantet"
     assert m("BV06_Ronde_200x5").blech["dicke"] == 5.0 and m("BV13_Platte15_300x300", 0).blech["dicke"] == 15.0
 
