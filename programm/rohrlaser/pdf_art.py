@@ -194,7 +194,8 @@ def zusammen(gelesen, wahl=AUTO):
     return dict(gelesen, wahl=wahl, text="\n".join(s["text"] for s in formular_s),
                 ocr=any(s["ocr"] for s in formular_s) if formular_s else gelesen.get("ocr", False),
                 unsicher=set().union(*[s.get("unsicher") or set() for s in formular_s]) if formular_s else set(),
-                zeichnungen=[dict(schriftfeld(s), seite=s["nr"], datei=gelesen.get("datei")) for s in zeichnung_s],
+                zeichnungen=[dict(schriftfeld(s), seite=s["nr"], datei=gelesen.get("datei"), text=s.get("text") or "")
+                             for s in zeichnung_s],
                 tabelle=[z for s in formular_s for z in _tabelle(s)])
 
 
@@ -278,6 +279,11 @@ def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):
                                        for a in schl)):
                 continue
             gesetzt = False
+            if z.get("text"):       # ganzer Text: Gewinde, Flowdrill, Nieten, Zusatzarbeiten (Patrick 03.11.2026)
+                quelle = f"Zeichnung {z.get('datei')} S. {z.get('seite')}"
+                if quelle not in str(m.get("_zeichnung_quelle") or ""):
+                    m["_zeichnung_text"] = "\n".join(filter(None, [m.get("_zeichnung_text"), z["text"]]))
+                    m["_zeichnung_quelle"] = "; ".join(filter(None, [m.get("_zeichnung_quelle"), quelle]))
             if z.get("stueck") and "_stueck_formular" not in m:
                 m["_stueck"], m["_stueck_formular"], m["_stueck_quelle"] = int(z["stueck"]), False, \
                     f"Zeichnung {z.get('datei')} S. {z.get('seite')}"
@@ -340,6 +346,8 @@ def anwenden(messwerte, formulare, werkstoffe=None, ws_formular=None):
                 m.pop(k, None)
         if m.pop("_werkstoff_quelle", None):
             m.pop("_werkstoff", None)
+        m.pop("_zeichnung_text", None)
+        m.pop("_zeichnung_quelle", None)
     formulare = [f for f in formulare or () if f]
     namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
     n = formular.stueck_setzen(messwerte, formular.stueck_aus([f for f in formulare if f.get("text")], namen))

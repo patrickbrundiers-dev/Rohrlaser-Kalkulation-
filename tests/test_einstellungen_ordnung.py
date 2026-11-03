@@ -38,7 +38,7 @@ assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN) <= 2
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for a in ordnung.SEITE["e_arbeitsplatz"].abschnitte for n in a.namen}
-assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "csv_ordner"}, arbeitsplatz ^ LOKAL
+assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "csv_ordner", "auftrag_schritte"}, arbeitsplatz ^ LOKAL
 ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 25 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"
@@ -51,7 +51,7 @@ assert all(EINSTELLUNG[f.name].vorgabe == f.vorgabe and EINSTELLUNG[f.name].grup
            for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 20
 assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_co2"]      # CO₂ (K3b): Vorgabe aus
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
-ok("16 Funktionsschalter (seit 0.9.208 mit Abruf-/Rahmenangebote), Vorgabe ja (nach dem Update ändert sich nichts)")
+ok("20 Funktionsschalter (seit 0.9.241 mit Angebotsvergleich), Vorgabe ja außer CO₂ (nach dem Update ändert sich nichts)")
 
 # ---------------------------------------------------------------- Seiten im Programm
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")

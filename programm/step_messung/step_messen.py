@@ -73,7 +73,7 @@ OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "k
 # gemessen, JSON {Spalte: Wert} wie "alternative"; leer = kein offenes Rohr
 # Spalte "offene_seite": offen gezeichnetes Rohr als Rohr gemessen (in "geschlossen" bzw. nach dem Umschalten), JSON
 # {seite, luecken, breite, laenge, vorher, steg, radius, ueberstand, normrohr, …}; leer = keins
-# Spalte "drehfraes": Dreh- oder Frästeil (step_drehfraes, ab 0.9.237), JSON {art, Maße, merkmale, zusatz, text,
+# Spalte "drehfraes": Dreh- oder Frästeil (step_drehfraes, ab 0.9.249), JSON {art, Maße, merkmale, zusatz, text,
 # nur_abmessung, volumen, fingerabdruck}; leer = keins (das Teil ist dann Rohr, Profil, Blech o. ä.)
 # Spalte "knick_schenkel": Knickrahmen aus einem Körper (step_knickrahmen), die geraden Rohrstücke in Reihenfolge als
 # JSON-Liste [{Spalte: Wert, "lage": [Ende A, Achse, X-Richtung in der Datei]}] (ohne OHNE_ALTERNATIVE); leer = keiner
@@ -128,12 +128,18 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
     for t in teile:
         step_geometrie.nach_bezug_drehen(t)     # Netz und Lage wie das Modell des Programms (0° = +Y)
         artikel = t.datei if len(teile) == 1 else f"{t.datei}-K{t.koerper}"
-        netz = ""
-        if netze is not None and t.netz:
+        netz, q = "", t
+        if not t.netz and t.alternative is not None and t.alternative.netz and \
+                t.bauteiltyp in ("Blech", "Blech gekantet"):
+            # Kantteil mit L/U/C als Auswahl: das Netz der Profilmessung (3D im Prüfdialog, Art umstellbar; das
+            # Programm färbt es für Bleche blau, step.netz_der_art)
+            q = t.alternative
+            step_geometrie.nach_bezug_drehen(q)
+        if netze is not None and q.netz:
             netz = f"{nr:05d}_{t.koerper}.json"
-            if "lage" not in t.netz and t.ende_a_global and t.achse_global and t.x_global:   # Einbaulage (Baugruppe)
-                t.netz["lage"] = [round(v, 6) for v in (*t.ende_a_global, *t.achse_global, *t.x_global)]
-            (Path(netze) / netz).write_text(json.dumps(t.netz, separators=(",", ":")), encoding="utf-8")
+            if "lage" not in q.netz and q.ende_a_global and q.achse_global and q.x_global:   # Einbaulage (Baugruppe)
+                q.netz["lage"] = [round(v, 6) for v in (*q.ende_a_global, *q.achse_global, *q.x_global)]
+            (Path(netze) / netz).write_text(json.dumps(q.netz, separators=(",", ":")), encoding="utf-8")
         z = _zeile(t, datei.name, artikel, netz)
         if t.geschlossen is not None:
             zu = dict(zip(SPALTEN, _zeile(t.geschlossen, datei.name, artikel, netz)))

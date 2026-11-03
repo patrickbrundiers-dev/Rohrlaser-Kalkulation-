@@ -217,7 +217,9 @@ mw = [messung("BOLZEN", laenge=300), messung("STIFT", "Vierkantstahl", 12, 80)] 
 d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 2, zukauf_liste=db.zukauf_artikel_liste())
 assert [x for _, x in d.gruppen] == [d.VOLLGRUPPE] and len(d.zeilen) == 2
 z = d.zeilen[0]
-assert z.blech and z.it.checkState(0) == Qt.Checked and z.ws.currentText() == "S235-10219"
+assert z.blech and z.it.checkState(0) == Qt.Unchecked and z.ws.currentText() == "S235-10219"   # Zukauf: von Hand
+for zz in d.zeilen:
+    zz.it.setCheckState(0, Qt.Checked)
 assert z.pr.itemData(1) == aid and "vorhanden" in z.it.text(d.SP_HINWEIS), z.it.text(d.SP_HINWEIS)
 z.pr.setCurrentIndex(1)
 d.werte_schreiben()

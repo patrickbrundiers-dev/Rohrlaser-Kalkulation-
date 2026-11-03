@@ -559,6 +559,7 @@ def schweissplan(positionen, tabellen, k=None):
         naehte = [dict(nr=n.get("nr"), knoten=kname(n.get("knoten") or ""), verfahren=n.get("verfahren"),
                        nahtart=n.get("nahtart"), mass=n.get("mass"), laenge=n.get("laenge"), anzahl=n.get("anzahl"),
                        beidseitig=bool(n.get("beidseitig")), heftpunkte=n.get("heftpunkte"), lage=n.get("lage"),
+                       geschweisst=n.get("geschweisst") if baugruppe.stich_anteil(n) < 1 else None,
                        zeit_min=(zeiten.get(("Naht", n.get("id"))) or {}).get("zeit_min"))
                   for n in bg["naehte"]]
         ags = [dict(name=a.get("name") or "Arbeitsgang", knoten=kname(a.get("knoten") or ""), menge=a.get("menge"),

@@ -80,7 +80,10 @@ SEITEN = (
            _a("Auftragsbestätigung", "ab_text"))),
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
+           _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
+                                               "nachkalk_schwelle anfrage_zuweisen angebot_automatik"),
            _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"),
+           _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
            _a("Gewinn nach Auslastung", "auslastung_hoch auslastung_niedrig", experte=True))),
     Seite("e_angebot_mail", "Angebot per E-Mail",
@@ -88,7 +91,8 @@ SEITEN = (
           + ALLE_PLAETZE,
           (_a("E-Mail an den Kunden", "angebot_mail_betreff angebot_mail_text"),)),
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
-          (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),)),
+          (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),
+           _a("Bestellung beim Lieferanten", "bestellung_betreff bestellung_text"))),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_auto_huellkreis laenge_auto"),
@@ -125,7 +129,7 @@ SEITEN = (
     Seite("e_step", "STEP-Import", ALLE_PLAETZE,
           (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_benennung step_werkstoff "
                            "biegerohr_faktor"),
-           _a("Bohrungen", "bohren_laser fliessloch_laser"),
+           _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
            _a("Dateien", "step_kopieren"),
            _a("Testfunktion", "pdf_zeichnung"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
@@ -161,7 +165,7 @@ WERT_GEMERKT = "einstellungen_gemerkt"
 
 # Stehen auf keiner Seite: Frachtkosten im eigenen Reiter, csv_ordner merkt sich das Programm selbst
 EIGENER_REITER = "Frachtkosten"
-INTERN = {"csv_ordner"}
+INTERN = {"csv_ordner", "auftrag_schritte"}
 
 # Vorsilben, die der Abschnitt schon sagt („Lieferlängen: Mindestersparnis …“ → „Mindestersparnis …“)
 _VORSILBE = re.compile(
@@ -169,7 +173,7 @@ _VORSILBE = re.compile(
     r"Angebots-PDF|Paletten|Palettenschein|Auslastung|Reststücke|Etiketten|Reklamationen|Rückmeldung per Scan|"
     r"Messung|Kantbarkeit|Kanten|Tafel|Abwicklung|DXF-Import|DXF|Gravur|Biegerohr|Nachfassen|Experte|"
     r"Angebotsliste|Auftragsbestätigung|Lieferzeit neuer Angebote|Löschschutz|Automatisch optimieren|"
-    r"Angebots-Check|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
+    r"Angebots-Check|Angebotsvergleich|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
 EIGENE_TITEL = {
     "pdf_zeichnung": "Neue Position „Aus PDF-Zeichnung“ (Test)",
     "versand_aktiv": "Versand und Palettenschein (Reiter Versand)",

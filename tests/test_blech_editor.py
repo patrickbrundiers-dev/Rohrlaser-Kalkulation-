@@ -270,14 +270,17 @@ d.grab()
 d.kantungen.setValue(0)
 assert "biegelinien" not in d.eingaben() and d.ergebnis["kantungen"] == 0
 d.close()
-# Prüfdialog: scharfkantiges L-Profil -> Kantteil, außer das Profil steht in den Stammdaten
-mw = [dict(profilform="L-Profil", abm_a="50", abm_b="30", wandstaerke="3",
+# Prüfdialog: scharfkantiges U-Profil -> Kantteil, außer das Profil steht in den Stammdaten; ein scharfkantiger
+# Winkel bleibt immer L-Profil (Patrick 03.11.2026)
+mw = [dict(profilform="U-Profil", abm_a="50", abm_b="30", wandstaerke="3",
            alternative=json.dumps(dict(profilform="Blech gekantet", blech="{}")))]
 assert step.kantteile_vorbelegen(mw, {}) == 1 and mw[0]["profilform"] == "Blech gekantet"
 assert step.kantteile_vorbelegen(mw, {}) == 0                  # nur einmal
+mw = [dict(mw[0], profilform="U-Profil", _art_vorbelegt=False)]
+assert step.kantteile_vorbelegen(mw, {"U 50x30x3": dict(form="U-Profil", a=50, b=30, wand=3)}) == 0
+assert mw[0]["profilform"] == "U-Profil"
 mw = [dict(mw[0], profilform="L-Profil", _art_vorbelegt=False)]
-assert step.kantteile_vorbelegen(mw, {"L 50x30x3": dict(form="L-Profil", a=50, b=30, wand=3)}) == 0
-assert mw[0]["profilform"] == "L-Profil"
+assert step.kantteile_vorbelegen(mw, {}) == 0 and mw[0]["profilform"] == "L-Profil"
 ok("B6 Kantteil aus STEP: Polygon-Außenkontur, mehrachsig mit Kantungen, 3D-Ansicht gefaltet, Profil/Kantteil nach "
    "Stammdaten")
 

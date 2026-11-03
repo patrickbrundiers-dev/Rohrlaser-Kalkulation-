@@ -1,14 +1,20 @@
 """Karte „Neue Anfragen“ auf der Startseite (Plan W6a): Anfragen aus dem Anfrage-Ordner (anfragen.py), Öffnen als
 neues Angebot aus STEP, mehrere Anfragen eines Kunden auf Wunsch zusammen. Sichtbar nur mit Einstellung
 „anfrage_ordner“; alle ANFRAGEN_S Sekunden wird nachgesehen. Anfrageformulare werden schon vorher im Hintergrund
-gelesen (Scans mit Tesseract dauern einige Sekunden je Seite, Plan W6c); die Liste zeigt solange „liest Formular …“."""
+gelesen (Scans mit Tesseract dauern einige Sekunden je Seite, Plan W6c); die Liste zeigt solange „liest Formular …“.
+
+Automationen 03.11.2026 (anfrage_vorab, nachtrag, bestellung, wiederholanfrage): STEP-Dateien werden im Hintergrund
+vorgemessen (Zusammenfassung mit Richtpreis in der Liste), die Ampel zeigt die Antwortfrist und sortiert danach,
+Nachträge zu vorhandenen Angeboten legt das Programm selbst in den Angebotsordner, Bestellungen und
+Wiederholanfragen ohne STEP erscheinen als Zeile mit Link."""
 from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QInputDialog, QLabel, QListWidget, \
     QListWidgetItem, QMessageBox, QPushButton
 
-from . import anfragen, angebotsordner
+from . import anfrage_vorab, anfragen, angebotsordner
 
 ANFRAGEN_S = 30             # Sekunden zwischen zwei Blicken in den Ordner
 
@@ -34,7 +40,7 @@ class AnfragenKarte:
         self.hinweis = QLabel()
         self.hinweis.setWordWrap(True)
         self.hinweis.setTextFormat(Qt.RichText)
-        self.hinweis.linkActivated.connect(self._kunde_markieren)
+        self.hinweis.linkActivated.connect(self._link)
         lay.addWidget(self.hinweis)
         zeile = QHBoxLayout()
         self.knopf_oeffnen = QPushButton("Öffnen")
@@ -55,6 +61,10 @@ class AnfragenKarte:
         lay.addLayout(zeile)
         self.anfragen, self._stand = [], None
         self._gelesen, self._laeuft, self._pool = {}, {}, None     # Formulare: Schlüssel -> Ergebnis bzw. Future
+        # Vormessen (3a): Anfrage-Schlüssel -> (Stempel, Text) bzw. (Stempel, Future); eigener Hintergrund-Thread
+        self._vorab, self._vorab_laeuft, self._vorab_pool = {}, {}, None
+        # Mails ohne STEP (1a, 5a, 6a): Datei-Schlüssel -> Ergebnis; Links der Hinweiszeilen
+        self._ohne, self._links = {}, {}
         self._warten = QTimer(self.karte)
         self._warten.setInterval(1000)
         self._warten.timeout.connect(self._lesen_pruefen)
@@ -86,19 +96,32 @@ class AnfragenKarte:
             anfragen.EIGENE = anfragen.eigene_domains(self.f.db)
         except Exception:
             anfragen.EIGENE = set()
-        neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote)
+        dateien = []
+        neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote, ohne_dateien=dateien)
         st = (anfragen.stand(neu), tuple(ohne))
         if st == self._stand and not erzwingen:
             return
         markiert = {a.schluessel for a in self.markierte()}
+        auto_zeilen, verschoben = self._ohne_step(dateien, angebote, kunden)
+        if verschoben:          # Nachträge (Angebotsordner), Bestellungen, Wiederholanfragen: nicht als „ohne STEP“
+            ohne = [t for t in ohne if not any(t.startswith(n) for n in verschoben)]
+        self._zuweisen_auto(neu, kunden)
+        neu = self._ampel_sortieren(neu)
         self.anfragen, self._stand, self._kunden = neu, st, kunden
         self.liste.clear()
         self._vorlesen(neu)
+        self._vormessen(neu)
         for a in neu:
             kunde = anfragen.kunde_text(kunden, a.kunde) if a.kunde else ""
             liest = " · liest Formular …" if any(_schluessel(d) in self._laeuft for d in a.formulare) else ""
-            it = QListWidgetItem((f"{kunde}  –  {a.text()}" if kunde else a.text()) + liest)
+            stufe, _, frist = self._ampeln.get(a.schluessel, (None, None, ""))
+            vorab = self._vorab_text(a)
+            it = QListWidgetItem((f"{kunde}  –  {a.text()}" if kunde else a.text()) + liest
+                                 + (f" · {vorab}" if vorab else "") + (f" · {frist}" if frist and not a.gesperrt else ""))
             it.setData(Qt.ItemDataRole.UserRole, a.schluessel)
+            if stufe and not a.gesperrt:
+                it.setIcon(_punkt(anfrage_vorab.FARBE[stufe]))
+                it.setToolTip(f"Antwortfrist: {frist}")
             if a.gesperrt or (a.zugewiesen.get("an") and a.zugewiesen.get("an") != ich):
                 it.setForeground(self.liste.palette().placeholderText())
             if a.zugewiesen.get("an") == ich and not a.gesperrt:
@@ -116,6 +139,7 @@ class AnfragenKarte:
         mehrere = anfragen.gleicher_kunde(neu)
         zeilen = [f"{len(v)} offene Anfragen von <b>{anfragen.kunde_text(kunden, k)}</b>: getrennt öffnen oder "
                   f"<a href='{k}'>beide markieren</a> und „Zusammen öffnen“" for k, v in mehrere.items()]
+        zeilen += auto_zeilen
         nachtrag = [t for t in ohne if "(Nachtrag zu Angebot " in t]
         ohne = [t for t in ohne if t not in nachtrag]
         for t in nachtrag:  # Mail ohne STEP zu einer schon übernommenen Anfrage (Patrick 28.10.2026, F2 a)
@@ -129,6 +153,216 @@ class AnfragenKarte:
         self.hinweis.setText("<br>".join(zeilen))
         self.hinweis.setVisible(bool(zeilen))
         self._knoepfe_setzen()
+
+    # ------------------------------------------------------------------ Automationen 03.11.2026
+    def _zuweisen_auto(self, liste, kunden):
+        """Paket D (E7): neue Anfragen dem Zuständigen des Kunden zuweisen, sonst dem Kollegen mit den wenigsten
+        offenen Anfragen. Nur mit gemeinsamem Ordner; Einstellung 'anfrage_zuweisen' = nein schaltet es aus."""
+        from . import automatik, teilen
+        db = self.f.db
+        if db.nur_lesen or not teilen.aktiv(db) or (db.einstellung("anfrage_zuweisen") or "ja") != "ja":
+            return 0
+        n = 0
+        for a, an in anfragen.zuweisung_vorschlag(liste, kunden, teilen.kollegen(db), teilen.kuerzel(db)):
+            try:
+                neu = anfragen.zuweisen(a, self.ordner(), an, "Automatik", "automatisch zugewiesen")
+            except OSError:
+                continue
+            a.ordner, a.dateien, a.zugewiesen = neu.ordner, neu.dateien, neu.zugewiesen
+            automatik.merken(db, "zuweisung", f"Anfrage „{a.name}“ an {an}")
+            n += 1
+        return n
+
+    def _ampel_sortieren(self, liste):
+        """Anfrage-Ampel (4a): Frist je Anfrage merken (self._ampeln) und nach Dringlichkeit sortieren; gesperrte
+        (in Bearbeitung) ans Ende."""
+        land = self.f.db.einstellung("versand_bundesland")
+        self._ampeln, eintraege = {}, []
+        for a in liste:
+            try:
+                amp = anfrage_vorab.ampel(anfrage_vorab.eingang(a), anfrage_vorab.frist_tage(self.f.db, a.kunde),
+                                          land=land)
+            except Exception:
+                amp = (None, None, "")
+            self._ampeln[a.schluessel] = amp
+            eintraege.append((a, amp[0] if not a.gesperrt else None, amp[1]))
+        if not any(e[1] for e in eintraege):
+            return liste
+        return [a for a, _, _ in anfrage_vorab.sortieren(eintraege)]
+
+    def _vormessen(self, liste):
+        """STEP-Dateien offener Anfragen im Hintergrund messen (3a), eine Anfrage nach der anderen."""
+        for a in liste:
+            if a.gesperrt or not a.step_anzahl():
+                continue
+            st = anfrage_vorab.stempel(a)
+            fertig, laeuft = self._vorab.get(a.schluessel), self._vorab_laeuft.get(a.schluessel)
+            if (fertig and fertig[0] == st) or (laeuft and laeuft[0] == st):
+                continue
+            try:
+                job = anfrage_vorab.auftrag(self.f.db, self.f.programmordner, a)
+            except Exception:
+                job = None
+            if not job:             # ausgeschaltet oder kein Messprogramm
+                return
+            self._vorab_pool = self._vorab_pool or ThreadPoolExecutor(max_workers=1)
+            self._vorab_laeuft[a.schluessel] = (st, a, self._vorab_pool.submit(anfrage_vorab.messen, job, a))
+        if self._vorab_laeuft and not self._warten.isActive():
+            self._warten.start()
+
+    def _vorab_pruefen(self):
+        """Fertige Vormessungen auswerten (im Hauptthread: Datenbank für Profile und Richtpreis)."""
+        from . import automatik
+        fertig = [k for k, (_, _, fu) in self._vorab_laeuft.items() if fu.done()]
+        for k in fertig:
+            st, a, fu = self._vorab_laeuft.pop(k)
+            werte = self._ergebnis(fu)
+            if not werte:
+                self._vorab[k] = (st, "")
+                continue
+            try:
+                z = anfrage_vorab.zusammenfassung(werte, self.f.db.kontext().profile)
+                preis = anfrage_vorab.richtpreis(self.f.db, a.kunde, werte)
+                t = anfrage_vorab.text(z, preis, anfrage_vorab.wiederholt(self.f.db, a.kunde, z["artikel"]))
+            except Exception:
+                t = ""
+            self._vorab[k] = (st, t)
+            if t:
+                automatik.merken(self.f.db, "vormessen", f"{a.name}: {t}")
+        return bool(fertig)
+
+    def _vorab_text(self, a):
+        if a.gesperrt:
+            return ""
+        if a.schluessel in self._vorab_laeuft:
+            return "wird vorbereitet …"
+        v = self._vorab.get(a.schluessel)
+        return v[1] if v and v[0] == anfrage_vorab.stempel(a) else ""
+
+    def _ohne_step(self, dateien, angebote, kunden):
+        """Mails ohne STEP (Automationen 1a, 5a, 6a): Nachtrag zu einem Angebot selbst einsortieren, Bestellung und
+        Wiederholanfrage als Zeile mit Link. Ergebnis: (Hinweiszeilen, Namen der einsortierten Dateien)."""
+        from . import bestellung, mail, nachtrag, wiederholanfrage
+        db = self.f.db
+        zeilen, verschoben, neu_verschoben = [], [], []
+        self._links = {k: v for k, v in self._links.items() if not k.startswith(("best:", "wdh:"))}
+        for d in dateien:
+            if d.suffix.lower() not in anfragen.MAIL:
+                continue
+            nr = anfragen.nachtrag_zu(d, angebote, kunden)      # neu prüfen: das Angebot kann später entstehen
+            k = (_schluessel(d), nr)
+            if k not in self._ohne:
+                self._ohne[k] = info = dict(art=None)
+                try:
+                    m = mail.lesen(d)
+                except Exception:
+                    m = None
+                if m is None:
+                    continue
+                text = m.volltext()
+                if nr and not db.nur_lesen:
+                    row = db.con.execute("SELECT id FROM angebote WHERE nummer=? ORDER BY id DESC", (nr,)).fetchone()
+                    if row:
+                        try:
+                            ziel = self.f.angebot_ordner(db.angebot(row[0]))
+                            nachtrag.einsortieren(db, row[0], d, ziel, m)
+                            info.update(art="nachtrag", nummer=nr)
+                            neu_verschoben.append(nr)
+                            verschoben.append(d.name)
+                            continue
+                        except OSError:
+                            pass
+                kundennr = mail.kunde(m, kunden, anfragen.EIGENE)[0]
+                try:
+                    erkannt = bestellung.erkennen(db, text, kundennr)
+                except Exception:
+                    erkannt = None
+                if erkannt:
+                    info.update(art="bestellung", erkannt=erkannt, text=text)
+                else:
+                    try:
+                        treffer = wiederholanfrage.treffer(db, kundennr, text)
+                    except Exception:
+                        treffer = []
+                    if treffer:
+                        info.update(art="wiederholung", kundennr=kundennr, treffer=treffer)
+            info = self._ohne[k]
+            if info["art"] == "nachtrag":
+                verschoben.append(d.name)
+            elif info["art"] == "bestellung":
+                verschoben.append(d.name)       # eigene Zeile statt „Ohne STEP“
+                a = info["erkannt"]["angebot"]
+                self._links[f"best:{len(self._links)}"] = lambda d=d, i=info: self.bestellung_pruefen(d, i)
+                zeilen.append(f"<b>Bestellung</b> zu Angebot <b>{a.get('nummer')}</b> ({a.get('kunde') or ''}): "
+                              f"{d.name} – <a href='{list(self._links)[-1]}'>Bestellung prüfen …</a>")
+            elif info["art"] == "wiederholung":
+                verschoben.append(d.name)
+                n = len(info["treffer"])
+                self._links[f"wdh:{len(self._links)}"] = lambda d=d, i=info: self.wiederholanfrage(d, i)
+                zeilen.append(f"<b>Wiederholanfrage</b> von {anfragen.kunde_text(kunden, info['kundennr'])}: "
+                              f"{n} bekannte Artikel in {d.name} – <a href='{list(self._links)[-1]}'>Artikel "
+                              "übernehmen …</a>")
+        if neu_verschoben:
+            self.f.meldung(f"Nachtrag zu Angebot {', '.join(neu_verschoben)} in den Angebotsordner gelegt; Änderungen "
+                           "zeigt das Angebot beim Öffnen (Rückgängig: Datei → Automatik-Protokoll).")
+        return zeilen, verschoben
+
+    def _link(self, href):
+        if href in self._links:
+            self._links[href]()
+        else:
+            self._kunde_markieren(href)
+
+    def bestellung_pruefen(self, pfad, info, dialog=None):
+        """Fenster „Bestellung prüfen“ (1a). Ergebnis: True, wenn beauftragt."""
+        from . import bestellung_dialog
+        ok = bestellung_dialog.pruefen(self.f, pfad, info["erkannt"], info["text"], dialog)
+        self.neu_laden(erzwingen=True)
+        return ok
+
+    def wiederholanfrage(self, pfad, info, auswahl=None):
+        """Wiederholanfrage (6a): bekannte Artikel wählen, neues Angebot mit den Positionen des neuesten Angebots und
+        den angefragten Stückzahlen; die Mail kommt in den Angebotsordner. auswahl = Zeilennummern (Tests).
+        Ergebnis: ID des neuen Angebots oder None."""
+        from pathlib import Path
+        from . import automatik, wiederholanfrage
+        from .tabelle_dialog import TabellenDialog
+        treffer = info["treffer"]
+        if auswahl is None:
+            if self.f.stumm:
+                return None
+            gewaehlt = []
+            zeilen = [[r["artikel"], r.get("bezeichnung") or "", r.get("nummer") or "",
+                       r["menge"] if r.get("menge") else "–"] for r in treffer]
+            d = TabellenDialog(self.f, "Wiederholanfrage", f"Bekannte Artikel in {Path(pfad).name}. Markieren und "
+                               "„Neues Angebot aus Auswahl“: Positionen des letzten Angebots, Stückzahlen aus der Mail, "
+                               "Preise nach den aktuellen Stammdaten.", ("Artikel", "Bezeichnung", "Zuletzt in Angebot",
+                                                                          "Angefragt Stk"), zeilen,
+                               [("Neues Angebot aus Auswahl", lambda m: (gewaehlt.extend(m or range(len(treffer))),
+                                                                         d.accept()))])
+            d.tabelle.selectAll()
+            d.exec()
+            auswahl = gewaehlt
+        liste = [treffer[i] for i in auswahl if 0 <= i < len(treffer)]
+        if not liste:
+            return None
+        seiten = getattr(self.f, "seiten", None)
+        i = seiten[0].katalog_angebot(info["kundennr"], liste) if seiten else None
+        if i is None:
+            return None
+        n = wiederholanfrage.stueck_setzen(self.f.db, i, liste)
+        kopf = self.f.db.angebot(i) or {}
+        try:
+            automatik.verschieben(self.f.db, pfad, Path(self.f.angebot_ordner(kopf)) / "Anfrage", "wiederholanfrage",
+                                  f"Angebot {kopf.get('nummer')} aus Wiederholanfrage {Path(pfad).name}: {len(liste)} "
+                                  f"Artikel, {n} Stückzahl(en) aus der Mail", i)
+        except OSError as e:
+            self.f.meldung(f"Wiederholanfrage: Mail nicht verschoben ({e}).", fehler=True)
+        seite = self.f.angebot_oeffnen(i)
+        if seite is not None and hasattr(seite, "neu_laden"):
+            seite.neu_laden()
+        self.neu_laden(erzwingen=True)
+        return i
 
     def _anfrage(self, it):
         schl = it.data(Qt.ItemDataRole.UserRole)
@@ -204,9 +438,10 @@ class AnfragenKarte:
         fertig = [k for k, f in self._laeuft.items() if f.done()]
         for k in fertig:
             self._gelesen[k] = self._ergebnis(self._laeuft.pop(k))
-        if not self._laeuft:
+        gemessen = self._vorab_pruefen()
+        if not self._laeuft and not self._vorab_laeuft:
             self._warten.stop()
-        if fertig:
+        if fertig or gemessen:
             self.neu_laden(erzwingen=True)
 
     @staticmethod
@@ -289,7 +524,13 @@ class AnfragenKarte:
             return None
         weitere = self._formulare(gesperrt)                         # kann den Ordner umbenennen
         dateien = [str(d) for a in gesperrt for d in a.step]
+        kontakt = weitere.pop("kontakt", None)         # Signatur (12a): erst nach erfolgreichem Import speichern
         seite = self.f.angebote.neu_aus_step(dateien, kundennr, **weitere)
+        if seite is not None and kontakt and str(seite.kopf.get("kundennr")) == str(kontakt["kundennr"]):
+            try:
+                anfragen.kontakt_uebernehmen(self.f.db, kontakt)
+            except Exception:
+                pass
         if seite is None:
             for a in gesperrt:
                 anfragen.freigeben(a)
@@ -318,3 +559,16 @@ def _schluessel(d):
         return d.name, st.st_size, st.st_mtime_ns
     except OSError:
         return d.name, None, None
+
+
+def _punkt(farbe):
+    """Farbiger Punkt als Symbol der Ampel."""
+    pm = QPixmap(12, 12)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setBrush(QColor(farbe))
+    p.setPen(Qt.NoPen)
+    p.drawEllipse(1, 1, 10, 10)
+    p.end()
+    return QIcon(pm)

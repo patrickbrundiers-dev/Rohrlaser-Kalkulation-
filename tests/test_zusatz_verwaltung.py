@@ -81,7 +81,7 @@ assert f.bereich.unter.currentWidget() is s and s.titel == "Zusatzarbeiten"
 f.zeigen(next(x for x in f.seiten if x.t.name == "zusatzarbeiten"))     # alter Weg (Anleitung) zeigt die neue Seite
 assert f.bereich.unter.currentWidget() is s
 n0 = len(db.zeilen("zusatzarbeiten"))
-assert len(s.sichtbar) == n0 == 14     # mit Strahlen (28.10.2026)
+assert len(s.sichtbar) == n0 == 29     # mit Strahlen (28.10.), Einnietmuttern und 14 Rohrlaser-Arbeiten (03.11.2026)
 
 # 1) Neue Zusatzarbeit anlegen
 fo = s.neu()
@@ -159,7 +159,7 @@ r = d.zeile_neu()
 eintraege = [d.tabelle.cellWidget(r, 0).itemText(i) for i in range(d.tabelle.cellWidget(r, 0).count())]
 assert kopie["name"] not in eintraege and "Entgraten von Hand" in eintraege
 assert "— Häufig verwendet —" in eintraege and eintraege.index("Entgraten") < eintraege.index("Feuerverzinken")
-assert d.tabelle.cellWidget(r, 0).currentText() == eintraege[1]          # Überschrift nicht gewählt
+assert d.tabelle.cellWidget(r, 0).currentText() == ""      # nichts vorgewählt (03.11.2026: sonst leicht doppelt)
 d.tabelle.cellWidget(r, 0).setCurrentText("Entgraten von Hand")
 assert seite.zusatzarbeiten([0], d.werte())
 p = seite.positionen[0]
@@ -339,7 +339,7 @@ s.suche.setText("verzink")
 assert {x["name"] for x in s.sichtbar} == {"Feuerverzinken", "Galvanisch verzinken"}
 s.suche.clear()
 s.kat_filter.setCurrentText("Oberfläche")
-assert {x["kategorie"] for x in s.sichtbar} == {"Oberfläche"} and len(s.sichtbar) == 4     # mit Strahlen
+assert {x["kategorie"] for x in s.sichtbar} == {"Oberfläche"} and len(s.sichtbar) == 7     # mit Strahlen, Brünieren, Ölen, Grundieren
 s.kat_filter.setCurrentText("Alle")
 s.sortierung.setCurrentText("Preis")
 preise = [x["_preis"]["preis"] for x in s.sichtbar if x["art"] != "s/Stück"]

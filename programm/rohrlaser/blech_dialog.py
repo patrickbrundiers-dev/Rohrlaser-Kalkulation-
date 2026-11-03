@@ -541,6 +541,218 @@ class BlechSkizze(QWidget):
             p.drawText(QRectF(px - 30, py - 8, 60, 16), Qt.AlignCenter, zahl_als_text(z["laenge"], 1))
 
 
+class TafelBild(QWidget):
+    """Tafelbelegung zum Ansehen (Patrick 03.11.2026): je unterschiedlicher Tafel die Tafel maßstäblich mit Rand, den
+    Teilen (Außenkontur im Hüllrechteck, gedreht wo die Lage es verlangt) und bei der letzten Tafel der belegten
+    Fläche (gestrichelt), die als Material gerechnet wird."""
+
+    def __init__(self):
+        super().__init__()
+        self.belegung, self.formen, self.text = None, None, ""
+        self.setMinimumHeight(150)
+        self.setToolTip("Tafelbelegung wie im Richtpreis gerechnet: Teile als Hüllrechteck mit Steg auf dem günstigsten "
+                        "Tafelformat; die letzte Tafel zählt nur mit der belegten Fläche (gestrichelt). Doppelklick: groß "
+                        "anzeigen.")
+
+    def setzen(self, belegung, formen=None, text=""):
+        """formen: Umriss aus blech.form_bild (ein Teil) oder {Beschriftung: Umriss} (gemeinsame Tafel)."""
+        self.belegung, self.text = belegung, text
+        self.formen = formen if formen is None or "innen" not in formen else {None: formen}
+        self.update()
+
+    def mouseDoubleClickEvent(self, _):
+        self.gross()
+
+    def gross(self, zeigen=True):
+        """Tafelbelegung groß in einem eigenen Fenster (Doppelklick)."""
+        d = QDialog(self)
+        d.setWindowTitle("Tafelbelegung")
+        lay = QVBoxLayout(d)
+        bild = TafelBild()
+        bild.belegung, bild.formen, bild.text = self.belegung, self.formen, self.text
+        lay.addWidget(bild, 1)
+        k = QDialogButtonBox(QDialogButtonBox.Close)
+        k.rejected.connect(d.reject)
+        lay.addWidget(k)
+        t = self.belegung
+        n = len((t or {}).get("bilder") or ()) or 1
+        verh = (t["format"][1] / t["format"][0]) if t else 0.5
+        d.resize(1200, int(min(800, max(300, 1180 / n * verh + 110))))
+        if zeigen:
+            d.exec()
+        return d
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
+        p.setPen(stil.farbe("#1F2937"))
+        p.drawText(QRectF(6, 2, self.width() - 12, 18), Qt.AlignLeft | Qt.AlignVCenter, self.text)
+        t = self.belegung
+        if not t or not t.get("bilder"):
+            p.drawText(QRectF(self.rect()), Qt.AlignCenter, "Keine Tafelbelegung (Zuschnitt passt auf kein "
+                       "Tafelformat oder pauschaler Verschnitt)")
+            return
+        l, b = t["format"]
+        n = len(t["bilder"])
+        feld_b = (self.width() - 12 - 10 * (n - 1)) / n
+        m = min(feld_b / l, (self.height() - 44) / b)
+        for i, bild in enumerate(t["bilder"]):
+            ox, oy = 6 + i * (feld_b + 10), 24
+            p.setPen(QPen(stil.farbe("#5F6B7A"), 1))
+            p.setBrush(stil.farbe("#EEF1F4"))
+            p.drawRect(QRectF(ox, oy, l * m, b * m))
+            for x, y, tl, tb, gedreht, *text in bild["teile"]:
+                self._teil(p, ox + x * m, oy + (b - y - tb) * m, tl * m, tb * m, text[0] if text else None)
+                if text and text[0] and min(tl, tb) * m >= 9:     # gemeinsame Tafel: Pos. im Teil
+                    p.setPen(stil.farbe("#1F2937"))
+                    p.drawText(QRectF(ox + x * m, oy + (b - y - tb) * m, tl * m, tb * m), Qt.AlignCenter,
+                               str(text[0]))
+            if bild.get("rest"):
+                rl, rb = bild["rest"]
+                p.setPen(QPen(stil.farbe("#B42318"), 1.2, Qt.DashLine))
+                p.setBrush(Qt.NoBrush)
+                p.drawRect(QRectF(ox, oy + (b - rb) * m, rl * m, rb * m))
+            p.setPen(stil.farbe("#1F2937"))
+            beschr = (bild.get("titel") or f"{bild['anzahl']} × Tafel, {len(bild['teile'])} Teile"
+                      if not bild.get("rest") else
+                      f"letzte Tafel: {len(bild['teile'])} Teile, gerechnet {bild['rest'][0]:.0f} × "
+                      f"{bild['rest'][1]:.0f} mm")
+            p.drawText(QRectF(ox, oy + b * m + 2, l * m, 16), Qt.AlignLeft | Qt.AlignVCenter, beschr)
+
+    def _teil(self, p, x, y, w, h, beschriftung=None):
+        """Ein Teil in seiner Zelle: Außenkontur (sonst Hüllrechteck) und Innenkonturen rot; um 90° gedreht, wenn die
+        Zelle anders liegt als der Zuschnitt."""
+        f = (self.formen or {}).get(beschriftung) or (self.formen or {}).get(None)
+        p.setPen(QPen(stil.farbe(FARBE_LINIE), 1))
+        p.setBrush(stil.farbe("#B9D3EA"))
+        if not f:
+            p.drawRect(QRectF(x, y, w, h))
+            return
+        fl, fb = f["laenge"] or 1, f["breite"] or 1
+        dreh = abs(fl - fb) > 1e-6 and (w > h) != (fl > fb)
+        sl, sb = (fb, fl) if dreh else (fl, fb)
+
+        def pt(a, c):
+            if dreh:                    # 90° gegen den Uhrzeiger
+                a, c = fb - c, a
+            return QPointF(x + a / sl * w, y + h - c / sb * h)
+        if f.get("punkte"):
+            pfad = QPainterPath()
+            for i, (a, c) in enumerate(f["punkte"]):
+                pfad.moveTo(pt(a, c)) if i == 0 else pfad.lineTo(pt(a, c))
+            pfad.closeSubpath()
+            p.drawPath(pfad)
+        else:
+            p.drawRect(QRectF(x, y, w, h))
+        if f.get("innen") and min(w, h) >= 6:
+            p.setPen(QPen(stil.farbe(FARBE_KONTUR), 0.8))
+            p.setBrush(stil.farbe("#FFFFFF"))
+            for zug in f["innen"]:
+                pfad = QPainterPath()
+                for i, (a, c) in enumerate(zug):
+                    pfad.moveTo(pt(a, c)) if i == 0 else pfad.lineTo(pt(a, c))
+                pfad.closeSubpath()
+                p.drawPath(pfad)
+
+
+class RichtwerteTabelle(QTableWidget):
+    """Richtwerte des Blechs (blech.RICHTWERTE) mit Spalte „Eigener Wert“ je Zeile (Patrick 03.11.2026): leer = der
+    berechnete Richtwert gilt, eingetragen = nur für dieses Teil (gelb, ↺ setzt zurück). Der Richtpreis wird immer
+    aus den Werten berechnet. Werte aus der STEP-Messung stehen mit „aus STEP“."""
+    geaendert = Signal()
+    SPALTEN = ("Richtwert", "berechnet", "eigener Wert", "")
+
+    def __init__(self):
+        super().__init__(len(blech.RICHTWERTE), len(self.SPALTEN))
+        self.setHorizontalHeaderLabels(self.SPALTEN)
+        self.verticalHeader().setVisible(False)
+        self.verticalHeader().setDefaultSectionSize(22)
+        self.setSelectionMode(QAbstractItemView.NoSelection)
+        self.setEditTriggers(QAbstractItemView.AllEditTriggers)
+        kopf = self.horizontalHeader()
+        kopf.setSectionResizeMode(0, QHeaderView.Stretch)
+        for c, b in ((1, 72), (2, 78), (3, 24)):
+            kopf.setSectionResizeMode(c, QHeaderView.Fixed)
+            self.setColumnWidth(c, b)
+        self._still = True
+        for r, (n, titel, einheit, _) in enumerate(blech.RICHTWERTE):
+            it = QTableWidgetItem(titel + (f" [{einheit}]" if einheit else ""))
+            it.setFlags(Qt.ItemIsEnabled)
+            self.setItem(r, 0, it)
+            it = QTableWidgetItem("")
+            it.setFlags(Qt.ItemIsEnabled)
+            it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.setItem(r, 1, it)
+            it = QTableWidgetItem("")
+            it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            it.setToolTip("Eigenen Wert eintragen (nur für dieses Teil); leer = Richtwert")
+            self.setItem(r, 2, it)
+            k = QPushButton("↺")
+            k.setFlat(True)
+            k.setToolTip("Auf den berechneten Richtwert zurücksetzen")
+            k.clicked.connect(lambda _=False, r=r: self.zuruecksetzen(r))
+            self.setCellWidget(r, 3, k)
+        self.setFixedHeight(24 + 22 * len(blech.RICHTWERTE) + 4)
+        self.setToolTip("Richtwerte je Teil: berechnet aus Eingaben, STEP und Einstellungen; eigener Wert gilt nur für "
+                        "dieses Teil. Der Richtpreis rechnet sofort neu.")
+        self._still = False
+        self.itemChanged.connect(self._geaendert)
+        self._faerben()
+
+    def _geaendert(self, it):
+        if self._still or it.column() != 2:
+            return
+        self._faerben()
+        self.geaendert.emit()
+
+    def _faerben(self):
+        for r in range(self.rowCount()):
+            eigen = bool(self.item(r, 2).text().strip())
+            self.item(r, 2).setBackground(stil.farbe("#FFF2CC") if eigen else stil.farbe("#FFFFFF"))
+            self.cellWidget(r, 3).setEnabled(eigen)
+
+    def zuruecksetzen(self, r):
+        self.item(r, 2).setText("")
+
+    def eigene(self):
+        """{Schlüssel: Wert} der eingetragenen eigenen Werte (Aufschlag in %)."""
+        out = {}
+        for r, (n, *_) in enumerate(blech.RICHTWERTE):
+            w = _zahl_text(self.item(r, 2).text())
+            if w is not None and w >= 0:
+                out[n] = w
+        return out
+
+    def eigene_setzen(self, werte):
+        self._still = True
+        try:
+            for r, (n, _, _, stellen) in enumerate(blech.RICHTWERTE):
+                w = (werte or {}).get(n)
+                self.item(r, 2).setText(zahl_als_text(float(w), stellen) if isinstance(w, (int, float)) else "")
+        finally:
+            self._still = False
+        self._faerben()
+
+    def setzen(self, erg):
+        """Spalte „berechnet“ aus dem Ergebnis von blech.rechnen (Richtwerte ohne eigene Werte)."""
+        rw, step_ = erg.get("richtwerte") or {}, set(erg.get("aus_step") or ())
+        self._still = True
+        try:
+            for r, (n, _, _, stellen) in enumerate(blech.RICHTWERTE):
+                w = rw.get(n)
+                t = zahl_als_text(float(w), stellen) if isinstance(w, (int, float)) else "–"
+                self.item(r, 1).setText(t)
+                self.item(r, 1).setForeground(stil.farbe("#1F4E78" if n in step_ else "#5F6B7A"))
+                f = self.item(r, 1).font()
+                f.setBold(n in step_)
+                self.item(r, 1).setFont(f)
+                self.item(r, 1).setToolTip("Aus der STEP gemessen (Form unverändert)" if n in step_ else
+                                           "Berechnet aus den Eingaben und den Einstellungen Blech-Richtpreis")
+        finally:
+            self._still = False
+
+
 class BlechDialog(QDialog):
     """Blech-Editor. eingaben: gespeicherte Eingaben (blech.lesen) oder None; kopf: Bezeichnung, Artikelnummer,
     Lieferant, Stückzahl vorbelegt; neu: Kopfzeile für ein neues Zukaufteil. Nach OK: eingaben(), ergebnis,
@@ -728,6 +940,12 @@ class BlechDialog(QDialog):
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
         lay.addWidget(self.summe)
+        self.richtwerte = RichtwerteTabelle()
+        self.richtwerte.geaendert.connect(self.rechnen)
+        lay.addWidget(self.richtwerte)
+        self.tafel_bild = TafelBild()
+        self.tafel_bild.setMinimumHeight(220)
+        lay.addWidget(self.tafel_bild)
         hinweis = hilfe.Hinweis("Richtpreis zur Kostenschätzung vorab (EK-Vorschlag). Werkstoffe, Blechlaser-Richtwerte "
                                 "und Sätze stehen unter Einstellungen; die Rohrlaser-Daten bleiben unverändert.",
                                 schluessel="blech_editor")
@@ -761,9 +979,14 @@ class BlechDialog(QDialog):
         self.resize(min(1500, breite), min(950, hoehe))
         self.teiler.setSizes([int(self.width() * 0.52), self.width() - int(self.width() * 0.52)])
         # Werte wie im STEP-Import gemessen (Teile-Editor: Herkunft, zurücksetzen); beim ersten Öffnen aus den Eingaben
+        self.messung = e.get("messung") if isinstance(e.get("messung"), dict) else None     # STEP-Messwerte
+        self.richtwerte.eigene_setzen(e.get("eigene"))
         self.step_werte = e.get("step") if isinstance(e.get("step"), dict) else None
         if e.get("step") is True:
-            self.step_werte = {k: v for k, v in self.eingaben().items() if k not in ("stueck", "step")}
+            self.step_werte = {k: v for k, v in self.eingaben().items()
+                               if k not in ("stueck", "step", "messung", "eigene", "ursprung")}
+        # Stand aus dem DXF-Import (Teile-Editor: Zurücksetzen → wie aus STEP/DXF; STEP: step_werte)
+        self.ursprung = e.get("ursprung") if isinstance(e.get("ursprung"), dict) else None
         self.editor = None
         self.rechnen()
         EditorRahmen(self, "blech")
@@ -816,7 +1039,8 @@ class BlechDialog(QDialog):
         art.setCurrentText(z.get("art") or sw.BOHRUNG)
         art.quer = bool(z.get("quer"))      # Langloch quer (STEP-Import); bleibt beim Speichern erhalten
         art.artikel = bool(z.get("artikel"))    # Text-Gravur der Artikelnummer aus dem Baugruppen-Editor
-        art.eig = {"drehung": z["drehung"]} if z.get("drehung") else {}     # Drehwinkel (Teile-Editor)
+        # Drehwinkel (Teile-Editor), Ausführung einer Bohrung und Gewindegröße (bohrbild.py, Eigenschaften-Feld)
+        art.eig = {k: z[k] for k in ("drehung", "aus", "groesse") if z.get(k)}
         art.linien = z.get("linien")        # Linien einer Gravur bzw. offenen Schnittlinie aus dem DXF-Import
         art.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, 0, art)
@@ -871,6 +1095,8 @@ class BlechDialog(QDialog):
             eig = getattr(self.tabelle.cellWidget(r, 0), "eig", None) or {}
             if eig.get("drehung") and art in blech.DREH_ARTEN:
                 z["drehung"] = eig["drehung"]
+            if art in blech.BOHR_ARTEN:
+                z.update({k: eig[k] for k in ("aus", "groesse") if eig.get(k)})
             if getattr(self.tabelle.cellWidget(r, 0), "linien", None) and art in (sw.GRAVUR, sw.SONSTIGE):
                 z["linien"] = self.tabelle.cellWidget(r, 0).linien
             konturen.append(z)
@@ -887,6 +1113,13 @@ class BlechDialog(QDialog):
             e.update(kantungen=self.kantungen.value(), biegelinien=self.biegelinien)
         if getattr(self, "step_werte", None):
             e["step"] = self.step_werte
+        if getattr(self, "messung", None):
+            e["messung"] = self.messung
+        eigene = self.richtwerte.eigene() if hasattr(self, "richtwerte") else {}
+        if eigene:
+            e["eigene"] = eigene
+        if getattr(self, "ursprung", None):
+            e["ursprung"] = self.ursprung
         return e
 
     def eingaben_setzen(self, e):
@@ -916,6 +1149,7 @@ class BlechDialog(QDialog):
             self.schenkel_neu(x, rechnen_=False)
         for z in e.get("konturen") or []:
             self.kontur_neu(z, rechnen_=False)
+        self.richtwerte.eigene_setzen(e.get("eigene"))
         return self.rechnen()
 
     def skizze_geaendert(self, e):
@@ -963,6 +1197,8 @@ class BlechDialog(QDialog):
         if erg.get("zuschnitt") and not self._bez_von_hand:
             self.bezeichnung.setPlaceholderText(blech.bezeichnung_vorschlag(e, erg["zuschnitt"]))
         self.ok_knopf.setEnabled(not erg["fehler"] and bool(erg.get("richtpreis")))
+        self.richtwerte.setzen(erg)
+        self._tafel_zeigen(erg)
         if erg["fehler"]:
             self.summe.setText("<span style='color:#B42318'>" + "<br>".join(erg["fehler"]) + "</span>")
             return erg
@@ -985,9 +1221,26 @@ class BlechDialog(QDialog):
             + (f", K-Faktor {' / '.join(zahl_als_text(x, 2) for x in erg['k_faktoren'])}" if erg["k_faktoren"] else "")
             + " · "
             + " · ".join(f"{n} {_euro(w)}" for n, w in k.items())
-            + f" · Summe {_euro(erg['summe'])} + Aufschlag {zahl_als_text(sw._z(self.einst.get('blech_aufschlag')) * 100, 0)} %"
+            + f" · Summe {_euro(erg['summe'])} + Aufschlag {zahl_als_text(erg['werte']['aufschlag'], 1)} %"
+            + (f"<br><span style='color:#1F4E78'>{len(erg['eigene'])} eigene(r) Wert(e) statt Richtwert (gelb)</span>"
+               if erg.get("eigene") else "")
+            + ("<br><span style='color:#1F4E78'><b>Fett blau</b> = aus der STEP gemessen</span>"
+               if erg.get("aus_step") else "")
             + warn)
         return erg
+
+    def _tafel_zeigen(self, erg):
+        zs, w = erg.get("zuschnitt"), dict(blech.EINSTELLUNGEN, **{n: v for n, v in self.einst.items() if v is not None})
+        t = None
+        if zs and erg.get("tafel") and w.get("blech_material") != blech.MATERIAL_AUS[1]:
+            t = blech.tafel_belegung(zs["laenge"], zs["breite"], self.stueck.value(),
+                                     blech.tafelformate(w.get("blech_tafeln")), sw._z(w.get("blech_tafel_rand")),
+                                     sw._z(w.get("blech_tafel_steg")))
+        text = (f"Tafelbelegung {t['format'][0]:g} × {t['format'][1]:g} mm: {t['je_tafel']} je Tafel, Bedarf "
+                f"{zahl_als_text(t['tafeln'], 2)} Tafeln für {self.stueck.value()} Stück, Ausnutzung "
+                f"{zahl_als_text(t['ausnutzung'] * 100, 0)} %") if t else "Tafelbelegung"
+        self.tafel_bild.setzen(t, blech.form_bild(self.eingaben(), zs) if zs else None, text)
+        self.tafel_belegung = t
 
     def pruefung(self, e=None, zs=None):
         """Befunde der Fertigungsprüfung (dfm.blech) ohne Kantbarkeit (steht schon bei den Hinweisen)."""
@@ -1023,6 +1276,7 @@ class BlechDialog(QDialog):
         neu.update(e)
         neu["stueck"] = kopf["stueck"] or alt.get("stueck")
         self.eingaben_setzen(neu)
+        self.ursprung = {k: v for k, v in self.eingaben().items() if k not in ("stueck", "step", "ursprung")}
         if kopf.get("bezeichnung") and not self.bezeichnung.text().strip():
             self.bezeichnung.setText(kopf["bezeichnung"])
             self._bez_von_hand = True

@@ -476,14 +476,13 @@ def main(ziel):
     s.zusatzarbeiten(list(range(len(s.positionen))), (None, json.dumps([dict(name="Feuerverzinken")])))
 
     def zusatz_ausfuellen(d):
+        from rohrlaser.zusatz_dialog import TEXT
         d.gewinde.setText("2xM8")
-        r = d.zeile_neu()
-        d.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
-        d.tabelle.cellWidget(r, 4).setText("Logo")
+        r = d.hinzufuegen("Gravur extra")
+        d.tabelle.cellWidget(r, TEXT).setText("Logo")
         QApplication.processEvents()
-        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.tabelle.cellWidget(r, 0), 2),
-                                       (d.tabelle.cellWidget(0, 2), 3), (d.tabelle.cellWidget(r, 4), 4),
-                                       (knopf(d, "Zusatzarbeit hinzufügen"), 5)])
+        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.liste, 2), (d.tabelle.cellWidget(0, 2), 3),
+                                       (d.tabelle.cellWidget(r, TEXT), 4), (d.neu_knopf, 5), (d.summe, 6)])
         d._ok()
     QTimer.singleShot(100, lambda: _warte_modal(zusatz_ausfuellen))
     s.zusatzarbeiten([0])
@@ -1030,6 +1029,9 @@ def main(ziel):
     step_messen.main(["--ausgabe", str(offen_tmp / "m.txt"), "--netze", str(offen_tmp / "netze"),
                       str(WURZEL / "tests" / "step_offen" / "OR1_U_offen_RE60x40x3.step")])
     mw = step_.lade_netze(step_.lies_messwerte(offen_tmp / "m.txt"), offen_tmp / "netze")
+    for m_ in mw:   # U mit scharfen Schenkelenden ist seit 0.9.249 ein Kantteil: in der Spalte Art aus dem Rohr gewählt
+        if m_.get("profilform") == "Blech gekantet" and step_.geschlossen(m_):
+            step_.rohr_wechseln(m_)
     d = StepPruefDialog(f, mw, db.kontext(), "S235-10219", 1)
     d.resize(1300, 560)
     d.show()
@@ -1161,7 +1163,7 @@ def main(ziel):
         if not isinstance(d, BohrbildDialog):
             QTimer.singleShot(50, bohrbild_ausfuellen)
             return
-        d.resize(1050, 330)
+        d.resize(1500, 400)
         d.setzen(0, "bestätigt", gravur=True)            # Senkung bestätigt, Senk-Ø gravieren
         d.setzen(1, "bestätigt")                         # Flowdrill M8 bestätigt
         bereit()
@@ -1392,6 +1394,23 @@ def main(ziel):
     sim.rechnen()
     fenster_foto("preis_simulator", sim, lambda d: [(d.material["Edelstahl"], 1), (d.maschine, 2), (d.knopf, 3),
                                                      (d.tabelle, 4)])
+    # Angebotsvergleich: eigenes Angebot (A) gegen ein Konkurrenzangebot als CSV (B, Preise teils höher/niedriger)
+    from rohrlaser import angebotsvergleich as av
+    from rohrlaser.angebotsvergleich_dialog import AngebotsvergleichDialog
+    vgl = AngebotsvergleichDialog(f)
+    vgl.angebot_waehlen("A", haupt)
+    eigen_pos = av.positionen(vgl.quellen["A"])[0]
+    faktoren = (1.12, 0.97, 1.0, 1.04, 0.9, 1.08)
+    fremd = [[p["pos"], p["artikel"], p["bezeichnung"][:40], av._t(p["menge"]),
+              av.euro(p["stueckpreis"] * faktoren[i % len(faktoren)]), ""] for i, p in enumerate(eigen_pos[:-1])]
+    fremd.append(["99", "ZK-100", "Montagewinkel", "4", "3,80", ""])
+    vgl.quelle_setzen("B", dict(name="Wettbewerber.csv", titel="Wettbewerber", eigen=False, kopf={},
+                                spalten=["Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Preis", "Gesamt"], zeilen=fremd),
+                      dict(pos="Pos.", artikel="Art.-Nr.", bezeichnung="Bezeichnung", menge="Menge",
+                           stueckpreis="Preis"))
+    vgl.resize(1250, 640)
+    fenster_foto("angebotsvergleich", vgl, lambda d: [(d.titel["A"], 1), (d.titel["B"], 2), (d.ergebnis_text, 3),
+                                                       (d.tabelle, 4), (d.pdf_knopf, 5)])
     heute = datetime.date(2026, 10, 21)
     for angebot, auftragsnr, termin in ((rahmen, "AB-26-0815", "2026-10-30"), (haupt, "AB-26-0821", "2026-11-06")):
         db.vorgang_setzen(angebot, "Beauftragt")

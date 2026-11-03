@@ -101,7 +101,7 @@ def _():
     d = NACH["I05_defekt.step"]
     assert d["importstatus"] == "nicht lesbar" and "nicht lesbar" in d["fehler"] and d["koerper"] == []
     (u,) = NACH["B08_Platte_mit_Tasche.step"]["koerper"]
-    # seit 1.26 Frästeil; die Profilmessung (offenes Sonderprofil) steht als Alternative im Ergebnis
+    # seit 1.27 Frästeil; die Profilmessung (offenes Sonderprofil) steht als Alternative im Ergebnis
     assert u["profiltyp"] == "Frästeil" and u["drehfraes"]["merkmale"] == ["Absatz/Tasche"], u["drehfraes"]
     u = u["alternative"]
     assert u["profiltyp"] == "offenes Sonderprofil" and u["innenmasse"] is None and u["konturen"] is None and \

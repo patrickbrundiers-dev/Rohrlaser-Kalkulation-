@@ -20,21 +20,30 @@ class AnfrageDialog(QDialog):
     KEINE_NAHT = "–"
 
     def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, eml_ziel, oeffnen, ausfuehren=None,
-                 naht_speichern=None):
-        """naht_speichern(profil, werkstoff, seite) speichert eine geänderte Nahtlage der Lieferstange im Angebot."""
+                 naht_speichern=None, preise=None):
+        """naht_speichern(profil, werkstoff, seite) speichert eine geänderte Nahtlage der Lieferstange im Angebot.
+        preise = {(Profil, Werkstoff): gewählte Lieferantenantwort}: Bestellung statt Anfrage (Automationen
+        03.11.2026, 8a) – Vorlage „Materialbestellung“, je Zeile der Preis, Lieferant der gewählten Antwort."""
         super().__init__(parent)
+        self.preise = preise
         self.naht_speichern = naht_speichern
         self.kopf, self.zeilen, self.k, self.einst = kopf, zeilen, k, einst
         self.lieferanten, self.eml_ziel = lieferanten, eml_ziel
         self.oeffnen, self.ausfuehren = oeffnen, ausfuehren
         self.meldung, self.ergebnis, self._setzen = "", None, False
         self.text_von_hand = False
-        self.setWindowTitle(f"Materialanfrage – Angebot {kopf.get('nummer') or ''}".strip())
+        self.setWindowTitle(f"{'Materialbestellung' if preise is not None else 'Materialanfrage'} – Angebot "
+                            f"{kopf.get('nummer') or ''}".strip())
         self.resize(900, 680)
         lay = QVBoxLayout(self)
         oben = QHBoxLayout()
-        oben.addWidget(QLabel("Anfrage an Lieferant:"))
+        oben.addWidget(QLabel("Bestellung bei Lieferant:" if preise is not None else "Anfrage an Lieferant:"))
         self.lieferant = QComboBox()
+        if preise:                  # Bestellung: Lieferant der gewählten Antwort vorne
+            for z in zeilen:
+                e = preise.get((z.get("profil"), z.get("werkstoff")))
+                if e and e.get("lieferant"):
+                    z["lieferant"] = e["lieferant"]
         namen = list(dict.fromkeys((z["lieferant"] or ma.OHNE_LIEFERANT) for z in zeilen))
         self.lieferant.addItems(namen + [n for n in sorted(lieferanten) if n not in namen])
         self.lieferant.currentTextChanged.connect(self._lieferant_gewaehlt)
@@ -96,7 +105,7 @@ class AnfrageDialog(QDialog):
         form = QFormLayout()
         self.an = QLineEdit()
         self.an.setPlaceholderText("E-Mail-Adresse (Lieferanten unter Zukaufartikel → Lieferanten pflegen)")
-        self.betreff = QLineEdit(ma.betreff(kopf, einst))
+        self.betreff = QLineEdit(ma.betreff(kopf, einst, bestellung=preise is not None))
         form.addRow("An", self.an)
         form.addRow("Betreff", self.betreff)
         lay.addLayout(form)
@@ -176,7 +185,7 @@ class AnfrageDialog(QDialog):
             zs = set(self.mit_zuschnitt())
             self.text.setPlainText(ma.anschreiben(self.kopf, [self.zeilen[r] for r in auswahl], self.einst, self.k,
                                                   {i: self.mengen[r].value() for i, r in enumerate(auswahl)},
-                                                  {i for i, r in enumerate(auswahl) if r in zs}))
+                                                  {i for i, r in enumerate(auswahl) if r in zs}, self.preise))
             self._setzen = False
         hinweise = []
         if not auswahl:

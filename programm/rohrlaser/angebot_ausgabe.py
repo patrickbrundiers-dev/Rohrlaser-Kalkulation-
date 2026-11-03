@@ -567,7 +567,13 @@ class AusgabeMixin:
         return None
 
     # -------------------------------------------------------------- Materialanfrage
-    def material_anfragen(self, dialog=None, ausfuehren=None, gruppe=None):
+    def material_bestellen(self, dialog=None, ausfuehren=None):
+        """Materialbestellung beim gewählten Lieferanten (Automationen 03.11.2026, 8a): wie die Materialanfrage, aber
+        mit der Vorlage „Materialbestellung“ und je Zeile dem Preis der übernommenen Lieferantenantwort. Nach „In
+        Outlook öffnen“ bzw. der E-Mail-Datei merkt das Programm „bestellt“ und den erwarteten Wareneingang."""
+        return self.material_anfragen(dialog, ausfuehren, bestellung=True)
+
+    def material_anfragen(self, dialog=None, ausfuehren=None, gruppe=None, bestellung=False):
         """Materialanfrage an den Lieferanten (Dialog): Bedarf aus der Optimierung, Lieferant und Text prüfen, dann 'In Outlook öffnen' (gesendet wird nur in Outlook) oder 'Als E-Mail-Datei speichern'.
         dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests). gruppe = nur diese
         Abmessung (Material-Fenster, rechnen.material_abmessungen)."""
@@ -596,12 +602,26 @@ class AusgabeMixin:
                            fehler=True)
             return None
         vorher = self.kopf.get("naht_stangen")
+        preise = None
+        if bestellung:
+            from . import lieferantenangebote
+            preise = lieferantenangebote.gewaehlte(self.db, self.id)
         d = AnfrageDialog(self, self.kopf, zeilen, self.k, self.einst,
                           materialanfrage.lieferanten(self.db.zeilen("zukauf_lieferanten")),
                           self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren,
                           lambda profil, werkstoff, seite: self.naht_stange_setzen({(profil, werkstoff)}, seite,
-                                                                                   laden=False))
+                                                                                   laden=False), preise)
         (dialog(d) if dialog else d.exec())
+        if bestellung and d.ergebnis and not self.db.nur_lesen:
+            from . import automatik, lieferantenangebote
+            lief = d.lieferant.currentText()
+            n = lieferantenangebote.bestellt_merken(self.db, self.id, None if lief == materialanfrage.OHNE_LIEFERANT
+                                                    else lief)
+            self.db.versand_merken(self.id, dict(art="bestellung_material", datum=datetime.date.today().isoformat(),
+                                                 lieferant=lief))
+            automatik.merken(self.db, "materialbestellung", f"Angebot {self.kopf.get('nummer')}: Material bei {lief} "
+                             f"bestellt (E-Mail-Entwurf)" + (f", {n} Abmessung(en) mit Wareneingang erwartet" if n
+                                                            else ""), self.id)
         if self.kopf.get("naht_stangen") != vorher:     # Nahtlage geändert: Status der Positionen neu prüfen
             self.neu_laden()
         if d.meldung:

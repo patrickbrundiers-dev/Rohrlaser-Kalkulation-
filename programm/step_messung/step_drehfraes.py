@@ -151,8 +151,9 @@ def _radius_max(flaechen_, o, d):
     return r
 
 
-def drehteil(fl, t=None):
-    """Merkmale eines Drehteils (dict) oder None. fl = flaechen(solid), t = bisherige Messung (für das Glatt-Rohr)."""
+def drehteil(fl, t=None, streng=False):
+    """Merkmale eines Drehteils (dict) oder None. fl = flaechen(solid), t = bisherige Messung (für das Glatt-Rohr).
+    streng: gemessen als Blech, Flachstahl oder Profil (Drehteil nur mit Absatz oder Radius)."""
     gesamt = sum(e["flaeche"] for e in fl)
     if gesamt <= 0:
         return None
@@ -179,6 +180,10 @@ def drehteil(fl, t=None):
     anbau = r_anbau > aussen[-1] + ANBAU_MIN
     if anteil < (DREHFRAES_ANTEIL if anbau else DREH_ANTEIL):
         return None
+    absatz = len(aussen) >= 2 or len(innen) >= 2
+    if streng and not absatz and not any(e["typ"] == "torus" and _abstand_achse(e["achse"][0], o, d) <= ACHS_TOL
+                                         for e in dreh):
+        return None     # Blech/Flachstahl/Profil: nur mit Absatz oder Radius (eine Fase allein kann eine Senkung sein)
     if sum(e["flaeche"] for e in dreh) < 0.4 * gesamt:       # z. B. Scheibe: Stirnflächen groß, aber kein Drehteil?
         # Flansch/Scheibe mit Absatz (zwei Außen- oder Innendurchmesser) oder Anbau ist gedreht, eine glatte Scheibe
         # mit Löchern bleibt Blech bzw. Laserteil
@@ -374,9 +379,10 @@ def _block_mit_bohrung(fl):
     return gross <= 6 and bool(_bohr_richtungen(fl))
 
 
-def fraesteil(fl, t, huelle, form=None):
+def fraesteil(fl, t, huelle, form=None, achse=None):
     """Merkmale eines Frästeils (dict) oder None. huelle = drei Hüllmaße (beliebige Lage, sortiert groß -> klein);
-    form = Profilform, als die das Teil gilt (sonst die der Messung t)."""
+    form = Profilform, als die das Teil gilt (sonst die der Messung t), achse = Profilachse der Messung (offenes Profil:
+    Absatz/Tasche nur entlang der Achse)."""
     if t is not None and form is None and (t.kammern or t.profilform in ("Rundrohr", "Rundstahl", "Quadratrohr", "Rechteckrohr",
                                                          "Blech", "Blech gekantet")):
         return None
@@ -421,13 +427,65 @@ def fraesteil(fl, t, huelle, form=None):
         wand = max(t.wandstaerke, t.flanschdicke or 0.0, t.stegdicke or 0.0)
         if klein <= 0 or wand < WAND_DICK * klein:
             return None
-        merkmale.append(f"{form} ohne Normmaß mit dicker Wand {_mm(wand)} mm (aus dem Vollen?)")
-        nur_abmessung = True
+        stufe = False
+        if achse and len(achse) == 3:
+            # Ebenen quer zur Profilachse auf mehr als zwei Höhen: Querschnitt ändert sich (Tasche, Absatz)
+            hoehen = {round(abs(_dot(e["punkt"], achse)), 1) for e in eben if _parallel(e["normale"], achse)}
+            stufe = len(hoehen) > 2
+        if stufe:
+            merkmale.append("Absatz/Tasche")
+        else:
+            merkmale.append(f"{form} ohne Normmaß mit dicker Wand {_mm(wand)} mm (aus dem Vollen?)")
+            nur_abmessung = True
     else:
         return None
     return dict(art=FRAESTEIL, laenge=round(la, 2), breite=round(lb, 2), hoehe=round(lc, 2), merkmale=merkmale,
                 zusatz=["Bohrungen"] if any(e["typ"] == "zylinder" for e in fl) else [], nur_abmessung=nur_abmessung,
                 kennwerte=_kennwerte_fraes(fl, richtungen, stufen))
+
+
+def _huelle_ebenen(solid, fl):
+    """Hüllmaße (groß -> klein) in den Richtungen der größten Ebenen (prismatische Frästeile in beliebiger Lage),
+    None ohne zwei senkrechte Ebenenrichtungen."""
+    flaeche = {}
+    for e in fl:
+        if e["typ"] != "eben":
+            continue
+        r = next((k for k in flaeche if _parallel(k, e["normale"])), None)
+        if r is None:
+            r = e["normale"]
+        flaeche[r] = flaeche.get(r, 0.0) + e["flaeche"]
+    richt = sorted(flaeche, key=flaeche.get, reverse=True)
+    if not richt:
+        return None
+    a = richt[0]
+    b = next((r for r in richt[1:] if _senkrecht(r, a)), None)
+    if b is None:
+        return None
+    c = (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+    try:
+        from OCP.BRep import BRep_Tool
+        from OCP.TopAbs import TopAbs_VERTEX
+        pkt = []
+        ex = TopExp_Explorer(solid, TopAbs_VERTEX)
+        while ex.More():
+            pkt.append(_v(BRep_Tool.Pnt_s(TopoDS.Vertex(ex.Current()))))
+            ex.Next()
+        # Zylinder/Radien ohne Eckpunkte am Rand: Mantel-Punkte der Rundflächen mitnehmen
+        for e in fl:
+            if e["typ"] != "eben":
+                s = BRepAdaptor_Surface(e["face"])
+                for u in (0.0, 0.25, 0.5, 0.75, 1.0):
+                    for v in (0.0, 0.5, 1.0):
+                        uu = s.FirstUParameter() + u * (s.LastUParameter() - s.FirstUParameter())
+                        vv = s.FirstVParameter() + v * (s.LastVParameter() - s.FirstVParameter())
+                        pkt.append(_v(s.Value(uu, vv)))
+    except Exception:
+        return None
+    if not pkt:
+        return None
+    m = [max(_dot(p, r) for p in pkt) - min(_dot(p, r) for p in pkt) for r in (a, b, c)]
+    return sorted(m, reverse=True)
 
 
 def _huelle(solid):
@@ -446,27 +504,27 @@ def _huelle(solid):
 def pruefen(solid, t, datei="", koerper=1):
     """Dreh- oder Frästeil? Dann ein neues Teil (bauteiltyp/profilform Drehteil bzw. Frästeil, drehfraes = Merkmale,
     alternative = die bisherige Messung t), sonst t unverändert. Biegerohre, Knickrahmen und Bleche prüft sie nicht."""
-    if t is not None and (t.biegerohr or t.knick_schenkel or t.bauteiltyp in ("Blech", "Blech gekantet")
-                          or t.profilform in ("Blech", "Blech gekantet")):
+    if t is not None and (t.biegerohr or t.knick_schenkel):
         return t
     form = t.profilform if t is not None else ""
+    blech = t is not None and (t.bauteiltyp == "Blech" or form == "Blech")
+    if t is not None and (t.bauteiltyp == "Blech gekantet" or form == "Blech gekantet"):
+        return t
     block = None
     if form in ("Quadratrohr", "Rechteckrohr") and t is not None:
         fl = flaechen(solid)
         if not _block_mit_bohrung(fl):
             return t
-        block = "Vierkantstahl"     # gebohrter Block: als Vollmaterial prüfen
-    elif form not in FORMEN_DREH + FORMEN_FRAES_VOLL + FORMEN_FRAES_OFFEN:
+        block = "Vierkantstahl"     # gebohrter Block (Verteilerblock): als Vollmaterial prüfen
+    elif not blech and form not in FORMEN_DREH + FORMEN_FRAES_VOLL + FORMEN_FRAES_OFFEN:
         return t
     else:
         fl = flaechen(solid)
-    info = drehteil(fl, t) if form in FORMEN_DREH else None
-    huelle = None
-    if info is None:
-        # Hüllmaße im System der Messung (Länge × Querschnitt), sonst der kleinste umschreibende Quader
-        huelle = sorted((t.laenge, t.abm_a, t.abm_b or t.abm_a), reverse=True) if t is not None and t.laenge > 0 \
-            and t.abm_a > 0 else _huelle(solid)
-        info = fraesteil(fl, t, huelle, block)
+    # Drehteil für jede Form (eine Rolle kann als Flachstahl/Blech, ein Flansch als T-Profil gemessen sein)
+    info = drehteil(fl, t, streng=form not in FORMEN_DREH) if block is None else None
+    if info is None and not blech:
+        info = fraesteil(fl, t, _huelle_ebenen(solid, fl) or _huelle(solid), block,
+                         achse=getattr(t, "achse_global", None))
     if info is None:
         return t
     if info["art"] == DREHTEIL and info["nur_abmessung"] and form != "Rundrohr":

@@ -21,13 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.240", "<b>Richtpreis für Dreh- und Frästeile</b>: neue Dreh-/Frästeile aus dem STEP-Import bekommen einen "
+    ["0.9.250", "<b>Richtpreis für Dreh- und Frästeile</b>: neue Dreh-/Frästeile aus dem STEP-Import bekommen einen "
      "geschätzten EK aus Rohling (Lagermaß, €/kg), <b>Arbeitsgängen</b> mit Zeiten aus Schnittwerten (Schruppen, "
      "Schlichten, Bohren, Einstechen, Planfräsen, Taschen …), Rüsten und Programmieren auf die Stückzahl verteilt, "
      "Zusätzen €/Stück und Aufschlag des Lieferanten, mit Hinweis <i>Fremdangebot einholen</i>. "
      "<b>Machbarkeitsprüfung</b> als Ampel (tiefe Bohrung, schlankes Teil, dünne Wand, kleiner Innenradius, tiefe "
      "Tasche, Maschinengröße) und <b>Skizze</b> Rohling/Fertigteil im Dialog <i>Richtpreis Dreh-/Frästeil …</i>; "
-     "Zeiten von Hand änderbar, Staffeln rechnen je Stufe neu; Werte unter Einstellungen → Dreh-/Frästeil-Richtpreis "
+     "Zeiten von Hand änderbar, Staffeln rechnen je Stufe neu; Werte unter Einstellungen → Dreh- und Frästeile "
      "([[drehfraes_richtpreis]]). Neu <b>Fräsen nach Bearbeitung …</b> (Rechtsklick): Teil oder Schweißbaugruppe "
      "danach planfräsen, bohren, Gewinde, reiben, Taschen; Preis je Stück als Zusatzarbeit, eigene Maschine oder "
      "Lohnfertiger ([[fraesen_nach]]). STEP-Import erkennt jetzt auch <b>Flansche mit Lochkreis</b>, <b>Ringe mit "
@@ -35,13 +35,132 @@ NEUERUNGEN = [
      "Rund-/Flachmaterial. Eigene Tabelle <b>Dreh-/Fräs-Werkstoffe</b> (Gruppe, Dichte, Stangenpreis €/kg, "
      "Zerspanbarkeit %) wie bei den Blechen ([[drehfraes_werkstoffe]]).",
      "Richtpreis für Dreh-/Frästeile mit Arbeitsgängen, Machbarkeit und Skizze; Fräsen nach Bearbeitung"],
-    ["0.9.237", "STEP-Import: <b>Dreh- und Frästeile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse, "
+    ["0.9.249", "STEP-Import: <b>Dreh- und Frästeile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse, "
      "Block mit Tasche, ausgefräster Winkel) werden erkannt und <b>Zukaufteile</b> ohne EK statt gelaserter Rohre "
      "oder Profile, mit Kategorie Drehteile bzw. Frästeile; gleiche Teile aus früheren Anfragen nehmen den vorhandenen "
      "Artikel ([[drehfraesteile]]). <b>Bleche</b>: dicke schmale flache Teile sind jetzt auch Bleche, Flachstahl steht "
      "nur noch zur Wahl, wenn die Größe passt; der <b>Werkstoff</b> der Bleche passt sich den Rohren der Datei an, "
-     "sonst S235 ([[bleche]]).",
-     "Dreh- und Frästeile als Zukauf, Bleche: Flachstahl nur passend, Werkstoff wie Rohre"],
+     "sonst S235 ([[bleche]]). <b>Kantteile mit Biegeradien</b> sind Blech gekantet, außer ihre Maße sind ein "
+     "<b>Standard-Kantprofil</b>: U-Stahl (rund-/scharfkantig nach unserer Liste), Kant-C und Kant-L stehen jetzt in "
+     "den Stammdaten ([[profile]]). Ein offen gezeichnetes Rohr gilt nur mit ganzen Außenmaßen als Rohr, "
+     "wenn das Rohr genau so groß ist wie das Teil, ein C mit Lippen nur bis 20 mm Schlitz; sonst Kantteil, das Rohr in "
+     "der Spalte Art wählbar ([[offene_rohre]]). <b>Kantteile</b>: Hut, Z, Dachwinkel, Sicke, Saum und mehrachsige "
+     "Halter sicher Blech gekantet, Grund in der Hinweisspalte, Abwicklung schräg im Raum richtig. <b>Winkel</b>: "
+     "mit Biegeradius (außen = innen + Dicke) immer Kantteil, scharfkantig oder nur innen Radius immer L-Profil; "
+     "die 3D-Ansicht zeigt die gewählte Art (Kantteil blau, Profil mit Anfangs-/Endschnitt). <b>Zukaufteile</b> im Import nur bei Schweißbaugruppe angehakt, sonst von Hand; "
+     "im Fenster Satz bearbeiten <b>Einkauf je Satz</b> für Bleche, Vollmaterial und Dreh-/Frästeile, nach Gewicht "
+     "umgelegt ([[satz_bearbeiten]]). Sicherere Erkennung: Rolle mit Radius, Flansch mit Absatz, Teile schräg im Raum, "
+     "gleichschenkliger Kant-Winkel; eine Testreihe mit über 50 gebauten Teilen prüft das.",
+     "Dreh- und Frästeile als Zukauf, Kantprofile Standard, Zukauf-Haken, Einkauf je Satz"],
+    ["0.9.248", "<b>Automationen</b> ([[automatik]]): Neue Anfragen werden im Hintergrund <b>vorgemessen</b> (Teile, "
+     "Profile, Richtpreis) und stehen nach einer <b>Ampel</b> für die Antwortfrist sortiert. <b>Nachträge</b> legt das "
+     "Programm selbst in den Angebotsordner (gelbe Leiste <i>Übernehmen</i> im Angebot), <b>Bestellungen</b> erkennt es "
+     "und gleicht sie mit dem Angebot ab (<i>Bestellung prüfen …</i>), <b>Wiederholanfragen</b> ohne STEP werden aus "
+     "dem Teilekatalog ein neues Angebot, fehlende Kundendaten kommen aus der Signatur. <b>Auftrag starten</b>: "
+     "Häkchen im Fenster Beauftragt für AB, Materialbestellung, Werkstattpapiere, CAM und Etiketten. "
+     "<b>Lieferantenantwort einlesen</b> (Mail/PDF), <b>Material bestellen</b> beim gewählten Lieferanten mit "
+     "Wareneingang auf der Startseite, <b>Preiswächter</b> für offene Angebote, <b>Nachkalkulation vorbelegt</b> beim "
+     "Versand. Beim Angebot: <b>Übernehmen und fertigstellen</b> (PDF, Outlook-Antwort, Verschickt, Wiedervorlage, "
+     "nächste Anfrage), günstigste Maschine, Lieferzeit nach Auslastung, Beistellung und Oberfläche aus der Mail, "
+     "Rückfrage vorbereitet, Lernen aus Nacharbeit, Anfragen automatisch zuweisen. Alles steht unter <i>Datei → "
+     "Automatik-Protokoll …</i> und lässt sich zurücknehmen.",
+     "Automationen: Anfragen vormessen und Ampel, Nachtrag/Bestellung zuordnen, Auftrag starten, Angebot fertigstellen"],
+    ["0.9.247", "<b>Weitere Zusatzarbeiten rund um den Rohrlaser</b> ([[zusatz_rohrlaser]]) fest in der Auswahl, mit "
+     "Beispielpreis und Erkennungswörtern: Innengrat entfernen, Schweißfase anfasen, Schlacke/Spritzer innen "
+     "entfernen, <b>Trennmittel innen</b> gegen Spritzer, Richten, <b>Drehen/Fräsen</b>, <b>Brünieren</b>, "
+     "Ölen/Konservieren, Grundieren, Endkappen/Stopfen einsetzen, Einpressmuttern setzen, Etikettieren/Beschriften, "
+     "Erstmusterprüfbericht und Prüfbericht 3.1. Bestehende Dateien bekommen sie einmalig dazu.",
+     "14 weitere Zusatzarbeiten (u. a. Brünieren, Trennmittel innen, Drehen/Fräsen)"],
+    ["0.9.246", "Sätze und Schweißbaugruppen übersichtlicher: Schweißbaugruppen sind <b>grün</b> hinterlegt (⚙ Name · "
+     "Anzahl in der Spalte Satz), die <b>Kalkulation</b> steht in der Reihenfolge der Positionsliste mit Baugruppe "
+     "und Einzelteilen darunter und lässt sich am Zeilenkopf zuklappen, <b>Alle Gruppen zuklappen</b> klappt alle "
+     "Sätze und Baugruppen auf eine Zeile (je Angebot gemerkt) ([[saetze_abheben]]). Der Status steht in einer Zeile, "
+     "die Unterzeile <i>Programmieren</i> nur noch mit echten Arbeitsschritten. Die Übersicht rechts schneidet "
+     "Beträge bei schmalem Fenster nicht mehr ab, die Balken <i>Kosten je Baugruppe</i> überlappen nicht mehr. Im "
+     "Editor der Schweißbaugruppe zeigt die Teileliste nur die Teile der Baugruppe (<b>Alle Positionen zeigen</b>, "
+     "Suche), die Nahtgruppen haben eine Spalte <b>Rechenweg</b>, und die <b>Vorkalkulation automatisch</b> "
+     "(Heftpunkte, Positionieren, Wenden) ist jetzt Vorgabe ([[schweissbaugruppe]]). Nahtlänge genauer: aus STEP "
+     "zählen zwei parallele Rohre nur die Längsnähte, ein Rohr, das über ein schmaleres Rohr übersteht, nur die "
+     "aufliegenden Wände, eine Lasche ohne Stirnseiten (Spalte <i>Aufteilung der Länge</i>); ohne STEP rechnet "
+     "<b>Länge aus</b> die Länge aus einem Teil (rundum, Längsnaht, 2 Seiten); neue Spalte <b>geschweißt %</b> für "
+     "Stichnähte. <b>Positionieren</b> nach Stückgewicht (Basisteil = schwerstes Teil, Faktor bis 1, 5, 20 kg, "
+     "darüber Kran; Richtwerte laden) ([[naht_laenge]]).",
+     "Sätze/Baugruppen grün und zuklappbar, Kalkulation gruppiert, Rechenweg Naht, Nahtlänge genauer, Stichnaht, "
+     "Positionieren nach Gewicht"],
+    ["0.9.245", "<b>Bleche mit Richtwerten, die man ändern kann</b> ([[blech_richtwerte]]): Der Blech-Editor zeigt "
+     "Gewicht, Material, €/kg, Schneidweg, Einstiche, Laserzeit, Stundensatz, Kantungen, Rüsten und Aufschlag als "
+     "Tabelle; ein <i>eigener Wert</i> gilt nur für dieses Teil (↺ zurück), der Richtpreis wird immer daraus "
+     "berechnet. Bleche aus der STEP rechnen mit Gewicht aus dem Volumen und dem gemessenen Schneidweg. Neue Spalte "
+     "<b>EK Blech</b> im Angebot: Angebotspreis des Lieferanten per Klick eintragen, er gilt statt des Richtpreises "
+     "(leer = Richtpreis). <b>Tafelbelegung</b> als Bild im Editor und gemeinsam je Werkstoff/Dicke in der neuen "
+     "Übersicht <i>Bleche</i> (nur Ansicht). Prüfdialog zeigt Gewicht und Richtpreis je Blech. Innenkonturen rot auf der Tafelbelegung. <b>Gewinde in "
+     "Blechen</b>: Kernlöcher aus der STEP werden Gewinde-Vorschläge (Bohrungen prüfen); bestätigt kosten sie € je "
+     "Stück aus Einstellungen › Gewinde zusätzlich zum Blech-EK.",
+     "Bleche: Richtwerte änderbar, Angebotspreis per Klick, Tafelbelegung als Bild, Gewinde erkannt"],
+    ["0.9.244", "<b>Bohrungsart nachträglich ändern</b>: In <i>Bohrungen prüfen</i> hat jede Bohrung die Spalte "
+     "<b>Ausführung</b> (Gewinde schneiden, Flowdrill + Gewinde formen, Einnietmutter, Senkung, Bohren, nur lasern) "
+     "mit ★-Vorschlag nach Gewindegröße, Wandstärke und Werkstoff und dem Grund (z. B. „Wand 2 mm = 1,6 Gänge M8 – "
+     "zu wenig“). Laser-Ø, Schneidweg, Einstiche, Gewinde und Zusatzarbeiten (€/Stück) folgen der Ausführung; die "
+     "STEP-Kontur bleibt (Hinweis „weicht von STEP ab“). <b>Alle M8 → …</b> und <b>★ Vorschläge übernehmen</b>, auch "
+     "für das ganze Angebot; in allen Editoren als Eigenschaft <i>Ausführung</i>, beim Blech die Arbeit im "
+     "Richtpreis ([[bohrung_ausfuehrung]]).",
+     "Bohrungsart ändern (Gewinde ↔ Flowdrill ↔ Einnietmutter …) mit ★-Vorschlägen"],
+    ["0.9.243", "<b>Auf Ursprung zurücksetzen</b> in allen Editoren: Rohr- und Blech-Editor haben im Menüband neben "
+     "Rückgängig den Knopf <b>Zurücksetzen</b> mit <i>Alles wie beim Öffnen</i> und <i>Alles wie aus STEP/DXF "
+     "importiert</i> (auch gelöschte Konturen kommen zurück); dasselbe im Editor der Schweißbaugruppe und im Fenster "
+     "Satz in 3D. Mit Rückfrage, Strg+Z holt den Stand davor. Den Importstand merkt sich die Position ab jetzt beim "
+     "Einlesen ([[teile_editor]], [[baugruppe_ursprung]]).",
+     "Zurücksetzen auf Ursprung (wie beim Öffnen / wie aus STEP) in allen Editoren"],
+    ["0.9.242", "<b>Zusatzarbeit für ganzen Satz</b> ([[zusatz_satz]]): Rechtsklick auf eine Position eines Satzes → "
+     "<i>Zusatzarbeit für ganzen Satz …</i> belegt alle Positionen des Satzes auf einmal, z. B. mit Pulverbeschichten "
+     "oder Verzinken. Das Fenster und der Tooltip der Spalte Satz zeigen <b>Fläche (m²) und Gewicht (kg) je Satz</b> "
+     "und für alle Sätze, die Tabelle € je Satz. Gerechnet wird weiter je Teil (Summe gleich). <b>Bleche</b> haben "
+     "beim Pulverbeschichten jetzt ihre Fläche (beide Seiten ohne Löcher) statt 0 m².",
+     "Zusatzarbeit für ganzen Satz mit Fläche und Gewicht je Satz; Bleche mit Fläche beim Pulvern"],
+    ["0.9.241", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
+                "mit zwei markierten Angeboten in der Angebotsliste (rechte Maustaste → <i>Vergleichen …</i>) zwei "
+                "Angebote Position für Position gegenüberstellen. Quellen: Angebote aus der Liste, der eigene "
+                "CSV-Export (auch als ZIP) oder eine fremde CSV, z. B. ein Konkurrenz- oder Lieferantenangebot, mit "
+                "Spaltenzuordnung, die sich je Quelle als Vorlage speichern lässt. Zuordnung der Positionen über "
+                "Artikelnummer, Bezeichnung mit Abmessung und Länge oder Position, der Rest von Hand. Differenz B − A "
+                "je Stück, in % und auf die Mengen von A, Hinweise zu Menge, Werkstoff, Länge, Zeit, Herstellkosten "
+                "und Marge; markiert ab 5 % oder 50 € (Einstellungen → Automatik und Prüfung). Ausgabe als PDF und "
+                "CSV; in den Angeboten wird nichts gespeichert. Abschaltbar unter Einstellungen → Funktionen.",
+     "Angebote vergleichen: zwei Angebote aus Liste oder CSV Position für Position, mit PDF und CSV"],
+    ["0.9.240", "<b>STEP-Import: Enden mit Hinterschnitt</b> ([[schneidweg_rechner]]): T-Schlitz, Schlüsselloch-Schlitz, "
+     "Schwalbenschwanz, Haken und Bohrungen halb über das Ende stehen jetzt genau wie in der STEP im Editor (vorher "
+     "0,4 bis 3 mm daneben). Eine Bohrung bis an die Rundung oder in einer dichten Lochreihe (Steg 0,5 mm) wurde als "
+     "Fließloch mit Schnittlänge 0 erkannt – jetzt gelaserte Bohrung bzw. Sonderkontur.",
+     "STEP: Enden mit Hinterschnitt wie STEP, Bohrung an der Rundung kein Fließloch mehr"],
+    ["0.9.239", "STEP-Import aus einer E-Mail mit <b>vielen Teilen</b>: Die PDFs der Anfrage stehen im Prüfdialog ab vier "
+     "Dateien in <b>einer Zeile</b> (<i>26 PDF-Dateien: 1 mit Formular, 25 Zeichnungen</i>), <b>Einzeln anzeigen</b> "
+     "klappt sie mit Bildlauf auf. Die Teileliste mit ihren Auswahlfeldern bleibt immer mindestens acht Zeilen hoch, "
+     "das Fenster passt auf 1366×768 ([[anfragen]]). Steht <i>Satz</i> bzw. <i>geschweißt</i>/<i>SBG</i> im "
+     "Datei- oder Baugruppennamen der STEP, sind <b>Als Satz</b> bzw. <b>als Schweißbaugruppe</b> schon gewählt "
+     "(abwählbar, [[step_satz]]). <b>Zeichnungen</b>: Gewinde (<i>4x M8</i>), Flowdrill, Einnietmuttern, Senkungen "
+     "und Blindniete werden mit Anzahl aus dem Zeichnungstext gelesen; Gewinde/Flowdrill hängen sich gelb an die "
+     "passende Bohrung (Bohrungen prüfen), Einnietmuttern und Zusatzarbeiten-Wörter werden Vorschläge, Abweichungen "
+     "zum STEP ein Hinweis ([[anfragen]]).",
+     "Prüfdialog bei vielen Teilen/PDFs übersichtlich; Satz/Schweißbaugruppe am Namen vorgewählt; Gewinde, "
+     "Flowdrill, Nieten aus der Zeichnung"],
+    ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
+     "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
+     "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "
+     "Rundung von Quadrat-/Rechteckrohren (0,9 mm) und Sechskante in Flachstahl/Winkel (wurden Langloch) stimmen "
+     "jetzt. <b>Bleche</b>: Rechteck mit Eckradius bekommt den Radius, Rechteck mit Fasen wird Polygon, Polygone "
+     "auf 0,02 mm, Lage auf 0,01 mm, keine Kontur geht verloren, neue <i>Blech-Gegenprobe</i> mit Hinweis.",
+     "STEP: jede Kontur gegen den Umriss geprüft (Doppelbohrung, Bohrung auf Rundung, Bleche mit Radius/Fasen)"],
+    ["0.9.237", "<b>Zusatzarbeiten erkennen und wählen</b>: Jede Zusatzarbeit hat Erkennungswörter (z. B. „verzinkt; "
+     "fvz; tZn“). Stehen sie in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail oder Zeichnung, erscheint "
+     "gelb „＋ Feuerverzinken ?“ in der Positionsliste; der gelbe Knopf übernimmt alle oder einzeln, RAL-Farbe als Text "
+     "([[zusatz_erkennen]]). Neues <b>Auswahlfenster</b> mit Suche, Häkchen, Gruppen (häufig, beim Kunden, Kategorie), "
+     "€ je Teil und ohne Doppel; <b>Rechtsklick → Zusatzarbeit hinzufügen</b> mit den häufigsten. <b>＋ Neue "
+     "Zusatzarbeit …</b> als Kurzformular mit Vorlagen (Eloxieren, Richten, Prüfbericht 3.1 …): Admin legt sie in den "
+     "Einstellungen an, sonst gilt sie nur in diesem Angebot und der Admin übernimmt sie später ([[zusatz_neu]]). "
+     "<b>Einnietmuttern</b>: Sechskantlöcher und Senkungen im Teil schlagen <i>Einnietmuttern setzen</i> mit der "
+     "Anzahl je Teil vor.",
+     "Zusatzarbeiten erkennen (gelbe Vorschläge, Einnietmuttern aus Sechskantlöchern/Senkungen), neues "
+     "Auswahlfenster, Schnellmenü, Kurzformular mit Vorlagen"],
     ["0.9.236", "Prüfung der Kalkulationsbasis: <b>Grundwerte prüfen …</b> unter Stammdaten → Maschinen und im "
      "Angebots-Check zeigt leere Nebenzeiten, Beispiel-Stundensätze und doppelt gezählte Zuschläge mit der Wirkung in € "
      "([[kalkulationsbasis]]). <b>Schneiddaten</b> zwischen zwei Wandstufen werden interpoliert (2,6 mm nicht mehr mit "

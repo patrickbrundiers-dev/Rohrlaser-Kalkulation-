@@ -249,6 +249,10 @@ def _():
         assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(d.SP_HINWEIS), z07.it.text(d.SP_HINWEIS)
         z02.pr.setCurrentIndex(1)
         z02.ws.setCurrentText("S235-10219")
+        assert all(z.it.checkState(0) != Qt.Checked for z in bl), "Zukauf ohne Schweißbaugruppe: von Hand anhaken"
+        for z in bl:
+            if not z.datei.startswith("B07"):
+                z.it.setCheckState(0, Qt.Checked)
         d.werte_schreiben()
         assert mw[3]["_blech_artikel"] == i and mw[3]["_werkstoff"] == "S235-10219" and mw[3]["_uebernehmen"]
         assert mw[1]["_blech_artikel"] is None and mw[4]["_uebernehmen"] is False
@@ -274,11 +278,12 @@ def _():
     assert step.art_text(fl) == "Flachstahl" and step.alternative(fl)["profilform"] == "Blech", fl.get("alternative")
     assert step.alternative(bl)["profil_id_vorschlag"] == "FL 160x8", bl.get("alternative")
     alt = step.alternative(kant)
-    assert step.art_text(kant) == "Kantteil (Blech gekantet)" and alt["profilform"] == "L-Profil" and alt["ersatz"] == "1"
-    assert alt["pruefstatus"] == "prüfen" and "konturen" in step.unsicher(alt), alt
+    # seit 03.11.2026 (Hüllrechteck nach den Kanten ausgerichtet): L 120x60x3 gemessen, Schenkel-Ausschnitte als Konturen
+    assert step.art_text(kant) == "Kantteil (Blech gekantet)" and alt["profilform"] == "L-Profil", alt
+    assert (float(alt["abm_a"]), float(alt["abm_b"]), float(alt["wandstaerke"])) == (120, 60, 3), alt
     assert step.alternative(rohr) is None
     k_js = js["dateien"][2]["koerper"][0]
-    assert k_js["alternative"]["profiltyp"] == "L-Profil" and k_js["alternative"]["ersatzwerte"] is True, k_js["alternative"]
+    assert k_js["alternative"]["profiltyp"] == "L-Profil", k_js["alternative"]
     assert js["dateien"][3]["koerper"][0]["alternative"] is None
     # Umstellen in den Messwerten: hin und zurück gibt dieselben Werte
     m = dict(bl)
@@ -304,9 +309,12 @@ def _():
         z = next(z for z in d.zeilen if z.liste == [1])
         assert not z.blech and z.pr.currentText() == "FL 160x8" and z.ws.currentText() == "S235-10219", z.pr.currentText()
         d.datei_waehlen(2)
-        z = d.art_wechseln(2)                                    # Kantteil -> L-Profil (Ersatzwerte)
-        assert not z.blech and z.it.checkState(0).name == "Unchecked" and "UNSICHER" in z.it.text(d.SP_HINWEIS)
+        z = d.art_wechseln(2)                                    # Kantteil -> L-Profil (gemessen 120x60x3)
+        assert not z.blech, z.blech
         z.it.setCheckState(0, z.it.checkState(0).Checked)
+        zb = next(z for z in d.zeilen if z.liste == [0])         # Blech (Zukauf): ohne Schweißbaugruppe von Hand
+        assert zb.it.checkState(0).name == "Unchecked"
+        zb.it.setCheckState(0, zb.it.checkState(0).Checked)
         d.werte_schreiben()
         erg = step.uebernehmen(mw, [], db.kontext(), db.zeilen("gewinde"), None, None, 1, neue_profile=True,
                                zukauf_liste=db.zukauf_artikel_liste())
@@ -505,6 +513,9 @@ def _():
         assert bl[0].ws.styleSheet() == "", "selbst gewählt: nicht mehr gelb"
         rohr.ws.setCurrentText("S235-10219")
         assert bl[0].ws.currentText() == "AlMg3"
+        for z in d.zeilen:
+            if z.blech:
+                z.it.setCheckState(0, Qt.Checked)      # Zukauf von Hand angehakt (ohne Schweißbaugruppe)
         d.werte_schreiben()
         erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, zukauf_liste=[],
                                blech_daten=dict(werkstoffe=bw, laserdaten=db.zeilen("blechlaser"),

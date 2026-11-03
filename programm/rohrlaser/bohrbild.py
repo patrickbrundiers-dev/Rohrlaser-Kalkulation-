@@ -23,12 +23,23 @@ Preise (Patrick 22.10.2026: nur € je Stück, keine Zeiten): je Zeile preis = �
 
 Was eine Zeile am Schneidweg, an Einstichen, Gravur und Konturliste ändert (zusatz), steht beim Speichern in der
 Position; geändert wird um den Unterschied zwischen alter und neuer Wahl (anwenden).
+
+Ausführung nachträglich ändern (Patrick 03.11.2026, Freigabe „alle Empfehlungen“): je Zeile aus = AUSFUEHRUNGEN
+(Gewinde schneiden, Flowdrill + Gewinde formen, Einnietmutter, Senkung, Bohren, nur lasern), unabhängig von der
+gemessenen Art. Die Art bleibt, was im STEP steht (Grundlage des gemessenen Schneidwegs, _basis); die Ausführung legt
+fest, was der Laser schneidet (d_laser = Ø nach Gewindegröße, z. B. M8: Kernloch 6,8 / Einnietmutter 11,0 /
+Durchgang 9,0) oder markiert, und welche Arbeit als Zusatzarbeit (€/Stück) dazukommt. Die STEP-Kontur im Export bleibt
+unverändert, nur die Kalkulation folgt der Ausführung (Hinweis „weicht von STEP ab“, abweichend). Ohne aus gilt die
+Ausführung nach Art und Wahl wie bisher (ausfuehrung), bitgleich zu den Bohrbildern vor 0.9.238. vorschlaege(): je
+Bohrung die beste Ausführung (★) und Alternativen mit Grund nach Gewindegröße, Wandstärke und Werkstoff; Grenzen in
+den Einstellungen (GRENZEN).
 """
 import json
 import math
 
 from . import rechnen
-from .stammdaten import BOHREN_LASER, BOHREN_SCHNEIDEN, FLIESSLOCH_LASER, ZUSATZ_BOHREN, ZUSATZ_FLOWDRILL, ZUSATZ_SENKEN
+from .stammdaten import (BOHREN_LASER, BOHREN_SCHNEIDEN, FLIESSLOCH_LASER, ZUSATZ_BOHREN, ZUSATZ_EINNIETMUTTERN,
+                         ZUSATZ_FLOWDRILL, ZUSATZ_SENKEN)
 
 OFFEN, BESTAETIGT, ABGELEHNT = "offen", "bestätigt", "abgelehnt"
 LASER = FLIESSLOCH_LASER
@@ -41,6 +52,34 @@ FLIESSLOCH_KERN = (("M5", 4.5), ("M6", 5.4), ("M8", 7.3), ("M10", 9.2), ("M12", 
 BOHREN = "Bohren"
 ZUSATZ_ARBEIT = {"Senkung": ZUSATZ_SENKEN, "Fließloch": ZUSATZ_FLOWDRILL, BOHREN: ZUSATZ_BOHREN}
 QUELLE = "Bohrungen prüfen"         # Zusatzarbeit der Position stammt aus dem Bohrbild
+
+# Ausführung einer Bohrung (Patrick 03.11.2026): was am Ende aus ihr wird
+GEWINDE_SCHNEIDEN = "Gewinde schneiden"
+FLOWDRILL = "Flowdrill + Gewinde formen"
+EINNIET = "Einnietmutter"
+SENKEN = "Senkung"
+AUFBOHREN = "Bohren (markieren, aufbohren)"
+NUR_LASER = "nur lasern (Ø schneiden)"
+AUSFUEHRUNGEN = (GEWINDE_SCHNEIDEN, FLOWDRILL, EINNIET, SENKEN, AUFBOHREN, NUR_LASER)
+MIT_GROESSE = (GEWINDE_SCHNEIDEN, FLOWDRILL, EINNIET)       # brauchen eine Gewindegröße (M6, M8 …)
+KURZ = {GEWINDE_SCHNEIDEN: "Gewinde", FLOWDRILL: "Flowdrill", EINNIET: "Einnietmutter", SENKEN: "Senkung",
+        AUFBOHREN: "Bohren", NUR_LASER: "nur lasern"}
+# Zusatzarbeit (€/Stück) je Ausführung; Gewinde schneiden/formen rechnet über die Gewinde-Stammdaten
+ZUSATZ_AUS = {FLOWDRILL: ZUSATZ_FLOWDRILL, SENKEN: ZUSATZ_SENKEN, AUFBOHREN: ZUSATZ_BOHREN, EINNIET: ZUSATZ_EINNIETMUTTERN}
+# Richtwerte je Gewindegröße [mm]: Steigung (ISO 261), Durchgangsloch mittel (ISO 273), Senk-Ø für Senkschrauben
+# (ISO 15065), Bohrung für Einnietmuttern mit Rundschaft und Klemmbereich (übliche Herstellerwerte)
+STEIGUNG = {"M3": 0.5, "M4": 0.7, "M5": 0.8, "M6": 1.0, "M8": 1.25, "M10": 1.5, "M12": 1.75, "M14": 2.0, "M16": 2.0,
+            "M20": 2.5, "M24": 3.0}
+DURCHGANG = {"M3": 3.4, "M4": 4.5, "M5": 5.5, "M6": 6.6, "M8": 9.0, "M10": 11.0, "M12": 13.5, "M14": 15.5,
+             "M16": 17.5, "M20": 22.0, "M24": 26.0}
+SENK_D = {"M3": 6.5, "M4": 8.6, "M5": 10.4, "M6": 12.4, "M8": 16.4, "M10": 20.4, "M12": 24.4, "M16": 32.4,
+          "M20": 40.4}
+NIET_LOCH = {"M3": 5.0, "M4": 6.0, "M5": 7.0, "M6": 9.0, "M8": 11.0, "M10": 13.0, "M12": 16.0}
+NIET_KLEMM = {"M3": (0.3, 3.0), "M4": (0.5, 3.0), "M5": (0.5, 3.5), "M6": (0.5, 4.0), "M8": (0.5, 5.5),
+              "M10": (1.0, 6.0), "M12": (1.0, 6.0)}
+# Grenzen der Vorschläge (Einstellungen › Bohrungen, änderbar): Gewinde schneiden trägt ab so vielen Gängen in der
+# Wand (Alu × 1,5), Flowdrill ab Wand min bis Wand ≤ Faktor × Nenn-Ø
+GRENZEN = dict(bohr_gewinde_gaenge=3.0, bohr_flowdrill_min=1.0, bohr_flowdrill_faktor=0.5)
 
 
 def _paare(text, getrennt="/"):
@@ -88,13 +127,235 @@ def _bohren_laser(laser):
 
 def nur_schneiden(z):
     """Zeile 'Bohren', die der Laser trotzdem im vollen Ø schneidet (kein Bohren, keine Warnung)."""
-    return z.get("art") == BOHREN and z.get("laser") == SCHNEIDEN and z.get("status") != OFFEN
+    return z.get("art") == BOHREN and z.get("status") != OFFEN and wirkung(z) == NUR_LASER and \
+        not (z.get("status") == ABGELEHNT and z.get("laser") != SCHNEIDEN)
 
 
 def gelasert(liste):
-    """Ø (auf 0,1 gerundet) der Bohren-Zeilen, die der Laser bewusst schneidet: abgelehnt oder Ø schneiden."""
+    """Ø (auf 0,1 gerundet) der Bohren-Zeilen, die der Laser bewusst schneidet: abgelehnt, Ø schneiden oder eine
+    andere Ausführung mit gelasertem Loch."""
     return {round(float(z.get("d") or 0), 1) for z in liste
-            if z.get("art") == BOHREN and (z.get("status") == ABGELEHNT or nur_schneiden(z))}
+            if z.get("art") == BOHREN and z.get("status") != OFFEN and _ziel(z)[0] is not None}
+
+
+# ------------------------------------------------------------------ Ausführung (Patrick 03.11.2026)
+def _natur(z):
+    """Ausführung nach Art und Wahl ohne eigene Ausführung (wie vor 0.9.238)."""
+    art = z.get("art")
+    if art == "Bohrung":
+        return GEWINDE_SCHNEIDEN if z.get("gewinde") else NUR_LASER
+    if art == "Senkung":
+        return SENKEN
+    if art == "Fließloch":
+        return FLOWDRILL
+    if art == BOHREN:
+        return NUR_LASER if z.get("laser") == SCHNEIDEN else AUFBOHREN
+    return NUR_LASER
+
+
+def ausfuehrung(z):
+    """Gewählte (bzw. nach der Art vorgegebene) Ausführung der Zeile, wie sie die Auswahl zeigt."""
+    return z["aus"] if z.get("aus") in AUSFUEHRUNGEN else _natur(z)
+
+
+def wirkung(z):
+    """Ausführung, mit der gerechnet wird: abgelehnt = nur lasern (wie gemessen), offenes 'Bohren' ohne eigene Wahl
+    schneidet der Laser wie gemessen (wie bisher)."""
+    if z.get("status") == ABGELEHNT:
+        return NUR_LASER
+    if z.get("aus_bohrung") and z.get("status") != BESTAETIGT:
+        return NUR_LASER        # Flowdrill aus der Zeichnung auf gemessener Bohrung: erst bestätigt fällt sie weg
+    if z.get("status", OFFEN) == OFFEN and z.get("art") == BOHREN and not z.get("aus"):
+        return NUR_LASER
+    return ausfuehrung(z)
+
+
+def abweichend(z):
+    """True, wenn die gewählte Ausführung nicht der Art im STEP entspricht: die Kalkulation weicht von der STEP-Kontur
+    ab (die Kontur im Export bleibt, Freigabe 03.11.2026 1a)."""
+    return z.get("status") != ABGELEHNT and z.get("aus") in AUSFUEHRUNGEN and z["aus"] != _natur(z) and \
+        not (z.get("art") == BOHREN and z["aus"] in (NUR_LASER, AUFBOHREN))
+
+
+def _basis(z):
+    """Ø, den der gemessene Schneidweg enthält (Fließlochbohrungen misst der STEP-Import ohne Schnitt, außer Flowdrill
+    aus der Zeichnung auf einer gemessenen Bohrung, aus_bohrung), oder None."""
+    return None if z.get("art") == "Fließloch" and not z.get("aus_bohrung") else float(z.get("d") or 0)
+
+
+def _ziel(z):
+    """(Ø, den der Laser schneidet, oder None; Markierung GRAVUR/LOCH oder None) nach der Wirkung."""
+    w = wirkung(z)
+    if w in (FLOWDRILL, AUFBOHREN):
+        return None, (LOCH if z.get("laser") == LOCH else GRAVUR)
+    d = z.get("d") if w == NUR_LASER else (z.get("d_laser") or z.get("d"))
+    return float(d or 0), None
+
+
+def _gr_zahl(g):
+    try:
+        return float(str(g).upper().lstrip("M").replace(",", "."))
+    except ValueError:
+        return None
+
+
+def groesse(z, gewinde=()):
+    """Gewindegröße der Zeile (Spalte Gewinde), sonst aus dem Ø geschätzt (Kernloch, Flowdrill-Kernloch,
+    Durchgangsloch, Bohrung für Einnietmutter) oder None."""
+    if z.get("gewinde"):
+        return z["gewinde"]
+    d = float(z.get("d") or 0)
+    if d <= 0:
+        return None
+    if z.get("art") == "Fließloch":
+        return _gewinde(d, FLIESSLOCH_KERN, 0.15)
+    if z.get("art") != "Senkung":
+        g = _gewinde(d, [(n, k) for n, k in gewinde if isinstance(k, (int, float))] or list(step_kernloch()))
+        if g:
+            return g
+    for tab, tol in ((DURCHGANG, 0.3), (NIET_LOCH, 0.2)):
+        g = next((n for n, w in tab.items() if abs(w - d) <= tol), None)
+        if g:
+            return g
+    return None
+
+
+def laser_d(z, aus=None, gewinde=()):
+    """Ø, den der Laser für die Ausführung aus schneidet (None = nur markieren): Gewinde = Kernloch der Stammdaten
+    (gemessenes Kernloch bleibt, wenn es zum Gewinde passt), Einnietmutter = NIET_LOCH, Senkung = Durchgangsloch
+    (gemessene Senkung bleibt), nur lasern = gemessener Ø."""
+    aus = aus or ausfuehrung(z)
+    d = float(z.get("d") or 0)
+    g = z.get("gewinde") if aus in MIT_GROESSE else groesse(z, gewinde)
+    if aus in (FLOWDRILL, AUFBOHREN):
+        return None
+    if aus == GEWINDE_SCHNEIDEN and g:
+        tab = [(n, k) for n, k in gewinde if isinstance(k, (int, float))] or list(step_kernloch())
+        if z.get("art") == "Bohrung" and _gewinde(d, tab) == g:
+            return d                            # gemessenes Kernloch passt zum Gewinde
+        kern = dict(tab).get(g)
+        return round(float(kern), 2) if isinstance(kern, (int, float)) else d
+    if aus == EINNIET and g in NIET_LOCH:
+        return NIET_LOCH[g]
+    if aus == SENKEN and z.get("art") != "Senkung" and g in DURCHGANG:
+        return DURCHGANG[g]
+    return d
+
+
+def step_kernloch():
+    """Kernlöcher nach DIN 336, wenn die Stammdaten Gewinde fehlen (wie der STEP-Import)."""
+    return (("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5), ("M12", 10.2),
+            ("M14", 12.0), ("M16", 14.0), ("M20", 17.5), ("M24", 21.0))
+
+
+def ausfuehrung_setzen(z, aus, gewinde=(), laser=None, groesse_=None):
+    """Zeile z mit neuer Ausführung aus (neues dict): Gewindegröße (groesse_ oder geschätzt), Ø am Laser, Senk-Ø und
+    Markierung nach Vorgabe laser. Die Art (Messung) bleibt."""
+    z = dict(z, aus=aus)
+    if aus in MIT_GROESSE:
+        g = groesse_ or groesse(z, gewinde)
+        if g:
+            z["gewinde"] = g
+    elif groesse_:
+        z["gewinde"] = groesse_
+    if aus in (FLOWDRILL, AUFBOHREN) and z.get("laser") not in LASER:
+        z["laser"] = laser if laser in LASER else GRAVUR
+    if aus == NUR_LASER and z.get("art") == BOHREN:
+        z["laser"] = SCHNEIDEN
+    if aus == SENKEN and not z.get("D"):
+        g = groesse(z, gewinde)
+        z["D"] = SENK_D.get(g) or round(2 * float(z.get("d") or 0), 1)
+        z.setdefault("gravur", False)
+    dl = laser_d(z, aus, gewinde)
+    if dl is None or abs(dl - float(z.get("d") or 0)) < 0.005:
+        z.pop("d_laser", None)
+    else:
+        z["d_laser"] = dl
+    return z
+
+
+def grenzen_aus(einst):
+    """Grenzen der Vorschläge aus den Einstellungen (dict oder Funktion name -> Wert); fehlend = GRENZEN."""
+    out = dict(GRENZEN)
+    for k in GRENZEN:
+        try:
+            v = einst(k) if callable(einst) else (einst or {}).get(k)
+        except Exception:  # noqa: BLE001 – Einstellung fehlt (ältere Datenbank)
+            v = None
+        if isinstance(v, (int, float)) and v > 0:
+            out[k] = float(v)
+    return out
+
+
+def ist_alu(werkstoff):
+    w = str(werkstoff or "").upper().replace(" ", "")
+    return "ALU" in w or w.startswith(("ALMG", "ALSI", "ENAW", "AW-", "ALZN", "ALCU", "3.3", "3.2"))
+
+
+def vorschlaege(z, wand=None, werkstoff=None, gewinde=(), grenzen=None):
+    """Je Ausführung: dict(aus, rang, grund) – rang 0 = ★ beste (eine), 1 = passt auch, 2 = nicht empfohlen; sortiert
+    nach Rang. Nach Gewindegröße (Spalte Gewinde oder aus dem Ø), Wandstärke und Werkstoff (Alu: mehr Gänge):
+    Gewinde schneiden trägt ab bohr_gewinde_gaenge Gängen in der Wand, Flowdrill von bohr_flowdrill_min bis
+    bohr_flowdrill_faktor × Nenn-Ø, Einnietmutter im Klemmbereich (NIET_KLEMM). ★ = die Ausführung nach der Art im
+    STEP, wenn sie passt, sonst die erste passende aus Gewinde, Flowdrill, Einnietmutter, nur lasern."""
+    gr = dict(GRENZEN, **(grenzen or {}))
+    g = groesse(z, gewinde)
+    d = float(z.get("d") or 0)
+    s = float(wand) if isinstance(wand, (int, float)) and wand > 0 else None
+    alu = ist_alu(werkstoff)
+    out = {}
+    if g:
+        st, nenn = STEIGUNG.get(g), _gr_zahl(g)
+        min_g = gr["bohr_gewinde_gaenge"] * (1.5 if alu else 1)
+        if s and st:
+            gaenge = s / st
+            ok = gaenge >= min_g - 1e-9
+            out[GEWINDE_SCHNEIDEN] = (ok, f"Wand {dez(s)} mm = {dez(round(gaenge, 1))} Gänge {g}" + (
+                " – trägt" if ok else f" – zu wenig (ab {dez(min_g)} Gängen{' in Alu' if alu else ''})"))
+        else:
+            out[GEWINDE_SCHNEIDEN] = (True, f"Kernloch lasern, Gewinde {g} schneiden")
+        fmax = gr["bohr_flowdrill_faktor"] * nenn if nenn else None
+        if s and fmax:
+            ok = gr["bohr_flowdrill_min"] - 1e-9 <= s <= fmax + 1e-9
+            out[FLOWDRILL] = (ok, "Laser markiert, Kragen gibt ca. 3 × Wand Gewindelänge" if ok else
+                              f"Wand {dez(s)} mm " + (f"zu dünn (ab {dez(gr['bohr_flowdrill_min'])} mm)"
+                                                      if s < gr["bohr_flowdrill_min"] else
+                                                      f"zu dick (bis {dez(round(fmax, 1))} mm)"))
+        else:
+            out[FLOWDRILL] = (True, "Laser markiert, Gewinde wird geformt")
+        klemm = NIET_KLEMM.get(g)
+        if not klemm:
+            out[EINNIET] = (False, f"keine Einnietmutter {g} in der Tabelle")
+        else:
+            ok = s is None or klemm[0] - 1e-9 <= s <= klemm[1] + 1e-9
+            out[EINNIET] = (ok, f"Loch Ø{dez(NIET_LOCH[g])}, Klemmbereich {dez(klemm[0])}–{dez(klemm[1])} mm"
+                            + ("" if ok else f" – Wand {dez(s)} mm passt nicht"))
+        senk = SENK_D.get(g)
+        out[SENKEN] = (z.get("art") == "Senkung" or bool(senk),
+                       f"für Senkschraube {g}: Ø{dez(DURCHGANG.get(g, d))} / Senk-Ø {dez(z.get('D') or senk)}"
+                       if z.get("art") != "Senkung" else f"Senk-Ø {dez(z.get('D'))} wie im STEP")
+    else:
+        for aus in MIT_GROESSE:
+            out[aus] = (False, "erst die Gewindegröße wählen")
+        if z.get("art") == "Senkung":
+            out[SENKEN] = (True, f"Senk-Ø {dez(z.get('D'))} wie im STEP")
+    klein = zu_klein(d, s)
+    out[NUR_LASER] = (not klein, f"Ø{dez(d)} schneiden, ohne Gewinde" + (
+        " – kleiner als 0,7 × Wand, schneidet unsauber" if klein else ""))
+    if klein:
+        out[AUFBOHREN] = (True, f"Ø{dez(d)} kleiner als 0,7 × Wand: markieren und aufbohren")
+    natur = _natur(z)
+    reihe = [natur] + [a for a in ((SENKEN,) if z.get("art") == "Senkung" else ()) +
+                       (GEWINDE_SCHNEIDEN, FLOWDRILL, EINNIET, AUFBOHREN, NUR_LASER) if a != natur]
+    stern = next((a for a in reihe if a in out and out[a][0]), None)
+    liste = [dict(aus=a, rang=0 if a == stern else 1 if ok else 2, grund=grund)
+             for a, (ok, grund) in out.items()]
+    return sorted(liste, key=lambda v: (v["rang"], AUSFUEHRUNGEN.index(v["aus"])))
+
+
+def vorschlag_bester(z, wand=None, werkstoff=None, gewinde=(), grenzen=None):
+    v = vorschlaege(z, wand, werkstoff, gewinde, grenzen)
+    return next((x for x in v if x["rang"] == 0), None)
 
 
 def bohren_zeilen(bohrungen, wand, laser=GRAVUR, vorhanden=()):
@@ -131,8 +392,9 @@ def aus_rechner(erg, alt, gewinde, wand=None, laser=GRAVUR, bohren_laser=None):
     Konturzeile, sonst Vorschlag nach dem Kernloch), Senkungen, Flowdrill und Bohren (< 0,7 × Wand) aus den
     Eingaben. Was im Rechner eingegeben ist, gilt als bestätigt (Patrick 23.10.2026); Zeilen gleicher Art und
     gleichen Ø aus dem bisherigen Bohrbild (alt, z. B. vom STEP-Import) behalten Prüfstatus und Wahl, ein im Rechner
-    gewähltes Gewinde geht vor."""
-    bohr, senk, fluss = {}, {}, {}       # (Ø, Gewinde oder None, Gewinde von Hand?) -> Anzahl
+    gewähltes Gewinde geht vor. Eigenschaft Ausführung der Konturzeile (Eingabe aus, alle Editoren) setzt die
+    Ausführung der Zeile (ausfuehrung_setzen)."""
+    bohr, senk, fluss = {}, {}, {}       # (Ø, Gewinde oder None, Gewinde von Hand?, Ausführung) -> Anzahl
     for s_ in erg.get("schritte", [])[2:]:
         e = s_.get("eingabe") or {}
         try:
@@ -140,34 +402,41 @@ def aus_rechner(erg, alt, gewinde, wand=None, laser=GRAVUR, bohren_laser=None):
         except (TypeError, ValueError):
             continue
         hand = "gewinde" in e
+        aus = e.get("aus") if e.get("aus") in AUSFUEHRUNGEN else None
         if s_.get("art") == "Bohrung":
-            schl = (d, (e.get("gewinde") or None) if hand else _gewinde(d, gewinde), hand)
+            schl = (d, (e.get("gewinde") or None) if hand else (_gewinde(d, gewinde) or e.get("groesse")), hand,
+                    aus)
             bohr[schl] = bohr.get(schl, 0) + int(s_["anzahl"])
         elif s_.get("art") == "Flowdrill":
-            schl = (d, (e.get("gewinde") or None) if hand else _gewinde(d, FLIESSLOCH_KERN, 0.15), hand)
+            schl = (d, (e.get("gewinde") or None) if hand else _gewinde(d, FLIESSLOCH_KERN, 0.15), hand, aus)
             fluss[schl] = fluss.get(schl, 0) + int(s_["anzahl"])
         elif s_.get("art") == "Senkung" and isinstance(e.get("D"), (int, float)):
-            schl = (d, round(float(e["D"]), 2))
+            schl = (d, round(float(e["D"]), 2), e.get("groesse") or None, aus)
             senk[schl] = senk.get(schl, 0) + int(s_["anzahl"])
     laser = laser if laser in LASER else GRAVUR
-    neu = [(dict(art="Bohrung", d=d, anzahl=n, gewinde=g, status=BESTAETIGT), hand)
-           for (d, g, hand), n in sorted(bohr.items(), key=str) if g]
-    neu += [(dict(art="Senkung", d=d, D=dd, anzahl=n, gravur=False, status=BESTAETIGT), False)
-            for (d, dd), n in sorted(senk.items())]
-    neu += [(dict(art="Fließloch", d=d, anzahl=n, gewinde=g, laser=laser, status=BESTAETIGT), hand)
-            for (d, g, hand), n in sorted(fluss.items(), key=str)]
+    neu = [(dict(art="Bohrung", d=d, anzahl=n, gewinde=g, status=BESTAETIGT), hand, aus)
+           for (d, g, hand, aus), n in sorted(bohr.items(), key=str) if g or aus]
+    neu += [(dict(art="Senkung", d=d, D=dd, anzahl=n, gravur=False, status=BESTAETIGT,
+                  **({"gewinde": g} if g else {})), False, aus)
+            for (d, dd, g, aus), n in sorted(senk.items(), key=str)]
+    neu += [(dict(art="Fließloch", d=d, anzahl=n, gewinde=g, laser=laser, status=BESTAETIGT), hand, aus)
+            for (d, g, hand, aus), n in sorted(fluss.items(), key=str)]
     summe = {}
-    for (d, _, _), n in bohr.items():
-        summe[d] = summe.get(d, 0) + n
-    neu += [(dict(z, status=BESTAETIGT), False)
+    for (d, _, _, aus), n in bohr.items():
+        if not aus:
+            summe[d] = summe.get(d, 0) + n
+    neu += [(dict(z, status=BESTAETIGT), False, None)
             for z in bohren_zeilen(sorted(summe.items()), wand, bohren_laser or laser)]
     vorher = {(z.get("art"), round(float(z.get("d") or 0), 2)): z for z in alt or ()}
     out = []
-    for z, hand in neu:
+    for z, hand, aus in neu:
         v = vorher.get((z["art"], z["d"]))
         if v:
-            z.update({k: v[k] for k in ("status", "gewinde", "laser", "gravur", "preis", "gewinde_preis")
-                      if k in v and not (k == "gewinde" and hand)})
+            z.update({k: v[k] for k in ("status", "gewinde", "laser", "gravur", "preis", "gewinde_preis", "aus",
+                                        "d_laser")
+                      if k in v and not (k == "gewinde" and hand) and not (k in ("aus", "d_laser") and aus)})
+        if aus:
+            z = ausfuehrung_setzen(dict(z, status=BESTAETIGT), aus, gewinde, laser)
         out.append(z)
     return out
 
@@ -224,33 +493,31 @@ def schreiben(liste):
 
 def zusatz(liste):
     """Was die Wahl am Schneidweg ändert: dict(schneidweg, einstiche, gravur [mm], konturen [(Hüllmaß, Länge)]
-    zusätzlich, weg [(Hüllmaß, Länge)] aus der gemessenen Konturliste entfernt)."""
+    zusätzlich, weg [(Hüllmaß, Länge)] aus der gemessenen Konturliste entfernt). Grundlage ist der gemessene Ø der
+    Art (_basis), Ziel der Ø bzw. die Markierung der Ausführung (_ziel)."""
     out = dict(schneidweg=0.0, einstiche=0, gravur=0.0, konturen=[], weg=[])
     for z in liste:
         n = int(z.get("anzahl") or 0)
-        if z["art"] == "Senkung" and z.get("gravur") and z.get("status") != ABGELEHNT and z.get("D"):
+        w = wirkung(z)
+        if w == SENKEN and z.get("gravur") and z.get("D"):
             out["gravur"] += n * math.pi * float(z["D"])
-        elif z["art"] == BOHREN and z.get("status") == BESTAETIGT and z.get("laser") != SCHNEIDEN:
-            d = float(z.get("d") or 0)        # gemessene Bohrung fällt weg, der Laser markiert nur
-            out["schneidweg"] -= n * math.pi * d
-            out["weg"] += [(d, math.pi * d)] * n
-            if z.get("laser") == LOCH:
-                out["schneidweg"] += n * math.pi * MARKE_D
-                out["konturen"] += [(MARKE_D, math.pi * MARKE_D)] * n
-            else:
-                out["einstiche"] -= n
-                out["gravur"] += n * math.pi * MARKE_D
-        elif z["art"] == "Fließloch":
-            if z.get("status") == ABGELEHNT:       # doch eine gelaserte Bohrung
-                d = float(z.get("d") or 0)
-            elif z.get("laser") == LOCH:
-                d = MARKE_D
-            else:
-                out["gravur"] += n * math.pi * MARKE_D
-                continue
+        basis = _basis(z)
+        d, marke = _ziel(z)
+        gleich = basis is not None and d is not None and abs(d - basis) < 0.005
+        if basis is not None and not gleich:        # gemessene Bohrung fällt weg
+            out["schneidweg"] -= n * math.pi * basis
+            out["weg"] += [(basis, math.pi * basis)] * n
+            out["einstiche"] -= n
+        if d is not None and not gleich:            # anderer Ø am Laser
             out["schneidweg"] += n * math.pi * d
-            out["einstiche"] += n
             out["konturen"] += [(d, math.pi * d)] * n
+            out["einstiche"] += n
+        if marke == LOCH:
+            out["schneidweg"] += n * math.pi * MARKE_D
+            out["konturen"] += [(MARKE_D, math.pi * MARKE_D)] * n
+            out["einstiche"] += n
+        elif marke == GRAVUR:
+            out["gravur"] += n * math.pi * MARKE_D
     return out
 
 
@@ -258,16 +525,22 @@ def gewinde_text(liste):
     """Bestätigte Gewinde als Text der Spalte Gewinde geprüft ('4xM6; 2xM8'), sonst None."""
     summe = {}
     for z in liste:
-        if z.get("status") == BESTAETIGT and z.get("gewinde"):
+        if _gewinde_zeile(z):
             summe[z["gewinde"]] = summe.get(z["gewinde"], 0) + int(z.get("anzahl") or 0)
     return "; ".join(f"{n}x{g}" for g, n in summe.items()) or None
 
 
+def _gewinde_zeile(z):
+    """Bestätigte Zeile, deren Gewinde gerechnet wird (geschnitten oder nach Flowdrill geformt)."""
+    return z.get("status") == BESTAETIGT and bool(z.get("gewinde")) and wirkung(z) in (GEWINDE_SCHNEIDEN, FLOWDRILL)
+
+
 def vorschlag_text(liste):
-    """Alle Gewinde-Vorschläge (auch abgelehnte) als Text der Spalte Gewinde-Vorschlag."""
+    """Alle Gewinde-Vorschläge (auch abgelehnte) als Text der Spalte Gewinde-Vorschlag; ohne Zeilen, die bewusst
+    eine Ausführung ohne Gewinde haben (Einnietmutter, Senkung, nur lasern, Bohren)."""
     summe = {}
     for z in liste:
-        if z.get("gewinde"):
+        if z.get("gewinde") and ausfuehrung(z) in (GEWINDE_SCHNEIDEN, FLOWDRILL):
             summe[z["gewinde"]] = summe.get(z["gewinde"], 0) + int(z.get("anzahl") or 0)
     return "; ".join(f"{n}x{g}" for g, n in summe.items()) or None
 
@@ -276,19 +549,29 @@ def arbeiten(liste):
     """Anzahl je Teil der Arbeitsschritte aus bestätigten Zeilen: {Zusatzarbeit: Anzahl} (Senken, Flowdrill, Bohren)."""
     out = {}
     for z in liste:
-        name = ZUSATZ_ARBEIT.get(z.get("art"))
-        if name and z.get("status") == BESTAETIGT and int(z.get("anzahl") or 0) > 0 and not nur_schneiden(z):
+        name = ZUSATZ_AUS.get(wirkung(z))
+        if name and z.get("status") == BESTAETIGT and int(z.get("anzahl") or 0) > 0:
             out[name] = out.get(name, 0) + int(z["anzahl"])
     return out
+
+
+def arbeit_groessen(liste):
+    """{Zusatzarbeit: '4× M8, 2× M6'} der bestätigten Einnietmuttern und Flowdrill mit Gewindegröße (Text im Angebot)."""
+    summe = {}
+    for z in liste:
+        name = ZUSATZ_AUS.get(wirkung(z))
+        if name in (ZUSATZ_EINNIETMUTTERN, ZUSATZ_FLOWDRILL) and z.get("status") == BESTAETIGT and z.get("gewinde"):
+            d = summe.setdefault(name, {})
+            d[z["gewinde"]] = d.get(z["gewinde"], 0) + int(z.get("anzahl") or 0)
+    return {name: ", ".join(f"{n}× {g}" for g, n in d.items()) for name, d in summe.items()}
 
 
 def arbeit_preise(liste):
     """{Zusatzarbeit: € je Stück} aus den bestätigten Zeilen mit eigenem Preis (letzter gilt)."""
     out = {}
     for z in liste:
-        name = ZUSATZ_ARBEIT.get(z.get("art"))
-        if name and z.get("status") == BESTAETIGT and isinstance(z.get("preis"), (int, float)) \
-                and not nur_schneiden(z):
+        name = ZUSATZ_AUS.get(wirkung(z))
+        if name and z.get("status") == BESTAETIGT and isinstance(z.get("preis"), (int, float)):
             out[name] = float(z["preis"])
     return out
 
@@ -298,7 +581,7 @@ def gewinde_preise(liste):
     if isinstance(liste, str):
         liste = lesen(liste)
     return {z["gewinde"]: float(z["gewinde_preis"]) for z in liste
-            if z.get("status") == BESTAETIGT and z.get("gewinde") and isinstance(z.get("gewinde_preis"), (int, float))}
+            if _gewinde_zeile(z) and isinstance(z.get("gewinde_preis"), (int, float))}
 
 
 def arbeiten_text(liste):
@@ -310,7 +593,7 @@ def zusatz_eintragen(p, liste, katalog, saetze=None):
     Namens bekommt die Anzahl als Menge, neuer Eintrag mit Preisstand der Stammdaten (katalog = Zeilen der
     Zusatzarbeiten); Einträge aus dem Bohrbild ohne bestätigte Zeile fallen weg. Ergebnis: (JSON oder None, Namen,
     die in den Stammdaten fehlen)."""
-    soll, preise = arbeiten(liste), arbeit_preise(liste)
+    soll, preise, groessen = arbeiten(liste), arbeit_preise(liste), arbeit_groessen(liste)
     kat = {z.get("name"): z for z in katalog or ()}
     out, fehlt = [], []
     for e in rechnen.zusatz_liste(p):
@@ -319,6 +602,8 @@ def zusatz_eintragen(p, liste, katalog, saetze=None):
             e = dict(e, menge=soll.pop(name), quelle=e.get("quelle") or QUELLE)
             if name in preise or e["quelle"] == QUELLE:
                 e["preis"] = preise.get(name)
+            if e["quelle"] == QUELLE and (name in groessen or e.get("text")):
+                e["text"] = groessen.get(name)        # Größen im Angebotstext, z. B. „4× M8“
             out.append(e)
         elif e.get("quelle") != QUELLE:
             out.append(e)
@@ -326,7 +611,7 @@ def zusatz_eintragen(p, liste, katalog, saetze=None):
         if name not in kat:
             fehlt.append(name)
             continue
-        out.append(dict(name=name, menge=n, preis=preise.get(name), text=None, quelle=QUELLE,
+        out.append(dict(name=name, menge=n, preis=preise.get(name), text=groessen.get(name), quelle=QUELLE,
                         stand=rechnen.zusatz_stand(kat[name], saetze)))
     return (json.dumps(out, ensure_ascii=False) if out else None), fehlt
 
@@ -343,7 +628,9 @@ def text(liste):
     """Kurztext für die Spalte Bohrungen, z. B. '2x Senkung Ø6,6/12,4; 2x Flowdrill Ø7,3 (M8)'."""
     out = []
     for z in liste:
-        if z["art"] == "Senkung":
+        if abweichend(z):
+            out.append(aus_text(z) + " (weicht von STEP ab)")
+        elif z["art"] == "Senkung":
             out.append(f"{z['anzahl']}x Senkung Ø{dez(z['d'])}/{dez(z.get('D'))}")
         elif z["art"] == "Fließloch":
             out.append(f"{z['anzahl']}x Flowdrill Ø{dez(z['d'])}"
@@ -353,6 +640,26 @@ def text(liste):
         elif z["art"] == BOHREN:
             out.append(f"{z['anzahl']}x Bohren Ø{dez(z['d'])}")
     return "; ".join(out)
+
+
+def aus_text(z):
+    """'4x Flowdrill M8 statt Gewinde', '2x Einnietmutter M8 Ø11 statt Gewinde'."""
+    aus = ausfuehrung(z)
+    teile = [f"{z.get('anzahl')}x {KURZ[aus]}"]
+    if aus in MIT_GROESSE and z.get("gewinde"):
+        teile.append(z["gewinde"])
+    d, _ = _ziel(dict(z, status=BESTAETIGT))
+    if d is not None and aus != GEWINDE_SCHNEIDEN:
+        teile.append(f"Ø{dez(d)}")
+    if aus == SENKEN and z.get("D"):
+        teile[-1] += f"/{dez(z['D'])}"
+    return " ".join(teile) + f" statt {KURZ[_natur(z)]}"
+
+
+def step_hinweis(liste):
+    """Zeilen, deren Ausführung von der STEP-Kontur abweicht, als Hinweis oder ''."""
+    t = "; ".join(aus_text(z) for z in liste if abweichend(z))
+    return f"Weicht von STEP ab (Kontur im Export bleibt): {t}" if t else ""
 
 
 def _ohne(liste, weg, tol=0.06, gtol=0.006):
@@ -403,6 +710,17 @@ def anwenden(p, neu, hand=None, katalog=None, saetze=None):
     hand = hand_gewinde(p, neu) if hand is None else str(hand).strip()
     out["gewinde"] = "; ".join(filter(None, [gewinde_text(neu), hand])) or None
     out["gewinde_vorschlag"] = vorschlag_text(neu)
+    t_alt, t_neu = text(lesen(p.get("bohrbild"))), text(neu)
+    if t_alt != t_neu:          # Spalte Bohrungen: Text des Bohrbilds (STEP-Import) mit der neuen Ausführung
+        b = str(p.get("bohrungen") or "")
+        if t_alt and b.endswith(t_alt):
+            b = b[:len(b) - len(t_alt)].rstrip("; ")
+        if t_alt and b == t_alt:
+            b = ""
+        b = "; ".join(filter(None, [b, t_neu])) or None
+        if b != (p.get("bohrungen") or None) and (t_alt and t_alt in str(p.get("bohrungen") or "")
+                                                   or any(abweichend(z) for z in neu)):
+            out["bohrungen"] = b
     out["bohrbild"] = schreiben(neu)
     if katalog is not None:
         zu, fehlt = zusatz_eintragen(p, neu, katalog, saetze)
