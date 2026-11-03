@@ -2265,8 +2265,8 @@ def flaeche_innen_aussen(p, k):
 
 
 def zusatz_menge_auto(art, p, k):
-    """Vorschlag Menge je Teil: kg = Teilegewicht, m² = Außenfläche, m = Teilelänge, €/h: keine (Sekunden je Teil
-    von Hand bzw. Vorgabezeit, zusatz_vorgabe_s), sonst 1 Stück."""
+    """Vorschlag Menge je Teil: kg = Teilegewicht, m² = Außenfläche (Blech: beide Seiten, blech.oberflaeche), m =
+    Teilelänge, €/h: keine (Sekunden je Teil von Hand bzw. Vorgabezeit, zusatz_vorgabe_s), sonst 1 Stück."""
     if art == "€/h":
         return None
     if art == "€/kg" and ist_zukaufteil(p):          # Zukaufteil: Gewicht je Teil der Position
@@ -2278,6 +2278,10 @@ def zusatz_menge_auto(art, p, k):
             return g
         kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k)
         return kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
+    if art == "€/m²" and ist_zukaufteil(p):          # Blech (Blech-Editor/STEP): beide Seiten ohne Löcher
+        from . import blech
+        e = blech.lesen(p.get("technik"))
+        return blech.oberflaeche(e) if e else None
     if art == "€/m²":
         return oberflaeche(p, k)
     if art == "€/m":
