@@ -1,4 +1,5 @@
 """Dialoge mit 3D-Ansicht: Prüfen der STEP-Messung vor dem Übernehmen und Ansehen der Positionen eines Angebots."""
+import re
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
@@ -73,6 +74,32 @@ def _messinfo(m):
             + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else "")
             + "<br>" + step_pruefung.html(step_pruefung.merkmale(m, step.gewinde_vorschlag(m.get("bohrungen"),
                                                                                            step.KERNLOCH))))
+
+
+_BUCHST = "a-zäöüß"
+SATZ_WOERTER = re.compile(rf"(?<![{_BUCHST}])(satz|sätze|saetze)(?![{_BUCHST}])", re.I)
+SCHWEISS_WOERTER = re.compile(r"schwei(ß|ss|s)|geschwei|(?<![a-z])(sbg|weld(ed|ment)?)(?![a-z])", re.I)
+
+
+def satz_aus_namen(datei, pfade=()):
+    """Satz oder Schweißbaugruppe am Namen erkennen (Patrick 03.11.2026): Dateiname und die Baugruppen-Ebenen der
+    STEP-Struktur (pfad ohne das Teil selbst). Ergebnis ("schweiss" | "satz" | None, gefundenes Wort). „Satz“ nur als
+    eigenes Wort (nicht Zusatz, Ansatz, Einsatz)."""
+    texte = [Path(str(datei or "")).stem]
+    for p in pfade or ():
+        teile = [t for t in str(p or "").split("/") if t]
+        texte += teile[:-1]
+    for muster, art in ((SCHWEISS_WOERTER, "schweiss"), (SATZ_WOERTER, "satz")):
+        for t in texte:
+            treffer = muster.search(t.replace("_", " "))
+            if treffer:         # ganzes Wort zeigen (geschweißt, Schweißbaugruppe …)
+                a, e = treffer.start(), treffer.end()
+                while a > 0 and t[a - 1].isalpha():
+                    a -= 1
+                while e < len(t) and t[e].isalpha():
+                    e += 1
+                return art, t[a:e]
+    return None, None
 
 
 class _Mit3D(QDialog):
@@ -236,7 +263,7 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setToolTip("Den Satz als Schweißbaugruppe anlegen: Unterbaugruppen mit Menge aus der STEP-Datei, "
                                  "Einzelteile zugeordnet. Nahtgruppen und Arbeitsgänge danach im Editor ergänzen.")
         self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)) or
-                                      self.ziel_wahl.setEnabled(bool(an)))
+                                      self.ziel_wahl.setEnabled(bool(an)) or self._satz_anzeigen())
         sl.addSpacing(12)
         sl.addWidget(self.bg_haken)
         # P8: Datei als Unterbaugruppe in die Schweißbaugruppe einer anderen Datei dieses Imports einhängen
@@ -305,7 +332,8 @@ class StepPruefDialog(QDialog):
         kl.addWidget(self.dateien_info)
         satz_zeile = QHBoxLayout()      # Baugruppe: Anzahl, Als Satz, Schweißbaugruppe in eigener Zeile
         satz_zeile.addWidget(self.satz_feld)
-        satz_zeile.addWidget(self.satz_info)
+        self.satz_info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)    # macht das Fenster nicht breiter
+        satz_zeile.addWidget(self.satz_info, 1)
         satz_zeile.addStretch(1)
         kopf_lay.addLayout(satz_zeile)
 
@@ -491,6 +519,17 @@ class StepPruefDialog(QDialog):
             stk = {z.werte["einzeln"] for z in self.zeilen if z.datei == d}
             if not self.saetze.get(d) and len(stk) == 1 and stk != {0}:
                 self.anzahl[d] = int(stk.pop())
+        # Satz/Schweißbaugruppe aus dem Namen vorwählen (Patrick 03.11.2026): „Satz“ bzw. „schweiß…“ im Dateinamen
+        # oder Baugruppennamen der STEP; nur beim ersten Öffnen (gespeicherte Wahl _saetze geht vor)
+        self.satz_grund = {}
+        for d in self.mehrteilig:
+            if any("_saetze" in m for m in messwerte if m.get("datei") == d):
+                continue
+            art, wort = satz_aus_namen(d, [m.get("pfad") for m in messwerte if m.get("datei") == d])
+            if art:
+                self.saetze_setzen(self.anzahl.get(d, 1), d)
+                self.baugruppe[d] = self.baugruppe.get(d) or art == "schweiss"
+                self.satz_grund[d] = (art, wort)
         self.datei_waehlen(0)
         # Häkchen der Vorprüfung nach Änderungen auffrischen, gesammelt (nicht während die Liste aufgebaut wird)
         self._vor_uhr = QTimer(self)
@@ -1081,7 +1120,8 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setChecked(bool(self.baugruppe.get(d)))
         self.bg_haken.blockSignals(False)
         self.bg_haken.setEnabled(satz)
-        from .step import satzname as _sn
+        from .step import satzname
+        _sn = satzname
         self.ziel_wahl.blockSignals(True)
         self.ziel_wahl.clear()
         self.ziel_wahl.addItem("eigene Baugruppe", None)
@@ -1095,12 +1135,23 @@ class StepPruefDialog(QDialog):
         self.ziel_wahl.setEnabled(satz and bool(self.baugruppe.get(d)))
         self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
-            koerper, verschieden = self.mehrteilig[d]
-            from .step import satzname
-            n = self.saetze[d]
-            self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"{koerper} Einzelteile")
-            self.baugruppen[d].setText(0, f"Baugruppe „{satzname(d)}“ – {koerper} Teile, {verschieden} verschieden – "
-                                       + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if satz else "als Einzelteile"))
+            koerper, _ = self.mehrteilig[d]
+            grund = self.satz_grund.get(d)
+            self.satz_info.setText((f"Satz „{satzname(d)}“" if satz else f"{koerper} Einzelteile")
+                                   + (f" – vorgewählt: „{grund[1]}“" if grund and satz else ""))
+            self.satz_info.setStyleSheet(f"color: {stil.farbe(stil.GELB_TEXT).name()};" if grund and satz else "")
+            self.satz_info.setToolTip("Im Datei- bzw. Baugruppennamen steht „Satz“ (→ Als Satz) oder „schweiß…“ "
+                                      "(→ Als Satz und als Schweißbaugruppe). Mit dem Knopf „Als Satz“ abwählbar."
+                                      if grund else "")
+        for datei in self.mehrteilig:       # Kopfzeile jeder Baugruppe, auch der nicht gezeigten Dateien
+            koerper, verschieden = self.mehrteilig[datei]
+            n = self.saetze.get(datei) or 0
+            self.baugruppen[datei].setText(0, f"Baugruppe „{satzname(datei)}“ – {koerper} Teile, {verschieden} "
+                                           "verschieden – " + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if n
+                                                               else "als Einzelteile")
+                                           + (" als Schweißbaugruppe" if n and self.baugruppe.get(datei) else "")
+                                           + (f" (vorgewählt: „{self.satz_grund[datei][1]}“ im Namen)"
+                                              if n and datei in self.satz_grund else ""))
 
     def _ziel_setzen(self, ziel, datei=None):
         """Datei als Unterbaugruppe in die Schweißbaugruppe der Datei ziel einhängen (None = eigene Baugruppe, P8).

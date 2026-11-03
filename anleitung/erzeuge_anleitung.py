@@ -2215,7 +2215,8 @@ def kapitel_step(i):
             "im Ordner des Angebots ([[angebotsordner]]; Vorgabe in den Einstellungen).",
             "Enthält eine STEP mehrere Teile, steht sie als <b>Baugruppe</b> in der Liste und die 3D-Ansicht zeigt "
             "sie zusammengebaut. Jedes Teil wird eine Einzelposition; das Feld <b>Anzahl</b> oben setzt die Stückzahl "
-            "aller Teile. Einen Satz gibt es nur mit dem Knopf <b>Als Satz</b> (siehe Baugruppen als Satz).",
+            "aller Teile. Einen Satz gibt es mit dem Knopf <b>Als Satz</b> (siehe Baugruppen als Satz); steht "
+            "<i>Satz</i> oder <i>geschweißt</i> im Datei- bzw. Baugruppennamen, ist er schon gedrückt.",
             "Fehlen Profile in den Stammdaten, steht unter der Liste ein Häkchen <b>Fehlende Profile aus den "
             "Messwerten anlegen</b> (vorbelegt; danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im "
             "Angebot, steht dort <b>… trotzdem noch einmal eintragen</b> (Vorgabe aus = überspringen). Nach dem "
@@ -2634,7 +2635,7 @@ def kapitel_step(i):
             "Im Messergebnis steht das Rohr in der Spalte <i>geschlossen</i> bzw. im JSON (ab Version 1.19) im Block "
             "<i>geschlossen</i> mit <i>offene_seite</i> (Seite, Lücken, Breite, Länge, Steg, Radius, vergrößert, "
             "Normrohr, Schalen je Umfang, vorher); die Spalte <i>offene_seite</i> der Messwerte enthält dasselbe.")
-    i.abschnitt("Baugruppen als Satz")
+    i.abschnitt("Baugruppen als Satz", marke="step_satz")
     i.text("Mehrere Teile in einer STEP-Datei = <b>Baugruppe</b>, Vorgabe: jedes Teil einzeln, <b>Anzahl</b> = "
            "Stückzahl. Erst mit dem Knopf <b>Als Satz</b> werden gleiche Teile eine Position mit <b>Stück je Satz</b>.",
            kurz=True)
@@ -2652,7 +2653,8 @@ def kapitel_step(i):
             "Gleiche Teile haben dieselbe Farbe; das farbige Quadrat vor dem Teil in der Liste zeigt sie.",
             "Klick auf eine Profilgruppe: die Baugruppe mit diesen Teilen blau, den Rest hellgrau. Klick auf ein "
             "Teil: das Einzelteil mit Schnitten und Konturen. Klick auf die Baugruppen-Zeile: wieder alles.")
-    i.text("Eine STEP mit mehreren Teilen wird nicht von selbst ein Satz: jedes Teil wird eine Einzelposition. Das "
+    i.text("Eine STEP mit mehreren Teilen wird nur dann von selbst ein Satz, wenn ihr Name es sagt (siehe unten), "
+           "sonst wird jedes Teil eine Einzelposition. Das "
            "Feld <b>Anzahl</b> oben setzt dann die Stückzahl aller Teile der Datei (z. B. 5 Gestelle = jedes Teil "
            "5 Stück) und macht <i>keinen</i> Satz. Als Satz anlegen: Knopf <b>Als Satz</b> drücken; <b>Anzahl</b> "
            "ist dann die Anzahl Sätze. Ist der Knopf gedrückt:")
@@ -2665,6 +2667,12 @@ def kapitel_step(i):
     i.text("Ist der Knopf <b>Als Satz</b> nicht gedrückt, wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
            "der Rohrliste. Bei mehreren Dateien gilt das Feld je Datei. Staffelpreise und Angebot rechnen den Satz "
            "wie einen von Hand angelegten ([[staffeln]]).")
+    i.text("<b>Vorwahl am Namen:</b> Steht im Dateinamen oder im Namen einer Baugruppe der STEP-Struktur das Wort "
+           "<i>Satz</i> (z. B. <i>Satz Geländer.step</i>), ist <b>Als Satz</b> schon gedrückt. Steht dort "
+           "<i>schweiß…</i>, <i>schweiss…</i>, <i>geschweißt</i> oder <i>SBG</i> (z. B. <i>Tor geschweißt.step</i>), "
+           "ist zusätzlich <b>als Schweißbaugruppe</b> angehakt. Die Baugruppen-Zeile zeigt dann <i>(vorgewählt: "
+           "„geschweißt“ im Namen)</i>. Wörter wie <i>Zusatz</i>, <i>Ansatz</i> oder <i>Einsatz</i> zählen nicht. "
+           "Wer es anders will, löst den Knopf einfach wieder.")
     i.text("Daneben steht das Häkchen <b>als Schweißbaugruppe</b> (nur mit <i>Als Satz</i>, Vorgabe aus). Damit wird "
            "der Satz zusätzlich eine Position der Art Schweißbaugruppe ([[schweissbaugruppe]]): die Unterbaugruppen "
            "mit ihrer Menge kommen aus der Struktur der STEP-Datei, jedes Teil steht in seiner Unterbaugruppe mit "
