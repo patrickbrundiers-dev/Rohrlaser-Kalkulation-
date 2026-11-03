@@ -457,7 +457,9 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
 
 
 AUSFLUG_TOL = 0.2       # mm hinter der äußersten Kante: ab da läuft der Schnitt ins Teil (Ausflug)
-AUSFLUG_BREITE = 0.5    # mm am Umfang mindestens (senkrechte Kanten einer Ausklinkung sind kein Ausflug)
+AUSFLUG_BREITE = 0.12   # mm am Umfang mindestens (senkrechte Kanten einer Ausklinkung sind kein Ausflug; bis
+#                         0.9.237 0,5 mm – eine Bohrung halb über das Ende mit 0,4 mm Hinterschnitt fiel weg)
+MUENDUNG_RAND = 0.05    # mm: Mündung so viel breiter, damit die senkrechte Stufe des Endumrisses sicher darin liegt
 
 
 def _ausfluege(zug, feld, ring=True):
@@ -521,7 +523,9 @@ def _ende_ausflug(zug, ende, m, mform, s_von, s_umfang, mbreit, mschmal, rund, s
     s0, s1 = s_von(zug[0][0]), s_von(zug[-1][0])      # offene Mündung am Ende: dort keine Schnittkante
     if (s1 - s0) % s_umfang > s_umfang / 2:
         s0, s1 = s1, s0
-    k["muendung"] = [round(s0, 2), round(s1, 2)]
+    # die Stufe des Endumrisses liegt 0,001 mm neben der Rasterstelle; die Mündung aus den gemessenen Punkten kann
+    # 0,01 mm daneben liegen – dann blieb die Stufe ganz gezeichnet (T-Schlitz am Ende 3 mm daneben, Patrick 03.11.2026)
+    k["muendung"] = [round((s0 - MUENDUNG_RAND) % s_umfang, 2), round((s1 + MUENDUNG_RAND) % s_umfang, 2)]
     h = max(max(us) - min(us), max(zs) - min(zs))
     k["huelle_gemessen"] = k["huelle"] = round(h, 2)
     if mform == "Rundrohr":
