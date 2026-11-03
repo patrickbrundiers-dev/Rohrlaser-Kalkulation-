@@ -108,7 +108,7 @@ def position(p, kopf, k, tabellen, regeln):
             name = e["name"]
             if name in vorhanden or name in vorschlaege or name not in katalog or katalog[name].get("aktiv") == "nein":
                 continue
-            v = dict(name=name, herkunft=ze.herkunft(e), text=e.get("text"), regel=None)
+            v = dict(name=name, herkunft=ze.herkunft(e), text=e.get("text"), regel=None, menge=e.get("menge"))
             probe = dict(p, zusatz=json.dumps([ze.eintrag(v, katalog.values(), tabellen)], ensure_ascii=False),
                          arbeitsgaenge=None)
             z = (rechnen.zusatz_werte(probe, k, dict(tabellen, arbeitsgang_regeln=[r for r in tabellen.get(
@@ -146,7 +146,7 @@ def annehmen(p, name, regeln, tabellen, kopf=None, k=None):
     passend = [r for r in regeln or () if r.get("zusatzarbeit") == name]
     erk = next((e for e in ze.erkannt(p, katalog.values()) if e["name"] == name), None)
     if erk and not any(k is None or trifft(r, p, kopf, k, gewinde) for r in passend):
-        v = dict(name=name, herkunft=ze.herkunft(erk), text=erk.get("text"), regel=None)
+        v = dict(name=name, herkunft=ze.herkunft(erk), text=erk.get("text"), regel=None, menge=erk.get("menge"))
         return json.dumps(liste + [ze.eintrag(v, katalog.values(), tabellen)], ensure_ascii=False)
     regel = next((r for r in passend if k is None or trifft(r, p, kopf, k, gewinde)), None)
     menge = regel_menge(regel or {}, p, gewinde)

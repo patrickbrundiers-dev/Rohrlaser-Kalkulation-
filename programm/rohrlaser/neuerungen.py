@@ -27,8 +27,11 @@ NEUERUNGEN = [
      "([[zusatz_erkennen]]). Neues <b>Auswahlfenster</b> mit Suche, Häkchen, Gruppen (häufig, beim Kunden, Kategorie), "
      "€ je Teil und ohne Doppel; <b>Rechtsklick → Zusatzarbeit hinzufügen</b> mit den häufigsten. <b>＋ Neue "
      "Zusatzarbeit …</b> als Kurzformular mit Vorlagen (Eloxieren, Richten, Prüfbericht 3.1 …): Admin legt sie in den "
-     "Einstellungen an, sonst gilt sie nur in diesem Angebot und der Admin übernimmt sie später ([[zusatz_neu]]).",
-     "Zusatzarbeiten erkennen (gelbe Vorschläge), neues Auswahlfenster, Schnellmenü, Kurzformular mit Vorlagen"],
+     "Einstellungen an, sonst gilt sie nur in diesem Angebot und der Admin übernimmt sie später ([[zusatz_neu]]). "
+     "<b>Einnietmuttern</b>: Sechskantlöcher und Senkungen im Teil schlagen <i>Einnietmuttern setzen</i> mit der "
+     "Anzahl je Teil vor.",
+     "Zusatzarbeiten erkennen (gelbe Vorschläge, Einnietmuttern aus Sechskantlöchern/Senkungen), neues "
+     "Auswahlfenster, Schnellmenü, Kurzformular mit Vorlagen"],
     ["0.9.236", "Prüfung der Kalkulationsbasis: <b>Grundwerte prüfen …</b> unter Stammdaten → Maschinen und im "
      "Angebots-Check zeigt leere Nebenzeiten, Beispiel-Stundensätze und doppelt gezählte Zuschläge mit der Wirkung in € "
      "([[kalkulationsbasis]]). <b>Schneiddaten</b> zwischen zwei Wandstufen werden interpoliert (2,6 mm nicht mehr mit "

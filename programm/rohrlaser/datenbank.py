@@ -185,7 +185,7 @@ VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmater
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
-ERKENNUNG_STAND = "2026-11-03"     # Erkennungswörter der Beispiel-Zusatzarbeiten (_erkennung_ergaenzen)
+ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -653,8 +653,10 @@ class Datenbank:
 
     def _erkennung_ergaenzen(self):
         """Einmalig (Schema 75): Erkennungswörter der Beispiel-Zusatzarbeiten (dem Namen nach) eintragen, wo das Feld
-        leer ist. Rechnet nichts anders: die Wörter erzeugen nur gelbe Vorschläge."""
-        from .stammdaten import ERKENNUNG_VORGABE
+        leer ist, und die Zusatzarbeit Einnietmuttern setzen anlegen, wenn es sie (dem Namen nach) noch nicht gibt.
+        Rechnet nichts anders: die Wörter und Sechskantlöcher erzeugen nur gelbe Vorschläge."""
+        from .stammdaten import ERKENNUNG_VORGABE, niet_zusatzarbeiten
+        self._einfuegen("zusatzarbeiten", niet_zusatzarbeiten(), ergaenzen=True)
         for name, worte in ERKENNUNG_VORGABE.items():
             self.con.execute("UPDATE zusatzarbeiten SET erkennung=? WHERE name=? AND (erkennung IS NULL OR "
                              "erkennung='')", (worte, name))

@@ -416,7 +416,7 @@ class ZusatzDialog(QDialog):
         v = next((x for x in self.vorschlaege if x["name"] == name), None)
         e = dict(name=name)
         if v:
-            e.update(text=v.get("text"), quelle=v["herkunft"])
+            e.update(text=v.get("text"), quelle=v["herkunft"], menge=v.get("menge"))
         if name in self.eigene and name not in self.katalog:
             e.update(stand=dict(self.eigene[name]), quelle=EIGEN)
         r = self.zeile_neu(e)

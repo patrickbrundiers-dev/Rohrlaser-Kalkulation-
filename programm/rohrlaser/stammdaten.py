@@ -2182,7 +2182,7 @@ def beispiel_zusatzarbeiten():
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     zeilen = [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
         + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
-        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten()
+        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten() + niet_zusatzarbeiten()
     for z in zeilen:
         z["erkennung"] = z.get("erkennung") or ERKENNUNG_VORGABE.get(z["name"])
     return zeilen
@@ -2210,7 +2210,7 @@ ZUSATZ_VORLAGEN = (
     ("Richten", "€/Stück", 2.50, "nein", "Nachbearbeitung", "gerichtet", "gerichtet; richten"),
     ("Einpressmuttern setzen", "€/Stück", 0.45, "nein", "Montage", "mit Einpressmuttern",
      "einpressmutter; einpressmuttern; PEM"),
-    ("Nieten", "€/Stück", 0.35, "nein", "Montage", "genietet", "genietet; blindniet; nietmutter"),
+    ("Nieten", "€/Stück", 0.35, "nein", "Montage", "genietet", "genietet; blindniet; popniet"),
     ("Gewindeformen", "€/Stück", 0.60, "nein", "Nachbearbeitung", "Gewinde geformt", "gewindeformen; geformt"),
     ("Reinigen / Entfetten", "€/kg", 0.30, "nein", "Oberfläche", "gereinigt und entfettet",
      "entfettet; gereinigt; ölfrei"),
@@ -2284,6 +2284,19 @@ def stege_zusatzarbeiten():
 
 # Strahlen (Patrick 28.10.2026, Plan Abrechnungsregeln): der Strahler rechnet nach Gewicht, also € je kg Fertigteil
 ZUSATZ_STRAHLEN = "Strahlen"
+
+
+ZUSATZ_EINNIETMUTTERN = "Einnietmuttern setzen"
+
+
+def niet_zusatzarbeiten():
+    """Vorbelegung Einnietmuttern (Patrick 03.11.2026): € je Mutter, Menge je Teil. Vorschlag auch aus der Geometrie:
+    Sechskantloch und Senkung im STEP bzw. Editor (zusatz_erkennung.geometrie). Beispielpreis, bitte anpassen."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_EINNIETMUTTERN, art="€/Stück",
+                 preis=0.60, fremd="nein", angebotstext="mit Einnietmuttern", kategorie="Montage", aktiv="ja",
+                 bemerkung="Beispielpreis je Mutter; Menge = Muttern je Teil. Vorschlag bei Sechskantlöchern und "
+                           "Senkungen", erkennung="einnietmutter; einnietmuttern; nietmutter; blindnietmutter; "
+                                              "rivkle; Nietmuttern")]
 
 
 def strahl_zusatzarbeiten():

@@ -1721,6 +1721,13 @@ def kapitel_angebot(i):
             "inaktive Zusatzarbeiten, Zukaufteile (dort beschreibt „verzinkt“ das gekaufte Teil) und Schweißbaugruppen "
             "(Arbeitsgänge im Editor). Schlägt eine Regel ([[abrechnungsregeln]]) dieselbe Arbeit vor, steht sie "
             "einmal da, mit der Herkunft der Regel.",
+            "<b>Einnietmuttern aus der Geometrie</b>: Hat das Teil Sechskantlöcher (aus dem STEP-Import oder im "
+            "Rohr- bzw. Blech-Editor als Polygon) oder Senkungen, schlägt das Programm <i>Einnietmuttern setzen</i> "
+            "vor, Menge = Sechskantlöcher + Senkungen je Teil (Herkunft z. B. „Erkannt: Geometrie 4 Sechskantlöcher, "
+            "2 Senkungen“). In <i>Bohrungen prüfen</i> abgelehnte Senkungen zählen nicht. Die Zusatzarbeit (Beispiel "
+            "0,60 € je Mutter, Kategorie Montage) legt das Programm einmalig an; bitte den Preis prüfen. Gibt es eine "
+            "andere aktive Zusatzarbeit mit „Nietmutter“ im Namen oder in den Erkennungswörtern, wird diese "
+            "vorgeschlagen.",
             "Das Feld <i>Oberfläche</i> der Position zählt bewusst nicht: es beschreibt die gekaufte Stange und steckt "
             "schon im Materialpreis.",
             "Neue Dateien bekommen Erkennungswörter für Feuerverzinken, Galvanisch verzinken, Pulverbeschichten, "

@@ -59,12 +59,14 @@ con = sqlite3.connect(alt)
 con.execute("UPDATE zusatzarbeiten SET erkennung=NULL")
 con.execute("UPDATE zusatzarbeiten SET erkennung='eigen' WHERE name='Strahlen'")
 con.execute("DELETE FROM einstellungen WHERE name='erkennung_stand'")
+con.execute("DELETE FROM zusatzarbeiten WHERE name='Einnietmuttern setzen'")
 con.execute(f"PRAGMA user_version={SCHEMA_VERSION - 1}")
 con.commit()
 con.close()
 d2 = Datenbank(alt)
 z2 = {z["name"]: z.get("erkennung") for z in d2.zeilen("zusatzarbeiten")}
 assert "fvz" in z2["Feuerverzinken"] and z2["Strahlen"] == "eigen" and not z2["Gravur extra"]
+assert "nietmutter" in z2["Einnietmuttern setzen"]          # Einnietmuttern einmalig ergänzt
 d2.schliessen()
 ok("E2 Schema 75: Erkennungswörter vorbelegt, alte Datei ergänzt nur leere Felder (eigene bleiben)")
 
@@ -225,4 +227,39 @@ assert [w.liste.item(i).data(Qt.UserRole) for i in range(w.liste.count())
         if not w.liste.item(i).isHidden() and w.liste.item(i).data(Qt.UserRole)] == ["Pulverbeschichten"]
 assert QDialog.Accepted == 1
 ok("E9 Baugruppen-Editor „Aus Zusatzarbeiten …“: Auswahl mit Suche, Häkchen und erkannten oben")
+
+# ------------------------------------------------------------------ E10 Einnietmuttern aus der Geometrie
+import math  # noqa: E402
+sechs = "; ".join(f"{6.5 * math.cos(math.radians(60 * i)):.3f},{6.5 * math.sin(math.radians(60 * i)):.3f}"
+                  for i in range(6))
+assert ze.ist_sechskant([(6.5 * math.cos(math.radians(60 * i + 15)), 6.5 * math.sin(math.radians(60 * i + 15)))
+                         for i in range(6)] + [(6.5 * math.cos(math.radians(15)), 6.5 * math.sin(math.radians(15)))])
+assert not ze.ist_sechskant([(0, 0), (10, 0), (10, 10), (0, 10)])
+assert not ze.ist_sechskant([(0, 0), (20, 0), (24, 5), (20, 10), (0, 10), (-4, 5)])     # gestreckt
+um = [[3.75 * k, -6.5] for k in (-1, 1)] + [[7.5, 0]] + [[3.75 * k, 6.5] for k in (1, -1)] + [[-7.5, 0]]
+technik = json.dumps(dict(quelle="STEP-Import", konturen=[
+    dict(art="Polygon", anzahl=2, punkte=sechs),                                   # Rohr-/Blech-Editor
+    dict(art="Sonderkontur", anzahl=1, laenge=45.03, huelle=15.01, umriss=um),     # STEP-Import mit Umriss
+    dict(art="Sonderkontur", anzahl=1, laenge=34.64, huelle=11.55),                # nur Länge und Hüllmaß
+    dict(art="Sonderkontur", anzahl=1, laenge=47.1, huelle=15.0),                  # rund: kein Sechskant
+    dict(art="Rechteck", anzahl=3, b=10, h=10, r=0)]))
+bild = json.dumps([dict(art="Senkung", d=8.4, D=12.4, anzahl=2, status="offen"),
+                   dict(art="Senkung", d=6.6, D=11, anzahl=1, status="abgelehnt")])
+assert ze.geometrie(dict(technik=technik, bohrbild=bild)) == (4, 2)
+assert ze.geometrie(dict(technik=json.dumps(dict(konturen=[dict(art="Senkung", d=8.4, D=12.4, anzahl=3)])))) == (0, 3)
+k_ = db.zeilen("zusatzarbeiten")
+p6 = dict(s.positionen[r1], technik=technik, bohrbild=bild, zusatz=None, arbeitsgaenge=None)
+vs = [v for v in ze.offen(p6, s.kopf, s.k, s.tabellen) if v["name"] == "Einnietmuttern setzen"]
+assert len(vs) == 1 and vs[0]["menge"] == 6 and vs[0]["herkunft"] == "Erkannt: Geometrie 4 Sechskantlöcher, 2 Senkungen", vs
+e = json.loads(ze.uebernehmen(p6, vs, s.tabellen))[-1]
+assert e["name"] == "Einnietmuttern setzen" and e["menge"] == 6 and e["stand"]["preis"] == 0.6, e
+z = next(z for z in rechnen.zusatz_werte(dict(p6, zusatz=json.dumps([e])), s.k, s.tabellen, s.kopf))
+assert abs(z["betrag"] - 3.6) < 1e-9, z
+assert not [v for v in ze.offen(dict(p6, technik=None, bohrbild=None), s.kopf, s.k, s.tabellen)
+            if v["name"] == "Einnietmuttern setzen"]
+assert not ze.offen(dict(p6, zusatz=json.dumps([e])), s.kopf, s.k, s.tabellen) or all(
+    v["name"] != "Einnietmuttern setzen" for v in ze.offen(dict(p6, zusatz=json.dumps([e])), s.kopf, s.k, s.tabellen))
+assert any(z["name"] == "Einnietmuttern setzen" and z.get("aktiv") == "ja" for z in k_)
+ok("E10 Einnietmuttern: Sechskantlöcher (Polygon, Umriss, Länge/Hüllmaß) und Senkungen ergeben einen Vorschlag mit "
+   "Menge = Anzahl je Teil (0,60 € je Mutter), abgelehnte Senkungen zählen nicht, Runde/Rechtecke nicht")
 print("OK: Zusatzarbeiten erkennen, wählen und neu anlegen")

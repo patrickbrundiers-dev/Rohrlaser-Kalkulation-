@@ -18,6 +18,7 @@ Wörter: Groß-/Kleinschreibung egal, das Wort muss am Wortanfang stehen („ver
 Galvanisch verzinken, nicht zusätzlich Feuerverzinken). Eine RAL-Farbe im selben Text wird als Text übernommen.
 """
 import json
+import math
 import re
 
 from .angebot import ist_baugruppe, ist_zukaufteil
@@ -115,6 +116,14 @@ def erkannt(p, katalog):
     for e in gemerkt(p):
         out.setdefault(e["name"], dict(name=e["name"], quelle=e.get("quelle") or "Anfrage", wort=e.get("wort"),
                                        text=e.get("text")))
+    niet = _niet_name(katalog)
+    if niet:
+        n6, ns = geometrie(p)
+        if n6 + ns:
+            e = out.setdefault(niet, dict(name=niet, quelle="Geometrie", wort=None, text=None))
+            e.update(menge=n6 + ns)
+            if e["quelle"] == "Geometrie":
+                e["wort"] = _geometrie_text(n6, ns)
     return list(out.values())
 
 
@@ -125,8 +134,120 @@ def _mit_farbe(name, katalog):
     return any(w in text for w in ("pulver", "beschicht", "lack", "ral"))
 
 
+# ------------------------------------------------------------------ Geometrie: Einnietmuttern (Patrick 03.11.2026)
+SECHSKANT_TOL = 0.15        # Seitenlängen höchstens ±15 % vom Mittel, Winkel 120° ± 12°
+
+
+def _ecken(pts):
+    """Eckpunkte eines geschlossenen Umrisses [(x, y)]: doppelte (< 0,3 mm) und gerade weiterlaufende Punkte weg."""
+    p = []
+    for x, y in pts:
+        if not p or math.hypot(x - p[-1][0], y - p[-1][1]) > 0.3:
+            p.append((float(x), float(y)))
+    if len(p) > 1 and math.hypot(p[0][0] - p[-1][0], p[0][1] - p[-1][1]) <= 0.3:
+        p.pop()
+    geaendert = True
+    while geaendert and len(p) >= 3:
+        geaendert = False
+        for i in range(len(p)):
+            a, b, c = p[i - 1], p[i], p[(i + 1) % len(p)]
+            w1, w2 = math.atan2(b[1] - a[1], b[0] - a[0]), math.atan2(c[1] - b[1], c[0] - b[0])
+            knick = abs((math.degrees(w2 - w1) + 180) % 360 - 180)
+            if knick < 20:
+                p.pop(i)
+                geaendert = True
+                break
+    return p
+
+
+def ist_sechskant(pts):
+    """Umriss ist ein (regelmäßiges) Sechseck: 6 Ecken, gleiche Seiten, Winkel 120° (Loch für Einnietmuttern)."""
+    e = _ecken(pts)
+    if len(e) != 6:
+        return False
+    seiten = [math.hypot(e[i][0] - e[i - 1][0], e[i][1] - e[i - 1][1]) for i in range(6)]
+    m = sum(seiten) / 6
+    if m <= 0 or any(abs(x - m) > SECHSKANT_TOL * m for x in seiten):
+        return False
+    for i in range(6):
+        a, b, c = e[i - 1], e[i], e[(i + 1) % 6]
+        w1, w2 = math.atan2(b[1] - a[1], b[0] - a[0]), math.atan2(c[1] - b[1], c[0] - b[0])
+        if abs(abs((math.degrees(w2 - w1) + 180) % 360 - 180) - 60) > 12:
+            return False
+    return True
+
+
+def _zahl(x):
+    try:
+        return float(str(x).replace(",", "."))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _kontur_sechskant(z):
+    """Konturzeile (Schneidweg-Rechner, Rohr- oder Blech-Editor, STEP-Import) ist ein Sechskantloch."""
+    from . import schneidweg as sw
+    art = z.get("art")
+    if art == sw.POLYGON:
+        try:
+            pk = z["punkte"] if isinstance(z.get("punkte"), list) else sw.punkte_roh(z.get("punkte"))
+        except (ValueError, KeyError):
+            return False
+        if any(len(q) > 2 and abs(_zahl(q[2])) > 1e-6 for q in pk):
+            return False                    # mit Bögen
+        return ist_sechskant([(_zahl(q[0]), _zahl(q[1])) for q in pk])
+    if art not in (sw.SONDERKONTUR, sw.SONSTIGE):
+        return False
+    um = z.get("umriss")
+    if isinstance(um, list) and len(um) >= 6:
+        try:
+            return ist_sechskant([(_zahl(q[0]), _zahl(q[1])) for q in um])
+        except (TypeError, IndexError):
+            return False
+    lg, h = _zahl(z.get("laenge") or z.get("gemessen")), _zahl(z.get("huelle") or z.get("huelle_gemessen"))
+    return h > 0 and abs(lg / h - 3.0) <= 0.04      # Umfang 6 s, Hüllmaß über Eck 2 s (Kreis 3,14, Achteck 3,06)
+
+
+def geometrie(p):
+    """(Sechskantlöcher, Senkungen) je Teil aus den Konturen der Position (positionen.technik) und dem Bohrbild
+    (Senkungen ohne abgelehnte); (0, 0) ohne Angaben."""
+    try:
+        t = json.loads(p.get("technik") or "{}")
+    except (TypeError, ValueError):
+        t = {}
+    konturen = [z for z in (t.get("konturen") if isinstance(t, dict) else None) or () if isinstance(z, dict)]
+    n6 = sum(max(int(_zahl(z.get("anzahl")) or 1), 1) for z in konturen if _kontur_sechskant(z))
+    try:
+        bb = json.loads(p.get("bohrbild") or "[]")
+    except (TypeError, ValueError):
+        bb = []
+    senk = [b for b in bb if isinstance(b, dict) and b.get("art") == "Senkung"] if isinstance(bb, list) else []
+    if senk:
+        ns = sum(int(_zahl(b.get("anzahl"))) for b in senk if b.get("status") != "abgelehnt")
+    else:
+        ns = sum(max(int(_zahl(z.get("anzahl")) or 1), 1) for z in konturen if z.get("art") == "Senkung")
+    return n6, ns
+
+
+def _niet_name(katalog):
+    """Aktive Zusatzarbeit für Einnietmuttern (Name oder Erkennungswort mit „nietmutter“) oder None."""
+    for z in katalog or ():
+        if z.get("aktiv") != "nein" and z.get("name") and "nietmutter" in (
+                str(z.get("name")) + " " + str(z.get("erkennung") or "")).lower().replace("-", ""):
+            return z["name"]
+    return None
+
+
+def _geometrie_text(n6, ns):
+    teile = ([f"{n6} Sechskantloch" if n6 == 1 else f"{n6} Sechskantlöcher"] if n6 else []) + \
+        ([f"{ns} Senkung" if ns == 1 else f"{ns} Senkungen"] if ns else [])
+    return ", ".join(teile)
+
+
 def herkunft(e):
-    """Text der Herkunft, z. B. „Erkannt: Bezeichnung „verzinkt““."""
+    """Text der Herkunft, z. B. „Erkannt: Bezeichnung „verzinkt““ oder „Erkannt: Geometrie 4 Sechskantlöcher“."""
+    if e.get("quelle") == "Geometrie":
+        return ERKANNT + "Geometrie " + str(e.get("wort") or "")
     return ERKANNT + str(e.get("quelle") or "") + (f" „{e['wort']}“" if e.get("wort") else "")
 
 
@@ -178,13 +299,16 @@ def offen(p, kopf, k, tabellen):
             out[e["name"]]["text"] = out[e["name"]]["text"] or e["text"]
         if e["name"] in weg or e["name"] in out or e["name"] not in aktive:
             continue
-        out[e["name"]] = dict(name=e["name"], herkunft=herkunft(e), text=e.get("text"), regel=None)
+        out[e["name"]] = dict(name=e["name"], herkunft=herkunft(e), text=e.get("text"), regel=None,
+                              menge=e.get("menge"))
     return list(out.values())
 
 
 def kurz(vorschlaege):
-    """Anzeige in der Spalte Zusatzarbeiten, z. B. „＋ Pulverbeschichten RAL 7016 ?“."""
-    return "; ".join(f"＋ {v['name']}" + (f" {v['text']}" if v.get("text") else "") + " ?" for v in vorschlaege)
+    """Anzeige in der Spalte Zusatzarbeiten, z. B. „＋ Pulverbeschichten RAL 7016 ?“, „＋ 4× Einnietmuttern setzen ?“."""
+    return "; ".join("＋ " + (f"{v['menge']:g}× " if isinstance(v.get("menge"), (int, float)) and v["menge"] != 1
+                             else "") + v["name"] + (f" {v['text']}" if v.get("text") else "") + " ?"
+                     for v in vorschlaege)
 
 
 def eintrag(v, katalog, tabellen, p=None, gewinde=()):
@@ -195,7 +319,7 @@ def eintrag(v, katalog, tabellen, p=None, gewinde=()):
     if kz is None:
         return None
     regel = next((r for r in tabellen.get("arbeitsgang_regeln") or () if r.get("name") == v.get("regel")), None)
-    menge = zr.regel_menge(regel, p or {}, gewinde) if regel else None
+    menge = zr.regel_menge(regel, p or {}, gewinde) if regel else v.get("menge")
     return dict(name=v["name"], menge=menge, preis=None, text=v.get("text"), quelle=v["herkunft"],
                 stand=rechnen.zusatz_stand(kz, rechnen.stundensaetze(tabellen)))
 
