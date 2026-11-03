@@ -28,8 +28,10 @@ NEUERUNGEN = [
      "<b>Machbarkeitsprüfung</b> als Ampel (tiefe Bohrung, schlankes Teil, dünne Wand, kleiner Innenradius, tiefe "
      "Tasche, Maschinengröße) und <b>Skizze</b> Rohling/Fertigteil im Dialog <i>Richtpreis Dreh-/Frästeil …</i>; "
      "Zeiten von Hand änderbar, Staffeln rechnen je Stufe neu; Werte unter Einstellungen → Dreh-/Frästeil-Richtpreis "
-     "([[drehfraes_richtpreis]]).",
-     "Richtpreis für Dreh-/Frästeile mit Arbeitsgängen, Machbarkeit und Skizze"],
+     "([[drehfraes_richtpreis]]). Neu <b>Fräsen nach Bearbeitung …</b> (Rechtsklick): Teil oder Schweißbaugruppe "
+     "danach planfräsen, bohren, Gewinde, reiben, Taschen; Preis je Stück als Zusatzarbeit, eigene Maschine oder "
+     "Lohnfertiger ([[fraesen_nach]]).",
+     "Richtpreis für Dreh-/Frästeile mit Arbeitsgängen, Machbarkeit und Skizze; Fräsen nach Bearbeitung"],
     ["0.9.237", "STEP-Import: <b>Dreh- und Frästeile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse, "
      "Block mit Tasche, ausgefräster Winkel) werden erkannt und <b>Zukaufteile</b> ohne EK statt gelaserter Rohre "
      "oder Profile, mit Kategorie Drehteile bzw. Frästeile; gleiche Teile aus früheren Anfragen nehmen den vorhandenen "

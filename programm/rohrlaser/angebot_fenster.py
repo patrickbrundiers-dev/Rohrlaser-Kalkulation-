@@ -1998,6 +1998,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen(), ""),
                 ("Blech-Editor …", lambda: self.blech_bearbeiten(), ""),
                 ("Richtpreis Dreh-/Frästeil …", lambda: self.drehfraes_bearbeiten(), ""),
+                ("Fräsen nach Bearbeitung …", lambda: self.fraesen_nach(), ""),
                 ("Baugruppe bearbeiten …", lambda: self.baugruppe_bearbeiten(self._markierte_zeilen()), ""),
                 ("Schweißnaht …", lambda: self.schweissnaht(), ""),
                 ("Zusatzarbeiten …", lambda: self.zusatzarbeiten(), ""),
@@ -3809,6 +3810,38 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.neu_laden()
         self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen "
                        f"({drehfraes_preis.HINWEIS}).")
+        return True
+
+    def fraesen_nach(self, zeile=None, dialog=None):
+        """Teil oder Baugruppe nach dem Lasern/Schweißen noch fräsen (Patrick 03.11.2026): Bearbeitungen eingeben,
+        Zeiten mit den Schnittwerten des Dreh-/Frästeil-Richtpreises; Übernehmen setzt die Zusatzarbeit „Fräsen nach
+        Bearbeitung“ (€/Stück) an der Position (ersetzt eine vorhandene). dialog(d) statt exec (Tests).
+        Ergebnis: True = übernommen."""
+        from . import fraesen_nach as fn
+        from .fraesen_nach_dialog import FraesenNachDialog
+        if self.fremd():
+            return False
+        if zeile is None:
+            zeile = self.pos_ansicht.currentIndex().row()
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            self.f.meldung("Bitte zuerst die Position markieren.", fehler=True)
+            return False
+        p = self.positionen[zeile]
+        e = fn.aus_position(p) or dict(werkstoff=p.get("werkstoff_id"), gewicht=p.get("gewicht_teil"),
+                                       laenge=p.get("laenge"), bearbeitungen=[dict(art=fn.PLAN, anzahl=1)])
+        e["stueck"] = p.get("stueck") or e.get("stueck") or 1
+        d = FraesenNachDialog(self, e, self.db.drehfraes_einstellungen(),
+                              titel=f"Pos. {p.get('pos') or ''} {p.get('bezeichnung') or p.get('artikel') or ''}",
+                              nur_lesen=self.db.nur_lesen)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("preis"):
+            return False
+        e = d.eingaben()
+        liste = [z for z in rechnen.zusatz_liste(p) if z.get("quelle") != fn.QUELLE]
+        liste.append(fn.eintrag(e, d.ergebnis))
+        self.db.position_aendern(p["id"], "zusatz", json.dumps(liste, ensure_ascii=False))
+        self.neu_laden()
+        self.f.meldung(f"Pos. {p.get('pos') or ''}: Fräsen nach Bearbeitung {rechnen.zahl(d.ergebnis['preis'], 2)} € "
+                       "je Stück als Zusatzarbeit eingetragen.")
         return True
 
     def _blech_uebernehmen(self, p, e, erg, lieferant, stueck):

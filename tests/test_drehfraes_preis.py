@@ -29,7 +29,7 @@ from OCP.IFSelect import IFSelect_RetDone  # noqa: E402
 from OCP.STEPControl import STEPControl_AsIs, STEPControl_Writer  # noqa: E402
 from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt  # noqa: E402
 
-from rohrlaser import drehfraes, drehfraes_preis as dp, staffeln, step, zukauf  # noqa: E402
+from rohrlaser import drehfraes, drehfraes_preis as dp, fraesen_nach as fn, rechnen, staffeln, step, zukauf  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 import step_messen  # noqa: E402
 
@@ -289,9 +289,55 @@ def _():
             d_["roh"] = d.ergebnis["rohling"]["text"]
             return QDialog.Rejected
         assert not s.drehfraes_bearbeiten(zeilen[1], dialog=ansehen) and d_["roh"].startswith("Flachstahl")
+        # Fräsen nach Bearbeitung an derselben Position (Schritt 4): Planfläche + 4 Gewinde, eigene Maschine
+        assert "Fräsen nach Bearbeitung …" in [x.text() for x in s.pos_menue.actions()]
+
+        def fraesen(d):
+            d.eingabe.item(0, 2).setText("200")
+            d.eingabe.item(0, 3).setText("100")
+            d.zeile_neu(dict(art=fn.GEWINDE, anzahl=4, d=6.8, t=15))
+            d_["preis"] = d.ergebnis["preis"]
+            d_["gaenge"] = [g["name"] for g in d.ergebnis["arbeitsgaenge"]]
+            return QDialog.Accepted
+        assert s.fraesen_nach(zeilen[1], dialog=fraesen), d_
+        assert d_["gaenge"][:2] == ["Planfläche", "Gewindebohrung (4×)"], d_
+        p = next(x for x in db.positionen(a) if x["id"] == s.positionen[zeilen[1]]["id"])
+        z = [x for x in rechnen.zusatz_liste(p) if x["name"] == fn.NAME]
+        assert len(z) == 1 and z[0]["preis"] == d_["preis"] and z[0]["fraesen"]["bearbeitungen"][1]["d"] == 6.8, z
+        werte = rechnen.zusatz_werte(p, s.k, s.tabellen, s.kopf)
+        w = next(x for x in werte if x["name"] == fn.NAME)
+        assert abs(w["betrag"] - d_["preis"]) < 1e-6 and not w["fremd"], w
+        # erneut öffnen: Eingaben vorbelegt, ersetzt statt doppelt
+        assert s.fraesen_nach(zeilen[1], dialog=lambda d: (d_.update(n=d.eingabe.rowCount()), QDialog.Accepted)[1])
+        p = next(x for x in db.positionen(a) if x["id"] == s.positionen[zeilen[1]]["id"])
+        assert d_["n"] == 2 and len([x for x in rechnen.zusatz_liste(p) if x["name"] == fn.NAME]) == 1
         fenster.close()
         app.processEvents()
         db.con.close()
+
+
+@fall("R7 Fräsen nach Bearbeitung: Planfläche, Bohrungen, Gewinde, Lohnfertiger mit Aufschlag, Machbarkeit")
+def _():
+    e = dict(werkstoff="S235JR", stueck=10, gewicht=40, laenge=600, breite=400, hoehe=300, aufspannungen=2,
+             bearbeitungen=[dict(art=fn.PLAN, anzahl=1, l=200, b=100, t=1), dict(art=fn.BOHRUNG, anzahl=4, d=9, t=20),
+                            dict(art=fn.GEWINDE, anzahl=4, d=6.8, t=15), dict(art=fn.REIBEN, anzahl=2, d=10, t=20),
+                            dict(art=fn.TASCHE, anzahl=1, l=50, b=20, t=5), dict(art=fn.SENKUNG, anzahl=4, d=11)])
+    eigen = fn.rechnen(e)
+    assert not eigen["fehler"] and eigen["preis"] > 0 and eigen["aufschlag"] == 0 and eigen["ampel"] == dp.GRUEN, eigen
+    assert any("(Kran)" in g["info"] for g in eigen["arbeitsgaenge"]), eigen["arbeitsgaenge"]
+    lohn = fn.rechnen(dict(e, fremd="ja"))
+    assert abs(lohn["preis"] - eigen["preis"] * 1.15) < 0.02 and lohn["fremd"]
+    eins = fn.rechnen(dict(e, stueck=1))
+    assert eins["preis"] > eigen["preis"] and eins["maschine"] == eigen["maschine"]
+    ed = fn.rechnen(dict(e, werkstoff="1.4301"))
+    assert ed["maschine"] > eigen["maschine"]
+    gross = fn.rechnen(dict(e, laenge=2500))
+    assert gross["ampel"] == dp.ROT and "Verfahrweg" in gross["machbarkeit"][0]["text"]
+    assert fn.rechnen(dict(e, bearbeitungen=[dict(art=fn.BOHRUNG, anzahl=1, d=5, t=80)]))["ampel"] == dp.ROT
+    assert fn.rechnen(dict(e, bearbeitungen=[dict(art=fn.BOHRUNG, anzahl=1)]))["fehler"]
+    assert fn.rechnen(dict(e, bearbeitungen=[]))["fehler"]
+    z = fn.eintrag(e, eigen)
+    assert z["stand"]["art"] == "€/Stück" and z["stand"]["fremd"] == "nein" and "4× Gewindebohrung 6,8 × 15" in z["text"]
 
 
 sys.exit(1 if fehler else 0)

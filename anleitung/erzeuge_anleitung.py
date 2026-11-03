@@ -2562,6 +2562,29 @@ def kapitel_step(i):
             "Funktionen</i> ausschalten; dann bleiben neue Dreh-/Frästeile ohne EK.",
             "Grenzen: ein Richtpreis ist eine Schätzung (etwa ±30 %), Toleranzen, Passungen und Härten sind nicht "
             "enthalten.")
+    i.abschnitt("Fräsen nach Bearbeitung", marke="fraesen_nach")
+    i.bild("fraesen_nach", "Fräsen nach Bearbeitung: Flansch planfräsen und 4 Gewinde an einer Schweißbaugruppe",
+           hoehe=105 * mm, legende=[
+               (1, "Werkstoff, Stückzahl, <b>Gewicht</b> (ab 25 kg Kran), Größe für den Verfahrweg, Aufspannungen, "
+                   "<b>Schweißteil ausrichten/antasten (+2 min je Aufspannung)</b> und <b>Lohnfertiger</b> ja/nein."),
+               (2, "<b>Bearbeitungen</b>: Planfläche (Länge × Breite, Aufmaß), Bohrung, Gewindebohrung "
+                   "(Kernloch-Ø, Tiefe), Passbohrung (Reiben), Senkung/Fase, Tasche/Nut, je mit Anzahl. "
+                   "<b>+ Bearbeitung</b> fügt eine Zeile an, <b>Bearbeitung entfernen</b> löscht die markierte."),
+               (3, "Ampel der Machbarkeit, Arbeitsgänge mit Zeiten und der Preis je Stück.")])
+    i.text("Wird ein Rohrlaserteil, Blech oder eine geschweißte Baugruppe danach noch gefräst (Flansch planfräsen, "
+           "Bohrungen, Gewinde, Passungen), rechnet <b>Rechtsklick → Fräsen nach Bearbeitung …</b> den Preis je "
+           "Stück und setzt ihn als Zusatzarbeit an die Position (seit 0.9.240).", kurz=True)
+    i.genauer()
+    i.liste("Das STEP zeigt nur das fertige Teil, deshalb werden die Bearbeitungen eingetragen. Die Zeiten rechnen "
+            "mit denselben Schnittwerten, Stundensätzen und Rüstzeiten wie der Richtpreis der Dreh- und Frästeile "
+            "([[drehfraes_richtpreis]]): Planfräsen nach Aufmaß und Bahnen, Bohren mit vc und Vorschub je Ø, "
+            "Gewindebohren hin und zurück, Reiben, Taschen nach Volumen und Fläche, dazu Aufspannen (mit Kran und "
+            "Ausrichten), Werkzeugwechsel und Entgraten. Rüsten und Programmieren verteilen sich auf die Stückzahl.",
+            "Ergebnis ist die Zusatzarbeit <b>Fräsen nach Bearbeitung</b> in €/Stück mit den Bearbeitungen als Text. "
+            "Eigene Maschine: Gewinn wie bei jeder Zusatzarbeit. <b>Beim Lohnfertiger</b>: mit Aufschlag des "
+            "Lieferanten und als Fremdleistung. Feste Preise je Gewinde unter <i>Zusätze €/Stück</i> eintragen.",
+            "Erneut öffnen zeigt die gespeicherten Eingaben; <b>Als Zusatzarbeit übernehmen</b> ersetzt den alten "
+            "Eintrag. Die Ampel meldet ein Teil größer als der Verfahrweg, tiefe Bohrungen und schwere Teile.")
     i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
     i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech mit einer offenen Seite</b>: "
            "U offen, C mit Längsschlitz, U mit nur einer Lasche oder eine <b>Halbschale</b> eines Rundrohrs. "

@@ -840,6 +840,19 @@ def main(ziel):
     foto.foto("drehfraes_richtpreis", d, [(d.stueck, 1), (d.skizze, 2), (d.befunde, 3), (d.tabelle, 4),
                                           (d.summe, 5)])
     d.close()
+    from rohrlaser import fraesen_nach
+    from rohrlaser.fraesen_nach_dialog import FraesenNachDialog
+    d = FraesenNachDialog(f, dict(werkstoff="S235JR", stueck=10, gewicht=38, laenge=800, breite=450, hoehe=300,
+                                  aufspannungen=1, bearbeitungen=[
+                                      dict(art=fraesen_nach.PLAN, anzahl=1, l=200, b=200, t=1),
+                                      dict(art=fraesen_nach.GEWINDE, anzahl=4, d=10.2, t=20),
+                                      dict(art=fraesen_nach.REIBEN, anzahl=2, d=12, t=20)]),
+                          db.drehfraes_einstellungen(), titel="Pos. 10 Grundrahmen geschweißt (Beispiel)")
+    d.resize(1100, 800)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("fraesen_nach", d, [(d.gewicht, 1), (d.eingabe, 2), (d.summe, 3)])
+    d.close()
     sz.optimieren()
     reiter_waehlen(sz, "Zukaufteile")
     bereit()

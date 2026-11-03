@@ -78,7 +78,7 @@ class DrehfraesSkizze(QWidget):
         z_min = min(float(a["z"]) - float(a["l"]) / 2 for a in aussen)
         versatz = (lr - float(self.d.get("laenge") or 0)) / 2
         warn = {x["gang"] for x in befunde}
-        teil = QColor("#4a78b5")
+        teil = QColor("#4a78b5")  # fest: Fertigteil blau, auf hell und dunkel sichtbar
         p.setPen(QPen(teil.darker(130), 1))
         p.setBrush(QBrush(teil))
         for a in aussen:
@@ -111,7 +111,7 @@ class DrehfraesSkizze(QWidget):
         lr, br, hr = float(roh["laenge"]), float(roh["breite"]), float(roh["hoehe"])
         la, lb, lc = (float(self.d.get(n) or 0) for n in ("laenge", "breite", "hoehe"))
         w = (self.width() - 60) / 2
-        teil = QColor("#4a78b5")
+        teil = QColor("#4a78b5")  # fest: Fertigteil blau, auf hell und dunkel sichtbar
         for i, (hoch, h_teil, titel) in enumerate(((br, lb, "Draufsicht"), (hr, lc, "Seitenansicht"))):
             s, x0, y0 = self._rahmen(lr, hoch, 20 + i * (w + 20), 30, w, self.height() - 75)
             p.setPen(QPen(text, 1, Qt.DashLine))
