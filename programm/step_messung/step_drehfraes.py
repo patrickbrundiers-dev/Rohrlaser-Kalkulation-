@@ -188,6 +188,11 @@ def drehteil(fl, t=None):
     if any(e["typ"] == "frei" for e in rest):
         zusatz.append("Gewinde/Freiform")
     nur_abmessung = False
+    if innen and len(aussen) == 1 and len(innen) == 1 and set(merkmale) <= {"Fase/Kegel", "Radius"}:
+        # Rohr mit Fase/Radius am Ende (z. B. entgratet, angefast) bleibt Rohrlaserteil, außer es ist eine Buchse
+        da, di = 2 * aussen[-1], 2 * innen[0]
+        if not ((da - di) / 2 >= BUCHSE_WAND * da and laenge <= GEDRUNGEN * da):
+            return None
     if not merkmale:
         # glatt: Rundstahl bleibt Vollmaterial; glattes Rohr nur als Buchse (kurz und dickwandig) verdächtig
         if not innen:

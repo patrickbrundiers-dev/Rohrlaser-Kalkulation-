@@ -27,7 +27,7 @@ DATEIEN = [HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step", HIER / "step_
 KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", "volumen_mm3", "oberflaeche_mm2",
                   "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "bauteiltyp", "profiltyp",
                   "profil_id_vorschlag", "blech", "normprofil", "kammern", "kontur_umfang", "verbund", "biegerohr", "knick_schenkel",
-                  "offene_seite", "geschlossen",
+                  "offene_seite", "geschlossen", "drehfraes",
                   "traeger",
                   "aussenmasse", "innenmasse", "querschnittsflaeche_mm2", "wandstaerke", "laenge", "laengsachse",
                   "schnittwinkel", "schneidweg", "konturen", "enden", "senkungen", "fliessloecher", "pruefstatus", "warnungen",
@@ -101,6 +101,9 @@ def _():
     d = NACH["I05_defekt.step"]
     assert d["importstatus"] == "nicht lesbar" and "nicht lesbar" in d["fehler"] and d["koerper"] == []
     (u,) = NACH["B08_Platte_mit_Tasche.step"]["koerper"]
+    # seit 1.26 Frästeil; die Profilmessung (offenes Sonderprofil) steht als Alternative im Ergebnis
+    assert u["profiltyp"] == "Frästeil" and u["drehfraes"]["merkmale"] == ["Absatz/Tasche"], u["drehfraes"]
+    u = u["alternative"]
     assert u["profiltyp"] == "offenes Sonderprofil" and u["innenmasse"] is None and u["konturen"] is None and \
         u["schneidweg"] is None, u
     assert u["erkennungssicherheit"]["konturen"] == "nicht ausgewertet"
