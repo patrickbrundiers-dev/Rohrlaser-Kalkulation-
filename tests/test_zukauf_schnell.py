@@ -74,7 +74,8 @@ f.show()
 seite = f.angebot_oeffnen(a)
 app.processEvents()
 assert [x.text() for x in seite.zukauf_knopf.menu().actions()] == ["Zukaufteile bearbeiten …", "Neuer Zukaufartikel …",
-                                                                     "EK eintragen …"]
+                                                                     "EK eintragen …",
+                                                                         "Bleche: Richtwerte, Angebotspreise, Tafelbelegung …"]
 
 
 def bedienen(d):
