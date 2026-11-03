@@ -568,6 +568,26 @@ BLECH_WERKSTOFFE = Tabelle(
     "Rohr-Werkstoffen. Preis je kg Tafelmaterial; die Kategorie wählt die Blechlaser-Richtwerte. K-Faktor = Lage der "
     "neutralen Faser (Anteil der Blechdicke von innen) für die Abwicklung von Kantteilen; leer = 0,33.")
 
+# Dreh-/Frästeil-Richtpreis (Patrick 03.11.2026 „eigene Werkstofftabelle wie bei Blechteilen“): Stangenmaterial je
+# Werkstoff mit Gruppe der Schnittwerte, Dichte, Preis und Zerspanbarkeit, getrennt von den Rohr-Werkstoffen
+DF_GRUPPEN = ("Stahl", "Vergütungsstahl", "Edelstahl", "Aluminium", "Messing", "Kunststoff")
+DREHFRAES_WERKSTOFFE = Tabelle(
+    "drehfraes_werkstoffe", "Dreh-/Fräs-Werkstoffe",
+    (Feld("drehfraes_werkstoff_id", "Dreh-/Fräs-Werkstoff", pflicht=True, breite=140),
+     Feld("gruppe", "Werkstoffgruppe (Schnittwerte)", "auswahl", auswahl="dfgruppe", pflicht=True, breite=120),
+     Feld("bezeichnung", "Bezeichnung / Norm", breite=220),
+     Feld("dichte", "Dichte [kg/dm³]", "zahl", 0.5, 25, stellen=2, pflicht=True),
+     Feld("preis_kg", "Stangenpreis [€/kg]", "zahl", 0.01, 1000, stellen=2, pflicht=True),
+     Feld("zerspanbarkeit", "Zerspanbarkeit [%]", "zahl", 10, 400, stellen=0),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("drehfraes_werkstoff_id",),
+    "Werkstoffe nur für den Richtpreis der Dreh- und Frästeile (Zukaufteile), getrennt von den Rohr- und "
+    "Blech-Werkstoffen. Preis je kg Stangen- bzw. Flachmaterial; die Werkstoffgruppe wählt die Schnittwerte "
+    "(Einstellungen → Dreh-/Frästeil-Richtpreis). Zerspanbarkeit in % der Gruppe (100 = wie die Gruppe, "
+    "Automatenstahl 150, schwer zerspanbar 70; leer = 100) verändert die Schnittgeschwindigkeiten. Der Werkstoff "
+    "eines Teils findet seine Zeile über den Namen (S235-10219 → S235JR, 1.4301, CW614N); sonst gilt die Gruppe "
+    "nach Erkennungsbegriff.")
+
 BLECHLASER = Tabelle(
     "blechlaser", "Blechlaser (Richtwerte)",
     (Feld("kategorie", "Kategorie", "auswahl", auswahl="kategorie", pflicht=True, breite=90),
@@ -857,6 +877,7 @@ POSITIONSVORLAGEN = Tabelle(
 
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
+            DREHFRAES_WERKSTOFFE,
             PRUEFREGELN, SCHWEISSVERFAHREN,
             SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN,
             ARBEITSGANG_REGELN, VERPACKUNG)
@@ -1616,7 +1637,7 @@ class Kontext:
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
-                         "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),
+                         "zeitart": list(ZEITARTEN), "dfgruppe": list(DF_GRUPPEN), "ruestbezug": list(RUESTBEZUG),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
@@ -1855,6 +1876,7 @@ def beispieldaten():
         "stundensaetze": beispiel_stundensaetze(),
         "arbeitsschritte": beispiel_arbeitsschritte(),
         "blech_werkstoffe": zeilen(BLECH_WERKSTOFFE, beispiel_blech_werkstoffe()),
+        "drehfraes_werkstoffe": zeilen(DREHFRAES_WERKSTOFFE, beispiel_drehfraes_werkstoffe()),
         "blechlaser": zeilen(BLECHLASER, beispiel_blechlaser()),
         "blech_kfaktoren": zeilen(BLECH_KFAKTOREN, beispiel_blech_kfaktoren()),
         "pruefregeln": zeilen(PRUEFREGELN, dfm.beispiel_regeln()),
@@ -1873,6 +1895,24 @@ def beispiel_arbeitsgang_regeln():
               bemerkung="Beispiel: Farbe je Position als Text ergänzen"),
             r("Entgraten bei Innenkonturen", "Entgraten", merkmal="Innenkonturen", aktiv="nein",
               bemerkung="Beispiel, aus: bei Bedarf aktivieren")] + strahl_regeln()
+
+
+def beispiel_drehfraes_werkstoffe():
+    """Dreh-/Fräs-Werkstoffe (Stangenpreise je kg und Zerspanbarkeit: Richtwerte 2026, bitte durch eigene ersetzen)."""
+    b = "Richtwert, bitte anpassen"
+    return [("S235JR", "Stahl", "S235JR EN 10025-2 Rund-/Flachstahl blank", 7.85, 1.60, 100, b),
+            ("S355J2", "Stahl", "S355J2 EN 10025-2", 7.85, 1.80, 95, b),
+            ("11SMnPb30", "Stahl", "1.0718 Automatenstahl", 7.85, 1.90, 150, b),
+            ("C45", "Vergütungsstahl", "1.0503 C45 / C45E", 7.85, 2.20, 100, b),
+            ("42CrMo4", "Vergütungsstahl", "1.7225 42CrMo4 vergütet", 7.85, 2.90, 85, b),
+            ("1.4301", "Edelstahl", "X5CrNi18-10 (V2A)", 7.90, 5.00, 100, b),
+            ("1.4305", "Edelstahl", "X8CrNiS18-9 Automaten-Edelstahl", 7.90, 5.40, 130, b),
+            ("1.4404", "Edelstahl", "X2CrNiMo17-12-2 (V4A)", 8.00, 6.20, 85, b),
+            ("EN AW-6082", "Aluminium", "AlMgSi1 / AlSi1MgMn T6", 2.70, 5.50, 100, b),
+            ("EN AW-7075", "Aluminium", "AlZn5,5MgCu T651", 2.81, 9.50, 110, b),
+            ("CW614N", "Messing", "CuZn39Pb3 Automatenmessing", 8.47, 9.00, 150, b),
+            ("POM", "Kunststoff", "POM-C natur", 1.41, 9.00, 100, b),
+            ("PA6", "Kunststoff", "PA6 natur", 1.14, 7.50, 100, b)]
 
 
 def beispiel_blech_werkstoffe():

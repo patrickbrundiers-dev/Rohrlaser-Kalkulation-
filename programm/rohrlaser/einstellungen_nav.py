@@ -21,6 +21,7 @@ GRUPPEN = (
     ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen", "e_lieferlaengen", "e_listen")),
     ("Maschinen", ("maschinen", "schneiddaten", "gewinde", "pruefregeln")),
     ("Blech", ("e_blech", "blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
+    ("Dreh- und Frästeile", ("e_drehfraes", "e_drehfraes_grenzen", "drehfraes_werkstoffe")),
     ("Schweißen und Konstruktion", ("e_schweissen", "e_knick_steck", "schweissverfahren", "schweiss_kennwerte",
                                     "schweiss_faktoren", "schweiss_regeln")),
     ("Kunden", ("kundenvorgaben",)),

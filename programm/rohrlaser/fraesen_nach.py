@@ -44,11 +44,12 @@ def rechnen(e, einst=None):
     erg = dict(arbeitsgaenge=[], minuten=0.0, maschine=0.0, ruesten=0.0, ruesten_auftrag=0.0, zusatz=0.0,
                aufschlag=0.0, preis=None, machbarkeit=[], ampel=dp.GRUEN, hinweise=[], fehler=[], gruppe=None,
                stueck=max(1.0, _z(e.get("stueck"), 1.0)))
-    sw = dp.gruppe(e.get("werkstoff"), dp.schnittwerte(w.get("df_schnittwerte")))
+    sw, zeile = dp.werkstoff_schnittwerte(e.get("werkstoff"), w)
     if sw is None:
         erg["fehler"].append("Schnittwerte fehlen")
         return erg
     erg["gruppe"] = sw["gruppe"]
+    erg["werkstoff_tabelle"] = zeile.get("drehfraes_werkstoff_id") if zeile else None
     liste = [b for b in e.get("bearbeitungen") or () if b.get("art") in ARTEN and _z(b.get("anzahl"), 1) > 0]
     if not liste:
         erg["fehler"].append("keine Bearbeitung eingetragen")

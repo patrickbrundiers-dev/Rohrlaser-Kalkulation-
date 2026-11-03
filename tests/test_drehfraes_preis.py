@@ -14,6 +14,9 @@ test_drehfraes.py, ohne echte STEP-Dateien):
 - R8 Teile wie auf Patricks Fotos (03.11. 18:02): Flansch mit Absatz und Lochkreis = Drehteil (Bohrungen axial),
   Ring mit Lasche = Dreh-Fräs-Teil (Rohling über die Lasche), gebohrter Messing-Verteilerblock = Frästeil (kein
   Quadratrohr), Quadratrohr mit Loch bleibt Rohr, glatte Scheibe mit Löchern kein Drehteil; Messing CW614N erkannt.
+- R9 Tabelle Dreh-/Fräs-Werkstoffe (Patrick 03.11. 18:34, wie Blech-Werkstoffe): Beispiele in neuer und
+  bestehender Datei, Zeile über den Namen (S235-10219 → S235JR, 1.4301 ≠ 1.4305), Dichte/€/kg/Zerspanbarkeit aus
+  der Tabelle, ohne Zeile Gruppe nach Name mit Hinweis; Fräsen nach Bearbeitung ebenso.
 
 Aufruf: python tests/test_drehfraes_preis.py   (ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -379,6 +382,44 @@ def _():
     scheibe = ohne(zyl(60, 8), zyl(30, 10, -1), *[zyl(4.5, 10, -1, 47.5 * math.cos(i * math.pi / 2),
                                                         47.5 * math.sin(i * math.pi / 2)) for i in range(4)])
     assert geo.analysiere(scheibe, datei="Scheibe").profilform != drehfraes.DREHTEIL
+
+
+
+@fall("R9 Tabelle Dreh-/Fräs-Werkstoffe: Beispiele, Zuordnung über den Namen, Dichte/€/kg/Zerspanbarkeit")
+def _():
+    pfad = Path(tempfile.mkdtemp()) / "rohrlaser.db"
+    db = Datenbank(pfad)
+    einst = db.drehfraes_einstellungen()
+    tab = einst["werkstoffe"]
+    assert {"S235JR", "1.4301", "1.4404", "CW614N", "EN AW-6082", "POM"} <= set(tab), sorted(tab)
+    assert dp.werkstoff_zeile("S235-10219", tab)["drehfraes_werkstoff_id"] == "S235JR"
+    assert dp.werkstoff_zeile("1.4301 2B", tab)["drehfraes_werkstoff_id"] == "1.4301"
+    assert dp.werkstoff_zeile("1.4307", tab) is None and dp.werkstoff_zeile("AlMgSi1", tab)["gruppe"] == "Aluminium"
+    d = dict(D["D01_Stufenwelle"])
+    v2a = dp.rechnen(dp.aus_step(d, "1.4301", 20), einst)
+    v4a = dp.rechnen(dp.aus_step(d, "1.4404", 20), einst)
+    assert v2a["werkstoff_tabelle"] == "1.4301" and v2a["eur_kg"] == 5.0 and v4a["eur_kg"] == 6.2, (v2a, v4a)
+    assert v4a["maschine"] > v2a["maschine"] and any("Zerspanbarkeit 85" in h for h in v4a["hinweise"])
+    assert "1.4404, Edelstahl" in dp.bericht(v4a)[0]
+    db.con.execute("UPDATE drehfraes_werkstoffe SET preis_kg=7 WHERE drehfraes_werkstoff_id='1.4301'")
+    db.con.commit()
+    assert dp.rechnen(dp.aus_step(d, "1.4301", 20), db.drehfraes_einstellungen())["eur_kg"] == 7.0
+    frei = dp.rechnen(dp.aus_step(d, "1.4307", 20), einst)
+    assert frei["gruppe"] == "Edelstahl" and not frei["werkstoff_tabelle"] and any(
+        "nicht in den Dreh-/Fräs-Werkstoffen" in h for h in frei["hinweise"]), frei["hinweise"]
+    ohne = dp.rechnen(dp.aus_step(d, "1.4404", 20), {k: v for k, v in einst.items() if k != "werkstoffe"})
+    assert ohne["eur_kg"] == 5.0 and not ohne["werkstoff_tabelle"]          # ohne Tabelle wie bisher
+    fr = fn.rechnen(dict(werkstoff="CW614N", stueck=10, bearbeitungen=[dict(art=fn.BOHRUNG, anzahl=4, d=8, t=20)]),
+                    einst)
+    assert fr["werkstoff_tabelle"] == "CW614N" and fr["gruppe"] == "Messing", fr
+    # bestehende Datei ohne Tabelle: beim Öffnen ergänzt
+    db.con.execute("DELETE FROM drehfraes_werkstoffe")
+    db.einstellung_setzen("drehfraes_stand", "2026-11-03")
+    db.con.commit()
+    db.con.close()
+    db = Datenbank(pfad)
+    assert db.anzahl("drehfraes_werkstoffe") >= 10
+    db.con.close()
 
 
 sys.exit(1 if fehler else 0)

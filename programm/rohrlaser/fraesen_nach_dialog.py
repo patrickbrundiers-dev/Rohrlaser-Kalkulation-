@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QTableWidgetItem, QVBoxLayout)
 
 from . import drehfraes_preis as dp, fraesen_nach as fn
-from .drehfraes_dialog import AMPEL_FARBE, _eur, _min
+from .drehfraes_dialog import AMPEL_FARBE, _eur, _min, werkstoff_liste
 
 EINGABE = ("Bearbeitung", "Anzahl", "Länge", "Breite", "Tiefe/Aufmaß", "Ø")
 FELD = {2: "l", 3: "b", 4: "t", 5: "d"}
@@ -35,6 +35,7 @@ class FraesenNachDialog(QDialog):
         lay.addWidget(kopf)
         form = QFormLayout()
         self.werkstoff = QLineEdit(self.e.get("werkstoff") or "")
+        werkstoff_liste(self.werkstoff, einst)
         self.stueck = QSpinBox()
         self.stueck.setRange(1, 1000000)
         self.stueck.setValue(int(float(self.e.get("stueck") or 1)))
@@ -185,4 +186,4 @@ class FraesenNachDialog(QDialog):
             f"{_min(erg['ruesten_min'])} min je Auftrag = {_eur(erg['ruesten_auftrag'])}, je Stück "
             f"{_eur(erg['ruesten'])}; Zusätze {_eur(erg['zusatz'])}"
             + (f"; Aufschlag Lohnfertiger {_eur(erg['aufschlag'])}" if erg.get("fremd") else "")
-            + f"<br><b>Fräsen nach Bearbeitung: {_eur(erg['preis'])} je Stück</b> ({erg['gruppe']})")
+            + f"<br><b>Fräsen nach Bearbeitung: {_eur(erg['preis'])} je Stück</b> ({dp._gruppe_text(erg)})")

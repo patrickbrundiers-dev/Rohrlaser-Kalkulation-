@@ -21,6 +21,19 @@ def _min(x):
     return f"{x:.2f}".replace(".", ",")
 
 
+def werkstoff_liste(feld, einst):
+    """Vorschläge aus der Tabelle Dreh-/Fräs-Werkstoffe im Werkstoff-Feld (freier Text bleibt möglich)."""
+    from PySide6.QtWidgets import QCompleter
+    ids = sorted((einst or {}).get("werkstoffe") or ())
+    if ids:
+        c = QCompleter(ids, feld)
+        c.setCaseSensitivity(Qt.CaseInsensitive)
+        c.setFilterMode(Qt.MatchContains)
+        feld.setCompleter(c)
+        feld.setToolTip("Werkstoff aus der Tabelle Dreh-/Fräs-Werkstoffe (Einstellungen → Dreh- und Frästeile) oder "
+                        "frei; ohne Zeile gilt die Werkstoffgruppe nach Name")
+
+
 class DrehfraesSkizze(QWidget):
     """Rohling (gestrichelt) und Fertigteil übereinander: Drehteil im Längsschnitt (Absätze außen, Bohrung innen),
     Frästeil in Draufsicht und Seitenansicht mit Taschentiefe; Ampel der Machbarkeit oben links, Befunde farbig."""
@@ -167,6 +180,7 @@ class DrehfraesDialog(QDialog):
         self.stueck.setValue(int(float(self.e.get("stueck") or 1)))
         self.werkstoff = QLineEdit(self.e.get("werkstoff") or "")
         self.werkstoff.setPlaceholderText("leer = Stahl")
+        werkstoff_liste(self.werkstoff, einst)
         self.rohling = QComboBox()
         self.rohling.addItems(dp.ROHLINGE)
         self.rohling.setCurrentText(self.e.get("rohling") or dp.ROHLING_VOLL)
@@ -291,7 +305,7 @@ class DrehfraesDialog(QDialog):
             return
         roh = erg["rohling"]
         zeilen = [f"Rohling {roh['text']}, {roh['gewicht']:.2f} kg".replace(".", ",")
-                  + f" × {_eur(erg['eur_kg'])}/kg ({erg['gruppe']}) + Zuschlag = {_eur(erg['material'])}",
+                  + f" × {_eur(erg['eur_kg'])}/kg ({dp._gruppe_text(erg)}) + Zuschlag = {_eur(erg['material'])}",
                   f"Bearbeitung {_min(erg['zeit_stueck'])} min je Stück = {_eur(erg['maschine'])}; Rüsten und "
                   f"Programmieren {_min(erg['ruesten_min'])} min je Auftrag = {_eur(erg['ruesten_auftrag'])}, "
                   f"je Stück {_eur(erg['ruesten'])}",

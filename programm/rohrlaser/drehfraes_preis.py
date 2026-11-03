@@ -470,12 +470,65 @@ def _fraesen(d, sw, w, gaenge, hinweise):
                 aufspannungen=aufsp, zweiter=None)
 
 
+def _norm(x):
+    return re.sub(r"[^0-9a-z]", "", str(x or "").lower())
+
+
+def werkstoff_zeile(name, werkstoffe):
+    """Zeile der Tabelle Dreh-/Fräs-Werkstoffe zum Werkstoffnamen oder None: gleicher Name, sonst gleiche
+    Bezeichnung, sonst der längste gemeinsame Anfang ab 4 Zeichen (S235-10219 → S235JR, 1.4301 2B → 1.4301)."""
+    n = _norm(name)
+    if not n or not werkstoffe:
+        return None
+    zeilen = list(werkstoffe.values()) if isinstance(werkstoffe, dict) else list(werkstoffe)
+    for z in zeilen:
+        if _norm(z.get("drehfraes_werkstoff_id")) == n or _norm(z.get("bezeichnung")) == n:
+            return z
+    best, laenge = None, 0
+    for z in zeilen:
+        for k in (_norm(z.get("drehfraes_werkstoff_id")), _norm(z.get("bezeichnung"))):
+            i = 0
+            while i < min(len(k), len(n)) and k[i] == n[i]:
+                i += 1
+            ganz = i == len(k) and i >= 3                   # ganze ID am Anfang (C45 in C45E, 1.4301 in 1.4301 2B)
+            zahl_offen = k[i:i + 1].isdigit() and n[i:i + 1].isdigit()     # 1.4301 ≠ 1.4305
+            if i > laenge and (ganz or (i >= 4 and not zahl_offen)):
+                best, laenge = z, i
+    return best
+
+
+ZERSPAN_SPALTEN = ("dreh_vc", "schlicht_vc", "fraes_vc", "bohr_vc")
+
+
+def werkstoff_schnittwerte(werkstoff, w):
+    """Schnittwerte zum Werkstoff (dict wie eine Zeile der Schnittwerte) und die Zeile der Tabelle Dreh-/Fräs-
+    Werkstoffe (oder None): aus der Tabelle Gruppe, Dichte, €/kg und Zerspanbarkeit (vc × %/100), sonst die
+    Gruppe nach Erkennungsbegriff. w = einstellungen(…)."""
+    tab = schnittwerte(w.get("df_schnittwerte"))
+    zeile = werkstoff_zeile(werkstoff, w.get("werkstoffe"))
+    sw = gruppe(werkstoff, tab)
+    if zeile is None or sw is None:
+        return sw, None
+    sw = dict(next((z for z in tab if z["gruppe"] == zeile.get("gruppe")), sw))
+    if _z(zeile.get("dichte")) > 0:
+        sw["dichte"] = _z(zeile.get("dichte"))
+    if _z(zeile.get("preis_kg")) > 0:
+        sw["eur_kg"] = _z(zeile.get("preis_kg"))
+    f = _z(zeile.get("zerspanbarkeit"), 100.0) / 100 or 1.0
+    for n in ZERSPAN_SPALTEN:
+        sw[n] = sw[n] * f
+    return sw, zeile
+
+
 def einstellungen(werte=None):
-    """Einstellungen mit Vorgaben ergänzt (Zahlen als float)."""
+    """Einstellungen mit Vorgaben ergänzt (Zahlen als float); 'werkstoffe' = Tabelle Dreh-/Fräs-Werkstoffe
+    {ID: Zeile} (datenbank.drehfraes_einstellungen) bleibt erhalten."""
     w = dict(EINSTELLUNGEN)
     for n, v in (werte or {}).items():
         if n in EINSTELLUNGEN and v is not None and v != "":
             w[n] = v
+    if isinstance((werte or {}).get("werkstoffe"), (dict, list)):
+        w["werkstoffe"] = werte["werkstoffe"]
     for n, v in EINSTELLUNGEN.items():
         if isinstance(v, float):
             w[n] = _z(w[n], v)
@@ -496,12 +549,18 @@ def rechnen(e, einst=None):
     if art not in drehfraes.ARTEN:
         erg["fehler"].append("kein Dreh- oder Frästeil")
         return erg
-    tab = schnittwerte(w.get("df_schnittwerte"))
-    sw = gruppe(e.get("werkstoff"), tab)
+    sw, zeile = werkstoff_schnittwerte(e.get("werkstoff"), w)
     if sw is None:
         erg["fehler"].append("Schnittwerte fehlen (Einstellungen → Dreh-/Frästeil-Richtpreis)")
         return erg
     erg["gruppe"] = sw["gruppe"]
+    erg["werkstoff_tabelle"] = zeile.get("drehfraes_werkstoff_id") if zeile else None
+    if zeile and abs(_z(zeile.get("zerspanbarkeit"), 100.0) - 100) > 0.5:
+        erg["hinweise"].append(f"Zerspanbarkeit {_fmm(_z(zeile.get('zerspanbarkeit')))} % "
+                               f"({zeile.get('drehfraes_werkstoff_id')})")
+    elif e.get("werkstoff") and w.get("werkstoffe") and not zeile:
+        erg["hinweise"].append(f"{e.get('werkstoff')} nicht in den Dreh-/Fräs-Werkstoffen: Vorgabe der Gruppe "
+                               f"{sw['gruppe']}")
     if not e.get("werkstoff"):
         erg["hinweise"].append(f"Werkstoff offen: als {sw['gruppe']} gerechnet")
     if art == drehfraes.DREHTEIL and (_z(d.get("durchmesser")) <= 0 or _z(d.get("laenge")) <= 0):
@@ -612,12 +671,17 @@ def speichern(e):
     return json.dumps(dict(e, quelle=QUELLE), ensure_ascii=False)
 
 
+def _gruppe_text(erg):
+    t = erg.get("werkstoff_tabelle")
+    return f"{t}, {erg['gruppe']}" if t else str(erg.get("gruppe"))
+
+
 def bericht(erg):
     """Aufschlüsselung als Textzeilen (Preis-Aufbau, Kalkulations-PDF, Tests)."""
     if erg.get("fehler"):
         return ["Kein Richtpreis: " + "; ".join(erg["fehler"])]
     z = [f"Rohling: {erg['rohling']['text']}, {_fmm(erg['rohling']['gewicht'])} kg × {erg['eur_kg']:.2f} €/kg "
-         f"({erg['gruppe']})".replace(".", ",", 1)]
+         f"({_gruppe_text(erg)})".replace(".", ",", 1)]
     for g in erg["arbeitsgaenge"]:
         z.append(f"{g['name']}: {g['minuten']:.2f} min {g['verfahren']}".replace(".", ",")
                  + (" (von Hand)" if g.get("hand") else ""))

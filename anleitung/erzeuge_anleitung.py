@@ -7839,6 +7839,31 @@ def kapitel_stammdaten(i):
               "Richtwerte. Angebote mit festgeschriebenen Preisen rechnen mit ihren Schneiddaten weiter "
               "([[preise_festschreiben]]). Rückgängig machen: <i>Sicherung wiederherstellen …</i> mit der Sicherung "
               "<i>vor Schneiddaten-Standard</i> ([[datensicherung]]).")
+    i.abschnitt("Dreh-/Fräs-Werkstoffe", marke="drehfraes_werkstoffe")
+    i.text("Der Unterreiter <i>Dreh-/Fräs-Werkstoffe</i> (Einstellungen → Dreh- und Frästeile) gehört nur zum "
+           "Richtpreis der Dreh- und Frästeile ([[drehfraes_richtpreis]]) und zu <i>Fräsen nach Bearbeitung</i> "
+           "([[fraesen_nach]]), getrennt von den Rohr- und Blech-Werkstoffen (seit 0.9.240).", kurz=True)
+    i.bild("stamm_drehfraes_werkstoffe", "Einstellungen, Dreh-/Fräs-Werkstoffe mit Gruppe, Stangenpreis und "
+           "Zerspanbarkeit", hoehe=80 * mm)
+    i.genauer("Felder")
+    i.tabelle(["Dreh-/Fräs-Werkstoffe", "Bedeutung"], [
+        ["<b>Dreh-/Fräs-Werkstoff</b>, Bezeichnung / Norm", "Name (z. B. S235JR, C45, 1.4404, EN AW-6082, CW614N, "
+                                                           "POM) und Beschreibung; Vorschlag im Werkstoff-Feld der "
+                                                           "Dialoge"],
+        ["<b>Werkstoffgruppe (Schnittwerte)</b>", "Stahl, Vergütungsstahl, Edelstahl, Aluminium, Messing oder "
+                                                  "Kunststoff; wählt die Zeile der Schnittwerte"],
+        ["<b>Dichte [kg/dm³]</b>, <b>Stangenpreis [€/kg]</b>", "für Gewicht und Preis des Rohlings (statt der "
+                                                               "Werte der Gruppe)"],
+        ["Zerspanbarkeit [%]", "100 = wie die Gruppe; Automatenstahl/-messing 150, V4A 85, schwer zerspanbar 70: "
+                               "die Schnittgeschwindigkeiten (Drehen, Schlichten, Fräsen, Bohren) mal % ÷ 100; leer "
+                               "= 100"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Welche Zeile gilt, sucht das Programm über den Namen des Werkstoffs am Teil: gleicher Name oder gleiche "
+           "Bezeichnung, sonst der längste gleiche Anfang (S235-10219 → S235JR, C45E → C45, 1.4301 2B → 1.4301, aber "
+           "1.4305 nie 1.4301). Ohne passende Zeile gilt die Werkstoffgruppe nach Erkennungsbegriff mit ihren "
+           "Werten, die Arbeitsgänge zeigen dann den Hinweis <i>nicht in den Dreh-/Fräs-Werkstoffen</i>. Vorbelegt "
+           "sind 13 Werkstoffe mit Richtpreisen 2026, bitte an die Preise des Lieferanten anpassen; ältere "
+           "Datendateien bekommen sie beim ersten Start.")
     i.abschnitt("Blech-Werkstoffe und Blechlaser (Richtwerte)", marke="blech_stammdaten")
     i.text("Die Unterreiter <i>Blech-Werkstoffe</i>, <i>Blechlaser (Richtwerte)</i> und <i>K-Faktoren "
            "(Abwicklung)</i> gehören nur zum "
