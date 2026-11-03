@@ -3210,7 +3210,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
         t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]
         t.sicherheit.update(profil="sicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
-        # laengsseiten_gerade bleibt (ab 0.9.244): das Programm bietet Flachstahl nur an, wenn die Größe passt
+        # laengsseiten_gerade bleibt (ab 0.9.245): das Programm bietet Flachstahl nur an, wenn die Größe passt
     else:
         # Außenmaße im System der Hauptfläche: Grundriss = kleinstes umschreibendes Rechteck, Höhe = senkrecht dazu
         ax0 = gp_Ax3(fl["mitte"], fl["richtung"])
