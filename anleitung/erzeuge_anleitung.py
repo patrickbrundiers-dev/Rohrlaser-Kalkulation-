@@ -2447,7 +2447,12 @@ def kapitel_step(i):
             "<b>Länge und Breite</b> = kleinstes Rechteck, das die Außenkontur umschließt. Die Kontur heißt "
             "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen die Innenkonturen mit Art "
             "(Bohrung, Langloch, Rechteck, sonst Polygon), Maßen und <b>Lage</b> (Mitte x längs ab der linken, y "
-            "quer ab der unteren Kante des Zuschnitts) und bei freier Kontur ihre Eckpunkte.",
+            "quer ab der unteren Kante des Zuschnitts) und bei freier Kontur ihre Eckpunkte. Seit 0.9.238 wird jede "
+            "Innenkontur gegen die STEP geprüft: ein Rechteck mit gerundeten Ecken bekommt seinen Eckradius, ein "
+            "Rechteck mit Fasen oder zwei überlappende Bohrungen werden ein <i>Polygon</i> (auf 0,02 mm genau), die "
+            "Lage steht auf 0,01 mm. Eine Kontur, deren Form nicht erkannt wird, bleibt mit ihrer Schnittlänge als "
+            "eigene Zeile erhalten. Liegt eine Kontur mehr als 0,1 mm neben der STEP, bekommt die Position den "
+            "Hinweis <i>Blech-Gegenprobe: …</i>.",
             "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
             "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech). "
             "Flachstahl ist in der Spalte <b>Art</b> bei jedem flachen Teil wählbar und wird dann wie ein Rohr "
@@ -3285,6 +3290,11 @@ def kapitel_optimieren(i):
             "C-Profil, das so in den Stammdaten steht, bleibt auch mit Ausklinkung Profil (vorher Kantteil). "
             "Ein Rechteck mit gerundeten Ecken wird seit 0.9.233 eine Zeile <i>Rechteck</i> mit Eckradius (aus der "
             "Schnittlänge), wenn es damit auf 0,05 mm passt, und bleibt so mit Maßen änderbar.",
+            "<b>Jede Kontur wie in der STEP</b> (seit 0.9.238): Jede Grundform wird gegen den gemessenen Umriss "
+            "geprüft und wird sonst eine <i>Sonderkontur</i> mit dem Umriss der STEP. So kommen zwei überlappende "
+            "Bohrungen gleichen Ø (Doppelbohrung, lag als eine Bohrung bis 3 mm daneben), eine Bohrung auf der "
+            "Rundung eines Quadrat-/Rechteckrohrs (Text <i>Bohrung Ø … auf der Rundung: Umriss wie STEP</i>) und "
+            "bei Flachstahl und Winkeln z. B. ein Sechskant (wurde Langloch) genau wie gezeichnet in den Editor.",
             "<b>Weitere Fälle wie in der STEP</b> (seit 0.9.210): Quadrat-/Rechteckrohr mit Gehrung an beiden Enden "
             "und Fenster (lag 3 mm daneben), Schlitz, der über den Eckradius ins Ende läuft (0,5 mm), und Winkel "
             "bzw. U-Profil mit Ausklinkung am Ende (das freie Schenkelende stand schräg bis auf die Tiefe der "
