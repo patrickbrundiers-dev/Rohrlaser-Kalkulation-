@@ -453,7 +453,8 @@ class VorschlaegeMixin:
             zeilen.append([e["profil_id"], e["werkstoff_id"], e["lieferant"], zahl(e["preis"], 2), e["basis"],
                            zahl(z["je_m"], 2) if z["je_m"] is not None else "", e.get("lieferzeit") or "",
                            e.get("gueltig_bis") or "", la.bewertung_text(bew.get(e["lieferant"])),
-                           "übernommen" + (f", bestellt {e['bestellt']}" if e.get("bestellt") else "")
+                           "übernommen" + (f", bestellt {e['bestellt'][8:10]}.{e['bestellt'][5:7]}.{e['bestellt'][:4]}"
+                                           if e.get("bestellt") else "")
                            if e.get("gewaehlt") else ("eingelesen – prüfen" if e.get("eingelesen") else ""),
                            e.get("eingang") or ""])
             if e.get("eingelesen") and not e.get("gewaehlt"):     # aus Mail/PDF gelesen (7a): erst prüfen

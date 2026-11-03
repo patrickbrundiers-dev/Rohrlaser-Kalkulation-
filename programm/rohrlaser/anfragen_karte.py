@@ -103,7 +103,7 @@ class AnfragenKarte:
             return
         markiert = {a.schluessel for a in self.markierte()}
         auto_zeilen, verschoben = self._ohne_step(dateien, angebote, kunden)
-        if verschoben:          # Nachträge liegen jetzt im Angebotsordner: nicht mehr als „ohne STEP“ melden
+        if verschoben:          # Nachträge (Angebotsordner), Bestellungen, Wiederholanfragen: nicht als „ohne STEP“
             ohne = [t for t in ohne if not any(t.startswith(n) for n in verschoben)]
         self._zuweisen_auto(neu, kunden)
         neu = self._ampel_sortieren(neu)
@@ -290,11 +290,13 @@ class AnfragenKarte:
             if info["art"] == "nachtrag":
                 verschoben.append(d.name)
             elif info["art"] == "bestellung":
+                verschoben.append(d.name)       # eigene Zeile statt „Ohne STEP“
                 a = info["erkannt"]["angebot"]
                 self._links[f"best:{len(self._links)}"] = lambda d=d, i=info: self.bestellung_pruefen(d, i)
                 zeilen.append(f"<b>Bestellung</b> zu Angebot <b>{a.get('nummer')}</b> ({a.get('kunde') or ''}): "
                               f"{d.name} – <a href='{list(self._links)[-1]}'>Bestellung prüfen …</a>")
             elif info["art"] == "wiederholung":
+                verschoben.append(d.name)
                 n = len(info["treffer"])
                 self._links[f"wdh:{len(self._links)}"] = lambda d=d, i=info: self.wiederholanfrage(d, i)
                 zeilen.append(f"<b>Wiederholanfrage</b> von {anfragen.kunde_text(kunden, info['kundennr'])}: "
