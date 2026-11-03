@@ -16,6 +16,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import ausgabe, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
+from rohrlaser.stammdaten import ROHRLASER_ZUSATZ  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 
@@ -28,7 +29,8 @@ db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert [z["name"] for z in db.zeilen("zusatzarbeiten")] == ["Feuerverzinken", "Galvanisch verzinken", "Pulverbeschichten",
                                                              "Entgraten", "Gravur extra", "Senken", "Flowdrill",
                                                              "Bohren", "Schweißen", "Biegen", "Knicken", "Sägen",
-                                                             "Stege abtrennen", "Strahlen", "Einnietmuttern setzen"]
+                                                             "Stege abtrennen", "Strahlen", "Einnietmuttern setzen"] \
+    + [z[0] for z in ROHRLASER_ZUSATZ]
 a = db.angebot_neu(dict(kunde="Test", skonto=0))
 p1 = db.position_neu(a, dict(pos=10, artikel="A", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,
                              stueck=10, schneidweg=300, einstiche=2))
@@ -149,7 +151,7 @@ con.execute("PRAGMA user_version=4")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 15 and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert d.anzahl("zusatzarbeiten") == 15 + len(ROHRLASER_ZUSATZ) and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 d.schliessen()
 
 # 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt;

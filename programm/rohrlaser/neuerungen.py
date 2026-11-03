@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.243", "<b>Weitere Zusatzarbeiten rund um den Rohrlaser</b> ([[zusatz_rohrlaser]]) fest in der Auswahl, mit "
+     "Beispielpreis und Erkennungswörtern: Innengrat entfernen, Schweißfase anfasen, Schlacke/Spritzer innen "
+     "entfernen, <b>Trennmittel innen</b> gegen Spritzer, Richten, <b>Drehen/Fräsen</b>, <b>Brünieren</b>, "
+     "Ölen/Konservieren, Grundieren, Endkappen/Stopfen einsetzen, Einpressmuttern setzen, Etikettieren/Beschriften, "
+     "Erstmusterprüfbericht und Prüfbericht 3.1. Bestehende Dateien bekommen sie einmalig dazu.",
+     "14 weitere Zusatzarbeiten (u. a. Brünieren, Trennmittel innen, Drehen/Fräsen)"],
     ["0.9.242", "<b>Zusatzarbeit für ganzen Satz</b> ([[zusatz_satz]]): Rechtsklick auf eine Position eines Satzes → "
      "<i>Zusatzarbeit für ganzen Satz …</i> belegt alle Positionen des Satzes auf einmal, z. B. mit Pulverbeschichten "
      "oder Verzinken. Das Fenster und der Tooltip der Spalte Satz zeigen <b>Fläche (m²) und Gewicht (kg) je Satz</b> "

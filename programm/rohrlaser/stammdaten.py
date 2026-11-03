@@ -2188,7 +2188,7 @@ def beispiel_zusatzarbeiten():
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     zeilen = [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
         + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten() \
-        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten() + niet_zusatzarbeiten()
+        + saege_zusatzarbeiten() + stege_zusatzarbeiten() + strahl_zusatzarbeiten() + niet_zusatzarbeiten() + rohrlaser_zusatzarbeiten()
     for z in zeilen:
         z["erkennung"] = z.get("erkennung") or ERKENNUNG_VORGABE.get(z["name"])
     return zeilen
@@ -2213,15 +2213,10 @@ ZUSATZ_VORLAGEN = (
      "gebeizt; beizen; passiviert; passivieren"),
     ("Glasperlstrahlen", "€/m²", 9.00, "ja", "Oberfläche", "glasperlgestrahlt", "glasperl; glasperlgestrahlt"),
     ("Schleifen / Bürsten", "€/m²", 12.00, "nein", "Oberfläche", "geschliffen", "geschliffen; gebürstet; K240; K320"),
-    ("Richten", "€/Stück", 2.50, "nein", "Nachbearbeitung", "gerichtet", "gerichtet; richten"),
-    ("Einpressmuttern setzen", "€/Stück", 0.45, "nein", "Montage", "mit Einpressmuttern",
-     "einpressmutter; einpressmuttern; PEM"),
     ("Nieten", "€/Stück", 0.35, "nein", "Montage", "genietet", "genietet; blindniet; popniet"),
     ("Gewindeformen", "€/Stück", 0.60, "nein", "Nachbearbeitung", "Gewinde geformt", "gewindeformen; geformt"),
     ("Reinigen / Entfetten", "€/kg", 0.30, "nein", "Oberfläche", "gereinigt und entfettet",
      "entfettet; gereinigt; ölfrei"),
-    ("Prüfbericht 3.1", "€/Angebot", 35.00, "nein", "Prüfung", "mit Prüfbericht 3.1",
-     "3.1; abnahmeprüfzeugnis; prüfbericht"),
     ("Sonderverpackung", "€/Angebot", 45.00, "nein", "Verpackung", "Sonderverpackung", "seemäßig; sonderverpackung"),
 )
 
@@ -2303,6 +2298,50 @@ def niet_zusatzarbeiten():
                  bemerkung="Beispielpreis je Mutter; Menge = Muttern je Teil. Vorschlag bei Sechskantlöchern und "
                            "Senkungen", erkennung="einnietmutter; einnietmuttern; nietmutter; blindnietmutter; "
                                               "rivkle; Nietmuttern")]
+
+
+# Weitere Zusatzarbeiten rund um den Rohrlaser (Patrick 03.11.2026 „Alle Empfehlungen“ + Brünieren, Trennmittel,
+# Drehen/Fräsen): fest in der Auswahl, Beispielpreise, bitte anpassen. Richten, Einpressmuttern und Prüfbericht 3.1
+# waren bis 0.9.242 nur Vorlagen.
+# (Name, Abrechnung, Beispielpreis, Mindest, Fremdleistung, Kategorie, Angebotstext, Bemerkung, Erkennungswörter)
+ROHRLASER_ZUSATZ = (
+    ("Innengrat entfernen", "€/Stück", 0.60, None, "nein", "Nachbearbeitung", "innen entgratet",
+     "Beispielpreis je Teil; Innengrat/Schweißnaht im Rohr entfernen", "innen entgratet; Innengrat; innengratfrei"),
+    ("Schweißfase anfasen", "€/Stück", 0.80, None, "nein", "Nachbearbeitung", "mit Schweißfase",
+     "Beispielpreis je Ende; Menge = angefaste Enden je Teil", "angefast; Schweißfase; Schweißfasen; Fase für Naht"),
+    ("Schlacke/Spritzer innen entfernen", "€/Stück", 0.30, None, "nein", "Nachbearbeitung", "innen spritzerfrei",
+     "Beispielpreis je Teil; Schlacke und Spritzer an der Innenwand entfernen", "spritzerfrei; schlackefrei"),
+    ("Trennmittel innen", "€/Stück", 0.20, None, "nein", "Laser", "mit Trennmittel gegen Spritzer im Rohr",
+     "Beispielpreis je Teil; Trennmittel vor dem Lasern ins Rohr, damit Spritzer nicht an der Gegenwand haften",
+     "Trennmittel; Antispritz; Anti-Spritz; Spritzschutz"),
+    ("Richten", "€/Stück", 2.50, None, "nein", "Nachbearbeitung", "gerichtet", "Beispielpreis je Teil",
+     "gerichtet; richten"),
+    ("Drehen/Fräsen", "€/Stück", 5.00, None, "ja", "Nachbearbeitung", "gedreht/gefräst",
+     "Beispielpreis je Teil; Preis laut Angebot der Dreherei/Fräserei eintragen", "gedreht; gefräst; drehen; fräsen"),
+    ("Brünieren", "€/kg", 1.50, 60.0, "ja", "Oberfläche", "brüniert",
+     "Beispielpreis; Mindestbetrag des Brünierers", "brüniert; brünieren; schwarz brüniert; schwarzoxidiert"),
+    ("Ölen/Konservieren", "€/m²", 0.80, None, "nein", "Oberfläche", "geölt",
+     "Beispielpreis; Korrosionsschutzöl auf blanken Teilen", "geölt; eingeölt; konserviert; Korrosionsschutzöl"),
+    ("Grundieren", "€/m²", 6.00, 60.0, "ja", "Oberfläche", "grundiert", "Beispielpreis",
+     "grundiert; Grundierung; Primer; Grundanstrich"),
+    ("Endkappen/Stopfen einsetzen", "€/Stück", 0.25, None, "nein", "Montage", "mit Endkappen",
+     "Beispielpreis je Kappe ohne Material; Menge = Kappen je Teil", "Endkappe; Endkappen; Stopfen; Lamellenstopfen"),
+    ("Einpressmuttern setzen", "€/Stück", 0.45, None, "nein", "Montage", "mit Einpressmuttern",
+     "Beispielpreis je Mutter; Menge = Muttern je Teil", "einpressmutter; einpressmuttern; Einpressbolzen; PEM"),
+    ("Etikettieren/Beschriften", "€/Stück", 0.15, None, "nein", "Verpackung", "etikettiert",
+     "Beispielpreis je Teil; Etikett oder Beschriftung mit Artikelnummer", "etikettiert; beschriftet; Etikett"),
+    ("Erstmusterprüfbericht", "€/Angebot", 45.00, None, "nein", "Prüfung", "mit Erstmusterprüfbericht (EMPB)",
+     "Beispielpreis je Angebot", "EMPB; Erstmuster; Erstmusterprüfbericht; Erstbemusterung"),
+    ("Prüfbericht 3.1", "€/Angebot", 25.00, None, "nein", "Prüfung", "mit Abnahmeprüfzeugnis 3.1",
+     "Beispielpreis je Angebot", "Prüfbericht 3.1; Abnahmeprüfzeugnis; APZ 3.1; Zeugnis 3.1; EN 10204"),
+)
+
+
+def rohrlaser_zusatzarbeiten():
+    """Vorbelegung der weiteren Zusatzarbeiten rund um den Rohrlaser (ROHRLASER_ZUSATZ, Beispielpreise)."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=n, art=art, preis=preis, mindest=mindest,
+                 fremd=fremd, kategorie=kat, angebotstext=text, bemerkung=bem, erkennung=worte, aktiv="ja")
+            for n, art, preis, mindest, fremd, kat, text, bem, worte in ROHRLASER_ZUSATZ]
 
 
 def strahl_zusatzarbeiten():

@@ -1788,13 +1788,32 @@ def kapitel_angebot(i):
             "schon im Materialpreis.",
             "Neue Dateien bekommen Erkennungswörter für Feuerverzinken, Galvanisch verzinken, Pulverbeschichten, "
             "Strahlen und Entgraten; bestehende Dateien bekommen sie einmalig nur dort, wo das Feld leer ist.")
+    i.abschnitt("Zusatzarbeiten rund um den Rohrlaser", marke="zusatz_rohrlaser")
+    i.text("Neben Verzinken, Pulvern, Entgraten, Bohren, Senken, Schweißen, Biegen, Sägen und Strahlen stehen diese "
+           "Zusatzarbeiten mit Beispielpreis fest in der Auswahl (Preise bitte unter Einstellungen → Zusatzarbeiten "
+           "anpassen; nicht gebrauchte auf <i>aus</i> stellen):", kurz=True)
+    i.liste("<b>Nachbearbeitung</b>: <i>Innengrat entfernen</i> (je Teil), <i>Schweißfase anfasen</i> (je Ende, "
+            "Menge = Enden je Teil), <i>Schlacke/Spritzer innen entfernen</i>, <i>Richten</i>, <i>Drehen/Fräsen</i> "
+            "(Fremdleistung, Preis je Teil laut Dreherei).",
+            "<b>Laser</b>: <i>Trennmittel innen</i> – Trennmittel vor dem Lasern ins Rohr, damit Spritzer nicht an der "
+            "Gegenwand haften (je Teil).",
+            "<b>Oberfläche</b>: <i>Brünieren</i> (€/kg, Fremdleistung, Mindestbetrag), <i>Ölen/Konservieren</i> "
+            "(€/m²), <i>Grundieren</i> (€/m², Fremdleistung).",
+            "<b>Montage und Verpackung</b>: <i>Endkappen/Stopfen einsetzen</i> und <i>Einpressmuttern setzen</i> (je "
+            "Stück, Menge je Teil), <i>Etikettieren/Beschriften</i> (je Teil).",
+            "<b>Prüfung</b>: <i>Erstmusterprüfbericht</i> und <i>Prüfbericht 3.1</i> (einmal je Angebot).",
+            "Alle haben Erkennungswörter, z. B. <i>innen entgratet</i>, <i>brüniert</i>, <i>Trennmittel</i>, "
+            "<i>angefast</i>, <i>gedreht</i>, <i>EMPB</i>, <i>Zeugnis 3.1</i>, <i>Endkappe</i>: steht so ein Wort in "
+            "Bezeichnung, Bemerkung oder Zeichnung, schlägt das Programm die Arbeit gelb vor ([[zusatz_erkennen]]).",
+            "Bestehende Dateien bekommen sie einmalig dazu; eine eigene Zusatzarbeit gleichen Namens bleibt "
+            "unverändert, gelöschte kommen nicht wieder.")
     i.abschnitt("Neue Zusatzarbeit im Angebot anlegen", marke="zusatz_neu")
     i.text("Im Fenster Zusatzarbeiten <b>＋ Neue Zusatzarbeit …</b> oder Rechtsklick → <i>Zusatzarbeit hinzufügen → "
            "Neue Zusatzarbeit …</i>: Name, Abrechnung in Worten (je Stück, je kg, je m², je m, je Stunde, einmal je "
            "Angebot), Preis, optional Fremdleistung, Kategorie und Erkennungswörter. Die Vorschau zeigt sofort den "
            "Betrag je Teil.", kurz=True)
     i.liste("<b>Vorlage</b>: fertige Einträge (Eloxieren, Beizen und Passivieren, Glasperlstrahlen, Schleifen / "
-            "Bürsten, Richten, Einpressmuttern, Nieten, Gewindeformen, Reinigen, Prüfbericht 3.1, Sonderverpackung) "
+            "Bürsten, Nieten, Gewindeformen, Reinigen, Sonderverpackung) "
             "füllen das Formular mit Beispielpreisen aus; die Preise bitte prüfen.",
             "Häkchen <b>Fremdleistung: Zuschlag Fremdleistung statt Fertigung</b>, wenn ein Fremdbetrieb (z. B. "
             "Verzinkerei, Eloxal) die Arbeit macht.",
