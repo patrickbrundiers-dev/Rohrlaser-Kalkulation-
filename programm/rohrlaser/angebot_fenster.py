@@ -906,8 +906,10 @@ class PositionenModell(QAbstractTableModel):
                         + [("berechnet", b) for b in BERECHNET]
                         + [(art(f), f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
                         + [("abweichung", None)])
-        # EK der Bleche gleich hinter den Zukaufteilen: Richtpreis grau, Angebotspreis schwarz (Patrick 03.11.2026)
-        c = next((i for i, (a, _) in enumerate(self.spalten) if a == "zukauf"), len(self.spalten) - 1)
+        # EK der Bleche gleich hinter der Stückzahl (auch bei schmalem Fenster sichtbar): Richtpreis grau,
+        # Angebotspreis schwarz (Patrick 03.11.2026)
+        c = next((i for i, (a, x) in enumerate(self.spalten) if a == "feld" and x.name == "stueck"),
+                 len(self.spalten) - 1)
         self.spalten.insert(c + 1, ("ek_blech", None))
         self.blech_ek = []
         self.daten, self.werte, self.status = [], [], []

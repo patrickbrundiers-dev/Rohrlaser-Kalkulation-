@@ -46,13 +46,13 @@ def stand(p, daten=None):
 
 def text(s):
     """Kurztext für die Spalte „EK Blech“, z. B. '12,40' oder '' ohne EK."""
-    return rechnen.zahl(s["ek"], 2) if s and s.get("ek") is not None else ""
+    return f"{s['ek']:.2f}".replace(".", ",") if s and s.get("ek") is not None else ""
 
 
 def tooltip(s):
     if not s:
         return ""
-    rp = f"{rechnen.zahl(s['richtpreis'], 2)} €" if s.get("richtpreis") is not None else "–"
+    rp = f"{s['richtpreis']:.2f} €".replace(".", ",") if s.get("richtpreis") is not None else "–"
     if s.get("angebot"):
         a = s.get("angebotspreis") or {}
         von = a.get("lieferant") or s.get("lieferant") or ""
