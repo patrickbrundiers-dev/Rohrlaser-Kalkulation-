@@ -2290,10 +2290,12 @@ def _voll_position(m, form, abm, laenge, wst, zukauf_liste, neue_artikel):
     return dict(neu=schl), text
 
 
-def _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte):
+def _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte, df_einst=None, stueck=None):
     """Zukaufartikel für ein Dreh-/Frästeil: im Prüfdialog gewählter Artikel (_blech_artikel), sonst ein gleicher
-    vorhandener bzw. in diesem Import neu angelegter (Fingerabdruck, Werkstoff), sonst ein neuer ohne EK.
-    Ergebnis: (Verweis {artikel_id} bzw. {neu: Schlüssel}, Hinweistext)."""
+    vorhandener bzw. in diesem Import neu angelegter (Fingerabdruck, Werkstoff), sonst ein neuer; mit df_einst
+    (Einstellungen Dreh-/Frästeil-Richtpreis) bekommt ein neuer Artikel den Richtpreis für die Stückzahl als EK
+    (drehfraes_preis, Hinweis „Fremdangebot einholen“), sonst keinen. Ein vorhandener Artikel behält seinen EK
+    (Plan Richtpreis Frage 5 a). Ergebnis: (Verweis {artikel_id} bzw. {neu: Schlüssel}, Hinweistext)."""
     from . import drehfraes, zukauf
     gewaehlt_id = m.get("_blech_artikel")
     if isinstance(gewaehlt_id, int):
@@ -2313,8 +2315,18 @@ def _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte):
     werte, bezuege = drehfraes.artikel(d, wst, m.get("datei"), dichte)
     schl = f"neu{len(neue_artikel) + 1}"
     neue_artikel[schl] = (werte, bezuege)
-    text = f"neuer Zukaufartikel {werte['bezeichnung']} (Kategorie {werte['kategorie']}), EK fehlt: beim Lieferanten " \
-           "anfragen"
+    preis = None
+    if df_einst is not None:
+        from . import drehfraes_preis
+        preis = drehfraes_preis.richtpreis(d, wst, df_einst, stueck or 1)
+    if preis:
+        bezuege[0]["preise"] = [dict(ab=1, preis=preis)]
+        werte["beschreibung"] = "; ".join(x for x in (werte.get("beschreibung"), drehfraes_preis.HINWEIS) if x)
+        text = f"neuer Zukaufartikel {werte['bezeichnung']} (Kategorie {werte['kategorie']}), EK = Richtpreis " \
+               f"{preis:.2f} € ({drehfraes_preis.HINWEIS})".replace(".", ",", 1)
+    else:
+        text = f"neuer Zukaufartikel {werte['bezeichnung']} (Kategorie {werte['kategorie']}), EK fehlt: beim " \
+               "Lieferanten anfragen"
     if aehnlich:
         text += f" (ähnlich: {', '.join(a.get('bezeichnung') or '' for a in aehnlich[:3])})"
     return dict(neu=schl), text
@@ -2367,7 +2379,8 @@ def eindeutige_artikel(messwerte):
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
-                bohren_laser=None, blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None):
+                bohren_laser=None, blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None,
+                drehfraes_einst=None):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -2619,10 +2632,21 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             wst = m.get("_werkstoff", werkstoff) or None
             stk = m.get("_stueck", stueck)
             dichte = (k.werkstoffe.get(wst) or {}).get("dichte") if wst else None
-            verweis, text = _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte)
+            verweis, text = _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte, drehfraes_einst,
+                                                stk * int(m.get("_je_satz") or len(gruppen.get(i) or [i]))
+                                                if stk and satz else stk)
             p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art, bezeichnung=drehfraes.bezeichnung(d, wst),
                      werkstoff_id=wst if wst in k.werkstoffe else None, laenge=d.get("laenge"), stueck=stk or None,
                      gewicht_teil=drehfraes.fertiggewicht(d, dichte), _zukauf=verweis)
+            if drehfraes_einst is not None:       # Richtpreis-Dialog: Messung und Eingaben an der Position
+                from . import drehfraes_preis
+                e_df = drehfraes_preis.aus_step(d, wst, stk or 1)
+                if "EK = Richtpreis" in text:
+                    pr = next((b["preise"][0]["preis"] for b in neue_artikel.get(verweis.get("neu"), ({}, [{}]))[1]
+                               if b.get("preise")), None)
+                    if pr:
+                        e_df["richtpreise"] = [dict(ab=1, preis=pr)]
+                p["technik"] = drehfraes_preis.speichern(e_df)
             if m.get("_netz"):
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")

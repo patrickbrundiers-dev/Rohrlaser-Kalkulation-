@@ -102,6 +102,17 @@ SEITEN = (
            _a("Kanten", "blech_kantung blech_ruesten_kanten blech_abwicklung"),
            _a("Kantbarkeit", "blech_kant_v blech_kant_schenkel blech_kant_loch blech_kant_radius", True),
            _a("DXF-Ausgabe", "blech_dxf_layer blech_dxf_biegelinien"))),
+    Seite("e_drehfraes", "Dreh-/Frästeil-Richtpreis", ALLE_PLAETZE,
+          (_a("Stundensätze und Rüsten", "df_stundensatz_drehen df_stundensatz_fraesen df_ruesten_drehen "
+                                          "df_ruesten_fraesen df_ruesten_aufspannung df_programm_drehen "
+                                          "df_programm_fraesen df_programm_element"),
+           _a("Rohling", "df_aufmass_d df_aufmass_l df_aufmass_fraes df_stange_bis df_abstich df_verschnitt"),
+           _a("Zeiten", "df_nutzung df_werkzeugwechsel df_handhabung df_entgraten df_einstich df_fase "
+                        "df_aufspannen_fraesen df_mindestzeit df_bohr_max df_fraeser df_angetrieben", True),
+           _a("Machbarkeit", "df_max_d df_max_l df_fraes_x df_fraes_y df_fraes_z df_bohr_gelb df_bohr_rot "
+                             "df_schlank_gelb df_schlank_rot df_tasche_gelb df_tasche_rot df_wand_min df_radius_min",
+              True),
+           _a("Schnittwerte und Aufschlag", "df_schnittwerte df_aufschlag"))),
     Seite("e_schweissen", "Schweißbaugruppen", ALLE_PLAETZE,
           (_a("Vorkalkulation", "schweiss_vk_step schweiss_vk_satz schweiss_vk_satz_nacharbeit"),
            _a("a-Maß und Spalt", "schweiss_a_regel schweiss_a_min schweiss_spalt_max"),

@@ -33,6 +33,7 @@ Zwei Rechenschichten:
 Blechteile aus dem Blech-Editor (Patrick 22.10.2026): weicht die Stückzahl in der Stufe von der des Angebots ab,
 gilt der EK aus dem Einkauf (Staffelzeile des Preisstands ab ≤ Stückzahl, nicht vom Blech-Editor), sonst wird der
 Richtpreis für die Stückzahl der Stufe neu gerechnet (Rüsten verteilt sich auf mehr oder weniger Teile; blech_stand).
+Dreh-/Frästeile mit Richtpreis (drehfraes_preis, 03.11.2026) genauso (drehfraes_stand).
 """
 import hashlib
 import json
@@ -575,6 +576,41 @@ def blech_stand(p, stueck, daten):
     return [dict(liste[0], stand=st)] + liste[1:], text
 
 
+def drehfraes_stand(p, stueck, einst):
+    """Wie blech_stand für ein Dreh-/Frästeil mit Richtpreis (drehfraes_preis): EK aus dem Einkauf, wenn eine
+    Staffelzeile ab ≤ Stückzahl nicht vom Richtpreis stammt (gemerkt in technik['richtpreise']), sonst der
+    Richtpreis für die Stückzahl der Stufe neu gerechnet (Rüsten verteilt sich auf mehr oder weniger Teile).
+    Ergebnis: (Liste, Hinweis) oder (None, None)."""
+    from . import drehfraes_preis
+    e = drehfraes_preis.lesen(p.get("technik"))
+    liste = zukauf.json_liste(p.get("zukauf"))
+    if e is None or not liste or not rechnen.ist_zukaufteil(p) or not stueck or stueck == p.get("stueck") \
+            or einst is None:
+        return None, None
+    st = dict(liste[0].get("stand") or {})
+    bezug = dict(st.get("bezug") or {})
+    richt = {(float(r["ab"]), round(float(r["preis"]), 2)) for r in e.get("richtpreise") or ()
+             if isinstance(r, dict) and isinstance(r.get("ab"), (int, float)) and isinstance(r.get("preis"), (int, float))}
+    verbrauch = float(zukauf.dez(liste[0].get("menge")) or 1) * zukauf.bezugsmenge(liste[0], p, stueck)
+    einkauf = [z for z in zukauf.staffel_sortiert(bezug.get("preise")) if z["preis"] > 0
+               and (float(z["ab"]), round(float(z["preis"]), 2)) not in richt]
+    pos = txt(p.get("pos"))
+    if any(float(z["ab"]) <= verbrauch for z in einkauf):
+        bezug["preise"] = [dict(ab=float(z["ab"]), preis=float(z["preis"])) for z in einkauf]
+        z = zukauf.staffel_wahl(einkauf, verbrauch)
+        text = f"Pos. {pos} Dreh-/Frästeil: EK Einkauf ab {rechnen.zahl(float(z['ab']), 0)} St"
+    else:
+        if not richt:           # EK nicht vom Richtpreis (von Hand, kleinere Mengen): bleibt
+            return None, None
+        rp = drehfraes_preis.rechnen(dict(e, stueck=stueck), einst).get("richtpreis")
+        if not rp:
+            return None, None
+        bezug.update(preise=[dict(ab=1, preis=rp)], preiseinheit=1, rabatt=None)
+        text = f"Pos. {pos} Dreh-/Frästeil: Richtpreis {rechnen.zahl(rp, 2)} € für {stueck:g} St"
+    st["bezug"] = bezug
+    return [dict(liste[0], stand=st)] + liste[1:], text
+
+
 def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     """Mengenlauf einer Stufe: alle Mengenzeilen zusammen optimieren und kalkulieren wie ein Auftrag (mit den
     Werten der Stufe). Ergebnis: je Mengenzeile eine Zeile mit den Bausteinen ihres Satzes bzw. ihrer Position
@@ -611,6 +647,8 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     blech_text = {}
     for i, p in enumerate(positionen):          # Blechteile: EK aus dem Einkauf oder Richtpreis für die Stufe
         neu, text = blech_stand(p, mengen.get(i), tabellen.get("blech"))
+        if neu is None:
+            neu, text = drehfraes_stand(p, mengen.get(i), tabellen.get("drehfraes"))
         if neu is not None:
             lauf[i]["zukauf"] = json.dumps(neu, ensure_ascii=False)
             blech_text[i] = text

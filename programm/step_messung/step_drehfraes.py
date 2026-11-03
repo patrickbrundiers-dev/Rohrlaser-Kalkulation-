@@ -206,7 +206,102 @@ def drehteil(fl, t=None):
     return dict(art=DREHTEIL, durchmesser=round(2 * aussen[-1], 2), laenge=round(laenge, 2),
                 innen=round(2 * innen[0], 2) if innen else 0.0,
                 durchmesser_liste=[round(2 * r, 2) for r in aussen], merkmale=merkmale, zusatz=zusatz,
-                nur_abmessung=nur_abmessung, achse=list(d))
+                nur_abmessung=nur_abmessung, achse=list(d), kennwerte=_kennwerte_dreh(fl, dreh, stirn, rest, d))
+
+
+def _zylinder_gruppen(flaechen_):
+    """Zylinderflächen gleicher Achse, gleichen Radius und gleicher Lage zusammen (eine Bohrung besteht im STEP oft
+    aus zwei Halbschalen): je Gruppe dict(radius, z0, z1, flaeche)."""
+    gruppen = {}
+    for e in flaechen_:
+        o, d = e["achse"]
+        vz = 1
+        if max(d, key=abs) < 0:         # Richtung eindeutig machen (z entlang der Achse dreht dann das Vorzeichen)
+            d, vz = (-d[0], -d[1], -d[2]), -1
+        t = _dot(o, d)
+        p = (o[0] - t * d[0], o[1] - t * d[1], o[2] - t * d[2])
+        z0, z1 = sorted(vz * z for z in e["z"])
+        schl = (round(e["radius"], 1), tuple(round(x, 2) for x in d), tuple(round(x, 1) for x in p),
+                round(z0, 1), round(z1, 1))
+        x = gruppen.setdefault(schl, dict(radius=e["radius"], z0=z0, z1=z1, flaeche=0.0))
+        x["flaeche"] += e["flaeche"]
+    return list(gruppen.values())
+
+
+def _abschnitte(gruppen):
+    """Zylindergruppen als Abschnitte [{d, l, z}] (Durchmesser, Länge, Mitte entlang der eigenen Achse), z aufsteigend."""
+    out = [dict(d=round(2 * x["radius"], 2), l=round(x["z1"] - x["z0"], 2), z=round((x["z0"] + x["z1"]) / 2, 2))
+           for x in gruppen]
+    return sorted(out, key=lambda x: x["z"])
+
+
+def _cm2(x):
+    return round(x / 100, 2)
+
+
+def _kennwerte_dreh(fl, dreh, stirn, rest, d):
+    """Kennwerte für den Richtpreis (drehfraes_preis): Abschnitte außen/innen, Einstiche, Fasen, Radien,
+    Stirnflächen, Querbohrungen, Schlüsselflächen und Flächen [cm²]."""
+    aussen = _abschnitte(_zylinder_gruppen([e for e in dreh if e["typ"] == "zylinder" and e["konvex"]]))
+    innen = _abschnitte(_zylinder_gruppen([e for e in dreh if e["typ"] == "zylinder" and not e["konvex"]]))
+    einstiche = sum(1 for i in range(1, len(aussen) - 1)
+                    if aussen[i]["d"] < aussen[i - 1]["d"] - 0.1 and aussen[i]["d"] < aussen[i + 1]["d"] - 0.1)
+    quer = _abschnitte(_zylinder_gruppen([e for e in rest if e["typ"] == "zylinder" and not e["konvex"]]))
+    schluessel = [e for e in rest if e["typ"] == "eben" and _senkrecht(e["normale"], d)]
+    wand = None                     # dünnste Wand zwischen Außen- und Innendurchmesser (Machbarkeit)
+    for a in aussen:
+        for b in innen:
+            if abs(a["z"] - b["z"]) < (a["l"] + b["l"]) / 2 - 0.01:
+                w = (a["d"] - b["d"]) / 2
+                wand = w if wand is None else min(wand, w)
+    return dict(aussen=aussen, innen=innen, einstiche=einstiche, wand_min=round(wand, 2) if wand is not None else None,
+                fasen=sum(1 for e in dreh if e["typ"] == "kegel"),
+                radien=sum(1 for e in dreh if e["typ"] in ("torus", "kugel")),
+                konturen=sum(1 for e in dreh if e["typ"] == "rotation"),
+                stirn=len(stirn), stirn_flaeche=_cm2(sum(e["flaeche"] for e in stirn)),
+                dreh_flaeche=_cm2(sum(e["flaeche"] for e in dreh)),
+                querbohrungen=quer, schluessel=len(schluessel),
+                schluessel_flaeche=_cm2(sum(e["flaeche"] for e in schluessel)),
+                frei_flaeche=_cm2(sum(e["flaeche"] for e in rest if e["typ"] == "frei")),
+                flaeche=_cm2(sum(e["flaeche"] for e in fl)))
+
+
+def _kennwerte_fraes(fl, richtungen, stufen):
+    """Kennwerte eines Frästeils für den Richtpreis: Ebenen, Bohrungen (ganze Zylinder) mit Ø und Tiefe,
+    Innenradien (Teilzylinder, z. B. Taschenecken), Außenradien, Fasen/Senkungen, Bearbeitungsrichtungen, Stufen
+    und Flächen [cm²]."""
+    eben = [e for e in fl if e["typ"] == "eben"]
+    bohr, ecken = [], []
+    for x in _zylinder_gruppen([e for e in fl if e["typ"] == "zylinder" and not e["konvex"]]):
+        voll = 2 * math.pi * x["radius"] * (x["z1"] - x["z0"])
+        (bohr if voll > 0 and x["flaeche"] >= 0.9 * voll else ecken).append(x)
+    tiefe = 0.0                     # tiefste Tasche/Absatz bis zur Außenfläche auf der offenen Seite (Machbarkeit)
+    for r in richtungen:
+        ebenen = []                 # (Höhe entlang r, Seite: +1 = Fläche zeigt nach +r)
+        for e in eben:
+            if _parallel(e["normale"], r):
+                sg = 1 if _dot(e["normale"], r) > 0 else -1
+                if e["face"].Orientation() == TopAbs_REVERSED:
+                    sg = -sg
+                ebenen.append((_dot(e["punkt"], r), sg))
+        if len(ebenen) < 3:
+            continue
+        h0, h1 = min(h for h, _ in ebenen), max(h for h, _ in ebenen)
+        for h, sg in ebenen:
+            if h0 + 0.01 < h < h1 - 0.01:
+                # Boden einer Tasche: zur offenen Seite hin liegt keine Gegenfläche (sonst ist es eine Wand/Breite)
+                gegen = any(sg2 == -sg and (h2 - h) * sg > 0.01 for h2, sg2 in ebenen if h0 + 0.01 < h2 < h1 - 0.01)
+                if not gegen:
+                    tiefe = max(tiefe, (h1 - h) if sg > 0 else (h - h0))
+    return dict(ebenen=len(eben), eben_flaeche=_cm2(sum(e["flaeche"] for e in eben)),
+                bohrungen=_abschnitte(bohr), innenradien=len(ecken),
+                innenradius_min=round(min(x["radius"] for x in ecken), 2) if ecken else None,
+                taschentiefe=round(tiefe, 2),
+                radien=sum(1 for e in fl if e["typ"] in ("torus", "kugel") or (e["typ"] == "zylinder" and e["konvex"])),
+                fasen=sum(1 for e in fl if e["typ"] == "kegel"),
+                richtungen=len(richtungen), stufen=stufen,
+                kontur_flaeche=_cm2(sum(e["flaeche"] for e in fl) - sum(x["flaeche"] for x in bohr)),
+                flaeche=_cm2(sum(e["flaeche"] for e in fl)))
 
 
 def _mm(x):
@@ -231,14 +326,13 @@ def fraesteil(fl, t, huelle):
     if lb <= 0 or la > GEDRUNGEN * lb + 1e-6 or lc < 3.0:
         return None
     merkmale, nur_abmessung = [], False
+    richtungen, stufen = [], 0
+    for e in eben:
+        if not any(_parallel(e["normale"], r) for r in richtungen):
+            richtungen.append(e["normale"])
     if form in FORMEN_FRAES_VOLL:
         if len(eben) <= 6:
             return None             # Quader (auch mit Bohrungen): Vollmaterial gesägt bzw. Blech
-        richtungen = []
-        for e in eben:
-            if not any(_parallel(e["normale"], r) for r in richtungen):
-                richtungen.append(e["normale"])
-        stufen = 0
         for r in richtungen:
             hoehen = {round(_dot(e["punkt"], r) * (1 if _dot(e["normale"], r) > 0 else -1), 1)
                       for e in eben if _parallel(e["normale"], r)}
@@ -261,7 +355,8 @@ def fraesteil(fl, t, huelle):
     else:
         return None
     return dict(art=FRAESTEIL, laenge=round(la, 2), breite=round(lb, 2), hoehe=round(lc, 2), merkmale=merkmale,
-                zusatz=["Bohrungen"] if any(e["typ"] == "zylinder" for e in fl) else [], nur_abmessung=nur_abmessung)
+                zusatz=["Bohrungen"] if any(e["typ"] == "zylinder" for e in fl) else [], nur_abmessung=nur_abmessung,
+                kennwerte=_kennwerte_fraes(fl, richtungen, stufen))
 
 
 def _huelle(solid):

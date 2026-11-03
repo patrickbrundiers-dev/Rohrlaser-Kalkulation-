@@ -2491,9 +2491,10 @@ def kapitel_step(i):
             "wird. Der Werkstoff ist die Vorgabe der Rohre und in der Zeile änderbar.",
             "Zukaufartikel vom Typ <b>Drehteil</b> bzw. <b>Frästeil</b>, Kategorie <i>Drehteile</i> bzw. "
             "<i>Frästeile</i>, mit Maßen, Werkstoff, STEP-Datei, Geometrie-Kennung und Rohgewicht (Drehteil: "
-            "Rundstahl Ø max × Länge, Frästeil: Hüllquader) zur Information. Der EK fehlt: beim Lieferanten anfragen "
-            "und mit <b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>). Die Position trägt das Gewicht des "
-            "fertigen Teils (für die Fracht).",
+            "Rundstahl Ø max × Länge, Frästeil: Hüllquader) zur Information. Seit 0.9.240 bekommt ein neuer Artikel "
+            "den <b>Richtpreis</b> als EK-Vorschlag ([[drehfraes_richtpreis]]); den echten Preis beim Lieferanten "
+            "anfragen und mit <b>EK eintragen …</b> nachtragen (ohne Richtpreis: Filter <i>EK fehlt</i>). Die "
+            "Position trägt das Gewicht des fertigen Teils (für die Fracht).",
             "<b>Wiederholteile</b>: ein gleiches Teil (gleiche Geometrie-Kennung und Werkstoff) aus einer früheren "
             "Anfrage nimmt den vorhandenen Artikel mit seinem EK; gleiche Teile einer Datei sind eine Position.",
             "Kalkulation wie alle Zukaufteile: kein Gewinn, nur der Aufschlag der Zukaufregel, Fracht ja, Rüsten, "
@@ -2501,6 +2502,66 @@ def kapitel_step(i):
             "Im JSON-Messergebnis (ab Version 1.26) heißen <i>bauteiltyp</i> und <i>profiltyp</i> dann Drehteil "
             "bzw. Frästeil, der Block <i>drehfraes</i> enthält Maße und Merkmale, <i>alternative</i> die Messung "
             "als Rohr/Profil.")
+    i.abschnitt("Richtpreis für Dreh- und Frästeile", marke="drehfraes_richtpreis")
+    i.bild("drehfraes_richtpreis", "Richtpreis Dreh-/Frästeil: Stufenwelle Ø30 × 120 mm aus S235, 20 Stück",
+           hoehe=110 * mm, legende=[
+               (1, "<b>Stückzahl</b> (Rüsten und Programmieren verteilen sich darauf), Werkstoff, Rohling "
+                   "(Rundstahl oder ab Innen-Ø 30 mm Rohr), Material €/kg und <b>Zusätze</b> €/Stück."),
+               (2, "<b>Skizze</b>: Rohling gestrichelt, Fertigteil blau (Drehteil im Längsschnitt, Frästeil in "
+                   "Draufsicht und Seitenansicht mit Taschentiefe), oben die Ampel."),
+               (3, "<b>Machbarkeit</b>: grün machbar, gelb mit Mehraufwand (Zeitzuschlag), rot so nicht machbar "
+                   "bzw. Sonderverfahren, mit Begründung."),
+               (4, "<b>Arbeitsgänge</b> mit Zeit je Stück, Kosten und Rechenweg; die Minuten sind von Hand "
+                   "änderbar (fett, gerechneter Wert dahinter)."),
+               (5, "Summe: Material, Bearbeitung, Rüsten je Stück, Zusätze, Aufschlag des Lieferanten und der "
+                   "<b>Richtpreis je Stück</b>.")])
+    i.text("Für Dreh- und Frästeile aus dem STEP-Import ([[drehfraesteile]]) schätzt das Programm den Preis eines "
+           "Lohnfertigers aus der Geometrie: Rohmaterial, <b>Arbeitsgänge</b> mit Zeiten aus Schnittwerten, Rüsten "
+           "und Programmieren. Er steht als EK im neuen Zukaufartikel mit dem Hinweis <i>Richtpreis (Schätzung), "
+           "Fremdangebot einholen</i> (seit 0.9.240).", kurz=True)
+    i.genauer()
+    i.liste("<b>Rohling</b>: Drehteil Rundstahl im nächsten Lager-Ø über Ø max + Aufmaß, bis <i>Drehen von der "
+            "Stange bis Ø</i> von der Stange (Abstechen), darüber gesägt und beidseitig plangedreht; Frästeil "
+            "Flachstahl im nächsten Lagermaß über Hüllmaß + Aufmaß je Seite, gesägt. Gewicht × €/kg der "
+            "Werkstoffgruppe plus Materialzuschlag (Stangenrest, Sägeverlust).",
+            "<b>Arbeitsgänge Drehen</b>: Sägen, Bohren innen (bis <i>Größter Bohrer</i>, darüber ausdrehen), "
+            "Schruppen = Spanvolumen ÷ (vc × f × ap × Nutzungsgrad), Schlichten = gedrehte Fläche ÷ (vc × f), "
+            "Einstechen je Einstich, Absätze/Fasen/Radien, Abstechen bzw. Umspannen, Querbohrungen und "
+            "Schlüsselflächen (mit angetriebenen Werkzeugen, sonst eigener Fräsgang), Werkzeugwechsel, Handhabung, "
+            "Entgraten.",
+            "<b>Arbeitsgänge Fräsen</b>: Sägen, Planfräsen des Aufmaßes, Schruppen der Taschen und Kontur (ae 0,4 × "
+            "D, ap 1 × D), Schlichten der Kontur, Bohren je Bohrung mit Ø und Tiefe aus der Messung (mit Zentrieren), "
+            "Fasen/Senkungen, Radien, Aufspannungen (2, mit schrägen Flächen 3), Werkzeugwechsel, Entgraten.",
+            "<b>Rüsten und Programmieren</b> je Auftrag (Drehen bzw. Fräsen, dazu je Konturelement und je weitere "
+            "Aufspannung) werden auf die Stückzahl verteilt; 1 Stück ist deshalb deutlich teurer als 100 Stück. "
+            "In den Staffeln rechnet jede Stufe den Richtpreis für ihre Stückzahl neu; ein EK aus dem Einkauf ab "
+            "dieser Stückzahl geht vor.",
+            "<b>Gewinde, Oberfläche, Härten</b> erkennt die Messung nicht sicher: als <b>Zusätze €/Stück</b> im "
+            "Dialog eintragen (Gewinde, Senken, Bohren nur €/Stück). Meldet die Messung <i>Gewinde/Freiform</i>, "
+            "erinnert ein Hinweis daran.",
+            "Auf den Richtpreis kommt der <b>Aufschlag des Lieferanten</b>; im Angebot dann wie bei allen "
+            "Zukaufteilen nur der Aufschlag der Zukaufregel, kein Gewinn ([[zukauf_positionen]]). Ein Wiederholteil "
+            "mit EK behält ihn, ein EK von Hand oder vom Lieferanten geht immer vor. Der Richtpreis geht nicht in "
+            "die Lieferantenanfrage. Solange der EK nur ein Richtpreis ist, erinnert der <b>Angebots-Check</b> mit "
+            "einem Hinweis an das Fremdangebot.",
+            "<b>Rechtsklick → Richtpreis Dreh-/Frästeil …</b> bzw. Doppelklick auf die Position öffnet den Dialog. "
+            "<b>Als EK übernehmen</b> trägt den Preis als Staffelzeile ab der Stückzahl im Artikel ein; "
+            "<b>Zeiten zurücksetzen</b> nimmt die Minuten von Hand zurück.",
+            "<b>Machbarkeit</b> (Grenzen unter Einstellungen → Dreh-/Frästeil-Richtpreis): Bohrung tiefer als 5 × Ø "
+            "gelb (+50 % Bohrzeit), über 10 × Ø rot (Tieflochbohren); Drehteil länger als 4 × Ø gelb (Reitstock, "
+            "+30 %), über 12 × Ø rot (Lünette, Langdreher); Wand unter 2 mm gelb, unter 1 mm rot; Innenradius "
+            "kleiner als der Fräser gelb (+30 % Schlichten), unter 0,5 mm rot (Erodieren); Tasche tiefer als 4 × "
+            "Fräser-Ø gelb, über 8 × rot; größer als Drehmaschine bzw. Verfahrweg der Fräsmaschine rot.",
+            "<b>Schnittwerte</b> je Werkstoffgruppe (Stahl, Vergütungsstahl, Edelstahl, Aluminium, Messing, "
+            "Kunststoff) mit Dichte, €/kg, vc/f/ap Drehen, vc/fz Fräsen, Bohren vc und Vorschubreihe, Sägeleistung "
+            "und Erkennung am Werkstoffnamen (z. B. 1.43 → Edelstahl, EN AW → Aluminium). Vorgaben aus "
+            "Hersteller- und Fachtabellen für Hartmetall (dswerk.de, cncrechner.de, Horn, Wolff Bandsägen, "
+            "Sorotec; Stundensätze nach Preisleitfaden Feinwerkmechanik 2026: Drehen 60–120 €/h, Fräsen 70–120 "
+            "€/h). Mit 2–3 bekannten Teilen und echten Preisen prüfen und die Werte anpassen.",
+            "Die Funktion <b>Richtpreis für Dreh- und Frästeile</b> lässt sich unter <i>Einstellungen → "
+            "Funktionen</i> ausschalten; dann bleiben neue Dreh-/Frästeile ohne EK.",
+            "Grenzen: ein Richtpreis ist eine Schätzung (etwa ±30 %), Toleranzen, Passungen und Härten sind nicht "
+            "enthalten.")
     i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
     i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech mit einer offenen Seite</b>: "
            "U offen, C mit Längsschlitz, U mit nur einer Lasche oder eine <b>Halbschale</b> eines Rundrohrs. "
@@ -4469,7 +4530,8 @@ def kapitel_staffeln(i):
            "galt, z. B. „Pos. 3 Blech: EK Einkauf ab 50 St“. Hat die Stufe die Stückzahl des Angebots, bleibt der "
            "Preis des Angebots. Einen neuen EK aus dem Einkauf holt <b>Aus Stammdaten aktualisieren …</b> im Dialog "
            "Zukaufteile der Position bzw. <b>Im Angebot aktualisieren …</b> unter Preisänderungen ins Angebot "
-           "([[zukauf]]).")
+           "([[zukauf]]). Genauso <b>Dreh- und Frästeile</b> mit Richtpreis ([[drehfraes_richtpreis]]): die Prüfung "
+           "zeigt z. B. „Pos. 4 Dreh-/Frästeil: Richtpreis 6,10 € für 100 St“.")
     i.abschnitt("Rechenweg je Stufe")
     i.bild("staffeln", "Ergebnis mit Materialzuschlag 20/15/10/5 %: der Preis je Gestell sinkt mit der Menge",
            hoehe=95 * mm, legende=[
@@ -6686,6 +6748,41 @@ def kapitel_einstellungen(i):
          "Grenzwerte der Erkennung, nur nach Rücksprache ändern: ein flaches Teil ist erst ab dieser Länge "
          "(Vorgabe 3 × Breite) Flachstahl; ein gekantetes Teil gilt als Blech statt Profil, wenn sein Volumen unter "
          "diesem Anteil (Vorgabe 85 %) von Querschnitt × Länge liegt ([[bleche]])."],
+        ["Dreh-/Frästeil-Richtpreis", "Stundensatz CNC-Drehen [€/h], Stundensatz CNC-Fräsen 3-Achs [€/h], Rüsten "
+                                      "Drehen je Auftrag [min], Rüsten Fräsen je Auftrag [min], Fräsen: Rüsten je "
+                                      "weitere Aufspannung [min], Programmieren Drehen je Teil [min], Programmieren "
+                                      "Fräsen je Teil [min], Programmieren je Konturelement (Absatz, Bohrung …) [min]",
+         "Sätze des Richtpreises für Dreh- und Frästeile (Vorgabe 85 €/h, 95 €/h, 45 min, 60 min, 15 min, 20 min, "
+         "30 min, 2 min); Rüsten und Programmieren werden auf die Stückzahl verteilt ([[drehfraes_richtpreis]])."],
+        ["Dreh-/Frästeil-Richtpreis", "Drehen: Aufmaß auf den Durchmesser [mm], Drehen: Aufmaß Länge je Planseite "
+                                      "[mm], Fräsen: Aufmaß je Seite [mm], Drehen von der Stange bis Ø [mm] "
+                                      "(darüber gesägt), Abstechbreite [mm], Materialzuschlag (Stangenrest, "
+                                      "Sägeverlust)",
+         "Rohling (Vorgabe 2 mm, 2 mm, 1,5 mm, Ø65, 3 mm, 5 %)."],
+        ["Dreh-/Frästeil-Richtpreis", "Nutzungsgrad der Schnittwerte (Anfahren, wechselnde Zustellung), "
+                                      "Werkzeugwechsel je Werkzeug [min], Handhabung/Messen je Stück [min], "
+                                      "Entgraten je Stück [min], Einstechen je Einstich [min], Je Fase/Radius/Absatz "
+                                      "[min], Fräsen: Aufspannen je Aufspannung und Stück [min], Mindestzeit je Stück "
+                                      "[min], Größter Bohrer [mm] (darüber ausdrehen), Fräser-Ø Schruppen/Schlichten "
+                                      "[mm], Drehmaschine mit angetriebenen Werkzeugen (Querbohrung, Schlüsselfläche)",
+         "Zeiten (Vorgabe 60 %, 0,15, 0,5, 0,3, 0,25, 0,05, 1, 0,5 min, Bohrer bis 32 mm, Fräser Ø16, angetriebene "
+         "Werkzeuge ja)."],
+        ["Dreh-/Frästeil-Richtpreis", "Machbarkeit: größter Drehdurchmesser [mm], Machbarkeit: größte Drehlänge "
+                                      "[mm], Machbarkeit: Verfahrweg Fräsen X [mm], Machbarkeit: Verfahrweg Fräsen Y "
+                                      "[mm], Machbarkeit: Verfahrweg Fräsen Z [mm], Machbarkeit: Bohrung tiefer als × "
+                                      "Ø = Mehraufwand, Machbarkeit: Bohrung tiefer als × Ø = Tieflochbohren, "
+                                      "Machbarkeit: Drehteil länger als × Ø = Reitstock, Machbarkeit: Drehteil länger "
+                                      "als × Ø = Lünette/Langdreher, Machbarkeit: Tasche tiefer als × Fräser-Ø = "
+                                      "langer Fräser, Machbarkeit: Tasche tiefer als × Fräser-Ø = Sonderwerkzeug, "
+                                      "Machbarkeit: dünnste Wand [mm], Machbarkeit: kleinster Innenradius ohne "
+                                      "Erodieren [mm]",
+         "Grenzen der Ampel (Vorgabe Ø320 × 1000 mm, Fräsen 1000 × 500 × 500 mm, 5/10 × Ø, 4/12 × Ø, 4/8 × "
+         "Fräser-Ø, 1 mm, 0,5 mm)."],
+        ["Dreh-/Frästeil-Richtpreis", "Schnittwerte je Werkstoffgruppe (eine Zeile je Gruppe, mit ; getrennt; erste "
+                                      "passende Erkennung gilt, * = Rückfall), Aufschlag des Lieferanten (Gewinn)",
+         "Eine Zeile je Werkstoffgruppe: Gruppe; Dichte; €/kg; Drehen vc; f; ap; Schlichten vc; f; Fräsen vc; fz; "
+         "Schlichten fz; Bohren vc; Vorschubreihe A–E; Sägen cm²/min; Erkennungsbegriffe mit Komma. Aufschlag "
+         "Vorgabe 15 %."],
         ["Blech-Richtpreis", "Stundensatz Blechlaser [€/h], Rüsten und Programmieren Blechlaser je Auftrag [€], "
                              "Verschnitt Tafel (auf das Hüllrechteck), Kanten: Preis je Kantung [€], Kanten: "
                              "Rüsten je Auftrag [€], Aufschlag des Lieferanten (Gewinn)",

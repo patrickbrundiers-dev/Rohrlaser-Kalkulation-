@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
-from . import abmessung, anbau, profil_neu, blech, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
+from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen
 from .angebot_ausgabe import AusgabeMixin
 from .vorschlaege_mixin import VorschlaegeMixin
@@ -1997,6 +1997,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for text, ziel, tasten in (
                 ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen(), ""),
                 ("Blech-Editor …", lambda: self.blech_bearbeiten(), ""),
+                ("Richtpreis Dreh-/Frästeil …", lambda: self.drehfraes_bearbeiten(), ""),
                 ("Baugruppe bearbeiten …", lambda: self.baugruppe_bearbeiten(self._markierte_zeilen()), ""),
                 ("Schweißnaht …", lambda: self.schweissnaht(), ""),
                 ("Zusatzarbeiten …", lambda: self.zusatzarbeiten(), ""),
@@ -2458,6 +2459,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.stufen = self.db.staffeln(self.id)
         self.stufen_daten = self.db.staffel_stufen(self.id)
         self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
+        self.drehfraes_einst = self.db.drehfraes_einstellungen()    # Richtpreis der Dreh-/Frästeile je Stufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
         self._gruppieren()
@@ -3767,6 +3769,48 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
         return True
 
+    def drehfraes_bearbeiten(self, zeile=None, dialog=None):
+        """Richtpreis eines Dreh-/Frästeils (Arbeitsgänge, Rohling, Zeiten von Hand) zeigen und ändern; Übernehmen
+        trägt ihn als EK ab der Stückzahl der Position im Artikel ein (Hinweis „Fremdangebot einholen“). dialog(d)
+        bedient das Fenster statt exec (Tests). Ergebnis: True = übernommen."""
+        from .drehfraes_dialog import DrehfraesDialog
+        if zeile is None:
+            zeile = self.pos_ansicht.currentIndex().row()
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            return False
+        p = self.positionen[zeile]
+        e = drehfraes_preis.lesen(p.get("technik"))
+        liste = zukauf.json_liste(p.get("zukauf"))
+        if e is None or not liste:
+            self.f.meldung("Diese Position ist kein Dreh-/Frästeil aus dem STEP-Import.", fehler=True)
+            return False
+        lief = ((liste[0].get("stand") or {}).get("bezug") or {}).get("lieferant")
+        d = DrehfraesDialog(self, dict(e, stueck=p.get("stueck") or e.get("stueck") or 1),
+                            self.db.drehfraes_einstellungen(), titel=p.get("bezeichnung") or "",
+                            nur_lesen=self.fremd() or self.db.nur_lesen)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
+            return False
+        e, erg = d.eingaben(), d.ergebnis
+        stueck = e.get("stueck") or p.get("stueck") or 1
+        aid = liste[0].get("artikel_id")
+        self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lief, ab=stueck,
+                                    bemerkung=f"{drehfraes_preis.HINWEIS} (ab {stueck:g} St)")
+        liste[0]["stand"] = self.db.zukauf_stand(aid, lief)
+        ab = max(1, float(stueck))
+        merk = [r for r in e.get("richtpreise") or () if isinstance(r, dict) and r.get("ab") != ab] + \
+            [dict(ab=ab, preis=erg["richtpreis"])]
+        for feld, wert in (("technik", drehfraes_preis.speichern(dict(e, richtpreise=merk))), ("stueck", stueck),
+                           ("zukauf", json.dumps(liste, ensure_ascii=False))):
+            self.db.position_aendern(p["id"], feld, wert)
+        if stueck != p.get("stueck") and p.get("id"):
+            h = self.satz_nachziehen(p, "stueck", stueck)
+            if h:
+                self.f.meldung(h)
+        self.neu_laden()
+        self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen "
+                       f"({drehfraes_preis.HINWEIS}).")
+        return True
+
     def _blech_uebernehmen(self, p, e, erg, lieferant, stueck):
         """Eingaben e und Richtpreis erg des Blech-Editors in die Position p und als EK ab stueck in den Artikel."""
         liste = zukauf.json_liste(p.get("zukauf"))
@@ -3878,6 +3922,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
                 name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
             self.blech_bearbeiten(r)            # Blech (auch aus STEP): Editor; Nummer mit 3D-Modell: 3D-Ansicht
+        elif ist_zukaufteil(p) and drehfraes_preis.lesen(p.get("technik")) and art != "zukauf" and not (
+                name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
+            self.drehfraes_bearbeiten(r)        # Dreh-/Frästeil: Richtpreis-Dialog
         elif (name in RECHNER_SPALTEN or art == "abweichung") and not kein_laserteil(p) \
                 and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)
@@ -3900,6 +3947,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     # Rechtsklick (B5): Eintrag -> Arten, für die er erscheint (rohr, blech, zukauf, baugruppe); fehlt = immer
     MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
+                   "Richtpreis Dreh-/Frästeil …": {"drehfraes"},
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
                    "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"}}
@@ -3913,6 +3961,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if ist_baugruppe(p):
             return "baugruppe"
         if ist_zukaufteil(p):
+            if drehfraes_preis.lesen(p.get("technik")):
+                return "drehfraes"
             return "blech" if blech.lesen(p.get("technik")) else "zukauf"
         return "rohr"
 
@@ -6256,7 +6306,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                fliessloch_laser=self.db.einstellung("fliessloch_laser"),
                                bohren_laser=self.db.einstellung("bohren_laser"), blech_daten=blech_daten,
                                biegerohr_faktor=self.db.einstellung("biegerohr_faktor"),
-                               zusatz_katalog=self.db.zeilen("zusatzarbeiten"))
+                               zusatz_katalog=self.db.zeilen("zusatzarbeiten"),
+                               drehfraes_einst=self.db.drehfraes_einstellungen()
+                               if funktionen.an("funktion_drehfraes_preis", self.db) else None)
         self.db.profile_anlegen(erg["profile"])
         neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
                     for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
@@ -6265,9 +6317,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         bleche_neu = [b for w, b in erg["zukauf_neu"].values() if not vollmaterial.ist_voll(w)
                       and w.get("artikeltyp") not in drehfraes.ARTEN]
         voll_neu = len(erg["zukauf_neu"]) - len(bleche_neu) - len(df_neu)
-        if df_neu:
-            erg["bericht"].append(f"{len(df_neu)} Zukaufartikel (Dreh-/Frästeil) neu angelegt, ohne EK: bitte beim "
-                                  "Lieferanten anfragen und unter Zukaufartikel mit 'EK eintragen …' nachtragen.")
+        df_rp = sum(any(b.get("preise") for b in bz) for w, bz in erg["zukauf_neu"].values()
+                    if w.get("artikeltyp") in drehfraes.ARTEN)
+        if df_rp:
+            erg["bericht"].append(f"{df_rp} Zukaufartikel (Dreh-/Frästeil) neu angelegt, EK = Richtpreis (Schätzung "
+                                  "aus Arbeitsgängen, Material und Rüsten): bitte Fremdangebot einholen; "
+                                  "Rechtsklick → „Richtpreis Dreh-/Frästeil …“ zeigt die Rechnung.")
+        if len(df_neu) - df_rp:
+            erg["bericht"].append(f"{len(df_neu) - df_rp} Zukaufartikel (Dreh-/Frästeil) neu angelegt, ohne EK: bitte "
+                                  "beim Lieferanten anfragen und unter Zukaufartikel mit 'EK eintragen …' nachtragen.")
         ohne_ek = sum(not any(b.get("preise") for b in bezuege) for bezuege in bleche_neu)
         if voll_neu:
             erg["bericht"].append(f"{voll_neu} Zukaufartikel (Vollmaterial) neu angelegt, EK = Gewicht × €/kg "
@@ -6418,6 +6476,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.baugruppe_bearbeiten([r])
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")):
             self.blech_bearbeiten(r)
+        elif ist_zukaufteil(p) and drehfraes_preis.lesen(p.get("technik")):
+            self.drehfraes_bearbeiten(r)
         elif not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)
         else:

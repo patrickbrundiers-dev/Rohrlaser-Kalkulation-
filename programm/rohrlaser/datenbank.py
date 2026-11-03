@@ -1546,6 +1546,12 @@ class Datenbank:
         return tab
 
     @liest
+    def drehfraes_einstellungen(self):
+        """Einstellungen des Dreh-/Frästeil-Richtpreises ('df_…', drehfraes_preis.EINSTELLUNGEN)."""
+        from . import drehfraes_preis
+        return {n: self.einstellung(n) for n in drehfraes_preis.EINSTELLUNGEN}
+
+    @liest
     def blech_daten(self):
         """Daten des Blech-Editors für den Richtpreis je Staffelstufe (staffeln.blech_stand): werkstoffe {ID: Zeile},
         laser [Zeilen], einst {Einstellung: Wert}."""

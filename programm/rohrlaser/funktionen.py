@@ -53,6 +53,9 @@ FUNKTIONEN = (
     Funktion("funktion_abruf", "Abruf-/Rahmenangebote",
              "Haken „Abruf-/Rahmenangebot“ im Angebotskopf (vorhandene Abruf-Angebote bleiben)"),
     # Vorschlag K3 (Patrick 02.11.2026 „K3b“): nur intern, Vorgabe aus
+    Funktion("funktion_drehfraes_preis", "Richtpreis für Dreh- und Frästeile",
+             "Richtpreis als EK-Vorschlag für Dreh-/Frästeile aus dem STEP-Import, „Richtpreis Dreh-/Frästeil …“ "
+             "und die Seite mit Stundensätzen und Schnittwerten", seiten=("e_drehfraes",)),
     Funktion("funktion_co2", "CO₂-Bilanz (intern)",
              "CO₂ je Teil im Preisaufbau und im Kalkulations-PDF, Spalte CO₂ bei den Werkstoffen", vorgabe="nein"),
 )
