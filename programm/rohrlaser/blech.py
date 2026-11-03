@@ -171,6 +171,24 @@ def zuschnitt(e, k=K_FAKTOR):
                 aussen=2 * (lg + br) - 8 * r + 2 * math.pi * r, biegungen=[], punkte=None)
 
 
+def oberflaeche(e):
+    """Fläche eines Blechteils zum Beschichten [m²]: beide Seiten des Zuschnitts ohne die Innenkonturen (Kanten
+    vernachlässigt; Satz-Fläche, Pulverbeschichten 03.11.2026). None ohne Maße."""
+    try:
+        zs = zuschnitt(e)
+    except (ValueError, TypeError, KeyError):
+        return None
+    loch = 0.0
+    for z in e.get("konturen") or ():
+        if isinstance(z, dict) and z.get("art") not in sw.GRAVUREN:
+            try:
+                loch += kontur_flaeche(z) * max(int(_z(z.get("anzahl")) or 1), 1)
+            except (ValueError, TypeError):
+                continue
+    netto = max(zs["flaeche"] - loch, 0.0)
+    return 2 * netto / 1e6 if netto > 0 else None
+
+
 DREH_ARTEN = (sw.LANGLOCH, sw.RECHTECK, sw.POLYGON)     # Drehwinkel je Kontur (3E-4b); Text-Gravur hat 'winkel'
 
 
