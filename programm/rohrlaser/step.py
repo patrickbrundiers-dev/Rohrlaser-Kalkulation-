@@ -2577,6 +2577,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             # (bohrbild.py), erst dann die Zusatzarbeiten Senken, Flowdrill, Bohren
             bild = bohrbild.aus_messung(m_bild, gewinde, fliessloch_laser or bohrbild.GRAVUR,
                                         regel[4] if len(regel) >= 5 else None, bohren_laser)
+            if m.get("_zeichnung_text"):        # Zeichnung: Gewinde/Flowdrill an die Bohrungen (Patrick 03.11.2026)
+                from . import zeichnung_hinweise as zh
+                zh_liste = zh.lesen(m["_zeichnung_text"])
+                hinweise.extend(zh.bohrbild_abgleich(bild, zh_liste, m_bild, gewinde,
+                                                    m.get("_zeichnung_quelle") or "Zeichnung"))
+                p["_zeichnung_text"], p["_zeichnung_quelle"] = m["_zeichnung_text"], m.get("_zeichnung_quelle")
             if bild:
                 p.update(bohrbild.anwenden(p, bild))
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
