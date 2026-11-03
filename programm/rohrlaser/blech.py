@@ -39,6 +39,10 @@ ARTEN = (ZUSCHNITT, KANTTEIL)
 RECHTECK, POLYGON = "Rechteck", "Polygon"
 FORMEN = (RECHTECK, POLYGON)
 KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE, sw.TEXT_GRAVUR, sw.GRAVUR)
+# Bohrungen mit Eigenschaft Ausführung (Patrick 03.11.2026, bohrbild.py): Gewinde schneiden, Flowdrill, Einnietmutter,
+# Senkung, nur lasern – Laser schneidet den Ø der Ausführung bzw. markiert nur, Gewinde und Arbeit € je Stück im
+# Richtpreis (Kosten Gewinde, Nacharbeit). Die Kontur der Zeichnung bleibt.
+BOHR_ARTEN = (sw.BOHRUNG, sw.SENKUNG)
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
@@ -593,6 +597,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     erg["k_faktoren"] = sorted({round(k(r) if callable(k) else k, 3) for _, _, r, _ in zs.get("biegungen") or ()})
     erg["hinweise"] = list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w) + gravur_hinweise(e, k)
     innen, einstiche, loch = 0.0, 1, 0.0
+    gew_n, arbeit_n = {}, {}            # Ausführung der Bohrungen: Gewinde und Arbeiten je Teil
     for i, z in enumerate(e.get("konturen") or [], 1):
         try:
             lg, huelle, n = sw.kontur(z)
@@ -603,6 +608,24 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
             erg["gravur"] += lg * n
             erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
             continue
+        zb = bohr_zeile(z)
+        if zb is not None:
+            from . import bohrbild
+            aus, g = bohrbild.ausfuehrung(zb), zb.get("gewinde")
+            if aus in (bohrbild.GEWINDE_SCHNEIDEN, bohrbild.FLOWDRILL) and g:
+                gew_n[g] = gew_n.get(g, 0) + n
+            if bohrbild.ZUSATZ_AUS.get(aus):
+                arbeit_n[bohrbild.ZUSATZ_AUS[aus]] = arbeit_n.get(bohrbild.ZUSATZ_AUS[aus], 0) + n
+            d_l, marke = bohrbild._ziel(zb)
+            if marke == bohrbild.GRAVUR:        # nur markiert: Gravur Ø 0,5, kein Einstich
+                erg["gravur"] += math.pi * bohrbild.MARKE_D * n
+                erg["konturen"].append(dict(art=sw.GRAVUR, anzahl=n, laenge=math.pi * bohrbild.MARKE_D,
+                                            huelle=bohrbild.MARKE_D))
+                continue
+            if marke == bohrbild.LOCH:
+                d_l = bohrbild.MARKE_D
+            if abs(d_l - _z(z.get("d"))) > 0.005:
+                lg, huelle = math.pi * d_l, d_l
         innen += lg * n
         einstiche += n
         loch += kontur_flaeche(z) * n
@@ -643,9 +666,31 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
                      "Laser": erg["zeit"] / 3600 * _z(w["blech_stundensatz"]),
                      "Kanten": erg["kantungen"] * _z(w["blech_kantung"]),
                      "Rüsten": ruesten / stueck}
+    gp, ap = w.get("gewinde_preise") or {}, w.get("bohr_preise") or {}
+    if gew_n:
+        erg["kosten"]["Gewinde"] = sum(n * _z(gp.get(g)) for g, n in gew_n.items())
+        fehlt = [g for g in gew_n if _z(gp.get(g)) <= 0]
+        if fehlt:
+            erg["hinweise"].append(f"Gewinde {', '.join(fehlt)} ohne Preis (Einstellungen › Gewinde)")
+    if arbeit_n:
+        erg["kosten"]["Nacharbeit"] = sum(n * _z(ap.get(name)) for name, n in arbeit_n.items())
+        fehlt = [name for name in arbeit_n if _z(ap.get(name)) <= 0]
+        if fehlt:
+            erg["hinweise"].append(f"{', '.join(fehlt)} ohne Preis (Einstellungen › Zusatzarbeiten, € je Stück)")
+    erg["bohrungen"] = dict(gewinde=gew_n, arbeiten=arbeit_n)
     erg["summe"] = sum(erg["kosten"].values())
     erg["richtpreis"] = round(erg["summe"] * (1 + _z(w["blech_aufschlag"])), 2)
     return erg
+
+
+def bohr_zeile(z):
+    """Kontur mit Eigenschaft Ausführung als Bohrbild-Zeile (bestätigt) oder None."""
+    from . import bohrbild
+    if z.get("art") not in BOHR_ARTEN or z.get("aus") not in bohrbild.AUSFUEHRUNGEN:
+        return None
+    zb = dict(art="Senkung" if z.get("art") == sw.SENKUNG else "Bohrung", d=_z(z.get("d")), anzahl=1,
+              status=bohrbild.BESTAETIGT, **({"D": _z(z["D"])} if _z(z.get("D")) > 0 else {}))
+    return bohrbild.ausfuehrung_setzen(zb, z["aus"], (), None, z.get("groesse"))
 
 
 def _zahl(x):

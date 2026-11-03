@@ -72,7 +72,9 @@ LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitt
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE, GEWINDE_SPALTE = range(5, 14)
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
-EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen")
+# aus/groesse: Ausführung einer Bohrung und Gewindegröße (Patrick 03.11.2026, bohrbild.aus_rechner)
+EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen",
+                 "aus", "groesse")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
