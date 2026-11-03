@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.239", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
+    ["0.9.241", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
                 "mit zwei markierten Angeboten in der Angebotsliste (rechte Maustaste → <i>Vergleichen …</i>) zwei "
                 "Angebote Position für Position gegenüberstellen. Quellen: Angebote aus der Liste, der eigene "
                 "CSV-Export (auch als ZIP) oder eine fremde CSV, z. B. ein Konkurrenz- oder Lieferantenangebot, mit "
@@ -31,6 +31,22 @@ NEUERUNGEN = [
                 "und Marge; markiert ab 5 % oder 50 € (Einstellungen → Automatik und Prüfung). Ausgabe als PDF und "
                 "CSV; in den Angeboten wird nichts gespeichert. Abschaltbar unter Einstellungen → Funktionen.",
      "Angebote vergleichen: zwei Angebote aus Liste oder CSV Position für Position, mit PDF und CSV"],
+    ["0.9.240", "<b>STEP-Import: Enden mit Hinterschnitt</b> ([[schneidweg_rechner]]): T-Schlitz, Schlüsselloch-Schlitz, "
+     "Schwalbenschwanz, Haken und Bohrungen halb über das Ende stehen jetzt genau wie in der STEP im Editor (vorher "
+     "0,4 bis 3 mm daneben). Eine Bohrung bis an die Rundung oder in einer dichten Lochreihe (Steg 0,5 mm) wurde als "
+     "Fließloch mit Schnittlänge 0 erkannt – jetzt gelaserte Bohrung bzw. Sonderkontur.",
+     "STEP: Enden mit Hinterschnitt wie STEP, Bohrung an der Rundung kein Fließloch mehr"],
+    ["0.9.239", "STEP-Import aus einer E-Mail mit <b>vielen Teilen</b>: Die PDFs der Anfrage stehen im Prüfdialog ab vier "
+     "Dateien in <b>einer Zeile</b> (<i>26 PDF-Dateien: 1 mit Formular, 25 Zeichnungen</i>), <b>Einzeln anzeigen</b> "
+     "klappt sie mit Bildlauf auf. Die Teileliste mit ihren Auswahlfeldern bleibt immer mindestens acht Zeilen hoch, "
+     "das Fenster passt auf 1366×768 ([[anfragen]]). Steht <i>Satz</i> bzw. <i>geschweißt</i>/<i>SBG</i> im "
+     "Datei- oder Baugruppennamen der STEP, sind <b>Als Satz</b> bzw. <b>als Schweißbaugruppe</b> schon gewählt "
+     "(abwählbar, [[step_satz]]). <b>Zeichnungen</b>: Gewinde (<i>4x M8</i>), Flowdrill, Einnietmuttern, Senkungen "
+     "und Blindniete werden mit Anzahl aus dem Zeichnungstext gelesen; Gewinde/Flowdrill hängen sich gelb an die "
+     "passende Bohrung (Bohrungen prüfen), Einnietmuttern und Zusatzarbeiten-Wörter werden Vorschläge, Abweichungen "
+     "zum STEP ein Hinweis ([[anfragen]]).",
+     "Prüfdialog bei vielen Teilen/PDFs übersichtlich; Satz/Schweißbaugruppe am Namen vorgewählt; Gewinde, "
+     "Flowdrill, Nieten aus der Zeichnung"],
     ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
      "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
      "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "

@@ -114,8 +114,10 @@ def erkannt(p, katalog):
             out.setdefault(name, dict(name=name, quelle=quelle, wort=wort,
                                       text=ral(text) if _mit_farbe(name, katalog) else None))
     for e in gemerkt(p):
-        out.setdefault(e["name"], dict(name=e["name"], quelle=e.get("quelle") or "Anfrage", wort=e.get("wort"),
-                                       text=e.get("text")))
+        x = out.setdefault(e["name"], dict(name=e["name"], quelle=e.get("quelle") or "Anfrage", wort=e.get("wort"),
+                                           text=e.get("text")))
+        if isinstance(e.get("menge"), (int, float)) and "menge" not in x:     # Anzahl aus der Zeichnung
+            x["menge"] = e["menge"]
     niet = _niet_name(katalog)
     if niet:
         n6, ns = geometrie(p)
@@ -251,10 +253,15 @@ def herkunft(e):
     return ERKANNT + str(e.get("quelle") or "") + (f" „{e['wort']}“" if e.get("wort") else "")
 
 
-def text_merken(arbeitsgaenge, text, katalog, quelle):
+def text_merken(arbeitsgaenge, text, katalog, quelle, mengen=None):
     """Neuer Inhalt für positionen.arbeitsgaenge mit den Erkennungen aus text (Anfrage-Mail, Zeichnung) unter
-    'erkannt'; unverändert, wenn nichts erkannt wird."""
+    'erkannt'; unverändert, wenn nichts erkannt wird. mengen = {Zusatzarbeit: Anzahl oder None} aus den
+    Bearbeitungshinweisen einer Zeichnung (zeichnung_hinweise.zusatz_mengen): auch ohne Erkennungswort ein
+    Vorschlag, mit Anzahl je Teil."""
+    namen = {z.get("name") for z in katalog or () if z.get("name") and z.get("aktiv") != "nein"}
+    mengen = {n: v for n, v in (mengen or {}).items() if n in namen}
     funde = treffer(text, katalog)
+    funde += [(n, "Zeichnung") for n in mengen if n not in {f[0] for f in funde}]
     if not funde:
         return arbeitsgaenge
     try:
@@ -265,7 +272,8 @@ def text_merken(arbeitsgaenge, text, katalog, quelle):
     liste = [e for e in d.get("erkannt") or () if isinstance(e, dict) and e.get("name")]
     da = {e["name"] for e in liste}
     farbe = ral(text)
-    liste += [dict(name=n, quelle=quelle, wort=w, text=farbe if farbe and _mit_farbe(n, katalog) else None)
+    liste += [dict(name=n, quelle=quelle, wort=w, text=farbe if farbe and _mit_farbe(n, katalog) else None,
+                   **({"menge": mengen[n]} if mengen.get(n) else {}))
               for n, w in funde if n not in da]
     d["erkannt"] = liste
     return json.dumps(d, ensure_ascii=False)
