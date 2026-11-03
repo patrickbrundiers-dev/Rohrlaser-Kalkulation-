@@ -3728,6 +3728,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                    or ["kein Richtpreis"]), fehler=True)
                     continue
                 bez = kopf.get("bezeichnung") or blech.bezeichnung_vorschlag(e, erg["zuschnitt"])
+                # Stand aus der DXF merken (Blech-Editor: Zurücksetzen → wie aus STEP/DXF, Patrick 03.11.2026)
+                e = dict(e, ursprung={k_: v for k_, v in e.items() if k_ not in ("stueck", "step", "ursprung")})
                 if self._blech_anlegen(e, erg, dict(bezeichnung=bez, artikelnr=None, stueck=kopf["stueck"],
                                                     lieferant=zukauf.lieferant_vorgabe("Blechteile"))):
                     n += 1

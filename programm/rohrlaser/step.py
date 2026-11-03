@@ -2567,6 +2567,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         bericht.append(f"{art}: " + (f"Pos. {ziel}" if ziel else "nicht übernommen") +
                        (", " + "; ".join(hinweise) if hinweise else ", OK"))
     naechste = _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck)
+    from .schneidweg import ursprung_merken
+    for p in neu:           # Importstand merken: Editor „Zurücksetzen → wie aus STEP“ (Patrick 03.11.2026)
+        if p.get("technik"):
+            p["technik"] = ursprung_merken(p["technik"])
     return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel,
                 satz_daten=_satz_stoesse(messwerte, satz_teile))
 
@@ -2703,6 +2707,8 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
         if stoesse and not unter:
             bg["stoesse"] = stoesse
         anzahl = wert(datei, "_saetze") or stueck or 1
+        # Importstand merken: Editor „Zurücksetzen → wie aus STEP“ (Patrick 03.11.2026)
+        bg[baugruppe.URSPRUNG] = dict(baugruppe.import_stand(bg, [q for q, _ in liste]), kopf=dict(bezeichnung=name, anzahl=anzahl))
         neu.append(dict(pos=naechste, art=BAUGRUPPE, bezeichnung=name, stueck=anzahl, satz=name, je_satz=1,
                         baugruppe=baugruppe.speichern(bg)))
         bericht.append(f"Schweißbaugruppe {name}: Pos. {naechste}, {len(liste)} Einzelteil-Positionen, "
