@@ -4975,6 +4975,38 @@ def kapitel_zukauf_angebot(i):
             "ihre Mitte, + = gegen den Uhrzeiger. Skizze, 3D, DXF, Zeichnung und der Abstand zu den Biegelinien "
             "rechnen gedreht; die Schnittlänge bleibt gleich.",
             "Jede Änderung lässt sich mit Strg+Z zurücknehmen.")
+    i.abschnitt("Richtwerte ändern, Angebotspreis, Tafelbelegung", marke="blech_richtwerte")
+    i.text("Rechts im Blech-Editor stehen alle <b>Richtwerte</b> des Blechs mit einer Spalte <b>eigener Wert</b>. "
+           "Der Richtpreis wird immer daraus berechnet; einen eingeholten Preis des Lieferanten trägt man im Angebot "
+           "in der Spalte <b>EK Blech</b> ein.", kurz=True)
+    i.genauer()
+    i.liste("<b>Richtwerte</b>: Gewicht je Teil, Material mit Verschnitt, Materialpreis (€/kg), Schneidweg, "
+            "Einstiche, Laserzeit, Stundensatz, Kantungen, Preis je Kantung, Rüsten je Los und Aufschlag. Die Spalte "
+            "<i>berechnet</i> zeigt den Wert aus Eingaben und Einstellungen. Ein <b>eigener Wert</b> gilt nur für "
+            "dieses Teil (gelb), die Einstellungen bleiben; <b>↺</b> setzt auf den Richtwert zurück. Der Richtpreis "
+            "rechnet sofort neu. Ein eigener Schneidweg ändert die Schneidzeit im Verhältnis, eigene Einstiche die "
+            "Einstechzeit; eine eigene Laserzeit gilt so, wie sie eingetragen ist (auch ohne Blechlaser-Richtwerte "
+            "für die Dicke).",
+            "<b>Aus der STEP</b> (fett blau): Bei Blechen aus dem STEP-Import kommt das <i>Gewicht</i> aus dem "
+            "gemessenen Volumen und der <i>Schneidweg</i> aus dem gemessenen Außen- und Innenumfang, die Laserzeit "
+            "daraus. Das gilt, solange die Form im Editor nicht geändert wird (eine Text-Gravur zählt nicht); danach "
+            "rechnet der Editor wieder aus den Eingaben. Der Schneidweg ist immer die volle Außenkontur plus alle "
+            "Innenkonturen; gemeinsame Schnitte benachbarter Teile werden nicht abgezogen.",
+            "<b>Tafelbelegung</b>: unter den Richtwerten zeigt ein Bild die günstigste Tafel mit den Teilen (Außenkontur "
+            "im Hüllrechteck, Steg und Rand aus den Einstellungen); die letzte Tafel zählt nur mit der belegten "
+            "Fläche (rot gestrichelt). Doppelklick zeigt das Bild groß.",
+            "<b>Spalte EK Blech</b> in der Positionsliste: grau = berechneter Richtpreis. Einen <b>Angebotspreis</b> "
+            "des Lieferanten anklicken und eintragen; er wird im Zukaufartikel als Preis ab Stückzahl gespeichert, "
+            "steht fett und gilt im Angebot statt des Richtpreises (kein Gewinn auf Bleche, nur der Aufschlag der "
+            "Zukaufteile). Wird das Blech danach im Editor geändert, bleibt der Angebotspreis; der neue Richtpreis "
+            "steht im Tooltip zum Vergleich. Zelle leeren = wieder der Richtpreis.",
+            "<b>Zukaufteile … → Bleche: Richtwerte, Angebotspreise, Tafelbelegung …</b>: alle Bleche des Angebots mit "
+            "Werkstoff, Dicke, Zuschnitt, Gewicht, Laserzeit, eigenen Werten, Richtpreis sowie <i>Angebotspreis</i> und "
+            "<i>Lieferant</i> zum Eintragen; Doppelklick auf eine andere Spalte öffnet den Blech-Editor. Der Reiter "
+            "<i>Tafelbelegung (Ansicht)</i> legt je Werkstoff und Dicke alle Bleche gemeinsam auf Tafeln (Nummer = "
+            "Pos.). Das ist nur eine Ansicht: gerechnet wird weiter je Teil.",
+            "Im <b>Prüfdialog</b> des STEP- bzw. E-Mail-Imports steht bei jedem Blech mit Werkstoff gleich Gewicht und "
+            "Richtpreis aus den STEP-Daten; ein anderer Werkstoff rechnet sie neu.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "

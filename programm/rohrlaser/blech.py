@@ -27,7 +27,12 @@ Richtpreis je Stück = (Material + Laser + Kanten + Rüsten je Stück) × (1 + A
 Losgröße ÷ Stückzahl × Dicke × Dichte × €/kg (tafelbedarf: Hüllrechtecke mit Steg auf den Tafelformaten, volle Tafeln
 ganz, die letzte nur mit ihrer belegten Fläche samt Rand; Einstellung 'pauschaler Verschnitt': Hüllrechteck ×
 (1 + Verschnitt)); Laserzeit = Außenkontur / Vorschub + Innenkonturen / Vorschub innen +
-Einstiche × Einstechzeit."""
+Einstiche × Einstechzeit.
+
+Eigene Werte (Patrick 03.11.2026, „Bleche mit Richtwerten anzeigen, die dann geändert werden können“): eingaben
+'eigene' = {Schlüssel aus RICHTWERTE: Wert} ersetzt den berechneten Richtwert nur für dieses Teil (die Einstellungen
+bleiben). Der Richtpreis wird immer aus den Werten berechnet und nie von Hand eingetragen; ein eingeholtes Angebot
+des Lieferanten ersetzt ihn als EK im Angebot (blech_preis)."""
 import json
 import math
 
@@ -48,6 +53,19 @@ EINSTELLUNGEN = {"blech_stundensatz": 120.0, "blech_ruesten": 30.0, "blech_versc
                  "blech_kant_v": 8.0, "blech_kant_schenkel": 0.7, "blech_kant_loch": 2.0, "blech_kant_radius": 0.5,
                  "blech_material": MATERIAL_AUS[0], "blech_tafeln": "3000 × 1500; 2500 × 1250",
                  "blech_tafel_rand": 10.0, "blech_tafel_steg": 5.0}
+# Richtwerte, die der Blech-Editor zeigt und je Teil überschreiben lässt: (Schlüssel, Titel, Einheit, Nachkommastellen)
+RICHTWERTE = (("gewicht", "Gewicht je Teil", "kg", 3),
+              ("material_kg", "Material mit Verschnitt", "kg", 3),
+              ("preis_kg", "Materialpreis", "€/kg", 2),
+              ("schneidweg", "Schneidweg", "mm", 0),
+              ("einstiche", "Einstiche", "", 0),
+              ("zeit", "Laserzeit", "s", 1),
+              ("stundensatz", "Stundensatz", "€/h", 2),
+              ("kantungen", "Kantungen", "", 0),
+              ("kantung", "Preis je Kantung", "€", 2),
+              ("ruesten", "Rüsten je Los", "€", 2),
+              ("aufschlag", "Aufschlag", "%", 1))
+RICHTWERT_NAMEN = tuple(r[0] for r in RICHTWERTE)
 NICHT_GEPRUEFT = "Biegefolge und Werkzeugkollision prüft das Programm nicht"
 
 _z = sw._z
@@ -560,6 +578,124 @@ def tafelbedarf(laenge, breite, stueck, tafeln, rand=10.0, steg=5.0):
     return best
 
 
+def _raster(u, v, a, b):
+    """Lage der Zellen a × b (mit Steg) für die größte Anzahl wie _je_tafel: [(x, y, gedreht)] ab der Ecke."""
+    best = []
+    for p, q in ((a, b), (b, a)):
+        dreh = p != a
+        for k in range(int(u // p) + 1):        # k Spalten p × q, Reststreifen rechts gedreht
+            z = [(i * p, j * q, dreh) for i in range(k) for j in range(int(v // q))]
+            z += [(k * p + i * q, j * p, not dreh) for i in range(int((u - k * p) // q)) for j in range(int(v // p))]
+            if len(z) > len(best):
+                best = z
+        for k in range(int(v // q) + 1):        # k Reihen p × q, Reststreifen oben gedreht
+            z = [(i * p, j * q, dreh) for j in range(k) for i in range(int(u // p))]
+            z += [(i * q, k * q + j * p, not dreh) for j in range(int((v - k * q) // p)) for i in range(int(u // q))]
+            if len(z) > len(best):
+                best = z
+    return best
+
+
+def _rest_raster(m, u, v, a, b, steg, rand):
+    """Lage von m Zellen in der kleinsten belegten Fläche wie _rest: [(x, y, gedreht)] oder None."""
+    best = None
+    for p, q in ((a, b), (b, a)):
+        for reihen in range(1, int(v // q) + 1):
+            spalten = math.ceil(m / reihen)
+            if spalten * p > u + 1e-9:
+                continue
+            fl = (spalten * p - steg + 2 * rand) * (min(reihen, m) * q - steg + 2 * rand)
+            if best is None or fl < best[0]:
+                best = (fl, [(i * p, j * q, p != a) for i in range(spalten) for j in range(reihen)][:m])
+    return best[1] if best else None
+
+
+def tafel_belegung(laenge, breite, stueck, tafeln, rand=10.0, steg=5.0):
+    """Tafelbelegung zum Ansehen (Patrick 03.11.2026): wie tafelbedarf, dazu je unterschiedlicher Tafel die Lage der
+    Teile. Ergebnis: tafelbedarf-dict mit 'bilder' = [dict(anzahl (gleiche Tafeln), teile [(x, y, l, b, gedreht)] in mm
+    ab der Tafelecke, rest (l, b) der belegten Fläche der letzten Tafel oder None)] oder None."""
+    t = tafelbedarf(laenge, breite, stueck, tafeln, rand, steg)
+    if not t:
+        return None
+    n = max(int(stueck or 1), 1)
+    l, br = t["format"]
+    lg, bg = _z(laenge), _z(breite)
+    a, b = lg + steg, bg + steg
+    u, v = l - 2 * rand + steg, br - 2 * rand + steg
+
+    def teile(lage):
+        return [(rand + x, rand + y, bg if d else lg, lg if d else bg, d) for x, y, d in lage]
+    voll = _raster(u, v, a, b)[:t["je_tafel"]]
+    bilder = []
+    rest_n = n - t["voll"] * t["je_tafel"]
+    if t["voll"] and rest_n > 0 and t["rest"] is None:      # letzte Tafel ganz (gemischte Lage)
+        if t["voll"] > 1:
+            bilder.append(dict(anzahl=t["voll"] - 1, teile=teile(voll), rest=None))
+        bilder.append(dict(anzahl=1, teile=teile(voll[:rest_n]), rest=None))
+    else:
+        if t["voll"]:
+            bilder.append(dict(anzahl=t["voll"], teile=teile(voll), rest=None))
+        if rest_n > 0:
+            lage = _rest_raster(rest_n, u, v, a, b, steg, rand) or voll[:rest_n]
+            bilder.append(dict(anzahl=1, teile=teile(lage), rest=t["rest"]))
+    return dict(t, bilder=[x for x in bilder if x["anzahl"] > 0 and x["teile"]])
+
+
+def tafel_gemischt(teile, tafeln, rand=10.0, steg=5.0):
+    """Gemeinsame Tafelbelegung verschiedener Bleche gleichen Werkstoffs und gleicher Dicke, nur zum Ansehen (Patrick
+    03.11.2026: „erst nur visuell“; die Rechnung bleibt je Teil). teile: [(Länge, Breite, Stückzahl, Beschriftung)] der
+    Hüllrechtecke. Regalverfahren: Teile nach Breite absteigend, liegend (lange Seite längs), reihenweise auf die Tafel,
+    gedreht nur, wenn es liegend nicht passt. Gewählt wird das Format mit der kleinsten Tafelfläche. Ergebnis
+    dict(format, tafeln [Anzahl], bilder [dict(anzahl 1, teile [(x, y, l, b, gedreht, Beschriftung)], rest None)],
+    ausnutzung, fehlt [Beschriftungen, die auf keine Tafel passen]) oder None ohne Teile."""
+    stuecke = []
+    for lg, br, n, text in teile:
+        lg, br = _z(lg), _z(br)
+        if lg > 0 and br > 0:
+            stuecke += [(max(lg, br), min(lg, br), text)] * max(int(_z(n) or 1), 1)
+    if not stuecke:
+        return None
+    stuecke.sort(key=lambda t: (-t[1], -t[0]))
+    best = None
+    for l, b in tafeln:
+        u, v = l - 2 * rand, b - 2 * rand
+        bilder, fehlt = [], []
+        tafel, x, y, h = None, 0.0, 0.0, 0.0
+        for lg, br, text in stuecke:
+            lage = [(lg, br, False), (br, lg, True)]
+            lage = [t for t in lage if t[0] <= u + 1e-9 and t[1] <= v + 1e-9]
+            if not lage:
+                fehlt.append(text)
+                continue
+            gesetzt = False
+            while not gesetzt:
+                if tafel is not None:
+                    for tl, tb, d in lage:              # in die laufende Reihe
+                        if x + tl <= u + 1e-9 and y + tb <= v + 1e-9 and (tb <= h + 1e-9 or x == 0):
+                            tafel.append((rand + x, rand + y, tl, tb, d, text))
+                            x, h, gesetzt = x + tl + steg, max(h, tb), True
+                            break
+                    if not gesetzt and x > 0 and y + h + steg + min(t[1] for t in lage) <= v + 1e-9:
+                        x, y, h = 0.0, y + h + steg, 0.0          # neue Reihe
+                        continue
+                if not gesetzt:
+                    if tafel is not None and not tafel:
+                        fehlt.append(text)
+                        break
+                    tafel, x, y, h = [], 0.0, 0.0, 0.0
+                    bilder.append(dict(anzahl=1, teile=tafel, rest=None))
+        flaeche = len(bilder) * l * b
+        if not bilder:
+            continue
+        if best is None or (len(fehlt), flaeche) < (len(best["fehlt"]), best["_flaeche"]):
+            netto = sum(t[2] * t[3] for bild in bilder for t in bild["teile"])
+            best = dict(format=(l, b), tafeln=len(bilder), bilder=bilder, fehlt=fehlt, _flaeche=flaeche,
+                        ausnutzung=netto / flaeche)
+    if best:
+        best.pop("_flaeche")
+    return best
+
+
 def k_fuer(wst, dicke, einst=None):
     """K-Faktor (Zahl) bzw. Funktion Innenradius -> K-Faktor für Werkstoff-Zeile wst und Dicke, wie rechnen()."""
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
@@ -576,7 +712,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     erg = dict(fehler=[], zuschnitt=None, gewicht=None, gewicht_tafel=None, schneidweg=None, aussen=None, innen=None,
                einstiche=None, zeit=None, kosten={}, summe=None, richtpreis=None, gas=None, kantungen=0, gravur=0.0,
-               konturen=[], hinweise=[], k_faktoren=[], tafel=None)
+               konturen=[], hinweise=[], k_faktoren=[], tafel=None, richtwerte={}, eigene={}, werte={})
     wst = werkstoffe.get(e.get("werkstoff"))
     s = _z(e.get("dicke"))
     if not wst:
@@ -607,12 +743,25 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         einstiche += n
         loch += kontur_flaeche(z) * n
         erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
-    erg.update(aussen=zs["aussen"], innen=innen, schneidweg=zs["aussen"] + innen, einstiche=einstiche,
+    aussen = zs["aussen"]
+    mess = step_messung(e)          # Blech aus der STEP, Form unverändert: gemessene Werte (Patrick 03.11.2026)
+    erg["aus_step"] = []
+    if mess and mess.get("umfang_aussen", 0) > 0:
+        aussen, innen = mess["umfang_aussen"], mess.get("umfang_innen", innen)
+        erg["aus_step"] += ["schneidweg", "zeit"]
+    erg.update(aussen=aussen, innen=innen, schneidweg=aussen + innen, einstiche=einstiche,
                kantungen=kantungen(e, zs))
     if erg["fehler"]:
         return erg
+    eigen = eigene_werte(e)
+    erg["eigene"] = eigen
+    rw = erg["richtwerte"]          # berechnete Richtwerte (ohne eigene Werte), je Schlüssel aus RICHTWERTE
     dichte = _z(wst.get("dichte"))
-    erg["gewicht"] = max(zs["flaeche"] - loch, 0) * s * dichte / 1e6
+    rw["gewicht"] = max(zs["flaeche"] - loch, 0) * s * dichte / 1e6
+    if mess and (mess.get("volumen", 0) > 0 or mess.get("flaeche_netto", 0) > 0):
+        rw["gewicht"] = (mess.get("volumen") or mess["flaeche_netto"] * s) * dichte / 1e6
+        erg["aus_step"].append("gewicht")
+    erg["gewicht"] = eigen.get("gewicht", rw["gewicht"])
     stueck = max(int(_z(e.get("stueck")) or 1), 1)
     flaeche = zs["laenge"] * zs["breite"] * (1 + _z(w["blech_verschnitt"]))
     if w.get("blech_material") != MATERIAL_AUS[1]:
@@ -622,30 +771,96 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
             flaeche = erg["tafel"]["flaeche"] / stueck
         else:
             erg["hinweise"].append("Tafel: Zuschnitt passt auf kein Tafelformat, Material mit pauschalem Verschnitt")
-    erg["gewicht_tafel"] = flaeche * s * dichte / 1e6
+    rw["material_kg"] = flaeche * s * dichte / 1e6
+    erg["gewicht_tafel"] = eigen.get("material_kg", rw["material_kg"])
+    rw["preis_kg"] = _z(wst.get("preis_kg"))
+    rw["schneidweg"], rw["einstiche"] = erg["schneidweg"], einstiche
+    erg["schneidweg"] = eigen.get("schneidweg", erg["schneidweg"])
+    erg["einstiche"] = int(round(eigen.get("einstiche", einstiche)))
     sd = schneiddaten(laserdaten, wst.get("kategorie"), s)
-    if sd is None:
+    if sd is None and "zeit" not in eigen:
         erg["fehler"].append(f"Keine Blechlaser-Richtwerte für {wst.get('kategorie')} {s:g} mm "
-                             "(Einstellungen → Blechlaser (Richtwerte)).")
+                             "(Einstellungen → Blechlaser (Richtwerte)) – oder Laserzeit als eigenen Wert eintragen.")
         return erg
-    erg["gas"] = sd.get("gas")
-    v_innen = _z(sd.get("vorschub_innen")) or _z(sd["vorschub"]) / 2
-    erg["zeit"] = (zs["aussen"] / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
-                   + einstiche * _z(sd.get("einstechzeit")))
-    if erg["gravur"] > 0:
-        if _z(sd.get("vorschub_gravur")) > 0:
-            erg["zeit"] += erg["gravur"] / _z(sd["vorschub_gravur"]) * 60
-        else:
-            erg["hinweise"].append(f"Gravur {erg['gravur']:.0f} mm ohne Zeit: Vorschub Gravur fehlt in den "
-                                   f"Blechlaser-Richtwerten ({wst.get('kategorie')} {s:g} mm)")
-    ruesten = _z(w["blech_ruesten"]) + (_z(w["blech_ruesten_kanten"]) if erg["kantungen"] else 0)
-    erg["kosten"] = {"Material": erg["gewicht_tafel"] * _z(wst.get("preis_kg")),
-                     "Laser": erg["zeit"] / 3600 * _z(w["blech_stundensatz"]),
-                     "Kanten": erg["kantungen"] * _z(w["blech_kantung"]),
-                     "Rüsten": ruesten / stueck}
+    rw["zeit"] = None
+    if sd is not None:
+        erg["gas"] = sd.get("gas")
+        v_innen = _z(sd.get("vorschub_innen")) or _z(sd["vorschub"]) / 2
+        schneiden = aussen / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
+        if "schneidweg" in eigen and rw["schneidweg"] > 0:      # eigener Schneidweg: Schneidzeit im Verhältnis
+            schneiden *= erg["schneidweg"] / rw["schneidweg"]
+        rw["zeit"] = (aussen / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
+                      + einstiche * _z(sd.get("einstechzeit")))
+        erg["zeit"] = schneiden + erg["einstiche"] * _z(sd.get("einstechzeit"))
+        if erg["gravur"] > 0:
+            if _z(sd.get("vorschub_gravur")) > 0:
+                rw["zeit"] += erg["gravur"] / _z(sd["vorschub_gravur"]) * 60
+                erg["zeit"] += erg["gravur"] / _z(sd["vorschub_gravur"]) * 60
+            else:
+                erg["hinweise"].append(f"Gravur {erg['gravur']:.0f} mm ohne Zeit: Vorschub Gravur fehlt in den "
+                                       f"Blechlaser-Richtwerten ({wst.get('kategorie')} {s:g} mm)")
+    if "zeit" in eigen:
+        erg["zeit"] = eigen["zeit"]
+    rw["stundensatz"], rw["kantung"] = _z(w["blech_stundensatz"]), _z(w["blech_kantung"])
+    rw["kantungen"] = erg["kantungen"]
+    erg["kantungen"] = int(round(eigen.get("kantungen", erg["kantungen"])))
+    rw["ruesten"] = _z(w["blech_ruesten"]) + (_z(w["blech_ruesten_kanten"]) if erg["kantungen"] else 0)
+    rw["aufschlag"] = _z(w["blech_aufschlag"]) * 100
+    werte = dict(rw, gewicht=erg["gewicht"], material_kg=erg["gewicht_tafel"], schneidweg=erg["schneidweg"],
+                 einstiche=erg["einstiche"], zeit=erg["zeit"], kantungen=erg["kantungen"])
+    werte.update({n: v for n, v in eigen.items() if n in ("preis_kg", "stundensatz", "kantung", "ruesten",
+                                                          "aufschlag")})
+    erg["werte"] = werte            # gerechnet wird mit diesen (Richtwert oder eigener Wert)
+    erg["kosten"] = {"Material": werte["material_kg"] * werte["preis_kg"],
+                     "Laser": werte["zeit"] / 3600 * werte["stundensatz"],
+                     "Kanten": werte["kantungen"] * werte["kantung"],
+                     "Rüsten": werte["ruesten"] / stueck}
     erg["summe"] = sum(erg["kosten"].values())
-    erg["richtpreis"] = round(erg["summe"] * (1 + _z(w["blech_aufschlag"])), 2)
+    erg["richtpreis"] = round(erg["summe"] * (1 + werte["aufschlag"] / 100), 2)
     return erg
+
+
+# Eingaben, die die Form bestimmen: weichen sie von den Eingaben wie gemessen ('step') ab, gelten die STEP-Werte nicht mehr
+FORM_FELDER = ("art", "form", "dicke", "laenge", "breite", "eckradius", "punkte", "kantlaenge", "schenkel", "kantungen",
+               "konturen")
+
+
+def _form(e):
+    out = {n: (e or {}).get(n) for n in FORM_FELDER}
+    out["konturen"] = [z for z in out["konturen"] or () if z.get("art") not in sw.GRAVUREN]  # Gravur ändert nichts
+    out["schenkel"] = list(out["schenkel"] or ())
+    out["kantungen"] = out["kantungen"] or None
+    return out
+
+
+def step_messung(e):
+    """Gemessene Werte des Blechs aus der STEP (eingaben 'messung': flaeche_netto [mm²], volumen [mm³], umfang_aussen,
+    umfang_innen [mm]) oder None: ohne Messung oder wenn die Form im Editor geändert wurde (Eingaben ≠ 'step')."""
+    m = (e or {}).get("messung")
+    if not isinstance(m, dict):
+        return None
+    st = e.get("step")
+    if isinstance(st, dict) and _form(st) != _form(e):
+        return None
+    if st is None:
+        return None
+    return {n: float(v) for n, v in m.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+
+
+def messung_aus(b):
+    """Messwerte für 'messung' aus einem im STEP-Import gemessenen Blech b (step.blech)."""
+    out = {n: round(_z(b.get(n)), 2) for n in ("flaeche_netto", "volumen", "umfang_aussen", "umfang_innen")
+           if _z(b.get(n)) > 0}
+    return out or None
+
+
+def eigene_werte(e):
+    """Eigene Werte der Eingaben e ('eigene'): {Schlüssel: Zahl ≥ 0} nur für bekannte Richtwerte."""
+    out = {}
+    for n, v in ((e or {}).get("eigene") or {}).items():
+        if n in RICHTWERT_NAMEN and isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0:
+            out[n] = float(v)
+    return out
 
 
 def _zahl(x):
@@ -707,7 +922,7 @@ def aus_step(b, werkstoff, stueck=1):
                      biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"),
                                        radius=x.get("radius"))
                                   for x in abw.get("biegelinien") or () if len(x.get("punkte") or ()) == 2])
-        return dict(e, step=True)
+        return dict(e, step=True, messung=messung_aus(b))
     lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
     gekantet = b.get("kontur") == "gekantet"
     if gekantet and _z(b.get("abwicklung_flaeche")) > 0 and lg > 0:
@@ -733,7 +948,7 @@ def aus_step(b, werkstoff, stueck=1):
         konturen.append(dict(art=sw.SONSTIGE, anzahl=rest_n, laenge=round(rest_l / rest_n, 1), x=None, y=None))
     return dict(quelle=QUELLE, art=ZUSCHNITT, form=form, punkte=punkte, werkstoff=werkstoff,
                 dicke=_z(b.get("dicke")), laenge=lg, breite=br, eckradius=0, stueck=stueck,
-                konturen=konturen, schenkel=[], kantlaenge=lg, step=True)
+                konturen=konturen, schenkel=[], kantlaenge=lg, step=True, messung=messung_aus(b))
 
 
 def lesen(text):

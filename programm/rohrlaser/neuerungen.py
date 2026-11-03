@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.239", "<b>Bleche mit Richtwerten, die man ändern kann</b> ([[blech_richtwerte]]): Der Blech-Editor zeigt "
+     "Gewicht, Material, €/kg, Schneidweg, Einstiche, Laserzeit, Stundensatz, Kantungen, Rüsten und Aufschlag als "
+     "Tabelle; ein <i>eigener Wert</i> gilt nur für dieses Teil (↺ zurück), der Richtpreis wird immer daraus "
+     "berechnet. Bleche aus der STEP rechnen mit Gewicht aus dem Volumen und dem gemessenen Schneidweg. Neue Spalte "
+     "<b>EK Blech</b> im Angebot: Angebotspreis des Lieferanten per Klick eintragen, er gilt statt des Richtpreises "
+     "(leer = Richtpreis). <b>Tafelbelegung</b> als Bild im Editor und gemeinsam je Werkstoff/Dicke in der neuen "
+     "Übersicht <i>Bleche</i> (nur Ansicht). Prüfdialog zeigt Gewicht und Richtpreis je Blech.",
+     "Bleche: Richtwerte änderbar, Angebotspreis per Klick, Tafelbelegung als Bild"],
     ["0.9.238", "<b>STEP-Import: jede Kontur wie in der STEP</b> ([[schneidweg_rechner]]): Jede Bohrung, jedes "
      "Langloch und Rechteck wird gegen den gemessenen Umriss geprüft und sonst eine Sonderkontur mit dem Umriss der "
      "STEP. Zwei überlappende Bohrungen gleichen Ø (lagen als eine Bohrung bis 3 mm daneben), Bohrungen auf der "
