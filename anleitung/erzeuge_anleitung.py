@@ -5255,6 +5255,30 @@ def kapitel_baugruppen(i):
     i.text("Steckt ein Rohr durch ein Loch im Blech, schlägt der Import eine Kehlnaht rundum mit dem Außenumfang des "
            "Rohrs vor und hakt <b>beidseitig</b> an (oben und unten am Blech geschweißt); wird nur eine Seite "
            "geschweißt, das Häkchen in der Nahtgruppe entfernen.")
+    i.abschnitt("Nahtlänge: aus STEP, aus einem Teil, Stichnaht", marke="naht_laenge")
+    i.text("Wie lang eine Naht ist, entscheidet über die Schweißzeit. Das Programm rechnet sie aus der STEP-Datei, "
+           "aus einem Einzelteil oder nimmt deine Eingabe.", kurz=True)
+    i.tabelle(["Stoß (aus STEP)", "Länge je Naht"], [
+        ["Rohrende auf Rohr oder Platte", "rundum = Schnittlänge des Rohrendes, z. B. QR 40 auf RE 60x40: 152 mm"],
+        ["Kastenrohr quer auf schmalerem Kastenrohr (steht über)", "nur die zwei aufliegenden Wände: 2 × Breite des "
+         "schmaleren Rohrs, z. B. QR 60 auf QR 40: 2 × 40 = 80 mm statt 232 mm rundum"],
+        ["zwei Rohre (oder Flachstahl, Lasche) längs nebeneinander", "nur die Längsnähte ohne die kurzen "
+         "Stirnseiten, z. B. 2 × QR 40 L500: 2 × 500 = 1.000 mm; ab 300 mm je Naht mit Hinweis <i>Stichnaht "
+         "möglich</i>"],
+        ["Lasche hochkant", "ohne die Stirnseiten in Blechdicke, z. B. 2 × 80 mm statt 170 mm"],
+        ["Rohr durch ein Blech", "rundum = Außenumfang, beidseitig"],
+        ["sonst (z. B. Blech flach auf dem Rohr)", "Umfang der Berührfläche"]])
+    i.text("Die Nahtkandidaten aus STEP zeigen in der Spalte <b>Aufteilung der Länge</b>, wie die Länge entsteht; "
+           "nach dem Übernehmen steht sie im Hinweis der Nahtgruppe (<i>Länge aus STEP: …</i>).")
+    i.text("<b>Länge aus</b> (Reiter Nahtgruppen) rechnet die Länge ohne STEP aus einem Einzelteil, das du in der "
+           "Spalte <b>Teil</b> wählst: <i>rundum Teil</i> = Außenumfang des Profils (QR 40x3: 152 mm), "
+           "<i>Längsnaht Teil</i> = Länge des Teils, <i>2 Seiten</i> = 2 × Breite des Profils. Ändert sich das Teil, "
+           "zieht die Länge mit. Trägst du die Länge selbst ein, steht <i>Länge aus</i> wieder auf <i>frei</i>.")
+    i.text("<b>geschweißt [%]</b> ist für Stichnähte: 50 heißt, die Hälfte der Länge wird geschweißt (z. B. 50/100). "
+           "Naht [m], Verputzen und Prüfen rechnen mit der geschweißten Länge. Dafür kommt je weiteren Stich ein "
+           "Ansatz mit der Zeit je Heftpunkt dazu; die Stichlänge steht in der Regel <i>Stichnaht, Länge je "
+           "Stich</i> (Richtwert 50 mm). Leer heißt 100 %. Der Rechenweg zeigt z. B. <i>1 m (Stichnaht 50 %) × … "
+           "+ Stiche 18 Ansätze × 8 s</i>.")
     i.abschnitt("a-Maß und Stückliste aus der Zeichnung", marke="zeichnung_baugruppe")
     i.text("<b>Aus Zeichnung …</b> (Reiter Nahtgruppen) liest die Zeichnung der Baugruppe (PDF aus dem CAD, DXF oder "
            "Scan) und setzt die a-Maße der Schweißangaben in die Kehlnähte. Die Zeichnung ist maßgebend.", kurz=True)
@@ -5347,8 +5371,11 @@ def kapitel_baugruppen(i):
     i.tabelle(["Wert", "Rechnung (Werte aus Einstellungen → Schweiß-Vorkalkulation)"], [
         ["Rüsten (einmalig)", "Grundrüstzeit + Zeit je Teilenummer × Einzelteil-Positionen, mit Arbeitsgang "
                               "Vorrichtung + Rüsten Vorrichtung; Umlage je Auftrag"],
-        ["Positionieren", "je Unterbaugruppe das erste Teil als Basisteil, jedes weitere Stück × Zeit seiner "
-                          "Positionierhilfe; eingebaute Unterbaugruppen zählen als Teil <i>frei</i>"],
+        ["Positionieren", "je Unterbaugruppe das <b>schwerste</b> Teil als Basisteil, jedes weitere Stück × Zeit "
+                          "seiner Positionierhilfe × <b>Faktor nach Stückgewicht</b> (Richtwerte: bis 1 kg × 0,5, bis "
+                          "5 kg × 1,0, bis 20 kg × 1,5, darüber × 3 für den Kran; Regeln <i>Faktor bis … kg</i>, "
+                          "fehlen sie, Faktor 1); eingebaute Unterbaugruppen zählen als Teil <i>frei</i> mit ihrem "
+                          "Gewicht. Der Hinweis nennt z. B. <i>3 × 2 (frei) × 0,5 (bis 1 kg)</i>"],
         ["Positionierhilfe", "Steckverbindung (Teil einer Steckverbindung der Baugruppe), Vorrichtung (Arbeitsgang "
                              "Vorrichtung an seiner Unterbaugruppe), Gravur (Zukaufteil, dessen Lage auf dem Rohr "
                              "graviert ist: Anbauteil mit Umriss oder Marke), sonst frei"],

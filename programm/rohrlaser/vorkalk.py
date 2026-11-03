@@ -9,9 +9,10 @@ Rechenweg (alle Werte aus schweiss_regeln, kursiv im Plan):
                      tragen, wie das Teil Stück hat), sonst frei; Spalte bg_hilfe der Position = bestätigt bzw. von Hand
   Rüsten einmalig    Grundrüstzeit + Zeit je Teilenummer × Einzelteil-Positionen (+ Vorrichtung, wenn die Baugruppe
                      einen Arbeitsgang 'Vorrichtung' hat), Umlage je Auftrag
-  Positionieren      je Unterbaugruppe (und Baugruppe selbst) × Menge bis zur Baugruppe: ein Stück des ersten
-                     Einzelteils (Pos.) als Basisteil, alle übrigen Stück × Zeit ihrer Positionierhilfe; eingebaute
-                     Unterbaugruppen zählen als Teil 'frei'
+  Positionieren      je Unterbaugruppe (und Baugruppe selbst) × Menge bis zur Baugruppe: ein Stück des schwersten
+                     Einzelteils als Basisteil, alle übrigen Stück × Zeit ihrer Positionierhilfe × Faktor nach
+                     Stückgewicht (Regeln 'Faktor bis … kg', Patrick 03.11.2026; ohne Regeln oder Gewicht 1);
+                     eingebaute Unterbaugruppen zählen als Teil 'frei' mit ihrem Gewicht
   Wenden             Wendevorgänge je Baugruppe (bg['wenden'], Vorschlag aus der Erreichbarkeit im STEP:
                      baugruppe.wenden_aus_step) × Zeit je Wenden × Faktor nach Gewicht (Gewicht der
                      Baugruppe aus den Stammdaten der Baugruppe, sonst Summe der Einzelteile, bg_mengen)
@@ -66,6 +67,11 @@ RICHTWERTE = (
     ("Positionieren", "Gravur", None, 1.2, "min je Teil"),
     ("Positionieren", "Vorrichtung", None, 0.8, "min je Teil"),
     ("Positionieren", "Steckverbindung", None, 0.5, "min je Teil"),
+    ("Positionieren", "Faktor bis 1 kg", 1.0, 0.5, "Faktor"),          # Patrick 03.11.2026: nach Teilgewicht
+    ("Positionieren", "Faktor bis 5 kg", 5.0, 1.0, "Faktor"),
+    ("Positionieren", "Faktor bis 20 kg", 20.0, 1.5, "Faktor"),
+    ("Positionieren", "Faktor über 20 kg (Kran)", None, 3.0, "Faktor"),
+    ("Stichnaht", "Länge je Stich", None, 50.0, "mm"),                  # Spalte geschweißt % der Nahtgruppe
     ("Heftabstand", "bis 2 mm", 2.0, 40.0, "mm"),
     ("Heftabstand", "bis 4 mm", 4.0, 50.0, "mm"),
     ("Heftabstand", "bis 8 mm", 8.0, 60.0, "mm"),
@@ -203,36 +209,53 @@ def ruesten(bg, positionen, bg_id, regeln):
     return t, text + f" = {_text(round(t, 2))} min je Auftrag"
 
 
-def positionieren(bg, positionen, bg_id, regeln, hilfen):
-    """(Minuten je Baugruppe, Begründung) oder (None, was fehlt); hilfen = {Index: Positionierhilfe}."""
+def positionieren(bg, positionen, bg_id, regeln, hilfen, k=None):
+    """(Minuten je Baugruppe, Begründung) oder (None, was fehlt); hilfen = {Index: Positionierhilfe}. k: Profile und
+    Werkstoffe für das Stückgewicht (Basisteil = schwerstes Teil, Faktor nach Gewicht)."""
     zeiten = {h: regeln.wert("Positionieren", h) for h in POSITIONIERHILFEN + (BASISTEIL,)}
+    mit_faktor = any(z.get("art") == "Positionieren" and str(z.get("wert") or "").startswith("Faktor")
+                     for z in regeln.zeilen)
     teile_kn = {}
     for i in sorted(baugruppe.teile(positionen, bg_id), key=lambda i: (_n(positionen[i].get("pos")), i)):
         teile_kn.setdefault(baugruppe.zuordnung(positionen[i])[1], []).append(i)
     kinder = {}
-    for k in bg["knoten"]:
-        kinder.setdefault(k.get("parent") or "", []).append(k)
+    for kn_ in bg["knoten"]:
+        kinder.setdefault(kn_.get("parent") or "", []).append(kn_)
+
+    def stufe(g):
+        if not mit_faktor or g is None:
+            return 1.0, None
+        f, name = regeln.stufe("Positionieren", g, "Faktor")
+        return (f, name) if f is not None else (1.0, None)
+
     summe, stueck, fehlt = 0.0, {}, set()
-    for kn in [""] + [k["id"] for k in bg["knoten"]]:
+    for kn in [""] + [x["id"] for x in bg["knoten"]]:
         f = baugruppe.faktor(bg, kn) or 0
         posten = [(hilfen.get(i, "frei"), positionen[i].get("je_knoten") if _zahl(positionen[i].get("je_knoten"))
-                   else 1) for i in teile_kn.get(kn, ())]
-        posten += [("frei", _n(k.get("menge")) or 1) for k in kinder.get(kn, ())]
+                   else 1, bg_mengen.teil_werte(positionen[i], k)["gewicht"]) for i in teile_kn.get(kn, ())]
+        posten += [("frei", _n(x.get("menge")) or 1, (bg_mengen.mengen(bg, positionen, k, x["id"])["gewicht"] or None)
+                    if k is not None else None) for x in kinder.get(kn, ())]
         if not posten:
             continue
-        erst, n = posten[0]
-        posten = [(BASISTEIL, 1)] + ([(erst, n - 1)] if n > 1 else []) + posten[1:]
-        for h, n in posten:
+        # Basisteil: das schwerste Teil (gleich schwer oder ohne Gewicht: das erste nach Pos.)
+        b = max(range(len(posten)), key=lambda j: (posten[j][2] or 0, -j))
+        h_b, n_b, g_b = posten[b]
+        posten = [(BASISTEIL, 1, g_b)] + ([(h_b, n_b - 1, g_b)] if n_b > 1 else []) + posten[:b] + posten[b + 1:]
+        for h, n, g in posten:
             if zeiten[h] is None:
                 fehlt.add(h)
                 continue
-            summe += zeiten[h] * n * f
-            stueck[h] = stueck.get(h, 0) + n * f
+            fg, name = stufe(g)
+            summe += zeiten[h] * fg * n * f
+            schl = (h, fg, name if fg != 1 else None)
+            stueck[schl] = stueck.get(schl, 0) + n * f
     if fehlt:
         return None, "Regel Positionieren fehlt: " + ", ".join(sorted(fehlt))
     if not stueck:
         return None, "keine Einzelteile"
-    teile = " + ".join(f"{_text(n)} × {_text(zeiten[h])} ({h})" for h, n in stueck.items())
+    teile = " + ".join(f"{_text(n)} × {_text(zeiten[h])} ({h})"
+                       + (f" × {_text(fg)} ({name.replace('Faktor ', '')})" if name and fg != 1 else "")
+                       for (h, fg, name), n in stueck.items())
     return summe, f"{teile} = {_text(round(summe, 2))} min je Baugruppe"
 
 
@@ -334,9 +357,7 @@ def verputzen(bg, regeln, tabellen):
         if min_m is None:
             fehlt.add(st)
             continue
-        f = baugruppe.faktor(bg, nt.get("knoten") or "") or 0
-        anzahl = _n(nt.get("anzahl")) if _zahl(nt.get("anzahl")) else 1
-        m = _n(nt.get("laenge")) * anzahl * (2 if nt.get("beidseitig") else 1) / 1000 * f
+        m = baugruppe.naht_meter(nt, baugruppe.faktor(bg, nt.get("knoten") or "") or 0)
         z = baugruppe._faktor_zeile(tabellen or {}, "Zugänglichkeit", nt.get("zugang"))
         fz = _n((z or {}).get("faktor")) or 1.0
         summe += m * min_m * fz
@@ -391,9 +412,7 @@ def werkstoff_vorschlag(bg, positionen, k, knoten_id=""):
 
 
 def _naht_m(nt, bg):
-    f = baugruppe.faktor(bg, nt.get("knoten") or "") or 0
-    anzahl = _n(nt.get("anzahl")) if _zahl(nt.get("anzahl")) else 1
-    return _n(nt.get("laenge")) * anzahl * (2 if nt.get("beidseitig") else 1) / 1000 * f
+    return baugruppe.naht_meter(nt, baugruppe.faktor(bg, nt.get("knoten") or "") or 0)
 
 
 def beizen(bg, regeln):
@@ -590,7 +609,7 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
     _ag_setzen(bg, RUESTEN, None if t is None else dict(ruest_min=round(t, 2)), text, satz, regeln.richtwert, out)
     if t is None:
         hinweise.append(text)
-    t, text = positionieren(bg, positionen, bg["id"], regeln, {i: h[0] for i, h in hilfen.items()})
+    t, text = positionieren(bg, positionen, bg["id"], regeln, {i: h[0] for i, h in hilfen.items()}, k)
     _ag_setzen(bg, POSITIONIEREN, None if t is None else dict(zeit_min=round(t, 4)), text, satz, regeln.richtwert,
                out)
     if t is None:

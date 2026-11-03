@@ -95,6 +95,19 @@ for g, ids in enumerate(gestelle):
         d.bezeichnung.setText(f"Gestell G{g + 1}")
         d.anzahl.setValue(2)
         d.naht_neu(dict(knoten="", verfahren="MAG", nahtart="Kehlnaht", mass=3, laenge=120, anzahl=4, dicke=3))
+        n = d.bg["naehte"][0]                                             # Länge aus einem Teil (Naht N1)
+        n["laenge_aus"] = "rundum Teil"
+        d.aktualisieren()
+        assert n["laenge_teil"] == d.teile[0]["_id"] and 145 < n["laenge"] < 160, n
+        assert "Umfang QR 40x40x3" in d._zeile_wert("Naht", n, "hinweis")
+        assert any(o[0].startswith(f"Pos. {40 + 40 * g}") for o in d._teil_optionen())
+        n["laenge"] = 120                                                  # von Hand: wieder frei
+        d.aktualisieren()
+        assert "laenge_aus" not in n and n["laenge"] == 120
+        n["geschweisst"] = 50                                              # Stichnaht (N3)
+        d.aktualisieren()
+        assert "Stichnaht 50 %" in d._naht_ergebnis(n)["rechenweg"]
+        n.pop("geschweisst")
         d.vorkalkulation()
         n = d.bg["naehte"][0]
         assert n.get("heftpunkte"), n                                    # Heftpunkte aus der Vorkalkulation

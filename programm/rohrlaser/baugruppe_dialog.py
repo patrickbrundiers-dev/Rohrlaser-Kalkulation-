@@ -1985,6 +1985,40 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.teile_tab.aufbauen()
         self.aktualisieren()
 
+    def _teil_optionen(self):
+        """Einzelteile der Baugruppe für die Spalte Teil der Nahtgruppen (Länge aus)."""
+        return [("", None)] + [(" ".join(x for x in (f"Pos. {_text(t['_q'].get('pos'))}", str(t["_q"].get("artikel") or ""),
+                                                     str(t["_q"].get("profil_id") or "")) if x), t["_id"])
+                               for t in self.teile if t.get("drin")]
+
+    def _laengen_aus(self):
+        """Länge je Naht aus dem gewählten Einzelteil (Spalte Länge aus, Patrick 03.11.2026); eine Länge von Hand
+        (anders als die zuletzt gerechnete) schaltet zurück auf frei. Ergebnis: True, wenn sich etwas geändert hat."""
+        teile = {t["_id"]: t["_q"] for t in self.teile if t.get("drin")}
+        neu = False
+        for n in self.bg["naehte"]:
+            art = n.get("laenge_aus")
+            if art not in bg_mengen.LAENGE_AUS:
+                for f in ("laenge_aus", "laenge_auto", "laenge_teil", "laenge_text"):
+                    n.pop(f, None)
+                continue
+            if baugruppe._zahl(n.get("laenge_auto")) and n.get("laenge") != n["laenge_auto"]:
+                for f in ("laenge_aus", "laenge_auto", "laenge_teil", "laenge_text"):
+                    n.pop(f, None)
+                neu = True
+                continue
+            if n.get("laenge_teil") not in teile and teile:
+                n["laenge_teil"] = next(iter(teile))
+                neu = True
+            wert, text = bg_mengen.naht_laenge_aus(art, teile.get(n.get("laenge_teil")), self.k)
+            n["laenge_text"] = text
+            if wert is not None:
+                if n.get("laenge") != wert:
+                    n["laenge"] = wert
+                    neu = True
+                n["laenge_auto"] = wert
+        return neu
+
     def _knoten_optionen(self, ohne=None):
         out = [(DIREKT, "")]
         for k in self.bg["knoten"]:
@@ -2191,9 +2225,19 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("spalt", "Spalt\n[mm]", "zahl", 55,
                    tipp="Spalt zwischen den Teilen (aus STEP): mehr Schweißgut, Kehlnaht rechnet mit a + Spalt, "
                         "Stumpf- und Ecknaht mit Spalt × Dicke; leer oder 0 = ohne"),
+            Spalte("laenge_aus", "Länge aus", "auswahl", 105,
+                   optionen=[("frei", None)] + [(x, x) for x in bg_mengen.LAENGE_AUS],
+                   tipp="Länge je Naht aus einem Einzelteil rechnen: rundum Teil = Umfang des Profils, Längsnaht Teil "
+                        "= Länge des Teils, 2 Seiten = 2 × Breite des Profils; frei = Länge selbst eintragen. Ändert "
+                        "man die Länge von Hand, gilt wieder frei"),
+            Spalte("laenge_teil", "Teil", "auswahl", 150, optionen=lambda: self._teil_optionen(),
+                   tipp="Einzelteil, aus dem die Länge kommt (Spalte Länge aus)"),
             Spalte("laenge", "Länge je\nNaht [mm]", "zahl", 85),
             Spalte("anzahl", "Anzahl", "ganz", 55, tipp="Gleiche Nähte je Stück der Unterbaugruppe"),
             Spalte("beidseitig", "beidseitig", "haken", 65),
+            Spalte("geschweisst", "geschweißt\n[%]", "zahl", 70,
+                   tipp="Stichnaht: Anteil der Länge, der geschweißt wird (z. B. 50 = Stichnaht 50/100); leer = 100 % "
+                        "durchgehend. Je weiteren Stich ein Ansatz mit der Zeit je Heftpunkt"),
             Spalte("heftpunkte", "Heftpunkte\nje Naht", "ganz", 75, vk=True),
             Spalte("gesteckt", "gesteckt", "haken", 60, tipp="Teile gesteckt (Stecknase): weniger Heftpunkte"),
             Spalte("rundum", "rundum", "haken", 55, tipp="Umfangsnaht um ein Rohr (Mindestzahl Heftpunkte rundum)"),
@@ -2263,9 +2307,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         """Nahtkandidaten aus der STEP-Messung: nur Vorschläge, erst 'Markierte übernehmen' macht Nahtgruppen."""
         self.vorschlag_rahmen = QGroupBox("Nahtkandidaten aus STEP (prüfen, dann übernehmen)")
         vl = QVBoxLayout(self.vorschlag_rahmen)
-        self.vorschlag_tab = QTableWidget(0, 6)
+        self.vorschlag_tab = QTableWidget(0, 7)
         self.vorschlag_tab.setHorizontalHeaderLabels(["Unterbaugruppe", "Stoßart", "Länge je Naht [mm]", "Anzahl",
-                                                      "Dicke [mm]", "Körper"])
+                                                      "Dicke [mm]", "Körper", "Aufteilung der Länge"])
+        self.vorschlag_tab.horizontalHeader().setStretchLastSection(True)
         self.vorschlag_tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.vorschlag_tab.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.vorschlag_tab.verticalHeader().setDefaultSectionSize(22)
@@ -2295,7 +2340,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         for r, v in enumerate(vs):
             texte = [namen.get(v.get("knoten"), DIREKT), v.get("nahtart") or "", _text(v.get("laenge")),
                      _text(v.get("anzahl")), _text(v.get("dicke")),
-                     ", ".join(f"{a}+{b}" for a, b in (x for x in v.get("teile") or () if x and len(x) == 2))]
+                     ", ".join(f"{a}+{b}" for a, b in (x for x in v.get("teile") or () if x and len(x) == 2)),
+                     v.get("aufteilung") or ""]
             for c, s in enumerate(texte):
                 self.vorschlag_tab.setItem(r, c, QTableWidgetItem(s))
         self.vorschlag_rahmen.setVisible(bool(vs))
@@ -2632,6 +2678,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return (w["fehlt"], WARNUNG)
         if art == "Naht":
             teile = [f"{_text(round(w['naht_m'] * r['faktor'], 2))} m"]
+            if z.get("laenge_aus") and z.get("laenge_text"):
+                teile.append(f"Länge: {z['laenge_text']}")
+            elif z.get("aufteilung"):
+                teile.append(f"Länge aus STEP: {z['aufteilung']}")
             if w.get("hand"):
                 teile.append("Zeit von Hand")
             elif w.get("richtwert"):
@@ -2661,6 +2711,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
                 and not self.nur_lesen:
             self._vk_timer.start()      # Vorkalkulation automatisch: nach der Eingabe neu vorschlagen
+        if not self.nur_lesen and self._laengen_aus() and getattr(self, "naht_tab", None) is not None:
+            for n in ("laenge_aus", "laenge_teil", "laenge"):
+                self.naht_tab.felder_neu(n)
         bg = self.daten()
         p = self._position(bg)
         positionen = self._positionen_neu(p)

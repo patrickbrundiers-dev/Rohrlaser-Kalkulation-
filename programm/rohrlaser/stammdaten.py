@@ -678,7 +678,8 @@ SCHWEISS_FAKTOREN = Tabelle(
 # 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
 SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit",
                        "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
-                       "Heftzeit", "Mehrlagig")                       # Plan 28.10.2026, Schritt 5
+                       "Heftzeit", "Mehrlagig",                       # Plan 28.10.2026, Schritt 5
+                       "Stichnaht")                                   # Patrick 03.11.2026
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -694,7 +695,8 @@ SCHWEISS_REGELN = Tabelle(
     ("art", "wert"),
     "Regeln der Vorkalkulation im Baugruppen-Editor (Knopf 'Vorkalkulation rechnen'): Rüsten einmalig je Auftrag = "
     "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
-    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
+    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das schwerste Teil jeder Unterbaugruppe als "
+    "Basisteil) × Faktor nach Stückgewicht ('Faktor bis … kg'); Stichnaht: Länge je Stich (Ansätze); "
     "Heftpunkte je Naht = größer von Mindestzahl und aufrunden(Nahtlänge ÷ Heftabstand) + 1 für die Enden (nach "
     "kleinerer Wanddicke, gesteckt bzw. Edelstahl/Aluminium × Faktor; rundum ohne + 1, mindestens Umfang ÷ Umfang je "
     "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
