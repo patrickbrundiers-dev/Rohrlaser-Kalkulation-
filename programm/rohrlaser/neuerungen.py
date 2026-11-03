@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.244", "<b>Automationen</b> ([[automatik]]): Neue Anfragen werden im Hintergrund <b>vorgemessen</b> (Teile, "
+     "Profile, Richtpreis) und stehen nach einer <b>Ampel</b> für die Antwortfrist sortiert. <b>Nachträge</b> legt das "
+     "Programm selbst in den Angebotsordner (gelbe Leiste <i>Übernehmen</i> im Angebot), <b>Bestellungen</b> erkennt es "
+     "und gleicht sie mit dem Angebot ab (<i>Bestellung prüfen …</i>), <b>Wiederholanfragen</b> ohne STEP werden aus "
+     "dem Teilekatalog ein neues Angebot, fehlende Kundendaten kommen aus der Signatur. <b>Auftrag starten</b>: "
+     "Häkchen im Fenster Beauftragt für AB, Materialbestellung, Werkstattpapiere, CAM und Etiketten. "
+     "<b>Lieferantenantwort einlesen</b> (Mail/PDF), <b>Material bestellen</b> beim gewählten Lieferanten mit "
+     "Wareneingang auf der Startseite, <b>Preiswächter</b> für offene Angebote, <b>Nachkalkulation vorbelegt</b> beim "
+     "Versand. Beim Angebot: <b>Übernehmen und fertigstellen</b> (PDF, Outlook-Antwort, Verschickt, Wiedervorlage, "
+     "nächste Anfrage), günstigste Maschine, Lieferzeit nach Auslastung, Beistellung und Oberfläche aus der Mail, "
+     "Rückfrage vorbereitet, Lernen aus Nacharbeit, Anfragen automatisch zuweisen. Alles steht unter <i>Datei → "
+     "Automatik-Protokoll …</i> und lässt sich zurücknehmen.",
+     "Automationen: Anfragen vormessen und Ampel, Nachtrag/Bestellung zuordnen, Auftrag starten, Angebot fertigstellen"],
     ["0.9.243", "<b>Auf Ursprung zurücksetzen</b> in allen Editoren: Rohr- und Blech-Editor haben im Menüband neben "
      "Rückgängig den Knopf <b>Zurücksetzen</b> mit <i>Alles wie beim Öffnen</i> und <i>Alles wie aus STEP/DXF "
      "importiert</i> (auch gelöschte Konturen kommen zurück); dasselbe im Editor der Schweißbaugruppe und im Fenster "

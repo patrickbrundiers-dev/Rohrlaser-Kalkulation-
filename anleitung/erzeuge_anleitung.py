@@ -6184,6 +6184,22 @@ def kapitel_automatik(i):
             "füllt das Programm die Nachkalkulation vor: Laserzeit aus den Scans, alles andere wie geplant. Weicht "
             "der Deckungsbeitrag mehr als 10 % ab, steht der Auftrag auf der Startseite unter <i>Nachkalkulation "
             "prüfen</i>, bis Sie die Nachkalkulation speichern.")
+    i.abschnitt("Einstellungen der Automationen", marke="automatik_einstellungen")
+    i.text("Einstellungen → <i>Automationen im Arbeitsablauf</i> bzw. <i>Bestellung beim Lieferanten</i> "
+           "([[einstellungen]]):")
+    i.liste("<i>Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den Kundenvorgaben)</i>, "
+            "Vorgabe 2.",
+            "<i>Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)</i>.",
+            "<i>Neue Anfragen automatisch zuweisen (Zuständiger des Kunden, sonst wer am wenigsten offen hat; nur mit "
+            "gemeinsamem Ordner)</i>.",
+            "<i>Nach dem Import: günstigste Maschine, Lieferzeit nach Auslastung, Beistellung und Oberfläche aus der "
+            "Mail, Rückfrage vorbereiten</i>.",
+            "<i>Preiswächter: offene Angebote melden ab Abweichung</i>, Vorgabe 3 %.",
+            "<i>Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung</i>, Vorgabe 10 %.",
+            "<i>Auftrag starten: Schritte beim Beauftragen (gemerkt je Arbeitsplatz)</i> – setzt das Fenster "
+            "Beauftragt von selbst.",
+            "<i>Materialbestellung: Betreff</i> und <i>Materialbestellung: Text der E-Mail</i> mit den Platzhaltern "
+            "der Materialanfrage; <i>{positionen}</i> enthält je Zeile den Preis aus dem Angebot des Lieferanten.")
 
 
 def kapitel_nachkalkulation(i):
