@@ -1807,6 +1807,21 @@ def kapitel_angebot(i):
             "direkt an.",
             "Im Baugruppen-Editor öffnet <i>Aus Zusatzarbeiten …</i> dieselbe Auswahl mit Suche und Häkchen, erkannte "
             "Arbeiten oben.")
+    i.abschnitt("Zusatzarbeit für einen ganzen Satz (Fläche und Gewicht)", marke="zusatz_satz")
+    i.text("Rechtsklick auf eine Position eines Satzes → <b>Zusatzarbeit für ganzen Satz …</b>: das Fenster "
+           "Zusatzarbeiten gilt für alle Positionen des Satzes und zeigt oben die <b>Fläche</b> (m², fürs "
+           "Pulverbeschichten) und das <b>Gewicht</b> (kg, fürs Verzinken) je Satz und für alle Sätze, in der Tabelle "
+           "<b>€ je Satz</b>. Der Tooltip der Spalte <i>Satz</i> zeigt dieselben Werte.", kurz=True)
+    i.liste("Fläche je Satz = Außenfläche je Teil × Stück je Satz, über alle Positionen des Satzes; Gewicht ebenso "
+            "mit dem Teilegewicht. Bleche zählen mit beiden Seiten ohne die Löcher, Zukaufteile mit ihrem Gewicht je "
+            "Teil. Positionen ohne bekannte Fläche bzw. Gewicht stehen als Hinweis darunter (z. B. „ohne Fläche: "
+            "Pos. 60“).",
+            "Gerechnet wird weiter je Teil: Pulverbeschichten €/m² × Fläche des Teils, Verzinken €/kg × Gewicht des "
+            "Teils. Über den Satz addiert ergibt das genau Fläche bzw. Gewicht je Satz × Preis; der Mindestbetrag der "
+            "Zusatzarbeit gilt wie bisher einmal je Angebot.",
+            "Schweißbaugruppen und ihre Teile gehören nicht dazu (Arbeitsgänge im Baugruppen-Editor).",
+            "Wie bei mehreren markierten Positionen ändert das Fenster nur, was alle gemeinsam haben; eigene "
+            "Zusatzarbeiten einzelner Positionen bleiben.")
     i.abschnitt("Zusatzarbeiten unter der Position", marke="zusatz_unterzeilen")
     i.bild("zusatz_unterzeilen", "Häkchen „Zusatzarbeiten unter Position“: je Arbeitsschritt eine Zeile", hoehe=62 * mm,
            legende=[

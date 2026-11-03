@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.242", "<b>Bohrungsart nachträglich ändern</b>: In <i>Bohrungen prüfen</i> hat jede Bohrung die Spalte "
+    ["0.9.243", "<b>Bohrungsart nachträglich ändern</b>: In <i>Bohrungen prüfen</i> hat jede Bohrung die Spalte "
      "<b>Ausführung</b> (Gewinde schneiden, Flowdrill + Gewinde formen, Einnietmutter, Senkung, Bohren, nur lasern) "
      "mit ★-Vorschlag nach Gewindegröße, Wandstärke und Werkstoff und dem Grund (z. B. „Wand 2 mm = 1,6 Gänge M8 – "
      "zu wenig“). Laser-Ø, Schneidweg, Einstiche, Gewinde und Zusatzarbeiten (€/Stück) folgen der Ausführung; die "
@@ -29,6 +29,12 @@ NEUERUNGEN = [
      "für das ganze Angebot; in allen Editoren als Eigenschaft <i>Ausführung</i>, beim Blech die Arbeit im "
      "Richtpreis ([[bohrung_ausfuehrung]]).",
      "Bohrungsart ändern (Gewinde ↔ Flowdrill ↔ Einnietmutter …) mit ★-Vorschlägen"],
+    ["0.9.242", "<b>Zusatzarbeit für ganzen Satz</b> ([[zusatz_satz]]): Rechtsklick auf eine Position eines Satzes → "
+     "<i>Zusatzarbeit für ganzen Satz …</i> belegt alle Positionen des Satzes auf einmal, z. B. mit Pulverbeschichten "
+     "oder Verzinken. Das Fenster und der Tooltip der Spalte Satz zeigen <b>Fläche (m²) und Gewicht (kg) je Satz</b> "
+     "und für alle Sätze, die Tabelle € je Satz. Gerechnet wird weiter je Teil (Summe gleich). <b>Bleche</b> haben "
+     "beim Pulverbeschichten jetzt ihre Fläche (beide Seiten ohne Löcher) statt 0 m².",
+     "Zusatzarbeit für ganzen Satz mit Fläche und Gewicht je Satz; Bleche mit Fläche beim Pulvern"],
     ["0.9.241", "<b>Angebote vergleichen</b> ([[angebotsvergleich]]): unter <i>Datei → Angebote vergleichen …</i> oder "
                 "mit zwei markierten Angeboten in der Angebotsliste (rechte Maustaste → <i>Vergleichen …</i>) zwei "
                 "Angebote Position für Position gegenüberstellen. Quellen: Angebote aus der Liste, der eigene "
