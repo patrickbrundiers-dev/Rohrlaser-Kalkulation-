@@ -2701,12 +2701,14 @@ def kapitel_step(i):
            "das Rohr größer sein müsste (U 60 × 40 würde RE 60 × 50), ein krummes Außenmaß wie 30,8 und ein C mit "
            "Lippen und mehr als 20 mm Schlitz sind ein <i>Blech gekantet</i>; das Rohr steht dann in der Spalte Art "
            "zur Wahl (<i>… – Ringe an den Enden (aus dem Rohr)</i>, seit 0.9.245).", kurz=True)
-    i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: aus RE 60×40×3 mit Ringen an den Enden",
+    i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: in der Spalte Art aus dem Rohr gewählt, mit "
+           "Ringen an den Enden",
            hoehe=95 * mm, legende=[
                (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Ringe an den Enden (aus dem Rohr)</i>; zur Auswahl stehen "
                    "immer auch das offene Teil (<i>… – offen (ohne Ringe)</i>, mit passendem U/C der Stammdaten) und "
                    "das <b>Kantteil</b>."),
-               (2, "Profil (hier RE 60×40×3). Ein anderes Rohr wählen, wenn das vorgeschlagene nicht passt: Enden "
+               (2, "Profil (hier RE 60×50×3: die scharf gezeichneten Schenkelenden passen nicht in RE 60×40, darum "
+                   "ist das Teil zuerst ein Kantteil). Ein anderes Rohr wählen, wenn das vorgeschlagene nicht passt: Enden "
                    "und Fenster werden für das gewählte Rohr umgerechnet."),
                (3, "3D: die Ringe rot; bleibt das Teil offen, sind sie blassrot (werden nicht gefertigt). "
                    "<b>Orange</b>: was über den Rohrquerschnitt ragt (z. B. scharf gezeichnete Schenkelenden), "
