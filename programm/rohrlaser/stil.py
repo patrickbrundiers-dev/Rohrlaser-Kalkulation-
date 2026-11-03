@@ -158,7 +158,7 @@ UMSETZUNG = {
         "#202020": "#E6EAF0", "#333333": "#D5DAE1", "#6B4A00": "#F0C75E", "#B7791F": "#E9B44C", "#2E7D32": "#81C784",
         "#C00000": "#F28B82", "#FFF4D6": "#3A3016", "#E8F5E9": "#173523", "#B26A00": "#F5A55B", "#7F7F7F": "#9AA6B5",
         "#FCE4D6": "#4A2B1E", "#E2EFDA": "#1E3320", "#FFEB9C": "#4D4016",
-        "#BDD7EE": "#2D4A6B", "#FFF4CC": "#3D3418", "#E8EEF5": "#2A3240", "#ECEEF1": "#2A3038", "#6B7280": "#9AA3AF",
+        "#BDD7EE": "#2D4A6B", "#B9D3EA": "#2D4A6B", "#EEF1F4": "#2A3038", "#FFF4CC": "#3D3418", "#E8EEF5": "#2A3240", "#ECEEF1": "#2A3038", "#6B7280": "#9AA3AF",
         "#E2F0D9": "#1E3320",
         # Dunkelmodus verbessert (24.10.2026): Eingabezellen blaugrau statt olivbraun, berechnete Zellen dunkler
         # (Unterschied bleibt sichtbar), dazu Flächen und Linien von Skizzen, 3D-Ansicht und STEP-Ablagefeld
