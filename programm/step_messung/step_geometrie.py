@@ -901,6 +901,22 @@ def _zylinder(face, tol=1e-3):
     return ga.Cylinder() if ga.GetType() == GeomAbs_Cylinder else None
 
 
+def gleiche_achse(zylinder, tol=0.01):
+    """True, wenn alle Zylinder (gp_Cylinder) auf derselben Achse liegen. Zwei sich überlappende Bohrungen gleichen
+    Ø („8“, Doppelbohrung) haben gleiche Radien, aber zwei Achsen: das ist keine Bohrung (Patrick 03.11.2026: „wirklich
+    jede Kontur erkennen“, vorher eine Bohrung Ø10 und bis 3 mm neben der STEP)."""
+    if not zylinder:
+        return False
+    a0 = zylinder[0].Axis()
+    for z_ in zylinder[1:]:
+        a = z_.Axis()
+        if abs(abs(a.Direction().Dot(a0.Direction())) - 1) > 1e-6:
+            return False
+        if gp_Vec(a0.Location(), a.Location()).Crossed(_vec(a0.Direction())).Magnitude() > tol:
+            return False
+    return True
+
+
 def _wandstaerke(aussen, innen, s_aussen, s_innen, z0):
     """Kleinster Abstand zwischen Außen- und Innenkontur. Der exakte Abstand Kontur–Kontur hängt bei gleichmittigen
     Freiformkurven (unendlich viele kürzeste Verbindungen), darum: Kandidaten über die Polygonzüge suchen und für die
@@ -1879,16 +1895,17 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
         gz0, gz1 = bb.CornerMin().Z(), bb.CornerMax().Z()
         # Rundbohrung: nur Zylinderflächen gleichen Radius quer zur Achse (Sackbohrung: dazu ein ebener/kegeliger
         # Grund)
-        radien, andere = set(), False
+        radien, andere, alle = set(), False, []
         for f in m["faces"]:
             fk = faces.FindKey(f)
             z_ = _zylinder(fk)
             if z_ is not None and abs(z_.Axis().Direction().Z()) < 0.99:
                 radien.add(round(z_.Radius(), 2))
+                alle.append(z_)
             elif durch or not (_ebene(fk) is not None or
                                BRepAdaptor_Surface(TopoDS.Face(fk)).GetType() == GeomAbs_Cone):
                 andere = True
-        rund = (None, round(2 * radien.pop(), 2)) if len(radien) == 1 and not andere else None
+        rund = (None, round(2 * radien.pop(), 2)) if len(radien) == 1 and not andere and gleiche_achse(alle) else None
         if not durch:
             m["art"] = "G"
             t.gravur += laenge
@@ -2323,7 +2340,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     def zylinder_einheitlich(fl, mit_boden=False):
         """(gp_Cylinder, Ø), wenn alle Flächen Zylinder gleichen Radius quer zum Rohr sind (bei mit_boden dürfen
         ebene oder kegelige Bohrungsgründe dazukommen), sonst None."""
-        zyl, radien = None, set()
+        zyl, radien, alle = None, set(), []
         for f in fl:
             z_ = _zylinder(faces.FindKey(f))
             if z_ is None:
@@ -2334,8 +2351,10 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
             if abs(z_.Axis().Direction().Z()) > 0.99:
                 return None
             zyl = z_
+            alle.append(z_)
             radien.add(round(z_.Radius(), 2))
-        return (zyl, round(2 * radien.pop(), 2)) if zyl is not None and len(radien) == 1 else None
+        return (zyl, round(2 * radien.pop(), 2)) if zyl is not None and len(radien) == 1 and gleiche_achse(alle) \
+            else None
 
     def rund_2d(dm, sonst):
         """Bohrung im Rundrohr beim 2D-Schnitt (Strahl zur Rohrmitte): Schnittlänge auf der Außenhaut, innen Ø dm
@@ -2900,7 +2919,7 @@ def _blech_sonder(k, ba):
         return
     art_, dm, aussen = ba
     k.update(art="Bohrung", durchmesser=dm, schnittlaenge=round(math.pi * dm, 2))
-    for x in ("laenge", "breite", "quer", "punkte"):
+    for x in ("laenge", "breite", "quer", "punkte", "radius", "abweichung"):
         k.pop(x, None)
     if art_ == "Senkung":
         k.update(senk_durchmesser=aussen, hinweis="Laser schneidet die Bohrung, Senkung ist Nacharbeit")
@@ -2909,25 +2928,77 @@ def _blech_sonder(k, ba):
                  hinweis="Gewinde im Modell: Laser schneidet das Kernloch")
 
 
-def _blech_kontur(pts):
+BLECH_POLYGON_TOL = 0.02      # mm: freie Innenkonturen von Blechen als Polygon so genau (vorher 0,05)
+BLECH_FORM_TOL = 0.05         # mm: so weit darf der Umriss von Kreis/Langloch/Rechteck abweichen
+
+
+def _rechteck_abweichung(rel, a, b, r=0.0):
+    """Größter Abstand der Punkte rel [(x, y)] um die Mitte vom Rechteck mit Halbmaßen a × b und Eckradius r."""
+    r = max(0.0, min(r, a, b))
+    hx, hy = a - r, b - r
+    out = 0.0
+    for x, y in rel:
+        ux, uy = abs(x) - hx, abs(y) - hy
+        out = max(out, abs(math.hypot(ux, uy) - r) if ux > 0 and uy > 0 else abs(max(ux, uy) - r))
+    return out
+
+
+def _blech_kontur(pts, schnitt=None):
     """Innenkontur eines Blechs aus ihren Punkten (x, y im Zuschnitt): Art, Maße, Mitte, Lage für den Blech-Editor.
-    Bohrung / Langloch / Rechteck längs oder quer, sonst Polygon (Eckpunkte um die Mitte)."""
+    Bohrung / Langloch / Rechteck (mit Eckradius aus der Schnittlänge) längs oder quer, sonst Polygon (Eckpunkte um
+    die Mitte). Ein Rechteck gilt nur, wenn der Umriss auf BLECH_FORM_TOL passt (Patrick 03.11.2026: „wirklich jede
+    Kontur“, ein Rechteck mit R3 bzw. mit Fasen lag 1,2 bzw. 3,5 mm neben der STEP)."""
     form, (cx, cy), lage = _form_2d(pts)
     d = dict(x=round(cx, 2), y=round(cy, 2))
     gerade = min(lage % 90, 90 - lage % 90) < 0.5
     quer = gerade and 45 < lage % 180 < 135
+    rechteck_r = None
+    if form[0] == "Rechteck" and gerade:
+        w = math.radians(lage)
+        c, s_ = math.cos(w), math.sin(w)
+        rel = [((x - cx) * c + (y - cy) * s_, -(x - cx) * s_ + (y - cy) * c) for x, y in pts]
+        a, b = form[1] / 2, form[2] / 2
+        r = 0.0
+        if schnitt and 2 * (form[1] + form[2]) - schnitt > 0.2 * (8 - 2 * math.pi):
+            r = min((2 * (form[1] + form[2]) - schnitt) / (8 - 2 * math.pi), a, b)
+        for r_ in (0.0, r) if r else (0.0,):
+            if _rechteck_abweichung(rel, a, b, r_) <= BLECH_FORM_TOL:
+                rechteck_r = round(r_, 2)
+                break
     if form[0] == "Kreis":
         d.update(art="Bohrung", durchmesser=round(form[1], 2))
     elif form[0] == "Langloch" and gerade:
         d.update(art="Langloch", laenge=round(form[1], 2), breite=round(form[2], 2), quer=quer)
-    elif form[0] == "Rechteck" and gerade:
+    elif rechteck_r is not None:
         d.update(art="Rechteck", laenge=round(form[1], 2), breite=round(form[2], 2), quer=quer)
+        if rechteck_r > 0:
+            d["radius"] = rechteck_r
     else:
-        pk = _vereinfachen(pts)
+        pk = _vereinfachen(pts, BLECH_POLYGON_TOL)
         mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
         d.update(art="Polygon", x=round(mx, 2), y=round(my, 2),
                  punkte=[[round(x - mx, 2), round(y - my, 2)] for x, y in pk])
     return d
+
+
+def blech_kontur_abweichung(k, pts):
+    """Gegenprobe Blech (Patrick 03.11.2026): größter Abstand der gemessenen Punkte [(x, y)] im Zuschnitt von der
+    Kontur k, wie der Blech-Editor sie zeichnet (Bohrung, Langloch, Rechteck mit Radius, Polygon) [mm] oder None."""
+    art, cx, cy = k.get("art"), float(k.get("x") or 0), float(k.get("y") or 0)
+    rel = [(x - cx, y - cy) for x, y in pts]
+    if art == "Bohrung" and k.get("durchmesser"):
+        r = float(k["durchmesser"]) / 2
+        return max(abs(math.hypot(x, y) - r) for x, y in rel)
+    if art in ("Langloch", "Rechteck") and k.get("laenge") and k.get("breite"):
+        a, b = float(k["laenge"]) / 2, float(k["breite"]) / 2
+        if k.get("quer"):
+            rel = [(y, x) for x, y in rel]
+        return _rechteck_abweichung(rel, a, b, b if art == "Langloch" else float(k.get("radius") or 0))
+    if art == "Polygon" and len(k.get("punkte") or ()) >= 3:
+        pk = [(float(x), float(y)) for x, y in k["punkte"]]
+        strecken = [(x0, y0, x1, y1) for (x0, y0), (x1, y1) in zip(pk, pk[1:] + pk[:1])]
+        return max(min(_abst_strecke(x, y, s_) for s_ in strecken) for x, y in rel)
+    return None
 
 
 def blech_loch_art(solid, haupt, dicke, draht):
@@ -3053,9 +3124,19 @@ def _blech_daten(solid, fl):
     konturen_lage = []
     for i, (d, lg) in enumerate(lage):
         try:
-            k = _blech_kontur(zuschnitt(d))
+            pk = zuschnitt(d)
+            k = _blech_kontur(pk, lg)
+            ab = blech_kontur_abweichung(k, pk)
+            if ab is not None:
+                k["abweichung"] = round(ab, 3)
         except (ValueError, ZeroDivisionError, IndexError):
-            continue
+            # nie still weglassen (Patrick 03.11.2026): als sonstige Kontur mit Schnittlänge an ihrer Stelle
+            try:
+                pk = zuschnitt(d)
+                k = dict(x=round(sum(x for x, _ in pk) / len(pk), 2), y=round(sum(y for _, y in pk) / len(pk), 2))
+            except (ValueError, ZeroDivisionError, IndexError):
+                k = dict(x=0.0, y=0.0)
+            k.update(art="Kontur", hinweis="Form nicht erkannt, nur Schnittlänge übernommen – bitte prüfen")
         k["schnittlaenge"] = round(lg, 2)
         _blech_sonder(k, sonder.get(i))
         konturen_lage.append(k)

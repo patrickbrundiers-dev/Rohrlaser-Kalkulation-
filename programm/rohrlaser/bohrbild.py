@@ -240,6 +240,19 @@ def zusatz(liste):
             else:
                 out["einstiche"] -= n
                 out["gravur"] += n * math.pi * MARKE_D
+        elif z["art"] == "Fließloch" and z.get("aus_bohrung"):
+            # Zeichnung sagt Flowdrill auf einer gemessenen Bohrung (zeichnung_hinweise): erst bestätigt fällt sie weg
+            if z.get("status") != BESTAETIGT:
+                continue
+            d = float(z.get("d") or 0)
+            out["schneidweg"] -= n * math.pi * d
+            out["weg"] += [(d, math.pi * d)] * n
+            if z.get("laser") == LOCH:
+                out["schneidweg"] += n * math.pi * MARKE_D
+                out["konturen"] += [(MARKE_D, math.pi * MARKE_D)] * n
+            else:
+                out["einstiche"] -= n
+                out["gravur"] += n * math.pi * MARKE_D
         elif z["art"] == "Fließloch":
             if z.get("status") == ABGELEHNT:       # doch eine gelaserte Bohrung
                 d = float(z.get("d") or 0)
