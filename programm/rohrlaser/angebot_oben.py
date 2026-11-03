@@ -239,6 +239,15 @@ def _versand_text(v):
         return verlauf_text(v)
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
+    if v.get("art") == "nachtrag":      # Nachtrag des Kunden einsortiert (Automationen 03.11.2026, 5a)
+        return (f"{datum_text(v.get('datum'))}: Nachtrag des Kunden ({v.get('datei') or 'Mail'})"
+                + (f" – {v['text']}" if v.get("text") else ""))
+    if v.get("art") == "bestellung":    # Bestellung des Kunden zugeordnet (1a)
+        return (f"{datum_text(v.get('datum'))}: Bestellung des Kunden {v.get('bestellnr') or ''}".rstrip()
+                + f" ({v.get('datei') or 'Mail'})" + (f" – {v['abweichungen']} Abweichung(en)"
+                                                      if v.get("abweichungen") else ""))
+    if v.get("art") == "bestellung_material":   # Material beim Lieferanten bestellt (8a)
+        return f"{datum_text(v.get('datum'))}: Material bestellt bei {v.get('lieferant') or 'Lieferant'}"
     if v.get("art") == "wiedervorlage":
         return (f"{datum_text(v.get('datum'))}: Wiedervorlage am {datum_text(v['am'])}" if v.get("am") else
                 f"{datum_text(v.get('datum'))}: Wiedervorlage entfernt")

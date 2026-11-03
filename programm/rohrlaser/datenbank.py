@@ -31,7 +31,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import aenderungsverlauf, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
+from . import aenderungsverlauf, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
 from . import teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
@@ -48,7 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 75     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 76     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -149,6 +149,8 @@ SCHEMA_VERSION = 75     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Programm), maschinen.last_anteil (mittlere Last für den Strom); leer = wie bisher
                         # 75: Zusatzarbeiten erkennen (03.11.2026): zusatzarbeiten.erkennung (Erkennungswörter; die
                         #     Beispiel-Zusatzarbeiten werden einmalig vorbelegt, ERKENNUNG_STAND), leer = keine Erkennung
+                        # 76: Automationen (03.11.2026): Tabelle automatik (Protokoll mit Rückgängig, nur dieser
+                        #     Arbeitsplatz), kundenvorgaben.antwort_frist (Anfrage-Ampel); leer = Einstellung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -520,6 +522,7 @@ class Datenbank:
             fertigung.einrichten(self.con)
             etiketten.einrichten(self.con)
             reklamation.einrichten(self.con)
+            automatik.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")

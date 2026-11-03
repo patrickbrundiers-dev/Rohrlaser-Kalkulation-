@@ -189,6 +189,7 @@ class StepPruefDialog(QDialog):
         self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
         self.pdf_danach = False         # Knopf „Übernehmen und Angebot (PDF)“
+        self.fertig_danach = False      # Knopf „Übernehmen und fertigstellen“ (Paket D, E1)
         self.lernen, self.lernen_werte = lernen, None
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
@@ -501,6 +502,11 @@ class StepPruefDialog(QDialog):
         self.pdf_knopf = knoepfe.addButton("Übernehmen und Angebot (PDF)", QDialogButtonBox.ActionRole)
         self.pdf_knopf.setToolTip("Übernehmen, optimieren, prüfen und gleich das Angebots-PDF schreiben (Strg+Eingabe)")
         self.pdf_knopf.clicked.connect(self.mit_pdf)
+        # Paket D (E1): Übernehmen und das Angebot in einem Zug fertigstellen (PDF, Outlook-Antwort, Verschickt)
+        self.fertig_knopf = knoepfe.addButton("Übernehmen und fertigstellen", QDialogButtonBox.ActionRole)
+        self.fertig_knopf.setToolTip("Übernehmen, optimieren, prüfen, Angebots-PDF, Antwort auf die Anfrage-Mail in "
+                                     "Outlook, Vorgang Verschickt und Wiedervorlage. Gesendet wird nur in Outlook.")
+        self.fertig_knopf.clicked.connect(self.mit_fertigstellen)
         knoepfe.addButton("Abbrechen", QDialogButtonBox.RejectRole)
         from PySide6.QtGui import QKeySequence, QShortcut
         QShortcut(QKeySequence("Ctrl+Return"), self, activated=self.mit_pdf)
@@ -1708,6 +1714,11 @@ class StepPruefDialog(QDialog):
     def mit_pdf(self):
         """Übernehmen und danach gleich das Angebots-PDF (B1)."""
         self.pdf_danach = True
+        self.accept()
+
+    def mit_fertigstellen(self):
+        """Übernehmen und das Angebot fertigstellen (Paket D, E1)."""
+        self.fertig_danach = True
         self.accept()
 
     def neue_profile_anlegen(self):

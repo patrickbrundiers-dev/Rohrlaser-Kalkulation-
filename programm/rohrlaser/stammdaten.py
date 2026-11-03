@@ -210,6 +210,8 @@ KUNDEN = Tabelle(
      Feld("liefer_land", "Lieferland abweichend", muster=(r"^[A-Z]{2}$", "Land als zweistelliger Ländercode, z. B. DE"),
           breite=70),
      Feld("lieferbedingung", "Lieferbedingung", "auswahl", auswahl="lieferbedingung", breite=110),
+     # Anfragen automatisch zuweisen (Paket D, E7): Kürzel des zuständigen Kollegen (gemeinsamer Ordner)
+     Feld("zustaendig", "Zuständig (Kürzel)", breite=80),
      Feld("bemerkung", "Bemerkung", breite=200)),
     ("kundennr",),
     "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
@@ -797,6 +799,8 @@ KUNDENVORGABEN = Tabelle(
      Feld("rabatt", "Rabatt [%]", "zahl", 0, 50, stellen=1, breite=70),
      Feld("frachtfrei_ab", "Frachtfrei ab Warenwert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
      Feld("mindestwert", "Mindestauftragswert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
+     # Anfrage-Ampel (Automationen 03.11.2026, Vorschlag 4): leer = Einstellung anfrage_frist
+     Feld("antwort_frist", "Anfrage beantworten in [Arbeitstagen]", "ganz", 0, 60, breite=95),
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("kundennr",),
     "Vorgaben je Kunde für neue Angebote: Wählen Sie im Angebot den Kunden, übernimmt das Programm Maschine, "
@@ -1276,6 +1280,13 @@ EINSTELLUNGEN = (
                 "Sehr geehrte Damen und Herren,\n\nbitte senden Sie uns ein Angebot für folgendes Material "
                 "(unser Angebot {angebot}):\n\n{positionen}\n\nBitte mit Preis, Lieferzeit und Angabe der "
                 "Lieferlänge.\n\nMit freundlichen Grüßen"),
+    # Materialbestellung beim gewählten Lieferanten (Automationen 03.11.2026, Vorschlag 8)
+    Einstellung("bestellung_betreff", "Materialbestellung: Betreff", "Materialanfrage", "text",
+                "Bestellung Material zu Auftrag {angebot}"),
+    Einstellung("bestellung_text", "Materialbestellung: Text der E-Mail", "Materialanfrage", "mehrzeilig",
+                "Sehr geehrte Damen und Herren,\n\nhiermit bestellen wir zu Ihrem Angebot folgendes Material "
+                "(unser Auftrag {angebot}):\n\n{positionen}\n\nBitte bestätigen Sie uns den Liefertermin.\n\n"
+                "Mit freundlichen Grüßen"),
     Einstellung("anfrage_outlook_signatur", "Materialanfrage: Signatur aus Outlook verwenden", "Materialanfrage",
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
@@ -1287,6 +1298,19 @@ EINSTELLUNGEN = (
                 "{anrede}\n\nvielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot {angebot}{referenz}.\n\n"
                 "Das Angebot gilt bis {gueltig}. Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n"
                 "Mit freundlichen Grüßen"),
+    # Automationen im Arbeitsablauf (Patrick 03.11.2026 „Alle Empfehlungen“, automatik.py)
+    Einstellung("anfrage_frist", "Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den "
+                "Kundenvorgaben)", "Automatik", "ganz", 2, 0, 60),
+    Einstellung("anfrage_zuweisen", "Neue Anfragen automatisch zuweisen (gemeinsamer Ordner)", "Automatik", "auswahl", "ja", auswahl="janein"),
+    Einstellung("angebot_automatik", "Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)", "Automatik", "auswahl", "ja", auswahl="janein"),
+    Einstellung("anfrage_vormessen", "Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)",
+                "Automatik", "auswahl", "ja", auswahl="janein"),
+    Einstellung("preiswaechter_schwelle", "Preiswächter: offene Angebote melden ab Abweichung", "Automatik",
+                "anteil", 0.03, 0, 1),
+    Einstellung("nachkalk_schwelle", "Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung",
+                "Automatik", "anteil", 0.10, 0, 1),
+    Einstellung("auftrag_schritte", "Auftrag starten: Schritte beim Beauftragen (gemerkt je Arbeitsplatz)",
+                "Automatik", "text", "ab werkstatt material"),
     # Nachfassen verschickter Angebote (Plan A9): Wiedervorlage nach Tagen ohne Entscheidung
     Einstellung("nachfassen_tage", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)", "Nachfassen",
                 "ganz", 10, 0, 365),

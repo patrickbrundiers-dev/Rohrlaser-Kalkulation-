@@ -159,3 +159,54 @@ def bewertung_text(b):
              f"Termintreue {zahl(100 * b['termintreue'], 0)} %" if b["termintreue"] is not None else None,
              f"{b['reklamationen']} Reklamation(en)" if b["reklamationen"] else None]
     return " · ".join(t for t in teile if t)
+
+
+# ---------------------------------------------------------------------- Materialbestellung (Automationen 03.11.2026)
+def gewaehlte(db, angebot_id):
+    """{(Profil, Werkstoff): Antwort} der übernommenen (gewählten) Antworten."""
+    return {(e["profil_id"], e["werkstoff_id"]): e for e in liste(db, angebot_id) if e.get("gewaehlt")}
+
+
+def preis_text(e):
+    """'Preis lt. Ihrem Angebot vom 03.11.2026: 1,250 €/kg' für die Bestellung."""
+    from .stammdaten import zahl_als_text as zahl
+    d = _d(e.get("datum"))
+    return (f"Preis lt. Ihrem Angebot{f' vom {d:%d.%m.%Y}' if d else ''}: {zahl(e['preis'], 3)} {e['basis']}")
+
+
+def bestellt_merken(db, angebot_id, lieferant=None, heute=None):
+    """Bestellung bei den gewählten Antworten (des Lieferanten) vermerken: bestellt = heute, erwartet = heute +
+    Lieferzeit (Kalendertage; ohne Lieferzeit Einstellung termin_material_tage in Arbeitstagen). Ergebnis: Anzahl."""
+    from . import feiertage
+    heute = heute or datetime.date.today()
+    alle = liste(db, angebot_id)
+    n = 0
+    for e in alle:
+        if not e.get("gewaehlt") or (lieferant and e.get("lieferant") != lieferant):
+            continue
+        if e.get("lieferzeit"):
+            erwartet = heute + datetime.timedelta(days=int(e["lieferzeit"]))
+        else:
+            erwartet = feiertage.arbeitstage_spaeter(heute, int(_n(db.einstellung("termin_material_tage")) or 5))
+        e.update(bestellt=heute.isoformat(), erwartet=erwartet.isoformat())
+        n += 1
+    if n:
+        db.zusatz_setzen(angebot_id, SCHLUESSEL, alle)
+    return n
+
+
+def wareneingang_faellig(db, heute=None):
+    """Bestellte Antworten ohne Wareneingang, deren erwarteter Liefertag erreicht ist (eigene beauftragte Angebote):
+    [dict(angebot_id, nummer, lieferant, profil_id, erwartet)]."""
+    heute = heute or datetime.date.today()
+    out = []
+    for aid, nummer, vorgang, fremd in db.con.execute(
+            "SELECT id, nummer, vorgang, fremd FROM angebote WHERE zusatz LIKE '%erwartet%'"):
+        if fremd or vorgang != "Beauftragt":
+            continue
+        for e in liste(db, aid):
+            d = _d(e.get("erwartet"))
+            if e.get("bestellt") and not e.get("eingang") and d and d <= heute:
+                out.append(dict(angebot_id=aid, nummer=nummer, lieferant=e.get("lieferant"),
+                                profil_id=e.get("profil_id"), erwartet=d.isoformat()))
+    return sorted(out, key=lambda x: x["erwartet"])

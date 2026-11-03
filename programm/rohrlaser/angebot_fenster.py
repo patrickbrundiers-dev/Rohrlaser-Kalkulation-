@@ -593,10 +593,11 @@ class AngeboteSeite(QWidget):
         except Exception:           # Vorschlag darf das Beauftragen nie verhindern
             return None
 
-    def vorgang_setzen(self, v, angebot_id=None, auftrag=None, absage=None):
+    def vorgang_setzen(self, v, angebot_id=None, auftrag=None, absage=None, schritte=None):
         """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …). Beauftragt: Fenster für Auftragsnummer
         und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster. Abgelehnt: Fenster
-        für den Absagegrund (Plan 29.10.2026 1b); absage = (Grund, Bemerkung, Preis Wettbewerb) ohne Fenster."""
+        für den Absagegrund (Plan 29.10.2026 1b); absage = (Grund, Bemerkung, Preis Wettbewerb) ohne Fenster.
+        schritte = Schritte nach dem Auftrag (auftrag_start, Automationen 03.11.2026 2a), sonst aus dem Fenster."""
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "den Vorgang setzen"):
             return False
@@ -607,11 +608,14 @@ class AngeboteSeite(QWidget):
             if seite is None or not seite.vor_verschickt():
                 return False
         if v == "Beauftragt" and auftrag is None and not self.f.stumm and not self.db.nur_lesen:
-            from . import auftrag as auftrag_fenster
+            from . import auftrag as auftrag_fenster, auftrag_start
+            gewaehlt = auftrag_start.gewaehlt(self.db) if schritte is None else list(schritte)
             auftrag = auftrag_fenster.abfragen(self, a, self.db.einstellung("versand_bundesland"),
-                                               frueh=self._termin_frueh(i))
+                                               frueh=self._termin_frueh(i), schritte=gewaehlt)
             if auftrag is None:
                 return False
+            auftrag_start.merken(self.db, gewaehlt)
+            schritte = gewaehlt
         if v == "Abgelehnt" and absage is None and not self.f.stumm and not self.db.nur_lesen:
             from . import absage_dialog
             absage = absage_dialog.abfragen(self, a)
@@ -631,6 +635,9 @@ class AngeboteSeite(QWidget):
             text += " – Palettenschein und Versand im Reiter Versand"
             self.f.versand.neu_laden()
         self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}{text}.")
+        if v == "Beauftragt" and schritte and not self.db.nur_lesen:
+            from . import auftrag_start
+            auftrag_start.ausfuehren(self.f, i, schritte)
         return True
 
     def nachfassen(self, angebot_id=None, dialog=None):
@@ -1350,6 +1357,9 @@ class PositionenModell(QAbstractTableModel):
             if wert == p.get(f.name):
                 return False
         self.s.db.position_aendern(p["id"], f.name, wert)
+        if f.name == "werkstoff_id" and p.get("profil_id"):     # aus Nacharbeit lernen (Paket D, E5)
+            from . import nacharbeit
+            nacharbeit.anbieten(self.s, "werkstoff", wert)
         if f.name in ("konturen", "kontur_grenzen"):     # Konturliste geändert: beim Neuladen neu einteilen
             self.s.db.position_aendern(p["id"], "kontur_grenzen", None)
         neu = self.s.profil_gewechselt(dict(p, profil_id=wert)) if f.name == "profil_id" else None
@@ -2041,6 +2051,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         fa = self.funktion_aktionen = []          # (Aktion, Funktion): ausgeblendet, wenn die Funktion aus ist
         # Angebot per E-Mail (Vorschlag V1, 31.10.2026): PDF + Outlook, als Antwort auf die Anfrage-Mail
         fa.append((menue.addAction("Angebot per E-Mail …", lambda: self.angebot_mail()), "funktion_angebot_mail"))
+        # Fertigstellen in einem Zug (Paket D, E1): PDF, Outlook-Antwort, Verschickt, Wiedervorlage, nächste Anfrage
+        fa.append((menue.addAction("Fertigstellen (PDF, E-Mail, Verschickt) …", lambda: self.fertigstellen()),
+                   "funktion_angebot_mail"))
         menue.addSeparator()
         # Auftragsbestätigung (Plan 29.10.2026 1c): im Layout des Angebots, mit Bestellnummer und Liefertermin
         fa.append((menue.addAction("Auftragsbestätigung (PDF)", lambda: self.auftragsbestaetigung_pdf()), "funktion_ab"))
@@ -2432,9 +2445,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.zurueck_knopf.clicked.connect(lambda: self._zuruecknehmen())
         fl.addWidget(self.zurueck_knopf)
         self.fremd_leiste.hide()
+        # Nachtrag des Kunden (Automationen 03.11.2026, 5a): Änderungen aus der Mail übernehmen oder ablehnen
+        self.nachtrag_leiste = QFrame()
+        self.nachtrag_leiste.setStyleSheet(self.fremd_leiste.styleSheet())
+        nl = QHBoxLayout(self.nachtrag_leiste)
+        nl.setContentsMargins(10, 6, 10, 6)
+        self.nachtrag_text = QLabel()
+        self.nachtrag_text.setWordWrap(True)
+        nl.addWidget(self.nachtrag_text, 1)
+        for text, ziel in (("Übernehmen", lambda: self.nachtrag_entscheiden(True)),
+                           ("Ablehnen", lambda: self.nachtrag_entscheiden(False))):
+            b = QPushButton(text)
+            b.clicked.connect(ziel)
+            nl.addWidget(b)
+        self.nachtrag_leiste.hide()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
         lay.addWidget(self.fremd_leiste)
+        lay.addWidget(self.nachtrag_leiste)
         lay.addWidget(self.spalten, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()
@@ -2819,6 +2847,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self._kopf_anzeigen()
             return
         meldung = f"{fd.titel} gespeichert."
+        if fd.name == "stange" and wert and not getattr(self, "_laden", False):     # aus Nacharbeit lernen (E5)
+            from . import nacharbeit
+            if nacharbeit.merken(self.db, self.kopf.get("kundennr"), self.id, "stange", wert):
+                self.neu_laden()
+                nacharbeit.anbieten(self, "stange", wert)
+                return
         a = self.db.angebot(self.id) or {}
         if fd.name.startswith("lieferzeit") and a.get("lieferzeit_art") == "Lieferdatum" and a.get("lieferzeit_wert") \
                 and a["lieferzeit_wert"] < (a.get("datum") or ""):
@@ -4273,6 +4307,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.db.position_aendern(p["id"], "zusatz", json.dumps(liste + [e], ensure_ascii=False))
             n += 1
         self.f.meldung(f"{name} bei {n} Position(en) hinzugefügt." if n else f"{name} ist schon überall eingetragen.")
+        if n:                       # aus Nacharbeit lernen (Paket D, E5)
+            from . import nacharbeit
+            nacharbeit.anbieten(self, "zusatz", name)
         self.neu_laden()
         return n
 
@@ -4588,6 +4625,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 self.db.position_aendern(p["id"], "oberflaeche", oberflaeche or None)
                 neu = True
             n += neu
+        if n and werkstoff:         # aus Nacharbeit lernen (Paket D, E5)
+            from . import nacharbeit
+            if nacharbeit.anbieten(self, "werkstoff", werkstoff):
+                self.neu_laden()
+                return n
         if n:
             self.neu_laden()
             self.rueckgaengig_anbieten(f"{n} Position(en) geändert"
@@ -5994,6 +6036,45 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return len(paare)
 
     # -------------------------------------------------------------- Rückgängig, Einfügen (Tastenkürzel)
+    def fertigstellen(self, dialog=None, ausfuehren=None):
+        """Ausgaben → „Fertigstellen …“ (Paket D, E1): angebot_automatik.fertigstellen."""
+        from . import angebot_automatik
+        return angebot_automatik.fertigstellen(self, dialog, ausfuehren)
+
+    def nachtraege_melden(self):
+        """Offenen Nachtrag des Kunden (nachtrag.py) als gelbe Leiste zeigen. Ergebnis: (Index, Eintrag) oder None."""
+        from . import nachtrag
+        try:
+            offen = [] if self.fremd() else nachtrag.offene(self.db, self.id)
+        except Exception:
+            offen = []
+        self.nachtrag_leiste.setVisible(bool(offen))
+        if not offen:
+            return None
+        i, e = offen[0]
+        self.nachtrag_text.setText(f"<b>Nachtrag des Kunden</b> ({e.get('betreff') or ''}): {nachtrag.text(e)}"
+                                   + (f" – noch {len(offen) - 1} weiterer" if len(offen) > 1 else ""))
+        return i, e
+
+    def nachtrag_entscheiden(self, uebernehmen):
+        """Ältesten offenen Nachtrag übernehmen (ins Angebot, mit Rückgängig) oder ablehnen."""
+        from . import nachtrag
+        offen = nachtrag.offene(self.db, self.id)
+        if not offen or self.db.nur_lesen:
+            return None
+        i, e = offen[0]
+        if uebernehmen:
+            self.verlauf.merken()
+            n = nachtrag.anwenden(self.db, self.id, e)
+            nachtrag.status_setzen(self.db, self.id, i, nachtrag.UEBERNOMMEN)
+            self.neu_laden()
+            self.rueckgaengig_anbieten(f"Nachtrag übernommen: {nachtrag.text(e)} ({n} Änderung(en)).")
+        else:
+            nachtrag.status_setzen(self.db, self.id, i, nachtrag.ABGELEHNT)
+            self.f.meldung("Nachtrag abgelehnt; das Angebot bleibt, wie es ist.")
+        self.nachtraege_melden()
+        return True
+
     def rueckgaengig_anbieten(self, text, bericht=None):
         """Meldung nach einer Änderung ohne Rückfrage (Plan Bedienung B2) mit Knopf „Rückgängig“. Der Knopf nimmt
         nur genau diese Änderung zurück: kam inzwischen eine weitere dazu, verweist er auf Strg+Z."""
@@ -6580,14 +6661,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
         Vorgabe, oder Importprofil des Kunden; kundennr = anderer Kunde als im Angebot), Flachstahl bleibt im
         Prüfdialog als andere Art wählbar."""
-        from .stammdaten import FLACH_ALS
-        from . import importprofil
         kundennr = kundennr if kundennr is not None else (getattr(self, "kopf", None) or {}).get("kundennr")
-        profil = importprofil.fuer_kunde(self.db, kundennr)
-        flach_als = (profil or {}).get("flach_als") or self.db.einstellung("flach_als") or FLACH_ALS[0]
-        if flach_als == FLACH_ALS[0]:
-            return 0
-        return self.db.einstellung("flachstahl_bis") or 150
+        return step_einstellungen.flach_bis(self.db, kundennr)
 
     def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen"):
         """STEP-Dateien wählen (ohne dateien) und mit STEP-Import.exe messen. Ergebnis: Messwerte (mit_ablage:
@@ -6710,6 +6785,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         kopieren = self.db.einstellung("step_kopieren") == "ja"    # STEP-Dateien in den Angebotsordner
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
         neue_profile, erneut, pdf_danach = True, False, False   # ohne Dialog: Profile anlegen, Doppelte überspringen
+        fertig_danach = False
         gelernt = None
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
@@ -6734,6 +6810,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             kopieren = dlg.kopieren_haken.isChecked()
             fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
             neue_profile, erneut, pdf_danach = dlg.neue_profile_anlegen(), dlg.doppelte_eintragen(), dlg.pdf_danach
+            fertig_danach = getattr(dlg, "fertig_danach", False)
             werkstoff = dlg.werkstoff
             if dlg.referenz_text() and dlg.referenz_text() != (self.kopf.get("kundenreferenz") or None):
                 self.db.angebot_aendern(self.id, "kundenreferenz", dlg.referenz_text())     # V5
@@ -6822,16 +6899,29 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if kopieren:
             erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
+        aktion = None
+        if len(self.positionen) == len(erg["positionen"]) and (self.db.einstellung("angebot_automatik") or "ja") \
+                == "ja" and (not self.f.stumm or getattr(self.f, "automatik_testen", False)):
+            # neues Angebot: Automationen Paket D (03.11.2026); in den übrigen Tests (stumm) aus
+            from . import angebot_automatik
+            auto = angebot_automatik.nach_import(self, werkstoff_text)
+            if auto["texte"]:
+                text += " Automatisch: " + "; ".join(auto["texte"]) + "."
+                erg["bericht"].append("Automatisch (Datei → Automatik-Protokoll): " + "; ".join(auto["texte"]))
+            erg["bericht"] += auto["bericht"]
+            aktion = auto["aktion"]
         # ruhige Meldung statt Fenster (B1/B2); Einzelheiten hinter „Bericht …“ und im Meldungsverlauf. Offene
         # Bohrungen (Gewinde, Senkungen, Flowdrill): Knopf führt gleich zum Prüfen aller (Plan Angebotsablauf V3)
         offen = self.bohrungen_offen()
-        aktion = None
-        if offen and not pdf_danach:
+        if offen and not pdf_danach and not fertig_danach:
             text += f" {len(offen)} Position(en) mit Bohrungen/Gewinde zu prüfen."
             aktion = ("Bohrungen prüfen …", lambda: self.bohrungen_alle_pruefen() if len(self.bohrungen_offen()) > 1
                       else self.bohrungen_pruefen(self.bohrungen_offen()[:1] or None))
         self.f.meldung(text, aktion=aktion, bericht=("STEP-Import", "\n".join(erg["bericht"])))
-        if pdf_danach:
+        if fertig_danach:           # E1: Übernehmen und fertigstellen
+            from . import angebot_automatik
+            angebot_automatik.fertigstellen(self)
+        elif pdf_danach:
             self.angebot_pdf()
         return erg
 
