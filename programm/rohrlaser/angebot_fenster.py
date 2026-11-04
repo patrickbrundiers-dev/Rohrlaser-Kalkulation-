@@ -1229,7 +1229,10 @@ class PositionenModell(QAbstractTableModel):
             if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle == Qt.ItemDataRole.DisplayRole and art == "status":
-            return satzgruppen.kurz(w)          # eine Zeile; ganzer Text im Tooltip (Patrick 03.11.2026)
+            # eine Zeile; ganzer Text im Tooltip (Patrick 03.11.2026); OK nur als grünes Symbol (04.11.2026)
+            return "" if str(w or "").strip() == "OK" else satzgruppen.kurz(w)
+        if rolle == Qt.ItemDataRole.ToolTipRole and art == "status" and str(w or "").strip() == "OK":
+            return "OK: alle Angaben vollständig"
         if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             if art == "bohrbild" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (wert_als_text(x, w) + "\n" if w not in (None, "") else "") + \
@@ -1824,6 +1827,7 @@ STANGENBILD_EINSTELLUNG = "ansicht_stangenbild_2"
 KOMPAKT_EINSTELLUNG = "ansicht_kalk_kompakt"    # Reiter Kalkulation: kompakte Übersicht (Vorgabe) oder alle Spalten
 PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}   # einmal über dem Schnittplan
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
+UEBERSICHT_EINSTELLUNG = "ansicht_uebersicht"     # Knopf „Übersicht“: rechts ein (Vorgabe) oder aus (04.11.2026)
 
 
 class _AuswahlUnter(UnterzeilenMixin, Auswahl):
@@ -2045,6 +2049,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         pdf.setObjectName("primaer")
         pdf.clicked.connect(lambda: self.angebot_pdf())
         leiste.addWidget(pdf)
+        # Übersicht rechts ein-/ausblenden (Patrick 04.11.2026: mehr Platz für die Liste), gemerkt je Platz
+        self.uebersicht_knopf = QPushButton("Übersicht")
+        self.uebersicht_knopf.setCheckable(True)
+        self.uebersicht_knopf.setChecked(self.db.einstellung(UEBERSICHT_EINSTELLUNG) is not False)
+        self.uebersicht_knopf.setToolTip("Übersicht rechts (Preise, Zeiten, Meldungen) ein- bzw. ausblenden: "
+                                         "ausgeblendet hat die Positionsliste die ganze Breite")
+        self.uebersicht_knopf.toggled.connect(self.uebersicht_zeigen)
         self.weitere = QPushButton("Ausgaben")
         self.weitere.setToolTip("Werkstattpapiere, Kalkulation, Materialanfrage, CSV-Export und weitere Aktionen")
         menue = QMenu(self.weitere)
@@ -2121,6 +2132,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an(n)) for a, n in self.funktion_aktionen])
         self.weitere.setMenu(menue)
         leiste.addWidget(self.weitere)
+        leiste.addWidget(self.uebersicht_knopf)
 
         # Positionen und Ergebnisse
         self.pos_modell = PositionenModell(self)
@@ -2137,7 +2149,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             lambda: self._gesammelt(tabellen_eingabe.von_oben))
         self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
-            self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld",) + EIGENE else (240 if art == "status" else 85))
+            # Status schmaler (OK nur Symbol), Satz schmal: der Name steht im Kopfband (04.11.2026)
+            self.pos_ansicht.setColumnWidth(i, 50 if art == "feld" and x.name == "satz" else x.breite
+                                            if art in ("feld",) + EIGENE else (150 if art == "status" else 85))
         # Rechtsklick auf eine Position: Bearbeiten-Aktionen ohne weitere Knöpfe in der Leiste. Plan Bedienung B5: nur
         # die Einträge, die zur Art der markierten Positionen passen (MENUE_ARTEN), mit Tastenkürzel; bei mehreren
         # markierten Zeilen zusätzlich „Für markierte setzen …“ (Werkstoff, Oberfläche).
@@ -2431,6 +2445,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.spalten.setStretchFactor(0, 1)
         self.spalten.setStretchFactor(1, 0)
         self.spalten.setChildrenCollapsible(False)
+        self.uebersicht_rahmen.setVisible(self.uebersicht_knopf.isChecked())
         # Angebot eines Kollegen (teilen.py): Hinweis mit Kopieren, Eingaben gesperrt
         self.fremd_leiste = QFrame()
         self.fremd_leiste.setStyleSheet("QFrame { background: #FFF4D6; border: 1px solid #E8C66B; border-radius: 4px; }"
@@ -2826,6 +2841,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self._kopf_klick(zeile)
         elif art == "doppel":
             self.zur_position(zeile=zeile)
+
+    def uebersicht_zeigen(self, an):
+        """Übersicht rechts ein- bzw. ausblenden (Knopf „Übersicht“), gemerkt je Platz."""
+        self.uebersicht_rahmen.setVisible(bool(an))
+        if self.uebersicht_knopf.isChecked() != bool(an):
+            self.uebersicht_knopf.setChecked(bool(an))
+        if not self.db.nur_lesen:
+            self.db.einstellung_setzen(UEBERSICHT_EINSTELLUNG, bool(an))
 
     def _kalk_kopf_klick(self, ansicht, liste, r):
         modell = ansicht.model()
@@ -3446,7 +3469,6 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                                                                                    zeilen))}
         self._band_zeilen = list(zeilen)
         self._baender_setzen()
-        self.kompakt_ansicht.setColumnHidden(next(c for c, sp in enumerate(KOMPAKT_SPALTEN) if sp[1] == "satz"), True)
         self.pos_unter.aktualisieren()
         self.kompakt_unter.aktualisieren()
         leere_ausblenden(self.kompakt_ansicht, self.kompakt, KOMPAKT_IMMER)
@@ -3589,6 +3611,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 zeigen = self.zeige_step.isChecked()
             elif art == "abweichung":
                 zeigen = self.zeige_step.isChecked() or self._spalte_hat_werte(i)
+            elif name == "satz":            # Name steht im Kopfband (04.11.2026, F3a); eintragen über Weitere Spalten
+                zeigen = self.spalten_wahl.get(name, False)
+            elif name == "art":             # Schweißbaugruppen zeigt ihr Kopfband, nur andere Arten zählen
+                zeigen = self.spalten_wahl.get(name, spalte_sichtbar(
+                    [m.roh(r, i) for r in range(m.rowCount()) if not ist_baugruppe(self.positionen[r])]))
             elif name in OPTIONALE_SPALTEN:
                 zeigen = self.spalten_wahl.get(name, self._spalte_hat_werte(i))
             else:

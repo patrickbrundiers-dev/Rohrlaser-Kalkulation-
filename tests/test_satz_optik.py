@@ -132,6 +132,18 @@ assert kk.data(kk.index(0, next(c for c, sp in enumerate(kk.spalten) if sp[1] ==
 assert kk.data(kk.index(0, 0), Qt.ItemDataRole.BackgroundRole) is not None
 ok("Kalkulation kompakt und alle Spalten: Spalte Satz, Satzzeilen getönt, Einzelteile wie bisher")
 
+# Ruhigere Liste und mehr Platz (04.11.2026): Satzspalte aus (über Weitere Spalten), OK nur Symbol, Übersicht ausblendbar
+assert s.pos_ansicht.isColumnHidden(c)
+st = next(i for i, (a_, _) in enumerate(m.spalten) if a_ == "status")
+ok_zeile = next(r for r in range(m.rowCount()) if str(m.roh(r, st)).strip() == "OK")
+assert m.data(m.index(ok_zeile, st)) == "" and m.data(m.index(ok_zeile, st), Qt.ItemDataRole.DecorationRole) is not None
+assert s.uebersicht_knopf.isChecked() and not s.uebersicht_rahmen.isHidden()
+s.uebersicht_knopf.setChecked(False)
+assert s.uebersicht_rahmen.isHidden() and db.einstellung("ansicht_uebersicht") is False
+s.uebersicht_zeigen(True)
+assert not s.uebersicht_rahmen.isHidden() and db.einstellung("ansicht_uebersicht") is True
+ok("Satzspalte ausgeblendet, Status OK nur als Symbol, Übersicht rechts ein-/ausblenden und merken")
+
 # ohne Sätze: Spalte Satz der kompakten Kalkulation ausgeblendet, nichts getönt
 b = db.angebot_neu(dict(kunde="Test", kundennr="4711"))
 db.position_neu(b, dict(pos=10, artikel="E", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=600, stueck=2,
