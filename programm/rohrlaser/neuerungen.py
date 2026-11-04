@@ -21,8 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-<<<<<<< HEAD
-    ["0.9.257", "<b>Zeitwächter</b> ([[zeitwaechter]]): jede Stelle, an der das Programm länger als 0,5 s nicht "
+    ["0.9.258", "<b>Zeitwächter</b> ([[zeitwaechter]]): jede Stelle, an der das Programm länger als 0,5 s nicht "
      "reagiert, steht mit Dauer, Ort und der Bedienung davor in <i>Daten/Protokoll/tempo.log</i>. Das "
      "<b>Support-Paket</b> enthält die Datei und eine Zusammenfassung der häufigsten langsamen Stellen. Die "
      "automatische Prüfung achtet jetzt darauf, dass eine Eingabe im Angebot nie neu optimiert und die Kalkulation "
@@ -30,7 +29,7 @@ NEUERUNGEN = [
      "Gruppe, die Prüfung gleicher Spalten und bei Angeboten ohne Fracht die Positionswerte (500 Positionen: Zelle "
      "ändern 0,83 → 0,73 s), der Reiter Nachkalkulation rechnet die Kalkulation einmal statt dreimal.",
      "Zeitwächter: langsame Schritte im Protokoll und im Support-Paket; Anzeige nach Änderungen schneller"],
-    ["0.9.256", "<b>Wieder schneller</b> ([[tempo_0411]]): Seit 0.9.235 rechnete jede Änderung im Angebot deutlich mehr "
+    ["0.9.257", "<b>Wieder schneller</b> ([[tempo_0411]]): Seit 0.9.235 rechnete jede Änderung im Angebot deutlich mehr "
      "als nötig. Die Suche nach Wiederholteilen lief nach jeder Änderung neu, sogar bei einer Stückzahl, und doppelt; "
      "jetzt nur noch, wenn sich andere Angebote oder Artikelnummer, Profil, Werkstoff, Länge oder Konturen ändern, "
      "und sie vergleicht nur Teile mit passender Länge. Der Angebots-Check in der Übersicht rechnet Maschinenvergleich "
@@ -41,7 +40,6 @@ NEUERUNGEN = [
      "jetzt Bruchteile einer Sekunde. Gemessen: Stückzahl ändern bei 200 Angeboten 0,5 s statt 2,0 s, Angebot öffnen "
      "0,9 s statt 1,4 s. Alle Ergebnisse bleiben gleich.",
      "Wieder schneller: Ändern im Angebot, Öffnen, Schreiben in den gemeinsamen Ordner"],
-=======
     ["0.9.256", "<b>Einzelteile aufgeräumt</b> ([[saetze_abheben]]): Einzelteile stehen unter einem grauen Band "
      "<i>Einzelteile</i> mit Positionen, Stück, Gewicht, Preis und offenen Vorschlägen; zugeklappte Sätze, Baugruppen "
      "und Einzelteile sind nur noch das Band, der Status zeigt nur sein Symbol, der Zeilenkopf keine zweite Nummer. "
@@ -51,7 +49,6 @@ NEUERUNGEN = [
      "entfernen, auch Gewinde; offene Gewinde, Senkungen und Flowdrill aus der STEP bestätigen oder ablehnen, einzeln "
      "oder für alle Teile.",
      "Einzelteile mit Band; Zusatzarbeiten, Gewinde und Bohrungen für alle Teile bestätigen oder ablehnen"],
->>>>>>> origin/main
     ["0.9.255", "<b>Schweißbaugruppen</b> ([[vorkalkulation_baugruppe]]): Außennähte (Stumpf- und Ecknaht) bekommen "
      "in der Vorkalkulation immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht. Scheitert "
      "die STEP-Messung an einem Teilepaar, bleiben die übrigen Nahtkandidaten erhalten (vorher gingen alle verloren, "
