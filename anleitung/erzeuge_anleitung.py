@@ -561,14 +561,15 @@ def kapitel_ueberblick(i):
            "Teil A bis C.")
     i.abschnitt("Aufbau des Fensters")
     i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=112 * mm, legende=[
-        (1, "Stand des Angebots: grün <i>Optimierung abgeschlossen</i>, gelb <i>Noch nicht optimiert</i>, rot "
-            "<i>Veraltet</i> ([[veraltet]]).")])
+        (1, "Stand des Angebots in der Schrittanzeige: ✓ <i>Optimiert</i> grün. Ist das Angebot noch nicht "
+            "optimiert (gelb) oder <i>Veraltet</i> (rot, [[veraltet]]), steht das zusätzlich oben in der Übersicht.")])
     i.text("Oben die Reiter <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, <i>Frachtkosten</i> ([[frachtkosten]]), "
            "<i>Zukaufartikel</i> ([[zukauf]]) und <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen "
            "in einer eigenen Zeile unter <i>Angebote</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
            "Reiter, der sich mit dem × schließt. Die Zeile erscheint, solange <i>Angebote</i> gewählt ist; ein Klick "
-           "auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. Die Statuszeile unten meldet, was gespeichert oder "
-           "gerechnet wurde, Fehler in Rot.", kurz=True)
+           "auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. Was gespeichert oder gerechnet wurde, meldet eine "
+           "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
+           "Statusleiste. Wo die Anleitung „die Statuszeile meldet“ schreibt, ist diese Einblendung gemeint.", kurz=True)
     i.genauer()
     i.text("Das Programm öffnet sich maximiert im Reiter <i>Angebote</i>. Die Einstellungen enthalten die Vorgaben "
            "und die übrigen Stammdaten als Seiten in der Navigation links. Zahlen mit Komma eingeben (1385,5). Jede Änderung wird sofort "
@@ -1191,7 +1192,9 @@ def kapitel_angebot(i):
             "darunter Datum, Kundenname und Standard-Stangenlänge; dann paarweise Anfrage und Bemerkung, Lieferzeit "
             "und Material neuer Positionen, darunter der Bearbeiter. Ganz unten die aufklappbaren Maschinenparameter."),
         (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
-            "groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten."),
+            "groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten. <b>»</b> im Titel blendet sie aus: rechts bleibt "
+            "ein schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
+            "Verkaufspreis; <b>«</b> oder ein Klick auf den Streifen blendet sie wieder ein ([[mehr_platz]])."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer. "
             "Der Status hat zusätzlich zur Farbe ein Symbol: grüner Haken = OK, blaues i = Hinweis, gelbes Dreieck = "
             "Warnung oder veraltet, rotes Kreuz = Fehler. Eingabefelder sind hell gelb, berechnete Werte grau."),
@@ -1200,11 +1203,12 @@ def kapitel_angebot(i):
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
             "<i>EK eintragen …</i> (Einkaufspreis fehlender Zukaufteile direkt im Angebot, [[zukauf_positionen]])."),
-        (6, "Ablagefeld <b>STEP / DXF hierher ziehen oder klicken</b>: Positionen aus Konstruktionsdaten und "
+        (6, "Ablagefeld <b>STEP / DXF</b> (Dateien hierher ziehen oder klicken): Positionen aus Konstruktionsdaten und "
             "DXF-Zeichnungen ([[step]], [[dxf_import]]); <i>STEP importieren …</i> steht im Menü (Strg+I)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen ([[optimieren]])."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
-            "rechts <b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b>."),
+            "rechts die Spalten-Ansichten <b>Alle · Erfassen · Prüfen · Preis</b> ([[spalten_ansichten]]) und "
+            "<b>Weitere Spalten</b> (darin auch <i>STEP-Werte (aus CAD)</i> und <i>Berechnete Werte (Programm)</i>)."),
         (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist).")])
     i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
@@ -1220,8 +1224,9 @@ def kapitel_angebot(i):
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
            "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
-           "niedriger als 760 Punkte (Laptop mit 1366 × 768), werden die Karten flacher, und Kalkulation und Fracht "
-           "stehen zugeklappt nebeneinander; so bleibt mehr Platz für die Positionen. Passt eine zugeklappte Zeile "
+           "niedriger als 760 Punkte (Laptop mit 1366 × 768) und sind alle drei Karten zugeklappt, stehen Angebotskopf, "
+           "Kalkulation und Fracht zusammen in <b>einer</b> Zeile ([[mehr_platz]]); so bleibt mehr Platz für die "
+           "Positionen. Passt eine zugeklappte Zeile "
            "nicht in die Breite, endet sie mit „…“, der Tooltip zeigt den ganzen Text. Im Angebotskopf "
            "steht der Bearbeiter neben der Bemerkung; der Satz „Im Angebot: Lieferzeit …“ erscheint nur, wenn keine "
            "Lieferzeit eingetragen ist, sonst als Tooltip über den Lieferzeit-Feldern. Die Trennlinien zwischen oben und unten und zur Übersicht "
@@ -1273,6 +1278,40 @@ def kapitel_angebot(i):
                ["<b>Schweißbaugruppe</b>", "Editor mit Struktur, Nahtgruppen und Arbeitsgängen; die Baugruppe "
                 "kommt als eigene Position in die Liste, ihre Einzelteile bleiben Positionen ([[schweissbaugruppe]])."]],
               [38, 132])
+    i.abschnitt("Mehr Platz für die Positionsliste", marke="mehr_platz")
+    i.text("Auf einem Laptop (1366 × 768) zeigt die Positionsliste mindestens 13 Zeilen statt 9:",
+           kurz=True)
+    i.liste("<b>Eine Zeile oben</b>: Angebotskopf, Kalkulation und Fracht stehen zugeklappt nebeneinander. Ein Klick "
+            "auf eine Karte klappt sie auf; dann steht der Kopf wieder über der ganzen Breite. <i>Vorgaben aus "
+            "Einstellungen</i> und <i>Fracht berechnen …</i> erscheinen aufgeklappt.",
+            "<b>Eine Knopfleiste</b>: das Ablagefeld heißt nur noch <b>STEP / DXF</b> (Ziehen oder Klicken wie "
+            "bisher), die Knöpfe sind etwas schmaler; der Knopf <i>Übersicht</i> ist aus der Leiste in die Übersicht "
+            "gewandert.",
+            "<b>Übersicht einklappen</b>: <b>»</b> im Titel der Übersicht blendet sie aus. Rechts bleibt ein 30 Punkte "
+            "schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
+            "senkrecht „Übersicht · VK …“. <b>«</b> oder ein Klick auf den Streifen holt die Übersicht zurück. Die "
+            "Wahl gilt für alle Angebote und bleibt nach dem Neustart.",
+            "<b>Spalten-Ansichten</b> über der Liste ([[spalten_ansichten]]) zeigen nur die Spalten für den "
+            "jeweiligen Arbeitsschritt.",
+            "<b>Nichts doppelt</b>: Meldungen stehen nur in der Einblendung (und unter <i>Meldungen</i>), nicht "
+            "zusätzlich in der Statuszeile. Der grüne Kasten <i>Optimierung abgeschlossen</i> entfällt, das zeigt die "
+            "Schrittanzeige; gelb oder rot erscheint er weiter. <i>Angebots-Check …</i> steht im Menü Ausgaben nur, "
+            "wenn die Übersicht eingeklappt ist. <i>Arbeitsgänge vorschlagen …</i> steht nicht mehr im Rechtsklick: "
+            "offene Vorschläge zeigt der gelbe Knopf in der Knopfleiste, das ganze Fenster öffnet das Menü Ausgaben.")
+    i.abschnitt("Spalten-Ansichten: Erfassen, Prüfen, Preis", marke="spalten_ansichten")
+    i.text("Über der Positionsliste wählen vier Knöpfe, welche Spalten zu sehen sind. Die Wahl gilt für alle Angebote "
+           "und bleibt nach dem Neustart.", kurz=True)
+    i.tabelle(["Ansicht", "Spalten"], [
+        ["Alle", "wie bisher: alle Standardspalten, optionale Spalten nur, wenn sie Werte haben"],
+        ["Erfassen", "Artikelnummer, Bezeichnung, Profil, Werkstoff, Oberfläche, Teilelänge, Stückzahl, "
+                     "Zusatzarbeiten (zum Eintippen neuer Positionen)"],
+        ["Prüfen", "Zusatzarbeiten, Schneidweg, Einstiche, Bohrungen, Gewinde, Schweißnaht, Anbauteile und die "
+                   "STEP-Werte Anfangs-/Endschnitt, Innenkonturen, Gravur, Abweichung (leere bleiben weg)"],
+        ["Preis", "Schneid- und Programmierzeit, Materialpreis, EK Blech, Zukaufteile, Gewicht je Teil"]],
+        [25, 145])
+    i.text("Pos., Status, Artikelnummer, Bezeichnung und Stückzahl stehen in jeder Ansicht, bei Sätzen auch "
+           "<i>Stück je Satz</i>. Was unter <b>Weitere Spalten</b> fest ein- oder ausgeschaltet ist, gilt in jeder "
+           "Ansicht zusätzlich; <i>Automatisch: Spalten mit Werten zeigen</i> nimmt das zurück.")
     i.abschnitt("Angebotskopf", marke="angebotskopf")
     i.schritte([
         ("angebot_positionen", "<b>Kunde</b> aus der Liste wählen: Name und Zahlungsbedingungen kommen aus dem "
@@ -1657,8 +1696,8 @@ def kapitel_angebot(i):
             "Die Kalkulation (kompakt und alle Spalten) steht in derselben Reihenfolge wie die Positionsliste: "
             "Schweißbaugruppe mit Bezeichnung und Profil <i>Schweißbaugruppe</i>, ihre Einzelteile direkt darunter, "
             "Sätze zusammen. Der Zeilenkopf zeigt dieselbe Klammer; ein Klick klappt auch hier zu.",
-            "<b>▸ Alle Gruppen zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
-            "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle Gruppen aufklappen</b>. Welche Gruppen zu sind, merkt "
+            "<b>▸ Alle zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
+            "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle aufklappen</b>. Welche Gruppen zu sind, merkt "
             "sich das Programm je Angebot (auch nach dem Schließen).",
             "Der Status zeigt nur sein Symbol (Häkchen, Hinweis, Warnung, Fehler) mit der Farbe der Zeile; der ganze "
             "Text steht im Tooltip, Doppelklick führt wie bisher zur Ursache. Die Spalte ist dadurch schmal.",
@@ -1669,8 +1708,9 @@ def kapitel_angebot(i):
             "Der Zeilenkopf links zeigt nur noch die Klammer (▾ ▸ │ └), keine zweite Nummer neben <i>Pos.</i>; er "
             "bleibt der Griff zum Verschieben ([[reihenfolge]]). Die Spalte <i>Stück je Satz</i> erscheint nur, wenn "
             "das Angebot Sätze hat.",
-            "Der Knopf <b>Übersicht</b> (oben rechts neben <i>Ausgaben</i>) blendet die Übersicht rechts aus bzw. "
-            "wieder ein; ausgeblendet hat die Liste die ganze Breite. Die Wahl merkt sich das Programm.",
+            "<b>»</b> im Titel der Übersicht blendet sie rechts aus, <b>«</b> im schmalen Streifen (oder ein Klick "
+            "auf den Streifen) wieder ein; ausgeblendet hat die Liste fast die ganze Breite und der Streifen zeigt "
+            "Verkaufspreis und Stand. Die Wahl merkt sich das Programm ([[mehr_platz]]).",
             "Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit seinen Teilen darunter.")
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
@@ -1933,7 +1973,7 @@ def kapitel_angebot(i):
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
     i.abschnitt("Arbeitsgänge vorschlagen", marke="arbeitsgaenge")
-    i.text("<i>Weitere ▾</i> bzw. Rechtsklick → <b>Arbeitsgänge vorschlagen …</b> öffnet das Fenster "
+    i.text("<i>Ausgaben ▾</i> → <b>Arbeitsgänge vorschlagen …</b> (oder Strg+K) öffnet das Fenster "
            "<b>Arbeitsgänge je Position</b>: was das Angebot schon rechnet und was Ihre Regeln zusätzlich "
            "vorschlagen. Ein Vorschlag kostet nichts, bis er angenommen ist.", kurz=True)
     i.liste("Je Zeile Arbeitsgang, Menge je Teil, Zeit je Teil, € je Teil, Kostenart (Fertigung, Fremdleistung, "
@@ -2330,13 +2370,13 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
-    i.liste("Im Angebot auf das gestrichelte Feld <b>STEP / DXF hierher ziehen oder klicken</b> klicken (oder Menü "
+    i.liste("Im Angebot auf das gestrichelte Feld <b>STEP / DXF</b> klicken (oder Menü "
             "<i>STEP importieren …</i>, Strg+I) und die Dateien wählen (Mehrfachauswahl mit Strg oder Umschalt). Im "
             "Dialog des Felds lassen sich STEP- und DXF-Dateien zugleich wählen: die STEP-Dateien gehen in den "
             "STEP-Import, danach öffnet für die DXF-Dateien das DXF-Importfenster ([[dxf_import]]). Der Dateidialog startet im Ordner aus der Einstellung <i>STEP-Import: Standardordner</i>; "
             "ist dort keiner eingetragen, im zuletzt benutzten STEP-Ordner.",
             "Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> auf das gestrichelte "
-            "Feld <b>STEP / DXF hierher ziehen oder klicken</b> neben <i>Neue Position</i> ziehen (es geht auch irgendwo sonst ins "
+            "Feld <b>STEP / DXF</b> neben <i>Neue Position</i> ziehen (es geht auch irgendwo sonst ins "
             "Angebotsfenster; beim Ziehen färbt sich das Feld blau). Ein leeres Angebot zeigt statt der leeren "
             "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog für "
             "STEP und DXF. DXF-Dateien darf man mitziehen. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
@@ -2442,7 +2482,7 @@ def kapitel_step(i):
             "die Konturen für das neue Profil um (Hinweis <i>Profil geändert</i>). In der Spalte Art macht "
             "<i>Nachtrag zurücknehmen</i> das rückgängig.")
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
-        (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
+        (1, "<b>Weitere Spalten → STEP-Werte (aus CAD)</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
     i.hinweis("Gewinde, Senkungen, Fließlochbohrungen und Bohrungen kleiner als 0,7 × Wandstärke werden nur "
               "vorgeschlagen (Status HINWEIS: Bohrungen prüfen (Doppelklick)). Gerechnet werden Gewinde und die "
@@ -3204,11 +3244,12 @@ def kapitel_step(i):
 def kapitel_optimieren(i):
     i.kapitel("Optimieren und Kalkulation", marke="optimieren")
     i.text("<b>Optimieren</b> (F9) verteilt die Teile auf Stangen, prüft jede Stange gegen Überlast und rechnet den "
-           "Preis. Danach steht die Übersicht grün auf <b>Optimierung abgeschlossen</b>; die Ergebnisse stehen in "
+           "Preis. Danach zeigt die Schrittanzeige grün <b>✓ Optimiert</b>; die Ergebnisse stehen in "
            "den Reitern <i>Kalkulation</i> und <i>Schnittplan</i>.", kurz=True)
     i.genauer()
     i.text("<b>Optimieren</b> verteilt alle gültigen Positionen auf Stangen, prüft jede Stange gegen Überlast und "
-           "rechnet die Kalkulation. Danach zeigt die Übersicht <b>Optimierung abgeschlossen</b> (grün).")
+           "rechnet die Kalkulation. Danach zeigt die Schrittanzeige <b>✓ Optimiert</b> (grün); der Kasten oben in der "
+           "Übersicht erscheint nur, solange das Angebot noch nicht optimiert oder veraltet ist.")
     i.text("Das Angebot hat sieben Reiter: <i>Positionen</i>, <i>Kalkulation</i> (mit den Unterreitern "
            "<i>Kalkulation</i> und <i>Zeiten & Arbeitskosten</i>), <i>Zukaufteile</i>, <i>Schnittplan</i> (mit den "
            "Unterreitern <i>Schnittplan</i>, <i>Stangenbild</i> und <i>Auswertung</i>), <i>Staffeln</i>, "
@@ -3269,8 +3310,8 @@ def kapitel_optimieren(i):
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
-           legende=[(1, "Stand der Optimierung: grün Optimierung abgeschlossen, gelb noch nicht optimiert, rot "
-                        "Veraltet.")])
+           legende=[(1, "Stand der Optimierung: gelb noch nicht optimiert, rot Veraltet (optimiert: kein Kasten, "
+                        "✓ Optimiert in der Schrittanzeige).")])
     i.text("Nach jeder Änderung steht das Angebot rot auf <b>Veraltet</b>: einfach neu optimieren.", kurz=True)
     i.genauer()
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
@@ -5261,6 +5302,8 @@ def kapitel_zukauf_angebot(i):
             "Mengen in anderen Angeboten nehmen die erste Staffelzeile. Die Änderung steht im Protokoll der "
             "Preisänderungen (<i>EK aus Angebot …</i>), die Position bekommt sofort den neuen Preisstand und die "
             "Warnung <i>EK fehlt</i> verschwindet.")
+    i.text("Beide Schalter stehen im Menü <b>Weitere Spalten</b> und gelten in jeder Spalten-Ansicht zusätzlich.",
+           kurz=True)
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
             "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
             "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "
@@ -6095,8 +6138,9 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Jede Datei wird im Ordner des Angebots gespeichert ([[angebotsordner]]) und gleich geöffnet. Ist die "
            "Optimierung veraltet, fragt das Programm vorher.", kurz=True)
     i.genauer()
-    i.text("Bei schmalem Fenster (z. B. 1366 px Bildschirmbreite) rücken <b>Angebot (PDF)</b> und <b>Ausgaben</b> "
-           "rechtsbündig in eine zweite Zeile unter die Arbeitsknöpfe.",
+    i.text("Die Knopfleiste passt bei 1366 px Bildschirmbreite mit der Windows-Schrift in eine Zeile, mit eingeklappter "
+           "Übersicht immer. Ist das Fenster schmaler (oder kommt der gelbe Knopf mit erkannten Zusatzarbeiten dazu), rücken <b>Angebot (PDF)</b> "
+           "und <b>Ausgaben</b> rechtsbündig in eine zweite Zeile unter die Arbeitsknöpfe.",
            "<b>Angebot (PDF)</b>: Briefkopf mit Firmenlogo (Einstellung <i>Firmenlogo</i>), Anschriftfeld "
            "links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), Positionen "
            "ohne Gitterlinien mit Bezeichnung, Menge, Einheit, Preis je Einheit und Gesamtpreis, darunter die "
@@ -6423,8 +6467,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "in der Übersicht).",
             "Ein veralteter Schnittplan wird vorher ohne Rückfrage neu optimiert. Werkstattpapiere, Kalkulation und "
             "Materialanfrage fragen nur, wenn die Fracht nicht berechnet ist.",
-            "Jederzeit ansehen: <i>Ausgaben → Angebots-Check …</i> oder Strg+K „Angebots-Check“; laufend steht die "
-            "Liste in der Übersicht.", kurz=True)
+            "Laufend steht die Liste in der Übersicht; ist die Übersicht eingeklappt, auch unter <i>Ausgaben → "
+            "Angebots-Check …</i>; jederzeit mit Strg+K „Angebots-Check“.", kurz=True)
     i.tabelle(["Prüfung", "Stufe", "Hinspringen zu"], [
         ["keine Positionen; Positionen mit FEHLER (z. B. Profil fehlt, Schweißbaugruppe ohne Werte)", "FEHLER",
          "erste betroffene Position"],

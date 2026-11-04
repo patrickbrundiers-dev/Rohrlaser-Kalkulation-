@@ -2835,11 +2835,17 @@ class Hauptfenster(QMainWindow):
         return self.angebote.filter.rowCount()
 
     def meldung(self, text, fehler=False, aktion=None, bericht=None):
-        """Ruhige Meldung in Statusleiste, Verlauf und Einblendung. aktion = (Knopftext, Funktion), z. B. Rückgängig;
+        """Ruhige Meldung in Einblendung und Verlauf (Selbsttest/stumm: Statusleiste). aktion = (Knopftext, Funktion), z. B. Rückgängig;
         bericht = (Titel, Einzelheiten): Knopf „Bericht“ (wenn keine andere Aktion) und Eintrag im Verlauf."""
-        self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
-        self.statusBar().showMessage(text, 8000)
+        self.letzte_meldung = text
         self.letzte_aktion = aktion                 # Tests: die angebotene Aktion
+        einblenden = not self.stumm and getattr(self, "verlauf", None) is not None
+        # nicht doppelt (Plan B4 04.11.2026): mit Einblendung bleibt die Statusleiste leer, der Verlauf behält alles
+        self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
+        if einblenden:
+            self.statusBar().clearMessage()
+        else:
+            self.statusBar().showMessage(text, 8000)
         if getattr(self, "verlauf", None) is None:  # noch beim Aufbau des Fensters
             return
         self.verlauf.merken(text, fehler, bericht)

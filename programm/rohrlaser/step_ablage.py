@@ -33,7 +33,7 @@ class AblageFeld(QLabel):
     Ziehen selbst nimmt die Angebotsseite an (das Feld leitet es an sie weiter); hervorheben() färbt das Feld,
     solange Dateien darüber gezogen werden. gross: großes Feld statt der leeren Positionsliste."""
     geklickt = Signal()
-    KLEIN = "⇩ STEP / DXF hierher\nziehen oder klicken"     # zweizeilig: schmal genug für 1366 px
+    KLEIN = "⇩ STEP / DXF"     # einzeilig und schmal (Layout B1 04.11.2026): Knopfleiste bei 1366 px in einer Zeile
     GROSS = ("STEP- und DXF-Dateien oder Ordner hierher ziehen\n\n"
              "oder klicken, um Dateien zu wählen (STEP und DXF auch gemischt)")
 

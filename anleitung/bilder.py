@@ -416,7 +416,7 @@ def main(ziel):
     # 7) Optimieren und Ergebnisse (Angebotskopf zugeklappt auf eine Zeile, wie beim Öffnen eines fertigen Angebots)
     kb.kopf_aufklappen(False)
     s.optimieren()
-    foto.foto("angebot_optimiert", f, [(s.stand, 1)])
+    foto.foto("angebot_optimiert", f, [(s.schritte, 1)])   # Stand-Kasten nur noch bei offen/veraltet (B4)
     for text, name in (("Kalkulation", "erg_kalkulation"), ("Schnittplan", "erg_schnittplan"),
                        ("Stangenbild", "erg_stangenbild"), ("Auswertung", "erg_auswertung")):
         reiter_waehlen(s, text)
@@ -1026,7 +1026,7 @@ def main(ziel):
     f.stumm = True
     bereit()
     s2.zeige_step.setChecked(True)
-    foto.foto("step_positionen", f, [(s2.zeige_step, 1)])
+    foto.foto("step_positionen", f, [(s2.spalten_knopf, 1)])     # STEP-Werte stehen im Menü Weitere Spalten (B3)
     d3 = s2.ansicht_3d(6)                                # 3D-Ansicht: T07 mit Innenkontur und Gravur
     d3.resize(1150, 560)
     d3.show()
