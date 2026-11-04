@@ -5,7 +5,7 @@ nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer 
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
 from PySide6.QtCore import QDate, QEvent, QObject, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QTextCursor, QTextDocument
+from PySide6.QtGui import QFont, QPainter, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
@@ -1198,7 +1198,7 @@ class UebersichtStreifen(QFrame):
     darunter senkrecht Verkaufspreis und Stand der Optimierung (Farbpunkt wie in der Übersicht). Ein Klick irgendwo
     auf den Streifen blendet die Übersicht wieder ein. Die Werte liest er aus dem UebersichtBereich."""
     BREITE = 30
-    FARBE = {"stand_ok": "#2E8B4A", "stand_offen": "#D9A400"}       # sonst veraltet: rot
+    FARBE = {"stand_ok": "GRUEN", "stand_offen": "GELB_TEXT"}       # Namen in stil; sonst veraltet: ROT
 
     def __init__(self, bereich, knopf):
         super().__init__()
@@ -1218,7 +1218,8 @@ class UebersichtStreifen(QFrame):
         return f"Übersicht  ·  VK {preis}" if preis else "Übersicht"
 
     def farbe(self):
-        return self.FARBE.get(self.bereich.stand.objectName(), "#C0392B")
+        from . import stil
+        return getattr(stil, self.FARBE.get(self.bereich.stand.objectName(), "ROT"))
 
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.LeftButton:
@@ -1231,9 +1232,10 @@ class UebersichtStreifen(QFrame):
         p.setRenderHint(QPainter.Antialiasing)
         oben = self.knopf.geometry().bottom() + 12
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(self.farbe()))
+        from . import stil
+        p.setBrush(stil.farbe(self.farbe()))
         p.drawEllipse(self.width() // 2 - 5, oben, 10, 10)
-        p.setPen(QColor("#1F3A5F"))
+        p.setPen(stil.farbe(stil.AKZENT))
         f = QFont(self.font())
         f.setBold(True)
         p.setFont(f)

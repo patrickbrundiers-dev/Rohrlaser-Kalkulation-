@@ -76,13 +76,18 @@ assert kb.kompakt and kb.einzeilig, (kb.kompakt, kb.einzeilig)
 assert kb.kopf_karte.height() <= 40 and kb.height() <= 45, (kb.kopf_karte.height(), kb.height())
 assert not kb.vorgaben_knopf.isVisible() and not kb.fracht_knopf.isVisible()
 ok(f"B1 Kopf, Kalkulation und Fracht in einer Zeile ({kb.height()} px hoch)")
-assert not s.leiste.zweizeilig and s.leiste.height() <= 34, (s.leiste.zweizeilig, s.leiste.height(), s.leiste._bedarf())
+# eine Zeile, wenn die Knöpfe in der Schrift des Systems hineinpassen (Windows/Segoe UI: ja; die breitere Schrift der
+# Prüfmaschine braucht ~1.050 px und bricht bei offener Übersicht um, eingeklappt passt es immer, siehe B2 unten)
+einzeilig = not s.leiste.zweizeilig
+assert einzeilig == (s.leiste.width() >= s.leiste._bedarf()), (s.leiste.width(), s.leiste._bedarf())
+assert s.leiste._bedarf() <= 1100 and (not einzeilig or s.leiste.height() <= 34), (s.leiste._bedarf(), s.leiste.height())
 assert "\n" not in s.ablage_klein.text()
 assert s.uebersicht_knopf.parent() is s.uebersicht_streifen
-ok(f"B1 Knopfleiste in einer Zeile (Bedarf {s.leiste._bedarf()} von {s.leiste.width()} px)")
+ok(f"B1 Knopfleiste braucht {s.leiste._bedarf()} px (vorher ~1.180) von {s.leiste.width()}: "
+   f"{'eine Zeile' if einzeilig else 'zwei Zeilen, diese Schrift ist breiter'}")
 v = s.pos_ansicht
 zeilen = sum(1 for r in range(len(s.positionen)) if 0 <= v.rowViewportPosition(r) < v.viewport().height() - 10)
-assert y(v) <= 260 and zeilen >= 12, (y(v), zeilen)
+assert y(v) <= (260 if einzeilig else 290) and zeilen >= (12 if einzeilig else 11), (y(v), zeilen)
 ok(f"B1 Positionsliste ab y={y(v)} mit {zeilen} sichtbaren Zeilen (vorher y=314, 9 Zeilen)")
 
 # ------------------------------------------------------------------ B4 nichts doppelt
@@ -104,15 +109,16 @@ s.uebersicht_bereich.ausblenden_knopf.click()
 QTest.qWait(100)
 assert not s.uebersicht_rahmen.isVisible() and s.uebersicht_streifen.isVisible()
 assert s.uebersicht_streifen.width() <= 40 and v.width() > breit + 250, (s.uebersicht_streifen.width(), breit, v.width())
+assert not s.leiste.zweizeilig, (s.leiste.width(), s.leiste._bedarf())         # eingeklappt: immer eine Zeile
 vk = s.uebersicht_bereich.preis["verkauf"].text()
 assert vk.endswith("€") and vk in s.uebersicht_streifen.text(), (vk, s.uebersicht_streifen.text())
-assert s.uebersicht_streifen.farbe() == "#2E8B4A", s.uebersicht_streifen.farbe()       # optimiert: grün
+assert s.uebersicht_streifen.farbe() == stil.GRUEN, s.uebersicht_streifen.farbe()       # optimiert: grün
 assert db.einstellung(angebot_fenster.UEBERSICHT_EINSTELLUNG) is False
 s.uebersicht_streifen.grab()            # Zeichnen (senkrechter Text) ohne Fehler
 ok(f"B2 Übersicht aus: Streifen {s.uebersicht_streifen.width()} px mit „{s.uebersicht_streifen.text()}“, "
    f"Liste {breit} → {v.width()} px, gemerkt")
 s.uebersicht_bereich.stand_setzen("veraltet")
-assert s.uebersicht_streifen.farbe() == "#C0392B"
+assert s.uebersicht_streifen.farbe() == stil.ROT
 assert not s.stand.isHidden()
 s.weitere.menu().aboutToShow.emit()
 assert s.check_aktion.isVisible()
