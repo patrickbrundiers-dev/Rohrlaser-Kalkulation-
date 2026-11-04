@@ -561,14 +561,15 @@ def kapitel_ueberblick(i):
            "Teil A bis C.")
     i.abschnitt("Aufbau des Fensters")
     i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=112 * mm, legende=[
-        (1, "Stand des Angebots: grün <i>Optimierung abgeschlossen</i>, gelb <i>Noch nicht optimiert</i>, rot "
-            "<i>Veraltet</i> ([[veraltet]]).")])
+        (1, "Stand des Angebots in der Schrittanzeige: ✓ <i>Optimiert</i> grün. Ist das Angebot noch nicht "
+            "optimiert (gelb) oder <i>Veraltet</i> (rot, [[veraltet]]), steht das zusätzlich oben in der Übersicht.")])
     i.text("Oben die Reiter <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, <i>Frachtkosten</i> ([[frachtkosten]]), "
            "<i>Zukaufartikel</i> ([[zukauf]]) und <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen "
            "in einer eigenen Zeile unter <i>Angebote</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
            "Reiter, der sich mit dem × schließt. Die Zeile erscheint, solange <i>Angebote</i> gewählt ist; ein Klick "
-           "auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. Die Statuszeile unten meldet, was gespeichert oder "
-           "gerechnet wurde, Fehler in Rot.", kurz=True)
+           "auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. Was gespeichert oder gerechnet wurde, meldet eine "
+           "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
+           "Statusleiste. Wo die Anleitung „die Statuszeile meldet“ schreibt, ist diese Einblendung gemeint.", kurz=True)
     i.genauer()
     i.text("Das Programm öffnet sich maximiert im Reiter <i>Angebote</i>. Die Einstellungen enthalten die Vorgaben "
            "und die übrigen Stammdaten als Seiten in der Navigation links. Zahlen mit Komma eingeben (1385,5). Jede Änderung wird sofort "
@@ -1288,7 +1289,11 @@ def kapitel_angebot(i):
             "<b>Übersicht einklappen</b>: <b>»</b> im Titel der Übersicht blendet sie aus. Rechts bleibt ein 30 Punkte "
             "schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
             "senkrecht „Übersicht · VK …“. <b>«</b> oder ein Klick auf den Streifen holt die Übersicht zurück. Die "
-            "Wahl gilt für alle Angebote und bleibt nach dem Neustart.")
+            "Wahl gilt für alle Angebote und bleibt nach dem Neustart.",
+            "<b>Nichts doppelt</b>: Meldungen stehen nur in der Einblendung (und unter <i>Meldungen</i>), nicht "
+            "zusätzlich in der Statuszeile. Der grüne Kasten <i>Optimierung abgeschlossen</i> entfällt, das zeigt die "
+            "Schrittanzeige; gelb oder rot erscheint er weiter. <i>Angebots-Check …</i> steht im Menü Ausgaben nur, "
+            "wenn die Übersicht eingeklappt ist.")
     i.abschnitt("Angebotskopf", marke="angebotskopf")
     i.schritte([
         ("angebot_positionen", "<b>Kunde</b> aus der Liste wählen: Name und Zahlungsbedingungen kommen aus dem "
@@ -1673,8 +1678,8 @@ def kapitel_angebot(i):
             "Die Kalkulation (kompakt und alle Spalten) steht in derselben Reihenfolge wie die Positionsliste: "
             "Schweißbaugruppe mit Bezeichnung und Profil <i>Schweißbaugruppe</i>, ihre Einzelteile direkt darunter, "
             "Sätze zusammen. Der Zeilenkopf zeigt dieselbe Klammer; ein Klick klappt auch hier zu.",
-            "<b>▸ Alle Gruppen zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
-            "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle Gruppen aufklappen</b>. Welche Gruppen zu sind, merkt "
+            "<b>▸ Alle zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
+            "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle aufklappen</b>. Welche Gruppen zu sind, merkt "
             "sich das Programm je Angebot (auch nach dem Schließen).",
             "Der Status zeigt nur sein Symbol (Häkchen, Hinweis, Warnung, Fehler) mit der Farbe der Zeile; der ganze "
             "Text steht im Tooltip, Doppelklick führt wie bisher zur Ursache. Die Spalte ist dadurch schmal.",
@@ -3221,11 +3226,12 @@ def kapitel_step(i):
 def kapitel_optimieren(i):
     i.kapitel("Optimieren und Kalkulation", marke="optimieren")
     i.text("<b>Optimieren</b> (F9) verteilt die Teile auf Stangen, prüft jede Stange gegen Überlast und rechnet den "
-           "Preis. Danach steht die Übersicht grün auf <b>Optimierung abgeschlossen</b>; die Ergebnisse stehen in "
+           "Preis. Danach zeigt die Schrittanzeige grün <b>✓ Optimiert</b>; die Ergebnisse stehen in "
            "den Reitern <i>Kalkulation</i> und <i>Schnittplan</i>.", kurz=True)
     i.genauer()
     i.text("<b>Optimieren</b> verteilt alle gültigen Positionen auf Stangen, prüft jede Stange gegen Überlast und "
-           "rechnet die Kalkulation. Danach zeigt die Übersicht <b>Optimierung abgeschlossen</b> (grün).")
+           "rechnet die Kalkulation. Danach zeigt die Schrittanzeige <b>✓ Optimiert</b> (grün); der Kasten oben in der "
+           "Übersicht erscheint nur, solange das Angebot noch nicht optimiert oder veraltet ist.")
     i.text("Das Angebot hat sieben Reiter: <i>Positionen</i>, <i>Kalkulation</i> (mit den Unterreitern "
            "<i>Kalkulation</i> und <i>Zeiten & Arbeitskosten</i>), <i>Zukaufteile</i>, <i>Schnittplan</i> (mit den "
            "Unterreitern <i>Schnittplan</i>, <i>Stangenbild</i> und <i>Auswertung</i>), <i>Staffeln</i>, "
@@ -3286,8 +3292,8 @@ def kapitel_optimieren(i):
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
-           legende=[(1, "Stand der Optimierung: grün Optimierung abgeschlossen, gelb noch nicht optimiert, rot "
-                        "Veraltet.")])
+           legende=[(1, "Stand der Optimierung: gelb noch nicht optimiert, rot Veraltet (optimiert: kein Kasten, "
+                        "✓ Optimiert in der Schrittanzeige).")])
     i.text("Nach jeder Änderung steht das Angebot rot auf <b>Veraltet</b>: einfach neu optimieren.", kurz=True)
     i.genauer()
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
@@ -6441,8 +6447,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "in der Übersicht).",
             "Ein veralteter Schnittplan wird vorher ohne Rückfrage neu optimiert. Werkstattpapiere, Kalkulation und "
             "Materialanfrage fragen nur, wenn die Fracht nicht berechnet ist.",
-            "Jederzeit ansehen: <i>Ausgaben → Angebots-Check …</i> oder Strg+K „Angebots-Check“; laufend steht die "
-            "Liste in der Übersicht.", kurz=True)
+            "Laufend steht die Liste in der Übersicht; ist die Übersicht eingeklappt, auch unter <i>Ausgaben → "
+            "Angebots-Check …</i>; jederzeit mit Strg+K „Angebots-Check“.", kurz=True)
     i.tabelle(["Prüfung", "Stufe", "Hinspringen zu"], [
         ["keine Positionen; Positionen mit FEHLER (z. B. Profil fehlt, Schweißbaugruppe ohne Werte)", "FEHLER",
          "erste betroffene Position"],

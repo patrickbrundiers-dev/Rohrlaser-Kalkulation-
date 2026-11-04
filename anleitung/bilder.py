@@ -416,7 +416,7 @@ def main(ziel):
     # 7) Optimieren und Ergebnisse (Angebotskopf zugeklappt auf eine Zeile, wie beim Öffnen eines fertigen Angebots)
     kb.kopf_aufklappen(False)
     s.optimieren()
-    foto.foto("angebot_optimiert", f, [(s.stand, 1)])
+    foto.foto("angebot_optimiert", f, [(s.schritte, 1)])   # Stand-Kasten nur noch bei offen/veraltet (B4)
     for text, name in (("Kalkulation", "erg_kalkulation"), ("Schnittplan", "erg_schnittplan"),
                        ("Stangenbild", "erg_stangenbild"), ("Auswertung", "erg_auswertung")):
         reiter_waehlen(s, text)

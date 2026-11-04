@@ -156,7 +156,7 @@ assert next(z for z in db.zeilen("profile") if z["profil_id"] == "QR 40x40x3")["
 fl_spalte = [i for i, (art, _) in enumerate(mod.spalten) if art == "berechnet"][0]
 assert mod.data(mod.index(r, fl_spalte)) == "375,0"   # 40² − 35² neu berechnet
 assert not mod.setData(mod.index(r, c), "abc")
-assert "keine Zahl" in fenster.statusBar().currentMessage()
+assert "keine Zahl" in fenster.letzte_meldung and not fenster.statusBar().currentMessage()   # B4: nur Einblendung
 assert mod.setData(mod.index(r, c), "25")         # Wandstärke 25 > halbe Abmessung: Feld erlaubt, Prüfung meldet
 assert mod.roh(r, len(mod.spalten) - 1).startswith("FEHLER: Wandstärke")
 assert mod.setData(mod.index(r, c), "3") and mod.roh(r, len(mod.spalten) - 1) == "OK"

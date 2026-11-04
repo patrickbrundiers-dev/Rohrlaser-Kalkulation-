@@ -1434,6 +1434,8 @@ class UebersichtBereich(QWidget):
                                             "stand_veraltet"))
         self.stand.setText(text)
         self.stand.setObjectName(name)
+        # „Optimierung abgeschlossen“ zeigt schon die Schrittanzeige (② Optimiert): Kasten nur, wenn etwas fehlt (B4)
+        self.stand.setVisible(name != "stand_ok")
         self.stand.setToolTip(f"Stand Optimierung: {stand}")
         self.stand.style().unpolish(self.stand)
         self.stand.style().polish(self.stand)

@@ -3,6 +3,7 @@
 Geprüft ohne Bildschirm bei 1366 × 728 px (Laptop) mit dem Testangebot M (50 Positionen):
 - B1: Angebotskopf, Kalkulation und Fracht zugeklappt in EINER Zeile, Knopfleiste in einer Zeile, die Liste beginnt
   weit oben und zeigt mindestens 12 Zeilen (vorher 9),
+- B4: Stand-Kasten nur, wenn nicht optimiert/veraltet; Angebots-Check im Menü nur bei eingeklappter Übersicht,
 - B2: » im Titel der Übersicht blendet sie aus, rechts bleibt ein schmaler Streifen mit Verkaufspreis und Stand;
   « bzw. Klick auf den Streifen blendet wieder ein; die Wahl wird gemerkt.
 Aufruf: python tests/test_layout_platz.py
@@ -84,6 +85,15 @@ zeilen = sum(1 for r in range(len(s.positionen)) if 0 <= v.rowViewportPosition(r
 assert y(v) <= 260 and zeilen >= 12, (y(v), zeilen)
 ok(f"B1 Positionsliste ab y={y(v)} mit {zeilen} sichtbaren Zeilen (vorher y=314, 9 Zeilen)")
 
+# ------------------------------------------------------------------ B4 nichts doppelt
+assert s.stand.isHidden() and s.stand.text() == "Optimierung abgeschlossen"
+ok("B4 Kasten „Optimierung abgeschlossen“ ausgeblendet (zeigt die Schrittanzeige)")
+assert all(b.text() in ("▸ Alle zuklappen", "▾ Alle aufklappen") for b in s.gruppen_knoepfe)
+ok("B4 Knopf Gruppen kurz")
+s.weitere.menu().aboutToShow.emit()
+assert not s.check_aktion.isVisible()
+ok("B4 Angebots-Check nicht doppelt im Menü Ausgaben, solange die Übersicht offen ist")
+
 # ------------------------------------------------------------------ B2 Übersicht ausblenden
 breit = v.width()
 assert s.uebersicht_rahmen.isVisible() and not s.uebersicht_streifen.isVisible()
@@ -100,7 +110,10 @@ ok(f"B2 Übersicht aus: Streifen {s.uebersicht_streifen.width()} px mit „{s.ue
    f"Liste {breit} → {v.width()} px, gemerkt")
 s.uebersicht_bereich.stand_setzen("veraltet")
 assert s.uebersicht_streifen.farbe() == "#C0392B"
-ok("B2 Streifen zeigt veralteten Stand rot")
+assert not s.stand.isHidden()
+s.weitere.menu().aboutToShow.emit()
+assert s.check_aktion.isVisible()
+ok("B2 Streifen zeigt veralteten Stand rot; Stand-Kasten wieder da; Angebots-Check im Menü Ausgaben")
 QTest.mouseClick(s.uebersicht_streifen, Qt.LeftButton, pos=QPoint(15, 200))
 QTest.qWait(50)
 assert s.uebersicht_rahmen.isVisible() and not s.uebersicht_streifen.isVisible() and s.uebersicht_knopf.isChecked()

@@ -2141,7 +2141,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.weitere = QPushButton("Ausgaben")
         self.weitere.setToolTip("Werkstattpapiere, Kalkulation, Materialanfrage, CSV-Export und weitere Aktionen")
         menue = QMenu(self.weitere)
-        menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
+        # nur bei eingeklappter Übersicht: sonst steht der Angebots-Check dort (Plan B4 04.11.2026)
+        self.check_aktion = menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
+        menue.aboutToShow.connect(lambda: self.check_aktion.setVisible(not self.uebersicht_knopf.isChecked()))
         fa = self.funktion_aktionen = []          # (Aktion, Funktion): ausgeblendet, wenn die Funktion aus ist
         # Angebot per E-Mail (Vorschlag V1, 31.10.2026): PDF + Outlook, als Antwort auf die Anfrage-Mail
         fa.append((menue.addAction("Angebot per E-Mail …", lambda: self.angebot_mail()), "funktion_angebot_mail"))
@@ -2837,11 +2839,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         alle_zu = n > 0 and n_zu >= n
         for knopf in getattr(self, "gruppen_knoepfe", ()):
             knopf.setVisible(n > 0)
-            knopf.setText("▾ Alle Gruppen aufklappen" if alle_zu else "▸ Alle Gruppen zuklappen")
+            knopf.setText("▾ Alle aufklappen" if alle_zu else "▸ Alle zuklappen")     # kurz (Plan B4)
 
     def _gruppen_knopf(self):
         """Knopf „Alle Gruppen zu-/aufklappen“ (Sätze und Schweißbaugruppen, Positionsliste und Kalkulation)."""
-        b = QPushButton("▸ Alle Gruppen zuklappen")
+        b = QPushButton("▸ Alle zuklappen")
         b.setToolTip("Alle Sätze und Schweißbaugruppen auf eine Zeile zuklappen bzw. wieder aufklappen. Einzeln: "
                      "Klick auf ▾/▸ im Zeilenkopf. Wird je Angebot gemerkt.")
         b.clicked.connect(self._gruppen_klick)
