@@ -12,7 +12,12 @@ S03_Rahmen_geschweisst.step (Nahtkandidaten):
     Rahmen: 2× Längsrohr QR40x3 L1000 (y = 0 und y = 540), 2× Querrohr QR40x3 L500 stumpf dazwischen (je 2 Kehlnähte
     Umfang 160), Fußplatte 100x100x10 unter dem Ende eines Längsrohrs (Kehlnaht Umfang 160), Verlängerung QR40x3
     L300 in einer Flucht am anderen Ende (Stumpfnaht 160).
+S04_Gestell_Unterbaugruppe_geschweisst.step (Nähte in und zwischen Unterbaugruppen, Patrick 04.11.2026):
+    Gestell
+      Seitenrahmen (2×): 2× Längsrohr QR40x3 L1000, 2× Querrohr QR40x3 L500 dazwischen (je Seite 4 Kehlnähte)
+      2× Verbinder QR40x3 L960 zwischen den Seitenrahmen (4 Kehlnähte zur Unterbaugruppe)
 """
+import math
 import sys
 from pathlib import Path
 
@@ -98,6 +103,16 @@ def main():
                            (quer, lage(0, 20, 800, um_x=-1.5707963267948966)),
                            (platte, lage()), (verl, lage(0, 0, 1000))])
     r.schreiben(ZIEL / "S03_Rahmen_geschweisst.step")
+    g = Dokument()
+    laengs = g.teil("Längsrohr QR40x3 L1000", kastenrohr(40, 40, 3, 1000, 4.5))
+    quer = g.teil("Querrohr QR40x3 L500", kastenrohr(40, 40, 3, 500, 4.5))
+    verb = g.teil("Verbinder QR40x3 L960", kastenrohr(40, 40, 3, 960, 4.5))
+    seite = g.baugruppe("Seitenrahmen", [(laengs, lage()), (laengs, lage(0, 540, 0)),
+                                         (quer, lage(0, 20, 200, um_x=-math.pi / 2)),
+                                         (quer, lage(0, 20, 800, um_x=-math.pi / 2))])
+    g.baugruppe("Gestell", [(seite, lage()), (seite, lage(1000, 0, 0)),
+                            (verb, lage(20, 0, 500, um_y=math.pi / 2)), (verb, lage(20, 540, 500, um_y=math.pi / 2))])
+    g.schreiben(ZIEL / "S04_Gestell_Unterbaugruppe_geschweisst.step")
     e = Dokument()
     e.teil("Halter 4711 QR40x3", kastenrohr(40, 40, 3, 350, 4.5))
     e.schreiben(ZIEL / "S02_Einzelteil_benannt.step")

@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.254", "<b>Schweißbaugruppen</b> ([[vorkalkulation_baugruppe]]): Außennähte (Stumpf- und Ecknaht) bekommen "
+     "in der Vorkalkulation immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht. Scheitert "
+     "die STEP-Messung an einem Teilepaar, bleiben die übrigen Nahtkandidaten erhalten (vorher gingen alle verloren, "
+     "auch bei Unterbaugruppen), mit Hinweis <i>Nahtkandidaten unvollständig</i>.",
+     "Außennähte immer verschleifen; Nahtkandidaten gehen bei einem Messfehler nicht mehr alle verloren"],
     ["0.9.253", "<b>Sätze übersichtlicher</b> ([[saetze_abheben]]): jeder Satz und jede Schweißbaugruppe hat ein "
      "<b>Kopfband</b> mit Anzahl, Teilen, Fläche, Gewicht und Preis je Satz. Klick aufs Band markiert den ganzen Satz, "
      "Doppelklick öffnet <i>Satz bearbeiten</i>. Jeder Satz hat eine eigene, kräftigere Farbe (sechs Farben reihum statt "

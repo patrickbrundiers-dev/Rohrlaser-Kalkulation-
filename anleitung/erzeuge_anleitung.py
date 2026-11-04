@@ -5649,7 +5649,11 @@ def kapitel_baugruppen(i):
            "je Stück der Unterbaugruppe, Dicke, Körper). Sie rechnen nicht mit. <b>Markierte übernehmen</b> macht "
            "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
            "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
-           "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
+           "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind. Nähte innerhalb "
+           "einer <b>Unterbaugruppe</b> stehen bei ihr (Anzahl je Stück der Unterbaugruppe, gerechnet × Menge), "
+           "Nähte zwischen Unterbaugruppe und übergeordneter Baugruppe bei der Baugruppe selbst. Kann die Messung "
+           "für einzelne Teilepaare keine Naht bestimmen, bleiben die übrigen Kandidaten erhalten und das erste Teil "
+           "zeigt den Hinweis <i>Nahtkandidaten unvollständig</i>: dann die fehlenden Nähte von Hand ergänzen.")
     i.bild("baugruppe_vorschlaege", "Nahtkandidaten aus STEP im Reiter Nahtgruppen", hoehe=45 * mm, kurz=False,
            legende=[(1, "Je Zeile gleiche Nähte einer Unterbaugruppe: Stoßart, Länge je Naht, Anzahl je Stück, "
                         "Dicke und beteiligte Körper."),
