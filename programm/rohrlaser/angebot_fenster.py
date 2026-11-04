@@ -2285,7 +2285,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kopf_baender = {}           # Index der Position -> Kopfband des Satzes/der Baugruppe (04.11.2026)
         self.pos_unter = Unterzeilen(self.pos_ansicht, lambda r: self.unter_texte.get(r, ()), artikel,
                                      lambda r: r < len(self.positionen) and self.zusatzarbeiten([r]), unter_an,
-                                     kopf=self.kopf_baender.get, kopf_klick=self.band_klick)
+                                     kopf=self.kopf_baender.get, kopf_klick=self.band_klick,
+                                     knopf_klick=self.unter_knopf)
         self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
         self.pos_ansicht.verticalHeader().setToolTip("Klick auf ▾/▸ einer Schweißbaugruppe bzw. eines Satzes: "
                                                      "Einzelteile bzw. Positionen des Satzes zu- bzw. aufklappen. "
@@ -2734,9 +2735,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.drehfraes_einst = self.db.drehfraes_einstellungen()    # Richtpreis der Dreh-/Frästeile je Stufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
-        n_vorschlag = sum(len(v) for v in self.pos_modell.vorschlaege)
-        self.vorschlag_knopf.setText("1 Vorschlag" if n_vorschlag == 1 else f"{n_vorschlag or ''} Vorschläge".strip())
-        self.vorschlag_knopf.setVisible(bool(n_vorschlag) and not self.fremd())
+        self._vorschlag_knopf_setzen()
         self._gruppieren()
         leer = not self.positionen
         self.ablage_gross.setVisible(leer)
@@ -3568,9 +3567,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kompakt_ansicht.setColumnHidden(next(c for c, sp in enumerate(KOMPAKT_SPALTEN) if sp[1] == "satz"),
                                              not any(z.get("satz") for z in self.kompakt.zeilen))
         katalog = self.tabellen.get("zusatzarbeiten") or ()
-        self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) for i, (p, z) in enumerate(zip(self.positionen,
-                                                                                                   zeilen))}
+        self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) + unterzeilen.bohr_schritte(self._bohrbild(i))
+                            for i, (p, z) in enumerate(zip(self.positionen, zeilen))}
         self._band_zeilen = list(zeilen)
+        self._vorschlag_knopf_setzen()
         self._baender_setzen()
         self.pos_unter.aktualisieren()
         self.kompakt_unter.aktualisieren()
@@ -4600,6 +4600,103 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.neu_laden()
         return n
 
+    # ------------------------------------------------------- ✓/✗ je Zusatzarbeit, Gewinde, Bohrung (04.11.2026)
+    def _bohrbild(self, r):
+        """Bohrbild der Position r wie im Dialog „Bohrungen prüfen“ (aus STEP ergänzt), [] ohne."""
+        from . import bohrbild
+        p = self.positionen[r] if r < len(self.positionen) else None
+        if not p or not bohrbild_moeglich(p) or self.fremd():
+            return []
+        gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen.get("gewinde") or () if g.get("gewinde")]
+        try:
+            return bohrbild.aus_position(p, gewinde, rechnen.wand_position(p, self.k))
+        except Exception:           # Anzeige darf nie scheitern
+            return []
+
+    def unter_knopf(self, r, aktion, ja):
+        """✓ bzw. ✗ an einer Unterzeile (Patrick 04.11.2026: „so für alle Zusatzarbeiten“, auch Gewinde und Bohrungen):
+        eingetragene Zusatzarbeit bzw. Gewinde ✓ = bestätigt (grün gefüllt, noch einmal = zurück), ✗ = entfernen;
+        automatische (Regel) ✓ = fest übernehmen, ✗ = abwählen; offene Bohrung aus STEP ✓ = bestätigen, ✗ =
+        ablehnen. Ergebnis: True = geändert."""
+        from . import arbeitsgaenge, bohrbild
+        if r >= len(self.positionen) or self.fremd() or self.db.nur_lesen:
+            return False
+        p = self.positionen[r]
+        art, name = aktion["art"], aktion["name"]
+        nr = p.get("pos") or ""
+        if art == "auto":
+            return self.arbeitsgang_annehmen(p["id"], name) if ja else self.arbeitsgang_ablehnen(p["id"], name)
+        if art == "bohr":
+            liste = self._bohrbild(r)
+            if not isinstance(name, int) or name >= len(liste):
+                return False
+            liste[name] = dict(liste[name], status=bohrbild.BESTAETIGT if ja else bohrbild.ABGELEHNT)
+            return self.bohrungen_pruefen([r], werte=(liste, None))
+        if ja:
+            self.db.position_aendern(p["id"], "arbeitsgaenge", arbeitsgaenge.bestaetigen(p, name, zurueck=aktion.get("ok")))
+            self.f.meldung(f"Pos. {nr}: „{name}“ " + ("nicht mehr als bestätigt markiert." if aktion.get("ok")
+                                                       else "bestätigt."))
+            self.neu_laden()
+            return True
+        if art == "gewinde":
+            liste = [dict(z, status=bohrbild.ABGELEHNT) if z.get("status") == bohrbild.BESTAETIGT and z.get("gewinde")
+                     else z for z in self._bohrbild(r)]
+            if liste:
+                ok = self.bohrungen_pruefen([r], werte=(liste, ""))
+            else:
+                self.db.position_aendern(p["id"], "gewinde", None)
+                ok = True
+            self.db.position_aendern(p["id"], "arbeitsgaenge", arbeitsgaenge.bestaetigen(
+                self._position_frisch(p["id"]) or p, name, zurueck=True))
+            self.f.meldung(f"Pos. {nr}: Gewinde entfernt (zurückholen: Doppelklick auf die Spalte Bohrungen bzw. "
+                           "Gewinde).")
+            self.neu_laden()
+            return ok
+        liste = [e for e in rechnen.zusatz_liste(p) if e.get("name") != name]
+        self.db.position_aendern(p["id"], "zusatz", json.dumps(liste, ensure_ascii=False) if liste else None)
+        self.db.position_aendern(p["id"], "arbeitsgaenge", arbeitsgaenge.bestaetigen(
+            self._position_frisch(p["id"]) or p, name, zurueck=True))
+        self.f.meldung(f"Pos. {nr}: „{name}“ entfernt (wieder eintragen: Rechtsklick → Zusatzarbeit hinzufügen).")
+        self.neu_laden()
+        return True
+
+    def bohr_vorschlaege(self):
+        """Offene Bohrungen aus STEP je Gruppe: {(Ausführung, Gewinde): [(Zeile, Index im Bohrbild)]} (aus den
+        Unterzeilen, ohne neu zu rechnen)."""
+        out = {}
+        for r, zeilen in sorted(getattr(self, "unter_texte", {}).items()):
+            for z in zeilen:
+                a = getattr(z, "aktion", None)
+                if a and a["art"] == "bohr":
+                    out.setdefault((a.get("gruppe"), a.get("gewinde")), []).append((r, a["name"]))
+        return out
+
+    def bohr_alle(self, gruppe, ja):
+        """Alle offenen Bohrungen einer Gruppe (bohr_vorschlaege) bestätigen bzw. ablehnen. Ergebnis: Anzahl."""
+        from . import bohrbild
+        if self.fremd() or self.db.nur_lesen:
+            return 0
+        je_zeile = {}
+        for r, i in self.bohr_vorschlaege().get(gruppe, ()):
+            je_zeile.setdefault(r, []).append(i)
+        werte = {}
+        for r, ix in je_zeile.items():
+            liste = self._bohrbild(r)
+            for i in ix:
+                if i < len(liste):
+                    liste[i] = dict(liste[i], status=bohrbild.BESTAETIGT if ja else bohrbild.ABGELEHNT)
+            werte[r] = liste
+        if werte:
+            self.bohrungen_alle_pruefen(list(werte), werte=werte)
+        return sum(len(ix) for ix in je_zeile.values())
+
+    def _vorschlag_knopf_setzen(self):
+        """Gelber Knopf: Anzahl offener Vorschläge (Zusatzarbeiten und Bohrungen aus STEP)."""
+        n = sum(len(v) for v in getattr(self.pos_modell, "vorschlaege", ())) + \
+            sum(len(v) for v in self.bohr_vorschlaege().values())
+        self.vorschlag_knopf.setText("1 Vorschlag" if n == 1 else f"{n or ''} Vorschläge".strip())
+        self.vorschlag_knopf.setVisible(bool(n) and not self.fremd())
+
     def vorschlaege_je_name(self):
         """Offene Vorschläge nach Zusatzarbeit: {Name: [Zeilen]} in der Reihenfolge des ersten Auftretens."""
         out = {}
@@ -4620,12 +4717,28 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             out.append((f"{name} · {n} (Pos. {teile})", None))
             out.append((f"    ✓ {fuer}übernehmen", lambda name=name: self.vorschlaege_uebernehmen(namen={name})))
             out.append((f"    ✗ {fuer}ablehnen", lambda name=name: self.vorschlaege_ablehnen(namen={name})))
+        for gruppe, ix in self.bohr_vorschlaege().items():       # Gewinde, Senkungen, Flowdrill aus STEP
+            teile = sorted({r for r, _ in ix})
+            nummern = ", ".join(str(self.positionen[r].get("pos") or "") for r in teile[:4]) + \
+                (" …" if len(teile) > 4 else "")
+            fuer = "für alle " if len(ix) > 1 else ""
+            out.append((f"{gruppe[0]}{' ' + gruppe[1] if gruppe[1] else ''} (STEP) · {len(teile)} "
+                        f"{'Teil' if len(teile) == 1 else 'Teile'} (Pos. {nummern})", None))
+            out.append((f"    ✓ {fuer}bestätigen", lambda g=gruppe: self.bohr_alle(g, True)))
+            out.append((f"    ✗ {fuer}ablehnen", lambda g=gruppe: self.bohr_alle(g, False)))
         if out:
             out.append(None)
-        out += [("Alle Vorschläge übernehmen", lambda: self.vorschlaege_uebernehmen()),
+        out += [("Alle Vorschläge übernehmen", lambda: self.alle_vorschlaege(True)),
                 ("Einzeln prüfen …", lambda: self.arbeitsgaenge_vorschlagen()),
-                ("Alle Vorschläge ablehnen", lambda: self.vorschlaege_ablehnen())]
+                ("Alle Vorschläge ablehnen", lambda: self.alle_vorschlaege(False))]
         return out
+
+    def alle_vorschlaege(self, ja):
+        """Alle offenen Vorschläge übernehmen bzw. ablehnen: Zusatzarbeiten und Bohrungen aus STEP. Ergebnis: Anzahl."""
+        n = 0
+        for g in list(self.bohr_vorschlaege()):
+            n += self.bohr_alle(g, ja)
+        return n + (self.vorschlaege_uebernehmen() if ja else self.vorschlaege_ablehnen())
 
     def _vorschlag_menue_fuellen(self):
         m = self.vorschlag_menue

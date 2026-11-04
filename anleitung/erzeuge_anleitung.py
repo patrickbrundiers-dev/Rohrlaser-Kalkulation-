@@ -1913,7 +1913,15 @@ def kapitel_angebot(i):
             "Rot: eine Zusatzarbeit fehlt in den Stammdaten oder Schweißen hat keine Zeit (wie die Warnung im Status).",
             "Hat eine Position außer dem Programmieren keinen Arbeitsschritt, bekommt sie keine Unterzeile (die "
             "Programmierzeit steht in ihrer Spalte); von Hand geändertes Programmieren steht immer da.",
-            "Die Zeilen sind nur Anzeige. Ein Klick wählt die Position, ein Doppelklick öffnet ihre "
+            "Vor jeder Zusatzarbeit und vor dem Gewinde stehen <b>✓</b> und <b>✗</b> (Positionsliste): ✓ bestätigt "
+            "sie (das Häkchen wird grün gefüllt, ein zweiter Klick nimmt es zurück), ✗ entfernt sie aus der Position. "
+            "Bei einer automatischen Zusatzarbeit (Regel) übernimmt ✓ sie fest, ✗ wählt sie ab. Beim Gewinde setzt ✗ "
+            "die Gewinde aus der STEP auf abgelehnt und löscht die von Hand eingetragenen.",
+            "Offene <b>Gewinde, Senkungen, Flowdrill und Bohren</b> aus der STEP bzw. Zeichnung stehen gelb als "
+            "„Gewinde ? · 4× M8 · aus STEP, noch nicht bestätigt“ darunter: ✓ bestätigt die Zeile (wie im Fenster "
+            "<i>Bohrungen prüfen</i>), ✗ lehnt sie ab. Für alle Teile auf einmal: gelber Knopf <b>N Vorschläge</b> "
+            "→ „Gewinde M8 (STEP) · 2 Teile“ → ✓ für alle bestätigen bzw. ✗ für alle ablehnen ([[zusatz_erkennen]]).",
+            "Sonst sind die Zeilen nur Anzeige. Ein Klick wählt die Position, ein Doppelklick öffnet ihre "
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
     i.abschnitt("Arbeitsgänge vorschlagen", marke="arbeitsgaenge")

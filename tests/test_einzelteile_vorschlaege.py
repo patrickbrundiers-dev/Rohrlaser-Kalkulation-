@@ -155,4 +155,56 @@ if len(gleiche) > 1:
 assert dlg.alle_gleichen(True) == len(gleiche)
 assert not any(z["arbeitsgang"] == name and z["status"] == ag.VORSCHLAG for z in dlg.alle_zeilen)
 ok("E5 Prüffenster: nur offene Punkte, nach Arbeitsgang, „Alle … annehmen“ für alle Positionen")
+
+# ------------------------------------------------------------------ E6 ✓/✗ je Zusatzarbeit, Gewinde, Bohrung
+from rohrlaser import bohrbild  # noqa: E402
+r = zeilen_fvz[0]
+pid = s.positionen[r]["id"]
+db.position_aendern(pid, "bohrbild", bohrbild.schreiben([dict(art="Bohrung", d=6.8, anzahl=4, gewinde="M8",
+                                                               status=bohrbild.OFFEN)]))
+s.neu_laden()
+QApplication.processEvents()
+r = next(i for i, p in enumerate(s.positionen) if p["id"] == pid)
+akt = {(a["art"], a["name"]): a for a in (getattr(z, "aktion", None) for z in s.unter_texte[r]) if a}
+assert ("zusatz", "Feuerverzinken") in akt and ("bohr", 0) in akt, akt
+assert not akt[("zusatz", "Feuerverzinken")]["ok"]
+gruppe = (akt[("bohr", 0)]["gruppe"], "M8")
+assert s.bohr_vorschlaege()[gruppe] == [(r, 0)]
+assert any("(STEP) · 1 Teil" in e[0] for e in s.vorschlag_menue_aktionen() if e)
+s.pos_ansicht.setRowHidden(r, False)
+s.pos_ansicht.auto_groesse._zeilen()                                         # Zeilenhöhen jetzt (sonst später)
+s.pos_ansicht.scrollTo(m.index(r, 0))
+QApplication.processEvents()
+k = s.pos_unter.knoepfe(r)
+assert len(k) >= 2 and k[0][0].right() < k[0][1].left(), k
+ja, nein, a0 = k[0]
+assert s.pos_unter.knopf_bei(ja.center()) == (r, a0, True) and s.pos_unter.knopf_bei(nein.center()) == (r, a0, False)
+assert s.unter_knopf(r, akt[("bohr", 0)], True)                            # Gewinde aus STEP bestätigen
+p = s._position_frisch(pid)
+assert bohrbild.lesen(p["bohrbild"])[0]["status"] == bohrbild.BESTAETIGT and "M8" in str(p["gewinde"]), p["gewinde"]
+r = next(i for i, p in enumerate(s.positionen) if p["id"] == pid)
+akt = {(a["art"], a["name"]): a for a in (getattr(z, "aktion", None) for z in s.unter_texte[r]) if a}
+assert ("gewinde", "Gewinde") in akt and ("bohr", 0) not in akt, akt
+assert s.unter_knopf(r, akt[("zusatz", "Feuerverzinken")], True)            # eingetragene bestätigen
+assert "Feuerverzinken" in ag.geprueft(s._position_frisch(pid))
+akt = {(a["art"], a["name"]): a for a in (getattr(z, "aktion", None) for z in s.unter_texte[r]) if a}
+assert akt[("zusatz", "Feuerverzinken")]["ok"]
+assert s.unter_knopf(r, akt[("gewinde", "Gewinde")], False)                 # Gewinde entfernen
+p = s._position_frisch(pid)
+assert not p.get("gewinde") and bohrbild.lesen(p["bohrbild"])[0]["status"] == bohrbild.ABGELEHNT, p.get("gewinde")
+assert s.unter_knopf(r, akt[("zusatz", "Feuerverzinken")], False)           # Zusatzarbeit entfernen
+p = s._position_frisch(pid)
+assert "Feuerverzinken" not in [x["name"] for x in rechnen.zusatz_liste(p)] and "Feuerverzinken" not in ag.geprueft(p)
+ok("E6 ✓/✗ in den Unterzeilen: Bohrung aus STEP bestätigen, Zusatzarbeit bestätigen und entfernen, Gewinde entfernen")
+ids = [q["id"] for q in s.positionen if q.get("profil_id")][:2]
+for i in ids:
+    db.position_aendern(i, "bohrbild", bohrbild.schreiben([dict(art="Bohrung", d=6.8, anzahl=2, gewinde="M8",
+                                                                status=bohrbild.OFFEN)]))
+s.neu_laden()
+g = next(g for g, ix in s.bohr_vorschlaege().items() if g[1] == "M8" and len(ix) == 2)
+assert s.vorschlag_knopf.text().endswith("Vorschläge") and not s.vorschlag_knopf.isHidden()
+assert s.bohr_alle(g, False) == 2
+assert all(bohrbild.lesen(s._position_frisch(i)["bohrbild"])[0]["status"] == bohrbild.ABGELEHNT for i in ids)
+assert g not in s.bohr_vorschlaege()
+ok("E7 gelber Knopf: Gewinde-Vorschläge aus STEP für alle Teile ablehnen bzw. bestätigen")
 print("OK: Einzelteile und Vorschläge")

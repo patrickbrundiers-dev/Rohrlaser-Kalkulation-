@@ -66,18 +66,30 @@ def _zusatz_zeile(e, stueck):
     return TRENNER.join([name] + [t for t in teile if t])
 
 
+class Schritt(tuple):
+    """Unterzeile (Text, Warnung) mit aktion = dict(art, name, ok) für ✓/✗ (Patrick 04.11.2026: „so für alle
+    Zusatzarbeiten“, auch Gewinde und Bohrungen) bzw. None ohne Knöpfe. Vergleicht sich wie ein Tupel."""
+
+    def __new__(cls, text, warnung=False, aktion=None):
+        t = super().__new__(cls, (text, warnung))
+        t.aktion = aktion
+        return t
+
+
 def schritte(p, z, katalog=()):
     """Unterzeilen einer Position: [(Text, Warnung)] in der Reihenfolge STUFEN. p = Position, z = ihre Zeile aus
     rechnen.kalkulation (None = nicht gerechnet: keine Unterzeilen), katalog = Stammdaten Zusatzarbeiten (Kategorie
     und Prüfung unbekannter Namen)."""
     if not z:
         return []
+    from . import arbeitsgaenge
     kat = {x.get("name"): x.get("kategorie") for x in katalog or ()}
     stueck = float(z.get("stueck") or p.get("stueck") or 0)
-    out = []           # (Stufe, Nr., Text, Warnung)
+    ok = set(arbeitsgaenge.geprueft(p))
+    out = []           # (Stufe, Nr., Text, Warnung, Aktion)
 
-    def neu(stufe, text, warnung=False):
-        out.append((STUFEN.index(stufe), len(out), text, warnung))
+    def neu(stufe, text, warnung=False, aktion=None):
+        out.append((STUFEN.index(stufe), len(out), text, warnung, aktion))
 
     prog, anteil = z.get("prog_min"), float(z.get("programmierung_anteil") or 0)
     if anteil or prog:
@@ -89,11 +101,12 @@ def schritte(p, z, katalog=()):
     if p.get("gewinde"):
         g = float(z.get("gewinde_teil") or 0)
         neu("Gewinde", TRENNER.join(("Gewinde", str(p["gewinde"]), f"{_eur(g)}/Teil", f"{_eur(g * stueck)} Pos.",
-                                     "eigen")))
+                                     "eigen")), aktion=dict(art="gewinde", name="Gewinde", ok="Gewinde" in ok))
     for e in z.get("zusatzarbeiten") or ():
         text = _zusatz_zeile(e, stueck)
         if text:      # automatische gelb: sie stehen nicht in der Liste der Position
-            neu(KATEGORIE_STUFE.get(kat.get(e["name"]), "Sonstiges"), text, AUTO if e.get("auto") else False)
+            neu(KATEGORIE_STUFE.get(kat.get(e["name"]), "Sonstiges"), text, AUTO if e.get("auto") else False,
+                dict(art="auto" if e.get("auto") else "zusatz", name=e["name"], ok=e["name"] in ok))
     if katalog:
         unbekannt = rechnen.zusatz_unbekannt(p, katalog)
         if unbekannt:
@@ -119,7 +132,25 @@ def schritte(p, z, katalog=()):
     # geändert oder zusammen mit echten Arbeitsschritten bleibt sie.
     if len(out) == 1 and out[0][0] == STUFEN.index("Programmieren") and not z.get("prog_hand"):
         out = []
-    return [(text, warnung) for _, _, text, warnung in sorted(out)]
+    return [Schritt(text, warnung, aktion) for _, _, text, warnung, aktion in sorted(out, key=lambda x: x[:2])]
+
+
+def bohr_schritte(liste):
+    """Offene Zeilen des Bohrbilds (Gewinde-Vorschläge, Senkungen, Flowdrill, Bohren aus STEP bzw. Zeichnung) als gelbe
+    Unterzeilen mit ✓ (bestätigen) und ✗ (ablehnen); aktion name = Index der Zeile im Bohrbild."""
+    from . import bohrbild
+    out = []
+    for i, z in enumerate(liste):
+        if z.get("status", bohrbild.OFFEN) != bohrbild.OFFEN:
+            continue
+        aus = bohrbild.KURZ.get(bohrbild.ausfuehrung(z), z.get("art"))
+        teile = [f"{aus} ?", f"{z.get('anzahl')}× " + (z.get("gewinde") or f"Ø{bohrbild.dez(z.get('d'))}")]
+        if z.get("art") == "Senkung" and z.get("D"):
+            teile[-1] += f"/{bohrbild.dez(z['D'])}"
+        teile.append("aus STEP, noch nicht bestätigt")
+        out.append(Schritt(TRENNER.join(teile), AUTO, dict(art="bohr", name=i, ok=False, gruppe=aus,
+                                                            gewinde=z.get("gewinde"))))
+    return out
 
 
 # ------------------------------------------------------------------ Anzeige
@@ -175,8 +206,12 @@ class Unterzeilen(QObject):
     die Unterzeilen beginnen (Artikelnummer); doppelklick(r) für einen Doppelklick auf die Unterzeilen (None: wie
     ein Doppelklick auf die Zeile)."""
 
-    def __init__(self, ansicht, texte, spalte, doppelklick=None, an=True, kopf=None, kopf_klick=None):
+    KNOPF = 18          # ✓/✗ links in einer Unterzeile mit aktion (knopf_klick(r, aktion, ja))
+
+    def __init__(self, ansicht, texte, spalte, doppelklick=None, an=True, kopf=None, kopf_klick=None,
+                 knopf_klick=None):
         super().__init__(ansicht)
+        self.knopf_klick = knopf_klick
         self.ansicht, self.texte, self.spalte, self.doppelklick, self.an = ansicht, texte, spalte, doppelklick, an
         self.schrift = QFont(ansicht.font())
         self.schrift.setPointSizeF(max(ansicht.font().pointSizeF() * 0.92, 6))
@@ -262,12 +297,52 @@ class Unterzeilen(QObject):
                     return True
                 self.kopf_klick(r, "rechts" if ereignis.button() == Qt.RightButton else "klick", x)
                 return ereignis.button() != Qt.RightButton      # Rechtsklick: danach das Menü der Tabelle
+        if t in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick) and \
+                self.knopf_klick is not None:
+            treffer = self.knopf_bei(ereignis.position().toPoint())
+            if treffer:
+                if t == QEvent.MouseButtonRelease and ereignis.button() == Qt.LeftButton:
+                    self.knopf_klick(*treffer)
+                return True
         if t == QEvent.MouseButtonDblClick and self.doppelklick is not None:
             r = self._zeile_bei(ereignis.position().toPoint().y())
             if r >= 0:
                 self.doppelklick(r)
                 return True
         return False
+
+    def knoepfe(self, r):
+        """[(Rechteck ✓, Rechteck ✗, aktion)] der Unterzeilen von Zeile r (Viewport), nur mit knopf_klick."""
+        if self.knopf_klick is None or not self.an:
+            return []
+        a = self.ansicht
+        zeilen = self.texte(r)
+        if not zeilen:
+            return []
+        x0 = 0 if a.isColumnHidden(self.spalte) else max(a.columnViewportPosition(self.spalte), 0)
+        y0 = a.rowViewportPosition(r) + a.rowHeight(r) - len(zeilen) * self.zeile_h
+        out = []
+        for n, z in enumerate(zeilen):
+            aktion = getattr(z, "aktion", None)
+            if not aktion:
+                continue
+            y = y0 + n * self.zeile_h + 1
+            h = self.zeile_h - 2
+            ja = QRect(x0 + 6, y, self.KNOPF, h)
+            out.append((ja, QRect(ja.right() + 4, y, self.KNOPF, h), aktion))
+        return out
+
+    def knopf_bei(self, punkt):
+        """(Zeile, aktion, ja) des ✓/✗ unter punkt (Viewport) oder None."""
+        r = self._zeile_bei(punkt.y())
+        if r < 0:
+            return None
+        for ja, nein, aktion in self.knoepfe(r):
+            if ja.contains(punkt):
+                return r, aktion, True
+            if nein.contains(punkt):
+                return r, aktion, False
+        return None
 
     def zeichnen(self, p):
         self._koepfe_zeichnen(p)
@@ -301,15 +376,41 @@ class Unterzeilen(QObject):
             p.fillRect(QRect(x0, y, breite, len(zeilen) * self.zeile_h - 1), hinter)
             p.setPen(linie)
             p.drawLine(x0, y, x0 + breite, y)
+            knoepfe = {n: k for n, k in enumerate(self.knoepfe(r))} if self.knopf_klick is not None else {}
+            mit = [n for n, z in enumerate(zeilen) if getattr(z, "aktion", None)] if knoepfe else []
             for n, (t, warnung) in enumerate(zeilen):
-                rect = QRect(x0 + 10, y + n * self.zeile_h, breite - 14, self.zeile_h)
+                einzug = 10 + (2 * self.KNOPF + 10 if mit else 0)
+                rect = QRect(x0 + einzug, y + n * self.zeile_h, breite - einzug - 4, self.zeile_h)
                 if warnung == AUTO:
                     p.fillRect(QRect(x0 + 4, y + n * self.zeile_h + 1, breite - 8, self.zeile_h - 2), gelb_flaeche)
                     p.setPen(gelb)
                 else:
                     p.setPen(rot if warnung else text)
                 p.drawText(rect, Qt.AlignVCenter | Qt.AlignLeft, fm.elidedText("↳  " + t, Qt.ElideRight, rect.width()))
+                if n in mit:
+                    self._knopf_zeichnen(p, *knoepfe[mit.index(n)])
         p.end()
+
+    def _knopf_zeichnen(self, p, ja, nein, aktion):
+        """✓ grün (bestätigt: gefüllt) und ✗ rot."""
+        gruen, rot = QColor("#1E7B34"), QColor("#B42318")
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing)
+        if aktion.get("ok"):
+            p.setBrush(gruen)
+            p.setPen(gruen)
+            p.drawRoundedRect(ja.adjusted(0, 0, -1, -1), 3, 3)
+            p.setPen(QColor("#FFFFFF"))
+        else:
+            p.setBrush(Qt.NoBrush)
+            p.setPen(gruen)
+            p.drawRoundedRect(ja.adjusted(0, 0, -1, -1), 3, 3)
+        p.drawText(ja, Qt.AlignCenter, "✓")
+        p.setBrush(Qt.NoBrush)
+        p.setPen(rot)
+        p.drawRoundedRect(nein.adjusted(0, 0, -1, -1), 3, 3)
+        p.drawText(nein, Qt.AlignCenter, "✗")
+        p.restore()
 
     def _sichtbare_zeilen(self):
         """Logische Zeilen im sichtbaren Bereich, in Anzeige-Reihenfolge (der Zeilenkopf ordnet Sätze und Baugruppen

@@ -25,8 +25,11 @@ NEUERUNGEN = [
      "<i>Einzelteile</i> mit Positionen, Stück, Gewicht, Preis und offenen Vorschlägen; zugeklappte Sätze, Baugruppen "
      "und Einzelteile sind nur noch das Band, der Status zeigt nur sein Symbol, der Zeilenkopf keine zweite Nummer. "
      "<b>Vorschläge für alle Teile</b> ([[zusatz_erkennen]]): der gelbe Knopf übernimmt oder lehnt jede "
-     "Zusatzarbeit für alle Teile auf einmal ab, ✓/✗ direkt in der Zelle, <i>Einzeln prüfen</i> zeigt nur offene Punkte.",
-     "Einzelteile mit Band; Zusatzarbeiten-Vorschläge für alle Teile bestätigen oder ablehnen"],
+     "Zusatzarbeit für alle Teile auf einmal ab, ✓/✗ direkt in der Zelle, <i>Einzeln prüfen</i> zeigt nur offene Punkte. "
+     "<b>✓/✗ für jede Zusatzarbeit</b> ([[zusatz_unterzeilen]]): in den Zeilen unter der Position bestätigen oder "
+     "entfernen, auch Gewinde; offene Gewinde, Senkungen und Flowdrill aus der STEP bestätigen oder ablehnen, einzeln "
+     "oder für alle Teile.",
+     "Einzelteile mit Band; Zusatzarbeiten, Gewinde und Bohrungen für alle Teile bestätigen oder ablehnen"],
     ["0.9.253", "<b>Sätze übersichtlicher</b> ([[saetze_abheben]]): jeder Satz und jede Schweißbaugruppe hat ein "
      "<b>Kopfband</b> mit Anzahl, Teilen, Fläche, Gewicht und Preis je Satz. Klick aufs Band markiert den ganzen Satz, "
      "Doppelklick öffnet <i>Satz bearbeiten</i>. Jeder Satz hat eine eigene, kräftigere Farbe (sechs Farben reihum statt "
