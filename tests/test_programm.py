@@ -185,7 +185,7 @@ from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
 assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
-                                                                 "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)",
+                                                                 "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)", "Dreh-/Fräs-Werkstoffe",
                                                                  "Prüfregeln (Fertigung)",
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren", "Schweiß-Vorkalkulation",

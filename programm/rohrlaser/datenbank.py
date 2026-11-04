@@ -185,7 +185,7 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
-DREHFRAES_STAND = "2026-11-03"     # Zukauf-Kategorien Drehteile und Frästeile (_drehfraes_ergaenzen)
+DREHFRAES_STAND = "2026-11-03b"    # Zukauf-Kategorien Drehteile/Frästeile, Dreh-/Fräs-Werkstoffe (_drehfraes_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
@@ -652,6 +652,8 @@ class Datenbank:
         from . import drehfraes
         for name in drehfraes.KATEGORIE.values():
             self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')", (name,))
+        if not self.anzahl("drehfraes_werkstoffe"):       # Tabelle Dreh-/Fräs-Werkstoffe mit Beispielen (Patrick 03.11.)
+            self._einfuegen("drehfraes_werkstoffe", beispieldaten()["drehfraes_werkstoffe"])
         self._einstellung_schreiben("drehfraes_stand", DREHFRAES_STAND)
 
     def _stege_ergaenzen(self):
@@ -1631,6 +1633,16 @@ class Datenbank:
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
         return tab
+
+    @liest
+    def drehfraes_einstellungen(self):
+        """Einstellungen des Dreh-/Frästeil-Richtpreises ('df_…', drehfraes_preis.EINSTELLUNGEN) und die Tabelle
+        Dreh-/Fräs-Werkstoffe als 'werkstoffe' {ID: Zeile}."""
+        from . import drehfraes_preis
+        w = {n: self.einstellung(n) for n in drehfraes_preis.EINSTELLUNGEN}
+        w["werkstoffe"] = {z["drehfraes_werkstoff_id"]: z for z in self.zeilen("drehfraes_werkstoffe")
+                           if z.get("drehfraes_werkstoff_id")}
+        return w
 
     @liest
     def blech_daten(self):

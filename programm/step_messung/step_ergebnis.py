@@ -138,8 +138,11 @@ Versionen von SCHEMA_VERSION:
   300 mm). Felder aus 1.25 unverändert.
 - 1.27 (03.11.2026): Dreh- und Frästeile: "bauteiltyp" und "profiltyp" = "Drehteil" bzw. "Frästeil", Block
   "drehfraes" = {art, durchmesser/innen/laenge (Drehteil) bzw. laenge/breite/hoehe (Frästeil), merkmale, zusatz, text,
-  nur_abmessung (nur nach den Maßen verdächtig: prüfen), volumen, fingerabdruck}; die Messung als Rohr/Profil steht in
-  "alternative". Felder aus 1.26 unverändert.
+  nur_abmessung (nur nach den Maßen verdächtig: prüfen), volumen, fingerabdruck, kennwerte}; die Messung als
+  Rohr/Profil steht in "alternative". "kennwerte" (Richtpreis/Machbarkeit, drehfraes_preis): Drehteil aussen/innen
+  [{d, l, z}], einstiche, fasen, radien, stirn, Flächen [cm²], querbohrungen, wand_min, anbau_d; Frästeil ebenen,
+  bohrungen [{d, l, z}], innenradien, innenradius_min, taschentiefe, richtungen, stufen, Flächen [cm²]. Felder aus
+  1.26 unverändert.
 """
 from datetime import datetime
 

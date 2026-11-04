@@ -21,6 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.250", "<b>Richtpreis für Dreh- und Frästeile</b>: neue Dreh-/Frästeile aus dem STEP-Import bekommen einen "
+     "geschätzten EK aus Rohling (Lagermaß, €/kg), <b>Arbeitsgängen</b> mit Zeiten aus Schnittwerten (Schruppen, "
+     "Schlichten, Bohren, Einstechen, Planfräsen, Taschen …), Rüsten und Programmieren auf die Stückzahl verteilt, "
+     "Zusätzen €/Stück und Aufschlag des Lieferanten, mit Hinweis <i>Fremdangebot einholen</i>. "
+     "<b>Machbarkeitsprüfung</b> als Ampel (tiefe Bohrung, schlankes Teil, dünne Wand, kleiner Innenradius, tiefe "
+     "Tasche, Maschinengröße) und <b>Skizze</b> Rohling/Fertigteil im Dialog <i>Richtpreis Dreh-/Frästeil …</i>; "
+     "Zeiten von Hand änderbar, Staffeln rechnen je Stufe neu; Werte unter Einstellungen → Dreh- und Frästeile "
+     "([[drehfraes_richtpreis]]). Neu <b>Fräsen nach Bearbeitung …</b> (Rechtsklick): Teil oder Schweißbaugruppe "
+     "danach planfräsen, bohren, Gewinde, reiben, Taschen; Preis je Stück als Zusatzarbeit, eigene Maschine oder "
+     "Lohnfertiger ([[fraesen_nach]]). STEP-Import erkennt jetzt auch <b>Flansche mit Lochkreis</b>, <b>Ringe mit "
+     "Lasche</b> und <b>gebohrte Verteilerblöcke</b> als Dreh-/Frästeil; Messing CW…; Rohling bei Alu/Messing als "
+     "Rund-/Flachmaterial. Eigene Tabelle <b>Dreh-/Fräs-Werkstoffe</b> (Gruppe, Dichte, Stangenpreis €/kg, "
+     "Zerspanbarkeit %) wie bei den Blechen ([[drehfraes_werkstoffe]]).",
+     "Richtpreis für Dreh-/Frästeile mit Arbeitsgängen, Machbarkeit und Skizze; Fräsen nach Bearbeitung"],
     ["0.9.249", "STEP-Import: <b>Dreh- und Frästeile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse, "
      "Block mit Tasche, ausgefräster Winkel) werden erkannt und <b>Zukaufteile</b> ohne EK statt gelaserter Rohre "
      "oder Profile, mit Kategorie Drehteile bzw. Frästeile; gleiche Teile aus früheren Anfragen nehmen den vorhandenen "

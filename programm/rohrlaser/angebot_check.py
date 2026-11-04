@@ -91,6 +91,11 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         out.append(Punkt(HINWEIS, f"{_n_pos(len(z))}: STEP-Merkmale zu prüfen (z. B. "
                                   f"{', '.join(dict.fromkeys(x['merkmal'] for x in step_pruefung.offen(positionen[z[0]])))})",
                          f"pos:{z[0]}", _pos_liste(z, positionen)))
+    from . import drehfraes_preis      # Dreh-/Frästeile mit Richtpreis als EK (03.11.2026): Fremdangebot einholen
+    z = [i for i in aktiv if drehfraes_preis.ek_ist_richtpreis(positionen[i])]
+    if z:
+        out.append(Punkt(HINWEIS, f"{_n_pos(len(z))}: EK der Dreh-/Frästeile ist ein Richtpreis (Schätzung), "
+                                  "Fremdangebot einholen", f"pos:{z[0]}", _pos_liste(z, positionen)))
     if kalk_zeilen is not None and stand == "aktuell":     # vorher meldet jede Position „kein Schnittplan“
         z = [i for i in aktiv if i < len(kalk_zeilen) and kalk_zeilen[i] and kalk_zeilen[i].get("hinweis")
              and not st[i].startswith((FEHLER, WARNUNG))]

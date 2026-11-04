@@ -821,6 +821,37 @@ def main(ziel):
         d.reject()
         return QDialog.Rejected
     sz.blech_neu(dialog=blech_ausfuellen)
+    # Richtpreis Dreh-/Frästeil (0.9.240): Stufenwelle Ø30/20/16 × 120 mit Einstich und Fasen, 20 Stück (erfunden)
+    from rohrlaser import drehfraes_preis
+    from rohrlaser.drehfraes_dialog import DrehfraesDialog
+    welle = dict(art="Drehteil", durchmesser=30.0, innen=0.0, laenge=120.0, volumen=50800.0,
+                 merkmale=["3 Außendurchmesser (Absatz/Einstich)", "Fase/Kegel"], zusatz=[],
+                 kennwerte=dict(aussen=[dict(d=30, l=40, z=20), dict(d=20, l=36, z=58), dict(d=17, l=2, z=77),
+                                        dict(d=20, l=22, z=89), dict(d=16, l=20, z=110)], innen=[], einstiche=1,
+                                fasen=2, radien=0, konturen=0, stirn=4, stirn_flaeche=14.1, dreh_flaeche=86.0,
+                                querbohrungen=[], schluessel=0, schluessel_flaeche=0.0, frei_flaeche=0.0,
+                                flaeche=100.1, wand_min=None))
+    d = DrehfraesDialog(f, drehfraes_preis.aus_step(welle, "S235JR", 20), db.drehfraes_einstellungen(),
+                        titel="Drehteil Ø30 × 120 mm S235JR")
+    d.resize(1150, 820)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("drehfraes_richtpreis", d, [(d.stueck, 1), (d.skizze, 2), (d.befunde, 3), (d.tabelle, 4),
+                                          (d.summe, 5)])
+    d.close()
+    from rohrlaser import fraesen_nach
+    from rohrlaser.fraesen_nach_dialog import FraesenNachDialog
+    d = FraesenNachDialog(f, dict(werkstoff="S235JR", stueck=10, gewicht=38, laenge=800, breite=450, hoehe=300,
+                                  aufspannungen=1, bearbeitungen=[
+                                      dict(art=fraesen_nach.PLAN, anzahl=1, l=200, b=200, t=1),
+                                      dict(art=fraesen_nach.GEWINDE, anzahl=4, d=10.2, t=20),
+                                      dict(art=fraesen_nach.REIBEN, anzahl=2, d=12, t=20)]),
+                          db.drehfraes_einstellungen(), titel="Pos. 10 Grundrahmen geschweißt (Beispiel)")
+    d.resize(1100, 800)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("fraesen_nach", d, [(d.gewicht, 1), (d.eingabe, 2), (d.summe, 3)])
+    d.close()
     sz.optimieren()
     reiter_waehlen(sz, "Zukaufteile")
     bereit()
