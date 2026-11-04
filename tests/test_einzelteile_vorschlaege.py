@@ -1,0 +1,232 @@
+"""Einzelteile aufräumen und Vorschläge für alle Teile bestätigen (Patrick 04.11.2026: „Weiter aufräumen auch für
+Einzelteile“, „Option, die Zusatzarbeiten bei allen Teilen im Angebot zu bestätigen oder abzulehnen“, Freigabe „Alle
+Empfehlungen“ F1a F2a F3a F4a): graues Kopfband „Einzelteile“ mit Summen, zugeklappte Gruppe = nur das Band, Zeilenkopf
+ohne laufende Nummer, Status nur Symbol, Stück je Satz nur mit Sätzen; gelber Knopf je Zusatzarbeit „für alle
+übernehmen/ablehnen“, ✓/✗ in der Zelle, Prüffenster mit nur offenen Punkten und „Alle … annehmen“.
+
+Aufruf: python tests/test_einzelteile_vorschlaege.py
+"""
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+HIER = Path(__file__).parent
+sys.path.insert(0, str(HIER.parent / "programm"))
+sys.path.insert(0, str(HIER))
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QMouseEvent  # noqa: E402
+from PySide6.QtWidgets import QApplication, QStyleOptionViewItem  # noqa: E402
+
+import beispiel_angebot  # noqa: E402
+from rohrlaser import arbeitsgaenge as ag, rechnen, satzgruppen  # noqa: E402
+from rohrlaser.angebot_fenster import kopf_zeichen  # noqa: E402
+from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+
+
+def ok(t):
+    print("OK    ", t)
+
+
+# ------------------------------------------------------------------ E1 ohne Oberfläche
+pos = [dict(satz="A"), dict(), dict(), dict(satz="A"), dict(), dict(satz="B")]
+folge = satzgruppen.ordnen(list(range(6)), satzgruppen.saetze(pos))
+assert folge == [0, 3, 1, 2, 4, 5]
+assert satzgruppen.einzel_laeufe(pos, folge) == [[1, 2, 4]]
+assert satzgruppen.einzel_laeufe([dict(), dict()], [0, 1]) == []          # ohne Gruppen kein Band
+assert satzgruppen.einzel_laeufe(pos, [1, 0, 3, 2, 4, 5]) == [[1], [2, 4]]  # Reihenfolge bleibt, je Abschnitt ein Band
+b = satzgruppen.einzel_band([dict(stueck=4, id=7), dict(stueck=6, id=8)], [0, 1],
+                            [dict(preis_position=10), dict(preis_position=5.5)], zu=True,
+                            vorschlaege=[[dict(name="X")], [dict(name="X"), dict(name="Y")]])
+assert b["titel"] == "▸ Einzelteile" and b["zu"] and b["id"] == 7 and b["art"] == "einzel", b
+assert b["info"] == "2 Positionen · 10 Stk. · 15,50 € gesamt · 3 Vorschläge offen", b["info"]
+assert not satzgruppen.einzel_band([dict(stueck=1, id=1)], [0], zu=True)["zu"]      # ein Teil: nichts zuzuklappen
+assert kopf_zeichen("▾ 12") == "▾" and kopf_zeichen("└ 3") == "└" and kopf_zeichen("7") == "" and kopf_zeichen(None) == ""
+ok("E1 Einzelteile-Abschnitte zwischen Sätzen, Band mit Positionen, Stück, €, Vorschlägen; Zeilenkopf ohne Nummer")
+
+# ------------------------------------------------------------------ E2 Positionsliste
+app = QApplication.instance() or QApplication([])
+tmp = Path(tempfile.mkdtemp())
+db = Datenbank(tmp / "rohrlaser.db")
+aid = beispiel_angebot.anlegen(db)
+rohre = [p for p in db.positionen(aid) if p.get("profil_id") and p.get("art") != "Zukaufteil"]
+assert len(rohre) >= 5, len(rohre)
+for p in rohre[:2]:
+    db.position_aendern(p["id"], "satz", "Regal")
+    db.position_aendern(p["id"], "je_satz", 1)
+for p, bez in zip(rohre[2:5], ("Halter verzinkt", "Lasche verzinkt", "Konsole pulverbeschichtet")):
+    db.position_aendern(p["id"], "bezeichnung", bez)
+    db.position_aendern(p["id"], "zusatz", None)
+    db.position_aendern(p["id"], "satz", None)
+fenster = Hauptfenster(db, tmp, stumm=True)
+s = fenster.angebot_oeffnen(aid)
+QApplication.processEvents()
+m = s.pos_modell
+assert s.einzel_laeufe, "Einzelteile ohne Band"
+kopf = s.einzel_laeufe[0][0]
+band = s.kopf_baender[kopf]
+assert band["art"] == "einzel" and band["titel"] == "▾ Einzelteile" and "Vorschläge offen" in band["info"], band
+assert m.headerData(kopf, Qt.Vertical) in ("▾", "") and all(
+    m.headerData(r, Qt.Vertical) in ("▾", "▸", "│", "└", "") for r in range(m.rowCount()))
+c_je = next(c for c in range(m.columnCount()) if m.name(c) == "je_satz")
+assert not s.pos_ansicht.isColumnHidden(c_je)                     # Angebot mit Satz: Stück je Satz sichtbar
+c_st = next(c for c in range(m.columnCount()) if m.spalten[c][0] == "status")
+for r in range(m.rowCount()):
+    w = m.data(m.index(r, c_st), Qt.ItemDataRole.UserRole)
+    if m.data(m.index(r, c_st), Qt.ItemDataRole.DecorationRole) is not None:
+        assert m.data(m.index(r, c_st)) == "", (r, w)                 # nur Symbol, Text im Tooltip
+        assert m.data(m.index(r, c_st), Qt.ItemDataRole.ToolTipRole)
+lauf = s.einzel_laeufe[0]
+assert len(lauf) > 1, s.einzel_laeufe
+s.band_klick(kopf, "klick", 10)                                # ▸: zuklappen
+QApplication.processEvents()
+assert all(s.pos_ansicht.isRowHidden(r) for r in lauf[1:]) and not s.pos_ansicht.isRowHidden(kopf)
+assert s.kopf_baender[kopf]["zu"] and s.pos_unter.kopf_zu(kopf) and s.pos_unter.hoehe(kopf) == 0
+assert db.einstellung("ansicht_gruppen_zu")[str(aid)]["einzel"] == [s.positionen[kopf]["id"]]
+s.gruppen_alle(False)
+assert not s.einzel_zu and not any(s.pos_ansicht.isRowHidden(r) for r in lauf)
+s.band_klick(kopf, "rechts", 99)                               # markiert den ganzen Abschnitt
+assert sorted({i.row() for i in s.pos_ansicht.selectionModel().selectedRows()}) == sorted(lauf)
+ok("E2 Band Einzelteile, zuklappen = nur Band (gemerkt), alle Gruppen, Zeilenkopf ohne Nummer, Status nur Symbol")
+
+# ------------------------------------------------------------------ E3 Vorschläge je Zusatzarbeit für alle Teile
+je_name = s.vorschlaege_je_name()
+assert "Feuerverzinken" in je_name and len(je_name["Feuerverzinken"]) == 2, je_name
+texte = [e[0] for e in s.vorschlag_menue_aktionen() if e]
+assert any(t.startswith("Feuerverzinken · 2 Teile") for t in texte) and "    ✓ für alle übernehmen" in texte, texte
+s._vorschlag_menue_fuellen()
+assert any(a.text() == "Alle Vorschläge übernehmen" for a in s.vorschlag_menue.actions())
+zeilen_fvz = list(je_name["Feuerverzinken"])
+assert s.vorschlaege_uebernehmen(namen={"Feuerverzinken"}) == 2
+for r in zeilen_fvz:
+    assert "Feuerverzinken" in [x["name"] for x in rechnen.zusatz_liste(s.positionen[r])]
+assert "Feuerverzinken" not in s.vorschlaege_je_name()
+rest = s.vorschlaege_je_name()
+assert rest, "Pulverbeschichten-Vorschlag fehlt"
+name, zeilen = next(iter(rest.items()))
+assert s.vorschlaege_ablehnen(namen={name}) == len(zeilen)
+assert name not in s.vorschlaege_je_name()
+assert all(name in ag.lesen(s.positionen[r])["abgelehnt"] for r in zeilen)
+ok("E3 gelber Knopf: je Zusatzarbeit für alle übernehmen bzw. ablehnen, Rest bleibt offen")
+
+# ------------------------------------------------------------------ E4 ✓/✗ in der Zelle
+db.position_aendern(s.positionen[zeilen[0]]["id"], "arbeitsgaenge", None)      # Ablehnung zurück: wieder offen
+s.neu_laden()
+QApplication.processEvents()
+r = next(r for r, vs in enumerate(m.vorschlaege) if vs)
+c_z = next(c for c in range(m.columnCount()) if m.spalten[c][0] == "zusatz")
+s.pos_ansicht.setColumnHidden(c_z, False)
+s.pos_ansicht.setColumnWidth(c_z, 220)
+d = s.pos_ansicht.itemDelegate()
+o = QStyleOptionViewItem()
+o.rect = s.pos_ansicht.visualRect(m.index(r, c_z))
+o.font = s.pos_ansicht.font()
+k = d.vorschlag_knoepfe(o, m.index(r, c_z))
+assert k and k[0].right() < k[1].left() and o.rect.contains(k[1]), (k, o.rect)
+assert d.vorschlag_knoepfe(o, m.index(r, c_st)) is None
+ziel = k[1].center()
+for t in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+    e = QMouseEvent(t, QPointF(ziel), QPointF(ziel), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
+    assert d.editorEvent(e, m, o, m.index(r, c_z))
+assert not m.vorschlaege[r] and ag.lesen(s.positionen[r])["abgelehnt"], "✗ hat nicht abgelehnt"
+ok("E4 ✓/✗ rechts in der Zelle Gewinde · Zusatzarbeiten: Vorschläge der Position annehmen bzw. ablehnen")
+
+# ------------------------------------------------------------------ E5 Prüffenster
+for p in s.positionen:
+    if p.get("arbeitsgaenge"):
+        db.position_aendern(p["id"], "arbeitsgaenge", None)
+s.neu_laden()
+dlg = s.arbeitsgaenge_vorschlagen(dialog=lambda d: None)
+assert dlg.zeilen and all(z["status"] != ag.IM_ANGEBOT for z in dlg.zeilen)       # nur offene Punkte
+namen = [z["arbeitsgang"] for z in dlg.zeilen]
+assert namen == sorted(namen, key=namen.index), namen                              # gleiche untereinander
+dlg.alle_zeigen.setChecked(True)
+assert any(z["status"] == ag.IM_ANGEBOT for z in dlg.zeilen)
+dlg.alle_zeigen.setChecked(False)
+offen = [z for z in dlg.zeilen if z["status"] == ag.VORSCHLAG]
+name = offen[0]["arbeitsgang"]
+gleiche = [z for z in offen if z["arbeitsgang"] == name]
+dlg.waehlen(offen[0]["position_id"], name)
+assert len(dlg.gleiche()) == len(gleiche)
+if len(gleiche) > 1:
+    assert not dlg.alle_ja_knopf.isHidden() and dlg.alle_ja_knopf.text().startswith(f"Alle {len(gleiche)} „{name}“")
+assert dlg.alle_gleichen(True) == len(gleiche)
+assert not any(z["arbeitsgang"] == name and z["status"] == ag.VORSCHLAG for z in dlg.alle_zeilen)
+ok("E5 Prüffenster: nur offene Punkte, nach Arbeitsgang, „Alle … annehmen“ für alle Positionen")
+
+# ------------------------------------------------------------------ E6 ✓/✗ je Zusatzarbeit, Gewinde, Bohrung
+from rohrlaser import bohrbild  # noqa: E402
+r = zeilen_fvz[0]
+pid = s.positionen[r]["id"]
+db.position_aendern(pid, "bohrbild", bohrbild.schreiben([dict(art="Bohrung", d=6.8, anzahl=4, gewinde="M8",
+                                                               status=bohrbild.OFFEN)]))
+s.neu_laden()
+QApplication.processEvents()
+r = next(i for i, p in enumerate(s.positionen) if p["id"] == pid)
+akt = {(a["art"], a["name"]): a for a in (getattr(z, "aktion", None) for z in s.unter_texte[r]) if a}
+assert ("zusatz", "Feuerverzinken") in akt and ("bohr", 0) in akt, akt
+assert not akt[("zusatz", "Feuerverzinken")]["ok"]
+gruppe = (akt[("bohr", 0)]["gruppe"], "M8")
+assert s.bohr_vorschlaege()[gruppe] == [(r, 0)]
+assert any("(STEP) · 1 Teil" in e[0] for e in s.vorschlag_menue_aktionen() if e)
+s.pos_ansicht.setRowHidden(r, False)
+s.pos_ansicht.auto_groesse._zeilen()                                         # Zeilenhöhen jetzt (sonst später)
+s.pos_ansicht.scrollTo(m.index(r, 0))
+QApplication.processEvents()
+k = s.pos_unter.knoepfe(r)
+assert len(k) >= 2 and k[0][0].right() < k[0][1].left(), k
+ja, nein, a0 = k[0]
+assert s.pos_unter.knopf_bei(ja.center()) == (r, a0, True) and s.pos_unter.knopf_bei(nein.center()) == (r, a0, False)
+assert s.unter_knopf(r, akt[("bohr", 0)], True)                            # Gewinde aus STEP bestätigen
+p = s._position_frisch(pid)
+assert bohrbild.lesen(p["bohrbild"])[0]["status"] == bohrbild.BESTAETIGT and "M8" in str(p["gewinde"]), p["gewinde"]
+r = next(i for i, p in enumerate(s.positionen) if p["id"] == pid)
+akt = {(a["art"], a["name"]): a for a in (getattr(z, "aktion", None) for z in s.unter_texte[r]) if a}
+assert ("gewinde", "Gewinde") in akt and ("bohr", 0) not in akt, akt
+assert s.unter_knopf(r, akt[("zusatz", "Feuerverzinken")], True)            # eingetragene bestätigen
+assert "Feuerverzinken" in ag.geprueft(s._position_frisch(pid))
+akt = {(a["art"], a["name"]): a for a in (getattr(z, "aktion", None) for z in s.unter_texte[r]) if a}
+assert akt[("zusatz", "Feuerverzinken")]["ok"]
+assert s.unter_knopf(r, akt[("gewinde", "Gewinde")], False)                 # Gewinde entfernen
+p = s._position_frisch(pid)
+assert not p.get("gewinde") and bohrbild.lesen(p["bohrbild"])[0]["status"] == bohrbild.ABGELEHNT, p.get("gewinde")
+assert s.unter_knopf(r, akt[("zusatz", "Feuerverzinken")], False)           # Zusatzarbeit entfernen
+p = s._position_frisch(pid)
+assert "Feuerverzinken" not in [x["name"] for x in rechnen.zusatz_liste(p)] and "Feuerverzinken" not in ag.geprueft(p)
+ok("E6 ✓/✗ in den Unterzeilen: Bohrung aus STEP bestätigen, Zusatzarbeit bestätigen und entfernen, Gewinde entfernen")
+ids = [q["id"] for q in s.positionen if q.get("profil_id")][:2]
+for i in ids:
+    db.position_aendern(i, "bohrbild", bohrbild.schreiben([dict(art="Bohrung", d=6.8, anzahl=2, gewinde="M8",
+                                                                status=bohrbild.OFFEN)]))
+s.neu_laden()
+g = next(g for g, ix in s.bohr_vorschlaege().items() if g[1] == "M8" and len(ix) == 2)
+assert s.vorschlag_knopf.text().endswith("Vorschläge") and not s.vorschlag_knopf.isHidden()
+assert s.bohr_alle(g, False) == 2
+assert all(bohrbild.lesen(s._position_frisch(i)["bohrbild"])[0]["status"] == bohrbild.ABGELEHNT for i in ids)
+assert g not in s.bohr_vorschlaege()
+ok("E7 gelber Knopf: Gewinde-Vorschläge aus STEP für alle Teile ablehnen bzw. bestätigen")
+# ------------------------------------------------------------------ E8 keine leeren Zeilen (Patrick 04.11.2026)
+# Bis 0.9.252 zeichneten die Unterzeilen nur logische Zeilen zwischen der obersten und untersten sichtbaren: stand eine
+# umsortierte Gruppe (Satz, Baugruppe über ihren Teilen) oben, blieben die Zeilen darunter leer.
+from PySide6.QtWidgets import QAbstractItemView  # noqa: E402
+kopf_v = s.pos_ansicht.verticalHeader()
+letzte = [q for q in s.positionen if q.get("profil_id") and not q.get("satz")][-1]
+db.position_aendern(letzte["id"], "satz", "Regal")          # weit unten: rückt in der Anzeige zum Satz hoch
+db.position_aendern(letzte["id"], "zusatz", '[{"name": "Entgraten"}]')
+s.neu_laden()
+s.gruppen_alle(False)
+umsortiert = next((r for r in range(m.rowCount()) if kopf_v.visualIndex(r) < r and not s.pos_ansicht.isRowHidden(r)),
+                  None)
+assert umsortiert is not None, "Testangebot ohne umsortierte Zeile"
+s.pos_ansicht.auto_groesse._zeilen()
+s.pos_ansicht.scrollTo(m.index(umsortiert, 1), QAbstractItemView.PositionAtTop)
+QApplication.processEvents()
+sichtbar = s.pos_unter._sichtbare_zeilen()
+oben, unten = kopf_v.visualIndexAt(0), kopf_v.visualIndexAt(s.pos_ansicht.viewport().height() - 1)
+unten = kopf_v.count() - 1 if unten < 0 else unten
+erwartet = [kopf_v.logicalIndex(v) for v in range(oben, unten + 1) if not s.pos_ansicht.isRowHidden(kopf_v.logicalIndex(v))]
+assert sichtbar == erwartet and sichtbar[0] == umsortiert, (sichtbar, erwartet)
+ok("E8 Unterzeilen in Anzeige-Reihenfolge: keine leeren Zeilen, wenn eine umsortierte Gruppe oben steht")
+print("OK: Einzelteile und Vorschläge")

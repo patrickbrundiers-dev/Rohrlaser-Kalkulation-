@@ -7,11 +7,13 @@ lassen sich wie eine Schweißbaugruppe zuklappen. Schweißbaugruppen und ihre Te
 # Tönung 0 … TOENE-1 = Sätze, reihum je Satz eine eigene Farbe (Patrick 04.11.2026: „Farben kommen bei mir nicht an,
 # alle gleiche Farbe“: vorher nur Blau/Violett im Wechsel und so blass, dass es fast weiß aussah);
 # BG = Schweißbaugruppen (Grün, Patrick 03.11.2026).
-FLAECHEN = ("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA", "#E2EAC0", "#CDE8CF")
-TEXTE = ("#1F4E8C", "#8A4300", "#5B2E91", "#0F6359", "#8E2049", "#4F5E10", "#2E6B30")
-NAMEN = ("Blau", "Orange", "Violett", "Türkis", "Rosa", "Oliv", "Grün")
+# EINZEL = Einzelteile ohne Satz und Baugruppe (Grau, Patrick 04.11.2026 „Aufräumen auch für Einzelteile“).
+FLAECHEN = ("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA", "#E2EAC0", "#CDE8CF", "#E1E5EA")
+TEXTE = ("#1F4E8C", "#8A4300", "#5B2E91", "#0F6359", "#8E2049", "#4F5E10", "#2E6B30", "#3B4652")
+NAMEN = ("Blau", "Orange", "Violett", "Türkis", "Rosa", "Oliv", "Grün", "Grau")
 TOENE = 6
 BG = 6
+EINZEL = 7
 ANTEIL = 0.85           # so viel Tönung über der Zellfarbe (Eingabe- und berechnete Zellen bleiben unterscheidbar)
 
 
@@ -65,6 +67,26 @@ def info(positionen, gruppen):
         for k, i in enumerate(ix):
             out[i] = dict(name=n, ton=nr % TOENE, erste=k == 0, letzte=k == len(ix) - 1, teile=len(ix), saetze=menge)
     return out
+
+
+def einzel_laeufe(positionen, folge):
+    """Einzelteile (weder Satz noch Schweißbaugruppe) in Anzeige-Reihenfolge folge, zusammenhängend: [[Indizes]].
+    Jeder Lauf bekommt ein Kopfband „Einzelteile“ (Patrick 04.11.2026, F1a ein Band, F3a Reihenfolge bleibt: stehen
+    Einzelteile zwischen zwei Sätzen, hat jeder Abschnitt sein Band). Ohne Sätze und Baugruppen: [] (eine schlichte
+    Liste braucht kein Band)."""
+    aus = ausgenommen(positionen)
+    gruppe = aus | {i for i, p in enumerate(positionen) if name(p)}
+    if not gruppe:
+        return []
+    out, lauf = [], []
+    for i in folge:
+        if i in gruppe:
+            if lauf:
+                out.append(lauf)
+            lauf = []
+        else:
+            lauf.append(i)
+    return out + ([lauf] if lauf else [])
 
 
 def kopf_texte(gruppen, zu=()):
@@ -180,14 +202,20 @@ def _zahl(w, stellen):
     return zahl_als_text(round(float(w), stellen), stellen)
 
 
-def kopf_baender(positionen, zeilen=None, satz_zu=(), bg_zu=(), flaeche=None):
+def kopf_baender(positionen, zeilen=None, satz_zu=(), bg_zu=(), flaeche=None, einzel=(), einzel_zu=(),
+                 vorschlaege=None, k=None):
     """Kopfband über der ersten Zeile jedes Satzes und jeder Schweißbaugruppe: {Index: dict(titel, info, flaeche,
     text, art, name)}. zeilen = rechnen.kalkulation-Zeilen (gleiche Reihenfolge, für die Preise; None = ohne Preise),
     satz_zu / bg_zu = zugeklappte Sätze (Namen) bzw. Baugruppen (IDs), flaeche = {Satz: satz_flaeche.mengen}.
 
     Satz:        ▾ Regal R1   5 Sätze · 4 Positionen · 16 Teile je Satz · 2,65 m² · 61,8 kg je Satz · 142,30 € je
                  Satz · 711,50 € gesamt
-    Baugruppe:   ▾ ⚙ Gestell G1   2 Stk. · 4 Einzelteile · 15,75 € je Stück · 31,50 € gesamt (mit Einzelteilen)"""
+    Baugruppe:   ▾ ⚙ Gestell G1   2 Stk. · 4 Einzelteile · 15,75 € je Stück · 31,50 € gesamt (mit Einzelteilen)
+    Einzelteile: ▾ Einzelteile   10 Positionen · 302 Stk. · 412,0 kg · 1.024,50 € gesamt · 6 Vorschläge offen
+
+    einzel = Läufe der Einzelteile (einzel_laeufe), einzel_zu = IDs der ersten Position zugeklappter Läufe,
+    vorschlaege = offene Vorschläge je Index (Liste je Position), k = Kontext für das Gewicht. Zugeklappt: zu=True
+    (die Zeile zeigt nur noch das Band)."""
     from . import baugruppe
     zeilen = zeilen or [None] * len(positionen)
     flaeche = flaeche or {}
@@ -215,7 +243,8 @@ def kopf_baender(positionen, zeilen=None, satz_zu=(), bg_zu=(), flaeche=None):
             teile += [f"{_eur(je_satz)} je Satz", f"{_eur(gesamt)} gesamt"]
         ton = nr % TOENE
         out[ix[0]] = dict(titel=("▸ " if n in satz_zu else "▾ ") + n, info=" · ".join(t for t in teile if t),
-                          flaeche=FLAECHEN[ton], text=TEXTE[ton], art="satz", name=n)
+                          flaeche=FLAECHEN[ton], text=TEXTE[ton], art="satz", name=n,
+                          zu=n in satz_zu and len(ix) > 1)
     for bg_id, (i, _) in baugruppe.baugruppen(positionen).items():
         ix = baugruppe.teile(positionen, bg_id)
         n = baugruppe.name(positionen[i])
@@ -228,5 +257,35 @@ def kopf_baender(positionen, zeilen=None, satz_zu=(), bg_zu=(), flaeche=None):
                 teile.append(f"{_eur(gesamt / stk)} je Stück")
             teile.append(f"{_eur(gesamt)} gesamt (mit Einzelteilen)")
         out[i] = dict(titel=("▸ " if bg_id in bg_zu else "▾ ") + "⚙ " + n, info=" · ".join(t for t in teile if t),
-                      flaeche=FLAECHEN[BG], text=TEXTE[BG], art="bg", name=n, bg_id=bg_id)
+                      flaeche=FLAECHEN[BG], text=TEXTE[BG], art="bg", name=n, bg_id=bg_id, zu=bg_id in bg_zu)
+    for ix in einzel or ():
+        out[ix[0]] = einzel_band(positionen, ix, zeilen, positionen[ix[0]].get("id") in einzel_zu, vorschlaege, k)
     return out
+
+
+def einzel_band(positionen, ix, zeilen=None, zu=False, vorschlaege=None, k=None):
+    """Kopfband eines Abschnitts Einzelteile: Positionen, Stück, Gewicht, € gesamt, offene Vorschläge."""
+    from . import rechnen
+    zeilen = zeilen or [None] * len(positionen)
+
+    def zahl(w):
+        return isinstance(w, (int, float)) and not isinstance(w, bool)
+
+    stk = sum(float(positionen[i]["stueck"]) for i in ix if zahl(positionen[i].get("stueck")))
+    teile = [f"{len(ix)} {'Position' if len(ix) == 1 else 'Positionen'}", f"{_zahl(stk, 0)} Stk." if stk else ""]
+    if k is not None:
+        kg = 0.0
+        for i in ix:
+            g = rechnen.zusatz_menge_auto("€/kg", positionen[i], k)
+            if zahl(g) and zahl(positionen[i].get("stueck")):
+                kg += g * positionen[i]["stueck"]
+        if kg:
+            teile.append(f"{_zahl(kg, 1)} kg")
+    if all(i < len(zeilen) and zeilen[i] for i in ix):
+        teile.append(f"{_eur(sum(float(zeilen[i].get('preis_position') or 0) for i in ix))} gesamt")
+    n = sum(len(vorschlaege[i]) for i in ix if i < len(vorschlaege)) if vorschlaege else 0
+    if n:
+        teile.append(f"{n} {'Vorschlag' if n == 1 else 'Vorschläge'} offen")
+    return dict(titel=("▸ " if zu else "▾ ") + "Einzelteile", info=" · ".join(t for t in teile if t),
+                flaeche=FLAECHEN[EINZEL], text=TEXTE[EINZEL], art="einzel", name="Einzelteile",
+                id=positionen[ix[0]].get("id"), zu=bool(zu) and len(ix) > 1)
