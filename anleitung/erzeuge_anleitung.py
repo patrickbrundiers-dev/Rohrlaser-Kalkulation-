@@ -1307,7 +1307,8 @@ def kapitel_angebot(i):
                      "Zusatzarbeiten (zum Eintippen neuer Positionen)"],
         ["Prüfen", "Zusatzarbeiten, Schneidweg, Einstiche, Bohrungen, Gewinde, Schweißnaht, Anbauteile und die "
                    "STEP-Werte Anfangs-/Endschnitt, Innenkonturen, Gravur, Abweichung (leere bleiben weg)"],
-        ["Preis", "Schneid- und Programmierzeit, Materialpreis, EK Blech, Zukaufteile, Gewicht je Teil"]])
+        ["Preis", "Schneid- und Programmierzeit, Materialpreis, EK Blech, Zukaufteile, Gewicht je Teil"]],
+        [25, 145])
     i.text("Pos., Status, Artikelnummer, Bezeichnung und Stückzahl stehen in jeder Ansicht, bei Sätzen auch "
            "<i>Stück je Satz</i>. Was unter <b>Weitere Spalten</b> fest ein- oder ausgeschaltet ist, gilt in jeder "
            "Ansicht zusätzlich; <i>Automatisch: Spalten mit Werten zeigen</i> nimmt das zurück.")
