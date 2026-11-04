@@ -4443,9 +4443,11 @@ def auswertung_zeilen(ergebnis, sw):
     """Auswertung je Gruppe mit Materialbedarf, Teilelänge und Verschnitt [m].
     sw = stangen_werte(...)"""
     out = []
+    je_gruppe = {}          # Stangen je Gruppe einmal einteilen statt je Auswertungszeile alle (Plan A2, 04.11.2026)
+    for s, w in zip(ergebnis["stangen"], sw):
+        je_gruppe.setdefault(gruppe_der_stange(s), []).append((s, w))
     for a in ergebnis["auswertung"]:
-        st_g = [(s, w) for s, w in zip(ergebnis["stangen"], sw)
-                if gruppe_der_stange(s) == gruppe_der_stange(a)]
+        st_g = je_gruppe.get(gruppe_der_stange(a), [])
         bedarf = sum(s["stange"] for s, _ in st_g) / 1000
         laenge = sum(w["summe"] for _, w in st_g) / 1000
         out.append(dict(a, bedarf=bedarf, laenge=laenge, verschnitt=bedarf - laenge,

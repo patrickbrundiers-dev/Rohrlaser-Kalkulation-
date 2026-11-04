@@ -2152,10 +2152,42 @@ class Hauptfenster(QMainWindow):
             self.preis_uhr = QTimer(self)
             self.preis_uhr.timeout.connect(self.preiswaechter)
             self.preis_uhr.start(600_000)
+            self.tempo_starten()
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
                                                                                   "Mehr unter Hilfe → Lizenz …"))
+
+    def tempo_starten(self):
+        """Zeitwächter (Optimierungsplan 04.11.2026, A3): Blockaden über 0,5 s in Daten/Protokoll/tempo.log."""
+        from . import tempo
+        try:
+            self.tempo = tempo.Waechter(Path(self.db.pfad).parent / "Protokoll", kontext=self.tempo_ort)
+            self.tempo.starten()
+        except Exception:           # noqa: BLE001 – der Wächter ist Zusatz, der Start geht immer vor
+            self.tempo = None
+
+    def tempo_ort(self):
+        """Ort für den Zeitwächter: 'Angebote › Angebot 2026-00002 (50 Pos., 678 Teile) › Positionen'."""
+        from PySide6.QtWidgets import QTabWidget
+        r = self.reiter
+        teile = [r.tabText(r.currentIndex())]
+        w = r.currentWidget()
+        seite = next((s for s in self.offen.values() if s is w), None)
+        if seite is not None:
+            pos = getattr(seite, "positionen", None) or []
+            stueck = sum(int(p.get("stueck") or 0) for p in pos)
+            teile[-1] += f" ({len(pos)} Pos., {stueck} Teile)"
+        for _ in range(3):          # sichtbare Unterreiter
+            unter = next((c for c in w.findChildren(QTabWidget) if c.isVisible()), None) if w is not None else None
+            if unter is None or unter.count() == 0:
+                break
+            teile.append(unter.tabText(unter.currentIndex()))
+            w = unter.currentWidget()
+        aktiv = QApplication.activeModalWidget()
+        if aktiv is not None and aktiv.windowTitle():
+            teile.append(f"Fenster „{aktiv.windowTitle()}“")
+        return " › ".join(t for t in teile if t)
 
     def sicherung_beobachten(self, lauf):
         """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): bei Fehler eine Meldung."""
@@ -3005,6 +3037,8 @@ class Hauptfenster(QMainWindow):
                     "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
                 ereignis.ignore()
                 return
+        if getattr(self, "tempo", None) is not None:
+            self.tempo.stoppen()
         super().closeEvent(ereignis)
 
     def datenort_text(self):

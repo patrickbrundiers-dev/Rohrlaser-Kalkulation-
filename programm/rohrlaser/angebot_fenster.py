@@ -138,17 +138,22 @@ class Liste(QAbstractTableModel):
         z = self.zeilen[r]
         return schl(z) if callable(schl) else z.get(schl)
 
+    def text(self, r, c, w=None, anzeige=True):
+        """Angezeigter Text der Zelle (wie data mit DisplayRole, ohne QModelIndex; anzeige=False = Tooltip)."""
+        w = self.wert(r, c) if w is None else w
+        stellen = self.spalten[c][2]
+        if isinstance(w, datetime.datetime):
+            return w.strftime("%d.%m.%Y %H:%M")
+        if stellen is not None and self.max_stellen is not None and anzeige:
+            stellen = min(stellen, self.max_stellen)
+        return _z(w, stellen) if stellen is not None else ("" if w is None else str(w))
+
     def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or rolle not in LISTE_ROLLEN:     # andere Rollen fragt Qt oft ab, Antwort immer None
             return None
         w = self.wert(index.row(), index.column())
-        stellen = self.spalten[index.column()][2]
         if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
-            if isinstance(w, datetime.datetime):
-                return w.strftime("%d.%m.%Y %H:%M")
-            if stellen is not None and self.max_stellen is not None and rolle == Qt.ItemDataRole.DisplayRole:
-                stellen = min(stellen, self.max_stellen)
-            return _z(w, stellen) if stellen is not None else ("" if w is None else str(w))
+            return self.text(index.row(), index.column(), w, rolle == Qt.ItemDataRole.DisplayRole)
         if rolle == Qt.ItemDataRole.UserRole:
             return w
         if rolle == Qt.ItemDataRole.TextAlignmentRole and isinstance(w, (int, float)) and not isinstance(w, bool):
@@ -193,7 +198,7 @@ def gleiche_ausblenden(ansicht, liste, schluessel):
     for c, sp in enumerate(liste.spalten):
         if sp[1] not in schluessel:
             continue
-        werte = {liste.data(liste.index(r, c)) for r in range(len(liste.zeilen))}
+        werte = {liste.text(r, c) for r in range(len(liste.zeilen))}       # ohne QModelIndex (Plan A2)
         gleich = len(liste.zeilen) > 1 and len(werte) == 1
         ansicht.setColumnHidden(c, gleich)
         if gleich:

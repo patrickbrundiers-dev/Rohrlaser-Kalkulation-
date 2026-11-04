@@ -1008,8 +1008,10 @@ class KopfBereich(QWidget):
                              else "")
         betrag = fracht_angebot.wirksam(s.kopf)
         d = fracht_angebot.daten(s.kopf) or {}
+        # Werte je Position nur, wenn sie gebraucht werden: automatische Fracht oder ein Betrag zum Verteilen (der
+        # Hinweis „Gewicht fehlt“ kommt nur mit Betrag); ohne Fracht sparte das bei jeder Änderung (Plan A2, 04.11.2026)
         werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if position_aktiv(p) else None
-                 for p in s.positionen]
+                 for p in s.positionen] if an or betrag else None
         if an:
             b, info, fehler = fracht_angebot.betrag_angebot(s.kopf, s.positionen, werte)
             betrag = b or 0
@@ -1034,7 +1036,7 @@ class KopfBereich(QWidget):
                     if betrag else "Keine Frachtkosten eingetragen.")
         else:
             text = f"{m}: 0 € in der Kalkulation, Hinweis im Angebot."
-        _, hinweis, _ = fracht_angebot.anteile(s.positionen, werte, betrag, u)
+        hinweis = fracht_angebot.anteile(s.positionen, werte, betrag, u)[1] if werte is not None and betrag else ""
         if hinweis:
             text += f"<br><span style='color:#7A5A00'>{hinweis}.</span>"
         self.fracht_text.setText(text)
