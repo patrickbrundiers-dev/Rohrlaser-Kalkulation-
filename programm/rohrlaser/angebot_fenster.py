@@ -1100,8 +1100,8 @@ class PositionenModell(QAbstractTableModel):
         art, x = self.spalten[index.column()]
         if art == "feld" and x.name == "satz" and s.get("bg"):
             # Schweißbaugruppe (Patrick 03.11.2026): grün, an der Baugruppe ⚙ Name und Anzahl
-            if rolle == Qt.ItemDataRole.DisplayRole:
-                return satzgruppen.bg_zelltext(s, s["zu"])
+            if rolle == Qt.ItemDataRole.DisplayRole:         # Name steht im Kopfband (04.11.2026, F3a)
+                return ""
             if rolle == Qt.ItemDataRole.ForegroundRole:
                 return QBrush(stil.farbe(satzgruppen.TEXTE[s["ton"]] if s["erste"] else "#5F6B7A"))
             if rolle == Qt.ItemDataRole.FontRole and s["erste"]:
@@ -1114,8 +1114,8 @@ class PositionenModell(QAbstractTableModel):
                         + (".\nKlick auf ▾/▸ im Zeilenkopf: Einzelteile zu- bzw. aufklappen." if s["teile"] else ".")
                         + self._satz_flaeche_tipp(s["name"]))
         elif art == "feld" and x.name == "satz":
-            if rolle == Qt.ItemDataRole.DisplayRole:
-                return satzgruppen.zelltext(s, s["name"] in self.satz_zu)
+            if rolle == Qt.ItemDataRole.DisplayRole:         # Name steht im Kopfband (04.11.2026, F3a)
+                return ""
             if rolle == Qt.ItemDataRole.ForegroundRole:
                 return QBrush(stil.farbe(satzgruppen.TEXTE[s["ton"]] if s["erste"] else "#5F6B7A"))
             if rolle == Qt.ItemDataRole.FontRole and s["erste"]:
@@ -2199,8 +2199,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.unter_texte = {}            # Index der Position -> [(Text, Warnung)] (unterzeilen.schritte)
         unter_an = self.db.einstellung(unterzeilen.EINSTELLUNG) is not False
         artikel = next(c for c in range(len(self.pos_modell.spalten)) if self.pos_modell.name(c) == "artikel")
+        self.kopf_baender = {}           # Index der Position -> Kopfband des Satzes/der Baugruppe (04.11.2026)
         self.pos_unter = Unterzeilen(self.pos_ansicht, lambda r: self.unter_texte.get(r, ()), artikel,
-                                     lambda r: r < len(self.positionen) and self.zusatzarbeiten([r]), unter_an)
+                                     lambda r: r < len(self.positionen) and self.zusatzarbeiten([r]), unter_an,
+                                     kopf=self.kopf_baender.get, kopf_klick=self.band_klick)
         self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
         self.pos_ansicht.verticalHeader().setToolTip("Klick auf ▾/▸ einer Schweißbaugruppe bzw. eines Satzes: "
                                                      "Einzelteile bzw. Positionen des Satzes zu- bzw. aufklappen. "
@@ -2229,7 +2231,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kompakt_ansicht = _tabelle(self.kompakt)
         _breiten(self.kompakt_ansicht, KOMPAKT_SPALTEN)
         self.kompakt_ansicht.setItemDelegate(UnterzeilenDelegat(self.kompakt_ansicht))
-        self.kompakt_unter = Unterzeilen(self.kompakt_ansicht, self._kompakt_unter_texte, 1, an=unter_an)
+        self.kompakt_unter = Unterzeilen(self.kompakt_ansicht, self._kompakt_unter_texte, 1, an=unter_an,
+                                         kopf=lambda r: self.kopf_baender.get(self._kompakt_position(r)),
+                                         kopf_klick=self._kompakt_band_klick)
         self.kompakt_ansicht.setToolTip("Doppelklick: zur Position")
         self.kompakt_ansicht.doubleClicked.connect(self._kompakt_doppelklick)
         for ansicht, liste in ((self.kompakt_ansicht, self.kompakt), (kalk_ansicht, self.kalk)):
@@ -2766,6 +2770,63 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if liste.zeilen:
                 liste.headerDataChanged.emit(Qt.Vertical, 0, len(liste.zeilen) - 1)
 
+    # ------------------------------------------------------- Kopfbänder je Satz und Baugruppe (04.11.2026)
+    def _baender_setzen(self):
+        """Kopfbänder neu (nach Rechnen und nach Zu-/Aufklappen): Titel, Summen, Farbe je Satz."""
+        self.kopf_baender.clear()
+        self.kopf_baender.update(satzgruppen.kopf_baender(
+            self.positionen, getattr(self, "_band_zeilen", None), self.satz_zu, self.bg_zu,
+            getattr(self.pos_modell, "satz_flaeche", None)))
+        for u in (getattr(self, "pos_unter", None), getattr(self, "kompakt_unter", None)):
+            if u is not None:
+                u.aktualisieren()
+
+    def band_zeilen(self, zeile):
+        """Alle Positionen, für die das Kopfband der Zeile steht (Satz bzw. Baugruppe mit Einzelteilen)."""
+        k = self.kopf_baender.get(zeile)
+        if not k:
+            return []
+        if k["art"] == "bg":
+            return [zeile] + baugruppe.teile(self.positionen, k["bg_id"])
+        return satz_menge.satz_positionen(self.positionen, k["name"])
+
+    def band_klick(self, zeile, art, x=99):
+        """Klick auf das Kopfband: ▾/▸ klappt zu bzw. auf, sonst werden alle Positionen des Satzes markiert (dann
+        wirken Zusatzarbeiten …, Stückzahl ändern usw. auf den ganzen Satz); Doppelklick öffnet „Satz bearbeiten“
+        bzw. den Baugruppen-Editor; Rechtsklick markiert und öffnet das Menü."""
+        k = self.kopf_baender.get(zeile)
+        if not k:
+            return
+        if art == "klick" and x < 30:
+            self._kopf_klick(zeile)
+            return
+        if art == "doppel":
+            if k["art"] == "bg":
+                self.baugruppe_bearbeiten([zeile])
+            else:
+                self.satz_bearbeiten(satz=k["name"])
+            return
+        sm = self.pos_ansicht.selectionModel()
+        sm.clearSelection()
+        for r in self.band_zeilen(zeile):
+            sm.select(self.pos_modell.index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        sm.setCurrentIndex(self.pos_modell.index(zeile, 0), QItemSelectionModel.NoUpdate)
+
+    def _kompakt_position(self, r):
+        modell = self.kompakt_ansicht.model()
+        q = modell.mapToSource(modell.index(r, 0)).row() if hasattr(modell, "mapToSource") else r
+        z = self.kompakt.zeilen[q] if 0 <= q < len(self.kompakt.zeilen) else None
+        return z.get("zeile") if isinstance(z, dict) else None
+
+    def _kompakt_band_klick(self, r, art, x=99):
+        zeile = self._kompakt_position(r)
+        if zeile is None:
+            return
+        if art == "klick" and x < 30:
+            self._kopf_klick(zeile)
+        elif art == "doppel":
+            self.zur_position(zeile=zeile)
+
     def _kalk_kopf_klick(self, ansicht, liste, r):
         modell = ansicht.model()
         q = modell.mapToSource(modell.index(r, 0)).row() if hasattr(modell, "mapToSource") else r
@@ -2784,6 +2845,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.satz_zu ^= {satz}
             self._gruppieren()
             self._gruppen_merken()
+        if bg_id or satz:
+            self._baender_setzen()
 
     def _baugruppen_abgleichen(self):
         """Satz, Stück je Satz und Stückzahl der Schweißbaugruppen und ihrer Teile folgen der Struktur
@@ -3381,6 +3444,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         katalog = self.tabellen.get("zusatzarbeiten") or ()
         self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) for i, (p, z) in enumerate(zip(self.positionen,
                                                                                                    zeilen))}
+        self._band_zeilen = list(zeilen)
+        self._baender_setzen()
+        self.kompakt_ansicht.setColumnHidden(next(c for c, sp in enumerate(KOMPAKT_SPALTEN) if sp[1] == "satz"), True)
         self.pos_unter.aktualisieren()
         self.kompakt_unter.aktualisieren()
         leere_ausblenden(self.kompakt_ansicht, self.kompakt, KOMPAKT_IMMER)
@@ -4331,6 +4397,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 alle = [i for i, _ in satz_menge.zusatz_positionen(self.positionen, satz)]
                 if alle:
                     return alle, satz
+        # alle Positionen eines Satzes markiert (Klick auf das Kopfband, 04.11.2026): Fenster für den ganzen Satz
+        satz = satz_menge.von(self.positionen[zeilen[0]], self.positionen) if zeilen else ""
+        if satz and len(zeilen) > 1:
+            alle = [i for i, _ in satz_menge.zusatz_positionen(self.positionen, satz)]
+            if set(zeilen) - {i for i in zeilen if ist_baugruppe(self.positionen[i])} == set(alle):
+                return alle, satz
         return zeilen, None
 
     def zusatzarbeiten(self, zeilen=None, werte=None, satz=None):

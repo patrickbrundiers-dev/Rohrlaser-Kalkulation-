@@ -1,13 +1,17 @@
 """Sätze in Positionsliste und Kalkulation abheben (Patrick 27.10.2026): die Positionen eines Satzes stehen
-zusammen, haben je Satz eine eigene Tönung (abwechselnd Blau und Violett), am Zeilenkopf eine Klammer (▾ │ └) und
+zusammen, haben je Satz eine eigene Tönung (reihum sechs Farben, 04.11.2026), am Zeilenkopf eine Klammer (▾ │ └) und
 lassen sich wie eine Schweißbaugruppe zuklappen. Schweißbaugruppen und ihre Teile haben ihre eigene Gruppierung
 (baugruppe.gruppen_reihenfolge) und bleiben hier außen vor. Nur die Anzeige; Rechnung und PDF bleiben unverändert."""
 
-# Farben im Theme „Hell“ (Dunkel über stil.UMSETZUNG): Fläche der Zeilen und Schrift des Satznamens je Tönung;
-# Tönung 0/1 = Sätze (Blau/Violett abwechselnd), BG = Schweißbaugruppen (Grün, Patrick 03.11.2026)
-FLAECHEN = ("#E4EEFA", "#EEE6F7", "#E2F2E4")
-TEXTE = ("#285F9E", "#6E3FA3", "#2E6B30")
-BG = 2
+# Farben im Theme „Hell“ (Dunkel über stil.UMSETZUNG): Fläche der Zeilen und Schrift des Satznamens je Tönung.
+# Tönung 0 … TOENE-1 = Sätze, reihum je Satz eine eigene Farbe (Patrick 04.11.2026: „Farben kommen bei mir nicht an,
+# alle gleiche Farbe“: vorher nur Blau/Violett im Wechsel und so blass, dass es fast weiß aussah);
+# BG = Schweißbaugruppen (Grün, Patrick 03.11.2026).
+FLAECHEN = ("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA", "#E2EAC0", "#CDE8CF")
+TEXTE = ("#1F4E8C", "#8A4300", "#5B2E91", "#0F6359", "#8E2049", "#4F5E10", "#2E6B30")
+NAMEN = ("Blau", "Orange", "Violett", "Türkis", "Rosa", "Oliv", "Grün")
+TOENE = 6
+BG = 6
 ANTEIL = 0.85           # so viel Tönung über der Zellfarbe (Eingabe- und berechnete Zellen bleiben unterscheidbar)
 
 
@@ -54,12 +58,12 @@ def anzahl_saetze(p):
 
 
 def info(positionen, gruppen):
-    """{Index: dict(name, ton, erste, letzte, teile, saetze)} je Position eines Satzes; ton 0/1 wechselt je Satz."""
+    """{Index: dict(name, ton, erste, letzte, teile, saetze)} je Position eines Satzes; ton 0 … TOENE-1 reihum je Satz."""
     out = {}
     for nr, (n, ix) in enumerate(gruppen.items()):
         menge = anzahl_saetze(positionen[ix[0]])
         for k, i in enumerate(ix):
-            out[i] = dict(name=n, ton=nr % 2, erste=k == 0, letzte=k == len(ix) - 1, teile=len(ix), saetze=menge)
+            out[i] = dict(name=n, ton=nr % TOENE, erste=k == 0, letzte=k == len(ix) - 1, teile=len(ix), saetze=menge)
     return out
 
 
@@ -137,11 +141,11 @@ def mischen(unten, oben, anteil=ANTEIL):
 
 def zeilen_markieren(positionen, zeilen):
     """Kalkulationszeilen (gleiche Reihenfolge wie positionen) mit Satz und Tönung ergänzen: Schlüssel 'satz',
-    'satz_ton' (0/1 Satz, BG Schweißbaugruppe, None sonst) und 'zeile' (Index der Position). Die Zeile einer
+    'satz_ton' (0 … TOENE-1 Satz, BG Schweißbaugruppe, None sonst) und 'zeile' (Index der Position). Die Zeile einer
     Schweißbaugruppe zeigt „⚙ Name“, ihre Einzelteile den Namen der Baugruppe (Patrick 03.11.2026). Zeilen ohne
     Kalkulation (None) bleiben None."""
     gruppen = saetze(positionen, ausgenommen(positionen))
-    ton = {n: nr % 2 for nr, n in enumerate(gruppen)}
+    ton = {n: nr % TOENE for nr, n in enumerate(gruppen)}
     in_satz = {i for ix in gruppen.values() for i in ix}
     bgi = bg_info(positionen)
     out = []
@@ -163,3 +167,66 @@ def anzeige_folge(positionen):
     """Indizes in der Reihenfolge der Positionsliste (Baugruppe mit Einzelteilen, Sätze zusammen)."""
     from . import reihenfolge
     return reihenfolge.anzeige(positionen)
+
+
+# ------------------------------------------------------------------ Kopfband je Satz (Patrick 04.11.2026)
+def _eur(w):
+    from .stammdaten import zahl_als_text
+    return f"{zahl_als_text(float(w), 2)} €"
+
+
+def _zahl(w, stellen):
+    from .stammdaten import zahl_als_text
+    return zahl_als_text(round(float(w), stellen), stellen)
+
+
+def kopf_baender(positionen, zeilen=None, satz_zu=(), bg_zu=(), flaeche=None):
+    """Kopfband über der ersten Zeile jedes Satzes und jeder Schweißbaugruppe: {Index: dict(titel, info, flaeche,
+    text, art, name)}. zeilen = rechnen.kalkulation-Zeilen (gleiche Reihenfolge, für die Preise; None = ohne Preise),
+    satz_zu / bg_zu = zugeklappte Sätze (Namen) bzw. Baugruppen (IDs), flaeche = {Satz: satz_flaeche.mengen}.
+
+    Satz:        ▾ Regal R1   5 Sätze · 4 Positionen · 16 Teile je Satz · 2,65 m² · 61,8 kg je Satz · 142,30 € je
+                 Satz · 711,50 € gesamt
+    Baugruppe:   ▾ ⚙ Gestell G1   2 Stk. · 4 Einzelteile · 15,75 € je Stück · 31,50 € gesamt (mit Einzelteilen)"""
+    from . import baugruppe
+    zeilen = zeilen or [None] * len(positionen)
+    flaeche = flaeche or {}
+
+    def preis(ix, je):
+        if any(not (zeilen[i] if i < len(zeilen) else None) for i in ix):
+            return None, None
+        teil = sum(float(zeilen[i].get("preis_teil") or 0) * je.get(i, 1) for i in ix)
+        return teil, sum(float(zeilen[i].get("preis_position") or 0) for i in ix)
+
+    out = {}
+    gruppen = saetze(positionen, ausgenommen(positionen))
+    for nr, (n, ix) in enumerate(gruppen.items()):
+        from . import satz_menge
+        je = {i: satz_menge.je_satz(positionen[i]) for i in ix}
+        menge = anzahl_saetze(positionen[ix[0]])
+        teile = [f"{menge} {'Satz' if menge == 1 else 'Sätze'}" if menge else "",
+                 f"{len(ix)} {'Position' if len(ix) == 1 else 'Positionen'}",
+                 f"{_zahl(sum(je.values()), 0)} Teile je Satz"]
+        m = flaeche.get(n)
+        if m and (m.get("flaeche") or m.get("gewicht")):
+            teile.append(f"{_zahl(m['flaeche'], 2)} m² · {_zahl(m['gewicht'], 1)} kg je Satz")
+        je_satz, gesamt = preis(ix, je)
+        if je_satz is not None:
+            teile += [f"{_eur(je_satz)} je Satz", f"{_eur(gesamt)} gesamt"]
+        ton = nr % TOENE
+        out[ix[0]] = dict(titel=("▸ " if n in satz_zu else "▾ ") + n, info=" · ".join(t for t in teile if t),
+                          flaeche=FLAECHEN[ton], text=TEXTE[ton], art="satz", name=n)
+    for bg_id, (i, _) in baugruppe.baugruppen(positionen).items():
+        ix = baugruppe.teile(positionen, bg_id)
+        n = baugruppe.name(positionen[i])
+        stk = positionen[i].get("stueck")
+        stk = stk if isinstance(stk, (int, float)) and not isinstance(stk, bool) and stk > 0 else None
+        teile = [f"{_zahl(stk, 0)} Stk." if stk else "", f"{len(ix)} Einzelteile"]
+        _, gesamt = preis([i] + ix, {})
+        if gesamt is not None:
+            if stk:
+                teile.append(f"{_eur(gesamt / stk)} je Stück")
+            teile.append(f"{_eur(gesamt)} gesamt (mit Einzelteilen)")
+        out[i] = dict(titel=("▸ " if bg_id in bg_zu else "▾ ") + "⚙ " + n, info=" · ".join(t for t in teile if t),
+                      flaeche=FLAECHEN[BG], text=TEXTE[BG], art="bg", name=n, bg_id=bg_id)
+    return out

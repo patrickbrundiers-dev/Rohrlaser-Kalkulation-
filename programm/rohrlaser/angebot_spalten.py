@@ -1,6 +1,8 @@
 """Spalten der Ergebnistabellen eines Angebots (Anzeige im Programm und Kalkulation-PDF):
 [(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
+from . import satzgruppen
 from .stammdaten import zahl_als_text
+
 
 def _position(z, schluessel):
     """Betrag je Teil × Stückzahl (leer, wenn der Betrag fehlt)."""
@@ -129,7 +131,7 @@ def kompakt_zeilen(positionen, zeilen):
         netto = z.get("laser_netto")
         stueck = z.get("stueck") or 0
         zukauf = not p.get("profil_id")
-        bg = z.get("satz_ton") == 2 and str(z.get("satz") or "").startswith("⚙")    # Schweißbaugruppe (03.11.2026)
+        bg = z.get("satz_ton") == satzgruppen.BG and str(z.get("satz") or "").startswith("⚙")    # Schweißbaugruppe (03.11.2026)
         out.append(dict(zeile=i, pos=z.get("pos"), artikel=z.get("artikel"), satz=z.get("satz") or "",
                         satz_ton=z.get("satz_ton"),
                         profil=p.get("profil_id") or ("Schweißbaugruppe" if bg else ""),
