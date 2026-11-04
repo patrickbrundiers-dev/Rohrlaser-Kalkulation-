@@ -24,7 +24,8 @@ Rechenweg (alle Werte aus schweiss_regeln, kursiv im Plan):
   Zugänglichkeit     je Nahtgruppe aus der Erreichbarkeit im STEP (zugang_step; nicht erreichbar = schlecht)
   Verputzen          Σ Nahtgruppen Naht [m] × min/m der Nacharbeitsstufe × Faktor Zugänglichkeit × Menge bis zur
                      Baugruppe; Stufe aus Qualität (erhöht = verschleifen, Sichtnaht = bündig) und Oberfläche der
-                     Baugruppe (beschichtet, verzinkt = Spritzer entfernen), sonst keine
+                     Baugruppe (beschichtet, verzinkt = Spritzer entfernen), sonst keine; Außennähte (Stumpf-,
+                     Ecknaht) immer mindestens verschleifen, Kehlnähte (Innenecke) nicht (Patrick 04.11.2026)
 Schritt 2 (Plan Schweißbaugruppen 28.10.2026, Freigabe „Ja alles“):
   Werkstoff          je Nahtgruppe die häufigste Werkstoff-Kategorie der Teile ihrer (Unter-)Baugruppe, wenn nicht
                      Stahl (Faktor Werkstoff der Schweiß-Faktoren auf die Lichtbogenzeit)
@@ -54,6 +55,9 @@ NAHT_FELDER = ("heftpunkte", "nacharbeit", "werkstoff", "zugang")
 EDELSTAHL = "Edelstahl"
 AG_FELDER = ("zeit_min", "ruest_min", "menge")
 MARKEN = tuple(b for b in anbau.BEARBEITUNGEN if b != "keine")       # Gravur, an der ein Teil angelegt wird
+# Außennähte (Stoß in der Fläche, Gehrung über Eck) werden immer verschliffen, Kehlnähte in der Innenecke nicht
+# (Patrick 04.11.2026)
+AUSSEN_NAEHTE = ("Stumpfnaht", "Ecknaht")
 BESCHICHTET = ("pulver", "lack", "beschicht", "verzink", "ktl", "eloxi")
 
 # Richtwerte (Knopf 'Richtwerte laden'): übliche Werkstattwerte zum Start, bitte an die eigene Fertigung anpassen
@@ -340,6 +344,8 @@ def stufe_vorschlag(naht, bg):
         return "bündig planschleifen", "Qualität Sichtnaht"
     if q == "erhöht":
         return "Naht verschleifen", "Qualität erhöht"
+    if naht.get("nahtart") in AUSSEN_NAEHTE:
+        return "Naht verschleifen", f"{naht['nahtart']} liegt außen in der Fläche (Kehlnaht innen: nicht schleifbar)"
     ob = str((bg.get("stamm") or {}).get("oberflaeche") or "").lower()
     if any(w in ob for w in BESCHICHTET):
         return "Spritzer entfernen", f"Oberfläche {bg['stamm'].get('oberflaeche')}"

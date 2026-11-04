@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.255", "<b>Einzelteile aufgeräumt</b> ([[saetze_abheben]]): Einzelteile stehen unter einem grauen Band "
+    ["0.9.256", "<b>Einzelteile aufgeräumt</b> ([[saetze_abheben]]): Einzelteile stehen unter einem grauen Band "
      "<i>Einzelteile</i> mit Positionen, Stück, Gewicht, Preis und offenen Vorschlägen; zugeklappte Sätze, Baugruppen "
      "und Einzelteile sind nur noch das Band, der Status zeigt nur sein Symbol, der Zeilenkopf keine zweite Nummer. "
      "<b>Vorschläge für alle Teile</b> ([[zusatz_erkennen]]): der gelbe Knopf übernimmt oder lehnt jede "
@@ -30,6 +30,13 @@ NEUERUNGEN = [
      "entfernen, auch Gewinde; offene Gewinde, Senkungen und Flowdrill aus der STEP bestätigen oder ablehnen, einzeln "
      "oder für alle Teile.",
      "Einzelteile mit Band; Zusatzarbeiten, Gewinde und Bohrungen für alle Teile bestätigen oder ablehnen"],
+    ["0.9.255", "<b>Schweißbaugruppen</b> ([[vorkalkulation_baugruppe]]): Außennähte (Stumpf- und Ecknaht) bekommen "
+     "in der Vorkalkulation immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht. Scheitert "
+     "die STEP-Messung an einem Teilepaar, bleiben die übrigen Nahtkandidaten erhalten (vorher gingen alle verloren, "
+     "auch bei Unterbaugruppen), mit Hinweis <i>Nahtkandidaten unvollständig</i>. Gleiche Teile in mehreren "
+     "Unterbaugruppen bekommen beim STEP-Import je Unterbaugruppe eine eigene Position, statt alle direkt an der "
+     "Baugruppe zu hängen.",
+     "Außennähte immer verschleifen; gleiche Teile je Unterbaugruppe eine Position; Nahtkandidaten robuster"],
     ["0.9.254", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
      "Kantteile (z. B. Winkel 40 × 40 × 8 mit Biegeradius) wurden als Frästeil erkannt, die Biegeradien zählten sogar "
      "als Bohrungen. Jetzt entscheidet eine zentrale Regelliste die Art und nennt den Grund in der Hinweisspalte; ein "

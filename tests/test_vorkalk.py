@@ -103,6 +103,18 @@ assert vorkalk.offen(bg) == 7          # 2 × Heftpunkte, 2 × Nacharbeit, 3 Arb
 assert not erg["richtwert"]
 ok("V1b Plan-Beispiel: Rüsten 18 min, Positionieren 6,8 min, Heften 3/5, Verputzen 1,92 min")
 
+# Außennähte immer verschleifen, Kehlnaht (Innenecke) nicht (Patrick 04.11.2026)
+roh = dict(stamm={})
+for art in ("Stumpfnaht", "Ecknaht"):
+    st, grund = vorkalk.stufe_vorschlag(dict(nahtart=art), roh)
+    assert st == "Naht verschleifen" and "außen" in grund, (art, st, grund)
+    assert vorkalk.stufe_vorschlag(dict(nahtart=art), dict(stamm=dict(oberflaeche="pulver")))[0] == "Naht verschleifen"
+    assert vorkalk.stufe_vorschlag(dict(nahtart=art, qualitaet="Sichtnaht"), roh)[0] == "bündig planschleifen"
+assert vorkalk.stufe_vorschlag(dict(nahtart="Kehlnaht"), roh)[0] == "keine"
+assert vorkalk.stufe_vorschlag(dict(nahtart="Kehlnaht"), dict(stamm=dict(oberflaeche="verzinkt")))[0] == \
+    "Spritzer entfernen"
+ok("V1b2 Nacharbeit: Stumpf- und Ecknaht immer verschleifen (Sichtnaht bündig), Kehlnaht innen nicht")
+
 # ------------------------------------------------------------------ V1c ohne Steckverbindung und Gravur
 pos0 = gestell(steck=False, gravur=False)
 erg0 = vorkalk.vorkalkulieren(pos0[0], pos0, tab)
