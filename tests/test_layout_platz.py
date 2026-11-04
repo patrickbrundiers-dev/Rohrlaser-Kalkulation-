@@ -93,6 +93,9 @@ ok("B4 Knopf Gruppen kurz")
 s.weitere.menu().aboutToShow.emit()
 assert not s.check_aktion.isVisible()
 ok("B4 Angebots-Check nicht doppelt im Menü Ausgaben, solange die Übersicht offen ist")
+assert "Arbeitsgänge vorschlagen …" not in s.pos_aktionen
+assert any(a.text() == "Arbeitsgänge vorschlagen …" for a in s.weitere.menu().actions())
+ok("B4 Arbeitsgänge vorschlagen nur noch im Menü Ausgaben, nicht im Rechtsklick")
 
 # ------------------------------------------------------------------ B2 Übersicht ausblenden
 breit = v.width()

@@ -1293,7 +1293,8 @@ def kapitel_angebot(i):
             "<b>Nichts doppelt</b>: Meldungen stehen nur in der Einblendung (und unter <i>Meldungen</i>), nicht "
             "zusätzlich in der Statuszeile. Der grüne Kasten <i>Optimierung abgeschlossen</i> entfällt, das zeigt die "
             "Schrittanzeige; gelb oder rot erscheint er weiter. <i>Angebots-Check …</i> steht im Menü Ausgaben nur, "
-            "wenn die Übersicht eingeklappt ist.")
+            "wenn die Übersicht eingeklappt ist. <i>Arbeitsgänge vorschlagen …</i> steht nicht mehr im Rechtsklick: "
+            "offene Vorschläge zeigt der gelbe Knopf in der Knopfleiste, das ganze Fenster öffnet das Menü Ausgaben.")
     i.abschnitt("Angebotskopf", marke="angebotskopf")
     i.schritte([
         ("angebot_positionen", "<b>Kunde</b> aus der Liste wählen: Name und Zahlungsbedingungen kommen aus dem "
@@ -1955,7 +1956,7 @@ def kapitel_angebot(i):
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
     i.abschnitt("Arbeitsgänge vorschlagen", marke="arbeitsgaenge")
-    i.text("<i>Weitere ▾</i> bzw. Rechtsklick → <b>Arbeitsgänge vorschlagen …</b> öffnet das Fenster "
+    i.text("<i>Ausgaben ▾</i> → <b>Arbeitsgänge vorschlagen …</b> (oder Strg+K) öffnet das Fenster "
            "<b>Arbeitsgänge je Position</b>: was das Angebot schon rechnet und was Ihre Regeln zusätzlich "
            "vorschlagen. Ein Vorschlag kostet nichts, bis er angenommen ist.", kurz=True)
     i.liste("Je Zeile Arbeitsgang, Menge je Teil, Zeit je Teil, € je Teil, Kostenart (Fertigung, Fremdleistung, "
