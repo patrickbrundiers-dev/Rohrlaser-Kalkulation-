@@ -12,11 +12,10 @@ from . import rechnen, satz_menge
 
 def mengen(positionen, satz, k):
     """{flaeche, gewicht (je Satz), saetze, flaeche_alle, gewicht_alle, ohne_flaeche, ohne_gewicht (Pos.-Nummern)}
-    des Satzes (Positionen wie satz_menge.satz_positionen, ohne Schweißbaugruppen und ihre Teile)."""
+    des Satzes (Teile wie satz_menge.zusatz_positionen: Schweißbaugruppen im Satz mit ihren Einzelteilen, 04.11.2026)."""
     fl, kg, ohne_f, ohne_g = 0.0, 0.0, [], []
-    for i in satz_menge.satz_positionen(positionen, satz):
+    for i, n in satz_menge.zusatz_positionen(positionen, satz):
         p = positionen[i]
-        n = satz_menge.je_satz(p)
         m2 = rechnen.zusatz_menge_auto("€/m²", p, k) if k is not None else None
         g = rechnen.zusatz_menge_auto("€/kg", p, k) if k is not None else None
         if isinstance(m2, (int, float)) and m2 > 0:
@@ -27,9 +26,19 @@ def mengen(positionen, satz, k):
             kg += g * n
         else:
             ohne_g.append(p.get("pos"))
-    saetze = satz_menge.anzahl(positionen, satz) or 0
+    saetze = satz_menge.anzahl(positionen, satz) or _bg_saetze(positionen, satz) or 0
     return dict(flaeche=fl, gewicht=kg, saetze=saetze, flaeche_alle=fl * saetze, gewicht_alle=kg * saetze,
                 ohne_flaeche=ohne_f, ohne_gewicht=ohne_g)
+
+
+def _bg_saetze(positionen, satz):
+    """Anzahl Sätze aus den Schweißbaugruppen des Satzes (Satz nur aus Baugruppen), sonst None."""
+    werte = [rechnen.saetze_von(p) for p in positionen if satz_menge.name(p) == satz and rechnen.ist_baugruppe(p)]
+    werte = [w for w in werte if w]
+    if not werte:
+        return None
+    w = max(werte)
+    return int(w) if abs(w - round(w)) < 1e-6 else w
 
 
 def text(m, mit_alle=True):

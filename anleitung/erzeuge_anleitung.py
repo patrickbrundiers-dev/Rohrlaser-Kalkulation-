@@ -1851,7 +1851,15 @@ def kapitel_angebot(i):
             "Gerechnet wird weiter je Teil: Pulverbeschichten €/m² × Fläche des Teils, Verzinken €/kg × Gewicht des "
             "Teils. Über den Satz addiert ergibt das genau Fläche bzw. Gewicht je Satz × Preis; der Mindestbetrag der "
             "Zusatzarbeit gilt wie bisher einmal je Angebot.",
-            "Schweißbaugruppen und ihre Teile gehören nicht dazu (Arbeitsgänge im Baugruppen-Editor).",
+            "Schweißbaugruppe: Rechtsklick auf die Baugruppe oder eines ihrer Einzelteile → <i>Zusatzarbeit für "
+            "ganzen Satz …</i> öffnet das Fenster für alle Einzelteile der Baugruppe (Titel <i>für Baugruppe …</i>, "
+            "Stück je Baugruppe, Fläche und Gewicht je Baugruppe). Die Baugruppe selbst bekommt keinen Eintrag, ihre "
+            "Arbeitsgänge stehen weiter im Baugruppen-Editor.",
+            "Ist ein Satz zugeklappt (▸ im Zeilenkopf), steht seine Kopfzeile für den ganzen Satz: markieren und "
+            "<i>Zusatzarbeiten …</i> (Knopf oder Rechtsklick-Schnellmenü) wirkt auf alle Positionen des Satzes. "
+            "Aufgeklappt gilt die Zeile nur für ihre Position.",
+            "Auch im Reiter <i>Kalkulation</i> gibt es den Rechtsklick: <i>Zur Position</i>, <i>Zusatzarbeiten …</i> "
+            "und <i>Zusatzarbeit für ganzen Satz …</i>.",
             "Wie bei mehreren markierten Positionen ändert das Fenster nur, was alle gemeinsam haben; eigene "
             "Zusatzarbeiten einzelner Positionen bleiben.")
     i.abschnitt("Zusatzarbeiten unter der Position", marke="zusatz_unterzeilen")
