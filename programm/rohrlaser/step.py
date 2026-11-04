@@ -2287,6 +2287,38 @@ def gewaehlt(m):
     return m.get("_uebernehmen", not unsicher(m) and not m.get("_normteil")) is not False
 
 
+AMPEL_TEXT = {"gruen": "sicher erkannt", "gelb": "prüfen", "rot": "nicht übernehmbar"}
+MERKMAL_TEXT = {"wandstaerke": "Wandstärke", "profil": "Profil", "laenge": "Länge", "konturen": "Konturen",
+                "schneidweg": "Schneidweg", "art": "Art", "radius": "Radius", "abm_a": "Maß A", "abm_b": "Maß B"}
+
+
+def ampel(m, profil_fehlt=False):
+    """Wie sicher Art, Profil und Konturen nach dem STEP-Import erkannt sind (Optimierungsplan C1): ('gruen' | 'gelb'
+    | 'rot', [Gründe]). Rot = nicht übernehmbar (Fehler, nicht messbar), gelb = von Hand prüfen (unsichere Messung,
+    Prüfstatus prüfen, Normteil, Art von Hand geändert, Profil fehlt in den Stammdaten, Knickrahmen nicht
+    verbindbar), sonst grün. profil_fehlt: gemessenes Profil steht nicht in den Stammdaten."""
+    if m.get("fehler") or m.get("pruefstatus") == "nicht messbar":
+        return "rot", [m.get("fehler") or "nicht messbar"]
+    gruende = []
+    u = unsicher(m)
+    if u:
+        gruende.append("Messung unsicher: " + ", ".join(MERKMAL_TEXT.get(x, x) for x in u))
+    if m.get("pruefstatus") == "prüfen":
+        gruende.append("nur nach den Maßen erkannt" if m.get("hinweise") is None or VON_HAND not in str(m.get("hinweise"))
+                       else "von Hand nachgetragen")
+    if m.get("_normteil"):
+        gruende.append(f"Normteil ({m['_normteil']})")
+    if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
+        gruende.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
+    if profil_fehlt:
+        gruende.append("Profil fehlt in den Stammdaten")
+    if m.get("_knick_fehler"):
+        gruende.append("Knickrahmen nicht verbindbar")
+    if gruende:
+        return "gelb", gruende
+    return "gruen", ["Art, Profil und Konturen sicher erkannt"]
+
+
 TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wenn alle Maße so nah beieinander liegen
 
 

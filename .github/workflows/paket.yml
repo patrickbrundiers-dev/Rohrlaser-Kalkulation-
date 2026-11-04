@@ -43,11 +43,60 @@ permissions:
   contents: read      # Vorgabe für alle Jobs; nur der Job windows darf Releases schreiben
 
 jobs:
-  tests:
+  # Schneller Testlauf (Optimierungsplan 04.11.2026, E2; vorher 25-30 min in einem Job): die Tests laufen in drei gleich
+  # langen Teilen auf drei Rechnern gleichzeitig (tests/alle.py --teil, Laufzeiten aus tests/laufzeiten.json), daneben
+  # ein Job für STEP-Referenz, ruff, Abnahme und Bedienungsanleitung. Der Job „tests“ fasst zusammen: nur grün, wenn
+  # alle Teile grün sind (er ist der Pflicht-Check für das Mergen).
+  teil:
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    timeout-minutes: 40            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen (31.10.2026: Lauf
-                                   # dauert inzwischen 25-30 min, zweimal am 30-min-Limit abgebrochen)
+    timeout-minutes: 30            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen
+    strategy:
+      fail-fast: false
+      matrix:
+        teil: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements*.txt', 'programm/requirements.txt') }}
+      - name: Python-Pakete
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          # Scans lesen (Plan W6c, tests/test_formular.py); im Windows-Paket wird Tesseract mitgeliefert
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
+          # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+            libxcb-xkb1 libxkbcommon-x11-0
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
+      - name: Tests Teil ${{ matrix.teil }} von 3 (tests/alle.py; langsame Tests nur beim Sammel-Release von Hand)
+        run: /usr/bin/python3 tests/alle.py --teil ${{ matrix.teil }}/3 ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY" --laufzeiten laufzeiten-${{ matrix.teil }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true      # Laufzeiten zum Nachführen von tests/laufzeiten.json
+        if: always()
+        with:
+          name: Laufzeiten-${{ matrix.teil }}
+          path: laufzeiten-${{ matrix.teil }}.json
+          retention-days: 14
+
+  tests:
+    runs-on: ubuntu-24.04
+    needs: [teil, pruefen]
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    timeout-minutes: 5
+    steps:
+      - name: Alle Teile grün?
+        run: |
+          echo "Tests: ${{ needs.teil.result }}, Referenz/ruff/Abnahme/Anleitung: ${{ needs.pruefen.result }}"
+          test "${{ needs.teil.result }}" = success && test "${{ needs.pruefen.result }}" = success
+
+  pruefen:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -83,8 +132,6 @@ jobs:
         run: |
           /usr/bin/python3 -m pip install --break-system-packages -r requirements-dev.txt
           /usr/bin/python3 -m ruff check programm tests werkzeuge anleitung
-      - name: Alle Tests parallel (tests/alle.py; langsame Tests nur beim Sammel-Release von Hand)
-        run: /usr/bin/python3 tests/alle.py ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY"
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen
@@ -110,7 +157,6 @@ jobs:
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
           retention-days: ${{ github.event_name == 'pull_request' && 7 || 30 }}
-
 
   windows:
     runs-on: windows-latest

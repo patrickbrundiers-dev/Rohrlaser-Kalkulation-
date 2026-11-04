@@ -5,8 +5,15 @@ Die Liste TESTS legt Reihenfolge und Umgebung fest (reproduzierbar: gestartet wi
 ausgegeben wird in dieser Reihenfolge, egal welcher Test zuerst fertig ist). Jede Datei tests/test_*.py muss in
 TESTS, LANGSAM oder EIGEN stehen – eine neue Testdatei ohne Eintrag macht den Lauf rot, damit sie nicht vergessen wird.
 
-Aufruf: python tests/alle.py [-j N] [--langsam] [--nur MUSTER …] [--markdown DATEI] [--coverage]
+Schneller Lauf (Optimierungsplan 04.11.2026, E2): mit --teil K/N läuft nur ein Teil der Tests; die Teile werden nach
+den Laufzeiten aus tests/laufzeiten.json gleich lang verteilt (der Workflow startet drei Teile auf drei Rechnern
+gleichzeitig). Innerhalb eines Laufs starten die langsamsten Tests zuerst. Ein roter Test wird am Ende einmal allein
+wiederholt: grün beim zweiten Mal heißt „instabil“ (steht in der Zusammenfassung, der Lauf bleibt grün), rot bleibt rot.
+
+Aufruf: python tests/alle.py [-j N] [--teil K/N] [--langsam] [--nur MUSTER …] [--markdown DATEI] [--coverage]
   -j N        so viele Tests gleichzeitig (Vorgabe: Anzahl Prozessorkerne)
+  --teil K/N  nur Teil K von N (nach Laufzeit gleich verteilt)
+  --laufzeiten DATEI  gemessene Laufzeiten als JSON schreiben (für tests/laufzeiten.json)
   --langsam   auch die langsamen Tests (LANGSAM; im Workflow nur beim Sammel-Release von Hand)
   --nur       nur Tests, deren Name eines der Muster enthält
   --markdown  Zusammenfassung als Markdown-Tabelle anhängen (z. B. "$GITHUB_STEP_SUMMARY")
@@ -15,6 +22,7 @@ Aufruf: python tests/alle.py [-j N] [--langsam] [--nur MUSTER …] [--markdown D
 """
 import argparse
 import concurrent.futures
+import json
 import os
 import subprocess
 import sys
@@ -86,7 +94,7 @@ TESTS = [
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
     "test_step_bleche.py", "test_werkstoffe.py", "test_werkstoffe_rohrlaser.py", "test_meterpreis.py", "test_teuerung.py", "test_kalkulation_verbessern.py", "test_stundensatz.py", "test_gewinn_gestaffelt.py", "test_preis_simulator.py", "test_angebotsvergleich.py", "test_absage.py", "test_auftragsbestaetigung.py", "test_etiketten.py", "test_paket_module.py", "test_auslastung.py", "test_terminplan.py", "test_schnellpreis.py", "test_reklamation.py", "test_material_fenster.py", "test_stangen_vorgabe.py", "test_abmessung_fenster.py", "test_stangen_ansicht.py",
     "test_maschinen.py", "test_schneiddaten_standard.py", "test_lager.py", "test_nachkalk_auswertung.py", "test_laufzeit_teil.py", "test_arbeitsgaenge.py", "test_zusatz_erkennung.py", "test_satz_flaeche.py", "test_satz_zusatz.py", "test_einzelteile_vorschlaege.py", "test_rohrlaser_zusatz.py", "test_abrechnungsregeln.py", "test_varianten.py", "test_fertigung.py",
-    "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_unterzeilen.py", "test_satz_optik.py", "test_gruppen_uebersicht.py", "test_naht_laenge.py", "test_satz_menge.py", "test_kopf_kompakt.py", "test_layout_platz.py", "test_spaltenbreite.py",
+    "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_unterzeilen.py", "test_satz_optik.py", "test_gruppen_uebersicht.py", "test_naht_laenge.py", "test_satz_menge.py", "test_kopf_kompakt.py", "test_layout_platz.py", "test_paket3.py", "test_spaltenbreite.py",
     "test_angebot_leistung.py", "test_tempo.py", "test_zeiten.py",
     "test_staffelpreise.py", "test_gewinn_basis.py", "test_preisregeln.py", "test_quellcode_schutz.py", "test_update.py", "test_update_sperre.py", "test_update_haertung.py", "test_update_signatur.py", "test_echtheit.py", "test_update_testplan.py", "test_update_download.py", "test_daten_finden.py", "test_release_pruefen.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
     "test_fracht_richtwerte.py", "test_pack_rechner.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
@@ -114,6 +122,29 @@ def fehlende():
     return sorted(p.name for p in HIER.glob("test_*.py") if p.name not in bekannt)
 
 
+LAUFZEITEN = HIER / "laufzeiten.json"
+UNBEKANNT_S = 30        # Laufzeit eines Tests, der noch nicht in laufzeiten.json steht
+
+
+def laufzeiten():
+    try:
+        return json.loads(LAUFZEITEN.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def teil(liste, k, n, dauer=None):
+    """Teil k (1 … n) der Tests: die längsten zuerst jeweils dem bisher kürzesten Teil zugeteilt (gleich lange Teile).
+    Ergebnis in der Reihenfolge von liste."""
+    dauer = laufzeiten() if dauer is None else dauer
+    summe, zu = [0.0] * n, {}
+    for name, _ in sorted(liste, key=lambda e: -dauer.get(e[0], UNBEKANNT_S)):
+        i = min(range(n), key=lambda j: summe[j])
+        summe[i] += dauer.get(name, UNBEKANNT_S)
+        zu[name] = i
+    return [(name, u) for name, u in liste if zu[name] == k - 1]
+
+
 def ausfuehren(name, umgebung, coverage):
     env = dict(os.environ, **umgebung)
     befehl = [sys.executable]
@@ -132,29 +163,57 @@ def main(argv=None):
     a.add_argument("--nur", nargs="+", default=None)
     a.add_argument("--markdown")
     a.add_argument("--coverage", action="store_true")
+    a.add_argument("--teil", default=None)
+    a.add_argument("--laufzeiten", default=None)
     args = a.parse_args(argv)
 
     liste = TESTS + (LANGSAM if args.langsam else [])
     if args.nur:
         liste = [(n, u) for n, u in liste if any(m in n for m in args.nur)]
     ohne = fehlende() if not args.nur else []
+    if args.teil:
+        k, n = (int(x) for x in args.teil.split("/"))
+        liste = teil(liste, k, n)
+        ohne = ohne if k == 1 else []        # fehlende Einträge meldet nur Teil 1
+        print(f"Teil {k} von {n}: {len(liste)} Tests", flush=True)
 
+    dauer_alt = laufzeiten()
     start = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.j)) as pool:
-        laeufe = [pool.submit(ausfuehren, n, u, args.coverage) for n, u in liste]
+        # langsamste zuerst starten (sonst wartet am Ende alles auf einen spät gestarteten langen Test)
+        reihe = sorted(liste, key=lambda e: -dauer_alt.get(e[0], UNBEKANNT_S))
+        laeufe = {n: pool.submit(ausfuehren, n, u, args.coverage) for n, u in reihe}
         ergebnisse = []
-        for f in laeufe:                     # Ausgabe in fester Reihenfolge
-            name, code, dauer, ausgabe = f.result()
+        for n, _ in liste:                   # Ausgabe in fester Reihenfolge
+            name, code, dauer, ausgabe = laeufe[n].result()
             ergebnisse.append((name, code, dauer))
             print(f"{'OK    ' if code == 0 else 'FEHLER'}  {dauer:7.1f} s  {name}", flush=True)
             if code != 0:
                 print("\n".join("        | " + z for z in ausgabe.rstrip().splitlines()[-60:]), flush=True)
+    # rote Tests einmal allein wiederholen (ohne Last der anderen): grün = instabil, nicht rot
+    instabil = []
+    umgebung = dict(liste)
+    for i, (name, code, dauer) in enumerate(ergebnisse):
+        if code == 0:
+            continue
+        _, code2, dauer2, ausgabe2 = ausfuehren(name, umgebung[name], args.coverage)
+        print(f"{'OK    ' if code2 == 0 else 'FEHLER'}  {dauer2:7.1f} s  {name} (Wiederholung allein)", flush=True)
+        if code2 == 0:
+            instabil.append(name)
+            ergebnisse[i] = (name, 0, dauer)
+        else:
+            print("\n".join("        | " + z for z in ausgabe2.rstrip().splitlines()[-30:]), flush=True)
     gesamt = time.monotonic() - start
+    if args.laufzeiten:
+        with open(args.laufzeiten, "w", encoding="utf-8") as f:
+            json.dump({n: round(d) for n, _, d in ergebnisse}, f, indent=0, sort_keys=True)
 
     rot = [n for n, c, _ in ergebnisse if c != 0]
     print()
     print(f"{len(ergebnisse)} Tests in {gesamt:.0f} s (Summe der Laufzeiten {sum(d for _, _, d in ergebnisse):.0f} s, "
           f"{args.j} gleichzeitig)")
+    if instabil:
+        print("Instabil (erst rot, allein wiederholt grün): " + ", ".join(instabil))
     for n, _, d in sorted(ergebnisse, key=lambda e: -e[2])[:5]:
         print(f"  langsamste: {d:6.1f} s  {n}")
     if ohne:
@@ -163,10 +222,13 @@ def main(argv=None):
 
     if args.markdown:
         with open(args.markdown, "a", encoding="utf-8") as f:
-            f.write(f"### Tests: {len(ergebnisse) - len(rot)} von {len(ergebnisse)} grün ({gesamt:.0f} s)\n\n"
+            titel = f" (Teil {args.teil})" if args.teil else ""
+            f.write(f"### Tests{titel}: {len(ergebnisse) - len(rot)} von {len(ergebnisse)} grün ({gesamt:.0f} s)\n\n"
                     "| Test | Ergebnis | Laufzeit |\n|---|---|---:|\n")
             for n, c, d in ergebnisse:
                 f.write(f"| {n} | {'✅' if c == 0 else '❌'} | {d:.1f} s |\n")
+            if instabil:
+                f.write("\nInstabil (erst rot, allein wiederholt grün): " + ", ".join(instabil) + "\n")
             if ohne:
                 f.write("\nOhne Eintrag in tests/alle.py: " + ", ".join(ohne) + "\n")
     return 1 if rot or ohne else 0

@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.260", "<b>Ampel nach dem STEP-Import</b> ([[erkennung_ampel]]): im Fenster STEP-Import prüfen zeigt ein "
+     "Farbpunkt je Teil, wie sicher Art, Profil und Konturen erkannt sind (grün sicher, gelb prüfen, rot nicht "
+     "übernehmbar), mit Grund im Tooltip, Zusammenfassung unter der Liste und Haken <i>Nur zu prüfende</i>. "
+     "<b>Startseite</b>: <i>N Fehler seit gestern</i> mit Knopf <i>Support-Paket …</i> und, sobald genug "
+     "Nachkalkulationen da sind, <i>Laserzeit Ist gegen Soll</i> je Maschine. <b>Referenzangebote</b> "
+     "([[referenzangebote]]): bis zu fünf Angebote festhalten (<i>Ausgaben</i>) und nach einem Update unter "
+     "<i>Hilfe → Referenzangebote prüfen …</i> nachrechnen. Die automatischen Tests laufen in drei Teilen "
+     "gleichzeitig (schneller zum Update).",
+     "Ampel nach dem STEP-Import, Fehler und Laserzeit auf der Startseite, Referenzangebote"],
     ["0.9.259", "<b>Mehr Platz für die Positionsliste</b> ([[mehr_platz]]): auf einem Laptop (1366 × 768) "
      "13 statt 9 sichtbare Zeilen. Angebotskopf, Kalkulation und Fracht stehen zugeklappt in einer Zeile, die "
      "Knopfleiste passt in eine Zeile (Ablagefeld <i>STEP / DXF</i>). <b>»</b> im Titel klappt die Übersicht ein; "

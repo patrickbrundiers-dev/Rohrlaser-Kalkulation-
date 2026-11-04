@@ -9,6 +9,7 @@ Lizenz (lizenz.py): Hauptfenster(…, lizenz=LizenzStelle) zeigt Hinweise in der
 schaltet im Lesemodus die ändernden Aktionen ab; mit der Admin-Lizenz (Admin-Passwort beim Start) öffnen die Einstellungen ohne Passwort. Ohne
 lizenz (Tests, Entwicklung) voller Zugriff ohne Hinweise."""
 import datetime
+import html
 import os
 import re
 import shutil
@@ -1768,6 +1769,14 @@ class StartSeite(QWidget):
         self.kennzahlen.setTextFormat(Qt.RichText)
         self.kennzahlen.setWordWrap(True)
         hl.addWidget(self.kennzahlen)
+        # Laserzeit Soll/Ist je Maschine aus der Nachkalkulation (Optimierungsplan D2), erst ab 3 Aufträgen
+        self.laserzeit = QLabel()
+        self.laserzeit.setTextFormat(Qt.RichText)
+        self.laserzeit.setWordWrap(True)
+        self.laserzeit.setToolTip("Summe der erfassten Laserzeit (Ist) gegen die geplante (Soll) aller nachkalkulierten "
+                                  "Aufträge je Maschine. Plus = länger als geplant. Ab 10 % Abweichung farbig; "
+                                  "Vorschübe anpassen unter Einstellungen → Kennwerte lernen.")
+        hl.addWidget(self.laserzeit)
         hl.addStretch(1)
 
         # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
@@ -1803,6 +1812,18 @@ class StartSeite(QWidget):
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
         dl.addLayout(knoepfe)
+        # Fehler seit gestern mit Knopf Support-Paket (Optimierungsplan E1)
+        fz = QHBoxLayout()
+        self.fehler = QLabel()
+        self.fehler.setTextFormat(Qt.RichText)
+        self.fehler.setWordWrap(True)
+        fz.addWidget(self.fehler, 1)
+        self.support_knopf = QPushButton("Support-Paket …")
+        self.support_knopf.setToolTip("ZIP mit Fehlerprotokoll, Version und Einstellungen (ohne Kunden und Preise) "
+                                      "für den Support erstellen")
+        self.support_knopf.clicked.connect(lambda: fenster.support_paket())
+        fz.addWidget(self.support_knopf)
+        dl.addLayout(fz)
 
         # Neue Anfragen aus dem Anfrage-Ordner (Plan W6a), über den Angeboten; nur mit Einstellung sichtbar
         from .anfragen_karte import AnfragenKarte
@@ -1866,6 +1887,7 @@ class StartSeite(QWidget):
         self.stamm_aufklapper.setze_titel(f"{len(tabellen)} Tabellen, {sum(n for _, n in tabellen)} Einträge")
         self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
                           f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
+        self.fehler_laden()
         self.anfragen.neu_laden()
         alle = db.angebote()
         self.cockpit_laden(alle)
@@ -1904,6 +1926,7 @@ class StartSeite(QWidget):
         self.wv_knoepfe.setVisible(bool(n) and nachfassen)
         self.notizen_laden()
         self.automatik_laden()
+        self.laserzeit_laden()
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
         self.kennzahlen.setVisible(admin)
         if admin:
@@ -1914,6 +1937,44 @@ class StartSeite(QWidget):
                 f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
                 f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+
+    def fehler_laden(self, jetzt=None):
+        """„N Fehler seit gestern“ aus Daten/Protokoll/fehler.log (Optimierungsplan E1); Knopf Support-Paket nur mit
+        Fehlern. jetzt: für Tests."""
+        from . import protokoll
+        jetzt = jetzt or datetime.datetime.now()
+        seit = datetime.datetime.combine(jetzt.date() - datetime.timedelta(days=1), datetime.time())
+        try:
+            self.fehler_liste = protokoll.fehler_seit(Path(self.f.db.pfad).parent / "Protokoll", seit)
+        except Exception:
+            self.fehler_liste = []
+        n = len(self.fehler_liste)
+        if n:
+            zuletzt = self.fehler_liste[-1]
+            self.fehler.setText(f"<b style='color:#B42318'>{n} Fehler seit gestern</b> · zuletzt "
+                                f"{zuletzt[0]:%d.%m. %H:%M}: {html.escape(zuletzt[1])}")
+            self.fehler.setToolTip("\n".join(f"{z:%d.%m. %H:%M}  {t}" for z, t in self.fehler_liste[-10:]))
+        else:
+            self.fehler.setText("<span style='color:#5F6B7A'>Keine Fehler seit gestern</span>")
+            self.fehler.setToolTip("")
+        self.support_knopf.setVisible(bool(n))
+
+    def laserzeit_laden(self):
+        """Laserzeit Soll/Ist je Maschine (Optimierungsplan D2), nur mit genug nachkalkulierten Aufträgen."""
+        from . import nachkalkulation
+        try:
+            self.laserzeit_werte = nachkalkulation.laserzeit_je_maschine(self.f.db)
+        except Exception:
+            self.laserzeit_werte = []
+        teile = []
+        for w in self.laserzeit_werte:
+            p = w["prozent"]
+            farbe = "#B42318" if p >= 10 else "#1E6B34" if p <= -10 else None
+            wert = f"{p:+.0f} %".replace("-", "−")
+            wert = f"<b style='color:{farbe}'>{wert}</b>" if farbe else f"<b>{wert}</b>"
+            teile.append(f"{html.escape(str(w['maschine']))} {wert} ({w['n']} Aufträge)")
+        self.laserzeit.setText("<b>Laserzeit Ist gegen Soll:</b> " + " · ".join(teile) if teile else "")
+        self.laserzeit.setVisible(bool(teile))
 
     def automatik_laden(self):
         """Hinweise der Automationen (automatik.aufgaben) unter „Heute“."""
@@ -2390,6 +2451,9 @@ class Hauptfenster(QMainWindow):
         a = QAction("Support-Paket erstellen …", self)
         a.triggered.connect(lambda: self.support_paket())
         hilfe.addAction(a)
+        a = QAction("Referenzangebote prüfen …", self)
+        a.triggered.connect(lambda: self.referenzen_pruefen())
+        hilfe.addAction(a)
         a = QAction("Lizenz …", self)
         a.triggered.connect(lambda: self.lizenz_zeigen())
         hilfe.addAction(a)
@@ -2554,6 +2618,54 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def referenzen_pruefen(self, zeigen=True):
+        """Hilfe → Referenzangebote prüfen … (Optimierungsplan D1): festgehaltene Angebote mit heutigem Programm und
+        heutigen Stammdaten neu rechnen, Tabelle festgehalten / heute / Abweichung. Ergebnis: Liste wie
+        referenzangebote.pruefen."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTableWidget, QTableWidgetItem
+        from . import referenzangebote
+        from .ausgabe import euro_text
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            erg = referenzangebote.pruefen(self.db)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not zeigen:
+            return erg
+        d = QDialog(self)
+        d.setWindowTitle("Referenzangebote prüfen")
+        lay = QVBoxLayout(d)
+        kopf = QLabel(referenzangebote.text(erg))
+        kopf.setWordWrap(True)
+        lay.addWidget(kopf)
+        t = QTableWidget(len(erg), 5)
+        t.setHorizontalHeaderLabels(["Angebot", "Kunde", "Festgehalten", "Heute", "Abweichung"])
+        for r, e in enumerate(erg):
+            fest = f"{euro_text(e['verkauf'])} € ({e['am'][:10]})"
+            heute = f"{euro_text(e['neu'])} €" if e["neu"] is not None else e["fehler"]
+            abw = "gleich" if e["status"] == "gleich" else (
+                f"{e['prozent']:+.1f} %".replace(".", ",") if e["prozent"] is not None else "–")
+            for c, w in enumerate((e["nummer"], e["kunde"], fest, heute, abw)):
+                it = QTableWidgetItem(str(w))
+                if c == 4 and e["status"] != "gleich":
+                    it.setForeground(QBrush(stil.farbe(stil.ROT)))
+                t.setItem(r, c, it)
+        t.resizeColumnsToContents()
+        t.horizontalHeader().setStretchLastSection(True)
+        lay.addWidget(t)
+        hinweis = QLabel("Festhalten im Angebot über Ausgaben → „Als Referenzangebot festhalten“ (höchstens "
+                         f"{referenzangebote.HOECHSTENS}). Abweichung = heutiger Verkaufspreis gegen den festgehaltenen.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet("color: #5F6B7A;")
+        lay.addWidget(hinweis)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.resize(680, 320)
+        self.referenz_dialog = d
+        d.open()
+        return erg
 
     def support_paket(self, mit_angebot=None, oeffnen=True):
         """Hilfe → Support-Paket erstellen … (Vorschlag S2a): ZIP in Daten/Support, danach den Ordner öffnen.

@@ -608,6 +608,15 @@ def kapitel_start(i):
            "per Mail an den Support.", kurz=True)
     i.liste("Haken <i>Offenes Angebot beilegen</i> (Vorgabe aus): Kopf und Positionen des gerade offenen Angebots "
             "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.")
+    i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
+    i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
+           "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
+           "Verkaufspreis netto von heute. <b>Hilfe → Referenzangebote prüfen …</b> rechnet alle mit dem aktuellen "
+           "Programm und den aktuellen Stammdaten neu und zeigt je Angebot den festgehaltenen und den heutigen Preis "
+           "mit Abweichung (bis 0,5 % gilt als gleich, sonst rot).", kurz=True)
+    i.liste("Am besten nach jedem Update einmal prüfen: ändert sich ein Preis, ohne dass Stammdaten oder Angebot "
+            "geändert wurden, ist das ein Fall für den Support ([[support_paket]]).",
+            "Ein sechstes Referenzangebot verdrängt das älteste.")
     i.abschnitt("Zeitwächter: langsame Schritte", marke="zeitwaechter")
     i.text("Das Programm merkt sich selbst jede Stelle, an der es länger als eine halbe Sekunde nicht reagiert hat, "
            "in <i>Daten/Protokoll/tempo.log</i>: Dauer, Ort (z. B. <i>Angebot 2026-00002 (50 Pos., 678 Teile) › "
@@ -758,7 +767,15 @@ def kapitel_start(i):
             "das Angebot, <b>Nachfassen vermerken …</b> und <b>Wiedervorlage …</b> gelten für das markierte "
             "([[nachfassen]]).",
             "<b>Letzte 90 Tage</b> (nur mit Admin-Lizenz): Zahl und Summe der Angebote, Durchschnittswert, beauftragte "
-            "Angebote mit Auftragswert und die Trefferquote (beauftragt geteilt durch beauftragt + abgelehnt).")
+            "Angebote mit Auftragswert und die Trefferquote (beauftragt geteilt durch beauftragt + abgelehnt).",
+            "<b>Laserzeit Ist gegen Soll</b> (unter <i>Heute</i>, sobald je Maschine mindestens 3 nachkalkulierte "
+            "Aufträge mit erfasster Laserzeit da sind): z. B. <i>T11 +8 % (5 Aufträge)</i>. Plus heißt, die Maschine "
+            "hat länger gebraucht als geplant; ab 10 % rot (länger) bzw. grün (kürzer). Anpassen lassen sich die "
+            "Vorschübe über die Kennwerte der Nachkalkulation ([[nachkalkulation]]).",
+            "<b>Fehler seit gestern</b> (Karte <i>Daten und Sicherung</i>): Zahl der unerwarteten Fehler aus "
+            "<i>Daten/Protokoll/fehler.log</i> seit gestern 0 Uhr mit dem letzten Fehler; der Tooltip zeigt die "
+            "letzten zehn. Daneben <b>Support-Paket …</b> ([[support_paket]]). Ohne Fehler steht dort grau <i>Keine "
+            "Fehler seit gestern</i>.")
     i.abschnitt("Suchen und ausführen (Strg+K)", marke="befehlspalette")
     i.text("<b>Strg+K</b> oder <i>Ansicht → Suchen und ausführen …</i> öffnet von überall ein Suchfeld für "
            "Angebote (Nummer, Kunde), Kunden, Profile, Werkstoffe, Einstellungen, Reiter und alle Menübefehle mit "
@@ -3196,6 +3213,18 @@ def kapitel_step(i):
             "„STEP-Merkmale zu prüfen“ als Hinweis (kein Fehler, das Angebot rechnet wie bisher).",
             "Positionen von Hand oder aus Importen vor 0.9.161 haben keine STEP-Merkmale; dann meldet das Programm "
             "das. Eine defekte oder leere STEP-Datei führt zu „nicht erkannt“, nie zum Absturz.")
+    i.abschnitt("Ampel: sicher oder unsicher erkannt", marke="erkennung_ampel")
+    i.text("Im Fenster STEP-Import prüfen steht in der Spalte <b>Hinweis</b> vor jedem Teil ein Farbpunkt: "
+           "<b>grün</b> = Art, Profil und Konturen sicher erkannt, <b>gelb</b> = bitte prüfen, <b>rot</b> = nicht "
+           "übernehmbar. Den Grund zeigt der Tooltip. Unter der Liste steht die Zusammenfassung, z. B. "
+           "<i>Erkennung: ● 12 sicher erkannt · ● 2 prüfen · ● 1 nicht übernehmbar</i>; der Haken <b>Nur zu "
+           "prüfende</b> blendet die grünen Teile aus, so bleiben nur die gelben und roten zum Ansehen.", kurz=True)
+    i.tabelle(["Punkt", "Wann"], [
+        ["grün", "Messung stimmig, Profil steht in den Stammdaten, nichts von Hand geändert"],
+        ["gelb", "ein Merkmal unsicher (z. B. Wandstärke), Prüfstatus <i>prüfen</i> (nur nach den Maßen erkannt "
+                 "oder von Hand nachgetragen), Normteil, Art von Hand geändert, Profil fehlt in den Stammdaten, "
+                 "Knickrahmen nicht verbindbar"],
+        ["rot", "kein Rohrteil erkannt oder nicht messbar (Gruppe <i>Nicht übernehmbar</i>)"]], [25, 145])
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
     i.text("<i>plausibel</i> = Messung stimmig, <i>prüfen</i> = bitte ansehen, <i>nicht messbar</i> = kein Profil "
            "erkannt. Unsichere Teile sind nicht angehakt.")

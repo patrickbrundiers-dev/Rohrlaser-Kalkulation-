@@ -2212,6 +2212,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         fa.append((menue.addAction("Varianten vergleichen …", lambda: self.varianten_vergleichen()), "funktion_simulator"))
         # Arbeitsgänge je Position mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.py)
         menue.addAction("Arbeitsgänge vorschlagen …", lambda: self.arbeitsgaenge_vorschlagen())
+        # Referenzangebot als Prüfrechnung (Optimierungsplan D1): Verkaufspreis festhalten, Hilfe → prüfen
+        self.referenz_aktion = menue.addAction("Als Referenzangebot festhalten", lambda: self.referenz_umschalten())
+        self.referenz_aktion.setCheckable(True)
+        menue.aboutToShow.connect(self._referenz_stand)
         # Reklamationen je Auftrag/Position mit Kosten in der Nachkalkulation (Plan 29.10.2026 2c)
         self.reklamation_aktion = menue.addAction("Reklamation erfassen …", lambda: self.reklamation_erfassen())
         fa.append((self.reklamation_aktion, "funktion_reklamation"))
@@ -6199,6 +6203,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from . import arbeitsgaenge
         return arbeitsgaenge.uebersicht(self.kopf, self.positionen, self.k, self.tabellen,
                                         self.db.zeilen("arbeitsgang_regeln"))
+
+    def _referenz_stand(self):
+        from . import referenzangebote
+        self.referenz_aktion.setChecked(referenzangebote.ist_referenz(self.db, self.id))
+
+    def referenz_umschalten(self):
+        """Ausgaben → Als Referenzangebot festhalten (D1): Verkaufspreis von heute merken bzw. wieder entfernen.
+        Ergebnis: der Eintrag oder None (entfernt)."""
+        from . import referenzangebote
+        if referenzangebote.ist_referenz(self.db, self.id):
+            referenzangebote.entfernen(self.db, self.id)
+            self.f.meldung("Referenzangebot entfernt.")
+            return None
+        r = referenzangebote.festhalten(self.db, self.id)
+        from .ausgabe import euro_text
+        self.f.meldung(f"Referenzangebot festgehalten: {euro_text(r['verkauf'])} € netto. Hilfe → "
+                       f"Referenzangebote prüfen … rechnet es nach einem Update neu.")
+        return r
 
     def arbeitsgaenge_vorschlagen(self, dialog=None):
         """Fenster „Arbeitsgänge je Position“: Vorschläge annehmen oder ablehnen. dialog(d) bedient das Fenster statt

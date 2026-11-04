@@ -484,6 +484,27 @@ def faelle_laserzeit(db):
     return out
 
 
+LASERZEIT_MINDESTENS = 3       # Startseite: Soll/Ist der Laserzeit erst ab so vielen Aufträgen je Maschine
+
+
+def laserzeit_je_maschine(db, mindestens=LASERZEIT_MINDESTENS, fl=None):
+    """Laserzeit Soll/Ist je Maschine über alle nachkalkulierten Aufträge mit erfasster Laserzeit (Startseite,
+    Optimierungsplan D2). Nur Maschinen mit mindestens so vielen Aufträgen. Ergebnis [dict(maschine, n, soll, ist,
+    prozent)] nach Maschine; prozent > 0 = Ist länger als geplant. fl = faelle(db)[0] (None = lesen)."""
+    je = {}
+    for f in faelle(db)[0] if fl is None else fl:
+        s, z = f["soll"], _zeile(f["soll"], "Laserzeit")
+        if z and z[7] and s.get("maschine") and _n(z[3]) and _n(z[4]) is not None:
+            je.setdefault(s["maschine"], []).append((z[3], z[4]))
+    out = []
+    for m in sorted(je):
+        paare = je[m]
+        soll, ist = sum(p[0] for p in paare), sum(p[1] for p in paare)
+        if len(paare) >= mindestens and soll > 0:
+            out.append(dict(maschine=m, n=len(paare), soll=soll, ist=ist, prozent=100 * (ist - soll) / soll))
+    return out
+
+
 def anwenden_laserzeit(db, schluessel, faktor):
     """Vorschübe der Schneiddaten dieser Maschine und Kategorie ÷ Faktor (Ist länger als Soll = langsamer)."""
     maschine, kat = schluessel

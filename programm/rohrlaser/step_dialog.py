@@ -37,6 +37,23 @@ def hat_huelle(m):
     return len([x for x in (m.get("huelle") or "").split("|") if x]) == 3
 
 
+AMPEL_FARBE = {"gruen": stil.GRUEN, "gelb": "#EDC948", "rot": stil.ROT}
+
+
+def ampel_punkt(stufe):
+    """Runder Farbpunkt der Erkennungs-Ampel (Optimierungsplan C1) im aktuellen Theme."""
+    from PySide6.QtGui import QPainter
+    pm = QPixmap(12, 12)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(stil.farbe(stil.TEXT_GRAU))
+    p.setBrush(stil.farbe(AMPEL_FARBE[stufe]))
+    p.drawEllipse(1, 1, 10, 10)
+    p.end()
+    return QIcon(pm)
+
+
 def _f(m, name):
     try:
         return float(m.get(name) or 0)
@@ -405,7 +422,19 @@ class StepPruefDialog(QDialog):
             b.setToolTip("Alle Teile aller STEP-Dateien")
             b.clicked.connect(lambda _=False, an=an: self.alle_waehlen(an))
             alle.addWidget(b)
+        alle.addSpacing(12)
+        # Erkennungs-Ampel (Optimierungsplan C1): nur die gelben und roten Teile ansehen
+        self.ampel_info = QLabel()
+        self.ampel_info.setToolTip("Wie sicher Art, Profil und Konturen aus der STEP-Datei erkannt sind (Punkt in der "
+                                   "Spalte Hinweis, Grund im Tooltip). Grün = sicher, gelb = bitte prüfen, rot = nicht "
+                                   "übernehmbar.")
+        alle.addWidget(self.ampel_info)
+        self.nur_pruefen = QCheckBox("Nur zu prüfende")
+        self.nur_pruefen.setToolTip("Sicher erkannte (grüne) Teile ausblenden")
+        self.nur_pruefen.toggled.connect(self.nur_pruefen_setzen)
+        alle.addWidget(self.nur_pruefen)
         alle.addStretch(1)
+        self._ampel_zeigen()
         # 3D-Schnittbearbeitung (nur wenn ausgewählt): Gehrungen und schräge Bohrungen aller Teile in 3D
         zeile_3d = QHBoxLayout()
         self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
@@ -812,10 +841,15 @@ class StepPruefDialog(QDialog):
                 punkt = QPixmap(12, 12)
                 punkt.fill(QColor(TEILFARBEN[len(self.zeilen) % len(TEILFARBEN)]))
                 it.setIcon(0, QIcon(punkt))
+            # Erkennungs-Ampel (C1): Punkt vor dem Hinweis, Gründe im Tooltip
+            z.ampel, z.ampel_gruende = step.ampel(m, profil_fehlt=fehlt)
+            it.setIcon(self.SP_HINWEIS, ampel_punkt(z.ampel))
             self.zeilen.append(z)
             self._zusatz_text(z)
             if it.text(self.SP_HINWEIS) and not it.toolTip(self.SP_HINWEIS):
                 it.setToolTip(self.SP_HINWEIS, it.text(self.SP_HINWEIS))
+            it.setToolTip(self.SP_HINWEIS, f"Erkennung: {step.AMPEL_TEXT[z.ampel]} – " + "; ".join(z.ampel_gruende)
+                          + ("\n\n" + it.toolTip(self.SP_HINWEIS) if it.toolTip(self.SP_HINWEIS) else ""))
         self.fehler_gruppen = {}
         magenta = QPixmap(12, 12)
         magenta.fill(QColor(FARBE_FEHLT))
@@ -837,6 +871,8 @@ class StepPruefDialog(QDialog):
             it.setData(1, Qt.UserRole, i)
             if m.get("_netz"):
                 it.setIcon(0, QIcon(magenta))
+            else:
+                it.setIcon(0, ampel_punkt("rot"))
             if hat_huelle(m):               # von Hand nachtragen: Profilform, Profil-ID, Knopf
                 n = QTreeWidgetItem(it, ["Von Hand nachtragen:"])
                 n.setData(1, Qt.UserRole, i)
@@ -859,7 +895,42 @@ class StepPruefDialog(QDialog):
         for g in self.fehler_gruppen.values():
             n = g.childCount()
             g.setText(0, f"Nicht übernehmbar – {n} Teil{'e' if n != 1 else ''} (in der 3D-Ansicht magenta)")
+        self.ampel_fehler = len(fehler)
         self.artikel_pruefen()
+        self._ampel_zeigen()
+
+    def ampel_zahlen(self):
+        """(sicher, prüfen, nicht übernehmbar) über alle Dateien: Zeilen gleicher Teile bzw. Teile ohne Übernahme."""
+        st = [getattr(z, "ampel", "gruen") for z in self.zeilen]
+        return st.count("gruen"), st.count("gelb"), getattr(self, "ampel_fehler", 0)
+
+    def _ampel_zeigen(self):
+        """Zusammenfassung „N sicher · M prüfen · K nicht übernehmbar“ und Filter „Nur zu prüfende“ (C1)."""
+        if not hasattr(self, "ampel_info"):
+            return
+        gruen, gelb, rot = self.ampel_zahlen()
+        teile = [f"<span style='color:#1E6B34'>● {gruen} sicher erkannt</span>"]
+        if gelb:
+            teile.append(f"<b style='color:#7A5A00'>● {gelb} prüfen</b>")
+        if rot:
+            teile.append(f"<b style='color:#B42318'>● {rot} nicht übernehmbar</b>")
+        self.ampel_info.setText("Erkennung: " + " · ".join(teile))
+        self.nur_pruefen.setVisible(bool(gelb or rot))
+        self.nur_pruefen_setzen(self.nur_pruefen.isChecked())
+
+    def nur_pruefen_setzen(self, an):
+        """Nur gelbe und rote Teile zeigen (grüne ausblenden); leere Gruppen ebenfalls."""
+        for z in self.zeilen:
+            z.it.setHidden(bool(an) and getattr(z, "ampel", "gruen") == "gruen")
+
+        def leer(it):
+            return it.childCount() > 0 and all(it.child(i).isHidden() for i in range(it.childCount()))
+        for g in list(self.gruppen.values()) + list(self.baugruppen.values()):
+            g.setHidden(False)
+        for g in self.gruppen.values():
+            g.setHidden(bool(an) and leer(g))
+        for b in self.baugruppen.values():
+            b.setHidden(bool(an) and leer(b))
 
 
     def _knick_anzeigen(self):
