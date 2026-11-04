@@ -157,7 +157,10 @@ for n in ("pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "laenge"
 assert not any(sichtbar_(n) for n in OPTIONALE_SPALTEN) and not sichtbar_("abweichung")
 db.position_aendern(s.positionen[1]["id"], "satz", "MG 1")
 s.neu_laden()
-assert sichtbar_("satz") and not sichtbar_("je_satz")
+# Satz: der Name steht im Kopfband, die Spalte bleibt aus, bis man sie wählt (04.11.2026, F3a)
+assert not sichtbar_("satz") and not sichtbar_("je_satz")
+s.spalte_waehlen("satz", True)
+assert sichtbar_("satz")
 s.spalte_waehlen("gewinde", True)
 s.spalte_waehlen("satz", False)
 assert sichtbar_("gewinde") and not sichtbar_("satz") and db.einstellung(SPALTEN_EINSTELLUNG) == {"gewinde": True,
@@ -167,7 +170,7 @@ s._spalten_menue_fuellen()
 texte = [x.text() for x in s.spalten_menue.actions()]
 assert any(t.startswith("Satz") for t in texte) and any(t.startswith("Automatisch") for t in texte)
 s.spalte_waehlen(None, None)
-assert sichtbar_("satz") and not sichtbar_("gewinde") and db.einstellung(SPALTEN_EINSTELLUNG) == {}
+assert not sichtbar_("satz") and not sichtbar_("gewinde") and db.einstellung(SPALTEN_EINSTELLUNG) == {}
 s.zeige_berechnet.setChecked(True)
 assert all(sichtbar_(n) for (art, x), n in zip(m.spalten, (m.name(i) for i in range(m.columnCount())))
            if art == "berechnet")
