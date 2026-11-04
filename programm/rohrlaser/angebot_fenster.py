@@ -3,6 +3,7 @@ import copy
 import datetime
 import functools
 import json
+import re
 import shutil
 import tempfile
 import threading
@@ -2231,6 +2232,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen(), ""),
                 ("Blech-Editor …", lambda: self.blech_bearbeiten(), ""),
                 ("Richtpreis Dreh-/Frästeil …", lambda: self.drehfraes_bearbeiten(), ""),
+                ("Art ändern (Blech / Rohr / Dreh-/Frästeil) …", lambda: self.art_aendern(), ""),
                 ("Fräsen nach Bearbeitung …", lambda: self.fraesen_nach(), ""),
                 ("Baugruppe bearbeiten …", lambda: self.baugruppe_bearbeiten(self._markierte_zeilen()), ""),
                 ("Schweißnaht …", lambda: self.schweissnaht(), ""),
@@ -4250,6 +4252,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                              stueck=p.get("stueck"), muster=p.get("muster")), neu=False)
         d.p = p                 # STEP speichern: Netz der Position für die Prüfung gegen die Mutter-STEP
         self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.kopf_werte()))
+        self._art_knopf_einbauen(d, [zeile])
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
@@ -4339,6 +4342,86 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.blech_bearbeiten(d.oeffnen_zeile)
         return n
 
+    def step_der_position(self, p):
+        """STEP-Datei einer Position (Art ändern): gemerkte Herkunft, sonst im Ordner STEP des Angebotsordners bzw.
+        unter den zuletzt eingelesenen Dateien nach Dateiname/Artikelnummer; None = nicht gefunden."""
+        h = step.herkunft(p) or {}
+        kandidaten = [Path(h["datei"])] if h.get("datei") else []
+        namen = {n for n in (h.get("name"), ) if n}
+        art = str(p.get("artikel") or "")
+        stamm = re.sub(r"-K\d+$", "", art)
+        try:
+            ordner = self.f.angebot_ordner(self.kopf) / angebotsordner.STEP_ORDNER
+            if h.get("name"):
+                kandidaten.append(ordner / h["name"])
+            kandidaten += [ordner / f"{stamm}{e}" for e in (".step", ".stp", ".STEP", ".STP")]
+        except (OSError, AttributeError, TypeError):
+            pass
+        for d in getattr(self, "step_dateien_zuletzt", None) or ():
+            if Path(d).name in namen or Path(d).stem == stamm:
+                kandidaten.append(Path(d))
+        return next((k for k in kandidaten if k and k.is_file()), None)
+
+    def art_aendern(self, zeile=None, pfad=None, dialog=None):
+        """Rechtsklick „Art ändern (Blech / Rohr / Dreh-/Frästeil) …“ (Patrick 04.11.2026): das Teil der Position aus
+        seiner STEP-Datei neu messen, im Prüfdialog die Art wählen, Übernehmen ersetzt die Position (Pos.-Nummer,
+        Stückzahl, Zusatzarbeiten bleiben; Rückgängig möglich). Ohne gefundene Datei fragt das Programm danach."""
+        if zeile is None:
+            zeile = self.pos_ansicht.currentIndex().row()
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            self.f.meldung("Bitte zuerst die Position markieren, deren Art geändert werden soll.", fehler=True)
+            return None
+        p = self.positionen[zeile]
+        if ist_baugruppe(p):
+            self.f.meldung("Eine Schweißbaugruppe hat keine Art: bitte eines ihrer Teile markieren.", fehler=True)
+            return None
+        pfad = pfad or self.step_der_position(p)
+        if pfad is None:
+            if self.f.stumm:
+                self.f.meldung("Art ändern: STEP-Datei der Position nicht gefunden.", fehler=True)
+                return None
+            datei, _ = QFileDialog.getOpenFileName(self, f"STEP-Datei von Pos. {p.get('pos') or ''} wählen",
+                                                   str(step_ablage.start_ordner(self.db)),
+                                                   "STEP-Dateien (*.step *.stp *.STEP *.STP)")
+            if not datei:
+                return None
+            pfad = Path(datei)
+        self.verlauf.merken()
+        erg = self.step_importieren([str(pfad)], ersetzen=dict(p))
+        if erg is not None:
+            self.rueckgaengig_anbieten(f"Pos. {p.get('pos') or ''}: Art geändert.")
+        return erg
+
+    def _art_knopf_einbauen(self, d, zeilen):
+        """Knopf „Art ändern …“ im Editor (Rohr, Blech, Dreh-/Frästeil, Baugruppe, Satz in 3D; Patrick 04.11.2026:
+        Schritte aus einem Editor in allen Editoren). Bei mehreren Teilen (Baugruppe, Satz) wird gefragt, welches; der
+        Editor schließt ohne Speichern, danach öffnet der Prüfdialog des Teils."""
+        zeilen = [r for r in zeilen if 0 <= r < len(self.positionen) and not ist_baugruppe(self.positionen[r])]
+        boxen = d.findChildren(QDialogButtonBox)
+        if not zeilen or not boxen or self.fremd() or self.db.nur_lesen:
+            return None
+        b = QPushButton("Art ändern …")
+        b.setToolTip("Blech, Rohr/Profil oder Dreh-/Frästeil: das Teil aus der STEP neu messen und die Art wählen "
+                     "(Änderungen in diesem Editor werden nicht gespeichert)")
+
+        def los():
+            r = zeilen[0]
+            if len(zeilen) > 1:
+                texte = [f"Pos. {self.positionen[z].get('pos') or ''} {self.positionen[z].get('artikel') or ''} "
+                         f"{self.positionen[z].get('bezeichnung') or ''}".strip() for z in zeilen]
+                wahl, ok = QInputDialog.getItem(d, "Art ändern", "Teil:", texte, 0, False)
+                if not ok:
+                    return
+                r = zeilen[texte.index(wahl)]
+            pid = self.positionen[r].get("id")
+            d.reject()
+            QTimer.singleShot(0, lambda: self.art_aendern(
+                next((i for i, q in enumerate(self.positionen) if q.get("id") == pid), r)))
+        b.clicked.connect(los)
+        boxen[0].addButton(b, QDialogButtonBox.ResetRole)
+        d.art_knopf = b
+        return b
+
     def drehfraes_bearbeiten(self, zeile=None, dialog=None):
         """Richtpreis eines Dreh-/Frästeils (Arbeitsgänge, Rohling, Zeiten von Hand) zeigen und ändern; Übernehmen
         trägt ihn als EK ab der Stückzahl der Position im Artikel ein (Hinweis „Fremdangebot einholen“). dialog(d)
@@ -4355,9 +4438,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.f.meldung("Diese Position ist kein Dreh-/Frästeil aus dem STEP-Import.", fehler=True)
             return False
         lief = ((liste[0].get("stand") or {}).get("bezug") or {}).get("lieferant")
+        netz = None
+        if p.get("id") and hasattr(self.db, "netz"):        # 3D wie in der STEP (echte Form und Lage, goldgelb)
+            netz = step.netz_der_art(dict(profilform=(e.get("daten") or {}).get("art") or step.DREHFRAES[0],
+                                          _netz=self.db.netz(p["id"])))
         d = DrehfraesDialog(self, dict(e, stueck=p.get("stueck") or e.get("stueck") or 1),
                             self.db.drehfraes_einstellungen(), titel=p.get("bezeichnung") or "",
-                            nur_lesen=self.fremd() or self.db.nur_lesen)
+                            nur_lesen=self.fremd() or self.db.nur_lesen, netz=netz)
+        self._art_knopf_einbauen(d, [zeile])
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg = d.eingaben(), d.ergebnis
@@ -4927,6 +5015,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     # Rechtsklick (B5): Eintrag -> Arten, für die er erscheint (rohr, blech, zukauf, baugruppe); fehlt = immer
     MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
                    "Richtpreis Dreh-/Frästeil …": {"drehfraes"},
+                   "Art ändern (Blech / Rohr / Dreh-/Frästeil) …": {"rohr", "blech", "drehfraes", "zukauf"},
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
                    "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"}}
@@ -5344,6 +5433,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if fokus:
             d.fokus(fokus)
         self._blaettern_einbauen(d, next(r for r, q in enumerate(self.positionen) if q["id"] == p["id"]))
+        self._art_knopf_einbauen(d, [r for r, q in enumerate(self.positionen)
+                                     if not ist_baugruppe(q) and baugruppe.zuordnung(q)[0] == baugruppe.zuordnung(p)[0]
+                                     and baugruppe.zuordnung(q)[0]])
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
@@ -6055,6 +6147,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
                                  step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
             self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
+            self._art_knopf_einbauen(d, [zeile])
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
@@ -7232,7 +7325,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
-                         formulare=None, referenz=None, hinweis=None, werkstoff_text=None):
+                         formulare=None, referenz=None, hinweis=None, werkstoff_text=None, ersetzen=None):
         """STEP-Dateien messen und übernehmen. formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
         Stückzahlen je
         Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
@@ -7241,7 +7334,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         Ordnernamen, Plan Angebotsablauf V5). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
         doppelte Artikel); danach eine ruhige Meldung mit Bericht, mit „Übernehmen und Angebot (PDF)“ gleich das PDF.
         Aus einer E-Mail der Anfrage (28.10.2026): hinweis = Zeilen „Aus E-Mail/Formular“ oben im Prüfdialog; werkstoff_text
-        = Mailtext, ein dort eindeutig genannter Werkstoff (mail.werkstoff) ersetzt die Vorgabe."""
+        = Mailtext, ein dort eindeutig genannter Werkstoff (mail.werkstoff) ersetzt die Vorgabe. ersetzen = Position
+        („Art ändern …“, Patrick 04.11.2026): nur ihr Körper wird gezeigt (Stückzahl wie die Position), die neuen
+        Positionen ersetzen sie (Pos.-Nummer, Zusatzarbeiten und Arbeitsgänge bleiben, Rückgängig möglich)."""
         from . import importprofil
         ws_aus_mail = False
         profil = self.importprofil()
@@ -7268,6 +7363,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for m in messwerte:             # STEP-Datei je Teil (virtuelles Bauteil beim Profilwechsel, step_schenkel)
             if m.get("datei") in pfade:
                 m["_pfad"] = pfade[m["datei"]]
+        if ersetzen is not None:        # Art ändern: nur der Körper der Position
+            messwerte = step.nur_koerper(messwerte, step.herkunft(ersetzen), ersetzen)
+            for m in messwerte:
+                m["_stueck"], m["_uebernehmen"] = ersetzen.get("stueck") or 1, True
+            hinweis = list(hinweis or ()) + [
+                f"Art ändern: Pos. {ersetzen.get('pos') or ''} {ersetzen.get('artikel') or ''} – in der Spalte Art "
+                "Blech, Rohr/Profil oder Dreh-/Frästeil wählen; Übernehmen ersetzt die Position"]
         # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
@@ -7307,6 +7409,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 formular_bericht = anwenden()
 
             formular_bericht = anwenden()
+        # Art wie beim letzten Mal von Hand gewählt (Blech, Rohr/Profil, Dreh-/Frästeil; Patrick 04.11.2026)
+        step.arten_gelernt_anwenden(messwerte, self.db.einstellung(step.ART_GELERNT) or {})
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
@@ -7358,10 +7462,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                                  referenz=referenz, hinweis=[h for h in hinweis or ()
                                                                              if not h.startswith("Werkstoff")],
                                                  werkstoff_text=werkstoff_text)
+            if getattr(dlg, "art_merken", None) and not self.db.nur_lesen:     # Art von Hand: fürs nächste Mal
+                self.db.einstellung_setzen(step.ART_GELERNT, step.arten_gelernt_merken(
+                    self.db.einstellung(step.ART_GELERNT) or {}, dlg.art_merken))
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
-        erneut = bool(doppelt) and erneut
+        erneut = (bool(doppelt) and erneut) or ersetzen is not None     # Art ändern: gleiche Artikelnummer erneut
         mehr = step.mehrteilig(messwerte, mit_blechen=True)
         if als_satz is None:        # Prüfdialog: Feld „Sätze“ je Datei (leer = Einzelpositionen); ohne Dialog als Satz
             als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
@@ -7423,9 +7530,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 p["zukauf"] = json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))],
                                          ensure_ascii=False)
             netz = p.pop("_netz", None)
+            if ersetzen is not None:    # Art ändern: Pos.-Nummer, Zusatzarbeiten und Arbeitsgänge der alten Position
+                p.update({f: ersetzen.get(f) for f in ("pos", "zusatz", "arbeitsgaenge", "satz", "muster")
+                          if ersetzen.get(f) not in (None, "")})
             pid = self.db.position_neu(self.id, p)
             if netz:
                 self.db.netz_speichern(pid, netz)
+        if ersetzen is not None and erg["positionen"] and ersetzen.get("id"):
+            self.db.positionen_loeschen([ersetzen["id"]])
+            erg["bericht"].append(f"Pos. {ersetzen.get('pos') or ''}: Art geändert, alte Position ersetzt")
         self.db.protokoll_anhaengen(self.id, erg["protokoll"])
         alt = self.db.satz_daten(self.id)
         for satz, daten in (erg.get("satz_daten") or {}).items():    # Stöße je Satz für „Satz in 3D“
@@ -7626,6 +7739,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                              dialog=dialog)
         d = Satz3dDialog(self, satz, self.positionen, self.k.profile, self._vk_einstellungen(), self.db.netze(self.id),
                          self.db.satz_daten(self.id).get(satz), nur_lesen=bool(self.fremd() or self.db.nur_lesen))
+        self._art_knopf_einbauen(d, satz_teile(self.positionen, satz))
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         vorab = self.teilen_anwenden(d.ergebnis)

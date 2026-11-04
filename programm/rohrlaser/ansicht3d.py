@@ -36,6 +36,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("N", "nicht übernehmbar", "#FF00FF", None),    # nicht messbare Teile (Rohnetz in Dateilage), magenta
     ("BL", "Blech", "#C9D6E3", None),               # Blech-Editor (blech3d)
     ("KB", "Blech/Kantteil (Zukauf, nicht gelasert)", "#6F9FD8", None),   # STEP-Prüfdialog: Art Blech
+    ("KD", "Dreh-/Frästeil (Zukauf, nicht gelasert)", "#C9A227", None),  # STEP-Prüfdialog: Art Dreh-/Frästeil
     ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
     ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen
     ("SV", "Nahtvorschläge (STEP)", "#D000D0", "#D000D0"),  # Teilfarben sichtbar), offene Nahtkandidaten magenta

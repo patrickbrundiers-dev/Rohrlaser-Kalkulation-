@@ -618,16 +618,67 @@ def rechnen(e, einst=None):
         r_eur += (w["df_ruesten_fraesen"] * 0.5 + w["df_programm_element"] * 2) / 60 * satz[FRAESEN]
     erg["ruesten_auftrag"] = r_eur
     erg["ruesten_min"] = ruest + progr
-    erg["ruesten"] = r_eur / erg["stueck"]
     # Zusätze €/Stück (Gewinde, Oberfläche, Härten …)
     erg["zusatz"] = max(0.0, _z(e.get("zusatz_eur")))
     if "Gewinde/Freiform" in (d.get("zusatz") or ()) and not erg["zusatz"]:
         erg["hinweise"].append("Gewinde/Freiform erkannt: Gewinde bitte als Zusatz €/Stück eintragen")
-    netto = erg["material"] + erg["maschine"] + erg["ruesten"] + erg["zusatz"]
-    erg["aufschlag"] = netto * w["df_aufschlag"]
-    erg["richtpreis"] = round(netto + erg["aufschlag"], 2)
     erg["zeit_stueck"] = sum(zeit.values())
+    aufschlag = w["df_aufschlag"] * 100
+    # Richtwerte (berechnet) und eigene Werte je Teil (Patrick 04.11.2026: „Richtpreis überschreiben wie bei Blech“)
+    rw = dict(gewicht=roh["gewicht"], eur_kg=eur_kg, material=erg["material"], zeit_stueck=erg["zeit_stueck"],
+              maschine=erg["maschine"], ruesten_auftrag=r_eur, zusatz=erg["zusatz"], aufschlag=aufschlag)
+    eigen = eigene_werte(e)
+    erg["richtwerte"], erg["eigene"] = rw, eigen
+    if "gewicht" in eigen or "eur_kg" in eigen:
+        erg["eur_kg"] = eigen.get("eur_kg", eur_kg)
+        erg["material"] = eigen.get("gewicht", roh["gewicht"]) * (1 + w["df_verschnitt"]) * erg["eur_kg"]
+    if "material" in eigen:
+        erg["material"] = eigen["material"]
+    if "zeit_stueck" in eigen:
+        alt = erg["zeit_stueck"]
+        erg["maschine"] = erg["maschine"] * eigen["zeit_stueck"] / alt if alt > 0 else \
+            eigen["zeit_stueck"] / 60 * satz[haupt]
+        erg["zeit_stueck"] = eigen["zeit_stueck"]
+    if "maschine" in eigen:
+        erg["maschine"] = eigen["maschine"]
+    if "ruesten_auftrag" in eigen:
+        erg["ruesten_auftrag"] = eigen["ruesten_auftrag"]
+    if "zusatz" in eigen:
+        erg["zusatz"] = eigen["zusatz"]
+    aufschlag = eigen.get("aufschlag", aufschlag)
+    erg["ruesten"] = erg["ruesten_auftrag"] / erg["stueck"]
+    netto = erg["material"] + erg["maschine"] + erg["ruesten"] + erg["zusatz"]
+    erg["aufschlag"] = netto * aufschlag / 100
+    erg["richtpreis_berechnet"] = round(netto + erg["aufschlag"], 2)
+    rw["richtpreis"] = erg["richtpreis_berechnet"]
+    erg["richtpreis"] = round(eigen["richtpreis"], 2) if "richtpreis" in eigen else erg["richtpreis_berechnet"]
+    if "richtpreis" in eigen:
+        erg["hinweise"].append(f"Richtpreis von Hand {erg['richtpreis']:.2f} € statt berechnet "
+                               f"{erg['richtpreis_berechnet']:.2f} €".replace(".", ","))
     return erg
+
+
+# Richtwerte des Richtpreises mit eigenem Wert je Teil (wie Blech, blech.RICHTWERTE): (Schlüssel, Titel, Einheit,
+# Nachkommastellen). „Richtpreis je Stück“ ersetzt den ganzen Preis (z. B. Angebot des Lieferanten).
+RICHTWERTE = (("gewicht", "Rohling-Gewicht", "kg", 3),
+              ("eur_kg", "Materialpreis", "€/kg", 2),
+              ("material", "Material je Stück", "€", 2),
+              ("zeit_stueck", "Bearbeitung je Stück", "min", 2),
+              ("maschine", "Bearbeitung je Stück", "€", 2),
+              ("ruesten_auftrag", "Rüsten/Programm je Auftrag", "€", 2),
+              ("zusatz", "Zusätze je Stück", "€", 2),
+              ("aufschlag", "Aufschlag Lieferant", "%", 1),
+              ("richtpreis", "Richtpreis je Stück", "€", 2))
+RICHTWERT_NAMEN = tuple(r[0] for r in RICHTWERTE)
+
+
+def eigene_werte(e):
+    """Eigene Werte der Eingaben e ('eigene'): {Schlüssel: Zahl ≥ 0} nur für bekannte Richtwerte."""
+    out = {}
+    for n, v in ((e or {}).get("eigene") or {}).items():
+        if n in RICHTWERT_NAMEN and isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0:
+            out[n] = float(v)
+    return out
 
 
 def aus_step(d, werkstoff=None, stueck=1):
@@ -688,4 +739,7 @@ def bericht(erg):
     z.append(f"Material {erg['material']:.2f} € + Bearbeitung {erg['maschine']:.2f} € + Rüsten/Programm "
              f"{erg['ruesten']:.2f} € + Zusätze {erg['zusatz']:.2f} € + Aufschlag {erg['aufschlag']:.2f} € = "
              f"{erg['richtpreis']:.2f} € je Stück ({_fmm(erg['stueck'])} St)".replace(".", ","))
+    if erg.get("eigene"):
+        namen = {n: t for n, t, *_ in RICHTWERTE}
+        z.append("Eigene Werte: " + ", ".join(f"{namen[n]} {v:g}".replace(".", ",") for n, v in erg["eigene"].items()))
     return z

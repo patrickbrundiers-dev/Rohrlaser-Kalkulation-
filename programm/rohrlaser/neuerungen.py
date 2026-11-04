@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.254", "<b>Einzelteile aufgeräumt</b> ([[saetze_abheben]]): Einzelteile stehen unter einem grauen Band "
+    ["0.9.255", "<b>Einzelteile aufgeräumt</b> ([[saetze_abheben]]): Einzelteile stehen unter einem grauen Band "
      "<i>Einzelteile</i> mit Positionen, Stück, Gewicht, Preis und offenen Vorschlägen; zugeklappte Sätze, Baugruppen "
      "und Einzelteile sind nur noch das Band, der Status zeigt nur sein Symbol, der Zeilenkopf keine zweite Nummer. "
      "<b>Vorschläge für alle Teile</b> ([[zusatz_erkennen]]): der gelbe Knopf übernimmt oder lehnt jede "
@@ -30,6 +30,16 @@ NEUERUNGEN = [
      "entfernen, auch Gewinde; offene Gewinde, Senkungen und Flowdrill aus der STEP bestätigen oder ablehnen, einzeln "
      "oder für alle Teile.",
      "Einzelteile mit Band; Zusatzarbeiten, Gewinde und Bohrungen für alle Teile bestätigen oder ablehnen"],
+    ["0.9.254", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
+     "Kantteile (z. B. Winkel 40 × 40 × 8 mit Biegeradius) wurden als Frästeil erkannt, die Biegeradien zählten sogar "
+     "als Bohrungen. Jetzt entscheidet eine zentrale Regelliste die Art und nennt den Grund in der Hinweisspalte; ein "
+     "Kantteil mit Biegeradien wird nie Frästeil. Jedes Teil wird in allen drei Arten gemessen, die Spalte Art im "
+     "Prüfdialog bietet immer alle drei an (nicht messbare ausgegraut mit Grund), Preis und 3D rechnen sofort neu "
+     "(Dreh-/Frästeile goldgelb). Die Wahl merkt sich das Programm für das gleiche Teil. Nach dem Übernehmen: "
+     "Rechtsklick bzw. Knopf in den Editoren <i>Art ändern …</i>. Dazu: <b>Richtpreis Dreh-/Frästeil "
+     "überschreiben</b> wie beim Blech ([[drehfraes_richtpreis]]) mit eigenen Werten je Teil, und der Editor zeigt "
+     "das Teil <b>in 3D wie in der STEP</b> (echte Form und Lage, goldgelb).",
+     "Art Blech / Rohr / Dreh-Frästeil immer wählbar, Kantteile nie Frästeil, Richtpreis Dreh-/Frästeil überschreibbar, Dreh-/Frästeil-Editor mit 3D wie STEP"],
     ["0.9.253", "<b>Sätze übersichtlicher</b> ([[saetze_abheben]]): jeder Satz und jede Schweißbaugruppe hat ein "
      "<b>Kopfband</b> mit Anzahl, Teilen, Fläche, Gewicht und Preis je Satz. Klick aufs Band markiert den ganzen Satz, "
      "Doppelklick öffnet <i>Satz bearbeiten</i>. Jeder Satz hat eine eigene, kräftigere Farbe (sechs Farben reihum statt "

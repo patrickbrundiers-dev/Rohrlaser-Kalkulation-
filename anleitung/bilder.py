@@ -831,13 +831,26 @@ def main(ziel):
                                 fasen=2, radien=0, konturen=0, stirn=4, stirn_flaeche=14.1, dreh_flaeche=86.0,
                                 querbohrungen=[], schluessel=0, schluessel_flaeche=0.0, frei_flaeche=0.0,
                                 flaeche=100.1, wand_min=None))
-    d = DrehfraesDialog(f, drehfraes_preis.aus_step(welle, "S235JR", 20), db.drehfraes_einstellungen(),
-                        titel="Drehteil Ø30 × 120 mm S235JR")
-    d.resize(1150, 820)
+    # 3D wie in der STEP (0.9.254): dieselbe Stufenwelle als STEP gemessen, Netz unverändert im Editor
+    sys.path.insert(0, str(WURZEL / "tests"))
+    sys.path.insert(0, str(WURZEL / "programm" / "step_messung"))
+    import step_messen as sm_
+    from formen_baukasten import plus as plus_, schreibe as schreibe_df, zyl as zyl_
+    from rohrlaser import step as step_df
+    df_tmp = tmp / "drehfraes_3d"
+    df_tmp.mkdir()
+    schreibe_df({"Stufenwelle": plus_(zyl_(15, 40), zyl_(10, 36, 40), zyl_(8.5, 2, 76), zyl_(10, 22, 78),
+                                      zyl_(8, 20, 100))}, df_tmp)
+    sm_.main(["--ausgabe", str(df_tmp / "m.txt"), "--netze", str(df_tmp / "netze"), str(df_tmp / "Stufenwelle.step")])
+    mw_df = step_df.lade_netze(step_df.lies_messwerte(df_tmp / "m.txt"), df_tmp / "netze")
+    netz_df = step_df.netz_der_art(dict(profilform="Drehteil", _netz=mw_df[0].get("_netz"))) if mw_df else None
+    d = DrehfraesDialog(f, dict(drehfraes_preis.aus_step(welle, "S235JR", 20), eigene={"aufschlag": 10.0}),
+                        db.drehfraes_einstellungen(), titel="Drehteil Ø30 × 120 mm S235JR", netz=netz_df)
+    d.resize(1240, 1060)
     d.show()
     QApplication.processEvents()
     foto.foto("drehfraes_richtpreis", d, [(d.stueck, 1), (d.skizze, 2), (d.befunde, 3), (d.tabelle, 4),
-                                          (d.summe, 5)])
+                                          (d.summe, 5), (d.richtwerte, 6), (d.ansicht3d, 7)])
     d.close()
     from rohrlaser import fraesen_nach
     from rohrlaser.fraesen_nach_dialog import FraesenNachDialog
@@ -1041,6 +1054,28 @@ def main(ziel):
     bereit()
     foto.foto("step_offenes_rohr", d, [(d.baum.itemWidget(z.it, d.SP_ART), 1), (d.baum.itemWidget(z.it, d.SP_PROFIL), 2),
                                        (d.ansicht, 3)])
+    d.reject()
+    # 10b) Art wählen (0.9.254): kurzer dicker Kant-Winkel 40 × 40 × 8 mit Biegeradius – Kantteil (vorher Frästeil),
+    # Spalte Art mit Blech / Rohr/Profil / Dreh-/Frästeil, Grund in der Hinweisspalte, 3D
+    sys.path.insert(0, str(WURZEL / "tests"))
+    import erzeuge_testteile as et_
+    from formen_baukasten import schreibe as schreibe_
+    art_tmp = tmp / "art_auswahl"
+    art_tmp.mkdir()
+    schreibe_({"Winkel_40x40x8": et_.profil([(0, 0), (40, 0), (40, 8), (8, 8), (8, 40), (0, 40)], 100,
+                                            {(0, 0): 16, (8, 8): 8})}, art_tmp)
+    step_messen.main(["--ausgabe", str(art_tmp / "m.txt"), "--netze", str(art_tmp / "netze"), "--flachstahl-bis",
+                      "0", str(art_tmp / "Winkel_40x40x8.step")])
+    mw = step_.lade_netze(step_.lies_messwerte(art_tmp / "m.txt"), art_tmp / "netze")
+    d = StepPruefDialog(f, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
+    d.resize(1300, 560)
+    d.show()
+    z = d.zeilen[0]
+    d.baum.setCurrentItem(z.it)
+    d._zeigen(z.it)
+    bereit()
+    art_cb = d.baum.itemWidget(z.it, d.SP_ART)
+    foto.foto("art_auswahl", d, [(art_cb, 1), (d.baum, 2), (d.ansicht, 3)])
     d.reject()
     # 3D-Ansichten (3E-11): Leiste, Würfel, Messen mit Kernwerten (Bohrungsmitte zur Kante) und Mess-Tafel
     from rohrlaser import ansicht3d as a3d, rohr3d, schneidweg as sw_
