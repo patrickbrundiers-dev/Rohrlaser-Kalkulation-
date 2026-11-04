@@ -290,6 +290,6 @@ class AutoGroesse(QObject):
             if a.isRowHidden(r):
                 continue
             h = standard if n > self.max_anzahl else max(standard, min(a.sizeHintForRow(r), hoechst))
-            h += unter.hoehe(r) if unter is not None else 0
+            h += (unter.hoehe(r) + unter.kopf_hoehe(r)) if unter is not None else 0
             if h != a.rowHeight(r):
                 a.setRowHeight(r, h)

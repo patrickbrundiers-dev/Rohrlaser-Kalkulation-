@@ -296,7 +296,7 @@ def _():
         zfl = next(z for z in d.zeilen if z.liste == [0])
         art = d.baum.itemWidget(zfl.it, d.SP_ART)
         assert [art.itemText(n) for n in range(art.count())][:2] == ["Flachstahl", "Blech"] and not zfl.blech
-        # dahinter die übrigen Arten (seit 0.9.253 immer Dreh-/Frästeil), dann die anderen Profilformen
+        # dahinter die übrigen Arten (seit 0.9.254 immer Dreh-/Frästeil), dann die anderen Profilformen
         daten = [art.itemData(n) for n in range(art.count())]
         assert art.itemData(1) == "alt" and art.itemText(2).startswith("Dreh-/Frästeil") and \
             any(str(x).startswith("form:") for x in daten[3:]), daten

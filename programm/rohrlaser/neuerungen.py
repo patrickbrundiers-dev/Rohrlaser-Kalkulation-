@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.253", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
+    ["0.9.254", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
      "Kantteile (z. B. Winkel 40 × 40 × 8 mit Biegeradius) wurden als Frästeil erkannt, die Biegeradien zählten sogar "
      "als Bohrungen. Jetzt entscheidet eine zentrale Regelliste die Art und nennt den Grund in der Hinweisspalte; ein "
      "Kantteil mit Biegeradien wird nie Frästeil. Jedes Teil wird in allen drei Arten gemessen, die Spalte Art im "
@@ -30,6 +30,12 @@ NEUERUNGEN = [
      "Rechtsklick bzw. Knopf in den Editoren <i>Art ändern …</i>. Dazu: <b>Richtpreis Dreh-/Frästeil "
      "überschreiben</b> wie beim Blech ([[drehfraes_richtpreis]]) mit eigenen Werten je Teil.",
      "Art Blech / Rohr / Dreh-Frästeil immer wählbar, Kantteile nie Frästeil, Richtpreis Dreh-/Frästeil überschreibbar"],
+    ["0.9.253", "<b>Sätze übersichtlicher</b> ([[saetze_abheben]]): jeder Satz und jede Schweißbaugruppe hat ein "
+     "<b>Kopfband</b> mit Anzahl, Teilen, Fläche, Gewicht und Preis je Satz. Klick aufs Band markiert den ganzen Satz, "
+     "Doppelklick öffnet <i>Satz bearbeiten</i>. Jeder Satz hat eine eigene, kräftigere Farbe (sechs Farben reihum statt "
+     "zwei blasser). Die Spalte Satz ist ausgeblendet (über Weitere Spalten), Status <i>OK</i> nur als Häkchen, "
+     "Positionsart nur bei Bedarf, und der Knopf <b>Übersicht</b> blendet die rechte Spalte aus.",
+     "Sätze mit Kopfband, Summen und eigener Farbe; Übersicht ausblendbar"],
     ["0.9.252", "<b>Zusatzarbeit für ganzen Satz repariert</b> ([[zusatz_satz]]): Rechtsklick auf eine "
      "Schweißbaugruppe oder eines ihrer Einzelteile brachte bisher die Meldung „Bitte eine Position markieren, die in "
      "einem Satz steht“. Jetzt öffnet sich das Fenster für alle Einzelteile der Baugruppe (Stück je Baugruppe, Fläche "

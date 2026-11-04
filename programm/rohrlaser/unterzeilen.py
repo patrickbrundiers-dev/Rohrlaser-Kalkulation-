@@ -130,10 +130,12 @@ class UnterzeilenMixin:
     def _oben(self, option, index):
         u = getattr(self.parent(), "unterzeilen", None)
         h = u.hoehe(index.row()) if u is not None else 0
-        if not h:
+        k = u.kopf_hoehe(index.row()) if u is not None else 0
+        if not h and not k:
             return option
         o = QStyleOptionViewItem(option)
-        o.rect = option.rect.adjusted(0, 0, 0, -min(h, max(option.rect.height() - 4, 0)))
+        k = min(k, max(option.rect.height() - 4, 0))
+        o.rect = option.rect.adjusted(0, k, 0, -min(h, max(option.rect.height() - k - 4, 0)))
         return o
 
     def paint(self, painter, option, index):
@@ -168,12 +170,19 @@ class Unterzeilen(QObject):
     die Unterzeilen beginnen (Artikelnummer); doppelklick(r) für einen Doppelklick auf die Unterzeilen (None: wie
     ein Doppelklick auf die Zeile)."""
 
-    def __init__(self, ansicht, texte, spalte, doppelklick=None, an=True):
+    def __init__(self, ansicht, texte, spalte, doppelklick=None, an=True, kopf=None, kopf_klick=None):
         super().__init__(ansicht)
         self.ansicht, self.texte, self.spalte, self.doppelklick, self.an = ansicht, texte, spalte, doppelklick, an
         self.schrift = QFont(ansicht.font())
         self.schrift.setPointSizeF(max(ansicht.font().pointSizeF() * 0.92, 6))
         self.zeile_h = QFontMetrics(self.schrift).lineSpacing() + 4
+        # Kopfband über der ersten Zeile eines Satzes bzw. einer Schweißbaugruppe (Patrick 04.11.2026):
+        # kopf(r) -> dict(titel, info, flaeche, text) oder None; kopf_klick(r, art, x) mit art "klick", "doppel",
+        # "rechts" und x = Abstand vom linken Rand (▾/▸ bis 30 px)
+        self.kopf, self.kopf_klick = kopf, kopf_klick
+        self.kopf_schrift = QFont(ansicht.font())
+        self.kopf_schrift.setBold(True)
+        self.kopf_h = QFontMetrics(self.kopf_schrift).lineSpacing() + 10
         ansicht.unterzeilen = self
         self.flaeche = _Flaeche(self)
         self.flaeche.setGeometry(ansicht.viewport().rect())
@@ -188,6 +197,18 @@ class Unterzeilen(QObject):
     def hoehe(self, r):
         """Zusätzliche Höhe der Zeile r für ihre Unterzeilen [px]."""
         return self.anzahl(r) * self.zeile_h
+
+    def kopf_hoehe(self, r):
+        """Zusätzliche Höhe oben für das Kopfband eines Satzes bzw. einer Baugruppe [px]."""
+        return self.kopf_h if self.kopf is not None and self.kopf(r) else 0
+
+    def kopf_bei(self, y):
+        """Zeile, in deren Kopfband der Punkt y (Viewport) liegt, sonst -1."""
+        r = self.ansicht.rowAt(y)
+        if r < 0:
+            return -1
+        oben = self.ansicht.rowViewportPosition(r)
+        return r if oben <= y < oben + self.kopf_hoehe(r) else -1
 
     def setzen(self, an):
         """Häkchen an/aus: Zeilenhöhen neu, Fläche neu zeichnen."""
@@ -219,7 +240,16 @@ class Unterzeilen(QObject):
         t = ereignis.type()
         if t == QEvent.Resize:
             self._lage()
-        elif t == QEvent.MouseButtonDblClick and self.doppelklick is not None:
+        elif t in (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick) and self.kopf_klick is not None:
+            r = self.kopf_bei(ereignis.position().toPoint().y())
+            if r >= 0:
+                x = ereignis.position().toPoint().x()
+                if t == QEvent.MouseButtonDblClick:
+                    self.kopf_klick(r, "doppel", x)
+                    return True
+                self.kopf_klick(r, "rechts" if ereignis.button() == Qt.RightButton else "klick", x)
+                return ereignis.button() != Qt.RightButton      # Rechtsklick: danach das Menü der Tabelle
+        if t == QEvent.MouseButtonDblClick and self.doppelklick is not None:
             r = self._zeile_bei(ereignis.position().toPoint().y())
             if r >= 0:
                 self.doppelklick(r)
@@ -227,6 +257,7 @@ class Unterzeilen(QObject):
         return False
 
     def zeichnen(self, p):
+        self._koepfe_zeichnen(p)
         if not self.an:
             p.end()
             return
@@ -249,12 +280,7 @@ class Unterzeilen(QObject):
         fm = QFontMetrics(self.schrift)
         x0 = 0 if a.isColumnHidden(self.spalte) else max(a.columnViewportPosition(self.spalte), 0)
         breite = vp.width() - x0
-        oben = max(a.rowAt(0), 0)
-        unten = a.rowAt(vp.height() - 1)
-        unten = a.model().rowCount() - 1 if unten < 0 else unten
-        for r in range(oben, unten + 1):
-            if a.isRowHidden(r):
-                continue
+        for r in self._sichtbare_zeilen():
             zeilen = self.texte(r)
             if not zeilen:
                 continue
@@ -271,3 +297,48 @@ class Unterzeilen(QObject):
                     p.setPen(rot if warnung else text)
                 p.drawText(rect, Qt.AlignVCenter | Qt.AlignLeft, fm.elidedText("↳  " + t, Qt.ElideRight, rect.width()))
         p.end()
+
+    def _sichtbare_zeilen(self):
+        """Logische Zeilen im sichtbaren Bereich, in Anzeige-Reihenfolge (der Zeilenkopf ordnet Sätze und Baugruppen
+        um: logische und angezeigte Reihenfolge unterscheiden sich)."""
+        a = self.ansicht
+        kopf = a.verticalHeader()
+        h = a.viewport().height()
+        oben = kopf.visualIndexAt(0)
+        unten = kopf.visualIndexAt(h - 1)
+        oben = 0 if oben < 0 else oben
+        unten = kopf.count() - 1 if unten < 0 else unten
+        return [r for r in (kopf.logicalIndex(v) for v in range(oben, unten + 1)) if r >= 0 and not a.isRowHidden(r)]
+
+    def _koepfe_zeichnen(self, p):
+        """Kopfbänder: über die ganze Breite die Farbe des Satzes, links ein kräftiger Balken, Titel fett, dahinter die
+        Summen des Satzes (Anzahl, Teile, Fläche, Gewicht, Preis)."""
+        if self.kopf is None:
+            return
+        a = self.ansicht
+        vp = a.viewport()
+        normal = QFont(a.font())
+        for r in self._sichtbare_zeilen():
+            k = self.kopf(r)
+            if not k:
+                continue
+            y = a.rowViewportPosition(r)
+            h = self.kopf_h
+            breite = vp.width()
+            flaeche, text = farbe(k["flaeche"]), farbe(k["text"])
+            p.fillRect(QRect(0, y, breite, h), flaeche)
+            p.fillRect(QRect(0, y, 5, h), text)
+            p.setPen(text)
+            p.drawLine(0, y, breite, y)
+            p.setFont(self.kopf_schrift)
+            fm = QFontMetrics(self.kopf_schrift)
+            x = 12
+            titel = k["titel"]
+            p.drawText(QRect(x, y, breite - x, h), Qt.AlignVCenter | Qt.AlignLeft, titel)
+            x += fm.horizontalAdvance(titel) + 16
+            if k.get("info"):
+                p.setFont(normal)
+                p.setPen(QColor(a.palette().color(QPalette.Text)))
+                rect = QRect(x, y, max(breite - x - 8, 0), h)
+                p.drawText(rect, Qt.AlignVCenter | Qt.AlignLeft,
+                           QFontMetrics(normal).elidedText(k["info"], Qt.ElideRight, rect.width()))

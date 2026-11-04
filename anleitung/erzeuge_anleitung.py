@@ -1592,8 +1592,9 @@ def kapitel_angebot(i):
                                   "(fett) ersetzt sie für diese Position, leeren = wieder berechnet ([[stundensaetze]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]]); "
-                                "die Spalten stehen gleich hinter Pos., die Positionen eines Satzes zusammen und farbig "
-                                "([[saetze_abheben]])"],
+                                "die Positionen eines Satzes stehen zusammen und farbig unter einem Kopfband mit dem "
+                                "Namen ([[saetze_abheben]]). Die Spalte <i>Satz</i> ist deshalb ausgeblendet; zum "
+                                "Eintragen über <b>Weitere Spalten</b> einblenden"],
         ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
                                 "([[meterpreis]])"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i> (Trennung mit Semikolon oder Komma, x oder ×). Nur was hier "
@@ -1616,12 +1617,13 @@ def kapitel_angebot(i):
            "zurücksetzt. Ausgeblendete Spalten verlieren keine Werte.")
     i.abschnitt("Sätze in Positionsliste und Kalkulation", marke="saetze_abheben")
     i.bild("satz_abheben", "Zwei Sätze und Einzelteile in der Positionsliste", hoehe=62 * mm, legende=[
-        (1, "Spalte <b>Satz</b> gleich hinter Pos.: an der ersten Position fett Name und Anzahl Sätze, darunter "
-            "der Name in Grau; daneben <b>Stück je Satz</b>."),
+        (1, "<b>Kopfband</b> über jedem Satz: Name fett in der Farbe des Satzes, dahinter Anzahl Sätze, "
+            "Positionen, Teile je Satz, Fläche und Gewicht je Satz, Preis je Satz und gesamt."),
         (2, "Klammer am Zeilenkopf: <b>▾</b> an der ersten Position, │ dazwischen, └ an der letzten. Klick auf ▾ "
-            "klappt den Satz zu (▸), ein weiterer Klick wieder auf.")])
-    i.text("Positionen eines Satzes stehen zusammen und sind je Satz farbig hinterlegt (abwechselnd blau und "
-           "violett, im Dunkelmodus dunkle Töne); Einzelteile bleiben ohne Farbe.", kurz=True)
+            "(am Zeilenkopf oder am Kopfband) klappt den Satz zu (▸), ein weiterer Klick wieder auf.")])
+    i.text("Jeder Satz hat ein Kopfband mit seinen Summen und eine eigene Farbe (reihum Blau, Orange, Violett, Türkis, "
+           "Rosa, Oliv; Schweißbaugruppen Grün, im Dunkelmodus dunkle Töne); Einzelteile bleiben ohne Farbe.",
+           kurz=True)
     i.bild("satz_kalkulation", "Reiter Kalkulation: Spalte Satz und dieselbe Farbe wie in der Positionsliste",
            hoehe=55 * mm)
     i.genauer()
@@ -1631,20 +1633,27 @@ def kapitel_angebot(i):
             "Anzeige auch dort, [[reihenfolge]]).",
             "Die Anzahl Sätze ist Stückzahl ÷ Stück je Satz der ersten Position. Zugeklappt steht dahinter, wie viele "
             "Positionen der Satz hat. Der Zustand wird je Angebot gemerkt.",
-            "Tippen in die Spalte Satz (oder F2) ändert den Namen; ein <b>Doppelklick</b> auf den Satz öffnet "
-            "<i>Satz bearbeiten</i> ([[satz_bearbeiten]]).",
+            "<b>Klick aufs Kopfband</b> markiert alle Positionen des Satzes: <i>Zusatzarbeiten …</i> öffnet dann das "
+            "Fenster für den ganzen Satz ([[zusatz_satz]]), Rechtsklick bietet alles für den Satz. "
+            "<b>Doppelklick aufs Kopfband</b> öffnet <i>Satz bearbeiten</i> ([[satz_bearbeiten]]), bei einer "
+            "Schweißbaugruppe den Baugruppen-Editor.",
+            "Den Namen ändern: Spalte <i>Satz</i> über <b>Weitere Spalten</b> einblenden und tippen (oder F2).",
             "Im Reiter <i>Kalkulation</i> (kompakt und alle Spalten) steht die Spalte <b>Satz</b> hinter der "
             "Artikelnummer, die Zeilen haben dieselbe Farbe. Ohne Sätze im Angebot ist die Spalte ausgeblendet.",
-            "Schweißbaugruppen ([[schweissbaugruppe]]) sind <b>grün</b> hinterlegt: in der Spalte Satz steht an der "
-            "Baugruppe fett <i>⚙ Name · Anzahl Stk.</i>, darunter an jedem Einzelteil der Name; Klick auf ▾ klappt "
-            "die Einzelteile zu.",
+            "Schweißbaugruppen ([[schweissbaugruppe]]) sind <b>grün</b> hinterlegt und haben ein Kopfband "
+            "<i>⚙ Name</i> mit Anzahl Stück, Einzelteilen und Preis je Stück (mit Einzelteilen); Klick auf ▾ klappt "
+            "die Einzelteile zu. Die Spalte <i>Positionsart</i> erscheint nur noch, wenn andere Arten (z. B. Bleche) "
+            "im Angebot stehen.",
             "Die Kalkulation (kompakt und alle Spalten) steht in derselben Reihenfolge wie die Positionsliste: "
             "Schweißbaugruppe mit Bezeichnung und Profil <i>Schweißbaugruppe</i>, ihre Einzelteile direkt darunter, "
             "Sätze zusammen. Der Zeilenkopf zeigt dieselbe Klammer; ein Klick klappt auch hier zu.",
             "<b>▸ Alle Gruppen zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
             "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle Gruppen aufklappen</b>. Welche Gruppen zu sind, merkt "
             "sich das Programm je Angebot (auch nach dem Schließen).",
-            "Der Status steht in einer Zeile (lange Texte gekürzt mit …); der ganze Text steht im Tooltip.",
+            "Der Status steht in einer Zeile (lange Texte gekürzt mit …); der ganze Text steht im Tooltip. "
+            "<i>OK</i> zeigt nur das grüne Häkchen.",
+            "Der Knopf <b>Übersicht</b> (oben rechts neben <i>Ausgaben</i>) blendet die Übersicht rechts aus bzw. "
+            "wieder ein; ausgeblendet hat die Liste die ganze Breite. Die Wahl merkt sich das Programm.",
             "Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit seinen Teilen darunter.")
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
@@ -2708,7 +2717,7 @@ def kapitel_step(i):
                    "Anfangs- und Endschnitt.")])
     i.text("Jedes Teil aus dem STEP-Import wird in allen drei Arten gemessen: als <b>Blech</b> (eben oder gekantet), "
            "als <b>Rohr/Profil</b> und als <b>Dreh-/Frästeil</b>. Welche Art gilt, entscheidet eine Regelliste; du "
-           "kannst sie im Prüfdialog und nach dem Übernehmen jederzeit umstellen (seit 0.9.253).", kurz=True)
+           "kannst sie im Prüfdialog und nach dem Übernehmen jederzeit umstellen (seit 0.9.254).", kurz=True)
     i.genauer()
     i.liste("<b>Regelliste</b> (die erste zutreffende gilt, der Grund steht in der Hinweisspalte): 1. Biegerohr "
             "bzw. Knickrahmen bleibt Rohr. 2. <b>Kantteil mit Biegeradien</b> (außen = innen + Blechdicke) wird "
@@ -2783,7 +2792,7 @@ def kapitel_step(i):
                    "änderbar (fett, gerechneter Wert dahinter)."),
                (5, "Summe: Material, Bearbeitung, Rüsten je Stück, Zusätze, Aufschlag des Lieferanten und der "
                    "<b>Richtpreis je Stück</b>."),
-               (6, "<b>Richtwerte mit eigenem Wert</b> wie beim Blech (seit 0.9.253): leer = berechnet, eingetragen "
+               (6, "<b>Richtwerte mit eigenem Wert</b> wie beim Blech (seit 0.9.254): leer = berechnet, eingetragen "
                    "= gilt nur für dieses Teil (gelb, ↺ setzt zurück); hier Aufschlag 10 % statt 15 %.")])
     i.text("Für Dreh- und Frästeile aus dem STEP-Import ([[drehfraesteile]]) schätzt das Programm den Preis eines "
            "Lohnfertigers aus der Geometrie: Rohmaterial, <b>Arbeitsgänge</b> mit Zeiten aus Schnittwerten, Rüsten "
@@ -2815,7 +2824,7 @@ def kapitel_step(i):
             "mit EK behält ihn, ein EK von Hand oder vom Lieferanten geht immer vor. Der Richtpreis geht nicht in "
             "die Lieferantenanfrage. Solange der EK nur ein Richtpreis ist, erinnert der <b>Angebots-Check</b> mit "
             "einem Hinweis an das Fremdangebot.",
-            "<b>Richtpreis überschreiben</b> (seit 0.9.253, wie im Blech-Editor): in der Tabelle der Richtwerte "
+            "<b>Richtpreis überschreiben</b> (seit 0.9.254, wie im Blech-Editor): in der Tabelle der Richtwerte "
             "je Zeile einen <b>eigenen Wert</b> eintragen – Rohling-Gewicht, Materialpreis €/kg, Material, "
             "Bearbeitung (min oder €), Rüsten/Programm je Auftrag, Zusätze, Aufschlag des Lieferanten oder gleich "
             "den ganzen <b>Richtpreis je Stück</b> (z. B. aus einem Angebot). Der Wert gilt nur für dieses Teil, "

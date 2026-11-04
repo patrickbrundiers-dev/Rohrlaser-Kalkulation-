@@ -1042,7 +1042,7 @@ def main(ziel):
     foto.foto("step_offenes_rohr", d, [(d.baum.itemWidget(z.it, d.SP_ART), 1), (d.baum.itemWidget(z.it, d.SP_PROFIL), 2),
                                        (d.ansicht, 3)])
     d.reject()
-    # 10b) Art wählen (0.9.253): kurzer dicker Kant-Winkel 40 × 40 × 8 mit Biegeradius – Kantteil (vorher Frästeil),
+    # 10b) Art wählen (0.9.254): kurzer dicker Kant-Winkel 40 × 40 × 8 mit Biegeradius – Kantteil (vorher Frästeil),
     # Spalte Art mit Blech / Rohr/Profil / Dreh-/Frästeil, Grund in der Hinweisspalte, 3D
     sys.path.insert(0, str(WURZEL / "tests"))
     import erzeuge_testteile as et_

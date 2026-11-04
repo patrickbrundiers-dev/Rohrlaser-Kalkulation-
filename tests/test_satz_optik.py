@@ -45,7 +45,13 @@ assert satzgruppen.zelltext(dict(i[2], saetze=1)) == "▣ B · 1 Satz"
 assert satzgruppen.anzahl_saetze(dict(satz="C", stueck=3)) == 3        # Stück je Satz leer = 1 wie rechnen
 m = satzgruppen.zeilen_markieren(pos, [dict(pos=1), None, dict(pos=3), dict(pos=4), dict(pos=5)])
 assert m[1] is None and m[0]["satz"] == "A" and m[0]["satz_ton"] == 0 and m[2]["satz_ton"] == 1 and m[3]["satz_ton"] == 0
-ok("Gruppen je Satzname (ohne Baugruppen), Reihenfolge zusammen, Tönung abwechselnd, Klammer ▾ │ └, Zelltext")
+viele = [dict(satz=f"S{n}") for n in range(8)]
+toene = [satzgruppen.info(viele, satzgruppen.saetze(viele))[n]["ton"] for n in range(8)]
+assert toene == [0, 1, 2, 3, 4, 5, 0, 1] and satzgruppen.TOENE == 6 and len(set(satzgruppen.FLAECHEN)) == 7, toene
+for f in satzgruppen.FLAECHEN:          # kräftig genug (04.11.2026: vorher fast weiß): Abstand zu Weiß
+    rgb = [int(f[k:k + 2], 16) for k in (1, 3, 5)]
+    assert 255 * 3 - sum(rgb) >= 90, f
+ok("Gruppen je Satzname (ohne Baugruppen), Reihenfolge zusammen, Tönung reihum 6 Farben, Klammer ▾ │ └, Zelltext")
 
 assert SICHTBAR[:3] == ["pos", "satz", "je_satz"]
 for thema in ("Hell", "Dunkel", "Hoher Kontrast"):
@@ -80,18 +86,32 @@ assert m.headerData(0, Qt.Vertical) == "▾ 1" and m.headerData(2, Qt.Vertical) 
 assert m.headerData(1, Qt.Vertical) == "2" and m.headerData(3, Qt.Vertical) == "▾ 4"
 c = next(c for c in range(m.columnCount()) if m.name(c) == "satz")
 assert c <= 3, c
-assert m.data(m.index(0, c)) == "▣ Gestell · 4 Sätze" and m.data(m.index(2, c)) == "Gestell"
-assert m.data(m.index(0, c), Qt.ItemDataRole.FontRole).bold()
-assert m.data(m.index(3, c)) == "▣ Tisch · 4 Sätze"
+# Name und Anzahl stehen im Kopfband (04.11.2026, F3a), die Spalte Satz zeigt nichts mehr doppelt
+assert m.data(m.index(0, c)) == "" and m.data(m.index(2, c)) == ""
+band = s.kopf_baender
+assert set(band) == {0, 3}, band
+assert band[0]["titel"] == "▾ Gestell" and band[0]["info"].startswith("4 Sätze · 2 Positionen · "), band[0]
+assert "€ je Satz" in band[0]["info"] and "€ gesamt" in band[0]["info"], band[0]
+assert band[3]["titel"] == "▾ Tisch" and band[0]["flaeche"] != band[3]["flaeche"]
+u = s.pos_unter
+assert u.kopf_hoehe(0) > 0 and u.kopf_hoehe(1) == 0 and s.pos_ansicht.rowHeight(0) >= s.pos_ansicht.rowHeight(1) + \
+    u.kopf_hoehe(0) - 2, (s.pos_ansicht.rowHeight(0), s.pos_ansicht.rowHeight(1))
 art = next(c for c in range(m.columnCount()) if m.name(c) == "artikel")
 bg = [m.data(m.index(r, art), Qt.ItemDataRole.BackgroundRole).color().name() for r in range(5)]
 assert bg[0] == bg[2] != bg[1] and bg[3] == bg[4] not in (bg[0], bg[1]), bg
 assert m.data(m.index(0, c), Qt.ItemDataRole.EditRole) == "Gestell"       # bearbeiten: nur der Name
-ok("Positionsliste: Satz zusammen, Spalten Satz/je Satz vorne, erste Zeile fett mit Anzahl Sätze, Tönung je Satz")
+s.band_klick(0, "klick", 200)               # Klick aufs Band: alle Positionen des Satzes markiert
+assert s._markierte_zeilen() == [0, 2] and s._zusatz_zeilen() == ([0, 2], "Gestell"), s._zusatz_zeilen()
+s.band_klick(0, "klick", 10)                # ▾ am Band: zuklappen und wieder auf
+assert s.pos_ansicht.isRowHidden(2) and s.kopf_baender[0]["titel"] == "▸ Gestell"
+s.band_klick(0, "klick", 10)
+assert not s.pos_ansicht.isRowHidden(2)
+ok("Positionsliste: Satz zusammen, Kopfband je Satz mit Anzahl, Teilen und Preis, Tönung je Satz; Klick aufs Band "
+   "markiert den Satz, ▾ klappt zu")
 
 s._kopf_klick(0)
 assert s.pos_ansicht.isRowHidden(2) and not s.pos_ansicht.isRowHidden(0) and not s.pos_ansicht.isRowHidden(3)
-assert m.headerData(0, Qt.Vertical) == "▸ 1" and m.data(m.index(0, c)).endswith("2 Positionen")
+assert m.headerData(0, Qt.Vertical) == "▸ 1" and s.kopf_baender[0]["titel"] == "▸ Gestell"
 s.neu_laden()                               # bleibt zugeklappt
 assert s.pos_ansicht.isRowHidden(2)
 s._kopf_klick(0)
@@ -111,6 +131,18 @@ kk = s.kalk
 assert kk.data(kk.index(0, next(c for c, sp in enumerate(kk.spalten) if sp[1] == "satz"))) == "Gestell"
 assert kk.data(kk.index(0, 0), Qt.ItemDataRole.BackgroundRole) is not None
 ok("Kalkulation kompakt und alle Spalten: Spalte Satz, Satzzeilen getönt, Einzelteile wie bisher")
+
+# Ruhigere Liste und mehr Platz (04.11.2026): Satzspalte aus (über Weitere Spalten), OK nur Symbol, Übersicht ausblendbar
+assert s.pos_ansicht.isColumnHidden(c)
+st = next(i for i, (a_, _) in enumerate(m.spalten) if a_ == "status")
+ok_zeile = next(r for r in range(m.rowCount()) if str(m.roh(r, st)).strip() == "OK")
+assert m.data(m.index(ok_zeile, st)) == "" and m.data(m.index(ok_zeile, st), Qt.ItemDataRole.DecorationRole) is not None
+assert s.uebersicht_knopf.isChecked() and not s.uebersicht_rahmen.isHidden()
+s.uebersicht_knopf.setChecked(False)
+assert s.uebersicht_rahmen.isHidden() and db.einstellung("ansicht_uebersicht") is False
+s.uebersicht_zeigen(True)
+assert not s.uebersicht_rahmen.isHidden() and db.einstellung("ansicht_uebersicht") is True
+ok("Satzspalte ausgeblendet, Status OK nur als Symbol, Übersicht rechts ein-/ausblenden und merken")
 
 # ohne Sätze: Spalte Satz der kompakten Kalkulation ausgeblendet, nichts getönt
 b = db.angebot_neu(dict(kunde="Test", kundennr="4711"))

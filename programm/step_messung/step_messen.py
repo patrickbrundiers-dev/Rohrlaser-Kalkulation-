@@ -75,7 +75,7 @@ OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "k
 # {seite, luecken, breite, laenge, vorher, steg, radius, ueberstand, normrohr, …}; leer = keins
 # Spalte "drehfraes": Dreh- oder Frästeil (step_drehfraes, ab 0.9.249), JSON {art, Maße, merkmale, zusatz, text,
 # nur_abmessung, volumen, fingerabdruck}; leer = keins (das Teil ist dann Rohr, Profil, Blech o. ä.)
-# Spalte "art_grund": Grund der Art aus der zentralen Art-Entscheidung (step_arten.REGELN, ab 0.9.253), leer = wie
+# Spalte "art_grund": Grund der Art aus der zentralen Art-Entscheidung (step_arten.REGELN, ab 0.9.254), leer = wie
 # gemessen. Spalte "arten": die übrigen Arten (Blech, Rohr/Profil, Dreh-/Frästeil), die weder das Teil noch
 # "alternative" sind, als JSON {Gruppe: {Spalte: Wert}} wie "alternative"; nicht messbare Arten als
 # {Gruppe: {"grund": Text}}; leer = keine
