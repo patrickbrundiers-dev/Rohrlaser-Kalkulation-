@@ -207,4 +207,26 @@ assert s.bohr_alle(g, False) == 2
 assert all(bohrbild.lesen(s._position_frisch(i)["bohrbild"])[0]["status"] == bohrbild.ABGELEHNT for i in ids)
 assert g not in s.bohr_vorschlaege()
 ok("E7 gelber Knopf: Gewinde-Vorschläge aus STEP für alle Teile ablehnen bzw. bestätigen")
+# ------------------------------------------------------------------ E8 keine leeren Zeilen (Patrick 04.11.2026)
+# Bis 0.9.252 zeichneten die Unterzeilen nur logische Zeilen zwischen der obersten und untersten sichtbaren: stand eine
+# umsortierte Gruppe (Satz, Baugruppe über ihren Teilen) oben, blieben die Zeilen darunter leer.
+from PySide6.QtWidgets import QAbstractItemView  # noqa: E402
+kopf_v = s.pos_ansicht.verticalHeader()
+letzte = [q for q in s.positionen if q.get("profil_id") and not q.get("satz")][-1]
+db.position_aendern(letzte["id"], "satz", "Regal")          # weit unten: rückt in der Anzeige zum Satz hoch
+db.position_aendern(letzte["id"], "zusatz", '[{"name": "Entgraten"}]')
+s.neu_laden()
+s.gruppen_alle(False)
+umsortiert = next((r for r in range(m.rowCount()) if kopf_v.visualIndex(r) < r and not s.pos_ansicht.isRowHidden(r)),
+                  None)
+assert umsortiert is not None, "Testangebot ohne umsortierte Zeile"
+s.pos_ansicht.auto_groesse._zeilen()
+s.pos_ansicht.scrollTo(m.index(umsortiert, 1), QAbstractItemView.PositionAtTop)
+QApplication.processEvents()
+sichtbar = s.pos_unter._sichtbare_zeilen()
+oben, unten = kopf_v.visualIndexAt(0), kopf_v.visualIndexAt(s.pos_ansicht.viewport().height() - 1)
+unten = kopf_v.count() - 1 if unten < 0 else unten
+erwartet = [kopf_v.logicalIndex(v) for v in range(oben, unten + 1) if not s.pos_ansicht.isRowHidden(kopf_v.logicalIndex(v))]
+assert sichtbar == erwartet and sichtbar[0] == umsortiert, (sichtbar, erwartet)
+ok("E8 Unterzeilen in Anzeige-Reihenfolge: keine leeren Zeilen, wenn eine umsortierte Gruppe oben steht")
 print("OK: Einzelteile und Vorschläge")
