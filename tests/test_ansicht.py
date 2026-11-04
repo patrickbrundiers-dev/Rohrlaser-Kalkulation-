@@ -249,14 +249,16 @@ fenster.resize(1366, 728)
 QApplication.processEvents()
 fenster.reiter.setCurrentWidget(s)
 QApplication.processEvents()
-assert s.leiste.zweizeilig and s.weitere.isVisible(), (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
+# Plan B1 04.11.2026: schmalere Knöpfe, Übersicht-Knopf im Streifen – je nach Schrift eine oder zwei Zeilen
+assert s.leiste.zweizeilig == (s.leiste.width() < s.leiste._bedarf()) and s.weitere.isVisible(), \
+    (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
 assert s.weitere.mapTo(fenster, s.weitere.rect().bottomRight()).x() <= fenster.width()
 fenster.resize(1920, 1040)
 QApplication.processEvents()
 # eine Zeile, sobald die Breite reicht (wie breit die Knöpfe sind, hängt von der Schrift des Systems ab)
 assert s.leiste.width() > 1366 - 400 and s.leiste.zweizeilig == (s.leiste.width() < s.leiste._bedarf()), \
     (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
-ok("Angebot bei 1366 px: Angebot (PDF) und Ausgaben in zweiter Zeile, bei 1920 px eine Zeile, wenn die Breite reicht")
+ok("Angebot bei 1366 px: Knopfleiste bricht nur um, wenn die Breite nicht reicht; Ausgaben nie abgeschnitten")
 # Übersicht rechts über die ganze Höhe, Angebotskopf mit Kunde und Positionen zugeklappt auf eine Zeile
 kb = s.kopf_bereich
 assert s.spalten.widget(1) is s.uebersicht_rahmen and s.uebersicht_rahmen.widget() is s.uebersicht_bereich

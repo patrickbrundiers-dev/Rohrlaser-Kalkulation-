@@ -5,7 +5,7 @@ nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer 
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
 from PySide6.QtCore import QDate, QEvent, QObject, Qt, QTimer
-from PySide6.QtGui import QFont, QTextCursor, QTextDocument
+from PySide6.QtGui import QColor, QFont, QPainter, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
@@ -395,11 +395,14 @@ class KopfBereich(QWidget):
         self.maschinen_bereich = Aufklapper("Maschinenparameter", self.maschinenwerte)
         kl.addWidget(self.maschinen_bereich)
         lay.addWidget(kopf)
+        self.kopf_karte = kopf
+        self.einzeilig = False      # Laptop: Kopf, Kalkulation und Fracht zugeklappt in einer Zeile (Plan B1)
 
         # Kalkulationseinstellungen dieses Angebots
         vorgaben = QPushButton("Vorgaben aus Einstellungen")
         vorgaben.setToolTip("Zuschläge, Gewinn, Rüstzeit und Pauschalen wieder auf die Werte der Einstellungen setzen")
         vorgaben.clicked.connect(lambda: seite.kalkulation_zuruecksetzen())
+        self.vorgaben_knopf = vorgaben
         kalk, kal0 = karte()
         titelzeile = QHBoxLayout()
         self.kalk_knopf = QToolButton()
@@ -691,6 +694,8 @@ class KopfBereich(QWidget):
         self.kopf_knopf.setArrowType(Qt.DownArrow if offen else Qt.RightArrow)
         self.kopf_inhalt.setVisible(offen)
         self.kopf_kurz.setVisible(not offen)
+        if self.kompakt:
+            self._karten_neu()
         self.s.oben_anpassen()
 
     def kopf_offen(self):
@@ -772,14 +777,19 @@ class KopfBereich(QWidget):
         self.fracht_rechts = rechts
         for w in (self.kalk_karte, self.fracht_karte):
             self.karten.removeWidget(w)
+        v = 1 if self.einzeilig else 0      # einzeilig: der Kopf steht in Spalte 0
+        for c in range(3):
+            self.karten.setColumnStretch(c, 0)
         if rechts:          # oben bündig, jede Karte so hoch wie ihr Inhalt
-            self.karten.addWidget(self.kalk_karte, 0, 0, Qt.AlignTop)
-            self.karten.addWidget(self.fracht_karte, 0, 1, Qt.AlignTop)
+            self.karten.addWidget(self.kalk_karte, 0, v, Qt.AlignTop)
+            self.karten.addWidget(self.fracht_karte, 0, v + 1, Qt.AlignTop)
         else:
-            self.karten.addWidget(self.kalk_karte, 0, 0)
-            self.karten.addWidget(self.fracht_karte, 1, 0)
-        self.karten.setColumnStretch(0, (2 if self.kompakt else 3) if rechts else 1)
-        self.karten.setColumnStretch(1, 1 if rechts else 0)
+            self.karten.addWidget(self.kalk_karte, 0, v)
+            self.karten.addWidget(self.fracht_karte, 1, v)
+        if self.einzeilig:
+            self.karten.setColumnStretch(0, 5)
+        self.karten.setColumnStretch(v, (2 if self.kompakt else 3) if rechts else 1)
+        self.karten.setColumnStretch(v + 1, 1 if rechts else 0)
         # Felder der Fracht: rechts schmal untereinander, unten in zwei Zeilen nebeneinander
         art_t, art, umlage_t, umlage, auto, ziel_t, ziel = self._fracht_zellen
         for w in self._fracht_zellen:
@@ -816,7 +826,27 @@ class KopfBereich(QWidget):
     def _karten_neu(self):
         breite = getattr(self, "_breite", 0)
         zu = not self.kalk_knopf.isChecked() and not self.fracht_klapp.isChecked()
+        self.einzeilig_setzen(self.kompakt and zu and not self.kopf_knopf.isChecked())
         self.karten_anordnen(breite >= FRACHT_RECHTS_AB or (self.kompakt and zu))
+
+    def einzeilig_setzen(self, an):
+        """Optimierungsplan B1 (Patrick 04.11.2026): auf niedrigen Seiten (Laptop) stehen Angebotskopf, Kalkulation
+        und Fracht zugeklappt in EINER Zeile; die Knöpfe „Vorgaben aus Einstellungen“ und „Fracht berechnen …“
+        erscheinen dann erst aufgeklappt. Spart eine Kartenzeile über der Positionsliste."""
+        if an == self.einzeilig:
+            return
+        self.einzeilig = an
+        if an:
+            self._lay.removeWidget(self.kopf_karte)
+            self.karten.addWidget(self.kopf_karte, 0, 0, Qt.AlignTop)
+        else:
+            self.karten.removeWidget(self.kopf_karte)
+            self._lay.insertWidget(0, self.kopf_karte)
+        self.vorgaben_knopf.setVisible(not an)
+        if hasattr(self, "fracht_knopf"):
+            self.fracht_knopf.setVisible(not an and funktionen.an("funktion_fracht"))
+        self.fracht_rechts = None           # Karten neu einsetzen (Spalten verschieben sich um den Kopf)
+        self.s.oben_anpassen()
 
     # -------------------------------------------------------------- Eingaben
     def _eingabe(self, fd, ablage):
@@ -1163,6 +1193,56 @@ class UebersichtRahmen(QScrollArea):
             self._breite_anpassen()
 
 
+class UebersichtStreifen(QFrame):
+    """Schmaler Streifen rechts, solange die Übersicht ausgeblendet ist (Plan B2 04.11.2026): oben « zum Einblenden,
+    darunter senkrecht Verkaufspreis und Stand der Optimierung (Farbpunkt wie in der Übersicht). Ein Klick irgendwo
+    auf den Streifen blendet die Übersicht wieder ein. Die Werte liest er aus dem UebersichtBereich."""
+    BREITE = 30
+    FARBE = {"stand_ok": "#2E8B4A", "stand_offen": "#D9A400"}       # sonst veraltet: rot
+
+    def __init__(self, bereich, knopf):
+        super().__init__()
+        self.bereich, self.knopf = bereich, knopf
+        bereich.streifen = self
+        self.setObjectName("karte")
+        self.setFixedWidth(self.BREITE)
+        self.setCursor(Qt.PointingHandCursor)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(2, 4, 2, 4)
+        lay.addWidget(knopf, 0, Qt.AlignHCenter)
+        lay.addStretch(1)
+        self.setToolTip("Übersicht einblenden")
+
+    def text(self):
+        preis = self.bereich.preis["verkauf"].text()
+        return f"Übersicht  ·  VK {preis}" if preis else "Übersicht"
+
+    def farbe(self):
+        return self.FARBE.get(self.bereich.stand.objectName(), "#C0392B")
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.knopf.setChecked(True)
+        super().mouseReleaseEvent(e)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        oben = self.knopf.geometry().bottom() + 12
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(self.farbe()))
+        p.drawEllipse(self.width() // 2 - 5, oben, 10, 10)
+        p.setPen(QColor("#1F3A5F"))
+        f = QFont(self.font())
+        f.setBold(True)
+        p.setFont(f)
+        p.translate(self.width() / 2 + p.fontMetrics().ascent() / 2 - 2, oben + 20)
+        p.rotate(90)
+        p.drawText(0, 0, self.text())
+        p.end()
+
+
 class UebersichtBereich(QWidget):
     """Rechte Seite: Stand der Optimierung, Meldungen, Kennzahlen und Kostenübersicht."""
 
@@ -1174,7 +1254,14 @@ class UebersichtBereich(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
-        k, kl = karte("Übersicht")
+        # » blendet die Übersicht aus; dann zeigt der schmale Streifen (UebersichtStreifen) Preis und Stand (Plan B2)
+        self.ausblenden_knopf = QToolButton()
+        self.ausblenden_knopf.setText("»")
+        self.ausblenden_knopf.setAutoRaise(True)
+        self.ausblenden_knopf.setToolTip("Übersicht ausblenden: die Positionsliste bekommt die ganze Breite, rechts "
+                                         "bleibt ein schmaler Streifen mit Verkaufspreis und Stand")
+        self.streifen = None
+        k, kl = karte("Übersicht", rechts=self.ausblenden_knopf)
         self.stand = QLabel()
         self.stand.setAlignment(Qt.AlignCenter)
         self.stand.setMinimumHeight(28)
@@ -1304,6 +1391,7 @@ class UebersichtBereich(QWidget):
             w.setToolTip("" if aktuell else "Ohne aktuelle Optimierung fehlen Material, Stangenwechsel und "
                                             "Verschnitt. Bitte optimieren.")
         self._stand_text(stand)
+        self._streifen_neu()
 
     def wird_berechnet(self):
         """Gleich optimiert das Programm selbst (Plan Angebotsablauf V7): statt eines vorläufigen Preises ohne
@@ -1312,6 +1400,11 @@ class UebersichtBereich(QWidget):
             t.setText(titel)
             self.preis[name].setText("wird berechnet …")
             self.preis[name].setToolTip("Das Programm optimiert gleich selbst (Material, Stangen, Verschnitt).")
+        self._streifen_neu()
+
+    def _streifen_neu(self):
+        if self.streifen is not None:
+            self.streifen.update()
 
     def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None, versand=None):
         """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf
@@ -1457,6 +1550,7 @@ class UebersichtBereich(QWidget):
         betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
         for name, w in self.preis.items():
             w.setText(f"{_z(betrag[name][1])} €")
+        self._streifen_neu()
         self._kosten, self._co2 = kosten, co2
         linie = "border-top:1px solid #C9D0D8"
         html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>"

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame,
     QFormLayout, QInputDialog, QMenu, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSplitter, QTableView,
-    QStyleOptionViewItem, QTabWidget, QTextBrowser, QToolTip,
+    QStyleOptionViewItem, QTabWidget, QTextBrowser, QToolButton, QToolTip,
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
@@ -36,7 +36,8 @@ from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_muster, ist_zukaufteil, kein_laserteil
-from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen, _kundennr
+from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen,
+                          UebersichtStreifen, _kundennr)
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
@@ -2062,6 +2063,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         oben_rahmen.setWidgetResizable(True)
         oben_rahmen.setFrameShape(QFrame.NoFrame)
         oben_rahmen.setWidget(self.kopf_bereich)
+        oben_rahmen.setMinimumHeight(24)     # sonst gilt die Mindesthöhe einer Bildlaufläche (~70 px), Plan B1
         # Übersicht als rechte Spalte über die ganze Höhe: Preise immer im Blick, die Reiter bekommen mehr Höhe
         self.uebersicht_rahmen = UebersichtRahmen(self.uebersicht_bereich, UEBERSICHT_MIN)
 
@@ -2069,6 +2071,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         # Knopf, alle weiteren Ausgaben im Menü „Ausgaben“; Positionen löschen über Rechtsklick oder Entf
         # (Bearbeiten → Löschen …).
         self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
+        # etwas schmalere Knöpfe (Layout B1 04.11.2026): bei 1366 px mit Übersicht passt die Leiste in eine Zeile
+        self.leiste.setStyleSheet("QPushButton { padding-left: 7px; padding-right: 7px; }")
         leiste = self.leiste.links_layout
         # „STEP importieren …“ steht nur noch im Menü (Strg+I): das Ablagefeld lädt STEP und DXF per Ziehen oder Klick
         b = QPushButton("Neue Position")
@@ -2077,7 +2081,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.ablage_klein = AblageFeld()       # sichtbares Ziel für Drag & Drop direkt neben „Neue Position“
         self.ablage_klein.geklickt.connect(lambda: self.dateien_waehlen())
         leiste.addWidget(self.ablage_klein)
-        leiste.addSpacing(16)
+        leiste.addSpacing(8)
         optimieren = QPushButton("Optimieren")
         optimieren.setObjectName("primaer")     # Hauptknöpfe (dunkelblau): Optimieren und Angebot (PDF)
         optimieren.clicked.connect(lambda: self.optimieren())
@@ -2122,12 +2126,18 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         pdf.clicked.connect(lambda: self.angebot_pdf())
         leiste.addWidget(pdf)
         # Übersicht rechts ein-/ausblenden (Patrick 04.11.2026: mehr Platz für die Liste), gemerkt je Platz
-        self.uebersicht_knopf = QPushButton("Übersicht")
+        # Plan B2 04.11.2026: « im schmalen Streifen blendet ein, » im Titel der Übersicht blendet aus
+        self.uebersicht_knopf = QToolButton()
+        self.uebersicht_knopf.setText("«")
+        self.uebersicht_knopf.setAutoRaise(True)
         self.uebersicht_knopf.setCheckable(True)
         self.uebersicht_knopf.setChecked(self.db.einstellung(UEBERSICHT_EINSTELLUNG) is not False)
         self.uebersicht_knopf.setToolTip("Übersicht rechts (Preise, Zeiten, Meldungen) ein- bzw. ausblenden: "
-                                         "ausgeblendet hat die Positionsliste die ganze Breite")
+                                         "ausgeblendet hat die Positionsliste die ganze Breite, rechts bleibt ein schmaler "
+                                         "Streifen mit Verkaufspreis und Stand")
         self.uebersicht_knopf.toggled.connect(self.uebersicht_zeigen)
+        self.uebersicht_streifen = UebersichtStreifen(self.uebersicht_bereich, self.uebersicht_knopf)
+        self.uebersicht_bereich.ausblenden_knopf.clicked.connect(lambda _=False: self.uebersicht_zeigen(False))
         self.weitere = QPushButton("Ausgaben")
         self.weitere.setToolTip("Werkstattpapiere, Kalkulation, Materialanfrage, CSV-Export und weitere Aktionen")
         menue = QMenu(self.weitere)
@@ -2204,7 +2214,6 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an(n)) for a, n in self.funktion_aktionen])
         self.weitere.setMenu(menue)
         leiste.addWidget(self.weitere)
-        leiste.addWidget(self.uebersicht_knopf)
 
         # Positionen und Ergebnisse
         self.pos_modell = PositionenModell(self)
@@ -2521,10 +2530,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.spalten = QSplitter(Qt.Horizontal)       # links Kopf und Reiter, rechts die Übersicht
         self.spalten.addWidget(self.teiler)
         self.spalten.addWidget(self.uebersicht_rahmen)
+        self.spalten.addWidget(self.uebersicht_streifen)
         self.spalten.setStretchFactor(0, 1)
         self.spalten.setStretchFactor(1, 0)
         self.spalten.setChildrenCollapsible(False)
         self.uebersicht_rahmen.setVisible(self.uebersicht_knopf.isChecked())
+        self.uebersicht_streifen.setVisible(not self.uebersicht_knopf.isChecked())
         # Angebot eines Kollegen (teilen.py): Hinweis mit Kopieren, Eingaben gesperrt
         self.fremd_leiste = QFrame()
         self.fremd_leiste.setStyleSheet("QFrame { background: #FFF4D6; border: 1px solid #E8C66B; border-radius: 4px; }"
@@ -2578,7 +2589,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         Menüeinträge prüfen beim Öffnen selbst. Hat das Angebot schon Zukaufteile, bleibt der Knopf."""
         zukauf = funktionen.an("funktion_zukauf") or any(ist_zukaufteil(p) for p in getattr(self, "positionen", ()))
         self.zukauf_knopf.setVisible(zukauf)
-        self.kopf_bereich.fracht_knopf.setVisible(funktionen.an("funktion_fracht"))
+        self.kopf_bereich.fracht_knopf.setVisible(funktionen.an("funktion_fracht") and not self.kopf_bereich.einzeilig)
         self.reiter.setTabVisible(self.reiter.indexOf(self._nachkalk), funktionen.an("funktion_nachkalkulation"))
 
     # -------------------------------------------------------------- Laden und Rechnen
@@ -2945,8 +2956,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.zur_position(zeile=zeile)
 
     def uebersicht_zeigen(self, an):
-        """Übersicht rechts ein- bzw. ausblenden (Knopf „Übersicht“), gemerkt je Platz."""
+        """Übersicht rechts ein- bzw. ausblenden (» im Titel, « bzw. Klick im schmalen Streifen), gemerkt je Platz."""
         self.uebersicht_rahmen.setVisible(bool(an))
+        self.uebersicht_streifen.setVisible(not an)
         if self.uebersicht_knopf.isChecked() != bool(an):
             self.uebersicht_knopf.setChecked(bool(an))
         if not self.db.nur_lesen:

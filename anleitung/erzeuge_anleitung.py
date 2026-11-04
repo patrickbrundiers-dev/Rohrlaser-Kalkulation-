@@ -1191,7 +1191,9 @@ def kapitel_angebot(i):
             "darunter Datum, Kundenname und Standard-Stangenlänge; dann paarweise Anfrage und Bemerkung, Lieferzeit "
             "und Material neuer Positionen, darunter der Bearbeiter. Ganz unten die aufklappbaren Maschinenparameter."),
         (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
-            "groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten."),
+            "groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten. <b>»</b> im Titel blendet sie aus: rechts bleibt "
+            "ein schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
+            "Verkaufspreis; <b>«</b> oder ein Klick auf den Streifen blendet sie wieder ein ([[mehr_platz]])."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer. "
             "Der Status hat zusätzlich zur Farbe ein Symbol: grüner Haken = OK, blaues i = Hinweis, gelbes Dreieck = "
             "Warnung oder veraltet, rotes Kreuz = Fehler. Eingabefelder sind hell gelb, berechnete Werte grau."),
@@ -1200,7 +1202,7 @@ def kapitel_angebot(i):
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
             "<i>EK eintragen …</i> (Einkaufspreis fehlender Zukaufteile direkt im Angebot, [[zukauf_positionen]])."),
-        (6, "Ablagefeld <b>STEP / DXF hierher ziehen oder klicken</b>: Positionen aus Konstruktionsdaten und "
+        (6, "Ablagefeld <b>STEP / DXF</b> (Dateien hierher ziehen oder klicken): Positionen aus Konstruktionsdaten und "
             "DXF-Zeichnungen ([[step]], [[dxf_import]]); <i>STEP importieren …</i> steht im Menü (Strg+I)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen ([[optimieren]])."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -1220,8 +1222,9 @@ def kapitel_angebot(i):
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
            "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
-           "niedriger als 760 Punkte (Laptop mit 1366 × 768), werden die Karten flacher, und Kalkulation und Fracht "
-           "stehen zugeklappt nebeneinander; so bleibt mehr Platz für die Positionen. Passt eine zugeklappte Zeile "
+           "niedriger als 760 Punkte (Laptop mit 1366 × 768) und sind alle drei Karten zugeklappt, stehen Angebotskopf, "
+           "Kalkulation und Fracht zusammen in <b>einer</b> Zeile ([[mehr_platz]]); so bleibt mehr Platz für die "
+           "Positionen. Passt eine zugeklappte Zeile "
            "nicht in die Breite, endet sie mit „…“, der Tooltip zeigt den ganzen Text. Im Angebotskopf "
            "steht der Bearbeiter neben der Bemerkung; der Satz „Im Angebot: Lieferzeit …“ erscheint nur, wenn keine "
            "Lieferzeit eingetragen ist, sonst als Tooltip über den Lieferzeit-Feldern. Die Trennlinien zwischen oben und unten und zur Übersicht "
@@ -1273,6 +1276,19 @@ def kapitel_angebot(i):
                ["<b>Schweißbaugruppe</b>", "Editor mit Struktur, Nahtgruppen und Arbeitsgängen; die Baugruppe "
                 "kommt als eigene Position in die Liste, ihre Einzelteile bleiben Positionen ([[schweissbaugruppe]])."]],
               [38, 132])
+    i.abschnitt("Mehr Platz für die Positionsliste", marke="mehr_platz")
+    i.text("Auf einem Laptop (1366 × 768) zeigt die Positionsliste mindestens 13 Zeilen statt 9:",
+           kurz=True)
+    i.liste("<b>Eine Zeile oben</b>: Angebotskopf, Kalkulation und Fracht stehen zugeklappt nebeneinander. Ein Klick "
+            "auf eine Karte klappt sie auf; dann steht der Kopf wieder über der ganzen Breite. <i>Vorgaben aus "
+            "Einstellungen</i> und <i>Fracht berechnen …</i> erscheinen aufgeklappt.",
+            "<b>Eine Knopfleiste</b>: das Ablagefeld heißt nur noch <b>STEP / DXF</b> (Ziehen oder Klicken wie "
+            "bisher), die Knöpfe sind etwas schmaler; der Knopf <i>Übersicht</i> ist aus der Leiste in die Übersicht "
+            "gewandert.",
+            "<b>Übersicht einklappen</b>: <b>»</b> im Titel der Übersicht blendet sie aus. Rechts bleibt ein 30 Punkte "
+            "schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
+            "senkrecht „Übersicht · VK …“. <b>«</b> oder ein Klick auf den Streifen holt die Übersicht zurück. Die "
+            "Wahl gilt für alle Angebote und bleibt nach dem Neustart.")
     i.abschnitt("Angebotskopf", marke="angebotskopf")
     i.schritte([
         ("angebot_positionen", "<b>Kunde</b> aus der Liste wählen: Name und Zahlungsbedingungen kommen aus dem "
@@ -1669,8 +1685,9 @@ def kapitel_angebot(i):
             "Der Zeilenkopf links zeigt nur noch die Klammer (▾ ▸ │ └), keine zweite Nummer neben <i>Pos.</i>; er "
             "bleibt der Griff zum Verschieben ([[reihenfolge]]). Die Spalte <i>Stück je Satz</i> erscheint nur, wenn "
             "das Angebot Sätze hat.",
-            "Der Knopf <b>Übersicht</b> (oben rechts neben <i>Ausgaben</i>) blendet die Übersicht rechts aus bzw. "
-            "wieder ein; ausgeblendet hat die Liste die ganze Breite. Die Wahl merkt sich das Programm.",
+            "<b>»</b> im Titel der Übersicht blendet sie rechts aus, <b>«</b> im schmalen Streifen (oder ein Klick "
+            "auf den Streifen) wieder ein; ausgeblendet hat die Liste fast die ganze Breite und der Streifen zeigt "
+            "Verkaufspreis und Stand. Die Wahl merkt sich das Programm ([[mehr_platz]]).",
             "Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit seinen Teilen darunter.")
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
@@ -2330,13 +2347,13 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
-    i.liste("Im Angebot auf das gestrichelte Feld <b>STEP / DXF hierher ziehen oder klicken</b> klicken (oder Menü "
+    i.liste("Im Angebot auf das gestrichelte Feld <b>STEP / DXF</b> klicken (oder Menü "
             "<i>STEP importieren …</i>, Strg+I) und die Dateien wählen (Mehrfachauswahl mit Strg oder Umschalt). Im "
             "Dialog des Felds lassen sich STEP- und DXF-Dateien zugleich wählen: die STEP-Dateien gehen in den "
             "STEP-Import, danach öffnet für die DXF-Dateien das DXF-Importfenster ([[dxf_import]]). Der Dateidialog startet im Ordner aus der Einstellung <i>STEP-Import: Standardordner</i>; "
             "ist dort keiner eingetragen, im zuletzt benutzten STEP-Ordner.",
             "Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> auf das gestrichelte "
-            "Feld <b>STEP / DXF hierher ziehen oder klicken</b> neben <i>Neue Position</i> ziehen (es geht auch irgendwo sonst ins "
+            "Feld <b>STEP / DXF</b> neben <i>Neue Position</i> ziehen (es geht auch irgendwo sonst ins "
             "Angebotsfenster; beim Ziehen färbt sich das Feld blau). Ein leeres Angebot zeigt statt der leeren "
             "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog für "
             "STEP und DXF. DXF-Dateien darf man mitziehen. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
@@ -6095,8 +6112,9 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Jede Datei wird im Ordner des Angebots gespeichert ([[angebotsordner]]) und gleich geöffnet. Ist die "
            "Optimierung veraltet, fragt das Programm vorher.", kurz=True)
     i.genauer()
-    i.text("Bei schmalem Fenster (z. B. 1366 px Bildschirmbreite) rücken <b>Angebot (PDF)</b> und <b>Ausgaben</b> "
-           "rechtsbündig in eine zweite Zeile unter die Arbeitsknöpfe.",
+    i.text("Die Knopfleiste passt auch bei 1366 px Bildschirmbreite in eine Zeile. Nur wenn das Fenster noch "
+           "schmaler ist (oder der gelbe Knopf mit erkannten Zusatzarbeiten dazukommt), rücken <b>Angebot (PDF)</b> "
+           "und <b>Ausgaben</b> rechtsbündig in eine zweite Zeile unter die Arbeitsknöpfe.",
            "<b>Angebot (PDF)</b>: Briefkopf mit Firmenlogo (Einstellung <i>Firmenlogo</i>), Anschriftfeld "
            "links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), Positionen "
            "ohne Gitterlinien mit Bezeichnung, Menge, Einheit, Preis je Einheit und Gesamtpreis, darunter die "
