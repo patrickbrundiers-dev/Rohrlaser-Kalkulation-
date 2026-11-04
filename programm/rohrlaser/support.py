@@ -3,6 +3,7 @@
 Hilfe → „Support-Paket erstellen …“ (und der Knopf „Support-Paket“ in der Fehlermeldung) legt im Ordner
 Daten/Support eine Datei „Support_JJJJ-MM-TT_HHMM.zip“ an mit:
 - fehler.log (+ fehler.log.1/.2, das Fehlerprotokoll aus Daten/Protokoll),
+- tempo.log (+ Vorgänger) und tempo.txt: langsame Schritte des Zeitwächters (Optimierungsplan A3), falls vorhanden,
 - info.txt: Programmversion, Datenschema, Lizenzstand, Betriebssystem, Datenort,
 - systempruefung.txt: dieser Rechner gegen die Systemvoraussetzungen,
 - einstellungen.json: die Einstellungen OHNE Passwörter, Bilder (Logo) und Kundendaten (es stehen keine Kunden,
@@ -15,7 +16,7 @@ import platform
 import zipfile
 from pathlib import Path
 
-from . import protokoll
+from . import protokoll, tempo
 
 ORDNER = "Support"
 # Einstellungen, die nie ins Paket gehören (zusätzlich zu art passwort/bild)
@@ -84,9 +85,12 @@ def erstellen(db, ziel_ordner=None, protokoll_ordner=None, lizenz_text=None, sys
             system = [("Systemprüfung", f"nicht möglich ({type(f).__name__})", "", "", "?")]
     dateien = []
     with zipfile.ZipFile(pfad, "w", zipfile.ZIP_DEFLATED) as z:
-        for p in protokolldateien(protokoll_ordner):
+        for p in protokolldateien(protokoll_ordner) + tempo.dateien(protokoll_ordner):
             z.write(p, p.name)
             dateien.append(p.name)
+        if tempo.dateien(protokoll_ordner):     # Zeitwächter (A3): Zusammenfassung der langsamen Schritte
+            z.writestr("tempo.txt", tempo.auswerten(protokoll_ordner))
+            dateien.append("tempo.txt")
         for name, inhalt in (("info.txt", info_text(db, lizenz_text)), ("systempruefung.txt", system_text(system)),
                              ("einstellungen.json", json.dumps(einstellungen_sauber(db), ensure_ascii=False,
                                                                indent=1, default=str))):

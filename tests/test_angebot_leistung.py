@@ -5,6 +5,8 @@ Geprüft wird ohne Bildschirm (QT_QPA_PLATFORM=offscreen):
 - die Spaltenbreite misst höchstens die sichtbaren und PRUEF_ZEILEN Zeilen,
 - Liste.data antwortet auf Rollen, die sie nicht bedient, sofort,
 - rechnen.kalkulation läuft je Neuladen eines Angebots nur einmal, Öffnen lädt nur einmal,
+- Öffnen und Zelle ändern optimieren nie und rechnen die Kalkulation genau einmal (Optimierungsplan 04.11.2026, A4:
+  teure Prüfungen wie der Maschinenvergleich laufen erst nach der Eingabepause, nicht in jeder Änderung),
 - die Suche der Angebotsliste filtert erst nach der Tipp-Pause (suchen() sofort),
 - Zeitgrenzen für ein Angebot mit 200 Positionen und eine Liste mit 300 Angeboten. Die Grenzen sind großzügig
   (etwa das Dreifache der gemessenen Zeit), aber kleiner als vor dem Audit: ein Rückfall fällt auf.
@@ -33,7 +35,7 @@ from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
 GRENZE_OEFFNEN = 2.0        # s, Angebot mit 200 Positionen öffnen (optimiert), vor dem Audit 2,4 s
-GRENZE_ZELLE = 1.5          # s, Stückzahl ändern bis Anzeige fertig, vorher 1,1 s
+GRENZE_ZELLE = 1.0          # s, Stückzahl ändern bis Anzeige fertig, vorher 1,1 s; 04.11.2026 (A4) 1,5 -> 1,0 s
 GRENZE_PDF = 15.0           # s, Knopf Angebots-PDF mit 6 veralteten Staffelmengen, vorher 21,6 s
 GRENZE_SUCHE = 1.0          # s, Liste mit 300 Angeboten nach der Tipp-Pause gefiltert
 
@@ -104,8 +106,14 @@ s.optimieren()
 f.angebot_schliessen(a)
 app.processEvents()
 
-zaehler = {"kalkulation": 0, "neu_laden": 0}
+zaehler = {"kalkulation": 0, "neu_laden": 0, "optimieren": 0}
 original_kalk, original_laden = rechnen.kalkulation, angebot_fenster.AngebotSeite._neu_laden
+original_opt = rechnen.optimieren
+
+
+def opt_zaehlen(*a, **k):
+    zaehler["optimieren"] += 1
+    return original_opt(*a, **k)
 
 
 def kalk_zaehlen(*a, **k):
@@ -118,23 +126,29 @@ def laden_zaehlen(self, *a, **k):
     return original_laden(self, *a, **k)
 
 
-rechnen.kalkulation = kalk_zaehlen
+rechnen.kalkulation, rechnen.optimieren = kalk_zaehlen, opt_zaehlen
 angebot_fenster.AngebotSeite._neu_laden = laden_zaehlen
 try:
     t = dauer(lambda: f.angebot_oeffnen(a))
     s = f.offen[a]
     assert zaehler["neu_laden"] == 1, f"Öffnen lädt {zaehler['neu_laden']}x"
+    assert zaehler["optimieren"] == 0, f"Öffnen eines optimierten Angebots optimiert {zaehler['optimieren']}x"
     ok(f"Angebot öffnen lädt einmal ({t:.2f} s, Grenze {GRENZE_OEFFNEN} s)")
     assert t < GRENZE_OEFFNEN, t
     zaehler.update(kalkulation=0, neu_laden=0)
     s.neu_laden()
-    assert zaehler["neu_laden"] == 1 and zaehler["kalkulation"] == 1, zaehler
-    ok("Neuladen rechnet die Kalkulation einmal")
+    assert zaehler["neu_laden"] == 1 and zaehler["kalkulation"] == 1 and zaehler["optimieren"] == 0, zaehler
+    ok("Neuladen rechnet die Kalkulation einmal und optimiert nicht")
+    m = s.pos_modell
+    c = next(i for i, (_, fd) in enumerate(m.spalten) if getattr(fd, "name", None) == "stueck")
+    zaehler.update(kalkulation=0, neu_laden=0, optimieren=0)
+    assert m.setData(m.index(1, c), "5", Qt.EditRole)
+    app.processEvents()
+    assert zaehler["kalkulation"] == 1 and zaehler["optimieren"] == 0, zaehler
+    ok("Zelle ändern: eine Kalkulation, kein Optimieren (Prüfungen erst nach der Eingabepause)")
 finally:
     rechnen.kalkulation, angebot_fenster.AngebotSeite._neu_laden = original_kalk, original_laden
-
-m = s.pos_modell
-c = next(i for i, (_, fd) in enumerate(m.spalten) if getattr(fd, "name", None) == "stueck")
+    rechnen.optimieren = original_opt
 zeiten = []
 for wert in ("7", "9", "11"):
     zeiten.append(dauer(lambda: (m.setData(m.index(0, c), wert, Qt.EditRole), app.processEvents())))

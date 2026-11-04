@@ -607,6 +607,14 @@ def kapitel_start(i):
            "per Mail an den Support.", kurz=True)
     i.liste("Haken <i>Offenes Angebot beilegen</i> (Vorgabe aus): Kopf und Positionen des gerade offenen Angebots "
             "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.")
+    i.abschnitt("Zeitwächter: langsame Schritte", marke="zeitwaechter")
+    i.text("Das Programm merkt sich selbst jede Stelle, an der es länger als eine halbe Sekunde nicht reagiert hat, "
+           "in <i>Daten/Protokoll/tempo.log</i>: Dauer, Ort (z. B. <i>Angebot 2026-00002 (50 Pos., 678 Teile) › "
+           "Positionen</i>) und die Bedienung davor (z. B. <i>Klick „Optimieren“</i>). Wirkt das Programm langsam, "
+           "einfach ein <b>Support-Paket</b> erstellen ([[support_paket]]): es enthält tempo.log und eine "
+           "Zusammenfassung tempo.txt mit den häufigsten langsamen Stellen.", kurz=True)
+    i.liste("Der Wächter bremst nicht spürbar (ein Takt alle 0,1 s) und schreibt keine Kunden oder Preise, nur "
+            "Angebotsnummer, Anzahl Positionen und Teile.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
