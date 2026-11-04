@@ -3032,8 +3032,10 @@ def kapitel_step(i):
     i.text("Daneben steht das Häkchen <b>als Schweißbaugruppe</b> (nur mit <i>Als Satz</i>, Vorgabe aus). Damit wird "
            "der Satz zusätzlich eine Position der Art Schweißbaugruppe ([[schweissbaugruppe]]): die Unterbaugruppen "
            "mit ihrer Menge kommen aus der Struktur der STEP-Datei, jedes Teil steht in seiner Unterbaugruppe mit "
-           "Stück je Unterbaugruppe. Liegen gleiche Teile in mehreren Unterbaugruppen, hängen sie direkt an der "
-           "Baugruppe (Hinweis im Bericht, Stückzahl stimmt). Nahtgruppen und Arbeitsgänge legt der Import nicht an: "
+           "Stück je Unterbaugruppe. Liegen gleiche Teile in mehreren Unterbaugruppen (z. B. ein Querrohr im "
+           "Seitenrahmen und eins direkt im Gestell), bekommt jede Unterbaugruppe eine eigene Position mit derselben "
+           "Artikelnummer (Hinweis im Bericht); nur wenn die Stückzahl nicht aufgeht, hängt das Teil direkt an der "
+           "Baugruppe. Nahtgruppen und Arbeitsgänge legt der Import nicht an: "
            "die STEP-Datei kennt keine Nähte, also im Editor ergänzen.")
     i.text("Liefert der Kunde Unterbaugruppen als eigene Dateien, alle zusammen einlesen und bei der Unterbaugruppe "
            "rechts neben dem Häkchen statt <i>eigene Baugruppe</i> den Eintrag <b>in Baugruppe „…“</b> wählen. Die "
@@ -3249,7 +3251,7 @@ def kapitel_optimieren(i):
            "der Stand <b>Veraltet</b> wird dabei weiter zuverlässig erkannt.")
     i.abschnitt("Schnell nach jeder Änderung", marke="tempo_0411")
     i.text("Nach jeder Änderung rechnet das Angebot Kalkulation, Übersicht und Angebots-Check neu. Was sich durch die "
-           "Änderung nicht ändern kann, rechnet es nicht noch einmal (seit 0.9.255):", kurz=True)
+           "Änderung nicht ändern kann, rechnet es nicht noch einmal (seit 0.9.256):", kurz=True)
     i.liste("<b>Wiederholteile</b> ([[wiederholteile]]) werden nur neu gesucht, wenn sich ein anderes Angebot ändert "
             "(auch durch den Abgleich mit Kollegen) oder an einer Position Artikelnummer, Profil, Werkstoff, Länge, "
             "Schneidweg, Konturen oder die übernehmbaren Werte. Eine neue Stückzahl, Pos.-Nr. oder Bezeichnung sucht "
@@ -5710,7 +5712,11 @@ def kapitel_baugruppen(i):
            "je Stück der Unterbaugruppe, Dicke, Körper). Sie rechnen nicht mit. <b>Markierte übernehmen</b> macht "
            "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
            "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
-           "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
+           "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind. Nähte innerhalb "
+           "einer <b>Unterbaugruppe</b> stehen bei ihr (Anzahl je Stück der Unterbaugruppe, gerechnet × Menge), "
+           "Nähte zwischen Unterbaugruppe und übergeordneter Baugruppe bei der Baugruppe selbst. Kann die Messung "
+           "für einzelne Teilepaare keine Naht bestimmen, bleiben die übrigen Kandidaten erhalten und das erste Teil "
+           "zeigt den Hinweis <i>Nahtkandidaten unvollständig</i>: dann die fehlenden Nähte von Hand ergänzen.")
     i.bild("baugruppe_vorschlaege", "Nahtkandidaten aus STEP im Reiter Nahtgruppen", hoehe=45 * mm, kurz=False,
            legende=[(1, "Je Zeile gleiche Nähte einer Unterbaugruppe: Stoßart, Länge je Naht, Anzahl je Stück, "
                         "Dicke und beteiligte Körper."),
@@ -5880,7 +5886,9 @@ def kapitel_baugruppen(i):
                                "<i>Faktor Abstand Edelstahl/Aluminium</i> (0,7: mehr Verzug)"],
         ["Verputzen", "Naht [m] × min je m der <b>Nacharbeit</b> × Faktor Zugänglichkeit; Nacharbeit aus Qualität "
                       "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
-                      "verzinkt = Spritzer entfernen)"],
+                      "verzinkt = Spritzer entfernen); <b>Außennähte</b> (Stumpf- und Ecknaht, liegen in der "
+                      "Fläche) immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht "
+                      "(dort kommt die Schleifscheibe nicht hin)"],
         ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe (Stammdaten, leer = Summe "
                    "der Einzelteile); Wendevorgänge aus der Erreichbarkeit im STEP ([[baugruppe_erreichbar]])"],
         ["Zugänglichkeit je Naht", "aus der Erreichbarkeit im STEP: gut, eingeschränkt, schlecht (nicht erreichbar "

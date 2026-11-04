@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.255", "<b>Wieder schneller</b> ([[tempo_0411]]): Seit 0.9.235 rechnete jede Änderung im Angebot deutlich mehr "
+    ["0.9.256", "<b>Wieder schneller</b> ([[tempo_0411]]): Seit 0.9.235 rechnete jede Änderung im Angebot deutlich mehr "
      "als nötig. Die Suche nach Wiederholteilen lief nach jeder Änderung neu, sogar bei einer Stückzahl, und doppelt; "
      "jetzt nur noch, wenn sich andere Angebote oder Artikelnummer, Profil, Werkstoff, Länge oder Konturen ändern, "
      "und sie vergleicht nur Teile mit passender Länge. Der Angebots-Check in der Übersicht rechnet Maschinenvergleich "
@@ -32,6 +32,13 @@ NEUERUNGEN = [
      "jetzt Bruchteile einer Sekunde. Gemessen: Stückzahl ändern bei 200 Angeboten 0,5 s statt 2,0 s, Angebot öffnen "
      "0,9 s statt 1,4 s. Alle Ergebnisse bleiben gleich.",
      "Wieder schneller: Ändern im Angebot, Öffnen, Schreiben in den gemeinsamen Ordner"],
+    ["0.9.255", "<b>Schweißbaugruppen</b> ([[vorkalkulation_baugruppe]]): Außennähte (Stumpf- und Ecknaht) bekommen "
+     "in der Vorkalkulation immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht. Scheitert "
+     "die STEP-Messung an einem Teilepaar, bleiben die übrigen Nahtkandidaten erhalten (vorher gingen alle verloren, "
+     "auch bei Unterbaugruppen), mit Hinweis <i>Nahtkandidaten unvollständig</i>. Gleiche Teile in mehreren "
+     "Unterbaugruppen bekommen beim STEP-Import je Unterbaugruppe eine eigene Position, statt alle direkt an der "
+     "Baugruppe zu hängen.",
+     "Außennähte immer verschleifen; gleiche Teile je Unterbaugruppe eine Position; Nahtkandidaten robuster"],
     ["0.9.254", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
      "Kantteile (z. B. Winkel 40 × 40 × 8 mit Biegeradius) wurden als Frästeil erkannt, die Biegeradien zählten sogar "
      "als Bohrungen. Jetzt entscheidet eine zentrale Regelliste die Art und nennt den Grund in der Hinweisspalte; ein "
