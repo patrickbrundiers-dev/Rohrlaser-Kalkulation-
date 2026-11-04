@@ -393,14 +393,14 @@ class Unterzeilen(QObject):
 
     def _knopf_zeichnen(self, p, ja, nein, aktion):
         """✓ grün (bestätigt: gefüllt) und ✗ rot."""
-        gruen, rot = QColor("#1E7B34"), QColor("#B42318")
+        gruen, rot = farbe("#1E7B34"), farbe("#B42318")
         p.save()
         p.setRenderHint(QPainter.Antialiasing)
         if aktion.get("ok"):
             p.setBrush(gruen)
             p.setPen(gruen)
             p.drawRoundedRect(ja.adjusted(0, 0, -1, -1), 3, 3)
-            p.setPen(QColor("#FFFFFF"))
+            p.setPen(farbe("#FFFFFF"))
         else:
             p.setBrush(Qt.NoBrush)
             p.setPen(gruen)
