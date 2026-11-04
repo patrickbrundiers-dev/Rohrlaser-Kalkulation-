@@ -149,6 +149,18 @@ class NachkalkulationSeite(QWidget):
 
     # -------------------------------------------------------------- Anzeige
     def neu_laden(self):
+        # Kalkulation des Angebots einmal statt dreimal (Vergleich, Teile, Baugruppen; Plan A2, 04.11.2026): wie
+        # AngebotSeite.neu_laden mit dem Merker; läuft gerade ein Neuladen, gilt dessen Merker
+        s = self.s
+        if getattr(s, "_kalk_merken", None) is not None:
+            return self._neu_laden()
+        s._kalk_merken = {}
+        try:
+            return self._neu_laden()
+        finally:
+            s._kalk_merken = None
+
+    def _neu_laden(self):
         s = self.s
         self.ist = dict(s.kopf.get("nachkalkulation") or {})
         rk = reklamation.kosten(s.db, s.id)      # Reklamationskosten immer aktuell (Plan 29.10.2026 2c)
