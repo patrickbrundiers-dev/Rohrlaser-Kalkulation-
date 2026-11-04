@@ -10,13 +10,13 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QEvent, QEventLoop, QItemSelectionModel, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QEvent, QEventLoop, QItemSelectionModel, QModelIndex, QPointF, QProcess, QRect, QRectF, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame,
     QFormLayout, QInputDialog, QMenu, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSplitter, QTableView,
-    QTabWidget, QTextBrowser, QToolTip,
+    QStyleOptionViewItem, QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
@@ -95,6 +95,13 @@ LISTE_ROLLEN = frozenset((Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRo
                           Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.FontRole))
 
 
+
+def kopf_zeichen(text):
+    """Zeilenkopf ohne laufende Nummer (Patrick 04.11.2026: zweite Nummerierung neben „Pos.“ verwirrt): „▾ 12“ → „▾“,
+    ohne Gruppe leer (der Zeilenkopf bleibt als Griff zum Verschieben)."""
+    t = str(text or "").split(" ")[0]
+    return t if t in ("▾", "▸", "│", "└") else ""
+
 class Liste(QAbstractTableModel):
     """Nur-Lese-Tabelle aus dicts. spalten: [(Titel, Schlüssel oder Funktion(zeile), Nachkommastellen, Breite)]."""
 
@@ -115,11 +122,15 @@ class Liste(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.spalten)
 
     kopf_text = {}          # Zeilenkopf gruppierter Zeilen (Kalkulation wie Positionsliste: ▾ ▸ │ └)
+    ohne_nummer = False     # Zeilenkopf nur mit Klammer, ohne laufende Nummer (Kalkulation, 04.11.2026)
 
     def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
         if rolle == Qt.ItemDataRole.DisplayRole:
-            return self.spalten[abschnitt][0] if richtung == Qt.Horizontal else \
-                (self.kopf_text.get(abschnitt) or str(abschnitt + 1))
+            if richtung == Qt.Horizontal:
+                return self.spalten[abschnitt][0]
+            if self.ohne_nummer:
+                return kopf_zeichen(self.kopf_text.get(abschnitt))
+            return self.kopf_text.get(abschnitt) or str(abschnitt + 1)
         return None
 
     def wert(self, r, c):
@@ -1027,8 +1038,8 @@ class PositionenModell(QAbstractTableModel):
     def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
         if rolle != Qt.ItemDataRole.DisplayRole:
             return None
-        if richtung == Qt.Vertical:
-            return self.kopf_text.get(abschnitt) or str(abschnitt + 1)
+        if richtung == Qt.Vertical:     # nur die Klammer ▾ ▸ │ └, die Nummer steht in „Pos.“ (04.11.2026)
+            return kopf_zeichen(self.kopf_text.get(abschnitt))
         art, x = self.spalten[abschnitt]
         if art == "zusatz":
             return "Gewinde · Zusatzarbeiten"
@@ -1230,8 +1241,9 @@ class PositionenModell(QAbstractTableModel):
             if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle == Qt.ItemDataRole.DisplayRole and art == "status":
-            # eine Zeile; ganzer Text im Tooltip (Patrick 03.11.2026); OK nur als grünes Symbol (04.11.2026)
-            return "" if str(w or "").strip() == "OK" else satzgruppen.kurz(w)
+            # nur das Symbol, ganzer Text im Tooltip (Patrick 04.11.2026: Spalte schmal; Farbe und Symbol zeigen
+            # Fehler, Warnung, Hinweis); ohne Symbol bleibt der Kurztext
+            return "" if str(w or "").strip() == "OK" or stil.status_symbol(w) is not None else satzgruppen.kurz(w)
         if rolle == Qt.ItemDataRole.ToolTipRole and art == "status" and str(w or "").strip() == "OK":
             return "OK: alle Angaben vollständig"
         if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
@@ -1252,7 +1264,8 @@ class PositionenModell(QAbstractTableModel):
                 return (w + "\n" if w else "") + "".join(
                     f"Vorschlag {v['name']} ({v['herkunft']}) – noch nicht gerechnet\n" for v in vs) + \
                     "Doppelklick: Gewinde und Zusatzarbeiten wählen" + \
-                    (" · Rechtsklick → Zusatzarbeit hinzufügen → Vorschläge übernehmen" if vs else "")
+                    (" · ✓ rechts in der Zelle: Vorschläge übernehmen, ✗: ablehnen · gelber Knopf oben: je "
+                     "Zusatzarbeit für alle Teile" if vs else "")
             if art == "zukauf" and rolle == Qt.ItemDataRole.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Zukaufteile wählen"
             if art == "anbau" and rolle == Qt.ItemDataRole.ToolTipRole:
@@ -1832,7 +1845,61 @@ UEBERSICHT_EINSTELLUNG = "ansicht_uebersicht"     # Knopf „Übersicht“: rech
 
 
 class _AuswahlUnter(UnterzeilenMixin, Auswahl):
-    """Auswahl der Positionsliste, Zelle oben, darunter die Zusatzarbeiten (unterzeilen.py)."""
+    """Auswahl der Positionsliste, Zelle oben, darunter die Zusatzarbeiten (unterzeilen.py). In der Spalte
+    „Gewinde · Zusatzarbeiten“ einer Position mit offenen Vorschlägen stehen rechts ✓ und ✗: Vorschläge dieser
+    Position übernehmen bzw. ablehnen (Patrick 04.11.2026); ansicht.vorschlag_klick(Zeile, ja) führt aus."""
+
+    KNOPF = 20
+
+    def _mit_vorschlag(self, index):
+        m = index.model()
+        if not hasattr(m, "spalten") or not getattr(self.parent(), "vorschlag_klick", None):
+            return False
+        vs = getattr(m, "vorschlaege", ())
+        return m.spalten[index.column()][0] == "zusatz" and index.row() < len(vs) and bool(vs[index.row()])
+
+    def vorschlag_knoepfe(self, option, index):
+        """(Rechteck ✓, Rechteck ✗) in der Zelle bzw. None."""
+        if not self._mit_vorschlag(index):
+            return None
+        oben = self._oben(option, index)
+        o = QRect(oben.rect)              # Kopie: die Option ist nur eine Zwischenvariable
+        if o.height() <= 0 or o.width() < 3 * self.KNOPF:
+            return None
+        h = min(o.height() - 2, self.KNOPF - 2)
+        y = o.top() + (o.height() - h) // 2
+        nein = QRect(o.right() - self.KNOPF + 1, y, self.KNOPF - 2, h)
+        return QRect(nein.left() - self.KNOPF, y, self.KNOPF - 2, h), nein
+
+    def paint(self, painter, option, index):
+        k = self.vorschlag_knoepfe(option, index)
+        if not k:
+            return super().paint(painter, option, index)
+        o = QStyleOptionViewItem(option)
+        o.rect = option.rect.adjusted(0, 0, -2 * self.KNOPF, 0)
+        super().paint(painter, o, index)
+        painter.save()
+        painter.fillRect(QRect(o.rect.right() + 1, k[0].top() - 1, 2 * self.KNOPF, k[0].height() + 2),
+                         index.data(Qt.ItemDataRole.BackgroundRole) or stil.farbe("#FFF2CC"))
+        for r, zeichen, f in ((k[0], "✓", "#1E7B34"), (k[1], "✗", "#B42318")):
+            painter.setPen(stil.farbe(f))
+            painter.drawRoundedRect(r.adjusted(0, 0, -1, -1), 3, 3)
+            schrift = QFont(option.font)
+            schrift.setBold(True)
+            painter.setFont(schrift)
+            painter.drawText(r, Qt.AlignCenter, zeichen)
+        painter.restore()
+
+    def editorEvent(self, ereignis, modell, option, index):
+        if ereignis.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick):
+            k = self.vorschlag_knoepfe(option, index)
+            pos = ereignis.position().toPoint() if k else None
+            treffer = next((ja for r, ja in zip(k, (True, False)) if r.contains(pos)), None) if k else None
+            if treffer is not None:
+                if ereignis.type() == QEvent.MouseButtonRelease and ereignis.button() == Qt.LeftButton:
+                    self.parent().vorschlag_klick(index.row(), treffer)
+                return True
+        return super().editorEvent(ereignis, modell, option, index)
 
 
 class AngebotReiter(QTabWidget):
@@ -2020,11 +2087,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.vorschlag_knopf.setToolTip("Erkannte Zusatzarbeiten (Erkennungswörter in Bezeichnung, Artikelnummer, "
                                         "STEP-Name, Anfrage-Mail, Zeichnung) und Vorschläge der Arbeitsgang-Regeln: "
                                         "noch nicht gerechnet")
-        menue = QMenu(self.vorschlag_knopf)
-        menue.addAction("Alle Vorschläge übernehmen", lambda: self.vorschlaege_uebernehmen())
-        menue.addAction("Einzeln prüfen …", lambda: self.arbeitsgaenge_vorschlagen())
-        menue.addAction("Alle Vorschläge ablehnen", lambda: self.vorschlaege_ablehnen())
-        self.vorschlag_knopf.setMenu(menue)
+        # je Zusatzarbeit für alle Teile übernehmen oder ablehnen (Patrick 04.11.2026), dazu alle bzw. einzeln
+        self.vorschlag_menue = QMenu(self.vorschlag_knopf)
+        self.vorschlag_menue.aboutToShow.connect(self._vorschlag_menue_fuellen)
+        self.vorschlag_knopf.setMenu(self.vorschlag_menue)
         self.vorschlag_knopf.hide()
         leiste.addWidget(self.vorschlag_knopf)
         self.zukauf_knopf = QPushButton("Zukaufteile …")      # Auswahlmenü statt weiterer Knöpfe
@@ -2140,6 +2206,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.pos_modell.geaendert.connect(self.neu_laden)
         self.pos_ansicht = _tabelle(self.pos_modell, sortieren=False)
         self.pos_ansicht.setItemDelegate(_AuswahlUnter(self.pos_modell, self.pos_ansicht))
+        # ✓/✗ in der Zelle: Vorschläge dieser Position übernehmen bzw. ablehnen (Patrick 04.11.2026)
+        self.pos_ansicht.vorschlag_klick = lambda r, ja: self.vorschlaege_uebernehmen([r]) if ja else \
+            self.vorschlaege_ablehnen([r])
         # Doppelklick entscheidet _doppelklick (Dialog oder Zelle bearbeiten); Tippen und F2 bearbeiten immer
         self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
@@ -2152,7 +2221,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for i, (art, x) in enumerate(self.pos_modell.spalten):
             # Status schmaler (OK nur Symbol), Satz schmal: der Name steht im Kopfband (04.11.2026)
             self.pos_ansicht.setColumnWidth(i, 50 if art == "feld" and x.name == "satz" else x.breite
-                                            if art in ("feld",) + EIGENE else (150 if art == "status" else 85))
+                                            if art in ("feld",) + EIGENE else (34 if art == "status" else 85))
         # Rechtsklick auf eine Position: Bearbeiten-Aktionen ohne weitere Knöpfe in der Leiste. Plan Bedienung B5: nur
         # die Einträge, die zur Art der markierten Positionen passen (MENUE_ARTEN), mit Tastenkürzel; bei mehreren
         # markierten Zeilen zusätzlich „Für markierte setzen …“ (Werkstoff, Oberfläche).
@@ -2209,7 +2278,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
         self.bg_zu, self.bg_zeilen = set(), {}
-        self.satz_zu, self.satz_zeilen = set(), {}
+        self.satz_zu, self.satz_zeilen, self.einzel_zu = set(), {}, set()
         self._gruppen_laden()               # zugeklappte Gruppen dieses Angebots (03.11.2026)
         # Zusatzarbeiten unter der Position (Patrick 26.10.2026): je Arbeitsschritt eine eingerückte Zeile
         self.unter_texte = {}            # Index der Position -> [(Text, Warnung)] (unterzeilen.schritte)
@@ -2218,7 +2287,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kopf_baender = {}           # Index der Position -> Kopfband des Satzes/der Baugruppe (04.11.2026)
         self.pos_unter = Unterzeilen(self.pos_ansicht, lambda r: self.unter_texte.get(r, ()), artikel,
                                      lambda r: r < len(self.positionen) and self.zusatzarbeiten([r]), unter_an,
-                                     kopf=self.kopf_baender.get, kopf_klick=self.band_klick)
+                                     kopf=self.kopf_baender.get, kopf_klick=self.band_klick,
+                                     knopf_klick=self.unter_knopf)
         self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
         self.pos_ansicht.verticalHeader().setToolTip("Klick auf ▾/▸ einer Schweißbaugruppe bzw. eines Satzes: "
                                                      "Einzelteile bzw. Positionen des Satzes zu- bzw. aufklappen. "
@@ -2229,6 +2299,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.pos_ansicht.verticalHeader().sectionMoved.connect(self._kopf_gezogen)
 
         self.kalk = Liste(KALK_SPALTEN, max_stellen=2)
+        self.kalk.ohne_nummer = True
         self.stangen = Liste(STANGEN_SPALTEN)
         self.teile = Liste(TEIL_SPALTEN)
         self.ausw = Liste(AUSW_SPALTEN)
@@ -2244,6 +2315,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kalk_info.setStyleSheet("color: #5F6B7A;")
         # Kompakte Übersicht (Vorgabe): das Wichtigste je Bauteil; 'Alle Spalten' zeigt die ganze Kalkulation
         self.kompakt = Liste(KOMPAKT_SPALTEN, max_stellen=2)
+        self.kompakt.ohne_nummer = True
         self.kompakt_ansicht = _tabelle(self.kompakt)
         _breiten(self.kompakt_ansicht, KOMPAKT_SPALTEN)
         self.kompakt_ansicht.setItemDelegate(UnterzeilenDelegat(self.kompakt_ansicht))
@@ -2665,9 +2737,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.drehfraes_einst = self.db.drehfraes_einstellungen()    # Richtpreis der Dreh-/Frästeile je Stufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
-        n_vorschlag = sum(len(v) for v in self.pos_modell.vorschlaege)
-        self.vorschlag_knopf.setText("1 Vorschlag" if n_vorschlag == 1 else f"{n_vorschlag or ''} Vorschläge".strip())
-        self.vorschlag_knopf.setVisible(bool(n_vorschlag) and not self.fremd())
+        self._vorschlag_knopf_setzen()
         self._gruppieren()
         leer = not self.positionen
         self.ablage_gross.setVisible(leer)
@@ -2708,10 +2778,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         texte = {i: ("▸ " if b in self.bg_zu else "▾ ") + str(i + 1) for i, b in self.bg_zeilen.items()}
         texte.update({j: "└ " + str(j + 1) for j in zu})
         texte.update(satzgruppen.kopf_texte(saetze, self.satz_zu))
+        # Einzelteile (weder Satz noch Baugruppe) mit eigenem Kopfband, zuklappbar (Patrick 04.11.2026, F1a/F3a)
+        self.einzel_laeufe = satzgruppen.einzel_laeufe(self.positionen, folge)
+        self.einzel_zeilen = {ix[0]: self.positionen[ix[0]].get("id") for ix in self.einzel_laeufe if len(ix) > 1}
+        self.einzel_zu &= set(self.einzel_zeilen.values())
+        einzel_zu = {i for ix in self.einzel_laeufe if self.einzel_zeilen.get(ix[0]) in self.einzel_zu
+                     for i in ix[1:]}
+        texte.update(satzgruppen.kopf_texte({f"einzel{n}": ix for n, ix in enumerate(self.einzel_laeufe)},
+                                            {f"einzel{n}" for n, ix in enumerate(self.einzel_laeufe)
+                                             if self.einzel_zeilen.get(ix[0]) in self.einzel_zu}))
         self.pos_modell.kopf_text = texte
         satz_zu = {i for n in self.satz_zu for i in saetze[n][1:]}
         for r in range(len(self.positionen)):
-            self.pos_ansicht.setRowHidden(r, zu.get(r) in self.bg_zu or r in satz_zu)
+            self.pos_ansicht.setRowHidden(r, zu.get(r) in self.bg_zu or r in satz_zu or r in einzel_zu)
         if self.positionen:
             self.pos_modell.headerDataChanged.emit(Qt.Vertical, 0, len(self.positionen) - 1)
             self.pos_modell.dataChanged.emit(self.pos_modell.index(0, 0),
@@ -2719,17 +2798,27 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                                                    len(self.pos_modell.spalten) - 1))
         self._kalk_gruppieren()
         self._gruppen_knopf_setzen()
+        if hasattr(self, "kopf_baender"):          # Bänder folgen der Gruppierung (Einzelteile-Abschnitte)
+            self._baender_setzen()
 
     def gruppen_alle(self, zu):
         """Alle Sätze und Schweißbaugruppen zu- bzw. aufklappen (Positionsliste und Kalkulation)."""
         self.satz_zu = set(self.satz_zeilen.values()) if zu else set()
         self.bg_zu = set(self.bg_zeilen.values()) if zu else set()
+        self.einzel_zu = set(getattr(self, "einzel_zeilen", {}).values()) if zu else set()
         self._gruppieren()
         self._gruppen_merken()
+        self._baender_setzen()
+
+    def _gruppen_anzahl(self):
+        """(Anzahl zuklappbarer Gruppen, davon zugeklappt): Sätze, Baugruppen, Abschnitte Einzelteile."""
+        einzel = getattr(self, "einzel_zeilen", {})
+        return (len(self.satz_zeilen) + len(self.bg_zeilen) + len(einzel),
+                len(self.satz_zu) + len(self.bg_zu) + len(getattr(self, "einzel_zu", ())))
 
     def _gruppen_knopf_setzen(self):
-        n = len(self.satz_zeilen) + len(self.bg_zeilen)
-        alle_zu = n > 0 and len(self.satz_zu) + len(self.bg_zu) >= n
+        n, n_zu = self._gruppen_anzahl()
+        alle_zu = n > 0 and n_zu >= n
         for knopf in getattr(self, "gruppen_knoepfe", ()):
             knopf.setVisible(n > 0)
             knopf.setText("▾ Alle Gruppen aufklappen" if alle_zu else "▸ Alle Gruppen zuklappen")
@@ -2745,16 +2834,16 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return b
 
     def _gruppen_klick(self):
-        n = len(self.satz_zeilen) + len(self.bg_zeilen)
-        self.gruppen_alle(len(self.satz_zu) + len(self.bg_zu) < n)
+        n, n_zu = self._gruppen_anzahl()
+        self.gruppen_alle(n_zu < n)
 
     def _gruppen_merken(self):
         """Zugeklappte Gruppen je Angebot merken (Einstellung ansicht_gruppen_zu, nur dieser Arbeitsplatz)."""
         if self.db.nur_lesen or not self.id:
             return
         alle = dict(self.db.einstellung("ansicht_gruppen_zu") or {})
-        eintrag = dict(satz=sorted(self.satz_zu), bg=sorted(self.bg_zu))
-        if eintrag["satz"] or eintrag["bg"]:
+        eintrag = dict(satz=sorted(self.satz_zu), bg=sorted(self.bg_zu), einzel=sorted(self.einzel_zu))
+        if eintrag["satz"] or eintrag["bg"] or eintrag["einzel"]:
             alle[str(self.id)] = eintrag
         else:
             alle.pop(str(self.id), None)
@@ -2768,6 +2857,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         except AttributeError:
             e = {}
         self.satz_zu, self.bg_zu = set(e.get("satz") or ()), set(e.get("bg") or ())
+        self.einzel_zu = set(e.get("einzel") or ())
 
     def _kalk_gruppieren(self):
         """Kalkulation (kompakt und alle Spalten) wie die Positionsliste: zugeklappte Gruppen ausblenden, Zeilenkopf
@@ -2793,7 +2883,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kopf_baender.clear()
         self.kopf_baender.update(satzgruppen.kopf_baender(
             self.positionen, getattr(self, "_band_zeilen", None), self.satz_zu, self.bg_zu,
-            getattr(self.pos_modell, "satz_flaeche", None)))
+            getattr(self.pos_modell, "satz_flaeche", None), getattr(self, "einzel_laeufe", ()), self.einzel_zu,
+            getattr(self.pos_modell, "vorschlaege", None), getattr(self, "k", None)))
         for u in (getattr(self, "pos_unter", None), getattr(self, "kompakt_unter", None)):
             if u is not None:
                 u.aktualisieren()
@@ -2805,6 +2896,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return []
         if k["art"] == "bg":
             return [zeile] + baugruppe.teile(self.positionen, k["bg_id"])
+        if k["art"] == "einzel":
+            return next((list(ix) for ix in getattr(self, "einzel_laeufe", ()) if ix[0] == zeile), [zeile])
         return satz_menge.satz_positionen(self.positionen, k["name"])
 
     def band_klick(self, zeile, art, x=99):
@@ -2818,7 +2911,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self._kopf_klick(zeile)
             return
         if art == "doppel":
-            if k["art"] == "bg":
+            if k["art"] == "einzel":
+                self._kopf_klick(zeile)
+            elif k["art"] == "bg":
                 self.baugruppe_bearbeiten([zeile])
             else:
                 self.satz_bearbeiten(satz=k["name"])
@@ -2862,6 +2957,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Zeilenkopf einer Schweißbaugruppe: ihre Einzelteile zu- bzw. aufklappen (D3)."""
         bg_id = getattr(self, "bg_zeilen", {}).get(zeile)
         satz = getattr(self, "satz_zeilen", {}).get(zeile)
+        einzel = getattr(self, "einzel_zeilen", {}).get(zeile)
+        if einzel and not bg_id and not satz:
+            self.einzel_zu ^= {einzel}
+            self._gruppieren()
+            self._gruppen_merken()
+            self._baender_setzen()
+            return
         if bg_id:
             self.bg_zu ^= {bg_id}
             self._gruppieren()
@@ -3467,9 +3569,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kompakt_ansicht.setColumnHidden(next(c for c, sp in enumerate(KOMPAKT_SPALTEN) if sp[1] == "satz"),
                                              not any(z.get("satz") for z in self.kompakt.zeilen))
         katalog = self.tabellen.get("zusatzarbeiten") or ()
-        self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) for i, (p, z) in enumerate(zip(self.positionen,
-                                                                                                   zeilen))}
+        self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) + unterzeilen.bohr_schritte(self._bohrbild(i))
+                            for i, (p, z) in enumerate(zip(self.positionen, zeilen))}
         self._band_zeilen = list(zeilen)
+        self._vorschlag_knopf_setzen()
         self._baender_setzen()
         self.pos_unter.aktualisieren()
         self.kompakt_unter.aktualisieren()
@@ -3615,6 +3718,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 zeigen = self.zeige_step.isChecked() or self._spalte_hat_werte(i)
             elif name == "satz":            # Name steht im Kopfband (04.11.2026, F3a); eintragen über Weitere Spalten
                 zeigen = self.spalten_wahl.get(name, False)
+            elif name == "je_satz":         # nur mit Sätzen (Einzelteile aufräumen, 04.11.2026)
+                zeigen = self.spalten_wahl.get(name, any(satzgruppen.name(p) for p in self.positionen))
             elif name == "art":             # Schweißbaugruppen zeigt ihr Kopfband, nur andere Arten zählen
                 zeigen = self.spalten_wahl.get(name, spalte_sichtbar(
                     [m.roh(r, i) for r in range(m.rowCount()) if not ist_baugruppe(self.positionen[r])]))
@@ -4583,9 +4688,160 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.neu_laden()
         return n
 
-    def vorschlaege_ablehnen(self, zeilen=None):
-        """Alle offenen Vorschläge der Positionen ablehnen (gemerkt je Position, in „Arbeitsgänge vorschlagen …“
-        zurücknehmbar). Ergebnis: Anzahl."""
+    # ------------------------------------------------------- ✓/✗ je Zusatzarbeit, Gewinde, Bohrung (04.11.2026)
+    def _bohrbild(self, r):
+        """Bohrbild der Position r wie im Dialog „Bohrungen prüfen“ (aus STEP ergänzt), [] ohne."""
+        from . import bohrbild
+        p = self.positionen[r] if r < len(self.positionen) else None
+        if not p or not bohrbild_moeglich(p) or self.fremd():
+            return []
+        gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen.get("gewinde") or () if g.get("gewinde")]
+        try:
+            return bohrbild.aus_position(p, gewinde, rechnen.wand_position(p, self.k))
+        except Exception:           # Anzeige darf nie scheitern
+            return []
+
+    def unter_knopf(self, r, aktion, ja):
+        """✓ bzw. ✗ an einer Unterzeile (Patrick 04.11.2026: „so für alle Zusatzarbeiten“, auch Gewinde und Bohrungen):
+        eingetragene Zusatzarbeit bzw. Gewinde ✓ = bestätigt (grün gefüllt, noch einmal = zurück), ✗ = entfernen;
+        automatische (Regel) ✓ = fest übernehmen, ✗ = abwählen; offene Bohrung aus STEP ✓ = bestätigen, ✗ =
+        ablehnen. Ergebnis: True = geändert."""
+        from . import arbeitsgaenge, bohrbild
+        if r >= len(self.positionen) or self.fremd() or self.db.nur_lesen:
+            return False
+        p = self.positionen[r]
+        art, name = aktion["art"], aktion["name"]
+        nr = p.get("pos") or ""
+        if art == "auto":
+            return self.arbeitsgang_annehmen(p["id"], name) if ja else self.arbeitsgang_ablehnen(p["id"], name)
+        if art == "bohr":
+            liste = self._bohrbild(r)
+            if not isinstance(name, int) or name >= len(liste):
+                return False
+            liste[name] = dict(liste[name], status=bohrbild.BESTAETIGT if ja else bohrbild.ABGELEHNT)
+            return self.bohrungen_pruefen([r], werte=(liste, None))
+        if ja:
+            self.db.position_aendern(p["id"], "arbeitsgaenge", arbeitsgaenge.bestaetigen(p, name, zurueck=aktion.get("ok")))
+            self.f.meldung(f"Pos. {nr}: „{name}“ " + ("nicht mehr als bestätigt markiert." if aktion.get("ok")
+                                                       else "bestätigt."))
+            self.neu_laden()
+            return True
+        if art == "gewinde":
+            liste = [dict(z, status=bohrbild.ABGELEHNT) if z.get("status") == bohrbild.BESTAETIGT and z.get("gewinde")
+                     else z for z in self._bohrbild(r)]
+            if liste:
+                ok = self.bohrungen_pruefen([r], werte=(liste, ""))
+            else:
+                self.db.position_aendern(p["id"], "gewinde", None)
+                ok = True
+            self.db.position_aendern(p["id"], "arbeitsgaenge", arbeitsgaenge.bestaetigen(
+                self._position_frisch(p["id"]) or p, name, zurueck=True))
+            self.f.meldung(f"Pos. {nr}: Gewinde entfernt (zurückholen: Doppelklick auf die Spalte Bohrungen bzw. "
+                           "Gewinde).")
+            self.neu_laden()
+            return ok
+        liste = [e for e in rechnen.zusatz_liste(p) if e.get("name") != name]
+        self.db.position_aendern(p["id"], "zusatz", json.dumps(liste, ensure_ascii=False) if liste else None)
+        self.db.position_aendern(p["id"], "arbeitsgaenge", arbeitsgaenge.bestaetigen(
+            self._position_frisch(p["id"]) or p, name, zurueck=True))
+        self.f.meldung(f"Pos. {nr}: „{name}“ entfernt (wieder eintragen: Rechtsklick → Zusatzarbeit hinzufügen).")
+        self.neu_laden()
+        return True
+
+    def bohr_vorschlaege(self):
+        """Offene Bohrungen aus STEP je Gruppe: {(Ausführung, Gewinde): [(Zeile, Index im Bohrbild)]} (aus den
+        Unterzeilen, ohne neu zu rechnen)."""
+        out = {}
+        for r, zeilen in sorted(getattr(self, "unter_texte", {}).items()):
+            for z in zeilen:
+                a = getattr(z, "aktion", None)
+                if a and a["art"] == "bohr":
+                    out.setdefault((a.get("gruppe"), a.get("gewinde")), []).append((r, a["name"]))
+        return out
+
+    def bohr_alle(self, gruppe, ja):
+        """Alle offenen Bohrungen einer Gruppe (bohr_vorschlaege) bestätigen bzw. ablehnen. Ergebnis: Anzahl."""
+        from . import bohrbild
+        if self.fremd() or self.db.nur_lesen:
+            return 0
+        je_zeile = {}
+        for r, i in self.bohr_vorschlaege().get(gruppe, ()):
+            je_zeile.setdefault(r, []).append(i)
+        werte = {}
+        for r, ix in je_zeile.items():
+            liste = self._bohrbild(r)
+            for i in ix:
+                if i < len(liste):
+                    liste[i] = dict(liste[i], status=bohrbild.BESTAETIGT if ja else bohrbild.ABGELEHNT)
+            werte[r] = liste
+        if werte:
+            self.bohrungen_alle_pruefen(list(werte), werte=werte)
+        return sum(len(ix) for ix in je_zeile.values())
+
+    def _vorschlag_knopf_setzen(self):
+        """Gelber Knopf: Anzahl offener Vorschläge (Zusatzarbeiten und Bohrungen aus STEP)."""
+        n = sum(len(v) for v in getattr(self.pos_modell, "vorschlaege", ())) + \
+            sum(len(v) for v in self.bohr_vorschlaege().values())
+        self.vorschlag_knopf.setText("1 Vorschlag" if n == 1 else f"{n or ''} Vorschläge".strip())
+        self.vorschlag_knopf.setVisible(bool(n) and not self.fremd())
+
+    def vorschlaege_je_name(self):
+        """Offene Vorschläge nach Zusatzarbeit: {Name: [Zeilen]} in der Reihenfolge des ersten Auftretens."""
+        out = {}
+        for r, vs in enumerate(getattr(self.pos_modell, "vorschlaege", ())):
+            for v in vs:
+                out.setdefault(v["name"], []).append(r)
+        return out
+
+    def vorschlag_menue_aktionen(self):
+        """Einträge des gelben Knopfs: [(Text, Funktion)]; je Zusatzarbeit „✓ für alle übernehmen“ und „✗ für alle
+        ablehnen“ (Patrick 04.11.2026: Zusatzarbeiten bei allen Teilen bestätigen oder ablehnen), None = Trenner."""
+        out = []
+        for name, zeilen in self.vorschlaege_je_name().items():
+            teile = ", ".join(str(self.positionen[r].get("pos") or "") for r in zeilen[:4]) + \
+                (" …" if len(zeilen) > 4 else "")
+            n = f"{len(zeilen)} {'Teil' if len(zeilen) == 1 else 'Teile'}"
+            fuer = "für alle " if len(zeilen) > 1 else ""
+            out.append((f"{name} · {n} (Pos. {teile})", None))
+            out.append((f"    ✓ {fuer}übernehmen", lambda name=name: self.vorschlaege_uebernehmen(namen={name})))
+            out.append((f"    ✗ {fuer}ablehnen", lambda name=name: self.vorschlaege_ablehnen(namen={name})))
+        for gruppe, ix in self.bohr_vorschlaege().items():       # Gewinde, Senkungen, Flowdrill aus STEP
+            teile = sorted({r for r, _ in ix})
+            nummern = ", ".join(str(self.positionen[r].get("pos") or "") for r in teile[:4]) + \
+                (" …" if len(teile) > 4 else "")
+            fuer = "für alle " if len(ix) > 1 else ""
+            out.append((f"{gruppe[0]}{' ' + gruppe[1] if gruppe[1] else ''} (STEP) · {len(teile)} "
+                        f"{'Teil' if len(teile) == 1 else 'Teile'} (Pos. {nummern})", None))
+            out.append((f"    ✓ {fuer}bestätigen", lambda g=gruppe: self.bohr_alle(g, True)))
+            out.append((f"    ✗ {fuer}ablehnen", lambda g=gruppe: self.bohr_alle(g, False)))
+        if out:
+            out.append(None)
+        out += [("Alle Vorschläge übernehmen", lambda: self.alle_vorschlaege(True)),
+                ("Einzeln prüfen …", lambda: self.arbeitsgaenge_vorschlagen()),
+                ("Alle Vorschläge ablehnen", lambda: self.alle_vorschlaege(False))]
+        return out
+
+    def alle_vorschlaege(self, ja):
+        """Alle offenen Vorschläge übernehmen bzw. ablehnen: Zusatzarbeiten und Bohrungen aus STEP. Ergebnis: Anzahl."""
+        n = 0
+        for g in list(self.bohr_vorschlaege()):
+            n += self.bohr_alle(g, ja)
+        return n + (self.vorschlaege_uebernehmen() if ja else self.vorschlaege_ablehnen())
+
+    def _vorschlag_menue_fuellen(self):
+        m = self.vorschlag_menue
+        m.clear()
+        for e in self.vorschlag_menue_aktionen():
+            if e is None:
+                m.addSeparator()
+            elif e[1] is None:
+                m.addSection(e[0])
+            else:
+                m.addAction(e[0], e[1])
+
+    def vorschlaege_ablehnen(self, zeilen=None, namen=None):
+        """Offene Vorschläge der Positionen (alle oder zeilen) ablehnen, namen = nur diese Zusatzarbeiten (gemerkt je
+        Position, in „Arbeitsgänge vorschlagen …“ zurücknehmbar). Ergebnis: Anzahl."""
         from . import arbeitsgaenge
         if self.fremd() or self.db.nur_lesen:
             return 0
@@ -4593,11 +4849,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for r in self._vorschlag_zeilen(zeilen):
             p = dict(self.positionen[r])
             for v in self.pos_modell.vorschlaege[r]:
+                if namen is not None and v["name"] not in namen:
+                    continue
                 p["arbeitsgaenge"] = arbeitsgaenge.ablehnen(p, v["name"])
                 n += 1
             if p.get("arbeitsgaenge") != self.positionen[r].get("arbeitsgaenge"):
                 self.db.position_aendern(p["id"], "arbeitsgaenge", p["arbeitsgaenge"])
-        self.f.meldung(f"{n} Vorschläge abgelehnt (zurücknehmen: „Arbeitsgänge vorschlagen …“).")
+        self.f.meldung((f"{n} Vorschlag abgelehnt" if n == 1 else f"{n} Vorschläge abgelehnt")
+                       + " (zurücknehmen: „Arbeitsgänge vorschlagen …“).")
         self.neu_laden()
         return n
 

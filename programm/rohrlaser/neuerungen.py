@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.256", "<b>Einzelteile aufgeräumt</b> ([[saetze_abheben]]): Einzelteile stehen unter einem grauen Band "
+     "<i>Einzelteile</i> mit Positionen, Stück, Gewicht, Preis und offenen Vorschlägen; zugeklappte Sätze, Baugruppen "
+     "und Einzelteile sind nur noch das Band, der Status zeigt nur sein Symbol, der Zeilenkopf keine zweite Nummer. "
+     "<b>Vorschläge für alle Teile</b> ([[zusatz_erkennen]]): der gelbe Knopf übernimmt oder lehnt jede "
+     "Zusatzarbeit für alle Teile auf einmal ab, ✓/✗ direkt in der Zelle, <i>Einzeln prüfen</i> zeigt nur offene Punkte. "
+     "<b>✓/✗ für jede Zusatzarbeit</b> ([[zusatz_unterzeilen]]): in den Zeilen unter der Position bestätigen oder "
+     "entfernen, auch Gewinde; offene Gewinde, Senkungen und Flowdrill aus der STEP bestätigen oder ablehnen, einzeln "
+     "oder für alle Teile.",
+     "Einzelteile mit Band; Zusatzarbeiten, Gewinde und Bohrungen für alle Teile bestätigen oder ablehnen"],
     ["0.9.255", "<b>Schweißbaugruppen</b> ([[vorkalkulation_baugruppe]]): Außennähte (Stumpf- und Ecknaht) bekommen "
      "in der Vorkalkulation immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht. Scheitert "
      "die STEP-Messung an einem Teilepaar, bleiben die übrigen Nahtkandidaten erhalten (vorher gingen alle verloren, "
