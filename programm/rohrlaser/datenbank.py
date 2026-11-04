@@ -559,6 +559,19 @@ class Datenbank:
                 self.con.execute(f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" '
                                  "BEGIN UPDATE stammdaten_stand SET n = n + 1; END")
         self.con.execute("UPDATE temp.stammdaten_stand SET n = n + 1")
+        # Änderungszähler je Angebot (Prüfung „Programm langsam“ 04.11.2026): Angebote und Positionen, damit die
+        # Wiederholteil-Suche nur neu rechnet, wenn sich ANDERE Angebote geändert haben (angebote_stand)
+        self.con.execute("CREATE TEMP TABLE IF NOT EXISTS angebot_aenderungen (angebot_id INTEGER PRIMARY KEY, n INTEGER)")
+        for t, spalte in (("angebote", "id"), ("positionen", "angebot_id")):
+            for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+                name = f"stand_angebot_{t}_{art.lower()}"
+                self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
+                self.con.execute(
+                    f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" BEGIN '
+                    f"INSERT OR IGNORE INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0); "
+                    f"UPDATE angebot_aenderungen SET n = n + 1 WHERE angebot_id = {zeile}.{spalte}; END")
+        self.con.execute("INSERT OR IGNORE INTO temp.angebot_aenderungen VALUES (-1, 0)")
+        self.con.execute("UPDATE temp.angebot_aenderungen SET n = n + 1 WHERE angebot_id = -1")
         self.con.commit()
 
     @liest
@@ -566,6 +579,14 @@ class Datenbank:
         """Ändert sich, sobald sich Stammdaten ändern (Zähler der Trigger, Schreiben anderer Verbindungen)."""
         return (self.con.execute("SELECT n FROM temp.stammdaten_stand").fetchone()[0],
                 self.con.execute("PRAGMA data_version").fetchone()[0])
+
+    @liest
+    def angebote_stand(self, ohne_id=None):
+        """Ändert sich, sobald sich ein Angebot oder eine Position eines Angebots außer ohne_id ändert (über diese
+        Verbindung, auch Abgleich und Import) oder eine andere Verbindung in die Datei schreibt."""
+        n = self.con.execute("SELECT COALESCE(SUM(n), 0) FROM temp.angebot_aenderungen WHERE angebot_id IS NOT ?",
+                             (ohne_id,)).fetchone()[0]
+        return n, self.con.execute("PRAGMA data_version").fetchone()[0]
 
     def _zwischengespeichert(self, name, bauen):
         """Ergebnis von bauen() je Stammdaten-Stand merken. Die Aufrufer ändern das Ergebnis nicht (geprüft mit
@@ -1890,13 +1911,13 @@ class Datenbank:
         return d
 
     @schreibt
-    def fracht_auto_nachfuehren(self, angebot_id):
+    def fracht_auto_nachfuehren(self, angebot_id, angebot=None):
         """Nach jeder Änderung am Angebot (Haken gesetzt): Fracht mit der Tarifkopie neu rechnen und ins Feld
         Frachtkosten schreiben (leer, solange sie nicht berechnet werden kann). Ohne Tarifkopie (noch nicht
         berechnet, Fehler) wird ganz neu gerechnet, z. B. sobald Gewicht oder Versandart da sind.
         Gespeichert wird nur, was sich ändert. Ergebnis: True = geändert."""
         from . import fracht_angebot
-        a = self.angebot(angebot_id)
+        a = angebot if angebot is not None else self.angebot(angebot_id)
         if not a or not fracht_angebot.auto(a) or fracht_angebot.modus(a) != fracht_angebot.BERECHNET:
             return False
         a, pos, werte, neu = self._fracht_auto(angebot_id)
@@ -2075,6 +2096,12 @@ class Datenbank:
     @liest
     def angebote_anzahl(self):
         return self.con.execute("SELECT COUNT(*) FROM angebote").fetchone()[0]
+
+    @liest
+    def vorgang(self, angebot_id):
+        """Nur der Vorgang eines Angebots (wie angebot(id)["vorgang"], ohne Schnittplan und Staffeln zu lesen)."""
+        r = self.con.execute("SELECT vorgang FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        return r[0] if r else None
 
     @liest
     def angebot(self, angebot_id):

@@ -102,16 +102,17 @@ def punkte(k, tabellen, einst, maschinen=None):
     return out
 
 
-def wirkung(kopf, positionen, ergebnis, k, tabellen, einst):
+def wirkung(kopf, positionen, ergebnis, k, tabellen, einst, summen=None):
     """€-Wirkung der leeren Zeitfelder der Angebotsmaschine: dict(felder, vorher, nachher, plus, prozent) mit den
-    Richtwerten gerechnet, oder None (nichts leer, keine Rechnung)."""
+    Richtwerten gerechnet, oder None (nichts leer, keine Rechnung). summen = die schon gerechneten Summen von
+    rechnen.kalkulation mit genau diesen Eingaben (spart eine Kalkulation je Neuladen)."""
     from . import rechnen
     m = rechnen.maschine(kopf, k)
     leer = maschine_leer(m)
     if not m or not leer or not ergebnis:
         return None
     try:
-        _, s0 = rechnen.kalkulation(kopf, positionen, ergebnis, k, tabellen, einst)
+        s0 = summen if summen is not None else rechnen.kalkulation(kopf, positionen, ergebnis, k, tabellen, einst)[1]
         m2 = dict(m, **{n: RICHTWERTE[n] for n in leer})
         k2 = dataclasses.replace(k, maschinen=dict(k.maschinen, **{kopf.get("maschine"): m2}))
         _, s1 = rechnen.kalkulation(kopf, positionen, ergebnis, k2, tabellen, einst)

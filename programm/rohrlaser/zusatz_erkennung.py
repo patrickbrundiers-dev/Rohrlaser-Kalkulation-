@@ -42,6 +42,7 @@ def _muster(wort):
 
 
 _CACHE = {}
+_TREFFER = {}       # je Muster-Liste: {Text: Treffer} (Prüfung „Programm langsam“ 04.11.2026: je Neuladen gleich)
 
 
 def _muster_liste(katalog):
@@ -50,6 +51,7 @@ def _muster_liste(katalog):
     if schl not in _CACHE:
         if len(_CACHE) > 20:
             _CACHE.clear()
+            _TREFFER.clear()
         _CACHE[schl] = [(z["name"], w, _muster(w)) for z in katalog or ()
                         if z.get("name") and z.get("aktiv") != "nein" for w in woerter(z)]
     return _CACHE[schl]
@@ -61,8 +63,18 @@ def treffer(text, katalog):
     text = str(text or "")
     if not text.strip():
         return []
+    liste = _muster_liste(katalog)
+    merker = _TREFFER.setdefault(id(liste), {})
+    if text not in merker:
+        if len(merker) > 5000:
+            merker.clear()
+        merker[text] = _treffer(text, liste)
+    return list(merker[text])
+
+
+def _treffer(text, liste):
     funde = []
-    for name, _, m in _muster_liste(katalog):
+    for name, _, m in liste:
         for t in m.finditer(text):
             if VERNEINUNG.search(text[max(0, t.start() - 12):t.start()]):
                 continue
