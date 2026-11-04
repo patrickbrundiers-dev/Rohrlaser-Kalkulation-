@@ -67,7 +67,7 @@ print("OK: gleiche Körper erkannt (nur verschobene Kopien, gedrehte werden einz
 VERGLEICH = [GESTELL, INSTANZEN, RAHMEN]
 mit = messen("mit", VERGLEICH)
 ohne = messen("ohne", VERGLEICH, umgebung={"STEP_MESSEN_EINZELN": "1"})
-lagefrei = {"wand_messungen", "konturen_liste", "netz", "huelle", "volumen", "oberflaeche"}
+lagefrei = {"wand_messungen", "konturen_liste", "netz", "huelle", "volumen", "oberflaeche", "arten"}
 for a, b in zip(ohne[2], mit[2]):
     for spalte in step_messen.SPALTEN:
         if spalte not in lagefrei:

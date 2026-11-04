@@ -242,7 +242,7 @@ def _():
     assert neu[0]["stand"]["bezug"]["preise"] == [dict(ab=50.0, preis=4.2)] and "Einkauf" in text, (neu, text)
 
 
-@fall("R6 Angebot: Rechtsklick „Richtpreis Dreh-/Frästeil …“, Dialog mit Ampel/Skizze, Zeit von Hand, EK ab Stückzahl")
+@fall("R6 Angebot: Rechtsklick „Richtpreis Dreh-/Frästeil …“, Dialog mit Ampel/Skizze/3D wie STEP, Zeit von Hand, EK ab Stückzahl")
 def _():
     from PySide6.QtWidgets import QApplication, QDialog
     from rohrlaser.fenster import Hauptfenster
@@ -269,6 +269,12 @@ def _():
             gesehen["text"] = d.befunde.text()
             gesehen["vorher"] = d.ergebnis["richtpreis"]
             d.skizze.grab()
+            # 3D wie in der STEP (Patrick 04.11.2026): Netz der Position unverändert (Form und Lage), goldgelb
+            from rohrlaser.ansicht3d import entpacken
+            roh = entpacken(db.netz(s.positionen[zeilen[0]]["id"]))
+            gesehen["3d"] = (d.ansicht3d is not None and d.ansicht3d.ansicht.netz["p"] == roh["p"]
+                             and set(d.ansicht3d.ansicht.netz["t"]) == {"KD"})
+            d.ansicht3d.grab()
             r = next(i for i in range(d.tabelle.rowCount()) if d.tabelle.item(i, 0).text() == "Drehen schruppen")
             d.tabelle.item(r, 2).setText("3,5")
             d.stueck.setValue(50)
@@ -283,6 +289,7 @@ def _():
         assert s.drehfraes_bearbeiten(zeilen[0], dialog=aendern)
         assert gesehen["ampel"] == dp.GRUEN and "machbar" in gesehen["text"], gesehen
         assert gesehen["hand"] == {"Drehen schruppen": 3.5}, gesehen
+        assert gesehen["3d"], "Editor zeigt nicht das STEP-Netz der Position"
         p = db.positionen(a)[[i for i, x in enumerate(db.positionen(a)) if x["id"] == p["id"]][0]]
         e = dp.lesen(p["technik"])
         assert p["stueck"] == 50 and e["zeiten"] == {"Drehen schruppen": 3.5}

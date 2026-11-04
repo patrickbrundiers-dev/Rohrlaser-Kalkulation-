@@ -657,14 +657,18 @@ class TafelBild(QWidget):
 
 
 class RichtwerteTabelle(QTableWidget):
-    """Richtwerte des Blechs (blech.RICHTWERTE) mit Spalte „Eigener Wert“ je Zeile (Patrick 03.11.2026): leer = der
+    """Richtwerte des Blechs (blech.RICHTWERTE) bzw. eines Dreh-/Frästeils mit Spalte „Eigener Wert“ je Zeile (Patrick 03.11.2026): leer = der
     berechnete Richtwert gilt, eingetragen = nur für dieses Teil (gelb, ↺ setzt zurück). Der Richtpreis wird immer
     aus den Werten berechnet. Werte aus der STEP-Messung stehen mit „aus STEP“."""
     geaendert = Signal()
     SPALTEN = ("Richtwert", "berechnet", "eigener Wert", "")
 
-    def __init__(self):
-        super().__init__(len(blech.RICHTWERTE), len(self.SPALTEN))
+    def __init__(self, richtwerte=None, tipp=None):
+        """richtwerte: (Schlüssel, Titel, Einheit, Nachkommastellen) je Zeile, Vorgabe blech.RICHTWERTE (auch für den
+        Richtpreis Dreh-/Frästeil, drehfraes_preis.RICHTWERTE, Patrick 04.11.2026)."""
+        rw = richtwerte or blech.RICHTWERTE
+        super().__init__(len(rw), len(self.SPALTEN))
+        self.rw = rw
         self.setHorizontalHeaderLabels(self.SPALTEN)
         self.verticalHeader().setVisible(False)
         self.verticalHeader().setDefaultSectionSize(22)
@@ -676,7 +680,7 @@ class RichtwerteTabelle(QTableWidget):
             kopf.setSectionResizeMode(c, QHeaderView.Fixed)
             self.setColumnWidth(c, b)
         self._still = True
-        for r, (n, titel, einheit, _) in enumerate(blech.RICHTWERTE):
+        for r, (n, titel, einheit, _) in enumerate(self.rw):
             it = QTableWidgetItem(titel + (f" [{einheit}]" if einheit else ""))
             it.setFlags(Qt.ItemIsEnabled)
             self.setItem(r, 0, it)
@@ -693,9 +697,9 @@ class RichtwerteTabelle(QTableWidget):
             k.setToolTip("Auf den berechneten Richtwert zurücksetzen")
             k.clicked.connect(lambda _=False, r=r: self.zuruecksetzen(r))
             self.setCellWidget(r, 3, k)
-        self.setFixedHeight(24 + 22 * len(blech.RICHTWERTE) + 4)
-        self.setToolTip("Richtwerte je Teil: berechnet aus Eingaben, STEP und Einstellungen; eigener Wert gilt nur für "
-                        "dieses Teil. Der Richtpreis rechnet sofort neu.")
+        self.setFixedHeight(24 + 22 * len(self.rw) + 4)
+        self.setToolTip(tipp or "Richtwerte je Teil: berechnet aus Eingaben, STEP und Einstellungen; eigener Wert gilt "
+                        "nur für dieses Teil. Der Richtpreis rechnet sofort neu.")
         self._still = False
         self.itemChanged.connect(self._geaendert)
         self._faerben()
@@ -718,7 +722,7 @@ class RichtwerteTabelle(QTableWidget):
     def eigene(self):
         """{Schlüssel: Wert} der eingetragenen eigenen Werte (Aufschlag in %)."""
         out = {}
-        for r, (n, *_) in enumerate(blech.RICHTWERTE):
+        for r, (n, *_) in enumerate(self.rw):
             w = _zahl_text(self.item(r, 2).text())
             if w is not None and w >= 0:
                 out[n] = w
@@ -727,7 +731,7 @@ class RichtwerteTabelle(QTableWidget):
     def eigene_setzen(self, werte):
         self._still = True
         try:
-            for r, (n, _, _, stellen) in enumerate(blech.RICHTWERTE):
+            for r, (n, _, _, stellen) in enumerate(self.rw):
                 w = (werte or {}).get(n)
                 self.item(r, 2).setText(zahl_als_text(float(w), stellen) if isinstance(w, (int, float)) else "")
         finally:
@@ -739,7 +743,7 @@ class RichtwerteTabelle(QTableWidget):
         rw, step_ = erg.get("richtwerte") or {}, set(erg.get("aus_step") or ())
         self._still = True
         try:
-            for r, (n, _, _, stellen) in enumerate(blech.RICHTWERTE):
+            for r, (n, _, _, stellen) in enumerate(self.rw):
                 w = rw.get(n)
                 t = zahl_als_text(float(w), stellen) if isinstance(w, (int, float)) else "–"
                 self.item(r, 1).setText(t)
@@ -748,7 +752,7 @@ class RichtwerteTabelle(QTableWidget):
                 f.setBold(n in step_)
                 self.item(r, 1).setFont(f)
                 self.item(r, 1).setToolTip("Aus der STEP gemessen (Form unverändert)" if n in step_ else
-                                           "Berechnet aus den Eingaben und den Einstellungen Blech-Richtpreis")
+                                           "Berechnet aus den Eingaben und den Einstellungen (Richtpreis)")
         finally:
             self._still = False
 
