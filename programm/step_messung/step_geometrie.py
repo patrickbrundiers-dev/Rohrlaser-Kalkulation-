@@ -148,6 +148,12 @@ class Teil:
     verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
     biegerohr: dict = None      # Biegerohr (step_biegerohr): Mittellinie, Elemente, LRA, XYZ; sonst None
     knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
+    # Zentrale Art-Entscheidung (step_arten, Patrick 04.11.2026): die übrigen Arten (Blech, Rohr/Profil, Dreh-/Frästeil)
+    # außer alternative als {Gruppe: Teil}, nicht messbare Arten mit Grund, Grund und Regel der gewählten Art
+    arten: dict = None
+    arten_grund: dict = None
+    art_grund: str = ""
+    art_regel: str = ""
     offene_seite: dict = None   # offenes Rohr geschlossen (step_offenes_rohr): Seite, Lücken, Länge; sonst None
     geschlossen: object = None  # offen gezeichnetes Rohr: Messung mit ergänzter Wand (Teil); sonst None
     drehfraes: dict = None      # Dreh- oder Frästeil (step_drehfraes): Art, Maße, Merkmale, Fingerabdruck; sonst None
@@ -3287,10 +3293,36 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         t = _drehfraes(solid, None, datei, koerper)     # nicht messbar: vielleicht ein Frästeil
         if t is None:
             raise
-        return t
+        t.art_grund, t.art_regel = (t.drehfraes or {}).get("text") or t.profilform, "Dreh-/Frästeil"
+        return _arten_ergaenzen(solid, t)
     d = _drehfraes(solid, t, datei, koerper)     # Dreh- oder Frästeil: Zukaufteil (Patrick 03.11.2026)
-    if d is not None and d is not t:
-        return d
+    d = d if d is not None and d is not t else None
+    # Zentrale Art-Entscheidung (Patrick 04.11.2026): erst die Kantteil-Regeln, dann die Regelliste step_arten.REGELN
+    # (ein Kantteil mit Biegeradien wird nie Dreh-/Frästeil); die anderen Arten bleiben wählbar
+    from step_arten import entscheiden
+    w = entscheiden(t, d)
+    if w is d:
+        return _arten_ergaenzen(solid, d)
+    k = _analysiere_profil(solid, t, datei, koerper, netz)
+    if k is not t:      # Kantteil-Regeln haben getauscht: Grund und verworfene Arten gehen mit
+        k.art_grund, k.art_regel = t.art_grund, t.art_regel
+        k._verworfen = getattr(t, "_verworfen", None)
+    return _arten_ergaenzen(solid, k)
+
+
+def _arten_ergaenzen(solid, t):
+    """Pool der Arten (step_arten.ergaenzen); ein Fehler lässt die Messung unverändert."""
+    try:
+        from step_arten import entscheiden, ergaenzen
+        if not t.art_regel:
+            t = entscheiden(t, None)
+        return ergaenzen(solid, t)
+    except Exception:  # die Zusatzmessungen dürfen die Messung nie verhindern
+        return t
+
+
+def _analysiere_profil(solid, t, datei, koerper, netz):
+    """Rohr/Profil ohne Dreh-/Frästeil: virtuelle Stege, offen gezeichnetes Rohr, Kantteil-Regeln."""
     if STEGE:           # vom Programm gewähltes größeres Profil: Winkel/U als virtuelles Bauteil mit Stegen
         try:
             from step_schenkel import mit_stegen, ziel_lesen
@@ -4754,6 +4786,10 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
         for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
                   "n_kanten", "huelle", "bauteil", "pfad", "knoten", "struktur"):
             setattr(t.alternative, n, getattr(t, n))
+    for a in (t.arten or {}).values():  # ebenso für die übrigen Arten (step_arten)
+        for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
+                  "n_kanten", "huelle", "bauteil", "pfad", "knoten", "struktur"):
+            setattr(a, n, getattr(t, n))
     t._rohr = getattr(t, "_rahmen", None) is not None       # Hohlprofil mit Abwicklung (Anbauteile)
     return t
 
@@ -4763,6 +4799,8 @@ def teil_uebergeben(t):
     t.__dict__.pop("_rahmen", None)
     if t.alternative is not None:
         t.alternative.__dict__.pop("_rahmen", None)
+    for a in (t.arten or {}).values():
+        a.__dict__.pop("_rahmen", None)
     return t
 
 

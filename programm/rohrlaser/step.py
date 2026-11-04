@@ -1606,16 +1606,18 @@ def netz_der_art(m):
     man auch im 3D sehen): Bleche und Kantteile ganz blau ('KB', Zukauf, ohne Anfangs-/Endschnitt), Innenkonturen
     und Gravur bleiben; Rohre und Profile wie gemessen. Ergebnis: Netz (dict/Bytes) oder None."""
     netz = m.get("_netz")
-    if not netz or m.get("profilform") not in BLECHE:
+    df = m.get("profilform") in DREHFRAES       # Dreh-/Frästeil ganz goldgelb 'KD' (Patrick 04.11.2026)
+    if not netz or (m.get("profilform") not in BLECHE and not df):
         return netz
     from .ansicht3d import entpacken
     n = entpacken(bytes(netz)) if isinstance(netz, (bytes, bytearray, memoryview)) else netz
     if not n or not n.get("t"):
         return netz
     t = {}
+    voll = "KD" if df else "KB"
     for art, idx in n["t"].items():
-        t.setdefault("KB" if art in BLECH_NETZ_ARTEN else art, []).extend(idx)
-    return dict(n, t=t, l={a: z for a, z in (n.get("l") or {}).items() if a not in BLECH_NETZ_ARTEN})
+        t.setdefault(voll if df or art in BLECH_NETZ_ARTEN else art, []).extend(idx)
+    return dict(n, t=t, l={a: z for a, z in (n.get("l") or {}).items() if not df and a not in BLECH_NETZ_ARTEN})
 
 
 def alternative(m):
@@ -1729,6 +1731,126 @@ def art_wechseln(m):
     for k in ("_uebernehmen", "_profil", "_werkstoff", "_blech_artikel"):
         m.pop(k, None)
     return True
+
+
+# Zentrale Art-Entscheidung (Patrick 04.11.2026, Messung step_arten): jedes Teil ist in allen drei Gruppen wählbar
+ART_BLECH, ART_PROFIL, ART_DREHFRAES = "Blech", "Rohr/Profil", "Dreh-/Frästeil"
+ART_GRUPPEN = (ART_BLECH, ART_PROFIL, ART_DREHFRAES)
+
+
+def art_gruppe(m):
+    """Gruppe der Messwerte m: Blech (eben/gekantet), Dreh-/Frästeil oder Rohr/Profil."""
+    if not m:
+        return None
+    if m.get("bauteiltyp") in ("Blech", "Blech gekantet") or m.get("profilform") in ("Blech", "Blech gekantet"):
+        return ART_BLECH
+    if m.get("bauteiltyp") in DREHFRAES or m.get("profilform") in DREHFRAES:
+        return ART_DREHFRAES
+    return ART_PROFIL
+
+
+def _arten_json(m):
+    import json
+    try:
+        d = json.loads(m["arten"]) if m.get("arten") else {}
+    except ValueError:
+        d = {}
+    return d if isinstance(d, dict) else {}
+
+
+def arten(m):
+    """Alle Arten des Teils je Gruppe: {Gruppe: dict(quelle, messung, grund)} – quelle 'aktuell' (m selbst), 'alt'
+    (Spalte alternative), 'arten' (Spalte arten) bzw. None mit grund (nicht messbar); messung = Messwerte der Art."""
+    out = {}
+    out[art_gruppe(m)] = dict(quelle="aktuell", messung=m, grund="")
+    alt = alternative(m)
+    if alt and art_gruppe(alt) not in out:
+        out[art_gruppe(alt)] = dict(quelle="alt", messung=alt, grund="")
+    for gr, a in _arten_json(m).items():
+        if gr in out or not isinstance(a, dict):
+            continue
+        if set(a) <= {"grund"}:
+            out[gr] = dict(quelle=None, messung=None, grund=a.get("grund") or "nicht messbar")
+        else:
+            out[gr] = dict(quelle="arten", messung=a, grund="")
+    for gr in ART_GRUPPEN:      # ältere Messungen (vor STEP-JSON 1.28) ohne Spalte arten
+        out.setdefault(gr, dict(quelle=None, messung=None, grund="mit dieser Messung nicht gemessen – STEP neu einlesen"))
+    return out
+
+
+def art_setzen(m, gruppe):
+    """Teil auf die Gruppe umstellen (Blech, Rohr/Profil, Dreh-/Frästeil): die Messwerte dieser Art gelten, die
+    bisherigen kommen in die Spalte arten (bzw. alternative wie bei art_wechseln). Eingaben aus dem Prüfdialog, die zur
+    Art gehören, fallen weg. True, wenn umgestellt."""
+    import json
+    jetzt = art_gruppe(m)
+    if gruppe == jetzt:
+        return False
+    alt = alternative(m)
+    if alt and art_gruppe(alt) == gruppe:
+        neu_gesetzt = art_wechseln(m)
+    else:
+        pool = _arten_json(m)
+        neu = pool.get(gruppe)
+        if not isinstance(neu, dict) or set(neu) <= {"grund"}:
+            return False
+        bisher = {k: m.get(k, "") for k in neu}
+        m.update(neu)
+        pool.pop(gruppe, None)
+        pool[jetzt] = bisher
+        m["arten"] = json.dumps(pool, ensure_ascii=False, separators=(",", ":"))
+        for k in ("_uebernehmen", "_profil", "_werkstoff", "_blech_artikel"):
+            m.pop(k, None)
+        neu_gesetzt = True
+    if neu_gesetzt:
+        m.setdefault("_art_gemessen", jetzt)
+        if m["_art_gemessen"] == gruppe:
+            m.pop("_art_gemessen")
+    return neu_gesetzt
+
+
+def art_grund(m):
+    """Grund der Art für die Hinweisspalte: gemerkt bzw. von Hand umgestellt, sonst der Grund der Regelliste (leer =
+    wie gemessen)."""
+    if m.get("_art_gelernt") and m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
+        return f"Art wie beim letzten Mal von Hand gewählt: {art_gruppe(m)} (erkannt {m['_art_gemessen']})"
+    if m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
+        return f"Art von Hand: {art_gruppe(m)} statt {m['_art_gemessen']}"
+    return m.get("art_grund") or ""
+
+
+ART_GELERNT = "step_art_gelernt"    # Einstellung: {art_schluessel: Gruppe} (Patrick 04.11.2026, für alle Kunden)
+ART_GELERNT_MAX = 5000
+
+
+def art_schluessel(m):
+    """Kennung der Geometrie unabhängig von der Art (Hüllmaße, Volumen, Flächen- und Kantenzahl) – gleiches Teil beim
+    nächsten Import gleiche Art; '' ohne Messwerte."""
+    masse = sorted(round(float(v) * 2) / 2 for v in str(m.get("huelle") or "").split("|") if v.strip())
+    if len(masse) != 3 or not _z(m, "volumen"):
+        return ""
+    return "|".join([f"{x:g}" for x in masse] + [f"{_z(m, 'volumen') / 10:.0f}", str(m.get("n_flaechen") or ""),
+                                                 str(m.get("n_kanten") or "")])
+
+
+def arten_gelernt_anwenden(messwerte, gelernt):
+    """Gemerkte Arten (Einstellung ART_GELERNT) auf die Messwerte anwenden; Zahl der umgestellten Teile."""
+    n = 0
+    for m in messwerte:
+        gr = (gelernt or {}).get(art_schluessel(m)) if art_schluessel(m) else None
+        if gr and gr != art_gruppe(m) and art_setzen(m, gr):
+            m["_art_gelernt"] = True
+            n += 1
+    return n
+
+
+def arten_gelernt_merken(gelernt, neu):
+    """Neue Wahl {art_schluessel: Gruppe} zu den gemerkten Arten (die neuesten zuletzt, höchstens ART_GELERNT_MAX)."""
+    out = dict(gelernt or {})
+    for k, v in (neu or {}).items():
+        out.pop(k, None)
+        out[k] = v
+    return dict(list(out.items())[-ART_GELERNT_MAX:])
 
 
 def gleiches_profil(m, profil, tol=0.1):
@@ -3025,9 +3147,54 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 satz_daten=_satz_stoesse(messwerte, satz_teile))
 
 
+HERKUNFT = "step_herkunft"
+
+
+def nur_koerper(messwerte, h, p=None):
+    """Messwerte des Körpers einer Position („Art ändern …“): nach step_herkunft h (Datei, Körper), sonst nach der
+    Artikelnummer der Position p; nichts gefunden: alle (der Prüfdialog zeigt dann die ganze Datei)."""
+    if h:
+        out = [m for m in messwerte if (not h.get("name") or m.get("datei") == h["name"])
+               and int(_z(m, "koerper") or 1) == int(h.get("koerper") or 1)]
+        if out:
+            return out
+    art = str((p or {}).get("artikel") or "")
+    out = [m for m in messwerte if art and m.get("artikel") == art]
+    return out or messwerte
+
+
+
+def herkunft_merken(p, m):
+    """STEP-Datei und Körper der Position in technik (step_herkunft = {datei, koerper, name}) merken: „Art ändern …“
+    misst das Teil später daraus neu (Patrick 04.11.2026). Nur, wenn technik ein JSON-Objekt ist."""
+    if not m.get("_pfad") and not m.get("datei"):
+        return p
+    try:
+        d = json.loads(p["technik"]) if p.get("technik") else None
+    except (TypeError, ValueError):
+        return p
+    if not isinstance(d, dict):
+        return p
+    d[HERKUNFT] = dict(datei=str(m.get("_pfad") or ""), name=m.get("datei") or "", koerper=int(_z(m, "koerper") or 1),
+                       art=art_gruppe(m))
+    p["technik"] = json.dumps(d, ensure_ascii=False)
+    return p
+
+
+def herkunft(p):
+    """step_herkunft der Position (dict) oder None."""
+    try:
+        d = json.loads(p.get("technik") or "")
+    except (TypeError, ValueError):
+        return None
+    h = d.get(HERKUNFT) if isinstance(d, dict) else None
+    return h if isinstance(h, dict) else None
+
+
 def _zusatz_wahl(p, m, katalog):
     """Zusatzarbeiten, die im Prüfdialog für das Teil gewählt sind (m['_zusatz'] = Namen, Plan Angebotsablauf V4),
     an die Zusatzarbeiten der Position anhängen (Preisstand aus den Stammdaten; schon vorhandene bleiben)."""
+    herkunft_merken(p, m)
     namen = [n for n in m.get("_zusatz") or () if n]
     kat = {z.get("name"): z for z in katalog or ()}
     if not namen or not kat:

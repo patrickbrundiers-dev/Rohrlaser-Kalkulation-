@@ -159,7 +159,9 @@ def pal_base(w):
 class DrehfraesDialog(QDialog):
     """e = Eingaben (drehfraes_preis.aus_step bzw. gespeichert in positionen.technik), einst = Einstellungen."""
 
-    def __init__(self, eltern, e, einst, titel="", nur_lesen=False):
+    def __init__(self, eltern, e, einst, titel="", nur_lesen=False, netz=None):
+        """netz: 3D-Netz der Position aus dem STEP-Import (Datenbank) – wird unverändert in echter Form und Lage
+        gezeigt wie im Prüfdialog (Patrick 04.11.2026: „Frästeile im Editor wie in der STEP anzeigen“)."""
         super().__init__(eltern)
         self.e = dict(e)
         self.e["zeiten"] = dict(e.get("zeiten") or {})
@@ -168,7 +170,7 @@ class DrehfraesDialog(QDialog):
         self._laedt = True
         d = self.e.get("daten") or {}
         self.setWindowTitle("Richtpreis Dreh-/Frästeil")
-        self.resize(1000, 760)
+        self.resize(1240 if netz else 1000, 900 if netz else 760)
         lay = QVBoxLayout(self)
         kopf = QLabel(f"<b>{titel or drehfraes.bezeichnung(d, self.e.get('werkstoff'))}</b><br>"
                       f"{drehfraes.text(dict(drehfraes=d, profilform=d.get('art')))}")
@@ -208,10 +210,25 @@ class DrehfraesDialog(QDialog):
         zh.addWidget(self.zusatz_text, 1)
         form.addRow("Zusätze (Gewinde, Oberfläche, Härten …)", zh)
         oben = QHBoxLayout()
-        oben.addLayout(form, 1)
         self.skizze = DrehfraesSkizze()
-        oben.addWidget(self.skizze, 1)
-        lay.addLayout(oben)
+        if netz:        # mit 3D: Eingaben und Skizze links übereinander, 3D rechts groß (Leiste ganz lesbar)
+            links = QVBoxLayout()
+            links.addLayout(form)
+            links.addWidget(self.skizze, 1)
+            oben.addLayout(links, 1)
+        else:
+            oben.addLayout(form, 1)
+            oben.addWidget(self.skizze, 1)
+        self.ansicht3d = None
+        if netz:
+            from .ansicht3d import Ansicht3DMitKnoepfen
+            self.ansicht3d = Ansicht3DMitKnoepfen()
+            self.ansicht3d.setMinimumSize(560, 340)
+            self.ansicht3d.setToolTip("Das Teil aus der STEP in echter Form und Lage wie im Prüfdialog "
+                                      "(goldgelb = Dreh-/Frästeil, Zukauf)")
+            self.ansicht3d.setzen(netz, "3D wie in der STEP")
+            oben.addWidget(self.ansicht3d, 1)
+        lay.addLayout(oben, 1 if netz else 0)
         self.befunde = QLabel()
         self.befunde.setWordWrap(True)
         self.befunde.setTextFormat(Qt.RichText)
@@ -224,6 +241,15 @@ class DrehfraesDialog(QDialog):
         for i, b in enumerate((230, 80, 120, 90)):
             self.tabelle.setColumnWidth(i, b)
         lay.addWidget(self.tabelle, 1)
+        # eigene Werte je Teil wie beim Blech (Patrick 04.11.2026): leer = berechnet, eingetragen = gilt (gelb)
+        from .blech_dialog import RichtwerteTabelle
+        self.richtwerte = RichtwerteTabelle(dp.RICHTWERTE, "Richtwerte des Dreh-/Frästeils: berechnet aus Messung, "
+                                            "Werkstoff und Einstellungen; ein eigener Wert gilt nur für dieses Teil, "
+                                            "„Richtpreis je Stück“ ersetzt den ganzen Preis (z. B. Angebot des "
+                                            "Lieferanten). Der Richtpreis rechnet sofort neu.")
+        self.richtwerte.eigene_setzen(self.e.get("eigene"))
+        self.richtwerte.geaendert.connect(self.neu_rechnen)
+        lay.addWidget(self.richtwerte)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
@@ -250,7 +276,8 @@ class DrehfraesDialog(QDialog):
         return dict(self.e, stueck=self.stueck.value(), werkstoff=self.werkstoff.text().strip() or None,
                     rohling=self.rohling.currentText(), eur_kg=self.eur_kg.value() or None,
                     zusatz_eur=self.zusatz.value(), zusatz_text=self.zusatz_text.text().strip(),
-                    zeiten=dict(self.e["zeiten"]))
+                    zeiten=dict(self.e["zeiten"]),
+                    eigene=self.richtwerte.eigene() if hasattr(self, "richtwerte") else dict(self.e.get("eigene") or {}))
 
     def _zuruecksetzen(self):
         self.e["zeiten"] = {}
@@ -295,6 +322,8 @@ class DrehfraesDialog(QDialog):
         finally:
             self._laedt = False
         self.skizze.setzen(self.e.get("daten") or {}, erg)
+        if hasattr(self, "richtwerte"):
+            self.richtwerte.setzen(erg)
         mb = erg.get("machbarkeit") or ()
         self.befunde.setText(
             f"<b style='color:{AMPEL_FARBE.get(erg.get('ampel') or dp.GRUEN)}'>Machbarkeit: "
@@ -311,6 +340,9 @@ class DrehfraesDialog(QDialog):
                   f"je Stück {_eur(erg['ruesten'])}",
                   f"Zusätze {_eur(erg['zusatz'])}, Aufschlag des Lieferanten {_eur(erg['aufschlag'])}",
                   f"<b>Richtpreis {_eur(erg['richtpreis'])} je Stück</b> – {dp.HINWEIS}"]
+        if erg.get("eigene"):
+            zeilen.append(f"<span style='color:#1F4E78'>{len(erg['eigene'])} eigene(r) Wert(e) statt Richtwert "
+                          "(gelb)</span>")
         if erg["hinweise"]:
             zeilen.append("<i>" + "; ".join(erg["hinweise"]) + "</i>")
         self.summe.setText("<br>".join(zeilen))

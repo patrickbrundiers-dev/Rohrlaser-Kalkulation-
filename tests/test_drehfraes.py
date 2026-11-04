@@ -126,7 +126,7 @@ def _():
     f = drehfraes.daten(JE["D06_Platte_Tasche"])
     assert (f["laenge"], f["breite"], f["hoehe"]) == (100, 60, 20) and "Absatz/Tasche" in f["merkmale"], f
     assert all(not m.get("drehfraes") for n, m in JE.items() if n.startswith("N")), "Laserteile ohne Block"
-    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.27"
+    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.28"
     k = next(x for dt in JS["dateien"] if dt["datei"].startswith("D01") for x in dt["koerper"])
     assert k["bauteiltyp"] == "Drehteil" and k["drehfraes"]["art"] == "Drehteil" and k["alternative"]["profiltyp"] \
         == "Rundstahl", k["drehfraes"]

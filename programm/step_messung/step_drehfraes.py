@@ -439,9 +439,28 @@ def fraesteil(fl, t, huelle, form=None, achse=None):
             nur_abmessung = True
     else:
         return None
+    kw = _kennwerte_fraes(fl, richtungen, stufen)
+    # nur echte Bohrungen (ganze Innenzylinder), keine Biegeradien oder Taschenecken (Patrick 04.11.2026)
     return dict(art=FRAESTEIL, laenge=round(la, 2), breite=round(lb, 2), hoehe=round(lc, 2), merkmale=merkmale,
-                zusatz=["Bohrungen"] if any(e["typ"] == "zylinder" for e in fl) else [], nur_abmessung=nur_abmessung,
-                kennwerte=_kennwerte_fraes(fl, richtungen, stufen))
+                zusatz=["Bohrungen"] if kw["bohrungen"] else [], nur_abmessung=nur_abmessung, kennwerte=kw)
+
+
+VON_HAND = "von Hand gewählt"
+
+
+def fraesteil_von_hand(fl, huelle):
+    """Frästeil ohne Erkennung (Art von Hand umgestellt, Patrick 04.11.2026): Maße aus dem Hüllquader, Kennwerte für
+    den Richtpreis wie beim erkannten Frästeil, Merkmal „von Hand gewählt“."""
+    if len(huelle) != 3 or not fl:
+        return None
+    richtungen = []
+    for e in fl:
+        if e["typ"] == "eben" and not any(_parallel(e["normale"], r) for r in richtungen):
+            richtungen.append(e["normale"])
+    kw = _kennwerte_fraes(fl, richtungen, 0)
+    la, lb, lc = huelle
+    return dict(art=FRAESTEIL, laenge=round(la, 2), breite=round(lb, 2), hoehe=round(lc, 2), merkmale=[VON_HAND],
+                zusatz=["Bohrungen"] if kw["bohrungen"] else [], nur_abmessung=True, kennwerte=kw)
 
 
 def _huelle_ebenen(solid, fl):
@@ -501,34 +520,54 @@ def _huelle(solid):
         return sorted((x1 - x0, y1 - y0, z1 - z0), reverse=True)
 
 
-def pruefen(solid, t, datei="", koerper=1):
-    """Dreh- oder Frästeil? Dann ein neues Teil (bauteiltyp/profilform Drehteil bzw. Frästeil, drehfraes = Merkmale,
-    alternative = die bisherige Messung t), sonst t unverändert. Biegerohre, Knickrahmen und Bleche prüft sie nicht."""
-    if t is not None and (t.biegerohr or t.knick_schenkel):
+def pruefen(solid, t, datei="", koerper=1, erzwingen=False):
+    """Dreh- oder Frästeil? Dann ein neues Teil (bauteiltyp/profilform Drehteil bzw. Frästeil, drehfraes = Merkmale),
+    sonst t unverändert. Biegerohre, Knickrahmen und Bleche prüft sie nicht. Die Messung t bleibt unverändert (auch
+    ihre alternative): welche Art gilt, entscheidet step_arten.entscheiden (Patrick 04.11.2026).
+    erzwingen: das Teil als Dreh- bzw. Frästeil messen, auch wenn es nicht so erkannt wird (Art von Hand wählbar):
+    erst Drehteil, dann Frästeil, sonst Frästeil nach dem Hüllquader (Merkmal „von Hand gewählt“)."""
+    if t is not None and (t.biegerohr or t.knick_schenkel) and not erzwingen:
         return t
     form = t.profilform if t is not None else ""
     blech = t is not None and (t.bauteiltyp == "Blech" or form == "Blech")
-    if t is not None and (t.bauteiltyp == "Blech gekantet" or form == "Blech gekantet"):
-        return t
     block = None
-    if form in ("Quadratrohr", "Rechteckrohr") and t is not None:
+    if erzwingen:
         fl = flaechen(solid)
-        if not _block_mit_bohrung(fl):
-            return t
-        block = "Vierkantstahl"     # gebohrter Block (Verteilerblock): als Vollmaterial prüfen
-    elif not blech and form not in FORMEN_DREH + FORMEN_FRAES_VOLL + FORMEN_FRAES_OFFEN:
-        return t
     else:
-        fl = flaechen(solid)
+        if t is not None and (t.bauteiltyp == "Blech gekantet" or form == "Blech gekantet"):
+            return t
+        if form in ("Quadratrohr", "Rechteckrohr") and t is not None:
+            fl = flaechen(solid)
+            if not _block_mit_bohrung(fl):
+                return t
+            block = "Vierkantstahl"     # gebohrter Block (Verteilerblock): als Vollmaterial prüfen
+        elif not blech and form not in FORMEN_DREH + FORMEN_FRAES_VOLL + FORMEN_FRAES_OFFEN:
+            return t
+        else:
+            fl = flaechen(solid)
     # Drehteil für jede Form (eine Rolle kann als Flachstahl/Blech, ein Flansch als T-Profil gemessen sein)
-    info = drehteil(fl, t, streng=form not in FORMEN_DREH) if block is None else None
-    if info is None and not blech:
-        info = fraesteil(fl, t, _huelle_ebenen(solid, fl) or _huelle(solid), block,
-                         achse=getattr(t, "achse_global", None))
+    info = drehteil(fl, t, streng=form not in FORMEN_DREH and not erzwingen) if block is None else None
+    if info is None and (not blech or erzwingen):
+        try:
+            info = fraesteil(fl, t, _huelle_ebenen(solid, fl) or _huelle(solid), block,
+                             achse=getattr(t, "achse_global", None))
+        except Exception:  # erzwungen: dann nach dem Hüllquader
+            if not erzwingen:
+                raise
+            info = None
+    if info is None and erzwingen and t is not None and form in ("Rundrohr", "Rundstahl") and t.abm_a > 0:
+        innen = max(0.0, t.abm_a - 2 * t.wandstaerke) if form == "Rundrohr" else 0.0
+        info = dict(art=DREHTEIL, durchmesser=round(t.abm_a, 2), innen=round(innen, 2), laenge=round(t.laenge, 2),
+                    durchmesser_liste=[round(t.abm_a, 2)], merkmale=[VON_HAND], zusatz=[], nur_abmessung=True,
+                    kennwerte=None)
+    if info is None and erzwingen:
+        info = fraesteil_von_hand(fl, _huelle_ebenen(solid, fl) or _huelle(solid))
     if info is None:
         return t
-    if info["art"] == DREHTEIL and info["nur_abmessung"] and form != "Rundrohr":
+    if info["art"] == DREHTEIL and info["nur_abmessung"] and form != "Rundrohr" and not erzwingen:
         return t                    # Buchsen-Verdacht nur bei gemessenen Rundrohren
+    if erzwingen and VON_HAND not in info["merkmale"]:
+        info["merkmale"] = list(info["merkmale"]) + [VON_HAND]
     v = g._volumen(solid)
     n = g.Teil(datei=datei, koerper=koerper)
     n.bauteiltyp = n.profilform = info["art"]
@@ -546,14 +585,11 @@ def pruefen(solid, t, datei="", koerper=1):
                      "struktur", "naehte", "ohne_naht"):
             if hasattr(t, name):
                 setattr(n, name, getattr(t, name))
-        t.drehfraes = None
-        t.alternative = None        # die Messung als Rohr/Profil ist jetzt die Alternative (eine Ebene)
-        n.alternative = t
     unsicher = info["nur_abmessung"]
     n.sicherheit.update(profil="unsicher" if unsicher else "sicher", laenge="sicher", wandstaerke="sicher",
                         konturen="nicht ausgewertet")
     info["text"] = f"{info['art']} ({', '.join(info['merkmale'] + info['zusatz'])})"
-    if unsicher:        # nur dann „prüfen“ (Hinweis): das Programm stellt es zurück, wenn das Profil bekannt ist
+    if unsicher and not erzwingen:  # nur dann „prüfen“ (Hinweis): das Programm stellt es zurück, wenn das Profil bekannt ist
         n.hinweise.append(f"{info['text']}: als Zukaufteil erkannt – prüfen, ob es gelasert wird")
     return n
 

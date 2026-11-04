@@ -143,11 +143,14 @@ Versionen von SCHEMA_VERSION:
   [{d, l, z}], einstiche, fasen, radien, stirn, Flächen [cm²], querbohrungen, wand_min, anbau_d; Frästeil ebenen,
   bohrungen [{d, l, z}], innenradien, innenradius_min, taschentiefe, richtungen, stufen, Flächen [cm²]. Felder aus
   1.26 unverändert.
+- 1.28 (04.11.2026): Zentrale Art-Entscheidung (step_arten): "art_grund" = Grund der gewählten Art (Regelliste),
+  "arten" = die übrigen Arten {"Blech" | "Rohr/Profil" | "Dreh-/Frästeil": Körper wie "alternative" bzw. {"grund":
+  Text}, wenn die Art nicht messbar ist}; ein Kantteil mit Biegeradien wird nie Dreh-/Frästeil.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.27"
+SCHEMA_VERSION = "1.28"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -256,6 +259,9 @@ def koerper(t):
         "offene_seite": dict(t.offene_seite) if t.offene_seite else None,
         "geschlossen": {k: v for k, v in koerper(t.geschlossen).items() if k != "nr"} if t.geschlossen else None,
         "drehfraes": dict(t.drehfraes) if t.drehfraes else None,
+        "art_grund": t.art_grund or None,
+        "arten": ({gr: {k: v for k, v in koerper(a).items() if k != "nr"} for gr, a in (t.arten or {}).items()}
+                  | {gr: {"grund": gd} for gr, gd in (t.arten_grund or {}).items()}) or None,
     }
 
 
