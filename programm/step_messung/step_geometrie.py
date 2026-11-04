@@ -4244,6 +4244,107 @@ def _laengsnaht(ta, tb, zug):
     return None
 
 
+def _naht_paar(ta, ka, tb, kb, struktur, rahmen):
+    """Nahtkandidat zwischen zwei Körpern (siehe _nahtkandidaten) oder None ohne Berührung mit Länge."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    dist = BRepExtrema_DistShapeShape(ka, kb)
+    if not dist.IsDone() or dist.Value() > max(NAHT_KONTAKT, NAHT_SPALT):
+        return None
+    spalt = dist.Value() if dist.Value() > NAHT_KONTAKT else 0.0
+    if spalt:
+        klein_b = _volumen(kb) <= _volumen(ka)
+        huelle = _spalt_huelle(kb if klein_b else ka, spalt)
+        if huelle is not None:
+            sec = BRepAlgoAPI_Section(ka if klein_b else kb, huelle)
+        else:       # Aufdicken gescheitert: b an a schieben (gleiche Länge bei ebener Auflage)
+            sec = BRepAlgoAPI_Section(ka, _an_schieben(kb, dist))
+    else:
+        sec = BRepAlgoAPI_Section(ka, kb)
+    sec.Build()
+    if not sec.IsDone():
+        return None
+    kanten = TopTools_HSequenceOfShape()
+    for e in _liste(sec.Shape(), TopAbs_EDGE):
+        kanten.Append(e)
+    if kanten.Length() == 0:
+        return None
+    draehte = ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(kanten, 0.01, False)
+    laengen, mitte, gesamt, zuege, schwer = [], [0.0, 0.0, 0.0], 0.0, [], [0.0, 0.0, 0.0]
+    for w in range(1, draehte.Length() + 1):
+        lw, zug = 0.0, []
+        for e in _liste(draehte.Value(w), TopAbs_EDGE):
+            c = BRepAdaptor_Curve(TopoDS.Edge(e))
+            lg = GCPnts_AbscissaPoint.Length_s(c)
+            p = c.Value((c.FirstParameter() + c.LastParameter()) / 2)
+            for n, v in enumerate((p.X(), p.Y(), p.Z())):
+                mitte[n] += v * lg
+            for k in range(8):      # Schwerpunkt der Kanten (ganze Kreise: Mitte auf der Achse)
+                q = c.Value(c.FirstParameter() + (c.LastParameter() - c.FirstParameter()) * (k + 0.5) / 8)
+                for n, v in enumerate((q.X(), q.Y(), q.Z())):
+                    schwer[n] += v * lg / 8
+            gesamt += lg
+            lw += lg
+            zug.append(_naht_linie(c, lg))
+        laengen.append(lw)
+        zuege.append(zug)
+    if not laengen or max(laengen) < 0.5:
+        return None        # nur Punkt- oder Linienberührung ohne Länge
+    mitte = [v / gesamt for v in mitte] if gesamt else mitte
+    ea, eb = _am_ende(ta, mitte, spalt), _am_ende(tb, mitte, spalt)
+    if ea and eb:
+        cos = abs(sum(x * y for x, y in zip(ta.achse_global, tb.achse_global)))
+        stossart = "Stumpfnaht" if cos > 0.999 else "Ecknaht"
+    else:
+        stossart = "Kehlnaht"
+    # Rohrende auf dem anderen Teil: Naht rundum = Schnittlänge dieses Endes (die Berührung selbst ist bei
+    # gleich breiten Rohren wegen der Eckradien kürzer)
+    enden = [x for t, e in ((ta, ea), (tb, eb)) if e
+             for x in [t.ende_a if e == "A" else t.ende_b] if isinstance(x, (int, float)) and x > 0]
+    laenge = min(enden) if enden else max(laengen)
+    # Rohr durch ein Blech gesteckt (Mitte der Berührung auf der Rohrachse, nicht am Ende): rundum, beidseitig
+    # (Plan S8); Länge = Außenumfang des Rohrs, je Seite eine Naht
+    schwer = [v / gesamt for v in schwer] if gesamt else schwer
+    durch = next((t for t, e, o in ((ta, ea, tb), (tb, eb, ta)) if not e and not _ist_rohr(o)
+                  and _auf_achse(t, schwer)), None)
+    aufteilung, stich = None, False
+    if durch is not None and not ea and not eb:
+        laenge = durch.kontur_umfang
+        aufteilung = f"rundum {_mm(laenge)} mm je Seite (Rohr durch Blech)"
+    elif enden:
+        aufteilung = f"rundum {_mm(laenge)} mm (Rohrende)"
+        ueber = _ueberstand(ta, tb, ea, eb)
+        if ueber:
+            laenge, aufteilung = ueber
+    else:
+        genauer = _laengsnaht(ta, tb, zuege[laengen.index(max(laengen))])
+        if genauer:
+            laenge, aufteilung, stich = genauer
+    dicken = [d for d in (_naht_dicke(ta), _naht_dicke(tb)) if d]
+    k_ = dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
+              laenge_mm=round(laenge, 1), stossart=stossart,
+              dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
+              linien=zuege[laengen.index(max(laengen))])
+    if len(dicken) == 2:          # dickere Wand für das Mindest-a √t − 0,5 (STEP-JSON 1.22)
+        k_["dicke_max_mm"] = round(max(dicken), 2)
+    if spalt:
+        k_["spalt_mm"] = round(spalt, 2)
+    if durch is not None and not ea and not eb:
+        k_["beidseitig"] = True
+    if aufteilung:            # Aufteilung der Länge (STEP-JSON 1.26, Patrick 03.11.2026)
+        k_["aufteilung"] = aufteilung
+    if stich:
+        k_["stichnaht_moeglich"] = True
+    if stossart == "Kehlnaht" and bool(ea) != bool(eb):
+        try:
+            st = _stoss(tb if eb else ta, eb or ea, ta if eb else tb, mitte, rahmen)
+        except Exception:  # Lage des Stoßes ist nur ein Vorschlag: nie die Nahtkandidaten verhindern
+            st = None
+        if st:
+            k_["stoss"] = st
+    return k_
+
+
 def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
     """Mögliche Schweißnähte einer Baugruppe: je Paar sich berührender Volumenkörper ein Kandidat
     {teile [a, b] (Körpernummern), knoten, laenge_mm, stossart, dicke_mm, status 'prüfen', linien (Nahtverlauf:
@@ -4256,8 +4357,6 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
     Spalt bis NAHT_SPALT (Patrick 26.10.2026: Blech mit Spalt zum Rohr bekam keine Naht): der kleinere Körper wird um
     den Spalt aufgedickt und mit dem anderen geschnitten (Nahtverlauf auf dem anderen Teil), der Kandidat trägt
     "spalt_mm". stand (dict): "vollstaendig" = False, wenn wegen NAHT_PAARE_MAX nicht alle Paare geprüft wurden."""
-    from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
-    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
     koerper_ = [(t, k) for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and t.koerper]
     if len(koerper_) < 2:
         return []
@@ -4278,101 +4377,14 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
                     stand["vollstaendig"] = False
                 return out
             (ta, ka), (tb, kb) = koerper_[i], koerper_[j]
-            dist = BRepExtrema_DistShapeShape(ka, kb)
-            if not dist.IsDone() or dist.Value() > max(NAHT_KONTAKT, NAHT_SPALT):
+            try:
+                k_ = _naht_paar(ta, ka, tb, kb, struktur, rahmen)
+            except Exception as f:  # ein Paar darf die übrigen Nahtkandidaten nie verhindern (Patrick 04.11.2026)
+                if stand is not None:
+                    stand.setdefault("fehler", []).append(f"Körper {ta.koerper}/{tb.koerper}: {f or type(f).__name__}")
                 continue
-            spalt = dist.Value() if dist.Value() > NAHT_KONTAKT else 0.0
-            if spalt:
-                klein_b = _volumen(kb) <= _volumen(ka)
-                huelle = _spalt_huelle(kb if klein_b else ka, spalt)
-                if huelle is not None:
-                    sec = BRepAlgoAPI_Section(ka if klein_b else kb, huelle)
-                else:       # Aufdicken gescheitert: b an a schieben (gleiche Länge bei ebener Auflage)
-                    sec = BRepAlgoAPI_Section(ka, _an_schieben(kb, dist))
-            else:
-                sec = BRepAlgoAPI_Section(ka, kb)
-            sec.Build()
-            if not sec.IsDone():
-                continue
-            kanten = TopTools_HSequenceOfShape()
-            for e in _liste(sec.Shape(), TopAbs_EDGE):
-                kanten.Append(e)
-            if kanten.Length() == 0:
-                continue
-            draehte = ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(kanten, 0.01, False)
-            laengen, mitte, gesamt, zuege, schwer = [], [0.0, 0.0, 0.0], 0.0, [], [0.0, 0.0, 0.0]
-            for w in range(1, draehte.Length() + 1):
-                lw, zug = 0.0, []
-                for e in _liste(draehte.Value(w), TopAbs_EDGE):
-                    c = BRepAdaptor_Curve(TopoDS.Edge(e))
-                    lg = GCPnts_AbscissaPoint.Length_s(c)
-                    p = c.Value((c.FirstParameter() + c.LastParameter()) / 2)
-                    for n, v in enumerate((p.X(), p.Y(), p.Z())):
-                        mitte[n] += v * lg
-                    for k in range(8):      # Schwerpunkt der Kanten (ganze Kreise: Mitte auf der Achse)
-                        q = c.Value(c.FirstParameter() + (c.LastParameter() - c.FirstParameter()) * (k + 0.5) / 8)
-                        for n, v in enumerate((q.X(), q.Y(), q.Z())):
-                            schwer[n] += v * lg / 8
-                    gesamt += lg
-                    lw += lg
-                    zug.append(_naht_linie(c, lg))
-                laengen.append(lw)
-                zuege.append(zug)
-            if not laengen or max(laengen) < 0.5:
-                continue        # nur Punkt- oder Linienberührung ohne Länge
-            mitte = [v / gesamt for v in mitte] if gesamt else mitte
-            ea, eb = _am_ende(ta, mitte, spalt), _am_ende(tb, mitte, spalt)
-            if ea and eb:
-                cos = abs(sum(x * y for x, y in zip(ta.achse_global, tb.achse_global)))
-                stossart = "Stumpfnaht" if cos > 0.999 else "Ecknaht"
-            else:
-                stossart = "Kehlnaht"
-            # Rohrende auf dem anderen Teil: Naht rundum = Schnittlänge dieses Endes (die Berührung selbst ist bei
-            # gleich breiten Rohren wegen der Eckradien kürzer)
-            enden = [x for t, e in ((ta, ea), (tb, eb)) if e
-                     for x in [t.ende_a if e == "A" else t.ende_b] if isinstance(x, (int, float)) and x > 0]
-            laenge = min(enden) if enden else max(laengen)
-            # Rohr durch ein Blech gesteckt (Mitte der Berührung auf der Rohrachse, nicht am Ende): rundum, beidseitig
-            # (Plan S8); Länge = Außenumfang des Rohrs, je Seite eine Naht
-            schwer = [v / gesamt for v in schwer] if gesamt else schwer
-            durch = next((t for t, e, o in ((ta, ea, tb), (tb, eb, ta)) if not e and not _ist_rohr(o)
-                          and _auf_achse(t, schwer)), None)
-            aufteilung, stich = None, False
-            if durch is not None and not ea and not eb:
-                laenge = durch.kontur_umfang
-                aufteilung = f"rundum {_mm(laenge)} mm je Seite (Rohr durch Blech)"
-            elif enden:
-                aufteilung = f"rundum {_mm(laenge)} mm (Rohrende)"
-                ueber = _ueberstand(ta, tb, ea, eb)
-                if ueber:
-                    laenge, aufteilung = ueber
-            else:
-                genauer = _laengsnaht(ta, tb, zuege[laengen.index(max(laengen))])
-                if genauer:
-                    laenge, aufteilung, stich = genauer
-            dicken = [d for d in (_naht_dicke(ta), _naht_dicke(tb)) if d]
-            k_ = dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
-                      laenge_mm=round(laenge, 1), stossart=stossart,
-                      dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
-                      linien=zuege[laengen.index(max(laengen))])
-            if len(dicken) == 2:          # dickere Wand für das Mindest-a √t − 0,5 (STEP-JSON 1.22)
-                k_["dicke_max_mm"] = round(max(dicken), 2)
-            if spalt:
-                k_["spalt_mm"] = round(spalt, 2)
-            if durch is not None and not ea and not eb:
-                k_["beidseitig"] = True
-            if aufteilung:            # Aufteilung der Länge (STEP-JSON 1.26, Patrick 03.11.2026)
-                k_["aufteilung"] = aufteilung
-            if stich:
-                k_["stichnaht_moeglich"] = True
-            if stossart == "Kehlnaht" and bool(ea) != bool(eb):
-                try:
-                    st = _stoss(tb if eb else ta, eb or ea, ta if eb else tb, mitte, rahmen)
-                except Exception:  # Lage des Stoßes ist nur ein Vorschlag: nie die Nahtkandidaten verhindern
-                    st = None
-                if st:
-                    k_["stoss"] = st
-            out.append(k_)
+            if k_ is not None:
+                out.append(k_)
     return out
 
 
@@ -4868,8 +4880,15 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
         stand = dict(vollstaendig=True)
         try:
             naehte = _nahtkandidaten(teile_, koerper_, info.get("struktur"), rahmen, stand)
-        except Exception:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
+        except Exception as f:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
             naehte, stand["vollstaendig"] = [], False
+            stand.setdefault("fehler", []).append(str(f) or type(f).__name__)
+        if out and stand.get("fehler"):     # nicht still verwerfen (Patrick 04.11.2026: Baugruppe ohne Nähte)
+            out[0].hinweise.append(f"Nahtkandidaten unvollständig: {len(stand['fehler'])} Fehler ("
+                                   f"{stand['fehler'][0]}), Nähte im Editor prüfen")
+        elif out and not stand["vollstaendig"]:
+            out[0].hinweise.append(f"Nahtkandidaten unvollständig: mehr als {NAHT_PAARE_MAX} Teilepaare, Nähte im "
+                                   "Editor prüfen")
         try:
             _erreichbarkeit(naehte, teile_, koerper_, stand, ERREICH_STUFE_MAX - (time.monotonic() - beginn))
         except Exception:  # Erreichbarkeit ist ein Vorschlag: nie die Messung verhindern

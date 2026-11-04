@@ -21,12 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.256", "<b>Zeitwächter</b> ([[zeitwaechter]]): jede Stelle, an der das Programm länger als 0,5 s nicht "
+    ["0.9.257", "<b>Zeitwächter</b> ([[zeitwaechter]]): jede Stelle, an der das Programm länger als 0,5 s nicht "
      "reagiert, steht mit Dauer, Ort und der Bedienung davor in <i>Daten/Protokoll/tempo.log</i>. Das "
      "<b>Support-Paket</b> enthält die Datei und eine Zusammenfassung der häufigsten langsamen Stellen. Die "
      "automatische Prüfung achtet jetzt darauf, dass eine Eingabe im Angebot nie neu optimiert und die Kalkulation "
      "nur einmal rechnet.",
      "Zeitwächter: langsame Schritte im Protokoll und im Support-Paket"],
+    ["0.9.255", "<b>Schweißbaugruppen</b> ([[vorkalkulation_baugruppe]]): Außennähte (Stumpf- und Ecknaht) bekommen "
+     "in der Vorkalkulation immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht. Scheitert "
+     "die STEP-Messung an einem Teilepaar, bleiben die übrigen Nahtkandidaten erhalten (vorher gingen alle verloren, "
+     "auch bei Unterbaugruppen), mit Hinweis <i>Nahtkandidaten unvollständig</i>. Gleiche Teile in mehreren "
+     "Unterbaugruppen bekommen beim STEP-Import je Unterbaugruppe eine eigene Position, statt alle direkt an der "
+     "Baugruppe zu hängen.",
+     "Außennähte immer verschleifen; gleiche Teile je Unterbaugruppe eine Position; Nahtkandidaten robuster"],
     ["0.9.254", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
      "Kantteile (z. B. Winkel 40 × 40 × 8 mit Biegeradius) wurden als Frästeil erkannt, die Biegeradien zählten sogar "
      "als Bohrungen. Jetzt entscheidet eine zentrale Regelliste die Art und nennt den Grund in der Hinweisspalte; ein "
