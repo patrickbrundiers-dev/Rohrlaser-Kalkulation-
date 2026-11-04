@@ -224,6 +224,15 @@ class DrehfraesDialog(QDialog):
         for i, b in enumerate((230, 80, 120, 90)):
             self.tabelle.setColumnWidth(i, b)
         lay.addWidget(self.tabelle, 1)
+        # eigene Werte je Teil wie beim Blech (Patrick 04.11.2026): leer = berechnet, eingetragen = gilt (gelb)
+        from .blech_dialog import RichtwerteTabelle
+        self.richtwerte = RichtwerteTabelle(dp.RICHTWERTE, "Richtwerte des Dreh-/Frästeils: berechnet aus Messung, "
+                                            "Werkstoff und Einstellungen; ein eigener Wert gilt nur für dieses Teil, "
+                                            "„Richtpreis je Stück“ ersetzt den ganzen Preis (z. B. Angebot des "
+                                            "Lieferanten). Der Richtpreis rechnet sofort neu.")
+        self.richtwerte.eigene_setzen(self.e.get("eigene"))
+        self.richtwerte.geaendert.connect(self.neu_rechnen)
+        lay.addWidget(self.richtwerte)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
@@ -250,7 +259,8 @@ class DrehfraesDialog(QDialog):
         return dict(self.e, stueck=self.stueck.value(), werkstoff=self.werkstoff.text().strip() or None,
                     rohling=self.rohling.currentText(), eur_kg=self.eur_kg.value() or None,
                     zusatz_eur=self.zusatz.value(), zusatz_text=self.zusatz_text.text().strip(),
-                    zeiten=dict(self.e["zeiten"]))
+                    zeiten=dict(self.e["zeiten"]),
+                    eigene=self.richtwerte.eigene() if hasattr(self, "richtwerte") else dict(self.e.get("eigene") or {}))
 
     def _zuruecksetzen(self):
         self.e["zeiten"] = {}
@@ -295,6 +305,8 @@ class DrehfraesDialog(QDialog):
         finally:
             self._laedt = False
         self.skizze.setzen(self.e.get("daten") or {}, erg)
+        if hasattr(self, "richtwerte"):
+            self.richtwerte.setzen(erg)
         mb = erg.get("machbarkeit") or ()
         self.befunde.setText(
             f"<b style='color:{AMPEL_FARBE.get(erg.get('ampel') or dp.GRUEN)}'>Machbarkeit: "
@@ -311,6 +323,9 @@ class DrehfraesDialog(QDialog):
                   f"je Stück {_eur(erg['ruesten'])}",
                   f"Zusätze {_eur(erg['zusatz'])}, Aufschlag des Lieferanten {_eur(erg['aufschlag'])}",
                   f"<b>Richtpreis {_eur(erg['richtpreis'])} je Stück</b> – {dp.HINWEIS}"]
+        if erg.get("eigene"):
+            zeilen.append(f"<span style='color:#1F4E78'>{len(erg['eigene'])} eigene(r) Wert(e) statt Richtwert "
+                          "(gelb)</span>")
         if erg["hinweise"]:
             zeilen.append("<i>" + "; ".join(erg["hinweise"]) + "</i>")
         self.summe.setText("<br>".join(zeilen))

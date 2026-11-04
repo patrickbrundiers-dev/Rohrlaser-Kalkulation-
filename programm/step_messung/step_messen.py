@@ -64,17 +64,21 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
            "trennung", "gravur_anbau", "kammern", "kontur_umfang", "verbund", "bauteil", "pfad", "knoten", "ersatz",
-           "biegerohr", "knick_schenkel", "offene_seite", "drehfraes", "geschlossen", "alternative", "fehler"]
+           "biegerohr", "knick_schenkel", "offene_seite", "drehfraes", "art_grund", "arten", "geschlossen", "alternative", "fehler"]
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
 # bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "knoten", "geschlossen", "alternative",
-                    "fehler")
+                    "fehler", "arten")
 # Spalte "geschlossen": offen gezeichnetes Quadrat-/Rechteckrohr (step_offenes_rohr), das Teil als Rohr mit Stegen
 # gemessen, JSON {Spalte: Wert} wie "alternative"; leer = kein offenes Rohr
 # Spalte "offene_seite": offen gezeichnetes Rohr als Rohr gemessen (in "geschlossen" bzw. nach dem Umschalten), JSON
 # {seite, luecken, breite, laenge, vorher, steg, radius, ueberstand, normrohr, …}; leer = keins
 # Spalte "drehfraes": Dreh- oder Frästeil (step_drehfraes, ab 0.9.249), JSON {art, Maße, merkmale, zusatz, text,
 # nur_abmessung, volumen, fingerabdruck}; leer = keins (das Teil ist dann Rohr, Profil, Blech o. ä.)
+# Spalte "art_grund": Grund der Art aus der zentralen Art-Entscheidung (step_arten.REGELN, ab 0.9.253), leer = wie
+# gemessen. Spalte "arten": die übrigen Arten (Blech, Rohr/Profil, Dreh-/Frästeil), die weder das Teil noch
+# "alternative" sind, als JSON {Gruppe: {Spalte: Wert}} wie "alternative"; nicht messbare Arten als
+# {Gruppe: {"grund": Text}}; leer = keine
 # Spalte "knick_schenkel": Knickrahmen aus einem Körper (step_knickrahmen), die geraden Rohrstücke in Reihenfolge als
 # JSON-Liste [{Spalte: Wert, "lage": [Ende A, Achse, X-Richtung in der Datei]}] (ohne OHNE_ALTERNATIVE); leer = keiner
 
@@ -149,6 +153,11 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
             alt = dict(zip(SPALTEN, _zeile(t.alternative, datei.name, artikel, netz)))
             z[SPALTEN.index("alternative")] = json.dumps({k: v for k, v in alt.items() if k not in OHNE_ALTERNATIVE},
                                                          ensure_ascii=False, separators=(",", ":"))
+        arten = {gr: {k: v for k, v in zip(SPALTEN, _zeile(a, datei.name, artikel, netz)) if k not in OHNE_ALTERNATIVE}
+                 for gr, a in (t.arten or {}).items()}
+        arten.update({gr: {"grund": grund} for gr, grund in (t.arten_grund or {}).items()})
+        if arten:
+            z[SPALTEN.index("arten")] = json.dumps(arten, ensure_ascii=False, separators=(",", ":"))
         out.append(z)
     return out, step_ergebnis.datei(datei.name, teile)
 
@@ -183,7 +192,7 @@ def _zeile(t, name, artikel, netz):
             _knick_schenkel(t),
             json.dumps(t.offene_seite, ensure_ascii=False, separators=(",", ":")) if t.offene_seite else "",
             json.dumps(t.drehfraes, ensure_ascii=False, separators=(",", ":")) if t.drehfraes else "",
-            "", "", ""])
+            _text(t.art_grund), "", "", "", ""])
 
 
 def _knick_schenkel(t):

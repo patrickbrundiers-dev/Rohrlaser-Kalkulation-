@@ -666,6 +666,9 @@ class StepPruefDialog(QDialog):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
             if m.get("_normteil"):
                 hinweis.append(f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken")
+            ag = step.art_grund(m)      # Grund der Art (Regelliste bzw. von Hand); beim Dreh-/Frästeil steht er oben
+            if ag and not any(ag in h for h in hinweis) and not (ist_df and ag == m.get("art_grund")):
+                hinweis.append(ag)
             if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
                 hinweis.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
             hinweis += [h for h in [m.get("hinweise")] if h]
@@ -771,7 +774,19 @@ class StepPruefDialog(QDialog):
                 art.addItem(step.art_text(alt), "offen_alt")
             if m.get("_original"):
                 art.addItem("Nachtrag zurücknehmen (nicht übernehmbar)", "zurueck")
-            if not ist_blech:
+            # immer alle drei Arten (Patrick 04.11.2026): Blech, Rohr/Profil, Dreh-/Frästeil – nicht messbare
+            # ausgegraut mit Grund
+            for gr, a in step.arten(m).items():
+                if a["quelle"] == "aktuell" or (a["quelle"] == "alt" and not flach_nein):
+                    continue        # die andere Messung steht schon oben (auch beim offen gezeichneten Rohr)
+                if a["quelle"] == "alt":
+                    a = dict(a, messung=None, grund="Flachstahl nur, wenn die Größe passt (Bleche immer als Blech)")
+                if a["messung"] is not None:
+                    art.addItem(f"{gr}: {step.art_text(a['messung'])}", "gruppe:" + gr)
+                else:
+                    art.addItem(f"{gr} – {a['grund']}", None)
+                    art.model().item(art.count() - 1).setEnabled(False)
+            if not ist_blech and step.art_gruppe(m) == step.ART_PROFIL:    # andere Profilform nur bei Rohr/Profil
                 for form in k.profilformen:
                     if form != m.get("profilform"):
                         art.addItem(form, "form:" + form)
@@ -1472,6 +1487,26 @@ class StepPruefDialog(QDialog):
             self.baum.setCurrentItem(neu.it)
         return neu
 
+    def art_gruppe_setzen(self, index, gruppe):
+        """Zeile mit dem Teil Nr. index auf eine der drei Arten umstellen (Blech, Rohr/Profil, Dreh-/Frästeil,
+        step.art_setzen): alle gleichen Teile der Zeile, Liste und 3D neu, Preis wird neu gerechnet; die Wahl wird
+        gemerkt (beim nächsten Import gleiches Teil gleiche Art)."""
+        from . import step
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            step.art_setzen(self.messwerte[i], gruppe)
+        self.art_merken = getattr(self, "art_merken", {})
+        m = self.messwerte[index]
+        if step.art_schluessel(m):
+            self.art_merken[step.art_schluessel(m)] = gruppe
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        neu = next((x for x in self.zeilen if index in x.liste), None)
+        if neu:
+            self.baum.setCurrentItem(neu.it)
+        return neu
+
     def art_gewaehlt(self, index, wahl):
         """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zu' = offenes Rohr schließen bzw. wieder offen,
         'schalen' = Halbschalen mehrere je Rohrumfang bzw. eine je Rohr, 'offen_alt' = offenes Rohr als Kantteil bzw.
@@ -1488,6 +1523,8 @@ class StepPruefDialog(QDialog):
             return self.art_wechseln(index)
         if wahl == "zurueck":
             return self.von_hand_zuruecknehmen(index)
+        if isinstance(wahl, str) and wahl.startswith("gruppe:"):
+            return self.art_gruppe_setzen(index, wahl[7:])
         if isinstance(wahl, str) and wahl.startswith("form:"):
             return self.form_setzen(index, wahl[5:])
         return None

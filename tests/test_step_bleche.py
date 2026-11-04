@@ -296,9 +296,13 @@ def _():
         zfl = next(z for z in d.zeilen if z.liste == [0])
         art = d.baum.itemWidget(zfl.it, d.SP_ART)
         assert [art.itemText(n) for n in range(art.count())][:2] == ["Flachstahl", "Blech"] and not zfl.blech
-        assert art.itemData(1) == "alt" and art.itemData(2).startswith("form:")     # dahinter die anderen Profilformen
+        # dahinter die übrigen Arten (seit 0.9.253 immer Dreh-/Frästeil), dann die anderen Profilformen
+        daten = [art.itemData(n) for n in range(art.count())]
+        assert art.itemData(1) == "alt" and art.itemText(2).startswith("Dreh-/Frästeil") and \
+            any(str(x).startswith("form:") for x in daten[3:]), daten
         rohr_art = d.baum.itemWidget(next(z for z in d.zeilen if z.liste == [3]).it, d.SP_ART)
-        assert rohr_art.itemData(1).startswith("form:")            # kein Grenzfall: nur andere Profilformen
+        assert rohr_art.itemData(1) != "alt" and any(str(rohr_art.itemData(n)).startswith("form:")
+                                                     for n in range(rohr_art.count()))  # kein Grenzfall
         zfl.sp.setValue(4)
         art.setCurrentIndex(1)                                   # Flachstahl -> Blech
         z = next(z for z in d.zeilen if z.liste == [0])

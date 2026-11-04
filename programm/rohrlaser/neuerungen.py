@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.253", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
+     "Kantteile (z. B. Winkel 40 × 40 × 8 mit Biegeradius) wurden als Frästeil erkannt, die Biegeradien zählten sogar "
+     "als Bohrungen. Jetzt entscheidet eine zentrale Regelliste die Art und nennt den Grund in der Hinweisspalte; ein "
+     "Kantteil mit Biegeradien wird nie Frästeil. Jedes Teil wird in allen drei Arten gemessen, die Spalte Art im "
+     "Prüfdialog bietet immer alle drei an (nicht messbare ausgegraut mit Grund), Preis und 3D rechnen sofort neu "
+     "(Dreh-/Frästeile goldgelb). Die Wahl merkt sich das Programm für das gleiche Teil. Nach dem Übernehmen: "
+     "Rechtsklick bzw. Knopf in den Editoren <i>Art ändern …</i>. Dazu: <b>Richtpreis Dreh-/Frästeil "
+     "überschreiben</b> wie beim Blech ([[drehfraes_richtpreis]]) mit eigenen Werten je Teil.",
+     "Art Blech / Rohr / Dreh-Frästeil immer wählbar, Kantteile nie Frästeil, Richtpreis Dreh-/Frästeil überschreibbar"],
     ["0.9.252", "<b>Zusatzarbeit für ganzen Satz repariert</b> ([[zusatz_satz]]): Rechtsklick auf eine "
      "Schweißbaugruppe oder eines ihrer Einzelteile brachte bisher die Meldung „Bitte eine Position markieren, die in "
      "einem Satz steht“. Jetzt öffnet sich das Fenster für alle Einzelteile der Baugruppe (Stück je Baugruppe, Fläche "

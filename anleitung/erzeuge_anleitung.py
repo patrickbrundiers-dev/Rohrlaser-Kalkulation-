@@ -2696,6 +2696,42 @@ def kapitel_step(i):
             "Rohr erkannt ist, bleibt bei <i>Anbauteile nicht übernehmen</i> weiter außen vor. Bohrungen und "
             "Gewinde im Vollmaterial misst der Import nicht: Der Bericht sagt <i>Bohrungen/Gewinde nicht "
             "ausgewertet, bitte prüfen</i>; sie bei Bedarf als Zusatzarbeit an der Position ergänzen.")
+    i.abschnitt("Art wählen: Blech, Rohr/Profil oder Dreh-/Frästeil", marke="art_auswahl")
+    i.bild("art_auswahl", "Kurzer Kant-Winkel 40 × 40 × 8 mit Biegeradius: Kantteil, in der Spalte Art umstellbar",
+           hoehe=80 * mm, legende=[
+               (1, "Spalte <b>Art</b>: die erkannte Art, darunter die andere Messung (z. B. L-Profil) und immer die "
+                   "übrigen Arten <i>Blech</i>, <i>Rohr/Profil</i> und <i>Dreh-/Frästeil</i>; eine Art, die sich "
+                   "nicht messen lässt, steht grau mit Grund."),
+               (2, "<b>Hinweis</b>: warum das Programm diese Art gewählt hat (z. B. <i>Kantteil mit Biegeradien – "
+                   "nie Dreh-/Frästeil</i>) bzw. <i>Art von Hand: … statt …</i>."),
+               (3, "<b>3D</b> zeigt die gewählte Art: Blech/Kantteil blau, Dreh-/Frästeil goldgelb, Rohr/Profil mit "
+                   "Anfangs- und Endschnitt.")])
+    i.text("Jedes Teil aus dem STEP-Import wird in allen drei Arten gemessen: als <b>Blech</b> (eben oder gekantet), "
+           "als <b>Rohr/Profil</b> und als <b>Dreh-/Frästeil</b>. Welche Art gilt, entscheidet eine Regelliste; du "
+           "kannst sie im Prüfdialog und nach dem Übernehmen jederzeit umstellen (seit 0.9.253).", kurz=True)
+    i.genauer()
+    i.liste("<b>Regelliste</b> (die erste zutreffende gilt, der Grund steht in der Hinweisspalte): 1. Biegerohr "
+            "bzw. Knickrahmen bleibt Rohr. 2. <b>Kantteil mit Biegeradien</b> (außen = innen + Blechdicke) wird "
+            "<b>nie</b> Dreh-/Frästeil, auch kurz und dick (vorher wurde z. B. ein Winkel 40 × 40 × 8 × 100 mm "
+            "Frästeil, die Biegeradien zählten als Bohrungen). 3. Erkanntes Dreh-/Frästeil ([[drehfraesteile]]). "
+            "4. sonst die Messung mit den Regeln für Bleche, Kantteile und Profile.",
+            "<b>Umstellen im Prüfdialog</b>: in der Spalte Art die gewünschte Art wählen. Die Zeile wechselt in "
+            "die passende Gruppe, Preis bzw. Richtpreis und 3D rechnen sofort neu. Ein Dreh-/Frästeil, das nicht "
+            "so erkannt wurde, hat das Merkmal <i>von Hand gewählt</i> (Maße aus dem Hüllquader, Richtpreis aus "
+            "den Flächen). Grau und nicht wählbar ist eine Art, die sich nicht messen lässt, z. B. ein Rohr als "
+            "Blech (keine Blechform) oder ein Frästeil als Profil (kein gleichbleibender Querschnitt: dann "
+            "<i>Von Hand nachtragen</i>).",
+            "<b>Gemerkt</b>: was du umstellst, merkt sich das Programm für alle Kunden. Kommt das gleiche Teil "
+            "(gleiche Hüllmaße, Volumen, Flächen und Kanten) wieder, ist es gleich die gewählte Art; der Hinweis "
+            "sagt <i>Art wie beim letzten Mal von Hand gewählt</i>.",
+            "<b>Nach dem Übernehmen</b>: Rechtsklick auf die Position → <b>Art ändern (Blech / Rohr / "
+            "Dreh-/Frästeil) …</b> oder der Knopf <b>Art ändern …</b> im Rohr-Editor, Blech-Editor, Richtpreis "
+            "Dreh-/Frästeil, Baugruppen-Editor und Satz in 3D (dort wählst du zuerst das Teil). Das Teil wird aus "
+            "seiner STEP-Datei neu gemessen (gemerkt beim Import, sonst im Ordner STEP des Angebots, sonst fragt "
+            "das Programm), im Prüfdialog wählst du die Art; Übernehmen ersetzt die Position mit gleicher "
+            "Pos.-Nummer, Stückzahl und Zusatzarbeiten. <i>Rückgängig</i> nimmt es zurück.",
+            "Im JSON-Messergebnis (ab Version 1.28) steht der Grund in <i>art_grund</i>, die übrigen Arten in "
+            "<i>arten</i> (nicht messbare mit <i>grund</i>).")
     i.abschnitt("Dreh- und Frästeile", marke="drehfraesteile")
     i.text("<b>Drehteile</b> (Welle mit Absätzen, Bolzen mit Einstich oder Fase, Buchse) und <b>Frästeile</b> "
            "(Block oder Platte mit Tasche, Absatz, aus dem Vollen gefräster Winkel) werden nicht gelasert, sondern "
@@ -2746,7 +2782,9 @@ def kapitel_step(i):
                (4, "<b>Arbeitsgänge</b> mit Zeit je Stück, Kosten und Rechenweg; die Minuten sind von Hand "
                    "änderbar (fett, gerechneter Wert dahinter)."),
                (5, "Summe: Material, Bearbeitung, Rüsten je Stück, Zusätze, Aufschlag des Lieferanten und der "
-                   "<b>Richtpreis je Stück</b>.")])
+                   "<b>Richtpreis je Stück</b>."),
+               (6, "<b>Richtwerte mit eigenem Wert</b> wie beim Blech (seit 0.9.253): leer = berechnet, eingetragen "
+                   "= gilt nur für dieses Teil (gelb, ↺ setzt zurück); hier Aufschlag 10 % statt 15 %.")])
     i.text("Für Dreh- und Frästeile aus dem STEP-Import ([[drehfraesteile]]) schätzt das Programm den Preis eines "
            "Lohnfertigers aus der Geometrie: Rohmaterial, <b>Arbeitsgänge</b> mit Zeiten aus Schnittwerten, Rüsten "
            "und Programmieren. Er steht als EK im neuen Zukaufartikel mit dem Hinweis <i>Richtpreis (Schätzung), "
@@ -2777,6 +2815,11 @@ def kapitel_step(i):
             "mit EK behält ihn, ein EK von Hand oder vom Lieferanten geht immer vor. Der Richtpreis geht nicht in "
             "die Lieferantenanfrage. Solange der EK nur ein Richtpreis ist, erinnert der <b>Angebots-Check</b> mit "
             "einem Hinweis an das Fremdangebot.",
+            "<b>Richtpreis überschreiben</b> (seit 0.9.253, wie im Blech-Editor): in der Tabelle der Richtwerte "
+            "je Zeile einen <b>eigenen Wert</b> eintragen – Rohling-Gewicht, Materialpreis €/kg, Material, "
+            "Bearbeitung (min oder €), Rüsten/Programm je Auftrag, Zusätze, Aufschlag des Lieferanten oder gleich "
+            "den ganzen <b>Richtpreis je Stück</b> (z. B. aus einem Angebot). Der Wert gilt nur für dieses Teil, "
+            "ist gelb und wird mit ↺ wieder der berechnete; der Preis rechnet sofort neu, auch in den Staffeln.",
             "<b>Rechtsklick → Richtpreis Dreh-/Frästeil …</b> bzw. Doppelklick auf die Position öffnet den Dialog. "
             "<b>Als EK übernehmen</b> trägt den Preis als Staffelzeile ab der Stückzahl im Artikel ein; "
             "<b>Zeiten zurücksetzen</b> nimmt die Minuten von Hand zurück.",
