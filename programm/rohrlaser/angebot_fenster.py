@@ -24,7 +24,7 @@ from .angebot_ausgabe import AusgabeMixin
 from .vorschlaege_mixin import VorschlaegeMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
-from . import plausibel, satz_flaeche, zusatz_dialog, zusatz_erkennung
+from . import plausibel, satz_flaeche, satz_menge, zusatz_dialog, zusatz_erkennung
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
@@ -1111,7 +1111,8 @@ class PositionenModell(QAbstractTableModel):
             if rolle == Qt.ItemDataRole.ToolTipRole:
                 return (f"Schweißbaugruppe {s['name']}: {s['teile']} Einzelteil(e)"
                         + (f", {s['saetze']} Stk." if s["saetze"] else "")
-                        + (".\nKlick auf ▾/▸ im Zeilenkopf: Einzelteile zu- bzw. aufklappen." if s["teile"] else "."))
+                        + (".\nKlick auf ▾/▸ im Zeilenkopf: Einzelteile zu- bzw. aufklappen." if s["teile"] else ".")
+                        + self._satz_flaeche_tipp(s["name"]))
         elif art == "feld" and x.name == "satz":
             if rolle == Qt.ItemDataRole.DisplayRole:
                 return satzgruppen.zelltext(s, s["name"] in self.satz_zu)
@@ -2235,6 +2236,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             ansicht.verticalHeader().sectionClicked.connect(
                 lambda r, a=ansicht, li=liste: self._kalk_kopf_klick(a, li, r))
             ansicht.verticalHeader().setToolTip("Klick auf ▾/▸: Schweißbaugruppe bzw. Satz zu- oder aufklappen")
+            # Rechtsklick auch in der Kalkulation (Patrick 04.11.2026): Zusatzarbeiten der Position bzw. des Satzes
+            ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
+            ansicht.customContextMenuRequested.connect(
+                lambda punkt, a=ansicht, li=liste: self._kalk_menue(a, li, punkt))
         self.kalk_kompakt = QCheckBox("Kompakt")
         self.kalk_kompakt.setToolTip("Kompakt: Profil, Stückzahl, Länge, Material, Oberfläche, Laserzeit berechnet und "
                                      "genutzt, Verkaufspreis je Bauteil.\nOhne Häkchen: alle Spalten der Kalkulation.")
@@ -2663,6 +2668,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.satz_zu &= set(self.satz_zeilen.values())
         self.pos_modell.satz, self.pos_modell.satz_zu = satzgruppen.info(self.positionen, saetze), self.satz_zu
         self.pos_modell.satz_flaeche = {n: satz_flaeche.mengen(self.positionen, n, self.k) for n in saetze}
+        for i, _ in baugruppe.baugruppen(self.positionen).values():      # Schweißbaugruppen: Fläche der Einzelteile
+            n = satz_menge.name(self.positionen[i])
+            if n and n not in self.pos_modell.satz_flaeche:
+                self.pos_modell.satz_flaeche[n] = satz_flaeche.mengen(self.positionen, n, self.k)
         kopf = self.pos_ansicht.verticalHeader()
         self._kopf_ordnet = True        # eigenes Umsortieren ist kein Drag & Drop (_kopf_gezogen)
         try:
@@ -4290,25 +4299,46 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     def zusatz_satz(self, zeile=None, werte=None):
         """Zusatzarbeiten für alle Positionen des Satzes der Zeile (Rechtsklick „Zusatzarbeit für ganzen Satz …“,
         Patrick 03.11.2026): das Fenster zeigt Fläche und Gewicht je Satz und € je Satz. Ergebnis wie zusatzarbeiten."""
-        from . import satz_menge
         if zeile is None:
             zeilen = self._markierte_zeilen()
             zeile = zeilen[0] if zeilen else None
         p = self.positionen[zeile] if zeile is not None and 0 <= zeile < len(self.positionen) else None
-        satz = satz_menge.name(p)
-        zeilen = satz_menge.satz_positionen(self.positionen, satz) if satz else []
+        # auch Schweißbaugruppen im Satz und ihre Einzelteile (Patrick 04.11.2026, F2a)
+        satz = satz_menge.von(p, self.positionen) if p else ""
+        zeilen = [i for i, _ in satz_menge.zusatz_positionen(self.positionen, satz)] if satz else []
         if not zeilen:
             self.f.meldung("Zusatzarbeit für ganzen Satz: Bitte eine Position markieren, die in einem Satz steht "
                            "(Spalte Satz).", fehler=True)
             return False
         return self.zusatzarbeiten(zeilen, werte, satz=satz)
 
+    def _satz_info(self, satz, zeilen):
+        """Angaben für das Zusatz-Fenster eines ganzen Satzes: Positionen, Stück je Satz (Einzelteile von Baugruppen:
+        je Baugruppe × Baugruppen je Satz), Fläche und Gewicht."""
+        je = dict(satz_menge.zusatz_positionen(self.positionen, satz))
+        art = "Baugruppe" if any(ist_baugruppe(q) and satz_menge.name(q) == satz for q in self.positionen) else "Satz"
+        return dict(name=satz, art=art, positionen=[self.positionen[r] for r in zeilen],
+                    je=[je.get(r, satz_menge.je_satz(self.positionen[r])) for r in zeilen],
+                    mengen=satz_flaeche.mengen(self.positionen, satz, self.k))
+
+    def _zusatz_zeilen(self):
+        """Markierte Zeilen für Zusatzarbeiten: ist nur die Kopfzeile eines zugeklappten Satzes markiert, steht sie
+        für den ganzen Satz (Patrick 04.11.2026). Ergebnis: (Zeilen, Satzname oder None)."""
+        zeilen = self._markierte_zeilen()
+        if len(zeilen) == 1:
+            satz = getattr(self, "satz_zeilen", {}).get(zeilen[0])
+            if satz and satz in self.satz_zu:
+                alle = [i for i, _ in satz_menge.zusatz_positionen(self.positionen, satz)]
+                if alle:
+                    return alle, satz
+        return zeilen, None
+
     def zusatzarbeiten(self, zeilen=None, werte=None, satz=None):
         """Gewinde und Zusatzarbeiten der markierten Positionen wählen (Dialog). werte = (Gewinde, JSON) setzt
         sie ohne Dialog (Tests, Bildschirmfotos); satz = Name, wenn zeilen alle Positionen eines Satzes sind (das
         Fenster zeigt dann Fläche, Gewicht und € je Satz). Ergebnis: True = gespeichert."""
         if zeilen is None:
-            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+            zeilen, satz = self._zusatz_zeilen()
         if not zeilen:
             self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
             return False
@@ -4327,8 +4357,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                              kunde_haeufig=self.db.zusatz_haeufigkeit((self.kopf or {}).get("kundennr"))
                              if (self.kopf or {}).get("kundennr") else None, positionen=self.positionen,
                              neu=None if self.fremd() or self.db.nur_lesen else lambda: self._zusatz_neu_eintrag(p),
-                             satz=dict(name=satz, positionen=[self.positionen[r] for r in zeilen],
-                                       mengen=satz_flaeche.mengen(self.positionen, satz, self.k)) if satz else None)
+                             satz=self._satz_info(satz, zeilen) if satz else None)
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
@@ -4337,7 +4366,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             gewinde, zusatz = werte if vorher is None else zusatz_dialog.zusammenfuehren(p, vorher, werte)
             self.db.position_aendern(p["id"], "gewinde", gewinde)
             self.db.position_aendern(p["id"], "zusatz", zusatz)
-        self.f.meldung(f"Zusatzarbeiten für Satz {satz} ({len(zeilen)} Positionen) gespeichert." if satz else
+        self.f.meldung(f"Zusatzarbeiten für {self._satz_info(satz, zeilen)['art']} {satz} ({len(zeilen)} Positionen) "
+                       "gespeichert." if satz else
                        f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
@@ -4387,7 +4417,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     def zusatz_schnell(self, name, zeilen=None):
         """Zusatzarbeit name (Stammdaten oder nur in diesem Angebot) an die markierten Positionen hängen, mit
         Preisstand; Positionen, die sie schon haben, bleiben. Ergebnis: Anzahl geänderter Positionen."""
-        zeilen = [r for r in (self._markierte_zeilen() if zeilen is None else zeilen)
+        zeilen = [r for r in (self._zusatz_zeilen()[0] if zeilen is None else zeilen)
                   if r < len(self.positionen) and not ist_baugruppe(self.positionen[r])]
         if not zeilen or self.fremd() or self.db.nur_lesen:
             return 0
@@ -4417,7 +4447,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         diesem Angebot angelegten, „Weitere …“ und „Neue Zusatzarbeit …“."""
         m = self.zusatz_schnellmenue
         m.clear()
-        zeilen = self._markierte_zeilen()
+        zeilen, satz = self._zusatz_zeilen()
         vs = {}
         for r in zeilen:
             for v in self.pos_modell.vorschlaege[r] if r < len(self.pos_modell.vorschlaege) else ():
@@ -4433,7 +4463,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             for name in eigene:
                 m.addAction(f"{name} (nur dieses Angebot)", lambda name=name: self.zusatz_schnell(name, zeilen))
         m.addSeparator()
-        m.addAction("Weitere …", lambda: self.zusatzarbeiten(zeilen))
+        m.addAction("Weitere …", lambda: self.zusatzarbeiten(zeilen, satz=satz))
         m.addAction("Neue Zusatzarbeit …", lambda: self.zusatz_neu_anlegen(zeilen))
 
     def zusatz_gesperrt(self):
@@ -4609,6 +4639,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         arten = {self.position_art(self.positionen[r]) for r in zeilen}
         mit_bg = any(ist_baugruppe(self.positionen[r]) or baugruppe.zuordnung(self.positionen[r])[0] for r in zeilen)
         mit_satz = any(self.positionen[r].get("satz") for r in zeilen)
+        mit_satz_zusatz = any(satz_menge.von(self.positionen[r], self.positionen) for r in zeilen)
         mit_virtuell = any(virtuell.technik_lesen(self.positionen[r]) for r in zeilen)
         for text, a in self.pos_aktionen.items():
             noetig = self.MENUE_ARTEN.get(text)
@@ -4616,7 +4647,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if text in ("Satz in 3D …", "Satz bearbeiten (Anzahl Sätze) …"):
                 sichtbar = mit_satz
             elif text == "Zusatzarbeit für ganzen Satz …":
-                sichtbar = mit_satz and not self.fremd() and not self.db.nur_lesen
+                sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
             elif text in ("Virtuelles Bauteil als STEP …", "Stege abtrennen an/aus"):
@@ -6049,7 +6080,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Zukaufteile der markierten Positionen wählen (Dialog). werte = JSON (oder None) setzt sie ohne Dialog;
         dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
         if zeilen is None:
-            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+            zeilen, satz = self._zusatz_zeilen()
         if not zeilen:
             self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
             return False
@@ -6634,6 +6665,40 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         modell = self.kompakt_ansicht.model()
         q = modell.mapToSource(modell.index(r, 0)).row() if hasattr(modell, "mapToSource") else r
         return self.unter_texte.get(self.kompakt.zeilen[q]["zeile"], ()) if 0 <= q < len(self.kompakt.zeilen) else ()
+
+    def kalk_positionen(self, ansicht, liste):
+        """Indizes der Positionen zu den markierten Zeilen einer Kalkulationstabelle (ohne Summen- und Leerzeilen)."""
+        modell = ansicht.model()
+        out = set()
+        for i in ansicht.selectionModel().selectedIndexes() if ansicht.selectionModel() else ():
+            r = modell.mapToSource(i).row() if hasattr(modell, "mapToSource") else i.row()
+            z = liste.zeilen[r] if 0 <= r < len(liste.zeilen) else None
+            if isinstance(z, dict) and isinstance(z.get("zeile"), int) and z["zeile"] < len(self.positionen):
+                out.add(z["zeile"])
+        return sorted(out)
+
+    def kalk_menue_aktionen(self, zeilen):
+        """[(Text, Funktion)] des Rechtsklick-Menüs der Kalkulation für die Positionen zeilen."""
+        if not zeilen:
+            return []
+        out = [("Zur Position", lambda: self.zur_position(zeile=zeilen[0]))]
+        if not self.fremd() and not self.db.nur_lesen:
+            ohne_bg = [r for r in zeilen if not ist_baugruppe(self.positionen[r])]
+            if ohne_bg:
+                out.append(("Zusatzarbeiten …", lambda: self.zusatzarbeiten(list(ohne_bg))))
+            if any(satz_menge.von(self.positionen[r], self.positionen) for r in zeilen):
+                erste = next(r for r in zeilen if satz_menge.von(self.positionen[r], self.positionen))
+                out.append(("Zusatzarbeit für ganzen Satz …", lambda: self.zusatz_satz(erste)))
+        return out
+
+    def _kalk_menue(self, ansicht, liste, punkt):
+        aktionen = self.kalk_menue_aktionen(self.kalk_positionen(ansicht, liste))
+        if not aktionen:
+            return
+        m = QMenu(ansicht)
+        for text, ziel in aktionen:
+            m.addAction(text, ziel)
+        m.exec(ansicht.viewport().mapToGlobal(punkt))
 
     def _kompakt_doppelklick(self, index):
         modell = self.kompakt_ansicht.model()

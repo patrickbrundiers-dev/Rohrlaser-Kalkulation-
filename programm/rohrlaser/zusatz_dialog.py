@@ -146,7 +146,7 @@ class ZusatzDialog(QDialog):
         haben (gemeinsam); gewinde_verschieden = die Gewinde unterscheiden sich, das Feld ergänzt dann nur.
         kunde_haeufig: {Name: Anzahl} beim Kunden dieses Angebots; positionen: alle Positionen des Angebots (für die
         Zusatzarbeiten nur dieses Angebots); neu(): Kurzformular, Ergebnis Eintrag für die Position oder None.
-        satz: dict(name, positionen, mengen) = ganzer Satz (Rechtsklick „Zusatzarbeit für ganzen Satz …“): oben Fläche
+        satz: dict(name, positionen, je, mengen) = ganzer Satz (Rechtsklick „Zusatzarbeit für ganzen Satz …“): oben Fläche
         und Gewicht je Satz (satz_flaeche), Spalte und Summe € je Satz."""
         super().__init__(parent)
         self.satz = satz
@@ -163,7 +163,8 @@ class ZusatzDialog(QDialog):
         self.gewinde_tab = tabellen.get("gewinde") or []
         self.vorschlaege = zusatz_erkennung.offen(p, kopf, k, tabellen) if anzahl == 1 and k is not None else []
         self._sync = False
-        self.setWindowTitle("Zusatzarbeiten" + (f" für {anzahl} Positionen" if anzahl > 1 else
+        self.setWindowTitle(f"Zusatzarbeiten für {satz.get('art') or 'Satz'} {satz['name']} ({anzahl} Positionen)" if satz else
+                            "Zusatzarbeiten" + (f" für {anzahl} Positionen" if anzahl > 1 else
                                                f" Pos. {p.get('pos') or ''} {p.get('artikel') or ''}"))
         self.resize(1080, 520)
         lay = QVBoxLayout(self)
@@ -233,8 +234,11 @@ class ZusatzDialog(QDialog):
             from . import satz_flaeche
             m = satz["mengen"]
             f = satz_flaeche.fehlt_text(m)
-            self.satz_info.setText(f"<b>Satz {satz['name']}</b> · {len(satz['positionen'])} Positionen · "
+            self.satz_info.setText(f"<b>{satz.get('art') or 'Satz'} {satz['name']}</b> · {len(satz['positionen'])} Positionen · "
                                    + satz_flaeche.text(m) + (f"<br><i>{f}</i>" if f else "")
+                                   + ("<br>Schweißbaugruppe: gilt für ihre Einzelteile. Arbeitsgänge im Baugruppen-"
+                                      "Editor (nicht doppelt eintragen): " + ", ".join(m["arbeitsgaenge"])
+                                      if m.get("arbeitsgaenge") else "")
                                    + "<br>Pulverbeschichten (m²) und Verzinken (kg) rechnen je Teil; die Summe je "
                                      "Satz steht unten.")
         rl.addWidget(self.satz_info)
@@ -655,7 +659,8 @@ class ZusatzDialog(QDialog):
         """Ganzer Satz: € je Satz je Zeile = Σ über die Positionen des Satzes (€ je Teil × Stück je Satz)."""
         from . import satz_menge
         je_name = {}
-        for p in self.satz["positionen"]:
+        je_liste = self.satz.get("je") or [satz_menge.je_satz(p) for p in self.satz["positionen"]]
+        for p, n_je in zip(self.satz["positionen"], je_liste):
             pp = dict(p, zusatz=json.dumps(eintraege, ensure_ascii=False), arbeitsgaenge=probe["arbeitsgaenge"])
             try:
                 werte = rechnen.zusatz_werte(pp, self.k, self.tabellen, self.kopf)
@@ -663,7 +668,7 @@ class ZusatzDialog(QDialog):
                 werte = []
             for z in werte:
                 if z["art"] not in ("s/Stück", "€/Angebot"):
-                    je_name[z["name"]] = je_name.get(z["name"], 0.0) + z["betrag"] * satz_menge.je_satz(p)
+                    je_name[z["name"]] = je_name.get(z["name"], 0.0) + z["betrag"] * n_je
         summe = 0.0
         for r in range(self.tabelle.rowCount()):
             name = self.tabelle.cellWidget(r, 0).currentText()

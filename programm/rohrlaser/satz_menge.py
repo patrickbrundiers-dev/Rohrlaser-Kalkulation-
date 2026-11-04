@@ -40,6 +40,45 @@ def satz_positionen(positionen, satz):
     return [i for i, p in enumerate(positionen) if name(p) == satz and i not in aus]
 
 
+def von(p, positionen):
+    """Satzname einer Position für „Zusatzarbeit für ganzen Satz“: eigener Satz, sonst der Satz ihrer Schweiß-
+    baugruppe (Einzelteil einer Baugruppe, die in einem Satz steht); '' ohne."""
+    if name(p):
+        return name(p)
+    from . import baugruppe
+    bg_id = baugruppe.zuordnung(p)[0]
+    if bg_id:
+        bg = baugruppe.baugruppen(positionen).get(bg_id)
+        if bg:
+            return name(positionen[bg[0]])
+    return ""
+
+
+def zusatz_positionen(positionen, satz):
+    """[(Index, Stück je Satz)] aller Teile eines Satzes für Zusatzarbeiten (Patrick 04.11.2026, F2a): lose
+    Positionen mit ihrem Stück je Satz; steht eine Schweißbaugruppe im Satz, zählen ihre Einzelteile (Stück je
+    Baugruppe × Baugruppen je Satz), die Baugruppe selbst nicht (Fläche und Gewicht stimmen so wie bei losen Teilen).
+    Einzelteile, die selbst den Satznamen tragen, zählen einmal."""
+    from . import baugruppe
+    satz = str(satz or "").strip()
+    if not satz:
+        return []
+    je = {}
+    for bg_id, (i, _) in baugruppe.baugruppen(positionen).items():
+        bg = positionen[i]
+        if name(bg) != satz:
+            continue
+        st_bg = _n(bg.get("stueck"))
+        for t in baugruppe.teile(positionen, bg_id):
+            st = _n(positionen[t].get("stueck"))
+            anteil = st / st_bg if st and st_bg and st_bg > 0 else 1
+            je[t] = je.get(t, 0) + anteil * je_satz(bg)
+    for i, p in enumerate(positionen):
+        if i not in je and name(p) == satz and not baugruppe.ist_baugruppe(p):
+            je[i] = je_satz(p)
+    return [(i, int(n) if abs(n - round(n)) < 1e-9 else n) for i, n in sorted(je.items())]
+
+
 def gehoert_zum_satz(p, positionen):
     """True, wenn p in einem Satz steht, den diese Regeln führen (kein Teil einer Schweißbaugruppe)."""
     if not name(p):
