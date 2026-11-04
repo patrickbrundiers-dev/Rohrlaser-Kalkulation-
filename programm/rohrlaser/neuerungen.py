@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.252", "<b>Zusatzarbeit für ganzen Satz</b> bei Schweißbaugruppen ([[zusatz_satz]]): Rechtsklick auf die "
+     "Baugruppe oder ein Einzelteil belegt jetzt alle Einzelteile (vorher nur die Meldung „Bitte eine Position "
+     "markieren …“); Fläche und Gewicht der Baugruppe stehen im Fenster und im Tooltip der Spalte Satz, die "
+     "Arbeitsgänge der Baugruppe als Hinweis gegen doppeltes Berechnen.",
+     "Zusatzarbeit für ganzen Satz auch bei Schweißbaugruppen"],
     ["0.9.251", "<b>Gewinde aus dem Blech-Editor</b> ([[blech_richtwerte]]): Bohrungen, die im Blech-Editor die "
      "Ausführung <i>Gewinde schneiden</i> haben, kommen beim Übernehmen bestätigt ins Bohrbild der Position und kosten "
      "€ je Stück aus Einstellungen › Gewinde zusätzlich zum Blech-EK (nicht im Richtpreis). Vorher wurden sie nur "

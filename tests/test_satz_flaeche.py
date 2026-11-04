@@ -109,4 +109,45 @@ assert vorher != nachher
 assert not s.zusatz_satz(next(r for r, p in enumerate(s.positionen) if not p.get("satz")))
 ok("S3 Tooltip der Spalte Satz mit m² und kg, Rechtsklick „Zusatzarbeit für ganzen Satz …“: alle Positionen des "
    "Satzes, Fenster mit € je Satz; Verzinken je Teil ergibt in Summe Gewicht aller Sätze × €/kg")
+
+# ------------------------------------------------------------------ S4 Schweißbaugruppe (Patrick 04.11.2026)
+# „Satzauswahl Zusatzarbeiten funktioniert nicht“: bei einer Schweißbaugruppe stand der Rechtsklick-Eintrag da, brachte
+# aber nur die Meldung „Bitte eine Position markieren, die in einem Satz steht“. Jetzt: ihre Einzelteile.
+import beispiel_baugruppe  # noqa: E402
+from rohrlaser.angebot import ist_baugruppe  # noqa: E402
+
+tmp2 = Path(tempfile.mkdtemp())
+db2 = Datenbank(tmp2 / "rohrlaser.db")
+aid2 = beispiel_baugruppe.anlegen(db2)
+s2 = Hauptfenster(db2, tmp2, stumm=True).angebot_oeffnen(aid2)
+meld = []
+s2.f.meldung = lambda t, **kw: meld.append(t)
+teile = [r for r, p in enumerate(s2.positionen) if not ist_baugruppe(p)]
+bg_zeile = next(r for r, p in enumerate(s2.positionen) if ist_baugruppe(p))
+assert satz_flaeche.positionen_von(s2.positionen, "Rahmen R1") == teile, teile
+m2 = satz_flaeche.mengen(s2.positionen, "Rahmen R1", s2.k)
+soll_g2 = sum((rechnen.zusatz_menge_auto("€/kg", s2.positionen[r], s2.k) or 0) * s2.positionen[r]["je_satz"]
+              for r in teile)
+assert m2["saetze"] == 2 and nah(m2["gewicht"], soll_g2) and soll_g2 > 0 and m2["ohne_gewicht"] == [30], m2
+assert "Verzinken" in m2["arbeitsgaenge"], m2
+assert "Pulverbeschichten/Verzinken" in s2.pos_modell.data(s2.pos_modell.index(bg_zeile, next(
+    c for c, (art, x) in enumerate(s2.pos_modell.spalten) if art == "feld" and x.name == "satz")), Qt.ToolTipRole)
+d2 = ZusatzDialog(s2, s2.positionen[teile[0]], len(teile), s2.k, s2.tabellen, kopf=s2.kopf, positionen=s2.positionen,
+                  satz=dict(name="Rahmen R1", positionen=[s2.positionen[r] for r in teile], mengen=m2))
+assert "Schweißbaugruppe" in d2.satz_info.text() and "Verzinken" in d2.satz_info.text(), d2.satz_info.text()
+for zeile in (bg_zeile, teile[-1]):                      # Rechtsklick auf die Baugruppe oder ein Einzelteil
+    s2.pos_ansicht.clearSelection()
+    s2.pos_ansicht.selectRow(zeile)
+    s2._pos_menue_anpassen()
+    assert s2.pos_aktionen["Zusatzarbeit für ganzen Satz …"].isVisible()
+    meld.clear()
+    assert s2.zusatz_satz(zeile, (None, json.dumps([dict(name="Feuerverzinken")]))), meld
+    assert meld == ["Zusatzarbeiten für Satz Rahmen R1 (3 Positionen) gespeichert."], meld
+for p in db2.positionen(aid2):
+    assert [x["name"] for x in rechnen.zusatz_liste(p)] == ([] if ist_baugruppe(p) else ["Feuerverzinken"]), p
+fvz2 = sum(z["betrag"] * zl["stueck"] for zl in s2._rechnung()[0] for z in zl.get("zusatzarbeiten") or ()
+           if z["name"] == "Feuerverzinken")
+assert nah(fvz2, soll_g2 * 2 * fvz_preis, 1e-4), (fvz2, soll_g2 * 2 * fvz_preis)
+ok("S4 Schweißbaugruppe: „Zusatzarbeit für ganzen Satz …“ an Baugruppe oder Einzelteil belegt die Einzelteile, "
+   "Fläche/Gewicht × Anzahl Baugruppen, Hinweis auf Arbeitsgänge der Baugruppe")
 print("OK: Fläche und Gewicht je Satz")

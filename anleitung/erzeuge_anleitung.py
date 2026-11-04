@@ -1851,7 +1851,10 @@ def kapitel_angebot(i):
             "Gerechnet wird weiter je Teil: Pulverbeschichten €/m² × Fläche des Teils, Verzinken €/kg × Gewicht des "
             "Teils. Über den Satz addiert ergibt das genau Fläche bzw. Gewicht je Satz × Preis; der Mindestbetrag der "
             "Zusatzarbeit gilt wie bisher einmal je Angebot.",
-            "Schweißbaugruppen und ihre Teile gehören nicht dazu (Arbeitsgänge im Baugruppen-Editor).",
+            "<b>Schweißbaugruppe</b>: Rechtsklick auf die Baugruppe oder eines ihrer Einzelteile belegt alle "
+            "Einzelteile der Baugruppe; Fläche und Gewicht sind die der Teile, die Anzahl Sätze ist die Stückzahl der "
+            "Baugruppe. Das Fenster nennt die Arbeitsgänge aus dem Baugruppen-Editor (z. B. Verzinken), damit nichts "
+            "doppelt berechnet wird. Ein normaler Satz enthält keine Schweißbaugruppen.",
             "Wie bei mehreren markierten Positionen ändert das Fenster nur, was alle gemeinsam haben; eigene "
             "Zusatzarbeiten einzelner Positionen bleiben.")
     i.abschnitt("Zusatzarbeiten unter der Position", marke="zusatz_unterzeilen")

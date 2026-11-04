@@ -6,15 +6,45 @@ Gerechnet wird weiter je Teil (Summe gleich); hier nur die Summen je Satz für A
                    Bleche beide Seiten ohne Löcher),
   Gewicht je Satz = Σ Gewicht je Teil × Stück je Satz (wie Verzinken €/kg; Zukaufteile mit ihrem Gewicht).
 Alle Positionen des Satzes zählen (auch Bleche und Zukaufteile), soweit Fläche bzw. Gewicht bekannt sind; die
-übrigen stehen in ohne_flaeche / ohne_gewicht."""
-from . import rechnen, satz_menge
+übrigen stehen in ohne_flaeche / ohne_gewicht.
+
+Schweißbaugruppe (Patrick 04.11.2026: „Satzauswahl Zusatzarbeiten funktioniert nicht“): ihr Satz ist der Name der
+Baugruppe; „ganzer Satz“ sind dann ihre Einzelteile (die Zeile der Baugruppe selbst hat weder Fläche noch Gewicht),
+Anzahl Sätze = Stückzahl der Baugruppe."""
+from . import baugruppe, rechnen, satz_menge
+
+
+def _baugruppen(positionen, satz):
+    """{Baugruppen-ID: Index} der Schweißbaugruppen, deren Satz satz ist."""
+    satz = str(satz or "").strip()
+    return {b: i for b, (i, _) in baugruppe.baugruppen(positionen).items()
+            if satz and satz_menge.name(positionen[i]) == satz}
+
+
+def positionen_von(positionen, satz):
+    """Indizes der Positionen, die „Zusatzarbeit für ganzen Satz“ belegt: die Positionen des Satzes
+    (satz_menge.satz_positionen), bei einer Schweißbaugruppe deren Einzelteile."""
+    ix = satz_menge.satz_positionen(positionen, satz)
+    if ix:
+        return ix
+    return sorted(j for b in _baugruppen(positionen, satz) for j in baugruppe.teile(positionen, b))
+
+
+def anzahl(positionen, satz):
+    """Anzahl Sätze: wie satz_menge.anzahl, bei einer Schweißbaugruppe ihre Stückzahl. None ohne Stückzahl."""
+    if satz_menge.satz_positionen(positionen, satz):
+        return satz_menge.anzahl(positionen, satz)
+    st = [positionen[i].get("stueck") for i in _baugruppen(positionen, satz).values()]
+    st = [x for x in st if isinstance(x, (int, float)) and not isinstance(x, bool) and x > 0]
+    return (int(st[0]) if float(st[0]).is_integer() else st[0]) if len(st) == 1 else (sum(st) or None)
 
 
 def mengen(positionen, satz, k):
     """{flaeche, gewicht (je Satz), saetze, flaeche_alle, gewicht_alle, ohne_flaeche, ohne_gewicht (Pos.-Nummern)}
-    des Satzes (Positionen wie satz_menge.satz_positionen, ohne Schweißbaugruppen und ihre Teile)."""
+    des Satzes (Positionen wie positionen_von: Satzpositionen bzw. Einzelteile der Schweißbaugruppe); arbeitsgaenge =
+    Namen der Arbeitsgänge einer Schweißbaugruppe (Hinweis gegen doppelt eingetragenes Verzinken o. Ä.)."""
     fl, kg, ohne_f, ohne_g = 0.0, 0.0, [], []
-    for i in satz_menge.satz_positionen(positionen, satz):
+    for i in positionen_von(positionen, satz):
         p = positionen[i]
         n = satz_menge.je_satz(p)
         m2 = rechnen.zusatz_menge_auto("€/m²", p, k) if k is not None else None
@@ -27,9 +57,12 @@ def mengen(positionen, satz, k):
             kg += g * n
         else:
             ohne_g.append(p.get("pos"))
-    saetze = satz_menge.anzahl(positionen, satz) or 0
+    saetze = anzahl(positionen, satz) or 0
+    ag = [] if satz_menge.satz_positionen(positionen, satz) else [
+        str(a.get("name")) for b in _baugruppen(positionen, satz)
+        for a in (baugruppe.baugruppen(positionen)[b][1].get("arbeitsgaenge") or ()) if a.get("name")]
     return dict(flaeche=fl, gewicht=kg, saetze=saetze, flaeche_alle=fl * saetze, gewicht_alle=kg * saetze,
-                ohne_flaeche=ohne_f, ohne_gewicht=ohne_g)
+                ohne_flaeche=ohne_f, ohne_gewicht=ohne_g, arbeitsgaenge=ag)
 
 
 def text(m, mit_alle=True):
