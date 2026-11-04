@@ -25,8 +25,10 @@ NEUERUNGEN = [
      "reagiert, steht mit Dauer, Ort und der Bedienung davor in <i>Daten/Protokoll/tempo.log</i>. Das "
      "<b>Support-Paket</b> enthält die Datei und eine Zusammenfassung der häufigsten langsamen Stellen. Die "
      "automatische Prüfung achtet jetzt darauf, dass eine Eingabe im Angebot nie neu optimiert und die Kalkulation "
-     "nur einmal rechnet.",
-     "Zeitwächter: langsame Schritte im Protokoll und im Support-Paket"],
+     "nur einmal rechnet. Dazu <b>schneller</b>: die Anzeige nach jeder Änderung spart die Schnittplan-Auswertung je "
+     "Gruppe, die Prüfung gleicher Spalten und bei Angeboten ohne Fracht die Positionswerte (500 Positionen: Zelle "
+     "ändern 0,83 → 0,73 s), der Reiter Nachkalkulation rechnet die Kalkulation einmal statt dreimal.",
+     "Zeitwächter: langsame Schritte im Protokoll und im Support-Paket; Anzeige nach Änderungen schneller"],
     ["0.9.256", "<b>Wieder schneller</b> ([[tempo_0411]]): Seit 0.9.235 rechnete jede Änderung im Angebot deutlich mehr "
      "als nötig. Die Suche nach Wiederholteilen lief nach jeder Änderung neu, sogar bei einer Stückzahl, und doppelt; "
      "jetzt nur noch, wenn sich andere Angebote oder Artikelnummer, Profil, Werkstoff, Länge oder Konturen ändern, "
