@@ -1111,7 +1111,8 @@ class PositionenModell(QAbstractTableModel):
             if rolle == Qt.ItemDataRole.ToolTipRole:
                 return (f"Schweißbaugruppe {s['name']}: {s['teile']} Einzelteil(e)"
                         + (f", {s['saetze']} Stk." if s["saetze"] else "")
-                        + (".\nKlick auf ▾/▸ im Zeilenkopf: Einzelteile zu- bzw. aufklappen." if s["teile"] else "."))
+                        + (".\nKlick auf ▾/▸ im Zeilenkopf: Einzelteile zu- bzw. aufklappen." if s["teile"] else ".")
+                        + self._satz_flaeche_tipp(s["name"]))
         elif art == "feld" and x.name == "satz":
             if rolle == Qt.ItemDataRole.DisplayRole:
                 return satzgruppen.zelltext(s, s["name"] in self.satz_zu)
@@ -2667,6 +2668,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.satz_zu &= set(self.satz_zeilen.values())
         self.pos_modell.satz, self.pos_modell.satz_zu = satzgruppen.info(self.positionen, saetze), self.satz_zu
         self.pos_modell.satz_flaeche = {n: satz_flaeche.mengen(self.positionen, n, self.k) for n in saetze}
+        for i, _ in baugruppe.baugruppen(self.positionen).values():      # Schweißbaugruppen: Fläche der Einzelteile
+            n = satz_menge.name(self.positionen[i])
+            if n and n not in self.pos_modell.satz_flaeche:
+                self.pos_modell.satz_flaeche[n] = satz_flaeche.mengen(self.positionen, n, self.k)
         kopf = self.pos_ansicht.verticalHeader()
         self._kopf_ordnet = True        # eigenes Umsortieren ist kein Drag & Drop (_kopf_gezogen)
         try:

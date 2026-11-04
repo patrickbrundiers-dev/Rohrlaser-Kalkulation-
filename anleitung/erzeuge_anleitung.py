@@ -1854,7 +1854,8 @@ def kapitel_angebot(i):
             "Schweißbaugruppe: Rechtsklick auf die Baugruppe oder eines ihrer Einzelteile → <i>Zusatzarbeit für "
             "ganzen Satz …</i> öffnet das Fenster für alle Einzelteile der Baugruppe (Titel <i>für Baugruppe …</i>, "
             "Stück je Baugruppe, Fläche und Gewicht je Baugruppe). Die Baugruppe selbst bekommt keinen Eintrag, ihre "
-            "Arbeitsgänge stehen weiter im Baugruppen-Editor.",
+            "Arbeitsgänge stehen weiter im Baugruppen-Editor; das Fenster nennt sie (z. B. Verzinken), damit nichts "
+            "doppelt berechnet wird.",
             "Ist ein Satz zugeklappt (▸ im Zeilenkopf), steht seine Kopfzeile für den ganzen Satz: markieren und "
             "<i>Zusatzarbeiten …</i> (Knopf oder Rechtsklick-Schnellmenü) wirkt auf alle Positionen des Satzes. "
             "Aufgeklappt gilt die Zeile nur für ihre Position.",

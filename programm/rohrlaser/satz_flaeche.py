@@ -27,8 +27,12 @@ def mengen(positionen, satz, k):
         else:
             ohne_g.append(p.get("pos"))
     saetze = satz_menge.anzahl(positionen, satz) or _bg_saetze(positionen, satz) or 0
+    # Arbeitsgänge einer Schweißbaugruppe des Satzes (Hinweis gegen doppelt eingetragenes Verzinken o. Ä., aus #395)
+    from . import baugruppe
+    ag = [str(a.get("name")) for i, bg in baugruppe.baugruppen(positionen).values()
+          if satz_menge.name(positionen[i]) == satz for a in bg.get("arbeitsgaenge") or () if a.get("name")]
     return dict(flaeche=fl, gewicht=kg, saetze=saetze, flaeche_alle=fl * saetze, gewicht_alle=kg * saetze,
-                ohne_flaeche=ohne_f, ohne_gewicht=ohne_g)
+                ohne_flaeche=ohne_f, ohne_gewicht=ohne_g, arbeitsgaenge=ag)
 
 
 def _bg_saetze(positionen, satz):

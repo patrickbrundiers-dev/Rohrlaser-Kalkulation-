@@ -236,6 +236,9 @@ class ZusatzDialog(QDialog):
             f = satz_flaeche.fehlt_text(m)
             self.satz_info.setText(f"<b>{satz.get('art') or 'Satz'} {satz['name']}</b> · {len(satz['positionen'])} Positionen · "
                                    + satz_flaeche.text(m) + (f"<br><i>{f}</i>" if f else "")
+                                   + ("<br>Schweißbaugruppe: gilt für ihre Einzelteile. Arbeitsgänge im Baugruppen-"
+                                      "Editor (nicht doppelt eintragen): " + ", ".join(m["arbeitsgaenge"])
+                                      if m.get("arbeitsgaenge") else "")
                                    + "<br>Pulverbeschichten (m²) und Verzinken (kg) rechnen je Teil; die Summe je "
                                      "Satz steht unten.")
         rl.addWidget(self.satz_info)
