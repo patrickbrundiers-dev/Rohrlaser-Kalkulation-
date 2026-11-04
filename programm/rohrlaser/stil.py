@@ -174,6 +174,10 @@ UMSETZUNG = {
         "#E4EEFA": "#1E3550", "#EEE6F7": "#35284A", "#285F9E": "#8BBBE8", "#6E3FA3": "#C7A6F0",
         # Schweißbaugruppen grün getönt (03.11.2026)
         "#E2F2E4": "#1E3A24",
+        # Sätze reihum sechs Farben, kräftiger (04.11.2026), Baugruppe Grün
+        "#C7DAF3": "#1E3550", "#FAD9BD": "#4A3018", "#DDCDF1": "#35284A", "#C6E8E2": "#173F3A", "#F5CEDA": "#4A2232",
+        "#E2EAC0": "#3A4018", "#CDE8CF": "#1E3A24", "#1F4E8C": "#8BBBE8", "#8A4300": "#F5B57A", "#5B2E91": "#C7A6F0",
+        "#0F6359": "#7FD8CB", "#8E2049": "#F2A0BE", "#4F5E10": "#CBDC7A",
     },
     "Hoher Kontrast": {
         "#1F2937": "#000000", "#111827": "#000000", "#3A4656": "#111111", "#5F6B7A": "#2F3742", "#9AA3AF": "#5F6B7A",
@@ -371,7 +375,14 @@ KONTRAST_PAARE = [
     (GELB_TEXT, GELB_FLAECHE, "Warnung"), (GRUEN, GRUEN_FLAECHE, "OK"), ("#8C1D18", "#FDECEA", "Stand veraltet"),
     ("#7A5A00", "#FFF6DB", "Stand offen"), (TEXT, "#FFFCF0", "Eingabezelle"), (TEXT, "#EDEDED", "berechnete Zelle"),
     ("#111827", "#CFE0F5", "Auswahl"), ("#285F9E", "#E4EEFA", "Satzname Blau"), ("#6E3FA3", "#EEE6F7", "Satzname Violett"),
-    (TEXT, "#E4EEFA", "Satzzeile Blau"), (TEXT, "#EEE6F7", "Satzzeile Violett"), ("#3A4656", "#EEF1F5", "Reiter"), (AKZENT, "#EEF4FB", "Verkaufspreis"),
+    (TEXT, "#E4EEFA", "Satzzeile Blau"), (TEXT, "#EEE6F7", "Satzzeile Violett"),
+    *[(t, f, "Satzname " + n) for t, f, n in zip(("#1F4E8C", "#8A4300", "#5B2E91", "#0F6359", "#8E2049", "#4F5E10",
+                                                   "#2E6B30"), ("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA",
+                                                                "#E2EAC0", "#CDE8CF"),
+                                     ("Blau", "Orange", "Violett", "Türkis", "Rosa", "Oliv", "Grün"))],
+    *[(TEXT, f, "Satzzeile " + n) for f, n in zip(("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA", "#E2EAC0",
+                                                    "#CDE8CF"), ("Blau", "Orange", "Violett", "Türkis", "Rosa", "Oliv",
+                                                                 "Grün"))], ("#3A4656", "#EEF1F5", "Reiter"), (AKZENT, "#EEF4FB", "Verkaufspreis"),
 ]
 
 

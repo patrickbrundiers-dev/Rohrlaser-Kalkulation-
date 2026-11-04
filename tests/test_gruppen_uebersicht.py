@@ -126,9 +126,11 @@ m = s.pos_modell
 c = next(c for c in range(m.columnCount()) if m.name(c) == "satz")
 i_bg = [i for i, p in enumerate(s.positionen) if baugruppe.ist_baugruppe(p)]
 assert len(i_bg) == 2
-assert m.data(m.index(i_bg[0], c)) == "⚙ Gestell G1 · 2 Stk." and m.data(m.index(i_bg[0], c), Qt.FontRole).bold()
+band = s.kopf_baender[i_bg[0]]            # Kopfband (04.11.2026) statt Text in der Spalte Satz
+assert band["titel"] == "▾ ⚙ Gestell G1" and band["info"].startswith("2 Stk. · "), band
+assert "€ je Stück" in band["info"] and m.data(m.index(i_bg[0], c)) == ""
 teil = baugruppe.teile(s.positionen, baugruppe.lesen(s.positionen[i_bg[0]]["baugruppe"])["id"])[0]
-assert m.data(m.index(teil, c)) == "Gestell G1"
+assert m.data(m.index(teil, c)) == "" and teil not in s.kopf_baender
 farbe = m.data(m.index(teil, next(c_ for c_ in range(m.columnCount()) if m.name(c_) == "artikel")),
                Qt.BackgroundRole).color().name()
 assert farbe != m.data(m.index(2, next(c_ for c_ in range(m.columnCount()) if m.name(c_) == "artikel")),
