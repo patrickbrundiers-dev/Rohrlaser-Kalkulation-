@@ -47,8 +47,8 @@ m = satzgruppen.zeilen_markieren(pos, [dict(pos=1), None, dict(pos=3), dict(pos=
 assert m[1] is None and m[0]["satz"] == "A" and m[0]["satz_ton"] == 0 and m[2]["satz_ton"] == 1 and m[3]["satz_ton"] == 0
 viele = [dict(satz=f"S{n}") for n in range(8)]
 toene = [satzgruppen.info(viele, satzgruppen.saetze(viele))[n]["ton"] for n in range(8)]
-assert toene == [0, 1, 2, 3, 4, 5, 0, 1] and satzgruppen.TOENE == 6 and len(set(satzgruppen.FLAECHEN)) == 7, toene
-for f in satzgruppen.FLAECHEN:          # kräftig genug (04.11.2026: vorher fast weiß): Abstand zu Weiß
+assert toene == [0, 1, 2, 3, 4, 5, 0, 1] and satzgruppen.TOENE == 6 and len(set(satzgruppen.FLAECHEN)) == 8, toene
+for f in satzgruppen.FLAECHEN[:satzgruppen.EINZEL]:     # Satz- und BG-Farben kräftig genug (04.11.2026: vorher fast weiß): Abstand zu Weiß
     rgb = [int(f[k:k + 2], 16) for k in (1, 3, 5)]
     assert 255 * 3 - sum(rgb) >= 90, f
 ok("Gruppen je Satzname (ohne Baugruppen), Reihenfolge zusammen, Tönung reihum 6 Farben, Klammer ▾ │ └, Zelltext")
@@ -82,20 +82,21 @@ QApplication.processEvents()
 m = s.pos_modell
 kopf = s.pos_ansicht.verticalHeader()
 assert [kopf.logicalIndex(v) for v in range(5)] == [0, 2, 1, 3, 4]       # Satz Gestell zusammen
-assert m.headerData(0, Qt.Vertical) == "▾ 1" and m.headerData(2, Qt.Vertical) == "└ 3"
-assert m.headerData(1, Qt.Vertical) == "2" and m.headerData(3, Qt.Vertical) == "▾ 4"
+assert m.headerData(0, Qt.Vertical) == "▾" and m.headerData(2, Qt.Vertical) == "└"
+assert m.headerData(1, Qt.Vertical) == "" and m.headerData(3, Qt.Vertical) == "▾"
 c = next(c for c in range(m.columnCount()) if m.name(c) == "satz")
 assert c <= 3, c
 # Name und Anzahl stehen im Kopfband (04.11.2026, F3a), die Spalte Satz zeigt nichts mehr doppelt
 assert m.data(m.index(0, c)) == "" and m.data(m.index(2, c)) == ""
 band = s.kopf_baender
-assert set(band) == {0, 3}, band
+assert set(band) == {0, 1, 3}, band        # 1 = Einzelteil zwischen den Sätzen: eigenes graues Band
+assert band[1]["art"] == "einzel" and band[1]["titel"] == "▾ Einzelteile" and band[1]["info"].startswith("1 Position")
 assert band[0]["titel"] == "▾ Gestell" and band[0]["info"].startswith("4 Sätze · 2 Positionen · "), band[0]
 assert "€ je Satz" in band[0]["info"] and "€ gesamt" in band[0]["info"], band[0]
 assert band[3]["titel"] == "▾ Tisch" and band[0]["flaeche"] != band[3]["flaeche"]
 u = s.pos_unter
-assert u.kopf_hoehe(0) > 0 and u.kopf_hoehe(1) == 0 and s.pos_ansicht.rowHeight(0) >= s.pos_ansicht.rowHeight(1) + \
-    u.kopf_hoehe(0) - 2, (s.pos_ansicht.rowHeight(0), s.pos_ansicht.rowHeight(1))
+assert u.kopf_hoehe(0) > 0 and u.kopf_hoehe(2) == 0 and s.pos_ansicht.rowHeight(0) >= s.pos_ansicht.rowHeight(2) + \
+    u.kopf_hoehe(0) - 2, (s.pos_ansicht.rowHeight(0), s.pos_ansicht.rowHeight(2))
 art = next(c for c in range(m.columnCount()) if m.name(c) == "artikel")
 bg = [m.data(m.index(r, art), Qt.ItemDataRole.BackgroundRole).color().name() for r in range(5)]
 assert bg[0] == bg[2] != bg[1] and bg[3] == bg[4] not in (bg[0], bg[1]), bg
@@ -111,11 +112,11 @@ ok("Positionsliste: Satz zusammen, Kopfband je Satz mit Anzahl, Teilen und Preis
 
 s._kopf_klick(0)
 assert s.pos_ansicht.isRowHidden(2) and not s.pos_ansicht.isRowHidden(0) and not s.pos_ansicht.isRowHidden(3)
-assert m.headerData(0, Qt.Vertical) == "▸ 1" and s.kopf_baender[0]["titel"] == "▸ Gestell"
+assert m.headerData(0, Qt.Vertical) == "▸" and s.kopf_baender[0]["titel"] == "▸ Gestell"
 s.neu_laden()                               # bleibt zugeklappt
 assert s.pos_ansicht.isRowHidden(2)
 s._kopf_klick(0)
-assert not s.pos_ansicht.isRowHidden(2) and m.headerData(0, Qt.Vertical) == "▾ 1"
+assert not s.pos_ansicht.isRowHidden(2) and m.headerData(0, Qt.Vertical) == "▾"
 s.pos_ansicht.grab()
 ok("Klick auf ▾ klappt den Satz zu (▸, Anzahl Positionen), bleibt nach Neuladen, Klick klappt wieder auf")
 
@@ -151,6 +152,6 @@ db.position_neu(b, dict(pos=10, artikel="E", profil_id="QR 40x40x3", werkstoff_i
 s2 = fenster.angebot_oeffnen(b)
 assert s2.optimieren()
 assert s2.kompakt_ansicht.isColumnHidden(ks) and not s2.pos_modell.satz
-assert s2.pos_modell.headerData(0, Qt.Vertical) == "1"
+assert s2.pos_modell.headerData(0, Qt.Vertical) == ""
 ok("ohne Satz: keine Tönung, keine Klammer, Spalte Satz der kompakten Kalkulation ausgeblendet")
 print("Alle Prüfungen bestanden.")

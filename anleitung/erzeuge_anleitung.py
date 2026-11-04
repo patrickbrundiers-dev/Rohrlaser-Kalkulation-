@@ -1622,7 +1622,9 @@ def kapitel_angebot(i):
         (2, "Klammer am Zeilenkopf: <b>▾</b> an der ersten Position, │ dazwischen, └ an der letzten. Klick auf ▾ "
             "(am Zeilenkopf oder am Kopfband) klappt den Satz zu (▸), ein weiterer Klick wieder auf.")])
     i.text("Jeder Satz hat ein Kopfband mit seinen Summen und eine eigene Farbe (reihum Blau, Orange, Violett, Türkis, "
-           "Rosa, Oliv; Schweißbaugruppen Grün, im Dunkelmodus dunkle Töne); Einzelteile bleiben ohne Farbe.",
+           "Rosa, Oliv; Schweißbaugruppen Grün, im Dunkelmodus dunkle Töne). Einzelteile (weder Satz noch Baugruppe) "
+           "stehen unter einem grauen Band <b>Einzelteile</b> mit Anzahl Positionen, Stück, Gewicht, Preis gesamt und "
+           "offenen Vorschlägen.",
            kurz=True)
     i.bild("satz_kalkulation", "Reiter Kalkulation: Spalte Satz und dieselbe Farbe wie in der Positionsliste",
            hoehe=55 * mm)
@@ -1650,8 +1652,15 @@ def kapitel_angebot(i):
             "<b>▸ Alle Gruppen zuklappen</b> (über der Positionsliste und über der Kalkulation) klappt alle Sätze und "
             "Schweißbaugruppen auf eine Zeile zu; derselbe Knopf heißt dann <b>▾ Alle Gruppen aufklappen</b>. Welche Gruppen zu sind, merkt "
             "sich das Programm je Angebot (auch nach dem Schließen).",
-            "Der Status steht in einer Zeile (lange Texte gekürzt mit …); der ganze Text steht im Tooltip. "
-            "<i>OK</i> zeigt nur das grüne Häkchen.",
+            "Der Status zeigt nur sein Symbol (Häkchen, Hinweis, Warnung, Fehler) mit der Farbe der Zeile; der ganze "
+            "Text steht im Tooltip, Doppelklick führt wie bisher zur Ursache. Die Spalte ist dadurch schmal.",
+            "<b>Zugeklappt</b> ist ein Satz, eine Schweißbaugruppe oder ein Abschnitt Einzelteile nur noch das "
+            "Kopfband (eine Zeile statt Band plus erster Position).",
+            "Stehen Einzelteile zwischen zwei Sätzen, hat jeder Abschnitt sein eigenes Band; die Reihenfolge der "
+            "Liste bleibt. Ohne Sätze und Baugruppen gibt es kein Band (eine schlichte Liste braucht keins).",
+            "Der Zeilenkopf links zeigt nur noch die Klammer (▾ ▸ │ └), keine zweite Nummer neben <i>Pos.</i>; er "
+            "bleibt der Griff zum Verschieben ([[reihenfolge]]). Die Spalte <i>Stück je Satz</i> erscheint nur, wenn "
+            "das Angebot Sätze hat.",
             "Der Knopf <b>Übersicht</b> (oben rechts neben <i>Ausgaben</i>) blendet die Übersicht rechts aus bzw. "
             "wieder ein; ausgeblendet hat die Liste die ganze Breite. Die Wahl merkt sich das Programm.",
             "Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit seinen Teilen darunter.")
@@ -1782,9 +1791,17 @@ def kapitel_angebot(i):
            "„verzinkt; fvz; tZn“). Steht eines davon in der <i>Bezeichnung</i>, der <i>Artikelnummer</i>, dem "
            "<i>STEP-Namen</i>, der Anfrage-Mail oder im ganzen Text der Zeichnung, zeigt die Spalte <i>Zusatzarbeiten</i> gelb "
            "„＋ Feuerverzinken ?“. Ein Vorschlag kostet nichts, bis Sie ihn übernehmen.", kurz=True)
-    i.liste("Der gelbe Knopf <b>N Vorschläge</b> in der Leiste: <i>Alle Vorschläge übernehmen</i>, <i>Einzeln "
-            "prüfen …</i> (Fenster „Arbeitsgänge vorschlagen“ mit Betrag je Teil) oder <i>Alle Vorschläge "
-            "ablehnen</i>. Rechtsklick auf markierte Positionen bietet dasselbe für diese Positionen.",
+    i.liste("Der gelbe Knopf <b>N Vorschläge</b> in der Leiste listet jede vorgeschlagene Zusatzarbeit mit Anzahl "
+            "Teile und Pos.-Nummern, z. B. „Feuerverzinken · 3 Teile“, darunter <b>✓ für alle übernehmen</b> und "
+            "<b>✗ für alle ablehnen</b>: so gilt die Entscheidung für alle Teile des Angebots auf einmal. Darunter "
+            "<i>Alle Vorschläge übernehmen</i>, <i>Einzeln prüfen …</i> und <i>Alle Vorschläge ablehnen</i>. "
+            "Rechtsklick auf markierte Positionen bietet dasselbe für diese Positionen.",
+            "In der Zelle <i>Gewinde · Zusatzarbeiten</i> einer Position mit Vorschlag stehen rechts <b>✓</b> "
+            "(übernehmen) und <b>✗</b> (ablehnen) für die Vorschläge dieser Position.",
+            "<i>Einzeln prüfen …</i> zeigt zuerst nur die offenen Punkte (Vorschläge, automatische, abgelehnte), "
+            "gleiche Arbeitsgänge untereinander; <i>Alle Arbeitsgänge zeigen</i> blendet die gerechneten dazu. Mehrere "
+            "Zeilen lassen sich markieren, die Knöpfe wirken auf alle markierten. <b>Alle N „Name“ annehmen</b> bzw. "
+            "<b>ablehnen</b> erledigt denselben Vorschlag in allen Positionen.",
             "Übernommen wird mit heutigem Preisstand und der Herkunft „Erkannt: Bezeichnung „verzinkt““; eine "
             "RAL-Farbe im selben Text (z. B. „pulverbeschichtet RAL 7016“) kommt als Text mit. Abgelehnte merkt sich "
             "die Position, zurückholen unter „Arbeitsgänge vorschlagen …“.",

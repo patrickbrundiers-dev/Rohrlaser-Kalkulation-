@@ -134,12 +134,17 @@ class UnterzeilenMixin:
         if not h and not k:
             return option
         o = QStyleOptionViewItem(option)
+        if u.kopf_zu(index.row()):          # zugeklappte Gruppe: die Zeile ist nur noch das Band
+            o.rect = QRect(option.rect.left(), option.rect.bottom(), option.rect.width(), 0)
+            return o
         k = min(k, max(option.rect.height() - 4, 0))
         o.rect = option.rect.adjusted(0, k, 0, -min(h, max(option.rect.height() - k - 4, 0)))
         return o
 
     def paint(self, painter, option, index):
-        super().paint(painter, self._oben(option, index), index)
+        o = self._oben(option, index)
+        if o.rect.height() > 0:
+            super().paint(painter, o, index)
 
     def updateEditorGeometry(self, editor, option, index):
         super().updateEditorGeometry(editor, self._oben(option, index), index)
@@ -195,8 +200,16 @@ class Unterzeilen(QObject):
         return len(self.texte(r)) if self.an else 0
 
     def hoehe(self, r):
-        """Zusätzliche Höhe der Zeile r für ihre Unterzeilen [px]."""
-        return self.anzahl(r) * self.zeile_h
+        """Zusätzliche Höhe der Zeile r für ihre Unterzeilen [px] (zugeklappte Gruppe: keine)."""
+        return 0 if self.kopf_zu(r) else self.anzahl(r) * self.zeile_h
+
+    def kopf_zu(self, r):
+        """Zeile r ist das Band einer zugeklappten Gruppe (Satz, Baugruppe, Einzelteile): nur das Band, keine Zelle
+        darunter (Patrick 04.11.2026)."""
+        if self.kopf is None:
+            return False
+        k = self.kopf(r)
+        return bool(k and k.get("zu"))
 
     def kopf_hoehe(self, r):
         """Zusätzliche Höhe oben für das Kopfband eines Satzes bzw. einer Baugruppe [px]."""
