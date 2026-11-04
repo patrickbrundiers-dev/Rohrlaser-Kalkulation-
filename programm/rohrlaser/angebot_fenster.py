@@ -914,6 +914,27 @@ def status_ziel(status):
 
 
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
+# Spalten-Ansichten der Positionsliste (Optimierungsplan 04.11.2026, B3): feste Auswahl je Arbeitsschritt statt
+# vieler Einzelhäkchen. „Alle“ = bisherige Automatik (Standardspalten + optionale mit Werten). Eigene Wahl unter
+# „Weitere Spalten“ und die Häkchen STEP-Werte / Berechnete Werte gelten in jeder Ansicht zusätzlich.
+SPALTEN_ANSICHT_EINSTELLUNG = "ansicht_positionen_ansicht"
+_IMMER = {"pos", "status", "satz", "je_satz", "art", "artikel", "bezeichnung", "stueck"}
+SPALTEN_ANSICHTEN = {
+    "Erfassen": _IMMER | {"profil_id", "werkstoff_id", "oberflaeche", "laenge", "stange", "material_herkunft", "muster",
+                          "zusatz"},
+    "Prüfen": _IMMER | {"profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
+                        "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
+                        "b_schnitt", "innen", "gravur", "abweichung"},
+    "Preis": _IMMER | {"laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
+                       "material_herkunft", "zusatz"},
+}
+SPALTEN_ANSICHT_HILFE = {
+    "Alle": "Alle Standardspalten, optionale Spalten nur mit Werten (wie bisher)",
+    "Erfassen": "Zum Eintippen: Artikel, Bezeichnung, Profil, Werkstoff, Oberfläche, Länge, Stückzahl",
+    "Prüfen": "Zum Kontrollieren: Status, Zusatzarbeiten, Schneidweg, Einstiche, Bohrungen, Gewinde, Naht, Anbauteile "
+              "und die Werte aus der STEP (Anfangs-/Endschnitt, Innenkonturen, Gravur, Abweichung)",
+    "Preis": "Für den Preis: Schneid- und Programmierzeit, Materialpreis, EK Blech, Zukaufteile, Gewicht",
+}
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
 
 
@@ -2511,10 +2532,34 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                         "Vorschub, eingeplante Teile usw.")
         el.addWidget(self.pos_info, 1)
         self.unter_haken_pos = self._unter_haken(self.pos_unter.an)
-        for w in (self._gruppen_knopf(), self.unter_haken_pos, self.spalten_knopf, self.zeige_step,
-                  self.zeige_berechnet):
+        # Ansichten Alle / Erfassen / Prüfen / Preis (B3); STEP-Werte und Berechnete Werte stehen im Menü „Weitere
+        # Spalten“ (die Häkchen bleiben als Schalter dahinter, sichtbar sind sie nicht mehr)
+        self.spalten_ansicht = self.db.einstellung(SPALTEN_ANSICHT_EINSTELLUNG) or "Alle"
+        if self.spalten_ansicht not in SPALTEN_ANSICHT_HILFE:
+            self.spalten_ansicht = "Alle"
+        ansichten = QWidget()
+        al = QHBoxLayout(ansichten)
+        al.setContentsMargins(0, 0, 0, 0)
+        al.setSpacing(0)
+        self.ansicht_knoepfe = {}
+        for name, hilfe_text in SPALTEN_ANSICHT_HILFE.items():
+            k = QPushButton(name)
+            k.setCheckable(True)
+            k.setChecked(name == self.spalten_ansicht)
+            k.setToolTip(f"Spalten-Ansicht {name}: {hilfe_text}")
+            k.setObjectName("ansicht")
+            k.clicked.connect(lambda _=False, name=name: self.ansicht_waehlen(name))
+            al.addWidget(k)
+            self.ansicht_knoepfe[name] = k
+        ansichten.setStyleSheet("QPushButton#ansicht { border-radius: 0; padding: 4px 9px; margin-left: -1px; } "
+                                "QPushButton#ansicht:checked { background: #1F5FAD; color: white; "
+                                "border-color: #1F5FAD; }")
+        self.ansicht_leiste = ansichten
+        for w in (ansichten, self._gruppen_knopf(), self.unter_haken_pos, self.spalten_knopf):
             el.addWidget(w)
         for c in (self.zeige_berechnet, self.zeige_step):
+            c.setParent(self.pos_seite)
+            c.hide()
             c.toggled.connect(self._spalten_zeigen)
 
         unten = QWidget()
@@ -3769,9 +3814,23 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         unter 'Weitere Spalten', STEP-Werte und berechnete Werte über die Häkchen."""
         m = self.pos_modell
         neu = set()
+        auswahl = SPALTEN_ANSICHTEN.get(getattr(self, "spalten_ansicht", "Alle"))
         for i, (art, x) in enumerate(m.spalten):
             name = m.name(i)
-            if art == "berechnet":
+            if auswahl is not None and name not in ("satz", "je_satz", "art"):
+                # feste Ansicht: ihre Spalten (leere optionale nicht), dazu eigene Wahl und die beiden Schalter
+                if name in self.spalten_wahl:
+                    zeigen = self.spalten_wahl[name]
+                elif art == "berechnet":
+                    zeigen = self.zeige_berechnet.isChecked()
+                elif art == "feld" and x.name in STEP_FELDER and self.zeige_step.isChecked():
+                    zeigen = True
+                elif name in auswahl:
+                    leer_weg = name in OPTIONALE_SPALTEN or name in STEP_FELDER or art == "abweichung"
+                    zeigen = not leer_weg or name == "zusatz" or self._spalte_hat_werte(i)
+                else:
+                    zeigen = False
+            elif art == "berechnet":
                 zeigen = self.zeige_berechnet.isChecked()
             elif art == "feld" and x.name in STEP_FELDER:
                 zeigen = self.zeige_step.isChecked()
@@ -3796,6 +3855,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         aus = sum(1 for i, (art, _) in enumerate(m.spalten) if m.name(i) in OPTIONALE_SPALTEN
                   and self.pos_ansicht.isColumnHidden(i))
         n = sum(1 for p in self.positionen if position_aktiv(p) or p.get("artikel"))
+        if auswahl is not None:
+            aus = 0
         self.pos_info.setText(f"{n} {'Position' if n == 1 else 'Positionen'}"
                               + (f" · {aus} optionale Spalten ausgeblendet (Weitere Spalten)" if aus else ""))
 
@@ -3814,7 +3875,25 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             a.setChecked(not self.pos_ansicht.isColumnHidden(i))
             a.toggled.connect(lambda an, name=name: self.spalte_waehlen(name, an))
         menue.addSeparator()
+        for haken in (self.zeige_step, self.zeige_berechnet):        # früher Häkchen neben dem Knopf (B3)
+            a = menue.addAction(haken.text())
+            a.setToolTip(haken.toolTip())
+            a.setCheckable(True)
+            a.setChecked(haken.isChecked())
+            a.toggled.connect(haken.setChecked)
+        menue.addSeparator()
         menue.addAction("Automatisch: Spalten mit Werten zeigen", lambda: self.spalte_waehlen(None, None))
+
+    def ansicht_waehlen(self, name):
+        """Spalten-Ansicht Alle / Erfassen / Prüfen / Preis (B3) wählen, gemerkt für alle Angebote (Arbeitsplatz)."""
+        if name not in SPALTEN_ANSICHT_HILFE:
+            return
+        self.spalten_ansicht = name
+        for n, k in self.ansicht_knoepfe.items():
+            k.setChecked(n == name)
+        if not self.db.nur_lesen:
+            self.db.einstellung_setzen(SPALTEN_ANSICHT_EINSTELLUNG, name)
+        self._spalten_zeigen()
 
     def spalte_waehlen(self, name, zeigen):
         """Optionale Spalte fest ein- (True) oder ausblenden (False); name=None: alle wieder automatisch."""

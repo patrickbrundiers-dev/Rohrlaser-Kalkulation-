@@ -127,4 +127,50 @@ s2 = f.angebot_oeffnen(anlegen(db, 5))
 QTest.qWait(100)
 assert not s2.uebersicht_rahmen.isVisible() and s2.uebersicht_streifen.isVisible()
 ok("B2 nächstes Angebot öffnet mit ausgeblendeter Übersicht (gemerkt)")
+
+# ------------------------------------------------------------------ B3 Spalten-Ansichten
+from rohrlaser.angebot_fenster import SPALTEN_ANSICHT_EINSTELLUNG  # noqa: E402
+
+s = s2
+
+
+def sichtbar():
+    m = s.pos_modell
+    return {m.name(i) for i in range(m.columnCount()) if not s.pos_ansicht.isColumnHidden(i)}
+
+
+assert s.spalten_ansicht == "Alle" and s.ansicht_knoepfe["Alle"].isChecked()
+assert not s.zeige_step.isVisible() and not s.zeige_berechnet.isVisible()
+alle = sichtbar()
+s.ansicht_knoepfe["Erfassen"].click()
+erfassen = sichtbar()
+assert {"artikel", "profil_id", "werkstoff_id", "laenge", "stueck"} <= erfassen, erfassen
+assert not erfassen & {"schneidweg", "einstiche", "zeit_manuell", "preis_m"}, erfassen
+assert s.ansicht_knoepfe["Erfassen"].isChecked() and not s.ansicht_knoepfe["Alle"].isChecked()
+assert db.einstellung(SPALTEN_ANSICHT_EINSTELLUNG) == "Erfassen"
+ok(f"B3 Erfassen: {len(erfassen)} statt {len(alle)} Spalten, gemerkt")
+s.ansicht_waehlen("Prüfen")
+pruefen = sichtbar()
+assert {"schneidweg", "einstiche", "zusatz"} <= pruefen and "preis_m" not in pruefen, pruefen
+assert "a_schnitt" not in pruefen            # leere STEP-Spalte bleibt weg
+ok("B3 Prüfen: Schneidweg, Einstiche, Zusatzarbeiten; leere STEP-Spalten bleiben weg")
+s.ansicht_waehlen("Preis")
+preis = sichtbar()
+assert {"zeit_manuell", "prog_zeit", "preis_m"} <= preis and "profil_id" not in preis, preis
+s.spalte_waehlen("oberflaeche", True)
+assert "oberflaeche" in sichtbar()
+ok("B3 Preis: Zeiten und Materialpreis; eigene Wahl aus „Weitere Spalten“ gilt zusätzlich")
+s.spalten_menue.aboutToShow.emit()
+step = next(a for a in s.spalten_menue.actions() if a.text() == "STEP-Werte (aus CAD)")
+step.setChecked(True)
+assert s.zeige_step.isChecked() and "a_schnitt" in sichtbar()
+ok("B3 STEP-Werte und Berechnete Werte im Menü „Weitere Spalten“")
+s.ansicht_waehlen("Alle")
+s.spalte_waehlen(None, None)
+step.setChecked(False)
+assert sichtbar() == alle
+ok("B3 Alle: wieder wie vorher")
+s3 = f.angebot_oeffnen(anlegen(db, 3))
+QTest.qWait(50)
+assert s3.spalten_ansicht == "Alle"
 print("Alle Prüfungen Layout-Platz bestanden.")

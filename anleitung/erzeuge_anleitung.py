@@ -1207,7 +1207,8 @@ def kapitel_angebot(i):
             "DXF-Zeichnungen ([[step]], [[dxf_import]]); <i>STEP importieren …</i> steht im Menü (Strg+I)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen ([[optimieren]])."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
-            "rechts <b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b>."),
+            "rechts die Spalten-Ansichten <b>Alle · Erfassen · Prüfen · Preis</b> ([[spalten_ansichten]]) und "
+            "<b>Weitere Spalten</b> (darin auch <i>STEP-Werte (aus CAD)</i> und <i>Berechnete Werte (Programm)</i>)."),
         (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist).")])
     i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
@@ -1290,11 +1291,26 @@ def kapitel_angebot(i):
             "schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
             "senkrecht „Übersicht · VK …“. <b>«</b> oder ein Klick auf den Streifen holt die Übersicht zurück. Die "
             "Wahl gilt für alle Angebote und bleibt nach dem Neustart.",
+            "<b>Spalten-Ansichten</b> über der Liste ([[spalten_ansichten]]) zeigen nur die Spalten für den "
+            "jeweiligen Arbeitsschritt.",
             "<b>Nichts doppelt</b>: Meldungen stehen nur in der Einblendung (und unter <i>Meldungen</i>), nicht "
             "zusätzlich in der Statuszeile. Der grüne Kasten <i>Optimierung abgeschlossen</i> entfällt, das zeigt die "
             "Schrittanzeige; gelb oder rot erscheint er weiter. <i>Angebots-Check …</i> steht im Menü Ausgaben nur, "
             "wenn die Übersicht eingeklappt ist. <i>Arbeitsgänge vorschlagen …</i> steht nicht mehr im Rechtsklick: "
             "offene Vorschläge zeigt der gelbe Knopf in der Knopfleiste, das ganze Fenster öffnet das Menü Ausgaben.")
+    i.abschnitt("Spalten-Ansichten: Erfassen, Prüfen, Preis", marke="spalten_ansichten")
+    i.text("Über der Positionsliste wählen vier Knöpfe, welche Spalten zu sehen sind. Die Wahl gilt für alle Angebote "
+           "und bleibt nach dem Neustart.", kurz=True)
+    i.tabelle(["Ansicht", "Spalten"], [
+        ["Alle", "wie bisher: alle Standardspalten, optionale Spalten nur, wenn sie Werte haben"],
+        ["Erfassen", "Artikelnummer, Bezeichnung, Profil, Werkstoff, Oberfläche, Teilelänge, Stückzahl, "
+                     "Zusatzarbeiten (zum Eintippen neuer Positionen)"],
+        ["Prüfen", "Zusatzarbeiten, Schneidweg, Einstiche, Bohrungen, Gewinde, Schweißnaht, Anbauteile und die "
+                   "STEP-Werte Anfangs-/Endschnitt, Innenkonturen, Gravur, Abweichung (leere bleiben weg)"],
+        ["Preis", "Schneid- und Programmierzeit, Materialpreis, EK Blech, Zukaufteile, Gewicht je Teil"]])
+    i.text("Pos., Status, Artikelnummer, Bezeichnung und Stückzahl stehen in jeder Ansicht, bei Sätzen auch "
+           "<i>Stück je Satz</i>. Was unter <b>Weitere Spalten</b> fest ein- oder ausgeschaltet ist, gilt in jeder "
+           "Ansicht zusätzlich; <i>Automatisch: Spalten mit Werten zeigen</i> nimmt das zurück.")
     i.abschnitt("Angebotskopf", marke="angebotskopf")
     i.schritte([
         ("angebot_positionen", "<b>Kunde</b> aus der Liste wählen: Name und Zahlungsbedingungen kommen aus dem "
@@ -2465,7 +2481,7 @@ def kapitel_step(i):
             "die Konturen für das neue Profil um (Hinweis <i>Profil geändert</i>). In der Spalte Art macht "
             "<i>Nachtrag zurücknehmen</i> das rückgängig.")
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
-        (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
+        (1, "<b>Weitere Spalten → STEP-Werte (aus CAD)</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
     i.hinweis("Gewinde, Senkungen, Fließlochbohrungen und Bohrungen kleiner als 0,7 × Wandstärke werden nur "
               "vorgeschlagen (Status HINWEIS: Bohrungen prüfen (Doppelklick)). Gerechnet werden Gewinde und die "
@@ -5285,6 +5301,8 @@ def kapitel_zukauf_angebot(i):
             "Mengen in anderen Angeboten nehmen die erste Staffelzeile. Die Änderung steht im Protokoll der "
             "Preisänderungen (<i>EK aus Angebot …</i>), die Position bekommt sofort den neuen Preisstand und die "
             "Warnung <i>EK fehlt</i> verschwindet.")
+    i.text("Beide Schalter stehen im Menü <b>Weitere Spalten</b> und gelten in jeder Spalten-Ansicht zusätzlich.",
+           kurz=True)
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
             "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
             "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "

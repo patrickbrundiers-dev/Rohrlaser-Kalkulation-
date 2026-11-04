@@ -1026,7 +1026,7 @@ def main(ziel):
     f.stumm = True
     bereit()
     s2.zeige_step.setChecked(True)
-    foto.foto("step_positionen", f, [(s2.zeige_step, 1)])
+    foto.foto("step_positionen", f, [(s2.spalten_knopf, 1)])     # STEP-Werte stehen im Menü Weitere Spalten (B3)
     d3 = s2.ansicht_3d(6)                                # 3D-Ansicht: T07 mit Innenkontur und Gravur
     d3.resize(1150, 560)
     d3.show()

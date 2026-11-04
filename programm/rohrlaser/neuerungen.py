@@ -25,10 +25,12 @@ NEUERUNGEN = [
      "13 statt 9 sichtbare Zeilen. Angebotskopf, Kalkulation und Fracht stehen zugeklappt in einer Zeile, die "
      "Knopfleiste passt in eine Zeile (Ablagefeld <i>STEP / DXF</i>). <b>»</b> im Titel klappt die Übersicht ein; "
      "rechts bleibt ein schmaler Streifen mit Farbpunkt und Verkaufspreis, <b>«</b> oder ein Klick holt sie zurück "
-     "(gemerkt). <b>Nichts doppelt</b>: Meldungen nur in der Einblendung, der grüne Kasten <i>Optimierung "
+     "(gemerkt). <b>Spalten-Ansichten</b> ([[spalten_ansichten]]): über der Liste <i>Alle · Erfassen · Prüfen · "
+     "Preis</i> zeigen nur die Spalten für den Arbeitsschritt; <i>STEP-Werte</i> und <i>Berechnete Werte</i> stehen "
+     "jetzt im Menü <i>Weitere Spalten</i>. <b>Nichts doppelt</b>: Meldungen nur in der Einblendung, der grüne Kasten <i>Optimierung "
      "abgeschlossen</i> entfällt (Schrittanzeige), <i>▸ Alle zuklappen</i> kürzer, <i>Angebots-Check …</i> im Menü "
      "Ausgaben nur bei eingeklappter Übersicht, <i>Arbeitsgänge vorschlagen …</i> nicht mehr im Rechtsklick.",
-     "Mehr Platz: Kopf und Knopfleiste je eine Zeile, Übersicht einklappbar, nichts doppelt"],
+     "Mehr Platz: Kopf und Knopfleiste je eine Zeile, Übersicht einklappbar, Spalten-Ansichten, nichts doppelt"],
     ["0.9.258", "<b>Zeitwächter</b> ([[zeitwaechter]]): jede Stelle, an der das Programm länger als 0,5 s nicht "
      "reagiert, steht mit Dauer, Ort und der Bedienung davor in <i>Daten/Protokoll/tempo.log</i>. Das "
      "<b>Support-Paket</b> enthält die Datei und eine Zusammenfassung der häufigsten langsamen Stellen. Die "
