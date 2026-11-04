@@ -3374,7 +3374,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def _check_jetzt(self):
         daten = self.__dict__.pop("_check_daten", None)
-        if daten is None:
+        if daten is None or getattr(self.f, "offen", {}).get(self.id) is not self:     # Angebot inzwischen zu
             return
         try:
             punkte = self.freigabe_punkte(*daten)

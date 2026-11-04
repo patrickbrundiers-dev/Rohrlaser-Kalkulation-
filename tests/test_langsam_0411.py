@@ -37,7 +37,7 @@ def ok(t):
     print("OK    ", t, flush=True)
 
 
-# ------------------------------------------------------------------ Referenz: auswerten bis 0.9.254 (unverändert)
+# ------------------------------------------------------------------ Referenz: auswerten bis 0.9.255 (unverändert)
 def ref_auswerten(zeilen, kundennr, positionen):
     _txt, einstufen = wt._txt, wt.einstufen
     kandidaten = [p for p in positionen if _txt(p.get("artikel")) or _txt(p.get("profil_id"))]
@@ -217,6 +217,15 @@ try:
     soll = s.freigabe_punkte()
     assert s._punkte == soll, (s._punkte, soll)
     ok("Angebots-Check: Maschinenvergleich und Kalkulationsbasis einmal nach 1 s Ruhe, Ergebnis wie sofort gerechnet")
+    AngebotSeite.CHECK_SOFORT = False
+    aufrufe.clear()
+    assert m.setData(m.index(0, c), "13", Qt.EditRole)
+    s._check_daten = s.__dict__.get("_check_daten") or ((), (), None)
+    f.offen.pop(neu_id)                 # wie nach dem Schließen: die Seite ist nicht mehr offen
+    s._check_jetzt()
+    f.offen[neu_id] = s
+    assert aufrufe == [], f"geschlossene Seite rechnete den Check noch: {aufrufe}"
+    ok("Angebots-Check: geschlossenes Angebot rechnet nach der Ruhe nichts mehr")
 finally:
     AngebotSeite._maschinen_punkt, AngebotSeite._kalk_punkte = alt_mp, alt_kp
     AngebotSeite.CHECK_SOFORT = None
@@ -254,11 +263,13 @@ def kalk_zaehlen(*a, **kw):
 
 
 rechnen.kalkulation = kalk_zaehlen
+AngebotSeite.CHECK_SOFORT = False       # wie mit Bildschirm: der Angebots-Check rechnet erst nach der Ruhe
 try:
     s.neu_laden()
 finally:
     rechnen.kalkulation = kalk
-assert z[0] <= 2, f"{z[0]} Kalkulationen je Neuladen (höchstens 2: Angebot und Grundwerte-Wirkung)"
+    AngebotSeite.CHECK_SOFORT = None
+assert z[0] <= 2, f"{z[0]} Kalkulationen je Neuladen (höchstens 2)"
 ok(f"Neuladen: {z[0]} Kalkulation(en) statt 3")
 db.schliessen()
 print("Alle Prüfungen bestanden.")

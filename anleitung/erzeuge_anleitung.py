@@ -3259,7 +3259,7 @@ def kapitel_optimieren(i):
            "der Stand <b>Veraltet</b> wird dabei weiter zuverlässig erkannt.")
     i.abschnitt("Schnell nach jeder Änderung", marke="tempo_0411")
     i.text("Nach jeder Änderung rechnet das Angebot Kalkulation, Übersicht und Angebots-Check neu. Was sich durch die "
-           "Änderung nicht ändern kann, rechnet es nicht noch einmal (seit 0.9.255):", kurz=True)
+           "Änderung nicht ändern kann, rechnet es nicht noch einmal (seit 0.9.256):", kurz=True)
     i.liste("<b>Wiederholteile</b> ([[wiederholteile]]) werden nur neu gesucht, wenn sich ein anderes Angebot ändert "
             "(auch durch den Abgleich mit Kollegen) oder an einer Position Artikelnummer, Profil, Werkstoff, Länge, "
             "Schneidweg, Konturen oder die übernehmbaren Werte. Eine neue Stückzahl, Pos.-Nr. oder Bezeichnung sucht "
