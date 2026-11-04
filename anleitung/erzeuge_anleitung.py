@@ -3247,6 +3247,22 @@ def kapitel_optimieren(i):
     i.text("Die Stammdaten liest das Programm nur neu, wenn sie sich geändert haben (auch durch den Abgleich mit "
            "Kollegen oder eine Wiederherstellung). Jede Änderung am Angebot wird deshalb spürbar schneller angezeigt; "
            "der Stand <b>Veraltet</b> wird dabei weiter zuverlässig erkannt.")
+    i.abschnitt("Schnell nach jeder Änderung", marke="tempo_0411")
+    i.text("Nach jeder Änderung rechnet das Angebot Kalkulation, Übersicht und Angebots-Check neu. Was sich durch die "
+           "Änderung nicht ändern kann, rechnet es nicht noch einmal (seit 0.9.255):", kurz=True)
+    i.liste("<b>Wiederholteile</b> ([[wiederholteile]]) werden nur neu gesucht, wenn sich ein anderes Angebot ändert "
+            "(auch durch den Abgleich mit Kollegen) oder an einer Position Artikelnummer, Profil, Werkstoff, Länge, "
+            "Schneidweg, Konturen oder die übernehmbaren Werte. Eine neue Stückzahl, Pos.-Nr. oder Bezeichnung sucht "
+            "nicht neu.",
+            "Der <b>Angebots-Check</b> in der Übersicht rechnet den Maschinenvergleich (jede Maschine einmal) und die "
+            "Kalkulationsbasis (leere Zeitfelder, Auslastung, Wettbewerb) erst, wenn etwa 1 Sekunde lang nichts mehr "
+            "geändert wurde; bis dahin stehen dort deren letzte Hinweise. Der Check vor dem Angebots-PDF, der "
+            "Check-Dialog und die Automatik rechnen immer sofort mit dem aktuellen Stand.",
+            "Der <b>Grundwerte-Check</b> (leere Zeitfelder der Maschine) nutzt die schon gerechnete Kalkulation.",
+            "Im <b>gemeinsamen Ordner</b> ([[ordner_pruefen]]) dauert die Suche nach Konfliktkopien auch bei "
+            "tausenden Nummern-Dateien nur Bruchteile einer Sekunde; vorher hielt sie jedes Schreiben nach einer "
+            "Änderung mehrere Sekunden auf.",
+            "Die Ergebnisse sind genau dieselben wie vorher; ein Test vergleicht sie mit dem bisherigen Verfahren.")
     i.abschnitt("Kalkulation", marke="kalkulation")
     i.bild("erg_kalkulation", "Reiter Kalkulation, kompakte Übersicht", hoehe=80 * mm, legende=[
         (1, "<b>Kompakte Übersicht</b> je Bauteil: Profil, Stückzahl, Länge, Material, Oberfläche, "

@@ -25,7 +25,7 @@ class VorschlaegeMixin:
         nur im Entwurf (verschickte Preise bleiben). Ergebnis: True = geändert."""
         if not rechnen._n(self.db.einstellung("neuteil_zuschlag")) or self.fremd() or self.db.nur_lesen:
             return False
-        if (self.db.angebot(self.id) or {}).get("vorgang") not in (None, "", "Entwurf"):
+        if self.db.vorgang(self.id) not in (None, "", "Entwurf"):
             return False
         neu = sorted(p["id"] for p in self.positionen if p.get("profil_id") and not any(
             t.angebot.get("vorgang") == "Beauftragt" for t in (treffer or {}).get(p["id"], ())))
@@ -44,7 +44,7 @@ class VorschlaegeMixin:
         if not isinstance(self.db.einstellung("programmierung_wiederholteil"), (int, float)) or self.fremd() \
                 or self.db.nur_lesen:
             return False
-        if (self.db.angebot(self.id) or {}).get("vorgang") not in (None, "", "Entwurf"):
+        if self.db.vorgang(self.id) not in (None, "", "Entwurf"):
             return False
         neu = sorted(p["id"] for p in self.positionen if p.get("profil_id") and p.get("id") and any(
             t.art == wiederholteile.SICHER and t.angebot.get("vorgang") == "Beauftragt"
@@ -140,7 +140,8 @@ class VorschlaegeMixin:
         if alt and alt[0] == schluessel:
             w = alt[1]
         else:
-            w = grundwerte.wirkung(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+            w = grundwerte.wirkung(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
+                                   summen=summen)
             self._gw_cache = (schluessel, w or {})
         return grundwerte.angebot_punkte(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
                                          stufen, wirkung_=w)
@@ -163,7 +164,7 @@ class VorschlaegeMixin:
         kap = aus["kapazitaet"].get((m, mo))
         punkt = None
         if kap:
-            eigen = 0.0 if (self.db.angebot(self.id) or {}).get("vorgang") == "Beauftragt" else \
+            eigen = 0.0 if self.db.vorgang(self.id) == "Beauftragt" else \
                 sum(rechnen._n(z.get("laser_netto")) * rechnen._n(z.get("stueck")) for z in self._rechnung()[0] if z) / 3600
             q = (aus["bedarf"].get((m, mo), 0.0) + eigen) / kap
             punkt = kalk_hinweise.auslastung_punkt(q, f"KW {mo.isocalendar()[1]}",
@@ -346,7 +347,7 @@ class VorschlaegeMixin:
         if self.fremd():
             self.f.meldung("Lieferscheine nur für eigene Aufträge.", fehler=True)
             return None
-        if (self.db.angebot(self.id) or {}).get("vorgang") != "Beauftragt":
+        if self.db.vorgang(self.id) != "Beauftragt":
             self.f.meldung("Lieferscheine gibt es für beauftragte Angebote (Vorgang Beauftragt).", fehler=True)
             return None
         st = lieferschein.stand(self.positionen, lieferschein.scheine(self.db, self.id))

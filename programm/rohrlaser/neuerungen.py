@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.255", "<b>Wieder schneller</b> ([[tempo_0411]]): Seit 0.9.235 rechnete jede Änderung im Angebot deutlich mehr "
+     "als nötig. Die Suche nach Wiederholteilen lief nach jeder Änderung neu, sogar bei einer Stückzahl, und doppelt; "
+     "jetzt nur noch, wenn sich andere Angebote oder Artikelnummer, Profil, Werkstoff, Länge oder Konturen ändern, "
+     "und sie vergleicht nur Teile mit passender Länge. Der Angebots-Check in der Übersicht rechnet Maschinenvergleich "
+     "und Kalkulationsbasis erst nach etwa 1 s Ruhe (der Check vor dem PDF immer sofort). Der Grundwerte-Check nutzt "
+     "die schon gerechnete Kalkulation, "
+     "der Vorgang wird ohne das ganze Angebot gelesen. Im gemeinsamen Ordner verglich die Suche nach Konfliktkopien "
+     "jede Datei mit jeder (bei 1.000 Nummern-Dateien rund 7 s, zweimal bei jedem Schreiben nach einer Änderung); "
+     "jetzt Bruchteile einer Sekunde. Gemessen: Stückzahl ändern bei 200 Angeboten 0,5 s statt 2,0 s, Angebot öffnen "
+     "0,9 s statt 1,4 s. Alle Ergebnisse bleiben gleich.",
+     "Wieder schneller: Ändern im Angebot, Öffnen, Schreiben in den gemeinsamen Ordner"],
     ["0.9.254", "<b>Art immer wählbar: Blech, Rohr/Profil oder Dreh-/Frästeil</b> ([[art_auswahl]]): kurze dicke "
      "Kantteile (z. B. Winkel 40 × 40 × 8 mit Biegeradius) wurden als Frästeil erkannt, die Biegeradien zählten sogar "
      "als Bohrungen. Jetzt entscheidet eine zentrale Regelliste die Art und nennt den Grund in der Hinweisspalte; ein "

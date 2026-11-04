@@ -11,6 +11,7 @@ Der Preis wird nie übernommen, er entsteht immer neu aus der Kalkulation. Angez
 gespeicherten Staffelpreisen des alten Angebots (bei der Menge, die der Stückzahl dort am nächsten kommt). Übernehmen
 lassen sich nur Eingaben, die man sonst von Hand wiederholt (UEBERNEHMBAR), jede einzeln an- oder abwählbar.
 """
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
 LAENGE_TOL = 0.5            # mm
@@ -90,6 +91,20 @@ def unterschiede(neu, alt):
     return {f: alt[f] for f, _ in UEBERNEHMBAR if alt.get(f) not in (None, "") and alt.get(f) != neu.get(f)}
 
 
+# Felder der NEUEN Position, von denen auswerten() abhängt (Stückzahl, Pos.-Nr. und Bezeichnung nicht)
+SUCH_FELDER = ("id", "artikel", "profil_id", "werkstoff_id", "laenge", "schneidweg", "klein_n", "mittel_n",
+               "gross_n") + tuple(f for f, _ in UEBERNEHMBAR)
+
+
+def kennung(db, angebot_id, kundennr, positionen):
+    """Schlüssel für den Zwischenspeicher der Suche eines Angebots: ändert sich nur, wenn sich andere Angebote (oder
+    die Datei von außen) oder die suchrelevanten Werte dieses Angebots ändern (Prüfung „Programm langsam“
+    04.11.2026: vorher rechnete jede Änderung, auch eine Stückzahl, die Suche neu)."""
+    st = db.angebote_stand(angebot_id) if hasattr(db, "angebote_stand") else stand(db)
+    return (st, kundennr, tuple(tuple(p.get(f) for f in SUCH_FELDER) for p in positionen
+                                if _txt(p.get("artikel")) or _txt(p.get("profil_id"))))
+
+
 def stand(db):
     """Änderungsstand der Datendatei für den Zwischenspeicher: steigt bei jedem Schreiben über diese Verbindung (auch
     beim Abgleich der Kollegen-Angebote) und bei Schreiben anderer Verbindungen. Ein Zeitstempel reicht nicht, weil
@@ -137,14 +152,33 @@ def auswerten(zeilen, kundennr, positionen):
     kandidaten = [p for p in positionen if _txt(p.get("artikel")) or _txt(p.get("profil_id"))]
     staffeln, nachkalk = {}, {}
     aus = {}
-    nach_artikel, nach_profil = {}, {}          # nur Zeilen vergleichen, die überhaupt passen können
+    nach_artikel, nach_profil, ohne_zahl = {}, {}, {}   # nur Zeilen vergleichen, die überhaupt passen können
     for i, z in enumerate(zeilen):
         nach_artikel.setdefault(_txt(z.get("artikel")).casefold(), []).append(i)
-        nach_profil.setdefault(_txt(z.get("profil_id")), []).append(i)
+        la = _zahl(z.get("laenge"))
+        if la is None:              # ohne Länge nie gleiche Geometrie
+            continue
+        if la == la:
+            nach_profil.setdefault(_txt(z.get("profil_id")), []).append((la, i))
+        else:                       # nan (alte Daten): Vergleich wie früher immer in einstufen
+            ohne_zahl.setdefault(_txt(z.get("profil_id")), []).append(i)
+    for liste in nach_profil.values():
+        liste.sort()
+    laengen = {k: [la for la, _ in v] for k, v in nach_profil.items()}
     for p in kandidaten:
         liste = []
         art_p, profil_p = _txt(p.get("artikel")).casefold(), _txt(p.get("profil_id"))
-        moegliche = set(nach_artikel.get(art_p, ()) if art_p else ()) | set(nach_profil.get(profil_p, ()) if profil_p else ())
+        moegliche = set(nach_artikel.get(art_p, ()) if art_p else ())
+        lp = _zahl(p.get("laenge"))
+        if profil_p and lp is not None:
+            moegliche.update(ohne_zahl.get(profil_p, ()))
+        if profil_p and lp is not None and lp != lp:        # nan (alte Daten): wie früher alle mit dem Profil
+            moegliche.update(i for _, i in nach_profil.get(profil_p, ()))
+        elif profil_p and lp is not None and profil_p in nach_profil:
+            # nur Zeilen mit Länge ± LAENGE_TOL (etwas weiter, entschieden wird genau in einstufen)
+            ls = laengen[profil_p]
+            von, bis = bisect_left(ls, lp - LAENGE_TOL - 1e-6), bisect_right(ls, lp + LAENGE_TOL + 1e-6)
+            moegliche.update(i for _, i in nach_profil[profil_p][von:bis])
         for z in (zeilen[i] for i in sorted(moegliche)):
             art = einstufen(p, z, kundennr, z["_kundennr"])
             if art is None:
