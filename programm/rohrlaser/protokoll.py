@@ -115,3 +115,41 @@ def meldung_dialog(text, details):
     m.exec()
     if knopf is not None and m.clickedButton() is knopf:
         SUPPORT()
+
+
+def fehler_seit(ordner, seit):
+    """Fehler im Protokoll (fehler.log und die rotierten Vorgänger) ab seit (datetime): [(Zeitpunkt, erste Zeile der
+    Details)], ältester zuerst. Startseite: „N Fehler seit gestern“ (Optimierungsplan E1). Unlesbare Dateien zählen
+    nicht."""
+    import datetime
+    import re
+    muster = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)[,.]\d+ (ERROR|CRITICAL) (.*)$")
+    out = []
+    ordner = Path(ordner)
+    for name in (f"{DATEI}.2", f"{DATEI}.1", DATEI):
+        try:
+            zeilen = (ordner / name).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, z in enumerate(zeilen):
+            m = muster.match(z)
+            if not m:
+                continue
+            try:
+                zeit = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+            if zeit < seit:
+                continue
+            text = m.group(3).strip()
+            details = []
+            for x in zeilen[i + 1:i + 200]:
+                if re.match(r"^\d{4}-\d\d-\d\d \d\d:", x):
+                    break           # nächster Eintrag
+                if x.strip():
+                    details.append(x.strip())
+            # letzte Zeile des Tracebacks sagt am meisten (z. B. „ZeroDivisionError: division by zero“)
+            if details and text == "Unerwarteter Fehler":
+                text = details[-1]
+            out.append((zeit, text[:200]))
+    return out
