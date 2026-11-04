@@ -289,7 +289,10 @@ class AutoGroesse(QObject):
         for r in range(n):
             if a.isRowHidden(r):
                 continue
-            h = standard if n > self.max_anzahl else max(standard, min(a.sizeHintForRow(r), hoechst))
-            h += (unter.hoehe(r) + unter.kopf_hoehe(r)) if unter is not None else 0
+            if unter is not None and unter.kopf_zu(r):          # zugeklappte Gruppe: nur das Kopfband
+                h = unter.kopf_hoehe(r)
+            else:
+                h = standard if n > self.max_anzahl else max(standard, min(a.sizeHintForRow(r), hoechst))
+                h += (unter.hoehe(r) + unter.kopf_hoehe(r)) if unter is not None else 0
             if h != a.rowHeight(r):
                 a.setRowHeight(r, h)

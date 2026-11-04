@@ -157,8 +157,9 @@ for n in ("pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "laenge"
 assert not any(sichtbar_(n) for n in OPTIONALE_SPALTEN) and not sichtbar_("abweichung")
 db.position_aendern(s.positionen[1]["id"], "satz", "MG 1")
 s.neu_laden()
-# Satz: der Name steht im Kopfband, die Spalte bleibt aus, bis man sie wählt (04.11.2026, F3a)
-assert not sichtbar_("satz") and not sichtbar_("je_satz")
+# Satz: der Name steht im Kopfband, die Spalte bleibt aus, bis man sie wählt (04.11.2026, F3a); Stück je Satz
+# erscheint, sobald das Angebot einen Satz hat (Einzelteile aufräumen, 04.11.2026)
+assert not sichtbar_("satz") and sichtbar_("je_satz")
 s.spalte_waehlen("satz", True)
 assert sichtbar_("satz")
 s.spalte_waehlen("gewinde", True)

@@ -37,7 +37,7 @@ def ok(t):
     print("OK    ", t, flush=True)
 
 
-# ------------------------------------------------------------------ Referenz: auswerten bis 0.9.255 (unverändert)
+# ------------------------------------------------------------------ Referenz: auswerten bis 0.9.256 (unverändert)
 def ref_auswerten(zeilen, kundennr, positionen):
     _txt, einstufen = wt._txt, wt.einstufen
     kandidaten = [p for p in positionen if _txt(p.get("artikel")) or _txt(p.get("profil_id"))]

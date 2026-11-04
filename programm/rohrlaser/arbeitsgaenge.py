@@ -164,6 +164,22 @@ def ablehnen(p, name, zurueck=False):
     return json.dumps(d, ensure_ascii=False) if liste or len(d) > 1 else None
 
 
+def geprueft(p):
+    """Namen der Zusatzarbeiten (und „Gewinde“), die in der Positionsliste mit ✓ bestätigt wurden (04.11.2026)."""
+    return [x for x in lesen(p).get("geprueft") or () if isinstance(x, str)]
+
+
+def bestaetigen(p, name, zurueck=False):
+    """Neuer Inhalt für positionen.arbeitsgaenge: Zusatzarbeit name mit ✓ bestätigt bzw. Bestätigung zurück (Patrick
+    04.11.2026: „Zusatzarbeiten bei allen Teilen bestätigen oder ablehnen“, auch Gewinde und Bohrungen)."""
+    d = lesen(p)
+    liste = [x for x in geprueft(p) if x != name] + ([] if zurueck else [name])
+    d["geprueft"] = liste
+    if not liste:
+        d.pop("geprueft")
+    return json.dumps(d, ensure_ascii=False) if d.get("abgelehnt") or len(d) > 1 else None
+
+
 def summen(zeilen):
     """{Kostenart: € je Teil} der gerechneten Zeilen (im Angebot, auch automatische) und der offenen Vorschläge
     getrennt."""
