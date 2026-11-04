@@ -5819,7 +5819,9 @@ def kapitel_baugruppen(i):
                                "<i>Faktor Abstand Edelstahl/Aluminium</i> (0,7: mehr Verzug)"],
         ["Verputzen", "Naht [m] × min je m der <b>Nacharbeit</b> × Faktor Zugänglichkeit; Nacharbeit aus Qualität "
                       "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
-                      "verzinkt = Spritzer entfernen)"],
+                      "verzinkt = Spritzer entfernen); <b>Außennähte</b> (Stumpf- und Ecknaht, liegen in der "
+                      "Fläche) immer mindestens <i>Naht verschleifen</i>, Kehlnähte in der Innenecke nicht "
+                      "(dort kommt die Schleifscheibe nicht hin)"],
         ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe (Stammdaten, leer = Summe "
                    "der Einzelteile); Wendevorgänge aus der Erreichbarkeit im STEP ([[baugruppe_erreichbar]])"],
         ["Zugänglichkeit je Naht", "aus der Erreichbarkeit im STEP: gut, eingeschränkt, schlecht (nicht erreichbar "
