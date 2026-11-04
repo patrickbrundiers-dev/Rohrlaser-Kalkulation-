@@ -1861,7 +1861,8 @@ class _AuswahlUnter(UnterzeilenMixin, Auswahl):
         """(Rechteck ✓, Rechteck ✗) in der Zelle bzw. None."""
         if not self._mit_vorschlag(index):
             return None
-        o = self._oben(option, index).rect
+        oben = self._oben(option, index)
+        o = QRect(oben.rect)              # Kopie: die Option ist nur eine Zwischenvariable
         if o.height() <= 0 or o.width() < 3 * self.KNOPF:
             return None
         h = min(o.height() - 2, self.KNOPF - 2)
