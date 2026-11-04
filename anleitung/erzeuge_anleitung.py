@@ -2781,7 +2781,7 @@ def kapitel_step(i):
             "als Rohr/Profil.")
     i.abschnitt("Richtpreis für Dreh- und Frästeile", marke="drehfraes_richtpreis")
     i.bild("drehfraes_richtpreis", "Richtpreis Dreh-/Frästeil: Stufenwelle Ø30 × 120 mm aus S235, 20 Stück",
-           hoehe=110 * mm, legende=[
+           hoehe=125 * mm, legende=[
                (1, "<b>Stückzahl</b> (Rüsten und Programmieren verteilen sich darauf), Werkstoff, Rohling "
                    "(Rundstahl oder ab Innen-Ø 30 mm Rohr), Material €/kg und <b>Zusätze</b> €/Stück."),
                (2, "<b>Skizze</b>: Rohling gestrichelt, Fertigteil blau (Drehteil im Längsschnitt, Frästeil in "
@@ -2793,7 +2793,9 @@ def kapitel_step(i):
                (5, "Summe: Material, Bearbeitung, Rüsten je Stück, Zusätze, Aufschlag des Lieferanten und der "
                    "<b>Richtpreis je Stück</b>."),
                (6, "<b>Richtwerte mit eigenem Wert</b> wie beim Blech (seit 0.9.254): leer = berechnet, eingetragen "
-                   "= gilt nur für dieses Teil (gelb, ↺ setzt zurück); hier Aufschlag 10 % statt 15 %.")])
+                   "= gilt nur für dieses Teil (gelb, ↺ setzt zurück); hier Aufschlag 10 % statt 15 %."),
+               (7, "<b>3D wie in der STEP</b> (seit 0.9.254): das Teil in echter Form und Lage wie im Prüfdialog, "
+                   "goldgelb = Dreh-/Frästeil; drehen, messen und Schnittkörper wie in allen 3D-Fenstern.")])
     i.text("Für Dreh- und Frästeile aus dem STEP-Import ([[drehfraesteile]]) schätzt das Programm den Preis eines "
            "Lohnfertigers aus der Geometrie: Rohmaterial, <b>Arbeitsgänge</b> mit Zeiten aus Schnittwerten, Rüsten "
            "und Programmieren. Er steht als EK im neuen Zukaufartikel mit dem Hinweis <i>Richtpreis (Schätzung), "

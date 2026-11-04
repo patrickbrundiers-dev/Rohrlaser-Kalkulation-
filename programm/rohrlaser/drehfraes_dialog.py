@@ -159,7 +159,9 @@ def pal_base(w):
 class DrehfraesDialog(QDialog):
     """e = Eingaben (drehfraes_preis.aus_step bzw. gespeichert in positionen.technik), einst = Einstellungen."""
 
-    def __init__(self, eltern, e, einst, titel="", nur_lesen=False):
+    def __init__(self, eltern, e, einst, titel="", nur_lesen=False, netz=None):
+        """netz: 3D-Netz der Position aus dem STEP-Import (Datenbank) – wird unverändert in echter Form und Lage
+        gezeigt wie im Prüfdialog (Patrick 04.11.2026: „Frästeile im Editor wie in der STEP anzeigen“)."""
         super().__init__(eltern)
         self.e = dict(e)
         self.e["zeiten"] = dict(e.get("zeiten") or {})
@@ -168,7 +170,7 @@ class DrehfraesDialog(QDialog):
         self._laedt = True
         d = self.e.get("daten") or {}
         self.setWindowTitle("Richtpreis Dreh-/Frästeil")
-        self.resize(1000, 760)
+        self.resize(1240 if netz else 1000, 900 if netz else 760)
         lay = QVBoxLayout(self)
         kopf = QLabel(f"<b>{titel or drehfraes.bezeichnung(d, self.e.get('werkstoff'))}</b><br>"
                       f"{drehfraes.text(dict(drehfraes=d, profilform=d.get('art')))}")
@@ -208,10 +210,25 @@ class DrehfraesDialog(QDialog):
         zh.addWidget(self.zusatz_text, 1)
         form.addRow("Zusätze (Gewinde, Oberfläche, Härten …)", zh)
         oben = QHBoxLayout()
-        oben.addLayout(form, 1)
         self.skizze = DrehfraesSkizze()
-        oben.addWidget(self.skizze, 1)
-        lay.addLayout(oben)
+        if netz:        # mit 3D: Eingaben und Skizze links übereinander, 3D rechts groß (Leiste ganz lesbar)
+            links = QVBoxLayout()
+            links.addLayout(form)
+            links.addWidget(self.skizze, 1)
+            oben.addLayout(links, 1)
+        else:
+            oben.addLayout(form, 1)
+            oben.addWidget(self.skizze, 1)
+        self.ansicht3d = None
+        if netz:
+            from .ansicht3d import Ansicht3DMitKnoepfen
+            self.ansicht3d = Ansicht3DMitKnoepfen()
+            self.ansicht3d.setMinimumSize(560, 340)
+            self.ansicht3d.setToolTip("Das Teil aus der STEP in echter Form und Lage wie im Prüfdialog "
+                                      "(goldgelb = Dreh-/Frästeil, Zukauf)")
+            self.ansicht3d.setzen(netz, "3D wie in der STEP")
+            oben.addWidget(self.ansicht3d, 1)
+        lay.addLayout(oben, 1 if netz else 0)
         self.befunde = QLabel()
         self.befunde.setWordWrap(True)
         self.befunde.setTextFormat(Qt.RichText)

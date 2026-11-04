@@ -831,13 +831,26 @@ def main(ziel):
                                 fasen=2, radien=0, konturen=0, stirn=4, stirn_flaeche=14.1, dreh_flaeche=86.0,
                                 querbohrungen=[], schluessel=0, schluessel_flaeche=0.0, frei_flaeche=0.0,
                                 flaeche=100.1, wand_min=None))
+    # 3D wie in der STEP (0.9.254): dieselbe Stufenwelle als STEP gemessen, Netz unverändert im Editor
+    sys.path.insert(0, str(WURZEL / "tests"))
+    sys.path.insert(0, str(WURZEL / "programm" / "step_messung"))
+    import step_messen as sm_
+    from formen_baukasten import plus as plus_, schreibe as schreibe_df, zyl as zyl_
+    from rohrlaser import step as step_df
+    df_tmp = tmp / "drehfraes_3d"
+    df_tmp.mkdir()
+    schreibe_df({"Stufenwelle": plus_(zyl_(15, 40), zyl_(10, 36, 40), zyl_(8.5, 2, 76), zyl_(10, 22, 78),
+                                      zyl_(8, 20, 100))}, df_tmp)
+    sm_.main(["--ausgabe", str(df_tmp / "m.txt"), "--netze", str(df_tmp / "netze"), str(df_tmp / "Stufenwelle.step")])
+    mw_df = step_df.lade_netze(step_df.lies_messwerte(df_tmp / "m.txt"), df_tmp / "netze")
+    netz_df = step_df.netz_der_art(dict(profilform="Drehteil", _netz=mw_df[0].get("_netz"))) if mw_df else None
     d = DrehfraesDialog(f, dict(drehfraes_preis.aus_step(welle, "S235JR", 20), eigene={"aufschlag": 10.0}),
-                        db.drehfraes_einstellungen(), titel="Drehteil Ø30 × 120 mm S235JR")
-    d.resize(1150, 980)
+                        db.drehfraes_einstellungen(), titel="Drehteil Ø30 × 120 mm S235JR", netz=netz_df)
+    d.resize(1240, 1060)
     d.show()
     QApplication.processEvents()
     foto.foto("drehfraes_richtpreis", d, [(d.stueck, 1), (d.skizze, 2), (d.befunde, 3), (d.tabelle, 4),
-                                          (d.summe, 5), (d.richtwerte, 6)])
+                                          (d.summe, 5), (d.richtwerte, 6), (d.ansicht3d, 7)])
     d.close()
     from rohrlaser import fraesen_nach
     from rohrlaser.fraesen_nach_dialog import FraesenNachDialog

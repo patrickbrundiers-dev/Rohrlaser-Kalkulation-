@@ -28,8 +28,9 @@ NEUERUNGEN = [
      "Prüfdialog bietet immer alle drei an (nicht messbare ausgegraut mit Grund), Preis und 3D rechnen sofort neu "
      "(Dreh-/Frästeile goldgelb). Die Wahl merkt sich das Programm für das gleiche Teil. Nach dem Übernehmen: "
      "Rechtsklick bzw. Knopf in den Editoren <i>Art ändern …</i>. Dazu: <b>Richtpreis Dreh-/Frästeil "
-     "überschreiben</b> wie beim Blech ([[drehfraes_richtpreis]]) mit eigenen Werten je Teil.",
-     "Art Blech / Rohr / Dreh-Frästeil immer wählbar, Kantteile nie Frästeil, Richtpreis Dreh-/Frästeil überschreibbar"],
+     "überschreiben</b> wie beim Blech ([[drehfraes_richtpreis]]) mit eigenen Werten je Teil, und der Editor zeigt "
+     "das Teil <b>in 3D wie in der STEP</b> (echte Form und Lage, goldgelb).",
+     "Art Blech / Rohr / Dreh-Frästeil immer wählbar, Kantteile nie Frästeil, Richtpreis Dreh-/Frästeil überschreibbar, Dreh-/Frästeil-Editor mit 3D wie STEP"],
     ["0.9.253", "<b>Sätze übersichtlicher</b> ([[saetze_abheben]]): jeder Satz und jede Schweißbaugruppe hat ein "
      "<b>Kopfband</b> mit Anzahl, Teilen, Fläche, Gewicht und Preis je Satz. Klick aufs Band markiert den ganzen Satz, "
      "Doppelklick öffnet <i>Satz bearbeiten</i>. Jeder Satz hat eine eigene, kräftigere Farbe (sechs Farben reihum statt "

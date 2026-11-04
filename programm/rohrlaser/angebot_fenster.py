@@ -4333,9 +4333,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.f.meldung("Diese Position ist kein Dreh-/Frästeil aus dem STEP-Import.", fehler=True)
             return False
         lief = ((liste[0].get("stand") or {}).get("bezug") or {}).get("lieferant")
+        netz = None
+        if p.get("id") and hasattr(self.db, "netz"):        # 3D wie in der STEP (echte Form und Lage, goldgelb)
+            netz = step.netz_der_art(dict(profilform=(e.get("daten") or {}).get("art") or step.DREHFRAES[0],
+                                          _netz=self.db.netz(p["id"])))
         d = DrehfraesDialog(self, dict(e, stueck=p.get("stueck") or e.get("stueck") or 1),
                             self.db.drehfraes_einstellungen(), titel=p.get("bezeichnung") or "",
-                            nur_lesen=self.fremd() or self.db.nur_lesen)
+                            nur_lesen=self.fremd() or self.db.nur_lesen, netz=netz)
         self._art_knopf_einbauen(d, [zeile])
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
