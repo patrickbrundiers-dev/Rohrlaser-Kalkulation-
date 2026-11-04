@@ -998,6 +998,8 @@ class StaffelSeite(QWidget):
     def _args(self):
         s = self.s
         tab = dict(s.tabellen, blech=s.blech_daten) if getattr(s, "blech_daten", None) else s.tabellen
+        if getattr(s, "drehfraes_einst", None) is not None:
+            tab = dict(tab, drehfraes=s.drehfraes_einst)
         return s.kopf, s.positionen, s.stufen, s.k, tab, s.einst
 
     def _daten(self):

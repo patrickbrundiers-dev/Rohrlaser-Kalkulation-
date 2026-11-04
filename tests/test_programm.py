@@ -36,7 +36,8 @@ assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"
 for name, zeilen in beispieldaten().items():
     gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)
                if not (name == "profile" and (z["form"] == "RP-Profil"      # RP-Bibliothek kommt dazu (rp_profile)
-                                              or z.get("bemerkung") == normprofile.STANDARD_BEMERKUNG))]  # U-Profile
+                                              or z.get("bemerkung") == normprofile.STANDARD_BEMERKUNG
+                                              or str(z.get("profil_id") or "").startswith(normprofile.KANT_REIHEN)))]  # U-/Kantprofile
     assert gelesen == zeilen, name
 assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_material") == 0 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19
@@ -184,7 +185,7 @@ from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
 assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
-                                                                 "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)",
+                                                                 "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)", "Dreh-/Fräs-Werkstoffe",
                                                                  "Prüfregeln (Fertigung)",
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren", "Schweiß-Vorkalkulation",

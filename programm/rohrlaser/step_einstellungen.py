@@ -32,6 +32,18 @@ def cache_ordner(db):
     return Path(db.pfad).parent / CACHE_ORDNER
 
 
+def flach_bis(db, kundennr=None):
+    """Grenze Flachstahl/Blech für die Messung (--flachstahl-bis): 0 = ebene flache Teile immer als Blech (Einstellung
+    flach_als, Vorgabe, oder Importprofil des Kunden), sonst Einstellung flachstahl_bis."""
+    from . import importprofil
+    from .stammdaten import FLACH_ALS
+    profil = importprofil.fuer_kunde(db, kundennr)
+    flach_als = (profil or {}).get("flach_als") or db.einstellung("flach_als") or FLACH_ALS[0]
+    if flach_als == FLACH_ALS[0]:
+        return 0
+    return db.einstellung("flachstahl_bis") or 150
+
+
 def mess_argumente(db):
     args = ["--prozesse", str(int(_zahl(db, "step_prozesse", 0))),
             "--zeitlimit", f"{_zahl(db, 'step_zeitlimit', 120):g}",

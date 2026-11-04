@@ -116,12 +116,16 @@ def _():
         b1, b2, b3 = erg["positionen"][1:]
         assert b1["_zukauf"] == {"neu": "neu1"} and b2["_zukauf"] == {"neu": "neu1"}, "gleiches Blech: ein Artikel"
         assert b3["_zukauf"] == {"neu": "neu2"} and len(erg["zukauf_neu"]) == 2
-        assert b1["werkstoff_id"] is None and b1["gewicht_teil"] is None, "Werkstoff der Rohre gilt nicht für Bleche"
-        assert b1["stueck"] == 2 and b1["laenge"] == 150 and b1["bezeichnung"] == "Blech 150 × 150 × 8 mm (Werkstoff offen)"
+        # Patrick 03.11.2026: Werkstoff der Bleche wie die Rohre der Datei (ohne Blech-Werkstoffe: der Rohr-Werkstoff)
+        assert b1["werkstoff_id"] == "S235-10219" and b1["gewicht_teil"] > 0, "Werkstoff der Rohre gilt für Bleche"
+        assert b1["stueck"] == 2 and b1["laenge"] == 150 and b1["bezeichnung"] == "Blech S235-10219 150 × 150 × 8 mm"
         werte, bezuege = erg["zukauf_neu"]["neu2"]
         assert werte["artikeltyp"] == "Blech" and werte["step_datei"] == "B02_Blech_400x200x4_Bohrungen.step", werte
         assert bezuege[0]["lieferant"] == "Technik" and bezuege[0]["preise"] == []
-        assert any("neuer Zukaufartikel Blech 400 × 200 × 4 mm (Werkstoff offen), EK fehlt" in z for z in erg["bericht"])
+        assert any("neuer Zukaufartikel Blech S235-10219 400 × 200 × 4 mm, EK fehlt" in z for z in erg["bericht"]), \
+            erg["bericht"]
+        assert any("Werkstoff wie Rohre: S235-10219" in z for z in erg["bericht"]), erg["bericht"]
+        assert any("Werkstoff wie Vorgabe Rohre: S235-10219" in z for z in erg["bericht"]), erg["bericht"]
         # Werkstoff im Prüfdialog gewählt: Bezeichnung und Gewicht (Volumen × Dichte)
         mw = [dict(m) for m in MW]
         mw[3]["_werkstoff"] = "S235-10219"
@@ -132,9 +136,10 @@ def _():
         assert b["werkstoff_id"] == "S235-10219" and abs(b["gewicht_teil"] - bl["volumen"] * dichte / 1e6) < 1e-3, b
         assert erg["zukauf_neu"]["neu2"][0]["bezeichnung"] == "Blech S235-10219 400 × 200 × 4 mm"
         # Dublette: vorhandener Artikel wird verwendet, kein neuer
-        i = db.zukauf_speichern(None, *zukauf.blech_artikel(bl, None, "alt.step"))
+        i = db.zukauf_speichern(None, *zukauf.blech_artikel(bl, "S235-10219", "alt.step"))
         mw = [dict(m) for m in MW]
-        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, None, 1, zukauf_liste=db.zukauf_artikel_liste(),
+        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1,
+                               zukauf_liste=db.zukauf_artikel_liste(),
                                anbau_weglassen=False)
         assert erg["positionen"][-1]["_zukauf"] == {"artikel_id": i} and len(erg["zukauf_neu"]) == 1, erg["zukauf_neu"]
         assert any("vorhandener Zukaufartikel" in z for z in erg["bericht"])
@@ -195,9 +200,11 @@ def _():
         assert p["art"] == "Zukaufteil" and p["stueck"] == 3, p
         e = zukauf.eintraege(p)
         a = db.zukauf_artikel(e[0]["artikel_id"])
-        assert a["artikeltyp"] == "Blech" and zukauf.ek_fehlt(a) and e[0]["menge"] == 1, a
+        # Werkstoff wie die Vorgabe der Rohre (Blech-Werkstoff S235JR): EK = Blech-Richtpreis (Patrick 03.11.2026)
+        assert a["artikeltyp"] == "Blech" and a["werkstoff"] == "S235JR" and not zukauf.ek_fehlt(a), a
+        assert e[0]["menge"] == 1
         w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
-        assert rechnen.status(p, w, s.kopf, s.k).startswith("WARNUNG: EK fehlt")
+        assert not rechnen.status(p, w, s.kopf, s.k).startswith("WARNUNG: EK fehlt")
         # zweiter Import derselben Datei: Position übersprungen, kein zweiter Artikel
         erg = s.step_importieren([str(BL / "B02_Blech_400x200x4_Bohrungen.step")], stueck=1)
         assert len([x for x in db.zukauf_artikel_liste() if x.get("artikeltyp") == "Blech"]) == 1
@@ -206,7 +213,7 @@ def _():
         db.con.close()
 
 
-@fall("Prüfdialog: Gruppe Bleche, Werkstoff offen statt Vorgabe, Zukaufartikel wählbar, gekantet erst nach Anhaken")
+@fall("Prüfdialog: Gruppe Bleche, Werkstoff wie die Rohre (gelb), Zukaufartikel wählbar, gekantet erst nach Anhaken")
 def _():
     from PySide6.QtWidgets import QApplication
     from rohrlaser import zukauf
@@ -216,7 +223,7 @@ def _():
     mw = [dict(m) for m in MW] + [dict(gek[0])]
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
-        i = db.zukauf_speichern(None, *zukauf.blech_artikel(step.blech(MW[3]), None, "alt.step"))
+        i = db.zukauf_speichern(None, *zukauf.blech_artikel(step.blech(MW[3]), "S235-10219", "alt.step"))
         d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
         assert d.anbau_weg.isChecked() and not next(z for z in d.zeilen if z.datei.startswith("B14") and z.blech
                                                     ).it.checkState(0) == Qt.Checked, "Kopfplatten: Vorgabe weglassen"
@@ -230,7 +237,9 @@ def _():
         assert gruppen[0] == d.BLECHGRUPPE + " – 1 Teil" and not any("Nicht übernehmbar" in g for g in gruppen), gruppen
         bl = [z for z in d.zeilen if z.blech]
         assert len(bl) == 3 and [len(z.liste) for z in bl] == [2, 1, 1], [len(z.liste) for z in bl]
-        assert all(z.ws.currentText() == "" for z in bl), "Werkstoff der Rohre nicht übernommen"
+        assert all(z.ws.currentText() == "S235-10219" for z in bl), "Werkstoff der Rohre übernommen"
+        assert all("background" in z.ws.styleSheet() for z in bl), "automatisch gesetzt: gelb"
+        assert "Werkstoff wie Rohre" in bl[0].it.text(d.SP_HINWEIS), bl[0].it.text(d.SP_HINWEIS)
         rohr = next(z for z in d.zeilen if not z.blech)
         assert rohr.ws.currentText() == "S235-10219"
         z02 = next(z for z in bl if z.datei.startswith("B02"))
@@ -240,6 +249,10 @@ def _():
         assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(d.SP_HINWEIS), z07.it.text(d.SP_HINWEIS)
         z02.pr.setCurrentIndex(1)
         z02.ws.setCurrentText("S235-10219")
+        assert all(z.it.checkState(0) != Qt.Checked for z in bl), "Zukauf ohne Schweißbaugruppe: von Hand anhaken"
+        for z in bl:
+            if not z.datei.startswith("B07"):
+                z.it.setCheckState(0, Qt.Checked)
         d.werte_schreiben()
         assert mw[3]["_blech_artikel"] == i and mw[3]["_werkstoff"] == "S235-10219" and mw[3]["_uebernehmen"]
         assert mw[1]["_blech_artikel"] is None and mw[4]["_uebernehmen"] is False
@@ -265,11 +278,12 @@ def _():
     assert step.art_text(fl) == "Flachstahl" and step.alternative(fl)["profilform"] == "Blech", fl.get("alternative")
     assert step.alternative(bl)["profil_id_vorschlag"] == "FL 160x8", bl.get("alternative")
     alt = step.alternative(kant)
-    assert step.art_text(kant) == "Kantteil (Blech gekantet)" and alt["profilform"] == "L-Profil" and alt["ersatz"] == "1"
-    assert alt["pruefstatus"] == "prüfen" and "konturen" in step.unsicher(alt), alt
+    # seit 03.11.2026 (Hüllrechteck nach den Kanten ausgerichtet): L 120x60x3 gemessen, Schenkel-Ausschnitte als Konturen
+    assert step.art_text(kant) == "Kantteil (Blech gekantet)" and alt["profilform"] == "L-Profil", alt
+    assert (float(alt["abm_a"]), float(alt["abm_b"]), float(alt["wandstaerke"])) == (120, 60, 3), alt
     assert step.alternative(rohr) is None
     k_js = js["dateien"][2]["koerper"][0]
-    assert k_js["alternative"]["profiltyp"] == "L-Profil" and k_js["alternative"]["ersatzwerte"] is True, k_js["alternative"]
+    assert k_js["alternative"]["profiltyp"] == "L-Profil", k_js["alternative"]
     assert js["dateien"][3]["koerper"][0]["alternative"] is None
     # Umstellen in den Messwerten: hin und zurück gibt dieselben Werte
     m = dict(bl)
@@ -288,16 +302,19 @@ def _():
         zfl.sp.setValue(4)
         art.setCurrentIndex(1)                                   # Flachstahl -> Blech
         z = next(z for z in d.zeilen if z.liste == [0])
-        assert z.blech and z.ws.currentText() == "" and z.sp.value() == 4, (z.blech, z.ws.currentText())
+        assert z.blech and z.ws.currentText() == "S235-10219" and z.sp.value() == 4, (z.blech, z.ws.currentText())
         assert z.it.parent().data(0, 0x0100) == d.BLECHGRUPPE
         d.datei_waehlen(1)
         d.art_wechseln(1)                                        # Blech -> Flachstahl
         z = next(z for z in d.zeilen if z.liste == [1])
         assert not z.blech and z.pr.currentText() == "FL 160x8" and z.ws.currentText() == "S235-10219", z.pr.currentText()
         d.datei_waehlen(2)
-        z = d.art_wechseln(2)                                    # Kantteil -> L-Profil (Ersatzwerte)
-        assert not z.blech and z.it.checkState(0).name == "Unchecked" and "UNSICHER" in z.it.text(d.SP_HINWEIS)
+        z = d.art_wechseln(2)                                    # Kantteil -> L-Profil (gemessen 120x60x3)
+        assert not z.blech, z.blech
         z.it.setCheckState(0, z.it.checkState(0).Checked)
+        zb = next(z for z in d.zeilen if z.liste == [0])         # Blech (Zukauf): ohne Schweißbaugruppe von Hand
+        assert zb.it.checkState(0).name == "Unchecked"
+        zb.it.setCheckState(0, zb.it.checkState(0).Checked)
         d.werte_schreiben()
         erg = step.uebernehmen(mw, [], db.kontext(), db.zeilen("gewinde"), None, None, 1, neue_profile=True,
                                zukauf_liste=db.zukauf_artikel_liste())
@@ -396,6 +413,120 @@ def _():
     assert [(k["d"], k["anzahl"], k["x"]) for k in blech.aus_step(alt, "S235JR")["konturen"]] == [(10, 4, None),
                                                                                               (20, 1, None)]
     app.processEvents()
+
+
+@fall("Patrick 03.11.2026: dicke schmale flache Teile sind Bleche (Flachstahl nur als Auswahl), Vierkant bleibt")
+def _():
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.TopAbs import TopAbs_SOLID
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
+    from OCP.gp import gp_Pnt
+    import step_geometrie as g
+
+    def koerper(x, y, z):
+        e = TopExp_Explorer(BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), x, y, z).Shape(), TopAbs_SOLID)
+        return TopoDS.Solid(e.Current())
+    for (x, y, z), form in (((100, 30, 8), "Blech"), ((300, 20, 10), "Blech"), ((50, 50, 15), "Blech"),
+                            ((300, 20, 20), "Vierkantstahl")):
+        t = g.analysiere(koerper(x, y, z), f"T{x}x{y}x{z}", flach_bis=0)
+        assert t.profilform == form, (x, y, z, t.profilform)
+        if form == "Blech":
+            assert t.alternative is not None and t.alternative.profilform == "Flachstahl", (x, y, z)
+            assert t.blech.get("laengsseiten_gerade") is True, t.blech
+    # mit „Flache Teile als: Flachstahl bis …“ bleibt FL 30 × 8 ein Flachstahl
+    assert g.analysiere(koerper(100, 30, 8), "T", flach_bis=150).profilform == "Flachstahl"
+
+
+@fall("Flachstahl als Auswahl nur, wenn die Größe passt (Breite ≤ Flachstahl bis, Länge ≥ 3 × Breite)")
+def _():
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser.step_dialog import StepPruefDialog
+    app = QApplication.instance() or QApplication([])
+    blech = lambda la, br, gerade=True: dict(profilform="Blech", blech=json.dumps(dict(
+        laenge=la, breite=br, dicke=8, laengsseiten_gerade=gerade)))
+    assert step.flachstahl_passt(blech(800, 100)) and step.flachstahl_passt(blech(450, 150))
+    assert not step.flachstahl_passt(blech(1000, 160)) and step.flachstahl_passt(blech(1000, 160), 200)
+    assert not step.flachstahl_passt(blech(250, 100)) and not step.flachstahl_passt(blech(800, 100, False))
+    assert not step.flachstahl_passt(dict(profilform="Blech", blech=json.dumps(dict(laenge=800, breite=100,
+                                                                                    kontur="frei"))))
+    assert step.flachstahl_passt(dict(profilform="Blech", blech=json.dumps(dict(laenge=800, breite=100,
+                                                                                kontur="rechteckig"))))
+    mw, _ = messen("B10_Blech_1000x160x8", "B02_Blech_400x200x4_Bohrungen", "B11_Blech_100x40x8")
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        for grenzen, erwartet in ((None, [False, False, False]), ((200, 3), [True, False, False]),
+                                  ((150, 2), [False, False, True])):
+            d = StepPruefDialog(None, [dict(m) for m in mw], db.kontext(), "S235-10219", 1, [],
+                                flach_grenzen=grenzen)
+            ist = []
+            for n in range(3):
+                d.datei_waehlen(n)
+                z = next(z for z in d.zeilen if z.liste == [n])
+                art = d.baum.itemWidget(z.it, d.SP_ART)
+                ist.append(any(art.itemData(i) == "alt" for i in range(art.count())))
+            assert ist == erwartet, (grenzen, ist)
+            d.close()
+        app.processEvents()
+        db.con.close()
+
+
+@fall("Werkstoff der Bleche wie die Rohre der Datei (passender Blech-Werkstoff), sonst S235; eigene Wahl bleibt")
+def _():
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        k = db.kontext()
+        bw = {z["blech_werkstoff_id"]: z for z in db.zeilen("blech_werkstoffe")}
+        passend = {r: step.blech_werkstoff_passend(r, k.werkstoffe, bw) for r in
+                   ("S235-10219", "S355-10219", "E235-10305", "1.4301", "1.4571", "1.4404", "AW6060-T66")}
+        assert passend == {"S235-10219": "S235JR", "S355-10219": "S355MC", "E235-10305": "S235JR",
+                           "1.4301": "1.4301 2B", "1.4571": "1.4571 2B", "1.4404": "1.4301 2B",
+                           "AW6060-T66": "AlMg3"}, passend
+        assert step.blech_werkstoff_passend("unbekannt", k.werkstoffe, bw) is None
+        assert step.blech_werkstoff_s235(bw) == "S235JR" and step.blech_werkstoff_s235({}, k.werkstoffe) == \
+            "S235-10210"
+        mw = [dict(m) for m in MW]          # B14: Rohr + 2 Bleche, B02: Blech allein
+        mw[0]["_werkstoff"] = "1.4301"
+        assert step.bleche_werkstoff_vorbelegen(mw, None, k.werkstoffe, bw) == 3
+        assert [m["_werkstoff"] for m in mw[1:]] == ["1.4301 2B", "1.4301 2B", "S235JR"], [m["_werkstoff"] for m in mw]
+        assert mw[1]["_ws_grund"] == "Werkstoff wie Rohre (1.4301)" and mw[3]["_ws_grund"].startswith(
+            "Werkstoff Vorgabe S235"), (mw[1]["_ws_grund"], mw[3]["_ws_grund"])
+        mw[1]["_werkstoff"] = "AlMg3"      # selbst gewählt: bleibt; automatischer Wert folgt den Rohren
+        mw[0]["_werkstoff"] = "S355-10219"
+        step.bleche_werkstoff_vorbelegen(mw, "S235-10219", k.werkstoffe, bw)
+        assert [m["_werkstoff"] for m in mw[1:]] == ["AlMg3", "S355MC", "S235JR"], [m["_werkstoff"] for m in mw]
+        assert mw[3]["_ws_grund"] == "Werkstoff wie Vorgabe Rohre (S235-10219)", mw[3]["_ws_grund"]
+        # Prüfdialog: Rohr-Werkstoff ändern zieht automatische Blech-Werkstoffe der Datei nach
+        from PySide6.QtWidgets import QApplication
+        from rohrlaser.step_dialog import StepPruefDialog
+        app = QApplication.instance() or QApplication([])
+        mw = [dict(m) for m in MW]
+        d = StepPruefDialog(None, mw, k, "S235-10219", 1, [], bw)
+        d.anbau_weg.setChecked(False)
+        bl = [z for z in d.zeilen if z.blech and z.datei.startswith("B14")]
+        rohr = next(z for z in d.zeilen if not z.blech)
+        assert bl and all(z.ws.currentText() == "S235JR" for z in bl), [z.ws.currentText() for z in bl]
+        rohr.ws.setCurrentText("1.4301")
+        assert all(z.ws.currentText() == "1.4301 2B" for z in bl), [z.ws.currentText() for z in bl]
+        assert "Werkstoff wie Rohre (1.4301)" in bl[0].it.text(d.SP_HINWEIS), bl[0].it.text(d.SP_HINWEIS)
+        bl[0].ws.setCurrentText("AlMg3")
+        assert bl[0].ws.styleSheet() == "", "selbst gewählt: nicht mehr gelb"
+        rohr.ws.setCurrentText("S235-10219")
+        assert bl[0].ws.currentText() == "AlMg3"
+        for z in d.zeilen:
+            if z.blech:
+                z.it.setCheckState(0, Qt.Checked)      # Zukauf von Hand angehakt (ohne Schweißbaugruppe)
+        d.werte_schreiben()
+        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, zukauf_liste=[],
+                               blech_daten=dict(werkstoffe=bw, laserdaten=db.zeilen("blechlaser"),
+                                                einst=db.blech_einstellungen()), anbau_weglassen=False)
+        ws = {p["artikel"]: erg["zukauf_neu"][p["_zukauf"]["neu"]][0]["werkstoff"] for p in erg["positionen"]
+              if p.get("art") == "Zukaufteil"}
+        assert ws == {"B14_Baugruppe_Rohr_2Bleche-K2": "AlMg3", "B14_Baugruppe_Rohr_2Bleche-K3": "AlMg3",
+                      "B02_Blech_400x200x4_Bohrungen": "S235JR"}, ws
+        d.close()
+        app.processEvents()
+        db.con.close()
 
 
 sys.exit(1 if fehler else 0)

@@ -187,7 +187,8 @@ blech_zeile = next(z for z in d.zeilen if z.blech)
 assert blech_zeile.it.checkState(0) == Qt.Unchecked and "Anbauteil von" in blech_zeile.it.text(d.SP_HINWEIS)
 d.anbau_weg.setChecked(False)                                  # aus: Blech wird wieder Zukaufteil
 blech_zeile = next(z for z in d.zeilen if z.blech)
-assert blech_zeile.it.checkState(0) == Qt.Checked and "Anbauteil von" not in blech_zeile.it.text(d.SP_HINWEIS)
+assert blech_zeile.it.checkState(0) == Qt.Unchecked and "Anbauteil von" not in blech_zeile.it.text(d.SP_HINWEIS)
+blech_zeile.it.setCheckState(0, Qt.Checked)                    # Zukauf ohne Schweißbaugruppe: von Hand anhaken
 d.werte_schreiben()
 erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, neue_profile=True, zukauf_liste=[])
 # Rohr, Bolzen (Rundstahl, seit 0.9.121 Zukaufteil wie das Blech) und Blech

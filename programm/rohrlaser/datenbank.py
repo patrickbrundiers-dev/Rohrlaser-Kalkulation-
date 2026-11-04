@@ -31,7 +31,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import aenderungsverlauf, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
+from . import aenderungsverlauf, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
 from . import teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
@@ -48,7 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 75     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 76     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -149,6 +149,8 @@ SCHEMA_VERSION = 75     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Programm), maschinen.last_anteil (mittlere Last für den Strom); leer = wie bisher
                         # 75: Zusatzarbeiten erkennen (03.11.2026): zusatzarbeiten.erkennung (Erkennungswörter; die
                         #     Beispiel-Zusatzarbeiten werden einmalig vorbelegt, ERKENNUNG_STAND), leer = keine Erkennung
+                        # 76: Automationen (03.11.2026): Tabelle automatik (Protokoll mit Rückgängig, nur dieser
+                        #     Arbeitsplatz), kundenvorgaben.antwort_frist (Anfrage-Ampel); leer = Einstellung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -172,6 +174,7 @@ MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Rich
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 NORMPROFILE_STAND = "2026-10-31"   # U-Profile DIN 1026-1 bis UPN 200 in den Profilen (Datenbank._normprofile_anpassen)
+KANTPROFILE_STAND = "2026-11-03"   # Kantprofile U/C/L DIN EN 10162 in den Profilen (Datenbank._normprofile_anpassen)
 RICHTWERTE_STAND = "2026-10-29"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen); bis 0.9.196 2026-10-21
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 ECKE_STAND = "2026-10-29"         # Zeit je Ecke nach Wandstärke in leeren Richtwertzeilen (Datenbank._ecke_anpassen, S2)
@@ -182,10 +185,12 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
+DREHFRAES_STAND = "2026-11-03b"    # Zukauf-Kategorien Drehteile/Frästeile, Dreh-/Fräs-Werkstoffe (_drehfraes_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
+ROHRLASER_ZUSATZ_STAND = "2026-11-03"  # weitere Zusatzarbeiten rund um den Rohrlaser (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -276,10 +281,12 @@ class Datenbank:
             self.einstellung_setzen("steck_stand", STECK_STAND)
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
+            self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
             self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
+            self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
         self._rp_anpassen()
         self._normprofile_anpassen()
         self._passwort_umstellen()
@@ -499,6 +506,8 @@ class Datenbank:
                 self._werkstoffe_rohrlaser()
             if version > 0 and self.einstellung("voll_stand") != VOLL_STAND:
                 self._voll_ergaenzen()
+            if version > 0 and self.einstellung("drehfraes_stand") != DREHFRAES_STAND:
+                self._drehfraes_ergaenzen()
             if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
@@ -507,6 +516,8 @@ class Datenbank:
                 self._fracht_nahbereich()
             if version > 0 and self.einstellung("erkennung_stand") != ERKENNUNG_STAND:
                 self._erkennung_ergaenzen()
+            if version > 0 and self.einstellung("rohrlaser_zusatz_stand") != ROHRLASER_ZUSATZ_STAND:
+                self._rohrlaser_zusatz_ergaenzen()
             if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
@@ -516,6 +527,7 @@ class Datenbank:
             fertigung.einrichten(self.con)
             etiketten.einrichten(self.con)
             reklamation.einrichten(self.con)
+            automatik.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
@@ -634,6 +646,16 @@ class Datenbank:
                          (vollmaterial.KATEGORIE,))
         self._einstellung_schreiben("voll_stand", VOLL_STAND)
 
+    def _drehfraes_ergaenzen(self):
+        """Einmalig: Zukauf-Kategorien 'Drehteile' und 'Frästeile' anlegen, wenn es sie (dem Namen nach) noch nicht
+        gibt (Dreh- und Frästeile aus dem STEP-Import, Patrick 03.11.2026)."""
+        from . import drehfraes
+        for name in drehfraes.KATEGORIE.values():
+            self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')", (name,))
+        if not self.anzahl("drehfraes_werkstoffe"):       # Tabelle Dreh-/Fräs-Werkstoffe mit Beispielen (Patrick 03.11.)
+            self._einfuegen("drehfraes_werkstoffe", beispieldaten()["drehfraes_werkstoffe"])
+        self._einstellung_schreiben("drehfraes_stand", DREHFRAES_STAND)
+
     def _stege_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Stege abtrennen' (€ je Teil) und Prüfregel 'Virtuelles Bauteil prüfen' anlegen,
         wenn es sie (dem Namen nach) noch nicht gibt."""
@@ -661,6 +683,13 @@ class Datenbank:
             self.con.execute("UPDATE zusatzarbeiten SET erkennung=? WHERE name=? AND (erkennung IS NULL OR "
                              "erkennung='')", (worte, name))
         self._einstellung_schreiben("erkennung_stand", ERKENNUNG_STAND)
+
+    def _rohrlaser_zusatz_ergaenzen(self):
+        """Einmalig: die weiteren Zusatzarbeiten rund um den Rohrlaser (stammdaten.ROHRLASER_ZUSATZ) anlegen, wenn es
+        sie (dem Namen nach) noch nicht gibt; eigene gleichen Namens bleiben. Rechnet nichts anders."""
+        from .stammdaten import rohrlaser_zusatzarbeiten
+        self._einfuegen("zusatzarbeiten", rohrlaser_zusatzarbeiten(), ergaenzen=True)
+        self._einstellung_schreiben("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
 
     def _fracht_richtwerte_da(self):
         """Sind die Fracht-Richtwerte geladen (Tarif RW-PALETTE vorhanden)?"""
@@ -933,20 +962,29 @@ class Datenbank:
         Zeilen (auch in anderer Schreibweise wie 'UNP 100') bleiben unverändert, gelöschte kommen erst mit einem neuen
         Stand wieder; die Stammdaten gelten dadurch nicht als von Hand geändert."""
         from . import normprofile
-        if self.nur_lesen or self.einstellung("normprofile_stand") == NORMPROFILE_STAND:
+        if self.nur_lesen:
+            return
+        # je Reihe ein eigener Stand: U-Profile (31.10.) und Kantprofile U/C/L (Patrick 03.11.2026)
+        reihen = [(k, stand, namen, formen_neu) for k, stand, namen, formen_neu in (
+            ("normprofile_stand", NORMPROFILE_STAND, normprofile.STANDARD_STAMMDATEN, ["U-Profil"]),
+            ("kantprofile_stand", KANTPROFILE_STAND, normprofile.KANT_STAMMDATEN, ["U-Profil", "C-Profil", "L-Profil"]))
+            if self.einstellung(k) != stand]
+        if not reihen:
             return
         with self.con:
-            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
-            if formen and "U-Profil" not in formen:
-                self._einstellung_schreiben("profilformen", "\n".join(formen + ["U-Profil"]))
-            da = {normprofile.normname(r[0]) for r in self.con.execute("SELECT profil_id FROM profile")}
-            for name in normprofile.STANDARD_STAMMDATEN:
-                if name in da:
-                    continue
-                z = normprofile.stammdaten_zeile(name)
-                self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
-                                 list(z.values()))
-            self._einstellung_schreiben("normprofile_stand", NORMPROFILE_STAND)
+            for k, stand, namen, formen_neu in reihen:
+                formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+                fehlt = [f for f in formen_neu if f not in formen]
+                if formen and fehlt:
+                    self._einstellung_schreiben("profilformen", "\n".join(formen + fehlt))
+                da = {normprofile.normname(r[0]) for r in self.con.execute("SELECT profil_id FROM profile")}
+                for name in namen:
+                    if name in da:
+                        continue
+                    z = normprofile.stammdaten_zeile(name)
+                    self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                     list(z.values()))
+                self._einstellung_schreiben(k, stand)
 
     @schreibt
     def rp_laden(self, eintraege):
@@ -1595,6 +1633,16 @@ class Datenbank:
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
         return tab
+
+    @liest
+    def drehfraes_einstellungen(self):
+        """Einstellungen des Dreh-/Frästeil-Richtpreises ('df_…', drehfraes_preis.EINSTELLUNGEN) und die Tabelle
+        Dreh-/Fräs-Werkstoffe als 'werkstoffe' {ID: Zeile}."""
+        from . import drehfraes_preis
+        w = {n: self.einstellung(n) for n in drehfraes_preis.EINSTELLUNGEN}
+        w["werkstoffe"] = {z["drehfraes_werkstoff_id"]: z for z in self.zeilen("drehfraes_werkstoffe")
+                           if z.get("drehfraes_werkstoff_id")}
+        return w
 
     @liest
     def blech_daten(self):

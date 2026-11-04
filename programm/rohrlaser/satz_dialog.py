@@ -1,13 +1,15 @@
 """Fenster „Satz bearbeiten“ (Patrick 31.10.2026): Anzahl Sätze mit − / + und Stück je Satz je Position; die
 Stückzahlen rechnen sich live mit (Sätze × Stück je Satz). Aufruf per Doppelklick auf die Spalte Satz oder Rechtsklick
 „Satz bearbeiten …“; die Rechnung steht in satz_menge.py. Nach OK: self.saetze und self.je {Positions-ID: Stück je
-Satz}; AngebotSeite.satz_bearbeiten schreibt sie als einen Schritt für Rückgängig."""
+Satz}; AngebotSeite.satz_bearbeiten schreibt sie als einen Schritt für Rückgängig.
+Seit 03.11.2026 je Art der Zukaufteile im Satz (Bleche, Vollmaterial, Dreh-/Frästeile) ein Feld „… je Satz (€)“:
+Einkaufspreis je Satz, nach Gewicht auf die Teile umgelegt (satz_kosten.py); nach OK in self.kosten {Art: € oder 0}."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QLabel,
                                QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import satz_menge, tastatur
-from .eingabe import RechenSpinGanz
+from . import satz_kosten, satz_menge, tastatur
+from .eingabe import RechenSpin, RechenSpinGanz
 from .mengen_dialog import STUECK_MAX
 
 SPALTEN = ("Pos.", "Artikel", "Bezeichnung", "Stück je Satz", "Stückzahl", "bisher")
@@ -27,7 +29,7 @@ class SatzDialog(QDialog):
         self.setWindowTitle(f"Satz bearbeiten: {satz}" + (" (nur ansehen)" if nur_lesen else ""))
         self.resize(760, 420)
         self.teile = [positionen[i] for i in satz_menge.satz_positionen(positionen, satz)]
-        self.saetze, self.je = None, {}
+        self.saetze, self.je, self.kosten = None, {}, {}
         alt = satz_menge.anzahl(positionen, satz)
         self.alt = int(round(alt)) if alt else 1
 
@@ -85,6 +87,29 @@ class SatzDialog(QDialog):
         lay.addWidget(self.tab, 1)
         self.summe = QLabel()
         lay.addWidget(self.summe)
+        # Zukaufkosten je Satz (Patrick 03.11.2026), nur für die Arten, die im Satz vorkommen
+        self.kosten_felder = {}
+        vorhanden = satz_kosten.betraege(positionen, satz)
+        arten = satz_kosten.arten(positionen, satz)
+        if arten:
+            zk = QHBoxLayout()
+            zk.addWidget(QLabel("Einkauf je Satz:"))
+            for a in arten:
+                sp = RechenSpin()
+                sp.setRange(0, 9_999_999)
+                sp.setDecimals(2)
+                sp.setSuffix(" €")
+                sp.setSpecialValueText("aus den Artikeln")
+                sp.setValue(vorhanden.get(a, 0.0))
+                sp.setEnabled(not nur_lesen)
+                sp.setToolTip(f"Kompletter Einkaufspreis der {a} je Satz. Wird nach Gewicht (ohne Gewicht nach Stück) "
+                              f"auf die {a} des Satzes umgelegt und ersetzt deren Einkaufspreis aus dem Artikel; "
+                              "danach nur der Aufschlag wie jedes Zukaufteil. 0 = wieder der EK aus dem Artikel.")
+                zk.addWidget(QLabel(f"{a}"))
+                zk.addWidget(sp)
+                self.kosten_felder[a] = sp
+            zk.addStretch(1)
+            lay.addLayout(zk)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
@@ -115,4 +140,5 @@ class SatzDialog(QDialog):
             return
         self.saetze = self.anzahl.value()
         self.je = {p["id"]: sp.value() for p, sp in zip(self.teile, self.spins)}
+        self.kosten = {a: sp.value() for a, sp in self.kosten_felder.items()}
         self.accept()

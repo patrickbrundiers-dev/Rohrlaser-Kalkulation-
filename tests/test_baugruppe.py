@@ -52,6 +52,7 @@ def ok(text):
 
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "bg.db")
+db.einstellung_setzen("schweiss_vk_step", "nein")     # Handrechnung ohne Vorkalkulation (Vorgabe seit 03.11.2026 ja)
 db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
 db.einstellung_setzen("aufschlag_zukauf", None)
 

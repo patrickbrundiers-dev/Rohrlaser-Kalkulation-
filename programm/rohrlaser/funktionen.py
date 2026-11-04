@@ -17,7 +17,9 @@ FUNKTIONEN = (
              "Neue Position „Blech / Kantteil“, Blech-Richtpreis, Blech-Werkstoffe, Blechlaser und K-Faktoren",
              seiten=("e_blech", "blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
     Funktion("funktion_zukauf", "Zukaufteile",
-             "Reiter Zukaufartikel, Knopf „Zukaufteile …“ und neue Position „Zukaufteil“", reiter="zukauf"),
+             "Reiter Zukaufartikel, Knopf „Zukaufteile …“, neue Position „Zukaufteil“ und der Richtpreis für Dreh- und "
+             "Frästeile mit seinen Einstellungen", reiter="zukauf",
+             seiten=("e_drehfraes", "e_drehfraes_grenzen", "drehfraes_werkstoffe")),
     Funktion("funktion_fracht", "Frachtkosten",
              "Reiter Frachtkosten und Knopf „Fracht berechnen …“ (der Frachtbetrag von Hand bleibt)",
              reiter="fracht"),

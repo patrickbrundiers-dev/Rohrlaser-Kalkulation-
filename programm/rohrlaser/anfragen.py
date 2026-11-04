@@ -244,14 +244,15 @@ def sperre_lesen(ordner, jetzt=None):
     return text.split("|")[0].strip() or "?"
 
 
-def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None):
+def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None, ohne_dateien=None):
     """Anfragen im Ordner, älteste zuerst. kunden = Zeilen der Kundentabelle (für den Kunden aus dem Ordnernamen).
     Anfragen ohne STEP-Datei und Dateien, die gerade noch geschrieben werden, fehlen; ohne_step (Liste) bekommt die
     Namen der Ordner bzw. Dateien, die nur Zeichnungen/Formulare haben (Hinweis, Patrick 28.10.2026: aus Zeichnungen
     nichts automatisch anlegen). Mails zur selben Anfrage (gleiche_anfrage) kommen zusammen, auch ein Nachtrag ohne
     STEP (lose Dateien auch zu einem nicht gesperrten Unterordner). angebote = {Anfrage-Nr.: (Angebotsnummer,
     Kundennummer)}: ein Nachtrag des Kunden zu einer schon übernommenen Anfrage steht in ohne_step als
-    'Mail (Nachtrag zu Angebot …)'."""
+    'Mail (Nachtrag zu Angebot …)'. ohne_dateien (Liste) bekommt die Mails und PDFs dieser Anfragen ohne STEP
+    (Automationen 03.11.2026: Nachtrag einsortieren, Bestellung, Wiederholanfrage)."""
     from .step_neu import kunde_aus_ordner
     jetzt = jetzt or datetime.datetime.now()
     wurzel = Path(ordner) if ordner else None
@@ -305,6 +306,8 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
         if not _hat_step(g):
             if ohne_step is not None:
                 ohne_step += [o.name] if o else _ohne_step_namen(g, angebote, kunden)
+            if ohne_dateien is not None:
+                ohne_dateien += [d for d in g if d.suffix.lower() in MAIL | {".pdf"} and not d.name.startswith(".")]
             continue
         if o:
             name = o.name
@@ -354,6 +357,15 @@ def _ohne_step_namen(dateien, angebote=None, kunden=()):
                                             None)
             out.append(f"{d.name} (Nachtrag zu Angebot {nr[0]})" if nr else d.name)
     return out
+
+
+def nachtrag_zu(d, angebote=None, kunden=()):
+    """Angebotsnummer, wenn die Mail d ein Nachtrag zu einem vorhandenen Angebot ist (Anfrage-Nr. des Angebots, vom
+    Kunden des Angebots), sonst None."""
+    k = mail_kopf(d)
+    nr = k and k["nummer"] and next((v for n, v in (angebote or {}).items()
+                                     if str(n).lower() == k["nummer"].lower() and _vom_kunden(k, v[1], kunden)), None)
+    return nr[0] if nr else None
 
 
 def _vom_kunden(kopf, kundennr, kunden):
@@ -563,6 +575,46 @@ def werte(db, gelesen, mails, ordner_kunde=None):
         return ordner_kunde, None, weitere
 
 
+KONTAKT = {"ansprechpartner": "Ansprechpartner", "telefon": "Telefon", "email": "E-Mail", "strasse": "Straße",
+           "plz_ort": "PLZ Ort"}
+
+
+def kontakt_ergaenzen(kunde, daten):
+    """Kontaktdaten aus der Signatur gegen den Kundenstamm (12a): dict(neu={Feld: Wert} für leere Felder,
+    anders={Feld: (alt, neu)}). E-Mail: neue Adresse kommt dazu, wenn der Kunde noch keine hat."""
+    out = dict(neu={}, anders={})
+    if not kunde or not daten:
+        return out
+    for f in KONTAKT:
+        neu, alt = str(daten.get(f) or "").strip(), str(kunde.get(f) or "").strip()
+        if not neu:
+            continue
+        if not alt:
+            out["neu"][f] = neu
+        elif f == "email":
+            continue                # weitere Adressen der Firma: nicht melden (Domain passt ohnehin)
+        elif re.sub(r"\W", "", neu).casefold() != re.sub(r"\W", "", alt).casefold() and f != "ansprechpartner":
+            out["anders"][f] = (alt, neu)
+    return out
+
+
+def kontakt_uebernehmen(db, kontakt):
+    """Ergänzte Kundendaten speichern, im Automatik-Protokoll mit Rückgängig. Ergebnis: Anzahl Felder."""
+    from . import automatik
+    if not kontakt or db.nur_lesen:
+        return 0
+    z = next((k for k in db.zeilen("kunden") if str(k.get("kundennr")) == str(kontakt["kundennr"])), None)
+    if z is None:
+        return 0
+    alt = {f: z.get(f) for f in kontakt["felder"]}
+    for f, w in kontakt["felder"].items():
+        db.aendern("kunden", z["id"], f, w)
+    automatik.merken(db, "kontakt", f"Kunde {kontakt['kundennr']} ({z.get('name') or ''}): "
+                     + ", ".join(f"{KONTAKT.get(f, f)} {w}" for f, w in kontakt["felder"].items()),
+                     rueck=dict(art="kunde", kundennr=kontakt["kundennr"], alt=alt))
+    return len(kontakt["felder"])
+
+
 def _werte(db, gelesen, mails, ordner_kunde=None):
     from . import formular, mail
     formular_text = "\n".join(g["text"] for g in gelesen if g.get("text"))
@@ -615,7 +667,17 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         if daten and not _eigene_firma(daten, eigen_name, domains):
             weitere["neuer_kunde"] = daten
             hinweis.append(f"Neuer Kunde „{daten['name']}“ angelegt (Bemerkung „Kunde prüfen“)")
-    elif mails and not kunde_mail:
+    elif kunde_mail:        # Signatur des bekannten Kunden (Automationen 03.11.2026, 12a): leere Felder ergänzen
+        absender = next((m for m in vom_kunden if mail.adressen(m, domains)), None)
+        k = kontakt_ergaenzen(next((z for z in kunden if str(z.get("kundennr")) == str(kunde_mail)), None),
+                              mail.kunde_daten(absender, "", domains) if absender else None)
+        if k["neu"]:
+            weitere["kontakt"] = dict(kundennr=kunde_mail, felder=k["neu"])
+            hinweis.append("Kundendaten aus der Signatur ergänzt: " + ", ".join(
+                f"{KONTAKT[f]} {w}" for f, w in k["neu"].items()))
+        for f, (alt, neu) in k["anders"].items():
+            hinweis.append(f"Signatur nennt {KONTAKT[f]} {neu} (im Kundenstamm {alt}) – bei Bedarf beim Kunden ändern")
+    if mails and not kunde_mail and kunde:
         fremd = next((a for m in vom_kunden for a in mail.adressen(m, domains)), None)
         if fremd:
             hinweis.append(f"Absender {fremd} steht bei keinem Kunden – beim Kunden unter E-Mail eintragen, dann "
@@ -756,3 +818,28 @@ def kunde_text(kunden, nr):
         if str(k.get("kundennr")) == str(nr):
             return str(k.get("name") or nr)
     return str(nr or "")
+
+
+def zuweisung_vorschlag(liste, kunden, kollegen, ich=""):
+    """Anfragen automatisch zuweisen (Paket D, E7): [(Anfrage, Kürzel)] für offene, nicht gesperrte, noch nicht
+    zugewiesene Anfragen: zuständiger Bearbeiter aus dem Kundenstamm (Feld zustaendig), sonst wer die wenigsten offenen
+    Anfragen hat (Kollegen und ich; bei Gleichstand alphabetisch)."""
+    alle = sorted({k for k in list(kollegen) + [ich] if k})
+    if not alle:
+        return []
+    zustaendig = {str(k.get("kundennr")): str(k.get("zustaendig") or "").strip().upper() for k in kunden or ()}
+    offen = {k: 0 for k in alle}
+    for a in liste:
+        an = (a.zugewiesen or {}).get("an")
+        if an in offen and not a.gesperrt:
+            offen[an] += 1
+    out = []
+    for a in liste:
+        if a.gesperrt or (a.zugewiesen or {}).get("an"):
+            continue
+        an = zustaendig.get(str(a.kunde)) if a.kunde else None
+        if an not in offen:
+            an = min(alle, key=lambda k: (offen[k], k))
+        offen[an] += 1
+        out.append((a, an))
+    return out

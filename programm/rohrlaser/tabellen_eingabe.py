@@ -59,7 +59,14 @@ def profil_treffer(text, namen, hoechstens=TREFFER_HOECHSTENS):
             anfang.append(n)
         elif t in k or (not z and vorne):
             sonst.append(n)
-    return (gleich + anfang + sonst)[:hoechstens]
+    # Standard-Kantprofile (Kant-L 40x40x3, U-Stahl …, seit 03.11.2026 in den Stammdaten) erst nach den übrigen
+    # Profilen: „40x3“ bleibt „QR 40x40x3“
+    hinten = sorted(gleich, key=_kant) + sorted(anfang, key=_kant) + sorted(sonst, key=_kant)
+    return hinten[:hoechstens]
+
+
+def _kant(name):
+    return 1 if str(name).startswith(normprofile.KANT_REIHEN) else 0
 
 
 def profil_aufloesen(text, namen):

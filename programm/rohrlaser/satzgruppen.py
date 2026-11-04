@@ -3,9 +3,11 @@ zusammen, haben je Satz eine eigene Tönung (abwechselnd Blau und Violett), am Z
 lassen sich wie eine Schweißbaugruppe zuklappen. Schweißbaugruppen und ihre Teile haben ihre eigene Gruppierung
 (baugruppe.gruppen_reihenfolge) und bleiben hier außen vor. Nur die Anzeige; Rechnung und PDF bleiben unverändert."""
 
-# Farben im Theme „Hell“ (Dunkel über stil.UMSETZUNG): Fläche der Zeilen und Schrift des Satznamens je Tönung
-FLAECHEN = ("#E4EEFA", "#EEE6F7")
-TEXTE = ("#285F9E", "#6E3FA3")
+# Farben im Theme „Hell“ (Dunkel über stil.UMSETZUNG): Fläche der Zeilen und Schrift des Satznamens je Tönung;
+# Tönung 0/1 = Sätze (Blau/Violett abwechselnd), BG = Schweißbaugruppen (Grün, Patrick 03.11.2026)
+FLAECHEN = ("#E4EEFA", "#EEE6F7", "#E2F2E4")
+TEXTE = ("#285F9E", "#6E3FA3", "#2E6B30")
+BG = 2
 ANTEIL = 0.85           # so viel Tönung über der Zellfarbe (Eingabe- und berechnete Zellen bleiben unterscheidbar)
 
 
@@ -88,6 +90,43 @@ def zelltext(s, zu=False):
     return t
 
 
+def bg_info(positionen, zu=()):
+    """{Index: dict(name, ton=BG, erste, letzte, teile, saetze, bg=True, zu)} für jede Schweißbaugruppe (erste Zeile)
+    und ihre Einzelteile; saetze = Anzahl Baugruppen, teile = Anzahl Einzelteile; zu = Baugruppen-IDs zugeklappt."""
+    from . import baugruppe
+    out = {}
+    for bg_id, (i, _) in baugruppe.baugruppen(positionen).items():
+        ix = [i] + baugruppe.teile(positionen, bg_id)
+        n = baugruppe.name(positionen[i])
+        menge = positionen[i].get("stueck")
+        for k, j in enumerate(ix):
+            out[j] = dict(name=n, ton=BG, erste=k == 0, letzte=k == len(ix) - 1, teile=len(ix) - 1,
+                          saetze=round(menge) if isinstance(menge, (int, float)) and menge else None, bg=True,
+                          zu=bg_id in zu)
+    return out
+
+
+def bg_zelltext(s, zu=False):
+    """Spalte Satz einer Schweißbaugruppe: an der Baugruppe ⚙ Name und Anzahl, sonst der Name."""
+    if not s["erste"]:
+        return s["name"]
+    t = "⚙ " + s["name"]
+    if s["saetze"]:
+        t += f" · {s['saetze']} Stk."
+    if zu and s["teile"]:
+        t += f" · {s['teile']} Einzelteile"
+    return t
+
+
+def kurz(text, laenge=34):
+    """Statustext für die Liste kürzen (ganzer Text im Tooltip): an einer Wortgrenze mit …"""
+    text = str(text or "")
+    if len(text) <= laenge:
+        return text
+    t = text[:laenge - 1].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return t + " …"
+
+
 def mischen(unten, oben, anteil=ANTEIL):
     """Farbe oben mit Anteil über unten (QColor)."""
     from PySide6.QtGui import QColor
@@ -97,15 +136,30 @@ def mischen(unten, oben, anteil=ANTEIL):
 
 
 def zeilen_markieren(positionen, zeilen):
-    """Kalkulationszeilen (gleiche Reihenfolge wie positionen) mit Satz und Tönung ergänzen: Schlüssel 'satz' und
-    'satz_ton' (0/1, None ohne Satz). Zeilen ohne Kalkulation (None) bleiben None."""
+    """Kalkulationszeilen (gleiche Reihenfolge wie positionen) mit Satz und Tönung ergänzen: Schlüssel 'satz',
+    'satz_ton' (0/1 Satz, BG Schweißbaugruppe, None sonst) und 'zeile' (Index der Position). Die Zeile einer
+    Schweißbaugruppe zeigt „⚙ Name“, ihre Einzelteile den Namen der Baugruppe (Patrick 03.11.2026). Zeilen ohne
+    Kalkulation (None) bleiben None."""
     gruppen = saetze(positionen, ausgenommen(positionen))
     ton = {n: nr % 2 for nr, n in enumerate(gruppen)}
+    in_satz = {i for ix in gruppen.values() for i in ix}
+    bgi = bg_info(positionen)
     out = []
-    for p, z in zip(positionen, zeilen):
+    for i, (p, z) in enumerate(zip(positionen, zeilen)):
         if z is not None:
-            i = len(out)
-            n = name(p) if any(i in ix for ix in gruppen.values()) else ""
-            z = dict(z, satz=n, satz_ton=ton.get(n))
+            if i in bgi:
+                b = bgi[i]
+                z = dict(z, satz=("⚙ " if b["erste"] else "") + b["name"], satz_ton=BG, zeile=i)
+                if b["erste"] and not z.get("artikel"):
+                    z["artikel"] = p.get("artikel") or b["name"]
+            else:
+                n = name(p) if i in in_satz else ""
+                z = dict(z, satz=n, satz_ton=ton.get(n), zeile=i)
         out.append(z)
     return out
+
+
+def anzeige_folge(positionen):
+    """Indizes in der Reihenfolge der Positionsliste (Baugruppe mit Einzelteilen, Sätze zusammen)."""
+    from . import reihenfolge
+    return reihenfolge.anzeige(positionen)
