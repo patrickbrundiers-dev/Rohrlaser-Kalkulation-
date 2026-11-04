@@ -101,6 +101,8 @@ for p in positionen(200):
     db.position_neu(a, p)
 for schl, menge in (("10", 24), ("10", 50), ("10", 100), ("20", 10), ("20", 40), ("20", 100)):
     db.staffel_neu(a, dict(schluessel=schl, menge=menge))
+# wie im Betrieb: Angebots-Check erst nach der Eingabepause (in stummen Tests sonst sofort)
+angebot_fenster.AngebotSeite.CHECK_SOFORT = False
 s = f.angebot_oeffnen(a)
 s.optimieren()
 f.angebot_schliessen(a)
@@ -141,10 +143,14 @@ try:
     ok("Neuladen rechnet die Kalkulation einmal und optimiert nicht")
     m = s.pos_modell
     c = next(i for i, (_, fd) in enumerate(m.spalten) if getattr(fd, "name", None) == "stueck")
+    uhr = s.__dict__.get("_check_uhr")
+    if uhr is not None:
+        uhr.stop()              # Angebots-Check des Neuladens oben nicht mitzählen
     zaehler.update(kalkulation=0, neu_laden=0, optimieren=0)
     assert m.setData(m.index(1, c), "5", Qt.EditRole)
     app.processEvents()
     assert zaehler["kalkulation"] == 1 and zaehler["optimieren"] == 0, zaehler
+    assert s._check_uhr.isActive(), "Angebots-Check wartet die Eingabepause ab"
     ok("Zelle ändern: eine Kalkulation, kein Optimieren (Prüfungen erst nach der Eingabepause)")
 finally:
     rechnen.kalkulation, angebot_fenster.AngebotSeite._neu_laden = original_kalk, original_laden
