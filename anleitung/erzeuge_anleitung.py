@@ -2987,8 +2987,10 @@ def kapitel_step(i):
     i.text("Daneben steht das Häkchen <b>als Schweißbaugruppe</b> (nur mit <i>Als Satz</i>, Vorgabe aus). Damit wird "
            "der Satz zusätzlich eine Position der Art Schweißbaugruppe ([[schweissbaugruppe]]): die Unterbaugruppen "
            "mit ihrer Menge kommen aus der Struktur der STEP-Datei, jedes Teil steht in seiner Unterbaugruppe mit "
-           "Stück je Unterbaugruppe. Liegen gleiche Teile in mehreren Unterbaugruppen, hängen sie direkt an der "
-           "Baugruppe (Hinweis im Bericht, Stückzahl stimmt). Nahtgruppen und Arbeitsgänge legt der Import nicht an: "
+           "Stück je Unterbaugruppe. Liegen gleiche Teile in mehreren Unterbaugruppen (z. B. ein Querrohr im "
+           "Seitenrahmen und eins direkt im Gestell), bekommt jede Unterbaugruppe eine eigene Position mit derselben "
+           "Artikelnummer (Hinweis im Bericht); nur wenn die Stückzahl nicht aufgeht, hängt das Teil direkt an der "
+           "Baugruppe. Nahtgruppen und Arbeitsgänge legt der Import nicht an: "
            "die STEP-Datei kennt keine Nähte, also im Editor ergänzen.")
     i.text("Liefert der Kunde Unterbaugruppen als eigene Dateien, alle zusammen einlesen und bei der Unterbaugruppe "
            "rechts neben dem Häkchen statt <i>eigene Baugruppe</i> den Eintrag <b>in Baugruppe „…“</b> wählen. Die "

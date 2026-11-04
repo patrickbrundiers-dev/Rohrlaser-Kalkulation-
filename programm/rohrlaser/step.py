@@ -3117,6 +3117,54 @@ def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, ma
     return dict(m, **{n: knickverbindung.summe(messwerte, m, n) for n in ("bohrungen", "senkungen", "fliessloecher")})
 
 
+def _nach_knoten_teilen(liste, struktur, neu, naechste, bericht):
+    """Gleiche Teile in verschiedenen Unterbaugruppen der STEP-Struktur (z. B. Querrohr im Seitenrahmen und direkt im
+    Gestell; Patrick 04.11.2026: „nicht alle Bauteile in Unterbaugruppen“): die Position wird je Unterbaugruppe
+    geteilt (gleiche Artikelnummer, Stück je Satz = Körper dort, Netz mit den Lagen dieser Körper), damit
+    baugruppe.aus_step jede in ihre Unterbaugruppe hängt statt alle direkt an die Baugruppe. Ändert liste und neu.
+    Ergebnis: nächste freie Pos."""
+    from .ansicht3d import entpacken, packen
+    knoten = [k for k in (struktur or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
+    wurzeln = [k["id"] for k in knoten if not k.get("eltern")]
+    ids = {k["id"] for k in knoten} - set(wurzeln[:1] if len(wurzeln) == 1 else ())
+    namen = {k["id"]: str(k.get("name") or k["id"]) for k in knoten}
+    neu_liste = []
+    for p, kn in liste:
+        orte = [k if k in ids else "" for k in kn]
+        gesamt = p.get("je_satz")
+        if len(set(orte)) < 2 or not isinstance(gesamt, int) or gesamt != len(orte):
+            neu_liste.append((p, kn))
+            continue
+        netz = entpacken(p.get("_netz")) if p.get("_netz") else None
+        teile = []
+        for ort in dict.fromkeys(orte):
+            idx = [i for i, o in enumerate(orte) if o == ort]
+            q = p if not teile else dict(p, pos=naechste)
+            if teile:
+                naechste += 10
+            n = len(idx)
+            q["je_satz"] = n
+            if p.get("stueck"):
+                q["stueck"] = p["stueck"] // gesamt * n
+            if netz:
+                z = dict(netz)
+                for feld in ("lagen", "koerper"):
+                    if isinstance(z.get(feld), list) and len(z[feld]) == len(orte):
+                        z[feld] = [z[feld][i] for i in idx]
+                if isinstance(z.get("lagen"), list) and len(z["lagen"]) < 2:
+                    z.pop("lagen")
+                q["_netz"] = packen(z)
+            if q is not p:
+                neu.insert(next(i for i, x in enumerate(neu) if x is teile[-1][0]) + 1, q)
+            teile.append((q, [kn[i] for i in idx], ort))
+        neu_liste += [(q, k) for q, k, _ in teile]
+        bericht.append(f"{p.get('artikel')}: in {len(teile)} Unterbaugruppen, je Unterbaugruppe eine Position: "
+                       + ", ".join(f"Pos. {q['pos']} {namen.get(o, 'Baugruppe') if o else 'Baugruppe selbst'} "
+                                   f"({q['je_satz']} Stück)" for q, _, o in teile))
+    liste[:] = neu_liste
+    return naechste
+
+
 def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=None):
     """Sätze aus Dateien mit Häkchen „als Schweißbaugruppe“ im Prüfdialog (_baugruppe): Position der Art
     Schweißbaugruppe mit den Unterbaugruppen der STEP-Struktur (baugruppe.aus_step), Teile zugeordnet. Ergebnis:
@@ -3138,6 +3186,9 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
             continue
         name = satzname(datei)
         struktur = wert(datei, "_struktur")
+        naechste = _nach_knoten_teilen(liste, struktur, neu, naechste, bericht)
+        for d in [d for d in satz_teile if ziel_von.get(d) == datei]:
+            naechste = _nach_knoten_teilen(satz_teile[d], wert(d, "_struktur"), neu, naechste, bericht)
         kandidaten = knickverbindung.kandidaten_filtern(wert(datei, "_nahtkandidaten"), messwerte, datei)
         unter = [dict(name=satzname(d), menge=wert(d, "_saetze") or 1, struktur=wert(d, "_struktur"),
                       teile=satz_teile[d], kandidaten=knickverbindung.kandidaten_filtern(

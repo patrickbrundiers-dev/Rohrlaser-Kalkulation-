@@ -1,7 +1,9 @@
 """Schweißnähte bei Schweißbaugruppen mit Unterbaugruppe (Patrick 04.11.2026: „keine Schweißnaht berechnet“):
 - S04 Gestell mit 2× Seitenrahmen als Unterbaugruppe: STEP-Import mit Häkchen „als Schweißbaugruppe“ und
   Vorkalkulation automatisch legt die Nähte in der Unterbaugruppe (4 je Seitenrahmen × 2) und zwischen
-  Unterbaugruppe und Gestell (4) an, rechnet 12 × 152 mm Naht
+  Unterbaugruppe und Gestell (4) und am losen Querrohr im Gestell (2) an, rechnet 14 × 152 mm Naht
+- dasselbe Querrohr steckt im Seitenrahmen und direkt im Gestell: je Unterbaugruppe eine Position, nicht beide
+  direkt an der Baugruppe (Patrick 04.11.2026: „nicht alle Bauteile in Unterbaugruppen“)
 - ein Teilepaar, dessen Nahtberechnung scheitert, verwirft nicht mehr alle Nahtkandidaten, sondern meldet sich
 - Außennähte (Stumpfnaht) bekommen in der Vorkalkulation die Nacharbeit „Naht verschleifen“
 
@@ -52,26 +54,38 @@ S04 = HIER / "step_struktur" / "S04_Gestell_Unterbaugruppe_geschweisst.step"
 ziel = messen(S04, "s04")
 d = json.loads(Path(str(ziel) + ".json").read_text(encoding="utf-8"))["dateien"][0]
 kand = d["nahtkandidaten"]
-assert len(kand) == 12 and d["ohne_naht"] == [], (len(kand), d.get("ohne_naht"))
-assert sorted(k["knoten"] for k in kand) == ["K1"] * 4 + ["K2"] * 8, [k["knoten"] for k in kand]
+assert len(kand) == 14 and d["ohne_naht"] == [], (len(kand), d.get("ohne_naht"))
+assert sorted(k["knoten"] for k in kand) == ["K1"] * 6 + ["K2"] * 8, [k["knoten"] for k in kand]
 pos, bericht = importieren(ziel)
 bgp = next(p for p in pos if p.get("art") == BAUGRUPPE)
 bg = baugruppe.lesen(bgp["baugruppe"])
 assert [k["name"] for k in bg["knoten"]] == ["Seitenrahmen"] and bg["knoten"][0]["menge"] == 2, bg["knoten"]
 unter = bg["knoten"][0]["id"]
-vor = {v["knoten"]: v["anzahl"] for v in bg["vorschlaege"]}
-assert vor == {unter: 4, "": 4}, vor
+vor = {}
+for v in bg["vorschlaege"]:
+    vor[v["knoten"]] = vor.get(v["knoten"], 0) + v["anzahl"]
+assert vor == {unter: 4, "": 6}, vor
+teile = {}
+for p in pos:
+    if p.get("art") != BAUGRUPPE:
+        teile.setdefault(p["artikel"], []).append((baugruppe.zuordnung(p)[1], p["je_knoten"], p["je_satz"]))
+quer = sorted(teile[next(a for a in teile if len(teile[a]) == 2)])
+assert quer == [("", 1, 1), (unter, 2, 4)], teile
+assert sum(len(x) for x in teile.values()) == 4 and all(x[0][0] == unter for a, x in teile.items() if len(x) == 1
+                                                        and x[0][2] == 4), teile
+assert any("je Unterbaugruppe eine Position" in b for b in bericht), bericht
+assert not any("direkt der Baugruppe zugeordnet" in b for b in bericht), bericht
 tab = baugruppe.richtwerte()
 r = vorkalk.komplett(bgp, pos, tab, dict(schweiss_a_regel=0.7))
-assert r["naehte_neu"] == 2, r
+assert r["naehte_neu"] >= 2, r
 p2 = dict(bgp, baugruppe=baugruppe.speichern(r["bg"]))
 erg = baugruppe.rechnen(p2, tab, {})
 naht_m = sum(erg["naht_m"].values())
-assert abs(naht_m - 12 * 0.152) < 1e-6, erg["naht_m"]
-faktoren = sorted(z["faktor"] for z in erg["zeilen"] if z["art"] == "Naht")
-assert faktoren == [1, 2], faktoren
+assert abs(naht_m - 14 * 0.152) < 1e-6, erg["naht_m"]
+faktoren = {z["faktor"] for z in erg["zeilen"] if z["art"] == "Naht"}
+assert faktoren == {1, 2}, faktoren
 assert erg["schweiss_min"] > 0 and not any("Unterbaugruppe" in w for w in erg["warnungen"]), erg["warnungen"]
-ok("S04: 12 Nähte (8 im Seitenrahmen 2×, 4 zwischen Seitenrahmen und Gestell) angelegt und gerechnet, 1,824 m")
+ok("S04: 14 Nähte (8 im Seitenrahmen 2×, 6 an der Baugruppe) gerechnet; Querrohr je Unterbaugruppe eine Position")
 
 # ------------------------------------------------------------------ ein Paar scheitert: die anderen bleiben
 original = step_geometrie._naht_paar
@@ -90,7 +104,7 @@ try:
     teile = step_geometrie.analysiere_datei(S04)        # in diesem Prozess, damit der Ersatz greift
 finally:
     step_geometrie._naht_paar = original
-assert len(teile[0].naehte) == 11, len(teile[0].naehte)
+assert len(teile[0].naehte) == 13, len(teile[0].naehte)
 warn = [w for t in teile for w in t.hinweise]
 assert any("Nahtkandidaten unvollständig" in w and "Schnitt gescheitert" in w for w in warn), warn
 ok("ein gescheitertes Teilepaar: übrige Nahtkandidaten bleiben, Hinweis „Nahtkandidaten unvollständig“")

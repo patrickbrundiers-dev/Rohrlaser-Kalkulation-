@@ -16,6 +16,8 @@ S04_Gestell_Unterbaugruppe_geschweisst.step (Nähte in und zwischen Unterbaugrup
     Gestell
       Seitenrahmen (2×): 2× Längsrohr QR40x3 L1000, 2× Querrohr QR40x3 L500 dazwischen (je Seite 4 Kehlnähte)
       2× Verbinder QR40x3 L960 zwischen den Seitenrahmen (4 Kehlnähte zur Unterbaugruppe)
+      1× Querrohr QR40x3 L500 direkt im Gestell zwischen den Verbindern (2 Kehlnähte; gleiches Teil wie im
+         Seitenrahmen: wird eine eigene Position an der Baugruppe)
 """
 import math
 import sys
@@ -111,7 +113,8 @@ def main():
                                          (quer, lage(0, 20, 200, um_x=-math.pi / 2)),
                                          (quer, lage(0, 20, 800, um_x=-math.pi / 2))])
     g.baugruppe("Gestell", [(seite, lage()), (seite, lage(1000, 0, 0)),
-                            (verb, lage(20, 0, 500, um_y=math.pi / 2)), (verb, lage(20, 540, 500, um_y=math.pi / 2))])
+                            (verb, lage(20, 0, 500, um_y=math.pi / 2)), (verb, lage(20, 540, 500, um_y=math.pi / 2)),
+                            (quer, lage(500, 20, 500, um_x=-math.pi / 2))])
     g.schreiben(ZIEL / "S04_Gestell_Unterbaugruppe_geschweisst.step")
     e = Dokument()
     e.teil("Halter 4711 QR40x3", kastenrohr(40, 40, 3, 350, 4.5))
