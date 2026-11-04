@@ -283,5 +283,18 @@ assert nah(z1["selbst_teil"] - z0["selbst_teil"], z1["herstell_teil"] - z0["hers
 assert z1["preis_teil"] > z0["preis_teil"] + gp * 0.99
 w3 = rechnen.position_werte(p, s3.kopf, s3.k, s3.tabellen)
 assert "Gewinde" not in rechnen.status(p, w3, s3.kopf, s3.k, None, [p])
-ok("R7 Gewinde in Blechen: Vorschlag aus der STEP, Bohrungen prüfen, € je Stück zusätzlich zum Blech-EK")
+# Im Blech-Editor gewählte Gewinde (Ausführung „Gewinde schneiden“, Bohrungsart): nicht im Richtpreis, sondern
+# bestätigt ins Bohrbild der Position (€ je Stück zum Blech-EK)
+s4 = fenster.angebot_oeffnen(db.angebot_neu(dict(kunde="Test")))
+e4 = dict(werkstoff="S235JR", dicke=5, art=blech.ZUSCHNITT, form=blech.RECHTECK, laenge=200, breite=100, eckradius=0,
+          stueck=50, konturen=[dict(art=sw.BOHRUNG, anzahl=4, d=6.8, aus=bohrbild.GEWINDE_SCHNEIDEN, groesse="M8")])
+r4 = blech.rechnen(e4, werkstoffe, laser, einst)
+r4o = blech.rechnen(dict(e4, konturen=[dict(art=sw.BOHRUNG, anzahl=4, d=6.8)]), werkstoffe, laser, einst)
+assert r4["bohrungen"]["gewinde"] == {"M8": 4} and r4["richtpreis"] == r4o["richtpreis"]     # nicht im Richtpreis
+s4.blech_neu(dialog=lambda d: (d.eingaben_setzen(dict(e4)), QDialog.Accepted)[1])
+p4 = db.positionen(s4.id)[0]
+assert p4["gewinde"] == "4xM8" and bohrbild.offen(bohrbild.lesen(p4["bohrbild"])) == 0, p4.get("gewinde")
+assert nah(rechnen.blech_gewinde_preis(p4, db.zeilen("gewinde")), 4 * preise["M8"], 1e-9)
+ok("R7 Gewinde in Blechen: Vorschlag aus der STEP, Bohrungen prüfen, Gewinde aus dem Editor, € je Stück zusätzlich "
+   "zum Blech-EK")
 print("Alle Prüfungen bestanden.")

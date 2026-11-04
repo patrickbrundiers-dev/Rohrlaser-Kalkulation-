@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.251", "<b>Gewinde aus dem Blech-Editor</b> ([[blech_richtwerte]]): Bohrungen, die im Blech-Editor die "
+     "Ausführung <i>Gewinde schneiden</i> haben, kommen beim Übernehmen bestätigt ins Bohrbild der Position und kosten "
+     "€ je Stück aus Einstellungen › Gewinde zusätzlich zum Blech-EK (nicht im Richtpreis). Vorher wurden sie nur "
+     "gezählt und nicht berechnet.",
+     "Bleche: im Editor gewählte Gewinde werden berechnet"],
     ["0.9.250", "<b>Richtpreis für Dreh- und Frästeile</b>: neue Dreh-/Frästeile aus dem STEP-Import bekommen einen "
      "geschätzten EK aus Rohling (Lagermaß, €/kg), <b>Arbeitsgängen</b> mit Zeiten aus Schnittwerten (Schruppen, "
      "Schlichten, Bohren, Einstechen, Planfräsen, Taschen …), Rüsten und Programmieren auf die Stückzahl verteilt, "
