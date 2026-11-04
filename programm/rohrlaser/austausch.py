@@ -290,27 +290,32 @@ class OrdnerWeg:
             return out
         oben = [p for p in self.pfad.iterdir()]
         namen = [p.name for p in oben]
+        index = kopien_index(namen)
         for p in oben:
             if not p.name.startswith(PRAEFIX):
                 continue
-            o = kopie_von(p, namen)
+            o = kopie_von(p, namen, index)
             if o is not None:
                 k = sauber(o[len(PRAEFIX):].removesuffix(ENDUNG))
                 out.append(dict(pfad=p, original=o, bereich="", kuerzel=k))
             elif p.is_dir():
                 k = sauber(p.name[len(PRAEFIX):])
-                drin = [q.name for q in p.iterdir()]
-                for q in p.iterdir():
-                    o = kopie_von(q, drin)
+                inhalt = list(p.iterdir())
+                drin = [q.name for q in inhalt]
+                index_drin = kopien_index(drin)
+                for q in inhalt:
+                    o = kopie_von(q, drin, index_drin)
                     if o is not None:
                         out.append(dict(pfad=q, original=o, bereich=p.name, kuerzel=k))
         for b in GEPRUEFTE_BEREICHE:
             o_ = self.pfad / b
             if not o_.is_dir():
                 continue
-            drin = [q.name for q in o_.iterdir()]
-            for q in o_.iterdir():
-                o = kopie_von(q, drin)
+            inhalt = list(o_.iterdir())
+            drin = [q.name for q in inhalt]
+            index_drin = kopien_index(drin)
+            for q in inhalt:
+                o = kopie_von(q, drin, index_drin)
                 if o is None:
                     continue
                 k = ""
@@ -370,18 +375,42 @@ class OrdnerWeg:
         return u
 
 
-def kopie_von(p, namen):
+def _stamm_endung(n):
+    e = Path(n).suffix
+    return (n[:-len(e)], e) if e else (n, "")
+
+
+def kopien_index(namen):
+    """Namen eines Ordners nach Stamm (ohne Endung): {Stamm: [(Stelle in namen, Name, Endung)]} für kopie_von. Einmal
+    je Ordner gebaut, damit die Suche nicht jede Datei mit jeder vergleicht (Prüfung „Programm langsam“ 04.11.2026:
+    bei vielen Nummern-Dateien dauerte jedes Schreiben in den gemeinsamen Ordner sonst Sekunden)."""
+    index = {}
+    for i, n in enumerate(namen):
+        stamm, endung = _stamm_endung(n)
+        index.setdefault(stamm, []).append((i, n, endung))
+    return index
+
+
+def kopie_von(p, namen, index=None):
     """Name der Originaldatei, von der p eine Konfliktkopie ist (OneDrive „haupt-PC01.sqlite“, „00042 (1).nummer“,
     Dropbox „haupt (Konflikt-Kopie …).sqlite“), oder None. namen: Namen im selben Ordner; das Original muss dabei sein
     (eine Kopie entsteht nur neben dem Original), die Endung gleich und der Zusatz durch Leerzeichen, - , ( oder _
-    abgetrennt."""
-    for n in namen:
-        if n == p.name:
+    abgetrennt. index: kopien_index(namen), wenn schon gebaut (gleiches Ergebnis, schneller)."""
+    name = p.name
+    if index is None:
+        index = kopien_index(namen)
+    # Der Zusatz beginnt mit einem Trenner, also ist der Stamm des Originals der Name bis zu einem Trenner
+    kandidaten = []
+    for j, c in enumerate(name):
+        if c in KOPIE_TRENNER:
+            kandidaten += index.get(name[:j], ())
+    for _, n, endung in sorted(kandidaten):         # wie früher: der erste passende Name in namen
+        if n == name:
             continue
-        stamm, endung = (n[:-len(Path(n).suffix)], Path(n).suffix) if Path(n).suffix else (n, "")
-        if endung != (p.suffix if endung else "") or not p.name.startswith(stamm):
+        stamm = n[:len(n) - len(endung)] if endung else n
+        if endung != (p.suffix if endung else ""):
             continue
-        rest = p.name[len(stamm):len(p.name) - len(endung)] if endung else p.name[len(stamm):]
+        rest = name[len(stamm):len(name) - len(endung)] if endung else name[len(stamm):]
         if rest and rest[0] in KOPIE_TRENNER and not rest.endswith(NEU):
             return n
     return None

@@ -2078,7 +2078,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         # Vorschläge vom 02.11.2026: Lieferschein (F6), Freigabe (H2), Rückfrage (H5), Positionsvorlage (H6)
         self.lieferschein_aktion = menue.addAction("Lieferschein …", lambda: self.lieferschein())
         menue.aboutToShow.connect(lambda: self.lieferschein_aktion.setEnabled(
-            (self.db.angebot(self.id) or {}).get("vorgang") == "Beauftragt" and not self.fremd()))
+            self.db.vorgang(self.id) == "Beauftragt" and not self.fremd()))
         self.freigabe_aktion = menue.addAction("Freigeben (Admin) …", lambda: self.freigeben())
         menue.aboutToShow.connect(lambda: self.freigabe_aktion.setVisible(
             bool(rechnen._n(self.db.einstellung("freigabe_ab")) or rechnen._n(self.db.einstellung("freigabe_marge")))))
@@ -2112,7 +2112,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.reklamation_aktion = menue.addAction("Reklamation erfassen …", lambda: self.reklamation_erfassen())
         fa.append((self.reklamation_aktion, "funktion_reklamation"))
         menue.aboutToShow.connect(lambda: self.reklamation_aktion.setEnabled(
-            (self.db.angebot(self.id) or {}).get("vorgang") == "Beauftragt" and not self.fremd()))
+            self.db.vorgang(self.id) == "Beauftragt" and not self.fremd()))
         fa.append((menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id)),  # Plan A9
                    "funktion_nachfassen"))
         fa.append((menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id)),
@@ -2645,7 +2645,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         a = self.db.angebot(self.id)
         if a is None:
             return
-        if not self.db.nur_lesen and self.db.fracht_auto_nachfuehren(self.id):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
+        if not self.db.nur_lesen and self.db.fracht_auto_nachfuehren(self.id, a):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
             a = self.db.angebot(self.id)
         self.kopf = a
         self._fremd_anzeigen()
@@ -3317,8 +3317,16 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             merken["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
         return merken["kennung"]
 
-    def freigabe_punkte(self, summen=None, zeilen=None, preis_abweichung=None):
-        """Angebots-Check (Plan A2): alle offenen Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte)."""
+    # Angebots-Check nach einer Änderung: Maschinenvergleich und Kalkulationsbasis (Grundwerte, Auslastung, Markt)
+    # rechnen erst nach dieser Ruhezeit (Prüfung „Programm langsam“ 04.11.2026, Variante a); bis dahin gelten ihre
+    # letzten Punkte. Check-Dialog, PDF und Automatik rechnen immer sofort. None = ohne Bildschirm (stumm) sofort.
+    CHECK_RUHE_MS = 1000
+    CHECK_SOFORT = None
+
+    def freigabe_punkte(self, summen=None, zeilen=None, preis_abweichung=None, spaeter=False):
+        """Angebots-Check (Plan A2): alle offenen Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte). spaeter=True
+        (Anzeige nach einer Änderung): Maschinenvergleich und Kalkulationsbasis aus dem letzten Lauf, neu gerechnet
+        wird nach CHECK_RUHE_MS Ruhe (_check_spaeter)."""
         if summen is None or zeilen is None:
             zeilen, summen = self._rechnung()
         try:
@@ -3338,8 +3346,40 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
             plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
-            + self._wiederholteil_punkte() + self._maschinen_punkt() + self._kalk_punkte(summen)
-            + self._freigabe_punkte(summen))
+            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter) + self._freigabe_punkte(summen))
+
+    def _teure_punkte(self, summen, spaeter=False):
+        """Maschinenvergleich (rechnet je Maschine) und Kalkulationsbasis; spaeter: die zuletzt gerechneten."""
+        if spaeter:
+            return list(self.__dict__.get("_teure_merker") or ())
+        punkte = self._maschinen_punkt() + self._kalk_punkte(summen)
+        self._teure_merker = list(punkte)
+        return punkte
+
+    def _check_spaeter(self, summen, zeilen, preis_abweichung):
+        """Nach CHECK_RUHE_MS ohne weitere Änderung den Angebots-Check vollständig rechnen und anzeigen (jede neue
+        Änderung startet die Ruhezeit neu)."""
+        self._check_daten = (summen, zeilen, preis_abweichung)
+        uhr = self.__dict__.get("_check_uhr")
+        if uhr is None:
+            uhr = self._check_uhr = QTimer(self)
+            uhr.setSingleShot(True)
+            uhr.timeout.connect(self._check_jetzt)
+        uhr.start(self.CHECK_RUHE_MS)
+
+    def _check_jetzt(self):
+        daten = self.__dict__.pop("_check_daten", None)
+        if daten is None:
+            return
+        try:
+            punkte = self.freigabe_punkte(*daten)
+        except Exception:           # Hinweise nie wichtiger als das Angebot
+            return
+        if punkte != getattr(self, "_punkte", None):
+            self._punkte = punkte
+            self.uebersicht_bereich.freigabe_setzen(punkte)
+            self._schritte_setzen()
+            self.uebersicht_rahmen.jetzt_anpassen()
 
     def _freigabe_punkte(self, summen):
         g = self.freigabe_offen(summen)
@@ -3439,10 +3479,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
-        punkte = self.freigabe_punkte(summen, zeilen, preis_abw)
+        spaeter = not self.f.stumm if self.CHECK_SOFORT is None else not self.CHECK_SOFORT
+        punkte = self.freigabe_punkte(summen, zeilen, preis_abw, spaeter=spaeter)
         self.uebersicht_bereich.freigabe_setzen(punkte)
         self._punkte = punkte
         self._schritte_setzen()
+        if spaeter:
+            self._check_spaeter(summen, zeilen, preis_abw)
         kosten = rechnen.kostenarten(summen, self.einst)
         from . import co2
         self.uebersicht_bereich.kosten_setzen(kosten, co2.text(co2.angebot(self.kopf, self.positionen, zeilen, self.k,
@@ -5517,8 +5560,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         eigenen Thread; bis dahin bleibt das bisherige Ergebnis (None, wenn es noch keines gibt), danach zeigt
         _wt_fertig() das neue an. Ohne Bildschirm (stumm) wird immer gleich gerechnet."""
         from . import wiederholteile
-        kennung = (wiederholteile.stand(self.db), self.kopf.get("kundennr"),
-                   tuple(tuple(p.get(f) for f in wiederholteile.FELDER) for p in self.positionen))
+        kennung = wiederholteile.kennung(self.db, self.id, self.kopf.get("kundennr"), self.positionen)
         if getattr(self, "_wt_kennung", None) == kennung:
             return self._wt
         zeilen = wiederholteile.laden(self.db, self.id, self.positionen)
