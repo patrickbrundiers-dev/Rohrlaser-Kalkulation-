@@ -2860,11 +2860,13 @@ def _flach_pruefen(solid, volumen):
     # gekantet: alle Ebenenpaare im Abstand 'dicke' (je Richtung) und koaxiale Biegezonen tragen das Volumen
     paare, richtungen = 0.0, 0
     for _, ebenen in gruppen:
-        frei = sorted(ebenen, key=lambda e: e[0])
+        # größte Flächen zuerst, Partner die größte Ebene im Abstand 'dicke': kleine Stirnflächen eines Freischnitts
+        # nehmen sonst einem Schenkel die Gegenseite weg (C mit flachen Enden, Patrick 05.11.2026)
+        frei = sorted(ebenen, key=lambda e: (-e[1], e[0]))
         gefunden = False
         while frei:
             a = frei.pop(0)
-            b = next((x for x in frei if abs(abs(x[0] - a[0]) - dicke) < 0.02), None)
+            b = max((x for x in frei if abs(abs(x[0] - a[0]) - dicke) < 0.02), key=lambda x: x[1], default=None)
             if b is not None:
                 frei.remove(b)
                 paare += a[1] + b[1]

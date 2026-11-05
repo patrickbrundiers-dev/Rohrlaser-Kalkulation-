@@ -8,6 +8,9 @@
 - B3 Bohrung über der Biegung: abgerollt, als Kontur „über Biegung“ gekennzeichnet, Hinweis.
 - B4 Ellipsen im Blech (eben und gekantet) heißen Ellipse mit Achsen; Kreis bleibt Bohrung, Langloch Langloch.
 - B5 Blech-Editor aus der Messung: Kantteil mit Schenkeln, Ausschnitt an seiner Stelle, Schneidweg wie STEP.
+- B6 C gekantet, Schenkel vorne und hinten ungekantet (flach in der Ebene des Rückens, Freischnitt 2 mm; Patrick
+  15:11): war U-Profil ohne Kantteil-Auswahl, weil die kleinen Stirnflächen des Freischnitts einem Schenkel die
+  Gegenseite wegnahmen. Jetzt Blech gekantet mit Zuschnitt 200 × 196,36 und freier Außenkontur, auch schräg.
 
 Aufruf: python tests/test_kantteil_bilder.py
 """
@@ -106,7 +109,11 @@ PLATTE_ELL = ohne(quader(200, 120, 3), ellipse((60, 60, -5), 30, 18, Z, X), elli
                   zyl(10, 10, -5, 110, 25), langloch((100, 95, -5), (130, 95, -5), 5, Z))
 WANNE_ELL = ohne(kant([(0, 120), (0, 15), (15, 0), (85, 0), (100, 15), (100, 120)], 3, lg=110),
                  ellipse((-5, 80, 55), 25, 15, X, Y), ellipse((50, -5, 55), 30, 18, Y, X))
-TEILE = {"C_Halter": C_HALTER, "C_Halter_schraeg": lage(C_HALTER), "C_Lasche": C_LASCHE, "Hut": HUT,
+LF = 61         # flacher Schenkel an den Enden: Rücken bis 3 mm vor die Biegung + 58 mm
+C_FLACH = plus(kant([(60, 0), (0, 0), (0, 80), (60, 80)], 2, lg=140), quader(2, 196, 28, -1, -LF + 3, -30),
+               quader(2, 74, 2, -1, 3, -2), quader(2, 196, 28, -1, -LF + 3, 142), quader(2, 74, 2, -1, 3, 140))
+C_FLACH = ohne(C_FLACH, zyl(5, 10, -16, -5, -40, X), zyl(5, 10, 156, -5, 120, X))
+TEILE = {"C_Flach": C_FLACH, "C_Flach_schraeg": lage(C_FLACH), "C_Halter": C_HALTER, "C_Halter_schraeg": lage(C_HALTER), "C_Lasche": C_LASCHE, "Hut": HUT,
          "Z_Lippe": Z_LIPPE, "U_Lasche": U_LASCHE, "Fenster": FENSTER, "Fenster_schraeg": lage(FENSTER),
          "L_Ausschnitt": L_AUSSCHNITT, "L_Bohrung": L_BOHRUNG, "Platte_Ellipsen": PLATTE_ELL, "Wanne_Ellipsen": WANNE_ELL}
 TMP = Path(tempfile.mkdtemp())
@@ -194,6 +201,17 @@ def _():
         assert e["art"] == blech.KANTTEIL and e["schenkel"], (n, e["art"])
         sw_editor = zs["aussen"] + sum(blech.sw.kontur(z)[0] * z["anzahl"] for z in e["konturen"])
         assert nah(sw_editor, b["umfang_aussen"] + b["umfang_innen"], 0.5), (n, sw_editor, b["umfang_aussen"])
+
+
+@fall("B6 C gekantet, Schenkel vorne und hinten ungekantet: Blech gekantet, Zuschnitt mit freier Außenkontur")
+def _():
+    for n in ("C_Flach", "C_Flach_schraeg"):
+        t = m(n)
+        assert t.profilform == "Blech gekantet" and t.alternative is not None, (n, t.profilform)
+        a, b = abw(n), t.blech
+        assert a["kantungen"] == 2 and nah(a["laenge"], 200) and nah(a["breite"], 188 + 2 * BA90), a
+        assert [x["laenge"] for x in a["schenkel"]] == [61, 82, 61] and len(b["aussen_punkte"]) == 20, a["schenkel"]
+        assert b["bohrungen"] == {10.0: 2}, b["bohrungen"]
 
 
 if fehler:
