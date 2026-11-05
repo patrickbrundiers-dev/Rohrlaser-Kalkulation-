@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.262", "<b>Fehler behoben</b> im Fenster STEP-Import prüfen: Eine <b>Regel des Kunden</b> ([[profil_regeln]]) "
+     "mit anderer Profilform (z. B. Quadrat- statt Rechteckrohr) ließ beim Zurückstellen auf das gemessene Profil die "
+     "Form der Regel stehen; die Position bekam dann den Hinweis <i>Profil fehlt in Stammdaten</i> und neu gerechnete "
+     "Enden mit kürzerem Schneidweg als in der STEP. Jetzt gilt wieder die gemessene Form, das Teil wird genau wie ohne "
+     "Regel übernommen. Der Haken <b>Nur zu prüfende</b> ([[erkennung_ampel]]) geht von selbst aus, wenn nichts mehr "
+     "zu prüfen ist (vorher blieb die Liste leer).",
+     "Fehler behoben: Regel des Kunden zurückstellen, Haken Nur zu prüfende"],
     ["0.9.261", "<b>Regeln des Kunden</b> ([[profil_regeln]]): wählt man im STEP-Import für ein Teil ein anderes Profil "
      "als das gemessene, gilt das beim nächsten Import desselben Kunden automatisch für alle Teile mit diesem "
      "gemessenen Profil (gelb mit Hinweis <i>Regel des Kunden</i>; das gemessene Profil wählen stellt zurück und "

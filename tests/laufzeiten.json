@@ -94,6 +94,7 @@
 "test_erkennung_vielfalt.py": 162,
 "test_etiketten.py": 3,
 "test_fehler_0111.py": 28,
+"test_fehler_0511.py": 15,
 "test_fertigung.py": 3,
 "test_festschreiben.py": 2,
 "test_formular.py": 13,

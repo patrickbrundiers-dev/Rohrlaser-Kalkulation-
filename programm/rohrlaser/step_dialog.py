@@ -919,6 +919,10 @@ class StepPruefDialog(QDialog):
             teile.append(f"<b style='color:#B42318'>● {rot} nicht übernehmbar</b>")
         self.ampel_info.setText("Erkennung: " + " · ".join(teile))
         self.nur_pruefen.setVisible(bool(gelb or rot))
+        if not (gelb or rot) and self.nur_pruefen.isChecked():     # nichts mehr zu prüfen: Filter aus, alle zeigen
+            self.nur_pruefen.blockSignals(True)
+            self.nur_pruefen.setChecked(False)
+            self.nur_pruefen.blockSignals(False)
         self.nur_pruefen_setzen(self.nur_pruefen.isChecked())
 
     def nur_pruefen_setzen(self, an):
@@ -1890,6 +1894,7 @@ class StepPruefDialog(QDialog):
     def werte_schreiben(self):
         """Gewählte Werte in die Messwerte schreiben (_uebernehmen, _profil, _werkstoff, _stueck; bei einem Satz
         _saetze = Sätze, _stueck = Sätze, _je_satz = Stück je Satz)."""
+        from . import step
         for z in self.zeilen:
             if z.it.text(0).strip() and z.it.text(0) != z.it.data(0, Qt.UserRole + 1):
                 self.artikel_setzen(z, z.it.text(0))
@@ -1912,7 +1917,9 @@ class StepPruefDialog(QDialog):
                     m["_stueck"] = z.werte["einzeln"] or None
                 if z.blech:
                     m["_blech_artikel"] = z.pr.currentData()
-                elif profil and profil != z.vorschlag:
+                    continue
+                step.profil_regel_verlassen(m, profil or z.vorschlag, self.k.profile)    # Regel zurückgestellt
+                if profil and profil != z.vorschlag:
                     m["_profil"] = profil
                 else:
                     m.pop("_profil", None)

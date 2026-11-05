@@ -1881,7 +1881,7 @@ def profile_gelernt_anwenden(messwerte, regeln, profile):
             m.setdefault("_form_gemessen", m.get("profilform"))
             m["profilform"] = form
         m["_profil"] = ziel
-        m["_profil_regel"] = m["_profil_gemessen"]
+        m["_profil_regel"], m["_profil_regel_ziel"] = m["_profil_gemessen"], ziel
         n += 1
     return n
 
@@ -1891,9 +1891,26 @@ def profile_gelernt_zuruecknehmen(messwerte):
     for m in messwerte:
         if m.pop("_profil_regel", None) is None:
             continue
+        m.pop("_profil_regel_ziel", None)
         m["_profil"] = m.get("_profil_gemessen") or ""
         if m.get("_form_gemessen"):
             m["profilform"] = m.pop("_form_gemessen")
+
+
+def profil_regel_verlassen(m, profil, profile):
+    """Prüfdialog: statt des Profils der Regel des Kunden ist ein anderes gewählt (zurückgestellt oder von Hand). Die
+    Regel gilt für das Teil nicht mehr; hatte sie die Profilform umgestellt und hat das gewählte Profil die gemessene
+    Form (bzw. ist es das gemessene), gilt wieder die gemessene Form, damit Profil und Enden wie im STEP bleiben
+    (Fehler-Durchgang 05.11.2026). Ergebnis: True, wenn die Regel verlassen wurde."""
+    ziel = m.get("_profil_regel_ziel")
+    if not m.get("_profil_regel") or not ziel or profil == ziel:
+        return False
+    form = m.get("_form_gemessen")
+    if form and (profil == m["_profil_regel"] or (profile.get(profil) or {}).get("form") == form):
+        m["profilform"] = m.pop("_form_gemessen")
+    m.pop("_profil_regel")
+    m.pop("_profil_regel_ziel")
+    return True
 
 
 def profile_gelernt_merken(regeln, messwerte, profile):

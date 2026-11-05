@@ -3221,7 +3221,8 @@ def kapitel_step(i):
            "<b>grün</b> = Art, Profil und Konturen sicher erkannt, <b>gelb</b> = bitte prüfen, <b>rot</b> = nicht "
            "übernehmbar. Den Grund zeigt der Tooltip. Unter der Liste steht die Zusammenfassung, z. B. "
            "<i>Erkennung: ● 12 sicher erkannt · ● 2 prüfen · ● 1 nicht übernehmbar</i>; der Haken <b>Nur zu "
-           "prüfende</b> blendet die grünen Teile aus, so bleiben nur die gelben und roten zum Ansehen.", kurz=True)
+           "prüfende</b> blendet die grünen Teile aus, so bleiben nur die gelben und roten zum Ansehen. Ist nichts mehr "
+           "zu prüfen, geht der Haken von selbst aus und alle Teile stehen wieder in der Liste.", kurz=True)
     i.tabelle(["Punkt", "Wann"], [
         ["grün", "Messung stimmig, Profil steht in den Stammdaten, nichts von Hand geändert"],
         ["gelb", "ein Merkmal unsicher (z. B. Wandstärke), Prüfstatus <i>prüfen</i> (nur nach den Maßen erkannt "
@@ -3234,7 +3235,9 @@ def kapitel_step(i):
            "Profil. Beim nächsten STEP-Import desselben Kunden bekommt jedes Teil mit diesem gemessenen Profil "
            "gleich das gewählte. Es steht <b>gelb</b> in der Ampel ([[erkennung_ampel]]) mit dem Hinweis <i>Regel "
            "des Kunden: … statt gemessen …</i>.", kurz=True)
-    i.liste("<b>Zurückstellen</b>: im Fenster wieder das gemessene Profil wählen; damit ist auch die Regel gelöscht.",
+    i.liste("<b>Zurückstellen</b>: im Fenster wieder das gemessene Profil wählen; damit ist auch die Regel gelöscht. "
+            "Hatte die Regel die Profilform umgestellt, gilt beim Übernehmen wieder die gemessene Form; das Teil wird "
+            "genau wie ohne Regel übernommen.",
             "Ein Profil anderer Form (z. B. Quadrat- statt Rechteckrohr) stellt die Profilform um wie die Spalte Art; "
             "die Messwerte und Konturen aus der STEP bleiben unverändert, Anfangs- und Endschnitt rechnet das "
             "Programm für das gewählte Profil neu.",
