@@ -412,7 +412,9 @@ def _biegung(x, a, b, schenkel, haut, s, k):
         werte += [_pv(BRep_Tool.Pnt_s(TopoDS.Vertex(v))).Dot(d) for v in g._liste(e, TopAbs_VERTEX)]
     if not werte:
         return None
-    vorzeichen = 1 if na.Dot(gp_Vec(drehpunkt, mb)) > 0 else -1     # + = b biegt zur Außenseite der Haut
+    # + = b biegt zur Außenseite der Haut; gemessen ab der Haut-Ebene von a (nicht ab der Biegeachse: bei flachen
+    # Winkeln liegt die Mitte von b noch unter der Achse, 10°/15° bekamen sonst wechselnde Vorzeichen, 05.11.2026)
+    vorzeichen = 1 if na.Dot(_pv(mb).Subtracted(lot)) > 0 else -1
     return dict(trsf=m_, winkel=round(math.degrees(phi), 2) * vorzeichen, phi=phi, radius=None if scharf else r,
                 r_rechnen=r, ba=ba, t=t, tangente=tangente, d_von=min(werte), d_bis=max(werte), scharf=scharf,
                 setback=(r + s) * (math.tan(phi / 2) if phi <= math.pi / 2 + 1e-9 else 1.0))

@@ -25,7 +25,8 @@ NEUERUNGEN = [
      "Ausschnitt quer über einer Kante, ein Freischnitt oder eine Bohrung in der Biegung steht jetzt mit ihrem "
      "Umriss im Zuschnitt (vorher ein Schlitz bis zum Rand, ohne Schenkel im Blech-Editor) und ist als <i>über "
      "Biegung</i> gekennzeichnet. <b>Ellipsen</b> in Blechen heißen Ellipse mit Achsen statt Polygon. Ein gekantetes C mit flachen Schenkel-Enden "
-     "vorne und hinten ist ein Kantteil (vorher U-Profil).",
+     "vorne und hinten ist ein Kantteil (vorher U-Profil); leicht angekantete Bleche (2°–30°) haben die richtige "
+     "Kantrichtung (vorher teils Z statt Wanne, 2°/5° Flachstahl), seitliche Stecknasen sind in der Außenkontur.",
      "Kantteile: Ausschnitt über der Biegung richtig abgewickelt, Ellipsen im Blech"],
     ["0.9.262", "<b>Fehler behoben</b> im Fenster STEP-Import prüfen: Eine <b>Regel des Kunden</b> ([[profil_regeln]]) "
      "mit anderer Profilform (z. B. Quadrat- statt Rechteckrohr) ließ beim Zurückstellen auf das gemessene Profil die "

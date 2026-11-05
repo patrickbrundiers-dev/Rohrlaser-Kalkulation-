@@ -158,3 +158,62 @@ def kant(mitte, t, R=None, lg=500):
     poly = links + list(reversed(rechts))
     from erzeuge_testteile import profil
     return profil(poly, lg, radien or None)
+
+
+# ---- Biegebögen als echte Kreisbögen (auch für flache Winkel)
+from OCP.GC import GC_MakeArcOfCircle, GC_MakeSegment  # noqa: E402
+from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeWire  # noqa: E402
+
+
+def _zug(mitte, R, t, s):
+    """Linienzug einer Seite (s=+1 links, -1 rechts) als Liste von ('L', p, q) / ('A', p, m, q)."""
+    n = len(mitte)
+    d = []
+    for i in range(n - 1):
+        dx, dy = mitte[i + 1][0] - mitte[i][0], mitte[i + 1][1] - mitte[i][1]
+        L = math.hypot(dx, dy); d.append((dx / L, dy / L))
+    nor = [(-x[1], x[0]) for x in d]
+    stuecke = []
+    start = (mitte[0][0] + s * nor[0][0] * t / 2, mitte[0][1] + s * nor[0][1] * t / 2)
+    p = start
+    for i in range(1, n - 1):
+        a, b = d[i - 1], d[i]
+        kreuz = a[0] * b[1] - a[1] * b[0]
+        phi = math.acos(max(-1, min(1, a[0] * b[0] + a[1] * b[1])))
+        rm = R + t / 2
+        tl = rm * math.tan(phi / 2)
+        B = mitte[i]
+        t1 = (B[0] - a[0] * tl, B[1] - a[1] * tl)
+        sg = 1 if kreuz > 0 else -1          # Mittelpunkt links (sg=1) oder rechts
+        c = (t1[0] + sg * nor[i - 1][0] * rm, t1[1] + sg * nor[i - 1][1] * rm)
+        r = rm - sg * s * t / 2
+        q1 = (c[0] - sg * nor[i - 1][0] * r, c[1] - sg * nor[i - 1][1] * r)
+        q2 = (c[0] - sg * nor[i][0] * r, c[1] - sg * nor[i][1] * r)
+        mid_n = ((nor[i - 1][0] + nor[i][0]), (nor[i - 1][1] + nor[i][1])); ml = math.hypot(*mid_n)
+        qm = (c[0] - sg * mid_n[0] / ml * r, c[1] - sg * mid_n[1] / ml * r)
+        stuecke.append(("L", p, q1)); stuecke.append(("A", q1, qm, q2)); p = q2
+    e = (mitte[-1][0] + s * nor[-1][0] * t / 2, mitte[-1][1] + s * nor[-1][1] * t / 2)
+    stuecke.append(("L", p, e))
+    return stuecke
+
+
+def blech_bogen(mitte, t, R, lg):
+    """Blech um die Mittellinie mit echten Biegebögen (Innenradius R, auch flache Winkel, wo kant() am Verrunden
+    scheitert), Dicke t, Länge lg in Z (Patrick 05.11.2026: leicht angekantete Bleche)."""
+    links, rechts = _zug(mitte, R, t, 1), _zug(mitte, R, t, -1)
+    P = lambda q: gp_Pnt(q[0], q[1], 0)
+    w = BRepBuilderAPI_MakeWire()
+    def add(st, rueck=False):
+        for x in (reversed(st) if rueck else st):
+            if x[0] == "L":
+                a, b = (x[2], x[1]) if rueck else (x[1], x[2])
+                w.Add(BRepBuilderAPI_MakeEdge(GC_MakeSegment(P(a), P(b)).Value()).Edge())
+            else:
+                a, m, b = (x[3], x[2], x[1]) if rueck else (x[1], x[2], x[3])
+                w.Add(BRepBuilderAPI_MakeEdge(GC_MakeArcOfCircle(P(a), P(m), P(b)).Value()).Edge())
+    add(links)
+    w.Add(BRepBuilderAPI_MakeEdge(GC_MakeSegment(P(links[-1][-1]), P(rechts[-1][-1])).Value()).Edge())
+    add(rechts, True)
+    w.Add(BRepBuilderAPI_MakeEdge(GC_MakeSegment(P(rechts[0][1]), P(links[0][1])).Value()).Edge())
+    f = BRepBuilderAPI_MakeFace(w.Wire()).Face()
+    return BRepPrimAPI_MakePrism(f, gp_Vec(0, 0, lg)).Shape()

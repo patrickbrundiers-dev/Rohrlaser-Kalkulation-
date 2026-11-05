@@ -11,6 +11,10 @@
 - B6 C gekantet, Schenkel vorne und hinten ungekantet (flach in der Ebene des Rückens, Freischnitt 2 mm; Patrick
   15:11): war U-Profil ohne Kantteil-Auswahl, weil die kleinen Stirnflächen des Freischnitts einem Schenkel die
   Gegenseite wegnahmen. Jetzt Blech gekantet mit Zuschnitt 200 × 196,36 und freier Außenkontur, auch schräg.
+- B7 Blech rechts und links nur leicht angekantet (2°–30°, Patrick 15:23): Kantteil mit gleichem Vorzeichen beider
+  Kantungen (bis 15° wechselte es: Z statt Wanne); 2°/5° waren Flachstahl mit Dicke 0.
+- B8 Blech mit herausstehenden Stecknasen rechts und links (eben, schräg im Raum, an leicht angekanteten Schenkeln):
+  die Nasen fehlten in der Außenkontur (Hauptfläche in Stücken, nur die größte gemessen).
 
 Aufruf: python tests/test_kantteil_bilder.py
 """
@@ -31,7 +35,7 @@ from OCP.BRepBuilderAPI import (BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace
 from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism  # noqa: E402
 from OCP.gp import gp_Ax2, gp_Dir, gp_Elips, gp_Pnt, gp_Trsf, gp_Vec  # noqa: E402
 
-from formen_baukasten import kant, lage, ohne, plus, quader, schreibe, zyl  # noqa: E402
+from formen_baukasten import blech_bogen, kant, lage, ohne, plus, quader, schreibe, verschiebe, zyl  # noqa: E402
 from step_geometrie import analysiere_datei  # noqa: E402
 
 fehler = 0
@@ -113,7 +117,24 @@ LF = 61         # flacher Schenkel an den Enden: Rücken bis 3 mm vor die Biegun
 C_FLACH = plus(kant([(60, 0), (0, 0), (0, 80), (60, 80)], 2, lg=140), quader(2, 196, 28, -1, -LF + 3, -30),
                quader(2, 74, 2, -1, 3, -2), quader(2, 196, 28, -1, -LF + 3, 142), quader(2, 74, 2, -1, 3, 140))
 C_FLACH = ohne(C_FLACH, zyl(5, 10, -16, -5, -40, X), zyl(5, 10, 156, -5, 120, X))
-TEILE = {"C_Flach": C_FLACH, "C_Flach_schraeg": lage(C_FLACH), "C_Halter": C_HALTER, "C_Halter_schraeg": lage(C_HALTER), "C_Lasche": C_LASCHE, "Hut": HUT,
+
+
+def leicht(w, f=40, b=300, lg=200, t=2):
+    c, s_ = math.cos(math.radians(w)), math.sin(math.radians(w))
+    return blech_bogen([(-f * c, f * s_), (0, 0), (b, 0), (b + f * c, f * s_)], t, t, lg)
+
+
+NASEN = [quader(6, 12, 3, -6, 20, 0), quader(6, 12, 3, -6, 68, 0), quader(6, 12, 3, 200, 20, 0),
+         quader(6, 12, 3, 200, 68, 0)]
+NASEN_EBEN = ohne(plus(quader(200, 100, 3), *NASEN), zyl(5, 10, -5, 100, 50))
+c15, s15 = math.cos(math.radians(15)), math.sin(math.radians(15))
+NASEN_KANT = plus(leicht(15), *[verschiebe(blech_bogen([(-6 * c15, 6 * s15), (0, 0)], 2, 2, 20), -40 * c15, 40 * s15, z)
+                                for z in (40, 140)],
+                  *[verschiebe(blech_bogen([(0, 0), (6 * c15, 6 * s15)], 2, 2, 20), 300 + 40 * c15, 40 * s15, z)
+                    for z in (40, 140)])
+LEICHT = {f"Leicht_{w}": leicht(w) for w in (2, 5, 10, 15, 30)}
+TEILE = {**LEICHT, "Leicht_10_schraeg": lage(leicht(10)), "Nasen_eben": NASEN_EBEN, "Nasen_schraeg": lage(NASEN_EBEN),
+         "Nasen_kant": NASEN_KANT, "C_Flach": C_FLACH, "C_Flach_schraeg": lage(C_FLACH), "C_Halter": C_HALTER, "C_Halter_schraeg": lage(C_HALTER), "C_Lasche": C_LASCHE, "Hut": HUT,
          "Z_Lippe": Z_LIPPE, "U_Lasche": U_LASCHE, "Fenster": FENSTER, "Fenster_schraeg": lage(FENSTER),
          "L_Ausschnitt": L_AUSSCHNITT, "L_Bohrung": L_BOHRUNG, "Platte_Ellipsen": PLATTE_ELL, "Wanne_Ellipsen": WANNE_ELL}
 TMP = Path(tempfile.mkdtemp())
@@ -212,6 +233,31 @@ def _():
         assert a["kantungen"] == 2 and nah(a["laenge"], 200) and nah(a["breite"], 188 + 2 * BA90), a
         assert [x["laenge"] for x in a["schenkel"]] == [61, 82, 61] and len(b["aussen_punkte"]) == 20, a["schenkel"]
         assert b["bohrungen"] == {10.0: 2}, b["bohrungen"]
+
+
+@fall("B7 Blech rechts und links leicht angekantet (2°–30°): Kantteil, beide Kantungen in dieselbe Richtung")
+def _():
+    for n in (*LEICHT, "Leicht_10_schraeg"):
+        w = int(n.split("_")[1])
+        t = m(n)
+        assert t.profilform == "Blech gekantet" and t.wandstaerke == 2, (n, t.profilform, t.wandstaerke)
+        a = abw(n)
+        winkel = [x["winkel"] for x in a["schenkel"][:2]]
+        assert a["kantungen"] == 2 and winkel[0] == winkel[1] and abs(winkel[0]) == w, (n, winkel)
+        soll = 380 - 4 * (2 + 1) * math.tan(math.radians(w) / 2) + 2 * math.radians(w) * (2 + 0.33 * 2)
+        assert nah(max(a["laenge"], a["breite"]), soll, 0.05), (n, a["laenge"], a["breite"], soll)
+
+
+@fall("B8 Stecknasen rechts und links: in der Außenkontur (eben, schräg, an leicht angekanteten Schenkeln)")
+def _():
+    for n in ("Nasen_eben", "Nasen_schraeg"):
+        b = m(n).blech
+        assert m(n).profilform == "Blech" and nah(b["laenge"], 212) and nah(b["breite"], 100), (n, b["laenge"])
+        assert nah(b["umfang_aussen"], 600 + 4 * 12, 0.05) and len(b["aussen_punkte"]) >= 20, (n, b["umfang_aussen"])
+        assert b["bohrungen"] == {10.0: 1}, b["bohrungen"]
+    a, b = abw("Nasen_kant"), m("Nasen_kant").blech
+    assert m("Nasen_kant").profilform == "Blech gekantet" and a["kantungen"] == 2 and len(b["aussen_punkte"]) == 20, a
+    assert nah(max(a["laenge"], a["breite"]), abw("Leicht_15")["breite"] + 12, 0.1), (a["laenge"], a["breite"])
 
 
 if fehler:

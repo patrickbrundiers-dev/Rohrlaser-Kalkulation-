@@ -2849,7 +2849,7 @@ def _flach_pruefen(solid, volumen):
     haupt = max(e1[2], key=_flaeche)
     pl = _ebene(haupt)
     erg = dict(dicke=dicke, hauptflaeche=haupt, richtung=g[0], mitte=pl.Location(), flaeche_oben=e1[1],
-               flaeche_unten=e2[1])
+               flaeche_unten=e2[1], teilflaechen=len(e1[2]))
     # eben: nur diese beiden Ebenen in der Richtung (keine Absätze, Taschen oder Gravuren), Volumen = Fläche × Dicke
     weitere = [e for e in g[1][2:] if e[1] > 1e-3 * e1[1]]
     # (Senkungen nehmen auf einer Seite Fläche weg: Volumen liegt zwischen kleinerer und größerer Fläche × Dicke)
@@ -3459,7 +3459,8 @@ def _kantteil(t):
             b.normprofil, t.alternative, b.alternative = n, None, t
             return b
     if not (KANTRADIEN_BLECH and getattr(t, "_kantradien", False) and t.bauteiltyp == "Profil"
-            and t.profilform in ("L-Profil", "U-Profil", "C-Profil", "offenes Sonderprofil") + TRAEGER
+            # Flachstahl mit Biegeradien: nur leicht angekantetes Blech (5°, Patrick 05.11.2026, war Dicke 0)
+            and t.profilform in ("L-Profil", "U-Profil", "C-Profil", "offenes Sonderprofil", "Flachstahl") + TRAEGER
             and not t.normprofil       # Träger/Sonderprofil mit Biegeradien und gleicher Dicke: Kantteil (C mit Sicke)
             and not (t.geschlossen is not None and not rohr_grund(t))
             and b is not None and b.bauteiltyp == "Blech gekantet"):
@@ -3512,8 +3513,20 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     except Exception:  # Blechprüfung darf die Profilmessung nie verhindern
         fl = None
     daten = None
+    bsolid = solid
+    if fl and fl["art"] == "eben" and fl.get("teilflaechen", 1) > 1:
+        # Hauptfläche in mehreren Stücken (angesetzte Stecknasen, Laschen, Boolesche Operationen; Patrick 05.11.2026:
+        # Nasen fehlten in der Außenkontur): erst gleiche Ebenen zusammenfassen, dann messen
+        from step_abwicklung import _vereinheitlichen
+        try:
+            s2 = _vereinheitlichen(solid)
+            fl2 = _flach_pruefen(s2, volumen)
+            if fl2 and fl2["art"] == "eben":
+                bsolid, fl = s2, fl2
+        except Exception:  # dann wie bisher mit der größten Teilfläche
+            pass
     if fl and fl["art"] == "eben":
-        daten = _blech_daten(solid, fl)
+        daten = _blech_daten(bsolid, fl)
         dicke_ok = fl["dicke"] <= BLECH_DICKE_ANTEIL * daten["breite"] + 1e-6
         # Patrick 03.11.2026: mit „Flache Teile als: Blech“ (flach_bis 0) ist jedes ebene flache Teil ein Blech, auch
         # ein dickes schmales (FL 30 × 8, Platte 50 × 50 × 15); Flachstahl bleibt nur als Auswahl im Prüfdialog, wenn
