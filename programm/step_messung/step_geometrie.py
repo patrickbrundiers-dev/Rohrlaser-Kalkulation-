@@ -353,7 +353,7 @@ def lies_iges_info(pfad):
     shape = r.OneShape()
     if shape is None or shape.IsNull() or not _liste(shape, TopAbs_FACE):
         raise ValueError("IGES-Datei nicht lesbar (leer oder kein IGES)" + (": " + "; ".join(fehler[:3]) if fehler else ""))
-    koerper = [("Volumenkörper", TopoDS.Solid(x)) for x in _liste(shape, TopAbs_SOLID)]
+    koerper = [("Volumenkörper", _solid_analytisch(TopoDS.Solid(x))) for x in _liste(shape, TopAbs_SOLID)]
     lose = []
     ex = TopExp_Explorer(shape, TopAbs_FACE, TopAbs_SOLID)
     while ex.More():
@@ -377,6 +377,22 @@ def _iges_einheit(pfad):
         if f"H{text}," in kopf.upper().replace(f"{len(text)}H{text}", f"H{text}"):
             return name
     return "unbekannt"
+
+
+def _solid_analytisch(solid):
+    """Volumenkörper aus IGES (Hubwagen: Zylinder als Drehflächen) mit umgewandelten Flächen neu nähen; nur wenn
+    wieder genau ein gültiger Körper mit gleichem Volumen entsteht, sonst der Körper wie gelesen."""
+    try:
+        flaechen = [TopoDS.Face(f) for f in _liste(solid, TopAbs_FACE)]
+        neu = [_analytisch(f) for f in flaechen]
+        if all(n is f for n, f in zip(neu, flaechen)):
+            return solid
+        erg = [k for art, k in _naehen(neu) if art == "aus Flächenmodell genäht"]
+        if len(erg) == 1 and abs(_volumen(erg[0]) - _volumen(solid)) <= 1e-3 * abs(_volumen(solid)):
+            return erg[0]
+    except Exception:  # Umwandlung ist Zusatz
+        pass
+    return solid
 
 
 def _analytisch(face, tol=1e-3):

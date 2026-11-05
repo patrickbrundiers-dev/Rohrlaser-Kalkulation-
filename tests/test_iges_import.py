@@ -6,6 +6,8 @@
   Öffnung der Prägung im Zuschnitt geschlossen (keine Innenkontur), Hinweis „Prägung“.
 - I4 Dateiauswahl: Ordner, Ablegen, Anfragen und Dialoge nehmen .igs/.iges wie .step/.stp.
 - I5 Einheit aus dem IGES-Kopf, kaputte IGES-Datei: klare Meldung.
+- I6 IGES mit Volumenkörpern (Hubwagen aus SolidWorks: Zylinder als Drehflächen): Flächen umgewandelt, gleiche
+  Messung wie STEP.
 
 Aufruf: python tests/test_iges_import.py
 """
@@ -55,6 +57,7 @@ TMP = Path(tempfile.mkdtemp())
 schreibe({"C_Halter": C_HALTER, "Rohr": ROHR, "Praeg": PRAEG}, TMP)
 for n, f in (("C_Halter", C_HALTER), ("Rohr", ROHR), ("Praeg", PRAEG)):
     schreibe_iges(f, TMP / f"{n}.igs")
+schreibe_iges(C_HALTER, TMP / "C_Halter_koerper.igs", koerper=True)
 M = {}
 
 
@@ -123,6 +126,20 @@ def _():
         raise AssertionError("keine Fehlermeldung")
     except ValueError as e:
         assert "IGES-Datei nicht lesbar" in str(e), e
+
+
+@fall("I6 IGES mit Volumenkörpern: Drehflächen als Zylinder, Messung wie STEP")
+def _():
+    from collections import Counter
+    from step_geometrie import BRepAdaptor_Surface, TopAbs_FACE, TopoDS, _liste
+    k, _ = lies_step_info(TMP / "C_Halter_koerper.igs")
+    assert [a for a, _ in k] == ["Volumenkörper"], [a for a, _ in k]
+    arten = Counter(str(BRepAdaptor_Surface(TopoDS.Face(f)).GetType()).split("_")[-1] for f in _liste(k[0][1], TopAbs_FACE))
+    assert "SurfaceOfRevolution" not in arten and arten["Cylinder"] >= 4, arten
+    a, b = m("C_Halter.step"), m("C_Halter_koerper.igs")
+    assert b.profilform == a.profilform and b.blech["bohrungen"] == a.blech["bohrungen"], (b.profilform, b.blech)
+    wa, wb = a.blech["abwicklung"], b.blech["abwicklung"]
+    assert nah(wa["laenge"], wb["laenge"]) and nah(wa["breite"], wb["breite"]) and wa["kantungen"] == wb["kantungen"]
 
 
 if fehler:

@@ -231,14 +231,14 @@ def praegung(mitte, t, R):
     return BRepPrimAPI_MakeRevol(blech_querschnitt(mitte, t, R), gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0))).Shape()
 
 
-def schreibe_iges(form, ziel):
-    """Form als IGES (Flächen, wie die meisten CAD-Programme) schreiben."""
+def schreibe_iges(form, ziel, koerper=False):
+    """Form als IGES schreiben: Flächen (wie die meisten CAD-Programme) oder koerper=True als Volumenkörper (BRep)."""
     from OCP.IGESControl import IGESControl_Writer
     fd, alt = sys.stdout.fileno(), os.dup(sys.stdout.fileno())
     sys.stdout.flush()
     os.dup2(os.open(os.devnull, os.O_WRONLY), fd)
     try:
-        w = IGESControl_Writer("MM", 0)
+        w = IGESControl_Writer("MM", 1 if koerper else 0)
         w.AddShape(form)
         w.ComputeModel()
         assert w.Write(str(ziel)), ziel
