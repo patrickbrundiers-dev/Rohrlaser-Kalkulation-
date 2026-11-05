@@ -385,7 +385,7 @@ def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
             for u, z in _dicht_rund(um, rund)]
 
 
-def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None):
+def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None, rundum=False):
     """Umriss eines komplexen Endes der Messung als [[s, Abstand vom Ende]] für die Abwicklung der Skizze und das 3D:
     Kanten des gemessenen Umrisses fein abgetastet, je Stelle s (Raster schritt mm) der kleinste Abstand (die
     äußerste Kante des Teils), gerade Stücke zusammengefasst (Abweichung unter 0,01 mm); None ohne Umriss.
@@ -395,7 +395,9 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
     Läuft der Schnitt vom Ende aus ins Teil hinein und wieder zurück (z. B. Schlitz, der in die Gehrung mündet),
     lässt sich das nicht als ein Abstand je Stelle zeigen: solche Ausflüge (mehr als AUSFLUG_TOL hinter der
     äußersten Kante) kommen als Züge [(u, z)] der Messung, geschlossen über die äußerste Kante, in die Liste
-    ausflug (Sonderkontur am Ende, step.rechner_eingaben)."""
+    ausflug (Sonderkontur am Ende, step.rechner_eingaben).
+    rundum: der Umfang ist geschlossen (Flachstahl): ein Sprung über s = 0 / s = Umfang ist ein kurzes Stück über
+    die Stelle 0, nicht der Weg einmal quer über die Abwicklung zurück."""
     um = d.get("umriss")
     if not um or len(um) < 3 or umfang <= 0:
         return None
@@ -415,7 +417,9 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
                 zug = []
             continue
         (u0, z0), (u1, z1) = p, q
-        if i == len(pts) - 1 and abs(u1 - u0) > umfang / 2:     # vom Ende zum Anfang einmal rundum: kurze Lücke
+        if rundum and abs(u1 - u0) > umfang / 2:
+            u1 += round((u0 - u1) / umfang) * umfang
+        elif i == len(pts) - 1 and abs(u1 - u0) > umfang / 2:     # vom Ende zum Anfang einmal rundum: kurze Lücke
             if not u_umfang:
                 continue
             u1 += round((u0 - u1) / u_umfang) * u_umfang
@@ -700,7 +704,9 @@ def _offen_ende_umriss(d, ende_b, laenge, offen, wand, ausflug=None):
             pts += lf
     if not pts:
         return None
-    return _ende_umriss(dict(umriss=pts), ende_b, laenge, lambda s: s, offen.qs.umfang, ausflug=ausflug)
+    # Flachstahl: der Umfang ist geschlossen (rundes Ende läuft über die Schmalseite bei s = 0 weiter)
+    return _ende_umriss(dict(umriss=pts), ende_b, laenge, lambda s: s, offen.qs.umfang, ausflug=ausflug,
+                        rundum=offen.qs.form == "Flachstahl")
 
 
 def sk_s_zu_seite(qs, s):
