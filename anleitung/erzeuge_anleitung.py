@@ -2736,7 +2736,14 @@ def kapitel_step(i):
             "Spalte Art umgestellt, zeigt die <b>3D-Ansicht</b> sie gleich mit: Bleche und Kantteile ganz "
             "<b>blau</b> (Zukauf, nicht gelasert), Rohre und Profile grau mit Anfangs- und Endschnitt. Ein <b>geschlossenes Rohr</b> "
             "(Rund-, Quadrat-, Rechteckrohr, Sonder- oder Mehrkammerprofil) ist immer ein Rohr, nie ein Kantteil, "
-            "auch mit vielen Langlöchern oder Ausschnitten; alle Schnitte werden übernommen.",
+            "auch mit vielen Langlöchern oder Ausschnitten; alle Schnitte werden übernommen. Seit 0.9.263 wird die "
+            "<b>Biegezone echt abgerollt</b>: ein Fenster oder Ausschnitt quer über einer Kante, ein Freischnitt oder "
+            "eine Bohrung, die in die Biegung reicht, steht im Zuschnitt mit ihrem Umriss an der richtigen Stelle "
+            "(vorher wurde daraus ein Schlitz bis zum Rand). Solche Konturen sind als <i>über Biegung</i> markiert, "
+            "mit dem Hinweis <i>Innenkontur über einer Biegung … verzieht sich beim Kanten – prüfen</i>. Eine "
+            "<b>Ellipse</b> im Blech heißt Ellipse mit ihren Achsen (Hinweis <i>Ellipse 60 × 36 mm</i>); "
+            "gezeichnet und geschnitten wird sie als Polygon mit dem Umriss der STEP, so können sie alle Editoren, "
+            "DXF und 3D.",
             "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
             "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
             "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "

@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.263", "<b>Kantteile aus der STEP</b> ([[bleche]]): die Biegezone wird echt abgerollt. Ein Fenster oder "
+     "Ausschnitt quer über einer Kante, ein Freischnitt oder eine Bohrung in der Biegung steht jetzt mit ihrem "
+     "Umriss im Zuschnitt (vorher ein Schlitz bis zum Rand, ohne Schenkel im Blech-Editor) und ist als <i>über "
+     "Biegung</i> gekennzeichnet. <b>Ellipsen</b> in Blechen heißen Ellipse mit Achsen statt Polygon.",
+     "Kantteile: Ausschnitt über der Biegung richtig abgewickelt, Ellipsen im Blech"],
     ["0.9.262", "<b>Fehler behoben</b> im Fenster STEP-Import prüfen: Eine <b>Regel des Kunden</b> ([[profil_regeln]]) "
      "mit anderer Profilform (z. B. Quadrat- statt Rechteckrohr) ließ beim Zurückstellen auf das gemessene Profil die "
      "Form der Regel stehen; die Position bekam dann den Hinweis <i>Profil fehlt in Stammdaten</i> und neu gerechnete "

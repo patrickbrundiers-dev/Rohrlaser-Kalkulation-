@@ -3014,7 +3014,49 @@ def _blech_kontur(pts, schnitt=None):
         mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
         d.update(art="Polygon", x=round(mx, 2), y=round(my, 2),
                  punkte=[[round(x - mx, 2), round(y - my, 2)] for x, y in pk])
+        el = _ellipse_2d(pts)
+        if el is not None:
+            # Ellipse (Patrick 05.11.2026): benannt mit Achsen und Drehung; gezeichnet und geschnitten wird der
+            # Umriss der STEP als Polygon, so können ihn alle Editoren, DXF und 3D ohne eigene Art
+            d.update(form="Ellipse", achsen=[round(2 * el[2], 2), round(2 * el[3], 2)], winkel=round(el[4], 1))
     return d
+
+
+def _ellipse_2d(pts, tol=None):
+    """Ellipse durch die Punkte eines geschlossenen Umrisses: (mx, my, a, b, Winkel der großen Achse in °) mit
+    a ≥ b, wenn jeder Punkt höchstens tol (BLECH_FORM_TOL) radial neben der Ellipse liegt, sonst None (auch für
+    Kreise: die sind Bohrungen)."""
+    tol = BLECH_FORM_TOL if tol is None else tol
+    if len(pts) < 12:
+        return None
+    n = len(pts)
+    mx, my = sum(x for x, _ in pts) / n, sum(y for _, y in pts) / n
+    sxx = sum((x - mx) ** 2 for x, _ in pts) / n
+    syy = sum((y - my) ** 2 for _, y in pts) / n
+    sxy = sum((x - mx) * (y - my) for x, y in pts) / n
+    w = 0.5 * math.atan2(2 * sxy, sxx - syy)
+    c, s_ = math.cos(w), math.sin(w)
+    rel = [((x - mx) * c + (y - my) * s_, -(x - mx) * s_ + (y - my) * c) for x, y in pts]
+    # Mitte aus dem Hüllrechteck im Achsensystem (Punkte liegen nicht gleichmäßig verteilt)
+    u0, u1 = min(u for u, _ in rel), max(u for u, _ in rel)
+    v0, v1 = min(v for _, v in rel), max(v for _, v in rel)
+    a, b = (u1 - u0) / 2, (v1 - v0) / 2
+    du, dv = (u0 + u1) / 2, (v0 + v1) / 2
+    if b <= 0.5 or a <= 0.5 or abs(a - b) <= tol:
+        return None
+    for u, v in rel:
+        u, v = u - du, v - dv
+        r = math.hypot(u, v)
+        if r < 1e-9:
+            return None
+        cw, sw_ = u / r, v / r
+        r_ell = a * b / math.sqrt((b * cw) ** 2 + (a * sw_) ** 2)
+        if abs(r - r_ell) > tol:
+            return None
+    cx, cy = mx + du * c - dv * s_, my + du * s_ + dv * c
+    if a < b:
+        a, b, w = b, a, w + math.pi / 2
+    return cx, cy, a, b, math.degrees(w) % 180
 
 
 def blech_kontur_abweichung(k, pts):
@@ -3268,6 +3310,11 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         ax3 = gp_Ax3(fl["mitte"], gp_Dir(lr.X(), lr.Y(), lr.Z()), fl["richtung"])
     b["volumen"] = volumen
     b["fingerabdruck"] = fingerabdruck(b)
+    ell = [k["achsen"] for k in b.get("konturen_lage") or () if k.get("form") == "Ellipse"]
+    if ell:
+        t.hinweise.append(f"{len(ell)} Ellipse{'n' if len(ell) != 1 else ''} ("
+                          + ", ".join(f"{a:g} × {c:g}".replace(".", ",") for a, c in ell[:4])
+                          + (" …" if len(ell) > 4 else "") + " mm): als Polygon mit dem Umriss der STEP übernommen")
     t.blech = b
     t.flaeche = 0.0       # kein Profilquerschnitt
     lok = _transformiere(solid, ax3)

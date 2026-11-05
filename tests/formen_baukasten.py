@@ -123,3 +123,38 @@ def schreibe(teile, ziel):
             assert w.Write(str(ziel / f"{name}.step")) == IFSelect_RetDone, name
     finally:
         os.dup2(alt, fd)
+
+
+def kant(mitte, t, R=None, lg=500):
+    """Blech der Dicke t um die Mittellinie (offener Zug); Biegeradius innen R (Vorgabe t), außen R + t."""
+    R = t if R is None else R
+    def off(s):
+        pts = []
+        n = len(mitte)
+        for i in range(n):
+            if i == 0 or i == n - 1:
+                a, b = (mitte[0], mitte[1]) if i == 0 else (mitte[-2], mitte[-1])
+                dx, dy = b[0] - a[0], b[1] - a[1]; L = math.hypot(dx, dy)
+                nx, ny = -dy / L, dx / L
+                pts.append((mitte[i][0] + s * nx * t / 2, mitte[i][1] + s * ny * t / 2))
+            else:
+                a, b, c = mitte[i - 1], mitte[i], mitte[i + 1]
+                d1 = ((b[0] - a[0]), (b[1] - a[1])); l1 = math.hypot(*d1); d1 = (d1[0] / l1, d1[1] / l1)
+                d2 = ((c[0] - b[0]), (c[1] - b[1])); l2 = math.hypot(*d2); d2 = (d2[0] / l2, d2[1] / l2)
+                n1, n2 = (-d1[1], d1[0]), (-d2[1], d2[0])
+                bx, by = n1[0] + n2[0], n1[1] + n2[1]; bl = math.hypot(bx, by)
+                cosh = (n1[0] * bx + n1[1] * by) / bl
+                f = s * t / 2 / cosh
+                pts.append((round(b[0] + bx / bl * f, 6), round(b[1] + by / bl * f, 6)))
+        return pts
+    links, rechts = off(1), off(-1)
+    radien = {}
+    for i in range(1, len(mitte) - 1):
+        a, b, c = mitte[i - 1], mitte[i], mitte[i + 1]
+        kreuz = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
+        if R > 0:
+            radien[links[i]] = R if kreuz > 0 else R + t
+            radien[rechts[i]] = R + t if kreuz > 0 else R
+    poly = links + list(reversed(rechts))
+    from erzeuge_testteile import profil
+    return profil(poly, lg, radien or None)
