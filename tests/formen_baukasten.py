@@ -200,6 +200,11 @@ def _zug(mitte, R, t, s):
 def blech_bogen(mitte, t, R, lg):
     """Blech um die Mittellinie mit echten Biegebögen (Innenradius R, auch flache Winkel, wo kant() am Verrunden
     scheitert), Dicke t, Länge lg in Z (Patrick 05.11.2026: leicht angekantete Bleche)."""
+    return BRepPrimAPI_MakePrism(blech_querschnitt(mitte, t, R), gp_Vec(0, 0, lg)).Shape()
+
+
+def blech_querschnitt(mitte, t, R):
+    """Querschnitt (Fläche in XY) eines Blechs um die Mittellinie mit echten Biegebögen."""
     links, rechts = _zug(mitte, R, t, 1), _zug(mitte, R, t, -1)
     P = lambda q: gp_Pnt(q[0], q[1], 0)
     w = BRepBuilderAPI_MakeWire()
@@ -215,5 +220,27 @@ def blech_bogen(mitte, t, R, lg):
     w.Add(BRepBuilderAPI_MakeEdge(GC_MakeSegment(P(links[-1][-1]), P(rechts[-1][-1])).Value()).Edge())
     add(rechts, True)
     w.Add(BRepBuilderAPI_MakeEdge(GC_MakeSegment(P(rechts[0][1]), P(links[0][1])).Value()).Edge())
-    f = BRepBuilderAPI_MakeFace(w.Wire()).Face()
-    return BRepPrimAPI_MakePrism(f, gp_Vec(0, 0, lg)).Shape()
+    return BRepBuilderAPI_MakeFace(w.Wire()).Face()
+
+
+def praegung(mitte, t, R):
+    """Runde Prägung: der Querschnitt (Mittellinie in r/y, r = x ab 0) um die Y-Achse gedreht (Patrick 05.11.2026,
+    Blech-Halter mit eingeprägten Taschen)."""
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeRevol
+    from OCP.gp import gp_Ax1, gp_Dir
+    return BRepPrimAPI_MakeRevol(blech_querschnitt(mitte, t, R), gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0))).Shape()
+
+
+def schreibe_iges(form, ziel):
+    """Form als IGES (Flächen, wie die meisten CAD-Programme) schreiben."""
+    from OCP.IGESControl import IGESControl_Writer
+    fd, alt = sys.stdout.fileno(), os.dup(sys.stdout.fileno())
+    sys.stdout.flush()
+    os.dup2(os.open(os.devnull, os.O_WRONLY), fd)
+    try:
+        w = IGESControl_Writer("MM", 0)
+        w.AddShape(form)
+        w.ComputeModel()
+        assert w.Write(str(ziel)), ziel
+    finally:
+        os.dup2(alt, fd)

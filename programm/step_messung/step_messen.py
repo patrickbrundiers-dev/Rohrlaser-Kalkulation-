@@ -211,7 +211,7 @@ def step_dateien(pfade):
     out = []
     for p in map(Path, pfade):
         if p.is_dir():
-            out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp"))
+            out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp", ".igs", ".iges"))
         else:
             out.append(p)
     return out

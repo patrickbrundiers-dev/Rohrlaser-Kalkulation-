@@ -123,7 +123,7 @@ def kunde(text, kunden, eigene=()):
 
 def _schluessel(name, ocr=False):
     s = Path(str(name or "")).name
-    s = re.sub(r"\.(step|stp)$", "", s, flags=re.I)
+    s = re.sub(r"\.(step|stp|igs|iges)$", "", s, flags=re.I)
     return ohne_zeichen(s, ocr)
 
 

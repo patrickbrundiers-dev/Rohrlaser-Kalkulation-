@@ -271,7 +271,9 @@ def lies_step_info(pfad):
     'aus Flächenmodell genäht' (geschlossene Fläche zu Volumen gemacht) oder 'Flächenmodell offen' (nicht messbar).
     Info: einheit, meldungen (Fehler/Warnungen des Lesers), baugruppe (mehrere Körper). Nichts wird still verworfen:
     alles, was weder Volumenkörper noch nähbar ist, kommt als 'Flächenmodell offen' zurück.
-    Wirft ValueError, wenn die Datei nicht lesbar ist."""
+    Wirft ValueError, wenn die Datei nicht lesbar ist. IGES-Dateien (.igs/.iges) liest lies_iges_info."""
+    if ist_iges(pfad):
+        return lies_iges_info(pfad)
     from OCP.IFSelect import IFSelect_RetVoid
     try:            # mit Baugruppenstruktur und Namen (XCAF); Körper in derselben Reihenfolge wie ohne
         from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -324,6 +326,139 @@ def lies_step_info(pfad):
         except Exception:  # wie oben: Struktur darf die Messung nie verhindern
             pass
     return koerper, info
+
+
+IGES_ENDUNGEN = (".igs", ".iges")
+CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN
+
+
+def ist_iges(pfad):
+    return _Path(str(pfad)).suffix.lower() in IGES_ENDUNGEN
+
+
+def lies_iges_info(pfad):
+    """IGES-Datei lesen (Patrick 05.11.2026 „Iges import einbauen“), Ergebnis wie lies_step_info. IGES kennt keine
+    Baugruppe und keine Bauteilnamen; Flächenmodelle (der Normalfall) werden wie bei STEP genäht. Biegungen und
+    Bohrungen stehen in IGES oft als Dreh- oder Freiformflächen: was genau einer Ebene, einem Zylinder, Kegel,
+    Torus oder einer Kugel entspricht, wird vorher in diese Fläche umgewandelt (sonst kein Kantteil, kein Kreis)."""
+    from OCP.IFSelect import IFSelect_RetVoid
+    from OCP.IGESControl import IGESControl_Reader
+    r = IGESControl_Reader()
+    status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
+    fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
+    if status != IFSelect_RetDone:
+        grund = "leer oder kein IGES" if status == IFSelect_RetVoid else "Syntaxfehler"
+        raise ValueError(f"IGES-Datei nicht lesbar ({grund})" + (": " + "; ".join(fehler[:3]) if fehler else ""))
+    _konsole_mitschneiden(r.TransferRoots)
+    shape = r.OneShape()
+    if shape is None or shape.IsNull() or not _liste(shape, TopAbs_FACE):
+        raise ValueError("IGES-Datei nicht lesbar (leer oder kein IGES)" + (": " + "; ".join(fehler[:3]) if fehler else ""))
+    koerper = [("Volumenkörper", TopoDS.Solid(x)) for x in _liste(shape, TopAbs_SOLID)]
+    lose = []
+    ex = TopExp_Explorer(shape, TopAbs_FACE, TopAbs_SOLID)
+    while ex.More():
+        lose.append(_analytisch(TopoDS.Face(ex.Current())))
+        ex.Next()
+    if lose:
+        koerper += _naehen(lose)
+    info = dict(einheit=_iges_einheit(pfad), meldungen=list(dict.fromkeys(fehler))[:20], baugruppe=len(koerper) > 1,
+                struktur=None, bauteile={})
+    return koerper, info
+
+
+def _iges_einheit(pfad):
+    """Einheit aus dem Global-Abschnitt der IGES-Datei (nur zur Information, OpenCascade rechnet in mm um)."""
+    try:
+        with open(pfad, encoding="latin-1", errors="replace") as f:
+            kopf = "".join(z[:72] for z in f.readlines()[:60] if len(z) > 72 and z[72] == "G")
+    except OSError:
+        return ""
+    for name, text in (("inch", "INCH"), ("mm", "MM"), ("m", "M"), ("ft", "FT"), ("cm", "CM")):
+        if f"H{text}," in kopf.upper().replace(f"{len(text)}H{text}", f"H{text}"):
+            return name
+    return "unbekannt"
+
+
+def _analytisch(face, tol=1e-3):
+    """Fläche mit genau passender Grundfläche (Ebene, Zylinder, Kegel, Kugel, Torus) und Kanten (Gerade, Kreis) neu
+    aufbauen; sonst die Fläche wie sie ist. Die Kanten der Nachbarflächen verbindet danach das Nähen."""
+    try:
+        from OCP.BRepTools import BRepTools
+        from OCP.GeomConvert import GeomConvert_SurfToAnaSurf
+        flaeche = BRep_Tool.Surface_s(face)
+        if BRepAdaptor_Surface(face).GetType() not in (GeomAbs_Plane, GeomAbs_Cylinder):
+            flaeche = GeomConvert_SurfToAnaSurf(flaeche).ConvertToAnalytical(tol) or flaeche
+        aussen = BRepTools.OuterWire_s(face)
+        draehte = [aussen] + [d for d in _liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
+        neue = [_draht_analytisch(d, tol) for d in draehte]
+        if flaeche is BRep_Tool.Surface_s(face) and all(n is None for n in neue):
+            return face
+        neue = [n or TopoDS.Wire(d) for n, d in zip(neue, draehte)]
+        mf = BRepBuilderAPI_MakeFace(flaeche, neue[0], True)
+        for d in neue[1:]:
+            mf.Add(d)
+        if not mf.IsDone():
+            return face
+        from OCP.ShapeFix import ShapeFix_Face
+        fix = ShapeFix_Face(mf.Face())
+        fix.Perform()
+        f = TopoDS.Face(fix.Face())
+        a, a0 = _flaeche(f), abs(_flaeche(face))
+        if abs(abs(a) - a0) > 1e-3 * max(a0, 1.0):
+            return face
+        # Normale der neuen Fläche zeigt evtl. anders herum (Fläche negativ): wenden; die Lage im Körper richtet
+        # danach das Nähen (ShapeFix_Solid)
+        return TopoDS.Face(f.Reversed()) if a < 0 else f
+    except Exception:  # Umwandlung ist Zusatz: dann die Fläche wie gelesen
+        return face
+
+
+def _draht_analytisch(draht, tol):
+    """Draht mit Freiformkanten, die genau Kreis(bogen) oder Strecke sind, als solche neu (Bohrungen in IGES sind oft
+    B-Splines); None, wenn nichts umzuwandeln ist."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeWire
+    from OCP.BRepTools import BRepTools_WireExplorer
+    from OCP.GeomAbs import GeomAbs_Circle
+    from OCP.ShapeAnalysis import ShapeAnalysis_CanonicalRecognition
+    from OCP.gp import gp_Ax2, gp_Circ, gp_Lin
+    kanten, geaendert = [], False
+    ex = BRepTools_WireExplorer(TopoDS.Wire(draht))
+    while ex.More():
+        e = ex.Current()
+        ex.Next()
+        c = BRepAdaptor_Curve(e)
+        if c.GetType() in (GeomAbs_Line, GeomAbs_Circle):
+            kanten.append(e)
+            continue
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+        p1, pm, p2 = c.Value(u0), c.Value((u0 + u1) / 2), c.Value(u1)
+        rec = ShapeAnalysis_CanonicalRecognition(e)
+        kreis, gerade, n = gp_Circ(), gp_Lin(), None
+        if rec.IsLine(tol, gerade) and p1.Distance(p2) > tol:
+            n = BRepBuilderAPI_MakeEdge(p1, p2).Edge()
+        elif rec.IsCircle(tol, kreis):
+            if p1.Distance(p2) < tol:
+                n = BRepBuilderAPI_MakeEdge(kreis).Edge()
+            else:
+                for k in (kreis, gp_Circ(gp_Ax2(kreis.Location(), kreis.Axis().Direction().Reversed(),
+                                                 kreis.XAxis().Direction()), kreis.Radius())):
+                    m = BRepBuilderAPI_MakeEdge(k, p1, p2)
+                    if m.IsDone():
+                        cn = BRepAdaptor_Curve(m.Edge())
+                        if cn.Value((cn.FirstParameter() + cn.LastParameter()) / 2).Distance(pm) < 10 * tol:
+                            n = m.Edge()
+                            break
+        if n is None:
+            kanten.append(e)
+            continue
+        kanten.append(n.Oriented(e.Orientation()))
+        geaendert = True
+    if not geaendert:
+        return None
+    mw = BRepBuilderAPI_MakeWire()
+    for e in kanten:
+        mw.Add(TopoDS.Edge(e))
+    return mw.Wire() if mw.IsDone() else None
 
 
 def _caf_uebertragen(caf):
@@ -3309,7 +3444,8 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
                      aussen_punkte=abw["aussen_punkte"], abwicklung=dict(
                          laenge=round(abw["laenge"], 2), breite=round(abw["breite"], 2), kantlaenge=abw["kantlaenge"],
                          schenkel=abw["schenkel"], biegelinien=abw["biegelinien"], kantungen=abw["kantungen"],
-                         mehrachsig=abw["mehrachsig"], scharf=abw["scharf"], k_faktor=abw["k_faktor"]))
+                         mehrachsig=abw["mehrachsig"], scharf=abw["scharf"], k_faktor=abw["k_faktor"],
+                         **({"praegungen": abw["praegungen"]} if abw.get("praegungen") else {})))
             t.innen, t.innen_konturen, t.innen_liste = abw["umfang_innen"], abw["innen"], abw["innen_liste"]
             t.bohrungen, t.konturen = abw["bohrungen"], 1 + abw["innen"]
             t.schneidweg = abw["umfang_aussen"] + abw["umfang_innen"]

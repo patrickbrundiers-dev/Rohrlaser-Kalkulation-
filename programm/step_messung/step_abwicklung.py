@@ -182,21 +182,20 @@ def _abwickeln(solid, s, k):
             e = kf.FindKey(j)
             nachbarn[ids[0]].setdefault(ids[1], []).append(e)
             nachbarn[ids[1]].setdefault(ids[0], []).append(e)
-    komp, gesehen = [], set()
-    for i in haut:
-        if i in gesehen:
-            continue
-        stapel, c = [i], []
-        gesehen.add(i)
-        while stapel:
-            x = stapel.pop()
-            c.append(x)
-            for y in nachbarn[x]:
-                if y not in gesehen:
-                    gesehen.add(y)
-                    stapel.append(y)
-        komp.append(c)
-    komp.sort(key=lambda c: -sum(haut[i].flaeche for i in c))
+    komp = _komponenten(haut, nachbarn)
+    praegungen = 0
+    if len(komp) > 2 and _praegungen(komp, haut):
+        # eingeprägte Taschen/Sicken (Patrick 05.11.2026, Blech-Halter): ihr Boden ist eine eigene kleine Haut; die
+        # Öffnung in der Haupthaut ist umgeformt, kein Schnitt, und wird im Zuschnitt geschlossen. Was in der Haut nur
+        # über den Rand der Öffnung hängt (Rundungen der Prägung), gehört nicht zur Abwicklung.
+        praegungen, rand = _praegungen_schliessen(komp[0], haut, kf)
+        if praegungen:
+            for x in nachbarn.values():
+                for y in list(x):
+                    x[y] = [e for e in x[y] if not rand.Contains(e)]
+                    if not x[y]:
+                        del x[y]
+            komp = [_komponenten(haut, nachbarn, komp[0])[0], komp[1]]
     if len(komp) != 2:
         return dict(fehler=f"{len(komp)} statt 2 Blechhäute (kein Kantteil)")
     S = set(komp[0])
@@ -330,7 +329,105 @@ def _abwickeln(solid, s, k):
     erg = _daten(flaeche, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T, haut, solid, k)
     erg["mehrachsig"] = not parallel        # geschlossener Ring paralleler Kanten (Rohr) ist nicht mehrachsig
     erg["rohr"] = kreis and parallel        # geschlossener Ring paralleler Kanten: ein Rohr, kein Kantteil
+    if praegungen:
+        erg["praegungen"] = praegungen
+        erg["hinweise"].append(f"{praegungen} Prägung{'en' if praegungen != 1 else ''} (umgeformt, kein Schnitt): im "
+                               "Zuschnitt geschlossen, Umformung prüfen")
     return erg
+
+
+def _komponenten(haut, nachbarn, nur=None):
+    """Zusammenhängende Teile der Haut (über gemeinsame Kanten), größte Fläche zuerst."""
+    komp, gesehen = [], set()
+    for i in (nur if nur is not None else haut):
+        if i in gesehen:
+            continue
+        stapel, c = [i], []
+        gesehen.add(i)
+        while stapel:
+            x = stapel.pop()
+            c.append(x)
+            for y in nachbarn[x]:
+                if y not in gesehen:
+                    gesehen.add(y)
+                    stapel.append(y)
+        komp.append(c)
+    komp.sort(key=lambda c: -sum(haut[i].flaeche for i in c))
+    return komp
+
+
+PRAEGUNG_ANTEIL = 0.15     # eingeprägte Böden zusammen höchstens so viel Fläche wie die zweitgrößte Haut
+PRAEGUNG_WINKEL = 30.0     # Grad: Nachbarfläche an der Öffnung höchstens so schräg zur Haut (tangential = umgeformt)
+
+
+def _praegungen(komp, haut):
+    """Weitere Häute neben den zwei großen: jede mit ebenem Boden (ein Durchzug hat nur Zylinder) und zusammen klein."""
+    rest = [i for c in komp[2:] for i in c]
+    a1 = sum(haut[i].flaeche for i in komp[1])
+    return all(any(haut[i].art == "E" for i in c) for c in komp[2:]) and \
+        sum(haut[i].flaeche for i in rest) <= PRAEGUNG_ANTEIL * a1
+
+
+def _praegungen_schliessen(S, haut, kf):
+    """Innenkonturen der Haut S, an die eine Nachbarfläche (fast) tangential anschließt (Rand einer Prägung), aus
+    der Fläche nehmen. Ergebnis: (Zahl der geschlossenen Öffnungen, Kanten ihrer Ränder); 0 = keine gefunden."""
+    n = 0
+    rand = g.TopTools_IndexedMapOfShape()
+    for i in S:
+        f = TopoDS.Face(haut[i].face)
+        if haut[i].art != "E":
+            continue
+        try:
+            aussen = BRepTools.OuterWire_s(f)
+        except Exception:  # ohne Außenkontur nichts ändern
+            continue
+        behalten, weg = [], 0
+        for d in g._liste(f, TopAbs_WIRE):
+            if d.IsSame(aussen):
+                continue
+            if _tangential(d, f, kf):
+                weg += 1
+                TopExp.MapShapes_s(d, TopAbs_EDGE, rand)
+            else:
+                behalten.append(d)
+        if not weg:
+            continue
+        try:
+            mf = BRepBuilderAPI_MakeFace(BRep_Tool.Surface_s(f), TopoDS.Wire(aussen), True)
+            for d in behalten:
+                mf.Add(TopoDS.Wire(d))
+            if not mf.IsDone():
+                continue
+            sf = ShapeFix_Face(mf.Face())
+            sf.FixOrientation()
+            sf.Perform()
+            neu = sf.Face()
+            if f.Orientation() != neu.Orientation():
+                neu = TopoDS.Face(neu.Reversed())
+        except Exception:  # Fläche bleibt wie sie ist
+            continue
+        haut[i].face, haut[i].flaeche = neu, g._flaeche(neu)
+        n += weg
+    return n, rand
+
+
+def _tangential(draht, f, kf):
+    """True, wenn an der Kante des Drahts eine Nachbarfläche fast in der Ebene der Fläche f weiterläuft."""
+    from OCP.BRepAdaptor import BRepAdaptor_Curve
+    for e in g._liste(draht, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        p = c.Value((c.FirstParameter() + c.LastParameter()) / 2)
+        n0 = _normale(f, p)
+        idx = kf.FindIndex(e)
+        if n0 is None or not idx:
+            continue
+        for x in kf.FindFromIndex(idx):
+            if x.IsSame(f):
+                continue
+            n1 = _normale(TopoDS.Face(x), p)
+            if n1 is not None and abs(n0.Dot(n1)) >= math.cos(math.radians(PRAEGUNG_WINKEL)):
+                return True
+    return False
 
 
 def _richtung(x, haut):

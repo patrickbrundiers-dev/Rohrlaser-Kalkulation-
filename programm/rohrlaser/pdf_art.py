@@ -257,7 +257,7 @@ def gruende(gelesen):
 
 def _schl(t):
     from .formular import ohne_zeichen
-    return ohne_zeichen(Path(str(t or "")).stem if str(t or "").lower().endswith((".pdf", ".step", ".stp")) else t)
+    return ohne_zeichen(Path(str(t or "")).stem if str(t or "").lower().endswith((".pdf", ".step", ".stp", ".igs", ".iges")) else t)
 
 
 def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):

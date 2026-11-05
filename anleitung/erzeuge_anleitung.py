@@ -1037,7 +1037,7 @@ def kapitel_angebote(i):
     i.liste("<b>Eine Anfrage</b> ist ein Unterordner (samt Unterordnern darin), z. B. <i>Anfragen\\Hessler 25.10. "
             "Gestell</i>. Dateien direkt im Anfrage-Ordner gehören zusammen, solange zwischen zwei Dateien weniger als "
             "10 Minuten liegen; mehr Abstand ergibt eine neue Anfrage.",
-            "Gezählt werden STEP-Dateien (*.step, *.stp), Formulare (PDF, JPG, PNG, TIFF), E-Mails (*.msg, *.eml, "
+            "Gezählt werden STEP- und IGES-Dateien (*.step, *.stp, *.igs, *.iges), Formulare (PDF, JPG, PNG, TIFF), E-Mails (*.msg, *.eml, "
             "[[anfrage_mail]]) und ZIP-Dateien; eine Anfrage ohne STEP – auch nicht im Anhang einer Mail oder in "
             "einer ZIP – erscheint nicht. Eine <b>ZIP</b> mit STEP-Dateien ist wie eine Mail eine Anfrage für sich: "
             "beim Öffnen packt das Programm STEP-Dateien und Formulare aus (auch aus Unterordnern und ZIP in ZIP), "
@@ -2390,6 +2390,13 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
+    i.text("<b>IGES</b> (.igs/.iges) geht überall genauso wie STEP: Feld, Dateidialog, Drag &amp; Drop, Ordner, "
+           "Anfragen, E-Mails und ZIP. IGES enthält meist nur Flächen: das Programm näht sie zu Körpern (Hinweis "
+           "<i>Flächenmodell: zu einem Volumen zusammengenäht</i>) und macht aus Dreh- und Freiformflächen, die "
+           "genau Zylinder, Kegel oder Ebenen sind, und aus Freiformkanten, die genau Kreise sind, die echte Form – so "
+           "werden Biegungen, Bohrungen und Kantteile wie bei STEP erkannt. IGES kennt keine Baugruppen und keine "
+           "Bauteilnamen: die Teile heißen <i>Körper 1, 2 …</i>. SolidWorks-Dateien (.sldprt/.sldasm) liest das "
+           "Programm nicht, sie bitte im CAD als STEP oder IGES speichern.")
     i.liste("Im Angebot auf das gestrichelte Feld <b>STEP / DXF</b> klicken (oder Menü "
             "<i>STEP importieren …</i>, Strg+I) und die Dateien wählen (Mehrfachauswahl mit Strg oder Umschalt). Im "
             "Dialog des Felds lassen sich STEP- und DXF-Dateien zugleich wählen: die STEP-Dateien gehen in den "
@@ -2749,7 +2756,8 @@ def kapitel_step(i):
             "die seitlich aus dem Blech stehen, gehören zur Außenkontur. Dicke Platten mit Senkungen (z. B. "
             "Schweißtisch-Platten mit Kegel- oder Zylindersenkungen) sind Bleche mit Senkungen, kein Frästeil. Ein "
             "C-Halter mit eingerollten Enden ist ein Kantteil; ein warmgewalzter Winkel mit ganz gerundeten "
-            "Schenkelenden (z. B. Zoll-Winkel) ist ein L-Profil.",
+            "Schenkelenden (z. B. Zoll-Winkel) ist ein L-Profil. Eingeprägte "
+            "Taschen oder Sicken (umgeformt, nicht geschnitten) sind im Zuschnitt geschlossen, Hinweis <i>Prägung</i>.",
             "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
             "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
             "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "

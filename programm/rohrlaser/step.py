@@ -14,6 +14,9 @@ from pathlib import Path
 
 from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile, step_pruefung, virtuell
 
+# Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
+CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges")
+CAD_FILTER = "STEP und IGES (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES)"
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
@@ -38,12 +41,12 @@ def messprogramm(programmordner):
 
 
 def step_dateien(pfade):
-    """STEP-Dateien aus Dateien und Ordnern (Ordner samt Unterordnern), sortiert und ohne doppelte."""
+    """STEP- und IGES-Dateien aus Dateien und Ordnern (Ordner samt Unterordnern), sortiert und ohne doppelte."""
     out, gesehen = [], set()
     for p in map(Path, pfade):
         kandidaten = sorted(x for x in p.rglob("*") if x.is_file()) if p.is_dir() else [p]
         for x in kandidaten:
-            if x.suffix.lower() in (".step", ".stp") and x not in gesehen:
+            if x.suffix.lower() in CAD_ENDUNGEN and x not in gesehen:
                 gesehen.add(x)
                 out.append(x)
     return out
@@ -77,7 +80,7 @@ def grosse_dateien(dateien):
 def step_kandidaten(pfade):
     """Schnelle Vorprüfung beim Darüberziehen (ohne Suche in Ordnern): True, wenn eine STEP-Datei oder ein Ordner
     dabei ist. Ob ein Ordner STEP-Dateien enthält, zeigt erst step_dateien() nach dem Ablegen."""
-    return any(Path(p).suffix.lower() in (".step", ".stp") or Path(p).is_dir() for p in pfade)
+    return any(Path(p).suffix.lower() in CAD_ENDUNGEN or Path(p).is_dir() for p in pfade)
 
 
 def lies_messwerte(pfad):

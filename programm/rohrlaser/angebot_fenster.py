@@ -4498,7 +4498,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             ordner = self.f.angebot_ordner(self.kopf) / angebotsordner.STEP_ORDNER
             if h.get("name"):
                 kandidaten.append(ordner / h["name"])
-            kandidaten += [ordner / f"{stamm}{e}" for e in (".step", ".stp", ".STEP", ".STP")]
+            kandidaten += [ordner / f"{stamm}{e}" for e in step.CAD_ENDUNGEN + tuple(x.upper() for x in step.CAD_ENDUNGEN)]
         except (OSError, AttributeError, TypeError):
             pass
         for d in getattr(self, "step_dateien_zuletzt", None) or ():
@@ -4526,7 +4526,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 return None
             datei, _ = QFileDialog.getOpenFileName(self, f"STEP-Datei von Pos. {p.get('pos') or ''} wählen",
                                                    str(step_ablage.start_ordner(self.db)),
-                                                   "STEP-Dateien (*.step *.stp *.STEP *.STP)")
+                                                   step.CAD_FILTER)
             if not datei:
                 return None
             pfad = Path(datei)
@@ -7415,7 +7415,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if dateien is None:
             dateien, _ = QFileDialog.getOpenFileNames(
                 self, "STEP- und DXF-Dateien wählen", str(step_ablage.start_ordner(self.db)),
-                "STEP und DXF (*.step *.stp *.STEP *.STP *.dxf *.DXF);;STEP-Dateien (*.step *.stp *.STEP *.STP);;"
+                "STEP, IGES und DXF (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES *.dxf *.DXF);;"
+                f"{step.CAD_FILTER};;"
                 "DXF-Dateien (*.dxf *.DXF)")
             if not dateien:
                 return None
@@ -7460,7 +7461,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if not dateien:
             # Start im Standardordner (Einstellungen), sonst im zuletzt benutzten STEP-Ordner
             dateien, _ = QFileDialog.getOpenFileNames(self, titel, str(step_ablage.start_ordner(self.db)),
-                                                      "STEP-Dateien (*.step *.stp *.STEP *.STP)")
+                                                      step.CAD_FILTER)
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
