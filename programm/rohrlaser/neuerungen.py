@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.263", "<b>Kantteile aus der STEP</b> ([[bleche]]): die Biegezone wird echt abgerollt. Ein Fenster oder "
+     "Ausschnitt quer über einer Kante, ein Freischnitt oder eine Bohrung in der Biegung steht jetzt mit ihrem "
+     "Umriss im Zuschnitt (vorher ein Schlitz bis zum Rand, ohne Schenkel im Blech-Editor) und ist als <i>über "
+     "Biegung</i> gekennzeichnet. <b>Ellipsen</b> in Blechen heißen Ellipse mit Achsen statt Polygon. Ein gekantetes C mit flachen Schenkel-Enden "
+     "vorne und hinten ist ein Kantteil (vorher U-Profil); leicht angekantete Bleche (2°–30°) haben die richtige "
+     "Kantrichtung (vorher teils Z statt Wanne, 2°/5° Flachstahl), seitliche Stecknasen sind in der Außenkontur. Dicke Platten mit Senkungen sind Bleche (vorher Frästeil), ein C-Halter mit eingerollten Enden ist ein Kantteil "
+     "(vorher Sonderprofil), ein warmgewalzter Winkel mit ganz gerundeten Schenkelenden ist ein L-Profil (vorher offenes "
+     "Sonderprofil, nicht kalkuliert). "
+     "Kantteile mit <b>eingeprägten Taschen</b> sind Kantteile (vorher kein Zuschnitt), die Prägung ist im Zuschnitt "
+     "geschlossen. <b>IGES-Import</b> ([[step]]): .igs/.iges gehen überall wie STEP, Flächen werden genäht, "
+     "Biegungen und Bohrungen echt erkannt. <b>Fehler behoben</b>: große Baugruppen (z. B. Palettenwagen, "
+     "Formenregal) brachen beim Import ab.",
+     "IGES-Import; Kantteile: Ausschnitt über der Biegung richtig abgewickelt, Ellipsen, Prägungen"],
     ["0.9.262", "<b>Fehler behoben</b> im Fenster STEP-Import prüfen: Eine <b>Regel des Kunden</b> ([[profil_regeln]]) "
      "mit anderer Profilform (z. B. Quadrat- statt Rechteckrohr) ließ beim Zurückstellen auf das gemessene Profil die "
      "Form der Regel stehen; die Position bekam dann den Hinweis <i>Profil fehlt in Stammdaten</i> und neu gerechnete "

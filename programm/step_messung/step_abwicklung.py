@@ -31,6 +31,7 @@ from OCP.BRepMesh import BRepMesh_IncrementalMesh
 from OCP.BRepTools import BRepTools
 from OCP.GeomAbs import GeomAbs_Cylinder
 from OCP.GProp import GProp_GProps
+from OCP.ShapeFix import ShapeFix_Face
 from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_IN, TopAbs_ON, TopAbs_OUT, TopAbs_VERTEX, TopAbs_WIRE
 from OCP.TopExp import TopExp
@@ -181,21 +182,20 @@ def _abwickeln(solid, s, k):
             e = kf.FindKey(j)
             nachbarn[ids[0]].setdefault(ids[1], []).append(e)
             nachbarn[ids[1]].setdefault(ids[0], []).append(e)
-    komp, gesehen = [], set()
-    for i in haut:
-        if i in gesehen:
-            continue
-        stapel, c = [i], []
-        gesehen.add(i)
-        while stapel:
-            x = stapel.pop()
-            c.append(x)
-            for y in nachbarn[x]:
-                if y not in gesehen:
-                    gesehen.add(y)
-                    stapel.append(y)
-        komp.append(c)
-    komp.sort(key=lambda c: -sum(haut[i].flaeche for i in c))
+    komp = _komponenten(haut, nachbarn)
+    praegungen = 0
+    if len(komp) > 2 and _praegungen(komp, haut):
+        # eingeprägte Taschen/Sicken (Patrick 05.11.2026, Blech-Halter): ihr Boden ist eine eigene kleine Haut; die
+        # Öffnung in der Haupthaut ist umgeformt, kein Schnitt, und wird im Zuschnitt geschlossen. Was in der Haut nur
+        # über den Rand der Öffnung hängt (Rundungen der Prägung), gehört nicht zur Abwicklung.
+        praegungen, rand = _praegungen_schliessen(komp[0], haut, kf)
+        if praegungen:
+            for x in nachbarn.values():
+                for y in list(x):
+                    x[y] = [e for e in x[y] if not rand.Contains(e)]
+                    if not x[y]:
+                        del x[y]
+            komp = [_komponenten(haut, nachbarn, komp[0])[0], komp[1]]
     if len(komp) != 2:
         return dict(fehler=f"{len(komp)} statt 2 Blechhäute (kein Kantteil)")
     S = set(komp[0])
@@ -237,6 +237,13 @@ def _abwickeln(solid, s, k):
         an = sorted({schenkel_von[y] for x in gruppe for y in nachbarn[x] if y in schenkel_von})
         if len(an) != 2:
             return dict(fehler=f"Biegezone mit {len(an)} Schenkeln")
+        # Ausschnitt quer über die Biegung (Patrick 05.11.2026): die Biegezone zerfällt in mehrere Stücke zwischen
+        # denselben Schenkeln – das ist eine Biegung, keine zweite (sonst Schlitz bis zum Rand im Zuschnitt)
+        gleich = next((x for x in biegungen if x["schenkel"] == an and abs(x["r_haut"] - haut[i].radius) < TOL
+                       and _koaxial(x["achse"], haut[i].achse)), None)
+        if gleich is not None:
+            gleich["flaechen"] += gruppe
+            continue
         biegungen.append(dict(art="Z", flaechen=gruppe, schenkel=an, achse=haut[i].achse,
                               r=haut[i].r_innen, r_haut=haut[i].radius))
     paare = {}
@@ -299,7 +306,10 @@ def _abwickeln(solid, s, k):
             teile.append(BRepBuilderAPI_Transform(haut[i].face, T[nr], True).Shape())
     for x in bieg_baum:
         st = _streifen(x, T[x["von"]])
-        if st is not None:
+        ab = _abrollen(x, T[x["von"]], haut) if x["art"] == "Z" else None
+        if ab:
+            teile += ab         # echte Biegefläche abgerollt: Ausschnitte und Bohrungen über der Biegung bleiben
+        elif st is not None:
             teile.append(st)
     w = haut[schenkel[wurzel][0]]
     teile = [_ausrichten(x, w.n) for x in teile]
@@ -319,7 +329,105 @@ def _abwickeln(solid, s, k):
     erg = _daten(flaeche, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T, haut, solid, k)
     erg["mehrachsig"] = not parallel        # geschlossener Ring paralleler Kanten (Rohr) ist nicht mehrachsig
     erg["rohr"] = kreis and parallel        # geschlossener Ring paralleler Kanten: ein Rohr, kein Kantteil
+    if praegungen:
+        erg["praegungen"] = praegungen
+        erg["hinweise"].append(f"{praegungen} Prägung{'en' if praegungen != 1 else ''} (umgeformt, kein Schnitt): im "
+                               "Zuschnitt geschlossen, Umformung prüfen")
     return erg
+
+
+def _komponenten(haut, nachbarn, nur=None):
+    """Zusammenhängende Teile der Haut (über gemeinsame Kanten), größte Fläche zuerst."""
+    komp, gesehen = [], set()
+    for i in (nur if nur is not None else haut):
+        if i in gesehen:
+            continue
+        stapel, c = [i], []
+        gesehen.add(i)
+        while stapel:
+            x = stapel.pop()
+            c.append(x)
+            for y in nachbarn[x]:
+                if y not in gesehen:
+                    gesehen.add(y)
+                    stapel.append(y)
+        komp.append(c)
+    komp.sort(key=lambda c: -sum(haut[i].flaeche for i in c))
+    return komp
+
+
+PRAEGUNG_ANTEIL = 0.15     # eingeprägte Böden zusammen höchstens so viel Fläche wie die zweitgrößte Haut
+PRAEGUNG_WINKEL = 30.0     # Grad: Nachbarfläche an der Öffnung höchstens so schräg zur Haut (tangential = umgeformt)
+
+
+def _praegungen(komp, haut):
+    """Weitere Häute neben den zwei großen: jede mit ebenem Boden (ein Durchzug hat nur Zylinder) und zusammen klein."""
+    rest = [i for c in komp[2:] for i in c]
+    a1 = sum(haut[i].flaeche for i in komp[1])
+    return all(any(haut[i].art == "E" for i in c) for c in komp[2:]) and \
+        sum(haut[i].flaeche for i in rest) <= PRAEGUNG_ANTEIL * a1
+
+
+def _praegungen_schliessen(S, haut, kf):
+    """Innenkonturen der Haut S, an die eine Nachbarfläche (fast) tangential anschließt (Rand einer Prägung), aus
+    der Fläche nehmen. Ergebnis: (Zahl der geschlossenen Öffnungen, Kanten ihrer Ränder); 0 = keine gefunden."""
+    n = 0
+    rand = g.TopTools_IndexedMapOfShape()
+    for i in S:
+        f = TopoDS.Face(haut[i].face)
+        if haut[i].art != "E":
+            continue
+        try:
+            aussen = BRepTools.OuterWire_s(f)
+        except Exception:  # ohne Außenkontur nichts ändern
+            continue
+        behalten, weg = [], 0
+        for d in g._liste(f, TopAbs_WIRE):
+            if d.IsSame(aussen):
+                continue
+            if _tangential(d, f, kf):
+                weg += 1
+                TopExp.MapShapes_s(d, TopAbs_EDGE, rand)
+            else:
+                behalten.append(d)
+        if not weg:
+            continue
+        try:
+            mf = BRepBuilderAPI_MakeFace(BRep_Tool.Surface_s(f), TopoDS.Wire(aussen), True)
+            for d in behalten:
+                mf.Add(TopoDS.Wire(d))
+            if not mf.IsDone():
+                continue
+            sf = ShapeFix_Face(mf.Face())
+            sf.FixOrientation()
+            sf.Perform()
+            neu = sf.Face()
+            if f.Orientation() != neu.Orientation():
+                neu = TopoDS.Face(neu.Reversed())
+        except Exception:  # Fläche bleibt wie sie ist
+            continue
+        haut[i].face, haut[i].flaeche = neu, g._flaeche(neu)
+        n += weg
+    return n, rand
+
+
+def _tangential(draht, f, kf):
+    """True, wenn an der Kante des Drahts eine Nachbarfläche fast in der Ebene der Fläche f weiterläuft."""
+    from OCP.BRepAdaptor import BRepAdaptor_Curve
+    for e in g._liste(draht, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        p = c.Value((c.FirstParameter() + c.LastParameter()) / 2)
+        n0 = _normale(f, p)
+        idx = kf.FindIndex(e)
+        if n0 is None or not idx:
+            continue
+        for x in kf.FindFromIndex(idx):
+            if x.IsSame(f):
+                continue
+            n1 = _normale(TopoDS.Face(x), p)
+            if n1 is not None and abs(n0.Dot(n1)) >= math.cos(math.radians(PRAEGUNG_WINKEL)):
+                return True
+    return False
 
 
 def _richtung(x, haut):
@@ -401,7 +509,9 @@ def _biegung(x, a, b, schenkel, haut, s, k):
         werte += [_pv(BRep_Tool.Pnt_s(TopoDS.Vertex(v))).Dot(d) for v in g._liste(e, TopAbs_VERTEX)]
     if not werte:
         return None
-    vorzeichen = 1 if na.Dot(gp_Vec(drehpunkt, mb)) > 0 else -1     # + = b biegt zur Außenseite der Haut
+    # + = b biegt zur Außenseite der Haut; gemessen ab der Haut-Ebene von a (nicht ab der Biegeachse: bei flachen
+    # Winkeln liegt die Mitte von b noch unter der Achse, 10°/15° bekamen sonst wechselnde Vorzeichen, 05.11.2026)
+    vorzeichen = 1 if na.Dot(_pv(mb).Subtracted(lot)) > 0 else -1
     return dict(trsf=m_, winkel=round(math.degrees(phi), 2) * vorzeichen, phi=phi, radius=None if scharf else r,
                 r_rechnen=r, ba=ba, t=t, tangente=tangente, d_von=min(werte), d_bis=max(werte), scharf=scharf,
                 setback=(r + s) * (math.tan(phi / 2) if phi <= math.pi / 2 + 1e-9 else 1.0))
@@ -426,6 +536,91 @@ def _streifen(x, ta):
         return None
     x["streifen"] = [gp_Pnt(p.XYZ()).Transformed(ta) for p in (p1, p2, p3, p4)]
     return BRepBuilderAPI_Transform(f.Face(), ta, True).Shape()
+
+
+def _rand_punkte(draht, schritt=0.5):
+    """Punkte eines Drahts der Reihe nach: gerade Kanten nur mit den Endpunkten, sonst alle 'schritt' mm."""
+    from OCP.BRepTools import BRepTools_WireExplorer
+    from OCP.GeomAbs import GeomAbs_Line
+    from OCP.TopAbs import TopAbs_REVERSED
+    from OCP.BRepAdaptor import BRepAdaptor_Curve
+    out = []
+    ex = BRepTools_WireExplorer(TopoDS.Wire(draht))
+    while ex.More():
+        e = ex.Current()
+        c = BRepAdaptor_Curve(e)
+        n = 1 if c.GetType() == GeomAbs_Line else max(2, min(400, int(g._kantenlaenge(e) / schritt) + 1))
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+        if e.Orientation() == TopAbs_REVERSED:
+            u0, u1 = u1, u0
+        out += [c.Value(u0 + (u1 - u0) * k / n) for k in range(n)]
+        ex.Next()
+    return out
+
+
+def _abrollen(x, ta, haut):
+    """Die Zylinderflächen der Biegung (Haut) auf die neutrale Faser abgerollt, als ebene Flächen in der Abwicklung:
+    Lage längs der Biegekante bleibt, der Winkel θ ab der Tangente auf Schenkel a wird θ/φ × BA quer dazu. Damit
+    stimmen Ausschnitte, Bohrungen und Freischnitte, die über die Biegung laufen (Patrick 05.11.2026). None, wenn
+    eine Fläche nicht abrollbar ist (dann der Rechteckstreifen)."""
+    d = x["d"]
+    tang = x["tangente"]
+    base = tang.Subtracted(d.Multiplied(tang.Dot(d)))
+    ax = x["achse"]
+    o = _pv(ax.Location())
+    u0 = tang.Subtracted(o)
+    u0 = u0.Subtracted(d.Multiplied(u0.Dot(d)))
+    if u0.Magnitude() < 1e-9 or x["phi"] <= 1e-6:
+        return None
+    u0.Normalize()
+    phi, ba, t = x["phi"], x["ba"], x["t"]
+
+    def flach(p):
+        v = _pv(p).Subtracted(o)
+        v = v.Subtracted(d.Multiplied(v.Dot(d)))
+        dc = _pv(p).Dot(d)          # Lage längs der Kante absolut wie beim Streifen (d_von/d_bis)
+        if v.Magnitude() < 1e-9:
+            raise ValueError("Punkt auf der Achse")
+        th = math.acos(max(-1.0, min(1.0, v.Normalized().Dot(u0))))
+        q = base.Added(d.Multiplied(dc)).Added(t.Multiplied(min(th, phi) / phi * ba))
+        return gp_Pnt(q.XYZ())
+
+    out = []
+    for i in x["flaechen"]:
+        f = TopoDS.Face(haut[i].face)
+        try:
+            aussen = BRepTools.OuterWire_s(f)
+            draehte = [aussen] + [w for w in g._liste(f, TopAbs_WIRE) if not w.IsSame(aussen)]
+            wires = []
+            for w in draehte:
+                pts = []
+                for p in _rand_punkte(w):
+                    q = flach(p)
+                    if not pts or q.Distance(pts[-1]) > 1e-4:
+                        pts.append(q)
+                if len(pts) > 1 and pts[0].Distance(pts[-1]) <= 1e-4:
+                    pts.pop()
+                if len(pts) < 3:
+                    return None
+                poly = BRepBuilderAPI_MakePolygon()
+                for q in pts:
+                    poly.Add(q)
+                poly.Close()
+                if not poly.IsDone():
+                    return None
+                wires.append(poly.Wire())
+            mf = BRepBuilderAPI_MakeFace(wires[0], True)
+            if not mf.IsDone():
+                return None
+            for w in wires[1:]:
+                mf.Add(w)
+            sf = ShapeFix_Face(mf.Face())      # Umlaufsinn der Innenkonturen richten
+            sf.FixOrientation()
+            sf.Perform()
+            out.append(BRepBuilderAPI_Transform(sf.Face(), ta, True).Shape())
+        except Exception:  # OpenCascade wirft beliebige Fehler: dann der Rechteckstreifen
+            return None
+    return out or None
 
 
 def _ausrichten(f, n):
@@ -530,6 +725,14 @@ def _daten(erg, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T,
             return y, laenge - x
     innen = [TopoDS.Wire(d) for d in g._liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
     konturen_lage, bohrungen, innen_liste, innen_laenge = [], {}, [], 0.0
+    zonen = []          # Biegezonen im Zuschnitt (Streifen BA breit): Konturen darin verziehen sich beim Kanten
+    for x in bieg_baum:
+        if x.get("streifen"):
+            try:
+                zonen.append([zu(p) for p in x["streifen"]])
+            except (ValueError, ZeroDivisionError):
+                pass
+    in_zone = 0
     for dr in innen:
         lg = g._draht_laenge(dr)
         innen_laenge += lg
@@ -551,6 +754,12 @@ def _daten(erg, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T,
                 kk = dict(x=0.0, y=0.0)
             kk.update(art="Kontur", hinweis="Form nicht erkannt, nur Schnittlänge übernommen – bitte prüfen")
         kk["schnittlaenge"] = round(lg, 2)
+        try:
+            if zonen and any(_im_viereck(q, z) for z in zonen for q in (zu(p) for p in g._draht_punkte(dr, 1.0))):
+                kk["ueber_biegung"] = True
+                in_zone += 1
+        except (ValueError, ZeroDivisionError, IndexError):
+            pass
         konturen_lage.append(kk)
         hm = max(kk.get("durchmesser") or 0, kk.get("laenge") or 0, kk.get("breite") or 0,
                  *(max(abs(a), abs(b)) * 2 for a, b in kk.get("punkte") or ()))
@@ -579,6 +788,9 @@ def _daten(erg, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T,
         hinweise.append("geschlossene Kanten (Ecken verbunden): Ecken im Zuschnitt prüfen")
     if n_flaechen > 1:
         hinweise.append("Zuschnitt nicht zusammenhängend, prüfen")
+    if in_zone:
+        hinweise.append(f"{in_zone} Innenkontur{'en' if in_zone != 1 else ''} über einer Biegung: in der Abwicklung "
+                        "abgerollt (Umriss wie STEP), verzieht sich beim Kanten – prüfen")
     if any(x["scharf"] for x in bieg_baum):
         hinweise.append(f"scharfkantig gezeichnet: Innenradius {s:g} mm (= Blechdicke) angenommen")
     vol = g._volumen(solid)
@@ -590,6 +802,24 @@ def _daten(erg, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T,
                 innen_liste=innen_liste, konturen_lage=konturen_lage, aussen_punkte=aussen_punkte,
                 rechteckig=rechteckig, biegelinien=biegelinien, kantungen=len(bieg_baum), schenkel=sch_liste,
                 mehrachsig=not kette, scharf=any(x["scharf"] for x in bieg_baum), k_faktor=k, hinweise=hinweise)
+
+
+def _im_viereck(q, ecken, rand=0.05):
+    """Punkt q liegt im konvexen Viereck (Biegestreifen im Zuschnitt), mindestens 'rand' mm von den Kanten innen."""
+    x, y = q
+    vz = 0
+    for (x0, y0), (x1, y1) in zip(ecken, ecken[1:] + ecken[:1]):
+        lg = math.hypot(x1 - x0, y1 - y0)
+        if lg < 1e-9:
+            continue
+        k = ((x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)) / lg
+        if abs(k) < rand:
+            return False
+        s = 1 if k > 0 else -1
+        if vz and s != vz:
+            return False
+        vz = s
+    return bool(vz)
 
 
 def _schenkel_kette(bieg_baum, ordnung, zu, breite, s):

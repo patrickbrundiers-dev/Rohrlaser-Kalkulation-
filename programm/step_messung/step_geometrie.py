@@ -271,7 +271,9 @@ def lies_step_info(pfad):
     'aus Flächenmodell genäht' (geschlossene Fläche zu Volumen gemacht) oder 'Flächenmodell offen' (nicht messbar).
     Info: einheit, meldungen (Fehler/Warnungen des Lesers), baugruppe (mehrere Körper). Nichts wird still verworfen:
     alles, was weder Volumenkörper noch nähbar ist, kommt als 'Flächenmodell offen' zurück.
-    Wirft ValueError, wenn die Datei nicht lesbar ist."""
+    Wirft ValueError, wenn die Datei nicht lesbar ist. IGES-Dateien (.igs/.iges) liest lies_iges_info."""
+    if ist_iges(pfad):
+        return lies_iges_info(pfad)
     from OCP.IFSelect import IFSelect_RetVoid
     try:            # mit Baugruppenstruktur und Namen (XCAF); Körper in derselben Reihenfolge wie ohne
         from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -324,6 +326,155 @@ def lies_step_info(pfad):
         except Exception:  # wie oben: Struktur darf die Messung nie verhindern
             pass
     return koerper, info
+
+
+IGES_ENDUNGEN = (".igs", ".iges")
+CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN
+
+
+def ist_iges(pfad):
+    return _Path(str(pfad)).suffix.lower() in IGES_ENDUNGEN
+
+
+def lies_iges_info(pfad):
+    """IGES-Datei lesen (Patrick 05.11.2026 „Iges import einbauen“), Ergebnis wie lies_step_info. IGES kennt keine
+    Baugruppe und keine Bauteilnamen; Flächenmodelle (der Normalfall) werden wie bei STEP genäht. Biegungen und
+    Bohrungen stehen in IGES oft als Dreh- oder Freiformflächen: was genau einer Ebene, einem Zylinder, Kegel,
+    Torus oder einer Kugel entspricht, wird vorher in diese Fläche umgewandelt (sonst kein Kantteil, kein Kreis)."""
+    from OCP.IFSelect import IFSelect_RetVoid
+    from OCP.IGESControl import IGESControl_Reader
+    r = IGESControl_Reader()
+    status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
+    fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
+    if status != IFSelect_RetDone:
+        grund = "leer oder kein IGES" if status == IFSelect_RetVoid else "Syntaxfehler"
+        raise ValueError(f"IGES-Datei nicht lesbar ({grund})" + (": " + "; ".join(fehler[:3]) if fehler else ""))
+    _konsole_mitschneiden(r.TransferRoots)
+    shape = r.OneShape()
+    if shape is None or shape.IsNull() or not _liste(shape, TopAbs_FACE):
+        raise ValueError("IGES-Datei nicht lesbar (leer oder kein IGES)" + (": " + "; ".join(fehler[:3]) if fehler else ""))
+    koerper = [("Volumenkörper", _solid_analytisch(TopoDS.Solid(x))) for x in _liste(shape, TopAbs_SOLID)]
+    lose = []
+    ex = TopExp_Explorer(shape, TopAbs_FACE, TopAbs_SOLID)
+    while ex.More():
+        lose.append(_analytisch(TopoDS.Face(ex.Current())))
+        ex.Next()
+    if lose:
+        koerper += _naehen(lose)
+    info = dict(einheit=_iges_einheit(pfad), meldungen=list(dict.fromkeys(fehler))[:20], baugruppe=len(koerper) > 1,
+                struktur=None, bauteile={})
+    return koerper, info
+
+
+def _iges_einheit(pfad):
+    """Einheit aus dem Global-Abschnitt der IGES-Datei (nur zur Information, OpenCascade rechnet in mm um)."""
+    try:
+        with open(pfad, encoding="latin-1", errors="replace") as f:
+            kopf = "".join(z[:72] for z in f.readlines()[:60] if len(z) > 72 and z[72] == "G")
+    except OSError:
+        return ""
+    for name, text in (("inch", "INCH"), ("mm", "MM"), ("m", "M"), ("ft", "FT"), ("cm", "CM")):
+        if f"H{text}," in kopf.upper().replace(f"{len(text)}H{text}", f"H{text}"):
+            return name
+    return "unbekannt"
+
+
+def _solid_analytisch(solid):
+    """Volumenkörper aus IGES (Hubwagen: Zylinder als Drehflächen) mit umgewandelten Flächen neu nähen; nur wenn
+    wieder genau ein gültiger Körper mit gleichem Volumen entsteht, sonst der Körper wie gelesen."""
+    try:
+        flaechen = [TopoDS.Face(f) for f in _liste(solid, TopAbs_FACE)]
+        neu = [_analytisch(f) for f in flaechen]
+        if all(n is f for n, f in zip(neu, flaechen)):
+            return solid
+        erg = [k for art, k in _naehen(neu) if art == "aus Flächenmodell genäht"]
+        if len(erg) == 1 and abs(_volumen(erg[0]) - _volumen(solid)) <= 1e-3 * abs(_volumen(solid)):
+            return erg[0]
+    except Exception:  # Umwandlung ist Zusatz
+        pass
+    return solid
+
+
+def _analytisch(face, tol=1e-3):
+    """Fläche mit genau passender Grundfläche (Ebene, Zylinder, Kegel, Kugel, Torus) und Kanten (Gerade, Kreis) neu
+    aufbauen; sonst die Fläche wie sie ist. Die Kanten der Nachbarflächen verbindet danach das Nähen."""
+    try:
+        from OCP.BRepTools import BRepTools
+        from OCP.GeomConvert import GeomConvert_SurfToAnaSurf
+        flaeche = BRep_Tool.Surface_s(face)
+        if BRepAdaptor_Surface(face).GetType() not in (GeomAbs_Plane, GeomAbs_Cylinder):
+            flaeche = GeomConvert_SurfToAnaSurf(flaeche).ConvertToAnalytical(tol) or flaeche
+        aussen = BRepTools.OuterWire_s(face)
+        draehte = [aussen] + [d for d in _liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
+        neue = [_draht_analytisch(d, tol) for d in draehte]
+        if flaeche is BRep_Tool.Surface_s(face) and all(n is None for n in neue):
+            return face
+        neue = [n or TopoDS.Wire(d) for n, d in zip(neue, draehte)]
+        mf = BRepBuilderAPI_MakeFace(flaeche, neue[0], True)
+        for d in neue[1:]:
+            mf.Add(d)
+        if not mf.IsDone():
+            return face
+        from OCP.ShapeFix import ShapeFix_Face
+        fix = ShapeFix_Face(mf.Face())
+        fix.Perform()
+        f = TopoDS.Face(fix.Face())
+        a, a0 = _flaeche(f), abs(_flaeche(face))
+        if abs(abs(a) - a0) > 1e-3 * max(a0, 1.0):
+            return face
+        # Normale der neuen Fläche zeigt evtl. anders herum (Fläche negativ): wenden; die Lage im Körper richtet
+        # danach das Nähen (ShapeFix_Solid)
+        return TopoDS.Face(f.Reversed()) if a < 0 else f
+    except Exception:  # Umwandlung ist Zusatz: dann die Fläche wie gelesen
+        return face
+
+
+def _draht_analytisch(draht, tol):
+    """Draht mit Freiformkanten, die genau Kreis(bogen) oder Strecke sind, als solche neu (Bohrungen in IGES sind oft
+    B-Splines); None, wenn nichts umzuwandeln ist."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeWire
+    from OCP.BRepTools import BRepTools_WireExplorer
+    from OCP.GeomAbs import GeomAbs_Circle
+    from OCP.ShapeAnalysis import ShapeAnalysis_CanonicalRecognition
+    from OCP.gp import gp_Ax2, gp_Circ, gp_Lin
+    kanten, geaendert = [], False
+    ex = BRepTools_WireExplorer(TopoDS.Wire(draht))
+    while ex.More():
+        e = ex.Current()
+        ex.Next()
+        c = BRepAdaptor_Curve(e)
+        if c.GetType() in (GeomAbs_Line, GeomAbs_Circle):
+            kanten.append(e)
+            continue
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+        p1, pm, p2 = c.Value(u0), c.Value((u0 + u1) / 2), c.Value(u1)
+        rec = ShapeAnalysis_CanonicalRecognition(e)
+        kreis, gerade, n = gp_Circ(), gp_Lin(), None
+        if rec.IsLine(tol, gerade) and p1.Distance(p2) > tol:
+            n = BRepBuilderAPI_MakeEdge(p1, p2).Edge()
+        elif rec.IsCircle(tol, kreis):
+            if p1.Distance(p2) < tol:
+                n = BRepBuilderAPI_MakeEdge(kreis).Edge()
+            else:
+                for k in (kreis, gp_Circ(gp_Ax2(kreis.Location(), kreis.Axis().Direction().Reversed(),
+                                                 kreis.XAxis().Direction()), kreis.Radius())):
+                    m = BRepBuilderAPI_MakeEdge(k, p1, p2)
+                    if m.IsDone():
+                        cn = BRepAdaptor_Curve(m.Edge())
+                        if cn.Value((cn.FirstParameter() + cn.LastParameter()) / 2).Distance(pm) < 10 * tol:
+                            n = m.Edge()
+                            break
+        if n is None:
+            kanten.append(e)
+            continue
+        kanten.append(n.Oriented(e.Orientation()))
+        geaendert = True
+    if not geaendert:
+        return None
+    mw = BRepBuilderAPI_MakeWire()
+    for e in kanten:
+        mw.Add(TopoDS.Edge(e))
+    return mw.Wire() if mw.IsDone() else None
 
 
 def _caf_uebertragen(caf):
@@ -1167,6 +1318,13 @@ def _offenes_profil(draht, flaeche, x0, y0, x1, y1, je_seite):
         rest = [n for n in s if n not in voll]
         if all(len(s[n]) == 1 and s[n][0][1] - s[n][0][0] < 0.5 * lang[n] for n in rest):
             return "L-Profil", max(w, h), min(w, h), ""
+        # warmgewalzter Winkel mit ganz gerundeten Schenkelenden (Zoll-Winkel im Master Tower, Patrick 05.11.2026):
+        # die Enden berühren das Hüllrechteck nur in einem Punkt; L, wenn die Fläche zur Schenkeldicke passt
+        wand = [je_seite.get(k) for k in ("x", "y") if je_seite.get(k)]
+        if all(len(s[n]) <= 1 and (not s[n] or s[n][0][1] - s[n][0][0] < 0.5 * lang[n]) for n in rest) and wand:
+            d = sum(wand) / len(wand)
+            if d < 0.4 * min(w, h) and abs(flaeche - d * (w + h - d)) <= 0.1 * flaeche:
+                return "L-Profil", max(w, h), min(w, h), ""
     if len(voll) == 3:
         offen = next(n for n in s if n not in voll)
         if gegen[offen] in voll and len(s[offen]) == 2:
@@ -2833,6 +2991,15 @@ def _zylinder_paare(solid, dicke, tol=0.02):
     return summe
 
 
+def _senkboden(f):
+    """Ebene Ringfläche eines Senkungsbodens: zwei oder mehr Drähte, alle Kreise (außen Senk-, innen Bohrungs-Ø)."""
+    try:
+        draehte = _liste(f, TopAbs_WIRE)
+        return len(draehte) >= 2 and all(_wire_kreis(d) is not None for d in draehte)
+    except Exception:  # unbekannte Kantenart: kein Senkungsboden
+        return False
+
+
 def _flach_pruefen(solid, volumen):
     """Blechmerkmale eines Körpers oder None. Ergebnis dict: art 'eben' (Hauptflächen tragen das ganze Volumen)
     oder 'gekantet' (gleich dicke Schenkel in mindestens zwei Richtungen, verbunden über Biegezonen), dicke,
@@ -2849,9 +3016,11 @@ def _flach_pruefen(solid, volumen):
     haupt = max(e1[2], key=_flaeche)
     pl = _ebene(haupt)
     erg = dict(dicke=dicke, hauptflaeche=haupt, richtung=g[0], mitte=pl.Location(), flaeche_oben=e1[1],
-               flaeche_unten=e2[1])
+               flaeche_unten=e2[1], teilflaechen=len(e1[2]))
     # eben: nur diese beiden Ebenen in der Richtung (keine Absätze, Taschen oder Gravuren), Volumen = Fläche × Dicke
-    weitere = [e for e in g[1][2:] if e[1] > 1e-3 * e1[1]]
+    # Böden von Zylindersenkungen (Ringflächen nur mit Kreisen, Patrick 05.11.2026: Schweißtischplatte 12 mm mit
+    # Senkungen wurde Frästeil) zählen nicht als Absatz: die Senkung ist eine Zusatzarbeit am Blech
+    weitere = [e for e in g[1][2:] if e[1] > 1e-3 * e1[1] and not all(_senkboden(f) for f in e[2])]
     # (Senkungen nehmen auf einer Seite Fläche weg: Volumen liegt zwischen kleinerer und größerer Fläche × Dicke)
     if not weitere and e2[1] >= 0.9 * e1[1] and \
             min(e1[1], e2[1]) * dicke * (1 - TOL_BLECH_VOLUMEN) <= volumen <= \
@@ -2860,11 +3029,13 @@ def _flach_pruefen(solid, volumen):
     # gekantet: alle Ebenenpaare im Abstand 'dicke' (je Richtung) und koaxiale Biegezonen tragen das Volumen
     paare, richtungen = 0.0, 0
     for _, ebenen in gruppen:
-        frei = sorted(ebenen, key=lambda e: e[0])
+        # größte Flächen zuerst, Partner die größte Ebene im Abstand 'dicke': kleine Stirnflächen eines Freischnitts
+        # nehmen sonst einem Schenkel die Gegenseite weg (C mit flachen Enden, Patrick 05.11.2026)
+        frei = sorted(ebenen, key=lambda e: (-e[1], e[0]))
         gefunden = False
         while frei:
             a = frei.pop(0)
-            b = next((x for x in frei if abs(abs(x[0] - a[0]) - dicke) < 0.02), None)
+            b = max((x for x in frei if abs(abs(x[0] - a[0]) - dicke) < 0.02), key=lambda x: x[1], default=None)
             if b is not None:
                 frei.remove(b)
                 paare += a[1] + b[1]
@@ -3014,7 +3185,49 @@ def _blech_kontur(pts, schnitt=None):
         mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
         d.update(art="Polygon", x=round(mx, 2), y=round(my, 2),
                  punkte=[[round(x - mx, 2), round(y - my, 2)] for x, y in pk])
+        el = _ellipse_2d(pts)
+        if el is not None:
+            # Ellipse (Patrick 05.11.2026): benannt mit Achsen und Drehung; gezeichnet und geschnitten wird der
+            # Umriss der STEP als Polygon, so können ihn alle Editoren, DXF und 3D ohne eigene Art
+            d.update(form="Ellipse", achsen=[round(2 * el[2], 2), round(2 * el[3], 2)], winkel=round(el[4], 1))
     return d
+
+
+def _ellipse_2d(pts, tol=None):
+    """Ellipse durch die Punkte eines geschlossenen Umrisses: (mx, my, a, b, Winkel der großen Achse in °) mit
+    a ≥ b, wenn jeder Punkt höchstens tol (BLECH_FORM_TOL) radial neben der Ellipse liegt, sonst None (auch für
+    Kreise: die sind Bohrungen)."""
+    tol = BLECH_FORM_TOL if tol is None else tol
+    if len(pts) < 12:
+        return None
+    n = len(pts)
+    mx, my = sum(x for x, _ in pts) / n, sum(y for _, y in pts) / n
+    sxx = sum((x - mx) ** 2 for x, _ in pts) / n
+    syy = sum((y - my) ** 2 for _, y in pts) / n
+    sxy = sum((x - mx) * (y - my) for x, y in pts) / n
+    w = 0.5 * math.atan2(2 * sxy, sxx - syy)
+    c, s_ = math.cos(w), math.sin(w)
+    rel = [((x - mx) * c + (y - my) * s_, -(x - mx) * s_ + (y - my) * c) for x, y in pts]
+    # Mitte aus dem Hüllrechteck im Achsensystem (Punkte liegen nicht gleichmäßig verteilt)
+    u0, u1 = min(u for u, _ in rel), max(u for u, _ in rel)
+    v0, v1 = min(v for _, v in rel), max(v for _, v in rel)
+    a, b = (u1 - u0) / 2, (v1 - v0) / 2
+    du, dv = (u0 + u1) / 2, (v0 + v1) / 2
+    if b <= 0.5 or a <= 0.5 or abs(a - b) <= tol:
+        return None
+    for u, v in rel:
+        u, v = u - du, v - dv
+        r = math.hypot(u, v)
+        if r < 1e-9:
+            return None
+        cw, sw_ = u / r, v / r
+        r_ell = a * b / math.sqrt((b * cw) ** 2 + (a * sw_) ** 2)
+        if abs(r - r_ell) > tol:
+            return None
+    cx, cy = mx + du * c - dv * s_, my + du * s_ + dv * c
+    if a < b:
+        a, b, w = b, a, w + math.pi / 2
+    return cx, cy, a, b, math.degrees(w) % 180
 
 
 def blech_kontur_abweichung(k, pts):
@@ -3247,7 +3460,8 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
                      aussen_punkte=abw["aussen_punkte"], abwicklung=dict(
                          laenge=round(abw["laenge"], 2), breite=round(abw["breite"], 2), kantlaenge=abw["kantlaenge"],
                          schenkel=abw["schenkel"], biegelinien=abw["biegelinien"], kantungen=abw["kantungen"],
-                         mehrachsig=abw["mehrachsig"], scharf=abw["scharf"], k_faktor=abw["k_faktor"]))
+                         mehrachsig=abw["mehrachsig"], scharf=abw["scharf"], k_faktor=abw["k_faktor"],
+                         **({"praegungen": abw["praegungen"]} if abw.get("praegungen") else {})))
             t.innen, t.innen_konturen, t.innen_liste = abw["umfang_innen"], abw["innen"], abw["innen_liste"]
             t.bohrungen, t.konturen = abw["bohrungen"], 1 + abw["innen"]
             t.schneidweg = abw["umfang_aussen"] + abw["umfang_innen"]
@@ -3268,6 +3482,11 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         ax3 = gp_Ax3(fl["mitte"], gp_Dir(lr.X(), lr.Y(), lr.Z()), fl["richtung"])
     b["volumen"] = volumen
     b["fingerabdruck"] = fingerabdruck(b)
+    ell = [k["achsen"] for k in b.get("konturen_lage") or () if k.get("form") == "Ellipse"]
+    if ell:
+        t.hinweise.append(f"{len(ell)} Ellipse{'n' if len(ell) != 1 else ''} ("
+                          + ", ".join(f"{a:g} × {c:g}".replace(".", ",") for a, c in ell[:4])
+                          + (" …" if len(ell) > 4 else "") + " mm): als Polygon mit dem Umriss der STEP übernommen")
     t.blech = b
     t.flaeche = 0.0       # kein Profilquerschnitt
     lok = _transformiere(solid, ax3)
@@ -3410,7 +3629,8 @@ def _kantteil(t):
             b.normprofil, t.alternative, b.alternative = n, None, t
             return b
     if not (KANTRADIEN_BLECH and getattr(t, "_kantradien", False) and t.bauteiltyp == "Profil"
-            and t.profilform in ("L-Profil", "U-Profil", "C-Profil", "offenes Sonderprofil") + TRAEGER
+            # Flachstahl mit Biegeradien: nur leicht angekantetes Blech (5°, Patrick 05.11.2026, war Dicke 0)
+            and t.profilform in ("L-Profil", "U-Profil", "C-Profil", "offenes Sonderprofil", "Flachstahl") + TRAEGER
             and not t.normprofil       # Träger/Sonderprofil mit Biegeradien und gleicher Dicke: Kantteil (C mit Sicke)
             and not (t.geschlossen is not None and not rohr_grund(t))
             and b is not None and b.bauteiltyp == "Blech gekantet"):
@@ -3463,8 +3683,20 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     except Exception:  # Blechprüfung darf die Profilmessung nie verhindern
         fl = None
     daten = None
+    bsolid = solid
+    if fl and fl["art"] == "eben" and fl.get("teilflaechen", 1) > 1:
+        # Hauptfläche in mehreren Stücken (angesetzte Stecknasen, Laschen, Boolesche Operationen; Patrick 05.11.2026:
+        # Nasen fehlten in der Außenkontur): erst gleiche Ebenen zusammenfassen, dann messen
+        from step_abwicklung import _vereinheitlichen
+        try:
+            s2 = _vereinheitlichen(solid)
+            fl2 = _flach_pruefen(s2, volumen)
+            if fl2 and fl2["art"] == "eben":
+                bsolid, fl = s2, fl2
+        except Exception:  # dann wie bisher mit der größten Teilfläche
+            pass
     if fl and fl["art"] == "eben":
-        daten = _blech_daten(solid, fl)
+        daten = _blech_daten(bsolid, fl)
         dicke_ok = fl["dicke"] <= BLECH_DICKE_ANTEIL * daten["breite"] + 1e-6
         # Patrick 03.11.2026: mit „Flache Teile als: Blech“ (flach_bis 0) ist jedes ebene flache Teil ein Blech, auch
         # ein dickes schmales (FL 30 × 8, Platte 50 × 50 × 15); Flachstahl bleibt nur als Auswahl im Prüfdialog, wenn
@@ -3512,8 +3744,11 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     # Patrick 26.10.2026: ein geschlossenes Rohr ist immer ein Rohr, keine Ausnahme (auch wenn die Achse wegen vieler
     # Langlöcher nur "wahrscheinlich" ist oder die Ausschnitte das Volumen drücken)
     rohr = t is not None and bool(t.kammern) and t.profilform not in ("", "offenes Sonderprofil")
+    kantteil = rohr and _kein_rohr(solid, t, fl, volumen)
+    if kantteil:
+        rohr = False
     if fl and fl["art"] == "gekantet" and not rohr and (
-            t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
+            kantteil or t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
             or t.profilform == "offenes Sonderprofil" or mehrachsig
             or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
@@ -3536,6 +3771,25 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
             except Exception:  # Zweitmessung darf die Messung nie verhindern
                 t.alternative = None
     return t
+
+
+def _kein_rohr(solid, t, fl, volumen):
+    """Geschlossen gemessenes Sonderprofil ohne sicheres Profil und Wandstärke (Wand 1 bis 22 mm), das sich als
+    Kantteil abwickeln lässt und dessen Zuschnitt × Dicke das Volumen trifft: ein gekantetes Blech (C-Halter mit
+    eingerollten Enden, Patrick 05.11.2026), kein Rohr. Die Abwicklung bleibt in fl."""
+    if not (fl and fl["art"] == "gekantet" and t.profilform == "Sonderprofil"
+            and t.sicherheit.get("profil") == "unsicher" and t.sicherheit.get("wandstaerke") == "unsicher"):
+        return False
+    from step_abwicklung import abwickeln
+    try:
+        abw = abwickeln(solid, fl["dicke"])
+    except Exception:  # ohne Abwicklung bleibt es beim Rohr
+        return False
+    a = (abw or {}).get("flaeche_netto")
+    if abw.get("fehler") or not a or abs(a * fl["dicke"] - volumen) > 0.05 * volumen:
+        return False
+    fl["abwicklung"] = abw
+    return True
 
 
 def _als_profil(solid, b, form=None, t=None, ersatz=False):
@@ -4804,15 +5058,41 @@ def teil_uebergeben(t):
     return t
 
 
+def _ocp_teilen():
+    """copy.deepcopy teilt OpenCascade-Formen (TopoDS_*) statt sie zu kopieren (lassen sich nicht kopieren; eine
+    gespeicherte Form an einer Auswahl-Messung brach sonst den ganzen Import einer Baugruppe ab, Patrick 05.11.2026)."""
+    import copy
+    import OCP.TopoDS as td
+    for n in dir(td):
+        k = getattr(td, n)
+        if n.startswith("TopoDS_") and isinstance(k, type):
+            copy._deepcopy_dispatch.setdefault(k, lambda x, memo: x)
+
+
 def _instanz(vorbild, nr, info, v):
     """Teil für Körper nr als verschobene Kopie des gemessenen Vorbilds (Lage um v verschoben)."""
     import copy
     rahmen = vorbild.__dict__.pop("_rahmen", None)
+    # OpenCascade-Körper lassen sich nicht kopieren: auch die _rahmen der Auswahl-Messungen (Alternative, Arten,
+    # offenes Rohr) für die Kopie abnehmen (Kantteil mit Profil-Auswahl in einer Baugruppe, Patrick 05.11.2026)
+    weg, offen, gesehen = [], [vorbild], set()
+    while offen:
+        x = offen.pop()
+        if x is None or id(x) in gesehen or not hasattr(x, "__dict__"):
+            continue
+        gesehen.add(id(x))
+        if x is not vorbild and "_rahmen" in x.__dict__:
+            weg.append((x, x.__dict__.pop("_rahmen")))
+        offen += [getattr(x, "alternative", None), getattr(x, "geschlossen", None),
+                  *((getattr(x, "arten", None) or {}).values())]
+    _ocp_teilen()
     try:
         t = copy.deepcopy(vorbild)
     finally:
         if rahmen is not None:
             vorbild._rahmen = rahmen
+        for x, r in weg:
+            x._rahmen = r
     t.koerper = nr
     t.bauteil, t.pfad, t.knoten = info["bauteile"].get(nr, ("", "", ""))
     for x in (t, t.alternative):

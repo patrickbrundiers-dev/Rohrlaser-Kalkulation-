@@ -101,7 +101,7 @@ def _lesen(datei):
         ordner = next((p for p in (os.environ.get("PUBLIC"), os.environ.get("SystemDrive", "C:") + "\\")
                        if p and p.isascii() and os.access(p, os.W_OK)), None)
     with tempfile.TemporaryDirectory(dir=ordner) as tmp:
-        kopie = Path(tmp) / "teil.step"
+        kopie = Path(tmp) / ("teil" + (datei.suffix.lower() or ".step"))     # IGES bleibt IGES
         shutil.copyfile(datei, kopie)
         return step_geometrie.datei_lesen(kopie, datei.stem)
 
@@ -211,7 +211,7 @@ def step_dateien(pfade):
     out = []
     for p in map(Path, pfade):
         if p.is_dir():
-            out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp"))
+            out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp", ".igs", ".iges"))
         else:
             out.append(p)
     return out

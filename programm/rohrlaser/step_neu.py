@@ -116,7 +116,8 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
         return None
     if not dateien:
         dateien, _ = QFileDialog.getOpenFileNames(fenster, "Neues Angebot aus STEP", str(step_ablage.start_ordner(db)),
-                                                  "STEP-Dateien, E-Mails und ZIP (*.step *.stp *.STEP *.STP *.msg *.eml *.zip)")
+                                                  "STEP/IGES-Dateien, E-Mails und ZIP (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES "
+                                                  "*.msg *.eml *.zip)")
         if not dateien:
             return None
     if formulare is None:           # Kundenordner oder Mail gezogen: E-Mail auslesen wie im Anfrage-Ordner
@@ -128,7 +129,7 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     gefunden = [str(d) for d in step.step_dateien(dateien) if not _alte_version(d)]
     if not gefunden:
         if not fenster.stumm:
-            QMessageBox.information(fenster, "Neues Angebot aus STEP", "Keine STEP-Dateien (*.step, *.stp) gefunden.")
+            QMessageBox.information(fenster, "Neues Angebot aus STEP", "Keine STEP- oder IGES-Dateien (*.step, *.stp, *.igs, *.iges) gefunden.")
         fenster.meldung("Keine STEP-Dateien gefunden.", fehler=True)
         return None
     step_ablage.ordner_merken(db, gefunden)
