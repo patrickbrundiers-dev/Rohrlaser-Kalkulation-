@@ -5,7 +5,8 @@
 - I3 Kantteil mit runder Prägung (eingeprägte Tasche wie am Blech-Halter): Kantteil statt „3 statt 2 Blechhäute“,
   Öffnung der Prägung im Zuschnitt geschlossen (keine Innenkontur), Hinweis „Prägung“.
 - I4 Dateiauswahl: Ordner, Ablegen, Anfragen und Dialoge nehmen .igs/.iges wie .step/.stp.
-- I5 Einheit aus dem IGES-Kopf, kaputte IGES-Datei: klare Meldung.
+- I5 Einheit aus dem IGES-Kopf, kaputte IGES-Datei: klare Meldung; Pfad mit Umlauten (Messung über eine Kopie mit
+  einfachem Namen) bleibt IGES.
 - I6 IGES mit Volumenkörpern (Hubwagen aus SolidWorks: Zylinder als Drehflächen): Flächen umgewandelt, gleiche
   Messung wie STEP.
 
@@ -126,6 +127,13 @@ def _():
         raise AssertionError("keine Fehlermeldung")
     except ValueError as e:
         assert "IGES-Datei nicht lesbar" in str(e), e
+    import shutil
+    import step_messen
+    umlaut = TMP / "Müller Ä"
+    umlaut.mkdir()
+    shutil.copy(TMP / "Rohr.igs", umlaut / "Rohr Übergröße.IGS")
+    gel = step_messen._lesen(umlaut / "Rohr Übergröße.IGS")
+    assert len(gel.koerper) == 1 and gel.koerper[0][0] == "aus Flächenmodell genäht", gel.koerper
 
 
 @fall("I6 IGES mit Volumenkörpern: Drehflächen als Zylinder, Messung wie STEP")
