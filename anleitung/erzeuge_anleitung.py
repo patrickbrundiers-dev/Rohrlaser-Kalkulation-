@@ -2746,7 +2746,10 @@ def kapitel_step(i):
             "DXF und 3D. Ein gekantetes C oder U, dessen Schenkel vorne und hinten flach bleiben (ungekantet, mit "
             "Freischnitt), ist ein Kantteil mit freier Außenkontur im Zuschnitt, kein U-Profil. Auch nur <b>leicht "
             "angekantete</b> Bleche (ab etwa 1°) sind Kantteile, mit der richtigen Kantrichtung; <b>Stecknasen</b>, "
-            "die seitlich aus dem Blech stehen, gehören zur Außenkontur.",
+            "die seitlich aus dem Blech stehen, gehören zur Außenkontur. Dicke Platten mit Senkungen (z. B. "
+            "Schweißtisch-Platten mit Kegel- oder Zylindersenkungen) sind Bleche mit Senkungen, kein Frästeil. Ein "
+            "C-Halter mit eingerollten Enden ist ein Kantteil; ein warmgewalzter Winkel mit ganz gerundeten "
+            "Schenkelenden (z. B. Zoll-Winkel) ist ein L-Profil.",
             "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
             "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
             "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "

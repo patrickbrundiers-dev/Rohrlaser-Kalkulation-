@@ -26,7 +26,10 @@ NEUERUNGEN = [
      "Umriss im Zuschnitt (vorher ein Schlitz bis zum Rand, ohne Schenkel im Blech-Editor) und ist als <i>über "
      "Biegung</i> gekennzeichnet. <b>Ellipsen</b> in Blechen heißen Ellipse mit Achsen statt Polygon. Ein gekantetes C mit flachen Schenkel-Enden "
      "vorne und hinten ist ein Kantteil (vorher U-Profil); leicht angekantete Bleche (2°–30°) haben die richtige "
-     "Kantrichtung (vorher teils Z statt Wanne, 2°/5° Flachstahl), seitliche Stecknasen sind in der Außenkontur.",
+     "Kantrichtung (vorher teils Z statt Wanne, 2°/5° Flachstahl), seitliche Stecknasen sind in der Außenkontur. Dicke Platten mit Senkungen sind Bleche (vorher Frästeil), ein C-Halter mit eingerollten Enden ist ein Kantteil "
+     "(vorher Sonderprofil), ein warmgewalzter Winkel mit ganz gerundeten Schenkelenden ist ein L-Profil (vorher offenes "
+     "Sonderprofil, nicht kalkuliert). "
+     "<b>Fehler behoben</b>: große Baugruppen (z. B. Palettenwagen, Formenregal) brachen beim Import ab.",
      "Kantteile: Ausschnitt über der Biegung richtig abgewickelt, Ellipsen im Blech"],
     ["0.9.262", "<b>Fehler behoben</b> im Fenster STEP-Import prüfen: Eine <b>Regel des Kunden</b> ([[profil_regeln]]) "
      "mit anderer Profilform (z. B. Quadrat- statt Rechteckrohr) ließ beim Zurückstellen auf das gemessene Profil die "

@@ -1167,6 +1167,13 @@ def _offenes_profil(draht, flaeche, x0, y0, x1, y1, je_seite):
         rest = [n for n in s if n not in voll]
         if all(len(s[n]) == 1 and s[n][0][1] - s[n][0][0] < 0.5 * lang[n] for n in rest):
             return "L-Profil", max(w, h), min(w, h), ""
+        # warmgewalzter Winkel mit ganz gerundeten Schenkelenden (Zoll-Winkel im Master Tower, Patrick 05.11.2026):
+        # die Enden berühren das Hüllrechteck nur in einem Punkt; L, wenn die Fläche zur Schenkeldicke passt
+        wand = [je_seite.get(k) for k in ("x", "y") if je_seite.get(k)]
+        if all(len(s[n]) <= 1 and (not s[n] or s[n][0][1] - s[n][0][0] < 0.5 * lang[n]) for n in rest) and wand:
+            d = sum(wand) / len(wand)
+            if d < 0.4 * min(w, h) and abs(flaeche - d * (w + h - d)) <= 0.1 * flaeche:
+                return "L-Profil", max(w, h), min(w, h), ""
     if len(voll) == 3:
         offen = next(n for n in s if n not in voll)
         if gegen[offen] in voll and len(s[offen]) == 2:
@@ -2833,6 +2840,15 @@ def _zylinder_paare(solid, dicke, tol=0.02):
     return summe
 
 
+def _senkboden(f):
+    """Ebene Ringfläche eines Senkungsbodens: zwei oder mehr Drähte, alle Kreise (außen Senk-, innen Bohrungs-Ø)."""
+    try:
+        draehte = _liste(f, TopAbs_WIRE)
+        return len(draehte) >= 2 and all(_wire_kreis(d) is not None for d in draehte)
+    except Exception:  # unbekannte Kantenart: kein Senkungsboden
+        return False
+
+
 def _flach_pruefen(solid, volumen):
     """Blechmerkmale eines Körpers oder None. Ergebnis dict: art 'eben' (Hauptflächen tragen das ganze Volumen)
     oder 'gekantet' (gleich dicke Schenkel in mindestens zwei Richtungen, verbunden über Biegezonen), dicke,
@@ -2851,7 +2867,9 @@ def _flach_pruefen(solid, volumen):
     erg = dict(dicke=dicke, hauptflaeche=haupt, richtung=g[0], mitte=pl.Location(), flaeche_oben=e1[1],
                flaeche_unten=e2[1], teilflaechen=len(e1[2]))
     # eben: nur diese beiden Ebenen in der Richtung (keine Absätze, Taschen oder Gravuren), Volumen = Fläche × Dicke
-    weitere = [e for e in g[1][2:] if e[1] > 1e-3 * e1[1]]
+    # Böden von Zylindersenkungen (Ringflächen nur mit Kreisen, Patrick 05.11.2026: Schweißtischplatte 12 mm mit
+    # Senkungen wurde Frästeil) zählen nicht als Absatz: die Senkung ist eine Zusatzarbeit am Blech
+    weitere = [e for e in g[1][2:] if e[1] > 1e-3 * e1[1] and not all(_senkboden(f) for f in e[2])]
     # (Senkungen nehmen auf einer Seite Fläche weg: Volumen liegt zwischen kleinerer und größerer Fläche × Dicke)
     if not weitere and e2[1] >= 0.9 * e1[1] and \
             min(e1[1], e2[1]) * dicke * (1 - TOL_BLECH_VOLUMEN) <= volumen <= \
@@ -3574,8 +3592,11 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
     # Patrick 26.10.2026: ein geschlossenes Rohr ist immer ein Rohr, keine Ausnahme (auch wenn die Achse wegen vieler
     # Langlöcher nur "wahrscheinlich" ist oder die Ausschnitte das Volumen drücken)
     rohr = t is not None and bool(t.kammern) and t.profilform not in ("", "offenes Sonderprofil")
+    kantteil = rohr and _kein_rohr(solid, t, fl, volumen)
+    if kantteil:
+        rohr = False
     if fl and fl["art"] == "gekantet" and not rohr and (
-            t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
+            kantteil or t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
             or t.profilform == "offenes Sonderprofil" or mehrachsig
             or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
@@ -3598,6 +3619,25 @@ def _analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS
             except Exception:  # Zweitmessung darf die Messung nie verhindern
                 t.alternative = None
     return t
+
+
+def _kein_rohr(solid, t, fl, volumen):
+    """Geschlossen gemessenes Sonderprofil ohne sicheres Profil und Wandstärke (Wand 1 bis 22 mm), das sich als
+    Kantteil abwickeln lässt und dessen Zuschnitt × Dicke das Volumen trifft: ein gekantetes Blech (C-Halter mit
+    eingerollten Enden, Patrick 05.11.2026), kein Rohr. Die Abwicklung bleibt in fl."""
+    if not (fl and fl["art"] == "gekantet" and t.profilform == "Sonderprofil"
+            and t.sicherheit.get("profil") == "unsicher" and t.sicherheit.get("wandstaerke") == "unsicher"):
+        return False
+    from step_abwicklung import abwickeln
+    try:
+        abw = abwickeln(solid, fl["dicke"])
+    except Exception:  # ohne Abwicklung bleibt es beim Rohr
+        return False
+    a = (abw or {}).get("flaeche_netto")
+    if abw.get("fehler") or not a or abs(a * fl["dicke"] - volumen) > 0.05 * volumen:
+        return False
+    fl["abwicklung"] = abw
+    return True
 
 
 def _als_profil(solid, b, form=None, t=None, ersatz=False):
@@ -4866,15 +4906,41 @@ def teil_uebergeben(t):
     return t
 
 
+def _ocp_teilen():
+    """copy.deepcopy teilt OpenCascade-Formen (TopoDS_*) statt sie zu kopieren (lassen sich nicht kopieren; eine
+    gespeicherte Form an einer Auswahl-Messung brach sonst den ganzen Import einer Baugruppe ab, Patrick 05.11.2026)."""
+    import copy
+    import OCP.TopoDS as td
+    for n in dir(td):
+        k = getattr(td, n)
+        if n.startswith("TopoDS_") and isinstance(k, type):
+            copy._deepcopy_dispatch.setdefault(k, lambda x, memo: x)
+
+
 def _instanz(vorbild, nr, info, v):
     """Teil für Körper nr als verschobene Kopie des gemessenen Vorbilds (Lage um v verschoben)."""
     import copy
     rahmen = vorbild.__dict__.pop("_rahmen", None)
+    # OpenCascade-Körper lassen sich nicht kopieren: auch die _rahmen der Auswahl-Messungen (Alternative, Arten,
+    # offenes Rohr) für die Kopie abnehmen (Kantteil mit Profil-Auswahl in einer Baugruppe, Patrick 05.11.2026)
+    weg, offen, gesehen = [], [vorbild], set()
+    while offen:
+        x = offen.pop()
+        if x is None or id(x) in gesehen or not hasattr(x, "__dict__"):
+            continue
+        gesehen.add(id(x))
+        if x is not vorbild and "_rahmen" in x.__dict__:
+            weg.append((x, x.__dict__.pop("_rahmen")))
+        offen += [getattr(x, "alternative", None), getattr(x, "geschlossen", None),
+                  *((getattr(x, "arten", None) or {}).values())]
+    _ocp_teilen()
     try:
         t = copy.deepcopy(vorbild)
     finally:
         if rahmen is not None:
             vorbild._rahmen = rahmen
+        for x, r in weg:
+            x._rahmen = r
     t.koerper = nr
     t.bauteil, t.pfad, t.knoten = info["bauteile"].get(nr, ("", "", ""))
     for x in (t, t.alternative):

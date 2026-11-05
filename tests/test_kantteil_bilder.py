@@ -15,6 +15,14 @@
   Kantungen (bis 15° wechselte es: Z statt Wanne); 2°/5° waren Flachstahl mit Dicke 0.
 - B8 Blech mit herausstehenden Stecknasen rechts und links (eben, schräg im Raum, an leicht angekanteten Schenkeln):
   die Nasen fehlten in der Außenkontur (Hauptfläche in Stücken, nur die größte gemessen).
+- B9 Platte 12 mm mit Zylindersenkungen und gefasten Bohrungen (Schweißtischplatte aus Patricks STEP,
+  05.11.2026): war Frästeil (Senkungsboden als Absatz gezählt), jetzt Blech mit Senkungen.
+- B10 gleiche Teile in einer Baugruppe: die Kopie je Körper brach ab, wenn eine Auswahl-Messung noch eine
+  OpenCascade-Form trug (Palettenwagen, Formenregal: ganzer Import abgebrochen).
+- B11 geschlossen gemessenes Sonderprofil mit unsicherer Wand (C-Halter 1 mm mit eingerollten Enden aus Patricks
+  Blechteilen): war Sonderprofil ohne Kalkulation, jetzt Kantteil, wenn Zuschnitt × Dicke das Volumen trifft.
+- B12 warmgewalzter Winkel mit ganz gerundeten Schenkelenden (Zoll-Winkel im Master Tower, 220 Teile): war offenes
+  Sonderprofil ohne Kalkulation, jetzt L-Profil mit Bohrungen.
 
 Aufruf: python tests/test_kantteil_bilder.py
 """
@@ -132,8 +140,23 @@ NASEN_KANT = plus(leicht(15), *[verschiebe(blech_bogen([(-6 * c15, 6 * s15), (0,
                                 for z in (40, 140)],
                   *[verschiebe(blech_bogen([(0, 0), (6 * c15, 6 * s15)], 2, 2, 20), 300 + 40 * c15, 40 * s15, z)
                     for z in (40, 140)])
+def _senk_platte():
+    import erzeuge_testteile as et
+    p = quader(400, 300, 12)
+    for x in (50, 150, 250, 350):
+        for y in (50, 150, 250):
+            p = et.senkung(p, (x, y, 12), (0, 0, -1), 14, 16, 12)       # Fase oben
+    for x in (100, 300):
+        p = ohne(p, zyl(9.5, 7, 8.5, x, 100), zyl(6, 20, -1, x, 100))  # Zylindersenkung Ø19 × 3,5 / Ø12
+    return p
+
+
+SENK_PLATTE = _senk_platte()
+# Zoll-Winkel 1 1/2" × 5/16" mit ganz gerundeten Schenkelenden (Master Tower), Länge 600, zwei Bohrungen Ø13
+WINKEL_RUND = ohne(plus(quader(34.1, 8, 600), zyl(4, 600, 0, 34.1, 4), quader(8, 34.1, 600), zyl(4, 600, 0, 4, 34.1)),
+                   zyl(6.5, 20, 100, 20, -5, Y), zyl(6.5, 20, 500, 20, -5, Y))
 LEICHT = {f"Leicht_{w}": leicht(w) for w in (2, 5, 10, 15, 30)}
-TEILE = {**LEICHT, "Leicht_10_schraeg": lage(leicht(10)), "Nasen_eben": NASEN_EBEN, "Nasen_schraeg": lage(NASEN_EBEN),
+TEILE = {"Winkel_rund": WINKEL_RUND, "Winkel_rund_schraeg": lage(WINKEL_RUND), "Senk_Platte": SENK_PLATTE, **LEICHT, "Leicht_10_schraeg": lage(leicht(10)), "Nasen_eben": NASEN_EBEN, "Nasen_schraeg": lage(NASEN_EBEN),
          "Nasen_kant": NASEN_KANT, "C_Flach": C_FLACH, "C_Flach_schraeg": lage(C_FLACH), "C_Halter": C_HALTER, "C_Halter_schraeg": lage(C_HALTER), "C_Lasche": C_LASCHE, "Hut": HUT,
          "Z_Lippe": Z_LIPPE, "U_Lasche": U_LASCHE, "Fenster": FENSTER, "Fenster_schraeg": lage(FENSTER),
          "L_Ausschnitt": L_AUSSCHNITT, "L_Bohrung": L_BOHRUNG, "Platte_Ellipsen": PLATTE_ELL, "Wanne_Ellipsen": WANNE_ELL}
@@ -258,6 +281,52 @@ def _():
     a, b = abw("Nasen_kant"), m("Nasen_kant").blech
     assert m("Nasen_kant").profilform == "Blech gekantet" and a["kantungen"] == 2 and len(b["aussen_punkte"]) == 20, a
     assert nah(max(a["laenge"], a["breite"]), abw("Leicht_15")["breite"] + 12, 0.1), (a["laenge"], a["breite"])
+
+
+@fall("B9 Platte 12 mm mit Zylindersenkungen und Fasen: Blech mit Senkungen, kein Frästeil")
+def _():
+    t = m("Senk_Platte")
+    assert t.profilform == "Blech" and t.wandstaerke == 12, (t.profilform, t.hinweise)
+    assert t.senkungen == {(12.0, 19.0): 2, (14.0, 16.0): 12}, t.senkungen
+    assert t.blech["bohrungen"] == {12.0: 2, 14.0: 12}, t.blech["bohrungen"]
+
+
+@fall("B10 gleiche Teile in einer Baugruppe: Kopie je Körper auch mit OpenCascade-Form an der Auswahl")
+def _():
+    import step_geometrie as g
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    t = g.Teil(datei="x", koerper=1, ende_a_global=(0.0, 0.0, 0.0))
+    t.alternative = g.Teil(datei="x", koerper=1)
+    form = BRepPrimAPI_MakeBox(1, 2, 3).Shape()
+    t.alternative._rahmen = dict(solid=form)
+    t.alternative.fremd = [form]                         # irgendwo anders gemerkte Form
+    k = g._instanz(t, 2, {"bauteile": {}}, (10.0, 0.0, 0.0))
+    assert k.koerper == 2 and k.ende_a_global == (10.0, 0.0, 0.0) and k.alternative.fremd[0] is form
+    assert t.alternative._rahmen["solid"] is form and "_rahmen" not in k.alternative.__dict__
+
+
+@fall("B11 Sonderprofil mit unsicherer Wand, das sich als Kantteil abwickeln lässt: Blech gekantet, kein Rohr")
+def _():
+    import step_geometrie as g
+    from formen_baukasten import kant
+    solid = kant([(60, 0), (0, 0), (0, 80), (60, 80)], 2, lg=70)
+    v = g._volumen(solid)
+    t = g.Teil(datei="x", koerper=1, profilform="Sonderprofil")
+    t.sicherheit = {"profil": "unsicher", "wandstaerke": "unsicher"}
+    fl = {"art": "gekantet", "dicke": 2.0}
+    assert g._kein_rohr(solid, t, fl, v) and fl["abwicklung"]["kantungen"] == 2, fl
+    assert not g._kein_rohr(solid, t, {"art": "gekantet", "dicke": 2.0}, 1.3 * v)       # Volumen passt nicht
+    t.sicherheit["wandstaerke"] = "sicher"
+    assert not g._kein_rohr(solid, t, {"art": "gekantet", "dicke": 2.0}, v)            # echtes Rohr bleibt Rohr
+
+
+@fall("B12 Winkel mit ganz gerundeten Schenkelenden: L-Profil, auch schräg im Raum")
+def _():
+    for n in ("Winkel_rund", "Winkel_rund_schraeg"):
+        t = m(n)
+        assert t.profilform == "L-Profil" and nah(t.abm_a, 38.1, 0.05) and nah(t.wandstaerke, 8, 0.1), \
+            (n, t.profilform, t.abm_a, t.wandstaerke, t.hinweise)
+        assert nah(t.laenge, 600, 0.1) and t.konturen >= 4, (n, t.laenge, t.konturen)
 
 
 if fehler:
