@@ -1853,6 +1853,66 @@ def arten_gelernt_merken(gelernt, neu):
     return dict(list(out.items())[-ART_GELERNT_MAX:])
 
 
+PROFIL_GELERNT = "step_profil_gelernt"     # Einstellung {Kundennr: {gemessenes Profil: gewähltes Profil}} (C3)
+PROFIL_GELERNT_MAX = 500                   # je Kunde
+
+
+def _profil_lernbar(m):
+    return _rohrteil(m) and art_gruppe(m) == ART_PROFIL and not m.get("_knickrahmen")
+
+
+def profile_gelernt_anwenden(messwerte, regeln, profile):
+    """Regeln des Kunden aus seinen Korrekturen (Optimierungsplan C3, Patrick 05.11.2026: automatisch anwenden): hat
+    er beim letzten Import statt des gemessenen Profils ein anderes gewählt, bekommt jedes Teil mit diesem gemessenen
+    Profil gleich das gewählte (andere Form: Profilform wie im Prüfdialog umgestellt, Messwerte und Konturen bleiben).
+    Das Teil steht in der Ampel gelb mit „Regel des Kunden“. regeln = {gemessen: gewählt} dieses Kunden; je Teil
+    merkt _profil_gemessen das gemessene Profil (Schlüssel fürs Lernen). Ergebnis: Zahl der umgestellten Teile."""
+    n = 0
+    for m in messwerte:
+        if not _profil_lernbar(m):
+            continue
+        m.setdefault("_profil_gemessen", profil_vorschlag(m, profile) or "")
+        ziel = (regeln or {}).get(m["_profil_gemessen"])
+        if not ziel or ziel == m["_profil_gemessen"] or ziel not in profile \
+                or m.get("_profil") not in (None, "", m["_profil_gemessen"]):      # von Hand gewählt: bleibt
+            continue
+        form = (profile[ziel] or {}).get("form")
+        if form and form != m.get("profilform"):
+            m.setdefault("_form_gemessen", m.get("profilform"))
+            m["profilform"] = form
+        m["_profil"] = ziel
+        m["_profil_regel"] = m["_profil_gemessen"]
+        n += 1
+    return n
+
+
+def profile_gelernt_zuruecknehmen(messwerte):
+    """Angewendete Regeln zurücknehmen (anderer Kunde im Prüfdialog): gemessenes Profil und Profilform wieder."""
+    for m in messwerte:
+        if m.pop("_profil_regel", None) is None:
+            continue
+        m["_profil"] = m.get("_profil_gemessen") or ""
+        if m.get("_form_gemessen"):
+            m["profilform"] = m.pop("_form_gemessen")
+
+
+def profile_gelernt_merken(regeln, messwerte, profile):
+    """Korrekturen des Prüfdialogs als Regeln des Kunden: übernommenes Teil mit anderem Profil als gemessen → Regel
+    gemessen → gewählt; wieder das gemessene gewählt → Regel weg. Ergebnis: neue Regeln (neueste zuletzt)."""
+    out = dict(regeln or {})
+    for m in messwerte:
+        gemessen = m.get("_profil_gemessen")
+        if not gemessen or not _profil_lernbar(m) or m.get("_uebernehmen") is False:
+            continue
+        gewaehlt = (m.get("_profil") or profil_vorschlag(m, profile) or "").strip()   # leer = Vorschlag
+        if not gewaehlt:
+            continue
+        out.pop(gemessen, None)
+        if gewaehlt != gemessen:
+            out[gemessen] = gewaehlt
+    return dict(list(out.items())[-PROFIL_GELERNT_MAX:])
+
+
 def gleiches_profil(m, profil, tol=0.1):
     """Hat das Profil der Position dieselbe Form und dieselben Außenmaße wie gemessen (Breite/Höhe in beliebiger
     Reihenfolge, ± tol mm)?"""
@@ -2308,12 +2368,16 @@ def ampel(m, profil_fehlt=False):
                        else "von Hand nachgetragen")
     if m.get("_normteil"):
         gruende.append(f"Normteil ({m['_normteil']})")
-    if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
+    if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform") and not m.get("_profil_regel"):
         gruende.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
     if profil_fehlt:
         gruende.append("Profil fehlt in den Stammdaten")
     if m.get("_knick_fehler"):
         gruende.append("Knickrahmen nicht verbindbar")
+    if m.get("_profil_regel") and m.get("_profil") and m["_profil"] != m["_profil_regel"]:
+        gruende.append(f"Regel des Kunden: {m['_profil']} statt gemessen {m['_profil_regel']}")
+    if m.get("_art_gelernt"):
+        gruende.append("Art wie beim letzten Mal von Hand gewählt")
     if gruende:
         return "gelb", gruende
     return "gruen", ["Art, Profil und Konturen sicher erkannt"]

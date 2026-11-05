@@ -624,7 +624,10 @@ def kapitel_start(i):
            "einfach ein <b>Support-Paket</b> erstellen ([[support_paket]]): es enthält tempo.log und eine "
            "Zusammenfassung tempo.txt mit den häufigsten langsamen Stellen.", kurz=True)
     i.liste("Der Wächter bremst nicht spürbar (ein Takt alle 0,1 s) und schreibt keine Kunden oder Preise, nur "
-            "Angebotsnummer, Anzahl Positionen und Teile.")
+            "Angebotsnummer, Anzahl Positionen und Teile.",
+            "<b>Arbeitsspeicher</b>: jeder Eintrag nennt, wie viel Speicher das Programm gerade braucht; wächst er um "
+            "100 MB über den bisher höchsten Stand, steht eine eigene Zeile mit dem Ort im Protokoll. tempo.txt im "
+            "Support-Paket nennt den höchsten Stand.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -3225,6 +3228,19 @@ def kapitel_step(i):
                  "oder von Hand nachgetragen), Normteil, Art von Hand geändert, Profil fehlt in den Stammdaten, "
                  "Knickrahmen nicht verbindbar"],
         ["rot", "kein Rohrteil erkannt oder nicht messbar (Gruppe <i>Nicht übernehmbar</i>)"]], [25, 145])
+    i.abschnitt("Regeln des Kunden: aus Korrekturen lernen", marke="profil_regeln")
+    i.text("Wählt man im Fenster STEP-Import prüfen für ein Teil ein <b>anderes Profil</b> als das gemessene (Spalte "
+           "Profil-ID), merkt sich das Programm das als <b>Regel des Kunden</b>: gemessenes Profil → gewähltes "
+           "Profil. Beim nächsten STEP-Import desselben Kunden bekommt jedes Teil mit diesem gemessenen Profil "
+           "gleich das gewählte. Es steht <b>gelb</b> in der Ampel ([[erkennung_ampel]]) mit dem Hinweis <i>Regel "
+           "des Kunden: … statt gemessen …</i>.", kurz=True)
+    i.liste("<b>Zurückstellen</b>: im Fenster wieder das gemessene Profil wählen; damit ist auch die Regel gelöscht.",
+            "Ein Profil anderer Form (z. B. Quadrat- statt Rechteckrohr) stellt die Profilform um wie die Spalte Art; "
+            "die Messwerte und Konturen aus der STEP bleiben unverändert, Anfangs- und Endschnitt rechnet das "
+            "Programm für das gewählte Profil neu.",
+            "Ein von Hand gewähltes Profil hat immer Vorrang. Wechselt man im Fenster den Kunden, gelten sofort "
+            "dessen Regeln. Die gewählte Art (Blech, Rohr/Profil, Dreh-/Frästeil) merkt sich das Programm wie bisher "
+            "für alle Kunden.")
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
     i.text("<i>plausibel</i> = Messung stimmig, <i>prüfen</i> = bitte ansehen, <i>nicht messbar</i> = kein Profil "
            "erkannt. Unsichere Teile sind nicht angehakt.")

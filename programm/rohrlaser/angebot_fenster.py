@@ -7572,6 +7572,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             formular_bericht = anwenden()
         # Art wie beim letzten Mal von Hand gewählt (Blech, Rohr/Profil, Dreh-/Frästeil; Patrick 04.11.2026)
         step.arten_gelernt_anwenden(messwerte, self.db.einstellung(step.ART_GELERNT) or {})
+        # Profil wie beim letzten Mal bei diesem Kunden von Hand gewählt (Optimierungsplan C3, automatisch, gelb)
+        profil_regeln = self.db.einstellung(step.PROFIL_GELERNT) or {}
+        step.profile_gelernt_anwenden(messwerte, profil_regeln.get(str(self.kopf.get("kundennr") or "")) or {},
+                                      self.k.profile)
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
@@ -7626,6 +7630,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if getattr(dlg, "art_merken", None) and not self.db.nur_lesen:     # Art von Hand: fürs nächste Mal
                 self.db.einstellung_setzen(step.ART_GELERNT, step.arten_gelernt_merken(
                     self.db.einstellung(step.ART_GELERNT) or {}, dlg.art_merken))
+            kunde_nr = str(dlg.kundennr or "")
+            if kunde_nr and not self.db.nur_lesen:      # C3: Profil-Korrekturen als Regel des Kunden
+                regeln = dict(self.db.einstellung(step.PROFIL_GELERNT) or {})
+                neu_r = step.profile_gelernt_merken(regeln.get(kunde_nr) or {}, messwerte, self.k.profile)
+                if neu_r != (regeln.get(kunde_nr) or {}):
+                    regeln[kunde_nr] = neu_r
+                    self.db.einstellung_setzen(step.PROFIL_GELERNT, regeln)
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
@@ -7754,6 +7765,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         profil = importprofil.fuer_kunde(self.db, kundennr)
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
                                                                                      "step_normteile")})
+        step.profile_gelernt_zuruecknehmen(messwerte)        # C3: Regeln des neuen Kunden statt des alten
+        step.profile_gelernt_anwenden(messwerte, (self.db.einstellung(step.PROFIL_GELERNT) or {}).get(
+            str(kundennr or "")) or {}, self.k.profile)
         ws = importprofil.vorgaben(profil).get("werkstoff") or self.db.einstellung("step_werkstoff") or None
         # Zusatzarbeiten des alten Importprofils durch die des neuen ersetzen, von Hand gewählte bleiben (V4)
         katalog = {z["name"] for z in self.db.zeilen("zusatzarbeiten") if z.get("name") and z.get("aktiv") != "nein"}

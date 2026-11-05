@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.261", "<b>Regeln des Kunden</b> ([[profil_regeln]]): wählt man im STEP-Import für ein Teil ein anderes Profil "
+     "als das gemessene, gilt das beim nächsten Import desselben Kunden automatisch für alle Teile mit diesem "
+     "gemessenen Profil (gelb mit Hinweis <i>Regel des Kunden</i>; das gemessene Profil wählen stellt zurück und "
+     "löscht die Regel). Der <b>Zeitwächter</b> ([[zeitwaechter]]) schreibt jetzt auch den Arbeitsspeicher mit, das "
+     "Support-Paket nennt den höchsten Stand. Intern: Prüfsammlung für echte STEP-Dateien und gleich lange Testteile.",
+     "Regeln des Kunden aus Profil-Korrekturen, Arbeitsspeicher im Zeitwächter"],
     ["0.9.260", "<b>Ampel nach dem STEP-Import</b> ([[erkennung_ampel]]): im Fenster STEP-Import prüfen zeigt ein "
      "Farbpunkt je Teil, wie sicher Art, Profil und Konturen erkannt sind (grün sicher, gelb prüfen, rot nicht "
      "übernehmbar), mit Grund im Tooltip, Zusammenfassung unter der Liste und Haken <i>Nur zu prüfende</i>. "
