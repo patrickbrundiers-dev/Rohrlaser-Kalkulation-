@@ -698,7 +698,10 @@ class StepPruefDialog(QDialog):
             ag = step.art_grund(m)      # Grund der Art (Regelliste bzw. von Hand); beim Dreh-/Frästeil steht er oben
             if ag and not any(ag in h for h in hinweis) and not (ist_df and ag == m.get("art_grund")):
                 hinweis.append(ag)
-            if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
+            if m.get("_profil_regel") and m.get("_profil") and m["_profil"] != m["_profil_regel"]:
+                hinweis.append(f"Regel des Kunden: {m['_profil']} statt gemessen {m['_profil_regel']} (zurück: "
+                               f"Profil {m['_profil_regel']} wählen)")
+            elif m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
                 hinweis.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
             hinweis += [h for h in [m.get("hinweise")] if h]
             it.setText(self.SP_HINWEIS, "; ".join(hinweis))
@@ -1626,7 +1629,8 @@ class StepPruefDialog(QDialog):
         from . import step
         profil = (profil or "").strip()
         warnung = step.profil_abweichung(m, self.k.profile.get(profil)) if profil and profil != vorschlag else None
-        it.setText(self.SP_HINWEIS, "; ".join(filter(None, [warnung, hinweis])))
+        regel = m.get("_profil_regel") and profil == m.get("_profil")      # C3: Regel des Kunden zuerst nennen
+        it.setText(self.SP_HINWEIS, "; ".join(filter(None, [hinweis, warnung] if regel else [warnung, hinweis])))
         it.setToolTip(self.SP_HINWEIS, (warnung + ". Beim Übernehmen werden Anfangs- und Endschnitt mit der gemessenen "
                                         "Form für das gewählte Profil neu gerechnet, Innenkonturen bleiben gemessen.")
                       if warnung else "")

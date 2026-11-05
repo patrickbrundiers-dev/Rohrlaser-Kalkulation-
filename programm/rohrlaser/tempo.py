@@ -13,6 +13,10 @@ So funktioniert es, ohne das Programm selbst zu bremsen:
 - ein Hilfsfaden schaut während einer Blockade alle TAKT_MS nach, in welcher Programmfunktion der Oberflächen-Ablauf
   gerade steckt (nur im Quelltext-Betrieb sichtbar; im übersetzten Programm stehen dort nur Ort und Bedienung).
 
+Speicher (Optimierungsplan E3, erst messen): jeder Eintrag nennt den Arbeitsspeicher des Programms, und alle
+SPEICHER_TAKT_S schaut der Wächter nach; wächst er über den bisher höchsten Stand um SPEICHER_SCHRITT_MB, steht eine
+Zeile „Speicher N MB | Ort: …“ im Protokoll. auswerten() nennt den höchsten Stand mit Ort.
+
 Ein Eintrag: Zeit, Dauer, Ort (Reiter › Unterreiter, beim Angebot Positionen und Teile), letzte Bedienung, häufigste
 Funktionen. auswerten() fasst die Datei für Menschen zusammen (Support, Tests).
 """
@@ -29,6 +33,8 @@ DATEI = "tempo.log"
 GRENZE_S = 0.5          # ab dieser Blockade gilt ein Schritt als langsam
 TAKT_MS = 100
 MAX_FUNKTIONEN = 3
+SPEICHER_TAKT_S = 30      # so oft den Arbeitsspeicher ansehen
+SPEICHER_SCHRITT_MB = 100   # neuer Höchststand um so viel: eine Zeile ins Protokoll
 
 _log = logging.getLogger("rohrlaser.tempo")
 _log.propagate = False
@@ -78,6 +84,8 @@ class Waechter:
         self._timer = None
         self._filter = None
         self._faden = None
+        self.speicher_hoch = 0          # höchster protokollierter Arbeitsspeicher [MB]
+        self._speicher_zuletzt = 0.0
 
     # ---------------------------------------------------------------- Einrichten
     def starten(self):
@@ -144,6 +152,32 @@ class Waechter:
         if blockiert >= self.grenze_s:
             self.eintragen(blockiert, proben)
             self._zuletzt = time.perf_counter()     # Schreiben selbst zählt nicht mit
+        if jetzt - self._speicher_zuletzt >= SPEICHER_TAKT_S:
+            self._speicher_zuletzt = jetzt
+            self.speicher_pruefen()
+
+    def speicher_pruefen(self, mb=None):
+        """Neuen Höchststand des Arbeitsspeichers (ab SPEICHER_SCHRITT_MB mehr) mit Ort ins Protokoll. Ergebnis: Text
+        des Eintrags oder None."""
+        mb = speicher_mb() if mb is None else mb
+        if not mb or mb < self.speicher_hoch + SPEICHER_SCHRITT_MB:
+            return None
+        self.speicher_hoch = mb
+        text = f"Speicher {mb:.0f} MB" + (f" | Ort: {self._ort()}" if self._ort() else "")
+        self.eintraege = (self.eintraege + [text])[-50:]
+        if self._schreiben is not None:
+            self._schreiben(text)
+        else:
+            _log.info(text)
+        return text
+
+    def _ort(self):
+        if self.kontext is None:
+            return ""
+        try:
+            return self.kontext() or ""
+        except Exception:                               # noqa: BLE001
+            return ""
 
     def _beobachten(self):
         """Hilfsfaden: während einer Blockade die Funktionen des Oberflächen-Ablaufs zählen."""
@@ -158,12 +192,7 @@ class Waechter:
                     self._proben[name] += 1
 
     def eintragen(self, dauer, proben=None):
-        ort = ""
-        if self.kontext is not None:
-            try:
-                ort = self.kontext() or ""
-            except Exception:                           # noqa: BLE001
-                ort = ""
+        ort = self._ort()
         teile = [f"{dauer:.1f} s"]
         if ort:
             teile.append(f"Ort: {ort}")
@@ -171,6 +200,9 @@ class Waechter:
             teile.append(f"zuletzt: {self.letzte_bedienung}")
         if proben:
             teile.append("in: " + "; ".join(f"{n} ({z})" for n, z in proben.most_common(MAX_FUNKTIONEN)))
+        mb = speicher_mb()
+        if mb:
+            teile.append(f"Speicher: {mb:.0f} MB")
         text = " | ".join(teile)
         self.eintraege = (self.eintraege + [text])[-50:]
         if self._schreiben is not None:
@@ -178,6 +210,36 @@ class Waechter:
         else:
             _log.info(text)
         return text
+
+
+def speicher_mb():
+    """Arbeitsspeicher dieses Programms (Working Set bzw. RSS) in MB, None = nicht lesbar. Ohne Zusatzpaket: unter
+    Windows GetProcessMemoryInfo, sonst /proc/self/status."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            class Zaehler(ctypes.Structure):
+                _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD),
+                            ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+                            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                            ("QuotaNonPagedPoolUsage", ctypes.c_size_t), ("PagefileUsage", ctypes.c_size_t),
+                            ("PeakPagefileUsage", ctypes.c_size_t)]
+            z = Zaehler()
+            z.cb = ctypes.sizeof(z)
+            proc = ctypes.windll.kernel32.GetCurrentProcess()
+            if not ctypes.windll.psapi.GetProcessMemoryInfo(proc, ctypes.byref(z), z.cb):
+                return None
+            return z.WorkingSetSize / 1048576
+        with open("/proc/self/status", encoding="ascii") as f:
+            for z in f:
+                if z.startswith("VmRSS:"):
+                    return int(z.split()[1]) / 1024
+    except Exception:                                   # noqa: BLE001 – der Wächter darf nie stören
+        return None
+    return None
 
 
 _BEDIENUNG = ()
@@ -202,6 +264,7 @@ def _eigene_funktionen(rahmen, tiefe=3):
 
 # ------------------------------------------------------------------------------------------- Auswertung
 _ZEILE = re.compile(r"^(\S+ \S+) (\d+(?:\.\d+)?) s(?: \| (.*))?$")
+_SPEICHER = re.compile(r"^(\S+ \S+) Speicher (\d+) MB(?: \| Ort: (.*))?$")
 
 
 def dateien(ordner):
@@ -217,20 +280,36 @@ def lesen(ordner):
             m = _ZEILE.match(z.strip())
             if not m:
                 continue
-            e = dict(zeit=m.group(1), dauer=float(m.group(2)), ort="", bedienung="", funktionen="")
+            e = dict(zeit=m.group(1), dauer=float(m.group(2)), ort="", bedienung="", funktionen="", speicher="")
             for teil in (m.group(3) or "").split(" | "):
-                for schl, feld in (("Ort: ", "ort"), ("zuletzt: ", "bedienung"), ("in: ", "funktionen")):
+                for schl, feld in (("Ort: ", "ort"), ("zuletzt: ", "bedienung"), ("in: ", "funktionen"),
+                                   ("Speicher: ", "speicher")):
                     if teil.startswith(schl):
                         e[feld] = teil[len(schl):]
             out.append(e)
     return out
 
 
+def speicher_hoechststand(ordner):
+    """Höchster protokollierter Arbeitsspeicher: (MB, Zeit, Ort) oder None."""
+    hoch = None
+    for p in reversed(dateien(ordner)):
+        for z in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _SPEICHER.match(z.strip())
+            if m and (hoch is None or int(m.group(2)) > hoch[0]):
+                hoch = (int(m.group(2)), m.group(1), m.group(3) or "")
+    return hoch
+
+
 def auswerten(ordner, anzahl=10):
-    """Zusammenfassung für das Support-Paket: Anzahl, Summe und die langsamsten Stellen je Ort + Bedienung."""
+    """Zusammenfassung für das Support-Paket: Anzahl, Summe und die langsamsten Stellen je Ort + Bedienung, dazu der
+    höchste Arbeitsspeicher (E3)."""
     eintraege = lesen(ordner)
+    hoch = speicher_hoechststand(ordner)
+    speicher = (f"\n\nArbeitsspeicher höchstens {hoch[0]} MB ({hoch[1]}" + (f", {hoch[2]}" if hoch[2] else "") + ")."
+                if hoch else "")
     if not eintraege:
-        return "Keine langsamen Schritte (über %.1f s) protokolliert." % GRENZE_S
+        return "Keine langsamen Schritte (über %.1f s) protokolliert." % GRENZE_S + speicher
     gruppen = collections.defaultdict(list)
     for e in eintraege:
         ort = re.sub(r"\(\d[\d.]* Pos\., \d[\d.]* Teile\)", "", e["ort"]).strip()
@@ -240,4 +319,4 @@ def auswerten(ordner, anzahl=10):
     for (ort, bed), d in sorted(gruppen.items(), key=lambda kv: -sum(kv[1]))[:anzahl]:
         zeilen.append(f"  {len(d)} × bis {max(d):.1f} s, Summe {sum(d):.0f} s – {ort or '?'}"
                       + (f" – {bed}" if bed else ""))
-    return "\n".join(zeilen)
+    return "\n".join(zeilen) + speicher
