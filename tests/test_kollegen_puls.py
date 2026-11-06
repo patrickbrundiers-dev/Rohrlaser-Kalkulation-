@@ -110,6 +110,18 @@ erg = teilen_fenster.puls(f_pb, t + 91)
 assert not erg["geschrieben"]
 ok("Takt: Lebenszeichen alle 30 s; Änderungen gleich ablegen, sobald die Eingabe ruht; Lebenszeichen zählen nicht")
 
+# Support-Paket 06.11.2026: der echte Timer-Slot darf nach einem Takt nicht vom Merker überdeckt werden
+# (vorher hieß der Merker wie der Slot „_teilen_puls“: ab dem zweiten Takt alle 15 s „'dict' object is not callable“)
+f_pb._start_teilen()
+for _ in range(3):
+    f_pb.teilen_puls.timeout.emit()
+    app.processEvents()
+    assert callable(f_pb._teilen_puls), "Merker überdeckt den Timer-Slot _teilen_puls"
+assert isinstance(f_pb.__dict__.get("_teilen_puls_merk"), dict)
+f_pb.teilen_puls.stop()
+f_pb.teilen_takt.stop()
+ok("Echter Takt im Hauptfenster läuft mehrmals ohne Fehler (Slot bleibt aufrufbar)")
+
 # ---------------------------------------------------------------- Übersicht Kollegen
 teilen.notiz_senden(pb, "MK", "Bitte Preis prüfen", None, None)
 teilen.lebenszeichen_schreiben(mk, {"2026-00099": "2026-10-31T09:10"})

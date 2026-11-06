@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.265", "<b>Fehler behoben, gemeinsamer Ordner</b> ([[mehrere_arbeitsplaetze]]): sobald ein gemeinsamer Ordner eingetragen war, kam "
+     "alle 15 Sekunden „Unerwarteter Fehler: 'dict' object is not callable“; Lebenszeichen und Sofort-Schreiben "
+     "liefen dann nicht mehr. Der Takt läuft jetzt wieder fehlerfrei.",
+     "Gemeinsamer Ordner: Fehler alle 15 Sekunden behoben."],
     ["0.9.264", "<b>STEP-Import stabiler</b>: ein Rohr mit Anbauteil längs, dessen Innenkontur in der STEP als Ellipse mit "
      "gleichen Radien gespeichert ist, brachte die Messung zum Absturz (Anhänger-Dach). Jetzt wird es normal gemessen. "
      "<b>Flachstahl mit runden oder abgerundeten Enden</b> (z. B. Lasche mit Radius, Ecken R10): das Ende stand im "
