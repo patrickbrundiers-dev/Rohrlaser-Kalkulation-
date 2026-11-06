@@ -4991,6 +4991,7 @@ class Gelesen:
     koerper: list
     info: dict
     gleich: dict
+    gedreht: dict = field(default_factory=dict)     # {Nummer: (Nummer des Vorbilds, Lage relativ)}, siehe _gedrehte
 
 
 def datei_lesen(pfad, name=None):
@@ -4998,7 +4999,10 @@ def datei_lesen(pfad, name=None):
     import os
     koerper, info = lies_step_info(pfad)
     einzeln = os.environ.get("STEP_MESSEN_EINZELN")         # nur für Tests: jeden Körper selbst messen
-    return Gelesen(name or _Path(pfad).stem, koerper, info, {} if einzeln else _instanzen(koerper))
+    if einzeln:
+        return Gelesen(name or _Path(pfad).stem, koerper, info, {})
+    gleich = _instanzen(koerper)
+    return Gelesen(name or _Path(pfad).stem, koerper, info, gleich, _gedrehte(koerper, gleich))
 
 
 def _instanzen(koerper):
@@ -5022,6 +5026,43 @@ def _instanzen(koerper):
         else:
             vorbilder.append((nr, k))
     return gleich
+
+
+GEDREHT_UEBERNEHMEN = ("Blech", "Blech gekantet", "Drehteil", "Frästeil")
+
+
+def _gedrehte(koerper, gleich):
+    """Körper, die gedrehte Kopien eines früheren sind (dieselbe Geometrie im CAD, anders eingebaut, z. B. 173
+    Schrauben im Pizzaofen, Patrick 06.11.2026): {Nummer: (Nummer des Vorbilds, Lage relativ zum Vorbild als
+    12 Zahlen: Zeilen der Drehung mit Verschiebung)}. Ohne verschobene Kopien (gleich) und ohne Spiegelungen.
+    Bleche, Kantteile, Dreh- und Frästeile (GEDREHT_UEBERNEHMEN) übernehmen die Messung des Vorbilds (uebertragbar);
+    Rohre und Profile werden weiter selbst gemessen (Ende A und Konturen nach der Lage im Raum)."""
+    out, vorbilder = {}, []
+    for nr, (art, k) in enumerate(koerper, start=1):
+        if art != "Volumenkörper" or nr in gleich:
+            continue
+        for vnr, vk in vorbilder:
+            if not k.IsPartner(vk):
+                continue
+            rel = k.Location().Transformation().Multiplied(vk.Location().Transformation().Inverted())
+            if abs(rel.ScaleFactor() - 1) > 1e-12 or rel.IsNegative():
+                break
+            m, v = rel.HVectorialPart(), rel.TranslationPart()
+            zeilen = [[m.Value(a, b) for b in (1, 2, 3)] for a in (1, 2, 3)]
+            if any(abs(sum(zeilen[a][c] * zeilen[b][c] for c in range(3)) - (a == b)) > 1e-9
+                   for a in range(3) for b in range(3)):
+                break
+            out[nr] = (vnr, tuple(zeilen[0] + [v.X()] + zeilen[1] + [v.Y()] + zeilen[2] + [v.Z()]))
+            break
+        else:
+            vorbilder.append((nr, k))
+    return out
+
+
+def uebertragbar(t):
+    """Darf eine gedrehte Kopie die Messung dieses Teils übernehmen (siehe _gedrehte)?"""
+    return (t is not None and t.profilform in GEDREHT_UEBERNEHMEN and t.biegerohr is None and t.knick_schenkel is None
+            and t.geschlossen is None)
 
 
 def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
@@ -5125,6 +5166,49 @@ def _instanz(vorbild, nr, info, v):
     return t
 
 
+def _instanz_gedreht(vorbild, nr, info, rel, koerper):
+    """Teil für Körper nr als gedrehte Kopie des gemessenen Vorbilds (rel wie _gedrehte): Messwerte gleich, Einbaulage
+    (Ende A, Achse, X) und Hüllquader in Dateilage für die Kopie."""
+    t = _instanz(vorbild, nr, info, (0.0, 0.0, 0.0))
+    if getattr(t, "_rahmen", None) is not None:      # OpenCascade-Körper des Vorbilds: in die Lage der Kopie
+        tr = gp_Trsf()
+        tr.SetValues(*rel)
+        r = vorbild._rahmen
+        t._rahmen = dict(r, solid=r["solid"].Moved(TopLoc_Location(tr)))
+
+    def punkt(p):
+        return tuple(rel[4 * a] * p[0] + rel[4 * a + 1] * p[1] + rel[4 * a + 2] * p[2] + rel[4 * a + 3]
+                     for a in range(3))
+
+    def richtung(d):
+        return tuple(rel[4 * a] * d[0] + rel[4 * a + 1] * d[1] + rel[4 * a + 2] * d[2] for a in range(3))
+    offen, gesehen = [t], set()
+    while offen:
+        x = offen.pop()
+        if x is None or id(x) in gesehen or not hasattr(x, "ende_a_global"):
+            continue
+        gesehen.add(id(x))
+        if x.ende_a_global:
+            x.ende_a_global = punkt(x.ende_a_global)
+        if x.achse_global:
+            x.achse_global = richtung(x.achse_global)
+        if x.x_global:
+            x.x_global = richtung(x.x_global)
+        if x.netz and "lage" in x.netz:     # Rohnetz in Dateilage: für diese Lage neu
+            x.netz = None
+            _rohnetz(x, koerper)
+        offen += [x.alternative, *((x.arten or {}).values())]
+    box = Bnd_Box()
+    BRepBndLib.AddOptimal_s(koerper, box, False, False)
+    if not box.IsVoid():
+        u, o = box.CornerMin(), box.CornerMax()
+        huelle = (o.X() - u.X(), o.Y() - u.Y(), o.Z() - u.Z())
+        for x in [t, t.alternative, *((t.arten or {}).values())]:
+            if x is not None:
+                x.huelle = huelle
+    return t
+
+
 def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
     """Gemessene Teile {Körpernummer: Teil} einer Datei vervollständigen: Kopien für gleiche Körper, dann die
     Auswertungen über die ganze Baugruppe (Anbauteile, Verbundprofile, Nahtkandidaten). Ergebnis: Liste der Teile
@@ -5134,19 +5218,23 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
     for i, (vnr, _) in gel.gleich.items():         # Kopien eines ausgelassenen Körpers ebenso
         if vnr in auslassen and i not in auslassen:
             auslassen[i] = auslassen[vnr]
-    out = []
+    out, da = [], dict(teile)       # da: auch Kopien (eine verschobene Kopie kann eine gedrehte Kopie als Vorbild haben)
     for i in range(1, len(koerper) + 1):
         if i in teile:
             out.append(teile[i])
-        elif i in gel.gleich and gel.gleich[i][0] in teile and i not in auslassen:
+        elif i in gel.gleich and gel.gleich[i][0] in da and i not in auslassen:
             vnr, v = gel.gleich[i]
-            t = _instanz(teile[vnr], i, info, v)
+            t = _instanz(da[vnr], i, info, v)
             if netz and t.netz and "lage" in t.netz:     # Rohnetz in Dateilage: für diese Lage neu
                 t.netz = None
                 _rohnetz(t, koerper[i - 1][1])
             out.append(t)
+        elif i in gel.gedreht and uebertragbar(teile.get(gel.gedreht[i][0])) and i not in auslassen:
+            vnr, rel = gel.gedreht[i]
+            out.append(_instanz_gedreht(teile[vnr], i, info, rel, koerper[i - 1][1]))
         else:
             out.append(koerper_messen(gel, i, netz, flach_bis, auslassen))
+        da[i] = out[-1]
 
     def rahmen(t):          # Abwicklung eines Rohrs, das in einem anderen Prozess gemessen wurde: neu messen
         if getattr(t, "_rahmen", None) is None:
@@ -5207,7 +5295,7 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
     auslassen = {Körpernummer: Grund}: diese Körper nicht messen (z. B. Zeitlimit überschritten), nur Importdaten
     und Rohnetz; n + 1 = die Auswertungen über die Baugruppe. melden(i, n): vor jedem gemessenen Körper aufgerufen
     (i = 0: Datei gelesen, i = n + 1: Auswertungen), für Fortschritt und Zeitlimit. Gleiche Körper (verschobene
-    Kopien) werden nur einmal gemessen. gel: schon gelesene Datei (datei_lesen)."""
+    Kopien, gedrehte Bleche/Dreh-/Frästeile) werden nur einmal gemessen. gel: schon gelesene Datei (datei_lesen)."""
     gel = gel or datei_lesen(pfad)
     if not gel.koerper:
         t = Teil(datei=gel.name, koerper=0, einheit=gel.info["einheit"], meldungen=gel.info["meldungen"])
@@ -5221,6 +5309,8 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
     for i in range(1, n + 1):
         if i in gel.gleich and i not in auslassen:
             continue
+        if i in gel.gedreht and uebertragbar(teile.get(gel.gedreht[i][0])) and i not in auslassen:
+            continue        # gedrehte Kopie eines Blechs/Dreh-/Frästeils: Messung des Vorbilds (datei_abschliessen)
         if melden:
             melden(i, n)
         teile[i] = koerper_messen(gel, i, netz, flach_bis, auslassen)

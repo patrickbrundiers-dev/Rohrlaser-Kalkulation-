@@ -333,7 +333,10 @@ def _arbeiter(auftraege, ereignisse, wid):
             n = len(gel.koerper)
             messbar = [k for k in range(1, n + 1) if k not in gel.gleich and k not in auslassen]
             if zusatz and len(messbar) >= zusatz:
-                ereignisse.put(("geteilt", wid, schluessel, messbar, n))
+                # gedrehte Kopien zuletzt: übernimmt ihr Vorbild die Messung (Blech, Dreh-/Frästeil), entfallen sie
+                gedreht = {k: v for k, (v, _) in gel.gedreht.items() if k in messbar}
+                messbar = [k for k in messbar if k not in gedreht] + [k for k in messbar if k in gedreht]
+                ereignisse.put(("geteilt", wid, schluessel, messbar, n, gedreht))
                 continue
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel)
             ereignisse.put(("fertig", wid, schluessel, erg))
@@ -406,7 +409,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             return
         w.update(auftrag=None, koerper=None, seit=None)
         if ev[0] == "geteilt":
-            geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={})
+            geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={}, gedreht=ev[5])
             offen[0:0] = [("koerper", nr, k) for k in ev[3]]
         elif ev[0] == "teil":
             g = geteilt[nr]
@@ -428,16 +431,47 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         w.update(auftrag=auftrag, koerper=None, seit=None)
         w["q"].put((auftrag, *auftraege[nr], dict(auslassen[nr]), zusatz))
 
+    def naechster():
+        """Nächster Auftrag aus offen. Eine gedrehte Kopie entfällt, wenn ihr Vorbild die Messung übernimmt
+        (step_geometrie.uebertragbar: der Abschluss setzt sie ein), und wartet, solange das Vorbild noch gemessen wird."""
+        i = 0
+        while i < len(offen):
+            a = offen[i]
+            g = geteilt.get(a[1]) if a[0] == "koerper" else None
+            v = g["gedreht"].get(a[2]) if g else None
+            if v is None:
+                return offen.pop(i)
+            if v in g["teile"] and step_geometrie.uebertragbar(g["teile"][v]):
+                offen.pop(i)
+                g["ausstehend"].discard(a[2])
+                koerper_fertig(a[1])
+                i = 0       # der Abschluss steht jetzt vielleicht vorn
+                continue
+            if v in g["ausstehend"]:
+                i += 1
+                continue
+            return offen.pop(i)
+        return None
+
+    def zuteilen(w):
+        a = naechster()
+        if a is None:
+            return False
+        vergeben(w, a)
+        return True
+
     prozesse = max(1, prozesse)
     arbeiter = [starten(wid) for wid in range(min(prozesse, len(offen)))]
     try:
         while stand["erledigt"] < gesamt:
             for w in arbeiter:
                 if w["auftrag"] is None and offen:
-                    vergeben(w, offen.pop(0))
+                    zuteilen(w)
             while offen and len(arbeiter) < prozesse:      # verteilte Datei: weitere Prozesse starten
-                arbeiter.append(starten(len(arbeiter)))
-                vergeben(arbeiter[-1], offen.pop(0))
+                w = starten(len(arbeiter))
+                arbeiter.append(w)
+                if not zuteilen(w):
+                    break
             try:
                 verarbeiten(ereignisse.get(timeout=0.5))
             except queue.Empty:
