@@ -656,7 +656,7 @@ def puls(fenster, jetzt_=None):
     ordner = ordner_assistent.zustand(fenster)      # Paket F1: Leiste, solange der Ordner weg ist; danach abgleichen
     if ordner in ("weg", "umzug"):
         return dict(lebenszeichen=False, geschrieben=False, ordner=ordner)
-    merk = fenster.__dict__.setdefault("_teilen_puls_merk", {})   # nicht „_teilen_puls“: so heißt der Timer-Slot (0.9.265)
+    merk = fenster.__dict__.setdefault("_teilen_puls_merk", {})   # nicht „_teilen_puls“: so heißt der Timer-Slot (0.9.266)
     jetzt_ = time.monotonic() if jetzt_ is None else jetzt_
     erg = dict(lebenszeichen=False, geschrieben=False)
     auto = fenster.__dict__.setdefault("_teilen_auto", {})
