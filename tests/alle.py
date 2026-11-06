@@ -67,6 +67,7 @@ TESTS = [
     ("test_step_durchbruch.py", QT),
     ("test_rohr_aufgeschnitten.py", QT),
     ("test_flachstahl_enden.py", QT),
+    ("test_lage_tempo.py", {}),
     ("test_step_kritisch.py", QT),
     ("test_step_jede_kontur.py", QT),
     ("test_gehrung_2d.py", QT),

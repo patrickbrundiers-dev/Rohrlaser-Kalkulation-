@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.265", "<b>STEP-Import schneller</b> ([[step]]): als Satz oder Schweißbaugruppe prüft das Programm bei gleichen "
+     "Teilen, wie jede Kopie eingebaut ist (gedreht, gewendet). Bei vielen gleichen Kleinteilen (z. B. 173 Schrauben im "
+     "Pizzaofen) dauerte das über eine halbe Stunde. Jetzt wird jede Kopie nur einmal gesucht und aussichtslose Drehungen "
+     "werden früh verworfen: 5-mal so schnell, die Lage ist dieselbe.",
+     "STEP-Import als Satz/Schweißbaugruppe mit vielen gleichen Teilen 5-mal schneller."],
     ["0.9.264", "<b>STEP-Import stabiler</b>: ein Rohr mit Anbauteil längs, dessen Innenkontur in der STEP als Ellipse mit "
      "gleichen Radien gespeichert ist, brachte die Messung zum Absturz (Anhänger-Dach). Jetzt wird es normal gemessen. "
      "<b>Flachstahl mit runden oder abgerundeten Enden</b> (z. B. Lasche mit Radius, Ecken R10): das Ende stand im "
