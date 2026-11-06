@@ -26,7 +26,9 @@ NEUERUNGEN = [
      "Pizzaofen) dauerte das über eine halbe Stunde. Jetzt wird jede Kopie nur einmal gesucht und aussichtslose Drehungen "
      "werden früh verworfen: 5-mal so schnell, die Lage ist dieselbe. Gedreht eingebaute Kopien gleicher Bleche, Kantteile, "
      "Dreh- und Frästeile werden nicht mehr einzeln gemessen, sie übernehmen die Messung des ersten Teils (Pizzaofen: "
-     "Messung 4 statt 9 Minuten); Rohre und Profile werden weiter einzeln gemessen.",
+     "Messung 4 statt 9 Minuten); Rohre und Profile werden weiter einzeln gemessen. Behoben: große Baugruppen mit "
+     "Kantteilen (z. B. 0003-400-001) blieben beim Import hängen, wenn ein Kantteil eine Auswahl mit weiterer Auswahl "
+     "hatte; ein solches Teil kommt jetzt mit, notfalls mit Fehlermeldung statt endlosem Warten.",
      "STEP-Import großer Baugruppen mit vielen gleichen Teilen deutlich schneller."],
     ["0.9.264", "<b>STEP-Import stabiler</b>: ein Rohr mit Anbauteil längs, dessen Innenkontur in der STEP als Ellipse mit "
      "gleichen Radien gespeichert ist, brachte die Messung zum Absturz (Anhänger-Dach). Jetzt wird es normal gemessen. "

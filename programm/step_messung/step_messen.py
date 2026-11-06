@@ -361,6 +361,56 @@ def cache_begrenzen(ordner, mb):
 
 
 # ------------------------------------------------------------------ Messung unter Aufsicht (Zeitlimit)
+def _ohne_ocp(x, pfad="", weg=None, gesehen=None):
+    """x ohne OpenCascade-Objekte (TopoDS_* u. a. lassen sich nicht an einen anderen Prozess schicken): Objekte und
+    Wörterbücher werden an Ort und Stelle bereinigt, Listen/Tupel nur bei Bedarf neu gebaut. weg: Fundstellen. Eine
+    übersehene Form ließ die Nachricht still verschwinden und den Import der 0003-400-001 hängen (Patrick 06.11.2026)."""
+    weg = [] if weg is None else weg
+    gesehen = set() if gesehen is None else gesehen
+    if type(x).__module__.startswith("OCP"):
+        weg.append(pfad or "Wert")
+        return None
+    if isinstance(x, (str, bytes, int, float, bool, type(None))) or id(x) in gesehen:
+        return x
+    gesehen.add(id(x))
+    if isinstance(x, dict):
+        for k in list(x):
+            v = _ohne_ocp(x[k], f"{pfad}[{k!r}]", weg, gesehen)
+            if v is not x[k]:
+                x[k] = v
+    elif isinstance(x, (list, tuple)):
+        neu = [_ohne_ocp(v, f"{pfad}[{i}]", weg, gesehen) for i, v in enumerate(x)]
+        if any(a is not b for a, b in zip(neu, x)):
+            if isinstance(x, list):
+                x[:] = neu
+            else:
+                return type(x)(neu) if type(x) is tuple else type(x)(*neu)
+    elif hasattr(x, "__dict__") and not isinstance(x, type):
+        for k, v in list(vars(x).items()):
+            n = _ohne_ocp(v, f"{pfad}.{k}", weg, gesehen)
+            if n is not v:
+                setattr(x, k, n)
+    return x
+
+
+def _senden(ereignisse, ev):
+    """Nachricht an die Aufsicht. Eine nicht übertragbare Nachricht ginge im Hintergrund-Thread der Queue verloren
+    (die Aufsicht wartete dann ewig): vorher prüfen, OpenCascade-Reste entfernen, sonst eine Fehlermeldung schicken."""
+    import pickle
+    try:
+        pickle.dumps(ev)
+    except Exception:
+        weg = []
+        ev = _ohne_ocp(ev, "", weg)
+        if weg:
+            print("STEP-Messung: nicht übertragbar entfernt: " + ", ".join(weg[:10]), file=sys.stderr, flush=True)
+        try:
+            pickle.dumps(ev)
+        except Exception as e:
+            ev = (*ev[:3], None, f"Ergebnis nicht übertragbar ({type(e).__name__})")
+    ereignisse.put(ev)
+
+
 def _arbeiter(auftraege, ereignisse, wid):
     """Messprozess: erledigt Aufträge (Schlüssel, Datei, netze, flach_bis, einst, auslassen, Zusatz) und meldet Körper
     und Ergebnis. Schlüssel ("datei", nr): ganze Datei messen; ist Zusatz = teilen_ab > 0 und hat die Datei
@@ -409,7 +459,7 @@ def _arbeiter(auftraege, ereignisse, wid):
                 ereignisse.put(("geteilt", wid, schluessel, messbar, n, gedreht))
                 continue
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel)
-            ereignisse.put(("fertig", wid, schluessel, erg))
+            _senden(ereignisse, ("fertig", wid, schluessel, erg))
             continue
         gel = gelesen.get(str(datei))
         if gel is None:
@@ -421,10 +471,10 @@ def _arbeiter(auftraege, ereignisse, wid):
             k = schluessel[2]
             melden(k, len(gel.koerper))
             t = step_geometrie.koerper_messen(gel, k, netze is not None, flach_bis, auslassen)
-            ereignisse.put(("teil", wid, schluessel, step_geometrie.teil_uebergeben(t)))
+            _senden(ereignisse, ("teil", wid, schluessel, step_geometrie.teil_uebergeben(t)))
         else:
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel, zusatz)
-            ereignisse.put(("fertig", wid, schluessel, erg))
+            _senden(ereignisse, ("fertig", wid, schluessel, erg))
 
 
 def _fehler_ergebnis(datei, text):
@@ -484,9 +534,14 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             offen[0:0] = [("koerper", nr, k) for k in ev[3]]
         elif ev[0] == "teil":
             g = geteilt[nr]
-            g["teile"][ev[2][2]] = ev[3]
+            if ev[3] is not None:
+                g["teile"][ev[2][2]] = ev[3]
+            else:                       # nicht übertragbar: ohne diesen Körper weiter, wie ein Absturz
+                auslassen[nr][ev[2][2]] = ev[4]
             g["ausstehend"].discard(ev[2][2])
             koerper_fertig(nr)
+        elif ev[3] is None:
+            abschliessen(nr, _fehler_ergebnis(Path(auftraege[nr][0]), ev[4]))
         else:
             abschliessen(nr, ev[3])
 

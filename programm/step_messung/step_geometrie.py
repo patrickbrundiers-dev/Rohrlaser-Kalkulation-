@@ -5106,12 +5106,18 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
 
 
 def teil_uebergeben(t):
-    """Teil ohne die OpenCascade-Daten (_rahmen), damit es sich an einen anderen Prozess schicken lässt."""
-    t.__dict__.pop("_rahmen", None)
-    if t.alternative is not None:
-        t.alternative.__dict__.pop("_rahmen", None)
-    for a in (t.arten or {}).values():
-        a.__dict__.pop("_rahmen", None)
+    """Teil ohne die OpenCascade-Daten (_rahmen), damit es sich an einen anderen Prozess schicken lässt. Auch die
+    Auswahl-Messungen der Auswahl (alternative.alternative, geschlossen, Arten) haben einen: 0003-400-001 hing sonst
+    beim Import (Patrick 06.11.2026)."""
+    offen, gesehen = [t], set()
+    while offen:
+        x = offen.pop()
+        if x is None or id(x) in gesehen or not hasattr(x, "__dict__"):
+            continue
+        gesehen.add(id(x))
+        x.__dict__.pop("_rahmen", None)
+        offen += [getattr(x, "alternative", None), getattr(x, "geschlossen", None),
+                  *((getattr(x, "arten", None) or {}).values())]
     return t
 
 
