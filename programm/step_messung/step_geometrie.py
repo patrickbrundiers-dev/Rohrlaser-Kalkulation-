@@ -3943,12 +3943,28 @@ def _huellflaeche(strecken):
     return abs(sum(h[i][0] * h[(i + 1) % len(h)][1] - h[(i + 1) % len(h)][0] * h[i][1] for i in range(len(h)))) / 2
 
 
+def _nur_kreis_strecke(draht):
+    """True, wenn der Draht nur aus Strecken und Kreis(bögen) besteht."""
+    from OCP.GeomAbs import GeomAbs_Circle
+    ex = TopExp_Explorer(draht, TopAbs_EDGE)
+    while ex.More():
+        if BRepAdaptor_Curve(TopoDS.Edge(ex.Current())).GetType() not in (GeomAbs_Line, GeomAbs_Circle):
+            return False
+        ex.Next()
+    return True
+
+
 def _laengsanbau_kontur(aussen, innen, wand):
     """Anbau über (fast) die ganze Länge: Außenkontur des Rohrs als Innenkontur + Wandstärke, wenn das eine Grundform
     (Kreis/Rechteck) ergibt und in der gemessenen Außenkontur liegt. Sonst None (Sonderprofil bleibt Sonderprofil)."""
     from OCP.BRepOffsetAPI import BRepOffsetAPI_MakeOffset
     from OCP.GeomAbs import GeomAbs_Intersection
     if wand <= 0:
+        return None
+    # BRepOffsetAPI_MakeOffset stürzt bei Ellipsen/Freiformkanten ab (Anhänger-Dach aus Patricks STEP, 05.11.2026:
+    # Kreis als Ellipse mit gleichen Radien): Kanten als Kreis/Strecke, sonst kein Längsanbau-Kandidat
+    innen = _draht_analytisch(innen, 1e-4) or innen
+    if not _nur_kreis_strecke(innen):
         return None
     ab = Bnd_Box()
     BRepBndLib.AddOptimal_s(aussen, ab, False, False)

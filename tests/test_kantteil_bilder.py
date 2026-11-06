@@ -21,6 +21,7 @@
   OpenCascade-Form trug (Palettenwagen, Formenregal: ganzer Import abgebrochen).
 - B11 geschlossen gemessenes Sonderprofil mit unsicherer Wand (C-Halter 1 mm mit eingerollten Enden aus Patricks
   Blechteilen): war Sonderprofil ohne Kalkulation, jetzt Kantteil, wenn Zuschnitt × Dicke das Volumen trifft.
+- B13 Rohr mit Längsanbau und Ellipse (gleiche Radien) als Innenkontur (Anhänger-Dach): Messung stürzte ab.
 - B12 warmgewalzter Winkel mit ganz gerundeten Schenkelenden (Zoll-Winkel im Master Tower, 220 Teile): war offenes
   Sonderprofil ohne Kalkulation, jetzt L-Profil mit Bohrungen.
 
@@ -327,6 +328,21 @@ def _():
         assert t.profilform == "L-Profil" and nah(t.abm_a, 38.1, 0.05) and nah(t.wandstaerke, 8, 0.1), \
             (n, t.profilform, t.abm_a, t.wandstaerke, t.hinweise)
         assert nah(t.laenge, 600, 0.1) and t.konturen >= 4, (n, t.laenge, t.konturen)
+
+
+@fall("B13 Rohr mit Längsanbau, Innenkontur als Ellipse mit gleichen Radien: kein Absturz der Messung")
+def _():
+    # Anhänger-Dach aus Patricks STEP (05.11.2026): BRepOffsetAPI_MakeOffset stürzte bei der Ellipse ab
+    import step_geometrie as sg
+    from OCP.gp import gp_Ax2 as Ax2, gp_Dir as Dir, gp_Elips as Elips, gp_Pnt as Pnt
+    innen = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(Elips(Ax2(Pnt(0, 0, 0), Dir(0, 0, 1)), 3.3235,
+                                                                  3.3235)).Edge()).Wire()
+    eck = [Pnt(-10, -10, 0), Pnt(10, -10, 0), Pnt(10, 10, 0), Pnt(-10, 10, 0)]
+    aussen = BRepBuilderAPI_MakeWire()
+    for i in range(4):
+        aussen.Add(BRepBuilderAPI_MakeEdge(eck[i], eck[(i + 1) % 4]).Edge())
+    w = sg._laengsanbau_kontur(aussen.Wire(), innen, 3.1765)
+    assert w is not None and sg._nur_kreis_strecke(w), w
 
 
 if fehler:

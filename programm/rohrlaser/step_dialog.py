@@ -1394,6 +1394,8 @@ class StepPruefDialog(QDialog):
     def als_satz_setzen(self, an, datei=None):
         """Knopf Als Satz: an = die Datei wird ein Satz mit Anzahl Sätze aus dem Feld Anzahl; aus = Einzelpositionen."""
         datei = self.datei if datei is None else datei
+        if datei not in self.mehrteilig:        # Datei mit einem Teil: kein Satz (Knopf ist dann ausgeblendet)
+            return
         self.saetze_setzen(self.anzahl.get(datei, 1) if an else 0, datei)
 
     def saetze_setzen(self, n, datei=None):
