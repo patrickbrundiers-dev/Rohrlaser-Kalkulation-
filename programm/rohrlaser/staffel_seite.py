@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDial
                                QVBoxLayout, QWidget)
 
 from . import abruf, fracht_angebot, hilfe, rechnen, staffeln, stil
+from .klartext import fehler_text
 from .fenster import FARBE_BERECHNET, FARBE_STATUS
 from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
@@ -1228,7 +1229,7 @@ class StaffelSeite(QWidget):
             zeilen = staffeln.rechnen_alle(*self._args(), fortschritt=weiter, alt=alt, stufen_daten=self._daten())
         except (ValueError, AssertionError) as e:
             fortschritt.close()
-            QMessageBox.warning(self, "Staffelpreise", f"Staffelpreise abgebrochen:\n{e}")
+            QMessageBox.warning(self, "Staffelpreise", f"Staffelpreise abgebrochen:\n{fehler_text(e)}")
             return None
         fortschritt.close()
         if zeilen is None:

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHe
                                QMessageBox, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from . import funktionen, rechnen, stil
+from .klartext import fehler_text
 from .stammdaten import zahl_als_text as zahl
 
 
@@ -89,14 +90,16 @@ class VorschlaegeMixin:
         _, s = self._rechnung()
         unter = kalk_hinweise.untergrenze_punkte(s, ziel)
         text += "".join(" " + t for _, t, _ in unter if "Zielpreis" in t)
+        # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage auf den Zielpreis setzen, dafür „Rückgängig“; die
+        # Begründung (nötiger Gewinn, Marge, Untergrenzen) steht mit in der Meldung
         if setzen is None and g is not None and not self.f.stumm:
-            setzen = QMessageBox.question(self, "Zielpreis", text + "\n\nGewinn des Angebots jetzt so einstellen?",
-                                          QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes
+            setzen = True
         elif setzen is None:
             self.f.meldung(text)
         if setzen and g is not None:
             self._kopf_speichern(_kopf_feld("gewinn"), round(100 * g, 2))
-            self.f.meldung(f"Auf Zielpreis gesetzt: Gewinn {zahl(100 * g, 2)} %.")
+            self.rueckgaengig_anbieten(f"Auf Zielpreis gesetzt: Gewinn {zahl(100 * g, 2)} %. {text}",
+                                       bericht=("Zielpreis", text))
         return dict(ziel=ziel, gewinn=g, marge=marge, text=text)
 
     def zielpreis_menge(self, zeile, ziel_stueck):
@@ -553,7 +556,7 @@ class VorschlaegeMixin:
         try:
             lief, neu = lieferantenantwort.einlesen(self.db, self.id, text, absender, paare, self.k.profile)
         except ValueError as e:
-            self.f.meldung(f"{p.name}: {e}", fehler=True)
+            self.f.meldung(f"{p.name}: {fehler_text(e)}", fehler=True)
             return None
         self.f.meldung(f"{lief}: {len(neu)} Preis(e) aus {p.name} eingelesen – bitte prüfen und „Übernehmen“.")
         return len(neu)

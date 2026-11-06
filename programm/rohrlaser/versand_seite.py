@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDateEdit, QDialog,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import feiertage, leerhinweis, palettenschein, palettenschein_dialog, pdf
+from .klartext import fehler_text
 
 SPALTEN = ("Angebot", "Kunde", "Bestellnummer", "Lieferdatum", "Paletten", "Stück", "Stand", "Gedruckt",
            "Versendet am")
@@ -212,7 +213,7 @@ class VersandSeite(QWidget):
             pdf.verladeliste_pdf(pfad, zeilen, self.db.einstellungen())
         except (OSError, PermissionError) as e:
             if not self.f.stumm:
-                QMessageBox.warning(self, "Verladeliste", f"Die Datei konnte nicht gespeichert werden:\n{e}")
+                QMessageBox.warning(self, "Verladeliste", f"Die Datei konnte nicht gespeichert werden:\n{fehler_text(e)}")
             return None
         self.f.meldung(f"Verladeliste gespeichert: {pfad}")
         self.f.datei_oeffnen(pfad)

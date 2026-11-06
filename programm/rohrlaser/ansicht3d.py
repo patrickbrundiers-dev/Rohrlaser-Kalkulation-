@@ -1311,24 +1311,32 @@ class Ansicht3D(QWidget):
         if self.titel:
             p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, self.titel)
             y += 20
-        for art, text, farbe, linie in ARTEN:
-            if art not in self.modell.arten or (art in WK_ARTEN and not self.koerper_an):
-                continue
-            p.fillRect(QRectF(10, y + 3, 12, 12), QColor(linie or farbe))
-            p.setPen(stil.farbe("#202020"))
-            p.drawText(QRectF(28, y, 200, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
-            y += 18
+        legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
+                   if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
+        # Legende in Spalten, wenn sie sonst in den Bedienhinweis unten liefe (kleine 3D-Ansicht im Editor: der
+        # Hinweis lag über „Schweißnaht“, Plan 06.11.2026 E1)
+        fm = p.fontMetrics()
+        je_spalte = max(1, int((self.height() - 26 - y) // 18))
+        x = 10
+        for i0 in range(0, len(legende), je_spalte):
+            breite = 0
+            for k, (text, farbe) in enumerate(legende[i0:i0 + je_spalte]):
+                p.fillRect(QRectF(x, y + 18 * k + 3, 12, 12), QColor(farbe))
+                p.setPen(stil.farbe("#202020"))
+                p.drawText(QRectF(x + 18, y + 18 * k, 220, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
+                breite = max(breite, fm.horizontalAdvance(text))
+            x += min(220, breite) + 34
         self._markierung_zeichnen(p)
         p.setPen(stil.farbe("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
-        p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
+        p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, fm.elidedText(
                    ("Winkel: drei Punkte anklicken, der mittlere ist der Scheitel" if self.mess_art == MESS_WINKEL
                     else "Messen: zwei Punkte anklicken (fängt Kreismitte, Kantenmitte, Ecke oder Fläche)"
                     if self.mess_max else
                     "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
                    hinweis or
                    "Linke Maustaste drehen (um den Punkt unter der Maus) · rechte verschieben · Mausrad zoomen · "
-                   "Doppelklick Ausgangsansicht")
+                   "Doppelklick Ausgangsansicht", Qt.ElideRight, int(self.width() - 20)))
         if self._drehpunkt is not None and self._maus is not None and self._maus[1] == Qt.LeftButton:
             x, y = self._drehpunkt[1]           # Drehpunkt beim Drehen zeigen
             p.setRenderHint(QPainter.Antialiasing, True)

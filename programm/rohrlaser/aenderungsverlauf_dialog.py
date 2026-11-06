@@ -121,19 +121,29 @@ class VerlaufDialog(QDialog):
         e = self._gewaehlt()
         if e is None:
             return
-        if not self.f.stumm and QMessageBox.question(
-                self, "Alten Wert zurückholen",
-                f"{verlauf.feld_titel(e)} wieder auf „{verlauf.wert_text(e['alt'])}“ setzen?") != QMessageBox.Yes:
-            return
+        # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage, dafür „Rückgängig“ (trägt den Wert von vorher wieder ein)
         try:
             verlauf.zurueckholen(self.db, e)
         except PermissionError as fehler:
             QMessageBox.warning(self, "Alten Wert zurückholen", str(fehler))
             return
         self.f.meldung(f"{verlauf.feld_titel(e)} zurückgeholt: „{verlauf.wert_text(e['alt'])}“. Der nächste Abgleich "
-                       "gibt es an die Kollegen weiter.")
+                       "gibt es an die Kollegen weiter.", aktion=("Rückgängig", lambda: self._wieder_neu(e)))
         self._neu_laden()
         self.laden()
+
+    def _wieder_neu(self, e):
+        """Rückgängig zu _zurueckholen: den Wert „Nachher“ des Eintrags wieder eintragen."""
+        try:
+            verlauf.zurueckholen(self.db, dict(e, alt=e.get("neu")))
+        except PermissionError as fehler:
+            self.f.meldung(str(fehler), fehler=True)
+            return False
+        self.f.meldung(f"{verlauf.feld_titel(e)} wieder „{verlauf.wert_text(e.get('neu'))}“.")
+        self._neu_laden()
+        if self.isVisible():
+            self.laden()
+        return True
 
     def _neu_laden(self):
         f = self.f

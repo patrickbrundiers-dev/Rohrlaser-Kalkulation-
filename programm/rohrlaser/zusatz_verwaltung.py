@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QWidget)
 
 from . import hilfe, rechnen, stil, tastatur
+from .klartext import fehler_text
 from .stammdaten import (REGEL_MENGEN, TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORIEN, ZUSATZART_TEXT, ZUSATZARTEN,
                          ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, zahl_als_text, zahl_aus_text)
 
@@ -1020,7 +1021,7 @@ class ZusatzVerwaltung(QWidget):
         try:
             i = self.db.zusatz_aus_angebot(name)
         except (KeyError, ValueError, PermissionError) as e:
-            self.meldung(f"„{name}“ nicht übernommen: {e}", fehler=True)
+            self.meldung(f"„{name}“ nicht übernommen: {fehler_text(e)}", fehler=True)
             return None
         self.neu_laden()
         self.auswaehlen(i)

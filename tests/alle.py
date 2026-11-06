@@ -86,6 +86,7 @@ TESTS = [
     ("test_optimierung.py", {}),
     ("test_fehler_0111.py", QT),
     ("test_fehler_0511.py", QT),
+    ("test_bedienung_0611.py", QT),
     ("test_langsam_0411.py", QT),
     ("test_parallel.py", {}),
     ("test_lieferlaengen.py", {}),

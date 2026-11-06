@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QCheckBox, QComboB
                                QPushButton, QVBoxLayout, QWidget)
 
 from . import nummern, stil, teilen
+from .klartext import fehler_text
 from .angebot import kuerzel_sauber
 
 
@@ -266,7 +267,7 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
         try:
             teilen.schreiben(db, offen=offen_nummern(fenster))
         except (teilen.TeilenFehler, OSError) as e:
-            fenster.meldung(f"Antwort kommt beim nächsten Abgleich an: {e}", fehler=True)
+            fenster.meldung(f"Antwort kommt beim nächsten Abgleich an: {fehler_text(e)}", fehler=True)
         fenster.alles_neu_laden()
 
 
@@ -751,9 +752,9 @@ def abgleichen(fenster, lesen=True, schreiben=True, leise=False, beenden=False, 
         if auto:
             return None
         if leise or fenster.stumm:
-            fenster.meldung(f"Abgleich nicht möglich: {e}", fehler=True)
+            fenster.meldung(f"Abgleich nicht möglich: {fehler_text(e)}", fehler=True)
         else:
-            QMessageBox.warning(fenster, "Abgleichen", f"Abgleich nicht möglich:\n\n{e}")
+            QMessageBox.warning(fenster, "Abgleichen", f"Abgleich nicht möglich:\n\n{fehler_text(e)}")
         return None
     finally:
         if QApplication.overrideCursor() is not None:

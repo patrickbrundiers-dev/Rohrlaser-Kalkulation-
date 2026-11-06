@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QFileDialo
                                QVBoxLayout, QWidget, QWizard, QWizardPage)
 
 from . import admin_schutz, austausch, teilen
+from .klartext import fehler_text
 from .angebot import kuerzel_sauber
 
 ROT_HG, ROT_TEXT = "#FDECEA", "#B42318"
@@ -382,7 +383,7 @@ class ArbeitsplatzAssistent(QWizard):
             if self.f.stumm:
                 self.f.meldung(str(e), fehler=True)
             else:
-                QMessageBox.warning(self, "Arbeitsplatz einrichten", f"Abgleich nicht möglich:\n\n{e}")
+                QMessageBox.warning(self, "Arbeitsplatz einrichten", f"Abgleich nicht möglich:\n\n{fehler_text(e)}")
             return None
         finally:
             if QApplication.overrideCursor() is not None:

@@ -8,7 +8,7 @@ import re
 import sqlite3
 import weakref
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 
 HILFE_EINSTELLUNG = "ansicht_hilfe"
@@ -58,13 +58,55 @@ def alle_aktualisieren():
         h.aktualisieren()
 
 
+class _HinweisText(QLabel):
+    """Text des Hinweises. Eingeklappt (eine Zeile ohne Umbruch) endet er bei Platzmangel mit „…“ statt mitten im
+    Wort abgeschnitten (Verbesserungsplan 06.11.2026, E1); der Tooltip zeigt dann den ganzen Hinweis. text() und
+    sizeHint() gelten immer für den ganzen Text."""
+    gekuerzt_mit_tooltip = True
+
+    def __init__(self):
+        super().__init__()
+        self._voll = ""
+
+    def setText(self, text):
+        self._voll = text or ""
+        self._kuerzen()
+
+    def text(self):
+        return self._voll
+
+    def setWordWrap(self, an):
+        super().setWordWrap(an)
+        self._kuerzen()
+
+    def sizeHint(self):
+        g = super().sizeHint()
+        if self.wordWrap():
+            return g
+        m = self.contentsMargins()
+        return QSize(self.fontMetrics().horizontalAdvance(self._voll) + m.left() + m.right() + 4, g.height())
+
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self._kuerzen()
+
+    def _kuerzen(self):
+        t = self._voll
+        if not self.wordWrap():
+            breite = self.contentsRect().width() - 2
+            if breite > 0:
+                t = self.fontMetrics().elidedText(self._voll, Qt.ElideRight, breite)
+        if QLabel.text(self) != t:
+            QLabel.setText(self, t)
+
+
 class Hinweis(QWidget):
     """Hilfetext einer Seite; schluessel: unter diesem Namen wird 'aufgeklappt' gemerkt (leer = nicht gemerkt)."""
 
     def __init__(self, text, db=None, schluessel=None, parent=None):
         super().__init__(parent)
         self.db, self.schluessel = db if db is not None else _standard["db"], schluessel
-        self.label = QLabel()
+        self.label = _HinweisText()
         self.label.setWordWrap(True)
         self.label.setTextFormat(Qt.PlainText)
         self.label.setStyleSheet(f"color: {GRAU};")

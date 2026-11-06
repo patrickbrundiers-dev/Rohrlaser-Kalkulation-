@@ -16,7 +16,7 @@ MAX_ANGEBOTE = 500          # so viele neueste Angebote durchsucht die Palette
 
 @dataclass
 class Eintrag:
-    art: str                # Angebot, Kunde, Profil, Werkstoff, Einstellung, Befehl, Reiter
+    art: str                # Angebot, Kunde, Profil, Werkstoff, Einstellung, Befehl, Knopf, Reiter
     titel: str
     zusatz: str
     aktion: Callable
@@ -57,6 +57,7 @@ def eintraege(f):
     if hasattr(seite, "check_zeigen"):          # geöffnetes Angebot: Angebots-Check (Plan A2)
         aus.append(Eintrag("Befehl", "Angebots-Check …", f"Angebot {seite.kopf.get('nummer') or ''}".strip(),
                            lambda seite=seite: seite.check_zeigen()))
+    aus += knoepfe(seite)              # B1: Knöpfe der offenen Seite (z. B. des geöffneten Angebots)
     for z in f.db.angebote()[:MAX_ANGEBOTE]:
         aus.append(Eintrag("Angebot", str(z.get("nummer") or ""),
                            " · ".join(str(x) for x in (z.get("kunde"), z.get("datum"), z.get("vorgang")) if x),
@@ -88,6 +89,25 @@ def eintraege(f):
     return aus
 
 
+def knoepfe(seite):
+    """Knöpfe der offenen Seite als Befehle (Verbesserungsplan 06.11.2026, B1): z. B. „Optimieren“, „Zusatzarbeiten …“,
+    „Angebot (PDF)“ – nur sichtbare und freigegebene, jeder Text einmal."""
+    from PySide6.QtWidgets import QAbstractButton, QCheckBox, QRadioButton
+    if seite is None:
+        return []
+    aus, gesehen = [], set()
+    titel = seite.titel() if callable(getattr(seite, "titel", None)) else ""
+    for b in seite.findChildren(QAbstractButton):
+        text = " ".join(b.text().replace("&", "").split())
+        if (len(text) < 3 or text in gesehen or isinstance(b, (QCheckBox, QRadioButton)) or not b.isVisible()
+                or not b.isEnabled() or not any(z.isalpha() for z in text)):
+            continue
+        gesehen.add(text)
+        aus.append(Eintrag("Knopf", text, f"auf dieser Seite{' · ' + titel if titel else ''}",
+                           lambda b=b: b.click()))
+    return aus
+
+
 def _stammdaten(f, seite, wert):
     f.zeigen(seite)
     if hasattr(seite, "suche"):
@@ -112,7 +132,7 @@ def treffer(liste, suche, anzahl=MAX_TREFFER):
     """Passende Einträge, bester zuerst. Leere Suche: Reiter und Befehle."""
     worte = suche.lower().split()
     if not worte:
-        return [e for e in liste if e.art in ("Reiter", "Befehl")][:anzahl]
+        return [e for e in liste if e.art in ("Knopf", "Reiter", "Befehl")][:anzahl]
     gefunden = []
     for n, e in enumerate(liste):
         titel, zusatz = e.titel.lower(), e.zusatz.lower()
@@ -143,7 +163,7 @@ class Befehlspalette(QDialog):
         self.liste_alle = eintraege(fenster)
         lay = QVBoxLayout(self)
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Angebot, Kunde, Profil, Einstellung oder Befehl suchen …")
+        self.suche.setPlaceholderText("Angebot, Kunde, Profil, Einstellung, Knopf oder Befehl suchen …")
         self.suche.textChanged.connect(self.filtern)
         self.suche.installEventFilter(self)
         self.liste = QListWidget()

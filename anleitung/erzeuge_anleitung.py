@@ -576,6 +576,12 @@ def kapitel_ueberblick(i):
            "gespeichert, einen Speichern-Knopf gibt es nicht. Strg+C/Strg+V kopieren und fügen Zellen ein (auch Blöcke "
            "aus Excel), Entf löscht markierte Zeilen (im Angebot ohne Rückfrage, die Einblendung bietet <b>Rückgängig</b> "
            "an), Strg+Z nimmt im Angebot die letzte Änderung zurück ([[tastenkuerzel]], [[meldungen]]).")
+    i.text("Seit 0.9.268 fragt das Programm nur noch bei Schritten nach, die sich nicht zurücknehmen lassen oder "
+           "nach außen wirken (Angebot löschen, Archivieren, Daten ersetzen, Auftragsbestätigung …). Ersetzen von "
+           "STEP-Werten durch den Schneidweg-Rechner, Auf Zielpreis setzen, neuer Preisstand eines Zukaufteils, "
+           "Alten Wert zurückholen und Auf Ursprung zurücksetzen passieren sofort, die Einblendung bietet "
+           "<b>Rückgängig</b>. Fehler des Systems (Datei in einem anderen Programm geöffnet, Netzlaufwerk nicht "
+           "erreichbar, Datenbank belegt) meldet das Programm in Klartext mit dem, was zu tun ist.")
     i.abschnitt("Farben in den Tabellen")
     i.tabelle(["Farbe", "Bedeutung"], [
         ["hellgelb", "<b>Eingabefeld</b>: lostippen, F2 oder Doppelklick ([[doppelklick]])."],
@@ -785,6 +791,19 @@ def kapitel_start(i):
            "ihrem Tastenkürzel. Tippen filtert (alle Wörter müssen vorkommen, z. B. „40x3 re“), <b>↑/↓</b> wählt, "
            "<b>Enter</b> öffnet das Angebot, zeigt Kunde oder Profil, springt zur Einstellung (Einstellungen mit "
            "gefilterter Suche) oder führt den Befehl aus; <b>Esc</b> schließt.", kurz=True)
+    i.text("Seit 0.9.268 steht dafür oben rechts in der Menüleiste das Feld <b>Suchen … (Strg+K)</b>. Mit "
+           "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
+           "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
+    i.abschnitt("Erste Schritte", marke="erste_schritte")
+    i.text("<i>Hilfe → Erste Schritte …</i> zeigt fünf Schritte zum ersten Angebot, jeder mit einem Knopf, der die "
+           "richtige Stelle öffnet: Firma und Kürzel eintragen, Maschine und Preise prüfen, erstes Angebot aus einer "
+           "STEP, Optimieren, Angebot als PDF verschicken. Erledigtes ist abgehakt; was sich am Datenbestand "
+           "erkennen lässt (Briefkopf und Kürzel, ein Angebot mit Positionen, ein optimiertes, ein verschicktes), "
+           "hakt das Programm selbst ab. Auf einem neuen Arbeitsplatz erscheint die Liste beim ersten Start einmal "
+           "von selbst (nicht auf Plätzen, die schon fünf Angebote haben).", kurz=True)
+    i.bild("erste_schritte", "Hilfe → Erste Schritte …", hoehe=70 * mm, legende=[
+        (1, "Erledigte Schritte sind abgehakt; von Hand abhaken geht auch."),
+        (2, "Der Knopf öffnet die richtige Stelle, hier die Maschinen in den Einstellungen.")])
     i.genauer("Erster Start")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
@@ -1229,7 +1248,9 @@ def kapitel_angebot(i):
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
             "rechts die Spalten-Ansichten <b>Alle · Erfassen · Prüfen · Preis</b> ([[spalten_ansichten]]) und "
             "<b>Weitere Spalten</b> (darin auch <i>STEP-Werte (aus CAD)</i> und <i>Berechnete Werte (Programm)</i>)."),
-        (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist).")])
+        (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist). "
+            "Jeder Schritt ist anklickbar (Neue Position, Optimieren, Angebots-Check, Angebot (PDF)), der Knopf "
+            "<b>Weiter: …</b> führt den nächsten offenen Schritt aus.")])
     i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
            "<i>Ausgeben</i> (<b>Angebot (PDF)</b> dunkelblau, alles Weitere im Menü <b>Ausgaben</b>, [[ausgabe]]). "
@@ -1248,8 +1269,8 @@ def kapitel_angebot(i):
            "Kalkulation und Fracht zusammen in <b>einer</b> Zeile ([[mehr_platz]]); so bleibt mehr Platz für die "
            "Positionen. Passt eine zugeklappte Zeile "
            "nicht in die Breite, endet sie mit „…“, der Tooltip zeigt den ganzen Text. Im Angebotskopf "
-           "steht der Bearbeiter neben der Bemerkung; der Satz „Im Angebot: Lieferzeit …“ erscheint nur, wenn keine "
-           "Lieferzeit eingetragen ist, sonst als Tooltip über den Lieferzeit-Feldern. Die Trennlinien zwischen oben und unten und zur Übersicht "
+           "steht der Bearbeiter neben der Bemerkung; unter dem Lieferzeit-Feld steht, wie die Lieferzeit im Angebot "
+           "erscheint ([[lieferzeit]]). Die Trennlinien zwischen oben und unten und zur Übersicht "
            "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ordner öffnen</b> "
            "und der <b>CSV-Export</b> liegen im Menü <b>Ausgaben</b>.",
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
@@ -1354,9 +1375,9 @@ def kapitel_angebot(i):
             "wird nur gespeichert.",
             "<b>Ihre Anfrage / Zeichen</b>: Anfragenummer oder Zeichen des Kunden (z. B. „Anfrage 4711 vom "
             "20.10.2026“); steht im Angebots-PDF unter der Kundennummer als <i>Ihre Anfrage</i>. Leer = keine Zeile.",
-            "<b>Lieferzeit</b> dieses Angebots ([[lieferzeit]]): Angabe als <i>Arbeitstage</i>, <i>Wochen</i>, "
-            "<i>Kalenderwoche</i>, <i>Lieferdatum</i> oder <i>nur Text</i>, dazu der passende Wert und ein Freitext "
-            "für <b>Lieferbedingungen</b>. Darunter steht, wie es im Angebot erscheint.",
+            "<b>Lieferzeit</b> dieses Angebots ([[lieferzeit]]) in <b>einem</b> Feld, z. B. <i>3 Wochen</i>, "
+            "<i>10 AT</i>, <i>KW 48</i>, <i>15.11.</i> oder <i>nach Absprache</i>; das Programm erkennt die Art. "
+            "Darunter steht, wie es im Angebot erscheint.",
             "<b>Skonto</b>, <b>Skontofrist</b>, <b>Zahlungsziel netto</b>: Zahlungsbedingung dieses Angebots, "
             "vorbelegt vom Kunden bzw. aus den Einstellungen und hier änderbar. Das Skonto wird in den Preis "
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
@@ -1404,22 +1425,21 @@ def kapitel_angebot(i):
             "unverändert und wird nur angezeigt.")
     i.abschnitt("Lieferzeit im Angebot", marke="lieferzeit")
     i.text("Jedes Angebot hat seine eigene Lieferzeit, vorbelegt aus den Einstellungen ([[einstellungen]]). Sie "
-           "ändert keine Preise.")
-    i.tabelle(["Lieferzeit als", "Wert", "im Angebot"], [
-        ["Arbeitstage", "ganze Zahl, z. B. 10", "Lieferzeit: ca. 10 Arbeitstage nach Auftragseingang."],
-        ["Wochen", "ganze Zahl, z. B. 3", "Lieferzeit: ca. 3 Wochen nach Auftragseingang."],
-        ["Kalenderwoche", "KW/Jahr, z. B. 46/2026 (ohne Jahr: Jahr des Angebotsdatums)", "Lieferzeit: KW 46/2026."],
-        ["Lieferdatum", "Datum TT.MM.JJJJ", "Lieferzeit: bis 15.11.2026."],
-        ["nur Text", "– (Feld gesperrt)", "Lieferzeit: und der Freitext, z. B. „nach Absprache“"]], [30, 60, 90],
+           "ändert keine Preise. Seit 0.9.268 steht sie in <b>einem</b> Feld: einfach so schreiben, wie man es sagt; "
+           "das Programm erkennt die Art, darunter steht der Satz fürs Angebot.")
+    i.tabelle(["Eingabe", "erkannt als", "im Angebot"], [
+        ["10 AT, 10 Arbeitstage", "Arbeitstage", "Lieferzeit: ca. 10 Arbeitstage nach Auftragseingang."],
+        ["3 Wochen, 3 Wo", "Wochen", "Lieferzeit: ca. 3 Wochen nach Auftragseingang."],
+        ["KW 46, KW 46/2026", "Kalenderwoche (ohne Jahr: Jahr des Angebots)", "Lieferzeit: KW 46/2026."],
+        ["15.11., 15.11.2026, bis 15.11.26", "Lieferdatum (ohne Jahr: nächster 15.11.)", "Lieferzeit: bis 15.11.2026."],
+        ["nach Absprache, ab Lager, 2-3 Wochen", "Freitext", "Lieferzeit: nach Absprache."]], [45, 55, 80],
         kurz=True)
     i.genauer()
-    i.liste("Der Freitext (<b>Lieferbedingungen</b>) steht hinter dem Wert, z. B. „…, Teillieferung möglich.“",
-            "Ungültige Eingaben weist das Programm ab und behält den alten Wert: keine ganze Zahl bei Arbeitstagen "
-            "und Wochen, eine Kalenderwoche, die es im Jahr nicht gibt (1 bis 52 bzw. 53), ein ungültiges Datum. "
-            "Ein Freitext wird nie als Datum gelesen. Liegt das Lieferdatum vor dem Angebotsdatum, kommt ein "
-            "Hinweis.",
-            "Wechselt die Art, bleibt der Wert nur, wenn er weiter passt (10 Arbeitstage → 10 Wochen), sonst wird "
-            "er leer.",
+    i.liste("Was hinter der Angabe steht, kommt als <b>Lieferbedingung</b> dazu: „3 Wochen, Teillieferung "
+            "möglich“ ergibt „Lieferzeit: ca. 3 Wochen nach Auftragseingang, Teillieferung möglich.“",
+            "Ungültige Eingaben weist das Programm ab und behält den alten Wert: eine Kalenderwoche, die es im Jahr "
+            "nicht gibt (1 bis 52 bzw. 53), ein ungültiges Datum (31.02.). Spannen wie „2-3 Wochen“ bleiben "
+            "Freitext. Liegt das Lieferdatum vor dem Angebotsdatum, kommt ein Hinweis.",
             "Im Angebots-PDF steht die Lieferzeit vor Fracht, Zahlungsbedingung und den Bedingungen. Hat das Angebot "
             "eine eigene Lieferzeit, lässt das Programm einen Satz über die Lieferzeit in den Bedingungen (z. B. "
             "„Lieferzeit nach Absprache.“) weg, damit sich das Angebot nicht widerspricht.",
@@ -4454,13 +4474,16 @@ def kapitel_optimieren(i):
             "<b>Zurücksetzen auf den Ursprung</b>: Knopf <i>Zurücksetzen</i> im Menüband (neben Rückgängig) mit "
             "<i>Alles wie beim Öffnen</i> (verwirft alle Änderungen seit dem Öffnen des Fensters) und <i>Alles wie aus "
             "STEP/DXF importiert</i> (das ganze Teil wieder so, wie es aus der Datei kam, auch gelöschte Konturen). "
-            "Vorher kommt eine Rückfrage, Strg+Z holt den Stand davor wieder. Den Importstand merkt sich die Position "
+            "Ohne Rückfrage (seit 0.9.268): die Einblendung bietet <i>Rückgängig</i>, auch Strg+Z holt den Stand "
+            "davor wieder. Den Importstand merkt sich die Position "
             "beim Einlesen (ab Version 0.9.243; <i>STEP neu einlesen</i> und DXF-Import setzen ihn neu). Bei älteren "
             "Positionen setzt der Eintrag alle geänderten Merkmale auf den STEP-Wert. Dasselbe gibt es im Editor der "
             "Schweißbaugruppe und im Fenster Satz in 3D (Knopf <i>Zurücksetzen</i> unten).",
             "<b>Prüfmeldungen</b>: die Befunde der Fertigungsprüfung ([[pruefregeln]]) sowie Fehler und Hinweise der "
             "Rechnung, Fehler zuerst. Ein Klick wählt das betroffene Merkmal; bei einem zu schmalen Steg sind beide "
-            "Konturen markiert, in der Skizze blau und in der 3D-Ansicht grün hervorgehoben.",
+            "Konturen markiert, in der Skizze blau und in der 3D-Ansicht grün hervorgehoben. Ohne Meldung ist die "
+            "aufgeklappte Liste nur eine Zeile hoch (<i>Keine Prüfmeldungen</i>), Skizze und Eingaben behalten den "
+            "Platz.",
             "<b>Auswahl überall gleich</b>: Klick auf eine Zeile der Tabelle, ein Merkmal, eine Kontur in der Skizze "
             "oder eine Linie bzw. Fläche in der 3D-Ansicht wählt überall dasselbe Merkmal: Lochwand = Kontur, "
             "Stirnfläche = Ende, Rohrwand = Profil und Teil. Im Modell aus den Eingaben ist die "
@@ -6219,7 +6242,8 @@ def kapitel_baugruppen(i):
     i.text("Knopf <b>Zurücksetzen</b> unten im Editor der Schweißbaugruppe: <i>Alles wie beim Öffnen</i> verwirft "
            "alle Änderungen seit dem Öffnen, <i>Alles wie aus STEP importiert</i> setzt Struktur, Einzelteile, "
            "Nahtgruppen, Arbeitsgänge, Steckverbindungen, Bezeichnung und Anzahl wieder wie beim Einlesen.", kurz=True)
-    i.text("Vorher kommt eine Rückfrage; <i>Zurücksetzen rückgängig</i> (oder Strg+Z) holt den Stand davor wieder. "
+    i.text("Seit 0.9.268 ohne Rückfrage: die Einblendung unten bietet <b>Rückgängig</b>, auch <i>Zurücksetzen "
+           "rückgängig</i> (oder Strg+Z) holt den Stand davor wieder. "
            "Erst OK schreibt ins Angebot, Abbrechen verwirft auch das Zurücksetzen. Den Importstand merkt sich die "
            "Baugruppe beim Einlesen (ab Version 0.9.243), samt Zuordnung der Teile nach Pos. und Artikel; von Hand "
            "dazugenommene Teile fallen wieder heraus. Ältere oder von Hand angelegte Baugruppen haben nur <i>wie beim "

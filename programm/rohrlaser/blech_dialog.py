@@ -11,7 +11,7 @@ from PySide6.QtGui import QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
                                QMessageBox,
-                               QPushButton, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
+                               QPushButton, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QToolButton,
                                QVBoxLayout, QWidget)
 
 from . import einblendung, hilfe, stil
@@ -676,7 +676,7 @@ class RichtwerteTabelle(QTableWidget):
         self.setEditTriggers(QAbstractItemView.AllEditTriggers)
         kopf = self.horizontalHeader()
         kopf.setSectionResizeMode(0, QHeaderView.Stretch)
-        for c, b in ((1, 72), (2, 78), (3, 24)):
+        for c, b in ((1, 72), (2, 78), (3, 30)):
             kopf.setSectionResizeMode(c, QHeaderView.Fixed)
             self.setColumnWidth(c, b)
         self._still = True
@@ -692,8 +692,9 @@ class RichtwerteTabelle(QTableWidget):
             it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             it.setToolTip("Eigenen Wert eintragen (nur für dieses Teil); leer = Richtwert")
             self.setItem(r, 2, it)
-            k = QPushButton("↺")
-            k.setFlat(True)
+            k = QToolButton()             # E1: ein flacher QPushButton war mit seinem Rand breiter als die Spalte
+            k.setText("↺")
+            k.setAutoRaise(True)
             k.setToolTip("Auf den berechneten Richtwert zurücksetzen")
             k.clicked.connect(lambda _=False, r=r: self.zuruecksetzen(r))
             self.setCellWidget(r, 3, k)
@@ -900,6 +901,9 @@ class BlechDialog(QDialog):
         self.tabelle = QTableWidget(0, len(KONTUR_SPALTEN))
         self.tabelle.setHorizontalHeaderLabels(list(KONTUR_SPALTEN))
         self.tabelle.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # Spalte Art so breit wie die längste Art (E1: „Langloch“ war knapp abgeschnitten)
+        self.tabelle.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.tabelle.setColumnWidth(0, 135)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabelle.verticalHeader().setDefaultSectionSize(26)
         self.tabelle.setMinimumHeight(self.tabelle.horizontalHeader().sizeHint().height() + 5 * 26 + 6)

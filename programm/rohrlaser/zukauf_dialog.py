@@ -10,7 +10,7 @@ import json
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView,
-                               QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
+                               QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
                                QVBoxLayout)
 
 from . import zukauf
@@ -202,16 +202,15 @@ class ZukaufDialog(QDialog):
         if not liste:
             self.info.setText("Alle gewählten Zukaufteile haben den aktuellen Preisstand.")
             return 0
-        text = "\n".join(f"{name}: VK je Teil {preis_text(a)} € → {preis_text(n)} €" for _, name, a, n, _ in liste)
-        if bestaetigt is None:
-            bestaetigt = QMessageBox.question(
-                self, "Preisstand aktualisieren", "Neuer Preisstand aus den Stammdaten:\n\n" + text
-                + "\n\nÜbernehmen? Das Angebot rechnet danach mit den neuen Preisen.") == QMessageBox.Yes
-        if not bestaetigt:
+        text = "; ".join(f"{name}: VK je Teil {preis_text(a)} € → {preis_text(n)} €" for _, name, a, n, _ in liste)
+        # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage; Abbrechen verwirft, nach OK nimmt Strg+Z es zurück
+        if bestaetigt is False:
             return 0
         for r, _, _, _, neu in liste:
             self.eintraege[r]["stand"] = neu
         self._zeigen()
+        self.info.setText(f"Neuer Preisstand übernommen ({text}). Abbrechen verwirft das, nach OK geht es mit "
+                          "Strg+Z zurück.")
         return len(liste)
 
     def je_setzen(self, zeile, je):

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFi
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout)
 
 from . import NAME, lizenz
+from .klartext import fehler_text
 
 STUFEN = dict(admin="Admin-Lizenz – voller Zugriff", gueltig="Lizenz gültig", bald="Lizenz läuft bald ab",
               kulanz="Lizenz abgelaufen – Kulanzzeit", lesemodus="Keine gültige Lizenz")
@@ -142,7 +143,7 @@ class LizenzDialog(QDialog):
             z = self.stelle.laden(Path(pfad))
         except lizenz.LizenzFehler as e:
             if not self.stumm:
-                QMessageBox.warning(self, "Lizenz", f"Diese Lizenzdatei wurde nicht übernommen:\n\n{e}\n\n"
+                QMessageBox.warning(self, "Lizenz", f"Diese Lizenzdatei wurde nicht übernommen:\n\n{fehler_text(e)}\n\n"
                                                     "Die bisherige Lizenz bleibt unverändert.")
             return False
         self.anzeigen()

@@ -26,6 +26,7 @@ import traceback
 from pathlib import Path
 
 from . import NAME, VERSION
+from .klartext import fehler_text
 
 
 NACH_UPDATE_WARTEN_S = 30      # so lange wartet der Neustart nach dem Update auf die Datensperre der alten Version
@@ -293,7 +294,7 @@ def erster_start(orte_, frueher=None):
                                     f"{vorschlag['daten']}" + (f", dazu {', '.join(teile)}" if teile else "") + ".")
             return True
         except OSError as e:
-            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{e}\n\n"
+            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{fehler_text(e)}\n\n"
                                             "Bitte die Datei von Hand wählen.")
             uebernehmen = m.clickedButton()
     while m.clickedButton() is uebernehmen:
@@ -308,7 +309,7 @@ def erster_start(orte_, frueher=None):
                                                 f"aus {datei}.")
             return True
         except OSError as e:
-            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{e}")
+            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{fehler_text(e)}")
     return True
 
 
@@ -333,7 +334,7 @@ def oeffnen_fehlgeschlagen(orte_, fehler):
         datei_uebernehmen(datei, orte_.datei)
         return True
     except OSError as e:
-        QMessageBox.critical(None, NAME, f"Die Sicherung lässt sich nicht wiederherstellen:\n\n{e}")
+        QMessageBox.critical(None, NAME, f"Die Sicherung lässt sich nicht wiederherstellen:\n\n{fehler_text(e)}")
         return False
 
 
@@ -416,11 +417,11 @@ def main(argv=None):
     try:
         sperre = sperre_holen(orte, o.daten, warten_s=NACH_UPDATE_WARTEN_S if a.nach_update else 0)
     except orte.Gesperrt as e:
-        QMessageBox.warning(None, NAME, f"{e}\n\nBitte dort zuerst beenden. Zwei Programme dürfen nicht "
+        QMessageBox.warning(None, NAME, f"{fehler_text(e)}\n\nBitte dort zuerst beenden. Zwei Programme dürfen nicht "
                                         "gleichzeitig mit derselben Datendatei arbeiten.")
         return 1
     except OSError as e:
-        QMessageBox.critical(None, NAME, f"Im Datenordner {o.daten} darf das Programm nicht schreiben:\n\n{e}")
+        QMessageBox.critical(None, NAME, f"Im Datenordner {o.daten} darf das Programm nicht schreiben:\n\n{fehler_text(e)}")
         return 1
     try:
         if not o.datei.exists():

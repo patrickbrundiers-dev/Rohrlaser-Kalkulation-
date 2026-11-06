@@ -11,6 +11,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from . import step, step_ablage
+from .klartext import fehler_text
 
 OHNE_KUNDE = "(ohne Kunde)"
 ORDNER_TIEFE = 4            # so viele Ordner oberhalb der Dateien werden nach einem Kunden durchsucht
@@ -87,7 +88,7 @@ def _mails_lesen(fenster, dateien):
         try:
             dateien += [str(d) for d in anfragen.neben_auspacken(p)]
         except OSError as e:
-            fenster.meldung(f"Anhänge von {p.name} lassen sich nicht auspacken: {e}", fehler=True)
+            fenster.meldung(f"Anhänge von {p.name} lassen sich nicht auspacken: {fehler_text(e)}", fehler=True)
         m = mail.lesen(p) if p.suffix.lower() in anfragen.MAIL else None      # ZIP: nur auspacken
         if m:
             mails.append(m)

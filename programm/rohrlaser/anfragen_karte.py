@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QInp
     QListWidgetItem, QMessageBox, QPushButton
 
 from . import anfrage_vorab, anfragen, angebotsordner
+from .klartext import fehler_text
 
 ANFRAGEN_S = 30             # Sekunden zwischen zwei Blicken in den Ordner
 
@@ -357,7 +358,7 @@ class AnfragenKarte:
                                   f"Angebot {kopf.get('nummer')} aus Wiederholanfrage {Path(pfad).name}: {len(liste)} "
                                   f"Artikel, {n} Stückzahl(en) aus der Mail", i)
         except OSError as e:
-            self.f.meldung(f"Wiederholanfrage: Mail nicht verschoben ({e}).", fehler=True)
+            self.f.meldung(f"Wiederholanfrage: Mail nicht verschoben ({fehler_text(e)}).", fehler=True)
         seite = self.f.angebot_oeffnen(i)
         if seite is not None and hasattr(seite, "neu_laden"):
             seite.neu_laden()
@@ -403,7 +404,7 @@ class AnfragenKarte:
         try:
             anfragen.zuweisen(a, self.ordner(), an, ich, notiz)
         except OSError as e:
-            self.f.meldung(f"Anfrage lässt sich nicht zuweisen: {e}", fehler=True)
+            self.f.meldung(f"Anfrage lässt sich nicht zuweisen: {fehler_text(e)}", fehler=True)
             return False
         self.f.meldung(f"Anfrage „{a.name}“ " + (f"an {an} zugewiesen." if an else "nicht mehr zugewiesen."))
         self.neu_laden(erzwingen=True)
@@ -520,7 +521,7 @@ class AnfragenKarte:
         except OSError as e:
             for a in gesperrt:
                 anfragen.freigeben(a)
-            self.f.meldung(f"Anfrage lässt sich nicht öffnen: {e}", fehler=True)
+            self.f.meldung(f"Anfrage lässt sich nicht öffnen: {fehler_text(e)}", fehler=True)
             return None
         weitere = self._formulare(gesperrt)                         # kann den Ordner umbenennen
         dateien = [str(d) for a in gesperrt for d in a.step]
@@ -539,7 +540,7 @@ class AnfragenKarte:
         try:
             ziel = self.f.angebot_ordner(seite.kopf)
         except OSError as e:
-            self.f.meldung(f"Anfrage übernommen, Dateien nicht verschoben: {e}", fehler=True)
+            self.f.meldung(f"Anfrage übernommen, Dateien nicht verschoben: {fehler_text(e)}", fehler=True)
             self.neu_laden(erzwingen=True)
             return seite
         n, fehler = 0, []

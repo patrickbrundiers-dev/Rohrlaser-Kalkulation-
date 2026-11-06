@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QAbstractItemView, QCheckBox, QDateEdit, QDialog, 
     QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout
 
 from . import bestellung, stil
+from .klartext import fehler_text
 
 UNTERORDNER = "Bestellung"
 SPALTEN = ("Pos.", "Artikel", "Angebot Stk", "Bestellt Stk", "Preis/Stk Angebot", "Preis/Stk Bestellung", "Prüfung")
@@ -126,7 +127,7 @@ def pruefen(f, pfad, erkannt, text, dialog=None):
                                     "zugeordnet".replace("  ", " "), a["id"])
     except OSError as e:
         neu = pfad
-        f.meldung(f"Bestellung: Mail nicht verschoben ({e}).", fehler=True)
+        f.meldung(f"Bestellung: Mail nicht verschoben ({fehler_text(e)}).", fehler=True)
     db.versand_merken(a["id"], bestellung.eintrag(Path(neu).name, nr, abw))
     # schritte=[] : das Beauftragt-Fenster nicht noch einmal zeigen; die Schritte kommen danach
     if not f.angebote.vorgang_setzen("Beauftragt", a["id"], auftrag=(nr, termin), schritte=schritte):

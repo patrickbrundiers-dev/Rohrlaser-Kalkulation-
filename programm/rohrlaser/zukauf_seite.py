@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 from . import hilfe, stil, tastatur, vollmaterial, zukauf
+from .klartext import fehler_text
 from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
 TITEL = "Zukaufartikel"
@@ -1341,7 +1342,7 @@ class ArtikelSeite(QWidget):
         try:
             ergebnis, erg = importieren(self, self.db)
         except (OSError, ValueError) as e:
-            self.meldung(f"CSV-Import: {e}", fehler=True)
+            self.meldung(f"CSV-Import: {fehler_text(e)}", fehler=True)
             return
         if erg:
             self.window().alles_neu_laden() if hasattr(self.window(), "alles_neu_laden") else self.neu_laden()

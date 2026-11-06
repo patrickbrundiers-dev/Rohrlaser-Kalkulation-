@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QCheckBox, QDialog, QFormLayout, QHBoxLayout, QLa
                                QPushButton, QVBoxLayout)
 
 from . import angebot_mail as am
+from .klartext import fehler_text
 from . import materialanfrage as ma
 
 
@@ -113,7 +114,7 @@ class AngebotMailDialog(QDialog):
             self.accept()
             return True
         pfad = self.als_datei()
-        self.meldung = (f"Outlook ließ sich nicht ansteuern ({fehler}). Ersatz: E-Mail-Datei {pfad} "
+        self.meldung = (f"Outlook ließ sich nicht ansteuern ({fehler_text(fehler)}). Ersatz: E-Mail-Datei {pfad} "
                         "im Standard-Mailprogramm geöffnet.")
         self.accept()
         return False

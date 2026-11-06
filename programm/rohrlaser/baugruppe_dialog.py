@@ -528,8 +528,8 @@ class SteckEditor:
         w = QWidget()
         lay = QVBoxLayout(w)
         self.steck_tab = ZeilenTabelle([
-            Spalte("_auf", "Aufnahme\n(Schlitze)", "auswahl", 170, optionen=self._steck_teile),
-            Spalte("_st", "Stecker\n(Nasen)", "auswahl", 170, optionen=self._steck_teile),
+            Spalte("_auf", "Aufnahme\n(Schlitze)", "auswahl", 150, optionen=self._steck_teile),
+            Spalte("_st", "Stecker\n(Nasen)", "auswahl", 150, optionen=self._steck_teile),
             Spalte("_ende", "Ende\nStecker", "auswahl", 60, optionen=[("A", "a"), ("E", "b")]),
             Spalte("x", "Lage x auf der\nAufnahme [mm]", "zahl", 95, tipp="Mitte des Steckers ab Ende A der Aufnahme"),
             Spalte("seite", "Seite der\nAufnahme", "auswahl", 80, frei=True,
@@ -538,8 +538,8 @@ class SteckEditor:
             Spalte("anzahl", "Nasen", "auswahl", 55, optionen=[(str(n), n) for n in steckverbindung.ANZAHLEN]),
             Spalte("bN", "Nasen-\nbreite [mm]", "zahl", 70,
                    tipp="Höchstens gerade Wandfläche − 2 × Rand (Einstellung steck_nase_rand), breiter wird gekürzt"),
-            Spalte("c", "Spiel je\nSeite [mm]", "zahl", 65),
-            Spalte("ueberstand", "Über-\nstand [mm]", "zahl", 60),
+            Spalte("c", "Spiel je\nSeite [mm]", "zahl", 76),
+            Spalte("ueberstand", "Über-\nstand [mm]", "zahl", 76),
             Spalte("waende", "Wände mit\nNasen", "auswahl", 75, optionen=[(t, t) for t in steckverbindung.WAENDE],
                    tipp="quer = Wände quer zur Achse der Aufnahme (Vorgabe), längs = um 90° gedreht"),
             Spalte("winkel", "Winkel der\nAchsen [°]", "zahl", 70, tipp="90 = senkrecht, schräg bis 30°"),
@@ -2138,7 +2138,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         kopf.addWidget(QLabel("<b>Einzelteile</b> (Positionen des Angebots)"))
         kopf.addStretch(1)
         self.teile_suche = QLineEdit()
-        self.teile_suche.setPlaceholderText("Suchen: Pos., Artikel, Profil, Satz …")
+        self.teile_suche.setPlaceholderText("Suchen …")
+        self.teile_suche.setToolTip("Sucht in Pos., Artikelnummer, Profil und Satz")
         self.teile_suche.setClearButtonEnabled(True)
         self.teile_suche.setMaximumWidth(260)
         kopf.addWidget(self.teile_suche)
