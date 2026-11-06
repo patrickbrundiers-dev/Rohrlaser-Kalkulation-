@@ -1297,6 +1297,35 @@ def _seiten_belegung(strecken, x0, y0, x1, y1, tol=0.05):
     return seiten
 
 
+UMFANG_RECHTECK_TOL = 0.5     # mm: Zuschnitt gilt nur als Rechteck, wenn der Umfang so genau 2 (L + B) ist
+LAENGSFASEN_TEXT = "Querschnitt mit Längsfasen an den Kanten: "
+FASE_MIN = 2.0          # mm: kürzere Abschrägungen/Radien an den Kanten eines Vollprofils sind Walzkanten
+
+
+def _laengsfasen(strecken, x0, y0, x1, y1):
+    """Fasen über die ganze Länge eines Flach-/Vierkantstahls (z. B. Schneidkante einer Baggerschaufel, Patrick
+    05.11.2026): je Ecke des Hüllrechtecks die nicht belegten Stücke der beiden Seiten an dieser Ecke, als
+    [(längs Seite x, längs Seite y)] für Ecken mit einem Schenkel über FASE_MIN (Walzkanten mit kleinem Radius
+    zählen nicht)."""
+    s = _seiten_belegung(strecken, x0, y0, x1, y1)
+    w, h = x1 - x0, y1 - y0
+    if any(not s[n] for n in s):
+        return []
+
+    def frei(seite, anfang):
+        ab = s[seite]
+        lang = w if seite in ("unten", "oben") else h
+        start = x0 if seite in ("unten", "oben") else y0
+        return max(0.0, ab[0][0] - start) if anfang else max(0.0, start + lang - ab[-1][1])
+    out = []
+    for sx, sy, ax, ay in (("unten", "links", True, True), ("unten", "rechts", False, True),
+                           ("oben", "links", True, False), ("oben", "rechts", False, False)):
+        dx, dy = frei(sx, ax), frei(sy, ay)
+        if max(dx, dy) > FASE_MIN and min(dx, dy) > 0.2:
+            out.append((round(dx, 1), round(dy, 1)))
+    return out
+
+
 def _offenes_profil(draht, flaeche, x0, y0, x1, y1, je_seite):
     """Form eines Querschnitts mit nur einer Kontur. Ergebnis (Form, A, B, Bemerkung) oder None.
     Flachstahl/Vierkantstahl: Rechteck voll; Rundstahl: Kreis voll; L: zwei benachbarte Seiten des Hüllrechtecks voll
@@ -1305,7 +1334,10 @@ def _offenes_profil(draht, flaeche, x0, y0, x1, y1, je_seite):
     w, h = x1 - x0, y1 - y0
     st = _strecken(draht)
     if flaeche >= 0.97 * w * h:
-        return ("Vierkantstahl" if abs(w - h) < 0.1 else "Flachstahl"), max(w, h), min(w, h), ""
+        fasen = _laengsfasen(st, x0, y0, x1, y1) if abs(w - h) >= 0.1 else []    # Flachstahl (Skizze kann es)
+        bem = (LAENGSFASEN_TEXT + ", ".join(f"{a:.0f} × {b:.0f} mm" for a, b in fasen)
+               + " – Querschnitt wie in der STEP, Werkstoff/Profil prüfen") if fasen else ""
+        return ("Vierkantstahl" if abs(w - h) < 0.1 else "Flachstahl"), max(w, h), min(w, h), bem
     if _profilform(draht, w, h) == "Kreis":
         if flaeche >= 0.97 * math.pi / 4 * w * h:
             return "Rundstahl", (w + h) / 2, 0.0, ""
@@ -1860,7 +1892,7 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
     else:
         t.profilform, t.abm_a, t.abm_b, bemerkung = erg[:4]
         zusatz = erg[4] if len(erg) > 4 else {}
-        t.sicherheit["profil"] = "sicher"
+        t.sicherheit["profil"] = "unsicher" if bemerkung.startswith(LAENGSFASEN_TEXT) else "sicher"
         if bemerkung:
             t.hinweise.append(bemerkung)
         if zusatz:
@@ -3363,7 +3395,8 @@ def _blech_daten(solid, fl):
     lr = _vec(xd).Multiplied(c).Added(_vec(yd).Multiplied(s_))
     ax3 = gp_Ax3(fl["mitte"], gp_Dir(lr.X(), lr.Y(), lr.Z()), gp_Dir(_vec(n).Crossed(lr).X(), _vec(n).Crossed(lr).Y(),
                                                                        _vec(n).Crossed(lr).Z()))
-    rechteckig = abs(flaeche_aussen - laenge * breite) <= 0.002 * laenge * breite
+    rechteckig = abs(flaeche_aussen - laenge * breite) <= 0.002 * laenge * breite and \
+        abs(_draht_laenge(aussen) - 2 * (laenge + breite)) <= UMFANG_RECHTECK_TOL   # wie step_abwicklung
     # Lage im Zuschnitt: x längs ab der linken, y quer ab der unteren Kante des Hüllrechtecks [mm]
     u0, v0 = min(us), min(vs)
 

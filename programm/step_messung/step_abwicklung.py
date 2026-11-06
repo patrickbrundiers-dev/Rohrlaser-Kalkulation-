@@ -767,7 +767,10 @@ def _daten(erg, w, schenkel, wurzel, bieg_baum, ordnung, kette, kreis, s, d0, T,
     flaeche_netto = g._flaeche(face)
     mf = BRepBuilderAPI_MakeFace(aussen, True)
     flaeche_aussen = g._flaeche(mf.Face()) if mf.IsDone() else laenge * breite
-    rechteckig = abs(flaeche_aussen - laenge * breite) <= 0.002 * laenge * breite
+    # Rechteck nur, wenn auch der Umfang passt: kleine Ecken (Freischnitt, Fase) ändern die Fläche kaum, den
+    # Schneidweg aber merklich (roof.stp Körper 2: Fläche 0,07 %, Umfang 1 % – im Editor als Rechteck +1 %)
+    rechteckig = abs(flaeche_aussen - laenge * breite) <= 0.002 * laenge * breite and \
+        abs(g._draht_laenge(aussen) - 2 * (laenge + breite)) <= g.UMFANG_RECHTECK_TOL
     aussen_punkte = None if rechteckig else [[round(x, 2), round(y, 2)] for x, y in g._vereinfachen(pa)]
     biegelinien = []
     for x in bieg_baum:

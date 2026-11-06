@@ -147,6 +147,9 @@ def mit_radius(profil, eingaben):
     if profil.get("form") == "C-Profil" and _z(e.get("c_lippe")) > 0 and not profil.get("lippe") and \
             not anderes_profil(dict(messprofil=e.get("c_lippe_profil")), profil):
         profil = dict(profil, lippe=_z(e["c_lippe"]))       # Abkantung des C-Profils aus der STEP (gemessenes Profil)
+    if profil.get("form") == "Flachstahl" and len(e.get("querschnitt_step") or ()) >= 5 and \
+            not anderes_profil(dict(messprofil=e.get("querschnitt_step_profil")), profil):
+        profil = dict(profil, umriss_step=e["querschnitt_step"])    # Längsfasen der STEP (nur gemessenes Profil)
     r = e.get("r_aussen")
     if isinstance(e.get("r_step"), (int, float)) and not isinstance(e.get("r_step"), bool) and \
             not anderes_profil(dict(messprofil=e.get("r_step_profil")), profil):

@@ -125,6 +125,9 @@ class Querschnitt:
                 self.a_waagrecht = a > (b or a)
             u1, v1 = self.B / 2, self.H / 2
             self.umriss = [[(-u1, v1), (u1, v1), (u1, -v1), (-u1, -v1)]]
+            if form == "Flachstahl" and len(profil.get("umriss_step") or ()) >= 5:
+                # Längsfasen aus der STEP (Schneidkante): Umriss wie gemessen, Flächen bleiben die vier Seiten
+                self.umriss = [[(float(u), float(v)) for u, v in profil["umriss_step"]]]
             if form in ("Quadratrohr", "Rechteckrohr") and 0 < t < min(u1, v1):
                 self.umriss.append([(-u1 + t, v1 - t), (u1 - t, v1 - t), (u1 - t, -v1 + t), (-u1 + t, -v1 + t)])
             self.flaechen = [Flaeche("oben", (-u1, v1), (u1, v1), (0, 1)),
