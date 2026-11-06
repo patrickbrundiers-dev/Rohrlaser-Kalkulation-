@@ -25,7 +25,8 @@ NEUERUNGEN = [
      "gleichen Radien gespeichert ist, brachte die Messung zum Absturz (Anhänger-Dach). Jetzt wird es normal gemessen. "
      "<b>Flachstahl mit runden oder abgerundeten Enden</b> (z. B. Lasche mit Radius, Ecken R10): das Ende stand im "
      "Schneidweg-Rechner gerade und dafür zwei falsche Sonderkonturen quer über dem Teil. Jetzt ist es ein komplexes "
-     "Ende mit dem Umriss wie in der STEP."],
+     "Ende mit dem Umriss wie in der STEP.",
+     "STEP-Import stabiler (Anhänger-Dach), Flachstahl mit runden Enden wie in der STEP."],
     ["0.9.263", "<b>Kantteile aus der STEP</b> ([[bleche]]): die Biegezone wird echt abgerollt. Ein Fenster oder "
      "Ausschnitt quer über einer Kante, ein Freischnitt oder eine Bohrung in der Biegung steht jetzt mit ihrem "
      "Umriss im Zuschnitt (vorher ein Schlitz bis zum Rand, ohne Schenkel im Blech-Editor) und ist als <i>über "
