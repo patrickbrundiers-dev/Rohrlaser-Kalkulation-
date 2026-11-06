@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.266", "<b>Fehler behoben, gemeinsamer Ordner</b> ([[mehrere_arbeitsplaetze]]): sobald ein gemeinsamer Ordner eingetragen war, kam "
+     "alle 15 Sekunden „Unerwarteter Fehler: 'dict' object is not callable“; Lebenszeichen und Sofort-Schreiben "
+     "liefen dann nicht mehr. Der Takt läuft jetzt wieder fehlerfrei.",
+     "Gemeinsamer Ordner: Fehler alle 15 Sekunden behoben."],
     ["0.9.265", "<b>STEP-Import schneller</b> ([[step]]): als Satz oder Schweißbaugruppe prüft das Programm bei gleichen "
      "Teilen, wie jede Kopie eingebaut ist (gedreht, gewendet). Bei vielen gleichen Kleinteilen (z. B. 173 Schrauben im "
      "Pizzaofen) dauerte das über eine halbe Stunde. Jetzt wird jede Kopie nur einmal gesucht und aussichtslose Drehungen "
