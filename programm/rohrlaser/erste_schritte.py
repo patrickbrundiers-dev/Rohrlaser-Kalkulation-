@@ -117,8 +117,10 @@ class ErsteSchritte(QDialog):
         self.setWindowTitle("Erste Schritte")
         self.setMinimumWidth(620)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("<b>Willkommen!</b> Diese fünf Schritte führen zum ersten Angebot. Jeder Knopf öffnet die "
-                             "richtige Stelle; erledigte Schritte sind abgehakt."))
+        kopf = QLabel("<b>Willkommen!</b> Diese fünf Schritte führen zum ersten Angebot. Jeder Knopf öffnet die "
+                      "richtige Stelle; erledigte Schritte sind abgehakt.")
+        kopf.setWordWrap(True)
+        lay.addWidget(kopf)
         g = QGridLayout()
         g.setHorizontalSpacing(10)
         g.setVerticalSpacing(8)
@@ -140,6 +142,7 @@ class ErsteSchritte(QDialog):
         lay.addWidget(QLabel("<span style='color:#5F6B7A'>Die Liste steht jederzeit unter Hilfe → Erste Schritte …"
                              "</span>"))
         knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.button(QDialogButtonBox.Close).setText("Schließen")
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
         self.auffrischen()

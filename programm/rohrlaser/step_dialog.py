@@ -382,6 +382,7 @@ class StepPruefDialog(QDialog):
         self._baum_fuellen()
         for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130)):
             self.baum.setColumnWidth(c, b)
+        self._spalten_an_auswahl()          # Art und Profil so breit wie die längste Auswahl (E1)
 
         # Werte für mehrere Teile auf einmal (zwei Zeilen, V2): Werkstoff, Stückzahl, Zusatzarbeit (V4)
         self.leiste = QWidget()
