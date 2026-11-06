@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.267", "<b>Einzelteile, Satz und Schweißbaugruppe umwandeln</b> ([[umwandeln]]): per Rechtsklick werden markierte "
+     "Einzelteile ein Satz (Name und Anzahl Sätze im Fenster, Vorschlag = größter gemeinsamer Teiler der Stückzahlen), "
+     "ein Satz eine Schweißbaugruppe (Editor mit allen Teilen, Anzahl Baugruppen = Anzahl Sätze) und beides wieder "
+     "zurück. Aus einer Baugruppe wird ein Satz mit denselben Teilen und Stückzahlen; Nähte, Arbeitsgänge und "
+     "Vorrichtungen merkt sich das Programm und setzt sie beim Zurückwandeln wieder ein. Dieselben Knöpfe stehen in "
+     "Satz in 3D, Satz bearbeiten und im Editor der Schweißbaugruppe. Preise, Zusatzarbeiten, Konturen und Lage der "
+     "Teile bleiben gleich.",
+     "Einzelteile ↔ Satz ↔ Schweißbaugruppe per Rechtsklick umwandeln."],
     ["0.9.266", "<b>Fehler behoben, gemeinsamer Ordner</b> ([[mehrere_arbeitsplaetze]]): sobald ein gemeinsamer Ordner eingetragen war, kam "
      "alle 15 Sekunden „Unerwarteter Fehler: 'dict' object is not callable“; Lebenszeichen und Sofort-Schreiben "
      "liefen dann nicht mehr. Der Takt läuft jetzt wieder fehlerfrei.",

@@ -1757,6 +1757,35 @@ def kapitel_angebot(i):
             "Blechteils im Satz, gilt dieselbe Regel wie in der Liste.",
             "Angelegte Staffelstufen ([[staffeln]]) behalten ihre Mengen und werden nur neu gerechnet. Die "
             "Massenänderung über mehrere Positionen gibt es weiter unter <i>Rechtsklick → Stückzahl ändern …</i>.")
+    i.abschnitt("Einzelteile, Satz und Schweißbaugruppe umwandeln", marke="umwandeln")
+    i.text("Per <b>Rechtsklick</b> in der Positionsliste lässt sich jeder Schritt in beide Richtungen gehen: "
+           "<i>Als Satz zusammenfassen …</i> (markierte Einzelteile werden ein Satz), <i>Satz → Schweißbaugruppe …</i>, "
+           "<i>Schweißbaugruppe → Satz</i> und <i>Satz auflösen (Einzelteile)</i>. Preise, Zusatzarbeiten, Konturen und "
+           "die Lage der Teile bleiben dabei immer gleich; jeder Schritt lässt sich mit Rückgängig (Strg+Z) zurücknehmen.",
+           kurz=True)
+    i.genauer()
+    i.liste("<b>Als Satz zusammenfassen …</b>: Ein Fenster fragt nach dem <b>Namen</b> und der <b>Anzahl Sätze</b>. "
+            "Vorgeschlagen wird der größte gemeinsame Teiler der Stückzahlen (4, 8 und 12 Stück → 4 Sätze mit 1, 2 und "
+            "3 Stück je Satz). Die Stückzahlen bleiben; geht eine Stückzahl nicht in ganzen Stück auf, ist OK gesperrt "
+            "und das Fenster sagt warum. Schweißbaugruppen und ihre Teile sind schon ein Satz.",
+            "<b>Satz auflösen (Einzelteile)</b>: Satz und Stück je Satz werden leer, jede Position behält ihre "
+            "Gesamtstückzahl. Staffeln, die den Satznamen tragen, gelten danach nicht mehr; ein Hinweis nennt sie "
+            "(Staffeln werden nie automatisch geändert).",
+            "<b>Satz → Schweißbaugruppe …</b>: Der Editor der Schweißbaugruppe ([[schweissbaugruppe]]) öffnet mit allen "
+            "Teilen des Satzes, <i>Anzahl Baugruppen</i> = Anzahl Sätze, Stück je Baugruppe = Stück je Satz, Name = "
+            "Satzname (Staffeln mit dem Satznamen gelten weiter). Steckverbindungen aus <i>Satz in 3D</i> übernimmt die "
+            "Baugruppe. Mit OK entsteht die Baugruppe, mit Abbrechen bleibt der Satz.",
+            "<b>Schweißbaugruppe → Satz</b> (Rechtsklick auf die Baugruppe oder eines ihrer Teile): Die Zeile der "
+            "Baugruppe fällt weg, die Teile bleiben mit dem Namen der Baugruppe als Satz. Unterbaugruppen werden flach: "
+            "Stück je Satz = Gesamtmenge je Baugruppe (z. B. 3 je Seite × 2 Seiten = 6). Nähte, Arbeitsgänge, "
+            "Vorrichtungen, Unterbaugruppen und die Zuordnung der Teile merkt sich das Programm am Satz: "
+            "<i>Satz → Schweißbaugruppe</i> setzt sie wieder ein. Teile, deren Stück je Satz sich inzwischen geändert "
+            "hat, und neue Teile kommen direkt unter die Baugruppe.",
+            "Dieselben Knöpfe gibt es in den Editoren: <i>Satz in 3D</i> ([[satz_3d]]) und <i>Satz bearbeiten</i> "
+            "haben <b>In Schweißbaugruppe umwandeln …</b> und <b>Satz auflösen</b>, der Editor der Schweißbaugruppe "
+            "<b>In Satz umwandeln</b> und <b>In Einzelteile auflösen</b>. Ein Klick speichert wie OK und wandelt dann um.",
+            "Die Einzelteile einer Schweißbaugruppe direkt wieder lose: <i>In Einzelteile auflösen</i> im Editor der "
+            "Baugruppe, oder erst <i>Schweißbaugruppe → Satz</i> und dann <i>Satz auflösen</i>.")
     i.abschnitt("Reihenfolge der Positionen ändern", marke="reihenfolge")
     i.text("Positionen markieren → <b>Alt+↑ / Alt+↓</b> oder <i>Rechtsklick → Nach oben, Nach unten, An den Anfang, "
            "Ans Ende</i>; oder den <b>Zeilenkopf</b> (Nummer links) an eine andere Stelle ziehen. Kalkulation, "

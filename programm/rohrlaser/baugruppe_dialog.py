@@ -1806,7 +1806,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                       StepBaugruppe, UrsprungEditor, QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
-    vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
+    vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen); als dict
+    {ID: (Knoten-ID, Stück je Knoten, Positionierhilfe)} mit vorgegebener Zuordnung (Satz → Schweißbaugruppe)."""
 
     def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False,
                  einstellungen=None, netze=None, profile=None):
@@ -1881,6 +1882,14 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
         knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
+        from .umwandeln_dialog import knoepfe_einbauen          # Baugruppe umwandeln (06.11.2026)
+        self.umwandeln_knoepfe = knoepfe_einbauen(self, knoepfe, (
+            ("In Satz umwandeln", "satz", "Speichern und die Baugruppe in einen Satz umwandeln: Teile bleiben, Nähte, "
+             "Arbeitsgänge und Vorrichtungen werden am Satz gemerkt"),
+            ("In Einzelteile auflösen", "auf", "Speichern, in einen Satz umwandeln und den Satz auflösen "
+             "(Stückzahlen bleiben)")), aktiv=not nur_lesen and bool(p.get("id")))
+        for b in self.umwandeln_knoepfe.values():
+            b.setVisible(bool(p.get("id")))     # neue Baugruppe: nichts umzuwandeln
         unten = QHBoxLayout()
         rechnen_k = QPushButton("Vorkalkulation rechnen")
         rechnen_k.setToolTip("Rüsten, Positionieren, Wenden, Heftpunkte und Verputzen aus Struktur, Teilen und den Regeln "
@@ -2005,6 +2014,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 self.fremd += 1
                 continue
             drin = bg_id == self.bg["id"] or q["id"] in vorwahl
+            if isinstance(vorwahl, dict) and not bg_id and isinstance(vorwahl.get(q["id"]), tuple):
+                # Satz → Schweißbaugruppe (umwandeln.py): Knoten, Stück je Knoten und Positionierhilfe vorgegeben
+                kn_v, je_v, hilfe_v = (tuple(vorwahl[q["id"]]) + (None, None, None))[:3]
+                self.teile.append(dict(_id=q["id"], _q=q, drin=True, knoten=kn_v or "", je=je_v or 1, hilfe=hilfe_v,
+                                       **self._gravur_vorgabe(q)))
+                continue
             self.teile.append(dict(_id=q["id"], _q=q, drin=drin, knoten=kn or "",
                                    je=q.get("je_knoten") if drin and bg_id else
                                    (q.get("je_satz") or 1) if drin else 1,
