@@ -106,6 +106,75 @@ def _lesen(datei):
         return step_geometrie.datei_lesen(kopie, datei.stem)
 
 
+def _schnappschuss_pfad(datei, einst, aufsicht=None):
+    """Gelesene Datei für die anderen Messprozesse (verteilte Datei): eingelesene Körper als OpenCascade-Binärdatei,
+    damit nicht jeder Prozess die STEP-Datei neu einliest (0003-400-001, 870 Körper: 7 Minuten je Einlesen, fast
+    alles Ergänzen fehlender Flächenkurven, Patrick 06.11.2026). aufsicht: Prozess der Aufsicht (in den Messprozessen
+    der Elternprozess); so stören sich zwei Messungen derselben Datei nicht."""
+    try:
+        st = Path(datei).stat()
+    except OSError:
+        return None
+    k = hashlib.sha1(json.dumps([str(Path(datei).resolve()), st.st_size, st.st_mtime_ns, einst,
+                                aufsicht or os.getppid()],
+                                sort_keys=True, default=str).encode()).hexdigest()[:20]
+    return Path(tempfile.gettempdir()) / f"rohrlaser_step_{k}.bin"
+
+
+def _schnappschuss_schreiben(pfad, gel):
+    import pickle
+    from OCP.BinTools import BinTools
+    from OCP.BRep import BRep_Builder
+    from OCP.TopoDS import TopoDS_Compound
+    try:
+        c = TopoDS_Compound()
+        b = BRep_Builder()
+        b.MakeCompound(c)
+        for _, k in gel.koerper:
+            b.Add(c, k)
+        tmp = pfad.with_suffix(f".{os.getpid()}.tmp")
+        BinTools.Write_s(c, str(tmp))
+        tmp.with_suffix(".pkl").write_bytes(pickle.dumps(
+            (gel.name, gel.info, gel.gleich, gel.gedreht, [a for a, _ in gel.koerper])))
+        os.replace(tmp.with_suffix(".pkl"), pfad.with_suffix(".pkl"))
+        os.replace(tmp, pfad)
+    except Exception:       # nur Beschleunigung: dann liest jeder Prozess selbst
+        pass
+
+
+def _schnappschuss_laden(pfad):
+    import pickle
+    from OCP.BinTools import BinTools
+    from OCP.TopoDS import TopoDS, TopoDS_Iterator, TopoDS_Shape
+    try:
+        if pfad is None or not pfad.is_file():
+            return None
+        name, info, gleich, gedreht, arten = pickle.loads(pfad.with_suffix(".pkl").read_bytes())
+        s = TopoDS_Shape()
+        BinTools.Read_s(s, str(pfad))
+        it, koerper = TopoDS_Iterator(s), []
+        while it.More():
+            koerper.append(it.Value())
+            it.Next()
+        if len(koerper) != len(arten):
+            return None
+        from OCP.TopAbs import TopAbs_COMPOUND, TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID
+        art = {TopAbs_SOLID: TopoDS.Solid, TopAbs_SHELL: TopoDS.Shell, TopAbs_FACE: TopoDS.Face,
+               TopAbs_COMPOUND: TopoDS.Compound}
+        koerper = [(a, art.get(k.ShapeType(), lambda x: x)(k)) for a, k in zip(arten, koerper)]
+        return step_geometrie.Gelesen(name, koerper, info, gleich, gedreht)
+    except Exception:
+        return None
+
+
+def _schnappschuss_weg(pfad):
+    for p in (pfad, pfad.with_suffix(".pkl")) if pfad else ():
+        try:
+            p.unlink()
+        except OSError:
+            pass
+
+
 def zeilen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
     """Messwerte einer Datei als Zeilen (Liste von Feldern in der Reihenfolge SPALTEN). netze: Ordner für die
     Dreiecksnetze (None = keine), nr: laufende Nummer der Datei (Name der Netzdateien)."""
@@ -333,6 +402,7 @@ def _arbeiter(auftraege, ereignisse, wid):
             n = len(gel.koerper)
             messbar = [k for k in range(1, n + 1) if k not in gel.gleich and k not in auslassen]
             if zusatz and len(messbar) >= zusatz:
+                _schnappschuss_schreiben(_schnappschuss_pfad(datei, einst), gel)
                 # gedrehte Kopien zuletzt: übernimmt ihr Vorbild die Messung (Blech, Dreh-/Frästeil), entfallen sie
                 gedreht = {k: v for k, (v, _) in gel.gedreht.items() if k in messbar}
                 messbar = [k for k in messbar if k not in gedreht] + [k for k in messbar if k in gedreht]
@@ -345,7 +415,7 @@ def _arbeiter(auftraege, ereignisse, wid):
         if gel is None:
             gelesen.clear()
             step_geometrie.einstellen(einst)
-            gel = gelesen[str(datei)] = _lesen(datei)
+            gel = gelesen[str(datei)] = _schnappschuss_laden(_schnappschuss_pfad(datei, einst)) or _lesen(datei)
         if schluessel[0] == "koerper":
             step_geometrie.einstellen(einst)
             k = schluessel[2]
@@ -384,7 +454,8 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         return dict(p=p, q=q, auftrag=None, koerper=None, seit=None)
 
     def abschliessen(nr, erg):
-        geteilt.pop(nr, None)
+        if geteilt.pop(nr, None) is not None:
+            _schnappschuss_weg(_schnappschuss_pfad(auftraege[nr][0], auftraege[nr][3], os.getpid()))
         stand["erledigt"] += 1
         fertig(nr, erg)
         print(f"[{stand['erledigt']}/{gesamt}] {Path(auftraege[nr][0]).name}", flush=True)
