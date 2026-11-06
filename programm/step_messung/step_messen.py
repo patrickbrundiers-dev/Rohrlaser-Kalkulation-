@@ -106,6 +106,75 @@ def _lesen(datei):
         return step_geometrie.datei_lesen(kopie, datei.stem)
 
 
+def _schnappschuss_pfad(datei, einst, aufsicht=None):
+    """Gelesene Datei für die anderen Messprozesse (verteilte Datei): eingelesene Körper als OpenCascade-Binärdatei,
+    damit nicht jeder Prozess die STEP-Datei neu einliest (0003-400-001, 870 Körper: 7 Minuten je Einlesen, fast
+    alles Ergänzen fehlender Flächenkurven, Patrick 06.11.2026). aufsicht: Prozess der Aufsicht (in den Messprozessen
+    der Elternprozess); so stören sich zwei Messungen derselben Datei nicht."""
+    try:
+        st = Path(datei).stat()
+    except OSError:
+        return None
+    k = hashlib.sha1(json.dumps([str(Path(datei).resolve()), st.st_size, st.st_mtime_ns, einst,
+                                aufsicht or os.getppid()],
+                                sort_keys=True, default=str).encode()).hexdigest()[:20]
+    return Path(tempfile.gettempdir()) / f"rohrlaser_step_{k}.bin"
+
+
+def _schnappschuss_schreiben(pfad, gel):
+    import pickle
+    from OCP.BinTools import BinTools
+    from OCP.BRep import BRep_Builder
+    from OCP.TopoDS import TopoDS_Compound
+    try:
+        c = TopoDS_Compound()
+        b = BRep_Builder()
+        b.MakeCompound(c)
+        for _, k in gel.koerper:
+            b.Add(c, k)
+        tmp = pfad.with_suffix(f".{os.getpid()}.tmp")
+        BinTools.Write_s(c, str(tmp))
+        tmp.with_suffix(".pkl").write_bytes(pickle.dumps(
+            (gel.name, gel.info, gel.gleich, gel.gedreht, [a for a, _ in gel.koerper])))
+        os.replace(tmp.with_suffix(".pkl"), pfad.with_suffix(".pkl"))
+        os.replace(tmp, pfad)
+    except Exception:       # nur Beschleunigung: dann liest jeder Prozess selbst
+        pass
+
+
+def _schnappschuss_laden(pfad):
+    import pickle
+    from OCP.BinTools import BinTools
+    from OCP.TopoDS import TopoDS, TopoDS_Iterator, TopoDS_Shape
+    try:
+        if pfad is None or not pfad.is_file():
+            return None
+        name, info, gleich, gedreht, arten = pickle.loads(pfad.with_suffix(".pkl").read_bytes())
+        s = TopoDS_Shape()
+        BinTools.Read_s(s, str(pfad))
+        it, koerper = TopoDS_Iterator(s), []
+        while it.More():
+            koerper.append(it.Value())
+            it.Next()
+        if len(koerper) != len(arten):
+            return None
+        from OCP.TopAbs import TopAbs_COMPOUND, TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID
+        art = {TopAbs_SOLID: TopoDS.Solid, TopAbs_SHELL: TopoDS.Shell, TopAbs_FACE: TopoDS.Face,
+               TopAbs_COMPOUND: TopoDS.Compound}
+        koerper = [(a, art.get(k.ShapeType(), lambda x: x)(k)) for a, k in zip(arten, koerper)]
+        return step_geometrie.Gelesen(name, koerper, info, gleich, gedreht)
+    except Exception:
+        return None
+
+
+def _schnappschuss_weg(pfad):
+    for p in (pfad, pfad.with_suffix(".pkl")) if pfad else ():
+        try:
+            p.unlink()
+        except OSError:
+            pass
+
+
 def zeilen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
     """Messwerte einer Datei als Zeilen (Liste von Feldern in der Reihenfolge SPALTEN). netze: Ordner für die
     Dreiecksnetze (None = keine), nr: laufende Nummer der Datei (Name der Netzdateien)."""
@@ -121,9 +190,8 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
     try:
         gel = gel or _lesen(datei)
         if vorgemessen is not None:
-            if melden:
-                melden(len(gel.koerper) + 1, len(gel.koerper))
-            teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen)
+            teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen,
+                                                      melden)
         else:
             teile = analysiere_datei(datei, netze is not None, flach_bis, auslassen, melden, gel)
     except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
@@ -292,6 +360,56 @@ def cache_begrenzen(ordner, mb):
 
 
 # ------------------------------------------------------------------ Messung unter Aufsicht (Zeitlimit)
+def _ohne_ocp(x, pfad="", weg=None, gesehen=None):
+    """x ohne OpenCascade-Objekte (TopoDS_* u. a. lassen sich nicht an einen anderen Prozess schicken): Objekte und
+    Wörterbücher werden an Ort und Stelle bereinigt, Listen/Tupel nur bei Bedarf neu gebaut. weg: Fundstellen. Eine
+    übersehene Form ließ die Nachricht still verschwinden und den Import der 0003-400-001 hängen (Patrick 06.11.2026)."""
+    weg = [] if weg is None else weg
+    gesehen = set() if gesehen is None else gesehen
+    if type(x).__module__.startswith("OCP"):
+        weg.append(pfad or "Wert")
+        return None
+    if isinstance(x, (str, bytes, int, float, bool, type(None))) or id(x) in gesehen:
+        return x
+    gesehen.add(id(x))
+    if isinstance(x, dict):
+        for k in list(x):
+            v = _ohne_ocp(x[k], f"{pfad}[{k!r}]", weg, gesehen)
+            if v is not x[k]:
+                x[k] = v
+    elif isinstance(x, (list, tuple)):
+        neu = [_ohne_ocp(v, f"{pfad}[{i}]", weg, gesehen) for i, v in enumerate(x)]
+        if any(a is not b for a, b in zip(neu, x)):
+            if isinstance(x, list):
+                x[:] = neu
+            else:
+                return type(x)(neu) if type(x) is tuple else type(x)(*neu)
+    elif hasattr(x, "__dict__") and not isinstance(x, type):
+        for k, v in list(vars(x).items()):
+            n = _ohne_ocp(v, f"{pfad}.{k}", weg, gesehen)
+            if n is not v:
+                setattr(x, k, n)
+    return x
+
+
+def _senden(ereignisse, ev):
+    """Nachricht an die Aufsicht. Eine nicht übertragbare Nachricht ginge im Hintergrund-Thread der Queue verloren
+    (die Aufsicht wartete dann ewig): vorher prüfen, OpenCascade-Reste entfernen, sonst eine Fehlermeldung schicken."""
+    import pickle
+    try:
+        pickle.dumps(ev)
+    except Exception:
+        weg = []
+        ev = _ohne_ocp(ev, "", weg)
+        if weg:
+            print("STEP-Messung: nicht übertragbar entfernt: " + ", ".join(weg[:10]), file=sys.stderr, flush=True)
+        try:
+            pickle.dumps(ev)
+        except Exception as e:
+            ev = (*ev[:3], None, f"Ergebnis nicht übertragbar ({type(e).__name__})")
+    ereignisse.put(ev)
+
+
 def _arbeiter(auftraege, ereignisse, wid):
     """Messprozess: erledigt Aufträge (Schlüssel, Datei, netze, flach_bis, einst, auslassen, Zusatz) und meldet Körper
     und Ergebnis. Schlüssel ("datei", nr): ganze Datei messen; ist Zusatz = teilen_ab > 0 und hat die Datei
@@ -333,25 +451,29 @@ def _arbeiter(auftraege, ereignisse, wid):
             n = len(gel.koerper)
             messbar = [k for k in range(1, n + 1) if k not in gel.gleich and k not in auslassen]
             if zusatz and len(messbar) >= zusatz:
-                ereignisse.put(("geteilt", wid, schluessel, messbar, n))
+                _schnappschuss_schreiben(_schnappschuss_pfad(datei, einst), gel)
+                # gedrehte Kopien zuletzt: übernimmt ihr Vorbild die Messung (Blech, Dreh-/Frästeil), entfallen sie
+                gedreht = {k: v for k, (v, _) in gel.gedreht.items() if k in messbar}
+                messbar = [k for k in messbar if k not in gedreht] + [k for k in messbar if k in gedreht]
+                ereignisse.put(("geteilt", wid, schluessel, messbar, n, gedreht))
                 continue
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel)
-            ereignisse.put(("fertig", wid, schluessel, erg))
+            _senden(ereignisse, ("fertig", wid, schluessel, erg))
             continue
         gel = gelesen.get(str(datei))
         if gel is None:
             gelesen.clear()
             step_geometrie.einstellen(einst)
-            gel = gelesen[str(datei)] = _lesen(datei)
+            gel = gelesen[str(datei)] = _schnappschuss_laden(_schnappschuss_pfad(datei, einst)) or _lesen(datei)
         if schluessel[0] == "koerper":
             step_geometrie.einstellen(einst)
             k = schluessel[2]
             melden(k, len(gel.koerper))
             t = step_geometrie.koerper_messen(gel, k, netze is not None, flach_bis, auslassen)
-            ereignisse.put(("teil", wid, schluessel, step_geometrie.teil_uebergeben(t)))
+            _senden(ereignisse, ("teil", wid, schluessel, step_geometrie.teil_uebergeben(t)))
         else:
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel, zusatz)
-            ereignisse.put(("fertig", wid, schluessel, erg))
+            _senden(ereignisse, ("fertig", wid, schluessel, erg))
 
 
 def _fehler_ergebnis(datei, text):
@@ -381,7 +503,8 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         return dict(p=p, q=q, auftrag=None, koerper=None, seit=None)
 
     def abschliessen(nr, erg):
-        geteilt.pop(nr, None)
+        if geteilt.pop(nr, None) is not None:
+            _schnappschuss_weg(_schnappschuss_pfad(auftraege[nr][0], auftraege[nr][3], os.getpid()))
         stand["erledigt"] += 1
         fertig(nr, erg)
         print(f"[{stand['erledigt']}/{gesamt}] {Path(auftraege[nr][0]).name}", flush=True)
@@ -406,13 +529,18 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             return
         w.update(auftrag=None, koerper=None, seit=None)
         if ev[0] == "geteilt":
-            geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={})
+            geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={}, gedreht=ev[5])
             offen[0:0] = [("koerper", nr, k) for k in ev[3]]
         elif ev[0] == "teil":
             g = geteilt[nr]
-            g["teile"][ev[2][2]] = ev[3]
+            if ev[3] is not None:
+                g["teile"][ev[2][2]] = ev[3]
+            else:                       # nicht übertragbar: ohne diesen Körper weiter, wie ein Absturz
+                auslassen[nr][ev[2][2]] = ev[4]
             g["ausstehend"].discard(ev[2][2])
             koerper_fertig(nr)
+        elif ev[3] is None:
+            abschliessen(nr, _fehler_ergebnis(Path(auftraege[nr][0]), ev[4]))
         else:
             abschliessen(nr, ev[3])
 
@@ -428,16 +556,47 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         w.update(auftrag=auftrag, koerper=None, seit=None)
         w["q"].put((auftrag, *auftraege[nr], dict(auslassen[nr]), zusatz))
 
+    def naechster():
+        """Nächster Auftrag aus offen. Eine gedrehte Kopie entfällt, wenn ihr Vorbild die Messung übernimmt
+        (step_geometrie.uebertragbar: der Abschluss setzt sie ein), und wartet, solange das Vorbild noch gemessen wird."""
+        i = 0
+        while i < len(offen):
+            a = offen[i]
+            g = geteilt.get(a[1]) if a[0] == "koerper" else None
+            v = g["gedreht"].get(a[2]) if g else None
+            if v is None:
+                return offen.pop(i)
+            if v in g["teile"] and step_geometrie.uebertragbar(g["teile"][v]):
+                offen.pop(i)
+                g["ausstehend"].discard(a[2])
+                koerper_fertig(a[1])
+                i = 0       # der Abschluss steht jetzt vielleicht vorn
+                continue
+            if v in g["ausstehend"]:
+                i += 1
+                continue
+            return offen.pop(i)
+        return None
+
+    def zuteilen(w):
+        a = naechster()
+        if a is None:
+            return False
+        vergeben(w, a)
+        return True
+
     prozesse = max(1, prozesse)
     arbeiter = [starten(wid) for wid in range(min(prozesse, len(offen)))]
     try:
         while stand["erledigt"] < gesamt:
             for w in arbeiter:
                 if w["auftrag"] is None and offen:
-                    vergeben(w, offen.pop(0))
+                    zuteilen(w)
             while offen and len(arbeiter) < prozesse:      # verteilte Datei: weitere Prozesse starten
-                arbeiter.append(starten(len(arbeiter)))
-                vergeben(arbeiter[-1], offen.pop(0))
+                w = starten(len(arbeiter))
+                arbeiter.append(w)
+                if not zuteilen(w):
+                    break
             try:
                 verarbeiten(ereignisse.get(timeout=0.5))
             except queue.Empty:

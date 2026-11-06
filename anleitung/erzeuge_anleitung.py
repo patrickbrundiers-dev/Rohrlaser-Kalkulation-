@@ -2417,7 +2417,9 @@ def kapitel_step(i):
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
             "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
             "Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
-            "verschoben) werden nur einmal gemessen, und eine große Datei wird auf mehrere Messprozesse verteilt. "
+            "verschoben) werden nur einmal gemessen; gleiche Bleche, Kantteile, Dreh- und Frästeile auch dann, wenn "
+            "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Eine große Datei wird auf "
+            "mehrere Messprozesse verteilt und dafür nur einmal eingelesen. "
             "Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
             "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
             "sollen ([[einstellungen]]).",
