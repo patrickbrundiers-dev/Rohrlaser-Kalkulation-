@@ -5215,10 +5215,13 @@ def _instanz_gedreht(vorbild, nr, info, rel, koerper):
     return t
 
 
-def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
+def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None, melden=None):
     """Gemessene Teile {Körpernummer: Teil} einer Datei vervollständigen: Kopien für gleiche Körper, dann die
     Auswertungen über die ganze Baugruppe (Anbauteile, Verbundprofile, Nahtkandidaten). Ergebnis: Liste der Teile
-    in der Reihenfolge der Körper. auslassen[n + 1] (n = Zahl der Körper): diese Auswertungen auslassen."""
+    in der Reihenfolge der Körper. auslassen[n + 1] (n = Zahl der Körper): diese Auswertungen auslassen. melden(i, n)
+    wie analysiere_datei: vor jeder Kopie und jedem nachgemessenen Körper, n + 1 vor den Auswertungen. So zählt das
+    Zeitlimit je Schritt; vorher lief es über Kopien und Auswertungen zusammen, die Aufsicht brach den Abschluss großer
+    Baugruppen immer wieder ab und begann ihn neu (0003-400-001: endlos, Patrick 06.11.2026)."""
     koerper, info = gel.koerper, gel.info
     auslassen = dict(auslassen or {})
     for i, (vnr, _) in gel.gleich.items():         # Kopien eines ausgelassenen Körpers ebenso
@@ -5228,7 +5231,11 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
     for i in range(1, len(koerper) + 1):
         if i in teile:
             out.append(teile[i])
-        elif i in gel.gleich and gel.gleich[i][0] in da and i not in auslassen:
+            da[i] = out[-1]
+            continue
+        if melden:
+            melden(i, len(koerper))
+        if i in gel.gleich and gel.gleich[i][0] in da and i not in auslassen:
             vnr, v = gel.gleich[i]
             t = _instanz(da[vnr], i, info, v)
             if netz and t.netz and "lage" in t.netz:     # Rohnetz in Dateilage: für diese Lage neu
@@ -5247,6 +5254,8 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
             t._rahmen = getattr(koerper_messen(gel, t.koerper, False, flach_bis), "_rahmen", None)
         return t._rahmen
     n = len(koerper)
+    if melden:
+        melden(n + 1, n)
     if n + 1 in auslassen:
         if out:
             out[0].hinweise.append(f"Anbauteile, Verbund und Nahtkandidaten nicht bestimmt: {auslassen[n + 1]}")
@@ -5320,6 +5329,4 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
         if melden:
             melden(i, n)
         teile[i] = koerper_messen(gel, i, netz, flach_bis, auslassen)
-    if melden:
-        melden(n + 1, n)
-    return datei_abschliessen(gel, teile, netz, flach_bis, auslassen)
+    return datei_abschliessen(gel, teile, netz, flach_bis, auslassen, melden)

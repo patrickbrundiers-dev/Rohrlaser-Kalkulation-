@@ -132,6 +132,20 @@ def main():
         print(f"FEHLER 3D-Netz mit Einbaulage {weit:.2f} mm neben dem Körper in der Datei")
     else:
         print(f"OK     3D-Netze mit Einbaulage auf den Körpern der Datei ({weit:.3f} mm)")
+    # Abschluss verteilt: hängt eine Kopie, wird nur sie ausgelassen und der Abschluss endet (vorher lief das Zeitlimit
+    # über alle Kopien und Auswertungen zusammen, große Baugruppen begannen den Abschluss endlos neu, 0003-400-001)
+    k = min(set(gel.gleich) | {i for i in gel.gedreht if neu[i]["profilform"] in step_geometrie.GEDREHT_UEBERNEHMEN})
+    import time
+    beginn = time.monotonic()
+    haengt = messen(pfad, tmp / "haengt", {"STEP_MESSEN_TEILEN_AB": "2", "STEP_MESSEN_TEST_HAENGT": f"{pfad.name}:{k}"},
+                    "--prozesse", "3", "--zeitlimit", "3")
+    dauer = time.monotonic() - beginn
+    if "Zeitlimit 3 s" not in haengt[k]["hinweise"] or dauer > 300 or \
+            any(haengt[i]["laenge"] != verteilt[i]["laenge"] for i in haengt if i != k):
+        fehler += 1
+        print(f"FEHLER hängende Kopie K{k} im Abschluss: {haengt[k]['hinweise'][:120]} ({dauer:.0f} s)")
+    else:
+        print(f"OK     hängende Kopie K{k} im Abschluss ausgelassen, übrige gleich ({dauer:.0f} s)")
     arten = {namen[k - 1]: z["profilform"] for k, z in neu.items()}
     print("       erkannt:", arten)
     if arten.get("Lasche 200x100x3") != "Blech" or arten.get("Bolzen") not in ("Drehteil", "Frästeil"):

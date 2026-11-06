@@ -190,9 +190,8 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
     try:
         gel = gel or _lesen(datei)
         if vorgemessen is not None:
-            if melden:
-                melden(len(gel.koerper) + 1, len(gel.koerper))
-            teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen)
+            teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen,
+                                                      melden)
         else:
             teile = analysiere_datei(datei, netze is not None, flach_bis, auslassen, melden, gel)
     except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
