@@ -649,6 +649,23 @@ def _teil_schreiben(pfad, zs):
         f.write("".join("\t".join(z) + "\n" for z in zs))
 
 
+def _aufteilen(dateien, nr, ausgabe):
+    """Vorschlag N3: Körper nr der ersten Datei trennen (step_aufteilen), die Teile als STEP-Dateien neben die Ausgabe
+    schreiben, ihre Namen nach <ausgabe>.teile.json. Ergebnis: die Teildateien (leer: nichts zu trennen)."""
+    import step_aufteilen
+    with open(ausgabe, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\t".join(SPALTEN) + "\n")
+    gel = _lesen(dateien[0])
+    if not 1 <= nr <= len(gel.koerper):
+        return []
+    ordner = ausgabe.parent / "aufgeteilt"
+    ordner.mkdir(parents=True, exist_ok=True)
+    teile = step_aufteilen.aufteilen(gel.koerper[nr - 1][1], ordner, "teil", nr)
+    Path(str(ausgabe) + ".teile.json").write_text(json.dumps([[p.name, name] for p, name in teile], ensure_ascii=False),
+                                                   encoding="utf-8")
+    return [p for p, _ in teile]
+
+
 def main(argv=None):
     rest = list(sys.argv[1:] if argv is None else argv)
     if rest[:1] == ["--export"]:            # STEP-Export (3E-8): dieselbe .exe baut und schreibt Volumenkörper
@@ -673,6 +690,8 @@ def main(argv=None):
     ap.add_argument("--virtuell", help="Ordner: virtuelles Bauteil (Teil mit Stegen bzw. Ringen, so wird gelasert) je "
                     "Körper als STEP k<Nr>.step")
     ap.add_argument("--kennung", default="", help="Programmversion (Teil des Schlüssels im Zwischenspeicher)")
+    ap.add_argument("--aufteilen", type=int, help="Körper Nr. der (einen) Datei an Muttern/Kugeln trennen und die Teile "
+                    "messen (step_aufteilen); Namen der Teile in <ausgabe>.teile.json")
     ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
     a = ap.parse_args(argv)
     pfade = list(a.pfade)
@@ -681,6 +700,10 @@ def main(argv=None):
     if not pfade:
         ap.error("keine STEP-Dateien angegeben")
     dateien = step_dateien(pfade)
+    if a.aufteilen:
+        dateien = _aufteilen(dateien, a.aufteilen, Path(a.ausgabe))
+        if not dateien:
+            return 2
     if a.netze:
         Path(a.netze).mkdir(parents=True, exist_ok=True)
     einst = {k: v for k, v in (("flach_laenge", a.flach_laenge), ("gekantet_anteil", a.gekantet_anteil),

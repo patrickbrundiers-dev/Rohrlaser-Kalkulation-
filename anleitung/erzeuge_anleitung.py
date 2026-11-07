@@ -2972,6 +2972,14 @@ def kapitel_step(i):
             "Schenkeln hängt, „Frästeil“ aus dünnen Wänden), steht die Ampel gelb mit dem Hinweis <i>Mehrere Teile in "
             "einem Körper?</i> und das Teil wird nicht übernommen. Am besten die STEP im CAD in Einzelteile aufteilen; "
             "nach Prüfung lässt es sich auch von Hand anhaken.",
+            "<b>Aufteilen (seit 0.9.272):</b> über der Liste steht dann die gelbe Zeile <i>N Körper aus mehreren "
+            "verschmolzenen Teilen</i> mit dem Knopf <b>Aufteilen</b>. Er trennt erkennbare Anbauten vom Grundteil: "
+            "einen <b>Sechskant</b> (Mutter, Schraubenkopf; das Sechskantprisma zwischen den Enden der "
+            "Schlüsselflächen) und eine <b>Kugel</b>. Jedes Teil wird einzeln gemessen, Lage und Form bleiben genau "
+            "wie in der STEP. Die abgetrennte Mutter heißt z. B. <i>Mutter SW 36</i> und ist ein Normteil (in einer "
+            "Schweißbaugruppe Zukauf zum Preis der Normteil-Liste, siehe [[importprofile]]); das Grundteil behält die "
+            "Artikelnummer, Anbauten bekommen -1, -2 … Ist nichts zu erkennen (Blechkasten, dünne Wände), steht "
+            "<i>nicht aufteilbar</i> in der Zeile und der Körper bleibt gelb.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "

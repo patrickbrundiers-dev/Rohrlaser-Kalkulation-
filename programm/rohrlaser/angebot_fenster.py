@@ -7819,7 +7819,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                   vorhandene_artikel=[p.get("artikel") for p in self.positionen],
                                   flach_grenzen=(self.db.einstellung("flachstahl_bis") or 150,
                                                  self.db.einstellung("step_flach_laenge") or 3.0),
-                                  blech_daten=blech_daten)
+                                  blech_daten=blech_daten, aufteilen=self._aufteilen_messen)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
@@ -8020,6 +8020,21 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                 + step_einstellungen.mess_argumente(self.db), 1, ausgabe) or not ausgabe.exists():
                 return None
             return step.lade_netze(step.lies_messwerte(ausgabe), netze)
+
+    def _aufteilen_messen(self, m):
+        """Vorschlag N3 (Knopf „Aufteilen“ im Prüfdialog): Körper m (gelb „mehrere Teile in einem Körper“) mit
+        STEP-Import.exe --aufteilen an Muttern/Kugeln trennen und die Teile messen. Ergebnis: Messwerte der Teile
+        (step.aufgeteilt, Normteile markiert) oder None, wenn nichts zu trennen ist."""
+        befehl = step.messprogramm(self.f.programmordner)
+        pfad = m.get("_pfad")
+        if befehl is None or not pfad or not Path(pfad).is_file():
+            return None
+        with tempfile.TemporaryDirectory() as tmp:
+            ausgabe, netze = Path(tmp) / "messwerte.txt", Path(tmp) / "netze"
+            self._messen(befehl + [str(pfad), "--ausgabe", str(ausgabe), "--netze", str(netze), "--aufteilen",
+                                   str(int(float(m.get("koerper") or 0))), "--flachstahl-bis", str(self.flach_bis())]
+                         + step_einstellungen.mess_argumente(self.db), 1, ausgabe)
+            return step.aufteilen_ergebnis(m, ausgabe, netze)
 
     def _stege_messen(self, messwerte):
         """Winkel/U, für die im Prüfdialog ein größeres Profil gleicher Form gewählt ist (Patrick 26.10.2026: „ein

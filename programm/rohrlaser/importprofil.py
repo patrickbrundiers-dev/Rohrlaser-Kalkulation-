@@ -230,6 +230,8 @@ def anwenden(messwerte, profil=None, einstellungen=None):
         if not b:       # von der STEP-Messung an der Form erkannt (Kugel, Schraube mit Sechskant; A4 07.11.2026)
             from . import drehfraes
             b = (drehfraes.daten(m) or {}).get("normteil")
+        if not b and m.get("_normteil_bezeichnung"):     # im Prüfdialog abgetrennte Mutter/Kugel (Aufteilen, N3)
+            b = m.get("_normteil") or "Normteil"
         if b:
             m["_normteil"] = b
             n += 1

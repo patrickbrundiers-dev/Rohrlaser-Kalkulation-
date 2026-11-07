@@ -1498,6 +1498,58 @@ def virtuell_einsetzen(m, neu):
     return True
 
 
+MEHRTEILIG_HINWEIS = "Mehrere Teile in einem Körper?"
+AUFGETEILT_BEHALTEN = ("_pfad", "_stueck", "_werkstoff", "_zusatz", "_saetze", "datei", "pfad", "knoten", "struktur")
+
+
+def mehrteilig_koerper(m):
+    """True, wenn die Messung den Körper als „mehrere Teile in einem Körper“ gelb markiert hat (Aufteilen möglich)."""
+    return MEHRTEILIG_HINWEIS in (m.get("hinweise") or "") and bool(m.get("_pfad")) and not m.get("fehler")
+
+
+def aufgeteilt(m, neue, namen):
+    """Vorschlag N3: Messwerte der getrennten Teile (neue, je Teil eine Zeile der Messung, namen = Name je Teil wie
+    „Mutter SW 36“ bzw. „Grundteil“) an die Stelle des Körpers m: gleiche Datei und Stelle im Strukturbaum, Körper
+    „7.1“, „7.2“ …, Bauteilname mit Zusatz, Stückzahl/Werkstoff/Zusatzarbeiten aus dem Prüfdialog. Das Grundteil
+    behält die Artikelnummer, die Anbauten bekommen -1, -2 … Ergebnis: Liste der Messwerte."""
+    out, j = [], 0
+    basis = str(m.get("bauteil") or m.get("artikel") or "Teil").split(":")[0].strip()
+    for n, name in zip(neue, namen):
+        n = dict(n)
+        for k_ in AUFGETEILT_BEHALTEN:
+            if k_ in m:
+                n[k_] = m[k_]
+        n["koerper"] = f"{m.get('koerper')}.{len(out) + 1}"
+        if name in ("Grundteil", "Grundteil 1"):
+            n["artikel"] = m.get("artikel")
+        else:
+            j += 1
+            n["artikel"] = f"{m.get('artikel')}-{j}"
+        n["_artikel_gemessen"] = n["artikel"]
+        n["bauteil"] = f"{basis} – {name}"
+        n["_aufgeteilt_aus"] = m.get("artikel") or ""
+        if not name.startswith("Grundteil"):        # abgetrennte Mutter/Kugel: Normteil mit dieser Bezeichnung
+            n["_normteil"] = name.split()[0]
+            n["_normteil_bezeichnung"] = name
+        out.append(n)
+    return out
+
+
+def aufteilen_ergebnis(m, ausgabe, netze):
+    """Ergebnis von STEP-Import --aufteilen (Messwerte in ausgabe, Namen der Teile in <ausgabe>.teile.json, Netze im
+    Ordner netze) für den Körper m: Liste der Messwerte der Teile (aufgeteilt) oder None (nichts zu trennen)."""
+    import json
+    ausgabe = Path(ausgabe)
+    namen_datei = Path(str(ausgabe) + ".teile.json")
+    if not ausgabe.exists() or not namen_datei.exists():
+        return None
+    namen = dict(json.loads(namen_datei.read_text(encoding="utf-8")))
+    neue = [n for n in lade_netze(lies_messwerte(ausgabe), netze) if n.get("datei") in namen and not n.get("fehler")]
+    if len(neue) < 2:
+        return None
+    return aufgeteilt(m, neue, [namen[n["datei"]] for n in neue])
+
+
 def fenster_neu(m, pr):
     """Offen gezeichnetes Rohr aus dem Rohr mit Ringen (step_offenes_rohr), im Prüfdialog ein anderes Rohr gewählt
     (Patrick 25.10.2026: „einfach das Rohr ändern, z. B. von 60x30x4 auf 70x30x4“): das Fenster über der offenen Seite
@@ -2779,6 +2831,8 @@ NORMTEIL_TYP = "Normteil"
 def normteil_name(m):
     """Bezeichnung eines Normteils für die Preisliste: aus der Geometrie (Kugel Ø8,73, Mutter/Schraube SW 19, Gewinde-
     stange Ø12,7 × 100 mit Mutter SW 19) bzw. der Bauteilname aus dem CAD (ISO 4032 M12)."""
+    if m.get("_normteil_bezeichnung"):         # im Prüfdialog abgetrennt (Aufteilen, N3)
+        return m["_normteil_bezeichnung"]
     from . import drehfraes
     d = drehfraes.daten(m) or {}
     art = d.get("normteil")

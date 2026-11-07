@@ -32,6 +32,11 @@ NEUERUNGEN = [
      "Zukaufartikeln der Kategorie <b>Normteile</b> (gleiche Bezeichnung); fehlt der Artikel, wird er ohne EK "
      "angelegt und die Position steht gelb <i>EK fehlt</i>, bis der Preis eingetragen ist.",
      "Normteile in Baugruppen und Sätzen als Zukauf mit Preis aus der Normteil-Liste."],
+    ["0.9.272", "<b>Aufteilen</b> ([[drehfraesteile]]): ein Körper aus mehreren verschmolzenen Teilen (gelb, z. B. "
+     "Platte mit angeschweißter Mutter) lässt sich im Prüfdialog mit dem Knopf <b>Aufteilen</b> über der Liste an "
+     "Sechskant bzw. Kugel trennen. Beide Teile werden einzeln gemessen, Lage wie in der STEP; die Mutter wird "
+     "Normteil.",
+     "Verschmolzene Mutter/Kugel im Prüfdialog abtrennen (Aufteilen)."],
     ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
      "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
      "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "
