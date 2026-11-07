@@ -54,6 +54,11 @@ bereich = ZukaufBereich(db, lambda t, f=False, **_: meldungen.append((t, f)))
 s = bereich.normteile
 assert isinstance(s, NormteilPreisSeite) and s.tabelle.rowCount() == 2
 assert bereich.unter.tabText(bereich.unter.indexOf(s)) == "Normteile ohne Preis (2)"
+s.neu_laden()
+s.neu_laden()
+from PySide6.QtWidgets import QDoubleSpinBox  # noqa: E402
+felder = [w for w in s.tabelle.viewport().findChildren(QDoubleSpinBox) if not w.isHidden()]
+assert len(felder) == 2, "nach erneutem Laden keine alten Eingabefelder mehr sichtbar"
 s.preis_setzen(0, 0.12)
 assert s.speichern() == 1 and "1 Normteil-Preis gespeichert" in meldungen[-1][0]
 assert not zukauf.ek_fehlt(db.zukauf_artikel(m12)) and zukauf.ek_fehlt(db.zukauf_artikel(m16))

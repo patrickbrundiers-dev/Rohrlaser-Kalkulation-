@@ -62,6 +62,11 @@ class NormteilPreisSeite(QWidget):
     def neu_laden(self):
         self.artikel = ohne_preis(self.db)
         t = self.tabelle
+        for r in range(t.rowCount()):        # alte Eingabefelder sofort weg (deleteLater kommt erst in der Ereignisschleife)
+            alt = t.cellWidget(r, 3)
+            if alt is not None:
+                alt.hide()
+        t.setRowCount(0)
         t.setRowCount(len(self.artikel))
         for r, a in enumerate(self.artikel):
             b = (a.get("bezuege") or [{}])[0]
