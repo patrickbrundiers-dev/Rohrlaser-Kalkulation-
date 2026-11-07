@@ -295,8 +295,8 @@ def drehteil(fl, t=None, streng=False):
         merkmale.append("Radius")
     if any(e["typ"] == "rotation" for e in dreh):
         merkmale.append("Drehkontur")
-    if any(e["typ"] in ("kugel", "torus", "kegel") for e in rest):
-        # gekrümmte Flächen neben der Achse: Kalotten/Taschen (Käfigring mit Kugelsitzen, 0003-400-001, A4
+    if any(e["typ"] == "kugel" for e in rest):
+        # Kugelflächen neben der Achse (Senkungen/Fließlöcher sind Kegel bzw. Tori und bleiben am Rohr): Kalotten (Käfigring mit Kugelsitzen, 0003-400-001, A4
         # Prüfsammlung 07.11.2026) – gefräst, kein Rohrabschnitt
         merkmale.append("Kalotten/Taschen (gefräst)")
     if gew is not None:

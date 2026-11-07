@@ -168,11 +168,17 @@ def _blech_gekantet_rund(b):
 def _flachstahl_blech(t):
     if t.bauteiltyp != "Profil" or t.profilform != "Flachstahl" or _kandidat(t, BLECH) is None:
         return None
-    if t.innen_konturen:
-        return BLECH, "Flachstahl mit Ausschnitten/Bohrungen in der Fläche: Laserteil aus Blech"
+    if not _ganz(t.abm_a, t.abm_b):
+        return BLECH, (f"Flachstahl {t.abm_a:g} × {t.abm_b:g} ist kein Walzmaß (keine ganzen mm): Laserteil aus "
+                       "Blech").replace(".", ",")
     if t.laenge < g.FLACHSTAHL_LAENGE * t.abm_a - 1e-6:
         return BLECH, f"Flachstahl kürzer als {g.FLACHSTAHL_LAENGE:g} × Breite (Lasche): Laserteil aus Blech"
     return None
+
+
+def _ganz(*masse):
+    """Alle Maße ganze mm (Walz-/Rohrmaß wie g.rohr_grund; 8,5 oder Zoll 50,8 nicht)."""
+    return all(abs(v - round(v)) <= g.ROHR_GANZ_TOL for v in masse)
 
 
 def _sonderprofil_kantteil(t):
@@ -188,11 +194,18 @@ def _sonderprofil_kantteil(t):
     return None
 
 
+WINKEL_DUENN = 0.075   # Wand unter so viel × kürzerer Schenkel: dünner als jeder gewalzte Winkel
+
+
 def _winkel_kein_normmass(t):
     b = _kandidat(t, BLECH)
+    # scharfkantige Winkel in ganzen mm bleiben L-Profil (Regel 03.11.2026); dünne Winkel im Zollmaß (50,8 × 3,175,
+    # 311,4 × 146 × 9,5) gibt es nicht gewalzt (A4 Prüfsammlung 07.11.2026). Dicke Zoll-Winkel (Master Tower
+    # 38,1 × 8 mit gerundeten Schenkelenden) bleiben L-Profil.
     if t.bauteiltyp == "Profil" and t.profilform == "L-Profil" and not t.normprofil and b is not None \
+            and not _ganz(t.abm_a, t.abm_b) and t.wandstaerke < WINKEL_DUENN * min(t.abm_a, t.abm_b) \
             and b.bauteiltyp == "Blech gekantet" and not ((b.blech or {}).get("abwicklung") or {}).get("fehler"):
-        return BLECH, f"Winkel {t.profil_id_vorschlag or ''} ist kein Normmaß: Kantteil".replace("  ", " ")
+        return BLECH, f"Winkel {t.profil_id_vorschlag or ''} ist kein Walzmaß (keine ganzen mm): Kantteil".replace("  ", " ")
     return None
 
 

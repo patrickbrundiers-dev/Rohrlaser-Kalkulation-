@@ -72,7 +72,7 @@ ok("Hülse Ø19 × 97 mit Boden (Bohrung Ø9 nicht durch): Drehteil, nicht Rundr
 # ---------------------------------------------------------------- Kantteile
 zoll = plus(quader(50.8, 3.175, 600), quader(3.175, 50.8, 600))
 t = messen(zoll)
-assert t.bauteiltyp == "Blech gekantet" and "Normmaß" in t.art_grund, (t.bauteiltyp, t.profilform, t.art_grund)
+assert t.bauteiltyp == "Blech gekantet" and "Walzmaß" in t.art_grund, (t.bauteiltyp, t.profilform, t.art_grund)
 ok("Winkel 50,8 × 50,8 × 3,175 scharfkantig (kein Normmaß): Kantteil, Profil als Auswahl")
 
 t = messen(kant([(0, 30 - 1.5), (0, 0), (30 - 1.5, 0)], 3, lg=150))
