@@ -1534,9 +1534,12 @@ def aufgeteilt(m, neue, namen):
         n["_artikel_gemessen"] = n["artikel"]
         n["bauteil"] = f"{basis} – {name}"
         n["_aufgeteilt_aus"] = m.get("artikel") or ""
-        if not name.startswith("Grundteil"):        # abgetrennte Mutter/Kugel: Normteil mit dieser Bezeichnung
-            n["_normteil"] = name.split()[0]
-            n["_normteil_bezeichnung"] = name
+        if not name.startswith("Grundteil"):        # abgetrennte Mutter/Kugel: Normteil
+            from . import drehfraes
+            art = (drehfraes.daten(n) or {}).get("normteil")
+            n["_normteil"] = art or name.split()[0]
+            if not art:                             # von der Messung nicht erkannt: Name aus dem Aufteilen
+                n["_normteil_bezeichnung"] = name
         out.append(n)
     return out
 
@@ -2842,6 +2845,8 @@ def normteil_name(m):
     from . import drehfraes
     d = drehfraes.daten(m) or {}
     art = d.get("normteil")
+    if m.get("_normteil") and art and m["_normteil"] != art:    # Begriff im CAD-Namen (ISO 4032 M12) geht vor
+        art = None
     if art:
         text = next((x for x in d.get("merkmale") or () if str(x).startswith("Normteil: ")), f"Normteil: {art}")
         name = text[len("Normteil: "):]

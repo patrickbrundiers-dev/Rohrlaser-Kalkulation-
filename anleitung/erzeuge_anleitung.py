@@ -2972,7 +2972,8 @@ def kapitel_step(i):
             "Hinweis <i>vereinfacht gemessen</i>. Vorher suchte die Profilmessung in den Flanken minutenlang einen "
             "Querschnitt (bis 26 Minuten je Körper) und fand doch keinen.",
             "<b>Nach der Prüfsammlung</b> (seit 0.9.271, 53 typische Teile von Patrick bestätigt): "
-            "<b>Kugeln</b> und <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) sind <i>Normteile</i> "
+            "<b>Kugeln</b>, <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) und seit 0.9.272 auch eine "
+            "einzelne <b>Mutter</b> (Sechskant um eine Bohrung, höchstens 1,5 × SW hoch) sind <i>Normteile</i> "
             "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr. "
             "<b>Ringe mit Kalotten oder Taschen</b> und <b>Hülsen mit Boden</b> (Bohrung nicht durch) sind Drehteile. "
             "<b>Winkel ohne Normmaß</b> (z. B. Zollmaß 50,8 × 3,2) und Winkel mit Biegeradius (außen = innen + "

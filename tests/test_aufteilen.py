@@ -74,7 +74,7 @@ assert [n["bauteil"].split(" – ")[-1] for n in neu] == ["Mutter SW 36", "Grund
 mu, gr = neu
 assert all(n["datei"] == "Halter.step" and n["_pfad"] == str(pfad) and n.get("_netz") for n in neu)
 assert gr["artikel"] == mw[0]["artikel"] and mu["artikel"] == mw[0]["artikel"] + "-1", [n["artikel"] for n in neu]
-assert mu["_normteil"] == "Mutter" and step.normteil_name(mu) == "Mutter SW 36"
+assert mu["_normteil"] == "Mutter" and step.normteil_name(mu).startswith("Mutter SW 36") and mu["bauteiltyp"] == "Drehteil"
 assert gr["profilform"] == "Flachstahl" and round(float(gr["abm_a"]), 2) == 40 and round(float(gr["abm_b"]), 2) == 9.5, \
     (gr["profilform"], gr["abm_a"], gr["abm_b"])
 assert step.MEHRTEILIG_HINWEIS not in (gr.get("hinweise") or "")
@@ -113,7 +113,7 @@ ok("Ohne Messprogramm (aufteilen=None): keine Zeile")
 erg = step.uebernehmen([dict(n, _uebernehmen=True) for n in werte], [], k, db.zeilen("gewinde"), None, "S235-10219",
                        1, zukauf_liste=[])
 arten = sorted(str(p.get("art") or p.get("profil") or "Laserteil") for p in erg["positionen"])
-assert any(p.get("bezeichnung") == "Mutter SW 36" for p in erg["positionen"]), erg["positionen"]
+assert any(str(p.get("bezeichnung")).startswith("Mutter SW 36") for p in erg["positionen"]), erg["positionen"]
 ok("Übernahme: Mutter SW 36 als Zukaufteil aus der Normteil-Liste, Platte als Laserteil (" + ", ".join(arten) + ")")
 db.con.close()
 print("Aufteilen: alle Tests bestanden.")
