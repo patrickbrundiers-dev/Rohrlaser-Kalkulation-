@@ -322,7 +322,8 @@ def cache_schreiben(ordner, schluessel, ergebnis, netze, nr, mb):
     """Messung einer Datei merken (nicht bei Fehlern oder ausgelassenen Körpern) und den Ordner auf mb MB
     begrenzen (älteste zuerst weg)."""
     zeilen_, js = ergebnis
-    if any(z[-1] for z in zeilen_) or "nicht gemessen: " in json.dumps(js, ensure_ascii=False):
+    text = json.dumps(js, ensure_ascii=False)
+    if any(z[-1] for z in zeilen_) or "nicht gemessen: " in text or "vereinfacht gemessen (Zeitlimit" in text:
         return
     eintrag = Path(ordner) / schluessel
     tmp = Path(ordner) / (schluessel + ".neu")

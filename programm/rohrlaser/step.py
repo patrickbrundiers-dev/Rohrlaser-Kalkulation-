@@ -1534,12 +1534,18 @@ def aufgeteilt(m, neue, namen):
         n["_artikel_gemessen"] = n["artikel"]
         n["bauteil"] = f"{basis} – {name}"
         n["_aufgeteilt_aus"] = m.get("artikel") or ""
-        if not name.startswith("Grundteil"):        # abgetrennte Mutter/Kugel: Normteil
+        if not name.startswith(("Grundteil", "Bolzen", "Rohr")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
             from . import drehfraes
             art = (drehfraes.daten(n) or {}).get("normteil")
             n["_normteil"] = art or name.split()[0]
             if not art:                             # von der Messung nicht erkannt: Name aus dem Aufteilen
                 n["_normteil_bezeichnung"] = name
+        elif name.startswith("Bolzen"):             # M5: mit Gewinde Normteil, glatt bleibt es Drehteil/Rundstahl
+            from . import drehfraes
+            d = drehfraes.daten(n) or {}
+            if d.get("normteil") or any("gewinde" in str(x).lower() for x in d.get("merkmale") or ()):
+                n["_normteil"] = d.get("normteil") or "Gewindebolzen"
+                n["_normteil_bezeichnung"] = name.replace("Bolzen", "Gewindebolzen", 1)
         out.append(n)
     return out
 

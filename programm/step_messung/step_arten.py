@@ -250,6 +250,7 @@ def _tauschen(t, n, grund, regel):
     return n
 
 
+BOLZEN_SCHLANK = 2.0            # Frästeil: ein Bolzen mindestens so oft länger als dick gilt als angeschweißt (M5)
 MEHRTEILIG_FUELLGRAD = 0.05     # Frästeil: Volumen unter so viel des Hüllquaders = dünne Bleche, nicht aus dem Vollen
 
 
@@ -273,6 +274,17 @@ def _mehrteilig(solid, t):
                 kante, rest = df.sechskante(fl, *z["achse"])
                 if kante and rest:
                     return f"Sechskant (Mutter SW {kante[0]['schluessel']:g}) mit weiteren Teilen verschmolzen"
+    fraes = t.bauteiltyp == "Frästeil"
+    if fraes or t.bauteiltyp in ("Profil", "Blech") and t.profilform in ("Sonderprofil", "offenes Sonderprofil", "Blech"):
+        import step_drehfraes as df
+        fl = df.flaechen(solid)
+        if len(fl) <= df.NORMTEIL_FLAECHEN_MAX:
+            from step_aufteilen import bolzen
+            b = [g for g in bolzen(fl, t.volumen or None)       # Frästeil: nur schlanke Bolzen (kein Zapfen)
+                 if not fraes or g["t1"] - g["t0"] >= BOLZEN_SCHLANK * 2 * g["radius"]]
+            if b:                       # M5: angeschweißter Bolzen / Gewindestange / Stehbolzen
+                return f"Bolzen Ø{2 * b[0]['radius']:.1f}".rstrip("0").rstrip(".").replace(".", ",") + \
+                    " mit weiteren Teilen verschmolzen"
     return None
 
 

@@ -564,7 +564,7 @@ class StepPruefDialog(QDialog):
         self.aufteil_info.setWordWrap(True)
         self.aufteil_knopf = QPushButton("Aufteilen")
         self.aufteil_knopf.setToolTip("Körper aus mehreren Teilen an erkennbaren Anbauten trennen (Mutter/Sechskant, "
-                                      "Kugel): jedes Teil wird einzeln gemessen, die Mutter wird Normteil. Lage und "
+                                      "Schraube, Bolzen/Gewindestange, Kugel): jedes Teil wird einzeln gemessen, die Mutter wird Normteil. Lage und "
                                       "Form bleiben wie in der STEP.")
         self.aufteil_knopf.clicked.connect(lambda: self.aufteilen())
         az.addWidget(self.aufteil_info, 1)
@@ -1231,7 +1231,7 @@ class StepPruefDialog(QDialog):
         if text is None and offen:
             namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in offen[:3])
             text = (f"{len(offen)} Körper aus mehreren verschmolzenen Teilen ({namen}{' …' if len(offen) > 3 else ''}): "
-                    "„Aufteilen“ trennt Muttern und Kugeln ab und misst die Teile einzeln")
+                    "„Aufteilen“ trennt Muttern, Schrauben, Bolzen und Kugeln ab und misst die Teile einzeln")
         self.aufteil_info.setText(text or "")
         self.aufteil_knopf.setVisible(bool(offen))
         self.aufteil_zeile.setVisible(bool(text))
@@ -1264,7 +1264,7 @@ class StepPruefDialog(QDialog):
         self._baum_fuellen()
         self.datei_waehlen(self.datei_nr)
         text = (f"{n} Körper aufgeteilt ({'; '.join(namen)})" if n else "") + \
-            (("; " if n else "") + "nicht aufteilbar (kein Sechskant/keine Kugel erkannt): " + ", ".join(nicht)
+            (("; " if n else "") + "nicht aufteilbar (kein Sechskant, Bolzen oder Kugel erkannt): " + ", ".join(nicht)
              if nicht else "")
         self._aufteilen_anzeigen(text)
         return n

@@ -2998,6 +2998,14 @@ def kapitel_step(i):
             "Schweißbaugruppe Zukauf zum Preis der Normteil-Liste, siehe [[importprofile]]); das Grundteil behält die "
             "Artikelnummer, Anbauten bekommen -1, -2 … Ist nichts zu erkennen (Blechkasten, dünne Wände), steht "
             "<i>nicht aufteilbar</i> in der Zeile und der Körper bleibt gelb.",
+            "<b>Bolzen und Gewindestangen (seit 0.9.273):</b> auch ein angeschweißter <b>Bolzen</b>, Stehbolzen oder "
+            "eine Gewindestange (Zylinder ganz herum, ohne Absatz auf derselben Achse) macht den Körper gelb "
+            "<i>Mehrere Teile in einem Körper? Bolzen Ø12 …</i>; bei einem Frästeil nur, wenn der Bolzen mindestens "
+            "doppelt so lang wie dick ist (ein kurzer Zapfen gehört zum Frästeil). <b>Aufteilen</b> trennt ihn ab "
+            "(<i>Bolzen Ø12 × 40</i>): glatt wird er wie jedes Teil gemessen (Rundstahl bzw. Drehteil), mit Gewinde "
+            "ist er ein Normteil (<i>Gewindebolzen</i>). Sitzt der Bolzen unter einem Sechskant, bleiben Kopf und "
+            "Schaft eine <i>Schraube SW …</i>. Rundungen an Ecken (nur ein Bogen) und Wellen mit Absatz werden nie "
+            "getrennt.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
