@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.268", "<b>STEP genauer</b> ([[step]]): Flachstahl mit Längsfasen an den Kanten (z. B. die Schneidkante einer "
+     "Baggerschaufel) galt bisher als glattes Rechteck, die Fasen fielen weg. Jetzt meldet der Import „Querschnitt mit "
+     "Längsfasen“ mit den Maßen, das Teil steht gelb, und Skizze und 3D zeigen den Querschnitt wie in der STEP. "
+     "Zuschnitte von Blechen und Kantteilen mit kleinen gerundeten Ecken galten als Rechteck, der Schneidweg im "
+     "Blech-Editor lag bis 1 % zu hoch. Jetzt gilt ein Zuschnitt nur noch als Rechteck, wenn auch der Umfang passt; "
+     "sonst rechnet der Editor mit der Kontur aus der STEP.",
+     "STEP: Flachstahl mit Längsfasen und Zuschnitte mit runden Ecken wie in der STEP."],
     ["0.9.267", "<b>Einzelteile, Satz und Schweißbaugruppe umwandeln</b> ([[umwandeln]]): per Rechtsklick werden markierte "
      "Einzelteile ein Satz (Name und Anzahl Sätze im Fenster, Vorschlag = größter gemeinsamer Teiler der Stückzahlen), "
      "ein Satz eine Schweißbaugruppe (Editor mit allen Teilen, Anzahl Baugruppen = Anzahl Sätze) und beides wieder "

@@ -619,6 +619,31 @@ def offen_lage(querschnitt, profil):
     return lage
 
 
+def fasen_umriss(m, offen, liste):
+    """Querschnitt eines Flachstahls mit Längsfasen (Messung: Hinweis 'Querschnitt mit Längsfasen', Plan 06.11.2026
+    A2) als Polygon [[u, v]] der Skizze (offen_lage: gleiche Drehung wie die Konturen), Ecken auf 0,01 mm; sonst
+    None (Rechteck)."""
+    if offen is None or "Längsfasen" not in str(m.get("hinweise") or ""):
+        return None
+    kopf = next((d for d in liste or () if isinstance(d, dict) and d.get("art") == "Ende A"), {})
+    pts = [(float(x), float(y)) for x, y in kopf.get("querschnitt") or () if x is not None and y is not None]
+    if len(pts) < 5:
+        return None
+    um = [offen.uv(x, y) for x, y in pts]
+    ecken = list(um)
+    weg = True
+    while weg and len(ecken) > 4:           # nur Knickpunkte: Punkte auf einer Geraden (unter 0,02 mm) fallen weg
+        weg = False
+        for i in range(len(ecken)):
+            a, p, c = ecken[i - 1], ecken[i], ecken[(i + 1) % len(ecken)]
+            lg = math.hypot(c[0] - a[0], c[1] - a[1])
+            if lg > 1e-9 and abs((c[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (c[1] - a[1])) / lg < 0.02:
+                del ecken[i]
+                weg = True
+                break
+    return [[round(u, 2), round(v, 2)] for u, v in ecken] if len(ecken) >= 5 else None
+
+
 def offen_s(offen, x, y):
     """Punkt (x, y) der Messung (Querschnitt um die Mitte, offen_lage) als (s, Abstand) auf den Flächen der Skizze:
     s = Stelle der Abwicklung (wie skizze.s_lage), Abstand = von der Außenseite der nächsten Fläche ins Material."""
@@ -999,6 +1024,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             eing["c_lippe_profil"] = mp
     if r_mess is not None and kasten and mp:    # Eckradius der STEP-Datei: Skizze und 3D wie die STEP
         eing.update(r_step=r_mess, r_step_profil=mp)
+    qs_step = fasen_umriss(m, offen, liste) if form == "Flachstahl" and mp else None
+    if qs_step:                 # Flachstahl mit Längsfasen (Schneidkante): Querschnitt in Skizze und 3D wie die STEP
+        eing.update(querschnitt_step=qs_step, querschnitt_step_profil=mp)
     for d in liste:
         if not isinstance(d, dict):
             continue

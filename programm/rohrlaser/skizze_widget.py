@@ -66,6 +66,11 @@ class Skizze(QWidget):
             if lippe != getattr(self, "_lippe", None):
                 self.qs = sk.Querschnitt(dict(self.profil, lippe=lippe) if lippe else self.profil)
                 self._lippe = lippe
+        elif (self.profil or {}).get("form") == "Flachstahl":   # Längsfasen der STEP wie im 3D (mit_radius)
+            um = sw.mit_radius(self.profil, eingaben).get("umriss_step")
+            if um != getattr(self, "_umriss_step", None):
+                self.qs = sk.Querschnitt(dict(self.profil, umriss_step=um) if um else self.profil)
+                self._umriss_step = um
         if self._ziehen is None or self._ziehen.get("art") != "kontur":
             self.update()
 

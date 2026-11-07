@@ -2751,6 +2751,11 @@ def kapitel_step(i):
             "Abgrenzung: Flachstahl, wenn das Teil höchstens so breit ist wie in <i>STEP-Import: Flachstahl bis "
             "Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang wie breit ist und gerade Längsseiten hat; alles "
             "andere Flache ist ein Blech.",
+            "<b>Flachstahl mit Längsfasen</b> (seit 0.9.268, z. B. die Schneidkante einer Baggerschaufel): sind "
+            "Kanten über die ganze Länge abgeschrägt (Schenkel über 2 mm), steht in der Hinweisspalte <i>Querschnitt "
+            "mit Längsfasen an den Kanten: 70 × 40 mm …</i>, das Profil gilt als unsicher (Ampel gelb). Skizze, 3D "
+            "und STEP-Export zeigen den Querschnitt genau wie in der STEP; wird ein anderes Profil gewählt, ist es "
+            "wieder ein Rechteck. Kleine Walzkanten zählen nicht.",
             "<b>Gekantete Bleche</b> (gleich dicke Schenkel mit Biegeradien oder scharfen Kanten) heißen <i>Blech "
             "gekantet</i>, immer mit Prüfstatus <i>prüfen</i>. Der Import wickelt das Teil ab (k = 0,33, scharfe "
             "Kante: Innenradius = Blechdicke): Zuschnitt, Schenkel-Außenmaße, Biegelinien, alle Innenkonturen und "
@@ -2821,7 +2826,10 @@ def kapitel_step(i):
             "(Werkstoff offen)</i>, die Position hat kein Gewicht und der EK fehlt.",
             "Jedes übernommene Blech trägt seine Maße als Eingaben des Blech-Editors: Zuschnitt (Hüllrechteck, "
             "freie Außenkontur als Polygon, gekantet mit der Abwicklungsfläche) und jede Innenkontur als eigene "
-            "Zeile an ihrer Stelle (Mitte x/y), so wie sie im Modell sitzt; Skizze und Vorschaubild zeigen das Teil "
+            "Zeile an ihrer Stelle (Mitte x/y). Als Rechteck gilt der Zuschnitt seit 0.9.268 nur, wenn Fläche "
+            "<i>und</i> Umfang zum Hüllrechteck passen: abgerundete oder abgeschrägte Ecken (z. B. R5/R10) kommen "
+            "als Polygon, der Schneidweg im Blech-Editor ist dann der der STEP (vorher bis 1 % zu hoch). Die Innenkonturen "
+            "sitzen so wie im Modell; Skizze und Vorschaubild zeigen das Teil "
             "wie in der STEP-Datei. Gekantete Bleche haben noch keine Konturen mit Lage. <b>Doppelklick aufs Bild</b> vor der Artikelnummer öffnet den Blech-Editor (dort z. B. "
             "ein gekantetes Teil als Kantteil mit Schenkeln nachtragen), Doppelklick auf die Nummer die 3D-Ansicht.",
             "Bleche mit Prüfstatus <i>prüfen</i> (z. B. gekantete) sind nicht angehakt und werden erst nach "
