@@ -633,7 +633,11 @@ def kapitel_start(i):
             "Angebotsnummer, Anzahl Positionen und Teile.",
             "<b>Arbeitsspeicher</b>: jeder Eintrag nennt, wie viel Speicher das Programm gerade braucht; wächst er um "
             "100 MB über den bisher höchsten Stand, steht eine eigene Zeile mit dem Ort im Protokoll. tempo.txt im "
-            "Support-Paket nennt den höchsten Stand.")
+            "Support-Paket nennt den höchsten Stand.",
+            "<b>Abschnitte</b> (seit 0.9.270): beim Übernehmen aus dem STEP-Prüfdialog nennt der Eintrag zusätzlich, "
+            "welcher Schritt wie lange gebraucht hat, z. B. <i>Abschnitte: STEP: Teile übernehmen 3.1 s; STEP: "
+            "Gegenprobe Rohr 2.4 s; STEP: Automatik nach dem Import 0.8 s</i>. tempo.txt listet die längsten Einträge "
+            "mit ihren Abschnitten.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
