@@ -2486,9 +2486,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         pl.addLayout(self.pos_leiste)
         # Schnellzeile (Plan Bedienung B6): „QR 40x3 S235 1250 20“ + Eingabe legt die Position an
         self.schnell = SchnellFeld()
-        self.schnell.setPlaceholderText("Schnellzeile: z. B. QR 40x3 S235 1250 20 (Profil, Werkstoff, Länge, Stück) – "
-                                        "Eingabe legt die Position an")
-        self.schnell.setToolTip("Profil, Werkstoff, Länge [mm] und Stückzahl in einer Zeile. Eindeutig mit L=1250, "
+        # kurz genug auch für breitere Schriften (CI 07.11.2026: 50 px abgeschnitten); die Reihenfolge steht im Tooltip
+        self.schnell.setPlaceholderText("Schnellzeile: z. B. QR 40x3 S235 1250 20 – Eingabe legt die Position an")
+        self.schnell.setToolTip("Profil, Werkstoff, Länge [mm] und Stückzahl in einer Zeile, z. B. QR 40x3 S235 1250 20 "
+                                "(Profil, Werkstoff, Länge, Stück). Eindeutig mit L=1250, "
                                 "1250mm, 20 Stk, x20; Artikelnummer mit #. Mehrere Zeilen (z. B. aus einer E-Mail "
                                 "oder Excel) mit Strg+V einfügen: je Zeile eine Position.")
         self.schnell_vorschau = QLabel()
