@@ -5185,6 +5185,44 @@ def uebertragbar(t):
             and t.geschlossen is None)
 
 
+VEREINFACHT_FLAECHEN_MAX = 3000     # mehr Flächen: auch vereinfacht nicht messen (das Auswerten der Flächen dauert)
+
+
+def _zeitlimit_vereinfacht(solid, datei, koerper, grund):
+    """Körper über dem Zeitlimit vereinfacht messen (Vorschlag M4, Patrick 07.11.2026): nur Hüllmaß, Volumen und
+    Flächen, als Frästeil (Zukaufteil, Rohling = Hüllquader) angenommen, gelb mit Hinweis. Ohne Ergebnis None (dann wie
+    bisher nicht gemessen)."""
+    try:
+        import step_drehfraes as df
+        n = 0
+        ex = TopExp_Explorer(solid, TopAbs_FACE)
+        while ex.More():
+            n += 1
+            if n > VEREINFACHT_FLAECHEN_MAX:
+                return None
+            ex.Next()
+        fl = df.flaechen(solid)
+        info = df.fraesteil_von_hand(fl, df._huelle(solid))
+        if info is None:
+            return None
+        info["merkmale"] = ["vereinfacht gemessen"]
+        v = _volumen(solid)
+        info["volumen"] = round(v, 1)
+        info["fingerabdruck"] = df.fingerabdruck(info, fl)
+        info["text"] = f"{df.FRAESTEIL} (vereinfacht gemessen)"
+    except Exception:  # vereinfacht messen darf nie stören
+        return None
+    t = Teil(datei=datei, koerper=koerper)
+    t.bauteiltyp = t.profilform = df.FRAESTEIL
+    t.abm_a, t.abm_b, t.laenge = info["breite"], info["hoehe"], info["laenge"]
+    t.volumen, t.drehfraes = v, info
+    t.sicherheit.update(profil="unsicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
+    t.hinweise.append(f"vereinfacht gemessen ({grund}): nur Hüllmaß und Volumen, als Frästeil (Zukauf) angenommen "
+                      "– Art prüfen")
+    t.art_grund, t.art_regel = info["text"], "Dreh-/Frästeil"
+    return t
+
+
 def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
     """Körper i (ab 1) einer gelesenen Datei messen: Teil mit Importdaten, Bauteilname und Rohnetz, wenn nicht
     messbar. Das Teil lässt sich zwischen Prozessen übergeben (ohne _rahmen, siehe teil_uebergeben)."""
@@ -5192,8 +5230,11 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
     info = gel.info
     auslassen = auslassen or {}
     if i in auslassen:
-        t = Teil(datei=gel.name, koerper=i)
-        t.hinweise.append(f"nicht gemessen: {auslassen[i]}")
+        t = _zeitlimit_vereinfacht(k, gel.name, i, auslassen[i]) if str(auslassen[i]).startswith("Zeitlimit") \
+            else None
+        if t is None:
+            t = Teil(datei=gel.name, koerper=i)
+            t.hinweise.append(f"nicht gemessen: {auslassen[i]}")
     elif art == "Flächenmodell offen":
         t = Teil(datei=gel.name, koerper=i)
         t.hinweise.append("Flächenmodell nicht geschlossen, nicht messbar")

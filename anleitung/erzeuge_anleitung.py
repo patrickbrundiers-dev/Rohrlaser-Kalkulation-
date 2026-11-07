@@ -2488,8 +2488,9 @@ def kapitel_step(i):
             "lässt das Einlesen zwei Prüfungen auf sich kreuzende Kanten weg, die bei Tausenden Bohrungen sonst "
             "Stunden dauern; die Messwerte bleiben gleich.",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
-            "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
-            "Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
+            "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 600 s, bis 0.9.272 120 s), wird nur er "
+            "vereinfacht gemessen (seit 0.9.273: Hüllmaß und Volumen, als Frästeil/Zukaufteil angenommen, gelb mit "
+            "Hinweis <i>vereinfacht gemessen … Art prüfen</i>) und die Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
             "verschoben) werden nur einmal gemessen; gleiche Bleche, Kantteile, Dreh- und Frästeile auch dann, wenn "
             "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Eine große Datei wird auf "
             "mehrere Messprozesse verteilt und dafür nur einmal eingelesen. "
@@ -7555,10 +7556,13 @@ def kapitel_einstellungen(i):
          "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1); eine "
          "einzelne große Baugruppe wird auf so viele Prozesse verteilt (mit Zeitlimit). Weniger "
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
-        ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper nicht gemessen)",
-         "Braucht ein einzelner Körper länger (Vorgabe 120 s) oder stürzt seine Messung ab, wird nur dieser "
-         "Körper ausgelassen: er steht im Prüfdialog als nicht übernehmbar mit dem Hinweis <i>nicht gemessen: "
-         "Zeitlimit … überschritten</i>, alle anderen Körper der Datei werden gemessen ([[step]]). Gleiche "
+        ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
+         "Braucht ein einzelner Körper länger (Vorgabe 600 s; wer noch die alte Vorgabe 120 s hatte, bekommt mit "
+         "0.9.273 einmalig 600 s, eigene Werte bleiben), wird er vereinfacht gemessen: nur Hüllmaß und Volumen, als "
+         "Frästeil (Zukaufteil, Rohling = Hüllquader) angenommen, gelb mit dem Hinweis <i>vereinfacht gemessen "
+         "(Zeitlimit … überschritten) … Art prüfen</i>. Hat er mehr als 3.000 Flächen oder stürzt seine Messung ab, "
+         "steht er wie bisher als nicht übernehmbar da (<i>nicht gemessen: …</i>). Seit 0.9.272 wartet der "
+         "Prüfdialog nicht auf langsame Körper (siehe [[step]]). Alle anderen Körper der Datei werden gemessen. Gleiche "
          "Kopien dieses Körpers ebenso. Dauern die Auswertungen über die ganze Baugruppe (Anbauteile, "
          "Nahtkandidaten) zu lange, fehlen nur diese, mit Hinweis am ersten Teil."],
         ["STEP-Import", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen), Messung: Zwischenspeicher "

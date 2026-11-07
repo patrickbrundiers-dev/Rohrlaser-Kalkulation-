@@ -74,6 +74,7 @@ TESTS = [
     ("test_normteile_preis.py", {}),
     ("test_aufteilen.py", {}),
     ("test_pruefdialog_m1_m3.py", {}),
+    ("test_zeitlimit_vereinfacht.py", {}),
     ("test_langsam_hintergrund.py", {}),
     ("test_pruefsammlung_waechst.py", {}),
     ("test_rueckfragen_0711.py", {}),

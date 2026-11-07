@@ -92,7 +92,7 @@ for name in ("flach_als", "flachstahl_bis", "step_ordner", "step_werkstoff", "fl
     assert EINSTELLUNG[name].gruppe == "STEP-Import", name
 assert {"step_prozesse", "step_cache", "step_cache_mb"} <= teilen.LOKAL
 args = step_einstellungen.mess_argumente(db)
-assert args[args.index("--zeitlimit") + 1] == "120" and "--cache" in args
+assert args[args.index("--zeitlimit") + 1] == "600" and "--cache" in args
 assert args[args.index("--cache") + 1] == str(tmp / "db" / "STEP-Cache")
 db.einstellung_setzen("step_tol_kernloch", 0.3)
 db.einstellung_setzen("step_tol_profil", 0.4)
