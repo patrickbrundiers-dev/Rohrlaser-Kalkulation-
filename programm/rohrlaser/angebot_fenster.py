@@ -2290,6 +2290,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
+                ("Blech-EK je Satz/Baugruppe …", lambda: self.satz_bearbeiten(), ""),
                 ("Zusatzarbeit für ganzen Satz …", lambda: self.zusatz_satz(), ""),
                 # Einzelteile ↔ Satz ↔ Schweißbaugruppe umwandeln (umwandeln.py, Patrick 06.11.2026)
                 ("Als Satz zusammenfassen …", lambda: self.als_satz(), ""),
@@ -5287,6 +5288,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             sichtbar = not zeilen or noetig is None or bool(arten & noetig)
             if text in ("Satz in 3D …", "Satz bearbeiten (Anzahl Sätze) …"):
                 sichtbar = mit_satz
+            elif text == "Blech-EK je Satz/Baugruppe …":     # Patrick 07.11.2026: Einkauf je Satz leichter finden
+                sichtbar = mit_satz or mit_bg
             elif text == "Zusatzarbeit für ganzen Satz …":
                 sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
@@ -5653,6 +5656,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()
+        bg_id = (baugruppe.lesen(d.ergebnis["position"].get("baugruppe")) or baugruppe.lesen(p.get("baugruppe"))
+                 or {}).get("id")
+        hinweise += self.einkauf_anwenden(d.ergebnis.get("einkauf"), bg=bg_id)
         self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
         self._nach_editor_umwandeln(d, bg_pid=p["id"])
         return True
@@ -7006,6 +7012,22 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.db.position_aendern(pid, f, w)
         return len({pid for pid, _, _ in aend})
 
+    def einkauf_anwenden(self, kosten, satz=None, bg=None):
+        """Einkauf je Satz bzw. je Baugruppe (Patrick 07.11.2026) aus Satz in 3D und dem Baugruppen-Editor auf die
+        Teile umlegen (satz_kosten.py), nach dem Speichern der übrigen Änderungen. Ergebnis: Hinweise für die
+        Meldung."""
+        from . import satz_kosten
+        if not kosten or not (satz or bg):
+            return []
+        aend = satz_kosten.verteilen(self.positionen, satz, kosten, bg=bg)
+        for pid, f, w in aend:
+            self.db.position_aendern(pid, f, w)
+        if not aend:
+            return []
+        self.neu_laden()
+        wer = "Baugruppe" if bg else "Satz"
+        return [f"Einkauf je {wer} auf {len(aend)} Position(en) umgelegt."]
+
     def satz_bearbeiten(self, zeile=None, satz=None, dialog=None):
         """Fenster „Satz bearbeiten“ (satz_dialog.py) für den Satz der Zeile: Anzahl Sätze und Stück je Satz, die
         Stückzahlen folgen; ein Schritt für Rückgängig. dialog(d) bedient das Fenster statt exec (Tests).
@@ -8122,6 +8144,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if self.saetze_anwenden(satz, n):
                 hinweise.append(f"Anzahl Sätze: {n}, Stückzahlen angepasst.")
         self.neu_laden()
+        hinweise += self.einkauf_anwenden(d.ergebnis.get("einkauf"), satz=satz)
         n = len(d.ergebnis["naehte"])
         self.f.meldung(f"Satz {satz} gespeichert." + (f" Längsnaht für {n} Teil(e) gesetzt." if n else "")
                        + "".join(f" {h}" for h in hinweise))

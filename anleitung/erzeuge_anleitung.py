@@ -1757,7 +1757,8 @@ def kapitel_angebot(i):
            "die <b>Anzahl Sätze</b> mit − und +, darunter jede Position mit <b>Stück je Satz</b>. Die Stückzahlen "
            "rechnen sich sofort mit (Sätze × Stück je Satz); OK schreibt alles als einen Schritt für Strg+Z. "
            "Hat der Satz Zukaufteile, steht darunter <b>Einkauf je Satz</b>: je ein Feld für <b>Bleche</b>, "
-           "<b>Vollmaterial</b> und <b>Dreh-/Frästeile</b> (EK in € für einen ganzen Satz).", kurz=True)
+           "<b>Vollmaterial</b> und <b>Dreh-/Frästeile</b> (EK in € für einen ganzen Satz). Schnell dorthin: "
+           "<i>Rechtsklick → Blech-EK je Satz/Baugruppe …</i>.", kurz=True)
     i.genauer()
     i.liste("Auch direkt in der Liste passen die beiden Spalten zusammen: Wer <b>Stück je Satz</b> ändert, bekommt "
             "die Stückzahl passend zur Anzahl Sätze dazu. Wer die <b>Stückzahl</b> einer Satzposition ändert, bekommt "
@@ -1769,6 +1770,15 @@ def kapitel_angebot(i):
             "Gewicht (fehlt bei einem Teil das Gewicht: nach Stück). Er ersetzt den EK aus den Artikeln nur in diesem "
             "Angebot; die Artikel bleiben unverändert. Auf Zukaufteile kommt wie immer nur der Aufschlag, kein "
             "Gewinn. Feld leer (<i>aus den Artikeln</i>) = wieder der EK der Artikel.",
+            "Dieselben Felder stehen in allen Editoren: in <b>Satz in 3D</b> ([[satz_3d]]) unter <i>Anzahl Sätze</i> "
+            "und im Editor der <b>Schweißbaugruppe</b> ([[schweissbaugruppe]]) als <b>Einkauf je Baugruppe</b> unter "
+            "der Kopfzeile. Bei der Baugruppe wird der Betrag × Anzahl Baugruppen auf ihre Einzelteile umgelegt; das "
+            "Stück je Baugruppe kommt aus der Struktur (Unterbaugruppen mit Menge). <i>Rechtsklick → Blech-EK je "
+            "Satz/Baugruppe …</i> öffnet bei einem Satz das Fenster Satz bearbeiten, bei einer Baugruppe oder einem "
+            "ihrer Teile den Editor der Baugruppe.",
+            "Hat der Satz bzw. die Baugruppe keine Bleche, kein Vollmaterial und keine Dreh-/Frästeile als "
+            "Zukaufteile (Kategorie Blechteile, Vollmaterial, Drehteile oder Frästeile), steht statt der Felder ein "
+            "grauer Hinweis. Bei einer neuen Baugruppe erscheinen die Felder erst nach dem ersten Speichern.",
             "Hatten die Positionen eines Satzes bisher unterschiedlich viele Sätze, sagt es das Fenster; mit OK haben "
             "alle die Anzahl oben. Geänderte Stückzahlen stehen fett, darunter die Teile gesamt vorher und nachher.",
             "Im Fenster <i>Satz in 3D</i> ([[satz_3d]]) steht dasselbe Feld <b>Anzahl Sätze</b> neben „Satz als "
@@ -4321,6 +4331,8 @@ def kapitel_optimieren(i):
     i.genauer()
     i.liste("<b>Anzahl Sätze</b> oben neben „Satz als Muster“: mit OK bekommen alle Teile des Satzes Stückzahl = "
             "Sätze × Stück je Satz ([[satz_bearbeiten]]).",
+            "<b>Einkauf je Satz</b> darunter: kompletter EK der Bleche (Vollmaterial, Dreh-/Frästeile) je Satz, mit "
+            "OK nach Gewicht auf die Teile umgelegt, wie im Fenster Satz bearbeiten ([[satz_bearbeiten]]).",
             "<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
             "3D blau. Ein Klick auf ein Teil im 3D markiert es, auch nahe an einer Kante; mit Strg kommt es dazu bzw. "
             "fällt wieder weg. Die Zeile unter der Ansicht nennt die markierten Positionen. Ein <b>Doppelklick</b> "
@@ -5763,7 +5775,9 @@ def kapitel_baugruppen(i):
     i.bild("baugruppe_struktur", "Editor Schweißbaugruppe, Reiter Struktur und Teile", hoehe=70 * mm, legende=[
         (1, "<b>Bezeichnung</b> und <b>Artikelnummer</b> der Baugruppe; die Bezeichnung ist der Satzname im "
             "Angebot."),
-        (2, "<b>Anzahl Baugruppen</b>: Stückzahl der Baugruppe; alle Einzelteile folgen."),
+        (2, "<b>Anzahl Baugruppen</b>: Stückzahl der Baugruppe; alle Einzelteile folgen. Darunter <b>Einkauf je "
+            "Baugruppe</b>: kompletter EK der Bleche (Vollmaterial, Dreh-/Frästeile), nach Gewicht auf die "
+            "Einzelteile umgelegt ([[satz_bearbeiten]])."),
         (3, "<b>Unterbaugruppen</b> mit <b>Menge</b> je übergeordneter Baugruppe (<b>Unterbaugruppe hinzufügen</b>,"
             " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
         (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "

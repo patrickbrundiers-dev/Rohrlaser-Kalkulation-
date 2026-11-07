@@ -136,6 +136,10 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         zeile.addWidget(self.saetze_feld)
         zeile.addStretch(1)
         lay.addLayout(zeile)
+        # Einkauf je Satz (Patrick 07.11.2026): dieselben Felder wie im Fenster „Satz bearbeiten“
+        from .einkauf_felder import EinkaufFelder
+        self.einkauf = EinkaufFelder(positionen, satz=satz, nur_lesen=nur_lesen)
+        lay.addWidget(self.einkauf)
         teilung = QSplitter(Qt.Horizontal)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
@@ -379,7 +383,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
                     teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
                     daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]),
-                    **self.muster_haken.geaendert(), **self.saetze_geaendert())
+                    einkauf=self.einkauf.geaendert(), **self.muster_haken.geaendert(), **self.saetze_geaendert())
 
     def saetze_geaendert(self):
         """{'saetze': n}, wenn die Anzahl Sätze geändert wurde, sonst {}."""

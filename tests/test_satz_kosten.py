@@ -7,6 +7,9 @@ alle Zukaufteile, dann separate Kosten“):
 - K2 zukauf.rechnen: der feste EK ersetzt den EK des Artikels (auch wenn der fehlt), Aufschlag wie bisher.
 - K3 Fenster „Satz bearbeiten“: Felder nur für vorhandene Arten, Betrag gespeichert, wieder angezeigt, Rückgängig.
 - K4 Prüfdialog: Zukaufteile nur mit „als Schweißbaugruppe“ angehakt; Umschalten zieht mit, von Hand gesetzte bleiben.
+- K5 (07.11.2026) Schweißbaugruppe: Einkauf je Baugruppe auf ihre Einzelteile (Stück je Baugruppe aus der Struktur).
+- K6 (07.11.2026) gleiche Felder in Satz in 3D und im Baugruppen-Editor, Rechtsklick „Blech-EK je Satz/Baugruppe …“,
+  Hinweis ohne passende Zukaufteile.
 
 Aufruf: python tests/test_satz_kosten.py   (ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -99,6 +102,7 @@ def _():
     QApplication.instance() or QApplication([])
     tmp = Path(tempfile.mkdtemp())
     db = Datenbank(tmp / "rohrlaser.db")
+    db.einstellung_setzen("auto_optimieren_bis", 0)     # kein Timer nach dem Schließen (K6 läuft danach)
     fenster = Hauptfenster(db, tmp, stumm=True)
     a = db.angebot_neu(dict(kunde="Test", kundennr="4711"))
     for nr, kat, je, g in ((10, "Blechteile", 2, 1.5), (20, "Blechteile", 1, 3.0), (30, "Drehteile", 1, 0.2)):
@@ -167,6 +171,82 @@ def _():
     d.werte_schreiben()
     assert [mw[i]["_uebernehmen"] for i in bl[1].liste] == [True]
     d.close()
+    db.con.close()
+
+
+def _angebot_satz():
+    from rohrlaser.angebot import ZUKAUFTEIL
+    QApplication.instance() or QApplication([])
+    tmp = Path(tempfile.mkdtemp())
+    db = Datenbank(tmp / "rohrlaser.db")
+    db.einstellung_setzen("auto_optimieren_bis", 0)     # kein Timer nach dem Schließen
+    fenster = Hauptfenster(db, tmp, stumm=True)
+    a = db.angebot_neu(dict(kunde="Test", kundennr="4711"))
+    for nr, kat, je, g in ((10, "Blechteile", 2, 1.5), (20, "Blechteile", 1, 3.0), (30, "Drehteile", 1, 0.2)):
+        db.position_neu(a, dict(pos=nr, artikel=f"T{nr}", art=ZUKAUFTEIL, stueck=4 * je, satz="Gestell", je_satz=je,
+                                gewicht_teil=g, zukauf=json.dumps([eintrag(kat)])))
+    return db, fenster, fenster.angebot_oeffnen(a)
+
+
+@fall("K5 Schweißbaugruppe: Einkauf je Baugruppe nach Gewicht auf die Einzelteile, Stück je Baugruppe aus der Struktur")
+def _():
+    from rohrlaser.angebot import BAUGRUPPE
+    pos = [dict(id=9, art=BAUGRUPPE, bezeichnung="Rahmen", stueck=3,
+                baugruppe=json.dumps(dict(id="bg1", knoten=[], naehte=[], arbeitsgaenge=[]))),
+           dict(id=1, bg_knoten="bg1", je_knoten=2, stueck=6, gewicht_teil=1.5, zukauf=[eintrag("Blechteile")]),
+           dict(id=2, bg_knoten="bg1", je_knoten=1, stueck=3, gewicht_teil=3.0, zukauf=[eintrag("Blechteile")]),
+           dict(id=3, satz="G", je_satz=1, stueck=3, gewicht_teil=3.0, zukauf=[eintrag("Blechteile")])]
+    assert satz_kosten.arten(pos, None, bg="bg1") == ["Bleche"]
+    neu = {pid: json.loads(w) for pid, f, w in satz_kosten.verteilen(pos, None, {"Bleche": 90.0}, bg="bg1")}
+    assert set(neu) == {1, 2}, set(neu)               # Satz G bleibt unberührt
+    assert neu[1][0]["ek_fest"] == 22.5 and neu[2][0]["ek_fest"] == 45.0, (neu[1], neu[2])
+    for p in pos:
+        if p["id"] in neu:
+            p["zukauf"] = neu[p["id"]]
+    assert satz_kosten.betraege(pos, None, bg="bg1") == {"Bleche": 90.0}
+    assert satz_kosten.betraege(pos, "G") == {}
+
+
+@fall("K6 Satz in 3D, Baugruppen-Editor und Rechtsklick: dieselben Felder, umgelegt, Hinweis ohne Zukaufteile")
+def _():
+    from rohrlaser.angebot import BAUGRUPPE
+    from rohrlaser.einkauf_felder import EinkaufFelder
+    db, fenster, s = _angebot_satz()
+    QApplication.processEvents()
+    assert "Blech-EK je Satz/Baugruppe …" in s.pos_aktionen
+    gesehen = {}
+
+    def satz3d(d):
+        gesehen["3d"] = list(d.einkauf.felder)
+        d.einkauf.felder["Bleche"].setValue(240)
+        d._ok()
+        return QDialog.Accepted
+    assert s.satz_3d(0, dialog=satz3d)
+    assert gesehen["3d"] == ["Bleche", "Dreh-/Frästeile"], gesehen
+    ek = [zukauf.json_liste(p["zukauf"])[0].get("ek_fest") for p in s.positionen]
+    assert ek == [60.0, 120.0, None], ek
+    # Satz -> Schweißbaugruppe, dann im Editor Einkauf je Baugruppe ändern
+    assert s.satz_zu_bg(0, dialog=lambda d: d._ok() or d.result())
+    i = next(i for i, q in enumerate(s.positionen) if q.get("art") == BAUGRUPPE)
+
+    def editor(d):
+        gesehen["bg"] = list(d.einkauf.felder)
+        gesehen["bg_alt"] = d.einkauf.felder["Bleche"].value()
+        d.einkauf.felder["Bleche"].setValue(480)
+        d._ok()
+        return d.result()
+    assert s.baugruppe_bearbeiten([i], dialog=editor)
+    assert gesehen["bg"] == ["Bleche", "Dreh-/Frästeile"] and gesehen["bg_alt"] == 240, gesehen
+    ek = {q["artikel"]: zukauf.json_liste(q["zukauf"])[0].get("ek_fest") for q in s.positionen if q.get("zukauf")}
+    assert ek["T10"] == 120.0 and ek["T20"] == 240.0 and ek["T30"] is None, ek
+    # Rechtsklick auf ein Teil der Baugruppe öffnet den Editor mit dem Feld
+    j = next(j for j, q in enumerate(s.positionen) if q.get("artikel") == "T10")
+    assert s.satz_bearbeiten(j, dialog=lambda d: gesehen.update(rk=type(d).__name__) or QDialog.Rejected) is False
+    assert gesehen["rk"] == "BaugruppeDialog", gesehen
+    # ohne passende Zukaufteile: Hinweis statt Feld
+    w = EinkaufFelder([dict(id=1, satz="X", je_satz=1, stueck=1)], satz="X")
+    assert not w.felder and w.hinweis and "keine Bleche" in w.hinweis.text()
+    fenster.close()
     db.con.close()
 
 
