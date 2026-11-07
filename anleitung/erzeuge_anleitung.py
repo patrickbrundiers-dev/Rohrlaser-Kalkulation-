@@ -634,7 +634,7 @@ def kapitel_start(i):
             "<b>Arbeitsspeicher</b>: jeder Eintrag nennt, wie viel Speicher das Programm gerade braucht; wächst er um "
             "100 MB über den bisher höchsten Stand, steht eine eigene Zeile mit dem Ort im Protokoll. tempo.txt im "
             "Support-Paket nennt den höchsten Stand.",
-            "<b>Abschnitte</b> (seit 0.9.270): beim Übernehmen aus dem STEP-Prüfdialog nennt der Eintrag zusätzlich, "
+            "<b>Abschnitte</b> (seit 0.9.271): beim Übernehmen aus dem STEP-Prüfdialog nennt der Eintrag zusätzlich, "
             "welcher Schritt wie lange gebraucht hat, z. B. <i>Abschnitte: STEP: Teile übernehmen 3.1 s; STEP: "
             "Gegenprobe Rohr 2.4 s; STEP: Automatik nach dem Import 0.8 s</i>. tempo.txt listet die längsten Einträge "
             "mit ihren Abschnitten.")
@@ -1761,7 +1761,8 @@ def kapitel_angebot(i):
            "die <b>Anzahl Sätze</b> mit − und +, darunter jede Position mit <b>Stück je Satz</b>. Die Stückzahlen "
            "rechnen sich sofort mit (Sätze × Stück je Satz); OK schreibt alles als einen Schritt für Strg+Z. "
            "Hat der Satz Zukaufteile, steht darunter <b>Einkauf je Satz</b>: je ein Feld für <b>Bleche</b>, "
-           "<b>Vollmaterial</b> und <b>Dreh-/Frästeile</b> (EK in € für einen ganzen Satz).", kurz=True)
+           "<b>Vollmaterial</b> und <b>Dreh-/Frästeile</b> (EK in € für einen ganzen Satz). Schnell dorthin: "
+           "<i>Rechtsklick → Blech-EK je Satz/Baugruppe …</i>.", kurz=True)
     i.genauer()
     i.liste("Auch direkt in der Liste passen die beiden Spalten zusammen: Wer <b>Stück je Satz</b> ändert, bekommt "
             "die Stückzahl passend zur Anzahl Sätze dazu. Wer die <b>Stückzahl</b> einer Satzposition ändert, bekommt "
@@ -1773,6 +1774,15 @@ def kapitel_angebot(i):
             "Gewicht (fehlt bei einem Teil das Gewicht: nach Stück). Er ersetzt den EK aus den Artikeln nur in diesem "
             "Angebot; die Artikel bleiben unverändert. Auf Zukaufteile kommt wie immer nur der Aufschlag, kein "
             "Gewinn. Feld leer (<i>aus den Artikeln</i>) = wieder der EK der Artikel.",
+            "Dieselben Felder stehen in allen Editoren: in <b>Satz in 3D</b> ([[satz_3d]]) unter <i>Anzahl Sätze</i> "
+            "und im Editor der <b>Schweißbaugruppe</b> ([[schweissbaugruppe]]) als <b>Einkauf je Baugruppe</b> unter "
+            "der Kopfzeile. Bei der Baugruppe wird der Betrag × Anzahl Baugruppen auf ihre Einzelteile umgelegt; das "
+            "Stück je Baugruppe kommt aus der Struktur (Unterbaugruppen mit Menge). <i>Rechtsklick → Blech-EK je "
+            "Satz/Baugruppe …</i> öffnet bei einem Satz das Fenster Satz bearbeiten, bei einer Baugruppe oder einem "
+            "ihrer Teile den Editor der Baugruppe.",
+            "Hat der Satz bzw. die Baugruppe keine Bleche, kein Vollmaterial und keine Dreh-/Frästeile als "
+            "Zukaufteile (Kategorie Blechteile, Vollmaterial, Drehteile oder Frästeile), steht statt der Felder ein "
+            "grauer Hinweis. Bei einer neuen Baugruppe erscheinen die Felder erst nach dem ersten Speichern.",
             "Hatten die Positionen eines Satzes bisher unterschiedlich viele Sätze, sagt es das Fenster; mit OK haben "
             "alle die Anzahl oben. Geänderte Stückzahlen stehen fett, darunter die Teile gesamt vorher und nachher.",
             "Im Fenster <i>Satz in 3D</i> ([[satz_3d]]) steht dasselbe Feld <b>Anzahl Sätze</b> neben „Satz als "
@@ -2939,13 +2949,13 @@ def kapitel_step(i):
             "<b>Nur nach den Maßen verdächtig</b> (kurzes dickwandiges Rohr wie eine Buchse Ø40/Ø25, dickes Profil "
             "ohne Normmaß): Prüfstatus <i>prüfen</i>, erst nach Anhaken übernommen. Steht das Rohr bzw. Profil in den "
             "Stammdaten, bleibt es ein Rohr/Profil (Hinweis <i>Profil steht in den Stammdaten</i>).",
-            "<b>Modelliertes Gewinde</b> (seit 0.9.270): Gewindestangen, Schrauben und Gewindegänge, deren Flanken im "
+            "<b>Modelliertes Gewinde</b> (seit 0.9.271): Gewindestangen, Schrauben und Gewindegänge, deren Flanken im "
             "CAD als echte Wendel gezeichnet sind, erkennt der Import vorab und misst sie gleich als Drehteil mit "
             "Merkmal <i>Außen- bzw. Innengewinde Ø… modelliert</i> (Ø = Gewinde-Nenndurchmesser; ist nur der "
             "Gewindegang ein eigener Körper, zusätzlich <i>nur Gewindegänge</i>). Die Ampel steht gelb mit dem "
             "Hinweis <i>vereinfacht gemessen</i>. Vorher suchte die Profilmessung in den Flanken minutenlang einen "
             "Querschnitt (bis 26 Minuten je Körper) und fand doch keinen.",
-            "<b>Nach der Prüfsammlung</b> (seit 0.9.270, 53 typische Teile von Patrick bestätigt): "
+            "<b>Nach der Prüfsammlung</b> (seit 0.9.271, 53 typische Teile von Patrick bestätigt): "
             "<b>Kugeln</b> und <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) sind <i>Normteile</i> "
             "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr. "
             "<b>Ringe mit Kalotten oder Taschen</b> und <b>Hülsen mit Boden</b> (Bohrung nicht durch) sind Drehteile. "
@@ -2957,7 +2967,7 @@ def kapitel_step(i):
             "<b>Platte mit Einpressmuttern/-bolzen</b> (bis 10 % des Volumens, Hinweis <i>Aufgesetzte Kleinteile</i>). "
             "Ein <b>Klotz</b>, kürzer als breit, mit ungleicher Wand ist ein Frästeil statt Rohrstück. Die "
             "Hinweis-Spalte nennt die Regel (z. B. <i>Flachstahl → Blech</i>).",
-            "<b>Mehrere Teile in einem Körper</b> (seit 0.9.270): ist ein Körper offensichtlich aus mehreren "
+            "<b>Mehrere Teile in einem Körper</b> (seit 0.9.271): ist ein Körper offensichtlich aus mehreren "
             "verschmolzenen Teilen (Platte mit angeschweißter Mutter, Blechkasten, dessen Biegezone an mehr als zwei "
             "Schenkeln hängt, „Frästeil“ aus dünnen Wänden), steht die Ampel gelb mit dem Hinweis <i>Mehrere Teile in "
             "einem Körper?</i> und das Teil wird nicht übernommen. Am besten die STEP im CAD in Einzelteile aufteilen; "
@@ -4348,6 +4358,8 @@ def kapitel_optimieren(i):
     i.genauer()
     i.liste("<b>Anzahl Sätze</b> oben neben „Satz als Muster“: mit OK bekommen alle Teile des Satzes Stückzahl = "
             "Sätze × Stück je Satz ([[satz_bearbeiten]]).",
+            "<b>Einkauf je Satz</b> darunter: kompletter EK der Bleche (Vollmaterial, Dreh-/Frästeile) je Satz, mit "
+            "OK nach Gewicht auf die Teile umgelegt, wie im Fenster Satz bearbeiten ([[satz_bearbeiten]]).",
             "<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
             "3D blau. Ein Klick auf ein Teil im 3D markiert es, auch nahe an einer Kante; mit Strg kommt es dazu bzw. "
             "fällt wieder weg. Die Zeile unter der Ansicht nennt die markierten Positionen. Ein <b>Doppelklick</b> "
@@ -5790,7 +5802,9 @@ def kapitel_baugruppen(i):
     i.bild("baugruppe_struktur", "Editor Schweißbaugruppe, Reiter Struktur und Teile", hoehe=70 * mm, legende=[
         (1, "<b>Bezeichnung</b> und <b>Artikelnummer</b> der Baugruppe; die Bezeichnung ist der Satzname im "
             "Angebot."),
-        (2, "<b>Anzahl Baugruppen</b>: Stückzahl der Baugruppe; alle Einzelteile folgen."),
+        (2, "<b>Anzahl Baugruppen</b>: Stückzahl der Baugruppe; alle Einzelteile folgen. Darunter <b>Einkauf je "
+            "Baugruppe</b>: kompletter EK der Bleche (Vollmaterial, Dreh-/Frästeile), nach Gewicht auf die "
+            "Einzelteile umgelegt ([[satz_bearbeiten]])."),
         (3, "<b>Unterbaugruppen</b> mit <b>Menge</b> je übergeordneter Baugruppe (<b>Unterbaugruppe hinzufügen</b>,"
             " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
         (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "

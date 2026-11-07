@@ -8,8 +8,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QLabel,
                                QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import satz_kosten, satz_menge, tastatur
-from .eingabe import RechenSpin, RechenSpinGanz
+from . import satz_menge, tastatur
+from .eingabe import RechenSpinGanz
+from .einkauf_felder import EinkaufFelder
 from .mengen_dialog import STUECK_MAX
 
 SPALTEN = ("Pos.", "Artikel", "Bezeichnung", "Stück je Satz", "Stückzahl", "bisher")
@@ -87,29 +88,10 @@ class SatzDialog(QDialog):
         lay.addWidget(self.tab, 1)
         self.summe = QLabel()
         lay.addWidget(self.summe)
-        # Zukaufkosten je Satz (Patrick 03.11.2026), nur für die Arten, die im Satz vorkommen
-        self.kosten_felder = {}
-        vorhanden = satz_kosten.betraege(positionen, satz)
-        arten = satz_kosten.arten(positionen, satz)
-        if arten:
-            zk = QHBoxLayout()
-            zk.addWidget(QLabel("Einkauf je Satz:"))
-            for a in arten:
-                sp = RechenSpin()
-                sp.setRange(0, 9_999_999)
-                sp.setDecimals(2)
-                sp.setSuffix(" €")
-                sp.setSpecialValueText("aus den Artikeln")
-                sp.setValue(vorhanden.get(a, 0.0))
-                sp.setEnabled(not nur_lesen)
-                sp.setToolTip(f"Kompletter Einkaufspreis der {a} je Satz. Wird nach Gewicht (ohne Gewicht nach Stück) "
-                              f"auf die {a} des Satzes umgelegt und ersetzt deren Einkaufspreis aus dem Artikel; "
-                              "danach nur der Aufschlag wie jedes Zukaufteil. 0 = wieder der EK aus dem Artikel.")
-                zk.addWidget(QLabel(f"{a}"))
-                zk.addWidget(sp)
-                self.kosten_felder[a] = sp
-            zk.addStretch(1)
-            lay.addLayout(zk)
+        # Zukaufkosten je Satz (Patrick 03.11.2026), nur für die Arten, die im Satz vorkommen; ohne: Hinweis
+        self.einkauf = EinkaufFelder(positionen, satz=satz, nur_lesen=nur_lesen)
+        self.kosten_felder = self.einkauf.felder
+        lay.addWidget(self.einkauf)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
@@ -145,5 +127,5 @@ class SatzDialog(QDialog):
             return
         self.saetze = self.anzahl.value()
         self.je = {p["id"]: sp.value() for p, sp in zip(self.teile, self.spins)}
-        self.kosten = {a: sp.value() for a, sp in self.kosten_felder.items()}
+        self.kosten = self.einkauf.kosten()
         self.accept()

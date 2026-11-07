@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.270", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
+    ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
      "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
      "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "
      "Drehteile. Winkel ohne Normmaß oder mit Biegeradius und abwickelbare Sonderprofile sind Kantteile; die gespiegelte "
@@ -33,6 +33,12 @@ NEUERUNGEN = [
      "als 2534 mm), und der Zeitwächter nennt beim Übernehmen aus dem STEP die langsamen Abschnitte "
      "([[zeitwaechter]]).",
      "STEP: Normteile, Ringe, Kantteile, Bleche und verschmolzene Teile richtig; Gewinde schnell; Drehteil-Länge."],
+    ["0.9.270", "<b>Blech-EK je Satz und je Schweißbaugruppe</b> ([[satz_bearbeiten]]): den kompletten Einkaufspreis "
+     "der Bleche (ebenso Vollmaterial, Dreh-/Frästeile) gibt es jetzt in allen Editoren: im Fenster <i>Satz "
+     "bearbeiten</i>, in <i>Satz in 3D</i> und im Editor der <b>Schweißbaugruppe</b> als <b>Einkauf je Baugruppe</b>. "
+     "Der Betrag wird nach Gewicht auf die Teile umgelegt (× Anzahl Sätze bzw. Baugruppen). Neu im Rechtsklick: "
+     "<i>Blech-EK je Satz/Baugruppe …</i>. Gibt es keine passenden Zukaufteile, sagt die Zeile, warum kein Feld da ist.",
+     "Blech-EK komplett je Satz und je Schweißbaugruppe, in allen Editoren und per Rechtsklick."],
     ["0.9.269", "<b>Einfacher bedienen</b>: oben rechts steht das Feld <b>Suchen … (Strg+K)</b>; es findet jetzt auch "
      "die Knöpfe der offenen Seite ([[befehlspalette]]). Die Schrittanzeige im Angebot ist anklickbar, der Knopf "
      "<b>Weiter: …</b> führt den nächsten Schritt aus. Die <b>Lieferzeit</b> steht in einem Feld: einfach "
