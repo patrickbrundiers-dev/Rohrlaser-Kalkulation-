@@ -30,6 +30,7 @@ import step_drehfraes as df
 
 MIN_VOLUMEN = 1.0       # mm³: kleinere Reste der Trennung (Rundungsfehler) fallen weg
 BOLZEN_MIN = 1.0        # mm: kürzere bzw. dünnere Zylinder sind keine Bolzen (Fasen, Rundungen)
+BOLZEN_SCHEIBE = 0.5    # Länge unter so viel des Durchmessers: Scheibe (Ronde, Flansch, Rundung), kein Bolzen
 ZUGABE = 0.01           # mm: Bolzenform etwas dicker als der Bolzen, damit keine Haut am Grundteil bleibt
 
 
@@ -124,7 +125,8 @@ def _zylinder_gruppen(fl):
         g.setdefault("faces", []).append(e["face"])
     for g in gruppen:
         g["t0"], g["t1"] = (min(g["t"]), max(g["t"])) if g["t"] else (0.0, 0.0)
-    return [g for g in gruppen if g["t1"] - g["t0"] >= BOLZEN_MIN and _rundum(g["faces"])]
+    return [g for g in gruppen if g["t1"] - g["t0"] >= max(BOLZEN_MIN, BOLZEN_SCHEIBE * 2 * g["radius"])
+            and _rundum(g["faces"])]
 
 
 def _rundum(faces):

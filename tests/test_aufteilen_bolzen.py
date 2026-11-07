@@ -54,7 +54,9 @@ assert step_aufteilen.teilen(zyl(10, 50)) == [] and step_aufteilen.teilen(quader
 gerundet = radius(quader(100, 40, 10), gerade_kanten_parallel((0, 0, 1)), 5)    # vier Ecken R5 (je ein Viertelbogen)
 assert step_aufteilen._zylinder_gruppen(__import__("step_drehfraes").flaechen(gerundet)) == []
 assert step_aufteilen.teilen(gerundet) == [], "Rundungen sind keine Bolzen"
-ok("Welle mit Absatz, Rundstahl allein, glatte Platte, Platte mit gerundeten Ecken: nichts zu trennen")
+ronde = zyl(100, 5)
+assert step_aufteilen.bolzen(__import__("step_drehfraes").flaechen(ronde)) == [], "Ronde Ø200 × 5 ist eine Scheibe"
+ok("Welle mit Absatz, Rundstahl allein, glatte Platte, Platte mit gerundeten Ecken, Ronde: nichts zu trennen")
 
 schreibe({"Halter_Bolzen": platte_bolzen, "Welle": welle}, TMP)
 aus = TMP / "m.txt"
