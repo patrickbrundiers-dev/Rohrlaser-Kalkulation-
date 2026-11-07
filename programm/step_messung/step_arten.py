@@ -144,3 +144,157 @@ def ergaenzen(solid, t):
         if t.alternative.alternative is t:
             t.alternative.alternative = None
     return t
+
+
+# ---------------------------------------------------------------- Nachregeln (A4 Prüfsammlung, Patrick 07.11.2026)
+# Nach dem Pool der Arten: Fälle, in denen die Messung ein Profil findet, das keins ist, und eine andere Art im Pool
+# passt. Je Regel (Name, Prüfung(t) -> (Gruppe, Grund) oder None); die erste zutreffende tauscht.
+
+def _kandidat(t, gr):
+    """Die Messung der Gruppe gr aus dem Pool (t.alternative oder t.arten) oder None."""
+    if t.alternative is not None and gruppe(t.alternative) == gr:
+        return t.alternative
+    return (t.arten or {}).get(gr)
+
+
+def _blech_gekantet_rund(b):
+    """Gekantetes Blech mit Biegeradien (nicht scharfkantig, Abwicklung ohne Fehler)."""
+    if b is None or b.bauteiltyp != "Blech gekantet" or not isinstance(b.blech, dict):
+        return False
+    abw = b.blech.get("abwicklung") or {}
+    return not abw.get("scharf") and not abw.get("fehler")
+
+
+def _flachstahl_blech(t):
+    if t.bauteiltyp != "Profil" or t.profilform != "Flachstahl" or _kandidat(t, BLECH) is None:
+        return None
+    if t.innen_konturen:
+        return BLECH, "Flachstahl mit Ausschnitten/Bohrungen in der Fläche: Laserteil aus Blech"
+    if t.laenge < g.FLACHSTAHL_LAENGE * t.abm_a - 1e-6:
+        return BLECH, f"Flachstahl kürzer als {g.FLACHSTAHL_LAENGE:g} × Breite (Lasche): Laserteil aus Blech"
+    return None
+
+
+def _sonderprofil_kantteil(t):
+    if t.bauteiltyp != "Profil" or t.profilform != "Sonderprofil" or t.normprofil:
+        return None
+    b = _kandidat(t, BLECH)
+    if _blech_gekantet_rund(b):
+        return BLECH, "Profil nicht erkannt, aber gekantetes Blech mit Biegeradien: Kantteil"
+    if b is not None and b.bauteiltyp == "Blech gekantet" and t.sicherheit.get("wandstaerke") == "unsicher" \
+            and not ((b.blech or {}).get("abwicklung") or {}).get("fehler"):
+        # Mehrkammer-„Profil“ mit ungleicher Wand, das sich als Blech abwickeln lässt (Wanne mit Rand, 0003)
+        return BLECH, "Profil nicht erkannt (Wand ungleich), aber als Blech abwickelbar: Kantteil"
+    return None
+
+
+def _winkel_kein_normmass(t):
+    b = _kandidat(t, BLECH)
+    if t.bauteiltyp == "Profil" and t.profilform == "L-Profil" and not t.normprofil and b is not None \
+            and b.bauteiltyp == "Blech gekantet" and not ((b.blech or {}).get("abwicklung") or {}).get("fehler"):
+        return BLECH, f"Winkel {t.profil_id_vorschlag or ''} ist kein Normmaß: Kantteil".replace("  ", " ")
+    return None
+
+
+def _klotz(t):
+    if t.bauteiltyp == "Profil" and t.profilform in ("Quadratrohr", "Rechteckrohr") \
+            and t.laenge < max(t.abm_a, t.abm_b) - 1e-6 and t.sicherheit.get("wandstaerke") == "unsicher":
+        return DREHFRAES, "kürzer als breit und Wand nicht einheitlich: Klotz mit Bohrung, kein Rohrstück"
+    return None
+
+
+NACHREGELN = (
+    ("Flachstahl → Blech", _flachstahl_blech),
+    ("Sonderprofil → Kantteil", _sonderprofil_kantteil),
+    ("Winkel ohne Normmaß → Kantteil", _winkel_kein_normmass),
+    ("Klotz → Frästeil", _klotz),
+)
+
+
+def _tauschen(t, n, grund, regel):
+    """n (aus dem Pool von t) wird die Messung; t und die übrigen Arten bleiben wählbar."""
+    pool = [x for x in [t.alternative, *(t.arten or {}).values()] if x is not None and x is not n]
+    n.alternative = t
+    t.alternative = None
+    n.arten = {gruppe(x): x for x in pool if gruppe(x) not in (gruppe(n), gruppe(t))}
+    n.arten_grund = {k: v for k, v in (t.arten_grund or {}).items() if k not in n.arten and k != gruppe(t)}
+    t.arten, t.arten_grund = {}, {}
+    for x in pool:
+        x.alternative = None
+    n.art_grund, n.art_regel = grund, regel
+    if n.drehfraes:     # von der Regel gewählt, nicht von Hand
+        from step_drehfraes import VON_HAND
+        info = n.drehfraes
+        if VON_HAND in info.get("merkmale", ()):
+            info["merkmale"] = [m for m in info["merkmale"] if m != VON_HAND]
+            info["text"] = f"{info['art']} ({', '.join(info['merkmale'] + info.get('zusatz', []))})" \
+                if info["merkmale"] or info.get("zusatz") else info["art"]
+    for name in ("einheit", "meldungen", "bauteil", "pfad", "knoten", "koerperart", "gueltig", "struktur", "naehte",
+                 "ohne_naht"):
+        if hasattr(t, name) and not getattr(n, name, None):
+            setattr(n, name, getattr(t, name))
+    return n
+
+
+MEHRTEILIG_FUELLGRAD = 0.05     # Frästeil: Volumen unter so viel des Hüllquaders = dünne Bleche, nicht aus dem Vollen
+
+
+def _mehrteilig(solid, t):
+    """Grund, warum der Körper wohl mehrere Teile in einem ist (verschmolzene Schweißbaugruppe), sonst None."""
+    import re
+    if t.bauteiltyp == "Frästeil" and t.drehfraes and t.abm_a and t.abm_b and t.laenge:
+        fuell = (t.volumen or 0) / (t.abm_a * t.abm_b * t.laenge)
+        if 0 < fuell < MEHRTEILIG_FUELLGRAD:
+            return f"Frästeil aus dünnen Wänden (nur {100 * fuell:.1f} % des Hüllquaders gefüllt)"
+    if t.bauteiltyp == "Blech gekantet":
+        f = getattr(t, "abwicklung_fehler", "") or ""
+        m = re.match(r"Biegezone mit (\d+) Schenkeln", f) or re.match(r"(\d+) statt 2 Blechhäute", f)
+        if m and int(m.group(1)) >= 3:
+            return f"Bleche stoßen aneinander ({f})"
+    if t.bauteiltyp in ("Profil", "Blech") and t.profilform in ("Sonderprofil", "offenes Sonderprofil", "Blech"):
+        import step_drehfraes as df
+        fl = df.flaechen(solid)
+        if len(fl) <= df.NORMTEIL_FLAECHEN_MAX:
+            for z in (e for e in fl if e["typ"] == "zylinder"):
+                kante, rest = df.sechskante(fl, *z["achse"])
+                if kante and rest:
+                    return f"Sechskant (Mutter SW {kante[0]['schluessel']:g}) mit weiteren Teilen verschmolzen"
+    return None
+
+
+def _mehrteilig_markieren(t, grund):
+    """Gelb, nicht übernommen (Patrick 07.11.2026: markieren und Hinweis, nicht automatisch zerlegen)."""
+    t.sicherheit["profil"] = "unsicher"
+    t.hinweise.insert(0, f"Mehrere Teile in einem Körper? {grund} – nicht übernommen: STEP in Einzelteile aufteilen "
+                         "oder nach Prüfung von Hand anhaken")
+    t.art_grund = f"mehrere Teile in einem Körper: {grund}"
+    return t
+
+
+def nachregeln(t, solid=None):
+    """Die erste zutreffende Nachregel tauscht die Messung gegen die passende Art aus dem Pool; sonst t. Danach:
+    ein Körper, der wohl aus mehreren verschmolzenen Teilen besteht, wird gelb markiert."""
+    t = _nachregeln(t)
+    if solid is not None:
+        try:
+            grund = _mehrteilig(solid, t)
+        except Exception:  # die Prüfung darf die Messung nie verhindern
+            grund = None
+        if grund:
+            _mehrteilig_markieren(t, grund)
+    return t
+
+
+def _nachregeln(t):
+    for name, pruef in NACHREGELN:
+        try:
+            r = pruef(t)
+        except Exception:  # eine Regel darf die Messung nie verhindern
+            r = None
+        if r is None:
+            continue
+        gr, grund = r
+        n = _kandidat(t, gr)
+        if n is not None:
+            return _tauschen(t, n, grund, name)
+    return t

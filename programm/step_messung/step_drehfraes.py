@@ -45,6 +45,7 @@ ANBAU_MIN = 1.0         # mm: so weit muss ein Anbau über den größten Außend
 BOHR_VOLL = 0.6         # Innenzylinder ab so viel des vollen Umfangs ist eine Bohrung (auch angeschnitten durch eine
                         # Querbohrung); weniger: Hohlkehle/Taschenecke
 SACK = 0.8              # Bohrung auf der Achse kürzer als so viel × Länge: Sackbohrung
+BODEN_TOL = 0.05        # Boden einer Sackbohrung: Kreisscheibe mit dieser Flächentoleranz
 FORMEN_DREH = ("Rundstahl", "Rundrohr", "Sonderprofil", "offenes Sonderprofil", "")
 FORMEN_FRAES_VOLL = ("Vierkantstahl", "Flachstahl", "offenes Sonderprofil", "Sonderprofil", "")
 FORMEN_FRAES_OFFEN = ("U-Profil", "C-Profil", "L-Profil", "T-Profil", "I-/H-Träger")
@@ -194,6 +195,20 @@ def gewinde(fl, o, d):
                 flaeche=sum(e["flaeche"] for e in frei))
 
 
+def _ring_voll(dreh, stirn, aussen, innen, d):
+    """Ring/Buchse: Außen- und Innenzylinder gehen über die ganze Länge (Käfigring mit Kalotten, als Flachstahl quer
+    geschnitten gemessen, A4 Prüfsammlung 07.11.2026). Eine Senkung im Blech hat keinen Außenzylinder."""
+    if not aussen or not innen or not stirn:
+        return False
+    hs = [_dot(e["punkt"], d) for e in stirn]
+    laenge = max(hs) - min(hs)
+
+    def spann(r, konvex):
+        return max((abs(e["z"][1] - e["z"][0]) for e in dreh if e["typ"] == "zylinder" and e["konvex"] == konvex
+                    and abs(e["radius"] - r) < 0.01), default=0.0)
+    return laenge > 0 and spann(aussen[-1], True) >= 0.95 * laenge and spann(innen[0], False) >= 0.95 * laenge
+
+
 def drehteil(fl, t=None, streng=False):
     """Merkmale eines Drehteils (dict) oder None. fl = flaechen(solid), t = bisherige Messung (für das Glatt-Rohr).
     streng: gemessen als Blech, Flachstahl oder Profil (Drehteil nur mit Absatz oder Radius)."""
@@ -234,7 +249,7 @@ def drehteil(fl, t=None, streng=False):
         return None
     absatz = len(aussen) >= 2 or len(innen) >= 2
     if streng and not absatz and not any(e["typ"] == "torus" and _abstand_achse(e["achse"][0], o, d) <= ACHS_TOL
-                                         for e in dreh):
+                                         for e in dreh) and not _ring_voll(dreh, stirn, aussen, innen, d):
         return None     # Blech/Flachstahl/Profil: nur mit Absatz oder Radius (eine Fase allein kann eine Senkung sein)
     if sum(e["flaeche"] for e in dreh) + (gew["flaeche"] if gew else 0.0) < 0.4 * gesamt:       # z. B. Scheibe: Stirnflächen groß, aber kein Drehteil?
         # Flansch/Scheibe mit Absatz (zwei Außen- oder Innendurchmesser) oder Anbau ist gedreht, eine glatte Scheibe
@@ -267,6 +282,11 @@ def drehteil(fl, t=None, streng=False):
     if any(e["typ"] == "eben" and not _senkrecht(e["normale"], d) for e in rest):
         return None
     sack = [e for e in dreh if e["typ"] == "zylinder" and not e["konvex"] and abs(e["z"][1] - e["z"][0]) < SACK * laenge]
+    if innen and not sack and any(abs(e["flaeche"] - math.pi * innen[0] ** 2) <= BODEN_TOL * math.pi * innen[0] ** 2
+                                  for e in stirn):
+        # Bohrung mit ebenem Boden (Kreisscheibe so groß wie die Bohrung): einseitig geschlossene Hülse, kein Rohr
+        # (Dach roof.stp Ø19 × 97, A4 Prüfsammlung 07.11.2026)
+        sack = [e for e in dreh if e["typ"] == "zylinder" and not e["konvex"]]
     if innen and len(innen) == 1 and sack:
         merkmale.append("Sackbohrung")
     if any(e["typ"] == "kegel" for e in dreh):
@@ -275,6 +295,10 @@ def drehteil(fl, t=None, streng=False):
         merkmale.append("Radius")
     if any(e["typ"] == "rotation" for e in dreh):
         merkmale.append("Drehkontur")
+    if any(e["typ"] in ("kugel", "torus", "kegel") for e in rest):
+        # gekrümmte Flächen neben der Achse: Kalotten/Taschen (Käfigring mit Kugelsitzen, 0003-400-001, A4
+        # Prüfsammlung 07.11.2026) – gefräst, kein Rohrabschnitt
+        merkmale.append("Kalotten/Taschen (gefräst)")
     if gew is not None:
         merkmale.append(f"{'Außen' if gew['aussen'] else 'Innen'}gewinde Ø{_mm(2 * gew['r_max'])} modelliert")
         if gew["aussen"] and innen and abs(innen[-1] - gew["r_min"]) <= GEWINDE_AUSSEN_TOL:
@@ -662,3 +686,82 @@ def fingerabdruck(info, fl):
              [info["laenge"], info["breite"], info["hoehe"]])
     return "|".join([info["art"][0]] + [f"{x:.0f}" for x in masse] + [f"{info['volumen'] / 1000:.0f}"]
                     + [f"{k}{zaehler[k]}" for k in sorted(zaehler)])
+
+
+# ---------------------------------------------------------------- Normteile (A4 Prüfsammlung, Patrick 07.11.2026)
+# Kugeln und Schrauben/Gewindestangen mit Sechskant (Kopf, Muttern) sind Normteile zum Zukaufen, keine Rundstähle
+# oder Rundrohre. Ein Sechskant: sechs gleich große Ebenen parallel zur Achse im gleichen Abstand, je 60° gedreht.
+NORMTEIL_FLAECHEN_MAX = 120     # mehr Flächen: keine Prüfung (Tempo)
+SECHSKANT_TOL = 0.02            # Flächen und Abstände eines Sechskants gleich auf 2 %
+
+
+def sechskante(fl, o, d):
+    """Sechskante um die Achse (o, d): Liste je Sechskant dict(schluessel=Schlüsselweite, flaechen=[...]) und die
+    übrigen Ebenen parallel zur Achse (die zu keinem Sechskant gehören)."""
+    seit = [e for e in fl if e["typ"] == "eben" and _senkrecht(e["normale"], d)]
+    frei, kante = list(seit), []
+    while frei:
+        a = frei[0]
+        s = abs(_dot(_sub(a["punkt"], o), a["normale"]))     # Abstand der Ebene von der Achse
+        gl = [e for e in frei if abs(e["flaeche"] - a["flaeche"]) <= SECHSKANT_TOL * a["flaeche"]
+              and abs(abs(_dot(_sub(e["punkt"], o), e["normale"])) - s) <= SECHSKANT_TOL * max(s, 1e-6)]
+        k = len(gl) // 6        # gleiche Sechskante (zwei gleiche Muttern) haben gleiche Flächen und Abstände
+        if k and len(gl) == 6 * k and s > 0:
+            winkel = sorted(round(math.degrees(math.acos(max(-1.0, min(1.0, _dot(a["normale"], e["normale"]))))))
+                            for e in gl)
+            if winkel == sorted([0] * k + [60] * 2 * k + [120] * 2 * k + [180] * k):
+                kante += [dict(schluessel=round(2 * s, 2), flaechen=gl)] * k
+                frei = [e for e in frei if e not in gl]
+                continue
+        frei.remove(a)
+    rest = [e for e in seit if not any(e in k["flaechen"] for k in kante)]
+    return kante, rest
+
+
+def normteil(fl):
+    """Normteil (dict(art, text, durchmesser, laenge)) oder None: Kugel (nur Kugelflächen) bzw. Schraube/Gewindestange
+    mit Sechskant (Hauptzylinder, ein oder mehrere Sechskante auf seiner Achse, keine weiteren seitlichen Ebenen)."""
+    if not fl or len(fl) > NORMTEIL_FLAECHEN_MAX:
+        return None
+    if all(e["typ"] == "kugel" for e in fl):
+        from OCP.BRepAdaptor import BRepAdaptor_Surface as _S
+        r = max(_S(e["face"]).Sphere().Radius() for e in fl)
+        return dict(art="Kugel", text=f"Normteil: Kugel Ø{_mm(2 * r)}", durchmesser=round(2 * r, 2),
+                    laenge=round(2 * r, 2))
+    zyl = [e for e in fl if e["typ"] == "zylinder" and e["konvex"]]
+    if not zyl:
+        return None
+    haupt = max(zyl, key=lambda e: e["flaeche"])
+    o, d = haupt["achse"]
+    kante, rest = sechskante(fl, o, d)
+    if not kante or rest:
+        return None
+    zs = [z if _dot(e["achse"][1], d) > 0 else -z for e in fl if e["typ"] == "zylinder" and _koaxial(e, o, d)
+          for z in e["z"]]
+    stirn = [_dot(e["punkt"], d) for e in fl if e["typ"] == "eben" and _parallel(e["normale"], d)]
+    laenge = max(zs + stirn) - min(zs + stirn)
+    sw = ", ".join(f"SW {_mm(k['schluessel'])}" for k in kante)
+    art = "Schraube/Gewindestange mit Mutter" if len(kante) > 1 else "Schraube/Mutter mit Sechskant"
+    return dict(art=art, text=f"Normteil: {art} Ø{_mm(2 * haupt['radius'])} ({sw})",
+                durchmesser=round(2 * haupt["radius"], 2), laenge=round(laenge, 2))
+
+
+def normteil_teil(solid, datei="", koerper=1):
+    """Ein Normteil als Teil (Art Drehteil = Zukaufteil, Merkmal Normteil) oder None."""
+    fl = flaechen(solid)
+    info = normteil(fl)
+    if info is None:
+        return None
+    n = g.Teil(datei=datei, koerper=koerper)
+    n.bauteiltyp = n.profilform = DREHTEIL
+    n.abm_a, n.abm_b, n.laenge = info["durchmesser"], 0.0, info["laenge"]
+    n.volumen = g._volumen(solid)
+    d = dict(art=DREHTEIL, durchmesser=info["durchmesser"], innen=0.0, laenge=info["laenge"],
+             durchmesser_liste=[info["durchmesser"]], merkmale=[info["text"]], zusatz=[], nur_abmessung=False,
+             kennwerte=None, normteil=info["art"], volumen=round(n.volumen, 1))
+    d["fingerabdruck"] = fingerabdruck(d, fl)
+    d["text"] = info["text"]
+    n.drehfraes = d
+    n.sicherheit.update(profil="sicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
+    n.hinweise.append(f"{info['text']} – als Zukaufteil")
+    return n

@@ -135,6 +135,22 @@ def _pv(p):
     return gp_Vec(p.X(), p.Y(), p.Z())
 
 
+HAUT_TOL = 0.005    # mm: Gegenfläche der Haut im Abstand Dicke ± so viel (die Dicke ist auf 0,001 mm gerundet)
+
+
+def _gegenflaeche(klass, p, n, s):
+    """Liegt die Gegenfläche der Blechhaut im Abstand s unter dem Punkt p (Normale n nach außen)? Der Klassierer hält
+    seine Toleranz nicht immer ein (0003-400-001: Dicke 3,0378 als 3,038 gerundet, 0,2 µm daneben = außen; die
+    gespiegelte Kopie desselben Kantteils war so kein Kantteil, A4 Prüfsammlung 07.11.2026): dann zählt, dass der
+    Punkt knapp davor im Material und knapp dahinter außerhalb liegt."""
+    def zustand(a):
+        klass.Perform(gp_Pnt(_pv(p).Subtracted(n.Multiplied(a)).XYZ()), 1e-3)
+        return klass.State()
+    if zustand(s) == TopAbs_ON:
+        return True
+    return s > 2 * HAUT_TOL and zustand(s - HAUT_TOL) == TopAbs_IN and zustand(s + HAUT_TOL) == TopAbs_OUT
+
+
 def abwickeln(solid, dicke, k=K_FAKTOR):
     """Abwicklung eines Kantteils. Ergebnis dict (siehe abwicklung_daten) oder dict(fehler=Grund)."""
     s = dicke
@@ -159,9 +175,7 @@ def _abwickeln(solid, s, k):
                 n = _normale(f.face, p)
                 if n is None:
                     break
-                q = gp_Pnt(_pv(p).Subtracted(n.Multiplied(s)).XYZ())
-                klass.Perform(q, 1e-3)
-                if klass.State() == TopAbs_ON:
+                if _gegenflaeche(klass, p, n, s):
                     f.art, f.p, f.n = "E", p, n
                     break
     for f, (ax, r) in zyl:

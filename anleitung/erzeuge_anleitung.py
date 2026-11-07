@@ -2945,6 +2945,23 @@ def kapitel_step(i):
             "Gewindegang ein eigener Körper, zusätzlich <i>nur Gewindegänge</i>). Die Ampel steht gelb mit dem "
             "Hinweis <i>vereinfacht gemessen</i>. Vorher suchte die Profilmessung in den Flanken minutenlang einen "
             "Querschnitt (bis 26 Minuten je Körper) und fand doch keinen.",
+            "<b>Nach der Prüfsammlung</b> (seit 0.9.271, 53 typische Teile von Patrick bestätigt): "
+            "<b>Kugeln</b> und <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) sind <i>Normteile</i> "
+            "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr. "
+            "<b>Ringe mit Kalotten oder Taschen</b> und <b>Hülsen mit Boden</b> (Bohrung nicht durch) sind Drehteile. "
+            "<b>Winkel ohne Normmaß</b> (z. B. Zollmaß 50,8 × 3,2) und Winkel mit Biegeradius (außen = innen + "
+            "Dicke, auch im L-Normmaß) sind Kantteile, ebenso ein nicht erkanntes Sonderprofil, das sich als Blech "
+            "abwickeln lässt. <b>Flachstahl mit Ausschnitten/Bohrungen</b> in der Fläche oder kürzer als 3 × Breite "
+            "ist ein Blech (Flachstahl bleibt als Auswahl in der Spalte Art), ebenso ein <b>Brennteil mit "
+            "Schweißfasen</b> (Zuschnitt nach der größeren Hauptfläche, Hinweis <i>Kanten mit Fasen</i>) und eine "
+            "<b>Platte mit Einpressmuttern/-bolzen</b> (bis 10 % des Volumens, Hinweis <i>Aufgesetzte Kleinteile</i>). "
+            "Ein <b>Klotz</b>, kürzer als breit, mit ungleicher Wand ist ein Frästeil statt Rohrstück. Die "
+            "Hinweis-Spalte nennt die Regel (z. B. <i>Flachstahl → Blech</i>).",
+            "<b>Mehrere Teile in einem Körper</b> (seit 0.9.271): ist ein Körper offensichtlich aus mehreren "
+            "verschmolzenen Teilen (Platte mit angeschweißter Mutter, Blechkasten, dessen Biegezone an mehr als zwei "
+            "Schenkeln hängt, „Frästeil“ aus dünnen Wänden), steht die Ampel gelb mit dem Hinweis <i>Mehrere Teile in "
+            "einem Körper?</i> und das Teil wird nicht übernommen. Am besten die STEP im CAD in Einzelteile aufteilen; "
+            "nach Prüfung lässt es sich auch von Hand anhaken.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
