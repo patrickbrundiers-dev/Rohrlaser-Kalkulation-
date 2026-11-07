@@ -15,7 +15,7 @@ import copy
 
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMenu, QMessageBox, QPushButton
+from PySide6.QtWidgets import QMenu, QPushButton
 
 from . import einblendung
 from .baugruppe import URSPRUNG, import_stand  # noqa: F401  (Schlüssel und Stand beim Import, ohne Qt)
@@ -106,19 +106,12 @@ class UrsprungEditor:
             return False
         if wie == OEFFNEN and not self._ursprung_geaendert():
             return False
-        if fragen and QMessageBox.question(
-                self, "Auf Ursprung zurücksetzen",
-                ("Alle Änderungen seit dem Öffnen dieses Fensters verwerfen?" if wie == OEFFNEN else
-                 self._ursprung_frage()) + "\n\nStrg+Z bzw. „Zurücksetzen rückgängig“ holt den jetzigen Stand wieder; "
-                "erst OK übernimmt ins Angebot.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
-            return False
+        # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage, die Einblendung bietet „Rückgängig“
         self._vor_ursprung = self._ursprung_stand()
         self._ursprung_setzen(st)
-        einblendung.melden(self, "Wie beim Öffnen." if wie == OEFFNEN else "Wie aus STEP importiert.")
+        einblendung.melden(self, ("Wie beim Öffnen." if wie == OEFFNEN else "Wie aus STEP importiert.")
+                           + " Erst OK übernimmt ins Angebot.", aktion=("Rückgängig", self.ursprung_rueckgaengig))
         return True
-
-    def _ursprung_frage(self):
-        return "Alles wieder so setzen, wie es aus der STEP-Datei importiert wurde? Alle Änderungen von Hand gehen verloren."
 
     def ursprung_rueckgaengig(self):
         if self._vor_ursprung is None:

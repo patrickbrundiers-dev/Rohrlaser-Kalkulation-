@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen, blech_preis
 from .angebot_ausgabe import AusgabeMixin
+from .klartext import fehler_text
 from .vorschlaege_mixin import VorschlaegeMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -771,10 +772,14 @@ class AngeboteSeite(QWidget):
         form.addRow("Kunde", kunde)
         fassung = None
         if not a.get("fremd"):          # W10: neue Fassung statt Kopie (nur eigene Angebote)
-            fassung = QCheckBox(f"Neue Fassung {self.db.fassung_nummer(a['id'])} statt Kopie (gleicher Kunde, "
-                                f"aktuelle Preise; {a['nummer']} wird „ersetzt“)")
-            fassung.toggled.connect(kunde.setDisabled)
+            fassung = QCheckBox(f"Neue Fassung {self.db.fassung_nummer(a['id'])} statt Kopie")
+            fassung.setToolTip(f"Gleicher Kunde, aktuelle Preise; {a['nummer']} steht danach auf „Ersetzt“")
             form.addRow(fassung)
+            fassung_text = QLabel(f"gleicher Kunde, aktuelle Preise; {a['nummer']} wird „ersetzt“")
+            fassung_text.setWordWrap(True)
+            fassung_text.setStyleSheet("color: #5F6B7A; margin-left: 22px;")
+            fassung.toggled.connect(kunde.setDisabled)
+            form.addRow(fassung_text)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(d.accept)
         knoepfe.rejected.connect(d.reject)
@@ -2470,6 +2475,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
         self.reiter = AngebotReiter()
         self.schritte = Schrittanzeige()         # ① erfasst → ② optimiert → ③ geprüft → ④ verschickt (L10)
+        self.schritte.gewaehlt.connect(self.schritt_ausfuehren)        # B2: Schritte anklickbar, „Weiter: …“
         self.reiter.setCornerWidget(self.schritte, Qt.TopRightCorner)
         self.pos_seite = QWidget()            # Positionsliste mit Spaltenauswahl darüber
         self.pos_leiste = QHBoxLayout()
@@ -2480,9 +2486,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         pl.addLayout(self.pos_leiste)
         # Schnellzeile (Plan Bedienung B6): „QR 40x3 S235 1250 20“ + Eingabe legt die Position an
         self.schnell = SchnellFeld()
-        self.schnell.setPlaceholderText("Schnellzeile: z. B. QR 40x3 S235 1250 20 (Profil, Werkstoff, Länge, Stück) – "
-                                        "Eingabe legt die Position an, mehrere Zeilen einfügen geht auch")
-        self.schnell.setToolTip("Profil, Werkstoff, Länge [mm] und Stückzahl in einer Zeile. Eindeutig mit L=1250, "
+        # kurz genug auch für breitere Schriften (CI 07.11.2026: 50 px abgeschnitten); die Reihenfolge steht im Tooltip
+        self.schnell.setPlaceholderText("Schnellzeile: z. B. QR 40x3 S235 1250 20 – Eingabe legt die Position an")
+        self.schnell.setToolTip("Profil, Werkstoff, Länge [mm] und Stückzahl in einer Zeile, z. B. QR 40x3 S235 1250 20 "
+                                "(Profil, Werkstoff, Länge, Stück). Eindeutig mit L=1250, "
                                 "1250mm, 20 Stk, x20; Artikelnummer mit #. Mehrere Zeilen (z. B. aus einer E-Mail "
                                 "oder Excel) mit Strg+V einfügen: je Zeile eine Position.")
         self.schnell_vorschau = QLabel()
@@ -3137,6 +3144,35 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             meldung += f" {preis_aenderung(vorher, self._verkauf())}"
         self.f.meldung(meldung)
 
+    def lieferzeit_speichern(self, text):
+        """Lieferzeit aus dem einen Feld im Angebotskopf (Verbesserungsplan 06.11.2026, E3): Art, Wert und Zusatz
+        erkennen und speichern; ungültige Angaben (KW 60, 31.02.) melden und den alten Stand zeigen."""
+        from .angebot import lieferzeit_lesen
+        if self._laden:
+            return
+        try:
+            art, wert, zusatz = lieferzeit_lesen(text, self.kopf.get("datum"))
+        except ValueError as e:
+            self.f.meldung(str(e), fehler=True)
+            self._kopf_anzeigen()
+            return
+        neu = dict(lieferzeit_art=art, lieferzeit_wert=wert, lieferzeit_zusatz=zusatz)
+        if all(neu[n] == self.kopf.get(n) for n in neu):
+            self._kopf_anzeigen()           # gleiche Angabe, nur anders geschrieben: Kurzform zeigen
+            return
+        try:
+            self.db.angebot_aendern(self.id, "lieferzeit_wert", None)
+            self.db.angebot_aendern(self.id, "lieferzeit_art", art)
+            self.db.angebot_aendern(self.id, "lieferzeit_wert", wert)
+            self.db.angebot_aendern(self.id, "lieferzeit_zusatz", zusatz)
+        except ValueError as e:
+            self.f.meldung(str(e), fehler=True)
+        meldung = "Lieferzeit gespeichert."
+        if art == "Lieferdatum" and wert and wert < (self.kopf.get("datum") or ""):
+            meldung += " Achtung: Das Lieferdatum liegt vor dem Angebotsdatum."
+        self.neu_laden()
+        self.f.meldung(meldung)
+
     def _vorige_fassung(self):
         from . import fassung_vergleich
         try:
@@ -3626,6 +3662,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if d.ziel:
             self.check_link(d.ziel)
         return ok, d.text_begruendung()
+
+    def schritt_ausfuehren(self, i):
+        """Schritt der Schrittanzeige ausführen (Verbesserungsplan 06.11.2026, B2): 0 Neue Position, 1 Optimieren,
+        2 Angebots-Check, 3 Angebot (PDF)."""
+        aktion = (self.position_neu, self.optimieren, self.check_zeigen, self.angebot_pdf)
+        if 0 <= i < len(aktion):
+            return aktion[i]()
+        return None
 
     def _schritte_setzen(self):
         """Schrittanzeige; „Verschickt“ erst mit CSV-Export im Versandverlauf (Patrick 24.10.2026)."""
@@ -6309,7 +6353,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     def schneidweg_berechnen(self, zeile=None, eingaben=None, dialog=None, ueberschreiben=None):
         """Schneidweg-Rechner für die markierte Position (Dialog): Enden, Konturen und Gravur eingeben, Werte in die
         Position übernehmen. eingaben = dict setzt sie ohne Dialog, dialog(d) bedient den Dialog statt exec,
-        ueberschreiben = True/False beantwortet die Rückfrage bei STEP-Werten (Tests). Ergebnis: True = gespeichert."""
+        ueberschreiben = False lässt Werte aus dem STEP-Import stehen (sonst ersetzt, mit „Rückgängig“, B3). Ergebnis:
+        True = gespeichert."""
         if zeile is None:
             zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
             if len(zeilen) != 1:
@@ -6342,13 +6387,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return False
         step_werte = p.get("a_schnitt") is not None and schneidweg.lesen(p.get("technik")).get("quelle") != \
             schneidweg.QUELLE
-        if step_werte:
-            if ueberschreiben is None:
-                ueberschreiben = self.f.stumm or QMessageBox.question(
-                    self, "Schneidweg", "Die Position hat Werte aus dem STEP-Import (Schneidweg, Enden, Konturen). "
-                    "Durch die Werte des Schneidweg-Rechners ersetzen?") == QMessageBox.Yes
-            if not ueberschreiben:
-                return False
+        # B3 (Verbesserungsplan 06.11.2026): Werte aus dem STEP-Import ohne Rückfrage ersetzen, dafür „Rückgängig“
+        if step_werte and ueberschreiben is False:
+            return False
         felder = dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu)
         # Bohrbild neu aus den Eingaben (Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand; neu eingegeben = bestätigt),
         # Prüfstatus gleicher Bohrungen bleibt; Gewinde von Hand ohne Zeile im alten Bohrbild bleiben stehen
@@ -6370,10 +6411,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         weitere = self._radius_uebernehmen(p, eingaben)
-        self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
-                       f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen."
-                       + (f" Außenradius auch für {weitere} weitere Position(en) neu gerechnet." if weitere else ""))
+        text = (f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
+                f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen"
+                + (" (statt der Werte aus dem STEP-Import)." if step_werte else ".")
+                + (f" Außenradius auch für {weitere} weitere Position(en) neu gerechnet." if weitere else ""))
         self.neu_laden()
+        if step_werte:
+            self.rueckgaengig_anbieten(text)
+        else:
+            self.f.meldung(text)
         return True
 
     def profil_gewechselt(self, p):
@@ -7262,16 +7308,16 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         except ValueError as e:
             QApplication.restoreOverrideCursor()
             if automatisch:
-                self.f.meldung(f"Automatisch optimieren nicht möglich: {e}", fehler=True)
+                self.f.meldung(f"Automatisch optimieren nicht möglich: {fehler_text(e)}", fehler=True)
             else:
                 QMessageBox.warning(self, "Optimieren", str(e))
             return False
         except AssertionError as e:   # Kontrolle der Optimierung angeschlagen: nie ein falsches Ergebnis speichern
             QApplication.restoreOverrideCursor()
             if automatisch:
-                self.f.meldung(f"Automatisch optimieren: Kontrolle hat angeschlagen ({e}), bitte F9.", fehler=True)
+                self.f.meldung(f"Automatisch optimieren: Kontrolle hat angeschlagen ({fehler_text(e)}), bitte F9.", fehler=True)
             else:
-                QMessageBox.critical(self, "Optimieren", f"Die Kontrolle der Optimierung hat angeschlagen: {e}")
+                QMessageBox.critical(self, "Optimieren", f"Die Kontrolle der Optimierung hat angeschlagen: {fehler_text(e)}")
             return False
         QApplication.restoreOverrideCursor()
         if erg["neue_profile"]:
@@ -7990,7 +8036,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         try:
             ziel.write_bytes(ergebnis.read_bytes())
         except OSError as e:
-            self.f.meldung(f"Messergebnis (JSON) nicht gespeichert: {e}")
+            self.f.meldung(f"Messergebnis (JSON) nicht gespeichert: {fehler_text(e)}")
             return None
         return ziel
 

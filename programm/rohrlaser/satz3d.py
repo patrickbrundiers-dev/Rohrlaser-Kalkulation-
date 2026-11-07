@@ -196,10 +196,6 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         return dict(bg=bg, teile=[dict(t) for t in self.teile], knicke=[], laengsnaehte={}, getrennt=[], lagen={},
                     kopf=self._ursprung_kopf())
 
-    def _ursprung_frage(self):
-        return ("Satz wie aus STEP: alle Steckverbindungen, neuen Knickrahmen und per Klick gewählten Längsnähte "
-                "verwerfen? Schon angelegte Knickrahmen bleiben (eigene Positionen).")
-
     # -------------------------------------------------------------- Teile
     def _seite_teile(self):
         w = QWidget()

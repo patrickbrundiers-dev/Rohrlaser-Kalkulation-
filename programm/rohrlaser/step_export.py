@@ -26,6 +26,7 @@ from importlib.util import find_spec
 from pathlib import Path
 
 from . import blech, blech3d, gravur_text, optimierung as opt, rohr3d, schneidweg as sw, skizze as sk
+from .klartext import fehler_text
 from .blech3d import _flaeche2, _ohrschnitt
 from .schneidweg import BOHRUNG, GRAVUREN, SENKUNG, TEXT_GRAVUR, _z
 
@@ -891,7 +892,7 @@ def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=None, warte
             return dict(ok=False, fehler=f"STEP-Export nach {zeitlimit:.0f} s abgebrochen.", teile=[],
                         meldungen=meldungen)
         except OSError as ex:
-            return dict(ok=False, fehler=f"STEP-Export nicht gestartet: {ex}", teile=[], meldungen=meldungen)
+            return dict(ok=False, fehler=f"STEP-Export nicht gestartet: {fehler_text(ex)}", teile=[], meldungen=meldungen)
         try:
             ergebnis = json.loads(erg.read_text(encoding="utf-8"))
         except (OSError, ValueError):

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from . import ausgabe, etiketten, stil, tastatur
+from .klartext import fehler_text
 from .angebot import aktiv as position_aktiv
 
 
@@ -84,7 +85,7 @@ def drucken(fenster, angebot_id, parent=None, dialog=None):
         finally:
             QApplication.restoreOverrideCursor()
     except OSError as e:
-        QMessageBox.warning(parent or fenster, "Etiketten", f"Die Datei konnte nicht gespeichert werden:\n{e}")
+        QMessageBox.warning(parent or fenster, "Etiketten", f"Die Datei konnte nicht gespeichert werden:\n{fehler_text(e)}")
         return None
     if d.format.currentText() != db.einstellung("etikett_format") and not db.nur_lesen:
         db.einstellung_setzen("etikett_format", d.format.currentText())      # nächstes Mal dasselbe Format
@@ -154,7 +155,7 @@ class ScanDialog(QDialog):
             r = etiketten.rueckmelden(self.db, text, self.schritt.currentText(), self.menge.value() or None)
         except (etiketten.ScanFehler, FertigungFehler, Lesemodus) as e:
             QApplication.beep()
-            self.meldung.setText(f"<span style='color:#B42318'><b>Nicht übernommen:</b> {e}</span>")
+            self.meldung.setText(f"<span style='color:#B42318'><b>Nicht übernommen:</b> {fehler_text(e)}</span>")
             self._zeile(zeit, str(e), text, fehler=True)
             return None
         self.meldung.setText(f"<span style='color:#1D7A46'><b>OK</b></span> {r['text']}")

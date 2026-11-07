@@ -228,24 +228,33 @@ app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db, stumm=True)
 s = fenster.angebot_oeffnen(a)
 kb = s.kopf_bereich
-assert kb.lz_art.currentText() == "Arbeitstage" and kb.lz_wert.text() == "20" and kb.lz_wert.isEnabled()
+assert kb.lz_feld.text() == "20 Arbeitstage"
 assert "ca. 20 Arbeitstage" in kb.lz_vorschau.text()
-kb.lz_art.setCurrentText("Lieferdatum")
-assert s.kopf["lieferzeit_art"] == "Lieferdatum" and s.kopf["lieferzeit_wert"] is None
-kb.lz_wert.setText("01.01.2020")
-kb.lz_wert.editingFinished.emit()
-assert s.kopf["lieferzeit_wert"] == "2020-01-01" and kb.lz_wert.text() == "01.01.2020"
-kb.lz_wert.setText("30.02.2026")
-kb.lz_wert.editingFinished.emit()
-assert s.kopf["lieferzeit_wert"] == "2020-01-01" and kb.lz_wert.text() == "01.01.2020"   # abgelehnt, alter Wert
-kb.lz_art.setCurrentText("nur Text")
-assert not kb.lz_wert.isEnabled()
-kb.lz_zusatz.setText("ab Lager")
-kb.lz_zusatz.editingFinished.emit()
+
+
+def lz(text):
+    kb.lz_feld.setText(text)
+    kb.lz_feld.editingFinished.emit()
+
+
+lz("01.01.2020")                                   # E3: ein Feld, die Art erkennt das Programm
+assert s.kopf["lieferzeit_art"] == "Lieferdatum" and s.kopf["lieferzeit_wert"] == "2020-01-01"
+assert kb.lz_feld.text() == "01.01.2020"
+lz("30.02.2026")
+assert s.kopf["lieferzeit_wert"] == "2020-01-01" and kb.lz_feld.text() == "01.01.2020"   # abgelehnt, alter Wert
+lz("3 Wochen, Teillieferung möglich")
+assert (s.kopf["lieferzeit_art"], s.kopf["lieferzeit_wert"], s.kopf["lieferzeit_zusatz"]) == \
+    ("Wochen", "3", "Teillieferung möglich")
+assert kb.lz_vorschau.text() == "Im Angebot: Lieferzeit: ca. 3 Wochen nach Auftragseingang, Teillieferung möglich."
+lz("KW 48")
+assert s.kopf["lieferzeit_art"] == "Kalenderwoche" and s.kopf["lieferzeit_wert"].startswith("48/")
+assert not s.kopf["lieferzeit_zusatz"]
+lz("ab Lager")
 assert db.angebot(a)["lieferzeit_zusatz"] == "ab Lager" and kb.lz_vorschau.text() == "Im Angebot: Lieferzeit: ab Lager."
+assert db.angebot(a)["lieferzeit_art"] == "nur Text" and not db.angebot(a)["lieferzeit_wert"]
 assert kb.felder["kundenreferenz"].text() == "Anfrage 4711 vom 20.10.2026"
 assert "mindestpreis" not in kb.felder           # nicht je Angebot änderbar (nur Einstellungen)
-ok("L6 Angebotsseite: Lieferzeit (Art, Wert, Freitext, Vorschau), ungültiges Datum abgelehnt, Kundenreferenz, kein Mindestpreisfeld")
+ok("L6 Angebotsseite: Lieferzeit in einem Feld (Wochen, KW, Datum, Freitext, Vorschau), ungültiges Datum abgelehnt, Kundenreferenz, kein Mindestpreisfeld")
 
 # ------------------------------------------------------------------ S1 ältere Datei (Schema 23)
 db.schliessen()

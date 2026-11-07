@@ -1290,6 +1290,11 @@ class EditorRahmen(QObject):
             liste.addItem(it)
         liste.blockSignals(False)
         n = len(eintraege)
+        # E2 (Verbesserungsplan 06.11.2026): ohne Meldungen nur eine Zeile hoch statt einer leeren Fläche
+        if eintraege:
+            liste.setMaximumHeight(16777215)
+        else:
+            liste.setMaximumHeight(liste.sizeHintForRow(0) + 2 * liste.frameWidth() + 4)
         self.meldung_titel.setText(f"<b>Prüfmeldungen</b> ({n})" if n else "<b>Prüfmeldungen</b>")
         self.leiste_unten.zaehler_setzen([e[0] for e in eintraege])
 
@@ -1467,7 +1472,7 @@ class EditorRahmen(QObject):
 
     def ursprung(self, wie=OEFFNEN, fragen=True):
         """Ganzes Teil zurücksetzen: OEFFNEN = Stand beim Öffnen des Fensters, IMPORT = wie aus STEP/DXF
-        importiert. Vorher Rückfrage (fragen=False in Tests), danach ein Schritt für Rückgängig."""
+        importiert. Ohne Rückfrage (B3; fragen bleibt für ältere Aufrufe), danach ein Schritt für Rückgängig."""
         d = self.d
         u = self.ursprung_import() if wie == IMPORT else None
         alt = self._ursprung_alt() if wie == IMPORT and u is None else []
@@ -1476,15 +1481,7 @@ class EditorRahmen(QObject):
             return False
         if wie == OEFFNEN and self.zustand() == self.oeffnen:
             return False
-        if fragen:
-            text = ("Alle Änderungen seit dem Öffnen dieses Fensters verwerfen?" if wie == OEFFNEN else
-                    "Das ganze Teil wieder so setzen, wie es aus der STEP- bzw. DXF-Datei importiert wurde? Alle "
-                    "Änderungen von Hand gehen verloren." if u is not None else
-                    f"{len(alt)} geänderte Merkmal(e) auf den STEP-Wert zurücksetzen?")
-            if QMessageBox.question(d, "Auf Ursprung zurücksetzen", text + "\n\nRückgängig (Strg+Z) holt den "
-                                    "jetzigen Stand wieder.", QMessageBox.Yes | QMessageBox.No,
-                                    QMessageBox.No) != QMessageBox.Yes:
-                return False
+        # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage, die Einblendung bietet „Rückgängig“ (wie Strg+Z)
         self.zeitgeber.stop()
         self.aktualisieren()                # offene Eingaben vorher als eigener Schritt
         self._still = True
@@ -1512,7 +1509,8 @@ class EditorRahmen(QObject):
         self.zeitgeber.stop()
         self.aktualisieren()                # ein Schritt für Rückgängig
         einblendung.melden(d, "Teil wie beim Öffnen." if wie == OEFFNEN else "Teil wie aus STEP/DXF importiert."
-                           if u is not None else "Geänderte Merkmale auf STEP-Wert zurückgesetzt.")
+                           if u is not None else "Geänderte Merkmale auf STEP-Wert zurückgesetzt.",
+                           aktion=("Rückgängig", self.verlauf.undo))
         return True
 
     # -------------------------------------------------------------- Zurücksetzen

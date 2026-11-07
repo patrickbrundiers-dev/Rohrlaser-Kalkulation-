@@ -64,7 +64,8 @@ class NavigationsReiter(QWidget):
         super().__init__(parent)
         self.seiten, self.titel, self.items = [], [], []
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen (z. B. Gewinn, Schneiddaten, Firmenlogo)")
+        self.suche.setPlaceholderText("Einstellung suchen …")
+        self.suche.setToolTip("Seiten und Felder der Einstellungen durchsuchen, z. B. Gewinn, Schneiddaten, Firmenlogo")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.filtern)
         self.suche.returnPressed.connect(self._ersten_treffer)

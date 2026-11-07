@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDateEdit, QDialog,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import ausgabe, einblendung, feiertage, paletten, palettenschein, pdf
+from .klartext import fehler_text
 from .stammdaten import zahl_als_text
 from .eingabe import RechenSpinGanz
 
@@ -56,7 +57,7 @@ def scheine_drucken(fenster, angebot_ids, pfad=None, nur=None):
                 pfad = fenster.ablage() / f"Palettenscheine {datetime.datetime.now():%Y-%m-%d %H%M}.pdf"
         except OSError as e:
             if not fenster.stumm:
-                QMessageBox.warning(fenster, "Palettenschein", f"Der Ordner lässt sich nicht anlegen:\n{e}")
+                QMessageBox.warning(fenster, "Palettenschein", f"Der Ordner lässt sich nicht anlegen:\n{fehler_text(e)}")
             return None
     try:
         pdf.palettenschein_pdf(pfad, alle, einst, titel=None if len(angebot_ids) == 1 else "Sammeldruck")

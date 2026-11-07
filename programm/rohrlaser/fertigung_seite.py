@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QLin
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import etiketten, fertigung, lager, leerhinweis, stil
+from .klartext import fehler_text
 from .lager_seite import _fuellen, _tabelle
 
 SPALTEN = (("Angebot", "nummer"), ("Kunde", "kunde"), ("Auftragsnr.", "auftragsnr"), ("Liefertermin", "liefertermin"),
@@ -172,7 +173,7 @@ class FertigungSeite(QWidget):
             fertigung.setzen(self.db, z["id"], status or self.status.currentText(),
                              self.bemerkung.text() if bemerkung is None else bemerkung)
         except fertigung.FertigungFehler as ex:
-            self.meldung.setText(f"<span style='color:#B42318'>{ex}</span>")
+            self.meldung.setText(f"<span style='color:#B42318'>{fehler_text(ex)}</span>")
             return False
         self.meldung.setText(f"{z['nummer']}: Status „{status or self.status.currentText()}“ gesetzt.")
         self.bemerkung.clear()

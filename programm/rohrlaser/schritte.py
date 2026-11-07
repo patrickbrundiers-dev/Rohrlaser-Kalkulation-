@@ -3,9 +3,12 @@
 Erledigte Schritte grün mit Haken, der aktuelle (erste offene) blau und fett, die übrigen grau. Grundlage sind die
 vorhandenen Stände: Positionen, Stand der Optimierung, offene Punkte im „Angebots-Check“, der Vorgang und der
 CSV-Export (Vermerk im Versandverlauf).
+
+Seit Verbesserungsplan 06.11.2026 (B2) ist jeder Schritt anklickbar (Signal gewaehlt(Index): das Angebot führt den
+Schritt aus, z. B. Optimieren), und der Knopf „Weiter: …“ führt den nächsten offenen Schritt aus.
 """
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 
 from . import stil
 
@@ -19,6 +22,8 @@ NAECHSTES = ("Positionen anlegen: Neue Position oder STEP importieren.",
              "(Ausgaben → CSV-Export); erst mit beidem wird „Verschickt“ grün.",
              "Alle Schritte erledigt.")
 VERSCHICKT = ("Verschickt", "Beauftragt", "Abgelehnt")
+# Knopf „Weiter: …“ je aktuellem Schritt (B2)
+WEITER = ("Neue Position", "Optimieren", "Angebots-Check", "Angebot (PDF)")
 
 
 def erledigt(positionen, stand, offene_punkte, vorgang, csv=False):
@@ -33,7 +38,18 @@ def aktuell(fertig):
     return next((i for i, f in enumerate(fertig) if not f), len(SCHRITTE))
 
 
+class _Marke(QLabel):
+    geklickt = Signal()
+
+    def mousePressEvent(self, ereignis):
+        if ereignis.button() == Qt.LeftButton:
+            self.geklickt.emit()
+        super().mousePressEvent(ereignis)
+
+
 class Schrittanzeige(QWidget):
+    gewaehlt = Signal(int)          # Schritt angeklickt bzw. „Weiter: …“ (Index in SCHRITTE)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         lay = QHBoxLayout(self)
@@ -45,10 +61,20 @@ class Schrittanzeige(QWidget):
                 pfeil = QLabel("→")
                 pfeil.setStyleSheet("color: #9AA3AF;")
                 lay.addWidget(pfeil)
-            m = QLabel(f"{NUMMERN[i]} {text}")
+            m = _Marke(f"{NUMMERN[i]} {text}")
             m.setAlignment(Qt.AlignVCenter)
+            m.setCursor(Qt.PointingHandCursor)
+            m.geklickt.connect(lambda i=i: self.gewaehlt.emit(i))
             self.marken.append(m)
             lay.addWidget(m)
+        self.weiter = QToolButton()
+        self.weiter.setObjectName("weiter")
+        self.weiter.setCursor(Qt.PointingHandCursor)
+        self.weiter.setStyleSheet(f"QToolButton#weiter {{ color: white; background: {stil.AKZENT}; border: none; "
+                                  "border-radius: 3px; padding: 1px 8px; font-weight: bold; }")
+        self.weiter.clicked.connect(lambda: self.gewaehlt.emit(aktuell(self.fertig)))
+        lay.addSpacing(6)
+        lay.addWidget(self.weiter)
         self.fertig = (False,) * len(SCHRITTE)
         self.setzen(self.fertig)
 
@@ -64,4 +90,9 @@ class Schrittanzeige(QWidget):
                 farbe, fett, zeichen = "#9AA3AF", "normal", NUMMERN[i]
             m.setText(f"{zeichen} {SCHRITTE[i]}")
             m.setStyleSheet(f"color: {farbe}; font-weight: {fett};")
+            m.setToolTip(f"Klick: {WEITER[i]}" + (" (nächster Schritt)" if i == jetzt else ""))
         self.setToolTip("Nächster Schritt: " + NAECHSTES[jetzt])
+        self.weiter.setVisible(jetzt < len(WEITER))
+        if jetzt < len(WEITER):
+            self.weiter.setText(f"Weiter: {WEITER[jetzt]} ▸")
+            self.weiter.setToolTip(NAECHSTES[jetzt])

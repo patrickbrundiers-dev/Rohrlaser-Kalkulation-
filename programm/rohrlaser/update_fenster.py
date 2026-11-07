@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHBoxLay
                                QProgressDialog, QStyle, QVBoxLayout)
 
 from . import NAME, protokoll, update
+from .klartext import fehler_text
 
 SUCHEN_NACH_MS = 3000        # nach dem Start etwas warten, das Fenster soll zuerst da sein
 SPAETER_FRAGEN_MS = 30000    # ist gerade ein Dialog offen (z. B. STEP-Import), später nachfragen
@@ -128,7 +129,7 @@ class Updater:
         self._laeuft = False
         if fehler:
             if not still:
-                QMessageBox.warning(self.f, "Nach Updates suchen", f"Keine Verbindung zum Update:\n\n{fehler}")
+                QMessageBox.warning(self.f, "Nach Updates suchen", f"Keine Verbindung zum Update:\n\n{fehler_text(fehler)}")
             return
         if not update.neuer(online, self.lokal):
             if not still:

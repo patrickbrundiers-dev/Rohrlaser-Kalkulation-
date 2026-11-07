@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QApplication, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import admin_schutz, stil
+from .klartext import fehler_text
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
@@ -621,7 +622,7 @@ class StammdatenSeite(QWidget):
         try:
             pfad = csv_exportieren(self, self.db, pfad)
         except OSError as e:
-            self.meldung(f"CSV-Export: {e}", fehler=True)
+            self.meldung(f"CSV-Export: {fehler_text(e)}", fehler=True)
             return None
         if pfad:
             self.meldung(f"Kunden exportiert: {pfad}")
@@ -643,7 +644,7 @@ class StammdatenSeite(QWidget):
         try:
             datenschutz.auskunft_pdf(pfad, datenschutz.auskunft(self.db, kundennr), self.db.einstellungen())
         except OSError as e:
-            self.meldung(f"Datenauskunft: {e}", fehler=True)
+            self.meldung(f"Datenauskunft: {fehler_text(e)}", fehler=True)
             return None
         self.meldung(f"Datenauskunft gespeichert: {pfad}")
         if not getattr(self.window(), "stumm", False):
@@ -686,7 +687,7 @@ class StammdatenSeite(QWidget):
         try:
             Path(pfad).write_text(teilekatalog.csv_text(liste), encoding="utf-8-sig")
         except OSError as e:
-            self.meldung(f"Teilekatalog: {e}", fehler=True)
+            self.meldung(f"Teilekatalog: {fehler_text(e)}", fehler=True)
             return None
         self.meldung(f"Teilekatalog gespeichert: {pfad}")
         return pfad
@@ -750,7 +751,7 @@ class StammdatenSeite(QWidget):
         try:
             _, erg = csv_importieren(self, self.db, pfad, bestaetigt, nur_neue)
         except (OSError, ValueError) as e:
-            self.meldung(f"CSV-Import: {e}", fehler=True)
+            self.meldung(f"CSV-Import: {fehler_text(e)}", fehler=True)
             return None
         if erg and erg[2]:
             f = self.window()
@@ -883,7 +884,7 @@ class StammdatenSeite(QWidget):
         try:
             r = self.db.schneiddaten_standard_setzen(**wahl)
         except OSError as e:
-            self.meldung(f"Zurücksetzen abgebrochen, Datensicherung nicht möglich: {e}", fehler=True)
+            self.meldung(f"Zurücksetzen abgebrochen, Datensicherung nicht möglich: {fehler_text(e)}", fehler=True)
             return None
         self.neu_laden()
         self.meldung(f"Schneiddaten auf Standard zurückgesetzt: {r['geaendert']} Zeile(n) geändert, {r['weg']} "
@@ -2208,6 +2209,7 @@ class Hauptfenster(QMainWindow):
             QTimer.singleShot(200, self._start_teilen)
             QTimer.singleShot(800, self._start_systempruefung)
             QTimer.singleShot(1500, self._start_datenschutz)
+            QTimer.singleShot(2500, self._start_erste_schritte)
             # Preiswächter (Automationen 03.11.2026, 9a): beim Start und alle 10 Minuten
             QTimer.singleShot(20_000, self.preiswaechter)
             self.preis_uhr = QTimer(self)
@@ -2431,6 +2433,17 @@ class Hauptfenster(QMainWindow):
         a.setShortcut(QKeySequence("Ctrl+K"))
         a.triggered.connect(lambda: self.befehlspalette())
         ansicht.addAction(a)
+        # B1 (Verbesserungsplan 06.11.2026): die Suche sichtbar oben rechts, nicht nur über Strg+K
+        self.suchknopf = QPushButton("Suchen …   (Strg+K)")
+        self.suchknopf.setObjectName("suchknopf")
+        self.suchknopf.setCursor(Qt.PointingHandCursor)
+        self.suchknopf.setToolTip("Angebote, Kunden, Profile, Einstellungen, Menübefehle und Knöpfe der offenen Seite "
+                                  "suchen und ausführen (Strg+K)")
+        self.suchknopf.setStyleSheet("QPushButton#suchknopf { text-align: left; padding: 2px 10px; min-width: 190px; "
+                                     "color: #5F6B7A; border: 1px solid #C9D0D8; border-radius: 4px; "
+                                     "background: palette(base); }")
+        self.suchknopf.clicked.connect(lambda: self.befehlspalette())
+        self.menuBar().setCornerWidget(self.suchknopf, Qt.TopRightCorner)
         hilfe = self.menuBar().addMenu("&Hilfe")
         a = QAction("Bedienungsanleitung (PDF)", self)
         a.setShortcut(QKeySequence.HelpContents)
@@ -2438,6 +2451,9 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         a = QAction("Kurzanleitung (PDF)", self)
         a.triggered.connect(lambda: self.anleitung_oeffnen(KURZANLEITUNG))
+        hilfe.addAction(a)
+        a = QAction("Erste Schritte …", self)              # B4 (Verbesserungsplan 06.11.2026)
+        a.triggered.connect(lambda: self.erste_schritte())
         hilfe.addAction(a)
         a = QAction("Was ist neu …", self)
         a.triggered.connect(self.neuerungen_zeigen)
@@ -2742,6 +2758,21 @@ class Hauptfenster(QMainWindow):
             self.meldung(f"Datenschutz-Frist: {erg['mails']} Mail-Adresse(n) in {erg['angebote']} abgelehnten "
                          f"Angeboten entfernt, {erg['kunden']} Kunde(n) anonymisiert.")
         return erg
+
+    def erste_schritte(self):
+        """Hilfe → Erste Schritte …: Liste für neue Arbeitsplätze (B4)."""
+        from . import erste_schritte
+        return erste_schritte.zeigen(self)
+
+    def _start_erste_schritte(self):
+        """B4: beim ersten Start eines Platzes die Liste zeigen (nicht über einem anderen Dialog)."""
+        from . import erste_schritte
+        try:
+            if QApplication.activeModalWidget() is not None or not erste_schritte.beim_start_zeigen(self.db):
+                return None
+        except sqlite3.Error:
+            return None
+        return self.erste_schritte()
 
     def _start_systempruefung(self):
         """7a: einmal nach Installation bzw. Update prüfen und nur warnen, wenn etwas unter dem Minimum liegt."""
@@ -3123,7 +3154,7 @@ class Hauptfenster(QMainWindow):
         if fehler:
             self.meldung(fehler, fehler=True)
             if not self.stumm:
-                QMessageBox.warning(self, "Datensicherung", f"Sicherung erstellt: {pfade[0]}\n\n{fehler}")
+                QMessageBox.warning(self, "Datensicherung", f"Sicherung erstellt: {pfade[0]}\n\n{fehler_text(fehler)}")
         else:
             self.meldung("Sicherung erstellt: " + " und ".join(str(p) for p in pfade))
         return pfade
@@ -3286,7 +3317,7 @@ class Hauptfenster(QMainWindow):
         try:
             monatsbericht.pdf(pfad, monatsbericht.bericht(self.db, jahr, monat), self.db.einstellungen())
         except OSError as e:
-            self.meldung(f"Monatsbericht: {e}", fehler=True)
+            self.meldung(f"Monatsbericht: {fehler_text(e)}", fehler=True)
             return None
         self.meldung(f"Monatsbericht gespeichert: {pfad}")
         if not self.stumm:
@@ -3349,9 +3380,9 @@ class Hauptfenster(QMainWindow):
         try:
             info = self.db.exportieren(ziel)
         except (OSError, RuntimeError) as e:
-            self.meldung(f"Export nicht gelungen: {e}", fehler=True)
+            self.meldung(f"Export nicht gelungen: {fehler_text(e)}", fehler=True)
             if not self.stumm:
-                QMessageBox.warning(self, "Daten exportieren", f"Der Export ist nicht gelungen:\n\n{e}")
+                QMessageBox.warning(self, "Daten exportieren", f"Der Export ist nicht gelungen:\n\n{fehler_text(e)}")
             return None
         self.meldung(f"Daten exportiert: {ziel} ({info['anzahl'].get('angebote', 0)} Angebote)")
         if not self.stumm:
@@ -3393,9 +3424,9 @@ class Hauptfenster(QMainWindow):
         try:
             info, vorher = self.db.wiederherstellen(quelle, zusatz=zusatz)
         except (OSError, RuntimeError) as e:
-            self.meldung(f"Nicht ersetzt: {e}", fehler=True)
+            self.meldung(f"Nicht ersetzt: {fehler_text(e)}", fehler=True)
             if not self.stumm:
-                QMessageBox.warning(self, "Daten ersetzen", f"Die Daten wurden nicht ersetzt:\n\n{e}")
+                QMessageBox.warning(self, "Daten ersetzen", f"Die Daten wurden nicht ersetzt:\n\n{fehler_text(e)}")
             return None
         self.alles_neu_laden()
         self.meldung(f"Daten ersetzt aus {Path(quelle).name}; der vorige Stand liegt in {vorher.name}.")
@@ -3423,7 +3454,7 @@ class Hauptfenster(QMainWindow):
         try:
             self.datei_oeffnen(self.ablage())
         except OSError as e:
-            QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht öffnen:\n{e}")
+            QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht öffnen:\n{fehler_text(e)}")
 
     def angebot_ordner(self, kopf):
         """Ordner des Angebots in der Ablage ('2026-00042 Kunde', Fassungen 'Fassung 2' darin), wird angelegt.
@@ -3443,7 +3474,7 @@ class Hauptfenster(QMainWindow):
         try:
             ordner = self.angebot_ordner(kopf)
         except OSError as e:
-            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
+            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{fehler_text(e)}")
             return None
         self.datei_oeffnen(ordner)
         return ordner

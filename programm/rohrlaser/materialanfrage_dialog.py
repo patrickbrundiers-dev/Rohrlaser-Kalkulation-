@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QFormLayou
                                QVBoxLayout)
 
 from . import materialanfrage as ma
+from .klartext import fehler_text
 from .eingabe import RechenSpinGanz
 
 
@@ -229,7 +230,7 @@ class AnfrageDialog(QDialog):
             self.accept()
             return True
         pfad = self.als_datei()
-        self.meldung = (f"Outlook ließ sich nicht ansteuern ({fehler}). Ersatz: E-Mail-Datei {pfad} "
+        self.meldung = (f"Outlook ließ sich nicht ansteuern ({fehler_text(fehler)}). Ersatz: E-Mail-Datei {pfad} "
                         "im Standard-Mailprogramm geöffnet.")
         self.accept()
         return False

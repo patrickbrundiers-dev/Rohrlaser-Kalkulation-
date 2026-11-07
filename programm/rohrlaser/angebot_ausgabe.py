@@ -11,6 +11,7 @@ from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
 
 from . import abmessung, angebot_check, ausgabe, baugruppe, export, materialanfrage, pdf, plausibel, rechnen, teilen
+from .klartext import fehler_text
 from . import nummern as angebotsnummern
 from .angebot import aktiv as position_aktiv, kein_laserteil
 
@@ -49,7 +50,7 @@ class AusgabeMixin:
         try:
             return self.f.angebot_ordner(self.kopf) / (ausgabe.dateiname(self.kopf, zusatz, mit_kunde) + endung)
         except OSError as e:
-            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
+            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{fehler_text(e)}")
             return None
 
     def _schreiben(self, art, pfad, schreiben, oeffnen=True):
@@ -195,7 +196,7 @@ class AusgabeMixin:
         try:
             nr = angebotsnummern.ab_nummer(self.db, kopf)
         except OSError as e:
-            QMessageBox.warning(self, "Auftragsbestätigung", f"Keine AB-Nummer: {e}")
+            QMessageBox.warning(self, "Auftragsbestätigung", f"Keine AB-Nummer: {fehler_text(e)}")
             return None
         ab = dict(nummer=nr, datum=datetime.date.today().isoformat(), bestellung=kopf.get("auftragsnr"),
                   liefertermin=kopf.get("liefertermin"), text=self.einst.get("ab_text") or "")
@@ -397,7 +398,7 @@ class AusgabeMixin:
             finally:
                 QApplication.restoreOverrideCursor()
         except OSError as e:
-            QMessageBox.warning(self, "Übergabe an CAM", f"Der Ordner lässt sich nicht schreiben:\n{e}")
+            QMessageBox.warning(self, "Übergabe an CAM", f"Der Ordner lässt sich nicht schreiben:\n{fehler_text(e)}")
             return None
         self.f.meldung(cam_paket.text(bericht))
         if not self.f.stumm and not ordner:

@@ -3,8 +3,9 @@
 gleich aus – Rohr- und Blech-Editor (Menüband, gleiches Menü „Blick“), STEP-Prüfdialog, Teilebaum, Schweißbaugruppe,
 Schneidweg-Rechner (Leiste unter dem Bild, Ansicht3DMitKnoepfen).
 """
+from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QMenu, QPushButton, QToolButton, QWidget
+from PySide6.QtWidgets import QComboBox, QLayout, QMenu, QPushButton, QToolButton, QWidget
 
 from .ansicht3d import BLICKE, DARSTELLUNGEN, ISOMETRIE, MESS_ABSTAND, MESS_WINKEL
 
@@ -76,6 +77,67 @@ class _Leer:
         pass
 
 
+class FlussLayout(QLayout):
+    """Knöpfe nebeneinander; reicht die Breite nicht, geht es in der nächsten Zeile weiter, statt die Knöpfe zu
+    quetschen (Verbesserungsplan 06.11.2026, E1: „spektiv“, „nittkör“ in schmalen 3D-Fenstern)."""
+
+    def __init__(self, parent=None, abstand=6):
+        super().__init__(parent)
+        self._teile, self._abstand = [], abstand
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item):
+        self._teile.append(item)
+
+    def count(self):
+        return len(self._teile)
+
+    def itemAt(self, i):
+        return self._teile[i] if 0 <= i < len(self._teile) else None
+
+    def takeAt(self, i):
+        return self._teile.pop(i) if 0 <= i < len(self._teile) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, breite):
+        return self._legen(QRect(0, 0, breite, 0), nur_messen=True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._legen(rect)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        g = QSize()
+        for t in self._teile:
+            g = g.expandedTo(t.minimumSize())
+        m = self.contentsMargins()
+        return g + QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _legen(self, rect, nur_messen=False):
+        m = self.contentsMargins()
+        r = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x, y, zeile = r.x(), r.y(), 0
+        for t in self._teile:
+            if t.widget() is not None and t.widget().isHidden():
+                continue
+            g = t.sizeHint()
+            if x > r.x() and x + g.width() > r.right() + 1:
+                x, y, zeile = r.x(), y + zeile + self._abstand, 0
+            if not nur_messen:
+                t.setGeometry(QRect(QPoint(x, y), g))
+            x += g.width() + self._abstand
+            zeile = max(zeile, g.height())
+        return y + zeile - rect.y() + m.bottom()
+
+
 class Leiste3D(QWidget):
     """Leiste unter einer 3D-Ansicht: Blick (Menü), Darstellung, Perspektive, Schnittkörper, Messen, Winkel, Maße
     löschen."""
@@ -83,8 +145,7 @@ class Leiste3D(QWidget):
     def __init__(self, ansicht, parent=None):
         super().__init__(parent)
         self.ansicht = ansicht
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
+        lay = FlussLayout(self)
         self.blick_knopf = QToolButton()
         self.blick_knopf.setText("Blick")
         self.blick_knopf.setToolTip("Klick: Isometrie; Pfeil: Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, "
@@ -123,7 +184,6 @@ class Leiste3D(QWidget):
         loeschen.clicked.connect(ansicht.masse_loeschen)
         for b in (self.messen, self.winkel, loeschen):
             lay.addWidget(b)
-        lay.addStretch(1)
         ansicht.messen_geaendert.connect(self.stand)
         ansicht.gedreht.connect(self.stand)
         self.stand()

@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.269", "<b>Einfacher bedienen</b>: oben rechts steht das Feld <b>Suchen … (Strg+K)</b>; es findet jetzt auch "
+     "die Knöpfe der offenen Seite ([[befehlspalette]]). Die Schrittanzeige im Angebot ist anklickbar, der Knopf "
+     "<b>Weiter: …</b> führt den nächsten Schritt aus. Die <b>Lieferzeit</b> steht in einem Feld: einfach "
+     "„3 Wochen“, „10 AT“, „KW 48“ oder „15.11.“ schreiben ([[lieferzeit]]). Sechs Rückfragen sind weg (Schneidweg "
+     "ersetzt die STEP-Werte, Zielpreis, Zukauf-Preisstand, Änderungsverlauf, Ursprung zurücksetzen): es passiert "
+     "sofort, die Einblendung bietet <b>Rückgängig</b> ([[rueckgaengig]]). Fehlermeldungen sagen in Klartext, was "
+     "los ist und was zu tun ist (z. B. Datei in einem anderen Programm geöffnet). Neue Arbeitsplätze bekommen einmal "
+     "die Liste <b>Erste Schritte</b> (Hilfe → Erste Schritte …, [[erste_schritte]]). Keine abgeschnittenen Texte mehr "
+     "bei 1366 × 768; die 3D-Leiste bricht um, das Prüfmeldungsfeld im Editor ist ohne Meldung nur eine Zeile hoch.",
+     "Suchfeld, Weiter-Knopf, Lieferzeit in einem Feld, Rückgängig statt Rückfrage, Fehler in Klartext, Erste Schritte."],
     ["0.9.268", "<b>STEP genauer</b> ([[step]]): Flachstahl mit Längsfasen an den Kanten (z. B. die Schneidkante einer "
      "Baggerschaufel) galt bisher als glattes Rechteck, die Fasen fielen weg. Jetzt meldet der Import „Querschnitt mit "
      "Längsfasen“ mit den Maßen, das Teil steht gelb, und Skizze und 3D zeigen den Querschnitt wie in der STEP. "

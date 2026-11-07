@@ -13,8 +13,8 @@ from PySide6.QtWidgets import (
 from . import abruf, fracht_angebot, funktionen, hilfe, rechnen, teilen, zukauf
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
-from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
-                      aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
+from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, MATERIAL_HERKUNFT,
+                      aktiv as position_aktiv, kalk_abweichungen, lieferzeit_eingabe, lieferzeit_text)
 from .sichtbarkeit import MASCHINE, OPTIONAL, ist_null, kopf_sichtbar, sichtbar
 from .stammdaten import MUSTER_DARSTELLUNG, MUSTER_UMLEGEN, zahl_als_text
 from .eingabe import RechenSpin, RechenSpinGanz
@@ -51,8 +51,9 @@ MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stangenwechsel_sn", "Stangenwechsel SN (Schweißnaht)", "s", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
 
-LIEFERZEIT_TOOLTIP = ("Arbeitstage und Wochen zählen ab Auftragseingang; Kalenderwoche und Lieferdatum sind feste "
-                      "Termine; „nur Text“ zeigt nur den Freitext")
+LIEFERZEIT_TOOLTIP = ("Lieferzeit in einem Feld: „3 Wochen“ oder „10 AT“ (ab Auftragseingang), „KW 48“, „15.11.“ "
+                      "(feste Termine) oder Freitext wie „nach Absprache“. Was hinter der Angabe steht (z. B. "
+                      "„3 Wochen, Teillieferung möglich“), kommt als Zusatz dazu.")
 # Fracht rechts neben der Kalkulation ab dieser Breite der Angebotsseite (darunter steht sie unter der Kalkulation)
 FRACHT_RECHTS_AB = 1800
 KOMPAKT_UNTER = 760       # px Höhe der Angebotsseite (Laptop 1366 × 768): Karten flacher, Kalkulation + Fracht nebeneinander
@@ -81,13 +82,6 @@ def _wert_text(fd, w):
     return f"{t} {einheit}".strip()
 
 
-def _lz_anzeige(art, wert):
-    """Gespeicherten Lieferzeit-Wert anzeigen: Datum als TT.MM.JJJJ, sonst wie gespeichert."""
-    if wert and art == "Lieferdatum":
-        return datum_text(wert)
-    return wert or ""
-
-
 def karte(titel=None, rechts=None):
     """Weiße Karte mit dünnem Rahmen; Ergebnis: (Karte, Layout für den Inhalt)."""
     k = QFrame()
@@ -111,6 +105,7 @@ class KurzZeile(QLabel):
     """Einzeilige Kurzfassung neben einem Aufklapp-Knopf (Kopf, Kalkulation, Fracht): passt der Text nicht in die
     Breite, endet er mit „…“ statt mitten im Wort abgeschnitten, und der Tooltip zeigt den ganzen Text (Prüfung
     29.10.2026, O5). Rich Text (fett, Farbe) bleibt erhalten."""
+    gekuerzt_mit_tooltip = True         # für die Prüfung auf abgeschnittene Texte (texte_pruefen)
 
     def __init__(self):
         super().__init__()
@@ -320,22 +315,15 @@ class KopfBereich(QWidget):
         # Vorschau der Lieferzeit nur als eigene Zeile, wenn sie etwas sagt, was die Felder nicht zeigen
         g.addWidget(QLabel(KOPF_FELD["kundenreferenz"].titel), 2, 0)
         g.addWidget(w, 2, 1)
-        # Lieferzeit dieses Angebots: Art, Wert passend zur Art und Freitext (ändert keine Preise)
-        self.lz_art, self.lz_wert, self.lz_zusatz = QComboBox(), QLineEdit(), QLineEdit()
-        self.lz_art.addItems(LIEFERZEIT_ARTEN)
-        self.lz_art.setToolTip(LIEFERZEIT_TOOLTIP)
-        self.lz_wert.setMaximumWidth(130)
-        self.lz_zusatz.setPlaceholderText("Freitext, z. B. nach Absprache, Teillieferung möglich")
-        self.lz_art.currentTextChanged.connect(lambda t: seite._kopf_speichern(KOPF_FELD["lieferzeit_art"], t or None))
-        self.lz_wert.editingFinished.connect(
-            lambda: seite._kopf_speichern(KOPF_FELD["lieferzeit_wert"], self.lz_wert.text().strip() or None))
-        self.lz_zusatz.editingFinished.connect(
-            lambda: seite._kopf_speichern(KOPF_FELD["lieferzeit_zusatz"], self.lz_zusatz.text().strip() or None))
+        # Lieferzeit dieses Angebots in einem Feld (Verbesserungsplan 06.11.2026, E3): „3 Wochen“, „10 AT“, „KW 48“,
+        # „15.11.“ oder Freitext; das Programm erkennt die Art, darunter steht der Satz im Angebot (ändert keine Preise)
+        self.lz_feld = QLineEdit()
+        self.lz_feld.setPlaceholderText("z. B. 3 Wochen, 10 AT, KW 48, 15.11. oder nach Absprache")
+        self.lz_feld.setToolTip(LIEFERZEIT_TOOLTIP)
+        self.lz_feld.editingFinished.connect(lambda: seite.lieferzeit_speichern(self.lz_feld.text()))
         lz = QHBoxLayout()
         lz.setContentsMargins(0, 0, 0, 0)
-        lz.addWidget(self.lz_art)
-        lz.addWidget(self.lz_wert)
-        lz.addWidget(self.lz_zusatz, 1)
+        lz.addWidget(self.lz_feld, 1)
         # Liefertermin nach freier Kapazität (Vorschlag V2, terminplan.py): nur mit Funktion Maschinenauslastung
         self.termin_knopf = QPushButton("Termin prüfen …")
         self.termin_knopf.setToolTip("Frühesten Liefertermin nach der Maschinenauslastung und der Material-Lieferzeit "
@@ -673,7 +661,7 @@ class KopfBereich(QWidget):
     def feld_zeigen(self, name):
         """Angebots-Check „Hinspringen“: Kopf (bzw. Erweiterte Einstellungen) aufklappen und das Feld fokussieren.
         name = Feld des Angebotskopfs oder 'lieferzeit'. Ergebnis: das Eingabefeld oder None."""
-        w = self.lz_art if name == "lieferzeit" else self.felder.get(name) or self.erweitert.get(name)
+        w = self.lz_feld if name == "lieferzeit" else self.felder.get(name) or self.erweitert.get(name)
         if w is None:
             return None
         self.kopf_aufklappen(True)
@@ -996,27 +984,17 @@ class KopfBereich(QWidget):
 
     def _lieferzeit_anzeigen(self):
         k = self.s.kopf
-        art = k.get("lieferzeit_art") or ""
-        for w, v in ((self.lz_art, art), (self.lz_wert, _lz_anzeige(art, k.get("lieferzeit_wert"))),
-                     (self.lz_zusatz, k.get("lieferzeit_zusatz") or "")):
-            w.blockSignals(True)
-            if isinstance(w, QComboBox):
-                w.setCurrentIndex(w.findText(v))
-            else:
-                w.setText(v)
-            w.blockSignals(False)
-        self.lz_wert.setEnabled(art not in ("", NUR_TEXT))
+        self.lz_feld.blockSignals(True)
+        self.lz_feld.setText(lieferzeit_eingabe(k))
+        self.lz_feld.blockSignals(False)
         from . import funktionen
         self.termin_knopf.setVisible(funktionen.an("funktion_auslastung"))
-        self.lz_wert.setPlaceholderText(LIEFERZEIT_HILFE.get(art, ""))
-        self.lz_wert.setToolTip(LIEFERZEIT_HILFE.get(art, ""))
         text = lieferzeit_text(k)
+        # E3: immer darunter, wie es im Angebot steht (das Feld zeigt nur die Kurzform)
         self.lz_vorschau.setText(f"Im Angebot: {text}" if text else
                                  "Keine Lieferzeit im Angebot: es gilt der Text der Bedingungen (Einstellungen).")
-        # mit Lieferzeit zeigen die Felder schon alles: Satz im Angebot nur als Tooltip, spart eine Zeile
-        self.lz_vorschau.setVisible(not text)
-        self.lz_art.setToolTip((self.lz_vorschau.text() + "\n\n" if text else "") + LIEFERZEIT_TOOLTIP)
-        self.lz_zusatz.setToolTip(self.lz_vorschau.text() if text else "")
+        self.lz_vorschau.setVisible(True)
+        self.lz_feld.setToolTip(self.lz_vorschau.text() + "\n\n" + LIEFERZEIT_TOOLTIP)
 
     def _fracht_anzeigen(self):
         s = self.s
@@ -1401,6 +1379,8 @@ class UebersichtBereich(QWidget):
         for name, (t, titel) in self.preis_titel.items():
             t.setText(titel)
             self.preis[name].setText("wird berechnet …")
+            # klein und grau: in Schrift der Preise (17 pt) wäre der Text breiter als die Übersicht (E1)
+            self.preis[name].setStyleSheet("color: #7F8A99; font-size: 10pt; font-weight: normal;")
             self.preis[name].setToolTip("Das Programm optimiert gleich selbst (Material, Stangen, Verschnitt).")
         self._streifen_neu()
 
@@ -1554,6 +1534,8 @@ class UebersichtBereich(QWidget):
         betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
         for name, w in self.preis.items():
             w.setText(f"{_z(betrag[name][1])} €")
+            if "font-size" in w.styleSheet():           # „wird berechnet …“ war klein gesetzt
+                w.setStyleSheet("")
         self._streifen_neu()
         self._kosten, self._co2 = kosten, co2
         linie = "border-top:1px solid #C9D0D8"

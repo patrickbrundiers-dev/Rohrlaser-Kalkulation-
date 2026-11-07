@@ -50,6 +50,11 @@ class Fotograf:
         """wurzel fotografieren; marken = [(Widget oder (Widget, QRect im Widget), Nummer)];
         ausschnitt = QRect in Koordinaten von wurzel (nur diesen Teil speichern)."""
         QApplication.processEvents()
+        if os.environ.get("RL_TEXTE_PRUEFEN"):         # abgeschnittene Texte je Bild sammeln (Plan 06.11.2026 E1)
+            from rohrlaser.texte_pruefen import abgeschnitten
+            self.texte = getattr(self, "texte", {})
+            self.texte[name] = [str(x) for x in abgeschnitten(wurzel)]
+            (self.ziel / "texte.json").write_text(json.dumps(self.texte, ensure_ascii=False, indent=1), encoding="utf-8")
         bild = wurzel.grab()
         dpr = bild.devicePixelRatio()
         p = QPainter(bild)
@@ -1299,6 +1304,13 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("lizenz_dialog", d, [(d.status, 1), (d.rechner, 2), (knopf(d, "Kopieren"), 3),
                                    (knopf(d, "E-Mail an Patrick …"), 4), (knopf(d, "Lizenzdatei laden …"), 5)])
+    d.close()
+
+    # Erste Schritte (Verbesserungsplan 06.11.2026, B4): Hilfe → Erste Schritte … mit dem Stand des Beispiels
+    d = f.erste_schritte()
+    d.show()
+    QApplication.processEvents()
+    foto.foto("erste_schritte", d, [(d.haken["firma"], 1), (d.knoepfe["preise"], 2)])
     d.close()
 
     # 12) Frachtkosten (Beispieldaten BEISPIEL)

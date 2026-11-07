@@ -155,7 +155,7 @@ def aktiv(p):
 # ------------------------------------------------------------------ Lieferzeit
 LIEFERZEIT_HILFE = {ARBEITSTAGE: "Anzahl Arbeitstage, z. B. 10", WOCHEN: "Anzahl Wochen, z. B. 3",
                     KALENDERWOCHE: "KW/Jahr, z. B. 46/2026 (ohne Jahr: Jahr des Angebots)",
-                    LIEFERDATUM: "Datum, z. B. 15.11.2026", NUR_TEXT: "kein Wert, nur der Freitext"}
+                    LIEFERDATUM: "Datum, z. B. 15.11.2026", NUR_TEXT: "nur Freitext"}
 
 
 def lieferzeit_wert(art, text, datum=None):
@@ -191,6 +191,74 @@ def lieferzeit_wert(art, text, datum=None):
                 pass
         raise ValueError(f"Lieferzeit: '{t}' ist kein gültiges Datum (TT.MM.JJJJ).")
     raise ValueError(f"Lieferzeit: unbekannte Art '{art}'.")
+
+
+_LZ_REST = r"(?:\s*(?:nach\s+Auftragseingang|n\.\s*AE|ab\s+Auftrag(?:seingang)?))?\s*(?:[,;–\-]\s*)?(?P<rest>.*)$"
+_LZ_MUSTER = (
+    (ARBEITSTAGE, r"(?i)^(?:ca\.?\s*)?(?P<w>\d{1,3})\s*(?:AT|Arbeitstag(?:e|en)?|Werktag(?:e|en)?|Tag(?:e|en)?)\b"),
+    (WOCHEN, r"(?i)^(?:ca\.?\s*)?(?P<w>\d{1,3}(?:\s*[-–]\s*\d{1,3})?)\s*(?:W|Wo\.?|Wochen?)(?![\wäöü])"),
+    (KALENDERWOCHE, r"(?i)^(?:in\s+|bis\s+)?KW\s*(?P<w>\d{1,2}(?:\s*[/.\-]\s*\d{2,4})?)\b"),
+    (LIEFERDATUM, r"(?i)^(?:bis\s+(?:zum\s+)?|am\s+)?(?P<w>\d{1,2}\.\s*\d{1,2}\.(?:\s*\d{2,4})?)"),
+)
+
+
+def lieferzeit_lesen(text, datum=None):
+    """Lieferzeit aus einem Feld (Verbesserungsplan 06.11.2026, E3): „3 Wochen“, „10 AT“, „KW 48“, „15.11.“,
+    „15.11.2026“ oder Freitext wie „nach Absprache“. Ergebnis (Art, Wert, Zusatz) wie gespeichert
+    (lieferzeit_art, lieferzeit_wert, lieferzeit_zusatz); was hinter der Angabe steht, wird Zusatz. Leer = (None, None,
+    None). „15.11.“ ohne Jahr: Jahr des Angebots, liegt der Tag davor, das Jahr danach. Spannen wie „2-3 Wochen“
+    bleiben Freitext. ValueError bei einer ungültigen Kalenderwoche oder einem ungültigen Datum."""
+    import datetime
+    t = " ".join(str(text or "").split()).strip()
+    if t.lower().startswith("lieferzeit"):
+        t = re.sub(r"(?i)^lieferzeit\s*:?\s*", "", t)
+    t = t.rstrip(".") if not re.search(r"\d\.$", t) else t
+    if not t:
+        return None, None, None
+    for art, muster in _LZ_MUSTER:
+        m = re.match(muster + _LZ_REST, t)
+        if not m:
+            continue
+        w, rest = m.group("w"), (m.group("rest") or "").strip() or None
+        if art == WOCHEN and re.search(r"[-–]", w):
+            break                                   # Spanne: als Freitext übernehmen
+        if art == LIEFERDATUM:
+            tag, monat, jahr = (re.split(r"\.\s*", w.strip()) + [""])[:3]
+            if not jahr:
+                try:
+                    bezug = datetime.date.fromisoformat(datum or "")
+                except ValueError:
+                    bezug = datetime.date.today()
+                jahr = bezug.year
+                try:
+                    if datetime.date(jahr, int(monat), int(tag)) < bezug:
+                        jahr += 1
+                except ValueError:
+                    pass
+            w = f"{tag}.{monat}.{jahr}"
+        return art, lieferzeit_wert(art, w, datum), rest
+    return NUR_TEXT, None, t
+
+
+def lieferzeit_eingabe(kopf):
+    """Gespeicherte Lieferzeit als Text für das eine Feld (Gegenstück zu lieferzeit_lesen)."""
+    import datetime
+    kopf = kopf or {}
+    art, w = kopf.get("lieferzeit_art"), kopf.get("lieferzeit_wert")
+    zusatz = (kopf.get("lieferzeit_zusatz") or "").strip()
+    teil = ""
+    if w and art == ARBEITSTAGE:
+        teil = f"{w} Arbeitstag{'' if w == '1' else 'e'}"
+    elif w and art == WOCHEN:
+        teil = f"{w} Woche{'' if w == '1' else 'n'}"
+    elif w and art == KALENDERWOCHE:
+        teil = f"KW {w}"
+    elif w and art == LIEFERDATUM:
+        try:
+            teil = datetime.date.fromisoformat(w).strftime("%d.%m.%Y")
+        except ValueError:
+            teil = w
+    return ", ".join(x for x in (teil, zusatz) if x)
 
 
 def lieferzeit_text(kopf):

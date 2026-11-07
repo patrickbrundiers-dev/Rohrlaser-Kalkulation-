@@ -380,8 +380,9 @@ class StepPruefDialog(QDialog):
         QShortcut(QKeySequence("F2"), self.baum, activated=lambda: self.artikel_bearbeiten(self.baum.currentItem()),
                   context=Qt.WidgetShortcut)
         self._baum_fuellen()
-        for c, b in enumerate((220, 50, 150, 130, 120, 110, 70, 120, 80, 95, 65, 130)):
+        for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130)):
             self.baum.setColumnWidth(c, b)
+        self._spalten_an_auswahl()          # Art und Profil so breit wie die längste Auswahl (E1)
 
         # Werte für mehrere Teile auf einmal (zwei Zeilen, V2): Werkstoff, Stückzahl, Zusatzarbeit (V4)
         self.leiste = QWidget()
@@ -901,6 +902,25 @@ class StepPruefDialog(QDialog):
         self.ampel_fehler = len(fehler)
         self.artikel_pruefen()
         self._ampel_zeigen()
+        self._spalten_an_auswahl()
+
+    SPALTE_MAX = 300            # px: breiter wird eine Auswahlspalte nicht
+
+    def _spalten_an_auswahl(self):
+        """Spalten Art und Profil so breit wie die längste Auswahl (Verbesserungsplan 06.11.2026, E1: „Kantteil (Blech
+        geka“, „Rechteckrohr – Ringe an d“), höchstens SPALTE_MAX."""
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        breit = {}
+        it = QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None:
+            for c in (self.SP_ART, self.SP_PROFIL):
+                w = self.baum.itemWidget(it.value(), c)
+                if isinstance(w, QComboBox):
+                    breit[c] = max(breit.get(c, 0), w.fontMetrics().horizontalAdvance(w.currentText()) + 34)
+            it += 1
+        for c, b in breit.items():
+            if b > self.baum.columnWidth(c):
+                self.baum.setColumnWidth(c, min(b, self.SPALTE_MAX))
 
     def ampel_zahlen(self):
         """(sicher, prüfen, nicht übernehmbar) über alle Dateien: Zeilen gleicher Teile bzw. Teile ohne Übernahme."""
