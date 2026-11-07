@@ -37,6 +37,14 @@ NEUERUNGEN = [
      "Sechskant bzw. Kugel trennen. Beide Teile werden einzeln gemessen, Lage wie in der STEP; die Mutter wird "
      "Normteil.",
      "Verschmolzene Mutter/Kugel im Prüfdialog abtrennen (Aufteilen)."],
+    ["0.9.272", "<b>Langsame Teile im Hintergrund</b> ([[step]]): messen nur noch einzelne Körper, die schon länger "
+     "als 20 s laufen, öffnet der Prüfdialog gleich mit allen übrigen Teilen. Die langsamen stehen als <i>Messung "
+     "läuft noch</i> da und rücken von selbst nach; OK wartet nötigenfalls auf sie.",
+     "Prüfdialog wartet nicht mehr auf einzelne langsame Teile."],
+    ["0.9.272", "<b>Prüfsammlung wächst von selbst</b> ([[support_paket]]): eine im STEP-Prüfdialog von Hand geänderte "
+     "Art merkt sich das Programm (Kennwerte der Messung und Vorschaubild, keine STEP-Datei und keine Namen); das "
+     "Support-Paket nimmt sie mit, daraus werden neue Erkennungsregeln.",
+     "Von Hand geänderte Arten kommen ins Support-Paket (ohne STEP-Dateien)."],
     ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
      "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
      "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "

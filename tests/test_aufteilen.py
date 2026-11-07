@@ -64,9 +64,8 @@ ok("Messung: Körper gelb „Mehrere Teile in einem Körper?“, Aufteilen mögl
 def aufteilen_messen(m):
     """Wie AngebotFenster._aufteilen_messen, nur ohne STEP-Import.exe."""
     t = Path(tempfile.mkdtemp())
-    if step_messen.main(["--ausgabe", str(t / "a.txt"), "--netze", str(t / "netze"), "--aufteilen",
-                         str(int(float(m["koerper"]))), m["_pfad"]]) == 2:
-        return None
+    step_messen.main(["--ausgabe", str(t / "a.txt"), "--netze", str(t / "netze"), "--aufteilen",
+                      str(int(float(m["koerper"]))), m["_pfad"]])
     return step.aufteilen_ergebnis(m, t / "a.txt", t / "netze")
 
 

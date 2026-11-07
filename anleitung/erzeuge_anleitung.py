@@ -613,7 +613,13 @@ def kapitel_start(i):
            "Einstellungen, ohne Kunden, Preise und Passwörter, und öffnet den Ordner. Die Datei schickt man selbst "
            "per Mail an den Support.", kurz=True)
     i.liste("Haken <i>Offenes Angebot beilegen</i> (Vorgabe aus): Kopf und Positionen des gerade offenen Angebots "
-            "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.")
+            "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.",
+            "<b>Prüfsammlung (seit 0.9.272):</b> stellt man im STEP-Prüfdialog die Art eines Teils von Hand um (z. B. "
+            "Blech → Flachstahl, Rundstahl → Drehteil), merkt sich das Programm das in <i>Daten/Prüfsammlung</i>: "
+            "die Kennwerte der Messung (Hüllmaße, Volumen, Flächenzahl, erkannte Regel und Merkmale) und ein kleines "
+            "Vorschaubild, höchstens die letzten 500. Die STEP-Datei, Datei-, Artikel- und Bauteilnamen werden nicht "
+            "gespeichert. Das Support-Paket nimmt die Sammlung mit (Ordner <i>pruefsammlung</i>); daraus entstehen "
+            "neue Erkennungsregeln und Tests.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
@@ -2486,6 +2492,12 @@ def kapitel_step(i):
             "Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
             "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
             "sollen ([[einstellungen]]).",
+            "<b>Langsame Teile im Hintergrund (seit 0.9.272):</b> messen nur noch Körper, die schon länger als 20 s "
+            "laufen, öffnet der Prüfdialog gleich mit allen übrigen Teilen. Die langsamen stehen mit dem Hinweis "
+            "<i>Messung läuft noch</i> in der Liste, über der Liste steht <i>N langsame Teile werden noch gemessen</i>; "
+            "sobald sie fertig sind, rücken sie von selbst nach (Messwerte und 3D, Eingaben im Dialog bleiben). "
+            "<b>OK</b> wartet nötigenfalls auf sie (<i>Ohne sie übernehmen</i> lässt sie weg). Das Zeitlimit je Körper "
+            "gilt weiter.",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien stehen alle "
             "Dateien untereinander in einer Liste (Gruppenzeile mit dem Dateinamen); die Pfeil-Knöpfe oben springen "

@@ -187,7 +187,7 @@ class StepPruefDialog(QDialog):
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
                  zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
-                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None, aufteilen=None):
+                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None, aufteilen=None, nachmessung=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -206,10 +206,12 @@ class StepPruefDialog(QDialog):
         „Flachstahl“ als andere Art an (Patrick 03.11.2026; None = Vorgabe 150 mm, 3 × Breite). blech_daten
         (werkstoffe, laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten.
         aufteilen(m) = Messwerte der getrennten Teile eines Körpers aus mehreren Teilen oder None (Vorschlag N3, Knopf
-        „Aufteilen“; None = ohne Knopf)."""
+        „Aufteilen“; None = ohne Knopf). nachmessung (N4, nachmessung.Nachmessung): langsame Teile werden noch
+        gemessen; sie stehen als „Messung läuft noch“ und rücken nach, OK wartet nötigenfalls auf sie."""
         from . import step
         super().__init__(parent)
         self.aufteilen_messen = aufteilen
+        self.nachmessung = nachmessung
         self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
         self.flach_grenzen = tuple(flach_grenzen or (None, None))
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
@@ -225,6 +227,9 @@ class StepPruefDialog(QDialog):
                 knickverbindung.koerper_vorbereiten(m, self.knick_vorgaben)
         if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
             step.kantteile_vorbelegen(messwerte, k.profile)
+        from . import art_korrekturen       # N5: Art vor dem Prüfen, von Hand geänderte kommen in die Prüfsammlung
+        self._art_start = art_korrekturen.start_merken([m for m in messwerte if not step.noch_in_messung(m)])
+        self.art_korrekturen = []
         self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
         self.blech_daten = blech_daten
         self.werkstoff, self.stueck, self.zukauf_liste = werkstoff, stueck, zukauf_liste
@@ -498,12 +503,17 @@ class StepPruefDialog(QDialog):
         az.addWidget(self.aufteil_info, 1)
         az.addWidget(self.aufteil_knopf)
         self.aufteil_zeile.hide()
+        self.nachmess_info = QLabel()       # N4: langsame Teile werden noch gemessen
+        self.nachmess_info.setStyleSheet("color: #7A5A00;")
+        self.nachmess_info.setWordWrap(True)
+        self.nachmess_info.hide()
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(self.kopf)
         ll.addWidget(self.knick_zeile)
         ll.addWidget(self.aufteil_zeile)
+        ll.addWidget(self.nachmess_info)
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
         ll.addLayout(zeile_3d)
@@ -1029,6 +1039,7 @@ class StepPruefDialog(QDialog):
                 continue
             self.messwerte[i] = teile[0]
             self.messwerte.extend(teile[1:])
+            self._art_start_ergaenzen()
             namen.append(" + ".join(str(t.get("bauteil", "")).rsplit(" – ", 1)[-1] for t in teile))
             n += 1
         self.mehrteilig = step.mehrteilig(self.messwerte, self.zukauf_liste is not None)
@@ -2021,10 +2032,65 @@ class StepPruefDialog(QDialog):
                     m.pop("_profil", None)
         return self.messwerte
 
+    def _art_start_ergaenzen(self):
+        """Neu hinzugekommene Teile (aufgeteilt, nachgemessen): ihre gemessene Art gilt als Ausgang (N5)."""
+        from . import art_korrekturen, step
+        for schl, v in art_korrekturen.start_merken([m for m in self.messwerte
+                                                     if not step.noch_in_messung(m)]).items():
+            self._art_start.setdefault(schl, v)
+
+    def _nachmessung_offen(self):
+        from . import step
+        return [i for i, m in enumerate(self.messwerte) if step.noch_in_messung(m)]
+
+    def nachmessung_pruefen(self):
+        """Uhr (N4): ist die Messung der langsamen Teile fertig, ihre Messwerte einsetzen. Ergebnis: Anzahl."""
+        offen = self._nachmessung_offen() if self.nachmessung is not None else []
+        if not offen:
+            self.nachmess_info.setVisible(False)
+            if hasattr(self, "_nach_uhr"):
+                self._nach_uhr.stop()
+            return 0
+        if self.nachmessung.laeuft():
+            namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in offen[:3])
+            self.nachmess_info.setText(f"{len(offen)} langsame(s) Teil(e) werden noch gemessen ({namen}"
+                                       f"{' …' if len(offen) > 3 else ''}) – sie erscheinen von selbst in der Liste")
+            self.nachmess_info.setVisible(True)
+            return 0
+        from . import nachmessung
+        self.werte_schreiben()
+        n = nachmessung.einsetzen(self.messwerte, self.nachmessung.messwerte())
+        self._art_start_ergaenzen()
+        if hasattr(self, "_nach_uhr"):
+            self._nach_uhr.stop()
+        if n:
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+        rest = len(self._nachmessung_offen())
+        self.nachmess_info.setText(f"{n} langsame(s) Teil(e) nachgemessen und eingesetzt"
+                                   + (f"; {rest} nicht messbar (Messung abgebrochen)" if rest else ""))
+        self.nachmess_info.setVisible(True)
+        return n
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self.nachmessung is not None and not hasattr(self, "_nach_uhr"):
+            self._nach_uhr = QTimer(self)
+            self._nach_uhr.timeout.connect(self.nachmessung_pruefen)
+            self._nach_uhr.start(1000)
+            self.nachmessung_pruefen()
+
     def accept(self):
+        offen = self._nachmessung_offen() if self.nachmessung is not None else []
+        if offen and self.nachmessung.laeuft():          # N4: auf die langsamen Teile warten
+            self.nachmessung.warten(self, len(offen))
+        if offen:
+            self.nachmessung_pruefen()
         self.werte_schreiben()
         k = self.korrekturen()
         self.lernen_werte = k if k and self.lernen_haken.isChecked() else None
+        from . import art_korrekturen
+        self.art_korrekturen = art_korrekturen.korrekturen(self._art_start, self.messwerte)
         super().accept()
 
     def korrekturen(self):

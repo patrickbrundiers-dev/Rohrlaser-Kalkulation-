@@ -1499,6 +1499,12 @@ def virtuell_einsetzen(m, neu):
 
 
 MEHRTEILIG_HINWEIS = "Mehrere Teile in einem Körper?"
+NOCH_IN_MESSUNG = "Messung läuft noch"          # step_messen.NOCH_IN_MESSUNG (Vorschlag N4)
+
+
+def noch_in_messung(m):
+    """Platzhalter eines langsamen Körpers im Zwischenstand der Messung (rückt nach, nachmessung.einsetzen)."""
+    return NOCH_IN_MESSUNG in (m.get("hinweise") or "")
 AUFGETEILT_BEHALTEN = ("_pfad", "_stueck", "_werkstoff", "_zusatz", "_saetze", "datei", "pfad", "knoten", "struktur")
 
 
