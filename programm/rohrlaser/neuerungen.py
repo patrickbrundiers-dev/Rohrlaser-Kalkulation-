@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.272", "<b>Alle Editoren gleich aufgebaut</b> ([[teile_editor]]): die <b>Schweißbaugruppe</b> und <i>Satz "
+     "in 3D</i> haben jetzt denselben Rahmen wie Rohr- und Blech-Editor: oben das Menüband (Konstruktion, Ansicht, "
+     "Ausgabe), links Strukturbaum bzw. Teile, in der Mitte die 3D-Ansicht mit den Reitern darunter, rechts das "
+     "Ergebnis, unten Kacheln und Prüfmeldungen (Klick springt zur Zeile). Der Strukturbaum und das 3D sind immer "
+     "sichtbar, kein eigener Reiter mehr; alle Editoren öffnen maximiert.",
+     "Schweißbaugruppe und Satz in 3D aufgebaut wie Rohr- und Blech-Editor."],
     ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
      "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
      "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "

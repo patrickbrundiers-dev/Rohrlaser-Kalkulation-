@@ -1184,7 +1184,6 @@ def main(ziel):
     d.teil_verschieben(erstes["_id"], seite_kn)
     d.resize(1400, 700)
     d.show()
-    d.reiter.setCurrentIndex(d.BAUM)
     d.baum.setCurrentItem(d.baum_items[("knoten", seite_kn)])
     QApplication.processEvents()
     foto.foto("baugruppe_baum", d, [(d.baum, 1), ((d.baum.viewport(), d.baum.visualItemRect(

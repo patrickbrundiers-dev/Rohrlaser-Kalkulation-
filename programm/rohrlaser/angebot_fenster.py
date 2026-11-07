@@ -5602,7 +5602,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
                             einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id),
                             profile=self.k.profile)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis:
             return False
         vorab = self.teilen_anwenden(d.ergebnis)
         werte = dict((vorlage or {}).get("extra") or {}, **d.ergebnis["position"], pos=p["pos"])
@@ -5644,7 +5644,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._art_knopf_einbauen(d, [r for r, q in enumerate(self.positionen)
                                      if not ist_baugruppe(q) and baugruppe.zuordnung(q)[0] == baugruppe.zuordnung(p)[0]
                                      and baugruppe.zuordnung(q)[0]])
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
         vorab = self.teilen_anwenden(d.ergebnis)
@@ -8139,7 +8139,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = Satz3dDialog(self, satz, self.positionen, self.k.profile, self._vk_einstellungen(), self.db.netze(self.id),
                          self.db.satz_daten(self.id).get(satz), nur_lesen=bool(self.fremd() or self.db.nur_lesen))
         self._art_knopf_einbauen(d, satz_teile(self.positionen, satz))
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         vorab = self.teilen_anwenden(d.ergebnis)
         self.naehte_schreiben(d.ergebnis["naehte"])
