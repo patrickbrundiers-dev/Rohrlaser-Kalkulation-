@@ -2493,6 +2493,8 @@ def ampel(m, profil_fehlt=False):
         gruende.append(f"Regel des Kunden: {m['_profil']} statt gemessen {m['_profil_regel']}")
     if m.get("_art_gelernt"):
         gruende.append("Art wie beim letzten Mal von Hand gewählt")
+    if gruende and m.get("_geprueft") and not profil_fehlt and not m.get("_knick_fehler"):
+        return "gruen", ["von Hand geprüft („Passt“): " + "; ".join(gruende)]     # M3
     if gruende:
         return "gelb", gruende
     return "gruen", ["Art, Profil und Konturen sicher erkannt"]

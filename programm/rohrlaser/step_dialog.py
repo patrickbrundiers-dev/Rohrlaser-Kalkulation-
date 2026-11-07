@@ -1,13 +1,14 @@
 """Dialoge mit 3D-Ansicht: Prüfen der STEP-Messung vor dem Übernehmen und Ansehen der Positionen eines Angebots."""
+import html
 import re
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QEvent, QObject, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
                                QLineEdit, QSizePolicy,
-                               QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
-                               QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QMenu, QPushButton, QSplitter, QStyledItemDelegate, QTableWidget, QTableWidgetItem,
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import einblendung, funktionen, step_pruefung, stil
 from . import hilfe
@@ -91,6 +92,46 @@ def _messinfo(m):
             + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else "")
             + "<br>" + step_pruefung.html(step_pruefung.merkmale(m, step.gewinde_vorschlag(m.get("bohrungen"),
                                                                                            step.KERNLOCH))))
+
+
+STICHWORT_MAX = 12          # Zeichen: so viel Hinweis steht in der schmalen Spalte (M1), der Rest im Infofeld
+
+
+def stichwort(text):
+    """Kurzer Hinweis für die schmale Spalte (Vorschlag M1, Patrick 07.11.2026): vom ersten Hinweis (bis zum
+    Doppelpunkt) so viele ganze Wörter, wie in STICHWORT_MAX Zeichen passen, „+N“ für weitere Hinweise. Der ganze Text
+    steht im Infofeld unter der 3D-Ansicht und im Tooltip."""
+    teile = [t.strip() for t in str(text or "").split("; ") if t.strip()]
+    if not teile:
+        return ""
+    woerter = (teile[0].split(":")[0].strip() or teile[0]).split()
+    kurz = woerter[0][:STICHWORT_MAX]
+    for w in woerter[1:]:
+        if len(kurz) + 1 + len(w) > STICHWORT_MAX:
+            break
+        kurz += " " + w
+    return kurz.rstrip(" ,(–-") + (f" +{len(teile) - 1}" if len(teile) > 1 else "")
+
+
+class _HinweisDelegat(QStyledItemDelegate):
+    """Zeigt in der Hinweis-Spalte nur das Stichwort; der Text der Zelle (für Tooltip, Infofeld, Programm) bleibt."""
+
+    def displayText(self, wert, locale):
+        return stichwort(wert)
+
+
+class _Einpassen(QObject):
+    """Ruft beim Größenwechsel der Teileliste f() auf (Spalten an die Fensterbreite anpassen, M1)."""
+
+    def __init__(self, ziel, f):
+        super().__init__(ziel)
+        self.f = f
+        ziel.installEventFilter(self)
+
+    def eventFilter(self, obj, e):
+        if e.type() == QEvent.Resize:
+            QTimer.singleShot(0, self.f)
+        return False
 
 
 _BUCHST = "a-zäöüß"
@@ -187,7 +228,8 @@ class StepPruefDialog(QDialog):
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
                  zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
-                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None, aufteilen=None, nachmessung=None):
+                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None, aufteilen=None, nachmessung=None,
+                 profil_anlegen=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -211,6 +253,7 @@ class StepPruefDialog(QDialog):
         from . import step
         super().__init__(parent)
         self.aufteilen_messen = aufteilen
+        self.profil_anlegen_fn = profil_anlegen    # M2: Text -> neue Profil-ID oder None (Fenster „Neue Abmessung“)
         self.nachmessung = nachmessung
         self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
         self.flach_grenzen = tuple(flach_grenzen or (None, None))
@@ -381,6 +424,7 @@ class StepPruefDialog(QDialog):
         self.baum.setMinimumHeight(self.TEILE_MIN * 26 + 44)
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
         self.baum.currentItemChanged.connect(lambda it, *_: self._markiert_datei(it))
+        self.baum.currentItemChanged.connect(lambda *_: self._ampel_zeigen())      # M3: „Passt“ nur bei gelb
         self.baum.itemDoubleClicked.connect(self._doppelklick)
         self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
         self.baum.customContextMenuRequested.connect(self._kontextmenue)
@@ -391,6 +435,17 @@ class StepPruefDialog(QDialog):
         for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130)):
             self.baum.setColumnWidth(c, b)
         self._spalten_an_auswahl()          # Art und Profil so breit wie die längste Auswahl (E1)
+        # M1 (Patrick 07.11.2026): kein Querscrollen – Hinweis als Stichwort, Länge/Schneidweg/Konturen stehen im
+        # Infofeld und sind ausgeblendet (Rechtsklick auf die Kopfzeile blendet sie ein), Anbauteile nur, wenn es welche
+        # gibt; die übrigen Spalten passen sich der Breite an
+        self.baum.setItemDelegateForColumn(self.SP_HINWEIS, _HinweisDelegat(self.baum))
+        self.baum.setColumnWidth(self.SP_HINWEIS, 130)
+        self.spalten_gezeigt = set()
+        self._spalten_sichtbar()
+        kopf = self.baum.header()
+        kopf.setContextMenuPolicy(Qt.CustomContextMenu)
+        kopf.customContextMenuRequested.connect(self._spalten_menue)
+        self._einpassen = _Einpassen(self.baum, self.spalten_einpassen)
 
         # Werte für mehrere Teile auf einmal (zwei Zeilen, V2): Werkstoff, Stückzahl, Zusatzarbeit (V4)
         self.leiste = QWidget()
@@ -442,6 +497,18 @@ class StepPruefDialog(QDialog):
         self.nur_pruefen.setToolTip("Sicher erkannte (grüne) Teile ausblenden")
         self.nur_pruefen.toggled.connect(self.nur_pruefen_setzen)
         alle.addWidget(self.nur_pruefen)
+        # Vorschlag M3: gelbe Teile der Reihe nach durchgehen (F8), „Passt“ (Leertaste) bestätigt das gezeigte Teil
+        self.naechst_knopf = QPushButton("Nächstes prüfen")
+        self.naechst_knopf.setToolTip("Zum nächsten gelben Teil springen, die 3D-Ansicht zeigt es (F8)")
+        self.naechst_knopf.clicked.connect(lambda: self.naechstes_pruefen())
+        alle.addWidget(self.naechst_knopf)
+        self.passt_knopf = QPushButton("Passt")
+        self.passt_knopf.setToolTip("Gezeigtes gelbes Teil ist richtig: anhaken, grün, weiter zum nächsten (Leertaste)")
+        self.passt_knopf.clicked.connect(lambda: self.passt())
+        alle.addWidget(self.passt_knopf)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence("F8"), self, activated=lambda: self.naechstes_pruefen())
+        QShortcut(QKeySequence(Qt.Key_Space), self.baum, activated=self._leertaste, context=Qt.WidgetShortcut)
         alle.addStretch(1)
         self._ampel_zeigen()
         # 3D-Schnittbearbeitung (nur wenn ausgewählt): Gehrungen und schräge Bohrungen aller Teile in 3D
@@ -503,6 +570,21 @@ class StepPruefDialog(QDialog):
         az.addWidget(self.aufteil_info, 1)
         az.addWidget(self.aufteil_knopf)
         self.aufteil_zeile.hide()
+        # Vorschlag M2: Profil fehlt in den Stammdaten -> gleich hier anlegen (Fenster „Neue Abmessung“, Maße vorbelegt)
+        self.profil_zeile = QWidget()
+        pz = QHBoxLayout(self.profil_zeile)
+        pz.setContentsMargins(0, 0, 0, 0)
+        self.profil_info = QLabel()
+        self.profil_info.setStyleSheet("color: #7A5A00;")
+        self.profil_info.setWordWrap(True)
+        self.profil_knopf = QPushButton("Profil anlegen")
+        self.profil_knopf.setToolTip("Fehlendes Profil in den Stammdaten anlegen: Form und Maße aus der Messung "
+                                     "vorbelegt, Querschnitt und Gewicht rechnet das Programm. Danach gilt es für alle "
+                                     "Teile mit diesem Profil.")
+        self.profil_knopf.clicked.connect(lambda: self.profil_anlegen())
+        pz.addWidget(self.profil_info, 1)
+        pz.addWidget(self.profil_knopf)
+        self.profil_zeile.hide()
         self.nachmess_info = QLabel()       # N4: langsame Teile werden noch gemessen
         self.nachmess_info.setStyleSheet("color: #7A5A00;")
         self.nachmess_info.setWordWrap(True)
@@ -513,6 +595,7 @@ class StepPruefDialog(QDialog):
         ll.addWidget(self.kopf)
         ll.addWidget(self.knick_zeile)
         ll.addWidget(self.aufteil_zeile)
+        ll.addWidget(self.profil_zeile)
         ll.addWidget(self.nachmess_info)
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
@@ -546,7 +629,7 @@ class StepPruefDialog(QDialog):
         teil = QSplitter(Qt.Horizontal)
         teil.addWidget(links)
         teil.addWidget(self.ansicht)
-        teil.setSizes([820, 530])
+        teil.setSizes([880, 470])           # M1: etwas mehr Platz für die Liste
         lay = QVBoxLayout(self)
         lay.addWidget(teil, 1)
         hinweis = hilfe.Hinweis("Häkchen = Teil übernehmen, Artikelnummer ändern: Doppelklick oder F2 auf die erste "
@@ -939,8 +1022,65 @@ class StepPruefDialog(QDialog):
         self.artikel_pruefen()
         self._ampel_zeigen()
         self._spalten_an_auswahl()
+        if hasattr(self, "spalten_gezeigt"):
+            self._spalten_sichtbar()
+            self.spalten_einpassen()
 
     SPALTE_MAX = 300            # px: breiter wird eine Auswahlspalte nicht
+    NEBENSPALTEN = ("SP_LAENGE", "SP_SCHNEIDWEG", "SP_KONTUREN")     # M1: stehen im Infofeld, ausgeblendet
+    # M1: so schmal darf eine Spalte beim Einpassen werden (Artikelnummer zuletzt: Einrückung, Haken und Farbe brauchen
+    # schon 80 px; Hinweis, Art, Profil, Werkstoff, Zusatzarbeiten, Anbauteile)
+    SPALTE_MIN = {0: 200, 2: 110, 3: 140, 4: 120, 5: 100, 7: 70, 11: 70}
+
+    def _spalten_sichtbar(self):
+        """Nebenspalten aus (außer von Hand eingeblendet), Anbauteile nur mit Anbauteilen in der Liste."""
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        anbau = False
+        it = QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None and not anbau:
+            anbau = bool(it.value().text(self.SP_ANBAU))
+            it += 1
+        for name in self.NEBENSPALTEN:
+            c = getattr(self, name)
+            self.baum.setColumnHidden(c, c not in self.spalten_gezeigt)
+        self.baum.setColumnHidden(self.SP_ANBAU, not anbau and self.SP_ANBAU not in self.spalten_gezeigt)
+
+    def _spalten_menue(self, pos):
+        menue = QMenu(self)
+        for c in [getattr(self, n) for n in self.NEBENSPALTEN] + [self.SP_ANBAU]:
+            a = menue.addAction(self.SPALTEN[c])
+            a.setCheckable(True)
+            a.setChecked(not self.baum.isColumnHidden(c))
+            a.toggled.connect(lambda an, c=c: self.spalte_zeigen(c, an))
+        menue.exec(self.baum.header().mapToGlobal(pos))
+
+    def spalte_zeigen(self, c, an=True):
+        (self.spalten_gezeigt.add if an else self.spalten_gezeigt.discard)(c)
+        self.baum.setColumnHidden(c, not an)
+        self.spalten_einpassen()
+
+    def spalten_einpassen(self):
+        """Sichtbare Spalten in die Breite der Liste bringen (M1): zu breit = die schmälerbaren Spalten anteilig bis
+        SPALTE_MIN kürzen; ist Platz frei, bekommt die Artikelnummer ihn (bis 260 px)."""
+        if not hasattr(self, "_breit_wunsch"):
+            self._breit_wunsch = {c: self.baum.columnWidth(c) for c in self.SPALTE_MIN}
+        platz = self.baum.viewport().width() - 2
+        if platz < 200:
+            return
+        sicht = [c for c in range(len(self.SPALTEN)) if not self.baum.isColumnHidden(c)]
+        fest = sum(self.baum.columnWidth(c) for c in sicht if c not in self.SPALTE_MIN)
+        schmal = [c for c in sicht if c in self.SPALTE_MIN]
+        wunsch = {c: max(self._breit_wunsch.get(c, 0), self.SPALTE_MIN[c]) for c in schmal}
+        ueber = fest + sum(wunsch.values()) - platz
+        if ueber > 0:
+            spiel = {c: wunsch[c] - self.SPALTE_MIN[c] for c in schmal}
+            summe = sum(spiel.values()) or 1
+            for c in schmal:
+                wunsch[c] -= min(spiel[c], round(ueber * spiel[c] / summe + 0.5))
+        elif 0 in wunsch:
+            wunsch[0] = min(260, wunsch[0] - ueber)
+        for c, b in wunsch.items():
+            self.baum.setColumnWidth(c, int(b))
 
     def _spalten_an_auswahl(self):
         """Spalten Art und Profil so breit wie die längste Auswahl (Verbesserungsplan 06.11.2026, E1: „Kantteil (Blech
@@ -957,6 +1097,8 @@ class StepPruefDialog(QDialog):
         for c, b in breit.items():
             if b > self.baum.columnWidth(c):
                 self.baum.setColumnWidth(c, min(b, self.SPALTE_MAX))
+            if c in getattr(self, "_breit_wunsch", {}):
+                self._breit_wunsch[c] = max(self._breit_wunsch[c], min(b, self.SPALTE_MAX))
 
     def ampel_zahlen(self):
         """(sicher, prüfen, nicht übernehmbar) über alle Dateien: Zeilen gleicher Teile bzw. Teile ohne Übernahme."""
@@ -975,11 +1117,83 @@ class StepPruefDialog(QDialog):
             teile.append(f"<b style='color:#B42318'>● {rot} nicht übernehmbar</b>")
         self.ampel_info.setText("Erkennung: " + " · ".join(teile))
         self.nur_pruefen.setVisible(bool(gelb or rot))
+        if hasattr(self, "naechst_knopf"):
+            self.naechst_knopf.setVisible(bool(gelb))
+            z = self._zeile(self.baum.currentItem())
+            self.passt_knopf.setVisible(bool(gelb))
+            self.passt_knopf.setEnabled(bool(z and getattr(z, "ampel", "") == "gelb"))
         if not (gelb or rot) and self.nur_pruefen.isChecked():     # nichts mehr zu prüfen: Filter aus, alle zeigen
             self.nur_pruefen.blockSignals(True)
             self.nur_pruefen.setChecked(False)
             self.nur_pruefen.blockSignals(False)
         self.nur_pruefen_setzen(self.nur_pruefen.isChecked())
+
+    def _zeilen_der_reihe(self):
+        """Zeilen in der Reihenfolge der Liste (über alle Dateien)."""
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        out, it = [], QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None:
+            z = self._zeile(it.value())
+            if z is not None:
+                out.append(z)
+            it += 1
+        return out
+
+    def naechstes_pruefen(self):
+        """Zum nächsten gelben Teil nach dem gezeigten springen (am Ende wieder von vorn, auch in andere Dateien); die
+        3D-Ansicht zeigt es. Ergebnis: die Zeile oder None (nichts mehr zu prüfen)."""
+        reihe = self._zeilen_der_reihe()
+        jetzt = self._zeile(self.baum.currentItem())
+        start = next((n + 1 for n, z in enumerate(reihe) if z is jetzt), 0)
+        for z in reihe[start:] + reihe[:start]:
+            if getattr(z, "ampel", "") == "gelb" and z is not jetzt:
+                break
+        else:
+            z = jetzt if jetzt is not None and getattr(jetzt, "ampel", "") == "gelb" else None
+        if z is None:
+            self._ampel_zeigen()
+            return None
+        if z.datei != self.datei and z.datei in self.dateien:
+            self.datei_waehlen(self.dateien.index(z.datei), springen=False)
+        p = z.it.parent()
+        while p is not None:
+            p.setExpanded(True)
+            p = p.parent()
+        z.it.setHidden(False)
+        self.baum.setCurrentItem(z.it)
+        self.baum.scrollToItem(z.it)
+        self.baum.setFocus()
+        self._ampel_zeigen()
+        return z
+
+    def passt(self, z=None):
+        """Gezeigtes gelbes Teil bestätigen (M3): anhaken, grün („von Hand geprüft“), weiter zum nächsten gelben."""
+        from . import step
+        z = z or self._zeile(self.baum.currentItem())
+        if z is None or getattr(z, "ampel", "") != "gelb":
+            return None
+        for i in z.liste:
+            self.messwerte[i]["_geprueft"] = True
+        fehlt = "Profil fehlt in den Stammdaten" in getattr(z, "ampel_gruende", [])
+        z.ampel, z.ampel_gruende = step.ampel(self.messwerte[z.liste[0]], profil_fehlt=fehlt)
+        if z.ampel == "gelb":           # Profil fehlt / Knickrahmen: „Passt“ reicht nicht, erst anlegen bzw. verbinden
+            self._ampel_zeigen()
+            return z
+        z.it.setIcon(self.SP_HINWEIS, ampel_punkt(z.ampel))
+        z.it.setToolTip(self.SP_HINWEIS, f"Erkennung: {step.AMPEL_TEXT[z.ampel]} – " + "; ".join(z.ampel_gruende))
+        z.haken_hand = True
+        z.it.setCheckState(0, Qt.Checked)
+        self._ampel_zeigen()
+        return self.naechstes_pruefen() or z
+
+    def _leertaste(self):
+        """Leertaste in der Liste: gelbes Teil = „Passt“, sonst Häkchen umschalten wie gewohnt."""
+        it = self.baum.currentItem()
+        z = self._zeile(it)
+        if z is not None and getattr(z, "ampel", "") == "gelb":
+            self.passt(z)
+        elif it is not None and it.flags() & Qt.ItemIsUserCheckable:
+            it.setCheckState(0, Qt.Unchecked if it.checkState(0) == Qt.Checked else Qt.Checked)
 
     def nur_pruefen_setzen(self, an):
         """Nur gelbe und rote Teile zeigen (grüne ausblenden); leere Gruppen ebenfalls."""
@@ -1055,6 +1269,48 @@ class StepPruefDialog(QDialog):
         self._aufteilen_anzeigen(text)
         return n
 
+    def profile_fehlend(self):
+        """Profil-IDs der gezeigten Datei, die in den Stammdaten fehlen (Gruppen „Profil fehlt“), sortiert."""
+        sonder = (self.BLECHGRUPPE, self.VOLLGRUPPE, self.DREHGRUPPE)
+        return sorted({v for (d, v) in self.gruppen if d == self.datei and v and v not in sonder
+                       and v not in self.k.profile})
+
+    def _profile_anzeigen(self, text=None):
+        """Zeile „Profil anlegen“ über der Liste (M2)."""
+        offen = self.profile_fehlend() if self.profil_anlegen_fn else []
+        if text is None and offen:
+            text = (f"Profil{'e' if len(offen) > 1 else ''} fehlt in den Stammdaten: {', '.join(offen[:4])}"
+                    f"{' …' if len(offen) > 4 else ''} – hier gleich anlegen")
+        self.profil_info.setText(text or "")
+        self.profil_knopf.setVisible(bool(offen))
+        self.profil_knopf.setText("Profil anlegen" if len(offen) <= 1 else f"{len(offen)} Profile anlegen")
+        self.profil_zeile.setVisible(bool(text))
+
+    def profil_anlegen(self, pids=None):
+        """Fehlende Profile (Vorgabe: alle der gezeigten Datei) nacheinander anlegen; die Teile werden danach mit dem
+        neuen Profil gezeigt. Ergebnis: Liste der angelegten Profil-IDs."""
+        if not self.profil_anlegen_fn:
+            return []
+        self.werte_schreiben()
+        neu = []
+        for pid in (self.profile_fehlend() if pids is None else list(pids)):
+            ergebnis = self.profil_anlegen_fn(pid)
+            if ergebnis:
+                neu.append(ergebnis)
+                if ergebnis != pid:         # andere ID gewählt: Teile mit dem Vorschlag pid auf die neue umstellen
+                    for m in self.messwerte:
+                        if m.get("profil_id_vorschlag") == pid:
+                            m["profil_id_vorschlag"] = ergebnis
+        if neu:
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            self._profile_anzeigen(f"Angelegt: {', '.join(neu)} (Materialpreis unter Einstellungen → Werkstoffe/"
+                                   "Materialpreise nachtragen)" + ("; " + self.profil_info.text()
+                                                                   if self.profile_fehlend() else ""))
+            if self.profile_fehlend():
+                self.profil_knopf.show()
+        return neu
+
     def _markierte_koerper(self):
         return [i for z in self._markiert() for i in z.liste]
 
@@ -1069,6 +1325,10 @@ class StepPruefDialog(QDialog):
         if any(self.messwerte[i].get("_zusatz") for x in self._markiert() or ([z] if z else []) for i in x.liste):
             menue.addAction("Zusatzarbeiten entfernen", lambda: self.zusatz_setzen(
                 None, self._markiert() or [z]))
+            menue.addSeparator()
+        gruppe = it.parent().data(0, Qt.UserRole) if z and it.parent() is not None else None
+        if self.profil_anlegen_fn and gruppe in self.profile_fehlend():      # M2
+            menue.addAction(f"Profil „{gruppe}“ anlegen …", lambda: self.profil_anlegen([gruppe]))
             menue.addSeparator()
         koerper = self._markierte_koerper()
         a = menue.addAction("Knickverbindung erstellen …")
@@ -1399,6 +1659,7 @@ class StepPruefDialog(QDialog):
         self._satz_anzeigen()
         self._knick_anzeigen()
         self._aufteilen_anzeigen()
+        self._profile_anzeigen()
         if not springen:
             return
         self.baum.clearSelection()
@@ -1572,7 +1833,9 @@ class StepPruefDialog(QDialog):
                                     m.get("artikel") or "", knickverbindung.text(m))
                 return
             from . import step
-            self.ansicht.setzen(step.netz_der_art(m), m.get("artikel") or "", _messinfo(m))
+            hinweis = z.it.text(self.SP_HINWEIS)        # M1: ganzer Hinweis hier, die Spalte zeigt nur das Stichwort
+            self.ansicht.setzen(step.netz_der_art(m), m.get("artikel") or "",
+                                (f"<b>Hinweis:</b> {html.escape(hinweis)}<br>" if hinweis else "") + _messinfo(m))
         elif it is not None and it.data(1, Qt.UserRole) is not None:   # nicht übernehmbar: Grund und wo es sitzt
             i = it.data(1, Qt.UserRole)
             m = self.messwerte[i]

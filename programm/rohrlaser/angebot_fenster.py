@@ -7849,7 +7849,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                   flach_grenzen=(self.db.einstellung("flachstahl_bis") or 150,
                                                  self.db.einstellung("step_flach_laenge") or 3.0),
                                   blech_daten=blech_daten, aufteilen=self._aufteilen_messen,
-                                  nachmessung=getattr(self, "nachmessung", None))
+                                  nachmessung=getattr(self, "nachmessung", None),
+                                  profil_anlegen=None if self.fremd() or self.db.nur_lesen else self.abmessung_neu)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
