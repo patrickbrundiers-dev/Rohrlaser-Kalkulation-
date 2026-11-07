@@ -48,7 +48,7 @@ from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimie
 from .schritte import Schrittanzeige
 from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
-from . import funktionen, muster_haken, stangen_abwicklung, vollmaterial
+from . import funktionen, muster_haken, stangen_abwicklung, tempo, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -7824,7 +7824,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
             kopieren = dlg.kopieren_haken.isChecked()
-            fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
+            with tempo.abschnitt("STEP: Vorprüfung nach dem Prüfdialog"):
+                fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
             neue_profile, erneut, pdf_danach = dlg.neue_profile_anlegen(), dlg.doppelte_eintragen(), dlg.pdf_danach
             fertig_danach = getattr(dlg, "fertig_danach", False)
             werkstoff = dlg.werkstoff
@@ -7858,19 +7859,21 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         mehr = step.mehrteilig(messwerte, mit_blechen=True)
         if als_satz is None:        # Prüfdialog: Feld „Sätze“ je Datei (leer = Einzelpositionen); ohne Dialog als Satz
             als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
-        stege_bericht = self._stege_messen(messwerte)
+        with tempo.abschnitt("STEP: Stege messen"):
+            stege_bericht = self._stege_messen(messwerte)
         m = rechnen.maschine(self.kopf, self.k)
-        erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
-                               neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
-                               fliessloch_laser=self.db.einstellung("fliessloch_laser"),
-                               bohren_laser=self.db.einstellung("bohren_laser"), blech_daten=blech_daten,
-                               biegerohr_faktor=self.db.einstellung("biegerohr_faktor"),
-                               zusatz_katalog=self.db.zeilen("zusatzarbeiten"),
-                               drehfraes_einst=self.db.drehfraes_einstellungen()
-                               if funktionen.an("funktion_zukauf", self.db) else None)
-        self.db.profile_anlegen(erg["profile"])
-        neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
-                    for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
+        with tempo.abschnitt("STEP: Teile übernehmen"):
+            erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
+                                   neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
+                                   fliessloch_laser=self.db.einstellung("fliessloch_laser"),
+                                   bohren_laser=self.db.einstellung("bohren_laser"), blech_daten=blech_daten,
+                                   biegerohr_faktor=self.db.einstellung("biegerohr_faktor"),
+                                   zusatz_katalog=self.db.zeilen("zusatzarbeiten"),
+                                   drehfraes_einst=self.db.drehfraes_einstellungen()
+                                   if funktionen.an("funktion_zukauf", self.db) else None)
+            self.db.profile_anlegen(erg["profile"])
+            neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
+                        for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
         from . import drehfraes
         df_neu = [w for w, _ in erg["zukauf_neu"].values() if w.get("artikeltyp") in drehfraes.ARTEN]
         bleche_neu = [b for w, b in erg["zukauf_neu"].values() if not vollmaterial.ist_voll(w)
@@ -7919,9 +7922,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if ersetzen is not None:    # Art ändern: Pos.-Nummer, Zusatzarbeiten und Arbeitsgänge der alten Position
                 p.update({f: ersetzen.get(f) for f in ("pos", "zusatz", "arbeitsgaenge", "satz", "muster")
                           if ersetzen.get(f) not in (None, "")})
-            pid = self.db.position_neu(self.id, p)
-            if netz:
-                self.db.netz_speichern(pid, netz)
+            with tempo.abschnitt("STEP: Positionen speichern"):
+                pid = self.db.position_neu(self.id, p)
+                if netz:
+                    self.db.netz_speichern(pid, netz)
         if ersetzen is not None and erg["positionen"] and ersetzen.get("id"):
             self.db.positionen_loeschen([ersetzen["id"]])
             erg["bericht"].append(f"Pos. {ersetzen.get('pos') or ''}: Art geändert, alte Position ersetzt")
@@ -7929,11 +7933,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         alt = self.db.satz_daten(self.id)
         for satz, daten in (erg.get("satz_daten") or {}).items():    # Stöße je Satz für „Satz in 3D“
             self.db.satz_daten_speichern(self.id, satz, dict(alt.get(satz) or {}, **daten))
-        self.neu_laden()
+        with tempo.abschnitt("STEP: Angebot neu laden"):
+            self.neu_laden()
         if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("gravur_artikel") == "ja":
-            self.gravur_vorgeben({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
+            with tempo.abschnitt("STEP: Gravur vorgeben"):
+                self.gravur_vorgeben({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("schweiss_vk_step") == "ja":
-            self._vorkalkulieren({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
+            with tempo.abschnitt("STEP: Baugruppen vorkalkulieren"):
+                self._vorkalkulieren({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if json_ablage:
             erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
         if gelernt:
@@ -7943,14 +7950,16 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if stege_bericht:
             erg["bericht"].append(stege_bericht)
         if kopieren:
-            erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
+            with tempo.abschnitt("STEP: Dateien in den Angebotsordner kopieren"):
+                erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
         aktion = None
         if len(self.positionen) == len(erg["positionen"]) and (self.db.einstellung("angebot_automatik") or "ja") \
                 == "ja" and (not self.f.stumm or getattr(self.f, "automatik_testen", False)):
             # neues Angebot: Automationen Paket D (03.11.2026); in den übrigen Tests (stumm) aus
             from . import angebot_automatik
-            auto = angebot_automatik.nach_import(self, werkstoff_text)
+            with tempo.abschnitt("STEP: Automatik nach dem Import"):
+                auto = angebot_automatik.nach_import(self, werkstoff_text)
             if auto["texte"]:
                 text += " Automatisch: " + "; ".join(auto["texte"]) + "."
                 erg["bericht"].append("Automatisch (Datei → Automatik-Protokoll): " + "; ".join(auto["texte"]))
@@ -7958,7 +7967,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             aktion = auto["aktion"]
         # ruhige Meldung statt Fenster (B1/B2); Einzelheiten hinter „Bericht …“ und im Meldungsverlauf. Offene
         # Bohrungen (Gewinde, Senkungen, Flowdrill): Knopf führt gleich zum Prüfen aller (Plan Angebotsablauf V3)
-        offen = self.bohrungen_offen()
+        with tempo.abschnitt("STEP: offene Bohrungen suchen"):
+            offen = self.bohrungen_offen()
         if offen and not pdf_danach and not fertig_danach:
             text += f" {len(offen)} Position(en) mit Bohrungen/Gewinde zu prüfen."
             aktion = ("Bohrungen prüfen …", lambda: self.bohrungen_alle_pruefen() if len(self.bohrungen_offen()) > 1

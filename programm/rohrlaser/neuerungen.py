@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
+     "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
+     "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "
+     "Drehteile. Winkel ohne Normmaß oder mit Biegeradius und abwickelbare Sonderprofile sind Kantteile; die gespiegelte "
+     "Kopie eines Kantteils wird jetzt auch als Kantteil erkannt. Flachstahl mit Ausschnitten oder kürzer als 3 × Breite, "
+     "Brennteile mit Schweißfasen und Platten mit Einpressmuttern sind Bleche, ein kurzer Klotz mit Bohrung ist ein "
+     "Frästeil. Ein Körper aus <b>mehreren verschmolzenen Teilen</b> steht gelb und wird nicht übernommen. "
+     "Modellierte Gewinde misst der Import vorab als Drehteil statt minutenlang ein Profil zu suchen (0003-400-001: "
+     "22 statt 58 Minuten), die Länge von Drehteilen mit gegenläufigen Zylinderachsen stimmt wieder (Rolle 10 mm kam "
+     "als 2534 mm), und der Zeitwächter nennt beim Übernehmen aus dem STEP die langsamen Abschnitte "
+     "([[zeitwaechter]]).",
+     "STEP: Normteile, Ringe, Kantteile, Bleche und verschmolzene Teile richtig; Gewinde schnell; Drehteil-Länge."],
     ["0.9.270", "<b>Blech-EK je Satz und je Schweißbaugruppe</b> ([[satz_bearbeiten]]): den kompletten Einkaufspreis "
      "der Bleche (ebenso Vollmaterial, Dreh-/Frästeile) gibt es jetzt in allen Editoren: im Fenster <i>Satz "
      "bearbeiten</i>, in <i>Satz in 3D</i> und im Editor der <b>Schweißbaugruppe</b> als <b>Einkauf je Baugruppe</b>. "

@@ -17,10 +17,16 @@ Speicher (Optimierungsplan E3, erst messen): jeder Eintrag nennt den Arbeitsspei
 SPEICHER_TAKT_S schaut der Wächter nach; wächst er über den bisher höchsten Stand um SPEICHER_SCHRITT_MB, steht eine
 Zeile „Speicher N MB | Ort: …“ im Protokoll. auswerten() nennt den höchsten Stand mit Ort.
 
+Abschnitte (Verbesserungsplan 06.11.2026, C1): lange Abläufe markieren ihre Schritte mit
+`with tempo.abschnitt("STEP: Positionen speichern"):`. Ein Eintrag nennt dann die Schritte der Blockade mit Dauer
+(„Abschnitte: …“) – auch im übersetzten Programm, wo die Funktionsnamen fehlen (STEP-Übernehmen 43 s, Patrick
+06.11.2026: ohne die Datei war nicht zu sehen, welcher Schritt so lange brauchte).
+
 Ein Eintrag: Zeit, Dauer, Ort (Reiter › Unterreiter, beim Angebot Positionen und Teile), letzte Bedienung, häufigste
 Funktionen. auswerten() fasst die Datei für Menschen zusammen (Support, Tests).
 """
 import collections
+import contextlib
 import logging
 import logging.handlers
 import re
@@ -36,8 +42,33 @@ MAX_FUNKTIONEN = 3
 SPEICHER_TAKT_S = 30      # so oft den Arbeitsspeicher ansehen
 SPEICHER_SCHRITT_MB = 100   # neuer Höchststand um so viel: eine Zeile ins Protokoll
 
+ABSCHNITT_MIN_S = 0.2     # kürzere Abschnitte stehen nicht im Eintrag
+MAX_ABSCHNITTE = 8
+_abschnitte = []          # (Name, Dauer) seit dem letzten Takt, nur auf dem Oberflächen-Ablauf
+
 _log = logging.getLogger("rohrlaser.tempo")
 _log.propagate = False
+
+
+@contextlib.contextmanager
+def abschnitt(name):
+    """Schritt eines langen Ablaufs für den Zeitwächter (Dauer ab ABSCHNITT_MIN_S steht im nächsten Eintrag)."""
+    t0 = time.perf_counter()
+    try:
+        yield
+    finally:
+        d = time.perf_counter() - t0
+        if d >= ABSCHNITT_MIN_S:
+            _abschnitte.append((name, d))
+            del _abschnitte[:-50]
+
+
+def _abschnitte_text(liste):
+    """'STEP: Gegenprobe 30.1 s; STEP: Positionen speichern 5.2 s' (längste zuerst, gleiche zusammengezählt)."""
+    summe = collections.Counter()
+    for name, d in liste:
+        summe[name] += d
+    return "; ".join(f"{n} {d:.1f} s" for n, d in summe.most_common(MAX_ABSCHNITTE))
 
 
 def _bedienung_text(ereignis, ziel):
@@ -149,8 +180,10 @@ class Waechter:
         self._zuletzt = jetzt
         with self._sperre:
             proben, self._proben = self._proben, collections.Counter()
+        abschnitte = list(_abschnitte)
+        _abschnitte.clear()
         if blockiert >= self.grenze_s:
-            self.eintragen(blockiert, proben)
+            self.eintragen(blockiert, proben, abschnitte)
             self._zuletzt = time.perf_counter()     # Schreiben selbst zählt nicht mit
         if jetzt - self._speicher_zuletzt >= SPEICHER_TAKT_S:
             self._speicher_zuletzt = jetzt
@@ -191,13 +224,15 @@ class Waechter:
                 with self._sperre:
                     self._proben[name] += 1
 
-    def eintragen(self, dauer, proben=None):
+    def eintragen(self, dauer, proben=None, abschnitte=None):
         ort = self._ort()
         teile = [f"{dauer:.1f} s"]
         if ort:
             teile.append(f"Ort: {ort}")
         if self.letzte_bedienung:
             teile.append(f"zuletzt: {self.letzte_bedienung}")
+        if abschnitte:
+            teile.append("Abschnitte: " + _abschnitte_text(abschnitte))
         if proben:
             teile.append("in: " + "; ".join(f"{n} ({z})" for n, z in proben.most_common(MAX_FUNKTIONEN)))
         mb = speicher_mb()
@@ -280,10 +315,11 @@ def lesen(ordner):
             m = _ZEILE.match(z.strip())
             if not m:
                 continue
-            e = dict(zeit=m.group(1), dauer=float(m.group(2)), ort="", bedienung="", funktionen="", speicher="")
+            e = dict(zeit=m.group(1), dauer=float(m.group(2)), ort="", bedienung="", funktionen="", speicher="",
+                     abschnitte="")
             for teil in (m.group(3) or "").split(" | "):
                 for schl, feld in (("Ort: ", "ort"), ("zuletzt: ", "bedienung"), ("in: ", "funktionen"),
-                                   ("Speicher: ", "speicher")):
+                                   ("Speicher: ", "speicher"), ("Abschnitte: ", "abschnitte")):
                     if teil.startswith(schl):
                         e[feld] = teil[len(schl):]
             out.append(e)
@@ -319,4 +355,8 @@ def auswerten(ordner, anzahl=10):
     for (ort, bed), d in sorted(gruppen.items(), key=lambda kv: -sum(kv[1]))[:anzahl]:
         zeilen.append(f"  {len(d)} × bis {max(d):.1f} s, Summe {sum(d):.0f} s – {ort or '?'}"
                       + (f" – {bed}" if bed else ""))
+    mit = sorted((e for e in eintraege if e["abschnitte"]), key=lambda e: -e["dauer"])[:5]
+    if mit:     # C1: welche Schritte der längsten Blockaden die Zeit brauchten
+        zeilen += ["", "Längste mit Abschnitten:"] + [f"  {e['dauer']:.1f} s ({e['zeit']}): {e['abschnitte']}"
+                                                       for e in mit]
     return "\n".join(zeilen) + speicher

@@ -2865,6 +2865,9 @@ BLECH_DICKE_BLECHMODUS = 0.5    # mit „Flache Teile als: Blech“: Dicke höch
 # Ein Walzprofil (scharfe Außenecke) oder ein Normprofil bleibt Profil.
 KANTRADIEN_BLECH = True
 TOL_BLECH_VOLUMEN = 0.03        # Volumen = Hauptfläche × Dicke auf 3 %
+FASE_FLAECHE_MIN = 0.75         # Blech mit Kantenfasen: kleinere Hauptfläche mindestens so viel der größeren
+SCHARF_VOLUMEN_TOL = 0.2        # scharfkantig gezeichnetes Kantteil: Häute tragen das Volumen auf 20 % (0003: Wanne 16 %)
+BLECH_ANBAU_MAX = 0.1           # Blech mit aufgesetzten Kleinteilen: diese höchstens 10 % des Volumens
 TOL_EBENE = 0.01                # mm: Flächen in derselben Ebene
 # Gleich dicke, gekantete Körper mit gleichbleibendem Querschnitt bleiben Profile (L, U, C, Kantprofil). Als
 # gekantetes Blech gelten sie, wenn das Volumen deutlich unter Querschnitt × Länge liegt (Schenkel unterschiedlich
@@ -3058,6 +3061,22 @@ def _flach_pruefen(solid, volumen):
             min(e1[1], e2[1]) * dicke * (1 - TOL_BLECH_VOLUMEN) <= volumen <= \
             max(e1[1], e2[1]) * dicke * (1 + TOL_BLECH_VOLUMEN):
         return dict(erg, art="eben")
+    # Blech mit kleinen aufgesetzten Teilen (Einpressmuttern/-bolzen, 0003-400-001 Platte 9,5 mm, A4 Prüfsammlung
+    # 07.11.2026): weitere Ebenen nur außerhalb der Platte, die Platte trägt fast das ganze Volumen. Die Anbauten sind
+    # Zukaufteile; das Blech wird ohne sie gemessen (ihre Sitze sind Löcher in der Platte).
+    lo, hi = sorted((e1[0], e2[0]))
+    if weitere and e2[1] >= 0.9 * e1[1] and all(e[0] < lo - TOL_EBENE or e[0] > hi + TOL_EBENE for e in weitere) \
+            and (1 - BLECH_ANBAU_MAX) * volumen <= e1[1] * dicke <= volumen * (1 + TOL_BLECH_VOLUMEN):
+        return dict(erg, art="eben", anbauten=round(1 - min(e1[1], e2[1]) * dicke / volumen, 3))
+    # Brennteil mit Schweißfasen an den Kanten (Baggerschaufel 640 × 80, A4 Prüfsammlung 07.11.2026): eine Hauptfläche
+    # ist um die Fasen kleiner, sonst nur schräge Ebenen; das Volumen liegt zwischen kleiner und großer Fläche × Dicke.
+    # Die Außenkontur ist die größere Hauptfläche (wie in der STEP), die Fasen stehen als Hinweis am Blech.
+    if not weitere and FASE_FLAECHE_MIN * e1[1] <= e2[1] < 0.9 * e1[1] and \
+            e2[1] * dicke * (1 - TOL_BLECH_VOLUMEN) <= volumen <= e1[1] * dicke * (1 + TOL_BLECH_VOLUMEN):
+        schraeg = [gr for gr in gruppen if 0.05 < abs(gr[0].Dot(g[0])) < 0.95]
+        if schraeg and all(abs(gr[0].Dot(g[0])) < 1e-5 or 0.05 < abs(gr[0].Dot(g[0])) < 0.95 or gr is g
+                           for gr in gruppen):
+            return dict(erg, art="eben", fasen=len(schraeg))
     # gekantet: alle Ebenenpaare im Abstand 'dicke' (je Richtung) und koaxiale Biegezonen tragen das Volumen
     paare, richtungen = 0.0, 0
     for _, ebenen in gruppen:
@@ -3081,7 +3100,7 @@ def _flach_pruefen(solid, volumen):
         return dict(erg, art="gekantet", biegungen=biegungen)
     # scharfkantig gezeichnet (Patrick 23.10.2026, Frage 1 a): Kantteil, wenn sich zwei Blechhäute mit Schenkeln
     # finden (ein T-Stoß oder Walzprofil ungleicher Dicke nicht; step_abwicklung)
-    if biegungen == 0 and abs(volumen - paare / 2 * dicke) <= 0.15 * volumen:
+    if biegungen == 0 and abs(volumen - paare / 2 * dicke) <= SCHARF_VOLUMEN_TOL * volumen:
         from step_abwicklung import abwickeln
         try:
             abw = abwickeln(solid, dicke)
@@ -3457,6 +3476,12 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         ax3 = b.pop("ax3")
         t.bauteiltyp = t.profilform = "Blech"
         t.abm_a, t.abm_b, t.wandstaerke, t.laenge = b["laenge"], b["breite"], d, b["laenge"]
+        if fl.get("anbauten"):
+            t.hinweise.append(f"Aufgesetzte Kleinteile ({100 * fl['anbauten']:.0f} % des Volumens, z. B. Einpressmuttern/"
+                              "-bolzen): Blech ohne sie gemessen, Anbauteile als Zukauf prüfen")
+        if fl.get("fasen"):
+            t.hinweise.append(f"Kanten mit Fasen ({fl['fasen']} Richtungen, z. B. Schweißfase): Zuschnitt nach der größeren "
+                              "Hauptfläche, Fasen als Zusatzarbeit prüfen")
         t.bohrungen, t.innen_liste, t.innen_konturen = b["bohrungen"], b["innen_liste"], b["innen"]
         t.senkungen = {(d_, dd_): n_ for d_, dd_, n_ in b.get("senkungen") or ()}
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
@@ -3508,6 +3533,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         else:
             t.sicherheit.update(profil="wahrscheinlich", laenge="wahrscheinlich", wandstaerke="sicher",
                                 konturen="nicht ausgewertet")
+            t.abwicklung_fehler = abw["fehler"]    # step_arten: Bleche stoßen aneinander (mehrere Teile)
             t.hinweise.append(f"Gekantetes Blech: Außenmaße {masse[0]:.1f} × {masse[1]:.1f} × {masse[2]:.1f} mm, "
                               f"Abwicklung ca. {volumen / d / 1e6:.4f} m² (ohne Biegefaktor), Zuschnitt prüfen "
                               f"({abw['fehler']})")
@@ -3539,6 +3565,11 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
+    g = _normteil(solid, datei, koerper)
+    if g is None:
+        g = _gewindeteil(solid, datei, koerper)
+    if g is not None:
+        return _arten_ergaenzen(solid, g)
     try:
         t = _analysiere(solid, datei, koerper, netz, flach_bis)
     except Exception:
@@ -3562,13 +3593,67 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     return _arten_ergaenzen(solid, k)
 
 
+def _normteil(solid, datei, koerper):
+    """Kugel oder Schraube/Gewindestange mit Sechskant (step_drehfraes.normteil): Normteil zum Zukaufen, keine
+    Profilmessung (A4 Prüfsammlung, Patrick 07.11.2026: Kugeln waren Rundstahl, Gewindestangen mit Muttern Rundrohr).
+    Sonst None."""
+    try:
+        import step_drehfraes as df
+        n = 0
+        ex = TopExp_Explorer(solid, TopAbs_FACE)
+        while ex.More():
+            n += 1
+            if n > df.NORMTEIL_FLAECHEN_MAX:
+                return None
+            ex.Next()
+        t = df.normteil_teil(solid, datei, koerper)
+    except Exception:  # Vorprüfung darf die Messung nie verhindern
+        return None
+    if t is not None:
+        t.art_grund, t.art_regel = t.drehfraes["text"], "Normteil"
+    return t
+
+
+def _gewindeteil(solid, datei, koerper):
+    """Mutter, Gewindestange o. ä. mit modelliertem Gewinde (step_drehfraes.gewinde): gleich als Drehteil, ohne die
+    Profilsuche, die die Gewindeflanken (Freiformflächen) minutenlang schneidet und doch kein Profil findet (0003-400-001,
+    Patrick 06.11.2026: 18 solche Körper, je 2–26 Minuten). Vereinfacht gemessen: Ampel gelb. Sonst None."""
+    try:
+        from OCP.GeomAbs import GeomAbs_BSplineSurface, GeomAbs_BezierSurface, GeomAbs_OffsetSurface
+        import step_drehfraes as df
+        n = frei = 0
+        ex = TopExp_Explorer(solid, TopAbs_FACE)
+        while ex.More():
+            n += 1
+            if n > df.GEWINDE_FLAECHEN_MAX:
+                return None
+            if BRepAdaptor_Surface(TopoDS.Face(ex.Current())).GetType() in (
+                    GeomAbs_BSplineSurface, GeomAbs_BezierSurface, GeomAbs_OffsetSurface):
+                frei += 1
+            ex.Next()
+        if frei < df.GEWINDE_FREI_MIN:
+            return None
+        info = df.drehteil(df.flaechen(solid))
+        if info is None or not any("gewinde" in m and "modelliert" in m for m in info["merkmale"]):
+            return None
+        t = df.pruefen(solid, None, datei, koerper)
+    except Exception:  # Vorprüfung darf die Messung nie verhindern
+        return None
+    if t is None or t.bauteiltyp != df.DREHTEIL:
+        return None
+    t.sicherheit["profil"] = "unsicher"
+    t.hinweise.append(f"{t.drehfraes['text']}: vereinfacht gemessen (Gewinde modelliert, ohne Profilsuche) – prüfen")
+    t.art_grund, t.art_regel = t.drehfraes["text"], "Dreh-/Frästeil"
+    return t
+
+
 def _arten_ergaenzen(solid, t):
     """Pool der Arten (step_arten.ergaenzen); ein Fehler lässt die Messung unverändert."""
     try:
-        from step_arten import entscheiden, ergaenzen
+        from step_arten import entscheiden, ergaenzen, nachregeln
         if not t.art_regel:
             t = entscheiden(t, None)
-        return ergaenzen(solid, t)
+        return nachregeln(ergaenzen(solid, t), solid)
     except Exception:  # die Zusatzmessungen dürfen die Messung nie verhindern
         return t
 
@@ -3664,7 +3749,9 @@ def _kantteil(t):
     if not (KANTRADIEN_BLECH and getattr(t, "_kantradien", False) and t.bauteiltyp == "Profil"
             # Flachstahl mit Biegeradien: nur leicht angekantetes Blech (5°, Patrick 05.11.2026, war Dicke 0)
             and t.profilform in ("L-Profil", "U-Profil", "C-Profil", "offenes Sonderprofil", "Flachstahl") + TRAEGER
-            and not t.normprofil       # Träger/Sonderprofil mit Biegeradien und gleicher Dicke: Kantteil (C mit Sicke)
+            # Träger/Sonderprofil mit Biegeradien und gleicher Dicke: Kantteil (C mit Sicke); ein Winkel mit Biegeradien
+            # ist immer ein Kantteil, auch in L-Normmaßen (Regel 03.11.2026, A4 Prüfsammlung 07.11.2026: L 30×30×3)
+            and (not t.normprofil or t.profilform == "L-Profil")
             and not (t.geschlossen is not None and not rohr_grund(t))
             and b is not None and b.bauteiltyp == "Blech gekantet"):
         return t

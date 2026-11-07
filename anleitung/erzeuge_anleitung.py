@@ -633,7 +633,11 @@ def kapitel_start(i):
             "Angebotsnummer, Anzahl Positionen und Teile.",
             "<b>Arbeitsspeicher</b>: jeder Eintrag nennt, wie viel Speicher das Programm gerade braucht; wächst er um "
             "100 MB über den bisher höchsten Stand, steht eine eigene Zeile mit dem Ort im Protokoll. tempo.txt im "
-            "Support-Paket nennt den höchsten Stand.")
+            "Support-Paket nennt den höchsten Stand.",
+            "<b>Abschnitte</b> (seit 0.9.271): beim Übernehmen aus dem STEP-Prüfdialog nennt der Eintrag zusätzlich, "
+            "welcher Schritt wie lange gebraucht hat, z. B. <i>Abschnitte: STEP: Teile übernehmen 3.1 s; STEP: "
+            "Gegenprobe Rohr 2.4 s; STEP: Automatik nach dem Import 0.8 s</i>. tempo.txt listet die längsten Einträge "
+            "mit ihren Abschnitten.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -2945,6 +2949,29 @@ def kapitel_step(i):
             "<b>Nur nach den Maßen verdächtig</b> (kurzes dickwandiges Rohr wie eine Buchse Ø40/Ø25, dickes Profil "
             "ohne Normmaß): Prüfstatus <i>prüfen</i>, erst nach Anhaken übernommen. Steht das Rohr bzw. Profil in den "
             "Stammdaten, bleibt es ein Rohr/Profil (Hinweis <i>Profil steht in den Stammdaten</i>).",
+            "<b>Modelliertes Gewinde</b> (seit 0.9.271): Gewindestangen, Schrauben und Gewindegänge, deren Flanken im "
+            "CAD als echte Wendel gezeichnet sind, erkennt der Import vorab und misst sie gleich als Drehteil mit "
+            "Merkmal <i>Außen- bzw. Innengewinde Ø… modelliert</i> (Ø = Gewinde-Nenndurchmesser; ist nur der "
+            "Gewindegang ein eigener Körper, zusätzlich <i>nur Gewindegänge</i>). Die Ampel steht gelb mit dem "
+            "Hinweis <i>vereinfacht gemessen</i>. Vorher suchte die Profilmessung in den Flanken minutenlang einen "
+            "Querschnitt (bis 26 Minuten je Körper) und fand doch keinen.",
+            "<b>Nach der Prüfsammlung</b> (seit 0.9.271, 53 typische Teile von Patrick bestätigt): "
+            "<b>Kugeln</b> und <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) sind <i>Normteile</i> "
+            "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr. "
+            "<b>Ringe mit Kalotten oder Taschen</b> und <b>Hülsen mit Boden</b> (Bohrung nicht durch) sind Drehteile. "
+            "<b>Winkel ohne Normmaß</b> (z. B. Zollmaß 50,8 × 3,2) und Winkel mit Biegeradius (außen = innen + "
+            "Dicke, auch im L-Normmaß) sind Kantteile, ebenso ein nicht erkanntes Sonderprofil, das sich als Blech "
+            "abwickeln lässt. <b>Flachstahl mit Ausschnitten/Bohrungen</b> in der Fläche oder kürzer als 3 × Breite "
+            "ist ein Blech (Flachstahl bleibt als Auswahl in der Spalte Art), ebenso ein <b>Brennteil mit "
+            "Schweißfasen</b> (Zuschnitt nach der größeren Hauptfläche, Hinweis <i>Kanten mit Fasen</i>) und eine "
+            "<b>Platte mit Einpressmuttern/-bolzen</b> (bis 10 % des Volumens, Hinweis <i>Aufgesetzte Kleinteile</i>). "
+            "Ein <b>Klotz</b>, kürzer als breit, mit ungleicher Wand ist ein Frästeil statt Rohrstück. Die "
+            "Hinweis-Spalte nennt die Regel (z. B. <i>Flachstahl → Blech</i>).",
+            "<b>Mehrere Teile in einem Körper</b> (seit 0.9.271): ist ein Körper offensichtlich aus mehreren "
+            "verschmolzenen Teilen (Platte mit angeschweißter Mutter, Blechkasten, dessen Biegezone an mehr als zwei "
+            "Schenkeln hängt, „Frästeil“ aus dünnen Wänden), steht die Ampel gelb mit dem Hinweis <i>Mehrere Teile in "
+            "einem Körper?</i> und das Teil wird nicht übernommen. Am besten die STEP im CAD in Einzelteile aufteilen; "
+            "nach Prüfung lässt es sich auch von Hand anhaken.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "

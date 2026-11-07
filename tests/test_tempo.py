@@ -4,6 +4,7 @@ Geprüft wird ohne Bildschirm:
 - eine Blockade der Oberfläche über der Grenze wird eingetragen (Dauer, Ort, letzte Bedienung), kurze nicht,
 - ein Klick auf einen Knopf erscheint als „Klick „Text““, im Quelltext-Betrieb auch die Programmfunktion,
 - tempo.log wird gelesen und zusammengefasst, das Support-Paket enthält tempo.log und tempo.txt,
+- Abschnitte (tempo.abschnitt) stehen mit Dauer im Eintrag und in der Auswertung,
 - Hauptfenster.tempo_ort nennt Reiter, Angebot mit Positionen/Teilen und Unterreiter.
 Aufruf: python tests/test_tempo.py
 """
@@ -87,13 +88,34 @@ QTest.mouseClick(knopf2, Qt.LeftButton)
 warten(200)
 assert len(w.eintraege) == 2 and "Klick „Rechnen“" in w.eintraege[-1], w.eintraege
 ok("zweite Blockade mit eigener Bedienung")
+
+
+def in_abschnitten():           # Verbesserungsplan 06.11.2026, C1: Schritte eines langen Ablaufs
+    with tempo.abschnitt("STEP: Teile übernehmen"):
+        langsam_rechnen()
+    with tempo.abschnitt("STEP: kurz"):
+        time.sleep(0.05)
+    with tempo.abschnitt("STEP: Positionen speichern"):
+        time.sleep(0.3)
+
+
+knopf3 = QPushButton("Übernehmen")
+knopf3.clicked.connect(in_abschnitten)
+knopf3.show()
+QTest.mouseClick(knopf3, Qt.LeftButton)
+warten(200)
+e = w.eintraege[-1]
+assert "Abschnitte: STEP: Teile übernehmen 0.6 s; STEP: Positionen speichern 0.3 s" in e and "kurz" not in e, e
+ok(f"Abschnitte der Blockade im Eintrag (längste zuerst, kurze weg): {e}")
 w.stoppen()
 
 # ------------------------------------------------------------------ Datei lesen, auswerten, Support-Paket
 liste = tempo.lesen(ordner)
-assert len(liste) == 2 and liste[0]["ort"] == "Angebote › Test" and liste[0]["bedienung"] == "Klick „Optimieren“", liste
+assert len(liste) == 3 and liste[0]["ort"] == "Angebote › Test" and liste[0]["bedienung"] == "Klick „Optimieren“", liste
+assert liste[2]["abschnitte"].startswith("STEP: Teile übernehmen"), liste[2]
 text = tempo.auswerten(ordner)
-assert text.startswith("2 langsame Schritte") and "Angebote › Test – Klick „Optimieren“" in text, text
+assert text.startswith("3 langsame Schritte") and "Angebote › Test – Klick „Optimieren“" in text, text
+assert "Längste mit Abschnitten:" in text and "STEP: Positionen speichern 0.3 s" in text, text
 ok("tempo.log gelesen und zusammengefasst")
 assert tempo.auswerten(tmp / "leer").startswith("Keine langsamen Schritte")
 ok("ohne Datei: Hinweis „keine langsamen Schritte“")
@@ -102,7 +124,7 @@ db = Datenbank(tmp / "rohrlaser.db")
 e = support.erstellen(db, protokoll_ordner=ordner, system=[], lizenz_text="Test")
 assert "tempo.log" in e["dateien"] and "tempo.txt" in e["dateien"], e["dateien"]
 with zipfile.ZipFile(e["pfad"]) as z:
-    assert z.read("tempo.txt").decode("utf-8").startswith("2 langsame Schritte")
+    assert z.read("tempo.txt").decode("utf-8").startswith("3 langsame Schritte")
 ok("Support-Paket enthält tempo.log und tempo.txt")
 
 # ------------------------------------------------------------------ Ort im Hauptfenster

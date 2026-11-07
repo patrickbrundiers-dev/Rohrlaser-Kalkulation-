@@ -68,6 +68,8 @@ TESTS = [
     ("test_rohr_aufgeschnitten.py", QT),
     ("test_flachstahl_enden.py", QT),
     ("test_fasen_ecken.py", QT),
+    ("test_gewinde_modelliert.py", {}),
+    ("test_a4_pruefsammlung.py", {}),
     ("test_lage_tempo.py", {}),
     ("test_step_gedreht.py", {}),
     ("test_step_senden.py", {}),

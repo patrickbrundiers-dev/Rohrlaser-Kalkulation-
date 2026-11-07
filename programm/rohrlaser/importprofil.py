@@ -227,6 +227,9 @@ def anwenden(messwerte, profil=None, einstellungen=None):
             if b["bezeichnung"]:
                 m["_bezeichnung"] = b["bezeichnung"]
         b = normteil(m.get("bauteil"), liste)
+        if not b:       # von der STEP-Messung an der Form erkannt (Kugel, Schraube mit Sechskant; A4 07.11.2026)
+            from . import drehfraes
+            b = (drehfraes.daten(m) or {}).get("normteil")
         if b:
             m["_normteil"] = b
             n += 1

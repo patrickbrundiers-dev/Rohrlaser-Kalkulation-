@@ -2982,7 +2982,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
             _blech_gewinde(p, m, gewinde, hinweise)
-            gp = blech_gegenprobe(b)
+            from . import tempo
+            with tempo.abschnitt("STEP: Gegenprobe Blech"):
+                gp = blech_gegenprobe(b)
             if gp:
                 hinweise.append(gp)
             if not wst:
@@ -3189,8 +3191,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     hinweise += h_k
                 elif not neu_enden and not neu_fenster and gleiches_profil(m, profile[pid]):
                     # Gegenprobe: das Modell des Editors liegt wie die STEP (Patrick 30.10.2026, Übergabe absichern)
-                    from . import step_gegenprobe
-                    ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
+                    from . import step_gegenprobe, tempo
+                    with tempo.abschnitt("STEP: Gegenprobe Rohr"):
+                        ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
                     if ab:
                         p["_step_abweichung"] = round(ab[0], 2)
                         h = step_gegenprobe.hinweis(*ab)
