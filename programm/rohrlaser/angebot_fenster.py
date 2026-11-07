@@ -51,7 +51,7 @@ from . import funktionen, muster_haken, stangen_abwicklung, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
-from . import position_kopie, satzgruppen, unterzeilen
+from . import position_kopie, satzgruppen, umwandeln, unterzeilen
 from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
 from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
@@ -2286,6 +2286,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
                 ("Zusatzarbeit für ganzen Satz …", lambda: self.zusatz_satz(), ""),
+                # Einzelteile ↔ Satz ↔ Schweißbaugruppe umwandeln (umwandeln.py, Patrick 06.11.2026)
+                ("Als Satz zusammenfassen …", lambda: self.als_satz(), ""),
+                ("Satz auflösen (Einzelteile)", lambda: self.satz_aufloesen(), ""),
+                ("Satz → Schweißbaugruppe …", lambda: self.satz_zu_bg(), ""),
+                ("Schweißbaugruppe → Satz", lambda: self.bg_zu_satz(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
@@ -2308,6 +2313,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 self.zusatz_schnellmenue = QMenu("Zusatzarbeit hinzufügen", self.pos_menue)
                 self.zusatz_schnellmenue.aboutToShow.connect(self._zusatz_schnellmenue_fuellen)
                 self.pos_aktionen["Zusatzarbeit hinzufügen"] = self.pos_menue.addMenu(self.zusatz_schnellmenue)
+        self.pos_menue.insertSeparator(self.pos_aktionen["Als Satz zusammenfassen …"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Position duplizieren"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Für markierte setzen …"])
         self.pos_menue.insertSeparator(self.pos_aktionen["Nach oben"])
@@ -5241,6 +5247,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
+            elif text in ("Als Satz zusammenfassen …", "Satz auflösen (Einzelteile)", "Satz → Schweißbaugruppe …",
+                          "Schweißbaugruppe → Satz"):
+                sichtbar = bool(zeilen) and not self.fremd() and not self.db.nur_lesen and (
+                    mit_bg if text == "Schweißbaugruppe → Satz" else
+                    not mit_bg if text == "Als Satz zusammenfassen …" else
+                    satz_menge.gehoert_zum_satz(self.positionen[zeilen[0]], self.positionen))
             elif text in ("Virtuelles Bauteil als STEP …", "Stege abtrennen an/aus"):
                 sichtbar = mit_virtuell
             elif text == "Für markierte setzen …":
@@ -5528,20 +5540,25 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                         baugruppe.groesste_posten(r)))
         return out
 
-    def baugruppe_neu(self, dialog=None):
+    def baugruppe_neu(self, dialog=None, vorlage=None):
         """Neue Schweißbaugruppe im Editor anlegen; markierte Positionen sind als Einzelteile vorgewählt.
+        vorlage: Vorbelegung aus umwandeln.satz_zu_bg (Position, Zuordnung der Teile, weitere Felder).
         dialog(d) bedient den Editor statt exec (Tests). Ergebnis: True = angelegt."""
-        markiert = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
-        vorwahl = {self.positionen[r]["id"] for r in markiert if r < len(self.positionen)
-                   and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
-        p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
+        if vorlage:
+            vorwahl = dict(vorlage["vorwahl"])
+            p = dict(vorlage["position"], pos=self._naechste_pos())
+        else:
+            markiert = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+            vorwahl = {self.positionen[r]["id"] for r in markiert if r < len(self.positionen)
+                       and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
+            p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
                             einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id),
                             profile=self.k.profile)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
         vorab = self.teilen_anwenden(d.ergebnis)
-        werte = dict(d.ergebnis["position"], pos=p["pos"])
+        werte = dict((vorlage or {}).get("extra") or {}, **d.ergebnis["position"], pos=p["pos"])
         pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         hinweise = vorab + self._baugruppe_teile(d.ergebnis["teile"], None)
         self.naehte_schreiben(d.ergebnis.get("naehte"))
@@ -5593,6 +5610,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
+        self._nach_editor_umwandeln(d, bg_pid=p["id"])
         return True
 
     def _baugruppe_teile(self, teile, alt_name):
@@ -6969,7 +6987,134 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.neu_laden()
         self.f.meldung(f"Satz {satz}: {d.saetze} {'Satz' if d.saetze == 1 else 'Sätze'}, {n} Position(en) geändert."
                        if n else f"Satz {satz}: nichts geändert.")
+        self._nach_editor_umwandeln(d, satz=satz)
         return True
+
+    # -------------------------------------------------------------- Einzelteile ↔ Satz ↔ Schweißbaugruppe (06.11.2026)
+    def _umwandeln_gesperrt(self):
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return True
+        return False
+
+    def _satz_der_zeile(self, zeile=None):
+        if zeile is None:
+            zeilen = self._markierte_zeilen()
+            zeile = zeilen[0] if zeilen else None
+        p = self.positionen[zeile] if zeile is not None and 0 <= zeile < len(self.positionen) else None
+        return satz_menge.name(p)
+
+    def _nach_editor_umwandeln(self, d, satz=None, bg_pid=None):
+        """Knopf „In … umwandeln“ bzw. „… auflösen“ eines Editors (umwandeln_dialog.knoepfe_einbauen): nach dem
+        Speichern umwandeln. Den Editor der neuen Baugruppe bedient self.umwandeln_folge (Tests), sonst exec."""
+        ziel = getattr(d, "umwandeln", None)
+        if not ziel:
+            return None
+        if bg_pid is not None:
+            r = next((i for i, q in enumerate(self.positionen) if q.get("id") == bg_pid), None)
+            satz = self.bg_zu_satz([r]) if r is not None else None
+            if ziel == "auf" and satz:
+                self.satz_aufloesen(satz=satz)
+            return satz
+        if ziel == "bg":
+            return self.satz_zu_bg(satz=satz, dialog=getattr(self, "umwandeln_folge", None))
+        return self.satz_aufloesen(satz=satz)
+
+    def als_satz(self, zeilen=None, name=None, saetze=None, dialog=None):
+        """Markierte Einzelteile zu einem Satz zusammenfassen (umwandeln.satz_bilden, F1a): Fenster mit Name und
+        Anzahl Sätze (name/saetze setzen sie ohne Fenster); Stückzahlen bleiben. Ergebnis: Satzname oder None."""
+        from .umwandeln_dialog import SatzBildenDialog
+        if self._umwandeln_gesperrt():
+            return None
+        zeilen = self._markierte_zeilen() if zeilen is None else sorted(set(zeilen))
+        if name is None or saetze is None:
+            d = SatzBildenDialog(self, self.positionen, zeilen)
+            if name is not None:
+                d.name_feld.setText(name)
+            if saetze is not None:
+                d.saetze_feld.setValue(int(saetze))
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.name:
+                return None
+            name, saetze = d.name, d.saetze
+        fehler = umwandeln.satz_bilden_pruefen(self.positionen, zeilen, name, saetze)
+        if fehler:
+            self.f.meldung(fehler, fehler=True)
+            return None
+        for pid, feld, wert in umwandeln.satz_bilden(self.positionen, zeilen, name, saetze):
+            self.db.position_aendern(pid, feld, wert)
+        self.neu_laden()
+        self.rueckgaengig_anbieten(f"Satz {name}: {len(zeilen)} Position(en), {int(saetze)} "
+                                   f"{'Satz' if int(saetze) == 1 else 'Sätze'}. Stückzahlen unverändert.")
+        return name
+
+    def satz_aufloesen(self, zeile=None, satz=None):
+        """Satz der Zeile in Einzelteile auflösen (F4a): Satz und Stück je Satz leer, Gesamtstückzahl bleibt.
+        Ergebnis: Anzahl geänderter Positionen."""
+        if self._umwandeln_gesperrt():
+            return 0
+        satz = satz or self._satz_der_zeile(zeile)
+        aend = umwandeln.satz_aufloesen(self.positionen, satz)
+        if not aend:
+            self.f.meldung("Satz auflösen: Bitte eine Position markieren, die in einem Satz steht (Spalte Satz). "
+                           "Eine Schweißbaugruppe zuerst mit „Schweißbaugruppe → Satz“ umwandeln.", fehler=True)
+            return 0
+        for pid, feld, wert in aend:
+            self.db.position_aendern(pid, feld, wert)
+        n = len({pid for pid, _, _ in aend})
+        self.neu_laden()
+        h = umwandeln.staffeln_hinweis(self.db.staffeln(self.id), satz)
+        self.rueckgaengig_anbieten(f"Satz {satz} aufgelöst: {n} Einzelteil(e), Stückzahlen unverändert."
+                                   + (f" {h}" if h else ""))
+        return n
+
+    def bg_zu_satz(self, zeilen=None):
+        """Schweißbaugruppe der Zeile (oder eines ihrer Teile) in einen Satz umwandeln (F2a, F3a): Position der
+        Baugruppe weg, Teile mit dem Baugruppennamen als Satz; die Baugruppe wird am Satz gemerkt. Ergebnis: Satz."""
+        if self._umwandeln_gesperrt():
+            return None
+        zeilen = self._markierte_zeilen() if zeilen is None else list(zeilen)
+        bg_id = umwandeln.bg_von_zeile(self.positionen, zeilen[0]) if zeilen else None
+        if not bg_id:
+            self.f.meldung("Bitte eine Schweißbaugruppe oder eines ihrer Teile markieren.", fehler=True)
+            return None
+        alt = self.db.satz_daten(self.id)
+        i = baugruppe.baugruppen(self.positionen)[bg_id][0]
+        e = umwandeln.bg_zu_satz(self.positionen, bg_id, alt.get(baugruppe.name(self.positionen[i])))
+        for pid, feld, wert in e["aenderungen"]:
+            self.db.position_aendern(pid, feld, wert)
+        self.db.satz_daten_speichern(self.id, e["satz"], e["daten"])
+        self.db.positionen_loeschen(e["loeschen"])
+        self.neu_laden()
+        n = len(satz_menge.satz_positionen(self.positionen, e["satz"]))
+        self.rueckgaengig_anbieten(f"Schweißbaugruppe {e['satz']} ist jetzt ein Satz mit {n} Position(en). Nähte, "
+                                   "Arbeitsgänge und Vorrichtungen sind gemerkt: „Satz → Schweißbaugruppe“ setzt sie "
+                                   "wieder ein.")
+        return e["satz"]
+
+    def satz_zu_bg(self, zeile=None, satz=None, dialog=None):
+        """Satz der Zeile in eine Schweißbaugruppe umwandeln: Editor mit allen Teilen des Satzes, Anzahl
+        Baugruppen = Anzahl Sätze, gemerkter Stand wieder eingesetzt. dialog(d) bedient den Editor (Tests).
+        Ergebnis: True = angelegt."""
+        if self._umwandeln_gesperrt():
+            return False
+        satz = satz or self._satz_der_zeile(zeile)
+        fehler = umwandeln.satz_zu_bg_pruefen(self.positionen, satz)
+        if fehler:
+            self.f.meldung(fehler, fehler=True)
+            return False
+        daten = self.db.satz_daten(self.id).get(satz) or {}
+        vorlage = umwandeln.satz_zu_bg(self.positionen, satz, daten)
+        self.verlauf.pause += 1         # Anlegen und Aufräumen der Satzdaten: ein Schritt für Rückgängig
+        try:
+            ok = self.baugruppe_neu(dialog=dialog, vorlage=vorlage)
+            if ok and umwandeln.MERK in daten:
+                self.db.satz_daten_speichern(self.id, satz, umwandeln.ohne_merk(daten))
+        finally:
+            self.verlauf.pause -= 1
+        if ok:
+            self.rueckgaengig_anbieten(f"Satz {satz} ist jetzt eine Schweißbaugruppe"
+                                       + (" (gemerkter Stand wieder eingesetzt)." if vorlage["wieder"] else "."))
+        return ok
 
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
@@ -7934,6 +8079,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         n = len(d.ergebnis["naehte"])
         self.f.meldung(f"Satz {satz} gespeichert." + (f" Längsnaht für {n} Teil(e) gesetzt." if n else "")
                        + "".join(f" {h}" for h in hinweise))
+        self._nach_editor_umwandeln(d, satz=satz)
         return True
 
     def _teilergebnis(self, ausgabe_datei, anzahl):
