@@ -242,7 +242,9 @@ def drehteil(fl, t=None, streng=False):
         if not any(e["typ"] in ("kegel", "torus") for e in dreh) and len(aussen) < 2 and len(innen) < 2 \
                 and not anbau:
             return None
-    zs = [z for e in dreh if e["typ"] == "zylinder" for z in e["z"]]
+    # z der Zylinder entlang ihrer eigenen Achsrichtung; zeigt sie entgegen der Hauptachse, Vorzeichen drehen (sonst
+    # Länge = doppelter Abstand vom Nullpunkt: Rolle 10 mm lang als 2534 mm, Patrick 07.11.2026, A4 Prüfsammlung)
+    zs = [z if _dot(e["achse"][1], d) > 0 else -z for e in dreh if e["typ"] == "zylinder" for z in e["z"]]
     z0, z1 = min(zs), max(zs)
     for e in stirn:
         z = _dot(e["punkt"], d)

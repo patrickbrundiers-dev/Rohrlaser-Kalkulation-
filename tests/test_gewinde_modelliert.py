@@ -5,6 +5,7 @@ das Teil gleich als Drehteil, vereinfacht (Ampel gelb, Hinweis „vereinfacht ge
 - Gewindestange M12 × 40 (Flanken als Wendel-Sweep): Drehteil Ø12 × 40, Außengewinde, unter 10 s
 - nur die Gewindegänge als eigener Körper (Ring Ø9,3–12): Drehteil mit Merkmal „nur Gewindegänge“
 - ein Rohr, ein Rundstahl und eine Stufenwelle ohne Gewinde: Vorprüfung greift nicht
+- Länge eines Drehteils mit gegenläufigen Zylinderachsen weit weg vom Nullpunkt (Rolle 10 mm kam als 2534 mm)
 
 Aufruf: python tests/test_gewinde_modelliert.py
 """
@@ -86,4 +87,16 @@ for name, s in (("Rohr Ø40 × 3", rohr), ("Rundstahl Ø20", zylinder(10, 0, 300
 t, _ = messen(rohr)
 assert t.profilform == "Rundrohr", t.profilform
 ok("Rohr, Rundstahl und Stufenwelle ohne Gewinde: Vorprüfung greift nicht, Rohr bleibt Rundrohr")
+# Länge eines Drehteils, dessen Zylinder gegenläufige Achsen haben, weit weg vom Nullpunkt (Prüfsammlung 07.11.2026:
+# Rolle 10 mm lang kam als 2534 mm, Schraube M10 × 80 als 2149 mm)
+schaft = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 1000), gp_Dir(0, 0, 1)), 5, 80).Shape()
+kopf = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 1086.4), gp_Dir(0, 0, -1)), 8, 6.4).Shape()
+fase = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 1000), gp_Dir(0, 0, 1)), 3, 2).Shape()
+bolzen = BRepAlgoAPI_Cut(BRepAlgoAPI_Fuse(schaft, kopf).Shape(), fase).Shape()
+fl = df.flaechen(bolzen)
+assert any(e["typ"] == "zylinder" and e["achse"][1][2] < 0 for e in fl), "Testteil braucht eine gegenläufige Achse"
+info = df.drehteil(fl)
+assert info is not None and abs(info["laenge"] - 86.4) < 0.01, info and info["laenge"]
+ok(f"Drehteil weit weg vom Nullpunkt, Zylinder mit gegenläufigen Achsen: Länge {info['laenge']} mm (vorher doppelter "
+   "Abstand vom Nullpunkt)")
 print("Alle Tests OK")
