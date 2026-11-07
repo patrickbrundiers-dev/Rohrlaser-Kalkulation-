@@ -576,7 +576,7 @@ def kapitel_ueberblick(i):
            "gespeichert, einen Speichern-Knopf gibt es nicht. Strg+C/Strg+V kopieren und fügen Zellen ein (auch Blöcke "
            "aus Excel), Entf löscht markierte Zeilen (im Angebot ohne Rückfrage, die Einblendung bietet <b>Rückgängig</b> "
            "an), Strg+Z nimmt im Angebot die letzte Änderung zurück ([[tastenkuerzel]], [[meldungen]]).")
-    i.text("Seit 0.9.268 fragt das Programm nur noch bei Schritten nach, die sich nicht zurücknehmen lassen oder "
+    i.text("Seit 0.9.269 fragt das Programm nur noch bei Schritten nach, die sich nicht zurücknehmen lassen oder "
            "nach außen wirken (Angebot löschen, Archivieren, Daten ersetzen, Auftragsbestätigung …). Ersetzen von "
            "STEP-Werten durch den Schneidweg-Rechner, Auf Zielpreis setzen, neuer Preisstand eines Zukaufteils, "
            "Alten Wert zurückholen und Auf Ursprung zurücksetzen passieren sofort, die Einblendung bietet "
@@ -791,7 +791,7 @@ def kapitel_start(i):
            "ihrem Tastenkürzel. Tippen filtert (alle Wörter müssen vorkommen, z. B. „40x3 re“), <b>↑/↓</b> wählt, "
            "<b>Enter</b> öffnet das Angebot, zeigt Kunde oder Profil, springt zur Einstellung (Einstellungen mit "
            "gefilterter Suche) oder führt den Befehl aus; <b>Esc</b> schließt.", kurz=True)
-    i.text("Seit 0.9.268 steht dafür oben rechts in der Menüleiste das Feld <b>Suchen … (Strg+K)</b>. Mit "
+    i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste das Feld <b>Suchen … (Strg+K)</b>. Mit "
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
     i.abschnitt("Erste Schritte", marke="erste_schritte")
@@ -1425,7 +1425,7 @@ def kapitel_angebot(i):
             "unverändert und wird nur angezeigt.")
     i.abschnitt("Lieferzeit im Angebot", marke="lieferzeit")
     i.text("Jedes Angebot hat seine eigene Lieferzeit, vorbelegt aus den Einstellungen ([[einstellungen]]). Sie "
-           "ändert keine Preise. Seit 0.9.268 steht sie in <b>einem</b> Feld: einfach so schreiben, wie man es sagt; "
+           "ändert keine Preise. Seit 0.9.269 steht sie in <b>einem</b> Feld: einfach so schreiben, wie man es sagt; "
            "das Programm erkennt die Art, darunter steht der Satz fürs Angebot.")
     i.tabelle(["Eingabe", "erkannt als", "im Angebot"], [
         ["10 AT, 10 Arbeitstage", "Arbeitstage", "Lieferzeit: ca. 10 Arbeitstage nach Auftragseingang."],
@@ -4474,7 +4474,7 @@ def kapitel_optimieren(i):
             "<b>Zurücksetzen auf den Ursprung</b>: Knopf <i>Zurücksetzen</i> im Menüband (neben Rückgängig) mit "
             "<i>Alles wie beim Öffnen</i> (verwirft alle Änderungen seit dem Öffnen des Fensters) und <i>Alles wie aus "
             "STEP/DXF importiert</i> (das ganze Teil wieder so, wie es aus der Datei kam, auch gelöschte Konturen). "
-            "Ohne Rückfrage (seit 0.9.268): die Einblendung bietet <i>Rückgängig</i>, auch Strg+Z holt den Stand "
+            "Ohne Rückfrage (seit 0.9.269): die Einblendung bietet <i>Rückgängig</i>, auch Strg+Z holt den Stand "
             "davor wieder. Den Importstand merkt sich die Position "
             "beim Einlesen (ab Version 0.9.243; <i>STEP neu einlesen</i> und DXF-Import setzen ihn neu). Bei älteren "
             "Positionen setzt der Eintrag alle geänderten Merkmale auf den STEP-Wert. Dasselbe gibt es im Editor der "
@@ -6242,7 +6242,7 @@ def kapitel_baugruppen(i):
     i.text("Knopf <b>Zurücksetzen</b> unten im Editor der Schweißbaugruppe: <i>Alles wie beim Öffnen</i> verwirft "
            "alle Änderungen seit dem Öffnen, <i>Alles wie aus STEP importiert</i> setzt Struktur, Einzelteile, "
            "Nahtgruppen, Arbeitsgänge, Steckverbindungen, Bezeichnung und Anzahl wieder wie beim Einlesen.", kurz=True)
-    i.text("Seit 0.9.268 ohne Rückfrage: die Einblendung unten bietet <b>Rückgängig</b>, auch <i>Zurücksetzen "
+    i.text("Seit 0.9.269 ohne Rückfrage: die Einblendung unten bietet <b>Rückgängig</b>, auch <i>Zurücksetzen "
            "rückgängig</i> (oder Strg+Z) holt den Stand davor wieder. "
            "Erst OK schreibt ins Angebot, Abbrechen verwirft auch das Zurücksetzen. Den Importstand merkt sich die "
            "Baugruppe beim Einlesen (ab Version 0.9.243), samt Zuordnung der Teile nach Pos. und Artikel; von Hand "
