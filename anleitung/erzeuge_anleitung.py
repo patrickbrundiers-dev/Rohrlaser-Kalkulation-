@@ -3299,6 +3299,14 @@ def kapitel_step(i):
             "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "
             "ist das Teil ein Normteil. Es ist im Prüfdialog abgewählt (Hinweis <i>Normteil … – zum Übernehmen "
             "anhaken</i>) und steht im Bericht als nicht übernommen.",
+            "<b>Normteile mit Preis (seit 0.9.272):</b> In einer <b>Schweißbaugruppe</b> oder einem <b>Satz</b> sind "
+            "erkannte Normteile angehakt und kommen als <b>Zukaufteil</b> hinein (Hinweis <i>als Zukaufteil zum Preis "
+            "der Normteil-Liste</i>), bei Einzelteilen erst nach Anhaken. Die <b>Normteil-Liste</b> sind die "
+            "<i>Zukaufartikel</i> der Kategorie <b>Normteile</b>: Bezeichnung (z. B. <i>ISO 4032 M12</i> aus dem "
+            "Bauteilnamen oder <i>Kugel Ø8,73</i> bzw. <i>Mutter/Schraube SW 19</i> aus der Form) und Preis je Stück. "
+            "Gibt es den Artikel noch nicht, legt der Import ihn ohne EK an; die Position steht dann gelb "
+            "<i>EK fehlt</i>, bis der Preis unter Zukaufartikel eingetragen ist. Ab dem nächsten Import gilt er "
+            "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen.",
             "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
             "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
     i.tabelle(["Importprofile (STEP)", "Bedeutung"], [

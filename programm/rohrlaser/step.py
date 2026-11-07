@@ -2772,6 +2772,50 @@ def _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte, df_einst=
     return dict(neu=schl), text
 
 
+NORMTEIL_KATEGORIE = "Normteile"        # Zukaufartikel-Kategorie der Normteil-Preisliste (N6, Patrick 07.11.2026)
+NORMTEIL_TYP = "Normteil"
+
+
+def normteil_name(m):
+    """Bezeichnung eines Normteils für die Preisliste: aus der Geometrie (Kugel Ø8,73, Mutter/Schraube SW 19, Gewinde-
+    stange Ø12,7 × 100 mit Mutter SW 19) bzw. der Bauteilname aus dem CAD (ISO 4032 M12)."""
+    from . import drehfraes
+    d = drehfraes.daten(m) or {}
+    art = d.get("normteil")
+    if art:
+        text = next((x for x in d.get("merkmale") or () if str(x).startswith("Normteil: ")), f"Normteil: {art}")
+        name = text[len("Normteil: "):]
+        if "Gewindestange" in art and d.get("laenge"):
+            name += f" × {round(float(d['laenge']), 1):g}".replace(".", ",")
+        return name
+    name = str(m.get("bauteil") or m.get("artikel") or "Normteil").strip()
+    return name.split(":")[0].strip() or "Normteil"
+
+
+def _normteil_position(m, zukauf_liste, neue_artikel):
+    """Zukaufartikel der Normteil-Preisliste (Kategorie Normteile, gleiche Bezeichnung) bzw. neu ohne EK (gelb, wie
+    Dreh-/Frästeile: unter Zukaufartikel „EK eintragen …“). Ergebnis: (Verweis, Bezeichnung, Hinweistext)."""
+    from . import zukauf
+    name = normteil_name(m)
+    schl_name = name.casefold()
+    for a in zukauf_liste or ():
+        if a.get("id") is not None and a.get("status") != "archiviert" and \
+                (a.get("bezeichnung") or "").strip().casefold() == schl_name:
+            return dict(artikel_id=a["id"]), name, f"Normteil aus der Preisliste ({name})" + (
+                ", EK fehlt: unter Zukaufartikel eintragen" if zukauf.ek_fehlt(a) else "")
+    for s_, (w, _) in neue_artikel.items():
+        if w.get("artikeltyp") == NORMTEIL_TYP and (w.get("bezeichnung") or "").casefold() == schl_name:
+            return dict(neu=s_), name, f"Normteil {name} (neu in diesem Import)"
+    werte = dict(bezeichnung=name, kategorie=NORMTEIL_KATEGORIE, einheit="Stück", status="aktiv",
+                 aufschlag_quelle="Kategorie", angebotstext="nein", rest_lager="nein", kombiniert="nein",
+                 artikeltyp=NORMTEIL_TYP, herkunft="STEP-Import", step_datei=m.get("datei") or None,
+                 beschreibung="Normteil aus dem STEP-Import; EK einmal eintragen, dann gilt er für alle Angebote")
+    schl = f"neu{len(neue_artikel) + 1}"
+    neue_artikel[schl] = (werte, [dict(lieferant=None, bevorzugt="ja", preiseinheit=1, preise=[])])
+    return dict(neu=schl), name, f"Normteil {name} neu in der Preisliste (Zukaufartikel, Kategorie " \
+                                 f"{NORMTEIL_KATEGORIE}), EK fehlt: unter Zukaufartikel eintragen"
+
+
 def _drehfraes_ok(m):
     """Dreh-/Frästeil übernehmen? Wie Bleche: abgewählt nie, mit Prüfstatus 'prüfen' erst nach Anhaken."""
     if m.get("_uebernehmen") is False:
@@ -2942,6 +2986,32 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                             "übernommen)")
         elif m.get("profilform") == GRAVURKOERPER:
             hinweise.append("nicht übernommen: kein eigenes Teil")
+        elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True and art in diesmal:
+            erst, stk = diesmal[art], m.get("_stueck", stueck)      # dasselbe Normteil noch einmal: Stückzahl dazu
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
+        elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True:
+            # Normteil (Schraube, Mutter, Kugel) als Zukaufteil zum Preis der Normteil-Liste (N6, Patrick 07.11.2026)
+            from .angebot import ZUKAUFTEIL
+            stk = m.get("_stueck", stueck)
+            verweis, name, text = _normteil_position(m, zukauf_liste, neue_artikel)
+            p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art, bezeichnung=name, stueck=stk or None,
+                     _zukauf=verweis)
+            if m.get("_netz"):
+                p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
+            hinweise.append(f"Zukaufteil: {text}")
+            if satz:
+                anzahl = int(m.get("_je_satz") or len(gruppen[i]))
+                p["satz"], p["je_satz"] = satz, anzahl
+                p["stueck"] = stk * anzahl if stk else None
+                hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
+                satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            neu.append(p)
+            ziel = naechste
+            diesmal[art] = p
+            naechste += 10
         elif m.get("_normteil") and m.get("_uebernehmen") is not True:
             hinweise.append(f"nicht übernommen: Normteil ({m.get('bauteil')}, Begriff {m['_normteil']})")
         elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):

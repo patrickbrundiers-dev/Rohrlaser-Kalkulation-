@@ -648,6 +648,9 @@ class StepPruefDialog(QDialog):
             # automatisch angehakt, sonst entscheidest du selbst (nicht angehakt)
             gewaehlt = m.get("_uebernehmen", bool(self.baugruppe.get(datei)) and not m.get("_normteil")) \
                 is not False if ist_zk else step.gewaehlt(m)
+            if m.get("_normteil") and "_uebernehmen" not in m:
+                # Normteil in Schweißbaugruppe oder Satz: als Zukaufteil zum Preis der Normteil-Liste (N6)
+                gewaehlt = bool(self.baugruppe.get(datei) or self.saetze.get(datei))
             anbauteil = self.anbau_von.get(erster) if self.anbau_weglassen else None
             if anbauteil is not None and "_uebernehmen" not in m:
                 gewaehlt = False
@@ -695,7 +698,11 @@ class StepPruefDialog(QDialog):
             if step.unsicher(m):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
             if m.get("_normteil"):
-                hinweis.append(f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken")
+                hinweis.append(f"Normteil ({m['_normteil']}): angehakt Zukaufteil „{step.normteil_name(m)}“ zum Preis "
+                               "der Normteil-Liste (Zukaufartikel, Kategorie Normteile)"
+                               if self.baugruppe.get(datei) or self.saetze.get(datei) else
+                               f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken (Zukaufteil zum Preis der "
+                               "Normteil-Liste)")
             ag = step.art_grund(m)      # Grund der Art (Regelliste bzw. von Hand); beim Dreh-/Frästeil steht er oben
             if ag and not any(ag in h for h in hinweis) and not (ist_df and ag == m.get("art_grund")):
                 hinweis.append(ag)

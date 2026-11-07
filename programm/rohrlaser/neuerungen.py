@@ -27,6 +27,11 @@ NEUERUNGEN = [
      "Ergebnis, unten Kacheln und Prüfmeldungen (Klick springt zur Zeile). Der Strukturbaum und das 3D sind immer "
      "sichtbar, kein eigener Reiter mehr; alle Editoren öffnen maximiert.",
      "Schweißbaugruppe und Satz in 3D aufgebaut wie Rohr- und Blech-Editor."],
+    ["0.9.272", "<b>Normteile mit Preis</b> ([[importprofile]]): erkannte Kugeln, Schrauben und Muttern in einer "
+     "Schweißbaugruppe oder einem Satz kommen angehakt als <b>Zukaufteil</b> hinein. Der Preis kommt aus den "
+     "Zukaufartikeln der Kategorie <b>Normteile</b> (gleiche Bezeichnung); fehlt der Artikel, wird er ohne EK "
+     "angelegt und die Position steht gelb <i>EK fehlt</i>, bis der Preis eingetragen ist.",
+     "Normteile in Baugruppen und Sätzen als Zukauf mit Preis aus der Normteil-Liste."],
     ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
      "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
      "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "

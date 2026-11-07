@@ -71,6 +71,7 @@ TESTS = [
     ("test_gewinde_modelliert.py", {}),
     ("test_a4_pruefsammlung.py", {}),
     ("test_editoren_gleich.py", {}),
+    ("test_normteile_preis.py", {}),
     ("test_lage_tempo.py", {}),
     ("test_step_gedreht.py", {}),
     ("test_step_senden.py", {}),
