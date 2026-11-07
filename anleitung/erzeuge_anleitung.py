@@ -2945,7 +2945,7 @@ def kapitel_step(i):
             "Gewindegang ein eigener Körper, zusätzlich <i>nur Gewindegänge</i>). Die Ampel steht gelb mit dem "
             "Hinweis <i>vereinfacht gemessen</i>. Vorher suchte die Profilmessung in den Flanken minutenlang einen "
             "Querschnitt (bis 26 Minuten je Körper) und fand doch keinen.",
-            "<b>Nach der Prüfsammlung</b> (seit 0.9.271, 53 typische Teile von Patrick bestätigt): "
+            "<b>Nach der Prüfsammlung</b> (seit 0.9.270, 53 typische Teile von Patrick bestätigt): "
             "<b>Kugeln</b> und <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) sind <i>Normteile</i> "
             "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr. "
             "<b>Ringe mit Kalotten oder Taschen</b> und <b>Hülsen mit Boden</b> (Bohrung nicht durch) sind Drehteile. "
@@ -2957,7 +2957,7 @@ def kapitel_step(i):
             "<b>Platte mit Einpressmuttern/-bolzen</b> (bis 10 % des Volumens, Hinweis <i>Aufgesetzte Kleinteile</i>). "
             "Ein <b>Klotz</b>, kürzer als breit, mit ungleicher Wand ist ein Frästeil statt Rohrstück. Die "
             "Hinweis-Spalte nennt die Regel (z. B. <i>Flachstahl → Blech</i>).",
-            "<b>Mehrere Teile in einem Körper</b> (seit 0.9.271): ist ein Körper offensichtlich aus mehreren "
+            "<b>Mehrere Teile in einem Körper</b> (seit 0.9.270): ist ein Körper offensichtlich aus mehreren "
             "verschmolzenen Teilen (Platte mit angeschweißter Mutter, Blechkasten, dessen Biegezone an mehr als zwei "
             "Schenkeln hängt, „Frästeil“ aus dünnen Wänden), steht die Ampel gelb mit dem Hinweis <i>Mehrere Teile in "
             "einem Körper?</i> und das Teil wird nicht übernommen. Am besten die STEP im CAD in Einzelteile aufteilen; "
