@@ -162,6 +162,12 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
         knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
+        from .umwandeln_dialog import knoepfe_einbauen          # Satz umwandeln (06.11.2026)
+        self.umwandeln_knoepfe = knoepfe_einbauen(self, knoepfe, (
+            ("In Schweißbaugruppe umwandeln …", "bg", "Speichern und den Satz in eine Schweißbaugruppe umwandeln "
+             "(Editor der Baugruppe mit allen Teilen, Anzahl Baugruppen = Anzahl Sätze)"),
+            ("Satz auflösen", "auf", "Speichern und den Satz in Einzelteile auflösen (Stückzahlen bleiben)")),
+            aktiv=not nur_lesen)
         lay.addWidget(knoepfe)
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()

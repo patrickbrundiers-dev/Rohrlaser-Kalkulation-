@@ -21,13 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.267", "<b>STEP genauer</b> ([[step]]): Flachstahl mit Längsfasen an den Kanten (z. B. die Schneidkante einer "
+    ["0.9.268", "<b>STEP genauer</b> ([[step]]): Flachstahl mit Längsfasen an den Kanten (z. B. die Schneidkante einer "
      "Baggerschaufel) galt bisher als glattes Rechteck, die Fasen fielen weg. Jetzt meldet der Import „Querschnitt mit "
      "Längsfasen“ mit den Maßen, das Teil steht gelb, und Skizze und 3D zeigen den Querschnitt wie in der STEP. "
      "Zuschnitte von Blechen und Kantteilen mit kleinen gerundeten Ecken galten als Rechteck, der Schneidweg im "
      "Blech-Editor lag bis 1 % zu hoch. Jetzt gilt ein Zuschnitt nur noch als Rechteck, wenn auch der Umfang passt; "
      "sonst rechnet der Editor mit der Kontur aus der STEP.",
      "STEP: Flachstahl mit Längsfasen und Zuschnitte mit runden Ecken wie in der STEP."],
+    ["0.9.267", "<b>Einzelteile, Satz und Schweißbaugruppe umwandeln</b> ([[umwandeln]]): per Rechtsklick werden markierte "
+     "Einzelteile ein Satz (Name und Anzahl Sätze im Fenster, Vorschlag = größter gemeinsamer Teiler der Stückzahlen), "
+     "ein Satz eine Schweißbaugruppe (Editor mit allen Teilen, Anzahl Baugruppen = Anzahl Sätze) und beides wieder "
+     "zurück. Aus einer Baugruppe wird ein Satz mit denselben Teilen und Stückzahlen; Nähte, Arbeitsgänge und "
+     "Vorrichtungen merkt sich das Programm und setzt sie beim Zurückwandeln wieder ein. Dieselben Knöpfe stehen in "
+     "Satz in 3D, Satz bearbeiten und im Editor der Schweißbaugruppe. Preise, Zusatzarbeiten, Konturen und Lage der "
+     "Teile bleiben gleich.",
+     "Einzelteile ↔ Satz ↔ Schweißbaugruppe per Rechtsklick umwandeln."],
     ["0.9.266", "<b>Fehler behoben, gemeinsamer Ordner</b> ([[mehrere_arbeitsplaetze]]): sobald ein gemeinsamer Ordner eingetragen war, kam "
      "alle 15 Sekunden „Unerwarteter Fehler: 'dict' object is not callable“; Lebenszeichen und Sofort-Schreiben "
      "liefen dann nicht mehr. Der Takt läuft jetzt wieder fehlerfrei.",
