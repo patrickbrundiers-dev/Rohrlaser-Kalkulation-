@@ -1855,6 +1855,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.bezeichnung.textChanged.connect(self.aktualisieren)
         self.anzahl.valueChanged.connect(self.aktualisieren)
         lay.addLayout(kopf)
+        # Einkauf je Baugruppe (Patrick 07.11.2026): kompletter Blech-EK, nach Gewicht auf die Teile umgelegt
+        from .einkauf_felder import EinkaufFelder
+        self.einkauf = EinkaufFelder(positionen, bg=self.bg.get("id"), nur_lesen=nur_lesen)
+        lay.addWidget(self.einkauf)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_struktur(), "Struktur und Teile")
         self.reiter.addTab(self._seite_naehte(), "Nahtgruppen")
@@ -3646,4 +3650,4 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
                     knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
-                    lagen=dict(getattr(self, "steck_lagen", {})))
+                    lagen=dict(getattr(self, "steck_lagen", {})), einkauf=self.einkauf.geaendert())

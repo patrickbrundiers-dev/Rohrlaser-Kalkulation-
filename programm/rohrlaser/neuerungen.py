@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.270", "<b>Blech-EK je Satz und je Schweißbaugruppe</b> ([[satz_bearbeiten]]): den kompletten Einkaufspreis "
+     "der Bleche (ebenso Vollmaterial, Dreh-/Frästeile) gibt es jetzt in allen Editoren: im Fenster <i>Satz "
+     "bearbeiten</i>, in <i>Satz in 3D</i> und im Editor der <b>Schweißbaugruppe</b> als <b>Einkauf je Baugruppe</b>. "
+     "Der Betrag wird nach Gewicht auf die Teile umgelegt (× Anzahl Sätze bzw. Baugruppen). Neu im Rechtsklick: "
+     "<i>Blech-EK je Satz/Baugruppe …</i>. Gibt es keine passenden Zukaufteile, sagt die Zeile, warum kein Feld da ist.",
+     "Blech-EK komplett je Satz und je Schweißbaugruppe, in allen Editoren und per Rechtsklick."],
     ["0.9.269", "<b>Einfacher bedienen</b>: oben rechts steht das Feld <b>Suchen … (Strg+K)</b>; es findet jetzt auch "
      "die Knöpfe der offenen Seite ([[befehlspalette]]). Die Schrittanzeige im Angebot ist anklickbar, der Knopf "
      "<b>Weiter: …</b> führt den nächsten Schritt aus. Die <b>Lieferzeit</b> steht in einem Feld: einfach "

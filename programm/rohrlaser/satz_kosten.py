@@ -7,6 +7,11 @@ Einkaufspreis je Satz (Frage 4 a); er wird nach Gewicht (Frage 3 a; ohne Gewicht
 Art im Satz umgelegt und steht nur an den Positionen dieses Angebots (Frage 6 a): je Zukauf-Eintrag 'ek_fest' (EK je
 Einheit, ersetzt den EK des Artikels in zukauf.rechnen) und 'satzkosten' (Art, Betrag) zum Wiederanzeigen. Danach
 rechnet das Teil wie jedes Zukaufteil (nur der Aufschlag, kein Gewinn). Leer bzw. 0 nimmt den Betrag wieder weg.
+
+Seit 07.11.2026 (Patrick: „Blech-EK für Satz oder Schweißbaugruppe, komplett, umgelegt auf alle Positionen“) dasselbe
+für Schweißbaugruppen (bg = Baugruppen-ID statt Satzname: Einkauf je Baugruppe auf ihre Einzelteile, Stück je
+Baugruppe aus der Struktur) und in allen Editoren: Satz bearbeiten, Satz in 3D, Schweißbaugruppen-Editor
+(Felder: einkauf_felder.py).
 """
 import json
 
@@ -21,10 +26,28 @@ def art(e):
     return next((a for a, k in ARTEN.items() if kat in k), None)
 
 
-def _eintraege(positionen, satz):
-    """[(Position, Liste der Einträge, Index, Eintrag, Art)] der Zukaufteile im Satz."""
+def indizes(positionen, satz=None, bg=None):
+    """Indizes der Positionen, auf die umgelegt wird: Einzelteile der Schweißbaugruppe bg, sonst die des Satzes."""
+    if bg:
+        from . import baugruppe
+        return baugruppe.teile(positionen, bg)
+    return satz_menge.satz_positionen(positionen, satz)
+
+
+def _je_einheit(positionen, satz=None, bg=None):
+    """{Positions-ID: Stück je Satz bzw. je Baugruppe}."""
+    if bg:
+        from . import baugruppe
+        soll = baugruppe.soll_werte(positionen)
+        return {positionen[i].get("id"): (soll.get(i) or {}).get("je_satz") or satz_menge.je_satz(positionen[i])
+                for i in indizes(positionen, bg=bg)}
+    return {positionen[i].get("id"): satz_menge.je_satz(positionen[i]) for i in indizes(positionen, satz)}
+
+
+def _eintraege(positionen, satz, bg=None):
+    """[(Position, Liste der Einträge, Index, Eintrag, Art)] der Zukaufteile im Satz bzw. in der Baugruppe."""
     out = []
-    for i in satz_menge.satz_positionen(positionen, satz):
+    for i in indizes(positionen, satz, bg):
         p = positionen[i]
         liste = zukauf.json_liste(p.get("zukauf"))
         for n, e in enumerate(liste):
@@ -34,16 +57,16 @@ def _eintraege(positionen, satz):
     return out
 
 
-def arten(positionen, satz):
-    """Arten, die im Satz vorkommen (Reihenfolge wie ARTEN)."""
-    da = {a for *_, a in _eintraege(positionen, satz)}
+def arten(positionen, satz, bg=None):
+    """Arten, die im Satz (bzw. in der Baugruppe bg) vorkommen (Reihenfolge wie ARTEN)."""
+    da = {a for *_, a in _eintraege(positionen, satz, bg)}
     return [a for a in ARTEN if a in da]
 
 
-def betraege(positionen, satz):
-    """Eingetragene Beträge je Art {Art: € je Satz} (fehlt = keiner)."""
+def betraege(positionen, satz, bg=None):
+    """Eingetragene Beträge je Art {Art: € je Satz bzw. je Baugruppe} (fehlt = keiner)."""
     out = {}
-    for *_, e, a in _eintraege(positionen, satz):
+    for *_, e, a in _eintraege(positionen, satz, bg):
         b = (e.get("satzkosten") or {}).get("betrag")
         if isinstance(b, (int, float)) and b > 0 and a not in out:
             out[a] = float(b)
@@ -57,12 +80,12 @@ def _zahl(x, vorgabe=0.0):
         return vorgabe
 
 
-def verteilen(positionen, satz, kosten, je=None):
+def verteilen(positionen, satz, kosten, je=None, bg=None):
     """Beträge kosten {Art: € je Satz oder None/0 = entfernen} auf die Einträge umlegen. je {Positions-ID: Stück je
     Satz} wie im Fenster (sonst aus der Position). Ergebnis: [(Positions-ID, 'zukauf', JSON)] für geänderte Positionen
-    (ein Schritt für Rückgängig mit den übrigen Änderungen des Fensters)."""
-    je = je or {}
-    eintr = _eintraege(positionen, satz)
+    (ein Schritt für Rückgängig mit den übrigen Änderungen des Fensters). bg: Baugruppen-ID statt Satz."""
+    je = {**_je_einheit(positionen, satz, bg), **(je or {})}
+    eintr = _eintraege(positionen, satz, bg)
     geaendert = {}
     for a, betrag in (kosten or {}).items():
         teile = [x for x in eintr if x[4] == a]
@@ -71,7 +94,7 @@ def verteilen(positionen, satz, kosten, je=None):
         betrag = _zahl(betrag)
         einheiten, gewichte = [], []
         for p, _liste, _n, e, _ in teile:
-            n_pos = je.get(p.get("id"), satz_menge.je_satz(p))
+            n_pos = je.get(p.get("id")) or satz_menge.je_satz(p)
             m = _zahl(e.get("menge"), 1.0) or 1.0
             u = m if e.get("je") == zukauf.JE_SATZ else n_pos * m       # Einheiten je Satz
             einheiten.append(u)
