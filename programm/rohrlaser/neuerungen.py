@@ -45,6 +45,13 @@ NEUERUNGEN = [
      "Art merkt sich das Programm (Kennwerte der Messung und Vorschaubild, keine STEP-Datei und keine Namen); das "
      "Support-Paket nimmt sie mit, daraus werden neue Erkennungsregeln.",
      "Von Hand geänderte Arten kommen ins Support-Paket (ohne STEP-Dateien)."],
+    ["0.9.272", "<b>Weniger Rückfragen</b> ([[meldungen]]): Stammdaten-Zeilen löschen, Richtwerte "
+     "Schweißen und Fracht laden, Vorlagen (Baugruppe, Kontur, Schneidweg) überschreiben oder löschen und den "
+     "Preisstand eines Zukaufartikels im Angebot aktualisieren geschehen sofort, die Einblendung bietet "
+     "<b>Rückgängig</b>. Große STEP-Dateien werden ohne Frage gemessen (Größe und Dauer in der Fortschrittsanzeige), "
+     "nach einem Abbruch kommen die gemessenen Dateien gleich in den Prüfdialog, die Erstmusterprüfung bietet die "
+     "Meldung nach dem Prüfplan mit <i>Übernehmen</i> an.",
+     "11 Rückfragen durch Rückgängig bzw. Übernehmen ersetzt."],
     ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
      "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
      "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "

@@ -48,7 +48,16 @@ assert {t: len(db.zeilen(t)) for t in alt} == alt
 ok("Unbekannte Absender-PLZ: Fehlermeldung, Frachtdaten unverändert")
 
 db.einstellung_setzen("absender_plz", "33129")
-weg, neu = fenster.fracht.historie.richtwerte()        # Knopf 'Richtwerte laden' (stumm: ohne Rückfrage)
+FT = ("fracht_laender", "fracht_zonen", "fracht_plz", "fracht_tarife", "fracht_preise", "fracht_lht",
+      "fracht_zuschlaege", "fracht_dienstleister")
+stand = {t: db.zeilen(t, mit_uid=True) for t in FT}
+versand = db.einstellung("fracht_versandart")
+fenster.fracht.historie.richtwerte()                   # R3 (07.11.2026): ohne Rückfrage, Rückgängig holt BEISPIEL zurück
+assert fenster.letzte_aktion[0] == "Rückgängig"
+fenster.letzte_aktion[1]()
+assert {t: db.zeilen(t, mit_uid=True) for t in FT} == stand and db.einstellung("fracht_versandart") == versand
+ok("Richtwerte laden ohne Rückfrage, Rückgängig stellt alle Frachtdaten wieder her (BEISPIEL-Zeilen)")
+weg, neu = fenster.fracht.historie.richtwerte()        # Knopf 'Richtwerte laden'
 assert weg > 0 and neu > 100, (weg, neu)
 for t in ("fracht_laender", "fracht_zonen", "fracht_plz", "fracht_tarife", "fracht_preise", "fracht_lht",
           "fracht_zuschlaege", "fracht_dienstleister"):

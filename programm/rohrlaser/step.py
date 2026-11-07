@@ -72,9 +72,9 @@ def grosse_dateien(dateien):
     minuten = max(1, round(sum(m for _, m in gross) * SEK_JE_MB / 60))
     gb = mb * SPEICHER_JE_MB / 1000
     namen = ", ".join(f"{n} ({m:.0f} MB)" for n, m in gross[:3]) + (" …" if len(gross) > 3 else "")
-    return (f"Große STEP-Datei: {namen}.\n\nDie Messung dauert voraussichtlich etwa {minuten} min und braucht etwa "
-            f"{gb:.0f} GB Arbeitsspeicher (geschätzt aus der Dateigröße). Reicht der Arbeitsspeicher nicht, wird "
-            "der Rechner sehr langsam. Während der Messung lässt sie sich abbrechen.\n\nJetzt messen?")
+    # R8 (Patrick 07.11.2026): keine Rückfrage mehr, der Text steht in der Fortschrittsanzeige (mit „Abbrechen“)
+    return (f"Große STEP-Datei: {namen} – etwa {minuten} min, etwa {gb:.0f} GB Arbeitsspeicher (geschätzt aus der "
+            "Dateigröße)")
 
 
 def step_kandidaten(pfade):

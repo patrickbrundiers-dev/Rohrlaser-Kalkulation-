@@ -364,22 +364,24 @@ class AusgabeMixin:
             return None
         preis = rechnen._n(self.db.einstellung("erstmuster_preis"))
         schon = any(z.get("name") == pruefplan.ZUSATZ for p in self.positionen for z in rechnen.zusatz_liste(p))
-        if erstmuster is None and preis > 0 and not schon and not self.f.stumm and not self.fremd() \
-                and not self.db.nur_lesen:
-            erstmuster = QMessageBox.question(
-                self, "Prüfplan", f"Erstmusterprüfung ({rechnen.zahl(preis, 2)} € je Angebot) als Zusatzarbeit ins "
-                "Angebot übernehmen?\n\nSie hängt an der ersten Position und wird auf das Angebot umgelegt.",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
-        if erstmuster and preis > 0 and not schon:
+        def eintragen():
             vorher = self._verkauf()
             pruefplan.zusatz_eintragen(self.db, teile[0], preis)
             self.neu_laden()
             self.f.meldung("Erstmusterprüfung eingetragen. "
                            + (preis_aenderung(vorher, self._verkauf()) if vorher is not None else ""))
-        return self._schreiben("Prüfplan", self._ziel("Pruefplan", ".pdf"),
+        if erstmuster and preis > 0 and not schon:
+            eintragen()
+        pfad = self._schreiben("Prüfplan", self._ziel("Pruefplan", ".pdf"),
                                lambda p: pruefplan.pdf(p, self.kopf, self.positionen, self.einst
                                                        | {"pruef_toleranz": self.db.einstellung("pruef_toleranz")},
                                                        self.k.profile))
+        # R11 (Patrick 07.11.2026): keine Rückfrage mehr, Hinweis mit Knopf „Übernehmen“
+        if pfad and erstmuster is None and preis > 0 and not schon and not self.fremd() and not self.db.nur_lesen:
+            self.f.meldung(f"Prüfplan erstellt. Erstmusterprüfung ({rechnen.zahl(preis, 2)} € je Angebot) ist noch "
+                           "nicht im Angebot; „Übernehmen“ hängt sie als Zusatzarbeit an die erste Position.",
+                           aktion=("Übernehmen", eintragen))
+        return pfad
 
     def cam_paket(self, ordner=None):
         """Übergabe an CAM (Vorschlag S4, cam_paket.py): Ordner neben den Angebotsdateien mit STEP je Position,

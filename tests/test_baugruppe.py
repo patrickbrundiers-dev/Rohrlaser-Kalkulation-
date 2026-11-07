@@ -426,6 +426,12 @@ fehlt = baugruppe.richtwerte_fehlend(db.tabellen())
 assert all(z["verfahren"] != "MAG" for z in fehlt["schweissverfahren"])          # MAG ist schon da (geprüft)
 assert ("MAG", "Kehlnaht", 4) not in {(z["verfahren"], z["nahtart"], z["mass_bis"]) for z in fehlt["schweiss_kennwerte"]}
 seite_kw = next(s_ for s_ in f.seiten if s_.t.name == "schweiss_kennwerte")
+SW_T = ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln")
+anz_vor = {t_: db.anzahl(t_) for t_ in SW_T}
+seite_kw.schweiss_richtwerte(bestaetigt=True)
+assert f.letzte_aktion[0] == "Rückgängig"         # R2 (07.11.2026): Rückgängig statt Rückfrage
+f.letzte_aktion[1]()
+assert {t_: db.anzahl(t_) for t_ in SW_T} == anz_vor, "Rückgängig entfernt genau die neuen Zeilen"
 n = seite_kw.schweiss_richtwerte(bestaetigt=True)
 assert n == sum(len(x) for x in fehlt.values()) > 0
 for z in db.zeilen("schweiss_kennwerte"):
@@ -689,6 +695,15 @@ try:
 except ValueError as e:
     assert "gibt es schon" in str(e)
 assert d.vorlage_speichern("Gestell", ueberschreiben=True) == vid
+alt_v = dict(db.zeilen("baugruppen_vorlagen")[0])
+db.aendern("baugruppen_vorlagen", vid, "bemerkung", "alt")
+from unittest import mock  # noqa: E402
+with mock.patch("rohrlaser.baugruppe_dialog.QInputDialog.getText", return_value=("Gestell", True)):
+    assert d.vorlage_merken() == vid                # R4: überschreiben ohne Rückfrage, Rückgängig stellt alt her
+assert db.zeilen("baugruppen_vorlagen")[0]["bemerkung"] is None and d.letzte_aktion[0] == "Rückgängig"
+d.letzte_aktion[1]()
+assert db.zeilen("baugruppen_vorlagen")[0]["bemerkung"] == "alt"
+db.aendern("baugruppen_vorlagen", vid, "bemerkung", alt_v["bemerkung"])
 d.reject()
 v = db.zeilen("baugruppen_vorlagen")[0]
 vd = json.loads(v["daten"])

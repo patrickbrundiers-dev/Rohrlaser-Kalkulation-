@@ -75,6 +75,7 @@ TESTS = [
     ("test_aufteilen.py", {}),
     ("test_langsam_hintergrund.py", {}),
     ("test_pruefsammlung_waechst.py", {}),
+    ("test_rueckfragen_0711.py", {}),
     ("test_lage_tempo.py", {}),
     ("test_step_gedreht.py", {}),
     ("test_step_senden.py", {}),

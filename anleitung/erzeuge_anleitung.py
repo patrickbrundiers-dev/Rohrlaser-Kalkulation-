@@ -2299,8 +2299,11 @@ def kapitel_angebot(i):
             "inzwischen eine weitere Änderung dazu, verweist es auf <i>Bearbeiten → Rückgängig</i> (Strg+Z).",
             "Ohne Rückfrage, dafür mit Rückgängig: Positionen und Staffel-Stufen löschen, Ist-Werte der "
             "Nachkalkulation löschen, <i>Vorgaben aus Einstellungen</i>, Stundensätze aus den Einstellungen und "
-            "<i>Aktuelle Preise übernehmen</i>. Ganze Angebote und Stammdaten fragen weiter vorher, weil es dort "
-            "kein Rückgängig gibt.",
+            "<i>Aktuelle Preise übernehmen</i>. Seit 0.9.272 auch: Stammdaten-Zeilen löschen, Richtwerte Schweißen "
+            "und Fracht laden, Baugruppen-, Kontur- und Schneidweg-Vorlagen überschreiben bzw. löschen, Preisstand "
+            "eines Zukaufartikels im Angebot aktualisieren; nach dem Prüfplan bietet die Einblendung "
+            "<i>Übernehmen</i> für die Erstmusterprüfung an. Ganze Angebote, Sicherungen, Frachtzonen- und "
+            "Schneiddaten-Standard, Archivieren und Freigaben fragen weiter vorher.",
             "In Editoren und Dialogen erscheint die Einblendung im Fenster selbst, damit sie nicht dahinter liegt.",
             "Bei einem offenen Angebot steht die Einblendung links neben der Übersicht, damit sie Preise und Zeiten "
             "nicht verdeckt.",
@@ -2478,9 +2481,10 @@ def kapitel_step(i):
             "STEP und DXF. DXF-Dateien darf man mitziehen. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
             "Der Explorer ist gleich nach dem Loslassen wieder frei; das Programm kommt nach vorne und misst. "
             "Während ein Import läuft, nimmt es keine weiteren Dateien an (Hinweis unten im Fenster).",
-            "Eine STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) kündigt das Programm vorher an: "
+            "Bei einer STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) nennt die Fortschrittsanzeige "
             "Dauer und Arbeitsspeicher der Messung, aus der Dateigröße geschätzt (gemessen: 32 MB mit 1.000 "
-            "Bohrungen etwa 1 min und 1,2 GB). <i>Nein</i> misst nicht ([[systemvoraussetzungen]]). Ab 20 MB "
+            "Bohrungen etwa 1 min und 1,2 GB); seit 0.9.272 ohne Rückfrage vorher, <i>Abbrechen</i> beendet die "
+            "Messung ([[systemvoraussetzungen]]). Ab 20 MB "
             "lässt das Einlesen zwei Prüfungen auf sich kreuzende Kanten weg, die bei Tausenden Bohrungen sonst "
             "Stunden dauern; die Messwerte bleiben gleich.",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
@@ -2490,8 +2494,8 @@ def kapitel_step(i):
             "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Eine große Datei wird auf "
             "mehrere Messprozesse verteilt und dafür nur einmal eingelesen. "
             "Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
-            "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
-            "sollen ([[einstellungen]]).",
+            "Zwischenspeicher. Nach <b>Abbrechen</b> kommen die bis dahin gemessenen Dateien ohne Rückfrage in den "
+            "Prüfdialog; dessen <i>Abbrechen</i> verwirft sie ([[einstellungen]]).",
             "<b>Langsame Teile im Hintergrund (seit 0.9.272):</b> messen nur noch Körper, die schon länger als 20 s "
             "laufen, öffnet der Prüfdialog gleich mit allen übrigen Teilen. Die langsamen stehen mit dem Hinweis "
             "<i>Messung läuft noch</i> in der Liste, über der Liste steht <i>N langsame Teile werden noch gemessen</i>; "
@@ -6322,7 +6326,8 @@ def kapitel_baugruppen(i):
            "zugeordnete Einzelteile bleiben drin (Teile in einer Unterbaugruppe, die es in der Vorlage nicht gibt, "
            "hängen danach direkt an der Baugruppe). Die Kennwerte der Nahtgruppen gelten aus den aktuellen "
            "Stammdaten und werden beim Speichern wie immer gemerkt. Danach die Einzelteile per Häkchen zuordnen. "
-           "Gibt es den Namen schon, fragt das Programm vor dem Überschreiben. Vorlagen werden mit den übrigen "
+           "Gibt es den Namen schon, wird sie überschrieben; <b>Rückgängig</b> in der Einblendung stellt die alte "
+           "wieder her. Vorlagen werden mit den übrigen "
            "Stammdaten zwischen Arbeitsplätzen geteilt.")
     i.abschnitt("Auf Ursprung zurücksetzen", marke="baugruppe_ursprung")
     i.text("Knopf <b>Zurücksetzen</b> unten im Editor der Schweißbaugruppe: <i>Alles wie beim Öffnen</i> verwirft "
@@ -6562,8 +6567,9 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Einstellung <i>Prüfplan: Toleranzen</i>, Vorgabe mittel) oder <i>nach Kundenvorgabe</i> = Spalte leer "
             "zum Eintragen.",
             "Ist ein Preis für die <b>Erstmusterprüfung</b> eingestellt (<i>Prüfplan: Preis Erstmusterprüfung je "
-            "Angebot [€] (0 = nicht anbieten)</i>, Vorgabe 85 €), fragt das Programm, ob sie als "
-            "Zusatzarbeit (€ je Angebot) ins Angebot kommt; sie hängt an der ersten Position.")
+            "Angebot [€] (0 = nicht anbieten)</i>, Vorgabe 85 €) und steht sie noch nicht im Angebot, zeigt die "
+            "Meldung nach dem Prüfplan den Knopf <b>Übernehmen</b>: er trägt sie als Zusatzarbeit (€ je Angebot) an "
+            "der ersten Position ein (seit 0.9.272 ohne Rückfrage).")
     i.abschnitt("Übergabe an CAM", marke="cam_paket")
     i.text("<i>Ausgaben → Übergabe an CAM (Ordner) …</i> legt im Ordner des Angebots einen Unterordner "
            "„Nummer_CAM“ an: je Rohrlaserteil bzw. Blech eine STEP-Datei „Artikel_Stück_Werkstoff.stp“, die "
@@ -8111,8 +8117,9 @@ def kapitel_stammdaten(i):
         (1, "Seite der Tabelle in der Navigation links. Oben steht der erste Satz des Hilfetextes, was in die Spalten gehört; "
             "<b>ⓘ mehr</b> zeigt den ganzen Text, <b>ⓘ weniger</b> klappt ihn wieder zu (bleibt je Tabelle so)."),
         (2, "<b>Neue Zeile</b> hängt eine leere Zeile an und springt hinein."),
-        (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen (vorher Rückfrage; verweisen andere Tabellen "
-            "darauf, sagt das Programm wie viele)."),
+        (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen ohne Rückfrage; die Einblendung bietet "
+            "<b>Rückgängig</b> (die Zeilen kommen samt Werten zurück) und sagt, wie viele Zeilen anderer Tabellen "
+            "darauf verweisen."),
         (4, "<b>Suchen</b> filtert die Tabelle nach jedem Text in jeder Spalte."),
         (5, "<b>Prüfung</b>: OK (grau), WARNUNG (gelb) oder FEHLER (rot) mit Begründung.")])
     i.liste("Seite links wählen, z. B. <i>Profile</i> (oder ins Suchfeld tippen).", "<b>Neue Zeile</b>, Werte eintippen, Enter.",

@@ -7681,10 +7681,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
-        gross = step.grosse_dateien(step.step_dateien(dateien))
-        if gross and not getattr(self.f, "stumm", False) and QMessageBox.question(
-                self, "STEP-Import", gross, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes) != QMessageBox.Yes:
-            return None
+        gross = step.grosse_dateien(step.step_dateien(dateien))     # R8: Hinweis in der Fortschrittsanzeige
         step_einstellungen.anwenden(self.db)
         laufend = None
         if zwischen:
@@ -7700,7 +7697,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                           "--json", str(ergebnis), "--flachstahl-bis", str(self.flach_bis())]
                                 + step_einstellungen.mess_argumente(self.db)
                                 + (["--zwischenstand", f"{nachmessung.ZWISCHENSTAND_S:g}"] if nach is not None else []),
-                                len(dateien), ausgabe, zwischen=nach):
+                                len(dateien), ausgabe, zwischen=nach, hinweis=gross):
                 return None
             if nach and nach.get("proz") is not None:       # langsame Teile laufen weiter (N4)
                 laufend = self.nachmessung = nachmessung.Nachmessung(nach["proz"], tmp, ausgabe, netze, ergebnis)
@@ -8219,7 +8216,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return True
 
     def _teilergebnis(self, ausgabe_datei, anzahl):
-        """Nach Abbruch: gibt es schon gemessene Dateien, fragen, ob sie übernommen werden sollen."""
+        """Nach Abbruch: gibt es schon gemessene Dateien, gehen sie gleich in den Prüfdialog (R9, Patrick 07.11.2026:
+        keine Rückfrage; dort verwirft „Abbrechen“ sie wieder)."""
         try:
             text = ausgabe_datei.read_text(encoding="utf-8") if ausgabe_datei else ""
             if text and not text.endswith("\n"):       # beim Abbruch halb geschriebene Zeile weglassen
@@ -8231,16 +8229,17 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         n = len({z.split("\t", 1)[0] for z in zeilen if z.strip()})
         if not n or self.f.stumm:
             return False
-        return QMessageBox.question(
-            self, "STEP-Import", f"Messung abgebrochen. {n} von {anzahl} Dateien sind schon gemessen.\n\n"
-            "Diese Dateien übernehmen?", QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes) == QMessageBox.Yes
+        self.f.meldung(f"Messung abgebrochen: {n} von {anzahl} Dateien sind gemessen und stehen im Prüfdialog "
+                       "(dort „Abbrechen“ verwirft sie).")
+        return True
 
-    def _messen(self, befehl, anzahl, ausgabe_datei=None, zwischen=None):
+    def _messen(self, befehl, anzahl, ausgabe_datei=None, zwischen=None, hinweis=None):
         """Messung als eigener Prozess mit Fortschrittsanzeige (Datei, Körper, Restzeit). True = Messung beendet
         oder nach Abbruch die schon gemessenen Dateien übernehmen (stehen in ausgabe_datei). zwischen = {} (N4): meldet
         die Messung ZWISCHENSTAND, kehrt es gleich zurück, der Prozess läuft weiter (zwischen["proz"])."""
         proz = QProcess(self)
-        fortschritt = QProgressDialog("STEP-Dateien werden gemessen …", "Abbrechen", 0, anzahl, self)
+        fortschritt = QProgressDialog("STEP-Dateien werden gemessen …" + (f"\n{hinweis}" if hinweis else ""),
+                                      "Abbrechen", 0, anzahl, self)
         fortschritt.setWindowModality(Qt.WindowModal)
         fortschritt.setMinimumDuration(0 if getattr(self.f, "step_drop_laeuft", False) else 300)   # nach einem Drop gleich zeigen
         schleife = QEventLoop()
@@ -8265,7 +8264,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                         text = f"Datei {d['datei']} von {d['dateien']}: {d['name']}"
                         if d.get("koerper"):
                             text += f"\nKörper {d['koerper']} von {d['koerper_n']}"
-                        fortschritt.setLabelText(text + restzeit())
+                        fortschritt.setLabelText(text + restzeit() + (f"\n{hinweis}" if hinweis else ""))
                     except (ValueError, KeyError, TypeError):
                         pass
                 elif z.startswith("[") and "/" in z:
@@ -8274,7 +8273,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                         if z.endswith("aus dem Zwischenspeicher"):
                             stand["aus_speicher"] = stand["fertig"]
                         fortschritt.setValue(stand["fertig"] - 1 if stand["fertig"] < anzahl else anzahl - 1)
-                        fortschritt.setLabelText(z + restzeit())
+                        fortschritt.setLabelText(z + restzeit() + (f"\n{hinweis}" if hinweis else ""))
                     except ValueError:
                         pass
         proz.readyReadStandardOutput.connect(ausgabe)

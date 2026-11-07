@@ -3642,9 +3642,16 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if "gibt es schon" not in str(e):
                 QMessageBox.warning(self, "Vorlage", str(e))
                 return None
-            if QMessageBox.question(self, "Vorlage", f"{e} Überschreiben?") != QMessageBox.Yes:
-                return None
-            return self.vorlage_speichern(name, ueberschreiben=True)
+            # Rückgängig statt Rückfrage (R4, Patrick 07.11.2026): die alte Vorlage kommt mit „Rückgängig“ zurück
+            alt = dict(next(z for z in self.vorlagen() if z["name"] == name.strip()))
+            vid = self.vorlage_speichern(name, ueberschreiben=True)
+
+            def zurueck():
+                for feld in ("inhalt", "daten", "angelegt", "bemerkung"):
+                    self.db.aendern(VORLAGEN, alt["id"], feld, alt.get(feld))
+                einblendung.melden(self, f"Vorlage „{alt['name']}“ wiederhergestellt.")
+            einblendung.melden(self, f"Vorlage „{alt['name']}“ überschrieben.", aktion=("Rückgängig", zurueck))
+            return vid
 
     def vorlage_waehlen(self):
         liste = self.vorlagen()

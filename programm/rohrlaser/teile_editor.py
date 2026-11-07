@@ -19,7 +19,6 @@ import math
 from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QShortcut, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu,
-                               QMessageBox,
                                QScrollArea, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
@@ -970,17 +969,31 @@ class EditorRahmen(QObject):
         try:
             return self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked())
         except ValueError as x:
-            if "gibt es schon" in str(x) and QMessageBox.question(
-                    self.d, "Kontur-Vorlage", f"{x} Ersetzen?") == QMessageBox.Yes:
-                return self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked(), ueberschreiben=True)
             if "gibt es schon" not in str(x):
                 einblendung.melden(self.d, str(x))
-        return None
+                return None
+        # Rückgängig statt Rückfrage (R5, Patrick 07.11.2026): ersetzen, die alte Vorlage kommt mit „Rückgängig“ zurück
+        from . import konturvorlagen as kv
+        vorher = {z["id"]: dict(z) for z in self.d.db.zeilen(kv.TABELLE, mit_uid=True)}
+        vid = self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked(), ueberschreiben=True)
+        alt = vorher.get(vid)
+
+        def zurueck():
+            if alt:
+                for feld in ("profilform", "konturen", "inhalt", "angelegt", "bemerkung"):
+                    self.d.db.aendern(kv.TABELLE, vid, feld, alt.get(feld))
+                einblendung.melden(self.d, f"Kontur-Vorlage „{alt['name']}“ wiederhergestellt.")
+        einblendung.melden(self.d, f"Kontur-Vorlage „{name.text().strip()}“ ersetzt.", aktion=("Rückgängig", zurueck))
+        return vid
 
     def _vorlage_loeschen_fragen(self, vorlage_id, name):
+        """Kontur-Vorlage löschen, „Rückgängig“ holt sie zurück (R6, Patrick 07.11.2026: statt Rückfrage)."""
         from . import konturvorlagen as kv
-        if QMessageBox.question(self.d, "Kontur-Vorlage löschen", f"Vorlage „{name}“ löschen?") == QMessageBox.Yes:
-            kv.loeschen(self.d.db, vorlage_id)
+        alt = [z for z in self.d.db.zeilen(kv.TABELLE, mit_uid=True) if z["id"] == vorlage_id]
+        kv.loeschen(self.d.db, vorlage_id)
+        einblendung.melden(self.d, f"Kontur-Vorlage „{name}“ gelöscht.", aktion=(
+            "Rückgängig", lambda: (self.d.db.zeilen_zurueck(kv.TABELLE, alt),
+                                   einblendung.melden(self.d, f"Kontur-Vorlage „{name}“ wiederhergestellt."))))
 
     def modell_setzen(self, step):
         """Rohr: 3D-Modell aus dem STEP-Import (step=True) oder aus den Eingaben."""
