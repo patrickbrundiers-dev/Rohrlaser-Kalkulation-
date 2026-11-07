@@ -120,7 +120,7 @@ class GruppenRahmen(QObject):
         self.waagerecht.setStretchFactor(1, 1)
         self.waagerecht.setStretchFactor(2, 0)
         breite = max(1000, d.width())
-        self.waagerecht.setSizes([300, breite - 300 - 320, 320])
+        self.waagerecht.setSizes([250, breite - 250 - 290, 290])
         hoehe = max(500, d.height() - 260)
         self.mitte.setSizes([int(hoehe * 0.5), hoehe - int(hoehe * 0.5)])
         # unten: Prüfmeldungen (aufklappbar) und Ergebnisleiste
