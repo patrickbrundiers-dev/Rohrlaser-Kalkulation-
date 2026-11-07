@@ -2935,6 +2935,12 @@ def kapitel_step(i):
             "<b>Nur nach den Maßen verdächtig</b> (kurzes dickwandiges Rohr wie eine Buchse Ø40/Ø25, dickes Profil "
             "ohne Normmaß): Prüfstatus <i>prüfen</i>, erst nach Anhaken übernommen. Steht das Rohr bzw. Profil in den "
             "Stammdaten, bleibt es ein Rohr/Profil (Hinweis <i>Profil steht in den Stammdaten</i>).",
+            "<b>Modelliertes Gewinde</b> (seit 0.9.270): Gewindestangen, Schrauben und Gewindegänge, deren Flanken im "
+            "CAD als echte Wendel gezeichnet sind, erkennt der Import vorab und misst sie gleich als Drehteil mit "
+            "Merkmal <i>Außen- bzw. Innengewinde Ø… modelliert</i> (Ø = Gewinde-Nenndurchmesser; ist nur der "
+            "Gewindegang ein eigener Körper, zusätzlich <i>nur Gewindegänge</i>). Die Ampel steht gelb mit dem "
+            "Hinweis <i>vereinfacht gemessen</i>. Vorher suchte die Profilmessung in den Flanken minutenlang einen "
+            "Querschnitt (bis 26 Minuten je Körper) und fand doch keinen.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "

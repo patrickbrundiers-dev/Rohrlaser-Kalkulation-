@@ -49,6 +49,15 @@ FORMEN_DREH = ("Rundstahl", "Rundrohr", "Sonderprofil", "offenes Sonderprofil", 
 FORMEN_FRAES_VOLL = ("Vierkantstahl", "Flachstahl", "offenes Sonderprofil", "Sonderprofil", "")
 FORMEN_FRAES_OFFEN = ("U-Profil", "C-Profil", "L-Profil", "T-Profil", "I-/H-Träger")
 DREHTEIL, FRAESTEIL = "Drehteil", "Frästeil"
+# Modelliertes Gewinde (Patrick 06.11.2026, 0003-400-001: Muttern und Gewindestangen mit Gewindeflanken als
+# Freiformflächen; die Profilmessung schnitt sie 10–26 Minuten je Körper und fand doch kein Profil)
+GEWINDE_FLAECHEN_MAX = 80   # Vorprüfung nur für Körper mit so wenigen Flächen (Gewindeteil: Flanken + wenige Flächen)
+GEWINDE_FREI_MIN = 2        # mindestens so viele Freiformflächen (Flanken)
+GEWINDE_TIEFE = 0.25        # Flanken liegen radial in einem Band von höchstens so viel × Außenradius
+GEWINDE_SEKTOREN = 12       # die Flanken laufen rundum: jeder 30°-Sektor hat Punkte
+GEWINDE_RASTER = 9          # Punkte je Parameterrichtung je Fläche
+GEWINDE_BAND_TOL = 0.05    # mm: Zylinder so nah am Gewindeband gehören zum Gewinde
+GEWINDE_AUSSEN_TOL = 0.5    # mm: Außengewinde, wenn die Flanken bis an den größten Radius des Körpers reichen
 
 
 def _v(d):
@@ -151,6 +160,40 @@ def _radius_max(flaechen_, o, d):
     return r
 
 
+def gewinde(fl, o, d):
+    """Modelliertes Gewinde um die Achse (o, d): dict(r_min, r_max, aussen, flaeche) oder None. Die Freiformflächen
+    (Flanken) liegen rundum in einem schmalen radialen Band um die Achse, wie es ein Gewinde tut."""
+    from OCP.BRepTools import BRepTools
+    frei = [e for e in fl if e["typ"] == "frei"]
+    if len(frei) < GEWINDE_FREI_MIN:
+        return None
+    rs, sektoren = [], set()
+    # zwei Richtungen senkrecht zur Achse für den Winkel
+    a = (1.0, 0.0, 0.0) if abs(d[0]) < 0.9 else (0.0, 1.0, 0.0)
+    t_ = _dot(a, d)
+    x = (a[0] - t_ * d[0], a[1] - t_ * d[1], a[2] - t_ * d[2])
+    n = math.sqrt(_dot(x, x))
+    x = (x[0] / n, x[1] / n, x[2] / n)
+    y = (d[1] * x[2] - d[2] * x[1], d[2] * x[0] - d[0] * x[2], d[0] * x[1] - d[1] * x[0])
+    for e in frei:
+        s = BRepAdaptor_Surface(e["face"])
+        u0, u1, v0, v1 = BRepTools.UVBounds_s(e["face"])
+        for i in range(GEWINDE_RASTER):
+            for j in range(GEWINDE_RASTER):
+                p = s.Value(u0 + (u1 - u0) * i / (GEWINDE_RASTER - 1), v0 + (v1 - v0) * j / (GEWINDE_RASTER - 1))
+                w = _sub(_v(p), o)
+                h = _dot(w, d)
+                r = (w[0] - h * d[0], w[1] - h * d[1], w[2] - h * d[2])
+                rs.append(math.sqrt(_dot(r, r)))
+                sektoren.add(int((math.degrees(math.atan2(_dot(r, y), _dot(r, x))) % 360) // (360 / GEWINDE_SEKTOREN)))
+    r_min, r_max = min(rs), max(rs)
+    if r_max <= 0 or r_max - r_min > GEWINDE_TIEFE * r_max or len(sektoren) < GEWINDE_SEKTOREN:
+        return None
+    r_koerper = _radius_max(fl, o, d)
+    return dict(r_min=r_min, r_max=r_max, aussen=r_max >= r_koerper - GEWINDE_AUSSEN_TOL,
+                flaeche=sum(e["flaeche"] for e in frei))
+
+
 def drehteil(fl, t=None, streng=False):
     """Merkmale eines Drehteils (dict) oder None. fl = flaechen(solid), t = bisherige Messung (für das Glatt-Rohr).
     streng: gemessen als Blech, Flachstahl oder Profil (Drehteil nur mit Absatz oder Radius)."""
@@ -168,6 +211,15 @@ def drehteil(fl, t=None, streng=False):
     frei = sum(e["flaeche"] for e in fl if e["typ"] == "frei") / gesamt
     aussen = sorted({round(e["radius"], 2) for e in dreh if e["typ"] == "zylinder" and e["konvex"]})
     innen = sorted({round(e["radius"], 2) for e in dreh if e["typ"] == "zylinder" and not e["konvex"]})
+    gew = gewinde(fl, o, d) if frei > FREI_MAX else None
+    if gew is not None:     # Gewindeflanken zählen als gedreht; das Gewinde-Ø gilt als Außen- bzw. Innendurchmesser
+        anteil += gew["flaeche"] / gesamt
+        frei -= gew["flaeche"] / gesamt
+        # Zylinder im Gewindeband (Kern, Spitzen der Flanken) sind kein eigener Durchmesser
+        if gew["aussen"]:
+            aussen = sorted({r for r in aussen if r < gew["r_min"] - GEWINDE_BAND_TOL} | {round(gew["r_max"], 2)})
+        else:
+            innen = sorted({r for r in innen if r > gew["r_max"] + GEWINDE_BAND_TOL} | {round(gew["r_min"], 2)})
     if not aussen or frei > FREI_MAX:
         return None
     # Lasche/Anbau über den größten Außendurchmesser hinaus (Ring mit Lasche, Flansch mit Ohr): Dreh-Fräs-Teil
@@ -184,7 +236,7 @@ def drehteil(fl, t=None, streng=False):
     if streng and not absatz and not any(e["typ"] == "torus" and _abstand_achse(e["achse"][0], o, d) <= ACHS_TOL
                                          for e in dreh):
         return None     # Blech/Flachstahl/Profil: nur mit Absatz oder Radius (eine Fase allein kann eine Senkung sein)
-    if sum(e["flaeche"] for e in dreh) < 0.4 * gesamt:       # z. B. Scheibe: Stirnflächen groß, aber kein Drehteil?
+    if sum(e["flaeche"] for e in dreh) + (gew["flaeche"] if gew else 0.0) < 0.4 * gesamt:       # z. B. Scheibe: Stirnflächen groß, aber kein Drehteil?
         # Flansch/Scheibe mit Absatz (zwei Außen- oder Innendurchmesser) oder Anbau ist gedreht, eine glatte Scheibe
         # mit Löchern bleibt Blech bzw. Laserteil
         if not any(e["typ"] in ("kegel", "torus") for e in dreh) and len(aussen) < 2 and len(innen) < 2 \
@@ -221,6 +273,11 @@ def drehteil(fl, t=None, streng=False):
         merkmale.append("Radius")
     if any(e["typ"] == "rotation" for e in dreh):
         merkmale.append("Drehkontur")
+    if gew is not None:
+        merkmale.append(f"{'Außen' if gew['aussen'] else 'Innen'}gewinde Ø{_mm(2 * gew['r_max'])} modelliert")
+        if gew["aussen"] and innen and abs(innen[-1] - gew["r_min"]) <= GEWINDE_AUSSEN_TOL:
+            # nur die Gewindegänge als eigener Körper (Kern der Schraube/Stange ist ein anderer Körper)
+            merkmale.append("nur Gewindegänge")
     zusatz = []
     bohr_rest = [e for e in rest if e["typ"] == "zylinder" and not e["konvex"]]
     if any(not _parallel(e["achse"][1], d) for e in bohr_rest):
@@ -229,7 +286,7 @@ def drehteil(fl, t=None, streng=False):
         zusatz.append("Bohrungen axial/Lochkreis")
     if any(e["typ"] == "eben" and _senkrecht(e["normale"], d) for e in rest):
         zusatz.append("Schlüsselfläche/Abflachung")
-    if any(e["typ"] == "frei" for e in rest):
+    if gew is None and any(e["typ"] == "frei" for e in rest):
         zusatz.append("Gewinde/Freiform")
     nur_abmessung = False
     if innen and len(aussen) == 1 and len(innen) == 1 and set(merkmale) <= {"Fase/Kegel", "Radius"}:

@@ -3539,6 +3539,9 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
+    g = _gewindeteil(solid, datei, koerper)
+    if g is not None:
+        return _arten_ergaenzen(solid, g)
     try:
         t = _analysiere(solid, datei, koerper, netz, flach_bis)
     except Exception:
@@ -3560,6 +3563,39 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         k.art_grund, k.art_regel = t.art_grund, t.art_regel
         k._verworfen = getattr(t, "_verworfen", None)
     return _arten_ergaenzen(solid, k)
+
+
+def _gewindeteil(solid, datei, koerper):
+    """Mutter, Gewindestange o. ä. mit modelliertem Gewinde (step_drehfraes.gewinde): gleich als Drehteil, ohne die
+    Profilsuche, die die Gewindeflanken (Freiformflächen) minutenlang schneidet und doch kein Profil findet (0003-400-001,
+    Patrick 06.11.2026: 18 solche Körper, je 2–26 Minuten). Vereinfacht gemessen: Ampel gelb. Sonst None."""
+    try:
+        from OCP.GeomAbs import GeomAbs_BSplineSurface, GeomAbs_BezierSurface, GeomAbs_OffsetSurface
+        import step_drehfraes as df
+        n = frei = 0
+        ex = TopExp_Explorer(solid, TopAbs_FACE)
+        while ex.More():
+            n += 1
+            if n > df.GEWINDE_FLAECHEN_MAX:
+                return None
+            if BRepAdaptor_Surface(TopoDS.Face(ex.Current())).GetType() in (
+                    GeomAbs_BSplineSurface, GeomAbs_BezierSurface, GeomAbs_OffsetSurface):
+                frei += 1
+            ex.Next()
+        if frei < df.GEWINDE_FREI_MIN:
+            return None
+        info = df.drehteil(df.flaechen(solid))
+        if info is None or not any("gewinde" in m and "modelliert" in m for m in info["merkmale"]):
+            return None
+        t = df.pruefen(solid, None, datei, koerper)
+    except Exception:  # Vorprüfung darf die Messung nie verhindern
+        return None
+    if t is None or t.bauteiltyp != df.DREHTEIL:
+        return None
+    t.sicherheit["profil"] = "unsicher"
+    t.hinweise.append(f"{t.drehfraes['text']}: vereinfacht gemessen (Gewinde modelliert, ohne Profilsuche) – prüfen")
+    t.art_grund, t.art_regel = t.drehfraes["text"], "Dreh-/Frästeil"
+    return t
 
 
 def _arten_ergaenzen(solid, t):
