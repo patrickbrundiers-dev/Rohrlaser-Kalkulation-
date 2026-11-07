@@ -168,9 +168,10 @@ def _blech_gekantet_rund(b):
 def _flachstahl_blech(t):
     if t.bauteiltyp != "Profil" or t.profilform != "Flachstahl" or _kandidat(t, BLECH) is None:
         return None
-    if not _ganz(t.abm_a, t.abm_b):
-        return BLECH, (f"Flachstahl {t.abm_a:g} × {t.abm_b:g} ist kein Walzmaß (keine ganzen mm): Laserteil aus "
-                       "Blech").replace(".", ",")
+    if t.innen_konturen and not _ganz(t.abm_a, t.abm_b):
+        # glatter Zoll-Flachstahl 50,8 × 3,175 bleibt Flachstahl (A4 Nr. 32), mit Langlöchern in 35 × 8,5 ist es ein
+        # Laserteil aus Blech (Nr. 24); Flachstahl in ganzen mm mit Bohrungen bleibt Flachstahl (Regel 20.10.2026)
+        return BLECH, "Flachstahl ohne Walzmaß (keine ganzen mm) mit Ausschnitten: Laserteil aus Blech"
     if t.laenge < g.FLACHSTAHL_LAENGE * t.abm_a - 1e-6:
         return BLECH, f"Flachstahl kürzer als {g.FLACHSTAHL_LAENGE:g} × Breite (Lasche): Laserteil aus Blech"
     return None
