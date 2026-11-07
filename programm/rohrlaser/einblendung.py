@@ -140,6 +140,7 @@ def melden(widget, text, fehler=False, aktion=None, bericht=None):
         p.verlauf.merken(text, fehler, bericht)
         p.letzte_aktion = aktion
     fenster.letzte_meldung = text           # Tests: zuletzt gemeldeter Text des Dialogs
+    fenster.letzte_aktion = aktion          # Tests: angebotene Aktion (z. B. Rückgängig)
     if stumm:
         return
     if aktion is None and bericht:

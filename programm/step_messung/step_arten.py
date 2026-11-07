@@ -279,7 +279,8 @@ def _mehrteilig(solid, t):
 def _mehrteilig_markieren(t, grund):
     """Gelb, nicht übernommen (Patrick 07.11.2026: markieren und Hinweis, nicht automatisch zerlegen)."""
     t.sicherheit["profil"] = "unsicher"
-    t.hinweise.insert(0, f"Mehrere Teile in einem Körper? {grund} – nicht übernommen: STEP in Einzelteile aufteilen "
+    t.hinweise.insert(0, f"Mehrere Teile in einem Körper? {grund} – nicht übernommen: „Aufteilen“ über der Liste, "
+                         "STEP in Einzelteile aufteilen "
                          "oder nach Prüfung von Hand anhaken")
     t.art_grund = f"mehrere Teile in einem Körper: {grund}"
     return t

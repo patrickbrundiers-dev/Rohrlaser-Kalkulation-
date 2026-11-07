@@ -434,12 +434,15 @@ def _arbeiter(auftraege, ereignisse, wid):
         schluessel, datei, netze, flach_bis, einst, auslassen, zusatz = a
         datei = Path(datei)
         haengt = os.environ.get("STEP_MESSEN_TEST_HAENGT", "")      # nur für Tests: "Datei:Körper" hängt
+        langsam = os.environ.get("STEP_MESSEN_TEST_LANGSAM", "")    # nur für Tests: "Datei:Körper:Sekunden"
 
         def melden(k, n, schluessel=schluessel, datei=datei):
             ereignisse.put(("koerper", wid, schluessel, k, n))
             if haengt == f"{datei.name}:{k}" and k not in auslassen:
                 time.sleep(3600)
-        if schluessel[0] == "datei":
+            if langsam.rsplit(":", 1)[0] == f"{datei.name}:{k}" and k not in auslassen:
+                time.sleep(float(langsam.rsplit(":", 1)[1]))
+        if schluessel[0] in ("datei", "datei_z"):
             gelesen.clear()
             try:
                 step_geometrie.einstellen(einst)
@@ -481,13 +484,21 @@ def _fehler_ergebnis(datei, text):
             step_ergebnis.datei(datei.name, fehler=text))
 
 
-def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None, teilen_ab=TEILEN_AB):
+NOCH_IN_MESSUNG = "Messung läuft noch (langsames Teil, kommt nach)"
+
+
+def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None, teilen_ab=TEILEN_AB,
+                   zwischen=0, zwischenstand=None):
     """Aufträge {nr: (datei, netze, flach_bis, einst)} in prozesse Messprozessen messen. Braucht ein Körper länger
     als zeitlimit Sekunden oder stirbt der Prozess, wird er beendet und die Datei ohne diesen Körper neu gemessen
     (der Körper steht als "nicht gemessen" im Ergebnis). Sind Prozesse frei, wird eine Datei mit mindestens
     teilen_ab zu messenden Körpern auf die Prozesse verteilt (je Körper ein Auftrag, danach ein Abschluss mit den
     Auswertungen über die Baugruppe); das Ergebnis ist dasselbe. fertig(nr, ergebnis) je fertiger Datei; Fortschritt
-    je Körper als JSON-Zeile, je Datei als "[n/m] Datei"."""
+    je Körper als JSON-Zeile, je Datei als "[n/m] Datei".
+    Vorschlag N4 (langsame Teile im Hintergrund): zwischen > 0 und es messen nur noch Körper, die schon länger als
+    zwischen Sekunden laufen, wird jede noch offene Datei ohne sie abgeschlossen (Körper: NOCH_IN_MESSUNG, in
+    zusätzlichen Prozessen) und zwischenstand({nr: Ergebnis}) gerufen (einmal); die langsamen Körper laufen weiter,
+    das endgültige Ergebnis kommt wie immer über fertig."""
     import multiprocessing as mp
     ereignisse = mp.Queue()
     offen = [("datei", nr) for nr in sorted(auftraege)]
@@ -495,6 +506,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
     geteilt = {}            # nr: {n, ausstehend (Körper), teile {k: Teil}}
     gesamt = gesamt or len(auftraege)
     stand = dict(erledigt=vorher)
+    endgueltig, zw = {}, dict(gesendet=not (zwischen > 0 and zwischenstand), offen={}, erg={})
 
     def starten(wid):
         q = mp.Queue()
@@ -506,6 +518,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         if geteilt.pop(nr, None) is not None:
             _schnappschuss_weg(_schnappschuss_pfad(auftraege[nr][0], auftraege[nr][3], os.getpid()))
         stand["erledigt"] += 1
+        endgueltig[nr] = erg
         fertig(nr, erg)
         print(f"[{stand['erledigt']}/{gesamt}] {Path(auftraege[nr][0]).name}", flush=True)
 
@@ -515,13 +528,21 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             offen.insert(0, ("abschluss", nr))
 
     def verarbeiten(ev):
+        if ev[1] in zw["offen"]:        # Zwischenstand (N4): Datei ohne die langsamen Körper abgeschlossen
+            if ev[0] == "fertig":
+                w = zw["offen"].pop(ev[1])
+                zw["erg"][ev[2][1]] = ev[3] if ev[3] is not None else _fehler_ergebnis(
+                    Path(auftraege[ev[2][1]][0]), ev[4])
+                w["q"].put(None)
+                zwischen_fertig()
+            return
         w = arbeiter[ev[1]]
         if w["auftrag"] != ev[2]:       # Meldung eines beendeten Auftrags
             return
         nr = ev[2][1]
         if ev[0] == "koerper":
             k, n = ev[3], ev[4]
-            w.update(koerper=k or None, seit=time.monotonic() if k else None)
+            w.update(koerper=k or None, seit=time.monotonic() if k else None, n=n)
             if nr in geteilt:           # verteilt: Fortschritt = fertige Körper der Datei
                 k = min(n, n - len(geteilt[nr]["ausstehend"]) + 1)
             print(json.dumps(dict(datei=stand["erledigt"] + 1, dateien=gesamt, name=Path(auftraege[nr][0]).name,
@@ -543,6 +564,44 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             abschliessen(nr, _fehler_ergebnis(Path(auftraege[nr][0]), ev[4]))
         else:
             abschliessen(nr, ev[3])
+
+    def zwischen_fertig():
+        if zw["offen"]:
+            return
+        zw["gesendet"] = True
+        zwischenstand({nr: endgueltig.get(nr) or zw["erg"].get(nr) for nr in auftraege})
+
+    def zwischen_pruefen():
+        """Nur noch langsame Körper in Arbeit und nichts anderes zu tun: offene Dateien ohne sie abschließen."""
+        jetzt = time.monotonic()
+        busy = [w for w in arbeiter if w["auftrag"] is not None]
+        langsam = [w for w in busy if w["koerper"] and w["seit"] is not None and jetzt - w["seit"] > zwischen
+                   and w["koerper"] <= w.get("n", 0)]
+        if not langsam or len(langsam) < len(busy):
+            return
+        for a in offen:                 # nur Kopien, die auf einen langsamen Körper warten, dürfen offen sein
+            g = geteilt.get(a[1]) if a[0] == "koerper" else None
+            if g is None or g["gedreht"].get(a[2]) not in g["ausstehend"]:
+                return
+        dateien = {}
+        for w in langsam:
+            dateien.setdefault(w["auftrag"][1], set()).add(w["koerper"])
+        for nr, ks in dateien.items():
+            if nr in geteilt:
+                weg = set(geteilt[nr]["ausstehend"]) | ks
+                auftrag, zusatz = ("abschluss_z", nr), dict(geteilt[nr]["teile"])
+            else:
+                weg, auftrag, zusatz = ks, ("datei_z", nr), 0
+            aus = {**auslassen[nr], **{k: NOCH_IN_MESSUNG for k in weg}}
+            wid = 1000 + nr
+            w = starten(wid)
+            zw["offen"][wid] = w
+            w["q"].put((auftrag, *auftraege[nr], aus, zusatz))
+        if not dateien:
+            return
+        print(f"Zwischenstand: {sum(len(k) for k in dateien.values())} langsame(r) Körper, Rest wird abgeschlossen",
+              flush=True)
+        zw["gesendet"] = None           # läuft
 
     def vergeben(w, auftrag):
         nr = auftrag[1]
@@ -601,6 +660,8 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
                 verarbeiten(ereignisse.get(timeout=0.5))
             except queue.Empty:
                 pass
+            if zw["gesendet"] is False:
+                zwischen_pruefen()
             jetzt = time.monotonic()
             for wid, w in enumerate(arbeiter):
                 if w["auftrag"] is None:
@@ -633,12 +694,12 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
                 else:
                     offen.insert(0, auftrag)
     finally:
-        for w in arbeiter:
+        for w in arbeiter + list(zw["offen"].values()):
             try:
                 w["q"].put(None)
             except (OSError, ValueError):
                 pass
-        for w in arbeiter:
+        for w in arbeiter + list(zw["offen"].values()):
             w["p"].join(2)
             if w["p"].is_alive():
                 w["p"].kill()
@@ -647,6 +708,25 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
 def _teil_schreiben(pfad, zs):
     with open(pfad, "a", encoding="utf-8", newline="\n") as f:      # je Datei in einem Stück (Abbruch)
         f.write("".join("\t".join(z) + "\n" for z in zs))
+
+
+def _aufteilen(dateien, nr, ausgabe):
+    """Vorschlag N3: Körper nr der ersten Datei trennen (step_aufteilen), die Teile als STEP-Dateien neben die Ausgabe
+    schreiben, ihre Namen nach <ausgabe>.teile.json. Ergebnis: die Teildateien (leer: nichts zu trennen)."""
+    import step_aufteilen
+    with open(ausgabe, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\t".join(SPALTEN) + "\n")
+    namen = Path(str(ausgabe) + ".teile.json")
+    namen.write_text("[]", encoding="utf-8")
+    gel = _lesen(dateien[0])
+    if not 1 <= nr <= len(gel.koerper):
+        return []
+    ordner = ausgabe.parent / "aufgeteilt"
+    ordner.mkdir(parents=True, exist_ok=True)
+    teile = step_aufteilen.aufteilen(gel.koerper[nr - 1][1], ordner, "teil", nr)
+    namen.write_text(json.dumps([[p.name, name] for p, name in teile], ensure_ascii=False),
+                                                   encoding="utf-8")
+    return [p for p, _ in teile]
 
 
 def main(argv=None):
@@ -673,6 +753,11 @@ def main(argv=None):
     ap.add_argument("--virtuell", help="Ordner: virtuelles Bauteil (Teil mit Stegen bzw. Ringen, so wird gelasert) je "
                     "Körper als STEP k<Nr>.step")
     ap.add_argument("--kennung", default="", help="Programmversion (Teil des Schlüssels im Zwischenspeicher)")
+    ap.add_argument("--zwischenstand", type=float, default=0,
+                    help="Sekunden: messen nur noch Körper, die schon so lange laufen, Zwischenstand ohne sie nach "
+                         "<ausgabe>.zwischen (und <json>.zwischen) schreiben und 'ZWISCHENSTAND' ausgeben (N4)")
+    ap.add_argument("--aufteilen", type=int, help="Körper Nr. der (einen) Datei an Muttern/Kugeln trennen und die Teile "
+                    "messen (step_aufteilen); Namen der Teile in <ausgabe>.teile.json")
     ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
     a = ap.parse_args(argv)
     pfade = list(a.pfade)
@@ -681,6 +766,10 @@ def main(argv=None):
     if not pfade:
         ap.error("keine STEP-Dateien angegeben")
     dateien = step_dateien(pfade)
+    if a.aufteilen:
+        dateien = _aufteilen(dateien, a.aufteilen, Path(a.ausgabe))
+        if not dateien:         # nichts zu trennen: leere Liste in <ausgabe>.teile.json
+            return 0
     if a.netze:
         Path(a.netze).mkdir(parents=True, exist_ok=True)
     einst = {k: v for k, v in (("flach_laenge", a.flach_laenge), ("gekantet_anteil", a.gekantet_anteil),
@@ -714,9 +803,22 @@ def main(argv=None):
         if i in schluessel:
             cache_schreiben(a.cache, schluessel[i], erg, a.netze, i, a.cache_mb)
     prozesse = a.prozesse if a.prozesse > 0 else max(1, (os.cpu_count() or 1) - 1)
-    if a.zeitlimit > 0 and offen:
+    def zwischenstand(erg):
+        alle = [e if e is not None else erg.get(i) for i, e in enumerate(ergebnis, start=1)]
+        if any(e is None for e in alle):
+            return
+        with open(str(a.ausgabe) + ".zwischen", "w", encoding="utf-8", newline="\n") as f:
+            f.write("\t".join(SPALTEN) + "\n")
+            for zs, _ in alle:
+                f.write("".join("\t".join(z) + "\n" for z in zs))
+        if a.json:
+            Path(str(a.json) + ".zwischen").write_text(json.dumps(step_ergebnis.gesamt([e[1] for e in alle]),
+                                                                  ensure_ascii=False, indent=1), encoding="utf-8")
+        print("ZWISCHENSTAND", flush=True)
+    if (a.zeitlimit > 0 or a.zwischenstand > 0) and offen:
         _beaufsichtigt({i: (str(dateien[i - 1]), a.netze, a.flachstahl_bis, einst) for i in offen},
-                       prozesse, a.zeitlimit, fertig, n_fertig, len(dateien))
+                       prozesse, a.zeitlimit, fertig, n_fertig, len(dateien), zwischen=a.zwischenstand,
+                       zwischenstand=zwischenstand)
     else:
         n_proz = min(PROZESSE_MAX if a.prozesse <= 0 else a.prozesse, (os.cpu_count() or 1) - 1, len(offen) // 3)
         if n_proz >= 2:       # viele Dateien: auf mehrere Prozesse verteilen, Reihenfolge der Ausgabe bleibt

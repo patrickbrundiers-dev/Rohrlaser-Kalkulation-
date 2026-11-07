@@ -613,7 +613,13 @@ def kapitel_start(i):
            "Einstellungen, ohne Kunden, Preise und Passwörter, und öffnet den Ordner. Die Datei schickt man selbst "
            "per Mail an den Support.", kurz=True)
     i.liste("Haken <i>Offenes Angebot beilegen</i> (Vorgabe aus): Kopf und Positionen des gerade offenen Angebots "
-            "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.")
+            "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.",
+            "<b>Prüfsammlung (seit 0.9.272):</b> stellt man im STEP-Prüfdialog die Art eines Teils von Hand um (z. B. "
+            "Blech → Flachstahl, Rundstahl → Drehteil), merkt sich das Programm das in <i>Daten/Prüfsammlung</i>: "
+            "die Kennwerte der Messung (Hüllmaße, Volumen, Flächenzahl, erkannte Regel und Merkmale) und ein kleines "
+            "Vorschaubild, höchstens die letzten 500. Die STEP-Datei, Datei-, Artikel- und Bauteilnamen werden nicht "
+            "gespeichert. Das Support-Paket nimmt die Sammlung mit (Ordner <i>pruefsammlung</i>); daraus entstehen "
+            "neue Erkennungsregeln und Tests.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
@@ -2293,8 +2299,11 @@ def kapitel_angebot(i):
             "inzwischen eine weitere Änderung dazu, verweist es auf <i>Bearbeiten → Rückgängig</i> (Strg+Z).",
             "Ohne Rückfrage, dafür mit Rückgängig: Positionen und Staffel-Stufen löschen, Ist-Werte der "
             "Nachkalkulation löschen, <i>Vorgaben aus Einstellungen</i>, Stundensätze aus den Einstellungen und "
-            "<i>Aktuelle Preise übernehmen</i>. Ganze Angebote und Stammdaten fragen weiter vorher, weil es dort "
-            "kein Rückgängig gibt.",
+            "<i>Aktuelle Preise übernehmen</i>. Seit 0.9.272 auch: Stammdaten-Zeilen löschen, Richtwerte Schweißen "
+            "und Fracht laden, Baugruppen-, Kontur- und Schneidweg-Vorlagen überschreiben bzw. löschen, Preisstand "
+            "eines Zukaufartikels im Angebot aktualisieren; nach dem Prüfplan bietet die Einblendung "
+            "<i>Übernehmen</i> für die Erstmusterprüfung an. Ganze Angebote, Sicherungen, Frachtzonen- und "
+            "Schneiddaten-Standard, Archivieren und Freigaben fragen weiter vorher.",
             "In Editoren und Dialogen erscheint die Einblendung im Fenster selbst, damit sie nicht dahinter liegt.",
             "Bei einem offenen Angebot steht die Einblendung links neben der Übersicht, damit sie Preise und Zeiten "
             "nicht verdeckt.",
@@ -2472,9 +2481,10 @@ def kapitel_step(i):
             "STEP und DXF. DXF-Dateien darf man mitziehen. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen. "
             "Der Explorer ist gleich nach dem Loslassen wieder frei; das Programm kommt nach vorne und misst. "
             "Während ein Import läuft, nimmt es keine weiteren Dateien an (Hinweis unten im Fenster).",
-            "Eine STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) kündigt das Programm vorher an: "
+            "Bei einer STEP-Datei ab 100 MB (z. B. ein Rohr mit Tausenden Bohrungen) nennt die Fortschrittsanzeige "
             "Dauer und Arbeitsspeicher der Messung, aus der Dateigröße geschätzt (gemessen: 32 MB mit 1.000 "
-            "Bohrungen etwa 1 min und 1,2 GB). <i>Nein</i> misst nicht ([[systemvoraussetzungen]]). Ab 20 MB "
+            "Bohrungen etwa 1 min und 1,2 GB); seit 0.9.272 ohne Rückfrage vorher, <i>Abbrechen</i> beendet die "
+            "Messung ([[systemvoraussetzungen]]). Ab 20 MB "
             "lässt das Einlesen zwei Prüfungen auf sich kreuzende Kanten weg, die bei Tausenden Bohrungen sonst "
             "Stunden dauern; die Messwerte bleiben gleich.",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
@@ -2484,8 +2494,14 @@ def kapitel_step(i):
             "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Eine große Datei wird auf "
             "mehrere Messprozesse verteilt und dafür nur einmal eingelesen. "
             "Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
-            "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
-            "sollen ([[einstellungen]]).",
+            "Zwischenspeicher. Nach <b>Abbrechen</b> kommen die bis dahin gemessenen Dateien ohne Rückfrage in den "
+            "Prüfdialog; dessen <i>Abbrechen</i> verwirft sie ([[einstellungen]]).",
+            "<b>Langsame Teile im Hintergrund (seit 0.9.272):</b> messen nur noch Körper, die schon länger als 20 s "
+            "laufen, öffnet der Prüfdialog gleich mit allen übrigen Teilen. Die langsamen stehen mit dem Hinweis "
+            "<i>Messung läuft noch</i> in der Liste, über der Liste steht <i>N langsame Teile werden noch gemessen</i>; "
+            "sobald sie fertig sind, rücken sie von selbst nach (Messwerte und 3D, Eingaben im Dialog bleiben). "
+            "<b>OK</b> wartet nötigenfalls auf sie (<i>Ohne sie übernehmen</i> lässt sie weg). Das Zeitlimit je Körper "
+            "gilt weiter.",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien stehen alle "
             "Dateien untereinander in einer Liste (Gruppenzeile mit dem Dateinamen); die Pfeil-Knöpfe oben springen "
@@ -2956,7 +2972,8 @@ def kapitel_step(i):
             "Hinweis <i>vereinfacht gemessen</i>. Vorher suchte die Profilmessung in den Flanken minutenlang einen "
             "Querschnitt (bis 26 Minuten je Körper) und fand doch keinen.",
             "<b>Nach der Prüfsammlung</b> (seit 0.9.271, 53 typische Teile von Patrick bestätigt): "
-            "<b>Kugeln</b> und <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) sind <i>Normteile</i> "
+            "<b>Kugeln</b>, <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) und seit 0.9.272 auch eine "
+            "einzelne <b>Mutter</b> (Sechskant um eine Bohrung, höchstens 1,5 × SW hoch) sind <i>Normteile</i> "
             "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr. "
             "<b>Ringe mit Kalotten oder Taschen</b> und <b>Hülsen mit Boden</b> (Bohrung nicht durch) sind Drehteile. "
             "<b>Winkel ohne Normmaß</b> (z. B. Zollmaß 50,8 × 3,2) und Winkel mit Biegeradius (außen = innen + "
@@ -2972,6 +2989,14 @@ def kapitel_step(i):
             "Schenkeln hängt, „Frästeil“ aus dünnen Wänden), steht die Ampel gelb mit dem Hinweis <i>Mehrere Teile in "
             "einem Körper?</i> und das Teil wird nicht übernommen. Am besten die STEP im CAD in Einzelteile aufteilen; "
             "nach Prüfung lässt es sich auch von Hand anhaken.",
+            "<b>Aufteilen (seit 0.9.272):</b> über der Liste steht dann die gelbe Zeile <i>N Körper aus mehreren "
+            "verschmolzenen Teilen</i> mit dem Knopf <b>Aufteilen</b>. Er trennt erkennbare Anbauten vom Grundteil: "
+            "einen <b>Sechskant</b> (Mutter, Schraubenkopf; das Sechskantprisma zwischen den Enden der "
+            "Schlüsselflächen) und eine <b>Kugel</b>. Jedes Teil wird einzeln gemessen, Lage und Form bleiben genau "
+            "wie in der STEP. Die abgetrennte Mutter heißt z. B. <i>Mutter SW 36</i> und ist ein Normteil (in einer "
+            "Schweißbaugruppe Zukauf zum Preis der Normteil-Liste, siehe [[importprofile]]); das Grundteil behält die "
+            "Artikelnummer, Anbauten bekommen -1, -2 … Ist nichts zu erkennen (Blechkasten, dünne Wände), steht "
+            "<i>nicht aufteilbar</i> in der Zeile und der Körper bleibt gelb.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
@@ -3299,6 +3324,14 @@ def kapitel_step(i):
             "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "
             "ist das Teil ein Normteil. Es ist im Prüfdialog abgewählt (Hinweis <i>Normteil … – zum Übernehmen "
             "anhaken</i>) und steht im Bericht als nicht übernommen.",
+            "<b>Normteile mit Preis (seit 0.9.272):</b> In einer <b>Schweißbaugruppe</b> oder einem <b>Satz</b> sind "
+            "erkannte Normteile angehakt und kommen als <b>Zukaufteil</b> hinein (Hinweis <i>als Zukaufteil zum Preis "
+            "der Normteil-Liste</i>), bei Einzelteilen erst nach Anhaken. Die <b>Normteil-Liste</b> sind die "
+            "<i>Zukaufartikel</i> der Kategorie <b>Normteile</b>: Bezeichnung (z. B. <i>ISO 4032 M12</i> aus dem "
+            "Bauteilnamen oder <i>Kugel Ø8,73</i> bzw. <i>Mutter/Schraube SW 19</i> aus der Form) und Preis je Stück. "
+            "Gibt es den Artikel noch nicht, legt der Import ihn ohne EK an; die Position steht dann gelb "
+            "<i>EK fehlt</i>, bis der Preis unter Zukaufartikel eingetragen ist. Ab dem nächsten Import gilt er "
+            "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen.",
             "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
             "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
     i.tabelle(["Importprofile (STEP)", "Bedeutung"], [
@@ -4253,8 +4286,8 @@ def kapitel_optimieren(i):
     i.genauer()
     i.liste("<b>Hinzufügen</b>: Markieren Sie im Reiter <i>Struktur und Teile</i> zwei Rohre. Das zweite wird "
             "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe. Schneller geht es im "
-            "3D: im Reiter <i>Strukturbaum und 3D</i> das erste Rohr anklicken, das zweite mit Strg+Klick, dann "
-            "<i>Steckverbindung hinzufügen</i> unter der Ansicht ([[baugruppe_baum]]).",
+             "3D: in der Ansicht das erste Rohr anklicken, das zweite mit Strg+Klick, dann "
+            "<i>Steckverbindung hinzufügen</i> im Menüband, Gruppe <i>Auswahl im 3D</i> ([[baugruppe_baum]]).",
             "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
             "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
             "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
@@ -4355,6 +4388,10 @@ def kapitel_optimieren(i):
            "Einbaulage der STEP-Datei und legt Steckverbindungen an wie der Editor der Schweißbaugruppe; die "
            "Längsnaht wählt man per Klick auf die Fläche eines Rohrs. Rohre mit Gehrung werden dort auch ein "
            "Knickrahmen.", kurz=True)
+    i.text("Aufbau wie alle Editoren ([[teile_editor]], seit 0.9.272): oben das Menüband, links die Teile des "
+           "Satzes (Klick markiert, Strg+Klick nimmt dazu), in der Mitte 3D und darunter die Reiter Teile und "
+           "Steckverbindungen, rechts der Hinweis zur Bedienung, unten Kacheln (Teile, Steckverbindungen, neue "
+           "Knickrahmen, Längsnähte) und die Prüfmeldungen.")
     i.genauer()
     i.liste("<b>Anzahl Sätze</b> oben neben „Satz als Muster“: mit OK bekommen alle Teile des Satzes Stückzahl = "
             "Sätze × Stück je Satz ([[satz_bearbeiten]]).",
@@ -4427,6 +4464,11 @@ def kapitel_optimieren(i):
             "STEP-Datei entstanden sind, die Ecken eines neuen Knickrahmens; <i>Knickrahmen lösen</i> holt sie "
             "zurück.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
+    i.text("<b>Alle Editoren gleich aufgebaut</b> (seit 0.9.272): Rohr (Schneidweg-Rechner), Blech, "
+           "Schweißbaugruppe und Satz in 3D haben oben dasselbe Menüband (Konstruktion, Ansicht, Ausgabe), links die "
+           "Struktur bzw. Merkmale, in der Mitte die Ansicht mit den Eingaben darunter, rechts das Ergebnis und unten "
+           "die Kennzahlen mit den Prüfmeldungen; übernommen wird unten rechts. Alle öffnen maximiert "
+           "([[schweissbaugruppe]], [[satz_3d]]).", kurz=True)
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
            "<b>Eigenschaften</b> des gewählten Merkmals, unten Kennzahlen und <b>Prüfmeldungen</b>. Das Fenster öffnet "
@@ -5799,6 +5841,13 @@ def kapitel_baugruppen(i):
            "anfällt: Schweißen, Vorrichten, Schleifen, Vorrichtungen und Fremdleistungen. Anlegen: Einzelteile "
            "markieren → <b>Neue Position</b> → <b>Schweißbaugruppe</b>. Bearbeiten: Doppelklick auf die Zeile der "
            "Baugruppe oder auf ihren Status.", kurz=True)
+    i.text("Der Editor ist aufgebaut wie alle Editoren ([[teile_editor]], seit 0.9.272): oben das <b>Menüband</b> "
+           "(Reiter <i>Konstruktion</i>: Zurücksetzen, Vorkalkulation, Vorlagen, Naht zeichnen, Auswahl im 3D; "
+           "<i>Ansicht</i>: Blick, Darstellung, Nur Gewähltes, Nähte, Messen, Montage; <i>Ausgabe</i>: STEP speichern), "
+           "darunter Bezeichnung, Artikelnummer, Anzahl und Einkauf. Links steht der <b>Strukturbaum</b>, in der Mitte "
+           "die <b>3D-Ansicht</b> und darunter die Reiter mit den Tabellen, rechts das <b>Ergebnis</b> je Baugruppe. "
+           "Unten zeigen Kacheln Kosten, Zeit, Schweißzeit und Einzelteile; der Zähler rechts klappt die "
+           "<b>Prüfmeldungen</b> auf, ein Klick auf eine Meldung springt zur Zeile.")
     i.bild("baugruppe_struktur", "Editor Schweißbaugruppe, Reiter Struktur und Teile", hoehe=70 * mm, legende=[
         (1, "<b>Bezeichnung</b> und <b>Artikelnummer</b> der Baugruppe; die Bezeichnung ist der Satzname im "
             "Angebot."),
@@ -5858,18 +5907,19 @@ def kapitel_baugruppen(i):
     i.text("Die Lage eines aufgeschweißten Blechs auf dem Rohr (Umriss als Gravur) ist etwas anderes: sie kommt aus "
            "den Anbauteilen, wenn Rohr und Blech als getrennte Körper in einer STEP-Datei liegen ([[anbauteile]]).")
     i.abschnitt("Strukturbaum und 3D", marke="baugruppe_baum")
-    i.text("Der Reiter <b>Strukturbaum und 3D</b> zeigt die Baugruppe als Baum (Baugruppe → Unterbaugruppen → "
-           "Einzelteile und Nahtgruppen, mit Menge und Stück je Baugruppe) und rechts in 3D in Einbaulage, wenn die "
+    i.text("Links im Editor steht der <b>Strukturbaum</b> (Baugruppe → Unterbaugruppen → "
+           "Einzelteile und Nahtgruppen, mit Menge und Stück je Baugruppe), in der Mitte die Baugruppe in 3D in "
+           "Einbaulage, wenn die "
            "Teile aus dem STEP-Import kommen. Ein Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt "
            "die Teile blau hervor. Die Schweißnähte sind als Raupe eingezeichnet: Nahtgruppen schwarz, noch offene "
            "Nahtvorschläge aus dem STEP-Import magenta, die gewählte Nahtgruppe rot. Die Rohre zeichnet das Programm "
            "aus den Eingaben des Teile-Editors, mit den Schlitzen und Nasen der Steckverbindungen.", kurz=True)
-    i.bild("baugruppe_baum", "Reiter Strukturbaum und 3D, Unterbaugruppe gewählt", hoehe=70 * mm, legende=[
+    i.bild("baugruppe_baum", "Strukturbaum und 3D, Unterbaugruppe gewählt", hoehe=70 * mm, legende=[
         (1, "<b>Strukturbaum</b>: Baugruppe, Unterbaugruppen mit Menge, darin Einzelteile und Nahtgruppen."),
         (2, "Gewählte Zeile: ihre Teile sind rechts blau, alle anderen grau."),
-        (3, "3D-Ansicht der ganzen Baugruppe in Einbaulage mit den Schweißnähten; darüber die Leiste wie im "
-            "Teile-Editor (Blick, Darstellung, Nur Gewähltes, Nähte, Messen, Winkel), oben rechts der "
-            "Ansichtswürfel.")])
+        (3, "3D-Ansicht der ganzen Baugruppe in Einbaulage mit den Schweißnähten; Blick, Darstellung, Nur "
+            "Gewähltes, Nähte, Messen und Winkel stehen im Menüband (Reiter Ansicht) wie im Teile-Editor, oben "
+            "rechts der Ansichtswürfel.")])
     i.genauer()
     i.text("Ohne Auswahl zeigt die Ansicht gleiche Teile in gleicher Farbe. Bei einer Nahtgruppe aus den "
            "Nahtkandidaten sind die beiden gestoßenen Teile blau; bei einer von Hand angelegten Nahtgruppe die Teile "
@@ -5915,7 +5965,7 @@ def kapitel_baugruppen(i):
            "(Stoß aus der STEP-Datei), nimmt das Programm die Schnittkante dieses Rohrendes als Verlauf. Von Hand "
            "angelegte Nahtgruppen ohne Teile und Nahtgruppen aus einem älteren Import haben keinen Verlauf; die "
            "Zeile unter der Ansicht nennt, wie viele (STEP-Datei neu importieren oder im 3D zeichnen).")
-    i.text("<b>Naht im 3D zeichnen</b>: Knopf <i>Naht zeichnen</i> unter der Ansicht drücken, die Nahtart wählen und "
+    i.text("<b>Naht im 3D zeichnen</b>: Knopf <i>Naht zeichnen</i> im Menüband (Gruppe <i>Naht zeichnen</i>) drücken, die Nahtart wählen und "
            "die Punkte entlang der Naht am Modell anklicken; jeder Klick fängt die nächste Ecke, <i>Punkt zurück</i> "
            "nimmt den letzten wieder weg. Neben den Knöpfen stehen Punktzahl und Länge. <i>Als Nahtgruppe "
            "übernehmen</i> legt daraus eine Nahtgruppe an: Länge = Länge des Linienzugs, beteiligte Teile = die "
@@ -6277,7 +6327,8 @@ def kapitel_baugruppen(i):
            "zugeordnete Einzelteile bleiben drin (Teile in einer Unterbaugruppe, die es in der Vorlage nicht gibt, "
            "hängen danach direkt an der Baugruppe). Die Kennwerte der Nahtgruppen gelten aus den aktuellen "
            "Stammdaten und werden beim Speichern wie immer gemerkt. Danach die Einzelteile per Häkchen zuordnen. "
-           "Gibt es den Namen schon, fragt das Programm vor dem Überschreiben. Vorlagen werden mit den übrigen "
+           "Gibt es den Namen schon, wird sie überschrieben; <b>Rückgängig</b> in der Einblendung stellt die alte "
+           "wieder her. Vorlagen werden mit den übrigen "
            "Stammdaten zwischen Arbeitsplätzen geteilt.")
     i.abschnitt("Auf Ursprung zurücksetzen", marke="baugruppe_ursprung")
     i.text("Knopf <b>Zurücksetzen</b> unten im Editor der Schweißbaugruppe: <i>Alles wie beim Öffnen</i> verwirft "
@@ -6517,8 +6568,9 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Einstellung <i>Prüfplan: Toleranzen</i>, Vorgabe mittel) oder <i>nach Kundenvorgabe</i> = Spalte leer "
             "zum Eintragen.",
             "Ist ein Preis für die <b>Erstmusterprüfung</b> eingestellt (<i>Prüfplan: Preis Erstmusterprüfung je "
-            "Angebot [€] (0 = nicht anbieten)</i>, Vorgabe 85 €), fragt das Programm, ob sie als "
-            "Zusatzarbeit (€ je Angebot) ins Angebot kommt; sie hängt an der ersten Position.")
+            "Angebot [€] (0 = nicht anbieten)</i>, Vorgabe 85 €) und steht sie noch nicht im Angebot, zeigt die "
+            "Meldung nach dem Prüfplan den Knopf <b>Übernehmen</b>: er trägt sie als Zusatzarbeit (€ je Angebot) an "
+            "der ersten Position ein (seit 0.9.272 ohne Rückfrage).")
     i.abschnitt("Übergabe an CAM", marke="cam_paket")
     i.text("<i>Ausgaben → Übergabe an CAM (Ordner) …</i> legt im Ordner des Angebots einen Unterordner "
            "„Nummer_CAM“ an: je Rohrlaserteil bzw. Blech eine STEP-Datei „Artikel_Stück_Werkstoff.stp“, die "
@@ -8066,8 +8118,9 @@ def kapitel_stammdaten(i):
         (1, "Seite der Tabelle in der Navigation links. Oben steht der erste Satz des Hilfetextes, was in die Spalten gehört; "
             "<b>ⓘ mehr</b> zeigt den ganzen Text, <b>ⓘ weniger</b> klappt ihn wieder zu (bleibt je Tabelle so)."),
         (2, "<b>Neue Zeile</b> hängt eine leere Zeile an und springt hinein."),
-        (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen (vorher Rückfrage; verweisen andere Tabellen "
-            "darauf, sagt das Programm wie viele)."),
+        (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen ohne Rückfrage; die Einblendung bietet "
+            "<b>Rückgängig</b> (die Zeilen kommen samt Werten zurück) und sagt, wie viele Zeilen anderer Tabellen "
+            "darauf verweisen."),
         (4, "<b>Suchen</b> filtert die Tabelle nach jedem Text in jeder Spalte."),
         (5, "<b>Prüfung</b>: OK (grau), WARNUNG (gelb) oder FEHLER (rot) mit Begründung.")])
     i.liste("Seite links wählen, z. B. <i>Profile</i> (oder ins Suchfeld tippen).", "<b>Neue Zeile</b>, Werte eintippen, Enter.",

@@ -1458,8 +1458,17 @@ class SchneidwegDialog(QDialog):
             self.vorlage_speichern(name)
 
     def _vorlage_loeschen_fragen(self, name):
-        if QMessageBox.question(self, "Vorlage löschen", f"Vorlage „{name}“ löschen?") == QMessageBox.Yes:
-            self.vorlage_loeschen(name)
+        """Vorlage löschen, „Rückgängig“ holt sie zurück (R7, Patrick 07.11.2026: statt Rückfrage)."""
+        alt = self.vorlagen().get(name)
+        if not self.vorlage_loeschen(name):
+            return
+
+        def zurueck():
+            v = self.vorlagen()
+            v[name] = alt
+            self.db.einstellung_setzen(VORLAGEN, v)
+            einblendung.melden(self, f"Vorlage „{name}“ wiederhergestellt.")
+        einblendung.melden(self, f"Vorlage „{name}“ gelöscht.", aktion=("Rückgängig", zurueck))
 
     def kopierbare(self):
         """[(Text, Position)] der anderen Positionen mit Konturen im Rechner."""

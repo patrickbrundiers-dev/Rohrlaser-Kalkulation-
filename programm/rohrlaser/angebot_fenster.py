@@ -5602,7 +5602,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
                             einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id),
                             profile=self.k.profile)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis:
             return False
         vorab = self.teilen_anwenden(d.ergebnis)
         werte = dict((vorlage or {}).get("extra") or {}, **d.ergebnis["position"], pos=p["pos"])
@@ -5644,7 +5644,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._art_knopf_einbauen(d, [r for r, q in enumerate(self.positionen)
                                      if not ist_baugruppe(q) and baugruppe.zuordnung(q)[0] == baugruppe.zuordnung(p)[0]
                                      and baugruppe.zuordnung(q)[0]])
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
         vorab = self.teilen_anwenden(d.ergebnis)
@@ -7663,9 +7663,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         kundennr = kundennr if kundennr is not None else (getattr(self, "kopf", None) or {}).get("kundennr")
         return step_einstellungen.flach_bis(self.db, kundennr)
 
-    def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen"):
+    def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen", zwischen=False):
         """STEP-Dateien wählen (ohne dateien) und mit STEP-Import.exe messen. Ergebnis: Messwerte (mit_ablage:
-        (Messwerte, Pfad des abgelegten JSON-Ergebnisses)) oder None (abgebrochen, Fehler gemeldet)."""
+        (Messwerte, Pfad des abgelegten JSON-Ergebnisses)) oder None (abgebrochen, Fehler gemeldet).
+        zwischen (N4): messen nur noch langsame Körper, kommt der Zwischenstand zurück (sie als „Messung läuft noch“)
+        und die Messung läuft in self.nachmessung weiter (nachmessung.Nachmessung; der Aufrufer beendet sie)."""
+        from . import nachmessung
         befehl = step.messprogramm(self.f.programmordner)
         if befehl is None:
             QMessageBox.warning(self, "STEP-Import", "STEP-Import.exe wurde nicht gefunden.\n\nDer Ordner 'STEP-Import' "
@@ -7678,25 +7681,35 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
-        gross = step.grosse_dateien(step.step_dateien(dateien))
-        if gross and not getattr(self.f, "stumm", False) and QMessageBox.question(
-                self, "STEP-Import", gross, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes) != QMessageBox.Yes:
-            return None
+        gross = step.grosse_dateien(step.step_dateien(dateien))     # R8: Hinweis in der Fortschrittsanzeige
         step_einstellungen.anwenden(self.db)
-        with tempfile.TemporaryDirectory() as tmp:
+        laufend = None
+        if zwischen:
+            self.nachmessung = None
+        tmp = tempfile.mkdtemp()
+        try:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
             self.step_dateien_zuletzt = [str(d) for d in dateien]     # für die Kopie in den Angebotsordner
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
             netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
+            nach = {} if zwischen and not self.f.stumm else None
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
                                           "--json", str(ergebnis), "--flachstahl-bis", str(self.flach_bis())]
-                                + step_einstellungen.mess_argumente(self.db), len(dateien), ausgabe):
+                                + step_einstellungen.mess_argumente(self.db)
+                                + (["--zwischenstand", f"{nachmessung.ZWISCHENSTAND_S:g}"] if nach is not None else []),
+                                len(dateien), ausgabe, zwischen=nach, hinweis=gross):
                 return None
+            if nach and nach.get("proz") is not None:       # langsame Teile laufen weiter (N4)
+                laufend = self.nachmessung = nachmessung.Nachmessung(nach["proz"], tmp, ausgabe, netze, ergebnis)
+                ausgabe, ergebnis = Path(str(ausgabe) + ".zwischen"), Path(str(ergebnis) + ".zwischen")
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
             messwerte = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(ausgabe), netze), ergebnis)
-            json_ablage = self._messung_ablegen(ergebnis) if mit_ablage else None
+            json_ablage = self._messung_ablegen(ergebnis) if mit_ablage and laufend is None else None
+        finally:
+            if laufend is None:
+                shutil.rmtree(tmp, ignore_errors=True)
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
@@ -7729,10 +7742,26 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 elif wort:
                     hinweis.append(f"Werkstoff „{wort}“ nicht eindeutig ({', '.join(kandidaten[:4])}) – bitte wählen")
         flach_gemessen = self.flach_bis()
-        gemessen = self.step_messen(dateien, mit_ablage=True)
+        gemessen = self.step_messen(dateien, mit_ablage=True, zwischen=True)
         if gemessen is None:
             return None
         messwerte, json_ablage = gemessen
+        eigene = getattr(self, "nachmessung", None)
+        try:
+            return self._step_importieren(messwerte, json_ablage, dateien, werkstoff, stueck, als_satz, kunde_waehlen,
+                                          formulare, referenz, hinweis, ws_aus_mail, profil, vorgaben, flach_gemessen,
+                                          ersetzen, werkstoff_text)
+        finally:
+            if eigene is not None:
+                eigene.beenden()
+            if getattr(self, "nachmessung", None) is eigene:
+                self.nachmessung = None
+
+    def _step_importieren(self, messwerte, json_ablage, dateien, werkstoff, stueck, als_satz, kunde_waehlen,
+                          formulare, referenz, hinweis, ws_aus_mail, profil, vorgaben, flach_gemessen, ersetzen,
+                          werkstoff_text):
+        """Rest von step_importieren nach der Messung (die Messung langsamer Teile läuft ggf. noch, N4)."""
+        from . import importprofil
         dateien = list(getattr(self, "step_dateien_zuletzt", None) or dateien or [])
         pfade = {Path(d).name: str(d) for d in step.step_dateien(dateien)}
         for m in messwerte:             # STEP-Datei je Teil (virtuelles Bauteil beim Profilwechsel, step_schenkel)
@@ -7819,10 +7848,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                   vorhandene_artikel=[p.get("artikel") for p in self.positionen],
                                   flach_grenzen=(self.db.einstellung("flachstahl_bis") or 150,
                                                  self.db.einstellung("step_flach_laenge") or 3.0),
-                                  blech_daten=blech_daten)
+                                  blech_daten=blech_daten, aufteilen=self._aufteilen_messen,
+                                  nachmessung=getattr(self, "nachmessung", None))
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
+            nach = getattr(self, "nachmessung", None)
+            if nach is not None and nach.ok():          # N4: endgültiges Messergebnis ablegen
+                json_ablage = self._messung_ablegen(nach.ergebnis_json)
             kopieren = dlg.kopieren_haken.isChecked()
             with tempo.abschnitt("STEP: Vorprüfung nach dem Prüfdialog"):
                 fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
@@ -7842,6 +7875,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                                  referenz=referenz, hinweis=[h for h in hinweis or ()
                                                                              if not h.startswith("Werkstoff")],
                                                  werkstoff_text=werkstoff_text)
+            if getattr(dlg, "art_korrekturen", None) and not self.db.nur_lesen:      # N5: Prüfsammlung
+                from . import art_korrekturen
+                try:
+                    art_korrekturen.merken(art_korrekturen.ordner(self.db.pfad), dlg.art_korrekturen)
+                except OSError:
+                    pass
             if getattr(dlg, "art_merken", None) and not self.db.nur_lesen:     # Art von Hand: fürs nächste Mal
                 self.db.einstellung_setzen(step.ART_GELERNT, step.arten_gelernt_merken(
                     self.db.einstellung(step.ART_GELERNT) or {}, dlg.art_merken))
@@ -8021,6 +8060,21 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 return None
             return step.lade_netze(step.lies_messwerte(ausgabe), netze)
 
+    def _aufteilen_messen(self, m):
+        """Vorschlag N3 (Knopf „Aufteilen“ im Prüfdialog): Körper m (gelb „mehrere Teile in einem Körper“) mit
+        STEP-Import.exe --aufteilen an Muttern/Kugeln trennen und die Teile messen. Ergebnis: Messwerte der Teile
+        (step.aufgeteilt, Normteile markiert) oder None, wenn nichts zu trennen ist."""
+        befehl = step.messprogramm(self.f.programmordner)
+        pfad = m.get("_pfad")
+        if befehl is None or not pfad or not Path(pfad).is_file():
+            return None
+        with tempfile.TemporaryDirectory() as tmp:
+            ausgabe, netze = Path(tmp) / "messwerte.txt", Path(tmp) / "netze"
+            self._messen(befehl + [str(pfad), "--ausgabe", str(ausgabe), "--netze", str(netze), "--aufteilen",
+                                   str(int(float(m.get("koerper") or 0))), "--flachstahl-bis", str(self.flach_bis())]
+                         + step_einstellungen.mess_argumente(self.db), 1, ausgabe)
+            return step.aufteilen_ergebnis(m, ausgabe, netze)
+
     def _stege_messen(self, messwerte):
         """Winkel/U, für die im Prüfdialog ein größeres Profil gleicher Form gewählt ist (Patrick 26.10.2026: „ein
         virtuelles Bauteil anlegen“): Teil + Stege 2 mm des größeren Profils neu messen und die Messwerte ersetzen;
@@ -8139,7 +8193,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = Satz3dDialog(self, satz, self.positionen, self.k.profile, self._vk_einstellungen(), self.db.netze(self.id),
                          self.db.satz_daten(self.id).get(satz), nur_lesen=bool(self.fremd() or self.db.nur_lesen))
         self._art_knopf_einbauen(d, satz_teile(self.positionen, satz))
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         vorab = self.teilen_anwenden(d.ergebnis)
         self.naehte_schreiben(d.ergebnis["naehte"])
@@ -8162,7 +8216,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return True
 
     def _teilergebnis(self, ausgabe_datei, anzahl):
-        """Nach Abbruch: gibt es schon gemessene Dateien, fragen, ob sie übernommen werden sollen."""
+        """Nach Abbruch: gibt es schon gemessene Dateien, gehen sie gleich in den Prüfdialog (R9, Patrick 07.11.2026:
+        keine Rückfrage; dort verwirft „Abbrechen“ sie wieder)."""
         try:
             text = ausgabe_datei.read_text(encoding="utf-8") if ausgabe_datei else ""
             if text and not text.endswith("\n"):       # beim Abbruch halb geschriebene Zeile weglassen
@@ -8174,15 +8229,17 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         n = len({z.split("\t", 1)[0] for z in zeilen if z.strip()})
         if not n or self.f.stumm:
             return False
-        return QMessageBox.question(
-            self, "STEP-Import", f"Messung abgebrochen. {n} von {anzahl} Dateien sind schon gemessen.\n\n"
-            "Diese Dateien übernehmen?", QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes) == QMessageBox.Yes
+        self.f.meldung(f"Messung abgebrochen: {n} von {anzahl} Dateien sind gemessen und stehen im Prüfdialog "
+                       "(dort „Abbrechen“ verwirft sie).")
+        return True
 
-    def _messen(self, befehl, anzahl, ausgabe_datei=None):
+    def _messen(self, befehl, anzahl, ausgabe_datei=None, zwischen=None, hinweis=None):
         """Messung als eigener Prozess mit Fortschrittsanzeige (Datei, Körper, Restzeit). True = Messung beendet
-        oder nach Abbruch die schon gemessenen Dateien übernehmen (stehen in ausgabe_datei)."""
+        oder nach Abbruch die schon gemessenen Dateien übernehmen (stehen in ausgabe_datei). zwischen = {} (N4): meldet
+        die Messung ZWISCHENSTAND, kehrt es gleich zurück, der Prozess läuft weiter (zwischen["proz"])."""
         proz = QProcess(self)
-        fortschritt = QProgressDialog("STEP-Dateien werden gemessen …", "Abbrechen", 0, anzahl, self)
+        fortschritt = QProgressDialog("STEP-Dateien werden gemessen …" + (f"\n{hinweis}" if hinweis else ""),
+                                      "Abbrechen", 0, anzahl, self)
         fortschritt.setWindowModality(Qt.WindowModal)
         fortschritt.setMinimumDuration(0 if getattr(self.f, "step_drop_laeuft", False) else 300)   # nach einem Drop gleich zeigen
         schleife = QEventLoop()
@@ -8197,13 +8254,17 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
         def ausgabe():
             for z in bytes(proz.readAllStandardOutput()).decode("utf-8", "replace").splitlines():
+                if z.strip() == "ZWISCHENSTAND" and zwischen is not None:
+                    stand["zwischen"] = True
+                    schleife.quit()
+                    return
                 if z.startswith("{"):           # je Körper (Messung mit Zeitlimit)
                     try:
                         d = json.loads(z)
                         text = f"Datei {d['datei']} von {d['dateien']}: {d['name']}"
                         if d.get("koerper"):
                             text += f"\nKörper {d['koerper']} von {d['koerper_n']}"
-                        fortschritt.setLabelText(text + restzeit())
+                        fortschritt.setLabelText(text + restzeit() + (f"\n{hinweis}" if hinweis else ""))
                     except (ValueError, KeyError, TypeError):
                         pass
                 elif z.startswith("[") and "/" in z:
@@ -8212,7 +8273,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                         if z.endswith("aus dem Zwischenspeicher"):
                             stand["aus_speicher"] = stand["fertig"]
                         fortschritt.setValue(stand["fertig"] - 1 if stand["fertig"] < anzahl else anzahl - 1)
-                        fortschritt.setLabelText(z + restzeit())
+                        fortschritt.setLabelText(z + restzeit() + (f"\n{hinweis}" if hinweis else ""))
                     except ValueError:
                         pass
         proz.readyReadStandardOutput.connect(ausgabe)
@@ -8226,6 +8287,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         proz.start(befehl[0], befehl[1:])
         if proz.state() != QProcess.NotRunning or proz.waitForStarted(5000):
             schleife.exec()
+        if stand.get("zwischen") and proz.state() != QProcess.NotRunning:     # N4: weiter im Hintergrund
+            fortschritt.canceled.disconnect()
+            proz.readyReadStandardOutput.disconnect()
+            fortschritt.close()
+            zwischen["proz"] = proz
+            return True
         fortschritt.close()     # close() meldet auch 'canceled', darum zählt nur ein Abbruch bei laufender Messung
         if abgebrochen:
             return self._teilergebnis(ausgabe_datei, anzahl)

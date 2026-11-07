@@ -80,6 +80,10 @@ assert s.tab_betroffen.rowCount() == 2 and s.tab_betroffen.item(0, 7).text() == 
 assert s.aktualisieren(bestaetigt=False) == 0, "ohne Bestätigung nichts"
 assert len(db.zukauf_betroffen(schraube)) == 2
 assert s.aktualisieren(bestaetigt=True) == 1
+assert f.letzte_aktion[0] == "Rückgängig"          # R10: Rückgängig statt Rückfrage
+f.letzte_aktion[1]()
+assert len(db.zukauf_betroffen(schraube)) == 2, "Rückgängig: alter Preisstand wieder im Angebot"
+assert s.aktualisieren() == 1
 assert [x["angebot_id"] for x in db.zukauf_betroffen(schraube)] == [b], "nur das gewählte Angebot aktualisiert"
 assert s.tab_betroffen.rowCount() == 1
 s.artikel_filter.setCurrentIndex(s.artikel_filter.findData(mutter))

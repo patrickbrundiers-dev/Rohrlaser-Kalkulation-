@@ -240,6 +240,8 @@ s.eilzuschlag_setzen(0)
 assert abs(s._verkauf() - vor) < 1e-6
 plan = s.pruefplan_pdf(erstmuster=False)
 assert plan and Path(plan).is_file()
+# R11 (07.11.2026): keine Rückfrage; steht die Erstmusterprüfung schon drin, kein „Übernehmen“
+assert s.pruefplan_pdf() and not (hf.letzte_aktion and hf.letzte_aktion[0] == "Übernehmen")
 ordner = s.cam_paket(tmp / "cam_gui")
 assert ordner and (Path(ordner) / "Stueckliste.csv").is_file()
 sp = hf.support_paket(mit_angebot=True, oeffnen=False)

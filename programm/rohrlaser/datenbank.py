@@ -1141,6 +1141,35 @@ class Datenbank:
         return n
 
     @schreibt
+    def zeilen_zurueck(self, tabelle, zeilen):
+        """Gelöschte Zeilen (aus zeilen(tabelle, mit_uid=True)) unverändert wieder einfügen, mit derselben id und uid
+        („Rückgängig“ nach dem Löschen, N2). Zeilen, deren id oder Schlüssel es inzwischen wieder gibt, bleiben weg.
+        Ergebnis: Anzahl eingefügter Zeilen."""
+        if not zeilen:
+            return 0
+        namen = [f'"{k}"' for k in zeilen[0]]
+        vorher = self.anzahl(tabelle)
+        with self.con:
+            self._stammdaten_geaendert(tabelle)
+            self.con.executemany(f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(namen)}) VALUES '
+                                 f'({", ".join("?" * len(namen))})', [[z.get(k) for k in zeilen[0]] for z in zeilen])
+        return self.anzahl(tabelle) - vorher
+
+    @schreibt
+    def tabellen_zurueck(self, stand):
+        """Tabellen auf einen früheren Stand {tabelle: zeilen(tabelle, mit_uid=True)} zurücksetzen (alle Zeilen
+        ersetzen; „Rückgängig“ nach Richtwerte laden, N2)."""
+        with self.con:
+            for tabelle, zeilen in stand.items():
+                self._stammdaten_geaendert(tabelle)
+                self.con.execute(f'DELETE FROM "{tabelle}"')
+                if zeilen:
+                    namen = list(zeilen[0])
+                    self.con.executemany(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
+                                         f'VALUES ({", ".join("?" * len(namen))})',
+                                         [[z.get(n) for n in namen] for z in zeilen])
+
+    @schreibt
     def loeschen(self, tabelle, ids):
         with self.con:
             self._stammdaten_geaendert(tabelle)

@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter, QTableWidget,
+                               QHeaderView, QLabel, QLineEdit, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import hilfe, stil, tastatur, zukauf_csv
@@ -179,20 +179,27 @@ class PreisaenderungenSeite(QWidget):
         b = self._gewaehlt()
         if b is None:
             return 0
-        if bestaetigt is None:
-            bestaetigt = QMessageBox.question(
-                self, "Im Angebot aktualisieren",
-                f"Angebot {b['nummer']}: Preisstand vom {datum_text(b['stand'])} durch den aktuellen ersetzen?\n\n"
-                f"Zukaufteil netto für {zahl_als_text(b['verbrauch'], 2)} Einheiten: {_euro(b['vk_alt'])} → "
-                f"{_euro(b['vk_neu'])}\n\nDas Angebot rechnet danach mit den neuen Preisen.") == QMessageBox.Yes
-        if not bestaetigt:
+        if bestaetigt is False:         # Tests: abgelehnt (früher Rückfrage, seit R10 Rückgängig)
             return 0
+        # Rückgängig statt Rückfrage (R10, Patrick 07.11.2026): alter Preisstand der Positionen kommt zurück
+        alt = {p["id"]: p.get("zukauf") for p in self.db.positionen(b["angebot_id"])}
         n = self.db.zukauf_angebot_aktualisieren(b["angebot_id"], self.artikel_id)
-        seite = getattr(self.window(), "offen", {}).get(b["angebot_id"])
-        if seite is not None:
-            seite.neu_laden()
-        self.meldung(f"Angebot {b['nummer']}: Preisstand in {n} Position(en) aktualisiert.")
-        self._betroffen_zeigen(self.artikel_id)
+
+        def laden():
+            seite = getattr(self.window(), "offen", {}).get(b["angebot_id"])
+            if seite is not None:
+                seite.neu_laden()
+            self._betroffen_zeigen(self.artikel_id)
+
+        def zurueck():
+            for pid, z in alt.items():
+                self.db.position_aendern(pid, "zukauf", z)
+            laden()
+            self.meldung(f"Angebot {b['nummer']}: Preisstand vom {datum_text(b['stand'])} wieder eingesetzt.")
+        laden()
+        self.meldung(f"Angebot {b['nummer']}: Preisstand in {n} Position(en) aktualisiert ({_euro(b['vk_alt'])} → "
+                     f"{_euro(b['vk_neu'])} für {zahl_als_text(b['verbrauch'], 2)} Einheiten).",
+                     aktion=("Rückgängig", zurueck))
         return n
 
 

@@ -1868,8 +1868,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.reiter.setTabVisible(i, funktionen.an("funktion_knick_steck") or bool(self.bg.get("steckverbindungen")))
         self.reiter.addTab(self._seite_stamm(), "Stammdaten")
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
-        self.reiter.addTab(self._seite_baum(), "Strukturbaum und 3D")
-        self.reiter.currentChanged.connect(self._reiter_gewechselt)
+        self._baum_seite = self._seite_baum()      # Strukturbaum links und 3D in der Mitte (Rahmen wie alle Editoren, N1)
         lay.addWidget(self.reiter, 1)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
@@ -1918,6 +1917,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         for b in (rechnen_k, bestaetigen):
             b.setEnabled(not nur_lesen)
             unten.addWidget(b)
+        einsetzen = merken = None
         if db is not None:
             einsetzen = QPushButton("Vorlage einsetzen …")
             einsetzen.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge aus einer gespeicherten Vorlage übernehmen")
@@ -1927,13 +1927,21 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             merken.clicked.connect(lambda: self.vorlage_merken())
             unten.addWidget(einsetzen)
             unten.addWidget(merken)
-        unten.addWidget(self.step_knopf())
-        unten.addWidget(self.ursprung_knopf())
+        step_k, ursprung_k = self.step_knopf(), self.ursprung_knopf()
+        unten.addWidget(step_k)
+        unten.addWidget(ursprung_k)
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
+        self._rahmen_bauen(unten, {ursprung_k: ("Konstruktion", "Bearbeiten"),
+                                   self.vk_auto: ("Konstruktion", "Vorkalkulation"),
+                                   rechnen_k: ("Konstruktion", "Vorkalkulation"),
+                                   bestaetigen: ("Konstruktion", "Vorkalkulation"),
+                                   einsetzen: ("Konstruktion", "Vorlagen"), merken: ("Konstruktion", "Vorlagen"),
+                                   step_k: ("Ausgabe", "Ausgabe")})
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
+        self.baum_aufbauen()
         if self.vk_auto.isChecked() and not nur_lesen:
             self.vorkalkulation()
         self.vorschlaege_info_neu()
@@ -2873,6 +2881,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             f"<table cellspacing=0 cellpadding=3 border=1><tr><th>Art</th><th>Name</th><th>Unterbaugruppe</th>"
             f"<th>Stück je BG</th><th>Zeit je BG</th><th>Kosten je BG</th><th>einmalig</th><th></th></tr>{zeilen}"
             f"</table>" + (f"<p><b>Warnungen</b></p><ul>{warn}</ul>" if warn else ""))
+        if getattr(self, "rahmen", None) is not None:
+            self.rahmen.spaeter()
 
     def fokus(self, status):
         """Zur Zeile springen, die ein Status nennt (D4, Doppelklick auf den Status im Angebot): Reiter wählen und Zeile
@@ -3023,7 +3033,6 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return x["werte"] if x else {}
 
     # -------------------------------------------------------------- Strukturbaum und 3D (D1)
-    BAUM = 6                    # Index des Reiters
 
     def _seite_baum(self):
         w = QWidget()
@@ -3090,10 +3099,64 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         teil.addWidget(self.baum_rechts)
         teil.setSizes([540, 760])
         lay.addWidget(teil, 1)
+        self.baum_links = links
         return w
 
-    def _reiter_gewechselt(self, i):
-        if i == self.BAUM:
+    # -------------------------------------------------------------- Rahmen wie alle Editoren (N1, 07.11.2026)
+    def _rahmen_bauen(self, fuss, ziele):
+        """Menüband oben, Strukturbaum links, 3D und Reiter in der Mitte, Ergebnis rechts, Kacheln und Prüfmeldungen
+        unten (gruppen_rahmen). Knöpfe der Fußleiste ziehen ins Band."""
+        from .gruppen_rahmen import GruppenRahmen
+        r = GruppenRahmen(self, self.reiter, self.baum_links, self.reiter,
+                          [self.summe, self.vk_info, self.fehler, self.baum_info, self.zeichnen_leiste,
+                           self.auswahl_leiste], nachher=self._baum_nachziehen,
+                          kacheln=self._rahmen_kacheln, meldungen=self._rahmen_meldungen,
+                          springen=lambda t: self.fokus(t))
+        r.fuss_leeren(fuss, ziele)
+        r.einsetzen("Konstruktion", "Naht zeichnen", self.zeichnen_knopf, self.zeichnen_zurueck, self.zeichnen_ok,
+                    self.zeichnen_art)
+        r.einsetzen("Konstruktion", "Auswahl im 3D", self.auswahl_knick, self.auswahl_steck)
+        self._band_3d_knoepfe()
+        r.auffrischen()
+
+    def _band_3d_knoepfe(self):
+        """Werkzeuge, die die 3D-Ansicht brauchen, erst mit 3D-Daten (und nicht im Lesemodus) bedienbar."""
+        an = self.ansicht3d is not None and not self.nur_lesen
+        for k in (self.zeichnen_knopf, self.zeichnen_art):
+            k.setEnabled(an)
+        if not an:
+            for k in (self.zeichnen_zurueck, self.zeichnen_ok, self.auswahl_knick, self.auswahl_steck):
+                k.setEnabled(False)
+
+    def _rahmen_kacheln(self):
+        e = self.erg or {}
+        if not e:
+            return []
+        n_teile = sum(1 for t in self.teile if t.get("drin"))
+        return [("Je Baugruppe", _euro((e.get("eigen") or 0) + (e.get("fremd") or 0)),
+                 "Schweißen, Arbeitsgänge und Fremdleistungen je Baugruppe (ohne Einzelteile)"),
+                ("Zeit je Baugruppe", _min(e.get("zeit_min") or 0), "Alle Arbeitsgänge je Baugruppe"),
+                ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
+                ("Einzelteile", str(n_teile), "Positionen in der Baugruppe")]
+
+    def _rahmen_meldungen(self):
+        out = []
+        for t in [self.fehler.text() and ("" if self.fehler.text().upper().startswith(("FEHLER", "WARNUNG"))
+                                          else "FEHLER: ") + self.fehler.text(),
+                  self.status if str(self.status or "").startswith(("FEHLER", "WARNUNG", "HINWEIS")) else "",
+                  *("WARNUNG: " + w for w in (self.erg or {}).get("warnungen") or ())]:
+            if t and t not in out:
+                out.append(t)
+        return out
+
+    def _baum_nachziehen(self):
+        """Nach Eingaben: Strukturbaum neu, wenn sich Teile, Unterbaugruppen oder Nahtgruppen geändert haben."""
+        stand = (tuple((t["_id"], bool(t.get("drin")), t.get("knoten") or "", t.get("je")) for t in self.teile),
+                 tuple((k.get("id"), k.get("parent"), k.get("name"), k.get("menge")) for k in self.bg["knoten"]),
+                 tuple((n.get("id"), n.get("nr"), n.get("knoten"), n.get("laenge"), n.get("anzahl"))
+                       for n in self.bg["naehte"]), self.bezeichnung.text())
+        if stand != getattr(self, "_baum_stand", None):
+            self._baum_stand = stand
             self.baum_aufbauen()
 
     def _teil_knoten(self, kid):
@@ -3159,11 +3222,16 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.montage_knopf_anlegen()
             self.ansicht3d.ansicht.angeklickt.connect(self._3d_geklickt)
             self.auswahl_signale()
-            self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
+            if getattr(self, "rahmen", None) is not None:
+                self.rahmen.ansicht_einhaengen(self.ansicht3d)
+            else:
+                self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
             self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
             self.zeichnen_leiste.setVisible(not self.nur_lesen)
             self.auswahl_leiste.setVisible(not self.nur_lesen)
             self._zeichnen_stand()
+            if getattr(self, "rahmen", None) is not None:
+                self._band_3d_knoepfe()
         self.baum_gewaehlt()
 
     def _gewaehlte_teile(self, daten):
@@ -3574,9 +3642,16 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if "gibt es schon" not in str(e):
                 QMessageBox.warning(self, "Vorlage", str(e))
                 return None
-            if QMessageBox.question(self, "Vorlage", f"{e} Überschreiben?") != QMessageBox.Yes:
-                return None
-            return self.vorlage_speichern(name, ueberschreiben=True)
+            # Rückgängig statt Rückfrage (R4, Patrick 07.11.2026): die alte Vorlage kommt mit „Rückgängig“ zurück
+            alt = dict(next(z for z in self.vorlagen() if z["name"] == name.strip()))
+            vid = self.vorlage_speichern(name, ueberschreiben=True)
+
+            def zurueck():
+                for feld in ("inhalt", "daten", "angelegt", "bemerkung"):
+                    self.db.aendern(VORLAGEN, alt["id"], feld, alt.get(feld))
+                einblendung.melden(self, f"Vorlage „{alt['name']}“ wiederhergestellt.")
+            einblendung.melden(self, f"Vorlage „{alt['name']}“ überschrieben.", aktion=("Rückgängig", zurueck))
+            return vid
 
     def vorlage_waehlen(self):
         liste = self.vorlagen()

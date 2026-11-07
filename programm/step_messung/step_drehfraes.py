@@ -730,7 +730,7 @@ def normteil(fl):
                     laenge=round(2 * r, 2))
     zyl = [e for e in fl if e["typ"] == "zylinder" and e["konvex"]]
     if not zyl:
-        return None
+        return _mutter(fl)
     haupt = max(zyl, key=lambda e: e["flaeche"])
     o, d = haupt["achse"]
     kante, rest = sechskante(fl, o, d)
@@ -744,6 +744,31 @@ def normteil(fl):
     art = "Schraube/Gewindestange mit Mutter" if len(kante) > 1 else "Schraube/Mutter mit Sechskant"
     return dict(art=art, text=f"Normteil: {art} Ø{_mm(2 * haupt['radius'])} ({sw})",
                 durchmesser=round(2 * haupt["radius"], 2), laenge=round(laenge, 2))
+
+
+MUTTER_HOEHE_MAX = 1.5      # Mutter: Höhe höchstens so viel × Schlüsselweite (länger: Sechskantrohr/-stange)
+
+
+def _mutter(fl):
+    """Mutter (N3, Patrick 07.11.2026: die abgetrennte Mutter wird Normteil): ein Sechskant um eine Bohrung, keine
+    Außenzylinder und keine weiteren seitlichen Ebenen, Höhe höchstens MUTTER_HOEHE_MAX × SW. Sonst None."""
+    innen = [e for e in fl if e["typ"] == "zylinder" and not e["konvex"]]
+    if not innen:
+        return None
+    bohrung = max(innen, key=lambda e: e["flaeche"])
+    o, d = bohrung["achse"]
+    kante, rest = sechskante(fl, o, d)
+    if len(kante) != 1 or rest:
+        return None
+    sw = kante[0]["schluessel"]
+    stirn = [_dot(e["punkt"], d) for e in fl if e["typ"] == "eben" and _parallel(e["normale"], d)]
+    if len(stirn) < 2:
+        return None
+    hoehe = max(stirn) - min(stirn)
+    if not 0 < hoehe <= MUTTER_HOEHE_MAX * sw:
+        return None
+    return dict(art="Mutter", text=f"Normteil: Mutter SW {_mm(sw)} (Bohrung Ø{_mm(2 * bohrung['radius'])})",
+                durchmesser=round(2 * sw / math.sqrt(3), 2), laenge=round(hoehe, 2))
 
 
 def normteil_teil(solid, datei="", koerper=1):

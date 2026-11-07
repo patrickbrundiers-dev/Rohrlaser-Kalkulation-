@@ -72,9 +72,9 @@ def grosse_dateien(dateien):
     minuten = max(1, round(sum(m for _, m in gross) * SEK_JE_MB / 60))
     gb = mb * SPEICHER_JE_MB / 1000
     namen = ", ".join(f"{n} ({m:.0f} MB)" for n, m in gross[:3]) + (" …" if len(gross) > 3 else "")
-    return (f"Große STEP-Datei: {namen}.\n\nDie Messung dauert voraussichtlich etwa {minuten} min und braucht etwa "
-            f"{gb:.0f} GB Arbeitsspeicher (geschätzt aus der Dateigröße). Reicht der Arbeitsspeicher nicht, wird "
-            "der Rechner sehr langsam. Während der Messung lässt sie sich abbrechen.\n\nJetzt messen?")
+    # R8 (Patrick 07.11.2026): keine Rückfrage mehr, der Text steht in der Fortschrittsanzeige (mit „Abbrechen“)
+    return (f"Große STEP-Datei: {namen} – etwa {minuten} min, etwa {gb:.0f} GB Arbeitsspeicher (geschätzt aus der "
+            "Dateigröße)")
 
 
 def step_kandidaten(pfade):
@@ -1498,6 +1498,67 @@ def virtuell_einsetzen(m, neu):
     return True
 
 
+MEHRTEILIG_HINWEIS = "Mehrere Teile in einem Körper?"
+NOCH_IN_MESSUNG = "Messung läuft noch"          # step_messen.NOCH_IN_MESSUNG (Vorschlag N4)
+
+
+def noch_in_messung(m):
+    """Platzhalter eines langsamen Körpers im Zwischenstand der Messung (rückt nach, nachmessung.einsetzen)."""
+    return NOCH_IN_MESSUNG in (m.get("hinweise") or "")
+AUFGETEILT_BEHALTEN = ("_pfad", "_stueck", "_werkstoff", "_zusatz", "_saetze", "datei", "pfad", "knoten", "struktur")
+
+
+def mehrteilig_koerper(m):
+    """True, wenn die Messung den Körper als „mehrere Teile in einem Körper“ gelb markiert hat (Aufteilen möglich)."""
+    return MEHRTEILIG_HINWEIS in (m.get("hinweise") or "") and bool(m.get("_pfad")) and not m.get("fehler")
+
+
+def aufgeteilt(m, neue, namen):
+    """Vorschlag N3: Messwerte der getrennten Teile (neue, je Teil eine Zeile der Messung, namen = Name je Teil wie
+    „Mutter SW 36“ bzw. „Grundteil“) an die Stelle des Körpers m: gleiche Datei und Stelle im Strukturbaum, Körper
+    „7.1“, „7.2“ …, Bauteilname mit Zusatz, Stückzahl/Werkstoff/Zusatzarbeiten aus dem Prüfdialog. Das Grundteil
+    behält die Artikelnummer, die Anbauten bekommen -1, -2 … Ergebnis: Liste der Messwerte."""
+    out, j = [], 0
+    basis = str(m.get("bauteil") or m.get("artikel") or "Teil").split(":")[0].strip()
+    for n, name in zip(neue, namen):
+        n = dict(n)
+        for k_ in AUFGETEILT_BEHALTEN:
+            if k_ in m:
+                n[k_] = m[k_]
+        n["koerper"] = f"{m.get('koerper')}.{len(out) + 1}"
+        if name in ("Grundteil", "Grundteil 1"):
+            n["artikel"] = m.get("artikel")
+        else:
+            j += 1
+            n["artikel"] = f"{m.get('artikel')}-{j}"
+        n["_artikel_gemessen"] = n["artikel"]
+        n["bauteil"] = f"{basis} – {name}"
+        n["_aufgeteilt_aus"] = m.get("artikel") or ""
+        if not name.startswith("Grundteil"):        # abgetrennte Mutter/Kugel: Normteil
+            from . import drehfraes
+            art = (drehfraes.daten(n) or {}).get("normteil")
+            n["_normteil"] = art or name.split()[0]
+            if not art:                             # von der Messung nicht erkannt: Name aus dem Aufteilen
+                n["_normteil_bezeichnung"] = name
+        out.append(n)
+    return out
+
+
+def aufteilen_ergebnis(m, ausgabe, netze):
+    """Ergebnis von STEP-Import --aufteilen (Messwerte in ausgabe, Namen der Teile in <ausgabe>.teile.json, Netze im
+    Ordner netze) für den Körper m: Liste der Messwerte der Teile (aufgeteilt) oder None (nichts zu trennen)."""
+    import json
+    ausgabe = Path(ausgabe)
+    namen_datei = Path(str(ausgabe) + ".teile.json")
+    if not ausgabe.exists() or not namen_datei.exists():
+        return None
+    namen = dict(json.loads(namen_datei.read_text(encoding="utf-8")))
+    neue = [n for n in lade_netze(lies_messwerte(ausgabe), netze) if n.get("datei") in namen and not n.get("fehler")]
+    if len(neue) < 2:
+        return None
+    return aufgeteilt(m, neue, [namen[n["datei"]] for n in neue])
+
+
 def fenster_neu(m, pr):
     """Offen gezeichnetes Rohr aus dem Rohr mit Ringen (step_offenes_rohr), im Prüfdialog ein anderes Rohr gewählt
     (Patrick 25.10.2026: „einfach das Rohr ändern, z. B. von 60x30x4 auf 70x30x4“): das Fenster über der offenen Seite
@@ -2772,6 +2833,54 @@ def _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte, df_einst=
     return dict(neu=schl), text
 
 
+NORMTEIL_KATEGORIE = "Normteile"        # Zukaufartikel-Kategorie der Normteil-Preisliste (N6, Patrick 07.11.2026)
+NORMTEIL_TYP = "Normteil"
+
+
+def normteil_name(m):
+    """Bezeichnung eines Normteils für die Preisliste: aus der Geometrie (Kugel Ø8,73, Mutter/Schraube SW 19, Gewinde-
+    stange Ø12,7 × 100 mit Mutter SW 19) bzw. der Bauteilname aus dem CAD (ISO 4032 M12)."""
+    if m.get("_normteil_bezeichnung"):         # im Prüfdialog abgetrennt (Aufteilen, N3)
+        return m["_normteil_bezeichnung"]
+    from . import drehfraes
+    d = drehfraes.daten(m) or {}
+    art = d.get("normteil")
+    if m.get("_normteil") and art and m["_normteil"] != art:    # Begriff im CAD-Namen (ISO 4032 M12) geht vor
+        art = None
+    if art:
+        text = next((x for x in d.get("merkmale") or () if str(x).startswith("Normteil: ")), f"Normteil: {art}")
+        name = text[len("Normteil: "):]
+        if "Gewindestange" in art and d.get("laenge"):
+            name += f" × {round(float(d['laenge']), 1):g}".replace(".", ",")
+        return name
+    name = str(m.get("bauteil") or m.get("artikel") or "Normteil").strip()
+    return name.split(":")[0].strip() or "Normteil"
+
+
+def _normteil_position(m, zukauf_liste, neue_artikel):
+    """Zukaufartikel der Normteil-Preisliste (Kategorie Normteile, gleiche Bezeichnung) bzw. neu ohne EK (gelb, wie
+    Dreh-/Frästeile: unter Zukaufartikel „EK eintragen …“). Ergebnis: (Verweis, Bezeichnung, Hinweistext)."""
+    from . import zukauf
+    name = normteil_name(m)
+    schl_name = name.casefold()
+    for a in zukauf_liste or ():
+        if a.get("id") is not None and a.get("status") != "archiviert" and \
+                (a.get("bezeichnung") or "").strip().casefold() == schl_name:
+            return dict(artikel_id=a["id"]), name, f"Normteil aus der Preisliste ({name})" + (
+                ", EK fehlt: unter Zukaufartikel eintragen" if zukauf.ek_fehlt(a) else "")
+    for s_, (w, _) in neue_artikel.items():
+        if w.get("artikeltyp") == NORMTEIL_TYP and (w.get("bezeichnung") or "").casefold() == schl_name:
+            return dict(neu=s_), name, f"Normteil {name} (neu in diesem Import)"
+    werte = dict(bezeichnung=name, kategorie=NORMTEIL_KATEGORIE, einheit="Stück", status="aktiv",
+                 aufschlag_quelle="Kategorie", angebotstext="nein", rest_lager="nein", kombiniert="nein",
+                 artikeltyp=NORMTEIL_TYP, herkunft="STEP-Import", step_datei=m.get("datei") or None,
+                 beschreibung="Normteil aus dem STEP-Import; EK einmal eintragen, dann gilt er für alle Angebote")
+    schl = f"neu{len(neue_artikel) + 1}"
+    neue_artikel[schl] = (werte, [dict(lieferant=None, bevorzugt="ja", preiseinheit=1, preise=[])])
+    return dict(neu=schl), name, f"Normteil {name} neu in der Preisliste (Zukaufartikel, Kategorie " \
+                                 f"{NORMTEIL_KATEGORIE}), EK fehlt: unter Zukaufartikel eintragen"
+
+
 def _drehfraes_ok(m):
     """Dreh-/Frästeil übernehmen? Wie Bleche: abgewählt nie, mit Prüfstatus 'prüfen' erst nach Anhaken."""
     if m.get("_uebernehmen") is False:
@@ -2942,6 +3051,32 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                             "übernommen)")
         elif m.get("profilform") == GRAVURKOERPER:
             hinweise.append("nicht übernommen: kein eigenes Teil")
+        elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True and art in diesmal:
+            erst, stk = diesmal[art], m.get("_stueck", stueck)      # dasselbe Normteil noch einmal: Stückzahl dazu
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
+        elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True:
+            # Normteil (Schraube, Mutter, Kugel) als Zukaufteil zum Preis der Normteil-Liste (N6, Patrick 07.11.2026)
+            from .angebot import ZUKAUFTEIL
+            stk = m.get("_stueck", stueck)
+            verweis, name, text = _normteil_position(m, zukauf_liste, neue_artikel)
+            p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art, bezeichnung=name, stueck=stk or None,
+                     _zukauf=verweis)
+            if m.get("_netz"):
+                p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
+            hinweise.append(f"Zukaufteil: {text}")
+            if satz:
+                anzahl = int(m.get("_je_satz") or len(gruppen[i]))
+                p["satz"], p["je_satz"] = satz, anzahl
+                p["stueck"] = stk * anzahl if stk else None
+                hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
+                satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            neu.append(p)
+            ziel = naechste
+            diesmal[art] = p
+            naechste += 10
         elif m.get("_normteil") and m.get("_uebernehmen") is not True:
             hinweise.append(f"nicht übernommen: Normteil ({m.get('bauteil')}, Begriff {m['_normteil']})")
         elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):

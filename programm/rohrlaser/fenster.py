@@ -610,12 +610,19 @@ class StammdatenSeite(QWidget):
             self.meldung("Bitte zuerst die Zeilen markieren, die gelöscht werden sollen.", fehler=True)
             return
         verweise = sum(self.db.verweise(self.t.name, self.modell.daten[r]["id"]) for r in zeilen)
-        text = f"{len(zeilen)} Zeile(n) aus '{self.t.titel}' löschen?"
-        if verweise:
-            text += f"\n\n{verweise} Zeile(n) in anderen Tabellen verweisen darauf und zeigen danach FEHLER."
-        if QMessageBox.question(self, "Löschen", text) == QMessageBox.Yes:
-            self.modell.zeilen_loeschen(zeilen)
-            self.meldung(f"{len(zeilen)} Zeile(n) gelöscht.")
+        # Rückgängig statt Rückfrage (R1, Patrick 07.11.2026): die Zeilen kommen samt Werten und Kennung zurück
+        ids = {self.modell.daten[r]["id"] for r in zeilen}
+        alt = [z for z in self.db.zeilen(self.t.name, mit_uid=True) if z["id"] in ids]
+        self.modell.zeilen_loeschen(zeilen)
+        tabelle = self.t.name
+
+        def zurueck():
+            n = self.db.zeilen_zurueck(tabelle, alt)
+            self.modell.neu_laden()
+            self.meldung(f"{n} Zeile(n) in '{self.t.titel}' wiederhergestellt.")
+        self.meldung(f"{len(zeilen)} Zeile(n) aus '{self.t.titel}' gelöscht."
+                     + (f" {verweise} Zeile(n) in anderen Tabellen verweisen darauf und zeigen FEHLER." if verweise
+                        else ""), aktion=("Rückgängig", zurueck))
 
     def kunden_exportieren(self, pfad=None):
         from .kunden_csv_dialog import csv_exportieren
@@ -790,23 +797,23 @@ class StammdatenSeite(QWidget):
         if not n:
             self.meldung("Alle Richtwerte sind schon eingetragen; vorhandene Zeilen werden nicht geändert.")
             return 0
-        if bestaetigt is None:
-            text = (f"{len(fehlt['schweissverfahren'])} Schweißverfahren, {len(fehlt['schweiss_kennwerte'])} "
-                    f"Kennwerte, {len(fehlt['schweiss_faktoren'])} Faktoren und {len(fehlt['schweiss_regeln'])} "
-                    "Regeln der Vorkalkulation fehlen und werden als Richtwerte "
-                    "eingetragen (Status Richtwert). Vorhandene Zeilen bleiben unverändert.\n\nRichtwerte sind aus "
-                    "dem Nahtquerschnitt hergeleitet, keine Erfahrungswerte der eigenen Fertigung: bitte prüfen und "
-                    "danach auf 'geprüft' stellen.\n\nJetzt eintragen?")
-            bestaetigt = QMessageBox.question(self, "Richtwerte laden", text, QMessageBox.Yes | QMessageBox.No,
-                                              QMessageBox.Yes) == QMessageBox.Yes
-        if not bestaetigt:
+        if bestaetigt is False:         # Tests: abgelehnt (früher Rückfrage, seit R2 Rückgängig)
             return 0
+        neue = []
         for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):  # Verfahren zuerst
             for z in fehlt[name]:
-                self.db.neu(name, z)
+                neue.append((name, self.db.neu(name, z)))
         f = self.window()
-        f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
-        self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu, vorhandene unverändert.")
+        laden = (lambda: f.alles_neu_laden()) if hasattr(f, "alles_neu_laden") else self.neu_laden
+        laden()
+
+        def zurueck():                  # R2: die neuen Zeilen wieder entfernen (Regeln zuerst)
+            for name, i in reversed(neue):
+                self.db.loeschen(name, [i])
+            laden()
+            self.meldung(f"Richtwerte entfernt: {len(neue)} Zeile(n).")
+        self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu (Status Richtwert, bitte prüfen), vorhandene unverändert.",
+                     aktion=("Rückgängig", zurueck))
         return n
 
     def kennwerte_lernen(self, dialog=None):

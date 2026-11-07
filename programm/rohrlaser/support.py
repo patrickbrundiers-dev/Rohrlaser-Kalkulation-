@@ -8,7 +8,9 @@ Daten/Support eine Datei „Support_JJJJ-MM-TT_HHMM.zip“ an mit:
 - systempruefung.txt: dieser Rechner gegen die Systemvoraussetzungen,
 - einstellungen.json: die Einstellungen OHNE Passwörter, Bilder (Logo) und Kundendaten (es stehen keine Kunden,
   Angebote oder Preise darin),
-- optional (Haken, Vorgabe aus) das gerade offene Angebot als angebot.json (Kopf + Positionen, ohne 3D-Netze).
+- optional (Haken, Vorgabe aus) das gerade offene Angebot als angebot.json (Kopf + Positionen, ohne 3D-Netze),
+- pruefsammlung/: im STEP-Prüfdialog von Hand geänderte Arten (art_korrekturen: Kennwerte und Vorschaubild, keine
+  STEP-Dateien und keine Datei-/Artikelnamen; Vorschlag N5).
 Ohne Qt, damit Tests es nutzen können."""
 import datetime
 import json
@@ -96,6 +98,10 @@ def erstellen(db, ziel_ordner=None, protokoll_ordner=None, lizenz_text=None, sys
                                                                indent=1, default=str))):
             z.writestr(name, inhalt)
             dateien.append(name)
+        from . import art_korrekturen       # N5: von Hand geänderte Arten (Kennwerte und Bilder, keine STEP-Dateien)
+        for p in art_korrekturen.dateien(art_korrekturen.ordner(db.pfad)):
+            z.write(p, f"pruefsammlung/{p.name}")
+            dateien.append(f"pruefsammlung/{p.name}")
         if angebot_id is not None:
             z.writestr("angebot.json", json.dumps(angebot_daten(db, angebot_id), ensure_ascii=False, indent=1,
                                                   default=str))
@@ -105,7 +111,10 @@ def erstellen(db, ziel_ordner=None, protokoll_ordner=None, lizenz_text=None, sys
 
 def text(e):
     from .stammdaten import zahl_als_text
+    namen = [d for d in e["dateien"] if not d.startswith("pruefsammlung/")]
+    if len(namen) < len(e["dateien"]):
+        namen.append("Prüfsammlung (von Hand geänderte Arten, ohne STEP-Dateien)")
     return (f"Support-Paket erstellt: {Path(e['pfad']).name} ({zahl_als_text(e['groesse'] / 1024, 0)} KB) mit "
-            f"{', '.join(e['dateien'])}.\n\nBitte die Datei per Mail an den Support schicken. Es sind keine Kunden, "
+            f"{', '.join(namen)}.\n\nBitte die Datei per Mail an den Support schicken. Es sind keine Kunden, "
             "Preise oder Passwörter enthalten" + (" (außer dem beigelegten Angebot)." if "angebot.json" in e["dateien"]
                                                    else "."))

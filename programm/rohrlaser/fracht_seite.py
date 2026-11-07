@@ -1122,19 +1122,30 @@ class HistorieSeite(QWidget):
             plz, ok = QInputDialog.getText(self, "Richtwerte laden", "Absender-PLZ (Versandort):")
             if not ok:
                 return None
-        if not self.f.stumm and QMessageBox.question(
-                self, "Richtwerte laden", "Alle Frachtdaten mit BEISPIEL in der Bemerkung werden durch Richtwerte für "
-                "den Palettenversand ersetzt (Zonen nach Entfernung von PLZ " + plz.strip() + "). Eigene Einträge "
-                "bleiben. Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie.\n\nFortfahren?"
-                ) != QMessageBox.Yes:
+        # Rückgängig statt Rückfrage (R3, Patrick 07.11.2026): vorher den Stand der Frachttabellen merken
+        from .fracht_richtwerte import richtwerte as _rw
+        try:
+            tabellen = list(_rw(plz.strip()))
+        except ValueError as e:
+            self.f.meldung(str(e), fehler=True)
             return None
+        stand = {t: self.db.zeilen(t, mit_uid=True) for t in tabellen}
+        einst = {n: self.db.einstellung(n) for n in ("absender_plz", "fracht_versandart")}
         try:
             weg, neu = self.db.fracht_richtwerte_laden(plz)
         except ValueError as e:
             self.f.meldung(str(e), fehler=True)
             return None
         self.f.fracht.neu_laden_alle()
-        self.f.meldung(f"Richtwerte Palettenversand geladen: {neu} Zeilen eingefügt, {weg} Beispielzeilen ersetzt.")
+
+        def zurueck():
+            self.db.tabellen_zurueck(stand)
+            for n, w in einst.items():
+                self.db.einstellung_setzen(n, w)
+            self.f.fracht.neu_laden_alle()
+            self.f.meldung("Frachtdaten wie vor dem Laden der Richtwerte (BEISPIEL-Zeilen zurück).")
+        self.f.meldung(f"Richtwerte Palettenversand geladen: {neu} Zeilen eingefügt, {weg} Beispielzeilen ersetzt "
+                       "(eigene Einträge bleiben, Angebote behalten ihre Tarifkopie).", aktion=("Rückgängig", zurueck))
         return weg, neu
 
     def beispiele(self):

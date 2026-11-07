@@ -404,6 +404,10 @@ assert kop and all("Zeile" in t_ for t_, _ in kop)
 n_vor = dlg10.tabelle.rowCount()
 n_k = dlg10.konturen_kopieren(kop[0][1])
 assert n_k > 0 and dlg10.tabelle.rowCount() == n_vor + n_k and dlg10.winkel["a"].value() == 30   # Enden bleiben
+dlg10._vorlage_loeschen_fragen("Halter 2 Senkungen")       # R7: ohne Rückfrage, mit Rückgängig
+assert dlg10.vorlagen() == {} and dlg10.letzte_aktion[0] == "Rückgängig"
+dlg10.letzte_aktion[1]()
+assert list(dlg10.vorlagen()) == ["Halter 2 Senkungen"]
 assert dlg10.vorlage_loeschen("Halter 2 Senkungen") and dlg10.vorlagen() == {}
 # Senkung und Ausklinkung zeichnen
 dlg10.zeile_neu(dict(art="Ausklinkung", anzahl=1, l=30, b=20, r=5))

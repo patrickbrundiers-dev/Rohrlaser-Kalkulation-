@@ -24,14 +24,14 @@ import copy
 from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QHBoxLayout,
                                QHeaderView, QLabel, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
-                               QVBoxLayout, QWidget)
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import schneidweg as sw, steckverbindung, tastatur
 from .editor_ursprung import UrsprungEditor
 from .angebot import ist_muster
 from .muster_haken import MusterHaken
 from .angebot import ist_baugruppe
-from .baugruppe_dialog import (FEHLER_FARBE, AuswahlEditor, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
+from .baugruppe_dialog import (FEHLER_FARBE, GRAU, AuswahlEditor, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
                                _text, teile_markieren)
 from .baugruppe_step import StepBaugruppe
 
@@ -111,7 +111,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                       "markieren (Doppelklick im 3D wählt die ganze Kette) und „Knickrahmen erstellen …“. Rechtsklick "
                       "im 3D: Menü.")
         kopf.setWordWrap(True)
-        lay.addWidget(kopf)
+        kopf.setStyleSheet(f"color: {GRAU};")
+        self.kopf_hinweis = kopf      # steht im Rahmen rechts unter dem Ergebnis (N1)
         # Musterteil (Patrick 28.10.2026): in allen Editoren gleich; hier für alle Teile des Satzes
         self.muster_haken = MusterHaken(dict(muster="ja") if self.teile and all(
             ist_muster(t["_q"]) for t in self.teile) else None)
@@ -158,6 +159,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         teilung.addWidget(self.ansicht3d)
         teilung.setSizes([560, 840])
         lay.addWidget(teilung, 1)
+        self.teilung = teilung
         self.fehler = QLabel()
         self.fehler.setStyleSheet(f"color: {FEHLER_FARBE};")
         self.fehler.setWordWrap(True)
@@ -173,6 +175,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
             ("Satz auflösen", "auf", "Speichern und den Satz in Einzelteile auflösen (Stückzahlen bleiben)")),
             aktiv=not nur_lesen)
         lay.addWidget(knoepfe)
+        self._rahmen_bauen()
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
         self.vorschlaege_info_neu()
@@ -213,10 +216,68 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.teile_tab.itemSelectionChanged.connect(self.zeigen)
         lay.addWidget(self.teile_tab, 1)
         zeile = self.knick_knoepfe()
-        zeile.insertWidget(zeile.count() - 1, self.step_knopf())
-        zeile.insertWidget(zeile.count() - 1, self.ursprung_knopf())
+        self._step_k, self._ursprung_k = self.step_knopf(), self.ursprung_knopf()
+        zeile.insertWidget(zeile.count() - 1, self._step_k)
+        zeile.insertWidget(zeile.count() - 1, self._ursprung_k)
+        self._teile_zeile = zeile
         lay.addLayout(zeile)
         return w
+
+    # -------------------------------------------------------------- Rahmen wie alle Editoren (N1, 07.11.2026)
+    def _rahmen_bauen(self):
+        """Menüband oben, Teile des Satzes links, 3D und Reiter in der Mitte, Ergebnis rechts, Kacheln und
+        Prüfmeldungen unten (gruppen_rahmen), wie in der Schweißbaugruppe und im Rohr-/Blech-Editor."""
+        from .gruppen_rahmen import GruppenRahmen
+        links = QWidget()
+        ll = QVBoxLayout(links)
+        ll.setContentsMargins(0, 0, 0, 0)
+        self.struktur = QTreeWidget()
+        self.struktur.setHeaderLabels(["Struktur", "Länge [mm]"])
+        self.struktur.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.struktur.setToolTip("Teile des Satzes: Klick markiert das Teil im 3D und im Reiter Teile, Strg+Klick "
+                                 "nimmt Teile dazu")
+        self.struktur.itemSelectionChanged.connect(self._struktur_gewaehlt)
+        self.struktur.header().setStretchLastSection(False)
+        self.struktur.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.struktur.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        ll.addWidget(self.struktur, 1)
+        self.rahmen = GruppenRahmen(self, self.teilung, links, self.reiter, [self.fehler, self.kopf_hinweis],
+                                    ansicht3d=self.ansicht3d, kacheln=self._rahmen_kacheln,
+                                    meldungen=lambda: [self.fehler.text() and "FEHLER: " + self.fehler.text()])
+        self._teile_zeile.removeWidget(self._ursprung_k)
+        self._teile_zeile.removeWidget(self._step_k)
+        self.rahmen.einsetzen("Konstruktion", "Bearbeiten", self._ursprung_k)
+        self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._step_k)
+
+    def _rahmen_kacheln(self):
+        n_steck = len(self.bg.get("steckverbindungen") or ())
+        return [("Teile", str(len(self.teile)), "Positionen im Satz"),
+                ("Steckverbindungen", str(n_steck), "Steckverbindungen zwischen den Rohren des Satzes"),
+                ("Knickrahmen neu", str(len(self.knicke)), "Mit OK wird jeder Knickrahmen eine Position"),
+                ("Längsnähte per Klick", str(len(getattr(self, "laengsnaehte", None) or {})),
+                 "Im 3D gewählte Lage der Längsnaht")]
+
+    def _struktur_fuellen(self):
+        if not hasattr(self, "struktur"):
+            return
+        mark = {self.teile[r]["_id"] for r in self.teile_tab.markierte() if r < len(self.teile)}
+        self.struktur.blockSignals(True)
+        self.struktur.clear()
+        wurzel = QTreeWidgetItem(self.struktur, [f"Satz {self.satz}", ""])
+        wurzel.setFlags(Qt.ItemIsEnabled)
+        for t in self.teile:
+            q = t["_q"]
+            it = QTreeWidgetItem(wurzel, [" ".join(x for x in (f"Pos. {_text(q.get('pos'))}", q.get("artikel") or "")
+                                                   if x), _text(q.get("laenge"), 1)])
+            it.setData(0, Qt.UserRole, t["_id"])
+            it.setTextAlignment(1, int(Qt.AlignRight | Qt.AlignVCenter))
+            it.setSelected(t["_id"] in mark)
+        self.struktur.expandAll()
+        self.struktur.blockSignals(False)
+
+    def _struktur_gewaehlt(self):
+        ids = [it.data(0, Qt.UserRole) for it in self.struktur.selectedItems() if it.data(0, Qt.UserRole)]
+        self.auswahl_setzen(ids)
 
     def _teile_fuellen(self):
         tab = self.teile_tab
@@ -301,6 +362,9 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten (nicht aus dem STEP-Import) fehlen."
         self.ansicht3d.setzen(netz, f"Satz {self.satz}", info)
+        self._struktur_fuellen()
+        if getattr(self, "rahmen", None) is not None:
+            self.rahmen.spaeter()
         return len(netze)
 
     def geklickt(self, treffer):

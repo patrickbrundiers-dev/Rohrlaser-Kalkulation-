@@ -187,7 +187,7 @@ class StepPruefDialog(QDialog):
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
                  zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
-                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None):
+                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None, aufteilen=None, nachmessung=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -204,9 +204,14 @@ class StepPruefDialog(QDialog):
         Artikelnummern, die schon im Angebot stehen (Spalte Artikelnummer gelb mit Hinweis). flach_grenzen =
         (Flachstahl bis Breite, Länge ab × Breite) aus den Einstellungen: nur Bleche in dieser Größe bieten
         „Flachstahl“ als andere Art an (Patrick 03.11.2026; None = Vorgabe 150 mm, 3 × Breite). blech_daten
-        (werkstoffe, laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten."""
+        (werkstoffe, laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten.
+        aufteilen(m) = Messwerte der getrennten Teile eines Körpers aus mehreren Teilen oder None (Vorschlag N3, Knopf
+        „Aufteilen“; None = ohne Knopf). nachmessung (N4, nachmessung.Nachmessung): langsame Teile werden noch
+        gemessen; sie stehen als „Messung läuft noch“ und rücken nach, OK wartet nötigenfalls auf sie."""
         from . import step
         super().__init__(parent)
+        self.aufteilen_messen = aufteilen
+        self.nachmessung = nachmessung
         self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
         self.flach_grenzen = tuple(flach_grenzen or (None, None))
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
@@ -222,6 +227,9 @@ class StepPruefDialog(QDialog):
                 knickverbindung.koerper_vorbereiten(m, self.knick_vorgaben)
         if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
             step.kantteile_vorbelegen(messwerte, k.profile)
+        from . import art_korrekturen       # N5: Art vor dem Prüfen, von Hand geänderte kommen in die Prüfsammlung
+        self._art_start = art_korrekturen.start_merken([m for m in messwerte if not step.noch_in_messung(m)])
+        self.art_korrekturen = []
         self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
         self.blech_daten = blech_daten
         self.werkstoff, self.stueck, self.zukauf_liste = werkstoff, stueck, zukauf_liste
@@ -480,11 +488,32 @@ class StepPruefDialog(QDialog):
         kz.addWidget(self.knick_knopf)
         if not funktionen.an("funktion_knick_steck"):        # Funktion ausgeschaltet (funktionen.py)
             self.knick_knopf.hide()
+        # Vorschlag N3: Körper aus mehreren verschmolzenen Teilen (gelb) an Muttern/Kugeln trennen
+        self.aufteil_zeile = QWidget()
+        az = QHBoxLayout(self.aufteil_zeile)
+        az.setContentsMargins(0, 0, 0, 0)
+        self.aufteil_info = QLabel()
+        self.aufteil_info.setStyleSheet("color: #7A5A00;")
+        self.aufteil_info.setWordWrap(True)
+        self.aufteil_knopf = QPushButton("Aufteilen")
+        self.aufteil_knopf.setToolTip("Körper aus mehreren Teilen an erkennbaren Anbauten trennen (Mutter/Sechskant, "
+                                      "Kugel): jedes Teil wird einzeln gemessen, die Mutter wird Normteil. Lage und "
+                                      "Form bleiben wie in der STEP.")
+        self.aufteil_knopf.clicked.connect(lambda: self.aufteilen())
+        az.addWidget(self.aufteil_info, 1)
+        az.addWidget(self.aufteil_knopf)
+        self.aufteil_zeile.hide()
+        self.nachmess_info = QLabel()       # N4: langsame Teile werden noch gemessen
+        self.nachmess_info.setStyleSheet("color: #7A5A00;")
+        self.nachmess_info.setWordWrap(True)
+        self.nachmess_info.hide()
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(self.kopf)
         ll.addWidget(self.knick_zeile)
+        ll.addWidget(self.aufteil_zeile)
+        ll.addWidget(self.nachmess_info)
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
         ll.addLayout(zeile_3d)
@@ -648,6 +677,9 @@ class StepPruefDialog(QDialog):
             # automatisch angehakt, sonst entscheidest du selbst (nicht angehakt)
             gewaehlt = m.get("_uebernehmen", bool(self.baugruppe.get(datei)) and not m.get("_normteil")) \
                 is not False if ist_zk else step.gewaehlt(m)
+            if m.get("_normteil") and "_uebernehmen" not in m:
+                # Normteil in Schweißbaugruppe oder Satz: als Zukaufteil zum Preis der Normteil-Liste (N6)
+                gewaehlt = bool(self.baugruppe.get(datei) or self.saetze.get(datei))
             anbauteil = self.anbau_von.get(erster) if self.anbau_weglassen else None
             if anbauteil is not None and "_uebernehmen" not in m:
                 gewaehlt = False
@@ -695,7 +727,11 @@ class StepPruefDialog(QDialog):
             if step.unsicher(m):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
             if m.get("_normteil"):
-                hinweis.append(f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken")
+                hinweis.append(f"Normteil ({m['_normteil']}): angehakt Zukaufteil „{step.normteil_name(m)}“ zum Preis "
+                               "der Normteil-Liste (Zukaufartikel, Kategorie Normteile)"
+                               if self.baugruppe.get(datei) or self.saetze.get(datei) else
+                               f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken (Zukaufteil zum Preis der "
+                               "Normteil-Liste)")
             ag = step.art_grund(m)      # Grund der Art (Regelliste bzw. von Hand); beim Dreh-/Frästeil steht er oben
             if ag and not any(ag in h for h in hinweis) and not (ist_df and ag == m.get("art_grund")):
                 hinweis.append(ag)
@@ -970,6 +1006,54 @@ class StepPruefDialog(QDialog):
             self.knick_info.setText(f"Knickrahmen möglich: {len(v[0])} Rohre stoßen mit passenden Gehrungen aneinander "
                                     f"({namen})" + (f", {len(v) - 1} weitere" if len(v) > 1 else ""))
         self.knick_zeile.setVisible(bool(v))
+
+    def _aufteilen_offen(self):
+        from . import step
+        return [i for i, m in enumerate(self.messwerte) if m.get("datei") == self.datei and step.mehrteilig_koerper(m)]
+
+    def _aufteilen_anzeigen(self, text=None):
+        """Zeile „Aufteilen“ über der Liste: Körper der gezeigten Datei, die aus mehreren Teilen bestehen (N3)."""
+        offen = self._aufteilen_offen() if self.aufteilen_messen else []
+        if text is None and offen:
+            namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in offen[:3])
+            text = (f"{len(offen)} Körper aus mehreren verschmolzenen Teilen ({namen}{' …' if len(offen) > 3 else ''}): "
+                    "„Aufteilen“ trennt Muttern und Kugeln ab und misst die Teile einzeln")
+        self.aufteil_info.setText(text or "")
+        self.aufteil_knopf.setVisible(bool(offen))
+        self.aufteil_zeile.setVisible(bool(text))
+
+    def aufteilen(self, indizes=None):
+        """Körper (Indizes in messwerte; None = alle der gezeigten Datei) trennen und durch ihre Teile ersetzen: das
+        erste Teil an die Stelle des Körpers, die übrigen ans Ende. Ergebnis: Anzahl getrennter Körper."""
+        from . import step
+        if not self.aufteilen_messen:
+            return 0
+        indizes = self._aufteilen_offen() if indizes is None else list(indizes)
+        self.werte_schreiben()
+        n, nicht, namen = 0, [], []
+        for i in indizes:
+            m = self.messwerte[i]
+            teile = self.aufteilen_messen(m)
+            if not teile:
+                nicht.append(str(m.get("artikel")))
+                continue
+            self.messwerte[i] = teile[0]
+            self.messwerte.extend(teile[1:])
+            self._art_start_ergaenzen()
+            namen.append(" + ".join(str(t.get("bauteil", "")).rsplit(" – ", 1)[-1] for t in teile))
+            n += 1
+        self.mehrteilig = step.mehrteilig(self.messwerte, self.zukauf_liste is not None)
+        for d in self.mehrteilig:
+            self.saetze.setdefault(d, 0)
+            self.anzahl.setdefault(d, 1)
+        self.setWindowTitle(f"STEP-Import prüfen ({len(self.messwerte)} Teile)")
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        text = (f"{n} Körper aufgeteilt ({'; '.join(namen)})" if n else "") + \
+            (("; " if n else "") + "nicht aufteilbar (kein Sechskant/keine Kugel erkannt): " + ", ".join(nicht)
+             if nicht else "")
+        self._aufteilen_anzeigen(text)
+        return n
 
     def _markierte_koerper(self):
         return [i for z in self._markiert() for i in z.liste]
@@ -1314,6 +1398,7 @@ class StepPruefDialog(QDialog):
         self._kopf_werte(d)
         self._satz_anzeigen()
         self._knick_anzeigen()
+        self._aufteilen_anzeigen()
         if not springen:
             return
         self.baum.clearSelection()
@@ -1947,10 +2032,65 @@ class StepPruefDialog(QDialog):
                     m.pop("_profil", None)
         return self.messwerte
 
+    def _art_start_ergaenzen(self):
+        """Neu hinzugekommene Teile (aufgeteilt, nachgemessen): ihre gemessene Art gilt als Ausgang (N5)."""
+        from . import art_korrekturen, step
+        for schl, v in art_korrekturen.start_merken([m for m in self.messwerte
+                                                     if not step.noch_in_messung(m)]).items():
+            self._art_start.setdefault(schl, v)
+
+    def _nachmessung_offen(self):
+        from . import step
+        return [i for i, m in enumerate(self.messwerte) if step.noch_in_messung(m)]
+
+    def nachmessung_pruefen(self):
+        """Uhr (N4): ist die Messung der langsamen Teile fertig, ihre Messwerte einsetzen. Ergebnis: Anzahl."""
+        offen = self._nachmessung_offen() if self.nachmessung is not None else []
+        if not offen:
+            self.nachmess_info.setVisible(False)
+            if hasattr(self, "_nach_uhr"):
+                self._nach_uhr.stop()
+            return 0
+        if self.nachmessung.laeuft():
+            namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in offen[:3])
+            self.nachmess_info.setText(f"{len(offen)} langsame(s) Teil(e) werden noch gemessen ({namen}"
+                                       f"{' …' if len(offen) > 3 else ''}) – sie erscheinen von selbst in der Liste")
+            self.nachmess_info.setVisible(True)
+            return 0
+        from . import nachmessung
+        self.werte_schreiben()
+        n = nachmessung.einsetzen(self.messwerte, self.nachmessung.messwerte())
+        self._art_start_ergaenzen()
+        if hasattr(self, "_nach_uhr"):
+            self._nach_uhr.stop()
+        if n:
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+        rest = len(self._nachmessung_offen())
+        self.nachmess_info.setText(f"{n} langsame(s) Teil(e) nachgemessen und eingesetzt"
+                                   + (f"; {rest} nicht messbar (Messung abgebrochen)" if rest else ""))
+        self.nachmess_info.setVisible(True)
+        return n
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self.nachmessung is not None and not hasattr(self, "_nach_uhr"):
+            self._nach_uhr = QTimer(self)
+            self._nach_uhr.timeout.connect(self.nachmessung_pruefen)
+            self._nach_uhr.start(1000)
+            self.nachmessung_pruefen()
+
     def accept(self):
+        offen = self._nachmessung_offen() if self.nachmessung is not None else []
+        if offen and self.nachmessung.laeuft():          # N4: auf die langsamen Teile warten
+            self.nachmessung.warten(self, len(offen))
+        if offen:
+            self.nachmessung_pruefen()
         self.werte_schreiben()
         k = self.korrekturen()
         self.lernen_werte = k if k and self.lernen_haken.isChecked() else None
+        from . import art_korrekturen
+        self.art_korrekturen = art_korrekturen.korrekturen(self._art_start, self.messwerte)
         super().accept()
 
     def korrekturen(self):

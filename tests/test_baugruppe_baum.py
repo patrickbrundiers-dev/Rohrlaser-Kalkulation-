@@ -84,8 +84,8 @@ d.vorschlaege_uebernehmen([d.bg["vorschlaege"].index(next(x for x in d.bg["vorsc
                                                          if x["nahtart"] == "Stumpfnaht"))])
 naht = d.bg["naehte"][0]
 assert naht["nahtart"] == "Stumpfnaht" and len(naht["koerper"]) == 2
-d.reiter.setCurrentIndex(d.BAUM)
-assert d.reiter.tabText(d.BAUM) == "Strukturbaum und 3D"
+d.baum_aufbauen()
+assert d.rahmen.ansicht3d is d.ansicht3d
 assert d.ansicht3d is not None and d.ansicht3d.ansicht.netz is not None
 assert d.zeige_3d() == koerper_alle
 wurzel = d.baum.topLevelItem(0)
@@ -177,7 +177,7 @@ ok("Naht im 3D zeichnen: Linienzug, Teile, Länge und Wand ermittelt, Nahtgruppe
 
 # ------------------------------------------------------------------ 3D wie im Rohr-Editor (B1–B3)
 d3 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0}, db=db, netze=netze, profile=k.profile)
-d3.reiter.setCurrentIndex(d3.BAUM)
+d3.baum_aufbauen()
 v3 = d3.ansicht3d
 rohre = d3._rohr_modelle()
 assert rohre and set(rohre) <= {p["id"] for p in teile}, rohre             # B2: Rohre aus den Eingaben
@@ -269,7 +269,7 @@ ok("3D wie im Rohr-Editor: Rohre aus den Eingaben, Nähte als Raupe, Nur Gewähl
 
 # ------------------------------------------------------------------ ohne 3D-Daten
 d2 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0})
-d2.reiter.setCurrentIndex(d2.BAUM)
+d2.baum_aufbauen()
 assert d2.ansicht3d is None and "Keine 3D-Daten" in d2.baum_info.text()
 assert not d2.zeichnen_leiste.isVisibleTo(d2)
 assert d2.baum.topLevelItem(0).childCount() >= len(teile)

@@ -21,6 +21,37 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.272", "<b>Alle Editoren gleich aufgebaut</b> ([[teile_editor]]): die <b>Schweißbaugruppe</b> und <i>Satz "
+     "in 3D</i> haben jetzt denselben Rahmen wie Rohr- und Blech-Editor: oben das Menüband (Konstruktion, Ansicht, "
+     "Ausgabe), links Strukturbaum bzw. Teile, in der Mitte die 3D-Ansicht mit den Reitern darunter, rechts das "
+     "Ergebnis, unten Kacheln und Prüfmeldungen (Klick springt zur Zeile). Der Strukturbaum und das 3D sind immer "
+     "sichtbar, kein eigener Reiter mehr; alle Editoren öffnen maximiert.",
+     "Schweißbaugruppe und Satz in 3D aufgebaut wie Rohr- und Blech-Editor."],
+    ["0.9.272", "<b>Normteile mit Preis</b> ([[importprofile]]): erkannte Kugeln, Schrauben und Muttern in einer "
+     "Schweißbaugruppe oder einem Satz kommen angehakt als <b>Zukaufteil</b> hinein. Der Preis kommt aus den "
+     "Zukaufartikeln der Kategorie <b>Normteile</b> (gleiche Bezeichnung); fehlt der Artikel, wird er ohne EK "
+     "angelegt und die Position steht gelb <i>EK fehlt</i>, bis der Preis eingetragen ist.",
+     "Normteile in Baugruppen und Sätzen als Zukauf mit Preis aus der Normteil-Liste."],
+    ["0.9.272", "<b>Aufteilen</b> ([[drehfraesteile]]): ein Körper aus mehreren verschmolzenen Teilen (gelb, z. B. "
+     "Platte mit angeschweißter Mutter) lässt sich im Prüfdialog mit dem Knopf <b>Aufteilen</b> über der Liste an "
+     "Sechskant bzw. Kugel trennen. Beide Teile werden einzeln gemessen, Lage wie in der STEP; die Mutter wird "
+     "Normteil.",
+     "Verschmolzene Mutter/Kugel im Prüfdialog abtrennen (Aufteilen)."],
+    ["0.9.272", "<b>Langsame Teile im Hintergrund</b> ([[step]]): messen nur noch einzelne Körper, die schon länger "
+     "als 20 s laufen, öffnet der Prüfdialog gleich mit allen übrigen Teilen. Die langsamen stehen als <i>Messung "
+     "läuft noch</i> da und rücken von selbst nach; OK wartet nötigenfalls auf sie.",
+     "Prüfdialog wartet nicht mehr auf einzelne langsame Teile."],
+    ["0.9.272", "<b>Prüfsammlung wächst von selbst</b> ([[support_paket]]): eine im STEP-Prüfdialog von Hand geänderte "
+     "Art merkt sich das Programm (Kennwerte der Messung und Vorschaubild, keine STEP-Datei und keine Namen); das "
+     "Support-Paket nimmt sie mit, daraus werden neue Erkennungsregeln.",
+     "Von Hand geänderte Arten kommen ins Support-Paket (ohne STEP-Dateien)."],
+    ["0.9.272", "<b>Weniger Rückfragen</b> ([[meldungen]]): Stammdaten-Zeilen löschen, Richtwerte "
+     "Schweißen und Fracht laden, Vorlagen (Baugruppe, Kontur, Schneidweg) überschreiben oder löschen und den "
+     "Preisstand eines Zukaufartikels im Angebot aktualisieren geschehen sofort, die Einblendung bietet "
+     "<b>Rückgängig</b>. Große STEP-Dateien werden ohne Frage gemessen (Größe und Dauer in der Fortschrittsanzeige), "
+     "nach einem Abbruch kommen die gemessenen Dateien gleich in den Prüfdialog, die Erstmusterprüfung bietet die "
+     "Meldung nach dem Prüfplan mit <i>Übernehmen</i> an.",
+     "11 Rückfragen durch Rückgängig bzw. Übernehmen ersetzt."],
     ["0.9.271", "<b>STEP-Erkennung nach der Prüfsammlung</b> ([[drehfraesteile]]): 53 typische Teile aus Baggerschaufel, "
      "Dach und Anlage wurden bestätigt, die 21 erkannten Fehler sind behoben. Kugeln und Schrauben/Gewindestangen mit "
      "Sechskant sind <b>Normteile</b> (erst nach Anhaken übernommen), Ringe mit Kalotten und Hülsen mit Boden sind "

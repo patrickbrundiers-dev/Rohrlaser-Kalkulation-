@@ -79,7 +79,7 @@ SCHRITT_SATZ = {"Programmierung": "Programmierung"}
 ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
 ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
 ZUKAUF_STATUS = ("aktiv", "archiviert")
-ZUKAUF_TYPEN = ("Blech", "Rundstahl", "Vierkantstahl", "Drehteil", "Frästeil")   # besondere Artikeltypen (leer = normal)
+ZUKAUF_TYPEN = ("Blech", "Rundstahl", "Vierkantstahl", "Drehteil", "Frästeil", "Normteil")   # besondere Artikeltypen (leer = normal)
 ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot",
                   "€/h": "s"}
 
