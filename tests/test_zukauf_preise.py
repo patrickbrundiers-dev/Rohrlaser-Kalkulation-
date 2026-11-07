@@ -55,7 +55,7 @@ f.show()
 f.reiter.setCurrentWidget(f.zukauf)
 app.processEvents()
 unter = [f.zukauf.unter.tabText(i) for i in range(f.zukauf.unter.count())]
-assert unter == ["Artikel", "Kategorien", "Lieferanten", "Preisänderungen"], unter
+assert unter == ["Artikel", "Kategorien", "Lieferanten", "Preisänderungen", "Normteile ohne Preis"], unter
 
 # ------------------------------------------------------------------ 12 Preisänderung, betroffene Angebote
 art = db.zukauf_artikel(schraube)

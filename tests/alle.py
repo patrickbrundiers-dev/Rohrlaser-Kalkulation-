@@ -72,6 +72,7 @@ TESTS = [
     ("test_a4_pruefsammlung.py", {}),
     ("test_editoren_gleich.py", {}),
     ("test_normteile_preis.py", {}),
+    ("test_normteile_ohne_preis.py", {}),
     ("test_aufteilen.py", {}),
     ("test_aufteilen_bolzen.py", {}),
     ("test_pruefdialog_m1_m3.py", {}),

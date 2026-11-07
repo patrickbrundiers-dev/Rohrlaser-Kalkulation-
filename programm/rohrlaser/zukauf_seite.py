@@ -1440,11 +1440,16 @@ class ZukaufBereich(QWidget):
         self.lieferanten = StammdatenSeite(db, zukauf.LIEFERANTEN, meldung)
         from .zukauf_preise import PreisaenderungenSeite
         self.preise = PreisaenderungenSeite(db, meldung)
+        from .normteil_preise import NormteilPreisSeite
+        self.normteile = NormteilPreisSeite(db, meldung)        # M6
+        self.normteile.nach_laden = lambda: self._normteile_titel() if hasattr(self, "unter") else None
         self.unter = QTabWidget()
         self.unter.addTab(self.artikel, "Artikel")
         self.unter.addTab(self.kategorien, zukauf.KATEGORIEN.titel)
         self.unter.addTab(self.lieferanten, zukauf.LIEFERANTEN.titel)
         self.unter.addTab(self.preise, self.preise.titel)
+        self.unter.addTab(self.normteile, self.normteile.titel)
+        self._normteile_titel()
         self.unter.currentChanged.connect(self._gewechselt)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -1454,6 +1459,17 @@ class ZukaufBereich(QWidget):
         self.neu_laden()
 
     def neu_laden(self):
-        for s in (self.kategorien, self.lieferanten, self.preise):
+        for s in (self.kategorien, self.lieferanten, self.preise, self.normteile):
             s.neu_laden()
         self.artikel.neu_laden()
+        self._normteile_titel()
+
+    def _normteile_titel(self):
+        """Reitertitel mit Anzahl: „Normteile ohne Preis (3)“."""
+        n = len(self.normteile.artikel)
+        self.unter.setTabText(self.unter.indexOf(self.normteile), self.normteile.titel + (f" ({n})" if n else ""))
+
+    def normteile_zeigen(self):
+        self.normteile.neu_laden()
+        self._normteile_titel()
+        self.unter.setCurrentWidget(self.normteile)
