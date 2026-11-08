@@ -6929,6 +6929,32 @@ def kapitel_automatik(i):
             "Beauftragt von selbst.",
             "<i>Materialbestellung: Betreff</i> und <i>Materialbestellung: Text der E-Mail</i> mit den Platzhaltern "
             "der Materialanfrage; <i>{positionen}</i> enthält je Zeile den Preis aus dem Angebot des Lieferanten.")
+    i.abschnitt("Das Programm lernt", marke="lernen")
+    i.text("Das Programm merkt sich, wie Sie entscheiden, und macht es beim nächsten Mal selbst. Gelernt ist etwas nach "
+           "<b>drei gleichen Entscheidungen in verschiedenen Angeboten</b> hintereinander; eine andere Entscheidung "
+           "fängt wieder bei eins an. Was es selbst tut, steht als Einblendung und im Automatik-Protokoll (dort "
+           "<b>Rückgängig</b>). Preise lernt es nie: sie entstehen immer neu aus der Kalkulation.")
+    i.liste("<b>Zusatzarbeit-Vorschläge</b> ([[zusatz_erkennen]]): Lehnen Sie einen gelben Vorschlag (z. B. "
+            "<i>＋ Entgraten ?</i>) beim selben Kunden dreimal ab (✗, <i>Vorschläge ablehnen</i>), lehnt der nächste "
+            "STEP-Import ihn gleich ab. Übernehmen Sie ihn dreimal (✓), übernimmt der Import ihn gleich und rechnet ihn "
+            "mit. Ein Angebot zählt dabei einmal, auch wenn Sie 20 Positionen auf einmal ablehnen.",
+            "<b>Werte von Hand bei Wiederholteilen</b> ([[wiederholteile]]): Hat ein Teil mit gleicher Artikelnummer "
+            "beim selben Kunden früher eine Schneidzeit, Programmierzeit, Einstiche, Gewinde oder Naht von Hand "
+            "bekommen, trägt der Import diese Werte in die leeren Felder der neuen Position ein. Was schon eingetragen "
+            "ist, bleibt.",
+            "<b>Nacharbeit nach dem Import</b>, <b>Teileart</b> und <b>Profil</b> aus dem STEP-Prüfdialog lernt das "
+            "Programm wie bisher ([[erkennung_ampel]]).",
+            "<b>Trefferquote</b>: Unter dem Verkaufspreis steht grau, wie viele entschiedene Angebote des Kunden "
+            "beauftragt wurden, der mittlere Gewinn der beauftragten und abgelehnten und wie oft „Preis zu hoch“ der "
+            "Absagegrund war (ab drei entschiedenen Angeboten). Das ist nur ein Hinweis, der Gewinn ändert sich nie von "
+            "allein.",
+            "<b>Kennwerte</b> ([[nachkalkulation]]): Gibt es aus der Nachkalkulation genug Aufträge für einen Kennwert-"
+            "Vorschlag mit mindestens 5 % Abweichung, meldet die Startseite das unter <i>Automatik</i>.")
+    i.text("<b>Datei → Lernzentrale …</b> zeigt alles Gelernte: Bereich, Kunde, was gelernt ist und wie weit "
+           "(grau = noch beobachtet, z. B. <i>1 von 3</i>). <b>Vergessen</b> nimmt einen markierten Eintrag zurück, "
+           "<b>Nicht mehr lernen</b> sperrt einen Zusatzarbeit-Eintrag, <b>Kennwerte prüfen …</b> öffnet die "
+           "Vorschläge der Nachkalkulation zum Freigeben. Mit einem gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) geht das Gelernte "
+           "an alle Kollegen, auch das Vergessen.")
 
 
 def kapitel_nachkalkulation(i):

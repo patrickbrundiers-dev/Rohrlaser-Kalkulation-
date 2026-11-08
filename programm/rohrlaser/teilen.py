@@ -62,7 +62,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from . import VERSION, aenderungsverlauf as verlauf, austausch, zukauf
+from . import VERSION, aenderungsverlauf as verlauf, austausch, lernen, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, VERWEISE
@@ -77,7 +77,8 @@ JE_ANGEBOT = ("positionen", "staffeln", "staffel_stufen", "step_protokoll")
 PRAEFIX = austausch.PRAEFIX
 ENDUNG = austausch.ENDUNG
 GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN) + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN,
-                                                                             POSITIONSVORLAGEN)  # Artikel vor Bezug
+                                                                             POSITIONSVORLAGEN,
+                                                                             lernen.GELERNT)  # Artikel vor Bezug
 GETEILT_NAME = {t.name: t for t in GETEILT}
 # Verweise über die Zeilen-ID: in der geteilten Datei steht statt der ID die Kennung (uid) der Zielzeile
 ID_VERWEISE = {"zukauf_bezug": {"artikel_id": "zukauf_artikel"}, "zukauf_historie": {"artikel_id": "zukauf_artikel"}}
@@ -88,7 +89,8 @@ LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefo
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
          "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum", "teilen_meldung",
          "auftrag_schritte"}
-EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL)
+# dazu Gelerntes (Lernzentrale, Patrick 08.11.2026 F1a): beim Lesen je Eintrag gemischt (lernen.mischen)
+EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL) + lernen.EINSTELLUNGEN_GETEILT
 EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsamen Einstellungen (uid = Name)
 # Spalten eines Angebots, die nur die Anzeige merkt (Liste) oder die nur hier gelten
 ANGEBOT_OHNE = ("id", "fremd", "fremd_stand", "vk_netto", "stand", "vk_am", "vk_gewinn", "geaendert")
@@ -1165,7 +1167,11 @@ def zusammenfuehren(db, entfernt, seit=None, konflikte=None):
         if t != EINST or u not in EINSTELLUNGEN_GETEILT or daten is None:
             continue
         if zeit > (b.get((t, u)) or (None, ""))[1]:
-            con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (u, daten["wert"]))
+            wert = daten["wert"]
+            if u in lernen.EINSTELLUNGEN_GETEILT:      # Gelerntes: je Eintrag mischen, eigenes bleibt
+                r = con.execute("SELECT wert FROM einstellungen WHERE name=?", (u,)).fetchone()
+                wert = lernen.mischen(u, r[0] if r else None, wert)
+            con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (u, wert))
             _basis_setzen(con, t, u, _hash({"wert": daten["wert"]}), zeit)
             n += 1
     for t in GETEILT:
@@ -1430,7 +1436,8 @@ def _konflikte_finden(con, entfernt, b, seit):
         hier = b.get((t, u))
         if hier is None or zeit <= seit or hier[1] <= seit or zeit == hier[1]:
             continue
-        if _hash(daten) == hier[0] or (t == EINST and u not in EINSTELLUNGEN_GETEILT):
+        if _hash(daten) == hier[0] or (t == EINST and (u not in EINSTELLUNGEN_GETEILT
+                                                       or u in lernen.EINSTELLUNGEN_GETEILT)):   # gemischt
             continue
         if lokal is None:
             lokal = lokale_zeilen(con)

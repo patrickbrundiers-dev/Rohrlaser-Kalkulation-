@@ -1362,6 +1362,15 @@ class UebersichtBereich(QWidget):
             self.preis_titel[name] = (t, titel)
             preise.addWidget(box, 2 if name == "verkauf" else 1)   # Verkaufspreis ist die Hauptzahl (L5)
         kl.addLayout(preise)
+        # Trefferquote des Kunden (Plan „Programm soll lernen“ L4, 08.11.2026): nur Hinweis, ändert nichts
+        self.treffer = QLabel()
+        self.treffer.setWordWrap(True)
+        self.treffer.setObjectName("trefferquote")
+        self.treffer.setStyleSheet(f"color:{GRAU}")
+        self.treffer.setToolTip("Aus den beauftragten und abgelehnten Angeboten dieses Kunden (auch denen der "
+                                "Kollegen). Nur ein Hinweis: der Gewinn ändert sich nie von allein.")
+        self.treffer.setVisible(False)
+        kl.addWidget(self.treffer)
         # Meldungen: Anzahl als Etikett, einzelne Meldungen aufklappbar
         self.meldungen = QLabel()
         self.meldungen.setWordWrap(True)
@@ -1556,6 +1565,11 @@ class UebersichtBereich(QWidget):
             self.freigabe.setText("<br>".join(zeilen))
         k.style().unpolish(k)
         k.style().polish(k)
+
+    def treffer_setzen(self, text):
+        """Trefferquote des Kunden (lernen.treffer_text); leer = ausblenden."""
+        self.treffer.setText(text or "")
+        self.treffer.setVisible(bool(text))
 
     def wiederholteile_setzen(self, eintraege):
         """eintraege: [(Zeile, Positionstext, Treffer-Liste)] (wiederholteile.suchen), nur Positionen mit Treffern."""

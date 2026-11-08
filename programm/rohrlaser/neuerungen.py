@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.275", "<b>Das Programm lernt</b> ([[lernen]]): Lehnen Sie einen Zusatzarbeit-Vorschlag beim selben Kunden in drei "
+     "Angeboten hintereinander ab (✗) bzw. übernehmen ihn (✓), lehnt der nächste STEP-Import ihn gleich ab bzw. "
+     "übernimmt ihn, mit Einblendung und Rückgängig im Automatik-Protokoll. Bei Wiederholteilen übernimmt der Import "
+     "die Werte, die im früheren Angebot von Hand eingetragen waren (Schneidzeit, Programmierzeit, Einstiche, Gewinde, "
+     "Naht), nie den Preis. Neben dem Verkaufspreis steht die Trefferquote des Kunden als Hinweis. Alles Gelernte "
+     "zeigt <b>Datei → Lernzentrale …</b>; dort lässt es sich einzeln vergessen. Gelerntes geht über den gemeinsamen "
+     "Ordner an die Kollegen; reife Kennwert-Vorschläge aus der Nachkalkulation meldet die Startseite.",
+     "Das Programm lernt aus ✓/✗ bei Zusatzarbeiten und Werten von Hand; Lernzentrale, Trefferquote."],
     ["0.9.274", "<b>Prüfdialog ohne Querscrollen</b> ([[erkennung_ampel]]): die Spalte Hinweis zeigt nur ein "
      "Stichwort, der ganze Text steht im Infofeld unter der 3D-Ansicht; Länge, Schneidweg und Konturen stehen dort "
      "und sind als Spalten ausgeblendet (Rechtsklick auf die Kopfzeile blendet sie ein), die übrigen Spalten passen "
