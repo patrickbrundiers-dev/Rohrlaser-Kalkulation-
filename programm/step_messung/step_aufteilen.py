@@ -2,7 +2,9 @@
 einem Körper“ gelb markiert (z. B. Platte mit angeschweißter Mutter), wird an erkennbaren Anbauten getrennt:
 
 - Sechskant (Mutter, Schraubenkopf) um eine Zylinderachse: das Sechskantprisma zwischen den Enden der Schlüsselflächen,
-- Kugel: die Kugel aus den Kugelflächen.
+- Kugel: die Kugel aus den Kugelflächen,
+- Bolzen, Stehbolzen, Gewindestangen (Vorschlag M5): Zylinder aus den außen liegenden Zylinderflächen gleicher Achse und
+  gleichen Halbmessers zwischen ihren Enden; sitzt er unter einem Sechskant, wird beides eine Schraube.
 
 Anbau = Körper ∩ Form, Grundteil = Körper − Form. Jedes Teil wird eine eigene STEP-Datei in den Koordinaten der
 Baugruppe (Lage bleibt, nichts wird verschoben) und dann ganz normal gemessen; die Mutter erkennt die Messung dann
@@ -11,12 +13,12 @@ als Normteil. Ohne erkennbaren Anbau: keine Teile (der Körper bleibt gelb).
 import math
 from pathlib import Path
 
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
 from OCP.BRepGProp import BRepGProp
-from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism, BRepPrimAPI_MakeSphere
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakePrism, BRepPrimAPI_MakeSphere
 from OCP.GProp import GProp_GProps
-from OCP.gp import gp_Pnt, gp_Vec
+from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.STEPControl import STEPControl_AsIs, STEPControl_Writer
 from OCP.TopAbs import TopAbs_SOLID, TopAbs_VERTEX
@@ -27,6 +29,9 @@ from OCP.BRep import BRep_Tool
 import step_drehfraes as df
 
 MIN_VOLUMEN = 1.0       # mm³: kleinere Reste der Trennung (Rundungsfehler) fallen weg
+BOLZEN_MIN = 1.0        # mm: kürzere bzw. dünnere Zylinder sind keine Bolzen (Fasen, Rundungen)
+BOLZEN_SCHEIBE = 0.5    # Länge unter so viel des Durchmessers: Scheibe (Ronde, Flansch, Rundung), kein Bolzen
+ZUGABE = 0.01           # mm: Bolzenform etwas dicker als der Bolzen, damit keine Haut am Grundteil bleibt
 
 
 def _volumen(s):
@@ -94,10 +99,89 @@ def _sechskant_form(o, d, flaechen):
     return BRepPrimAPI_MakePrism(flaeche, gp_Vec(*(x * (t1 - t0) for x in d))).Shape()
 
 
+def _koaxial(a, b):
+    (o1, d1), (o2, d2) = a, b
+    if abs(abs(df._dot(d1, d2)) - 1) > 1e-6:
+        return False
+    w = df._sub(o2, o1)
+    t = df._dot(w, d1)
+    return sum((w[k] - t * d1[k]) ** 2 for k in range(3)) < 1e-6
+
+
+def _zylinder_gruppen(fl):
+    """Außen liegende Zylinderflächen, zusammengefasst nach Achse und Halbmesser: Liste dict(achse, radius, t0, t1)
+    (t = Lage entlang der Achse ab dem Achspunkt)."""
+    gruppen = []
+    for e in fl:
+        if e["typ"] != "zylinder" or not e.get("konvex") or e["radius"] < BOLZEN_MIN / 2:
+            continue
+        g = next((g for g in gruppen if abs(g["radius"] - e["radius"]) < 1e-3 and _koaxial(g["achse"], e["achse"])),
+                 None)
+        if g is None:
+            g = dict(achse=e["achse"], radius=e["radius"], t=[])
+            gruppen.append(g)
+        o, d = g["achse"]
+        g["t"] += [df._dot(df._sub(p, o), d) for p in _punkte(e["face"])]
+        g.setdefault("faces", []).append(e["face"])
+    for g in gruppen:
+        g["t0"], g["t1"] = (min(g["t"]), max(g["t"])) if g["t"] else (0.0, 0.0)
+    return [g for g in gruppen if g["t1"] - g["t0"] >= max(BOLZEN_MIN, BOLZEN_SCHEIBE * 2 * g["radius"])
+            and _rundum(g["faces"])]
+
+
+def _rundum(faces):
+    """Die Zylinderflächen gehen zusammen einmal ganz herum (Bolzen), nicht nur ein Bogen (Rundung, Fase)."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    zwei_pi = 2 * math.pi
+    bereiche = []
+    for f in faces:
+        s = BRepAdaptor_Surface(f)
+        u0, u1 = s.FirstUParameter(), s.LastUParameter()
+        if u1 - u0 >= zwei_pi * 0.98:
+            return True
+        u0 %= zwei_pi
+        u1 = u0 + (s.LastUParameter() - s.FirstUParameter())
+        bereiche += [(u0, min(u1, zwei_pi))] + ([(0.0, u1 - zwei_pi)] if u1 > zwei_pi else [])
+    bereiche.sort()
+    summe, ende = 0.0, 0.0
+    for a, b in bereiche:
+        if b > ende:
+            summe += b - max(a, ende)
+            ende = b
+    return summe >= zwei_pi * 0.98
+
+
+def bolzen(fl, volumen=None):
+    """Bolzen am Körper (für die Erkennung „mehrere Teile in einem Körper“): Zylindergruppen rundum, ohne anderen
+    Zylinder gleicher Achse und – mit volumen – kleiner als die Hälfte des Körpers."""
+    gruppen = _zylinder_gruppen(fl)
+    out = []
+    for g in gruppen:
+        if any(h is not g and _koaxial(h["achse"], g["achse"]) for h in gruppen):
+            continue
+        v = math.pi * g["radius"] ** 2 * (g["t1"] - g["t0"])
+        if volumen is not None and v > 0.5 * volumen:
+            continue
+        out.append(g)
+    return out
+
+
+def _zylinder_form(g):
+    o, d = g["achse"]
+    p = tuple(o[k] + g["t0"] * d[k] for k in range(3))
+    return BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(*p), gp_Dir(*d)), g["radius"] + ZUGABE, g["t1"] - g["t0"]).Shape()
+
+
+def _mm(x):
+    return f"{x:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
 def anbauten(solid):
     """Erkennbare Anbauten des Körpers: Liste (Name, Form) – Sechskante um Zylinderachsen, Kugeln."""
     fl = df.flaechen(solid)
     out, gesehen = [], []
+    zylinder = _zylinder_gruppen(fl)
+    benutzt = []                        # Zylinder, die schon zu einer Schraube gehören
     for z in (e for e in fl if e["typ"] == "zylinder"):
         o, d = z["achse"]
         kante, rest = df.sechskante(fl, o, d)
@@ -109,8 +193,25 @@ def anbauten(solid):
                 continue
             gesehen.append(schl)
             form = _sechskant_form(o, d, k["flaechen"])
-            if form is not None:
-                out.append((f"Mutter SW {k['schluessel']:g}".replace(".", ","), form))
+            if form is None:
+                continue
+            name = f"Mutter SW {k['schluessel']:g}".replace(".", ",")
+            schaft = [g for g in zylinder if _koaxial(g["achse"], (o, d)) and g["radius"] < k["schluessel"] / 2
+                      and id(g) not in benutzt]
+            for g in schaft:            # Schraube: Kopf und Schaft bleiben ein Teil
+                form = BRepAlgoAPI_Fuse(form, _zylinder_form(g)).Shape()
+                benutzt.append(id(g))
+                name = f"Schraube SW {k['schluessel']:g}".replace(".", ",")
+            out.append((name, form))
+    for g in zylinder:                  # M5: Bolzen, Stehbolzen, Gewindestangen
+        if id(g) in benutzt:
+            continue
+        if any(h is not g and _koaxial(h["achse"], g["achse"]) for h in zylinder):
+            continue                    # Absatz (Welle mit Bund): ein Drehteil, nicht trennen
+        hohl = any(e["typ"] == "zylinder" and not e.get("konvex") and e["radius"] < g["radius"]
+                   and _koaxial(e["achse"], g["achse"]) for e in fl)
+        out.append((f"{'Rohr' if hohl else 'Bolzen'} Ø{_mm(2 * g['radius'])} × {_mm(g['t1'] - g['t0'])}",
+                    _zylinder_form(g)))
     kugeln = [e for e in fl if e["typ"] == "kugel" and e.get("mitte")]
     if kugeln and len(kugeln) < len(fl):
         from OCP.BRepAdaptor import BRepAdaptor_Surface

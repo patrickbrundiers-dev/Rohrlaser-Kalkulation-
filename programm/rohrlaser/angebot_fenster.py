@@ -3583,7 +3583,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
             plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
-            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter) + self._freigabe_punkte(summen))
+            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter) + self._freigabe_punkte(summen)
+            + self._normteil_punkte())
+
+    def _normteil_punkte(self):
+        """M6: Normteile dieses Angebots ohne Einkaufspreis – Hinweis mit Sprung zu Zukaufartikel → Normteile ohne
+        Preis (dort alle auf einmal eintragen)."""
+        from . import zukauf
+        kandidaten = {i: e["artikel_id"] for i, p in enumerate(self.positionen) if p.get("art") == ZUKAUFTEIL
+                      for e in zukauf.eintraege(p)[:1] if e.get("artikel_id") is not None}
+        if not kandidaten:
+            return []
+        try:
+            from .normteil_preise import ids_ohne_preis
+            ohne = ids_ohne_preis(self.db)
+        except Exception:           # Hinweis nie wichtiger als das Angebot
+            return []
+        zeilen = [i for i, aid in kandidaten.items() if aid in ohne]
+        if not zeilen:
+            return []
+        nr = [str(self.positionen[i].get("pos") or i + 1) for i in zeilen]
+        return [angebot_check.Punkt(
+            angebot_check.HINWEIS, f"{len(zeilen)} Normteil{'e' if len(zeilen) != 1 else ''} ohne Einkaufspreis – "
+            "alle auf einmal eintragen: Zukaufartikel → Normteile ohne Preis", "normteile",
+            "Pos. " + ", ".join(nr[:6]) + (" …" if len(nr) > 6 else ""))]
 
     def _teure_punkte(self, summen, spaeter=False):
         """Maschinenvergleich (rechnet je Maschine) und Kalkulationsbasis; spaeter: die zuletzt gerechneten."""
@@ -3665,6 +3688,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return self.reiter.setCurrentWidget(self.kalk_seite)
         if art == "bohrungen":
             return self.bohrungen_alle_pruefen()
+        if art == "normteile" and getattr(self.f, "zukauf", None) is not None:      # M6
+            self.f.reiter.setCurrentWidget(self.f.zukauf)
+            return self.f.zukauf.normteile_zeigen()
         return None
 
     def vor_verschickt(self):
@@ -7876,7 +7902,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                   flach_grenzen=(self.db.einstellung("flachstahl_bis") or 150,
                                                  self.db.einstellung("step_flach_laenge") or 3.0),
                                   blech_daten=blech_daten, aufteilen=self._aufteilen_messen,
-                                  nachmessung=getattr(self, "nachmessung", None))
+                                  nachmessung=getattr(self, "nachmessung", None),
+                                  profil_anlegen=None if self.fremd() or self.db.nur_lesen else self.abmessung_neu)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None

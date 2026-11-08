@@ -180,6 +180,7 @@ KANTPROFILE_STAND = "2026-11-03"   # Kantprofile U/C/L DIN EN 10162 in den Profi
 RICHTWERTE_STAND = "2026-10-29"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen); bis 0.9.196 2026-10-21
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 ECKE_STAND = "2026-10-29"         # Zeit je Ecke nach Wandstärke in leeren Richtwertzeilen (Datenbank._ecke_anpassen, S2)
+ZEITLIMIT_STAND = "2026-11-07"    # Zeitlimit je Körper 120 -> 600 s, wo es noch auf der alten Vorgabe steht (M4)
 PAUSCHALE_STAND = "2026-10-26"     # Pauschale je Abmessung einmalig auf 0, Rüsten je Abmessung deckt sie (Patrick 26.10.2026)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
@@ -275,6 +276,7 @@ class Datenbank:
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
+            self.einstellung_setzen("zeitlimit_stand", ZEITLIMIT_STAND)
             self.einstellung_setzen("ecke_stand", ECKE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
@@ -493,6 +495,10 @@ class Datenbank:
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             if version > 0 and self.einstellung("ecke_stand") != ECKE_STAND:
                 self._ecke_anpassen()
+            if version > 0 and self.einstellung("zeitlimit_stand") != ZEITLIMIT_STAND:
+                if self.einstellung("step_zeitlimit") == 120:       # alte Vorgabe, nicht von Hand geändert
+                    self._einstellung_schreiben("step_zeitlimit", 600)
+                self._einstellung_schreiben("zeitlimit_stand", ZEITLIMIT_STAND)
             if version > 0 and self.einstellung("pauschale_stand") != PAUSCHALE_STAND:
                 self._einstellung_schreiben("pauschale_abmessung", 0)
                 self._einstellung_schreiben("pauschale_stand", PAUSCHALE_STAND)

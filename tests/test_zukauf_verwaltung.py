@@ -53,7 +53,7 @@ f.reiter.setCurrentWidget(f.zukauf)
 warten()
 s = f.zukauf.artikel
 assert [f.zukauf.unter.tabText(i) for i in range(f.zukauf.unter.count())] == ["Artikel", "Kategorien", "Lieferanten",
-                                                                                  "Preisänderungen"]
+                                                                                  "Preisänderungen", "Normteile ohne Preis"]
 assert f.reiter.tabText(f.reiter.indexOf(f.zukauf)) == "Zukaufartikel"
 
 # ------------------------------------------------------------------ 1 Anlegen

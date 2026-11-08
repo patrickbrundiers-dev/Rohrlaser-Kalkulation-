@@ -21,6 +21,30 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.274", "<b>Prüfdialog ohne Querscrollen</b> ([[erkennung_ampel]]): die Spalte Hinweis zeigt nur ein "
+     "Stichwort, der ganze Text steht im Infofeld unter der 3D-Ansicht; Länge, Schneidweg und Konturen stehen dort "
+     "und sind als Spalten ausgeblendet (Rechtsklick auf die Kopfzeile blendet sie ein), die übrigen Spalten passen "
+     "sich der Fensterbreite an.",
+     "Prüfdialog passt ohne Querscrollen ins Fenster, Hinweis als Stichwort."],
+    ["0.9.274", "<b>Profil im Prüfdialog anlegen</b> ([[erkennung_ampel]]): fehlt ein gemessenes Profil in den "
+     "Stammdaten, legt der Knopf <b>Profil anlegen</b> über der Liste es gleich an (Form und Maße aus der Messung); "
+     "die Teile sind danach nicht mehr gelb.",
+     "Fehlendes Profil direkt im Prüfdialog anlegen."],
+    ["0.9.274", "<b>Gelbe Teile der Reihe nach prüfen</b> ([[erkennung_ampel]]): <b>Nächstes prüfen</b> (F8) springt "
+     "zum nächsten gelben Teil, <b>Passt</b> (Leertaste) hakt es an, macht es grün und geht weiter.",
+     "Nächstes prüfen (F8) und Passt (Leertaste) im Prüfdialog."],
+    ["0.9.274", "<b>Zeitlimit 600 s, sonst vereinfacht</b> ([[step]]): die Vorgabe für das Zeitlimit je Körper ist "
+     "600 s (alte Vorgabe 120 s wird einmalig angehoben, eigene Werte bleiben). Braucht ein Körper trotzdem länger, "
+     "wird er vereinfacht gemessen (Hüllmaß, Volumen, als Frästeil/Zukauf, gelb) statt gar nicht.",
+     "Zeitlimit 600 s; zu langsame Körper vereinfacht statt gar nicht gemessen."],
+    ["0.9.274", "<b>Aufteilen auch für Bolzen</b> ([[drehfraesteile]]): angeschweißte Bolzen, Stehbolzen und "
+     "Gewindestangen machen einen Körper gelb <i>mehrere Teile</i> und lassen sich mit <b>Aufteilen</b> abtrennen "
+     "(glatt Rundstahl/Drehteil, mit Gewinde Normteil); Sechskant mit Schaft bleibt eine Schraube.",
+     "Aufteilen trennt auch Bolzen, Gewindestangen und Schrauben ab."],
+    ["0.9.274", "<b>Normteile ohne Preis</b> ([[normteile_ohne_preis]]): neuer Unterreiter der Zukaufartikel mit "
+     "allen Normteilen ohne EK; Preise in der Zeile eintragen und auf einmal speichern. Der Angebots-Check nennt "
+     "Normteile ohne Preis und springt dorthin.",
+     "Normteile ohne Preis gesammelt nachtragen (Zukaufartikel)."],
     ["0.9.273", "<b>Angebotsliste mit Anfrage-Nr. und Gewinn</b> ([[angebote]]): neue Spalten <b>Anfrage-Nr.</b> "
      "(Anfrage des Kunden aus dem Angebotskopf, auch über die Suche) und <b>Gewinn [%]</b> (fester Gewinn des Angebots "
      "bzw. der wirksame gestaffelte Satz). <b>Gestaffelter Gewinn im Angebot</b> ([[gewinn_gestaffelt]]): das Feld "

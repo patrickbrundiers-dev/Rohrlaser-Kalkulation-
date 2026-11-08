@@ -46,7 +46,7 @@ def flach_bis(db, kundennr=None):
 
 def mess_argumente(db):
     args = ["--prozesse", str(int(_zahl(db, "step_prozesse", 0))),
-            "--zeitlimit", f"{_zahl(db, 'step_zeitlimit', 120):g}",
+            "--zeitlimit", f"{_zahl(db, 'step_zeitlimit', 600):g}",
             "--flach-laenge", f"{_zahl(db, 'step_flach_laenge', 3.0):g}",
             "--gekantet-anteil", f"{_zahl(db, 'step_gekantet_anteil', 0.85):g}",
             "--naht-spalt", f"{_zahl(db, 'step_naht_spalt', 3.0):g}"]

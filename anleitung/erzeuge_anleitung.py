@@ -2492,8 +2492,9 @@ def kapitel_step(i):
             "lässt das Einlesen zwei Prüfungen auf sich kreuzende Kanten weg, die bei Tausenden Bohrungen sonst "
             "Stunden dauern; die Messwerte bleiben gleich.",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
-            "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
-            "Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
+            "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 600 s, bis 0.9.272 120 s), wird nur er "
+            "vereinfacht gemessen (seit 0.9.274: Hüllmaß und Volumen, als Frästeil/Zukaufteil angenommen, gelb mit "
+            "Hinweis <i>vereinfacht gemessen … Art prüfen</i>) und die Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
             "verschoben) werden nur einmal gemessen; gleiche Bleche, Kantteile, Dreh- und Frästeile auch dann, wenn "
             "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Eine große Datei wird auf "
             "mehrere Messprozesse verteilt und dafür nur einmal eingelesen. "
@@ -3001,6 +3002,14 @@ def kapitel_step(i):
             "Schweißbaugruppe Zukauf zum Preis der Normteil-Liste, siehe [[importprofile]]); das Grundteil behält die "
             "Artikelnummer, Anbauten bekommen -1, -2 … Ist nichts zu erkennen (Blechkasten, dünne Wände), steht "
             "<i>nicht aufteilbar</i> in der Zeile und der Körper bleibt gelb.",
+            "<b>Bolzen und Gewindestangen (seit 0.9.274):</b> auch ein angeschweißter <b>Bolzen</b>, Stehbolzen oder "
+            "eine Gewindestange (Zylinder ganz herum, ohne Absatz auf derselben Achse) macht den Körper gelb "
+            "<i>Mehrere Teile in einem Körper? Bolzen Ø12 …</i>; bei einem Frästeil nur, wenn der Bolzen mindestens "
+            "doppelt so lang wie dick ist (ein kurzer Zapfen gehört zum Frästeil). <b>Aufteilen</b> trennt ihn ab "
+            "(<i>Bolzen Ø12 × 40</i>): glatt wird er wie jedes Teil gemessen (Rundstahl bzw. Drehteil), mit Gewinde "
+            "ist er ein Normteil (<i>Gewindebolzen</i>). Sitzt der Bolzen unter einem Sechskant, bleiben Kopf und "
+            "Schaft eine <i>Schraube SW …</i>. Rundungen an Ecken (nur ein Bogen) und Wellen mit Absatz werden nie "
+            "getrennt.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
@@ -3335,7 +3344,9 @@ def kapitel_step(i):
             "Bauteilnamen oder <i>Kugel Ø8,73</i> bzw. <i>Mutter/Schraube SW 19</i> aus der Form) und Preis je Stück. "
             "Gibt es den Artikel noch nicht, legt der Import ihn ohne EK an; die Position steht dann gelb "
             "<i>EK fehlt</i>, bis der Preis unter Zukaufartikel eingetragen ist. Ab dem nächsten Import gilt er "
-            "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen.",
+            "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen. Seit 0.9.274 "
+            "stehen alle Normteile ohne Preis gesammelt unter <i>Zukaufartikel → Normteile ohne Preis</i> "
+            "([[normteile_ohne_preis]]), und der Angebots-Check nennt sie mit Sprung dorthin.",
             "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
             "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
     i.tabelle(["Importprofile (STEP)", "Bedeutung"], [
@@ -3383,6 +3394,26 @@ def kapitel_step(i):
                  "oder von Hand nachgetragen), Normteil, Art von Hand geändert, Profil fehlt in den Stammdaten, "
                  "Knickrahmen nicht verbindbar"],
         ["rot", "kein Rohrteil erkannt oder nicht messbar (Gruppe <i>Nicht übernehmbar</i>)"]], [25, 145])
+    i.liste("<b>Nächstes prüfen</b> (Taste <b>F8</b>, seit 0.9.274): springt zum nächsten gelben Teil, auch in der "
+            "nächsten Datei; die 3D-Ansicht zeigt es, die Zusammenfassung zählt die gelben herunter.",
+            "<b>Passt</b> (Leertaste in der Liste): das gezeigte gelbe Teil ist richtig. Es wird angehakt, grün "
+            "(<i>von Hand geprüft</i>) und die Liste springt zum nächsten gelben Teil. Bei <i>Profil fehlt in den "
+            "Stammdaten</i> oder einem nicht verbindbaren Knickrahmen bleibt es gelb, bis das Profil angelegt bzw. "
+            "der Rahmen verbunden ist. Auf einem grünen Teil schaltet die Leertaste wie gewohnt das Häkchen um.")
+    i.text("<b>Spalten ohne Querscrollen (seit 0.9.274):</b> die Spalte <b>Hinweis</b> zeigt nur ein Stichwort "
+           "(z. B. <i>Profil fehlt</i>, <i>Drehteil +1</i> = ein weiterer Hinweis); der ganze Text steht im Tooltip und "
+           "oben im Infofeld unter der 3D-Ansicht (<i>Hinweis: …</i>), sobald das Teil markiert ist. <b>Länge</b>, "
+           "<b>Schneidweg</b> und <b>Konturen</b> stehen ebenfalls im Infofeld und sind als Spalten ausgeblendet, "
+           "<b>Anbauteile</b> nur zu sehen, wenn ein Teil Anbauteile hat. <b>Rechtsklick auf die Kopfzeile</b> blendet "
+           "diese Spalten ein und aus. Die übrigen Spalten passen sich der Fensterbreite an (die Artikelnummer bleibt "
+           "mindestens 200 px breit).")
+    i.text("<b>Profil anlegen (seit 0.9.274):</b> fehlt ein gemessenes Profil in den Stammdaten (Gruppe <i>… – Profil "
+           "fehlt in den Stammdaten</i>), steht über der Liste <i>Profil fehlt in den Stammdaten: FL 40×9,5 – hier "
+           "gleich anlegen</i> mit dem Knopf <b>Profil anlegen</b> (bei mehreren <b>N Profile anlegen</b>, eins nach "
+           "dem anderen); im Rechtsklickmenü des Teils steht <b>Profil „…“ anlegen …</b>. Es öffnet das Fenster "
+           "<i>Neue Abmessung anlegen</i> mit Form und Maßen aus der Messung; danach sind alle Teile mit diesem Profil "
+           "nicht mehr gelb. Den Materialpreis danach unter Einstellungen → Werkstoffe/Materialpreise eintragen. In "
+           "einem fremden oder schreibgeschützten Angebot gibt es den Knopf nicht.")
     i.abschnitt("Regeln des Kunden: aus Korrekturen lernen", marke="profil_regeln")
     i.text("Wählt man im Fenster STEP-Import prüfen für ein Teil ein <b>anderes Profil</b> als das gemessene (Spalte "
            "Profil-ID), merkt sich das Programm das als <b>Regel des Kunden</b>: gemessenes Profil → gewähltes "
@@ -7564,10 +7595,13 @@ def kapitel_einstellungen(i):
          "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1); eine "
          "einzelne große Baugruppe wird auf so viele Prozesse verteilt (mit Zeitlimit). Weniger "
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
-        ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper nicht gemessen)",
-         "Braucht ein einzelner Körper länger (Vorgabe 120 s) oder stürzt seine Messung ab, wird nur dieser "
-         "Körper ausgelassen: er steht im Prüfdialog als nicht übernehmbar mit dem Hinweis <i>nicht gemessen: "
-         "Zeitlimit … überschritten</i>, alle anderen Körper der Datei werden gemessen ([[step]]). Gleiche "
+        ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
+         "Braucht ein einzelner Körper länger (Vorgabe 600 s; wer noch die alte Vorgabe 120 s hatte, bekommt mit "
+         "0.9.274 einmalig 600 s, eigene Werte bleiben), wird er vereinfacht gemessen: nur Hüllmaß und Volumen, als "
+         "Frästeil (Zukaufteil, Rohling = Hüllquader) angenommen, gelb mit dem Hinweis <i>vereinfacht gemessen "
+         "(Zeitlimit … überschritten) … Art prüfen</i>. Hat er mehr als 3.000 Flächen oder stürzt seine Messung ab, "
+         "steht er wie bisher als nicht übernehmbar da (<i>nicht gemessen: …</i>). Seit 0.9.272 wartet der "
+         "Prüfdialog nicht auf langsame Körper (siehe [[step]]). Alle anderen Körper der Datei werden gemessen. Gleiche "
          "Kopien dieses Körpers ebenso. Dauern die Auswertungen über die ganze Baugruppe (Anbauteile, "
          "Nahtkandidaten) zu lange, fehlen nur diese, mit Hinweis am ersten Teil."],
         ["STEP-Import", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen), Messung: Zwischenspeicher "
@@ -9038,8 +9072,8 @@ def kapitel_zukauf(i):
            "Frästeile von Lieferanten, fremdgefertigte Bauteile, Profile und Rohre. Jeder Artikel hat eigene "
            "Einkaufspreise je Lieferant, eine Mengeneinheit und eine eigene Aufschlagsregel. Arbeiten am Teil "
            "(Verzinken, Entgraten) bleiben Zusatzarbeiten ([[stammdaten]]).",
-           "Der Reiter <i>Zukaufartikel</i> ist ohne Passwort zugänglich und hat vier Unterreiter: <b>Artikel</b>, "
-           "<b>Kategorien</b>, <b>Lieferanten</b> und <b>Preisänderungen</b>.")
+           "Der Reiter <i>Zukaufartikel</i> ist ohne Passwort zugänglich und hat fünf Unterreiter: <b>Artikel</b>, "
+           "<b>Kategorien</b>, <b>Lieferanten</b>, <b>Preisänderungen</b> und <b>Normteile ohne Preis</b>.")
     i.text("Eingekaufte Teile (Bleche, Schrauben, Normteile …) mit Einkaufspreis je Lieferant und Aufschlag. Reiter "
            "<i>Zukaufartikel</i>, ohne Passwort.", kurz=True)
     i.abschnitt("Übersicht der Artikel")
@@ -9190,6 +9224,15 @@ def kapitel_zukauf(i):
            "zuerst, mit Suche und Filter nach Artikel.")
     i.text("Gespeicherte Angebote ändern sich nie von selbst. Aktualisiert wird nur ausdrücklich: hier je Angebot "
            "oder im Dialog Zukaufteile einer Position mit <b>Aus Stammdaten aktualisieren …</b>.")
+    i.abschnitt("Normteile ohne Preis", marke="normteile_ohne_preis")
+    i.text("Unterreiter <b>Normteile ohne Preis</b> (seit 0.9.273; im Reitertitel die Anzahl, z. B. <i>Normteile ohne "
+           "Preis (3)</i>): alle Zukaufartikel der Kategorie <i>Normteile</i> ohne Einkaufspreis, meist vom STEP-Import "
+           "angelegt. Je Zeile Bezeichnung, Artikelnummer, Lieferant, ein Feld <b>EK je Stück [€]</b> und die "
+           "Herkunft. EK eintragen und <b>Preise speichern</b>: alle Zeilen mit Preis werden gespeichert (wie <i>EK "
+           "eintragen</i> beim Artikel, mit Eintrag im Protokoll der Preisänderungen) und verschwinden aus der Liste; "
+           "Zeilen mit 0 € bleiben offen. Der <b>Angebots-Check</b> nennt Normteile eines Angebots ohne Preis "
+           "(<i>N Normteile ohne Einkaufspreis – alle auf einmal eintragen …</i>); <i>Hinspringen</i> öffnet diesen "
+           "Unterreiter. Ins Angebot kommt der neue Preis wie sonst über <i>Zukaufpreise aktualisieren</i>.")
     i.abschnitt("CSV-Import und -Export", marke="zukauf_csv")
     i.liste("<b>CSV exportieren</b>: alle Artikel als Datei für Excel.",
             "<b>CSV importieren …</b>: Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann <b>Importieren</b>.",
