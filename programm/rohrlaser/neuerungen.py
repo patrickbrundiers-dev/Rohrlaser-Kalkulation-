@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.275", "<b>Angebots-Check: Erledigen</b> ([[angebots_check]]): Punkte, die das Programm selbst lösen kann "
+     "(Schnittplan optimieren, Staffelpreise rechnen, aktuelle Preise übernehmen), haben den Knopf <b>Erledigen</b>, "
+     "mehrere <b>Alles Automatische erledigen</b>. Ungeprüfte STEP-Teile lassen sich der Reihe nach bestätigen "
+     "(<b>Passt, nächstes</b>).",
+     "Angebots-Check: Erledigen; ungeprüfte STEP-Teile der Reihe nach bestätigen."],
+    ["0.9.275", "<b>Rechtsklick im Prüfdialog</b> ([[erkennung_ampel]]): Passt, Nur dieses Teil aufteilen und Art "
+     "direkt am Teil. <b>Preisliste</b> ([[normteile_ohne_preis]]): Lieferant wählbar, abweichende vorhandene Preise "
+     "alt → neu zum Prüfen.",
+     "Prüfdialog-Rechtsklick mit Passt/Aufteilen/Art; Preisliste mit Lieferant und Preisaktualisierung."],
     ["0.9.275", "<b>Rohr mit angeschweißtem Blech</b> ([[drehfraesteile]]): Kopfplatte oder Lasche mit dem Rohr zu "
      "einem Körper verschmolzen: das Teil ist ein Rohr mit Anbauteil (ein Rundrohr mit Kopfplatte war vorher ein "
      "Drehteil), steht gelb und <b>Aufteilen</b> trennt es in Rohr und Blech als eigene Positionen.",

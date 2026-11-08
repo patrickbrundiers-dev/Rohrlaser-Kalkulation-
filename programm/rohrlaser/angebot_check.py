@@ -16,11 +16,12 @@ POSITIONEN_ZEIGEN = 6           # so viele Positionsnummern nennt ein Punkt, dan
 
 
 class Punkt(tuple):
-    """(Art, Text) mit ziel und details; vergleicht und entpackt wie das Paar."""
+    """(Art, Text) mit ziel und details; vergleicht und entpackt wie das Paar. aktion (K1, Patrick 08.11.2026): das
+    Programm kann den Punkt selbst erledigen (Knopf „Erledigen“): 'optimieren', 'staffeln_rechnen' oder 'preise'."""
 
-    def __new__(cls, art, text, ziel=None, details=""):
+    def __new__(cls, art, text, ziel=None, details="", aktion=None):
         p = super().__new__(cls, (art, text))
-        p.ziel, p.details = ziel, details
+        p.ziel, p.details, p.aktion = ziel, details, aktion
         return p
 
     @property
@@ -75,7 +76,8 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     if _leer(kopf.get("kunde")):
         out.append(Punkt(WARNUNG, "kein Kunde eingetragen", "kopf:kunde"))
     if stand != "aktuell":
-        out.append(Punkt(WARNUNG, "Schnittplan nicht aktuell: wird vor dem Angebot neu optimiert", "optimieren"))
+        out.append(Punkt(WARNUNG, "Schnittplan nicht aktuell: wird vor dem Angebot neu optimiert", "optimieren",
+                         aktion="optimieren"))
     for art in (FEHLER, WARNUNG):
         z = [i for i in aktiv if st[i].startswith(art)]
         if z:
@@ -93,12 +95,12 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     zv = [i for i in aktiv if step_pruefung.vereinfacht(positionen[i])]
     if zv:        # L4 (Patrick 08.11.2026): Zeitlimit, nur Hüllmaß und Volumen
         out.append(Punkt(HINWEIS, f"{_n_teile(len(zv))} vereinfacht gemessen (Zeitlimit): Art und Maße prüfen",
-                         f"pos:{zv[0]}", _pos_liste(zv, positionen)))
+                         "stepgelb:" + ",".join(map(str, zv)), _pos_liste(zv, positionen)))
     zg = [i for i in aktiv if i not in zv and step_pruefung.gelb_ungeprueft(positionen[i])]
     if zg:        # L4: gelb aus dem STEP-Import und nicht mit „Passt“ bestätigt; nur Hinweis, sperrt nichts
         out.append(Punkt(HINWEIS, f"{_n_teile(len(zg))} aus dem STEP-Import ungeprüft (gelb), z. B. "
                                   f"{step_pruefung.gelb_ungeprueft(positionen[zg[0]])[0]}",
-                         f"pos:{zg[0]}", _pos_liste(zg, positionen)))
+                         "stepgelb:" + ",".join(map(str, zg)), _pos_liste(zg, positionen)))
     z = [i for i in aktiv if i not in zv and i not in zg and step_pruefung.offen(positionen[i])]
     if z:
         out.append(Punkt(HINWEIS, f"{_n_pos(len(z))}: STEP-Merkmale zu prüfen (z. B. "
@@ -145,7 +147,8 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         out.append(Punkt(WARNUNG, f"{staffeln_veraltet} Staffelstufe(n) veraltet oder nicht gerechnet: ohne Preis, "
                          "nicht im Angebot", "staffeln",
                          "Angelegte Staffeln rechnet das Programm nach Änderungen selbst neu (nicht im Lesemodus und bei "
-                         "Angeboten anderer). Sonst Reiter Staffeln → „Staffelpreise rechnen“."))
+                         "Angeboten anderer). Sonst Reiter Staffeln → „Staffelpreise rechnen“.",
+                         aktion="staffeln_rechnen"))
     for h in laser_hinweise or ():
         z = [i for i in h["zeilen"] if i in st]
         if z:
@@ -159,7 +162,7 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         n = len(preis_abweichung)
         out.append(Punkt(HINWEIS, f"Stammdaten seit dem Festschreiben geändert ({n} Wert{'e' if n > 1 else ''}): "
                          "„Aktuelle Preise übernehmen …“ rechnet mit den neuen", "preise",
-                         "; ".join(preis_abweichung[:3]) + (" …" if n > 3 else "")))
+                         "; ".join(preis_abweichung[:3]) + (" …" if n > 3 else ""), aktion="preise"))
     v = verschickt_abweichung(kopf.get("preisbasis"), summen.get("verkauf"))
     if v:
         out.append(Punkt(HINWEIS, v, "kalkulation"))
@@ -172,6 +175,11 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     if gueltig_bis and kopf.get("vorgang") == "Verschickt" and gueltig_bis < (heute or datetime.date.today()):
         out.append(Punkt(HINWEIS, f"Gültigkeit abgelaufen ({gueltig_bis.strftime('%d.%m.%Y')})"))
     return sorted(out, key=lambda p: ARTEN.index(p.art))
+
+
+def erledigbar(liste):
+    """K1: Punkte, die das Programm selbst erledigen kann (Knopf „Erledigen“)."""
+    return [p for p in liste if getattr(p, "aktion", None)]
 
 
 def offen(liste):

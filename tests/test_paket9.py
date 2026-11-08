@@ -84,8 +84,8 @@ liste = ac.punkte(kopf, pos, ["OK"] * 3, "aktuell", dict(verkauf=1000.0, gewinn=
                   kalk_zeilen=[{}, {}, {}], kunde=dict(email="a@b.de"), mindestmarge=0.05)
 g = next(x for x in liste if "ungeprüft (gelb)" in x.text)
 v = next(x for x in liste if "vereinfacht gemessen" in x.text)
-assert g.art == ac.HINWEIS and g.text.startswith("1 Teil aus dem STEP-Import") and g.ziel == "pos:1", g
-assert v.art == ac.HINWEIS and v.ziel == "pos:2", v
+assert g.art == ac.HINWEIS and g.text.startswith("1 Teil aus dem STEP-Import") and g.ziel == "stepgelb:1", g
+assert v.art == ac.HINWEIS and v.ziel == "stepgelb:2", v
 assert not any("STEP-Merkmale zu prüfen" in x.text and "Pos. 30" in (x.details or "") for x in liste)
 ok("L4: gelbe ungeprüfte Teile und vereinfacht gemessene als Hinweis mit Sprung zur Position, „Passt“ zählt nicht")
 

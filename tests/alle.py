@@ -78,6 +78,7 @@ TESTS = [
     ("test_pruefdialog_m1_m3.py", {}),
     ("test_paket9.py", {}),
     ("test_paket10.py", {}),
+    ("test_paket11.py", {}),
     ("test_zeitlimit_vereinfacht.py", {}),
     ("test_langsam_hintergrund.py", {}),
     ("test_pruefsammlung_waechst.py", {}),

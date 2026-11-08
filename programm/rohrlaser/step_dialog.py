@@ -1352,6 +1352,36 @@ class StepPruefDialog(QDialog):
                 self.profil_knopf.show()
         return neu
 
+    def _kontext_teil(self, menue, z):
+        """K2 (Patrick 08.11.2026): Aktionen zum Teil im Rechtsklick – „Passt“ (gelb), „Nur dieses Teil aufteilen“
+        (mehrere Teile in einem Körper) und Art (Blech / Rohr/Profil / Dreh-/Frästeil; gilt für die markierten
+        Zeilen, wenn das Teil markiert ist)."""
+        from . import step
+        if getattr(z, "ampel", "") == "gelb":
+            n = len(self.gleiche_gelbe(z))
+            menue.addAction("Passt" + (f" ({n} gleiche)" if n else "") + "\tLeertaste", lambda: self.passt(z))
+        m = self.messwerte[z.liste[0]]
+        if self.aufteilen_messen and step.mehrteilig_koerper(m):
+            menue.addAction("Nur dieses Teil aufteilen", lambda: self.aufteilen([z.liste[0]]))
+        arten = step.arten(m)
+        if not m.get("fehler") and arten:
+            um = menue.addMenu("Art")
+            um.setToolTipsVisible(True)
+            for gr in step.ART_GRUPPEN:
+                a = um.addAction(gr)
+                a.setCheckable(True)
+                a.setChecked(step.art_gruppe(m) == gr)
+                messbar = (arten.get(gr) or {}).get("messung") is not None
+                a.setEnabled(messbar and step.art_gruppe(m) != gr)
+                if not messbar:
+                    a.setToolTip((arten.get(gr) or {}).get("grund") or "so nicht messbar")
+                a.triggered.connect(lambda _=False, g=gr: self.art_kontext(z, g))
+
+    def art_kontext(self, z, art):
+        """K2: Art der Zeile z (bzw. aller markierten, wenn z dazugehört) umstellen. Ergebnis: Zahl der Zeilen."""
+        markiert = self._markiert()
+        return self._art_umstellen(markiert if z in markiert else [z], art)[0]
+
     def _markierte_koerper(self):
         return [i for z in self._markiert() for i in z.liste]
 
@@ -1362,6 +1392,7 @@ class StepPruefDialog(QDialog):
         menue = QMenu(self)
         if z:
             menue.addAction("Artikelnummer ändern …" + "\tF2", lambda: self.artikel_bearbeiten(it))
+            self._kontext_teil(menue, z)
             menue.addSeparator()
         if any(self.messwerte[i].get("_zusatz") for x in self._markiert() or ([z] if z else []) for i in x.liste):
             menue.addAction("Zusatzarbeiten entfernen", lambda: self.zusatz_setzen(
@@ -1906,7 +1937,6 @@ class StepPruefDialog(QDialog):
         art = art if art is not None else self.alle_art.currentData()
         profil = profil if profil is not None else self.alle_profil.currentData()
         ziel = self._markiert() if nur_markierte else self.zeilen
-        indizes = {i for z in ziel for i in z.liste}
         if zusatz:
             self.zusatz_setzen(zusatz, ziel)
         for z in ziel:
@@ -1918,32 +1948,41 @@ class StepPruefDialog(QDialog):
                     z.sp.setValue(stueck)
         umgestellt = 0
         if art:
-            wechsel = [z for z in ziel if step.art_gruppe(self.messwerte[z.liste[0]]) != art
-                       and (step.arten(self.messwerte[z.liste[0]]).get(art) or {}).get("messung") is not None]
-            if wechsel:
-                self.werte_schreiben()
-                self.art_merken = getattr(self, "art_merken", {})
-                for z in wechsel:
-                    for i in z.liste:
-                        if step.art_setzen(self.messwerte[i], art):
-                            schl = step.art_schluessel(self.messwerte[i])
-                            if schl:
-                                self.art_merken[schl] = art
-                    umgestellt += 1
-                aktuell = self._zeile(self.baum.currentItem())
-                erster = aktuell.liste[0] if aktuell is not None else None
-                self._baum_fuellen()
-                self.datei_waehlen(self.datei_nr)
-                neu = next((x for x in self.zeilen if erster in x.liste), None) if erster is not None else None
-                if neu is not None:
-                    self.baum.setCurrentItem(neu.it)
-                ziel = [z for z in self.zeilen if indizes & set(z.liste)]
+            umgestellt, ziel = self._art_umstellen(ziel, art)
         if profil:
             for z in ziel:
                 m = self.messwerte[z.liste[0]]
                 if step.art_gruppe(m) == step.ART_PROFIL and not getattr(z, "blech", False):
                     z.pr.setCurrentText(profil)
         return umgestellt
+
+    def _art_umstellen(self, ziel, art):
+        """Zeilen ziel auf die Art art umstellen, soweit ihr Teil so messbar ist (gemerkt wie die Spalte Art). Ergebnis:
+        (Zahl der umgestellten Zeilen, die Zeilen ziel nach dem Neuaufbau der Liste)."""
+        from . import step
+        indizes = {i for z in ziel for i in z.liste}
+        umgestellt = 0
+        wechsel = [z for z in ziel if step.art_gruppe(self.messwerte[z.liste[0]]) != art
+                   and (step.arten(self.messwerte[z.liste[0]]).get(art) or {}).get("messung") is not None]
+        if wechsel:
+            self.werte_schreiben()
+            self.art_merken = getattr(self, "art_merken", {})
+            for z in wechsel:
+                for i in z.liste:
+                    if step.art_setzen(self.messwerte[i], art):
+                        schl = step.art_schluessel(self.messwerte[i])
+                        if schl:
+                            self.art_merken[schl] = art
+                umgestellt += 1
+            aktuell = self._zeile(self.baum.currentItem())
+            erster = aktuell.liste[0] if aktuell is not None else None
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            neu = next((x for x in self.zeilen if erster in x.liste), None) if erster is not None else None
+            if neu is not None:
+                self.baum.setCurrentItem(neu.it)
+            ziel = [z for z in self.zeilen if indizes & set(z.liste)]
+        return umgestellt, ziel
 
     def zusatz_setzen(self, name, zeilen=None):
         """Zusatzarbeit name an die Teile der Zeilen (Vorgabe: alle) hängen; None = ihre Zusatzarbeiten entfernen."""

@@ -3414,7 +3414,12 @@ def kapitel_step(i):
             "<b>Art und Profil für viele</b> (seit 0.9.275): unten unter <i>Werte setzen</i> stehen auch <b>(Art)</b> "
             "(Blech, Rohr/Profil, Dreh-/Frästeil) und <b>(Profil)</b>. Mit <b>Für markierte</b> bzw. <b>Für alle</b> "
             "wird jede Zeile umgestellt, deren Teil sich in dieser Art messen lässt (gemerkt wie die Spalte Art); das "
-            "Profil gilt nur für Rohre und Profile.")
+            "Profil gilt nur für Rohre und Profile.",
+            "<b>Rechtsklick am Teil</b> (seit 0.9.275): neben Artikelnummer, Zusatzarbeiten und Knickverbindung stehen "
+            "dort <b>Passt</b> (bei gelben Teilen, mit Zahl der gleichen), <b>Nur dieses Teil aufteilen</b> (bei "
+            "<i>Mehrere Teile in einem Körper</i>) und das Untermenü <b>Art</b> (Blech, Rohr/Profil, Dreh-/Frästeil; "
+            "angehakt die aktuelle, grau eine Art, die sich nicht messen lässt). Ist das Teil markiert, gilt die Art "
+            "für alle markierten Zeilen.")
     i.text("<b>Spalten ohne Querscrollen (seit 0.9.274):</b> die Spalte <b>Hinweis</b> zeigt nur ein Stichwort "
            "(z. B. <i>Profil fehlt</i>, <i>Drehteil +1</i> = ein weiterer Hinweis); der ganze Text steht im Tooltip und "
            "oben im Infofeld unter der 3D-Ansicht (<i>Hinweis: …</i>), sobald das Teil markiert ist. <b>Länge</b>, "
@@ -6768,9 +6773,21 @@ def kapitel_ausgabe(i, seiten, ablage):
          "Kunde bzw. Feld im Angebotskopf"],
         ["Teile aus dem STEP-Import, die im Prüfdialog gelb waren und nicht mit <i>Passt</i> bestätigt wurden "
          "(<i>N Teile aus dem STEP-Import ungeprüft (gelb), z. B. …</i>), und Teile, die wegen des Zeitlimits nur "
-         "<i>vereinfacht gemessen</i> sind (seit 0.9.275; sperrt nichts)", "HINWEIS", "erste betroffene Position"],
+         "<i>vereinfacht gemessen</i> sind (seit 0.9.275; sperrt nichts)", "HINWEIS",
+         "die Teile der Reihe nach im Fenster STEP-Merkmale"],
         ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
+    i.liste("<b>Erledigen</b> (seit 0.9.275): Punkte, die das Programm selbst lösen kann, haben neben "
+            "<i>Hinspringen</i> den Knopf <b>Erledigen</b>: <i>Schnittplan nicht aktuell</i> (optimiert), <i>Staffelstufen "
+            "veraltet</i> (rechnet die Staffelpreise) und <i>Stammdaten seit dem Festschreiben geändert</i> (übernimmt "
+            "die aktuellen Preise, mit Rückgängig). Sind es mehrere, erledigt <b>Alles Automatische erledigen (N)</b> "
+            "sie nacheinander. Danach zeigt der Check sich neu. Im fremden Angebot und im Lesemodus gibt es die Knöpfe "
+            "nicht.",
+            "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.275): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
+            "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
+            "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
+            "nächstes</b> bestätigt und geht zum nächsten Teil, <b>Überspringen</b> lässt es offen, <b>Schließen</b> "
+            "hört auf.")
     i.genauer()
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
            "Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)</i>, Vorgabe 0). Gemeint ist (Gewinn + "
@@ -9258,6 +9275,13 @@ def kapitel_zukauf(i):
            "M8x20</i>), sonst über die gleiche Bezeichnung; nur eindeutige Treffer. Die Preise stehen danach gelb "
            "hinterlegt in den Zeilen (Tooltip: woher), oben steht <i>N von M Zeilen zugeordnet</i> und was nicht "
            "zugeordnet wurde. Erst <b>Preise speichern</b> speichert.")
+    i.text("<b>Lieferant und vorhandene Preise</b> (seit 0.9.275): im Feld neben <i>Preise aus CSV …</i> den "
+           "Lieferanten der Preisliste wählen oder eintippen; beim Speichern wird der Preis bei diesem Lieferanten "
+           "eingetragen (leer = wie beim Artikel). Nennt die Preisliste für Normteile, die schon einen Preis haben, "
+           "einen anderen, erscheint <b>Vorhandene Preise aktualisieren (N) …</b>: das Fenster <i>Vorhandene Normteil-Preise "
+           "aktualisieren</i> mit EK alt, EK neu und "
+           "Änderung in %, je Zeile ein Haken; <b>Übernehmen</b> speichert die angehakten (Protokoll der "
+           "Preisänderungen wie sonst).")
     i.abschnitt("CSV-Import und -Export", marke="zukauf_csv")
     i.liste("<b>CSV exportieren</b>: alle Artikel als Datei für Excel.",
             "<b>CSV importieren …</b>: Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann <b>Importieren</b>.",
