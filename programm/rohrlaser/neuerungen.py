@@ -21,6 +21,24 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.275", "<b>Rohr mit angeschweißtem Blech</b> ([[drehfraesteile]]): Kopfplatte oder Lasche mit dem Rohr zu "
+     "einem Körper verschmolzen: das Teil ist ein Rohr mit Anbauteil (ein Rundrohr mit Kopfplatte war vorher ein "
+     "Drehteil), steht gelb und <b>Aufteilen</b> trennt es in Rohr und Blech als eigene Positionen.",
+     "Rohr mit Kopfplatte/Lasche: Rohr statt Drehteil, Aufteilen trennt Rohr und Blech."],
+    ["0.9.275", "<b>Passt für gleiche Teile</b> ([[erkennung_ampel]]): <b>Passt (N gleiche)</b> bestätigt dasselbe gelbe "
+     "Teil in allen Zeilen und Dateien auf einmal. Unter <i>Werte setzen</i> lassen sich auch <b>Art</b> und "
+     "<b>Profil</b> für markierte bzw. alle Zeilen setzen.",
+     "Passt (N gleiche); Art und Profil für markierte Zeilen setzen."],
+    ["0.9.275", "<b>Gemerkte Art mit Datum</b> ([[step]]): kommt ein Teil wieder, dessen Art von Hand geändert wurde, "
+     "steht es grün mit <i>Art wie am TT.MM.JJJJ von Hand gewählt</i>.",
+     "Von Hand gewählte Art beim nächsten Import grün mit Datum."],
+    ["0.9.275", "<b>Angebots-Check: ungeprüfte STEP-Teile</b> ([[angebots_check]]): Hinweis <i>N Teile aus dem "
+     "STEP-Import ungeprüft (gelb)</i> und <i>vereinfacht gemessen</i> mit Sprung zur Position.",
+     "Angebots-Check nennt ungeprüfte gelbe und vereinfacht gemessene Teile."],
+    ["0.9.275", "<b>Normteil-Preise aus CSV</b> ([[normteile_ohne_preis]]): <b>Preise aus CSV …</b> liest die "
+     "Preisliste des Lieferanten, ordnet sie den Normteilen ohne Preis zu (Artikelnummer, Norm + Gewinde + Länge, "
+     "Bezeichnung) und trägt die Preise zum Prüfen ein; gespeichert wird mit <b>Preise speichern</b>.",
+     "Normteil-Preise aus der Lieferanten-CSV übernehmen."],
     ["0.9.274", "<b>Prüfdialog ohne Querscrollen</b> ([[erkennung_ampel]]): die Spalte Hinweis zeigt nur ein "
      "Stichwort, der ganze Text steht im Infofeld unter der 3D-Ansicht; Länge, Schneidweg und Konturen stehen dort "
      "und sind als Spalten ausgeblendet (Rechtsklick auf die Kopfzeile blendet sie ein), die übrigen Spalten passen "

@@ -50,6 +50,10 @@ def _n_pos(n):
     return f"{n} Position{'en' if n > 1 else ''}"
 
 
+def _n_teile(n):
+    return f"{n} Teil{'e' if n > 1 else ''}"
+
+
 def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig_bis=None, heute=None, *,
            kalk_zeilen=None, kunde=None, preis_abweichung=(), mindestmarge=0, admin=False, laser_hinweise=(),
            staffel_widersprueche=(), plausibel=()):
@@ -86,7 +90,16 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     # STEP-Merkmale „prüfen“/„nicht erkannt“ ohne Bestätigung (Wettbewerbsvergleich P0-3): nur Hinweis, die Position
     # meldet Fehler wie unbekanntes Profil selbst
     from . import step_pruefung
-    z = [i for i in aktiv if step_pruefung.offen(positionen[i])]
+    zv = [i for i in aktiv if step_pruefung.vereinfacht(positionen[i])]
+    if zv:        # L4 (Patrick 08.11.2026): Zeitlimit, nur Hüllmaß und Volumen
+        out.append(Punkt(HINWEIS, f"{_n_teile(len(zv))} vereinfacht gemessen (Zeitlimit): Art und Maße prüfen",
+                         f"pos:{zv[0]}", _pos_liste(zv, positionen)))
+    zg = [i for i in aktiv if i not in zv and step_pruefung.gelb_ungeprueft(positionen[i])]
+    if zg:        # L4: gelb aus dem STEP-Import und nicht mit „Passt“ bestätigt; nur Hinweis, sperrt nichts
+        out.append(Punkt(HINWEIS, f"{_n_teile(len(zg))} aus dem STEP-Import ungeprüft (gelb), z. B. "
+                                  f"{step_pruefung.gelb_ungeprueft(positionen[zg[0]])[0]}",
+                         f"pos:{zg[0]}", _pos_liste(zg, positionen)))
+    z = [i for i in aktiv if i not in zv and i not in zg and step_pruefung.offen(positionen[i])]
     if z:
         out.append(Punkt(HINWEIS, f"{_n_pos(len(z))}: STEP-Merkmale zu prüfen (z. B. "
                                   f"{', '.join(dict.fromkeys(x['merkmal'] for x in step_pruefung.offen(positionen[z[0]])))})",

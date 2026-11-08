@@ -471,6 +471,22 @@ class StepPruefDialog(QDialog):
                                     "Stammdaten). Die Spalte Zusatzarbeiten zeigt die Wahl, Rechtsklick entfernt sie.")
         self.alle_zusatz.setVisible(bool(zusatzarbeiten))
         alle.addWidget(self.alle_zusatz)
+        # L6: Art und Profil für mehrere Teile auf einmal
+        self.alle_art = QComboBox()
+        self.alle_art.addItem("(Art)", None)
+        for gr in step.ART_GRUPPEN:
+            self.alle_art.addItem(gr, gr)
+        self.alle_art.setToolTip("Art (Blech, Rohr/Profil, Dreh-/Frästeil) mit „Für markierte“ bzw. „Für alle“ "
+                                 "setzen; Teile, die so nicht messbar sind, bleiben wie sie sind. Die Wahl wird für "
+                                 "den nächsten Import gemerkt.")
+        alle.addWidget(self.alle_art)
+        self.alle_profil = QComboBox()
+        self.alle_profil.addItem("(Profil)", None)
+        for pid in sorted(getattr(k, "profile", {}) or {}):
+            self.alle_profil.addItem(pid, pid)
+        self.alle_profil.setToolTip("Profil-ID für die markierten bzw. alle Rohre und Profile setzen (Bleche und "
+                                    "Dreh-/Frästeile bleiben)")
+        alle.addWidget(self.alle_profil)
         alle.addStretch(1)
         alle = QHBoxLayout()
         leiste_lay.addLayout(alle)
@@ -1122,6 +1138,8 @@ class StepPruefDialog(QDialog):
             z = self._zeile(self.baum.currentItem())
             self.passt_knopf.setVisible(bool(gelb))
             self.passt_knopf.setEnabled(bool(z and getattr(z, "ampel", "") == "gelb"))
+            n = len(self.gleiche_gelbe(z)) if z is not None and getattr(z, "ampel", "") == "gelb" else 0
+            self.passt_knopf.setText(f"Passt ({n} gleiche)" if n else "Passt")     # L2
         if not (gelb or rot) and self.nur_pruefen.isChecked():     # nichts mehr zu prüfen: Filter aus, alle zeigen
             self.nur_pruefen.blockSignals(True)
             self.nur_pruefen.setChecked(False)
@@ -1166,25 +1184,47 @@ class StepPruefDialog(QDialog):
         self._ampel_zeigen()
         return z
 
-    def passt(self, z=None):
-        """Gezeigtes gelbes Teil bestätigen (M3): anhaken, grün („von Hand geprüft“), weiter zum nächsten gelben."""
+    def gleiche_gelbe(self, z):
+        """Andere gelbe Zeilen mit Teilen gleicher Form wie z (gleiche Art und step.art_schluessel: Hüllmaße, Volumen,
+        Flächen und Kanten), in allen Dateien (L2)."""
         from . import step
+        m = self.messwerte[z.liste[0]]
+        schl = step.art_schluessel(m)
+        if not schl:
+            return []
+        return [x for x in self.zeilen if x is not z and getattr(x, "ampel", "") == "gelb"
+                and step.art_schluessel(self.messwerte[x.liste[0]]) == schl
+                and step.art_gruppe(self.messwerte[x.liste[0]]) == step.art_gruppe(m)
+                and self.messwerte[x.liste[0]].get("profilform") == m.get("profilform")]
+
+    def passt(self, z=None):
+        """Gezeigtes gelbes Teil bestätigen (M3): anhaken, grün („von Hand geprüft“), weiter zum nächsten gelben. Teile
+        gleicher Form in anderen Zeilen und Dateien werden mit bestätigt (L2)."""
         z = z or self._zeile(self.baum.currentItem())
         if z is None or getattr(z, "ampel", "") != "gelb":
             return None
+        for x in self.gleiche_gelbe(z):
+            self._passt_zeile(x)
+        if self._passt_zeile(z):
+            self._ampel_zeigen()
+            return z
+        self._ampel_zeigen()
+        return self.naechstes_pruefen() or z
+
+    def _passt_zeile(self, z):
+        """Eine Zeile als geprüft markieren; True, wenn sie gelb bleibt (Profil fehlt, Knickrahmen)."""
+        from . import step
         for i in z.liste:
             self.messwerte[i]["_geprueft"] = True
         fehlt = "Profil fehlt in den Stammdaten" in getattr(z, "ampel_gruende", [])
         z.ampel, z.ampel_gruende = step.ampel(self.messwerte[z.liste[0]], profil_fehlt=fehlt)
         if z.ampel == "gelb":           # Profil fehlt / Knickrahmen: „Passt“ reicht nicht, erst anlegen bzw. verbinden
-            self._ampel_zeigen()
-            return z
+            return True
         z.it.setIcon(self.SP_HINWEIS, ampel_punkt(z.ampel))
         z.it.setToolTip(self.SP_HINWEIS, f"Erkennung: {step.AMPEL_TEXT[z.ampel]} – " + "; ".join(z.ampel_gruende))
         z.haken_hand = True
         z.it.setCheckState(0, Qt.Checked)
-        self._ampel_zeigen()
-        return self.naechstes_pruefen() or z
+        return False
 
     def _leertaste(self):
         """Leertaste in der Liste: gelbes Teil = „Passt“, sonst Häkchen umschalten wie gewohnt."""
@@ -1231,7 +1271,8 @@ class StepPruefDialog(QDialog):
         if text is None and offen:
             namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in offen[:3])
             text = (f"{len(offen)} Körper aus mehreren verschmolzenen Teilen ({namen}{' …' if len(offen) > 3 else ''}): "
-                    "„Aufteilen“ trennt Muttern, Schrauben, Bolzen und Kugeln ab und misst die Teile einzeln")
+                    "„Aufteilen“ trennt Muttern, Schrauben, Bolzen, Kugeln und Bleche an Rohren ab und misst die Teile "
+                    "einzeln")
         self.aufteil_info.setText(text or "")
         self.aufteil_knopf.setVisible(bool(offen))
         self.aufteil_zeile.setVisible(bool(text))
@@ -1851,15 +1892,21 @@ class StepPruefDialog(QDialog):
              if not it.isHidden() and it.parent() is not None and not it.parent().isHidden()]
         return [x for x in z if x]
 
-    def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False, zusatz=None):
-        """Werkstoff, Stückzahl und/oder Zusatzarbeit (None = Auswahl unten) in alle Teile aller Dateien bzw. die
-        markierten Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld Anzahl
-        als Sätze); die Zusatzarbeit kommt zu den schon gewählten dazu (V4)."""
+    def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False, zusatz=None, art=None, profil=None):
+        """Werkstoff, Stückzahl, Zusatzarbeit, Art und/oder Profil (None = Auswahl unten) in alle Teile aller Dateien
+        bzw. die markierten Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld
+        Anzahl als Sätze); die Zusatzarbeit kommt zu den schon gewählten dazu (V4). Art (L6): jede Zeile, deren Teil in
+        dieser Art messbar ist, wird umgestellt (wie die Spalte Art, gemerkt fürs nächste Mal); Profil (L6): nur Zeilen
+        der Art Rohr/Profil. Ergebnis: Zahl der umgestellten Zeilen (Art)."""
+        from . import step
         werkstoff = werkstoff if werkstoff is not None else (
             self.alle_ws.currentText() if self.alle_ws.currentIndex() > 0 else None)
         stueck = stueck if stueck is not None else (self.alle_stk.value() or None)
         zusatz = zusatz if zusatz is not None else self.alle_zusatz.currentData()
+        art = art if art is not None else self.alle_art.currentData()
+        profil = profil if profil is not None else self.alle_profil.currentData()
         ziel = self._markiert() if nur_markierte else self.zeilen
+        indizes = {i for z in ziel for i in z.liste}
         if zusatz:
             self.zusatz_setzen(zusatz, ziel)
         for z in ziel:
@@ -1869,6 +1916,34 @@ class StepPruefDialog(QDialog):
                 z.werte["einzeln"] = stueck
                 if not self.saetze.get(z.datei):
                     z.sp.setValue(stueck)
+        umgestellt = 0
+        if art:
+            wechsel = [z for z in ziel if step.art_gruppe(self.messwerte[z.liste[0]]) != art
+                       and (step.arten(self.messwerte[z.liste[0]]).get(art) or {}).get("messung") is not None]
+            if wechsel:
+                self.werte_schreiben()
+                self.art_merken = getattr(self, "art_merken", {})
+                for z in wechsel:
+                    for i in z.liste:
+                        if step.art_setzen(self.messwerte[i], art):
+                            schl = step.art_schluessel(self.messwerte[i])
+                            if schl:
+                                self.art_merken[schl] = art
+                    umgestellt += 1
+                aktuell = self._zeile(self.baum.currentItem())
+                erster = aktuell.liste[0] if aktuell is not None else None
+                self._baum_fuellen()
+                self.datei_waehlen(self.datei_nr)
+                neu = next((x for x in self.zeilen if erster in x.liste), None) if erster is not None else None
+                if neu is not None:
+                    self.baum.setCurrentItem(neu.it)
+                ziel = [z for z in self.zeilen if indizes & set(z.liste)]
+        if profil:
+            for z in ziel:
+                m = self.messwerte[z.liste[0]]
+                if step.art_gruppe(m) == step.ART_PROFIL and not getattr(z, "blech", False):
+                    z.pr.setCurrentText(profil)
+        return umgestellt
 
     def zusatz_setzen(self, name, zeilen=None):
         """Zusatzarbeit name an die Teile der Zeilen (Vorgabe: alle) hängen; None = ihre Zusatzarbeiten entfernen."""
