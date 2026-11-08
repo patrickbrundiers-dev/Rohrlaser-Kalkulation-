@@ -1928,8 +1928,9 @@ class StartSeite(QWidget):
             wann = (f"seit {-rest} Tagen fällig" if rest < -1 else "seit gestern fällig" if rest == -1
                     else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
             c = self.chancen.get(z["id"])
-            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
-                                 f"({wann})" + (f"  · Chance ca. {100 * c:.0f} %" if c is not None else ""))
+            chance = f"  (Chance ca. {100 * c:.0f} %)" if c is not None else ""    # vorn, damit sie sichtbar bleibt
+            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}{chance}  –  "
+                                 f"{', '.join(w.gruende)} ({wann})")
             it.setData(Qt.ItemDataRole.UserRole, z["id"])
             if rest < 0:
                 it.setForeground(QBrush(stil.farbe("#B42318")))
