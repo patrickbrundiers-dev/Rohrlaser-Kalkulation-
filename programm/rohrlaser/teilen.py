@@ -91,7 +91,7 @@ LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefo
 EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL)
 EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsamen Einstellungen (uid = Name)
 # Spalten eines Angebots, die nur die Anzeige merkt (Liste) oder die nur hier gelten
-ANGEBOT_OHNE = ("id", "fremd", "fremd_stand", "vk_netto", "stand", "vk_am", "geaendert")
+ANGEBOT_OHNE = ("id", "fremd", "fremd_stand", "vk_netto", "stand", "vk_am", "vk_gewinn", "geaendert")
 UEBERNEHMEN, ZUSAMMENFUEHREN = "uebernehmen", "zusammenfuehren"
 UEBERGABE, ANFRAGE, ABGELEHNT, NOTIZ = "uebergabe", "anfrage", "abgelehnt", "notiz"     # Vorgänge zwischen Mitarbeitern
 VORGAENGE, ERLEDIGT, KONFLIKTE = "teilen_vorgaenge", "teilen_erledigt", "teilen_konflikte"   # lokale Merker
@@ -651,13 +651,13 @@ def angebot_einsetzen(con, inhalt, netze, fremd, stand, angebot_id=None, artikel
         angebot_id = _einfuegen(con, "angebote", kopf, spalten["angebote"])
     else:
         leer = {n: None for n in spalten["angebote"]
-                if n not in kopf and n not in ("id", "uid", "vk_netto", "stand", "vk_am")}
+                if n not in kopf and n not in ("id", "uid", "vk_netto", "stand", "vk_am", "vk_gewinn")}
         werte = dict(leer, **kopf)
         con.execute(f'UPDATE angebote SET {", ".join(chr(34) + n + chr(34) + "=?" for n in werte)} WHERE id=?',
                     list(werte.values()) + [angebot_id])
         for t in ("positionen", "staffeln", "staffel_stufen", "step_protokoll"):     # Netze: ON DELETE CASCADE
             con.execute(f"DELETE FROM {t} WHERE angebot_id=?", (angebot_id,))
-        con.execute("UPDATE angebote SET vk_netto=NULL, stand=NULL, vk_am=NULL WHERE id=?", (angebot_id,))
+        con.execute("UPDATE angebote SET vk_netto=NULL, stand=NULL, vk_am=NULL, vk_gewinn=NULL WHERE id=?", (angebot_id,))
     pos_ids = []
     for p in inhalt["positionen"]:
         p = dict(p, angebot_id=angebot_id)

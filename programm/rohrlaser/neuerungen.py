@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.273", "<b>Angebotsliste mit Anfrage-Nr. und Gewinn</b> ([[angebote]]): neue Spalten <b>Anfrage-Nr.</b> "
+     "(Anfrage des Kunden aus dem Angebotskopf, auch über die Suche) und <b>Gewinn [%]</b> (fester Gewinn des Angebots "
+     "bzw. der wirksame gestaffelte Satz). <b>Gestaffelter Gewinn im Angebot</b> ([[gewinn_gestaffelt]]): das Feld "
+     "<i>Gewinn [%]</i> zeigt jetzt „gestaffelt · 30,0 %“ statt des festen Gewinns der Einstellungen, mit den Stufen "
+     "im Tooltip; Knopf <b>Gestaffelt</b> nimmt einen festen Gewinn wieder weg. Bugfix: die Kurzzeile der Kalkulation "
+     "zeigt keine leeren Felder mehr (z. B. „Rabatt  %“).",
+     "Angebotsliste mit Anfrage-Nr. und Gewinn; gestaffelter Gewinn im Angebot richtig angezeigt."],
     ["0.9.272", "<b>Alle Editoren gleich aufgebaut</b> ([[teile_editor]]): die <b>Schweißbaugruppe</b> und <i>Satz "
      "in 3D</i> haben jetzt denselben Rahmen wie Rohr- und Blech-Editor: oben das Menüband (Konstruktion, Ansicht, "
      "Ausgabe), links Strukturbaum bzw. Teile, in der Mitte die 3D-Ansicht mit den Reitern darunter, rechts das "

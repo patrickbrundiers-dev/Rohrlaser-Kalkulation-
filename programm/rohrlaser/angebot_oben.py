@@ -58,6 +58,9 @@ LIEFERZEIT_TOOLTIP = ("Lieferzeit in einem Feld: „3 Wochen“ oder „10 AT“
 FRACHT_RECHTS_AB = 1800
 KOMPAKT_UNTER = 760       # px Höhe der Angebotsseite (Laptop 1366 × 768): Karten flacher, Kalkulation + Fracht nebeneinander
 RUESTEN_EUR = ("ruesten_angebot_eur", "ruesten_abmessung_eur")     # leer = Rüsten in Minuten × Stundensatz
+# Gestaffelter Gewinn im Angebot (Patrick 08.11.2026): das Gewinnfeld steht auf diesem Wert und zeigt statt einer Zahl
+# „gestaffelt · 30,0 %“ (wirksamer Satz nach der Rechnung); eine eingetippte Zahl ist ein fester Gewinn
+GESTAFFELT = -1.0
 
 from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
 
@@ -515,6 +518,8 @@ class KopfBereich(QWidget):
                 fd = KOPF_FELD[name]
                 w = self._eingabe(fd, self.felder)
                 b = QLabel(fd.titel)
+                if name == "gewinn":            # Knopf zurück auf den gestaffelten Gewinn (Patrick 08.11.2026)
+                    w = self._gewinn_zeile(w)
                 self.zeilen[name] = (b, w)
                 form.addWidget(b, r, 0)
                 form.addWidget(w, r, 1)
@@ -728,6 +733,12 @@ class KopfBereich(QWidget):
         for _, namen in GRUPPEN:
             for name in namen:
                 v = self.wert(name)
+                if name == "gewinn" and self.gewinn_gestaffelt():
+                    teile.append("Gewinn gestaffelt" + (f" {_z(v, 1)} %" if v is not None else ""))
+                    continue
+                # leere Felder (Rabatt, Eilzuschlag, Frachtfrei ab …) nicht als „Rabatt  %“ zeigen (Bugfix 08.11.2026)
+                if v is None or v == "":
+                    continue
                 if kopf_sichtbar(name, v) and name not in getattr(self, "_nicht_vorhanden", ()):
                     fd = KOPF_FELD[name]
                     titel, einheit = fd.titel, ""
@@ -868,7 +879,9 @@ class KopfBereich(QWidget):
             w.setDecimals(fd.stellen or 2)
             w.setGroupSeparatorShown(True)
             w.setAlignment(Qt.AlignRight)
-            if fd.name in KALK_NAMEN:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
+            if fd.name == "gewinn":             # gestaffelt (GESTAFFELT) bleibt ohne eigenen Gewinn
+                w.editingFinished.connect(lambda fd=fd, w=w: w.value() >= 0 and s._kopf_speichern(fd, round(w.value(), 4)))
+            elif fd.name in KALK_NAMEN:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
                 w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 4)))
             else:
                 w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 2) or None))
@@ -882,9 +895,77 @@ class KopfBereich(QWidget):
         ablage[fd.name] = w
         return w
 
+    def _gewinn_zeile(self, feld):
+        """Gewinnfeld mit dem Knopf „Gestaffelt“: nimmt den eigenen Gewinn des Angebots weg, dann gilt wieder der
+        gestaffelte Gewinn der Einstellungen (sichtbar nur, wenn er dort eingeschaltet ist)."""
+        zeile = QWidget()
+        h = QHBoxLayout(zeile)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(4)
+        h.addWidget(feld, 1)
+        self.gewinn_knopf = QToolButton()
+        self.gewinn_knopf.setText("Gestaffelt")
+        self.gewinn_knopf.setToolTip("Festen Gewinn dieses Angebots entfernen: es gilt wieder der gestaffelte Gewinn "
+                                     "aus den Einstellungen (Seite Gewinn gestaffelt)")
+        self.gewinn_knopf.clicked.connect(lambda: self.s._kopf_speichern(KOPF_FELD["gewinn"], None))
+        self.gewinn_knopf.hide()
+        h.addWidget(self.gewinn_knopf)
+        return zeile
+
+    def gewinn_gestaffelt(self):
+        """Gilt im Angebot der gestaffelte Gewinn (in den Einstellungen an, kein eigener Gewinn im Angebot)?"""
+        return self.s.kopf.get("gewinn") is None and bool(rechnen.gewinn_stufen(self.s.einst))
+
+    def gewinn_satz_setzen(self, summen):
+        """Wirksamen Satz des gestaffelten Gewinns nach der Rechnung ins Gewinnfeld und in die Kurzfassung."""
+        satz = summen.get("gewinn_satz") if summen and summen.get("gewinn_gestaffelt") else None
+        self._gewinn_satz = 100 * satz if isinstance(satz, (int, float)) else None
+        self._gewinn_stufe = summen.get("gewinn_stufen_basis") if summen else None
+        self._gewinn_anzeigen()
+        self._kurzfassung()
+
+    def _gewinn_anzeigen(self):
+        """Gewinnfeld(er): gestaffelt den Text „gestaffelt · 30,0 %“ mit den Stufen im Tooltip, sonst die Zahl."""
+        gest = self.gewinn_gestaffelt()
+        satz = getattr(self, "_gewinn_satz", None)
+        text = "gestaffelt" + (f" · {_z(satz, 1)} %" if satz is not None else "")
+        stufen = rechnen.gewinn_stufen(self.s.einst) if gest else []
+        tipp = ""
+        if stufen:
+            teile, unten = [], None
+            for bis, s_ in stufen:
+                teile.append(f"{'bis ' + _z(bis, 0) + ' €' if bis is not None else 'über ' + _z(unten, 0) + ' €'}: "
+                             f"{_z(100 * s_, 1)} %")
+                unten = bis
+            basis = getattr(self, "_gewinn_stufe", None)
+            tipp = ("Gewinn gestaffelt nach Auftragswert (Einstellungen → Gewinn gestaffelt):\n" + "\n".join(teile)
+                    + (f"\nGewinnbasis dieses Angebots {_z(basis)} € → {_z(satz, 1)} %"
+                       if isinstance(basis, (int, float)) and satz is not None else "")
+                    + "\nEine Zahl eintippen = fester Gewinn nur für dieses Angebot.")
+        for ablage in (self.felder, self.erweitert):
+            w = ablage.get("gewinn")
+            if w is None:
+                continue
+            w.blockSignals(True)
+            if gest:
+                w.setMinimum(GESTAFFELT)
+                w.setSpecialValueText(text)
+                w.setValue(GESTAFFELT)
+                w.setToolTip(tipp)
+            else:
+                w.setSpecialValueText("")
+                w.setMinimum(KOPF_FELD["gewinn"].von)
+            w.blockSignals(False)
+        if hasattr(self, "gewinn_knopf"):
+            fest = rechnen.einstellungen_fest(self.s.tabellen, self.s.db.einstellungen())
+            self.gewinn_knopf.setVisible(not gest and bool(rechnen.gewinn_stufen(fest)))
+
     def wert(self, name):
-        """Wert eines Kopffelds wie angezeigt (ältere Angebote ohne Kalkulationswert: Wert der Einstellungen)."""
+        """Wert eines Kopffelds wie angezeigt (ältere Angebote ohne Kalkulationswert: Wert der Einstellungen;
+        gestaffelter Gewinn: der wirksame Satz nach der Rechnung, vorher None)."""
         v = self.s.kopf.get(name)
+        if name == "gewinn" and v is None and self.gewinn_gestaffelt():
+            return getattr(self, "_gewinn_satz", None)
         if v is None and name in KALK_NAMEN and name not in KALK_OHNE_VORGABE:
             v = (self.s.einst.get(name) or 0) * (100 if name in KALK_PROZENT else 1)
         return v
@@ -915,6 +996,7 @@ class KopfBereich(QWidget):
                     w.setValue(v or 0)
                 else:
                     w.setText(v or "")
+        self._gewinn_anzeigen()
         self._lieferzeit_anzeigen()
         k = s.kopf.get("bearbeiter")
         name = teilen.mitarbeiter(s.db, k).get("name") if k else None
@@ -1066,7 +1148,7 @@ class KopfBereich(QWidget):
         self._nicht_vorhanden = {n for n, da in vorhanden.items() if not da}     # auch nicht in der Kurzfassung
         gezeigt = set()
         for name, (b, w) in self.zeilen.items():
-            zeigen = kopf_sichtbar(name, self.wert(name))
+            zeigen = kopf_sichtbar(name, self.wert(name)) or name == "gewinn" and self.gewinn_gestaffelt()
             weg = name == "handling_beistellung" and not zeigen and not kunde or not vorhanden.get(name, True)
             zeigen = zeigen and not weg
             b.setVisible(zeigen)
