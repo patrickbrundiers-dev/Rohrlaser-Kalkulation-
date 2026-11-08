@@ -2008,6 +2008,8 @@ class StartSeite(QWidget):
             self.f.angebot_oeffnen(a["angebot_id"])
         elif a.get("art") == "preiswaechter":
             self.f.offene_pruefen()
+        elif a.get("art") == "kennwerte":
+            self.f.lernzentrale()
 
     def notizen_laden(self):
         """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""
@@ -2371,6 +2373,7 @@ class Hauptfenster(QMainWindow):
                                   ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
                                   ("Offene Angebote prüfen …", self.offene_pruefen, None),
                                   ("Automatik-Protokoll …", self.automatik_protokoll, None),
+                                  ("Lernzentrale …", self.lernzentrale, None),
                                   ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
@@ -3239,6 +3242,11 @@ class Hauptfenster(QMainWindow):
         mit Rückgängig."""
         from . import automatik_dialog
         return automatik_dialog.zeigen(self, dialog)
+
+    def lernzentrale(self, dialog=None):
+        """Datei → Lernzentrale … (Patrick 08.11.2026 „Programm soll lernen“): alles Gelernte, einzeln vergessen."""
+        from . import lernen_dialog
+        return lernen_dialog.zeigen(self, dialog)
 
     def preiswaechter(self):
         """Preiswächter (9a): haben sich Preis-Stammdaten geändert, einmal die Sammel-Preisprüfung rechnen; das

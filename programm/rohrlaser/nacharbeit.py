@@ -4,7 +4,8 @@
 dieselbe Zusatzarbeit an Teilen, Stangenlänge im Kopf –, merkt das Programm das je Angebot. Ab dem dritten Angebot
 mit derselben Änderung schlägt eine Einblendung vor, sie ins Importprofil des Kunden (Werkstoff, Zusatzarbeit) bzw. in
 die Kundenvorgaben (Stangenlänge) zu übernehmen; künftig macht der Import das dann selbst. „Nicht mehr fragen“ merkt
-die Ablehnung. Gemerkt wird in der Einstellung 'nacharbeit_gelernt' (nur dieser Arbeitsplatz). Ohne Qt."""
+die Ablehnung. Gemerkt wird in der Einstellung 'nacharbeit_gelernt' (seit 08.11.2026 über den gemeinsamen Ordner geteilt,
+Lernzentrale lernen.py). Ohne Qt."""
 
 SCHWELLE = 3
 EINSTELLUNG = "nacharbeit_gelernt"
@@ -52,6 +53,8 @@ def merken(db, kundennr, angebot_id, art, wert):
     d = _daten(db)
     k = _schluessel(kundennr, art, wert)
     e = d.get(k) or dict(angebote=[], status="")
+    if e.get("status") == "vergessen":         # in der Lernzentrale vergessen: neu anfangen
+        e = dict(angebote=[], status="")
     if angebot_id not in e["angebote"]:
         e["angebote"] = (e["angebote"] + [angebot_id])[-20:]
     d[k] = e

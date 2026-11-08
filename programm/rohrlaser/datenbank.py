@@ -32,7 +32,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import teilen, vollmaterial, zukauf
+from . import lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -48,7 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 77     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 78     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -153,6 +153,8 @@ SCHEMA_VERSION = 77     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Arbeitsplatz), kundenvorgaben.antwort_frist (Anfrage-Ampel); leer = Einstellung
                         # 77: Angebotsliste mit Gewinn (08.11.2026): angebote.vk_gewinn (wirksamer Gewinn in %, beim
                         #     Anzeigen gemerkt wie vk_netto); leer, bis das Angebot geöffnet wird
+                        # 78: Das Programm lernt (08.11.2026): Tabelle gelernt (Entscheidungen zu Zusatzarbeit-
+                        #     Vorschlägen je Kunde, lernen.py; über den gemeinsamen Ordner geteilt); leer = nichts gelernt
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -166,11 +168,11 @@ SICHERUNGEN_BEHALTEN = None   # None = gestaffelt (STAFFEL), sonst so viele lauf
 STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
-                                                                POSITIONSVORLAGEN)
+                                                                POSITIONSVORLAGEN, lernen.GELERNT)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
-                kennwerte.HISTORIE.name: kennwerte.HISTORIE}
+                kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)

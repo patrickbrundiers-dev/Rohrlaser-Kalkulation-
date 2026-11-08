@@ -82,6 +82,13 @@ def nach_import(seite, werkstoff_text=None, heute=None):
                 _protokoll(seite, "angebot_auto", f"Oberfläche {ob} (laut Mail) bei {len(alt)} Position(en)",
                            dict(art="positionen", angebot_id=seite.id, feld="oberflaeche", alt=alt))
         seite.neu_laden()
+    # Gelerntes (Plan „Programm soll lernen“, 08.11.2026): Zusatzarbeit-Vorschläge wie gelernt, Werte von Hand der
+    # Wiederholteile; nie am Import scheitern
+    for fn in (gelernte_zusatzarbeiten, wiederholwerte):
+        try:
+            fn(seite, out)
+        except Exception as e:
+            out["bericht"].append(f"Gelerntes nicht angewendet: {e}")
     if not laser:
         return out
     # Schnittplan für Maschine und Termin
@@ -114,6 +121,70 @@ def nach_import(seite, werkstoff_text=None, heute=None):
         out["bericht"] += ["Offene Punkte für die Rückfrage an den Kunden:"] + [f"- {p}" for p in punkte]
         out["aktion"] = ("Rückfrage öffnen …", lambda: seite.rueckfrage())
     return out
+
+
+def gelernte_zusatzarbeiten(seite, out):
+    """L2: Zusatzarbeit-Vorschläge, die beim Kunden gelernt sind (lernen.wirksam), gleich übernehmen bzw. ablehnen;
+    ein Eintrag im Automatik-Protokoll mit Rückgängig."""
+    from . import arbeitsgaenge, lernen, zusatz_erkennung
+    db = seite.db
+    regeln = lernen.wirksam(db, lernen.ZUSATZ, seite.kopf.get("kundennr"))
+    if not regeln:
+        return
+    ag_regeln = db.zeilen("arbeitsgang_regeln")
+    alt, ja, nein = [], {}, {}
+    for p in seite.positionen:
+        p = dict(p)
+        for v in zusatz_erkennung.offen(p, seite.kopf, seite.k, seite.tabellen):
+            w = regeln.get(v["name"])
+            if w == lernen.JA:
+                neu = arbeitsgaenge.annehmen(p, v["name"], ag_regeln, seite.tabellen, seite.kopf, seite.k)
+                if neu is None:
+                    continue
+                alt.append((p["id"], "zusatz", p.get("zusatz")))
+                p["zusatz"] = neu
+                db.position_aendern(p["id"], "zusatz", neu)
+                ja[v["name"]] = ja.get(v["name"], 0) + 1
+            elif w == lernen.NEIN:
+                alt.append((p["id"], "arbeitsgaenge", p.get("arbeitsgaenge")))
+                p["arbeitsgaenge"] = arbeitsgaenge.ablehnen(p, v["name"])
+                db.position_aendern(p["id"], "arbeitsgaenge", p["arbeitsgaenge"])
+                nein[v["name"]] = nein.get(v["name"], 0) + 1
+    if not alt:
+        return
+    teile = [f"„{k}“ übernommen ({n}×)" for k, n in ja.items()] + [f"„{k}“ abgelehnt ({n}×)" for k, n in nein.items()]
+    text = "wie gelernt: " + ", ".join(teile)
+    out["texte"].append(text[0].upper() + text[1:])
+    _protokoll(seite, "gelernt", "Zusatzarbeit-Vorschläge " + text,
+               dict(art="positionsfelder", angebot_id=seite.id, alt=alt))
+    seite.neu_laden()
+
+
+def wiederholwerte(seite, out):
+    """L3: Wiederholteile (gleiche Artikelnummer beim selben Kunden, wiederholteile.SICHER): Werte, die im alten
+    Angebot von Hand eingetragen waren (Schneidzeit, Programmierzeit, Einstiche, Gewinde, Naht), in leere Felder der
+    neuen Position übernehmen. Preise und Zusatzarbeiten nie (die entstehen neu bzw. lernt L2)."""
+    from . import wiederholteile
+    felder = [f for f, _ in wiederholteile.UEBERNEHMBAR if f != "zusatz"]
+    treffer = seite.wiederholteile_suchen(warten=True) or {}
+    alt, namen, n = [], {}, 0
+    titel = dict(wiederholteile.UEBERNEHMBAR)
+    for p in seite.positionen:
+        t = next((t for t in treffer.get(p["id"]) or () if t.art == wiederholteile.SICHER), None)
+        if t is None:
+            continue
+        neu = [(f, w) for f, w in (t.werte or {}).items() if f in felder and p.get(f) in (None, "")]
+        for f, w in neu:
+            alt.append((p["id"], f, p.get(f)))
+            seite.db.position_aendern(p["id"], f, w)
+            namen[titel[f]] = True
+        n += bool(neu)
+    if not alt:
+        return
+    text = f"Werte von Hand aus früheren Angeboten übernommen bei {n} Wiederholteil(en): " + ", ".join(namen)
+    out["texte"].append(text)
+    _protokoll(seite, "gelernt", text, dict(art="positionsfelder", angebot_id=seite.id, alt=alt))
+    seite.neu_laden()
 
 
 def _maschine(seite, out):

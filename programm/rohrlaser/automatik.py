@@ -12,6 +12,7 @@ Rückgängig-Arten (rueck = dict(art=…)):
   zusatz        Zusatzdaten 'schluessel' des Angebots 'angebot_id' auf 'alt' (None = entfernen)
   nachkalk      Nachkalkulation des Angebots 'angebot_id' auf 'alt' (None = keine)
   vorgang       Vorgang des Angebots auf 'alt' und Auftragsnr./Liefertermin auf 'auftragsnr'/'liefertermin'
+  positionsfelder  Felder 'alt' = [(Positions-ID, Feld, Wert)] zurücksetzen (Gelerntes angewendet, lernen.py)
 Ohne Qt."""
 import datetime
 import json
@@ -33,7 +34,8 @@ ARTEN = {"vormessen": "Anfrage vorbereitet", "nachtrag": "Nachtrag einsortiert",
          "bestellung": "Bestellung zugeordnet", "auftrag": "Auftrag gestartet", "materialbestellung": "Material bestellt",
          "lieferantenantwort": "Lieferantenantwort eingelesen", "preiswaechter": "Preiswächter",
          "nachkalk": "Nachkalkulation vorbelegt", "wiederholanfrage": "Wiederholanfrage übernommen",
-         "angebot_auto": "Angebot automatisch", "zuweisung": "Anfrage zugewiesen", "nacharbeit": "Importprofil gelernt"}
+         "angebot_auto": "Angebot automatisch", "zuweisung": "Anfrage zugewiesen", "nacharbeit": "Importprofil gelernt",
+         "gelernt": "Gelerntes angewendet"}
 
 
 class AutomatikFehler(ValueError):
@@ -142,6 +144,12 @@ def rueckgaengig(db, eintrag_id):
             if pid in vorhanden:
                 db.position_aendern(pid, r["feld"], wert)
         text = f"{r['feld']} wie vorher"
+    elif art == "positionsfelder":  # mehrere Felder an mehreren Positionen (Gelerntes, 08.11.2026)
+        vorhanden = {p["id"] for p in db.positionen(r["angebot_id"])}
+        for pid, feld, wert in r.get("alt") or ():
+            if pid in vorhanden:
+                db.position_aendern(pid, feld, wert)
+        text = "Positionen wie vorher"
     elif art == "vorgang":
         db.vorgang_setzen(r["angebot_id"], r.get("alt") or "Entwurf")
         db.auftrag_setzen(r["angebot_id"], r.get("auftragsnr"), r.get("liefertermin"))
@@ -210,6 +218,13 @@ def aufgaben(db, heute=None):
         out += [dict(art="nachkalk", angebot_id=n["angebot_id"],
                      text=f"Nachkalkulation prüfen: {n['nummer']} – {n['text']}")
                 for n in nachkalk_vorbelegen.zu_pruefen(db)]
+    except Exception:
+        pass
+    try:
+        from . import lernen
+        t = lernen.kennwerte_text(db)
+        if t:
+            out.append(dict(art="kennwerte", angebot_id=None, text=t))
     except Exception:
         pass
     try:
