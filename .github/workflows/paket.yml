@@ -233,7 +233,7 @@ jobs:
         run: |
           $setup = "$env:RUNNER_TEMP\tesseract-setup.exe"
           $quelle = "$env:RUNNER_TEMP\Tesseract-OCR"
-          Invoke-WebRequest "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" -OutFile $setup
+          Invoke-WebRequest "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" -OutFile $setup -MaximumRetryCount 6 -RetryIntervalSec 30   # github.com meldete 503/504 (Lauf 1471)
           # Das Setup (NSIS) mit 7-Zip auspacken: die stille Installation meldete 0, legte aber nichts in /D ab (Lauf 918)
           & 7z x -y "-o$quelle" $setup | Out-Null
           if (-not (Test-Path "$quelle\tesseract.exe")) {
@@ -248,7 +248,7 @@ jobs:
           Copy-Item -Recurse "$quelle\tessdata\configs" "$ziel/tessdata"
           Get-ChildItem $quelle, "$quelle\doc" -Filter "*LICENSE*" -ErrorAction SilentlyContinue | Copy-Item -Destination $ziel
           foreach ($s in @("deu", "eng")) {
-            Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$s.traineddata" -OutFile "$ziel/tessdata/$s.traineddata"
+            Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$s.traineddata" -OutFile "$ziel/tessdata/$s.traineddata" -MaximumRetryCount 6 -RetryIntervalSec 30
           }
           & "$ziel/tesseract.exe" --version
           $sprachen = & "$ziel/tesseract.exe" --list-langs
