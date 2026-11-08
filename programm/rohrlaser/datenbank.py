@@ -48,7 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 76     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 77     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -151,6 +151,8 @@ SCHEMA_VERSION = 76     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Beispiel-Zusatzarbeiten werden einmalig vorbelegt, ERKENNUNG_STAND), leer = keine Erkennung
                         # 76: Automationen (03.11.2026): Tabelle automatik (Protokoll mit Rückgängig, nur dieser
                         #     Arbeitsplatz), kundenvorgaben.antwort_frist (Anfrage-Ampel); leer = Einstellung
+                        # 77: Angebotsliste mit Gewinn (08.11.2026): angebote.vk_gewinn (wirksamer Gewinn in %, beim
+                        #     Anzeigen gemerkt wie vk_netto); leer, bis das Angebot geöffnet wird
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -410,6 +412,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
             if "stangen_vorgabe" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
+            if "vk_gewinn" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN vk_gewinn REAL")      # vor Schema 77: leer
             if "optimiert_erstmals" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 # Löschschutz (Patrick 28.10.2026): erste Optimierung überhaupt bzw. von Hand; bleibt, auch wenn das
                 # Ergebnis später verworfen wird. Bestand: aus 'optimiert_am' (automatisch oder von Hand ist
@@ -2090,16 +2094,16 @@ class Datenbank:
         AngeboteSeite. Mit Suche: immer alle."""
         zeitraum = bool(seit) and not suche
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.vk_gewinn, a.gewinn, a.kundenreferenz, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
                + ("(a.datum >= ? OR a.geaendert >= ?) AS _im_zeitraum, a.palettenschein AS _schein, " if zeitraum else "")
                + "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = [seit, seit] if zeitraum else []
         if suche:
             sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
-                    "OR a.auftragsnr LIKE ? "
+                    "OR a.auftragsnr LIKE ? OR a.kundenreferenz LIKE ? "
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
-            werte = [f"%{suche}%"] * 7
+            werte = [f"%{suche}%"] * 8
         elif zeitraum:
             sql += (" WHERE a.datum >= ? OR a.geaendert >= ? OR (COALESCE(a.ersetzt_durch, '') = '' AND "
                     "COALESCE(NULLIF(a.vorgang, ''), 'Entwurf') IN ('Entwurf', 'Verschickt', 'Beauftragt'))"
@@ -2358,13 +2362,14 @@ class Datenbank:
                               jetzt, jetzt if von_hand else None, angebot_id))
 
     @schreibt
-    def kennzahlen_merken(self, angebot_id, vk_netto, stand):
-        """Verkaufspreis netto und Stand der Optimierung für die Angebotsliste (nur Anzeige; ändert 'geändert am'
-        nicht). Wird beim Anzeigen eines Angebots geschrieben, nur wenn sich etwas geändert hat."""
+    def kennzahlen_merken(self, angebot_id, vk_netto, stand, gewinn=None):
+        """Verkaufspreis netto, Stand der Optimierung und wirksamer Gewinn [%] für die Angebotsliste (nur Anzeige;
+        ändert 'geändert am' nicht). Wird beim Anzeigen eines Angebots geschrieben, nur wenn sich etwas geändert hat."""
         with self.con:
             self.con.execute("UPDATE angebote SET vk_am=CASE WHEN vk_netto IS NOT ? THEN ? ELSE vk_am END, vk_netto=?, "
-                             "stand=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ?)",
-                             (vk_netto, self._jetzt(), vk_netto, stand, angebot_id, vk_netto, stand))
+                             "stand=?, vk_gewinn=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ? OR "
+                             "vk_gewinn IS NOT ?)",
+                             (vk_netto, self._jetzt(), vk_netto, stand, gewinn, angebot_id, vk_netto, stand, gewinn))
 
     @liest
     def versand_verlaeufe(self, ausser_id=None, anzahl=300):
@@ -2761,7 +2766,7 @@ class Datenbank:
             return tuple(tuple(r) for r in self.con.execute(sql, (angebot_id,)))
         return dict(
             angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, stand) ist kein Schritt
-                          if k not in ("id", "geaendert", "vk_netto", "stand")),
+                          if k not in ("id", "geaendert", "vk_netto", "stand", "vk_gewinn")),
             positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
             staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
             stufen=zeilen("SELECT * FROM staffel_stufen WHERE angebot_id=? ORDER BY id"),

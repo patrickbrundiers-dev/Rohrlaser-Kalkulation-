@@ -835,14 +835,17 @@ def kapitel_angebote(i):
         (3, "<b>Kopieren</b>: Kopie mit neuer Nummer, z. B. für eine Nachbestellung oder einen anderen Kunden. "
             "Daneben <b>Öffnen</b>, <b>Löschen</b> und <b>Ordner öffnen</b> (Ordner des markierten Angebots mit "
             "allen PDFs, [[angebotsordner]])."),
-        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Bemerkung, Auftragsnummer, Artikelnummer oder "
-            "Bezeichnung.")])
+        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Anfrage-Nr., Bemerkung, Auftragsnummer, Artikelnummer "
+            "oder Bezeichnung.")])
     i.tabelle(["Spalte", "Farben und Werte"], [
         ["Status", "<i>Nicht optimiert</i> gelb · <i>Optimiert</i> grün · <i>Veraltet</i> rot (neu optimieren) · "
                    "<i>Nachkalkuliert</i> blau"],
         ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün "
                     "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau (fragt den Absagegrund, [[absage]]) · "
-                    "„Verschickt (abgelaufen)“ rot"]],
+                    "„Verschickt (abgelaufen)“ rot"],
+        ["Anfrage-Nr.", "Anfrage des Kunden aus dem Angebotskopf (<i>Ihre Anfrage / Zeichen</i>), seit 0.9.273"],
+        ["Gewinn [%]", "was auf die Selbstkosten aufgeschlagen ist (seit 0.9.273): der feste Gewinn des Angebots oder "
+                       "der wirksame Satz des gestaffelten Gewinns ([[gewinn_gestaffelt]])"]],
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
            "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
@@ -860,7 +863,8 @@ def kapitel_angebote(i):
            "vielen Angeboten (ab etwa 10.000) lädt die Liste mit Zeitraum spürbar schneller.")
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
-           "nicht geöffnet wurden, haben dort noch keinen Wert.",
+           "nicht geöffnet wurden, haben dort noch keinen Wert. Ebenso <b>Gewinn [%]</b>: ein fester Gewinn im Angebot "
+           "steht sofort da, der gestaffelte Satz erst, nachdem das Angebot einmal geöffnet wurde.",
            "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand; vor <i>Verschickt</i> öffnet sich "
            "das Angebot mit dem Angebots-Check, wenn noch etwas offen ist ([[angebots_check]]). <b>Gültig bis</b> ist das "
            "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
@@ -3662,8 +3666,13 @@ def kapitel_optimieren(i):
     i.text("Ein eigener <i>Gewinn [%]</i> im Angebot (auch aus der Kundenvorgabe) oder in einer Staffel-Stufe gilt "
            "statt der Stufen. Sind die Stufen eingeschaltet, bekommen neue Angebote das Feld <i>Gewinn [%]</i> leer "
            "und rechnen gestaffelt; ältere Angebote haben dort den festen Gewinn von damals stehen und behalten ihn, "
-           "bis man das Feld leert. Staffelpreise rechnen den Satz nach dem Wert der ganzen Stufe. Festgeschriebene "
+           "bis man den Knopf <b>Gestaffelt</b> neben dem Feld drückt. Staffelpreise rechnen den Satz nach dem Wert der ganzen Stufe. Festgeschriebene "
            "Angebote ([[preise_festschreiben]]) behalten ihren Gewinn.")
+    i.text("<b>Im Angebot</b> (Kalkulation dieses Angebots, seit 0.9.273): rechnet das Angebot gestaffelt, steht im "
+           "Feld <i>Gewinn [%]</i> z. B. <b>gestaffelt · 30,0 %</b> – der Satz, mit dem gerechnet wird; der Mauszeiger "
+           "darauf zeigt die Stufen und die Gewinnbasis. Eine Zahl eintippen = fester Gewinn nur für dieses Angebot; "
+           "der Knopf <b>Gestaffelt</b> daneben nimmt ihn wieder weg. Die Angebotsliste zeigt den Satz in der Spalte "
+           "<i>Gewinn [%]</i> ([[angebote]]).")
     i.abschnitt("Nebenzeit, Schneidgas, Ausschuss, Schrotterlös und Preiseinheit", marke="kalkulation_genauer")
     i.text("Diese Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
            "Preise wie bisher. Auch die Preiseinheit für Kleinteile ist ab Werk aus.", kurz=True)
