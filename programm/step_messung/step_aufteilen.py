@@ -237,7 +237,14 @@ def rohr_blech(solid):
         r = g._anbau_trennen(solid)
     except Exception:  # nicht trennbar: wie bisher
         r = None
-    if not r or not r.get("anbau"):
+    if not r or not r.get("anbau") or r.get("mehr_anbau"):
+        return []
+    from OCP.Bnd import Bnd_OBB
+    from OCP.BRepBndLib import BRepBndLib
+    b = Bnd_OBB()               # gedrehter Hüllquader: unabhängig von der Lage in der Baugruppe
+    BRepBndLib.AddOBB_s(r["rohr"], b, True, True, False)
+    masse = sorted((b.XHSize(), b.YHSize(), b.ZHSize()))
+    if masse[2] < 2 * masse[1]:         # kein schlankes Rohr (Mutter, Buchse): nicht so trennen
         return []
     teile = [(f"Blech {i}" if len(r["anbau"]) > 1 else "Blech", a) for i, a in enumerate(r["anbau"], start=1)
              if _volumen(a) > MIN_VOLUMEN]
