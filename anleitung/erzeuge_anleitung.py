@@ -6955,6 +6955,25 @@ def kapitel_automatik(i):
            "<b>Nicht mehr lernen</b> sperrt einen Zusatzarbeit-Eintrag, <b>Kennwerte prüfen …</b> öffnet die "
            "Vorschläge der Nachkalkulation zum Freigeben. Mit einem gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) geht das Gelernte "
            "an alle Kollegen, auch das Vergessen.")
+    i.text("<b>Weitere Hinweise aus Ihren Daten</b> (nur Hinweise, nichts ändert sich von selbst):")
+    i.liste("<b>Preis je kg</b>: Gibt es mindestens fünf frühere Teile derselben Abmessung und ähnlicher Länge (höchstens "
+            "1,5-mal länger oder kürzer), meldet der Angebots-Check z. B. <i>62 % teurer als 8 frühere Teile QR 40×40×3 "
+            "S235 ähnlicher Länge</i>, schon ab 1,5-facher Abweichung. Sonst gilt der grobe Vergleich wie bisher "
+            "([[angebots_check]]).",
+            "<b>Auftragschance</b>: Die Wiedervorlage auf der Startseite zeigt je verschicktem Angebot <i>Chance ca. "
+            "60 %</i>, geschätzt aus der Trefferquote des Kunden und der Preisklasse und dem Alter des Angebots; die "
+            "Liste steht nach Chance × Angebotswert.",
+            "<b>Vorschläge aus Handeinträgen</b>: Tragen Sie eine Zusatzarbeit in mindestens drei Angeboten von Hand "
+            "ein und ist sie bei mindestens 80 % der Teile mit einem bestimmten Wort in der Bezeichnung oder einer "
+            "Bedingung (Kunde, Werkstoff, Werkstoff-Kategorie, Profilform, Gewinde, Bohrungen, Innenkonturen, schräges "
+            "Ende) dabei, schlägt die Lernzentrale vor, das Wort als Erkennungswort einzutragen bzw. eine "
+            "Arbeitsgang-Regel (Zuordnung Vorschlag) anzulegen. <b>Übernehmen</b> trägt es ein (Rückgängig in der "
+            "Einblendung), <b>Vergessen</b> lehnt den Vorschlag ab. Die Startseite meldet neue Vorschläge.",
+            "<b>Wettbewerb</b>: Haben Sie beim Absagegrund den Preis des Wettbewerbs eingetragen, steht unter dem "
+            "Verkaufspreis z. B. <i>im Mittel 15 % teurer als der Wettbewerb (2 Absagen mit Preis)</i>.",
+            "<b>Lieferzeit</b>: Mit dem Fertigungsstatus lernt das Programm, wie viele Arbeitstage Ihre letzten Aufträge "
+            "von der Freigabe bis <i>Fertig gemeldet</i> gebraucht haben. Ist die zugesagte Lieferzeit kürzer, steht ein "
+            "Hinweis im Angebots-Check.")
 
 
 def kapitel_nachkalkulation(i):

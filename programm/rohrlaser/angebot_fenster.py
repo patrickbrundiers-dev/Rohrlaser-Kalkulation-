@@ -3582,9 +3582,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k)
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
-            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
+            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich(),
+                                       getattr(self, "_preis_fein_cache", None))
             + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter) + self._freigabe_punkte(summen)
-            + self._normteil_punkte())
+            + self._normteil_punkte() + self._lieferzeit_punkte())
+
+    def _lieferzeit_punkte(self):
+        """I6: zugesagte Lieferzeit kürzer als die gelernte Durchlaufzeit (lernen.lieferzeit_hinweis) – Hinweis."""
+        from . import lernen
+        try:
+            t = lernen.lieferzeit_hinweis(self.db, self.kopf)
+        except Exception:
+            return []
+        return [("HINWEIS", t, None)] if t else []
 
     def _normteil_punkte(self):
         """M6: Normteile dieses Angebots ohne Einkaufspreis – Hinweis mit Sprung zu Zukaufartikel → Normteile ohne
@@ -3649,9 +3659,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """€/kg je Abmessung aus früher verschickten Angeboten (Plan C3), einmal je geöffnetem Angebot gelesen."""
         if getattr(self, "_preis_vergleich_cache", None) is None:
             try:
-                self._preis_vergleich_cache = plausibel.vergleich_aus(self.db.versand_verlaeufe(self.id))
+                verlaeufe = self.db.versand_verlaeufe(self.id)
+                self._preis_vergleich_cache = plausibel.vergleich_aus(verlaeufe)
+                self._preis_fein_cache = plausibel.fein_aus(verlaeufe)        # I1: ähnliche Länge
             except Exception:       # Plausibilität ist nur ein Hinweis: nie das Angebot blockieren
-                self._preis_vergleich_cache = {}
+                self._preis_vergleich_cache, self._preis_fein_cache = {}, {}
         return self._preis_vergleich_cache
 
     def _staffel_widersprueche(self, kalk_zeilen):

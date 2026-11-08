@@ -225,6 +225,9 @@ def aufgaben(db, heute=None):
         t = lernen.kennwerte_text(db)
         if t:
             out.append(dict(art="kennwerte", angebot_id=None, text=t))
+        t = lernen.muster_text(db)
+        if t:
+            out.append(dict(art="muster", angebot_id=None, text=t))
     except Exception:
         pass
     try:
