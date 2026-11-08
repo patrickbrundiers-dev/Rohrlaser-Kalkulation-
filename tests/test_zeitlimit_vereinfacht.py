@@ -37,7 +37,7 @@ for alt, erwartet in ((120, 600), (90, 90), (1800, 1800)):
     pfad = TMP / f"alt_{alt}.db"
     d = Datenbank(pfad)
     d.einstellung_setzen("step_zeitlimit", alt)
-    d.einstellung_setzen("zeitlimit_stand", "")          # Datei von vor 0.9.273
+    d.einstellung_setzen("zeitlimit_stand", "")          # Datei von vor 0.9.274
     d.con.close()
     assert Datenbank(pfad).einstellung("step_zeitlimit") == erwartet, (alt, Datenbank(pfad).einstellung("step_zeitlimit"))
 ok("Zeitlimit-Vorgabe 600 s; alte Vorgabe 120 s wird einmalig 600 s, eigene Werte (90 s, 1800 s) bleiben")

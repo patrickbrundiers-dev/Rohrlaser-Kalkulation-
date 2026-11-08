@@ -281,6 +281,20 @@ def angebot_status(z):
     return "Veraltet" if z.get("stand") == "veraltet" else "Optimiert"
 
 
+def gewinn_wirksam(summen, einst):
+    """Gewinn [%], mit dem das Angebot gerechnet ist: gestaffelt der Satz der Stufe, sonst der feste Gewinn (Angebot
+    bzw. Einstellungen); für die Spalte Gewinn der Angebotsliste (Patrick 08.11.2026)."""
+    satz = summen.get("gewinn_satz") if summen and summen.get("gewinn_gestaffelt") else (einst or {}).get("gewinn")
+    return round(100 * satz, 2) if isinstance(satz, (int, float)) and not isinstance(satz, bool) else None
+
+
+def gewinn_liste(z):
+    """Gewinn [%] einer Zeile der Angebotsliste: eigener (fester) Gewinn des Angebots, sonst der beim letzten Öffnen
+    gemerkte wirksame Gewinn (gestaffelt bzw. aus den Einstellungen), sonst leer."""
+    g = z.get("gewinn")
+    return g if isinstance(g, (int, float)) else z.get("vk_gewinn")
+
+
 class AngeboteListe(Liste):
     EIGENE_ROLLEN = frozenset((Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.FontRole, Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole))
 
@@ -303,6 +317,14 @@ class AngeboteListe(Liste):
                 "Abgelehnt") else None
             if a:
                 return f"Absagegrund: {a.get('grund')}" + (f" – {a['bemerkung']}" if a.get("bemerkung") else "")
+        if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][0] == "Gewinn [%]":
+            z = self.zeilen[index.row()]
+            if isinstance(z.get("gewinn"), (int, float)):
+                return "Fester Gewinn dieses Angebots (Kalkulation dieses Angebots)"
+            am = z.get("vk_am")
+            return ("Gewinn ohne eigenen Wert im Angebot: gestaffelt nach Auftragswert bzw. aus den Einstellungen"
+                    + (f", Stand vom {_zeit(am)}" if am else "") if z.get("vk_gewinn") is not None else
+                    "Wird beim Öffnen des Angebots gerechnet")
         if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
             am = self.zeilen[index.row()].get("vk_am")
             return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
@@ -363,6 +385,7 @@ class AngeboteSeite(QWidget):
     SPALTEN = [("Angebotsnummer", "nummer", None, 120),
                ("Bearbeiter", lambda z: bearbeiter(z) + (" ● geöffnet" if z.get("_offen") else ""), None, 70),
                ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
+               ("Anfrage-Nr.", "kundenreferenz", None, 110),       # Anfrage des Kunden (Patrick 08.11.2026)
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
                ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
                                       vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else "")), None, 140),
@@ -370,7 +393,9 @@ class AngeboteSeite(QWidget):
                ("Auftragsnr.", "auftragsnr", None, 100),
                ("Liefertermin", lambda z: _datum(z.get("liefertermin")), None, 85),
                ("Status", lambda z: angebot_status(z), None, 120),
-               ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
+               ("Verkaufspreis netto [€]", "vk_netto", 2, 110),
+               ("Gewinn [%]", gewinn_liste, 1, 70),               # was aufgeschlagen ist (Patrick 08.11.2026)
+               ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
                ("Optimiert am", lambda z: _zeit(z.get("optimiert_am")), None, 120),
                ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120),
@@ -390,7 +415,7 @@ class AngeboteSeite(QWidget):
         self.ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ansicht.customContextMenuRequested.connect(lambda p: self.kontextmenue(p))
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel, Auftragsnummer …")
+        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Anfrage-Nr., Artikel, Auftragsnummer …")
         self.suche.setClearButtonEnabled(True)
         # Suche erst nach einer kurzen Tipp-Pause (Performance-Audit F1): nicht bei jeder Taste die ganze Liste
         self._such_timer = QTimer(self)
@@ -3739,9 +3764,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                               if funktionen.an("funktion_co2", self.db) else None)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
         stand = self.stand_optimierung()
+        self.kopf_bereich.gewinn_satz_setzen(summen)       # gestaffelter Gewinn: wirksamer Satz (08.11.2026)
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
-                                      "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
+                                      "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet",
+                                      gewinn=gewinn_wirksam(summen, self.einst))
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.uebersicht_rahmen.jetzt_anpassen()

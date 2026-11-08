@@ -835,14 +835,17 @@ def kapitel_angebote(i):
         (3, "<b>Kopieren</b>: Kopie mit neuer Nummer, z. B. für eine Nachbestellung oder einen anderen Kunden. "
             "Daneben <b>Öffnen</b>, <b>Löschen</b> und <b>Ordner öffnen</b> (Ordner des markierten Angebots mit "
             "allen PDFs, [[angebotsordner]])."),
-        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Bemerkung, Auftragsnummer, Artikelnummer oder "
-            "Bezeichnung.")])
+        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Anfrage-Nr., Bemerkung, Auftragsnummer, Artikelnummer "
+            "oder Bezeichnung.")])
     i.tabelle(["Spalte", "Farben und Werte"], [
         ["Status", "<i>Nicht optimiert</i> gelb · <i>Optimiert</i> grün · <i>Veraltet</i> rot (neu optimieren) · "
                    "<i>Nachkalkuliert</i> blau"],
         ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün "
                     "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau (fragt den Absagegrund, [[absage]]) · "
-                    "„Verschickt (abgelaufen)“ rot"]],
+                    "„Verschickt (abgelaufen)“ rot"],
+        ["Anfrage-Nr.", "Anfrage des Kunden aus dem Angebotskopf (<i>Ihre Anfrage / Zeichen</i>), seit 0.9.273"],
+        ["Gewinn [%]", "was auf die Selbstkosten aufgeschlagen ist (seit 0.9.273): der feste Gewinn des Angebots oder "
+                       "der wirksame Satz des gestaffelten Gewinns ([[gewinn_gestaffelt]])"]],
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
            "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
@@ -860,7 +863,8 @@ def kapitel_angebote(i):
            "vielen Angeboten (ab etwa 10.000) lädt die Liste mit Zeitraum spürbar schneller.")
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
-           "nicht geöffnet wurden, haben dort noch keinen Wert.",
+           "nicht geöffnet wurden, haben dort noch keinen Wert. Ebenso <b>Gewinn [%]</b>: ein fester Gewinn im Angebot "
+           "steht sofort da, der gestaffelte Satz erst, nachdem das Angebot einmal geöffnet wurde.",
            "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand; vor <i>Verschickt</i> öffnet sich "
            "das Angebot mit dem Angebots-Check, wenn noch etwas offen ist ([[angebots_check]]). <b>Gültig bis</b> ist das "
            "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
@@ -2489,7 +2493,7 @@ def kapitel_step(i):
             "Stunden dauern; die Messwerte bleiben gleich.",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
             "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 600 s, bis 0.9.272 120 s), wird nur er "
-            "vereinfacht gemessen (seit 0.9.273: Hüllmaß und Volumen, als Frästeil/Zukaufteil angenommen, gelb mit "
+            "vereinfacht gemessen (seit 0.9.274: Hüllmaß und Volumen, als Frästeil/Zukaufteil angenommen, gelb mit "
             "Hinweis <i>vereinfacht gemessen … Art prüfen</i>) und die Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
             "verschoben) werden nur einmal gemessen; gleiche Bleche, Kantteile, Dreh- und Frästeile auch dann, wenn "
             "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Eine große Datei wird auf "
@@ -2998,7 +3002,7 @@ def kapitel_step(i):
             "Schweißbaugruppe Zukauf zum Preis der Normteil-Liste, siehe [[importprofile]]); das Grundteil behält die "
             "Artikelnummer, Anbauten bekommen -1, -2 … Ist nichts zu erkennen (Blechkasten, dünne Wände), steht "
             "<i>nicht aufteilbar</i> in der Zeile und der Körper bleibt gelb.",
-            "<b>Bolzen und Gewindestangen (seit 0.9.273):</b> auch ein angeschweißter <b>Bolzen</b>, Stehbolzen oder "
+            "<b>Bolzen und Gewindestangen (seit 0.9.274):</b> auch ein angeschweißter <b>Bolzen</b>, Stehbolzen oder "
             "eine Gewindestange (Zylinder ganz herum, ohne Absatz auf derselben Achse) macht den Körper gelb "
             "<i>Mehrere Teile in einem Körper? Bolzen Ø12 …</i>; bei einem Frästeil nur, wenn der Bolzen mindestens "
             "doppelt so lang wie dick ist (ein kurzer Zapfen gehört zum Frästeil). <b>Aufteilen</b> trennt ihn ab "
@@ -3340,7 +3344,7 @@ def kapitel_step(i):
             "Bauteilnamen oder <i>Kugel Ø8,73</i> bzw. <i>Mutter/Schraube SW 19</i> aus der Form) und Preis je Stück. "
             "Gibt es den Artikel noch nicht, legt der Import ihn ohne EK an; die Position steht dann gelb "
             "<i>EK fehlt</i>, bis der Preis unter Zukaufartikel eingetragen ist. Ab dem nächsten Import gilt er "
-            "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen. Seit 0.9.273 "
+            "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen. Seit 0.9.274 "
             "stehen alle Normteile ohne Preis gesammelt unter <i>Zukaufartikel → Normteile ohne Preis</i> "
             "([[normteile_ohne_preis]]), und der Angebots-Check nennt sie mit Sprung dorthin.",
             "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
@@ -3390,20 +3394,20 @@ def kapitel_step(i):
                  "oder von Hand nachgetragen), Normteil, Art von Hand geändert, Profil fehlt in den Stammdaten, "
                  "Knickrahmen nicht verbindbar"],
         ["rot", "kein Rohrteil erkannt oder nicht messbar (Gruppe <i>Nicht übernehmbar</i>)"]], [25, 145])
-    i.liste("<b>Nächstes prüfen</b> (Taste <b>F8</b>, seit 0.9.273): springt zum nächsten gelben Teil, auch in der "
+    i.liste("<b>Nächstes prüfen</b> (Taste <b>F8</b>, seit 0.9.274): springt zum nächsten gelben Teil, auch in der "
             "nächsten Datei; die 3D-Ansicht zeigt es, die Zusammenfassung zählt die gelben herunter.",
             "<b>Passt</b> (Leertaste in der Liste): das gezeigte gelbe Teil ist richtig. Es wird angehakt, grün "
             "(<i>von Hand geprüft</i>) und die Liste springt zum nächsten gelben Teil. Bei <i>Profil fehlt in den "
             "Stammdaten</i> oder einem nicht verbindbaren Knickrahmen bleibt es gelb, bis das Profil angelegt bzw. "
             "der Rahmen verbunden ist. Auf einem grünen Teil schaltet die Leertaste wie gewohnt das Häkchen um.")
-    i.text("<b>Spalten ohne Querscrollen (seit 0.9.273):</b> die Spalte <b>Hinweis</b> zeigt nur ein Stichwort "
+    i.text("<b>Spalten ohne Querscrollen (seit 0.9.274):</b> die Spalte <b>Hinweis</b> zeigt nur ein Stichwort "
            "(z. B. <i>Profil fehlt</i>, <i>Drehteil +1</i> = ein weiterer Hinweis); der ganze Text steht im Tooltip und "
            "oben im Infofeld unter der 3D-Ansicht (<i>Hinweis: …</i>), sobald das Teil markiert ist. <b>Länge</b>, "
            "<b>Schneidweg</b> und <b>Konturen</b> stehen ebenfalls im Infofeld und sind als Spalten ausgeblendet, "
            "<b>Anbauteile</b> nur zu sehen, wenn ein Teil Anbauteile hat. <b>Rechtsklick auf die Kopfzeile</b> blendet "
            "diese Spalten ein und aus. Die übrigen Spalten passen sich der Fensterbreite an (die Artikelnummer bleibt "
            "mindestens 200 px breit).")
-    i.text("<b>Profil anlegen (seit 0.9.273):</b> fehlt ein gemessenes Profil in den Stammdaten (Gruppe <i>… – Profil "
+    i.text("<b>Profil anlegen (seit 0.9.274):</b> fehlt ein gemessenes Profil in den Stammdaten (Gruppe <i>… – Profil "
            "fehlt in den Stammdaten</i>), steht über der Liste <i>Profil fehlt in den Stammdaten: FL 40×9,5 – hier "
            "gleich anlegen</i> mit dem Knopf <b>Profil anlegen</b> (bei mehreren <b>N Profile anlegen</b>, eins nach "
            "dem anderen); im Rechtsklickmenü des Teils steht <b>Profil „…“ anlegen …</b>. Es öffnet das Fenster "
@@ -3693,8 +3697,13 @@ def kapitel_optimieren(i):
     i.text("Ein eigener <i>Gewinn [%]</i> im Angebot (auch aus der Kundenvorgabe) oder in einer Staffel-Stufe gilt "
            "statt der Stufen. Sind die Stufen eingeschaltet, bekommen neue Angebote das Feld <i>Gewinn [%]</i> leer "
            "und rechnen gestaffelt; ältere Angebote haben dort den festen Gewinn von damals stehen und behalten ihn, "
-           "bis man das Feld leert. Staffelpreise rechnen den Satz nach dem Wert der ganzen Stufe. Festgeschriebene "
+           "bis man den Knopf <b>Gestaffelt</b> neben dem Feld drückt. Staffelpreise rechnen den Satz nach dem Wert der ganzen Stufe. Festgeschriebene "
            "Angebote ([[preise_festschreiben]]) behalten ihren Gewinn.")
+    i.text("<b>Im Angebot</b> (Kalkulation dieses Angebots, seit 0.9.273): rechnet das Angebot gestaffelt, steht im "
+           "Feld <i>Gewinn [%]</i> z. B. <b>gestaffelt · 30,0 %</b> – der Satz, mit dem gerechnet wird; der Mauszeiger "
+           "darauf zeigt die Stufen und die Gewinnbasis. Eine Zahl eintippen = fester Gewinn nur für dieses Angebot; "
+           "der Knopf <b>Gestaffelt</b> daneben nimmt ihn wieder weg. Die Angebotsliste zeigt den Satz in der Spalte "
+           "<i>Gewinn [%]</i> ([[angebote]]).")
     i.abschnitt("Nebenzeit, Schneidgas, Ausschuss, Schrotterlös und Preiseinheit", marke="kalkulation_genauer")
     i.text("Diese Werte machen die Kalkulation genauer. Alle sind leer bzw. 0, bis man sie einträgt; dann bleiben die "
            "Preise wie bisher. Auch die Preiseinheit für Kleinteile ist ab Werk aus.", kurz=True)
@@ -7588,7 +7597,7 @@ def kapitel_einstellungen(i):
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
         ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
          "Braucht ein einzelner Körper länger (Vorgabe 600 s; wer noch die alte Vorgabe 120 s hatte, bekommt mit "
-         "0.9.273 einmalig 600 s, eigene Werte bleiben), wird er vereinfacht gemessen: nur Hüllmaß und Volumen, als "
+         "0.9.274 einmalig 600 s, eigene Werte bleiben), wird er vereinfacht gemessen: nur Hüllmaß und Volumen, als "
          "Frästeil (Zukaufteil, Rohling = Hüllquader) angenommen, gelb mit dem Hinweis <i>vereinfacht gemessen "
          "(Zeitlimit … überschritten) … Art prüfen</i>. Hat er mehr als 3.000 Flächen oder stürzt seine Messung ab, "
          "steht er wie bisher als nicht übernehmbar da (<i>nicht gemessen: …</i>). Seit 0.9.272 wartet der "
