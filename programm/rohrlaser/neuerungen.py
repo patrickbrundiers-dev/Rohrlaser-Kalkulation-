@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
+     "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "
+     "(je Abmessung Stangen, Verschnitt, Ausnutzung, €/m, Materialkosten und das Stangenbild), grau daneben "
+     "dieselbe Abmessung im Angebot. Das Fenster der Stufe hat dafür den Reiter <b>Stangen</b>.",
+     "Stangenoptimierung je Stufe direkt im Reiter Staffeln und im Fenster der Stufe, mit Vergleich zum Angebot."],
     ["0.9.276", "<b>Kalkulation und Zeiten in der Staffel</b> ([[staffel_kalkulation]]): Ein Doppelklick auf eine Stufe "
      "zeigt neben den Einstellungen die Reiter <b>Kalkulation</b> (Summenzeile, Preis der Stufe je Satz bzw. Position "
      "mit dem Grund jeder Abweichung, Tabelle je Bauteil kompakt oder mit allen Spalten), <b>Zeiten</b> (alle "

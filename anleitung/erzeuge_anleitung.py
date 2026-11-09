@@ -5274,8 +5274,17 @@ def kapitel_staffeln(i):
                (4, "Einmalige Rüstkosten (Rüstkosten = separat): nicht im Stückpreis, aber im Gesamtpreis."),
                (5, "Änderung des Preises je Einheit zur letzten Eingabe, in € und %.")])
     i.abschnitt("Schnittschema je Staffel")
-    i.text("Jede Stufe hat ihren eigenen Schnittplan. <b>Schnittschema …</b> zeigt ihn je Stufe mit Stangen, "
-           "Verschnitt, €/m und Materialkosten – daraus kommt der Materialpreis der Staffel.", kurz=True)
+    i.bild("staffeln_stangen", "Stangenoptimierung der markierten Stufe direkt im Reiter Staffeln", hoehe=95 * mm,
+           legende=[
+               (1, "Das Ergebnis hat zwei Unterreiter: <b>Kosten</b> (Kostenpositionen und Staffelkurve) und "
+                   "<b>Stangen</b>."),
+               (2, "Gezeigt wird die oben markierte Stufe; eine andere Zeile markieren zeigt deren Stangen."),
+               (3, "Je Abmessung Stangen × Lieferlänge, Material, Teile, Verschnitt, Ausnutzung, €/m und "
+                   "Materialkosten; grau daneben dieselbe Abmessung in der Stangenoptimierung des Angebots."),
+               (4, "Die Stangen wie im Reiter Schnittplan: Stangenmuster, Übersicht oder Detail ([[stangenbild]]).")])
+    i.text("Jede Stufe hat ihren eigenen Schnittplan. Der Unterreiter <b>Stangen</b> im Reiter Staffeln und der "
+           "Reiter <b>Stangen</b> im Fenster der Stufe zeigen ihn mit Stangen, Verschnitt, €/m und Materialkosten "
+           "– daraus kommt der Materialpreis der Staffel.", kurz=True)
     i.genauer()
     i.text("Im Ergebnis steht unter <b>Schnittschema</b> je Abmessung und Stufe, wie viele Stangen welcher "
            "Lieferlänge die Menge braucht und wie gut sie ausgenutzt sind (z. B. „13 × 6.000 · 91 %“), daneben die "
@@ -5302,13 +5311,15 @@ def kapitel_staffeln(i):
                (5, "Kalkulation je Bauteil mit den Stückzahlen der Stufe: Profil, Länge, Material, Laserzeit, "
                    "Verkaufspreis je Teil – wie im Angebot.")])
     i.text("Ein Doppelklick auf eine Stufe zeigt neben den Einstellungen die Reiter <b>Kalkulation</b>, "
-           "<b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen der Stufe.",
+           "<b>Stangen</b>, <b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen "
+           "der Stufe.",
            kurz=True)
     i.genauer()
-    i.text("Das Fenster der Stufe hat vier Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
-           "oben). Die anderen drei zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
+    i.text("Das Fenster der Stufe hat fünf Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
+           "oben). Die anderen vier zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
            "<b>Kalkulation</b> wie der Reiter Kalkulation des Angebots ([[kalkulation]]), <b>Zeiten</b> wie der "
-           "Reiter Zeiten &amp; Arbeitskosten und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
+           "Reiter Zeiten &amp; Arbeitskosten, <b>Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe "
+           "unten) und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
            "rechnet, und ob er aus der Stufe oder aus dem Angebot kommt, dazu Materialpreis €/m und Lieferlänge je "
            "Abmessung und die Stundensätze. Werte der Stufe sind gelb.")
     i.text("Gewinn und Zuschläge wirken in der Stufe sofort, ohne neuen Mengenlauf. Die Tabelle je Bauteil zeigt "
