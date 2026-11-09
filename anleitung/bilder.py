@@ -979,6 +979,12 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("staffeln_details", f, [(rect("fertigung"), 1), (rect("ruesten"), 2), (rect("gemeinkosten"), 3),
                                       (rect("einmalig"), 4), (rect("aenderung"), 5)], ausschnitt=reiterflaeche(s))
+    st.ansicht.setCurrentIndex(st.modell.index(min(2, st.modell.rowCount() - 1), 0))   # Stangen der Stufe 3
+    st.ergebnis_reiter.setCurrentIndex(1)
+    QApplication.processEvents()
+    foto.foto("staffeln_stangen", f, [(st.ergebnis_reiter.tabBar(), 1), (st.stangen_titel, 2), (st.stangen.tabelle, 3),
+                                      (st.stangen.stangen_seite, 4)], ausschnitt=reiterflaeche(s))
+    st.ergebnis_reiter.setCurrentIndex(0)
     s.teiler.setSizes(oben_vorher)
 
     # 8a) Nachkalkulation nach dem Auftrag: eine Stange QR 40x40x3 mehr, Laser etwas länger, Rechnung Verzinkerei
