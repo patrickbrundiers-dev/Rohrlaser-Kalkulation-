@@ -317,7 +317,7 @@ class StufeDialog(QDialog):
             zeile.addWidget(b)
         lay.addLayout(zeile)
         lay.addWidget(self.mengen, 1)
-        self.reiter.addTab(einst_seite, "Einstellungen && Mengen")
+        self.reiter.addTab(einst_seite, "Einstellungen und Mengen")
         self.ergebnis = StufeErgebnis(seite, stufe)
         for w, text in ((self.ergebnis.kalk_seite, "Kalkulation"), (self.ergebnis.zeiten_seite, "Zeiten"),
                         (self.ergebnis.werte_seite, "Wirksame Werte")):

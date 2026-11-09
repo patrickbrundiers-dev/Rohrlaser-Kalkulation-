@@ -308,7 +308,7 @@ json.dumps(st.zeilen)
 zb = st.baum.zeile("zeiten")
 assert zb is not None and st.baum.zeile("zeit_laser") is not None and zb.text(2).endswith("min")
 d = StufeDialog(st, m.daten[3])
-assert [d.reiter.tabText(i) for i in range(d.reiter.count())] == ["Einstellungen && Mengen", "Kalkulation", "Zeiten",
+assert [d.reiter.tabText(i) for i in range(d.reiter.count())] == ["Einstellungen und Mengen", "Kalkulation", "Zeiten",
                                                                  "Wirksame Werte"]
 e = d.ergebnis
 assert "Stand: Mengenlauf" in e.stand.text() and "Verkaufspreis" in e.summen.text()

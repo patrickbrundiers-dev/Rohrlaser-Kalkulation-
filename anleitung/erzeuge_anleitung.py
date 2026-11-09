@@ -5305,7 +5305,7 @@ def kapitel_staffeln(i):
            "<b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen der Stufe.",
            kurz=True)
     i.genauer()
-    i.text("Das Fenster der Stufe hat vier Reiter. <i>Einstellungen &amp; Mengen</i> ist zum Bearbeiten (siehe "
+    i.text("Das Fenster der Stufe hat vier Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
            "oben). Die anderen drei zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
            "<b>Kalkulation</b> wie der Reiter Kalkulation des Angebots ([[kalkulation]]), <b>Zeiten</b> wie der "
            "Reiter Zeiten &amp; Arbeitskosten und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
