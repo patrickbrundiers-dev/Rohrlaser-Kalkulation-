@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.276", "<b>Kalkulation und Zeiten in der Staffel</b> ([[staffel_kalkulation]]): Ein Doppelklick auf eine Stufe "
+     "zeigt neben den Einstellungen die Reiter <b>Kalkulation</b> (Summenzeile, Preis der Stufe je Satz bzw. Position "
+     "mit dem Grund jeder Abweichung, Tabelle je Bauteil kompakt oder mit allen Spalten), <b>Zeiten</b> (alle "
+     "Arbeitsschritte, Maschinen-, Personal- und Durchlaufzeit, Laserzeit je Satz bzw. Position) und <b>Wirksame "
+     "Werte</b> (Wert und Quelle Stufe/Angebot, €/m, Lieferlänge, Stundensätze). Im Reiter Staffeln zeigt die Gruppe "
+     "<b>Zeiten</b> die Laser- und Arbeitszeit je Stufe. Vorhandene Staffeln werden dafür einmal neu gerechnet.",
+     "Stufe öffnen zeigt Kalkulation, Zeiten und wirksame Werte wie im Angebot."],
     ["0.9.275", "<b>Das Programm lernt</b> ([[lernen]]): Lehnen Sie einen Zusatzarbeit-Vorschlag beim selben Kunden in drei "
      "Angeboten hintereinander ab (✗) bzw. übernehmen ihn (✓), lehnt der nächste STEP-Import ihn gleich ab bzw. "
      "übernimmt ihn, mit Einblendung und Rückgängig im Automatik-Protokoll. Bei Wiederholteilen übernimmt der Import "

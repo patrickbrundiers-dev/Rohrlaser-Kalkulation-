@@ -38,7 +38,8 @@ Dreh-/Frästeile mit Richtpreis (drehfraes_preis, 03.11.2026) genauso (drehfraes
 import hashlib
 import json
 
-from . import blech, fracht_angebot, rechnen, zukauf
+from . import blech, fracht_angebot, rechnen, satzgruppen, zukauf
+from .angebot_spalten import kompakt_zeilen
 from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
 ABRUF_FELDER = tuple(f.name for f in ANGEBOT_KOPF if f.name == "abruf" or f.name.startswith("abruf_"))
 from .angebot import aktiv as position_aktiv, ist_muster
@@ -48,8 +49,9 @@ from .stammdaten import Feld, kontext_aus
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
            "herstell", "herstell_einheit", "preis_einheit", "preis_gesamt", "hinweis")
 MAX_STUFEN = 200
-VERSION = 4          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag;
-                     # 4: Schnittschema je Stufe (ältere gespeicherte Staffelpreise gelten als veraltet)
+VERSION = 5          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag;
+                     # 4: Schnittschema je Stufe; 5: Kalkulation und Zeiten je Stufe (ältere gespeicherte
+                     # Staffelpreise gelten als veraltet und werden einmal neu gerechnet)
 
 PROZENT, EURO = "%", "€/Einheit"
 UMLEGEN, SEPARAT = "umlegen", "separat"
@@ -675,6 +677,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     if fracht_text:
         gemeinsam.append(fracht_text)
     je[0][0]["schnittschema"] = schnittschema(kopf, lauf, erg, k, tabellen)    # einmal je Stufe
+    je[0][0]["kalkulation"] = kalkulation_der_stufe(lauf, kz, summen, einst)   # einmal je Stufe (09.11.2026)
     for x, m in je:
         if not m:
             x["hinweis"] = "FEHLER: Satz/Pos. nicht im Angebot"
@@ -686,6 +689,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         if hinweise:
             text.append(f"{hinweise} Hinweis(e) in der Kalkulation")
         text += [blech_text[i] for i in sorted(m) if i in blech_text]
+        x["kalk_idx"] = sorted(m)          # Positionen des Satzes bzw. der Position (Index im Angebot)
         x.update(teile=summen["teile"], stangen=summen["stangen"], material=b["material"],
                  laser=sum(w for _, w, _ in b["fertigung"]), ruesten=sum(w for _, w, _ in b["ruesten"]), bausteine=b,
                  hinweis="; ".join(text + gemeinsam) or None)
@@ -711,6 +715,45 @@ def schnittschema(kopf, positionen, erg, k, tabellen):
                         kosten=g["kosten"], ausnutzung=g["ausnutzung"]))
     return dict(stangen=erg["stangen"], werte=rechnen.stangen_werte(erg, kopf, positionen, k, tabellen),
                 abmessungen=abm)
+
+
+def _knapp(z, leer=False):
+    """Kalkulations- bzw. Zeitzeile für die Ablage: nur einfache Werte, Zahlen auf 6 Stellen gerundet; leere Werte
+    nur mit leer=True (Zeitzeilen brauchen alle Schlüssel)."""
+    out = {}
+    for n, w in z.items():
+        if isinstance(w, bool) or w is None or isinstance(w, str):
+            if leer or w not in (None, ""):
+                out[n] = w
+        elif isinstance(w, int):
+            out[n] = w
+        elif isinstance(w, float):
+            out[n] = round(w, 6)
+    return out
+
+
+def kalkulation_der_stufe(positionen, kz, summen, einst):
+    """Kalkulation einer Stufe zum Anzeigen (Patrick 09.11.2026: beim Öffnen einer Staffel alle Werte wie im Angebot):
+    zeilen = Kalkulationszeilen der Positionen mit Stückzahl (Spalten wie der Reiter Kalkulation, 'zeile' = Index im
+    Angebot), kompakt = Zeilen der kompakten Übersicht, kosten = [(Kostenart, Betrag, fett)] wie die Summenzeile des
+    Angebots, zeiten = Arbeitsschritte mit Zeiten und Kosten wie der Reiter Zeiten, teile = Teile der Stufe.
+    Gewinn und Zuschläge stehen darin mit den Werten beim Mengenlauf; maßgeblich für den Preis ist die Preisschicht."""
+    markiert = satzgruppen.zeilen_markieren(positionen, kz)
+    mit = [z if z is not None and _zahl(z.get("stueck")) > 0 else None for z in markiert]
+    return dict(zeilen=[_knapp(z) for z in mit if z is not None],
+                kompakt=[_knapp(z) for z in kompakt_zeilen(positionen, mit)],
+                kosten=[[t, round(w, 6) if isinstance(w, float) else w, fett]
+                        for t, w, fett in rechnen.kostenarten(summen, einst)],
+                zeiten=[_knapp(z, leer=True) for z in summen.get("zeiten") or ()], teile=summen.get("teile"))
+
+
+def kalkulation_der_zeile(zeilen, z):
+    """Kalkulation der Stufe einer Ergebniszeile (gespeichert an einer Zeile der Stufe) oder None."""
+    if z.get("kalkulation"):
+        return z["kalkulation"]
+    if z.get("stufe") is None:
+        return None
+    return next((x["kalkulation"] for x in zeilen if x.get("stufe") == z["stufe"] and x.get("kalkulation")), None)
 
 
 def schema_der_zeile(zeilen, z):

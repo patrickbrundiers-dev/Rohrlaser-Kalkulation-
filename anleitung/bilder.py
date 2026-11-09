@@ -940,6 +940,20 @@ def main(ziel):
     foto.foto("staffel_stufe", d, [(d.felder["gewinn"], 1), (d.felder["fracht"], 2), (d.erweitert, 3),
                                    (d.preise, 4), (d.mengen, 5)])
     d.reject()
+    d = StufeDialog(st, st.modell.daten[0])          # Kalkulation und Zeiten der Stufe (09.11.2026)
+    d.show()
+    d.reiter.setCurrentIndex(1)
+    QApplication.processEvents()
+    e = d.ergebnis
+    foto.foto("staffel_kalkulation", d, [(e.stand, 1), (e.summen, 2), (e.preis, 3), (e.kompakt_haken, 4),
+                                         (e.kompakt_ansicht, 5)])
+    d.reiter.setCurrentIndex(2)
+    QApplication.processEvents()
+    foto.foto("staffel_zeiten", d, [(e.zeiten, 1), (e.zeit_summen, 2)])
+    d.reiter.setCurrentIndex(3)
+    QApplication.processEvents()
+    foto.foto("staffel_werte", d, [(e.werte, 1)])
+    d.reject()
     st.vorher = {}
     st.stand()
     oben_vorher = s.teiler.sizes()
