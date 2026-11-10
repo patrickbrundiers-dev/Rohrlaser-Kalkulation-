@@ -7,15 +7,16 @@ Aufruf: python tests/test_zukauf_verwaltung.py   (Oberfläche ohne Bildschirm: Q
 import os
 import sys
 import tempfile
+import time
 from decimal import Decimal
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtWidgets import QApplication, QTableWidgetItem  # noqa: E402
+from PySide6.QtWidgets import QApplication, QTableWidgetItem, QWidget  # noqa: E402
 
-from rohrlaser import zukauf  # noqa: E402
+from rohrlaser import zukauf, zukauf_seite  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import STIL, Hauptfenster  # noqa: E402
 
@@ -225,7 +226,14 @@ ok("Kategorien: Standardaufschlag pflegen, neuer Artikel übernimmt ihn, individ
 # ------------------------------------------------------------------ 14 Darstellung
 for breite in (1920, 1024):
     f.resize(breite, 760 if breite == 1024 else 1000)
-    warten()
+    # Offscreen verteilt die neue Fensterbreite manchmal erst nach mehreren Ereignisrunden auf die Seite; vorher
+    # entschied s.schmal() noch mit der alten Breite (instabiler Test). Darum warten, bis die Seite umgestellt ist.
+    for _ in range(200):
+        warten()
+        if s.schmal() == (breite < zukauf_seite.BREIT):
+            break
+        time.sleep(0.01)
+    assert s.schmal() == (breite < zukauf_seite.BREIT), f"Seitenbreite bei {breite} px nicht übernommen: {s.width()} Fenster {f.width()} min {f.minimumSizeHint().width()} " + str([(type(w).__name__, w.objectName(), w.minimumSizeHint().width()) for w in f.findChildren(QWidget) if w.isVisible() and w.minimumSizeHint().width() > 1000][:15])
     s.anzeigen()
     warten()
     assert s.tabelle.horizontalScrollBar().maximum() == 0, f"waagrechtes Scrollen bei {breite} px"

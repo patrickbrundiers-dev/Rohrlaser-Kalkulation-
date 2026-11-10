@@ -65,6 +65,16 @@ assert not unbekannt, f"NEUERUNGEN verweist auf unbekannte Marken: {unbekannt}"
 sys.path.insert(0, str(HIER.parent / "anleitung"))
 import erzeuge_anleitung as anl  # noqa: E402
 
+# Ersatzschrift (Design-Prüfung 28.10.2026): Zeichen, die Helvetica fehlen (▾, ▸, │, └, N₂ …), setzt die Anleitung
+# in DejaVu Sans; ohne sie stand im PDF ein schwarzes Kästchen. Im Workflow (Linux) muss die Schrift da sein.
+if sys.platform.startswith("linux"):
+    assert anl.ERSATZSCHRIFT, "DejaVu Sans fehlt (Paket fonts-dejavu-core): ▾, ▸, N₂ … stünden im PDF als Kästchen"
+if anl.ERSATZSCHRIFT:
+    e = anl.ERSATZSCHRIFT
+    assert anl.mit_ersatzschrift("<b>Vorgang ▾</b> · N₂ · Ø 8 → ✓ €") == \
+        f'<b>Vorgang <font name="{e}">▾</font></b> · N<font name="{e}">₂</font> · Ø 8 → ✓ €'
+    assert anl.mit_ersatzschrift("ohne Sonderzeichen") == "ohne Sonderzeichen"
+
 kapitel_fn = [n for n in vars(anl) if n.startswith("kapitel_") and callable(getattr(anl, n))]
 in_teilen = [k.__name__ for _, _, _, liste in anl.TEILE for k in liste]
 assert sorted(in_teilen) == sorted(set(in_teilen)), "Kapitel mehrfach in TEILE"

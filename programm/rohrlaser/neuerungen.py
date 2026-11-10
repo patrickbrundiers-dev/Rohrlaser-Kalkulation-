@@ -35,6 +35,13 @@ NEUERUNGEN = [
      "Ergebnis steht rechts als Zeilen mit Kostenbalken, Kachel <i>Vorschläge offen</i>.",
      "Schweißbaugruppe rechnet genauer (Ansatzzeit, Schweißlage aus STEP, Fase, Abschmelzleistung nach Nahtgröße), "
      "hält sich bei Änderungen der Teile selbst aktuell und zeigt die Nahtgruppen ohne Querscrollen."],
+    ["0.9.281", "<b>Feinschliff aus der Design-Prüfung</b>: In der Bedienungsanleitung stehen Zeichen wie ▾, ▸, │ oder "
+     "N₂ jetzt richtig statt als schwarzes Kästchen. Der Knopf <b>Vorgang</b> zeigt nur noch einen Pfeil. Die offenen "
+     "Schritte über dem Angebot sind besser lesbar. Der Hinweis „(n abweichend von den Einstellungen)“ steht vorn in "
+     "der Kurzfassung der Kalkulation und wird nicht mehr abgeschnitten. Hilfetexte zeigen ein gezeichnetes i-Symbol "
+     "vor <b>mehr</b> und <b>Hilfe</b>. Scheitert das automatische Optimieren, stehen wieder die vorläufigen Preise "
+     "da statt „wird berechnet …“.",
+     "Anleitung ohne Kästchen, Knopf Vorgang mit einem Pfeil, Schritte lesbarer, Abweichungs-Hinweis vorn."],
     ["0.9.280", "<b>Schneller und zuverlässiger</b> (Performance-Update): Jede Änderung im Angebot rechnet Positionswerte, "
      "Schneiddaten, Stangenpreise und Stangenwerte nur noch einmal (vorher für Positionstabelle und Kalkulation "
      "doppelt, mit gestaffeltem Gewinn dreifach); der Angebots-Check nach der Eingabepause rechnet keine zweite "
