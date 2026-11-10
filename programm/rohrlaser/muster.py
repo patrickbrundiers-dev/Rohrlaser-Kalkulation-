@@ -65,6 +65,9 @@ def _schluessel(art, zusatz, feld, wert):
 def vorschlaege(db, k=None, tabellen=None, zeilen=None):
     """[dict(art 'wort'|'regel', schluessel, zusatz, feld, wert, text, angebote, anteil, positionen)], die stärksten
     zuerst."""
+    from . import funktionen
+    if not funktionen.an(funktionen.REGELVORSCHLAEGE, db):
+        return []
     k = k if k is not None else db.kontext()
     tabellen = tabellen if tabellen is not None else db.tabellen()
     zeilen = zeilen if zeilen is not None else daten(db)

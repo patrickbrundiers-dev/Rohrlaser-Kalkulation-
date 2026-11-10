@@ -164,7 +164,9 @@ def wiederholwerte(seite, out):
     """L3: Wiederholteile (gleiche Artikelnummer beim selben Kunden, wiederholteile.SICHER): Werte, die im alten
     Angebot von Hand eingetragen waren (Schneidzeit, Programmierzeit, Einstiche, Gewinde, Naht), in leere Felder der
     neuen Position übernehmen. Preise und Zusatzarbeiten nie (die entstehen neu bzw. lernt L2)."""
-    from . import wiederholteile
+    from . import funktionen, wiederholteile
+    if not funktionen.an(funktionen.LERNEN, seite.db):
+        return
     felder = [f for f, _ in wiederholteile.UEBERNEHMBAR if f != "zusatz"]
     treffer = seite.wiederholteile_suchen(warten=True) or {}
     alt, namen, n = [], {}, 0

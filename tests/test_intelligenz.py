@@ -127,4 +127,25 @@ ok(f"I6: {h}")
 d = fenster.lernzentrale(dialog=lambda d: None)
 assert "Übernehmen" in d.knoepfe
 fenster.start.neu_laden() if hasattr(fenster, "start") else None
+# ------------------------------------------------------------------ vier Schalter (Patrick 10.11.2026, F5)
+from rohrlaser import funktionen  # noqa: E402
+assert all(funktionen.FUNKTION[n].vorgabe == "ja" and funktionen.an(n, db) for n in funktionen.INTELLIGENZ)
+gemerkt = db.zeilen(lernen.TABELLE)
+db.einstellung_setzen(funktionen.LERNEN, "nein")
+assert lernen.entscheiden(db, lernen.ZUSATZ, "K-7", "Test", True, 999) is None and db.zeilen(lernen.TABELLE) == gemerkt
+assert lernen.wirksam(db, lernen.ZUSATZ, "K-7") == {} and funktionen.datei_an("Lernzentrale …", db)
+db.einstellung_setzen(funktionen.REGELVORSCHLAEGE, "nein")
+assert muster.vorschlaege(db) == [] and lernen.muster_reif(db) == [] and not funktionen.datei_an("Lernzentrale …", db)
+assert not any(a["art"] in ("muster", "kennwerte") for a in automatik.aufgaben(db))
+db.einstellung_setzen(funktionen.PREIS_HINWEISE, "nein")
+assert lernen.trefferquote(db, "K-8") is None
+assert lernen.lieferzeit_hinweis(db, dict(lieferzeit_art="Arbeitstage", lieferzeit_wert="3")) is None
+db.einstellung_setzen(funktionen.CHANCE, "nein")
+funktionen.db_setzen(db)
+fenster.start.neu_laden()
+assert fenster.start.chancen == {}
+for n in funktionen.INTELLIGENZ:
+    db.einstellung_setzen(n, "ja")
+assert lernen.trefferquote(db, "K-8")["n_abstand"] == 2, "eingeschaltet: alles wieder da"
+ok("Schalter: Lernen, Vorschläge aus Handeinträgen, Preis-Hinweise, Auftragschance einzeln aus; Gelerntes bleibt")
 print("Alle Intelligenz-Tests bestanden.")

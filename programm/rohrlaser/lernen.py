@@ -85,7 +85,8 @@ def entscheiden(db, art, kundennr, schluessel, ja, angebot_id=None, titel=None):
     """Eine Entscheidung (✓ = ja, ✗ = nein) zählen. Je Angebot zählt sie einmal; eine andere Entscheidung fängt die
     Folge neu an. Ergebnis: JA/NEIN, wenn die Sache gerade (mit dieser Entscheidung) gelernt ist, sonst None.
     Scheitert nie laut: Lernen darf keine Bedienung verhindern."""
-    if not kundennr or not schluessel or getattr(db, "nur_lesen", None):
+    from . import funktionen
+    if not kundennr or not schluessel or getattr(db, "nur_lesen", None) or not funktionen.an(funktionen.LERNEN, db):
         return None
     wert = JA if ja else NEIN
     try:
@@ -118,8 +119,9 @@ def entscheiden(db, art, kundennr, schluessel, ja, angebot_id=None, titel=None):
 
 
 def wirksam(db, art, kundennr):
-    """Gelernte Entscheidungen eines Kunden: {Schlüssel: JA/NEIN}."""
-    if not kundennr:
+    """Gelernte Entscheidungen eines Kunden: {Schlüssel: JA/NEIN}; Funktion „Lernen“ aus: leer (bleibt gespeichert)."""
+    from . import funktionen
+    if not kundennr or not funktionen.an(funktionen.LERNEN, db):
         return {}
     try:
         zeilen = db.con.execute("SELECT * FROM gelernt WHERE art=? AND kundennr=?", (art, str(kundennr))).fetchall()
@@ -336,7 +338,7 @@ def kennwerte_reif(db, mindest_n=5):
     Datendatei ändert."""
     from . import funktionen, kennwerte
     try:
-        if not funktionen.an("funktion_nachkalkulation", db):
+        if not funktionen.an("funktion_nachkalkulation", db) or not funktionen.an(funktionen.LERNEN, db):
             return []
         stand = (db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0])
     except Exception:
@@ -362,7 +364,9 @@ _MUSTER = {}
 
 def muster_reif(db):
     """Vorschläge aus Handeinträgen (muster.vorschlaege, I3/I4), gemerkt, bis sich die Datendatei ändert."""
-    from . import muster
+    from . import funktionen, muster
+    if not funktionen.an(funktionen.REGELVORSCHLAEGE, db):
+        return []
     try:
         stand = _stand(db)
         alt = _MUSTER.get(id(db))
@@ -396,8 +400,9 @@ def trefferquote(db, kundennr, ohne_id=None):
     """Beauftragte und abgelehnte Angebote des Kunden (auch die der Kollegen, ohne ersetzte Fassungen): dict(
     beauftragt, abgelehnt, quote, gewinn_ja, gewinn_nein (Ø Gewinn in %), preis_zu_hoch) oder None (unter
     TREFFER_AB entschiedenen Angeboten)."""
+    from . import funktionen
     from .absage import letzte
-    if not kundennr:
+    if not kundennr or not funktionen.an(funktionen.PREIS_HINWEISE, db):
         return None
     try:
         zeilen = db.con.execute("SELECT id, vorgang, gewinn, vk_gewinn, versand, vk_netto FROM angebote WHERE kundennr=? AND "
@@ -502,7 +507,9 @@ def durchlauf(db):
 def lieferzeit_hinweis(db, kopf, heute=None):
     """Angebots-Check: zugesagte Lieferzeit (Arbeitstage ab heute) kürzer als die gelernte Durchlaufzeit -> Text,
     sonst None. Nur Hinweis."""
-    from . import auftrag, feiertage, terminplan
+    from . import auftrag, feiertage, funktionen, terminplan
+    if not funktionen.an(funktionen.PREIS_HINWEISE, db):
+        return None
     d = durchlauf(db)
     k = kopf or {}
     if not d or not (k.get("lieferzeit_wert") or k.get("liefertermin")):

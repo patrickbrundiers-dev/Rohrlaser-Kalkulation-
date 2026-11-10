@@ -1917,7 +1917,7 @@ class StartSeite(QWidget):
         self.wiedervorlage.clear()
         from . import lernen
         try:                        # I2: geschätzte Auftragschance, die aussichtsreichsten (Chance × Wert) zuerst
-            self.chancen = lernen.chancen(alle)
+            self.chancen = lernen.chancen(alle) if funktionen.an(funktionen.CHANCE) else {}
         except Exception:
             self.chancen = {}
         if self.chancen:

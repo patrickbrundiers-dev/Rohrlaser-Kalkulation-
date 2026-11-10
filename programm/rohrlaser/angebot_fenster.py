@@ -3661,7 +3661,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             try:
                 verlaeufe = self.db.versand_verlaeufe(self.id)
                 self._preis_vergleich_cache = plausibel.vergleich_aus(verlaeufe)
-                self._preis_fein_cache = plausibel.fein_aus(verlaeufe)        # I1: ähnliche Länge
+                self._preis_fein_cache = (plausibel.fein_aus(verlaeufe)       # I1: ähnliche Länge
+                                          if funktionen.an(funktionen.PREIS_HINWEISE, self.db) else {})
             except Exception:       # Plausibilität ist nur ein Hinweis: nie das Angebot blockieren
                 self._preis_vergleich_cache, self._preis_fein_cache = {}, {}
         return self._preis_vergleich_cache

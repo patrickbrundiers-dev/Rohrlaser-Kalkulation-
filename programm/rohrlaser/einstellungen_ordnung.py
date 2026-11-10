@@ -26,7 +26,8 @@ SEITEN = (
           "Ausgeschaltete Funktionen verschwinden aus Reitern, Menüs und Einstellungen. Gespeicherte Daten bleiben, "
           "Angebote, die sie schon nutzen, zeigen und rechnen sie weiter. " + ALLE_PLAETZE,
           (Abschnitt("Bereiche", funktionen.VORHANDEN),
-           Abschnitt("Funktionen", tuple(f.name for f in funktionen.FUNKTIONEN)))),
+           Abschnitt("Funktionen", tuple(f.name for f in funktionen.FUNKTIONEN if f.name not in funktionen.INTELLIGENZ)),
+           Abschnitt("Intelligenz", funktionen.INTELLIGENZ))),
     Seite("e_firma", "Firma", ALLE_PLAETZE,
           (_a("Briefkopf und Logo", "briefkopf_1 briefkopf_2 briefkopf_3 briefkopf_4 logo"),
            _a("E-Mail", "eigene_domains"),
