@@ -226,6 +226,10 @@ def main(argv=None):
             ergebnisse[i] = (name, 0, dauer)
         else:
             print("\n".join("        | " + z for z in ausgabe2.rstrip().splitlines()[-30:]), flush=True)
+            if os.environ.get("GITHUB_ACTIONS"):    # als Annotation: im Pull Request ohne Protokoll lesbar
+                ende = "%0A".join(z.replace("%", "%25").replace("\r", "")
+                                  for z in ausgabe2.rstrip().splitlines()[-25:])
+                print(f"::error title=Test rot: {name}::{ende}", flush=True)
     gesamt = time.monotonic() - start
     if args.laufzeiten:
         with open(args.laufzeiten, "w", encoding="utf-8") as f:
