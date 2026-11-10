@@ -3784,6 +3784,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
         stand = self.stand_optimierung()
         self.kopf_bereich.gewinn_satz_setzen(summen)       # gestaffelter Gewinn: wirksamer Satz (08.11.2026)
+        self.uebersicht_bereich.treffer_setzen(self._treffer_text())     # Trefferquote des Kunden (L4)
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet",
@@ -5112,18 +5113,20 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from . import arbeitsgaenge
         if self.fremd() or self.db.nur_lesen:
             return 0
-        n = 0
+        n, namen_n = 0, []
         for r in self._vorschlag_zeilen(zeilen):
             p = dict(self.positionen[r])
             for v in self.pos_modell.vorschlaege[r]:
                 if namen is not None and v["name"] not in namen:
                     continue
                 p["arbeitsgaenge"] = arbeitsgaenge.ablehnen(p, v["name"])
+                namen_n.append(v["name"])
                 n += 1
             if p.get("arbeitsgaenge") != self.positionen[r].get("arbeitsgaenge"):
                 self.db.position_aendern(p["id"], "arbeitsgaenge", p["arbeitsgaenge"])
+        gelernt = "".join(self.zusatz_lernen(x, False) for x in dict.fromkeys(namen_n))      # je Angebot einmal
         self.f.meldung((f"{n} Vorschlag abgelehnt" if n == 1 else f"{n} Vorschläge abgelehnt")
-                       + " (zurücknehmen: „Arbeitsgänge vorschlagen …“).")
+                       + " (zurücknehmen: „Arbeitsgänge vorschlagen …“)." + gelernt)
         self.neu_laden()
         return n
 
@@ -5138,17 +5141,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if e0 is None:
             self.f.meldung(f"„{name}“ ist keine Zusatzarbeit.", fehler=True)
             return 0
-        n = 0
+        n, vorschlag = 0, False
         for r in zeilen:
             p = self.positionen[r]
             liste = rechnen.zusatz_liste(p)
             if name in {e["name"] for e in liste}:
                 continue
             v = next((x for x in self.pos_modell.vorschlaege[r] if x["name"] == name), None)
+            vorschlag = vorschlag or v is not None
             e = dict(e0, text=v.get("text"), quelle=v["herkunft"]) if v else dict(e0)
             self.db.position_aendern(p["id"], "zusatz", json.dumps(liste + [e], ensure_ascii=False))
             n += 1
-        self.f.meldung(f"{name} bei {n} Position(en) hinzugefügt." if n else f"{name} ist schon überall eingetragen.")
+        self.f.meldung((f"{name} bei {n} Position(en) hinzugefügt." if n else f"{name} ist schon überall eingetragen.")
+                       + (self.zusatz_lernen(name, True) if vorschlag else ""))
         if n:                       # aus Nacharbeit lernen (Paket D, E5)
             from . import nacharbeit
             nacharbeit.anbieten(self, "zusatz", name)
@@ -6402,10 +6407,49 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     def _position_frisch(self, position_id):
         return next((x for x in self.db.positionen(self.id) if x["id"] == position_id), None)
 
+    def _treffer_text(self):
+        """Trefferquote des Kunden als Hinweis neben dem Gewinn (lernen.trefferquote), gemerkt je Kunde, bis sich die
+        Angebotsliste ändert; '' ohne Kunde oder mit zu wenig entschiedenen Angeboten."""
+        from . import lernen
+        nr = self.kopf.get("kundennr")
+        try:
+            stand = (nr, self.db.con.execute("SELECT COUNT(*), MAX(geaendert), SUM(vorgang='Beauftragt'), "
+                                             "SUM(vorgang='Abgelehnt') FROM angebote WHERE kundennr=?",
+                                             (str(nr or ""),)).fetchone()[:])
+        except Exception:
+            return ""
+        if getattr(self, "_treffer", (None, ""))[0] != stand:
+            self._treffer = (stand, lernen.treffer_text(lernen.trefferquote(self.db, nr, self.id)))
+        return self._treffer[1]
+
+    def _ist_vorschlag(self, p, name):
+        """True, wenn name an der Position ein Zusatzarbeit-Vorschlag ist (offen oder abgelehnt), keine automatische
+        Zusatzarbeit (Arbeitsgang-Regel automatisch) – nur daraus lernt das Programm (lernen.py)."""
+        from . import zusatz_erkennung
+        from . import zusatz_regeln as zr
+        try:
+            if any(v["name"] == name for v in zusatz_erkennung.offen(p, self.kopf, self.k, self.tabellen)):
+                return True
+            auto = {r.get("zusatzarbeit") for r in self.tabellen.get("arbeitsgang_regeln") or ()
+                    if zr.zuordnung(r) == zr.AUTOMATISCH}
+            return name in zr.abgelehnt(p) and name not in auto
+        except Exception:
+            return False
+
+    def zusatz_lernen(self, name, ja):
+        """Entscheidung zu einem Zusatzarbeit-Vorschlag merken (Plan „Programm soll lernen“ L2). Ergebnis: Text, wenn
+        das Programm es damit gelernt hat (für die Meldung), sonst ''."""
+        from . import lernen
+        if self.fremd() or self.db.nur_lesen:
+            return ""
+        w = lernen.entscheiden(self.db, lernen.ZUSATZ, self.kopf.get("kundennr"), name, ja, self.id, titel=name)
+        return " " + lernen.text_gelernt(name, w, self.kopf.get("kundennr")) if w else ""
+
     def arbeitsgang_annehmen(self, position_id, name):
         """Vorgeschlagene Zusatzarbeit in die Position übernehmen (mit Preisstand); doppelt nie. Ergebnis: True."""
         from . import arbeitsgaenge
         p = self._position_frisch(position_id)
+        lernen_ = bool(p) and self._ist_vorschlag(p, name)
         neu = arbeitsgaenge.annehmen(p, name, self.db.zeilen("arbeitsgang_regeln"), self.tabellen,
                                                 self.kopf, self.k) if p else None
         if neu is None:
@@ -6414,7 +6458,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.db.position_aendern(position_id, "zusatz", neu)
         if name in arbeitsgaenge.lesen(p)["abgelehnt"]:
             self.db.position_aendern(position_id, "arbeitsgaenge", arbeitsgaenge.ablehnen(p, name, zurueck=True))
-        self.f.meldung(f"Pos. {p.get('pos') or ''}: „{name}“ angenommen, wird jetzt gerechnet.")
+        self.f.meldung(f"Pos. {p.get('pos') or ''}: „{name}“ angenommen, wird jetzt gerechnet."
+                       + (self.zusatz_lernen(name, True) if lernen_ else ""))
         self.neu_laden()
         return True
 
@@ -6424,7 +6469,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         p = self._position_frisch(position_id)
         if p is None:
             return False
+        gelernt = self.zusatz_lernen(name, False) if not zurueck and self._ist_vorschlag(p, name) else ""
         self.db.position_aendern(position_id, "arbeitsgaenge", arbeitsgaenge.ablehnen(p, name, zurueck))
+        if gelernt:
+            self.f.meldung(gelernt.strip())
         self.neu_laden()
         return True
 

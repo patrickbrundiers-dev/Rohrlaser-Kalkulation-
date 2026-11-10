@@ -21,33 +21,53 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.275", "<b>Angebots-Check: Erledigen</b> ([[angebots_check]]): Punkte, die das Programm selbst lösen kann "
+    ["0.9.278", "<b>Angebots-Check: Erledigen</b> ([[angebots_check]]): Punkte, die das Programm selbst lösen kann "
      "(Schnittplan optimieren, Staffelpreise rechnen, aktuelle Preise übernehmen), haben den Knopf <b>Erledigen</b>, "
      "mehrere <b>Alles Automatische erledigen</b>. Ungeprüfte STEP-Teile lassen sich der Reihe nach bestätigen "
      "(<b>Passt, nächstes</b>).",
      "Angebots-Check: Erledigen; ungeprüfte STEP-Teile der Reihe nach bestätigen."],
-    ["0.9.275", "<b>Rechtsklick im Prüfdialog</b> ([[erkennung_ampel]]): Passt, Nur dieses Teil aufteilen und Art "
+    ["0.9.278", "<b>Rechtsklick im Prüfdialog</b> ([[erkennung_ampel]]): Passt, Nur dieses Teil aufteilen und Art "
      "direkt am Teil. <b>Preisliste</b> ([[normteile_ohne_preis]]): Lieferant wählbar, abweichende vorhandene Preise "
      "alt → neu zum Prüfen.",
      "Prüfdialog-Rechtsklick mit Passt/Aufteilen/Art; Preisliste mit Lieferant und Preisaktualisierung."],
-    ["0.9.275", "<b>Rohr mit angeschweißtem Blech</b> ([[drehfraesteile]]): Kopfplatte oder Lasche mit dem Rohr zu "
+    ["0.9.278", "<b>Rohr mit angeschweißtem Blech</b> ([[drehfraesteile]]): Kopfplatte oder Lasche mit dem Rohr zu "
      "einem Körper verschmolzen: das Teil ist ein Rohr mit Anbauteil (ein Rundrohr mit Kopfplatte war vorher ein "
      "Drehteil), steht gelb und <b>Aufteilen</b> trennt es in Rohr und Blech als eigene Positionen.",
      "Rohr mit Kopfplatte/Lasche: Rohr statt Drehteil, Aufteilen trennt Rohr und Blech."],
-    ["0.9.275", "<b>Passt für gleiche Teile</b> ([[erkennung_ampel]]): <b>Passt (N gleiche)</b> bestätigt dasselbe gelbe "
+    ["0.9.278", "<b>Passt für gleiche Teile</b> ([[erkennung_ampel]]): <b>Passt (N gleiche)</b> bestätigt dasselbe gelbe "
      "Teil in allen Zeilen und Dateien auf einmal. Unter <i>Werte setzen</i> lassen sich auch <b>Art</b> und "
      "<b>Profil</b> für markierte bzw. alle Zeilen setzen.",
      "Passt (N gleiche); Art und Profil für markierte Zeilen setzen."],
-    ["0.9.275", "<b>Gemerkte Art mit Datum</b> ([[step]]): kommt ein Teil wieder, dessen Art von Hand geändert wurde, "
+    ["0.9.278", "<b>Gemerkte Art mit Datum</b> ([[step]]): kommt ein Teil wieder, dessen Art von Hand geändert wurde, "
      "steht es grün mit <i>Art wie am TT.MM.JJJJ von Hand gewählt</i>.",
      "Von Hand gewählte Art beim nächsten Import grün mit Datum."],
-    ["0.9.275", "<b>Angebots-Check: ungeprüfte STEP-Teile</b> ([[angebots_check]]): Hinweis <i>N Teile aus dem "
+    ["0.9.278", "<b>Angebots-Check: ungeprüfte STEP-Teile</b> ([[angebots_check]]): Hinweis <i>N Teile aus dem "
      "STEP-Import ungeprüft (gelb)</i> und <i>vereinfacht gemessen</i> mit Sprung zur Position.",
      "Angebots-Check nennt ungeprüfte gelbe und vereinfacht gemessene Teile."],
-    ["0.9.275", "<b>Normteil-Preise aus CSV</b> ([[normteile_ohne_preis]]): <b>Preise aus CSV …</b> liest die "
+    ["0.9.278", "<b>Normteil-Preise aus CSV</b> ([[normteile_ohne_preis]]): <b>Preise aus CSV …</b> liest die "
      "Preisliste des Lieferanten, ordnet sie den Normteilen ohne Preis zu (Artikelnummer, Norm + Gewinde + Länge, "
      "Bezeichnung) und trägt die Preise zum Prüfen ein; gespeichert wird mit <b>Preise speichern</b>.",
      "Normteil-Preise aus der Lieferanten-CSV übernehmen."],
+    ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
+     "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "
+     "(je Abmessung Stangen, Verschnitt, Ausnutzung, €/m, Materialkosten und das Stangenbild), grau daneben "
+     "dieselbe Abmessung im Angebot. Das Fenster der Stufe hat dafür den Reiter <b>Stangen</b>.",
+     "Stangenoptimierung je Stufe direkt im Reiter Staffeln und im Fenster der Stufe, mit Vergleich zum Angebot."],
+    ["0.9.276", "<b>Kalkulation und Zeiten in der Staffel</b> ([[staffel_kalkulation]]): Ein Doppelklick auf eine Stufe "
+     "zeigt neben den Einstellungen die Reiter <b>Kalkulation</b> (Summenzeile, Preis der Stufe je Satz bzw. Position "
+     "mit dem Grund jeder Abweichung, Tabelle je Bauteil kompakt oder mit allen Spalten), <b>Zeiten</b> (alle "
+     "Arbeitsschritte, Maschinen-, Personal- und Durchlaufzeit, Laserzeit je Satz bzw. Position) und <b>Wirksame "
+     "Werte</b> (Wert und Quelle Stufe/Angebot, €/m, Lieferlänge, Stundensätze). Im Reiter Staffeln zeigt die Gruppe "
+     "<b>Zeiten</b> die Laser- und Arbeitszeit je Stufe. Vorhandene Staffeln werden dafür einmal neu gerechnet.",
+     "Stufe öffnen zeigt Kalkulation, Zeiten und wirksame Werte wie im Angebot."],
+    ["0.9.275", "<b>Das Programm lernt</b> ([[lernen]]): Lehnen Sie einen Zusatzarbeit-Vorschlag beim selben Kunden in drei "
+     "Angeboten hintereinander ab (✗) bzw. übernehmen ihn (✓), lehnt der nächste STEP-Import ihn gleich ab bzw. "
+     "übernimmt ihn, mit Einblendung und Rückgängig im Automatik-Protokoll. Bei Wiederholteilen übernimmt der Import "
+     "die Werte, die im früheren Angebot von Hand eingetragen waren (Schneidzeit, Programmierzeit, Einstiche, Gewinde, "
+     "Naht), nie den Preis. Neben dem Verkaufspreis steht die Trefferquote des Kunden als Hinweis. Alles Gelernte "
+     "zeigt <b>Datei → Lernzentrale …</b>; dort lässt es sich einzeln vergessen. Gelerntes geht über den gemeinsamen "
+     "Ordner an die Kollegen; reife Kennwert-Vorschläge aus der Nachkalkulation meldet die Startseite.",
+     "Das Programm lernt aus ✓/✗ bei Zusatzarbeiten und Werten von Hand; Lernzentrale, Trefferquote."],
     ["0.9.274", "<b>Prüfdialog ohne Querscrollen</b> ([[erkennung_ampel]]): die Spalte Hinweis zeigt nur ein "
      "Stichwort, der ganze Text steht im Infofeld unter der 3D-Ansicht; Länge, Schneidweg und Konturen stehen dort "
      "und sind als Spalten ausgeblendet (Rechtsklick auf die Kopfzeile blendet sie ein), die übrigen Spalten passen "

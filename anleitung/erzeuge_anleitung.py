@@ -2940,7 +2940,7 @@ def kapitel_step(i):
             "<i>Von Hand nachtragen</i>).",
             "<b>Gemerkt</b>: was du umstellst, merkt sich das Programm für alle Kunden. Kommt das gleiche Teil "
             "(gleiche Hüllmaße, Volumen, Flächen und Kanten) wieder, ist es gleich die gewählte Art; der Hinweis "
-            "sagt <i>Art wie am 07.11.2026 von Hand gewählt</i> (seit 0.9.275 mit Datum). Ist sonst alles sicher, steht "
+            "sagt <i>Art wie am 07.11.2026 von Hand gewählt</i> (seit 0.9.278 mit Datum). Ist sonst alles sicher, steht "
             "das Teil <b>grün</b>, der Hinweis nennt das Datum; zurück geht es wie immer über die Spalte <b>Art</b>.",
             "<b>Nach dem Übernehmen</b>: Rechtsklick auf die Position → <b>Art ändern (Blech / Rohr / "
             "Dreh-/Frästeil) …</b> oder der Knopf <b>Art ändern …</b> im Rohr-Editor, Blech-Editor, Richtpreis "
@@ -3011,7 +3011,7 @@ def kapitel_step(i):
             "ist er ein Normteil (<i>Gewindebolzen</i>). Sitzt der Bolzen unter einem Sechskant, bleiben Kopf und "
             "Schaft eine <i>Schraube SW …</i>. Rundungen an Ecken (nur ein Bogen) und Wellen mit Absatz werden nie "
             "getrennt.",
-            "<b>Rohr mit angeschweißtem Blech (seit 0.9.275):</b> ist eine <b>Kopfplatte</b>, <b>Lasche</b> oder ein "
+            "<b>Rohr mit angeschweißtem Blech (seit 0.9.278):</b> ist eine <b>Kopfplatte</b>, <b>Lasche</b> oder ein "
             "Blech mit einem Rohr (Rund-, Quadrat-, Rechteckrohr) zu einem Körper verschmolzen, ist das Teil ein "
             "<b>Rohr mit Anbauteil</b> (ein Rundrohr mit Kopfplatte galt vorher als Drehteil mit Abflachung) und steht "
             "gelb: <i>Mehrere Teile in einem Körper? Rohr mit angeschweißtem Blech (Kopfplatte)</i>. Es bleibt "
@@ -3409,13 +3409,13 @@ def kapitel_step(i):
             "(<i>von Hand geprüft</i>) und die Liste springt zum nächsten gelben Teil. Bei <i>Profil fehlt in den "
             "Stammdaten</i> oder einem nicht verbindbaren Knickrahmen bleibt es gelb, bis das Profil angelegt bzw. "
             "der Rahmen verbunden ist. Auf einem grünen Teil schaltet die Leertaste wie gewohnt das Häkchen um.",
-            "<b>Passt für gleiche Teile</b> (seit 0.9.275): gibt es dasselbe gelbe Teil (gleiche Form und Art) noch in "
+            "<b>Passt für gleiche Teile</b> (seit 0.9.278): gibt es dasselbe gelbe Teil (gleiche Form und Art) noch in "
             "anderen Zeilen oder Dateien, heißt der Knopf <b>Passt (N gleiche)</b> und bestätigt alle auf einmal.",
-            "<b>Art und Profil für viele</b> (seit 0.9.275): unten unter <i>Werte setzen</i> stehen auch <b>(Art)</b> "
+            "<b>Art und Profil für viele</b> (seit 0.9.278): unten unter <i>Werte setzen</i> stehen auch <b>(Art)</b> "
             "(Blech, Rohr/Profil, Dreh-/Frästeil) und <b>(Profil)</b>. Mit <b>Für markierte</b> bzw. <b>Für alle</b> "
             "wird jede Zeile umgestellt, deren Teil sich in dieser Art messen lässt (gemerkt wie die Spalte Art); das "
             "Profil gilt nur für Rohre und Profile.",
-            "<b>Rechtsklick am Teil</b> (seit 0.9.275): neben Artikelnummer, Zusatzarbeiten und Knickverbindung stehen "
+            "<b>Rechtsklick am Teil</b> (seit 0.9.278): neben Artikelnummer, Zusatzarbeiten und Knickverbindung stehen "
             "dort <b>Passt</b> (bei gelben Teilen, mit Zahl der gleichen), <b>Nur dieses Teil aufteilen</b> (bei "
             "<i>Mehrere Teile in einem Körper</i>) und das Untermenü <b>Art</b> (Blech, Rohr/Profil, Dreh-/Frästeil; "
             "angehakt die aktuelle, grau eine Art, die sich nicht messen lässt). Ist das Teil markiert, gilt die Art "
@@ -5294,8 +5294,17 @@ def kapitel_staffeln(i):
                (4, "Einmalige Rüstkosten (Rüstkosten = separat): nicht im Stückpreis, aber im Gesamtpreis."),
                (5, "Änderung des Preises je Einheit zur letzten Eingabe, in € und %.")])
     i.abschnitt("Schnittschema je Staffel")
-    i.text("Jede Stufe hat ihren eigenen Schnittplan. <b>Schnittschema …</b> zeigt ihn je Stufe mit Stangen, "
-           "Verschnitt, €/m und Materialkosten – daraus kommt der Materialpreis der Staffel.", kurz=True)
+    i.bild("staffeln_stangen", "Stangenoptimierung der markierten Stufe direkt im Reiter Staffeln", hoehe=95 * mm,
+           legende=[
+               (1, "Das Ergebnis hat zwei Unterreiter: <b>Kosten</b> (Kostenpositionen und Staffelkurve) und "
+                   "<b>Stangen</b>."),
+               (2, "Gezeigt wird die oben markierte Stufe; eine andere Zeile markieren zeigt deren Stangen."),
+               (3, "Je Abmessung Stangen × Lieferlänge, Material, Teile, Verschnitt, Ausnutzung, €/m und "
+                   "Materialkosten; grau daneben dieselbe Abmessung in der Stangenoptimierung des Angebots."),
+               (4, "Die Stangen wie im Reiter Schnittplan: Stangenmuster, Übersicht oder Detail ([[stangenbild]]).")])
+    i.text("Jede Stufe hat ihren eigenen Schnittplan. Der Unterreiter <b>Stangen</b> im Reiter Staffeln und der "
+           "Reiter <b>Stangen</b> im Fenster der Stufe zeigen ihn mit Stangen, Verschnitt, €/m und Materialkosten "
+           "– daraus kommt der Materialpreis der Staffel.", kurz=True)
     i.genauer()
     i.text("Im Ergebnis steht unter <b>Schnittschema</b> je Abmessung und Stufe, wie viele Stangen welcher "
            "Lieferlänge die Menge braucht und wie gut sie ausgenutzt sind (z. B. „13 × 6.000 · 91 %“), daneben die "
@@ -5308,6 +5317,44 @@ def kapitel_staffeln(i):
            "Materialzuschlag. Hat eine Stufe mehrere Sätze bzw. Positionen, werden sie gemeinsam optimiert; das "
            "Schnittschema gilt dann für die ganze Stufe. Fehlt es (ältere Staffelpreise), bitte "
            "<b>Staffelpreise rechnen</b>.")
+    i.abschnitt("Kalkulation und Zeiten der Stufe", marke="staffel_kalkulation")
+    i.bild("staffel_kalkulation", "Fenster einer Stufe, Reiter Kalkulation: alle Werte wie im Angebot",
+           hoehe=105 * mm, legende=[
+               (1, "Stand: Zeit des Mengenlaufs, Teile und Stangen der Stufe (VERALTET, solange sie neu gerechnet "
+                   "wird)."),
+               (2, "Summenzeile wie im Reiter Kalkulation des Angebots: Material, Laser schneiden, Rüsten, "
+                   "Herstell- und Selbstkosten, Gewinn, Verkaufspreis der Stufe."),
+               (3, "<b>Preis der Stufe</b> je Satz bzw. Position: Verkaufspreis laut Kalkulation und Staffelpreis. "
+                   "Weichen sie ab, nennt <i>Grund</i> warum (Mindestpreis, gestaffelter Gewinn, Werte unter "
+                   "Erweitert, später geänderter Gewinn). Maßgeblich ist der Staffelpreis."),
+               (4, "<b>Kompakt</b>: das Wichtigste je Bauteil; ohne Häkchen alle Spalten der Kalkulation."),
+               (5, "Kalkulation je Bauteil mit den Stückzahlen der Stufe: Profil, Länge, Material, Laserzeit, "
+                   "Verkaufspreis je Teil – wie im Angebot.")])
+    i.text("Ein Doppelklick auf eine Stufe zeigt neben den Einstellungen die Reiter <b>Kalkulation</b>, "
+           "<b>Stangen</b>, <b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen "
+           "der Stufe.",
+           kurz=True)
+    i.genauer()
+    i.text("Das Fenster der Stufe hat fünf Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
+           "oben). Die anderen vier zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
+           "<b>Kalkulation</b> wie der Reiter Kalkulation des Angebots ([[kalkulation]]), <b>Zeiten</b> wie der "
+           "Reiter Zeiten &amp; Arbeitskosten, <b>Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe "
+           "unten) und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
+           "rechnet, und ob er aus der Stufe oder aus dem Angebot kommt, dazu Materialpreis €/m und Lieferlänge je "
+           "Abmessung und die Stundensätze. Werte der Stufe sind gelb.")
+    i.text("Gewinn und Zuschläge wirken in der Stufe sofort, ohne neuen Mengenlauf. Die Tabelle je Bauteil zeigt "
+           "sie so, wie sie beim Mengenlauf galten; deshalb steht oben der <b>Preis der Stufe</b> mit dem "
+           "Unterschied und seinem Grund. Werte unter <i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) "
+           "und der Mindestpreis wirken nur im Staffelpreis.")
+    i.bild("staffel_zeiten", "Reiter Zeiten der Stufe", hoehe=80 * mm, legende=[
+        (1, "Arbeitsschritte der Stufe mit Menge, Rüstzeit, Zeit je Einheit, Gesamtzeit, Stundensatz und Kosten."),
+        (2, "Maschinen-, Personal-, Arbeits- und Durchlaufzeit, Arbeitskosten und die Laserzeit je Satz bzw. "
+            "Position.")])
+    i.bild("staffel_werte", "Reiter Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
+        (1, "Wert, mit dem die Stufe rechnet, und seine Quelle (Stufe gelb, sonst Angebot).")])
+    i.text("Auch im Reiter <i>Staffeln</i> stehen die Zeiten: die Gruppe <b>Zeiten</b> im Ergebnis zeigt je Stufe "
+           "die Laserzeit je Einheit und gesamt und die Maschinen-, Personal-, Arbeits- und Durchlaufzeit der "
+           "ganzen Stufe.")
     i.abschnitt("Prüfung und Fehler")
     i.text("Rote Stufen haben einen FEHLER (z. B. keine Menge oder überschneidende Mengen) und werden nicht "
            "ausgegeben.", kurz=True)
@@ -6773,17 +6820,17 @@ def kapitel_ausgabe(i, seiten, ablage):
          "Kunde bzw. Feld im Angebotskopf"],
         ["Teile aus dem STEP-Import, die im Prüfdialog gelb waren und nicht mit <i>Passt</i> bestätigt wurden "
          "(<i>N Teile aus dem STEP-Import ungeprüft (gelb), z. B. …</i>), und Teile, die wegen des Zeitlimits nur "
-         "<i>vereinfacht gemessen</i> sind (seit 0.9.275; sperrt nichts)", "HINWEIS",
+         "<i>vereinfacht gemessen</i> sind (seit 0.9.278; sperrt nichts)", "HINWEIS",
          "die Teile der Reihe nach im Fenster STEP-Merkmale"],
         ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
-    i.liste("<b>Erledigen</b> (seit 0.9.275): Punkte, die das Programm selbst lösen kann, haben neben "
+    i.liste("<b>Erledigen</b> (seit 0.9.278): Punkte, die das Programm selbst lösen kann, haben neben "
             "<i>Hinspringen</i> den Knopf <b>Erledigen</b>: <i>Schnittplan nicht aktuell</i> (optimiert), <i>Staffelstufen "
             "veraltet</i> (rechnet die Staffelpreise) und <i>Stammdaten seit dem Festschreiben geändert</i> (übernimmt "
             "die aktuellen Preise, mit Rückgängig). Sind es mehrere, erledigt <b>Alles Automatische erledigen (N)</b> "
             "sie nacheinander. Danach zeigt der Check sich neu. Im fremden Angebot und im Lesemodus gibt es die Knöpfe "
             "nicht.",
-            "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.275): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
+            "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
             "nächstes</b> bestätigt und geht zum nächsten Teil, <b>Überspringen</b> lässt es offen, <b>Schließen</b> "
@@ -6964,6 +7011,32 @@ def kapitel_automatik(i):
             "Beauftragt von selbst.",
             "<i>Materialbestellung: Betreff</i> und <i>Materialbestellung: Text der E-Mail</i> mit den Platzhaltern "
             "der Materialanfrage; <i>{positionen}</i> enthält je Zeile den Preis aus dem Angebot des Lieferanten.")
+    i.abschnitt("Das Programm lernt", marke="lernen")
+    i.text("Das Programm merkt sich, wie Sie entscheiden, und macht es beim nächsten Mal selbst. Gelernt ist etwas nach "
+           "<b>drei gleichen Entscheidungen in verschiedenen Angeboten</b> hintereinander; eine andere Entscheidung "
+           "fängt wieder bei eins an. Was es selbst tut, steht als Einblendung und im Automatik-Protokoll (dort "
+           "<b>Rückgängig</b>). Preise lernt es nie: sie entstehen immer neu aus der Kalkulation.")
+    i.liste("<b>Zusatzarbeit-Vorschläge</b> ([[zusatz_erkennen]]): Lehnen Sie einen gelben Vorschlag (z. B. "
+            "<i>＋ Entgraten ?</i>) beim selben Kunden dreimal ab (✗, <i>Vorschläge ablehnen</i>), lehnt der nächste "
+            "STEP-Import ihn gleich ab. Übernehmen Sie ihn dreimal (✓), übernimmt der Import ihn gleich und rechnet ihn "
+            "mit. Ein Angebot zählt dabei einmal, auch wenn Sie 20 Positionen auf einmal ablehnen.",
+            "<b>Werte von Hand bei Wiederholteilen</b> ([[wiederholteile]]): Hat ein Teil mit gleicher Artikelnummer "
+            "beim selben Kunden früher eine Schneidzeit, Programmierzeit, Einstiche, Gewinde oder Naht von Hand "
+            "bekommen, trägt der Import diese Werte in die leeren Felder der neuen Position ein. Was schon eingetragen "
+            "ist, bleibt.",
+            "<b>Nacharbeit nach dem Import</b>, <b>Teileart</b> und <b>Profil</b> aus dem STEP-Prüfdialog lernt das "
+            "Programm wie bisher ([[erkennung_ampel]]).",
+            "<b>Trefferquote</b>: Unter dem Verkaufspreis steht grau, wie viele entschiedene Angebote des Kunden "
+            "beauftragt wurden, der mittlere Gewinn der beauftragten und abgelehnten und wie oft „Preis zu hoch“ der "
+            "Absagegrund war (ab drei entschiedenen Angeboten). Das ist nur ein Hinweis, der Gewinn ändert sich nie von "
+            "allein.",
+            "<b>Kennwerte</b> ([[nachkalkulation]]): Gibt es aus der Nachkalkulation genug Aufträge für einen Kennwert-"
+            "Vorschlag mit mindestens 5 % Abweichung, meldet die Startseite das unter <i>Automatik</i>.")
+    i.text("<b>Datei → Lernzentrale …</b> zeigt alles Gelernte: Bereich, Kunde, was gelernt ist und wie weit "
+           "(grau = noch beobachtet, z. B. <i>1 von 3</i>). <b>Vergessen</b> nimmt einen markierten Eintrag zurück, "
+           "<b>Nicht mehr lernen</b> sperrt einen Zusatzarbeit-Eintrag, <b>Kennwerte prüfen …</b> öffnet die "
+           "Vorschläge der Nachkalkulation zum Freigeben. Mit einem gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) geht das Gelernte "
+           "an alle Kollegen, auch das Vergessen.")
 
 
 def kapitel_nachkalkulation(i):
@@ -9268,14 +9341,14 @@ def kapitel_zukauf(i):
            "Zeilen mit 0 € bleiben offen. Der <b>Angebots-Check</b> nennt Normteile eines Angebots ohne Preis "
            "(<i>N Normteile ohne Einkaufspreis – alle auf einmal eintragen …</i>); <i>Hinspringen</i> öffnet diesen "
            "Unterreiter. Ins Angebot kommt der neue Preis wie sonst über <i>Zukaufpreise aktualisieren</i>.")
-    i.text("<b>Preise aus CSV …</b> (seit 0.9.275): liest die Preisliste des Lieferanten (CSV mit Kopfzeile, Spalten "
+    i.text("<b>Preise aus CSV …</b> (seit 0.9.278): liest die Preisliste des Lieferanten (CSV mit Kopfzeile, Spalten "
            "<i>Bezeichnung</i> und/oder <i>Artikelnummer</i> und <i>Preis</i>; Semikolon, Komma oder Tab; Zahlen wie "
            "0,12 oder 1.234,50) und ordnet die Zeilen den Normteilen zu: zuerst über die Artikelnummer (auch die des "
            "Lieferanten), dann über Norm, Gewinde und Länge (<i>DIN 933 M8 x 20</i> = <i>Sechskantschraube DIN 933 "
            "M8x20</i>), sonst über die gleiche Bezeichnung; nur eindeutige Treffer. Die Preise stehen danach gelb "
            "hinterlegt in den Zeilen (Tooltip: woher), oben steht <i>N von M Zeilen zugeordnet</i> und was nicht "
            "zugeordnet wurde. Erst <b>Preise speichern</b> speichert.")
-    i.text("<b>Lieferant und vorhandene Preise</b> (seit 0.9.275): im Feld neben <i>Preise aus CSV …</i> den "
+    i.text("<b>Lieferant und vorhandene Preise</b> (seit 0.9.278): im Feld neben <i>Preise aus CSV …</i> den "
            "Lieferanten der Preisliste wählen oder eintippen; beim Speichern wird der Preis bei diesem Lieferanten "
            "eingetragen (leer = wie beim Artikel). Nennt die Preisliste für Normteile, die schon einen Preis haben, "
            "einen anderen, erscheint <b>Vorhandene Preise aktualisieren (N) …</b>: das Fenster <i>Vorhandene Normteil-Preise "
