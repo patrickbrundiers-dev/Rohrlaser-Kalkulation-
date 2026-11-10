@@ -341,7 +341,8 @@ class AusgabeMixin:
         # Kalkulations-PDF 30.10.2026: gespeicherte Staffeln (nicht neu rechnen), Warnungen der Preis-Gegenprobe,
         # Maschine für den Rechenweg des ermittelten Stundensatzes
         staffel = (self.kopf.get("staffelpreise") or {}).get("zeilen") if self.stufen else None
-        plausi = plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
+        plausi = plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich(),
+                                  getattr(self, "_preis_fein_cache", None))
         maschine = self.k.maschinen.get(self.kopf.get("maschine"))
         from . import co2, funktionen
         bilanz = co2.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst) \

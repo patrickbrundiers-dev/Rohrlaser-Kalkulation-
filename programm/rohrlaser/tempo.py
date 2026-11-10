@@ -22,6 +22,13 @@ Abschnitte (Verbesserungsplan 06.11.2026, C1): lange Abläufe markieren ihre Sch
 („Abschnitte: …“) – auch im übersetzten Programm, wo die Funktionsnamen fehlen (STEP-Übernehmen 43 s, Patrick
 06.11.2026: ohne die Datei war nicht zu sehen, welcher Schritt so lange brauchte).
 
+Performance-Update 10.11.2026: im übersetzten Programm (Windows) sieht der Hilfsfaden keine Funktionsnamen. Darum
+markieren auch die häufigen Abläufe im Angebot (Neuladen nach jeder Änderung, Angebots-Check, Schweißbaugruppen-
+Fenster) ihre Schritte, mit kleinerer Grenze (`abschnitt(name, min_s=0.05)`), damit auch Blockaden von 1–3 s
+zeigen, welcher Teil bremst. Hänger-Schutz: hängt die Oberfläche länger als HAENGER_S, schreibt der Hilfsfaden
+sofort eine Zeile „Hänger seit N s“ mit Ort und den gerade laufenden Abschnitten – auch wenn das Programm danach
+abgebrochen wird (vorher stand ein Hänger erst nach seinem Ende im Protokoll, nach einem Abbruch also nie).
+
 Ein Eintrag: Zeit, Dauer, Ort (Reiter › Unterreiter, beim Angebot Positionen und Teile), letzte Bedienung, häufigste
 Funktionen. auswerten() fasst die Datei für Menschen zusammen (Support, Tests).
 """
@@ -44,23 +51,48 @@ SPEICHER_SCHRITT_MB = 100   # neuer Höchststand um so viel: eine Zeile ins Prot
 
 ABSCHNITT_MIN_S = 0.2     # kürzere Abschnitte stehen nicht im Eintrag
 MAX_ABSCHNITTE = 8
+HAENGER_S = 10.0          # so lange ohne Reaktion: sofort eine Zeile „Hänger“ (Hilfsfaden)
 _abschnitte = []          # (Name, Dauer) seit dem letzten Takt, nur auf dem Oberflächen-Ablauf
+_offen = []               # gerade laufende Abschnitte (außen zuerst), nur auf dem Oberflächen-Ablauf
 
 _log = logging.getLogger("rohrlaser.tempo")
 _log.propagate = False
 
 
 @contextlib.contextmanager
-def abschnitt(name):
-    """Schritt eines langen Ablaufs für den Zeitwächter (Dauer ab ABSCHNITT_MIN_S steht im nächsten Eintrag)."""
+def abschnitt(name, min_s=None):
+    """Schritt eines Ablaufs für den Zeitwächter (Dauer ab min_s, Vorgabe ABSCHNITT_MIN_S, steht im nächsten
+    Eintrag). Abschnitte außerhalb des Oberflächen-Ablaufs (Hintergrund) zählen nicht."""
+    if threading.get_ident() != _HAUPT[0]:
+        yield
+        return
     t0 = time.perf_counter()
+    _offen.append(name)
     try:
         yield
     finally:
+        if _offen and _offen[-1] == name:
+            _offen.pop()
         d = time.perf_counter() - t0
-        if d >= ABSCHNITT_MIN_S:
+        if d >= (ABSCHNITT_MIN_S if min_s is None else min_s):
             _abschnitte.append((name, d))
             del _abschnitte[:-50]
+
+
+_HAUPT = [threading.get_ident()]        # Oberflächen-Ablauf (Waechter.starten setzt ihn)
+
+
+def gemessen(name, min_s=0.05):
+    """Dekorator: die Methode als Abschnitt name messen (häufige Schritte in Fenstern, z. B. Schweißbaugruppe)."""
+    def deko(fn):
+        import functools
+
+        @functools.wraps(fn)
+        def mit(*args, **kwargs):
+            with abschnitt(name, min_s):
+                return fn(*args, **kwargs)
+        return mit
+    return deko
 
 
 def _abschnitte_text(liste):
@@ -116,6 +148,8 @@ class Waechter:
         self._filter = None
         self._faden = None
         self.speicher_hoch = 0          # höchster protokollierter Arbeitsspeicher [MB]
+        self.haenger_s = HAENGER_S
+        self._haenger_gemeldet = None   # Beginn der Blockade, für die schon „Hänger“ geschrieben ist
         self._speicher_zuletzt = 0.0
 
     # ---------------------------------------------------------------- Einrichten
@@ -149,7 +183,7 @@ class Waechter:
         _bedienung_einrichten()
         self._filter = Filter()
         app.installEventFilter(self._filter)
-        self._haupt_id = threading.get_ident()
+        self._haupt_id = _HAUPT[0] = threading.get_ident()
         self._zuletzt = time.perf_counter()
         self._timer = QTimer()
         self._timer.setInterval(int(self.takt_s * 1000))
@@ -182,9 +216,14 @@ class Waechter:
             proben, self._proben = self._proben, collections.Counter()
         abschnitte = list(_abschnitte)
         _abschnitte.clear()
+        if self._haenger_gemeldet is not None:      # Hänger vorbei: Ende mit Dauer (Eintrag unten)
+            self._haenger_gemeldet = None
         if blockiert >= self.grenze_s:
             self.eintragen(blockiert, proben, abschnitte)
             self._zuletzt = time.perf_counter()     # Schreiben selbst zählt nicht mit
+        if jetzt - getattr(self, "_ort_zeit", 0.0) >= 1.0:     # Ort für den Hänger-Schutz (Hilfsfaden) frisch halten
+            self._ort_zeit = jetzt
+            self._ort()
         if jetzt - self._speicher_zuletzt >= SPEICHER_TAKT_S:
             self._speicher_zuletzt = jetzt
             self.speicher_pruefen()
@@ -208,7 +247,8 @@ class Waechter:
         if self.kontext is None:
             return ""
         try:
-            return self.kontext() or ""
+            self._ort_zuletzt = self.kontext() or ""
+            return self._ort_zuletzt
         except Exception:                               # noqa: BLE001
             return ""
 
@@ -223,6 +263,46 @@ class Waechter:
             if name:
                 with self._sperre:
                     self._proben[name] += 1
+            self.haenger_pruefen()
+
+    def haenger_pruefen(self, jetzt=None):
+        """Hänger-Schutz (Hilfsfaden): blockiert die Oberfläche seit mindestens haenger_s, einmal je Blockade sofort
+        eine Zeile mit Ort, laufenden Abschnitten und häufigsten Funktionen. Ergebnis: Text oder None."""
+        jetzt = time.perf_counter() if jetzt is None else jetzt
+        beginn = self._zuletzt
+        seit = jetzt - beginn
+        if seit < self.haenger_s or self._haenger_gemeldet == beginn:
+            return None
+        self._haenger_gemeldet = beginn
+        teile = [f"Hänger seit {seit:.0f} s"]
+        ort = self._ort_sicher()
+        if ort:
+            teile.append(f"Ort: {ort}")
+        if self.letzte_bedienung:
+            teile.append(f"zuletzt: {self.letzte_bedienung}")
+        laufend = list(_offen)
+        if laufend:
+            teile.append("läuft: " + " › ".join(laufend))
+        with self._sperre:
+            proben = collections.Counter(self._proben)
+        if proben:
+            teile.append("in: " + "; ".join(f"{n} ({z})" for n, z in proben.most_common(MAX_FUNKTIONEN)))
+        text = " | ".join(teile)
+        self.eintraege = (self.eintraege + [text])[-50:]
+        try:
+            if self._schreiben is not None:
+                self._schreiben(text)
+            else:
+                _log.info(text)
+                for h in _log.handlers:
+                    h.flush()
+        except Exception:                               # noqa: BLE001 – der Wächter darf nie stören
+            pass
+        return text
+
+    def _ort_sicher(self):
+        """Ort ohne Qt-Aufrufe aus dem Hilfsfaden: der zuletzt auf dem Oberflächen-Ablauf ermittelte Ort."""
+        return getattr(self, "_ort_zuletzt", "") or ""
 
     def eintragen(self, dauer, proben=None, abschnitte=None):
         ort = self._ort()
@@ -300,6 +380,18 @@ def _eigene_funktionen(rahmen, tiefe=3):
 # ------------------------------------------------------------------------------------------- Auswertung
 _ZEILE = re.compile(r"^(\S+ \S+) (\d+(?:\.\d+)?) s(?: \| (.*))?$")
 _SPEICHER = re.compile(r"^(\S+ \S+) Speicher (\d+) MB(?: \| Ort: (.*))?$")
+_HAENGER = re.compile(r"^(\S+ \S+) Hänger seit (\d+) s(?: \| (.*))?$")
+
+
+def haenger(ordner):
+    """Hänger-Zeilen (Hänger-Schutz): Liste (Zeit, Sekunden, Rest der Zeile), älteste zuerst."""
+    out = []
+    for p in reversed(dateien(ordner)):
+        for z in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _HAENGER.match(z.strip())
+            if m:
+                out.append((m.group(1), int(m.group(2)), m.group(3) or ""))
+    return out
 
 
 def dateien(ordner):
@@ -344,6 +436,10 @@ def auswerten(ordner, anzahl=10):
     hoch = speicher_hoechststand(ordner)
     speicher = (f"\n\nArbeitsspeicher höchstens {hoch[0]} MB ({hoch[1]}" + (f", {hoch[2]}" if hoch[2] else "") + ")."
                 if hoch else "")
+    h = haenger(ordner)
+    if h:       # Hänger-Schutz (10.11.2026): die letzten Hänger mit laufenden Abschnitten
+        speicher += (f"\n\nHänger über {HAENGER_S:.0f} s: {len(h)}\n"
+                     + "\n".join(f"  {zeit}: {rest}" for zeit, _, rest in h[-5:]))
     if not eintraege:
         return "Keine langsamen Schritte (über %.1f s) protokolliert." % GRENZE_S + speicher
     gruppen = collections.defaultdict(list)

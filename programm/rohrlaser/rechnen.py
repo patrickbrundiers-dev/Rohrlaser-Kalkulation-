@@ -7,10 +7,13 @@ Eingaben: kopf (dict: maschine, stange, …), positionen (Liste von dicts, Reihe
 Angebot), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', 'gewinde' und
 'zusatzarbeiten': Zeilen; fehlen die Zusatzarbeiten, gibt es keine).
 """
+import contextlib
+import copy
 import hashlib
 import math
 import json
 import re
+import threading
 
 from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
@@ -21,6 +24,76 @@ from . import fracht_angebot
 from . import abruf, anbau, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
+
+
+# ------------------------------------------------------------------ Merker (Performance-Update 10.11.2026)
+# Während eines Neuladens bzw. einer Kalkulation ändern sich die Eingaben nicht: reine Rechnungen (Positionswerte,
+# Schneiddaten, Stangenpreis) gelten dann je Eingabe-Objekt einmal. Schlüssel sind die id() der Eingaben; der Merker
+# hält die Objekte fest, damit keine id während des Laufs neu vergeben wird. Je Thread eigener Merker (Hintergrund-
+# Läufe teilen nichts). Ohne aktiven Merker rechnet alles wie bisher.
+_MERKER = threading.local()
+
+
+@contextlib.contextmanager
+def merker():
+    """Zwischenergebnisse für die Dauer des with-Blocks merken (verschachtelt: der äußere gilt)."""
+    if getattr(_MERKER, "werte", None) is not None:
+        yield
+        return
+    _MERKER.werte, _MERKER.halten = {}, []
+    try:
+        yield
+    finally:
+        _MERKER.werte = _MERKER.halten = None
+
+
+def _gemerkt(schluessel, halten, rechne):
+    werte = getattr(_MERKER, "werte", None)
+    if werte is None:
+        return rechne()
+    try:
+        return werte[schluessel]
+    except KeyError:
+        pass
+    except TypeError:           # Schlüssel nicht hashbar (z. B. Liste aus einem gespeicherten Ergebnis): rechnen
+        return rechne()
+    v = werte[schluessel] = rechne()
+    _MERKER.halten.append(halten)
+    return v
+
+
+_UNVERAENDERLICH = (str, int, float, bool, type(None), bytes, complex)
+
+
+def kopie(x, memo=None):
+    """Tiefe Kopie wie copy.deepcopy (gleiche Werte, gleiche Mehrfach-Verweise), für dict/list/tuple/set aus
+    Zahlen und Texten aber ohne deren Umweg über __deepcopy__ – etwa doppelt so schnell (Kalkulationsergebnisse)."""
+    if isinstance(x, _UNVERAENDERLICH):
+        return x
+    if memo is None:
+        memo = {}
+    i = id(x)
+    if i in memo:
+        return memo[i]
+    t = type(x)
+    if t is dict:
+        y = memo[i] = {}
+        for k_, v in x.items():
+            y[k_ if isinstance(k_, _UNVERAENDERLICH) else kopie(k_, memo)] = \
+                v if isinstance(v, _UNVERAENDERLICH) else kopie(v, memo)
+        return y
+    if t is list:
+        y = memo[i] = []
+        y.extend(v if isinstance(v, _UNVERAENDERLICH) else kopie(v, memo) for v in x)
+        return y
+    if t is tuple:
+        y = tuple(v if isinstance(v, _UNVERAENDERLICH) else kopie(v, memo) for v in x)
+        if i in memo:           # Verweis auf sich selbst im Inneren: wie deepcopy
+            return memo[i]
+        memo[i] = y
+        return y
+    y = memo[i] = copy.deepcopy(x)       # alles andere (Mengen, eigene Klassen) wie bisher
+    return y
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
 
 
@@ -158,7 +231,12 @@ def kg_je_m(profil_id, werkstoff_id, k):
 
 # ------------------------------------------------------------------ Positionswerte
 def position_werte(p, kopf, k, tabellen):
-    """Berechnete Spalten einer Position."""
+    """Berechnete Spalten einer Position (im Merker je Position einmal, jeder Aufrufer bekommt ein eigenes dict)."""
+    return dict(_gemerkt(("position_werte", id(p), id(kopf), id(k), id(tabellen)), (p, kopf, k, tabellen),
+                         lambda: _position_werte(p, kopf, k, tabellen)))
+
+
+def _position_werte(p, kopf, k, tabellen):
     m = maschine(kopf, k) or {}
     pr = k.profile.get(p.get("profil_id")) if not _leer(p.get("profil_id")) else None
     w = {}
@@ -251,6 +329,13 @@ def preis_zeile(profil_id, werkstoff_id, k, tabellen):
 
 
 def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None, werkstoff=None):
+    """Schneiddaten-Zeile wie _schneiddaten (im Merker je Eingabe einmal gesucht; die Zeile selbst ist dieselbe)."""
+    return _gemerkt(("schneiddaten", maschinen_id, werkstoff_id, wand, id(tabellen), kategorie, id(werkstoff)),
+                    (tabellen, werkstoff),
+                    lambda: _schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie, werkstoff))
+
+
+def _schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None, werkstoff=None):
     """Schneiddaten-Zeile für Maschine + Werkstoff und Wandstärke, sonst None.
     Zuerst die Zeilen des Werkstoffs, ohne passende die Zeilen seiner Kategorie (Werkstoff-ID leer). Je Schneidgas
     gilt die Zeile mit der kleinsten 'Wandstärke bis' ≥ wand; N₂ geht vor O₂, Zeilen ohne Gas zuletzt. So endet N₂
@@ -389,11 +474,22 @@ def satz_abweichung(p, positionen):
     if not positionen or saetze_von(p) is None:
         return None
     satz = str(p.get("satz")).strip()
-    n = sorted({saetze_von(q) for q in positionen if position_aktiv(q) and saetze_von(q) is not None
-                and str(q.get("satz")).strip() == satz})
+    n = _satz_anzahlen(positionen).get(satz, ())
     if len(n) < 2:
         return None
     return f"Satz {satz}: unterschiedliche Anzahl Sätze ({' / '.join(zahl(x, 2) for x in n)})"
+
+
+def _satz_anzahlen(positionen):
+    """{Satz: sortierte verschiedene Anzahlen Sätze} der aktiven Positionen (im Merker je Positionsliste einmal,
+    vorher je Position die ganze Liste: quadratisch)."""
+    def rechne():
+        je = {}
+        for q in positionen:
+            if position_aktiv(q) and saetze_von(q) is not None:
+                je.setdefault(str(q.get("satz")).strip(), set()).add(saetze_von(q))
+        return {s_: sorted(v) for s_, v in je.items()}
+    return _gemerkt(("satz_anzahlen", id(positionen)), positionen, rechne)
 
 
 def wert_negativ(p):
@@ -1290,6 +1386,14 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
 
 # ------------------------------------------------------------------ Schnittplan-Werte
 def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
+    """Wie _stangen_werte; im Merker je Eingabe einmal gerechnet, jeder Aufrufer bekommt eine eigene Kopie."""
+    werte = _gemerkt(("stangen_werte", id(ergebnis), id(kopf), id(positionen), id(k), id(tabellen)),
+                     (ergebnis, kopf, positionen, k, tabellen),
+                     lambda: _stangen_werte(ergebnis, kopf, positionen, k, tabellen))
+    return kopie(werte) if getattr(_MERKER, "werte", None) is not None else werte
+
+
+def _stangen_werte(ergebnis, kopf, positionen, k, tabellen):
     """Berechnete Spalten je Stange: teile, summe, belegt, rest, ausnutzung, pruefung, gewicht, kosten.
     Stangen mit Musterteilen (eigener Lauf, Patrick 28.10.2026 F4 a) kosten nur den belegten Teil (Endbeschnitt,
     Teile, Schnittverluste) zum Preis der Stange, der Rest geht ins Lager; kosten_voll = Preis der ganzen Stange.
@@ -1435,6 +1539,13 @@ def haendler_mehrlaenge(laenge, einst=None, tabellen=None):
 
 
 def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst=None, mehr=True):
+    """Wie _lieferstange_preis (im Merker je Eingabe einmal gerechnet)."""
+    return _gemerkt(("lieferstange_preis", gr, laenge, gewicht, id(kopf), id(positionen), id(k), id(tabellen),
+                     id(einst), mehr), (kopf, positionen, k, tabellen, einst),
+                    lambda: _lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst, mehr))
+
+
+def _lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst=None, mehr=True):
     """Materialkosten einer Stange der Länge laenge für die Gruppe gr (Profil, Werkstoff, Oberfläche, Stangenlänge
     des Angebots): Preis €/m im Angebot > Zeile in 'Lieferlängen' mit dieser Länge und Preis > 'Preise' >
     Tonnenpreis; zu den drei letzten kommt der Aufpreis der Oberfläche je m. Nach Länge oder Gewicht berechnete
@@ -3495,6 +3606,11 @@ def gewinn_gestaffelt(basis, stufen):
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation wie _kalkulation; mit gestaffeltem Gewinn (gewinn_stufen) zuerst die Gewinnbasis des ganzen Angebots
     (Lauf mit Gewinn 100 %), dann derselbe Satz für alle Positionen: Gewinn der Stufe ÷ Basis."""
+    with merker():      # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
+        return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+
+
+def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     from . import preisschicht      # letzte Preisschicht (Vorschläge 02.11.2026), ohne Einstellungen bitgleich
     stufen = gewinn_stufen(einstellungen)
     if not stufen:

@@ -3,6 +3,8 @@ einem Körper“ gelb markiert (z. B. Platte mit angeschweißter Mutter), wird a
 
 - Sechskant (Mutter, Schraubenkopf) um eine Zylinderachse: das Sechskantprisma zwischen den Enden der Schlüsselflächen,
 - Kugel: die Kugel aus den Kugelflächen,
+- Bleche an Rohren (L1, Patrick 08.11.2026): Kopfplatte oder Lasche mit dem Rohr verschmolzen, Trennung an der
+  Rohrhülle wie die Anbauteil-Messung,
 - Bolzen, Stehbolzen, Gewindestangen (Vorschlag M5): Zylinder aus den außen liegenden Zylinderflächen gleicher Achse und
   gleichen Halbmessers zwischen ihren Enden; sitzt er unter einem Sechskant, wird beides eine Schraube.
 
@@ -227,10 +229,38 @@ def anbauten(solid):
     return out
 
 
+def rohr_blech(solid):
+    """L1 (Patrick 08.11.2026): Rohr mit verschmolzenem Blech (Kopfplatte, Lasche) trennen wie die Anbauteil-Messung
+    (Körper ∩ Rohrhülle = Rohr, Körper − Rohrhülle = Bleche). Liste (Name, Solid), Rohr zuletzt; leer ohne Trennung."""
+    import step_geometrie as g
+    try:
+        r = g._anbau_trennen(solid)
+    except Exception:  # nicht trennbar: wie bisher
+        r = None
+    if not r or not r.get("anbau") or r.get("mehr_anbau"):
+        return []
+    from OCP.Bnd import Bnd_OBB
+    from OCP.BRepBndLib import BRepBndLib
+    b = Bnd_OBB()               # gedrehter Hüllquader: unabhängig von der Lage in der Baugruppe
+    BRepBndLib.AddOBB_s(r["rohr"], b, True, True, False)
+    masse = sorted((b.XHSize(), b.YHSize(), b.ZHSize()))
+    if masse[2] < 2 * masse[1]:         # kein schlankes Rohr (Mutter, Buchse): nicht so trennen
+        return []
+    teile = [(f"Blech {i}" if len(r["anbau"]) > 1 else "Blech", a) for i, a in enumerate(r["anbau"], start=1)
+             if _volumen(a) > MIN_VOLUMEN]
+    return teile + [("Rohr", r["rohr"])] if teile else []
+
+
 def teilen(solid):
-    """Körper an den Anbauten trennen: Liste (Name, Solid), Grundteil zuletzt; leer, wenn nichts zu trennen ist."""
+    """Körper an den Anbauten trennen: Liste (Name, Solid), Grundteil zuletzt; leer, wenn nichts zu trennen ist. Ohne
+    Mutter, Bolzen oder Kugel: Rohr und angeschweißtes Blech (L1)."""
     teile, rest = [], solid
-    for name, form in anbauten(solid):
+    anb = anbauten(solid)
+    if all(name.startswith("Rohr ") for name, _ in anb):     # Rundrohr mit Kopfplatte: das Rohr ist das Grundteil
+        rb = rohr_blech(solid)
+        if rb:
+            return rb
+    for name, form in anb:
         anbau = _solids(BRepAlgoAPI_Common(rest, form).Shape())
         if not anbau:
             continue

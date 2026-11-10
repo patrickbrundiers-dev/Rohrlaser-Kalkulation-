@@ -8,19 +8,21 @@ from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QGridLayout, QLabel, Q
                                QVBoxLayout, QWidget)
 
 from . import stil
-from .angebot_check import FEHLER, HINWEIS, WARNUNG, blockiert, offen
+from .angebot_check import FEHLER, HINWEIS, WARNUNG, blockiert, erledigbar, offen
 
 FARBE = {FEHLER: stil.ROT, WARNUNG: stil.GELB_TEXT, HINWEIS: stil.TEXT_GRAU}
 
 
 class CheckDialog(QDialog):
     """weiter = Text des Weiter-Knopfs (None = nur ansehen, ein Knopf Schließen). Nach „Hinspringen“ ist der Dialog
-    abgelehnt und ziel gesetzt; der Aufrufer springt dann hin."""
+    abgelehnt und ziel gesetzt; der Aufrufer springt dann hin. K1 (Patrick 08.11.2026): Punkte mit aktion bekommen
+    „Erledigen“, oben „Alles Automatische erledigen“; danach ist der Dialog abgelehnt und aktionen gesetzt, der Aufrufer
+    führt sie aus und zeigt den Check neu (nur mit erledigen=True)."""
 
-    def __init__(self, parent, punkte, weiter=None, titel="Angebots-Check"):
+    def __init__(self, parent, punkte, weiter=None, titel="Angebots-Check", erledigen=False):
         super().__init__(parent)
         self.setWindowTitle(titel)
-        self.punkte, self.ziel = punkte, None
+        self.punkte, self.ziel, self.aktionen = punkte, None, []
         self.setMinimumWidth(560)
         lay = QVBoxLayout(self)
         n_offen, gesperrt = len(offen(punkte)), blockiert(punkte)
@@ -35,11 +37,19 @@ class CheckDialog(QDialog):
         k = QLabel(kopf)
         k.setWordWrap(True)
         lay.addWidget(k)
+        auto = erledigbar(punkte) if erledigen else []
+        self.alle_knopf = None
+        if len(auto) > 1:
+            self.alle_knopf = QPushButton(f"Alles Automatische erledigen ({len(auto)})")
+            self.alle_knopf.setToolTip("Alle Punkte mit „Erledigen“ nacheinander vom Programm lösen lassen, danach "
+                                       "prüft der Check neu")
+            self.alle_knopf.clicked.connect(lambda: self._erledigen([p.aktion for p in auto]))
+            lay.addWidget(self.alle_knopf, 0, Qt.AlignLeft)
         liste = QWidget()
         raster = QGridLayout(liste)
         raster.setContentsMargins(0, 0, 0, 0)
         raster.setColumnStretch(1, 1)
-        self.hin_knoepfe = []
+        self.hin_knoepfe, self.erledigen_knoepfe = [], []
         for r, p in enumerate(punkte):
             art = QLabel(f"<b style='color:{stil.umsetzen(FARBE[p.art])}'>{p.art}</b>")
             raster.addWidget(art, r, 0, Qt.AlignTop)
@@ -49,6 +59,14 @@ class CheckDialog(QDialog):
             t.setWordWrap(True)
             t.setTextInteractionFlags(Qt.TextSelectableByMouse)
             raster.addWidget(t, r, 1)
+            if erledigen and getattr(p, "aktion", None):
+                e = QPushButton("Erledigen")
+                e.setToolTip({"optimieren": "Schnittplan jetzt neu optimieren",
+                              "staffeln_rechnen": "Staffelpreise jetzt neu rechnen",
+                              "preise": "Aktuelle Preise übernehmen (mit Rückgängig)"}.get(p.aktion, ""))
+                e.clicked.connect(lambda _=False, a=p.aktion: self._erledigen([a]))
+                raster.addWidget(e, r, 3, Qt.AlignTop)
+                self.erledigen_knoepfe.append(e)
             if p.ziel:
                 b = QPushButton("Hinspringen")
                 b.setToolTip("Fenster schließen und zur Stelle springen")
@@ -78,6 +96,10 @@ class CheckDialog(QDialog):
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
+
+    def _erledigen(self, aktionen):
+        self.aktionen = list(dict.fromkeys(aktionen))
+        self.reject()
 
     def _hin(self, ziel):
         self.ziel = ziel
