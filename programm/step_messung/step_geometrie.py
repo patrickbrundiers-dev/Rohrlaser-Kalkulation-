@@ -828,6 +828,9 @@ def _schnitt_flaechen(shape, z, tol=0.01):
     return c
 
 
+SCHNITTE_MERKEN = True      # Querschnitt-Suche: gleiche Lagen nur einmal schneiden (False = wie vor 10.11.2026)
+
+
 def _schnitt(shape, z):
     """Konturen der Schnittebene Z = z, größte zuerst: Liste (Fläche, Draht, Schwerpunkt x, y)."""
     sec = BRepAlgoAPI_Section(_schnitt_flaechen(shape, z), gp_Pln(gp_Pnt(0, 0, z), gp_Dir(0, 0, 1)), False)
@@ -2286,6 +2289,9 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     # auch vier Lagen über die Länge verteilt: ist dort eine bis QUER_GRAVUR größer (eine Gravur mit gleich tiefen
     # Kerben über die halbe Länge gäbe in der Mitte drei gleiche Lagen), wird weiter gesucht. Viel größer (tiefe Tasche
     # über die Mitte, B08) bleibt es beim Querschnitt der Mitte wie bisher.
+    schnitte = {}   # z -> Schnitt: suche(2), suche(3 … 6) und suche(1) schneiden dieselben Lagen (Grab.STEP: 2.464
+    #                 Schnitte, 840 verschieden; Messung 10.11.2026); nur innerhalb dieser Suche gemerkt
+
     def suche(n_konturen):
         mitte, probe, rest = [], [], [(i + 0.37) / 50 for i in range(1, 49)]
         verteilt = [min(rest, key=lambda a: abs(a - v)) for v in (0.13, 0.33, 0.67, 0.87)]
@@ -2293,7 +2299,9 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
         fertig = False
         for anteil in reihe:
             z = zmin + anteil * t.laenge
-            ws = _schnitt(lok_q, z)
+            if z not in schnitte or not SCHNITTE_MERKEN:
+                schnitte[z] = _schnitt(lok_q, z)
+            ws = schnitte[z]
             if len(ws) != n_konturen or n_konturen >= 2 and not all(_innen_liegend(w[1], ws[0][1]) for w in ws[1:]):
                 continue
             (probe if anteil in verteilt else mitte).append((ws[0][0] - sum(w[0] for w in ws[1:]), z, ws))
@@ -4848,7 +4856,7 @@ def _erreichbarkeit(naehte, teile, koerper, stand=None, zeit=ERREICH_ZEIT):
             koerper_.append((k, b))
     if not naehte or len(koerper_) < 2:
         return
-    schnitt = {}
+    schnitt, lage = {}, {}
 
     def frei(i, p, d, eigen):
         k, b = koerper_[i]
@@ -4857,7 +4865,10 @@ def _erreichbarkeit(naehte, teile, koerper, stand=None, zeit=ERREICH_ZEIT):
             return True
         if eigen:
             q = gp_Pnt(*(p[j] + d[j] * ERREICH_NAH for j in range(3)))
-            if BRepClass3d_SolidClassifier(k, q, 1e-3).State() == TopAbs_IN:
+            if i not in lage:       # ein Klassifizierer je Körper (neu aufbauen je Punkt: 2/3 der Zeit, 10.11.2026)
+                lage[i] = BRepClass3d_SolidClassifier(k)
+            lage[i].Perform(q, 1e-3)
+            if lage[i].State() == TopAbs_IN:
                 return False
         if i not in schnitt:
             schnitt[i] = IntCurvesFace_ShapeIntersector()
