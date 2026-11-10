@@ -66,11 +66,12 @@ FUNKTIONEN = (
              "Das Programm lernt aus ✓/✗ bei Zusatzarbeit-Vorschlägen je Kunde und wendet Gelerntes beim Import "
              "selbst an (auch Werte aus Wiederholteilen); Hinweis auf Kennwert-Vorschläge auf der Startseite"),
     Funktion("funktion_regelvorschlaege", "Vorschläge aus Handeinträgen",
-             "Erkennungswörter und Arbeitsgang-Regeln aus immer wieder von Hand eingetragenen Zusatzarbeiten "
-             "(Lernzentrale, Startseite)"),
+             "Erkennungswörter und Arbeitsgang-Regeln aus immer wieder von Hand eingetragenen Zusatzarbeiten, "
+             "Kundenvorgaben aus gleichen Kopfwerten, Programmierzeit-Vorgabe (Lernzentrale, Startseite)"),
     Funktion("funktion_preis_hinweise", "Preis- und Termin-Hinweise",
              "Trefferquote und Wettbewerbsabstand unter den Preisen, Preis je kg gegen Teile ähnlicher Länge und "
-             "Lieferzeit gegen die echte Durchlaufzeit im Angebots-Check (die grobe €/kg-Prüfung bleibt)"),
+             "Lieferzeit gegen die echte Durchlaufzeit im Angebots-Check (die grobe €/kg-Prüfung bleibt); "
+             "Reklamationen bei Wiederholteilen, Nachkalkulation ähnlicher Aufträge, Verlustmuster"),
     Funktion("funktion_chance", "Auftragschance",
              "Geschätzte Auftragschance in der Wiedervorlage, die lohnendsten Angebote zuerst"),
 )

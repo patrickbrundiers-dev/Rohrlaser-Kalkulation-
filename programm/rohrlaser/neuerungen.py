@@ -28,7 +28,12 @@ NEUERUNGEN = [
      "oder eine Arbeitsgang-Regel vor (<b>Übernehmen</b>, mit Rückgängig). Unter dem Verkaufspreis steht, um wie viel "
      "Sie bei Absagen mit Wettbewerbspreis teurer waren, und der Angebots-Check warnt, wenn die zugesagte Lieferzeit "
      "kürzer ist als Ihre echte Durchlaufzeit aus dem Fertigungsstatus. Alles lässt sich unter Einstellungen → "
-     "Funktionen → <b>Intelligenz</b> in vier Schaltern einzeln ausschalten; Gelerntes bleibt dabei gespeichert.",
+     "Funktionen → <b>Intelligenz</b> in vier Schaltern einzeln ausschalten; Gelerntes bleibt dabei gespeichert. "
+     "Dazu: Die Lernzentrale schlägt <b>Kundenvorgaben</b> vor, wenn die letzten drei Angebote eines Kunden dieselbe "
+     "Maschine, Lieferzeit oder Materialvorgabe haben, und eine neue <b>Programmierzeit-Vorgabe</b>, wenn Sie sie "
+     "regelmäßig überschreiben. Der Angebots-Check nennt <b>Reklamationen</b> zu Wiederholteilen und meldet, wenn "
+     "nachkalkulierte Aufträge des Kunden am Laser deutlich länger brauchten. Nehmen Sie selbst Angewendetes zweimal "
+     "zurück, <b>verlernt</b> das Programm es. Startseite und Monatsbericht zeigen, wo Sie auffällig oft verlieren.",
      "Preis-Plausibilität nach Länge, Auftragschance, Regel-Vorschläge, Wettbewerbsabstand, Lieferzeit aus Ist."],
     ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
      "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "

@@ -2020,6 +2020,8 @@ class StartSeite(QWidget):
             self.f.offene_pruefen()
         elif a.get("art") in ("kennwerte", "muster"):
             self.f.lernzentrale()
+        elif a.get("art") == "verlust":
+            self.f.angebots_auswertung()
 
     def notizen_laden(self):
         """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""

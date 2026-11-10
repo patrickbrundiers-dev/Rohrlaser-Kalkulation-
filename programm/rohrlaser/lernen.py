@@ -37,6 +37,8 @@ GELERNT = Tabelle(
      Feld("ja", "Übernommen", "ganz", breite=60),
      Feld("nein", "Abgelehnt", "ganz", breite=60),
      Feld("status", "Status", breite=60),                 # leer | aus
+     Feld("angewendet", "Angewendet", "ganz", breite=60),  # I10: so oft hat der Import es selbst angewendet
+     Feld("zurueck", "Zurückgenommen", "ganz", breite=60),  # I10: so oft danach rückgängig gemacht
      Feld("kuerzel", "Wer", breite=50),
      Feld("geaendert", "Geändert", breite=130)),
     ("art", "kundennr", "schluessel"),
@@ -47,6 +49,7 @@ MUSTER_AB = "muster_abgelehnt"          # muster.ABGELEHNT (I3/I4 nicht übernom
 EINSTELLUNGEN_GETEILT = (NACHARBEIT, STEP_ART, STEP_PROFIL, MUSTER_AB)
 KENNWERT_AB = 0.05              # Startseite: Kennwert-Vorschlag erst ab 5 % Abweichung Ist ÷ Soll
 TREFFER_AB = 3                  # Trefferquote erst ab 3 entschiedenen Angeboten des Kunden
+VERLERNEN_AB = 2                # I10: nach so vielen Rücknahmen von selbst Angewendetem ist es verlernt
 
 
 def _jetzt():
@@ -135,6 +138,41 @@ def wirksam(db, art, kundennr):
     return out
 
 
+def angewendet(db, art, kundennr, schluessel_liste):
+    """I10: der Import hat Gelerntes selbst angewendet – zählen (für die Lernzentrale). Scheitert nie laut."""
+    try:
+        with db.con:
+            for s in schluessel_liste:
+                db.con.execute("UPDATE gelernt SET angewendet=COALESCE(angewendet, 0) + 1 WHERE art=? AND kundennr=? "
+                               "AND schluessel=?", (art, str(kundennr), str(s)))
+    except Exception:
+        pass
+
+
+def zurueckgenommen(db, art, kundennr, schluessel_liste):
+    """I10 Selbstkorrektur: selbst Angewendetes wurde im Automatik-Protokoll zurückgenommen. Nach VERLERNEN_AB
+    Rücknahmen ist der Eintrag verlernt (Zählung beginnt neu, er wird wieder nur beobachtet). Ergebnis: Titel der
+    verlernten Einträge."""
+    verlernt = []
+    try:
+        with db.con:
+            for s in schluessel_liste:
+                z = _zeile(db, art, kundennr, s)
+                if not z or not gelernt(z):
+                    continue
+                n = (z.get("zurueck") or 0) + 1
+                if n >= VERLERNEN_AB:
+                    db.con.execute("UPDATE gelernt SET angebote='[]', zurueck=0, geaendert=?, kuerzel=? WHERE id=?",
+                                   (_jetzt(), _kuerzel(db), z["id"]))
+                    verlernt.append(z.get("titel") or str(s))
+                else:
+                    db.con.execute("UPDATE gelernt SET zurueck=?, geaendert=?, kuerzel=? WHERE id=?",
+                                   (n, _jetzt(), _kuerzel(db), z["id"]))
+    except Exception:
+        pass
+    return verlernt
+
+
 def text_gelernt(name, wert, kundennr):
     if wert == JA:
         return (f"Gelernt: „{name}“ haben Sie bei Kunde {kundennr} {SCHWELLE}-mal übernommen – beim nächsten "
@@ -205,7 +243,9 @@ def uebersicht(db, mit_kennwerten=True):
             stand, was = f"beobachtet ({n} von {SCHWELLE})", f"„{z.get('titel')}“ {tat}?"
         out.append(dict(quelle=TABELLE, schluessel=z["id"], bereich=ARTEN.get(z.get("art"), z.get("art")),
                         kunde=_kunde(namen, z.get("kundennr")),
-                        was=was + f" (bisher {z.get('ja') or 0}× übernommen, {z.get('nein') or 0}× abgelehnt)",
+                        was=was + f" (bisher {z.get('ja') or 0}× übernommen, {z.get('nein') or 0}× abgelehnt"
+                                  + (f"; {z['angewendet']}× selbst angewendet, {z.get('zurueck') or 0}× zurückgenommen"
+                                     if z.get("angewendet") else "") + ")",
                         stand=stand, wann=_datum(z.get("geaendert")) + (f" ({z['kuerzel']})" if z.get("kuerzel") else ""),
                         gelernt=bool(w), vergessen=True))
     from . import nacharbeit
@@ -241,6 +281,11 @@ def uebersicht(db, mit_kennwerten=True):
             out.append(dict(quelle="muster", schluessel=v, bereich="Vorschlag: " + (
                 "Erkennungswort" if v["art"] == "wort" else "Arbeitsgang-Regel"), kunde="alle Kunden",
                 was=muster.text(v), stand="wartet auf Übernehmen", wann="", gelernt=False, vergessen=True))
+        from . import einsichten
+        for v in einsichten.vorschlaege(db):            # I7 Kundenvorgabe, I11 Programmier-/Schneidzeit
+            out.append(dict(quelle="einsicht", schluessel=v, bereich=v["bereich"], kunde=v["kunde"], was=v["text"],
+                            stand="wartet auf Übernehmen" if einsichten.uebernehmbar(v) else "Hinweis", wann="",
+                            gelernt=False, vergessen=True))
         d = durchlauf(db)
         if d:
             out.append(dict(quelle="durchlauf", schluessel=None, bereich="Lieferzeit", kunde="alle Kunden",
@@ -311,6 +356,9 @@ def vergessen(db, eintrag):
     elif q == "muster":
         from . import muster
         return muster.ablehnen(db, s)
+    elif q == "einsicht":
+        from . import einsichten
+        return einsichten.ablehnen(db, s)
     elif q == "kennwerte_historie":
         from . import kennwerte
         kennwerte.zuruecknehmen(db, s)
@@ -383,7 +431,7 @@ def muster_text(db):
     v = muster_reif(db)
     if not v:
         return None
-    return (f"{len(v)} Vorschlag{'e' if len(v) > 1 else ''} aus Ihren Handeinträgen (Erkennungswort oder "
+    return (f"{len(v)} {'Vorschläge' if len(v) > 1 else 'Vorschlag'} aus Ihren Handeinträgen (Erkennungswort oder "
             "Arbeitsgang-Regel; Doppelklick: Lernzentrale)")
 
 
@@ -391,7 +439,7 @@ def kennwerte_text(db):
     v = kennwerte_reif(db)
     if not v:
         return None
-    return (f"{len(v)} Kennwert-Vorschlag{'e' if len(v) > 1 else ''} aus der Nachkalkulation mit genug Daten "
+    return (f"{len(v)} Kennwert-{'Vorschläge' if len(v) > 1 else 'Vorschlag'} aus der Nachkalkulation mit genug Daten "
             "(Doppelklick: Lernzentrale)")
 
 
