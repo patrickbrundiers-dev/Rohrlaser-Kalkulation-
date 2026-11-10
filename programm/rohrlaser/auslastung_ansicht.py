@@ -385,7 +385,7 @@ class Plantafel(QWidget):
                     gesamt = rect if gesamt is None or rect.width() > gesamt.width() else gesamt
                 if gesamt is not None and gesamt.width() > 30:
                     marke = "! " if rahmen else ""
-                    p.setPen(text if angebot else QColor("#FFFFFF"))
+                    p.setPen(text if angebot else QColor("#FFFFFF"))          # fest: weiße Schrift auf dem blauen Auftragsblock, in beiden Designs
                     p.drawText(gesamt.adjusted(4, 0, -3, 0), Qt.AlignLeft | Qt.AlignVCenter,
                                fm.elidedText(f"{marke}{a.get('nummer') or ''} {a.get('kunde') or ''}".strip(),
                                              Qt.ElideRight, int(gesamt.width() - 7)))
@@ -850,7 +850,7 @@ class AuslastungAnsicht(QWidget):
             f.setPointSizeF(13)
             f.setBold(True)
             p.setFont(f)
-            p.setPen(QColor("#1F2937"))
+            p.setPen(QColor("#1F2937"))          # fest: PDF, immer dunkle Schrift auf Weiß
             heute = self.daten["heute"]
             p.drawText(QRectF(0, 0, breite, 24), Qt.AlignLeft | Qt.AlignVCenter,
                        f"Maschinenauslastung, Stand {heute.strftime('%d.%m.%Y')} – "

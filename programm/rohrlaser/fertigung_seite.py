@@ -97,7 +97,12 @@ class FertigungSeite(QWidget):
         self.auslastung = AuslastungAnsicht(fenster)
         self.seiten = QTabWidget()
         self.seiten.addTab(auftraege, "Aufträge")
-        self.seiten.addTab(self.auslastung, "Auslastung")
+        from PySide6.QtWidgets import QFrame, QScrollArea
+        rollen = QScrollArea()          # schmales Fenster (1024 px): rollen statt das Hauptfenster breiter zu machen
+        rollen.setWidgetResizable(True)
+        rollen.setFrameShape(QFrame.NoFrame)
+        rollen.setWidget(self.auslastung)
+        self.seiten.addTab(rollen, "Auslastung")
         self.seiten.setTabVisible(1, funktionen.an("funktion_auslastung", self.db))
         self.seiten.currentChanged.connect(lambda i: self.auslastung.laden() if i == 1 else None)
         aussen = QVBoxLayout(self)
