@@ -4,7 +4,9 @@ Alles, was das Programm gelernt hat: Zusatzarbeit-Vorschläge je Kunde (gleich �
 nach dem Import, Teileart und Profil aus dem STEP-Prüfdialog, Kennwert-Vorschläge und -Freigaben aus der
 Nachkalkulation. „Vergessen“ nimmt einen markierten Eintrag zurück (auch bei den Kollegen im gemeinsamen Ordner),
 „Nicht mehr lernen“ sperrt einen Zusatzarbeit-Eintrag, „Kennwerte prüfen …“ öffnet die Vorschläge der
-Nachkalkulation zum Freigeben."""
+Nachkalkulation zum Freigeben. Vorschläge aus Handeinträgen (muster.py: Erkennungswort, Arbeitsgang-Regel) übernimmt
+„Übernehmen“ (mit Rückgängig in der Einblendung); „Vergessen“ lehnt sie ab. Ebenso die Vorschläge aus einsichten.py
+(Kundenvorgabe, Programmierzeit; der Schneidzeit-Hinweis lässt sich nur ausblenden)."""
 from PySide6.QtGui import QBrush
 
 from . import lernen, stil
@@ -33,6 +35,27 @@ def zeigen(f, dialog=None):
                 f.start.neu_laden()
             d.accept()
 
+    def uebernehmen(markiert):
+        from . import einsichten, muster
+        texte, rueck = [], []
+        for r in markiert:
+            q = eintraege[r]["quelle"]
+            if q not in ("muster", "einsicht"):
+                continue
+            try:
+                t, zurueck = (muster if q == "muster" else einsichten).uebernehmen(f.db, eintraege[r]["schluessel"])
+                texte.append(t)
+                rueck.append(zurueck)
+            except Exception as ex:
+                texte.append(f"{eintraege[r]['bereich']}: {ex}")
+        if texte:
+            def alles_zurueck():
+                for fn in reversed(rueck):
+                    fn()
+                f.meldung("Vorschläge zurückgenommen.")
+            f.meldung(" · ".join(texte), aktion=("Rückgängig", alles_zurueck) if rueck else None)
+            d.accept()
+
     def kennwerte(_markiert):
         from .kennwerte_dialog import KennwerteDialog
         d.accept()
@@ -53,6 +76,7 @@ def zeigen(f, dialog=None):
                        zeilen(eintraege),
                        [("Vergessen", lambda m: ausfuehren([r for r in m if eintraege[r]["vergessen"]],
                                                            lernen.vergessen)),
+                        ("Übernehmen", uebernehmen),
                         ("Nicht mehr lernen", lambda m: ausfuehren(
                             [r for r in m if eintraege[r]["quelle"] == lernen.TABELLE], lernen.sperren)),
                         ("Kennwerte prüfen …", kennwerte)],

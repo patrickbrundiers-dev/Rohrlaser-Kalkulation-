@@ -228,12 +228,51 @@ jobs:
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
       - name: Tesseract mitliefern (Scans lesen, Plan W6c; Apache-2.0, Ordner Tesseract-OCR neben der .exe)
-        # Feste Version (Prüfbericht D-3): Windows-Build von UB Mannheim; Sprachdaten deu+eng aus tessdata_fast 4.1.0
+        # Feste Version (Prüfbericht D-3): Windows-Build von UB Mannheim; Sprachdaten deu+eng aus tessdata_fast 4.1.0.
+        # L7 (Patrick 08.11.2026): zuerst aus dem eigenen Repository Rohrlaser-Updates (Release „werkzeuge“), feste
+        # Prüfsumme; fehlt dort eine Datei, von der Originalquelle holen und für die nächsten Läufe dort ablegen.
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
         run: |
           $setup = "$env:RUNNER_TEMP\tesseract-setup.exe"
           $quelle = "$env:RUNNER_TEMP\Tesseract-OCR"
-          Invoke-WebRequest "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" -OutFile $setup -MaximumRetryCount 6 -RetryIntervalSec 30   # github.com meldete 503/504 (Lauf 1471)
+          $ziel = "dist/Rohrlaser-Angebotskalkulation/Tesseract-OCR"
+          New-Item -ItemType Directory -Force "$ziel/tessdata" | Out-Null
+          $werkzeuge = @(
+            @{ name = "tesseract-ocr-w64-setup-5.4.0.20240606.exe"; pfad = $setup
+               sha = "c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9"
+               url = "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" },
+            @{ name = "deu.traineddata"; pfad = "$ziel/tessdata/deu.traineddata"
+               sha = "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d"
+               url = "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/deu.traineddata" },
+            @{ name = "eng.traineddata"; pfad = "$ziel/tessdata/eng.traineddata"
+               sha = "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+               url = "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/eng.traineddata" })
+          $eigen = "https://github.com/$env:UPDATE_REPO/releases/download/werkzeuge"
+          $nachladen = @()
+          foreach ($w in $werkzeuge) {
+            try { Invoke-WebRequest "$eigen/$($w.name)" -OutFile $w.pfad -MaximumRetryCount 3 -RetryIntervalSec 10 } catch { }
+            if ((Test-Path $w.pfad) -and (Get-FileHash $w.pfad -Algorithm SHA256).Hash -eq $w.sha) { "$($w.name): aus Rohrlaser-Updates"; continue }
+            Invoke-WebRequest $w.url -OutFile $w.pfad -MaximumRetryCount 6 -RetryIntervalSec 30   # github.com meldete 503/504 (Lauf 1471)
+            if ((Get-FileHash $w.pfad -Algorithm SHA256).Hash -ne $w.sha) { throw "$($w.name): Prüfsumme stimmt nicht" }
+            "$($w.name): von der Originalquelle"
+            $nachladen += $w
+          }
+          if ($nachladen.Count -and $env:GH_TOKEN) {     # einmal ablegen, danach lädt der Bau nur noch von dort
+            gh release view werkzeuge --repo $env:UPDATE_REPO *> $null
+            if ($LASTEXITCODE -ne 0) {
+              gh release create werkzeuge --repo $env:UPDATE_REPO --prerelease --latest=false --title "Werkzeuge für den Bau" `
+                --notes "Feste Fremddateien für den Windows-Bau (Tesseract, Sprachdaten). Nicht von Hand herunterladen."
+            }
+            foreach ($w in $nachladen) {
+              $kopie = Join-Path $env:RUNNER_TEMP $w.name
+              Copy-Item $w.pfad $kopie -Force
+              gh release upload werkzeuge $kopie --repo $env:UPDATE_REPO --clobber
+              if ($LASTEXITCODE -ne 0) { "$($w.name) nicht abgelegt (Token-Rechte?), der Bau geht weiter" }
+            }
+            $global:LASTEXITCODE = 0
+          }
           # Das Setup (NSIS) mit 7-Zip auspacken: die stille Installation meldete 0, legte aber nichts in /D ab (Lauf 918)
           & 7z x -y "-o$quelle" $setup | Out-Null
           if (-not (Test-Path "$quelle\tesseract.exe")) {
@@ -241,15 +280,10 @@ jobs:
             foreach ($o in @($quelle, "$env:ProgramFiles\Tesseract-OCR")) { if (Test-Path "$o\tesseract.exe") { $quelle = $o; break } }
             if (-not (Test-Path "$quelle\tesseract.exe")) { throw "Tesseract nicht gefunden (Setup Rückgabewert $($p.ExitCode))" }
           }
-          $ziel = "dist/Rohrlaser-Angebotskalkulation/Tesseract-OCR"
-          New-Item -ItemType Directory -Force "$ziel/tessdata" | Out-Null
           Copy-Item "$quelle\tesseract.exe", "$quelle\*.dll" $ziel
           # configs (u. a. tsv = tessedit_create_tsv), sonst liefert "tesseract ... tsv" keine TSV und ocr.lesen leeren Text (Lauf 922)
           Copy-Item -Recurse "$quelle\tessdata\configs" "$ziel/tessdata"
           Get-ChildItem $quelle, "$quelle\doc" -Filter "*LICENSE*" -ErrorAction SilentlyContinue | Copy-Item -Destination $ziel
-          foreach ($s in @("deu", "eng")) {
-            Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$s.traineddata" -OutFile "$ziel/tessdata/$s.traineddata" -MaximumRetryCount 6 -RetryIntervalSec 30
-          }
           & "$ziel/tesseract.exe" --version
           $sprachen = & "$ziel/tesseract.exe" --list-langs
           if (-not ($sprachen -contains "deu") -or -not ($sprachen -contains "eng")) { throw "Tesseract ohne deu/eng: $sprachen" }

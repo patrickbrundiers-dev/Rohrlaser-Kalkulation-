@@ -48,7 +48,12 @@ def bericht(db, jahr, monat):
         werte = ((nk.get("soll") or {}).get("db") or [None, None]) if isinstance(nk, dict) else [None, None]
         db_soll += _n(werte[0])
         db_ist += _n(werte[1])
-    return dict(titel=f"{MONATE[monat - 1]} {jahr}", von=von, bis=bis, angebote=len(alle),
+    try:                        # I12: wo auffällig oft verloren wird (letzte 12 Monate bis Monatsende)
+        from . import einsichten
+        verlust = einsichten.verlustmuster(db, bis)
+    except Exception:
+        verlust = []
+    return dict(verlust=verlust, titel=f"{MONATE[monat - 1]} {jahr}", von=von, bis=bis, angebote=len(alle),
                 netto=sum(_n(z.get("vk_netto")) for z in alle), beauftragt=len(auftraege),
                 auftragswert=sum(_n(z.get("vk_netto")) for z in auftraege), abgelehnt=len(abgelehnt),
                 trefferquote=len(auftraege) / entschieden if entschieden else None, db_soll=db_soll, db_ist=db_ist,
@@ -88,5 +93,8 @@ def pdf(pfad, b, einst):
     if len(daten) == 1:
         daten.append(["–", ""])
     inhalt.append(p_._tabelle(daten, [110 * mm, 76 * mm], zebra=False))
+    if b.get("verlust"):
+        inhalt += [Spacer(1, 5 * mm), p_._p("Auffällig oft verloren (letzte 12 Monate)", p_.S_H2)]
+        inhalt += [p_._p("• " + t, p_.S) for t in b["verlust"]]
     doc.build(inhalt, canvasmaker=leinwand)
     return pfad
