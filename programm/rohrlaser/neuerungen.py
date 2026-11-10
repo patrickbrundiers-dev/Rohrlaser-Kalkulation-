@@ -21,6 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.278", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
+     "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
+     "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "
+     "STEP (Rundnaht bis 20 kg wird gedreht); Nahtvorbereitung (Fase) für Stumpf- und Ecknähte ab 4 mm; "
+     "Richtwert-Kennwerte mit Abschmelzleistung nach Nahtgröße (<i>Richtwerte laden</i> bietet an, alte Richtwerte "
+     "zu staffeln). <b>Automatisch</b>: Mit <i>Vorkalkulation automatisch</i> rechnet die Baugruppe ihre Vorschläge "
+     "auch bei geschlossenem Editor neu, wenn sich ein Einzelteil ändert (nur im eigenen Entwurf, mit Meldung und "
+     "Preisunterschied; Werte von Hand und bestätigte bleiben); leere Schweiß-Stammdaten laden die Richtwerte "
+     "selbst; ungeprüfte Nahtgruppen übernehmen geänderte Kennwerte sofort, geprüfte zeigen <i>in den Stammdaten "
+     "geändert</i>. <b>Übersichtlicher</b>: Nahtgruppen in einer Grundansicht ohne Querscrollen (Schalter <i>Alle "
+     "Spalten</i>, Feld zur markierten Nahtgruppe mit Rechenweg), ohne STEP klappt die leere 3D-Fläche zu, das "
+     "Ergebnis steht rechts als Zeilen mit Kostenbalken, Kachel <i>Vorschläge offen</i>.",
+     "Schweißbaugruppe rechnet genauer (Ansatzzeit, Schweißlage aus STEP, Fase, Abschmelzleistung nach Nahtgröße), "
+     "hält sich bei Änderungen der Teile selbst aktuell und zeigt die Nahtgruppen ohne Querscrollen."],
     ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
      "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "
      "(je Abmessung Stangen, Verschnitt, Ausnutzung, €/m, Materialkosten und das Stangenbild), grau daneben "

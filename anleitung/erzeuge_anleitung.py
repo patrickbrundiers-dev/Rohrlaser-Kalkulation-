@@ -6068,18 +6068,52 @@ def kapitel_baugruppen(i):
     i.bild("baugruppe_naehte", "Reiter Nahtgruppen (Kennwerte hier aus den Richtwerten)", hoehe=60 * mm, legende=[
         (1, "<b>Verfahren</b> und <b>Nahtart</b> (Kehlnaht, Stumpfnaht, Ecknaht)."),
         (2, "<b>a-Maß / Dicke</b>: Kehlnaht a-Maß, Stumpf- und Ecknaht Blechdicke; dazu Länge je Naht und Anzahl."),
-        (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
-        (4, "<b>Lage</b> (PA … PG), Zugänglichkeit, Qualität und Werkstoff: Faktoren auf die Lichtbogenzeit."),
-        (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
-        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe), <b>Rechenweg</b> und <b>Hinweis</b>: "
+        (3, "<b>Länge je Naht</b>, <b>Anzahl</b> und <b>Heftpunkte je Naht</b> (gelb = Vorschlag der Vorkalkulation)."),
+        (4, "<b>Alle Spalten</b> blendet die übrigen Spalten ein: Wanddicke, Spalt, Länge aus Teil, beidseitig, "
+            "Stichnaht, Lage (PA … PG), Zugänglichkeit, Qualität, Werkstoff, Nacharbeit, Zeit von Hand und Rechenweg. "
+            "Die Grundansicht kommt ohne Querscrollen aus."),
+        (5, "Feld zur <b>markierten Nahtgruppe</b>: die Werte der ausgeblendeten Spalten (gelbe Vorschläge mit "
+            "Begründung), der Rechenweg und der Hinweis."),
+        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: "
             "Nahtlänge, Etikett <i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
-    i.text("Die Spalte <b>Rechenweg</b> zeigt, wie die Zeit je Stück der Unterbaugruppe entsteht, z. B. <i>0,96 m × "
-           "1,33 min/m ÷ 35 % Lichtbogen = 3,6 min + Heften 24 × 8 s = 3,2 min</i>: Naht [m] × Lichtbogenzeit je m "
+    i.text("Ohne 3D-Daten (Teile nicht aus einem STEP-Import) klappt die 3D-Fläche bis auf eine Hinweiszeile zu und "
+           "die Tabellen bekommen die Höhe. Rechts steht das <b>Ergebnis</b> je Baugruppe als Zeilen mit dem "
+           "Kostenbalken (Schweißen, Arbeitsgänge, Einmalkosten, Fremdleistung); unten zählt die Kachel "
+           "<b>Vorschläge offen</b> die gelben, noch nicht bestätigten Vorschläge, und die Prüfmeldungen daneben "
+           "nennen sie zusammen mit Fehlern und den Hinweisen der Vorkalkulation (Klick springt zur Zeile).",
+           kurz=True)
+    i.text("Der <b>Rechenweg</b> (Feld unter der Tabelle, mit <i>Alle Spalten</i> auch als Spalte) zeigt, wie die "
+           "Zeit je Stück der Unterbaugruppe entsteht, z. B. <i>0,96 m × "
+           "1,87 min/m ÷ 35 % Lichtbogen = 5,1 min + Heften 24 × 8 s = 3,2 min + Ansetzen 8 × 10 s = 1,3 min</i>: "
+           "Naht [m] × Lichtbogenzeit je m "
            "(× Faktoren Lage, Zugänglichkeit, Qualität, Werkstoff, Spalt) ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit "
-           "je Heftpunkt (+ Zusatzlagen). Fehlen Heftpunkte, steht dort <i>ohne Heftpunkte</i>.")
+           "je Heftpunkt (+ Zusatzlagen) + Ansatzzeit. Fehlen Heftpunkte, steht dort <i>ohne Heftpunkte</i>.")
+    i.text("<b>Genauer seit 0.9.278</b> (jeweils nur mit den Regeln aus <i>Richtwerte laden</i>, sonst rechnet alles "
+           "wie zuvor): Die <b>Ansatzzeit</b> (Regel <i>Ansatz – Zeit je Naht</i>, Richtwert 10 s) kommt je Naht und "
+           "Seite einmal dazu, damit viele kurze Nähte nicht so billig sind wie eine lange. Die <b>Schweißlage</b> "
+           "schlägt die Vorkalkulation aus dem Nahtverlauf im STEP vor: waagerecht PB (Stumpfnaht PA), überwiegend "
+           "senkrecht PF, Rundnaht PA, wenn die Baugruppe höchstens so schwer ist wie <i>Schweißlage – Rundnaht "
+           "drehbar bis</i> (20 kg, wird gedreht), sonst PF; über Kopf (PE) nur, wenn die Wendevorgänge von Hand "
+           "kleiner sind als nötig. Die <b>Nahtvorbereitung</b> ist ein eigener Arbeitsgang: Stumpf- und Ecknähte ab "
+           "<i>Fase ab Dicke</i> (4 mm) × <i>Zeit je m Naht</i> (3 min); trägt ein Teil die Schweißfase schon als "
+           "Zusatzarbeit, entfällt er. Die Richtwert-Kennwerte rechnen die <b>Abschmelzleistung nach Nahtgröße</b> "
+           "(MAG a3 2,5 kg/h, a4 3,0, a5–a6 3,5, ab a8 4,0 kg/h). Stehen in den Schweiß-Kennwerten noch die alten "
+           "Richtwerte, bietet <i>Richtwerte laden</i> an, sie zu staffeln (geänderte und geprüfte Zeilen bleiben, "
+           "mit Rückgängig).")
+    i.text("<b>Automatisch</b>: Mit dem Häkchen <i>Vorkalkulation automatisch</i> rechnet die Baugruppe ihre "
+           "Vorschläge auch dann neu, wenn der Editor zu ist und sich ein Einzelteil ändert (Profil, Länge, "
+           "Werkstoff, Stück je Baugruppe, Teil dazu oder weg, STEP neu eingelesen): Nahtlängen mit <i>Länge aus "
+           "Teil</i>, Heftpunkte, Positionieren, Wenden, Verputzen und Rüsten. Werte von Hand und bestätigte "
+           "bleiben; eine Meldung nennt die Baugruppe und den Preisunterschied. Das gilt nur im eigenen Entwurf, "
+           "ein verschicktes Angebot ändert sich nie von selbst. Sind die Schweiß-Stammdaten leer (neue "
+           "Installation), lädt das Programm die Richtwerte beim ersten Anlegen einer Schweißbaugruppe selbst "
+           "(Meldung mit Rückgängig).")
     i.genauer()
     i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
-           "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
+           "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern geprüfte Nahtgruppen nicht (der "
+           "Hinweis nennt dann <i>in den Stammdaten geändert</i>); ungeprüfte Nahtgruppen (gelbe Vorschläge, a-Maß "
+           "nach Regel) übernehmen im eigenen Entwurf mit <i>Vorkalkulation automatisch</i> die neuen Kennwerte "
+           "sofort. Ändert man "
            "Verfahren, Nahtart, Nahtgröße, Lage, Zugänglichkeit, Qualität oder Werkstoff, gelten für diese Zeile die "
            "aktuellen "
            "Stammdaten; <b>Kennwerte neu aus Stammdaten</b> setzt alle Zeilen auf die aktuellen Werte. Liegt das "

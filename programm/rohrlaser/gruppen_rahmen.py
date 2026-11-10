@@ -11,7 +11,7 @@ bekommen denselben Rahmen wie Rohr- und Blech-Editor (teile_editor.EditorRahmen)
 Die Fenster bauen ihre Widgets wie bisher; der Rahmen hängt sie nur um (Signale, Tests und Tastenkürzel bleiben).
 Knöpfe der alten Fußleiste und der 3D-Leiste ziehen ins Menüband.
 """
-from PySide6.QtCore import QObject, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractButton, QCheckBox, QComboBox, QLabel, QListWidget, QListWidgetItem,
                                QPushButton, QScrollArea, QSplitter, QToolButton, QVBoxLayout, QWidget)
 
@@ -154,6 +154,30 @@ class GruppenRahmen(QObject):
         d.rahmen = self
         if ansicht3d is not None:
             self.ansicht_einhaengen(ansicht3d)
+        self.platz_3d()
+        d.installEventFilter(self)          # nach dem Zeigen (gemerkte Teiler sind dann gesetzt) noch einmal
+
+    PLATZHALTER_HOEHE = 30      # ohne 3D-Daten bleibt oben nur die Hinweiszeile, die Eingaben bekommen die Höhe
+
+    def eventFilter(self, obj, e):
+        if obj is self.d and e.type() == QEvent.Show:
+            QTimer.singleShot(0, self.platz_3d)
+        return False
+
+    def platz_3d(self):
+        """Plan Schweißbaugruppe 10.11.2026, L2: ohne 3D-Daten klappt die leere 3D-Fläche bis auf die Hinweiszeile
+        zu und die Eingaben (Tabellen) bekommen die Höhe; mit 3D-Daten ist sie nie zugeklappt (z. B. nach gemerkten
+        Teilern aus einer Baugruppe ohne STEP)."""
+        try:
+            oben, unten = self.mitte.sizes()
+        except (RuntimeError, ValueError):      # Fenster schon zerstört
+            return
+        gesamt = max(oben + unten, 200)
+        if self.ansicht3d is None:
+            if oben != self.PLATZHALTER_HOEHE:
+                self.mitte.setSizes([self.PLATZHALTER_HOEHE, gesamt - self.PLATZHALTER_HOEHE])
+        elif oben < 80:
+            self.mitte.setSizes([gesamt // 2, gesamt - gesamt // 2])
 
     # -------------------------------------------------------------- Band
     def gruppe(self, reiter, titel):
@@ -198,6 +222,7 @@ class GruppenRahmen(QObject):
         self.ansicht3d = a3
         self.platzhalter.hide()
         self._mitte_lay.insertWidget(0, a3, 1)
+        self.platz_3d()
         leiste = getattr(a3, "_leiste", None)
         if leiste is None:
             return
