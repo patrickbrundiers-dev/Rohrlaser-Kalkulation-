@@ -35,6 +35,16 @@ Schritt 2 (Plan Schweißbaugruppen 28.10.2026, Freigabe „Ja alles“):
   Prüfen             'Sichtprüfung je Baugruppe' + Naht [m] × 'je m Naht'
   Fehlen diese Regeln (ältere Dateien), gibt es keinen Vorschlag; nur Edelstahl ohne Beiz-Regel meldet einen Hinweis.
 
+Plan Schweißbaugruppe 10.11.2026 (Freigabe „Alles umsetzen“), nur mit den Regeln Ansatz, Schweißlage, Nahtvorbereitung:
+  Schweißlage        je Nahtgruppe aus dem Nahtverlauf im STEP (linien) und den Auflagelagen der Baugruppe
+                     (baugruppe.lagen_aus_step): überwiegend senkrecht = PF, waagerecht Stumpfnaht = PA, sonst PB;
+                     Rundnaht (rundum bzw. gemischter Verlauf): Baugruppe bis 'Rundnaht drehbar bis' kg = PA (wird
+                     gedreht), sonst PF; liegt die Naht in keiner erlaubten Lage oben (Wenden von Hand kleiner als
+                     nötig) = PE
+  Ansatzzeit         steckt im Stand der Nahtgruppe (baugruppe.naht_stand, Regel Ansatz 'Zeit je Naht')
+  Nahtvorbereitung   Σ Stumpf- und Ecknähte ab 'Fase ab Dicke' Naht [m] × 'Zeit je m Naht'; entfällt, wenn ein Teil
+                     der (Unter-)Baugruppe die Fase schon als Zusatzarbeit trägt
+
 Jeder Wert ist ein Vorschlag mit Begründung (Nahtgruppe bzw. Arbeitsgang: Schlüssel 'vk'). Der gemerkte Wert erkennt
 Änderungen von Hand: weicht das Feld davon ab, gilt es als 'hand' und eine neue Vorkalkulation lässt es stehen, ebenso
 'bestätigt'. Fehlt eine Regel, gibt es keinen Vorschlag, sondern einen Hinweis (nichts erfinden). Gerechnet wird
@@ -49,9 +59,11 @@ VORSCHLAG, BESTAETIGT, HAND = "vorschlag", "bestätigt", "hand"
 BASISTEIL = "Basisteil"
 RUESTEN, POSITIONIEREN, WENDEN, VERPUTZEN = "ruesten", "positionieren", "wenden", "verputzen"
 BEIZEN, RICHTEN, PRUEFEN = "beizen", "richten", "pruefen"
+FASE = "fase"                                                   # Nahtvorbereitung (Plan 10.11.2026, G4)
 AG_NAMEN = {RUESTEN: "Rüsten Schweißplatz", POSITIONIEREN: "Teile positionieren", WENDEN: "Wenden / Umspannen",
-            VERPUTZEN: "Verputzen", BEIZEN: "Beizen / Passivieren", RICHTEN: "Richten", PRUEFEN: "Sichtprüfung"}
-NAHT_FELDER = ("heftpunkte", "nacharbeit", "werkstoff", "zugang")
+            VERPUTZEN: "Verputzen", BEIZEN: "Beizen / Passivieren", RICHTEN: "Richten", PRUEFEN: "Sichtprüfung",
+            FASE: "Nahtvorbereitung (Fase)"}
+NAHT_FELDER = ("heftpunkte", "nacharbeit", "werkstoff", "zugang", "lage")
 EDELSTAHL = "Edelstahl"
 AG_FELDER = ("zeit_min", "ruest_min", "menge")
 MARKEN = tuple(b for b in anbau.BEARBEITUNGEN if b != "keine")       # Gravur, an der ein Teil angelegt wird
@@ -104,13 +116,21 @@ RICHTWERTE = (
     ("Richten", "Zeit je m Naht", None, 2.0, "min je m Naht"),
     ("Prüfen", "Sichtprüfung je Baugruppe", None, 1.0, "min je Baugruppe"),
     ("Prüfen", "je m Naht", None, 0.3, "min je m Naht"),
+    # Plan Schweißbaugruppe 10.11.2026 (G1, G2, G4)
+    ("Ansatz", "Zeit je Naht", None, 10.0, "s je Naht und Seite"),          # Brenner ansetzen, Endkrater füllen
+    ("Schweißlage", "Rundnaht drehbar bis", None, 20.0, "kg"),               # leichte Baugruppe wird gedreht: PA
+    ("Nahtvorbereitung", "Fase ab Dicke", None, 4.0, "mm"),                  # Stumpf- und Ecknaht: Fase anbringen
+    ("Nahtvorbereitung", "Zeit je m Naht", None, 3.0, "min je m Naht"),
 )
+NEU_1011 = ("Ansatz", "Schweißlage", "Nahtvorbereitung")      # Regel-Arten des Plans 10.11.2026
 
 
-def richtwerte():
-    """Zeilen der Tabelle schweiss_regeln mit Status 'Richtwert'."""
+def richtwerte(neu=True):
+    """Zeilen der Tabelle schweiss_regeln mit Status 'Richtwert'. neu=False: ohne die Regeln des Plans 10.11.2026
+    (Ansatz, Schweißlage, Nahtvorbereitung), also der Stand bis 0.9.277."""
     return [dict(art=a, wert=w, bis=b, zahl=z, einheit=e, status="Richtwert",
-                 bemerkung="Richtwert, bitte an die eigene Fertigung anpassen") for a, w, b, z, e in RICHTWERTE]
+                 bemerkung="Richtwert, bitte an die eigene Fertigung anpassen") for a, w, b, z, e in RICHTWERTE
+            if neu or a not in NEU_1011]
 
 
 _zahl, _n, _text = baugruppe._zahl, baugruppe._n, baugruppe._text
@@ -461,6 +481,125 @@ def pruefen(bg, regeln):
     return t, f"{_text(grund)} + {_text(round(m, 3))} m × {_text(je_m)} min/m = {_text(round(t, 2))} min je Baugruppe"
 
 
+# ------------------------------------------------------------------ Schweißlage, Nahtvorbereitung (Plan 10.11.2026)
+_OBEN = {"+Z": (0, 0, 1), "-Z": (0, 0, -1), "+X": (1, 0, 0), "-X": (-1, 0, 0), "+Y": (0, 1, 0), "-Y": (0, -1, 0)}
+SENKRECHT_COS = 0.7          # Nahtstück steiler als ~45° zur Auflage zählt als senkrecht
+SENKRECHT_AB, GEMISCHT_AB = 0.75, 0.25     # Anteil senkrechter Länge: ab 75 % steigend, 25–75 % gemischt (Rundnaht)
+
+
+def _senkrecht_anteil(linien, oben):
+    """Anteil der Nahtlänge (0..1), der in der Lage 'oben' senkrecht verläuft; None ohne Nahtverlauf."""
+    u = _OBEN[oben]
+    gesamt = senkrecht = 0.0
+    for z in linien or ():
+        if not isinstance(z, (list, tuple)):
+            continue
+        pk = [z[i:i + 3] for i in range(0, len(z) - 2, 3)]
+        for a, b in zip(pk, pk[1:]):
+            d = [b[j] - a[j] for j in range(3)]
+            lg = math.sqrt(sum(x * x for x in d))
+            if lg <= 1e-9:
+                continue
+            gesamt += lg
+            if abs(sum(d[j] * u[j] for j in range(3))) / lg >= SENKRECHT_COS:
+                senkrecht += lg
+    return senkrecht / gesamt if gesamt else None
+
+
+def lagen_erlaubt(bg):
+    """Auflagelagen der Baugruppe beim Schweißen: die aus dem STEP nötigen (baugruppe.lagen_aus_step); sind die
+    Wendevorgänge von Hand oder bestätigt kleiner, nur so viele Lagen (dann bleiben Nähte über Kopf)."""
+    lagen, _ = baugruppe.lagen_aus_step(bg)
+    if not lagen:
+        return None
+    if wenden_status(bg) in (HAND, BESTAETIGT):
+        lagen = lagen[:max(1, int(bg.get("wenden") or 0) + 1)]
+    return lagen
+
+
+def lage_vorschlag(nt, bg, regeln, tabellen, gewicht=None, lagen=None):
+    """(Schweißlage PA/PB/PF/PE, Begründung) einer Nahtgruppe aus Nahtverlauf und Erreichbarkeit im STEP oder
+    (None, None) ohne STEP-Angaben bzw. ohne die Regel Schweißlage; (None, was fehlt), wenn die Lage in den
+    Schweiß-Faktoren fehlt (nichts erfinden)."""
+    drehbar = regeln.wert("Schweißlage", "Rundnaht drehbar bis")
+    if drehbar is None or not nt.get("linien") or not nt.get("seiten"):
+        return None, None
+    lagen = lagen if lagen is not None else lagen_erlaubt(bg)
+    if not lagen:
+        return None, None
+    punkte = [set(s) for s in nt["seiten"] if isinstance(s, list) and s]
+    if not punkte:
+        return None, None
+    treffer = {x: sum(1 for p in punkte if x in p) for x in lagen}
+    oben = max(lagen, key=lambda x: treffer[x])          # Lage, in der die meisten Nahtpunkte erreichbar sind
+    anteil = _senkrecht_anteil(nt["linien"], oben)
+    if anteil is None:
+        return None, None
+    if not treffer[oben]:
+        lage, text = "PE", f"STEP: in den Lagen {', '.join(lagen)} oben nur von unten erreichbar (über Kopf)"
+    elif nt.get("rundum") or GEMISCHT_AB <= anteil < SENKRECHT_AB:
+        if _zahl(gewicht) and gewicht <= drehbar + 1e-9:
+            lage, text = "PA", (f"Rundnaht, Baugruppe {_text(round(gewicht, 1))} kg ≤ {_text(drehbar)} kg: wird "
+                                "gedreht (Wannenlage)")
+        else:
+            lage = "PF"
+            text = ("Rundnaht, " + (f"Baugruppe {_text(round(gewicht, 1))} kg > {_text(drehbar)} kg" if _zahl(gewicht)
+                                    else "Gewicht der Baugruppe unbekannt") + ": nicht drehbar, teils steigend")
+    elif anteil >= SENKRECHT_AB:
+        lage, text = "PF", f"STEP: {_text(round(anteil * 100))} % der Naht senkrecht in Lage {oben} oben (steigend)"
+    elif nt.get("nahtart") == "Stumpfnaht":
+        lage, text = "PA", f"STEP: Stumpfnaht waagerecht in Lage {oben} oben (Wannenlage)"
+    else:
+        lage, text = "PB", f"STEP: {nt.get('nahtart') or 'Naht'} waagerecht in Lage {oben} oben"
+    if baugruppe._faktor_zeile(tabellen or {}, "Schweißlage", lage) is None:
+        return None, f"Schweißlage „{lage}“ fehlt in den Schweiß-Faktoren"
+    return lage, text
+
+
+def _fase_am_teil(bg, positionen, knoten_id=""):
+    """Name der Zusatzarbeit, wenn ein Einzelteil der (Unter-)Baugruppe die Schweißfase schon trägt, sonst None."""
+    from . import rechnen
+    bereich = bg_mengen._unter(bg, knoten_id)
+    for i in baugruppe.teile(positionen or [], bg["id"]):
+        p = positionen[i]
+        if bereich is not None and baugruppe.zuordnung(p)[1] not in bereich:
+            continue
+        try:
+            liste = rechnen.zusatz_liste(p)
+        except (TypeError, ValueError):
+            continue
+        for e in liste or ():
+            name = str((e or {}).get("name") or "")
+            if "fase" in name.lower():
+                return name
+    return None
+
+
+def nahtvorbereitung(bg, regeln, positionen=None):
+    """(Minuten je Baugruppe, Begründung) für das Anfasen der Stumpf- und Ecknähte ab 'Fase ab Dicke' oder
+    (None, None) ohne Regeln bzw. ohne solche Nähte."""
+    ab, zeit = regeln.wert("Nahtvorbereitung", "Fase ab Dicke"), regeln.wert("Nahtvorbereitung", "Zeit je m Naht")
+    if ab is None or zeit is None:
+        return None, None
+    m, schon = 0.0, set()
+    for nt in bg["naehte"]:
+        d = dicke(nt)
+        if nt.get("nahtart") not in AUSSEN_NAEHTE or d is None or d < ab - 1e-9:
+            continue
+        name = _fase_am_teil(bg, positionen, nt.get("knoten") or "")
+        if name:
+            schon.add(name)
+            continue
+        m += _naht_m(nt, bg)
+    if not m:
+        return None, None
+    text = (f"{_text(round(m, 3))} m Stumpf-/Ecknaht ab {_text(ab)} mm × {_text(zeit)} min/m = "
+            f"{_text(round(m * zeit, 2))} min je Baugruppe")
+    if schon:
+        text += f" (ohne Nähte mit Zusatzarbeit {', '.join(sorted(schon))} am Teil)"
+    return m * zeit, text
+
+
 # ------------------------------------------------------------------ Vorschläge setzen, bestätigen, zählen
 def _status(gemerkt, aktuell):
     """Herkunft eines Felds: hand, wenn es vom gemerkten Vorschlag abweicht, sonst der gemerkte Status."""
@@ -621,6 +760,14 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
     if t is None:
         hinweise.append(text)
     _wenden_setzen(bg, *baugruppe.wenden_aus_step(bg), out)
+    lagen = lagen_erlaubt(bg)                    # Schweißlage (G1): nach dem Wenden, das die Lagen festlegt
+    if lagen:
+        g_bg, _ = bg_mengen.gewicht(bg, positionen, k)
+        for nt in bg["naehte"]:
+            lg, text = lage_vorschlag(nt, bg, regeln, tabellen, g_bg, lagen)
+            if text and lg is None:
+                hinweise.append(f"Nahtgruppe {nt.get('nr') or ''}: {text}".replace("  ", " "))
+            _naht_setzen(nt, "lage", lg, text, out, entfernen=True)
     t, n, text = wenden(bg, regeln, positionen, k)
     _ag_setzen(bg, WENDEN, None if t is None else dict(zeit_min=round(t, 4), menge=n), text, satz, regeln.richtwert,
                out)
@@ -632,7 +779,8 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
     if text and t is None:
         hinweise.append(text)
     for art, (t, text), s in ((BEIZEN, beizen(bg, regeln), satz_na), (RICHTEN, richten(bg, regeln, positionen, k), satz),
-                              (PRUEFEN, pruefen(bg, regeln), satz)):
+                              (PRUEFEN, pruefen(bg, regeln), satz),
+                              (FASE, nahtvorbereitung(bg, regeln, positionen), satz_na)):
         _ag_setzen(bg, art, None if t is None else dict(zeit_min=round(t, 4)), text, s, regeln.richtwert, out)
         if text and t is None:
             hinweise.append(text)
@@ -659,6 +807,93 @@ def komplett(p, positionen, tabellen, einstellungen=None, k=None):
     r["naehte_neu"] = n
     if n:
         r["aenderungen"].insert(0, f"{n} Nahtgruppe(n) aus den STEP-Vorschlägen")
+    return r
+
+
+# ------------------------------------------------------------------ Automatik außerhalb des Editors (Plan 10.11.2026)
+NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff", "dicke")
+TEIL_FELDER = ("art", "bg_knoten", "je_knoten", "profil_id", "werkstoff_id", "laenge", "gewicht_teil", "bg_hilfe",
+               "zusatz", "technik", "anbau", "virtuell")
+
+
+def teile_kennung(bg, positionen):
+    """Kennung der Einzelteile einer Baugruppe: ändert sie sich (Teil dazu oder weg, Profil, Werkstoff, Länge, Wand,
+    Stück je Baugruppe, Zusatzarbeiten), sind die Vorschläge der Vorkalkulation neu zu rechnen (A1)."""
+    def wert(p, f):
+        w = p.get(f)
+        if f == "zusatz":                   # nur die Schweißfase am Teil ändert die Vorkalkulation (G4)
+            return "fase" if "fase" in str(w or "").lower() else ""
+        return "" if w is None else str(w)
+    return tuple(sorted((str(positionen[i].get("id")),) + tuple(wert(positionen[i], f) for f in TEIL_FELDER)
+                        for i in baugruppe.teile(positionen, bg["id"])))
+
+
+def naht_offen(nt):
+    """True, wenn die Nahtgruppe noch ungeprüft ist: ein Feld ist offener Vorschlag oder das a-Maß kommt aus der
+    Regel. Solche Nahtgruppen folgen geänderten Stammdaten selbst (A3), geprüfte nur per Knopf."""
+    return any(naht_status(nt, feld) == VORSCHLAG for feld in NAHT_FELDER) or bool(baugruppe.regel_offen(nt))
+
+
+def laengen_aus(bg, positionen, k):
+    """Länge je Naht aus dem gewählten Einzelteil nachführen (Spalte 'Länge aus'): nur Nahtgruppen, deren Länge noch
+    die zuletzt gerechnete ist (von Hand geändert = bleibt). Ergebnis: Anzahl geänderter Nahtgruppen."""
+    teile = {positionen[i].get("id"): positionen[i] for i in baugruppe.teile(positionen, bg["id"])}
+    n = 0
+    for nt in bg["naehte"]:
+        art = nt.get("laenge_aus")
+        if art not in bg_mengen.LAENGE_AUS or nt.get("laenge_teil") not in teile:
+            continue
+        if _zahl(nt.get("laenge_auto")) and nt.get("laenge") != nt["laenge_auto"]:
+            continue
+        wert, text = bg_mengen.naht_laenge_aus(art, teile[nt["laenge_teil"]], k)
+        if wert is None:
+            continue
+        if nt.get("laenge") != wert:
+            nt["laenge"] = wert
+            n += 1
+        nt["laenge_auto"], nt["laenge_text"] = wert, text
+    return n
+
+
+def kennwerte_nachfuehren(bg, tabellen):
+    """Geänderte Kennwerte der Stammdaten (A3): ungeprüfte Nahtgruppen (naht_offen) bekommen den neuen Stand,
+    geprüfte bleiben und werden gezählt. Ergebnis: (übernommen, geprüft mit altem Stand)."""
+    neu = alt = 0
+    for nt in bg["naehte"]:
+        if not baugruppe.stand_veraltet(nt, tabellen):
+            continue
+        if naht_offen(nt):
+            nt["stand"] = baugruppe.naht_stand(nt, tabellen)
+            neu += 1
+        else:
+            alt += 1
+    return neu, alt
+
+
+def nachfuehren(p, positionen, tabellen, einstellungen=None, k=None):
+    """Baugruppe ohne offenen Editor aktuell halten (A1, A3): Nahtlängen 'Länge aus Teil', alle Vorschläge der
+    Vorkalkulation (komplett) und der gemerkte Stand ungeprüfter Nahtgruppen. Werte von Hand und bestätigte
+    bleiben. Ergebnis wie vorkalkulieren, zusätzlich laengen, kennwerte_neu, kennwerte_alt und geaendert (True, wenn
+    die Baugruppe danach anders ist als vorher)."""
+    bg = baugruppe.lesen(p.get("baugruppe"))
+    if bg is None:
+        return dict(bg=None, aenderungen=[], hinweise=[], hilfen={}, richtwert=False, geaendert=False,
+                    laengen=0, kennwerte_neu=0, kennwerte_alt=0)
+    vorher = baugruppe.speichern(bg)
+    schluessel = {nt.get("id"): tuple(nt.get(f) for f in NAHT_SCHLUESSEL) for nt in bg["naehte"]}
+    n_laengen = laengen_aus(bg, positionen, k)
+    r = komplett(dict(p, baugruppe=baugruppe.speichern(bg)), positionen, tabellen, einstellungen, k)
+    bg = r["bg"]
+    for nt in bg["naehte"]:                 # Schlüsselwert geändert (Lage, Zugang, Werkstoff …): neuer Stand
+        if "stand" in nt and nt.get("id") in schluessel \
+                and schluessel[nt["id"]] != tuple(nt.get(f) for f in NAHT_SCHLUESSEL):
+            nt["stand"] = baugruppe.naht_stand(nt, tabellen)
+    neu, alt = kennwerte_nachfuehren(bg, tabellen)
+    if n_laengen:
+        r["aenderungen"].insert(0, f"{n_laengen} Nahtlänge(n) aus den Teilen")
+    if neu:
+        r["aenderungen"].append(f"Kennwerte aus den Stammdaten: {neu} Nahtgruppe(n)")
+    r.update(laengen=n_laengen, kennwerte_neu=neu, kennwerte_alt=alt, geaendert=baugruppe.speichern(bg) != vorher)
     return r
 
 
@@ -689,4 +924,5 @@ def offen(bg):
             + (wenden_status(bg) == VORSCHLAG))
 
 
-__all__ = ["vorkalkulieren", "bestaetigen", "offen", "richtwerte", "Regeln", "NACHARBEIT_STUFEN"]
+__all__ = ["vorkalkulieren", "bestaetigen", "offen", "richtwerte", "Regeln", "NACHARBEIT_STUFEN", "nachfuehren",
+           "teile_kennung"]

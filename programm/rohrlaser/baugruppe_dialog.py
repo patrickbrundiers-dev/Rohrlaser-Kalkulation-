@@ -39,7 +39,7 @@ VORLAGEN = "baugruppen_vorlagen"
 RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
              "</span>")
 DIREKT = "(Baugruppe selbst)"
-NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff", "dicke")    # neuer Stand, wenn geändert
+NAHT_SCHLUESSEL = vorkalk.NAHT_SCHLUESSEL       # neuer Stand, wenn geändert
 ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "Entgraten", "Bohren", "Gewindeschneiden",
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
@@ -2339,7 +2339,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("gesteckt", "gesteckt", "haken", 60, tipp="Teile gesteckt (Stecknase): weniger Heftpunkte"),
             Spalte("rundum", "rundum", "haken", 55, tipp="Umfangsnaht um ein Rohr (Mindestzahl Heftpunkte rundum)"),
             Spalte("lage", "Lage", "auswahl", 60, optionen=lambda: self._faktor_optionen("Schweißlage", baugruppe.LAGEN),
-                   tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items())),
+                   vk=True, tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items()) + "; die Vorkalkulation "
+                   "schlägt sie aus dem Nahtverlauf im STEP vor (Regel Schweißlage)"),
             Spalte("zugang", "Zugänglichkeit", "auswahl", 95, vk=True,
                    optionen=lambda: self._faktor_optionen("Zugänglichkeit"),
                    tipp="Zugänglichkeit für den Brenner (Faktor auf die Lichtbogenzeit und das Verputzen); die "
@@ -2362,7 +2363,23 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                         "Heftpunkt (+ Zusatzlagen)"),
             Spalte("_hinweis", "Hinweis", "anzeige", 200, anzeige=lambda z, r: self._zeile_wert("Naht", z, "hinweis"))],
             self.bg["naehte"], self.aktualisieren, self._naht_herkunft)
+        # Plan Schweißbaugruppe 10.11.2026, L1: Grundansicht ohne Querscrollen, die übrigen Spalten per Schalter;
+        # was die Grundansicht nicht zeigt, steht zur markierten Nahtgruppe im Feld unter der Tabelle
+        kopf = QHBoxLayout()
+        self.naht_alle = QCheckBox("Alle Spalten")
+        self.naht_alle.setToolTip("Aus: Grundansicht (Nr., Unterbaugruppe, Verfahren, Nahtart, a-Maß, Länge, Anzahl, "
+                                  "Heftpunkte, Zeit, Kosten, Hinweis). An: auch Wanddicke, Spalt, Länge aus Teil, "
+                                  "beidseitig, Stichnaht, Lage, Zugänglichkeit, Qualität, Werkstoff, Nacharbeit, "
+                                  "Zeit von Hand und Rechenweg zum Ändern")
+        self.naht_alle.setChecked(bool(BaugruppeDialog.NAHT_ALLE_SPALTEN))
+        self.naht_alle.toggled.connect(self._naht_spalten)
+        self.naht_spalten_info = QLabel()
+        self.naht_spalten_info.setStyleSheet(f"color: {GRAU};")
+        kopf.addWidget(self.naht_alle)
+        kopf.addWidget(self.naht_spalten_info, 1)
+        lay.addLayout(kopf)
         lay.addWidget(self.naht_tab, 1)
+        self.naht_tab.itemSelectionChanged.connect(self._naht_detail)
         # Rechenweg je Nahtgruppe sichtbar ohne Scrollen (Patrick 03.11.2026)
         self.naht_weg = QLabel()
         self.naht_weg.setWordWrap(True)
@@ -2399,6 +2416,65 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             "Kennwert, rechnet die Zeile keine Zeit und zeigt den Grund. Eine Zeit von Hand geht immer vor.",
             schluessel="baugruppe_naehte"))
         return w
+
+    NAHT_ALLE_SPALTEN = False       # Schalter 'Alle Spalten' gilt, bis das Programm endet (für jede Baugruppe)
+    NAHT_GRUND = ("nr", "knoten", "verfahren", "nahtart", "mass", "laenge", "anzahl", "heftpunkte", "_zeit",
+                  "_kosten", "_hinweis")
+    NAHT_DETAIL = (("lage", "Lage"), ("zugang", "Zugänglichkeit"), ("qualitaet", "Qualität"),
+                   ("werkstoff", "Werkstoff"), ("nacharbeit", "Nacharbeit"), ("dicke", "Wand [mm]"),
+                   ("spalt", "Spalt [mm]"), ("geschweisst", "geschweißt [%]"), ("zeit_hand", "Zeit von Hand [min]"))
+
+    def _naht_spalten(self, *_):
+        """Grundansicht oder alle Spalten der Nahtgruppen (L1); Spalten, in denen eine Eingabe ungültig ist, bleiben
+        sichtbar."""
+        alle = self.naht_alle.isChecked()
+        BaugruppeDialog.NAHT_ALLE_SPALTEN = alle
+        versteckt = 0
+        for c, sp in enumerate(self.naht_tab.spalten):
+            weg = not alle and sp.schluessel not in self.NAHT_GRUND
+            self.naht_tab.setColumnHidden(c, weg)
+            versteckt += weg
+        self.naht_spalten_info.setText(f"Grundansicht: {versteckt} Spalten ausgeblendet" if versteckt else "")
+        self.naht_spalten_info.setToolTip("Lage, Zugänglichkeit, Qualität, Werkstoff, Nacharbeit, Stichnaht, Zeit von "
+                                          "Hand …: ihre Werte stehen zur markierten Nahtgruppe unter der Tabelle")
+        self._naht_detail()
+
+    def _naht_detail(self):
+        """Feld unter der Tabelle: zur markierten Nahtgruppe (sonst zur ersten) die Werte, die die Grundansicht
+        nicht zeigt, gelbe Vorschläge mit Begründung, Rechenweg und Hinweis."""
+        lab = getattr(self, "naht_weg", None)
+        if lab is None:
+            return
+        naehte = self.bg["naehte"]
+        if not naehte:
+            lab.setText("")
+            return
+        mark = [r for r in self.naht_tab.markierte() if r < len(naehte)]
+        n = naehte[mark[0] if mark else 0]
+        teile = []
+        for feld, titel in self.NAHT_DETAIL:
+            w = n.get(feld)
+            if w in (None, ""):
+                continue
+            t = f"{titel} <b>{_text(w) if isinstance(w, (int, float)) else w}</b>"
+            if vorkalk.naht_status(n, feld) == vorkalk.VORSCHLAG:
+                grund = ((n.get("vk") or {}).get(feld) or {}).get("text")
+                t += (f" <span style='background: {GELB_FLAECHE};'>&nbsp;Vorschlag"
+                      + (f": {grund}" if grund else "") + "&nbsp;</span>")
+            teile.append(t)
+        for feld, titel in (("beidseitig", "beidseitig"), ("gesteckt", "gesteckt"), ("rundum", "rundum")):
+            if n.get(feld):
+                teile.append(f"<b>{titel}</b>")
+        weg = self._naht_ergebnis(n).get("rechenweg")
+        hinweis = self._zeile_wert("Naht", n, "hinweis")
+        hinweis = hinweis[0] if isinstance(hinweis, tuple) else hinweis
+        zeilen = [f"<b>Nahtgruppe {n.get('nr') or ''}</b>" + (" · " + " · ".join(teile) if teile else "")]
+        if weg:
+            zeilen.append(f"Rechenweg (je Stück der Unterbaugruppe): {weg}")
+        if hinweis:
+            zeilen.append(f"Hinweis: {hinweis}")
+        lab.setTextFormat(Qt.RichText)
+        lab.setText("<br>".join(zeilen))
 
     def _vorschlaege_box(self):
         """Nahtkandidaten aus der STEP-Messung: nur Vorschläge, erst 'Markierte übernehmen' macht Nahtgruppen."""
@@ -2807,6 +2883,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 return (", ".join(teile + [" und ".join(offen) + ", bitte bestätigen"]), WARNUNG)
             if self._naht_aktuell(z).get("stand"):
                 teile.append(f"Kennwerte vom {z['stand'].get('datum') or '?'}")
+                if baugruppe.stand_veraltet(z, self.tabellen):       # A3: geprüfte Nahtgruppe, Stammdaten neuer
+                    teile.append("in den Stammdaten geändert (Knopf „Kennwerte neu aus Stammdaten“)")
             return ", ".join(teile)
         if w.get("umlage") == baugruppe.UMLAGE_WIEDER and w.get("einmal"):
             return "wiederverwendbar: einmalig nicht berechnet"
@@ -2845,10 +2923,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if tab is not None:
                 tab.auffrischen()
         if getattr(self, "naht_weg", None) is not None:
-            zeilen = [f"Nahtgruppe {n.get('nr') or i + 1}: {w}" for i, n in enumerate(self.bg["naehte"])
-                      if (w := self._naht_ergebnis(n).get("rechenweg"))]
-            self.naht_weg.setText(("<b>Rechenweg</b> (je Stück der Unterbaugruppe)<br>" + "<br>".join(zeilen[:6])
-                                   + ("<br>…" if len(zeilen) > 6 else "")) if zeilen else "")
+            self._naht_spalten()            # Spalten bleiben nach dem Neuaufbau der Tabelle, Detailfeld neu
         if getattr(self, "knick_info", None) is not None:
             pos = {t_["_id"]: t_["_q"].get("pos") for t_ in self.teile}
             self.knick_info.setText("; ".join(
@@ -2861,16 +2936,25 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         e = self.erg
         anzahl = self.anzahl.value()
         n_teile = sum(1 for t in self.teile if t.get("drin"))
+        # Plan Schweißbaugruppe 10.11.2026, L3: Ergebnis als Zeilen statt Fließtext, Kostenbalken auch rechts
+        zeile = "<tr><td>{}</td><td align=right>&nbsp;<b>{}</b></td></tr>".format
         self.summe.setText(
-            f"<b>Je Baugruppe:</b> Schweißen und Arbeitsgänge {_euro(e['eigen'])}, Fremdleistungen "
-            f"{_euro(e['fremd'])}, davon Einmalkosten umgelegt {_euro(e['einmal'])} (gesamt "
-            f"{_euro(e['einmal_gesamt'])} bei {anzahl} Stk.) · Zeit {_min(e['zeit_min'])}, davon Schweißen "
-            f"{_min(e['schweiss_min'])} · {n_teile} Einzelteil(e)"
-            + (f" · {e['serie_text']}" if e.get("serie_text") else "")
-            + (f" · Rüsten {e['lose']} Lose" if e.get("lose", 1) > 1 else "")
-            + f". <b>Status:</b> {self.status}")
+            "<b>Je Baugruppe</b><table cellspacing=0 cellpadding=1>"
+            + zeile("Schweißen und Arbeitsgänge", _euro(e["eigen"]))
+            + zeile("Fremdleistungen", _euro(e["fremd"]))
+            + zeile("davon Einmalkosten umgelegt", _euro(e["einmal"]))
+            + zeile(f"Einmalkosten gesamt bei {anzahl} Stk.", _euro(e["einmal_gesamt"]))
+            + zeile("Zeit", _min(e["zeit_min"]))
+            + zeile("davon Schweißen", _min(e["schweiss_min"]))
+            + zeile("Einzelteile", n_teile)
+            + (zeile("Rüsten", f"{e['lose']} Lose") if e.get("lose", 1) > 1 else "")
+            + "</table>"
+            + (f"{e['serie_text']}<br>" if e.get("serie_text") else "")
+            + f"<b>Status:</b> {self.status}")
         self.summe.setTextFormat(Qt.RichText)
         self.balken.setzen(baugruppe.kostenaufteilung(e))
+        if getattr(self, "balken_rechts", None) is not None:
+            self.balken_rechts.setzen(baugruppe.kostenaufteilung(e))
         naht = ", ".join(f"{v} {_text(round(m, 2))} m" for v, m in sorted(e["naht_m"].items())) or "keine"
         zeilen = "".join(
             f"<tr><td>{x['art']}</td><td>{x['name']}</td><td>{x['knoten'] or DIREKT}</td><td align=right>"
@@ -2973,6 +3057,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             verfahren = next((v for _, v in self._verfahren_optionen() if v), None)
             n_neu = baugruppe.vorschlaege_anlegen(self.bg, self._regel_faktor(), verfahren)
             self._vorschlaege_zeigen()
+        if self.vk_auto.isChecked():            # A3: ungeprüfte Nahtgruppen folgen geänderten Stammdaten
+            for n in self.bg["naehte"]:
+                if "stand" in n and vorkalk.naht_offen(n) and baugruppe.stand_veraltet(n, self.tabellen):
+                    n.pop("stand")
         p = self._position()
         r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen, self.k)
         neu = {n.get("id"): n for n in r["bg"]["naehte"]}
@@ -3109,9 +3197,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         """Menüband oben, Strukturbaum links, 3D und Reiter in der Mitte, Ergebnis rechts, Kacheln und Prüfmeldungen
         unten (gruppen_rahmen). Knöpfe der Fußleiste ziehen ins Band."""
         from .gruppen_rahmen import GruppenRahmen
+        self.balken_rechts = Kostenbalken("")           # L3: Kostenanteile immer sichtbar, nicht nur im Reiter
         r = GruppenRahmen(self, self.reiter, self.baum_links, self.reiter,
-                          [self.summe, self.vk_info, self.fehler, self.baum_info, self.zeichnen_leiste,
-                           self.auswahl_leiste], nachher=self._baum_nachziehen,
+                          [self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
+                           self.zeichnen_leiste, self.auswahl_leiste], nachher=self._baum_nachziehen,
                           kacheln=self._rahmen_kacheln, meldungen=self._rahmen_meldungen,
                           springen=lambda t: self.fokus(t))
         r.fuss_leeren(fuss, ziele)
@@ -3139,7 +3228,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                  "Schweißen, Arbeitsgänge und Fremdleistungen je Baugruppe (ohne Einzelteile)"),
                 ("Zeit je Baugruppe", _min(e.get("zeit_min") or 0), "Alle Arbeitsgänge je Baugruppe"),
                 ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
-                ("Einzelteile", str(n_teile), "Positionen in der Baugruppe")]
+                ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
+                ("Vorschläge offen", str(vorkalk.offen(self.bg)),
+                 "Gelbe Vorschläge der Vorkalkulation, die noch nicht bestätigt sind (Prüfmeldungen: Klick springt "
+                 "zur ersten Zeile; „Vorschläge bestätigen“ übernimmt alle)")]
 
     def _rahmen_meldungen(self):
         out = []
@@ -3148,6 +3240,15 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                   self.status if str(self.status or "").startswith(("FEHLER", "WARNUNG", "HINWEIS")) else "",
                   *("WARNUNG: " + w for w in (self.erg or {}).get("warnungen") or ())]:
             if t and t not in out:
+                out.append(t)
+        # Plan Schweißbaugruppe 10.11.2026, L4: offene Vorschläge und Hinweise der Vorkalkulation in derselben Leiste
+        n = vorkalk.offen(self.bg)
+        if n and not any("der Vorkalkulation offen" in t for t in out):
+            out.append(f"HINWEIS: {n} Vorschl{'ag' if n == 1 else 'äge'} der Vorkalkulation offen (prüfen und "
+                       "bestätigen)")
+        for h in (getattr(self, "vk_ergebnis", None) or {}).get("hinweise") or ():
+            t = f"HINWEIS: Vorkalkulation: {h}"
+            if t not in out:
                 out.append(t)
         return out
 
@@ -3357,6 +3458,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if self.ansicht3d is None:
             self.baum_info.setText("Keine 3D-Daten: die Teile kommen nicht aus dem STEP-Import (oder aus einer älteren "
                                    "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
+            self.baum_info.setVisible(not n_teile)      # L3: derselbe Satz steht schon über den Eingaben
             return 0
         from .ansicht3d import baugruppe as zusammen
         from .baugruppe_ansicht import flaechen_merken, naehte_einsetzen, teil_kennung
@@ -3397,6 +3499,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                      "Unterbaugruppe aus eigener Datei): " + "; ".join(weniger) + ".")
         self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
         self.baum_info.setText("")
+        self.baum_info.setVisible(True)
         return len(netze)
 
     def weniger_im_3d(self, besitzer):

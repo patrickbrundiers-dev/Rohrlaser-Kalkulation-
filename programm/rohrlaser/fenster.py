@@ -448,7 +448,9 @@ class StammdatenSeite(QWidget):
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
-                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert")
+                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert. Ist nichts mehr zu "
+                             "laden, bietet die Meldung an, Kennwerte auf dem alten Richtwert nach Nahtgröße zu "
+                             "staffeln")
             richt.clicked.connect(lambda: self.schweiss_richtwerte())
             leiste.addWidget(richt)
         if tabelle.name == "schweiss_kennwerte":
@@ -795,6 +797,14 @@ class StammdatenSeite(QWidget):
         fehlt = baugruppe.richtwerte_fehlend(self.db.tabellen())
         n = sum(len(z) for z in fehlt.values())
         if not n:
+            # Plan Schweißbaugruppe 10.11.2026, G3: Kennwerte auf dem alten Richtwert auf Wunsch staffeln
+            alt = len(baugruppe.kennwerte_staffelbar(self.db.tabellen()))
+            if alt and bestaetigt is None:
+                self.meldung(f"Alle Richtwerte sind schon eingetragen. {alt} Kennwert(e) stehen noch unverändert auf "
+                             "dem alten Richtwert (eine Abschmelzleistung für alle Nahtgrößen): kleine Nähte sind "
+                             "damit zu schnell, dicke zu langsam gerechnet.",
+                             aktion=("Nach Nahtgröße staffeln", self.schweiss_kennwerte_staffeln))
+                return 0
             self.meldung("Alle Richtwerte sind schon eingetragen; vorhandene Zeilen werden nicht geändert.")
             return 0
         if bestaetigt is False:         # Tests: abgelehnt (früher Rückfrage, seit R2 Rückgängig)
@@ -815,6 +825,34 @@ class StammdatenSeite(QWidget):
         self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu (Status Richtwert, bitte prüfen), vorhandene unverändert.",
                      aktion=("Rückgängig", zurueck))
         return n
+
+    def schweiss_kennwerte_staffeln(self):
+        """Kennwerte auf dem alten Richtwert auf die Abschmelzleistung nach Nahtgröße umstellen (Plan Schweißbaugruppe
+        10.11.2026, G3; baugruppe.kennwerte_staffelbar). Nur unveränderte Zeilen mit Status Richtwert. Ergebnis:
+        Anzahl geänderter Zeilen."""
+        from . import baugruppe
+        liste = baugruppe.kennwerte_staffelbar(self.db.tabellen())
+        if not liste:
+            self.meldung("Keine Kennwerte auf dem alten Richtwert: nichts zu staffeln (geänderte und geprüfte Zeilen "
+                         "bleiben, wie sie sind).")
+            return 0
+        alt = [(z["id"], z.get("min_m"), z.get("bemerkung")) for z, _, _ in liste]
+        for z, min_m, bem in liste:
+            self.db.aendern("schweiss_kennwerte", z["id"], "min_m", min_m)
+            self.db.aendern("schweiss_kennwerte", z["id"], "bemerkung", bem)
+        f = self.window()
+        laden = (lambda: f.alles_neu_laden()) if hasattr(f, "alles_neu_laden") else self.neu_laden
+        laden()
+
+        def zurueck():
+            for i, min_m, bem in alt:
+                self.db.aendern("schweiss_kennwerte", i, "min_m", min_m)
+                self.db.aendern("schweiss_kennwerte", i, "bemerkung", bem)
+            laden()
+            self.meldung(f"Staffel zurückgenommen: {len(alt)} Kennwert(e) wieder auf dem alten Richtwert.")
+        self.meldung(f"{len(liste)} Kennwert(e) nach Nahtgröße gestaffelt (Status Richtwert, bitte prüfen); geänderte "
+                     "und geprüfte Zeilen unverändert.", aktion=("Rückgängig", zurueck))
+        return len(liste)
 
     def kennwerte_lernen(self, dialog=None):
         """Fenster Kennwerte aus der Nachkalkulation (kennwerte_dialog); dialog(d) statt exec (Tests)."""

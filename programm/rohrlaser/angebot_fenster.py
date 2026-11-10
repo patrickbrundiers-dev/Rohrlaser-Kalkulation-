@@ -2866,6 +2866,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()
         self.k, self.tabellen = rechnen.preisbasis_anwenden(a, self.k_aktuell, self.tabellen_aktuell)
         self._konturen_einteilen()
+        self._baugruppen_nachrechnen()
         # mit Werten des Angebots; nach dem Angebots-PDF mit den festgeschriebenen Einstellungen (Zuschläge, Mindestpreis …)
         self.einst = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()))
         self.stufen = self.db.staffeln(self.id)
@@ -3113,6 +3114,63 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.positionen = self.db.positionen(self.id)
             self.f.meldung(f"Stückzahlen von {len({i for i, _, _ in aenderungen})} Position(en) an die "
                            "Schweißbaugruppe angepasst.")
+
+    def bg_automatik_moeglich(self):
+        """True, wenn Schweißbaugruppen sich hier selbst nachrechnen dürfen: eigener Entwurf ohne Lesemodus
+        (verschickte Angebote ändern ihren Preis nicht von selbst)."""
+        return bool(self.id) and not (self.fremd() or self.db.nur_lesen) \
+            and (self.kopf.get("vorgang") or "Entwurf") == "Entwurf"
+
+    def _baugruppen_nachrechnen(self):
+        """Vorkalkulation automatisch außerhalb des Baugruppen-Editors (Plan Schweißbaugruppe 10.11.2026, A1, A3, A4):
+        hat sich an den Einzelteilen einer Baugruppe mit 'Vorkalkulation automatisch' etwas geändert (Profil, Länge,
+        Werkstoff, Stück je Baugruppe, Teil dazu oder weg, STEP neu eingelesen) oder liefern die Stammdaten für
+        ungeprüfte Nahtgruppen andere Kennwerte, werden die Vorschläge neu gerechnet (vorkalk.nachfuehren). Werte
+        von Hand und bestätigte bleiben; jede Änderung wird gemeldet. Die erste Sicht auf ein Angebot merkt nur den
+        Stand der Teile."""
+        alt = getattr(self, "_bg_kennung", None)
+        self._bg_kennung = neu = {}
+        gruppen = baugruppe.baugruppen(self.positionen)
+        if not gruppen:
+            return
+        darf = self.bg_automatik_moeglich()
+        vorgabe = self.db.einstellung("schweiss_vk_step") == "ja"
+        einst = saetze = None
+        texte = []
+        for bg_id, (i, bg) in gruppen.items():
+            neu[bg_id] = vorkalk.teile_kennung(bg, self.positionen)
+            if not darf or not baugruppe.vk_auto(bg, vorgabe):
+                continue
+            teile_neu = alt is not None and bg_id in alt and alt[bg_id] != neu[bg_id]
+            if not teile_neu and not any(vorkalk.naht_offen(nt) and baugruppe.stand_veraltet(nt, self.tabellen)
+                                         for nt in bg["naehte"]):
+                continue
+            p = self.positionen[i]
+            einst = einst or self._vk_einstellungen()
+            try:
+                r = vorkalk.nachfuehren(p, self.positionen, self.tabellen, einst, self.k) if teile_neu else None
+                if r is None:               # nur die Kennwerte der Stammdaten (A3)
+                    n_neu, _ = vorkalk.kennwerte_nachfuehren(bg, self.tabellen)
+                    r = dict(bg=bg, geaendert=bool(n_neu),
+                             aenderungen=[f"Kennwerte aus den Stammdaten: {n_neu} Nahtgruppe(n)"])
+            except Exception as e:  # noqa: BLE001 – die Automatik darf das Laden des Angebots nie verhindern
+                from . import protokoll
+                protokoll.info(f"Schweißbaugruppe nachrechnen übersprungen: {type(e).__name__}: {e}")
+                continue
+            if r["bg"] is None or not r["geaendert"]:
+                continue
+            saetze = saetze or self._saetze()
+            vorher = baugruppe.rechnen(p, self.tabellen, saetze)
+            text = baugruppe.speichern(r["bg"])
+            self.db.position_aendern(p["id"], "baugruppe", text)
+            nachher = baugruppe.rechnen(dict(p, baugruppe=text), self.tabellen, saetze)
+            diff = (nachher["eigen"] + nachher["fremd"]) - (vorher["eigen"] + vorher["fremd"])
+            texte.append(f"Schweißbaugruppe {baugruppe.name(p)}: {len(r['aenderungen'])} Vorschlag/Vorschläge neu"
+                         + (f", {'+' if diff > 0 else '−'}{abs(diff):.2f} € je Baugruppe".replace(".", ",")
+                            if abs(diff) >= 0.005 else ", Preis unverändert"))
+        if texte:
+            self.positionen = self.db.positionen(self.id)
+            self.f.meldung("Automatisch nachgerechnet – " + "; ".join(texte) + ".")
 
     def _konturen_einteilen(self):
         """Konturklassen neu einteilen, wenn die Regel (Grenzen und Faktoren der Maschine, Wandstärke des Profils) nicht
@@ -5733,6 +5791,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             vorwahl = {self.positionen[r]["id"] for r in markiert if r < len(self.positionen)
                        and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
             p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
+        self.schweiss_richtwerte_auto()         # leere Schweiß-Stammdaten: Richtwerte einmal selbst laden (A2)
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
                             einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id),
                             profile=self.k.profile)
@@ -6061,10 +6120,39 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             bericht.append(f"Gravur Artikelnummer (Einstellung): {n} Teil(e) der Schweißbaugruppe(n)")
             self.neu_laden()
 
+    def schweiss_richtwerte_auto(self):
+        """Neue Installation ohne Schweiß-Stammdaten (Plan Schweißbaugruppe 10.11.2026, A2): sind Verfahren, Kennwerte
+        und Regeln alle leer, die Richtwerte einmal selbst laden (Status 'Richtwert', mit Rückgängig), damit die
+        Vorkalkulation rechnen kann. Ergebnis: Anzahl neuer Zeilen (0 = nichts getan)."""
+        if self.db.nur_lesen or any(self.db.anzahl(t) for t in ("schweissverfahren", "schweiss_kennwerte",
+                                                                "schweiss_regeln")):
+            return 0
+        fehlt = baugruppe.richtwerte_fehlend(self.db.tabellen())
+        neue = []
+        for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
+            for z in fehlt[name]:
+                neue.append((name, self.db.neu(name, z)))
+        if not neue:
+            return 0
+        laden = (lambda: self.f.alles_neu_laden()) if hasattr(self.f, "alles_neu_laden") else self.neu_laden
+        laden()
+
+        def zurueck():
+            for name, i in reversed(neue):
+                self.db.loeschen(name, [i])
+            laden()
+            self.f.meldung(f"Schweiß-Richtwerte entfernt: {len(neue)} Zeile(n).")
+        self.f.meldung(f"Schweiß-Stammdaten waren leer: {len(neue)} Richtwerte geladen (Verfahren, Kennwerte, Faktoren, "
+                       "Regeln; Status Richtwert, bitte an die eigene Fertigung anpassen).",
+                       aktion=("Rückgängig", zurueck))
+        return len(neue)
+
     def _vorkalkulieren(self, pos, bericht):
         """Vorkalkulation der neuen Schweißbaugruppen (Pos.-Nummern pos) nach dem STEP-Import (Einstellung
         schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
         einst = self._vk_einstellungen()
+        if self.schweiss_richtwerte_auto():
+            bericht.append("Schweiß-Stammdaten waren leer: Richtwerte geladen (bitte prüfen)")
         for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
             r = vorkalk.komplett(p, self.positionen, self.tabellen, einst, self.k)
             if r["bg"] is None:

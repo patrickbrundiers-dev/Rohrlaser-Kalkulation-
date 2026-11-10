@@ -423,23 +423,33 @@ def zugang_wert(stufe):
     return "schlecht" if stufe == NICHT_ERREICHBAR else stufe if stufe in ZUGANG_STUFEN else None
 
 
-def wenden_aus_step(bg):
-    """(Wendevorgänge, Begründung) aus der Erreichbarkeit der Nahtgruppen (STEP, Feld seiten = je Nahtpunkt die Lagen,
-    in denen der Brenner von oben oder seitlich hinkommt): kleinste Zahl Lagen, in der jeder Nahtpunkt einmal oben
-    liegt, minus 1. (None, None) ohne Angaben aus STEP. Nicht erreichbare Nähte zählen nicht (eigene Warnung)."""
+def lagen_aus_step(bg):
+    """(Lagen, Anzahl verschiedener Brennerlagen) aus der Erreichbarkeit der Nahtgruppen (STEP, Feld seiten = je
+    Nahtpunkt die Lagen, in denen der Brenner von oben oder seitlich hinkommt): kleinste Auswahl von Lagen (+Z oben,
+    -Z oben …), in der jeder Nahtpunkt einmal oben liegt. (None, 0) ohne Angaben aus STEP."""
     import itertools
     punkte = {frozenset(x for x in s if x in SEITEN) for nt in bg.get("naehte") or ()
               for s in nt.get("seiten") or () if isinstance(s, list)}
     punkte.discard(frozenset())
     if not punkte:
-        return None, None
+        return None, 0
     for n in range(1, len(SEITEN) + 1):
         for lagen in itertools.combinations(SEITEN, n):
             if all(p & set(lagen) for p in punkte):
-                text = (f"STEP: {len(punkte)} verschiedene Brennerlagen der Nähte, {n} Lage{'' if n == 1 else 'n'} "
-                        f"nötig ({', '.join(lagen)} oben)")
-                return n - 1, text
-    return None, None
+                return lagen, len(punkte)
+    return None, 0
+
+
+def wenden_aus_step(bg):
+    """(Wendevorgänge, Begründung) aus der Erreichbarkeit der Nahtgruppen (lagen_aus_step): Anzahl nötiger Lagen
+    minus 1. (None, None) ohne Angaben aus STEP. Nicht erreichbare Nähte zählen nicht (eigene Warnung)."""
+    lagen, punkte = lagen_aus_step(bg)
+    if not lagen:
+        return None, None
+    n = len(lagen)
+    text = (f"STEP: {punkte} verschiedene Brennerlagen der Nähte, {n} Lage{'' if n == 1 else 'n'} "
+            f"nötig ({', '.join(lagen)} oben)")
+    return n - 1, text
 
 
 def nicht_erreichbar(bg):
@@ -681,6 +691,9 @@ def naht_stand(naht, tabellen, datum=None):
         extra["stich_mm"] = stich
     if f_heft:
         extra["f_heft"] = f_heft
+    ansatz = regeln.wert("Ansatz", "Zeit je Naht")          # Brenner ansetzen, Endkrater füllen (Plan 10.11.2026, G2)
+    if ansatz and ansatz > 0:
+        extra["ansatz_s"] = ansatz
     return dict(verfahren=bool(v), min_m=round(min_m, 4) if min_m is not None else None,
                 mass_bis=kw["mass_bis"] if kw else None, **extra,
                 lichtbogen=(v or {}).get("lichtbogen"), heft_s=(v or {}).get("heft_s"), satz_id=(v or {}).get("satz_id"),
@@ -693,6 +706,27 @@ def naht_stand(naht, tabellen, datum=None):
 
 
 VERBRAUCH = ("dichte", "draht_eur_kg", "gas_l_min", "gas_eur_l")     # Schweißverfahren (P5), leer = nicht rechnen
+
+
+def stand_veraltet(naht, tabellen):
+    """True, wenn die Nahtgruppe einen gemerkten Stand hat und die Stammdaten heute andere Kennwerte liefern
+    (Kennwert, Faktoren, Lichtbogenzeit, Heftzeit, Regeln, Verbrauch; Datum und Status zählen nicht). Plan
+    Schweißbaugruppe 10.11.2026, A3."""
+    st = naht.get("stand")
+    if not isinstance(st, dict):
+        return False
+    neu = naht_stand(naht, tabellen, st.get("datum"))
+    egal = ("datum", "richtwert")
+    for k_ in set(st) | set(neu):
+        if k_ in egal:
+            continue
+        a, b = st.get(k_), neu.get(k_)
+        if _zahl(a) and _zahl(b):
+            if abs(a - b) > 1e-6:
+                return True
+        elif (a or None) != (b or None):
+            return True
+    return False
 
 
 def verbrauch(naht, st, naht_m, lichtbogen_min):
@@ -782,8 +816,13 @@ def naht_rechnen(naht, tabellen, saetze):
             stich_min = ansaetze * _n(st.get("heft_s")) / 60
             lagen = lagen_zahl(naht, st)            # mehrlagig: je Zusatzlage Zwischenzeit (Reinigen, Ansetzen)
             zwischen = naht_m * (lagen - 1) * _n(st.get("zusatzlage_min_m")) if lagen > 1 else 0.0
+            # Ansatzzeit (Plan 10.11.2026, G2): je Naht und Seite einmal Brenner ansetzen und Endkrater füllen;
+            # viele kurze Nähte kosten so mehr als eine lange. Ohne Regel 'Ansatz' im Stand 0 (wie bisher).
+            ansatz_n = anzahl * seiten if naht_m > 0 else 0
+            ansatz_min = ansatz_n * _n(st.get("ansatz_s")) / 60
             out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen
-                       + stich_min, lagen=lagen, zwischen_min=zwischen, stich_min=stich_min)
+                       + stich_min + ansatz_min, lagen=lagen, zwischen_min=zwischen, stich_min=stich_min,
+                       ansatz_min=ansatz_min)
             # Rechenweg zum Nachvollziehen im Editor (Patrick 03.11.2026), je Stück des Knotens
             faktoren = _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) * _n(st.get("f_qualitaet") or 1) \
                 * _n(st.get("f_werkstoff") or 1) * f_spalt
@@ -804,6 +843,11 @@ def naht_rechnen(naht, tabellen, saetze):
                 weg += f" + {lagen - 1} Zusatzlage(n) {_zt(zwischen, 1)} min"
             if stich_min:
                 weg += f" + Stiche {_zt(ansaetze, 0)} Ansätze × {_zt(st.get('heft_s'), 0)} s = {_zt(stich_min, 1)} min"
+            if ansatz_min:
+                weg += (f" + Ansetzen {_zt(ansatz_n, 0)} × {_zt(st.get('ansatz_s'), 0)} s = "
+                        f"{_zt(ansatz_min, 1)} min")
+            if naht.get("lage") and abs(_n(st.get("f_lage") or 1) - 1) > 1e-9:
+                weg += f" · Lage {naht['lage']} × {_zt(st['f_lage'], 2)}"
             out["rechenweg"] = weg
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
@@ -1169,8 +1213,33 @@ def nahtquerschnitt(nahtart, mass):
     return (mass * mass * math.tan(math.radians(30)) + 1.5 * mass) * 1.1
 
 
-def richtwerte():
-    """Zeilen für Schweißverfahren, Schweiß-Kennwerte und Schweiß-Faktoren mit Status 'Richtwert'."""
+# Abschmelzleistung nach Nahtgröße (Plan 10.11.2026, G3): kleine Nähte werden mit weniger Strom geschweißt und
+# schmelzen langsamer ab, dicke schneller. Faktor auf die Abschmelzleistung des Verfahrens nach dem Nahtquerschnitt
+# (Kehlnaht a3 ≈ 10 mm², a4 ≈ 18 mm², a6 ≈ 40 mm²): MAG 3,5 kg/h → a3 2,5 / a4 3,0 / a5–a6 3,5 / ab a8 4,0 kg/h.
+ABSCHMELZ_STAFFEL = ((10.0, 2.5 / 3.5), (18.0, 3.0 / 3.5), (40.0, 1.0), (None, 4.0 / 3.5))
+
+
+def abschmelz_faktor(querschnitt):
+    """Faktor auf die Abschmelzleistung eines Verfahrens für einen Nahtquerschnitt [mm²] (ABSCHMELZ_STAFFEL)."""
+    for bis, f in ABSCHMELZ_STAFFEL:
+        if bis is None or querschnitt <= bis + 1e-9:
+            return f
+    return 1.0
+
+
+def _kennwert_richt(v, kg_h, dichte, art, m, staffel):
+    q = nahtquerschnitt(art, m)
+    f = abschmelz_faktor(q) if staffel else 1.0
+    kg_m = q * dichte / 1000                                   # mm² × kg/dm³ / 1000 = kg je m
+    return dict(verfahren=v, nahtart=art, mass_bis=m, min_m=round(kg_m / (kg_h * f) * 60, 2), status="Richtwert",
+                bemerkung=f"hergeleitet: {_text(round(q, 1))} mm² × {_text(dichte)} kg/dm³ ÷ "
+                          f"{_text(round(kg_h * f, 2))} kg/h" + (" (nach Nahtgröße gestaffelt)" if staffel else ""))
+
+
+def richtwerte(staffel=True):
+    """Zeilen für Schweißverfahren, Schweiß-Kennwerte und Schweiß-Faktoren mit Status 'Richtwert'. staffel:
+    Abschmelzleistung nach Nahtgröße (ABSCHMELZ_STAFFEL, Plan 10.11.2026); False = eine Leistung je Verfahren (Stand
+    bis 0.9.277, für den Vergleich mit alten Richtwerten)."""
     verfahren, kennwerte, faktoren = [], [], []
     for v, bez, kg_h, dichte, lb, heft in RICHT_VERFAHREN:
         verfahren.append(dict(verfahren=v, bezeichnung=bez, satz_id="Schweißen", lichtbogen=lb, heft_s=heft or None,
@@ -1179,17 +1248,29 @@ def richtwerte():
                                         "der Arbeitszeit, bitte an die eigene Fertigung anpassen"))
         for art, masse in RICHT_MASSE.items():
             for m in masse:
-                kg_m = nahtquerschnitt(art, m) * dichte / 1000          # mm² × kg/dm³ / 1000 = kg je m
-                kennwerte.append(dict(verfahren=v, nahtart=art, mass_bis=m, min_m=round(kg_m / kg_h * 60, 2),
-                                      status="Richtwert",
-                                      bemerkung=f"hergeleitet: {_text(round(nahtquerschnitt(art, m), 1))} mm² × "
-                                                f"{_text(dichte)} kg/dm³ ÷ {_text(kg_h)} kg/h"))
+                kennwerte.append(_kennwert_richt(v, kg_h, dichte, art, m, staffel))
     for art, wert, f in RICHT_FAKTOREN:
         faktoren.append(dict(art=art, wert=wert, faktor=f, status="Richtwert",
                              bemerkung=(LAGEN.get(wert, "") + ", " if wert in LAGEN else "") + "Richtwert"))
     from .vorkalk import richtwerte as regeln
     return dict(schweissverfahren=verfahren, schweiss_kennwerte=kennwerte, schweiss_faktoren=faktoren,
                 schweiss_regeln=regeln())
+
+
+def kennwerte_staffelbar(tabellen):
+    """Kennwert-Zeilen der Stammdaten, die noch unverändert auf dem alten Richtwert (eine Abschmelzleistung je
+    Verfahren) stehen und mit der Staffel nach Nahtgröße einen anderen Wert bekämen: [(Zeile, min/m neu, Bemerkung
+    neu)]. Von Hand geänderte oder bestätigte Zeilen (Status nicht 'Richtwert' oder anderer Wert) sind nie dabei."""
+    alt = {tuple(z[k] for k in SCHLUESSEL["schweiss_kennwerte"]): z for z in richtwerte(False)["schweiss_kennwerte"]}
+    neu = {tuple(z[k] for k in SCHLUESSEL["schweiss_kennwerte"]): z for z in richtwerte(True)["schweiss_kennwerte"]}
+    out = []
+    for z in tabellen.get("schweiss_kennwerte") or ():
+        schl = tuple(z.get(k) for k in SCHLUESSEL["schweiss_kennwerte"])
+        a, n = alt.get(schl), neu.get(schl)
+        if a and n and z.get("status") == "Richtwert" and _zahl(z.get("min_m")) \
+                and abs(z["min_m"] - a["min_m"]) < 0.005 and abs(n["min_m"] - a["min_m"]) >= 0.005:
+            out.append((z, n["min_m"], n["bemerkung"]))
+    return out
 
 
 SCHLUESSEL = {"schweissverfahren": ("verfahren",), "schweiss_kennwerte": ("verfahren", "nahtart", "mass_bis"),

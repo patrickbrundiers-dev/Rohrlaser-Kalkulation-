@@ -34,7 +34,8 @@ k = db.kontext()
 TAB = dict(schweissverfahren=[dict(verfahren="WIG", satz_id="Schweißen", lichtbogen=50, heft_s=0, status="geprüft")],
            schweiss_kennwerte=[dict(verfahren="WIG", nahtart="Kehlnaht", mass_bis=4, min_m=4.0, status="geprüft")],
            schweiss_faktoren=[dict(art="Werkstoff", wert="Edelstahl", faktor=1.3, status="geprüft")],
-           schweiss_regeln=[dict(art=a, wert=w, bis=b, zahl=z, status="geprüft") for a, w, b, z, _ in vorkalk.RICHTWERTE])
+           schweiss_regeln=[dict(art=a, wert=w, bis=b, zahl=z, status="geprüft") for a, w, b, z, _ in vorkalk.RICHTWERTE
+                            if a not in vorkalk.NEU_1011])      # ohne Ansatz, Lage, Fase (eigener Test)
 SAETZE = {"Schweißen": 60.0}
 
 # ------------------------------------------------------------------ W1 Faktor Werkstoff
