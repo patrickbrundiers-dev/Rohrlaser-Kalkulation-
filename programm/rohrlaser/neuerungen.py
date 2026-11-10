@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "
+     "jede Lage nur noch einmal (vorher bis zu siebenmal) und baut für die Prüfung der Nahtzugänglichkeit die "
+     "Hilfsdaten je Körper einmal auf statt je Messpunkt – die Messwerte bleiben genau gleich. Die Startseite füllt "
+     "sich erst, wenn sie gezeigt wird, so öffnet das Programm schneller. Neu im Tempo-Protokoll: Dauer des "
+     "Programmstarts und jeder STEP-Messung (Lesen, Auswertung der Baugruppe, langsamste Körper), zusammengefasst "
+     "im Support-Paket ([[zeitwaechter]]).",
+     "Schneller starten, STEP-Messung schneller bei gleichen Werten, Start- und STEP-Zeiten im Tempo-Protokoll"],
     ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
      "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
      "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "

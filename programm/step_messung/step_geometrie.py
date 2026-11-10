@@ -4689,6 +4689,11 @@ def _naht_paar(ta, ka, tb, kb, struktur, rahmen):
         zuege.append(zug)
     if not laengen or max(laengen) < 0.5:
         return None        # nur Punkt- oder Linienberührung ohne Länge
+    # längster Berührungszug; gleich lange (symmetrische Berührung, z. B. beide Seiten eines Blechs) nach Lage
+    # entscheiden: vorher gewann der erste, und die Reihenfolge der Züge hing vom Zufallsstand des Programmlaufs ab
+    # (gleiche Datei, andere Nahtlinie; Messung 10.11.2026, Grab.STEP Körper 1+8)
+    laengster = min((i for i, lg in enumerate(laengen) if lg >= max(laengen) * (1 - 1e-6)),
+                    key=lambda i: [round(v, 3) for z in zuege[i] for v in z])
     mitte = [v / gesamt for v in mitte] if gesamt else mitte
     ea, eb = _am_ende(ta, mitte, spalt), _am_ende(tb, mitte, spalt)
     if ea and eb:
@@ -4716,14 +4721,14 @@ def _naht_paar(ta, ka, tb, kb, struktur, rahmen):
         if ueber:
             laenge, aufteilung = ueber
     else:
-        genauer = _laengsnaht(ta, tb, zuege[laengen.index(max(laengen))])
+        genauer = _laengsnaht(ta, tb, zuege[laengster])
         if genauer:
             laenge, aufteilung, stich = genauer
     dicken = [d for d in (_naht_dicke(ta), _naht_dicke(tb)) if d]
     k_ = dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
               laenge_mm=round(laenge, 1), stossart=stossart,
               dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
-              linien=zuege[laengen.index(max(laengen))])
+              linien=zuege[laengster])
     if len(dicken) == 2:          # dickere Wand für das Mindest-a √t − 0,5 (STEP-JSON 1.22)
         k_["dicke_max_mm"] = round(max(dicken), 2)
     if spalt:
