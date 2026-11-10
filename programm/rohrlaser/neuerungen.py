@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.280", "<b>Schneller und zuverlässiger</b> (Performance-Update): Jede Änderung im Angebot rechnet Positionswerte, "
+     "Schneiddaten, Stangenpreise und Stangenwerte nur noch einmal (vorher für Positionstabelle und Kalkulation "
+     "doppelt, mit gestaffeltem Gewinn dreifach); der Angebots-Check nach der Eingabepause rechnet keine zweite "
+     "Kalkulation mehr für die Auslastung. Großes Angebot (500 Positionen, gestaffelter Gewinn): Änderung 0,88 → "
+     "0,60 s, Check 0,69 → 0,29 s; alle Preise und Werte bleiben auf den Cent gleich. Das Tempo-Protokoll nennt jetzt "
+     "auch im Angebot und im Fenster Schweißbaugruppe, welcher Schritt bremst, und ein <b>Hänger-Schutz</b> schreibt "
+     "nach 10 s ohne Reaktion sofort eine Zeile ([[zeitwaechter]]). Beim Start wird die Datendatei kurz geprüft "
+     "([[datensicherung]]). <b>Angebots-PDF</b> (großes Angebot mit veraltetem Plan) 12,6 → 5,6 s: die Kalkulation "
+     "läuft je Klick höchstens dreimal statt 16-mal. <b>Optimieren</b> rechnet nur geänderte Profilgruppen neu "
+     "(großes Angebot nach einer Änderung 6,6 → 1-2 s, [[veraltet]]). <b>Werkstattpapiere</b> 4,5 → 3,3 s. Der "
+     "Angebots-Check und das Fenster Schweißbaugruppe rechnen weniger doppelt. Schnittpläne und PDFs bleiben gleich.",
+     "Änderungen, Angebots-PDF, Optimieren und Werkstattpapiere schneller (gleiche Ergebnisse), Hänger-Schutz, Datenprüfung beim Start."],
     ["0.9.279", "<b>Mehr Intelligenz</b> ([[lernen]]): Der Angebots-Check vergleicht den Preis je kg jedes Teils mit "
      "früheren Teilen derselben Abmessung und ähnlicher Länge und meldet schon 1,5-fache Abweichungen mit Prozent. "
      "Die Wiedervorlage auf der Startseite zeigt je Angebot die geschätzte Auftragschance und steht nach Chance × "

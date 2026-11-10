@@ -4,6 +4,8 @@
 - P1 Fremdpakete: jeder Import in programm/rohrlaser (auch in Funktionen) ist Standardbibliothek, eigenes Modul oder
   ein Paket aus programm/requirements.txt (Pillow kommt mit reportlab); keines steht in excludes der .spec
 - P2 reportlab-Barcodes: alle Untermodule als hiddenimports (reportlab lädt sie über Namen nach)
+- P3 reportlab-Beschleuniger _rl_accel (Tempo Teil 2): in requirements, als hiddenimport (reportlab lädt ihn mit exec,
+  PyInstaller sieht ihn nicht) und hier wirklich geladen
 
 Aufruf: python tests/test_paket_module.py
 """
@@ -37,4 +39,8 @@ print(f"OK: P1 {len(fremd)} Fremd-Importe, alle im Paket")
 
 assert 'collect_submodules("reportlab.graphics.barcode")' in spec and "hiddenimports=BARCODE" in spec
 print("OK: P2 reportlab-Barcodes als hiddenimports")
+assert "rl_accel==" in req and '"_rl_accel"' in spec
+from reportlab.lib import rl_accel  # noqa: E402
+assert rl_accel.fp_str.__module__ == "_rl_accel", rl_accel.fp_str.__module__
+print("OK: P3 reportlab-Beschleuniger im Paket und geladen")
 print("Alle Paket-Modul-Tests bestanden.")

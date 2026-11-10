@@ -117,13 +117,13 @@ class VorschlaegeMixin:
         return kalk_hinweise.menge_fuer_ziel(preis_bei, rechnen._n(p.get("stueck")) or 1, ziel_stueck)
 
     # ------------------------------------------------------------------ Angebots-Check: G1/J1, G4, G5
-    def _kalk_punkte(self, summen):
+    def _kalk_punkte(self, summen, zeilen=None):
         from . import kalk_hinweise
         out = []
         try:
             ziel = (self.db.zusatz(self.id, "zielpreis") or {}).get("gesamt")
             out += kalk_hinweise.untergrenze_punkte(summen, ziel)
-            out += [p for p in (self._auslastung_punkt(summen), self._markt_punkt(summen)) if p]
+            out += [p for p in (self._auslastung_punkt(summen, zeilen), self._markt_punkt(summen)) if p]
         except Exception:           # Hinweise nie wichtiger als der Check selbst
             pass
         try:
@@ -149,7 +149,7 @@ class VorschlaegeMixin:
         return grundwerte.angebot_punkte(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
                                          stufen, wirkung_=w)
 
-    def _auslastung_punkt(self, summen):
+    def _auslastung_punkt(self, summen, zeilen=None):
         """G4b: Belegung der Lieferwoche der Maschine (mit diesem Angebot), nur Hinweis."""
         from . import auftrag, auslastung, feiertage, kalk_hinweise
         if not funktionen.an("funktion_auslastung", self.db) or not self.ergebnis:
@@ -168,7 +168,7 @@ class VorschlaegeMixin:
         punkt = None
         if kap:
             eigen = 0.0 if self.db.vorgang(self.id) == "Beauftragt" else \
-                sum(rechnen._n(z.get("laser_netto")) * rechnen._n(z.get("stueck")) for z in self._rechnung()[0] if z) / 3600
+                sum(rechnen._n(z.get("laser_netto")) * rechnen._n(z.get("stueck")) for z in (zeilen if zeilen is not None else self._rechnung()[0]) if z) / 3600
             q = (aus["bedarf"].get((m, mo), 0.0) + eigen) / kap
             punkt = kalk_hinweise.auslastung_punkt(q, f"KW {mo.isocalendar()[1]}",
                                                    self.db.einstellung("auslastung_hoch") or 0,
