@@ -810,6 +810,93 @@ def komplett(p, positionen, tabellen, einstellungen=None, k=None):
     return r
 
 
+# ------------------------------------------------------------------ Automatik außerhalb des Editors (Plan 10.11.2026)
+NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff", "dicke")
+TEIL_FELDER = ("art", "bg_knoten", "je_knoten", "profil_id", "werkstoff_id", "laenge", "gewicht_teil", "bg_hilfe",
+               "zusatz", "technik", "anbau", "virtuell")
+
+
+def teile_kennung(bg, positionen):
+    """Kennung der Einzelteile einer Baugruppe: ändert sie sich (Teil dazu oder weg, Profil, Werkstoff, Länge, Wand,
+    Stück je Baugruppe, Zusatzarbeiten), sind die Vorschläge der Vorkalkulation neu zu rechnen (A1)."""
+    def wert(p, f):
+        w = p.get(f)
+        if f == "zusatz":                   # nur die Schweißfase am Teil ändert die Vorkalkulation (G4)
+            return "fase" if "fase" in str(w or "").lower() else ""
+        return "" if w is None else str(w)
+    return tuple(sorted((str(positionen[i].get("id")),) + tuple(wert(positionen[i], f) for f in TEIL_FELDER)
+                        for i in baugruppe.teile(positionen, bg["id"])))
+
+
+def naht_offen(nt):
+    """True, wenn die Nahtgruppe noch ungeprüft ist: ein Feld ist offener Vorschlag oder das a-Maß kommt aus der
+    Regel. Solche Nahtgruppen folgen geänderten Stammdaten selbst (A3), geprüfte nur per Knopf."""
+    return any(naht_status(nt, feld) == VORSCHLAG for feld in NAHT_FELDER) or bool(baugruppe.regel_offen(nt))
+
+
+def laengen_aus(bg, positionen, k):
+    """Länge je Naht aus dem gewählten Einzelteil nachführen (Spalte 'Länge aus'): nur Nahtgruppen, deren Länge noch
+    die zuletzt gerechnete ist (von Hand geändert = bleibt). Ergebnis: Anzahl geänderter Nahtgruppen."""
+    teile = {positionen[i].get("id"): positionen[i] for i in baugruppe.teile(positionen, bg["id"])}
+    n = 0
+    for nt in bg["naehte"]:
+        art = nt.get("laenge_aus")
+        if art not in bg_mengen.LAENGE_AUS or nt.get("laenge_teil") not in teile:
+            continue
+        if _zahl(nt.get("laenge_auto")) and nt.get("laenge") != nt["laenge_auto"]:
+            continue
+        wert, text = bg_mengen.naht_laenge_aus(art, teile[nt["laenge_teil"]], k)
+        if wert is None:
+            continue
+        if nt.get("laenge") != wert:
+            nt["laenge"] = wert
+            n += 1
+        nt["laenge_auto"], nt["laenge_text"] = wert, text
+    return n
+
+
+def kennwerte_nachfuehren(bg, tabellen):
+    """Geänderte Kennwerte der Stammdaten (A3): ungeprüfte Nahtgruppen (naht_offen) bekommen den neuen Stand,
+    geprüfte bleiben und werden gezählt. Ergebnis: (übernommen, geprüft mit altem Stand)."""
+    neu = alt = 0
+    for nt in bg["naehte"]:
+        if not baugruppe.stand_veraltet(nt, tabellen):
+            continue
+        if naht_offen(nt):
+            nt["stand"] = baugruppe.naht_stand(nt, tabellen)
+            neu += 1
+        else:
+            alt += 1
+    return neu, alt
+
+
+def nachfuehren(p, positionen, tabellen, einstellungen=None, k=None):
+    """Baugruppe ohne offenen Editor aktuell halten (A1, A3): Nahtlängen 'Länge aus Teil', alle Vorschläge der
+    Vorkalkulation (komplett) und der gemerkte Stand ungeprüfter Nahtgruppen. Werte von Hand und bestätigte
+    bleiben. Ergebnis wie vorkalkulieren, zusätzlich laengen, kennwerte_neu, kennwerte_alt und geaendert (True, wenn
+    die Baugruppe danach anders ist als vorher)."""
+    bg = baugruppe.lesen(p.get("baugruppe"))
+    if bg is None:
+        return dict(bg=None, aenderungen=[], hinweise=[], hilfen={}, richtwert=False, geaendert=False,
+                    laengen=0, kennwerte_neu=0, kennwerte_alt=0)
+    vorher = baugruppe.speichern(bg)
+    schluessel = {nt.get("id"): tuple(nt.get(f) for f in NAHT_SCHLUESSEL) for nt in bg["naehte"]}
+    n_laengen = laengen_aus(bg, positionen, k)
+    r = komplett(dict(p, baugruppe=baugruppe.speichern(bg)), positionen, tabellen, einstellungen, k)
+    bg = r["bg"]
+    for nt in bg["naehte"]:                 # Schlüsselwert geändert (Lage, Zugang, Werkstoff …): neuer Stand
+        if "stand" in nt and nt.get("id") in schluessel \
+                and schluessel[nt["id"]] != tuple(nt.get(f) for f in NAHT_SCHLUESSEL):
+            nt["stand"] = baugruppe.naht_stand(nt, tabellen)
+    neu, alt = kennwerte_nachfuehren(bg, tabellen)
+    if n_laengen:
+        r["aenderungen"].insert(0, f"{n_laengen} Nahtlänge(n) aus den Teilen")
+    if neu:
+        r["aenderungen"].append(f"Kennwerte aus den Stammdaten: {neu} Nahtgruppe(n)")
+    r.update(laengen=n_laengen, kennwerte_neu=neu, kennwerte_alt=alt, geaendert=baugruppe.speichern(bg) != vorher)
+    return r
+
+
 def bestaetigen(bg):
     """Alle offenen Vorschläge der Baugruppe als bestätigt merken (Werte bleiben). Ergebnis: Anzahl."""
     n = 0
@@ -837,4 +924,5 @@ def offen(bg):
             + (wenden_status(bg) == VORSCHLAG))
 
 
-__all__ = ["vorkalkulieren", "bestaetigen", "offen", "richtwerte", "Regeln", "NACHARBEIT_STUFEN"]
+__all__ = ["vorkalkulieren", "bestaetigen", "offen", "richtwerte", "Regeln", "NACHARBEIT_STUFEN", "nachfuehren",
+           "teile_kennung"]

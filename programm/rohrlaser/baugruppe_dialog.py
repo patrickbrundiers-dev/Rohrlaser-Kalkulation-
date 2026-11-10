@@ -39,7 +39,7 @@ VORLAGEN = "baugruppen_vorlagen"
 RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
              "</span>")
 DIREKT = "(Baugruppe selbst)"
-NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff", "dicke")    # neuer Stand, wenn geändert
+NAHT_SCHLUESSEL = vorkalk.NAHT_SCHLUESSEL       # neuer Stand, wenn geändert
 ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "Entgraten", "Bohren", "Gewindeschneiden",
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
@@ -2807,6 +2807,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 return (", ".join(teile + [" und ".join(offen) + ", bitte bestätigen"]), WARNUNG)
             if self._naht_aktuell(z).get("stand"):
                 teile.append(f"Kennwerte vom {z['stand'].get('datum') or '?'}")
+                if baugruppe.stand_veraltet(z, self.tabellen):       # A3: geprüfte Nahtgruppe, Stammdaten neuer
+                    teile.append("in den Stammdaten geändert (Knopf „Kennwerte neu aus Stammdaten“)")
             return ", ".join(teile)
         if w.get("umlage") == baugruppe.UMLAGE_WIEDER and w.get("einmal"):
             return "wiederverwendbar: einmalig nicht berechnet"
@@ -2972,6 +2974,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             verfahren = next((v for _, v in self._verfahren_optionen() if v), None)
             n_neu = baugruppe.vorschlaege_anlegen(self.bg, self._regel_faktor(), verfahren)
             self._vorschlaege_zeigen()
+        if self.vk_auto.isChecked():            # A3: ungeprüfte Nahtgruppen folgen geänderten Stammdaten
+            for n in self.bg["naehte"]:
+                if "stand" in n and vorkalk.naht_offen(n) and baugruppe.stand_veraltet(n, self.tabellen):
+                    n.pop("stand")
         p = self._position()
         r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen, self.k)
         neu = {n.get("id"): n for n in r["bg"]["naehte"]}

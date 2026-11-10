@@ -708,6 +708,27 @@ def naht_stand(naht, tabellen, datum=None):
 VERBRAUCH = ("dichte", "draht_eur_kg", "gas_l_min", "gas_eur_l")     # Schweißverfahren (P5), leer = nicht rechnen
 
 
+def stand_veraltet(naht, tabellen):
+    """True, wenn die Nahtgruppe einen gemerkten Stand hat und die Stammdaten heute andere Kennwerte liefern
+    (Kennwert, Faktoren, Lichtbogenzeit, Heftzeit, Regeln, Verbrauch; Datum und Status zählen nicht). Plan
+    Schweißbaugruppe 10.11.2026, A3."""
+    st = naht.get("stand")
+    if not isinstance(st, dict):
+        return False
+    neu = naht_stand(naht, tabellen, st.get("datum"))
+    egal = ("datum", "richtwert")
+    for k_ in set(st) | set(neu):
+        if k_ in egal:
+            continue
+        a, b = st.get(k_), neu.get(k_)
+        if _zahl(a) and _zahl(b):
+            if abs(a - b) > 1e-6:
+                return True
+        elif (a or None) != (b or None):
+            return True
+    return False
+
+
 def verbrauch(naht, st, naht_m, lichtbogen_min):
     """Schweißzusatz und Schutzgas einer Nahtgruppe (P5): Draht [kg] = Nahtquerschnitt × Naht × Dichte, Gas [l] =
     Lichtbogenzeit × Gasverbrauch; Kosten mit den Preisen des Verfahrens. Fehlt ein Preis oder Wert, zählt der Teil
