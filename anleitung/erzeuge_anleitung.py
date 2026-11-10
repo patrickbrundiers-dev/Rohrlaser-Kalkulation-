@@ -2940,7 +2940,8 @@ def kapitel_step(i):
             "<i>Von Hand nachtragen</i>).",
             "<b>Gemerkt</b>: was du umstellst, merkt sich das Programm für alle Kunden. Kommt das gleiche Teil "
             "(gleiche Hüllmaße, Volumen, Flächen und Kanten) wieder, ist es gleich die gewählte Art; der Hinweis "
-            "sagt <i>Art wie beim letzten Mal von Hand gewählt</i>.",
+            "sagt <i>Art wie am 07.11.2026 von Hand gewählt</i> (seit 0.9.278 mit Datum). Ist sonst alles sicher, steht "
+            "das Teil <b>grün</b>, der Hinweis nennt das Datum; zurück geht es wie immer über die Spalte <b>Art</b>.",
             "<b>Nach dem Übernehmen</b>: Rechtsklick auf die Position → <b>Art ändern (Blech / Rohr / "
             "Dreh-/Frästeil) …</b> oder der Knopf <b>Art ändern …</b> im Rohr-Editor, Blech-Editor, Richtpreis "
             "Dreh-/Frästeil, Baugruppen-Editor und Satz in 3D (dort wählst du zuerst das Teil). Das Teil wird aus "
@@ -3010,6 +3011,14 @@ def kapitel_step(i):
             "ist er ein Normteil (<i>Gewindebolzen</i>). Sitzt der Bolzen unter einem Sechskant, bleiben Kopf und "
             "Schaft eine <i>Schraube SW …</i>. Rundungen an Ecken (nur ein Bogen) und Wellen mit Absatz werden nie "
             "getrennt.",
+            "<b>Rohr mit angeschweißtem Blech (seit 0.9.278):</b> ist eine <b>Kopfplatte</b>, <b>Lasche</b> oder ein "
+            "Blech mit einem Rohr (Rund-, Quadrat-, Rechteckrohr) zu einem Körper verschmolzen, ist das Teil ein "
+            "<b>Rohr mit Anbauteil</b> (ein Rundrohr mit Kopfplatte galt vorher als Drehteil mit Abflachung) und steht "
+            "gelb: <i>Mehrere Teile in einem Körper? Rohr mit angeschweißtem Blech (Kopfplatte)</i>. Es bleibt "
+            "angehakt und wird als Rohr mit Anbauteil übernommen. <b>Aufteilen</b> trennt es an der Rohrhülle in "
+            "<i>Rohr</i> (behält die Artikelnummer, Konturen wie gemessen) und <i>Blech</i> (-1, -2 …, als Blech bzw. "
+            "Flachstahl gemessen) als eigene Positionen; die Lage bleibt genau wie in der STEP. Kurze Rohre (unter "
+            "2 × Ø) und Buchsen mit Bund bleiben Drehteile.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
@@ -3399,7 +3408,18 @@ def kapitel_step(i):
             "<b>Passt</b> (Leertaste in der Liste): das gezeigte gelbe Teil ist richtig. Es wird angehakt, grün "
             "(<i>von Hand geprüft</i>) und die Liste springt zum nächsten gelben Teil. Bei <i>Profil fehlt in den "
             "Stammdaten</i> oder einem nicht verbindbaren Knickrahmen bleibt es gelb, bis das Profil angelegt bzw. "
-            "der Rahmen verbunden ist. Auf einem grünen Teil schaltet die Leertaste wie gewohnt das Häkchen um.")
+            "der Rahmen verbunden ist. Auf einem grünen Teil schaltet die Leertaste wie gewohnt das Häkchen um.",
+            "<b>Passt für gleiche Teile</b> (seit 0.9.278): gibt es dasselbe gelbe Teil (gleiche Form und Art) noch in "
+            "anderen Zeilen oder Dateien, heißt der Knopf <b>Passt (N gleiche)</b> und bestätigt alle auf einmal.",
+            "<b>Art und Profil für viele</b> (seit 0.9.278): unten unter <i>Werte setzen</i> stehen auch <b>(Art)</b> "
+            "(Blech, Rohr/Profil, Dreh-/Frästeil) und <b>(Profil)</b>. Mit <b>Für markierte</b> bzw. <b>Für alle</b> "
+            "wird jede Zeile umgestellt, deren Teil sich in dieser Art messen lässt (gemerkt wie die Spalte Art); das "
+            "Profil gilt nur für Rohre und Profile.",
+            "<b>Rechtsklick am Teil</b> (seit 0.9.278): neben Artikelnummer, Zusatzarbeiten und Knickverbindung stehen "
+            "dort <b>Passt</b> (bei gelben Teilen, mit Zahl der gleichen), <b>Nur dieses Teil aufteilen</b> (bei "
+            "<i>Mehrere Teile in einem Körper</i>) und das Untermenü <b>Art</b> (Blech, Rohr/Profil, Dreh-/Frästeil; "
+            "angehakt die aktuelle, grau eine Art, die sich nicht messen lässt). Ist das Teil markiert, gilt die Art "
+            "für alle markierten Zeilen.")
     i.text("<b>Spalten ohne Querscrollen (seit 0.9.274):</b> die Spalte <b>Hinweis</b> zeigt nur ein Stichwort "
            "(z. B. <i>Profil fehlt</i>, <i>Drehteil +1</i> = ein weiterer Hinweis); der ganze Text steht im Tooltip und "
            "oben im Infofeld unter der 3D-Ansicht (<i>Hinweis: …</i>), sobald das Teil markiert ist. <b>Länge</b>, "
@@ -6798,8 +6818,23 @@ def kapitel_ausgabe(i, seiten, ablage):
          "Staffeln, Mindestauftragswert, Aktuelle Preise übernehmen …"],
         ["Kunde ohne E-Mail-Adresse; Lieferzeit leer; Kundenreferenz leer; Gültigkeit abgelaufen", "HINWEIS",
          "Kunde bzw. Feld im Angebotskopf"],
+        ["Teile aus dem STEP-Import, die im Prüfdialog gelb waren und nicht mit <i>Passt</i> bestätigt wurden "
+         "(<i>N Teile aus dem STEP-Import ungeprüft (gelb), z. B. …</i>), und Teile, die wegen des Zeitlimits nur "
+         "<i>vereinfacht gemessen</i> sind (seit 0.9.278; sperrt nichts)", "HINWEIS",
+         "die Teile der Reihe nach im Fenster STEP-Merkmale"],
         ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
+    i.liste("<b>Erledigen</b> (seit 0.9.278): Punkte, die das Programm selbst lösen kann, haben neben "
+            "<i>Hinspringen</i> den Knopf <b>Erledigen</b>: <i>Schnittplan nicht aktuell</i> (optimiert), <i>Staffelstufen "
+            "veraltet</i> (rechnet die Staffelpreise) und <i>Stammdaten seit dem Festschreiben geändert</i> (übernimmt "
+            "die aktuellen Preise, mit Rückgängig). Sind es mehrere, erledigt <b>Alles Automatische erledigen (N)</b> "
+            "sie nacheinander. Danach zeigt der Check sich neu. Im fremden Angebot und im Lesemodus gibt es die Knöpfe "
+            "nicht.",
+            "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
+            "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
+            "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
+            "nächstes</b> bestätigt und geht zum nächsten Teil, <b>Überspringen</b> lässt es offen, <b>Schließen</b> "
+            "hört auf.")
     i.genauer()
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
            "Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)</i>, Vorgabe 0). Gemeint ist (Gewinn + "
@@ -9359,6 +9394,20 @@ def kapitel_zukauf(i):
            "Zeilen mit 0 € bleiben offen. Der <b>Angebots-Check</b> nennt Normteile eines Angebots ohne Preis "
            "(<i>N Normteile ohne Einkaufspreis – alle auf einmal eintragen …</i>); <i>Hinspringen</i> öffnet diesen "
            "Unterreiter. Ins Angebot kommt der neue Preis wie sonst über <i>Zukaufpreise aktualisieren</i>.")
+    i.text("<b>Preise aus CSV …</b> (seit 0.9.278): liest die Preisliste des Lieferanten (CSV mit Kopfzeile, Spalten "
+           "<i>Bezeichnung</i> und/oder <i>Artikelnummer</i> und <i>Preis</i>; Semikolon, Komma oder Tab; Zahlen wie "
+           "0,12 oder 1.234,50) und ordnet die Zeilen den Normteilen zu: zuerst über die Artikelnummer (auch die des "
+           "Lieferanten), dann über Norm, Gewinde und Länge (<i>DIN 933 M8 x 20</i> = <i>Sechskantschraube DIN 933 "
+           "M8x20</i>), sonst über die gleiche Bezeichnung; nur eindeutige Treffer. Die Preise stehen danach gelb "
+           "hinterlegt in den Zeilen (Tooltip: woher), oben steht <i>N von M Zeilen zugeordnet</i> und was nicht "
+           "zugeordnet wurde. Erst <b>Preise speichern</b> speichert.")
+    i.text("<b>Lieferant und vorhandene Preise</b> (seit 0.9.278): im Feld neben <i>Preise aus CSV …</i> den "
+           "Lieferanten der Preisliste wählen oder eintippen; beim Speichern wird der Preis bei diesem Lieferanten "
+           "eingetragen (leer = wie beim Artikel). Nennt die Preisliste für Normteile, die schon einen Preis haben, "
+           "einen anderen, erscheint <b>Vorhandene Preise aktualisieren (N) …</b>: das Fenster <i>Vorhandene Normteil-Preise "
+           "aktualisieren</i> mit EK alt, EK neu und "
+           "Änderung in %, je Zeile ein Haken; <b>Übernehmen</b> speichert die angehakten (Protokoll der "
+           "Preisänderungen wie sonst).")
     i.abschnitt("CSV-Import und -Export", marke="zukauf_csv")
     i.liste("<b>CSV exportieren</b>: alle Artikel als Datei für Excel.",
             "<b>CSV importieren …</b>: Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann <b>Importieren</b>.",

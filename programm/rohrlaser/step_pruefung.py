@@ -161,11 +161,31 @@ def html(liste):
 
 def speicherwert(m, gewinde_vorschlag=None, jetzt=None):
     """JSON für positionen.step_merkmale."""
+    from .step import ampel
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
-    return json.dumps(dict(merkmale=merkmale(m, gewinde_vorschlag), datei=m.get("datei") or "",
-                           koerper=m.get("koerper") or "", am=str(jetzt),
-                           roh={k: m.get(k) for k in ROH if m.get(k) not in (None, "")}, korrekturen=[]),
-                      ensure_ascii=False)
+    farbe, gruende = ampel(m)
+    d = dict(merkmale=merkmale(m, gewinde_vorschlag), datei=m.get("datei") or "", koerper=m.get("koerper") or "",
+             am=str(jetzt), roh={k: m.get(k) for k in ROH if m.get(k) not in (None, "")}, korrekturen=[],
+             ampel=farbe, ampel_gruende=list(gruende)[:3])
+    if m.get("_geprueft"):      # „Passt“ im Prüfdialog (M3): gilt als geprüft, der Angebots-Check zählt es nicht mehr
+        d["geprueft"] = dict(am=str(jetzt), wer="Prüfdialog „Passt“")
+    return json.dumps(d, ensure_ascii=False)
+
+
+def gelb_ungeprueft(p):
+    """L4 (Patrick 08.11.2026): Position kam gelb aus dem STEP-Import und wurde nicht bestätigt; Ergebnis: Gründe."""
+    d = lesen(p.get("step_merkmale"))
+    if not d or d.get("geprueft") or d.get("ampel") != "gelb":
+        return []
+    return d.get("ampel_gruende") or ["gelb"]
+
+
+def vereinfacht(p):
+    """L4: Körper wurde wegen des Zeitlimits nur vereinfacht gemessen (Hüllmaß, Volumen) und nicht bestätigt."""
+    d = lesen(p.get("step_merkmale"))
+    if not d or d.get("geprueft"):
+        return False
+    return "vereinfacht gemessen" in str((d.get("roh") or {}).get("hinweise") or "")
 
 
 def lesen(text):

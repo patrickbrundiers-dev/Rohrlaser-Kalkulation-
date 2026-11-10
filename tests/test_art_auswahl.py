@@ -128,7 +128,16 @@ def _():
     neu = [dict(JE[n]) for n in TEILE]
     assert step.arten_gelernt_anwenden(neu, gelernt) == 1
     x = next(x for x in neu if x["datei"].startswith("A01"))
-    assert x["profilform"] == "Frästeil" and "wie beim letzten Mal" in step.art_grund(x), step.art_grund(x)
+    assert x["profilform"] == "Frästeil" and "von Hand gewählt" in step.art_grund(x), step.art_grund(x)
+    import datetime
+    alt = {s: step.ART_DREHFRAES}                       # Eintrag von vor 0.9.275: nur die Gruppe, ohne Datum
+    y = [dict(JE["A01_KantL_40x40x8_kurz"])]
+    assert step.arten_gelernt_anwenden(y, alt) == 1 and "wie beim letzten Mal" in step.art_grund(y[0])
+    g2 = step.arten_gelernt_merken({}, {s: step.ART_DREHFRAES}, heute=datetime.date(2026, 11, 7))
+    assert g2[s] == [step.ART_DREHFRAES, "07.11.2026"], g2
+    y = [dict(JE["A01_KantL_40x40x8_kurz"])]
+    step.arten_gelernt_anwenden(y, g2)
+    assert step.art_grund(y[0]).startswith("Art wie am 07.11.2026 von Hand gewählt"), step.art_grund(y[0])
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "r.db")
         db.einstellung_setzen(step.ART_GELERNT, gelernt)

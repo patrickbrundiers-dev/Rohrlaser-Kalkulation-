@@ -3712,10 +3712,23 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return self.reiter.setCurrentWidget(self.kalk_seite)
         if art == "bohrungen":
             return self.bohrungen_alle_pruefen()
+        if art == "stepgelb":           # K3: ungeprüfte STEP-Teile der Reihe nach bestätigen
+            return self.step_gelb_pruefen([int(x) for x in wert.split(",") if x.strip().isdigit()])
         if art == "normteile" and getattr(self.f, "zukauf", None) is not None:      # M6
             self.f.reiter.setCurrentWidget(self.f.zukauf)
             return self.f.zukauf.normteile_zeigen()
         return None
+
+    def check_erledigen(self, aktionen):
+        """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
+        tun = {"optimieren": self.optimieren, "staffeln_rechnen": self.staffelpreise_rechnen,
+               "preise": self.preise_aktualisieren}
+        erledigt = []
+        for a in aktionen:
+            if a in tun:
+                tun[a]()
+                erledigt.append(a)
+        return erledigt
 
     def vor_verschickt(self):
         """Angebots-Check vor dem Vorgang „Verschickt“ ohne PDF. Wurde ein FEHLER oder eine WARNUNG übergangen, steht das
@@ -3733,8 +3746,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Fenster Angebots-Check; weiter = Text des Weiter-Knopfs (None = nur ansehen). Ergebnis: (weiter ja/nein,
         Begründung). „Hinspringen“ springt nach dem Schließen zur Stelle und zählt als Abbrechen."""
         from .angebot_check_dialog import CheckDialog
-        d = CheckDialog(self, self.freigabe_punkte() if punkte is None else punkte, weiter)
-        ok = d.exec() == QDialog.Accepted
+        erledigen = not (self.fremd() or self.db.nur_lesen)
+        for _ in range(4):             # K1: „Erledigen“ führt aus und zeigt den Check neu
+            d = CheckDialog(self, self.freigabe_punkte() if punkte is None else punkte, weiter, erledigen=erledigen)
+            ok = d.exec() == QDialog.Accepted
+            if not d.aktionen:
+                break
+            self.check_erledigen(d.aktionen)
+            punkte = None
         if d.ziel:
             self.check_link(d.ziel)
         return ok, d.text_begruendung()
@@ -6347,6 +6366,35 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.f.meldung(f"Pos. {p.get('pos') or ''}: STEP-Merkmale als geprüft bestätigt.")
             self.neu_laden()
         return d
+
+    def step_gelb_pruefen(self, zeilen, dialog=None):
+        """K3 (Patrick 08.11.2026): ungeprüfte STEP-Teile (Angebots-Check „ungeprüft (gelb)“ bzw. „vereinfacht
+        gemessen“) der Reihe nach zeigen: die Position wird markiert, das Fenster STEP-Merkmale nennt den gelben Grund;
+        „Passt, nächstes“ bestätigt, „Überspringen“ geht weiter, Schließen hört auf. dialog(d) bedient das Fenster
+        (Tests). Ergebnis: Zahl der bestätigten Positionen."""
+        from . import step_pruefung
+        from .step_pruefung_dialog import MerkmaleDialog
+        ids = [self.positionen[r]["id"] for r in zeilen if 0 <= r < len(self.positionen)]
+        n = 0
+        for k, pid in enumerate(ids):
+            aktuell = next((x for x in self.db.positionen(self.id) if x["id"] == pid), None)
+            if aktuell is None or not step_pruefung.lesen(aktuell.get("step_merkmale")):
+                continue
+            r = next((i for i, p in enumerate(self.positionen) if p["id"] == pid), None)
+            if r is not None:
+                self.zur_position(zeile=r)
+            d = MerkmaleDialog(self, aktuell, weitere=len(ids) - k - 1)
+            (dialog(d) if dialog else d.exec())
+            if d.bestaetigt:
+                self.db.position_aendern(pid, "step_merkmale", step_pruefung.bestaetigen(
+                    aktuell.get("step_merkmale"), self.db.einstellung("benutzer_kuerzel") or ""))
+                n += 1
+            if not d.weiter:
+                break
+        if n:
+            self.f.meldung(f"{n} Teil{'e' if n != 1 else ''} aus dem STEP-Import als geprüft bestätigt.")
+            self.neu_laden()
+        return n
 
     def arbeitsgaenge_zeilen(self):
         """Arbeitsgänge aller Positionen mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.uebersicht)."""
