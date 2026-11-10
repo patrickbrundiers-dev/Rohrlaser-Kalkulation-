@@ -7479,11 +7479,48 @@ def kapitel_fertigung(i):
             "je Schritt, Vorgabe Geschnitten, Entgratet, Verpackt). Die Rückmeldungen liegen in der Datendatei des "
             "Arbeitsplatzes, an dem gescannt wird, und werden mit dem Angebot gelöscht.")
     i.abschnitt("Wochenauslastung je Maschine", marke="auslastung")
-    i.bild("auslastung", "Maschinenauslastung je Woche: Bedarf / Kapazität je Maschine", hoehe=105 * mm,
-           legende=[(1, "Zeitraum in Wochen"), (2, "verschickte Angebote gewichtet mitzählen"),
-                    (3, "je Zelle Stunden Bedarf / Kapazität und %; Zelle wählen zeigt die Aufträge darunter")])
-    i.text("<i>Datei → Maschinenauslastung …</i> (oder <b>Auslastung …</b> im Reiter Fertigung) öffnet das Fenster "
-           "<i>Maschinenauslastung je Woche</i>: je Maschine und Woche, wie viele Laserstunden die Aufträge brauchen und wie viele der Schichtkalender hergibt.",
+    i.bild("auslastung", "Seite Auslastung: Wochenbalken je Maschine, Plantafel und Aufträge mit Terminrisiko",
+           hoehe=105 * mm,
+           legende=[(1, "Zeitraum in Wochen"), (2, "Sicht: eingelastet oder Terminwoche"),
+                    (3, "Wochenbalken: Rahmen = Kapazität, gefüllt = Aufträge, schraffiert = Angebote"),
+                    (4, "Plantafel: Aufträge auf der Zeitachse, ▲ Liefertermin"),
+                    (5, "Aufträge der gewählten Woche bzw. mit Terminrisiko")])
+    i.text("<b>Auslastung</b> im Reiter Fertigung (Unterseite neben <i>Aufträge</i>; auch <i>Datei → "
+           "Maschinenauslastung …</i> und ein Klick auf die Kachel <i>Auslastung</i> der Startseite) zeigt je Maschine "
+           "und Woche, wie viele Laserstunden die Aufträge brauchen und wie viele der Schichtkalender hergibt, als "
+           "Balken und als Plantafel.", kurz=True)
+    i.liste("<b>Wochenbalken</b>: der graue Rahmen ist die Kapazität der Woche, gefüllt die Laserzeit der Aufträge "
+            "(grün, ab 80 % gelb, über 100 % rot, Prozentzahl darüber), schraffiert die verschickten Angebote. Ein "
+            "Klick auf einen Balken zeigt rechts die Aufträge dieser Woche; Doppelklick dort öffnet das Angebot.",
+            "Sicht <b>eingelastet</b> (Vorgabe): Die Aufträge einer Maschine laufen ab heute nacheinander durch die "
+            "freien Stunden, in der Reihenfolge der Liefertermine (ohne Termin zuletzt, Angebote nach allen "
+            "Aufträgen). Was in einer Woche keinen Platz hat, rutscht in die nächste; die laufende Woche zählt ab "
+            "heute. Sicht <b>Terminwoche</b>: die ganze Laserzeit steht in der Woche des Liefertermins minus "
+            "Vorlauf, mit den Spalten <i>überfällig</i>, <i>später</i> und <i>ohne Termin</i> (wie die Zahlen im "
+            "Reiter <i>Zahlen (Terminwoche)</i>).",
+            "<b>Plantafel</b> (nur lesen): je Maschine die Aufträge als Balken auf der Zeitachse, Tage ohne Schicht "
+            "grau, rote Linie = heute, ▲ = Liefertermin. Roter Rahmen und „!“: Termin nicht zu halten; oranger "
+            "Rahmen: knapp. Klick markiert, Doppelklick öffnet das Angebot; <i>Plantafel: Woche / Monat</i> "
+            "vergrößert die Zeitachse.",
+            "<b>Terminrisiko</b>: Aus der Einlastung kommt je Auftrag der Tag <i>Laser fertig</i>; lieferbar ist er "
+            "nach dem Vorlauf (<i>Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin</i>). Der Puffer "
+            "sind die Arbeitstage von dort bis zum Liefertermin: unter 2 = <i>knapp</i>, lieferbar erst nach dem "
+            "Termin = <i>überschritten</i>. <b>Terminrisiko zeigen</b> listet alle betroffenen Aufträge.",
+            "<b>Gemessen</b>: links vom Strich stehen grau die letzten vier Wochen mit den gemessenen Laserstunden "
+            "aus den Scans <i>Laser Start</i> und <i>Laser Ende</i> ([[etiketten]]); sie erscheinen, sobald es "
+            "solche Scans gibt. So sieht man, wie weit Plan und Wirklichkeit auseinanderliegen.",
+            "<b>Was wäre, wenn …</b> (unten): Maschine wählen und <b>Auftrag testweise auf diese Maschine</b> legt "
+            "den markierten Auftrag probeweise dorthin (mit deren Laserzeit); <b>Zusatzstunden in gewählter "
+            "Woche</b> nimmt für die angeklickte Maschine und Woche so viele Stunden mehr an; <b>Samstag mit</b> "
+            "rechnet jeden Samstag mit den eingetragenen Stunden. Balken, "
+            "Plantafel und Terminrisiko zeigen sofort die Wirkung, ein gelber Streifen nennt die Annahmen und den "
+            "Vergleich vorher/jetzt. Nichts wird gespeichert; <b>Zurücksetzen</b> zeigt wieder den echten Stand.",
+            "<b>PDF …</b> schreibt Balken, Plantafel und die Aufträge mit Terminrisiko auf eine Seite A4 quer für "
+            "die Werkstattbesprechung. <b>Aktualisieren</b> rechnet alles neu.",
+            "Die Kachel <b>Auslastung</b> auf der Startseite (Karte <i>Heute</i>) zeigt je Maschine diese und die "
+            "nächste Woche in % mit kleinem Verlauf über acht Wochen und die Zahl der Aufträge mit Terminrisiko. "
+            "<b>Termin prüfen …</b> im Angebot nennt zusätzlich die freie Laserzeit der Maschine bis zum Termin.")
+    i.text("<b>Zahlen (Terminwoche)</b>: der zweite Reiter über den Balken zeigt dieselbe Rechnung als Tabelle.",
            kurz=True)
     i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "
             "rot. Spalten: <i>überfällig</i>, die Wochen ab dieser (Zeitraum 2 bis 26 Wochen, Vorgabe 8), "

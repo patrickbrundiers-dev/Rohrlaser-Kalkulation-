@@ -49,8 +49,8 @@ class FertigungSeite(QWidget):
         self.scan_knopf.setToolTip("Rückmeldung per Handscanner: Arbeitsschritt wählen und Etiketten scannen")
         self.scan_knopf.clicked.connect(lambda: self.scannen())
         auslastung = QPushButton("Auslastung …")       # Wochenauslastung je Maschine (Plan 29.10.2026 2b)
-        auslastung.setToolTip("Maschinenzeit der Aufträge je Woche gegen den Schichtkalender")
-        auslastung.clicked.connect(lambda: self.f.maschinenauslastung())
+        auslastung.setToolTip("Maschinenzeit der Aufträge je Woche gegen den Schichtkalender: Wochenbalken, Plantafel")
+        auslastung.clicked.connect(lambda: self.auslastung_zeigen())
         zeile = QHBoxLayout()
         for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf,
                   self.etiketten_knopf, self.scan_knopf, auslastung):
@@ -83,15 +83,38 @@ class FertigungSeite(QWidget):
         lc.addWidget(self.chargen)
         unten.addTab(c, "Materialverbrauch je Charge")
         self.unten = unten
-        lay = QVBoxLayout(self)
+        auftraege = QWidget()
+        lay = QVBoxLayout(auftraege)
         lay.addWidget(QLabel("Beauftragte Angebote: Freigabe hält den Angebotsstand für die Werkstattpapiere fest; "
                              "jeder Statuswechsel steht im Verlauf."))
         lay.addWidget(self.liste, 2)
         lay.addLayout(zeile)
         lay.addWidget(self.meldung)
         lay.addWidget(unten, 1)
+        # Seite Auslastung (Plan Maschinenauslastung 10.11.2026): Wochenbalken und Plantafel, gerechnet beim ersten Öffnen
+        from . import funktionen
+        from .auslastung_ansicht import AuslastungAnsicht
+        self.auslastung = AuslastungAnsicht(fenster)
+        self.seiten = QTabWidget()
+        self.seiten.addTab(auftraege, "Aufträge")
+        self.seiten.addTab(self.auslastung, "Auslastung")
+        self.seiten.setTabVisible(1, funktionen.an("funktion_auslastung", self.db))
+        self.seiten.currentChanged.connect(lambda i: self.auslastung.laden() if i == 1 else None)
+        aussen = QVBoxLayout(self)
+        aussen.setContentsMargins(0, 0, 0, 0)
+        aussen.addWidget(self.seiten)
+
+    def auslastung_zeigen(self):
+        """Unterseite Auslastung nach vorn (Knopf „Auslastung …“, Kachel der Startseite)."""
+        if self.seiten.currentIndex() == 1:
+            self.auslastung.laden()
+        self.seiten.setCurrentIndex(1)
 
     def neu_laden(self):
+        from . import funktionen
+        self.seiten.setTabVisible(1, funktionen.an("funktion_auslastung", self.db))
+        if self.seiten.currentIndex() == 1 and self.auslastung.geladen:
+            self.auslastung.laden()
         self.status.clear()
         self.status.addItems(fertigung.status_liste(self.db))
         self.zeilen = fertigung.uebersicht(self.db)

@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.283", "<b>Maschinenauslastung als Grafik</b> ([[auslastung]]). Neue Unterseite <i>Auslastung</i> im Reiter "
+     "Fertigung (auch <i>Datei → Maschinenauslastung …</i>): <b>Wochenbalken</b> je Maschine (Rahmen = Kapazität, "
+     "gefüllt = Aufträge, ab 80 % gelb, über 100 % rot, schraffiert = verschickte Angebote) und eine <b>Plantafel</b> "
+     "mit den Aufträgen auf der Zeitachse; Doppelklick öffnet das Angebot. Neue Sicht <b>eingelastet</b>: Die "
+     "Aufträge laufen ab heute nach Liefertermin durch die freien Stunden, Überlast rutscht in die Folgewoche; "
+     "daraus kommen <i>Laser fertig</i>, Puffer und das <b>Terminrisiko</b> (knapp, überschritten) je Auftrag. Die "
+     "bisherige Rechnung bleibt als Sicht <i>Terminwoche</i>. Dazu die <b>gemessene</b> Auslastung der letzten "
+     "vier Wochen aus den Scans <i>Laser Start/Ende</i>, <b>Was wäre, wenn …</b> (Auftrag testweise auf andere "
+     "Maschine, Zusatzstunden, Samstag; nichts wird gespeichert), <b>PDF</b> für die Werkstattbesprechung, eine "
+     "Kachel <i>Auslastung</i> auf der Startseite und die freie Laserzeit bis zum Termin in <i>Termin prüfen …</i>.",
+     "Maschinenauslastung als Grafik: Wochenbalken, Plantafel, Terminrisiko je Auftrag, gemessene Auslastung und "
+     "Was-wäre-wenn ([[auslastung]])."],
     ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
      "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
      "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "

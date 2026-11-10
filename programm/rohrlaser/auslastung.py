@@ -116,11 +116,12 @@ def _termin(a, vorlauf, land):
     return d
 
 
-def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None):
+def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None, merker=None):
     """Auslastung: dict(spalten=[(Schlüssel, Titel, Montag oder None)], maschinen=[ID], kapazitaet={(m, s): h},
     bedarf={(m, s): h}, auftraege={(m, s): [dict(id, nummer, kunde, h, termin, art, gewicht)]}, fehlt=[(Nummer,
     Grund)], gewicht=Gewicht der verschickten Angebote oder None). Spalten: überfällig, die Wochen ab dieser,
-    später, ohne Termin."""
+    später, ohne Termin. merker = dict, das die Laserzeit je Angebot über mehrere Aufrufe behält (Startseite, Seite
+    Auslastung): neu gerechnet wird nur, was sich geändert hat (Angebot, Stammdaten, Rückmeldungen)."""
     heute = heute or datetime.date.today()
     k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
     land = db.einstellung("versand_bundesland") or feiertage.VORGABE
@@ -135,8 +136,9 @@ def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None):
     maschinen = sorted(k.maschinen)
     kap = {}
     sperre = {}
+    tag = {}
     for m in maschinen:
-        st = _f(k.maschinen[m].get("schicht_stunden"), std)
+        st = tag[m] = _f(k.maschinen[m].get("schicht_stunden"), std)
         sperre[m] = betriebsruhe(k.maschinen[m].get("sperrtage"))
         for mo in montage:
             kap[(m, mo)] = kapazitaet(mo, st, sa, anteil, land, ruhe | sperre[m])
@@ -152,12 +154,24 @@ def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None):
         liste += [(a, "Angebot", gewicht) for a in db.angebote() if a.get("vorgang") == "Verschickt"
                   and not a.get("fremd") and not a.get("ersetzt_durch")]
     bedarf, auftraege, fehlt = {}, {}, []
+    einst_stand = None if merker is None else (db.einstellung("stammdaten_stand"), hash(repr(sorted(
+        (str(n), repr(w)) for n, w in dict(einst).items()))))
     for i, (z, art, g) in enumerate(liste):
         if fortschritt:
             fortschritt(i, len(liste))
         a = db.angebot(z["id"]) or {}
         try:
-            h, fertig = maschinenzeit(db, a, (k, tab), einst)
+            if merker is None:
+                h, fertig = maschinenzeit(db, a, (k, tab), einst)
+            else:
+                schluessel = (a.get("id"), a.get("geaendert"), a.get("maschine"), einst_stand,
+                              db.con.execute("SELECT COUNT(*), COALESCE(SUM(menge), 0) FROM rueckmeldungen WHERE "
+                                             "angebot_id=?", (a.get("id"),)).fetchone()[:2])
+                if schluessel not in merker:
+                    for alt in [x for x in merker if x[0] == a.get("id")]:
+                        del merker[alt]
+                    merker[schluessel] = maschinenzeit(db, a, (k, tab), einst)
+                h, fertig = merker[schluessel]
         except Exception as fehler:        # ein beschädigtes Angebot hält die Übersicht nicht an
             fehlt.append((a.get("nummer"), f"Fehler: {fehler}"))
             continue
@@ -177,9 +191,11 @@ def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None):
         bedarf[(m, s)] = bedarf.get((m, s), 0.0) + h
         auftraege.setdefault((m, s), []).append(dict(id=a["id"], nummer=a.get("nummer"), kunde=a.get("kunde"), h=h,
                                                     termin=a.get("liefertermin"), art=art, gewicht=g,
-                                                    geschnitten=fertig))
+                                                    geschnitten=fertig, maschine=m, bis=t))
+    # tag/samstag/anteil/land/heute/vorlauf: Schichtkalender für die Einlastung Tag für Tag (einlastung.py)
     return dict(spalten=spalten, maschinen=maschinen, kapazitaet=kap, bedarf=bedarf, auftraege=auftraege,
-                fehlt=fehlt, gewicht=gewicht, ruhe=ruhe, sperre=sperre)
+                fehlt=fehlt, gewicht=gewicht, ruhe=ruhe, sperre=sperre, tag=tag, stunden=std, samstag=sa,
+                anteil=anteil, land=land, heute=heute, vorlauf=vorlauf)
 
 
 def gesperrt_text(ruhe, sperre, montag_):

@@ -3393,6 +3393,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         zugesagt = auftrag.termin_vorschlag(self.kopf) if self.kopf.get("lieferzeit_art") and \
             self.kopf.get("lieferzeit_wert") or self.kopf.get("liefertermin") else None
         text = terminplan.text(t, zugesagt)
+        try:                        # freie Laserzeit bis zum Wunschtermin (Plan Maschinenauslastung 10.11.2026)
+            from .auslastung_ansicht import frei_satz
+            text += frei_satz(self.db, self.kopf.get("maschine"), zugesagt or (t.datum if t else None))
+        except Exception:
+            pass
         if t is None or t.datum is None:
             self.f.meldung(text, fehler=t is None)
             return t
