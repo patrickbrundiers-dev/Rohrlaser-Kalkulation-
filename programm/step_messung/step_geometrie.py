@@ -165,7 +165,8 @@ class Teil:
         if not self.profilform or self.laenge <= 0:
             return "nicht messbar"
         # Fase am Ende: nur Hinweis, Annahme längste Länge gilt (Patrick 22.10.2026), daher kein „prüfen“
-        if any(FASE_HINWEIS not in h for h in self.hinweise) or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
+        # Rohr mit angeschweißtem Blech (L1): als Rohr mit Anbauteil stimmig, gelb macht erst die Ampel im Programm
+        if any(FASE_HINWEIS not in h and "Rohr mit angeschweißtem Blech" not in h for h in self.hinweise) or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
                 "Sonderprofil" in self.profilform:
             return "prüfen"
         return "plausibel"
