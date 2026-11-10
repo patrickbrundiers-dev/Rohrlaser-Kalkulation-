@@ -7667,11 +7667,31 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         bekommt eine eigene Kopie (die Eingaben ändern sich innerhalb eines Neuladens nicht)."""
         merken = getattr(self, "_kalk_merken", None)
         if merken is None:
-            return rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+            return self._rechnung_kurz()
         if "ergebnis" not in merken:
-            merken["ergebnis"] = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
-                                                     self.einst)
+            merken["ergebnis"] = self._rechnung_kurz()
         return rechnen.kopie(merken["ergebnis"])
+
+    RECHNUNG_GILT_S = 10.0      # so lange gilt die letzte Kalkulation außerhalb des Neuladens bei gleichen Eingaben
+
+    def _rechnung_kurz(self):
+        """Kalkulation außerhalb des Neuladens (Angebots-PDF, Check, Staffeln …; ein Klick rechnete sie bis zu 9-mal):
+        bei genau gleichen Eingaben – Kopf, Positionen, Schnittplan und Einstellungen gleich im Inhalt (repr),
+        Stammdaten dasselbe Objekt – und höchstens RECHNUNG_GILT_S alt die letzte, als eigene Kopie
+        (Performance-Update 10.11.2026, Schritt 3; Ergebnis bitgleich)."""
+        try:
+            inhalt = repr((self.kopf, self.positionen, self.ergebnis, self.einst))
+        except Exception:           # noqa: BLE001 – ohne Merker rechnen
+            inhalt = None
+        letzte = self.__dict__.get("_kalk_letzte")
+        jetzt = time.monotonic()
+        if (inhalt is not None and letzte is not None and letzte[0] == inhalt and letzte[1] is self.k
+                and letzte[2] is self.tabellen and jetzt - letzte[3] <= self.RECHNUNG_GILT_S):
+            return rechnen.kopie(letzte[4])
+        erg = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+        if inhalt is not None:
+            self._kalk_letzte = (inhalt, self.k, self.tabellen, jetzt, rechnen.kopie(erg))
+        return erg
 
     # Ausgaben (PDF, E-Mail, CSV, Material, Materialanfrage): angebot_ausgabe.AusgabeMixin
 

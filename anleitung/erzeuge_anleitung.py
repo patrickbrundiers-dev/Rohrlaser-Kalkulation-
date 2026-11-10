@@ -644,13 +644,17 @@ def kapitel_start(i):
             "welcher Schritt wie lange gebraucht hat, z. B. <i>Abschnitte: STEP: Teile übernehmen 3.1 s; STEP: "
             "Gegenprobe Rohr 2.4 s; STEP: Automatik nach dem Import 0.8 s</i>. tempo.txt listet die längsten Einträge "
             "mit ihren Abschnitten.",
-            "<b>Abschnitte im Angebot</b> (seit 0.9.279): auch das Neuladen nach jeder Änderung (Daten lesen, "
+            "<b>Abschnitte im Angebot</b> (seit 0.9.280): auch das Neuladen nach jeder Änderung (Daten lesen, "
             "Positionstabelle rechnen, Kalkulation, Check, Wiederholteile …), der Angebots-Check nach der Eingabepause "
             "und die häufigen Schritte im Fenster Schweißbaugruppe (z. B. <i>Als Nahtgruppe übernehmen</i>, 3D zeigen) "
             "stehen ab 50 ms im Eintrag. So zeigt ein Support-Paket, welcher Teil bei Ihren echten Angeboten bremst.",
-            "<b>Hänger-Schutz</b> (seit 0.9.279): reagiert das Programm länger als 10 Sekunden nicht, schreibt der "
+            "<b>Hänger-Schutz</b> (seit 0.9.280): reagiert das Programm länger als 10 Sekunden nicht, schreibt der "
             "Wächter sofort eine Zeile <i>Hänger seit 10 s</i> mit Ort, Bedienung und dem gerade laufenden Schritt – "
-            "auch wenn das Programm danach beendet werden muss. tempo.txt nennt die letzten Hänger.")
+            "auch wenn das Programm danach beendet werden muss. tempo.txt nennt die letzten Hänger.",
+            "<b>Schneller ohne andere Ergebnisse</b> (0.9.280): das Angebots-PDF rechnet die Kalkulation je Klick "
+            "höchstens dreimal statt bis zu 16-mal, Optimieren rechnet nur geänderte Profilgruppen neu, PDFs "
+            "entstehen mit dem schnelleren Baustein von ReportLab. Preise, Schnittpläne und PDF-Inhalte bleiben gleich; "
+            "die automatischen Prüfungen messen die Zeiten bei jeder Änderung am Programm.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -3546,7 +3550,9 @@ def kapitel_optimieren(i):
             "Prozessorkernen gleichzeitig, je Profilgruppe ein Hilfsprozess; der Schnittplan ist derselbe. Volle "
             "Stangen und schon geprüfte gleiche Teile überspringt die Optimierung, deshalb gehen auch sehr große "
             "Stückzahlen schnell (20.000 gleiche Teile unter einer Sekunde, 6.000 gemischte Teile mit Gehrungen "
-            "wenige Sekunden).",
+            "wenige Sekunden). Seit 0.9.280 merkt sich das Programm schon gerechnete Profilgruppen: optimieren Sie "
+            "nach einer Änderung erneut (auch über das Angebots-PDF), rechnet es nur die Gruppen neu, deren Teile, "
+            "Stangen oder Einstellungen sich geändert haben – mit genau demselben Schnittplan wie eine volle Rechnung.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
@@ -9765,7 +9771,7 @@ def kapitel_pflege(i):
             "Zurücksetzen der Frachtzonen (<i>_vor_Frachtzonen_Standard</i>, [[fracht_zonen_standard]]) und vor dem "
             "CSV-Import der Kunden (<i>_vor_Kundenimport</i>, [[kunden_csv]]) und vor dem Archivieren alter Angebote "
             "(<i>_vor_Archiv</i>, [[archiv]]).")
-    i.text("<b>Prüfung beim Start</b> (seit 0.9.279): An Tagen, an denen die Sicherung schon geschrieben ist, prüft "
+    i.text("<b>Prüfung beim Start</b> (seit 0.9.280): An Tagen, an denen die Sicherung schon geschrieben ist, prüft "
            "das Programm die Datendatei 30 Sekunden nach dem Start kurz im Hintergrund (bis 300 MB; größere prüft die "
            "tägliche Sicherung). Ist sie beschädigt, erscheint eine rote Meldung: dann nichts mehr ändern und über "
            "<i>Datei → Sicherung wiederherstellen …</i> die letzte gute Sicherung zurückholen.")

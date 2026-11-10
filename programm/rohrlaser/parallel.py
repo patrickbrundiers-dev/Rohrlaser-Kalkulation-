@@ -105,6 +105,7 @@ def vorrechnen(auftraege, melden=None):
     [[(Teilnummer, Drehung)]], bewiesen, schranke)} für optimierung.vorgerechnet; leer = selbst rechnen.
     melden(fertig, gesamt) nach jedem Ergebnis; löst es eine Ausnahme aus (Abbruch), werden die Hilfsprozesse
     beendet und die Ausnahme weitergegeben."""
+    auftraege = [g for g in auftraege if opt.gemerkt(opt.schluessel(g)) is None]    # schon gerechnete nicht
     n = anzahl_prozesse(auftraege)
     if not n or not _sperre.acquire(blocking=False):
         return {}

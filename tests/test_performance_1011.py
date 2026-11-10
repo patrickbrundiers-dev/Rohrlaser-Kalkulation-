@@ -11,7 +11,11 @@ Geprüft wird ohne Bildschirm:
 - Zeitwächter: Abschnitte mit eigener Grenze, Dekorator gemessen, Abschnitte im Hintergrund zählen nicht,
   Hänger-Schutz schreibt sofort eine Zeile mit den laufenden Abschnitten, die Auswertung nennt sie,
 - Neuladen eines Angebots markiert seine Schritte (Daten lesen, Positionstabelle, Kalkulation …),
-- Schnellprüfung der Datendatei (PruefLauf): gesunde Datei ohne Befund, beschädigte mit Befund.
+- Schnellprüfung der Datendatei (PruefLauf): gesunde Datei ohne Befund, beschädigte mit Befund,
+- Tempo Teil 2: schon gerechnete Schnittpläne (optimierung._merker) ergeben denselben Plan, ein zweites Optimieren
+  nach einer Änderung rechnet nur die geänderte Gruppe, andere Suchgrenzen rechnen neu, Hilfsprozesse bekommen
+  gemerkte Gruppen nicht; das Angebots-PDF rechnet höchstens 6 Kalkulationen (vorher 16) und
+  bleibt unter der Zeitgrenze.
 Aufruf: python tests/test_performance_1011.py
 """
 import copy
@@ -285,6 +289,63 @@ kaputt.write_bytes(bytes(daten))
 lauf = PruefLauf(kaputt)
 assert lauf.warten(30) and lauf.fehler, "Beschädigung nicht erkannt"
 ok(f"Datendatei-Prüfung: gesund ohne Befund, beschädigt erkannt ({lauf.fehler[:60]} …)")
+
+# ------------------------------------------------------------------ Tempo Teil 2: Schnittpläne merken, PDF
+from rohrlaser import optimierung as opt, parallel  # noqa: E402
+GRENZE_PDF = 6.0            # s, Knopf Angebots-PDF, 200 Positionen gestaffelt, 6 Staffelstufen (gemessen 2,2 s)
+kopf_, pos_ = db.angebot(aid), db.positionen(aid)
+opt.merker_leeren()
+gerechnet = []
+alt_opt, alt_anz = opt._optimiere, parallel.anzahl_prozesse
+opt._optimiere = lambda g: gerechnet.append(len(g.teile)) or alt_opt(g)
+parallel.anzahl_prozesse = lambda auftraege: 0      # alles im Prozess rechnen, damit es gezählt wird
+try:
+    e1 = rechnen.optimieren(kopf_, pos_, s.k, s.tabellen, s.einst)
+    n1 = len(gerechnet)
+    e2 = rechnen.optimieren(kopf_, pos_, s.k, s.tabellen, s.einst)
+    assert len(gerechnet) == n1 and n1 > 3, (n1, len(gerechnet))      # zweites Mal: nichts neu gerechnet
+    assert json.dumps(e1, sort_keys=True, default=str) == json.dumps(e2, sort_keys=True, default=str)
+    opt.merker_leeren()
+    e3 = rechnen.optimieren(kopf_, pos_, s.k, s.tabellen, s.einst)
+    assert json.dumps(e1, sort_keys=True, default=str) == json.dumps(e3, sort_keys=True, default=str)
+    geaendert = [dict(p) for p in pos_]
+    geaendert[0]["stueck"] = (geaendert[0].get("stueck") or 1) + 3
+    vorher = len(gerechnet)
+    rechnen.optimieren(kopf_, geaendert, s.k, s.tabellen, s.einst)
+    assert 1 <= len(gerechnet) - vorher < n1 / 2, (len(gerechnet) - vorher, n1)
+    alt_knoten = opt.MUSTER_MAX_KNOTEN
+    opt.MUSTER_MAX_KNOTEN = alt_knoten - 1
+    try:
+        vorher = len(gerechnet)
+        rechnen.optimieren(kopf_, pos_, s.k, s.tabellen, s.einst)
+        assert len(gerechnet) - vorher == n1, "andere Suchgrenzen müssen neu rechnen"
+    finally:
+        opt.MUSTER_MAX_KNOTEN = alt_knoten
+    gruppen_ = rechnen.gruppen_bilden(kopf_, pos_, s.k, s.tabellen, s.einst)[0]
+    gesendet = []
+    parallel.anzahl_prozesse = lambda auftraege: gesendet.append(len(auftraege)) or 0
+    parallel.vorrechnen(gruppen_)
+    assert gesendet == [0], gesendet                # alle schon gemerkt: nichts an Hilfsprozesse
+finally:
+    opt._optimiere, parallel.anzahl_prozesse = alt_opt, alt_anz
+ok(f"Schnittpläne gemerkt: gleiches Ergebnis, zweites Optimieren rechnet nichts, nach einer Änderung nur die "
+   f"geänderte Gruppe ({n1} Gruppen)")
+
+db.position_aendern(s.positionen[3]["id"], "stueck", 9)      # Plan und Staffeln veraltet wie nach einer Änderung
+s.neu_laden()
+zaehler["kalk"] = 0
+rechnen.kalkulation = kalk
+try:
+    t = time.perf_counter()
+    assert s.angebot_pdf(oeffnen=False)
+    dauer = time.perf_counter() - t
+finally:
+    rechnen.kalkulation = alt_k
+eigene = zaehler["kalk"]                   # vor Tempo Teil 2: 16 Kalkulationen je Klick
+assert eigene <= 6, zaehler
+assert dauer < GRENZE_PDF, dauer
+ok(f"Knopf Angebots-PDF, 200 Positionen: {dauer:.2f} s (Grenze {GRENZE_PDF} s), Kalkulation des Angebots "
+   f"{eigene}× (vorher 16×)")
 
 f.close()
 print("Alle Prüfungen Performance-Update 10.11. bestanden.")

@@ -139,8 +139,9 @@ try:
     assert t < GRENZE_OEFFNEN, t
     zaehler.update(kalkulation=0, neu_laden=0)
     s.neu_laden()
-    assert zaehler["neu_laden"] == 1 and zaehler["kalkulation"] == 1 and zaehler["optimieren"] == 0, zaehler
-    ok("Neuladen rechnet die Kalkulation einmal und optimiert nicht")
+    # 0 = unveränderte Eingaben, das gerade gerechnete Ergebnis gilt noch (AngebotSeite._rechnung_kurz)
+    assert zaehler["neu_laden"] == 1 and zaehler["kalkulation"] <= 1 and zaehler["optimieren"] == 0, zaehler
+    ok(f"Neuladen rechnet die Kalkulation höchstens einmal ({zaehler['kalkulation']}×) und optimiert nicht")
     m = s.pos_modell
     c = next(i for i, (_, fd) in enumerate(m.spalten) if getattr(fd, "name", None) == "stueck")
     uhr = s.__dict__.get("_check_uhr")
