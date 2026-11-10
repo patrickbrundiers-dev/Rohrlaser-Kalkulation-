@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.279", "<b>Schneller und zuverlässiger</b> (Performance-Update): Jede Änderung im Angebot rechnet Positionswerte, "
+     "Schneiddaten, Stangenpreise und Stangenwerte nur noch einmal (vorher für Positionstabelle und Kalkulation "
+     "doppelt, mit gestaffeltem Gewinn dreifach); der Angebots-Check nach der Eingabepause rechnet keine zweite "
+     "Kalkulation mehr für die Auslastung. Großes Angebot (500 Positionen, gestaffelter Gewinn): Änderung 0,88 → "
+     "0,60 s, Check 0,69 → 0,29 s; alle Preise und Werte bleiben auf den Cent gleich. Das Tempo-Protokoll nennt jetzt "
+     "auch im Angebot und im Fenster Schweißbaugruppe, welcher Schritt bremst, und ein <b>Hänger-Schutz</b> schreibt "
+     "nach 10 s ohne Reaktion sofort eine Zeile ([[zeitwaechter]]). Beim Start wird die Datendatei kurz geprüft "
+     "([[datensicherung]]).",
+     "Änderungen im Angebot schneller (gleiche Preise), Tempo-Protokoll mit Schritten, Hänger-Schutz, Datenprüfung beim Start."],
     ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
      "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "
      "(je Abmessung Stangen, Verschnitt, Ausnutzung, €/m, Materialkosten und das Stangenbild), grau daneben "

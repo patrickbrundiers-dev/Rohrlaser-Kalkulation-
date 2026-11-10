@@ -57,6 +57,8 @@ from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
 from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
+FEIN = 0.05          # Zeitwächter: Abschnitte im Angebot schon ab 50 ms ins Protokoll (Performance-Update 10.11.2026)
+
 
 def preis_aenderung(vorher, nachher):
     """Kurztext zur Preisänderung, z. B. 'Verkaufspreis netto 1.234,00 € → 1.290,50 €.'"""
@@ -2764,9 +2766,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         # Kalkulation nur einmal je Neuladen rechnen (Übersicht, Staffeln, Nachkalkulation; Performance-Audit 22.10.2026)
         self._kalk_merken = {}
         try:
-            self._neu_laden()
-            self._auto_planen()          # nutzt den eben geprüften Optimierungsstand mit (Plan C2)
-            self._st_seite.planen()      # angelegte Staffeln nach Änderungen selbst neu rechnen (28.10.2026)
+            with tempo.abschnitt("Angebot neu laden", FEIN):
+                self._neu_laden()
+            with tempo.abschnitt("Angebot: Auto-Optimieren/Staffeln planen", FEIN):
+                self._auto_planen()          # nutzt den eben geprüften Optimierungsstand mit (Plan C2)
+                self._st_seite.planen()      # angelegte Staffeln nach Änderungen selbst neu rechnen (28.10.2026)
         finally:
             self._kalk_merken = None
 
@@ -2819,9 +2823,34 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return ok
 
     def _neu_laden(self):
-        a = self.db.angebot(self.id)
+        with tempo.abschnitt("Angebot: Daten lesen", FEIN):
+            a = self._daten_lesen()
         if a is None:
             return
+        self._kopf_anzeigen()
+        # Positionstabelle und Kalkulation rechnen dieselben Positionswerte, Schneiddaten und Stangenpreise: je
+        # Neuladen einmal (Performance-Update 10.11.2026, bitgleich)
+        with rechnen.merker():
+            with tempo.abschnitt("Angebot: Positionstabelle rechnen", FEIN):
+                self.pos_modell.rechnen()
+                self._vorschlag_knopf_setzen()
+            with tempo.abschnitt("Angebot: Positionen gruppieren", FEIN):
+                self._gruppieren()
+                leer = not self.positionen
+                self.ablage_gross.setVisible(leer)
+                self.pos_ansicht.setVisible(not leer)
+                self._spalten_zeigen()
+            with tempo.abschnitt("Angebot: Ergebnisse anzeigen", FEIN):
+                self._ergebnisse_anzeigen()
+        self.f.reiter_titel(self)
+        self.verlauf.merken()
+
+    def _daten_lesen(self):
+        """Angebot, Positionen, Stammdaten und Einstellungen aus der Datenbank (Teil von _neu_laden); None = Angebot
+        gibt es nicht mehr."""
+        a = self.db.angebot(self.id)
+        if a is None:
+            return None
         if not self.db.nur_lesen and self.db.fracht_auto_nachfuehren(self.id, a):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
             a = self.db.angebot(self.id)
         self.kopf = a
@@ -2840,17 +2869,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.stufen_daten = self.db.staffel_stufen(self.id)
         self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
         self.drehfraes_einst = self.db.drehfraes_einstellungen()    # Richtpreis der Dreh-/Frästeile je Stufe
-        self._kopf_anzeigen()
-        self.pos_modell.rechnen()
-        self._vorschlag_knopf_setzen()
-        self._gruppieren()
-        leer = not self.positionen
-        self.ablage_gross.setVisible(leer)
-        self.pos_ansicht.setVisible(not leer)
-        self._spalten_zeigen()
-        self._ergebnisse_anzeigen()
-        self.f.reiter_titel(self)
-        self.verlauf.merken()
+        return a
 
     def _gruppieren(self):
         """Positionsliste gruppiert (D3): Einzelteile direkt unter ihrer Schweißbaugruppe (nur die Anzeige; die
@@ -3583,7 +3602,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
             plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
-            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter) + self._freigabe_punkte(summen)
+            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen) + self._freigabe_punkte(summen)
             + self._normteil_punkte())
 
     def _normteil_punkte(self):
@@ -3608,11 +3627,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             "alle auf einmal eintragen: Zukaufartikel → Normteile ohne Preis", "normteile",
             "Pos. " + ", ".join(nr[:6]) + (" …" if len(nr) > 6 else ""))]
 
-    def _teure_punkte(self, summen, spaeter=False):
+    def _teure_punkte(self, summen, spaeter=False, zeilen=None):
         """Maschinenvergleich (rechnet je Maschine) und Kalkulationsbasis; spaeter: die zuletzt gerechneten."""
         if spaeter:
             return list(self.__dict__.get("_teure_merker") or ())
-        punkte = self._maschinen_punkt() + self._kalk_punkte(summen)
+        with tempo.abschnitt("Check: Maschinenvergleich", FEIN):
+            punkte = list(self._maschinen_punkt())      # eigene Liste (der Maschinenvergleich merkt seine)
+        with tempo.abschnitt("Check: Kalkulationsbasis", FEIN):
+            punkte += self._kalk_punkte(summen, zeilen)
         self._teure_merker = list(punkte)
         return punkte
 
@@ -3631,10 +3653,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         daten = self.__dict__.pop("_check_daten", None)
         if daten is None or getattr(self.f, "offen", {}).get(self.id) is not self:     # Angebot inzwischen zu
             return
+        # ein Stand: Eingabe-Kennung einmal, Positionswerte und Schneiddaten aus dem Merker (Performance-Update)
+        self._kalk_merken = {}
         try:
-            punkte = self.freigabe_punkte(*daten)
+            with rechnen.merker(), tempo.abschnitt("Angebots-Check nach Pause", FEIN):
+                punkte = self.freigabe_punkte(*daten)
         except Exception:           # Hinweise nie wichtiger als das Angebot
             return
+        finally:
+            self._kalk_merken = None
         if punkte != getattr(self, "_punkte", None):
             self._punkte = punkte
             self.uebersicht_bereich.freigabe_setzen(punkte)
@@ -3733,7 +3760,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
-        zeilen, summen = self._rechnung()
+        with tempo.abschnitt("Angebot: Kalkulation", FEIN):
+            zeilen, summen = self._rechnung()
         preis_abw = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
         self.uebersicht_bereich.preisstand_setzen(
             self.kopf.get("preisbasis"), preis_abw,
@@ -3751,7 +3779,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         spaeter = not self.f.stumm if self.CHECK_SOFORT is None else not self.CHECK_SOFORT
-        punkte = self.freigabe_punkte(summen, zeilen, preis_abw, spaeter=spaeter)
+        with tempo.abschnitt("Angebot: Check", FEIN):
+            punkte = self.freigabe_punkte(summen, zeilen, preis_abw, spaeter=spaeter)
         self.uebersicht_bereich.freigabe_setzen(punkte)
         self._punkte = punkte
         self._schritte_setzen()
@@ -3773,7 +3802,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.uebersicht_rahmen.jetzt_anpassen()
-        self.wiederholteile_anzeigen()
+        with tempo.abschnitt("Angebot: Wiederholteile", FEIN):
+            self.wiederholteile_anzeigen()
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
@@ -7641,7 +7671,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if "ergebnis" not in merken:
             merken["ergebnis"] = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
                                                      self.einst)
-        return copy.deepcopy(merken["ergebnis"])
+        return rechnen.kopie(merken["ergebnis"])
 
     # Ausgaben (PDF, E-Mail, CSV, Material, Materialanfrage): angebot_ausgabe.AusgabeMixin
 

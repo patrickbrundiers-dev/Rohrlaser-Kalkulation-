@@ -200,7 +200,7 @@ assert len(s.k_aktuell.maschinen) >= 2, "Beispieldaten mit mehreren Maschinen (M
 aufrufe = []
 alt_mp, alt_kp = AngebotSeite._maschinen_punkt, AngebotSeite._kalk_punkte
 AngebotSeite._maschinen_punkt = lambda self: aufrufe.append("m") or alt_mp(self)
-AngebotSeite._kalk_punkte = lambda self, summen: aufrufe.append("k") or alt_kp(self, summen)
+AngebotSeite._kalk_punkte = lambda self, summen, *rest: aufrufe.append("k") or alt_kp(self, summen, *rest)
 AngebotSeite.CHECK_SOFORT = False
 try:
     for wert in ("11", "12"):

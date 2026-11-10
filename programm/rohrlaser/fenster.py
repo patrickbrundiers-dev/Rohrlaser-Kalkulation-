@@ -2261,6 +2261,32 @@ class Hauptfenster(QMainWindow):
             teile.append(f"Fenster „{aktiv.windowTitle()}“")
         return " › ".join(t for t in teile if t)
 
+    PRUEFUNG_NACH_MS = 30_000       # erst nach dem Start (die Prüfung liest die ganze Datei)
+    PRUEFUNG_BIS_MB = 300           # größere Dateien prüft nur die tägliche Sicherung
+
+    def pruefung_spaeter(self):
+        """Schnellprüfung der Datendatei PRUEFUNG_NACH_MS nach dem Start (Datenbank.PruefLauf)."""
+        def los():
+            from .datenbank import PruefLauf
+            try:
+                if self.db.pfad.stat().st_size > self.PRUEFUNG_BIS_MB * 1048576:
+                    return
+            except OSError:
+                return
+            self.pruefung_beobachten(PruefLauf(self.db.pfad))
+        QTimer.singleShot(self.PRUEFUNG_NACH_MS, los)
+
+    def pruefung_beobachten(self, lauf):
+        """Schnellprüfung der Datendatei beim Start (Datenbank.PruefLauf): bei Befund eine Meldung mit dem Weg zur
+        Sicherung und eine Zeile im Protokoll."""
+        if not lauf.fertig():
+            QTimer.singleShot(1000, lambda: self.pruefung_beobachten(lauf))
+        elif lauf.fehler is not None:
+            from . import protokoll
+            protokoll.info(f"Datendatei beschädigt (quick_check): {lauf.fehler}")
+            self.meldung("Die Datendatei ist beschädigt: " + lauf.fehler + ". Bitte nichts mehr ändern und über "
+                         "Datei → Sicherung wiederherstellen … die letzte gute Sicherung zurückholen.", fehler=True)
+
     def sicherung_beobachten(self, lauf):
         """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): bei Fehler eine Meldung."""
         if not lauf.fertig():

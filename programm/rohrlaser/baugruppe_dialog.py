@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
-from . import funktionen
+from . import funktionen, tempo
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
@@ -2514,6 +2514,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.bg["vorschlaege"] = [v for i, v in enumerate(self.bg["vorschlaege"]) if i not in weg]
         self._vorschlaege_zeigen()
 
+    @tempo.gemessen("BG: Naht anlegen")
     def naht_neu(self, werte=None):
         nr = max([int(n["nr"]) for n in self.bg["naehte"] if str(n.get("nr") or "").isdigit()], default=0) + 1
         vorlage = self.bg["naehte"][-1] if self.bg["naehte"] else {}
@@ -2811,6 +2812,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return "wiederverwendbar: einmalig nicht berechnet"
         return ""
 
+    @tempo.gemessen("BG: Fenster aktualisieren")
     def aktualisieren(self, *_):
         if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
                 and not self.nur_lesen:
@@ -3171,6 +3173,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return " ".join(str(x) for x in (f"Pos. {q.get('pos') or ''}", q.get("artikel") or q.get("bezeichnung") or "")
                         if x).strip()
 
+    @tempo.gemessen("BG: Strukturbaum aufbauen")
     def baum_aufbauen(self):
         """Baum neu: Baugruppe, Unterbaugruppen mit Menge, darin die Einzelteile (Stück je Unterbaugruppe und je
         Baugruppe) und Nahtgruppen; die gewählte Zeile bleibt gewählt."""
@@ -3317,6 +3320,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                             (0.7 * d if v.get("nahtart") == "Kehlnaht" else d) if d else None))
         return out
 
+    @tempo.gemessen("BG: 3D zeigen")
     def zeige_3d(self, hervor=(), text="", naht=None):
         """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau,
         dazu die Schweißnähte als Raupe (naht = ID der gewählten Nahtgruppe, rot). Rohre aus den Eingaben mit
@@ -3487,6 +3491,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.zeichnen_text.setText(f"{n} Punkt{'e' if n != 1 else ''}, {zahl_als_text(round(a.abstand(), 1))} mm"
                                    if n > 1 else f"{n} Punkt" if n else "")
 
+    @tempo.gemessen("BG: Teile an der Naht suchen")
     def teile_an(self, punkte, toleranz=NAHT_TOLERANZ, mit_abstand=False):
         """Körper, die alle Punkte berühren (Abstand zur Oberfläche ≤ toleranz mm): [(Positions-ID, Körpernummer)],
         nächste zuerst; mit_abstand: [(Positions-ID, Körpernummer, größter Abstand)]."""
@@ -3528,6 +3533,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                  if str(z.get("profil_id")) in ids and isinstance(z.get("wand"), (int, float)) and z["wand"] > 0]
         return min(werte) if werte else None
 
+    @tempo.gemessen("BG: Als Nahtgruppe übernehmen")
     def naht_aus_punkten(self, punkte=None, nahtart=None):
         """Nahtgruppe aus einem im 3D gezeichneten Linienzug (punkte, sonst die geklickten): Länge = Länge des Zugs,
         Teile = Körper, die den ganzen Zug berühren, Unterbaugruppe = gemeinsame der Teile, Dicke = dünnste Wand.
