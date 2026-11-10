@@ -1915,12 +1915,22 @@ class StartSeite(QWidget):
         self.wiedervorlagen = cockpit.wiedervorlagen(alle, self.f.db.einstellung("gueltigkeit"),
                                                      nachfassen=self.f.db.einstellung("nachfassen_tage"))
         self.wiedervorlage.clear()
+        from . import lernen
+        try:                        # I2: geschätzte Auftragschance, die aussichtsreichsten (Chance × Wert) zuerst
+            self.chancen = lernen.chancen(alle) if funktionen.an(funktionen.CHANCE) else {}
+        except Exception:
+            self.chancen = {}
+        if self.chancen:
+            self.wiedervorlagen.sort(key=lambda w: -self.chancen.get(w.z["id"], 0) * (
+                w.z.get("vk_netto") if isinstance(w.z.get("vk_netto"), (int, float)) else 0))
         for w in self.wiedervorlagen:
             z, rest = w.z, w.rest
             wann = (f"seit {-rest} Tagen fällig" if rest < -1 else "seit gestern fällig" if rest == -1
                     else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
-            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
-                                 f"({wann})")
+            c = self.chancen.get(z["id"])
+            chance = f"  (Chance ca. {100 * c:.0f} %)" if c is not None else ""    # vorn, damit sie sichtbar bleibt
+            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}{chance}  –  "
+                                 f"{', '.join(w.gruende)} ({wann})")
             it.setData(Qt.ItemDataRole.UserRole, z["id"])
             if rest < 0:
                 it.setForeground(QBrush(stil.farbe("#B42318")))
@@ -2008,8 +2018,10 @@ class StartSeite(QWidget):
             self.f.angebot_oeffnen(a["angebot_id"])
         elif a.get("art") == "preiswaechter":
             self.f.offene_pruefen()
-        elif a.get("art") == "kennwerte":
+        elif a.get("art") in ("kennwerte", "muster"):
             self.f.lernzentrale()
+        elif a.get("art") == "verlust":
+            self.f.angebots_auswertung()
 
     def notizen_laden(self):
         """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""

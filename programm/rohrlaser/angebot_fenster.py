@@ -3582,9 +3582,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k)
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
-            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
+            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich(),
+                                       getattr(self, "_preis_fein_cache", None))
             + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter) + self._freigabe_punkte(summen)
-            + self._normteil_punkte())
+            + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte())
+
+    def _einsicht_punkte(self):
+        """I8 Reklamation bei Wiederholteilen, I9 Nachkalkulation ähnlicher Aufträge (einsichten.py) – Hinweise."""
+        from . import einsichten
+        try:
+            treffer = self.wiederholteile_suchen(warten=False) or getattr(self, "_wt", None) or {}
+            out = einsichten.reklamation_punkte(self.db, treffer, self.positionen)
+            t = einsichten.nachkalk_hinweis(self.db, self.kopf, self.positionen, self.id)
+        except Exception:           # nur Hinweise: nie den Check blockieren
+            return []
+        return out + ([("HINWEIS", t, None)] if t else [])
+
+    def _lieferzeit_punkte(self):
+        """I6: zugesagte Lieferzeit kürzer als die gelernte Durchlaufzeit (lernen.lieferzeit_hinweis) – Hinweis."""
+        from . import lernen
+        try:
+            t = lernen.lieferzeit_hinweis(self.db, self.kopf)
+        except Exception:
+            return []
+        return [("HINWEIS", t, None)] if t else []
 
     def _normteil_punkte(self):
         """M6: Normteile dieses Angebots ohne Einkaufspreis – Hinweis mit Sprung zu Zukaufartikel → Normteile ohne
@@ -3649,9 +3670,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """€/kg je Abmessung aus früher verschickten Angeboten (Plan C3), einmal je geöffnetem Angebot gelesen."""
         if getattr(self, "_preis_vergleich_cache", None) is None:
             try:
-                self._preis_vergleich_cache = plausibel.vergleich_aus(self.db.versand_verlaeufe(self.id))
+                verlaeufe = self.db.versand_verlaeufe(self.id)
+                self._preis_vergleich_cache = plausibel.vergleich_aus(verlaeufe)
+                self._preis_fein_cache = (plausibel.fein_aus(verlaeufe)       # I1: ähnliche Länge
+                                          if funktionen.an(funktionen.PREIS_HINWEISE, self.db) else {})
             except Exception:       # Plausibilität ist nur ein Hinweis: nie das Angebot blockieren
-                self._preis_vergleich_cache = {}
+                self._preis_vergleich_cache, self._preis_fein_cache = {}, {}
         return self._preis_vergleich_cache
 
     def _staffel_widersprueche(self, kalk_zeilen):

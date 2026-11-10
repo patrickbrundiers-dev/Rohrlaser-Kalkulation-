@@ -21,6 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.279", "<b>Mehr Intelligenz</b> ([[lernen]]): Der Angebots-Check vergleicht den Preis je kg jedes Teils mit "
+     "früheren Teilen derselben Abmessung und ähnlicher Länge und meldet schon 1,5-fache Abweichungen mit Prozent. "
+     "Die Wiedervorlage auf der Startseite zeigt je Angebot die geschätzte Auftragschance und steht nach Chance × "
+     "Wert. Aus Zusatzarbeiten, die Sie immer wieder von Hand eintragen, schlägt die Lernzentrale ein Erkennungswort "
+     "oder eine Arbeitsgang-Regel vor (<b>Übernehmen</b>, mit Rückgängig). Unter dem Verkaufspreis steht, um wie viel "
+     "Sie bei Absagen mit Wettbewerbspreis teurer waren, und der Angebots-Check warnt, wenn die zugesagte Lieferzeit "
+     "kürzer ist als Ihre echte Durchlaufzeit aus dem Fertigungsstatus. Alles lässt sich unter Einstellungen → "
+     "Funktionen → <b>Intelligenz</b> in vier Schaltern einzeln ausschalten; Gelerntes bleibt dabei gespeichert. "
+     "Dazu: Die Lernzentrale schlägt <b>Kundenvorgaben</b> vor, wenn die letzten drei Angebote eines Kunden dieselbe "
+     "Maschine, Lieferzeit oder Materialvorgabe haben, und eine neue <b>Programmierzeit-Vorgabe</b>, wenn Sie sie "
+     "regelmäßig überschreiben. Der Angebots-Check nennt <b>Reklamationen</b> zu Wiederholteilen und meldet, wenn "
+     "nachkalkulierte Aufträge des Kunden am Laser deutlich länger brauchten. Nehmen Sie selbst Angewendetes zweimal "
+     "zurück, <b>verlernt</b> das Programm es. Startseite und Monatsbericht zeigen, wo Sie auffällig oft verlieren.",
+     "Preis-Plausibilität nach Länge, Auftragschance, Regel-Vorschläge, Wettbewerbsabstand, Lieferzeit aus Ist."],
     ["0.9.278", "<b>Angebots-Check: Erledigen</b> ([[angebots_check]]): Punkte, die das Programm selbst lösen kann "
      "(Schnittplan optimieren, Staffelpreise rechnen, aktuelle Preise übernehmen), haben den Knopf <b>Erledigen</b>, "
      "mehrere <b>Alles Automatische erledigen</b>. Ungeprüfte STEP-Teile lassen sich der Reihe nach bestätigen "

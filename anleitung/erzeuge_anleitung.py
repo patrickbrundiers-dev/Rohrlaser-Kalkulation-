@@ -7037,6 +7037,59 @@ def kapitel_automatik(i):
            "<b>Nicht mehr lernen</b> sperrt einen Zusatzarbeit-Eintrag, <b>Kennwerte prüfen …</b> öffnet die "
            "Vorschläge der Nachkalkulation zum Freigeben. Mit einem gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) geht das Gelernte "
            "an alle Kollegen, auch das Vergessen.")
+    i.text("<b>Weitere Hinweise aus Ihren Daten</b> (nur Hinweise, nichts ändert sich von selbst):")
+    i.liste("<b>Preis je kg</b>: Gibt es mindestens fünf frühere Teile derselben Abmessung und ähnlicher Länge (höchstens "
+            "1,5-mal länger oder kürzer), meldet der Angebots-Check z. B. <i>62 % teurer als 8 frühere Teile QR 40×40×3 "
+            "S235 ähnlicher Länge</i>, schon ab 1,5-facher Abweichung. Sonst gilt der grobe Vergleich wie bisher "
+            "([[angebots_check]]).",
+            "<b>Auftragschance</b>: Die Wiedervorlage auf der Startseite zeigt je verschicktem Angebot <i>Chance ca. "
+            "60 %</i>, geschätzt aus der Trefferquote des Kunden und der Preisklasse und dem Alter des Angebots; die "
+            "Liste steht nach Chance × Angebotswert.",
+            "<b>Vorschläge aus Handeinträgen</b>: Tragen Sie eine Zusatzarbeit in mindestens drei Angeboten von Hand "
+            "ein und ist sie bei mindestens 80 % der Teile mit einem bestimmten Wort in der Bezeichnung oder einer "
+            "Bedingung (Kunde, Werkstoff, Werkstoff-Kategorie, Profilform, Gewinde, Bohrungen, Innenkonturen, schräges "
+            "Ende) dabei, schlägt die Lernzentrale vor, das Wort als Erkennungswort einzutragen bzw. eine "
+            "Arbeitsgang-Regel (Zuordnung Vorschlag) anzulegen. <b>Übernehmen</b> trägt es ein (Rückgängig in der "
+            "Einblendung), <b>Vergessen</b> lehnt den Vorschlag ab. Die Startseite meldet neue Vorschläge.",
+            "<b>Wettbewerb</b>: Haben Sie beim Absagegrund den Preis des Wettbewerbs eingetragen, steht unter dem "
+            "Verkaufspreis z. B. <i>im Mittel 15 % teurer als der Wettbewerb (2 Absagen mit Preis)</i>.",
+            "<b>Lieferzeit</b>: Mit dem Fertigungsstatus lernt das Programm, wie viele Arbeitstage Ihre letzten Aufträge "
+            "von der Freigabe bis <i>Fertig gemeldet</i> gebraucht haben. Ist die zugesagte Lieferzeit kürzer, steht ein "
+            "Hinweis im Angebots-Check.")
+    i.text("<b>Noch mehr aus Ihren Daten</b>:")
+    i.liste("<b>Kundenvorgaben</b>: Haben die letzten drei Angebote eines Kunden dieselbe Maschine, dieselbe Lieferzeit "
+            "(Arbeitstage oder Wochen) oder dieselbe Materialvorgabe und steht das weder in den Einstellungen noch in "
+            "seinen Kundenvorgaben, schlägt die Lernzentrale vor, es als Kundenvorgabe zu speichern (<b>Übernehmen</b>, "
+            "mit Rückgängig). Den Gewinn schlägt das Programm nie vor.",
+            "<b>Programmierzeit</b>: Überschreiben Sie die Programmierzeit in mindestens fünf Angeboten von Hand, "
+            "fast immer in dieselbe Richtung und im Mittel um mindestens 20 %, schlägt die Lernzentrale neue Vorgaben "
+            "vor (Grundzeit und Zeit je Innenkontur). Setzen Sie die <b>Schneidzeit</b> auf einer Maschine in "
+            "mindestens der Hälfte der Angebote von Hand, erscheint ein Hinweis, die Schneiddaten zu prüfen.",
+            "<b>Reklamationen</b>: Wurde ein Wiederholteil (oder sein ganzer Auftrag) schon einmal reklamiert, nennt "
+            "der Angebots-Check Datum, Fehlerart und Ursache.",
+            "<b>Nachkalkulation</b>: Brauchten die letzten nachkalkulierten Aufträge des Kunden (ersatzweise: mit "
+            "denselben Profilen, jeweils mindestens drei) am Laser im Mittel mindestens 10 % länger oder kürzer als "
+            "geplant, steht das im Angebots-Check.",
+            "<b>Selbstkorrektur</b>: Nehmen Sie etwas, das der Import wie gelernt selbst angewendet hat, im "
+            "Automatik-Protokoll zweimal zurück, verlernt das Programm es und beobachtet wieder nur. Die Lernzentrale "
+            "zeigt je Eintrag, wie oft er selbst angewendet und zurückgenommen wurde.",
+            "<b>Verlustmuster</b>: Gibt es in den letzten 12 Monaten eine Gruppe (Werkstoff-Kategorie und Preisklasse "
+            "oder ein Kunde) mit mindestens fünf entschiedenen Angeboten und höchstens einem Drittel Aufträgen, deutlich "
+            "unter Ihrer Gesamtquote, nennt die Startseite sie unter Automatik (Doppelklick: Angebots-Auswertung); der "
+            "Monatsbericht führt sie unter <i>Auffällig oft verloren</i> auf.")
+    i.text("<b>Ein- und ausschalten</b>: Unter Einstellungen → Funktionen → <b>Intelligenz</b> gibt es vier Schalter, "
+           "die für alle Arbeitsplätze gelten und am Anfang eingeschaltet sind:")
+    i.liste("<b>Lernen und selbst anwenden</b>: Zählen der ✓/✗ bei Zusatzarbeit-Vorschlägen, selbst Anwenden beim "
+            "Import (auch Werte aus Wiederholteilen) und der Hinweis auf Kennwert-Vorschläge auf der Startseite.",
+            "<b>Vorschläge aus Handeinträgen</b>: Erkennungswörter, Arbeitsgang-Regeln, Kundenvorgaben und "
+            "Programmierzeit in der Lernzentrale und auf der Startseite.",
+            "<b>Preis- und Termin-Hinweise</b>: Trefferquote und Wettbewerbsabstand unter den Preisen, Preis je kg "
+            "gegen Teile ähnlicher Länge, Lieferzeit, Reklamationen und Nachkalkulation im Angebots-Check, Verlustmuster. "
+            "Die grobe €/kg-Prüfung bleibt.",
+            "<b>Auftragschance</b>: Chance und Sortierung in der Wiedervorlage.")
+    i.text("Ausgeschaltet zeigt das Programm dazu nichts mehr und lernt nichts dazu. Was es schon gelernt hat, bleibt "
+           "gespeichert und gilt wieder, sobald Sie den Schalter einschalten. Sind die ersten beiden Schalter aus, "
+           "verschwindet auch Datei → Lernzentrale.")
 
 
 def kapitel_nachkalkulation(i):
