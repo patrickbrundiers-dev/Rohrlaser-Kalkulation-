@@ -263,6 +263,7 @@ class StepPruefDialog(QDialog):
         self.lernen, self.lernen_werte = lernen, None
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
+        step.fasen_vorbelegen(messwerte, k.profile)     # Flachstahl mit Längsfasen aus den Stammdaten: sicher
         step.offene_rohre_vorbelegen(messwerte, k.profile, maschine)    # offenes Rohr: immer Rohr, außer zu groß
         from . import knickverbindung
         for m in messwerte:     # Knickrahmen aus einem Körper (K1-3), geknickt oder gestreckt gezeichnet
@@ -807,8 +808,12 @@ class StepPruefDialog(QDialog):
                 hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil" + self._blech_richtwerte(m))
                 if m.get("pruefstatus") == "prüfen":
                     hinweis.append("PRÜFEN – zum Übernehmen anhaken")
-            if step.unsicher(m):
-                hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
+            if step.sperrt(m):
+                hinweis.append("UNSICHER: " + ", ".join(step.sperrt(m)) + " – zum Übernehmen anhaken"
+                               + (f" ({step.dickwandig(m)})" if step.dickwandig(m) else ""))
+            elif step.unsicher(m):      # nur berührende Körper unsicher: das Rohr selbst ist sicher gemessen
+                hinweis.append("Anbauteile nicht sicher erkannt: das Rohr wird übernommen, die Anbauteile im Angebot "
+                               "mit „Anbauteile prüfen“ bestätigen")
             if m.get("_normteil"):
                 hinweis.append(f"Normteil ({m['_normteil']}): angehakt Zukaufteil „{step.normteil_name(m)}“ zum Preis "
                                "der Normteil-Liste (Zukaufartikel, Kategorie Normteile)"
