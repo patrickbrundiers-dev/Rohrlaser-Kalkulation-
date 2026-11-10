@@ -26,7 +26,9 @@ NEUERUNGEN = [
      "Hilfsdaten je Körper einmal auf statt je Messpunkt – die Messwerte bleiben genau gleich. Die Startseite füllt "
      "sich erst, wenn sie gezeigt wird, so öffnet das Programm schneller. Neu im Tempo-Protokoll: Dauer des "
      "Programmstarts und jeder STEP-Messung (Lesen, Auswertung der Baugruppe, langsamste Körper), zusammengefasst "
-     "im Support-Paket ([[zeitwaechter]]).",
+     "im Support-Paket ([[zeitwaechter]]). Behoben: bei zwei gleich langen Berührungen zweier Teile (z. B. beide "
+     "Seiten eines Blechs) lag der Nahtverlauf je nach Programmlauf mal auf der einen, mal auf der anderen Seite; "
+     "jetzt immer gleich.",
      "Schneller starten, STEP-Messung schneller bei gleichen Werten, Start- und STEP-Zeiten im Tempo-Protokoll"],
     ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
      "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
