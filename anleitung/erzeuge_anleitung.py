@@ -709,7 +709,18 @@ def kapitel_start(i):
             "<b>Abschnitte</b> (seit 0.9.271): beim Übernehmen aus dem STEP-Prüfdialog nennt der Eintrag zusätzlich, "
             "welcher Schritt wie lange gebraucht hat, z. B. <i>Abschnitte: STEP: Teile übernehmen 3.1 s; STEP: "
             "Gegenprobe Rohr 2.4 s; STEP: Automatik nach dem Import 0.8 s</i>. tempo.txt listet die längsten Einträge "
-            "mit ihren Abschnitten.")
+            "mit ihren Abschnitten.",
+            "<b>Abschnitte im Angebot</b> (seit 0.9.280): auch das Neuladen nach jeder Änderung (Daten lesen, "
+            "Positionstabelle rechnen, Kalkulation, Check, Wiederholteile …), der Angebots-Check nach der Eingabepause "
+            "und die häufigen Schritte im Fenster Schweißbaugruppe (z. B. <i>Als Nahtgruppe übernehmen</i>, 3D zeigen) "
+            "stehen ab 50 ms im Eintrag. So zeigt ein Support-Paket, welcher Teil bei Ihren echten Angeboten bremst.",
+            "<b>Hänger-Schutz</b> (seit 0.9.280): reagiert das Programm länger als 10 Sekunden nicht, schreibt der "
+            "Wächter sofort eine Zeile <i>Hänger seit 10 s</i> mit Ort, Bedienung und dem gerade laufenden Schritt – "
+            "auch wenn das Programm danach beendet werden muss. tempo.txt nennt die letzten Hänger.",
+            "<b>Schneller ohne andere Ergebnisse</b> (0.9.280): das Angebots-PDF rechnet die Kalkulation je Klick "
+            "höchstens dreimal statt bis zu 16-mal, Optimieren rechnet nur geänderte Profilgruppen neu, PDFs "
+            "entstehen mit dem schnelleren Baustein von ReportLab. Preise, Schnittpläne und PDF-Inhalte bleiben gleich; "
+            "die automatischen Prüfungen messen die Zeiten bei jeder Änderung am Programm.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -3007,7 +3018,8 @@ def kapitel_step(i):
             "<i>Von Hand nachtragen</i>).",
             "<b>Gemerkt</b>: was du umstellst, merkt sich das Programm für alle Kunden. Kommt das gleiche Teil "
             "(gleiche Hüllmaße, Volumen, Flächen und Kanten) wieder, ist es gleich die gewählte Art; der Hinweis "
-            "sagt <i>Art wie beim letzten Mal von Hand gewählt</i>.",
+            "sagt <i>Art wie am 07.11.2026 von Hand gewählt</i> (seit 0.9.278 mit Datum). Ist sonst alles sicher, steht "
+            "das Teil <b>grün</b>, der Hinweis nennt das Datum; zurück geht es wie immer über die Spalte <b>Art</b>.",
             "<b>Nach dem Übernehmen</b>: Rechtsklick auf die Position → <b>Art ändern (Blech / Rohr / "
             "Dreh-/Frästeil) …</b> oder der Knopf <b>Art ändern …</b> im Rohr-Editor, Blech-Editor, Richtpreis "
             "Dreh-/Frästeil, Baugruppen-Editor und Satz in 3D (dort wählst du zuerst das Teil). Das Teil wird aus "
@@ -3077,6 +3089,14 @@ def kapitel_step(i):
             "ist er ein Normteil (<i>Gewindebolzen</i>). Sitzt der Bolzen unter einem Sechskant, bleiben Kopf und "
             "Schaft eine <i>Schraube SW …</i>. Rundungen an Ecken (nur ein Bogen) und Wellen mit Absatz werden nie "
             "getrennt.",
+            "<b>Rohr mit angeschweißtem Blech (seit 0.9.278):</b> ist eine <b>Kopfplatte</b>, <b>Lasche</b> oder ein "
+            "Blech mit einem Rohr (Rund-, Quadrat-, Rechteckrohr) zu einem Körper verschmolzen, ist das Teil ein "
+            "<b>Rohr mit Anbauteil</b> (ein Rundrohr mit Kopfplatte galt vorher als Drehteil mit Abflachung) und steht "
+            "gelb: <i>Mehrere Teile in einem Körper? Rohr mit angeschweißtem Blech (Kopfplatte)</i>. Es bleibt "
+            "angehakt und wird als Rohr mit Anbauteil übernommen. <b>Aufteilen</b> trennt es an der Rohrhülle in "
+            "<i>Rohr</i> (behält die Artikelnummer, Konturen wie gemessen) und <i>Blech</i> (-1, -2 …, als Blech bzw. "
+            "Flachstahl gemessen) als eigene Positionen; die Lage bleibt genau wie in der STEP. Kurze Rohre (unter "
+            "2 × Ø) und Buchsen mit Bund bleiben Drehteile.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
@@ -3466,7 +3486,18 @@ def kapitel_step(i):
             "<b>Passt</b> (Leertaste in der Liste): das gezeigte gelbe Teil ist richtig. Es wird angehakt, grün "
             "(<i>von Hand geprüft</i>) und die Liste springt zum nächsten gelben Teil. Bei <i>Profil fehlt in den "
             "Stammdaten</i> oder einem nicht verbindbaren Knickrahmen bleibt es gelb, bis das Profil angelegt bzw. "
-            "der Rahmen verbunden ist. Auf einem grünen Teil schaltet die Leertaste wie gewohnt das Häkchen um.")
+            "der Rahmen verbunden ist. Auf einem grünen Teil schaltet die Leertaste wie gewohnt das Häkchen um.",
+            "<b>Passt für gleiche Teile</b> (seit 0.9.278): gibt es dasselbe gelbe Teil (gleiche Form und Art) noch in "
+            "anderen Zeilen oder Dateien, heißt der Knopf <b>Passt (N gleiche)</b> und bestätigt alle auf einmal.",
+            "<b>Art und Profil für viele</b> (seit 0.9.278): unten unter <i>Werte setzen</i> stehen auch <b>(Art)</b> "
+            "(Blech, Rohr/Profil, Dreh-/Frästeil) und <b>(Profil)</b>. Mit <b>Für markierte</b> bzw. <b>Für alle</b> "
+            "wird jede Zeile umgestellt, deren Teil sich in dieser Art messen lässt (gemerkt wie die Spalte Art); das "
+            "Profil gilt nur für Rohre und Profile.",
+            "<b>Rechtsklick am Teil</b> (seit 0.9.278): neben Artikelnummer, Zusatzarbeiten und Knickverbindung stehen "
+            "dort <b>Passt</b> (bei gelben Teilen, mit Zahl der gleichen), <b>Nur dieses Teil aufteilen</b> (bei "
+            "<i>Mehrere Teile in einem Körper</i>) und das Untermenü <b>Art</b> (Blech, Rohr/Profil, Dreh-/Frästeil; "
+            "angehakt die aktuelle, grau eine Art, die sich nicht messen lässt). Ist das Teil markiert, gilt die Art "
+            "für alle markierten Zeilen.")
     i.text("<b>Spalten ohne Querscrollen (seit 0.9.274):</b> die Spalte <b>Hinweis</b> zeigt nur ein Stichwort "
            "(z. B. <i>Profil fehlt</i>, <i>Drehteil +1</i> = ein weiterer Hinweis); der ganze Text steht im Tooltip und "
            "oben im Infofeld unter der 3D-Ansicht (<i>Hinweis: …</i>), sobald das Teil markiert ist. <b>Länge</b>, "
@@ -3606,7 +3637,9 @@ def kapitel_optimieren(i):
             "Prozessorkernen gleichzeitig, je Profilgruppe ein Hilfsprozess; der Schnittplan ist derselbe. Volle "
             "Stangen und schon geprüfte gleiche Teile überspringt die Optimierung, deshalb gehen auch sehr große "
             "Stückzahlen schnell (20.000 gleiche Teile unter einer Sekunde, 6.000 gemischte Teile mit Gehrungen "
-            "wenige Sekunden).",
+            "wenige Sekunden). Seit 0.9.280 merkt sich das Programm schon gerechnete Profilgruppen: optimieren Sie "
+            "nach einer Änderung erneut (auch über das Angebots-PDF), rechnet es nur die Gruppen neu, deren Teile, "
+            "Stangen oder Einstellungen sich geändert haben – mit genau demselben Schnittplan wie eine volle Rechnung.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
@@ -6865,8 +6898,23 @@ def kapitel_ausgabe(i, seiten, ablage):
          "Staffeln, Mindestauftragswert, Aktuelle Preise übernehmen …"],
         ["Kunde ohne E-Mail-Adresse; Lieferzeit leer; Kundenreferenz leer; Gültigkeit abgelaufen", "HINWEIS",
          "Kunde bzw. Feld im Angebotskopf"],
+        ["Teile aus dem STEP-Import, die im Prüfdialog gelb waren und nicht mit <i>Passt</i> bestätigt wurden "
+         "(<i>N Teile aus dem STEP-Import ungeprüft (gelb), z. B. …</i>), und Teile, die wegen des Zeitlimits nur "
+         "<i>vereinfacht gemessen</i> sind (seit 0.9.278; sperrt nichts)", "HINWEIS",
+         "die Teile der Reihe nach im Fenster STEP-Merkmale"],
         ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
+    i.liste("<b>Erledigen</b> (seit 0.9.278): Punkte, die das Programm selbst lösen kann, haben neben "
+            "<i>Hinspringen</i> den Knopf <b>Erledigen</b>: <i>Schnittplan nicht aktuell</i> (optimiert), <i>Staffelstufen "
+            "veraltet</i> (rechnet die Staffelpreise) und <i>Stammdaten seit dem Festschreiben geändert</i> (übernimmt "
+            "die aktuellen Preise, mit Rückgängig). Sind es mehrere, erledigt <b>Alles Automatische erledigen (N)</b> "
+            "sie nacheinander. Danach zeigt der Check sich neu. Im fremden Angebot und im Lesemodus gibt es die Knöpfe "
+            "nicht.",
+            "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
+            "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
+            "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
+            "nächstes</b> bestätigt und geht zum nächsten Teil, <b>Überspringen</b> lässt es offen, <b>Schließen</b> "
+            "hört auf.")
     i.genauer()
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
            "Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)</i>, Vorgabe 0). Gemeint ist (Gewinn + "
@@ -7069,6 +7117,59 @@ def kapitel_automatik(i):
            "<b>Nicht mehr lernen</b> sperrt einen Zusatzarbeit-Eintrag, <b>Kennwerte prüfen …</b> öffnet die "
            "Vorschläge der Nachkalkulation zum Freigeben. Mit einem gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) geht das Gelernte "
            "an alle Kollegen, auch das Vergessen.")
+    i.text("<b>Weitere Hinweise aus Ihren Daten</b> (nur Hinweise, nichts ändert sich von selbst):")
+    i.liste("<b>Preis je kg</b>: Gibt es mindestens fünf frühere Teile derselben Abmessung und ähnlicher Länge (höchstens "
+            "1,5-mal länger oder kürzer), meldet der Angebots-Check z. B. <i>62 % teurer als 8 frühere Teile QR 40×40×3 "
+            "S235 ähnlicher Länge</i>, schon ab 1,5-facher Abweichung. Sonst gilt der grobe Vergleich wie bisher "
+            "([[angebots_check]]).",
+            "<b>Auftragschance</b>: Die Wiedervorlage auf der Startseite zeigt je verschicktem Angebot <i>Chance ca. "
+            "60 %</i>, geschätzt aus der Trefferquote des Kunden und der Preisklasse und dem Alter des Angebots; die "
+            "Liste steht nach Chance × Angebotswert.",
+            "<b>Vorschläge aus Handeinträgen</b>: Tragen Sie eine Zusatzarbeit in mindestens drei Angeboten von Hand "
+            "ein und ist sie bei mindestens 80 % der Teile mit einem bestimmten Wort in der Bezeichnung oder einer "
+            "Bedingung (Kunde, Werkstoff, Werkstoff-Kategorie, Profilform, Gewinde, Bohrungen, Innenkonturen, schräges "
+            "Ende) dabei, schlägt die Lernzentrale vor, das Wort als Erkennungswort einzutragen bzw. eine "
+            "Arbeitsgang-Regel (Zuordnung Vorschlag) anzulegen. <b>Übernehmen</b> trägt es ein (Rückgängig in der "
+            "Einblendung), <b>Vergessen</b> lehnt den Vorschlag ab. Die Startseite meldet neue Vorschläge.",
+            "<b>Wettbewerb</b>: Haben Sie beim Absagegrund den Preis des Wettbewerbs eingetragen, steht unter dem "
+            "Verkaufspreis z. B. <i>im Mittel 15 % teurer als der Wettbewerb (2 Absagen mit Preis)</i>.",
+            "<b>Lieferzeit</b>: Mit dem Fertigungsstatus lernt das Programm, wie viele Arbeitstage Ihre letzten Aufträge "
+            "von der Freigabe bis <i>Fertig gemeldet</i> gebraucht haben. Ist die zugesagte Lieferzeit kürzer, steht ein "
+            "Hinweis im Angebots-Check.")
+    i.text("<b>Noch mehr aus Ihren Daten</b>:")
+    i.liste("<b>Kundenvorgaben</b>: Haben die letzten drei Angebote eines Kunden dieselbe Maschine, dieselbe Lieferzeit "
+            "(Arbeitstage oder Wochen) oder dieselbe Materialvorgabe und steht das weder in den Einstellungen noch in "
+            "seinen Kundenvorgaben, schlägt die Lernzentrale vor, es als Kundenvorgabe zu speichern (<b>Übernehmen</b>, "
+            "mit Rückgängig). Den Gewinn schlägt das Programm nie vor.",
+            "<b>Programmierzeit</b>: Überschreiben Sie die Programmierzeit in mindestens fünf Angeboten von Hand, "
+            "fast immer in dieselbe Richtung und im Mittel um mindestens 20 %, schlägt die Lernzentrale neue Vorgaben "
+            "vor (Grundzeit und Zeit je Innenkontur). Setzen Sie die <b>Schneidzeit</b> auf einer Maschine in "
+            "mindestens der Hälfte der Angebote von Hand, erscheint ein Hinweis, die Schneiddaten zu prüfen.",
+            "<b>Reklamationen</b>: Wurde ein Wiederholteil (oder sein ganzer Auftrag) schon einmal reklamiert, nennt "
+            "der Angebots-Check Datum, Fehlerart und Ursache.",
+            "<b>Nachkalkulation</b>: Brauchten die letzten nachkalkulierten Aufträge des Kunden (ersatzweise: mit "
+            "denselben Profilen, jeweils mindestens drei) am Laser im Mittel mindestens 10 % länger oder kürzer als "
+            "geplant, steht das im Angebots-Check.",
+            "<b>Selbstkorrektur</b>: Nehmen Sie etwas, das der Import wie gelernt selbst angewendet hat, im "
+            "Automatik-Protokoll zweimal zurück, verlernt das Programm es und beobachtet wieder nur. Die Lernzentrale "
+            "zeigt je Eintrag, wie oft er selbst angewendet und zurückgenommen wurde.",
+            "<b>Verlustmuster</b>: Gibt es in den letzten 12 Monaten eine Gruppe (Werkstoff-Kategorie und Preisklasse "
+            "oder ein Kunde) mit mindestens fünf entschiedenen Angeboten und höchstens einem Drittel Aufträgen, deutlich "
+            "unter Ihrer Gesamtquote, nennt die Startseite sie unter Automatik (Doppelklick: Angebots-Auswertung); der "
+            "Monatsbericht führt sie unter <i>Auffällig oft verloren</i> auf.")
+    i.text("<b>Ein- und ausschalten</b>: Unter Einstellungen → Funktionen → <b>Intelligenz</b> gibt es vier Schalter, "
+           "die für alle Arbeitsplätze gelten und am Anfang eingeschaltet sind:")
+    i.liste("<b>Lernen und selbst anwenden</b>: Zählen der ✓/✗ bei Zusatzarbeit-Vorschlägen, selbst Anwenden beim "
+            "Import (auch Werte aus Wiederholteilen) und der Hinweis auf Kennwert-Vorschläge auf der Startseite.",
+            "<b>Vorschläge aus Handeinträgen</b>: Erkennungswörter, Arbeitsgang-Regeln, Kundenvorgaben und "
+            "Programmierzeit in der Lernzentrale und auf der Startseite.",
+            "<b>Preis- und Termin-Hinweise</b>: Trefferquote und Wettbewerbsabstand unter den Preisen, Preis je kg "
+            "gegen Teile ähnlicher Länge, Lieferzeit, Reklamationen und Nachkalkulation im Angebots-Check, Verlustmuster. "
+            "Die grobe €/kg-Prüfung bleibt.",
+            "<b>Auftragschance</b>: Chance und Sortierung in der Wiedervorlage.")
+    i.text("Ausgeschaltet zeigt das Programm dazu nichts mehr und lernt nichts dazu. Was es schon gelernt hat, bleibt "
+           "gespeichert und gilt wieder, sobald Sie den Schalter einschalten. Sind die ersten beiden Schalter aus, "
+           "verschwindet auch Datei → Lernzentrale.")
 
 
 def kapitel_nachkalkulation(i):
@@ -9374,6 +9475,20 @@ def kapitel_zukauf(i):
            "Zeilen mit 0 € bleiben offen. Der <b>Angebots-Check</b> nennt Normteile eines Angebots ohne Preis "
            "(<i>N Normteile ohne Einkaufspreis – alle auf einmal eintragen …</i>); <i>Hinspringen</i> öffnet diesen "
            "Unterreiter. Ins Angebot kommt der neue Preis wie sonst über <i>Zukaufpreise aktualisieren</i>.")
+    i.text("<b>Preise aus CSV …</b> (seit 0.9.278): liest die Preisliste des Lieferanten (CSV mit Kopfzeile, Spalten "
+           "<i>Bezeichnung</i> und/oder <i>Artikelnummer</i> und <i>Preis</i>; Semikolon, Komma oder Tab; Zahlen wie "
+           "0,12 oder 1.234,50) und ordnet die Zeilen den Normteilen zu: zuerst über die Artikelnummer (auch die des "
+           "Lieferanten), dann über Norm, Gewinde und Länge (<i>DIN 933 M8 x 20</i> = <i>Sechskantschraube DIN 933 "
+           "M8x20</i>), sonst über die gleiche Bezeichnung; nur eindeutige Treffer. Die Preise stehen danach gelb "
+           "hinterlegt in den Zeilen (Tooltip: woher), oben steht <i>N von M Zeilen zugeordnet</i> und was nicht "
+           "zugeordnet wurde. Erst <b>Preise speichern</b> speichert.")
+    i.text("<b>Lieferant und vorhandene Preise</b> (seit 0.9.278): im Feld neben <i>Preise aus CSV …</i> den "
+           "Lieferanten der Preisliste wählen oder eintippen; beim Speichern wird der Preis bei diesem Lieferanten "
+           "eingetragen (leer = wie beim Artikel). Nennt die Preisliste für Normteile, die schon einen Preis haben, "
+           "einen anderen, erscheint <b>Vorhandene Preise aktualisieren (N) …</b>: das Fenster <i>Vorhandene Normteil-Preise "
+           "aktualisieren</i> mit EK alt, EK neu und "
+           "Änderung in %, je Zeile ein Haken; <b>Übernehmen</b> speichert die angehakten (Protokoll der "
+           "Preisänderungen wie sonst).")
     i.abschnitt("CSV-Import und -Export", marke="zukauf_csv")
     i.liste("<b>CSV exportieren</b>: alle Artikel als Datei für Excel.",
             "<b>CSV importieren …</b>: Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann <b>Importieren</b>.",
@@ -9826,6 +9941,10 @@ def kapitel_pflege(i):
             "Zurücksetzen der Frachtzonen (<i>_vor_Frachtzonen_Standard</i>, [[fracht_zonen_standard]]) und vor dem "
             "CSV-Import der Kunden (<i>_vor_Kundenimport</i>, [[kunden_csv]]) und vor dem Archivieren alter Angebote "
             "(<i>_vor_Archiv</i>, [[archiv]]).")
+    i.text("<b>Prüfung beim Start</b> (seit 0.9.280): An Tagen, an denen die Sicherung schon geschrieben ist, prüft "
+           "das Programm die Datendatei 30 Sekunden nach dem Start kurz im Hintergrund (bis 300 MB; größere prüft die "
+           "tägliche Sicherung). Ist sie beschädigt, erscheint eine rote Meldung: dann nichts mehr ändern und über "
+           "<i>Datei → Sicherung wiederherstellen …</i> die letzte gute Sicherung zurückholen.")
     i.text("Jede Sicherung wird gleich nach dem Schreiben geprüft: die Datei muss unbeschädigt sein und gleich viele "
            "Angebote und Positionen enthalten wie die Datendatei. Daneben liegt eine gleichnamige <i>.json</i>-Datei "
            "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben "

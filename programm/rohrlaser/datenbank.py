@@ -27,6 +27,7 @@ import re
 import shutil
 import sqlite3
 import tempfile
+import time
 import zlib
 import zipfile
 from pathlib import Path
@@ -3071,6 +3072,43 @@ def _nur_lesen(pfad):
 def _sicherung_loeschen(pfad):
     Path(pfad).unlink(missing_ok=True)
     Path(pfad).with_suffix(".json").unlink(missing_ok=True)
+
+
+class PruefLauf:
+    """Schnellprüfung der Datendatei beim Start (Performance-Update 10.11.2026, Schritt 4): PRAGMA quick_check in
+    einem eigenen Thread mit eigener Verbindung, der Start wartet nicht. Die tägliche Sicherung prüft ihre Kopie;
+    an Tagen mit Sicherung ist diese Prüfung nicht nötig. fertig(), warten(), fehler = Text, wenn beschädigt (oder
+    nicht lesbar), sonst None; dauer = Sekunden."""
+
+    def __init__(self, pfad):
+        import threading
+        self.fehler = None
+        self.dauer = None
+        self._thread = threading.Thread(target=self._lauf, args=(Path(pfad),), name="Datenprüfung", daemon=True)
+        self._thread.start()
+
+    def _lauf(self, pfad):
+        t0 = time.perf_counter()
+        try:
+            con = sqlite3.connect(pfad, timeout=30)
+            try:
+                zeilen = [z[0] for z in con.execute("PRAGMA quick_check(5)").fetchall()]
+            finally:
+                con.close()
+            if zeilen != ["ok"]:
+                self.fehler = "; ".join(str(z) for z in zeilen)[:300]
+        except sqlite3.DatabaseError as e:
+            self.fehler = str(e)
+        except Exception:           # noqa: BLE001 – Datei gerade nicht erreichbar: kein Befund
+            pass
+        self.dauer = time.perf_counter() - t0
+
+    def fertig(self):
+        return not self._thread.is_alive()
+
+    def warten(self, sekunden=None):
+        self._thread.join(sekunden)
+        return self.fertig()
 
 
 class SicherungLauf:

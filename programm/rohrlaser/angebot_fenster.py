@@ -57,6 +57,8 @@ from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
 from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
+FEIN = 0.05          # Zeitwächter: Abschnitte im Angebot schon ab 50 ms ins Protokoll (Performance-Update 10.11.2026)
+
 
 def preis_aenderung(vorher, nachher):
     """Kurztext zur Preisänderung, z. B. 'Verkaufspreis netto 1.234,00 € → 1.290,50 €.'"""
@@ -2764,9 +2766,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         # Kalkulation nur einmal je Neuladen rechnen (Übersicht, Staffeln, Nachkalkulation; Performance-Audit 22.10.2026)
         self._kalk_merken = {}
         try:
-            self._neu_laden()
-            self._auto_planen()          # nutzt den eben geprüften Optimierungsstand mit (Plan C2)
-            self._st_seite.planen()      # angelegte Staffeln nach Änderungen selbst neu rechnen (28.10.2026)
+            with tempo.abschnitt("Angebot neu laden", FEIN):
+                self._neu_laden()
+            with tempo.abschnitt("Angebot: Auto-Optimieren/Staffeln planen", FEIN):
+                self._auto_planen()          # nutzt den eben geprüften Optimierungsstand mit (Plan C2)
+                self._st_seite.planen()      # angelegte Staffeln nach Änderungen selbst neu rechnen (28.10.2026)
         finally:
             self._kalk_merken = None
 
@@ -2822,9 +2826,34 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return ok
 
     def _neu_laden(self):
-        a = self.db.angebot(self.id)
+        with tempo.abschnitt("Angebot: Daten lesen", FEIN):
+            a = self._daten_lesen()
         if a is None:
             return
+        self._kopf_anzeigen()
+        # Positionstabelle und Kalkulation rechnen dieselben Positionswerte, Schneiddaten und Stangenpreise: je
+        # Neuladen einmal (Performance-Update 10.11.2026, bitgleich)
+        with rechnen.merker():
+            with tempo.abschnitt("Angebot: Positionstabelle rechnen", FEIN):
+                self.pos_modell.rechnen()
+                self._vorschlag_knopf_setzen()
+            with tempo.abschnitt("Angebot: Positionen gruppieren", FEIN):
+                self._gruppieren()
+                leer = not self.positionen
+                self.ablage_gross.setVisible(leer)
+                self.pos_ansicht.setVisible(not leer)
+                self._spalten_zeigen()
+            with tempo.abschnitt("Angebot: Ergebnisse anzeigen", FEIN):
+                self._ergebnisse_anzeigen()
+        self.f.reiter_titel(self)
+        self.verlauf.merken()
+
+    def _daten_lesen(self):
+        """Angebot, Positionen, Stammdaten und Einstellungen aus der Datenbank (Teil von _neu_laden); None = Angebot
+        gibt es nicht mehr."""
+        a = self.db.angebot(self.id)
+        if a is None:
+            return None
         if not self.db.nur_lesen and self.db.fracht_auto_nachfuehren(self.id, a):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
             a = self.db.angebot(self.id)
         self.kopf = a
@@ -2843,17 +2872,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.stufen_daten = self.db.staffel_stufen(self.id)
         self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
         self.drehfraes_einst = self.db.drehfraes_einstellungen()    # Richtpreis der Dreh-/Frästeile je Stufe
-        self._kopf_anzeigen()
-        self.pos_modell.rechnen()
-        self._vorschlag_knopf_setzen()
-        self._gruppieren()
-        leer = not self.positionen
-        self.ablage_gross.setVisible(leer)
-        self.pos_ansicht.setVisible(not leer)
-        self._spalten_zeigen()
-        self._ergebnisse_anzeigen()
-        self.f.reiter_titel(self)
-        self.verlauf.merken()
+        return a
 
     def _gruppieren(self):
         """Positionsliste gruppiert (D3): Einzelteile direkt unter ihrer Schweißbaugruppe (nur die Anzeige; die
@@ -3585,9 +3604,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k)
             + rechnen.teuerung_hinweise(self.positionen, self.k),
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
-            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich())
-            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter) + self._freigabe_punkte(summen)
-            + self._normteil_punkte())
+            plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich(),
+                                       getattr(self, "_preis_fein_cache", None))
+            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen) + self._freigabe_punkte(summen)
+            + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte())
+
+    def _einsicht_punkte(self):
+        """I8 Reklamation bei Wiederholteilen, I9 Nachkalkulation ähnlicher Aufträge (einsichten.py) – Hinweise."""
+        from . import einsichten
+        try:
+            treffer = self.wiederholteile_suchen(warten=False) or getattr(self, "_wt", None) or {}
+            out = einsichten.reklamation_punkte(self.db, treffer, self.positionen)
+            t = einsichten.nachkalk_hinweis(self.db, self.kopf, self.positionen, self.id)
+        except Exception:           # nur Hinweise: nie den Check blockieren
+            return []
+        return out + ([("HINWEIS", t, None)] if t else [])
+
+    def _lieferzeit_punkte(self):
+        """I6: zugesagte Lieferzeit kürzer als die gelernte Durchlaufzeit (lernen.lieferzeit_hinweis) – Hinweis."""
+        from . import lernen
+        try:
+            t = lernen.lieferzeit_hinweis(self.db, self.kopf)
+        except Exception:
+            return []
+        return [("HINWEIS", t, None)] if t else []
 
     def _normteil_punkte(self):
         """M6: Normteile dieses Angebots ohne Einkaufspreis – Hinweis mit Sprung zu Zukaufartikel → Normteile ohne
@@ -3611,11 +3651,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             "alle auf einmal eintragen: Zukaufartikel → Normteile ohne Preis", "normteile",
             "Pos. " + ", ".join(nr[:6]) + (" …" if len(nr) > 6 else ""))]
 
-    def _teure_punkte(self, summen, spaeter=False):
+    def _teure_punkte(self, summen, spaeter=False, zeilen=None):
         """Maschinenvergleich (rechnet je Maschine) und Kalkulationsbasis; spaeter: die zuletzt gerechneten."""
         if spaeter:
             return list(self.__dict__.get("_teure_merker") or ())
-        punkte = self._maschinen_punkt() + self._kalk_punkte(summen)
+        with tempo.abschnitt("Check: Maschinenvergleich", FEIN):
+            punkte = list(self._maschinen_punkt())      # eigene Liste (der Maschinenvergleich merkt seine)
+        with tempo.abschnitt("Check: Kalkulationsbasis", FEIN):
+            punkte += self._kalk_punkte(summen, zeilen)
         self._teure_merker = list(punkte)
         return punkte
 
@@ -3634,10 +3677,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         daten = self.__dict__.pop("_check_daten", None)
         if daten is None or getattr(self.f, "offen", {}).get(self.id) is not self:     # Angebot inzwischen zu
             return
+        # ein Stand: Eingabe-Kennung einmal, Positionswerte und Schneiddaten aus dem Merker (Performance-Update)
+        self._kalk_merken = {}
         try:
-            punkte = self.freigabe_punkte(*daten)
+            with rechnen.merker(), tempo.abschnitt("Angebots-Check nach Pause", FEIN):
+                punkte = self.freigabe_punkte(*daten)
         except Exception:           # Hinweise nie wichtiger als das Angebot
             return
+        finally:
+            self._kalk_merken = None
         if punkte != getattr(self, "_punkte", None):
             self._punkte = punkte
             self.uebersicht_bereich.freigabe_setzen(punkte)
@@ -3652,9 +3700,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """€/kg je Abmessung aus früher verschickten Angeboten (Plan C3), einmal je geöffnetem Angebot gelesen."""
         if getattr(self, "_preis_vergleich_cache", None) is None:
             try:
-                self._preis_vergleich_cache = plausibel.vergleich_aus(self.db.versand_verlaeufe(self.id))
+                verlaeufe = self.db.versand_verlaeufe(self.id)
+                self._preis_vergleich_cache = plausibel.vergleich_aus(verlaeufe)
+                self._preis_fein_cache = (plausibel.fein_aus(verlaeufe)       # I1: ähnliche Länge
+                                          if funktionen.an(funktionen.PREIS_HINWEISE, self.db) else {})
             except Exception:       # Plausibilität ist nur ein Hinweis: nie das Angebot blockieren
-                self._preis_vergleich_cache = {}
+                self._preis_vergleich_cache, self._preis_fein_cache = {}, {}
         return self._preis_vergleich_cache
 
     def _staffel_widersprueche(self, kalk_zeilen):
@@ -3691,10 +3742,23 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return self.reiter.setCurrentWidget(self.kalk_seite)
         if art == "bohrungen":
             return self.bohrungen_alle_pruefen()
+        if art == "stepgelb":           # K3: ungeprüfte STEP-Teile der Reihe nach bestätigen
+            return self.step_gelb_pruefen([int(x) for x in wert.split(",") if x.strip().isdigit()])
         if art == "normteile" and getattr(self.f, "zukauf", None) is not None:      # M6
             self.f.reiter.setCurrentWidget(self.f.zukauf)
             return self.f.zukauf.normteile_zeigen()
         return None
+
+    def check_erledigen(self, aktionen):
+        """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
+        tun = {"optimieren": self.optimieren, "staffeln_rechnen": self.staffelpreise_rechnen,
+               "preise": self.preise_aktualisieren}
+        erledigt = []
+        for a in aktionen:
+            if a in tun:
+                tun[a]()
+                erledigt.append(a)
+        return erledigt
 
     def vor_verschickt(self):
         """Angebots-Check vor dem Vorgang „Verschickt“ ohne PDF. Wurde ein FEHLER oder eine WARNUNG übergangen, steht das
@@ -3712,8 +3776,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """Fenster Angebots-Check; weiter = Text des Weiter-Knopfs (None = nur ansehen). Ergebnis: (weiter ja/nein,
         Begründung). „Hinspringen“ springt nach dem Schließen zur Stelle und zählt als Abbrechen."""
         from .angebot_check_dialog import CheckDialog
-        d = CheckDialog(self, self.freigabe_punkte() if punkte is None else punkte, weiter)
-        ok = d.exec() == QDialog.Accepted
+        erledigen = not (self.fremd() or self.db.nur_lesen)
+        for _ in range(4):             # K1: „Erledigen“ führt aus und zeigt den Check neu
+            d = CheckDialog(self, self.freigabe_punkte() if punkte is None else punkte, weiter, erledigen=erledigen)
+            ok = d.exec() == QDialog.Accepted
+            if not d.aktionen:
+                break
+            self.check_erledigen(d.aktionen)
+            punkte = None
         if d.ziel:
             self.check_link(d.ziel)
         return ok, d.text_begruendung()
@@ -3736,7 +3806,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
-        zeilen, summen = self._rechnung()
+        with tempo.abschnitt("Angebot: Kalkulation", FEIN):
+            zeilen, summen = self._rechnung()
         preis_abw = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
         self.uebersicht_bereich.preisstand_setzen(
             self.kopf.get("preisbasis"), preis_abw,
@@ -3754,7 +3825,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         spaeter = not self.f.stumm if self.CHECK_SOFORT is None else not self.CHECK_SOFORT
-        punkte = self.freigabe_punkte(summen, zeilen, preis_abw, spaeter=spaeter)
+        with tempo.abschnitt("Angebot: Check", FEIN):
+            punkte = self.freigabe_punkte(summen, zeilen, preis_abw, spaeter=spaeter)
         self.uebersicht_bereich.freigabe_setzen(punkte)
         self._punkte = punkte
         self._schritte_setzen()
@@ -3776,7 +3848,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.uebersicht_rahmen.jetzt_anpassen()
-        self.wiederholteile_anzeigen()
+        with tempo.abschnitt("Angebot: Wiederholteile", FEIN):
+            self.wiederholteile_anzeigen()
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
@@ -6327,6 +6400,35 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.neu_laden()
         return d
 
+    def step_gelb_pruefen(self, zeilen, dialog=None):
+        """K3 (Patrick 08.11.2026): ungeprüfte STEP-Teile (Angebots-Check „ungeprüft (gelb)“ bzw. „vereinfacht
+        gemessen“) der Reihe nach zeigen: die Position wird markiert, das Fenster STEP-Merkmale nennt den gelben Grund;
+        „Passt, nächstes“ bestätigt, „Überspringen“ geht weiter, Schließen hört auf. dialog(d) bedient das Fenster
+        (Tests). Ergebnis: Zahl der bestätigten Positionen."""
+        from . import step_pruefung
+        from .step_pruefung_dialog import MerkmaleDialog
+        ids = [self.positionen[r]["id"] for r in zeilen if 0 <= r < len(self.positionen)]
+        n = 0
+        for k, pid in enumerate(ids):
+            aktuell = next((x for x in self.db.positionen(self.id) if x["id"] == pid), None)
+            if aktuell is None or not step_pruefung.lesen(aktuell.get("step_merkmale")):
+                continue
+            r = next((i for i, p in enumerate(self.positionen) if p["id"] == pid), None)
+            if r is not None:
+                self.zur_position(zeile=r)
+            d = MerkmaleDialog(self, aktuell, weitere=len(ids) - k - 1)
+            (dialog(d) if dialog else d.exec())
+            if d.bestaetigt:
+                self.db.position_aendern(pid, "step_merkmale", step_pruefung.bestaetigen(
+                    aktuell.get("step_merkmale"), self.db.einstellung("benutzer_kuerzel") or ""))
+                n += 1
+            if not d.weiter:
+                break
+        if n:
+            self.f.meldung(f"{n} Teil{'e' if n != 1 else ''} aus dem STEP-Import als geprüft bestätigt.")
+            self.neu_laden()
+        return n
+
     def arbeitsgaenge_zeilen(self):
         """Arbeitsgänge aller Positionen mit Vorschlägen der Arbeitsgang-Regeln (arbeitsgaenge.uebersicht)."""
         from . import arbeitsgaenge
@@ -7640,11 +7742,31 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         bekommt eine eigene Kopie (die Eingaben ändern sich innerhalb eines Neuladens nicht)."""
         merken = getattr(self, "_kalk_merken", None)
         if merken is None:
-            return rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+            return self._rechnung_kurz()
         if "ergebnis" not in merken:
-            merken["ergebnis"] = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
-                                                     self.einst)
-        return copy.deepcopy(merken["ergebnis"])
+            merken["ergebnis"] = self._rechnung_kurz()
+        return rechnen.kopie(merken["ergebnis"])
+
+    RECHNUNG_GILT_S = 10.0      # so lange gilt die letzte Kalkulation außerhalb des Neuladens bei gleichen Eingaben
+
+    def _rechnung_kurz(self):
+        """Kalkulation außerhalb des Neuladens (Angebots-PDF, Check, Staffeln …; ein Klick rechnete sie bis zu 9-mal):
+        bei genau gleichen Eingaben – Kopf, Positionen, Schnittplan und Einstellungen gleich im Inhalt (repr),
+        Stammdaten dasselbe Objekt – und höchstens RECHNUNG_GILT_S alt die letzte, als eigene Kopie
+        (Performance-Update 10.11.2026, Schritt 3; Ergebnis bitgleich)."""
+        try:
+            inhalt = repr((self.kopf, self.positionen, self.ergebnis, self.einst))
+        except Exception:           # noqa: BLE001 – ohne Merker rechnen
+            inhalt = None
+        letzte = self.__dict__.get("_kalk_letzte")
+        jetzt = time.monotonic()
+        if (inhalt is not None and letzte is not None and letzte[0] == inhalt and letzte[1] is self.k
+                and letzte[2] is self.tabellen and jetzt - letzte[3] <= self.RECHNUNG_GILT_S):
+            return rechnen.kopie(letzte[4])
+        erg = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+        if inhalt is not None:
+            self._kalk_letzte = (inhalt, self.k, self.tabellen, jetzt, rechnen.kopie(erg))
+        return erg
 
     # Ausgaben (PDF, E-Mail, CSV, Material, Materialanfrage): angebot_ausgabe.AusgabeMixin
 

@@ -24,6 +24,7 @@ Mit Gehrungen, die sich ineinanderlegen lassen, gilt die Schranke der Schnittmus
 Ineinanderlegen); die Untergrenze zieht dann je Teil die größtmögliche Überlappung ab.
 """
 import bisect
+import collections
 import itertools
 import math
 import threading
@@ -702,14 +703,70 @@ def schluessel(g):
     return repr(replace(g, bewiesen=False, schranke=0))
 
 
+# Schon gerechnete Gruppen über einen Lauf hinaus (Performance-Update 10.11.2026, Tempo Teil 2): nach einer Änderung
+# an einer Position, beim Angebots-PDF und in den Staffeln rechnen sonst alle unveränderten Gruppen noch einmal.
+# Schlüssel = schluessel(g) (alle Eingaben der Gruppe), Wert wie bei vorgerechnet; dieselbe Rechnung ergibt
+# dasselbe (begrenzt nach Schritten, nie nach Zeit), das Ergebnis bleibt also gleich. Höchstens MERKER_MAX Gruppen.
+MERKER_MAX = 400
+_merker = collections.OrderedDict()
+_merker_sperre = threading.Lock()
+
+
+def _grenzen():
+    """Suchgrenzen, mit denen gerechnet wurde (Tests ändern sie): gehören zum Schlüssel."""
+    return (EXAKT_MAX_TEILE, EXAKT_MAX_KNOTEN, MUSTER_MAX_RUNDEN, MUSTER_MAX_KNOTEN)
+
+
+def gemerkt(schl):
+    """Ergebnis einer schon gerechneten Gruppe (Folgen als Teilnummern, bewiesen, schranke) oder None."""
+    with _merker_sperre:
+        erg = _merker.get((schl, _grenzen()))
+        if erg is not None:
+            _merker.move_to_end((schl, _grenzen()))
+        return erg
+
+
+def _ablegen(schl, erg):
+    with _merker_sperre:
+        _merker[(schl, _grenzen())] = erg
+        _merker.move_to_end((schl, _grenzen()))
+        while len(_merker) > MERKER_MAX:
+            _merker.popitem(last=False)
+
+
+def _merken(schl, g, folgen):
+    stelle = {id(t): i for i, t in enumerate(g.teile)}
+    try:
+        erg = ([[(stelle[id(t)], d) for t, d in f] for f in folgen], g.bewiesen, g.schranke)
+    except KeyError:            # Teil nicht aus g.teile (kommt nicht vor): nicht merken
+        return
+    _ablegen(schl, erg)
+
+
+def merker_leeren():
+    with _merker_sperre:
+        _merker.clear()
+
+
 def optimiere(g):
     """Ergebnis: Liste von Stangen, je Stange die angeordnete Folge [(Teil, gedreht)].
     Setzt g.bewiesen, wenn die Stangenzahl nachweislich minimal ist."""
+    schl = schluessel(g)
     fertig = getattr(vorgerechnet, "gruppen", None)
-    erg = fertig.pop(schluessel(g), None) if fertig else None
-    if erg is not None:         # dieselbe Rechnung lief schon auf einem Hilfsprozess
+    erg = fertig.pop(schl, None) if fertig else None
+    if erg is None:
+        erg = gemerkt(schl)
+    else:
+        _ablegen(schl, erg)
+    if erg is not None:         # dieselbe Rechnung lief schon (Hilfsprozess oder früherer Lauf)
         folgen, g.bewiesen, g.schranke = erg
         return [[(g.teile[i], d) for i, d in f] for f in folgen]
+    folgen = _optimiere(g)
+    _merken(schl, g, folgen)
+    return folgen
+
+
+def _optimiere(g):
     kandidaten = []
     for verfahren in (first_fit, best_fit):
         st = aufloesen(g, verfahren(g, g.teile))

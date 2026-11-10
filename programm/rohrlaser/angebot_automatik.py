@@ -155,8 +155,11 @@ def gelernte_zusatzarbeiten(seite, out):
     teile = [f"„{k}“ übernommen ({n}×)" for k, n in ja.items()] + [f"„{k}“ abgelehnt ({n}×)" for k, n in nein.items()]
     text = "wie gelernt: " + ", ".join(teile)
     out["texte"].append(text[0].upper() + text[1:])
+    namen = [*ja, *nein]
+    lernen.angewendet(db, lernen.ZUSATZ, seite.kopf.get("kundennr"), namen)        # I10
     _protokoll(seite, "gelernt", "Zusatzarbeit-Vorschläge " + text,
-               dict(art="positionsfelder", angebot_id=seite.id, alt=alt))
+               dict(art="positionsfelder", angebot_id=seite.id, alt=alt,
+                    gelernt=dict(art=lernen.ZUSATZ, kundennr=seite.kopf.get("kundennr"), schluessel=namen)))
     seite.neu_laden()
 
 
@@ -164,7 +167,9 @@ def wiederholwerte(seite, out):
     """L3: Wiederholteile (gleiche Artikelnummer beim selben Kunden, wiederholteile.SICHER): Werte, die im alten
     Angebot von Hand eingetragen waren (Schneidzeit, Programmierzeit, Einstiche, Gewinde, Naht), in leere Felder der
     neuen Position übernehmen. Preise und Zusatzarbeiten nie (die entstehen neu bzw. lernt L2)."""
-    from . import wiederholteile
+    from . import funktionen, wiederholteile
+    if not funktionen.an(funktionen.LERNEN, seite.db):
+        return
     felder = [f for f, _ in wiederholteile.UEBERNEHMBAR if f != "zusatz"]
     treffer = seite.wiederholteile_suchen(warten=True) or {}
     alt, namen, n = [], {}, 0
