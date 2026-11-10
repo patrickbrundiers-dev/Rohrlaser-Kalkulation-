@@ -2339,7 +2339,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("gesteckt", "gesteckt", "haken", 60, tipp="Teile gesteckt (Stecknase): weniger Heftpunkte"),
             Spalte("rundum", "rundum", "haken", 55, tipp="Umfangsnaht um ein Rohr (Mindestzahl Heftpunkte rundum)"),
             Spalte("lage", "Lage", "auswahl", 60, optionen=lambda: self._faktor_optionen("Schweißlage", baugruppe.LAGEN),
-                   tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items())),
+                   vk=True, tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items()) + "; die Vorkalkulation "
+                   "schlägt sie aus dem Nahtverlauf im STEP vor (Regel Schweißlage)"),
             Spalte("zugang", "Zugänglichkeit", "auswahl", 95, vk=True,
                    optionen=lambda: self._faktor_optionen("Zugänglichkeit"),
                    tipp="Zugänglichkeit für den Brenner (Faktor auf die Lichtbogenzeit und das Verputzen); die "

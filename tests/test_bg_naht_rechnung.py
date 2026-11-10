@@ -61,7 +61,8 @@ nah(baugruppe.naht_rechnen(naht, TAB, {"Schweißen": 60})["lichtbogen_min"],
 ok("A2 Kennwert nach Nahtquerschnitt: a = 3,5 zwischen 2,0 und 3,2 min/m, auf den Zeilen unverändert")
 
 # ------------------------------------------------------------------ A3 mehrlagig
-REGELN = [dict(art=a, wert=w, bis=b, zahl=z, status="geprüft") for a, w, b, z, _ in vorkalk.RICHTWERTE]
+REGELN = [dict(art=a, wert=w, bis=b, zahl=z, status="geprüft") for a, w, b, z, _ in vorkalk.RICHTWERTE
+         if a not in vorkalk.NEU_1011]      # ohne Ansatz, Schweißlage, Nahtvorbereitung (eigener Test)
 TAB_R = dict(TAB, schweiss_regeln=REGELN)
 n8 = dict(verfahren="MAG", nahtart="Kehlnaht", mass=8, laenge=1000, anzahl=2)
 ohne = baugruppe.naht_rechnen(n8, TAB, {"Schweißen": 60})

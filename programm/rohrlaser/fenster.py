@@ -458,6 +458,12 @@ class StammdatenSeite(QWidget):
             lernen.clicked.connect(lambda: self.kennwerte_lernen())
             leiste.addWidget(lernen)
             self.lernen_knopf = lernen
+            staffel = QPushButton("Richtwerte nach Nahtgröße staffeln")
+            staffel.setToolTip("Kennwerte, die noch unverändert auf dem alten Richtwert stehen (eine Abschmelzleistung "
+                               "für alle Nahtgrößen), auf die gestaffelte Abschmelzleistung umstellen: kleine Nähte "
+                               "langsamer, dicke schneller. Geänderte und geprüfte Zeilen bleiben; mit Rückgängig")
+            staffel.clicked.connect(lambda: self.schweiss_kennwerte_staffeln())
+            leiste.addWidget(staffel)
         if tabelle.name == "kunden":
             export = QPushButton("CSV exportieren")
             export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
@@ -815,6 +821,34 @@ class StammdatenSeite(QWidget):
         self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu (Status Richtwert, bitte prüfen), vorhandene unverändert.",
                      aktion=("Rückgängig", zurueck))
         return n
+
+    def schweiss_kennwerte_staffeln(self):
+        """Kennwerte auf dem alten Richtwert auf die Abschmelzleistung nach Nahtgröße umstellen (Plan Schweißbaugruppe
+        10.11.2026, G3; baugruppe.kennwerte_staffelbar). Nur unveränderte Zeilen mit Status Richtwert. Ergebnis:
+        Anzahl geänderter Zeilen."""
+        from . import baugruppe
+        liste = baugruppe.kennwerte_staffelbar(self.db.tabellen())
+        if not liste:
+            self.meldung("Keine Kennwerte auf dem alten Richtwert: nichts zu staffeln (geänderte und geprüfte Zeilen "
+                         "bleiben, wie sie sind).")
+            return 0
+        alt = [(z["id"], z.get("min_m"), z.get("bemerkung")) for z, _, _ in liste]
+        for z, min_m, bem in liste:
+            self.db.aendern("schweiss_kennwerte", z["id"], "min_m", min_m)
+            self.db.aendern("schweiss_kennwerte", z["id"], "bemerkung", bem)
+        f = self.window()
+        laden = (lambda: f.alles_neu_laden()) if hasattr(f, "alles_neu_laden") else self.neu_laden
+        laden()
+
+        def zurueck():
+            for i, min_m, bem in alt:
+                self.db.aendern("schweiss_kennwerte", i, "min_m", min_m)
+                self.db.aendern("schweiss_kennwerte", i, "bemerkung", bem)
+            laden()
+            self.meldung(f"Staffel zurückgenommen: {len(alt)} Kennwert(e) wieder auf dem alten Richtwert.")
+        self.meldung(f"{len(liste)} Kennwert(e) nach Nahtgröße gestaffelt (Status Richtwert, bitte prüfen); geänderte "
+                     "und geprüfte Zeilen unverändert.", aktion=("Rückgängig", zurueck))
+        return len(liste)
 
     def kennwerte_lernen(self, dialog=None):
         """Fenster Kennwerte aus der Nachkalkulation (kennwerte_dialog); dialog(d) statt exec (Tests)."""

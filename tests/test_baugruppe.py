@@ -288,9 +288,12 @@ ok("B9 Angebot: eine Zeile 'Schweißbaugruppe Rahmen R1' (ohne Stückliste), Kop
 # ------------------------------------------------------------------ B10 Richtwerte
 rw = baugruppe.richtwerte()
 mag3 = next(z for z in rw["schweiss_kennwerte"] if (z["verfahren"], z["nahtart"], z["mass_bis"]) == ("MAG", "Kehlnaht", 3))
-nah(mag3["min_m"], round(9 * 1.1 * 7.85 / 1000 / 3.5 * 60, 2), "MAG a3")      # 1,33 min/m
+nah(mag3["min_m"], round(9 * 1.1 * 7.85 / 1000 / 2.5 * 60, 2), "MAG a3")      # 1,87 min/m (a3 mit 2,5 kg/h)
+alt3 = next(z for z in baugruppe.richtwerte(False)["schweiss_kennwerte"]
+            if (z["verfahren"], z["nahtart"], z["mass_bis"]) == ("MAG", "Kehlnaht", 3))
+nah(alt3["min_m"], round(9 * 1.1 * 7.85 / 1000 / 3.5 * 60, 2), "MAG a3 ohne Staffel")      # 1,33 min/m (bis 0.9.277)
 v4 = next(z for z in rw["schweiss_kennwerte"] if (z["verfahren"], z["nahtart"], z["mass_bis"]) == ("MAG", "Stumpfnaht", 4))
-nah(v4["min_m"], round((16 * math.tan(math.radians(30)) + 6) * 1.1 * 7.85 / 1000 / 3.5 * 60, 2), "MAG V4")
+nah(v4["min_m"], round((16 * math.tan(math.radians(30)) + 6) * 1.1 * 7.85 / 1000 / 3.0 * 60, 2), "MAG V4")
 assert all(z["status"] == "Richtwert" for t in rw.values() for z in t)
 db2 = Datenbank(tmp / "rw.db")
 db2.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
@@ -440,6 +443,11 @@ for z in db.zeilen("schweiss_kennwerte"):
 assert next(z for z in db.zeilen("schweissverfahren") if z["verfahren"] == "MAG")["lichtbogen"] == 40
 assert seite_kw.schweiss_richtwerte(bestaetigt=True) == 0                        # zweimal: nichts doppelt
 assert db.anzahl("schweiss_faktoren") == len(baugruppe.RICHT_FAKTOREN)            # PF war schon da
+# Regeln des Plans 10.11.2026 (Ansatz, Schweißlage, Nahtvorbereitung) wieder heraus: die Werte der folgenden
+# Abschnitte sind ohne sie eingefroren (mit ihnen: tests/test_bg_genauer.py)
+from rohrlaser import vorkalk as _vk  # noqa: E402
+assert {z["art"] for z in db.zeilen("schweiss_regeln")} >= set(_vk.NEU_1011)
+db.loeschen("schweiss_regeln", [z["id"] for z in db.zeilen("schweiss_regeln") if z["art"] in _vk.NEU_1011])
 k_ = db.kontext()
 for t_ in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
     for z in db.zeilen(t_):
