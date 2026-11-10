@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.281", "<b>Feinschliff aus der Design-Prüfung</b>: In der Bedienungsanleitung stehen Zeichen wie ▾, ▸, │ oder "
+     "N₂ jetzt richtig statt als schwarzes Kästchen. Der Knopf <b>Vorgang</b> zeigt nur noch einen Pfeil. Die offenen "
+     "Schritte über dem Angebot sind besser lesbar. Der Hinweis „(n abweichend von den Einstellungen)“ steht vorn in "
+     "der Kurzfassung der Kalkulation und wird nicht mehr abgeschnitten. Hilfetexte zeigen ein gezeichnetes i-Symbol "
+     "vor <b>mehr</b> und <b>Hilfe</b>. Scheitert das automatische Optimieren, stehen wieder die vorläufigen Preise "
+     "da statt „wird berechnet …“.",
+     "Anleitung ohne Kästchen, Knopf Vorgang mit einem Pfeil, Schritte lesbarer, Abweichungs-Hinweis vorn."],
     ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
      "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "
      "(je Abmessung Stangen, Verschnitt, Ausnutzung, €/m, Materialkosten und das Stangenbild), grau daneben "
