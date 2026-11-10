@@ -12,10 +12,10 @@ import threading
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressDialog, QPushButton,
-                               QSplitter, QTableView, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
-                               QVBoxLayout, QWidget)
+                               QSplitter, QTabWidget, QTableView, QTableWidget, QTableWidgetItem, QTreeWidget,
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import abruf, fracht_angebot, hilfe, rechnen, staffeln, stil
 from .klartext import fehler_text
@@ -228,7 +228,11 @@ class StufeDialog(QDialog):
         self.s, self.stufe = seite, dict(stufe)
         a = seite.s
         self.setWindowTitle(f"Stufe {seite.nummer(stufe)} bearbeiten")
-        lay = QVBoxLayout(self)
+        # Reiter (Patrick 09.11.2026): Einstellungen & Mengen zum Bearbeiten, dazu wie im Angebot die Kalkulation,
+        # die Zeiten und die wirksamen Werte der Stufe aus dem letzten Mengenlauf
+        self.reiter = QTabWidget()
+        einst_seite = QWidget()
+        lay = QVBoxLayout(einst_seite)
         lay.addWidget(hilfe.Hinweis("Die Stufe wird wie ein eigener Auftrag gerechnet: alle Positionen mit Menge "
                                     "zusammen optimiert und kalkuliert. Leere Felder (grau) nehmen den Wert des "
                                     "Angebots. Gleiche Mengen und Werte wie im Angebot ergeben dessen Preise."))
@@ -313,11 +317,19 @@ class StufeDialog(QDialog):
             zeile.addWidget(b)
         lay.addLayout(zeile)
         lay.addWidget(self.mengen, 1)
+        self.reiter.addTab(einst_seite, "Einstellungen und Mengen")
+        self.ergebnis = StufeErgebnis(seite, stufe)
+        for w, text in ((self.ergebnis.kalk_seite, "Kalkulation"), (self.ergebnis.stangen, "Stangen"),
+                        (self.ergebnis.zeiten_seite, "Zeiten"), (self.ergebnis.werte_seite, "Wirksame Werte")):
+            self.reiter.addTab(w, text)
+        self.ergebnis.werte_setzen(self)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
-        lay.addWidget(knoepfe)
-        self.resize(860, 720)
+        aussen = QVBoxLayout(self)
+        aussen.addWidget(self.reiter, 1)
+        aussen.addWidget(knoepfe)
+        self.resize(1100, 760)
 
     @staticmethod
     def _tabelle_einrichten(t):
@@ -443,6 +455,300 @@ class StufeDialog(QDialog):
         super().accept()
 
 
+# Werte der Preisschicht unter „Erweitert“: wirken erst im Staffelpreis, nicht in der Kalkulation des Mengenlaufs
+_NUR_PREISSCHICHT = ("mat_zuschlag", "verlust", "mat_grundpreis", "zuschlag_fertigung", "arbeitsgang_min",
+                     "arbeitsgang_eur", "neben_einheit", "neben_pauschal")
+
+
+def zeile_name(z):
+    """'Satz Rahmen' bzw. 'Pos. 10' einer Ergebniszeile."""
+    return f"{'Satz' if z.get('einheit') == 'Satz' else 'Pos.'} {z.get('schluessel')}"
+
+
+def kalk_vergleich(z, kalk, stufe=None):
+    """Preis je Einheit laut Kalkulation des Mengenlaufs (Summe Verkaufspreis der Positionen des Satzes bzw. der
+    Position ÷ Menge) gegen den Staffelpreis der Preisschicht. Ergebnis: (Kalkulation, Staffelpreis, Unterschied,
+    Grund) – Grund nennt, warum beide abweichen (Mindestpreis, gestaffelter Gewinn, Werte unter Erweitert …)."""
+    idx = set(z.get("kalk_idx") or ())
+    menge = z.get("menge") or 0
+    teile = [x for x in (kalk or {}).get("zeilen") or () if x.get("zeile") in idx]
+    kv = sum((x.get("preis_teil") or 0) * (x.get("stueck") or 0) for x in teile) / menge if teile and menge else None
+    sp = z.get("preis_einheit")
+    if not isinstance(kv, (int, float)) or not isinstance(sp, (int, float)):
+        return kv, sp, None, ""
+    d = sp - kv
+    if abs(d) < 0.01:
+        return kv, sp, d, "gleich (nur Rundung)" if abs(d) >= 0.0005 else "gleich"
+    p, w = z.get("preis") or {}, z.get("wirksam") or {}
+    grund = []
+    if (p.get("mindest_anhebung") or 0) > 0.005:
+        grund.append(f"Mindestpreis der Stufe (+{_z(p['mindest_anhebung'])} € für die Stufe)")
+    if w.get("gewinn_stufen"):
+        grund.append("gestaffelter Gewinn nach dem Wert der ganzen Stufe")
+    if any(not ohne_wert((stufe or {}).get(n)) for n in _NUR_PREISSCHICHT):
+        grund.append("Werte der Stufe unter „Erweitert“")
+    if (p.get("einmalig") or 0) > 0.005:
+        grund.append("Einmalkosten als eigene Position")
+    if not grund:
+        grund.append("Gewinn oder Zuschläge nach dem Mengenlauf geändert")
+    return kv, sp, d, ", ".join(grund)
+
+
+class StufeErgebnis:
+    """Kalkulation, Zeiten und wirksame Werte einer Stufe aus ihrem gespeicherten Mengenlauf (Patrick 09.11.2026:
+    beim Öffnen einer Staffel alle für die Kalkulation ausschlaggebenden Werte wie im Angebot, auch die Zeiten).
+    Nur Anzeige: gerechnet wird im Reiter Staffeln (automatisch nach Änderungen)."""
+
+    def __init__(self, seite, stufe):
+        from .angebot_fenster import Liste, _breiten, _tabelle
+        from .angebot_spalten import KALK_SPALTEN, KOMPAKT_SPALTEN
+        self.s, self.stufe = seite, stufe
+        sid = stufe.get("id")
+        self.zeilen = [z for z in seite.zeilen if sid is not None and z.get("stufe") == sid]
+        self.kalk = next((k for k in (staffeln.kalkulation_der_zeile(seite.zeilen, z) for z in self.zeilen) if k),
+                         None)
+        self.schema = next((sch for sch in (staffeln.schema_der_zeile(seite.zeilen, z) for z in self.zeilen) if sch),
+                           None)
+        stand = self._stand()
+        # ---- Kalkulation
+        self.kalk_seite = QWidget()
+        kl = QVBoxLayout(self.kalk_seite)
+        self.stand = QLabel(stand)
+        self.stand.setWordWrap(True)
+        kl.addWidget(self.stand)
+        self.summen = QLabel()
+        self.summen.setWordWrap(True)
+        self.summen.setObjectName("summenzeile")
+        kl.addWidget(self.summen)
+        kl.addWidget(QLabel("<b>Preis der Stufe</b> je Satz bzw. Position: Kalkulation des Mengenlaufs und "
+                            "Staffelpreis (maßgeblich, mit Gewinn und Zuschlägen der Stufe)"))
+        self.preis = QTableWidget(0, 6)
+        self.preis.setHorizontalHeaderLabels(["Satz bzw. Position", "Menge", "VK laut Kalkulation\nje Einheit [€]",
+                                              "Staffelpreis\nje Einheit [€]", "Unterschied\nje Einheit [€]", "Grund"])
+        StufeDialog._tabelle_einrichten(self.preis)
+        self.preis.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive)
+        self.preis.horizontalHeader().setMinimumHeight(40)
+        self.preis.setColumnWidth(0, 160)
+        for c in (2, 3):
+            self.preis.setColumnWidth(c, 130)
+        self.preis.horizontalHeader().setStretchLastSection(True)
+        self.preis.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        kl.addWidget(self.preis)
+        zeile = QHBoxLayout()
+        self.kalk_info = QLabel("<b>Kalkulation je Bauteil</b> wie im Reiter Kalkulation des Angebots, mit den "
+                                "Stückzahlen der Stufe")
+        zeile.addWidget(self.kalk_info, 1)
+        self.kompakt_haken = QCheckBox("Kompakt")
+        self.kompakt_haken.setToolTip("Kompakt: das Wichtigste je Bauteil. Ohne Häkchen: alle Spalten der Kalkulation "
+                                      "(leere Spalten ausgeblendet)")
+        self.kompakt_haken.setChecked(True)
+        zeile.addWidget(self.kompakt_haken)
+        kl.addLayout(zeile)
+        self.kompakt = Liste(KOMPAKT_SPALTEN, max_stellen=2)
+        self.kompakt.ohne_nummer = True
+        self.kompakt_ansicht = _tabelle(self.kompakt)
+        _breiten(self.kompakt_ansicht, KOMPAKT_SPALTEN)
+        self.alle = Liste(KALK_SPALTEN, max_stellen=3)
+        self.alle.ohne_nummer = True
+        self.alle_ansicht = _tabelle(self.alle)
+        _breiten(self.alle_ansicht, KALK_SPALTEN)
+        kl.addWidget(self.kompakt_ansicht, 1)
+        kl.addWidget(self.alle_ansicht, 1)
+        self.kompakt_haken.toggled.connect(self._umschalten)
+        # ---- Stangenoptimierung der Stufe (Patrick 09.11.2026), daneben die des Angebots
+        self.stangen = StangenAnzeige(seite)
+        # ---- Zeiten
+        self.zeiten_seite = QWidget()
+        zl = QVBoxLayout(self.zeiten_seite)
+        zl.addWidget(QLabel(stand))
+        quer = QHBoxLayout()
+        from .zeiten_seite import SPALTEN as ZEIT_SPALTEN
+        self.zeiten = QTableWidget(0, len(ZEIT_SPALTEN))
+        self.zeiten.setHorizontalHeaderLabels([t for t, _ in ZEIT_SPALTEN])
+        self.zeiten.verticalHeader().setVisible(False)
+        self.zeiten.verticalHeader().setDefaultSectionSize(22)
+        self.zeiten.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        for i, (_, b) in enumerate(ZEIT_SPALTEN):
+            self.zeiten.setColumnWidth(i, b)
+        self.zeiten.horizontalHeader().setStretchLastSection(True)
+        quer.addWidget(self.zeiten, 3)
+        self.zeit_summen = QLabel()
+        self.zeit_summen.setWordWrap(True)
+        self.zeit_summen.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.zeit_summen.setMinimumWidth(300)
+        self.zeit_summen.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        quer.addWidget(self.zeit_summen, 1)
+        zl.addLayout(quer, 1)
+        # ---- wirksame Werte
+        self.werte_seite = QWidget()
+        wl = QVBoxLayout(self.werte_seite)
+        wl.addWidget(QLabel("Mit diesen Werten rechnet die Stufe: eigener Wert der Stufe oder Wert des Angebots "
+                            "(Spalte Quelle). Materialpreis und Lieferlänge je Abmessung und die Stundensätze aus "
+                            "dem letzten Mengenlauf."))
+        self.werte = QTableWidget(0, 3)
+        self.werte.setHorizontalHeaderLabels(["Wert", "in der Stufe", "Quelle"])
+        StufeDialog._tabelle_einrichten(self.werte)
+        self.werte.setColumnWidth(1, 220)
+        self.werte.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        wl.addWidget(self.werte, 1)
+        self.fuellen()
+
+    def _stand(self):
+        if not self.zeilen:
+            return ("<b style='color:#7A5A00'>Diese Stufe ist noch nicht gerechnet</b> (Mengen eintragen, mit OK "
+                    "speichern – das Programm rechnet sie danach selbst bzw. mit „Staffelpreise rechnen“).")
+        if any(str(z.get("hinweis") or "").startswith("VERALTET") for z in self.zeilen):
+            return ("<b style='color:#B42318'>VERALTET</b> – die Stufe wird gerade neu gerechnet; danach stehen hier "
+                    "Kalkulation und Zeiten.")
+        if self.kalk is None:
+            return ("<b style='color:#7A5A00'>Kalkulation dieser Stufe fehlt</b> (Mengenlauf älterer Version) – "
+                    "„Staffelpreise rechnen“ im Reiter Staffeln.")
+        am = (self.s.s.kopf.get("staffelpreise") or {}).get("am")
+        return (f"<span style='color:#1E6B34'><b>Stand: Mengenlauf {_zeit(am)}</b></span> · {_z(self.kalk.get('teile'), 0)} "
+                f"Teile · {_z(self.zeilen[0].get('stangen'), 0)} Stangen")
+
+    def _umschalten(self, kompakt):
+        self.kompakt_ansicht.setVisible(kompakt)
+        self.alle_ansicht.setVisible(not kompakt)
+
+    def fuellen(self):
+        from .angebot_fenster import leere_ausblenden
+        k = self.kalk or {}
+        self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
+                                       for t, w, fett in k.get("kosten") or () if fett or not ohne_wert(w)))
+        self.summen.setVisible(bool(k.get("kosten")))
+        self.preis.setRowCount(len(self.zeilen))
+        for r, z in enumerate(self.zeilen):
+            kv, sp, d, grund = kalk_vergleich(z, k, self.stufe)
+            texte = [zeile_name(z), f"{_z(z.get('menge'), 0)} {z.get('einheit') or ''}", _z(kv), _z(sp),
+                     (f"{'+' if d > 0.005 else ''}{_z(d if abs(d) >= 0.005 else 0)}" if isinstance(d, (int, float))
+                      else ""), grund]
+            for c, t in enumerate(texte):
+                it = QTableWidgetItem(t)
+                if 1 <= c <= 4:
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if c == 5 and isinstance(d, (int, float)) and abs(d) >= 0.01:
+                    it.setBackground(QBrush(FARBE_STATUS["WARNUNG"]))
+                    it.setToolTip("Maßgeblich ist der Staffelpreis. Die Kalkulation je Bauteil zeigt Gewinn und "
+                                  "Zuschläge so, wie sie beim Mengenlauf galten.")
+                self.preis.setItem(r, c, it)
+        self.preis.setFixedHeight(44 + 22 * max(1, len(self.zeilen)) + 4)
+        self.kompakt.setzen(k.get("kompakt") or [])
+        self.alle.setzen(k.get("zeilen") or [])
+        for ansicht, liste in ((self.kompakt_ansicht, self.kompakt), (self.alle_ansicht, self.alle)):
+            if liste.zeilen:
+                leere_ausblenden(ansicht, liste, immer=("pos", "stueck", "preis_teil"))
+        self._umschalten(self.kompakt_haken.isChecked())
+        # Zeiten
+        zeiten = [z for z in k.get("zeiten") or () if rechnen.schritt_sichtbar(z)]
+        self.zeiten.setRowCount(len(zeiten))
+        for r, z in enumerate(zeiten):
+            texte = [z["schritt"], z["art"] + (" (parallel)" if z.get("parallel") and z["art"] != "Maschine" else ""),
+                     *rechnen.schritt_texte(z), _z(z.get("kosten")), z.get("quelle") or "", z.get("formel") or ""]
+            for c, t in enumerate(texte):
+                it = QTableWidgetItem(str(t))
+                it.setToolTip(str(t))
+                if 2 <= c <= 7:
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.zeiten.setItem(r, c, it)
+        self.zeit_summen.setText(self.zeit_html(k))
+        self.stangen.zeigen(self.zeilen[0] if self.zeilen else None, self.schema,
+                            angebot_schema(getattr(self.s, "s", None)) if self.schema else None)
+
+    def zeit_html(self, k):
+        """Summen der Zeiten der Stufe wie im Reiter Zeiten des Angebots, dazu die Laserzeit je Satz bzw. Position."""
+        if not k.get("zeiten"):
+            return ""
+        s = rechnen.zeit_summen(k["zeiten"], k.get("teile"))
+        zeilen = [("Maschinenzeit", s["maschine_min"], False), ("davon Rüsten Maschine", s["ruest_maschine_min"], False),
+                  ("Personalzeit", s["personal_min"], False), ("davon parallel zur Maschine", s["parallel_min"], False),
+                  ("Arbeitszeit gesamt", s["bearbeitung_min"], True),
+                  ("Durchlaufzeit (Maschine + Personal, das nicht parallel läuft)", s["durchlauf_min"], False),
+                  ("Ø Arbeitszeit je Teil", s["je_teil_min"], False)]
+        html = "<table cellpadding='1'>"
+        for t, w, fett in zeilen:
+            if t.startswith(("davon", "Personal", "Ø")) and ohne_wert(w):
+                continue
+            w = rechnen.zeit_text(w)
+            html += (f"<tr><td>{'<b>' + t + '</b>' if fett else t}</td><td width='12'></td>"
+                     f"<td align='right'>{'<b>' + w + '</b>' if fett else w}</td></tr>")
+        for t, w, fett in (("Arbeitskosten", s["arbeitskosten"], True), ("davon Maschinenkosten", s["maschinenkosten"], False),
+                           ("davon Personalkosten", s["personalkosten"], False)):
+            if fett or not ohne_wert(w):
+                html += (f"<tr><td>{'<b>' + t + '</b>' if fett else t}</td><td></td>"
+                         f"<td align='right'>{'<b>' if fett else ''}{_z(w)} €{'</b>' if fett else ''}</td></tr>")
+        html += "<tr><td colspan='3'><br><b>Laserzeit genutzt je Satz bzw. Position</b></td></tr>"
+        for z in self.zeilen:
+            je, ges = laserzeit(z, k)
+            if ges is not None:
+                html += (f"<tr><td>{zeile_name(z)} ({_z(z.get('menge'), 0)})</td><td></td><td align='right'>"
+                         f"{rechnen.zeit_text(je)} je {z.get('einheit') or 'Einheit'} · {rechnen.zeit_text(ges)}</td></tr>")
+        return html + "</table>"
+
+    def werte_setzen(self, dialog):
+        """Tabelle Wirksame Werte: je Einstellung der Wert der Stufe oder (leer) der des Angebots, dazu aus dem
+        letzten Mengenlauf €/m und Lieferlänge je Abmessung und die Stundensätze."""
+        zeilen = []
+        for f in staffeln.EINSTELLUNG_FELDER:
+            if f.name in ("bezeichnung", "bemerkung", "meterpreise"):
+                continue
+            w = self.stufe.get(f.name)
+            titel = f.titel
+            if f.name == "mat_zuschlag":
+                titel = "Materialzuschlag [" + (self.stufe.get("mat_art") or PROZENT) + "]"
+            if not ohne_wert(w) and w != "":
+                text = _z(w, f.stellen if f.art == "zahl" else 0) if f.art in ("zahl", "ganz") else str(w)
+                zeilen.append((titel, text + (" %" if "[%]" in titel else ""), "Stufe"))
+            else:
+                v = dialog.vorgabe(f.name)
+                if v:
+                    zeilen.append((titel, v.replace(" (Angebot)", ""), "Angebot"))
+        w = (self.zeilen[0].get("wirksam") if self.zeilen else None) or {}
+        if w:
+            if w.get("gewinn_stufen"):
+                zeilen.append(("Gewinn gestaffelt nach dem Wert der Stufe", "ja", "Angebot"))
+            zeilen.append(("Gemeinkosten Fertigung wirksam (mit Eilzuschlag)", f"{_z(100 * w['zuschlag_fertigung'], 1)} %",
+                           "Stufe" if not ohne_wert(self.stufe.get("zuschlag_fertigung")) else "Angebot"))
+            if w.get("mindestpreis"):
+                zeilen.append(("Mindestpreis je Stufe [€]", _z(w["mindestpreis"]), "Angebot"))
+            zeilen.append(("Umsatzsteuer", f"{_z(100 * w['mwst'], 1)} %", "Angebot"))
+        eigen = staffeln.meterpreise(self.stufe)
+        for a in (self.schema or {}).get("abmessungen") or ():
+            name = schnitt_name(a)
+            abm = " · ".join([str(a["profil"]), str(a["werkstoff"])] + ([a["oberflaeche"]] if a.get("oberflaeche")
+                                                                         and a["oberflaeche"] != "roh" else []))
+            zeilen.append((f"Materialpreis {name} [€/m]", "Kundenmaterial" if a.get("kunde") else _z(a.get("preis_m")),
+                           "Stufe" if abm in eigen else "Angebot"))
+            zeilen.append((f"Lieferlänge {name} [mm]", _z(a.get("stange"), 0),
+                           "Stufe (Lieferlänge je Stufe)" if self.stufe.get("laenge_auto") == "ja" else "Angebot"))
+        saetze = {}
+        for z in (self.kalk or {}).get("zeiten") or ():
+            if z.get("satz") is not None and z.get("satz_id"):
+                saetze.setdefault(z["satz_id"], z["satz"])
+        for n, satz in saetze.items():
+            zeilen.append((f"Stundensatz {n} [€/h]", _z(satz), "Angebot"))
+        self.werte.setRowCount(len(zeilen))
+        for r, texte in enumerate(zeilen):
+            for c, t in enumerate(texte):
+                it = QTableWidgetItem(t)
+                if c == 1:
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if c == 2 and t.startswith("Stufe"):
+                    it.setBackground(QBrush(FARBE_STATUS["WARNUNG"]))
+                self.werte.setItem(r, c, it)
+
+
+def laserzeit(z, kalk):
+    """(Laserzeit genutzt je Einheit, gesamt) in Minuten des Satzes bzw. der Position einer Ergebniszeile."""
+    idx = set(z.get("kalk_idx") or ())
+    teile = [x for x in (kalk or {}).get("zeilen") or () if x.get("zeile") in idx
+             and isinstance(x.get("laser_netto"), (int, float))]
+    if not teile or not z.get("menge"):
+        return None, None
+    ges = sum(x["laser_netto"] * (x.get("stueck") or 0) for x in teile) / 60
+    return ges / z["menge"], ges
+
+
 # ------------------------------------------------------------------ Ergebnis (Kostenpositionen je Stufe)
 def _p(z):
     return z.get("preis") or {}
@@ -535,33 +841,52 @@ def stufen_der_zeilen(zeilen):
     return out
 
 
-class SchnittschemaFenster(QDialog):
-    """Schnittschema je Staffel (Patrick 26.10.2026): Auswahl der Stufe, je Abmessung Stangen, Meter, Verschnitt,
-    €/m und Materialkosten, darunter die Stangen wie im Reiter Stangenbild (Muster / Übersicht / Detail)."""
+VERGLEICH_SPALTEN = ("Stangen im Angebot", "Ausnutzung im Angebot", "Verschnitt im Angebot [m]")
 
-    def __init__(self, seite, zeilen, start=None):
-        super().__init__(seite)
+
+def angebot_schema(seite):
+    """Schnittschema der Optimierung des Angebots (Vergleich je Abmessung) oder None (nicht optimiert)."""
+    try:
+        erg = getattr(seite, "ergebnis", None)
+        return staffeln.schnittschema(seite.kopf, seite.positionen, erg, seite.k, seite.tabellen) if erg else None
+    except (KeyError, TypeError, ValueError, AttributeError):       # unvollständiges Angebot: ohne Vergleich
+        return None
+
+
+def vergleich_je_abmessung(angebot):
+    """{Abmessung (schnitt_name): dict(stangen, meter, nutz_m)} aus dem Schnittschema des Angebots."""
+    out = {}
+    for a in (angebot or {}).get("abmessungen") or ():
+        v = out.setdefault(schnitt_name(a), dict(stangen=0, meter=0.0, nutz_m=0.0))
+        for n in v:
+            v[n] += a[n] or 0
+    return out
+
+
+class StangenAnzeige(QWidget):
+    """Stangenoptimierung einer Stufe (Patrick 26.10. und 09.11.2026): je Abmessung Stangen, Meter, Verschnitt,
+    Ausnutzung, €/m und Materialkosten, daneben derselbe Stand im Angebot, darunter die Stangen wie im Reiter
+    Stangenbild (Muster / Übersicht / Detail). Für das Fenster der Stufe, den Reiter Staffeln und das Fenster
+    Schnittschema."""
+
+    def __init__(self, seite):
+        super().__init__()
         self.seite = seite
-        self.setWindowTitle("Schnittschema je Staffel")
-        self.resize(1250, 860)
-        self.stufen = stufen_der_zeilen(zeilen)
         lay = QVBoxLayout(self)
-        oben = QHBoxLayout()
-        oben.addWidget(QLabel("Stufe:"))
-        self.wahl = QComboBox()
-        for titel, _, _ in self.stufen:
-            self.wahl.addItem(titel)
-        oben.addWidget(self.wahl, 1)
-        lay.addLayout(oben)
+        lay.setContentsMargins(0, 0, 0, 0)
         self.info = QLabel()
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
         teiler = QSplitter(Qt.Vertical)
-        self.tabelle = QTableWidget(0, len(SCHEMA_SPALTEN))
-        self.tabelle.setHorizontalHeaderLabels(SCHEMA_SPALTEN)
+        spalten = SCHEMA_SPALTEN + VERGLEICH_SPALTEN
+        self.tabelle = QTableWidget(0, len(spalten))
+        self.tabelle.setHorizontalHeaderLabels(spalten)
         self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabelle.verticalHeader().setVisible(False)
-        self.tabelle.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabelle.verticalHeader().setDefaultSectionSize(22)
+        for c in range(len(SCHEMA_SPALTEN), len(spalten)):
+            self.tabelle.horizontalHeaderItem(c).setToolTip("Stangenoptimierung des Angebots (Menge des Angebots) "
+                                                            "für dieselbe Abmessung")
         teiler.addWidget(self.tabelle)
         from .stangen_ansicht import StangenSeite
         s = getattr(seite, "s", None)
@@ -571,8 +896,98 @@ class SchnittschemaFenster(QDialog):
                                           (lambda a: db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a)) if db else None,
                                           (lambda: db.einstellung("stangenbild_popup")) if db else None)
         teiler.addWidget(self.stangen_seite)
-        teiler.setSizes([220, 600])
+        teiler.setSizes([200, 600])
         lay.addWidget(teiler, 1)
+
+    def zeigen(self, z, sch, angebot=None):
+        """Schnittschema sch der Stufe der Ergebniszeile z; angebot = Schnittschema des Angebots (Vergleich)."""
+        ab = (sch or {}).get("abmessungen") or []
+        verg = vergleich_je_abmessung(angebot)
+        self.tabelle.setColumnCount(len(SCHEMA_SPALTEN) + (len(VERGLEICH_SPALTEN) if verg else 0))
+        self.tabelle.setRowCount(len(ab) + (1 if ab else 0))
+        summe = dict(stangen=0, meter=0.0, nutz_m=0.0, kosten=0.0)
+        gezeigt = set()
+        for r, a in enumerate(ab):
+            for n in summe:
+                summe[n] += a[n] or 0
+            name = schnitt_name(a)
+            v = verg.get(name) if name not in gezeigt else None
+            gezeigt.add(name)
+            self._zeile(r, [name, ", ".join(a["positionen"]),
+                            " + ".join(f"{n} × {_z(ln, 0)} mm" for ln, n in a["laengen"]), _z(a["meter"]),
+                            _z(a["nutz_m"]), _z(a["meter"] - a["nutz_m"]),
+                            f"{_z(100 * a['ausnutzung'], 1)} %" if a.get("ausnutzung") is not None else "",
+                            _z(a["preis_m"]) if a.get("preis_m") is not None else
+                            ("Kundenmaterial" if a.get("kunde") else ""), _z(a["kosten"])]
+                       + (self._vergleich(v) if verg else []))
+        if ab:
+            nutz = summe["nutz_m"] / summe["meter"] if summe["meter"] else None
+            mit = [v for n, v in verg.items() if n in gezeigt]      # nur Abmessungen dieser Stufe vergleichen
+            va = dict(stangen=sum(v["stangen"] for v in mit), meter=sum(v["meter"] for v in mit),
+                      nutz_m=sum(v["nutz_m"] for v in mit))
+            self._zeile(len(ab), ["Summe", "", f"{summe['stangen']} Stangen", _z(summe["meter"]), _z(summe["nutz_m"]),
+                                  _z(summe["meter"] - summe["nutz_m"]), f"{_z(100 * nutz, 1)} %" if nutz else "", "",
+                                  _z(summe["kosten"])] + (self._vergleich(va) if verg else []), fett=True)
+        self.tabelle.resizeColumnsToContents()          # Abmessung ganz lesbar, die letzte Spalte füllt auf
+        self.tabelle.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive)
+        self.tabelle.horizontalHeader().setStretchLastSection(True)
+        if sch:
+            self.info.setText(f"Gemeinsam optimiert wie ein eigener Auftrag: {(z or {}).get('teile') or 0:g} Teile auf "
+                              f"{len(sch['stangen'])} Lieferstangen. Materialkosten = Stangenkosten inkl. Verschnitt "
+                              "(Grundlage der Material-Grundkosten der Stufe, vor Verlust und Zuschlag)."
+                              + (" Rechts daneben die Stangenoptimierung des Angebots." if verg else ""))
+            paare = rechnen.anzeige_stangen(dict(stangen=sch["stangen"]), sch.get("werte"))
+        else:
+            self.info.setText("Für diese Stufe gibt es noch keine Stangenoptimierung – sie wird nach dem Speichern "
+                              "gerechnet (oder „Staffelpreise rechnen“; bei FEHLER erst den Fehler beheben).")
+            paare = []
+        s = getattr(self.seite, "s", None)
+        self.stangen_seite.setzen(paare, s._abwicklung_funktion() if paare and hasattr(s, "_abwicklung_funktion")
+                                  else None)
+
+    @staticmethod
+    def _vergleich(v):
+        if not v:
+            return ["–", "", ""]
+        nutz = v["nutz_m"] / v["meter"] if v["meter"] else None
+        return [f"{v['stangen']:g}", f"{_z(100 * nutz, 1)} %" if nutz else "", _z(v["meter"] - v["nutz_m"])]
+
+    def _zeile(self, r, werte, fett=False):
+        for c, w in enumerate(werte):
+            it = QTableWidgetItem(w)
+            if c >= 2:
+                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if c >= len(SCHEMA_SPALTEN):
+                it.setForeground(QBrush(GRAU))
+            if fett:
+                f = it.font()
+                f.setBold(True)
+                it.setFont(f)
+            self.tabelle.setItem(r, c, it)
+
+
+class SchnittschemaFenster(QDialog):
+    """Schnittschema je Staffel (Patrick 26.10.2026): Auswahl der Stufe und darunter ihre Stangenoptimierung
+    (StangenAnzeige)."""
+
+    def __init__(self, seite, zeilen, start=None):
+        super().__init__(seite)
+        self.seite = seite
+        self.setWindowTitle("Schnittschema je Staffel")
+        self.resize(1250, 860)
+        self.stufen = stufen_der_zeilen(zeilen)
+        self.angebot = angebot_schema(getattr(seite, "s", None))
+        lay = QVBoxLayout(self)
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Stufe:"))
+        self.wahl = QComboBox()
+        for titel, _, _ in self.stufen:
+            self.wahl.addItem(titel)
+        oben.addWidget(self.wahl, 1)
+        lay.addLayout(oben)
+        self.anzeige = StangenAnzeige(seite)
+        self.info, self.tabelle, self.stangen_seite = self.anzeige.info, self.anzeige.tabelle, self.anzeige.stangen_seite
+        lay.addWidget(self.anzeige, 1)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
@@ -586,48 +1001,7 @@ class SchnittschemaFenster(QDialog):
         if not 0 <= i < len(self.stufen):
             return
         _, z, sch = self.stufen[i]
-        ab = (sch or {}).get("abmessungen") or []
-        self.tabelle.setRowCount(len(ab) + (1 if ab else 0))
-        summe = dict(stangen=0, meter=0.0, nutz_m=0.0, kosten=0.0)
-        for r, a in enumerate(ab):
-            for n in summe:
-                summe[n] += a[n] or 0
-            self._zeile(r, [schnitt_name(a), ", ".join(a["positionen"]),
-                            " + ".join(f"{n} × {_z(ln, 0)} mm" for ln, n in a["laengen"]), _z(a["meter"]),
-                            _z(a["nutz_m"]), _z(a["meter"] - a["nutz_m"]),
-                            f"{_z(100 * a['ausnutzung'], 1)} %" if a.get("ausnutzung") is not None else "",
-                            _z(a["preis_m"]) if a.get("preis_m") is not None else
-                            ("Kundenmaterial" if a.get("kunde") else ""), _z(a["kosten"])])
-        if ab:
-            nutz = summe["nutz_m"] / summe["meter"] if summe["meter"] else None
-            self._zeile(len(ab), ["Summe", "", f"{summe['stangen']} Stangen", _z(summe["meter"]), _z(summe["nutz_m"]),
-                                  _z(summe["meter"] - summe["nutz_m"]), f"{_z(100 * nutz, 1)} %" if nutz else "", "",
-                                  _z(summe["kosten"])], fett=True)
-        self.tabelle.resizeColumnsToContents()
-        self.tabelle.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        if sch:
-            self.info.setText(f"Gemeinsam optimiert wie ein eigener Auftrag: {z.get('teile') or 0:g} Teile auf "
-                              f"{len(sch['stangen'])} Lieferstangen. Materialkosten = Stangenkosten inkl. Verschnitt "
-                              "(Grundlage der Material-Grundkosten der Stufe, vor Verlust und Zuschlag).")
-            paare = rechnen.anzeige_stangen(dict(stangen=sch["stangen"]), sch.get("werte"))
-        else:
-            self.info.setText("Für diese Stufe gibt es noch kein Schnittschema – bitte „Staffelpreise rechnen“ "
-                              "(oder die Stufe hat einen FEHLER).")
-            paare = []
-        s = getattr(self.seite, "s", None)
-        self.stangen_seite.setzen(paare, s._abwicklung_funktion() if paare and hasattr(s, "_abwicklung_funktion")
-                                  else None)
-
-    def _zeile(self, r, werte, fett=False):
-        for c, w in enumerate(werte):
-            it = QTableWidgetItem(w)
-            if c >= 2:
-                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if fett:
-                f = it.font()
-                f.setBold(True)
-                it.setFont(f)
-            self.tabelle.setItem(r, c, it)
+        self.anzeige.zeigen(z, sch, self.angebot)
 
 
 class ErgebnisBaum(QTreeWidget):
@@ -639,7 +1013,7 @@ class ErgebnisBaum(QTreeWidget):
         self.setUniformRowHeights(True)
         self.header().setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
         self.header().setMinimumHeight(52)
-        self.offen = {"material", "fertigung"}
+        self.offen = {"material", "fertigung", "zeiten"}
 
     def setzen(self, zeilen, vorher=None, angebot=None):
         """zeilen: bepreiste Zeilen aus staffeln.rechnen_alle; vorher: {stufe_id: Preis je Einheit vorher};
@@ -700,6 +1074,7 @@ class ErgebnisBaum(QTreeWidget):
                 it.setText(2 + 2 * j, f(z))
                 it.setTextAlignment(2 + 2 * j, Qt.AlignRight | Qt.AlignVCenter)
         self._schnittschema(neu, zeilen)
+        self._zeiten(neu, zeilen)
         gruppe = None
         for schl, titel, f, art in ERGEBNIS:
             werte = [f(z) for z in zeilen]
@@ -789,6 +1164,41 @@ class ErgebnisBaum(QTreeWidget):
                 it.setText(1 + 2 * j, laengen_kurz(a))
                 it.setToolTip(1 + 2 * j, schnitt_tipp(a))
                 it.setText(2 + 2 * j, _z(a["kosten"]))
+                for c in (1 + 2 * j, 2 + 2 * j):
+                    it.setTextAlignment(c, Qt.AlignRight | Qt.AlignVCenter)
+
+    def _zeiten(self, neu, zeilen):
+        """Gruppe 'Zeiten' (Patrick 09.11.2026: Zeiten auch in den Staffeln): Laserzeit genutzt je Einheit und gesamt
+        des Satzes bzw. der Position, dazu Maschinen-, Personal-, Arbeits- und Durchlaufzeit der ganzen Stufe."""
+        kalk = [staffeln.kalkulation_der_zeile(zeilen, z) for z in zeilen]
+        if not any(k and k.get("zeiten") for k in kalk):
+            return
+        summen = [rechnen.zeit_summen(k["zeiten"], k.get("teile")) if k and k.get("zeiten") else None for k in kalk]
+        oben = neu(None, "Zeiten (Laserzeit je Einheit, Arbeitszeit der Stufe)", "info", "zeiten")
+        oben.setToolTip(0, "Zeiten aus dem Mengenlauf der Stufe wie im Reiter Zeiten des Angebots; Doppelklick auf die "
+                           "Stufe zeigt alle Arbeitsschritte (Reiter Zeiten im Fenster der Stufe)")
+        werte = [("Laserzeit genutzt", "laser", lambda j: laserzeit(zeilen[j], kalk[j]))]
+        for titel, n in (("Maschinenzeit der Stufe", "maschine_min"), ("davon Rüsten Maschine", "ruest_maschine_min"),
+                         ("Personalzeit der Stufe", "personal_min"), ("Arbeitszeit gesamt der Stufe", "bearbeitung_min"),
+                         ("Durchlaufzeit der Stufe", "durchlauf_min")):
+            werte.append((titel, n, lambda j, n=n: (None, summen[j][n] if summen[j] else None)))
+        for j, z in enumerate(zeilen):
+            je, ges = laserzeit(z, kalk[j])
+            if summen[j]:
+                oben.setText(1 + 2 * j, rechnen.zeit_text(je) if je is not None else "")
+                oben.setText(2 + 2 * j, rechnen.zeit_text(summen[j]["bearbeitung_min"]))
+                for c in (1 + 2 * j, 2 + 2 * j):
+                    oben.setTextAlignment(c, Qt.AlignRight | Qt.AlignVCenter)
+        for titel, schl, f in werte:
+            paare = [f(j) for j in range(len(zeilen))]
+            if schl not in ("laser", "maschine_min", "bearbeitung_min") and all(ohne_wert(g) for _, g in paare):
+                continue
+            it = neu(oben, titel, "kind", "zeit_" + schl)
+            for j, (je, ges) in enumerate(paare):
+                if je is not None:
+                    it.setText(1 + 2 * j, rechnen.zeit_text(je))
+                if ges is not None:
+                    it.setText(2 + 2 * j, rechnen.zeit_text(ges))
                 for c in (1 + 2 * j, 2 + 2 * j):
                     it.setTextAlignment(c, Qt.AlignRight | Qt.AlignVCenter)
 
@@ -954,7 +1364,8 @@ class StaffelSeite(QWidget):
         leiste.addStretch(1)
         self.hinweis = hilfe.Hinweis("Je Zeile eine Stufe, gerechnet wie ein eigener Auftrag: alle Sätze und "
                                      "Positionen mit Menge zusammen. Doppelklick öffnet die Stufe mit Einstellungen, "
-                                     "Materialpreisen und Mengen. Leere Werte nehmen den Wert des Angebots.",
+                                     "Materialpreisen und Mengen sowie Kalkulation, Zeiten und wirksamen Werten. "
+                                     "Leere Werte nehmen den Wert des Angebots.",
                                      getattr(self.s, "db", None), "staffeln")
         aufklappen = QPushButton("Alle aufklappen")
         aufklappen.clicked.connect(lambda: self.baum.expandAll())
@@ -971,7 +1382,22 @@ class StaffelSeite(QWidget):
         quer.setStretchFactor(0, 4)
         quer.setStretchFactor(1, 1)
         quer.setSizes([900, 280])
-        ul.addWidget(quer, 1)
+        # Ergebnis in Unterreitern (Patrick 09.11.2026): Kosten wie bisher, Stangen = Stangenoptimierung der
+        # markierten Stufe direkt im Reiter, daneben die des Angebots
+        self.ergebnis_reiter = QTabWidget()
+        self.ergebnis_reiter.setDocumentMode(True)
+        self.ergebnis_reiter.addTab(quer, "Kosten")
+        stangen = QWidget()
+        sl = QVBoxLayout(stangen)
+        sl.setContentsMargins(0, 4, 0, 0)
+        self.stangen_titel = QLabel()
+        sl.addWidget(self.stangen_titel)
+        self.stangen = StangenAnzeige(self)
+        sl.addWidget(self.stangen, 1)
+        self.ergebnis_reiter.addTab(stangen, "Stangen")
+        self.ergebnis_reiter.currentChanged.connect(lambda _: self.stangen_zeigen())
+        self.ansicht.selectionModel().currentRowChanged.connect(lambda *_: self.stangen_zeigen())
+        ul.addWidget(self.ergebnis_reiter, 1)
         self.teiler = QSplitter(Qt.Vertical)          # Stufen oben (wenige Zeilen), Ergebnis bekommt den Platz
         self.teiler.addWidget(self.ansicht)
         self.teiler.addWidget(unten)
@@ -1032,6 +1458,7 @@ class StaffelSeite(QWidget):
             angebot = None
         self.baum.setzen(self.zeilen, self.vorher, angebot)
         self.vergleich.setzen(self.zeilen)
+        self.stangen_zeigen()
         if not staffeln.gueltige(self.s.stufen):
             text, farbe = "Keine Mengenstufen eingetragen.", "#5F6B7A"
         elif not sp:
@@ -1049,6 +1476,27 @@ class StaffelSeite(QWidget):
             text += f" {fehler} Stufe(n) mit FEHLER – ohne Preis, nicht im Angebot."
             farbe = "#B42318" if not offen else farbe
         self.info.setText(f"<b style='color:{farbe}'>{text}</b>")
+
+    def stangen_zeigen(self, immer=False):
+        """Unterreiter Stangen: Stangenoptimierung der markierten Stufe (sonst der ersten). Gerechnet wird nur,
+        wenn der Unterreiter offen ist (immer=True: trotzdem, für Tests)."""
+        if not immer and self.ergebnis_reiter.currentIndex() != 1:
+            return
+        daten = self.modell.daten
+        i = self.ansicht.currentIndex()
+        r = i.row() if i.isValid() and 0 <= i.row() < len(daten) else 0
+        stufe = daten[r] if daten else None
+        z = next((z for z in self.zeilen if stufe is not None and z.get("stufe") == stufe.get("id")), None)
+        sch = staffeln.schema_der_zeile(self.zeilen, z) if z else None
+        if stufe is None:
+            titel = "Noch keine Stufe angelegt."
+        else:
+            mz = [m for m in self.s.stufen if m.get("stufe_id") == stufe.get("id")]
+            titel = " · ".join(t for t in (f"<b>Stufe {r + 1}</b>", stufe.get("bezeichnung") or "",
+                                           mengen_text(mz, self.s.positionen)) if t)
+            titel += " – andere Stufe: oben in der Tabelle markieren"
+        self.stangen_titel.setText(titel)
+        self.stangen.zeigen(z, sch, angebot_schema(self.s) if sch else None)
 
     # -------------------------------------------------------------- Stufen
     def neu(self):

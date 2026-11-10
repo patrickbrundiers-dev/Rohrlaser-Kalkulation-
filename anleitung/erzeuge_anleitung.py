@@ -5274,8 +5274,17 @@ def kapitel_staffeln(i):
                (4, "Einmalige Rüstkosten (Rüstkosten = separat): nicht im Stückpreis, aber im Gesamtpreis."),
                (5, "Änderung des Preises je Einheit zur letzten Eingabe, in € und %.")])
     i.abschnitt("Schnittschema je Staffel")
-    i.text("Jede Stufe hat ihren eigenen Schnittplan. <b>Schnittschema …</b> zeigt ihn je Stufe mit Stangen, "
-           "Verschnitt, €/m und Materialkosten – daraus kommt der Materialpreis der Staffel.", kurz=True)
+    i.bild("staffeln_stangen", "Stangenoptimierung der markierten Stufe direkt im Reiter Staffeln", hoehe=95 * mm,
+           legende=[
+               (1, "Das Ergebnis hat zwei Unterreiter: <b>Kosten</b> (Kostenpositionen und Staffelkurve) und "
+                   "<b>Stangen</b>."),
+               (2, "Gezeigt wird die oben markierte Stufe; eine andere Zeile markieren zeigt deren Stangen."),
+               (3, "Je Abmessung Stangen × Lieferlänge, Material, Teile, Verschnitt, Ausnutzung, €/m und "
+                   "Materialkosten; grau daneben dieselbe Abmessung in der Stangenoptimierung des Angebots."),
+               (4, "Die Stangen wie im Reiter Schnittplan: Stangenmuster, Übersicht oder Detail ([[stangenbild]]).")])
+    i.text("Jede Stufe hat ihren eigenen Schnittplan. Der Unterreiter <b>Stangen</b> im Reiter Staffeln und der "
+           "Reiter <b>Stangen</b> im Fenster der Stufe zeigen ihn mit Stangen, Verschnitt, €/m und Materialkosten "
+           "– daraus kommt der Materialpreis der Staffel.", kurz=True)
     i.genauer()
     i.text("Im Ergebnis steht unter <b>Schnittschema</b> je Abmessung und Stufe, wie viele Stangen welcher "
            "Lieferlänge die Menge braucht und wie gut sie ausgenutzt sind (z. B. „13 × 6.000 · 91 %“), daneben die "
@@ -5288,6 +5297,44 @@ def kapitel_staffeln(i):
            "Materialzuschlag. Hat eine Stufe mehrere Sätze bzw. Positionen, werden sie gemeinsam optimiert; das "
            "Schnittschema gilt dann für die ganze Stufe. Fehlt es (ältere Staffelpreise), bitte "
            "<b>Staffelpreise rechnen</b>.")
+    i.abschnitt("Kalkulation und Zeiten der Stufe", marke="staffel_kalkulation")
+    i.bild("staffel_kalkulation", "Fenster einer Stufe, Reiter Kalkulation: alle Werte wie im Angebot",
+           hoehe=105 * mm, legende=[
+               (1, "Stand: Zeit des Mengenlaufs, Teile und Stangen der Stufe (VERALTET, solange sie neu gerechnet "
+                   "wird)."),
+               (2, "Summenzeile wie im Reiter Kalkulation des Angebots: Material, Laser schneiden, Rüsten, "
+                   "Herstell- und Selbstkosten, Gewinn, Verkaufspreis der Stufe."),
+               (3, "<b>Preis der Stufe</b> je Satz bzw. Position: Verkaufspreis laut Kalkulation und Staffelpreis. "
+                   "Weichen sie ab, nennt <i>Grund</i> warum (Mindestpreis, gestaffelter Gewinn, Werte unter "
+                   "Erweitert, später geänderter Gewinn). Maßgeblich ist der Staffelpreis."),
+               (4, "<b>Kompakt</b>: das Wichtigste je Bauteil; ohne Häkchen alle Spalten der Kalkulation."),
+               (5, "Kalkulation je Bauteil mit den Stückzahlen der Stufe: Profil, Länge, Material, Laserzeit, "
+                   "Verkaufspreis je Teil – wie im Angebot.")])
+    i.text("Ein Doppelklick auf eine Stufe zeigt neben den Einstellungen die Reiter <b>Kalkulation</b>, "
+           "<b>Stangen</b>, <b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen "
+           "der Stufe.",
+           kurz=True)
+    i.genauer()
+    i.text("Das Fenster der Stufe hat fünf Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
+           "oben). Die anderen vier zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
+           "<b>Kalkulation</b> wie der Reiter Kalkulation des Angebots ([[kalkulation]]), <b>Zeiten</b> wie der "
+           "Reiter Zeiten &amp; Arbeitskosten, <b>Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe "
+           "unten) und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
+           "rechnet, und ob er aus der Stufe oder aus dem Angebot kommt, dazu Materialpreis €/m und Lieferlänge je "
+           "Abmessung und die Stundensätze. Werte der Stufe sind gelb.")
+    i.text("Gewinn und Zuschläge wirken in der Stufe sofort, ohne neuen Mengenlauf. Die Tabelle je Bauteil zeigt "
+           "sie so, wie sie beim Mengenlauf galten; deshalb steht oben der <b>Preis der Stufe</b> mit dem "
+           "Unterschied und seinem Grund. Werte unter <i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) "
+           "und der Mindestpreis wirken nur im Staffelpreis.")
+    i.bild("staffel_zeiten", "Reiter Zeiten der Stufe", hoehe=80 * mm, legende=[
+        (1, "Arbeitsschritte der Stufe mit Menge, Rüstzeit, Zeit je Einheit, Gesamtzeit, Stundensatz und Kosten."),
+        (2, "Maschinen-, Personal-, Arbeits- und Durchlaufzeit, Arbeitskosten und die Laserzeit je Satz bzw. "
+            "Position.")])
+    i.bild("staffel_werte", "Reiter Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
+        (1, "Wert, mit dem die Stufe rechnet, und seine Quelle (Stufe gelb, sonst Angebot).")])
+    i.text("Auch im Reiter <i>Staffeln</i> stehen die Zeiten: die Gruppe <b>Zeiten</b> im Ergebnis zeigt je Stufe "
+           "die Laserzeit je Einheit und gesamt und die Maschinen-, Personal-, Arbeits- und Durchlaufzeit der "
+           "ganzen Stufe.")
     i.abschnitt("Prüfung und Fehler")
     i.text("Rote Stufen haben einen FEHLER (z. B. keine Menge oder überschneidende Mengen) und werden nicht "
            "ausgegeben.", kurz=True)
@@ -6974,6 +7021,18 @@ def kapitel_automatik(i):
             "<b>Lieferzeit</b>: Mit dem Fertigungsstatus lernt das Programm, wie viele Arbeitstage Ihre letzten Aufträge "
             "von der Freigabe bis <i>Fertig gemeldet</i> gebraucht haben. Ist die zugesagte Lieferzeit kürzer, steht ein "
             "Hinweis im Angebots-Check.")
+    i.text("<b>Ein- und ausschalten</b>: Unter Einstellungen → Funktionen → <b>Intelligenz</b> gibt es vier Schalter, "
+           "die für alle Arbeitsplätze gelten und am Anfang eingeschaltet sind:")
+    i.liste("<b>Lernen und selbst anwenden</b>: Zählen der ✓/✗ bei Zusatzarbeit-Vorschlägen, selbst Anwenden beim "
+            "Import (auch Werte aus Wiederholteilen) und der Hinweis auf Kennwert-Vorschläge auf der Startseite.",
+            "<b>Vorschläge aus Handeinträgen</b>: Erkennungswörter und Arbeitsgang-Regeln in der Lernzentrale und auf "
+            "der Startseite.",
+            "<b>Preis- und Termin-Hinweise</b>: Trefferquote und Wettbewerbsabstand unter den Preisen, Preis je kg "
+            "gegen Teile ähnlicher Länge und der Lieferzeit-Hinweis im Angebots-Check. Die grobe €/kg-Prüfung bleibt.",
+            "<b>Auftragschance</b>: Chance und Sortierung in der Wiedervorlage.")
+    i.text("Ausgeschaltet zeigt das Programm dazu nichts mehr und lernt nichts dazu. Was es schon gelernt hat, bleibt "
+           "gespeichert und gilt wieder, sobald Sie den Schalter einschalten. Sind die ersten beiden Schalter aus, "
+           "verschwindet auch Datei → Lernzentrale.")
 
 
 def kapitel_nachkalkulation(i):

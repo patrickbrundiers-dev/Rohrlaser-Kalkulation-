@@ -21,14 +21,27 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.276", "<b>Mehr Intelligenz</b> ([[lernen]]): Der Angebots-Check vergleicht den Preis je kg jedes Teils mit "
+    ["0.9.278", "<b>Mehr Intelligenz</b> ([[lernen]]): Der Angebots-Check vergleicht den Preis je kg jedes Teils mit "
      "früheren Teilen derselben Abmessung und ähnlicher Länge und meldet schon 1,5-fache Abweichungen mit Prozent. "
      "Die Wiedervorlage auf der Startseite zeigt je Angebot die geschätzte Auftragschance und steht nach Chance × "
      "Wert. Aus Zusatzarbeiten, die Sie immer wieder von Hand eintragen, schlägt die Lernzentrale ein Erkennungswort "
      "oder eine Arbeitsgang-Regel vor (<b>Übernehmen</b>, mit Rückgängig). Unter dem Verkaufspreis steht, um wie viel "
      "Sie bei Absagen mit Wettbewerbspreis teurer waren, und der Angebots-Check warnt, wenn die zugesagte Lieferzeit "
-     "kürzer ist als Ihre echte Durchlaufzeit aus dem Fertigungsstatus.",
+     "kürzer ist als Ihre echte Durchlaufzeit aus dem Fertigungsstatus. Alles lässt sich unter Einstellungen → "
+     "Funktionen → <b>Intelligenz</b> in vier Schaltern einzeln ausschalten; Gelerntes bleibt dabei gespeichert.",
      "Preis-Plausibilität nach Länge, Auftragschance, Regel-Vorschläge, Wettbewerbsabstand, Lieferzeit aus Ist."],
+    ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
+     "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "
+     "(je Abmessung Stangen, Verschnitt, Ausnutzung, €/m, Materialkosten und das Stangenbild), grau daneben "
+     "dieselbe Abmessung im Angebot. Das Fenster der Stufe hat dafür den Reiter <b>Stangen</b>.",
+     "Stangenoptimierung je Stufe direkt im Reiter Staffeln und im Fenster der Stufe, mit Vergleich zum Angebot."],
+    ["0.9.276", "<b>Kalkulation und Zeiten in der Staffel</b> ([[staffel_kalkulation]]): Ein Doppelklick auf eine Stufe "
+     "zeigt neben den Einstellungen die Reiter <b>Kalkulation</b> (Summenzeile, Preis der Stufe je Satz bzw. Position "
+     "mit dem Grund jeder Abweichung, Tabelle je Bauteil kompakt oder mit allen Spalten), <b>Zeiten</b> (alle "
+     "Arbeitsschritte, Maschinen-, Personal- und Durchlaufzeit, Laserzeit je Satz bzw. Position) und <b>Wirksame "
+     "Werte</b> (Wert und Quelle Stufe/Angebot, €/m, Lieferlänge, Stundensätze). Im Reiter Staffeln zeigt die Gruppe "
+     "<b>Zeiten</b> die Laser- und Arbeitszeit je Stufe. Vorhandene Staffeln werden dafür einmal neu gerechnet.",
+     "Stufe öffnen zeigt Kalkulation, Zeiten und wirksame Werte wie im Angebot."],
     ["0.9.275", "<b>Das Programm lernt</b> ([[lernen]]): Lehnen Sie einen Zusatzarbeit-Vorschlag beim selben Kunden in drei "
      "Angeboten hintereinander ab (✗) bzw. übernehmen ihn (✓), lehnt der nächste STEP-Import ihn gleich ab bzw. "
      "übernimmt ihn, mit Einblendung und Rückgängig im Automatik-Protokoll. Bei Wiederholteilen übernimmt der Import "

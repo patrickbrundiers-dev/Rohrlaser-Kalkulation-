@@ -287,6 +287,70 @@ assert fenster_s.stangen_seite.stangen
 fenster_s.reject()
 ok("Schnittschema je Staffel: Stangen je Abmessung, Meter, €/m und Materialkosten je Stufe, im Ergebnis und im Fenster")
 
+# Kalkulation, Zeiten und wirksame Werte je Stufe (Patrick 09.11.2026: beim Öffnen einer Staffel alle Werte wie im
+# Angebot, auch die Zeiten)
+from rohrlaser.staffel_seite import kalk_vergleich, laserzeit  # noqa: E402
+for z in st.zeilen:
+    kalk = staffeln.kalkulation_der_zeile(st.zeilen, z)
+    assert kalk and kalk["zeilen"] and kalk["kompakt"] and kalk["zeiten"], z["schluessel"]
+    assert any(t.startswith("Verkaufspreis") and fett for t, _, fett in kalk["kosten"])
+    assert {x["zeile"] for x in kalk["zeilen"]} >= set(z["kalk_idx"])
+    stufe = next(x for x in m.daten if x["id"] == z["stufe"])
+    kv, sp_, d, grund = kalk_vergleich(z, kalk, stufe)
+    if stufe.get("neben_einheit"):            # Nebenkosten der Stufe (oben gesetzt): nur im Staffelpreis
+        assert d > 0 and "Erweitert" in grund, grund
+    else:                                     # ohne Stufenwerte gleich
+        assert abs(d) < 0.01 and grund.startswith("gleich"), (z["schluessel"], kv, sp_)
+    je, ges = laserzeit(z, kalk)
+    assert je > 0 and nah(je * z["menge"], ges, 1e-9)
+    assert rechnen.zeit_summen(kalk["zeiten"], kalk["teile"])["bearbeitung_min"] > 0
+json.dumps(st.zeilen)
+zb = st.baum.zeile("zeiten")
+assert zb is not None and st.baum.zeile("zeit_laser") is not None and zb.text(2).endswith("min")
+d = StufeDialog(st, m.daten[3])
+assert [d.reiter.tabText(i) for i in range(d.reiter.count())] == ["Einstellungen und Mengen", "Kalkulation", "Stangen", "Zeiten",
+                                                                 "Wirksame Werte"]
+e = d.ergebnis
+assert "Stand: Mengenlauf" in e.stand.text() and "Verkaufspreis" in e.summen.text()
+assert e.preis.rowCount() == 1 and e.preis.item(0, 5).text().startswith("gleich")
+assert e.kompakt.rowCount() == len(e.kalk["kompakt"]) >= 1 and e.alle.rowCount() >= 1 and e.zeiten.rowCount() >= 1
+werte = {e.werte.item(r, 0).text(): (e.werte.item(r, 1).text(), e.werte.item(r, 2).text()) for r in range(e.werte.rowCount())}
+assert werte["Gewinn [%]"][1] == "Angebot" and any(t.startswith("Stundensatz") for t in werte)
+assert any(t.startswith("Materialpreis") for t in werte) and any(t.startswith("Lieferlänge") for t in werte)
+e.kompakt_haken.setChecked(False)
+assert not e.alle_ansicht.isHidden() and e.kompakt_ansicht.isHidden()
+d.reject()
+speichern(3, gewinn=30)                     # Gewinn der Stufe nach dem Mengenlauf: Staffelpreis neu, Grund genannt
+d = StufeDialog(st, m.daten[3])
+e = d.ergebnis
+assert float(e.preis.item(0, 4).text().replace(".", "").replace(",", ".")) > 0 and "Gewinn" in e.preis.item(0, 5).text()
+werte = {e.werte.item(r, 0).text(): (e.werte.item(r, 1).text(), e.werte.item(r, 2).text()) for r in range(e.werte.rowCount())}
+assert werte["Gewinn [%]"] == ("30,0 %", "Stufe")
+d.reject()
+speichern(3, gewinn=None)
+d = StufeDialog(st, {"id": None})           # noch nicht gerechnete Stufe: Hinweis statt Werte
+assert "noch nicht gerechnet" in d.ergebnis.stand.text() and d.ergebnis.preis.rowCount() == 0
+d.reject()
+# Stangenoptimierung direkt in der Staffel (Patrick 09.11.2026): Reiter Stangen im Fenster der Stufe, Unterreiter
+# Stangen im Reiter Staffeln (markierte Stufe), je Abmessung der Vergleich zum Angebot
+from rohrlaser.staffel_seite import angebot_schema, vergleich_je_abmessung  # noqa: E402
+d = StufeDialog(st, m.daten[1])
+assert "Stangen" in [d.reiter.tabText(i) for i in range(d.reiter.count())]
+an = d.ergebnis.stangen
+sch = staffeln.schema_der_zeile(st.zeilen, d.ergebnis.zeilen[0])
+assert an.tabelle.rowCount() == len(sch["abmessungen"]) + 1 and an.tabelle.item(an.tabelle.rowCount() - 1, 0).text() == "Summe"
+assert an.tabelle.columnCount() == 12 and len(an.stangen_seite.stangen) >= len(sch["stangen"])
+verg = vergleich_je_abmessung(angebot_schema(s))
+assert verg and sum(v["stangen"] for v in verg.values()) == len(s.ergebnis["stangen"])
+d.reject()
+assert st.ergebnis_reiter.tabText(1) == "Stangen"
+st.ansicht.setCurrentIndex(m.index(2, 0))
+st.stangen_zeigen(immer=True)
+assert st.stangen_titel.text().startswith("<b>Stufe 3</b>") and st.stangen.tabelle.rowCount() >= 2
+assert st.stangen.tabelle.item(st.stangen.tabelle.rowCount() - 1, 2).text().endswith("Stangen")
+ok("Stufe öffnen: Reiter Kalkulation (Summen, Preis der Stufe, Tabelle je Bauteil), Stangen, Zeiten und wirksame "
+   "Werte; Zeiten und Stangenoptimierung auch im Reiter Staffeln")
+
 # Menge geändert: Stufe veraltet; angelegte Stufen rechnet das Programm nach einer kurzen Pause selbst neu
 # (Patrick 28.10.2026), gebündelt im Hintergrund, nur die veraltete, Mengen bleiben wie eingetragen
 speichern(5, mengen=[("10", 200, None)])
