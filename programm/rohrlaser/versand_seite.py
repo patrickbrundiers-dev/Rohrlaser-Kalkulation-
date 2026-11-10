@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDateEdit, QDialog,
 from . import feiertage, leerhinweis, palettenschein, palettenschein_dialog, pdf
 from .klartext import fehler_text
 
-SPALTEN = ("Angebot", "Kunde", "Bestellnummer", "Lieferdatum", "Paletten", "Stück", "Stand", "Gedruckt",
+SPALTEN = ("Angebot", "Kunde", "Bestellnummer", "Lieferdatum ab Werk", "Paletten", "Stück", "Stand", "Gedruckt",
            "Versendet am")
 FARBE = {"Überfällig": "#FDECEA", "Heute": "#FFF6DB", "Verladebereit": "#E3F4E8", "Versendet": "#ECEEF1"}
 
@@ -131,7 +131,10 @@ class VersandSeite(QWidget):
             termin = palettenschein._datum(z.get("liefertermin"))
             fh = feiertage.hinweis(termin, land) if termin else ""
             werte = [z.get("nummer"), z.get("kunde"), z.get("auftragsnr"),
-                     _datum(z.get("liefertermin")) + (f" ({fh})" if fh else ""),
+                     _datum(z.get("liefertermin")) + (f" ({fh})" if fh else "")
+                     + (f" · frei Haus {_datum(z['liefertermin_frei_haus'])}"      # Ankunft (frachtzeit.py)
+                        if z.get("liefertermin_frei_haus") and z["liefertermin_frei_haus"] != z.get("liefertermin")
+                        else ""),
                      "?" if d.get("unbekannt") else (n or ""), (pl or {}).get("gesamt_stueck") or "",
                      palettenschein.stand(d), _datum(d.get("gedruckt_am")), _datum(d.get("versendet_am"))]
             if palettenschein.ist_versendet(d):
@@ -260,7 +263,8 @@ class VersandSeite(QWidget):
             kn.accepted.connect(dlg.accept)
             kn.rejected.connect(dlg.reject)
             lay = QVBoxLayout(dlg)
-            lay.addWidget(QLabel(f"Lieferdatum für {len(ids)} markierte Aufträge:"))
+            lay.addWidget(QLabel(f"Lieferdatum ab Werk für {len(ids)} markierte Aufträge (frei Haus rechnet das "
+                                 "Programm mit der Frachtlaufzeit dazu):"))
             lay.addWidget(feld)
             lay.addWidget(kn)
             if dlg.exec() != QDialog.Accepted:

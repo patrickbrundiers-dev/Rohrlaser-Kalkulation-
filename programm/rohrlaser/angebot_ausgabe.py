@@ -79,6 +79,10 @@ class AusgabeMixin:
         zeilen, _ = self._rechnung()
         ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp, ergebnis=self.ergebnis)
         ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
+        if ang.get("lieferzeit"):       # frei Haus bzw. ab Werk hinter die Lieferzeit (frachtzeit.py, F4a)
+            from . import frachtzeit
+            from .angebot import lieferzeit_text
+            ang["lieferzeit"] = lieferzeit_text(self.kopf, frachtzeit.art(frachtzeit.fuer_angebot(self.db, self.kopf)))
         ang["ansprechpartner"] = teilen.mitarbeiter(self.db, self.kopf["bearbeiter"]) if self.kopf.get("bearbeiter") else {}
         return ang
 
@@ -198,8 +202,14 @@ class AusgabeMixin:
         except OSError as e:
             QMessageBox.warning(self, "Auftragsbestätigung", f"Keine AB-Nummer: {fehler_text(e)}")
             return None
+        # Liefertermin passend zur Lieferbedingung (F4a): frei Haus = Ankunft beim Kunden, sonst ab Werk
+        from . import frachtzeit
+        lz = frachtzeit.fuer_angebot(self.db, kopf)
+        aw, fh = frachtzeit.termine(self.db, kopf, lz)
+        termin = (fh if lz.frei_haus else aw) or aw
         ab = dict(nummer=nr, datum=datetime.date.today().isoformat(), bestellung=kopf.get("auftragsnr"),
-                  liefertermin=kopf.get("liefertermin"), text=self.einst.get("ab_text") or "")
+                  liefertermin=termin.isoformat() if termin else None, lieferart=frachtzeit.art(lz),
+                  text=self.einst.get("ab_text") or "")
         pfad = self._schreiben("Auftragsbestätigung", self._ziel("Auftragsbestätigung", ".pdf"),
                                lambda p: pdf.auftragsbestaetigung_pdf(p, self.kopf, ang, self.einst, ab))
         if pfad is not None:

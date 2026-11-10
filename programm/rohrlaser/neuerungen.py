@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.283", "<b>Lieferdatum ab Werk und frei Haus</b> ([[lieferdatum_frei_haus]]): Die Frachtlaufzeit wird "
+     "eingerechnet. Ab Werk = versandbereit (so wird geplant), frei Haus = beim Kunden. Laufzeit am Frachttarif "
+     "(neues Feld <i>Laufzeit [Arbeitstage]</i>), sonst Vorgabe Inland 1 / Ausland 3 Arbeitstage; 0 bei ab Werk, "
+     "Abholung, frei Frachtführer und Eigener Anlieferung. Lieferzeit und Wunschtermin meinen bei frei Haus die "
+     "Ankunft: <i>Termin prüfen …</i> rechnet ab Werk rückwärts und nennt das Datum frei Haus. Das Fenster "
+     "<i>Beauftragt</i> hat beide Daten gekoppelt, Angebotsliste und Fertigung zeigen <i>ab Werk</i> und "
+     "<i>frei Haus</i>, Angebot und Auftragsbestätigung nennen das Datum passend zur Lieferbedingung.",
+     "Lieferdatum ab Werk und frei Haus: Frachtlaufzeit je Tarif (sonst 1/3 Arbeitstage) wird eingerechnet."],
     ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
      "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
      "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "

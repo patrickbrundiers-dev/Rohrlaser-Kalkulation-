@@ -393,7 +393,8 @@ class AngeboteSeite(QWidget):
                                       vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else "")), None, 140),
                ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
                ("Auftragsnr.", "auftragsnr", None, 100),
-               ("Liefertermin", lambda z: _datum(z.get("liefertermin")), None, 85),
+               ("ab Werk", lambda z: _datum(z.get("liefertermin")), None, 85),     # Liefertermin ab Werk (frachtzeit)
+               ("frei Haus", lambda z: _datum(z.get("liefertermin_frei_haus")), None, 85),   # Ankunft (frachtzeit)
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110),
                ("Gewinn [%]", gewinn_liste, 1, 70),               # was aufgeschlagen ist (Patrick 08.11.2026)
@@ -571,7 +572,7 @@ class AngeboteSeite(QWidget):
                 + " <a href='alle'>Alle zeigen</a> · Die Suche findet alle.")
         self.zeitraum_hinweis.setVisible(anzahl > 0)
 
-    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "Liefertermin")    # leer: ausgeblendet (L6, W8)
+    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "ab Werk", "frei Haus")    # leer: ausgeblendet (L6, W8)
 
     def _leere_spalten(self):
         for c, (titel, quelle, _, _) in enumerate(self.SPALTEN):
@@ -656,8 +657,10 @@ class AngeboteSeite(QWidget):
         if v == "Beauftragt" and auftrag is None and not self.f.stumm and not self.db.nur_lesen:
             from . import auftrag as auftrag_fenster, auftrag_start
             gewaehlt = auftrag_start.gewaehlt(self.db) if schritte is None else list(schritte)
+            from . import frachtzeit
             auftrag = auftrag_fenster.abfragen(self, a, self.db.einstellung("versand_bundesland"),
-                                               frueh=self._termin_frueh(i), schritte=gewaehlt)
+                                               frueh=self._termin_frueh(i), schritte=gewaehlt,
+                                               lz=frachtzeit.fuer_angebot(self.db, a))
             if auftrag is None:
                 return False
             auftrag_start.merken(self.db, gewaehlt)
@@ -674,8 +677,10 @@ class AngeboteSeite(QWidget):
             text = f", Grund: {absage[0]}"
         if v == "Beauftragt" and auftrag is not None:
             self.db.auftrag_setzen(i, *auftrag)
+            fh = (self.db.angebot(i) or {}).get("liefertermin_frei_haus")
             text = "".join((f", Auftrag {auftrag[0]}" if auftrag[0] else "",
-                            f", Liefertermin {_datum(auftrag[1])}" if auftrag[1] else ""))
+                            f", Liefertermin ab Werk {_datum(auftrag[1])}" if auftrag[1] else "",
+                            f", frei Haus {_datum(fh)}" if auftrag[1] and fh and fh != auftrag[1] else ""))
         self.neu_laden()
         if v == "Beauftragt" and self.f.versand_an():
             text += " – Palettenschein und Versand im Reiter Versand"
@@ -3390,20 +3395,29 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             t = terminplan.fruehester(self.db, self.id)
         finally:
             QApplication.restoreOverrideCursor()
-        zugesagt = auftrag.termin_vorschlag(self.kopf) if self.kopf.get("lieferzeit_art") and \
+        from . import frachtzeit
+        land = self.db.einstellung("versand_bundesland") or None
+        # Lieferzeit und Wunschtermin meinen bei frei Haus die Ankunft beim Kunden: verglichen wird ab Werk
+        # (Patrick 10.11.2026, frachtzeit.py)
+        lz = frachtzeit.fuer_angebot(self.db, self.kopf)
+        zugesagt = auftrag.termin_vorschlag(self.kopf, land=land, lz=lz) if self.kopf.get("lieferzeit_art") and \
             self.kopf.get("lieferzeit_wert") or self.kopf.get("liefertermin") else None
         text = terminplan.text(t, zugesagt)
         if t is None or t.datum is None:
             self.f.meldung(text, fehler=t is None)
             return t
-        land = self.db.einstellung("versand_bundesland") or None
+        kunde = frachtzeit.kundentermin(t.datum, lz, land)
+        if lz.frei_haus:
+            text += (f" Frei Haus beim Kunden frühestens KW {kunde.isocalendar()[1]} ({kunde:%d.%m.%Y}): "
+                     f"{frachtzeit.hinweis(lz)}.")
         eil = terminplan.eil_vorschlag(t, zugesagt, self.db.einstellungen(), land)
         if eil:
             text += (f" Wunschtermin {eil[0]} Arbeitstag{'e' if eil[0] > 1 else ''} zu früh: Vorschlag Eilzuschlag "
                      f"{rechnen.zahl(100 * eil[1], 0)} % auf die Fertigung.")
         if antwort is None and not self.f.stumm:
             box = QMessageBox(QMessageBox.Information, "Liefertermin nach Auslastung", text, parent=self)
-            ja = box.addButton(f"Als Lieferzeit übernehmen (KW {t.datum.isocalendar()[1]})", QMessageBox.AcceptRole)
+            ja = box.addButton(f"Als Lieferzeit übernehmen (KW {kunde.isocalendar()[1]} {frachtzeit.art(lz)})",
+                               QMessageBox.AcceptRole)
             eil_knopf = box.addButton(f"Termin halten mit Eilzuschlag {rechnen.zahl(100 * eil[1], 0)} %",
                                       QMessageBox.YesRole) if eil and not self.fremd() else None
             box.addButton("Schließen", QMessageBox.RejectRole)
@@ -3416,9 +3430,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return t
         if antwort:
             self.db.angebot_aendern(self.id, "lieferzeit_art", KALENDERWOCHE)
-            self.db.angebot_aendern(self.id, "lieferzeit_wert", terminplan.kw_wert(t.datum))
+            self.db.angebot_aendern(self.id, "lieferzeit_wert", terminplan.kw_wert(kunde))
             self.neu_laden()
-            self.f.meldung(f"Lieferzeit auf KW {terminplan.kw_wert(t.datum)} gesetzt. {text}")
+            self.f.meldung(f"Lieferzeit auf KW {terminplan.kw_wert(kunde)} {frachtzeit.art(lz)} gesetzt. {text}")
         else:
             self.f.meldung(text)
         return t
