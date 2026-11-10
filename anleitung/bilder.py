@@ -675,12 +675,13 @@ def main(ziel):
     d.reiter.setCurrentIndex(1)
     QApplication.processEvents()
     sp = [x.schluessel for x in d.naht_tab.spalten]
+    d.naht_tab.selectRow(1)             # Detailfeld zeigt die markierte Nahtgruppe
+    QApplication.processEvents()
     foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, sp.index("verfahren")), 1),
                                       (d.naht_tab.cellWidget(0, sp.index("mass")), 2),
-                                      (d.naht_tab.cellWidget(1, sp.index("beidseitig")), 3),
-                                      (d.naht_tab.cellWidget(0, sp.index("lage")), 4),
-                                      (d.naht_tab.cellWidget(0, sp.index("zeit_hand")), 5),
-                                      (d.naht_tab.cellWidget(1, sp.index("_hinweis")), 6)])
+                                      (d.naht_tab.cellWidget(0, sp.index("heftpunkte")), 3),
+                                      (d.naht_alle, 4), (d.naht_weg, 5),
+                                      (d.naht_tab.cellWidget(1, sp.index("_zeit")), 6)])
     d.reiter.setCurrentIndex(2)
     QApplication.processEvents()
     sp = [x.schluessel for x in d.ag_tab.spalten]

@@ -450,6 +450,8 @@ def main(argv=None):
         f.starten()
         if sicherung is not None:
             f.sicherung_beobachten(sicherung)
+        else:       # heute schon gesichert: Datendatei trotzdem kurz prüfen (im Hintergrund, Performance-Update 10.11.)
+            f.pruefung_spaeter()
         if absturz is not None:
             protokoll.info("Unterbrochenes Update zurückgenommen" + (": " + "; ".join(absturz) if absturz else ""))
             f.meldung("Ein unterbrochenes Update wurde zurückgenommen, das Programm ist auf dem vorigen Stand."

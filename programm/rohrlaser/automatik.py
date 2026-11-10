@@ -150,6 +150,12 @@ def rueckgaengig(db, eintrag_id):
             if pid in vorhanden:
                 db.position_aendern(pid, feld, wert)
         text = "Positionen wie vorher"
+        g = r.get("gelernt")            # I10 Selbstkorrektur: zweimal zurückgenommen = verlernt
+        if isinstance(g, dict):
+            from . import lernen
+            weg = lernen.zurueckgenommen(db, g.get("art"), g.get("kundennr"), g.get("schluessel") or ())
+            if weg:
+                text += "; verlernt: " + ", ".join(f"„{t}“" for t in weg) + " (wird wieder nur beobachtet)"
     elif art == "vorgang":
         db.vorgang_setzen(r["angebot_id"], r.get("alt") or "Entwurf")
         db.auftrag_setzen(r["angebot_id"], r.get("auftragsnr"), r.get("liefertermin"))
@@ -225,6 +231,15 @@ def aufgaben(db, heute=None):
         t = lernen.kennwerte_text(db)
         if t:
             out.append(dict(art="kennwerte", angebot_id=None, text=t))
+        t = lernen.muster_text(db)
+        if t:
+            out.append(dict(art="muster", angebot_id=None, text=t))
+        from . import einsichten
+        t = einsichten.text(db)                         # I7, I11
+        if t:
+            out.append(dict(art="muster", angebot_id=None, text=t))
+        out += [dict(art="verlust", angebot_id=None, text="Auffällig oft verloren – " + t)      # I12
+                for t in einsichten.verlustmuster(db)]
     except Exception:
         pass
     try:

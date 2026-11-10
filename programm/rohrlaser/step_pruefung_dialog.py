@@ -22,11 +22,14 @@ def _tabelle(titel, zeilen):
 
 
 class MerkmaleDialog(QDialog):
-    def __init__(self, parent, p):
+    """STEP-Merkmale einer Position. weitere (K3, Patrick 08.11.2026): so viele ungeprüfte Teile kommen noch; dann
+    „Passt, nächstes“ (bestätigen und weiter) und „Überspringen“ (weiter ohne Bestätigen), weiter = True danach."""
+
+    def __init__(self, parent, p, weitere=None):
         super().__init__(parent)
         d = step_pruefung.lesen(p.get("step_merkmale")) or {}
         self.daten = d
-        self.bestaetigt = False
+        self.bestaetigt = self.weiter = False
         self.setWindowTitle(f"STEP-Merkmale – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}")
         self.resize(900, 460)
         m = d.get("merkmale") or []
@@ -44,7 +47,11 @@ class MerkmaleDialog(QDialog):
         g = d.get("geprueft")
         self.info = QLabel(f"Datei {d.get('datei') or ''}, importiert {d.get('am') or ''}. "
                            f"Stand: {step_pruefung.kurztext(m)}."
-                           + (f" Von Hand geprüft am {g['am']} {g.get('wer') or ''}." if g else ""))
+                           + (f" Von Hand geprüft am {g['am']} {g.get('wer') or ''}." if g else "")
+                           + (f" <b>Gelb beim Import:</b> {'; '.join(d['ampel_gruende'])}."
+                              if d.get("ampel") == "gelb" and d.get("ampel_gruende") and not g else "")
+                           + (f" Danach noch {weitere} ungeprüfte{'s' if weitere == 1 else ''} Teil"
+                              f"{'e' if weitere != 1 else ''}." if weitere is not None else ""))
         self.info.setWordWrap(True)
         kn = QHBoxLayout()
         self.pruefen_knopf = QPushButton("Alle Merkmale geprüft")
@@ -55,6 +62,13 @@ class MerkmaleDialog(QDialog):
         zu = QPushButton("Schließen")
         zu.clicked.connect(self.reject)
         kn.addWidget(self.pruefen_knopf)
+        self.ueberspringen_knopf = None
+        if weitere is not None:         # K3: der Reihe nach
+            self.pruefen_knopf.setText("Passt, nächstes" if weitere else "Passt")
+            self.pruefen_knopf.setDefault(True)
+            self.ueberspringen_knopf = QPushButton("Überspringen" if weitere else "Offen lassen")
+            self.ueberspringen_knopf.clicked.connect(self.ueberspringen)
+            kn.addWidget(self.ueberspringen_knopf)
         kn.addStretch(1)
         kn.addWidget(zu)
         lay = QVBoxLayout(self)
@@ -63,5 +77,9 @@ class MerkmaleDialog(QDialog):
         lay.addLayout(kn)
 
     def bestaetigen(self):
-        self.bestaetigt = True
+        self.bestaetigt = self.weiter = True
         self.accept()
+
+    def ueberspringen(self):
+        self.weiter = True
+        self.reject()

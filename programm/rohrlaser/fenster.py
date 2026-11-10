@@ -448,7 +448,9 @@ class StammdatenSeite(QWidget):
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
-                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert")
+                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert. Ist nichts mehr zu "
+                             "laden, bietet die Meldung an, Kennwerte auf dem alten Richtwert nach Nahtgröße zu "
+                             "staffeln")
             richt.clicked.connect(lambda: self.schweiss_richtwerte())
             leiste.addWidget(richt)
         if tabelle.name == "schweiss_kennwerte":
@@ -795,6 +797,14 @@ class StammdatenSeite(QWidget):
         fehlt = baugruppe.richtwerte_fehlend(self.db.tabellen())
         n = sum(len(z) for z in fehlt.values())
         if not n:
+            # Plan Schweißbaugruppe 10.11.2026, G3: Kennwerte auf dem alten Richtwert auf Wunsch staffeln
+            alt = len(baugruppe.kennwerte_staffelbar(self.db.tabellen()))
+            if alt and bestaetigt is None:
+                self.meldung(f"Alle Richtwerte sind schon eingetragen. {alt} Kennwert(e) stehen noch unverändert auf "
+                             "dem alten Richtwert (eine Abschmelzleistung für alle Nahtgrößen): kleine Nähte sind "
+                             "damit zu schnell, dicke zu langsam gerechnet.",
+                             aktion=("Nach Nahtgröße staffeln", self.schweiss_kennwerte_staffeln))
+                return 0
             self.meldung("Alle Richtwerte sind schon eingetragen; vorhandene Zeilen werden nicht geändert.")
             return 0
         if bestaetigt is False:         # Tests: abgelehnt (früher Rückfrage, seit R2 Rückgängig)
@@ -815,6 +825,34 @@ class StammdatenSeite(QWidget):
         self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu (Status Richtwert, bitte prüfen), vorhandene unverändert.",
                      aktion=("Rückgängig", zurueck))
         return n
+
+    def schweiss_kennwerte_staffeln(self):
+        """Kennwerte auf dem alten Richtwert auf die Abschmelzleistung nach Nahtgröße umstellen (Plan Schweißbaugruppe
+        10.11.2026, G3; baugruppe.kennwerte_staffelbar). Nur unveränderte Zeilen mit Status Richtwert. Ergebnis:
+        Anzahl geänderter Zeilen."""
+        from . import baugruppe
+        liste = baugruppe.kennwerte_staffelbar(self.db.tabellen())
+        if not liste:
+            self.meldung("Keine Kennwerte auf dem alten Richtwert: nichts zu staffeln (geänderte und geprüfte Zeilen "
+                         "bleiben, wie sie sind).")
+            return 0
+        alt = [(z["id"], z.get("min_m"), z.get("bemerkung")) for z, _, _ in liste]
+        for z, min_m, bem in liste:
+            self.db.aendern("schweiss_kennwerte", z["id"], "min_m", min_m)
+            self.db.aendern("schweiss_kennwerte", z["id"], "bemerkung", bem)
+        f = self.window()
+        laden = (lambda: f.alles_neu_laden()) if hasattr(f, "alles_neu_laden") else self.neu_laden
+        laden()
+
+        def zurueck():
+            for i, min_m, bem in alt:
+                self.db.aendern("schweiss_kennwerte", i, "min_m", min_m)
+                self.db.aendern("schweiss_kennwerte", i, "bemerkung", bem)
+            laden()
+            self.meldung(f"Staffel zurückgenommen: {len(alt)} Kennwert(e) wieder auf dem alten Richtwert.")
+        self.meldung(f"{len(liste)} Kennwert(e) nach Nahtgröße gestaffelt (Status Richtwert, bitte prüfen); geänderte "
+                     "und geprüfte Zeilen unverändert.", aktion=("Rückgängig", zurueck))
+        return len(liste)
 
     def kennwerte_lernen(self, dialog=None):
         """Fenster Kennwerte aus der Nachkalkulation (kennwerte_dialog); dialog(d) statt exec (Tests)."""
@@ -1915,12 +1953,22 @@ class StartSeite(QWidget):
         self.wiedervorlagen = cockpit.wiedervorlagen(alle, self.f.db.einstellung("gueltigkeit"),
                                                      nachfassen=self.f.db.einstellung("nachfassen_tage"))
         self.wiedervorlage.clear()
+        from . import lernen
+        try:                        # I2: geschätzte Auftragschance, die aussichtsreichsten (Chance × Wert) zuerst
+            self.chancen = lernen.chancen(alle) if funktionen.an(funktionen.CHANCE) else {}
+        except Exception:
+            self.chancen = {}
+        if self.chancen:
+            self.wiedervorlagen.sort(key=lambda w: -self.chancen.get(w.z["id"], 0) * (
+                w.z.get("vk_netto") if isinstance(w.z.get("vk_netto"), (int, float)) else 0))
         for w in self.wiedervorlagen:
             z, rest = w.z, w.rest
             wann = (f"seit {-rest} Tagen fällig" if rest < -1 else "seit gestern fällig" if rest == -1
                     else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
-            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
-                                 f"({wann})")
+            c = self.chancen.get(z["id"])
+            chance = f"  (Chance ca. {100 * c:.0f} %)" if c is not None else ""    # vorn, damit sie sichtbar bleibt
+            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}{chance}  –  "
+                                 f"{', '.join(w.gruende)} ({wann})")
             it.setData(Qt.ItemDataRole.UserRole, z["id"])
             if rest < 0:
                 it.setForeground(QBrush(stil.farbe("#B42318")))
@@ -2008,8 +2056,10 @@ class StartSeite(QWidget):
             self.f.angebot_oeffnen(a["angebot_id"])
         elif a.get("art") == "preiswaechter":
             self.f.offene_pruefen()
-        elif a.get("art") == "kennwerte":
+        elif a.get("art") in ("kennwerte", "muster"):
             self.f.lernzentrale()
+        elif a.get("art") == "verlust":
+            self.f.angebots_auswertung()
 
     def notizen_laden(self):
         """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""
@@ -2260,6 +2310,32 @@ class Hauptfenster(QMainWindow):
         if aktiv is not None and aktiv.windowTitle():
             teile.append(f"Fenster „{aktiv.windowTitle()}“")
         return " › ".join(t for t in teile if t)
+
+    PRUEFUNG_NACH_MS = 30_000       # erst nach dem Start (die Prüfung liest die ganze Datei)
+    PRUEFUNG_BIS_MB = 300           # größere Dateien prüft nur die tägliche Sicherung
+
+    def pruefung_spaeter(self):
+        """Schnellprüfung der Datendatei PRUEFUNG_NACH_MS nach dem Start (Datenbank.PruefLauf)."""
+        def los():
+            from .datenbank import PruefLauf
+            try:
+                if self.db.pfad.stat().st_size > self.PRUEFUNG_BIS_MB * 1048576:
+                    return
+            except OSError:
+                return
+            self.pruefung_beobachten(PruefLauf(self.db.pfad))
+        QTimer.singleShot(self.PRUEFUNG_NACH_MS, los)
+
+    def pruefung_beobachten(self, lauf):
+        """Schnellprüfung der Datendatei beim Start (Datenbank.PruefLauf): bei Befund eine Meldung mit dem Weg zur
+        Sicherung und eine Zeile im Protokoll."""
+        if not lauf.fertig():
+            QTimer.singleShot(1000, lambda: self.pruefung_beobachten(lauf))
+        elif lauf.fehler is not None:
+            from . import protokoll
+            protokoll.info(f"Datendatei beschädigt (quick_check): {lauf.fehler}")
+            self.meldung("Die Datendatei ist beschädigt: " + lauf.fehler + ". Bitte nichts mehr ändern und über "
+                         "Datei → Sicherung wiederherstellen … die letzte gute Sicherung zurückholen.", fehler=True)
 
     def sicherung_beobachten(self, lauf):
         """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): bei Fehler eine Meldung."""

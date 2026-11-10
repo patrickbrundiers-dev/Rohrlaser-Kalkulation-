@@ -48,10 +48,36 @@ REGELN = (
      if t is not None and (t.biegerohr or t.knick_schenkel) else None, lambda t, d: t),
     ("Kantteil", lambda t, d: "Kantteil mit Biegeradien (außen = innen + Dicke) – nie Dreh-/Frästeil"
      if d is not None and _kantteil(t) else None, lambda t, d: t),
+    ("Rohr mit Blech", lambda t, d: f"{_rohr_blech(t)} – kein Dreh-/Frästeil"
+     if d is not None and "Abflachung" in str((d.drehfraes or {}).get("text")) and _rohr_blech(t) else None,
+     lambda t, d: t),
     ("Dreh-/Frästeil", lambda t, d: (d.drehfraes or {}).get("text") or d.profilform
      if d is not None else None, lambda t, d: d),
     ("Messung", lambda t, d: "" if t is not None else None, lambda t, d: t),
 )
+
+
+ROHRE = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
+BLECH_ANBAU = ("Kopfplatte", "Blech", "Lasche")
+ROHR_BLECH_HINWEIS = "Rohr mit angeschweißtem Blech"
+ROHR_BLECH_SCHLANK = 2.0        # Rohr mindestens so oft länger als dick (kürzer: eher Drehteil mit Flansch)
+
+
+def _rohr_blech(t):
+    """L1 (Patrick 08.11.2026): Rohr, an dem ein Blech (Kopfplatte, Lasche) verschmolzen ist – Text wie „Rohr mit
+    angeschweißtem Blech (Kopfplatte)“, sonst None. Ein Rundrohr mit Kopfplatte erkennt die Drehteilprüfung sonst als
+    Drehteil mit Abflachung. Nicht bei kurzen Rohren (unter 2 × Ø) und wenn der Anbau schwerer ist als das Rohr."""
+    if t is None or t.bauteiltyp != "Profil" or t.profilform not in ROHRE or not t.abm_a:
+        return None
+    arten = [a.get("art") for a in t.anbauteile or () if a.get("quelle") == "verschmolzen"
+             and a.get("art") in BLECH_ANBAU]
+    if not arten or t.laenge < ROHR_BLECH_SCHLANK * t.abm_a:
+        return None
+    anbau = sum(float(a.get("volumen") or 0) for a in t.anbauteile)
+    if t.flaeche and anbau >= t.flaeche * t.laenge:      # mehr Anbau als Rohr (Bund einer Buchse): kein Rohr mit Blech
+        return None
+    namen = [a for a in dict.fromkeys(arten) if a != "Blech"]
+    return ROHR_BLECH_HINWEIS + (f" ({', '.join(namen)})" if namen else "")
 
 
 def entscheiden(t, d):
@@ -309,6 +335,9 @@ def nachregeln(t, solid=None):
             grund = None
         if grund:
             _mehrteilig_markieren(t, grund)
+        elif _rohr_blech(t):        # L1: gelb, als Rohr mit Anbauteil übernommen, „Aufteilen“ trennt Rohr und Blech
+            t.hinweise.insert(0, f"Mehrere Teile in einem Körper? {_rohr_blech(t)}: als Anbauteil übernommen – "
+                                 "„Aufteilen“ über der Liste trennt Rohr und Blech in eigene Positionen")
     return t
 
 

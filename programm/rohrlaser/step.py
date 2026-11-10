@@ -1507,6 +1507,7 @@ def virtuell_einsetzen(m, neu):
 
 
 MEHRTEILIG_HINWEIS = "Mehrere Teile in einem Körper?"
+ROHR_BLECH_HINWEIS = "Rohr mit angeschweißtem Blech"      # L1, wie step_arten.ROHR_BLECH_HINWEIS
 NOCH_IN_MESSUNG = "Messung läuft noch"          # step_messen.NOCH_IN_MESSUNG (Vorschlag N4)
 
 
@@ -1534,7 +1535,7 @@ def aufgeteilt(m, neue, namen):
             if k_ in m:
                 n[k_] = m[k_]
         n["koerper"] = f"{m.get('koerper')}.{len(out) + 1}"
-        if name in ("Grundteil", "Grundteil 1"):
+        if name in ("Grundteil", "Grundteil 1", "Rohr"):        # L1: Rohr mit Blech, das Rohr ist das Grundteil
             n["artikel"] = m.get("artikel")
         else:
             j += 1
@@ -1542,7 +1543,7 @@ def aufgeteilt(m, neue, namen):
         n["_artikel_gemessen"] = n["artikel"]
         n["bauteil"] = f"{basis} – {name}"
         n["_aufgeteilt_aus"] = m.get("artikel") or ""
-        if not name.startswith(("Grundteil", "Bolzen", "Rohr")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
+        if not name.startswith(("Grundteil", "Bolzen", "Rohr", "Blech")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
             from . import drehfraes
             art = (drehfraes.daten(n) or {}).get("normteil")
             n["_normteil"] = art or name.split()[0]
@@ -1925,7 +1926,7 @@ def art_grund(m):
     """Grund der Art für die Hinweisspalte: gemerkt bzw. von Hand umgestellt, sonst der Grund der Regelliste (leer =
     wie gemessen)."""
     if m.get("_art_gelernt") and m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
-        return f"Art wie beim letzten Mal von Hand gewählt: {art_gruppe(m)} (erkannt {m['_art_gemessen']})"
+        return art_gelernt_text(m)
     if m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
         return f"Art von Hand: {art_gruppe(m)} statt {m['_art_gemessen']}"
     return m.get("art_grund") or ""
@@ -1945,23 +1946,46 @@ def art_schluessel(m):
                                                  str(m.get("n_kanten") or "")])
 
 
+def _gelernt_wert(v):
+    """Eintrag der Einstellung ART_GELERNT: (Gruppe, Datum 'TT.MM.JJJJ' oder ''); ältere Einträge nur die Gruppe."""
+    if isinstance(v, (list, tuple)) and v:
+        return str(v[0]), str(v[1]) if len(v) > 1 and v[1] else ""
+    return (str(v), "") if v else ("", "")
+
+
+def art_gelernt_text(m):
+    """Grund für die Hinweisspalte bei gemerkter Art (L3), z. B. 'Art wie am 07.11.2026 von Hand gewählt: Rohr/Profil
+    (erkannt Dreh-/Frästeil)'."""
+    am = m.get("_art_gelernt_am")
+    text = f"Art wie am {am} von Hand gewählt" if am else "Art wie beim letzten Mal von Hand gewählt"
+    if m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
+        text += f": {art_gruppe(m)} (erkannt {m['_art_gemessen']})"
+    return text
+
+
 def arten_gelernt_anwenden(messwerte, gelernt):
-    """Gemerkte Arten (Einstellung ART_GELERNT) auf die Messwerte anwenden; Zahl der umgestellten Teile."""
+    """Gemerkte Arten (Einstellung ART_GELERNT) auf die Messwerte anwenden; Zahl der umgestellten Teile. Seit L3
+    (08.11.2026) bleibt das Teil grün (nur der Hinweis nennt die gemerkte Wahl), sofern sonst nichts zu prüfen ist."""
     n = 0
     for m in messwerte:
-        gr = (gelernt or {}).get(art_schluessel(m)) if art_schluessel(m) else None
+        gr, am = _gelernt_wert((gelernt or {}).get(art_schluessel(m))) if art_schluessel(m) else ("", "")
         if gr and gr != art_gruppe(m) and art_setzen(m, gr):
             m["_art_gelernt"] = True
+            if am:
+                m["_art_gelernt_am"] = am
             n += 1
     return n
 
 
-def arten_gelernt_merken(gelernt, neu):
-    """Neue Wahl {art_schluessel: Gruppe} zu den gemerkten Arten (die neuesten zuletzt, höchstens ART_GELERNT_MAX)."""
+def arten_gelernt_merken(gelernt, neu, heute=None):
+    """Neue Wahl {art_schluessel: Gruppe} zu den gemerkten Arten (die neuesten zuletzt, höchstens ART_GELERNT_MAX);
+    gemerkt wird [Gruppe, Datum] (L3: Datum im Hinweis beim nächsten Import)."""
+    import datetime
+    tag = (heute or datetime.date.today()).strftime("%d.%m.%Y")
     out = dict(gelernt or {})
     for k, v in (neu or {}).items():
         out.pop(k, None)
-        out[k] = v
+        out[k] = [_gelernt_wert(v)[0], tag]
     return dict(list(out.items())[-ART_GELERNT_MAX:])
 
 
@@ -2558,14 +2582,18 @@ def ampel(m, profil_fehlt=False):
         gruende.append("Profil fehlt in den Stammdaten")
     if m.get("_knick_fehler"):
         gruende.append("Knickrahmen nicht verbindbar")
+    if ROHR_BLECH_HINWEIS in str(m.get("hinweise") or "") and m.get("profilform"):
+        gruende.append("Rohr mit angeschweißtem Blech: „Aufteilen“ trennt Rohr und Blech")      # L1
     if m.get("_profil_regel") and m.get("_profil") and m["_profil"] != m["_profil_regel"]:
         gruende.append(f"Regel des Kunden: {m['_profil']} statt gemessen {m['_profil_regel']}")
-    if m.get("_art_gelernt"):
-        gruende.append("Art wie beim letzten Mal von Hand gewählt")
+    if gruende and m.get("_art_gelernt"):       # L3: gemerkte Art allein macht nicht gelb, nur zusammen mit anderem
+        gruende.append(art_gelernt_text(m))
     if gruende and m.get("_geprueft") and not profil_fehlt and not m.get("_knick_fehler"):
         return "gruen", ["von Hand geprüft („Passt“): " + "; ".join(gruende)]     # M3
     if gruende:
         return "gelb", gruende
+    if m.get("_art_gelernt"):                   # L3: grün, der Grund steht im Hinweis
+        return "gruen", [art_gelernt_text(m)]
     return "gruen", ["Art, Profil und Konturen sicher erkannt"]
 
 

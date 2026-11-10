@@ -37,15 +37,19 @@ GELERNT = Tabelle(
      Feld("ja", "Übernommen", "ganz", breite=60),
      Feld("nein", "Abgelehnt", "ganz", breite=60),
      Feld("status", "Status", breite=60),                 # leer | aus
+     Feld("angewendet", "Angewendet", "ganz", breite=60),  # I10: so oft hat der Import es selbst angewendet
+     Feld("zurueck", "Zurückgenommen", "ganz", breite=60),  # I10: so oft danach rückgängig gemacht
      Feld("kuerzel", "Wer", breite=50),
      Feld("geaendert", "Geändert", breite=130)),
     ("art", "kundennr", "schluessel"),
     "Was das Programm aus Entscheidungen gelernt hat (Lernzentrale, lernen.py).")
 # gelernte Einstellungen, die über den gemeinsamen Ordner gehen (teilen.EINSTELLUNGEN_GETEILT, je Eintrag gemischt)
 NACHARBEIT, STEP_ART, STEP_PROFIL = "nacharbeit_gelernt", "step_art_gelernt", "step_profil_gelernt"
-EINSTELLUNGEN_GETEILT = (NACHARBEIT, STEP_ART, STEP_PROFIL)
+MUSTER_AB = "muster_abgelehnt"          # muster.ABGELEHNT (I3/I4 nicht übernommen)
+EINSTELLUNGEN_GETEILT = (NACHARBEIT, STEP_ART, STEP_PROFIL, MUSTER_AB)
 KENNWERT_AB = 0.05              # Startseite: Kennwert-Vorschlag erst ab 5 % Abweichung Ist ÷ Soll
 TREFFER_AB = 3                  # Trefferquote erst ab 3 entschiedenen Angeboten des Kunden
+VERLERNEN_AB = 2                # I10: nach so vielen Rücknahmen von selbst Angewendetem ist es verlernt
 
 
 def _jetzt():
@@ -84,7 +88,8 @@ def entscheiden(db, art, kundennr, schluessel, ja, angebot_id=None, titel=None):
     """Eine Entscheidung (✓ = ja, ✗ = nein) zählen. Je Angebot zählt sie einmal; eine andere Entscheidung fängt die
     Folge neu an. Ergebnis: JA/NEIN, wenn die Sache gerade (mit dieser Entscheidung) gelernt ist, sonst None.
     Scheitert nie laut: Lernen darf keine Bedienung verhindern."""
-    if not kundennr or not schluessel or getattr(db, "nur_lesen", None):
+    from . import funktionen
+    if not kundennr or not schluessel or getattr(db, "nur_lesen", None) or not funktionen.an(funktionen.LERNEN, db):
         return None
     wert = JA if ja else NEIN
     try:
@@ -117,8 +122,9 @@ def entscheiden(db, art, kundennr, schluessel, ja, angebot_id=None, titel=None):
 
 
 def wirksam(db, art, kundennr):
-    """Gelernte Entscheidungen eines Kunden: {Schlüssel: JA/NEIN}."""
-    if not kundennr:
+    """Gelernte Entscheidungen eines Kunden: {Schlüssel: JA/NEIN}; Funktion „Lernen“ aus: leer (bleibt gespeichert)."""
+    from . import funktionen
+    if not kundennr or not funktionen.an(funktionen.LERNEN, db):
         return {}
     try:
         zeilen = db.con.execute("SELECT * FROM gelernt WHERE art=? AND kundennr=?", (art, str(kundennr))).fetchall()
@@ -130,6 +136,41 @@ def wirksam(db, art, kundennr):
         if w:
             out[r["schluessel"]] = w
     return out
+
+
+def angewendet(db, art, kundennr, schluessel_liste):
+    """I10: der Import hat Gelerntes selbst angewendet – zählen (für die Lernzentrale). Scheitert nie laut."""
+    try:
+        with db.con:
+            for s in schluessel_liste:
+                db.con.execute("UPDATE gelernt SET angewendet=COALESCE(angewendet, 0) + 1 WHERE art=? AND kundennr=? "
+                               "AND schluessel=?", (art, str(kundennr), str(s)))
+    except Exception:
+        pass
+
+
+def zurueckgenommen(db, art, kundennr, schluessel_liste):
+    """I10 Selbstkorrektur: selbst Angewendetes wurde im Automatik-Protokoll zurückgenommen. Nach VERLERNEN_AB
+    Rücknahmen ist der Eintrag verlernt (Zählung beginnt neu, er wird wieder nur beobachtet). Ergebnis: Titel der
+    verlernten Einträge."""
+    verlernt = []
+    try:
+        with db.con:
+            for s in schluessel_liste:
+                z = _zeile(db, art, kundennr, s)
+                if not z or not gelernt(z):
+                    continue
+                n = (z.get("zurueck") or 0) + 1
+                if n >= VERLERNEN_AB:
+                    db.con.execute("UPDATE gelernt SET angebote='[]', zurueck=0, geaendert=?, kuerzel=? WHERE id=?",
+                                   (_jetzt(), _kuerzel(db), z["id"]))
+                    verlernt.append(z.get("titel") or str(s))
+                else:
+                    db.con.execute("UPDATE gelernt SET zurueck=?, geaendert=?, kuerzel=? WHERE id=?",
+                                   (n, _jetzt(), _kuerzel(db), z["id"]))
+    except Exception:
+        pass
+    return verlernt
 
 
 def text_gelernt(name, wert, kundennr):
@@ -202,7 +243,9 @@ def uebersicht(db, mit_kennwerten=True):
             stand, was = f"beobachtet ({n} von {SCHWELLE})", f"„{z.get('titel')}“ {tat}?"
         out.append(dict(quelle=TABELLE, schluessel=z["id"], bereich=ARTEN.get(z.get("art"), z.get("art")),
                         kunde=_kunde(namen, z.get("kundennr")),
-                        was=was + f" (bisher {z.get('ja') or 0}× übernommen, {z.get('nein') or 0}× abgelehnt)",
+                        was=was + f" (bisher {z.get('ja') or 0}× übernommen, {z.get('nein') or 0}× abgelehnt"
+                                  + (f"; {z['angewendet']}× selbst angewendet, {z.get('zurueck') or 0}× zurückgenommen"
+                                     if z.get("angewendet") else "") + ")",
                         stand=stand, wann=_datum(z.get("geaendert")) + (f" ({z['kuerzel']})" if z.get("kuerzel") else ""),
                         gelernt=bool(w), vergessen=True))
     from . import nacharbeit
@@ -233,6 +276,22 @@ def uebersicht(db, mit_kennwerten=True):
                                 kunde=_kunde(namen, kundennr), was=f"gemessen {gemessen} → {ziel}", stand="gelernt",
                                 wann="", gelernt=True, vergessen=True))
     if mit_kennwerten:
+        from . import muster
+        for v in muster_reif(db):
+            out.append(dict(quelle="muster", schluessel=v, bereich="Vorschlag: " + (
+                "Erkennungswort" if v["art"] == "wort" else "Arbeitsgang-Regel"), kunde="alle Kunden",
+                was=muster.text(v), stand="wartet auf Übernehmen", wann="", gelernt=False, vergessen=True))
+        from . import einsichten
+        for v in einsichten.vorschlaege(db):            # I7 Kundenvorgabe, I11 Programmier-/Schneidzeit
+            out.append(dict(quelle="einsicht", schluessel=v, bereich=v["bereich"], kunde=v["kunde"], was=v["text"],
+                            stand="wartet auf Übernehmen" if einsichten.uebernehmbar(v) else "Hinweis", wann="",
+                            gelernt=False, vergessen=True))
+        d = durchlauf(db)
+        if d:
+            out.append(dict(quelle="durchlauf", schluessel=None, bereich="Lieferzeit", kunde="alle Kunden",
+                            was=f"Freigabe bis Fertig gemeldet im Mittel {d['median']:.0f} Arbeitstage "
+                                f"({d['n']} Aufträge)", stand="gelernt (Hinweis im Angebots-Check)", wann="",
+                            gelernt=True, vergessen=False))
         for v in kennwerte_reif(db):
             out.append(dict(quelle="kennwerte", schluessel=None, bereich="Kennwert-Vorschlag", kunde="alle Kunden",
                             was=f"{v['titel']} {_schluessel_text(v['schluessel'])}: Ist ÷ Soll "
@@ -294,6 +353,12 @@ def vergessen(db, eintrag):
         regeln[gemessen] = None
         d[kundennr] = regeln
         db.einstellung_setzen(STEP_PROFIL, d)
+    elif q == "muster":
+        from . import muster
+        return muster.ablehnen(db, s)
+    elif q == "einsicht":
+        from . import einsichten
+        return einsichten.ablehnen(db, s)
     elif q == "kennwerte_historie":
         from . import kennwerte
         kennwerte.zuruecknehmen(db, s)
@@ -321,7 +386,7 @@ def kennwerte_reif(db, mindest_n=5):
     Datendatei ändert."""
     from . import funktionen, kennwerte
     try:
-        if not funktionen.an("funktion_nachkalkulation", db):
+        if not funktionen.an("funktion_nachkalkulation", db) or not funktionen.an(funktionen.LERNEN, db):
             return []
         stand = (db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0])
     except Exception:
@@ -338,11 +403,43 @@ def kennwerte_reif(db, mindest_n=5):
     return v
 
 
+def _stand(db):
+    return (db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0])
+
+
+_MUSTER = {}
+
+
+def muster_reif(db):
+    """Vorschläge aus Handeinträgen (muster.vorschlaege, I3/I4), gemerkt, bis sich die Datendatei ändert."""
+    from . import funktionen, muster
+    if not funktionen.an(funktionen.REGELVORSCHLAEGE, db):
+        return []
+    try:
+        stand = _stand(db)
+        alt = _MUSTER.get(id(db))
+        if alt and alt[0] == stand:
+            return alt[1]
+        v = muster.vorschlaege(db)
+    except Exception:
+        return []
+    _MUSTER[id(db)] = (stand, v)
+    return v
+
+
+def muster_text(db):
+    v = muster_reif(db)
+    if not v:
+        return None
+    return (f"{len(v)} {'Vorschläge' if len(v) > 1 else 'Vorschlag'} aus Ihren Handeinträgen (Erkennungswort oder "
+            "Arbeitsgang-Regel; Doppelklick: Lernzentrale)")
+
+
 def kennwerte_text(db):
     v = kennwerte_reif(db)
     if not v:
         return None
-    return (f"{len(v)} Kennwert-Vorschlag{'e' if len(v) > 1 else ''} aus der Nachkalkulation mit genug Daten "
+    return (f"{len(v)} Kennwert-{'Vorschläge' if len(v) > 1 else 'Vorschlag'} aus der Nachkalkulation mit genug Daten "
             "(Doppelklick: Lernzentrale)")
 
 
@@ -351,15 +448,16 @@ def trefferquote(db, kundennr, ohne_id=None):
     """Beauftragte und abgelehnte Angebote des Kunden (auch die der Kollegen, ohne ersetzte Fassungen): dict(
     beauftragt, abgelehnt, quote, gewinn_ja, gewinn_nein (Ø Gewinn in %), preis_zu_hoch) oder None (unter
     TREFFER_AB entschiedenen Angeboten)."""
+    from . import funktionen
     from .absage import letzte
-    if not kundennr:
+    if not kundennr or not funktionen.an(funktionen.PREIS_HINWEISE, db):
         return None
     try:
-        zeilen = db.con.execute("SELECT id, vorgang, gewinn, vk_gewinn, versand FROM angebote WHERE kundennr=? AND "
+        zeilen = db.con.execute("SELECT id, vorgang, gewinn, vk_gewinn, versand, vk_netto FROM angebote WHERE kundennr=? AND "
                                 "COALESCE(ersetzt_durch, '') = '' AND id IS NOT ?", (str(kundennr), ohne_id)).fetchall()
     except Exception:
         return None
-    ja, nein, zu_teuer = [], [], 0
+    ja, nein, zu_teuer, abstand = [], [], 0, []
     for r in zeilen:
         v = r["vorgang"] or "Entwurf"
         g = r["gewinn"] if isinstance(r["gewinn"], (int, float)) else r["vk_gewinn"]
@@ -373,6 +471,10 @@ def trefferquote(db, kundennr, ohne_id=None):
                 versand = []
             a = letzte(dict(versand=versand if isinstance(versand, list) else []))
             zu_teuer += bool(a and a.get("grund") == "Preis zu hoch")
+            netto = r["vk_netto"]
+            if a and isinstance(a.get("preis"), (int, float)) and a["preis"] > 0 and isinstance(netto, (int, float)) \
+                    and netto > 0:
+                abstand.append(netto / a["preis"] - 1)      # I5: um so viel teurer als der Wettbewerb
     n = len(ja) + len(nein)
     if n < TREFFER_AB:
         return None
@@ -381,7 +483,7 @@ def trefferquote(db, kundennr, ohne_id=None):
         w = [x for x in werte if isinstance(x, (int, float))]
         return sum(w) / len(w) if w else None
     return dict(beauftragt=len(ja), abgelehnt=len(nein), quote=len(ja) / n, gewinn_ja=mittel(ja),
-                gewinn_nein=mittel(nein), preis_zu_hoch=zu_teuer)
+                gewinn_nein=mittel(nein), preis_zu_hoch=zu_teuer, abstand=mittel(abstand), n_abstand=len(abstand))
 
 
 def treffer_text(t):
@@ -400,8 +502,114 @@ def treffer_text(t):
         teile.append("Ø Gewinn " + ", ".join(g))
     if t["preis_zu_hoch"]:
         teile.append(f"{t['preis_zu_hoch']}× Absage „Preis zu hoch“")
+    if t.get("abstand") is not None:            # I5 Wettbewerbsabstand aus Absagen mit Wettbewerbspreis
+        a = t["abstand"]
+        teile.append((f"im Mittel {100 * a:.0f} % teurer" if a > 0 else f"im Mittel {-100 * a:.0f} % billiger")
+                     + f" als der Wettbewerb ({t['n_abstand']} Absage{'n' if t['n_abstand'] > 1 else ''} mit Preis)")
     if t["quote"] >= 0.8 and n >= 5:
         teile.append("sehr hohe Trefferquote – der Gewinn könnte höher sein")
     elif t["quote"] <= 0.3 and t["preis_zu_hoch"] >= 2:
         teile.append("oft zu teuer – Gewinn prüfen")
     return " · ".join(teile)
+
+
+# ---------------------------------------------------------------------- I6 Lieferzeit aus der Ist-Durchlaufzeit
+DURCHLAUF_MIN = 3               # so viele fertig gemeldete Aufträge mindestens
+DURCHLAUF_MAX = 20              # die letzten so vielen
+_DURCHLAUF = {}
+
+
+def durchlauf(db):
+    """Ist-Durchlaufzeit Freigabe bis Fertig gemeldet (Fertigungsstatus, fertigung.py) der letzten DURCHLAUF_MAX
+    fertigen Aufträge in Arbeitstagen: dict(median, n) oder None (zu wenige, Fertigung aus)."""
+    import statistics
+    from . import feiertage, fertigung, terminplan
+    try:
+        if not fertigung.aktiv(db):
+            return None
+        stand = _stand(db)
+        alt = _DURCHLAUF.get(id(db))
+        if alt and alt[0] == stand:
+            return alt[1]
+        land = db.einstellung("versand_bundesland") or feiertage.VORGABE
+        liste = fertigung.status_liste(db)
+        tage = []
+        for aid in [r[0] for r in db.con.execute("SELECT DISTINCT angebot_id FROM auftrag_status ORDER BY "
+                                                 "angebot_id DESC")]:
+            v = fertigung.verlauf(db, aid)
+            if not v or v[-1]["status"] != liste[-1]:
+                continue
+            start = next((x["am"] for x in v if x["status"] == liste[0]), v[0]["am"])
+            von = datetime.date.fromisoformat(str(start)[:10])
+            bis = datetime.date.fromisoformat(str(v[-1]["am"])[:10])
+            tage.append(terminplan.arbeitstage_zwischen(von, bis, land))
+            if len(tage) >= DURCHLAUF_MAX:
+                break
+        erg = dict(median=statistics.median(tage), n=len(tage)) if len(tage) >= DURCHLAUF_MIN else None
+    except Exception:
+        return None
+    _DURCHLAUF[id(db)] = (stand, erg)
+    return erg
+
+
+def lieferzeit_hinweis(db, kopf, heute=None):
+    """Angebots-Check: zugesagte Lieferzeit (Arbeitstage ab heute) kürzer als die gelernte Durchlaufzeit -> Text,
+    sonst None. Nur Hinweis."""
+    from . import auftrag, feiertage, funktionen, terminplan
+    if not funktionen.an(funktionen.PREIS_HINWEISE, db):
+        return None
+    d = durchlauf(db)
+    k = kopf or {}
+    if not d or not (k.get("lieferzeit_wert") or k.get("liefertermin")):
+        return None
+    heute = heute or datetime.date.today()
+    try:
+        termin = auftrag.termin_vorschlag(k, heute)
+        zugesagt = terminplan.arbeitstage_zwischen(heute, termin,
+                                                   db.einstellung("versand_bundesland") or feiertage.VORGABE)
+    except Exception:
+        return None
+    if zugesagt >= d["median"]:
+        return None
+    return (f"Lieferzeit: zugesagt {zugesagt} Arbeitstage, Ihre letzten {d['n']} Aufträge brauchten von der Freigabe "
+            f"bis Fertig gemeldet im Mittel {d['median']:.0f} Arbeitstage (Termin prüfen)")
+
+
+# ---------------------------------------------------------------------- I2 Auftragschance offener Angebote
+CHANCE_GEWICHT = 3              # so viele Angebote zählt die Gesamtquote beim Glätten je Kunde/Preisklasse
+
+
+def chancen(zeilen, heute=None):
+    """Geschätzte Auftragschance je verschicktem Angebot {Angebots-ID: Anteil 0..1}: Trefferquote des Kunden und der
+    Preisklasse (geglättet zur Gesamtquote, je CHANCE_GEWICHT Angebote), abnehmend mit dem Alter seit dem letzten
+    Versand (ab 30 Tagen ×0,75, ab 60 ×0,5, ab 120 ×0,25). Ohne entschiedene Angebote: leer."""
+    from .absage import preisklasse
+    from .cockpit import _vorgang, verlauf
+    heute = heute or datetime.date.today()
+    eigene = [z for z in zeilen if not z.get("ersetzt_durch")]
+    ja = [z for z in eigene if _vorgang(z) == "Beauftragt"]
+    nein = [z for z in eigene if _vorgang(z) == "Abgelehnt"]
+    if len(ja) + len(nein) < TREFFER_AB:
+        return {}
+    q0 = (len(ja) + 1) / (len(ja) + len(nein) + 2)
+
+    def quote(schluessel, z):
+        b = sum(1 for x in ja if schluessel(x) == schluessel(z))
+        n = b + sum(1 for x in nein if schluessel(x) == schluessel(z))
+        return (b + CHANCE_GEWICHT * q0) / (n + CHANCE_GEWICHT)
+
+    out = {}
+    for z in eigene:
+        if _vorgang(z) != "Verschickt" or z.get("fremd"):
+            continue
+        qk = quote(lambda x: str(x.get("kundennr") or x.get("kunde") or ""), z)
+        qp = quote(lambda x: preisklasse(x.get("vk_netto")), z)
+        q = qk * qp / q0
+        versandt = verlauf(z)[0]
+        try:
+            alter = (heute - (versandt or datetime.date.fromisoformat(str(z.get("datum"))[:10]))).days
+        except ValueError:
+            alter = 0
+        q *= 0.25 if alter >= 120 else 0.5 if alter >= 60 else 0.75 if alter >= 30 else 1.0
+        out[z["id"]] = max(0.01, min(0.99, q))
+    return out

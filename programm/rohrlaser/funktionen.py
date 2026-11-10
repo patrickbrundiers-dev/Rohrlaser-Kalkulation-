@@ -60,7 +60,26 @@ FUNKTIONEN = (
     # Vorschlag K3 (Patrick 02.11.2026 „K3b“): nur intern, Vorgabe aus
     Funktion("funktion_co2", "CO₂-Bilanz (intern)",
              "CO₂ je Teil im Preisaufbau und im Kalkulations-PDF, Spalte CO₂ bei den Werkstoffen", vorgabe="nein"),
+    # Intelligenz einzeln schaltbar (Patrick 09./10.11.2026, Plan F5 „Alle Empfehlungen“: vier Schalter, Vorgabe an).
+    # Aus = keine Hinweise und kein Dazulernen; Gelerntes bleibt gespeichert und gilt wieder nach dem Einschalten.
+    Funktion("funktion_lernen", "Lernen und selbst anwenden",
+             "Das Programm lernt aus ✓/✗ bei Zusatzarbeit-Vorschlägen je Kunde und wendet Gelerntes beim Import "
+             "selbst an (auch Werte aus Wiederholteilen); Hinweis auf Kennwert-Vorschläge auf der Startseite"),
+    Funktion("funktion_regelvorschlaege", "Vorschläge aus Handeinträgen",
+             "Erkennungswörter und Arbeitsgang-Regeln aus immer wieder von Hand eingetragenen Zusatzarbeiten, "
+             "Kundenvorgaben aus gleichen Kopfwerten, Programmierzeit-Vorgabe (Lernzentrale, Startseite)"),
+    Funktion("funktion_preis_hinweise", "Preis- und Termin-Hinweise",
+             "Trefferquote und Wettbewerbsabstand unter den Preisen, Preis je kg gegen Teile ähnlicher Länge und "
+             "Lieferzeit gegen die echte Durchlaufzeit im Angebots-Check (die grobe €/kg-Prüfung bleibt); "
+             "Reklamationen bei Wiederholteilen, Nachkalkulation ähnlicher Aufträge, Verlustmuster"),
+    Funktion("funktion_chance", "Auftragschance",
+             "Geschätzte Auftragschance in der Wiedervorlage, die lohnendsten Angebote zuerst"),
 )
+LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE = ("funktion_lernen", "funktion_regelvorschlaege",
+                                                    "funktion_preis_hinweise", "funktion_chance")
+INTELLIGENZ = (LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE)     # eigener Abschnitt auf der Seite Funktionen
+# Menü-Einträge, die sichtbar bleiben, solange EINE der Funktionen an ist
+DATEI_ODER = {"Lernzentrale …": (LERNEN, REGELVORSCHLAEGE)}
 FUNKTION = {f.name: f for f in FUNKTIONEN}
 
 # Schon vorhandene Schalter, die die Seite Funktionen zusätzlich zeigt (Frage 5a: auch am alten Platz)
@@ -93,4 +112,6 @@ def seite_an(schluessel, db=None):
 
 def datei_an(text, db=None):
     """Eintrag im Menü Datei sichtbar?"""
+    if text in DATEI_ODER:
+        return any(an(n, db) for n in DATEI_ODER[text])
     return all(an(f.name, db) for f in FUNKTIONEN if text in f.datei)

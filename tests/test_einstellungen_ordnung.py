@@ -34,7 +34,8 @@ fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
 assert len(ordnung.SEITEN) == 25 and len({s.schluessel for s in ordnung.SEITEN}) == 25
-assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN) <= 25
+assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN if s.schluessel != "e_funktionen") <= 25
+assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 30      # Funktionen: nur Schalter (je eine Zeile)
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for a in ordnung.SEITE["e_arbeitsplatz"].abschnitte for n in a.namen}
@@ -48,7 +49,7 @@ assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
 assert all(EINSTELLUNG[f.name].vorgabe == f.vorgabe and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 20
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 24
 assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_co2"]      # CO₂ (K3b): Vorgabe aus
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
 ok("20 Funktionsschalter (seit 0.9.241 mit Angebotsvergleich), Vorgabe ja außer CO₂ (nach dem Update ändert sich nichts)")

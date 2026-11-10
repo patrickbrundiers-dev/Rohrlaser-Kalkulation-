@@ -706,7 +706,8 @@ SCHWEISS_FAKTOREN = Tabelle(
 SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit",
                        "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
                        "Heftzeit", "Mehrlagig",                       # Plan 28.10.2026, Schritt 5
-                       "Stichnaht")                                   # Patrick 03.11.2026
+                       "Stichnaht",                                   # Patrick 03.11.2026
+                       "Ansatz", "Schweißlage", "Nahtvorbereitung")   # Plan 10.11.2026 (G1, G2, G4)
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -727,7 +728,10 @@ SCHWEISS_REGELN = Tabelle(
     "Heftpunkte je Naht = größer von Mindestzahl und aufrunden(Nahtlänge ÷ Heftabstand) + 1 für die Enden (nach "
     "kleinerer Wanddicke, gesteckt bzw. Edelstahl/Aluminium × Faktor; rundum ohne + 1, mindestens Umfang ÷ Umfang je "
     "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
-    "Edelstahl, Richten (viel Naht je kg bei dünner Wand) und Sichtprüfung in min je m Naht. Das Ergebnis sind "
+    "Edelstahl, Richten (viel Naht je kg bei dünner Wand) und Sichtprüfung in min je m Naht; Ansatz: Zeit je Naht "
+    "und Seite (Brenner ansetzen, Endkrater); Schweißlage aus dem STEP (Rundnaht bis zu diesem Gewicht wird gedreht "
+    "= PA, sonst steigend PF); Nahtvorbereitung: Fase an Stumpf- und Ecknähten ab Dicke in min je m Naht. Das "
+    "Ergebnis sind "
     "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
 
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
@@ -1503,7 +1507,7 @@ EINSTELLUNGEN = (
     Einstellung("palettenschein_werkstatt", "Palettenscheine an die Werkstattpapiere anhängen (beauftragte Angebote)",
                 "Versand", "auswahl", "ja", auswahl="janein"),
     # Der Reiter Einstellungen (mit den Stammdaten außer Kunden) öffnet nur mit diesem Passwort; leer = ohne
-    # Hilfetexte über den Tabellen: aufklappbar (erster Satz, 'ⓘ mehr') oder nur als Tooltip (siehe hilfe.py)
+    # Hilfetexte über den Tabellen: aufklappbar (erster Satz, 'mehr') oder nur als Tooltip (siehe hilfe.py)
     Einstellung("ansicht_hilfe", "Hilfetexte über Tabellen und Seiten", "Ansicht", "auswahl", "aufklappbar",
                 auswahl="hilfeart"),
     # 3D-Ansicht zeichnen mit OpenGL (Grafikkarte) oder QPainter (Software); Automatisch = OpenGL, wenn möglich

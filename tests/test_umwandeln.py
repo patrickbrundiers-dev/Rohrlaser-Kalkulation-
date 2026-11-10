@@ -207,7 +207,8 @@ def bg_wieder(d):
 
 assert s.satz_zu_bg(satz="Rahmen", dialog=bg_wieder)
 (bg_id2, (i_bg, bg2)), = baugruppe.baugruppen(s.positionen).items()
-assert [n["id"] for n in bg2["naehte"]] == ["n9"] and [a_["id"] for a_ in bg2["arbeitsgaenge"]] == ["a9"]
+assert [n["id"] for n in bg2["naehte"]] == ["n9"] and [a_["id"] for a_ in bg2["arbeitsgaenge"]
+                                                         if not a_.get("vk")] == ["a9"]     # ohne Vorschläge (A2)
 assert s.positionen[i_bg]["zeit_manuell"] == 7 and s.positionen[i_bg]["stueck"] == 4
 assert [(q["je_knoten"], q["stueck"]) for q in teile()] == [(1, 4), (2, 8), (1, 8)]
 assert umwandeln.MERK not in (db.satz_daten(aid).get("Rahmen") or {})

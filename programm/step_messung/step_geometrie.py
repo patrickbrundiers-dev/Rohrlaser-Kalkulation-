@@ -168,7 +168,9 @@ class Teil:
         # Meldung des STEP-Lesers zur Datei (z. B. ein Kopfeintrag, den der Leser nicht kennt) steht bei jedem Körper:
         # ist die Geometrie des Körpers gültig, bleibt sie ein Hinweis (Messreihe 10.11.2026: Power Rack, 55 Körper
         # nur deshalb „prüfen“)
-        if any(FASE_HINWEIS not in h and not (h.startswith(LESER_HINWEIS) and self.gueltig is not False)
+        # Rohr mit angeschweißtem Blech (L1): als Rohr mit Anbauteil stimmig, gelb macht erst die Ampel im Programm
+        if any(FASE_HINWEIS not in h and "Rohr mit angeschweißtem Blech" not in h
+               and not (h.startswith(LESER_HINWEIS) and self.gueltig is not False)
                for h in self.hinweise) or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
                 "Sonderprofil" in self.profilform:
             return "prüfen"

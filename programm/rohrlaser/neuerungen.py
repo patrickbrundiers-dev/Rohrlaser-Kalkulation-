@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.282", "<b>STEP-Import in den Editor an echten Baugruppen nachgeschärft</b> ([[step]]): 18 Baugruppen mit "
+    ["0.9.283", "<b>STEP-Import in den Editor an echten Baugruppen nachgeschärft</b> ([[step]]): 18 Baugruppen mit "
      "2.748 Körpern wurden gemessen, übernommen und im Editor gegen die STEP gelegt. Rohre, die nur ein unsicher "
      "erkanntes Blech oder einen Bolzen berühren, werden jetzt ohne Anhaken übernommen (Ampel gelb, die Anbauteile "
      "stehen wie bisher unter <i>Anbauteile prüfen</i>). Winkel mit Ausklinkung am Ende zeigten bei gespiegelten "
@@ -31,6 +31,80 @@ NEUERUNGEN = [
      "braucht kein Anhaken mehr. Eine Meldung des STEP-Lesers zur Datei allein setzt gültige Körper nicht mehr auf "
      "<i>prüfen</i>.",
      "STEP-Import: sichere Rohre mit Anbauteil ohne Anhaken, Winkel-Enden richtig, dickwandige Teile auf Gelb."],
+    ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
+     "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
+     "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "
+     "STEP (Rundnaht bis 20 kg wird gedreht); Nahtvorbereitung (Fase) für Stumpf- und Ecknähte ab 4 mm; "
+     "Richtwert-Kennwerte mit Abschmelzleistung nach Nahtgröße (<i>Richtwerte laden</i> bietet an, alte Richtwerte "
+     "zu staffeln). <b>Automatisch</b>: Mit <i>Vorkalkulation automatisch</i> rechnet die Baugruppe ihre Vorschläge "
+     "auch bei geschlossenem Editor neu, wenn sich ein Einzelteil ändert (nur im eigenen Entwurf, mit Meldung und "
+     "Preisunterschied; Werte von Hand und bestätigte bleiben); leere Schweiß-Stammdaten laden die Richtwerte "
+     "selbst; ungeprüfte Nahtgruppen übernehmen geänderte Kennwerte sofort, geprüfte zeigen <i>in den Stammdaten "
+     "geändert</i>. <b>Übersichtlicher</b>: Nahtgruppen in einer Grundansicht ohne Querscrollen (Schalter <i>Alle "
+     "Spalten</i>, Feld zur markierten Nahtgruppe mit Rechenweg), ohne STEP klappt die leere 3D-Fläche zu, das "
+     "Ergebnis steht rechts als Zeilen mit Kostenbalken, Kachel <i>Vorschläge offen</i>.",
+     "Schweißbaugruppe rechnet genauer (Ansatzzeit, Schweißlage aus STEP, Fase, Abschmelzleistung nach Nahtgröße), "
+     "hält sich bei Änderungen der Teile selbst aktuell und zeigt die Nahtgruppen ohne Querscrollen."],
+    ["0.9.281", "<b>Feinschliff aus der Design-Prüfung</b>: In der Bedienungsanleitung stehen Zeichen wie ▾, ▸, │ oder "
+     "N₂ jetzt richtig statt als schwarzes Kästchen. Der Knopf <b>Vorgang</b> zeigt nur noch einen Pfeil. Die offenen "
+     "Schritte über dem Angebot sind besser lesbar. Der Hinweis „(n abweichend von den Einstellungen)“ steht vorn in "
+     "der Kurzfassung der Kalkulation und wird nicht mehr abgeschnitten. Hilfetexte zeigen ein gezeichnetes i-Symbol "
+     "vor <b>mehr</b> und <b>Hilfe</b>. Scheitert das automatische Optimieren, stehen wieder die vorläufigen Preise "
+     "da statt „wird berechnet …“.",
+     "Anleitung ohne Kästchen, Knopf Vorgang mit einem Pfeil, Schritte lesbarer, Abweichungs-Hinweis vorn."],
+    ["0.9.280", "<b>Schneller und zuverlässiger</b> (Performance-Update): Jede Änderung im Angebot rechnet Positionswerte, "
+     "Schneiddaten, Stangenpreise und Stangenwerte nur noch einmal (vorher für Positionstabelle und Kalkulation "
+     "doppelt, mit gestaffeltem Gewinn dreifach); der Angebots-Check nach der Eingabepause rechnet keine zweite "
+     "Kalkulation mehr für die Auslastung. Großes Angebot (500 Positionen, gestaffelter Gewinn): Änderung 0,88 → "
+     "0,60 s, Check 0,69 → 0,29 s; alle Preise und Werte bleiben auf den Cent gleich. Das Tempo-Protokoll nennt jetzt "
+     "auch im Angebot und im Fenster Schweißbaugruppe, welcher Schritt bremst, und ein <b>Hänger-Schutz</b> schreibt "
+     "nach 10 s ohne Reaktion sofort eine Zeile ([[zeitwaechter]]). Beim Start wird die Datendatei kurz geprüft "
+     "([[datensicherung]]). <b>Angebots-PDF</b> (großes Angebot mit veraltetem Plan) 12,6 → 5,6 s: die Kalkulation "
+     "läuft je Klick höchstens dreimal statt 16-mal. <b>Optimieren</b> rechnet nur geänderte Profilgruppen neu "
+     "(großes Angebot nach einer Änderung 6,6 → 1-2 s, [[veraltet]]). <b>Werkstattpapiere</b> 4,5 → 3,3 s. Der "
+     "Angebots-Check und das Fenster Schweißbaugruppe rechnen weniger doppelt. Schnittpläne und PDFs bleiben gleich.",
+     "Änderungen, Angebots-PDF, Optimieren und Werkstattpapiere schneller (gleiche Ergebnisse), Hänger-Schutz, Datenprüfung beim Start."],
+    ["0.9.279", "<b>Mehr Intelligenz</b> ([[lernen]]): Der Angebots-Check vergleicht den Preis je kg jedes Teils mit "
+     "früheren Teilen derselben Abmessung und ähnlicher Länge und meldet schon 1,5-fache Abweichungen mit Prozent. "
+     "Die Wiedervorlage auf der Startseite zeigt je Angebot die geschätzte Auftragschance und steht nach Chance × "
+     "Wert. Aus Zusatzarbeiten, die Sie immer wieder von Hand eintragen, schlägt die Lernzentrale ein Erkennungswort "
+     "oder eine Arbeitsgang-Regel vor (<b>Übernehmen</b>, mit Rückgängig). Unter dem Verkaufspreis steht, um wie viel "
+     "Sie bei Absagen mit Wettbewerbspreis teurer waren, und der Angebots-Check warnt, wenn die zugesagte Lieferzeit "
+     "kürzer ist als Ihre echte Durchlaufzeit aus dem Fertigungsstatus. Alles lässt sich unter Einstellungen → "
+     "Funktionen → <b>Intelligenz</b> in vier Schaltern einzeln ausschalten; Gelerntes bleibt dabei gespeichert. "
+     "Dazu: Die Lernzentrale schlägt <b>Kundenvorgaben</b> vor, wenn die letzten drei Angebote eines Kunden dieselbe "
+     "Maschine, Lieferzeit oder Materialvorgabe haben, und eine neue <b>Programmierzeit-Vorgabe</b>, wenn Sie sie "
+     "regelmäßig überschreiben. Der Angebots-Check nennt <b>Reklamationen</b> zu Wiederholteilen und meldet, wenn "
+     "nachkalkulierte Aufträge des Kunden am Laser deutlich länger brauchten. Nehmen Sie selbst Angewendetes zweimal "
+     "zurück, <b>verlernt</b> das Programm es. Startseite und Monatsbericht zeigen, wo Sie auffällig oft verlieren.",
+     "Preis-Plausibilität nach Länge, Auftragschance, Regel-Vorschläge, Wettbewerbsabstand, Lieferzeit aus Ist."],
+    ["0.9.278", "<b>Angebots-Check: Erledigen</b> ([[angebots_check]]): Punkte, die das Programm selbst lösen kann "
+     "(Schnittplan optimieren, Staffelpreise rechnen, aktuelle Preise übernehmen), haben den Knopf <b>Erledigen</b>, "
+     "mehrere <b>Alles Automatische erledigen</b>. Ungeprüfte STEP-Teile lassen sich der Reihe nach bestätigen "
+     "(<b>Passt, nächstes</b>).",
+     "Angebots-Check: Erledigen; ungeprüfte STEP-Teile der Reihe nach bestätigen."],
+    ["0.9.278", "<b>Rechtsklick im Prüfdialog</b> ([[erkennung_ampel]]): Passt, Nur dieses Teil aufteilen und Art "
+     "direkt am Teil. <b>Preisliste</b> ([[normteile_ohne_preis]]): Lieferant wählbar, abweichende vorhandene Preise "
+     "alt → neu zum Prüfen.",
+     "Prüfdialog-Rechtsklick mit Passt/Aufteilen/Art; Preisliste mit Lieferant und Preisaktualisierung."],
+    ["0.9.278", "<b>Rohr mit angeschweißtem Blech</b> ([[drehfraesteile]]): Kopfplatte oder Lasche mit dem Rohr zu "
+     "einem Körper verschmolzen: das Teil ist ein Rohr mit Anbauteil (ein Rundrohr mit Kopfplatte war vorher ein "
+     "Drehteil), steht gelb und <b>Aufteilen</b> trennt es in Rohr und Blech als eigene Positionen.",
+     "Rohr mit Kopfplatte/Lasche: Rohr statt Drehteil, Aufteilen trennt Rohr und Blech."],
+    ["0.9.278", "<b>Passt für gleiche Teile</b> ([[erkennung_ampel]]): <b>Passt (N gleiche)</b> bestätigt dasselbe gelbe "
+     "Teil in allen Zeilen und Dateien auf einmal. Unter <i>Werte setzen</i> lassen sich auch <b>Art</b> und "
+     "<b>Profil</b> für markierte bzw. alle Zeilen setzen.",
+     "Passt (N gleiche); Art und Profil für markierte Zeilen setzen."],
+    ["0.9.278", "<b>Gemerkte Art mit Datum</b> ([[step]]): kommt ein Teil wieder, dessen Art von Hand geändert wurde, "
+     "steht es grün mit <i>Art wie am TT.MM.JJJJ von Hand gewählt</i>.",
+     "Von Hand gewählte Art beim nächsten Import grün mit Datum."],
+    ["0.9.278", "<b>Angebots-Check: ungeprüfte STEP-Teile</b> ([[angebots_check]]): Hinweis <i>N Teile aus dem "
+     "STEP-Import ungeprüft (gelb)</i> und <i>vereinfacht gemessen</i> mit Sprung zur Position.",
+     "Angebots-Check nennt ungeprüfte gelbe und vereinfacht gemessene Teile."],
+    ["0.9.278", "<b>Normteil-Preise aus CSV</b> ([[normteile_ohne_preis]]): <b>Preise aus CSV …</b> liest die "
+     "Preisliste des Lieferanten, ordnet sie den Normteilen ohne Preis zu (Artikelnummer, Norm + Gewinde + Länge, "
+     "Bezeichnung) und trägt die Preise zum Prüfen ein; gespeichert wird mit <b>Preise speichern</b>.",
+     "Normteil-Preise aus der Lieferanten-CSV übernehmen."],
     ["0.9.277", "<b>Stangenoptimierung direkt in der Staffel</b> ([[staffeln]]): Im Reiter Staffeln hat das Ergebnis die "
      "Unterreiter <b>Kosten</b> und <b>Stangen</b>; Stangen zeigt die Stangenoptimierung der markierten Stufe "
      "(je Abmessung Stangen, Verschnitt, Ausnutzung, €/m, Materialkosten und das Stangenbild), grau daneben "
