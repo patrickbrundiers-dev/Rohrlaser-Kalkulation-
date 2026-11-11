@@ -10,6 +10,7 @@
 - R5 Fenster: Auftragsliste, Dialoge, Auslastung mit Wochenbalken und Plantafel, Soll und Ist, Einstellungen, PDF
 - R6 unabhängig: das Programm lädt aus der Kalkulation nur einlastung, wochen, feiertage, stil, auslastung_grafik
   und für das Online-Update update
+- R14 Schichtsystem (Schichten mit Uhrzeit je Maschine) und Tagesansicht der Plantafel mit Uhrzeiten
 - R13 Online-Update: signierte Dateiliste nur für dieses Programm, nur Geändertes laden, Austausch nach dem Beenden
 
 Aufruf: python tests/test_rl_auslastung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -1275,7 +1276,8 @@ app.processEvents()
 tf = f13.tafel
 assert tf.ZEILE > 60 and tf.farbe_nach == "Terminrisiko" and f13.t_zoom["2 Wochen"].isChecked()
 assert f13.tafel_rahmen.tage == 14 and tf.tagbreite_fest and tf.minimumWidth() > f13.tafel_rahmen.viewport().width()
-assert abs(tf.tagbreite_fest * 14 - (f13.tafel_rahmen.viewport().width() - tf.LINKS - 4)) < 1
+sicht13 = min(f13.tafel_rahmen.viewport().width(), f13.tafel_rahmen.aussen.viewport().width() - 4)
+assert abs(tf.tagbreite_fest * 14 - (sicht13 - tf.LINKS - 4)) < 1          # 14 Tage füllen die sichtbare Breite
 tf.repaint()
 je = {a["id"]: a for _r, a in tf.flaechen}
 assert set(je) == {t1, t2, t3, t4}
@@ -1340,6 +1342,93 @@ assert (e3["neu"][0]["nummer"], e3["neu"][0]["kalk_min"], e3["neu"][0]["lieferte
     "2026-00010", 750, "2026-11-20", "Kramer; Söhne")
 db3.schliessen()
 ok("R4b Übergabedatei aus der Kalkulation lässt sich im Programm einlesen")
+
+# ---------------------------------------------------------------- R14 Schichtsystem und Tagesansicht (1.7)
+t14 = Path(tempfile.mkdtemp())
+db14 = daten.Daten(t14 / "s.db")
+sch14 = db14.schichten()
+assert [(x["name"], x["beginn"], x["ende"], x["pause"], x["stunden"]) for x in sch14] == [
+    ("Früh", "06:00", "14:00", 30, 7.5), ("Spät", "14:00", "22:00", 30, 7.5), ("Nacht", "22:00", "06:00", 30, 7.5)]
+assert daten.uhrzeit("6") == 360 and daten.uhrzeit("06.30") == 390 and daten.uhrzeit("14 Uhr") == 840
+assert "keine Uhrzeit" in fehler(daten.uhrzeit, "25:00") and "keine Uhrzeit" in fehler(daten.uhrzeit, "früh")
+db14.maschine_speichern("LT7", 8, True, alt="LT7", schichten=["Spät", "Früh"])        # Reihenfolge wie die Liste
+m14 = {m["name"]: m for m in db14.maschinen()}
+assert (m14["LT7"]["schichten"], m14["LT7"]["stunden_tag"]) == ("Früh,Spät", 15.0)
+assert (m14["T03"]["schichten"], m14["T03"]["stunden_tag"]) == ("", 8.0)              # ohne Schicht: wie bisher
+assert "gibt es nicht" in fehler(db14.maschine_speichern, "T03", 8, True, alt="T03", schichten=["Mittel"])
+assert "Pause" in fehler(db14.schichten_setzen, [dict(name="Kurz", beginn="6:00", ende="7:00", pause=60)])
+assert "doppelt" in fehler(db14.schichten_setzen, sch14 + [dict(name="früh", beginn="6", ende="8")])
+db14.maschine_speichern("LT7", 3, True, alt="LT7")                                   # ohne Angabe bleiben die Schichten
+assert {m["name"]: m for m in db14.maschinen()}["LT7"]["stunden_tag"] == 3.0
+db14.maschine_speichern("LT7", 3, True, alt="LT7", schichten=["Früh", "Spät"])
+h14 = datetime.date(2026, 11, 11)                                                     # Mittwoch
+db14.auftrag_speichern(dict(nummer="S-1", maschine="LT7", kalk_min=20 * 60, liefertermin=datetime.date(2026, 11, 20)))
+db14.auftrag_speichern(dict(nummer="S-2", maschine="T03", kalk_min=10 * 60, liefertermin=datetime.date(2026, 11, 20)))
+aus14, ein14 = rechnung.einlasten(db14, h14, 4)
+assert ein14["kapazitaet"][("LT7", h14)] == 15.0 and ein14["kapazitaet"][("T03", h14)] == 8.0
+s1 = next(a for a in ein14["auftraege"] if a["nummer"] == "S-1")
+assert s1["fertig"] == datetime.date(2026, 11, 12)                                    # 15 h am ersten Tag, Rest am zweiten
+sp14 = rechnung.spannen(db14)
+assert sp14["LT7"][0] == [(360, 8.0, "Früh"), (840, 8.0, "Spät")] and sp14["T03"][0] == [(360, 8.0, "")]
+assert sp14["LT7"][1] == []                                                           # Samstag: keine Stunden eingestellt
+assert rechnung.uhr_am(sp14["LT7"][0], 0) == 360 and rechnung.uhr_am(sp14["LT7"][0], 0.5) == 840
+assert rechnung.uhr_am(sp14["LT7"][0], 1) == 1320 and rechnung.uhr_am([], 0.5) is None
+nacht = [(840, 8.0, "Spät"), (1320, 8.0, "Nacht")]
+assert rechnung.uhr_am(nacht, 1) == 1320 + 480 and daten.uhr_text(1320 + 480) == "06:00"   # endet am Folgetag um 6
+# Schicht ändern rechnet die Maschinen neu, entfernen nimmt sie bei der Maschine weg
+db14.schichten_setzen([dict(sch14[0], ende="13:00")] + sch14[1:])
+assert {m["name"]: m for m in db14.maschinen()}["LT7"]["stunden_tag"] == 14.0
+db14.schichten_setzen(sch14[:1])
+m14 = {m["name"]: m for m in db14.maschinen()}
+assert (m14["LT7"]["schichten"], m14["LT7"]["stunden_tag"]) == ("Früh", 7.5)
+db14.schichten_setzen(sch14)
+db14.maschine_speichern("LT7", 8, True, alt="LT7", schichten=["Früh", "Spät"])
+ok("R14 Schichten mit Uhrzeit und Pause, Stunden je Tag aus den Schichten, Einlastung rechnet damit, Uhrzeiten")
+
+f14 = Hauptfenster(db14, heute=h14, platz=t14)
+f14.resize(1400, 900)
+f14.show()
+f14.reiter.setCurrentIndex(4)
+app.processEvents()
+assert f14.e_schichten.rowCount() == 3 and "Früh + Spät" in f14.e_maschinen.item(0, 1).text()
+assert f14.schicht_bearbeiten(neu=True, werte=("Tag", "7:00", "16:00", 45)) and f14.e_schichten.rowCount() == 4
+f14.e_schichten.selectRow(0)
+assert f14.schicht_bearbeiten(werte=("Frühschicht", "06:00", "14:00", 30))             # umbenennen: Maschine zieht mit
+assert {m["name"]: m for m in db14.maschinen()}["LT7"]["schichten"] == "Frühschicht,Spät"
+f14.e_schichten.selectRow(3)
+assert f14.schicht_entfernen() and [x["name"] for x in db14.schichten()] == ["Frühschicht", "Spät", "Nacht"]
+f14.e_maschinen.selectRow(1)
+assert f14.maschine_bearbeiten(werte=("T03", 8, True, "", 0, True, ["Nacht"]))
+assert {m["name"]: m for m in db14.maschinen()}["T03"]["stunden_tag"] == 7.5
+f14.reiter.setCurrentIndex(1)
+app.processEvents()
+tf14, rahmen14 = f14.tafel, f14.tafel_rahmen
+assert "Tag" in f14.t_zoom and not tf14.tag_an
+f14.t_zoom["Tag"].click()
+app.processEvents()
+assert tf14.tag_an and tf14.ZEILE > 100 and ort.ini_lesen(t14)["tafel_zoom"] == "Tag"
+assert rahmen14.tag_zeigen() == h14                                                   # springt auf heute
+assert tf14.tagbreite_fest > 300 and tf14.uhr("LT7", h14, 0) == "06:00" and tf14.uhr("LT7", h14, 7.5) == "14:00"
+assert tf14.uhr("LT7", h14, 15) == "22:00" and tf14.uhr("LT7", datetime.date(2026, 11, 15), 1) == ""   # Sonntag
+assert tf14.uhr("T03", h14, 7.5) == "06:00"                                           # Nachtschicht endet am Folgetag
+tf14.grab()
+assert any(a["nummer"] == "S-1" for _r, a in tf14.flaechen)
+rahmen14.blaettern(1)
+assert rahmen14.tag_zeigen() == datetime.date(2026, 11, 12)
+rahmen14.blaettern(-1)
+rahmen14.blaettern(-1)
+assert rahmen14.tag_zeigen() == datetime.date(2026, 11, 10)
+rahmen14.zu_heute()
+assert rahmen14.tag_zeigen() == h14
+assert Path(f14.pdf(t14 / "tag.pdf")).read_bytes().startswith(b"%PDF") and tf14.tag_an   # PDF bleibt die Übersicht
+f14.t_zoom["2 Wochen"].click()
+app.processEvents()
+assert not tf14.tag_an and tf14.ZEILE == 86 and rahmen14.tag_zeigen() is None
+f14.t_zoom["Alles"].click()
+assert not any(k.isEnabled() for k in f14.t_blaettern)
+f14.close()
+db14.schliessen()
+ok("R14 Einstellungen Schichten (anlegen, umbenennen, entfernen, je Maschine wählen), Tagesansicht mit Uhrzeiten und Blättern")
 
 # ---------------------------------------------------------------- R6 unabhängig von der Kalkulation
 code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl_auslastung.__main__; "

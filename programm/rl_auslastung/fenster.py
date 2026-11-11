@@ -3,7 +3,7 @@ Werkstatt-Ansicht (große Schrift, große Knöpfe) für den Platz an der Maschin
 import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QMarginsF, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QDate, QEvent, QMarginsF, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (QBrush, QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen,
                            QPolygonF)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
@@ -26,7 +26,7 @@ OHNE_TEXT = {"min": "Minuten (90 = 90 Minuten)", "h": "Stunden (2 = 2 Stunden)"}
 RISIKO_FARBE = {einlastung.UEBER: stil.ROT_FLAECHE, einlastung.KNAPP: stil.GELB_FLAECHE}
 # Plantafel (ab 1.6): Balkenfarben, in beiden Designs gleich, weiße Schrift darauf
 TAFEL_FARBE = ("Terminrisiko", "Kunde", "Status")
-TAFEL_ZOOM = (("1 Woche", 7), ("2 Wochen", 14), ("4 Wochen", 28), ("Alles", None))
+TAFEL_ZOOM = (("Tag", 1), ("1 Woche", 7), ("2 Wochen", 14), ("4 Wochen", 28), ("Alles", None))
 T_GRUEN, T_GELB, T_ROT, T_BLAU, T_GRAU = "#2E7D46", "#B26A00", "#B42318", "#3F6FA3", "#6B7684"
 T_RISIKO = {einlastung.OK: T_GRUEN, einlastung.KNAPP: T_GELB, einlastung.UEBER: T_ROT, einlastung.OHNE: T_BLAU}
 T_RISIKO_TEXT = ((T_GRUEN, "im Termin"), (T_GELB, "knapp"), (T_ROT, "zu spät"), (T_BLAU, "ohne Termin"))
@@ -47,6 +47,7 @@ def _arbeitstage(n):
 
 
 WOCHENTAG = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+WOCHENTAG_LANG = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
 
 
 def _wtag(d):
@@ -687,6 +688,28 @@ class ZiehTafel(Plantafel):
         self.zustand = {}                         # {(Auftrag-ID, Gang-ID): dict(laeuft, gestoppt, grund, anteil, material)}
         self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
         self.kunden = {}
+        self.tag_an = False                       # Tagesansicht: ein Tag füllt die Breite, Uhrzeiten, mehr Text
+        self.spannen = {}                         # {Maschine: (Mo–Fr, Sa)} Arbeitszeit als Uhrzeiten (rechnung.spannen)
+
+    def tag_ansicht(self, an):
+        """Tagesansicht ein/aus: höhere Zeilen für drei Zeilen Text je Auftrag und das Stundenraster."""
+        self.tag_an = bool(an)
+        self.ZEILE, self.B_OBEN, self.B_HOCH = (118, 30, 62) if an else (86, 16, 46)
+        self._groesse()
+        self.update()
+
+    def teile_am(self, m, tag):
+        """Arbeitszeit der Maschine an diesem Tag als [(Beginn in Minuten, Dauer in Stunden, Schicht)]."""
+        if not self.ein or not self.ein["kapazitaet"].get((m, tag)):
+            return []
+        woche, samstag = self.spannen.get(m) or ([(360, 8.0, "")], [])
+        return (samstag if tag.weekday() == 5 else woche) or [(360, 8.0, "")]
+
+    def uhr(self, m, tag, stunden):
+        """Uhrzeit als Text an der Stelle stunden (der nutzbaren Stunden) dieses Tages, '' ohne Arbeitszeit."""
+        kap = self.ein["kapazitaet"].get((m, tag)) if self.ein else None
+        minuten = rechnung.uhr_am(self.teile_am(m, tag), stunden / kap) if kap else None
+        return "" if minuten is None else D.uhr_text(minuten)
 
     def setzen(self, aus, ein, wochen, auswahl=None, zustand=None):
         self.zustand = zustand or {}
@@ -822,7 +845,12 @@ class ZiehTafel(Plantafel):
                 p.drawLine(QPointF(x, 18), QPointF(x, unten))
             frei = not any(self.ein["kapazitaet"].get((m, tag)) for m in maschinen)
             p.setPen(grau if frei else text)
-            if tb >= 40:
+            if self.tag_an and tb >= 300:
+                p.setFont(fett)
+                p.drawText(QRectF(x + 8, 18, tb - 12, 34), Qt.AlignLeft | Qt.AlignVCenter,
+                           f"{WOCHENTAG_LANG[tag.weekday()]}, {tag.strftime('%d.%m.%Y')}"
+                           + ("  (arbeitsfrei)" if frei else ""))
+            elif tb >= 40:
                 p.setFont(fett if tag == heute else normal)
                 p.drawText(QRectF(x, 18, tb, 17), Qt.AlignCenter, WOCHENTAG[tag.weekday()])
                 p.drawText(QRectF(x, 35, tb, 17), Qt.AlignCenter, tag.strftime("%d.%m."))
@@ -848,6 +876,9 @@ class ZiehTafel(Plantafel):
                     if voll > 0.004:
                         p.setBrush(QColor(T_ROT if voll >= 0.995 else T_GELB if voll >= 0.8 else T_GRUEN))
                         p.drawRect(QRectF(x + 2, y + 5, (tb - 4) * voll, 5))
+                if self.tag_an and tb >= 300 and kap:                         # Stundenraster mit Uhrzeiten
+                    self._raster(p, m, tag, x, y, tb, klein, grau, fein, linie)
+                    p.setPen(Qt.NoPen)
             for a in (x for x in self.ein["auftraege"] if x["maschine"] == m):
                 farbe = self.balkenfarbe(a)
                 gewaehlt = a["id"] == self.auswahl
@@ -886,7 +917,9 @@ class ZiehTafel(Plantafel):
                         p.setPen(QPen(QColor("#1F2937"), 1.2))
                         p.setBrush(weiss)
                         p.drawEllipse(QPointF(erster.left() + 1, erster.top() + 1), 4, 4)
-                if gross is not None and gross.width() > 34:                  # zwei Zeilen Text im größten Stück (V1)
+                if self.tag_an and tb >= 300:                                 # Tagesansicht: Text je Tag mit Uhrzeit
+                    self._tagestext(p, a, m, y, z, blass, fett, normal, fmf, fm)
+                elif gross is not None and gross.width() > 34:                # zwei Zeilen Text im größten Stück (V1)
                     schrift = QColor(255, 255, 255, 110) if blass else weiss
                     marke = "▶ " if z.get("laeuft") else "❚❚ " if z.get("gestoppt") else ""
                     breite = int(gross.width() - 12)
@@ -937,12 +970,13 @@ class ZiehTafel(Plantafel):
             p.setPen(QPen(QColor(T_ROT), 1.6))
             p.drawLine(QPointF(x, 14), QPointF(x, unten))
             p.setFont(klein)
-            schild = QRectF(x - 20, 1 if tb >= 40 else 18, 40, 14)
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(T_ROT))
-            p.drawRoundedRect(schild, 3, 3)
-            p.setPen(weiss)
-            p.drawText(schild, Qt.AlignCenter, "heute")
+            if x >= self.versatz + self.LINKS - 1:                            # nicht, wenn heute weggerollt ist
+                schild = QRectF(max(x - 20, self.versatz + self.LINKS + 2), 1 if tb >= 40 else 18, 40, 14)
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(T_ROT))
+                p.drawRoundedRect(schild, 3, 3)
+                p.setPen(weiss)
+                p.drawText(schild, Qt.AlignCenter, "heute")
         if self.zug and self.ziel:                # Ziel beim Ziehen: Strich am Tagesanfang in der Zeile der Maschine
             m, tag = self.ziel
             y = self.KOPF + maschinen.index(m) * self.ZEILE
@@ -969,6 +1003,73 @@ class ZiehTafel(Plantafel):
         p.end()
 
 
+def _tafel_zusatz():
+    """Zeichnen der Tagesansicht (Methoden der ZiehTafel, hier nur wegen der Länge von paintEvent getrennt)."""
+
+    def raster(self, p, m, tag, x, y, tb, klein, grau, fein, linie):
+        teile = self.teile_am(m, tag)
+        gesamt = sum(d for _b, d, _n in teile)
+        if gesamt <= 0:
+            return
+        schritt = 1 if tb / gesamt >= 46 else 2 if tb / gesamt >= 23 else 4
+        p.setFont(klein)
+        vor = 0.0
+        for i, (beginn, dauer, name) in enumerate(teile):
+            x0 = x + tb * vor / gesamt
+            if i:
+                p.setPen(QPen(linie, 1.4))
+                p.drawLine(QPointF(x0, y + 12), QPointF(x0, y + self.ZEILE - 1))
+            erste = -(-beginn // 60) * 60                 # erste volle Stunde in der Schicht
+            t = erste
+            while t < beginn + dauer * 60 - 1:
+                xs = x0 + tb * ((t - beginn) / 60) / gesamt
+                if t > beginn:
+                    p.setPen(QPen(fein, 1))
+                    p.drawLine(QPointF(xs, y + 26), QPointF(xs, y + self.ZEILE - 1))
+                if ((t - erste) // 60) % schritt == 0 and xs + 34 < x + tb:
+                    p.setPen(grau)
+                    marke = D.uhr_text(t) + (f" {name}" if name and t == erste and tb * schritt / gesamt >= 90 else "")
+                    p.drawText(QRectF(xs + 3, y + 12, 110, 14), Qt.AlignLeft | Qt.AlignVCenter, marke)
+                t += 60
+            vor += dauer
+
+    def tagestext(self, p, a, m, y, z, blass, fett, normal, fmf, fm):
+        weiss = QColor(255, 255, 255, 110) if blass else QColor("#FFFFFF")
+        marke = "▶ " if z.get("laeuft") else "❚❚ " if z.get("gestoppt") else ""
+        for tag, von, bis in a["stuecke"]:
+            if tag < self.tage[0] or tag > self.tage[-1] or bis - von <= 0:
+                continue
+            kap = self.ein["kapazitaet"].get((m, tag)) or 1.0
+            x0, x1 = self._x(tag, von / kap), self._x(tag, min(1.0, bis / kap))
+            breite = int(x1 - x0 - 14)
+            if breite < 40:
+                continue
+            p.setPen(weiss)
+            p.setFont(fett)
+            kopf = marke + " · ".join(t for t in (str(a.get("nummer") or ""), a.get("kunde") or "") if t)
+            p.drawText(QRectF(x0 + 7, y + self.B_OBEN + 3, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                       fmf.elidedText(kopf, Qt.ElideRight, breite))
+            p.setFont(normal)
+            zeit = f"{self.uhr(m, tag, von)} bis {self.uhr(m, tag, bis)} Uhr · {laufzeit.text(int((bis - von) * 60 + 0.5), 'hm')}"
+            p.drawText(QRectF(x0 + 7, y + self.B_OBEN + 21, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                       fm.elidedText(zeit, Qt.ElideRight, breite))
+            dritte = (f"wartet auf Material, da ab {z['material'].strftime('%d.%m.')}" if z.get("material") else
+                      f"gestoppt: {z['grund']}" if z.get("gestoppt") and z.get("grund") else
+                      " · ".join(t for t in (
+                          f"Rest gesamt {laufzeit.text(int(a['h'] * 60 + 0.5), 'hm')}" if a["h"] - (bis - von) > 0.01
+                          else "", f"fertig {_wtag(a['fertig'])[:-4]}" if a.get("fertig") and a["fertig"] != tag else
+                          "wird heute fertig" if a.get("fertig") == tag == self.ein["heute"] else
+                          "wird an diesem Tag fertig" if a.get("fertig") == tag else "",
+                          f"Termin {_wtag(a['termin_datum'])[:-4]}" if a.get("termin_datum") else "") if t))
+            p.drawText(QRectF(x0 + 7, y + self.B_OBEN + 39, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                       fm.elidedText(dritte, Qt.ElideRight, breite))
+
+    return raster, tagestext
+
+
+ZiehTafel._raster, ZiehTafel._tagestext = _tafel_zusatz()
+
+
 class TafelRahmen(QScrollArea):
     """Rollbarer Rahmen um die Plantafel (V2): tage = so viele Tage sind sichtbar (None = alles passend); die Spalte
     der Maschinen bleibt beim Rollen stehen."""
@@ -976,6 +1077,7 @@ class TafelRahmen(QScrollArea):
     def __init__(self, tafel, parent=None):
         super().__init__(parent)
         self.tafel, self.tage = tafel, None
+        self.aussen = None                        # äußerer Rollbereich der Seite: begrenzt die sichtbare Breite
         self.setWidget(tafel)
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.NoFrame)
@@ -984,14 +1086,48 @@ class TafelRahmen(QScrollArea):
 
     def sichtbar(self, tage):
         self.tage = tage
+        self.tafel.tag_ansicht(tage == 1)
         self.anpassen()
-        self.horizontalScrollBar().setValue(0)
+        self.zu_heute() if tage == 1 else self.horizontalScrollBar().setValue(0)
+
+    def schritt(self):
+        """So weit rollt ein Schritt: ein Tag in der Tagesansicht, sonst eine Woche."""
+        return int((self.tafel.tagbreite_fest or 0) * (1 if self.tage == 1 else 7))
+
+    def zu_heute(self):
+        """Tagesansicht: heute zeigen; sonst an den Anfang (die laufende Woche)."""
+        t = self.tafel
+        if self.tage == 1 and t.ein and t.ein["heute"] in t.tage and t.tagbreite_fest:
+            self.horizontalScrollBar().setValue(int(t.tage.index(t.ein["heute"]) * t.tagbreite_fest))
+        else:
+            self.horizontalScrollBar().setValue(0)
+
+    def blaettern(self, richtung):
+        b, s = self.horizontalScrollBar(), self.schritt()
+        if s and self.tage == 1:                  # Tagesansicht: immer auf einem ganzen Tag landen
+            b.setValue(int(round(b.value() / s) + richtung) * s)
+        elif s:
+            b.setValue(b.value() + richtung * s)
+
+    def tag_zeigen(self):
+        """Der Tag, der in der Tagesansicht gerade links steht (sonst None)."""
+        t = self.tafel
+        if self.tage != 1 or not t.tagbreite_fest or not t.tage:
+            return None
+        return t.tage[min(len(t.tage) - 1, int(round(self.horizontalScrollBar().value() / t.tagbreite_fest)))]
 
     def anpassen(self):
-        breite = self.viewport().width() - self.tafel.LINKS - 4
+        breite = self.viewport().width()
+        if self.aussen is not None:               # die Seite ist breiter als ihr Fenster: nur das Sichtbare zählt
+            breite = min(breite, self.aussen.viewport().width() - 4)
+        breite -= self.tafel.LINKS + 4
         fest = max(8.0, breite / self.tage) if self.tage and self.tage < len(self.tafel.tage) else None
         if fest != self.tafel.tagbreite_fest:
+            tag = self.tag_zeigen()               # Tagesansicht: beim Ändern der Fensterbreite auf dem Tag bleiben
             self.tafel.zoom(fest)
+            if tag is not None and fest:
+                self.horizontalScrollBar().setValue(int(self.tafel.tage.index(tag) * fest))
+        self.horizontalScrollBar().setSingleStep(max(20, int(fest or 20)) if self.tage == 1 else 40)
         hoch = self.tafel.sizeHint().height() + (self.horizontalScrollBar().sizeHint().height() + 2 if fest else 0)
         if hoch != self.height():
             self.setFixedHeight(hoch)
@@ -999,6 +1135,11 @@ class TafelRahmen(QScrollArea):
     def resizeEvent(self, e):
         super().resizeEvent(e)
         self.anpassen()
+
+    def eventFilter(self, wer, e):
+        if e.type() == QEvent.Resize:
+            QTimer.singleShot(0, self.anpassen)
+        return False
 
 
 class WasWaereWennDialog(QDialog):
@@ -2055,6 +2196,17 @@ class Hauptfenster(QMainWindow):
             k.clicked.connect(lambda _=False, name=name: self.tafel_zoom(name))
             tz.addWidget(k)
             self.t_zoom[name] = k
+        self.t_blaettern = []
+        for zeichen, tipp, tun in (("◀", "zurück (Tagesansicht: ein Tag, sonst eine Woche)",
+                                    lambda: self.tafel_rahmen.blaettern(-1)),
+                                   ("Heute", "zeigt heute", lambda: self.tafel_rahmen.zu_heute()),
+                                   ("▶", "weiter (Tagesansicht: ein Tag, sonst eine Woche)",
+                                    lambda: self.tafel_rahmen.blaettern(1))):
+            k = QPushButton(zeichen)
+            k.setToolTip(tipp)
+            k.clicked.connect(lambda _=False, tun=tun: tun())
+            tz.addWidget(k)
+            self.t_blaettern.append(k)
         tz.addSpacing(12)
         tz.addWidget(QLabel("Farbe nach"))
         self.t_farbe = QComboBox()
@@ -2088,6 +2240,8 @@ class Hauptfenster(QMainWindow):
         rollen.setWidgetResizable(True)
         rollen.setFrameShape(QFrame.NoFrame)
         rollen.setWidget(links)
+        self.tafel_rahmen.aussen = rollen
+        rollen.viewport().installEventFilter(self.tafel_rahmen)
         self.details_titel = QLabel("")
         self.details_titel.setWordWrap(True)
         self.details = QTableWidget()
@@ -2137,6 +2291,8 @@ class Hauptfenster(QMainWindow):
         for n, k in self.t_zoom.items():
             k.setChecked(n == name)
         self.tafel_rahmen.sichtbar(dict(TAFEL_ZOOM)[name])
+        for k in self.t_blaettern:
+            k.setEnabled(name != "Alles")
         if merken:
             self._platz_merken("tafel_zoom", name)
 
@@ -2307,6 +2463,7 @@ class Hauptfenster(QMainWindow):
         self.vorschlag = rechnung.ausweichen(self.aus, self.ein, int(self.db.zahl("schwelle_tage", 2)))
         self.tafel.ziehbar = self.db.darf("auftraege")
         self.balken.setzen(spalten_daten(self.aus, self.ein, self.gem, True), self.woche)
+        self.tafel.spannen = rechnung.spannen(self.db)
         self.tafel.setzen(self.aus, self.ein, self.wochen.value(), self.tafel.auswahl, self.tafel_zustand())
         self.tafel_rahmen.anpassen()
         self.tafel_farbe(self.t_farbe.currentText(), merken=False)
@@ -2330,6 +2487,8 @@ class Hauptfenster(QMainWindow):
             f = self.font()
             y = _pdf_titel(p, f, seite, f"Maschinenauslastung, Stand {self.heute().strftime('%d.%m.%Y')}")
             tb, versatz = self.tafel.tagbreite_fest, self.tafel.versatz     # im PDF: alles passend auf die Seite
+            tag_an = self.tafel.tag_an
+            self.tafel.tag_ansicht(False)
             self.tafel.tagbreite_fest, self.tafel.versatz = None, 0
             for widget in (self.balken, self.tafel):
                 alt, fest = widget.size(), widget.minimumWidth()
@@ -2340,6 +2499,7 @@ class Hauptfenster(QMainWindow):
                 widget.setMinimumWidth(fest)
                 widget.resize(alt)
             self.tafel.tagbreite_fest, self.tafel.versatz = tb, versatz
+            self.tafel.tag_ansicht(tag_an)
             liste = rechnung.kritische(self.ein)
             zeilen = [[a["nummer"], a["kunde"], a["maschine"] or D.FREMD_TEXT, _tag(a.get("termin")),
                        _tag(a.get("fertig")) or "später",
@@ -2719,6 +2879,34 @@ class Hauptfenster(QMainWindow):
         z.addStretch(1)
         l1.addLayout(z)
 
+        self.e_schichten = QTableWidget()
+        self.e_schichten.setColumnCount(5)
+        self.e_schichten.setHorizontalHeaderLabels(("Schicht", "Beginn", "Ende", "Pause", "Arbeitszeit"))
+        self.e_schichten.horizontalHeader().setStretchLastSection(True)
+        self.e_schichten.verticalHeader().setVisible(False)
+        self.e_schichten.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.e_schichten.setMaximumHeight(150)
+        self.e_schichten.itemDoubleClicked.connect(lambda _z: self.schicht_bearbeiten())
+        self.k_s_neu = QPushButton("Schicht hinzufügen …")
+        self.k_s_aendern = QPushButton("Schicht ändern …")
+        self.k_s_weg = QPushButton("Schicht entfernen")
+        self.k_s_neu.clicked.connect(lambda _=False: self.schicht_bearbeiten(neu=True))
+        self.k_s_aendern.clicked.connect(lambda _=False: self.schicht_bearbeiten())
+        self.k_s_weg.clicked.connect(lambda _=False: self.schicht_entfernen())
+        g_s = QGroupBox("Schichten")
+        l_s = QVBoxLayout(g_s)
+        h_s = QLabel("Welche Schichten eine Maschine von Montag bis Freitag fährt, steht bei der Maschine "
+                     "(<i>Maschine ändern …</i>). Ihre Stunden je Tag ergeben sich dann aus den Schichten ohne Pause. "
+                     "Maschinen ohne Schicht behalten ihre Stunden je Tag von Hand.")
+        h_s.setWordWrap(True)
+        l_s.addWidget(h_s)
+        l_s.addWidget(self.e_schichten)
+        z = QHBoxLayout()
+        for k in (self.k_s_neu, self.k_s_aendern, self.k_s_weg):
+            z.addWidget(k)
+        z.addStretch(1)
+        l_s.addLayout(z)
+
         self.e_samstag = QDoubleSpinBox()
         self.e_samstag.setRange(0, 24)
         self.e_samstag.setDecimals(1)
@@ -2922,7 +3110,7 @@ class Hauptfenster(QMainWindow):
         innen = QWidget()
         lay = QVBoxLayout(innen)
         lay.addWidget(hinweis)
-        for g in (g1, g2, g7, g8, g9, g3, g4, g6, g5):
+        for g in (g1, g_s, g2, g7, g8, g9, g3, g4, g6, g5):
             lay.addWidget(g)
         lay.addStretch(1)
         rollen = QScrollArea()
@@ -2942,11 +3130,18 @@ class Hauptfenster(QMainWindow):
             self.e_fuellt = False
 
     def _einstellungen_fuellen(self):
+        sch = self.db.schichten()
+        self.e_schichten.setRowCount(len(sch))
+        for r, x in enumerate(sch):
+            for c, t in enumerate((x["name"], x["beginn"], x["ende"], f"{x['pause']} min",
+                                   laufzeit.text(int(x["stunden"] * 60 + 0.5), "hm"))):
+                self.e_schichten.setItem(r, c, _zelle(t, c > 0))
         ms = self.db.maschinen()
         self.e_maschinen.setRowCount(len(ms))
         for r, m in enumerate(ms):
             self.e_maschinen.setItem(r, 0, _zelle(m["name"]))
-            self.e_maschinen.setItem(r, 1, _zelle(f"{m['stunden_tag']:g}".replace(".", ","), True))
+            self.e_maschinen.setItem(r, 1, _zelle(f"{m['stunden_tag']:g}".replace(".", ",") + (
+                f"  ({m['schichten'].replace(',', ' + ')})" if m["schichten"] else ""), True))
             self.e_maschinen.setItem(r, 2, _zelle("ja" if m["aktiv"] else "nein"))
             self.e_maschinen.setItem(r, 3, _zelle(m["sperrtage"]))
             self.e_maschinen.setItem(r, 4, _zelle(_arbeitstage(m["uebergang_tage"]) if m["uebergang_tage"] else ""))
@@ -3183,6 +3378,26 @@ class Hauptfenster(QMainWindow):
             form = QFormLayout(d)
             form.addRow("Name", name)
             form.addRow("Stunden je Tag (Montag bis Freitag)", stunden)
+            kaesten = []
+            if self.db.schichten():
+                zeile = QHBoxLayout()
+                hat = (m["schichten"] if m else "").split(",")
+
+                def rechnen():
+                    gew = [x for k, x in kaesten if k.isChecked()]
+                    stunden.setEnabled(not gew)
+                    if gew:
+                        stunden.setValue(min(24.0, sum(x["stunden"] for x in gew)))
+
+                for x in self.db.schichten():
+                    k = QCheckBox(f"{x['name']} ({x['beginn']} bis {x['ende']})")
+                    k.setChecked(x["name"] in hat)
+                    k.toggled.connect(lambda _an: rechnen())
+                    zeile.addWidget(k)
+                    kaesten.append((k, x))
+                zeile.addStretch(1)
+                rechnen()
+                form.addRow("Schichten (Montag bis Freitag)", zeile)
             form.addRow("", aktiv)
             sperre = QLineEdit(m["sperrtage"] if m else "")
             sperre.setPlaceholderText("z. B. 24.11.2026-25.11.2026; 02.12.2026")
@@ -3212,15 +3427,72 @@ class Hauptfenster(QMainWindow):
             if d.exec() != QDialog.Accepted:
                 return False
             werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text(), ueber.value(),
-                     ausweich.isChecked())
+                     ausweich.isChecked(), [x["name"] for k, x in kaesten if k.isChecked()])
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
                                        uebergang=werte[4] if len(werte) > 4 else None,
-                                       ausweich=werte[5] if len(werte) > 5 else None)
+                                       ausweich=werte[5] if len(werte) > 5 else None,
+                                       schichten=werte[6] if len(werte) > 6 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False
+        self.laden()
+        return True
+
+    def schicht_bearbeiten(self, neu=False, werte=None):
+        """Dialog Schicht; werte=(Name, Beginn, Ende, Pause in Minuten) überspringt den Dialog (Tests)."""
+        liste = self.db.schichten()
+        r = self.e_schichten.currentRow()
+        if not neu and not 0 <= r < len(liste):
+            return False
+        alt = None if neu else liste[r]
+        if werte is None:
+            d = QDialog(self)
+            d.setWindowTitle("Schicht hinzufügen" if neu else "Schicht ändern")
+            name = QLineEdit(alt["name"] if alt else "")
+            beginn = QLineEdit(alt["beginn"] if alt else "06:00")
+            ende = QLineEdit(alt["ende"] if alt else "14:00")
+            pause = QSpinBox()
+            pause.setRange(0, 240)
+            pause.setSuffix(" min")
+            pause.setValue(alt["pause"] if alt else 30)
+            form = QFormLayout(d)
+            form.addRow("Name", name)
+            form.addRow("Beginn (Uhrzeit)", beginn)
+            form.addRow("Ende (Uhrzeit, auch nach Mitternacht)", ende)
+            form.addRow("Pause", pause)
+            kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+            kn.accepted.connect(d.accept)
+            kn.rejected.connect(d.reject)
+            form.addRow(kn)
+            if d.exec() != QDialog.Accepted:
+                return False
+            werte = (name.text(), beginn.text(), ende.text(), pause.value())
+        eintrag = dict(name=werte[0], beginn=werte[1], ende=werte[2], pause=werte[3])
+        try:
+            if alt and alt["name"] != str(werte[0]).strip():      # umbenannt: die Maschinen ziehen mit
+                D._schicht(*werte)
+                for m in self.db.maschinen():
+                    namen = [n for n in (m["schichten"] or "").split(",") if n]
+                    if alt["name"] in namen:
+                        self.db.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?", (",".join(
+                            str(werte[0]).strip() if n == alt["name"] else n for n in namen), m["name"]))
+            self.db.schichten_setzen(liste + [eintrag] if neu else [eintrag if i == r else x
+                                                                    for i, x in enumerate(liste)])
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        self.laden()
+        return True
+
+    def schicht_entfernen(self):
+        liste = self.db.schichten()
+        r = self.e_schichten.currentRow()
+        if not 0 <= r < len(liste):
+            return False
+        self.db.schichten_setzen([x for i, x in enumerate(liste) if i != r])
         self.laden()
         return True
 

@@ -8,4 +8,4 @@ und update_schluessel."""
 VERSION = "1.7.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = "Online-Update: Das Programm findet neue Versionen selbst und lädt nur die geänderten Dateien."
+NEU = ("Online-Update, Schichten mit Uhrzeiten je Maschine und eine Tagesansicht der Plantafel mit Uhrzeiten.")

@@ -163,6 +163,19 @@ ABSCHNITTE = (
      "Ort …</b>, an jedem Platz denselben Ort wählen), arbeiten alle Plätze mit denselben Aufträgen; Änderungen "
      "erscheinen bei den anderen nach wenigen Sekunden. Beim Start legt das Programm einmal am Tag eine Kopie in "
      "den Ordner <i>Sicherung</i> neben der Datenbank, die letzten zehn bleiben."),
+    ("Schichten",
+     "Unter <b>Einstellungen → Schichten</b> stehen die Schichten mit Beginn, Ende und Pause (Vorgabe Früh, Spät, "
+     "Nacht). Bei der Maschine (<b>Maschine ändern …</b>) wird angehakt, welche Schichten sie von Montag bis "
+     "Freitag fährt. Ihre Stunden je Tag ergeben sich dann aus den Schichten ohne Pause, und die Einlastung rechnet "
+     "damit. Eine Maschine ohne Schicht behält ihre Stunden je Tag von Hand. Der Samstag bleibt eine Stundenzahl für "
+     "alle Maschinen; eine zusätzliche Schicht in einer einzelnen Woche lässt sich über <b>Was wäre, wenn …</b> als "
+     "Zusatzstunden eintragen."),
+    ("Plantafel: Tagesansicht",
+     "Die Ansicht <b>Tag</b> zeigt einen Tag über die ganze Breite, mit Stundenraster und den Schichten der "
+     "Maschine. Im Balken stehen Auftragsnummer und Kunde, von wann bis wann der Auftrag an diesem Tag läuft, die "
+     "Restlaufzeit, wann er fertig wird und der Liefertermin. <b>◀</b> und <b>▶</b> blättern einen Tag weiter, "
+     "<b>Heute</b> springt zurück. Die Uhrzeiten sind gerechnet: Die Aufträge laufen nacheinander ab Schichtbeginn, "
+     "Pausen und der Nutzungsgrad sind gleichmäßig verteilt."),
     ("Online-Update",
      "Ab Version 1.7 sieht das Programm kurz nach dem Start online nach, ob es eine neuere Version gibt, und meldet "
      "sich nur dann. <b>Jetzt aktualisieren</b> lädt nur die geänderten Dateien, sichert die Datenbank, schließt "
