@@ -11,8 +11,8 @@ from . import etiketten, fertigung, lager, leerhinweis, stil
 from .klartext import fehler_text
 from .lager_seite import _fuellen, _tabelle
 
-SPALTEN = (("Angebot", "nummer"), ("Kunde", "kunde"), ("Auftragsnr.", "auftragsnr"), ("Liefertermin", "liefertermin"),
-           ("Status", "status"), ("seit", "am"), ("Freigabe-Version", "version"), ("Hinweis", "hinweis"))
+SPALTEN = (("Angebot", "nummer"), ("Kunde", "kunde"), ("Auftragsnr.", "auftragsnr"), ("ab Werk", "liefertermin"),
+           ("frei Haus", "liefertermin_frei_haus"), ("Status", "status"), ("seit", "am"), ("Freigabe-Version", "version"), ("Hinweis", "hinweis"))
 VERLAUF = (("Zeitpunkt", "am"), ("Status", "status"), ("Kürzel", "wer"), ("Freigabe-Version", "version"),
            ("Bemerkung", "bemerkung"))
 RUECKMELDUNG = (("Pos.", "pos"), ("Artikel", "artikel"), ("Stück", "stueck"))
