@@ -7696,6 +7696,11 @@ def kapitel_fertigung(i):
             "Auftragsnummer, Kunde, Uhrzeit von bis, Restlaufzeit, Fertig-Tag und Liefertermin. Die Pfeile blättern "
             "tageweise, <i>Heute</i> springt zurück. Die Uhrzeiten sind gerechnet (Aufträge nacheinander ab "
             "Schichtbeginn).",
+            "<b>Wochenwechsel der Schichten</b> (ab Version 1.8): Bei <i>Maschine ändern …</i> lässt sich unter "
+            "<i>Wochenwechsel über</i> eine Folge von zwei bis vier Wochen einstellen, jede Woche mit ihren "
+            "Schichten (z. B. Woche 1 Früh, Woche 2 Spät). Das Datum darunter legt fest, in welcher Woche Woche 1 "
+            "gilt; danach wiederholt sich die Folge. Einlastung, Auslastung und Tagesansicht rechnen jede Woche mit "
+            "ihren Schichten. In der Maschinenliste steht z. B. „Früh / Spät im Wechsel“.",
             "<b>Online-Update</b> (ab Version 1.7): Das Programm sieht kurz nach dem Start online nach einer "
             "neueren Version und meldet sich nur dann. <i>Jetzt aktualisieren</i> lädt nur die geänderten Dateien, "
             "sichert die Datenbank, schließt das Programm, tauscht die Dateien aus und startet neu; <i>Später</i> "

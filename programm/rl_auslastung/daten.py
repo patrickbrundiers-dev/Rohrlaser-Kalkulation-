@@ -93,6 +93,12 @@ SCHRITTE = (
     """
     ALTER TABLE maschinen ADD COLUMN schichten TEXT NOT NULL DEFAULT '';
     """,
+    # 9: Wochenwechsel der Schichten (Patrick 11.11.2026): maschinen.schichten kann mehrere Wochen enthalten, mit „|“
+    # getrennt („Früh|Spät“ = eine Woche Früh, die nächste Spät, dann wieder von vorn); schicht_start = Montag der
+    # Woche, in der die Folge mit ihrer ersten Woche beginnt. stunden_tag ist dann die kleinste Woche der Folge.
+    """
+    ALTER TABLE maschinen ADD COLUMN schicht_start TEXT;
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -138,12 +144,40 @@ def uhr_text(minuten):
     return f"{minuten // 60:02d}:{minuten % 60:02d}"
 
 
+FOLGE_MAX = 4                  # so viele Wochen kann der Wochenwechsel einer Maschine haben
+
+
+def schichtfolge(maschine):
+    """Schichten einer Maschine (Zeile aus maschinen) je Woche der Folge: [[Namen der Woche 1], [Woche 2] …];
+    [] = ohne Schichten, eine Woche = jede Woche gleich."""
+    text = (maschine or {}).get("schichten") or ""
+    return [w for w in ([n for n in teil.split(",") if n] for teil in text.split("|")) if w]
+
+
+def schichten_woche(maschine, montag=None):
+    """Namen der Schichten der Maschine in der Woche ab montag (None = erste Woche der Folge)."""
+    folge = schichtfolge(maschine)
+    if not folge:
+        return []
+    if len(folge) == 1 or montag is None:
+        return folge[0]
+    start = _tag_iso(maschine.get("schicht_start")) or montag
+    return folge[((montag - start).days // 7) % len(folge)]
+
+
+def _tag_iso(text):
+    try:
+        return datetime.date.fromisoformat(str(text)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
 def _schicht(name, beginn, ende, pause=0):
     """Geprüfte Schicht: dauer = Stunden von Beginn bis Ende (über Mitternacht möglich, gleich = 24 h), stunden =
     Arbeitszeit ohne Pause."""
     name = str(name or "").strip()
-    if not name or "," in name:
-        raise Fehler("Die Schicht braucht einen Namen (ohne Komma).")
+    if not name or "," in name or "|" in name:
+        raise Fehler("Die Schicht braucht einen Namen (ohne Komma und ohne „|“).")
     b, e = uhrzeit(beginn), uhrzeit(ende)
     try:
         pause = int(pause or 0)
@@ -290,42 +324,54 @@ class Daten:
                 [dict(name=x["name"], beginn=x["beginn"], ende=x["ende"], pause=x["pause"]) for x in neu]))
             netto = {x["name"]: x["stunden"] for x in neu}
             for m in self.maschinen():
-                alt = [n for n in (m["schichten"] or "").split(",") if n]
-                if not alt:
+                folge = schichtfolge(m)
+                if not folge:
                     continue
-                bleibt = [n for n in alt if n in netto]
-                stunden = min(24.0, sum(netto[n] for n in bleibt)) if bleibt else m["stunden_tag"]
+                bleibt = [w for w in ([n for n in woche if n in netto] for woche in folge) if w]
+                stunden = (min(min(24.0, sum(netto[n] for n in w)) for w in bleibt) if bleibt
+                           else m["stunden_tag"])
                 self.con.execute("UPDATE maschinen SET schichten = ?, stunden_tag = ? WHERE name = ?",
-                                 (",".join(bleibt), stunden, m["name"]))
+                                 ("|".join(",".join(w) for w in bleibt), stunden, m["name"]))
 
-    def schichten_der(self, maschine):
-        """Schichten einer Maschine von Montag bis Freitag in der Reihenfolge der Schichtliste ([] = ohne Schichten,
-        Stunden je Tag von Hand)."""
+    def schichten_der(self, maschine, montag=None):
+        """Schichten einer Maschine von Montag bis Freitag in der Woche ab montag (Vorgabe: erste Woche der Folge),
+        in der Reihenfolge der Schichtliste ([] = ohne Schichten, Stunden je Tag von Hand)."""
         m = next((x for x in self.maschinen() if x["name"] == maschine), None)
-        namen = [n for n in ((m or {}).get("schichten") or "").split(",") if n]
+        namen = schichten_woche(m, montag) if m else []
         return [x for x in self.schichten() if x["name"] in namen]
 
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
-                           ausweich=None, schichten=None):
+                           ausweich=None, schichten=None, schicht_start=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
         zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
         ausweich: kann Aufträge anderer Maschinen übernehmen (Vorschlag Ausweichmaschine); None lässt es.
         schichten: Namen der Schichten von Montag bis Freitag; mit Schichten ergeben sich die Stunden je Tag aus
-        ihrer Summe, [] = ohne Schichten (Stunden je Tag von Hand); None lässt sie."""
+        ihrer Summe, [] = ohne Schichten (Stunden je Tag von Hand); None lässt sie. Wochenwechsel: eine Liste je
+        Woche ([["Früh"], ["Spät"]]), die Folge wiederholt sich ab schicht_start (Datum, gilt dessen Montag;
+        Vorgabe: der bisherige Beginn, sonst diese Woche). stunden_tag ist dann die kleinste Woche."""
         name = str(name or "").strip()
         if not name:
             raise Fehler("Die Maschine braucht einen Namen.")
         if schichten is not None:
             bekannt = {x["name"]: x for x in self.schichten()}
-            fehlt = [n for n in schichten if n not in bekannt]
+            fehlt = [n for w in schichten for n in ([w] if isinstance(w, str) else w) if n not in bekannt]
             if fehlt:
                 raise Fehler(f"Die Schicht „{fehlt[0]}“ gibt es nicht (Einstellungen → Schichten).")
-            schichten = [n for n in bekannt if n in schichten]
-            if schichten:
-                stunden_tag = sum(bekannt[n]["stunden"] for n in schichten)
-                if stunden_tag > 24 or sum(bekannt[n]["dauer"] for n in schichten) > 24 + 1e-9:
+            folge = [list(w) for w in schichten] if schichten and not isinstance(schichten[0], str) \
+                else ([list(schichten)] if schichten else [])
+            if len(folge) > FOLGE_MAX:
+                raise Fehler(f"Der Wochenwechsel geht über höchstens {FOLGE_MAX} Wochen.")
+            folge = [[n for n in bekannt if n in woche] for woche in folge]
+            if len(folge) > 1 and not all(folge):
+                raise Fehler("Wochenwechsel: In jeder Woche muss mindestens eine Schicht angehakt sein.")
+            folge = [w for w in folge if w]
+            for woche in folge:
+                if sum(bekannt[n]["dauer"] for n in woche) > 24 + 1e-9:
                     raise Fehler("Die gewählten Schichten ergeben zusammen mehr als 24 Stunden am Tag.")
+            if folge:
+                stunden_tag = min(sum(bekannt[n]["stunden"] for n in woche) for woche in folge)
+            schichten = folge
         try:
             stunden = float(str(stunden_tag).replace(",", "."))
         except ValueError:
@@ -373,7 +419,14 @@ class Daten:
             if ausweich is not None:
                 self.con.execute("UPDATE maschinen SET ausweich = ? WHERE name = ?", (int(bool(ausweich)), name))
             if schichten is not None:
-                self.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?", (",".join(schichten), name))
+                self.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?",
+                                 ("|".join(",".join(w) for w in schichten), name))
+                if len(schichten) > 1:
+                    alt_start = self.con.execute("SELECT schicht_start FROM maschinen WHERE name = ?",
+                                                 (name,)).fetchone()[0]
+                    start = schicht_start or _tag_iso(alt_start) or datetime.date.today()
+                    start -= datetime.timedelta(days=start.weekday())
+                    self.con.execute("UPDATE maschinen SET schicht_start = ? WHERE name = ?", (start.isoformat(), name))
 
     def maschine_loeschen(self, name):
         n = self.con.execute(

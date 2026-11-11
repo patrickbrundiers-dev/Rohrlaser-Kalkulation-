@@ -1369,10 +1369,12 @@ assert ein14["kapazitaet"][("LT7", h14)] == 15.0 and ein14["kapazitaet"][("T03",
 s1 = next(a for a in ein14["auftraege"] if a["nummer"] == "S-1")
 assert s1["fertig"] == datetime.date(2026, 11, 12)                                    # 15 h am ersten Tag, Rest am zweiten
 sp14 = rechnung.spannen(db14)
-assert sp14["LT7"][0] == [(360, 8.0, "Früh"), (840, 8.0, "Spät")] and sp14["T03"][0] == [(360, 8.0, "")]
-assert sp14["LT7"][1] == []                                                           # Samstag: keine Stunden eingestellt
-assert rechnung.uhr_am(sp14["LT7"][0], 0) == 360 and rechnung.uhr_am(sp14["LT7"][0], 0.5) == 840
-assert rechnung.uhr_am(sp14["LT7"][0], 1) == 1320 and rechnung.uhr_am([], 0.5) is None
+lt14 = sp14["LT7"]["folge"][0]
+assert lt14 == [(360, 8.0, "Früh"), (840, 8.0, "Spät")] and sp14["T03"]["folge"] == [[(360, 8.0, "")]]
+assert sp14["LT7"]["samstag"] == []                                                   # Samstag: keine Stunden eingestellt
+assert rechnung.teile_am(sp14["LT7"], h14) == lt14 and rechnung.teile_am(sp14["LT7"], datetime.date(2026, 11, 14)) == []
+assert rechnung.uhr_am(lt14, 0) == 360 and rechnung.uhr_am(lt14, 0.5) == 840
+assert rechnung.uhr_am(lt14, 1) == 1320 and rechnung.uhr_am([], 0.5) is None
 nacht = [(840, 8.0, "Spät"), (1320, 8.0, "Nacht")]
 assert rechnung.uhr_am(nacht, 1) == 1320 + 480 and daten.uhr_text(1320 + 480) == "06:00"   # endet am Folgetag um 6
 # Schicht ändern rechnet die Maschinen neu, entfernen nimmt sie bei der Maschine weg
@@ -1429,6 +1431,77 @@ assert not any(k.isEnabled() for k in f14.t_blaettern)
 f14.close()
 db14.schliessen()
 ok("R14 Einstellungen Schichten (anlegen, umbenennen, entfernen, je Maschine wählen), Tagesansicht mit Uhrzeiten und Blättern")
+
+# ---------------------------------------------------------------- R15 Wochenwechsel der Schichten (Version 1.8)
+t15 = Path(tempfile.mkdtemp())
+db15 = daten.Daten(t15 / "w.db")
+sch15 = db15.schichten()
+h15 = datetime.date(2026, 11, 11)                                                     # Mittwoch, KW 46
+mo15 = datetime.date(2026, 11, 9)
+db15.maschine_speichern("LT7", 8, True, alt="LT7", schichten=[["Früh"], ["Früh", "Spät"]], schicht_start=h15)
+m15 = {m["name"]: m for m in db15.maschinen()}["LT7"]
+assert (m15["schichten"], m15["schicht_start"], m15["stunden_tag"]) == ("Früh|Früh,Spät", "2026-11-09", 7.5)
+assert daten.schichtfolge(m15) == [["Früh"], ["Früh", "Spät"]]
+assert daten.schichten_woche(m15, mo15) == ["Früh"]
+assert daten.schichten_woche(m15, mo15 + datetime.timedelta(weeks=1)) == ["Früh", "Spät"]
+assert daten.schichten_woche(m15, mo15 + datetime.timedelta(weeks=2)) == ["Früh"]
+assert daten.schichten_woche(m15, mo15 - datetime.timedelta(weeks=1)) == ["Früh", "Spät"]     # auch rückwärts
+assert [x["name"] for x in db15.schichten_der("LT7", mo15 + datetime.timedelta(weeks=3))] == ["Früh", "Spät"]
+assert "mindestens eine Schicht" in fehler(db15.maschine_speichern, "LT7", 8, True, alt="LT7",
+                                           schichten=[["Früh"], []])
+assert "höchstens" in fehler(db15.maschine_speichern, "LT7", 8, True, alt="LT7", schichten=[["Früh"]] * 5)
+assert "„|“" in fehler(db15.schichten_setzen, [dict(name="A|B", beginn="6", ende="14")])
+db15.auftrag_speichern(dict(nummer="W-1", maschine="LT7", kalk_min=40 * 60, liefertermin=datetime.date(2026, 12, 4)))
+aus15, ein15 = rechnung.einlasten(db15, h15, 4)
+kap15 = ein15["kapazitaet"]
+assert kap15[("LT7", h15)] == 7.5 and kap15[("LT7", datetime.date(2026, 11, 16))] == 15.0     # KW 47 mit Spätschicht
+assert kap15[("LT7", datetime.date(2026, 11, 20))] == 15.0 and kap15[("LT7", datetime.date(2026, 11, 23))] == 7.5
+assert kap15[("T03", datetime.date(2026, 11, 16))] == 8.0                             # andere Maschinen unberührt
+w1 = next(a for a in ein15["auftraege"] if a["nummer"] == "W-1")
+assert w1["fertig"] == datetime.date(2026, 11, 17)        # 3 x 7,5 h in KW 46, dann 15 h am Montag, Rest am Dienstag
+sp15 = rechnung.spannen(db15)["LT7"]
+assert len(sp15["folge"]) == 2 and sp15["start"] == mo15
+assert rechnung.teile_am(sp15, h15) == [(360, 8.0, "Früh")]
+assert rechnung.teile_am(sp15, datetime.date(2026, 11, 18)) == [(360, 8.0, "Früh"), (840, 8.0, "Spät")]
+# Schicht ändern rechnet die kleinste Woche neu, entfernen nimmt sie aus jeder Woche; leere Wochen fallen weg
+db15.schichten_setzen([dict(sch15[0], ende="13:00")] + sch15[1:])
+assert {m["name"]: m for m in db15.maschinen()}["LT7"]["stunden_tag"] == 6.5
+db15.schichten_setzen(sch15[1:])
+m15 = {m["name"]: m for m in db15.maschinen()}["LT7"]
+assert (m15["schichten"], m15["stunden_tag"]) == ("Spät", 7.5)
+db15.schichten_setzen(sch15)
+db15.maschine_speichern("LT7", 8, True, alt="LT7", schichten=[["Früh"], ["Spät"]], schicht_start=h15)
+db15.maschine_speichern("LT7", 8, True, alt="LT7")                                   # ohne Angabe bleibt der Wechsel
+assert {m["name"]: m for m in db15.maschinen()}["LT7"]["schichten"] == "Früh|Spät"
+ok("R15 Wochenwechsel: Folge je Maschine, Beginn am Montag, Einlastung mit den Stunden der jeweiligen Woche")
+
+f15 = Hauptfenster(db15, heute=h15, platz=t15)
+f15.resize(1400, 900)
+f15.show()
+f15.reiter.setCurrentIndex(4)
+app.processEvents()
+assert "Früh / Spät im Wechsel" in f15.e_maschinen.item(0, 1).text()
+f15.e_schichten.selectRow(0)
+assert f15.schicht_bearbeiten(werte=("Frühschicht", "06:00", "14:00", 30))             # umbenennen in jeder Woche
+assert {m["name"]: m for m in db15.maschinen()}["LT7"]["schichten"] == "Frühschicht|Spät"
+f15.e_maschinen.selectRow(1)
+assert f15.maschine_bearbeiten(werte=("T03", 8, True, "", 0, True, [["Nacht"], ["Frühschicht", "Spät"]],
+                                      datetime.date(2026, 11, 18)))
+m15 = {m["name"]: m for m in db15.maschinen()}["T03"]
+assert (m15["schichten"], m15["schicht_start"], m15["stunden_tag"]) == ("Nacht|Frühschicht,Spät", "2026-11-16", 7.5)
+f15.reiter.setCurrentIndex(1)
+app.processEvents()
+f15.t_zoom["Tag"].click()
+app.processEvents()
+tf15 = f15.tafel
+assert tf15.uhr("LT7", h15, 7.5) == "14:00"                                           # KW 46: Frühschicht
+assert tf15.uhr("LT7", datetime.date(2026, 11, 18), 0) == "14:00"                     # KW 47: Spätschicht
+assert tf15.uhr("LT7", datetime.date(2026, 11, 18), 7.5) == "22:00"
+assert tf15.uhr("T03", datetime.date(2026, 11, 18), 0) == "22:00"                     # T03 beginnt in KW 47 mit Nacht
+tf15.grab()
+f15.close()
+db15.schliessen()
+ok("R15 Wochenwechsel in den Einstellungen (Liste, Umbenennen, Maschine ändern) und in der Tagesansicht")
 
 # ---------------------------------------------------------------- R6 unabhängig von der Kalkulation
 code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl_auslastung.__main__; "

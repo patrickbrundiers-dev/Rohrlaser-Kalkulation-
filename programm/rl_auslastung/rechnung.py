@@ -55,7 +55,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     m0 = wochen.montag(heute)
     montage = [m0 + datetime.timedelta(weeks=i) for i in range(int(wochenzahl))]
     spalten = [(mo, f"KW {mo.isocalendar()[1]}", mo) for mo in montage] + [(wochen.SPAETER, "später", None)]
-    return dict(maschinen=maschinen, auftraege=auftraege, spalten=spalten, kapazitaet={}, heute=heute,
+    aus = dict(maschinen=maschinen, auftraege=auftraege, spalten=spalten, kapazitaet={}, heute=heute,
                 vorlauf=int(db.zahl("vorlauf_tage")), tag=tag, stunden=8.0, samstag=db.zahl("samstag_stunden"),
                 anteil=max(0.0, min(1.0, db.zahl("nutzungsgrad", 100) / 100)), land=db.einstellung("bundesland"),
                 ruhe=wochen.betriebsruhe(db.einstellung("betriebsruhe")),
@@ -63,21 +63,64 @@ def grundlage(db, heute=None, wochenzahl=8):
                 uebergang={m["name"]: int(m["uebergang_tage"] or 0) for m in db.maschinen()},
                 zusatz=db.zusatzstunden(m0),
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]])
+    aus["schicht_zusatz"] = schicht_zusatz(db, aus)       # Wochenwechsel der Schichten, kommt in jeder Rechnung dazu
+    return aus
 
 
 def spannen(db):
-    """Arbeitszeit je Maschine als Uhrzeiten für die Tagesansicht: {Maschine: (Montag bis Freitag, Samstag)}, jede
-    Seite [(Beginn in Minuten seit Mitternacht, Dauer in Stunden, Name der Schicht oder '')]. Mit Schichten deren
-    Zeiten; ohne Schichten ein Block ab dem Beginn der ersten Schicht (sonst 06:00) über die Stunden je Tag."""
+    """Arbeitszeit je Maschine als Uhrzeiten für die Tagesansicht: {Maschine: dict(folge=[Woche 1, Woche 2 …],
+    start=Montag der ersten Woche oder None, samstag=[…])}; jede Woche und der Samstag sind [(Beginn in Minuten seit
+    Mitternacht, Dauer in Stunden, Name der Schicht oder '')]. Mit Schichten deren Zeiten; ohne Schichten ein Block ab
+    dem Beginn der ersten Schicht (sonst 06:00) über die Stunden je Tag."""
     alle = db.schichten()
     beginn = D.uhrzeit(alle[0]["beginn"]) if alle else 360
     samstag = db.zahl("samstag_stunden")
     out = {}
     for m in db.maschinen():
-        eigene = [x for x in alle if x["name"] in (m["schichten"] or "").split(",")]
-        woche = ([(D.uhrzeit(x["beginn"]), x["dauer"], x["name"]) for x in eigene] if eigene
-                 else [(beginn, float(m["stunden_tag"]), "")])
-        out[m["name"]] = (woche, [(beginn, float(samstag), "")] if samstag > 0 else [])
+        folge = [[(D.uhrzeit(x["beginn"]), x["dauer"], x["name"]) for x in alle if x["name"] in woche]
+                 for woche in D.schichtfolge(m)]
+        out[m["name"]] = dict(folge=[w for w in folge if w] or [[(beginn, float(m["stunden_tag"]), "")]],
+                              start=D._tag_iso(m.get("schicht_start")),
+                              samstag=[(beginn, float(samstag), "")] if samstag > 0 else [])
+    return out
+
+
+def teile_am(spanne, tag):
+    """Arbeitszeit eines Tages aus einem Eintrag von spannen(): Samstag eigene Stunden, sonst die Woche der Folge."""
+    if not spanne:
+        return [(360, 8.0, "")]
+    if tag.weekday() == 5:
+        return spanne["samstag"]
+    folge = spanne["folge"]
+    montag = wochen.montag(tag)
+    start = spanne.get("start") or montag
+    return folge[((montag - start).days // 7) % len(folge)]
+
+
+def schicht_zusatz(db, aus, horizont=einlastung.HORIZONT):
+    """Wochenwechsel: Stunden, die eine Maschine in einer Woche mehr hat als in ihrer kleinsten Woche, als
+    Zusatzstunden je (Maschine, Montag). Der Rechenkern kennt je Maschine nur eine Stundenzahl (die kleinste Woche
+    steht in stunden_tag) und verteilt Zusatzstunden gleichmäßig auf die Arbeitstage der Woche; ist ein Samstag mit
+    Stunden eingestellt, bekommt auch er seinen Anteil."""
+    alle = {x["name"]: x["stunden"] for x in db.schichten()}
+    heute, anteil = aus["heute"], aus.get("anteil", 1.0)
+    m0 = wochen.montag(heute)
+    out = {}
+    for m in db.maschinen():
+        folge = D.schichtfolge(m)
+        if len(folge) < 2:
+            continue
+        stunden = [sum(alle.get(n, 0.0) for n in woche) for woche in folge]
+        start = D._tag_iso(m.get("schicht_start")) or m0
+        for i in range(horizont // 7 + 2):
+            mo = m0 + datetime.timedelta(weeks=i)
+            mehr = stunden[((mo - start).days // 7) % len(folge)] - min(stunden)
+            if mehr <= 1e-9:
+                continue
+            tage = [mo + datetime.timedelta(days=k) for k in range(7)]
+            arbeit = [d for d in tage if d >= heute and einlastung.tagesstunden(aus, m["name"], d) > 0]
+            if arbeit:
+                out[(m["name"], mo)] = mehr * anteil * len(arbeit)
     return out
 
 
@@ -116,6 +159,8 @@ def _szenario(aus, probe=None):
     """Szenario für den Rechenkern aus gespeicherten Zusatzstunden und der Probe; None, wenn nichts abweicht."""
     s = einlastung.Szenario()
     s.zusatz = dict(aus.get("zusatz") or {}) if probe is None or probe.zusatz is None else dict(probe.zusatz)
+    for k, h in (aus.get("schicht_zusatz") or {}).items():
+        s.zusatz[k] = s.zusatz.get(k, 0.0) + h
     if probe is not None:
         s.samstag = probe.samstag
         s.maschine = {i: (m, None) for i, m in probe.maschine.items()}

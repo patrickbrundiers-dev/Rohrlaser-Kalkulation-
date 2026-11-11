@@ -50,6 +50,13 @@ WOCHENTAG = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
 WOCHENTAG_LANG = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
 
 
+def _folge_text(m):
+    """Schichten einer Maschine für die Liste: „Früh + Spät“ oder im Wochenwechsel „Früh / Spät im Wechsel“."""
+    folge = D.schichtfolge(m)
+    text = " / ".join(" + ".join(woche) for woche in folge)
+    return text + (" im Wechsel" if len(folge) > 1 else "")
+
+
 def _wtag(d):
     """Datum mit Wochentag: Do 19.11.2026."""
     return f"{('Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So')[d.weekday()]} {d.strftime('%d.%m.%Y')}" if d else ""
@@ -689,7 +696,7 @@ class ZiehTafel(Plantafel):
         self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
         self.kunden = {}
         self.tag_an = False                       # Tagesansicht: ein Tag füllt die Breite, Uhrzeiten, mehr Text
-        self.spannen = {}                         # {Maschine: (Mo–Fr, Sa)} Arbeitszeit als Uhrzeiten (rechnung.spannen)
+        self.spannen = {}                         # {Maschine: Arbeitszeit als Uhrzeiten} (rechnung.spannen)
 
     def tag_ansicht(self, an):
         """Tagesansicht ein/aus: höhere Zeilen für drei Zeilen Text je Auftrag und das Stundenraster."""
@@ -702,8 +709,7 @@ class ZiehTafel(Plantafel):
         """Arbeitszeit der Maschine an diesem Tag als [(Beginn in Minuten, Dauer in Stunden, Schicht)]."""
         if not self.ein or not self.ein["kapazitaet"].get((m, tag)):
             return []
-        woche, samstag = self.spannen.get(m) or ([(360, 8.0, "")], [])
-        return (samstag if tag.weekday() == 5 else woche) or [(360, 8.0, "")]
+        return rechnung.teile_am(self.spannen.get(m), tag) or [(360, 8.0, "")]
 
     def uhr(self, m, tag, stunden):
         """Uhrzeit als Text an der Stelle stunden (der nutzbaren Stunden) dieses Tages, '' ohne Arbeitszeit."""
@@ -2896,8 +2902,8 @@ class Hauptfenster(QMainWindow):
         g_s = QGroupBox("Schichten")
         l_s = QVBoxLayout(g_s)
         h_s = QLabel("Welche Schichten eine Maschine von Montag bis Freitag fährt, steht bei der Maschine "
-                     "(<i>Maschine ändern …</i>). Ihre Stunden je Tag ergeben sich dann aus den Schichten ohne Pause. "
-                     "Maschinen ohne Schicht behalten ihre Stunden je Tag von Hand.")
+                     "(<i>Maschine ändern …</i>), dort auch der Wochenwechsel. Ihre Stunden je Tag ergeben sich dann "
+                     "aus den Schichten ohne Pause. Maschinen ohne Schicht behalten ihre Stunden je Tag von Hand.")
         h_s.setWordWrap(True)
         l_s.addWidget(h_s)
         l_s.addWidget(self.e_schichten)
@@ -3141,7 +3147,7 @@ class Hauptfenster(QMainWindow):
         for r, m in enumerate(ms):
             self.e_maschinen.setItem(r, 0, _zelle(m["name"]))
             self.e_maschinen.setItem(r, 1, _zelle(f"{m['stunden_tag']:g}".replace(".", ",") + (
-                f"  ({m['schichten'].replace(',', ' + ')})" if m["schichten"] else ""), True))
+                f"  ({_folge_text(m)})" if m["schichten"] else ""), True))
             self.e_maschinen.setItem(r, 2, _zelle("ja" if m["aktiv"] else "nein"))
             self.e_maschinen.setItem(r, 3, _zelle(m["sperrtage"]))
             self.e_maschinen.setItem(r, 4, _zelle(_arbeitstage(m["uebergang_tage"]) if m["uebergang_tage"] else ""))
@@ -3378,26 +3384,60 @@ class Hauptfenster(QMainWindow):
             form = QFormLayout(d)
             form.addRow("Name", name)
             form.addRow("Stunden je Tag (Montag bis Freitag)", stunden)
-            kaesten = []
+            wochen_k, wechsel, beginn = [], QSpinBox(), QDateEdit()
             if self.db.schichten():
-                zeile = QHBoxLayout()
-                hat = (m["schichten"] if m else "").split(",")
+                alle = self.db.schichten()
+                folge = D.schichtfolge(m) if m else []
+                wechsel.setRange(1, D.FOLGE_MAX)
+                wechsel.setValue(max(1, len(folge)))
+                wechsel.setSuffix(" Wochen")
+                wechsel.setSpecialValueText("jede Woche gleich")
+                wechsel.setToolTip("Wochenwechsel: Die Schichten wechseln von Woche zu Woche und beginnen danach "
+                                   "wieder von vorn, z. B. eine Woche Früh, die nächste Spät.")
+                start = D._tag_iso(m.get("schicht_start")) if m else None
+                montag = self.heute() - datetime.timedelta(days=self.heute().weekday())
+                beginn.setCalendarPopup(True)
+                beginn.setDisplayFormat("dd.MM.yyyy")
+                beginn.setDate(QDate(*(start or montag).timetuple()[:3]))
+                beginn.setToolTip("In dieser Woche gilt Woche 1 des Wechsels (es zählt der Montag der Woche).")
+                gitter = QGridLayout()
+                marken = []
+                for w in range(D.FOLGE_MAX):
+                    marke = QLabel(f"Woche {w + 1}")
+                    gitter.addWidget(marke, w, 0)
+                    marken.append(marke)
+                    zeile = []
+                    for c, x in enumerate(alle):
+                        k = QCheckBox(f"{x['name']} ({x['beginn']} bis {x['ende']})")
+                        k.setChecked(w < len(folge) and x["name"] in folge[w])
+                        gitter.addWidget(k, w, c + 1)
+                        zeile.append((k, x))
+                    wochen_k.append(zeile)
+                gitter.setColumnStretch(len(alle) + 1, 1)
+                b_marke = QLabel("Woche 1 beginnt in der Woche vom")
 
                 def rechnen():
-                    gew = [x for k, x in kaesten if k.isChecked()]
-                    stunden.setEnabled(not gew)
-                    if gew:
-                        stunden.setValue(min(24.0, sum(x["stunden"] for x in gew)))
+                    n = wechsel.value()
+                    for w, zeile in enumerate(wochen_k):
+                        marken[w].setVisible(n > 1 and w < n)
+                        for k, _x in zeile:
+                            k.setVisible(w < n)
+                    b_marke.setVisible(n > 1)
+                    beginn.setVisible(n > 1)
+                    summen = [sum(x["stunden"] for k, x in zeile if k.isChecked()) for zeile in wochen_k[:n]]
+                    summen = [h for h in summen if h > 0]
+                    stunden.setEnabled(not summen)
+                    if summen:
+                        stunden.setValue(min(24.0, min(summen)))
 
-                for x in self.db.schichten():
-                    k = QCheckBox(f"{x['name']} ({x['beginn']} bis {x['ende']})")
-                    k.setChecked(x["name"] in hat)
-                    k.toggled.connect(lambda _an: rechnen())
-                    zeile.addWidget(k)
-                    kaesten.append((k, x))
-                zeile.addStretch(1)
+                for zeile in wochen_k:
+                    for k, _x in zeile:
+                        k.toggled.connect(lambda _an: rechnen())
+                wechsel.valueChanged.connect(lambda _n: rechnen())
+                form.addRow("Schichten (Montag bis Freitag)", gitter)
+                form.addRow("Wochenwechsel über", wechsel)
+                form.addRow(b_marke, beginn)
                 rechnen()
-                form.addRow("Schichten (Montag bis Freitag)", zeile)
             form.addRow("", aktiv)
             sperre = QLineEdit(m["sperrtage"] if m else "")
             sperre.setPlaceholderText("z. B. 24.11.2026-25.11.2026; 02.12.2026")
@@ -3427,13 +3467,18 @@ class Hauptfenster(QMainWindow):
             if d.exec() != QDialog.Accepted:
                 return False
             werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text(), ueber.value(),
-                     ausweich.isChecked(), [x["name"] for k, x in kaesten if k.isChecked()])
+                     ausweich.isChecked(),
+                     [[x["name"] for k, x in zeile if k.isChecked()] for zeile in wochen_k[:wechsel.value()]]
+                     if len(wochen_k) and wechsel.value() > 1 else
+                     [x["name"] for k, x in (wochen_k[0] if wochen_k else []) if k.isChecked()],
+                     beginn.date().toPython())
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
                                        uebergang=werte[4] if len(werte) > 4 else None,
                                        ausweich=werte[5] if len(werte) > 5 else None,
-                                       schichten=werte[6] if len(werte) > 6 else None)
+                                       schichten=werte[6] if len(werte) > 6 else None,
+                                       schicht_start=werte[7] if len(werte) > 7 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False
@@ -3475,10 +3520,11 @@ class Hauptfenster(QMainWindow):
             if alt and alt["name"] != str(werte[0]).strip():      # umbenannt: die Maschinen ziehen mit
                 D._schicht(*werte)
                 for m in self.db.maschinen():
-                    namen = [n for n in (m["schichten"] or "").split(",") if n]
-                    if alt["name"] in namen:
-                        self.db.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?", (",".join(
-                            str(werte[0]).strip() if n == alt["name"] else n for n in namen), m["name"]))
+                    folge = D.schichtfolge(m)
+                    if any(alt["name"] in woche for woche in folge):
+                        self.db.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?", ("|".join(
+                            ",".join(str(werte[0]).strip() if n == alt["name"] else n for n in woche)
+                            for woche in folge), m["name"]))
             self.db.schichten_setzen(liste + [eintrag] if neu else [eintrag if i == r else x
                                                                     for i, x in enumerate(liste)])
         except D.Fehler as e:

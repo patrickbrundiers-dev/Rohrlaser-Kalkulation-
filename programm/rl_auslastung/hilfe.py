@@ -170,6 +170,14 @@ ABSCHNITTE = (
      "damit. Eine Maschine ohne Schicht behält ihre Stunden je Tag von Hand. Der Samstag bleibt eine Stundenzahl für "
      "alle Maschinen; eine zusätzliche Schicht in einer einzelnen Woche lässt sich über <b>Was wäre, wenn …</b> als "
      "Zusatzstunden eintragen."),
+    ("Schichten: Wochenwechsel",
+     "Wechseln die Schichten einer Maschine von Woche zu Woche, stellt man bei <b>Maschine ändern …</b> unter "
+     "<b>Wochenwechsel über</b> zwei bis vier Wochen ein und hakt für jede Woche ihre Schichten an, z. B. Woche 1 "
+     "Früh, Woche 2 Spät, oder Woche 1 Früh und Spät, Woche 2 nur Früh. Das Datum darunter legt fest, in welcher "
+     "Woche Woche 1 gilt (es zählt der Montag dieser Woche); danach wiederholt sich die Folge von selbst. "
+     "Einlastung, Auslastung und Tagesansicht rechnen jede Woche mit ihren Schichten. Im Feld Stunden je Tag steht "
+     "die kleinste Woche. Hat eine Woche mehr Stunden, verteilt das Programm sie gleichmäßig auf die Arbeitstage "
+     "dieser Woche; ist ein Samstag mit Stunden eingestellt, bekommt auch er einen Anteil."),
     ("Plantafel: Tagesansicht",
      "Die Ansicht <b>Tag</b> zeigt einen Tag über die ganze Breite, mit Stundenraster und den Schichten der "
      "Maschine. Im Balken stehen Auftragsnummer und Kunde, von wann bis wann der Auftrag an diesem Tag läuft, die "

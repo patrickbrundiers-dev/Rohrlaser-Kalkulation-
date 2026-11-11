@@ -5,7 +5,7 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil und auslastung_grafik gebraucht, für das Online-Update (aktualisierung.py) zusätzlich update
 und update_schluessel."""
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Online-Update, Schichten mit Uhrzeiten je Maschine und eine Tagesansicht der Plantafel mit Uhrzeiten.")
+NEU = ("Wochenwechsel der Schichten je Maschine: z. B. eine Woche Früh, die nächste Spät.")
