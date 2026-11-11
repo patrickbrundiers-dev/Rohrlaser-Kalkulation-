@@ -1203,7 +1203,11 @@ class BlechDialog(QDialog):
             a.gier, a.nick, a.zoom = blick
             a.update()
         if erg.get("zuschnitt") and not self._bez_von_hand:
-            self.bezeichnung.setPlaceholderText(blech.bezeichnung_vorschlag(e, erg["zuschnitt"]))
+            vorschlag = blech.bezeichnung_vorschlag(e, erg["zuschnitt"])
+            self.bezeichnung.setPlaceholderText(vorschlag)
+            self.bezeichnung.setToolTip(f"Vorschlag: {vorschlag}")
+            # Feld so breit wie der Vorschlag (11.11.2026: „… (2 Kantungen)“ war abgeschnitten), höchstens 420 px
+            self.bezeichnung.setMinimumWidth(min(420, self.bezeichnung.fontMetrics().horizontalAdvance(vorschlag) + 16))
         self.ok_knopf.setEnabled(not erg["fehler"] and bool(erg.get("richtpreis")))
         self.richtwerte.setzen(erg)
         self._tafel_zeigen(erg)

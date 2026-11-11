@@ -1318,6 +1318,12 @@ class Ansicht3D(QWidget):
         fm = p.fontMetrics()
         je_spalte = max(1, int((self.height() - 26 - y) // 18))
         x = 10
+        if legende:     # Legende auf hellem Feld, damit sie über dem Modell lesbar bleibt (Layout-Prüfung 11.11.2026)
+            spalten = [legende[i0:i0 + je_spalte] for i0 in range(0, len(legende), je_spalte)]
+            b_ges = sum(min(220, max(fm.horizontalAdvance(t) for t, _ in sp)) + 34 for sp in spalten) - 10
+            feld = QColor(HINTERGRUND_OBEN)
+            feld.setAlpha(200)
+            p.fillRect(QRectF(x - 4, y, b_ges + 4, 18 * min(je_spalte, len(legende)) + 2), feld)
         for i0 in range(0, len(legende), je_spalte):
             breite = 0
             for k, (text, farbe) in enumerate(legende[i0:i0 + je_spalte]):
@@ -1657,12 +1663,36 @@ class Ansicht3DMitKnoepfen(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self.ansicht, 1)
         lay.addWidget(self.knoepfe)
-        lay.addWidget(self.info)
+        # langer Hinweis (STEP-Prüfung): im Rollbereich statt abgeschnitten (Layout-Prüfung 11.11.2026, L5)
+        from PySide6.QtWidgets import QFrame, QScrollArea
+        self.info_rollen = QScrollArea()
+        self.info_rollen.setWidgetResizable(True)
+        self.info_rollen.setFrameShape(QFrame.NoFrame)
+        self.info_rollen.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.info_rollen.setWidget(self.info)
+        self.info_rollen.setFixedHeight(0)
+        lay.addWidget(self.info_rollen)
 
     def setzen(self, netz, titel="", info=""):
         self.ansicht.setzen(netz, titel)
         self.modi.setVisible(mit_anbau(self.ansicht.netz))
         self.info.setText(info)
+        self._info_hoehe()
+
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self._info_hoehe()
+
+    def _info_hoehe(self):
+        """Hinweis so hoch wie sein Text, höchstens 45 % der Ansicht; der Rest ist im Rollbereich."""
+        if not self.info.text():
+            self.info_rollen.setFixedHeight(0)
+            return
+        breite = max(50, self.width() - 4)
+        hoch = self.info.heightForWidth(breite)
+        frei = self.height() - self.knoepfe.sizeHint().height() - 140 - 2 * self.layout().spacing()  # 3D bleibt sichtbar
+        zeile = self.fontMetrics().height() + 4
+        self.info_rollen.setFixedHeight(max(0, min(max(zeile, min(hoch + 2, int(self.height() * 0.45))), frei)))
 
     def modus_setzen(self, modus):
         """Vorschau wählen wie mit den Knöpfen (Tests, Bildschirmfotos)."""

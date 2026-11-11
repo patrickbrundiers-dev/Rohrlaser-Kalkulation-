@@ -217,7 +217,7 @@ class StepPruefDialog(QDialog):
     BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
     VOLLGRUPPE = "Vollmaterial (Zukaufteile, gesägt)"
     DREHGRUPPE = "Dreh- und Frästeile (Zukaufteile, nicht lasern)"
-    AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
+    AUTOMATISCH = "automatisch (vorhanden oder neu)"     # kurz für die Spalte (11.11.2026); Erklärung im Tooltip
     # Hinweis gleich hinter dem Teil (Plan Angebotsablauf V2: bei 1366 px sichtbar, ganzer Text im Tooltip)
     SPALTEN = ("Artikelnummer ✎", "In Datei", "Hinweis", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl",
                "Zusatzarbeiten", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Anbauteile")
@@ -1047,7 +1047,7 @@ class StepPruefDialog(QDialog):
             self._spalten_sichtbar()
             self.spalten_einpassen()
 
-    SPALTE_MAX = 300            # px: breiter wird eine Auswahlspalte nicht
+    SPALTE_MAX = 340            # px: breiter wird eine Auswahlspalte nicht (300 -> 340 am 11.11.2026)
     NEBENSPALTEN = ("SP_LAENGE", "SP_SCHNEIDWEG", "SP_KONTUREN")     # M1: stehen im Infofeld, ausgeblendet
     # M1: so schmal darf eine Spalte beim Einpassen werden (Artikelnummer zuletzt: Einrückung, Haken und Farbe brauchen
     # schon 80 px; Hinweis, Art, Profil, Werkstoff, Zusatzarbeiten, Anbauteile)
@@ -1115,11 +1115,28 @@ class StepPruefDialog(QDialog):
                 if isinstance(w, QComboBox):
                     breit[c] = max(breit.get(c, 0), w.fontMetrics().horizontalAdvance(w.currentText()) + 34)
             it += 1
+        it = QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None:      # Spalte zu schmal (kein Querscrollen, M1): ganzer Text im Tooltip
+            for c in (self.SP_ART, self.SP_PROFIL):
+                w = self.baum.itemWidget(it.value(), c)
+                if isinstance(w, QComboBox) and not getattr(w, "gekuerzt_mit_tooltip", False):
+                    self._tipp_mit_text(w)
+                    w.currentTextChanged.connect(lambda _t, w=w: self._tipp_mit_text(w))
+            it += 1
         for c, b in breit.items():
             if b > self.baum.columnWidth(c):
                 self.baum.setColumnWidth(c, min(b, self.SPALTE_MAX))
             if c in getattr(self, "_breit_wunsch", {}):
                 self._breit_wunsch[c] = max(self._breit_wunsch[c], min(b, self.SPALTE_MAX))
+
+    @staticmethod
+    def _tipp_mit_text(w):
+        """Tooltip einer Auswahl mit ihrem ganzen Text (falls die Spalte ihn abschneidet)."""
+        alt = getattr(w, "_tipp_grund", None)
+        if alt is None:
+            alt = w._tipp_grund = w.toolTip()
+        w.setToolTip(w.currentText() + (f"\n{alt}" if alt else ""))
+        w.gekuerzt_mit_tooltip = True
 
     def ampel_zahlen(self):
         """(sicher, prüfen, nicht übernehmbar) über alle Dateien: Zeilen gleicher Teile bzw. Teile ohne Übernahme."""

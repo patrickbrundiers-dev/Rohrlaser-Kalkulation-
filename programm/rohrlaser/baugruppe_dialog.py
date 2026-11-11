@@ -157,7 +157,8 @@ class ZeilenTabelle(QTableWidget):
                 f.currentIndexChanged.connect(lambda i, f=f, z=z, s=s: self._setzen(z, s, f.itemData(i)))
             return f
         if s.typ == "anzeige":
-            f = QLabel()
+            from .angebot_oben import KurzZeile      # zu lang: „…“ und ganzer Text im Tooltip (11.11.2026, L5)
+            f = KurzZeile()
             f.setTextFormat(Qt.RichText)
             f.setStyleSheet(f"color: {GRAU}; padding-left: 4px;")
             return f

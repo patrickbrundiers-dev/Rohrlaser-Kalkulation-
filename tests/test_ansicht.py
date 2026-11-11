@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from rohrlaser import rechnen  # noqa: E402
 from rohrlaser.angebot_fenster import OPTIONALE_SPALTEN, SPALTEN_EINSTELLUNG, schneidweg_abweichung  # noqa: E402
+from rohrlaser.stammdaten import EINSTELLUNG  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.sichtbarkeit import (MASCHINE, OPTIONAL, PFLICHT, STAMM, SUMME, ist_null, kopf_sichtbar,  # noqa: E402
@@ -367,7 +368,9 @@ QApplication.processEvents()
 assert s.zweispaltig == (s.viewport().width() >= s.ZWEI_SPALTEN)
 s._anordnen(False)
 assert s.spalten[1].count() == 1 and s.spalten[0].count() == len(s.boxen) + 1     # rechts nur der Abstandhalter
-assert all(w.maximumWidth() <= s.BREITE_TEXT + 160 for n, w in e.felder.items() if n != "logo")
+# Ordnerfelder seit 11.11.2026 breiter (Pfad und Hinweis ganz sichtbar), alle anderen wie bisher
+assert all(w.maximumWidth() <= s.BREITE_TEXT + (280 if s_e.art == "ordner" else 160)
+           for n, w in e.felder.items() if n != "logo" for s_e in [EINSTELLUNG[n]])
 ok("Einstellungen: Hilfetext kurz mit „mehr“ (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
    "Warnungen, Vorgaben bei 1920 px zweispaltig, bei schmalem Fenster einspaltig")
 # Teil 5: Fracht, Zukauf, Dialoge mit kurzen Hilfetexten; Zukauf-Formular in Abschnitten zum Aufklappen

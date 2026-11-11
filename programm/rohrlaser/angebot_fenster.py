@@ -450,7 +450,8 @@ class AngeboteSeite(QWidget):
         self.ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ansicht.customContextMenuRequested.connect(lambda p: self.kontextmenue(p))
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Anfrage-Nr., Artikel, Auftragsnummer …")
+        self.suche.setPlaceholderText("Suchen: Angebot, Kunde, Anfrage-Nr., Artikel …")
+        self.suche.setToolTip("Suchen nach Angebotsnummer, Kunde, Anfrage-Nr., Artikel oder Auftragsnummer")
         self.suche.setClearButtonEnabled(True)
         # Suche erst nach einer kurzen Tipp-Pause (Performance-Audit F1): nicht bei jeder Taste die ganze Liste
         self._such_timer = QTimer(self)
@@ -2002,6 +2003,23 @@ class AngebotReiter(QTabWidget):
     def __init__(self):
         super().__init__()
         self.gruppen = []
+
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self.ecke_anpassen()
+
+    def ecke_anpassen(self):
+        """Schrittanzeige rechts neben den Reitern so weit kürzen, dass alle Reiter ohne Blätterpfeile passen
+        (Layout-Prüfung 11.11.2026, L1)."""
+        ecke = self.cornerWidget(Qt.TopRightCorner)
+        if ecke is None or not hasattr(ecke, "kompakt"):
+            return
+        reiter = self.tabBar().sizeHint().width() + 12
+        stufe = next((s for s in (0, 1, 2) if reiter + ecke.breite_bei(s) <= self.width()), 2)
+        if stufe != ecke.stufe:
+            ecke.kompakt(stufe)
+            ecke.updateGeometry()
+            QTimer.singleShot(0, self, lambda: (self.setCornerWidget(ecke, Qt.TopRightCorner), ecke.show()))
 
     def gruppe(self, text, seiten):
         g = QTabWidget()
@@ -3898,6 +3916,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(),
                                                angebot_check.offen(getattr(self, "_punkte", [])), vorgang(self.kopf),
                                                csv))
+        self.reiter.ecke_anpassen()
 
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())

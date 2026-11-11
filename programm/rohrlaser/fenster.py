@@ -1024,7 +1024,7 @@ class PasswortEingabe(QWidget):
     def anzeigen(self, gesetzt):
         self.gesetzt = bool(gesetzt)
         self.feld.clear()
-        self.feld.setPlaceholderText("gesetzt – zum Ändern neues Passwort eingeben" if gesetzt else "ohne Passwort")
+        self.feld.setPlaceholderText("gesetzt – zum Ändern neu eingeben" if gesetzt else "ohne Passwort")
         self.weg.setEnabled(self.frei and self.gesetzt)
 
     def freigeben(self, an):
@@ -1117,6 +1117,7 @@ class EinstellungenSeite(QScrollArea):
             aussen.addWidget(self.hinweis)
         lay = QHBoxLayout()
         aussen.addLayout(lay, 1)
+        self._spalten_lay = lay
         self.spalten = [QVBoxLayout(), QVBoxLayout()]
         for sp in self.spalten:
             sp.setSpacing(10)
@@ -1175,7 +1176,8 @@ class EinstellungenSeite(QScrollArea):
         sw = Schalter(text_an="an", text_aus="aus")
         sw.setToolTip("Aus: der Wert wird nicht verwendet, bleibt aber gemerkt und kommt beim Einschalten zurück")
         lay.addWidget(sw)
-        lay.addWidget(feld, 1)
+        lay.addWidget(feld)
+        lay.addStretch(1)           # links bündig, auch wenn die Karte breit ist (11.11.2026)
         self.wert_schalter[e.name] = sw
         sw.toggled.connect(lambda an, e=e: self._wert_schalten(e, an))
         return rahmen
@@ -1233,6 +1235,9 @@ class EinstellungenSeite(QScrollArea):
             hoehe[i] += box.sizeHint().height()
         for sp in self.spalten:
             sp.addStretch(1)
+        # einspaltig: die Karten nutzen die ganze Breite (vorher nur die halbe, Ordnerfelder waren zu schmal;
+        # Layout-Prüfung 11.11.2026)
+        self._spalten_lay.setStretch(1, 1 if zwei else 0)
 
     def resizeEvent(self, e):
         self._anordnen(self.viewport().width() >= self.ZWEI_SPALTEN)
@@ -1293,7 +1298,7 @@ class EinstellungenSeite(QScrollArea):
                 w.pfad.setPlaceholderText("nicht teilen")
             if e.name == "ablageordner":
                 w.pfad.setPlaceholderText("Vorgabe: Ordner 'Angebote' neben dem Programm")
-            w.setMaximumWidth(self.BREITE_TEXT + 160)
+            w.setMaximumWidth(self.BREITE_TEXT + 280)       # breiter, damit Pfad und Hinweis passen (11.11.2026)
             w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
             w = QLineEdit()
@@ -2809,6 +2814,9 @@ class Hauptfenster(QMainWindow):
                     it.setForeground(QBrush(stil.farbe(stil.ROT)))
                 t.setItem(r, c, it)
         t.resizeColumnsToContents()
+        fm = t.horizontalHeader().fontMetrics()         # Spaltenköpfe ganz sichtbar, auch ohne Zeilen (11.11.2026)
+        for c in range(t.columnCount()):
+            t.setColumnWidth(c, max(t.columnWidth(c), fm.horizontalAdvance(t.horizontalHeaderItem(c).text()) + 28))
         t.horizontalHeader().setStretchLastSection(True)
         lay.addWidget(t)
         hinweis = QLabel("Festhalten im Angebot über Ausgaben → „Als Referenzangebot festhalten“ (höchstens "

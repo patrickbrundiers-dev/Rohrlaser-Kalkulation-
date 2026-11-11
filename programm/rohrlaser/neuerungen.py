@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.286", "<b>Alles sichtbar auf dem Laptop</b> (Layout-Prüfung): Auf schmalen Bildschirmen (1280 und 1366 px) "
+     "passen die Reiter des Angebots jetzt immer ohne Blätterpfeile – die Schrittanzeige rechts daneben kürzt sich "
+     "dafür (erledigte Schritte nur ✓, ganz schmal nur die Zeichen und „Weiter ▸“; der volle Text steht im Tooltip). "
+     "In der Übersicht trennt der Zeilenumbruch keinen Betrag mehr von „€“. Die Einstellungen nutzen einspaltig die "
+     "ganze Breite (Ordnerfelder zeigen den ganzen Pfad). Die Nachkalkulation hält die Eingabespalte breit genug; "
+     "auf 0 gerundete Abweichungen stehen als „0,00“ statt „-0,00“. In der 3D-Ansicht liegt die Legende auf einem "
+     "hellen Feld, lange Hinweise unter dem 3D-Bild lassen sich rollen statt abgeschnitten zu werden, und lange "
+     "Teilenamen im Baugruppen-Editor enden mit „…“ (ganzer Name im Tooltip). Kürzere Platzhalter in Suche und "
+     "Fertigung, Auswahlfelder im STEP-Dialog mit vollem Text im Tooltip. Ein neuer automatischer Rundgang prüft "
+     "alle Seiten, Einstellungen und Menüfenster bei 1280, 1366 und 1920 px auf abgeschnittene und überlappende "
+     "Elemente.",
+     "Laptop-Layout: alle Angebotsreiter sichtbar, nichts abgeschnitten, 3D-Legende lesbar"],
     ["0.9.285", "<b>Maschinenauslastung als Grafik</b> ([[auslastung]]). Neue Unterseite <i>Auslastung</i> im Reiter "
      "Fertigung (auch <i>Datei → Maschinenauslastung …</i>): <b>Wochenbalken</b> je Maschine (Rahmen = Kapazität, "
      "gefüllt = Aufträge, ab 80 % gelb, über 100 % rot, schraffiert = verschickte Angebote) und eine <b>Plantafel</b> "
