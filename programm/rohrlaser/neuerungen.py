@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.290", "<b>Kalkulation genauer</b>: Hat ein Profil keinen eigenen Preis und rechnet deshalb mit einem "
+     "Tonnenpreis deutlich unter ähnlichen Profilpreisen, warnt der Angebots-Check (vorher zeigte die Position „OK“: "
+     "ein S355-Rohr war 32 € billiger als dasselbe in S235). <b>Erledigen</b> legt den ähnlichen Preis als Profilpreis "
+     "an ([[angebots_check]]). Dasselbe Teil in mehreren Positionen wird nur einmal programmiert "
+     "([[kalkulationsbasis]]). Abrechnungsregeln haben einen eigenen <b>Mindestbetrag je Angebot</b> "
+     "([[abrechnungsregeln]]). Das Kalkulations-PDF zeigt das <b>Schnittschema je Mengenstufe</b> "
+     "([[staffeln]]). Ältere festgeschriebene Angebote rechnen wie verschickt.",
+     "Kalkulation genauer: Preislücke beim Tonnenpreis, Programmierung einmal, Mindestbetrag je Regel, "
+     "Schnittschema je Stufe im PDF"],
     ["0.9.289", "<b>Fracht genauer: Entfernung nach PLZ</b>: Das Programm kennt jetzt den Mittelpunkt aller rund "
      "8.300 deutschen Postleitzahlen (ohne Internet) und rechnet die Entfernung vom Versandort zur vollen Ziel-PLZ "
      "(Luftlinie × Umwegfaktor 1,35, einstellbar unter Einstellungen › Frachtkosten). Die Richtwert-Zone richtet sich "

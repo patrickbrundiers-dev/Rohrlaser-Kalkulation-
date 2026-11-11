@@ -63,7 +63,9 @@ class CheckDialog(QDialog):
                 e = QPushButton("Erledigen")
                 e.setToolTip({"optimieren": "Schnittplan jetzt neu optimieren",
                               "staffeln_rechnen": "Staffelpreise jetzt neu rechnen",
-                              "preise": "Aktuelle Preise übernehmen (mit Rückgängig)"}.get(p.aktion, ""))
+                              "preise": "Aktuelle Preise übernehmen (mit Rückgängig)",
+                              "preisluecke": "Ähnlichen Profilpreis in Stammdaten → Preise anlegen (mit Rückgängig)"
+                              }.get(p.aktion, ""))
                 e.clicked.connect(lambda _=False, a=p.aktion: self._erledigen([a]))
                 raster.addWidget(e, r, 3, Qt.AlignTop)
                 self.erledigen_knoepfe.append(e)

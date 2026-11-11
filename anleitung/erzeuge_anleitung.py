@@ -3883,6 +3883,12 @@ def kapitel_optimieren(i):
          "Programm gibt es schon, Programmierzeit nur für Laden und Prüfen ([[wiederholteile]]); welche Positionen das sind, merkt sich das "
          "Angebot im Feld <i>Wiederholteile mit Programm (für die Programmierzeit)</i>",
          "<i>Programmierzeit Wiederholteil mit Programm [min]</i>, Vorgabe 1, leer = volle Zeit"],
+        ["Gleiches Teil in mehreren Positionen (seit 0.9.290)", "Gleiche Artikel-Nr., gleiches Profil, gleicher "
+         "Werkstoff, gleiche Länge, gleicher Schneidweg, gleiche Einstiche und Konturen (z. B. dasselbe Teil in zwei "
+         "Sätzen): programmiert wird einmal, die Zeit wird nach Stückzahl auf die Positionen verteilt. Die Zeile "
+         "Programmierung im Reiter Zeiten sagt dann <i>gleiches Teil in N Pos. einmal programmiert</i>. Eine von "
+         "Hand eingetragene Programmierzeit gilt weiter je Position (so lässt es sich für eine Position abwählen)",
+         "<i>Gleiches Teil in mehreren Positionen nur einmal programmieren</i>, Vorgabe ja"],
         ["Rüsten, nur Wand anders", "Gleiche Profilform und Außenmaße, andere Wand (z. B. QR 40×40×2 und ×3): "
          "die zweite Abmessung mit der kürzeren Rüstzeit; RP- und Sonderprofile nie",
          "<i>Rüstzeit je Abmessung, nur Wand anders [min]</i>, leer = volle Rüstzeit"],
@@ -3895,7 +3901,8 @@ def kapitel_optimieren(i):
          "Fertigung, bei Materialverlust in Staffelstufen und zusätzlich Ausschuss, bei Zusatzarbeit Entgraten "
          "und Arbeitsschritt Entgraten mit Zeit", "nur Hinweis"]], [38, 95, 52])
     i.text("Festgeschriebene Angebote ([[preise_festschreiben]]) von vor dem 02.11.2026 rechnen weiter mit der "
-           "Stufe der Schneiddaten, dem einfachen Ausschuss und ohne die neuen Werte.")
+           "Stufe der Schneiddaten, dem einfachen Ausschuss und ohne die neuen Werte; die von vor dem 11.11.2026 "
+           "rechnen die Programmierung weiter je Position.")
     i.abschnitt("Stundensatz ermitteln je Maschine", marke="stundensatz_ermitteln")
     i.bild("stundensatz_ermitteln", "Stundensatz ermitteln: Eingaben links, Rechenweg rechts (Beispielwerte)",
            hoehe=100 * mm, legende=[(1, "Werte der Maschine: Anschaffung, Nutzungsdauer, Fläche, Leistung …"),
@@ -5457,6 +5464,9 @@ def kapitel_staffeln(i):
            "Materialzuschlag. Hat eine Stufe mehrere Sätze bzw. Positionen, werden sie gemeinsam optimiert; das "
            "Schnittschema gilt dann für die ganze Stufe. Fehlt es (ältere Staffelpreise), bitte "
            "<b>Staffelpreise rechnen</b>.")
+    i.text("Seit 0.9.290 steht das Schnittschema auch im <b>Kalkulations-PDF</b> ([[ausgabe]]), unter den "
+           "Staffelpreisen: je Stufe und Abmessung Stangen, Stangenlänge × Anzahl, Meter, Nutzlänge, €/m, "
+           "Materialkosten und Ausnutzung. So lässt sich der Materialpreis jeder Stufe auf Papier nachrechnen.")
     i.abschnitt("Kalkulation und Zeiten der Stufe", marke="staffel_kalkulation")
     i.bild("staffel_kalkulation", "Fenster einer Stufe, Reiter Kalkulation: alle Werte wie im Angebot",
            hoehe=105 * mm, legende=[
@@ -7031,6 +7041,16 @@ def kapitel_ausgabe(i, seiten, ablage):
             "die aktuellen Preise, mit Rückgängig). Sind es mehrere, erledigt <b>Alles Automatische erledigen (N)</b> "
             "sie nacheinander. Danach zeigt der Check sich neu. Im fremden Angebot und im Lesemodus gibt es die Knöpfe "
             "nicht.",
+            "<b>Preislücke beim Tonnenpreis</b> (seit 0.9.290): Hat ein Profil keinen eigenen Preis (keine Zeile in "
+            "<i>Preise</i> oder <i>Lieferlängen</i>, kein €/m im Angebot), rechnet das Material mit dem Tonnenpreis "
+            "des Werkstoffs. Liegt der mehr als 10 % unter dem Preis je kg eines ähnlichen Profils (gleiche Profilform "
+            "und Werkstoff-Kategorie, nächste Abmessung; bei anderem Werkstoff mit dem Verhältnis der Tonnenpreise "
+            "umgerechnet), warnt der Check, z. B. <i>RR 42,4x2,0 S355: kein eigener Preis – gerechnet mit Tonnenpreis "
+            "1,05 €/kg, ähnliches Profil RR 42,4x2,0 S235 kostet 1,45 €/kg</i>. <b>Erledigen</b> legt den "
+            "umgerechneten Preis (hier 1,52 €/kg) als Zeile in Stammdaten → Preise an, mit Lieferant und der "
+            "Bemerkung <i>übernommen von …, bitte beim Lieferanten bestätigen</i>; <i>Rückgängig</i> löscht sie wieder. "
+            "Die Schwelle steht unter Einstellungen → Angebot (<i>Angebots-Check: Preislücke beim Tonnenpreis ab [%] "
+            "(0 = aus)</i>, Vorgabe 10).",
             "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
@@ -9571,8 +9591,9 @@ def kapitel_stammdaten(i):
             "Bedingungen.",
             "<b>Menge je Teil</b>: automatisch (wie in den Zusatzarbeiten: kg, m², m oder 1 Stück), Innen- + "
             "Außenfläche oder die Anzahl Gewinde, Bohrungen bzw. Innenkonturen des Teils. <b>Abrechnung</b>, "
-            "<b>Preis je Einheit</b>, <b>Faktor Menge</b> und <b>Mindestbetrag je Teil</b>: leer = wie die "
-            "Zusatzarbeit. <b>Aktiv</b> = nein schaltet die Regel ab, "
+            "<b>Preis je Einheit</b>, <b>Faktor Menge</b>, <b>Mindestbetrag je Teil</b> und <b>Mindestbetrag je "
+            "Angebot</b> (seit 0.9.290, z. B. andere Verzinkerei für Edelstahl mit mind. 80 € je Auftrag): leer = wie "
+            "die Zusatzarbeit. <b>Aktiv</b> = nein schaltet die Regel ab, "
             "<b>Bemerkung</b> ist frei.",
             "Neue Dateien und Dateien vor 0.9.161 bekommen Beispielregeln (Feuerverzinken bei „verzinkt“, "
             "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus), ab 0.9.182 dazu drei "
