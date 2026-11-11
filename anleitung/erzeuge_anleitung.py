@@ -720,7 +720,15 @@ def kapitel_start(i):
             "<b>Schneller ohne andere Ergebnisse</b> (0.9.280): das Angebots-PDF rechnet die Kalkulation je Klick "
             "höchstens dreimal statt bis zu 16-mal, Optimieren rechnet nur geänderte Profilgruppen neu, PDFs "
             "entstehen mit dem schnelleren Baustein von ReportLab. Preise, Schnittpläne und PDF-Inhalte bleiben gleich; "
-            "die automatischen Prüfungen messen die Zeiten bei jeder Änderung am Programm.")
+            "die automatischen Prüfungen messen die Zeiten bei jeder Änderung am Programm.",
+            "<b>Messungen</b> (seit 0.9.284): Abläufe, die die Oberfläche nicht anhalten, stehen trotzdem mit ihrer "
+            "Dauer im Protokoll: der <b>Programmstart</b> (bis das Fenster bereit ist) und jede <b>STEP-Messung</b> mit "
+            "Dateien, MB, Körpern, Zeit fürs Lesen, für die Auswertungen über die Baugruppe (Nähte, Erreichbarkeit) und "
+            "den drei langsamsten Körpern. tempo.txt im Support-Paket fasst sie im Abschnitt <i>Messungen</i> "
+            "zusammen (Anzahl, Mittel, längste, die letzten zehn).",
+            "<b>Schneller starten</b> (seit 0.9.284): die Startseite (Cockpit, Wiedervorlage, Automatik) füllt sich "
+            "erst, wenn sie gezeigt wird; das Programm öffnet im Reiter Angebote ohne darauf zu warten, und "
+            "Änderungen in anderen Reitern rechnen sie nicht mehr im Hintergrund neu.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -2822,7 +2830,12 @@ def kapitel_step(i):
             "Grafikkarte, mit demselben Licht je Dreieck. "
             "Einstellen unter <i>Mein Arbeitsplatz</i>, Abschnitt Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
-              "Prozessorkernen gleichzeitig.")
+              "Prozessorkernen gleichzeitig. Seit 0.9.284 schneidet die Profilsuche jede Lage nur einmal und die "
+              "Prüfung der Nahtzugänglichkeit baut ihre Hilfsdaten je Körper nur einmal auf. Bei der Suche nach "
+              "Nähten und Anbauteilen misst er den Abstand zweier Teile nur noch zwischen den Flächen, die nahe "
+              "beieinander liegen, und nutzt dafür alle Kerne. Die Messwerte bleiben gleich, die Messung ist "
+              "deutlich kürzer, und große Baugruppen bekommen ihre Nähte, statt ins Zeitlimit zu laufen. Wie lange jede Messung gedauert hat, steht im Tempo-Protokoll "
+              "([[zeitwaechter]]).")
     i.abschnitt("Biegerohre", marke="biegerohre")
     i.text("Ein <b>gebogenes Rundrohr</b> (Geraden und Bögen) erkennt der Import selbst. Er rechnet die gestreckte "
            "Länge, setzt die Bohrungen an die richtige Stelle am geraden Rohr und liefert die Biegedaten. Der "
@@ -4053,6 +4066,17 @@ def kapitel_optimieren(i):
             "Seite, Ausschnitte, deren Schnittlänge genau ein Rechteck oder Langloch ergibt, stehen als Rechteck bzw. "
             "Langloch (längs oder quer wie gemessen) statt als Kreis. C-Profile zeigen die gemessene Abkantung "
             "(Lippe) in Skizze und 3D. Ältere Importe: STEP neu einlesen.",
+            "<b>Was ohne Anhaken übernommen wird</b> (seit 0.9.283): Ein Rohr, dessen Profil, Länge und Konturen "
+            "sicher gemessen sind, wird auch dann ohne Anhaken übernommen, wenn es ein Blech oder einen Bolzen "
+            "berührt, dessen Art nicht sicher erkannt ist (eigener Körper der Baugruppe). Die Ampel bleibt gelb, "
+            "der Prüfdialog zeigt <i>Anbauteile nicht sicher erkannt: das Rohr wird übernommen …</i>, und die "
+            "Anbauteile stehen in der Position offen unter <i>Anbauteile prüfen</i>. Ist das Anbauteil mit dem Rohr "
+            "zu einem Körper verschmolzen, bleibt es beim Anhaken. Rohre mit sehr dicker Wand (ab einem Viertel des "
+            "kleineren Außenmaßes, z. B. 80 × 80 × 25 oder Ø30 × 10) sind meist Dreh- oder Frästeile: sie stehen auf "
+            "Gelb mit <i>sehr dicke Wand … Dreh- oder Frästeil? Art prüfen</i> und werden erst nach dem Anhaken "
+            "übernommen (oder die Art umstellen). Flachstahl mit Längsfasen, der mit diesen Maßen in den Stammdaten "
+            "steht, wird ohne Anhaken übernommen. Eine Meldung des STEP-Lesers zur ganzen Datei bleibt ein Hinweis "
+            "und setzt einen gültigen Körper nicht mehr auf <i>prüfen</i>.",
             "<b>Gegenprobe beim Übernehmen</b> (seit 0.9.210): Für jedes Quadrat-, Rechteck- und Rundrohr baut das "
             "Programm beim Übernehmen das 3D-Modell des Schneidweg-Rechners und legt es auf die Linien der STEP "
             "(Konturen und Enden, in beiden Richtungen). Liegt etwas mehr als 0,1 mm daneben, bekommt die Position "
@@ -7504,11 +7528,86 @@ def kapitel_fertigung(i):
             "je Schritt, Vorgabe Geschnitten, Entgratet, Verpackt). Die Rückmeldungen liegen in der Datendatei des "
             "Arbeitsplatzes, an dem gescannt wird, und werden mit dem Angebot gelöscht.")
     i.abschnitt("Wochenauslastung je Maschine", marke="auslastung")
-    i.bild("auslastung", "Maschinenauslastung je Woche: Bedarf / Kapazität je Maschine", hoehe=105 * mm,
-           legende=[(1, "Zeitraum in Wochen"), (2, "verschickte Angebote gewichtet mitzählen"),
-                    (3, "je Zelle Stunden Bedarf / Kapazität und %; Zelle wählen zeigt die Aufträge darunter")])
-    i.text("<i>Datei → Maschinenauslastung …</i> (oder <b>Auslastung …</b> im Reiter Fertigung) öffnet das Fenster "
-           "<i>Maschinenauslastung je Woche</i>: je Maschine und Woche, wie viele Laserstunden die Aufträge brauchen und wie viele der Schichtkalender hergibt.",
+    i.bild("auslastung", "Seite Auslastung: Wochenbalken je Maschine, Plantafel und Aufträge mit Terminrisiko",
+           hoehe=105 * mm,
+           legende=[(1, "Zeitraum in Wochen"), (2, "Sicht: eingelastet oder Terminwoche"),
+                    (3, "Wochenbalken: Rahmen = Kapazität, gefüllt = Aufträge, schraffiert = Angebote"),
+                    (4, "Plantafel: Aufträge auf der Zeitachse, ▲ Liefertermin"),
+                    (5, "Aufträge der gewählten Woche bzw. mit Terminrisiko")])
+    i.text("<b>Auslastung</b> im Reiter Fertigung (Unterseite neben <i>Aufträge</i>; auch <i>Datei → "
+           "Maschinenauslastung …</i> und ein Klick auf die Kachel <i>Auslastung</i> der Startseite) zeigt je Maschine "
+           "und Woche, wie viele Laserstunden die Aufträge brauchen und wie viele der Schichtkalender hergibt, als "
+           "Balken und als Plantafel.", kurz=True)
+    i.liste("<b>Wochenbalken</b>: der graue Rahmen ist die Kapazität der Woche, gefüllt die Laserzeit der Aufträge "
+            "(grün, ab 80 % gelb, über 100 % rot, Prozentzahl darüber), schraffiert die verschickten Angebote. Ein "
+            "Klick auf einen Balken zeigt rechts die Aufträge dieser Woche; Doppelklick dort öffnet das Angebot.",
+            "Sicht <b>eingelastet</b> (Vorgabe): Die Aufträge einer Maschine laufen ab heute nacheinander durch die "
+            "freien Stunden, in der Reihenfolge der Liefertermine (ohne Termin zuletzt, Angebote nach allen "
+            "Aufträgen). Was in einer Woche keinen Platz hat, rutscht in die nächste; die laufende Woche zählt ab "
+            "heute. Sicht <b>Terminwoche</b>: die ganze Laserzeit steht in der Woche des Liefertermins minus "
+            "Vorlauf, mit den Spalten <i>überfällig</i>, <i>später</i> und <i>ohne Termin</i> (wie die Zahlen im "
+            "Reiter <i>Zahlen (Terminwoche)</i>).",
+            "<b>Plantafel</b> (nur lesen): je Maschine die Aufträge als Balken auf der Zeitachse, Tage ohne Schicht "
+            "grau, rote Linie = heute, ▲ = Liefertermin. Roter Rahmen und „!“: Termin nicht zu halten; oranger "
+            "Rahmen: knapp. Klick markiert, Doppelklick öffnet das Angebot; <i>Plantafel: Woche / Monat</i> "
+            "vergrößert die Zeitachse.",
+            "<b>Terminrisiko</b>: Aus der Einlastung kommt je Auftrag der Tag <i>Laser fertig</i>; lieferbar ist er "
+            "nach dem Vorlauf (<i>Auslastung: Laserzeit so viele Arbeitstage vor dem Liefertermin</i>). Der Puffer "
+            "sind die Arbeitstage von dort bis zum Liefertermin: unter 2 = <i>knapp</i>, lieferbar erst nach dem "
+            "Termin = <i>überschritten</i>. <b>Terminrisiko zeigen</b> listet alle betroffenen Aufträge.",
+            "<b>Gemessen</b>: links vom Strich stehen grau die letzten vier Wochen mit den gemessenen Laserstunden "
+            "aus den Scans <i>Laser Start</i> und <i>Laser Ende</i> ([[etiketten]]); sie erscheinen, sobald es "
+            "solche Scans gibt. So sieht man, wie weit Plan und Wirklichkeit auseinanderliegen.",
+            "<b>Was wäre, wenn …</b> (unten): Maschine wählen und <b>Auftrag testweise auf diese Maschine</b> legt "
+            "den markierten Auftrag probeweise dorthin (mit deren Laserzeit); <b>Zusatzstunden in gewählter "
+            "Woche</b> nimmt für die angeklickte Maschine und Woche so viele Stunden mehr an; <b>Samstag mit</b> "
+            "rechnet jeden Samstag mit den eingetragenen Stunden. Balken, "
+            "Plantafel und Terminrisiko zeigen sofort die Wirkung, ein gelber Streifen nennt die Annahmen und den "
+            "Vergleich vorher/jetzt. Nichts wird gespeichert; <b>Zurücksetzen</b> zeigt wieder den echten Stand.",
+            "<b>PDF …</b> schreibt Balken, Plantafel und die Aufträge mit Terminrisiko auf eine Seite A4 quer für "
+            "die Werkstattbesprechung. <b>Aktualisieren</b> rechnet alles neu.",
+            "<b>Übergabe …</b> schreibt die beauftragten Aufträge mit Maschine, restlicher Laserzeit "
+            "(Stunden:Minuten) und Liefertermin in eine CSV-Datei für das eigene Programm <i>Rohrlaser "
+            "Auslastung</i> (siehe unten). An den Daten der Kalkulation ändert sich nichts.",
+            "Die Kachel <b>Auslastung</b> auf der Startseite (Karte <i>Heute</i>) zeigt je Maschine diese und die "
+            "nächste Woche in % mit kleinem Verlauf über acht Wochen und die Zahl der Aufträge mit Terminrisiko. "
+            "<b>Termin prüfen …</b> im Angebot nennt zusätzlich die freie Laserzeit der Maschine bis zum Termin.")
+    i.text("<b>Eigenes Programm Rohrlaser Auslastung</b>: Die Auslastung gibt es zusätzlich als eigenes Programm "
+           "(<i>Rohrlaser-Auslastung.exe</i>, eigenes ZIP, eigene Datenbank), das ohne die Kalkulation läuft, zum "
+           "Beispiel an einem Platz in der Werkstatt.", kurz=True)
+    i.liste("<b>Aufträge</b>: je Auftrag Auftragsnummer, Kunde, Maschine, kalkulierte Laufzeit, Liefertermin, "
+            "Bemerkung und eigene Zusatzfelder. Ein Knopf <i>Start</i> lässt die Uhr laufen und heißt dann "
+            "<i>Stopp</i>; <i>Fertig melden</i> trägt die tatsächliche Laufzeit und das Fertig-Datum ein.",
+            "<b>Reihenfolge</b>: normal nach Liefertermin. Über den Knopf <i>Reihenfolge</i> lässt sich ein Auftrag "
+            "vorziehen (läuft auf seiner Maschine als Nächstes) oder zurückstellen (läuft zuletzt).",
+            "<b>Löschen</b> legt den Auftrag ohne Rückfrage in den <b>Papierkorb</b> (<i>Mehr → Papierkorb …</i>); "
+            "dort lässt er sich 30 Tage lang zurückholen.",
+            "<b>Laufzeit eingeben</b> geht in jeder Schreibweise: 1 Stunde 30 Minuten, 1 Std 30 Min, 1 h 30 min, "
+            "1h30, 1:30, 90 Minuten, 90 min oder 1,5 h. Unter dem Feld steht sofort, wie die Eingabe verstanden "
+            "wurde. Eine ganze Zahl ohne Einheit gilt als Minuten (umstellbar auf Stunden), eine Kommazahl als "
+            "Stunden. Die Anzeige ist wählbar: 1 h 30 min, 1:30 h, 1,50 h oder 90 min.",
+            "<b>Auslastung</b>: dieselben Wochenbalken und dieselbe Plantafel wie hier, eingelastet nach "
+            "Liefertermin mit Fertig-Datum und Terminrisiko je Auftrag; links die tatsächlichen Stunden der "
+            "letzten vier Wochen aus den Fertigmeldungen. PDF für die Werkstattbesprechung.",
+            "<b>Terminauskunft …</b>: Laufzeit eingeben, das Programm nennt je Maschine, wann ein neuer Auftrag "
+            "fertig wäre; gespeichert wird nichts. <b>Arbeitsliste PDF …</b> schreibt je Maschine eine Seite mit "
+            "den Aufträgen in der geplanten Reihenfolge zum Abhaken.",
+            "<b>Soll und Ist</b>: kalkulierte gegen tatsächliche Laufzeit je Auftrag und je Maschine mit "
+            "Abweichung in Zeit und Prozent, als CSV oder PDF.",
+            "<b>Einstellungen</b> (jede Änderung gilt sofort): Maschinen mit Stunden je Tag und Sperrtagen für "
+            "Wartung oder Ausfall, Samstag, Nutzungsgrad, Feiertage, Betriebsruhe, "
+            "Vorlauf bis zum Liefertermin, Zusatzfelder und der Ort der Datenbank. Liegt die Datenbank in einem "
+            "gemeinsamen Ordner, arbeiten mehrere Plätze mit denselben Aufträgen; Änderungen eines Platzes "
+            "erscheinen bei den anderen nach wenigen Sekunden. Beim Start wird einmal täglich gesichert.",
+            "<b>Aufträge übernehmen</b>: im Programm <i>CSV einlesen</i> wählen, entweder eine eigene Liste "
+            "(erste Zeile: Auftragsnummer, Maschine, Kalkulierte Laufzeit, dazu nach Wunsch Liefertermin, Kunde, "
+            "Bemerkung und Zusatzfelder) oder die Datei aus <b>Übergabe …</b> dieser Seite. Bekannte "
+            "Auftragsnummern werden aktualisiert, fertig gemeldete bleiben unverändert; vor dem Übernehmen zeigt "
+            "das Programm, was neu und was geändert ist.",
+            "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
+            "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
+            "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")
+    i.text("<b>Zahlen (Terminwoche)</b>: der zweite Reiter über den Balken zeigt dieselbe Rechnung als Tabelle.",
            kurz=True)
     i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "
             "rot. Spalten: <i>überfällig</i>, die Wochen ab dieser (Zeitraum 2 bis 26 Wochen, Vorgabe 8), "

@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.283", "<b>Lieferdatum ab Werk und frei Haus</b> ([[lieferdatum_frei_haus]]): Die Frachtlaufzeit wird "
+    ["0.9.286", "<b>Lieferdatum ab Werk und frei Haus</b> ([[lieferdatum_frei_haus]]): Die Frachtlaufzeit wird "
      "eingerechnet. Ab Werk = versandbereit (so wird geplant), frei Haus = beim Kunden. Laufzeit am Frachttarif "
      "(neues Feld <i>Laufzeit [Arbeitstage]</i>), sonst Vorgabe Inland 1 / Ausland 3 Arbeitstage; 0 bei ab Werk, "
      "Abholung, frei Frachtführer und Eigener Anlieferung. Lieferzeit und Wunschtermin meinen bei frei Haus die "
@@ -29,6 +29,45 @@ NEUERUNGEN = [
      "<i>Beauftragt</i> hat beide Daten gekoppelt, Angebotsliste und Fertigung zeigen <i>ab Werk</i> und "
      "<i>frei Haus</i>, Angebot und Auftragsbestätigung nennen das Datum passend zur Lieferbedingung.",
      "Lieferdatum ab Werk und frei Haus: Frachtlaufzeit je Tarif (sonst 1/3 Arbeitstage) wird eingerechnet."],
+    ["0.9.285", "<b>Maschinenauslastung als Grafik</b> ([[auslastung]]). Neue Unterseite <i>Auslastung</i> im Reiter "
+     "Fertigung (auch <i>Datei → Maschinenauslastung …</i>): <b>Wochenbalken</b> je Maschine (Rahmen = Kapazität, "
+     "gefüllt = Aufträge, ab 80 % gelb, über 100 % rot, schraffiert = verschickte Angebote) und eine <b>Plantafel</b> "
+     "mit den Aufträgen auf der Zeitachse; Doppelklick öffnet das Angebot. Neue Sicht <b>eingelastet</b>: Die "
+     "Aufträge laufen ab heute nach Liefertermin durch die freien Stunden, Überlast rutscht in die Folgewoche; "
+     "daraus kommen <i>Laser fertig</i>, Puffer und das <b>Terminrisiko</b> (knapp, überschritten) je Auftrag. Die "
+     "bisherige Rechnung bleibt als Sicht <i>Terminwoche</i>. Dazu die <b>gemessene</b> Auslastung der letzten "
+     "vier Wochen aus den Scans <i>Laser Start/Ende</i>, <b>Was wäre, wenn …</b> (Auftrag testweise auf andere "
+     "Maschine, Zusatzstunden, Samstag; nichts wird gespeichert), <b>PDF</b> für die Werkstattbesprechung, eine "
+     "Kachel <i>Auslastung</i> auf der Startseite und die freie Laserzeit bis zum Termin in <i>Termin prüfen …</i>. "
+     "Dazu gibt es die Auslastung als <b>eigenes Programm Rohrlaser Auslastung</b>, das ohne die Kalkulation läuft "
+     "(Auftragsnummer, kalkulierte Laufzeit, Liefertermin, tatsächliche Laufzeit nach der Fertigmeldung, "
+     "Zusatzfelder; Laufzeit in jeder Schreibweise wie <i>1 Stunde 30 Minuten</i>, <i>90 Minuten</i> oder "
+     "<i>1:30</i>; Papierkorb, Reihenfolge von Hand, Sperrtage je Maschine, Terminauskunft, Arbeitsliste als PDF und "
+     "Hilfe im Programm); <b>Übergabe …</b> auf der Seite Auslastung schreibt die Aufträge als Datei dafür.",
+     "Maschinenauslastung als Grafik: Wochenbalken, Plantafel, Terminrisiko je Auftrag, gemessene Auslastung und "
+     "Was-wäre-wenn; dazu als eigenes Programm Rohrlaser Auslastung ([[auslastung]])."],
+    ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "
+     "jede Lage nur noch einmal (vorher bis zu siebenmal) und baut für die Prüfung der Nahtzugänglichkeit die "
+     "Hilfsdaten je Körper einmal auf statt je Messpunkt. Für Nähte und Anbauteile wird der Abstand zweier Teile nur "
+     "noch zwischen nahe liegenden Flächen gemessen, auf allen Kernen (Fahrgestell: 400 s auf unter 50 s) – große "
+     "Baugruppen laufen damit nicht mehr ins Zeitlimit und bekommen ihre Nähte. Die Messwerte bleiben genau gleich. "
+     "Die Startseite füllt "
+     "sich erst, wenn sie gezeigt wird, so öffnet das Programm schneller. Neu im Tempo-Protokoll: Dauer des "
+     "Programmstarts und jeder STEP-Messung (Lesen, Auswertung der Baugruppe, langsamste Körper), zusammengefasst "
+     "im Support-Paket ([[zeitwaechter]]). Behoben: bei zwei gleich langen Berührungen zweier Teile (z. B. beide "
+     "Seiten eines Blechs) lag der Nahtverlauf je nach Programmlauf mal auf der einen, mal auf der anderen Seite; "
+     "jetzt immer gleich.",
+     "Schneller starten, STEP-Messung schneller bei gleichen Werten, Start- und STEP-Zeiten im Tempo-Protokoll"],
+    ["0.9.283", "<b>STEP-Import in den Editor an echten Baugruppen nachgeschärft</b> ([[step]]): 18 Baugruppen mit "
+     "2.748 Körpern wurden gemessen, übernommen und im Editor gegen die STEP gelegt. Rohre, die nur ein unsicher "
+     "erkanntes Blech oder einen Bolzen berühren, werden jetzt ohne Anhaken übernommen (Ampel gelb, die Anbauteile "
+     "stehen wie bisher unter <i>Anbauteile prüfen</i>). Winkel mit Ausklinkung am Ende zeigten bei gespiegelten "
+     "Teilen eine Zacke am Schenkelende; die Gegenprobe meldete Winkel mit Gehrung fälschlich als „3 mm neben der "
+     "STEP“. Rohre mit sehr dicker Wand (ab einem Viertel des Außenmaßes, z. B. 80 × 80 × 25 oder Ø30 × 10) stehen "
+     "auf Gelb mit dem Hinweis <i>Dreh- oder Frästeil?</i>. Flachstahl mit Längsfasen, der in den Stammdaten steht, "
+     "braucht kein Anhaken mehr. Eine Meldung des STEP-Lesers zur Datei allein setzt gültige Körper nicht mehr auf "
+     "<i>prüfen</i>.",
+     "STEP-Import: sichere Rohre mit Anbauteil ohne Anhaken, Winkel-Enden richtig, dickwandige Teile auf Gelb."],
     ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
      "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
      "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "

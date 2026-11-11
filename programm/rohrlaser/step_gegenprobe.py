@@ -180,40 +180,73 @@ def _bewegen(strecken, c, s, sp, sh):
     return [(b(p), b(q)) for p, q in strecken]
 
 
-def _ausrichten(mod_a, st_a, abstand):
+def _mittel(a, raster, weite):
+    """Mittlerer Abstand der Punkte der Strecken a (je SCHRITT abgetastet) zu den Strecken des Rasters (höchstens weite)."""
+    summe, n_ = 0.0, 0
+    for p, q in a:
+        n = max(1, int(math.dist(p, q) / SCHRITT))
+        for k in range(n + 1):
+            summe += min(raster.abstand(tuple(p[i] + (q[i] - p[i]) * k / n for i in range(3))), weite)
+            n_ += 1
+    return summe / n_ if n_ else weite
+
+
+def _mitte(punkte):
+    """Mitte des Hüllquaders der Punkte."""
+    return [(min(q[i] for q in punkte) + max(q[i] for q in punkte)) / 2 for i in range(3)]
+
+
+def _ausrichten(mod_a, st_a, abstand, mod_rest=(), st_rest=()):
     """Lage des Modells eines offenen Profils (Strecken von Ende A) auf die STEP: Drehung um die Achse (0/90/180/270°),
-    gespiegelt, Verschiebung über die Schwerpunkte und nächste Punkte. Ergebnis (Abstand, c, s, sp, sh) oder None."""
+    gespiegelt, Verschiebung über die Schwerpunkte bzw. die Mitten der Hüllquader und nächste Punkte. Gewählt wird die
+    Lage mit dem kleinsten mittleren Abstand: der größte Abstand ist bei WEITE gekappt und unterscheidet falsche Lagen
+    nicht, und der Schwerpunkt der Punkte hängt an der Teilung der Linien (gewalzte Radien der STEP sind fein
+    geteilt) – Winkel mit Gehrung blieben so in einer falschen Lage hängen und galten als „3 mm neben der STEP“
+    (Patrick 10.11.2026, Messreihe an echten Baugruppen). Ergebnis (Abstand, c, s, sp, sh) oder None."""
     sp_ = [p for st in st_a for p in st]
     mp_ = [p for st in mod_a for p in st]
     if not sp_ or not mp_:
         return None
     cs = [sum(q[i] for q in sp_) / len(sp_) for i in range(3)]
-    raster = _Raster(st_a, WEITE * 4)
+    cm = _mitte(sp_)
+    weit = WEITE * 4
+    raster = _Raster(st_a, weit)
+    # Ende B und Konturen entscheiden mit: ein Ende A allein (gerade, Gehrung am gleichschenkligen Winkel) passt oft
+    # in zwei Lagen, gespiegelte Teile eines Rahmens bekamen so die Lage ihres Gegenstücks
+    mod_rest, st_rest = list(mod_rest), list(st_rest)
+    raster_rest = _Raster(st_rest, weit) if mod_rest and st_rest else None
     beste = None
     for sp in (1, -1):
         for w in range(0, 360, 90):
             c, s = round(math.cos(math.radians(w))), round(math.sin(math.radians(w)))
             tp = [p for st in _bewegen(mod_a, c, s, sp, (0, 0, 0)) for p in st]
-            sh = [cs[i] - sum(q[i] for q in tp) / len(tp) for i in range(3)]
-            for _ in range(4):          # nächste Punkte: Verschiebung nachziehen
-                mp = [p for st in _bewegen(mod_a, c, s, sp, sh) for p in st]
-                paare = [(p, raster.naechster(p)) for p in mp]
-                paare = [(p, q) for p, q in paare if q is not None]
-                if not paare:
-                    break
-                sh = [sh[i] + sum(q[i] - p[i] for p, q in paare) / len(paare) for i in range(3)]
-            t = _bewegen(mod_a, c, s, sp, sh)
-            dd = max(_weitester(t, [], st_a, WEITE, 0)[0], _weitester(st_a, [], t, WEITE, 0)[0])
-            if beste is None or dd < beste[0]:
-                beste = (dd, c, s, sp, sh)
-    return beste
+            tm = _mitte(tp)
+            for sh in ([cs[i] - sum(q[i] for q in tp) / len(tp) for i in range(3)], [cm[i] - tm[i] for i in range(3)]):
+                for _ in range(8):          # nächste Punkte: Verschiebung nachziehen
+                    mp = [p for st in _bewegen(mod_a, c, s, sp, sh) for p in st]
+                    paare = [(p, raster.naechster(p)) for p in mp]
+                    paare = [(p, q) for p, q in paare if q is not None]
+                    if not paare:
+                        break
+                    sh = [sh[i] + sum(q[i] - p[i] for p, q in paare) / len(paare) for i in range(3)]
+                t = _bewegen(mod_a, c, s, sp, sh)
+                guete = _mittel(t, raster, weit) + _mittel(st_a, _Raster(t, weit), weit)
+                if raster_rest is not None:
+                    tr = _bewegen(mod_rest, c, s, sp, sh)
+                    guete += _mittel(tr, raster_rest, weit) + _mittel(st_rest, _Raster(tr, weit), weit)
+                if beste is None or guete < beste[0]:
+                    beste = (guete, c, s, sp, sh)
+    _, c, s, sp, sh = beste
+    t = _bewegen(mod_a, c, s, sp, sh)
+    dd = max(_weitester(t, [], st_a, WEITE, 0)[0], _weitester(st_a, [], t, WEITE, 0)[0])
+    return dd, c, s, sp, sh
 
 
 def _abweichung_offen(st_a, st_k, st_b, mod_a, mod_k, mod_b, wand, abstand):
     """Offenes Profil: Modell an Ende A ausrichten, dann Ende B und Konturen vergleichen. Konturkanten der STEP liegen
     auf beiden Seiten der Wand: STEP → Modell darf um die Wandstärke weiter weg liegen. Ergebnis wie abweichung,
     der Wert über GRENZE_OFFEN auf GRENZE umgerechnet (Hinweis ab GRENZE)."""
-    a = _ausrichten(mod_a, st_a, abstand)
+    a = _ausrichten(mod_a, st_a, abstand, mod_k + mod_b, st_k + st_b)
     if a is None:
         return None
     dd, c, s, sp, sh = a

@@ -1482,7 +1482,8 @@ def main(ziel):
     for angebot, auftragsnr, termin in ((rahmen, "AB-26-0815", "2026-10-30"), (haupt, "AB-26-0821", "2026-11-06")):
         db.vorgang_setzen(angebot, "Beauftragt")
         db.auftrag_setzen(angebot, auftragsnr, termin)
-    fenster_foto("auslastung", AuslastungDialog(f, heute), lambda d: [(d.wochen, 1), (d.offene, 2), (d.tabelle, 3)])
+    fenster_foto("auslastung", AuslastungDialog(f, heute),
+                 lambda d: [(d.wochen, 1), (d.sicht, 2), (d.balken, 3), (d.tafel, 4), (d.details, 5)])
     stuetze = db.positionen(rahmen)[0]["id"]
     reklamation.speichern(db, rahmen, dict(position_id=stuetze, menge=2, fehlerart="Grat oder Schlacke",
                                            ursache="intern: Fertigung", massnahme="Nacharbeit", kosten=48.5))
