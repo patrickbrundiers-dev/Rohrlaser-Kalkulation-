@@ -127,6 +127,37 @@ for name in ("rohr_platte", "haube"):
     pruefe(alt == neu, f"{name}: Nahtkandidaten und Erreichbarkeit gleich wie mit Klassifizierer je Punkt")
     pruefe('"zugang"' in neu, f"{name}: Erreichbarkeit wurde gerechnet")
 
+# --------------------------------------------------------------------------------------- Abstand im Nahbereich
+from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # noqa: E402
+
+
+def voll(a, b, grenze):
+    d = BRepExtrema_DistShapeShape(a, b)
+    return d.Value() if d.IsDone() and d.Value() <= grenze else None
+
+
+gross = BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), 100, 100, 100).Solid()
+faelle = {"innen (ganz im anderen)": box(40, 40, 40, 10, 10, 10), "Spalt 1,5 mm": box(101.5, 0, 0, 20, 20, 20),
+          "Berührung": box(100, 20, 20, 20, 20, 20), "durchdringend": box(90, 20, 20, 20, 20, 20),
+          "weit weg": box(200, 0, 0, 20, 20, 20), "Spalt 2,9 mm über Eck": box(102.9, 102.9, 0, 10, 10, 10)}
+for name, k in faelle.items():
+    for a, b in ((gross, k), (k, gross)):
+        pruefe(g._abstand(a, b, 3.0) == voll(a, b, 3.0), f"Abstand {name}: {g._abstand(a, b, 3.0)} wie ganz gemessen")
+for name in ("rohr_platte", "haube"):
+    neu = naehte(name)
+    g.ABSTAND_FILTERN = False
+    try:
+        alt = naehte(name)
+    finally:
+        g.ABSTAND_FILTERN = True
+    pruefe(alt == neu, f"{name}: Nahtkandidaten mit Abstand im Nahbereich gleich")
+
+ring = [[5, 0, 0, 5, 5, 0], [5, 5, 0, 0, 5, 0], [0, 5, 0, 0, 0, 0], [0, 0, 0.1, 5, 0, 0]]     # Rundung: 0,1 mm
+pruefe(all(g._zug_ordnen(r[i:] + r[:i]) == g._zug_ordnen(ring) for r in (ring, ring[::-1]) for i in range(4)),
+       "geschlossener Nahtzug: immer dieselbe Anfangskante und Richtung")
+offen_ = [[5, 0, 0, 5, 5, 0], [0, 0, 0, 5, 0, 0]]
+pruefe(g._zug_ordnen(offen_) == offen_, "offener Nahtzug bleibt, wie er ist")
+
 # --------------------------------------------------------------------------------------- Zeiten der Messung
 aus = io.StringIO()
 with contextlib.redirect_stdout(aus):

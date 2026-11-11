@@ -2829,8 +2829,10 @@ def kapitel_step(i):
             "Einstellen unter <i>Mein Arbeitsplatz</i>, Abschnitt Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
               "Prozessorkernen gleichzeitig. Seit 0.9.284 schneidet die Profilsuche jede Lage nur einmal und die "
-              "Prüfung der Nahtzugänglichkeit baut ihre Hilfsdaten je Körper nur einmal auf – gleiche Messwerte, "
-              "deutlich kürzere Messung. Wie lange jede Messung gedauert hat, steht im Tempo-Protokoll "
+              "Prüfung der Nahtzugänglichkeit baut ihre Hilfsdaten je Körper nur einmal auf. Bei der Suche nach "
+              "Nähten und Anbauteilen misst er den Abstand zweier Teile nur noch zwischen den Flächen, die nahe "
+              "beieinander liegen, und nutzt dafür alle Kerne. Die Messwerte bleiben gleich, die Messung ist "
+              "deutlich kürzer, und große Baugruppen bekommen ihre Nähte, statt ins Zeitlimit zu laufen. Wie lange jede Messung gedauert hat, steht im Tempo-Protokoll "
               "([[zeitwaechter]]).")
     i.abschnitt("Biegerohre", marke="biegerohre")
     i.text("Ein <b>gebogenes Rundrohr</b> (Geraden und Bögen) erkennt der Import selbst. Er rechnet die gestreckte "

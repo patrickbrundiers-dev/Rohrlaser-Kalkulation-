@@ -4453,15 +4453,15 @@ def _beruehrende_anbauteile(teile, koerper, netz, rahmen=None):
                 if rahmen is None or rahmen(t) is None:
                     break
                 solid = t._rahmen["solid"]
-            dist = BRepExtrema_DistShapeShape(solid, ka)
-            if not dist.IsDone() or dist.Value() > max(ANBAU_KONTAKT, NAHT_SPALT):
+            abstand = _abstand(solid, ka, max(ANBAU_KONTAKT, NAHT_SPALT))
+            if abstand is None:
                 continue
-            spalt = dist.Value() if dist.Value() > ANBAU_KONTAKT else 0.0
+            spalt = abstand if abstand > ANBAU_KONTAKT else 0.0
             vorher = len(t.anbauteile)
             try:
                 # Spalt (Patrick 26.10.2026): eine an das Rohr geschobene Kopie beschreiben, so liegt die Gravur genau
                 # unter dem Blech auf der Rohrwand; das Teil selbst bleibt, wo es ist
-                k_ = _an_schieben(ka, dist) if spalt else ka
+                k_ = _an_schieben(ka, BRepExtrema_DistShapeShape(solid, ka)) if spalt else ka
                 _anbau_beschreiben(t, [TopoDS.Solid(k_)], f"Körper {ta.koerper}", netz, mit_flaechen=False)
             except Exception:  # Beschreibung gescheitert: Teil bleibt wie gemessen
                 t.hinweise.append(f"Körper {ta.koerper} berührt das Rohr, Lage nicht bestimmbar, prüfen")
@@ -4516,6 +4516,71 @@ def _mm(v):
     return f"{v:.1f}".replace(".", ",")
 
 
+ABSTAND_FILTERN = True      # Abstand zweier Körper nur über die Flächen im Nahbereich (False = wie vor 11.11.2026)
+ABSTAND_RAND = 1.0          # mm: Nahbereich = Hüllquader des anderen Körpers + Grenze + so viel
+
+
+def _nahe_flaechen(k, bereich):
+    """Flächen von k, deren Hüllquader den Bereich (Bnd_Box) berührt, als Verbund; dazu ihre Anzahl."""
+    from OCP.BRep import BRep_Builder
+    from OCP.TopoDS import TopoDS_Compound
+    c, bb, n = TopoDS_Compound(), BRep_Builder(), 0
+    bb.MakeCompound(c)
+    for f in _liste(k, TopAbs_FACE):
+        fb = Bnd_Box()
+        BRepBndLib.Add_s(f, fb, False)
+        if not fb.IsOut(bereich):
+            bb.Add(c, f)
+            n += 1
+    return c, n
+
+
+def _innen_liegend_koerper(a, b):
+    """Liegt Körper b (ein Eckpunkt genügt) im Inneren des Volumenkörpers a?"""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    ecken = _liste(b, TopAbs_VERTEX)
+    if not ecken or a.ShapeType() != TopAbs_SOLID:
+        return True         # nicht prüfbar: sicherheitshalber ganz messen wie bisher
+    return BRepClass3d_SolidClassifier(a, BRep_Tool.Pnt_s(TopoDS.Vertex(ecken[0])), 1e-7).State() == TopAbs_IN
+
+
+def _abstand(ka, kb, grenze):
+    """Kleinster Abstand der Körper ka und kb wie BRepExtrema_DistShapeShape(ka, kb).Value(), None, wenn er größer
+    als grenze ist (oder nicht bestimmbar). Messung 11.11.2026 (Fahrgestell: 238 Paare, 400 s Abstand, der Abschluss
+    lief ins Zeitlimit und die Baugruppe blieb ohne Nähte): ein Abstand bis grenze liegt zwischen Flächen, die
+    jeweils im Hüllquader des anderen Körpers (+ grenze) liegen; nur diese werden gemessen (auf allen Kernen), bis
+    20× schneller, gleicher Wert. Liegt ein Körper ganz im anderen (OpenCascade: Abstand 0), wird wie bisher der ganze Körper gemessen."""
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+
+    def ganz():
+        d = BRepExtrema_DistShapeShape(ka, kb)
+        return d.Value() if d.IsDone() and d.Value() <= grenze else None
+    if not ABSTAND_FILTERN:
+        return ganz()
+    ba, bb = Bnd_Box(), Bnd_Box()
+    BRepBndLib.Add_s(ka, ba, False)
+    BRepBndLib.Add_s(kb, bb, False)
+    ba.Enlarge(grenze + ABSTAND_RAND)
+    bb.Enlarge(grenze + ABSTAND_RAND)
+    fa, na = _nahe_flaechen(ka, bb)
+    fb, nb = _nahe_flaechen(kb, ba)
+    wert = None
+    if na and nb:
+        d = BRepExtrema_DistShapeShape()
+        d.SetMultiThread(True)      # im Abschluss rechnet nur ein Prozess: alle Kerne nutzen (Wert gleich)
+        d.LoadS1(fa)
+        d.LoadS2(fb)
+        d.Perform()
+        if not d.IsDone():
+            return ganz()
+        wert = d.Value()
+    if wert is None or wert > 0:
+        if _innen_liegend_koerper(ka, kb) or _innen_liegend_koerper(kb, ka):
+            return ganz()
+    return wert if wert is not None and wert <= grenze else None
+
+
 def _an_schieben(k, dist):
     """Kopie von k, um den kürzesten Abstand an das andere Teil geschoben (berührt es dann); dist =
     BRepExtrema_DistShapeShape(anderes Teil, k)."""
@@ -4554,6 +4619,23 @@ def _naht_knoten(a, b, struktur):
 
 
 NAHT_LINIE_SCHRITT = 5.0      # mm je Stützpunkt des Nahtverlaufs (3D-Ansicht), höchstens 24 Abschnitte je Kante
+
+
+def _zug_ordnen(zug):
+    """Geschlossener Berührungszug (jedes Ende trifft ein anderes): mit der kleinsten Kante beginnen, Umlauf
+    in der Richtung, die die kleinere Folge ergibt. Messung 11.11.2026: bei Spalt-Nähten (aufgedickter Körper) begann der Ring je Programmlauf bei
+    einer anderen Kante (Bagger.STEP Körper 17+37: gleiche Linien, andere Reihenfolge, andere Prüfpunkte der
+    Erreichbarkeit)."""
+    if len(zug) < 2:
+        return zug
+    enden = [e for z in zug for e in (z[:3], z[-3:])]
+    if any(not any(j != i and max(abs(u - v) for u, v in zip(e, f)) <= 0.15 for j, f in enumerate(enden))
+           for i, e in enumerate(enden)):
+        return zug          # offen: ein Ende ohne Gegenstück (Linien auf 0,1 mm gerundet)
+    def ab_kleinster(z):
+        i = min(range(len(z)), key=z.__getitem__)
+        return z[i:] + z[:i]
+    return min(ab_kleinster(zug), ab_kleinster(zug[::-1]))      # Umlaufsinn wechselte ebenfalls
 
 
 def _naht_linie(c, laenge):
@@ -4647,17 +4729,17 @@ def _naht_paar(ta, ka, tb, kb, struktur, rahmen):
     """Nahtkandidat zwischen zwei Körpern (siehe _nahtkandidaten) oder None ohne Berührung mit Länge."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
     from OCP.BRepExtrema import BRepExtrema_DistShapeShape
-    dist = BRepExtrema_DistShapeShape(ka, kb)
-    if not dist.IsDone() or dist.Value() > max(NAHT_KONTAKT, NAHT_SPALT):
+    abstand = _abstand(ka, kb, max(NAHT_KONTAKT, NAHT_SPALT))
+    if abstand is None:
         return None
-    spalt = dist.Value() if dist.Value() > NAHT_KONTAKT else 0.0
+    spalt = abstand if abstand > NAHT_KONTAKT else 0.0
     if spalt:
         klein_b = _volumen(kb) <= _volumen(ka)
         huelle = _spalt_huelle(kb if klein_b else ka, spalt)
         if huelle is not None:
             sec = BRepAlgoAPI_Section(ka if klein_b else kb, huelle)
         else:       # Aufdicken gescheitert: b an a schieben (gleiche Länge bei ebener Auflage)
-            sec = BRepAlgoAPI_Section(ka, _an_schieben(kb, dist))
+            sec = BRepAlgoAPI_Section(ka, _an_schieben(kb, BRepExtrema_DistShapeShape(ka, kb)))
     else:
         sec = BRepAlgoAPI_Section(ka, kb)
     sec.Build()
@@ -4686,7 +4768,7 @@ def _naht_paar(ta, ka, tb, kb, struktur, rahmen):
             lw += lg
             zug.append(_naht_linie(c, lg))
         laengen.append(lw)
-        zuege.append(zug)
+        zuege.append(_zug_ordnen(zug))
     if not laengen or max(laengen) < 0.5:
         return None        # nur Punkt- oder Linienberührung ohne Länge
     # längster Berührungszug; gleich lange (symmetrische Berührung, z. B. beide Seiten eines Blechs) nach Lage
