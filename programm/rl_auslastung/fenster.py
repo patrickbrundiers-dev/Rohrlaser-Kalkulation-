@@ -527,6 +527,11 @@ class AuftragDialog(QDialog):
         lay.addWidget(self.fehler)
         lay.addWidget(knoepfe)
         self.setMinimumWidth(460)
+        # M1/M2/E5 (Plan 2.3): ausgeschaltete Funktionen verschwinden, eingetragene Werte bleiben
+        self.f_mat, self.f_teil = db.funktion("material"), db.funktion("teillieferungen")
+        form.setRowVisible(self.werkstoff, self.f_mat)
+        form.setRowVisible(zeile_d, self.f_mat)
+        form.setRowVisible(zeile_m, db.funktion("material_ab"))
         self._mehr_geschaltet(self.mehr.isChecked())
         self._teile_geschaltet(self.mit_teilen.isChecked())
         self._eignung_zeigen()
@@ -571,6 +576,7 @@ class AuftragDialog(QDialog):
 
     def _teile_geschaltet(self, an):
         """Mit Teillieferungen ergibt sich der Liefertermin aus der letzten Lieferung."""
+        an = an and getattr(self, "f_teil", True)  # Funktion aus: Lieferungen bleiben gespeichert, nur unsichtbar
         self.form.setRowVisible(self.teile, an)
         self.mit_termin.setEnabled(not an)
         self.termin.setEnabled(not an and self.mit_termin.isChecked())
@@ -592,14 +598,16 @@ class AuftragDialog(QDialog):
             except D.Fehler:
                 grund = ""
         self.passt_text.setText(grund)
-        self.form.setRowVisible(self.passt_text, bool(grund))
+        self.form.setRowVisible(self.passt_text, bool(grund) and getattr(self, "f_mat", True))
 
     def _mehr_geschaltet(self, an):
         """Einteilig: Maschine und Laufzeit als Felder. Mehrteilig: stattdessen die Tabelle der Zeilen."""
-        for feld in (self.maschine, self.kalk, self.zeile_r, self.mit_teilen):
+        for feld in (self.maschine, self.kalk):
             self.form.setRowVisible(feld, not an)
+        self.form.setRowVisible(self.zeile_r, not an and getattr(self, "f_mat", True))
+        self.form.setRowVisible(self.mit_teilen, not an and getattr(self, "f_teil", True))
         self.form.setRowVisible(self.gaenge, an)
-        self.form.setRowVisible(self.teile, not an and self.mit_teilen.isChecked())
+        self.form.setRowVisible(self.teile, not an and self.mit_teilen.isChecked() and getattr(self, "f_teil", True))
         if hasattr(self, "passt_text"):
             self._eignung_zeigen()
         if an and not self.gaenge.zeilen:         # die bisherige Maschine und Laufzeit als erste Zeile übernehmen
@@ -1736,10 +1744,24 @@ class TafelRahmen(QScrollArea):
         return False
 
 
-EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g1, gs)),
-                      ("Termine und Abläufe", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g10, g2, g7, g8, g9)),
-                      ("Ansicht und Felder", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g3, g4)),
-                      ("Benutzer und Datenbank", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g6, g5)))
+# E5 (Plan 2.3): zuschaltbare Funktionen (Name für Daten.funktion, Häkchen, Erklärung)
+FUNKTIONEN = (
+    ("material", "Material und Rüsten",
+     "Material, Rüstzeit und Rohrmaße im Auftrag und bei der Maschine; gleiches Material hintereinander spart das "
+     "Rüsten, Optimieren mit Ziel „Wenig Rüsten“. Aus: geplant wird nur mit der eingetragenen Zeit."),
+    ("material_ab", "Material da ab",
+     "Datum im Auftrag, vor dem er nicht eingeplant wird (Status „wartet auf Material“, schraffiert in der "
+     "Plantafel)."),
+    ("teillieferungen", "Teillieferungen", "Mehrere Liefertermine mit Mengen in einem Auftrag."),
+    ("arbeitsgaenge", "Mehrere Arbeitsgänge",
+     "Ein Auftrag in Arbeitsgängen nacheinander, z. B. Laser, Entgraten, Verzinken (Einstellungen → Termine und "
+     "Abläufe → Arbeitsgänge)."),
+    ("werkstatt", "Werkstatt-Ansicht", "Knopf oben rechts für die große Ansicht an der Maschine."),
+)
+EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g1, gs)),
+                      ("Termine und Abläufe", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g10, g2, g7, g8, g9)),
+                      ("Ansicht und Felder", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g11, g3, g4)),
+                      ("Benutzer und Datenbank", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g6, g5)))
 BALKEN_ZEILE = 84                         # L1: Höhe einer Maschine in den Wochenbalken (vorher 122)
 BALKEN_LEGENDE = ("Wochenbalken: Rahmen = Kapazität, gefüllt = eingelastete Aufträge (ab 80 % gelb, über 100 % rot), "
                   "grau links = tatsächliche Stunden aus den Fertigmeldungen. Klick auf eine Woche zeigt rechts ihre "
@@ -2412,7 +2434,7 @@ class Hauptfenster(QMainWindow):
         for c in (8, 9, 10):
             self.liste.setColumnHidden(c, self.filter.currentIndex() == 0)
         self.liste.setColumnHidden(12, not gaenge_an or self.filter.currentIndex() == 1)
-        self.liste.setColumnHidden(13, not any(a.get("material") for a in zeilen))
+        self.liste.setColumnHidden(13, not self.db.funktion("material") or not any(a.get("material") for a in zeilen))
         self.liste.setSortingEnabled(True)
         self.liste.resizeColumnsToContents()
         self.liste.horizontalHeader().setSectionResizeMode(11, QHeaderView.Stretch)
@@ -2982,8 +3004,7 @@ class Hauptfenster(QMainWindow):
                                      "zu spät fertig wird, und zeigt sie als Vorschlag. Geändert wird erst mit "
                                      "„Übernehmen“.")
         opt_menue = QMenu(self.k_optimieren)
-        for z, name in rechnung.ZIELE:
-            opt_menue.addAction(name, lambda z=z: self.optimieren(ziel=z))
+        self.a_ziele = {z: opt_menue.addAction(name, lambda z=z: self.optimieren(ziel=z)) for z, name in rechnung.ZIELE}
         self.k_optimieren.setMenu(opt_menue)
         self.rueck_opt = None                     # Stand vor der übernommenen Optimierung (für Rückgängig)
         self.k_rueck = QPushButton("Verschieben rückgängig")
@@ -3006,6 +3027,7 @@ class Hauptfenster(QMainWindow):
         tz.setSpacing(4)
         t_titel = QLabel("<b>Plantafel</b> ⓘ")
         t_titel.setToolTip(TAFEL_HINWEIS)
+        self.t_titel = t_titel
         tz.addWidget(t_titel)
         tz.addSpacing(8)
         for name, tage in TAFEL_ZOOM:
@@ -4228,6 +4250,25 @@ class Hauptfenster(QMainWindow):
         z10.addWidget(self.k_abgleich)
         l10.addLayout(z10)
         l10.addWidget(abgleich_text)
+        # E5 (Plan 2.3): Seite Funktionen – Zusatzfunktionen ein- und ausschalten, Daten bleiben
+        g11 = QGroupBox("Funktionen")
+        l11 = QVBoxLayout(g11)
+        self.e_funktionen = {}
+        for name, titel, text in FUNKTIONEN:
+            k = QCheckBox(titel)
+            k.setToolTip(text)
+            k.toggled.connect(lambda an, name=name: self.funktion_schalten(name, an))
+            self.e_funktionen[name] = k
+            l11.addWidget(k)
+            erkl = QLabel(text)
+            erkl.setWordWrap(True)
+            erkl.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)}; margin-left: 22px;")
+            l11.addWidget(erkl)
+        f_text = QLabel("Ausgeschaltet verschwinden Felder und Knöpfe; schon eingetragene Werte bleiben gespeichert "
+                        "und sind beim Einschalten wieder da. Gilt für alle Plätze.")
+        f_text.setWordWrap(True)
+        f_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        l11.addWidget(f_text)
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
         self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
@@ -4243,7 +4284,7 @@ class Hauptfenster(QMainWindow):
         for titel, gruppen in EINSTELLUNG_REITER:
             innen = QWidget()
             lay = QVBoxLayout(innen)
-            for g in gruppen(g1, g_s, g2, g3, g4, g5, g6, g7, g8, g9, g10):
+            for g in gruppen(g1, g_s, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11):
                 lay.addWidget(g)
             lay.addStretch(1)
             rollen = QScrollArea()
@@ -4256,6 +4297,18 @@ class Hauptfenster(QMainWindow):
         aussen.addWidget(self.e_reiter, 1)
         return w
 
+    def funktion_schalten(self, name, an):
+        """E5 (Plan 2.3): Häkchen auf der Seite Funktionen; gilt sofort für alle Plätze."""
+        if self.e_fuellt:
+            return
+        if name == "arbeitsgaenge":
+            self.e_gaenge.setChecked(an)          # derselbe Schalter wie bei den Arbeitsgängen
+            return
+        self.db.funktion_setzen(name, an)
+        self.laden()
+        self.einstellungen_zeigen()
+        self.hinweis(f"„{dict((n, t) for n, t, _x in FUNKTIONEN)[name]}“ {'eingeschaltet' if an else 'ausgeschaltet'}.")
+
     def einstellungen_zeigen(self):
         self.e_fuellt = True
         try:
@@ -4264,6 +4317,8 @@ class Hauptfenster(QMainWindow):
             self.e_fuellt = False
 
     def _einstellungen_fuellen(self):
+        for name, k in self.e_funktionen.items():
+            k.setChecked(self.db.mit_gaengen() if name == "arbeitsgaenge" else self.db.funktion(name))
         sch = self.db.schichten()
         self.e_schichten.setRowCount(len(sch))
         for r, x in enumerate(sch):
@@ -4293,8 +4348,10 @@ class Hauptfenster(QMainWindow):
                 f"Länge bis {D.mm_text(m['max_laenge'])} mm" if m.get("max_laenge") else "") if x)))
         gaenge_an = self.db.mit_gaengen()
         self.e_maschinen.setColumnHidden(4, not gaenge_an)
+        mat = self.db.funktion("material")
         for c in (6, 7):                          # L7: Rüstzeit und größtes Rohr nur, wenn eine Maschine sie hat
-            self.e_maschinen.setColumnHidden(c, not any(self.e_maschinen.item(r, c).text() for r in range(len(ms))))
+            self.e_maschinen.setColumnHidden(c, not mat or not any(self.e_maschinen.item(r, c).text()
+                                                                   for r in range(len(ms))))
         self.e_maschinen.setHorizontalHeaderItem(0, QTableWidgetItem("Maschine / Arbeitsplatz" if gaenge_an
                                                                      else "Maschine"))
         self.g_maschinen.setTitle("Maschinen und Arbeitsplätze" if gaenge_an else "Maschinen")
@@ -4657,6 +4714,9 @@ class Hauptfenster(QMainWindow):
             z_rohr.addWidget(max_l)
             z_rohr.addStretch(1)
             form.addRow("Größtes Rohr", z_rohr)
+            if not self.db.funktion("material"):  # M1 (Plan 2.3): Werte bleiben, nur unsichtbar
+                form.setRowVisible(ruest, False)
+                form.setRowVisible(z_rohr, False)
             # N3 (Plan 2.2): Erfahrungswert aus Soll und Ist
             erf = QCheckBox("Mit Erfahrungswert planen")
             erf.setChecked(bool(m.get("erfahrung")) if m else False)
@@ -4933,8 +4993,18 @@ class Hauptfenster(QMainWindow):
         return seite
 
     # ------------------------------------------------------------------ alles
+    def funktionen_anwenden(self):
+        """E5 (Plan 2.3): ausgeschaltete Funktionen aus Knöpfen, Menüs und Legende nehmen."""
+        self.k_werkstatt.setVisible(self.db.funktion("werkstatt"))
+        self.a_ziele[rechnung.ZIEL_RUESTEN].setVisible(self.db.funktion("material"))
+        hinweis = TAFEL_HINWEIS
+        if not self.db.funktion("material_ab"):
+            hinweis = hinweis.replace(" · schraffiert = wartet auf Material", "")
+        self.t_titel.setToolTip(hinweis)
+
     def laden(self):
         """Neu rechnen und den sichtbaren Reiter füllen."""
+        self.funktionen_anwenden()
         self.aus, self.ein = rechnung.einlasten(self.db, self.heute(), self.wochen.value())
         self.gem = rechnung.gemessen(self.db, self.aus, self.heute())
         if self.woche and self.woche[0] not in self.ein["maschinen"]:

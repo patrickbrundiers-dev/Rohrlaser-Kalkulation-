@@ -1085,7 +1085,7 @@ class Daten:
             tag = datetime.date.fromisoformat(a.get("material_ab") or "")
         except ValueError:
             return None
-        if tag <= (heute or datetime.date.today()) or a["status"] == FERTIG:
+        if tag <= (heute or datetime.date.today()) or a["status"] == FERTIG or not self.funktion("material_ab"):
             return None
         teile = a["gaenge"] or [a]
         if any(t["start_am"] or t["gelaufen_min"] or t["status"] == FERTIG for t in teile):
@@ -1163,6 +1163,27 @@ class Daten:
             self._verlauf(auftrag_id, "wieder geöffnet")
 
     # ------------------------------------------------------------------ Arbeitsgänge und Teile auf mehreren Maschinen
+    def funktion(self, name):
+        """E5/M1/M2 (Plan 2.3): Zusatzfunktion an? Gespeichert als Einstellung funktion_<name> = 1 oder 0. Ohne
+        Einstellung: Material und Rüsten nur an, wenn schon Material, Rüstzeit oder Rohrmaße eingetragen sind;
+        Material da ab nur, wenn ein Auftrag es nutzt; alles andere an. Daten bleiben beim Ausschalten erhalten."""
+        wert = self.einstellung(f"funktion_{name}")
+        if wert in ("0", "1"):
+            return wert == "1"
+        if name == "material":
+            return bool(self.con.execute(
+                "SELECT 1 FROM auftraege WHERE COALESCE(material, '') <> '' OR ruest_min IS NOT NULL "
+                "OR COALESCE(durchmesser, 0) > 0 OR COALESCE(laenge, 0) > 0 LIMIT 1").fetchone() or self.con.execute(
+                "SELECT 1 FROM maschinen WHERE COALESCE(ruest_min, 0) > 0 OR COALESCE(max_durchmesser, 0) > 0 "
+                "OR COALESCE(max_laenge, 0) > 0 LIMIT 1").fetchone())
+        if name == "material_ab":
+            return bool(self.con.execute(
+                "SELECT 1 FROM auftraege WHERE COALESCE(material_ab, '') <> '' LIMIT 1").fetchone())
+        return True
+
+    def funktion_setzen(self, name, an):
+        self.einstellung_setzen(f"funktion_{name}", "1" if an else "0")
+
     def mit_gaengen(self):
         """Schalter in den Einstellungen: mehrere Arbeitsgänge je Auftrag verwenden (Vorgabe aus)."""
         return self.einstellung("arbeitsgaenge") == "1"

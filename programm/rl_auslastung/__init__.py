@@ -5,9 +5,9 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil, auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel."""
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Mehr Platz für die Plantafel (Wochenbalken flacher und ausblendbar, Liste rechts einklappbar, Einstellungen in "
-       "Unterreitern). Aufträge aus Excel einlesen (.xlsx oder Strg+V), eure Excel-Liste automatisch abgleichen, "
-       "frühester Liefertermin beim neuen Auftrag, Erfahrungswert je Maschine aus Soll und Ist.")
+NEU = ("Neue Seite Funktionen in den Einstellungen: Material und Rüsten, Material da ab, Teillieferungen, Arbeitsgänge "
+       "und Werkstatt-Ansicht lassen sich ausschalten; eingetragene Werte bleiben. Aus 2.2: mehr Platz für die "
+       "Plantafel, Excel einlesen und automatisch abgleichen, frühester Liefertermin, Erfahrungswert je Maschine.")

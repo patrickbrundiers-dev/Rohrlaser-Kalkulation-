@@ -30,6 +30,8 @@ def grundlage(db, heute=None, wochenzahl=8):
     auftraege = {}
     jetzt = datetime.datetime.combine(heute, UHRZEIT or datetime.datetime.now().time())
     faktor = {m: f for m, (f, _n) in erfahrung(db, heute).items()}   # N3: nur Maschinen mit Schalter
+    mat = db.funktion("material")                 # M1 (Plan 2.3): aus = ohne Material, Rüstzeit und Rohrmaße
+    teil_an = db.funktion("teillieferungen")
     for a in db.auftraege((D.OFFEN, D.LAEUFT)):
         termin = _datum(a["liefertermin"])
         fest = _datum(a["fest_ab"])
@@ -43,8 +45,8 @@ def grundlage(db, heute=None, wochenzahl=8):
                 lief = 0 if fremd else db.gelaufen(g, jetzt)
                 rest = 0 if fremd else max(0, round(int(g["kalk_min"]) * faktor.get(g["platz"], 1.0)) - lief)
                 auftraege.setdefault((g["platz"], ALLE), []).append(dict(
-                    material=a.get("material") or "", begonnen=bool(lief or g["start_am"]),
-                    durchmesser=a.get("durchmesser") or 0, laenge=a.get("laenge") or 0,
+                    material=(a.get("material") or "") if mat else "", begonnen=bool(lief or g["start_am"]),
+                    durchmesser=(a.get("durchmesser") or 0) if mat else 0, laenge=(a.get("laenge") or 0) if mat else 0,
                     id=a["id"], gang=g["id"], gang_name=g["name"], nummer=f"{a['nummer']} · {g['name']}",
                     auftragsnummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=g["platz"],
                     h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=g["kalk_min"],
@@ -58,12 +60,13 @@ def grundlage(db, heute=None, wochenzahl=8):
         eintrag = dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
             h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
-            ab=ab, material=a.get("material") or "", ruest_fest=a.get("ruest_min"), begonnen=bool(lief or a["start_am"]),
-            durchmesser=a.get("durchmesser") or 0, laenge=a.get("laenge") or 0,
+            ab=ab, material=(a.get("material") or "") if mat else "", ruest_fest=a.get("ruest_min") if mat else None,
+            begonnen=bool(lief or a["start_am"]),
+            durchmesser=(a.get("durchmesser") or 0) if mat else 0, laenge=(a.get("laenge") or 0) if mat else 0,
             # Reihenfolge: was gerade läuft zuerst, dann von Hand vorgezogen, nach Termin, zurückgestellt
             vorrang=LAEUFT_ZUERST if a["start_am"] else int(a["vorrang"] or 0))
         ziel = auftraege.setdefault((a["maschine"], ALLE), [])
-        teile = _teillieferungen(dict(a, kalk_min=kalk), lief)
+        teile = _teillieferungen(dict(a, kalk_min=kalk), lief) if teil_an else []
         if not teile:
             ziel.append(eintrag)
         for n, t in enumerate(teile):             # A5: jede offene Teillieferung mit eigenem Termin
@@ -85,8 +88,8 @@ def grundlage(db, heute=None, wochenzahl=8):
                 uebergang={m["name"]: int(m["uebergang_tage"] or 0) for m in db.maschinen()},
                 zusatz=db.zusatzstunden(m0),
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]],
-                ruest={m["name"]: int(m.get("ruest_min") or 0) for m in db.maschinen()},
-                eignung={m["name"]: m for m in db.maschinen()})
+                ruest={m["name"]: int(m.get("ruest_min") or 0) for m in db.maschinen()} if mat else {},
+                eignung={m["name"]: m for m in db.maschinen()} if mat else {})
     aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
     return aus
 

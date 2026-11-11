@@ -171,6 +171,13 @@ ABSCHNITTE = (
      "Bemerkung und Zusatzfelder. Bekannte Auftragsnummern werden aktualisiert, fertig gemeldete bleiben "
      "unverändert. Vor dem Übernehmen zeigt das Programm, was neu und was geändert ist. Die Datei aus "
      "<i>Übergabe …</i> der Kalkulation lässt sich genauso einlesen."),
+    ("Funktionen ein- und ausschalten",
+     "Unter <b>Einstellungen → Ansicht und Felder → Funktionen</b> stehen die Zusatzfunktionen mit Häkchen: "
+     "<i>Material und Rüsten</i> (Material, Rüstzeit und Rohrmaße, Ziel „Wenig Rüsten“), <i>Material da ab</i>, "
+     "<i>Teillieferungen</i>, <i>Mehrere Arbeitsgänge</i> und <i>Werkstatt-Ansicht</i>. Ausgeschaltet verschwinden "
+     "Felder und Knöpfe, und geplant wird ohne sie (z. B. ohne Rüstzeit). Schon eingetragene Werte bleiben "
+     "gespeichert und sind beim Einschalten wieder da. Material und Rüsten sowie Material da ab sind in einer "
+     "neuen Datenbank aus; wer schon Werte eingetragen hat, behält sie an. Gilt für alle Plätze."),
     ("Excel-Liste automatisch abgleichen",
      "Unter <b>Einstellungen → Termine und Abläufe → Abgleich mit eurer Excel-Liste</b> wählst du eure "
      "Auftragsliste (z. B. im gemeinsamen Ordner). Das Programm liest sie beim Start und jede Minute, wenn sie "

@@ -2478,6 +2478,70 @@ f28.close()
 db28.schliessen()
 ok("R28 Excel 2.2: .xlsx mit Datum und Dauer lesen, Strg+V aus Excel, Excel-Liste automatisch abgleichen (nur bei "
    "neuer Speicherung, Fehlendes bleibt, Hinweis unten)")
+# R29 (Plan 2.3 M1–M3, E5): Material und Rüsten, Material da ab, Teillieferungen, Werkstatt abschaltbar
+t29 = Path(tempfile.mkdtemp())
+db29 = daten.Daten(t29 / "a.db")
+assert not db29.funktion("material") and not db29.funktion("material_ab")          # neu: Vorgabe aus
+assert db29.funktion("teillieferungen") and db29.funktion("werkstatt")
+f29 = Hauptfenster(db29, heute=HEUTE, platz=t29)
+assert f29.k_werkstatt.isVisibleTo(f29) and not f29.a_ziele[rechnung.ZIEL_RUESTEN].isVisible()
+d29 = f29.neu(zeigen=False)
+assert not d29.form.isRowVisible(d29.werkstoff) and not d29.form.isRowVisible(d29.zeile_r)
+assert d29.form.isRowVisible(d29.mit_teilen) and d29.form.isRowVisible(d29.kalk)
+d29.close()
+# Wer Rüstzeit einträgt, hat die Funktion an (ohne Einstellung)
+db29.maschine_speichern("LT7", 8, alt="LT7", ruest=60)
+assert db29.funktion("material")
+r29 = db29.auftrag_speichern(dict(nummer="R-1", maschine="LT7", kalk_min=120, material="S235"))
+t29_ab = HEUTE + datetime.timedelta(days=10)
+m29 = db29.auftrag_speichern(dict(nummer="M-1", maschine="LT7", kalk_min=60, material_ab=t29_ab))
+assert db29.funktion("material_ab") and db29.wartet_auf_material(db29.auftrag(m29), HEUTE) == t29_ab
+w29 = db29.auftrag_speichern(dict(nummer="W-1", maschine="LT7", kalk_min=240,
+                                  lieferungen=[dict(termin=(HEUTE + datetime.timedelta(days=20)).strftime("%d.%m.%Y"),
+                                                    menge="10"),
+                                               dict(termin=(HEUTE + datetime.timedelta(days=30)).strftime("%d.%m.%Y"),
+                                                    menge="10")]))
+
+
+def _h29():
+    return {a["nummer"]: round(a["h"], 2) for a in rechnung.einlasten(db29, HEUTE)[1]["auftraege"]}
+
+
+h29 = _h29()
+assert h29["R-1"] == 3.0 and "W-1 · Lieferung 1/2" in h29, h29                      # 2 h + 1 h Rüsten
+# M1 aus: ohne Rüstzeit gerechnet, Felder weg, Daten bleiben
+f29.funktion_schalten("material", False)
+assert db29.einstellung("funktion_material") == "0" and not db29.funktion("material")
+assert _h29()["R-1"] == 2.0
+assert db29.auftrag(r29)["material"] == "S235" and db29.maschinen()[0]["ruest_min"] == 60
+assert not f29.a_ziele[rechnung.ZIEL_RUESTEN].isVisible()
+assert f29.e_maschinen.isColumnHidden(6) and not f29.e_funktionen["material"].isChecked()
+d29 = f29.neu(zeigen=False)
+assert not d29.form.isRowVisible(d29.werkstoff)
+d29.close()
+f29.funktion_schalten("material", True)
+assert _h29()["R-1"] == 3.0 and f29.a_ziele[rechnung.ZIEL_RUESTEN].isVisible()
+# M2 aus: wartet nicht mehr auf Material, Legende ohne Schraffur; Einlesen übergeht die Spalte
+f29.funktion_schalten("material_ab", False)
+assert db29.wartet_auf_material(db29.auftrag(m29), HEUTE) is None
+assert "schraffiert" not in f29.t_titel.toolTip() and db29.auftrag(m29)["material_ab"] == t29_ab.isoformat()
+e29 = austausch.lesen(db29, zeilen=[["Auftrag", "Maschine", "Laufzeit", "Material da ab"],
+                                    ["M-2", "LT7", "1:00", t29_ab.strftime("%d.%m.%Y")]])
+assert "material_ab" not in e29["neu"][0], e29["neu"]
+# Teillieferungen aus: eine Zeile mit dem ganzen Auftrag
+f29.funktion_schalten("teillieferungen", False)
+assert "W-1" in _h29() and not any("Lieferung" in n for n in _h29())
+assert len(db29.auftrag(w29)["lieferungen"]) == 2
+# Werkstatt-Ansicht aus, Arbeitsgänge über denselben Schalter
+f29.funktion_schalten("werkstatt", False)
+assert not f29.k_werkstatt.isVisibleTo(f29)
+f29.einstellungen_zeigen()
+f29.e_funktionen["arbeitsgaenge"].setChecked(True)
+assert db29.mit_gaengen() and f29.e_gaenge.isChecked()
+f29.close()
+db29.schliessen()
+ok("R29 Funktionen 2.3: Material und Rüsten, Material da ab, Teillieferungen, Werkstatt-Ansicht abschaltbar; "
+   "Vorgabe aus nur ohne eingetragene Werte; Rechnung ohne Rüstzeit; Daten bleiben")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

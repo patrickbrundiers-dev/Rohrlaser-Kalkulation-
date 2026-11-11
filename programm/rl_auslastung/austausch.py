@@ -204,7 +204,7 @@ def lesen(db, pfad=None, zeilen=None):
             neu = dict(nummer=nummer, maschine=wert("maschine"), kalk_min=kalk, liefertermin=D._tag(wert("termin")),
                        kunde=wert("kunde"), bemerkung=wert("bemerkung"),
                        zusatz={f[1]: wert(f) for f in spalte if isinstance(f, tuple)})
-            if "material" in spalte:
+            if "material" in spalte and db.einstellung("funktion_material_ab") != "0":   # M3: von Hand aus
                 neu["material_ab"] = D._tag(wert("material"))
             ist = laufzeit.lesen(wert("ist"), ohne)
             if ist:

@@ -7756,6 +7756,10 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Funktionen</b> (ab Version 2.3): Unter Einstellungen → Ansicht und Felder lassen sich Material und "
+            "Rüsten, Material da ab, Teillieferungen, Arbeitsgänge und die Werkstatt-Ansicht ausschalten. Felder und "
+            "Knöpfe verschwinden, geplant wird ohne sie; eingetragene Werte bleiben gespeichert. Wer nur die "
+            "kalkulierte Gesamtzeit einträgt, schaltet Material und Rüsten aus (in einer neuen Datenbank ist es aus).",
             "<b>Excel und Erfahrung</b> (ab Version 2.2): Excel-Dateien (.xlsx) lassen sich direkt einlesen, "
             "kopierte Excel-Zeilen mit Strg+V. In den Einstellungen kann eure Excel-Auftragsliste fest gewählt "
             "werden; das Programm gleicht sie dann automatisch ab, sobald sie neu gespeichert ist (neue und "
