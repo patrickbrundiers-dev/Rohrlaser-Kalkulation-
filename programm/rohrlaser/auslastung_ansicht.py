@@ -17,46 +17,12 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import auslastung, einlastung, stil
-from .auslastung_grafik import BALKEN, RISIKO_TEXT, Plantafel, WochenBalken, _datum, _h, stufe  # noqa: F401
+from .auslastung_grafik import BALKEN, RISIKO_TEXT, Plantafel, WochenBalken, _datum, _h, spalten_daten, stufe  # noqa: F401
 
 FARBEN = {"gruen": "#E3F4E8", "gelb": "#FFF2CC", "rot": "#F8D7DA", "grau": "#F2F2F2"}      # Zellen der Zahlentabelle
 SICHT_EIN, SICHT_TERMIN = "eingelastet (Überlast rutscht weiter)", "Terminwoche (Liefertermin minus Vorlauf)"
 IST_WOCHEN = 4
 MERKER = {}                    # Laserzeit je Angebot über mehrere Aufrufe (auslastung.berechnen, merker)
-def spalten_daten(aus, ein, gem, sicht_ein):
-    """Zeilen für WochenBalken: [dict(maschine, spalten=[dict(key, titel, unter, kap, auftrag, angebot, ist, art)])].
-    art: 'ist' (gemessen, vergangene Woche), 'woche', 'rest' (überfällig, später, ohne Termin: ohne Kapazität)."""
-    zeilen = []
-    for m in (ein["maschinen"] if sicht_ein else aus["maschinen"]):
-        spalten = []
-        for mo in (gem or {}).get("montage", ()):
-            spalten.append(dict(key=("ist", mo), titel=f"KW {mo.isocalendar()[1]}", unter=mo.strftime("%d.%m."),
-                                kap=gem["kapazitaet"].get((m, mo), 0.0), auftrag=0.0, angebot=0.0,
-                                ist=gem["stunden"].get((m, mo), 0.0), art="ist"))
-        for s, titel, mo in aus["spalten"]:
-            if mo is not None:
-                if sicht_ein:
-                    a, b, kap = einlastung.wochenwerte(aus, ein, m, mo)
-                else:
-                    (a, b), kap = einlastung.terminwerte(aus, m, s), aus["kapazitaet"].get((m, mo), 0.0)
-                spalten.append(dict(key=s, titel=titel, unter=mo.strftime("%d.%m."), kap=kap, auftrag=a, angebot=b,
-                                    ist=0.0, art="woche"))
-            elif sicht_ein:
-                if s == auslastung.SPAETER:        # alles, was nach dem gezeigten Zeitraum eingelastet ist
-                    letzter = max(x for _, _, x in aus["spalten"] if x is not None)
-                    a = sum(w.get(einlastung.AUFTRAG, 0.0) for (mm, mo2), w in ein["woche"].items()
-                            if mm == m and mo2 > letzter)
-                    b = sum(w.get(einlastung.ANGEBOT, 0.0) for (mm, mo2), w in ein["woche"].items()
-                            if mm == m and mo2 > letzter) + ein["spaeter"].get(m, 0.0)
-                    spalten.append(dict(key=s, titel=titel, unter="", kap=None, auftrag=a, angebot=b, ist=0.0,
-                                        art="rest"))
-            else:
-                a, b = einlastung.terminwerte(aus, m, s)
-                spalten.append(dict(key=s, titel=titel, unter="", kap=None, auftrag=a, angebot=b, ist=0.0, art="rest"))
-        zeilen.append(dict(maschine=m, spalten=spalten))
-    return zeilen
-
-
 DETAIL_SPALTEN = ("Angebot", "Kunde", "Art", "Liefertermin", "Stunden", "geschnitten", "Gewicht", "Laser fertig",
                   "Puffer [AT]", "Terminrisiko")
 
@@ -99,7 +65,12 @@ class AuslastungAnsicht(QWidget):
         for w in (QLabel("Zeitraum"), self.wochen, self.sicht, self.offene):
             oben.addWidget(w)
         oben.addStretch(1)
-        for w in (self.zoom, neu, self.pdf_knopf):
+        self.uebergabe_knopf = QPushButton("Übergabe …")
+        self.uebergabe_knopf.setToolTip("Schreibt die beauftragten Aufträge mit Maschine, Laserzeit und Liefertermin "
+                                        "in eine CSV-Datei für das eigene Programm „Rohrlaser Auslastung“ (dort: "
+                                        "CSV einlesen …). An den Daten der Kalkulation ändert sich nichts.")
+        self.uebergabe_knopf.clicked.connect(lambda: self.uebergabe())
+        for w in (self.zoom, neu, self.uebergabe_knopf, self.pdf_knopf):
             oben.addWidget(w)
         self.info = QLabel()
         self.info.setWordWrap(True)
@@ -478,6 +449,28 @@ class AuslastungAnsicht(QWidget):
         self.zeigen()
 
     # ---- PDF ----
+    def uebergabe(self, pfad=None):
+        """Übergabedatei für das eigene Programm Rohrlaser Auslastung (Patrick 11.11.2026): die beauftragten Aufträge
+        mit Maschine, restlicher Laserzeit (Stunden:Minuten) und Liefertermin als CSV. Ergebnis: Pfad oder None."""
+        if self.daten is None:
+            self.laden()
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Übergabe an Rohrlaser Auslastung", "Auslastung-Uebergabe.csv",
+                                                  "CSV (*.csv)")
+            if not pfad:
+                return None
+        import csv
+        liste = sorted((a for a in einlastung.auftragsliste(self.daten) if a["art"] == einlastung.AUFTRAG),
+                       key=lambda a: (str(a.get("termin") or "9999"), str(a.get("nummer") or "")))
+        with open(pfad, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(("Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit", "Liefertermin"))
+            for a in liste:
+                minuten = max(1, int(float(a.get("h") or 0.0) * 60 + 0.5))
+                w.writerow((a.get("nummer") or a["id"], a.get("kunde") or "", a["maschine"],
+                            f"{minuten // 60}:{minuten % 60:02d}", _datum(a.get("termin"))))
+        return pfad
+
     def pdf(self, pfad=None):
         """Seite als PDF (A4 quer): Wochenbalken, Plantafel und die Aufträge mit Terminrisiko."""
         if pfad is None:

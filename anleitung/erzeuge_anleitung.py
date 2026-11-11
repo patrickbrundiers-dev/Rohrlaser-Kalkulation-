@@ -7541,9 +7541,36 @@ def kapitel_fertigung(i):
             "Vergleich vorher/jetzt. Nichts wird gespeichert; <b>Zurücksetzen</b> zeigt wieder den echten Stand.",
             "<b>PDF …</b> schreibt Balken, Plantafel und die Aufträge mit Terminrisiko auf eine Seite A4 quer für "
             "die Werkstattbesprechung. <b>Aktualisieren</b> rechnet alles neu.",
+            "<b>Übergabe …</b> schreibt die beauftragten Aufträge mit Maschine, restlicher Laserzeit "
+            "(Stunden:Minuten) und Liefertermin in eine CSV-Datei für das eigene Programm <i>Rohrlaser "
+            "Auslastung</i> (siehe unten). An den Daten der Kalkulation ändert sich nichts.",
             "Die Kachel <b>Auslastung</b> auf der Startseite (Karte <i>Heute</i>) zeigt je Maschine diese und die "
             "nächste Woche in % mit kleinem Verlauf über acht Wochen und die Zahl der Aufträge mit Terminrisiko. "
             "<b>Termin prüfen …</b> im Angebot nennt zusätzlich die freie Laserzeit der Maschine bis zum Termin.")
+    i.text("<b>Eigenes Programm Rohrlaser Auslastung</b>: Die Auslastung gibt es zusätzlich als eigenes Programm "
+           "(<i>Rohrlaser-Auslastung.exe</i>, eigenes ZIP, eigene Datenbank), das ohne die Kalkulation läuft, zum "
+           "Beispiel an einem Platz in der Werkstatt.", kurz=True)
+    i.liste("<b>Aufträge</b>: je Auftrag Auftragsnummer, Kunde, Maschine, kalkulierte Laufzeit, Liefertermin, "
+            "Bemerkung und eigene Zusatzfelder. Start und Stopp stoppen die Zeit mit, <i>Fertig melden</i> trägt "
+            "die tatsächliche Laufzeit und das Fertig-Datum ein.",
+            "<b>Laufzeit eingeben</b> geht in jeder Schreibweise: 1 Stunde 30 Minuten, 1 Std 30 Min, 1 h 30 min, "
+            "1h30, 1:30, 90 Minuten, 90 min oder 1,5 h. Unter dem Feld steht sofort, wie die Eingabe verstanden "
+            "wurde. Eine ganze Zahl ohne Einheit gilt als Minuten (umstellbar auf Stunden), eine Kommazahl als "
+            "Stunden. Die Anzeige ist wählbar: 1 h 30 min, 1:30 h, 1,50 h oder 90 min.",
+            "<b>Auslastung</b>: dieselben Wochenbalken und dieselbe Plantafel wie hier, eingelastet nach "
+            "Liefertermin mit Fertig-Datum und Terminrisiko je Auftrag; links die tatsächlichen Stunden der "
+            "letzten vier Wochen aus den Fertigmeldungen. PDF für die Werkstattbesprechung.",
+            "<b>Soll und Ist</b>: kalkulierte gegen tatsächliche Laufzeit je Auftrag und je Maschine mit "
+            "Abweichung in Zeit und Prozent, als CSV oder PDF.",
+            "<b>Einstellungen</b>: Maschinen mit Stunden je Tag, Samstag, Nutzungsgrad, Feiertage, Betriebsruhe, "
+            "Vorlauf bis zum Liefertermin, Zusatzfelder und der Ort der Datenbank. Liegt die Datenbank in einem "
+            "gemeinsamen Ordner, arbeiten mehrere Plätze mit denselben Aufträgen; Änderungen eines Platzes "
+            "erscheinen bei den anderen nach wenigen Sekunden. Beim Start wird einmal täglich gesichert.",
+            "<b>Aufträge übernehmen</b>: im Programm <i>CSV einlesen</i> wählen, entweder eine eigene Liste "
+            "(erste Zeile: Auftragsnummer, Maschine, Kalkulierte Laufzeit, dazu nach Wunsch Liefertermin, Kunde, "
+            "Bemerkung und Zusatzfelder) oder die Datei aus <b>Übergabe …</b> dieser Seite. Bekannte "
+            "Auftragsnummern werden aktualisiert, fertig gemeldete bleiben unverändert; vor dem Übernehmen zeigt "
+            "das Programm, was neu und was geändert ist.")
     i.text("<b>Zahlen (Terminwoche)</b>: der zweite Reiter über den Balken zeigt dieselbe Rechnung als Tabelle.",
            kurz=True)
     i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "

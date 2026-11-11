@@ -30,9 +30,13 @@ NEUERUNGEN = [
      "bisherige Rechnung bleibt als Sicht <i>Terminwoche</i>. Dazu die <b>gemessene</b> Auslastung der letzten "
      "vier Wochen aus den Scans <i>Laser Start/Ende</i>, <b>Was wäre, wenn …</b> (Auftrag testweise auf andere "
      "Maschine, Zusatzstunden, Samstag; nichts wird gespeichert), <b>PDF</b> für die Werkstattbesprechung, eine "
-     "Kachel <i>Auslastung</i> auf der Startseite und die freie Laserzeit bis zum Termin in <i>Termin prüfen …</i>.",
+     "Kachel <i>Auslastung</i> auf der Startseite und die freie Laserzeit bis zum Termin in <i>Termin prüfen …</i>. "
+     "Dazu gibt es die Auslastung als <b>eigenes Programm Rohrlaser Auslastung</b>, das ohne die Kalkulation läuft "
+     "(Auftragsnummer, kalkulierte Laufzeit, Liefertermin, tatsächliche Laufzeit nach der Fertigmeldung, "
+     "Zusatzfelder; Laufzeit in jeder Schreibweise wie <i>1 Stunde 30 Minuten</i>, <i>90 Minuten</i> oder "
+     "<i>1:30</i>); <b>Übergabe …</b> auf der Seite Auslastung schreibt die Aufträge als Datei dafür.",
      "Maschinenauslastung als Grafik: Wochenbalken, Plantafel, Terminrisiko je Auftrag, gemessene Auslastung und "
-     "Was-wäre-wenn ([[auslastung]])."],
+     "Was-wäre-wenn; dazu als eigenes Programm Rohrlaser Auslastung ([[auslastung]])."],
     ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "
      "jede Lage nur noch einmal (vorher bis zu siebenmal) und baut für die Prüfung der Nahtzugänglichkeit die "
      "Hilfsdaten je Körper einmal auf statt je Messpunkt. Für Nähte und Anbauteile wird der Abstand zweier Teile nur "

@@ -36,6 +36,40 @@ def stufe(quote):
     return "rot" if quote > auslastung.ROT else "gelb" if quote >= auslastung.GELB else "gruen"
 
 
+def spalten_daten(aus, ein, gem, sicht_ein):
+    """Zeilen für WochenBalken: [dict(maschine, spalten=[dict(key, titel, unter, kap, auftrag, angebot, ist, art)])].
+    art: 'ist' (gemessen, vergangene Woche), 'woche', 'rest' (überfällig, später, ohne Termin: ohne Kapazität)."""
+    zeilen = []
+    for m in (ein["maschinen"] if sicht_ein else aus["maschinen"]):
+        spalten = []
+        for mo in (gem or {}).get("montage", ()):
+            spalten.append(dict(key=("ist", mo), titel=f"KW {mo.isocalendar()[1]}", unter=mo.strftime("%d.%m."),
+                                kap=gem["kapazitaet"].get((m, mo), 0.0), auftrag=0.0, angebot=0.0,
+                                ist=gem["stunden"].get((m, mo), 0.0), art="ist"))
+        for s, titel, mo in aus["spalten"]:
+            if mo is not None:
+                if sicht_ein:
+                    a, b, kap = einlastung.wochenwerte(aus, ein, m, mo)
+                else:
+                    (a, b), kap = einlastung.terminwerte(aus, m, s), aus["kapazitaet"].get((m, mo), 0.0)
+                spalten.append(dict(key=s, titel=titel, unter=mo.strftime("%d.%m."), kap=kap, auftrag=a, angebot=b,
+                                    ist=0.0, art="woche"))
+            elif sicht_ein:
+                if s == auslastung.SPAETER:        # alles, was nach dem gezeigten Zeitraum eingelastet ist
+                    letzter = max(x for _, _, x in aus["spalten"] if x is not None)
+                    a = sum(w.get(einlastung.AUFTRAG, 0.0) for (mm, mo2), w in ein["woche"].items()
+                            if mm == m and mo2 > letzter)
+                    b = sum(w.get(einlastung.ANGEBOT, 0.0) for (mm, mo2), w in ein["woche"].items()
+                            if mm == m and mo2 > letzter) + ein["spaeter"].get(m, 0.0)
+                    spalten.append(dict(key=s, titel=titel, unter="", kap=None, auftrag=a, angebot=b, ist=0.0,
+                                        art="rest"))
+            else:
+                a, b = einlastung.terminwerte(aus, m, s)
+                spalten.append(dict(key=s, titel=titel, unter="", kap=None, auftrag=a, angebot=b, ist=0.0, art="rest"))
+        zeilen.append(dict(maschine=m, spalten=spalten))
+    return zeilen
+
+
 class WochenBalken(QWidget):
     """Gestapelte Wochenbalken je Maschine. Klick wählt (Maschine, Spaltenschlüssel)."""
     gewaehlt = Signal(object, object)
