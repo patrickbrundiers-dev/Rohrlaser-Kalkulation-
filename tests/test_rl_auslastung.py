@@ -15,7 +15,9 @@
 
 Aufruf: python tests/test_rl_auslastung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
+import csv
 import datetime
+import io
 import os
 import sqlite3
 import subprocess
@@ -27,7 +29,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
-from rl_auslastung import austausch, daten, laufzeit, ort, rechnung  # noqa: E402
+from rl_auslastung import austausch, daten, laufzeit, ort, rechnung, schnittstelle  # noqa: E402
 from rl_auslastung.fenster import Hauptfenster, OptimierenDialog  # noqa: E402
 from rohrlaser import einlastung  # noqa: E402
 
@@ -2969,6 +2971,94 @@ assert rechnung._rest(20, 20, 15, 30) == 20                         # nie mehr a
 db36.schliessen()
 ok("R36 N1 läuft ein Auftrag länger als kalkuliert, bleibt eine Mindest-Restzeit (15 %, mind. 30 min) und eine "
    "Warnung; N3 Optimieren und Ausweichmaschine lassen die nächsten 2 Arbeitstage unverändert")
+# ---------------------------------------------------------------- R37 Plan 2.8: Schnittstelle zur Kalkulation
+# Die Beispieldateien in docs/schnittstelle-beispiel/ sind der gemeinsame Prüfstand beider Programme.
+BSP37 = HIER.parent / "docs" / "schnittstelle-beispiel"
+ordner37 = Path(tempfile.mkdtemp())
+db37 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db37.einstellung_setzen("uebergabe_ordner", str(ordner37))
+assert db37.zusatz_einschalten(True)
+db37.einstellung_setzen("funktion_material_ab", "1")
+for n37 in ("Auftrag-A-2701-20261111-143000.csv", "Rueckmeldung.csv"):
+    (ordner37 / n37).write_bytes((BSP37 / n37).read_bytes())
+assert [p.name for p in austausch.neue_dateien(db37)] == ["Auftrag-A-2701-20261111-143000.csv"]  # Rückmeldung nicht
+e37 = austausch.lesen(db37, ordner37 / "Auftrag-A-2701-20261111-143000.csv")
+assert len(e37["neu"]) == 1 and not e37["fehler"] and not e37["spalten_fremd"], e37
+austausch.uebernehmen(db37, e37)
+a37 = db37.auftrag(nummer="A-2701")
+assert (a37["kunde"], a37["liefertermin"], a37["material_ab"], a37["stueckzahl"], a37["bemerkung"]) == (
+    "Becker GmbH", "2026-11-27", "2026-11-18", 125, "Kundenauftrag 4711-22")
+# Laser = Laserzeit + Rüstzeit aller Positionen (95 + 60 + 0 + 20 + 10); Zusatzarbeiten in Tabellenfolge, Fremd zuletzt
+assert [(g["name"], g["platz"], g["kalk_min"], g["tage"]) for g in a37["gaenge"]] == [
+    ("LT7", "LT7", 185, 0), ("Gewinde M8", "Bearbeitung", 95, 0), ("Schweißen", "Schweißen", 250, 0),
+    ("Verzinken", daten.FREMD, 0, 5)]
+assert austausch.lesen(db37, ordner37 / "Auftrag-A-2701-20261111-143000.csv")["gleich"] == 1   # gleiche Freigabe
+
+
+def datei37(name, zeilen):
+    kopf = ";".join(schnittstelle.SPALTEN)
+    text = "\n".join([kopf] + [";".join(z.get(s, "") for s in schnittstelle.SPALTEN) for z in zeilen])
+    (ordner37 / name).write_text(text, encoding="utf-8-sig")
+    return ordner37 / name
+
+
+K37 = {"Format": "2", "Auftragsnummer": "A-2701", "Maschine": "LT7", "Liefertermin": "04.12.2026"}
+P37 = dict(K37, Art="Position", Pos="1", **{"Stückzahl": "50", "Laserzeit [min]": "100"})
+G37 = dict(K37, Art="Zusatzarbeit", Pos="1", Arbeit="Gewinde M8", **{"Zeit [min]": "120"})
+# Werkstatt hat auf T11 umgeplant und das Gewinde begonnen: neue Freigabe ändert Zeiten und Termin, nicht das
+lt, gw = a37["gaenge"][0], a37["gaenge"][1]
+db37.con.execute("UPDATE gaenge SET platz = 'T11' WHERE id = ?", (lt["id"],))
+db37.con.execute("UPDATE gaenge SET gelaufen_min = 30 WHERE id = ?", (gw["id"],))
+e37 = austausch.lesen(db37, datei37("Auftrag-A-2701-20261112-080000.csv", [dict(P37, Freigabe="2"),
+                                                                           dict(G37, Freigabe="2")]))
+assert len(e37["geaendert"]) == 1 and not e37["fehler"], austausch.zusammenfassung(e37)
+austausch.uebernehmen(db37, e37)
+a37 = db37.auftrag(nummer="A-2701")
+assert [(g["name"], g["platz"], g["kalk_min"]) for g in a37["gaenge"]] == [
+    ("LT7", "T11", 100), ("Gewinde M8", "Bearbeitung", 120)], a37["gaenge"]
+assert a37["gaenge"][1]["gelaufen_min"] == 30 and a37["liefertermin"] == "2026-12-04"
+assert a37["bemerkung"] == "Kundenauftrag 4711-22"                  # Bemerkung aus der Werkstatt bleibt
+e37 = austausch.lesen(db37, datei37("Auftrag-A-2701-20261113-080000.csv", [dict(P37, Freigabe="1")]))
+assert not e37["geaendert"] and "älter" in e37["uebersprungen"][0]   # ältere Freigabe wird übergangen
+# Schweißbaugruppe ohne Laser (Laserzeit 0), Storno, Fehler
+S37 = {"Format": "2", "Auftragsnummer": "A-2702", "Maschine": "LT7", "Freigabe": "1"}
+e37 = austausch.lesen(db37, datei37("Auftrag-A-2702-20261111-150000.csv", [
+    dict(S37, Art="Position", Pos="1", **{"Stückzahl": "10", "Laserzeit [min]": "0"}),
+    dict(S37, Art="Zusatzarbeit", Pos="1", Arbeit="Schweißen", **{"Zeit [min]": "90"})]))
+austausch.uebernehmen(db37, e37)
+assert [(g["name"], g["kalk_min"]) for g in db37.auftrag(nummer="A-2702")["gaenge"]] == [("Schweißen", 90)]
+(ordner37 / "Auftrag-A-2702-20261111-160500.csv").write_bytes((BSP37 / "Auftrag-A-2702-20261111-160500.csv")
+                                                                .read_bytes())
+e37 = austausch.lesen(db37, ordner37 / "Auftrag-A-2702-20261111-160500.csv")
+assert [s["nummer"] for s in e37["storno"]] == ["A-2702"] and "storniert" in austausch.zusammenfassung(e37)
+austausch.uebernehmen(db37, e37)
+assert db37.auftrag(nummer="A-2702") is None and db37.im_papierkorb("A-2702")
+e37 = austausch.lesen(db37, datei37("Auftrag-A-2701-20261114-080000.csv", [dict(K37, Art="Storno", Freigabe="3")]))
+assert not e37["storno"] and "gelaufen" in e37["uebersprungen"][0]   # schon begonnen: bleibt, nur Meldung
+e37 = austausch.lesen(db37, datei37("x.csv", [dict(P37, Freigabe="1", Auftragsnummer="A-9", **{"Laserzeit [min]": ""}),
+                                              dict(P37, Format="3", Auftragsnummer="A-8")]))
+assert len(e37["fehler"]) == 2 and "Laserzeit fehlt" in e37["fehler"][1] and "Format" in e37["fehler"][0], e37
+# Rückmeldung: Ist-Zeiten, Kapazität 8 Wochen, frühester Fertig-Tag für 1, 4, 8, 16 h; nur einmal je Tag und Meldung
+a1 = db37.auftrag_speichern(dict(nummer="A-2650", maschine="LT7", kalk_min=180))
+db37.fertig_melden(a1, 204, D(2026, 11, 10))
+assert schnittstelle.faellig(db37, HEUTE)
+p37 = schnittstelle.rueckmeldung_schreiben(db37, heute=HEUTE, jetzt=datetime.datetime(2026, 11, 11, 18, 0))
+r37 = list(csv.DictReader(io.StringIO(p37.read_text(encoding="utf-8-sig")), delimiter=";"))
+assert tuple(r37[0]) == schnittstelle.RUECK_SPALTEN and not (ordner37 / "Rueckmeldung.tmp").exists()
+z37 = next(z for z in r37 if z["Auftragsnummer"] == "A-2650")
+assert (z37["Kalkuliert [min]"], z37["Tatsächlich [min]"], z37["Fertig am"], z37["Status"]) == (
+    "180", "204", "10.11.2026", "fertig")
+assert [z["Arbeitsgang"] for z in r37 if z["Auftragsnummer"] == "A-2701"] == ["", "Gewinde M8"]
+assert all(z["Format"] == "2" and z["Stand"] == "11.11.2026 18:00" for z in r37)
+kap37 = [z for z in r37 if z["Art"] == "Kapazität" and z["Maschine"] == "LT7"]
+assert len(kap37) == 8 and kap37[0]["Montag"] == "09.11.2026" and kap37[0]["KW"] == "46"
+assert sorted(int(z["Stunden"]) for z in r37 if z["Art"] == "Frühester" and z["Maschine"] == "LT7") == [1, 4, 8, 16]
+assert not schnittstelle.faellig(db37, HEUTE) and schnittstelle.faellig(db37, HEUTE + datetime.timedelta(days=1))
+db37.einstellung_setzen("funktion_rueckmeldung", "0")
+assert not schnittstelle.faellig(db37, HEUTE + datetime.timedelta(days=1))
+db37.schliessen()
+ok("R37 Plan 2.8 Schnittstelle: Auftragsdatei Format 2 (Positionen, Zusatzarbeiten, Material da ab, Laserzeit 0, "
+   "Storno, neuere Freigabe, Werkstatt-Daten bleiben), Rückmeldung mit Ist-Zeiten, Kapazität und frühestem Termin")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

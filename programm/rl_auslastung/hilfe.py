@@ -129,6 +129,20 @@ ABSCHNITTE = (
      "…</b>. Das Programm zeigt, wie viele Aufträge neu oder geändert sind, und übernimmt erst nach deiner "
      "Bestätigung. <i>Nicht einlesen</i> lässt die Datei liegen, bis die Kalkulation sie neu schreibt. Die Zeile "
      "sieht, wer Aufträge anlegen darf (Planung, Verwaltung)."),
+    ("Schnittstelle zur Kalkulation",
+     "Ab Version 2.8 schickt die Kalkulation je beauftragtem Angebot eine Auftragsdatei in den Übergabe-Ordner, "
+     "mit allen Positionen, Zusatzarbeiten (Gewinde, Schweißen, Verzinken …) und deren Zeiten, Material und "
+     "<i>Material da ab</i>. Die Zeit für den Laser ist Laserzeit plus Rüsten, jede Zusatzarbeit wird ein eigener "
+     "Arbeitsgang mit der Zeit aus der Kalkulation; nur wo keine Zeit kommt, rechnet das Programm mit seinen "
+     "Richtzeiten. Ändert sich das Angebot, kommt eine neue Freigabe: Zeiten, Material und Termin werden "
+     "übernommen, aber was die Werkstatt schon getan hat, bleibt (Maschine nach Umplanen, gelaufene Zeit, fertig "
+     "gemeldete Arbeitsgänge, fester Platz, Reihenfolge). Eine ältere Freigabe wird übergangen. Wird der Auftrag "
+     "in der Kalkulation storniert, kommt er in den Papierkorb; ist er schon gelaufen, bleibt er und du bekommst "
+     "einen Hinweis.<br><br>In die andere Richtung schreibt das Programm einmal am Tag und nach jeder "
+     "Fertigmeldung <i>Rueckmeldung.csv</i> in denselben Ordner: Ist-Zeiten je Auftrag und Arbeitsgang, freie "
+     "Stunden je Maschine für 8 Wochen und den frühesten Fertig-Tag für einen neuen Auftrag mit 1, 4, 8 oder 16 "
+     "Stunden. Ausschalten unter Einstellungen → Ansicht und Felder → Funktionen → <i>Rückmeldung an die "
+     "Kalkulation</i>."),
     ("Plantafel lesen",
      "Die Plantafel im Reiter <b>Auslastung</b> zeigt je Maschine eine Zeile und jeden Auftrag als Balken mit "
      "Auftragsnummer, Kunde und Restlaufzeit. Mit <b>1 Woche, 2 Wochen, 4 Wochen, Alles</b> wählst du, wie viele "

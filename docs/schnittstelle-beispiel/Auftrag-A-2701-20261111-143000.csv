@@ -1,0 +1,10 @@
+﻿Format;Art;Auftragsnummer;Freigabe;Kundenauftrag;Kunde;Kundennr;Maschine;Liefertermin;Pos;Artikel;Bezeichnung;Stückzahl;Profilform;Maß a [mm];Maß b [mm];Wand [mm];Werkstoff;Teilelänge [mm];Material;Laserzeit [min];Rüstzeit [min];Arbeit;Anzahl je Teil;Zeit [min];Fremdleistung;Arbeitstage;Stangen;Stangenlänge [mm];Nutzlänge [mm];Material da ab;Termin
+2;Position;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;1;BG-100;Querrohr;50;Rechteckrohr;40;20;2;S235;1250;eigen;95;20;;;;;;;;;18.11.2026;
+2;Position;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;2;BG-101;Stütze;50;Rundrohr;42,4;;2;S235;800;eigen;60;10;;;;;;;;;;
+2;Position;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;3;BG-1;Rahmen geschweißt;25;;;;;;;eigen;0;0;;;;;;;;;;
+2;Zusatzarbeit;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;1;;;;;;;;;;;;;Gewinde M8;4;95;nein;;;;;;
+2;Zusatzarbeit;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;1;;;;;;;;;;;;;Verzinken;;;ja;5;;;;;
+2;Zusatzarbeit;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;2;;;;;;;;;;;;;Verzinken;;;ja;5;;;;;
+2;Zusatzarbeit;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;3;;;;;;;;;;;;;Schweißen;;250;nein;;;;;;
+2;Stangen;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;;;;;Rechteckrohr;40;20;2;S235;;;;;;;;;;11;6000;63000;18.11.2026;
+2;Stangen;A-2701;1;4711-22;Becker GmbH;10023;LT7;27.11.2026;;;;;Rundrohr;42,4;;2;S235;;;;;;;;;;7;6000;40400;;
