@@ -107,6 +107,26 @@ SCHRITTE = (
     CREATE TABLE ausnahmen (id INTEGER PRIMARY KEY, maschine TEXT NOT NULL DEFAULT '', von TEXT NOT NULL,
         bis TEXT NOT NULL, schichten TEXT NOT NULL DEFAULT '', grund TEXT NOT NULL DEFAULT '');
     """,
+    # 11: Planung genauer (Patrick 11.11.2026, Plan Paket A). A1 Rüstzeit: feste Zeit je Maschine (ruest_min), je
+    # Auftrag änderbar (auftraege.ruest_min, NULL = Vorgabe der Maschine); gleiches Material (Text) direkt
+    # hintereinander spart das Rüsten. A3 Eignung: größter Durchmesser und größte Rohrlänge je Maschine (0 = keine
+    # Grenze) gegen Durchmesser und Rohrlänge des Auftrags (0 = unbekannt). A5 Teillieferungen: mehrere
+    # Liefertermine mit Mengen; die Laufzeit teilt sich nach den Mengen, jede Lieferung hat ihren eigenen Termin.
+    # Uhrzeit der Fertigmeldung (Patrick 11.11.2026): fertig_um = 'HH:MM' neben dem Tag fertig_am, NULL = unbekannt.
+    """
+    ALTER TABLE maschinen ADD COLUMN ruest_min INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE maschinen ADD COLUMN max_durchmesser REAL NOT NULL DEFAULT 0;
+    ALTER TABLE maschinen ADD COLUMN max_laenge REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN ruest_min INTEGER;
+    ALTER TABLE auftraege ADD COLUMN material TEXT NOT NULL DEFAULT '';
+    ALTER TABLE auftraege ADD COLUMN durchmesser REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN laenge REAL NOT NULL DEFAULT 0;
+    CREATE TABLE lieferungen (id INTEGER PRIMARY KEY, auftrag_id INTEGER NOT NULL, termin TEXT NOT NULL,
+        menge REAL NOT NULL DEFAULT 0);
+    CREATE INDEX lieferungen_auftrag ON lieferungen (auftrag_id, termin, id);
+    ALTER TABLE auftraege ADD COLUMN fertig_um TEXT;
+    ALTER TABLE gaenge ADD COLUMN fertig_um TEXT;
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -196,6 +216,37 @@ def _schicht(name, beginn, ende, pause=0):
         raise Fehler(f"Schicht „{name}“: Die Pause muss kürzer sein als die Schicht.")
     return dict(name=name, beginn=uhr_text(b), ende=uhr_text(e), pause=pause, dauer=dauer / 60,
                 stunden=(dauer - pause) / 60)
+
+
+def _zahl(wert, name, hoechstens=None, ganz=False):
+    """Zahl >= 0 aus Text mit Komma oder Punkt; leer = 0."""
+    t = str(wert if wert is not None else "").strip().replace(",", ".")
+    try:
+        z = float(t) if t else 0.0
+    except ValueError:
+        raise Fehler(f"{name}: bitte eine Zahl eingeben.") from None
+    if z < 0 or (hoechstens is not None and z > hoechstens):
+        raise Fehler(f"{name}: bitte eine Zahl von 0 bis {hoechstens:g} eingeben." if hoechstens is not None
+                     else f"{name}: bitte eine Zahl ab 0 eingeben.")
+    return int(round(z)) if ganz else z
+
+
+def mm_text(wert):
+    """1200.0 -> '1200', 60.3 -> '60,3'."""
+    return f"{float(wert or 0):g}".replace(".", ",")
+
+
+def passt_nicht(maschine, durchmesser, laenge):
+    """A3 Eignung: Text, warum das Rohr nicht auf die Maschine passt, oder ''. maschine: Zeile aus maschinen() oder
+    dict(name, max_durchmesser, max_laenge); 0 = keine Grenze, Durchmesser oder Länge 0 = unbekannt (passt)."""
+    if not maschine:
+        return ""
+    for wert, grenze, was in ((durchmesser, maschine.get("max_durchmesser"), "Durchmesser"),
+                              (laenge, maschine.get("max_laenge"), "Rohrlänge")):
+        if wert and grenze and float(wert) > float(grenze) + 1e-9:
+            return (f"{was} {mm_text(wert)} mm passt nicht auf {maschine['name']} "
+                    f"(höchstens {mm_text(grenze)} mm).")
+    return ""
 
 
 def _jetzt():
@@ -370,7 +421,8 @@ class Daten:
         return [x for x in self.schichten() if x["name"] in namen]
 
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
-                           ausweich=None, schichten=None, schicht_start=None, samstag=None):
+                           ausweich=None, schichten=None, schicht_start=None, samstag=None, ruest=None,
+                           max_durchmesser=None, max_laenge=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
         zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
@@ -379,8 +431,16 @@ class Daten:
         ihrer Summe, [] = ohne Schichten (Stunden je Tag von Hand); None lässt sie. Wochenwechsel: eine Liste je
         Woche ([["Früh"], ["Spät"]]), die Folge wiederholt sich ab schicht_start (Datum, gilt dessen Montag;
         Vorgabe: der bisherige Beginn, sonst diese Woche). stunden_tag ist dann die kleinste Woche.
-        samstag: Namen der Schichten am Samstag ([] = die Samstagsstunden für alle Maschinen); None lässt sie."""
+        samstag: Namen der Schichten am Samstag ([] = die Samstagsstunden für alle Maschinen); None lässt sie.
+        ruest: feste Rüstzeit je Auftrag in Minuten (A1); max_durchmesser, max_laenge: größtes Rohr in mm, 0 = keine
+        Grenze (A3); None lässt sie."""
         name = str(name or "").strip()
+        if ruest is not None:
+            ruest = _zahl(ruest, "Rüstzeit", 24 * 60, ganz=True)
+        if max_durchmesser is not None:
+            max_durchmesser = _zahl(max_durchmesser, "Größter Durchmesser")
+        if max_laenge is not None:
+            max_laenge = _zahl(max_laenge, "Größte Rohrlänge")
         if not name:
             raise Fehler("Die Maschine braucht einen Namen.")
         if samstag is not None:
@@ -451,6 +511,10 @@ class Daten:
                 self.con.execute("UPDATE maschinen SET uebergang_tage = ? WHERE name = ?", (uebergang, name))
             if ausweich is not None:
                 self.con.execute("UPDATE maschinen SET ausweich = ? WHERE name = ?", (int(bool(ausweich)), name))
+            for spalte, wert in (("ruest_min", ruest), ("max_durchmesser", max_durchmesser),
+                                 ("max_laenge", max_laenge)):
+                if wert is not None:
+                    self.con.execute(f"UPDATE maschinen SET {spalte} = ? WHERE name = ?", (wert, name))
             if samstag is not None:
                 self.con.execute("UPDATE maschinen SET schichten_sa = ? WHERE name = ?", (",".join(samstag), name))
             if schichten is not None:
@@ -573,9 +637,14 @@ class Daten:
                 "SELECT w.auftrag_id, f.name, w.wert FROM zusatzwerte w JOIN zusatzfelder f ON f.id = w.feld_id"):
             werte.setdefault(aid, {})[name] = wert
         gaenge = self.alle_gaenge() if liste else {}
+        lief = {}
+        if liste:
+            for z in self.con.execute("SELECT id, auftrag_id, termin, menge FROM lieferungen ORDER BY termin, id"):
+                lief.setdefault(z["auftrag_id"], []).append(dict(id=z["id"], termin=z["termin"], menge=z["menge"]))
         for a in liste:
             a["zusatz"] = werte.get(a["id"], {})
             a["gaenge"] = gaenge.get(a["id"], [])
+            a["lieferungen"] = lief.get(a["id"], [])
         return liste
 
     def auftraege(self, status=None):
@@ -597,13 +666,24 @@ class Daten:
                                  (str(nummer).strip(),)).fetchall()
         return self._mit_zusatz(z)[0] if z else None
 
+    def materialien(self):
+        """Alle bisher eingegebenen Materialien (für die Vorschlagsliste im Auftrag)."""
+        return [z[0] for z in self.con.execute(
+            "SELECT DISTINCT material FROM auftraege WHERE material <> '' AND geloescht_am IS NULL "
+            "ORDER BY material COLLATE NOCASE")]
+
     def auftrag_speichern(self, a):
         """Legt an (ohne id) oder ändert. a: nummer, maschine, kalk_min, liefertermin, kunde, bemerkung, zusatz={Feld:
         Wert}. Ergebnis: id.
 
         Mit a["gaenge"] = [dict(name, platz, kalk_min, tage, gleichzeitig[, id])] wird der Auftrag mehrteilig
         (Arbeitsgänge oder Teile auf mehreren Maschinen); Maschine und Laufzeit ergeben sich dann aus den Zeilen. Eine
-        leere Liste macht ihn wieder einteilig. Fehlt der Schlüssel, bleiben vorhandene Arbeitsgänge, wie sie sind."""
+        leere Liste macht ihn wieder einteilig. Fehlt der Schlüssel, bleiben vorhandene Arbeitsgänge, wie sie sind.
+
+        Paket A, jeweils nur mit dem Schlüssel (fehlt er, bleibt der Wert): ruest_min (None oder '' = Vorgabe der
+        Maschine), material (Text; gleiches Material hintereinander spart das Rüsten), durchmesser und laenge in mm
+        (0 = unbekannt; passt das Rohr nicht auf die Maschine, gibt es einen Fehler), lieferungen = [dict(termin,
+        menge)] (Teillieferungen, nur ohne Arbeitsgänge; der Liefertermin ist dann der letzte davon)."""
         nummer = str(a.get("nummer") or "").strip()
         if not nummer:
             raise Fehler("Bitte eine Auftragsnummer eingeben.")
@@ -624,6 +704,45 @@ class Daten:
             if kalk <= 0:
                 raise Fehler("Bitte eine kalkulierte Laufzeit über 0 eingeben.")
         termin = _tag(a.get("liefertermin"))
+        mehr = {}
+        if "ruest_min" in a:
+            mehr["ruest_min"] = (None if a["ruest_min"] in (None, "") else
+                                 _zahl(a["ruest_min"], "Rüstzeit", 24 * 60, ganz=True))
+        if "material" in a:
+            mehr["material"] = " ".join(str(a["material"] or "").split())
+        if "durchmesser" in a:
+            mehr["durchmesser"] = _zahl(a["durchmesser"], "Durchmesser")
+        if "laenge" in a:
+            mehr["laenge"] = _zahl(a["laenge"], "Rohrlänge")
+        lieferungen = None
+        if "lieferungen" in a:
+            lieferungen = []
+            for x in a["lieferungen"] or ():
+                tag = _tag(x.get("termin"))
+                if not tag:
+                    raise Fehler("Teillieferung: bitte einen Termin eingeben.")
+                menge = _zahl(x.get("menge"), "Teillieferung, Menge")
+                if menge <= 0:
+                    raise Fehler("Teillieferung: bitte eine Menge über 0 eingeben.")
+                lieferungen.append((tag, menge))
+            lieferungen.sort()
+            if len(lieferungen) == 1:
+                raise Fehler("Teillieferungen: bitte mindestens zwei Termine eingeben oder die Zeile entfernen "
+                             "(ein einzelner Termin ist der Liefertermin).")
+            if lieferungen and mehrteilig:
+                raise Fehler("Teillieferungen gibt es nur bei Aufträgen ohne Arbeitsgänge.")
+            if lieferungen:
+                termin = lieferungen[-1][0]
+        elif mehrteilig and "gaenge" in a and a.get("id") and self.con.execute(
+                "SELECT 1 FROM lieferungen WHERE auftrag_id = ?", (a["id"],)).fetchone():
+            raise Fehler("Teillieferungen gibt es nur bei Aufträgen ohne Arbeitsgänge.")
+        if not mehrteilig and ("durchmesser" in mehr or "laenge" in mehr or "maschine" in a):
+            alt_a = (self.con.execute("SELECT durchmesser, laenge FROM auftraege WHERE id = ?",
+                                      (a["id"],)).fetchone() if a.get("id") else None) or (0, 0)
+            grund = passt_nicht(next((m for m in self.maschinen() if m["name"] == maschine), None),
+                                mehr.get("durchmesser", alt_a[0]), mehr.get("laenge", alt_a[1]))
+            if grund:
+                raise Fehler(grund)
         doppelt = self.con.execute("SELECT id, geloescht_am FROM auftraege WHERE nummer = ?", (nummer,)).fetchone()
         if doppelt and doppelt[0] != a.get("id"):
             raise Fehler(f"Die Auftragsnummer „{nummer}“ liegt im Papierkorb. Dort zurückholen oder eine andere "
@@ -660,6 +779,29 @@ class Daten:
                 if (alt_m or None) != material:
                     self.con.execute("UPDATE auftraege SET material_ab = ? WHERE id = ?", (material, aid))
                     self._verlauf(aid, f"Material da ab: {_zeigen('Material da ab', material) if material else 'sofort'}")
+            if mehr:
+                alt_w = self.con.execute(f"SELECT {', '.join(mehr)} FROM auftraege WHERE id = ?", (aid,)).fetchone()
+                namen = dict(ruest_min="Rüstzeit", material="Material", durchmesser="Durchmesser", laenge="Rohrlänge")
+                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm")
+                anders = []
+                for (spalte, neu), war in zip(mehr.items(), alt_w):
+                    if (war or None) != (neu or None) or (spalte == "ruest_min" and war != neu):
+                        self.con.execute(f"UPDATE auftraege SET {spalte} = ? WHERE id = ?", (neu, aid))
+                        zeigen = ("wie Maschine" if spalte == "ruest_min" and neu is None else
+                                  "leer" if neu in ("", 0, 0.0) and spalte != "ruest_min" else
+                                  (mm_text(neu) if spalte != "material" else neu) + einheit[spalte])
+                        anders.append(f"{namen[spalte]}: {zeigen}")
+                if anders and a.get("id"):
+                    self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
+            if lieferungen is not None:
+                war = [(z[0], z[1]) for z in self.con.execute(
+                    "SELECT termin, menge FROM lieferungen WHERE auftrag_id = ? ORDER BY termin, id", (aid,))]
+                if war != lieferungen:
+                    self.con.execute("DELETE FROM lieferungen WHERE auftrag_id = ?", (aid,))
+                    self.con.executemany("INSERT INTO lieferungen (auftrag_id, termin, menge) VALUES (?, ?, ?)",
+                                         [(aid, t, m) for t, m in lieferungen])
+                    self._verlauf(aid, "Teillieferungen: " + ("; ".join(
+                        f"{_zeigen('Liefertermin', t)} {mm_text(m)} Stück" for t, m in lieferungen) or "keine"))
             if gaenge is not None:
                 self._gaenge_schreiben(aid, gaenge, vorher)
             if "zusatz" in a:
@@ -704,6 +846,7 @@ class Daten:
                     self.con.execute("DELETE FROM zusatzwerte WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM verlauf WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM gaenge WHERE auftrag_id = ?", (i,))
+                    self.con.execute("DELETE FROM lieferungen WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM stopps WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM auftraege WHERE id = ?", (i,))
         return len(ids)
@@ -744,11 +887,16 @@ class Daten:
                           + (f" auf {wo}" if wo != davor["maschine"] else ""))
         return davor
 
-    def _maschine_wechseln(self, a, g, maschine):
+    def _maschine_wechseln(self, a, g, maschine, pruefen=True):
+        """pruefen: passt das Rohr auf die Maschine (A3)? Beim Rückgängigmachen aus."""
         if not maschine or maschine == (g["platz"] if g else a["maschine"]):
             return
-        if maschine not in {m["name"] for m in self.maschinen()}:
+        ziel = next((m for m in self.maschinen() if m["name"] == maschine), None)
+        if ziel is None:
             raise Fehler(f"Die Maschine „{maschine}“ gibt es nicht.")
+        grund = passt_nicht(ziel, a.get("durchmesser"), a.get("laenge")) if pruefen else ""
+        if grund:
+            raise Fehler(f"Auftrag {a['nummer']}: {grund}")
         if g is not None:
             if g["status"] == FERTIG or g["platz"] == FREMD:
                 raise Fehler("Diese Zeile lässt sich nicht auf eine andere Maschine legen.")
@@ -772,9 +920,24 @@ class Daten:
 
     def optimierung_uebernehmen(self, schritte):
         """Vorschlag der automatischen Optimierung speichern: schritte = [dict(id, art 'maschine'|'vorziehen'|
-        'termin', nach)] in ihrer Reihenfolge. Ergebnis: der Stand davor für „Rückgängig“ (optimierung_zurueck)."""
+        'termin'|'reihenfolge', nach, vorrang)] in ihrer Reihenfolge; 'reihenfolge' (Ziel wenig Rüsten) setzt die
+        Reihenfolge mehrerer Aufträge fest: vorrang = {Auftrag-ID: Vorrang}. Ergebnis: der Stand davor für
+        „Rückgängig“ (optimierung_zurueck)."""
         davor = []
         for s in schritte:
+            if s["art"] == "reihenfolge":
+                with self.con:
+                    self.con.execute("BEGIN")
+                    for i, v in (s.get("vorrang") or {}).items():
+                        a = self.auftrag(i)
+                        if a is None or a["status"] != OFFEN or a["gaenge"]:
+                            continue
+                        if not any(d["id"] == i for d in davor):
+                            davor.append(dict(id=i, maschine=a["maschine"], vorrang=int(a["vorrang"] or 0)))
+                        self.con.execute("UPDATE auftraege SET vorrang = ?, geaendert = ? WHERE id = ?",
+                                         (int(v), _jetzt(), i))
+                    self._verlauf(s["id"], "automatische Optimierung übernommen (hinter gleiches Material gestellt)")
+                continue
             a = self.auftrag(s["id"])
             if a is None or a["status"] == FERTIG or a["gaenge"]:
                 continue
@@ -795,7 +958,7 @@ class Daten:
                 a = self.auftrag(d["id"])
                 if a is None or a["status"] == FERTIG:
                     continue
-                self._maschine_wechseln(a, None, d["maschine"])
+                self._maschine_wechseln(a, None, d["maschine"], pruefen=False)
                 self.con.execute("UPDATE auftraege SET vorrang = ?, geaendert = ? WHERE id = ?",
                                  (d["vorrang"], _jetzt(), d["id"]))
                 self._verlauf(d["id"], "automatische Optimierung rückgängig gemacht")
@@ -808,7 +971,7 @@ class Daten:
         g = next((x for x in a["gaenge"] if x["id"] == davor.get("gang_id")), None)
         with self.con:
             self.con.execute("BEGIN")
-            self._maschine_wechseln(a, g, davor["maschine"])
+            self._maschine_wechseln(a, g, davor["maschine"], pruefen=False)
             self.con.execute("UPDATE auftraege SET fest_ab = ?, geaendert = ? WHERE id = ?",
                              (davor["fest_ab"], _jetzt(), davor["id"]))
             self._verlauf(davor["id"], "Verschieben rückgängig gemacht")
@@ -949,10 +1112,11 @@ class Daten:
                 pass
         return n
 
-    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None):
+    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None, fertig_um=None):
         """Fertigmeldung mit der tatsächlichen Laufzeit in Minuten. Bei einem mehrteiligen Auftrag wird der
         Arbeitsgang gang_id gemeldet (Vorgabe: der nächste, der an der Reihe ist); mit dem letzten ist der Auftrag
-        fertig. Fremdarbeit braucht keine Laufzeit."""
+        fertig. Fremdarbeit braucht keine Laufzeit. fertig_um: Uhrzeit der Fertigmeldung ('14:30'), None = unbekannt."""
+        um = uhr_text(uhrzeit(fertig_um)) if fertig_um not in (None, "") else None
         a = self.auftrag(auftrag_id)
         g = self._gang(a, gang_id) if a and a["gaenge"] else None
         try:
@@ -963,15 +1127,15 @@ class Daten:
             raise Fehler("Bitte eine tatsächliche Laufzeit über 0 eingeben.")
         tag = _tag(fertig_am) or datetime.date.today().isoformat()
         if g is not None:
-            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, start_am = NULL WHERE id = ?",
-                             (FERTIG, max(0, ist), tag, g["id"]))
+            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL "
+                             "WHERE id = ?", (FERTIG, max(0, ist), tag, um, g["id"]))
             self._abgleichen(auftrag_id)
             self._verlauf(auftrag_id, f"{g['name']}: fertig gemeldet" + (
                 f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})" if g["platz"] != FREMD else ""))
             return
-        self.con.execute("UPDATE auftraege SET status = ?, ist_min = ?, fertig_am = ?, start_am = NULL, vorrang = 0, "
-                         "fest_ab = NULL, "
-                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, _jetzt(), auftrag_id))
+        self.con.execute("UPDATE auftraege SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL, "
+                         "vorrang = 0, fest_ab = NULL, "
+                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, _jetzt(), auftrag_id))
         self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})")
 
     def wieder_oeffnen(self, auftrag_id):
@@ -982,13 +1146,13 @@ class Daten:
             if fertige and not any(g["status"] != FERTIG and (g["start_am"] or g["gelaufen_min"])
                                    for g in a["gaenge"] if g["stufe"] > fertige[-1]["stufe"]):
                 g = fertige[-1]
-                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL "
+                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL "
                                  "WHERE id = ?", (OFFEN, int(g["ist_min"] or 0), g["id"]))
                 self._abgleichen(auftrag_id)
                 self._verlauf(auftrag_id, f"{g['name']}: wieder geöffnet")
             return
         if a and a["status"] == FERTIG:
-            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, "
+            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, "
                              "geaendert = ? WHERE id = ?", (OFFEN, int(a["ist_min"] or 0), _jetzt(), auftrag_id))
             self._verlauf(auftrag_id, "wieder geöffnet")
 
@@ -1097,14 +1261,16 @@ class Daten:
         fertig = [g for g in gaenge if g["status"] == FERTIG]
         if len(fertig) == len(gaenge):
             status, ist = FERTIG, sum(int(g["ist_min"] or 0) for g in gaenge)
-            fertig_am = max(g["fertig_am"] or "" for g in gaenge) or None
+            fertig_am, fertig_um = max((g["fertig_am"] or "", g["fertig_um"] or "") for g in gaenge)
+            fertig_am, fertig_um = fertig_am or None, fertig_um or None
         else:
             begonnen = fertig or any(g["start_am"] or g["gelaufen_min"] for g in gaenge)
-            status, ist, fertig_am = (LAEUFT if begonnen else OFFEN), None, None
+            status, ist, fertig_am, fertig_um = (LAEUFT if begonnen else OFFEN), None, None, None
         self.con.execute(
-            "UPDATE auftraege SET maschine = ?, kalk_min = ?, status = ?, ist_min = ?, fertig_am = ?, gelaufen_min = ?, "
+            "UPDATE auftraege SET maschine = ?, kalk_min = ?, status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, "
+            "gelaufen_min = ?, "
             "start_am = NULL, vorrang = CASE WHEN ? = 'fertig' THEN 0 ELSE vorrang END, geaendert = ? WHERE id = ?",
-            (_plaetze_text(gaenge), sum(g["kalk_min"] for g in gaenge), status, ist, fertig_am,
+            (_plaetze_text(gaenge), sum(g["kalk_min"] for g in gaenge), status, ist, fertig_am, fertig_um,
              sum(int((g["ist_min"] if g["status"] == FERTIG else g["gelaufen_min"]) or 0) for g in gaenge),
              status, _jetzt(), auftrag_id))
 

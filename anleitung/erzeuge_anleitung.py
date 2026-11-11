@@ -7714,6 +7714,21 @@ def kapitel_fertigung(i):
             "und unter <i>PDF …</i> den Druck in A3 und die Tagesansicht als PDF. Die Tagesansicht zeigt beim "
             "laufenden Auftrag die tatsächliche Startzeit und listet unter <i>Heute tatsächlich</i>, was läuft, "
             "was überzieht (rot) und was fertig wurde. Das Mausrad ändert keine Werte in Feldern mehr.",
+            "<b>Planung genauer</b> (ab Version 2.0): Je Maschine eine <i>Rüstzeit je Auftrag</i>; sie wird zu jedem "
+            "Auftrag gerechnet, im Auftrag lässt sie sich einzeln ändern. Steht im Auftrag ein <i>Material</i> und "
+            "läuft direkt davor das gleiche, entfällt das Rüsten. In der Plantafel ist das Rüsten der dunkle Anfang "
+            "des Balkens. Je Maschine das <i>größte Rohr</i> (Durchmesser, Länge), im Auftrag die Maße des Rohrs: "
+            "ein Auftrag kommt nie auf eine Maschine, auf die sein Rohr nicht passt, auch nicht als Vorschlag. "
+            "<i>Teillieferungen</i> im Auftrag: mehrere Liefertermine mit Mengen; die Laufzeit teilt sich nach den "
+            "Mengen, jede Lieferung wird mit ihrem Termin eingelastet. <i>Optimieren …</i> fragt jetzt nach dem "
+            "Ziel: wenige Verspätungen, wenig Rüsten (gleiches Material hintereinander) oder gleichmäßige "
+            "Auslastung der Ausweichmaschinen; bei den letzten beiden wird kein Termin schlechter. Das "
+            "<i>Vollbild</i> der Plantafel hat eine wählbare Schriftgröße, eine Uhr und automatisches Blättern.",
+            "<b>Fertig melden mit Suche und Uhrzeit</b> (ab Version 2.0): <i>Fertig melden …</i> (Taste F8) geht "
+            "auch ohne Auswahl in der Liste: Auftragsnummer oder Kunde tippen, Enter übernimmt den Treffer, Laufzeit "
+            "prüfen, Enter meldet fertig. <i>Fertig melden und nächster</i> lässt das Fenster für den nächsten "
+            "Auftrag offen. Neben dem Datum steht die Uhrzeit der Fertigmeldung, vorbelegt mit jetzt; sie steht "
+            "in der Spalte <i>Fertig am</i> und in der Tagesansicht unter <i>Heute tatsächlich</i>.",
             "<b>Online-Update</b> (ab Version 1.7): Das Programm sieht kurz nach dem Start online nach einer "
             "neueren Version und meldet sich nur dann. <i>Jetzt aktualisieren</i> lädt nur die geänderten Dateien, "
             "sichert die Datenbank, schließt das Programm, tauscht die Dateien aus und startet neu; <i>Später</i> "

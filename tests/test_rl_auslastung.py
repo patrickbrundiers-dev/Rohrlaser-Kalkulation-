@@ -278,7 +278,7 @@ assert kopf[:6] == ["Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit
 assert kopf[-1] == "Material" and "Tatsächliche Laufzeit" in kopf
 offen = len(db.auftraege((daten.OFFEN, daten.LAEUFT)))
 assert f.liste.rowCount() == offen and f.liste.isColumnHidden(8) and not f.liste.isColumnHidden(7)
-assert not f.k_aendern.isEnabled() and not f.k_fertig.isEnabled() and f.k_neu.isEnabled()
+assert not f.k_aendern.isEnabled() and f.k_fertig.isEnabled() and f.k_neu.isEnabled()
 f.suche.setText("voss")
 assert f.liste.rowCount() == 1 and f.liste.item(0, 0).text() == "C-1"
 f.suche.setText("")
@@ -952,6 +952,7 @@ db9.schliessen()
 ok("R9 Plantafel: Auftrag mit der Maus verschieben (fester Platz, Rückgängig, lösen), Was-wäre-wenn, Ausweichmaschine")
 
 # ---------------------------------------------------------------- R10 Werkstatt-Ansicht und Grund bei Stopp (1.4)
+from PySide6.QtCore import QDate, QTime  # noqa: E402
 from PySide6.QtWidgets import QDialog  # noqa: E402
 from rl_auslastung.fenster import StoppDialog  # noqa: E402
 
@@ -1712,6 +1713,380 @@ assert f19.k_rueck.text() == "Verschieben rückgängig"
 f19.close()
 db19.schliessen()
 ok("R19 Knopf Optimieren: Dialog mit Änderungen und Wirkung, Übernehmen, Optimierung rückgängig")
+
+# ---------------------------------------------------------------- R20 Rüstzeit (2.0, Plan A1)
+t20 = Path(tempfile.mkdtemp())
+db20 = daten.Daten(t20 / "a.db")
+h20 = datetime.date(2026, 11, 16)                                                     # Montag
+assert db20.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 11
+db20.maschine_speichern("LT7", 8, alt="LT7", ruest=30, max_durchmesser=150, max_laenge=6500)
+db20.maschine_speichern("T03", 8, alt="T03", ruest=20, max_durchmesser=80)
+m20 = {m["name"]: m for m in db20.maschinen()}
+assert (m20["LT7"]["ruest_min"], m20["LT7"]["max_durchmesser"], m20["T03"]["max_laenge"]) == (30, 150, 0)
+for falsch20 in (dict(ruest=-1), dict(ruest="x"), dict(max_durchmesser=-5)):
+    try:
+        db20.maschine_speichern("LT7", 8, alt="LT7", **falsch20)
+        raise AssertionError(falsch20)
+    except daten.Fehler:
+        pass
+i20 = {}
+for nr20, termin20, material20 in (("A1", 20, "60x60x3 S235"), ("A2", 23, "Rohr 40x2"), ("A3", 24, "60x60x3 s235")):
+    i20[nr20] = db20.auftrag_speichern(dict(nummer=nr20, maschine="LT7", kalk_min=120, material=material20,
+                                            liefertermin=datetime.date(2026, 11, termin20)))
+aus20, ein20 = rechnung.einlasten(db20, h20)
+je20 = {a["nummer"]: a for a in ein20["auftraege"]}
+assert all(abs(je20[n]["h"] - 2.5) < 1e-9 and je20[n]["ruest_h"] == 0.5 for n in ("A1", "A2", "A3"))   # 2 h + 30 min
+assert abs(ein20["ruest_h"] - 1.5) < 1e-9 and ein20["ruest_gespart_h"] == 0
+assert je20["A3"]["stuecke"][-1][2] == 7.5 and ein20["plan"][i20["A1"]]["ruest_h"] == 0.5
+# gleiches Material direkt hintereinander (Groß und Klein egal): das Rüsten entfällt
+db20.auftrag_speichern(dict(id=i20["A2"], nummer="A2", maschine="LT7", kalk_min=120, material="60X60X3 S235",
+                            liefertermin=datetime.date(2026, 11, 23)))
+ein20b = rechnung.einlasten(db20, h20)[1]
+je20b = {a["nummer"]: a for a in ein20b["auftraege"]}
+assert (je20b["A1"]["ruest_h"], je20b["A2"]["ruest_h"], je20b["A3"]["ruest_h"]) == (0.5, 0.0, 0.0)
+assert je20b["A2"]["ruest_gespart_h"] == 0.5 and abs(je20b["A2"]["h"] - 2.0) < 1e-9 and ein20b["ruest_gespart_h"] == 1.0
+# Rüstzeit nur für diesen Auftrag: eigene Zeit, 0 = ohne, leer = wieder wie die Maschine
+db20.auftrag_speichern(dict(id=i20["A1"], nummer="A1", maschine="LT7", kalk_min=120, ruest_min="90",
+                            liefertermin=datetime.date(2026, 11, 20)))
+assert {a["nummer"]: a for a in rechnung.einlasten(db20, h20)[1]["auftraege"]}["A1"]["ruest_h"] == 1.5
+assert any("Rüstzeit: 90 min" in v["was"] for v in db20.verlauf(i20["A1"]))
+db20.auftrag_speichern(dict(id=i20["A1"], nummer="A1", maschine="LT7", kalk_min=120, ruest_min=0,
+                            liefertermin=datetime.date(2026, 11, 20)))
+assert not {a["nummer"]: a for a in rechnung.einlasten(db20, h20)[1]["auftraege"]}["A1"].get("ruest_h")
+db20.auftrag_speichern(dict(id=i20["A1"], nummer="A1", maschine="LT7", kalk_min=120, ruest_min="",
+                            liefertermin=datetime.date(2026, 11, 20)))
+assert db20.auftrag(i20["A1"])["ruest_min"] is None
+# was schon läuft oder gelaufen ist, ist gerüstet
+db20.starten(i20["A1"], datetime.datetime(2026, 11, 16, 6, 0))
+db20.stoppen(i20["A1"], datetime.datetime(2026, 11, 16, 6, 30))
+je20c = {a["nummer"]: a for a in rechnung.einlasten(db20, h20)[1]["auftraege"]}
+assert not je20c["A1"].get("ruest_h") and abs(je20c["A1"]["h"] - 1.5) < 1e-9 and je20c["A2"]["ruest_gespart_h"] == 0.5
+# ohne Rüstzeit und ohne Paket-A-Angaben rechnet weiter der Kern der Kalkulation
+alt20 = daten.Daten(t20 / "alt.db")
+alt20.auftrag_speichern(dict(nummer="X", maschine="LT7", kalk_min=60))
+assert "ruest_h" not in rechnung.einlasten(alt20, h20)[1]["auftraege"][0] and rechnung.einlasten(alt20, h20)[1]["ruest_h"] == 0
+alt20.schliessen()
+ok("R20 Rüstzeit je Maschine und je Auftrag; gleiches Material hintereinander spart das Rüsten; Laufendes ist gerüstet")
+
+# ---------------------------------------------------------------- R21 Maschineneignung (2.0, Plan A3)
+assert daten.passt_nicht(m20["T03"], 100, 0) and not daten.passt_nicht(m20["T03"], 80, 9000)
+assert daten.passt_nicht(m20["LT7"], 0, 7000) and not daten.passt_nicht(m20["LT7"], 0, 0)
+db20.auftrag_speichern(dict(id=i20["A3"], nummer="A3", maschine="LT7", kalk_min=120, durchmesser="100", laenge="6000",
+                            liefertermin=datetime.date(2026, 11, 24)))
+for tun20 in (lambda: db20.maschine_wechseln(i20["A3"], "T03"),
+              lambda: db20.festlegen(i20["A3"], h20, maschine="T03"),
+              lambda: db20.auftrag_speichern(dict(id=i20["A3"], nummer="A3", maschine="T03", kalk_min=120)),
+              lambda: db20.auftrag_speichern(dict(nummer="A9", maschine="T03", kalk_min=60, durchmesser=81))):
+    try:
+        tun20()
+        raise AssertionError("passt nicht, wurde aber gespeichert")
+    except daten.Fehler as e20:
+        assert "passt nicht auf T03" in str(e20)
+assert db20.auftrag(i20["A3"])["maschine"] == "LT7" and db20.auftrag(nummer="A9") is None
+db20.maschine_wechseln(i20["A3"], "T11")                                              # T11 hat keine Grenze
+db20.maschine_wechseln(i20["A3"], "LT7")
+# Ausweichmaschine und Optimierung schlagen die unpassende Maschine nie vor
+e20 = daten.Daten(t20 / "e.db")
+e20.maschine_speichern("T03", 8, alt="T03", max_durchmesser=80, ausweich=True)
+e20.maschine_speichern("LT7", 8, alt="LT7", ausweich=True)
+e20.maschine_speichern("T11", 8, alt="T11", ausweich=False)
+for n20 in range(4):
+    e20.auftrag_speichern(dict(nummer=f"E{n20}", maschine="LT7", kalk_min=600, durchmesser=100 if n20 < 3 else 60,
+                               liefertermin=datetime.date(2026, 11, 17)))
+aus20e, ein20e = rechnung.einlasten(e20, h20)
+weich20 = rechnung.ausweichen(aus20e, ein20e)
+klein20 = e20.auftrag(nummer="E3")["id"]
+assert weich20 and set(weich20) == {klein20} and weich20[klein20]["maschine"] == "T03"
+opt20 = rechnung.optimieren(aus20e, ein20e, 2)
+assert opt20 and all(x["id"] == klein20 for x in opt20["schritte"] if x["art"] == "maschine")
+gleich20 = rechnung.optimieren(aus20e, ein20e, 2, ziel=rechnung.ZIEL_GLEICH)
+assert gleich20 and {x["id"] for x in gleich20["schritte"]} == {klein20}
+e20.schliessen()
+ok("R21 Eignung: Rohr zu groß für die Maschine wird abgelehnt (Auftrag, Wechsel, Plantafel) und nie vorgeschlagen")
+
+# ---------------------------------------------------------------- R22 Teillieferungen (2.0, Plan A5)
+l20 = daten.Daten(t20 / "l.db")
+ab20 = l20.auftrag_speichern(dict(nummer="AB-1", maschine="LT7", kalk_min=900, liefertermin=datetime.date(2026, 11, 18),
+                                  lieferungen=[dict(termin="18.12.2026", menge="200"),
+                                               dict(termin=datetime.date(2026, 11, 20), menge=100)]))
+a22 = l20.auftrag(ab20)
+assert [(x["termin"], x["menge"]) for x in a22["lieferungen"]] == [("2026-11-20", 100.0), ("2026-12-18", 200.0)]
+assert a22["liefertermin"] == "2026-12-18"                                            # der letzte Termin
+assert any("Teillieferungen: 20.11.2026 100 Stück; 18.12.2026 200 Stück" in v["was"] for v in l20.verlauf(ab20))
+eil20 = l20.auftrag_speichern(dict(nummer="EIL", maschine="LT7", kalk_min=480, liefertermin=datetime.date(2026, 11, 24)))
+aus22, ein22 = rechnung.einlasten(l20, h20)
+teile22 = [a for a in ein22["auftraege"] if a["id"] == ab20]
+assert [(a["teil"], a["teil_von"], round(a["h"], 2), a["termin"]) for a in teile22] == [
+    (1, 2, 5.0, "2026-11-20"), (2, 2, 10.0, "2026-12-18")]
+folge22 = [a["nummer"] for a in rechnung.arbeitsliste(ein22, "LT7")]
+assert folge22 == ["AB-1 · Lieferung 1/2", "EIL", "AB-1 · Lieferung 2/2"]             # jede Lieferung nach ihrem Termin
+p22 = ein22["plan"][ab20]
+assert [t["teil"] for t in p22["teile"]] == [1, 2] and p22["teile"][0]["fertig"] == h20
+assert p22["fertig"] == max(t["fertig"] for t in p22["teile"]) and p22["risiko"] == einlastung.OK
+# was gelaufen ist, zählt für die früheste Lieferung; ist sie abgearbeitet, bleibt nur die nächste
+l20.starten(ab20, datetime.datetime(2026, 11, 16, 6, 0))
+l20.stoppen(ab20, datetime.datetime(2026, 11, 16, 8, 0))
+assert [round(a["h"], 2) for a in rechnung.einlasten(l20, h20)[1]["auftraege"] if a["id"] == ab20] == [3.0, 10.0]
+l20.starten(ab20, datetime.datetime(2026, 11, 16, 8, 0))
+l20.stoppen(ab20, datetime.datetime(2026, 11, 16, 12, 0))
+rest22 = [a for a in rechnung.einlasten(l20, h20)[1]["auftraege"] if a["id"] == ab20]
+assert [(a["teil"], round(a["h"], 2)) for a in rest22] == [(2, 9.0)]
+for falsch22 in ([dict(termin="19.11.2026", menge=5)], [dict(termin="", menge=5), dict(termin="1.12.2026", menge=5)],
+                 [dict(termin="19.11.2026", menge=0), dict(termin="1.12.2026", menge=5)]):
+    try:
+        l20.auftrag_speichern(dict(id=eil20, nummer="EIL", maschine="LT7", kalk_min=480, lieferungen=falsch22))
+        raise AssertionError(falsch22)
+    except daten.Fehler:
+        pass
+try:
+    l20.auftrag_speichern(dict(id=eil20, nummer="EIL", lieferungen=[dict(termin="19.11.2026", menge=5),
+                                                                    dict(termin="1.12.2026", menge=5)],
+                               gaenge=[dict(name="Lasern", platz="LT7", kalk_min=60),
+                                       dict(name="Entgraten", platz="T03", kalk_min=30)]))
+    raise AssertionError("Teillieferungen mit Arbeitsgängen")
+except daten.Fehler:
+    pass
+l20.auftrag_speichern(dict(id=ab20, nummer="AB-1", maschine="LT7", kalk_min=900, lieferungen=[],
+                           liefertermin=datetime.date(2026, 12, 18)))
+assert not l20.auftrag(ab20)["lieferungen"] and all("teil" not in a for a in rechnung.einlasten(l20, h20)[1]["auftraege"])
+l20.schliessen()
+ok("R22 Teillieferungen: Laufzeit nach Mengen geteilt, jede Lieferung mit eigenem Termin eingelastet, Risiko je Lieferung")
+
+# ---------------------------------------------------------------- R23 Optimierung mit Ziel (2.0, Plan A2)
+o23 = daten.Daten(t20 / "o.db")
+o23.maschine_speichern("LT7", 8, alt="LT7", ruest=60, ausweich=True)
+o23.maschine_speichern("T03", 8, alt="T03", ruest=60, ausweich=True)
+o23.maschine_speichern("T11", 8, alt="T11", ausweich=False)
+for nr23, termin23, material23 in (("R1", 1, "Rohr A"), ("R2", 2, "Rohr B"), ("R3", 3, "Rohr A"), ("R4", 4, "Rohr B")):
+    o23.auftrag_speichern(dict(nummer=nr23, maschine="LT7", kalk_min=120, material=material23,
+                               liefertermin=datetime.date(2026, 12, termin23)))
+aus23, ein23 = rechnung.einlasten(o23, h20)
+assert rechnung.optimieren(aus23, ein23, 2) is None                                    # alle Termine sind zu halten
+r23 = rechnung.optimieren(aus23, ein23, 2, ziel=rechnung.ZIEL_RUESTEN)
+assert r23 and r23["ziel"] == rechnung.ZIEL_RUESTEN and r23["ruest"] == (4.0, 2.0) and r23["nachher"][:2] == (0, 0)
+assert all(x["art"] == rechnung.OPT_FOLGE and x["vorrang"] for x in r23["schritte"])
+vorher23 = {a["nummer"]: a["vorrang"] for a in o23.auftraege()}
+davor23 = o23.optimierung_uebernehmen(r23["schritte"])
+aus23b, ein23b = rechnung.einlasten(o23, h20)
+assert ein23b["ruest_h"] == 2.0 and [a["material"] for a in rechnung.arbeitsliste(ein23b, "LT7")] in (
+    ["Rohr A", "Rohr A", "Rohr B", "Rohr B"], ["Rohr B", "Rohr B", "Rohr A", "Rohr A"])
+assert rechnung.optimieren(aus23b, ein23b, 2, ziel=rechnung.ZIEL_RUESTEN) is None      # nichts mehr zu sparen
+o23.optimierung_zurueck(davor23)
+assert {a["nummer"]: a["vorrang"] for a in o23.auftraege()} == vorher23
+assert rechnung.einlasten(o23, h20)[1]["ruest_h"] == 4.0
+# Rüsten sparen darf keinen Termin kosten
+o23.auftrag_speichern(dict(id=o23.auftrag(nummer="R2")["id"], nummer="R2", maschine="LT7", kalk_min=120,
+                           liefertermin=h20))
+o23.auftrag_speichern(dict(id=o23.auftrag(nummer="R4")["id"], nummer="R4", maschine="LT7", kalk_min=120,
+                           liefertermin=h20))
+aus23c, ein23c = rechnung.einlasten(o23, h20)
+r23c = rechnung.optimieren(aus23c, ein23c, 2, ziel=rechnung.ZIEL_RUESTEN)
+assert r23c is None or r23c["nachher"][:2] <= rechnung._guete(ein23c)[:2]
+# gleichmäßige Auslastung: Arbeit wandert auf die leere Ausweichmaschine, nie auf einen anderen Arbeitsplatz
+g23 = rechnung.optimieren(aus23, ein23, 2, ziel=rechnung.ZIEL_GLEICH)
+assert g23 and g23["ungleich"][1] < g23["ungleich"][0] and g23["nachher"][:2] == (0, 0)
+assert all(x["art"] == rechnung.OPT_MASCHINE and x["nach"] == "T03" for x in g23["schritte"])
+weite23 = rechnung.reichweite(aus23, g23["ein"], ["LT7", "T03"])
+assert abs(weite23["LT7"] - weite23["T03"]) < abs(rechnung.reichweite(aus23, ein23, ["LT7", "T03"])["LT7"])
+assert [z for z, _n in rechnung.ZIELE] == [rechnung.ZIEL_TERMIN, rechnung.ZIEL_RUESTEN, rechnung.ZIEL_GLEICH]
+ok("R23 Optimierung mit Ziel: wenig Rüsten stellt gleiches Material zusammen, gleichmäßig verteilt, Termine bleiben")
+
+# ---------------------------------------------------------------- R24 Fenster zu Paket A, Halle-Vollbild (2.0, A4)
+f20 = Hauptfenster(db20, heute=h20, platz=t20)
+f20.resize(1400, 900)
+f20.show()
+app.processEvents()
+d20 = F.AuftragDialog(db20, db20.auftrag(i20["A3"]), f20)
+assert d20.werkstoff.text() == "60x60x3 s235" and d20.durchmesser.text() == "100" and d20.laenge.text() == "6000"
+assert d20.ruest.text() == "" and "30 min" in d20.ruest_text.text() and d20.passt_text.isHidden()
+d20.maschine.setCurrentText("T03")
+assert "passt nicht auf T03" in d20.passt_text.text() and "20 min" in d20.ruest_text.text()
+assert not d20.speichern() and "passt nicht auf T03" in d20.fehler.text()
+d20.maschine.setCurrentText("LT7")
+d20.ruest.setText("15")
+d20.mit_teilen.setChecked(True)
+assert len(d20.teile.zeilen) == 2 and not d20.termin.isEnabled()
+d20.teile.zeilen[0][1].setText("40")
+d20.teile.zeilen[1][1].setText("60")
+assert d20.speichern()
+a24 = db20.auftrag(i20["A3"])
+assert a24["ruest_min"] == 15 and [x["menge"] for x in a24["lieferungen"]] == [40.0, 60.0]
+assert a24["liefertermin"] == a24["lieferungen"][-1]["termin"]
+d20b = F.AuftragDialog(db20, a24, f20)
+assert d20b.mit_teilen.isChecked() and len(d20b.teile.zeilen) == 2 and d20b.ruest.text() == "15"
+d20b.teile.entfernen(d20b.teile.zeilen[0])
+assert not d20b.speichern() and "mindestens zwei" in d20b.fehler.text()
+d20b.mit_teilen.setChecked(False)
+assert d20b.speichern() and not db20.auftrag(i20["A3"])["lieferungen"]
+f20.laden()
+kopf20 = [f20.liste.horizontalHeaderItem(c).text() for c in range(f20.liste.columnCount())]
+assert "Material (Rüsten)" in kopf20 and not f20.liste.isColumnHidden(kopf20.index("Material (Rüsten)"))
+f20.reiter.setCurrentIndex(F.EINSTELLUNGEN)
+app.processEvents()
+assert f20.e_maschinen.item(0, 6).text() == "30 min" and "Ø bis 150 mm" in f20.e_maschinen.item(0, 7).text()
+f20.e_maschinen.selectRow(0)
+assert f20.maschine_bearbeiten(werte=("LT7", 8, True, "", 0, True, None, None, None, 25, 200, 0))
+assert {m["name"]: m for m in db20.maschinen()}["LT7"]["ruest_min"] == 25
+f20.reiter.setCurrentIndex(1)
+app.processEvents()
+assert [a.text() for a in f20.k_optimieren.menu().actions()] == [n for _z, n in rechnung.ZIELE]
+db20.auftrag_speichern(dict(id=i20["A2"], nummer="A2", maschine="LT7", kalk_min=120, material="Rohr 40x2",
+                            liefertermin=datetime.date(2026, 11, 23)))
+f20.laden()
+tipp20 = f20.tafel.tipp(next(a for a in f20.ein["auftraege"] if a.get("ruest_h")))
+assert "Davon Rüsten" in tipp20 and "Material:" in tipp20
+f20.grab()                                                                            # Rüsten als dunkler Anfang
+# Vollbild für die Halle: große Schrift, Uhr, automatisches Blättern; der Platz merkt sich die Wahl
+v20 = f20.tafel_vollbild(zeigen=False)
+v20.resize(1600, 900)
+v20.show()
+app.processEvents()
+assert v20.faktor == 1.5 and v20.sicht.transform().m11() == 1.5                       # Vorgabe: groß
+breite20 = v20.rahmen.width()
+v20.schrift_setzen(2.0)
+app.processEvents()
+assert v20.sicht.transform().m11() == 2.0 and v20.rahmen.width() < breite20           # gleiche Fensterbreite, größer
+assert ort.ini_lesen(t20).get("halle_schrift") == "2"
+v20.jetzt = datetime.datetime(2026, 11, 16, 9, 5)
+v20.uhr_zeigen()
+assert v20.uhr.text() == "Montag, 16.11.2026   09:05 Uhr"
+v20.ansicht("Tag")
+app.processEvents()
+assert v20.rahmen.tag_zeigen() == h20
+v20.resize(1600, 500)                                                                 # nicht alle Maschinen passen
+app.processEvents()
+runter20 = v20.sicht.verticalScrollBar()
+assert runter20.maximum() > 0 and runter20.value() == 0
+v20.weiter()
+assert runter20.value() > 0 and v20.rahmen.tag_zeigen() == h20                        # erst die unteren Maschinen
+while runter20.value() < runter20.maximum():
+    v20.weiter()
+v20.weiter()
+assert runter20.value() == 0 and v20.rahmen.tag_zeigen() == h20 + datetime.timedelta(days=1)
+v20.schrift_setzen(1.0, merken=False)
+v20.resize(1600, 900)
+app.processEvents()
+v20.ansicht("Tag")
+assert runter20.maximum() == 0
+v20.weiter()
+assert v20.rahmen.tag_zeigen() == h20 + datetime.timedelta(days=1)
+for _n20 in range(3):
+    v20.weiter()
+assert v20.rahmen.tag_zeigen() == datetime.date(2026, 11, 20)                         # Freitag, die fünfte Seite
+v20.weiter()
+assert v20.rahmen.tag_zeigen() == h20 and v20.seite == 0                              # wieder von vorn
+v20.ansicht("Tag")
+for _n20 in range(4):
+    v20.weiter()
+v20.ansicht("1 Woche")
+assert v20.seite == 0 and v20.rahmen.horizontalScrollBar().value() == 0
+v20.weiter()
+assert v20.rahmen.horizontalScrollBar().value() > 0
+v20.takt_setzen(30)
+assert v20.takt.isActive() and v20.takt.interval() == 30000 and ort.ini_lesen(t20).get("halle_takt") == "30"
+v20.takt_setzen(0)
+assert not v20.takt.isActive()
+v20.grab()
+v20.close()
+f20.vollbild = None
+v20b = f20.tafel_vollbild(zeigen=False)
+assert v20b.faktor == 2.0 and v20b.blaettert.currentData() == 0                       # gemerkt
+v20b.close()
+ok("R24 Auftrag und Maschine mit Rüstzeit, Rohrmaßen, Teillieferungen; Vollbild für die Halle mit Schrift, Uhr, Blättern")
+
+# ---------------------------------------------------------------- R25 Fertig melden mit Suche und Uhrzeit (2.0)
+from rl_auslastung.fenster import FertigDialog  # noqa: E402
+
+s25 = daten.Daten(t20 / "s.db")
+for nr25, kunde25 in (("A-2611", "Kramer"), ("A-2612", "Gerüstbau Nord"), ("B-26", "Voss"), ("A-2620", "Hesse")):
+    s25.auftrag_speichern(dict(nummer=nr25, kunde=kunde25, maschine="LT7", kalk_min=90))
+weg25 = s25.auftrag_speichern(dict(nummer="A-2699", kunde="fertig", maschine="LT7", kalk_min=60))
+s25.fertig_melden(weg25, 60, datetime.date(2026, 11, 13))
+assert s25.auftrag(weg25)["fertig_um"] is None                                        # ohne Uhrzeit: unbekannt
+f25 = Hauptfenster(s25, heute=h20, platz=t20)
+f25.show()
+app.processEvents()
+f25.liste.clearSelection()
+f25.liste.setCurrentCell(-1, -1)
+f25.knoepfe_setzen()
+assert f25.gewaehlt() is None and f25.k_fertig.isEnabled() and f25.k_fertig.shortcut().toString() == "F8"
+d25 = f25.fertig_melden(zeigen=False)                                                 # ohne Auswahl: Suche
+assert d25.mit_suche and d25.auftrag is None and not d25.k_ok.isEnabled() and d25.treffer.count() == 4
+d25.suche.setText("26")
+assert [a["nummer"] for a in d25.treffer_liste] == ["A-2611", "A-2612", "A-2620", "B-26"]
+d25.suche.setText("b-26")
+assert [a["nummer"] for a in d25.treffer_liste] == ["B-26"]
+d25.suche.setText("2699")
+assert not d25.treffer_liste and not d25.uebernehmen() and "Kein offener Auftrag" in d25.fehler.text()
+d25.suche.setText("gerüst")                                                           # der Kunde geht auch
+assert [a["nummer"] for a in d25.treffer_liste] == ["A-2612"]
+d25.suche.setText("a-2611")
+assert d25.uebernehmen() and d25.auftrag["nummer"] == "A-2611" and d25.k_ok.isEnabled() and "Kramer" in d25.kopf.text()
+assert not d25.speichern(weiter=True) and "über 0" in d25.fehler.text()               # noch keine Laufzeit
+d25.ist.eingabe.setText("1:45")
+d25.am.setDate(QDate(2026, 11, 16))
+d25.um.setTime(QTime(14, 30))
+assert d25.speichern(weiter=True) and d25.gemeldet == ["A-2611"] and d25.isHidden() is not None
+a25 = s25.auftrag(nummer="A-2611")
+assert (a25["status"], a25["ist_min"], a25["fertig_am"], a25["fertig_um"]) == (daten.FERTIG, 105, "2026-11-16", "14:30")
+assert d25.auftrag is None and d25.suche.text() == "" and d25.treffer.count() == 3 and "A-2611" in d25.erfolg.text()
+# laufende Uhr: die Fertigmeldung hält sie an und schlägt die gelaufene Zeit vor
+lauf25 = s25.auftrag(nummer="A-2612")["id"]
+s25.starten(lauf25, datetime.datetime.now() - datetime.timedelta(minutes=50))
+d25.uebernehmen("A-2612")
+assert d25.auftrag["id"] == lauf25 and laufzeit.lesen(d25.ist.eingabe.text()) in (50, 51)
+assert abs(d25.um.time().secsTo(QTime.currentTime())) < 120                          # wieder mit jetzt vorbelegt
+d25.um.setTime(QTime(14, 30))
+assert d25.speichern() and d25.result() == QDialog.Accepted and d25.gemeldet == ["A-2611", "A-2612"]
+a25b = s25.auftrag(lauf25)
+assert a25b["status"] == daten.FERTIG and a25b["start_am"] is None and a25b["fertig_um"] == "14:30"
+f25.laden()
+f25.filter.setCurrentIndex(1)
+app.processEvents()
+spalte25 = [f25.liste.horizontalHeaderItem(c).text() for c in range(f25.liste.columnCount())].index("Fertig am")
+assert {f25.liste.item(r, spalte25).text() for r in range(f25.liste.rowCount())} == {
+    "16.11.2026 14:30", "13.11.2026"}
+# Uhrzeit in der Tagesansicht „tatsächlich“; wieder öffnen löscht sie
+ist25 = [x for x in rechnung.tag_ist(s25, h20) if x["nummer"] == "A-2611"]
+assert ist25 and ist25[0]["ende"] == datetime.datetime(2026, 11, 16, 14, 30)
+s25.wieder_oeffnen(lauf25)
+assert s25.auftrag(lauf25)["fertig_um"] is None and s25.auftrag(lauf25)["status"] == daten.OFFEN
+try:
+    s25.fertig_melden(lauf25, 50, h20, fertig_um="25:00")
+    raise AssertionError("25:00 ist keine Uhrzeit")
+except daten.Fehler:
+    pass
+# mit Auswahl in der Liste: der Auftrag ist schon eingetragen, die Suche bleibt für einen anderen
+f25.filter.setCurrentIndex(0)
+app.processEvents()
+f25.waehlen(s25.auftrag(nummer="B-26")["id"])
+d25c = f25.fertig_melden(zeigen=False)
+assert d25c.auftrag["nummer"] == "B-26" and d25c.mit_suche and d25c.suche.text() == "B-26" and d25c.k_ok.isEnabled()
+d25c.uebernehmen("A-2620")
+assert d25c.auftrag["nummer"] == "A-2620"
+d25c.reject()
+# mehrteilig: die Zeile, die an der Reihe ist; Uhrzeit je Arbeitsgang, der Auftrag bekommt die letzte
+g25 = s25.auftrag_speichern(dict(nummer="G-1", kunde="Ohm", gaenge=[dict(name="Lasern", platz="LT7", kalk_min=60),
+                                                                    dict(name="Entgraten", platz="T03", kalk_min=30)]))
+d25g = FertigDialog(s25, None, f25)
+d25g.uebernehmen("G-1")
+assert d25g.gang["name"] == "Lasern" and "Lasern" in d25g.windowTitle() and d25g.platz.text() == "LT7"
+d25g.ist.eingabe.setText("55 min")
+d25g.um.setTime(QTime(9, 15))
+assert d25g.speichern(weiter=True)
+d25g.uebernehmen("G-1")
+assert d25g.gang["name"] == "Entgraten"
+d25g.ist.eingabe.setText("20 min")
+d25g.um.setTime(QTime(11, 40))
+assert d25g.speichern()
+fertig25 = s25.auftrag(g25)
+assert fertig25["status"] == daten.FERTIG and [g["fertig_um"] for g in fertig25["gaenge"]] == ["09:15", "11:40"]
+assert fertig25["fertig_um"] == "11:40"
+# Werkstatt-Ansicht: wie bisher ohne Suche, mit Uhrzeit
+d25w = FertigDialog(s25, s25.auftrag(nummer="B-26"), f25)
+assert not d25w.mit_suche and d25w.suche.isHidden() and d25w.k_weiter.isHidden() and d25w.um.time().isValid()
+d25w.reject()
+ok("R25 Fertig melden: Suche nach Auftragsnummer oder Kunde, Enter übernimmt, „und nächster“; Uhrzeit wird gespeichert")
 
 # ---------------------------------------------------------------- R6 unabhängig von der Kalkulation
 code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl_auslastung.__main__; "
