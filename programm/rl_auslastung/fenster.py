@@ -3238,7 +3238,19 @@ class Hauptfenster(QMainWindow):
         if self.woche is None:
             self.balken.auswahl = None
             self.balken.update()
+        else:
+            self.tafel_zu_woche(key)
         self.details_zeigen()
+
+    def tafel_zu_woche(self, montag):
+        """Klick auf einen Wochenbalken: die Plantafel rollt zu dieser Woche (in der Tagesansicht zu ihrem ersten
+        Tag ab heute). In der Ansicht „Alles“ ist die Woche schon zu sehen. Ergebnis: der Tag, der links steht."""
+        t, r = self.tafel, self.tafel_rahmen
+        if not t.tage or not t.tagbreite_fest:
+            return None
+        tag = min(max(montag, t.tage[0]), t.tage[-1])
+        r.horizontalScrollBar().setValue(int(t.tage.index(tag) * t.tagbreite_fest))
+        return tag
 
     def tafel_gewaehlt(self, auftrag_id):
         for r in range(self.details.rowCount()):
