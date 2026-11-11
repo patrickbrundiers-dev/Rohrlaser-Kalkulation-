@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 81     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 82     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -162,6 +162,8 @@ SCHEMA_VERSION = 81     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     km aus den PLZ-Mittelpunkten
                         # 81: Kalkulation genauer (11.11.2026): arbeitsgang_regeln.mindest (Mindestbetrag je Angebot der
                         #     Regel); leer = Mindestbetrag der Zusatzarbeit wie bisher
+                        # 82: Vorschläge 11.11.2026 V4: Tabelle angebotsregeln (eigene Wenn-Dann-Regeln im Angebots-
+                        #     Check, Beispiele aus); leer bzw. aus = keine Wirkung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -198,6 +200,7 @@ KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickr
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
 DREHFRAES_STAND = "2026-11-03b"    # Zukauf-Kategorien Drehteile/Frästeile, Dreh-/Fräs-Werkstoffe (_drehfraes_ergaenzen)
+ANGEBOTSREGELN_STAND = "2026-11-11"  # Beispiel-Angebotsregeln (aus) einmalig (_angebotsregeln_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
@@ -297,6 +300,7 @@ class Datenbank:
             self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
+            self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
             self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
             self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
             self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
@@ -533,6 +537,8 @@ class Datenbank:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
                 self._strahlen_ergaenzen()
+            if version > 0 and self.einstellung("angebotsregeln_stand") != ANGEBOTSREGELN_STAND:
+                self._angebotsregeln_ergaenzen()
             if version > 0 and self.einstellung("fracht_nah_stand") != FRACHT_NAH_STAND:
                 self._fracht_nahbereich()
             if version > 0 and self.einstellung("erkennung_stand") != ERKENNUNG_STAND:
@@ -714,6 +720,13 @@ class Datenbank:
         self._einfuegen("zusatzarbeiten", strahl_zusatzarbeiten(), ergaenzen=True)
         self._einfuegen("arbeitsgang_regeln", strahl_regeln(), ergaenzen=True)
         self._einstellung_schreiben("strahlen_stand", STRAHLEN_STAND)
+
+    def _angebotsregeln_ergaenzen(self):
+        """Einmalig (Schema 82): Beispiel-Angebotsregeln (aus) anlegen, wenn es sie (dem Namen nach) noch nicht gibt.
+        Rechnet nichts anders: die Beispiele sind aus."""
+        from .angebotsregeln import beispiele
+        self._einfuegen("angebotsregeln", beispiele(), ergaenzen=True)
+        self._einstellung_schreiben("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
 
     def _erkennung_ergaenzen(self):
         """Einmalig (Schema 75): Erkennungswörter der Beispiel-Zusatzarbeiten (dem Namen nach) eintragen, wo das Feld
@@ -1699,7 +1712,7 @@ class Datenbank:
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
                                            "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln",
-                                           "arbeitsgang_regeln", "verpackung")}
+                                           "arbeitsgang_regeln", "verpackung", "angebotsregeln")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
@@ -2462,6 +2475,29 @@ class Datenbank:
         for r in self.con.execute("SELECT DISTINCT angebot_id, werkstoff_id FROM positionen "
                                   "WHERE werkstoff_id IS NOT NULL AND werkstoff_id != ''"):
             out.setdefault(r[0], set()).add(r[1])
+        return out
+
+    @liest
+    def anfrage_eingaenge(self):
+        """{Angebot-ID: Eingang der Anfrage (ISO)} aus den Zusatzdaten (Reaktionszeit, vertrieb.py V1)."""
+        out = {}
+        for i, z in self.con.execute("SELECT id, zusatz FROM angebote WHERE zusatz LIKE '%anfrage_eingang%'"):
+            try:
+                w = (json.loads(z) or {}).get("anfrage_eingang")
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if w:
+                out[i] = w
+        return out
+
+    @liest
+    def positionen_merkmale(self):
+        """{Angebot-ID: [Position mit art, profil_id, laenge, stueck, Konturzahlen]} aller Angebote (vertrieb.merkmale)."""
+        out = {}
+        for r in self.con.execute("SELECT angebot_id, art, profil_id, laenge, stueck, klein_n, mittel_n, gross_n "
+                                  "FROM positionen"):
+            out.setdefault(r[0], []).append(dict(art=r[1], profil_id=r[2], laenge=r[3], stueck=r[4], klein_n=r[5],
+                                                 mittel_n=r[6], gross_n=r[7]))
         return out
 
     @schreibt

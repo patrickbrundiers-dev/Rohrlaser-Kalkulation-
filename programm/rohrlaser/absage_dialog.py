@@ -61,7 +61,10 @@ SPALTEN = ("", "Angebote", "beauftragt", "abgelehnt", "offen", "Trefferquote", "
 SPALTEN_GRUND = ("Absagegrund", "Absagen", "Anteil", "abgelehnt [€]")
 # Vorschlag K5: Ertrag (Verkauf ohne Material, Zukaufteile, Fracht) je Laserstunde der beauftragten Angebote
 SPALTEN_ERTRAG = ("Laser-h beauftragt", "Ertrag €/h Soll", "Ertrag €/h Ist")
+# Vorschläge 11.11.2026: V5 Teilemerkmale und V1 Reaktionszeit (vertrieb.py)
 TITEL = (("kunde", "Je Kunde"), ("kategorie", "Je Werkstoff-Kategorie"), ("preisklasse", "Je Preisklasse"),
+         ("form", "Je Profilform"), ("wand", "Je Wandstärke"), ("laenge", "Je Teilelänge"),
+         ("konturen", "Je Komplexität"), ("stueck", "Je Stückzahl"), ("reaktion", "Je Reaktionszeit"),
          ("grund", "Absagegründe"))
 
 
@@ -117,8 +120,16 @@ class AuswertungDialog(QDialog):
     def laden(self):
         db = self.f.db
         kategorien = {w: z.get("kategorie") for w, z in db.kontext().werkstoffe.items()}
-        self.daten = absage.auswertung(db.angebote(), db.angebot_werkstoffe(), kategorien, self.heute,
-                                       self.zeitraum.currentData())
+        from . import feiertage, vertrieb
+        zeilen = db.angebote()
+        try:
+            merkmale = vertrieb.merkmale(db.positionen_merkmale(), db.kontext())
+            reaktionen = vertrieb.reaktionen(zeilen, db.anfrage_eingaenge(),
+                                             db.einstellung("versand_bundesland") or feiertage.VORGABE)
+        except Exception:         # Auswertung nie an einem einzelnen Angebot scheitern lassen
+            merkmale, reaktionen = {}, {}
+        self.daten = absage.auswertung(zeilen, db.angebot_werkstoffe(), kategorien, self.heute,
+                                       self.zeitraum.currentData(), merkmale, reaktionen)
         g = self.daten["gesamt"]
         self.kopf.setText(
             f"<b>{g['angebote']} Angebote</b> ({euro_text(g['summe'])} € netto): {g['beauftragt']} beauftragt "
@@ -126,8 +137,9 @@ class AuswertungDialog(QDialog):
             f"<b>Trefferquote {_q(g['trefferquote'])}</b> (beauftragt von den entschiedenen). Eine sehr hohe "
             "Quote kann heißen, dass die Preise Luft nach oben haben; viele Absagen „Preis zu hoch“ zeigen, wo es "
             "zu teuer ist.")
-        for name, _ in TITEL[1:3]:
-            self._fuellen(self.tabellen[name], self.daten[name])
+        for name, _ in TITEL:
+            if name not in ("kunde", "grund"):
+                self._fuellen(self.tabellen[name], self.daten[name])
         # Ertrag je Laserstunde je Kunde (Vorschlag K5): Soll aus der Kalkulation, Ist aus der Nachkalkulation
         try:
             self.ertrag = absage.ertrag_je_kunde(db, db.angebote(), self.heute, self.zeitraum.currentData())

@@ -3776,7 +3776,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen)
             + self._freigabe_punkte(summen)
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
-            + self._preisluecke_punkte())
+            + self._preisluecke_punkte() + self._angebotsregel_punkte())
 
     def _einsicht_punkte(self):
         """I8 Reklamation bei Wiederholteilen, I9 Nachkalkulation ähnlicher Aufträge (einsichten.py) – Hinweise."""
@@ -3796,6 +3796,20 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         try:
             return preisluecke.punkte(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
         except Exception:           # nur Hinweis: nie den Check blockieren
+            return []
+
+    def _angebotsregel_punkte(self):
+        """V4 (Vorschläge 11.11.2026): eigene Wenn-Dann-Regeln (angebotsregeln.py). Hinweise, Warnungen, Rückfragen und
+        „Nicht anbieten“ nach den aktuellen Regeln; Zuschläge nach den Regeln, mit denen das Angebot rechnet
+        (festgeschrieben: Preisbasis)."""
+        from . import angebotsregeln as ar
+        try:
+            aktuell = [r for r in (self.tabellen_aktuell or {}).get("angebotsregeln") or ()
+                       if ar.wirkung(r) != ar.ZUSCHLAG]
+            zuschlag = [r for r in (self.tabellen or {}).get("angebotsregeln") or () if ar.wirkung(r) == ar.ZUSCHLAG]
+            return ar.punkte(aktuell + zuschlag, self.kopf, self.positionen, self.k,
+                             (self.tabellen or {}).get("gewinde") or ())
+        except Exception:           # nur Hinweise: nie den Check blockieren
             return []
 
     def preisluecken_uebernehmen(self):
@@ -3969,6 +3983,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         ok, begruendung = self.check_zeigen("Als verschickt markieren", punkte)
         if ok:
             self.db.versand_merken(self.id, dict(datum=datetime.date.today().isoformat(), netto=None, datei=None,
+                                                 zeit=datetime.datetime.now().isoformat(timespec="minutes"),
                                                  check=angebot_check.versand_eintrag(punkte, begruendung)))
         return ok
 

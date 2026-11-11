@@ -2031,7 +2031,21 @@ class StartSeite(QWidget):
             self.kennzahlen.setText(
                 f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
-                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}" + self._reaktion_text(alle))
+
+    def _reaktion_text(self, alle):
+        """V1 (Vorschläge 11.11.2026): mittlere Reaktionszeit Anfrage bis Angebot der letzten 30 Tage."""
+        from . import feiertage, vertrieb
+        try:
+            r = vertrieb.reaktion_kennzahl(alle, self.f.db.anfrage_eingaenge(),
+                                           self.f.db.einstellung("versand_bundesland") or feiertage.VORGABE)
+        except Exception:
+            r = None
+        self.reaktion = r
+        if not r:
+            return ""
+        return (f"; Reaktionszeit Anfrage bis Angebot Ø {vertrieb.stunden_text(r['mittel'])} "
+                f"({r['n']} Angebote, letzte {vertrieb.REAKTION_TAGE} Tage)")
 
     def fehler_laden(self, jetzt=None):
         """„N Fehler seit gestern“ aus Daten/Protokoll/fehler.log (Optimierungsplan E1); Knopf Support-Paket nur mit
@@ -2110,6 +2124,8 @@ class StartSeite(QWidget):
             self.f.lernzentrale()
         elif a.get("art") == "verlust":
             self.f.angebots_auswertung()
+        elif a.get("art") == "still":
+            self.f.stiller_kunde(a.get("kundennr"))
 
     def notizen_laden(self):
         """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""
@@ -3369,6 +3385,52 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def stiller_kunde(self, kundennr, wahl=None):
+        """V3 (Vorschläge 11.11.2026): still gewordener Stammkunde – Nachfass-Mail (E-Mail-Datei mit den zuletzt
+        gefertigten Artikeln) oder 4 Wochen ausblenden. wahl 'mail' / 'aus' ersetzt die Rückfrage (Tests).
+        Ergebnis: Pfad der E-Mail-Datei, 'aus' oder None."""
+        import json
+        from . import mail as mail_
+        from . import materialanfrage as ma
+        from . import vertrieb
+        kunde = self.db.kunde(kundennr) or {}
+        if wahl is None:
+            box = QMessageBox(self)
+            box.setWindowTitle("Lange nichts bestellt")
+            box.setText(f"{kunde.get('name') or kundennr}: Nachfass-Mail vorbereiten oder den Hinweis 4 Wochen "
+                        "ausblenden?")
+            mail_k = box.addButton("Nachfass-Mail …", QMessageBox.AcceptRole)
+            aus_k = box.addButton("4 Wochen ausblenden", QMessageBox.DestructiveRole)
+            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.exec()
+            wahl = "mail" if box.clickedButton() is mail_k else "aus" if box.clickedButton() is aus_k else None
+        if wahl == "aus":
+            try:
+                d = json.loads(self.db.einstellung(vertrieb.STILL_AUS) or "{}")
+            except (TypeError, ValueError):
+                d = {}
+            d[str(kundennr)] = (datetime.date.today() + datetime.timedelta(days=28)).isoformat()
+            self.db.einstellung_setzen(vertrieb.STILL_AUS, json.dumps(d))
+            self.start.neu_laden()
+            return "aus"
+        if wahl != "mail":
+            return None
+        einst = self.db.einstellungen()
+        text = vertrieb.nachfass_text(kunde, vertrieb.letzte_artikel(self.db, kundennr))
+        ziel = Path(self.db.einstellung("ablageordner") or Path.home()) / (
+            f"Nachfassen {mail_.sauber(str(kunde.get('name') or kundennr))} {datetime.date.today():%Y-%m-%d}.eml")
+        try:
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+            pfad = ma.eml(ziel, str(kunde.get("email") or ""), "Neue Laserteile bei uns?",
+                          ma.mit_signatur(text, ma.signatur(einst)))
+        except OSError as e:
+            self.meldung(f"Nachfass-Mail nicht gespeichert: {fehler_text(e)}", fehler=True)
+            return None
+        if not self.stumm:
+            self.datei_oeffnen(pfad)
+        self.meldung(f"Nachfass-Mail an {kunde.get('name') or kundennr} vorbereitet: {pfad}")
+        return pfad
 
     def schnellpreis(self):
         """Datei → Schnellpreis (Vorschlag V5): Richtpreis für Telefonanfragen, nichts wird gespeichert. Ergebnis:

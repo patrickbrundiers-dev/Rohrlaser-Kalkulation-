@@ -95,7 +95,8 @@ def antwort_moeglich(pfad):
 
 def eintrag(an, antwort=False, datei=None):
     """Eintrag im Versandverlauf (angebote.versand)."""
-    e = dict(art="mail", datum=datetime.date.today().isoformat(), an=an or "")
+    e = dict(art="mail", datum=datetime.date.today().isoformat(), an=an or "",
+             zeit=datetime.datetime.now().isoformat(timespec="minutes"))
     if antwort:
         e["antwort"] = True
     if datei:

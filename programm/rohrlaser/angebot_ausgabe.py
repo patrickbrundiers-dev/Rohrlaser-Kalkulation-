@@ -109,7 +109,8 @@ class AusgabeMixin:
             daten["netto"] = ang.get("netto")
         if pfad is not None and not self.fremd():     # Angebot eines Kollegen: nur ansehen, nichts festschreiben
             self.preise_festschreiben()
-            eintrag = dict(datum=datetime.date.today().isoformat(), netto=ang["netto"], datei=Path(pfad).name)
+            eintrag = dict(datum=datetime.date.today().isoformat(), netto=ang["netto"], datei=Path(pfad).name,
+                           zeit=datetime.datetime.now().isoformat(timespec="minutes"))     # V1 Reaktionszeit
             zeilen, _ = self._rechnung()        # Preis je kg je Position für die Plausibilität späterer Angebote
             eintrag["kennwerte"] = plausibel.kennwerte(self.positionen, zeilen, self.k)
             if uebergangen:
