@@ -7580,7 +7580,8 @@ def kapitel_fertigung(i):
             "Auftragsnummern werden aktualisiert, fertig gemeldete bleiben unverändert; vor dem Übernehmen zeigt "
             "das Programm, was neu und was geändert ist.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
-            "liegt als <i>Rohrlaser-Auslastung.zip</i> signiert beim Sammel-Update.")
+            "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
+            "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")
     i.text("<b>Zahlen (Terminwoche)</b>: der zweite Reiter über den Balken zeigt dieselbe Rechnung als Tabelle.",
            kurz=True)
     i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "
