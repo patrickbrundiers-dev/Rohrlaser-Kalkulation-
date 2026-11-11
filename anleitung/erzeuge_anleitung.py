@@ -8210,6 +8210,7 @@ def kapitel_einstellungen(i):
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
         ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Versandart für automatische Fracht, "
+                         "Umwegfaktor Straße zu Luftlinie (Entfernung nach PLZ), "
                          "Frachtlaufzeit Inland bis frei Haus [Arbeitstage], Frachtlaufzeit Ausland bis frei Haus "
                          "[Arbeitstage], "
                          "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen unter Einstellungen → Fracht → <i>Historie und "

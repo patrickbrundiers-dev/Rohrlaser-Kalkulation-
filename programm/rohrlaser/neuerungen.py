@@ -27,7 +27,8 @@ NEUERUNGEN = [
      "nach diesen km statt nach der zweistelligen PLZ-Region (ab Delbrück z. B. Lippstadt 80 € → 65 €, Warburg "
      "100 € → 80 €), die eigene Anlieferung rechnet mit den echten km (Lippstadt 170 € → 60 €). Im Angebot steht "
      "neben Ziel-PLZ und Land das Feld <b>km</b>: grau der gerechnete Wert, eine eingetragene Zahl gilt statt dessen. "
-     "Eigene Zonen und Kunden-Zuordnungen bleiben nach PLZ ([[fracht_entfernung]])."],
+     "Eigene Zonen und Kunden-Zuordnungen bleiben nach PLZ ([[fracht_entfernung]]).",
+     "Fracht genauer: Entfernung aus der vollen PLZ, Zone nach km, Feld km im Angebot"],
     ["0.9.288", "<b>Alles sichtbar auf dem Laptop</b> (Layout-Prüfung): Auf schmalen Bildschirmen (1280 und 1366 px) "
      "passen die Reiter des Angebots jetzt immer ohne Blätterpfeile – die Schrittanzeige rechts daneben kürzt sich "
      "dafür (erledigte Schritte nur ✓, ganz schmal nur die Zeichen und „Weiter ▸“; der volle Text steht im Tooltip). "
