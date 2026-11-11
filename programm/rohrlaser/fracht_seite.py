@@ -249,7 +249,7 @@ class RechnerSeite(QWidget):
         self.frachtpflichtig = QLineEdit()
         self.frachtpflichtig.setPlaceholderText("leer = nach Tarif")
         self.km = QLineEdit()
-        self.km.setPlaceholderText("leer = Entfernung der Zone")
+        self.km.setPlaceholderText("leer = aus den PLZ")
         self.max_laenge = QLineEdit()
         self.max_laenge.setPlaceholderText("für Langgut- und Überlängenzuschlag")
         fe.addRow("Verpackungsgewicht [kg]", self.verpackung)
@@ -557,7 +557,7 @@ class RechnerSeite(QWidget):
                     lieferbedingung=self.lieferbedingung.currentText() or None, netto=self.netto.value(),
                     verpackung=_zahl(self.verpackung.text()), frachtpflichtig=_zahl(self.frachtpflichtig.text()),
                     km=_zahl(self.km.text()), max_laenge=_zahl(self.max_laenge.text()), lht=self.lht_eintraege(),
-                    leistungen=leist)
+                    leistungen=leist, umwegfaktor=self.db.einstellung("fracht_umwegfaktor"))
 
     def setzen(self, s):
         """Eingaben aus einer gespeicherten Sendung übernehmen (Frachtberechnung eines Angebots)."""
@@ -576,7 +576,8 @@ class RechnerSeite(QWidget):
         if s.get("datum"):
             self.datum.setDate(QDate.fromString(s["datum"], "yyyy-MM-dd"))
         for w, n in ((self.verpackung, "verpackung"), (self.frachtpflichtig, "frachtpflichtig"), (self.km, "km")):
-            w.setText("" if s.get(n) is None else zahl_als_text(s[n]))
+            aus_plz = n == "km" and s.get("km_quelle") == "PLZ"    # aus den PLZ gerechnet: Feld leer lassen
+            w.setText("" if s.get(n) is None or aus_plz else zahl_als_text(s[n]))
         for i, (c, sp) in self.leistungen.items():
             c.setChecked(i in (s.get("leistungen") or {}))
             if sp and i in (s.get("leistungen") or {}):
@@ -595,6 +596,9 @@ class RechnerSeite(QWidget):
         s = self.sendung()
         self.ergebnis = fracht.rechnen(self.daten, s)
         e = self.ergebnis
+        ein = e.get("eingaben") or {}
+        self.km.setPlaceholderText(f"leer = aus den PLZ ({ein['km']:g} km)" if ein.get("km_quelle") == "PLZ"
+                                   else "leer = aus den PLZ")
         ze = e["zone_empfang"]
         farbe = {"ok": "#1E6B34", "standard": "#7A5A00"}.get(ze["status"], "#B42318")
         self.zone.setText(f"<span style='color:{farbe}'>{_e(ze['text'] or 'PLZ eingeben')}</span>")

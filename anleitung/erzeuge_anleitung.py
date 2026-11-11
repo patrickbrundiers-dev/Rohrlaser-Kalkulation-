@@ -5605,6 +5605,10 @@ def kapitel_fracht(i):
             "Tarifänderungen wirken erst, wenn die Ziel-PLZ neu eingegeben oder der Haken neu gesetzt wird.",
             "Liegt der PLZ-Bereich in mehreren Zonen (z. B. 25 mit Festland und Inseln), rechnet das Programm jede "
             "Zone und nimmt die teurere; die Karte nennt alle Zonen mit ihrem Betrag.",
+            "<b>km</b> (neben Land): Entfernung zum Ziel. Leer rechnet das Programm sie aus der vollen deutschen PLZ "
+            "(Versandort = Absender-PLZ der Einstellungen) und zeigt sie grau im Feld und in der Karte (z. B. "
+            "„Entfernung ca. 20 km (PLZ 33129 → 59555, Luftlinie × 1,35)“). Eine eingetragene Zahl gilt statt dessen "
+            "für Zone und km-Preise; Feld leeren = wieder aus der PLZ ([[fracht_entfernung]]).",
             "In den Staffelpreisen rechnet jede Menge ihre eigene Fracht ([[staffeln]]).",
             "Kann das Programm nicht rechnen (Ziel-PLZ fehlt, Gewicht fehlt, kein Tarif), steht der Grund rot in der "
             "Karte, das Feld Frachtkosten ist leer, die Kalkulation rechnet bis dahin ohne Fracht und der Angebots-Check "
@@ -5651,8 +5655,8 @@ def kapitel_fracht(i):
                           "nicht angewendete Zuschläge und weitere passende Tarife mit ihrem Preis"],
         ["9", "In Historie speichern", "legt die Kalkulation mit allen verwendeten Tarifwerten ab"]], [12, 40, 213])
     i.text("Unter <i>Erweiterte Einstellungen</i> (zugeklappt) stehen Verpackungsgewicht [kg] (leer = Eigengewicht der "
-           "Ladungsträger), frachtpflichtiges Gewicht [kg] (leer = nach Tarif), Entfernung [km] (leer = Entfernung "
-           "der Zone) und längstes Teil [mm] (für Langgut- und Überlängenzuschläge und den Packvorschlag).")
+           "Ladungsträger), frachtpflichtiges Gewicht [kg] (leer = nach Tarif), Entfernung [km] (leer = aus den "
+           "PLZ gerechnet, [[fracht_entfernung]]; ohne volle deutsche PLZ die Entfernung der Zone) und längstes Teil [mm] (für Langgut- und Überlängenzuschläge und den Packvorschlag).")
     i.text("Im schmalen Fenster (unter 1.100 Pixel Breite) steht das Ergebnis unter der Eingabe; ab 1.024 × 700 "
            "Pixel ist alles ohne waagrechtes Scrollen bedienbar. Das Programm läuft unter Windows, nicht auf dem "
            "Smartphone.")
@@ -10056,10 +10060,10 @@ def kapitel_frachtkosten(i):
         ["RW2 200–450 km", "115,00 €", "97,75 €", "80,50 €"],
         ["RW3 450–650 km", "125,00 €", "106,25 €", "87,50 €"],
         ["RW4 über 650 km und RW-INSEL", "140,00 €", "119,00 €", "98,00 €"]], [70, 45, 75, 75])
-    i.liste("Die Zone kommt aus den ersten zwei Ziffern der Ziel-PLZ: Entfernung vom Versandort zum Mittelpunkt der "
-            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Paderborn, Bielefeld (33…) und Herford "
-            "(32…) im Nahbereich RW0A, Lippstadt (59…), Osnabrück (49…) und Münster (48…) in RW0B, Dortmund "
-            "und Hannover in RW1, Hamburg, "
+    i.liste("Die Zone kommt aus der Entfernung vom Versandort zur vollen Ziel-PLZ ([[fracht_entfernung]]). Ist "
+            "nur ein Teil der PLZ bekannt (z. B. 25), gilt der Mittelpunkt der zweistelligen PLZ-Region (Luftlinie × "
+            "1,25). Ab 33129 Delbrück liegen z. B. Paderborn, Bielefeld, Detmold und Lippstadt im Nahbereich RW0A, "
+            "Herford, Warburg und Münster in RW0B, Dortmund und Hannover in RW1, Hamburg, "
             "Berlin, Frankfurt und Stuttgart in RW2, Dresden und München in RW3. Inseln ohne Brücke (Sylt, Föhr, "
             "Amrum, Pellworm, Halligen, Ostfriesische Inseln, Helgoland, Hiddensee) sind die Zone RW-INSEL.",
             "Mehr als 6 Stellplätze: Teilladung, Preis anfragen (das Programm rechnet nicht still weiter).",
@@ -10076,8 +10080,9 @@ def kapitel_frachtkosten(i):
             "(Hebebühne und Wartezeit geschätzt). Kein Diesel- und kein Mautzuschlag, beide sind im Preis enthalten.",
             "<b>Eigene Anlieferung</b> (eigener Lkw oder Transporter, bis 200 km): Versandart <i>Eigene "
             "Anlieferung</i> im Frachtrechner wählen. Tarif RW-EIGEN: 20 € je Sendung für Laden und Abladen plus "
-            "1,00 € je gefahrenem km (Hin- und Rückfahrt, also 2,00 € je km Entfernung). Die Entfernung trägt man im "
-            "Feld <i>Entfernung [km]</i> ein; leer gilt die typische Entfernung der Zone (RW0A 30 km, RW0B 75 km, "
+            "1,00 € je gefahrenem km (Hin- und Rückfahrt, also 2,00 € je km Entfernung). Die Entfernung rechnet das Programm aus "
+            "den PLZ (Paderborn 28 km: 20 € + 56 km × 1,00 € = 76 €) oder man trägt sie im Feld <i>Entfernung "
+            "[km]</i> ein; nur ohne volle PLZ gilt die typische Entfernung der Zone (RW0A 30 km, RW0B 75 km, "
             "RW1 150 km). Beispiel 20 km: 20 € + 40 km × 1,00 € = 60 €. Schätzwerte: die eigenen Kosten im Tarif "
             "RW-EIGEN eintragen. Die automatische Fracht im Angebot nutzt weiter die Versandart aus den "
             "Einstellungen (Palettenversand).",
@@ -10087,6 +10092,24 @@ def kapitel_frachtkosten(i):
             "Preise gibt es nicht. Liegt ein Angebot vor, die Preise als eigenen Tarif für SLH eintragen; er gilt "
             "dann vor dem Richtwert, wenn er eine kleinere Priorität hat (Richtwert: 50).")
     i.text("Fracht im Angebot und je Staffelmenge: [[fracht_angebot]] und [[staffeln]].")
+    i.abschnitt("Entfernung nach PLZ", marke="fracht_entfernung")
+    i.text("Das Programm rechnet die Entfernung zwischen Versandort und Ziel aus der vollen deutschen PLZ, ohne "
+           "Internet. Sie bestimmt die Richtwert-Zone und die Preise je km (eigene Anlieferung).", kurz=True)
+    i.genauer()
+    i.liste("Mitgeliefert ist der Mittelpunkt aller rund 8.300 deutschen PLZ (Daten: © GeoNames, www.geonames.org, "
+            "Lizenz CC BY 4.0). Liegen mehrere Orte in einer PLZ, gilt ihr Mittel.",
+            "Straßen-km = Luftlinie × <b>Umwegfaktor</b> (Einstellungen › Frachtkosten, Vorgabe 1,35; erlaubt 1,0 "
+            "bis 2,0). Stichproben ab Delbrück lagen mit 1,25 zu kurz; lieber etwas zu weit als zu kurz.",
+            "Genauigkeit etwa ±10–15 %. Bei großen Land-PLZ mit vielen Dörfern kann der Mittelpunkt bis etwa 20 km "
+            "vom Ort entfernt sein; dann im Angebot (Feld km) oder im Frachtrechner die richtige Entfernung eintragen.",
+            "Nur Deutschland. Für andere Länder und für unvollständige PLZ (z. B. 25) gibt es keine km; dann gilt die "
+            "Zone wie bisher.",
+            "Nur die Richtwert-Zonen RW0A bis RW4 (aus <i>Richtwerte laden</i>) richten sich nach den km. Eigene "
+            "Zonen, Zuordnungen für Kunden oder Dienstleister und die Inselzone bleiben nach PLZ.",
+            "Beispiele ab 33129 Delbrück (vorher nach PLZ-Region → jetzt): Lippstadt 59 → 20 km (80 € → 65 €), "
+            "Warburg 110 → 76 km (100 € → 80 €), Herford 45 → 51 km "
+            "(65 € → 80 €). Eigene Anlieferung nach Lippstadt: 170 € → 60 €.",
+            "Neu berechnet wird ein Angebot erst, wenn Ziel-PLZ, km oder Haken neu gesetzt werden (Tarifkopie).")
     i.text("Jede gespeicherte Kalkulation enthält eine vollständige Kopie aller verwendeten Werte: Tarif und Version, "
            "Preisstaffeln, Zone und PLZ-Regel, Zuschläge, Dieselpreis, Kurs, Gewicht und Ladehilfsmittel. Spätere "
            "Änderungen an Tarifen oder Zuschlägen ändern gespeicherte Kalkulationen nicht.")

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.289", "<b>Fracht genauer: Entfernung nach PLZ</b>: Das Programm kennt jetzt den Mittelpunkt aller rund "
+     "8.300 deutschen Postleitzahlen (ohne Internet) und rechnet die Entfernung vom Versandort zur vollen Ziel-PLZ "
+     "(Luftlinie × Umwegfaktor 1,35, einstellbar unter Einstellungen › Frachtkosten). Die Richtwert-Zone richtet sich "
+     "nach diesen km statt nach der zweistelligen PLZ-Region (ab Delbrück z. B. Lippstadt 80 € → 65 €, Warburg "
+     "100 € → 80 €), die eigene Anlieferung rechnet mit den echten km (Lippstadt 170 € → 60 €). Im Angebot steht "
+     "neben Ziel-PLZ und Land das Feld <b>km</b>: grau der gerechnete Wert, eine eingetragene Zahl gilt statt dessen. "
+     "Eigene Zonen und Kunden-Zuordnungen bleiben nach PLZ ([[fracht_entfernung]])."],
     ["0.9.288", "<b>Alles sichtbar auf dem Laptop</b> (Layout-Prüfung): Auf schmalen Bildschirmen (1280 und 1366 px) "
      "passen die Reiter des Angebots jetzt immer ohne Blätterpfeile – die Schrittanzeige rechts daneben kürzt sich "
      "dafür (erledigte Schritte nur ✓, ganz schmal nur die Zeichen und „Weiter ▸“; der volle Text steht im Tooltip). "

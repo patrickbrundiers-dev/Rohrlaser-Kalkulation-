@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 79     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 80     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -158,6 +158,8 @@ SCHEMA_VERSION = 79     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Vorschlägen je Kunde, lernen.py; über den gemeinsamen Ordner geteilt); leer = nichts gelernt
                         # 79: Lieferdatum ab Werk und frei Haus (10.11.2026, frachtzeit.py): angebote.liefertermin_frei_haus,
                         #     fracht_tarife.laufzeit_tage; leer = aus ab Werk + Vorgabe-Laufzeit gerechnet
+                        # 80: Entfernung nach PLZ (11.11.2026, entfernung.py): angebote.fracht_km (von Hand); leer =
+                        #     km aus den PLZ-Mittelpunkten
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -1937,7 +1939,7 @@ class Datenbank:
         k, tab = self.kontext(), self.tabellen()
         werte = [position_werte(p, a, k, tab) if aktiv(p) else None for p in pos]
         einst = {n: self.einstellung(n) for n in ("absender_plz", "absender_land", "fracht_versandart",
-                                                  "fracht_lht_standard", "fracht_lht_langgut")
+                                                  "fracht_lht_standard", "fracht_lht_langgut", "fracht_umwegfaktor")
                  + fracht_angebot.PALETTEN_EINST}
         return a, pos, werte, lambda: fracht_angebot.auto_rechnen(self.fracht_daten(), a, pos, werte,
                                                                   self.kunde(a.get("kundennr")), einst)
