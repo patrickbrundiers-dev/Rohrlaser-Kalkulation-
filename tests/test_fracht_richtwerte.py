@@ -114,11 +114,11 @@ assert not any("teurere" in h for h in e1["hinweise"])
 ok("1 Europalette 190 kg ab Delbrück: Paderborn 65 €, Hamburg 115 €, München 125 € (Marktmedian 85/95/110 €)")
 
 n1, n2, n3 = preis("32052", 190, eur(1)), preis("48143", 190, eur(1)), preis("44135", 190, eur(1))
-# Zone nach Entfernung der vollen PLZ (entfernung.py, 11.11.2026): Herford 51 km, Münster 83 km, Dortmund 102 km
-assert (n1["gesamt"], n2["gesamt"], n3["gesamt"]) == (80.0, 80.0, 100.0), (n1["gesamt"], n2["gesamt"], n3["gesamt"])
-assert (n1["eingaben"]["km"], n2["eingaben"]["km"], n3["eingaben"]["km"]) == (51, 83, 102)
+# Zone nach Entfernung der vollen PLZ (entfernung.py, 11.11.2026): Herford 47 km, Münster 77 km, Dortmund 94 km (Umwegfaktor 1,25)
+assert (n1["gesamt"], n2["gesamt"], n3["gesamt"]) == (65.0, 80.0, 80.0), (n1["gesamt"], n2["gesamt"], n3["gesamt"])
+assert (n1["eingaben"]["km"], n2["eingaben"]["km"], n3["eingaben"]["km"]) == (47, 77, 94)
 assert preis("33100", 190, eur(2))["gesamt"] == 2 * 55.25
-ok("Nahbereich: Herford (51 km) 80 €, Münster (83 km) 80 €, Dortmund (102 km) 100 €; 2 Paletten Paderborn 110,50 €")
+ok("Nahbereich: Herford (47 km) 65 €, Münster (77 km) 80 €, Dortmund (94 km) 80 €; 2 Paletten Paderborn 110,50 €")
 
 
 def eigen(plz, km=None, absender="33129"):
@@ -130,9 +130,9 @@ a20, a0, weit = eigen("33100", 20), eigen("33100", absender=None), eigen("80331"
 assert a20["gesamt"] == 60.0 and a20["snapshot"]["tarif"]["tarif_id"] == fracht_richtwerte.TARIF_EIGEN, a20
 assert a0["gesamt"] == 80.0, a0["gesamt"]
 a_plz = eigen("33100")
-assert a_plz["eingaben"]["km"] == 28 and a_plz["gesamt"] == 76.0, (a_plz["eingaben"].get("km"), a_plz["gesamt"])
+assert a_plz["eingaben"]["km"] == 26 and a_plz["gesamt"] == 72.0, (a_plz["eingaben"].get("km"), a_plz["gesamt"])
 assert weit["gesamt"] is None and weit["fehler"], weit
-ok("Eigene Anlieferung: 20 km 60 € (20 € + 40 km × 1,00 €), Paderborn nach PLZ 28 km = 76 €, ohne Versandort 30 km "
+ok("Eigene Anlieferung: 20 km 60 € (20 € + 40 km × 1,00 €), Paderborn nach PLZ 26 km = 72 €, ohne Versandort 30 km "
    "der Zone = 80 €, München kein Tarif")
 
 z3, z5 = preis("20095", 450, eur(3)), preis("20095", 900, eur(5))

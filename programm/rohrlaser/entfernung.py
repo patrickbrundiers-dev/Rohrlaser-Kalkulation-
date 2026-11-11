@@ -5,17 +5,18 @@ aus dem GeoNames Postal Code Dataset (https://www.geonames.org, Lizenz CC BY 4.0
 gilt das Mittel der Orte. Fehlt eine PLZ (neu vergeben), gilt der Mittelpunkt der zweistelligen PLZ-Region
 (fracht_richtwerte.REGIONEN) mit Hinweis "ungefähr".
 
-Straßen-km = Luftlinie × Umwegfaktor (Einstellung fracht_umwegfaktor, Vorgabe 1,35: Stichproben ab Delbrück mit den
-Straßen-km der Routenplaner (Lippstadt, Detmold, Dortmund, Hamburg) lagen bei 1,25 zu kurz, lieber etwas zu weit
-als zu kurz).
-Genauigkeit etwa ±10–15 %; bei großen Land-PLZ (viele Dörfer) kann der Mittelpunkt bis zu 20 km vom Ort entfernt sein.
+Straßen-km = Luftlinie × Umwegfaktor (Einstellung fracht_umwegfaktor, Vorgabe 1,25). Messung 11.11.2026 (Patrick):
+Straßen-km eines Routenplaners (entfernungsrechnerkm.com) ab Delbrück zu 11 Orten in ganz Deutschland gegen die
+Luftlinie der PLZ-Mittelpunkte: Faktor je Ort 1,22–1,51, kleinster mittlerer Fehler bei 1,25 (5,5 %; 1,30: 6,2 %;
+1,35: 7,5 %). Kurze Strecken bis 40 km liegen eher bei 1,4, Fahrten ohne Autobahn (Malchow) bei 1,5.
+Genauigkeit meist ±10 %; bei großen Land-PLZ (viele Dörfer) kann der Mittelpunkt bis zu 20 km vom Ort entfernt sein.
 Nur Deutschland (Freigabe F2a); für andere Länder gibt es keine km (dann gilt die Zone wie bisher).
 """
 import json
 import math
 import os
 
-UMWEG_VORGABE = 1.35
+UMWEG_VORGABE = 1.25
 EINSTELLUNG = "fracht_umwegfaktor"
 QUELLE_PLZ = "PLZ"               # km aus den PLZ-Mittelpunkten
 QUELLE_HAND = "von Hand"         # km im Angebot bzw. im Frachtrechner eingetragen

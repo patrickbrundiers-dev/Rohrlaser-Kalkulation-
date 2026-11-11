@@ -1,6 +1,6 @@
 """Test: Entfernung nach PLZ (Patrick 11.11.2026, Freigabe alle a): Frachtkosten genauer.
 
-- PLZ-Datei (GeoNames): alle rund 8.300 deutschen PLZ, km = Luftlinie × Umwegfaktor (Einstellung, Vorgabe 1,35);
+- PLZ-Datei (GeoNames): alle rund 8.300 deutschen PLZ, km = Luftlinie × Umwegfaktor (Einstellung, Vorgabe 1,25, gemessen 11.11.2026);
   unbekannte PLZ = Mittelpunkt der PLZ-Region ('ungefähr'), keine km für andere Länder und unvollständige PLZ.
 - Richtwert-Zone nach km statt nach der zweistelligen PLZ-Region (Lippstadt, Detmold, Warburg), eigene Zonen und
   Kunden-Regeln bleiben, Inselzone bleibt.
@@ -32,11 +32,11 @@ def ok(text):
 # ------------------------------------------------------------------ Entfernung
 assert len(entfernung.punkte()) > 8000
 km = {plz: entfernung.km("33129", plz)[0] for plz in ("59555", "32756", "34414", "44135", "20095", "80331")}
-assert km == {"59555": 20, "32756": 43, "34414": 76, "44135": 102, "20095": 300, "80331": 623}, km
+assert km == {"59555": 19, "32756": 40, "34414": 70, "44135": 94, "20095": 277, "80331": 577}, km
 w, t = entfernung.km("33129", "59555")
-assert t == "ca. 20 km (PLZ 33129 → 59555, Luftlinie × 1,35)", t
-assert entfernung.km("33129", "59555", umweg="1,25")[0] == 19
-assert entfernung.km("33129", "59555", umweg="9")[0] == 20          # außerhalb 1,0–2,0: Vorgabe
+assert t == "ca. 19 km (PLZ 33129 → 59555, Luftlinie × 1,25)", t
+assert entfernung.km("33129", "59555", umweg="1,35")[0] == 20
+assert entfernung.km("33129", "59555", umweg="9")[0] == 19          # außerhalb 1,0–2,0: Vorgabe
 assert entfernung.km("33129", "25")[0] is None and entfernung.km("33129", "1010", nach_land="AT")[0] is None
 assert entfernung.km("", "59555")[0] is None
 neu = "59998"                                                       # nicht in der Liste: Mittelpunkt der Region 59
@@ -45,7 +45,7 @@ w, t = entfernung.km("33129", neu)
 assert w and "ungefähr" in t, (w, t)
 s = entfernung.ergaenzen(dict(absender_plz="33129", plz="59555", km=12.5))
 assert s["km"] == 12.5 and s["km_quelle"] == "von Hand"
-ok("Entfernung nach PLZ: Lippstadt 20, Detmold 43, Warburg 76, Dortmund 102, Hamburg 300, München 623 km; "
+ok("Entfernung nach PLZ: Lippstadt 19, Detmold 40, Warburg 70, Dortmund 94, Hamburg 277, München 577 km; "
    "Umwegfaktor wirkt, unbekannte PLZ ungefähr, Ausland und '25' ohne km, von Hand bleibt")
 
 # ------------------------------------------------------------------ Zone nach km
@@ -68,14 +68,14 @@ vorher = {plz: fracht.zone_finden(fd, "DE", plz)["zone"]["zone_id"] for plz in (
 assert vorher == {"59555": "RW0B", "32756": "RW0A", "34414": "RW1"}, vorher
 e = {plz: preis(plz) for plz in ("59555", "32756", "34414", "32052")}
 assert {p: (x["gesamt"], x["zone_empfang"]["zone"]["zone_id"]) for p, x in e.items()} == {
-    "59555": (65.0, "RW0A"), "32756": (65.0, "RW0A"), "34414": (80.0, "RW0B"), "32052": (80.0, "RW0B")}, e
-assert e["59555"]["hinweise"][0].startswith("Entfernung ca. 20 km")
+    "59555": (65.0, "RW0A"), "32756": (65.0, "RW0A"), "34414": (80.0, "RW0B"), "32052": (65.0, "RW0A")}, e
+assert e["59555"]["hinweise"][0].startswith("Entfernung ca. 19 km")
 assert any("statt Zone RW0B nach PLZ-Region 59*" in h for h in e["59555"]["hinweise"]), e["59555"]["hinweise"]
 assert e["59555"]["zone_empfang"]["text"] == "Zone RW0A Palette bis 50 km (nach Entfernung)"
 assert preis("59555", km=60)["gesamt"] == 80.0                        # von Hand eingetragen: Zone nach diesem Wert
 assert preis("25980")["gesamt"] == 200.0                              # Insel bleibt
 assert preis("25")["gesamt"] == 200.0                                 # PLZ-Bereich: wie bisher (teurere Zone)
-ok("Zone nach km: Lippstadt 80 € -> 65 €, Warburg 100 € -> 80 €, Herford (51 km) 65 € -> 80 €, Detmold bleibt 65 €; "
+ok("Zone nach km: Lippstadt 80 € -> 65 €, Warburg 100 € -> 80 €, Herford (47 km) und Detmold bleiben 65 €; "
    "Hinweis nennt die alte Zone; "
    "eingetragene km gelten; Insel und PLZ-Bereich wie bisher")
 
@@ -96,8 +96,8 @@ def eigen(plz, **k):
 
 
 lp = eigen("59555")
-assert lp["gesamt"] == 60.0 and lp["snapshot"]["tarif"]["tarif_id"] == fracht_richtwerte.TARIF_EIGEN, lp
-ok("Eigene Anlieferung Lippstadt: 20 € + 2 × 20 km × 1,00 € = 60 € (vorher 75 km der Zone = 170 €)")
+assert lp["gesamt"] == 58.0 and lp["snapshot"]["tarif"]["tarif_id"] == fracht_richtwerte.TARIF_EIGEN, lp
+ok("Eigene Anlieferung Lippstadt: 20 € + 2 × 19 km × 1,00 € = 58 € (vorher 75 km der Zone = 170 €)")
 
 # ------------------------------------------------------------------ Angebot
 aid = beispiel_angebot.anlegen(db)
@@ -106,9 +106,9 @@ kb = seite.kopf_bereich
 seite.fracht_ziel_setzen("59555", "DE")
 seite.fracht_auto_setzen(True)
 d = fracht_angebot.daten(db.angebot(aid))
-assert d["sendung"]["km"] == 20 and d["sendung"]["km_quelle"] == "PLZ", d["sendung"]
-assert "RW0A" in d["zone"] and "Entfernung ca. 20 km" in kb.fracht_text.text(), (d["zone"], kb.fracht_text.text())
-assert kb.fracht_km.text() == "" and kb.fracht_km.placeholderText() == "20"
+assert d["sendung"]["km"] == 19 and d["sendung"]["km_quelle"] == "PLZ", d["sendung"]
+assert "RW0A" in d["zone"] and "Entfernung ca. 19 km" in kb.fracht_text.text(), (d["zone"], kb.fracht_text.text())
+assert kb.fracht_km.text() == "" and kb.fracht_km.placeholderText() == "19"
 auto20 = db.angebot(aid)["fracht"]
 seite.fracht_km_setzen("60")
 a = db.angebot(aid)
@@ -119,16 +119,16 @@ seite.fracht_km_setzen("abc")                                         # keine Za
 assert db.angebot(aid)["fracht_km"] == 60
 seite.fracht_km_setzen("")
 a = db.angebot(aid)
-assert a["fracht_km"] is None and a["fracht"] == auto20 and fracht_angebot.daten(a)["sendung"]["km"] == 20
-ok("Angebot: km aus PLZ gespeichert und angezeigt (grau 20), von Hand 60 km -> Zone RW0B und höhere Fracht, "
+assert a["fracht_km"] is None and a["fracht"] == auto20 and fracht_angebot.daten(a)["sendung"]["km"] == 19
+ok("Angebot: km aus PLZ gespeichert und angezeigt (grau 19), von Hand 60 km -> Zone RW0B und höhere Fracht, "
    "Feld leeren = wieder aus PLZ")
 
-db.einstellung_setzen("fracht_umwegfaktor", 1.25)
+db.einstellung_setzen("fracht_umwegfaktor", 1.35)
 seite.fracht_auto_setzen(False)
 seite.fracht_auto_setzen(True)
-assert fracht_angebot.daten(db.angebot(aid))["sendung"]["km"] == 19
-db.einstellung_setzen("fracht_umwegfaktor", 1.35)
-ok("Umwegfaktor aus den Einstellungen wirkt im Angebot (1,25: 19 km)")
+assert fracht_angebot.daten(db.angebot(aid))["sendung"]["km"] == 20
+db.einstellung_setzen("fracht_umwegfaktor", 1.25)
+ok("Umwegfaktor aus den Einstellungen wirkt im Angebot (1,35: 20 km)")
 
 # ------------------------------------------------------------------ Frachtrechner
 r = fenster.fracht.rechner
@@ -137,9 +137,9 @@ r.abs_plz.setText("33129")
 r.plz.setText("59555")
 r.km.setText("")
 r.rechnen()
-assert r.ergebnis["eingaben"]["km"] == 20 and r.km.placeholderText() == "leer = aus den PLZ (20 km)"
-assert any(h.startswith("Entfernung ca. 20 km") for h in r.ergebnis["hinweise"])
-ok("Frachtrechner: ohne Eintrag 20 km aus den PLZ, im Feld grau angezeigt, Hinweis im Ergebnis")
+assert r.ergebnis["eingaben"]["km"] == 19 and r.km.placeholderText() == "leer = aus den PLZ (19 km)"
+assert any(h.startswith("Entfernung ca. 19 km") for h in r.ergebnis["hinweise"])
+ok("Frachtrechner: ohne Eintrag 19 km aus den PLZ, im Feld grau angezeigt, Hinweis im Ergebnis")
 
 fenster.close()
 print("OK: Entfernung nach PLZ")

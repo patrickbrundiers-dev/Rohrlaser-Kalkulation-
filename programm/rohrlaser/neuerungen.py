@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.291", "<b>Umwegfaktor gemessen</b>: Die Entfernung nach PLZ rechnet jetzt mit Luftlinie × 1,25 statt 1,35. "
+     "Gemessen mit den Straßen-km eines Routenplaners ab Delbrück zu 11 Orten in ganz Deutschland (Lippstadt bis "
+     "Freiburg und Malchow): 1,25 liegt im Mittel 5,5 % neben der Straße, 1,35 lag 7,5 % zu weit. Ab Delbrück "
+     "z. B. Herford wieder 65 €, Dortmund 80 € statt 100 € ([[fracht_entfernung]]). Wer den Faktor in den "
+     "Einstellungen selbst geändert hat, behält seinen Wert.",
+     "Umwegfaktor der Entfernung nach PLZ gemessen: 1,25 statt 1,35"],
     ["0.9.290", "<b>Kalkulation genauer</b>: Hat ein Profil keinen eigenen Preis und rechnet deshalb mit einem "
      "Tonnenpreis deutlich unter ähnlichen Profilpreisen, warnt der Angebots-Check (vorher zeigte die Position „OK“: "
      "ein S355-Rohr war 32 € billiger als dasselbe in S235). <b>Erledigen</b> legt den ähnlichen Preis als Profilpreis "

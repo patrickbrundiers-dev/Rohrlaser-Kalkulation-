@@ -1425,7 +1425,7 @@ EINSTELLUNGEN = (
     Einstellung("fracht_versandart", "Versandart für automatische Fracht", "Frachtkosten", "text", None),
     # Entfernung nach PLZ (Patrick 11.11.2026, entfernung.py): Straßen-km = Luftlinie × Umwegfaktor
     Einstellung("fracht_umwegfaktor", "Umwegfaktor Straße zu Luftlinie (Entfernung nach PLZ)", "Frachtkosten", "zahl",
-                1.35, 1.0, 2.0),
+                1.25, 1.0, 2.0),
     # Lieferdatum ab Werk und frei Haus (Patrick 10.11.2026, frachtzeit.py): Laufzeit, wenn der Tarif keine hat
     Einstellung("frachtzeit_inland", "Frachtlaufzeit Inland bis frei Haus [Arbeitstage]",
                 "Frachtkosten", "ganz", 1, 0, 60),
