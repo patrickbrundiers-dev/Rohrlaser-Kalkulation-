@@ -43,7 +43,10 @@ ABSCHNITTE = (
      "letzten vier Wochen aus den Fertigmeldungen. Die Aufträge laufen ab heute nacheinander durch die freien "
      "Stunden; was nicht in eine Woche passt, rutscht in die nächste. Die Plantafel darunter zeigt jeden Auftrag "
      "als Block, das Dreieck ist sein Liefertermin. Roter Rahmen: Termin nicht zu halten. Oranger Rahmen: knapp. "
-     "Ein Klick auf einen Wochenbalken zeigt rechts die Aufträge dieser Woche."),
+     "Ein Klick auf einen Wochenbalken zeigt rechts die Aufträge dieser Woche. Oben rechts blenden die Knöpfe "
+     "<b>Wochenbalken</b> und <b>Liste rechts</b> diese Teile aus, dann hat die Plantafel mehr Platz; der Platz "
+     "merkt sich die Wahl. Wie gerechnet wird, steht im Tooltip der roten Terminrisiko-Zeile, die Zeichen der "
+     "Plantafel im Tooltip von „Plantafel ⓘ“."),
     ("Terminauskunft",
      "<b>Terminauskunft …</b> im Reiter Auslastung: Laufzeit eingeben, das Programm nennt je Maschine, wann ein "
      "neuer Auftrag fertig wäre, wenn er hinter allen offenen Aufträgen läuft. Gespeichert wird dabei nichts."),
@@ -160,12 +163,29 @@ ABSCHNITTE = (
     ("Zusatzfelder",
      "Eigene Angaben je Auftrag, zum Beispiel Material, Stückzahl oder Bearbeiter, legst du in den Einstellungen "
      "an. Sie erscheinen in der Liste, im Auftrag und in der CSV-Datei."),
-    ("CSV einlesen und speichern",
-     "<b>Mehr → CSV einlesen …</b> übernimmt Aufträge aus einer Datei. Die erste Zeile nennt die Spalten: "
+    ("Aus Excel oder CSV einlesen",
+     "<b>Mehr → Aus Excel oder CSV einlesen …</b> übernimmt Aufträge aus einer Excel-Datei (.xlsx, erstes Blatt) "
+     "oder CSV-Datei. Schneller geht es mit <b>Strg+V</b>: in Excel die Zeilen samt Überschriftenzeile markieren, "
+     "Strg+C, im Programm Strg+V. Die erste Zeile nennt die Spalten: "
      "Auftragsnummer, Maschine und Kalkulierte Laufzeit sind Pflicht, dazu nach Wunsch Liefertermin, Kunde, "
      "Bemerkung und Zusatzfelder. Bekannte Auftragsnummern werden aktualisiert, fertig gemeldete bleiben "
      "unverändert. Vor dem Übernehmen zeigt das Programm, was neu und was geändert ist. Die Datei aus "
      "<i>Übergabe …</i> der Kalkulation lässt sich genauso einlesen."),
+    ("Excel-Liste automatisch abgleichen",
+     "Unter <b>Einstellungen → Termine und Abläufe → Abgleich mit eurer Excel-Liste</b> wählst du eure "
+     "Auftragsliste (z. B. im gemeinsamen Ordner). Das Programm liest sie beim Start und jede Minute, wenn sie "
+     "neu gespeichert wurde, und übernimmt neue und geänderte Aufträge ohne Rückfrage; vorher sichert es die "
+     "Datenbank. Aufträge, die in der Datei fehlen, bleiben im Programm. Unten rechts steht der letzte Abgleich "
+     "mit Uhrzeit; ist die Datei gerade offen oder nicht lesbar, versucht es das Programm beim nächsten Mal."),
+    ("Frühester Liefertermin",
+     "Beim <b>neuen Auftrag</b> zeigt die Zeile <i>Frühestens fertig</i>, wann der Auftrag mit der eingetragenen "
+     "Laufzeit auf der gewählten Maschine (und den anderen geeigneten) fertig wäre. <i>Als Liefertermin</i> setzt "
+     "diesen Tag als Liefertermin."),
+    ("Erfahrungswert je Maschine",
+     "Läuft eine Maschine regelmäßig länger oder kürzer als kalkuliert, hakst du bei der Maschine "
+     "<b>Mit Erfahrungswert planen</b> an. Das Programm nimmt dann das Verhältnis Ist zu Soll der fertig "
+     "gemeldeten Aufträge der letzten 365 Tage (ab 5 Aufträgen, zwischen 0,5 und 2) und plant die offenen "
+     "Aufträge dieser Maschine damit. Die eingetragene Laufzeit bleibt unverändert. Vorgabe: aus."),
     ("Mehrere Plätze und Sicherung",
      "Die Datenbank ist eine Datei. Liegt sie in einem gemeinsamen Ordner (<b>Einstellungen → Datenbank an anderem "
      "Ort …</b>, an jedem Platz denselben Ort wählen), arbeiten alle Plätze mit denselben Aufträgen; Änderungen "

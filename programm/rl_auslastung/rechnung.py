@@ -29,6 +29,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     tag = {m["name"]: float(m["stunden_tag"]) for m in db.maschinen()}
     auftraege = {}
     jetzt = datetime.datetime.combine(heute, UHRZEIT or datetime.datetime.now().time())
+    faktor = {m: f for m, (f, _n) in erfahrung(db, heute).items()}   # N3: nur Maschinen mit Schalter
     for a in db.auftraege((D.OFFEN, D.LAEUFT)):
         termin = _datum(a["liefertermin"])
         fest = _datum(a["fest_ab"])
@@ -40,7 +41,7 @@ def grundlage(db, heute=None, wochenzahl=8):
                     continue
                 fremd = g["platz"] == D.FREMD
                 lief = 0 if fremd else db.gelaufen(g, jetzt)
-                rest = 0 if fremd else max(0, int(g["kalk_min"]) - lief)
+                rest = 0 if fremd else max(0, round(int(g["kalk_min"]) * faktor.get(g["platz"], 1.0)) - lief)
                 auftraege.setdefault((g["platz"], ALLE), []).append(dict(
                     material=a.get("material") or "", begonnen=bool(lief or g["start_am"]),
                     durchmesser=a.get("durchmesser") or 0, laenge=a.get("laenge") or 0,
@@ -52,7 +53,8 @@ def grundlage(db, heute=None, wochenzahl=8):
                     vorrang=LAEUFT_ZUERST if laeuft else int(a["vorrang"] or 0)))
             continue
         lief = db.gelaufen(a, jetzt)
-        rest = max(0, int(a["kalk_min"]) - lief)
+        kalk = round(int(a["kalk_min"]) * faktor.get(a["maschine"], 1.0))
+        rest = max(0, kalk - lief)
         eintrag = dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
             h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
@@ -61,7 +63,7 @@ def grundlage(db, heute=None, wochenzahl=8):
             # Reihenfolge: was gerade läuft zuerst, dann von Hand vorgezogen, nach Termin, zurückgestellt
             vorrang=LAEUFT_ZUERST if a["start_am"] else int(a["vorrang"] or 0))
         ziel = auftraege.setdefault((a["maschine"], ALLE), [])
-        teile = _teillieferungen(a, lief)
+        teile = _teillieferungen(dict(a, kalk_min=kalk), lief)
         if not teile:
             ziel.append(eintrag)
         for n, t in enumerate(teile):             # A5: jede offene Teillieferung mit eigenem Termin
@@ -891,6 +893,25 @@ def abweichung(kalk_min, ist_min):
         return None, None
     diff = int(ist_min) - int(kalk_min)
     return diff, (diff / kalk_min * 100 if kalk_min else None)
+
+
+ERFAHRUNG_MIN, ERFAHRUNG_TAGE, ERFAHRUNG_GRENZE = 5, 365, (0.5, 2.0)
+
+
+def erfahrung(db, heute=None, alle=False):
+    """N3 (Plan 2.2): Erfahrungswert je Maschine aus Soll und Ist der letzten 365 Tage: {Maschine: (Faktor, Anzahl)},
+    Faktor = tatsächliche durch kalkulierte Laufzeit (begrenzt auf 0,5 bis 2), erst ab 5 fertigen Aufträgen.
+    Ohne alle nur Maschinen, bei denen „Mit Erfahrungswert planen“ an ist."""
+    heute = heute or datetime.date.today()
+    an = {m["name"] for m in db.maschinen() if alle or m.get("erfahrung")}
+    if not an:
+        return {}
+    out = {}
+    for s in soll_ist(db, heute - datetime.timedelta(days=ERFAHRUNG_TAGE), heute)["maschinen"]:
+        if s["maschine"] in an and s["anzahl"] >= ERFAHRUNG_MIN and s["kalk_min"] > 0:
+            f = min(ERFAHRUNG_GRENZE[1], max(ERFAHRUNG_GRENZE[0], s["ist_min"] / s["kalk_min"]))
+            out[s["maschine"]] = (f, s["anzahl"])
+    return out
 
 
 def soll_ist(db, von=None, bis=None):

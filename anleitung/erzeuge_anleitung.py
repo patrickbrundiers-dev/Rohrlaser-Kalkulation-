@@ -7659,7 +7659,8 @@ def kapitel_fertigung(i):
             "Vorlauf bis zum Liefertermin, Zusatzfelder und der Ort der Datenbank. Liegt die Datenbank in einem "
             "gemeinsamen Ordner, arbeiten mehrere Plätze mit denselben Aufträgen; Änderungen eines Platzes "
             "erscheinen bei den anderen nach wenigen Sekunden. Beim Start wird einmal täglich gesichert.",
-            "<b>Aufträge übernehmen</b>: im Programm <i>CSV einlesen</i> wählen, entweder eine eigene Liste "
+            "<b>Aufträge übernehmen</b>: im Programm <i>Aus Excel oder CSV einlesen</i> wählen (oder in Excel "
+            "markieren, Strg+C, im Programm Strg+V), entweder eine eigene Liste "
             "(erste Zeile: Auftragsnummer, Maschine, Kalkulierte Laufzeit, dazu nach Wunsch Liefertermin, Kunde, "
             "Bemerkung und Zusatzfelder) oder die Datei aus <b>Übergabe …</b> dieser Seite. Bekannte "
             "Auftragsnummern werden aktualisiert, fertig gemeldete bleiben unverändert; vor dem Übernehmen zeigt "
@@ -7750,6 +7751,17 @@ def kapitel_fertigung(i):
             "Auftrag offen. Neben dem Datum steht die Uhrzeit der Fertigmeldung, vorbelegt mit jetzt; sie steht "
             "in der Spalte <i>Fertig am</i> und in der Tagesansicht unter <i>Heute tatsächlich</i>. Ein Klick auf "
             "einen Wochenbalken rollt die Plantafel zu dieser Woche.",
+            "<b>Mehr Platz für die Plantafel</b> (ab Version 2.1): Die Wochenbalken sind flacher. Die Knöpfe "
+            "<i>Wochenbalken</i> und <i>Liste rechts</i> blenden die Balken und die Liste aus, der Platz merkt sich "
+            "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
+            "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
+            "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Excel und Erfahrung</b> (ab Version 2.2): Excel-Dateien (.xlsx) lassen sich direkt einlesen, "
+            "kopierte Excel-Zeilen mit Strg+V. In den Einstellungen kann eure Excel-Auftragsliste fest gewählt "
+            "werden; das Programm gleicht sie dann automatisch ab, sobald sie neu gespeichert ist (neue und "
+            "geänderte Aufträge, vorher Sicherung). Beim neuen Auftrag steht der früheste mögliche Liefertermin. "
+            "Je Maschine lässt sich <i>Mit Erfahrungswert planen</i> anhaken: Die offenen Aufträge werden dann mit "
+            "dem Verhältnis Ist zu Soll der letzten 365 Tage geplant.",
             "<b>Online-Update</b> (ab Version 1.7): Das Programm sieht kurz nach dem Start online nach einer "
             "neueren Version und meldet sich nur dann. <i>Jetzt aktualisieren</i> lädt nur die geänderten Dateien, "
             "sichert die Datenbank, schließt das Programm, tauscht die Dateien aus und startet neu; <i>Später</i> "

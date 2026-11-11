@@ -5,7 +5,7 @@ import html
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QEvent, QMarginsF, QPointF, QRectF, Qt, QTime, QTimer, Signal
-from PySide6.QtGui import (QBrush, QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen,
+from PySide6.QtGui import (QBrush, QColor, QFontMetrics, QKeySequence, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen,
                            QPolygonF)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QCompleter, QDateEdit, QDialog,
                                QDialogButtonBox,
@@ -394,6 +394,23 @@ class AuftragDialog(QDialog):
         zeile = QHBoxLayout()
         zeile.addWidget(self.mit_termin)
         zeile.addWidget(self.termin, 1)
+        # N4 (Plan 2.2): bei neuen Aufträgen gleich sehen, wann sie frühestens fertig wären
+        self.frueh = QLabel("")
+        self.frueh.setWordWrap(True)
+        self.frueh.setTextFormat(Qt.RichText)
+        self.k_frueh = QPushButton("Als Liefertermin")
+        self.k_frueh.setToolTip("Setzt den Liefertermin auf „lieferbar ab“ der gewählten Maschine.")
+        self.k_frueh.clicked.connect(lambda _=False: self.frueh_uebernehmen())
+        self.k_frueh.hide()
+        self.frueh_liste = []
+        zeile_f = QHBoxLayout()
+        zeile_f.addWidget(self.frueh, 1)
+        zeile_f.addWidget(self.k_frueh)
+        self.frueh_uhr = QTimer(self)
+        self.frueh_uhr.setSingleShot(True)
+        self.frueh_uhr.setInterval(400)
+        self.frueh_uhr.timeout.connect(self.frueh_zeigen)
+        self.finished.connect(lambda _r: self.frueh_uhr.stop())
         self.bemerkung = QLineEdit(self.auftrag.get("bemerkung") or "")
         # E8: Material da ab – vorher wird der Auftrag nicht eingelastet
         self.mit_material = QCheckBox("Material da ab")
@@ -486,6 +503,10 @@ class AuftragDialog(QDialog):
         form.addRow("Rohr", zeile_d)
         form.addRow("", self.passt_text)
         form.addRow("", zeile)
+        if not self.auftrag.get("id"):
+            form.addRow("Frühestens fertig", zeile_f)
+            self.kalk.eingabe.textChanged.connect(lambda _t: self.frueh_uhr.start() if self.isVisible() else None)
+            self.maschine.currentTextChanged.connect(lambda _t: self.frueh_zeigen(neu_rechnen=False))
         form.addRow("", self.mit_teilen)
         form.addRow("", self.teile)
         form.addRow("", zeile_m)
@@ -509,6 +530,44 @@ class AuftragDialog(QDialog):
         self._mehr_geschaltet(self.mehr.isChecked())
         self._teile_geschaltet(self.mit_teilen.isChecked())
         self._eignung_zeigen()
+        self.frueh_zeigen(neu_rechnen=False)
+
+    def frueh_zeigen(self, neu_rechnen=True):
+        """N4: frühester Termin je Maschine hinter allen offenen Aufträgen (wie die Terminauskunft, speichert nichts).
+        Die gewählte Maschine steht vorn und fett, die früheste andere dahinter."""
+        if self.auftrag.get("id"):
+            return
+        try:
+            minuten = self.kalk.minuten()
+        except laufzeit.Fehler:
+            minuten = None
+        if neu_rechnen:
+            self.frueh_liste = rechnung.auskunft(self.db, minuten) if minuten else []
+        gewaehlt = next((x for x in self.frueh_liste if x["maschine"] == self.maschine.currentText()), None)
+        if not self.frueh_liste or gewaehlt is None:
+            self.frueh.setText("<span style='color:%s'>erscheint, sobald die Laufzeit eingetragen ist</span>"
+                               % stil.umsetzen(stil.TEXT_GRAU))
+            self.k_frueh.hide()
+            return
+        def text(x):
+            if x["fertig"] is None:
+                return f"{x['maschine']}: später als 400 Tage"
+            return (f"{x['maschine']}: fertig {_wtag(x['fertig'])}"
+                    + (f", lieferbar {_wtag(x['lieferbar'])}" if x["lieferbar"] != x["fertig"] else ""))
+        teile = [f"<b>{text(gewaehlt)}</b>"]
+        besser = self.frueh_liste[0]
+        if besser is not gewaehlt and besser["fertig"] and (gewaehlt["fertig"] is None
+                                                             or besser["fertig"] < gewaehlt["fertig"]):
+            teile.append("früher: " + text(besser))
+        self.frueh.setText(" · ".join(teile))
+        self.k_frueh.setVisible(gewaehlt["lieferbar"] is not None and not self.mit_teilen.isChecked())
+
+    def frueh_uebernehmen(self):
+        x = next((x for x in self.frueh_liste if x["maschine"] == self.maschine.currentText()), None)
+        if x and x["lieferbar"]:
+            t = x["lieferbar"]
+            self.mit_termin.setChecked(True)
+            self.termin.setDate(QDate(t.year, t.month, t.day))
 
     def _teile_geschaltet(self, an):
         """Mit Teillieferungen ergibt sich der Liefertermin aus der letzten Lieferung."""
@@ -814,7 +873,7 @@ class MonatsBalken(QWidget):
             p.drawLine(QPointF(links, y), QPointF(self.width() - 6, y))
             p.setPen(grau)
             p.drawText(QRectF(0, y - 9, links - 6, 18), Qt.AlignRight | Qt.AlignVCenter, f"{wert} %")
-        breite = (self.width() - links - 6) / len(self.monate)
+        breite = (self.width() - links - 6) / max(len(self.monate), 12)   # L6: feste Breite wie bei 12 Monaten
         for i, m in enumerate(self.monate):
             x = links + i * breite
             b = min(64.0, breite * 0.6)
@@ -1677,6 +1736,21 @@ class TafelRahmen(QScrollArea):
         return False
 
 
+EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g1, gs)),
+                      ("Termine und Abläufe", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g10, g2, g7, g8, g9)),
+                      ("Ansicht und Felder", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g3, g4)),
+                      ("Benutzer und Datenbank", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10: (g6, g5)))
+BALKEN_ZEILE = 84                         # L1: Höhe einer Maschine in den Wochenbalken (vorher 122)
+BALKEN_LEGENDE = ("Wochenbalken: Rahmen = Kapazität, gefüllt = eingelastete Aufträge (ab 80 % gelb, über 100 % rot), "
+                  "grau links = tatsächliche Stunden aus den Fertigmeldungen. Klick auf eine Woche zeigt rechts ihre "
+                  "Aufträge und rollt die Plantafel dorthin.")
+TAFEL_HINWEIS = ("▶ läuft · ❚❚ gestoppt · schraffiert = wartet auf Material · weißer Punkt = fester Platz · Dreieck = "
+                 "Liefertermin, gestrichelt = Verspätung · Streifen oben = Auslastung des Tages. Ziehen mit der Maus "
+                 "legt einen Auftrag fest, Doppelklick öffnet ihn.")
+RECHENWEG = ("Die offenen Aufträge laufen ab heute nacheinander, sortiert nach Liefertermin, durch die freien Stunden "
+             "jeder Maschine. Was nicht in eine Woche passt, rutscht in die nächste.")
+
+
 OPT_TEXT = {rechnung.OPT_MASCHINE: "auf {nach} statt {von}", rechnung.OPT_VOR: "vorziehen (läuft als Nächstes)",
             rechnung.OPT_TERMIN: "wieder nach Liefertermin einordnen",
             rechnung.OPT_FOLGE: "direkt hinter gleiches Material stellen ({material})"}
@@ -1995,12 +2069,15 @@ class Hauptfenster(QMainWindow):
         self.statusBar().showMessage(f"Datenbank: {db.pfad}")
         self.wer_zeile = QLabel("")               # Benutzer und Rolle, steht dauerhaft rechts unten
         self.statusBar().addPermanentWidget(self.wer_zeile)
+        self.abgleich_zeile = QLabel("")          # N2: letzter Abgleich mit der Excel-Liste
+        self.statusBar().addPermanentWidget(self.abgleich_zeile)
         self.stand = db.stand()
         self.uhr = QTimer(self)                   # anderer Platz hat gespeichert, oder eine Start/Stopp-Uhr läuft
         self.uhr.timeout.connect(self.takt)
         self.uhr.start(5000)
         self.laden()
         self.uebergabe_pruefen()
+        self.abgleichen()
         if werkstatt or (werkstatt is None and ort.ini_lesen(self.platz).get("werkstatt") == "1"):
             self.werkstatt_an(True)
 
@@ -2033,6 +2110,7 @@ class Hauptfenster(QMainWindow):
         planen, verwalten = self.db.darf("auftraege"), self.db.darf("einstellungen")
         self.k_neu.setEnabled(planen)
         self.a_csv_ein.setEnabled(planen)
+        self.a_einfuegen.setEnabled(planen)
         self.a_papierkorb.setEnabled(planen)
         self.reiter.setTabEnabled(EINSTELLUNGEN, verwalten)
         self.reiter.setTabToolTip(EINSTELLUNGEN, "" if verwalten else "Einstellungen ändert nur die Rolle Verwaltung.")
@@ -2052,6 +2130,42 @@ class Hauptfenster(QMainWindow):
         self.takte = getattr(self, "takte", 0) + 1
         if self.takte % 12 == 0 and not QApplicationModal():       # etwa jede Minute: neue Übergabe im Ordner?
             self.uebergabe_pruefen()
+            self.abgleichen()
+
+    # ------------------------------------------------------------------ Abgleich mit der Excel-Liste (N2)
+    def abgleichen(self, immer=False):
+        """N2 (Plan 2.2): liest die eingestellte Excel-Liste, wenn sie seit dem letzten Mal gespeichert wurde, und
+        übernimmt neue und geänderte Aufträge ohne Rückfrage (vorher Sicherung). Ergebnis: Text für die Statuszeile
+        oder None (kein Abgleich eingestellt, Datei unverändert, keine Rechte)."""
+        pfad = (self.db.einstellung("abgleich_datei") or "").strip()
+        if not pfad or not self.db.darf("auftraege"):
+            self.abgleich_zeile.setText("")
+            return None
+        try:
+            stempel = Path(pfad).stat().st_mtime
+        except OSError:
+            self.abgleich_zeile.setText("Excel-Abgleich: Datei nicht gefunden")
+            return self.abgleich_zeile.text()
+        if not immer and getattr(self, "abgleich_stempel", None) == (pfad, stempel):
+            return None
+        try:
+            ergebnis = austausch.lesen(self.db, pfad)
+        except (OSError, IndexError, ValueError) as e:  # wird vielleicht gerade gespeichert: beim nächsten Mal
+            self.abgleich_zeile.setText(f"Excel-Abgleich: Datei nicht lesbar ({e})")
+            return self.abgleich_zeile.text()
+        self.abgleich_stempel = (pfad, stempel)
+        if ergebnis["neu"] or ergebnis["geaendert"]:
+            self.db.sichern("vor-Abgleich")
+            austausch.uebernehmen(self.db, ergebnis)
+            self.laden()
+        uhr = datetime.datetime.now().strftime("%H:%M")
+        teile = [f"{len(ergebnis['neu'])} neu", f"{len(ergebnis['geaendert'])} geändert"]
+        if ergebnis["fehler"]:
+            teile.append(f"{len(ergebnis['fehler'])} Zeilen mit Fehler")
+        text = f"Excel-Abgleich {uhr}: " + ", ".join(teile)
+        self.abgleich_zeile.setText(text)
+        self.abgleich_zeile.setToolTip(austausch.zusammenfassung(ergebnis))
+        return text
 
     # ------------------------------------------------------------------ Übergabe-Ordner (E9)
     def uebergabe_pruefen(self):
@@ -2133,7 +2247,11 @@ class Hauptfenster(QMainWindow):
         self.a_loesen = menue.addAction("Festen Platz lösen", lambda: self.platz_loesen())
         self.k_reihe.setMenu(menue)
         mehr = QMenu(self.k_mehr)
-        self.a_csv_ein = mehr.addAction("CSV einlesen …", lambda: self.csv_einlesen())
+        self.a_csv_ein = mehr.addAction("Aus Excel oder CSV einlesen …", lambda: self.csv_einlesen())
+        self.a_einfuegen = mehr.addAction("Aus Excel einfügen (Strg+V)", lambda: self.einfuegen())
+        self.a_einfuegen.setShortcut(QKeySequence.Paste)
+        self.a_einfuegen.setShortcutContext(Qt.WindowShortcut)
+        self.addAction(self.a_einfuegen)            # N1: Strg+V gilt im ganzen Fenster, nicht nur im offenen Menü
         mehr.addAction("CSV speichern …", lambda: self.csv_speichern())
         mehr.addSeparator()
         self.a_verlauf = mehr.addAction("Änderungsverlauf …", lambda: self.verlauf())
@@ -2775,15 +2893,31 @@ class Hauptfenster(QMainWindow):
         self.statusBar().showMessage(f"Auftrag {a['nummer']} liegt im Papierkorb (Mehr → Papierkorb, "
                                      f"{D.PAPIERKORB_TAGE} Tage).", 10000)
 
-    def csv_einlesen(self, pfad=None, fragen=True):
+    def einfuegen(self, text=None, fragen=True):
+        """N1 (Plan 2.2): Zeilen aus Excel kopiert (mit der Überschriftenzeile) und mit Strg+V eingefügt."""
+        from PySide6.QtWidgets import QApplication
+        if self.reiter.currentIndex() != 0 and text is None:
+            return None
+        if isinstance(QApplication.focusWidget(), QLineEdit) and text is None:
+            QApplication.focusWidget().paste()    # in einem Eingabefeld bleibt Strg+V normales Einfügen
+            return None
+        text = QApplication.clipboard().text() if text is None else text
+        if not text.strip():
+            self.meldung("In der Zwischenablage ist nichts. In Excel die Zeilen mit der Überschriftenzeile markieren, "
+                         "Strg+C, dann hier Strg+V.")
+            return None
+        return self.csv_einlesen(zeilen=austausch.text_zeilen(text), fragen=fragen)
+
+    def csv_einlesen(self, pfad=None, fragen=True, zeilen=None):
         if not self.darf("auftraege"):
             return None
-        if pfad is None:
-            pfad, _ = QFileDialog.getOpenFileName(self, "Aufträge aus CSV einlesen", "", "CSV (*.csv *.txt);;Alle (*)")
+        if pfad is None and zeilen is None:
+            pfad, _ = QFileDialog.getOpenFileName(self, "Aufträge aus Excel oder CSV einlesen", "",
+                                                  "Excel oder CSV (*.xlsx *.xlsm *.csv *.txt);;Alle (*)")
             if not pfad:
                 return None
         try:
-            ergebnis = austausch.lesen(self.db, pfad)
+            ergebnis = austausch.lesen(self.db, pfad, zeilen=zeilen)
         except OSError as e:
             self.meldung(f"Die Datei lässt sich nicht lesen: {e}")
             return None
@@ -2835,6 +2969,9 @@ class Hauptfenster(QMainWindow):
         self.info = QLabel("")
         self.info.setWordWrap(True)
         self.balken = WochenBalken()
+        # L1 (Plan 2.1): kompakt, damit die Plantafel auch bei 1366 x 768 alle Maschinen zeigt
+        self.balken.ZEILE, self.balken.OBEN, self.balken.UNTEN = BALKEN_ZEILE, 28, 30
+        self.balken.setToolTip(BALKEN_LEGENDE)
         self.balken.gewaehlt.connect(self.woche_waehlen)
         self.k_wenn = QPushButton("Was wäre, wenn …")
         self.k_wenn.setToolTip("Probeweise rechnen: Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf "
@@ -2862,16 +2999,14 @@ class Hauptfenster(QMainWindow):
         self.tafel.verschoben.connect(self.tafel_verschoben)
         self.tafel.gewaehlt.connect(self.tafel_gewaehlt)
         self.tafel.oeffnen.connect(lambda i: self.aendern(i))
-        legende = QLabel("Wochenbalken: Rahmen = Kapazität, gefüllt = eingelastete Aufträge (ab 80 % gelb, über 100 % "
-                         "rot), grau links = tatsächliche Stunden aus den Fertigmeldungen.")
-        legende.setWordWrap(True)
-        legende.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         # Plantafel: Ansicht (V2), Farbe (V3), Legende
         self.tafel_rahmen = TafelRahmen(self.tafel)
         self.t_zoom = {}
         tz = QHBoxLayout()
         tz.setSpacing(4)
-        tz.addWidget(QLabel("<b>Plantafel</b>"))
+        t_titel = QLabel("<b>Plantafel</b> ⓘ")
+        t_titel.setToolTip(TAFEL_HINWEIS)
+        tz.addWidget(t_titel)
         tz.addSpacing(8)
         for name, tage in TAFEL_ZOOM:
             k = QPushButton(name)
@@ -2893,7 +3028,7 @@ class Hauptfenster(QMainWindow):
         self.t_suche = QLineEdit()
         self.t_suche.setPlaceholderText("Suchen: Auftrag oder Kunde")
         self.t_suche.setClearButtonEnabled(True)
-        self.t_suche.setMinimumWidth(170)
+        self.t_suche.setMinimumWidth(140)
         self.t_suche.setMaximumWidth(220)
         self.t_suche.setToolTip("Zeigt den Auftrag in der Plantafel und springt zu seinem Beginn. Eingabetaste: "
                                 "nächster Treffer.")
@@ -2905,29 +3040,28 @@ class Hauptfenster(QMainWindow):
         self.k_vollbild.setToolTip("Plantafel über den ganzen Bildschirm, z. B. für den Bildschirm in der Halle. "
                                    "Esc schließt.")
         self.k_vollbild.clicked.connect(lambda _=False: self.tafel_vollbild())
-        tz.addWidget(self.k_vollbild)
-        tz.addSpacing(12)
-        tz.addWidget(QLabel("Farbe nach"))
+        tz.addStretch(1)
+        tz2 = QHBoxLayout()                       # L3: zweite Zeile, damit bei 1366 Pixel nichts abgeschnitten ist
+        tz2.setSpacing(4)
+        tz2.addWidget(self.k_vollbild)
+        tz2.addSpacing(12)
+        tz2.addWidget(QLabel("Farbe nach"))
         self.t_farbe = QComboBox()
         self.t_farbe.addItems(TAFEL_FARBE)
         self.t_farbe.currentTextChanged.connect(self.tafel_farbe)
-        tz.addWidget(self.t_farbe)
-        tz.addSpacing(12)
+        tz2.addWidget(self.t_farbe)
+        tz2.addSpacing(12)
         self.t_legende = QLabel("")
         self.t_legende.setTextFormat(Qt.RichText)
-        tz.addWidget(self.t_legende, 1)
-        self.t_hinweis = QLabel("▶ läuft · ❚❚ gestoppt · schraffiert = wartet auf Material · weißer Punkt = fester Platz "
-                                "· Dreieck = Liefertermin, gestrichelt = Verspätung · Streifen oben = Auslastung des "
-                                "Tages. Ziehen mit der Maus legt einen Auftrag fest, Doppelklick öffnet ihn.")
-        self.t_hinweis.setWordWrap(True)
-        self.t_hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        self.t_legende.setWordWrap(True)
+        tz2.addWidget(self.t_legende, 1)
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(self.balken)
-        ll.addWidget(legende)
-        ll.addSpacing(6)
+        ll.addSpacing(4)
         ll.addLayout(tz)
+        ll.addLayout(tz2)
         ll.addWidget(self.tafel_rahmen)
         self.t_ist = QLabel("")                   # V3: Tatsächliches von heute, nur in der Tagesansicht
         self.t_ist.setWordWrap(True)
@@ -2935,7 +3069,6 @@ class Hauptfenster(QMainWindow):
         self.t_ist.hide()
         self.vollbild = None
         ll.addWidget(self.t_ist)
-        ll.addWidget(self.t_hinweis)
         ll.addStretch(1)
         ini = ort.ini_lesen(self.platz)
         self.t_farbe.setCurrentText(ini.get("tafel_farbe") if ini.get("tafel_farbe") in TAFEL_FARBE else TAFEL_FARBE[0])
@@ -2972,6 +3105,17 @@ class Hauptfenster(QMainWindow):
         teiler = QSplitter(Qt.Horizontal)
         teiler.addWidget(rollen)
         teiler.addWidget(rechts)
+        self.rechts = rechts
+        self.k_liste = QPushButton("Liste rechts")
+        self.k_liste.setCheckable(True)
+        self.k_liste.setToolTip("Blendet die Liste rechts (Terminrisiko, Aufträge der gewählten Woche) ein oder aus. "
+                                "Ausgeblendet hat die Plantafel die volle Breite. Der Platz merkt sich die Wahl.")
+        self.k_liste.toggled.connect(lambda an: self.liste_rechts(an))
+        self.k_balken = QPushButton("Wochenbalken")
+        self.k_balken.setCheckable(True)
+        self.k_balken.setToolTip("Blendet die Wochenbalken ein oder aus. Ausgeblendet hat die Plantafel die ganze "
+                                 "Höhe. Der Platz merkt sich die Wahl.")
+        self.k_balken.toggled.connect(lambda an: self.balken_zeigen(an))
         teiler.setStretchFactor(0, 3)
         teiler.setStretchFactor(1, 2)
         teiler.setSizes([800, 560])
@@ -2983,6 +3127,8 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(self.k_optimieren)
         oben.addWidget(self.k_rueck)
         oben.addStretch(1)
+        oben.addWidget(self.k_balken)
+        oben.addWidget(self.k_liste)
         oben.addWidget(self.k_arbeitsliste)
         oben.addWidget(self.k_pdf)
         lay = QVBoxLayout(w)
@@ -2990,7 +3136,31 @@ class Hauptfenster(QMainWindow):
         lay.addWidget(self.info)
         lay.addWidget(self.zug_zeile)
         lay.addWidget(teiler, 1)
+        ini = ort.ini_lesen(self.platz)
+        self.k_liste.setChecked(ini.get("liste_rechts") != "0")
+        self.liste_rechts(self.k_liste.isChecked(), merken=False)
+        self.k_balken.setChecked(ini.get("wochenbalken") != "0")
+        self.balken_zeigen(self.k_balken.isChecked(), merken=False)
+        self.info.setToolTip(RECHENWEG)
         return w
+
+    def balken_zeigen(self, an, merken=True):
+        """L1 (Plan 2.1): Wochenbalken ein- oder ausblenden; der Platz merkt es sich."""
+        self.balken.setVisible(an)
+        self.k_balken.setText("Wochenbalken ausblenden" if an else "Wochenbalken zeigen")
+        if self.k_balken.isChecked() != an:
+            self.k_balken.setChecked(an)
+        if merken:
+            self._platz_merken("wochenbalken", None if an else "0")
+
+    def liste_rechts(self, an, merken=True):
+        """L2 (Plan 2.1): Liste rechts ein- oder ausblenden; der Platz merkt es sich."""
+        self.rechts.setVisible(an)
+        self.k_liste.setText("Liste rechts ausblenden" if an else "Liste rechts zeigen")
+        if self.k_liste.isChecked() != an:
+            self.k_liste.setChecked(an)
+        if merken:
+            self._platz_merken("liste_rechts", None if an else "0")
 
     def tafel_zoom(self, name, merken=True):
         """Ansicht der Plantafel (V2): so viele Tage sind sichtbar, der Rest wird gerollt; der Platz merkt es sich."""
@@ -3322,12 +3492,12 @@ class Hauptfenster(QMainWindow):
         if self.vollbild is not None and self.vollbild.isVisible():
             self._vollbild_fuellen()
         r = self.ein["risiko"]
-        text = ("Die offenen Aufträge laufen ab heute nacheinander, sortiert nach Liefertermin, durch die freien "
-                "Stunden jeder Maschine. Was nicht in eine Woche passt, rutscht in die nächste.")
+        text = ""                                 # L4: der Rechenweg steht im Tooltip und in der Hilfe
         if r[einlastung.UEBER] or r[einlastung.KNAPP]:
-            text += (f" <b style='color:{stil.umsetzen(stil.ROT)}'>Terminrisiko: {r[einlastung.UEBER]} nicht zu "
-                     f"halten, {r[einlastung.KNAPP]} knapp.</b>")
+            text = (f"<b style='color:{stil.umsetzen(stil.ROT)}'>Terminrisiko: {r[einlastung.UEBER]} nicht zu "
+                    f"halten, {r[einlastung.KNAPP]} knapp.</b>")
         self.info.setText(text)
+        self.info.setVisible(bool(text))
         self.details_zeigen()
 
     def tag_pdf(self, pfad=None, tag=None):
@@ -3473,7 +3643,6 @@ class Hauptfenster(QMainWindow):
         self.si_maschinen = QTableWidget()
         self.si_liste = QTableWidget()
         self.si_stopps = QTableWidget()           # Unterbrechungen nach Grund (E6)
-        self.si_stopps.setMaximumHeight(250)
         self.si_stopps_info = QLabel("")
         self.si_stopps_info.setWordWrap(True)
         self.si_stopps_info.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
@@ -3482,18 +3651,20 @@ class Hauptfenster(QMainWindow):
             t.setSelectionBehavior(QAbstractItemView.SelectRows)
             t.setAlternatingRowColors(True)
         self.si_liste.setSortingEnabled(True)
-        self.si_maschinen.setMaximumHeight(250)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
         lay.addWidget(self.si_info)
-        links, rechts = QVBoxLayout(), QVBoxLayout()
+        links, self.si_rechts = QVBoxLayout(), QWidget()     # L5: Unterbrechungen nur, wenn es welche gibt
+        rechts = QVBoxLayout(self.si_rechts)
+        rechts.setContentsMargins(0, 0, 0, 0)
         links.addWidget(QLabel("<b>Je Maschine</b>"))
         links.addWidget(self.si_maschinen)
+        links.addStretch(1)
         rechts.addWidget(QLabel("<b>Unterbrechungen nach Grund</b>"))
         rechts.addWidget(self.si_stopps)
         beide = QHBoxLayout()
         beide.addLayout(links, 1)
-        beide.addLayout(rechts, 1)
+        beide.addWidget(self.si_rechts, 1)
         lay.addLayout(beide)
         lay.addWidget(self.si_stopps_info)
         lay.addWidget(QLabel("<b>Je Auftrag</b>"))
@@ -3513,7 +3684,7 @@ class Hauptfenster(QMainWindow):
         oben.addStretch(1)
         self.kz_kacheln = {}
         kacheln = QHBoxLayout()
-        for key, titel in (("treue", "Termintreue"), ("spaet", "Verspätete Aufträge"),
+        for key, titel in (("treue", "Termintreue der fertigen Aufträge"), ("spaet", "Zu spät: überfällig oder laut Plan"),
                            ("kalk", "Kalkulation"), ("last", "Auslastung nächste 4 Wochen")):
             rahmen = QFrame()
             rahmen.setObjectName("kz_kachel")
@@ -3540,7 +3711,7 @@ class Hauptfenster(QMainWindow):
         links, rechts = QVBoxLayout(), QVBoxLayout()
         links.addWidget(QLabel("<b>Auslastung je Maschine</b>"))
         links.addWidget(self.kz_maschinen, 1)
-        rechts.addWidget(QLabel("<b>Verspätete Aufträge</b> (Doppelklick zeigt den Auftrag)"))
+        rechts.addWidget(QLabel("<b>Zu späte Aufträge</b> (überfällig oder laut Plan; Doppelklick zeigt den Auftrag)"))
         rechts.addWidget(self.kz_spaet, 1)
         unten = QHBoxLayout()
         unten.addLayout(links, 2)
@@ -3704,6 +3875,10 @@ class Hauptfenster(QMainWindow):
                 for c, t in enumerate(z):
                     tabelle.setItem(r, c, _zelle(t, c in rechts))
             tabelle.resizeColumnsToContents()
+        self.si_rechts.setVisible(bool(z3))
+        for t in (self.si_maschinen, self.si_stopps):     # L5: Tabellen nur so hoch wie ihr Inhalt
+            t.setFixedHeight(min(250, t.horizontalHeader().sizeHint().height() + 4
+                                 + sum(t.rowHeight(r) for r in range(t.rowCount()))))
         for r, a in enumerate(si["zeilen"]):           # sortieren nach Wert, Abweichung ab 10 % farbig
             for c, wert in ((3, a["liefertermin"] or ""), (4, a["fertig_am"] or ""), (5, a["kalk_min"]),
                             (6, a["ist_min"] or 0), (7, a["diff_min"] or 0)):
@@ -4032,6 +4207,27 @@ class Hauptfenster(QMainWindow):
         z9.addWidget(self.k_ordner)
         l9.addLayout(z9)
         l9.addWidget(ordner_text)
+        # N2 (Plan 2.2): eine feste Excel-Liste wird automatisch abgeglichen
+        self.e_abgleich = QLineEdit()
+        self.e_abgleich.setPlaceholderText("keine Datei: kein automatischer Abgleich")
+        self.e_abgleich.setClearButtonEnabled(True)
+        self.e_abgleich.editingFinished.connect(self.einstellungen_speichern)
+        self.k_abgleich = QPushButton("Datei wählen …")
+        self.k_abgleich.clicked.connect(lambda _=False: self.abgleich_datei_waehlen())
+        abgleich_text = QLabel(
+            "Eure Auftragsliste in Excel (oder CSV), z. B. im gemeinsamen Ordner. Sobald sie gespeichert ist, "
+            "übernimmt das Programm neue und geänderte Aufträge ohne Rückfrage (Prüfung jede Minute, Sicherung "
+            "der Datenbank vorher). Was in der Datei fehlt, bleibt im Programm. Die Statuszeile unten zeigt den "
+            "letzten Abgleich.")
+        abgleich_text.setWordWrap(True)
+        abgleich_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        g10 = QGroupBox("Abgleich mit eurer Excel-Liste")
+        l10 = QVBoxLayout(g10)
+        z10 = QHBoxLayout()
+        z10.addWidget(self.e_abgleich, 1)
+        z10.addWidget(self.k_abgleich)
+        l10.addLayout(z10)
+        l10.addWidget(abgleich_text)
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
         self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
@@ -4042,19 +4238,22 @@ class Hauptfenster(QMainWindow):
         self.e_ruhe.editingFinished.connect(self.einstellungen_speichern)
         hinweis = QLabel("Jede Änderung gilt sofort.")
         hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
-        innen = QWidget()
-        lay = QVBoxLayout(innen)
-        lay.addWidget(hinweis)
-        for g in (g1, g_s, g2, g7, g8, g9, g3, g4, g6, g5):
-            lay.addWidget(g)
-        lay.addStretch(1)
-        rollen = QScrollArea()
-        rollen.setWidgetResizable(True)
-        rollen.setFrameShape(QFrame.NoFrame)
-        rollen.setWidget(innen)
+        # L7 (Plan 2.1): Unterreiter statt einer langen Seite
+        self.e_reiter = QTabWidget()
+        for titel, gruppen in EINSTELLUNG_REITER:
+            innen = QWidget()
+            lay = QVBoxLayout(innen)
+            for g in gruppen(g1, g_s, g2, g3, g4, g5, g6, g7, g8, g9, g10):
+                lay.addWidget(g)
+            lay.addStretch(1)
+            rollen = QScrollArea()
+            rollen.setWidgetResizable(True)
+            rollen.setFrameShape(QFrame.NoFrame)
+            rollen.setWidget(innen)
+            self.e_reiter.addTab(rollen, titel)
         aussen = QVBoxLayout(w)
-        aussen.setContentsMargins(0, 0, 0, 0)
-        aussen.addWidget(rollen)
+        aussen.addWidget(hinweis)
+        aussen.addWidget(self.e_reiter, 1)
         return w
 
     def einstellungen_zeigen(self):
@@ -4094,6 +4293,8 @@ class Hauptfenster(QMainWindow):
                 f"Länge bis {D.mm_text(m['max_laenge'])} mm" if m.get("max_laenge") else "") if x)))
         gaenge_an = self.db.mit_gaengen()
         self.e_maschinen.setColumnHidden(4, not gaenge_an)
+        for c in (6, 7):                          # L7: Rüstzeit und größtes Rohr nur, wenn eine Maschine sie hat
+            self.e_maschinen.setColumnHidden(c, not any(self.e_maschinen.item(r, c).text() for r in range(len(ms))))
         self.e_maschinen.setHorizontalHeaderItem(0, QTableWidgetItem("Maschine / Arbeitsplatz" if gaenge_an
                                                                      else "Maschine"))
         self.g_maschinen.setTitle("Maschinen und Arbeitsplätze" if gaenge_an else "Maschinen")
@@ -4110,6 +4311,7 @@ class Hauptfenster(QMainWindow):
             w.setVisible(gaenge_an)
         self.e_maschinen.resizeColumnsToContents()
         self.e_ordner.setText(self.db.einstellung("uebergabe_ordner") or "")
+        self.e_abgleich.setText(self.db.einstellung("abgleich_datei") or "")
         self.e_stopp.setChecked(self.db.einstellung("stopp_fragen") == "1")
         self.e_gruende.setText("; ".join(self.db.stoppgruende()))
         self.e_samstag.setValue(self.db.zahl("samstag_stunden"))
@@ -4279,6 +4481,7 @@ class Hauptfenster(QMainWindow):
                      ("laufzeit_form", self.e_form.currentData()), ("ohne_einheit", self.e_ohne.currentData()),
                      ("design", self.e_design.currentText()),
                      ("uebergabe_ordner", self.e_ordner.text().strip()),
+                     ("abgleich_datei", self.e_abgleich.text().strip()),
                      ("stopp_fragen", "1" if self.e_stopp.isChecked() else "0"),
                      ("stoppgruende", "; ".join(g.strip() for g in self.e_gruende.text().split(";") if g.strip()))):
             self.db.einstellung_setzen(k, v)
@@ -4289,6 +4492,17 @@ class Hauptfenster(QMainWindow):
         self.aus, self.ein = rechnung.einlasten(self.db, self.heute(), self.wochen.value())
         self.gem = rechnung.gemessen(self.db, self.aus, self.heute())
         self.stand = self.db.stand()
+
+    def abgleich_datei_waehlen(self, pfad=None):
+        if pfad is None:
+            pfad, _ = QFileDialog.getOpenFileName(self, "Excel-Liste für den automatischen Abgleich",
+                                                  self.e_abgleich.text(),
+                                                  "Excel oder CSV (*.xlsx *.xlsm *.csv *.txt);;Alle (*)")
+            if not pfad:
+                return
+        self.e_abgleich.setText(str(pfad))
+        self.einstellungen_speichern()
+        self.abgleichen()
 
     def uebergabe_ordner_waehlen(self, pfad=None):
         if pfad is None:
@@ -4306,7 +4520,8 @@ class Hauptfenster(QMainWindow):
 
     def maschine_bearbeiten(self, neu=False, werte=None):
         """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage[, Übergangszeit[, Ausweichmaschine[, Schichten[,
-        Beginn des Wechsels[, Samstagsschichten[, Rüstzeit in Minuten[, größter Durchmesser[, größte Rohrlänge]]]]]]]]])
+        Beginn des Wechsels[, Samstagsschichten[, Rüstzeit in Minuten[, größter Durchmesser[, größte Rohrlänge[,
+        Erfahrungswert]]]]]]]]]])
         überspringt den Dialog (Tests)."""
         m = None if neu else self._maschine_gewaehlt()
         if not neu and m is None:
@@ -4442,6 +4657,20 @@ class Hauptfenster(QMainWindow):
             z_rohr.addWidget(max_l)
             z_rohr.addStretch(1)
             form.addRow("Größtes Rohr", z_rohr)
+            # N3 (Plan 2.2): Erfahrungswert aus Soll und Ist
+            erf = QCheckBox("Mit Erfahrungswert planen")
+            erf.setChecked(bool(m.get("erfahrung")) if m else False)
+            wert = rechnung.erfahrung(self.db, self.heute(), alle=True).get(m["name"]) if m else None
+            erf_text = QLabel(
+                f"Aufträge liefen hier zuletzt {abs(wert[0] - 1) * 100:.0f} % {'länger' if wert[0] >= 1 else 'kürzer'} "
+                f"als kalkuliert ({wert[1]} fertige Aufträge im letzten Jahr). Eingeschaltet plant das Programm "
+                "die kalkulierte Zeit um so viel länger bzw. kürzer." if wert else
+                f"Braucht mindestens {rechnung.ERFAHRUNG_MIN} fertige Aufträge auf dieser Maschine im letzten Jahr; "
+                "bis dahin plant das Programm mit der kalkulierten Zeit.")
+            erf_text.setWordWrap(True)
+            erf_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+            form.addRow("Erfahrungswert", erf)
+            form.addRow("", erf_text)
             kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
             kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
             kn.accepted.connect(d.accept)
@@ -4455,7 +4684,7 @@ class Hauptfenster(QMainWindow):
                      if len(wochen_k) and wechsel.value() > 1 else
                      [x["name"] for k, x in (wochen_k[0] if wochen_k else []) if k.isChecked()],
                      beginn.date().toPython(), [x["name"] for k, x in sa_k if k.isChecked()],
-                     ruest.value(), max_d.value(), max_l.value())
+                     ruest.value(), max_d.value(), max_l.value(), erf.isChecked())
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
@@ -4466,7 +4695,8 @@ class Hauptfenster(QMainWindow):
                                        samstag=werte[8] if len(werte) > 8 else None,
                                        ruest=werte[9] if len(werte) > 9 else None,
                                        max_durchmesser=werte[10] if len(werte) > 10 else None,
-                                       max_laenge=werte[11] if len(werte) > 11 else None)
+                                       max_laenge=werte[11] if len(werte) > 11 else None,
+                                       erfahrung=werte[12] if len(werte) > 12 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False

@@ -2288,6 +2288,196 @@ f13b.updater.suchen()                                                           
 assert "nur für das Programm aus dem ZIP" in f13b.statusBar().currentMessage()
 f13b.db.schliessen()
 ok("R13 Fehler beim Austauschen stellt alles zurück; ohne Programmordner gibt es kein Update")
+# ---------------------------------------------------------------- R27 Layout 2.1 (Plan L1-L7, Patrick 11.11.2026)
+from PySide6.QtWidgets import QAbstractButton, QLabel, QScrollArea  # noqa: E402
+
+t27 = Path(tempfile.mkdtemp())
+db27 = daten.Daten(t27 / "a.db")
+assert [m["name"] for m in db27.maschinen()] == ["LT7", "T03", "T11"]
+for i27 in range(9):
+    db27.auftrag_speichern(dict(nummer=f"L-{i27}", kunde=f"Kunde {i27}", maschine=("LT7", "T03", "T11")[i27 % 3],
+                                kalk_min=600 + 60 * i27, liefertermin=HEUTE + datetime.timedelta(days=3 + i27)))
+fertig27 = db27.auftrag_speichern(dict(nummer="L-F", maschine="LT7", kalk_min=300, liefertermin=HEUTE))
+db27.fertig_melden(fertig27, 320, HEUTE - datetime.timedelta(days=1))
+
+
+def abgeschnitten27(f):
+    """Knöpfe der sichtbaren Seite, die nicht ganz zu sehen oder zusammengedrückt sind."""
+    schlecht = []
+    for k in f.reiter.currentWidget().findChildren(QAbstractButton):
+        if not k.isVisibleTo(f) or not k.text():
+            continue
+        rahmen, w = None, k.parentWidget()        # in einem rollbaren Bereich zählt nur die Breite
+        while w is not None and rahmen is None:
+            rahmen, w = (w if isinstance(w, QScrollArea) else None), w.parentWidget()
+        if rahmen is not None:
+            x = k.mapTo(rahmen.viewport(), k.rect().topLeft()).x()
+            weg = x < 0 or x + k.width() > rahmen.viewport().width() + 1
+        else:
+            weg = k.visibleRegion().boundingRect().width() < k.width() - 1
+        if weg or k.width() < k.minimumSizeHint().width() - 2:
+            schlecht.append(k.text())
+    return schlecht
+
+
+f27 = Hauptfenster(db27, heute=HEUTE, platz=t27)
+for groesse27 in ((1366, 728), (1920, 1000)):
+    f27.resize(*groesse27)
+    f27.show()
+    for i in range(f27.reiter.count() - 1):                                        # Hilfe hat nur Text
+        f27.reiter.setCurrentIndex(i)
+        app.processEvents()
+        assert not abgeschnitten27(f27), (groesse27, f27.reiter.tabText(i), abgeschnitten27(f27))
+# L1: Wochenbalken kompakt, ausblendbar und gemerkt; L2: Liste rechts ausblendbar und gemerkt
+f27.resize(1366, 728)
+f27.reiter.setCurrentIndex(1)
+app.processEvents()
+assert f27.balken.ZEILE == F.BALKEN_ZEILE < 122 and f27.k_balken.isChecked() and f27.k_liste.isChecked()
+assert f27.tafel_rahmen.mapTo(f27, f27.tafel_rahmen.rect().topLeft()).y() + f27.tafel.KOPF + 2 * f27.tafel.ZEILE \
+    < f27.height() - 30                                                           # die dritte Maschine beginnt sichtbar
+f27.k_balken.click()
+f27.k_liste.click()
+app.processEvents()
+assert not f27.balken.isVisible() and not f27.rechts.isVisible()
+assert ort.ini_lesen(t27).get("wochenbalken") == "0" and ort.ini_lesen(t27).get("liste_rechts") == "0"
+f27b = Hauptfenster(db27, heute=HEUTE, platz=t27)
+assert not f27b.k_balken.isChecked() and not f27b.k_liste.isChecked()
+f27b.k_balken.click()
+f27b.k_liste.click()
+assert ort.ini_lesen(t27).get("wochenbalken") is None and ort.ini_lesen(t27).get("liste_rechts") is None
+f27b.close()
+# L4: Rechenweg im Tooltip, im Bild nur das Terminrisiko
+assert "nacheinander" in f27.info.toolTip() and "nacheinander" not in f27.info.text()
+# L5: ohne Stopps keine leere Tabelle der Unterbrechungen
+f27.reiter.setCurrentIndex(2)
+app.processEvents()
+assert not f27.si_rechts.isVisible() and "kein Stopp" in f27.si_stopps_info.text()
+# L6: klare Kacheln; L7: Einstellungen in Unterreitern, ungenutzte Spalten aus
+assert "fertigen" in f27.kz_kacheln["treue"][0].parentWidget().findChildren(QLabel)[0].text()
+f27.reiter.setCurrentIndex(F.EINSTELLUNGEN)
+app.processEvents()
+assert [f27.e_reiter.tabText(i) for i in range(f27.e_reiter.count())] == [t for t, _g in F.EINSTELLUNG_REITER]
+assert f27.e_maschinen.isColumnHidden(6) and f27.e_maschinen.isColumnHidden(7)
+db27.maschine_speichern("T03", 8, alt="T03", ruest=20)
+f27.einstellungen_zeigen()
+assert not f27.e_maschinen.isColumnHidden(6) and f27.e_maschinen.isColumnHidden(7)
+# N4 (Plan 2.2): neuer Auftrag zeigt gleich, wann er frühestens fertig wäre; Ändern zeigt es nicht
+d27 = F.AuftragDialog(db27)
+assert "Laufzeit" in d27.frueh.text() and not d27.k_frueh.isVisibleTo(d27)
+d27.maschine.setCurrentText("T03")
+d27.kalk.eingabe.setText("10 h")
+d27.frueh_zeigen()
+auskunft27 = {x["maschine"]: x for x in rechnung.auskunft(db27, 600, HEUTE)}
+assert d27.frueh.text().startswith("<b>T03: fertig") and d27.k_frueh.isVisibleTo(d27)
+d27.maschine.setCurrentText("LT7")
+assert d27.frueh.text().startswith("<b>LT7: fertig")
+d27.k_frueh.click()
+x27 = next(x for x in d27.frueh_liste if x["maschine"] == "LT7")
+assert d27.mit_termin.isChecked() and d27.termin.date().toPython() == x27["lieferbar"]
+d27.kalk.eingabe.setText("")
+d27.frueh_zeigen()
+assert "Laufzeit" in d27.frueh.text() and not d27.k_frueh.isVisibleTo(d27)
+d27.reject()
+d27b = F.AuftragDialog(db27, db27.auftrag(nummer="L-1"))
+assert d27b.form.indexOf(d27b.frueh) < 0 and not d27b.frueh.text()
+d27b.reject()
+# N3 (Plan 2.2): Erfahrungswert je Maschine aus Soll und Ist, erst ab 5 fertigen Aufträgen, nur mit Schalter
+assert daten.SCHEMA >= 12 and rechnung.erfahrung(db27, HEUTE) == {}
+for i27 in range(4):
+    j27 = db27.auftrag_speichern(dict(nummer=f"E-{i27}", maschine="T11", kalk_min=100))
+    db27.fertig_melden(j27, 120, HEUTE - datetime.timedelta(days=10 + i27))
+assert "T11" not in rechnung.erfahrung(db27, HEUTE, alle=True)                          # erst 4 Aufträge
+j27 = db27.auftrag_speichern(dict(nummer="E-4", maschine="T11", kalk_min=100))
+db27.fertig_melden(j27, 120, HEUTE - datetime.timedelta(days=400))                       # zu alt
+assert "T11" not in rechnung.erfahrung(db27, HEUTE, alle=True)
+db27.fertig_melden(db27.auftrag_speichern(dict(nummer="E-5", maschine="T11", kalk_min=100)), 120, HEUTE)
+assert rechnung.erfahrung(db27, HEUTE, alle=True)["T11"] == (1.2, 5) and rechnung.erfahrung(db27, HEUTE) == {}
+vorher27 = {a["nummer"]: a["h"] for a in rechnung.einlasten(db27, HEUTE)[1]["auftraege"]}
+db27.maschine_speichern("T11", 8, alt="T11", erfahrung=True)
+assert db27.maschinen()[2]["erfahrung"] == 1 and rechnung.erfahrung(db27, HEUTE) == {"T11": (1.2, 5)}
+nachher27 = {a["nummer"]: a["h"] for a in rechnung.einlasten(db27, HEUTE)[1]["auftraege"]}
+assert abs(nachher27["L-2"] - vorher27["L-2"] * 1.2) < 0.02 and nachher27["L-0"] == vorher27["L-0"]   # T11 / LT7
+db27.maschine_speichern("T11", 8, alt="T11", erfahrung=False)
+assert {a["nummer"]: a["h"] for a in rechnung.einlasten(db27, HEUTE)[1]["auftraege"]} == vorher27
+f27.close()
+ok("R27 Layout 2.1: bei 1366 und 1920 Pixel kein Knopf abgeschnitten; Wochenbalken kompakt, Balken und Liste "
+   "ausblendbar und gemerkt; Rechenweg im Tooltip; Soll und Ist ohne leere Tabelle; Einstellungen in Unterreitern; "
+   "neuer Auftrag zeigt den frühesten Termin; Erfahrungswert je Maschine")
+# R28 (Plan 2.2 N1/N2): Excel-Datei (.xlsx) lesen, Strg+V aus Excel, Excel-Liste automatisch abgleichen
+import time as _time28  # noqa: E402
+import zipfile as _zip28  # noqa: E402
+
+from PySide6.QtGui import QKeySequence  # noqa: E402
+
+
+def _xlsx28(pfad, zeilen):
+    """Kleine Excel-Datei wie aus Excel: Texte geteilt, Datum (Format 14) und Dauer [h]:mm (eigenes Format)."""
+    geteilt, xml = [], []
+    for r, zeile in enumerate(zeilen, 1):
+        zellen = []
+        for c, wert in enumerate(zeile):
+            ref = f"{chr(65 + c)}{r}"
+            if isinstance(wert, tuple):              # (Zahl, Stil)
+                zellen.append(f'<c r="{ref}" s="{wert[1]}"><v>{wert[0]}</v></c>')
+            else:
+                geteilt.append(wert)
+                zellen.append(f'<c r="{ref}" t="s"><v>{len(geteilt) - 1}</v></c>')
+        xml.append(f'<row r="{r}">{"".join(zellen)}</row>')
+    ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    with _zip28.ZipFile(pfad, "w") as z:
+        z.writestr("xl/sharedStrings.xml", f'<sst {ns}>' + "".join(f"<si><t>{t}</t></si>" for t in geteilt) + "</sst>")
+        z.writestr("xl/styles.xml", f'<styleSheet {ns}><numFmts><numFmt numFmtId="170" formatCode="[h]:mm"/></numFmts>'
+                   '<cellXfs><xf numFmtId="0"/><xf numFmtId="14"/><xf numFmtId="170"/></cellXfs></styleSheet>')
+        z.writestr("xl/worksheets/sheet1.xml", f'<worksheet {ns}><sheetData>{"".join(xml)}</sheetData></worksheet>')
+
+
+t28 = Path(tempfile.mkdtemp())
+db28 = daten.Daten(t28 / "a.db")
+assert "LT7" in [m["name"] for m in db28.maschinen()]
+termin28 = (HEUTE + datetime.timedelta(days=20) - datetime.date(1899, 12, 30)).days
+x28 = t28 / "Liste.xlsx"
+_xlsx28(x28, [["Auftrag", "Kunde", "Maschine", "Laufzeit", "Liefertermin"],
+              ["X-1", "Müller", "LT7", (2.5 / 24, 2), (termin28, 1)],
+              ["X-2", "Meier", "LT7", "1:30", (termin28, 1)]])
+z28 = austausch.xlsx_zeilen(x28)
+assert z28[1] == ["X-1", "Müller", "LT7", "2:30", (HEUTE + datetime.timedelta(days=20)).strftime("%d.%m.%Y")], z28
+e28 = austausch.lesen(db28, x28)
+assert [a["nummer"] for a in e28["neu"]] == ["X-1", "X-2"] and not e28["fehler"], e28
+assert e28["neu"][0]["kalk_min"] == 150
+kaputt28 = t28 / "kaputt.xlsx"
+kaputt28.write_text("keine Excel-Datei")
+try:
+    austausch.lesen(db28, kaputt28)
+    raise AssertionError("kaputte Datei muss OSError geben")
+except OSError:
+    pass
+f28 = Hauptfenster(db28, heute=HEUTE, platz=t28)
+# Strg+V: Zeilen aus Excel kommen mit Tabulator
+f28.einfuegen("Auftrag\tMaschine\tLaufzeit\nV-1\tLT7\t3:00\n", fragen=False)
+assert any(a["nummer"] == "V-1" and a["kalk_min"] == 180 for a in db28.auftraege()), db28.auftraege()
+assert f28.a_einfuegen.shortcut() == QKeySequence(QKeySequence.Paste)
+# N2: ohne Datei kein Abgleich, mit Datei sofort, unverändert kein zweites Mal, geändert wieder
+assert f28.abgleichen() is None and f28.abgleich_zeile.text() == ""
+f28.abgleich_datei_waehlen(str(x28))
+assert db28.einstellung("abgleich_datei") == str(x28) and f28.e_abgleich.text() == str(x28)
+nummern28 = {a["nummer"] for a in db28.auftraege()}
+assert {"X-1", "X-2", "V-1"} <= nummern28, nummern28
+assert f28.abgleich_zeile.text().startswith("Excel-Abgleich") and "2 neu" in f28.abgleich_zeile.text()
+assert f28.abgleichen() is None                                   # Datei nicht neu gespeichert
+_xlsx28(x28, [["Auftrag", "Kunde", "Maschine", "Laufzeit"],
+              ["X-1", "Müller", "LT7", "4:00"], ["X-3", "Schulz", "LT7", "0:45"]])
+os.utime(x28, (_time28.time() + 5, _time28.time() + 5))
+text28 = f28.abgleichen()
+assert "1 neu" in text28 and "1 geändert" in text28, text28
+a28 = {a["nummer"]: a for a in db28.auftraege()}
+assert a28["X-1"]["kalk_min"] == 240 and "X-3" in a28 and "X-2" in a28    # was fehlt, bleibt
+assert list((t28 / "Sicherung").glob("*vor-Abgleich*"))
+x28.unlink()
+assert "nicht gefunden" in f28.abgleichen()
+f28.close()
+db28.schliessen()
+ok("R28 Excel 2.2: .xlsx mit Datum und Dauer lesen, Strg+V aus Excel, Excel-Liste automatisch abgleichen (nur bei "
+   "neuer Speicherung, Fehlendes bleibt, Hinweis unten)")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

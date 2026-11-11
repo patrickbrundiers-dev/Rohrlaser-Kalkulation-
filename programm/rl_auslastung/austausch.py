@@ -3,11 +3,18 @@ anderen System oder als Übergabedatei aus der Kalkulation – und die Auftragsl
 
 Die erste Zeile nennt die Spalten; Reihenfolge und Schreibweise sind frei (SPALTEN). Trennzeichen Semikolon, Komma
 oder Tabulator. Pflicht sind Auftragsnummer, Maschine und kalkulierte Laufzeit. Die Laufzeit wird in allen
-Schreibweisen von laufzeit.lesen gelesen. Spalten, die wie ein Zusatzfeld heißen, füllen dieses Feld."""
+Schreibweisen von laufzeit.lesen gelesen. Spalten, die wie ein Zusatzfeld heißen, füllen dieses Feld.
+
+Ab 2.2 (Plan N1) auch Excel-Dateien (.xlsx, erstes Blatt, ohne Zusatzpaket: die Datei ist ein ZIP mit XML) und
+Zeilen, die aus Excel kopiert und eingefügt werden (Text mit Tabulatoren)."""
 import csv
+import datetime
 import io
 import json
+import re
+import zipfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 from . import daten as D
 from . import laufzeit
@@ -39,13 +46,120 @@ def _text(pfad):
     return roh.decode("latin-1")
 
 
-def lesen(db, pfad):
-    """Datei prüfen, noch nichts speichern. Ergebnis: dict(neu=[Auftrag], geaendert=[Auftrag mit id], gleich=Anzahl,
-    fehler=[Text], uebersprungen=[Text], maschinen_neu=[Name], spalten_fremd=[Name])."""
-    text = _text(pfad)
+_NS = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+_REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+# eingebaute Zahlenformate von Excel: Datum bzw. Uhrzeit/Dauer
+_DATUM_ID, _ZEIT_ID = {14, 15, 16, 17, 22}, {18, 19, 20, 21, 45, 46, 47}
+
+
+def _art(code):
+    """'datum', 'zeit' oder '' für einen Zahlenformat-Text von Excel."""
+    c = re.sub(r'"[^"]*"|\\.|\[[^\]]*[^hms\]]\]', "", code.lower())   # Text, Escapes, Farben weg; [h] bleibt
+    if "[h" in code.lower() or "[m" in code.lower():
+        return "zeit"
+    if any(z in c for z in ("d", "y", "j", "t")):
+        return "datum"
+    if "h" in c or "s" in c:
+        return "zeit"
+    return ""
+
+
+def _zahl_text(wert, art):
+    """Zahl aus Excel als Text, den lesen() versteht: Datum TT.MM.JJJJ, Dauer h:mm, sonst die Zahl."""
+    if art == "datum":
+        tag = datetime.date(1899, 12, 30) + datetime.timedelta(days=int(float(wert)))
+        return tag.strftime("%d.%m.%Y")
+    if art == "zeit":
+        minuten = round(float(wert) * 24 * 60)
+        return f"{minuten // 60}:{minuten % 60:02d}"
+    z = float(wert)
+    return str(int(z)) if z == int(z) else str(z).replace(".", ",")
+
+
+def xlsx_zeilen(pfad):
+    """Erstes Blatt einer Excel-Datei als Liste von Zeilen (Texte). Datumszellen werden TT.MM.JJJJ, Zeitzellen
+    (Format Uhrzeit oder [h]:mm) h:mm."""
+    with zipfile.ZipFile(pfad) as z:
+        namen = set(z.namelist())
+        geteilt = []
+        if "xl/sharedStrings.xml" in namen:
+            for si in ElementTree.fromstring(z.read("xl/sharedStrings.xml")).findall("x:si", _NS):
+                geteilt.append("".join(t.text or "" for t in si.iter(f"{{{_NS['x']}}}t")))
+        stile = []
+        if "xl/styles.xml" in namen:
+            st = ElementTree.fromstring(z.read("xl/styles.xml"))
+            eigene = {int(f.get("numFmtId")): f.get("formatCode") or ""
+                      for f in st.findall("x:numFmts/x:numFmt", _NS)}
+            for xf in st.findall("x:cellXfs/x:xf", _NS):
+                n = int(xf.get("numFmtId") or 0)
+                stile.append("datum" if n in _DATUM_ID else "zeit" if n in _ZEIT_ID else _art(eigene.get(n, "")))
+        blatt = "xl/worksheets/sheet1.xml"
+        if "xl/workbook.xml" in namen and "xl/_rels/workbook.xml.rels" in namen:   # wirklich das erste Blatt
+            erstes = ElementTree.fromstring(z.read("xl/workbook.xml")).find("x:sheets/x:sheet", _NS)
+            rels = ElementTree.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+            for r in rels:
+                if erstes is not None and r.get("Id") == erstes.get(_REL):
+                    ziel = r.get("Target").lstrip("/")
+                    blatt = ziel if ziel.startswith("xl/") else "xl/" + ziel
+        daten = ElementTree.fromstring(z.read(blatt))
+    zeilen = []
+    for row in daten.iter(f"{{{_NS['x']}}}row"):
+        werte = {}
+        for c in row.findall("x:c", _NS):
+            ref = re.match(r"([A-Z]+)", c.get("r") or "")
+            spalte = 0
+            for b in (ref.group(1) if ref else ""):
+                spalte = spalte * 26 + ord(b) - 64
+            spalte = spalte - 1 if ref else len(werte)
+            typ, v = c.get("t"), c.find("x:v", _NS)
+            if typ == "inlineStr":
+                text = "".join(t.text or "" for t in c.iter(f"{{{_NS['x']}}}t"))
+            elif v is None or v.text is None:
+                text = ""
+            elif typ == "s":
+                text = geteilt[int(v.text)]
+            elif typ in ("str", "e"):
+                text = v.text
+            elif typ == "b":
+                text = "ja" if v.text == "1" else "nein"
+            else:
+                s = int(c.get("s") or 0)
+                text = _zahl_text(v.text, stile[s] if s < len(stile) else "")
+            werte[spalte] = text
+        if werte:
+            n = int(row.get("r") or len(zeilen) + 1) - 1
+            while len(zeilen) < n:                # leere Zeilen dazwischen bleiben leer
+                zeilen.append([])
+            zeilen.append([werte.get(i, "") for i in range(max(werte) + 1)])
+    return zeilen
+
+
+def text_zeilen(text):
+    """Text (CSV-Datei oder aus Excel kopiert) als Zeilen; Trennzeichen Semikolon, Tabulator oder Komma."""
     erste = text.splitlines()[0] if text.strip() else ""
     trenner = max((";", "\t", ","), key=erste.count)
-    zeilen = list(csv.reader(io.StringIO(text), delimiter=trenner))
+    return list(csv.reader(io.StringIO(text), delimiter=trenner))
+
+
+def datei_zeilen(pfad):
+    """Zeilen einer CSV- oder Excel-Datei (.xlsx, .xlsm)."""
+    if Path(pfad).suffix.lower() in (".xlsx", ".xlsm"):
+        try:
+            return xlsx_zeilen(pfad)
+        except (zipfile.BadZipFile, KeyError, ElementTree.ParseError, ValueError) as e:
+            raise OSError(f"keine lesbare Excel-Datei ({e})") from e
+    return text_zeilen(_text(pfad))
+
+
+def lesen(db, pfad=None, zeilen=None):
+    """Datei (CSV oder Excel) oder schon gelesene Zeilen prüfen, noch nichts speichern. Ergebnis: dict(neu=[Auftrag],
+    geaendert=[Auftrag mit id], gleich=Anzahl, fehler=[Text], uebersprungen=[Text], maschinen_neu=[Name],
+    spalten_fremd=[Name])."""
+    if zeilen is None:
+        zeilen = datei_zeilen(pfad)
+    zeilen = [z for z in zeilen]
+    while zeilen and not any(str(c).strip() for c in zeilen[0]):   # Leerzeilen über der Kopfzeile
+        zeilen.pop(0)
     out = dict(neu=[], geaendert=[], gleich=0, fehler=[], uebersprungen=[], maschinen_neu=[], spalten_fremd=[])
     if not zeilen:
         out["fehler"].append("Die Datei ist leer.")
