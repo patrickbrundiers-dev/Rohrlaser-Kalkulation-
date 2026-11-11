@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.291", "<b>Kalkulation genauer</b>: Hat ein Profil keinen eigenen Preis und rechnet deshalb mit einem "
+    ["0.9.290", "<b>Kalkulation genauer</b>: Hat ein Profil keinen eigenen Preis und rechnet deshalb mit einem "
      "Tonnenpreis deutlich unter ähnlichen Profilpreisen, warnt der Angebots-Check (vorher zeigte die Position „OK“: "
      "ein S355-Rohr war 32 € billiger als dasselbe in S235). <b>Erledigen</b> legt den ähnlichen Preis als Profilpreis "
      "an ([[angebots_check]]). Dasselbe Teil in mehreren Positionen wird nur einmal programmiert "

@@ -3883,7 +3883,7 @@ def kapitel_optimieren(i):
          "Programm gibt es schon, Programmierzeit nur für Laden und Prüfen ([[wiederholteile]]); welche Positionen das sind, merkt sich das "
          "Angebot im Feld <i>Wiederholteile mit Programm (für die Programmierzeit)</i>",
          "<i>Programmierzeit Wiederholteil mit Programm [min]</i>, Vorgabe 1, leer = volle Zeit"],
-        ["Gleiches Teil in mehreren Positionen (seit 0.9.291)", "Gleiche Artikel-Nr., gleiches Profil, gleicher "
+        ["Gleiches Teil in mehreren Positionen (seit 0.9.290)", "Gleiche Artikel-Nr., gleiches Profil, gleicher "
          "Werkstoff, gleiche Länge, gleicher Schneidweg, gleiche Einstiche und Konturen (z. B. dasselbe Teil in zwei "
          "Sätzen): programmiert wird einmal, die Zeit wird nach Stückzahl auf die Positionen verteilt. Die Zeile "
          "Programmierung im Reiter Zeiten sagt dann <i>gleiches Teil in N Pos. einmal programmiert</i>. Eine von "
@@ -5464,7 +5464,7 @@ def kapitel_staffeln(i):
            "Materialzuschlag. Hat eine Stufe mehrere Sätze bzw. Positionen, werden sie gemeinsam optimiert; das "
            "Schnittschema gilt dann für die ganze Stufe. Fehlt es (ältere Staffelpreise), bitte "
            "<b>Staffelpreise rechnen</b>.")
-    i.text("Seit 0.9.291 steht das Schnittschema auch im <b>Kalkulations-PDF</b> ([[ausgabe]]), unter den "
+    i.text("Seit 0.9.290 steht das Schnittschema auch im <b>Kalkulations-PDF</b> ([[ausgabe]]), unter den "
            "Staffelpreisen: je Stufe und Abmessung Stangen, Stangenlänge × Anzahl, Meter, Nutzlänge, €/m, "
            "Materialkosten und Ausnutzung. So lässt sich der Materialpreis jeder Stufe auf Papier nachrechnen.")
     i.abschnitt("Kalkulation und Zeiten der Stufe", marke="staffel_kalkulation")
@@ -7041,7 +7041,7 @@ def kapitel_ausgabe(i, seiten, ablage):
             "die aktuellen Preise, mit Rückgängig). Sind es mehrere, erledigt <b>Alles Automatische erledigen (N)</b> "
             "sie nacheinander. Danach zeigt der Check sich neu. Im fremden Angebot und im Lesemodus gibt es die Knöpfe "
             "nicht.",
-            "<b>Preislücke beim Tonnenpreis</b> (seit 0.9.291): Hat ein Profil keinen eigenen Preis (keine Zeile in "
+            "<b>Preislücke beim Tonnenpreis</b> (seit 0.9.290): Hat ein Profil keinen eigenen Preis (keine Zeile in "
             "<i>Preise</i> oder <i>Lieferlängen</i>, kein €/m im Angebot), rechnet das Material mit dem Tonnenpreis "
             "des Werkstoffs. Liegt der mehr als 10 % unter dem Preis je kg eines ähnlichen Profils (gleiche Profilform "
             "und Werkstoff-Kategorie, nächste Abmessung; bei anderem Werkstoff mit dem Verhältnis der Tonnenpreise "
@@ -9580,7 +9580,7 @@ def kapitel_stammdaten(i):
             "<b>Menge je Teil</b>: automatisch (wie in den Zusatzarbeiten: kg, m², m oder 1 Stück), Innen- + "
             "Außenfläche oder die Anzahl Gewinde, Bohrungen bzw. Innenkonturen des Teils. <b>Abrechnung</b>, "
             "<b>Preis je Einheit</b>, <b>Faktor Menge</b>, <b>Mindestbetrag je Teil</b> und <b>Mindestbetrag je "
-            "Angebot</b> (seit 0.9.291, z. B. andere Verzinkerei für Edelstahl mit mind. 80 € je Auftrag): leer = wie "
+            "Angebot</b> (seit 0.9.290, z. B. andere Verzinkerei für Edelstahl mit mind. 80 € je Auftrag): leer = wie "
             "die Zusatzarbeit. <b>Aktiv</b> = nein schaltet die Regel ab, "
             "<b>Bemerkung</b> ist frei.",
             "Neue Dateien und Dateien vor 0.9.161 bekommen Beispielregeln (Feuerverzinken bei „verzinkt“, "
