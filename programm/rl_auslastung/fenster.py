@@ -3082,6 +3082,7 @@ class Hauptfenster(QMainWindow):
         for feld, schluessel in ((self.e_warn_stopp, "warn_stopp_min"), (self.e_warn_material, "warn_material_tage"),
                                  (self.e_prio_tage, "prio_tage")):
             feld.valueChanged.connect(lambda w, s=schluessel: self._warn_speichern(s, w))
+            feld.setMaximumWidth(180)
         form.addRow("Maschine steht länger als", self.e_warn_stopp)
         form.addRow("Material fehlt, Start in höchstens", self.e_warn_material)
         form.addRow("Kundenpriorität verschiebt um", self.e_prio_tage)
@@ -3105,6 +3106,7 @@ class Hauptfenster(QMainWindow):
                                           (self.e_prio_tage, "prio_tage", 3)):
             feld.setValue(int(self.db.zahl(schluessel, vorgabe)))
         kunden = self.db.kunden()
+        self.e_kunden.setRowCount(0)              # alte Auswahlfelder ganz entfernen, sonst bleiben sie stehen
         self.e_kunden.setRowCount(len(kunden))
         self.e_kunden_wahl = {}
         for r, k in enumerate(kunden):
