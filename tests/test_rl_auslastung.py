@@ -2542,6 +2542,35 @@ f29.close()
 db29.schliessen()
 ok("R29 Funktionen 2.3: Material und Rüsten, Material da ab, Teillieferungen, Werkstatt-Ansicht abschaltbar; "
    "Vorgabe aus nur ohne eingetragene Werte; Rechnung ohne Rüstzeit; Daten bleiben")
+# R30 (Plan 2.3 E4): Schnelleingabe in einer Zeile
+t30 = Path(tempfile.mkdtemp())
+db30 = daten.Daten(t30 / "a.db")
+s30 = austausch.schnell_lesen(db30, "A-2701 lt7 3:30 25.11. Schulz Metall", HEUTE)
+assert s30 == dict(nummer="A-2701", kunde="Schulz Metall", maschine="LT7", kalk_min=210,
+                   liefertermin=datetime.date(HEUTE.year if datetime.date(HEUTE.year, 11, 25) >= HEUTE
+                                              else HEUTE.year + 1, 11, 25)), s30
+s30 = austausch.schnell_lesen(db30, "T11 1 h 30 min B-7 3.2.2027", HEUTE)
+assert (s30["nummer"], s30["maschine"], s30["kalk_min"], s30["liefertermin"], s30["kunde"]) == \
+    ("B-7", "T11", 90, datetime.date(2027, 2, 3), "")
+assert austausch.schnell_lesen(db30, "C-1 LT7 1,5h", HEUTE)["kalk_min"] == 90
+for falsch30, fehlt30 in (("A-1 3:30", "Maschine"), ("LT7 3:30", "Auftragsnummer"), ("A-1 LT7", "Laufzeit")):
+    try:
+        austausch.schnell_lesen(db30, falsch30, HEUTE)
+        raise AssertionError(falsch30)
+    except daten.Fehler as e:
+        assert fehlt30 in str(e), (falsch30, e)
+f30 = Hauptfenster(db30, heute=HEUTE, platz=t30)
+f30.schnell.setText("Q-1 LT7 2:00 Becker")
+f30.schnell.returnPressed.emit()
+q30 = db30.auftrag(nummer="Q-1")
+assert q30 and q30["kalk_min"] == 120 and q30["kunde"] == "Becker" and f30.schnell.text() == ""
+assert "Q-1 angelegt" in f30.statusBar().currentMessage()
+assert f30.schnell_anlegen("Q-1 LT7 1:00") is None and "gibt es schon" in f30.statusBar().currentMessage()
+assert f30.schnell_anlegen("Q-2 LT7") is None and "Laufzeit" in f30.statusBar().currentMessage()
+f30.close()
+db30.schliessen()
+ok("R30 Schnelleingabe 2.3: Nummer, Maschine, Laufzeit, Termin, Kunde in beliebiger Reihenfolge; Enter legt an; "
+   "fehlende Angaben und doppelte Nummer werden gemeldet")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

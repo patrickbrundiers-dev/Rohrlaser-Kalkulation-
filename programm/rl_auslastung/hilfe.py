@@ -171,6 +171,11 @@ ABSCHNITTE = (
      "Bemerkung und Zusatzfelder. Bekannte Auftragsnummern werden aktualisiert, fertig gemeldete bleiben "
      "unverändert. Vor dem Übernehmen zeigt das Programm, was neu und was geändert ist. Die Datei aus "
      "<i>Übergabe …</i> der Kalkulation lässt sich genauso einlesen."),
+    ("Schnell anlegen",
+     "Im Reiter <b>Aufträge</b> oben rechts: eine Zeile wie <i>A-2701 LT7 3:30 25.11. Schulz</i> tippen und Enter "
+     "drücken. Das Programm erkennt die Maschine am Namen, die Laufzeit am Doppelpunkt oder an der Einheit "
+     "(3:30, 3 h 30 min, 90 min, 1,5 h) und den Liefertermin am Datum (TT.MM. oder TT.MM.JJJJ); das erste übrige "
+     "Wort ist die Auftragsnummer, der Rest der Kunde. Die Reihenfolge ist egal. Fehlt etwas, steht unten, was."),
     ("Funktionen ein- und ausschalten",
      "Unter <b>Einstellungen → Ansicht und Felder → Funktionen</b> stehen die Zusatzfunktionen mit Häkchen: "
      "<i>Material und Rüsten</i> (Material, Rüstzeit und Rohrmaße, Ziel „Wenig Rüsten“), <i>Material da ab</i>, "

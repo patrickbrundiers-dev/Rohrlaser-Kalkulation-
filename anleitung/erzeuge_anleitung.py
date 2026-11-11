@@ -7756,6 +7756,9 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Schnell anlegen</b> (ab Version 2.3): Im Reiter Aufträge eine Zeile wie „A-2701 LT7 3:30 25.11. "
+            "Kunde“ tippen und Enter drücken; Maschine, Laufzeit, Liefertermin und Auftragsnummer erkennt das "
+            "Programm in beliebiger Reihenfolge.",
             "<b>Funktionen</b> (ab Version 2.3): Unter Einstellungen → Ansicht und Felder lassen sich Material und "
             "Rüsten, Material da ab, Teillieferungen, Arbeitsgänge und die Werkstatt-Ansicht ausschalten. Felder und "
             "Knöpfe verschwinden, geplant wird ohne sie; eingetragene Werte bleiben gespeichert. Wer nur die "

@@ -338,3 +338,64 @@ def gelesen_merken(db, pfad):
     if len(gelesen) > 400:                        # alte Einträge fallen weg
         gelesen = dict(sorted(gelesen.items(), key=lambda x: x[1][0])[-300:])
     db.einstellung_setzen(GELESEN, json.dumps(gelesen))
+
+
+_DATUM_KURZ = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?")
+_ZEIT_ZEICHEN = re.compile(r"\d.*(:|[a-zäöü])|[a-zäöü].*\d", re.I)
+
+
+def schnell_lesen(db, text, heute=None):
+    """E4 (Plan 2.3) Schnelleingabe: eine Zeile wie „A-2701 LT7 3:30 25.11. Schulz“ in beliebiger Reihenfolge.
+    Maschine = ein Name aus den Maschinen, Laufzeit = mit Doppelpunkt oder Einheit (3:30, 3 h 30 min, 90 min, 1,5 h),
+    Liefertermin = TT.MM. oder TT.MM.JJJJ (ohne Jahr: der nächste solche Tag ab heute), Auftragsnummer = das erste
+    übrige Wort, der Rest = Kunde. Ergebnis: dict für Daten.auftrag_speichern; fehlt etwas: D.Fehler."""
+    heute = heute or datetime.date.today()
+    woerter = str(text or "").split()
+    maschinen = {m["name"].casefold(): m["name"] for m in db.maschinen(nur_aktive=True)}
+    maschine = termin = kalk = None
+    rest = []
+    i = 0
+    while i < len(woerter):
+        w = woerter[i]
+        if maschine is None and w.casefold() in maschinen:
+            maschine = maschinen[w.casefold()]
+            i += 1
+            continue
+        d = _DATUM_KURZ.fullmatch(w)
+        if termin is None and d:
+            jahr = d.group(3)
+            try:
+                if jahr:
+                    termin = datetime.date(int(jahr) + (2000 if len(jahr) == 2 else 0), int(d.group(2)),
+                                           int(d.group(1)))
+                else:
+                    termin = datetime.date(heute.year, int(d.group(2)), int(d.group(1)))
+                    if termin < heute:
+                        termin = termin.replace(year=heute.year + 1)
+            except ValueError as e:
+                raise D.Fehler(f"„{w}“ ist kein Datum.") from e
+            i += 1
+            continue
+        if kalk is None and re.search(r"\d", w):
+            gefunden = None
+            for n in range(min(4, len(woerter) - i), 0, -1):     # „1 h 30 min“ besteht aus mehreren Wörtern
+                stueck = " ".join(woerter[i:i + n])
+                if not _ZEIT_ZEICHEN.search(stueck.replace(" ", "")) or _DATUM_KURZ.fullmatch(stueck):
+                    continue
+                try:
+                    gefunden = (laufzeit.lesen(stueck), n)
+                    break
+                except laufzeit.Fehler:
+                    continue
+            if gefunden and gefunden[0]:
+                kalk, n = gefunden
+                i += n
+                continue
+        rest.append(w)
+        i += 1
+    if maschine is None and len(maschinen) == 1:
+        maschine = next(iter(maschinen.values()))
+    fehlt = [was for was, wert in (("Auftragsnummer", rest), ("Maschine", maschine), ("Laufzeit", kalk)) if not wert]
+    if fehlt:
+        raise D.Fehler(f"Es fehlt: {', '.join(fehlt)}. Beispiel: A-2701 LT7 3:30 25.11. Kunde")
+    return dict(nummer=rest[0], kunde=" ".join(rest[1:]), maschine=maschine, kalk_min=kalk, liefertermin=termin)

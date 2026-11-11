@@ -8,6 +8,6 @@ zusätzlich update und update_schluessel."""
 VERSION = "2.3.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Neue Seite Funktionen in den Einstellungen: Material und Rüsten, Material da ab, Teillieferungen, Arbeitsgänge "
+NEU = ("Schnelleingabe: „A-2701 LT7 3:30 25.11. Kunde“ tippen, Enter, Auftrag ist angelegt. Neue Seite Funktionen in den Einstellungen: Material und Rüsten, Material da ab, Teillieferungen, Arbeitsgänge "
        "und Werkstatt-Ansicht lassen sich ausschalten; eingetragene Werte bleiben. Aus 2.2: mehr Platz für die "
        "Plantafel, Excel einlesen und automatisch abgleichen, frühester Liefertermin, Erfahrungswert je Maschine.")

@@ -2283,9 +2283,17 @@ class Hauptfenster(QMainWindow):
                      (self.k_fertig, self.fertig_melden), (self.k_oeffnen, self.wieder_oeffnen),
                      (self.k_loeschen, self.loeschen)):
             k.clicked.connect(lambda _=False, f=f: f())
+        # E4 (Plan 2.3): Schnelleingabe – eine Zeile tippen, Enter, Auftrag ist angelegt
+        self.schnell = QLineEdit()
+        self.schnell.setPlaceholderText("Schnell anlegen: A-2701 LT7 3:30 25.11. Kunde, dann Enter")
+        self.schnell.setToolTip("Auftragsnummer, Maschine, Laufzeit (3:30, 3 h 30 min, 90 min) und nach Wunsch "
+                                "Liefertermin (TT.MM.) und Kunde, in beliebiger Reihenfolge. Enter legt den Auftrag an.")
+        self.schnell.setClearButtonEnabled(True)
+        self.schnell.returnPressed.connect(lambda: self.schnell_anlegen())
         oben = QHBoxLayout()
         oben.addWidget(self.filter)
         oben.addWidget(self.suche, 1)
+        oben.addWidget(self.schnell, 1)
         knoepfe = QHBoxLayout()
         for k in (self.k_neu, self.k_aendern, self.k_uhr, self.k_fertig, self.k_oeffnen, self.k_reihe, self.k_loeschen):
             knoepfe.addWidget(k)
@@ -2929,6 +2937,27 @@ class Hauptfenster(QMainWindow):
                          "Strg+C, dann hier Strg+V.")
             return None
         return self.csv_einlesen(zeilen=austausch.text_zeilen(text), fragen=fragen)
+
+    def schnell_anlegen(self, text=None):
+        """E4: Zeile der Schnelleingabe lesen und den Auftrag anlegen. Ergebnis: Auftrag-ID oder None."""
+        if not self.darf("auftraege"):
+            return None
+        text = self.schnell.text() if text is None else text
+        try:
+            werte = austausch.schnell_lesen(self.db, text, self.heute())
+            if self.db.auftrag(nummer=werte["nummer"]):
+                raise D.Fehler(f"Den Auftrag {werte['nummer']} gibt es schon (Ändern … oder Doppelklick).")
+            neu = self.db.auftrag_speichern(werte)
+        except (D.Fehler, laufzeit.Fehler) as e:
+            self.statusBar().showMessage(str(e), 10000)
+            return None
+        self.schnell.clear()
+        self.laden()
+        self.waehlen(neu)
+        termin = f", Liefertermin {werte['liefertermin'].strftime('%d.%m.%Y')}" if werte["liefertermin"] else ""
+        self.hinweis(f"Auftrag {werte['nummer']} angelegt: {werte['maschine']}, "
+                     f"{laufzeit.text(werte['kalk_min'])}{termin}.")
+        return neu
 
     def csv_einlesen(self, pfad=None, fragen=True, zeilen=None):
         if not self.darf("auftraege"):
