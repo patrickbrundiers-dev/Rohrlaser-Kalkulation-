@@ -1492,7 +1492,40 @@ def _staffel_abschnitt(staffel):
                      rechts=tuple(range(1, 11))),
             Spacer(1, 1.5 * mm),
             _p("Je Stufe ein eigener Mengenlauf (eigener Schnittplan, Rüsten und Fracht der Stufe). Beträge der Stufe "
-               "gesamt, Preis je Einheit wie im Angebot.", ParagraphStyle("sth2", parent=S_KLEIN, textColor=GRAU))]
+               "gesamt, Preis je Einheit wie im Angebot.", ParagraphStyle("sth2", parent=S_KLEIN, textColor=GRAU))] \
+        + _schnittschema_stufen(zeilen)
+
+
+def _schnittschema_stufen(zeilen):
+    """Schnittschema je Mengenstufe (Plan Kalkulation 11.11.2026, B1; wie Reiter Staffeln → „Schnittschema …“): je
+    Stufe und Abmessung Stangen, Teilelängen, Meter, €/m, Materialkosten und Ausnutzung, damit sich der Materialpreis
+    jeder Stufe nachrechnen lässt. Leer, wenn keine Stufe ein gespeichertes Schnittschema hat."""
+    daten = [_kopfzeile(["Stufe", "Menge", "Abmessung", "Stangen", "Stangenlänge [mm] × Anzahl", "Meter [m]",
+                         "Nutzlänge [m]", "€/m", "Material [€]", "Ausnutzung"])]
+    gesehen = set()
+    for z in zeilen:
+        st = z.get("stufe")
+        sch = z.get("schnittschema") or next((x.get("schnittschema") for x in zeilen if st is not None
+                                              and x.get("stufe") == st and x.get("schnittschema")), None)
+        if not sch or (st if st is not None else id(z)) in gesehen:
+            continue
+        gesehen.add(st if st is not None else id(z))
+        for n, a in enumerate(sch.get("abmessungen") or ()):
+            abm = " ".join(str(x) for x in (a.get("profil"), a.get("werkstoff"), a.get("oberflaeche")) if x)
+            laengen = ", ".join(f"{_z(ln, 0)} × {_z(m, 0)}" for ln, m in a.get("laengen") or ())
+            daten.append([_p(z.get("schluessel") or z.get("bezeichnung") or "", S_FETT) if n == 0 else "",
+                          f"{_z(z['menge'], 0)} {z.get('einheit') or ''}".strip() if n == 0 else "",
+                          _p(abm + (" (Kundenmaterial)" if a.get("kunde") else ""), S_KLEIN),
+                          _z(a.get("stangen"), 0), _p(laengen, S_KLEIN), _z(a.get("meter")), _z(a.get("nutz_m")),
+                          _z(a.get("preis_m")), _z(a.get("kosten")),
+                          f"{_z(100 * a['ausnutzung'], 1)} %" if a.get("ausnutzung") is not None else ""])
+    if len(daten) == 1:
+        return []
+    return [Spacer(1, 4 * mm), CondPageBreak(30 * mm), _p("Schnittschema je Mengenstufe", S_H2),
+            _tabelle(daten, [w * mm for w in (32, 18, 65, 16, 46, 18, 20, 16, 22, 20)], rechts=(1, 3, 5, 6, 7, 8, 9)),
+            Spacer(1, 1.5 * mm),
+            _p("Material je Stufe = Meter × €/m (inkl. Verschnitt); Ausnutzung = Nutzlänge ÷ Meter. Je Stufe ein eigener "
+               "Schnittplan wie im Reiter Staffeln → „Schnittschema …“.", ParagraphStyle("sth3", parent=S_KLEIN, textColor=GRAU))]
 
 
 def _zeilen_kalk(zeilen, positionen, summen):

@@ -2463,7 +2463,9 @@ def zusatz_werte(p, k, tabellen, kopf=None):
         out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,
-                        fremd=kz.get("fremd") == "ja", text=e.get("text"), mindest=_n(kz.get("mindest")),
+                        fremd=kz.get("fremd") == "ja", text=e.get("text"),
+                        # A2 (11.11.2026): Mindestbetrag je Angebot der Regel vor dem der Zusatzarbeit
+                        mindest=_n(r["mindest"]) if r and not _leer(r.get("mindest")) else _n(kz.get("mindest")),
                         angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s,
                         auto=bool(e.get("auto")), regel=(r or {}).get("name") or e.get("regel"),
                         quelle=e.get("quelle")))
@@ -2973,7 +2975,7 @@ EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendl
               "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor", "gas_rechnen",
               *(f"gewinn_bis_{i}" for i in range(1, GEWINN_STUFEN)), *(f"gewinn_satz_{i}" for i in range(1, GEWINN_STUFEN + 1)),
               "gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil", "ausschuss_hundert",
-              "sd_interpolieren")
+              "sd_interpolieren", "programmierung_gleich")
 # Seit 02.11.2026 festgeschrieben (Prüfung Kalkulationsbasis 3, 4, 8): ältere Snapshots rechnen ohne (leer = aus)
 EINST_KB = ("gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil")
 # Ausschuss im Hundert (Prüfung Kalkulationsbasis 6): Mehrmenge = Ausschuss ÷ (1 − Ausschuss); festgeschriebene
@@ -3066,7 +3068,9 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    preisregeln=einst.get("preisregeln") or PREISREGELN_NEU,
                                    # ab 02.11.2026 (Prüfung Kalkulationsbasis 2 und 6)
                                    sd_interpolieren=einst.get("sd_interpolieren") or SD_INTERPOLIEREN,
-                                   ausschuss_hundert=einst.get("ausschuss_hundert") or AUSSCHUSS_HUNDERT),
+                                   ausschuss_hundert=einst.get("ausschuss_hundert") or AUSSCHUSS_HUNDERT,
+                                   # ab 11.11.2026 (Plan Kalkulation A3)
+                                   programmierung_gleich=einst.get("programmierung_gleich") or "ja"),
                 profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
 
@@ -3138,7 +3142,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
     if "zuschnitt_kosten" not in fest:
         e["zuschnitt_kosten"] = 0.0
     # festgeschrieben vor dem 02.11.2026: Schneiddaten der Stufe, Ausschuss einfach, ohne die neuen Werte
-    for n in ("sd_interpolieren", "ausschuss_hundert"):
+    # festgeschrieben vor dem 11.11.2026 (Plan Kalkulation A3): Programmierung je Position wie verschickt
+    for n in ("sd_interpolieren", "ausschuss_hundert", "programmierung_gleich"):
         if n not in fest:
             e[n] = "nein"
     for n in EINST_KB:
@@ -3424,6 +3429,42 @@ def programmier_zeit(p, einstellungen, wiederholt=False):
     if not _zahl(grund):
         return None, False
     return _n(grund) + _n(einstellungen.get("programmierung_kontur")) * konturen_anzahl(p), False
+
+
+def teil_gleich_schluessel(p):
+    """Gleiches Teil für die Programmierung (Plan Kalkulation A3): Artikel-Nr. + Profil + Werkstoff + Länge +
+    Schneidweg + Einstiche + Konturen; None ohne Artikel-Nr."""
+    art = str(p.get("artikel") or "").strip()
+    if not art:
+        return None
+    return (art, p.get("profil_id"), p.get("werkstoff_id"), round(_n(p.get("laenge")), 1),
+            round(_n(p.get("schneidweg")), 1), _n(p.get("einstiche")), str(p.get("konturen") or ""))
+
+
+def programmierung_gleich(positionen, prog_zeit, einstellungen):
+    """A3: Steht dasselbe Teil (teil_gleich_schluessel) in mehreren Positionen mit Stückzahl, zählt die Programmierzeit
+    einmal (die größte der Gruppe) und wird nach Stückzahl auf die Positionen verteilt; prog_zeit wird angepasst.
+    Von Hand eingetragene Zeiten, Musterteile und Einstellung programmierung_gleich = nein bleiben je Position.
+    Ergebnis: Anzahl der
+    Positionen, die eine Programmierung mit anderen teilen."""
+    if (einstellungen or {}).get("programmierung_gleich", "ja") == "nein":
+        return 0
+    gruppen = {}
+    for i, (m, hand) in prog_zeit.items():
+        schl = teil_gleich_schluessel(positionen[i])
+        if m is None or hand or schl is None or _n(positionen[i].get("stueck")) <= 0 or ist_muster(positionen[i]):
+            continue            # Musterteile rechnen ihre Programmierung wie bisher für sich (Abruf, Musterkosten)
+        gruppen.setdefault(schl, []).append(i)
+    n = 0
+    for liste in gruppen.values():
+        if len(liste) < 2:
+            continue
+        ges = max(prog_zeit[i][0] for i in liste)
+        stueck = sum(_n(positionen[i].get("stueck")) for i in liste)
+        for i in liste:
+            prog_zeit[i] = (ges * _n(positionen[i].get("stueck")) / stueck, False)
+        n += len(liste)
+    return n
 
 
 def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen, kopf=None):
@@ -3745,6 +3786,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     s_prog = satz["Programmierung"][1]
     wdh = wiederholt_ids(kopf)       # Wiederholteile mit vorhandenem Programm (Prüfung Kalkulationsbasis 3)
     prog_zeit = {i: programmier_zeit(positionen[i], einstellungen, positionen[i].get("id") in wdh) for i in laser}
+    prog_gleich = programmierung_gleich(positionen, prog_zeit, einstellungen)
     prog_pos = {i: (_n(positionen[i].get("stueck")) > 0) * (m * s_prog / 60 if m is not None
                                                              else _n(einstellungen.get("programmierung_teil")))
                 for i, (m, _) in prog_zeit.items()}
@@ -4014,6 +4056,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   programmierung_min=(None if any(m is None for m, _ in prog_zeit.values()) else
                                       sum(m for i, (m, _) in prog_zeit.items() if _n(positionen[i].get("stueck")) > 0)),
                   programmierung_hand=sum(1 for i, (_, h) in prog_zeit.items() if h and _n(positionen[i].get("stueck")) > 0),
+                  programmierung_gleich=prog_gleich,
                   programmierung_grund=einstellungen.get("programmierung_zeit"),
                   programmierung_kontur=_n(einstellungen.get("programmierung_kontur")),
                   programmierung_position=_n(einstellungen.get("programmierung_teil")),
@@ -4337,7 +4380,9 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
         hand = summen.get("programmierung_hand", 0)
         quelle = (f"{zahl(_n(summen.get('programmierung_grund')), 1)} min je Position + "
                   f"{zahl(summen.get('programmierung_kontur', 0), 1)} min je Innenkontur"
-                  + (f"; von Hand bei {hand} Pos." if hand else ""))
+                  + (f"; von Hand bei {hand} Pos." if hand else "")
+                  + (f"; gleiches Teil in {summen['programmierung_gleich']} Pos. einmal programmiert"
+                     if summen.get("programmierung_gleich") else ""))
         out.append(zeile("Programmierung", n_pos, "Positionen", None, prog_min * 60 / n_pos if n_pos else None, prog_min,
                          summen["programmierung"],
                          f"{zahl(prog_min, 1)} min / 60 × {zahl(sp, 2)} €/h (ohne Zuschläge)",

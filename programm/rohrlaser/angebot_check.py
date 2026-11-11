@@ -135,7 +135,11 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         text = (f"Marge {zahl(100 * m, 1)} % unter der Mindestmarge {zahl(100 * mindestmarge, 1)} %"
                 if admin else "Marge unter der Mindestmarge (Einstellungen)")
         out.append(Punkt(WARNUNG, text, "kalkulation"))
-    for art, text, i in plausibel or ():
+    for x in plausibel or ():
+        if isinstance(x, Punkt):        # fertiger Punkt mit Ziel, Details und Aktion (z. B. Normteile, Preislücke)
+            out.append(x)
+            continue
+        art, text, i = x
         out.append(Punkt(art, text, f"pos:{i}" if i is not None else "kalkulation"))
     if staffel_widersprueche:
         n = len(staffel_widersprueche)
