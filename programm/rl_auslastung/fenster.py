@@ -1,12 +1,13 @@
 """Fenster des Programms Rohrlaser Auslastung: Reiter Aufträge, Auslastung, Soll und Ist, Kennzahlen, Einstellungen; dazu die
 Werkstatt-Ansicht (große Schrift, große Knöpfe) für den Platz an der Maschine."""
 import datetime
+import html
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QEvent, QMarginsF, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (QBrush, QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen,
                            QPolygonF)
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout,
                                QHeaderView,
                                QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton,
@@ -48,6 +49,14 @@ def _arbeitstage(n):
 
 WOCHENTAG = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
 WOCHENTAG_LANG = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+
+
+def _folge_text(m):
+    """Schichten einer Maschine für die Liste: „Früh + Spät“ oder im Wochenwechsel „Früh / Spät im Wechsel“."""
+    folge = D.schichtfolge(m)
+    text = " / ".join(" + ".join(woche) for woche in folge)
+    sa = (m.get("schichten_sa") or "").replace(",", " + ")
+    return text + (" im Wechsel" if len(folge) > 1 else "") + (f"; Sa {sa}" if sa else "")
 
 
 def _wtag(d):
@@ -689,7 +698,7 @@ class ZiehTafel(Plantafel):
         self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
         self.kunden = {}
         self.tag_an = False                       # Tagesansicht: ein Tag füllt die Breite, Uhrzeiten, mehr Text
-        self.spannen = {}                         # {Maschine: (Mo–Fr, Sa)} Arbeitszeit als Uhrzeiten (rechnung.spannen)
+        self.spannen = None                       # Schichtkalender (rechnung.spannen): Arbeitszeit als Uhrzeiten
 
     def tag_ansicht(self, an):
         """Tagesansicht ein/aus: höhere Zeilen für drei Zeilen Text je Auftrag und das Stundenraster."""
@@ -702,8 +711,7 @@ class ZiehTafel(Plantafel):
         """Arbeitszeit der Maschine an diesem Tag als [(Beginn in Minuten, Dauer in Stunden, Schicht)]."""
         if not self.ein or not self.ein["kapazitaet"].get((m, tag)):
             return []
-        woche, samstag = self.spannen.get(m) or ([(360, 8.0, "")], [])
-        return (samstag if tag.weekday() == 5 else woche) or [(360, 8.0, "")]
+        return (self.spannen.teile(m, tag) if self.spannen else []) or [(360, 8.0, "")]
 
     def uhr(self, m, tag, stunden):
         """Uhrzeit als Text an der Stelle stunden (der nutzbaren Stunden) dieses Tages, '' ohne Arbeitszeit."""
@@ -1013,7 +1021,11 @@ def _tafel_zusatz():
             return
         schritt = 1 if tb / gesamt >= 46 else 2 if tb / gesamt >= 23 else 4
         p.setFont(klein)
+        aus = self.spannen.ausnahme(m, tag) if self.spannen else None
+        grund = f" · {aus['grund'] or 'Ausnahme'}" if aus else ""          # Ausnahme im Schichtkalender nennen
         vor = 0.0
+        frei_ab = x                                # links davon steht schon Text (Grund der Ausnahme)
+        fmk = QFontMetrics(klein)
         for i, (beginn, dauer, name) in enumerate(teile):
             x0 = x + tb * vor / gesamt
             if i:
@@ -1026,10 +1038,16 @@ def _tafel_zusatz():
                 if t > beginn:
                     p.setPen(QPen(fein, 1))
                     p.drawLine(QPointF(xs, y + 26), QPointF(xs, y + self.ZEILE - 1))
-                if ((t - erste) // 60) % schritt == 0 and xs + 34 < x + tb:
+                if ((t - erste) // 60) % schritt == 0 and xs + 34 < x + tb and xs + 3 >= frei_ab:
                     p.setPen(grau)
                     marke = D.uhr_text(t) + (f" {name}" if name and t == erste and tb * schritt / gesamt >= 90 else "")
-                    p.drawText(QRectF(xs + 3, y + 12, 110, 14), Qt.AlignLeft | Qt.AlignVCenter, marke)
+                    breit = 110
+                    if grund and i == 0 and t == erste:
+                        marke = D.uhr_text(t) + (f" {name}" if name else "") + grund
+                        breit = min(fmk.horizontalAdvance(marke) + 4, int(x + tb - xs - 6))
+                        marke = fmk.elidedText(marke, Qt.ElideRight, breit)
+                        frei_ab = xs + 3 + breit + 8
+                    p.drawText(QRectF(xs + 3, y + 12, breit, 14), Qt.AlignLeft | Qt.AlignVCenter, marke)
                 t += 60
             vor += dauer
 
@@ -1053,7 +1071,10 @@ def _tafel_zusatz():
             zeit = f"{self.uhr(m, tag, von)} bis {self.uhr(m, tag, bis)} Uhr · {laufzeit.text(int((bis - von) * 60 + 0.5), 'hm')}"
             p.drawText(QRectF(x0 + 7, y + self.B_OBEN + 21, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
                        fm.elidedText(zeit, Qt.ElideRight, breite))
+            heute = tag == self.ein["heute"]
             dritte = (f"wartet auf Material, da ab {z['material'].strftime('%d.%m.')}" if z.get("material") else
+                      f"läuft seit {z['laeuft']} · gelaufen {laufzeit.text(z.get('gelaufen', 0), 'hm')} von "
+                      f"{laufzeit.text(z.get('kalk', 0), 'hm')}" if heute and z.get("laeuft") else
                       f"gestoppt: {z['grund']}" if z.get("gestoppt") and z.get("grund") else
                       " · ".join(t for t in (
                           f"Rest gesamt {laufzeit.text(int(a['h'] * 60 + 0.5), 'hm')}" if a["h"] - (bis - von) > 0.01
@@ -1068,6 +1089,55 @@ def _tafel_zusatz():
 
 
 ZiehTafel._raster, ZiehTafel._tagestext = _tafel_zusatz()
+
+
+class TafelVollbild(QWidget):
+    """Plantafel allein in einem Fenster (V2), für den Bildschirm in der Halle: nur ansehen, Ansicht wählbar,
+    Esc oder „Schließen“ beendet."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent, Qt.Window)
+        self.setWindowTitle("Plantafel")
+        self.tafel = ZiehTafel()
+        self.tafel.ziehbar = False
+        self.rahmen = TafelRahmen(self.tafel)
+        self.titel = QLabel("")
+        self.titel.setTextFormat(Qt.RichText)
+        self.knoepfe = {}
+        oben = QHBoxLayout()
+        oben.addWidget(self.titel)
+        oben.addStretch(1)
+        for name, tage in TAFEL_ZOOM:
+            k = QPushButton(name)
+            k.setCheckable(True)
+            k.clicked.connect(lambda _=False, name=name: self.ansicht(name))
+            oben.addWidget(k)
+            self.knoepfe[name] = k
+        for zeichen, tun in (("◀", lambda: self.rahmen.blaettern(-1)), ("Heute", lambda: self.rahmen.zu_heute()),
+                             ("▶", lambda: self.rahmen.blaettern(1))):
+            k = QPushButton(zeichen)
+            k.clicked.connect(lambda _=False, tun=tun: tun())
+            oben.addWidget(k)
+        zu = QPushButton("Schließen (Esc)")
+        zu.clicked.connect(self.close)
+        oben.addSpacing(12)
+        oben.addWidget(zu)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.rahmen)
+        lay.addStretch(1)
+        self.ansicht("1 Woche")
+
+    def ansicht(self, name):
+        for n, k in self.knoepfe.items():
+            k.setChecked(n == name)
+        self.rahmen.sichtbar(dict(TAFEL_ZOOM)[name])
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key_Escape, Qt.Key_F11):
+            self.close()
+        else:
+            super().keyPressEvent(e)
 
 
 class TafelRahmen(QScrollArea):
@@ -1140,6 +1210,75 @@ class TafelRahmen(QScrollArea):
         if e.type() == QEvent.Resize:
             QTimer.singleShot(0, self.anpassen)
         return False
+
+
+OPT_TEXT = {rechnung.OPT_MASCHINE: "auf {nach} statt {von}", rechnung.OPT_VOR: "vorziehen (läuft als Nächstes)",
+            rechnung.OPT_TERMIN: "wieder nach Liefertermin einordnen"}
+
+
+def _guete_text(g):
+    return (f"{g[0]} nicht zu halten, {g[1]} knapp" + (f", zusammen {g[2]} Arbeitstage zu spät" if g[2] else ""))
+
+
+class OptimierenDialog(QDialog):
+    """Vorschlag der automatischen Optimierung (V5): oben die Änderungen, unten ihre Wirkung je Auftrag.
+    Gespeichert wird erst mit „Übernehmen“."""
+
+    def __init__(self, fenster, vorschlag):
+        super().__init__(fenster)
+        self.setWindowTitle("Optimieren: Vorschlag")
+        self.resize(820, 560)
+        kopf = QLabel(f"<b>Jetzt:</b> {_guete_text(vorschlag['vorher'])}<br>"
+                      f"<b>Mit dem Vorschlag:</b> {_guete_text(vorschlag['nachher'])}")
+        kopf.setTextFormat(Qt.RichText)
+        self.schritte = QTableWidget(len(vorschlag["schritte"]), 3)
+        self.schritte.setHorizontalHeaderLabels(("Auftragsnummer", "Kunde", "Änderung"))
+        for r, s in enumerate(vorschlag["schritte"]):
+            for c, t in enumerate((s["nummer"], s["kunde"], OPT_TEXT[s["art"]].format(**s))):
+                self.schritte.setItem(r, c, _zelle(t))
+        liste = vorschlag["aenderungen"]
+        self.wirkung = QTableWidget(len(liste), 5)
+        self.wirkung.setHorizontalHeaderLabels(("Auftragsnummer", "Kunde", "Laser fertig bisher", "Laser fertig neu",
+                                                "Terminrisiko"))
+        for r, x in enumerate(liste):
+            risiko = (RISIKO_TEXT.get(x["risiko_neu"], "") if x["risiko_alt"] == x["risiko_neu"] else
+                      f"{RISIKO_TEXT.get(x['risiko_alt'], '')} → {RISIKO_TEXT.get(x['risiko_neu'], '')}")
+            for c, t in enumerate((x["nummer"], x["kunde"], _wtag(x["fertig_alt"]) or "später",
+                                   _wtag(x["fertig_neu"]) or "später", risiko)):
+                z = _zelle(t)
+                if c == 4 and x["schlechter"] < 0:
+                    z.setForeground(QColor(stil.umsetzen(stil.GRUEN)))
+                elif c == 4 and (x["schlechter"] > 0 or (x["risiko_neu"] == einlastung.UEBER and (x["tage"] or 0) > 0)):
+                    z.setForeground(QColor(stil.umsetzen(stil.ROT)))
+                    if x["schlechter"] <= 0:
+                        z.setText(f"{t}, {x['tage']} Tage später")
+                self.wirkung.setItem(r, c, z)
+        for t in (self.schritte, self.wirkung):
+            t.verticalHeader().setVisible(False)
+            t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            t.setSelectionBehavior(QAbstractItemView.SelectRows)
+            t.horizontalHeader().setStretchLastSection(True)
+            t.resizeColumnsToContents()
+        hinweis = QLabel("Ziel: möglichst wenige Aufträge zu spät. Dafür kann ein Auftrag, der ohnehin nicht zu halten "
+                         "ist, weiter nach hinten rücken (rot). Laufende Aufträge, Aufträge mit festem Platz und "
+                         "Aufträge mit mehreren Arbeitsgängen bleiben unberührt. Optimiert wird nur auf Termine. Nach dem Übernehmen stellt „Optimierung "
+                         "rückgängig“ den Stand von jetzt wieder her.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        kn = QDialogButtonBox()
+        self.k_ok = kn.addButton("Übernehmen", QDialogButtonBox.AcceptRole)
+        kn.addButton("Abbrechen", QDialogButtonBox.RejectRole)
+        self.k_ok.setEnabled(fenster.db.darf("auftraege"))
+        kn.accepted.connect(self.accept)
+        kn.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addWidget(kopf)
+        lay.addWidget(QLabel(f"<b>{len(vorschlag['schritte'])} Änderungen</b>"))
+        lay.addWidget(self.schritte, 1)
+        lay.addWidget(QLabel("<b>Wirkung</b> (Aufträge, deren Fertig-Tag oder Terminrisiko sich ändert)"))
+        lay.addWidget(self.wirkung, 2)
+        lay.addWidget(hinweis)
+        lay.addWidget(kn)
 
 
 class WasWaereWennDialog(QDialog):
@@ -2147,7 +2286,11 @@ class Hauptfenster(QMainWindow):
         self.wochen.setSuffix(" Wochen")
         self.wochen.valueChanged.connect(self._wochen_geaendert)
         self.k_pdf = QPushButton("PDF …")
-        self.k_pdf.clicked.connect(lambda _=False: self.pdf())
+        pdf_menue = QMenu(self.k_pdf)
+        pdf_menue.addAction("Auslastung A4 quer …", lambda: self.pdf())
+        pdf_menue.addAction("Auslastung A3 quer (zum Aushängen) …", lambda: self.pdf(gross=True))
+        pdf_menue.addAction("Tagesansicht des gezeigten Tages …", lambda: self.tag_pdf())
+        self.k_pdf.setMenu(pdf_menue)
         self.k_auskunft = QPushButton("Terminauskunft …")
         self.k_auskunft.setToolTip("Wann wäre ein neuer Auftrag mit einer bestimmten Laufzeit fertig? Rechnet nur, "
                                    "speichert nichts.")
@@ -2166,6 +2309,12 @@ class Hauptfenster(QMainWindow):
         self.k_wenn.setToolTip("Probeweise rechnen: Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf "
                                "einer anderen Maschine. Gespeichert wird erst mit „Übernehmen“.")
         self.k_wenn.clicked.connect(lambda _=False: self.was_waere_wenn())
+        self.k_optimieren = QPushButton("Optimieren …")
+        self.k_optimieren.setToolTip("Sucht eine Reihenfolge und Maschinenverteilung, bei der möglichst kein Auftrag "
+                                     "zu spät fertig wird, und zeigt sie als Vorschlag. Geändert wird erst mit "
+                                     "„Übernehmen“.")
+        self.k_optimieren.clicked.connect(lambda _=False: self.optimieren())
+        self.rueck_opt = None                     # Stand vor der übernommenen Optimierung (für Rückgängig)
         self.k_rueck = QPushButton("Verschieben rückgängig")
         self.k_rueck.clicked.connect(lambda _=False: self.verschieben_rueckgaengig())
         self.k_rueck.setVisible(False)
@@ -2207,6 +2356,22 @@ class Hauptfenster(QMainWindow):
             k.clicked.connect(lambda _=False, tun=tun: tun())
             tz.addWidget(k)
             self.t_blaettern.append(k)
+        self.t_suche = QLineEdit()
+        self.t_suche.setPlaceholderText("Suchen: Auftrag oder Kunde")
+        self.t_suche.setClearButtonEnabled(True)
+        self.t_suche.setMinimumWidth(170)
+        self.t_suche.setMaximumWidth(220)
+        self.t_suche.setToolTip("Zeigt den Auftrag in der Plantafel und springt zu seinem Beginn. Eingabetaste: "
+                                "nächster Treffer.")
+        self.t_suche.textChanged.connect(lambda _t: self.tafel_suchen())
+        self.t_suche.returnPressed.connect(lambda: self.tafel_suchen(weiter=True))
+        tz.addSpacing(8)
+        tz.addWidget(self.t_suche)
+        self.k_vollbild = QPushButton("Vollbild")
+        self.k_vollbild.setToolTip("Plantafel über den ganzen Bildschirm, z. B. für den Bildschirm in der Halle. "
+                                   "Esc schließt.")
+        self.k_vollbild.clicked.connect(lambda _=False: self.tafel_vollbild())
+        tz.addWidget(self.k_vollbild)
         tz.addSpacing(12)
         tz.addWidget(QLabel("Farbe nach"))
         self.t_farbe = QComboBox()
@@ -2230,6 +2395,12 @@ class Hauptfenster(QMainWindow):
         ll.addSpacing(6)
         ll.addLayout(tz)
         ll.addWidget(self.tafel_rahmen)
+        self.t_ist = QLabel("")                   # V3: Tatsächliches von heute, nur in der Tagesansicht
+        self.t_ist.setWordWrap(True)
+        self.t_ist.setTextFormat(Qt.RichText)
+        self.t_ist.hide()
+        self.vollbild = None
+        ll.addWidget(self.t_ist)
         ll.addWidget(self.t_hinweis)
         ll.addStretch(1)
         ini = ort.ini_lesen(self.platz)
@@ -2275,6 +2446,7 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(self.wochen)
         oben.addWidget(self.k_auskunft)
         oben.addWidget(self.k_wenn)
+        oben.addWidget(self.k_optimieren)
         oben.addWidget(self.k_rueck)
         oben.addStretch(1)
         oben.addWidget(self.k_arbeitsliste)
@@ -2293,8 +2465,81 @@ class Hauptfenster(QMainWindow):
         self.tafel_rahmen.sichtbar(dict(TAFEL_ZOOM)[name])
         for k in self.t_blaettern:
             k.setEnabled(name != "Alles")
+        self.tag_ist_zeigen()
         if merken:
             self._platz_merken("tafel_zoom", name)
+
+    def tag_ist_zeigen(self):
+        """Unter der Tagesansicht: was heute tatsächlich läuft und fertig wurde (V3). Ergebnis: der Text."""
+        text = ""
+        if self.tafel.tag_an and getattr(self, "ein", None):
+            ist = rechnung.tag_ist_text(rechnung.tag_ist(self.db, self.heute()))
+            if ist:
+                rot = stil.umsetzen(stil.ROT)
+                text = "<b>Heute tatsächlich:</b> " + " &nbsp;·&nbsp; ".join(
+                    f"<b>{html.escape(m)}</b> " + "; ".join(
+                        f"<span style='color:{rot}'>{html.escape(t)}</span>" if "überzieht" in t else html.escape(t)
+                        for t in texte) for m, texte in sorted(ist.items()))
+        if hasattr(self, "t_ist"):
+            self.t_ist.setText(text)
+            self.t_ist.setVisible(bool(text))
+        return text
+
+    def tafel_suchen(self, text=None, weiter=False):
+        """Auftrag in der Plantafel suchen (Auftragsnummer oder Kunde enthält den Text): hebt ihn hervor und rollt
+        zu seinem Beginn. weiter: der nächste Treffer. Ergebnis: Auftrag-ID oder None."""
+        text = (self.t_suche.text() if text is None else text).strip().lower()
+        t = self.tafel
+        if not text or not t.ein:
+            if t.auswahl is not None:
+                t.auswahl = None
+                t.update()
+            return None
+        treffer = {}
+        for a in t.ein["auftraege"]:
+            if text in str(a.get("nummer") or "").lower() or text in str(a.get("kunde") or "").lower():
+                tag = min((s[0] for s in a.get("stuecke") or ()), default=None)
+                if a["id"] not in treffer or (tag and (treffer[a["id"]] is None or tag < treffer[a["id"]])):
+                    treffer[a["id"]] = tag
+        if not treffer:
+            self.hinweis(f"„{text}“ nicht gefunden (gesucht wird in den offenen Aufträgen).")
+            t.auswahl = None
+            t.update()
+            return None
+        ids = sorted(treffer, key=lambda i: (treffer[i] is None, treffer[i] or datetime.date.max, i))
+        i = ids[(ids.index(t.auswahl) + 1) % len(ids)] if weiter and t.auswahl in ids else ids[0]
+        t.auswahl = i
+        t.update()
+        self.tafel_gewaehlt(i)
+        tag = treffer[i]
+        if tag in t.tage and t.tagbreite_fest:
+            if self.tafel_rahmen.tage != 1:
+                tag -= datetime.timedelta(days=tag.weekday())
+            self.tafel_rahmen.horizontalScrollBar().setValue(int(t.tage.index(tag) * t.tagbreite_fest))
+        nummer = next(a["nummer"] for a in t.ein["auftraege"] if a["id"] == i)
+        self.hinweis(f"{ids.index(i) + 1} von {len(ids)} Treffern: {nummer}"
+                     + (f", beginnt {_wtag(treffer[i])}" if treffer[i] else ", noch nicht eingeplant"))
+        return i
+
+    def tafel_vollbild(self, zeigen=True):
+        """Plantafel in einem eigenen Fenster über den ganzen Bildschirm (nur ansehen); folgt jedem Neuladen."""
+        if self.vollbild is None:
+            self.vollbild = TafelVollbild(self)
+        self._vollbild_fuellen()
+        if zeigen:
+            self.vollbild.showFullScreen()
+        return self.vollbild
+
+    def _vollbild_fuellen(self):
+        v = self.vollbild
+        if v is None or not getattr(self, "ein", None):
+            return
+        v.tafel.spannen = self.tafel.spannen
+        v.tafel.setzen(self.aus, self.ein, self.wochen.value(), None, self.tafel_zustand())
+        v.tafel.farbe_setzen(self.t_farbe.currentText())
+        v.titel.setText(f"<b>Plantafel</b> &nbsp; Stand {_wtag(self.heute())}, "
+                        f"{datetime.datetime.now():%H:%M} Uhr")
+        v.rahmen.anpassen()
 
     def tafel_farbe(self, art, merken=True):
         """Farbe der Balken (V3): nach Terminrisiko, Kunde oder Status; die Legende steht daneben."""
@@ -2320,7 +2565,9 @@ class Hauptfenster(QMainWindow):
                 grund = "" if laeuft else self.db.offener_stopp(a["id"], gang_id)
                 out[(a["id"], gang_id)] = dict(
                     laeuft=laeuft, gestoppt=bool(not laeuft and (gelaufen or grund)), grund=grund,
-                    anteil=min(1.0, gelaufen / teil["kalk_min"]) if teil["kalk_min"] else 0.0, material=material)
+                    anteil=min(1.0, gelaufen / teil["kalk_min"]) if teil["kalk_min"] else 0.0, material=material,
+                    gelaufen=gelaufen, kalk=int(teil["kalk_min"] or 0),
+                    ueber=max(0, gelaufen - int(teil["kalk_min"] or 0)) if laeuft and teil["kalk_min"] else 0)
         return out
 
     def tafel_verschoben(self, auftrag_id, gang_id, maschine, tag):
@@ -2331,6 +2578,8 @@ class Hauptfenster(QMainWindow):
         vorher = self.ein
         try:
             self.rueck = self.db.festlegen(auftrag_id, tag, maschine, gang_id)
+            self.rueck_opt = None
+            self.k_rueck.setText("Verschieben rückgängig")
         except D.Fehler as e:
             self.meldung(str(e))
             return False
@@ -2351,7 +2600,55 @@ class Hauptfenster(QMainWindow):
         self.tafel.update()
         return True
 
+    def optimieren(self, zeigen=True, uebernehmen=None):
+        """Automatische Optimierung auf Termine (V5): Vorschlag rechnen, im Dialog zeigen und auf „Übernehmen“
+        speichern; „Optimierung rückgängig“ stellt den Stand davor wieder her. uebernehmen True/False überspringt
+        den Dialog (Tests). Ergebnis: der Vorschlag (rechnung.optimieren) oder None, wenn nichts zu verbessern ist."""
+        if not getattr(self, "ein", None):
+            return None
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            vorschlag = rechnung.optimieren(self.aus, self.ein, int(self.db.zahl("schwelle_tage", 2)))
+        finally:
+            QApplication.restoreOverrideCursor()
+        if vorschlag is None:
+            r = self.ein["risiko"]
+            text = ("Alle Termine sind zu halten, es gibt nichts zu optimieren." if not (
+                r[einlastung.UEBER] or r[einlastung.KNAPP]) else
+                "Das Programm findet keine bessere Reihenfolge oder Maschinenverteilung. Helfen können "
+                "Zusatzstunden oder Samstagsarbeit (Was wäre, wenn …) oder ein späterer Liefertermin.")
+            if zeigen and uebernehmen is None:
+                QMessageBox.information(self, "Optimieren", text)
+            else:
+                self.hinweis(text)
+            return None
+        if uebernehmen is None and zeigen:
+            uebernehmen = OptimierenDialog(self, vorschlag).exec() == QDialog.Accepted
+        if uebernehmen and self.darf("auftraege"):
+            self.rueck_opt = self.db.optimierung_uebernehmen(vorschlag["schritte"])
+            self.rueck = None
+            self.laden()
+            v, n = vorschlag["vorher"], vorschlag["nachher"]
+            self.zug_zeile.setText(f"Optimierung übernommen ({len(vorschlag['schritte'])} Änderungen): nicht zu halten "
+                                   f"{v[0]} → {n[0]}, knapp {v[1]} → {n[1]}.")
+            self.zug_zeile.setVisible(True)
+            self.k_rueck.setText("Optimierung rückgängig")
+            self.k_rueck.setVisible(True)
+        return vorschlag
+
     def verschieben_rueckgaengig(self):
+        if self.rueck_opt is not None and self.darf("auftraege"):
+            try:
+                self.db.optimierung_zurueck(self.rueck_opt)
+            except D.Fehler as e:
+                self.meldung(str(e))
+                return False
+            self.rueck_opt = None
+            self.k_rueck.setText("Verschieben rückgängig")
+            self.zug_zeile.setVisible(False)
+            self.k_rueck.setVisible(False)
+            self.laden()
+            return True
         if self.rueck is None or not self.darf("auftraege"):
             return False
         try:
@@ -2467,6 +2764,9 @@ class Hauptfenster(QMainWindow):
         self.tafel.setzen(self.aus, self.ein, self.wochen.value(), self.tafel.auswahl, self.tafel_zustand())
         self.tafel_rahmen.anpassen()
         self.tafel_farbe(self.t_farbe.currentText(), merken=False)
+        self.tag_ist_zeigen()
+        if self.vollbild is not None and self.vollbild.isVisible():
+            self._vollbild_fuellen()
         r = self.ein["risiko"]
         text = ("Die offenen Aufträge laufen ab heute nacheinander, sortiert nach Liefertermin, durch die freien "
                 "Stunden jeder Maschine. Was nicht in eine Woche passt, rutscht in die nächste.")
@@ -2476,13 +2776,61 @@ class Hauptfenster(QMainWindow):
         self.info.setText(text)
         self.details_zeigen()
 
-    def pdf(self, pfad=None):
-        """Auslastung als PDF (A4 quer): Wochenbalken, Plantafel und die Aufträge mit Terminrisiko."""
+    def tag_pdf(self, pfad=None, tag=None):
+        """Tagesansicht als PDF (A4 quer): ein Tag mit Stundenraster, darunter die Aufträge des Tages mit Uhrzeit
+        und das Tatsächliche. tag: Vorgabe der Tag, der in der Tagesansicht gerade zu sehen ist, sonst heute."""
+        tag = tag or self.tafel_rahmen.tag_zeigen() or self.heute()
         if pfad is None:
-            pfad, _ = QFileDialog.getSaveFileName(self, "Auslastung als PDF", "Maschinenauslastung.pdf", "PDF (*.pdf)")
+            pfad, _ = QFileDialog.getSaveFileName(self, "Tagesansicht als PDF", f"Tagesplan-{tag:%Y-%m-%d}.pdf",
+                                                  "PDF (*.pdf)")
             if not pfad:
                 return None
-        w, seite, p = _pdf_beginnen(pfad, "Maschinenauslastung")
+        w, seite, p = _pdf_beginnen(pfad, "Tagesplan")
+        t = self.tafel
+        with stil.druckfarben():
+            f = self.font()
+            y = _pdf_titel(p, f, seite, f"Tagesplan {_wtag(tag)}, Stand {self.heute().strftime('%d.%m.%Y')}")
+            merk = (t.tage, t.tagbreite_fest, t.versatz, t.tag_an, t.size(), t.minimumWidth(), t.auswahl)
+            t.tage, t.tagbreite_fest, t.versatz, t.auswahl = [tag], None, 0, None
+            t.tag_ansicht(True)
+            t.setMinimumWidth(0)
+            t.resize(seite.width(), t.sizeHint().height())
+            t.render(p, QPointF(0, y).toPoint())
+            y += t.height() + 14
+            zeilen = []
+            for a in sorted(self.ein["auftraege"], key=lambda a: (a.get("maschine") or "", a["nummer"])):
+                for d, von, bis in a.get("stuecke") or ():
+                    if d == tag and bis - von > 0:
+                        m = a.get("maschine") or ""
+                        zeilen.append([m, t.uhr(m, d, von), t.uhr(m, d, bis), a["nummer"], a.get("kunde") or "",
+                                       laufzeit.text(int((bis - von) * 60 + 0.5), "hm"), _tag(a.get("termin"))])
+            zeilen.sort(key=lambda z: (z[0], z[1]))
+            t.tage, t.tagbreite_fest, t.versatz, t.auswahl = merk[0], merk[1], merk[2], merk[6]
+            t.tag_ansicht(merk[3])
+            t.setMinimumWidth(merk[5])
+            t.resize(merk[4])
+            t._groesse()
+            y = _pdf_tabelle(p, f, seite, y, ("Maschine", "von", "bis", "Auftragsnummer", "Kunde", "Laufzeit",
+                                              "Liefertermin"), zeilen, (110, 60, 60, 190, 260, 90, 100))
+            ist = rechnung.tag_ist_text(rechnung.tag_ist(self.db, tag))
+            if ist:
+                y += 12
+                p.drawText(QRectF(0, y, seite.width(), 16), Qt.AlignLeft | Qt.AlignVCenter, "Tatsächlich an diesem Tag")
+                _pdf_tabelle(p, f, seite, y + 18, ("Maschine", "Auftrag"),
+                             [[m, text] for m, texte in sorted(ist.items()) for text in texte], (110, 760))
+            p.end()
+        del w
+        return pfad
+
+    def pdf(self, pfad=None, gross=False):
+        """Auslastung als PDF (A4 quer, gross = A3 quer): Wochenbalken, Plantafel und die Aufträge mit
+        Terminrisiko."""
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Auslastung als PDF", "Maschinenauslastung-A3.pdf" if gross
+                                                  else "Maschinenauslastung.pdf", "PDF (*.pdf)")
+            if not pfad:
+                return None
+        w, seite, p = _pdf_beginnen(pfad, "Maschinenauslastung", gross)
         with stil.druckfarben():
             f = self.font()
             y = _pdf_titel(p, f, seite, f"Maschinenauslastung, Stand {self.heute().strftime('%d.%m.%Y')}")
@@ -2896,13 +3244,44 @@ class Hauptfenster(QMainWindow):
         g_s = QGroupBox("Schichten")
         l_s = QVBoxLayout(g_s)
         h_s = QLabel("Welche Schichten eine Maschine von Montag bis Freitag fährt, steht bei der Maschine "
-                     "(<i>Maschine ändern …</i>). Ihre Stunden je Tag ergeben sich dann aus den Schichten ohne Pause. "
-                     "Maschinen ohne Schicht behalten ihre Stunden je Tag von Hand.")
+                     "(<i>Maschine ändern …</i>), dort auch der Wochenwechsel. Ihre Stunden je Tag ergeben sich dann "
+                     "aus den Schichten ohne Pause. Maschinen ohne Schicht behalten ihre Stunden je Tag von Hand.")
         h_s.setWordWrap(True)
         l_s.addWidget(h_s)
         l_s.addWidget(self.e_schichten)
         z = QHBoxLayout()
-        for k in (self.k_s_neu, self.k_s_aendern, self.k_s_weg):
+        self.k_s_hoch, self.k_s_runter = QPushButton("▲"), QPushButton("▼")
+        self.k_s_hoch.setToolTip("Schicht in der Liste nach oben")
+        self.k_s_runter.setToolTip("Schicht in der Liste nach unten")
+        self.k_s_hoch.clicked.connect(lambda _=False: self.schicht_schieben(-1))
+        self.k_s_runter.clicked.connect(lambda _=False: self.schicht_schieben(1))
+        for k in (self.k_s_neu, self.k_s_aendern, self.k_s_weg, self.k_s_hoch, self.k_s_runter):
+            z.addWidget(k)
+        z.addStretch(1)
+        l_s.addLayout(z)
+        h_a = QLabel("<b>Ausnahmen</b> für einzelne Tage oder Zeiträume: Sonderschicht, Kurzarbeit, Brückentag. Ein "
+                     "einzelner Tag gilt auch am Samstag und am Feiertag, ein Zeitraum für Montag bis Freitag ohne "
+                     "Feiertage.")
+        h_a.setWordWrap(True)
+        self.e_ausnahmen = QTableWidget()
+        self.e_ausnahmen.setColumnCount(4)
+        self.e_ausnahmen.setHorizontalHeaderLabels(("Tage", "Maschine", "Schichten", "Grund"))
+        self.e_ausnahmen.horizontalHeader().setStretchLastSection(True)
+        self.e_ausnahmen.verticalHeader().setVisible(False)
+        self.e_ausnahmen.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.e_ausnahmen.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.e_ausnahmen.setMaximumHeight(150)
+        self.e_ausnahmen.itemDoubleClicked.connect(lambda _z: self.ausnahme_bearbeiten())
+        self.k_a_neu = QPushButton("Ausnahme hinzufügen …")
+        self.k_a_aendern = QPushButton("Ausnahme ändern …")
+        self.k_a_weg = QPushButton("Ausnahme entfernen")
+        self.k_a_neu.clicked.connect(lambda _=False: self.ausnahme_bearbeiten(neu=True))
+        self.k_a_aendern.clicked.connect(lambda _=False: self.ausnahme_bearbeiten())
+        self.k_a_weg.clicked.connect(lambda _=False: self.ausnahme_entfernen())
+        l_s.addWidget(h_a)
+        l_s.addWidget(self.e_ausnahmen)
+        z = QHBoxLayout()
+        for k in (self.k_a_neu, self.k_a_aendern, self.k_a_weg):
             z.addWidget(k)
         z.addStretch(1)
         l_s.addLayout(z)
@@ -3136,12 +3515,19 @@ class Hauptfenster(QMainWindow):
             for c, t in enumerate((x["name"], x["beginn"], x["ende"], f"{x['pause']} min",
                                    laufzeit.text(int(x["stunden"] * 60 + 0.5), "hm"))):
                 self.e_schichten.setItem(r, c, _zelle(t, c > 0))
+        self.e_ausnahmen_liste = self.db.ausnahmen()
+        self.e_ausnahmen.setRowCount(len(self.e_ausnahmen_liste))
+        for r, a in enumerate(self.e_ausnahmen_liste):
+            tage = _wtag(a["von"]) + (f" bis {_wtag(a['bis'])}" if a["bis"] != a["von"] else "")
+            for c, t in enumerate((tage, a["maschine"] or "alle", " + ".join(a["namen"]) or "frei", a["grund"])):
+                self.e_ausnahmen.setItem(r, c, _zelle(t))
+        self.e_ausnahmen.resizeColumnsToContents()
         ms = self.db.maschinen()
         self.e_maschinen.setRowCount(len(ms))
         for r, m in enumerate(ms):
             self.e_maschinen.setItem(r, 0, _zelle(m["name"]))
             self.e_maschinen.setItem(r, 1, _zelle(f"{m['stunden_tag']:g}".replace(".", ",") + (
-                f"  ({m['schichten'].replace(',', ' + ')})" if m["schichten"] else ""), True))
+                f"  ({_folge_text(m).lstrip('; ')})" if m["schichten"] or m.get("schichten_sa") else ""), True))
             self.e_maschinen.setItem(r, 2, _zelle("ja" if m["aktiv"] else "nein"))
             self.e_maschinen.setItem(r, 3, _zelle(m["sperrtage"]))
             self.e_maschinen.setItem(r, 4, _zelle(_arbeitstage(m["uebergang_tage"]) if m["uebergang_tage"] else ""))
@@ -3378,26 +3764,75 @@ class Hauptfenster(QMainWindow):
             form = QFormLayout(d)
             form.addRow("Name", name)
             form.addRow("Stunden je Tag (Montag bis Freitag)", stunden)
-            kaesten = []
+            wochen_k, wechsel, beginn, sa_k = [], QSpinBox(), QDateEdit(), []
             if self.db.schichten():
-                zeile = QHBoxLayout()
-                hat = (m["schichten"] if m else "").split(",")
+                alle = self.db.schichten()
+                folge = D.schichtfolge(m) if m else []
+                wechsel.setRange(1, D.FOLGE_MAX)
+                wechsel.setValue(max(1, len(folge)))
+                wechsel.setSuffix(" Wochen")
+                wechsel.setSpecialValueText("jede Woche gleich")
+                wechsel.setToolTip("Wochenwechsel: Die Schichten wechseln von Woche zu Woche und beginnen danach "
+                                   "wieder von vorn, z. B. eine Woche Früh, die nächste Spät.")
+                start = D._tag_iso(m.get("schicht_start")) if m else None
+                montag = self.heute() - datetime.timedelta(days=self.heute().weekday())
+                beginn.setCalendarPopup(True)
+                beginn.setDisplayFormat("dd.MM.yyyy")
+                beginn.setDate(QDate(*(start or montag).timetuple()[:3]))
+                beginn.setToolTip("In dieser Woche gilt Woche 1 des Wechsels (es zählt der Montag der Woche).")
+                gitter = QGridLayout()
+                marken = []
+                for w in range(D.FOLGE_MAX):
+                    marke = QLabel(f"Woche {w + 1}")
+                    gitter.addWidget(marke, w, 0)
+                    marken.append(marke)
+                    zeile = []
+                    for c, x in enumerate(alle):
+                        k = QCheckBox(f"{x['name']} ({x['beginn']} bis {x['ende']})")
+                        k.setChecked(w < len(folge) and x["name"] in folge[w])
+                        gitter.addWidget(k, w, c + 1)
+                        zeile.append((k, x))
+                    wochen_k.append(zeile)
+                gitter.setColumnStretch(len(alle) + 1, 1)
+                b_marke = QLabel("Woche 1 beginnt in der Woche vom")
 
                 def rechnen():
-                    gew = [x for k, x in kaesten if k.isChecked()]
-                    stunden.setEnabled(not gew)
-                    if gew:
-                        stunden.setValue(min(24.0, sum(x["stunden"] for x in gew)))
+                    n = wechsel.value()
+                    mo = beginn.date().toPython()
+                    jetzt = ((montag - (mo - datetime.timedelta(days=mo.weekday()))).days // 7) % n
+                    for w, zeile in enumerate(wochen_k):
+                        marken[w].setText(f"Woche {w + 1}" + (" (diese Woche)" if w == jetzt else ""))
+                        marken[w].setVisible(n > 1 and w < n)
+                        for k, _x in zeile:
+                            k.setVisible(w < n)
+                    b_marke.setVisible(n > 1)
+                    beginn.setVisible(n > 1)
+                    summen = [sum(x["stunden"] for k, x in zeile if k.isChecked()) for zeile in wochen_k[:n]]
+                    summen = [h for h in summen if h > 0]
+                    stunden.setEnabled(not summen)
+                    if summen:
+                        stunden.setValue(min(24.0, min(summen)))
 
-                for x in self.db.schichten():
-                    k = QCheckBox(f"{x['name']} ({x['beginn']} bis {x['ende']})")
-                    k.setChecked(x["name"] in hat)
-                    k.toggled.connect(lambda _an: rechnen())
-                    zeile.addWidget(k)
-                    kaesten.append((k, x))
-                zeile.addStretch(1)
+                for zeile in wochen_k:
+                    for k, _x in zeile:
+                        k.toggled.connect(lambda _an: rechnen())
+                wechsel.valueChanged.connect(lambda _n: rechnen())
+                beginn.dateChanged.connect(lambda _d: rechnen())
+                form.addRow("Schichten (Montag bis Freitag)", gitter)
+                form.addRow("Wochenwechsel über", wechsel)
+                form.addRow(b_marke, beginn)
                 rechnen()
-                form.addRow("Schichten (Montag bis Freitag)", zeile)
+                hat_sa = [n for n in (m.get("schichten_sa") or "").split(",") if n] if m else []
+                z_sa = QHBoxLayout()
+                for x in alle:
+                    k = QCheckBox(x["name"])
+                    k.setChecked(x["name"] in hat_sa)
+                    k.setToolTip("Ohne Haken gelten am Samstag die Stunden für alle Maschinen (Arbeitszeit und "
+                                 "Termine → Samstag).")
+                    z_sa.addWidget(k)
+                    sa_k.append((k, x))
+                z_sa.addStretch(1)
+                form.addRow("Schichten am Samstag", z_sa)
             form.addRow("", aktiv)
             sperre = QLineEdit(m["sperrtage"] if m else "")
             sperre.setPlaceholderText("z. B. 24.11.2026-25.11.2026; 02.12.2026")
@@ -3415,7 +3850,7 @@ class Hauptfenster(QMainWindow):
             if self.db.mit_gaengen():
                 form.addRow("Übergangszeit davor", ueber)
             ausweich = QCheckBox("Ausweichmaschine (kann Aufträge anderer Maschinen übernehmen)")
-            ausweich.setChecked(bool(m["ausweich"]) if m else True)
+            ausweich.setChecked(bool(m["ausweich"]) if m else False)
             ausweich.setToolTip("Nur Maschinen mit Häkchen schlägt das Programm bei Terminrisiko als Ausweichmaschine "
                                 "vor. Für Arbeitsplätze wie Entgraten oder Schweißen das Häkchen entfernen.")
             form.addRow("", ausweich)
@@ -3427,13 +3862,19 @@ class Hauptfenster(QMainWindow):
             if d.exec() != QDialog.Accepted:
                 return False
             werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text(), ueber.value(),
-                     ausweich.isChecked(), [x["name"] for k, x in kaesten if k.isChecked()])
+                     ausweich.isChecked(),
+                     [[x["name"] for k, x in zeile if k.isChecked()] for zeile in wochen_k[:wechsel.value()]]
+                     if len(wochen_k) and wechsel.value() > 1 else
+                     [x["name"] for k, x in (wochen_k[0] if wochen_k else []) if k.isChecked()],
+                     beginn.date().toPython(), [x["name"] for k, x in sa_k if k.isChecked()])
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
                                        uebergang=werte[4] if len(werte) > 4 else None,
                                        ausweich=werte[5] if len(werte) > 5 else None,
-                                       schichten=werte[6] if len(werte) > 6 else None)
+                                       schichten=werte[6] if len(werte) > 6 else None,
+                                       schicht_start=werte[7] if len(werte) > 7 else None,
+                                       samstag=werte[8] if len(werte) > 8 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False
@@ -3474,16 +3915,92 @@ class Hauptfenster(QMainWindow):
         try:
             if alt and alt["name"] != str(werte[0]).strip():      # umbenannt: die Maschinen ziehen mit
                 D._schicht(*werte)
-                for m in self.db.maschinen():
-                    namen = [n for n in (m["schichten"] or "").split(",") if n]
-                    if alt["name"] in namen:
-                        self.db.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?", (",".join(
-                            str(werte[0]).strip() if n == alt["name"] else n for n in namen), m["name"]))
+                self.db.schicht_umbenennen(alt["name"], str(werte[0]).strip())
             self.db.schichten_setzen(liste + [eintrag] if neu else [eintrag if i == r else x
                                                                     for i, x in enumerate(liste)])
         except D.Fehler as e:
             self.meldung(str(e))
             return False
+        self.laden()
+        return True
+
+    def schicht_schieben(self, richtung):
+        """Gewählte Schicht in der Liste nach oben (-1) oder unten (1)."""
+        liste = self.db.schichten()
+        r = self.e_schichten.currentRow()
+        if not 0 <= r < len(liste) or not 0 <= r + richtung < len(liste):
+            return False
+        liste[r], liste[r + richtung] = liste[r + richtung], liste[r]
+        self.db.schichten_setzen(liste)
+        self.laden()
+        self.e_schichten.selectRow(r + richtung)
+        return True
+
+    def ausnahme_bearbeiten(self, neu=False, werte=None):
+        """Dialog Ausnahme im Schichtkalender; werte=(Maschine oder '', von, bis, [Schichten], Grund) überspringt
+        den Dialog (Tests)."""
+        r = self.e_ausnahmen.currentRow()
+        liste = self.db.ausnahmen()
+        if not neu and not 0 <= r < len(liste):
+            return False
+        alt = None if neu else liste[r]
+        if werte is None:
+            d = QDialog(self)
+            d.setWindowTitle("Ausnahme hinzufügen" if neu else "Ausnahme ändern")
+            wahl = QComboBox()
+            wahl.addItem("alle Maschinen", "")
+            for m in self.db.maschinen():
+                wahl.addItem(m["name"], m["name"])
+            wahl.setCurrentIndex(max(0, wahl.findData(alt["maschine"] if alt else "")))
+            von, bis = QDateEdit(), QDateEdit()
+            for feld, tag in ((von, alt["von"] if alt else self.heute()), (bis, alt["bis"] if alt else self.heute())):
+                feld.setCalendarPopup(True)
+                feld.setDisplayFormat("dd.MM.yyyy")
+                feld.setDate(QDate(*tag.timetuple()[:3]))
+            von.dateChanged.connect(lambda tag: bis.setDate(tag) if bis.date() < tag else None)
+            kaesten = []
+            z = QHBoxLayout()
+            for x in self.db.schichten():
+                k = QCheckBox(f"{x['name']} ({x['beginn']} bis {x['ende']})")
+                k.setChecked(bool(alt) and x["name"] in alt["namen"])
+                z.addWidget(k)
+                kaesten.append((k, x))
+            z.addStretch(1)
+            grund = QLineEdit(alt["grund"] if alt else "")
+            grund.setPlaceholderText("z. B. Sonderschicht, Kurzarbeit, Brückentag")
+            hinweis = QLabel("Ohne Haken wird an diesen Tagen nicht gearbeitet.")
+            hinweis.setEnabled(False)
+            form = QFormLayout(d)
+            form.addRow("Maschine", wahl)
+            form.addRow("Von", von)
+            form.addRow("Bis", bis)
+            form.addRow("Schichten an diesen Tagen", z)
+            form.addRow("", hinweis)
+            form.addRow("Grund", grund)
+            kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+            kn.accepted.connect(d.accept)
+            kn.rejected.connect(d.reject)
+            form.addRow(kn)
+            if d.exec() != QDialog.Accepted:
+                return False
+            werte = (wahl.currentData(), von.date().toPython(), bis.date().toPython(),
+                     [x["name"] for k, x in kaesten if k.isChecked()], grund.text())
+        try:
+            self.db.ausnahme_speichern(werte[0], werte[1], werte[2], werte[3], werte[4] if len(werte) > 4 else "",
+                                       id=alt["id"] if alt else None)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        self.laden()
+        return True
+
+    def ausnahme_entfernen(self):
+        r = self.e_ausnahmen.currentRow()
+        liste = self.db.ausnahmen()
+        if not 0 <= r < len(liste):
+            return False
+        self.db.ausnahme_entfernen(liste[r]["id"])
         self.laden()
         return True
 
@@ -3623,9 +4140,10 @@ def QApplicationModal():
     return QApplication.activeModalWidget() is not None
 
 
-def _pdf_beginnen(pfad, titel):
+def _pdf_beginnen(pfad, titel, gross=False):
     w = QPdfWriter(str(pfad))
-    w.setPageLayout(QPageLayout(QPageSize(QPageSize.A4), QPageLayout.Landscape, QMarginsF(12, 12, 12, 12)))
+    w.setPageLayout(QPageLayout(QPageSize(QPageSize.A3 if gross else QPageSize.A4), QPageLayout.Landscape,
+                                QMarginsF(12, 12, 12, 12)))
     w.setResolution(96)
     w.setTitle(titel)
     return w, w.pageLayout().paintRectPixels(96), QPainter(w)

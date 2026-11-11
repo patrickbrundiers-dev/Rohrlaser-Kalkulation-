@@ -167,9 +167,45 @@ ABSCHNITTE = (
      "Unter <b>Einstellungen → Schichten</b> stehen die Schichten mit Beginn, Ende und Pause (Vorgabe Früh, Spät, "
      "Nacht). Bei der Maschine (<b>Maschine ändern …</b>) wird angehakt, welche Schichten sie von Montag bis "
      "Freitag fährt. Ihre Stunden je Tag ergeben sich dann aus den Schichten ohne Pause, und die Einlastung rechnet "
-     "damit. Eine Maschine ohne Schicht behält ihre Stunden je Tag von Hand. Der Samstag bleibt eine Stundenzahl für "
-     "alle Maschinen; eine zusätzliche Schicht in einer einzelnen Woche lässt sich über <b>Was wäre, wenn …</b> als "
-     "Zusatzstunden eintragen."),
+     "damit. Eine Maschine ohne Schicht behält ihre Stunden je Tag von Hand. Die Pfeile ▲ ▼ sortieren die Liste."),
+    ("Schichten: Samstag und Ausnahmen",
+     "Bei <b>Maschine ändern …</b> lassen sich unter <b>Schichten am Samstag</b> eigene Schichten für den Samstag "
+     "anhaken; ohne Haken gelten die Samstagsstunden für alle Maschinen. Unter <b>Einstellungen → Schichten → "
+     "Ausnahmen</b> stehen abweichende Tage: Sonderschicht, Kurzarbeit, Brückentag. Eine Ausnahme gilt für eine "
+     "Maschine oder für alle, für einen Tag oder einen Zeitraum, mit den angehakten Schichten; ohne Haken wird "
+     "an diesen Tagen nicht gearbeitet. Ein einzelner Tag gilt auch am Samstag und am Feiertag, ein Zeitraum für "
+     "Montag bis Freitag ohne Feiertage; am Sonntag wird nie eingelastet. Gibt es mehrere Ausnahmen für einen Tag, "
+     "geht die für die Maschine vor der für alle und der einzelne Tag vor dem Zeitraum. Sperrtage und Betriebsruhe "
+     "gehen immer vor. Die Tagesansicht nennt den Grund der Ausnahme neben der Uhrzeit."),
+    ("Schichten: Wochenwechsel",
+     "Wechseln die Schichten einer Maschine von Woche zu Woche, stellt man bei <b>Maschine ändern …</b> unter "
+     "<b>Wochenwechsel über</b> zwei bis vier Wochen ein und hakt für jede Woche ihre Schichten an, z. B. Woche 1 "
+     "Früh, Woche 2 Spät, oder Woche 1 Früh und Spät, Woche 2 nur Früh. Das Datum darunter legt fest, in welcher "
+     "Woche Woche 1 gilt (es zählt der Montag dieser Woche); danach wiederholt sich die Folge von selbst. "
+     "Einlastung, Auslastung und Tagesansicht rechnen jede Woche mit ihren Schichten. Im Feld Stunden je Tag steht "
+     "die kleinste Woche; der Dialog zeigt, welche Woche gerade gilt."),
+    ("Optimieren",
+     "<b>Optimieren …</b> auf der Seite Auslastung sucht eine Reihenfolge und Maschinenverteilung, bei der möglichst "
+     "kein Auftrag zu spät fertig wird. Das Programm probiert Schritt für Schritt: einen gefährdeten Auftrag auf "
+     "eine Ausweichmaschine legen, ihn vorziehen, oder eine Reihenfolge von Hand wieder nach Liefertermin ordnen. "
+     "Ziel sind möglichst wenige verspätete Aufträge; dafür kann ein Auftrag, der ohnehin nicht zu halten ist, "
+     "weiter nach hinten rücken. Es zeigt die Änderungen und ihre Wirkung je Auftrag als Vorschlag. Erst <b>Übernehmen</b> speichert, "
+     "<b>Optimierung rückgängig</b> stellt den Stand davor wieder her. Laufende Aufträge, Aufträge mit festem "
+     "Platz und Aufträge mit mehreren Arbeitsgängen bleiben unberührt. Optimiert wird nur auf Termine, Rüstzeiten "
+     "kennt das Programm nicht."),
+    ("Plantafel: Suchen, Vollbild, Drucken",
+     "Das Feld <b>Suchen</b> über der Plantafel findet einen Auftrag nach Auftragsnummer oder Kunde, hebt ihn hervor "
+     "und rollt zu seinem Beginn; die Eingabetaste springt zum nächsten Treffer. <b>Vollbild</b> zeigt die "
+     "Plantafel allein über den ganzen Bildschirm, zum Beispiel in der Halle; sie folgt jeder Änderung, Esc "
+     "schließt. Unter <b>PDF …</b> gibt es die Auslastung in A4 und in A3 zum Aushängen und die Tagesansicht des "
+     "gezeigten Tages mit der Liste der Aufträge und ihren Uhrzeiten."),
+    ("Tagesansicht: tatsächliche Zeiten",
+     "In der Tagesansicht steht beim laufenden Auftrag, seit wann er läuft und wie viel der kalkulierten Zeit "
+     "verbraucht ist. Unter der Tafel steht <b>Heute tatsächlich</b>: je Maschine, was läuft und was heute fertig "
+     "gemeldet wurde, mit Uhrzeit, tatsächlicher gegen kalkulierter Laufzeit und der Abweichung. Überzieht ein "
+     "laufender Auftrag seine kalkulierte Zeit, steht er dort in Rot mit den Minuten."),
+    ("Mausrad",
+     "Das Mausrad ändert nie einen Wert: Über Zahlenfeldern, Datumsfeldern und Auswahllisten rollt es die Seite."),
     ("Plantafel: Tagesansicht",
      "Die Ansicht <b>Tag</b> zeigt einen Tag über die ganze Breite, mit Stundenraster und den Schichten der "
      "Maschine. Im Balken stehen Auftragsnummer und Kunde, von wann bis wann der Auftrag an diesem Tag läuft, die "

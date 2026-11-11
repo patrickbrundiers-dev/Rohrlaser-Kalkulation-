@@ -2,7 +2,7 @@
 Stunden vergangener Wochen aus den Fertigmeldungen und der Vergleich kalkuliert gegen tatsächlich. Ohne Qt."""
 import datetime
 
-from rohrlaser import einlastung, wochen
+from rohrlaser import einlastung, feiertage, wochen
 
 from . import daten as D
 
@@ -55,7 +55,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     m0 = wochen.montag(heute)
     montage = [m0 + datetime.timedelta(weeks=i) for i in range(int(wochenzahl))]
     spalten = [(mo, f"KW {mo.isocalendar()[1]}", mo) for mo in montage] + [(wochen.SPAETER, "später", None)]
-    return dict(maschinen=maschinen, auftraege=auftraege, spalten=spalten, kapazitaet={}, heute=heute,
+    aus = dict(maschinen=maschinen, auftraege=auftraege, spalten=spalten, kapazitaet={}, heute=heute,
                 vorlauf=int(db.zahl("vorlauf_tage")), tag=tag, stunden=8.0, samstag=db.zahl("samstag_stunden"),
                 anteil=max(0.0, min(1.0, db.zahl("nutzungsgrad", 100) / 100)), land=db.einstellung("bundesland"),
                 ruhe=wochen.betriebsruhe(db.einstellung("betriebsruhe")),
@@ -63,21 +63,171 @@ def grundlage(db, heute=None, wochenzahl=8):
                 uebergang={m["name"]: int(m["uebergang_tage"] or 0) for m in db.maschinen()},
                 zusatz=db.zusatzstunden(m0),
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]])
+    aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
+    return aus
+
+
+class Kalender:
+    """Schichtkalender: Arbeitszeit je Maschine und Tag aus Schichten (Montag bis Freitag, auch im Wochenwechsel),
+    Schichten am Samstag und Ausnahmen. Der Rechenkern der Kalkulation kennt je Maschine nur eine Stundenzahl;
+    steht ein Kalender in der Grundlage (aus["kalender"]), fragt tagesstunden() stattdessen ihn."""
+
+    def __init__(self, db):
+        self.schicht = {x["name"]: x for x in db.schichten()}
+        erste = next(iter(self.schicht.values()), None)
+        self.beginn = D.uhrzeit(erste["beginn"]) if erste else 360
+        self.samstag = float(db.zahl("samstag_stunden"))
+        self.maschine = {m["name"]: dict(folge=D.schichtfolge(m), start=D._tag_iso(m.get("schicht_start")),
+                                         sa=[n for n in (m.get("schichten_sa") or "").split(",") if n],
+                                         stunden=float(m["stunden_tag"])) for m in db.maschinen()}
+        self.ausnahmen = db.ausnahmen()
+
+    def ausnahme(self, m, tag):
+        """Die Ausnahme, die an diesem Tag für die Maschine gilt, oder None. Eine Ausnahme für die Maschine geht
+        vor einer für alle, ein einzelner Tag vor einem Zeitraum, sonst die zuletzt angelegte. Ein Zeitraum gilt nur
+        von Montag bis Freitag, ein einzelner Tag auch am Samstag; am Sonntag gilt nichts."""
+        if tag.weekday() == 6:
+            return None
+        beste, rang = None, None
+        for a in self.ausnahmen:
+            if a["maschine"] not in ("", m) or not a["von"] <= tag <= a["bis"]:
+                continue
+            einzel = a["von"] == a["bis"]
+            if not einzel and tag.weekday() == 5:
+                continue
+            r = (a["maschine"] != "", einzel, a["id"])
+            if rang is None or r > rang:
+                beste, rang = dict(a, einzel=einzel), r
+        return beste
+
+    def namen(self, m, tag):
+        """Schichten der Maschine an diesem Tag; None = keine Schichten, es gilt die Stundenzahl von Hand."""
+        a = self.ausnahme(m, tag)
+        if a is not None:
+            return a["namen"]
+        info = self.maschine.get(m)
+        if info is None:
+            return None
+        if tag.weekday() == 5:
+            return info["sa"] or None
+        folge = info["folge"]
+        if not folge:
+            return None
+        montag = wochen.montag(tag)
+        return folge[(((montag - (info["start"] or montag)).days // 7) % len(folge))]
+
+    def stunden(self, m, tag):
+        """Arbeitsstunden ohne Pause (vor Nutzungsgrad, Feiertagen und Sperrtagen)."""
+        namen = self.namen(m, tag)
+        if namen is None:
+            if tag.weekday() == 5:
+                return self.samstag
+            return self.maschine[m]["stunden"] if m in self.maschine else 8.0
+        return min(24.0, sum(self.schicht[n]["stunden"] for n in namen if n in self.schicht))
+
+    def teile(self, m, tag):
+        """Arbeitszeit des Tages als Uhrzeiten für die Tagesansicht: [(Beginn in Minuten seit Mitternacht, Dauer
+        in Stunden, Name der Schicht oder '')]; ohne Schichten ein Block ab dem Beginn der ersten Schicht."""
+        namen = self.namen(m, tag)
+        if namen is None:
+            h = self.stunden(m, tag)
+            return [(self.beginn, h, "")] if h > 0 else []
+        return [(D.uhrzeit(x["beginn"]), x["dauer"], x["name"]) for x in self.schicht.values() if x["name"] in namen]
+
+
+_tagesstunden_kern = einlastung.tagesstunden
+
+
+def tagesstunden(aus, m, d, szenario=None):
+    """Wie einlastung.tagesstunden, mit Schichtkalender: Ohne aus["kalender"] (die Kalkulation setzt ihn nie)
+    rechnet der Kern unverändert."""
+    kal = aus.get("kalender")
+    if kal is None:
+        return _tagesstunden_kern(aus, m, d, szenario)
+    if d.weekday() == 6 or d in (aus.get("ruhe") or ()) or d in ((aus.get("sperre") or {}).get(m) or ()):
+        return 0.0
+    a = kal.ausnahme(m, d)
+    if feiertage.name(d, aus.get("land")) and not (a is not None and a["einzel"]):
+        return 0.0
+    if a is None and d.weekday() == 5 and szenario is not None and szenario.samstag is not None:
+        return szenario.samstag * aus.get("anteil", 1.0)                    # Was-wäre-wenn: Samstag für alle
+    return kal.stunden(m, d) * aus.get("anteil", 1.0)
+
+
+einlastung.tagesstunden = tagesstunden     # der Kern ruft seine eigene Funktion über diesen Namen
 
 
 def spannen(db):
-    """Arbeitszeit je Maschine als Uhrzeiten für die Tagesansicht: {Maschine: (Montag bis Freitag, Samstag)}, jede
-    Seite [(Beginn in Minuten seit Mitternacht, Dauer in Stunden, Name der Schicht oder '')]. Mit Schichten deren
-    Zeiten; ohne Schichten ein Block ab dem Beginn der ersten Schicht (sonst 06:00) über die Stunden je Tag."""
-    alle = db.schichten()
-    beginn = D.uhrzeit(alle[0]["beginn"]) if alle else 360
-    samstag = db.zahl("samstag_stunden")
+    """Schichtkalender für die Tagesansicht (Kalender.teile)."""
+    return Kalender(db)
+
+
+def tag_ist(db, tag, jetzt=None):
+    """Tatsächliches an einem Tag (V3) je Maschine: was gerade läuft und was an diesem Tag fertig gemeldet wurde.
+    [dict(maschine, nummer, kunde, art 'laeuft'|'fertig', start, ende (datetime oder None, aus Start-Knopf und
+    Verlauf), ist_min, kalk_min, abweichung = ist_min - kalk_min (bei 'laeuft' nur, wenn überzogen))]."""
+    def zeit(text):
+        try:
+            return datetime.datetime.fromisoformat(str(text))
+        except (TypeError, ValueError):
+            return None
+
+    jetzt = jetzt or datetime.datetime.now()
+    iso = tag.isoformat()
+    ids = {z[0] for z in db.con.execute(
+        "SELECT id FROM auftraege WHERE geloescht_am IS NULL AND (start_am IS NOT NULL OR fertig_am = ?) UNION "
+        "SELECT auftrag_id FROM gaenge WHERE start_am IS NOT NULL OR fertig_am = ?", (iso, iso))}
+    out = []
+    for i in sorted(ids):
+        a = db.auftrag(i)
+        if a is None:
+            continue
+        verlauf = list(reversed(db.verlauf(i)))               # älteste zuerst
+        for g in (a["gaenge"] or [None]):
+            teil = g if g is not None else a
+            if g is not None and g["platz"] == D.FREMD:
+                continue
+            vor = f"{g['name']}: " if g is not None else ""
+            name = a["nummer"] + (f" · {g['name']}" if g is not None else "")
+            maschine = g["platz"] if g is not None else a["maschine"]
+            kalk = int(teil["kalk_min"] or 0)
+            if teil["status"] != D.FERTIG and teil["start_am"]:
+                start = zeit(teil["start_am"])
+                ist = db.gelaufen(teil, jetzt)
+                out.append(dict(maschine=maschine, nummer=name, kunde=a["kunde"], art="laeuft", start=start, ende=None,
+                                ist_min=ist, kalk_min=kalk, abweichung=ist - kalk if kalk and ist > kalk else 0))
+            elif teil["status"] == D.FERTIG and str(teil["fertig_am"] or "")[:10] == iso:
+                start = next((zeit(v["wann"]) for v in verlauf if v["was"] == vor + "gestartet"), None)
+                ende = next((zeit(v["wann"]) for v in reversed(verlauf)
+                             if v["was"].startswith(vor + "fertig gemeldet")), None)
+                ist = int(teil["ist_min"] or 0)
+                out.append(dict(maschine=maschine, nummer=name, kunde=a["kunde"], art="fertig", start=start,
+                                ende=ende if ende and ende.date() == tag else None, ist_min=ist, kalk_min=kalk,
+                                abweichung=ist - kalk))
+    out.sort(key=lambda x: (x["maschine"], x["art"] != "fertig", x["ende"] or x["start"] or jetzt))
+    return out
+
+
+def tag_ist_text(liste):
+    """tag_ist() als Text je Maschine: {Maschine: ['A-1 läuft seit 07:12, 2 h 10 min von 3 h', …]}."""
+    def hm(minuten):
+        return f"{minuten // 60} h {minuten % 60:02d} min" if minuten >= 60 else f"{minuten} min"
+
     out = {}
-    for m in db.maschinen():
-        eigene = [x for x in alle if x["name"] in (m["schichten"] or "").split(",")]
-        woche = ([(D.uhrzeit(x["beginn"]), x["dauer"], x["name"]) for x in eigene] if eigene
-                 else [(beginn, float(m["stunden_tag"]), "")])
-        out[m["name"]] = (woche, [(beginn, float(samstag), "")] if samstag > 0 else [])
+    for x in liste:
+        if x["art"] == "laeuft":
+            t = f"{x['nummer']} läuft" + (f" seit {x['start']:%H:%M}" if x["start"] else "") + \
+                f", {hm(x['ist_min'])} von {hm(x['kalk_min'])}"
+            if x["abweichung"] > 0:
+                t += f", überzieht um {hm(x['abweichung'])}"
+        else:
+            von = f"{x['start']:%H:%M} bis " if x["start"] and x["ende"] and x["start"].date() == x["ende"].date() \
+                else ""
+            t = f"{x['nummer']} fertig" + (f" {von}{x['ende']:%H:%M}" if x["ende"] else "") + \
+                f", {hm(x['ist_min'])} statt {hm(x['kalk_min'])}"
+            if x["abweichung"]:
+                t += f" ({'+' if x['abweichung'] > 0 else '−'}{hm(abs(x['abweichung']))})"
+        out.setdefault(x["maschine"], []).append(t)
     return out
 
 
@@ -312,6 +462,89 @@ def ausweichen(aus, ein, schwelle=einlastung.SCHWELLE):
         if beste:
             out[a["id"]] = beste
     return out
+
+
+def _guete(ein):
+    """Güte einer Einlastung, kleiner ist besser: (Aufträge nicht zu halten, knapp, Arbeitstage Verspätung)."""
+    plan = ein["plan"].values()
+    return (sum(1 for x in plan if x["risiko"] == einlastung.UEBER),
+            sum(1 for x in plan if x["risiko"] == einlastung.KNAPP),
+            sum(-x["puffer"] for x in plan if x.get("puffer") is not None and x["puffer"] < 0)
+            + 1000 * sum(1 for x in plan if x["fertig"] is None))
+
+
+OPT_MASCHINE, OPT_VOR, OPT_TERMIN = "maschine", "vorziehen", "termin"
+
+
+def optimieren(aus, ein, schwelle=einlastung.SCHWELLE, runden=25, versuche=600):
+    """Automatische Optimierung auf Termine (V5), als Vorschlag: sucht Schritt für Schritt die Änderung, die die
+    meisten Termine rettet, bis keine mehr hilft. Mögliche Schritte je einteiligem, nicht laufendem Auftrag ohne
+    festen Platz: auf eine Ausweichmaschine legen, vorziehen, oder eine Reihenfolge von Hand wieder nach
+    Liefertermin ordnen. Nichts wird gespeichert.
+    Ergebnis None (nichts zu verbessern) oder dict(schritte=[dict(id, nummer, kunde, art, von, nach)], vorher,
+    nachher (Güte: nicht zu halten, knapp, Arbeitstage Verspätung), ein (Einlastung danach), aenderungen
+    (vergleich))."""
+    kandidaten = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
+    frei = {}
+    for a in ein["auftraege"]:
+        if "gang" not in a and not a.get("fest") and a.get("vorrang") != LAEUFT_ZUERST:
+            frei[a["id"]] = a
+    maschine, vorrang = {}, {}                       # Stand der Schritte: {Auftrag-ID: Maschine}, {ID: Vorrang}
+
+    def rechne(masch, vorr):
+        if vorr:
+            kopie = dict(aus, auftraege={k: [dict(x, vorrang=vorr[x["id"]]) if x["id"] in vorr and "gang" not in x
+                                             else x for x in liste] for k, liste in aus["auftraege"].items()})
+        else:
+            kopie = aus
+        return rechnen(kopie, schwelle, probe=Probe(maschine=masch) if masch else None)
+
+    stand, guete = ein, _guete(ein)
+    vorher, schritte, n = guete, [], 0
+    for _runde in range(runden):
+        if guete[:2] == (0, 0):
+            break
+        plan = stand["plan"]
+        zuege = []
+        hoch = max([v for v in list(vorrang.values()) + [a.get("vorrang") or 0 for a in frei.values()]
+                    if v != LAEUFT_ZUERST] + [0]) + 1
+        for i, a in frei.items():
+            risiko = plan[i]["risiko"]
+            jetzt_m = maschine.get(i, a["maschine"])
+            jetzt_v = vorrang.get(i, a.get("vorrang") or 0)
+            if risiko in (einlastung.KNAPP, einlastung.UEBER):
+                if a["maschine"] in kandidaten:
+                    zuege += [(OPT_MASCHINE, i, m) for m in kandidaten if m != jetzt_m]
+                if jetzt_v <= 0 or jetzt_v < hoch - 1:
+                    zuege.append((OPT_VOR, i, hoch))
+            if jetzt_v != 0:
+                zuege.append((OPT_TERMIN, i, 0))
+        beste = None
+        for art, i, wert in zuege:
+            if n >= versuche:
+                break
+            n += 1
+            masch, vorr = dict(maschine), dict(vorrang)
+            if art == OPT_MASCHINE:
+                masch[i] = wert
+            else:
+                vorr[i] = wert
+            probe = rechne(masch, vorr)
+            g = _guete(probe)
+            if g < guete and (beste is None or g < beste[0]):
+                beste = (g, art, i, wert, masch, vorr, probe)
+        if beste is None:
+            break
+        guete, art, i, wert, maschine, vorrang, stand = beste
+        a = frei[i]
+        schritte = [x for x in schritte if not (x["id"] == i and x["art"] == art)]      # derselbe Zug: der letzte gilt
+        schritte.append(dict(id=i, nummer=a["nummer"], kunde=a.get("kunde") or "", art=art,
+                             von=a["maschine"] if art == OPT_MASCHINE else None,
+                             nach=wert if art == OPT_MASCHINE else None))
+    schritte = [x for x in schritte if not (x["art"] == OPT_MASCHINE and x["nach"] == x["von"])]
+    if not schritte:
+        return None
+    return dict(schritte=schritte, vorher=vorher, nachher=guete, ein=stand, aenderungen=vergleich(ein, stand))
 
 
 def kritische(ein):

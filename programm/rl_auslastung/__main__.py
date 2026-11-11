@@ -92,13 +92,14 @@ def main(argv=None):
         return update_test(a[a.index("--update-test") + 1], alle="--alle" in a)
     from PySide6.QtCore import QEvent
     from PySide6.QtWidgets import QApplication, QMessageBox
-    from rohrlaser import stil
+    from rohrlaser import mausrad, stil
 
     from . import NAME, aktualisierung_fenster, daten, ort
     from .fenster import Hauptfenster
     argv = sys.argv if argv is None else argv
     app = QApplication.instance() or QApplication(argv)
     app.setApplicationName(NAME)
+    mausrad.einrichten(app)        # das Mausrad rollt die Seite und ändert nie einen Wert (Patrick 11.11.2026)
     try:
         db = daten.Daten(ort.datenbank())
     except Exception as e:      # noqa: BLE001 – Ordner nicht erreichbar, Datei beschädigt, neuere Version

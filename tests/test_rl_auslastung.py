@@ -28,7 +28,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rl_auslastung import austausch, daten, laufzeit, ort, rechnung  # noqa: E402
-from rl_auslastung.fenster import Hauptfenster  # noqa: E402
+from rl_auslastung.fenster import Hauptfenster, OptimierenDialog  # noqa: E402
 from rohrlaser import einlastung  # noqa: E402
 
 
@@ -1369,10 +1369,11 @@ assert ein14["kapazitaet"][("LT7", h14)] == 15.0 and ein14["kapazitaet"][("T03",
 s1 = next(a for a in ein14["auftraege"] if a["nummer"] == "S-1")
 assert s1["fertig"] == datetime.date(2026, 11, 12)                                    # 15 h am ersten Tag, Rest am zweiten
 sp14 = rechnung.spannen(db14)
-assert sp14["LT7"][0] == [(360, 8.0, "Früh"), (840, 8.0, "Spät")] and sp14["T03"][0] == [(360, 8.0, "")]
-assert sp14["LT7"][1] == []                                                           # Samstag: keine Stunden eingestellt
-assert rechnung.uhr_am(sp14["LT7"][0], 0) == 360 and rechnung.uhr_am(sp14["LT7"][0], 0.5) == 840
-assert rechnung.uhr_am(sp14["LT7"][0], 1) == 1320 and rechnung.uhr_am([], 0.5) is None
+lt14 = sp14.teile("LT7", h14)
+assert lt14 == [(360, 8.0, "Früh"), (840, 8.0, "Spät")] and sp14.teile("T03", h14) == [(360, 8.0, "")]
+assert sp14.teile("LT7", datetime.date(2026, 11, 14)) == []                           # Samstag: keine Stunden eingestellt
+assert rechnung.uhr_am(lt14, 0) == 360 and rechnung.uhr_am(lt14, 0.5) == 840
+assert rechnung.uhr_am(lt14, 1) == 1320 and rechnung.uhr_am([], 0.5) is None
 nacht = [(840, 8.0, "Spät"), (1320, 8.0, "Nacht")]
 assert rechnung.uhr_am(nacht, 1) == 1320 + 480 and daten.uhr_text(1320 + 480) == "06:00"   # endet am Folgetag um 6
 # Schicht ändern rechnet die Maschinen neu, entfernen nimmt sie bei der Maschine weg
@@ -1430,6 +1431,288 @@ f14.close()
 db14.schliessen()
 ok("R14 Einstellungen Schichten (anlegen, umbenennen, entfernen, je Maschine wählen), Tagesansicht mit Uhrzeiten und Blättern")
 
+# ---------------------------------------------------------------- R15 Wochenwechsel der Schichten (Version 1.8)
+t15 = Path(tempfile.mkdtemp())
+db15 = daten.Daten(t15 / "w.db")
+sch15 = db15.schichten()
+h15 = datetime.date(2026, 11, 11)                                                     # Mittwoch, KW 46
+mo15 = datetime.date(2026, 11, 9)
+db15.maschine_speichern("LT7", 8, True, alt="LT7", schichten=[["Früh"], ["Früh", "Spät"]], schicht_start=h15)
+m15 = {m["name"]: m for m in db15.maschinen()}["LT7"]
+assert (m15["schichten"], m15["schicht_start"], m15["stunden_tag"]) == ("Früh|Früh,Spät", "2026-11-09", 7.5)
+assert daten.schichtfolge(m15) == [["Früh"], ["Früh", "Spät"]]
+assert daten.schichten_woche(m15, mo15) == ["Früh"]
+assert daten.schichten_woche(m15, mo15 + datetime.timedelta(weeks=1)) == ["Früh", "Spät"]
+assert daten.schichten_woche(m15, mo15 + datetime.timedelta(weeks=2)) == ["Früh"]
+assert daten.schichten_woche(m15, mo15 - datetime.timedelta(weeks=1)) == ["Früh", "Spät"]     # auch rückwärts
+assert [x["name"] for x in db15.schichten_der("LT7", mo15 + datetime.timedelta(weeks=3))] == ["Früh", "Spät"]
+assert "mindestens eine Schicht" in fehler(db15.maschine_speichern, "LT7", 8, True, alt="LT7",
+                                           schichten=[["Früh"], []])
+assert "höchstens" in fehler(db15.maschine_speichern, "LT7", 8, True, alt="LT7", schichten=[["Früh"]] * 5)
+assert "„|“" in fehler(db15.schichten_setzen, [dict(name="A|B", beginn="6", ende="14")])
+db15.auftrag_speichern(dict(nummer="W-1", maschine="LT7", kalk_min=40 * 60, liefertermin=datetime.date(2026, 12, 4)))
+aus15, ein15 = rechnung.einlasten(db15, h15, 4)
+kap15 = ein15["kapazitaet"]
+assert kap15[("LT7", h15)] == 7.5 and kap15[("LT7", datetime.date(2026, 11, 16))] == 15.0     # KW 47 mit Spätschicht
+assert kap15[("LT7", datetime.date(2026, 11, 20))] == 15.0 and kap15[("LT7", datetime.date(2026, 11, 23))] == 7.5
+assert kap15[("T03", datetime.date(2026, 11, 16))] == 8.0                             # andere Maschinen unberührt
+w1 = next(a for a in ein15["auftraege"] if a["nummer"] == "W-1")
+assert w1["fertig"] == datetime.date(2026, 11, 17)        # 3 x 7,5 h in KW 46, dann 15 h am Montag, Rest am Dienstag
+sp15 = rechnung.spannen(db15)
+assert sp15.namen("LT7", h15) == ["Früh"] and sp15.stunden("LT7", datetime.date(2026, 11, 18)) == 15.0
+assert sp15.teile("LT7", h15) == [(360, 8.0, "Früh")]
+assert sp15.teile("LT7", datetime.date(2026, 11, 18)) == [(360, 8.0, "Früh"), (840, 8.0, "Spät")]
+# Schicht ändern rechnet die kleinste Woche neu, entfernen nimmt sie aus jeder Woche; leere Wochen fallen weg
+db15.schichten_setzen([dict(sch15[0], ende="13:00")] + sch15[1:])
+assert {m["name"]: m for m in db15.maschinen()}["LT7"]["stunden_tag"] == 6.5
+db15.schichten_setzen(sch15[1:])
+m15 = {m["name"]: m for m in db15.maschinen()}["LT7"]
+assert (m15["schichten"], m15["stunden_tag"]) == ("Spät", 7.5)
+db15.schichten_setzen(sch15)
+db15.maschine_speichern("LT7", 8, True, alt="LT7", schichten=[["Früh"], ["Spät"]], schicht_start=h15)
+db15.maschine_speichern("LT7", 8, True, alt="LT7")                                   # ohne Angabe bleibt der Wechsel
+assert {m["name"]: m for m in db15.maschinen()}["LT7"]["schichten"] == "Früh|Spät"
+ok("R15 Wochenwechsel: Folge je Maschine, Beginn am Montag, Einlastung mit den Stunden der jeweiligen Woche")
+
+f15 = Hauptfenster(db15, heute=h15, platz=t15)
+f15.resize(1400, 900)
+f15.show()
+f15.reiter.setCurrentIndex(4)
+app.processEvents()
+assert "Früh / Spät im Wechsel" in f15.e_maschinen.item(0, 1).text()
+f15.e_schichten.selectRow(0)
+assert f15.schicht_bearbeiten(werte=("Frühschicht", "06:00", "14:00", 30))             # umbenennen in jeder Woche
+assert {m["name"]: m for m in db15.maschinen()}["LT7"]["schichten"] == "Frühschicht|Spät"
+f15.e_maschinen.selectRow(1)
+assert f15.maschine_bearbeiten(werte=("T03", 8, True, "", 0, True, [["Nacht"], ["Frühschicht", "Spät"]],
+                                      datetime.date(2026, 11, 18)))
+m15 = {m["name"]: m for m in db15.maschinen()}["T03"]
+assert (m15["schichten"], m15["schicht_start"], m15["stunden_tag"]) == ("Nacht|Frühschicht,Spät", "2026-11-16", 7.5)
+f15.reiter.setCurrentIndex(1)
+app.processEvents()
+f15.t_zoom["Tag"].click()
+app.processEvents()
+tf15 = f15.tafel
+assert tf15.uhr("LT7", h15, 7.5) == "14:00"                                           # KW 46: Frühschicht
+assert tf15.uhr("LT7", datetime.date(2026, 11, 18), 0) == "14:00"                     # KW 47: Spätschicht
+assert tf15.uhr("LT7", datetime.date(2026, 11, 18), 7.5) == "22:00"
+assert tf15.uhr("T03", datetime.date(2026, 11, 18), 0) == "22:00"                     # T03 beginnt in KW 47 mit Nacht
+tf15.grab()
+f15.close()
+db15.schliessen()
+ok("R15 Wochenwechsel in den Einstellungen (Liste, Umbenennen, Maschine ändern) und in der Tagesansicht")
+
+# ---------------------------------------------------------------- R16 Schichtkalender: Samstag, Ausnahmen (1.9)
+t16 = Path(tempfile.mkdtemp())
+db16 = daten.Daten(t16 / "k.db")
+h16 = datetime.date(2026, 11, 11)                                                     # Mittwoch, KW 46
+T16 = datetime.date
+db16.maschine_speichern("LT7", 8, True, alt="LT7", schichten=["Früh"], samstag=["Früh"])
+assert {m["name"]: m for m in db16.maschinen()}["LT7"]["schichten_sa"] == "Früh"
+a1 = db16.ausnahme_speichern("LT7", "12.11.2026", schichten=["Früh", "Spät"], grund="Sonderschicht")
+a2 = db16.ausnahme_speichern("", T16(2026, 11, 16), T16(2026, 11, 22), ["Früh"], "Kurzarbeit")
+a3 = db16.ausnahme_speichern("T03", T16(2026, 11, 13), grund="Brückentag")            # ohne Schicht: frei
+a4 = db16.ausnahme_speichern("T03", T16(2026, 11, 28), schichten=["Früh"], grund="Samstag einmalig")
+assert [a["id"] for a in db16.ausnahmen()] == [a1, a3, a2, a4]
+assert "kein Datum" in fehler(db16.ausnahme_speichern, "LT7", "morgen")
+assert "vor „von“" in fehler(db16.ausnahme_speichern, "LT7", T16(2026, 11, 20), T16(2026, 11, 19))
+assert "Sonntag" in fehler(db16.ausnahme_speichern, "LT7", T16(2026, 11, 15))
+assert "gibt es nicht" in fehler(db16.ausnahme_speichern, "XX", T16(2026, 11, 20))
+assert "gibt es nicht" in fehler(db16.ausnahme_speichern, "LT7", T16(2026, 11, 20), schichten=["Mittel"])
+aus16, ein16 = rechnung.einlasten(db16, h16, 4)
+k16 = ein16["kapazitaet"]
+assert k16[("LT7", h16)] == 7.5 and k16[("LT7", T16(2026, 11, 12))] == 15.0           # Sonderschicht am Donnerstag
+assert k16[("LT7", T16(2026, 11, 14))] == 7.5 and k16[("T03", T16(2026, 11, 14))] == 0.0   # Samstag nur LT7
+assert k16[("T03", T16(2026, 11, 13))] == 0.0 and k16[("LT7", T16(2026, 11, 13))] == 7.5   # Brückentag nur T03
+assert k16[("T03", T16(2026, 11, 17))] == 7.5 and k16[("T11", T16(2026, 11, 17))] == 7.5   # Kurzarbeit für alle
+assert k16[("LT7", T16(2026, 11, 21))] == 7.5 and k16[("T03", T16(2026, 11, 21))] == 0.0   # Zeitraum gilt nicht Sa
+assert k16[("T03", T16(2026, 11, 23))] == 8.0 and k16[("T03", T16(2026, 11, 28))] == 7.5   # danach normal; Sa einmalig
+kal16 = rechnung.spannen(db16)
+assert kal16.ausnahme("LT7", T16(2026, 11, 12))["grund"] == "Sonderschicht" and kal16.ausnahme("LT7", h16) is None
+assert kal16.teile("LT7", T16(2026, 11, 12)) == [(360, 8.0, "Früh"), (840, 8.0, "Spät")]
+assert kal16.teile("T03", T16(2026, 11, 13)) == [] and kal16.teile("LT7", T16(2026, 11, 14)) == [(360, 8.0, "Früh")]
+gem16 = rechnung.grundlage(db16, h16, 4)
+assert rechnung.tagesstunden(gem16, "LT7", T16(2026, 11, 15)) == 0.0                  # Sonntag bleibt frei
+assert rechnung.tagesstunden(dict(gem16, kalender=None), "LT7", T16(2026, 11, 12)) == 7.5   # ohne Kalender: der Kern
+db16.einstellung_setzen("samstag_stunden", "5")                                        # Samstag für alle: nur ohne eigene
+k16 = rechnung.einlasten(db16, h16, 4)[1]["kapazitaet"]
+assert k16[("LT7", T16(2026, 11, 14))] == 7.5 and k16[("T03", T16(2026, 11, 14))] == 5.0
+db16.ausnahme_speichern("LT7", T16(2026, 11, 12), schichten=["Früh"], grund="doch normal", id=a1)
+assert rechnung.einlasten(db16, h16, 4)[1]["kapazitaet"][("LT7", T16(2026, 11, 12))] == 7.5
+sch16 = db16.schichten()
+db16.schicht_umbenennen("Früh", "Tag")
+db16.schichten_setzen([dict(sch16[0], name="Tag")] + sch16[1:])
+m16 = {m["name"]: m for m in db16.maschinen()}["LT7"]
+assert (m16["schichten"], m16["schichten_sa"]) == ("Tag", "Tag") and db16.ausnahmen()[0]["namen"] == ["Tag"]
+db16.schichten_setzen(sch16[1:])                       # Schicht entfernt: Ausnahmen nur mit ihr fallen weg, „frei“ bleibt
+assert [a["id"] for a in db16.ausnahmen()] == [a3] and \
+    {m["name"]: m for m in db16.maschinen()}["LT7"]["schichten_sa"] == ""
+db16.schichten_setzen(sch16)
+db16.maschine_speichern("T3", 8, True, alt="T03")
+assert db16.ausnahmen()[0]["maschine"] == "T3"                                        # Umbenennen zieht die Ausnahme mit
+ok("R16 Schichtkalender: Schichten am Samstag je Maschine, Ausnahmen (Sonderschicht, Kurzarbeit, frei), Vorrang")
+
+f16 = Hauptfenster(db16, heute=h16, platz=t16)
+f16.resize(1400, 900)
+f16.show()
+f16.reiter.setCurrentIndex(4)
+app.processEvents()
+assert f16.e_ausnahmen.rowCount() == 1 and f16.e_ausnahmen.item(0, 2).text() == "frei"
+assert f16.ausnahme_bearbeiten(neu=True, werte=("", h16, h16, ["Früh", "Spät"], "Sonderschicht"))
+assert f16.e_ausnahmen.rowCount() == 2 and f16.e_ausnahmen.item(0, 1).text() == "alle"
+assert "Mi 11.11.2026" in f16.e_ausnahmen.item(0, 0).text() and f16.e_ausnahmen.item(0, 2).text() == "Früh + Spät"
+f16.e_ausnahmen.selectRow(0)
+assert f16.ausnahme_bearbeiten(werte=("LT7", h16, T16(2026, 11, 12), ["Spät"], "Spät statt Früh"))
+assert "bis Do 12.11.2026" in f16.e_ausnahmen.item(0, 0).text() and f16.e_ausnahmen.item(0, 1).text() == "LT7"
+f16.e_schichten.selectRow(0)
+assert f16.schicht_schieben(1) and [x["name"] for x in db16.schichten()] == ["Spät", "Früh", "Nacht"]
+assert f16.e_schichten.currentRow() == 1 and not f16.schicht_schieben(-2)
+assert f16.schicht_schieben(-1) and [x["name"] for x in db16.schichten()] == ["Früh", "Spät", "Nacht"]
+f16.e_maschinen.selectRow(0)
+assert f16.maschine_bearbeiten(werte=("LT7", 8, True, "", 0, True, ["Früh"], None, ["Früh", "Spät"]))
+assert "Sa Früh + Spät" in f16.e_maschinen.item(0, 1).text()
+f16.reiter.setCurrentIndex(1)
+app.processEvents()
+f16.t_zoom["Tag"].click()
+app.processEvents()
+assert f16.tafel.uhr("LT7", h16, 0) == "14:00" and f16.tafel.spannen.ausnahme("LT7", h16)["grund"] == "Spät statt Früh"
+f16.tafel.grab()
+f16.reiter.setCurrentIndex(4)
+app.processEvents()
+f16.e_ausnahmen.selectRow(0)
+assert f16.ausnahme_entfernen() and f16.e_ausnahmen.rowCount() == 1
+f16.close()
+db16.schliessen()
+ok("R16 Einstellungen: Ausnahmen anlegen, ändern, entfernen, Schichten umsortieren, Samstag bei der Maschine")
+
+# ---------------------------------------------------------------- R17 Suchen, Vollbild, A3, Tages-PDF, Ist (1.9)
+t17 = Path(tempfile.mkdtemp())
+db17 = daten.Daten(t17 / "p.db")
+h17 = datetime.date(2026, 11, 11)
+J17 = datetime.datetime
+for nr17, kunde17, masch17, minuten17, termin17 in (
+        ("P-1", "Kramer", "LT7", 300, 13), ("P-2", "Gerüstbau Nord", "LT7", 900, 20), ("P-3", "Kramer", "T03", 200, 18),
+        ("P-4", "Ohm", "T03", 120, 19)):
+    db17.auftrag_speichern(dict(nummer=nr17, kunde=kunde17, maschine=masch17, kalk_min=minuten17,
+                                liefertermin=datetime.date(2026, 11, termin17)))
+i17 = {a["nummer"]: a["id"] for a in db17.auftraege()}
+db17.starten(i17["P-1"], J17(2026, 11, 11, 7, 12))
+db17.starten(i17["P-4"], J17(2026, 11, 11, 6, 5))
+db17.fertig_melden(i17["P-4"], 150, h17)
+ist17 = rechnung.tag_ist(db17, h17, jetzt=J17(2026, 11, 11, 13, 0))
+assert [(x["nummer"], x["art"], x["ist_min"], x["kalk_min"], x["abweichung"]) for x in ist17] == [
+    ("P-1", "laeuft", 348, 300, 48), ("P-4", "fertig", 150, 120, 30)]
+assert ist17[0]["start"] == J17(2026, 11, 11, 7, 12) and ist17[1]["start"] is not None
+txt17 = rechnung.tag_ist_text(ist17)
+assert txt17["LT7"] == ["P-1 läuft seit 07:12, 5 h 48 min von 5 h 00 min, überzieht um 48 min"]
+assert txt17["T03"][0].startswith("P-4 fertig") and txt17["T03"][0].endswith("2 h 30 min statt 2 h 00 min (+30 min)")
+assert rechnung.tag_ist(db17, datetime.date(2026, 11, 12), jetzt=J17(2026, 11, 12, 8, 0))[0]["nummer"] == "P-1"
+ok("R17 Tatsächliches je Tag: läuft seit, gelaufen gegen kalkuliert, überzieht, fertig mit Abweichung")
+
+f17 = Hauptfenster(db17, heute=h17, platz=t17)
+f17.resize(1400, 900)
+f17.show()
+f17.reiter.setCurrentIndex(1)
+app.processEvents()
+f17.t_zoom["1 Woche"].click()
+app.processEvents()
+assert f17.tafel_suchen("kramer") == i17["P-1"] and f17.tafel.auswahl == i17["P-1"]
+assert f17.tafel_suchen("kramer", weiter=True) == i17["P-3"] and f17.tafel_suchen("kramer", weiter=True) == i17["P-1"]
+assert f17.tafel_suchen("p-2") == i17["P-2"] and "1 von 1" in f17.statusBar().currentMessage()
+assert f17.tafel_suchen("gibtsnicht") is None and f17.tafel.auswahl is None
+f17.t_suche.setText("P-3")
+assert f17.tafel.auswahl == i17["P-3"]
+f17.t_suche.setText("")
+assert f17.tafel.auswahl is None and not f17.t_ist.isVisible()
+f17.t_zoom["Tag"].click()
+app.processEvents()
+assert f17.t_ist.isVisible() and "Heute tatsächlich" in f17.t_ist.text() and "P-4 fertig" in f17.t_ist.text()
+z17 = f17.tafel_zustand()[(i17["P-1"], None)]
+assert z17["laeuft"] == "07:12" and z17["kalk"] == 300 and z17["gelaufen"] >= 0
+f17.tafel.grab()
+tage17 = list(f17.tafel.tage)
+pdf17 = f17.tag_pdf(t17 / "tag.pdf")
+assert Path(pdf17).read_bytes().startswith(b"%PDF") and f17.tafel.tage == tage17 and f17.tafel.tag_an
+assert f17.tafel_rahmen.tag_zeigen() == h17
+a4, a3 = f17.pdf(t17 / "a4.pdf"), f17.pdf(t17 / "a3.pdf", gross=True)
+assert Path(a3).read_bytes().startswith(b"%PDF") and Path(a3).stat().st_size > 2000
+assert Path(a4).stat().st_size > 2000 and f17.k_pdf.menu() is not None and len(f17.k_pdf.menu().actions()) == 3
+v17 = f17.tafel_vollbild(zeigen=False)
+v17.resize(1600, 900)
+v17.show()
+app.processEvents()
+assert v17.tafel.ein is f17.ein and not v17.tafel.ziehbar and "Plantafel" in v17.titel.text()
+assert v17.knoepfe["1 Woche"].isChecked() and v17.rahmen.tage == 7
+v17.ansicht("Tag")
+app.processEvents()
+assert v17.tafel.tag_an and v17.rahmen.tag_zeigen() == h17
+v17.tafel.grab()
+f17.laden()                                                                           # Neuladen füllt auch das Vollbild
+assert v17.tafel.ein is f17.ein
+v17.close()
+f17.close()
+db17.schliessen()
+ok("R17 Plantafel: Suchen mit nächstem Treffer, Vollbild, PDF in A3, Tagesansicht als PDF, Zeile „Heute tatsächlich“")
+
+# ---------------------------------------------------------------- R19 Automatische Optimierung (1.9)
+t19 = Path(tempfile.mkdtemp())
+db19 = daten.Daten(t19 / "o.db")
+h19 = datetime.date(2026, 11, 11)
+for nr19, masch19, minuten19, termin19 in (("O-1", "LT7", 900, 12), ("O-2", "LT7", 900, 13), ("O-3", "LT7", 600, 16),
+                                           ("O-4", "T03", 120, 20), ("O-5", "LT7", 300, 12)):
+    db19.auftrag_speichern(dict(nummer=nr19, kunde="Kunde", maschine=masch19, kalk_min=minuten19,
+                                liefertermin=datetime.date(2026, 11, termin19)))
+i19 = {a["nummer"]: a["id"] for a in db19.auftraege()}
+db19.vorrang_setzen(i19["O-3"], 1)                                                    # von Hand vorgezogen
+aus19, ein19 = rechnung.einlasten(db19, h19, 4)
+vor19 = rechnung._guete(ein19)
+opt19 = rechnung.optimieren(aus19, ein19, 2)
+assert opt19 is not None and opt19["vorher"] == vor19 and opt19["nachher"] < vor19
+assert opt19["schritte"] and all(x["art"] in ("maschine", "vorziehen", "termin") for x in opt19["schritte"])
+assert opt19["aenderungen"] and rechnung._guete(opt19["ein"]) == opt19["nachher"]
+assert [a["maschine"] for a in db19.auftraege()].count("LT7") == 4                    # rechnen speichert nichts
+davor19 = db19.optimierung_uebernehmen(opt19["schritte"])
+assert rechnung._guete(rechnung.einlasten(db19, h19, 4)[1]) == opt19["nachher"]       # gespeichert = vorhergesagt
+assert any("automatische Optimierung übernommen" in v["was"] for v in db19.verlauf(opt19["schritte"][0]["id"]))
+db19.optimierung_zurueck(davor19)
+assert rechnung._guete(rechnung.einlasten(db19, h19, 4)[1]) == vor19
+assert {a["nummer"]: (a["maschine"], a["vorrang"] > 0) for a in db19.auftraege()}["O-3"] == ("LT7", True)
+# laufende Aufträge und feste Plätze bleiben unberührt
+db19.starten(i19["O-1"], datetime.datetime(2026, 11, 11, 6, 0))
+db19.festlegen(i19["O-2"], datetime.date(2026, 11, 12))
+aus19, ein19 = rechnung.einlasten(db19, h19, 4)
+opt19b = rechnung.optimieren(aus19, ein19, 2)
+assert opt19b is None or not {x["id"] for x in opt19b["schritte"]} & {i19["O-1"], i19["O-2"]}
+db19.stoppen(i19["O-1"], datetime.datetime(2026, 11, 11, 6, 0))
+db19.loesen(i19["O-2"])
+leer19 = daten.Daten(t19 / "leer.db")
+aus19l, ein19l = rechnung.einlasten(leer19, h19, 4)
+assert rechnung.optimieren(aus19l, ein19l, 2) is None                                 # nichts zu verbessern
+leer19.schliessen()
+ok("R19 Optimierung: Vorschlag verbessert die Termine, speichert nichts, Übernehmen = Vorhersage, Rückgängig")
+
+f19 = Hauptfenster(db19, heute=h19, platz=t19)
+f19.resize(1400, 900)
+f19.show()
+f19.reiter.setCurrentIndex(1)
+app.processEvents()
+v19 = f19.optimieren(zeigen=False, uebernehmen=False)
+assert v19 is not None and not f19.k_rueck.isVisible() and f19.rueck_opt is None      # nur gerechnet
+d19 = OptimierenDialog(f19, v19)
+assert d19.schritte.rowCount() == len(v19["schritte"]) and d19.wirkung.rowCount() == len(v19["aenderungen"])
+assert d19.k_ok.isEnabled()
+d19.grab()
+d19.close()
+vorher19 = rechnung._guete(f19.ein)
+assert f19.optimieren(zeigen=False, uebernehmen=True) is not None
+assert rechnung._guete(f19.ein) == v19["nachher"] < vorher19
+assert f19.k_rueck.isVisible() and f19.k_rueck.text() == "Optimierung rückgängig" and "übernommen" in f19.zug_zeile.text()
+assert f19.verschieben_rueckgaengig() and rechnung._guete(f19.ein) == vorher19 and not f19.k_rueck.isVisible()
+assert f19.k_rueck.text() == "Verschieben rückgängig"
+f19.close()
+db19.schliessen()
+ok("R19 Knopf Optimieren: Dialog mit Änderungen und Wirkung, Übernehmen, Optimierung rückgängig")
+
 # ---------------------------------------------------------------- R6 unabhängig von der Kalkulation
 code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl_auslastung.__main__; "
         "print(','.join(sorted(m for m in sys.modules if m.startswith('rohrlaser'))))" % (HIER.parent / "programm"))
@@ -1437,6 +1720,48 @@ geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text
 assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
                    "rohrlaser.update,rohrlaser.wochen"), geladen
 ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design, Grafik und das Online-Update")
+
+# ---------------------------------------------------------------- R18 Mausrad ändert keine Werte (1.9)
+from PySide6.QtCore import QPoint, QPointF  # noqa: E402
+from PySide6.QtGui import QWheelEvent  # noqa: E402
+from PySide6.QtWidgets import QComboBox, QSpinBox  # noqa: E402
+from rohrlaser import mausrad  # noqa: E402
+
+assert "mausrad.einrichten(app)" in (HIER.parent / "programm" / "rl_auslastung" / "__main__.py").read_text("utf-8")
+assert '"rohrlaser.mausrad"' in (HIER.parent / "programm" / "auslastung.spec").read_text("utf-8")
+filter18 = mausrad.einrichten(app)
+
+
+def rad18(feld):
+    feld.show()
+    feld.setFocus()
+    app.processEvents()
+    e = QWheelEvent(QPointF(5, 5), QPointF(feld.mapToGlobal(QPoint(5, 5))), QPoint(0, 0), QPoint(0, -120),
+                    Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+    app.sendEvent(feld, e)
+    app.processEvents()
+
+
+spin18, wahl18 = QSpinBox(), QComboBox()
+spin18.setRange(0, 50)
+spin18.setValue(20)
+wahl18.addItems(["LT7", "T03", "T11"])
+rad18(spin18)
+rad18(wahl18)
+assert spin18.value() == 20 and wahl18.currentIndex() == 0
+f18 = Hauptfenster(daten.Daten(Path(tempfile.mkdtemp()) / "r.db"), heute=datetime.date(2026, 11, 11),
+                   platz=Path(tempfile.mkdtemp()))
+f18.show()
+f18.reiter.setCurrentIndex(1)
+app.processEvents()
+wochen18 = f18.wochen.value()
+rad18(f18.wochen)
+rad18(f18.t_farbe)
+assert f18.wochen.value() == wochen18 and f18.t_farbe.currentIndex() == 0
+f18.close()
+f18.db.schliessen()
+app.removeEventFilter(filter18)
+ok("R18 das Mausrad ändert keine Werte in Zahlenfeldern, Datumsfeldern und Auswahllisten")
 
 # ---------------------------------------------------------------- R13 Online-Update (Version 1.7)
 import base64  # noqa: E402
