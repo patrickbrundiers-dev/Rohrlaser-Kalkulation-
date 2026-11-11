@@ -42,6 +42,8 @@ def merken(schluessel, wert, ordner=None):
     """Einen Wert dieses Platzes in die Auslastung.ini schreiben (None = Zeile entfernen); die übrigen bleiben."""
     ordner = ordner or basis()
     werte = ini_lesen(ordner)
+    if werte.get(schluessel) == (None if wert is None else str(wert).strip()):
+        return                                    # nichts geändert: Datei bleibt, wie sie ist
     werte.pop(schluessel, None)
     if wert is not None:
         werte[schluessel] = str(wert)

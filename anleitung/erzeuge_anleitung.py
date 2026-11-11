@@ -7782,6 +7782,39 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Warnungen, Puffer, Kundenpriorität</b> (ab Version 2.7): Die Glocke oben rechts zählt die "
+            "Warnungen (Liefertermin überschritten oder nicht zu halten, Material fehlt kurz vor dem Start, Maschine "
+            "steht nach einem Stopp länger als 30 Minuten, Fremdarbeit nicht zurück); Klick zeigt die Liste, eine "
+            "Zeile öffnet den Auftrag. Dieselbe Meldung steht rot über der Auftragsliste, auf Wunsch auch als "
+            "Windows-Hinweis. Neue Spalten <i>Puffer [AT]</i> und <i>Spätester Start</i> (Start plus Puffer: so "
+            "spät geht es noch, ohne den Termin zu reißen). Kundenpriorität A/B/C unter Einstellungen → Termine und "
+            "Abläufe: A-Kunden zählen 3 Tage früher, C-Kunden 3 Tage später; der Termin selbst bleibt. Läuft ein "
+            "Auftrag länger als kalkuliert, bleibt bis zur Fertigmeldung eine Restzeit von 15 % (mindestens 30 "
+            "Minuten) im Plan. Optimieren und Ausweichmaschine lassen die nächsten 2 Arbeitstage unverändert.",
+            "<b>Zusatzschritte</b> (ab Version 2.6): Unter Einstellungen → Ansicht und Felder → Funktionen "
+            "einschalten. Im Auftrag Stückzahl eintragen und <i>+ Zusatzschritt …</i> klicken: Gewinde schneiden, "
+            "Senken, Bohren, Nieten oder Schweißen mit der Anzahl je Teil (z. B. 4 × M8, 3 Heftpunkte + 2 Nähte bis "
+            "20 cm). Laufzeit = Rüsten + Stückzahl × (Handling + Anzahl × Zeit je Stück), jeder Schritt ist ein "
+            "eigener Arbeitsgang an seinem Arbeitsplatz (Bearbeitung, Schweißen). Verzinken und Pulverbeschichten "
+            "sind Fremdarbeit mit 5 Arbeitstagen, abgeholt und angeliefert montags und mittwochs. Die Richtzeiten "
+            "(Startwerte geschätzt) stehen unter Termine und Abläufe → Zusatzschritte; aus Fertigmeldungen kommen "
+            "Vorschläge, die erst mit ✓ gelten. Schnelleingabe und Excel: „50 Stk 4xM8 2xNiete verzinken“.",
+            "<b>Monatsplan wie in Excel</b> (ab Version 2.5): Über der Plantafel der Knopf <i>Monat</i>: Zeilen = "
+            "Tage, Spalten = Maschinen, in jeder Zelle die Aufträge des Tages mit ihrer Zeit an diesem Tag, unten die "
+            "Tagesauslastung in Prozent (grün, gelb ab 80 %, rot voll). ◀ ▶ blättern nach Monat, <i>Heute</i> springt "
+            "zum heutigen Tag. Vergangene Tage zeigen, was tatsächlich lief; unten steht die Summe des Monats je "
+            "Maschine. PDF → <i>Monatsplan A3 quer</i> druckt den Monat auf eine Seite zum Aushängen.",
+            "<b>Lizenz</b> (ab Version 2.4): Die Lizenz der Kalkulation gilt auch für die Auslastung (dieselbe "
+            "Datei, Hilfe → Lizenz … → Lizenzdatei laden; eine installierte Kalkulation auf demselben Rechner wird "
+            "erkannt). Für Plätze ohne Kalkulation stellt das Lizenz-Werkzeug die Art „Nur Auslastung“ aus, die die "
+            "Kalkulation nicht freischaltet. Ohne gültige Lizenz ist die Auslastung nur zum Ansehen offen.",
+            "<b>Schnell anlegen</b> (ab Version 2.3): Im Reiter Aufträge eine Zeile wie „A-2701 LT7 3:30 25.11. "
+            "Kunde“ tippen und Enter drücken; Maschine, Laufzeit, Liefertermin und Auftragsnummer erkennt das "
+            "Programm in beliebiger Reihenfolge.",
+            "<b>Funktionen</b> (ab Version 2.3): Unter Einstellungen → Ansicht und Felder lassen sich Material und "
+            "Rüsten, Material da ab, Teillieferungen, Arbeitsgänge und die Werkstatt-Ansicht ausschalten. Felder und "
+            "Knöpfe verschwinden, geplant wird ohne sie; eingetragene Werte bleiben gespeichert. Wer nur die "
+            "kalkulierte Gesamtzeit einträgt, schaltet Material und Rüsten aus (in einer neuen Datenbank ist es aus).",
             "<b>Excel und Erfahrung</b> (ab Version 2.2): Excel-Dateien (.xlsx) lassen sich direkt einlesen, "
             "kopierte Excel-Zeilen mit Strg+V. In den Einstellungen kann eure Excel-Auftragsliste fest gewählt "
             "werden; das Programm gleicht sie dann automatisch ab, sobald sie neu gespeichert ist (neue und "

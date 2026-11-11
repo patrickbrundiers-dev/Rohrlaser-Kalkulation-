@@ -17,8 +17,10 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QD
 
 import lizenz_werkzeug as wz
 from rohrlaser import lizenz
+from rl_auslastung import lizenzen
 
-ARTEN = (("Benutzer", "benutzer"), ("Testlizenz (Aufdruck TESTVERSION)", "test"), ("Admin (unbefristet)", "admin"))
+ARTEN = (("Benutzer", "benutzer"), ("Testlizenz (Aufdruck TESTVERSION)", "test"), ("Admin (unbefristet)", "admin"),
+         ("Nur Auslastung (Platz ohne Kalkulation)", lizenzen.ART))
 # Spalten der Tabelle: Registerfelder plus der berechnete Status
 ANZEIGE = (("lizenz_id", "Lizenz-ID"), ("art", "Art"), ("inhaber", "Inhaber"), ("firma", "Firma"),
            ("rechner", "Rechner"), ("ausgestellt", "Ausgestellt"), ("gueltig_bis", "Gültig bis"),
@@ -182,7 +184,7 @@ class Fenster(QWidget):
     def art_gewechselt(self):
         art = self.art.currentData()
         heute = datetime.date.today()
-        bis = (wz.monate_spaeter(heute, lizenz.STANDARD_MONATE) if art == "benutzer"
+        bis = (wz.monate_spaeter(heute, lizenz.STANDARD_MONATE) if art in ("benutzer", lizenzen.ART)
                else heute + datetime.timedelta(days=lizenz.TEST_TAGE - 1))
         self.bis.setDate(QDate(bis.year, bis.month, bis.day))
         self.bis.setEnabled(art != "admin")
@@ -448,10 +450,10 @@ class Fenster(QWidget):
             return
         try:
             daten = lizenz.lesen(Path(datei))
-            inhalt = lizenz.pruefen(daten, wz.schluessel_bekannt(self.ordner))
+            inhalt = lizenzen.pruefen(daten, wz.schluessel_bekannt(self.ordner))
         except lizenz.LizenzFehler as e:
             return self.fehler(f"UNGÜLTIG: {e}")
-        z = lizenz.ermitteln(daten, rechner=(inhalt["rechner"] or [""])[0], schluessel=wz.schluessel_bekannt(self.ordner),
+        z = lizenzen.ermitteln(daten, rechner=(inhalt["rechner"] or [""])[0], schluessel=wz.schluessel_bekannt(self.ordner),
                              durchsetzung=True)
         QMessageBox.information(self, "Lizenzdatei prüfen", f"Signatur gültig.\n\n{inhalt['lizenz_id']} "
                                 f"({inhalt['art']}) für {inhalt['inhaber']}, bis {inhalt['gueltig_bis'] or 'unbefristet'}"

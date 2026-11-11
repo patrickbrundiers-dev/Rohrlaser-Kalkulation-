@@ -171,6 +171,67 @@ ABSCHNITTE = (
      "Bemerkung und Zusatzfelder. Bekannte Auftragsnummern werden aktualisiert, fertig gemeldete bleiben "
      "unverändert. Vor dem Übernehmen zeigt das Programm, was neu und was geändert ist. Die Datei aus "
      "<i>Übergabe …</i> der Kalkulation lässt sich genauso einlesen."),
+    ("Lizenz",
+     "Die Auslastung braucht wie die Kalkulation eine Lizenz je Rechner. Die Lizenz der Kalkulation gilt mit: Ist "
+     "die Kalkulation auf diesem Rechner installiert und freigeschaltet, ist nichts zu tun. Sonst im Reiter "
+     "<b>Hilfe</b> auf <b>Lizenz …</b>: die Rechner-ID kopieren und an Patrick senden, dann die erhaltene "
+     "Lizenzdatei laden (dieselbe Datei wie für die Kalkulation, oder für Plätze ohne Kalkulation eine Lizenz "
+     "„nur Auslastung“). Ohne gültige Lizenz bleibt alles lesbar, aber nichts änderbar (wie die Rolle „Nur lesen“); "
+     "unten rechts steht dann der Grund. Vor Ablauf erscheint dort rechtzeitig ein Hinweis."),
+    ("Warnungen, Puffer und Kundenpriorität",
+     "<b>Warnungen:</b> Die Glocke oben rechts zeigt, wie viele Warnungen es gibt (rot = dringend). Klick öffnet die "
+     "Liste, ein Klick auf eine Zeile zeigt den Auftrag. Gewarnt wird, wenn der Liefertermin überschritten ist oder "
+     "laut Plan nicht zu halten, wenn das Material noch nicht da ist und der Auftrag bald starten soll, wenn eine "
+     "Maschine nach einem Stopp mit Grund länger steht und wenn Fremdarbeit schon zurück sein müsste. Im Reiter "
+     "<b>Aufträge</b> steht dieselbe Meldung als rote Zeile über der Liste. Die Grenzen stehen unter "
+     "<b>Einstellungen → Termine und Abläufe → Warnungen und Kundenpriorität</b>. In der Liste der Glocke lässt sich "
+     "für diesen Platz ein <i>Windows-Hinweis bei neuer Warnung</i> einschalten. Keine Mail, keine Cloud. "
+     "Ausschalten: Funktionen → Warnungen.<br><b>Puffer und spätester Start:</b> In der Auftragsliste zeigt "
+     "<i>Puffer [AT]</i>, wie viele Arbeitstage zwischen lieferbar und Liefertermin liegen. <i>Spätester Start</i> = "
+     "geplanter Start plus Puffer: So spät kann der Auftrag noch anfangen und hält den Termin, wenn alles andere "
+     "bleibt (gelb = heute, rot = schon vorbei). Beide Spalten lassen sich sortieren.<br><b>Kundenpriorität:</b> "
+     "In derselben Einstellung je Kunde A (wichtig), B (normal) oder C (kann warten). A-Kunden werden so "
+     "eingeplant, als läge ihr Liefertermin 3 Tage früher, C-Kunden 3 Tage später (Zahl änderbar); der "
+     "Liefertermin selbst und das Terminrisiko bleiben. Von Hand vorgezogene Aufträge und feste Plätze gehen weiter "
+     "vor. Die Spalte <i>Priorität</i> erscheint, sobald ein Kunde A oder C ist.<br><b>Länger als kalkuliert:</b> "
+     "Ist die kalkulierte Zeit eines laufenden Auftrags verbraucht, plant das Programm bis zur Fertigmeldung noch "
+     "eine Restzeit ein (15 % der Kalkulation, mindestens 30 Minuten), damit die Maschine nicht als frei gilt; die "
+     "Glocke meldet „läuft länger als kalkuliert“.<br><b>Nicht umplanen:</b> Optimieren und Ausweichmaschine ändern "
+     "nichts an Aufträgen, die in den nächsten 2 Arbeitstagen beginnen (0 = aus). Von Hand verschieben geht "
+     "weiter. Beide Werte stehen in derselben Einstellung."),
+    ("Zusatzschritte: Gewinde, Nieten, Schweißen, Verzinken",
+     "Einschalten unter <b>Einstellungen → Ansicht und Felder → Funktionen → Zusatzschritte</b> (schaltet die "
+     "Arbeitsgänge mit ein und legt die Arbeitsplätze <i>Bearbeitung</i> und <i>Schweißen</i> an). Im Auftrag dann "
+     "<b>Stückzahl</b> eintragen und <b>+ Zusatzschritt …</b> klicken: Schritt wählen (Gewinde schneiden, Senken, "
+     "Bohren, Nieten, Schweißen, Verzinken, Pulverbeschichten) und die Anzahl je Teil eingeben, z. B. 4 × M8 oder "
+     "3 Heftpunkte und 2 Nähte bis 20 cm. Das Programm rechnet <i>Rüsten + Stückzahl × (Handling + Anzahl × Zeit "
+     "je Stück)</i> und zeigt den Rechenweg; ändert sich die Stückzahl, rechnet es neu. Verzinken und "
+     "Pulverbeschichten sind Fremdarbeit mit 5 Arbeitstagen; abgeholt und angeliefert wird nur montags und "
+     "mittwochs (änderbar). Die Zeiten je Stück stehen unter <b>Einstellungen → Termine und Abläufe → "
+     "Zusatzschritte</b>; die Startwerte sind Schätzwerte. Aus den Fertigmeldungen schlägt das Programm bessere "
+     "Werte vor, übernommen wird erst mit <b>✓ Übernehmen</b>. Schnell anlegen und Excel verstehen z. B. "
+     "<i>50 Stk 4xM8 2xNiete verzinken</i> (Excel: Spalten <i>Stückzahl</i> und <i>Zusatzschritte</i>)."),
+    ("Monatsplan wie in Excel",
+     "Im Reiter <b>Auslastung</b> über der Plantafel auf <b>Monat</b> klicken. Jede Zeile ist ein Tag, jede Spalte "
+     "eine Maschine. In der Zelle stehen die Aufträge, die an diesem Tag auf der Maschine laufen, mit ihrer Zeit an "
+     "diesem Tag (ein langer Auftrag steht an mehreren Tagen); der Punkt davor zeigt das Terminrisiko. Unten in "
+     "der Zelle die Tagesauslastung: grün, gelb ab 80 %, rot wenn der Tag voll ist; „frei“ = ohne Schicht. "
+     "◀ und ▶ blättern einen Monat, <b>Heute</b> springt zum heutigen Tag. Vergangene Tage zeigen grau, was "
+     "tatsächlich lief. Ganz unten die Summe des Monats je Maschine (geplant von verfügbar). Klick wählt einen "
+     "Auftrag, Doppelklick öffnet ihn. Zum Aushängen: <b>PDF … → Monatsplan A3 quer</b>, der ganze Monat auf "
+     "einer Seite. Gerechnet wird wie in der Plantafel, der Monatsplan ist nur eine andere Ansicht."),
+    ("Schnell anlegen",
+     "Im Reiter <b>Aufträge</b> oben rechts: eine Zeile wie <i>A-2701 LT7 3:30 25.11. Schulz</i> tippen und Enter "
+     "drücken. Das Programm erkennt die Maschine am Namen, die Laufzeit am Doppelpunkt oder an der Einheit "
+     "(3:30, 3 h 30 min, 90 min, 1,5 h) und den Liefertermin am Datum (TT.MM. oder TT.MM.JJJJ); das erste übrige "
+     "Wort ist die Auftragsnummer, der Rest der Kunde. Die Reihenfolge ist egal. Fehlt etwas, steht unten, was."),
+    ("Funktionen ein- und ausschalten",
+     "Unter <b>Einstellungen → Ansicht und Felder → Funktionen</b> stehen die Zusatzfunktionen mit Häkchen: "
+     "<i>Material und Rüsten</i> (Material, Rüstzeit und Rohrmaße, Ziel „Wenig Rüsten“), <i>Material da ab</i>, "
+     "<i>Teillieferungen</i>, <i>Mehrere Arbeitsgänge</i> und <i>Werkstatt-Ansicht</i>. Ausgeschaltet verschwinden "
+     "Felder und Knöpfe, und geplant wird ohne sie (z. B. ohne Rüstzeit). Schon eingetragene Werte bleiben "
+     "gespeichert und sind beim Einschalten wieder da. Material und Rüsten sowie Material da ab sind in einer "
+     "neuen Datenbank aus; wer schon Werte eingetragen hat, behält sie an. Gilt für alle Plätze."),
     ("Excel-Liste automatisch abgleichen",
      "Unter <b>Einstellungen → Termine und Abläufe → Abgleich mit eurer Excel-Liste</b> wählst du eure "
      "Auftragsliste (z. B. im gemeinsamen Ordner). Das Programm liest sie beim Start und jede Minute, wenn sie "

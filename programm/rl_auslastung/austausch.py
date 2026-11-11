@@ -18,6 +18,7 @@ from xml.etree import ElementTree
 
 from . import daten as D
 from . import laufzeit
+from . import zusatz as Z
 
 SPALTEN = {
     "nummer": ("auftragsnummer", "auftrag", "auftragsnr", "auftrags-nr", "auftrags-nr.", "nummer", "nr", "nr.",
@@ -31,6 +32,8 @@ SPALTEN = {
     "ist": ("tatsächliche laufzeit", "istzeit", "ist", "laufzeit tatsächlich"),
     "fertig": ("fertig am", "fertig", "fertigstellung"),
     "material": ("material da ab", "material ab", "material da", "materialeingang", "wareneingang"),
+    "stueck": ("stückzahl", "stueckzahl", "stück", "stk", "stk.", "menge", "anzahl"),        # Plan 2.6
+    "zusatzschritte": ("zusatzschritte", "zusatzschritt", "zusatzarbeiten"),
 }
 KOPF = ("Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit", "Liefertermin", "Status",
         "Tatsächliche Laufzeit", "Fertig am", "Bemerkung", "Material da ab")
@@ -169,7 +172,7 @@ def lesen(db, pfad=None, zeilen=None):
     spalte = {}
     for i, titel in enumerate(zeilen[0]):
         t = titel.strip().lower()
-        if t in bekannt:
+        if t in bekannt and not (t in zusatz and bekannt[t] in ("stueck", "zusatzschritte")):  # eigenes Feld zuerst
             spalte.setdefault(bekannt[t], i)
         elif t in zusatz:
             spalte[("zusatz", zusatz[t])] = i
@@ -204,8 +207,10 @@ def lesen(db, pfad=None, zeilen=None):
             neu = dict(nummer=nummer, maschine=wert("maschine"), kalk_min=kalk, liefertermin=D._tag(wert("termin")),
                        kunde=wert("kunde"), bemerkung=wert("bemerkung"),
                        zusatz={f[1]: wert(f) for f in spalte if isinstance(f, tuple)})
-            if "material" in spalte:
+            if "material" in spalte and db.einstellung("funktion_material_ab") != "0":   # M3: von Hand aus
                 neu["material_ab"] = D._tag(wert("material"))
+            if db.auftrag(nummer=nummer) is None:   # Plan 2.6: Stückzahl und Zusatzschritte nur bei neuen Aufträgen
+                _zusatz_lesen(db, neu, wert("stueck"), wert("zusatzschritte"))
             ist = laufzeit.lesen(wert("ist"), ohne)
             if ist:
                 neu["ist_min"], neu["fertig_am"] = ist, D._tag(wert("fertig"))
@@ -338,3 +343,104 @@ def gelesen_merken(db, pfad):
     if len(gelesen) > 400:                        # alte Einträge fallen weg
         gelesen = dict(sorted(gelesen.items(), key=lambda x: x[1][0])[-300:])
     db.einstellung_setzen(GELESEN, json.dumps(gelesen))
+
+
+_DATUM_KURZ = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?")
+_ZEIT_ZEICHEN = re.compile(r"\d.*(:|[a-zäöü])|[a-zäöü].*\d", re.I)
+
+
+def zusatz_an(db):
+    """Plan 2.6: Zusatzschritte nur, wenn die Funktion und die Arbeitsgänge an sind."""
+    return db.funktion("zusatzschritte") and db.mit_gaengen()
+
+
+def _zusatz_lesen(db, neu, stueck, schritte):
+    """Excel (Plan 2.6, Z4): Spalte Stückzahl und Spalte Zusatzschritte („4xM8 2xNiete verzinken“) in den neuen
+    Auftrag übernehmen. Unbekannte Wörter: Fehler, damit nichts still verloren geht."""
+    stueck = stueck.strip()
+    if stueck:
+        ziffern = "".join(c for c in stueck.split(",")[0].split(".")[0] if c.isdigit())
+        if not ziffern:
+            raise D.Fehler(f"Stückzahl „{stueck}“ ist keine Zahl.")
+        neu["stueckzahl"] = int(ziffern)
+    if not schritte.strip() or not zusatz_an(db):
+        return
+    R = db.richtzeiten()
+    n, gefunden, rest = Z.kurz_lesen(schritte.replace(";", " ").replace(",", " ").split(), R)
+    if rest:
+        raise D.Fehler(f"Zusatzschritte: „{' '.join(rest)}“ nicht erkannt (Einstellungen → Zusatzschritte).")
+    if n:
+        neu["stueckzahl"] = n
+    if gefunden:
+        try:
+            neu["gaenge"] = Z.gaenge_bauen(neu["maschine"], neu["kalk_min"], neu.get("stueckzahl") or 1, gefunden, R)
+        except ValueError as e:
+            raise D.Fehler(str(e)) from None
+
+
+def schnell_lesen(db, text, heute=None):
+    """E4 (Plan 2.3) Schnelleingabe: eine Zeile wie „A-2701 LT7 3:30 25.11. Schulz“ in beliebiger Reihenfolge.
+    Maschine = ein Name aus den Maschinen, Laufzeit = mit Doppelpunkt oder Einheit (3:30, 3 h 30 min, 90 min, 1,5 h),
+    Liefertermin = TT.MM. oder TT.MM.JJJJ (ohne Jahr: der nächste solche Tag ab heute), Auftragsnummer = das erste
+    übrige Wort, der Rest = Kunde. Ergebnis: dict für Daten.auftrag_speichern; fehlt etwas: D.Fehler."""
+    heute = heute or datetime.date.today()
+    woerter = str(text or "").split()
+    stk, zus = None, {}
+    if zusatz_an(db):                             # Plan 2.6: „50 Stk 4xM8 2xNiete verzinken“
+        stk, zus, woerter = Z.kurz_lesen(woerter, db.richtzeiten())
+    maschinen = {m["name"].casefold(): m["name"] for m in db.maschinen(nur_aktive=True)}
+    maschine = termin = kalk = None
+    rest = []
+    i = 0
+    while i < len(woerter):
+        w = woerter[i]
+        if maschine is None and w.casefold() in maschinen:
+            maschine = maschinen[w.casefold()]
+            i += 1
+            continue
+        d = _DATUM_KURZ.fullmatch(w)
+        if termin is None and d:
+            jahr = d.group(3)
+            try:
+                if jahr:
+                    termin = datetime.date(int(jahr) + (2000 if len(jahr) == 2 else 0), int(d.group(2)),
+                                           int(d.group(1)))
+                else:
+                    termin = datetime.date(heute.year, int(d.group(2)), int(d.group(1)))
+                    if termin < heute:
+                        termin = termin.replace(year=heute.year + 1)
+            except ValueError as e:
+                raise D.Fehler(f"„{w}“ ist kein Datum.") from e
+            i += 1
+            continue
+        if kalk is None and re.search(r"\d", w):
+            gefunden = None
+            for n in range(min(4, len(woerter) - i), 0, -1):     # „1 h 30 min“ besteht aus mehreren Wörtern
+                stueck = " ".join(woerter[i:i + n])
+                if not _ZEIT_ZEICHEN.search(stueck.replace(" ", "")) or _DATUM_KURZ.fullmatch(stueck):
+                    continue
+                try:
+                    gefunden = (laufzeit.lesen(stueck), n)
+                    break
+                except laufzeit.Fehler:
+                    continue
+            if gefunden and gefunden[0]:
+                kalk, n = gefunden
+                i += n
+                continue
+        rest.append(w)
+        i += 1
+    if maschine is None and len(maschinen) == 1:
+        maschine = next(iter(maschinen.values()))
+    fehlt = [was for was, wert in (("Auftragsnummer", rest), ("Maschine", maschine), ("Laufzeit", kalk)) if not wert]
+    if fehlt:
+        raise D.Fehler(f"Es fehlt: {', '.join(fehlt)}. Beispiel: A-2701 LT7 3:30 25.11. Kunde")
+    out = dict(nummer=rest[0], kunde=" ".join(rest[1:]), maschine=maschine, kalk_min=kalk, liefertermin=termin)
+    if stk:
+        out["stueckzahl"] = stk
+    if zus:
+        try:
+            out["gaenge"] = Z.gaenge_bauen(maschine, kalk, stk or 1, zus, db.richtzeiten())
+        except ValueError as e:
+            raise D.Fehler(str(e)) from None
+    return out
