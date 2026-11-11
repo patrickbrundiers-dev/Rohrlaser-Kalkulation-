@@ -2,13 +2,13 @@
 import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QMarginsF, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter
+from PySide6.QtCore import QDate, QMarginsF, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
                                QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton,
                                QScrollArea, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
-                               QTextBrowser, QVBoxLayout, QWidget)
+                               QTextBrowser, QToolTip, QVBoxLayout, QWidget)
 from rohrlaser import einlastung, feiertage, stil
 from rohrlaser.auslastung_grafik import RISIKO_TEXT, Plantafel, WochenBalken, spalten_daten
 
@@ -543,11 +543,276 @@ class TerminauskunftDialog(QDialog):
         return liste
 
 
+class ZiehTafel(Plantafel):
+    """Plantafel, in der sich ein Auftrag mit der Maus verschieben lässt (E1): auf einen anderen Tag, auf eine andere
+    Maschine. Gezeichnet wird weiter von der Plantafel der Kalkulation; hier kommen nur das Ziehen und die Marke für
+    Aufträge mit festem Platz dazu."""
+    verschoben = Signal(object, object, str, object)      # Auftrag-ID, Arbeitsgang-ID oder None, Maschine, Tag
+    SCHWELLE = 6                                          # ab so vielen Pixeln ist es Ziehen, kein Klick
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.zug, self.ziel, self.ziehbar = None, None, True
+
+    def ziel_bei(self, pos):
+        """(Maschine, Tag) unter dem Mauszeiger; Tage vor heute werden heute. None außerhalb der Tafel."""
+        if not self.ein or not self.tage:
+            return None
+        zeile = int((pos.y() - self.KOPF) // self.ZEILE)
+        spalte = int((pos.x() - self.LINKS) // self._tb())
+        if not (0 <= zeile < len(self.ein["maschinen"]) and 0 <= spalte < len(self.tage)) or pos.y() < self.KOPF:
+            return None
+        return self.ein["maschinen"][zeile], max(self.tage[spalte], self.ein["heute"])
+
+    def mousePressEvent(self, e):
+        super().mousePressEvent(e)
+        a = self._treffer(e.position())
+        self.zug = (a, e.position()) if a and self.ziehbar and e.button() == Qt.LeftButton else None
+        self.ziel = None
+
+    def mouseMoveEvent(self, e):
+        if self.zug is None:
+            super().mouseMoveEvent(e)
+            return
+        weg = e.position() - self.zug[1]
+        if self.ziel is None and abs(weg.x()) + abs(weg.y()) < self.SCHWELLE:
+            return
+        self.ziel = self.ziel_bei(e.position())
+        if self.ziel:
+            QToolTip.showText(e.globalPosition().toPoint(), f"{self.zug[0].get('nummer') or ''}: fest ab "
+                              f"{_wtag(self.ziel[1])} auf {self.ziel[0]}", self)
+        self.update()
+
+    def mouseReleaseEvent(self, e):
+        zug, ziel = self.zug, self.ziel
+        self.zug = self.ziel = None
+        self.update()
+        if zug and ziel:
+            self.verschoben.emit(zug[0]["id"], zug[0].get("gang"), ziel[0], ziel[1])
+
+    def paintEvent(self, ereignis):
+        super().paintEvent(ereignis)
+        if not self.ein or not self.tage:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        gesehen = set()
+        for rect, a in self.flaechen:             # fester Platz: weißer Punkt mit dunklem Rand links im Balken
+            if a.get("fest") and (a["id"], a.get("gang")) not in gesehen:
+                gesehen.add((a["id"], a.get("gang")))
+                p.setPen(QPen(QColor("#1F2937"), 1.2))
+                p.setBrush(QColor("#FFFFFF"))
+                p.drawEllipse(QPointF(rect.left() + 1, rect.center().y()), 3.5, 3.5)
+        if self.zug and self.ziel:                # Ziel beim Ziehen: Strich am Tagesanfang in der Zeile der Maschine
+            m, tag = self.ziel
+            y = self.KOPF + self.ein["maschinen"].index(m) * self.ZEILE
+            x = self._x(tag)
+            p.setPen(QPen(stil.farbe(stil.TEXT), 2, Qt.DashLine))
+            p.drawLine(QPointF(x, y + 2), QPointF(x, y + self.ZEILE - 2))
+            p.setPen(QPen(stil.farbe(stil.TEXT), 1, Qt.DotLine))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(QRectF(self.LINKS, y + 1, self.width() - self.LINKS - 4, self.ZEILE - 2))
+        p.end()
+
+
+class WasWaereWennDialog(QDialog):
+    """Was-wäre-wenn (E2): Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf einer anderen Maschine.
+    Rechnet nur; gespeichert wird erst mit „Übernehmen“."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.f = f = fenster
+        self.setWindowTitle("Was wäre, wenn …")
+        self.samstag = QDoubleSpinBox()
+        self.samstag.setRange(0, 24)
+        self.samstag.setDecimals(1)
+        self.samstag.setSuffix(" h")
+        self.samstag.setValue(f.db.zahl("samstag_stunden"))
+        self.zusatz = dict(f.aus.get("zusatz") or {})     # {(Maschine, Montag): Stunden}
+        self.wechsel = {}                                 # {Auftrag-ID: Maschine}
+        maschinen = list(f.aus["maschinen"])
+        montage = [s[0] for s in f.aus["spalten"] if isinstance(s[0], datetime.date)]
+        self.z_maschine = QComboBox()
+        self.z_maschine.addItems(maschinen)
+        self.z_woche = QComboBox()
+        for mo in montage:
+            self.z_woche.addItem(f"KW {mo.isocalendar()[1]} (ab {mo.strftime('%d.%m.')})", mo)
+        self.z_stunden = QDoubleSpinBox()
+        self.z_stunden.setRange(0.5, 100)
+        self.z_stunden.setDecimals(1)
+        self.z_stunden.setValue(8)
+        self.z_stunden.setSuffix(" h")
+        k_z = QPushButton("Zusatzstunden eintragen")
+        k_z.clicked.connect(lambda _=False: self.zusatz_setzen(
+            self.z_maschine.currentText(), self.z_woche.currentData(), self.z_stunden.value()))
+        self.a_auftrag = QComboBox()
+        self.einteilig = {a["id"]: a for a in f.ein["auftraege"]
+                          if "gang" not in a and a.get("vorrang") != rechnung.LAEUFT_ZUERST}
+        for a in sorted(self.einteilig.values(), key=lambda a: str(a["nummer"])):
+            self.a_auftrag.addItem(f"{a['nummer']} {a.get('kunde') or ''} ({a['maschine']})".strip(), a["id"])
+        self.a_maschine = QComboBox()
+        self.a_maschine.addItems(maschinen)
+        k_a = QPushButton("Auf diese Maschine legen")
+        k_a.clicked.connect(lambda _=False: self.wechsel_setzen(self.a_auftrag.currentData(),
+                                                                self.a_maschine.currentText()))
+        self.annahmen = QTableWidget()
+        self.annahmen.setColumnCount(2)
+        self.annahmen.setHorizontalHeaderLabels(("Annahme", "Wert"))
+        self.annahmen.verticalHeader().setVisible(False)
+        self.annahmen.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.annahmen.setMaximumHeight(130)
+        self.annahmen.horizontalHeader().setStretchLastSection(True)
+        k_weg = QPushButton("Annahme entfernen")
+        k_weg.clicked.connect(lambda _=False: self.entfernen())
+        self.ergebnis = QLabel("")
+        self.ergebnis.setWordWrap(True)
+        self.tabelle = QTableWidget()
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setSelectionMode(QAbstractItemView.NoSelection)
+        self.fehler = QLabel("")
+        self.fehler.setStyleSheet(f"color: {stil.umsetzen(stil.ROT)};")
+        self.fehler.setWordWrap(True)
+        self.knoepfe = QDialogButtonBox(QDialogButtonBox.Apply | QDialogButtonBox.Close)
+        self.knoepfe.button(QDialogButtonBox.Apply).setText("Übernehmen")
+        self.knoepfe.button(QDialogButtonBox.Close).setText("Schließen")
+        self.knoepfe.button(QDialogButtonBox.Apply).clicked.connect(lambda _=False: self.uebernehmen())
+        self.knoepfe.rejected.connect(self.reject)
+        form = QFormLayout()
+        form.addRow("Samstag", self.samstag)
+        z1 = QHBoxLayout()
+        for w in (self.z_maschine, self.z_woche, self.z_stunden, k_z):
+            z1.addWidget(w)
+        z1.addStretch(1)
+        form.addRow("Zusatzstunden", z1)
+        z2 = QHBoxLayout()
+        z2.addWidget(self.a_auftrag, 1)
+        z2.addWidget(QLabel("auf"))
+        z2.addWidget(self.a_maschine)
+        z2.addWidget(k_a)
+        form.addRow("Andere Maschine", z2)
+        z3 = QHBoxLayout()
+        z3.addWidget(k_weg)
+        z3.addStretch(1)
+        hinweis = QLabel("Hier wird nur gerechnet. Erst „Übernehmen“ speichert die Annahmen. Ein Auftrag auf einer "
+                         "anderen Maschine rechnet mit derselben Laufzeit.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        lay = QVBoxLayout(self)
+        lay.addLayout(form)
+        lay.addWidget(self.annahmen)
+        lay.addLayout(z3)
+        lay.addWidget(self.ergebnis)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(hinweis)
+        lay.addWidget(self.fehler)
+        lay.addWidget(self.knoepfe)
+        self.samstag.valueChanged.connect(lambda _w: self.rechnen())
+        self.resize(860, 640)
+        self.rechnen()
+
+    def zusatz_setzen(self, maschine, montag, stunden):
+        if maschine and montag is not None:
+            self.zusatz[(maschine, montag)] = float(stunden)
+            self.rechnen()
+
+    def wechsel_setzen(self, auftrag_id, maschine):
+        a = self.einteilig.get(auftrag_id)
+        if a is None:
+            return
+        if maschine == a["maschine"]:
+            self.wechsel.pop(auftrag_id, None)
+        else:
+            self.wechsel[auftrag_id] = maschine
+        self.rechnen()
+
+    def entfernen(self, zeile=None):
+        r = self.annahmen.currentRow() if zeile is None else zeile
+        z = self.annahmen.item(r, 0) if r >= 0 else None
+        art, key = z.data(Qt.UserRole) if z is not None else (None, None)
+        if art == "zusatz":
+            self.zusatz.pop(key, None)
+        elif art == "wechsel":
+            self.wechsel.pop(key, None)
+        self.rechnen()
+
+    def probe(self):
+        return rechnung.Probe(samstag=self.samstag.value(), zusatz=self.zusatz, maschine=self.wechsel)
+
+    def rechnen(self):
+        f = self.f
+        zeilen = [(("zusatz", k), f"Zusatzstunden {k[0]}, KW {k[1].isocalendar()[1]}", f"+{h:g} h".replace(".", ","))
+                  for k, h in sorted(self.zusatz.items())]
+        zeilen += [(("wechsel", i), f"Auftrag {self.einteilig[i]['nummer']}", f"{self.einteilig[i]['maschine']} → {m}")
+                   for i, m in self.wechsel.items()]
+        self.annahmen.setRowCount(len(zeilen))
+        for r, (key, name, wert) in enumerate(zeilen):
+            self.annahmen.setItem(r, 0, _zelle(name, daten=key))
+            self.annahmen.setItem(r, 1, _zelle(wert))
+        self.annahmen.resizeColumnsToContents()
+        self.annahmen.horizontalHeader().setStretchLastSection(True)
+        self.neu = rechnung.rechnen(f.aus, int(f.db.zahl("schwelle_tage", 2)), probe=self.probe())
+        self.diff = rechnung.vergleich(f.ein, self.neu)
+        alt, neu = f.ein["risiko"], self.neu["risiko"]
+        besser = sum(1 for x in self.diff if (x["tage"] or 0) < 0)
+        schlechter = sum(1 for x in self.diff if (x["tage"] or 0) > 0)
+        self.ergebnis.setText(
+            f"<b>Terminrisiko: nicht zu halten {alt[einlastung.UEBER]} → {neu[einlastung.UEBER]}, knapp "
+            f"{alt[einlastung.KNAPP]} → {neu[einlastung.KNAPP]}.</b> {besser} Aufträge werden früher fertig, "
+            f"{schlechter} später." if self.diff else "Mit diesen Annahmen ändert sich kein Fertig-Tag.")
+        kopf = ("Auftragsnummer", "Kunde", "Maschine", "Fertig jetzt", "Fertig dann", "Unterschied", "Terminrisiko")
+        self.tabelle.setColumnCount(len(kopf))
+        self.tabelle.setHorizontalHeaderLabels(kopf)
+        self.tabelle.setRowCount(len(self.diff))
+        for r, x in enumerate(self.diff):
+            n = abs(x["tage"] or 0)
+            tage = "" if x["tage"] is None else "gleich" if not n else (
+                f"{n} {'Tag' if n == 1 else 'Tage'} {'früher' if x['tage'] < 0 else 'später'}")
+            risiko = (RISIKO_TEXT.get(x["risiko_neu"], "") if x["risiko_alt"] == x["risiko_neu"] else
+                      f"{RISIKO_TEXT.get(x['risiko_alt'], '')} → {RISIKO_TEXT.get(x['risiko_neu'], '')}")
+            werte = [_zelle(x["nummer"]), _zelle(x["kunde"]), _zelle(x["maschine"] or D.FREMD_TEXT),
+                     _zelle(_wtag(x["fertig_alt"]) or "später"), _zelle(_wtag(x["fertig_neu"]) or "später"),
+                     _zelle(tage), _zelle(risiko)]
+            for c, z in enumerate(werte):
+                self.tabelle.setItem(r, c, z)
+            if x["risiko_alt"] != x["risiko_neu"]:
+                farbe = stil.ROT_FLAECHE if x["schlechter"] > 0 else stil.GRUEN_FLAECHE
+                werte[6].setBackground(stil.farbe(farbe))
+                werte[6].setForeground(stil.farbe(stil.TEXT))
+        self.tabelle.resizeColumnsToContents()
+        self.tabelle.horizontalHeader().setStretchLastSection(True)
+        return self.diff
+
+    def uebernehmen(self):
+        """Annahmen speichern: Samstag und Zusatzstunden als Einstellung, Aufträge auf ihre neue Maschine."""
+        db = self.f.db
+        if not self.f.darf("auftraege"):
+            self.fehler.setText("Übernehmen darf nur Planung oder Verwaltung.")
+            return False
+        samstag_neu = abs(self.samstag.value() - db.zahl("samstag_stunden")) > 1e-9
+        if samstag_neu and not db.darf("einstellungen"):
+            self.fehler.setText("Die Samstagsstunden ändert nur die Rolle Verwaltung.")
+            return False
+        try:
+            for auftrag_id, maschine in self.wechsel.items():
+                db.maschine_wechseln(auftrag_id, maschine)
+        except D.Fehler as e:
+            self.fehler.setText(str(e))
+            return False
+        if samstag_neu:
+            db.einstellung_setzen("samstag_stunden", self.samstag.value())
+        if self.zusatz != (self.f.aus.get("zusatz") or {}):
+            db.zusatzstunden_setzen(self.zusatz)
+        self.f.laden()
+        self.accept()
+        return True
+
+
 class Hauptfenster(QMainWindow):
     def __init__(self, db, heute=None):
         super().__init__()
         self.db, self.heute_fest = db, heute
         self.aus = self.ein = self.gem = None
+        self.rueck, self.vorschlag = None, {}     # letztes Verschieben (für Rückgängig), Ausweichmaschinen
         self.woche = None                         # im Wochenbalken gewählte (Maschine, Montag)
         self.setWindowTitle(f"{NAME} {VERSION}")
         self.resize(1320, 820)
@@ -640,6 +905,7 @@ class Hauptfenster(QMainWindow):
         self.a_vor = menue.addAction("Vorziehen (läuft als Nächstes)", lambda: self.reihenfolge(1))
         self.a_zurueck = menue.addAction("Zurückstellen (läuft zuletzt)", lambda: self.reihenfolge(-1))
         self.a_termin = menue.addAction("Wieder nach Liefertermin", lambda: self.reihenfolge(0))
+        self.a_loesen = menue.addAction("Festen Platz lösen", lambda: self.platz_loesen())
         self.k_reihe.setMenu(menue)
         mehr = QMenu(self.k_mehr)
         self.a_csv_ein = mehr.addAction("CSV einlesen …", lambda: self.csv_einlesen())
@@ -726,6 +992,8 @@ class Hauptfenster(QMainWindow):
                     status_text += f" ({self.lz(gelaufen)}" + (", Uhr läuft)" if laeuft else ")")
                 if a["vorrang"]:
                     status_text += ", vorgezogen" if a["vorrang"] > 0 else ", zurückgestellt"
+                if a["fest_ab"]:
+                    status_text += f", fest ab {_tag(a['fest_ab'])}"
             elif a["status"] != D.FERTIG:
                 gelaufen = self.db.gelaufen(a)
                 offen_min += max(0, a["kalk_min"] - gelaufen)
@@ -733,6 +1001,8 @@ class Hauptfenster(QMainWindow):
                     status_text += f" ({self.lz(gelaufen)}" + (", Uhr läuft)" if a["start_am"] else ")")
                 if a["vorrang"]:
                     status_text += ", vorgezogen" if a["vorrang"] > 0 else ", zurückgestellt"
+                if a["fest_ab"]:
+                    status_text += f", fest ab {_tag(a['fest_ab'])}"
             abw = "" if diff is None else f"{'+' if diff > 0 else ''}{self.lz(diff)}" + (
                 f" ({prozent:+.0f} %)".replace(".", ",") if prozent is not None else "")
             risiko = RISIKO_TEXT.get(p.get("risiko"), "") if a["status"] != D.FERTIG else ""
@@ -788,6 +1058,7 @@ class Hauptfenster(QMainWindow):
                                "Wieder öffnen")
         self.k_oeffnen.setEnabled(melden)
         self.a_termin.setEnabled(offen and bool(a["vorrang"]))
+        self.a_loesen.setEnabled(offen and bool(a["fest_ab"]))
         self.k_loeschen.setEnabled(a is not None and planen)
         self.a_verlauf.setEnabled(a is not None)
 
@@ -851,6 +1122,14 @@ class Hauptfenster(QMainWindow):
         if a is None or a["status"] == D.FERTIG or not self.darf("auftraege"):
             return
         self.db.vorrang_setzen(a["id"], richtung)
+        self.laden()
+
+    def platz_loesen(self, auftrag_id=None):
+        """Festen Platz aus der Plantafel lösen: Der Auftrag ordnet sich wieder nach Liefertermin ein."""
+        a = self.db.auftrag(auftrag_id) if auftrag_id is not None else self.gewaehlt()
+        if a is None or not a["fest_ab"] or not self.darf("auftraege"):
+            return
+        self.db.loesen(a["id"])
         self.laden()
 
     def papierkorb(self, zeigen=True):
@@ -990,13 +1269,29 @@ class Hauptfenster(QMainWindow):
         self.info.setWordWrap(True)
         self.balken = WochenBalken()
         self.balken.gewaehlt.connect(self.woche_waehlen)
-        self.tafel = Plantafel()
+        self.k_wenn = QPushButton("Was wäre, wenn …")
+        self.k_wenn.setToolTip("Probeweise rechnen: Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf "
+                               "einer anderen Maschine. Gespeichert wird erst mit „Übernehmen“.")
+        self.k_wenn.clicked.connect(lambda _=False: self.was_waere_wenn())
+        self.k_rueck = QPushButton("Verschieben rückgängig")
+        self.k_rueck.clicked.connect(lambda _=False: self.verschieben_rueckgaengig())
+        self.k_rueck.setVisible(False)
+        self.k_vorschlag = QPushButton("Vorschlag übernehmen")
+        self.k_vorschlag.setToolTip("Legt den gewählten Auftrag auf die vorgeschlagene Ausweichmaschine.")
+        self.k_vorschlag.clicked.connect(lambda _=False: self.vorschlag_uebernehmen())
+        self.zug_zeile = QLabel("")
+        self.zug_zeile.setWordWrap(True)
+        self.zug_zeile.setVisible(False)
+        self.tafel = ZiehTafel()
+        self.tafel.verschoben.connect(self.tafel_verschoben)
         self.tafel.gewaehlt.connect(self.tafel_gewaehlt)
         self.tafel.oeffnen.connect(lambda i: self.aendern(i))
         legende = QLabel("Wochenbalken: Rahmen = Kapazität, gefüllt = eingelastete Aufträge (ab 80 % gelb, über 100 % "
                          "rot), grau links = tatsächliche Stunden aus den Fertigmeldungen. Plantafel: Dreieck = "
                          "Liefertermin, roter Rahmen = Termin nicht zu halten, oranger Rahmen = knapp, Doppelklick "
-                         "öffnet den Auftrag.")
+                         "öffnet den Auftrag. Ein Auftrag lässt sich mit der Maus auf einen anderen Tag oder eine "
+                         "andere Maschine ziehen; er liegt dann fest (weißer Punkt), die anderen ordnen sich weiter "
+                         "nach Liefertermin.")
         legende.setWordWrap(True)
         legende.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         links = QWidget()
@@ -1018,13 +1313,19 @@ class Hauptfenster(QMainWindow):
         self.details.verticalHeader().setVisible(False)
         self.details.itemDoubleClicked.connect(
             lambda z: self.aendern(self.details.item(z.row(), 0).data(Qt.UserRole)))
+        self.details.itemSelectionChanged.connect(self._vorschlag_knopf)
         rechts = QWidget()
         rl = QVBoxLayout(rechts)
         rl.setContentsMargins(0, 0, 0, 0)
         kopf = QHBoxLayout()
         kopf.addWidget(self.details_titel, 1)
+        kopf.addWidget(self.k_vorschlag)
         kopf.addWidget(self.k_risiko)
+        self.vorschlag_zeile = QLabel("")
+        self.vorschlag_zeile.setWordWrap(True)
+        self.vorschlag_zeile.setVisible(False)
         rl.addLayout(kopf)
+        rl.addWidget(self.vorschlag_zeile)
         rl.addWidget(self.details, 1)
         teiler = QSplitter(Qt.Horizontal)
         teiler.addWidget(rollen)
@@ -1036,14 +1337,83 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(QLabel("Zeitraum"))
         oben.addWidget(self.wochen)
         oben.addWidget(self.k_auskunft)
+        oben.addWidget(self.k_wenn)
+        oben.addWidget(self.k_rueck)
         oben.addStretch(1)
         oben.addWidget(self.k_arbeitsliste)
         oben.addWidget(self.k_pdf)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
         lay.addWidget(self.info)
+        lay.addWidget(self.zug_zeile)
         lay.addWidget(teiler, 1)
         return w
+
+    def tafel_verschoben(self, auftrag_id, gang_id, maschine, tag):
+        """Auftrag in der Plantafel verschoben (E1): Er liegt fest ab diesem Tag auf dieser Maschine. Danach steht
+        über der Tafel, welche Termine dadurch kippen; „Verschieben rückgängig“ stellt den Stand davor wieder her."""
+        if not self.darf("auftraege"):
+            return False
+        vorher = self.ein
+        try:
+            self.rueck = self.db.festlegen(auftrag_id, tag, maschine, gang_id)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        self.laden()
+        a = self.db.auftrag(auftrag_id)
+        schlechter = [x for x in rechnung.vergleich(vorher, self.ein) if x["schlechter"] > 0]
+        text = f"Auftrag {a['nummer']} liegt jetzt fest ab {_wtag(tag)} auf {maschine}."
+        if schlechter:
+            text += (f" <b style='color:{stil.umsetzen(stil.ROT)}'>Dadurch kippt der Termin bei: "
+                     + ", ".join(f"{x['nummer']} ({RISIKO_TEXT.get(x['risiko_neu'], '')})" for x in schlechter[:8])
+                     + ("…" if len(schlechter) > 8 else "") + ".</b>")
+        else:
+            text += " Kein anderer Termin kippt dadurch."
+        self.zug_zeile.setText(text)
+        self.zug_zeile.setVisible(True)
+        self.k_rueck.setVisible(True)
+        self.tafel.auswahl = auftrag_id
+        self.tafel.update()
+        return True
+
+    def verschieben_rueckgaengig(self):
+        if self.rueck is None or not self.darf("auftraege"):
+            return False
+        try:
+            self.db.zuruecksetzen(self.rueck)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        self.rueck = None
+        self.zug_zeile.setVisible(False)
+        self.k_rueck.setVisible(False)
+        self.laden()
+        return True
+
+    def was_waere_wenn(self, zeigen=True):
+        d = WasWaereWennDialog(self)
+        if zeigen:
+            d.exec()
+        return d
+
+    def _vorschlag_knopf(self):
+        r = self.details.currentRow()
+        z = self.details.item(r, 0) if r >= 0 else None
+        self.k_vorschlag.setEnabled(z is not None and z.data(Qt.UserRole) in self.vorschlag
+                                    and self.db.darf("auftraege"))
+
+    def vorschlag_uebernehmen(self, auftrag_id=None):
+        """Ausweichmaschine (E3): den gewählten Auftrag auf die vorgeschlagene Maschine legen."""
+        if auftrag_id is None:
+            r = self.details.currentRow()
+            auftrag_id = self.details.item(r, 0).data(Qt.UserRole) if r >= 0 else None
+        v = self.vorschlag.get(auftrag_id)
+        if v is None or not self.darf("auftraege"):
+            return False
+        self.db.maschine_wechseln(auftrag_id, v["maschine"])
+        self.laden()
+        return True
 
     def _wochen_geaendert(self, n):
         self.db.einstellung_setzen("wochen", n)
@@ -1081,7 +1451,7 @@ class Hauptfenster(QMainWindow):
         titel, liste = self.auftraege_der_auswahl()
         self.details_titel.setText(titel)
         kopf = ("Auftragsnummer", "Kunde", "Maschine", "Liefertermin", "Restlaufzeit", "Laser fertig", "Puffer [AT]",
-                "Terminrisiko")
+                "Terminrisiko", "Vorschlag")
         self.details.setColumnCount(len(kopf))
         self.details.setHorizontalHeaderLabels(kopf)
         self.details.setRowCount(len(liste))
@@ -1089,7 +1459,7 @@ class Hauptfenster(QMainWindow):
             werte = [_zelle(a["nummer"], daten=a["id"]), _zelle(a["kunde"]), _zelle(a["maschine"] or D.FREMD_TEXT),
                      _zelle(_tag(a.get("termin"))), _zelle(self.lz(int(a["h"] * 60 + 0.5)), True),
                      _zelle(_tag(a.get("fertig")) or "später"), _zelle(a["puffer"], True),
-                     _zelle(RISIKO_TEXT.get(a["risiko"], ""))]
+                     _zelle(RISIKO_TEXT.get(a["risiko"], "")), _zelle(self._vorschlag_text(a["id"]))]
             for c, z in enumerate(werte):
                 self.details.setItem(r, c, z)
             if a["risiko"] in RISIKO_FARBE:
@@ -1097,8 +1467,27 @@ class Hauptfenster(QMainWindow):
                 werte[7].setForeground(stil.farbe(stil.TEXT))
         self.details.resizeColumnsToContents()
         self.details.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.details.setColumnHidden(8, not self.vorschlag)
+        self.k_vorschlag.setVisible(bool(self.vorschlag))
+        namen = {a["id"]: a["nummer"] for a in self.ein["auftraege"]}
+        self.vorschlag_zeile.setText("<b>Ausweichmaschine:</b> " + "; ".join(
+            f"{namen.get(i, '')} {self._vorschlag_text(i)}" for i in list(self.vorschlag)[:4])
+            + (" …" if len(self.vorschlag) > 4 else ""))
+        self.vorschlag_zeile.setVisible(bool(self.vorschlag))
+        self._vorschlag_knopf()
+
+    def _vorschlag_text(self, auftrag_id):
+        v = self.vorschlag.get(auftrag_id)
+        if v is None:
+            return ""
+        return (f"auf {v['maschine']} fertig {_wtag(v['fertig'])}"
+                + (f", {_arbeitstage(v['tage'])} früher" if v["tage"] else "")
+                + (", Termin dann ok" if v["risiko"] == einlastung.OK else
+                   ", dann knapp" if v["risiko"] == einlastung.KNAPP else ""))
 
     def auslastung_zeigen(self):
+        self.vorschlag = rechnung.ausweichen(self.aus, self.ein, int(self.db.zahl("schwelle_tage", 2)))
+        self.tafel.ziehbar = self.db.darf("auftraege")
         self.balken.setzen(spalten_daten(self.aus, self.ein, self.gem, True), self.woche)
         self.tafel.setzen(self.aus, self.ein, self.wochen.value())
         r = self.ein["risiko"]
@@ -1313,9 +1702,9 @@ class Hauptfenster(QMainWindow):
     def _seite_einstellungen(self):
         w = QWidget()
         self.e_maschinen = QTableWidget()
-        self.e_maschinen.setColumnCount(5)
+        self.e_maschinen.setColumnCount(6)
         self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv", "Sperrtage",
-                                                    "Übergangszeit davor"))
+                                                    "Übergangszeit davor", "Ausweichmaschine"))
         self.e_maschinen.horizontalHeader().setStretchLastSection(True)
         self.e_maschinen.itemDoubleClicked.connect(lambda _z: self.maschine_bearbeiten())
         self.e_maschinen.verticalHeader().setVisible(False)
@@ -1536,6 +1925,7 @@ class Hauptfenster(QMainWindow):
             self.e_maschinen.setItem(r, 2, _zelle("ja" if m["aktiv"] else "nein"))
             self.e_maschinen.setItem(r, 3, _zelle(m["sperrtage"]))
             self.e_maschinen.setItem(r, 4, _zelle(_arbeitstage(m["uebergang_tage"]) if m["uebergang_tage"] else ""))
+            self.e_maschinen.setItem(r, 5, _zelle("ja" if m["ausweich"] else "nein"))
         gaenge_an = self.db.mit_gaengen()
         self.e_maschinen.setColumnHidden(4, not gaenge_an)
         self.e_maschinen.setHorizontalHeaderItem(0, QTableWidgetItem("Maschine / Arbeitsplatz" if gaenge_an
@@ -1733,8 +2123,8 @@ class Hauptfenster(QMainWindow):
         return self.db.maschinen()[r] if 0 <= r < self.e_maschinen.rowCount() else None
 
     def maschine_bearbeiten(self, neu=False, werte=None):
-        """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage[, Übergangszeit]]) überspringt den Dialog
-        (Tests)."""
+        """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage[, Übergangszeit[, Ausweichmaschine]]])
+        überspringt den Dialog (Tests)."""
         m = None if neu else self._maschine_gewaehlt()
         if not neu and m is None:
             return False
@@ -1768,6 +2158,11 @@ class Hauptfenster(QMainWindow):
                              "Liegezeit). 0 = es geht am selben Tag weiter.")
             if self.db.mit_gaengen():
                 form.addRow("Übergangszeit davor", ueber)
+            ausweich = QCheckBox("Ausweichmaschine (kann Aufträge anderer Maschinen übernehmen)")
+            ausweich.setChecked(bool(m["ausweich"]) if m else True)
+            ausweich.setToolTip("Nur Maschinen mit Häkchen schlägt das Programm bei Terminrisiko als Ausweichmaschine "
+                                "vor. Für Arbeitsplätze wie Entgraten oder Schweißen das Häkchen entfernen.")
+            form.addRow("", ausweich)
             kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
             kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
             kn.accepted.connect(d.accept)
@@ -1775,11 +2170,13 @@ class Hauptfenster(QMainWindow):
             form.addRow(kn)
             if d.exec() != QDialog.Accepted:
                 return False
-            werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text(), ueber.value())
+            werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text(), ueber.value(),
+                     ausweich.isChecked())
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
-                                       uebergang=werte[4] if len(werte) > 4 else None)
+                                       uebergang=werte[4] if len(werte) > 4 else None,
+                                       ausweich=werte[5] if len(werte) > 5 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False

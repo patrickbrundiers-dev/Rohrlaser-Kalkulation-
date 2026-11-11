@@ -28,6 +28,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     jetzt = datetime.datetime.combine(heute, datetime.datetime.now().time())
     for a in db.auftraege((D.OFFEN, D.LAEUFT)):
         termin = _datum(a["liefertermin"])
+        fest = _datum(a["fest_ab"])
         if a["gaenge"]:                           # mehrteilig: jeder offene Arbeitsgang wird einzeln eingelastet
             laeuft = any(g["start_am"] for g in a["gaenge"])
             for g in a["gaenge"]:
@@ -39,14 +40,14 @@ def grundlage(db, heute=None, wochenzahl=8):
                     id=a["id"], gang=g["id"], gang_name=g["name"], nummer=f"{a['nummer']} · {g['name']}",
                     auftragsnummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=g["platz"],
                     h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=g["kalk_min"],
-                    stufe=g["stufe"], pos=g["pos"], tage=int(g["tage"] or 0),
+                    stufe=g["stufe"], pos=g["pos"], tage=int(g["tage"] or 0), fest=fest,
                     gestartet=_datum(str(g["start_am"] or "")[:10]) if fremd else None,
                     vorrang=LAEUFT_ZUERST if laeuft else int(a["vorrang"] or 0)))
             continue
         rest = max(0, int(a["kalk_min"]) - db.gelaufen(a, jetzt))
         auftraege.setdefault((a["maschine"], ALLE), []).append(dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
-            h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"],
+            h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
             # Reihenfolge: was gerade läuft zuerst, dann von Hand vorgezogen, nach Termin, zurückgestellt
             vorrang=LAEUFT_ZUERST if a["start_am"] else int(a["vorrang"] or 0)))
     m0 = wochen.montag(heute)
@@ -57,7 +58,9 @@ def grundlage(db, heute=None, wochenzahl=8):
                 anteil=max(0.0, min(1.0, db.zahl("nutzungsgrad", 100) / 100)), land=db.einstellung("bundesland"),
                 ruhe=wochen.betriebsruhe(db.einstellung("betriebsruhe")),
                 sperre={m["name"]: wochen.betriebsruhe(m["sperrtage"]) for m in db.maschinen() if m["sperrtage"]},
-                uebergang={m["name"]: int(m["uebergang_tage"] or 0) for m in db.maschinen()})
+                uebergang={m["name"]: int(m["uebergang_tage"] or 0) for m in db.maschinen()},
+                zusatz=db.zusatzstunden(m0),
+                ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]])
 
 
 def einlasten(db, heute=None, wochenzahl=8):
@@ -66,14 +69,35 @@ def einlasten(db, heute=None, wochenzahl=8):
     return aus, rechnen(aus, schwelle=int(db.zahl("schwelle_tage", 2)))
 
 
-def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None):
-    """Einlastung mit Übersicht je Auftrag. Ohne mehrteilige Aufträge rechnet der Kern der Kalkulation
-    (einlastung.rechnen); sobald Arbeitsgänge aufeinander warten oder außer Haus laufen, rechnet planen().
+class Probe:
+    """Was-wäre-wenn (E2): samstag = Stunden an jedem Samstag (None = wie eingestellt), zusatz = {(Maschine,
+    Montag): Stunden zusätzlich in dieser Woche} (ersetzt die gespeicherten), maschine = {Auftrag-ID: Maschine}."""
+
+    def __init__(self, samstag=None, zusatz=None, maschine=None):
+        self.samstag, self.zusatz, self.maschine = samstag, zusatz, dict(maschine or {})
+
+
+def _szenario(aus, probe=None):
+    """Szenario für den Rechenkern aus gespeicherten Zusatzstunden und der Probe; None, wenn nichts abweicht."""
+    s = einlastung.Szenario()
+    s.zusatz = dict(aus.get("zusatz") or {}) if probe is None or probe.zusatz is None else dict(probe.zusatz)
+    if probe is not None:
+        s.samstag = probe.samstag
+        s.maschine = {i: (m, None) for i, m in probe.maschine.items()}
+    return None if s.leer() else s
+
+
+def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None, probe=None):
+    """Einlastung mit Übersicht je Auftrag. Ohne mehrteilige Aufträge und feste Plätze rechnet der Kern der
+    Kalkulation (einlastung.rechnen); sobald Arbeitsgänge aufeinander warten, außer Haus laufen oder ein Auftrag
+    einen festen Platz hat, rechnet planen(). probe: Was-wäre-wenn, ändert nur diese Rechnung.
     Dazu ein["plan"] = {Auftrag-ID: dict(start, fertig, lieferbar, puffer, risiko, durchlauf)}."""
     liste = [a for gruppe in aus["auftraege"].values() for a in gruppe]
     if verkettet is None:
-        verkettet = any("gang" in a for a in liste)
-    ein = planen(aus, schwelle) if verkettet else einlastung.rechnen(aus, schwelle=schwelle)
+        verkettet = any("gang" in a or a.get("fest") for a in liste)
+    szenario = _szenario(aus, probe)
+    ein = (planen(aus, schwelle, szenario=szenario) if verkettet
+           else einlastung.rechnen(aus, szenario, schwelle=schwelle))
     plan = {}
     for a in ein["auftraege"]:
         p = plan.setdefault(a["id"], dict(start=None, fertig=a["fertig"], lieferbar=a["lieferbar"],
@@ -93,7 +117,7 @@ def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None):
     return ein
 
 
-def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT):
+def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szenario=None):
     """Einlastung mit Arbeitsgängen (Plan A2a, A3a). Gleiches Ergebnis wie einlastung.rechnen, zusätzlich gilt:
 
     - Die Aufträge kommen in ihrer Reihenfolge dran (läuft, von Hand vorgezogen, Liefertermin); jeder Arbeitsgang
@@ -103,21 +127,24 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT):
     - Zeilen einer Stufe (gleichzeitig) laufen unabhängig voneinander: Teile auf mehreren Maschinen.
     - Fremdarbeit belegt keine Kapazität: sie dauert ihre Arbeitstage ab dem Ende der Stufe davor (oder ab ihrem
       Start, wenn sie schon weggegeben ist).
-    - Terminrisiko, Puffer und „lieferbar“ gelten für den ganzen Auftrag: Ende des letzten Arbeitsgangs plus Vorlauf."""
+    - Terminrisiko, Puffer und „lieferbar“ gelten für den ganzen Auftrag: Ende des letzten Arbeitsgangs plus Vorlauf.
+    - Aufträge mit festem Platz (fest = Tag, in der Plantafel verschoben) kommen zuerst dran, in der Reihenfolge ihrer
+      Tage, und beginnen nicht vor ihrem Tag; alle anderen füllen die freien Stunden davor und danach."""
     heute = aus.get("heute") or datetime.date.today()
     vorlauf = int(aus.get("vorlauf") or 0)
     uebergang = aus.get("uebergang") or {}
     tage = [heute + datetime.timedelta(days=i) for i in range(horizont)]
     index = {d: i for i, d in enumerate(tage)}
-    liste = einlastung.auftragsliste(aus)
+    liste = einlastung.auftragsliste(aus, szenario)
     maschinen = list(aus["maschinen"])
     for a in liste:
         if a["maschine"] != D.FREMD and a["maschine"] not in maschinen:
             maschinen.append(a["maschine"])
     kap, belegt, woche, wochen_kap, spaeter, ergebnis, benutzt = {}, {}, {}, {}, {}, [], {}
     for m in maschinen:
+        zusatz = einlastung._zusatz_je_tag(aus, m, szenario, tage)
         for d in tage:
-            kap[(m, d)] = einlastung.tagesstunden(aus, m, d)
+            kap[(m, d)] = einlastung.tagesstunden(aus, m, d, szenario) + zusatz.get(d, 0.0)
             mo = wochen.montag(d)
             wochen_kap[(m, mo)] = wochen_kap.get((m, mo), 0.0) + kap[(m, d)]
     gruppen = {}
@@ -126,10 +153,12 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT):
 
     def rang(gruppe):
         a = gruppe[0]
-        return einlastung._reihenfolge(dict(a, nummer=a.get("auftragsnummer", a.get("nummer"))))
+        fest = a.get("fest")
+        return (fest is None, fest or heute) + einlastung._reihenfolge(
+            dict(a, nummer=a.get("auftragsnummer", a.get("nummer"))))
 
     for gruppe in sorted(gruppen.values(), key=rang):
-        ab, ab_h, teile = heute, 0.0, []          # frühester Beginn der nächsten Stufe: Tag und Tagesstunde
+        ab, ab_h, teile = max(heute, gruppe[0].get("fest") or heute), 0.0, []   # frühester Beginn der nächsten Stufe
         erste = min(a.get("stufe", 0) for a in gruppe)
         for stufe in sorted({a.get("stufe", 0) for a in gruppe}):
             ende, ende_h = ab, ab_h
@@ -140,12 +169,12 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT):
                         spaeter[m] = spaeter.get(m, 0.0) + float(a.get("h") or 0.0)
                 elif m == D.FREMD:
                     start = a.get("gestartet") or ab
-                    fertig = max(heute, einlastung._spaeter(aus, D.FREMD, start, int(a.get("tage") or 0)))
+                    fertig = max(heute, einlastung._spaeter(aus, D.FREMD, start, int(a.get("tage") or 0), szenario))
                     fertig_h = 0.0
                 else:
                     tag, tag_h = ab, ab_h
                     if stufe != erste and uebergang.get(m):
-                        tag, tag_h = einlastung._spaeter(aus, m, ab, uebergang[m]), 0.0
+                        tag, tag_h = einlastung._spaeter(aus, m, ab, uebergang[m], szenario), 0.0
                     rest, i = max(0.0, float(a.get("h") or 0.0)), index.get(tag, len(tage))
                     while rest > 1e-9 and i < len(tage):
                         d = tage[i]
@@ -179,11 +208,12 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT):
         else:
             letzter = max(teile, key=lambda t: t["fertig"])
             m = letzter["maschine"]
-            lieferbar = einlastung._spaeter(aus, m, letzter["fertig"], vorlauf) if vorlauf > 0 else letzter["fertig"]
+            lieferbar = (einlastung._spaeter(aus, m, letzter["fertig"], vorlauf, szenario) if vorlauf > 0
+                         else letzter["fertig"])
             if termin is None:
                 puffer, risiko = None, einlastung.OHNE
             else:
-                puffer = einlastung._arbeitstage(aus, m, lieferbar, termin)
+                puffer = einlastung._arbeitstage(aus, m, lieferbar, termin, szenario)
                 risiko = (einlastung.UEBER if lieferbar > termin else
                           einlastung.KNAPP if puffer < schwelle else einlastung.OK)
         for t in teile:
@@ -192,7 +222,59 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT):
     je = {a["id"]: a["risiko"] for a in ergebnis if a["art"] == einlastung.AUFTRAG}
     zahl = {s: sum(1 for r in je.values() if r == s) for s in stufen}
     return dict(maschinen=maschinen, tage=tage, heute=heute, kapazitaet=kap, belegt=belegt, woche=woche,
-                wochen_kap=wochen_kap, spaeter=spaeter, auftraege=ergebnis, risiko=zahl, szenario=None)
+                wochen_kap=wochen_kap, spaeter=spaeter, auftraege=ergebnis, risiko=zahl,
+                szenario=szenario if szenario is not None and not szenario.leer() else None)
+
+
+def vergleich(vorher, nachher):
+    """Was ändert sich je Auftrag zwischen zwei Rechnungen? [dict(id, nummer, kunde, maschine, fertig_alt, fertig_neu,
+    risiko_alt, risiko_neu, tage)] nur für Aufträge mit anderem Fertig-Tag oder Risiko; tage = Kalendertage früher
+    (negativ) oder später (positiv), None wenn eine Seite nicht in den Horizont passt. Schlechter Gewordene zuerst."""
+    name = {}
+    for a in nachher["auftraege"]:
+        name.setdefault(a["id"], a)
+    stufe = {einlastung.OK: 0, einlastung.OHNE: 0, einlastung.KNAPP: 1, einlastung.UEBER: 2}
+    out = []
+    for i, n in nachher["plan"].items():
+        v = vorher["plan"].get(i)
+        if v is None or (v["fertig"], v["risiko"]) == (n["fertig"], n["risiko"]):
+            continue
+        a = name[i]
+        out.append(dict(id=i, nummer=a.get("auftragsnummer", a.get("nummer")), kunde=a.get("kunde"),
+                        maschine=a["maschine"], fertig_alt=v["fertig"], fertig_neu=n["fertig"],
+                        risiko_alt=v["risiko"], risiko_neu=n["risiko"],
+                        tage=(n["fertig"] - v["fertig"]).days if v["fertig"] and n["fertig"] else None,
+                        schlechter=stufe[n["risiko"]] - stufe[v["risiko"]]))
+    return sorted(out, key=lambda x: (-x["schlechter"], -(x["tage"] or 0), str(x["nummer"])))
+
+
+def ausweichen(aus, ein, schwelle=einlastung.SCHWELLE):
+    """Vorschlag Ausweichmaschine (E3): Für jeden einteiligen, noch nicht laufenden Auftrag mit Terminrisiko die
+    Maschine, auf der er bei gleicher Laufzeit am frühesten fertig wäre, ohne dass ein anderer Auftrag dadurch ein
+    schlechteres Terminrisiko bekommt. {Auftrag-ID: dict(maschine, fertig, risiko, tage)} (tage = Arbeitstage früher)."""
+    kandidaten = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
+    out = {}
+    for a in ein["auftraege"]:
+        if (a["risiko"] not in (einlastung.KNAPP, einlastung.UEBER) or "gang" in a or a.get("fest")
+                or a.get("vorrang") == LAEUFT_ZUERST or a["maschine"] not in kandidaten):
+            continue
+        jetzt, beste = ein["plan"][a["id"]], None
+        for m in kandidaten:
+            if m == a["maschine"]:
+                continue
+            probe = rechnen(aus, schwelle, probe=Probe(maschine={a["id"]: m}))
+            neu = probe["plan"][a["id"]]
+            if neu["fertig"] is None or (jetzt["fertig"] is not None and neu["fertig"] >= jetzt["fertig"]):
+                continue
+            if any(x["schlechter"] > 0 for x in vergleich(ein, probe) if x["id"] != a["id"]):
+                continue
+            if beste is None or neu["fertig"] < beste["fertig"]:
+                tage = (einlastung._arbeitstage(aus, D.FREMD, neu["fertig"], jetzt["fertig"])
+                        if jetzt["fertig"] else None)
+                beste = dict(maschine=m, fertig=neu["fertig"], risiko=neu["risiko"], tage=tage)
+        if beste:
+            out[a["id"]] = beste
+    return out
 
 
 def kritische(ein):

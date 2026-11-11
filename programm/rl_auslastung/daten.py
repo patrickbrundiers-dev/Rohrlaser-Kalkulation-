@@ -66,6 +66,13 @@ SCHRITTE = (
     CREATE INDEX gaenge_auftrag ON gaenge (auftrag_id, pos);
     CREATE TABLE vorlagen (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, gaenge TEXT NOT NULL DEFAULT '[]');
     """,
+    # 5: Planen wie an einer Plantafel (Patrick 11.11.2026, Erweiterungsplan E1 bis E3): fester Platz eines Auftrags
+    # (fest_ab = Tag, vor dem er nicht beginnt; er wird vor allen anderen eingelastet), Ausweichmaschinen.
+    # Zusatzstunden je Maschine und Woche stehen als JSON in der Einstellung zusatzstunden.
+    """
+    ALTER TABLE auftraege ADD COLUMN fest_ab TEXT;
+    ALTER TABLE maschinen ADD COLUMN ausweich INTEGER NOT NULL DEFAULT 1;
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -206,10 +213,12 @@ class Daten:
         return [dict(z) for z in self.con.execute(
             "SELECT * FROM maschinen " + ("WHERE aktiv = 1 " if nur_aktive else "") + "ORDER BY reihenfolge, name")]
 
-    def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None):
+    def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
+                           ausweich=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
-        zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie."""
+        zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
+        ausweich: kann Aufträge anderer Maschinen übernehmen (Vorschlag Ausweichmaschine); None lässt es."""
         name = str(name or "").strip()
         if not name:
             raise Fehler("Die Maschine braucht einen Namen.")
@@ -257,6 +266,8 @@ class Daten:
                                                            str(sperrtage or "").strip()))
             if uebergang is not None:
                 self.con.execute("UPDATE maschinen SET uebergang_tage = ? WHERE name = ?", (uebergang, name))
+            if ausweich is not None:
+                self.con.execute("UPDATE maschinen SET ausweich = ? WHERE name = ?", (int(bool(ausweich)), name))
 
     def maschine_loeschen(self, name):
         n = self.con.execute(
@@ -451,6 +462,91 @@ class Daten:
         self._verlauf(auftrag_id, "Reihenfolge: " + ("wieder nach Liefertermin" if not neu else
                                                      "vorgezogen" if neu > 0 else "zurückgestellt"))
 
+    def festlegen(self, auftrag_id, tag, maschine=None, gang_id=None):
+        """Fester Platz (E1): Der Auftrag beginnt nicht vor tag und wird vor allen anderen eingelastet, die sich
+        weiter nach Liefertermin ordnen. maschine: zugleich auf diese Maschine legen (bei einem mehrteiligen Auftrag
+        die Zeile gang_id). Ergebnis: der Stand davor für „Rückgängig“ (für zuruecksetzen)."""
+        a = self.auftrag(auftrag_id)
+        if a is None or a["status"] == FERTIG:
+            raise Fehler("Ein fertiger Auftrag lässt sich nicht verschieben.")
+        tag = _tag(tag)
+        g = next((x for x in a["gaenge"] if x["id"] == gang_id), None)
+        davor = dict(id=auftrag_id, fest_ab=a["fest_ab"], maschine=g["platz"] if g else a["maschine"], gang_id=gang_id)
+        with self.con:
+            self.con.execute("BEGIN")
+            self._maschine_wechseln(a, g, maschine)
+            self.con.execute("UPDATE auftraege SET fest_ab = ?, geaendert = ? WHERE id = ?", (tag, _jetzt(), auftrag_id))
+            wo = maschine or davor["maschine"]
+            self._verlauf(auftrag_id, f"in der Plantafel verschoben: fest ab {_zeigen('Liefertermin', tag)}"
+                          + (f" auf {wo}" if wo != davor["maschine"] else ""))
+        return davor
+
+    def _maschine_wechseln(self, a, g, maschine):
+        if not maschine or maschine == (g["platz"] if g else a["maschine"]):
+            return
+        if maschine not in {m["name"] for m in self.maschinen()}:
+            raise Fehler(f"Die Maschine „{maschine}“ gibt es nicht.")
+        if g is not None:
+            if g["status"] == FERTIG or g["platz"] == FREMD:
+                raise Fehler("Diese Zeile lässt sich nicht auf eine andere Maschine legen.")
+            self.con.execute("UPDATE gaenge SET platz = ? WHERE id = ?", (maschine, g["id"]))
+            self._abgleichen(a["id"])
+        elif a["gaenge"]:
+            raise Fehler("Bei einem Auftrag mit mehreren Zeilen bitte die einzelne Zeile verschieben.")
+        else:
+            self.con.execute("UPDATE auftraege SET maschine = ? WHERE id = ?", (maschine, a["id"]))
+
+    def maschine_wechseln(self, auftrag_id, maschine):
+        """Auftrag auf eine andere Maschine legen (Vorschlag Ausweichmaschine, Was-wäre-wenn übernehmen)."""
+        a = self.auftrag(auftrag_id)
+        if a is None or a["status"] == FERTIG or maschine == a["maschine"]:
+            return
+        with self.con:
+            self.con.execute("BEGIN")
+            self._maschine_wechseln(a, None, maschine)
+            self.con.execute("UPDATE auftraege SET geaendert = ? WHERE id = ?", (_jetzt(), auftrag_id))
+            self._verlauf(auftrag_id, f"geändert (Maschine: {a['maschine']} → {maschine})")
+
+    def zuruecksetzen(self, davor):
+        """Rückgängig für festlegen(): Platz und Maschine wie davor."""
+        a = self.auftrag(davor["id"])
+        if a is None:
+            return
+        g = next((x for x in a["gaenge"] if x["id"] == davor.get("gang_id")), None)
+        with self.con:
+            self.con.execute("BEGIN")
+            self._maschine_wechseln(a, g, davor["maschine"])
+            self.con.execute("UPDATE auftraege SET fest_ab = ?, geaendert = ? WHERE id = ?",
+                             (davor["fest_ab"], _jetzt(), davor["id"]))
+            self._verlauf(davor["id"], "Verschieben rückgängig gemacht")
+
+    def loesen(self, auftrag_id):
+        """Festen Platz lösen: Der Auftrag ordnet sich wieder nach Liefertermin ein."""
+        a = self.auftrag(auftrag_id)
+        if a and a["fest_ab"]:
+            self.con.execute("UPDATE auftraege SET fest_ab = NULL, geaendert = ? WHERE id = ?", (_jetzt(), auftrag_id))
+            self._verlauf(auftrag_id, "fester Platz gelöst")
+
+    def zusatzstunden(self, ab=None):
+        """Zusatzstunden je Maschine und Woche: {(Maschine, Montag): Stunden}; ab = nur Wochen ab diesem Montag."""
+        try:
+            roh = json.loads(self.einstellung("zusatzstunden") or "[]")
+        except ValueError:
+            roh = []
+        out = {}
+        for z in roh:
+            try:
+                montag, h = datetime.date.fromisoformat(z[1]), float(z[2])
+            except (TypeError, ValueError, IndexError):
+                continue
+            if h > 0 and (ab is None or montag >= ab):
+                out[(str(z[0]), montag)] = h
+        return out
+
+    def zusatzstunden_setzen(self, werte):
+        self.einstellung_setzen("zusatzstunden", json.dumps(
+            [[m, mo.isoformat(), float(h)] for (m, mo), h in sorted(werte.items()) if h and float(h) > 0]))
+
     def starten(self, auftrag_id, jetzt=None, gang_id=None):
         """Start-Knopf: die Uhr läuft, Status „läuft“. Bei einem mehrteiligen Auftrag startet der Arbeitsgang gang_id
         (Vorgabe: der nächste, der an der Reihe ist)."""
@@ -528,6 +624,7 @@ class Daten:
                 f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})" if g["platz"] != FREMD else ""))
             return
         self.con.execute("UPDATE auftraege SET status = ?, ist_min = ?, fertig_am = ?, start_am = NULL, vorrang = 0, "
+                         "fest_ab = NULL, "
                          "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, _jetzt(), auftrag_id))
         self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})")
 

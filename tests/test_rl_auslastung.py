@@ -810,6 +810,144 @@ db8.schliessen()
 ok("R8 Arbeitsgänge (zuschaltbar, nacheinander, Übergangszeit, Fremdarbeit, Durchlaufzeit, Vorlagen) und Auftrag "
    "auf mehreren Maschinen")
 
+# ---------------------------------------------------------------- R9 Planen wie an einer Plantafel (E1 bis E3)
+from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QMouseEvent  # noqa: E402
+
+db9 = daten.Daten(tmp / "neun.db", wer="planer")
+p1 = db9.auftrag_speichern(dict(nummer="P-1", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 16)))   # 16 h
+p2 = db9.auftrag_speichern(dict(nummer="P-2", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 17)))
+p3 = db9.auftrag_speichern(dict(nummer="P-3", maschine="LT7", kalk_min=480, liefertermin=D(2026, 11, 27)))
+aus9, ein9 = rechnung.einlasten(db9, HEUTE)
+assert [ein9["plan"][i]["fertig"] for i in (p1, p2, p3)] == [D(2026, 11, 12), D(2026, 11, 16), D(2026, 11, 17)]
+assert [ein9["plan"][i]["risiko"] for i in (p1, p2, p3)] == [einlastung.KNAPP, einlastung.UEBER, einlastung.OK]
+# E3 Ausweichmaschine: P-2 wäre auf T03 oder T11 heute und morgen fertig, niemand sonst wird schlechter
+vor = rechnung.ausweichen(aus9, ein9, 2)
+assert vor[p2]["fertig"] == D(2026, 11, 12) and vor[p2]["maschine"] in ("T03", "T11") and vor[p2]["tage"] == 2
+assert vor[p2]["risiko"] == einlastung.KNAPP and p3 not in vor       # lieferbar 16.11., Termin 17.11.
+db9.maschine_speichern("T03", 8, True, alt="T03", ausweich=False)                 # keine Ausweichmaschine mehr
+db9.maschine_speichern("T11", 8, True, alt="T11", ausweich=False)
+assert not rechnung.ausweichen(*rechnung.einlasten(db9, HEUTE), 2)
+db9.maschine_speichern("T03", 8, True, alt="T03", ausweich=True)
+# E2 Was-wäre-wenn: nur gerechnet, nichts gespeichert
+probe = rechnung.rechnen(aus9, 2, probe=rechnung.Probe(samstag=8.0))
+assert probe["plan"][p2]["fertig"] == D(2026, 11, 14) and ein9["plan"][p2]["fertig"] == D(2026, 11, 16)
+probe = rechnung.rechnen(aus9, 2, probe=rechnung.Probe(zusatz={("LT7", D(2026, 11, 9)): 9.0}))   # 3 h je Tag Mi bis Fr
+assert probe["kapazitaet"][("LT7", HEUTE)] == 11.0 and probe["plan"][p2]["fertig"] == D(2026, 11, 13)
+probe = rechnung.rechnen(aus9, 2, probe=rechnung.Probe(maschine={p2: "T03"}))
+diff = {x["id"]: x for x in rechnung.vergleich(ein9, probe)}
+assert diff[p2]["fertig_neu"] == D(2026, 11, 12) and diff[p2]["schlechter"] < 0 and diff[p3]["tage"] == -4
+assert db9.auftrag(p2)["maschine"] == "LT7" and db9.zahl("samstag_stunden") == 0
+# E1 fester Platz: P-3 liegt fest ab heute, die anderen ordnen sich dahinter nach Liefertermin
+davor = db9.festlegen(p3, HEUTE)
+aus9, fest9 = rechnung.einlasten(db9, HEUTE)
+assert [fest9["plan"][i]["fertig"] for i in (p3, p1, p2)] == [HEUTE, D(2026, 11, 13), D(2026, 11, 17)]
+kippt = [x["id"] for x in rechnung.vergleich(ein9, fest9) if x["schlechter"] > 0]
+assert kippt == [p1] and fest9["plan"][p1]["risiko"] == einlastung.UEBER
+db9.zuruecksetzen(davor)
+assert db9.auftrag(p3)["fest_ab"] is None
+db9.festlegen(p3, D(2026, 11, 13), "T03")                          # anderer Tag und andere Maschine
+a = db9.auftrag(p3)
+assert (a["fest_ab"], a["maschine"]) == ("2026-11-13", "T03")
+aus9, fest9 = rechnung.einlasten(db9, HEUTE)
+assert fest9["plan"][p3]["start"] == D(2026, 11, 13) and fest9["plan"][p1]["fertig"] == D(2026, 11, 12)
+# ein später angelegter dringender Auftrag füllt die freien Stunden vor dem festen Platz
+p4 = db9.auftrag_speichern(dict(nummer="P-4", maschine="T03", kalk_min=600, liefertermin=D(2026, 11, 13)))
+_aus, fest9 = rechnung.einlasten(db9, HEUTE)
+je9 = {x["id"]: x for x in fest9["auftraege"]}
+assert je9[p3]["stuecke"] == [(D(2026, 11, 13), 0.0, 8.0)]
+assert [t for t, _v, _b in je9[p4]["stuecke"]] == [HEUTE, D(2026, 11, 12)]
+was = [v["was"] for v in db9.verlauf(p3)]
+assert was[0] == "in der Plantafel verschoben: fest ab 13.11.2026 auf T03" and "Verschieben rückgängig gemacht" in was
+db9.fertig_melden(p4, 600, HEUTE)
+db9.zusatzstunden_setzen({("LT7", D(2026, 11, 16)): 4, ("T03", D(2026, 11, 2)): 5})
+assert db9.zusatzstunden(D(2026, 11, 9)) == {("LT7", D(2026, 11, 16)): 4.0}       # vergangene Wochen zählen nicht
+db9.zusatzstunden_setzen({})
+
+# Fenster: ziehen, Rückgängig, lösen, Was-wäre-wenn, Vorschlag
+f9 = Hauptfenster(db9, heute=HEUTE)
+f9.resize(1400, 860)
+f9.show()
+f9.reiter.setCurrentIndex(1)
+app.processEvents()
+tafel = f9.tafel
+tafel.repaint()
+balken = next(rect for rect, a in tafel.flaechen if a["id"] == p1)
+zeile_t11 = tafel.KOPF + f9.ein["maschinen"].index("T11") * tafel.ZEILE + tafel.ZEILE / 2
+ziel = QPointF(tafel._x(D(2026, 11, 17)) + 2, zeile_t11)
+assert tafel.ziel_bei(ziel) == ("T11", D(2026, 11, 17))
+assert tafel.ziel_bei(QPointF(tafel._x(D(2026, 11, 9)) + 2, zeile_t11)) == ("T11", HEUTE)   # nie vor heute
+assert tafel.ziel_bei(QPointF(10, zeile_t11)) is None
+
+
+def _maus(art, punkt, knopf=Qt.LeftButton):
+    return QMouseEvent(art, punkt, tafel.mapToGlobal(punkt.toPoint()), knopf, knopf, Qt.NoModifier)
+
+
+tafel.mousePressEvent(_maus(QEvent.MouseButtonPress, balken.center()))
+tafel.mouseReleaseEvent(_maus(QEvent.MouseButtonRelease, balken.center()))     # Klick ohne Ziehen verschiebt nichts
+assert db9.auftrag(p1)["fest_ab"] is None and not f9.k_rueck.isVisible()
+tafel.mousePressEvent(_maus(QEvent.MouseButtonPress, balken.center()))
+tafel.mouseMoveEvent(_maus(QEvent.MouseMove, ziel))
+assert tafel.ziel == ("T11", D(2026, 11, 17))
+tafel.repaint()
+tafel.mouseReleaseEvent(_maus(QEvent.MouseButtonRelease, ziel))
+a = db9.auftrag(p1)
+assert (a["fest_ab"], a["maschine"]) == ("2026-11-17", "T11")
+assert f9.k_rueck.isVisible() and "P-1 liegt jetzt fest ab Di 17.11.2026 auf T11" in f9.zug_zeile.text()
+assert "kippt der Termin bei: P-1" in f9.zug_zeile.text()
+tafel.repaint()
+assert any(a.get("fest") for _r, a in tafel.flaechen)
+f9.reiter.setCurrentIndex(0)
+app.processEvents()
+f9.waehlen(p1)
+assert "fest ab 17.11.2026" in f9.liste.item(f9.liste.currentRow(), 5).text() and f9.a_loesen.isEnabled()
+f9.reiter.setCurrentIndex(1)
+assert f9.verschieben_rueckgaengig() and not f9.k_rueck.isVisible()
+a = db9.auftrag(p1)
+assert (a["fest_ab"], a["maschine"]) == (None, "LT7")
+f9.platz_loesen(p3)
+assert db9.auftrag(p3)["fest_ab"] is None
+# Vorschlag Ausweichmaschine in der Liste der Aufträge mit Terminrisiko
+app.processEvents()
+assert not f9.details.isColumnHidden(8) and f9.k_vorschlag.isVisible() and p2 in f9.vorschlag
+zeile = [f9.details.item(r, 0).data(Qt.UserRole) for r in range(f9.details.rowCount())].index(p2)
+assert f9.details.item(zeile, 8).text().startswith("auf T03 fertig") and "früher" in f9.details.item(zeile, 8).text()
+f9.details.selectRow(zeile)
+assert f9.k_vorschlag.isEnabled() and f9.vorschlag_uebernehmen()
+assert db9.auftrag(p2)["maschine"] == "T03" and db9.verlauf(p2)[0]["was"] == "geändert (Maschine: LT7 → T03)"
+db9.maschine_wechseln(p2, "LT7")
+f9.laden()
+# Was-wäre-wenn
+wd = f9.was_waere_wenn(zeigen=False)
+assert not wd.diff and "kein Fertig-Tag" in wd.ergebnis.text()
+wd.samstag.setValue(8)
+assert wd.diff and "früher fertig" in wd.ergebnis.text() and wd.tabelle.rowCount() == len(wd.diff)
+wd.zusatz_setzen("LT7", D(2026, 11, 9), 9)
+wd.wechsel_setzen(p3, "T11")
+assert wd.annahmen.rowCount() == 2 and wd.annahmen.item(1, 1).text() == "T03 → T11"
+wd.entfernen(1)
+assert wd.annahmen.rowCount() == 1 and not wd.wechsel
+wd.wechsel_setzen(p2, "T03")
+assert db9.zahl("samstag_stunden") == 0 and db9.auftrag(p2)["maschine"] == "LT7"  # bis hier nichts gespeichert
+assert wd.uebernehmen()
+assert db9.zahl("samstag_stunden") == 8 and db9.auftrag(p2)["maschine"] == "T03"
+assert db9.zusatzstunden() == {("LT7", D(2026, 11, 9)): 9.0} and f9.ein["kapazitaet"][("LT7", HEUTE)] == 10.25  # 9 h auf Mi bis Sa
+# Rechte: Werkstatt darf nicht verschieben
+db9.benutzer_speichern("planer", daten.VERWALTUNG)
+w9 = daten.Daten(tmp / "neun.db", wer="halle")
+db9.benutzer_speichern("halle", daten.WERKSTATT)
+fw9 = Hauptfenster(w9, heute=HEUTE)
+fw9.reiter.setCurrentIndex(1)
+app.processEvents()
+assert not fw9.tafel.ziehbar and not fw9.tafel_verschoben(p1, None, "T11", D(2026, 11, 18))
+assert w9.auftrag(p1)["fest_ab"] is None
+fw9.close()
+f9.close()
+w9.schliessen()
+db9.schliessen()
+ok("R9 Plantafel: Auftrag mit der Maus verschieben (fester Platz, Rückgängig, lösen), Was-wäre-wenn, Ausweichmaschine")
+
 # ---------------------------------------------------------------- R4b Übergabe aus der Kalkulation
 from rohrlaser import auslastung_ansicht  # noqa: E402
 

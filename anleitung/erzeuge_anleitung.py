@@ -7597,6 +7597,14 @@ def kapitel_fertigung(i):
             "<i>Durchlaufzeit (Plan)</i> nennt die Arbeitstage vom Start des ersten bis zum Ende des letzten "
             "Arbeitsgangs; das Terminrisiko rechnet mit dem Ende des letzten Arbeitsgangs plus Vorlauf. Soll und "
             "Ist zählt je Maschine jeden Arbeitsgang an seinem Arbeitsplatz.",
+            "<b>Planen wie an einer Plantafel</b> (ab Version 1.3): In der Plantafel lässt sich ein Auftrag mit "
+            "der Maus auf einen anderen Tag oder eine andere Maschine ziehen. Er liegt dann fest (weißer Punkt), "
+            "die anderen ordnen sich weiter nach Liefertermin; das Programm nennt, welche Termine dadurch kippen. "
+            "<i>Verschieben rückgängig</i> nimmt den Zug zurück, <i>Reihenfolge → Festen Platz lösen</i> hebt ihn "
+            "auf. <i>Was wäre, wenn …</i> rechnet Samstagsarbeit, Zusatzstunden je Maschine und Woche oder einen "
+            "Auftrag auf einer anderen Maschine auf Probe und speichert erst mit <i>Übernehmen</i>. Bei "
+            "Terminrisiko schlägt die Spalte <i>Vorschlag</i> eine Ausweichmaschine vor, wenn der Auftrag dort "
+            "früher fertig wäre und kein anderer dadurch schlechter dasteht.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
             "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")

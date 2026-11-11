@@ -87,6 +87,26 @@ ABSCHNITTE = (
      "Spalte Status zeigt, wie viele fertig sind und welcher jetzt läuft. <i>Soll und Ist</i> zählt je Maschine "
      "jeden Arbeitsgang an seinem Arbeitsplatz. Die Arbeitsliste hat für jeden Arbeitsplatz eine Seite. Aufträge "
      "ohne Arbeitsgänge bleiben, wie sie sind."),
+    ("Plantafel: mit der Maus verschieben",
+     "Im Reiter <b>Auslastung</b> ziehst du einen Auftrag in der Plantafel mit der Maus auf einen anderen Tag oder "
+     "in die Zeile einer anderen Maschine. Er liegt dann <b>fest</b>: Er beginnt nicht vor diesem Tag und wird vor "
+     "allen anderen eingeplant. Die anderen Aufträge ordnen sich davor und dahinter weiter nach Liefertermin. Ein "
+     "weißer Punkt im Balken zeigt den festen Platz, in der Liste steht <i>fest ab …</i>. Über der Tafel steht "
+     "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
+     "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
+     "ein."),
+    ("Was wäre, wenn …",
+     "<b>Auslastung → Was wäre, wenn …</b> rechnet auf Probe: Samstagsarbeit, Zusatzstunden für eine Maschine in "
+     "einer Woche oder ein Auftrag auf einer anderen Maschine. Die Tabelle zeigt, welche Aufträge dadurch früher "
+     "oder später fertig werden und wie sich das Terminrisiko ändert. Gespeichert wird nichts, bis du "
+     "<b>Übernehmen</b> drückst. Zusatzstunden gelten für die gewählte Woche und verteilen sich auf ihre "
+     "Arbeitstage."),
+    ("Ausweichmaschine",
+     "Bei einem Auftrag mit Terminrisiko prüft das Programm, ob er auf einer anderen Maschine früher fertig wäre, "
+     "ohne dass ein anderer Auftrag dadurch schlechter dasteht. Der Vorschlag steht im Reiter Auslastung rechts in "
+     "der Spalte <b>Vorschlag</b>; <b>Vorschlag übernehmen</b> legt den Auftrag um. Das Programm rechnet mit "
+     "derselben Laufzeit und verschiebt nichts von selbst. Welche Maschinen als Ausweichmaschine gelten, stellst "
+     "du in den Einstellungen bei der Maschine ein; für Arbeitsplätze wie Entgraten nimmst du das Häkchen heraus."),
     ("Zusatzfelder",
      "Eigene Angaben je Auftrag, zum Beispiel Material, Stückzahl oder Bearbeiter, legst du in den Einstellungen "
      "an. Sie erscheinen in der Liste, im Auftrag und in der CSV-Datei."),
