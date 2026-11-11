@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 from rohrlaser import einlastung, feiertage, stil
 from rohrlaser.auslastung_grafik import RISIKO_TEXT, Plantafel, WochenBalken, spalten_daten
 
-from . import NAME, VERSION, aktualisierung_fenster, austausch, hilfe, laufzeit, ort, rechnung
+from . import NAME, VERSION, aktualisierung_fenster, austausch, hilfe, laufzeit, ort, rechnung, warnungen
 from . import daten as D
 
 FILTER = ("offene Aufträge", "fertige Aufträge", "alle Aufträge")
@@ -2207,14 +2207,19 @@ FUNKTIONEN = (
      "Im Auftrag Stückzahl und „+ Zusatzschritt …“: Anzahl je Teil eingeben, das Programm rechnet die Laufzeit aus "
      "Richtzeiten (Einstellungen → Termine und Abläufe). Schaltet die Arbeitsgänge mit ein und legt die "
      "Arbeitsplätze Bearbeitung und Schweißen an."),
+    ("warnungen", "Warnungen (Glocke)",
+     "Glocke oben rechts und Zeile im Reiter Aufträge: Liefertermin überschritten oder nicht zu halten, Material "
+     "fehlt kurz vor dem Start, Maschine steht, Fremdarbeit nicht zurück (Grenzen: Einstellungen → Termine und "
+     "Abläufe → Warnungen)."),
 )
 RICHT_KOPF = ("Zusatzschritt", "Art", "je Stück (s)", "Rüsten (min)", "Handling je Teil (s)", "Arbeitsplatz",
               "Arbeitstage", "Stichwörter", "Schätzwert")
 RICHT_FELD = ("schritt", "art", "je_s", "ruest_min", "handling_s", "platz", "tage", "stichwort")
-EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g1, gs)),
-                      ("Termine und Abläufe", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g10, g2, g7, g12, g8, g9)),
-                      ("Ansicht und Felder", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g11, g3, g4)),
-                      ("Benutzer und Datenbank", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g6, g5)))
+EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g: (g[1], g["s"])),
+                      ("Termine und Abläufe", lambda g: (g[10], g[2], g[13], g[7], g[12], g[8], g[9])),
+                      ("Ansicht und Felder", lambda g: (g[11], g[3], g[4])),
+                      ("Benutzer und Datenbank", lambda g: (g[6], g[5])))
+PRIO_TEXT = {"A": "A (wichtig)", "B": "B (normal)", "C": "C (kann warten)"}
 BALKEN_ZEILE = 84                         # L1: Höhe einer Maschine in den Wochenbalken (vorher 122)
 BALKEN_LEGENDE = ("Wochenbalken: Rahmen = Kapazität, gefüllt = eingelastete Aufträge (ab 80 % gelb, über 100 % rot), "
                   "grau links = tatsächliche Stunden aus den Fertigmeldungen. Klick auf eine Woche zeigt rechts ihre "
@@ -2535,7 +2540,20 @@ class Hauptfenster(QMainWindow):
         self.k_werkstatt.setToolTip("Große Ansicht für den Platz an der Maschine: Maschine wählen, die nächsten "
                                     "Aufträge in großer Schrift, große Knöpfe Start, Stopp und Fertig.")
         self.k_werkstatt.clicked.connect(lambda _=False: self.werkstatt_an(True))
-        self.reiter.setCornerWidget(self.k_werkstatt, Qt.TopRightCorner)
+        # V3 (Plan 2.7): Glocke mit den Warnungen neben der Werkstatt-Ansicht
+        self.warn, self.warn_gezeigt = [], None   # aktuelle Warnungen; Schlüssel, die schon gemeldet wurden
+        self.k_glocke = QPushButton("🔔")
+        self.k_glocke.setToolTip("Warnungen: Liefertermin in Gefahr, Material fehlt, Maschine steht, Fremdarbeit "
+                                 "nicht zurück. Klick zeigt die Liste.")
+        self.glocke_menue = QMenu(self)
+        self.k_glocke.setMenu(self.glocke_menue)
+        ecke = QWidget()
+        el = QHBoxLayout(ecke)
+        el.setContentsMargins(0, 0, 0, 0)
+        el.setSpacing(6)
+        el.addWidget(self.k_glocke)
+        el.addWidget(self.k_werkstatt)
+        self.reiter.setCornerWidget(ecke, Qt.TopRightCorner)
         self.reiter.addTab(self._seite_auftraege(), "Aufträge")
         self.reiter.addTab(self._seite_auslastung(), "Auslastung")
         self.reiter.addTab(self._seite_soll_ist(), "Soll und Ist")
@@ -2641,6 +2659,7 @@ class Hauptfenster(QMainWindow):
         if self.takte % 720 == 0 and self.lizenz is not None:     # etwa jede Stunde: Lizenz (Ablauf über Nacht)
             self.lizenz_anwenden()
         if self.takte % 12 == 0 and not QApplicationModal():       # etwa jede Minute: neue Übergabe im Ordner?
+            self.warnungen_zeigen()                                 # V3: eine Maschine steht schon länger
             self.uebergabe_pruefen()
             self.abgleichen()
 
@@ -2814,9 +2833,18 @@ class Hauptfenster(QMainWindow):
         ul.addWidget(self.k_ueb_ein)
         ul.addWidget(self.k_ueb_nein)
         self.ueb_zeile.setVisible(False)
+        # V3: Zeile mit den Warnungen (wie eine Kachel auf der Startseite)
+        self.warn_zeile = QLabel("")
+        self.warn_zeile.setWordWrap(True)
+        self.warn_zeile.setTextFormat(Qt.RichText)
+        self.warn_zeile.setStyleSheet(f"QLabel {{ background: {stil.umsetzen(stil.ROT_FLAECHE)}; color: "
+                                      f"{stil.umsetzen(stil.TEXT)}; border-radius: 4px; padding: 6px 10px; }}")
+        self.warn_zeile.linkActivated.connect(lambda _l: self.glocke_zeigen())
+        self.warn_zeile.setVisible(False)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
         lay.addLayout(knoepfe)
+        lay.addWidget(self.warn_zeile)
         lay.addWidget(self.ueb_zeile)
         lay.addWidget(self.liste, 1)
         lay.addWidget(self.summe)
@@ -2844,7 +2872,9 @@ class Hauptfenster(QMainWindow):
         gaenge_an = self.db.mit_gaengen()
         kopf = ["Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit", "Liefertermin", "Status",
                 "Fertig (Plan)" if gaenge_an else "Laser fertig (Plan)", "Terminrisiko", "Tatsächliche Laufzeit",
-                "Abweichung", "Fertig am", "Bemerkung", "Durchlaufzeit (Plan)", "Material (Rüsten)"] + felder
+                "Abweichung", "Fertig am", "Bemerkung", "Durchlaufzeit (Plan)", "Material (Rüsten)",
+                "Puffer [AT]", "Spätester Start", "Priorität"] + felder
+        prio = self.db.prioritaeten()
         self.liste.setSortingEnabled(False)
         self.liste.setColumnCount(len(kopf))
         self.liste.setHorizontalHeaderLabels(kopf)
@@ -2918,7 +2948,7 @@ class Hauptfenster(QMainWindow):
                 _zelle(_arbeitstage(p["durchlauf"]) if p.get("durchlauf") and a["status"] != D.FERTIG else "",
                        True, sortier=p.get("durchlauf") or 0),
                 _zelle(a.get("material") or ""),
-            ] + [_zelle(a["zusatz"].get(n, "")) for n in felder]
+            ] + self._v4_zellen(a, p, prio) + [_zelle(a["zusatz"].get(n, "")) for n in felder]
             if termin_tipp:
                 werte[4].setToolTip(termin_tipp)
             for c, z in enumerate(werte):
@@ -2933,6 +2963,13 @@ class Hauptfenster(QMainWindow):
             self.liste.setColumnHidden(c, self.filter.currentIndex() == 0)
         self.liste.setColumnHidden(12, not gaenge_an or self.filter.currentIndex() == 1)
         self.liste.setColumnHidden(13, not self.db.funktion("material") or not any(a.get("material") for a in zeilen))
+        for c in (14, 15):                        # V4: Puffer und spätester Start nur bei offenen Aufträgen
+            self.liste.setColumnHidden(c, self.filter.currentIndex() == 1)
+        self.liste.setColumnHidden(16, not prio)  # V10: erst sichtbar, wenn ein Kunde A oder C ist
+        kopfzeile = self.liste.horizontalHeader()
+        for c, ziel in ((16, 2), (14, 9), (15, 10)):   # neben Kunde bzw. hinter Terminrisiko
+            if kopfzeile.visualIndex(c) != ziel:
+                kopfzeile.moveSection(kopfzeile.visualIndex(c), ziel)
         self.liste.setSortingEnabled(True)
         self.liste.resizeColumnsToContents()
         self.liste.horizontalHeader().setSectionResizeMode(11, QHeaderView.Stretch)
@@ -2942,6 +2979,157 @@ class Hauptfenster(QMainWindow):
             self.liste.clearSelection()
             self.liste.setCurrentCell(-1, -1)
         self.knoepfe_setzen()
+
+    def _v4_zellen(self, a, p, prio):
+        """V4/V10: Zellen Puffer [AT], Spätester Start und Priorität einer Zeile der Auftragsliste."""
+        offen = a["status"] != D.FERTIG
+        puffer = p.get("puffer") if offen else None
+        spaet = p.get("spaetester_start") if offen else None
+        z_puffer = _zelle("" if puffer is None else str(puffer), True, sortier=puffer if puffer is not None else 9999)
+        z_spaet = _zelle(_tag(spaet), sortier=str(spaet or "9999"))
+        if spaet is not None:
+            z_spaet.setToolTip("Spätester Start = geplanter Start plus Puffer in Arbeitstagen: so spät kann der "
+                               "Auftrag noch anfangen und hält den Liefertermin, wenn alles andere bleibt.")
+            if spaet <= self.heute():
+                z_spaet.setBackground(stil.farbe(stil.ROT_FLAECHE if spaet < self.heute() else stil.GELB_FLAECHE))
+                z_spaet.setForeground(stil.farbe(stil.TEXT))
+        stufe = prio.get(str(a["kunde"] or "").strip().casefold(), "B")
+        return [z_puffer, z_spaet, _zelle(stufe if prio else "", sortier=stufe)]
+
+    # ---------------------------------------------------------------- V3 (Plan 2.7): Warnungen
+    def warnungen_zeigen(self):
+        """Warnungen neu bestimmen: Glocke, Zeile im Reiter Aufträge, auf Wunsch Windows-Hinweis bei neuen."""
+        if self.ein is None:
+            return []
+        try:
+            self.warn = warnungen.liste(self.db, self.aus, self.ein, self.heute())
+        except Exception:                         # eine Warnung darf das Programm nie aufhalten
+            self.warn = []
+        an = self.db.funktion("warnungen")
+        n, rot = len(self.warn), any(w["stufe"] == warnungen.ROT for w in self.warn)
+        self.k_glocke.setVisible(an)
+        self.k_glocke.setText(f"🔔 {n}" if n else "🔔")
+        self.k_glocke.setStyleSheet(
+            f"QPushButton {{ background: {stil.umsetzen(stil.ROT if rot else stil.ORANGE)}; color: white; "
+            "font-weight: bold; padding: 2px 10px; }" if n else "")
+        self.glocke_menue.clear()
+        for w in self.warn:
+            aktion = self.glocke_menue.addAction(("● " if w["stufe"] == warnungen.ROT else "○ ") + w["text"])
+            aktion.triggered.connect(lambda _=False, i=w["auftrag_id"]: self.warnung_oeffnen(i))
+        if not self.warn:
+            self.glocke_menue.addAction("Keine Warnungen").setEnabled(False)
+        self.glocke_menue.addSeparator()
+        a_win = self.glocke_menue.addAction("Windows-Hinweis bei neuer Warnung (dieser Platz)")
+        a_win.setCheckable(True)
+        a_win.setChecked(ort.ini_lesen(self.platz).get("windows_hinweis") == "1")
+        a_win.toggled.connect(lambda an_: self._platz_merken("windows_hinweis", "1" if an_ else "0"))
+        if n and an:
+            erste = "; ".join(html.escape(w["text"]) for w in self.warn[:2])
+            self.warn_zeile.setText(f"<b>⚠ {n} Warnung{'en' if n != 1 else ''}:</b> {erste}"
+                                    + (" …" if n > 2 else "") + " &nbsp;<a href='#'>alle anzeigen</a>")
+        self.warn_zeile.setVisible(bool(n and an))
+        neu = [w for w in self.warn if self.warn_gezeigt is not None and w["schluessel"] not in self.warn_gezeigt]
+        self.warn_gezeigt = {w["schluessel"] for w in self.warn}
+        if neu:
+            self._windows_hinweis(neu)
+        return self.warn
+
+    def glocke_zeigen(self):
+        self.k_glocke.showMenu()
+
+    def warnung_oeffnen(self, auftrag_id):
+        """Klick auf eine Warnung: den Auftrag im Reiter Aufträge zeigen."""
+        if self.werkstatt_ist_an():
+            self.werkstatt_an(False)
+        self.filter.setCurrentIndex(0)
+        self.suche.clear()
+        self.reiter.setCurrentIndex(0)
+        return self.waehlen(auftrag_id)
+
+    def _windows_hinweis(self, neu):
+        """Optional (Einstellung je Platz): Hinweis unten rechts in Windows, nur für neu hinzugekommene Warnungen."""
+        if ort.ini_lesen(self.platz).get("windows_hinweis") != "1":
+            return False
+        from PySide6.QtWidgets import QSystemTrayIcon
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return False
+        if getattr(self, "tray", None) is None:
+            self.tray = QSystemTrayIcon(self.windowIcon(), self)
+            self.tray.messageClicked.connect(lambda: (self.showNormal(), self.activateWindow(), self.glocke_zeigen()))
+            self.tray.show()
+        self.tray.showMessage(f"{NAME}: {len(neu)} neue Warnung{'en' if len(neu) != 1 else ''}",
+                              "\n".join(w["text"] for w in neu[:4]), QSystemTrayIcon.Warning, 15000)
+        return True
+
+    def _warn_gruppe(self):
+        g = QGroupBox("Warnungen und Kundenpriorität")
+        self.g_warn = g
+        form = QFormLayout(g)
+        self.e_warn_stopp = QSpinBox()
+        self.e_warn_stopp.setRange(1, 600)
+        self.e_warn_stopp.setSuffix(" min")
+        self.e_warn_stopp.setToolTip("Warnung, wenn eine Unterbrechung mit Grund länger dauert.")
+        self.e_warn_material = QSpinBox()
+        self.e_warn_material.setRange(0, 20)
+        self.e_warn_material.setSuffix(" Arbeitstage")
+        self.e_warn_material.setToolTip("Warnung, wenn das Material noch nicht da ist und der Auftrag in so vielen "
+                                        "Arbeitstagen starten soll.")
+        self.e_prio_tage = QSpinBox()
+        self.e_prio_tage.setRange(0, 30)
+        self.e_prio_tage.setSuffix(" Tage")
+        self.e_prio_tage.setToolTip("A-Kunden werden so eingeplant, als läge ihr Liefertermin so viele Tage früher, "
+                                    "C-Kunden so viele Tage später. Der Liefertermin selbst bleibt.")
+        for feld, schluessel in ((self.e_warn_stopp, "warn_stopp_min"), (self.e_warn_material, "warn_material_tage"),
+                                 (self.e_prio_tage, "prio_tage")):
+            feld.valueChanged.connect(lambda w, s=schluessel: self._warn_speichern(s, w))
+        form.addRow("Maschine steht länger als", self.e_warn_stopp)
+        form.addRow("Material fehlt, Start in höchstens", self.e_warn_material)
+        form.addRow("Kundenpriorität verschiebt um", self.e_prio_tage)
+        self.e_kunden = QTableWidget()
+        self.e_kunden.setColumnCount(2)
+        self.e_kunden.setHorizontalHeaderLabels(("Kunde", "Priorität"))
+        self.e_kunden.verticalHeader().setVisible(False)
+        self.e_kunden.setMinimumHeight(160)
+        self.e_kunden.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        form.addRow("Kunden", self.e_kunden)
+        text = QLabel("A = wichtig, wird vorgezogen; B = normal; C = kann warten. Von Hand vorgezogene Aufträge und "
+                      "feste Plätze gehen weiter vor.")
+        text.setWordWrap(True)
+        text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        form.addRow(text)
+        return g
+
+    def _warn_fuellen(self):
+        for feld, schluessel, vorgabe in ((self.e_warn_stopp, "warn_stopp_min", 30),
+                                          (self.e_warn_material, "warn_material_tage", 2),
+                                          (self.e_prio_tage, "prio_tage", 3)):
+            feld.setValue(int(self.db.zahl(schluessel, vorgabe)))
+        kunden = self.db.kunden()
+        self.e_kunden.setRowCount(len(kunden))
+        self.e_kunden_wahl = {}
+        for r, k in enumerate(kunden):
+            self.e_kunden.setItem(r, 0, _zelle(k))
+            wahl = QComboBox()
+            for stufe, t in PRIO_TEXT.items():
+                wahl.addItem(t, stufe)
+            wahl.setCurrentIndex(list(PRIO_TEXT).index(self.db.prioritaet(k)))
+            wahl.currentIndexChanged.connect(lambda _i, k=k, w=wahl: self.prioritaet_setzen(k, w.currentData()))
+            self.e_kunden.setCellWidget(r, 1, wahl)
+            self.e_kunden_wahl[k] = wahl
+
+    def _warn_speichern(self, schluessel, wert):
+        if self.e_fuellt:
+            return
+        self.db.einstellung_setzen(schluessel, int(wert))
+        self.laden()
+
+    def prioritaet_setzen(self, kunde, stufe):
+        """V10: Kundenpriorität ändern; gilt sofort für die Reihenfolge der Einplanung."""
+        if self.e_fuellt:
+            return
+        self.db.prioritaet_setzen(kunde, stufe)
+        self.laden()
+        self.hinweis(f"{kunde}: Priorität {PRIO_TEXT.get(stufe, stufe)}.")
 
     def knoepfe_setzen(self):
         a = self.gewaehlt()
@@ -4903,6 +5091,7 @@ class Hauptfenster(QMainWindow):
         f_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         l11.addWidget(f_text)
         g12 = self._zusatz_gruppe()
+        g13 = self._warn_gruppe()
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
         self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
@@ -4918,7 +5107,8 @@ class Hauptfenster(QMainWindow):
         for titel, gruppen in EINSTELLUNG_REITER:
             innen = QWidget()
             lay = QVBoxLayout(innen)
-            for g in gruppen(g1, g_s, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12):
+            for g in gruppen({1: g1, "s": g_s, 2: g2, 3: g3, 4: g4, 5: g5, 6: g6, 7: g7, 8: g8, 9: g9, 10: g10,
+                              11: g11, 12: g12, 13: g13}):
                 lay.addWidget(g)
             lay.addStretch(1)
             rollen = QScrollArea()
@@ -5123,6 +5313,7 @@ class Hauptfenster(QMainWindow):
         for name, k in self.e_funktionen.items():
             k.setChecked(self.db.mit_gaengen() if name == "arbeitsgaenge" else self.db.funktion(name))
         self._zusatz_fuellen()
+        self._warn_fuellen()
         sch = self.db.schichten()
         self.e_schichten.setRowCount(len(sch))
         for r, x in enumerate(sch):
@@ -5822,6 +6013,7 @@ class Hauptfenster(QMainWindow):
         if self.woche and self.woche[0] not in self.ein["maschinen"]:
             self.woche = None
         self.rechte_setzen()
+        self.warnungen_zeigen()
         i = self.reiter.currentIndex()
         if self.werkstatt_ist_an():
             self.werkstatt_zeigen()

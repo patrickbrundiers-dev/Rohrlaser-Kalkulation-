@@ -1099,6 +1099,15 @@ class Daten:
                              "ORDER BY id DESC LIMIT 1", (auftrag_id, gang_id)).fetchone()
         return z["grund"] if z else ""
 
+    def offene_stopps(self):
+        """V3: Unterbrechungen mit Grund, die noch andauern, bei Aufträgen und Arbeitsgängen, die nicht fertig sind.
+        [dict(auftrag_id, gang_id, maschine, wann, grund, nummer, kunde)], älteste zuerst."""
+        return [dict(z) for z in self.con.execute(
+            "SELECT s.auftrag_id, s.gang_id, s.maschine, s.wann, s.grund, a.nummer, a.kunde FROM stopps s "
+            "JOIN auftraege a ON a.id = s.auftrag_id LEFT JOIN gaenge g ON g.id = s.gang_id "
+            "WHERE s.weiter_am IS NULL AND a.status <> ? AND (s.gang_id IS NULL OR COALESCE(g.status, '') <> ?) "
+            "ORDER BY s.wann, s.id", (FERTIG, FERTIG))]
+
     def wartet_auf_material(self, a, heute=None):
         """Tag, ab dem das Material da ist, solange der Auftrag darauf wartet (noch nicht begonnen, Tag in der
         Zukunft); sonst None."""
@@ -1264,6 +1273,37 @@ class Daten:
     def fremd_tage(self):
         """Wochentage, an denen Fremdarbeit abgeholt und angeliefert wird (0 = Montag); leere Menge = jeder Tag."""
         return Z.tage_lesen(self.einstellung("fremd_tage", ""))
+
+    # V10 (Plan 2.7): Kundenpriorität A/B/C. B ist der Normalfall; A-Kunden werden so eingeplant, als läge ihr
+    # Liefertermin prio_tage Kalendertage früher, C-Kunden so viele Tage später. Gespeichert als JSON {Kunde: Stufe}.
+    def kunden(self):
+        """Alle Kunden der Aufträge (ohne leere), alphabetisch."""
+        return [z[0] for z in self.con.execute(
+            "SELECT DISTINCT kunde FROM auftraege WHERE TRIM(kunde) <> '' ORDER BY kunde COLLATE NOCASE")]
+
+    def prioritaeten(self):
+        """{Kunde (klein geschrieben): 'A' oder 'C'}; Kunden mit B stehen nicht darin."""
+        try:
+            roh = json.loads(self.einstellung("kunden_prio", "") or "{}")
+        except ValueError:
+            roh = {}
+        return {str(k).strip().casefold(): v for k, v in roh.items() if v in ("A", "C") and str(k).strip()}
+
+    def prioritaet(self, kunde):
+        return self.prioritaeten().get(str(kunde or "").strip().casefold(), "B")
+
+    def prioritaet_setzen(self, kunde, stufe):
+        kunde = str(kunde or "").strip()
+        if not kunde:
+            return
+        try:
+            roh = json.loads(self.einstellung("kunden_prio", "") or "{}")
+        except ValueError:
+            roh = {}
+        roh = {k: v for k, v in roh.items() if str(k).strip().casefold() != kunde.casefold()}
+        if stufe in ("A", "C"):
+            roh[kunde] = stufe
+        self.einstellung_setzen("kunden_prio", json.dumps(roh, ensure_ascii=False, sort_keys=True))
 
     def zusatz_einschalten(self, an=True):
         """Funktion Zusatzschritte schalten. An: auch Arbeitsgänge an, fehlende Arbeitsplätze aus der Tabelle
