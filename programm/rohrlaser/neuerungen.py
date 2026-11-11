@@ -33,7 +33,9 @@ NEUERUNGEN = [
      "Ordner) und zeigt vor dem Überschreiben eine Vorschau: Konturen unverändert, neu, entfallen, geänderte Enden, "
      "Länge und Profil. Von Hand gesetzte Gewinde, Senkungen, Flowdrill und Gravuren bleiben erhalten. Eine "
      "STEP-Datei lässt sich ins Editor-Fenster ziehen. Blech-, Dreh-/Frästeil-, Baugruppen- und Satz-Editor haben "
-     "den Knopf <i>STEP neu einlesen …</i> jetzt auch (Prüfdialog, Position wird ersetzt, Rückgängig möglich).",
+     "den Knopf <i>STEP neu einlesen …</i> jetzt auch (Prüfdialog, Position wird ersetzt, Rückgängig möglich). "
+     "Bei mehreren Teilen in der Datei zeigt die Teilwahl jedes Teil als 3D-Bild; misst die Datei ein anderes "
+     "Profil, stellt <i>Profil aus Datei übernehmen</i> die Position darauf um.",
      "Neue Revision eines Artikels wird erkannt; Auftragschance als Ampel; STEP neu einlesen mit Vorschau"],
     ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "
      "jede Lage nur noch einmal (vorher bis zu siebenmal) und baut für die Prüfung der Nahtzugänglichkeit die "

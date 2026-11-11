@@ -213,4 +213,52 @@ gesehen.clear()
 assert d_rohr.step_datei_einlesen(quelle, vorschau=lambda zeilen, behalten: gesehen.append(zeilen) or True)
 assert len(d_rohr.eingaben()["konturen"]) == n and [a_ for a_, _ in gesehen[0]].count("neu") == 1
 ok("STEP-Datei ins Editor-Fenster gezogen: gemessen und mit Vorschau eingelesen; andere Dateien abgelehnt")
+
+# ------------------------------------------------------------------ A7: Teilwahl mit Bild
+from rohrlaser.schneidweg_dialog import PROFIL_UEBERNEHMEN, TeilWahlDialog  # noqa: E402
+
+blech_m = s.step_messen(dateien=[str(blech_datei)])[0]
+rohr_a, rohr_b = dict(mess[0], artikel="X-1"), dict(mess[0], artikel="X-2")
+tw = TeilWahlDialog(d_rohr, [rohr_a, blech_m, rohr_b], [rohr_a, rohr_b], "X-2")
+assert tw.liste.count() == 3 and tw.liste.currentRow() == 2, tw.liste.currentRow()
+assert not tw.liste.item(1).flags() & Qt.ItemIsEnabled and tw.liste.item(0).flags() & Qt.ItemIsEnabled
+assert not tw.liste.item(0).icon().isNull(), "3D-Bild aus dem Netz der Messung"
+t0 = tw.liste.item(0).text()
+assert t0.startswith("X-1\n") and "Rechteckrohr 60 × 40 × 3" in t0 and "mm" in t0 and "Kontur" in t0, t0
+gefragt = []
+d7 = dialog()
+assert d7.step_einlesen([rohr_a, blech_m, rohr_b], vorschau=lambda z_, b_: True,
+                        teilwahl=lambda alle, wahl: gefragt.append((len(alle), len(wahl))) or wahl[1])
+assert gefragt == [(3, 2)], gefragt
+assert d7.step_einlesen([rohr_a, rohr_b], teilwahl=lambda alle, wahl: None) is False          # abgebrochen
+ok("Teilwahl mit Bild: alle Teile der Datei, Rohre wählbar, Blech grau, Teil mit der Artikelnummer vorgewählt")
+
+# ------------------------------------------------------------------ A6: Profil aus Datei übernehmen
+pid_alt = p["profil_id"]
+anderes = next(i for i, pr in s.k.profile.items() if pr.get("form") == s.k.profile[pid_alt].get("form") and i != pid_alt
+               and float(pr.get("a") or 0) > float(s.k.profile[pid_alt].get("a") or 0))
+db.position_aendern(p["id"], "profil_id", anderes)
+s.neu_laden()
+zr = next(r for r, x in enumerate(s.positionen) if x["id"] == p["id"])
+assert s.positionen[zr]["profil_id"] == anderes
+vorschauen = []
+
+
+def profil_wechsel(dlg):
+    def v(zeilen_, behalten_):
+        vorschauen.append(zeilen_)
+        return PROFIL_UEBERNEHMEN
+    assert dlg.step_einlesen(mess, vorschau=v)
+    assert dlg.profil_aus_datei == pid_alt and dlg.p["profil_id"] == pid_alt
+    return QDialog.Accepted
+
+
+assert s.schneidweg_berechnen(zr, dialog=profil_wechsel, ueberschreiben=True)
+assert any(a_ == "hinweis" and f"Profil {pid_alt}" in t_ for a_, t_ in vorschauen[0]), vorschauen[0]
+assert next(x for x in db.positionen(a) if x["id"] == p["id"])["profil_id"] == pid_alt
+vp = NeuEinlesenVorschau(d_rohr, vorschauen[0], [], dict(datei="K04.step"), pid_alt)
+assert not vp.profil_knopf.isHidden() and pid_alt in vp.profil_text.text()
+vp.profil_knopf.setChecked(True)
+assert vp.profil_knopf.text().startswith("✓") and NeuEinlesenVorschau(d_rohr, [], []).profil_knopf.isHidden()
+ok(f"Profil aus Datei übernehmen: Position wechselt von {anderes} auf {pid_alt}, Knopf nur bei anderem Profil")
 print("OK: Neu einlesen")

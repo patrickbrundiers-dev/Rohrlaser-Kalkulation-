@@ -122,7 +122,7 @@ def vergleich(alt, neu, laenge_alt=None, laenge_neu=None, profil_alt=None, profi
     out = []
     if profil_alt and profil_neu and str(profil_alt).strip() != str(profil_neu).strip():
         out.append(("hinweis", f"Die Datei misst Profil {profil_neu}, die Position hat {profil_alt}: gerechnet wird "
-                               "weiter mit dem Profil der Position (bei Bedarf in der Positionstabelle ändern)"))
+                               "mit dem Profil der Position, solange es nicht umgestellt wird"))
     la, ln = _z(laenge_alt), _z(laenge_neu)
     if la is not None and ln is not None and abs(ln - la) > LAGE_TOL:
         out.append(("hinweis", f"Länge: die Datei misst {zahl(ln, 1)} mm, die Position hat {zahl(la, 1)} mm "

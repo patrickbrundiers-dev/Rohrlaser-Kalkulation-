@@ -6827,6 +6827,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 return False
             eingaben = d.eingaben()
             naht_neu = dict(d.naht_geaendert(), **d.muster_geaendert())
+            pid_datei = getattr(d, "profil_aus_datei", None)
+            if pid_datei and pid_datei in self.k.profile and pid_datei != p.get("profil_id"):
+                # „Profil aus Datei übernehmen“ in der Vorschau von STEP neu einlesen (Plan Teil C, A6)
+                self.db.position_aendern(p["id"], "profil_id", pid_datei)
+                p = dict(p, profil_id=pid_datei)
+                profil = self.k.profile[pid_datei]
         else:
             naht_neu = {}
         profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)

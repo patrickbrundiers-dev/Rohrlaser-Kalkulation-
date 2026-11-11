@@ -4294,6 +4294,14 @@ def kapitel_optimieren(i):
             "der neueren Revision oder einer anderen Datei neu gemessen und im Prüfdialog gezeigt; Übernehmen ersetzt "
             "die Position, Pos.-Nummer, Stückzahl und Zusatzarbeiten bleiben, <i>Rückgängig</i> holt den alten Stand "
             "zurück. Der Editor schließt dafür ohne Speichern.",
+            "<b>Mehrere Teile in der Datei</b> (seit 0.9.285): Das Fenster <i>STEP neu einlesen: Welches Teil?</i> "
+            "zeigt jedes Teil der Datei als kleines 3D-Bild mit Artikelnummer, Profil, Länge und Konturanzahl; das "
+            "Teil mit der Artikelnummer der Position ist vorgewählt, <i>Dieses Teil einlesen</i> oder ein Doppelklick "
+            "übernimmt es. Bleche und andere Teile stehen grau dabei, sie passen nicht in den Rohr-Editor. "
+            "<b>Profil aus Datei übernehmen</b>: Misst die Datei ein anderes Profil als die Position und steht es in "
+            "den Stammdaten, bietet die Vorschau diesen Knopf an. Gedrückt stellt <i>Übernehmen</i> die Position auf "
+            "das gemessene Profil um, die Konturen werden dafür umgestellt; Material, Gewicht und Preis rechnen nach "
+            "<i>In Position übernehmen</i> neu.",
             "<b>Schweißnaht (SN)</b>: Vorgabe (keine Vorgabe, feste Position, unbekannt), Lage und Quelle wie im "
             "Fenster Schweißnaht ([[schweissnaht]]); Rechteck- und Quadratrohr nur 0° oben, 90° vorne (rechts), 180° "
             "unten, 270° hinten (links), Rundrohr frei im Winkel. Die Naht erscheint rot strichpunktiert (SN) in "
