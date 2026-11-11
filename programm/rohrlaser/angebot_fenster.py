@@ -2611,9 +2611,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
         # Spaltenauswahl der Positionsliste (Zeile über der Liste, Reiter behalten die volle Breite)
         el = self.pos_leiste
-        self.pos_info = QLabel()
+        from .angebot_oben import KurzZeile
+        self.pos_info = KurzZeile()     # schmales Fenster: Text endet mit „…“, ganz im Tooltip (11.11.2026)
         self.pos_info.setStyleSheet("color: #5F6B7A;")
-        self.pos_info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)     # schmales Fenster: Text gekürzt
         self.spalten_knopf = QPushButton("Weitere Spalten")
         self.spalten_knopf.setToolTip("Optionale Spalten der Positionsliste ein- oder ausblenden. Spalten mit Werten "
                                       "erscheinen automatisch.")
