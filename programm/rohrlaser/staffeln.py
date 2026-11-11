@@ -286,6 +286,7 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
+                     "fracht_km",
                      "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
                      "aufschlag_blech", "aufschlag_zukauf",      # Aufschlag Bleche bzw. Zukaufteile des Angebots
                      "ruesten_abmessung_eur", "ruesten_angebot_eur",     # Rüsten als fester Betrag

@@ -625,12 +625,23 @@ class KopfBereich(QWidget):
                                                                                   self.fracht_land.text()))
         self.fracht_land.editingFinished.connect(lambda: seite.fracht_ziel_setzen(self.fracht_plz.text(),
                                                                                    self.fracht_land.text()))
+        # Entfernung (Patrick 11.11.2026): leer = aus den PLZ gerechnet (Platzhalter zeigt den Wert), sonst von Hand
+        self.fracht_km = QLineEdit()
+        self.fracht_km.setMaxLength(5)
+        self.fracht_km.setMaximumWidth(60)
+        self.fracht_km.setPlaceholderText("aus PLZ")
+        self.fracht_km.setToolTip("Entfernung zum Ziel in Straßen-km. Leer: aus den PLZ gerechnet (Luftlinie × "
+                                  "Umwegfaktor, Einstellungen › Frachtkosten); eingetragen: gilt dieser Wert für "
+                                  "Zone und km-Preise (z. B. eigene Anlieferung)")
+        self.fracht_km.editingFinished.connect(lambda: seite.fracht_km_setzen(self.fracht_km.text()))
         ziel = QWidget()
         zl = QHBoxLayout(ziel)
         zl.setContentsMargins(0, 0, 0, 0)
         zl.addWidget(self.fracht_plz)
         zl.addWidget(QLabel("Land"))
         zl.addWidget(self.fracht_land)
+        zl.addWidget(QLabel("km"))
+        zl.addWidget(self.fracht_km)
         zl.addStretch(1)
         # Raster: neben der Kalkulation untereinander (schmal), unter ihr in zwei Zeilen (fracht_raster_setzen)
         self.fracht_raster = QGridLayout()
@@ -1092,6 +1103,13 @@ class KopfBereich(QWidget):
             w.blockSignals(True)
             w.setChecked(v) if isinstance(w, QCheckBox) else w.setText(v)
             w.blockSignals(False)
+        km_hand = s.kopf.get("fracht_km")
+        self.fracht_km.blockSignals(True)
+        self.fracht_km.setText(f"{km_hand:g}".replace(".", ",") if isinstance(km_hand, (int, float)) else "")
+        self.fracht_km.blockSignals(False)
+        sd = (fracht_angebot.daten(s.kopf) or {}).get("sendung") or {}
+        self.fracht_km.setPlaceholderText(f"{sd['km']:g}" if sd.get("km_quelle") == "PLZ"
+                                          and isinstance(sd.get("km"), (int, float)) else "aus PLZ")
         self.fracht_modus.setEnabled(not an)
         for ablage in (self.felder, self.erweitert):     # berechnet: Betrag kommt aus der Frachtberechnung
             w = ablage.get("fracht")
@@ -1114,6 +1132,8 @@ class KopfBereich(QWidget):
                 text = f"Automatisch: {info or _z(betrag) + ' €'}"
                 if d.get("zone"):
                     text += f"; {d['zone']}"
+                if d.get("km_text"):
+                    text += f"; Entfernung {d['km_text']}"
                 text += ". In den Staffelpreisen rechnet jede Menge ihre eigene Fracht."
             for h in d.get("hinweise") or ():
                 if "teurere" in h or "Beispieltarif" in h or "Richtwert" in h:

@@ -17,7 +17,7 @@ Fracht mit dem gespeicherten Tarif-Snapshot neu; in den übrigen Modi gilt der B
 """
 import json
 
-from . import paletten
+from . import entfernung, paletten
 from .angebot import ist_baugruppe
 
 PALETTEN_EINST = ("palette_hoehe_gesamt", "palette_max_brutto", "palette_mischen", "palette_fuellgrad",
@@ -93,7 +93,11 @@ def auto_rechnen(fdaten, kopf, positionen, werte, kunde, einst):
              plz=(kopf.get("fracht_plz") or "").strip(), absender_plz=einst.get("absender_plz"),
              absender_land=einst.get("absender_land") or "DE", versandart=einst.get("fracht_versandart") or None,
              kundennr=kopf.get("kundennr"), lieferbedingung=(kunde or {}).get("lieferbedingung"),
-             netto=netto, max_laenge=laenge or None, leistungen={}, auto=True)
+             netto=netto, max_laenge=laenge or None, leistungen={}, auto=True,
+             umwegfaktor=(einst or {}).get("fracht_umwegfaktor"))
+    if isinstance(kopf.get("fracht_km"), (int, float)) and kopf["fracht_km"] > 0:
+        s.update(km=kopf["fracht_km"], km_quelle=entfernung.QUELLE_HAND)
+    entfernung.ergaenzen(s)
     d = dict(sendung=s, snapshot=None, gesamt=None, text="", lht_standard=einst.get("fracht_lht_standard"),
              lht_langgut=einst.get("fracht_lht_langgut"))
     if not s["plz"]:
@@ -107,7 +111,7 @@ def auto_rechnen(fdaten, kopf, positionen, werte, kunde, einst):
                                   d["paletten"])
     e = fracht.rechnen(fdaten, s)
     d.update(snapshot=e.get("snapshot"), gesamt=e.get("gesamt"), text=fracht.zusammenfassung(e),
-             zone=(e.get("zone_empfang") or {}).get("text"), hinweise=e.get("hinweise", []) + e.get("warnungen", []))
+             zone=(e.get("zone_empfang") or {}).get("text"), km_text=s.get("km_text"), hinweise=e.get("hinweise", []) + e.get("warnungen", []))
     if e.get("gesamt") is None:
         d["fehler"] = "; ".join(e.get("fehler") or ["nicht berechnet"])
         if not s["versandart"] and "Mehrere Tarife" in d["fehler"]:

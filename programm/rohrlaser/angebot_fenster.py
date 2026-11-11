@@ -3681,6 +3681,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self._fracht_auto_rechnen()
         self.neu_laden()
 
+    def fracht_km_setzen(self, text):
+        """Entfernung der automatischen Fracht von Hand (km); leer = wieder aus den PLZ (Patrick 11.11.2026)."""
+        t = str(text or "").strip().replace(",", ".")
+        try:
+            km = float(t) if t else None
+        except ValueError:
+            self.f.meldung(f"Entfernung „{text}“ ist keine Zahl.", fehler=True)
+            return
+        if km is not None and not 0 < km <= 5000:
+            self.f.meldung("Entfernung bitte zwischen 1 und 5.000 km eintragen.", fehler=True)
+            return
+        if self._laden or km == self.kopf.get("fracht_km"):
+            return
+        self.db.angebot_aendern(self.id, "fracht_km", km)
+        if fracht_angebot.auto(self.kopf):
+            self._fracht_auto_rechnen()
+        self.neu_laden()
+
     def _fracht_auto_rechnen(self):
         d = self.db.fracht_auto_aktualisieren(self.id)
         if d.get("fehler"):

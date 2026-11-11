@@ -20,6 +20,8 @@ KOPF = (
     Feld("fracht_auto", "Fracht automatisch berechnen", "auswahl", auswahl="janein"),
     Feld("fracht_plz", "Ziel-PLZ (Fracht)"),
     Feld("fracht_land", "Zielland (Fracht)"),
+    # Entfernung von Hand (km); leer = aus den PLZ (entfernung.py, Patrick 11.11.2026)
+    Feld("fracht_km", "Entfernung (Fracht) [km]", "zahl", 0, 5000, stellen=0),
     # Zahlungsbedingungen: Vorgabe aus dem Kunden bzw. den Einstellungen; Skonto wird in den Preis eingerechnet
     Feld("skonto", "Skonto [%]", "zahl", 0, 20, stellen=1),
     Feld("skonto_tage", "Skontofrist [Tage]", "ganz", 0, 365),
