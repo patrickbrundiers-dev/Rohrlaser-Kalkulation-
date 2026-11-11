@@ -297,6 +297,10 @@ def gewinn_liste(z):
     return g if isinstance(g, (int, float)) else z.get("vk_gewinn")
 
 
+CHANCE_SPALTE = "Chance [%]"
+CHANCE_FARBE = {"grün": "#D1FADF", "gelb": "#FEF0C7", "rot": "#FEE4E2"}
+
+
 class AngeboteListe(Liste):
     EIGENE_ROLLEN = frozenset((Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.FontRole, Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole))
 
@@ -313,6 +317,15 @@ class AngeboteListe(Liste):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
             return QBrush(stil.farbe(farbe)) if farbe else None
+        if index.isValid() and self.spalten[index.column()][0] == CHANCE_SPALTE and \
+                rolle in (Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole):
+            c = self.zeilen[index.row()].get("_chance")
+            if not c:
+                return None
+            if rolle == Qt.ItemDataRole.ToolTipRole:
+                return c[1]
+            from .lernen import chance_ampel
+            return QBrush(stil.farbe(CHANCE_FARBE[chance_ampel(c[0])]))
         if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][0] == "Vorgang":
             from .absage import letzte
             a = letzte(self.zeilen[index.row()]) if str(self.wert(index.row(), index.column())).startswith(
@@ -430,6 +443,8 @@ class AngeboteSeite(QWidget):
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110),
                ("Gewinn [%]", gewinn_liste, 1, 70),               # was aufgeschlagen ist (Patrick 08.11.2026)
+               # geschätzte Auftragschance verschickter Angebote als Ampel (Plan Neuerungen B3, lernen.chancen_db)
+               (CHANCE_SPALTE, lambda z: round(100 * z["_chance"][0]) if z.get("_chance") else None, 0, 70),
                ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
                ("Optimiert am", lambda z: _zeit(z.get("optimiert_am")), None, 120),
@@ -564,8 +579,14 @@ class AngeboteSeite(QWidget):
         from . import cockpit
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
                                                              nachfassen=self.db.einstellung("nachfassen_tage"))}
+        from . import lernen
+        try:                        # B3: Chance je verschicktem Angebot (aus allen Angeboten, nicht nur den gezeigten)
+            chancen = lernen.chancen_db(self.db, zeilen=None if such or seit else alle)
+        except Exception:           # nur Anzeige: nie die Liste blockieren
+            chancen = {}
         for z in alle:
             z["_wv"] = faellig.get(id(z))
+            z["_chance"] = chancen.get(z["id"])
         if seit and not such:
             heute = datetime.date.today()
             alle = [z for z in alle if z.get("_im_zeitraum") or z["_wv"] or z["id"] in offen
@@ -604,7 +625,7 @@ class AngeboteSeite(QWidget):
                 + " <a href='alle'>Alle zeigen</a> · Die Suche findet alle.")
         self.zeitraum_hinweis.setVisible(anzahl > 0)
 
-    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "Liefertermin")    # leer: ausgeblendet (L6, W8)
+    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "Liefertermin", CHANCE_SPALTE)    # leer: ausgeblendet (L6, W8)
 
     def _leere_spalten(self):
         for c, (titel, quelle, _, _) in enumerate(self.SPALTEN):
@@ -3697,7 +3718,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
             plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich(),
                                        getattr(self, "_preis_fein_cache", None))
-            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen) + self._freigabe_punkte(summen)
+            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen)
+            + self._freigabe_punkte(summen)
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte())
 
     def _einsicht_punkte(self):
@@ -6286,13 +6308,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.wiederholteile_anzeigen()
 
     def _wiederholteil_punkte(self):
-        """Hinweise aus der Nachkalkulation von Wiederholteilen für den Angebots-Check (Vorschlag K4)."""
+        """Hinweise zu Wiederholteilen für den Angebots-Check: Nachkalkulation (Vorschlag K4) und neue Revision
+        eines Artikels mit Staffelpreis heute/damals (B1)."""
         from . import wiederholteile
         try:
             treffer = self.wiederholteile_suchen(warten=False) or getattr(self, "_wt", None) or {}
         except Exception:           # Prüfhinweis nie wichtiger als der Check selbst
             return []
-        return wiederholteile.check_punkte(treffer, self.positionen)
+        return wiederholteile.check_punkte(treffer, self.positionen) + \
+            wiederholteile.revision_punkte(treffer, self.positionen, self.kopf.get("staffelpreise"))
 
     def wiederholteile_anzeigen(self):
         treffer = self.wiederholteile_suchen(warten=False)

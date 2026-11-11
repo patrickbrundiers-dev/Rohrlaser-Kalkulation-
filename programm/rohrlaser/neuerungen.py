@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.285", "<b>Neue Revision eines Artikels erkennen, Auftragschance als Ampel</b> ([[wiederholteile]]): Kommt "
+     "ein Artikel mit gleicher Artikelnummer, aber anderer Geometrie wieder (z. B. aus einer neuen STEP), zeigt die "
+     "Übersicht <i>Wiederholteile</i> in Orange, was sich geändert hat: <i>geändert gegenüber 2026-00142: 40 mm "
+     "länger, 2 Konturen mehr, Schneidweg +20 %</i>. Der Angebots-Check nennt dazu den Staffelpreis von damals und "
+     "bei gleicher Menge den von heute mit Abweichung in %. Die Angebotsliste hat die neue Spalte <i>Chance [%]</i> "
+     "für verschickte Angebote: grün ab 50 %, gelb ab 25 %, darunter rot; der Mauszeiger nennt die Begründung "
+     "(Kunde, Preisklasse, Alter). Die Spalte bleibt weg, solange es zu wenige entschiedene Angebote gibt oder die "
+     "Funktion <i>Auftragschance</i> aus ist. Preise ändern sich dadurch nicht.",
+     "Neue Revision eines Artikels wird erkannt; Auftragschance als Ampel in der Angebotsliste"],
     ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "
      "jede Lage nur noch einmal (vorher bis zu siebenmal) und baut für die Prüfung der Nahtzugänglichkeit die "
      "Hilfsdaten je Körper einmal auf statt je Messpunkt. Für Nähte und Anbauteile wird der Abstand zweier Teile nur "

@@ -930,7 +930,10 @@ def kapitel_angebote(i):
                     "„Verschickt (abgelaufen)“ rot"],
         ["Anfrage-Nr.", "Anfrage des Kunden aus dem Angebotskopf (<i>Ihre Anfrage / Zeichen</i>), seit 0.9.273"],
         ["Gewinn [%]", "was auf die Selbstkosten aufgeschlagen ist (seit 0.9.273): der feste Gewinn des Angebots oder "
-                       "der wirksame Satz des gestaffelten Gewinns ([[gewinn_gestaffelt]])"]],
+                       "der wirksame Satz des gestaffelten Gewinns ([[gewinn_gestaffelt]])"],
+        ["Chance [%]", "geschätzte Auftragschance verschickter Angebote als Ampel (seit 0.9.285): grün ab 50 %, gelb "
+                       "ab 25 %, darunter rot; der Mauszeiger nennt, woraus die Zahl entsteht. Leer ausgeblendet, "
+                       "auch bei ausgeschalteter Funktion <i>Auftragschance</i>"]],
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
            "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
@@ -1740,6 +1743,12 @@ def kapitel_angebot(i):
             "<b>Werte übernehmen …</b> bietet die Eingaben der alten Position an, die man sonst von Hand wiederholt "
             "(Schneidzeit von Hand, Programmierzeit, Einstiche, Zusatzarbeiten, Gewinde, Schweißnaht); jeder Wert "
             "lässt sich einzeln abwählen, Strg+Z nimmt die Übernahme zurück.",
+            "<b>Neue Revision</b> (seit 0.9.285): Kommt ein Artikel mit gleicher Artikelnummer, aber anderer "
+            "Geometrie wieder, steht darunter in Orange z. B. <i>⚠ Neue Revision, geändert gegenüber 2026-00142: "
+            "40 mm länger, 2 Konturen mehr, Schneidweg +20 %</i>. Verglichen werden Profil, Werkstoff, Länge, "
+            "Konturanzahl und Schneidweg mit dem besten Treffer (beauftragt vor neuer). Der Angebots-Check "
+            "([[angebots_check]]) nennt dazu den Staffelpreis je Stück von damals und, wenn dieses Angebot "
+            "Staffelpreise bei derselben Menge hat, den von heute mit der Abweichung in %.",
             "Der <b>Preis wird nie übernommen</b>, er entsteht immer neu aus der Kalkulation mit den heutigen "
             "Stammdaten. <b>Angebot öffnen</b> zeigt das alte Angebot, <b>Hinspringen</b> markiert die Position.",
             "Auch bei vielen tausend Angeboten bleibt das Angebot flüssig: die Datendatei sucht über einen Index nur "
@@ -7182,7 +7191,9 @@ def kapitel_automatik(i):
             "([[angebots_check]]).",
             "<b>Auftragschance</b>: Die Wiedervorlage auf der Startseite zeigt je verschicktem Angebot <i>Chance ca. "
             "60 %</i>, geschätzt aus der Trefferquote des Kunden und der Preisklasse und dem Alter des Angebots; die "
-            "Liste steht nach Chance × Angebotswert.",
+            "Liste steht nach Chance × Angebotswert. Seit 0.9.285 steht dieselbe Zahl als Spalte <i>Chance [%]</i> "
+            "mit Ampelfarbe in der Angebotsliste; der Mauszeiger zeigt die Begründung (Kunde, Preisklasse, alle "
+            "Angebote, Alter).",
             "<b>Vorschläge aus Handeinträgen</b>: Tragen Sie eine Zusatzarbeit in mindestens drei Angeboten von Hand "
             "ein und ist sie bei mindestens 80 % der Teile mit einem bestimmten Wort in der Bezeichnung oder einer "
             "Bedingung (Kunde, Werkstoff, Werkstoff-Kategorie, Profilform, Gewinde, Bohrungen, Innenkonturen, schräges "
