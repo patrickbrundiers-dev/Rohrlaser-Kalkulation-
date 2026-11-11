@@ -1030,7 +1030,23 @@ def kapitel_angebote(i):
             "Reiter <i>je Kunde</i>: Spalten <b>Laser-h beauftragt</b>, <b>Ertrag €/h Soll</b> und <b>Ertrag €/h Ist</b> "
             "([[ertrag_laserstunde]]). Ertrag = Verkaufspreis nach Skonto ohne Material, Zukaufteile und Fracht, "
             "geteilt durch die Laserstunden der beauftragten Angebote; Ist aus der Nachkalkulation, nur wenn die "
-            "Laserzeit erfasst ist. So sieht man, welcher Kunde die Maschine gut oder schlecht bezahlt.")
+            "Laserzeit erfasst ist. So sieht man, welcher Kunde die Maschine gut oder schlecht bezahlt.",
+            "Reiter nach <b>Teilemerkmalen</b> (seit 0.9.292): je Profilform (mehrere Formen = gemischt), je "
+            "Wandstärke (bis 2 mm, bis 4 mm, darüber), je Teilelänge (bis 1 m, bis 3 m, darüber), je Komplexität "
+            "(Innenkonturen je Teil: keine, 1 bis 5, 6 bis 20, über 20) und je Stückzahl des Angebots. Gezählt wird "
+            "der Größtwert der Rohrlaserteile eines Angebots, die Stückzahl als Summe.",
+            "Reiter <b>Je Reaktionszeit</b> (seit 0.9.292): Trefferquote nach der Zeit von der Anfrage bis zum "
+            "Angebot ([[reaktionszeit]]).")
+    i.abschnitt("Reaktionszeit Anfrage bis Angebot", marke="reaktionszeit")
+    i.text("Öffnen Sie eine Anfrage aus der Anfrage-Karte, merkt sich das Angebot den Eingang der Anfrage (Sendezeit "
+           "der ältesten Mail bzw. Zeit der ältesten Datei). Das erste Angebots-PDF, die erste E-Mail oder „Als "
+           "verschickt markieren“ merkt die Uhrzeit. Dazwischen liegt die <b>Reaktionszeit</b>.", kurz=True)
+    i.liste("Gezählt werden Stunden an Arbeitstagen: Wochenende und Feiertage des Versand-Bundeslands zählen nicht "
+            "(Freitag 16 Uhr bis Montag 9 Uhr = 17 Stunden).",
+            "Die Kennzahlen der Startseite (nur Admin) zeigen das Mittel der letzten 30 Tage, die Angebots-Auswertung "
+            "die Trefferquote je Reaktionszeit: bis 4 Std., bis 1 Arbeitstag, 1 bis 3 Arbeitstage, länger.",
+            "Angebote ohne Anfrage aus der Anfrage-Karte und Angebote, die vor 0.9.292 verschickt wurden, haben "
+            "keine Reaktionszeit.")
     i.abschnitt("Ertrag je Laserstunde je Kunde", marke="ertrag_laserstunde")
     i.text("Die Angebots-Auswertung zeigt je Kunde den Ertrag je Laserstunde (Soll aus der Kalkulation, Ist aus der "
            "Nachkalkulation). Der Angebots-Check nutzt dieselbe Rechnung für den Hinweis „Ertrag je Laserstunde unter "
@@ -7224,6 +7240,16 @@ def kapitel_automatik(i):
             "<i>Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)</i>.",
             "<i>Neue Anfragen automatisch zuweisen (gemeinsamer Ordner)</i>: an den Zuständigen des Kunden, sonst an "
             "den, der am wenigsten offene Anfragen hat.",
+            "<i>Anfrage-Karte: offene Anfragen sortieren nach</i> (seit 0.9.292): <b>Dringlichkeit</b> (Vorgabe, "
+            "nach der Anfrage-Ampel) oder <b>Wichtigste zuerst</b>: nach dem erwarteten Auftragswert = "
+            "Trefferquote des Kunden × sein üblicher Angebotswert (Median der beauftragten). Anfragen mit roter "
+            "Ampel bleiben oben, Anfragen in Bearbeitung unten; hinter jeder Anfrage steht z. B. „Kunde vergibt "
+            "ca. 60 %, üblich 3.200 €“.",
+            "<i>Startseite: Stammkunden melden, die viel länger als sonst nicht bestellt haben</i> (seit 0.9.292): "
+            "Kunden mit mindestens 3 Aufträgen, deren letzter Auftrag mehr als doppelt so lange her ist wie der "
+            "übliche Abstand (und mindestens 30 Tage), stehen unter Automatik als „Lange nichts bestellt“. "
+            "Doppelklick: <b>Nachfass-Mail …</b> (E-Mail-Datei mit den zuletzt gefertigten Artikeln, im "
+            "Ablageordner) oder <b>4 Wochen ausblenden</b>.",
             "<i>Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)</i>: günstigste Maschine, Lieferzeit "
             "nach Auslastung, Beistellung und Oberfläche aus der Mail, Rückfrage vorbereiten.",
             "<i>Preiswächter: offene Angebote melden ab Abweichung</i>, Vorgabe 3 %.",
@@ -9631,6 +9657,28 @@ def kapitel_stammdaten(i):
             "Neue Dateien und Dateien vor 0.9.161 bekommen Beispielregeln (Feuerverzinken bei „verzinkt“, "
             "Pulverbeschichten bei „pulver“/„RAL“, Entgraten bei Innenkonturen – aus), ab 0.9.182 dazu drei "
             "Beispiele für Strahlen (aus). Bitte an die eigene Fertigung anpassen.")
+    i.abschnitt("Eigene Angebotsregeln (Wenn-Dann im Angebots-Check)", marke="angebotsregeln")
+    i.text("Einstellungen → <i>Angebotsregeln</i> (seit 0.9.292): eigene Regeln, damit Erfahrung nicht nur im Kopf "
+           "steckt. Trifft eine Position <b>alle</b> ausgefüllten Bedingungen, wirkt die Regel im Angebots-Check "
+           "([[angebots_check]]).", kurz=True)
+    i.bild("stamm_angebotsregeln", "Einstellungen, Angebotsregeln mit den drei Beispielregeln (ab Werk aus)",
+           hoehe=60 * mm)
+    i.tabelle(["Dann", "Wirkung"], [
+        ["Hinweis", "Hinweis im Angebots-Check mit Ihrem Text"],
+        ["Warnung", "Warnung im Angebots-Check (fragt einmal vor dem PDF)"],
+        ["Rückfrage", "Warnung „Rückfrage: …“, die in die Rückfrage an den Kunden übernommen wird"],
+        ["Zuschlag", "Zuschlag in % auf den Preis der passenden Positionen ohne Fracht; immer sichtbar als Hinweis "
+                     "und als Kostenart „Zuschlag Angebotsregeln“"],
+        ["Nicht anbieten", "Fehler im Angebots-Check (weiter nur mit Begründung)"]], [35, 135])
+    i.liste("Bedingungen (leer = egal): Kunde, Werkstoff-Kategorie, Werkstoff, Profilform, Wand von/bis, Teilelänge "
+            "von/bis, Stückzahl von/bis, Innenkonturen ab, Merkmal (wie bei den Arbeitsgang-Regeln, z. B. "
+            "„Schräges Ende“ für Gehrungen) und eine Zusatzarbeit an der Position. Spalten z. B. <i>Wand von [mm]</i>, "
+            "<i>Teilelänge bis [mm]</i>, <i>Stückzahl bis</i>; der <i>Text im Angebots-Check / in der Rückfrage</i> "
+            "steht im Check und in der Rückfrage-Mail.",
+            "Beispiel: Edelstahl UND Wand ab 4 mm UND Merkmal „Schräges Ende“ → Zuschlag 8 %. Drei solche Beispiele "
+            "sind angelegt und aus (Aktiv = nein).",
+            "Mehrere Zuschläge auf derselben Position addieren sich. Ein festgeschriebenes Angebot rechnet mit den "
+            "Zuschlag-Regeln seiner Preisbasis; Angebote, die vor 0.9.292 festgeschrieben wurden, ohne Zuschlag.")
     i.abschnitt("Eigene Abrechnungsregeln (Beispiel Strahlen)", marke="abrechnungsregeln")
     i.text("Mit den Arbeitsgang-Regeln legen Sie fest, <b>wie</b> eine Zusatzarbeit abgerechnet wird und <b>wann</b> "
            "sie automatisch gilt: z. B. Strahlen nach kg, für Edelstahl teurer, und automatisch, wenn „gestrahlt“ "

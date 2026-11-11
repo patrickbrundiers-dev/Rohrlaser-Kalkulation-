@@ -242,6 +242,15 @@ def aufgaben(db, heute=None):
                 for t in einsichten.verlustmuster(db)]
     except Exception:
         pass
+    try:                # V3 (Vorschläge 11.11.2026): still gewordene Stammkunden
+        from . import vertrieb
+        if (db.einstellung("stille_kunden") or "ja") != "nein":
+            aus = vertrieb.ausgeblendet(db.einstellung(vertrieb.STILL_AUS), heute)
+            out += [dict(art="still", angebot_id=None, kundennr=s["kundennr"],
+                         text="Lange nichts bestellt – " + vertrieb.still_text(s) + " (Doppelklick: Nachfass-Mail)")
+                    for s in vertrieb.stille_kunden(db.angebote(), heute, aus)[:5]]
+    except Exception:
+        pass
     try:
         from . import preiswaechter
         t = preiswaechter.text(db)

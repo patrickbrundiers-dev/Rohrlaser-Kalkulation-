@@ -880,6 +880,37 @@ VERPACKUNG = Tabelle(
     "Programm nimmt je Angebot das billigste Packmittel, in das das längste Teil passt; Anzahl = Gewicht ÷ max. "
     "Gewicht. Leere Tabelle = keine Verpackungskosten. Im Angebot abschaltbar (Verpackung berechnen = nein).")
 
+# Angebotsregeln (Vorschläge 11.11.2026 V4, Schema 82; angebotsregeln.py): eigene Wenn-Dann-Regeln im Angebots-Check
+ANGEBOTSREGEL_WIRKUNGEN = ("Hinweis", "Warnung", "Rückfrage", "Zuschlag", "Nicht anbieten")
+ANGEBOTSREGELN = Tabelle(
+    "angebotsregeln", "Angebotsregeln",
+    (Feld("name", "Regel", pflicht=True, breite=170),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", breite=100),
+     Feld("kategorie", "Werkstoff-Kategorie", "auswahl", auswahl="kategorie", breite=100),
+     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", breite=110),
+     Feld("profilform", "Profilform", "auswahl", auswahl="profilform", breite=100),
+     Feld("wand_von", "Wand von [mm]", "zahl", 0, 1000, stellen=2, breite=70),
+     Feld("wand_bis", "Wand bis [mm]", "zahl", 0, 1000, stellen=2, breite=70),
+     Feld("laenge_von", "Teilelänge von [mm]", "zahl", 0, 100000, stellen=1, breite=80),
+     Feld("laenge_bis", "Teilelänge bis [mm]", "zahl", 0, 100000, stellen=1, breite=80),
+     Feld("stueck_von", "Stückzahl von", "ganz", 0, 100000000, breite=70),
+     Feld("stueck_bis", "Stückzahl bis", "ganz", 0, 100000000, breite=70),
+     Feld("konturen_ab", "Innenkonturen ab [Stk]", "ganz", 0, 100000, breite=70),
+     Feld("merkmal", "Merkmal", "auswahl", auswahl="regelmerkmal", breite=110),
+     Feld("zusatzarbeit", "Zusatzarbeit an der Position", breite=140),
+     Feld("wirkung", "Dann", "auswahl", auswahl="angebotswirkung", pflicht=True, breite=100),
+     Feld("zuschlag", "Zuschlag [%] (nur „Zuschlag“)", "zahl", 0, 500, stellen=1, breite=80),
+     Feld("text", "Text im Angebots-Check / in der Rückfrage", breite=280),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("name",),
+    "Eigene Wenn-Dann-Regeln für den Angebots-Check: Trifft eine Position ALLE ausgefüllten Bedingungen (leer = "
+    "egal), wirkt die Regel. Dann: Hinweis oder Warnung mit dem eigenen Text; Rückfrage = Warnung, die in die "
+    "„Rückfrage an den Kunden“ übernommen wird; Zuschlag = Zuschlag in % auf den Preis der betroffenen Positionen "
+    "(immer sichtbar im Angebots-Check und als Kostenart „Angebotsregeln“, nur für neue bzw. noch nicht "
+    "festgeschriebene Angebote, mehrere Zuschläge addieren sich); Nicht anbieten = Fehler im Angebots-Check. "
+    "Beispiel: Edelstahl UND Wand ab 4 mm UND Merkmal „Schräges Ende“ -> Zuschlag 8 %. Die Beispielzeilen sind aus.")
+
 # Positionsvorlagen (Vorschlag H6a, 02.11.2026): eine Position ohne Stückzahl und Preis als Vorlage (JSON in 'daten'),
 # für alle Arbeitsplätze (mit den Stammdaten geteilt), kein eigener Reiter (positionsvorlagen.py)
 POSITIONSVORLAGEN = Tabelle(
@@ -897,7 +928,7 @@ TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MA
             DREHFRAES_WERKSTOFFE,
             PRUEFREGELN, SCHWEISSVERFAHREN,
             SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN,
-            ARBEITSGANG_REGELN, VERPACKUNG)
+            ARBEITSGANG_REGELN, VERPACKUNG, ANGEBOTSREGELN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -1387,6 +1418,11 @@ EINSTELLUNGEN = (
     # Automationen im Arbeitsablauf (Patrick 03.11.2026 „Alle Empfehlungen“, automatik.py)
     Einstellung("anfrage_frist", "Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den "
                 "Kundenvorgaben)", "Automatik", "ganz", 2, 0, 60),
+    # Vorschläge 11.11.2026 V2/V3 (vertrieb.py)
+    Einstellung("anfragen_sortierung", "Anfrage-Karte: offene Anfragen sortieren nach", "Automatik", "auswahl",
+                "Dringlichkeit", auswahl="anfragensortierung"),
+    Einstellung("stille_kunden", "Startseite: Stammkunden melden, die viel länger als sonst nicht bestellt haben",
+                "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_zuweisen", "Neue Anfragen automatisch zuweisen (gemeinsamer Ordner)", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("angebot_automatik", "Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_vormessen", "Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)",
@@ -1728,7 +1764,7 @@ class Kontext:
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
                          "regelmerkmal": list(REGEL_MERKMALE), "regelmenge": list(REGEL_MENGEN),
-                         "regelzuordnung": list(REGEL_ZUORDNUNGEN), "aufpreisbasis": list(AUFPREIS_BASEN),
+                         "regelzuordnung": list(REGEL_ZUORDNUNGEN), "angebotswirkung": list(ANGEBOTSREGEL_WIRKUNGEN), "anfragensortierung": ["Dringlichkeit", "Wichtigste zuerst"], "aufpreisbasis": list(AUFPREIS_BASEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
                          "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
                          "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
@@ -1950,7 +1986,13 @@ def beispieldaten():
         "blech_kfaktoren": zeilen(BLECH_KFAKTOREN, beispiel_blech_kfaktoren()),
         "pruefregeln": zeilen(PRUEFREGELN, dfm.beispiel_regeln()),
         "arbeitsgang_regeln": beispiel_arbeitsgang_regeln(),
+        "angebotsregeln": _angebotsregeln_beispiele(),
     }
+
+
+def _angebotsregeln_beispiele():
+    from .angebotsregeln import beispiele
+    return beispiele()
 
 
 def beispiel_arbeitsgang_regeln():
