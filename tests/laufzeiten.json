@@ -36,6 +36,8 @@
 "test_auftragsbestaetigung.py": 3,
 "test_ausgeschieden.py": 5,
 "test_auslastung.py": 6,
+"test_einlastung.py": 8,
+"test_rl_auslastung.py": 6,
 "test_austausch.py": 1,
 "test_auto_optimieren.py": 5,
 "test_automationen.py": 2,
