@@ -1624,6 +1624,8 @@ def zahl_als_text(w, stellen=None, tausender=True):
         s = f"{w:{g}.6f}".rstrip("0").rstrip(".") if isinstance(w, float) else f"{w:{g}}"
     else:
         s = f"{w:{g}.{stellen}f}"
+    if s.startswith("-") and not s.strip("-0.,"):     # „-0,00“ (gerundet null) ohne Minus (Bugfix 11.11.2026)
+        s = s[1:]
     return s.replace(",", "_").replace(".", ",").replace("_", ".")
 
 

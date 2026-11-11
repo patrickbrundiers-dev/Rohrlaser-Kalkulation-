@@ -466,7 +466,8 @@ class AngeboteSeite(QWidget):
         self.ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ansicht.customContextMenuRequested.connect(lambda p: self.kontextmenue(p))
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Anfrage-Nr., Artikel, Auftragsnummer …")
+        self.suche.setPlaceholderText("Suchen: Angebot, Kunde, Anfrage-Nr., Artikel …")
+        self.suche.setToolTip("Suchen nach Angebotsnummer, Kunde, Anfrage-Nr., Artikel oder Auftragsnummer")
         self.suche.setClearButtonEnabled(True)
         # Suche erst nach einer kurzen Tipp-Pause (Performance-Audit F1): nicht bei jeder Taste die ganze Liste
         self._such_timer = QTimer(self)
@@ -2029,6 +2030,23 @@ class AngebotReiter(QTabWidget):
         super().__init__()
         self.gruppen = []
 
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self.ecke_anpassen()
+
+    def ecke_anpassen(self):
+        """Schrittanzeige rechts neben den Reitern so weit kürzen, dass alle Reiter ohne Blätterpfeile passen
+        (Layout-Prüfung 11.11.2026, L1)."""
+        ecke = self.cornerWidget(Qt.TopRightCorner)
+        if ecke is None or not hasattr(ecke, "kompakt"):
+            return
+        reiter = self.tabBar().sizeHint().width() + 12
+        stufe = next((s for s in (0, 1, 2) if reiter + ecke.breite_bei(s) <= self.width()), 2)
+        if stufe != ecke.stufe:
+            ecke.kompakt(stufe)
+            ecke.updateGeometry()
+            QTimer.singleShot(0, self, lambda: (self.setCornerWidget(ecke, Qt.TopRightCorner), ecke.show()))
+
     def gruppe(self, text, seiten):
         g = QTabWidget()
         g.setDocumentMode(True)
@@ -2619,9 +2637,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
         # Spaltenauswahl der Positionsliste (Zeile über der Liste, Reiter behalten die volle Breite)
         el = self.pos_leiste
-        self.pos_info = QLabel()
+        from .angebot_oben import KurzZeile
+        self.pos_info = KurzZeile()     # schmales Fenster: Text endet mit „…“, ganz im Tooltip (11.11.2026)
         self.pos_info.setStyleSheet("color: #5F6B7A;")
-        self.pos_info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)     # schmales Fenster: Text gekürzt
         self.spalten_knopf = QPushButton("Weitere Spalten")
         self.spalten_knopf.setToolTip("Optionale Spalten der Positionsliste ein- oder ausblenden. Spalten mit Werten "
                                       "erscheinen automatisch.")
@@ -3934,6 +3952,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(),
                                                angebot_check.offen(getattr(self, "_punkte", [])), vorgang(self.kopf),
                                                csv))
+        self.reiter.ecke_anpassen()
 
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())

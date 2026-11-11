@@ -4,6 +4,8 @@ Welche Felder und Kennzahlen sichtbar sind, entscheidet sichtbarkeit.py: optiona
 nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer änderbar). Pflichtfelder,
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
+import re
+
 from PySide6.QtCore import QDate, QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QFont, QPainter, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
@@ -1647,6 +1649,9 @@ class UebersichtBereich(QWidget):
         linie = "border-top:1px solid #C9D0D8"
         html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>"
                 f"<b>Preisaufbau</b></td></tr>")
+        def _fest(t):       # Zahl und Einheit nicht trennen („360,25 €“ bricht nicht als „€)“ allein um, L2 11.11.2026)
+            return re.sub(r"(\d) (€|%|min|h|kg|Stk)", r"\1&nbsp;\2", t or "")
+        betrag = {n: (_fest(t), w) for n, (t, w) in betrag.items()}
         for titel, namen, summe in rechnen.KOSTEN_GRUPPEN:
             gesamt = sum(betrag[n][1] or 0 for n in namen)
             if summe:

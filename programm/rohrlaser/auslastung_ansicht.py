@@ -391,7 +391,13 @@ class AuslastungAnsicht(QWidget):
             self.details.setColumnHidden(k, not any(self.details.item(i, k).text()
                                                     for i in range(self.details.rowCount())))
         self.details.resizeColumnsToContents()
-        self.details.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        kopf = self.details.horizontalHeader()
+        kopf.setSectionResizeMode(1, QHeaderView.Stretch)
+        # Spalte Kunde nie schmaler als ihr Titel (Layout-Rundgang 11.11.2026: „Kunde“ war bei 1366 px abgeschnitten)
+        kopf.setMinimumSectionSize(min(kopf.minimumSectionSize(), 40))
+        if kopf.sectionSize(1) < kopf.fontMetrics().horizontalAdvance("Kunde") + 28:
+            kopf.setSectionResizeMode(1, QHeaderView.Interactive)
+            self.details.setColumnWidth(1, kopf.fontMetrics().horizontalAdvance("Kunde") + 28)
         self.details.blockSignals(False)
 
     def _oeffnen(self, index):
