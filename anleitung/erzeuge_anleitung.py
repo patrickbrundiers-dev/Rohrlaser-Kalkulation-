@@ -7728,7 +7728,8 @@ def kapitel_fertigung(i):
             "auch ohne Auswahl in der Liste: Auftragsnummer oder Kunde tippen, Enter übernimmt den Treffer, Laufzeit "
             "prüfen, Enter meldet fertig. <i>Fertig melden und nächster</i> lässt das Fenster für den nächsten "
             "Auftrag offen. Neben dem Datum steht die Uhrzeit der Fertigmeldung, vorbelegt mit jetzt; sie steht "
-            "in der Spalte <i>Fertig am</i> und in der Tagesansicht unter <i>Heute tatsächlich</i>.",
+            "in der Spalte <i>Fertig am</i> und in der Tagesansicht unter <i>Heute tatsächlich</i>. Ein Klick auf "
+            "einen Wochenbalken rollt die Plantafel zu dieser Woche.",
             "<b>Online-Update</b> (ab Version 1.7): Das Programm sieht kurz nach dem Start online nach einer "
             "neueren Version und meldet sich nur dann. <i>Jetzt aktualisieren</i> lädt nur die geänderten Dateien, "
             "sichert die Datenbank, schließt das Programm, tauscht die Dateien aus und startet neu; <i>Später</i> "

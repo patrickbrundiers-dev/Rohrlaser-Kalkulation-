@@ -17,6 +17,9 @@ def _datum(iso):
         return None
 
 
+UHRZEIT = None      # nur für Tests: feste Uhrzeit statt der Rechneruhr, damit laufende Aufträge immer gleich rechnen
+
+
 def grundlage(db, heute=None, wochenzahl=8):
     """Eingabe für einlastung.rechnen aus der eigenen Datenbank (gleicher Aufbau wie auslastung.berechnen):
     offene und laufende Aufträge mit ihrer Restlaufzeit (kalkuliert minus schon gelaufen), Kapazität aus Stunden je
@@ -25,7 +28,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     maschinen = [m["name"] for m in db.maschinen(nur_aktive=True)]
     tag = {m["name"]: float(m["stunden_tag"]) for m in db.maschinen()}
     auftraege = {}
-    jetzt = datetime.datetime.combine(heute, datetime.datetime.now().time())
+    jetzt = datetime.datetime.combine(heute, UHRZEIT or datetime.datetime.now().time())
     for a in db.auftraege((D.OFFEN, D.LAEUFT)):
         termin = _datum(a["liefertermin"])
         fest = _datum(a["fest_ab"])
