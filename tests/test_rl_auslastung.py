@@ -1992,6 +1992,22 @@ f20.vollbild = None
 v20b = f20.tafel_vollbild(zeigen=False)
 assert v20b.faktor == 2.0 and v20b.blaettert.currentData() == 0                       # gemerkt
 v20b.close()
+# Klick auf einen Wochenbalken: die Plantafel springt zu dieser Woche (Patrick 11.11.2026)
+f20.tafel_zoom("1 Woche", merken=False)
+app.processEvents()
+rollt20 = f20.tafel_rahmen.horizontalScrollBar()
+assert rollt20.value() == 0 and f20.tafel.tagbreite_fest
+mo20 = h20 + datetime.timedelta(weeks=2)
+f20.balken.gewaehlt.emit("LT7", mo20)
+assert rollt20.value() == int(f20.tafel.tage.index(mo20) * f20.tafel.tagbreite_fest) > 0 and f20.woche == ("LT7", mo20)
+assert f20.tafel_zu_woche(h20 - datetime.timedelta(weeks=3)) == h20 and rollt20.value() == 0    # vergangene Woche: heute
+f20.tafel_zoom("Tag", merken=False)
+app.processEvents()
+f20.balken.gewaehlt.emit("T03", mo20)
+assert f20.tafel_rahmen.tag_zeigen() == mo20
+f20.tafel_zoom("Alles", merken=False)
+assert f20.tafel_zu_woche(mo20) is None                                               # alles ist schon zu sehen
+f20.tafel_zoom("1 Woche", merken=False)
 ok("R24 Auftrag und Maschine mit Rüstzeit, Rohrmaßen, Teillieferungen; Vollbild für die Halle mit Schrift, Uhr, Blättern")
 
 # ---------------------------------------------------------------- R25 Fertig melden mit Suche und Uhrzeit (2.0)

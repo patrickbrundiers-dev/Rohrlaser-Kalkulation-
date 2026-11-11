@@ -229,7 +229,8 @@ ABSCHNITTE = (
      "schlechtesten Lieferung; der Hinweis auf dem Liefertermin in der Auftragsliste zeigt alle. Teillieferungen "
      "gibt es nur bei Aufträgen ohne Arbeitsgänge."),
     ("Plantafel: Suchen, Vollbild, Drucken",
-     "Das Feld <b>Suchen</b> über der Plantafel findet einen Auftrag nach Auftragsnummer oder Kunde, hebt ihn hervor "
+     "Ein Klick auf einen <b>Wochenbalken</b> oben zeigt rechts die Aufträge dieser Woche und rollt die Plantafel "
+     "zu dieser Woche. Das Feld <b>Suchen</b> über der Plantafel findet einen Auftrag nach Auftragsnummer oder Kunde, hebt ihn hervor "
      "und rollt zu seinem Beginn; die Eingabetaste springt zum nächsten Treffer. <b>Vollbild</b> zeigt die "
      "Plantafel allein über den ganzen Bildschirm, zum Beispiel in der Halle; sie folgt jeder Änderung, Esc "
      "schließt. Dort lässt sich die <b>Schrift</b> auf groß oder sehr groß stellen (die ganze Tafel wird größer), "
