@@ -21,6 +21,22 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.287", "<b>Neue Revision eines Artikels erkennen, Auftragschance als Ampel</b> ([[wiederholteile]]): Kommt "
+     "ein Artikel mit gleicher Artikelnummer, aber anderer Geometrie wieder (z. B. aus einer neuen STEP), zeigt die "
+     "Übersicht <i>Wiederholteile</i> in Orange, was sich geändert hat: <i>geändert gegenüber 2026-00142: 40 mm "
+     "länger, 2 Konturen mehr, Schneidweg +20 %</i>. Der Angebots-Check nennt dazu den Staffelpreis von damals und "
+     "bei gleicher Menge den von heute mit Abweichung in %. Die Angebotsliste hat die neue Spalte <i>Chance [%]</i> "
+     "für verschickte Angebote: grün ab 50 %, gelb ab 25 %, darunter rot; der Mauszeiger nennt die Begründung "
+     "(Kunde, Preisklasse, Alter). Die Spalte bleibt weg, solange es zu wenige entschiedene Angebote gibt oder die "
+     "Funktion <i>Auftragschance</i> aus ist. Preise ändern sich dadurch nicht. <b>STEP neu einlesen</b> im "
+     "Rohr-Editor ([[schneidweg_rechner]]) nimmt die gemerkte Datei der Position (oder eine neuere Revision im selben "
+     "Ordner) und zeigt vor dem Überschreiben eine Vorschau: Konturen unverändert, neu, entfallen, geänderte Enden, "
+     "Länge und Profil. Von Hand gesetzte Gewinde, Senkungen, Flowdrill und Gravuren bleiben erhalten. Eine "
+     "STEP-Datei lässt sich ins Editor-Fenster ziehen. Blech-, Dreh-/Frästeil-, Baugruppen- und Satz-Editor haben "
+     "den Knopf <i>STEP neu einlesen …</i> jetzt auch (Prüfdialog, Position wird ersetzt, Rückgängig möglich). "
+     "Bei mehreren Teilen in der Datei zeigt die Teilwahl jedes Teil als 3D-Bild; misst die Datei ein anderes "
+     "Profil, stellt <i>Profil aus Datei übernehmen</i> die Position darauf um.",
+     "Neue Revision eines Artikels wird erkannt; Auftragschance als Ampel; STEP neu einlesen mit Vorschau"],
     ["0.9.286", "<b>Lieferdatum ab Werk und frei Haus</b> ([[lieferdatum_frei_haus]]): Die Frachtlaufzeit wird "
      "eingerechnet. Ab Werk = versandbereit (so wird geplant), frei Haus = beim Kunden. Laufzeit am Frachttarif "
      "(neues Feld <i>Laufzeit [Arbeitstage]</i>), sonst Vorgabe Inland 1 / Ausland 3 Arbeitstage; 0 bei ab Werk, "

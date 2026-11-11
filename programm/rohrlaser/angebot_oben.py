@@ -1580,16 +1580,18 @@ class UebersichtBereich(QWidget):
     def wiederholteile_setzen(self, eintraege):
         """eintraege: [(Zeile, Positionstext, Treffer-Liste)] (wiederholteile.suchen), nur Positionen mit Treffern."""
         from html import escape
-        from .wiederholteile import SICHER, text
+        from .wiederholteile import SICHER, revision_text, text
         n = len(eintraege)
         self.wiederholteile_bereich.setVisible(bool(n))
         if not n:
             self.wiederholteile.clear()
             return
         sicher = sum(1 for _, _, t in eintraege if t[0].art == SICHER)
+        geaendert = sum(1 for _, _, t in eintraege if t[0].geaendert)
         self.wiederholteile_bereich.setze_titel(
             f"Wiederholteile: {n} Position{'en' if n > 1 else ''} schon angeboten"
-            + (f" ({sicher} sicher)" if sicher and sicher < n else ""))
+            + (f" ({sicher} sicher)" if sicher and sicher < n else "")
+            + (f", {geaendert} geändert" if geaendert else ""))
         link = "color:#1F4E78"
         zeilen = []
         for zeile, titel, treffer in eintraege:
@@ -1598,8 +1600,10 @@ class UebersichtBereich(QWidget):
                         f"<a style='{link}' href='oeffnen:{t.angebot['id']}'>Angebot öffnen</a>"]
             if t.werte:
                 aktionen.insert(0, f"<a style='{link}' href='werte:{zeile}'>Werte übernehmen …</a>")
+            rev = revision_text(t)      # B1: neue Revision des Artikels (Geometrie anders als im alten Angebot)
             zeilen.append(f"💡 <b>{escape(titel)}</b>: {escape(text(treffer))}<br>"
-                          f"<span style='color:{GRAU}'>{' · '.join(aktionen)}</span>")
+                          + (f"<span style='color:{ORANGE}'>⚠ Neue Revision, {escape(rev)}</span><br>" if rev else "")
+                          + f"<span style='color:{GRAU}'>{' · '.join(aktionen)}</span>")
         self.wiederholteile.setText("<br>".join(zeilen) + f"<br><span style='color:{GRAU}'>Der Preis wird nie "
                                     "übernommen, er entsteht immer neu aus der Kalkulation.</span>")
 
