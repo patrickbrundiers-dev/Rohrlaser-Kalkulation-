@@ -790,7 +790,10 @@ ARBEITSGANG_REGELN = Tabelle(
      Feld("art", "Abrechnung (leer = wie Zusatzarbeit)", "auswahl", auswahl="zusatzart", breite=90),
      Feld("preis", "Preis je Einheit [€] (leer = wie Zusatzarbeit)", "zahl", 0, 100000, stellen=2, breite=95),
      Feld("faktor", "Faktor Menge", "zahl", 0.01, 100, stellen=3, breite=70),
-     Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90)),
+     Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90),
+     # Plan Kalkulation 11.11.2026 A2 (Schema 81, leer = wie die Zusatzarbeit): z. B. Verzinkerei mind. 80 € je Auftrag
+     Feld("mindest", "Mindestbetrag je Angebot [€] (leer = wie Zusatzarbeit)", "zahl", 0, 100000, stellen=2,
+          breite=95)),
     ("name",),
     "Regeln für „Arbeitsgänge vorschlagen …“ im Angebot: Trifft eine Position alle ausgefüllten Bedingungen "
     "(leer = egal; Stichwörter: eines genügt, Groß-/Kleinschreibung egal), schlägt das Programm die Zusatzarbeit vor. "
@@ -1002,6 +1005,10 @@ EINSTELLUNGEN = (
                 "Kalkulation", "zahl_leer", None, 0, 1440),
     Einstellung("programmierung_wiederholteil", "Programmierzeit Wiederholteil mit Programm [min] (leer = volle Zeit)",
                 "Kalkulation", "zahl_leer", 1.0, 0, 1440),
+    # Plan Kalkulation 11.11.2026 A3: gleiches Teil (Artikel-Nr. + Geometrie) in mehreren Positionen einmal
+    # programmieren; von Hand eingetragene Programmierzeiten bleiben je Position
+    Einstellung("programmierung_gleich", "Gleiches Teil in mehreren Positionen nur einmal programmieren", "Kalkulation",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
                 "zahl", 0.0, 0, 1000),
     # Plan „Kalkulation und Berechnung verbessern“ (Patrick 29.10.2026): Ausschuss auf Material und Laserzeit,
@@ -1320,6 +1327,10 @@ EINSTELLUNGEN = (
     # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
+    # Plan Kalkulation 11.11.2026 A1 (preisluecke.py): Warnung, wenn ein Profil ohne eigenen Preis mit dem Tonnenpreis
+    # um mehr als diesen Anteil billiger rechnet als ein ähnliches Profil mit Preis
+    Einstellung("preisluecke_schwelle", "Angebots-Check: Preislücke beim Tonnenpreis ab [%] (0 = aus)", "Angebot",
+                "zahl", 10.0, 0, 100),
     # Angebotsvergleich (Plan CSV-Angebotsvergleich 30.10.2026, 5a): Position markiert ab dieser Abweichung des
     # Stückpreises oder des Positionspreises (0 = dieses Merkmal aus)
     Einstellung("vergleich_schwelle_anteil", "Angebotsvergleich: markieren ab Abweichung Stückpreis (0 = aus)",

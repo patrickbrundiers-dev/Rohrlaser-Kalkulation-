@@ -3775,7 +3775,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                        getattr(self, "_preis_fein_cache", None))
             + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen)
             + self._freigabe_punkte(summen)
-            + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte())
+            + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
+            + self._preisluecke_punkte())
 
     def _einsicht_punkte(self):
         """I8 Reklamation bei Wiederholteilen, I9 Nachkalkulation ähnlicher Aufträge (einsichten.py) – Hinweise."""
@@ -3787,6 +3788,37 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         except Exception:           # nur Hinweise: nie den Check blockieren
             return []
         return out + ([("HINWEIS", t, None)] if t else [])
+
+    def _preisluecke_punkte(self):
+        """A1 (Plan Kalkulation 11.11.2026): Profil ohne eigenen Preis rechnet mit einem Tonnenpreis deutlich unter
+        ähnlichen Profilpreisen – WARNUNG mit „Erledigen“ (preisluecke.py)."""
+        from . import preisluecke
+        try:
+            return preisluecke.punkte(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        except Exception:           # nur Hinweis: nie den Check blockieren
+            return []
+
+    def preisluecken_uebernehmen(self):
+        """„Erledigen“ zu A1: ähnliche Profilpreise als Zeilen in 'Preise' anlegen, mit Rückgängig."""
+        from . import preisluecke
+        liste = preisluecke.luecken(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        vorher = self._verkauf()
+        ids = preisluecke.uebernehmen(self.db, liste)
+        if not ids:
+            return False
+        self.neu_laden()
+        namen = ", ".join(f"{e['profil_id']} {e['werkstoff_id']}" for e in liste)
+        fest = isinstance(self.kopf.get("preisbasis"), dict)
+
+        def zurueck():
+            self.db.loeschen("preise", ids)
+            self.neu_laden()
+            self.f.meldung("Übernommene Profilpreise wieder gelöscht.")
+        self.f.meldung(f"Profilpreis angelegt ({namen}, Stammdaten → Preise). "
+                       + ("Die Preise dieses Angebots sind festgeschrieben: gilt nach „Aktuelle Preise übernehmen“."
+                          if fest else preis_aenderung(vorher, self._verkauf())),
+                       aktion=("Rückgängig", zurueck))
+        return True
 
     def _lieferzeit_punkte(self):
         """I6: zugesagte Lieferzeit kürzer als die gelernte Durchlaufzeit (lernen.lieferzeit_hinweis) – Hinweis."""
@@ -3920,7 +3952,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     def check_erledigen(self, aktionen):
         """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
         tun = {"optimieren": self.optimieren, "staffeln_rechnen": self.staffelpreise_rechnen,
-               "preise": self.preise_aktualisieren}
+               "preise": self.preise_aktualisieren, "preisluecke": self.preisluecken_uebernehmen}
         erledigt = []
         for a in aktionen:
             if a in tun:

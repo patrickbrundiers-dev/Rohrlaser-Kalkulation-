@@ -51,7 +51,7 @@ SEITEN = (
                                       "aufschlag_zukauf zukauf_aufschlag gewinn gewinn_material"),
            _a("Rüsten und Programmieren", "ruesten_abmessung ruesten_abmessung_eur ruesten_angebot_eur "
                                           "ruesten_abmessung_wand pauschale_abmessung programmierung_zeit "
-                                          "programmierung_kontur programmierung_wiederholteil pruefzeit_anbau"),
+                                          "programmierung_kontur programmierung_wiederholteil programmierung_gleich pruefzeit_anbau"),
            _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"),
            _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"))),
     Seite("e_gewinn_gestaffelt", "Gewinn gestaffelt",
@@ -83,7 +83,7 @@ SEITEN = (
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
            _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
                                                "nachkalk_schwelle anfrage_zuweisen angebot_automatik"),
-           _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"),
+           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle nachfassen_tage"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
            _a("Gewinn nach Auslastung", "auslastung_hoch auslastung_niedrig", experte=True))),
@@ -161,7 +161,9 @@ WERT_SCHALTER = {"nachfassen_tage": 10, "auto_optimieren_bis": 100, "mindestmarg
                  "teilen_takt": 1.0, "stangenbild_popup": 1.0,
                  # Vorschläge vom 02.11.2026 (Vorgabe aus)
                  "finanz_zins": 0.06, "runden_stueck": 0.05, "runden_gesamt": 5.0, "neuteil_zuschlag": 0.05,
-                 "freigabe_ab": 25000.0, "freigabe_marge": 0.10}
+                 "freigabe_ab": 25000.0, "freigabe_marge": 0.10,
+                 # Plan Kalkulation 11.11.2026 A1 (Vorgabe an)
+                 "preisluecke_schwelle": 10.0}
 WERT_GEMERKT = "einstellungen_gemerkt"
 
 # Stehen auf keiner Seite: Frachtkosten im eigenen Reiter, csv_ordner merkt sich das Programm selbst

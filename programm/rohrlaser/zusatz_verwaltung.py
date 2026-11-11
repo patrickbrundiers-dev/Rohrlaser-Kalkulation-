@@ -108,6 +108,8 @@ def regeln_text(name, regeln):
             teile.append(f"{zahl_als_text(r['preis'], 2)} {r.get('art') or ''}".strip())
         if r.get("mindest_teil") is not None:
             teile.append(f"mind. {euro(r['mindest_teil'])} je Teil")
+        if r.get("mindest") is not None:
+            teile.append(f"mind. {euro(r['mindest'])} je Angebot")
         zeilen.append(f"• {r.get('name')}: {', '.join(teile)}" + ("" if zr.aktiv(r) else " (aus)"))
     return "\n".join(zeilen) + "\nÄndern: Einstellungen → Arbeitsgang-Regeln."
 

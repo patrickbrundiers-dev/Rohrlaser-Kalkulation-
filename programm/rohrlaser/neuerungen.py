@@ -21,12 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.290", "<b>Umwegfaktor gemessen</b>: Die Entfernung nach PLZ rechnet jetzt mit Luftlinie × 1,25 statt 1,35. "
+    ["0.9.291", "<b>Umwegfaktor gemessen</b>: Die Entfernung nach PLZ rechnet jetzt mit Luftlinie × 1,25 statt 1,35. "
      "Gemessen mit den Straßen-km eines Routenplaners ab Delbrück zu 11 Orten in ganz Deutschland (Lippstadt bis "
      "Freiburg und Malchow): 1,25 liegt im Mittel 5,5 % neben der Straße, 1,35 lag 7,5 % zu weit. Ab Delbrück "
      "z. B. Herford wieder 65 €, Dortmund 80 € statt 100 € ([[fracht_entfernung]]). Wer den Faktor in den "
      "Einstellungen selbst geändert hat, behält seinen Wert.",
      "Umwegfaktor der Entfernung nach PLZ gemessen: 1,25 statt 1,35"],
+    ["0.9.290", "<b>Kalkulation genauer</b>: Hat ein Profil keinen eigenen Preis und rechnet deshalb mit einem "
+     "Tonnenpreis deutlich unter ähnlichen Profilpreisen, warnt der Angebots-Check (vorher zeigte die Position „OK“: "
+     "ein S355-Rohr war 32 € billiger als dasselbe in S235). <b>Erledigen</b> legt den ähnlichen Preis als Profilpreis "
+     "an ([[angebots_check]]). Dasselbe Teil in mehreren Positionen wird nur einmal programmiert "
+     "([[kalkulationsbasis]]). Abrechnungsregeln haben einen eigenen <b>Mindestbetrag je Angebot</b> "
+     "([[abrechnungsregeln]]). Das Kalkulations-PDF zeigt das <b>Schnittschema je Mengenstufe</b> "
+     "([[staffeln]]). Ältere festgeschriebene Angebote rechnen wie verschickt.",
+     "Kalkulation genauer: Preislücke beim Tonnenpreis, Programmierung einmal, Mindestbetrag je Regel, "
+     "Schnittschema je Stufe im PDF"],
     ["0.9.289", "<b>Fracht genauer: Entfernung nach PLZ</b>: Das Programm kennt jetzt den Mittelpunkt aller rund "
      "8.300 deutschen Postleitzahlen (ohne Internet) und rechnet die Entfernung vom Versandort zur vollen Ziel-PLZ "
      "(Luftlinie × Umwegfaktor 1,35, einstellbar unter Einstellungen › Frachtkosten). Die Richtwert-Zone richtet sich "
