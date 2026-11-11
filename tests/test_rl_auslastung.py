@@ -49,6 +49,9 @@ HEUTE = D(2026, 11, 11)             # Mittwoch
 # Feste Uhrzeit: sonst hinge der Test an der Tageszeit (ein seit 7 Uhr laufender Auftrag ist nachmittags rechnerisch durch)
 rechnung.UHRZEIT = datetime.time(9, 0)
 tmp = Path(tempfile.mkdtemp())
+# Die Tests vor 2.7 prüfen Optimieren und Ausweichmaschine ohne „die nächsten Tage nicht umplanen“ (N3, Vorgabe 2
+# Arbeitstage); N3 selbst prüft R36 mit der echten Vorgabe.
+daten.VORGABEN["einfrieren_tage"] = "0"
 
 # ---------------------------------------------------------------- R1 Laufzeit
 for text, minuten in (("1 Stunde 30 Minuten", 90), ("90 Minuten", 90), ("1:30", 90), ("1,5 h", 90), ("1.5 Std", 90),
@@ -2931,6 +2934,41 @@ f35.close()
 db35.schliessen()
 ok("R35 Plan 2.7: spätester Start = Start + Puffer (Probe hält den Termin), Kundenpriorität A/B/C verschiebt die "
    "Reihenfolge, Warnungen für Termin, Material, Stillstand und Fremdarbeit mit Glocke und Zeile, schaltbar")
+# ---------------------------------------------------------------- R36 N1 Mindest-Restzeit, N3 nicht umplanen
+daten.VORGABEN["einfrieren_tage"] = "2"                            # ab hier die echte Vorgabe
+db36 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+assert db36.zahl("einfrieren_tage") == 2 and db36.zahl("rest_prozent") == 15 and db36.zahl("rest_min") == 30
+q1 = db36.auftrag_speichern(dict(nummer="Q-1", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 16)))
+q2 = db36.auftrag_speichern(dict(nummer="Q-2", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 17)))
+aus36, ein36 = rechnung.einlasten(db36, HEUTE)
+assert [ein36["plan"][i]["start"] for i in (q1, q2)] == [HEUTE, D(2026, 11, 13)]
+assert rechnung.eingefroren(aus36, ein36) == {q1}                    # beginnt heute oder morgen: bleibt
+assert q2 in rechnung.ausweichen(aus36, ein36, 2)                    # Q-2 erst Freitag: darf ausweichen
+opt36 = rechnung.optimieren(aus36, ein36, 2)
+assert opt36 and all(x["id"] != q1 for x in opt36["schritte"]) and opt36["ein"]["plan"][q1]["start"] == HEUTE
+db36.einstellung_setzen("einfrieren_tage", "3")                     # bis Freitag fest: nichts mehr vorzuschlagen
+aus36, ein36 = rechnung.einlasten(db36, HEUTE)
+assert rechnung.eingefroren(aus36, ein36) == {q1, q2}
+assert not rechnung.ausweichen(aus36, ein36, 2) and rechnung.optimieren(aus36, ein36, 2) is None
+db36.einstellung_setzen("einfrieren_tage", "0")
+assert rechnung.eingefroren(*rechnung.einlasten(db36, HEUTE)) == set()
+# N1: Q-3 kalkuliert 2 h, läuft seit 7 Uhr (9 Uhr = 2 h gelaufen): Restzeit bleibt 30 min statt 0
+q3 = db36.auftrag_speichern(dict(nummer="Q-3", maschine="T11", kalk_min=120))
+db36.starten(q3, jetzt=datetime.datetime(2026, 11, 11, 7, 0))
+h36 = {a["id"]: a["h"] for a in rechnung.einlasten(db36, HEUTE)[1]["auftraege"]}
+assert abs(h36[q3] - 0.5) < 1e-9, h36[q3]
+db36.stoppen(q3, jetzt=datetime.datetime(2026, 11, 11, 9, 30))       # 2 h 30 min gelaufen, länger als kalkuliert
+aus36, ein36 = rechnung.einlasten(db36, HEUTE)
+assert abs({a["id"]: a["h"] for a in ein36["auftraege"]}[q3] - 0.5) < 1e-9
+w36 = warnungen.liste(db36, aus36, ein36, HEUTE)
+assert [w["text"] for w in w36 if w["art"] == "laenger"] == ["Q-3: läuft länger als kalkuliert (2 h 30 min von 2 h)"]
+db36.einstellung_setzen("rest_prozent", "50")                        # 50 % von 2 h = 1 h
+assert abs({a["id"]: a["h"] for a in rechnung.einlasten(db36, HEUTE)[1]["auftraege"]}[q3] - 1.0) < 1e-9
+assert rechnung._rest(600, 100, 15, 30) == 500 and rechnung._rest(600, 0, 15, 30) == 600
+assert rechnung._rest(20, 20, 15, 30) == 20                         # nie mehr als die Kalkulation
+db36.schliessen()
+ok("R36 N1 läuft ein Auftrag länger als kalkuliert, bleibt eine Mindest-Restzeit (15 %, mind. 30 min) und eine "
+   "Warnung; N3 Optimieren und Ausweichmaschine lassen die nächsten 2 Arbeitstage unverändert")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

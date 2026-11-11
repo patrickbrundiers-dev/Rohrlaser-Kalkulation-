@@ -5,14 +5,15 @@ Regeln (Grenzen in den Einstellungen):
 - Liefertermin überschritten oder laut Plan nicht zu halten (Terminrisiko „nicht zu halten“),
 - Material noch nicht da, aber der Auftrag soll in den nächsten warn_material_tage Arbeitstagen starten,
 - eine Unterbrechung mit Grund dauert länger als warn_stopp_min Minuten (Maschine steht),
-- Fremdarbeit ist weggegeben und hätte laut ihren Arbeitstagen schon zurück sein müssen."""
+- Fremdarbeit ist weggegeben und hätte laut ihren Arbeitstagen schon zurück sein müssen,
+- N1: ein Auftrag (Arbeitsgang) läuft schon länger als kalkuliert."""
 
 import datetime
 
 from rohrlaser import einlastung
 
 from . import daten as D
-from . import rechnung
+from . import laufzeit, rechnung
 
 ROT, ORANGE = "rot", "orange"
 
@@ -55,6 +56,15 @@ def liste(db, aus, ein, heute, jetzt=None):
             out.append(dict(art="material", schluessel=f"material:{a['id']}:{ab}", auftrag_id=a["id"], stufe=ORANGE,
                             text=f"{name}: Material noch nicht da (kommt am {_tag(ab)}), Start geplant am "
                                  f"{_tag(start)}"))
+        for t in ([g for g in a["gaenge"] if g["platz"] != D.FREMD and g["status"] != D.FERTIG] if a["gaenge"]
+                  else [a]):
+            lief, kalk = db.gelaufen(t, jetzt), int(t["kalk_min"] or 0)
+            if kalk > 0 and lief > kalk:
+                was = f" · {t['name']}" if t is not a else ""
+                out.append(dict(art="laenger", schluessel=f"laenger:{a['id']}:{t.get('id') if t is not a else ''}",
+                                auftrag_id=a["id"], stufe=ORANGE,
+                                text=f"{name}{was}: läuft länger als kalkuliert ({laufzeit.text(lief)} von "
+                                     f"{laufzeit.text(kalk)})"))
         for g in a["gaenge"]:
             if g["platz"] != D.FREMD or not g["start_am"] or g["status"] == D.FERTIG:
                 continue
@@ -78,4 +88,4 @@ def liste(db, aus, ein, heute, jetzt=None):
         out.append(dict(art="stopp", schluessel=f"stopp:{s['auftrag_id']}:{s['gang_id']}:{s['wann']}",
                         auftrag_id=s["auftrag_id"], stufe=ROT,
                         text=f"{s['maschine'] or 'Maschine'} steht seit {dauer} ({s['nummer']}, Grund: {s['grund']})"))
-    return sorted(out, key=lambda w: (w["stufe"] != ROT, ("stopp", "termin", "material", "fremd").index(w["art"])))
+    return sorted(out, key=lambda w: (w["stufe"] != ROT, ("stopp", "termin", "laenger", "material", "fremd").index(w["art"])))

@@ -25,6 +25,8 @@ STATUS = (OFFEN, LAEUFT, FERTIG)
 VORGABEN = {
     "samstag_stunden": "0", "nutzungsgrad": "100", "bundesland": "Nordrhein-Westfalen", "vorlauf_tage": "2",
     "rolle_vorgabe": "lesen", "arbeitsgaenge": "0", "stopp_fragen": "1",
+    "einfrieren_tage": "2", "rest_prozent": "15", "rest_min": "30", "prio_tage": "3", "warn_stopp_min": "30",
+    "warn_material_tage": "2",
     "stoppgruende": "Störung; Material fehlt; Rüsten; Pause; anderer Auftrag",
     "betriebsruhe": "", "laufzeit_form": "hm", "ohne_einheit": "min", "schwelle_tage": "2", "design": "Hell",
     "wochen": "8",

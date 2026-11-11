@@ -193,7 +193,12 @@ ABSCHNITTE = (
      "In derselben Einstellung je Kunde A (wichtig), B (normal) oder C (kann warten). A-Kunden werden so "
      "eingeplant, als läge ihr Liefertermin 3 Tage früher, C-Kunden 3 Tage später (Zahl änderbar); der "
      "Liefertermin selbst und das Terminrisiko bleiben. Von Hand vorgezogene Aufträge und feste Plätze gehen weiter "
-     "vor. Die Spalte <i>Priorität</i> erscheint, sobald ein Kunde A oder C ist."),
+     "vor. Die Spalte <i>Priorität</i> erscheint, sobald ein Kunde A oder C ist.<br><b>Länger als kalkuliert:</b> "
+     "Ist die kalkulierte Zeit eines laufenden Auftrags verbraucht, plant das Programm bis zur Fertigmeldung noch "
+     "eine Restzeit ein (15 % der Kalkulation, mindestens 30 Minuten), damit die Maschine nicht als frei gilt; die "
+     "Glocke meldet „läuft länger als kalkuliert“.<br><b>Nicht umplanen:</b> Optimieren und Ausweichmaschine ändern "
+     "nichts an Aufträgen, die in den nächsten 2 Arbeitstagen beginnen (0 = aus). Von Hand verschieben geht "
+     "weiter. Beide Werte stehen in derselben Einstellung."),
     ("Zusatzschritte: Gewinde, Nieten, Schweißen, Verzinken",
      "Einschalten unter <b>Einstellungen → Ansicht und Felder → Funktionen → Zusatzschritte</b> (schaltet die "
      "Arbeitsgänge mit ein und legt die Arbeitsplätze <i>Bearbeitung</i> und <i>Schweißen</i> an). Im Auftrag dann "

@@ -3062,7 +3062,7 @@ class Hauptfenster(QMainWindow):
         return True
 
     def _warn_gruppe(self):
-        g = QGroupBox("Warnungen und Kundenpriorität")
+        g = QGroupBox("Warnungen, Kundenpriorität und Planungsregeln")
         self.g_warn = g
         form = QFormLayout(g)
         self.e_warn_stopp = QSpinBox()
@@ -3079,13 +3079,35 @@ class Hauptfenster(QMainWindow):
         self.e_prio_tage.setSuffix(" Tage")
         self.e_prio_tage.setToolTip("A-Kunden werden so eingeplant, als läge ihr Liefertermin so viele Tage früher, "
                                     "C-Kunden so viele Tage später. Der Liefertermin selbst bleibt.")
+        self.e_rest_prozent = QSpinBox()
+        self.e_rest_prozent.setRange(0, 100)
+        self.e_rest_prozent.setSuffix(" % der Kalkulation")
+        self.e_rest_min = QSpinBox()
+        self.e_rest_min.setRange(0, 600)
+        self.e_rest_min.setSuffix(" min")
+        for feld in (self.e_rest_prozent, self.e_rest_min):
+            feld.setToolTip("Läuft ein Auftrag länger als kalkuliert, plant das Programm bis zur Fertigmeldung "
+                            "noch so viel Restzeit ein (der größere Wert, höchstens die Kalkulation).")
+        self.e_einfrieren = QSpinBox()
+        self.e_einfrieren.setRange(0, 20)
+        self.e_einfrieren.setSuffix(" Arbeitstage")
+        self.e_einfrieren.setToolTip("Optimieren und Ausweichmaschine ändern nichts an Aufträgen, die in so vielen "
+                                     "Arbeitstagen ab heute beginnen (0 = aus). Von Hand verschieben geht weiter.")
         for feld, schluessel in ((self.e_warn_stopp, "warn_stopp_min"), (self.e_warn_material, "warn_material_tage"),
-                                 (self.e_prio_tage, "prio_tage")):
+                                 (self.e_prio_tage, "prio_tage"), (self.e_rest_prozent, "rest_prozent"),
+                                 (self.e_rest_min, "rest_min"), (self.e_einfrieren, "einfrieren_tage")):
             feld.valueChanged.connect(lambda w, s=schluessel: self._warn_speichern(s, w))
             feld.setMaximumWidth(180)
         form.addRow("Maschine steht länger als", self.e_warn_stopp)
         form.addRow("Material fehlt, Start in höchstens", self.e_warn_material)
         form.addRow("Kundenpriorität verschiebt um", self.e_prio_tage)
+        rest = QHBoxLayout()
+        rest.addWidget(self.e_rest_prozent)
+        rest.addWidget(QLabel("mindestens"))
+        rest.addWidget(self.e_rest_min)
+        rest.addStretch(1)
+        form.addRow("Länger als kalkuliert: Restzeit", rest)
+        form.addRow("Nicht umplanen: die nächsten", self.e_einfrieren)
         self.e_kunden = QTableWidget()
         self.e_kunden.setColumnCount(2)
         self.e_kunden.setHorizontalHeaderLabels(("Kunde", "Priorität"))
@@ -3103,7 +3125,8 @@ class Hauptfenster(QMainWindow):
     def _warn_fuellen(self):
         for feld, schluessel, vorgabe in ((self.e_warn_stopp, "warn_stopp_min", 30),
                                           (self.e_warn_material, "warn_material_tage", 2),
-                                          (self.e_prio_tage, "prio_tage", 3)):
+                                          (self.e_prio_tage, "prio_tage", 3), (self.e_rest_prozent, "rest_prozent", 15),
+                                          (self.e_rest_min, "rest_min", 30), (self.e_einfrieren, "einfrieren_tage", 2)):
             feld.setValue(int(self.db.zahl(schluessel, vorgabe)))
         kunden = self.db.kunden()
         self.e_kunden.setRowCount(0)              # alte Auswahlfelder ganz entfernen, sonst bleiben sie stehen
