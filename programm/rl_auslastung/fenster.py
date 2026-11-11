@@ -3703,9 +3703,11 @@ class Hauptfenster(QMainWindow):
         lay.addWidget(self.zug_zeile)
         lay.addWidget(teiler, 1)
         ini = ort.ini_lesen(self.platz)
-        self.k_liste.setChecked(ini.get("liste_rechts") != "0")
+        for k, an in ((self.k_liste, ini.get("liste_rechts") != "0"), (self.k_balken, ini.get("wochenbalken") != "0")):
+            k.blockSignals(True)                  # beim Start nur lesen, nicht in die Auslastung.ini schreiben
+            k.setChecked(an)
+            k.blockSignals(False)
         self.liste_rechts(self.k_liste.isChecked(), merken=False)
-        self.k_balken.setChecked(ini.get("wochenbalken") != "0")
         self.balken_zeigen(self.k_balken.isChecked(), merken=False)
         self.info.setToolTip(RECHENWEG)
         return w

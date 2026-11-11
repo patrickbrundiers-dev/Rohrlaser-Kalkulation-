@@ -2821,6 +2821,25 @@ f33.close()
 db33.schliessen()
 ok("R33 Zusatzschritte 2.6: Zeit aus Anzahl und Richtzeiten, Schnelleingabe und Excel, Fremdarbeit Mo/Mi, Lernen mit "
    "✓, Auftrag mit „+ Zusatzschritt …“, schaltbar, Daten bleiben")
+# R34: Programmstart und Rundgang durch alle Reiter schreiben nichts in die Auslastung.ini (Online-Update-Prüfung
+# im Workflow: eigene Dateien des Platzes bleiben bytegleich)
+t34 = Path(tempfile.mkdtemp())
+(t34 / "Auslastung.ini").write_text("tafel_zoom = 2 Wochen\n", encoding="utf-8")
+db34 = daten.Daten(t34 / "a.db")
+db34.auftrag_speichern(dict(nummer="I-1", maschine="LT7", kalk_min=90))
+f34 = Hauptfenster(db34, heute=HEUTE, platz=t34)
+f34.show()
+for i34 in range(f34.reiter.count()):
+    f34.reiter.setCurrentIndex(i34)
+    app.processEvents()
+f34.close()
+db34.schliessen()
+assert (t34 / "Auslastung.ini").read_text(encoding="utf-8") == "tafel_zoom = 2 Wochen\n"
+ort.merken("tafel_zoom", "2 Wochen", t34)                          # gleicher Wert: Datei bleibt
+assert (t34 / "Auslastung.ini").read_text(encoding="utf-8") == "tafel_zoom = 2 Wochen\n"
+ort.merken("liste_rechts", "0", t34)
+assert ort.ini_lesen(t34) == {"tafel_zoom": "2 Wochen", "liste_rechts": "0"}
+ok("R34 Start und Rundgang lassen die Auslastung.ini unberührt; gleicher Wert schreibt nicht")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
