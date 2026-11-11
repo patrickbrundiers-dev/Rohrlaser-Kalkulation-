@@ -7691,7 +7691,22 @@ def kapitel_fertigung(i):
             "Auftrags hervor.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
-            "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")
+            "Kalkulation.",
+            "<b>Schichten und Tagesansicht</b> (ab Version 1.7): Unter <i>Einstellungen → Schichten</i> stehen "
+            "die Schichten mit Beginn, Ende und Pause (Vorgabe Früh, Spät, Nacht). Bei der Maschine wird angehakt, "
+            "welche Schichten sie von Montag bis Freitag fährt; ihre Stunden je Tag ergeben sich daraus, die "
+            "Einlastung rechnet damit. Maschinen ohne Schicht behalten ihre Stunden je Tag. Die Plantafel hat die "
+            "Ansicht <i>Tag</i>: ein Tag über die ganze Breite mit Stundenraster, Schichten und im Balken "
+            "Auftragsnummer, Kunde, Uhrzeit von bis, Restlaufzeit, Fertig-Tag und Liefertermin. Die Pfeile blättern "
+            "tageweise, <i>Heute</i> springt zurück. Die Uhrzeiten sind gerechnet (Aufträge nacheinander ab "
+            "Schichtbeginn).",
+            "<b>Online-Update</b> (ab Version 1.7): Das Programm sieht kurz nach dem Start online nach einer "
+            "neueren Version und meldet sich nur dann. <i>Jetzt aktualisieren</i> lädt nur die geänderten Dateien, "
+            "sichert die Datenbank, schließt das Programm, tauscht die Dateien aus und startet neu; <i>Später</i> "
+            "lässt alles, wie es ist. Von Hand: <i>Hilfe → Nach Updates suchen</i>. Aufträge, Einstellungen und die "
+            "Datei <i>Auslastung.ini</i> bleiben unberührt; geht etwas schief, bleibt die bisherige Version. "
+            "Arbeiten mehrere Plätze mit derselben Datenbank, bitte alle Plätze aktualisieren. Versionen vor 1.7 "
+            "einmal von Hand: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")
     i.text("<b>Zahlen (Terminwoche)</b>: der zweite Reiter über den Balken zeigt dieselbe Rechnung als Tabelle.",
            kurz=True)
     i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "

@@ -65,6 +65,39 @@ def grundlage(db, heute=None, wochenzahl=8):
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]])
 
 
+def spannen(db):
+    """Arbeitszeit je Maschine als Uhrzeiten für die Tagesansicht: {Maschine: (Montag bis Freitag, Samstag)}, jede
+    Seite [(Beginn in Minuten seit Mitternacht, Dauer in Stunden, Name der Schicht oder '')]. Mit Schichten deren
+    Zeiten; ohne Schichten ein Block ab dem Beginn der ersten Schicht (sonst 06:00) über die Stunden je Tag."""
+    alle = db.schichten()
+    beginn = D.uhrzeit(alle[0]["beginn"]) if alle else 360
+    samstag = db.zahl("samstag_stunden")
+    out = {}
+    for m in db.maschinen():
+        eigene = [x for x in alle if x["name"] in (m["schichten"] or "").split(",")]
+        woche = ([(D.uhrzeit(x["beginn"]), x["dauer"], x["name"]) for x in eigene] if eigene
+                 else [(beginn, float(m["stunden_tag"]), "")])
+        out[m["name"]] = (woche, [(beginn, float(samstag), "")] if samstag > 0 else [])
+    return out
+
+
+def uhr_am(teile, anteil):
+    """Uhrzeit (Minuten seit Mitternacht, über 1440 = nach Mitternacht) an der Stelle anteil (0 bis 1) der
+    Arbeitszeit eines Tages; teile wie aus spannen(). None ohne Arbeitszeit."""
+    gesamt = sum(d for _b, d, _n in teile)
+    if gesamt <= 0:
+        return None
+    rest = max(0.0, min(1.0, anteil)) * gesamt
+    tag = 0
+    for i, (b, d, _n) in enumerate(teile):
+        if i and b < teile[i - 1][0]:
+            tag += 1440                           # Schicht beginnt nach Mitternacht des Folgetags
+        if rest <= d + 1e-9 or i == len(teile) - 1:
+            return tag + b + min(rest, d) * 60
+        rest -= d
+    return None
+
+
 def einlasten(db, heute=None, wochenzahl=8):
     """(Grundlage, Einlastung) der offenen Aufträge."""
     aus = grundlage(db, heute, wochenzahl)
