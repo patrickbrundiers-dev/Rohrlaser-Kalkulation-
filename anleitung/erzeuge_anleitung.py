@@ -7701,6 +7701,15 @@ def kapitel_fertigung(i):
             "Schichten (z. B. Woche 1 Früh, Woche 2 Spät). Das Datum darunter legt fest, in welcher Woche Woche 1 "
             "gilt; danach wiederholt sich die Folge. Einlastung, Auslastung und Tagesansicht rechnen jede Woche mit "
             "ihren Schichten. In der Maschinenliste steht z. B. „Früh / Spät im Wechsel“.",
+            "<b>Schichtkalender, Optimieren, Plantafel</b> (ab Version 1.9): Je Maschine eigene Schichten am "
+            "Samstag; unter <i>Einstellungen → Schichten → Ausnahmen</i> abweichende Tage oder Zeiträume "
+            "(Sonderschicht, Kurzarbeit, Brückentag) für eine oder alle Maschinen. <i>Optimieren …</i> schlägt "
+            "eine Reihenfolge und Maschinenverteilung vor, bei der möglichst kein Auftrag zu spät fertig wird; "
+            "gespeichert wird erst mit <i>Übernehmen</i>, <i>Optimierung rückgängig</i> stellt zurück. Die "
+            "Plantafel hat ein Suchfeld (Auftrag oder Kunde), ein <i>Vollbild</i> für den Bildschirm in der Halle "
+            "und unter <i>PDF …</i> den Druck in A3 und die Tagesansicht als PDF. Die Tagesansicht zeigt beim "
+            "laufenden Auftrag die tatsächliche Startzeit und listet unter <i>Heute tatsächlich</i>, was läuft, "
+            "was überzieht (rot) und was fertig wurde. Das Mausrad ändert keine Werte in Feldern mehr.",
             "<b>Online-Update</b> (ab Version 1.7): Das Programm sieht kurz nach dem Start online nach einer "
             "neueren Version und meldet sich nur dann. <i>Jetzt aktualisieren</i> lädt nur die geänderten Dateien, "
             "sichert die Datenbank, schließt das Programm, tauscht die Dateien aus und startet neu; <i>Später</i> "

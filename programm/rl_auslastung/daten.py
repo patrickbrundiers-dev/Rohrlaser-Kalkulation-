@@ -99,6 +99,14 @@ SCHRITTE = (
     """
     ALTER TABLE maschinen ADD COLUMN schicht_start TEXT;
     """,
+    # 10: Schichtkalender mit Ausnahmen (Patrick 11.11.2026, V1): eigene Schichten am Samstag je Maschine
+    # (schichten_sa, Namen mit Komma; leer = die Samstagsstunden für alle) und Ausnahmen für einzelne Tage oder
+    # Zeiträume (Sonderschicht, Kurzarbeit, Brückentag): maschine '' = alle, schichten '' = frei.
+    """
+    ALTER TABLE maschinen ADD COLUMN schichten_sa TEXT NOT NULL DEFAULT '';
+    CREATE TABLE ausnahmen (id INTEGER PRIMARY KEY, maschine TEXT NOT NULL DEFAULT '', von TEXT NOT NULL,
+        bis TEXT NOT NULL, schichten TEXT NOT NULL DEFAULT '', grund TEXT NOT NULL DEFAULT '');
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -323,7 +331,17 @@ class Daten:
             self.einstellung_setzen("schichten", json.dumps(
                 [dict(name=x["name"], beginn=x["beginn"], ende=x["ende"], pause=x["pause"]) for x in neu]))
             netto = {x["name"]: x["stunden"] for x in neu}
+            for a in self.ausnahmen():                      # entfernte Schicht: fällt weg; bleibt keine, die Ausnahme
+                bleibt = [n for n in a["namen"] if n in netto]
+                if a["namen"] and not bleibt:
+                    self.con.execute("DELETE FROM ausnahmen WHERE id = ?", (a["id"],))
+                elif bleibt != a["namen"]:
+                    self.con.execute("UPDATE ausnahmen SET schichten = ? WHERE id = ?", (",".join(bleibt), a["id"]))
             for m in self.maschinen():
+                sa = [n for n in (m.get("schichten_sa") or "").split(",") if n]
+                if sa and any(n not in netto for n in sa):
+                    self.con.execute("UPDATE maschinen SET schichten_sa = ? WHERE name = ?",
+                                     (",".join(n for n in sa if n in netto), m["name"]))
                 folge = schichtfolge(m)
                 if not folge:
                     continue
@@ -333,6 +351,17 @@ class Daten:
                 self.con.execute("UPDATE maschinen SET schichten = ?, stunden_tag = ? WHERE name = ?",
                                  ("|".join(",".join(w) for w in bleibt), stunden, m["name"]))
 
+    def schicht_umbenennen(self, alt, neu):
+        """Neuer Name bei Maschinen (Wochen, Samstag) und Ausnahmen; die Schichtliste selbst setzt schichten_setzen."""
+        def tausch(text, trenner=","):
+            return trenner.join(neu if n == alt else n for n in text.split(trenner))
+        for m in self.maschinen():
+            self.con.execute("UPDATE maschinen SET schichten = ?, schichten_sa = ? WHERE name = ?", (
+                "|".join(tausch(w) for w in (m["schichten"] or "").split("|")), tausch(m.get("schichten_sa") or ""),
+                m["name"]))
+        for z in self.con.execute("SELECT id, schichten FROM ausnahmen").fetchall():
+            self.con.execute("UPDATE ausnahmen SET schichten = ? WHERE id = ?", (tausch(z["schichten"]), z["id"]))
+
     def schichten_der(self, maschine, montag=None):
         """Schichten einer Maschine von Montag bis Freitag in der Woche ab montag (Vorgabe: erste Woche der Folge),
         in der Reihenfolge der Schichtliste ([] = ohne Schichten, Stunden je Tag von Hand)."""
@@ -341,7 +370,7 @@ class Daten:
         return [x for x in self.schichten() if x["name"] in namen]
 
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
-                           ausweich=None, schichten=None, schicht_start=None):
+                           ausweich=None, schichten=None, schicht_start=None, samstag=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
         zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
@@ -349,10 +378,13 @@ class Daten:
         schichten: Namen der Schichten von Montag bis Freitag; mit Schichten ergeben sich die Stunden je Tag aus
         ihrer Summe, [] = ohne Schichten (Stunden je Tag von Hand); None lässt sie. Wochenwechsel: eine Liste je
         Woche ([["Früh"], ["Spät"]]), die Folge wiederholt sich ab schicht_start (Datum, gilt dessen Montag;
-        Vorgabe: der bisherige Beginn, sonst diese Woche). stunden_tag ist dann die kleinste Woche."""
+        Vorgabe: der bisherige Beginn, sonst diese Woche). stunden_tag ist dann die kleinste Woche.
+        samstag: Namen der Schichten am Samstag ([] = die Samstagsstunden für alle Maschinen); None lässt sie."""
         name = str(name or "").strip()
         if not name:
             raise Fehler("Die Maschine braucht einen Namen.")
+        if samstag is not None:
+            samstag = self._schichtnamen(samstag)
         if schichten is not None:
             bekannt = {x["name"]: x for x in self.schichten()}
             fehlt = [n for w in schichten for n in ([w] if isinstance(w, str) else w) if n not in bekannt]
@@ -404,6 +436,7 @@ class Daten:
                     self.con.execute("UPDATE maschinen SET sperrtage = ? WHERE name = ?", (str(sperrtage).strip(), name))
                 if alt != name:
                     self.con.execute("UPDATE auftraege SET maschine = ? WHERE maschine = ?", (name, alt))
+                    self.con.execute("UPDATE ausnahmen SET maschine = ? WHERE maschine = ?", (name, alt))
                     betroffen = [z[0] for z in self.con.execute(
                         "SELECT DISTINCT auftrag_id FROM gaenge WHERE platz = ?", (alt,))]
                     self.con.execute("UPDATE gaenge SET platz = ? WHERE platz = ?", (name, alt))
@@ -418,6 +451,8 @@ class Daten:
                 self.con.execute("UPDATE maschinen SET uebergang_tage = ? WHERE name = ?", (uebergang, name))
             if ausweich is not None:
                 self.con.execute("UPDATE maschinen SET ausweich = ? WHERE name = ?", (int(bool(ausweich)), name))
+            if samstag is not None:
+                self.con.execute("UPDATE maschinen SET schichten_sa = ? WHERE name = ?", (",".join(samstag), name))
             if schichten is not None:
                 self.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?",
                                  ("|".join(",".join(w) for w in schichten), name))
@@ -435,7 +470,69 @@ class Daten:
         if n:
             raise Fehler(f"Auf „{name}“ liegen noch {n} Aufträge. Die Maschine lässt sich stattdessen auf „nicht "
                          "aktiv“ stellen.")
-        self.con.execute("DELETE FROM maschinen WHERE name = ?", (name,))
+        with self.con:
+            self.con.execute("BEGIN")
+            self.con.execute("DELETE FROM maschinen WHERE name = ?", (name,))
+            self.con.execute("DELETE FROM ausnahmen WHERE maschine = ?", (name,))
+
+    def _schichtnamen(self, namen):
+        """Geprüfte Schichtnamen in der Reihenfolge der Schichtliste; zusammen höchstens 24 Stunden."""
+        bekannt = {x["name"]: x for x in self.schichten()}
+        fehlt = [n for n in namen if n not in bekannt]
+        if fehlt:
+            raise Fehler(f"Die Schicht „{fehlt[0]}“ gibt es nicht (Einstellungen → Schichten).")
+        liste = [n for n in bekannt if n in namen]
+        if sum(bekannt[n]["dauer"] for n in liste) > 24 + 1e-9:
+            raise Fehler("Die gewählten Schichten ergeben zusammen mehr als 24 Stunden am Tag.")
+        return liste
+
+    # ------------------------------------------------------------------ Ausnahmen im Schichtkalender
+    def ausnahmen(self):
+        """Ausnahmen nach Datum: [dict(id, maschine ('' = alle), von, bis (Datum), namen (Schichten, [] = frei),
+        grund)]. Ein einzelner Tag gilt immer außer am Sonntag, auch am Samstag und am Feiertag; ein Zeitraum gilt
+        für Montag bis Freitag ohne Feiertage."""
+        out = []
+        for z in self.con.execute("SELECT * FROM ausnahmen ORDER BY von, bis, maschine, id"):
+            von, bis = _tag_iso(z["von"]), _tag_iso(z["bis"])
+            if von and bis:
+                out.append(dict(id=z["id"], maschine=z["maschine"], von=von, bis=bis, grund=z["grund"],
+                                namen=[n for n in z["schichten"].split(",") if n]))
+        return out
+
+    def ausnahme_speichern(self, maschine, von, bis=None, schichten=(), grund="", id=None):
+        """Ausnahme anlegen oder ändern (id). maschine '' oder None = alle Maschinen; von/bis: Datum oder Text
+        (TT.MM.JJJJ); schichten: Namen, leer = an diesen Tagen wird nicht gearbeitet."""
+        maschine = str(maschine or "").strip()
+        if maschine and maschine not in {m["name"] for m in self.maschinen()}:
+            raise Fehler(f"Die Maschine „{maschine}“ gibt es nicht.")
+        tage = []
+        for wert in (von, bis if bis not in (None, "") else von):
+            if not isinstance(wert, datetime.date):
+                treffer = wochen.betriebsruhe(str(wert or ""))
+                if len(treffer) != 1:
+                    raise Fehler(f"Ausnahme: „{wert}“ ist kein Datum. Beispiel: 24.11.2026")
+                wert = next(iter(treffer))
+            tage.append(wert)
+        von, bis = tage
+        if bis < von:
+            raise Fehler("Ausnahme: „bis“ liegt vor „von“.")
+        if (bis - von).days > 366:
+            raise Fehler("Eine Ausnahme geht über höchstens ein Jahr.")
+        if von == bis and von.weekday() == 6:
+            raise Fehler("Am Sonntag wird nicht eingelastet, eine Ausnahme dort hat keine Wirkung.")
+        namen = self._schichtnamen(list(schichten or ()))
+        werte = (maschine, von.isoformat(), bis.isoformat(), ",".join(namen), str(grund or "").strip())
+        with self.con:
+            if id:
+                self.con.execute("UPDATE ausnahmen SET maschine = ?, von = ?, bis = ?, schichten = ?, grund = ? "
+                                 "WHERE id = ?", werte + (id,))
+                return id
+            return self.con.execute("INSERT INTO ausnahmen (maschine, von, bis, schichten, grund) "
+                                    "VALUES (?, ?, ?, ?, ?)", werte).lastrowid
+
+    def ausnahme_entfernen(self, id):
+        with self.con:
+            self.con.execute("DELETE FROM ausnahmen WHERE id = ?", (id,))
 
     # ------------------------------------------------------------------ Zusatzfelder
     def zusatzfelder(self):
@@ -672,6 +769,36 @@ class Daten:
             self._maschine_wechseln(a, None, maschine)
             self.con.execute("UPDATE auftraege SET geaendert = ? WHERE id = ?", (_jetzt(), auftrag_id))
             self._verlauf(auftrag_id, f"geändert (Maschine: {a['maschine']} → {maschine})")
+
+    def optimierung_uebernehmen(self, schritte):
+        """Vorschlag der automatischen Optimierung speichern: schritte = [dict(id, art 'maschine'|'vorziehen'|
+        'termin', nach)] in ihrer Reihenfolge. Ergebnis: der Stand davor für „Rückgängig“ (optimierung_zurueck)."""
+        davor = []
+        for s in schritte:
+            a = self.auftrag(s["id"])
+            if a is None or a["status"] == FERTIG or a["gaenge"]:
+                continue
+            if not any(d["id"] == a["id"] for d in davor):
+                davor.append(dict(id=a["id"], maschine=a["maschine"], vorrang=int(a["vorrang"] or 0)))
+            if s["art"] == "maschine":
+                self.maschine_wechseln(a["id"], s["nach"])
+            else:
+                self.vorrang_setzen(a["id"], 1 if s["art"] == "vorziehen" else 0)
+            self._verlauf(a["id"], "automatische Optimierung übernommen")
+        return davor
+
+    def optimierung_zurueck(self, davor):
+        """Rückgängig für optimierung_uebernehmen(): Maschine und Reihenfolge wie davor."""
+        with self.con:
+            self.con.execute("BEGIN")
+            for d in davor:
+                a = self.auftrag(d["id"])
+                if a is None or a["status"] == FERTIG:
+                    continue
+                self._maschine_wechseln(a, None, d["maschine"])
+                self.con.execute("UPDATE auftraege SET vorrang = ?, geaendert = ? WHERE id = ?",
+                                 (d["vorrang"], _jetzt(), d["id"]))
+                self._verlauf(d["id"], "automatische Optimierung rückgängig gemacht")
 
     def zuruecksetzen(self, davor):
         """Rückgängig für festlegen(): Platz und Maschine wie davor."""

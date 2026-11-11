@@ -24,7 +24,8 @@ a = Analysis([os.path.join(SPECPATH, "start_auslastung.py")], pathex=[SPECPATH],
              noarchive=False)
 fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.einlastung", "rohrlaser.wochen", "rohrlaser.feiertage", "rohrlaser.stil", "rohrlaser.auslastung_grafik",
-    "rohrlaser.update", "rohrlaser.update_schluessel")]             # die letzten zwei: Online-Update
+    "rohrlaser.update", "rohrlaser.update_schluessel",              # diese zwei: Online-Update
+    "rohrlaser.mausrad")]                                           # das Mausrad ändert keine Werte
 if fremd:
     raise SystemExit("auslastung.spec: das Programm zieht Module der Kalkulation mit: " + ", ".join(fremd))
 pyz = PYZ(a.pure)
